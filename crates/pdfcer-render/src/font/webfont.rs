@@ -540,6 +540,7 @@ fn post_v3(source: Option<&[u8]>) -> Vec<u8> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

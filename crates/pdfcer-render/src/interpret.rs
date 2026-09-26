@@ -10065,6 +10065,7 @@ fn image_edge_needs_antialiasing(ctm: Transform) -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod image_edge_antialiasing_tests {
     use super::image_edge_needs_antialiasing;
     use tiny_skia::Transform;

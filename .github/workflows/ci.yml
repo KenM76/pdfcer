@@ -327,7 +327,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (26 checks)
+    name: repository audits (27 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -528,6 +528,12 @@ jobs:
       # or runs, and nothing else goes red.
       - name: check every integration-test file is in its crate's test binary
         run: python tools/check-tests-harnessed.py
+
+      # Engine crates read untrusted input, so each lib.rs denies the panicking
+      # clippy lints and forbids unsafe. A crate split out of pdfcer-core starts
+      # a fresh lib.rs; this fails if the policy did not follow it.
+      - name: check every engine crate keeps the panic-free lint policy
+        run: python tools/check-engine-lint-policy.py
 
       # In clap-derive a `///` doc comment IS the shipped `--help` text, and
       # only its FIRST line becomes the short summary. A doc block whose real

@@ -40,6 +40,29 @@ index and ends with **Traps**.
 > was built while correcting part 2 and its input was part 2, so it went
 > green while the front door of the same directory still said 108.
 
+## Depend on `pdfcer-core` only; grep the crate that holds the source
+
+`pdfcer-core` is a facade. Its lower layers are separate workspace crates,
+each re-exported at its old `pdfcer_core::<module>` path. A consumer names
+`pdfcer-core` in its manifest and nothing else. The split changes only where
+a file lives on disk, so a `file:line` in these documents may point into
+another crate.
+
+| `pdfcer_core::` modules | source lives in |
+|---|---|
+| `content`, `crypto`, `document`, `filters`, `graph`, `lexer`, `linearization`, `object`, `objstm`, `page_tree`, `parser`, `recover`, `span`, `view`, `writer`, `xref`, `probe_*` | `crates/pdfcer-model/src/` |
+| `image_codec` | `crates/pdfcer-image-codec/src/` |
+| `font_embed`, `fontdata`, `fontinfo`, `linebreak`, `textstring`, `vartext` | `crates/pdfcer-fonts/src/` |
+| `trust_chain`, `trust_store` | `crates/pdfcer-pkix/src/` |
+| `color` | `crates/pdfcer-color/src/` |
+| `text_extract`, `text_state` | `crates/pdfcer-text/src/` |
+| everything else (`edit`, `forms`, `annot`, `redact`, `ocr`, …) | `crates/pdfcer-core/src/` |
+
+`#[doc(hidden)]` items commented "workspace-internal" are `pub` only so
+sibling crates can call them. They are not API; do not call them.
+`crates/pdfcer-core/tests/facade_paths.rs` fails the build if a path in this
+table stops resolving.
+
 ## Read these four things before writing any code against this crate
 
 1. **Coordinate spaces.** PDF user space is **y-UP**; image and screen

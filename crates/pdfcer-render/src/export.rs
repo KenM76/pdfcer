@@ -377,6 +377,7 @@ pub fn encode_jpeg(pixmap: &Pixmap, options: &JpegOptions) -> Result<Vec<u8>, Ex
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

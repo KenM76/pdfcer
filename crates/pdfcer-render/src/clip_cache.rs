@@ -242,6 +242,7 @@ impl ClipCache {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use tiny_skia::PathBuilder;

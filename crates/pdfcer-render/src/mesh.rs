@@ -1279,7 +1279,9 @@ fn parse_patches(
 
         // Fill the inherited quarter, in tensor indices.
         if flag != 0 {
-            let prev_patch = prev.expect("checked above");
+            let Some(prev_patch) = prev else {
+                return Err(MeshRefusal::NoCompleteRecord);
+            };
             let src: [(usize, usize); 4] = match flag {
                 1 => [(0, 3), (1, 3), (2, 3), (3, 3)],
                 2 => [(3, 3), (3, 2), (3, 1), (3, 0)],
@@ -2153,6 +2155,7 @@ fn composite(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

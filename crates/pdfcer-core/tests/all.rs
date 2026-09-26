@@ -39,6 +39,7 @@ mod edit_latency;
 mod edit_undo;
 mod editable_roundtrip;
 mod encryption;
+mod facade_paths;
 mod field_appearance;
 mod field_properties;
 mod field_script_authoring;

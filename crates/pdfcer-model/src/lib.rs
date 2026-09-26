@@ -6,6 +6,15 @@
 //! Depends on nothing else in the workspace; `pdfcer-core` re-exports every
 //! module at its old path (`docs/ARCHITECTURE.md` §3). No GUI and no network
 //! dependency, and it builds for `wasm32-unknown-unknown`.
+//!
+//! # Spec basis for the header probe
+//!
+//! ISO 32000-1:2008 §7.5.2: the first line of a PDF file is `%PDF-` followed
+//! by `1.N`; ISO 32000-2 adds `2.0`. The spec puts the marker at byte 0.
+//! [`HEADER_SCAN_WINDOW`]'s 1024-byte tolerance is **not** spec text: it
+//! matches mainstream readers, which accept the marker after a BOM or stray
+//! whitespace (recorded empirically in `C:\personal_rag\pdf\`). A successful
+//! probe means only "this looks like a PDF and declares version M.N".
 
 // pdfcer-model parses untrusted input, so a panic reachable from library code is
 // a denial-of-service bug, not a style issue. `unwrap`/`expect`/`panic!` and

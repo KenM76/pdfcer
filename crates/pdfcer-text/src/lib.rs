@@ -5,6 +5,14 @@
 //! `wasm32-unknown-unknown`.
 
 #![forbid(unsafe_code)]
+// Panic-free, as in pdfcer-core: this crate reads untrusted input, so a
+// reachable panic is a denial-of-service bug. Tests opt out per module.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 
 pub mod text_extract;
 pub mod text_state;

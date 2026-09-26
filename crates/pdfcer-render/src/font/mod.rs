@@ -1491,6 +1491,7 @@ impl RenderOptions {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod render_policy_tests {
     use super::{RenderOptions, RenderPolicy};
 

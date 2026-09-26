@@ -867,6 +867,7 @@ pub(crate) fn timing_enabled() -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

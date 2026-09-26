@@ -1,59 +1,28 @@
-//! # pdfcer-core — the GUI-agnostic PDF engine
+//! # pdfcer-core — the GUI-agnostic PDF engine, as one facade
 //!
-//! This crate is the heart of pdfcer (docs/ARCHITECTURE.md §3, §4). Its
-//! eventual scope is the full COS object model, tokenizer, cross-reference
-//! parsing (classic tables and xref streams), object streams, an
-//! incremental-update writer, filters, fonts, colour spaces, encryption,
-//! digital-signature verification, and a content-stream interpreter that
-//! emits a draw-op stream (never pixels — rasterization lives in the
-//! separate `pdfcer-render` crate).
+//! The editing layer ([`edit::EditSession`] and every verb behind it) lives
+//! here. The layers below it are separate crates, each re-exported at its
+//! `pdfcer_core::<module>` path, so a consumer depends on this crate alone
+//! and never names the others (`docs/ARCHITECTURE.md` §3).
 //!
-//! ## Load-bearing invariant
+//! | modules | crate |
+//! |---|---|
+//! | `content`, `crypto`, `document`, `filters`, `graph`, `lexer`, `linearization`, `object`, `objstm`, `page_tree`, `parser`, `recover`, `span`, `view`, `writer`, `xref`, header probing | `pdfcer-model` |
+//! | `image_codec` (`ccitt`, `dct`, `jbig2`, `jpx`) | `pdfcer-image-codec` |
+//! | `font_embed`, `fontdata`, `fontinfo`, `linebreak`, `textstring`, `vartext` | `pdfcer-fonts` |
+//! | `trust_chain`, `trust_store` (and the private `asn1`, `cms`) | `pdfcer-pkix` |
+//! | `color` | `pdfcer-color` |
+//! | `text_extract`, `text_state` | `pdfcer-text` |
+//! | everything else | this crate |
 //!
-//! `pdfcer-core` **must not** depend on any GUI/windowing crate
-//! (egui/eframe/winit/wgpu). This is what keeps the future web fork a
-//! shell-crate swap instead of a rewrite (docs/ARCHITECTURE.md §3). CI
-//! greps `cargo tree -p pdfcer-core` to enforce it. The only dependency at
-//! Pass 0 is `thiserror` (a compile-time derive macro, no runtime/GUI
-//! surface).
+//! Items marked `#[doc(hidden)]` with a "workspace-internal" comment are
+//! `pub` only so a sibling crate can call them. They are not API.
 //!
-//! ## Pass 0 scope (this file)
+//! ## Load-bearing invariants
 //!
-//! Pass 0 is the workspace bootstrap. The only real behaviour implemented
-//! here is **header probing**: given the leading bytes of a file (or a
-//! path), confirm the `%PDF-` marker and extract the declared version.
-//! This backs both front ends' Pass 0 acceptance bar (the GUI "Open File"
-//! flow and `pdfcer inspect`) without yet standing up the tokenizer or
-//! object parser — those arrive in Pass 1 (docs/ROADMAP.md).
-//!
-//! Deliberately **not** done here yet: validating that the rest of the
-//! file is well-formed, locating the `startxref`/trailer, or reading any
-//! object. A successful probe means only "this looks like a PDF and
-//! declares version M.N", which is exactly the Pass 0 contract.
-//!
-//! ## Spec basis
-//!
-//! The file header is specified in ISO 32000-1:2008 §7.5.2 ("File
-//! header"; see `iso32000__s__7.5.md` in the PDF-spec RAG at
-//! `D:\Dev\Rag-Specialized\PDF_Spec\`): the first line of a PDF file is
-//! `%PDF-` followed by a version number of the form `1.N` (PDF 1.x) —
-//! ISO 32000-2 adds `2.0`. Per the spec the marker is at byte offset 0.
-//!
-//! **The 1024-byte tolerance window is NOT spec text.** Real-world
-//! producers sometimes emit leading bytes (a UTF-8 BOM, stray whitespace)
-//! before the marker, and mainstream readers — following Acrobat's
-//! implementation practice — accept the marker anywhere within roughly
-//! the first 1024 bytes. This probe matches that common practice rather
-//! than demanding the marker at byte 0. (An earlier revision of this
-//! module miscited the window as ISO 32000-2 §7.5.2; the spec-RAG build
-//! of 2026-07-30 could not verify any such clause — the window is
-//! empirical, and is recorded as such here and in `C:\personal_rag\pdf\`.)
-//!
-//! Open question deliberately deferred to the Pass 1 xref work: when the
-//! header is NOT at byte 0, are the file's byte offsets (`startxref`,
-//! xref entries) relative to byte 0 or to the `%PDF-` marker? The spec
-//! assumes byte 0; real producers may disagree. The probe itself doesn't
-//! care, but the xref parser must decide (and possibly try both).
+//! No GUI/windowing dependency (egui, eframe, winit, wgpu) and no network
+//! client, in this crate or any it re-exports; every one builds for
+//! `wasm32-unknown-unknown`. CI checks `cargo tree` and the wasm32 build.
 
 // Panic-free library policy (docs/decisions/001-oxidize-pdf-adopt-vs-build.md
 // §6.1 item 5, serving docs/ARCHITECTURE.md §10's adversarial-input posture):
@@ -61,8 +30,8 @@
 // a denial-of-service bug, not a style issue. `unwrap`/`expect`/`panic!` and
 // unchecked indexing/slicing are DENIED crate-wide; fallible paths must return
 // `Result` and bounds-dependent accesses must use `.get(..)`-style checked
-// forms. Tests are exempt (a panicking test is just a failing test) via the
-// `#[allow]` on the `tests` module below.
+// forms. Tests are exempt (a panicking test is just a failing test) via an
+// `#[allow]` on each `tests` module.
 #![forbid(unsafe_code)]
 #![deny(
     clippy::unwrap_used,
@@ -99,12 +68,6 @@ pub mod formcsv;
 pub mod forms;
 pub mod forms_author;
 pub mod function;
-pub use pdfcer_color::color;
-pub use pdfcer_fonts::{font_embed, fontdata, fontinfo, linebreak, textstring, vartext};
-pub use pdfcer_image_codec as image_codec;
-use pdfcer_pkix::{asn1, cms};
-pub use pdfcer_pkix::{trust_chain, trust_store};
-pub use pdfcer_text::{text_extract, text_state};
 pub mod image_import;
 pub mod layers;
 /// OCR text layers — turning recognised words into an invisible, selectable
@@ -132,12 +95,18 @@ pub mod text_edit;
 pub mod vector;
 pub mod wrapper;
 
+// The facade: each lower crate's modules at their `pdfcer_core::` paths.
+// `tests/facade_paths.rs` fails if one stops resolving.
+pub use pdfcer_color::color;
+pub use pdfcer_fonts::{font_embed, fontdata, fontinfo, linebreak, textstring, vartext};
+pub use pdfcer_image_codec as image_codec;
 pub use pdfcer_model::{
     HEADER_SCAN_WINDOW, PdfError, PdfVersion, probe_cos_header, probe_file, probe_header,
 };
-/// The COS model layer, re-exported from `pdfcer-model` so every
-/// `pdfcer_core::<module>` path keeps resolving.
 pub use pdfcer_model::{
     content, crypto, document, filters, graph, lexer, linearization, object, objstm, page_tree,
     parser, recover, span, view, writer, xref,
 };
+use pdfcer_pkix::{asn1, cms};
+pub use pdfcer_pkix::{trust_chain, trust_store};
+pub use pdfcer_text::{text_extract, text_state};

@@ -92,6 +92,16 @@
 //! is disclosed — pdfcer chose a resolution the operator did not ask for,
 //! which is exactly rule 4's territory.
 
+// Panic-free, as in pdfcer-core: page rasters and printer names arrive from
+// outside, so a reachable panic is a crash in the operator's print job. Tests
+// opt out per module. `unsafe` is not forbidden: the Win32 print API needs it.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
+
 // NOTE: this module is NOT wholly `cfg(windows)`. The page-placement
 // math below is pure geometry with no platform dependency, and it is the
 // part most worth unit-testing — so it compiles and its tests run on the
@@ -3464,7 +3474,9 @@ fn blit_page(
     // RGBA (caller) -> BGRX (GDI).
     let mut bgra = Vec::with_capacity(page.rgba.len());
     for px in page.rgba.chunks_exact(4) {
-        bgra.extend_from_slice(&[px[2], px[1], px[0], 0]);
+        if let [r, g, b, _] = *px {
+            bgra.extend_from_slice(&[b, g, r, 0]);
+        }
     }
 
     let header = BITMAPINFOHEADER {
@@ -3603,6 +3615,12 @@ pub fn spool_sheets(
 /// absent — reports success while testing nothing, which is the failure
 /// mode this project has caught repeatedly.
 #[cfg(all(test, windows))]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod windows_settings_tests {
     use super::{
         DMBIN_FORMSOURCE_VALUE, DeviceSettings, Duplex, Orientation, PageBitmap, PaperSelection,

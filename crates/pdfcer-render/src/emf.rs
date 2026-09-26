@@ -1118,6 +1118,7 @@ pub fn walk_records(emf: &[u8]) -> Option<Vec<(u32, u32)>> {
 fn _types(_: Arc<Mask>, _: BrushSpec) {}
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

@@ -2761,6 +2761,7 @@ fn composite_non_isolated_group(
 /// build inline"*, and an argument that is only made in a comment is an
 /// argument nobody can re-run.
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

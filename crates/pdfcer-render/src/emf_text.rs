@@ -258,6 +258,7 @@ fn style(run: &TextRunInfo) -> (i32, bool) {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

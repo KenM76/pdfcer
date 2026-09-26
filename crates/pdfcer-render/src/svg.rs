@@ -1153,6 +1153,7 @@ fn base64(bytes: &[u8]) -> String {
 fn _types(_: Arc<Pixmap>) {}
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

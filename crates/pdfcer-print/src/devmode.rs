@@ -971,6 +971,12 @@ fn utf16_field(bytes: &[u8]) -> String {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::{
         ConfigurationError, DEVMODE_PUBLIC_BYTES, MAX_CUSTOM_SHEET_TENTHS_MM, PaperSelection,
