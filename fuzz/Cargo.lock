@@ -382,11 +382,20 @@ dependencies = [
  "cbc",
  "flate2",
  "jpeg-encoder",
+ "pdfcer-fonts",
  "pdfcer-image-codec",
  "pdfcer-model",
  "sha2",
  "thiserror",
  "weezl",
+]
+
+[[package]]
+name = "pdfcer-fonts"
+version = "0.55.0"
+dependencies = [
+ "pdfcer-model",
+ "thiserror",
 ]
 
 [[package]]

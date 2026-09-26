@@ -143,6 +143,9 @@ pdfcer-model = { path = "../pdfcer-model" }
 # pdfcer-image-codec: the terminal image codecs (DCT, CCITT, JBIG2, JPX),
 # split out of this crate and re-exported as `image_codec` (Pass 325.0 step 3).
 pdfcer-image-codec = { path = "../pdfcer-image-codec", default-features = false }
+# pdfcer-fonts: font data, inventory, embedding, text strings and variable
+# text, split out and re-exported at the old paths (Pass 325.0 step 3).
+pdfcer-fonts = { path = "../pdfcer-fonts" }
 
 # thiserror: the ecosystem-standard derive for well-behaved error types
 # (Rust API Guidelines C-GOOD-ERR — errors implement std::error::Error and

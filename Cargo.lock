@@ -907,6 +907,7 @@ dependencies = [
  "p256",
  "p384",
  "pbkdf2",
+ "pdfcer-fonts",
  "pdfcer-image-codec",
  "pdfcer-model",
  "rand_core",
@@ -927,6 +928,14 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror",
  "ureq",
+]
+
+[[package]]
+name = "pdfcer-fonts"
+version = "0.55.0"
+dependencies = [
+ "pdfcer-model",
+ "thiserror",
 ]
 
 [[package]]

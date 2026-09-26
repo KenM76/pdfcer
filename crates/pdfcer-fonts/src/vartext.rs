@@ -2,7 +2,7 @@
 //!
 //! The **hardest single piece of appearance generation**, isolated into
 //! Pass 6.2 so Pass 7 (Forms) inherits a proven generator. Where
-//! [`crate::annot_author`] turns *geometry* into an `/AP` `/N` form
+//! `pdfcer_core::annot_author` turns *geometry* into an `/AP` `/N` form
 //! XObject, this module turns *text* into one: given a text value, a `/DA`
 //! default-appearance string, a `/Q` quadding code, and a resource set, it
 //! produces the `/Tx BMC … EMC` marked-content body §12.7.3.3 specifies
@@ -24,7 +24,7 @@
 //!   string is a *content-stream fragment stored in a PDF string* — it can
 //!   carry names, reals, arrays and operators, so a split-on-space scanner
 //!   misparses it. [`parse_default_appearance`] runs
-//!   [`ContentStream::parse`](crate::content::ContentStream::parse) over
+//!   [`ContentStream::parse`](pdfcer_model::content::ContentStream::parse) over
 //!   the `/DA` bytes and reads the operators back out — never an ad-hoc
 //!   scan.
 //! - **The only `shall`-minimum is `Tf`** (font + size). Colour is *not*
@@ -84,11 +84,11 @@
 //!   COUNTED** ([`VarTextAppearance::unencodable_chars`]) — disclosed, not
 //!   silently dropped (fuzzy-never-sneaky).
 
-use crate::content::{ContentStream, ContentTokenKind};
 use crate::fontdata::{self, BaseEncoding, Std14};
-use crate::object::{Dict, Name, Object};
-use crate::page_tree::Rect;
-use crate::writer::content::{ContentBuilder, Paint};
+use pdfcer_model::content::{ContentStream, ContentTokenKind};
+use pdfcer_model::object::{Dict, Name, Object};
+use pdfcer_model::page_tree::Rect;
+use pdfcer_model::writer::content::{ContentBuilder, Paint};
 
 /// A text fill colour parsed from — or authored into — a `/DA` string
 /// (§12.7.3.3 Table 222). The array length selects the device colour
@@ -516,7 +516,7 @@ pub fn visible_line_count(box_h: f64, size: f64) -> usize {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::vartext::{default_appearance_string, TextColor};
+/// use pdfcer_fonts::vartext::{default_appearance_string, TextColor};
 ///
 /// let da = default_appearance_string(b"Helv", 12.0, TextColor::Gray(0.0));
 /// assert_eq!(da, b"/Helv 12 Tf\n0 g\n");
@@ -543,8 +543,8 @@ pub fn default_appearance_string(name: &[u8], size: f64, color: TextColor) -> Ve
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::vartext::standard14_font_dict;
-/// use pdfcer_core::fontdata::Std14;
+/// use pdfcer_fonts::vartext::standard14_font_dict;
+/// use pdfcer_fonts::fontdata::Std14;
 ///
 /// let d = standard14_font_dict(Std14::Helvetica);
 /// assert_eq!(d.get(b"BaseFont").unwrap().as_name().unwrap().as_bytes(), b"Helvetica");
@@ -609,7 +609,7 @@ const fn base_font_name(font: Std14) -> &'static [u8] {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::vartext::{parse_default_appearance, TextColor};
+/// use pdfcer_fonts::vartext::{parse_default_appearance, TextColor};
 ///
 /// let da = parse_default_appearance(b"0 0 1 rg /Helv 14 Tf").unwrap();
 /// assert_eq!(da.font_name, b"Helv");
@@ -698,7 +698,7 @@ pub fn parse_default_appearance(da: &[u8]) -> Result<DefaultAppearance, VarTextE
 }
 
 /// The numeric operands of an operation, in order (non-numbers skipped).
-fn number_operands(op: &crate::content::Operation<'_>) -> Vec<f64> {
+fn number_operands(op: &pdfcer_model::content::Operation<'_>) -> Vec<f64> {
     op.operands
         .iter()
         .filter_map(|tok| match &tok.kind {
@@ -940,13 +940,14 @@ fn winansi_code(ch: char) -> Option<u8> {
 /// named Base-14-Latin limit — disclosed, never silently dropped).
 ///
 /// `pub(crate)` since `Pass 68.0`: the ce-dimension `/AP` baker
-/// ([`crate::dimension::author_dimension`]) declares the same
+/// (`pdfcer_core::dimension::author_dimension`) declares the same
 /// `/WinAnsiEncoding` Base-14 font this module does, and was writing raw UTF-8
 /// into it. That was invisible for as long as every label was ASCII, and
 /// became visible the moment angular ce dimensions put a degree sign in one —
 /// `77.5°` rendered as `77.5Â°`. One encoder, shared, rather than a second one
 /// that would have to learn the same table.
-pub(crate) fn encode_winansi(text: &str) -> (Vec<u8>, usize) {
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn encode_winansi(text: &str) -> (Vec<u8>, usize) {
     let mut out = Vec::new();
     let mut miss = 0usize;
     for ch in text.chars() {
@@ -1237,7 +1238,7 @@ mod tests {
     /// Format a number the way `emit_number` does, for substring matching.
     fn trim_num(v: f64) -> String {
         let mut out = Vec::new();
-        crate::writer::content::emit_number(&mut out, v);
+        pdfcer_model::writer::content::emit_number(&mut out, v);
         String::from_utf8(out).unwrap()
     }
 

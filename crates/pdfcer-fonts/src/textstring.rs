@@ -4,7 +4,7 @@
 //! strings.** The distinction is the classic PDF text bug and it is
 //! load-bearing here: a show string's bytes are *character codes*
 //! interpreted through the font's `/Encoding` or CMap (§9.6.6 / §9.7,
-//! and for extraction the §9.10.2 ladder in [`crate::text_extract`]);
+//! and for extraction the §9.10.2 ladder in `pdfcer_core::text_extract`);
 //! a text string's bytes are interpreted by exactly one of two rules
 //! stated in §7.9.2.2 and by nothing else. Running one through the
 //! other's decoder produces mojibake in one direction and silent
@@ -252,7 +252,7 @@ const fn build_pdf_doc_encoding() -> [u16; 256] {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::textstring::pdf_doc_char;
+/// use pdfcer_fonts::textstring::pdf_doc_char;
 ///
 /// assert_eq!(pdf_doc_char(b'A'), Some('A'));
 /// // The two divergences from Latin-1 that silently corrupt text:
@@ -338,7 +338,7 @@ pub enum TextStringForm {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::textstring::{decode_text_string, TextStringForm};
+/// use pdfcer_fonts::textstring::{decode_text_string, TextStringForm};
 ///
 /// let d = decode_text_string(b"Hello");
 /// assert_eq!(d.text, "Hello");
@@ -423,7 +423,7 @@ fn decode_utf16be(bytes: &[u8]) -> DecodedText {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::textstring::decode_utf16be_bytes;
+/// use pdfcer_fonts::textstring::decode_utf16be_bytes;
 ///
 /// // The §9.10.3 EXAMPLE 2 surrogate destination: U+2003E.
 /// assert_eq!(decode_utf16be_bytes(&[0xD8, 0x40, 0xDC, 0x3E]).0, "\u{2003E}");
@@ -552,7 +552,7 @@ fn language_escape(units: &[u16], at: usize) -> Option<(String, usize)> {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::textstring::{decode_text_string, encode_text_string};
+/// use pdfcer_fonts::textstring::{decode_text_string, encode_text_string};
 ///
 /// assert_eq!(encode_text_string("Hello"), b"Hello".to_vec());
 /// // The Euro fits PDFDocEncoding at 0xA0 ...

@@ -117,12 +117,12 @@ builds `--no-default-features`, so both configurations compile.
 | Search for text **and learn what was unreadable** | `EditSession::search_text(&needle, &TextSearchOptions)` — `edit.rs:16450` → `TextSearch { matches, diagnostics }` | §8.5 |
 | Render-setting preset for a subset standard (PDF/X, PDF/A, PDF/UA) | `pdfcer_core::settings::presets::RenderPreset::for_standard(RenderStandard)` | §8.5a |
 | Decode a PDF text string (`/Title`, `/Author`, bookmark labels) | `textstring::decode_text_string(&[u8]) -> DecodedText` — `textstring.rs:363` | §8.6 |
-| Inventory every font the document uses | `fontinfo::inventory(&DocumentView) -> FontInventory` — `fontinfo.rs:1601` | §9.1 |
-| Know if a font is embedded / subsetted / removable | `FontRecord::program`, `::removability` — `fontinfo.rs:1209-1259`; `split_subset_tag` — `fontinfo.rs:1320` | §9.1 |
-| Read a font's embedding permission (`OS/2 fsType`) | `fontinfo::read_fs_type(&[u8])` — `fontinfo.rs:744` | §9.1 |
+| Inventory every font the document uses | `fontinfo::inventory(&DocumentView) -> FontInventory` — `fontinfo.rs:1600` | §9.1 |
+| Know if a font is embedded / subsetted / removable | `FontRecord::program`, `::removability` — `fontinfo.rs:1208-1258`; `split_subset_tag` — `fontinfo.rs:1319` | §9.1 |
+| Read a font's embedding permission (`OS/2 fsType`) | `fontinfo::read_fs_type(&[u8])` — `fontinfo.rs:743` | §9.1 |
 | Resolve one font resource for text decoding | `ExtractFont::resolve(&DocumentView, &Dict)` — `text_extract/font.rs:381` | §9.2 |
 | Map a character code to Unicode via `/ToUnicode` | `ToUnicodeCMap::parse(&[u8])` → `::lookup(u32)` — `cmap.rs:272`, `cmap.rs:552` | §9.3 |
-| Get Base-14 metrics without any font file | `fontdata::std14_width`, `std14_descriptor` — `fontdata/mod.rs:382`, `:489` | §9.4 |
+| Get Base-14 metrics without any font file | `fontdata::std14_width`, `std14_descriptor` — `fontdata/mod.rs:421`, `:528` | §9.4 |
 | Turn a page into selectable vector/text/image objects | `vector::decompose_page(&DocumentView, &Page, Matrix)` — `vector/decompose.rs:1626` | §10.1 |
 | **Find what the user clicked** | **`vector::hit_test_point_deep(&PageObjects, Point, tolerance)` — `vector/hit.rs:255`** | §10.3 |
 | Find what the user clicked, **page stream only** | `vector::hit_test_point(&PageObjects, Point, tolerance)` — `vector/hit.rs:126` | §10.3 |
@@ -1494,6 +1494,9 @@ commits).
 
 **Module set:** `fontinfo`, `fontdata`, `text_extract::font`,
 `text_extract::cmap`.
+`fontinfo`, `fontdata` and `textstring` live in `crates/pdfcer-fonts/src/`,
+re-exported at their `pdfcer_core::` paths; line references below are into
+that crate.
 
 Two different jobs live here. `fontinfo` answers *"what fonts does this
 document use, and what may I do with them?"* — a document-level inventory
@@ -1505,17 +1508,17 @@ this font's character codes into text?"* — per-resource decoding.
 ```rust
 use pdfcer_core::fontinfo::{self, Removability};
 
-let inv = fontinfo::inventory(&doc.view());     // fontinfo.rs:1601 — INFALLIBLE, no Result
+let inv = fontinfo::inventory(&doc.view());     // fontinfo.rs:1600 — INFALLIBLE, no Result
 for f in &inv.fonts {                            // Vec<FontRecord>, first-discovery order
-    // FontRecord: fontinfo.rs:1209
+    // FontRecord: fontinfo.rs:1208
     let embedded = matches!(f.program, fontinfo::Program::Embedded(_));
-    let pages = fontinfo::format_page_ranges(&f.pages);    // fontinfo.rs:1416 -> "1-3, 7"
+    let pages = fontinfo::format_page_ranges(&f.pages);    // fontinfo.rs:1415 -> "1-3, 7"
 }
 println!("{} embedded, {} bytes", inv.embedded_count(), inv.embedded_bytes()); // :1514, :1528
 println!("not walked: {:?}", inv.coverage.not_walked());                        // :1183
 ```
 
-`FontInventory{fonts, coverage, diagnostics}` — `fontinfo.rs:1501`.
+`FontInventory{fonts, coverage, diagnostics}` — `fontinfo.rs:1500`.
 `Program` — `:494`: `NotEmbedded` | `Unreadable{key, why}` | `Embedded(EmbeddedProgram)`.
 `Removability` — `:866`, `RemovabilityUnknown` — `:902`.
 `SurfaceCoverage` — `:1104` with `includes` `:1139`, `walked` `:1154`,
@@ -1524,7 +1527,7 @@ println!("not walked: {:?}", inv.coverage.not_walked());                        
 Embedding permission from an embedded program's `OS/2` table:
 
 ```rust
-let bits = fontinfo::read_fs_type(program_bytes)?;   // fontinfo.rs:744 -> FsTypeBits
+let bits = fontinfo::read_fs_type(program_bytes)?;   // fontinfo.rs:743 -> FsTypeBits
 ```
 
 `FsType` `:658`, `FsTypeBits` `:623`, `EmbeddingPermission` `:577`,
@@ -1583,27 +1586,27 @@ program parser** (rule R21; that lives in `pdfcer-render`).
 
 **Units:** `std14_width` returns **glyph space, 1/1000 em** (`u16`), and
 `Std14Descriptor`'s `font_bbox`/`ascender`/`descender` are the same
-(`fontdata/mod.rs:452-469`). Multiply by `font_size / 1000.0` to get text
+(`fontdata/mod.rs:490-509`). Multiply by `font_size / 1000.0` to get text
 space.
 
 ### 9.5 Traps — fonts
 
 - **T-9.1 `FsType::permission()` returning `None` is NOT "permissive".**
-  `fontinfo.rs:558-567`, `:674-684`: an absent `OS/2` table, a `ttcf`
+  `fontinfo.rs:557-566`, `:673-683`: an absent `OS/2` table, a `ttcf`
   collection, or a decode failure all give `None`, and the spec defines
   **no default** for the absent case. Treating `None` as unrestricted is
   exactly the bug this API is shaped to prevent.
 - **T-9.2 `EmbeddingPermission` is a value, not a bitmask.**
-  `fontinfo.rs:569-574`: `0` is the *most* permissive (Installable). Never
+  `fontinfo.rs:568-573`: `0` is the *most* permissive (Installable). Never
   test `fsType != 0` for "restricted".
 - **T-9.3 A subset tag is EXACTLY six uppercase letters.**
-  `fontinfo.rs:1296-1319`: `"ABCDE+Arial"` (five) and `"AbCdEf+Arial"`
+  `fontinfo.rs:1295-1318`: `"ABCDE+Arial"` (five) and `"AbCdEf+Arial"`
   (mixed case) are not tagged — the whole string is the family name.
-- **T-9.4 `FontRecord::pages` empty ≠ unused.** `fontinfo.rs:1249-1251`: a
+- **T-9.4 `FontRecord::pages` empty ≠ unused.** `fontinfo.rs:1248-1250`: a
   font reached only through the AcroForm `/DR` has no page list but is a
   live form-default font.
 - **T-9.5 `glyph_name_to_unicode` (char) silently drops ligatures.**
-  `fontdata/mod.rs:596-603`, `:685-717`: it returns `None` for `f_i` and
+  `fontdata/mod.rs:624-668`: it returns `None` for `f_i` and
   multi-group `uni` names. **For extraction use
   `glyph_name_to_unicode_string`**; the `char` form is the rendering-side
   convenience and will lose text if misused.

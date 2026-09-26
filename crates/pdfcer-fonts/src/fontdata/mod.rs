@@ -212,7 +212,7 @@ impl Std14 {
     /// (ISO 32000-1 §9.6.2.2 defines exactly 14 and has never revised the set).
     ///
     /// Provided so a caller that must enumerate every face (e.g. a font picker
-    /// listing the choices for [`crate::text_edit::add_text`]) has one ordered
+    /// listing the choices for `pdfcer_core::text_edit::add_text`) has one ordered
     /// source of truth instead of re-typing the 14-arm list. Order matches the
     /// enum declaration, so `ALL[0]` is [`Self::Helvetica`] and the two symbolic
     /// faces come last (Pass 16.2 spec §0.4 — a P2 convenience that lets the GUI
@@ -221,7 +221,7 @@ impl Std14 {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::fontdata::{Std14, std14_base_font_name};
+    /// use pdfcer_fonts::fontdata::{Std14, std14_base_font_name};
     ///
     /// assert_eq!(Std14::ALL.len(), 14);
     /// assert_eq!(Std14::ALL[0], Std14::Helvetica);
@@ -296,7 +296,7 @@ pub const fn std14_styled(face: Std14, bold: bool, italic: bool) -> Option<Std14
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontdata::{std14_by_base_font, Std14};
+/// use pdfcer_fonts::fontdata::{std14_by_base_font, Std14};
 ///
 /// assert_eq!(std14_by_base_font("Times-Roman"), Some(Std14::TimesRoman));
 /// assert_eq!(
@@ -334,7 +334,7 @@ pub fn std14_by_base_font(name: &str) -> Option<Std14> {
 ///
 /// Total (every variant has one fixed spelling) and `const`. This is the
 /// name a **writer** must emit in a Standard-14 font dictionary's
-/// `/BaseFont` (Pass 16.0 add-new-text, `crate::text_edit::addtext`): the
+/// `/BaseFont` (Pass 16.0 add-new-text, `pdfcer_core::text_edit::addtext`): the
 /// value `shall` be one of these 14 exact strings (§9.6.2.2), so keeping the
 /// canonical spelling in one place stops the writer from hand-rolling a name
 /// a strict reader would reject.
@@ -342,7 +342,7 @@ pub fn std14_by_base_font(name: &str) -> Option<Std14> {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontdata::{std14_base_font_name, std14_by_base_font, Std14};
+/// use pdfcer_fonts::fontdata::{std14_base_font_name, std14_by_base_font, Std14};
 ///
 /// assert_eq!(std14_base_font_name(Std14::TimesRoman), "Times-Roman");
 /// assert_eq!(std14_base_font_name(Std14::Symbol), "Symbol");
@@ -408,7 +408,7 @@ enum LatinColumn {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontdata::{std14_width, Std14};
+/// use pdfcer_fonts::fontdata::{std14_width, Std14};
 ///
 /// assert_eq!(std14_width(Std14::Helvetica, "space"), Some(278));
 /// assert_eq!(std14_width(Std14::Helvetica, "A"), Some(667));
@@ -514,7 +514,7 @@ pub struct Std14Descriptor {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontdata::{std14_descriptor, Std14};
+/// use pdfcer_fonts::fontdata::{std14_descriptor, Std14};
 ///
 /// let d = std14_descriptor(Std14::Helvetica);
 /// assert_eq!(d.ascender, 718);
@@ -569,7 +569,7 @@ pub enum BaseEncoding {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontdata::{encoding_glyph_name, BaseEncoding};
+/// use pdfcer_fonts::fontdata::{encoding_glyph_name, BaseEncoding};
 ///
 /// assert_eq!(encoding_glyph_name(BaseEncoding::WinAnsi, 0x41), Some("A"));
 /// // StandardEncoding places typographic quotes where WinAnsi has ASCII ones:
@@ -609,7 +609,7 @@ pub fn encoding_glyph_name(enc: BaseEncoding, code: u8) -> Option<&'static str> 
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontdata::glyph_name_to_unicode;
+/// use pdfcer_fonts::fontdata::glyph_name_to_unicode;
 ///
 /// assert_eq!(glyph_name_to_unicode("A"), Some('A'));
 /// assert_eq!(glyph_name_to_unicode("germandbls"), Some('ß'));
@@ -700,7 +700,7 @@ pub fn glyph_name_to_unicode(glyph_name: &str) -> Option<char> {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontdata::is_standard_latin_or_symbol_name;
+/// use pdfcer_fonts::fontdata::is_standard_latin_or_symbol_name;
 ///
 /// assert!(is_standard_latin_or_symbol_name("A"));
 /// assert!(is_standard_latin_or_symbol_name("germandbls"));
@@ -757,7 +757,7 @@ pub fn is_standard_latin_or_symbol_name(glyph_name: &str) -> bool {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontdata::glyph_name_to_unicode_string;
+/// use pdfcer_fonts::fontdata::glyph_name_to_unicode_string;
 ///
 /// assert_eq!(glyph_name_to_unicode_string("A").as_deref(), Some("A"));
 /// // Ligature names decompose — the char-valued API returns None here.
@@ -860,7 +860,7 @@ fn hex_scalar(hex: &str, max: u32) -> Option<char> {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontdata::{std14_builtin_encoding, BaseEncoding, Std14};
+/// use pdfcer_fonts::fontdata::{std14_builtin_encoding, BaseEncoding, Std14};
 ///
 /// assert_eq!(std14_builtin_encoding(Std14::Symbol), BaseEncoding::Symbol);
 /// assert_eq!(std14_builtin_encoding(Std14::Helvetica), BaseEncoding::Standard);
@@ -891,7 +891,8 @@ pub fn std14_builtin_encoding(font: Std14) -> BaseEncoding {
 /// matched on the suffix. `None` for anything not a standard-14 face — the
 /// caller then falls back to Helvetica (the Base-14 generator cannot lay out
 /// an embedded/CID font).
-pub(crate) fn basefont_to_std14(name: &[u8]) -> Option<Std14> {
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn basefont_to_std14(name: &[u8]) -> Option<Std14> {
     // Strip a subset prefix `ABCDEF+`.
     let bare = match name.iter().position(|&b| b == b'+') {
         Some(i) if i == 6 => name.get(i + 1..).unwrap_or(name),

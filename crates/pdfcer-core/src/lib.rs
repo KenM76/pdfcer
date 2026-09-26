@@ -94,21 +94,18 @@ pub mod edit;
 pub mod editable;
 pub mod export;
 pub mod fdf;
-pub mod font_embed;
 pub mod font_embed_missing;
 pub mod font_unembed;
-pub mod fontdata;
-pub mod fontinfo;
 pub mod form_script;
 pub mod formclip;
 pub mod formcsv;
 pub mod forms;
 pub mod forms_author;
 pub mod function;
+pub use pdfcer_fonts::{font_embed, fontdata, fontinfo, linebreak, textstring, vartext};
 pub use pdfcer_image_codec as image_codec;
 pub mod image_import;
 pub mod layers;
-pub mod linebreak;
 /// OCR text layers — turning recognised words into an invisible, selectable
 /// layer over an untouched scan (ISO 32000-1 §9.3.6 mode 3). Engine-agnostic:
 /// the recogniser is a trait, so the engine choice stays a separate decision.
@@ -133,10 +130,8 @@ pub mod structure;
 pub mod text_edit;
 pub mod text_extract;
 pub mod text_state;
-pub mod textstring;
 pub mod trust_chain;
 pub mod trust_store;
-pub mod vartext;
 pub mod vector;
 pub mod wrapper;
 

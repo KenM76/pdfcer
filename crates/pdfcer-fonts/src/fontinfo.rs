@@ -5,8 +5,7 @@
 //! Read-only. Nothing in this module mutates a document, stages a byte, or
 //! decides anything on the operator's behalf. It is the *report* half of
 //! the font-cleanup story; the removal half is
-//! [`crate::font_unembed`], which **shipped in `Pass 67.0` phase B** and
-//! consumes [`Removability`] as given rather than deriving a second
+//! `pdfcer_core::font_unembed`, which consumes [`Removability`] as given rather than deriving a second
 //! classifier. That is what makes "the report and the action cannot
 //! disagree" a structural fact rather than a promise: there is one
 //! classifier, and if a verdict is wrong it is wrong in one place.
@@ -83,7 +82,7 @@
 //! Walked (see [`Surface`]):
 //!
 //! - page `/Resources /Font`, with §7.7.3.4 inheritance already resolved by
-//!   [`crate::page_tree::pages_in`];
+//!   [`pdfcer_model::page_tree::pages_in`];
 //! - form XObjects' own `/Resources`, recursively and without depth limit
 //!   other than the node budget;
 //! - tiling patterns' `/Resources` (a pattern is a content stream);
@@ -106,7 +105,7 @@
 //! # Hazards this module exists to get right
 //!
 //! **Size comes from [`Stream::data_span`], never from `/Length`.** On an
-//! encrypted document the two disagree by design: [`crate::document`]'s
+//! encrypted document the two disagree by design: [`pdfcer_model::document`]'s
 //! decryption walk writes the plaintext back at `data_span.start` and
 //! *shortens `data_span.len`*, leaving the dictionary's `/Length` at the
 //! ciphertext length (an `/AESV2` stream carries a 16-byte IV plus padding,
@@ -154,11 +153,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::filters;
-use crate::graph::ObjectGraph;
-use crate::object::{Dict, Name, ObjId, Object, Stream};
-use crate::page_tree::pages_in;
-use crate::view::DocumentView;
+use pdfcer_model::filters;
+use pdfcer_model::graph::ObjectGraph;
+use pdfcer_model::object::{Dict, Name, ObjId, Object, Stream};
+use pdfcer_model::page_tree::pages_in;
+use pdfcer_model::view::DocumentView;
 
 /// Maximum resource dictionaries entered during the sweep.
 ///
@@ -166,7 +165,7 @@ use crate::view::DocumentView;
 /// XObjects; a hostile or merely damaged file can nest that arbitrarily and
 /// can make two dictionaries reference each other. The `visited` set makes
 /// a cycle terminate; this budget makes an unbounded *tree* terminate too.
-/// Matches [`crate::layers::MAX_RESOURCE_NODES`] deliberately — the two
+/// Matches `pdfcer_core::layers::MAX_RESOURCE_NODES` deliberately — the two
 /// walks visit the same graph and there is no reason for one to give up
 /// before the other.
 ///
@@ -255,7 +254,7 @@ impl FontSubtype {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::fontinfo::FontSubtype;
+    /// use pdfcer_fonts::fontinfo::FontSubtype;
     ///
     /// assert_eq!(FontSubtype::Type0.label(), "Type0");
     /// assert_eq!(FontSubtype::Absent.label(), "(no /Subtype)");
@@ -335,7 +334,7 @@ impl Encoding {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::fontinfo::Encoding;
+    /// use pdfcer_fonts::fontinfo::Encoding;
     ///
     /// assert!(Encoding::Predefined("Identity-H".to_owned()).is_identity());
     /// assert!(!Encoding::Predefined("WinAnsiEncoding".to_owned()).is_identity());
@@ -729,7 +728,7 @@ impl FsType {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontinfo::{read_fs_type, EmbeddingPermission, FsTypeError};
+/// use pdfcer_fonts::fontinfo::{read_fs_type, EmbeddingPermission, FsTypeError};
 ///
 /// // Not a font at all.
 /// assert_eq!(read_fs_type(b"%PDF-1.7\n"), Err(FsTypeError::NotSfnt));
@@ -942,7 +941,7 @@ impl Removability {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::fontinfo::Removability;
+    /// use pdfcer_fonts::fontinfo::Removability;
     ///
     /// assert_eq!(Removability::Removable.token(), "removable");
     /// assert_eq!(Removability::BlockedType3.token(), "blocked-type3");
@@ -1167,14 +1166,14 @@ impl SurfaceCoverage {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::fontinfo::{Surface, SurfaceCoverage};
-    /// use pdfcer_core::document::Document;
+    /// use pdfcer_fonts::fontinfo::{Surface, SurfaceCoverage};
+    /// use pdfcer_model::document::Document;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let doc = Document::from_bytes(
     ///     include_bytes!("../../../fixtures/synthetic/hello.pdf").to_vec(),
     /// )?;
-    /// let inv = pdfcer_core::fontinfo::inventory(&doc.view());
+    /// let inv = pdfcer_fonts::fontinfo::inventory(&doc.view());
     /// assert_eq!(inv.coverage.not_walked(), vec![Surface::UnreferencedObjects]);
     /// # Ok(())
     /// # }
@@ -1271,7 +1270,7 @@ impl FontRecord {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::fontinfo::split_subset_tag;
+    /// use pdfcer_fonts::fontinfo::split_subset_tag;
     ///
     /// assert_eq!(split_subset_tag("ABCDEF+Arial"), (Some("ABCDEF"), "Arial"));
     /// assert_eq!(split_subset_tag("Arial"), (None, "Arial"));
@@ -1310,7 +1309,7 @@ impl FontRecord {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontinfo::split_subset_tag;
+/// use pdfcer_fonts::fontinfo::split_subset_tag;
 ///
 /// assert_eq!(split_subset_tag("QWERTY+TimesNewRoman"), (Some("QWERTY"), "TimesNewRoman"));
 /// assert_eq!(split_subset_tag("Helvetica"), (None, "Helvetica"));
@@ -1359,7 +1358,7 @@ pub fn split_subset_tag(base_font: &str) -> (Option<&str>, &str) {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontinfo::is_standard_14;
+/// use pdfcer_fonts::fontinfo::is_standard_14;
 ///
 /// assert!(is_standard_14("Helvetica-BoldOblique"));
 /// assert!(is_standard_14("ZapfDingbats"));
@@ -1406,7 +1405,7 @@ pub fn is_standard_14(base_font: &str) -> bool {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::fontinfo::format_page_ranges;
+/// use pdfcer_fonts::fontinfo::format_page_ranges;
 ///
 /// assert_eq!(format_page_ranges(&[1, 2, 3, 4, 9, 12, 13, 14]), "1-4,9,12-14");
 /// assert_eq!(format_page_ranges(&[7]), "7");
@@ -1559,7 +1558,7 @@ struct Node {
 ///
 /// Takes a [`DocumentView`] rather than a `&Document` so it works
 /// identically over a loaded file and over an
-/// [`EditSession`](crate::edit::EditSession)'s overlay — and, critically,
+/// `EditSession`'s overlay — and, critically,
 /// so stream spans resolve against the right byte source in both cases. A
 /// session's staged payloads live past the end of the base buffer, and
 /// slicing them against `document().bytes()` would silently measure the
@@ -1579,8 +1578,8 @@ struct Node {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::document::Document;
-/// use pdfcer_core::fontinfo::{inventory, Removability};
+/// use pdfcer_model::document::Document;
+/// use pdfcer_fonts::fontinfo::{inventory, Removability};
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let doc = Document::from_bytes(
@@ -2312,7 +2311,7 @@ fn classify(
 )]
 mod tests {
     use super::*;
-    use crate::document::Document;
+    use pdfcer_model::document::Document;
 
     fn open(bytes: &[u8]) -> Document {
         Document::from_bytes(bytes.to_vec()).expect("fixture parses")
@@ -3157,20 +3156,5 @@ mod tests {
         for r in &all {
             assert!(r.reason().len() > 40, "{:?} needs a real reason", r.token());
         }
-    }
-
-    /// The inventory runs over an editing session's overlay as well as over a
-    /// loaded file, and resolves stream spans against the session's split
-    /// byte source. A `&Document`-only signature would have made this
-    /// impossible without a second walk.
-    #[test]
-    fn inventory_runs_over_an_edit_session_view() {
-        let doc = open(include_bytes!(
-            "../../../fixtures/synthetic/text/subset-simple-embedded.pdf"
-        ));
-        let from_document = inventory(&doc.view());
-        let session = crate::edit::EditSession::new(doc);
-        let from_session = inventory(&session.view());
-        assert_eq!(from_document, from_session);
     }
 }

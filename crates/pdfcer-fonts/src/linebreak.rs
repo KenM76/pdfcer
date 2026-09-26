@@ -8,9 +8,9 @@
 //! 1. **[`crate::vartext`]** — variable-text appearance generation
 //!    (§12.7.3.3): it packs `WinAnsi` bytes measured by **standard-14 AFM
 //!    advance widths** into a widget/FreeText appearance box.
-//! 2. **[`crate::text_edit::reflow`]** — within-block offline reflow, FF-A
+//! 2. **`pdfcer_core::text_edit::reflow`** — within-block offline reflow, FF-A
 //!    (`docs/decisions/015-ffa-within-block-offline-reflow.md` §3.2): it
-//!    re-wraps a recognized [`Block`](crate::text_edit::Block)'s words
+//!    re-wraps a recognized `Block`'s words
 //!    measured by the **real, per-glyph §9.4.4 advances carried in
 //!    provenance** (embedded/supplied font `Widths`, not AFM estimates).
 //!
@@ -106,7 +106,7 @@ use core::ops::Range;
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::linebreak::greedy_pack;
+/// use pdfcer_fonts::linebreak::greedy_pack;
 ///
 /// // Five unit-width words, single-space gaps, box wide enough for two
 /// // words plus their gap (width 3) but not three (width 5).
@@ -120,7 +120,7 @@ use core::ops::Range;
 /// ```
 ///
 /// ```
-/// use pdfcer_core::linebreak::greedy_pack;
+/// use pdfcer_fonts::linebreak::greedy_pack;
 ///
 /// // A single word wider than the box lands alone on an overflowing line.
 /// let widths = [10.0_f64, 1.0];

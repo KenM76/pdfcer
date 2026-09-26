@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate crates/pdfcer-core/src/fontdata/tables.rs from the PDF-spec RAG.
+"""Generate crates/pdfcer-fonts/src/fontdata/tables.rs from the PDF-spec RAG.
 
 WHAT THIS IS
 ------------
-The single source of the standard-14 font data compiled into pdfcer-core:
+The single source of the standard-14 font data compiled into pdfcer-fonts:
 per-glyph advance widths, /FontDescriptor payloads, the Annex D.2
 predefined encodings, the Symbol/ZapfDingbats built-in encodings, and the
 glyph-name -> Unicode subset used for text extraction. The generated file
@@ -90,7 +90,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 RAG = Path(r"D:/Dev/Rag-Specialized/PDF_Spec")
-OUT = REPO / "crates" / "pdfcer-core" / "src" / "fontdata" / "tables.rs"
+OUT = REPO / "crates" / "pdfcer-fonts" / "src" / "fontdata" / "tables.rs"
 
 DASH = "\u2014"  # em dash: the RAG's "unencoded / absent" marker
 NAME_RE = re.compile(r"^`([^`]+)`$")

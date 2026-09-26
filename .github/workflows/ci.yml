@@ -115,7 +115,7 @@ jobs:
           done
 
   gui-core-separation:
-    name: verify pdfcer-model / pdfcer-image-codec / pdfcer-core / pdfcer-render have zero GUI deps
+    name: verify pdfcer-model / pdfcer-image-codec / pdfcer-fonts / pdfcer-core / pdfcer-render have zero GUI deps
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -132,10 +132,10 @@ jobs:
       # found the native-only check evaluates a different dependency tree
       # (237 crates vs 147) and could miss a Windows-only violation.
       # `cargo tree --target` is metadata-only; no installed target needed.
-      - name: cargo tree -p pdfcer-model / pdfcer-image-codec (fail on GUI/windowing deps)
+      - name: cargo tree -p pdfcer-model / pdfcer-image-codec / pdfcer-fonts (fail on GUI/windowing deps)
         run: |
           set -e
-          for p in pdfcer-model pdfcer-image-codec; do
+          for p in pdfcer-model pdfcer-image-codec pdfcer-fonts; do
             for t in "" "--target x86_64-pc-windows-msvc"; do
               if cargo tree -p "$p" $t 2>/dev/null | grep -Ei '(^|[[:space:]])(egui|eframe|winit|wgpu)([[:space:]]|$)'; then
                 echo "::error::$p has a GUI/windowing dependency — violates the GUI-core separation invariant (docs/ARCHITECTURE.md §3)"
@@ -205,7 +205,7 @@ jobs:
           set -e
           codecs='zune-jpeg|zune-core|weezl|hayro-ccitt|hayro-jbig2|hayro-jpeg2000'
           fail=0
-          for p in pdfcer-model pdfcer-image-codec pdfcer-core pdfcer-render; do
+          for p in pdfcer-model pdfcer-image-codec pdfcer-fonts pdfcer-core pdfcer-render; do
             for t in "" "--target x86_64-pc-windows-msvc" "--target aarch64-apple-darwin" "--target wasm32-unknown-unknown"; do
               if cargo tree -p "$p" -e features $t 2>/dev/null \
                    | grep -E "($codecs) feature \"(x86|neon|simd|portable_simd)\""; then
@@ -754,7 +754,7 @@ jobs:
       # the absence of GUI crates: pdfcer-core + pdfcer-render must stay
       # WASM-compilable (ARCHITECTURE.md §3, §1). pdfcer is
       # deliberately excluded — it is a native shell.
-      - run: cargo check -p pdfcer-model -p pdfcer-image-codec -p pdfcer-core -p pdfcer-render --target wasm32-unknown-unknown
+      - run: cargo check -p pdfcer-model -p pdfcer-image-codec -p pdfcer-fonts -p pdfcer-core -p pdfcer-render --target wasm32-unknown-unknown
 
   no-network:
     name: verify the ENGINE needs no network (core + render)
@@ -817,7 +817,7 @@ jobs:
           set -e
           deny='reqwest|ureq|hyper|isahc|attohttpc|curl|surf|native-tls|openssl|rustls|webpki|tokio|socket2|hickory|trust-dns'
           fail=0
-          for p in pdfcer-model pdfcer-image-codec pdfcer-core pdfcer-render; do
+          for p in pdfcer-model pdfcer-image-codec pdfcer-fonts pdfcer-core pdfcer-render; do
             if cargo tree -p "$p" --target x86_64-pc-windows-msvc 2>/dev/null \
                  | grep -Ei "(^|[[:space:]])($deny)[[:space:]]"; then
               echo "::error::$p is an ENGINE crate and has a network-client dependency. Parsing and rendering must never require a network (ARCHITECTURE.md §1.1, R12 as narrowed 2026-08-13), and both crates must compile for wasm32 where no native HTTP stack exists. The SHELLS may fetch on the operator's behalf; these two may not. Adding one here requires a NEW decision record."

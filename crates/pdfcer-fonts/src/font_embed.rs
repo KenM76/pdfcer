@@ -51,7 +51,7 @@
 //! non-conformant, so the refusal is honest rather than a guess. See
 //! decision 021 §10 (C-3).
 
-use crate::object::{Dict, Name, ObjId, Object};
+use pdfcer_model::object::{Dict, Name, ObjId, Object};
 
 /// Which outline flavour a donor's subsetted program carries.
 ///

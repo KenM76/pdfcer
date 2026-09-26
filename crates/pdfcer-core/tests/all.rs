@@ -44,6 +44,7 @@ mod field_properties;
 mod field_script_authoring;
 mod font_preflight;
 mod font_preflight_candidate;
+mod fontinfo_session;
 mod form_choice_indices;
 mod form_delete_page_tree;
 mod form_field_authoring;
