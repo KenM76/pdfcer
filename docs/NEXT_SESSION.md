@@ -187,6 +187,24 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
 
+### SINCE THE LAST HANDOFF — 2026-09-26, latest (`Pass 330.1`–`331.1`, 611th–614th filings)
+
+Pushed through the 614th filing (`66f996c8`), CI green. Since `v0.56.0`.
+- **The two `330.0` residuals below are CLOSED.** The report names the
+  stream it wrote (`ffc76e7b`); vector move and transform have shared-stream
+  fixtures (`89eb180b`, `tests/shared_page_content_edit.rs`).
+- **Session add-text with a supplied face now embeds it** (`5d48365d`,
+  `Pass 331.0`): it used to write a Standard-14 stand-in. Shared helper
+  `addtext::embedded_font_objects` builds the five FF-C objects for both
+  paths — reuse it for `Pass 142.0`.
+- **Subset tags are file-unique** (`8ac54da6`, `Pass 331.1`, §9.6.4):
+  `addtext::with_file_unique_tag` re-tags a colliding embedded subset on
+  both add-text paths. Limit: only fonts reachable via `fontinfo::inventory`
+  are seen. `format_text` does not embed yet, so it has no such check;
+  `142.0` must add one.
+- **`142.0` is still de-prioritised, not closed** (requester's answer). Its
+  design (composite re-encode, `/Type0` target) is noted in its Backlog entry.
+
 ### SINCE THE LAST HANDOFF — 2026-09-26 (`Pass 330.0`, shared content streams)
 
 Pushed through `96129f96`; filings 608 (`1c79da9f`) and 609.
