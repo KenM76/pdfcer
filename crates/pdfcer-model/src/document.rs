@@ -435,8 +435,8 @@ impl Document {
     ///
     /// ```no_run
     /// use std::path::Path;
-    /// use pdfcer_core::document::{Document, LoadOptions};
-    /// use pdfcer_core::parser::DuplicateKeyPolicy;
+    /// use pdfcer_model::document::{Document, LoadOptions};
+    /// use pdfcer_model::parser::DuplicateKeyPolicy;
     ///
     /// let path = Path::new("drawing.pdf");
     /// let doc = Document::load(path)?;
@@ -449,7 +449,7 @@ impl Document {
     ///     )?;
     ///     let _ = other;
     /// }
-    /// # Ok::<(), pdfcer_core::document::DocError>(())
+    /// # Ok::<(), pdfcer_model::document::DocError>(())
     /// ```
     ///
     /// # Errors
@@ -493,7 +493,8 @@ impl Document {
     /// [`DocError::Header`] if none of `markers` matches; [`DocError::Xref`] if
     /// the cross-reference chain does not parse; other [`DocError`] object-level
     /// failures as [`from_bytes_with_password`](Self::from_bytes_with_password).
-    pub(crate) fn from_cos_bytes(buf: Vec<u8>, markers: &[&[u8]]) -> Result<Self, DocError> {
+    #[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+    pub fn from_cos_bytes(buf: Vec<u8>, markers: &[&[u8]]) -> Result<Self, DocError> {
         let header_version = crate::probe_cos_header(&buf, markers).map_err(DocError::Header)?;
         let loaded = xref::load_xref_chain(&buf).map_err(DocError::Xref)?;
         let hybrid = loaded.hybrid_partition();
@@ -1009,10 +1010,11 @@ impl Document {
     /// "remove encryption" needs at the model level — the writer then emits
     /// plaintext because the bytes it re-serialises already are.
     ///
-    /// `Pass 5.4`: used by [`crate::EditSession::remove_encryption`] and
-    /// [`crate::EditSession::set_permissions`] (which re-keys, so it first
+    /// `Pass 5.4`: used by `pdfcer_core::EditSession::remove_encryption` and
+    /// `pdfcer_core::EditSession::set_permissions` (which re-keys, so it first
     /// clears the old state, then the writer freshly encrypts).
-    pub(crate) fn clear_encryption(&mut self) {
+    #[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+    pub fn clear_encryption(&mut self) {
         self.encryption = None;
         self.trailer.remove(b"Encrypt");
     }
@@ -1201,7 +1203,7 @@ impl Document {
     /// A read view of this document for the rasterizer, the vector object
     /// model and `pageops` — the file exactly as loaded.
     ///
-    /// The mirror of [`EditSession::view`](crate::edit::EditSession::view),
+    /// The mirror of `EditSession::view`,
     /// and the reason every read path can take one parameter type
     /// ([`DocumentView`]) instead of two overloads. A `Document` has no
     /// overlay and no staging buffer, so its view carries a
@@ -1217,8 +1219,8 @@ impl Document {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::document::Document;
-    /// use pdfcer_core::graph::ObjectGraph;
+    /// use pdfcer_model::document::Document;
+    /// use pdfcer_model::graph::ObjectGraph;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let doc = Document::from_bytes(
@@ -1465,7 +1467,7 @@ impl Document {
     ///
     /// `dirty` is the **save-time diff against the base revision**, and
     /// the only thing that should compute one is
-    /// [`crate::edit::EditSession::dirty_set`] — see
+    /// `pdfcer_core::edit::EditSession::dirty_set` — see
     /// `ARCHITECTURE.md` §11.1 for the "union of every command ever run"
     /// bug that a hand-built dirty set reintroduces. An empty one gives
     /// byte-identical output.

@@ -170,7 +170,6 @@ pub use save::{
 pub use xref_out::XrefOutError;
 
 use crate::object::{Dict, Name, ObjId, Object};
-use crate::settings::{TrailingEol, XrefEntryEol};
 
 /// The set of objects a save must write into the new revision.
 ///
@@ -208,7 +207,7 @@ use crate::settings::{TrailingEol, XrefEntryEol};
 ///
 /// ## Building one
 ///
-/// Nothing here computes the diff; [`crate::edit::EditSession`] does,
+/// Nothing here computes the diff; `pdfcer_core::edit::EditSession` does,
 /// and it is the only thing that should. This type is the *result* of
 /// that computation and the writer's input. Constructing one by hand is
 /// legitimate for tests and for the verification modes, and is exactly
@@ -459,7 +458,7 @@ impl DirtySet {
 
     /// Attach the session's authored-stream staging buffer (R45).
     ///
-    /// Called by [`crate::edit::EditSession::dirty_set`] when the session
+    /// Called by `pdfcer_core::edit::EditSession::dirty_set` when the session
     /// carries authored streams. The buffer's bytes are the raw
     /// (still-filter-encoded, but Pass 6.1 authors raw appearances)
     /// payloads that replacement `Stream` values' spans index into, in the
@@ -531,7 +530,7 @@ pub enum ProducerPolicy {
     ///
     /// ## Contrast with an operator metadata edit (Pass 3.1)
     ///
-    /// [`crate::edit::EditSession::set_info_field`] **does** create an
+    /// `pdfcer_core::edit::EditSession::set_info_field` **does** create an
     /// `/Info` dictionary when the base file has none, and that is not
     /// an inconsistency. R41 forbids pdfcer writing *its own* identity
     /// into a file the operator did not ask it to mark. An operator who
@@ -676,13 +675,13 @@ pub enum WriteError {
         span: crate::span::ByteSpan,
     },
     /// A save was requested on a session that has a **deferred redaction
-    /// pending** ([`crate::edit::EditSession::apply_redactions_deferred`],
+    /// pending** (`pdfcer_core::edit::EditSession::apply_redactions_deferred`,
     /// `Pass 250.2`).
     ///
     /// A deferred redaction leaves the un-redacted content in the live
     /// session so the operator's undo history is preserved; the removal is
     /// carried out only by
-    /// [`crate::edit::EditSession::save_applying_redaction`], which runs the
+    /// `pdfcer_core::edit::EditSession::save_applying_redaction`, which runs the
     /// surgery over the current state and emits clean bytes. Both ordinary
     /// save modes are refused meanwhile: an **incremental** save would append
     /// a delta over the un-redacted base and leak the content via `/Prev`
@@ -894,4 +893,127 @@ mod tests {
         assert_eq!(SaveOptions::identity().producer, ProducerPolicy::Preserve);
         assert_eq!(SaveOptions::default().producer, ProducerPolicy::Set);
     }
+}
+
+/// Which of §7.5.4's three permitted two-byte terminators ends a classic
+/// cross-reference **entry** (spec ambiguity `EOL-A1`).
+///
+/// # The choice being made
+///
+/// §7.5.4 fixes the entry at exactly 20 bytes and permits three, and only
+/// three, forms for bytes 18–19. `LF CR`, a bare `LF`, a bare `CR`,
+/// `SP SP` and `SP CR LF` are **not** legal and are deliberately not
+/// offered here — a settings file is not a licence to emit a
+/// non-conforming file.
+///
+/// # Default: [`Self::MatchSource`] — the register's own recommendation
+///
+/// **Changed on the operator's ruling of 2026-08-08** ("change the shipped
+/// default so that we match the file's existing 2-byte EOL"), replacing a
+/// fixed `SP LF`.
+///
+/// `iso32000__ref__ambiguity_settings_register.md` §5.11 recommended
+/// exactly this and pdfcer shipped the fixed form anyway, because
+/// implementing "match the source" needed an observation of the base
+/// file's bytes that no channel carried. The register said plainly that
+/// the shipped default was *"arguably wrong on pdfcer's own invariant"*,
+/// and it was right: **rule 3 says objects pdfcer did not logically touch
+/// are re-emitted byte-identical, and a full rewrite of a `CR LF` file
+/// under a fixed `SP LF` changes two bytes in every entry of the table.**
+/// On a 5,000-object file that is a 10,000-byte diff in a document nobody
+/// edited — the exact diff minimal-diff editing exists to prevent.
+///
+/// The channel now exists: [`crate::xref::observed_entry_eol`] reads the
+/// form back out of the base file, and the writer resolves
+/// [`Self::MatchSource`] against it. This is the same idea
+/// `Document::section_shape` already served at a coarser grain — *the base
+/// file's own form* (R33) — one level finer.
+///
+/// **Evidence tier is no longer (d)-shaped at all**, which is the quiet
+/// win here. The old default rested on the RAG's uncited claim that
+/// `SP LF` is *"the common choice"* — flagged in the register's §11.3 as
+/// carrying no source and pending a downgrade. The new default rests on
+/// nothing external: it derives the answer from the file in front of it,
+/// so there is no guess left to grade. The uncited claim now governs only
+/// the fallback, where there is genuinely nothing to match.
+///
+/// **BYTES blast radius, zero render effect.** Every value is conforming,
+/// so no operator disclosure is needed when one is chosen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum XrefEntryEol {
+    /// Write whichever of the three forms the file being saved already
+    /// used, falling back to `SP LF` when there is nothing to match.
+    ///
+    /// **The shipped default.** "Nothing to match" means a
+    /// cross-reference *stream* file (§7.5.8 is binary and has no entry
+    /// EOL), a file whose table is non-conforming at that position, or a
+    /// document pdfcer assembled from nothing — see
+    /// [`crate::xref::observed_entry_eol`].
+    #[default]
+    MatchSource,
+    /// Always `SP LF` (`20 0A`), whatever the source used.
+    SpaceLf,
+    /// Always `SP CR` (`20 0D`).
+    SpaceCr,
+    /// Always `CR LF` (`0D 0A`).
+    CrLf,
+}
+
+impl XrefEntryEol {
+    /// The concrete two bytes to emit, resolving [`Self::MatchSource`]
+    /// against the file being saved.
+    ///
+    /// `base` is the bytes of the document this save is derived from —
+    /// empty for a document assembled from nothing. Kept as a method on
+    /// the setting rather than a branch in the writer so that every
+    /// caller resolves it the same way; a second resolution site is how
+    /// an incremental save and a full rewrite would come to disagree
+    /// about the same file.
+    #[must_use]
+    pub fn resolve(self, base: &[u8]) -> Self {
+        match self {
+            Self::MatchSource => crate::xref::observed_entry_eol(base).unwrap_or(Self::SpaceLf),
+            other => other,
+        }
+    }
+
+    /// The two bytes themselves. [`Self::MatchSource`] resolves to the
+    /// fallback here, so callers that have a base file must call
+    /// [`Self::resolve`] first.
+    #[must_use]
+    pub const fn bytes(self) -> [u8; 2] {
+        match self {
+            Self::SpaceLf | Self::MatchSource => *b" \n",
+            Self::SpaceCr => *b" \r",
+            Self::CrLf => *b"\r\n",
+        }
+    }
+}
+
+/// Whether the writer puts an end-of-line byte after the final `%%EOF`
+/// (spec ambiguity `EOL-A2`).
+///
+/// # The disagreement being resolved
+///
+/// §7.5.1 requires every line to be EOL-terminated; §7.5.5 says the last
+/// line *"contains only"* `%%EOF`. **Both readings are self-consistent and
+/// the standard does not choose between them.**
+///
+/// # Default: [`Self::Lf`] — **EVIDENCE TIER (d)**
+///
+/// Tier (d) — **a guess**, and the safe side of one: §7.2.3 requires the
+/// incremental-append path to have an EOL before a following `12 0 obj`
+/// anyway, and a trailing EOL never breaks a reader's backward `%%EOF`
+/// scan. Low value as a knob; it exists because the choice is currently
+/// hard-coded, is labelled in the source as a recorded spec ambiguity, and
+/// an engineer who finds that label will ask where the switch is.
+///
+/// **BYTES blast radius — one byte.** No disclosure needed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TrailingEol {
+    /// Terminate the `%%EOF` line with `LF`. **The shipped default.**
+    #[default]
+    Lf,
+    /// End the file at the final `F` of `%%EOF`.
+    None,
 }

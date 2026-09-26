@@ -15,7 +15,7 @@
 //! An inline image carries no `/Length`. §8.9.7's own analysis (see
 //! `iso32000__s__8.9.7.md`) gives exactly three sound ways to find the
 //! end of the data, and two of them are these filters' self-terminating
-//! EOD markers (`>` for hex, `~>` for base-85). `pdfcer_core::content`
+//! EOD markers (`>` for hex, `~>` for base-85). `pdfcer_model::content`
 //! already relies on that when it *locates* the data; without decoders
 //! the located bytes could not be turned into pixels. Corpus evidence
 //! (Pass 1.1's 2,914-file run) is that inline images in the wild
@@ -86,7 +86,7 @@ fn is_ws(b: u8) -> bool {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::filters::ascii::decode_hex;
+/// use pdfcer_model::filters::ascii::decode_hex;
 ///
 /// assert_eq!(decode_hex(b"48656C6C6F>").unwrap(), b"Hello");
 /// // White space anywhere is ignored; an odd final digit implies a 0.
@@ -199,7 +199,7 @@ const fn hex_value(b: u8) -> Option<u8> {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::filters::ascii::decode_85;
+/// use pdfcer_model::filters::ascii::decode_85;
 ///
 /// // §7.4.3's own arithmetic, on the classic four-byte group.
 /// assert_eq!(decode_85(b"9jqo^~>").unwrap(), b"Man ");

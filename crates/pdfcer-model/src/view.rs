@@ -3,9 +3,9 @@
 //! This module is the answer to the defect recorded in
 //! `docs/decisions/018-edited-state-is-what-the-canvas-renders.md`: from
 //! Pass 3.1 through Pass 16.2 every editing feature wrote correctly into
-//! [`EditSession`](crate::edit::EditSession)'s overlay, and **none of them
+//! `EditSession`'s overlay, and **none of them
 //! were visible**, because the renderer and the vector object model both
-//! read [`EditSession::document()`](crate::edit::EditSession::document) —
+//! read `EditSession::document()` —
 //! whose own doc comment says *"this is the base revision, not the edited
 //! state."* One shared read path, fourteen invisible features.
 //!
@@ -18,7 +18,7 @@
 //!    [`ObjectGraph`], and it has had two
 //!    implementations since Pass 3.2: [`Document`](crate::document::Document)
 //!    (the file as loaded) and
-//!    [`SessionGraph`](crate::edit::SessionGraph)/[`EditSession`](crate::edit::EditSession)
+//!    `SessionGraph`/`EditSession`
 //!    (the file as the operator currently has it).
 //! 2. **A byte source** — "give me the bytes this stream's
 //!    [`ByteSpan`] covers". Every stream in pdfcer is span-backed rather
@@ -38,7 +38,7 @@
 //!
 //! For a plain [`Document`](crate::document::Document), the byte source is
 //! one contiguous buffer: the file as loaded. For an
-//! [`EditSession`](crate::edit::EditSession) it is **two disjoint buffers**:
+//! `EditSession` it is **two disjoint buffers**:
 //! the base file, plus the R45 staging buffer holding stream payloads the
 //! session has authored (dimension and markup appearance streams, spliced
 //! content streams). `EditSession::stage_bytes` (private) assigns those
@@ -52,7 +52,7 @@
 //! three ways to serve such a span and only one of them is acceptable on a
 //! per-frame path:
 //!
-//! - [`EditSession::authored_source`](crate::edit::EditSession::authored_source)
+//! - `EditSession::authored_source`
 //!   materializes `base ++ staging` as one buffer. Correct, and right for
 //!   its once-per-operation `pageops` callers — but it is a `Cow::Owned`
 //!   full memcpy of the whole file (~14 MB on decision 018's benchmark
@@ -126,8 +126,8 @@ use crate::span::ByteSpan;
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::span::ByteSpan;
-/// use pdfcer_core::view::StreamSource;
+/// use pdfcer_model::span::ByteSpan;
+/// use pdfcer_model::view::StreamSource;
 ///
 /// let base = b"BASE-BYTES";
 /// let staged = b"STAGED";
@@ -147,7 +147,7 @@ pub enum StreamSource<'a> {
     /// [`ByteSpan::slice`] does.
     Contiguous(&'a [u8]),
     /// Two disjoint buffers under one coordinate system: an
-    /// [`EditSession`](crate::edit::EditSession)'s base file plus its R45
+    /// `EditSession`'s base file plus its R45
     /// staging buffer.
     ///
     /// A span with `start < base.len()` belongs to `base`; a span with
@@ -159,7 +159,7 @@ pub enum StreamSource<'a> {
         base: &'a [u8],
         /// Stream payloads authored this session, whose spans are offset
         /// by `base.len()` (see
-        /// [`EditSession::stage_bytes`](crate::edit::EditSession)).
+        /// `EditSession::stage_bytes`).
         staged: &'a [u8],
     },
 }
@@ -229,7 +229,7 @@ impl<'a> StreamSource<'a> {
 /// resolve against, and the version it declares.
 ///
 /// Built by [`Document::view`](crate::document::Document::view) (the file
-/// as loaded) or [`EditSession::view`](crate::edit::EditSession::view) (the
+/// as loaded) or `EditSession::view` (the
 /// file as the operator currently has it). Every read path in pdfcer that
 /// can meaningfully run against either — the rasterizer, the vector object
 /// model, `pageops`' cross-document copier — takes one of these rather than
@@ -256,7 +256,7 @@ impl<'a> StreamSource<'a> {
 /// the writer's source of truth is `&Document` +
 /// [`DirtySet::combined_source`](crate::writer::DirtySet::combined_source).
 /// A `DocumentView` over an
-/// [`EditSession`](crate::edit::EditSession) carries a
+/// `EditSession` carries a
 /// [`StreamSource::Split`]; code that assumed it held base bytes would
 /// splice staged payloads at base offsets and emit a corrupt file with no
 /// error — a **silent** breach of the `ARCHITECTURE.md` §5 round-trip
@@ -266,8 +266,8 @@ impl<'a> StreamSource<'a> {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::document::Document;
-/// use pdfcer_core::graph::ObjectGraph;
+/// use pdfcer_model::document::Document;
+/// use pdfcer_model::graph::ObjectGraph;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let doc = Document::from_bytes(
@@ -295,7 +295,7 @@ impl<'a> DocumentView<'a> {
     /// tests are untouched by the promotion out of `pageops::assemble`.
     ///
     /// For an editing session use
-    /// [`EditSession::view`](crate::edit::EditSession::view), which builds
+    /// `EditSession::view`, which builds
     /// the [`StreamSource::Split`] form — passing
     /// `session.document().bytes()` here would resolve authored appearance
     /// spans off the end of the base buffer (the X5 failure the original
@@ -313,8 +313,8 @@ impl<'a> DocumentView<'a> {
     ///
     /// The general constructor; [`DocumentView::new`] is the contiguous
     /// special case. Used by
-    /// [`EditSession::view`](crate::edit::EditSession::view) and by
-    /// [`DocumentView::clone_view`](crate::pageops) to carry a source
+    /// `EditSession::view` and by
+    /// [`DocumentView::clone_view`] to carry a source
     /// through unchanged.
     #[must_use]
     pub const fn with_source(
@@ -409,6 +409,25 @@ impl std::fmt::Debug for DocumentView<'_> {
     }
 }
 
+impl DocumentView<'_> {
+    /// A second handle on the same borrowed document.
+    ///
+    /// `DocumentView` is a pair of shared borrows and is therefore
+    /// trivially copyable in principle; it is not `Clone`-derived because
+    /// `&dyn ObjectGraph` blocks the derive's bounds. This is the manual
+    /// equivalent, and exists so `pageops::insert` can put the same view into a
+    /// slice twice-shaped API without the caller pre-building one.
+    ///
+    /// Carries the [`crate::view::StreamSource`] through as-is rather than
+    /// going via `bytes()`, so a view over an editing session copies as a
+    /// session view (decision 018 §4); reconstructing it from a single
+    /// buffer would be the X5 mis-slice.
+    #[must_use]
+    pub const fn clone_view(&self) -> DocumentView<'_> {
+        DocumentView::with_source(self.graph(), self.source(), self.version())
+    }
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -479,7 +498,7 @@ mod tests {
     /// spliced out of two unrelated buffers.
     ///
     /// This exists so that a future change to
-    /// [`EditSession::stage_bytes`](crate::edit::EditSession)' offset
+    /// `EditSession::stage_bytes`' offset
     /// scheme fails loudly here instead of silently producing a stream
     /// payload with a seam in the middle of it.
     #[test]

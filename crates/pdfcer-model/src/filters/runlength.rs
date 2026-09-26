@@ -74,7 +74,7 @@ const EOD: u8 = 128;
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::filters::runlength;
+/// use pdfcer_model::filters::runlength;
 ///
 /// // 0x02 → three literal bytes; 0xFE → 257−254 = 3 copies of 'z';
 /// // 0x80 → EOD.

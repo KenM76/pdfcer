@@ -34,6 +34,7 @@
 # the correct default for a modern edition-2024 workspace.
 resolver = "3"
 members = [
+    "crates/pdfcer-model",
     "crates/pdfcer-core",
     "crates/pdfcer-render",
     "crates/pdfcer-cli",

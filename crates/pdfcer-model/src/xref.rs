@@ -388,7 +388,6 @@ impl XrefError {
 /// pdfcer's rule is to emit whatever the base file's **newest** section
 /// already used, which means the load path has to remember it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum SectionShape {
     /// A classic §7.5.4 `xref` table with a §7.5.5 `trailer` dictionary.
     Classic {
@@ -1249,7 +1248,7 @@ fn parse_fixed_decimal(field: &[u8]) -> Option<u64> {
 /// changes two bytes in **every entry of the table** — a 10,000-byte diff
 /// on a 5,000-object file nobody edited. Minimal-diff editing exists to
 /// prevent exactly that, so the setting's default is now
-/// [`XrefEntryEol::MatchSource`] and this is what resolves it.
+/// [`XrefEntryEol::MatchSource`](crate::writer::XrefEntryEol::MatchSource) and this is what resolves it.
 ///
 /// It is the same principle `Document::section_shape` already serves at a
 /// coarser grain — *the base file's own form* (R33). This is that idea one
@@ -1282,8 +1281,8 @@ fn parse_fixed_decimal(field: &[u8]) -> Option<u64> {
 /// what pdfcer emitted before this existed — so a file with nothing to
 /// match is written exactly as it always was.
 #[must_use]
-pub fn observed_entry_eol(buf: &[u8]) -> Option<crate::settings::XrefEntryEol> {
-    use crate::settings::XrefEntryEol;
+pub fn observed_entry_eol(buf: &[u8]) -> Option<crate::writer::XrefEntryEol> {
+    use crate::writer::XrefEntryEol;
 
     // The LAST `xref` keyword: in an incrementally-updated file the newest
     // section is the one a rewrite is replacing, so it is the one whose

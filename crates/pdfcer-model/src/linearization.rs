@@ -130,7 +130,7 @@ impl Linearization {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::linearization::{detect, Linearization};
+/// use pdfcer_model::linearization::{detect, Linearization};
 ///
 /// // A file with no parameter dictionary is simply not linearized.
 /// assert_eq!(detect(b"%PDF-1.7\n1 0 obj\n<</Type /Catalog>>\nendobj\n"),

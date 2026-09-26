@@ -897,11 +897,9 @@ name = "pdfcer-core"
 version = "0.55.0"
 dependencies = [
  "aes",
- "brotli",
  "cbc",
  "des",
  "flate2",
- "getrandom",
  "hayro-ccitt",
  "hayro-jbig2",
  "hayro-jpeg2000",
@@ -912,6 +910,7 @@ dependencies = [
  "p256",
  "p384",
  "pbkdf2",
+ "pdfcer-model",
  "rand_core",
  "rc2",
  "rsa",
@@ -931,6 +930,20 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror",
  "ureq",
+]
+
+[[package]]
+name = "pdfcer-model"
+version = "0.55.0"
+dependencies = [
+ "aes",
+ "brotli",
+ "cbc",
+ "flate2",
+ "getrandom",
+ "sha2 0.11.0",
+ "thiserror",
+ "weezl",
 ]
 
 [[package]]

@@ -138,7 +138,8 @@ fn inflate_bounded(data: &[u8]) -> Result<Vec<u8>, FilterError> {
 /// round-trip assertion in this module's tests rather than shipped, and the
 /// alternative (an `unreachable!`) is a panic in a crate that must not
 /// panic.
-pub(crate) fn encode(data: &[u8]) -> Vec<u8> {
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn encode(data: &[u8]) -> Vec<u8> {
     // A modest headroom guess. Deflate output for font data runs ~40-60% of
     // input; the buffer grows if that is wrong, so the guess costs nothing
     // when it is.

@@ -13,7 +13,7 @@
 //! 1. [`ContentBuilder`] — **authoring**. A stateful appender that emits
 //!    path-construction, path-painting, graphics-state and colour
 //!    operators for a *new* content stream (the appearance generator in
-//!    [`crate::annot_author`] is its first and only Pass-6.1 consumer). It
+//!    `pdfcer_core::annot_author` is its first and only Pass-6.1 consumer). It
 //!    is deliberately a low-level primitive: it emits exactly the tokens
 //!    asked for, in the order asked for, and it is the caller's job to
 //!    respect the W-E ordering constraint (colour + graphics-state before
@@ -155,7 +155,7 @@ impl Paint {
 /// and width precede `m`):
 ///
 /// ```
-/// use pdfcer_core::writer::content::{ContentBuilder, Paint};
+/// use pdfcer_model::writer::content::{ContentBuilder, Paint};
 ///
 /// let mut b = ContentBuilder::new();
 /// b.set_stroke_rgb(1.0, 0.0, 0.0);
@@ -203,7 +203,7 @@ impl ContentBuilder {
     ///
     /// The composition escape hatch, for splicing in a fragment some other
     /// generator produced — the case it exists for is baking a
-    /// [`crate::vartext::build_variable_text`] block (a form field's value,
+    /// `pdfcer_core::vartext::build_variable_text` block (a form field's value,
     /// a redaction's `/OverlayText`) into a larger stream, where
     /// re-emitting the text through this builder would mean a SECOND text
     /// layout implementation in the binary.
@@ -662,7 +662,8 @@ impl ContentBuilder {
 /// use. Everything else routes through [`write_real`], which guarantees
 /// fixed-point (never exponential) output and degrades a non-finite value
 /// to `0.0` rather than emitting a token no reader can parse.
-pub(crate) fn emit_number(out: &mut Vec<u8>, v: f64) {
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn emit_number(out: &mut Vec<u8>, v: f64) {
     if v.is_finite() && v.fract() == 0.0 && v.abs() < 9.007_199_254_740_992e15 {
         // Exactly representable as an integer; emit integer form.
         out.extend_from_slice((v as i64).to_string().as_bytes());
@@ -680,7 +681,8 @@ pub(crate) fn emit_number(out: &mut Vec<u8>, v: f64) {
 /// hand-written stream might — a deterministic, reader-safe choice for a
 /// generator (the raw high bytes and the octal escape denote the same
 /// string per §7.3.4.2).
-pub(crate) fn emit_literal_string(out: &mut Vec<u8>, bytes: &[u8]) {
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn emit_literal_string(out: &mut Vec<u8>, bytes: &[u8]) {
     out.push(b'(');
     for &b in bytes {
         match b {

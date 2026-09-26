@@ -379,14 +379,13 @@ name = "pdfcer-core"
 version = "0.55.0"
 dependencies = [
  "aes",
- "brotli",
  "cbc",
  "flate2",
- "getrandom 0.2.17",
  "hayro-ccitt",
  "hayro-jbig2",
  "hayro-jpeg2000",
  "jpeg-encoder",
+ "pdfcer-model",
  "sha2",
  "thiserror",
  "weezl",
@@ -400,6 +399,20 @@ dependencies = [
  "libfuzzer-sys",
  "pdfcer-core",
  "pdfcer-render",
+]
+
+[[package]]
+name = "pdfcer-model"
+version = "0.55.0"
+dependencies = [
+ "aes",
+ "brotli",
+ "cbc",
+ "flate2",
+ "getrandom 0.2.17",
+ "sha2",
+ "thiserror",
+ "weezl",
 ]
 
 [[package]]

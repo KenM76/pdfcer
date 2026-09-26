@@ -331,7 +331,8 @@ const fn hex_digit(nibble: u8) -> u8 {
 
 /// Emit a string (§7.3.4), choosing literal or hexadecimal form by
 /// content (module docs).
-pub(crate) fn write_string(out: &mut Vec<u8>, data: &[u8]) {
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn write_string(out: &mut Vec<u8>, data: &[u8]) {
     let printable = data.iter().all(|&b| (0x20..=0x7E).contains(&b));
     if printable {
         out.push(b'(');

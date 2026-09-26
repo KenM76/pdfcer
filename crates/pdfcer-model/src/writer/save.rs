@@ -205,7 +205,7 @@ use super::{DirtySet, ProducerPolicy, SaveOptions, WriteError, serialize, xref_o
 /// file with one high number is exactly the adversarial shape this
 /// guards, and a count-based bound would let it through.
 ///
-/// Sized in the spirit of [`crate::forms::MAX_FORM_FIELDS`] and
+/// Sized in the spirit of `pdfcer_core::forms::MAX_FORM_FIELDS` and
 /// [`crate::annot::MAX_ANNOTS_PER_PAGE`] — far above any conformant
 /// corpus, so the veraPDF §6.1.12 implementation-limits suite keeps
 /// comfortable headroom.
@@ -285,8 +285,8 @@ pub struct SaveReport {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::document::Document;
-/// use pdfcer_core::writer::{DirtySet, SaveOptions, save_incremental};
+/// use pdfcer_model::document::Document;
+/// use pdfcer_model::writer::{DirtySet, SaveOptions, save_incremental};
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Embedded at compile time so the example does not depend on the
@@ -1029,7 +1029,7 @@ pub struct EncryptParams {
 /// The `/Encrypt` dictionary itself (it is what a reader needs *before* it can
 /// decrypt anything), and `/Metadata` streams when `encrypt_metadata` is
 /// false (§7.6.2). A signed document is refused UPSTREAM by the caller
-/// ([`crate::EditSession`]) — the write path never sees one — so the
+/// (`pdfcer_core::EditSession`) — the write path never sees one — so the
 /// per-string `/Contents` exemption (N13) is not expressed here.
 ///
 /// # Errors
@@ -1066,7 +1066,7 @@ pub fn save_full_encrypted(
 /// verbatim path is refused (`WriteError::EncryptedSaveUnsupported`).
 ///
 /// The caller must have already dropped the `/Encrypt` state
-/// ([`crate::Document::clear_encryption`]); this function does not write
+/// (`Document::clear_encryption`); this function does not write
 /// `/Encrypt` or force `/ID`.
 ///
 /// # Errors
@@ -1331,9 +1331,9 @@ struct HybridTail<'a> {
     /// The `/W` widths to fit the stream's rows into.
     base_widths: [usize; 3],
     /// `EOL-A1`, resolved against the file being saved.
-    entry_eol: crate::settings::XrefEntryEol,
+    entry_eol: crate::writer::XrefEntryEol,
     /// `EOL-A2`, the file's last byte.
-    trailing: crate::settings::TrailingEol,
+    trailing: crate::writer::TrailingEol,
 }
 
 /// Emit the §7.5.8.4 three-part unit that makes a rewritten file

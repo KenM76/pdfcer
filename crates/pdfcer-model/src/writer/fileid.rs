@@ -112,7 +112,7 @@ const GOLDEN_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::writer::fileid::changing_identifier;
+/// use pdfcer_model::writer::fileid::changing_identifier;
 ///
 /// let a = changing_identifier(b"prev-id", 1024, b"1 0 obj\n<< /Rotate 90 >>\nendobj\n");
 /// let b = changing_identifier(b"prev-id", 1024, b"1 0 obj\n<< /Rotate 180 >>\nendobj\n");

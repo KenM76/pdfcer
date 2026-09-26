@@ -257,7 +257,7 @@ fn flatten(blocks: Vec<AesBlock>) -> Vec<u8> {
 /// with the data and that the plaintext comes back shorter than the ciphertext:
 ///
 /// ```
-/// use pdfcer_core::crypto::aes::{decrypt_cbc_128, MIN_CIPHERTEXT_LEN};
+/// use pdfcer_model::crypto::aes::{decrypt_cbc_128, MIN_CIPHERTEXT_LEN};
 ///
 /// // A ciphertext produced with key `[0x42; 16]` and IV `[0x24; 16]` over the
 /// // plaintext `b"hello world! this is my plaintext."`.
@@ -281,7 +281,7 @@ fn flatten(blocks: Vec<AesBlock>) -> Vec<u8> {
 /// Anything too short to carry an IV and one block yields no plaintext:
 ///
 /// ```
-/// use pdfcer_core::crypto::aes::decrypt_cbc_128;
+/// use pdfcer_model::crypto::aes::decrypt_cbc_128;
 /// assert!(decrypt_cbc_128(&[0x42; 16], b"too short").is_empty());
 /// ```
 #[must_use]
@@ -347,7 +347,7 @@ pub fn decrypt_cbc_128(key: &[u8], data: &[u8]) -> Vec<u8> {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::crypto::aes::{decrypt_cbc_256, MIN_CIPHERTEXT_LEN};
+/// use pdfcer_model::crypto::aes::{decrypt_cbc_256, MIN_CIPHERTEXT_LEN};
 ///
 /// // Produced with key `[0x42; 32]` and IV `[0x24; 16]`.
 /// let mut ciphertext: Vec<u8> = vec![0x24; 16];
@@ -366,7 +366,7 @@ pub fn decrypt_cbc_128(key: &[u8], data: &[u8]) -> Vec<u8> {
 /// A 16-byte key is refused rather than silently widened:
 ///
 /// ```
-/// use pdfcer_core::crypto::aes::decrypt_cbc_256;
+/// use pdfcer_model::crypto::aes::decrypt_cbc_256;
 /// assert!(decrypt_cbc_256(&[0x42; 16], &[0u8; 48]).is_empty());
 /// ```
 #[must_use]
@@ -431,7 +431,7 @@ pub fn decrypt_cbc_256(key: &[u8], data: &[u8]) -> Vec<u8> {
 /// `userpw`:
 ///
 /// ```
-/// use pdfcer_core::crypto::aes::unwrap_key_cbc_256;
+/// use pdfcer_model::crypto::aes::unwrap_key_cbc_256;
 ///
 /// // SHA-256(b"userpw" || UserKeySalt), where the salt is /U bytes 40..48.
 /// let intermediate = [
@@ -510,7 +510,7 @@ pub fn unwrap_key_cbc_256(key: &[u8; KEY_LEN_256], wrapped: &[u8]) -> Vec<u8> {
 /// decrypted with that document's file encryption key:
 ///
 /// ```
-/// use pdfcer_core::crypto::aes::decrypt_ecb_256_block;
+/// use pdfcer_model::crypto::aes::decrypt_ecb_256_block;
 ///
 /// let file_key = [
 ///     0x9c, 0x41, 0xcb, 0x1c, 0x02, 0x13, 0x80, 0x48, 0x96, 0x0d, 0x57, 0xf4,

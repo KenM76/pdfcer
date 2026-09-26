@@ -34,7 +34,7 @@
 //! of them** — it is 21 bytes and the single most common way to get
 //! this wrong. §7.5.4 states no preference among the three, so under
 //! **R169** the choice is the operator's: it arrives as
-//! [`crate::settings::XrefEntryEol`] on
+//! [`crate::writer::XrefEntryEol`] on
 //! [`crate::writer::SaveOptions::xref_entry_eol`] and defaults to
 //! `SP LF`, the form pdfcer has always emitted. The enum can express only
 //! the three legal pairs, so no setting value can produce a
@@ -65,7 +65,7 @@
 use std::collections::BTreeMap;
 
 use crate::object::{Dict, Name, ObjId, Object};
-use crate::settings::{TrailingEol, XrefEntryEol};
+use crate::writer::{TrailingEol, XrefEntryEol};
 use crate::xref::XrefEntry;
 
 use super::encoder::IdentityEncoder;

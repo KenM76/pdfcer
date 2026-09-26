@@ -60,8 +60,8 @@ use crate::object::ObjId;
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::object::ObjId;
-/// use pdfcer_core::writer::{IdentityEncoder, ObjectEncoder};
+/// use pdfcer_model::object::ObjId;
+/// use pdfcer_model::writer::{IdentityEncoder, ObjectEncoder};
 ///
 /// let enc = IdentityEncoder;
 /// let id = ObjId::new(4, 0);

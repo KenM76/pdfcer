@@ -380,8 +380,11 @@ pub struct Stream {
 /// A COS object (§7.3.1's eight basic types, plus the indirect
 /// reference, which is a value position in its own right per §7.3.10's
 /// substitutability rule).
+///
+/// Exhaustive on purpose: §7.3.1 closes the set, and matches over it in
+/// other crates (the structure dump) rely on a new variant being a compile
+/// error rather than a wildcard.
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub enum Object {
     /// `null` (§7.3.9). Also the resolution of any dangling reference
     /// (§7.3.10 — "shall not be considered an error").
@@ -513,8 +516,8 @@ impl Object {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::object::{equivalent_across_buffers, Dict, Name, Object, Stream};
-/// use pdfcer_core::span::ByteSpan;
+/// use pdfcer_model::object::{equivalent_across_buffers, Dict, Name, Object, Stream};
+/// use pdfcer_model::span::ByteSpan;
 ///
 /// // The same stream content at two different offsets.
 /// let a = Object::Stream(Stream { dict: Dict::new(), data_span: ByteSpan::new(0, 2) });

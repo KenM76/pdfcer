@@ -42,7 +42,7 @@
 //!
 //! So [`decode_stream`] never decodes an image codec. Reaching one
 //! returns [`FilterError::ImageCodec`], which says "this is a codec,
-//! decode it through [`crate::image_codec`]" — deliberately distinct
+//! decode it through `pdfcer_core::image_codec`" — deliberately distinct
 //! from [`FilterError::UnsupportedFilter`], which says "pdfcer does not
 //! implement this filter at all." The full rationale is in
 //! `docs/decisions/005-image-codecs.md` §1.2, §4.6 and §5.2.
@@ -140,7 +140,7 @@ pub enum FilterError {
     UnsupportedFilter(String),
     /// The chain reaches an image codec, which [`decode_stream`] does
     /// not handle **by design** (decision 005 R23). Decode it through
-    /// [`crate::image_codec::decode_image`], which has the `&Document`
+    /// `pdfcer_core::image_codec::decode_image`, which has the `&Document`
     /// and the image dictionary that these codecs require, and which
     /// returns the codec-declared geometry and colour model that a
     /// `Vec<u8>` cannot carry.
@@ -212,7 +212,7 @@ pub fn decode_stream_with_notes(
 
 /// Apply the first `take` filters of `dict`'s chain to `raw`.
 ///
-/// Exists so [`crate::image_codec`] can run the **byte-stream prefix**
+/// Exists so `pdfcer_core::image_codec` can run the **byte-stream prefix**
 /// of a chain that ends in an image codec (e.g.
 /// `/Filter [/ASCII85Decode /DCTDecode]`, which is a real and legal
 /// shape) and then dispatch the terminal codec itself. `take` equal to
@@ -224,7 +224,8 @@ pub fn decode_stream_with_notes(
 /// [`FilterError::ImageCodec`] if a codec name falls inside the prefix,
 /// which means the caller mis-computed where the chain's byte-stream
 /// part ends.
-pub(crate) fn decode_prefix(
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn decode_prefix(
     dict: &Dict,
     raw: &[u8],
     take: usize,
@@ -242,7 +243,7 @@ pub(crate) fn decode_prefix(
 /// Apply a single named filter.
 ///
 /// Abbreviated spellings (Table 94) are accepted alongside the full
-/// names because inline images legally use them; `pdfcer_core::content`
+/// names because inline images legally use them; `pdfcer_model::content`
 /// normalizes the ones it sees, but a stream dictionary that spells a
 /// filter the short way is not worth refusing.
 fn apply_one(
@@ -284,7 +285,8 @@ fn apply_one(
 
 /// Extract the ordered filter-name list from `/Filter` (name, array of
 /// names, or absent → empty).
-pub(crate) fn filter_names(dict: &Dict) -> Result<Vec<Vec<u8>>, FilterError> {
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn filter_names(dict: &Dict) -> Result<Vec<Vec<u8>>, FilterError> {
     match dict.get(b"Filter") {
         None => Ok(Vec::new()),
         Some(Object::Name(n)) => Ok(vec![n.as_bytes().to_vec()]),

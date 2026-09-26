@@ -1,0 +1,122 @@
+[package]
+name = "pdfcer-model"
+description = "pdfcer COS model layer: objects, lexer, parser, filters, xref, object streams, recovery, Document/DocumentView, the full and incremental writer, standard-handler crypto, content parsing and the page tree. Depends on nothing else in the workspace; re-exported by pdfcer-core (docs/ARCHITECTURE.md §3)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+# thiserror: the ecosystem-standard derive for well-behaved error types
+# (Rust API Guidelines C-GOOD-ERR — errors implement std::error::Error and
+# are Send + Sync + 'static). License: MIT OR Apache-2.0 (permissive, no
+# user flag required per docs/LEGAL.md §6). Added via `cargo add`.
+thiserror = "2"
+
+# flate2: FlateDecode (ISO 32000-1 §7.4.4 delegates to RFC 1950/1951 zlib).
+# PURE-RUST BACKEND ONLY (`rust_backend` = miniz_oxide; default-features
+# off): the C zlib/zlib-ng backends would break the static-single-binary
+# packaging invariant (ARCHITECTURE.md §6) and the WASM fork — this is the
+# dependency selected by docs/decisions/001-oxidize-pdf-adopt-vs-build.md
+# §6.2 and PRIOR_ART.md; never switch backends without a decision-log
+# entry. License: MIT OR Apache-2.0 (permissive per docs/LEGAL.md §6).
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+
+# brotli: /BrotliDecode -- a PDF Association EXTENSION (EXTN-BROTLI-1 v1.3,
+# 2026-08-19), NOT part of ISO 32000-2:2020. `brotli` returns zero hits in
+# both ISO editions and Table 6 enumerates exactly ten filters in each; the
+# widely-repeated citation "ISO 32000-2:2020 section 7.4.11" is FALSE and
+# that clause does not exist. Sourcing:
+# D:\Dev\Rag-Specialized\PDF_Spec\filters\filter__brotli.md.
+#
+# PURE RUST, and that is why this crate rather than a binding to the C
+# reference implementation: a C dependency would break the
+# static-single-binary packaging invariant (ARCHITECTURE.md section 6) and
+# the wasm32 fork, the same constraint that fixed flate2's backend above.
+#
+# default-features off. The crate's defaults pull its `ffi-api` surface and
+# a compressor this filter does not need; `std` + `alloc-stdlib` are the
+# decode path. License: BSD-3-Clause AND MIT -- BOTH permissive, so
+# docs/LEGAL.md section 6 needs no operator call (project rule 13). Verified
+# from the fetched crate metadata, not from a relayed note.
+brotli = { version = "8", default-features = false, features = ["std", "alloc-stdlib"] }
+
+# weezl: LZWDecode (§7.4.4 + TIFF 6.0 §13). MIT OR Apache-2.0,
+# #![forbid(unsafe_code)], zero required deps, 5 cargo-fuzz targets.
+# /EarlyChange maps to the constructor and nothing else:
+#   EarlyChange 1 (DEFAULT) -> Decoder::with_tiff_size_switch(Msb, 8)
+#   EarlyChange 0           -> Decoder::new(Msb, 8)
+# BitOrder::Msb is mandatory — GIF's Lsb packing is a different codec.
+# decode_bytes(inp, out) is what makes MAX_DECODED_LEN enforceable
+# INCREMENTALLY, as filters/mod.rs already promises for Flate.
+#
+# NOTE on weezl's ENCODER: it is compiled in (weezl has no decoder-only
+# feature) and is used in `#[cfg(test)]` ONLY, to build known-good LZW
+# fixtures for the round-trip tests. pdfcer never writes LZW — R28.
+weezl = "0.2"
+
+aes = { version = "0.9.2", default-features = false }
+cbc = { version = "0.2.1", default-features = false, features = ["alloc", "block-padding"] }
+
+# --- Encryption increment 3: AES-256 at /R 5 --------------------------
+#
+# sha2: SHA-256 for the `/R` 5 password and key algorithms (Adobe
+# Supplement to ISO 32000, ExtensionLevel 3 §3.5, Algorithms 3.2a and
+# 3.8-3.13). It is the ENTIRE key derivation at that revision — /R 5
+# replaced MD5 outright, and the supplement says so in as many words:
+# "encrypt version 5 does not use MD5".
+#
+# WHY A DEPENDENCY, when md5.rs and rc4.rs are hand-written in-crate.
+# `crypto/md5.rs`'s module docs recorded the limit of that judgement
+# when they made it: MD5 and RC4 are frozen, tiny and needed only to
+# READ what other producers already wrote, and "the reasoning does not
+# extend to AES". SHA-256 sits on the AES side of that line, not the
+# MD5 side — it is live cryptography with real implementation hazards
+# and a well-audited permissive crate one line away. Same call as `aes`
+# in increment 2, for the same stated reason.
+#
+# LICENSE: MIT OR Apache-2.0 (permissive; no operator flag required per
+# docs/LEGAL.md §6). Three new packages in total — sha2 0.11.0,
+# digest 0.11.3, block-buffer 0.12.1 — every one of them MIT OR
+# Apache-2.0. Zero copyleft. THIRD_PARTY_LICENSES.md regenerated via
+# cargo-about (rule 13).
+#
+# default-features = false IS LOAD-BEARING, NOT TIDINESS (R24), though
+# for a different reason from the codec crates above. sha2's default
+# set is ["alloc", "oid"]; pdfcer's own calls are Sha256::new / update /
+# finalize, so `alloc` is unused. `oid` IS on since decision 138
+# (2026-09-05) — not from this line but through `rsa`'s optional `sha2`
+# dependency (`features = ["oid"]`), because RSASSA-PKCS1-v1_5 needs
+# `Sha256: AssociatedOid` for its DigestInfo prefix; it is const-oid
+# trait impls only, no backend change, no new unsafe. `zeroize` is off
+# deliberately rather than by omission — see the CI step below.
+#
+# ★ UNSAFE: sha2 is the SECOND dependency whose unsafe cannot be
+# switched off by a feature, and it has the SAME SHAPE as `aes`, so it
+# falls under decision 039's recorded exception rather than needing a
+# new one. Its backends are chosen on a **cfg** (`sha2_backend`,
+# `sha2_256_backend`, `sha2_512_backend`, declared in its own
+# `[lints.rust.unexpected_cfgs] check-cfg`), and a cfg cannot be set
+# from a dependency line — only from RUSTFLAGS or .cargo/config.toml,
+# which is global and is NOT inherited by anyone consuming pdfcer-core
+# as a library. Five unsafe sites, all in sha256.rs's backend dispatch.
+# It enables NO extra feature on `aes`, so 039's boundary is untouched
+# by its arrival. `.github/workflows/ci.yml` asserts alloc/zeroize stay
+# off, on all four targets, in the same shape as the `aes` check (the
+# guard caught `oid` arriving on 8a18e53; decision 138 admitted it).
+sha2 = { version = "0.11.0", default-features = false }
+
+# getrandom: the CSPRNG for encryption AUTHORING (`Pass 5.4`) — salts, IVs and
+# the 256-bit file encryption key of Algorithms 8/9, which the standard
+# requires be "generated with a strong random number generator". TARGET-GATED
+# OFF wasm32 exactly as pdfcer-cli gates `windows`: getrandom 0.2 emits a
+# compile_error on wasm32-unknown-unknown with no backend feature, and
+# encryption authoring is a save operation that the web fork (a viewer) never
+# performs — so the crate simply is not compiled there and `crypto::rng` falls
+# back to a refusing stub (see that module). ALREADY in Cargo.lock at 0.2.17
+# via the egui side, so ZERO new packages; verified with `cargo tree` before
+# adding (rule 13). License: MIT OR Apache-2.0 (permissive, no operator flag).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+getrandom = "0.2"

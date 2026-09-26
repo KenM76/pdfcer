@@ -1,7 +1,7 @@
 //! # `ObjectGraph` — one read view over "the document as it is right now"
 //!
 //! Pass 3.1 could get away without this. Pass 3.2 cannot, and the reason
-//! is recorded verbatim in [`crate::edit`]'s own module docs:
+//! is recorded verbatim in `pdfcer_core::edit`'s own module docs:
 //!
 //! > ⚠️ Pass 3.2 must replace this with an overlay-aware walk. The moment
 //! > an edit can add or remove a `Kids` entry, patching a base-derived
@@ -25,7 +25,7 @@
 //! 3. read a trailer entry (in practice only `/Root`).
 //!
 //! [`Document`](crate::document::Document) provides all three, and so
-//! does an [`EditSession`](crate::edit::EditSession) *with its overlay
+//! does an `EditSession` *with its overlay
 //! applied*. Making that a trait rather than duplicating each walk means
 //! there is exactly **one** page-tree walk in pdfcer, and it is
 //! automatically correct for both views. A second copy specialised to
@@ -56,15 +56,15 @@ use crate::object::{Dict, ObjId, Object};
 /// A read-only view of one PDF document's object graph.
 ///
 /// Implemented by [`Document`](crate::document::Document) (the file as
-/// loaded) and by [`EditSession`](crate::edit::EditSession)'s overlay
+/// loaded) and by `EditSession`'s overlay
 /// view (the file as the operator currently has it). See the module
 /// docs for why this exists at all.
 ///
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::document::Document;
-/// use pdfcer_core::graph::ObjectGraph;
+/// use pdfcer_model::document::Document;
+/// use pdfcer_model::graph::ObjectGraph;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let doc = Document::from_bytes(

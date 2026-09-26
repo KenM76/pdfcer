@@ -284,7 +284,7 @@ pub enum LexErrorKind {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::lexer::{Lexer, TokenKind};
+/// use pdfcer_model::lexer::{Lexer, TokenKind};
 ///
 /// let mut lx = Lexer::new(b"/Type /Pages % a comment\n42");
 /// assert!(matches!(lx.next_token().unwrap().unwrap().kind,

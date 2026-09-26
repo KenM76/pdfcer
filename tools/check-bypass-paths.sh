@@ -113,9 +113,9 @@ report=""
 while IFS= read -r file; do
   case "$file" in
     */pdfcer-core/src/edit.rs) continue ;;
-    */pdfcer-core/src/writer/*) continue ;;
+    */pdfcer-model/src/writer/*) continue ;;
     */pdfcer-core/src/redact.rs) continue ;;
-    */pdfcer-core/src/document.rs) continue ;;
+    */pdfcer-model/src/document.rs) continue ;;
     */tests/*) continue ;;
     */pdfcer-core/src/text_edit/addtext.rs) continue ;;
     */pdfcer-core/src/text_edit/edit.rs) continue ;;

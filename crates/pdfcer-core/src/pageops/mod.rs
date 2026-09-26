@@ -594,25 +594,6 @@ pub fn insert(
     )
 }
 
-impl DocumentView<'_> {
-    /// A second handle on the same borrowed document.
-    ///
-    /// `DocumentView` is a pair of shared borrows and is therefore
-    /// trivially copyable in principle; it is not `Clone`-derived because
-    /// `&dyn ObjectGraph` blocks the derive's bounds. This is the manual
-    /// equivalent, and exists so [`insert`] can put the same view into a
-    /// slice twice-shaped API without the caller pre-building one.
-    ///
-    /// Carries the [`crate::view::StreamSource`] through as-is rather than
-    /// going via `bytes()`, so a view over an editing session copies as a
-    /// session view (decision 018 §4); reconstructing it from a single
-    /// buffer would be the X5 mis-slice.
-    #[must_use]
-    pub const fn clone_view(&self) -> DocumentView<'_> {
-        DocumentView::with_source(self.graph(), self.source(), self.version())
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests_support {
     //! Fixture builders shared by this module's test suites.

@@ -361,7 +361,7 @@ struct Inherited<'a> {
 ///
 /// ⚠️ **This is the base revision, not the edited state.** Anything that
 /// must see unsaved structural edits calls
-/// [`EditSession::pages`](crate::edit::EditSession::pages), which walks
+/// `EditSession::pages`, which walks
 /// the overlay through the same code.
 ///
 /// # Errors
@@ -1010,15 +1010,15 @@ fn contents_from_array<G: ObjectGraph + ?Sized>(
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::document::Document;
-/// use pdfcer_core::object::ObjId;
+/// use pdfcer_model::document::Document;
+/// use pdfcer_model::object::ObjId;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let doc = Document::from_bytes(
 ///     b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
 ///         .to_vec(),
 /// )?;
 /// // An absent `/Contents` becomes a one-element array.
-/// let appended = pdfcer_core::page_tree::append_content_stream(&doc, None, ObjId::new(9, 0));
+/// let appended = pdfcer_model::page_tree::append_content_stream(&doc, None, ObjId::new(9, 0));
 /// assert_eq!(appended.as_array().map(<[_]>::len), Some(1));
 /// # Ok(())
 /// # }
@@ -1053,7 +1053,8 @@ pub fn append_content_stream<G: ObjectGraph + ?Sized>(
 /// Parse (and resolve) a rectangle attribute: an array of four
 /// numbers, each possibly an indirect reference (§7.3.10
 /// substitutability), normalized per §7.9.5.
-pub(crate) fn parse_rect<G: ObjectGraph + ?Sized>(
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn parse_rect<G: ObjectGraph + ?Sized>(
     doc: &G,
     obj: &Object,
     attr: &'static str,

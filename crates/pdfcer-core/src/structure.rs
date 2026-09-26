@@ -538,7 +538,9 @@ fn storage_of(doc: &Document, id: ObjId) -> Storage {
             index,
         },
         Some(XrefEntry::Free { generation, .. }) => Storage::Free { generation },
-        None => Storage::Unindexed,
+        // §7.5.8.3: an entry type pdfcer does not know is a reference to the
+        // null object, which is what an unindexed number resolves to.
+        Some(_) | None => Storage::Unindexed,
     }
 }
 
@@ -555,10 +557,9 @@ const fn kind_of(o: &Object) -> &'static str {
         Object::Dict(_) => "dictionary",
         Object::Stream(_) => "stream",
         Object::Reference(_) => "reference",
-        // No catch-all arm. `Object` is `#[non_exhaustive]` for downstream
-        // crates but exhaustive HERE, so omitting the wildcard makes a future
-        // variant a compile error at this exact site rather than a silent
-        // "unknown" in every report.
+        // No catch-all arm: `Object` is exhaustive, so a future variant is a
+        // compile error at this exact site rather than a silent "unknown" in
+        // every report.
     }
 }
 

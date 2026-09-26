@@ -4474,7 +4474,7 @@ objects to write, from the undo stack. `can_undo() == true` after an
 edit-then-undo, while `is_modified() == false` and the save is byte-identical.
 Both are correct; they answer different questions.
 
-`DirtySet` itself lives at `crates/pdfcer-core/src/writer/mod.rs:215` with all
+`DirtySet` itself lives at `crates/pdfcer-model/src/writer/mod.rs:217` (re-exported as `pdfcer_core::writer::DirtySet`) with all
 fields private. Relevant public methods: `empty()` `:271`, `is_empty()` `:392`
 (note: **staging is not consulted**), `len()` `:401`, `changes_content()` `:414`
 (the §14.4 `/ID[1]` regeneration trigger), `trailer_patch()` `:441`,
@@ -4649,7 +4649,7 @@ when the edit is made.
 
 ### 5.7 `SaveReport` — read it, do not synthesise it
 
-`crates/pdfcer-core/src/writer/save.rs:208`, `#[non_exhaustive]`. Field notes
+`crates/pdfcer-model/src/writer/save.rs:223` (re-exported as `pdfcer_core::writer::SaveReport`), `#[non_exhaustive]`. Field notes
 worth carrying:
 
 - `byte_identical` — *"Only ever true for an empty-dirty-set `save_incremental`."*

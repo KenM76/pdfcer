@@ -60,7 +60,7 @@ use std::ops::Range;
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::span::ByteSpan;
+/// use pdfcer_model::span::ByteSpan;
 ///
 /// let buf = b"12 0 obj";
 /// let span = ByteSpan::new(0, 2); // the "12" token

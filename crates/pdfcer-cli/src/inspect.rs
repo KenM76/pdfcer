@@ -301,9 +301,6 @@ pub(crate) fn object_summary(value: &pdfcer_core::object::Object) -> String {
         Object::Array(items) => format!("[{} item(s)]", items.len()),
         Object::Dict(d) => format!("<<{} key(s)>>", d.iter().count()),
         Object::Stream(_) => "<<stream>>".to_owned(),
-        // `Object` is #[non_exhaustive] to this crate; a future kind gets a
-        // shape rather than a panic or a silent blank.
-        _ => "<unrecognised object kind>".to_owned(),
     }
 }
 
