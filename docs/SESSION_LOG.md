@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (604th filing) — `08a77fe1`/`08a35df5`/`f60bfd94`: `Pass 325.0` steps 6 and 4 SHIPPED — only step 8 remains
+
+**Shipped:**
+- `Pass 325.0` step 6 (`08a77fe1`, `08a35df5`) — trailing `#[cfg(test)]` blocks that exercise only a crate's public API moved to `tests/`: 6 blocks in `pdfcer-core` (84 tests, `tests/unit_{dimension_units,form_script,form_script_datetime,form_script_shape,text_edit_model,vector_geometry}.rs`), plus `pdfcer-model`/`pdfcer-text` (68 tests total), both gaining the single-binary test harness matching `Pass 328.0`'s convention. 45 core blocks and 15 render blocks stayed in-source — they test private helpers, the correct end state, not a gap. Test total unchanged workspace-wide at 9,200 across the move.
+- `Pass 325.0` step 4 (`f60bfd94`) — `pdfcer-core`'s crate doc is now the facade map (module → owning crate); every re-exported item not meant as public API is `#[doc(hidden)] pub`, "workspace-internal." New `tests/facade_paths.rs` fails if a re-exported `pdfcer_core::` path stops resolving. Closes a real gap found while enabling it: the panic-free lint set (`deny clippy::unwrap_used/expect_used/panic/indexing_slicing`) was missing from `pdfcer-color`/`pdfcer-text` (lost when they split out of core this Pass) and had never existed in `pdfcer-print`/`pdfcer-render`. All four now carry it. New gate `tools/check-engine-lint-policy.py` (CI's audits job now 27 checks), sabotage-tested. Two live panics fixed while enabling the lints (`pdfcer-render` `mesh.rs`'s continued-patch `expect`, `pdfcer-print`'s RGBA→BGRX indexing).
+
+**Decisions made this session:** none — the step-8 §12 decision on `pdfcer-core`'s final shape stays deferred to its own filing, per the Pass's own scope note; not written here.
+
+**Findings + decisions:**
+- `pdfcer-render` waives `clippy::indexing_slicing` (~344 pre-existing pixel-buffer sites) rather than fixing all of them now; `pdfcer-print` can't add `forbid(unsafe_code)` (Win32 print API). Recorded as an owed item inside the `Pass 325.0` ROADMAP entry rather than a new Pass ID — both waivers are named explicitly in `tools/check-engine-lint-policy.py` so a stale waiver fails the check.
+- `docs/FEATURES.md`: checked (grepped for `325.0`, `facade`, `crate split`, `engine lint`, `lint policy` — no hits) and confirmed no row is affected. Both steps are internal structure/test-organisation/quality changes with no new capability; no edit made.
+- RAG lesson written: `D:\dev\rag\rust\splitting_a_crate_drops_crate_level_lint_attributes_silently.md` — a crate-level `#![deny]`/`#![forbid]` lives once, in the old crate's `lib.rs`; a `git mv`-based crate split carries the code but not the attribute, and clippy stays green because nothing is denied any more. Cites `tools/check-engine-lint-policy.py`'s explicit-waiver-list pattern as the fix; cross-referenced against the closely related `a_gate_scoped_by_a_fixed_marker_or_file_size_stops_covering_the_file_as_it_grows.md` (same shape one layer up, also from this Pass). `D:\dev\rag\rust\index.md` updated.
+- Note, not a violation: `Pass 325.0`'s ROADMAP entry lives under `## Backlog` (its heading at line 16048 falls after the `## Backlog` header at line 16024, not under `## Next up`), so `tools/check-register-entry-size.py` — which only bounds the literal `## Shipped` and `## Next up` sections — does not check it. The entry is ~129 lines and will grow again at step 8; worth trimming when the Pass moves to *Shipped* and the 150-line cap starts applying for real.
+
+**Still in flight:** `Pass 325.0` — only step 8 (the §12 decision on the crate's final shape, and now also whether/how the session layer `edit` gets split) remains open. Steps 1–7 are all SHIPPED.
+
+**For next session:** Scope and file the step-8 decision; consider trimming the `Pass 325.0` ROADMAP entry when it moves to *Shipped*.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hashes, moved-test list, lint-policy findings and gate/test counts relayed from the dispatching engineer's own report of `08a77fe1`/`08a35df5`/`f60bfd94`; not independently reproduced here. `docs/FEATURES.md` row-set check and the ROADMAP section-membership (Backlog vs. Next up) were performed directly via `Grep` on the live documents, not relayed.
+
 ## 2026-09-26 (603rd filing) — `a9679f72`: `Pass 325.0` step 7 (sha2/digest dedup + target prune) SHIPPED; step 3 concluded "leaves exhausted"
 
 **Shipped:**
