@@ -193,3 +193,32 @@ fn text_added_in_an_embedded_face_extracts_as_typed() {
         .plain_text();
     assert!(text.contains("CAB"), "added text did not extract:\n{text}");
 }
+
+/// The session verb embeds the donor exactly as the one-shot does: the
+/// content it writes addresses glyphs by two-byte CID, so the font it binds
+/// must be the `/Type0` subset, not a Standard-14 stand-in.
+#[test]
+fn the_session_add_text_embeds_the_donor_too() {
+    let plan = plan_subset(&donor(), 0, &['A', 'B'], "pdfceSubsetDemo", "ABCDEF")
+        .expect("the donor covers A and B");
+    let doc = Document::from_bytes(base_page()).expect("fixture parses");
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    let req = AddTextRequest::new(0, (72.0, 700.0), "AB").with_embedded_face(plan);
+    session.add_text(&req).expect("embedded add-text succeeds");
+    let (bytes, _) = session
+        .to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .expect("the session saves");
+    let saved = String::from_utf8_lossy(&bytes);
+    assert!(saved.contains("/Type0"), "no /Type0 wrapper");
+    assert!(saved.contains("/FontFile2"), "no embedded program");
+    assert!(saved.contains("ABCDEF+pdfceSubsetDemo"), "no subset name");
+    assert!(saved.contains("> Tj"), "no hex CID show operator");
+    let reloaded = Document::from_bytes(bytes).expect("output re-parses");
+    let text = pdfcer_core::text_extract::extract_document(
+        &reloaded,
+        &pdfcer_core::text_extract::ExtractOptions::default(),
+    )
+    .expect("extraction runs");
+    let page: String = text.pages[0].runs.iter().map(|r| r.text.as_str()).collect();
+    assert!(page.contains("AB"), "{page:?}");
+}

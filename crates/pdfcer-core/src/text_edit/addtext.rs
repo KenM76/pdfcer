@@ -701,25 +701,12 @@ pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, 
         // is staged after the content stream in the same buffer, so both
         // spans are relative to the same base (R45 combined source).
         Some(plan) => {
-            let prog_start = base_len + staging.len();
-            staging.extend_from_slice(&plan.program);
-            let prog_span = ByteSpan::new(prog_start, plan.program.len());
-            let program_stream = make_font_program_stream(prog_span, plan.program.len());
-            let cmap = plan.to_unicode_cmap();
-            let cmap_span = ByteSpan::new(base_len + staging.len(), cmap.len());
-            staging.extend_from_slice(&cmap);
-            let cmap_stream = make_raw_stream(cmap_span, cmap.len());
-
-            let objects =
-                crate::font_embed::build_objects(plan, font_num, program_stream, cmap_stream)
-                    .map_err(AddTextError::Embed)?;
-            // The page's /Font entry must point at the /Type0 wrapper, not at
-            // any of its parts. `build_objects` returns that id explicitly
-            // rather than leaving the caller to assume it is the first —
-            // an assumption that would still "work" until the allocation
-            // order changed.
-            debug_assert_eq!(objects.font_dict_id, font_id);
-            for (id, obj) in objects.objects {
+            let objects = embedded_font_objects(plan, font_id, |bytes| {
+                let span = ByteSpan::new(base_len + staging.len(), bytes.len());
+                staging.extend_from_slice(bytes);
+                span
+            })?;
+            for (id, obj) in objects {
                 dirty.replace(id, obj);
             }
         }
@@ -1092,6 +1079,30 @@ pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
         },
         report,
     })
+}
+
+/// The five objects of an embedded subset (`/Type0` first, at `font_id`),
+/// with the program and `/ToUnicode` bytes staged through `stage`.
+///
+/// Shared by the one-shot and session add-text so both bind the font the
+/// content's two-byte CIDs address; `font_id + 1 ..= font_id + 4` must be
+/// free for the descendant, descriptor, program and CMap.
+pub(crate) fn embedded_font_objects(
+    plan: &FontEmbedPlan,
+    font_id: ObjId,
+    mut stage: impl FnMut(&[u8]) -> ByteSpan,
+) -> Result<Vec<(ObjId, Object)>, AddTextError> {
+    let program_stream = make_font_program_stream(stage(&plan.program), plan.program.len());
+    let cmap = plan.to_unicode_cmap();
+    let cmap_stream = make_raw_stream(stage(&cmap), cmap.len());
+    let objects = crate::font_embed::build_objects(plan, font_id.num, program_stream, cmap_stream)
+        .map_err(AddTextError::Embed)?;
+    // The page's /Font entry points at the /Type0 wrapper, which
+    // `build_objects` names explicitly rather than by allocation order.
+    if objects.font_dict_id != font_id {
+        return Err(AddTextError::ObjectNumbersExhausted);
+    }
+    Ok(objects.objects)
 }
 
 /// A `FontFile2` stream object: the subsetted program plus the `/Length1`

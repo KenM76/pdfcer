@@ -12636,23 +12636,35 @@ impl EditSession {
         let content_stream = make_raw_stream(span, content_len);
         let page_before = self.value(prep.page_id).cloned();
 
-        let objects = vec![
-            ObjectWrite {
-                id: content_id,
-                before: None,
-                after: Some(content_stream),
-            },
-            ObjectWrite {
-                id: font_id,
-                before: None,
-                after: Some(prep.font_dict.clone()),
-            },
-            ObjectWrite {
-                id: prep.page_id,
-                before: page_before,
-                after: Some(Object::Dict(new_page)),
-            },
-        ];
+        // An embedded face is five objects, not one: the content's two-byte
+        // CIDs only address the right glyphs under the `/Type0` subset.
+        let font_objects = match prep.embed.as_ref() {
+            None => vec![(font_id, prep.font_dict.clone())],
+            Some(plan) => {
+                for _ in 0..4 {
+                    self.alloc_number()
+                        .map_err(|_| AtError::ObjectNumbersExhausted)?;
+                }
+                crate::text_edit::addtext::embedded_font_objects(plan, font_id, |bytes| {
+                    self.stage_bytes(bytes)
+                })?
+            }
+        };
+        let mut objects = vec![ObjectWrite {
+            id: content_id,
+            before: None,
+            after: Some(content_stream),
+        }];
+        objects.extend(font_objects.into_iter().map(|(id, obj)| ObjectWrite {
+            id,
+            before: None,
+            after: Some(obj),
+        }));
+        objects.push(ObjectWrite {
+            id: prep.page_id,
+            before: page_before,
+            after: Some(Object::Dict(new_page)),
+        });
         self.commit(Command {
             kind: CommandKind::AddText,
             objects,
