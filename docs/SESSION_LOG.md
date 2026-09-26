@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (605th filing) — `3057b06c`: `Pass 325.0` step 8 SHIPPED — sixth leaf `pdfcer-function`, session-layer split declined, decision `162` closes the Pass
+
+**Shipped:**
+- `Pass 325.0` step 3 correction + sixth leaf, `3057b06c` — `pdfcer-function` (PDF functions, ISO 32000-1 §7.10: sampled, exponential-interpolation, stitching, PostScript-calculator types) split out of `pdfcer-core`, 5.5k lines, depending only on `pdfcer-model`; its sole edge into core was a doc-comment link, not code. Re-exported as `pdfcer_core::function`; only callers are in `pdfcer-render`. Added to CI's 4 hand-kept crate lists and `check-ci-parity.py`'s LOCAL map. Test count 9,097 (was 9,202 — no test lost; the earlier total double-counted `function`'s 105 tests inside core's lite rerun, checked per-binary).
+- `Pass 325.0` step 8, decision `162` (`ARCHITECTURE.md` §12) — final crate shape: `pdfcer-model` at the bottom; seven leaves (`image-codec`, `fonts`, `pkix`, `color`, `text`, `function`, all depending only on model) above it; `pdfcer-core` is the facade, holding the session layer (`edit`, `settings`, features) plus the shells. Session-layer split into its own crate **declined** — `edit` (58,056 lines) is one strongly-connected component with nearly every feature module, and `pdfcer-render` depends on core's `settings`/`annot`/`text_edit`/`edit` directly, so splitting `edit` further would not shrink render's own rebuild trigger. Revisit trigger recorded: only if `settings` is fully inverted AND those render edges are removed.
+
+**Decisions made this session:**
+- Decision `162` closes `Pass 325.0` — all 7 steps SHIPPED, this filing's decision is the deferred step 8. Standing rules for future crate splits recorded as prose inside the decision (not new `R`-numbers, per the dispatching engineer's own framing): consumers depend on `pdfcer-core` only; the facade re-exports every path, guarded by `tests/facade_paths.rs`; workspace-internal items are `#[doc(hidden)] pub`, never API; `#[non_exhaustive]` cannot survive an exhaustive match or struct-literal construction across the new crate boundary; every engine crate carries the panic-free lint set + `forbid(unsafe_code)` via `tools/check-engine-lint-policy.py` (named waivers only); a new split crate joins CI's 4 hand-kept crate lists plus `check-ci-parity.py`'s LOCAL map if it has features; a split crate's doctests spell its own paths, never `pdfcer_core::`.
+
+**Findings + decisions:**
+- The 603rd filing's "leaves exhausted" was wrong — see that entry's amendment footer below. `pdfcer-function` was missed because the step-3 survey inspected modules already suspected of being leaves rather than computing every module's `crate::` edge set mechanically. RAG lesson written: `D:\dev\rag\rust\find_leaf_crates_by_computing_every_modules_edges_not_by_inspecting_suspects.md` — includes the one-line recipe (`for each module, grep -ohE "crate::[a-z_0-9]+" over its files, sort -u, minus itself`). `D:\dev\rag\rust\index.md` updated.
+- Build-time honesty (recorded in decision 162, not re-derived here): model-layer lib tests 13 s → 3 s, core lib tests 13 s → 8 s, each leaf's own test loop ~1.4 s vs. core lib tests ~36 s after a leaf edit — but CLI/whole-product rebuild only 13-15 s → ~11.5-13 s, because the facade recompiles on any leaf change. The Pass speeds the inner loop for leaf/model work; it does not speed the whole-product rebuild.
+- `docs/FEATURES.md`: confirmed, not assumed — grepped for "unction"/"Function", only hit is an unrelated shading-type row; no row affected by this Pass. No edit made.
+- Line-count snapshot for the final shape (relayed, not re-measured): core 192k, render 58k, cli 47k, model 30k, fonts 10k, print 8k, text 8k, image-codec 7k, function 5.5k, color 2.4k, pkix 2.3k, fetch 0.4k.
+
+**Still in flight:** none for `Pass 325.0` — all 7 steps plus the step-8 decision are SHIPPED. Moved to `## Shipped`, trimmed from ~129 Backlog lines to fit the Shipped-entry cap.
+
+**For next session:** nothing owed by this Pass. `pdfcer-render`'s `clippy::indexing_slicing` waiver (from step 4, 604th filing) remains an open item inside the `Pass 325.0` Shipped entry, not a blocker.
+
+**Sourcing (hard rule 8).** No shell this filing. All commit hashes, line/test counts, build-time measurements and the decision-162 rationale are relayed from the dispatching engineer's own report; not independently reproduced here. The `docs/FEATURES.md` row check was performed directly via `Grep` on the live document, not relayed.
+
 ## 2026-09-26 (604th filing) — `08a77fe1`/`08a35df5`/`f60bfd94`: `Pass 325.0` steps 6 and 4 SHIPPED — only step 8 remains
 
 **Shipped:**
@@ -42,6 +63,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 **For next session:** Continue step 4/6, then file the step-8 decision — it now also has to decide whether/how the session layer (`edit`) gets split, since step 3's conclusion makes that the gate on any further leaf extraction.
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash, dependency-removal list, byte/file counts and gate result relayed from the dispatching engineer's own report of `a9679f72`; not independently reproduced here.
+
+> **Amendment, 2026-09-26 (605th filing).** "Leaves exhausted" above was wrong. A seventh leaf, `pdfcer-function` (5.5k lines, PDF functions §7.10), was cut in the same push that closed the Pass (`3057b06c`) — its only edge into core was a doc-comment link, not code. Root cause: the step-3 survey inspected modules already suspected of being leaves rather than computing every module's `crate::` edge set mechanically. See the 605th filing's entry above and `ARCHITECTURE.md` §12 decision `162` for the corrected final count. RAG lesson: `D:\dev\rag\rust\find_leaf_crates_by_computing_every_modules_edges_not_by_inspecting_suspects.md`.
 
 ## 2026-09-26 (602nd filing) — `ef873835`: OCRcer's vendored copy now records the accepted model-format versions, answering `pdfcer-gui` channel request `G042`
 

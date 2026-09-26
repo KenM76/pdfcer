@@ -280,9 +280,13 @@ D:\Dev\pdfcer\
                                    otherwise have needed a wildcard purely because the
                                    crate boundary moved. `XrefEntry` keeps
                                    `#[non_exhaustive]` (§7.5.8.3 reserves future entry
-                                   types). Steps 3 (leaf feature crates below
-                                   `pdfcer-model`) and 7 (housekeeping) of the same
-                                   Pass are still open; see `docs/ROADMAP.md`.
+                                   types). `Pass 325.0` is now fully SHIPPED
+                                   (§12 decision 162) — the final crate list is
+                                   this crate plus the seven leaves below it
+                                   (`pdfcer-image-codec`/`-fonts`/`-pkix`/
+                                   `-color`/`-text`/`-function`), the
+                                   `pdfcer-core` facade, and the session layer
+                                   (`edit`) left unsplit by decision 162.
     pdfcer-image-codec\          <- (`Pass 325.0` step 3, first leaf, 2026-09-26,
                                    `bda11bd9`) the four terminal image codecs —
                                    DCTDecode, CCITTFaxDecode, JBIG2Decode,
@@ -415,6 +419,24 @@ D:\Dev\pdfcer\
                                    lives in `pdfcer-text`, re-exported
                                    unchanged — the history paragraphs are
                                    kept as written, not relocated.**
+    pdfcer-function\             <- (`Pass 325.0` step 3, sixth leaf, 2026-09-26,
+                                   `3057b06c`) PDF functions (§7.10: sampled,
+                                   exponential-interpolation, stitching, and
+                                   PostScript-calculator, types 0/2/3/4) —
+                                   `git mv`'d out of `pdfcer-core`. Depends on
+                                   `pdfcer-model` ONLY; its only pre-split edge
+                                   into core was a doc-comment link, not code —
+                                   missed by step 3's original leaf survey,
+                                   which inspected modules already suspected of
+                                   being leaves rather than computing every
+                                   module's `crate::` edge set (§12 decision
+                                   162; RAG lesson cited there). `pdfcer-core`
+                                   re-exports it (`pub use pdfcer_function as
+                                   function;`); its only callers are in
+                                   `pdfcer-render`. Same zero-GUI/network
+                                   invariant as every other leaf (rule 2), its
+                                   own `cargo tree -p pdfcer-function` CI step,
+                                   wasm32-clean.
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital
@@ -433,10 +455,22 @@ D:\Dev\pdfcer\
                                    and chain validation, `pdfcer-color`
                                    (step 3, fourth leaf, 2026-09-26) for
                                    device colour conversion and rendering
-                                   intent, and `pdfcer-text` (step 3,
+                                   intent, `pdfcer-text` (step 3,
                                    fifth leaf, 2026-09-26) for text
-                                   extraction and text-state tracking —
-                                   see each crate's own entry.
+                                   extraction and text-state tracking, and
+                                   `pdfcer-function` (step 3, sixth leaf,
+                                   2026-09-26) for PDF functions (§7.10) —
+                                   see each crate's own entry. This is the
+                                   FINAL crate list (§12 decision 162,
+                                   `Pass 325.0` SHIPPED): the session layer
+                                   below stays in `pdfcer-core`, undivided —
+                                   `edit` (58,056 lines) forms one strongly-
+                                   connected component with nearly every
+                                   feature module, and `pdfcer-render`'s own
+                                   dependence on core's `settings`/`annot`/
+                                   `text_edit`/`edit` caps the payoff of
+                                   splitting it further; decision 162 records
+                                   the revisit trigger.
                                    This paragraph now describes the surface
                                    `pdfcer-core` keeps directly: the PDF
                                    colour-SPACE objects (`/DeviceRGB`,
@@ -11441,3 +11475,67 @@ live source or commit contents.
 
 **Decision ceiling: `160` → `161`**, next free `162`. **Pass ceiling: `Pass
 329.0`**, next free family `330`.
+
+### 2026-09-26 (605th filing, `Pass 325.0`, 13 commits `0fbf6cbb`→`3057b06c`, full list in `SESSION_LOG.md` 594th–605th filings) — decision 162: `PDFCER-CORE`'S FINAL SHAPE IS A MODEL CRATE + SEVEN NARROW LEAF CRATES BEHIND A FACADE; THE SESSION LAYER (`edit`) STAYS UNSPLIT — ITS PAYOFF IS CAPPED BY `pdfcer-render`'S OWN DEPENDENCE ON IT
+
+**Status: DECIDED.** `Pass 325.0` step 8, closing the family. Operator ask
+verbatim, 2026-09-23: *"Why was this ever done as one big crate when it goes
+against best practices?"*
+
+**What was decided.** (a) Final shape: `pdfcer-model` (COS layer) at the
+bottom; seven leaves depending only on it, or on nothing —
+`pdfcer-image-codec`, `pdfcer-fonts`, `pdfcer-pkix`, `pdfcer-color`,
+`pdfcer-text`, `pdfcer-function` (§3); `pdfcer-core` is the session/editing
+layer AND the facade, re-exporting every leaf at its pre-split path
+(`docs/core-api/index.md`, `tests/facade_paths.rs`). `pdfcer-render`/
+`pdfcer-cli`/`pdfcer-print`/`pdfcer-fetch` unchanged in shape. (b) The
+session layer (`edit`, 58,056 lines) is NOT split: it references 40 other
+core modules and nearly all of them reference back — one strongly-connected
+component, not a boundary candidate. `pdfcer-render` itself depends on
+core's `settings`/`annot`/`text_edit`/`edit`, so cutting `edit` would not
+even shrink render's own rebuild trigger. Revisit trigger: only if
+`settings` is inverted into a leaf AND render's `annot`/`text_edit`/`edit`
+uses are removed — neither is planned.
+
+**Correction folded in.** The 603rd filing's "leaves exhausted" verdict for
+step 3 was incomplete: `pdfcer-function` (PDF functions, §7.10, 5.5k lines)
+was also a genuine leaf, missed because the survey inspected modules already
+suspected of being leaves rather than computing every module's `crate::`
+edge set. Cut in `3057b06c`. RAG lesson:
+`D:\dev\rag\rust\find_leaf_crates_by_computing_every_modules_edges_not_by_inspecting_suspects.md`.
+
+**Standing rules this Pass leaves**, recorded here rather than as new
+`R`-numbers (each is a consequence of the facade shape, not an independent
+policy): a consumer depends on `pdfcer-core` only; a re-exported item not
+meant as public API is `#[doc(hidden)] pub`, workspace-internal; no
+`#[non_exhaustive]` on a type matched exhaustively across the new crate
+boundary; every engine crate carries the panic-free lint set +
+`forbid(unsafe_code)` (`tools/check-engine-lint-policy.py`; `pdfcer-render`
+waives `indexing_slicing`, `pdfcer-print` waives `unsafe_code` for the Win32
+print API); a new leaf crate joins CI's four hand-kept crate lists (and
+`check-ci-parity.py`'s LOCAL map if it has Cargo features); a leaf crate's
+doctests spell its own paths, never `pdfcer_core::`.
+
+**Measured (the Pass's own justification).** Model-lib tests after a
+model-layer edit: 13 s → 3 s. Core-lib tests after a core-leaf edit: 13 s →
+8 s. CLI rebuild after an engine edit: 13–15 s → ~11.5–13 s — the facade
+recompiles regardless, so the whole-product rebuild barely moves; the split
+speeds a leaf's or the model's own inner loop, not the full build. 9,097
+tests over the Pass's final state (previous total 9,202 double-counted
+`function`'s 105 tests inside core's lite rerun; reconciled per-binary, no
+test lost).
+
+**Body-section effects.** §3 gains the `pdfcer-function` crate entry and its
+final-shape/decision-162 pointers on `pdfcer-model` and `pdfcer-core`'s own
+paragraphs. `docs/FEATURES.md`: no row — structural Pass throughout,
+confirmed against the row set. No `docs/core-api/` change beyond what
+`3057b06c` itself already made (module-map table already current).
+
+**Sourcing (hard rule 8).** No shell this filing. All commit hashes, line
+counts, dependency edges, test/gate figures and build-time measurements
+relayed from the dispatching engineer's own report; not independently
+reproduced. Full per-step detail is in `docs/SESSION_LOG.md`'s 594th–605th
+filings and each step's own commit message.
+
+**Decision ceiling: `161` → `162`**, next free `163`. **Pass ceiling: `Pass
+329.0`**, next free family `330` — unaffected; `Pass 325.0` already existed.
