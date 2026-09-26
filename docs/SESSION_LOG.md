@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (603rd filing) — `a9679f72`: `Pass 325.0` step 7 (sha2/digest dedup + target prune) SHIPPED; step 3 concluded "leaves exhausted"
+
+**Shipped:**
+- `Pass 325.0` step 7 — `a9679f72`: `pdfcer-fetch` moved off `sha2` 0.10 onto 0.11 (default-features off, matching the engine), dropping seven duplicate crates from the lockfile (all MIT/Apache); `THIRD_PARTY_LICENSES.md` regenerated. Target prune: `target/` 102 GB → ~41 GB (`target/debug/incremental/` removed, 46 GB, plus `cargo clean -p` on all 11 workspace packages, 13.4 GiB / 9,341 files of stale per-hash artefacts from this Pass's own crate splits). `tools/run-gates.sh` PASS, 37 commands.
+
+**Decisions made this session:**
+- Step 3 recorded as "leaves exhausted," not "complete": of the plan's eight named candidates only `image_codec` became its own crate this step (`crypto` was already absorbed into `pdfcer-model` at step 2); `sign`, `ocr`, `form_script`, `dimension`, `vector`, `text_edit` were surveyed and rejected — all reach the `edit` session layer, directly or via `forms`/`pageops`. Four unplanned leaves (`fonts`, `pkix`, `color`, `text`/`text_extract`) were cut anyway. Further extraction needs the session layer split first, which the step-8 §12 decision will weigh.
+
+**Findings + decisions:**
+- `cargo tree -d`'s only remaining duplicate across the workspace is `syn` 2/3 (pulled by upstream proc-macro crates) — not fixable from this project.
+- `cargo tree -p pdfcer-core`/`-p pdfcer-render` unchanged — `pdfcer-fetch` is shell-side, not an engine crate; rule 2 unaffected.
+- RAG amendment: `D:\dev\rag\rust\a_full_disk_fails_the_release_build_and_cargos_debug_tree_is_usually_the_reason.md` gained a note that `mtime` cannot identify unused build artefacts (cargo never touches a fresh artefact it is correctly reusing), and that `cargo clean -p <crate>` across every workspace package is the safe prune after a multi-step crate split, keeping third-party deps warm; `cargo-sweep` noted as the atime-based alternative, not installed here.
+
+**Still in flight:** `Pass 325.0` steps 4 (facade — done for model/image-codec/fonts/pkix/color/text, open for the rest) and 6 (move in-source tests to `tests/`); the step-8 §12 decision on the crate's final shape follows those.
+
+**For next session:** Continue step 4/6, then file the step-8 decision — it now also has to decide whether/how the session layer (`edit`) gets split, since step 3's conclusion makes that the gate on any further leaf extraction.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, dependency-removal list, byte/file counts and gate result relayed from the dispatching engineer's own report of `a9679f72`; not independently reproduced here.
+
 ## 2026-09-26 (602nd filing) — `ef873835`: OCRcer's vendored copy now records the accepted model-format versions, answering `pdfcer-gui` channel request `G042`
 
 **Shipped:**
