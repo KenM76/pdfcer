@@ -170,6 +170,28 @@ standing rules named. Sourcing (hard rule 8): no shell this filing,
 relayed from the dispatching engineer's report of `65b1d15a`, not
 independently reproduced.
 
+**`pdfcer-render` lint waiver closed, 2026-09-26 (608th filing), `11e7a0e5`
+(merged `a0f3bb79`) — closes the Backlog's `clippy::indexing_slicing` item,
+a follow-up from this Pass's step 4.** `deny(clippy::indexing_slicing)` now
+crate-wide in `pdfcer-render`; 339 of 344 sites rewritten to checked forms,
+5 carry item-level allows with a stated bound (`svg::base64`,
+`blend_nonsep::set_sat`, three `compositor::composite_element_*` fns).
+`tools/check-engine-lint-policy.py`'s `WAIVED` dict is now empty for render
+(mechanism kept for future crates); reports PASS across 12 crates. **Accepted
+contract change:** `CmykBuffer::pixel`/`set_pixel` no longer panic out of
+range — an out-of-bounds read returns an unpainted pixel (all planes 0.0), an
+out-of-bounds write is dropped; no untrusted-input-reachable panic found.
+Four sites that relied on `debug_assert`-only bounds now fall back instead
+(`cmyk_buffer`, `shading`, canvas knockout, mesh compositing). Verified:
+clippy clean; render 789 / cli 525 tests pass; A/B of old-vs-new release
+binaries over 860 fixtures × 4 export shapes (PNG opaque, PNG transparent,
+SVG, EMF) = 2,293 of 2,294 exports byte-identical. The one mismatch is a
+**pre-existing** nondeterminism unrelated to this change — filed as a new
+Backlog entry below. No `FEATURES.md` row affected (lint/robustness only, no
+capability changed). Sourcing (hard rule 8): no shell this filing, relayed
+from the dispatching engineer's report of `11e7a0e5`/`a0f3bb79`, not
+independently reproduced.
+
 ### `Pass 329.0` (`3691999f`/`21af5926`), 2026-09-25 — Tesseract as a third OCR engine, run as a subprocess, with a clean bundled build
 
 **Verdict: SHIPPED.** Operator request, 2026-09-25: *"How can we supply
@@ -6953,6 +6975,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★ **ONE ITEM ADDED 2026-09-26 (608th filing) — `Pass 330.0`, new family,
+> found by rotation from the redaction shared-content-stream fix (`e92cf7dd`,
+> Backlog closure above).** Live entry filed immediately before the
+> `Pass 5.4` heading further down this section.
+
 > ★★★★ **ONE ITEM ADDED 2026-09-05 (439th filing) — `Pass 256.0`, EDIT TEXT
 > ACROSS SHOW OPERATORS, from the `pdfcer-gui` correction of the same
 > evening (its ask (a)).** Filed *Next up* rather than *Backlog* because the
@@ -7160,6 +7187,43 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
+
+### `Pass 330.0` — Edit routes must not rewrite a page content stream another page also draws — filed 2026-09-26 (608th filing), **NOT STARTED**, new family
+
+**Found by rotation, not by report.** `e92cf7dd` fixed this defect shape in
+`apply_redactions` only: rewrite `contents[0]` in place, empty
+`contents[1..]`, without checking whether another page also draws the same
+stream object. The same pattern exists in the general edit routes —
+`text_edit/edit.rs` (the `Surgery` target `page()` and the write near its
+`content_id`/`extra_emptied` loop), `text_edit/reflow_apply.rs`, and several
+`edit.rs` vector/page verbs (the `page.contents.first()` sites and the extras
+loop near the `contents[0]` comment, `~line 17068`). Editing one page through
+any of these routes can therefore silently change or blank another page that
+shares the same content stream.
+
+**Not covered by decision 076/112.** Those decisions rule on shared **Form
+XObjects** — edit-in-place, disclosed, deliberately not decoupled. No
+standing decision covers a shared **page content stream**; `e92cf7dd`'s
+default (decouple: fresh stream for the edited page, shared stream dropped
+from its `/Contents`, emptied only once every drawing page has been edited)
+is the engineer's precedent for this Pass, not yet a §12 decision — mint one
+if this Pass confirms the same default suits every route.
+
+**Acceptance criteria.** Per-route fixtures: (a) a stream shared as EVERY
+page's sole `/Contents` entry, edited through each route in turn; (b) a
+stream shared as one page's TRAILING `/Contents` entry (the emptied-not-
+dropped shape `e92cf7dd` also had to handle). After each edit: the page
+edited reflects the edit; every OTHER page sharing the stream is
+byte-identical to before the edit; undo restores the pre-edit document
+exactly; the disclosure (status line / CLI print, per CLAUDE.md rule 4) names
+the decoupling when it happens. No route may regress an existing round-trip
+or minimal-diff test.
+
+**`docs/FEATURES.md`:** none of the affected routes' rows claim shared-
+content-stream handling today (only the redaction row now does, after
+`e92cf7dd`) — no new row; this Pass will annotate the affected rows in the
+same filing it ships, the same way the redaction row was annotated without
+a checkbox move.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
@@ -16140,7 +16204,27 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 **Not a standing rule, deliberately.** `R229` and the `verify-release.py` gates cover *whether the release is correct*; this is about *how to get it published without losing it*, which is tooling, not an invariant. The generalisable half is filed outside this project at `D:\dev\rag\gh-cli\release_create_with_assets_is_not_atomic.md` — it is a `gh` CLI property, not a pdfcer one, and the next project to cut a release from this machine will meet it too.
 
-### Unscoped — redacting a region backed by a resource SHARED across pages should decouple the shared object before editing, not mutate every page that references it — filed 2026-09-17 (569th filing, from the operator's 2026-09-17 redaction-scope report), no Pass ID
+### ~~Unscoped — redacting a region backed by a resource SHARED across pages should decouple the shared object before editing, not mutate every page that references it~~ — CLOSED 2026-09-26 (608th filing, `e92cf7dd`) — filed 2026-09-17 (569th filing, from the operator's 2026-09-17 redaction-scope report), no Pass ID
+
+★ **CLOSED, measured.** Shared images were already copy-on-write
+(`images_cloned_shared`); a Form XObject intersecting a redaction region is
+disclosed and never edited (decision 076/112 territory, untouched). The
+defect was a shared **page content stream**: `apply_redactions` rewrote the
+page's first `/Contents` stream in place and emptied the rest, so a stream
+another page also drew from was redacted or blanked there too. Fix: a stream
+is rewritten in place only when the page alone draws it; otherwise the
+redacted page gets a fresh stream, drops the shared one from its
+`/Contents`, and a stream every drawing page redacted is emptied afterwards.
+New `#[non_exhaustive] RedactionReport` field `content_streams_decoupled`,
+disclosed on the `images` line of `pdfcer redact`'s printed report (fuzzy-
+never-sneaky, CLAUDE.md rule 4). `docs/core-api/03-capabilities.md` updated;
+3 new tests, each fails under targeted sabotage of its own half. Exceeds the
+Acrobat parity reference named below (Acrobat documents this as a known
+limitation rather than fixing it). `FEATURES.md`'s redaction row already
+covered `images_cloned_shared`/`form_intersect` and now also names this —
+no checkbox moved, core+cli both already ticked. **Rotation found the same
+defect shape in the general edit routes — filed separately as `Pass 330.0`
+under Next up.**
 
 **Parity ground** (`pdfcer-acrobat-librarian`, relayed): Acrobat does not decouple a shared resource before redacting through it — editing content backed by a resource referenced from multiple pages can damage every page that shares it, and Acrobat documents this as a known limitation rather than fixing it. A place pdfcer can exceed the parity reference (per the standing "exceed the parity reference when you can" directive) rather than merely match it.
 
@@ -16149,6 +16233,23 @@ nothing gets forgotten, not as a commitment to build in this order.
 **Scope, once measured.** If pdfcer already decouples: this closes as a `FEATURES.md`/doc note, no code change. If not: likely wants a shared-resource refcount check ahead of any in-place resource mutation; check whether `ARCHITECTURE.md` §5's round-trip/minimal-diff machinery already covers adjacent ground before assuming this is novel.
 
 **Relationship to `Pass 310.0`–`310.2`.** Independent of that work — this is about WHICH OBJECT gets edited, not what the residual sweep does with what it finds after editing. Both trace to the same operator report, at different layers: selection/decoupling precision here, sweep-behaviour scoping in family `310`.
+
+### Unscoped — EMF export nondeterministic on veraPDF `6-2-9-t04-fail-d`: bitmap-fallback element count varies 2–4 across runs — filed 2026-09-26 (608th filing, found during `11e7a0e5`'s A/B verification), no Pass ID
+
+**Found, not introduced.** The A/B comparison of `pdfcer-render`'s
+`indexing_slicing` lint pass (2,293 of 2,294 exports byte-identical across
+860 fixtures × 4 export shapes) turned up one mismatch: repeat EMF exports
+of veraPDF fixture `6-2-9-t04-fail-d` embed 2, 3 or 4 elements as bitmap
+fallback across runs — and the **pre-`11e7a0e5` binary reproduces the same
+variance**, so this is not a regression from that commit, only a defect it
+happened to surface. Some prior state (raster-cache eviction order, a HashMap
+iteration order, or similar) decides the fallback threshold nondeterministically
+for this one fixture.
+
+**Scope, not yet measured.** Bisect which element(s) flip and why (iteration
+order over an unordered collection is the leading suspect); a fix should make
+EMF export byte-identical across repeat runs on the same input, same as every
+other export shape already is.
 
 ### Unscoped — Audit every `FieldEdit`/`WidgetEdit` property: does its regeneration path actually READ it? — filed 2026-09-16 (562nd filing, `pdfcer-gui`'s own recommendation after `G022`/`G023`), no Pass ID
 

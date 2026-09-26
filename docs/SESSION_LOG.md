@@ -4,6 +4,75 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (608th filing) — `e92cf7dd`/`11e7a0e5` (merged `a0f3bb79`): redaction stops rewriting a shared page content stream in place; `pdfcer-render` denies `indexing_slicing` crate-wide; `Pass 330.0` opened
+
+**Shipped:**
+- `e92cf7dd` — `apply_redactions` no longer rewrites a page's shared `/Contents`
+  stream in place: a stream drawn only by the redacted page is still rewritten
+  in place, but a stream also drawn by another page gets the redacted page a
+  fresh stream (dropped from `/Contents`) and is only emptied once every
+  drawing page has redacted through it. Closes the Backlog's shared-resource
+  entry (569th filing) — shared images and Form XObjects were already handled
+  correctly; page content streams were the defect. New `#[non_exhaustive]`
+  `RedactionReport` field `content_streams_decoupled`, disclosed on
+  `pdfcer redact`'s printed `images` line. `docs/core-api/03-capabilities.md`
+  updated. 3 new tests, each fails under targeted sabotage of its own half.
+  Exceeds the Acrobat parity reference (Acrobat documents the old in-place
+  damage as a known limitation).
+- `11e7a0e5` (merged to `main` by `a0f3bb79`) — `deny(clippy::indexing_slicing)`
+  crate-wide in `pdfcer-render`; 339 of 344 sites rewritten to checked forms, 5
+  carry item-level allows with a stated bound. **Accepted contract change:**
+  `CmykBuffer::pixel`/`set_pixel` no longer panic out of range — an
+  out-of-bounds read returns an unpainted pixel, a write is dropped. Closes
+  the `Pass 325.0` step-4 follow-up Backlog item. `tools/check-engine-lint-policy.py`'s
+  render waiver removed (mechanism kept, dict now empty); reports PASS across
+  12 crates.
+
+**Decisions made this session:** none newly numbered. `11e7a0e5`'s contract
+change and waiver removal are recorded as a dated addendum inside existing
+decision `162` (`ARCHITECTURE.md` §12), since the waiver it retires was named
+as one of that decision's own "standing rules this Pass leaves." `e92cf7dd`'s
+default for shared page content streams (decouple, never mutate a resource
+another page also draws) is recorded as engineer precedent inside the new
+`Pass 330.0`, not yet promoted to a §12 decision.
+
+**Findings + decisions:**
+- Rotation from `e92cf7dd`: the same in-place-rewrite pattern (rewrite
+  `contents[0]`, empty `contents[1..]`) exists in the general edit routes —
+  `text_edit/edit.rs`, `text_edit/reflow_apply.rs`, and several `edit.rs`
+  vector/page verbs — none of which check whether another page also draws
+  the stream being rewritten. Filed as new Pass family `330`, `Pass 330.0`,
+  under *Next up*, NOT STARTED.
+- A/B verification of `11e7a0e5` (860 fixtures × 4 export shapes = 2,294
+  exports) found one pre-existing nondeterminism unrelated to the lint change:
+  EMF export of veraPDF `6-2-9-t04-fail-d` embeds 2, 3 or 4 elements as
+  bitmap fallback across repeat runs of the OLD binary too. Filed as a new,
+  unscoped Backlog entry (no Pass ID) rather than folded into either commit's
+  own record.
+- `docs/FEATURES.md`: redaction row (Redaction & security → "Apply
+  redaction...") gets a new clause naming `content_streams_decoupled`
+  and cross-referencing `Pass 330.0` — no checkbox moved, core+cli were
+  already ticked. No row affected by `11e7a0e5` (lint/robustness only).
+
+**Still in flight:** `Pass 330.0` (NOT STARTED) — per-route fixtures for the
+general edit-route decoupling; the new EMF-nondeterminism Backlog bug is also
+unscoped.
+
+**For next session:** `Pass 330.0` is next-up work whenever an edit-route
+Pass is picked up; check whether its default (decouple shared page content
+streams) should graduate to a §12 decision once shipped. The EMF
+nondeterminism bug needs a bisect (iteration-order suspect) before it can be
+scoped to a Pass.
+
+**Sourcing (hard rule 8).** No shell this filing. Both commit hashes, all
+figures (test counts, A/B totals, byte counts) and the accepted-contract-
+change framing are relayed from the dispatching engineer's own report; not
+independently reproduced. The Pass-ID mint (`330`, next free family — no
+`Pass 33x` exists anywhere in `ROADMAP.md`) and the decision-076/112
+cross-reference for `Pass 330.0`'s scope were independently verified here by
+`Grep` against live `ROADMAP.md`/`ARCHITECTURE.md`, within this role's reach
+without a shell.
+
 ## 2026-09-26 (607th filing) — `78aecacf`: `tools/gh-release.py` closes the Backlog's `gh release` rollback item
 
 **Shipped:**

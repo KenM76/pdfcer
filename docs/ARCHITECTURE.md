@@ -11537,5 +11537,20 @@ relayed from the dispatching engineer's own report; not independently
 reproduced. Full per-step detail is in `docs/SESSION_LOG.md`'s 594th–605th
 filings and each step's own commit message.
 
+**`pdfcer-render`'s `indexing_slicing` waiver (named above) REMOVED,
+2026-09-26 (608th filing), `11e7a0e5` (merged `a0f3bb79`).** The waiver
+listed in "Standing rules this Pass leaves" above is stale as of this
+commit: `deny(clippy::indexing_slicing)` is now crate-wide in
+`pdfcer-render`, with 5 item-level allows carrying a stated bound
+(`svg::base64`, `blend_nonsep::set_sat`, three `compositor` compositing
+fns) rather than the blanket crate waiver. **Accepted contract change**:
+`CmykBuffer::pixel`/`set_pixel` no longer panic out of range — an
+out-of-bounds read returns an unpainted (all-0.0) pixel, an out-of-bounds
+write is dropped. `pdfcer-print`'s `unsafe_code` waiver for the Win32 print
+API is untouched. §3's `pdfcer-render` paragraph and
+`tools/check-engine-lint-policy.py`'s `WAIVED` dict both updated the same
+commit. Sourcing (hard rule 8): no shell this filing, relayed from the
+dispatching engineer's report; not independently reproduced.
+
 **Decision ceiling: `161` → `162`**, next free `163`. **Pass ceiling: `Pass
 329.0`**, next free family `330` — unaffected; `Pass 325.0` already existed.
