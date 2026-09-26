@@ -115,6 +115,90 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.56.0` — RELEASED (2026-09-26)
+
+Release filing, not a Pass — packages **108 commits already filed** since
+`v0.55.0` (`229e8635`). Version-bump commit `941e6718` ("chore: v0.56.0")
+bumps `Cargo.toml` 0.55.0 → 0.56.0 plus both lockfiles (`Cargo.lock`,
+`fuzz/Cargo.lock`; 21 package versions each 0.55.0→0.56.0). Annotated tag
+`v0.56.0` (tag object `48c3d30e`); both pushed, `origin/main` = `941e6718`.
+**Independently confirmed this filing:** `Cargo.toml`'s `version = "0.56.0"`
+(`Grep`, live source).
+
+**Range `v0.55.0..941e6718`: 108 commits (107 before the bump plus the
+bump).** Highlights, not refiled here — each already has its own entry
+above: `Pass 330.0` (`3127b18c`) and its redaction twin (`e92cf7dd`) —
+shared page/content-stream decoupling; `Pass 329.0` (`3691999f`, Tesseract);
+`Pass 327.0`/`327.1` (OCRcer); `G028`–`G041`, `Pass 311.0`–`326.2`;
+`Pass 325.0` (the crate split); `Pass 328.0`.
+
+**Gates (relayed).** `tools/run-gates.sh` PASS, 39 commands including 2
+filing gates, run before the bump commit. `cargo about generate`
+regenerated `THIRD_PARTY_LICENSES.md` with no diff. `check-suite-name-absent`
+and `check-commits-filed` clean. OCRcer vendored copy current at
+`af9b27ad28d9` (`sync-ocrcer` reported already synced).
+
+**Build (relayed).** `D:\builds\pdfcer-20260926-1742-941e671`, 46,553,747 B,
+including the bundled Tesseract and `eng.traineddata`. Zip
+`pdfcer-v0.56.0-windows-x64.zip`: 24,129,551 B, 23 root entries (same
+layout as `v0.55.0`'s); sha256
+`5b8c4848338755c7eb6133464b453a002147ab71c8b7552d51d630dbce00bf13`.
+
+**Smoke test (relayed), fresh folder.** `--version` reports `pdfcer 0.56.0`,
+revision `v0.56.0`, `iccce 0.3.0 (rev a4d9003b)`. Reproduced the release's
+headline fix from the **packaged binary**: a synthetic two-page PDF whose
+pages both draw `/Contents 4 0 R`, `edit-text --page 1 --find BODY --replace
+LEAF` gives page 1 `LEAF TEXT` / page 2 `BODY TEXT` and prints the "shared a
+content stream" disclosure.
+
+**GitHub release (relayed).** Published via `tools/gh-release.py`'s **first
+production use** — printed `PASS v0.56.0: 2 asset(s) uploaded at their
+local sizes` on the first attempt (zip + `.sha256`), so `v0.55.0`'s upload
+problem did not recur. Title "pdfcer v0.56.0".
+
+**OneDrive (relayed).** `tools/deploy-onedrive.py` wrote slot `pdfcer1`
+(0.54.0 → 0.56.0; 46,544,122 B, 5 items); `pdfcer2` keeps 0.55.0 as the
+rollback.
+
+**`verify-release.py v0.56.0` (relayed): 8 ok, 1 FAIL.** The ok checks
+include "CI is GREEN at the tagged commit." The FAIL — "working tree
+clean" — is a known false alarm of the same class as `v0.55.0`'s: its one
+path is the untracked `target-case/` directory, predates this session, is
+not the engineer's, and is deliberately left untouched; the build is from
+the committed tag. The CI run at the prior tip `96129f96` (609th filing)
+completed green (run `36272667037`, 8m5s). The engineer's `1e229815` (docs
+only, `NEXT_SESSION.md`) landed between the 609th filing and the bump; not
+a code commit.
+
+**`docs/FEATURES.md`: no rows changed — a release ships no new capability.**
+Said explicitly so the silence is not read as a missed sweep.
+
+**No decision-log entry** — a release carries no architectural decision.
+Highest decision record remains `162`.
+
+**Sourcing (hard rule 8).** No shell this filing. Independently confirmed
+via `Grep` against live source: `Cargo.toml`'s `version = "0.56.0"`. All
+other facts above — the tag object, the commit range and its highlights,
+the gate-sweep results, the build/zip byte counts and sha256, the smoke
+test transcript, the GitHub release and OneDrive deploy results, the
+`verify-release.py` output, and the CI run status — are **relayed from the
+dispatching engineer's own report of `941e6718`, not independently
+reproduced.**
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.55.0` (`229e8635`, 2026-09-17) | **`v0.56.0` (`941e6718`, 2026-09-26) — 108 commits since `v0.55.0` (107 Pass/filing commits + 1 bump)** |
+| Pass families | `330` (highest `.0`), next free `331` | unchanged — no new Pass this filing |
+| Standing rules | `R258` next free (unresolved `R251` discrepancy carried, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `162` | unchanged |
+| `SESSION_LOG` filings | `609` | **`610`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
+| CI at the tagged commit | n/a (prior tip `96129f96` verified green, 609th filing) | **`v0.56.0` verified GREEN per `verify-release.py`'s "CI is GREEN at the tagged commit" check** |
+
+---
+
 ### `Pass 330.0` (`3127b18c`), 2026-09-26 — Edit routes must not rewrite a page content stream another page also draws
 
 **Verdict: SHIPPED.** Found by rotation, not report — the redaction

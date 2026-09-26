@@ -4,6 +4,59 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (610th filing) — `941e6718`: `v0.56.0` RELEASED
+
+**Shipped:**
+- `v0.56.0` — release filing, not a Pass. Packages 108 commits since
+  `v0.55.0` (`229e8635`..`941e6718`), version-bump commit `941e6718`
+  ("chore: v0.56.0"), tag `v0.56.0` (tag object `48c3d30e`), both pushed,
+  `origin/main` = `941e6718`. Headline carried: `Pass 330.0`'s and
+  `e92cf7dd`'s shared-content-stream decoupling, `Pass 329.0` (Tesseract),
+  `Pass 327.0`/`327.1` (OCRcer), `G028`–`G041` (`Pass 311.0`–`326.2`),
+  `Pass 325.0` (the crate split), `Pass 328.0` — each already filed under
+  its own entry, not refiled here.
+
+**Decisions made this session:** none — a release carries no architectural
+decision. Highest decision record remains `162`.
+
+**Findings + decisions:**
+- Gates, build and smoke test all relayed from the dispatching engineer
+  (no shell this filing): `tools/run-gates.sh` PASS (39 commands);
+  `cargo about generate` no-diff; packaged build 46,553,747 B, zip
+  24,129,551 B (23 root entries, sha256
+  `5b8c4848338755c7eb6133464b453a002147ab71c8b7552d51d630dbce00bf13`); the
+  packaged binary reproduces the headline shared-content-stream fix
+  directly (page 1 edited, page 2's independent text unchanged, disclosure
+  printed).
+- `tools/gh-release.py`'s **first production use**: printed `PASS v0.56.0:
+  2 asset(s) uploaded at their local sizes` on the first attempt — the
+  `v0.55.0` upload-retry problem did not recur.
+- `tools/deploy-onedrive.py` wrote slot `pdfcer1` (0.54.0 → 0.56.0);
+  `pdfcer2` keeps 0.55.0 as the rollback.
+- `verify-release.py v0.56.0`: 8 ok (including "CI is GREEN at the tagged
+  commit"), 1 FAIL — "working tree clean," a known false alarm of the same
+  class as `v0.55.0`'s: its one path is the untracked `target-case/`
+  directory, predates this session, not the engineer's, deliberately
+  untouched. CI at the prior tip `96129f96` (609th filing) completed green
+  (run `36272667037`, 8m5s).
+- `docs/FEATURES.md`: **no rows changed** — a release ships no new
+  capability. Said explicitly so the silence is not read as a missed
+  sweep.
+- Independently confirmed by this filing (no shell, `Grep` only):
+  `Cargo.toml`'s `version = "0.56.0"`.
+
+**Still in flight:** nothing opened by this filing; see `docs/NEXT_SESSION.md`
+for the engineer's own state.
+
+**For next session:** none specific to this release.
+
+**Sourcing (hard rule 8).** No shell this filing. All figures above except
+`Cargo.toml`'s live version string are relayed from the dispatching
+engineer's own report of `941e6718`, not independently reproduced. The
+`ROADMAP.md` `v0.56.0` entry (new, top of *Shipped*) and its Ledger table
+were filed by this same pass, independently checked against live
+`ROADMAP.md`/`Cargo.toml` content within this role's no-shell reach.
+
 ## 2026-09-26 (609th filing) — `3127b18c`: `Pass 330.0` SHIPPED — edit routes decouple a page content stream another page also draws
 
 **Shipped:**
