@@ -75,3 +75,9 @@ positive to the dirty set.
 Related: [[run-the-projects-own-gates]] (the gate set is wider than
 fmt/clippy/tests), [[gates-i-owe-myself]] (the ones I skip), [[two-modes-one-pattern-is-one-measurement]]
 (same-pattern agreement is not verification).
+
+2026-09-25 instance: `check-bypass-paths.sh` stopped reading each file at the
+first `#[cfg(test)]`, which sat halfway down the 46k-line CLI main.rs. The
+gate had never seen `import-structure`'s raw writer call. Splitting the file
+into modules exposed it. **Splitting a big file is an audit: re-run every
+gate and treat each new red as a real finding.**

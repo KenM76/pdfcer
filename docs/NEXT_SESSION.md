@@ -186,6 +186,23 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
 
+### SINCE THE LAST HANDOFF — 2026-09-25, later (`Pass 325.0` step 5)
+
+`pdfcer-cli`'s main.rs is split: 917 lines plus 28 modules (`cli.rs` = the
+clap enum, `dispatch.rs` = `run()`, one module per subcommand family). Commits
+`0fe973a2` (split), `ccf8daec` (OCRcer re-sync). **Pass 325.0 is IN PROGRESS**:
+the remaining steps are the `pdfcer-core` crate extraction (the plan is in its
+Backlog entry).
+- **Grep `crates/pdfcer-cli/src/` for a command, not main.rs.** Every
+  `main.rs:NNNN` citation older than this is stale; use the symbol name.
+- The split exposed `import-structure` bypassing the certification refusal.
+  `check-bypass-paths.sh` stopped reading at the first `#[cfg(test)]`, which
+  sat halfway down the old main.rs. It is now fixed and tested. When splitting
+  core, expect the same thing: re-run every gate, and treat a new red as a
+  finding, not as noise.
+- Welded doc blocks show up as "undocumented" public functions. Move the
+  block; do not write a new doc.
+
 ### SINCE THE LAST HANDOFF — 2026-09-25 (`Pass 328.0`, `Pass 329.0`, 592nd–593rd filings)
 
 **FIRST ACTION ON "continue": sweep (`tools/run-gates.sh`), then push.**
@@ -194,9 +211,7 @@ crate (fixed the `cargo test --workspace` OOM). `Pass 329.0` added Tesseract
 as a third `--ocr-engine` (subprocess, static-MSVC build via a vcpkg overlay
 port — `tools/tesseract/build-tesseract.py`); see `ARCHITECTURE.md` §12
 decision 161 and this session's `ROADMAP.md`/`SESSION_LOG.md` entries for
-the full technical detail. Commits reported unpushed as of this filing:
-`3691999f`, `21af5926` (Pass 329.0), `c3fed5bd` (routine OCRcer re-sync, no
-Pass). **Owed:** push `main` after a green sweep. A release is optional —
+the full technical detail. All pushed. A release is optional —
 run `build-tesseract.py` on the packaging machine first, since the exe is
 built locally, not vendored as a binary. **Open:** operator question `(cf)`
 — which languages beyond `eng` to bundle by default in `models/tesseract`.
