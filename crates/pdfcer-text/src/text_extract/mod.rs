@@ -69,7 +69,7 @@
 //! ## Pipeline
 //!
 //! ```text
-//! page /Contents  ──► ContentStream tokens (crate::content, lossless)
+//! page /Contents  ──► ContentStream tokens (pdfcer_model::content, lossless)
 //!    │
 //!    ├─ graphics state: q/Q/cm ─────────────► CTM
 //!    ├─ marked-content stack: BMC/BDC/EMC ──► /Artifact, /Span+/ActualText,
@@ -136,12 +136,12 @@ mod page;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::content::ContentError;
-use crate::document::Document;
-use crate::page_tree::{self, Page, PageTreeError, Rect};
-use crate::span::ByteSpan;
 use crate::text_state::AmbientTextState;
-use crate::view::DocumentView;
+use pdfcer_model::content::ContentError;
+use pdfcer_model::document::Document;
+use pdfcer_model::page_tree::{self, Page, PageTreeError, Rect};
+use pdfcer_model::span::ByteSpan;
+use pdfcer_model::view::DocumentView;
 
 pub use font::{ExtractFont, FontNote, LadderRung, Rung3Gap};
 
@@ -152,7 +152,6 @@ pub use font::{ExtractFont, FontNote, LadderRung, Rung3Gap};
 /// are characters the *file* provides, the last two are pdfcer's own
 /// judgement about how those characters are separated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum TextOrigin {
     /// Characters decoded from shown glyphs through the §9.10.2 ladder.
     /// [`TextRun::glyphs`] is populated and positionally meaningful.
@@ -257,7 +256,6 @@ impl ArtifactKind {
 /// This is provenance, not a derived judgement: it records where in the
 /// file a glyph physically came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum ContentStreamRef {
     /// The page's own concatenated `/Contents` buffer.
     Page,
@@ -414,7 +412,6 @@ pub struct GlyphProvenance {
 /// heap allocation. It stays `Clone`. Every workspace consumer accesses
 /// glyphs by reference, so dropping `Copy` is transparent.
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub struct ExtractedGlyph {
     /// The character code as it appeared in the show string: one byte
     /// for a simple font, two big-endian bytes for a composite one.
@@ -665,7 +662,6 @@ impl ExtractedGlyph {
 /// One contiguous run of extracted text sharing an origin and a
 /// marked-content context.
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub struct TextRun {
     /// The run's characters.
     pub text: String,
@@ -1051,7 +1047,7 @@ pub struct TextDiagnostics {
     pub pages_unreadable: u64,
     /// `Contents` entries across the extracted pages that named an object
     /// the file does not contain, and so contributed no text (mirrors
-    /// [`crate::page_tree::Page::contents_unresolved`], summed).
+    /// [`pdfcer_model::page_tree::Page::contents_unresolved`], summed).
     ///
     /// The twin of [`TextDiagnostics::pages_unreadable`] one step earlier
     /// in the pipeline: that counter means "a stream was there and could
@@ -1065,7 +1061,7 @@ pub struct TextDiagnostics {
     /// Extracted pages whose `/Resources` was on neither the page nor any
     /// ancestor, so every font, XObject and colour-space name in their
     /// content resolved against the **empty** dictionary pdfcer supplied
-    /// (mirrors [`crate::page_tree::Page::resources_defaulted`], counted).
+    /// (mirrors [`pdfcer_model::page_tree::Page::resources_defaulted`], counted).
     ///
     /// It matters more here than almost anywhere: text extraction is
     /// font-driven, and a page with no resource dictionary has no `/Font`
@@ -1220,7 +1216,7 @@ pub struct ExtractOptions {
     pub same_direction_cos: f32,
     /// Maximum form-XObject nesting depth (§8.10.1).
     ///
-    /// Defaults to [`crate::content::MAX_FORM_DEPTH`], which is where the
+    /// Defaults to [`pdfcer_model::content::MAX_FORM_DEPTH`], which is where the
     /// number and its corpus justification now live. This used to carry its
     /// own literal `64` documented as *"matching `pdfcer-render`'s
     /// `MAX_XOBJECT_DEPTH`"* — a hand-copied constant whose only guarantee of
@@ -1272,7 +1268,7 @@ impl Default for ExtractOptions {
             line_gap_ratio: 0.30,
             backward_jump_ratio: 0.50,
             same_direction_cos: SAME_DIRECTION_COS,
-            max_form_depth: crate::content::MAX_FORM_DEPTH,
+            max_form_depth: pdfcer_model::content::MAX_FORM_DEPTH,
             capture_provenance: false,
             // Read off the enum rather than restated, so the settings
             // store, the engine and the file's own documentation cannot
@@ -1297,7 +1293,7 @@ impl ExtractOptions {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::text_extract::ExtractOptions;
+    /// use pdfcer_text::text_extract::ExtractOptions;
     ///
     /// let options = ExtractOptions::default().with_artifacts(true);
     /// assert!(options.include_artifacts);
@@ -1320,7 +1316,7 @@ impl ExtractOptions {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::text_extract::ExtractOptions;
+    /// use pdfcer_text::text_extract::ExtractOptions;
     ///
     /// let tuned = ExtractOptions::default().with_word_gap_ratio(0.35);
     /// assert!((tuned.word_gap_ratio - 0.35).abs() < 1e-6);
@@ -1345,7 +1341,7 @@ impl ExtractOptions {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::text_extract::ExtractOptions;
+    /// use pdfcer_text::text_extract::ExtractOptions;
     ///
     /// // Less eager to break words apart, more eager to break lines.
     /// let options = ExtractOptions::default().with_gap_ratios(0.35, 0.20, 0.50);
@@ -1369,8 +1365,7 @@ impl ExtractOptions {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::settings::UnmappableCode;
-    /// use pdfcer_core::text_extract::ExtractOptions;
+    /// use pdfcer_text::text_extract::{ExtractOptions, UnmappableCode};
     ///
     /// let quiet = ExtractOptions::default().with_unmappable_code(UnmappableCode::Omit);
     /// assert_eq!(quiet.unmappable_code, UnmappableCode::Omit);
@@ -1387,8 +1382,7 @@ impl ExtractOptions {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::settings::ActualTextPrecedence;
-    /// use pdfcer_core::text_extract::ExtractOptions;
+    /// use pdfcer_text::text_extract::{ActualTextPrecedence, ExtractOptions};
     ///
     /// let forensic =
     ///     ExtractOptions::default().with_actual_text(ActualTextPrecedence::Glyphs);
@@ -1412,7 +1406,7 @@ impl ExtractOptions {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::text_extract::ExtractOptions;
+    /// use pdfcer_text::text_extract::ExtractOptions;
     ///
     /// let options = ExtractOptions::default().with_provenance(true);
     /// assert!(options.capture_provenance);
@@ -1553,8 +1547,8 @@ impl PageText {
 /// # Examples
 ///
 /// ```no_run
-/// use pdfcer_core::document::Document;
-/// use pdfcer_core::{page_tree, text_extract};
+/// use pdfcer_model::{document::Document, page_tree};
+/// use pdfcer_text::text_extract;
 ///
 /// let doc = Document::load(std::path::Path::new("in.pdf"))?;
 /// let pages = page_tree::pages(&doc)?;
@@ -1604,14 +1598,13 @@ pub fn extract_page(
 /// # Examples
 ///
 /// ```no_run
-/// use pdfcer_core::document::Document;
-/// use pdfcer_core::edit::EditSession;
-/// use pdfcer_core::{page_tree, text_extract};
+/// use pdfcer_model::{document::Document, page_tree};
+/// use pdfcer_text::text_extract;
 ///
 /// let doc = Document::load(std::path::Path::new("in.pdf"))?;
-/// let session = EditSession::new(doc);
-/// // The page as the operator currently has it, unsaved edits included.
-/// let view = session.view();
+/// // `pdfcer_core::edit::EditSession::view` gives the same view with the
+/// // operator's unsaved edits included.
+/// let view = doc.view();
 /// let pages = page_tree::pages_in(&view)?;
 /// let options = text_extract::ExtractOptions::default();
 /// let page = text_extract::extract_page_view(&view, &pages[0], 0, &options)?;
@@ -1803,8 +1796,8 @@ pub fn extract_pages_view(
 /// one of them is pdfcer's problem, which is exactly what the emitted
 /// note says.
 fn document_facts(doc: &DocumentView<'_>, diagnostics: &mut TextDiagnostics) {
-    use crate::graph::ObjectGraph;
-    use crate::object::Object;
+    use pdfcer_model::graph::ObjectGraph;
+    use pdfcer_model::object::Object;
 
     // `catalog_dict()` (the `ObjectGraph` provided method) rather than
     // `Document::catalog()` (Pass 17.1): the same trailer→`/Root` walk, but
@@ -1882,7 +1875,6 @@ fn document_facts(doc: &DocumentView<'_>, diagnostics: &mut TextDiagnostics) {
 /// documented as *"the headline honesty metric"* and the setting must not
 /// be able to switch it off.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[non_exhaustive]
 pub enum UnmappableCode {
     /// U+FFFD REPLACEMENT CHARACTER, one per unmappable code.
     ///
@@ -1966,7 +1958,6 @@ pub enum UnmappableCode {
 /// granularity whichever value is chosen. That is a fact to disclose, not
 /// a direction to pick.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[non_exhaustive]
 pub enum ActualTextPrecedence {
     /// `/ActualText` replaces the glyphs it covers, wherever it appears.
     ///

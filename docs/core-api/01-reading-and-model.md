@@ -107,7 +107,7 @@ builds `--no-default-features`, so both configurations compile.
 | Build a read view to pass to render/vector/content | `Document::view() -> DocumentView<'_>` — `document.rs:910` | §5.2 |
 | Decode + tokenize a page's content streams | `ContentStream::from_page(&DocumentView, &Page)` — `content.rs:208` | §7 |
 | Walk content-stream operators semantically | `ContentStream::operations()` — `content.rs:296`; name via `Operation::operator_name(buf)` — `content.rs:137` | §7 |
-| Extract all text from one page | `text_extract::extract_page(&Document, &Page, idx, &ExtractOptions)` — `text_extract/mod.rs:1093` | §8 |
+| Extract all text from one page | `text_extract::extract_page(&Document, &Page, idx, &ExtractOptions)` — `text_extract/mod.rs:1562` | §8 |
 | Extract all text from the whole document | `text_extract::extract_document(&Document, &ExtractOptions)` — `mod.rs:1191` | §8 |
 | Extract text reflecting unsaved edits | `text_extract::extract_page_view` / `extract_document_view` — `mod.rs:1148`, `mod.rs:1210` | §8 |
 | Get text as one string | `ExtractedText::plain_text()` — `mod.rs:1005`; file-sourced only: `sourced_text()` — `mod.rs:1027` | §8.3 |
@@ -120,7 +120,7 @@ builds `--no-default-features`, so both configurations compile.
 | Inventory every font the document uses | `fontinfo::inventory(&DocumentView) -> FontInventory` — `fontinfo.rs:1600` | §9.1 |
 | Know if a font is embedded / subsetted / removable | `FontRecord::program`, `::removability` — `fontinfo.rs:1208-1258`; `split_subset_tag` — `fontinfo.rs:1319` | §9.1 |
 | Read a font's embedding permission (`OS/2 fsType`) | `fontinfo::read_fs_type(&[u8])` — `fontinfo.rs:743` | §9.1 |
-| Resolve one font resource for text decoding | `ExtractFont::resolve(&DocumentView, &Dict)` — `text_extract/font.rs:381` | §9.2 |
+| Resolve one font resource for text decoding | `ExtractFont::resolve(&DocumentView, &Dict)` — `text_extract/font.rs:429` | §9.2 |
 | Map a character code to Unicode via `/ToUnicode` | `ToUnicodeCMap::parse(&[u8])` → `::lookup(u32)` — `cmap.rs:272`, `cmap.rs:552` | §9.3 |
 | Get Base-14 metrics without any font file | `fontdata::std14_width`, `std14_descriptor` — `fontdata/mod.rs:421`, `:528` | §9.4 |
 | Turn a page into selectable vector/text/image objects | `vector::decompose_page(&DocumentView, &Page, Matrix)` — `vector/decompose.rs:1626` | §10.1 |
@@ -984,6 +984,8 @@ decision 018 (`3a56b55`, 2026-08-02), so treat it as post-migration settled.
 ## 8. Text extraction
 
 **Module set:** `text_extract` (+ `textstring`, `text_state`).
+`text_extract` and `text_state` live in `crates/pdfcer-text/src/`, re-exported
+at their `pdfcer_core::` paths; line references in this section are into that crate.
 
 **★ Structural fact:** `text_extract/mod.rs:133-134` declares
 `mod layout;` and `mod page;` — **private**. Everything in `page.rs` and

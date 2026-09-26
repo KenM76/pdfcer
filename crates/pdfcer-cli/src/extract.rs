@@ -1703,7 +1703,6 @@ pub(crate) fn content_stream_str(stream: pdfcer_core::text_extract::ContentStrea
     match stream {
         ContentStreamRef::Page => "page".to_string(),
         ContentStreamRef::Form { object } => format!("form:{object}"),
-        _ => "unknown".to_string(),
     }
 }
 

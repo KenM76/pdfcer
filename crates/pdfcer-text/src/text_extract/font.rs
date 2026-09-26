@@ -81,11 +81,11 @@
 //! is: it is unreachable, it is named, and it is counted.**
 
 use super::UnmappableCode;
-use crate::filters;
-use crate::fontdata::{self, BaseEncoding, Std14};
-use crate::graph::ObjectGraph;
-use crate::object::{Dict, Object};
-use crate::view::DocumentView;
+use pdfcer_fonts::fontdata::{self, BaseEncoding, Std14};
+use pdfcer_model::filters;
+use pdfcer_model::graph::ObjectGraph;
+use pdfcer_model::object::{Dict, Object};
+use pdfcer_model::view::DocumentView;
 
 use super::cmap::ToUnicodeCMap;
 
@@ -371,7 +371,9 @@ const NOMINAL_DESCENT: f32 = -0.25;
 /// and the third (extraction) is narrowed back to `f32` at its own call
 /// site; doing the arithmetic in the wider type never loses precision the
 /// narrower one had.
-pub(crate) fn advance_tx(w0: f64, tfs: f64, tc: f64, tw: f64, th: f64) -> f64 {
+// workspace-internal: called by pdfcer-core, not API
+#[doc(hidden)]
+pub fn advance_tx(w0: f64, tfs: f64, tc: f64, tw: f64, th: f64) -> f64 {
     (w0 * tfs + tc + tw) * th
 }
 
@@ -638,7 +640,9 @@ impl ExtractFont {
     /// codespace is a single 2-byte range). pdfcer consumes it as a high
     /// byte with a zero low byte — a documented choice, not spec text —
     /// so the string is fully consumed and the loop cannot stall.
-    pub(crate) fn codes(&self, string: &[u8]) -> Vec<Code> {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn codes(&self, string: &[u8]) -> Vec<Code> {
         match self.width {
             CodeWidth::One => string
                 .iter()
@@ -693,7 +697,9 @@ impl ExtractFont {
     /// is, [`LadderRung::Failed`] is still reported and still counted —
     /// the setting chooses what the failure *looks like*, never whether
     /// the failure is admitted.
-    pub(crate) fn to_unicode(&self, code: u32, sentinel: UnmappableCode) -> (String, LadderRung) {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn to_unicode(&self, code: u32, sentinel: UnmappableCode) -> (String, LadderRung) {
         // Rung 1 — presence of /ToUnicode is the entire precondition,
         // for every Subtype including Type 3.
         if let Some(cmap) = &self.to_unicode
@@ -746,7 +752,9 @@ impl ExtractFont {
     /// Advance width for a code, in **text space** (already divided by
     /// the glyph-space scale, so the caller multiplies by the font size
     /// directly).
-    pub(crate) fn width(&self, code: u32) -> f32 {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn width(&self, code: u32) -> f32 {
         let glyph_space = match &self.widths {
             Widths::Simple(table) => usize::try_from(code)
                 .ok()
@@ -767,14 +775,18 @@ impl ExtractFont {
     ///
     /// Always positive. See [`Vertical`] for the resolution ladder and for
     /// what [`Self::vertical_is_nominal`] discloses.
-    pub(crate) fn ascent(&self) -> f32 {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn ascent(&self) -> f32 {
         self.vertical.ascent
     }
 
     /// The font's maximum depth below the baseline, **text space**
     /// (§9.8 Table 122 `/Descent`). **Negative**, per the clause's own
     /// stated sign convention.
-    pub(crate) fn descent(&self) -> f32 {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn descent(&self) -> f32 {
         self.vertical.descent
     }
 
@@ -785,7 +797,9 @@ impl ExtractFont {
     /// built on a guess and a box built on the file's declared metrics are
     /// two different claims, and presenting the first as the second is the
     /// exact shape rule 4 forbids.
-    pub(crate) fn vertical_is_nominal(&self) -> bool {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn vertical_is_nominal(&self) -> bool {
         self.vertical.nominal
     }
 
@@ -798,7 +812,9 @@ impl ExtractFont {
     /// boundaries — never in the middle of a multi-byte CID — when it
     /// removes an in-region run and re-emits the surviving segments.
     #[must_use]
-    pub(crate) fn bytes_per_code(&self) -> usize {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn bytes_per_code(&self) -> usize {
         match self.width {
             CodeWidth::One => 1,
             CodeWidth::Two => 2,
@@ -810,7 +826,9 @@ impl ExtractFont {
     /// estimated width degrades only the *cosmetic* quality of advance
     /// preservation, never the removal itself.
     #[must_use]
-    pub(crate) fn width_estimated(&self) -> bool {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn width_estimated(&self) -> bool {
         self.notes
             .iter()
             .any(|n| matches!(n, FontNote::WidthsEstimated))
@@ -818,7 +836,9 @@ impl ExtractFont {
 
     /// The `/BaseFont` name, for disclosure de-duplication.
     #[must_use]
-    pub(crate) fn base_font_name(&self) -> String {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn base_font_name(&self) -> String {
         self.base_font.clone()
     }
 
@@ -833,7 +853,9 @@ impl ExtractFont {
     /// lossy, `iso32000__ref__inverse_encoding.md` §0). Exposed
     /// `pub(crate)` for that one caller; extraction never reads it back.
     #[must_use]
-    pub(crate) fn glyph_names(&self) -> Option<&[Option<String>; 256]> {
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    pub fn glyph_names(&self) -> Option<&[Option<String>; 256]> {
         self.glyph_names.as_deref()
     }
 
@@ -865,8 +887,10 @@ impl ExtractFont {
 }
 
 /// One character code taken off a shown string (§9.4.3).
+// workspace-internal: called by pdfcer-core, not API
+#[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Code {
+pub struct Code {
     /// The code value: one byte for a simple font, two big-endian bytes
     /// for a composite one.
     pub value: u32,

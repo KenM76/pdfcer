@@ -1,6 +1,6 @@
 //! # The extraction walk over a page's content stream
 //!
-//! A single pass over [`crate::content::ContentStream`]'s lossless token
+//! A single pass over [`pdfcer_model::content::ContentStream`]'s lossless token
 //! stream that maintains exactly the state extraction needs and nothing
 //! else:
 //!
@@ -66,14 +66,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use super::ActualTextPrecedence;
-use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
-use crate::graph::ObjectGraph;
-use crate::object::{Dict, Object};
-use crate::page_tree::{Page, Rect};
-use crate::span::ByteSpan;
 use crate::text_state::{AmbientTextState, TextStateParam};
-use crate::textstring::decode_text_string;
-use crate::view::DocumentView;
+use pdfcer_fonts::textstring::decode_text_string;
+use pdfcer_model::content::{ContentError, ContentStream, ContentTokenKind, Operation};
+use pdfcer_model::graph::ObjectGraph;
+use pdfcer_model::object::{Dict, Object};
+use pdfcer_model::page_tree::{Page, Rect};
+use pdfcer_model::span::ByteSpan;
+use pdfcer_model::view::DocumentView;
 
 use super::font::{ExtractFont, FontNote, LadderRung, Rung3Gap};
 use super::{
@@ -408,7 +408,7 @@ struct Walk<'a> {
 /// (`session.view()` — the in-place text-edit tool and Copy Text).
 ///
 /// Nothing about the walk itself changed: every `doc.resolve(…)` here is
-/// the identical [`ObjectGraph`](crate::graph::ObjectGraph) method it
+/// the identical [`ObjectGraph`](pdfcer_model::graph::ObjectGraph) method it
 /// already called, and the one place that needed stream BYTES (the form
 /// XObject payload) now asks the view for them so an R45-staged span
 /// resolves instead of falling off the end of the base buffer.
@@ -1399,7 +1399,7 @@ impl Walk<'_> {
         // undecodable form is skipped, not fatal.
         let content = doc
             .slice(stream.data_span)
-            .and_then(|raw| crate::filters::decode_stream(&stream.dict, raw).ok())
+            .and_then(|raw| pdfcer_model::filters::decode_stream(&stream.dict, raw).ok())
             .and_then(|decoded| ContentStream::parse(decoded).ok());
 
         if let Some(content) = content {
@@ -1467,7 +1467,7 @@ impl Walk<'_> {
 // ---------------------------------------------------------------------------
 
 /// The object carried by a content token, if it is an operand.
-fn operand_object(token: &crate::content::ContentToken) -> Option<&Object> {
+fn operand_object(token: &pdfcer_model::content::ContentToken) -> Option<&Object> {
     match &token.kind {
         ContentTokenKind::Operand(o) => Some(o),
         _ => None,
@@ -1614,8 +1614,8 @@ mod tests {
 
     // -- Pass 19.0: ambient text state published on provenance ----------
 
-    use crate::document::Document;
     use crate::text_state::{AmbientOrigin, TextStateParam, UnobservableAmbient};
+    use pdfcer_model::document::Document;
 
     /// A one-page PDF whose page content is `page_content` and which
     /// carries one form XObject `/X1` (object 6) with `form_content`.
@@ -1690,7 +1690,7 @@ mod tests {
     /// Every glyph of the page, with provenance capture on, in order.
     fn glyphs_with_provenance(bytes: &[u8]) -> Vec<crate::text_extract::ExtractedGlyph> {
         let doc = Document::from_bytes(bytes.to_vec()).unwrap();
-        let pages = crate::page_tree::pages(&doc).unwrap();
+        let pages = pdfcer_model::page_tree::pages(&doc).unwrap();
         let opts = ExtractOptions::default().with_provenance(true);
         let page = super::super::extract_page(&doc, &pages[0], 0, &opts).unwrap();
         page.runs

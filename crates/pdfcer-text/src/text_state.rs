@@ -288,7 +288,7 @@ impl fmt::Display for TextStateParam {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::text_state::TextStateParams;
+/// use pdfcer_text::text_state::TextStateParams;
 ///
 /// let initial = TextStateParams::INITIAL;
 /// assert_eq!(initial.char_spacing, 0.0);
@@ -558,7 +558,7 @@ impl AmbientValue {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::text_state::{AmbientValue, TextStateParam};
+    /// use pdfcer_text::text_state::{AmbientValue, TextStateParam};
     ///
     /// // Never set: restore the Table 105 default.
     /// let unset = AmbientValue::initial(TextStateParam::HorizScale);
@@ -584,7 +584,7 @@ impl AmbientValue {
                 // number pdfcer writes rather than like a `Display` of an
                 // `f64` — `-14 TL`, never `-14.0 TL` or `-1.4e1 TL`.
                 let mut out = Vec::new();
-                crate::writer::content::emit_number(&mut out, self.value);
+                pdfcer_model::writer::content::emit_number(&mut out, self.value);
                 out.push(b' ');
                 out.extend_from_slice(param.operator());
                 Ok(out)
@@ -610,7 +610,7 @@ impl AmbientValue {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::text_state::{AmbientTextState, TextStateParam};
+/// use pdfcer_text::text_state::{AmbientTextState, TextStateParam};
 ///
 /// let mut ts = AmbientTextState::initial();
 /// assert_eq!(ts.params().h_scale, 1.0);

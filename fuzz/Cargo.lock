@@ -391,6 +391,7 @@ dependencies = [
  "pdfcer-image-codec",
  "pdfcer-model",
  "pdfcer-pkix",
+ "pdfcer-text",
  "sha2",
  "thiserror",
  "weezl",
@@ -461,6 +462,15 @@ dependencies = [
  "subsetter",
  "thiserror",
  "tiny-skia",
+]
+
+[[package]]
+name = "pdfcer-text"
+version = "0.55.0"
+dependencies = [
+ "pdfcer-fonts",
+ "pdfcer-model",
+ "thiserror",
 ]
 
 [[package]]

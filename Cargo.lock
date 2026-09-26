@@ -916,6 +916,7 @@ dependencies = [
  "pdfcer-image-codec",
  "pdfcer-model",
  "pdfcer-pkix",
+ "pdfcer-text",
  "rand_core",
  "rc2",
  "rsa",
@@ -1004,6 +1005,15 @@ dependencies = [
  "tiny-skia",
  "usvg",
  "zune-jpeg",
+]
+
+[[package]]
+name = "pdfcer-text"
+version = "0.55.0"
+dependencies = [
+ "pdfcer-fonts",
+ "pdfcer-model",
+ "thiserror",
 ]
 
 [[package]]

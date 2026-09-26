@@ -33,7 +33,7 @@
 //! 2. **Destinations are UTF-16BE byte strings, so surrogate pairs are
 //!    normal.** EXAMPLE 2's own `<3A51> → <D840DC3E>` is U+2003E. A
 //!    UCS-2 decoder truncates it silently. Decoding goes through
-//!    [`crate::textstring::decode_utf16be_bytes`], which pairs
+//!    [`pdfcer_fonts::textstring::decode_utf16be_bytes`], which pairs
 //!    surrogates and counts what it cannot.
 //! 3. **Form B increments the LAST BYTE, not the code point.** Verbatim:
 //!    "the last byte of the string shall be incremented for each
@@ -87,9 +87,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::fontdata;
-use crate::lexer::{Lexer, TokenKind};
-use crate::textstring::decode_utf16be_bytes;
+use pdfcer_fonts::fontdata;
+use pdfcer_fonts::textstring::decode_utf16be_bytes;
+use pdfcer_model::lexer::{Lexer, TokenKind};
 
 /// Maximum number of materialized single-code mappings (`bfchar`
 /// entries plus form-C array elements).
@@ -263,7 +263,7 @@ impl ToUnicodeCMap {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::text_extract::cmap::ToUnicodeCMap;
+    /// use pdfcer_text::text_extract::cmap::ToUnicodeCMap;
     ///
     /// // The §9.10.3 EXAMPLE 2 mapping blocks, verbatim.
     /// let cmap = ToUnicodeCMap::parse(

@@ -104,6 +104,7 @@ pub use pdfcer_fonts::{font_embed, fontdata, fontinfo, linebreak, textstring, va
 pub use pdfcer_image_codec as image_codec;
 use pdfcer_pkix::{asn1, cms};
 pub use pdfcer_pkix::{trust_chain, trust_store};
+pub use pdfcer_text::{text_extract, text_state};
 pub mod image_import;
 pub mod layers;
 /// OCR text layers — turning recognised words into an invisible, selectable
@@ -128,8 +129,6 @@ pub mod signature_verify;
 pub mod stamp_file;
 pub mod structure;
 pub mod text_edit;
-pub mod text_extract;
-pub mod text_state;
 pub mod vector;
 pub mod wrapper;
 

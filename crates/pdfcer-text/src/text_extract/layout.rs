@@ -124,7 +124,7 @@
 //! standard glosses it, while `plain_text()` is `Dru` `c` ⏎ `ker` —
 //! the same characters plus one clearly-labelled derived line break.
 
-use crate::page_tree::Rect;
+use pdfcer_model::page_tree::Rect;
 
 use super::page::{GlyphItem, Item};
 use super::{ArtifactKind, ExtractOptions, ExtractedGlyph, TextDiagnostics, TextOrigin, TextRun};

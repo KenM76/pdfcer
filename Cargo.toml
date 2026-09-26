@@ -39,6 +39,7 @@ members = [
     "crates/pdfcer-fonts",
     "crates/pdfcer-pkix",
     "crates/pdfcer-color",
+    "crates/pdfcer-text",
     "crates/pdfcer-core",
     "crates/pdfcer-render",
     "crates/pdfcer-cli",
