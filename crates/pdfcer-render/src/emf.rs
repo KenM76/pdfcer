@@ -371,7 +371,9 @@ pub fn export_emf_view(
     hdr.extend_from_slice(&i32le(mm(wu) * 1000)); // MicrometersX
     hdr.extend_from_slice(&i32le(mm(hu) * 1000)); // MicrometersY
     debug_assert_eq!(hdr.len(), 108);
-    w.out[..108].copy_from_slice(&hdr);
+    if let Some(header) = w.out.get_mut(..108) {
+        header.copy_from_slice(&hdr);
+    }
 
     Ok(EmfExport {
         emf: w.out,
@@ -581,10 +583,12 @@ impl Writer<'_> {
             let mut cursor = Some(id);
             while let Some(c) = cursor {
                 chain.push(c);
-                cursor = self.clips[c.index()].parent;
+                cursor = self.clips.get(c.index()).and_then(|d| d.parent);
             }
             for c in chain.into_iter().rev() {
-                let def = &self.clips[c.index()];
+                let Some(def) = self.clips.get(c.index()) else {
+                    continue;
+                };
                 let device = def
                     .path
                     .as_deref()
@@ -735,7 +739,10 @@ impl Writer<'_> {
     /// accumulates: `dx[i] = round(x[i+1]) − round(x[i])`.
     fn dx(&self, run: &crate::emf_text::EmfTextRun) -> Vec<i32> {
         let at: Vec<i32> = run.along.iter().map(|&a| self.lu(a)).collect();
-        at.windows(2).map(|w| w[1] - w[0]).collect()
+        at.iter()
+            .zip(at.iter().skip(1))
+            .map(|(a, b)| b - a)
+            .collect()
     }
 
     fn fill_solid(&mut self, path: &Path, rgba: [u8; 4], rule: FillRule, ctm: Transform) {
@@ -930,7 +937,7 @@ impl Writer<'_> {
         let src = scratch.pixels();
         for row in 0..bh {
             let s0 = ((y0 + row) * w + x0) as usize;
-            for px in &src[s0..s0 + bw as usize] {
+            for px in src.get(s0..s0 + bw as usize).unwrap_or_default() {
                 bits.extend_from_slice(&[px.blue(), px.green(), px.red(), px.alpha()]);
             }
         }
@@ -1008,8 +1015,11 @@ fn logfont_record_body(run: &crate::emf_text::EmfTextRun, unit: f32) -> Vec<u8> 
     b.push(0); // Quality
     b.push(0); // PitchAndFamily
     let mut face = [0u8; 64];
-    for (i, u) in run.face.encode_utf16().take(31).enumerate() {
-        face[2 * i..2 * i + 2].copy_from_slice(&u.to_le_bytes());
+    for (slot, u) in face
+        .chunks_exact_mut(2)
+        .zip(run.face.encode_utf16().take(31))
+    {
+        slot.copy_from_slice(&u.to_le_bytes());
     }
     b.extend_from_slice(&face);
     b.extend_from_slice(&[0u8; 128 + 64 + 64]); // FullName, Style, Script
@@ -1102,8 +1112,8 @@ pub fn walk_records(emf: &[u8]) -> Option<Vec<(u32, u32)>> {
     let mut out = Vec::new();
     let mut off = 0usize;
     while off + 8 <= emf.len() {
-        let t = u32::from_le_bytes(emf[off..off + 4].try_into().ok()?);
-        let s = u32::from_le_bytes(emf[off + 4..off + 8].try_into().ok()?);
+        let t = u32::from_le_bytes(emf.get(off..off + 4)?.try_into().ok()?);
+        let s = u32::from_le_bytes(emf.get(off + 4..off + 8)?.try_into().ok()?);
         if s < 8 || s % 4 != 0 {
             return None;
         }
@@ -1118,7 +1128,12 @@ pub fn walk_records(emf: &[u8]) -> Option<Vec<(u32, u32)>> {
 fn _types(_: Arc<Mask>, _: BrushSpec) {}
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

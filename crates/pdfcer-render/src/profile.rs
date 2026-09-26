@@ -498,7 +498,9 @@ mod imp {
                     .iter()
                     .rposition(|&e| u64::from(n) >= e)
                     .unwrap_or(0);
-                reuse[b] += 1;
+                if let Some(r) = reuse.get_mut(b) {
+                    *r += 1;
+                }
             }
             // Top-N by application count, descending.
             let mut counts: Vec<u64> = map.values().map(|&(n, _)| u64::from(n)).collect();
@@ -774,7 +776,9 @@ pub(crate) fn note_clip_phases(new_ns: u64, fill_ns: u64, mul_ns: u64) {
             .iter()
             .position(|&e| total_us < e)
             .unwrap_or(CLIP_BUCKETS - 1);
-        imp::CLIP_HIST[bucket].fetch_add(1, Relaxed);
+        if let Some(h) = imp::CLIP_HIST.get(bucket) {
+            h.fetch_add(1, Relaxed);
+        }
     }
 }
 
@@ -867,7 +871,12 @@ pub(crate) fn timing_enabled() -> bool {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

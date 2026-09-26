@@ -51,10 +51,15 @@
 
 #![forbid(unsafe_code)]
 // Panic-free, as in pdfcer-core: the rasteriser consumes untrusted content
-// streams and images. Tests opt out per module. `indexing_slicing` is not yet
-// denied here (hundreds of pixel-buffer sites); `tools/check-engine-lint-policy.py`
-// records that gap.
-#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// streams and images. Tests opt out per module. A per-pixel loop whose bound
+// holds by construction may allow `indexing_slicing` on its smallest item,
+// with the bound stated beside it.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 
 pub mod annot;
 /// The four NON-SEPARABLE blend modes (ISO 32000-1 §11.3.5.3, Table 137),

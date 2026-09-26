@@ -1742,9 +1742,12 @@ fn decode_sampled(
                         mask::undo_matte(comps, components.min(4), m, plane_alpha);
                     }
                     let (rgb, cmyk) = match &mut tint_cache {
-                        Some(cache) => {
-                            cache.lookup(&space, intent, &raw_comps[..readable], &comps[..readable])
-                        }
+                        Some(cache) => cache.lookup(
+                            &space,
+                            intent,
+                            raw_comps.get(..readable).unwrap_or_default(),
+                            comps.get(..readable).unwrap_or_default(),
+                        ),
                         // No cache means the space is not `Special`, so
                         // there is no tint transform to bound and no ink
                         // answer this arm could give — a `DeviceCMYK`
@@ -1762,7 +1765,7 @@ fn decode_sampled(
             // opaque.
             let a = match &colour_key {
                 _ if suppressed => 0,
-                Some(key) if key.masks(&raw_comps[..readable]) => 0,
+                Some(key) if key.masks(raw_comps.get(..readable).unwrap_or_default()) => 0,
                 _ => plane_alpha,
             };
             let at = y * width as usize + x;
@@ -1821,8 +1824,11 @@ fn decode_sampled(
                     // A DIRECT `Separation`/`DeviceN` image: the operands are
                     // the texel's own components, still in the image's colour
                     // space on this line and nowhere after it.
-                    None => crate::overprint::authored_tints(kind, &last_comps[..readable])
-                        .unwrap_or([0.0; 4]),
+                    None => crate::overprint::authored_tints(
+                        kind,
+                        last_comps.get(..readable).unwrap_or_default(),
+                    )
+                    .unwrap_or([0.0; 4]),
                 };
                 write_ink(planes, at, tint, a);
             }
@@ -2974,7 +2980,8 @@ fn resolve_space_array(
             if let Some(cache) = icc.cache
                 && let Some(components) = n.and_then(|v| usize::try_from(v).ok())
                 && components == 4
-                && let Object::Stream(st) = doc.resolve(&items[1])
+                && let Some(stream) = items.get(1)
+                && let Object::Stream(st) = doc.resolve(stream)
                 && let Some(raw) = doc.slice(st.data_span)
                 && let Ok(profile) = pdfcer_core::filters::decode_stream(&st.dict, raw)
                 && let Some(bridge) =
@@ -3007,7 +3014,8 @@ fn resolve_space_array(
             if let Some(cache) = icc.cache
                 && let Some(components) = n.and_then(|v| usize::try_from(v).ok())
                 && components == 3
-                && let Object::Stream(st) = doc.resolve(&items[1])
+                && let Some(stream) = items.get(1)
+                && let Object::Stream(st) = doc.resolve(stream)
                 && let Some(raw) = doc.slice(st.data_span)
                 && let Ok(profile) = pdfcer_core::filters::decode_stream(&st.dict, raw)
                 && let Some((display, ink)) = icc_rgb_bridges(cache, &profile, icc.intent)

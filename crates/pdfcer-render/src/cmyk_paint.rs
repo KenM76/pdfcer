@@ -128,7 +128,9 @@ fn coverage(
     // full-page pass this reuse exists to remove.
     for y in y0..y1 {
         let row = (y * width) as usize;
-        cov.data_mut()[row + x0 as usize..row + x1 as usize].fill(0);
+        if let Some(span) = cov.data_mut().get_mut(row + x0 as usize..row + x1 as usize) {
+            span.fill(0);
+        }
     }
     if let Some(r) = rule {
         cov.fill_path(path, r, anti_alias, ctm);
@@ -146,11 +148,16 @@ fn coverage(
         let cov_data = cov.data_mut();
         for y in y0..y1 {
             let row = (y * width) as usize;
-            for x in x0 as usize..x1 as usize {
-                let i = row + x;
+            let span = row + x0 as usize..row + x1 as usize;
+            let (Some(cov_row), Some(old_row)) =
+                (cov_data.get_mut(span.clone()), old_data.get(span))
+            else {
+                continue;
+            };
+            for (c, &o) in cov_row.iter_mut().zip(old_row) {
                 #[allow(clippy::cast_possible_truncation)]
                 {
-                    cov_data[i] = ((u16::from(cov_data[i]) * u16::from(old_data[i])) / 255) as u8;
+                    *c = ((u16::from(*c) * u16::from(o)) / 255) as u8;
                 }
             }
         }
@@ -347,7 +354,12 @@ pub(crate) fn paint_brush_coverage_into_cmyk(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
     use pdfcer_core::settings::CmykIntent;

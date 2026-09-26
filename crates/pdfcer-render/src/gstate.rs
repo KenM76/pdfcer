@@ -814,7 +814,12 @@ pub fn blend_mode_from_name(name: &[u8]) -> Option<tiny_skia::BlendMode> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod mat64_tests {
     use super::Mat64;
     use tiny_skia::Transform;

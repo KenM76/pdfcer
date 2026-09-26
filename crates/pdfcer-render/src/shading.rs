@@ -1001,8 +1001,11 @@ impl Shading {
                 // place that decides the file is malformed.
                 let domain = mesh_decode
                     .as_ref()
-                    .filter(|d| d.len() >= 6)
-                    .map_or([0.0, 1.0], |d| [d[4], d[5]]);
+                    .and_then(|d| match d[..] {
+                        [_, _, _, _, t0, t1, ..] => Some([t0, t1]),
+                        _ => None,
+                    })
+                    .unwrap_or([0.0, 1.0]);
                 diag.ramps_sampled += 1;
                 let r = ColorRamp::build(f, domain, &color_space, &bridges, intent, color_diag);
                 if !r.is_complete() {
@@ -1183,23 +1186,29 @@ impl Shading {
         }
         // Thin: keep the ends and every interior stop that is not the
         // linear interpolation of its kept predecessor and its successor.
-        let mut stops: Vec<(f32, [u8; 3])> = vec![raw[0]];
-        for i in 1..raw.len() - 1 {
-            let (ua, ca) = *stops.last().unwrap_or(&raw[0]);
-            let (ub, cb) = raw[i + 1];
-            let (u, c) = raw[i];
+        let (&first, &last) = (raw.first()?, raw.last()?);
+        let mut stops: Vec<(f32, [u8; 3])> = vec![first];
+        for pair in raw.windows(2).skip(1) {
+            let &[(u, c), (ub, cb)] = pair else {
+                continue;
+            };
+            let (ua, ca) = *stops.last().unwrap_or(&first);
             let f = if (ub - ua).abs() < f32::EPSILON {
                 0.0
             } else {
                 (u - ua) / (ub - ua)
             };
             let lerp = |a: u8, b: u8| f32::from(a) + (f32::from(b) - f32::from(a)) * f;
-            let off = (0..3).any(|k| (lerp(ca[k], cb[k]) - f32::from(c[k])).abs() > 1.0);
+            let off = ca
+                .iter()
+                .zip(&cb)
+                .zip(&c)
+                .any(|((&a, &b), &v)| (lerp(a, b) - f32::from(v)).abs() > 1.0);
             if off {
                 stops.push((u, c));
             }
         }
-        stops.push(raw[N]);
+        stops.push(last);
         Some(GradientSpec {
             kind,
             stops,
@@ -1480,8 +1489,10 @@ impl ShadingDiagnostics {
     /// Record a successfully classified geometry in the per-type census.
     fn count(&mut self, geometry: &Geometry) {
         let t = geometry.shading_type() as usize;
-        if (1..=7).contains(&t) {
-            self.by_type[t - 1] += 1;
+        if (1..=7).contains(&t)
+            && let Some(n) = self.by_type.get_mut(t - 1)
+        {
+            *n += 1;
         }
     }
 
@@ -1885,7 +1896,7 @@ fn sample_at(
     let coverage = match clip {
         // The clip mask is one byte of coverage per device pixel, laid out
         // in the same row-major order as the pixmap.
-        Some(mask) => f32::from(mask.data()[idx]) / 255.0,
+        Some(mask) => mask.data().get(idx).map_or(0.0, |&c| f32::from(c) / 255.0),
         None => 1.0,
     };
     Some((t, coverage))
@@ -1933,7 +1944,9 @@ fn paint_region(
             // rejected: it needs a divide by the output alpha, which is a
             // second place for a 0/0 to appear on exactly the pixels where
             // nothing should be drawn anyway.
-            let dst = pixmap.pixels()[idx];
+            let Some(&dst) = pixmap.pixels().get(idx) else {
+                continue;
+            };
             let inv = 1.0 - a;
             let out_a = a
                 .mul_add(255.0, f32::from(dst.alpha()) * inv)
@@ -1963,8 +1976,9 @@ fn paint_region(
                 mix(rgb.g, dst.green()),
                 mix(rgb.b, dst.blue()),
                 out_a,
-            ) {
-                pixmap.pixels_mut()[idx] = c;
+            ) && let Some(slot) = pixmap.pixels_mut().get_mut(idx)
+            {
+                *slot = c;
                 painted += 1;
             }
         }
@@ -2187,7 +2201,12 @@ impl Shading {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

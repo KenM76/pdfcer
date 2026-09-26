@@ -2173,8 +2173,10 @@ impl KnockoutTarget {
         let blend = crate::compositor::Blend::from_tiny_skia(blend)
             .unwrap_or(crate::compositor::Blend::Normal);
         self.accumulate((x0, y0, x1, y1), q_s, blend, |k, idx| {
-            let px = crate::compositor::Pixel::from_premultiplied(k.scratch.pixels()[idx]);
-            (px.c, px.a)
+            k.scratch.pixels().get(idx).map_or(([0.0; 3], 0.0), |&p| {
+                let px = crate::compositor::Pixel::from_premultiplied(p);
+                (px.c, px.a)
+            })
         });
     }
 
@@ -2223,16 +2225,26 @@ impl KnockoutTarget {
         for y in y0..y1 {
             for x in x0..x1 {
                 let idx = (y * width + x) as usize;
-                let s = Pixel::from_premultiplied(shape_source.pixels()[idx]);
+                let Some(&shape_px) = shape_source.pixels().get(idx) else {
+                    continue;
+                };
+                let s = Pixel::from_premultiplied(shape_px);
                 if s.a <= 0.0 {
                     continue;
                 }
                 let c = match colour_over_backdrop {
                     None => s.c,
                     Some(nis) => {
-                        let initial = Pixel::from_premultiplied(self.initial.pixels()[idx]);
-                        let over = Pixel::from_premultiplied(nis.pixels()[idx]);
-                        remove_backdrop(over, initial, s.a)
+                        let (Some(&initial), Some(&over)) =
+                            (self.initial.pixels().get(idx), nis.pixels().get(idx))
+                        else {
+                            continue;
+                        };
+                        remove_backdrop(
+                            Pixel::from_premultiplied(over),
+                            Pixel::from_premultiplied(initial),
+                            s.a,
+                        )
                     }
                 };
                 self.accumulate_one(idx, c, s.a, q_s, blend);
@@ -2272,20 +2284,33 @@ impl KnockoutTarget {
         blend: crate::compositor::Blend,
     ) {
         use crate::compositor::{Pixel, composite_element_knockout, union_};
+        let (Some(&initial), Some(&accum), Some(&group_alpha)) = (
+            self.initial.pixels().get(idx),
+            self.accum.pixels().get(idx),
+            self.group_alpha.get(idx),
+        ) else {
+            return;
+        };
         let source = Pixel { c, a: f_s * q_s };
         let (out, ag) = composite_element_knockout(
-            Pixel::from_premultiplied(self.initial.pixels()[idx]),
-            Pixel::from_premultiplied(self.accum.pixels()[idx]),
+            Pixel::from_premultiplied(initial),
+            Pixel::from_premultiplied(accum),
             source,
             f_s,
-            self.group_alpha[idx],
+            group_alpha,
             blend,
         );
-        if let Some(px) = out.to_premultiplied() {
-            self.accum.pixels_mut()[idx] = px;
+        if let Some(px) = out.to_premultiplied()
+            && let Some(slot) = self.accum.pixels_mut().get_mut(idx)
+        {
+            *slot = px;
         }
-        self.group_alpha[idx] = ag;
-        self.group_shape[idx] = union_(self.group_shape[idx], f_s);
+        if let Some(a) = self.group_alpha.get_mut(idx) {
+            *a = ag;
+        }
+        if let Some(shape) = self.group_shape.get_mut(idx) {
+            *shape = union_(*shape, f_s);
+        }
     }
 
     /// The group's **result** as a plain pixmap: colour after §11.4.4's
@@ -2306,16 +2331,21 @@ impl KnockoutTarget {
         let Some(mut out) = Pixmap::new(self.accum.width(), self.accum.height()) else {
             return self.accum.clone();
         };
-        for idx in 0..self.group_alpha.len().min(self.accum.pixels().len()) {
-            let agn = self.group_alpha[idx];
+        let texels = self
+            .group_alpha
+            .iter()
+            .zip(self.initial.pixels())
+            .zip(self.accum.pixels())
+            .zip(out.pixels_mut());
+        for (((&agn, &initial), &over), dst) in texels {
             if agn <= 0.0 {
                 continue;
             }
-            let initial = Pixel::from_premultiplied(self.initial.pixels()[idx]);
-            let over = Pixel::from_premultiplied(self.accum.pixels()[idx]);
+            let initial = Pixel::from_premultiplied(initial);
+            let over = Pixel::from_premultiplied(over);
             let c = remove_backdrop(over, initial, agn);
             if let Some(px) = (Pixel { c, a: agn }).to_premultiplied() {
-                out.pixels_mut()[idx] = px;
+                *dst = px;
             }
         }
         out
@@ -2331,19 +2361,18 @@ impl KnockoutTarget {
         if let Some(m) = mask {
             apply_mask(&mut result, m);
         }
-        let n = dest.pixels().len().min(result.pixels().len());
-        for idx in 0..n {
-            let g = Pixel::from_premultiplied(result.pixels()[idx]);
+        for (dst, &group_px) in dest.pixels_mut().iter_mut().zip(result.pixels()) {
+            let g = Pixel::from_premultiplied(group_px);
             if g.a <= 0.0 {
                 continue;
             }
-            let backdrop = Pixel::from_premultiplied(dest.pixels()[idx]);
+            let backdrop = Pixel::from_premultiplied(*dst);
             let source = Pixel {
                 c: g.c,
                 a: g.a * opacity,
             };
             if let Some(px) = composite_element(backdrop, source, blend).to_premultiplied() {
-                dest.pixels_mut()[idx] = px;
+                *dst = px;
             }
         }
     }
@@ -2463,8 +2492,8 @@ fn clear_region(p: &mut Pixmap, region: (u32, u32, u32, u32)) {
     let px = p.pixels_mut();
     for y in y0..y1 {
         let row = (y * width) as usize;
-        for x in x0..x1 {
-            px[row + x as usize] = blank;
+        if let Some(span) = px.get_mut(row + x0 as usize..row + x1 as usize) {
+            span.fill(blank);
         }
     }
 }
@@ -2558,7 +2587,7 @@ fn nothing_painted_outside(group: &Pixmap, bounds: Option<tiny_skia::IntRect>) -
         let row = (y * w) as usize;
         (0..w).all(|x| {
             let inside = x >= x0 && x < x1.min(w) && y >= y0 && y < y1.min(h);
-            inside || px[row + x as usize].alpha() == 0
+            inside || px.get(row + x as usize).is_none_or(|p| p.alpha() == 0)
         })
     })
 }
@@ -2718,21 +2747,22 @@ fn composite_non_isolated_group(
     let blend = layer_blend(paint);
     let opacity = paint.opacity.clamp(0.0, 1.0);
     let mask = mask.map(Mask::data);
-    let n = dest
-        .pixels()
-        .len()
-        .min(iso.pixels().len())
-        .min(nis.pixels().len());
-    for idx in 0..n {
+    let texels = dest
+        .pixels_mut()
+        .iter_mut()
+        .zip(iso.pixels())
+        .zip(nis.pixels())
+        .enumerate();
+    for (idx, ((dst, iso_px), &nis_px)) in texels {
         // The group's OWN alpha. Zero means the group marked nothing here,
         // and §11.4.4's result is then unreachable whatever its colour:
         // leave the backdrop alone.
-        let agn = f32::from(iso.pixels()[idx].alpha()) / 255.0;
+        let agn = f32::from(iso_px.alpha()) / 255.0;
         if agn <= 0.0 {
             continue;
         }
-        let backdrop = Pixel::from_premultiplied(dest.pixels()[idx]);
-        let over = Pixel::from_premultiplied(nis.pixels()[idx]);
+        let backdrop = Pixel::from_premultiplied(*dst);
+        let over = Pixel::from_premultiplied(nis_px);
         // The removal divides by the UNMASKED `α_gn`. The mask is not
         // part of the group's own accumulation — §11.4.5 applies it to the
         // finished result — so masking before the removal would divide by
@@ -2749,7 +2779,7 @@ fn composite_non_isolated_group(
             a: agn * opacity * m,
         };
         if let Some(px) = composite_element(backdrop, source, blend).to_premultiplied() {
-            dest.pixels_mut()[idx] = px;
+            *dst = px;
         }
     }
 }
@@ -2761,7 +2791,12 @@ fn composite_non_isolated_group(
 /// build inline"*, and an argument that is only made in a comment is an
 /// argument nobody can re-run.
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

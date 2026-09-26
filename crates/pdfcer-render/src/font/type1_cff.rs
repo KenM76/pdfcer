@@ -113,7 +113,8 @@ fn index(items: &[&[u8]]) -> Vec<u8> {
     out.push(off_size);
     let mut offset = 1usize;
     let push = |out: &mut Vec<u8>, v: usize| {
-        out.extend_from_slice(&(v as u32).to_be_bytes()[4 - usize::from(off_size)..]);
+        let bytes = (v as u32).to_be_bytes();
+        out.extend_from_slice(bytes.get(4 - usize::from(off_size)..).unwrap_or_default());
     };
     push(&mut out, offset);
     for item in items {

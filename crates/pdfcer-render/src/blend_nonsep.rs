@@ -193,6 +193,7 @@ fn set_lum(c: Rgb, l: f32) -> Rgb {
 /// resolved on entry**, `C_mid` is computed before `C_max` because its
 /// formula reads `C_max`, and `C_min = 0.0` is unconditional.
 #[must_use]
+#[allow(clippy::indexing_slicing)] // `imin`/`imid`/`imax` are a permutation of 0..3 and `Rgb` is `[f32; 3]`
 fn set_sat(c: Rgb, s: f32) -> Rgb {
     // Resolve the three positions ONCE, on entry (trap 5). `imin`/`imid`/
     // `imax` are indices into the original colour and stay fixed while the
@@ -318,11 +319,13 @@ pub(crate) fn composite(
                 crate::compositor::Pixel { c: source, a: t },
                 crate::compositor::Blend::NonSeparable(mode),
             );
-            if let Some(newpx) = out.to_premultiplied() {
+            if let Some(newpx) = out.to_premultiplied()
+                && let Some(slot) = pixmap.pixels_mut().get_mut(idx)
+            {
                 if newpx != px {
                     changed += 1;
                 }
-                pixmap.pixels_mut()[idx] = newpx;
+                *slot = newpx;
             }
         }
     }
@@ -360,9 +363,8 @@ pub(crate) fn composite_layer(
     mode: NonSeparableBlend,
     opacity: f32,
 ) {
-    let n = dest.pixels().len().min(group.pixels().len());
-    for idx in 0..n {
-        let g = crate::compositor::Pixel::from_premultiplied(group.pixels()[idx]);
+    for (dst, &group_px) in dest.pixels_mut().iter_mut().zip(group.pixels()) {
+        let g = crate::compositor::Pixel::from_premultiplied(group_px);
         if g.a <= 0.0 {
             continue;
         }
@@ -373,18 +375,23 @@ pub(crate) fn composite_layer(
             a: g.a * opacity.clamp(0.0, 1.0),
         };
         let out = crate::compositor::composite_element(
-            crate::compositor::Pixel::from_premultiplied(dest.pixels()[idx]),
+            crate::compositor::Pixel::from_premultiplied(*dst),
             source,
             crate::compositor::Blend::NonSeparable(mode),
         );
         if let Some(px) = out.to_premultiplied() {
-            dest.pixels_mut()[idx] = px;
+            *dst = px;
         }
     }
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 
