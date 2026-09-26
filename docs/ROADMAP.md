@@ -115,6 +115,31 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 330.2` (`89eb180b`), 2026-09-26 — Vector edits on a shared page stream get their own fixture
+
+**Verdict: SHIPPED, test-only.** Closes `Pass 330.1`'s stated residual:
+vector verbs other than `delete_object` shared the decoupling path
+introduced by `Pass 330.0` but had no dedicated shared-stream fixture.
+`+64` lines, one file: `crates/pdfcer-core/tests/shared_page_content_edit.rs`.
+
+**What shipped.** Two new tests, both built around a stroked line shared by
+two pages: `move_objects` and `transform_objects` each get a dedicated case
+asserting page 1's content changes, page 2's stream is byte-identical to
+before the edit, and the `SHARED` disclosure is emitted. No source change —
+the decoupling path itself was already correct for these verbs; only test
+coverage was missing.
+
+**Tests.** `shared_page_content_edit.rs`: 7 → 9, all pass. Sabotage: forcing
+the decoupling branch off fails 6 of 9, including all 3 vector tests.
+
+**No pub API change, no core-api change, no dependency change; `cargo tree`
+unaffected. `FEATURES.md`:** no rows changed — test coverage only, no
+core/cli/gui box moves.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own report of `89eb180b`, not independently
+reproduced.
+
 ### `Pass 330.1` (`ffc76e7b`), 2026-09-26 — A decoupled edit's report names the stream it actually wrote
 
 **Verdict: SHIPPED.** Closes one of `Pass 330.0`'s two residuals, but the
@@ -152,6 +177,9 @@ line count updated in the same commit.
 **Still open from `Pass 330.0`.** Its other residual stands: vector verbs
 other than `delete_object` share the decoupling path but have no dedicated
 shared-stream fixture.
+
+**Closed 2026-09-26 (`89eb180b`, `Pass 330.2`).** Dedicated fixtures added
+for `move_objects` and `transform_objects`; see `Pass 330.2` above.
 
 **Disclosure to the GUI side.** An unprompted engine→GUI `FeatureRequests`
 notice was posted this session:

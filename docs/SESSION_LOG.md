@@ -4,6 +4,35 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (612th filing) — `89eb180b`: `Pass 330.2` SHIPPED — vector edits on a shared page stream get their own fixture
+
+**Shipped:**
+- `Pass 330.2` — test-only follow-up, closes `Pass 330.1`'s stated residual.
+  Vector verbs other than `delete_object` share the decoupling path from
+  `Pass 330.0` but had no dedicated shared-stream fixture. New tests: a
+  stroked line shared by two pages, `move_objects` and `transform_objects`
+  each asserting page 1 changes, page 2's stream is byte-identical, and the
+  `SHARED` disclosure is emitted.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- `tests/shared_page_content_edit.rs`: 7 → 9 tests, all pass (+64 lines, one
+  file). Sabotage: forcing the decoupling branch off fails 6 of 9, including
+  all 3 vector tests.
+- No pub API, core-api, or dependency change; `cargo tree` unaffected.
+  `docs/FEATURES.md`: no rows changed — test coverage only.
+
+**Still in flight:** none specific — `Pass 330.0`'s two residuals are now
+both closed (`Pass 330.1`, `Pass 330.2`).
+
+**For next session:** none specific.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own report of `89eb180b`, not independently
+reproduced. The `ROADMAP.md` `Pass 330.2` entry (new, top of *Shipped*) and
+the `Pass 330.1` closure note were filed by this same pass.
+
 ## 2026-09-26 (611th filing) — `ffc76e7b`: `Pass 330.1` SHIPPED — a decoupled edit's report names the stream it actually wrote
 
 **Shipped:**
