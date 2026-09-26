@@ -5,7 +5,8 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Amended:** 2026-09-25, after `Pass 329.0` and the 593rd filing (Tesseract OCR engine); **at least 3 commits UNPUSHED** (`3691999f`, `21af5926`, `c3fed5bd`) plus this filing's own — see the 2026-09-25 **SINCE THE LAST HANDOFF** block, right after the OCRcer section in STATE. Full reconciliation against `origin/main` not checked this filing (no shell) — run `git log origin/main..HEAD --oneline` on resume before trusting any push-status line in this file.
+**Amended:** 2026-09-26, after `Pass 330.0` and the 609th filing; **everything pushed** (`96129f96`). See the 2026-09-26 (`Pass 330.0`) **SINCE THE LAST HANDOFF** block, newest in STATE.
+**Earlier amendment:** 2026-09-25, after `Pass 329.0` and the 593rd filing (Tesseract OCR engine); **at least 3 commits UNPUSHED** (`3691999f`, `21af5926`, `c3fed5bd`) plus this filing's own — see the 2026-09-25 **SINCE THE LAST HANDOFF** block, right after the OCRcer section in STATE. Full reconciliation against `origin/main` not checked this filing (no shell) — run `git log origin/main..HEAD --oneline` on resume before trusting any push-status line in this file.
 **Earlier amendment:** 2026-09-23, after `Pass 326.2` and the 588th filing; **2 commits UNPUSHED** — see the 2026-09-23 **SINCE THE LAST HANDOFF** block at the top of STATE.
 **Earlier amendment:** 2026-09-17, after `Pass 309.0`/`309.1` and `Pass 310.0`/`310.1`/`310.2`, filings to the 571st, **`v0.55.0` released**. See the newest **SINCE THE LAST HANDOFF** block at the top of STATE.
 **Previously amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0`/`308.2`, `Pass 308.1` — with which **`G020` is fully closed** — and `Pass 308.3` answering the new `G021`. Filings to the 560th. See **SINCE THE LAST HANDOFF** at the top of STATE —
@@ -186,7 +187,32 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
 
-### SINCE THE LAST HANDOFF — 2026-09-26, latest (`Pass 325.0` CLOSED)
+### SINCE THE LAST HANDOFF — 2026-09-26 (`Pass 330.0`, shared content streams)
+
+Pushed through `96129f96`; filings 608 (`1c79da9f`) and 609.
+- **Redaction no longer rewrites a content stream another page draws**
+  (`e92cf7dd`). Same class, every text/vector edit route: `Pass 330.0`
+  (`3127b18c`). An edited page whose `/Contents` stream is shared gets its own
+  copy (reuses `contents[0]` if exclusive, else a fresh object), `/Contents`
+  is repointed, exclusive extras are emptied, shared ones left alone, and a
+  disclosure says so. Opposite of shared FORM XObjects (decision 076: in
+  place). Session path: private `text_edit_command` in `edit.rs`; one-shot
+  path: `write_incremental_with` in `text_edit/edit.rs` (returns a decoupled
+  bool). The format route's font-resource page write MUST merge with the
+  repoint into ONE page write — sabotage proved each path loses the font
+  otherwise. Tests: `tests/shared_page_content_edit.rs` (6).
+- **Residuals, not fixed:** `extra_objects_emptied` and the "collapsed"
+  disclosure can overstate when a dropped stream was shared; vector verbs
+  other than `delete_object` have no dedicated shared-stream fixture.
+- **Render now denies `indexing_slicing` crate-wide** (`11e7a0e5`, merged `a0f3bb79`) — the waiver noted below is gone. New tools
+  `tools/gh-release.py` and `tools/check-ci-crate-lists.py` (the 4 hand-kept
+  crate lists in `ci.yml` are now gated).
+- **Backlog:** EMF output nondeterminism item filed.
+- **Next:** release `v0.56.0` (last release 9 days old) once CI on
+  `96129f96` is green — sync OCRcer, package, fresh-folder smoke,
+  `gh-release.py`, `verify-release.py`, alternate OneDrive CLI slot.
+
+### SINCE THE LAST HANDOFF — 2026-09-26, earlier (`Pass 325.0` CLOSED)
 
 `Pass 325.0` is done: steps 4, 6 and 7 shipped, plus one more leaf, and the
 final-shape decision went to the librarian (605th filing).
