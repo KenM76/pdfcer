@@ -186,6 +186,29 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
 
+### SINCE THE LAST HANDOFF — 2026-09-26 (`Pass 325.0` step 2)
+
+The COS model layer is its own crate, `crates/pdfcer-model` (`0fbf6cbb`): 16
+modules (object, lexer, parser, filters, xref, objstm, recover, document,
+linearization, view, graph, writer, crypto, content, page_tree, span) plus the
+header-probe root items. `pdfcer-core` re-exports every one at its old path.
+Nothing outside the workspace had to change; `pdfcer-gui` builds clean.
+- **Grep `crates/pdfcer-model/src/` for a model type.** Paths like
+  `crates/pdfcer-core/src/writer/...` in older docs are stale.
+- **`Object`, `SectionShape`, `XrefEntryEol` and `TrailingEol` are no longer
+  `#[non_exhaustive]`.** Across a crate boundary it would force a wildcard onto
+  core's deliberate exhaustive matches. Do not put it back on a type that core
+  matches exhaustively. `XrefEntry` keeps it.
+- Model items core needs are `#[doc(hidden)] pub` with a
+  "workspace-internal" comment. That is the pattern for the next extraction.
+- Build times, before → after: model-layer lib tests 13 s → 3 s; core lib
+  tests 13 s → 8 s; CLI 13–15 s → 13 s.
+- **Next: step 3, the leaf crates.** `edit` is not a leaf: `text_edit`,
+  `dimension` and `vector` sit above it. Start with `sign`, `ocr` and
+  `image_codec`, and map their `crate::` edges with the scratchpad approach
+  (a module graph built by grepping `crate::<mod>` across the stripped source).
+- OCRcer moved again during this session; it was re-synced in `9425ff22`.
+
 ### SINCE THE LAST HANDOFF — 2026-09-25, later (`Pass 325.0` step 5)
 
 `pdfcer-cli`'s main.rs is split: 917 lines plus 28 modules (`cli.rs` = the
