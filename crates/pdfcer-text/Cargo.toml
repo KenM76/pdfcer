@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "pdfcer-text"
 description = "pdfcer text: text extraction (ISO 32000-1 9.10), ToUnicode CMaps and the text-state model (9.3). Re-exported by pdfcer-core (docs/ARCHITECTURE.md Â§3)."
 version.workspace = true
@@ -13,3 +14,7 @@ pdfcer-fonts = { path = "../pdfcer-fonts" }
 pdfcer-model = { path = "../pdfcer-model" }
 # thiserror: C-GOOD-ERR error derives. MIT OR Apache-2.0.
 thiserror = "2"
+
+[[test]]
+name = "all"
+path = "tests/all.rs"

@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "pdfcer-model"
 description = "pdfcer COS model layer: objects, lexer, parser, filters, xref, object streams, recovery, Document/DocumentView, the full and incremental writer, standard-handler crypto, content parsing and the page tree. Depends on nothing else in the workspace; re-exported by pdfcer-core (docs/ARCHITECTURE.md §3)."
 version.workspace = true
@@ -120,3 +121,7 @@ sha2 = { version = "0.11.0", default-features = false }
 # adding (rule 13). License: MIT OR Apache-2.0 (permissive, no operator flag).
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 getrandom = "0.2"
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
