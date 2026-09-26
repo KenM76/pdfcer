@@ -186,6 +186,32 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
 
+### SINCE THE LAST HANDOFF — 2026-09-26, latest (`Pass 325.0` CLOSED)
+
+`Pass 325.0` is done: steps 4, 6 and 7 shipped, plus one more leaf, and the
+final-shape decision went to the librarian (605th filing).
+- **The "no clean leaves remain" line below is WRONG.** `function` depended
+  only on model modules (its one core edge was a doc link). It is now
+  `crates/pdfcer-function` (`3057b06c`). Find leaves by computing every
+  module's `crate::` edge set, not by checking suspects. `structure` and
+  `editable` are model-only too, but too small to be worth crates.
+- **Session-layer split: declined.** `edit` and nearly every feature module
+  reference each other (one cycle over most of core). Render also depends on
+  core's `settings`, `annot`, `text_edit` and `edit`, so no core split would
+  stop render rebuilding.
+- **New gate `tools/check-engine-lint-policy.py`** (`f60bfd94`). Colour and
+  text had lost the panic-free lints in the split; print and render never had
+  them. All four have them now. Render waives `indexing_slicing` (~344 sites),
+  which is a Backlog item. Enabling the lints removed two live panics: a
+  mesh-shading `expect` and a print pixel-conversion index.
+- **A new split crate goes into 4 hand-kept lists in `ci.yml`** (GUI-deps tree
+  x2, no-network tree, wasm32). Its doctests spell its own paths, because it
+  cannot dev-depend on core.
+- **Test count:** about 9,097 is the honest number. The old 9,202
+  double-counted `function`'s 105 tests through core's lite rerun.
+- **Build times:** a leaf's own test loop takes ~1.4 s. The CLI rebuild is
+  unchanged at ~11.5 s, because the facade recompiles.
+
 ### SINCE THE LAST HANDOFF — 2026-09-26, later (`Pass 325.0` step 3 leaves + G042)
 
 **Step 3 has five leaves, each re-exported from core at its old path:**
