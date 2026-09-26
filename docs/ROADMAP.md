@@ -152,6 +152,24 @@ hashes and the decision rationale above are relayed from the dispatching
 engineer's own report of this Pass's closing steps; not independently
 reproduced here.
 
+**CI crate-list gate added, 2026-09-26 (606th filing), `65b1d15a` —
+enforces this Pass's own standing rule.** New `tools/check-ci-crate-lists.py`:
+`.github/workflows/ci.yml` names the engine crates by hand on 6 lines (the
+GUI-dep `cargo tree`, the no-network `cargo tree`, and the wasm32 build
+steps), and this Pass's own split showed a crate can be missed on one of
+them with no red — the gate reads `pdfcer-core`'s path dependencies from
+its `Cargo.toml` (7 today) and fails if any line naming `pdfcer-model`
+omits one. Sabotage-checked (deleting `pdfcer-function` from one list
+fails it). Registered in `tools/check-ci-parity.py`'s LOCAL map, so
+`tools/run-gates.sh` runs it (39 commands, PASS); added as a step in
+`ci.yml`'s repository-audits job (now 28 checks). No dependency or
+`cargo tree` change; `docs/FEATURES.md` unaffected (tooling only). RAG
+lesson: `D:\dev\rag\rust\hand_kept_ci_crate_lists_drift_when_a_crate_is_split_out.md`.
+Not a new Pass or decision — closes an open risk this Pass's own step-8
+standing rules named. Sourcing (hard rule 8): no shell this filing,
+relayed from the dispatching engineer's report of `65b1d15a`, not
+independently reproduced.
+
 ### `Pass 329.0` (`3691999f`/`21af5926`), 2026-09-25 — Tesseract as a third OCR engine, run as a subprocess, with a clean bundled build
 
 **Verdict: SHIPPED.** Operator request, 2026-09-25: *"How can we supply

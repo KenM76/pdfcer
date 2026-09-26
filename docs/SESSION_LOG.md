@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (606th filing) — `65b1d15a`: `tools/check-ci-crate-lists.py` gates CI's hand-kept engine crate lists — `Pass 325.0` follow-up
+
+**Shipped:**
+- `65b1d15a` — new gate `tools/check-ci-crate-lists.py`. `.github/workflows/ci.yml` names the engine crates by hand on 6 lines (the GUI-deps `cargo tree`, the no-network `cargo tree`, and the wasm32 build steps); a crate split out of `pdfcer-core` (as `Pass 325.0` just did seven times) must be added to every one, and a missed line silently drops out of that invariant check rather than failing. The gate reads `pdfcer-core`'s path dependencies from its `Cargo.toml` (7 today) and fails if any `ci.yml` line naming `pdfcer-model` omits one. Output: `"PASS ci crate lists (6 lists x 7 crates)"`. Sabotage-checked: deleting `pdfcer-function` from one list makes it fail. Registered in `tools/check-ci-parity.py`'s LOCAL map (so `tools/run-gates.sh` runs it) and added as a step in `ci.yml`'s repository-audits job, now "(28 checks)".
+
+**Decisions made this session:** none — this is enforcement tooling for a standing rule decision `162` (`ARCHITECTURE.md` §12) already recorded at `Pass 325.0`'s close ("a new split crate joins CI's 4 hand-kept crate lists... if it has features"), not a new architectural decision.
+
+**Findings + decisions:**
+- `tools/run-gates.sh` PASS, 39 commands including 2 filing gates. No dependency change; `cargo tree` unaffected. `docs/FEATURES.md` unaffected — no core/cli/gui boxes touched (tooling only).
+- Gotcha worth recording: this run-gates pass initially failed with "pre-push hook not active." `core.hooksPath` had been rewritten to the absolute path `D:\Dev\pdfcer\tools\hooks`, probably by a worktree subagent; the gate compares against the literal `"tools/hooks"`. Reset to the relative value, which also resolves correctly inside a worktree.
+- RAG lesson written: `D:\dev\rag\rust\hand_kept_ci_crate_lists_drift_when_a_crate_is_split_out.md` — derive a hand-kept CI crate list's expected membership from the facade crate's own `Cargo.toml` path deps, anchored on a token every list is guaranteed to contain, rather than hardcoding line numbers or a crate count. `D:\dev\rag\rust\index.md` updated. No existing rust RAG entry already covered this specific shape (checked `a_gate_states_what_it_cannot_see.md`'s R192 family and the completeness-guard/hardcoded-list findings first — related but none named this exact CI-list-drift-on-crate-split case).
+
+**Still in flight:** none for this follow-up. `Pass 325.0` itself remains fully SHIPPED (605th filing).
+
+**For next session:** nothing owed by this follow-up.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, gate output, test/gate counts and the hooks-path gotcha are relayed from the dispatching engineer's own report of `65b1d15a`; not independently reproduced here. The RAG index/prior-coverage check was performed directly via `Grep` on the live `D:\dev\rag\rust\` tree, not relayed.
+
 ## 2026-09-26 (605th filing) — `3057b06c`: `Pass 325.0` step 8 SHIPPED — sixth leaf `pdfcer-function`, session-layer split declined, decision `162` closes the Pass
 
 **Shipped:**
