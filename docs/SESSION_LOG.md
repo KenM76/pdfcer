@@ -31,6 +31,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **Sourcing (hard rule 8).** No shell this filing. All commits, line counts, module names, test/gate results and the defect account above are relayed from the requesting engineer's own report; not independently reproduced here.
 
+**Amendment, 2026-09-25 (595th filing).** CI run `36210496192` went RED on the Linux `cargo clippy -D warnings` job after this filing's push: `clippy::items_after_test_module` at `crates/pdfcer-cli/src/print.rs:1662`. The split (above) left `print.rs`'s three test modules ahead of its `#[cfg(not(windows))]` stubs for `cmd_print`/`cmd_print_preview`/`cmd_list_printers`; Windows clippy never compiles those stubs and the Linux cross-`cargo check` doesn't run clippy or compile `#[cfg(test)]` code, so `tools/run-gates.sh` was green locally and only CI caught it. Fixed by `23371604` (verbatim block move to end of file; no second instance found elsewhere in the CLI). `main` was red from `c557950f` (this filing's own commit) until `23371604` was pushed. No `FEATURES.md`/`ARCHITECTURE.md` change. Full account in `docs/ROADMAP.md`'s `Pass 325.0` entry addendum; RAG addendum in `D:\dev\rag\rust\a_gate_scoped_by_a_fixed_marker_or_file_size_stops_covering_the_file_as_it_grows.md`.
+
 ## 2026-09-25 (593rd filing) — `Pass 329.0` SHIPPED (`3691999f`/`21af5926`): Tesseract as a third OCR engine, run as a subprocess, with a clean bundled static-MSVC build
 
 **Shipped:**
