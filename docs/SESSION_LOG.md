@@ -4,6 +4,40 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (614th filing) — `8ac54da6`: `Pass 331.1` SHIPPED — a second embedded subset from the same donor gets its own subset tag
+
+**Shipped:**
+- `Pass 331.1` — defect found while working `Pass 331.0`. Two embedded
+  add-text runs from the same donor font (one-shot on an already-edited
+  file, or twice in one `EditSession`) wrote the same subset tag for two
+  different glyph sets, violating ISO 32000-1 §9.6.4. Fixed by
+  `with_file_unique_tag`/`unique_subset_tag` in
+  `text_edit/addtext.rs`, which checks every subset tag already in the
+  file (via `fontinfo::inventory`, session-view-aware) before committing
+  and re-derives a deterministic tag on collision.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- `subset_tag_for` derives a tag from the donor file's stem alone, with
+  no file-wide uniqueness check — the exact gap §9.6.4 exists to close.
+  `inventory` doesn't see an orphan, unreferenced font object, so that
+  edge case can still collide (recorded as a limit, not fixed).
+- `embed_font_roundtrip.rs`: two new tests, both fail with the retag
+  sabotaged, pass with it; filter now 6/6. `tools/run-gates.sh`: PASS
+  (39 commands).
+- `docs/FEATURES.md`: no row change — this is a correctness fix under
+  an already-ticked core/cli capability, not a new reach.
+
+**Still in flight:** `Pass 142.0` (embedded-donor `format-text
+--set-font`) scoping continues.
+
+**For next session:** none specific.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`8ac54da6`, not independently reproduced.
+
 ## 2026-09-26 (613th filing) — `5d48365d`: `Pass 331.0` SHIPPED — a session add-text with a supplied face now embeds it, not a Standard-14 stand-in
 
 **Shipped:**

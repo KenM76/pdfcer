@@ -115,6 +115,47 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 331.1` (`8ac54da6`), 2026-09-26 — A second embedded subset from the same donor gets its own subset tag
+
+**Verdict: SHIPPED, defect found while working `Pass 331.0`.** ISO
+32000-1 §9.6.4 ("different subsets in the same PDF file shall have
+different tags") was unenforced. The CLI derives a subset tag
+deterministically from the donor file's stem (`subset_tag_for`), so two
+embedded add-text runs from the same donor — a one-shot on an
+already-edited file, or twice in one `EditSession` — wrote the same
+`TAG+Name` for two different glyph sets.
+
+**Fix.** `text_edit/addtext.rs` gains `pub(crate) with_file_unique_tag`
+and `unique_subset_tag`: collects every subset tag already in the file
+via `fontinfo::inventory` (the session's view includes its own overlay),
+and on collision re-derives a deterministic tag (FNV-1a of the tag plus
+a counter). Wired ahead of `plan_add_text` in both the one-shot
+`add_text` and `EditSession::add_text`. No `pub` API change, no
+`core-api` change.
+
+**Limit.** `inventory` sees fonts reachable from pages, `/AcroForm
+/DR`, forms and annotations; an orphan unreferenced font object's tag
+is not seen and could still collide.
+
+**Tests.** Two new in `pdfcer-render/tests/embed_font_roundtrip.rs`:
+`a_second_subset_of_the_same_donor_gets_a_new_tag` and
+`the_one_shot_add_text_also_retags_a_colliding_subset` — both fail with
+the retag sabotaged, pass with it. `embed_font_roundtrip` filter: 6/6.
+`tools/run-gates.sh`: PASS (39 commands, including both filing gates).
+
+**Blast radius.** Nothing shipped in a release the GUI relies on —
+`pdfcer-gui` does not call `with_embedded_face`. The CLI's `add-text`
+with `--font-file` twice on the same file was affected.
+
+**No `cargo tree` change (no manifest edit). `FEATURES.md`:** no row
+change — the embedded-donor row's core/cli boxes already reflect this
+capability; this Pass fixes a correctness defect under it, not a new
+reach.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`8ac54da6`, not independently reproduced.
+
 ### `Pass 331.0` (`5d48365d`), 2026-09-26 — A session add-text with a supplied face now embeds it, not a Standard-14 stand-in
 
 **Verdict: SHIPPED, bug fix found while scoping `Pass 142.0`.**
