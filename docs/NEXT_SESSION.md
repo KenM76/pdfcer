@@ -203,10 +203,19 @@ Nothing outside the workspace had to change; `pdfcer-gui` builds clean.
   "workspace-internal" comment. That is the pattern for the next extraction.
 - Build times, before → after: model-layer lib tests 13 s → 3 s; core lib
   tests 13 s → 8 s; CLI 13–15 s → 13 s.
-- **Next: step 3, the leaf crates.** `edit` is not a leaf: `text_edit`,
-  `dimension` and `vector` sit above it. Start with `sign`, `ocr` and
-  `image_codec`, and map their `crate::` edges with the scratchpad approach
-  (a module graph built by grepping `crate::<mod>` across the stripped source).
+- **Step 3 has begun: `crates/pdfcer-image-codec`** (`bda11bd9`), the first
+  leaf, re-exported as `pdfcer_core::image_codec`. `CmykJpegPolarity` moved
+  with it. Edit and test a codec in its own crate: that loop is 1.4 s, while
+  core's lib tests take 36 s after a codec edit.
+- A split crate with a feature needs its own `--no-default-features` line in
+  `check-ci-parity.py`'s LOCAL map. `run-gates.sh` derives from that map, and
+  without the line the lite tests silently leave the sweep.
+- **Next leaves, measured:** `ocr` is NOT a leaf, because
+  `ocr/layer.rs` uses `text_edit` and `vartext`. `sign` needs
+  `asn`, `cms`, `signature_verify`, `fontdata` and `textstring`, plus
+  `edit::EditError` in `sign/apply.rs`. Extract `asn`/`cms`/`signature_verify`
+  as a crypto-signature crate first, and leave `sign::apply` (the session
+  side) in core.
 - OCRcer moved again during this session; it was re-synced in `9425ff22`.
 
 ### SINCE THE LAST HANDOFF — 2026-09-25, later (`Pass 325.0` step 5)
