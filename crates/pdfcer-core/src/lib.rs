@@ -105,7 +105,7 @@ pub mod formcsv;
 pub mod forms;
 pub mod forms_author;
 pub mod function;
-pub mod image_codec;
+pub use pdfcer_image_codec as image_codec;
 pub mod image_import;
 pub mod layers;
 pub mod linebreak;

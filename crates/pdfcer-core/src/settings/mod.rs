@@ -1295,56 +1295,7 @@ pub enum MinifyFilter {
     Smooth,
 }
 
-/// How to read a four-component `DCTDecode` image that declares no
-/// `/Decode` array (spec ambiguity `DCT-A1`).
-///
-/// # The question
-///
-/// A CMYK JPEG with **effective `ColorTransform` 0** and **no `/Decode`**:
-/// are the stored samples direct CMYK, or Adobe-complemented CMYK? Nothing
-/// in the codestream or the image dictionary disambiguates it — the
-/// undocumented 1990s Photoshop convention stores complemented values, and
-/// there is no marker bit that says so.
-///
-/// # Default: [`Self::NeverInvert`] — **EVIDENCE TIER (c)**
-///
-/// Tier (c) means *what other major implementations do, as documented* —
-/// and this is the **strongest-sourced default in the whole ambiguity
-/// register**, the one place it is not a guess:
-///
-/// - the word `"invert"` occurs **zero times** in Adobe TN #5116, the
-///   document ISO 32000-1 §7.4.8 footnote *a* makes normative by
-///   reference (verified 2026-07-31);
-/// - **APP14 carries no polarity flag** — there is no bit to test, so
-///   "invert when the marker is present" keys off mere presence;
-/// - `filter__dct.md` records that all four reference engines accept the
-///   ambiguity rather than inverting on APP14 presence.
-///
-/// This is also pdfcer's standing rule **R29** (decision 006), and the
-/// residual risk is already disclosed rather than repaired by
-/// [`crate::image_codec::CodecNotes::cmyk_polarity_unverifiable`] (R30).
-/// The setting adds the operator's escape hatch; it does not weaken R29,
-/// which remains what pdfcer does unless the operator says otherwise.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[non_exhaustive]
-pub enum CmykJpegPolarity {
-    /// Take the samples as stored. `/Decode` is the sole polarity control
-    /// (`/Decode [1 0 1 0 1 0 1 0]` *is* the sanctioned way for a producer
-    /// to declare inverted storage).
-    ///
-    /// **The shipped default**, and the standing rule.
-    #[default]
-    NeverInvert,
-    /// Complement all four components (`255 − x`) when the codestream
-    /// carries an Adobe APP14 marker, the effective transform is 0, and
-    /// the image dictionary declares no `/Decode`.
-    ///
-    /// For a library of old Photoshop-authored CMYK JPEGs that genuinely
-    /// do store complemented ink and say so nowhere. Getting this wrong in
-    /// either direction renders a photographic negative — which is at
-    /// least an obvious failure, not a subtle one.
-    InvertOnApp14,
-}
+pub use crate::image_codec::CmykJpegPolarity;
 
 /// What character extraction emits for a code no rung of the §9.10.2
 /// ladder could map (spec ambiguity `TX-A1`).

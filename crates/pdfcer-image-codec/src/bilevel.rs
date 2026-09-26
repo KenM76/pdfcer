@@ -20,7 +20,7 @@
 //! vendor-shaped buffer afterwards, and the ceiling can be enforced
 //! *while* decoding rather than after (rule R25, and the same
 //! "abort mid-decode, never inflate-then-check" discipline
-//! [`crate::filters`] already promises for Flate).
+//! [`pdfcer_model::filters`] already promises for Flate).
 //!
 //! ## What this type produces
 //!

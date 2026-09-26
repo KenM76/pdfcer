@@ -1,0 +1,92 @@
+[package]
+name = "pdfcer-image-codec"
+description = "pdfcer terminal image codecs: DCTDecode, CCITTFaxDecode, JBIG2Decode and JPXDecode (ISO 32000-1 §7.4.6-§7.4.9). Re-exported by pdfcer-core as `image_codec` (docs/ARCHITECTURE.md §3)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[features]
+default = ["jpx"]
+# JPEG 2000 (`JPXDecode`). Forwarded from pdfcer-core's `jpx`; see its comment.
+jpx = ["dep:hayro-jpeg2000"]
+
+[dependencies]
+pdfcer-model = { path = "../pdfcer-model" }
+thiserror = "2"
+
+# zune-jpeg: DCTDecode (§7.4.8), the highest-value single codec —
+# 82% of measured unimplemented-filter instances in the 2,914-file
+# corpus (decision 005 §3.1). License MIT OR Apache-2.0 OR Zlib.
+#
+# default-features = false IS LOAD-BEARING, NOT TIDINESS (R24).
+# zune-jpeg's lib.rs carries:
+#   #![cfg_attr(not(any(feature = "x86", feature = "neon")),
+#               forbid(unsafe_code))]
+# so dropping the SIMD features makes the decoder COMPILER-ENFORCED
+# zero-unsafe. All 96 unsafe occurrences live in 14 SIMD files that do
+# not compile in this configuration. `std` is kept: pdfcer-core is a std
+# crate and wasm32-unknown-unknown supports std.
+#
+# Verified present in 0.5.15: progressive (14% of corpus JPEGs),
+# restart intervals (74%), Adobe APP14 transform 0/1/2, the
+# 3-component/transform-0 CMYK->RGB fixup, decode_headers() +
+# output_buffer_size() + decode_into() for bounded decode, and
+# DecoderOptions max_width/max_height/max_scans.
+# NOT supported, and each a NAMED diagnostic per R27: arithmetic
+# coding, lossless, 12-bit, and the YCCK->CMYK conversion (pdfcer does
+# that one itself from a YCCK passthrough).
+zune-jpeg = { version = "0.5", default-features = false, features = ["std"] }
+
+# hayro-ccitt: CCITTFaxDecode (§7.4.6, ITU-T T.4/T.6).
+# Apache-2.0 OR MIT, ZERO dependencies, unconditional #![no_std],
+# #![forbid(unsafe_code)] + #![forbid(missing_docs)].
+# Chosen over `fax` (MIT, 35M downloads, also credible) because its
+# DecodeSettings maps 1:1 onto Table 11 — columns/rows/encoding/
+# end_of_block/end_of_line/rows_are_byte_aligned/invert_black — which
+# keeps the K-sign trichotomy and the BlackIs1 polarity inside a fuzzed
+# dependency instead of in our glue. `fax` stays the named fallback.
+hayro-ccitt = { version = "0.3", default-features = false }
+
+# hayro-jbig2: JBIG2Decode (§7.4.7, ITU-T T.88). Apache-2.0 OR MIT,
+# #![forbid(unsafe_code)]. Image::new_embedded() IS the /JBIG2Globals
+# path (Table 12) — no general-purpose JBIG2 decoder exposes it.
+# default = ["std","image","simd"]; `image` pulls the image crate and
+# `simd` pulls fearless_simd. BOTH OFF (R24).
+# The alternatives were all GPL-3.0 C FFI bindings to Artifex jbig2dec,
+# untouched since 2020 — see decision 005 §3.5.
+hayro-jbig2 = { version = "0.3", default-features = false, features = ["std"] }
+
+# hayro-jpeg2000: JPXDecode (§7.4.9, ITU-T T.800). Apache-2.0 OR MIT,
+# unsafe forbidden crate-level. THE ONLY credible pure-Rust JPEG2000
+# decoder — 550k downloads vs ~1.9k for the nearest pure-Rust rival;
+# everything else in the space wraps OpenJPEG in C.
+# Its ColorSpace::{Gray,RGB,CMYK,Unknown{n},Icc{profile,n}} is exactly
+# the shape §8.9.5 Table 89 needs, where the CODESTREAM's colour space
+# overrides the dict and /BitsPerComponent is ignored if present.
+# MSRV 1.92 — identical to pdfcer's, with zero headroom.
+#
+# VERIFIED at adoption (0.4.0, read from the pinned registry source):
+#   src/lib.rs:68  #![forbid(unsafe_code)] — UNCONDITIONAL, not a
+#                  cfg_attr like zune-jpeg's; the `simd` feature adds
+#                  fearless_simd as a DEPENDENCY, so R24's job here is
+#                  keeping that dependency out rather than restoring an
+#                  attribute. `image` (off) would pull the image crate
+#                  AND moxcms.
+#   Image::new     accepts BOTH a JP2 box container and a bare
+#                  codestream, sniffed from the first bytes. §7.4.9
+#                  mandates the container shape; real producers emit
+#                  both, so this is load-bearing rather than a bonus.
+#   has_alpha()    reads the JP2 `cdef` box — the hook /SMaskInData
+#                  (Table 89) acts on.
+# NOT supported, each a NAMED diagnostic per R27: unhandled marker
+# segments, of which upstream's own documented gap is progression order
+# changes in tile-parts (the POC marker) — see image_codec/jpx.rs's
+# error mapping. Note also that its DecodedImage::data_u8() helper is
+# deliberately NOT used: it interleaves the opacity channel into the
+# colour samples (which /SMaskInData requires us to keep separate) and
+# its scaling path shifts by a bit depth a JP2 palette box may declare
+# as large as 128.
+hayro-jpeg2000 = { version = "0.4", default-features = false, features = ["std"], optional = true }

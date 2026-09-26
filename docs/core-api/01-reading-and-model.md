@@ -134,8 +134,8 @@ builds `--no-default-features`, so both configurations compile.
 | Pick a straight edge (CAD-style measuring) | `vector::linepick::pick_line_in_page` — `vector/linepick.rs:344` | §10.5 |
 | Classify two picked edges as parallel/angled | `vector::linepick::classify_two_lines` — `vector/linepick.rs:392` | §10.5 |
 | Decode a stream through its `/Filter` chain | `filters::decode_stream(&Dict, &[u8])` — `filters/mod.rs:186` | §11.1 |
-| Know which image codec a stream ends in, without decoding | `image_codec::terminal_codec(&Dict)` — `image_codec/mod.rs:467` | §11.2 |
-| Decode an image XObject to samples | `image_codec::decode_image(&Document, &Dict, &[u8], inline)` — `image_codec/mod.rs:503` | §11.2 |
+| Know which image codec a stream ends in, without decoding | `image_codec::terminal_codec(&Dict)` — `pdfcer-image-codec/src/lib.rs:509` | §11.2 |
+| Decode an image XObject to samples | `image_codec::decode_image(&Document, &Dict, &[u8], inline)` — `pdfcer-image-codec/src/lib.rs:545` | §11.2 |
 | Convert a device colour to sRGB | `color::{gray_to_srgb, rgb_to_srgb, cmyk_to_srgb}` — `color/mod.rs:197, 215, 254` | §11.3 |
 | Resolve a full `/ColorSpace` object (Separation, ICCBased, Indexed…) | **Not in `pdfcer-core`** — `pdfcer_render::ColorSpace`, `pdfcer-render/src/color.rs:215` | §11.3 |
 | Evaluate a PDF function (type 0/2/3/4) | `function::PdfFunction::load(&DocumentView, &Object)` then `::eval` / `::eval_into` — `function.rs:751, 979, 1025` | §11.4 |
@@ -2156,31 +2156,34 @@ meaning *"you called the wrong entry point"*. Route images through
 
 ### 11.2 Image decoding
 
+Source: `crates/pdfcer-image-codec/src/lib.rs`, re-exported as
+`pdfcer_core::image_codec`.
+
 ```rust
 use pdfcer_core::image_codec::{decode_image, decode_image_view, terminal_codec,
                               CodedImage, CodecColorModel, Codec};
 
-let which: Option<Codec> = terminal_codec(&image_dict)?;   // mod.rs:467 — no decode
-let img: CodedImage = decode_image(&doc, &image_dict, raw, /*inline=*/false)?; // mod.rs:503
+let which: Option<Codec> = terminal_codec(&image_dict)?;   // lib.rs:509 — no decode
+let img: CodedImage = decode_image(&doc, &image_dict, raw, /*inline=*/false)?; // lib.rs:545
 // session-aware form:
-let img = decode_image_view(&doc.view(), &image_dict, raw, false)?;            // mod.rs:524
+let img = decode_image_view(&doc.view(), &image_dict, raw, false)?;            // lib.rs:566
 // explicit CMYK-JPEG polarity (R169 setting):
-// decode_image_view_with(view, dict, raw, inline, CmykJpegPolarity::…)        // mod.rs:569
+// decode_image_view_with(view, dict, raw, inline, CmykJpegPolarity::…)        // lib.rs:611
 ```
 
-`Codec` — `mod.rs:169`: `Dct | Ccitt | Jbig2 | Jpx`; `Codec::name` `:183`,
-`Codec::allowed_inline` `:201` (§8.9.7 — `Jbig2`/`Jpx` are `false`).
-`CodedImage` — `mod.rs:338`, `#[non_exhaustive]`.
-`CodecColorModel` — `mod.rs:230`: `Gray | Rgb | Untransformed3 | Cmyk |
+`Codec` — `lib.rs:179`: `Dct | Ccitt | Jbig2 | Jpx`; `Codec::name` `:193`,
+`Codec::allowed_inline` `:211` (§8.9.7 — `Jbig2`/`Jpx` are `false`).
+`CodedImage` — `lib.rs:366`, `#[non_exhaustive]`.
+`CodecColorModel` — `lib.rs:240`: `Gray | Rgb | Untransformed3 | Cmyk |
 Bilevel | Unspecified | Unknown{components}`.
-`CodecNotes` — `mod.rs:280`: `geometry_mismatch`, `cmyk_image`,
+`CodecNotes` — `lib.rs:290`: `geometry_mismatch`, `cmyk_image`,
 `cmyk_polarity_unverifiable`, `jpx_smask_in_data_preblended`,
 `lzw_framing_anomalies`.
-`ImageCodecError` — `mod.rs:396`: `Filter | Unsupported | FeatureUnsupported
+`ImageCodecError` — `lib.rs:424`: `Filter | Unsupported | FeatureUnsupported
 | Corrupt | TooLarge | NotAllowedInline | CodecNotTerminal`.
 
 The per-codec modules (`image_codec::{dct, ccitt, jbig2, jpx}`,
-`mod.rs:101-105`) have an **empty public surface** — every `decode` is
+`lib.rs:112-117`) have an **empty public surface** — every `decode` is
 `pub(super)`. `decode_image*` is the only door.
 
 #### ★ Image output format — exact
@@ -2261,9 +2264,9 @@ f.eval_into(&inputs, &mut buf)?;                           // function.rs:1025
 | Guard | Constant / value | `file:line` | Error |
 |---|---|---|---|
 | Decoded byte-stream ceiling (incremental) | `filters::MAX_DECODED_LEN` = 256 MiB | `filters/mod.rs:94` | `FilterError::OutputTooLarge` |
-| Image pixel count | `MAX_IMAGE_PIXELS` = 32 Mpx | `image_codec/mod.rs:144` | `ImageCodecError::TooLarge` |
-| Image dimension | `MAX_IMAGE_DIMENSION` = 65,535 | `image_codec/mod.rs:157` | `TooLarge` |
-| Decoded sample bytes | `MAX_IMAGE_SAMPLE_BYTES` = 128 MiB | `image_codec/mod.rs:164` | `TooLarge` |
+| Image pixel count | `MAX_IMAGE_PIXELS` = 32 Mpx | `pdfcer-image-codec/src/lib.rs:154` | `ImageCodecError::TooLarge` |
+| Image dimension | `MAX_IMAGE_DIMENSION` = 65,535 | `pdfcer-image-codec/src/lib.rs:165` | `TooLarge` |
+| Decoded sample bytes | `MAX_IMAGE_SAMPLE_BYTES` = 128 MiB | `pdfcer-image-codec/src/lib.rs:174` | `TooLarge` |
 | DCT progressive scans | `dct::MAX_PROGRESSIVE_SCANS` = 100 *(private)* | `image_codec/dct.rs:178` | `Corrupt` |
 | JPX working memory | `jpx::MAX_WORKING_BYTES` *(private)* | `image_codec/jpx.rs:282` | `TooLarge` |
 | JPX tile count | `jpx::MAX_TILES` = 4096 *(private)* | `image_codec/jpx.rs:304` | `TooLarge` |

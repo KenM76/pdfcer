@@ -2,7 +2,7 @@
 //!
 //! The second tier of pdfcer's two-tier filter architecture
 //! (`docs/decisions/005-image-codecs.md` §4.6, rule **R23**).
-//! [`crate::filters::decode_stream`] handles byte-stream filters —
+//! [`pdfcer_model::filters::decode_stream`] handles byte-stream filters —
 //! bytes in, bytes out, chainable. This module handles the four
 //! **image codecs**, which are a different kind of object:
 //!
@@ -98,6 +98,17 @@
 //! ceiling below is therefore set explicitly by pdfcer and documented
 //! with its reasoning.
 
+// Decodes untrusted image data, so a reachable panic is a denial-of-service
+// bug: unwrap/expect/panic!/unchecked indexing are denied crate-wide, and test
+// modules opt out with their own #[allow].
+#![forbid(unsafe_code)]
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
+
 pub mod ccitt;
 pub mod dct;
 pub mod jbig2;
@@ -121,12 +132,11 @@ mod fixtures_bilevel;
 #[cfg(all(test, feature = "jpx"))]
 mod fixtures_jpx;
 
-use crate::document::Document;
-use crate::filters::{self, FilterError, FilterNotes};
-use crate::graph::ObjectGraph;
-use crate::object::{Dict, Object};
-use crate::settings::CmykJpegPolarity;
-use crate::view::DocumentView;
+use pdfcer_model::document::Document;
+use pdfcer_model::filters::{self, FilterError, FilterNotes};
+use pdfcer_model::graph::ObjectGraph;
+use pdfcer_model::object::{Dict, Object};
+use pdfcer_model::view::DocumentView;
 
 /// Maximum `width × height` accepted for a single decoded image
 /// (pdfcer policy, ARCHITECTURE.md §10.1 — no Annex C limit exists).
@@ -486,8 +496,8 @@ pub enum ImageCodecError {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::image_codec::{terminal_codec, Codec};
-/// use pdfcer_core::object::{Dict, Name, Object};
+/// use pdfcer_image_codec::{terminal_codec, Codec};
+/// use pdfcer_model::object::{Dict, Name, Object};
 ///
 /// let mut dict = Dict::new();
 /// dict.insert(Name::from(b"Filter"), Object::Name(Name::from(b"DCTDecode")));
@@ -504,7 +514,7 @@ pub fn terminal_codec(dict: &Dict) -> Result<Option<Codec>, FilterError> {
 /// Decode an image stream through its `/Filter` chain.
 ///
 /// Runs the byte-stream **prefix** of the chain through
-/// [`crate::filters`], then dispatches the single terminal image codec.
+/// [`pdfcer_model::filters`], then dispatches the single terminal image codec.
 /// A chain with no terminal codec still succeeds — it yields a
 /// [`CodedImage`] with `codec: None` and
 /// [`CodecColorModel::Unspecified`], so the caller has one entry point
@@ -732,6 +742,56 @@ fn codec_parms(dict: &Dict, total: usize) -> Option<&Dict> {
     }
 }
 
+/// How to read a four-component `DCTDecode` image that declares no
+/// `/Decode` array (spec ambiguity `DCT-A1`).
+///
+/// # The question
+///
+/// A CMYK JPEG with **effective `ColorTransform` 0** and **no `/Decode`**:
+/// are the stored samples direct CMYK, or Adobe-complemented CMYK? Nothing
+/// in the codestream or the image dictionary disambiguates it — the
+/// undocumented 1990s Photoshop convention stores complemented values, and
+/// there is no marker bit that says so.
+///
+/// # Default: [`Self::NeverInvert`] — **EVIDENCE TIER (c)**
+///
+/// Tier (c) means *what other major implementations do, as documented* —
+/// and this is the **strongest-sourced default in the whole ambiguity
+/// register**, the one place it is not a guess:
+///
+/// - the word `"invert"` occurs **zero times** in Adobe TN #5116, the
+///   document ISO 32000-1 §7.4.8 footnote *a* makes normative by
+///   reference (verified 2026-07-31);
+/// - **APP14 carries no polarity flag** — there is no bit to test, so
+///   "invert when the marker is present" keys off mere presence;
+/// - `filter__dct.md` records that all four reference engines accept the
+///   ambiguity rather than inverting on APP14 presence.
+///
+/// This is also pdfcer's standing rule **R29** (decision 006), and the
+/// residual risk is already disclosed rather than repaired by
+/// [`crate::CodecNotes::cmyk_polarity_unverifiable`] (R30).
+/// The setting adds the operator's escape hatch; it does not weaken R29,
+/// which remains what pdfcer does unless the operator says otherwise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CmykJpegPolarity {
+    /// Take the samples as stored. `/Decode` is the sole polarity control
+    /// (`/Decode [1 0 1 0 1 0 1 0]` *is* the sanctioned way for a producer
+    /// to declare inverted storage).
+    ///
+    /// **The shipped default**, and the standing rule.
+    #[default]
+    NeverInvert,
+    /// Complement all four components (`255 − x`) when the codestream
+    /// carries an Adobe APP14 marker, the effective transform is 0, and
+    /// the image dictionary declares no `/Decode`.
+    ///
+    /// For a library of old Photoshop-authored CMYK JPEGs that genuinely
+    /// do store complemented ink and say so nowhere. Getting this wrong in
+    /// either direction renders a photographic negative — which is at
+    /// least an obvious failure, not a subtle one.
+    InvertOnApp14,
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -741,7 +801,7 @@ fn codec_parms(dict: &Dict, total: usize) -> Option<&Dict> {
 )]
 mod tests {
     use super::*;
-    use crate::object::Name;
+    use pdfcer_model::object::Name;
 
     fn dict_with(entries: Vec<(&[u8], Object)>) -> Dict {
         let mut d = Dict::new();
@@ -2026,7 +2086,7 @@ mod tests {
         let doc = document_with_globals(fixtures_bilevel::JBIG2_MMR_16X4_GLOBALS);
         let dict = jbig2_dict(vec![(
             b"JBIG2Globals",
-            Object::Reference(crate::object::ObjId::new(3, 0)),
+            Object::Reference(pdfcer_model::object::ObjId::new(3, 0)),
         )]);
         let img = decode_image(&doc, &dict, fixtures_bilevel::JBIG2_MMR_16X4_PAGE, false).unwrap();
         assert_eq!(img.samples, fixtures_bilevel::BILEVEL_16X4_SAMPLES);

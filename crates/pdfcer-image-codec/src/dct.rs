@@ -156,14 +156,14 @@ use super::{
     Codec, CodecColorModel, CodecNotes, CodedImage, ImageCodecError, MAX_IMAGE_DIMENSION,
     MAX_IMAGE_PIXELS, MAX_IMAGE_SAMPLE_BYTES,
 };
-use crate::settings::CmykJpegPolarity;
+use crate::CmykJpegPolarity;
 // decision 018: the codecs resolve indirect entries through a `DocumentView`
 // rather than a `&Document`, so an image whose dictionary lives in an
 // editing session decodes as the operator currently has it. `Document` is
 // still named by the back-compat `decode_image` wrapper in `mod.rs`.
-use crate::graph::ObjectGraph;
-use crate::object::{Dict, Object};
-use crate::view::DocumentView;
+use pdfcer_model::graph::ObjectGraph;
+use pdfcer_model::object::{Dict, Object};
+use pdfcer_model::view::DocumentView;
 
 /// Ceiling on progressive scans, against the progressive-scan bomb.
 ///

@@ -1652,22 +1652,22 @@ pub fn page_device_geometry(page: &Page, scale: f32) -> (u32, u32, Transform) {
 // Measured on the public repository, 2026-08-09: SIX OF SIX CI RUNS RED,
 // with `cargo test (windows-latest)` GREEN beside `cargo test
 // (ubuntu-latest)`, `cargo clippy` and `cargo fmt --check` all failing on
-// `couldn't read .../src/tests/../../../pdfcer-core/src/image_codec/fixtures.rs`.
+// `couldn't read .../src/tests/../../../pdfcer-image-codec/src/fixtures.rs`.
 // A green Windows job next to a red Linux one is this bug's signature, and
 // that split is exactly why it survived every local run.
 //
 // At file scope the base directory is `src/`, which is real, so one `..`
 // comes off each path and Linux can resolve them.
 #[cfg(test)]
-#[path = "../../pdfcer-core/src/image_codec/fixtures.rs"]
+#[path = "../../pdfcer-image-codec/src/fixtures.rs"]
 mod jpeg_fixtures;
 
 #[cfg(test)]
-#[path = "../../pdfcer-core/src/image_codec/fixtures_bilevel.rs"]
+#[path = "../../pdfcer-image-codec/src/fixtures_bilevel.rs"]
 mod bilevel_fixtures;
 
 #[cfg(test)]
-#[path = "../../pdfcer-core/src/image_codec/fixtures_jpx.rs"]
+#[path = "../../pdfcer-image-codec/src/fixtures_jpx.rs"]
 mod jpx_fixtures;
 
 #[cfg(test)]

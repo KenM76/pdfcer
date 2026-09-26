@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate crates/pdfcer-core/src/image_codec/fixtures_jpx.rs.
+"""Regenerate crates/pdfcer-image-codec/src/fixtures_jpx.rs.
 
 WHY THIS EXISTS
 ---------------
@@ -117,7 +117,7 @@ from pathlib import Path
 from PIL import Image
 
 REPO = Path(__file__).resolve().parent.parent
-OUT = REPO / "crates" / "pdfcer-core" / "src" / "image_codec" / "fixtures_jpx.rs"
+OUT = REPO / "crates" / "pdfcer-image-codec" / "src" / "fixtures_jpx.rs"
 PDF_OUT = REPO / "fixtures" / "synthetic" / "jpx"
 
 # Lossless every time. `irreversible=False` selects the reversible 5/3
@@ -288,7 +288,7 @@ def _cmyk_image():
 def _scale_to_8(value, bit_depth):
     """pdfcer's documented JPX bit-depth normalization, in Python.
 
-    `crates/pdfcer-core/src/image_codec/jpx.rs` delivers 8-bit samples
+    `crates/pdfcer-image-codec/src/jpx.rs` delivers 8-bit samples
     range-scaled from the codestream's declared depth:
 
         out = round(sample / (2^d - 1) * 255)

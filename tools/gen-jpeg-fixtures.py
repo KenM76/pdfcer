@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate crates/pdfcer-core/src/image_codec/fixtures.rs.
+"""Regenerate crates/pdfcer-image-codec/src/fixtures.rs.
 
 WHY THIS EXISTS
 ---------------
@@ -74,7 +74,7 @@ from pathlib import Path
 from PIL import Image
 
 REPO = Path(__file__).resolve().parent.parent
-OUT = REPO / "crates" / "pdfcer-core" / "src" / "image_codec" / "fixtures.rs"
+OUT = REPO / "crates" / "pdfcer-image-codec" / "src" / "fixtures.rs"
 
 
 def jpeg(img, **kw):

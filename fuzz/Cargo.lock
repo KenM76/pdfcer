@@ -381,15 +381,12 @@ dependencies = [
  "aes",
  "cbc",
  "flate2",
- "hayro-ccitt",
- "hayro-jbig2",
- "hayro-jpeg2000",
  "jpeg-encoder",
+ "pdfcer-image-codec",
  "pdfcer-model",
  "sha2",
  "thiserror",
  "weezl",
- "zune-jpeg",
 ]
 
 [[package]]
@@ -399,6 +396,18 @@ dependencies = [
  "libfuzzer-sys",
  "pdfcer-core",
  "pdfcer-render",
+]
+
+[[package]]
+name = "pdfcer-image-codec"
+version = "0.55.0"
+dependencies = [
+ "hayro-ccitt",
+ "hayro-jbig2",
+ "hayro-jpeg2000",
+ "pdfcer-model",
+ "thiserror",
+ "zune-jpeg",
 ]
 
 [[package]]

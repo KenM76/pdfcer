@@ -900,9 +900,6 @@ dependencies = [
  "cbc",
  "des",
  "flate2",
- "hayro-ccitt",
- "hayro-jbig2",
- "hayro-jpeg2000",
  "hmac",
  "jpeg-encoder",
  "ocrcer-core",
@@ -910,6 +907,7 @@ dependencies = [
  "p256",
  "p384",
  "pbkdf2",
+ "pdfcer-image-codec",
  "pdfcer-model",
  "rand_core",
  "rc2",
@@ -920,7 +918,6 @@ dependencies = [
  "signature",
  "thiserror",
  "weezl",
- "zune-jpeg",
 ]
 
 [[package]]
@@ -930,6 +927,18 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror",
  "ureq",
+]
+
+[[package]]
+name = "pdfcer-image-codec"
+version = "0.55.0"
+dependencies = [
+ "hayro-ccitt",
+ "hayro-jbig2",
+ "hayro-jpeg2000",
+ "pdfcer-model",
+ "thiserror",
+ "zune-jpeg",
 ]
 
 [[package]]

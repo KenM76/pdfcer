@@ -43,7 +43,7 @@
 //! single largest reason this crate fits without glue.
 //!
 //! The globals stream is itself a PDF stream and is very often
-//! `FlateDecode`d, so it goes through [`crate::filters::decode_stream`]
+//! `FlateDecode`d, so it goes through [`pdfcer_model::filters::decode_stream`]
 //! before reaching the decoder. An **absent** `/JBIG2Globals` is normal
 //! and not an error: an image whose segments are all inline needs none.
 //!
@@ -102,10 +102,10 @@ use super::{
 // rather than a `&Document`, so an image whose dictionary lives in an
 // editing session decodes as the operator currently has it. `Document` is
 // still named by the back-compat `decode_image` wrapper in `mod.rs`.
-use crate::filters;
-use crate::graph::ObjectGraph;
-use crate::object::{Dict, Object};
-use crate::view::DocumentView;
+use pdfcer_model::filters;
+use pdfcer_model::graph::ObjectGraph;
+use pdfcer_model::object::{Dict, Object};
+use pdfcer_model::view::DocumentView;
 
 /// Decode a `JBIG2Decode` codestream.
 ///

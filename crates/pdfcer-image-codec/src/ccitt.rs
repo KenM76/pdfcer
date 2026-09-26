@@ -124,9 +124,9 @@ use super::{
 // rather than a `&Document`, so an image whose dictionary lives in an
 // editing session decodes as the operator currently has it. `Document` is
 // still named by the back-compat `decode_image` wrapper in `mod.rs`.
-use crate::graph::ObjectGraph;
-use crate::object::{Dict, Object};
-use crate::view::DocumentView;
+use pdfcer_model::graph::ObjectGraph;
+use pdfcer_model::object::{Dict, Object};
+use pdfcer_model::view::DocumentView;
 
 /// Table 11's parameters, resolved against their verified defaults.
 ///
