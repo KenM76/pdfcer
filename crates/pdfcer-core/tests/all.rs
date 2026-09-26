@@ -65,6 +65,7 @@ mod free_text_note_rebake;
 mod freetext_newline;
 mod image_placement;
 mod image_tiff;
+mod indirect_acroform_entries;
 mod ink_reshape;
 mod insert_pages_preserves_undo;
 mod layers;

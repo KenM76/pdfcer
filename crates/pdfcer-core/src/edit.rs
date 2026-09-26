@@ -24514,7 +24514,9 @@ impl EditSession {
         let (mut writes, parent, partial, register) =
             self.place_new_field_deferred(deepest, remaining, field_id)?;
         if let Some(root) = register {
-            writes.push(self.acroform_register_write(root)?);
+            let (af, held) = self.acroform_register_write(root)?;
+            writes.push(af);
+            writes.extend(held);
         }
         Ok((writes, parent, partial))
     }
@@ -26892,7 +26894,7 @@ impl EditSession {
             after: Some(Object::Dict(dict)),
         }];
         if let Some(w) = acroform_write {
-            objects.push(w);
+            objects.extend(w);
         }
 
         // The appearance depends on `multiline` and `comb` for a text field
@@ -28403,128 +28405,32 @@ impl EditSession {
     fn acroform_ensure_font_write(
         &self,
         font: crate::fontdata::Std14,
-    ) -> Result<Option<ObjectWrite>, EditError> {
+    ) -> Result<Option<Vec<ObjectWrite>>, EditError> {
         let key = Self::std14_resource_key(font);
         if self.acroform_dr_font_keys().iter().any(|k| k == key) {
             return Ok(None);
         }
-        let graph = self.graph();
-        let catalog_id = graph.catalog_id().ok_or(EditError::NotADictionary {
-            id: ObjId::new(0, 0),
-            key: "Root",
-        })?;
-        let catalog = graph
-            .resolved(catalog_id)
-            .as_dict()
-            .ok_or(EditError::NotADictionary {
-                id: catalog_id,
-                key: "Root",
-            })?
-            .clone();
-        // BOTH /AcroForm shapes, mirroring `acroform_register_write`. The
-        // inline one is not exotic -- it is what pdfcer's OWN field authoring
-        // produces on a document that had no form -- so refusing it would
-        // make this verb fail on the commonest document pdfcer creates. Found
-        // by the test, which used exactly that fixture.
-        match catalog.get(b"AcroForm").cloned() {
-            Some(Object::Reference(af_id)) => {
-                let mut af = graph
-                    .resolved(af_id)
-                    .as_dict()
-                    .ok_or(EditError::NotADictionary {
-                        id: af_id,
-                        key: "AcroForm",
-                    })?
-                    .clone();
-                Self::ensure_default_resources(&mut af, &[font]);
-                Ok(Some(ObjectWrite {
-                    id: af_id,
-                    before: self.state.get(&af_id).cloned(),
-                    after: Some(Object::Dict(af)),
-                }))
-            }
-            other => {
-                let mut af = match other {
-                    Some(Object::Dict(d)) => d,
-                    _ => Dict::new(),
-                };
-                Self::ensure_default_resources(&mut af, &[font]);
-                let mut cat = catalog;
-                cat.insert(Name::from(b"AcroForm"), Object::Dict(af));
-                Ok(Some(ObjectWrite {
-                    id: catalog_id,
-                    before: self.state.get(&catalog_id).cloned(),
-                    after: Some(Object::Dict(cat)),
-                }))
-            }
-        }
+        // Both `/AcroForm` shapes: the inline one is what pdfcer's own field
+        // authoring produces on a document that had no form.
+        self.acroform_write(&mut |af| Self::ensure_default_resources(af, &[font]))
+            .map(Some)
     }
 
-    fn acroform_register_write(&self, field_id: ObjId) -> Result<ObjectWrite, EditError> {
-        let graph = self.graph();
-        let catalog_id = graph.catalog_id().ok_or(EditError::NotADictionary {
-            id: ObjId::new(0, 0),
-            key: "Root",
-        })?;
-        let catalog = graph
-            .resolved(catalog_id)
-            .as_dict()
-            .ok_or(EditError::NotADictionary {
-                id: catalog_id,
-                key: "AcroForm",
-            })?
-            .clone();
-        let existing = catalog.get(b"AcroForm").cloned();
-
-        match existing {
-            // An /AcroForm that is an indirect object: append to its /Fields.
-            Some(Object::Reference(af_id)) => {
-                let graph = self.graph();
-                let mut af = graph
-                    .resolved(af_id)
-                    .as_dict()
-                    .ok_or(EditError::NotADictionary {
-                        id: af_id,
-                        key: "AcroForm",
-                    })?
-                    .clone();
-                let mut fields = match af.get(b"Fields") {
-                    Some(Object::Array(a)) => a.clone(),
-                    _ => Vec::new(),
-                };
-                fields.push(Object::Reference(field_id));
-                af.insert(Name::from(b"Fields"), Object::Array(fields));
-                Self::ensure_default_resources(&mut af, &[]);
-                let before = self.state.get(&af_id).cloned();
-                Ok(ObjectWrite {
-                    id: af_id,
-                    before,
-                    after: Some(Object::Dict(af)),
-                })
-            }
-            // Inline /AcroForm, or none at all: write it into the catalog.
-            other => {
-                let mut cat = catalog;
-                let mut af = match other {
-                    Some(Object::Dict(d)) => d,
-                    _ => Dict::new(),
-                };
-                let mut fields = match af.get(b"Fields") {
-                    Some(Object::Array(a)) => a.clone(),
-                    _ => Vec::new(),
-                };
-                fields.push(Object::Reference(field_id));
-                af.insert(Name::from(b"Fields"), Object::Array(fields));
-                Self::ensure_default_resources(&mut af, &[]);
-                cat.insert(Name::from(b"AcroForm"), Object::Dict(af));
-                let before = self.state.get(&catalog_id).cloned();
-                Ok(ObjectWrite {
-                    id: catalog_id,
-                    before,
-                    after: Some(Object::Dict(cat)),
-                })
-            }
-        }
+    /// Register `field_id` in `/AcroForm /Fields`, creating the form if
+    /// needed; see [`Self::acroform_write_parts`] for the returned pair.
+    fn acroform_register_write(
+        &self,
+        field_id: ObjId,
+    ) -> Result<(ObjectWrite, Vec<ObjectWrite>), EditError> {
+        self.acroform_write_parts(&mut |af| {
+            let mut fields = match af.get(b"Fields") {
+                Some(Object::Array(a)) => a.clone(),
+                _ => Vec::new(),
+            };
+            fields.push(Object::Reference(field_id));
+            af.insert(Name::from(b"Fields"), Object::Array(fields));
+            Self::ensure_default_resources(af, &[]);
+        })
     }
 
     /// Ensure an `/AcroForm` carries a `/DA` and a `/DR` `/Font` `/Helv` the
@@ -38354,7 +38260,7 @@ impl EditSession {
             array_removed: false,
             appended_at_end: false,
         };
-        let write = self.acroform_write(&mut |af| {
+        let writes = self.acroform_write(&mut |af| {
             let existing: Option<Vec<Object>> = match af.get(b"CO") {
                 Some(Object::Array(a)) => Some(a.clone()),
                 _ => None,
@@ -38382,7 +38288,7 @@ impl EditSession {
                 af.insert(Name::from(b"CO"), Object::Array(co));
             }
         })?;
-        objects.push(write);
+        objects.extend(writes);
         Ok(out)
     }
 
@@ -44816,7 +44722,9 @@ impl EditSession {
         };
 
         let had_acroform = form.is_some();
-        objects.push(self.acroform_register_write(widget)?);
+        let (af, held) = self.acroform_register_write(widget)?;
+        objects.push(af);
+        objects.extend(held);
         Ok((
             AdoptOutcome {
                 field_id: widget,
@@ -50610,7 +50518,7 @@ impl EditSession {
             );
         }
         let install = dr_install.clone();
-        objects.push(self.acroform_write(&mut |af| {
+        objects.extend(self.acroform_write(&mut |af| {
             // SS12.7.3.1 makes `/Fields` the ROOT list, so a node with a
             // `/Parent` must NOT appear there -- the walk would reach it twice
             // and give it two fully-qualified names. `register_root` is `None`
@@ -50870,7 +50778,28 @@ impl EditSession {
     /// `/CO` and `/SigFlags` at once, so the branch that answers *"is the
     /// `/AcroForm` inline or indirect?"* is factored out here and every job
     /// runs inside one patch.
-    fn acroform_write(&self, patch: &mut dyn FnMut(&mut Dict)) -> Result<ObjectWrite, EditError> {
+    fn acroform_write(
+        &self,
+        patch: &mut dyn FnMut(&mut Dict),
+    ) -> Result<Vec<ObjectWrite>, EditError> {
+        let (main, held) = self.acroform_write_parts(patch)?;
+        Ok(std::iter::once(main).chain(held).collect())
+    }
+
+    /// [`Self::acroform_write`] split into the write to the object holding
+    /// the `/AcroForm` (the form itself, or the catalog when it is inline)
+    /// and the writes to any indirect `/Fields`, `/CO`, `/DR` or `/DR /Font`
+    /// the patch changed.
+    ///
+    /// The patch sees those entries resolved, as direct values; each is then
+    /// written back to its own object and the reference restored (§7.3.10
+    /// lets any of them be indirect, and another dictionary may share it).
+    /// Replacing the reference with the patched copy would drop everything
+    /// the patch did not re-add: every existing field, every `/DR` font.
+    fn acroform_write_parts(
+        &self,
+        patch: &mut dyn FnMut(&mut Dict),
+    ) -> Result<(ObjectWrite, Vec<ObjectWrite>), EditError> {
         let graph = self.graph();
         let catalog_id = graph.catalog_id().ok_or(EditError::NotADictionary {
             id: ObjId::new(0, 0),
@@ -50885,10 +50814,9 @@ impl EditSession {
             })?
             .clone();
         let existing = catalog.get(b"AcroForm").cloned();
-        match existing {
+        let (af_id, mut af) = match existing {
             Some(Object::Reference(af_id)) => {
-                let graph = self.graph();
-                let mut af = graph
+                let af = graph
                     .resolved(af_id)
                     .as_dict()
                     .ok_or(EditError::NotADictionary {
@@ -50896,31 +50824,97 @@ impl EditSession {
                         key: "AcroForm",
                     })?
                     .clone();
-                patch(&mut af);
-                let before = self.state.get(&af_id).cloned();
-                Ok(ObjectWrite {
-                    id: af_id,
-                    before,
-                    after: Some(Object::Dict(af)),
-                })
+                (Some(af_id), af)
             }
-            other => {
-                let mut cat = catalog;
-                let mut af = match other {
-                    Some(Object::Dict(d)) => d,
-                    _ => Dict::new(),
-                };
-                patch(&mut af);
-                cat.insert(Name::from(b"AcroForm"), Object::Dict(af));
-                let before = self.state.get(&catalog_id).cloned();
-                Ok(ObjectWrite {
-                    id: catalog_id,
-                    before,
-                    after: Some(Object::Dict(cat)),
-                })
+            Some(Object::Dict(d)) => (None, d),
+            _ => (None, Dict::new()),
+        };
+
+        let fields = inline_held(&graph, &mut af, b"Fields");
+        let co = inline_held(&graph, &mut af, b"CO");
+        let dr = inline_held(&graph, &mut af, b"DR");
+        let font = match af.get(b"DR") {
+            Some(Object::Dict(d)) => {
+                let mut d = d.clone();
+                let held = inline_held(&graph, &mut d, b"Font");
+                af.insert(Name::from(b"DR"), Object::Dict(d));
+                held
+            }
+            _ => None,
+        };
+
+        patch(&mut af);
+
+        // Innermost first, so `/DR` is compared with its `/Font` reference
+        // already restored.
+        let mut held_writes = Vec::new();
+        if let Some(h) = font
+            && let Some(Object::Dict(mut d)) = af.get(b"DR").cloned()
+        {
+            self.restore_held(&mut d, b"Font", h, &mut held_writes);
+            af.insert(Name::from(b"DR"), Object::Dict(d));
+        }
+        for (key, h) in [(&b"DR"[..], dr), (&b"CO"[..], co), (&b"Fields"[..], fields)] {
+            if let Some(h) = h {
+                self.restore_held(&mut af, key, h, &mut held_writes);
             }
         }
+
+        let main = match af_id {
+            Some(af_id) => ObjectWrite {
+                id: af_id,
+                before: self.state.get(&af_id).cloned(),
+                after: Some(Object::Dict(af)),
+            },
+            None => {
+                let mut cat = catalog;
+                cat.insert(Name::from(b"AcroForm"), Object::Dict(af));
+                ObjectWrite {
+                    id: catalog_id,
+                    before: self.state.get(&catalog_id).cloned(),
+                    after: Some(Object::Dict(cat)),
+                }
+            }
+        };
+        Ok((main, held_writes))
     }
+
+    /// Put `held` back behind its reference at `key`, writing its object when
+    /// the patch changed it. An entry the patch removed stays removed.
+    fn restore_held(&self, dict: &mut Dict, key: &[u8], held: Held, writes: &mut Vec<ObjectWrite>) {
+        let Some(now) = dict.get(key) else {
+            return;
+        };
+        if *now != held.original {
+            writes.push(ObjectWrite {
+                id: held.id,
+                before: self.state.get(&held.id).cloned(),
+                after: Some(now.clone()),
+            });
+        }
+        dict.insert(Name::from(key), Object::Reference(held.id));
+    }
+}
+
+/// An indirect dictionary or array entry, resolved for a patch.
+struct Held {
+    id: ObjId,
+    original: Object,
+}
+
+/// Replace a reference at `key` with the dictionary or array it points to,
+/// returning what [`EditSession::restore_held`] needs to put it back.
+fn inline_held<G: ObjectGraph + ?Sized>(graph: &G, dict: &mut Dict, key: &[u8]) -> Option<Held> {
+    let Some(Object::Reference(id)) = dict.get(key) else {
+        return None;
+    };
+    let id = *id;
+    let original = graph.resolved(id).clone();
+    if !matches!(original, Object::Dict(_) | Object::Array(_)) {
+        return None;
+    }
+    dict.insert(Name::from(key), original.clone());
+    Some(Held { id, original })
 }
 
 /// What [`EditSession::place_new_field_deferred`] returns.
@@ -51529,8 +51523,8 @@ impl EditSession {
         // /AcroForm: register the field and set /SigFlags 3 on whichever
         // dictionary holds the form (indirect /AcroForm, or inline in the
         // catalog — `acroform_register_write` returns the right object).
-        let mut af_write = if reuse.is_some() {
-            self.acroform_sigflags_write()?
+        let (mut af_write, held) = if reuse.is_some() {
+            (self.acroform_sigflags_write()?, Vec::new())
         } else {
             self.acroform_register_write(field_id)?
         };
@@ -51582,6 +51576,7 @@ impl EditSession {
             }
         }
         objects.push(af_write);
+        objects.extend(held);
 
         self.commit(Command {
             kind: CommandKind::AddSignatureField,
