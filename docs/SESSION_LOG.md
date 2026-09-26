@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (602nd filing) — `ef873835`: OCRcer's vendored copy now records the accepted model-format versions, answering `pdfcer-gui` channel request `G042`
+
+**Shipped:**
+- `ef873835` — not a Pass: extends `Pass 327.1`'s vendoring mechanism. `tools/sync-ocrcer.py` now also reads `SUPPORTED_VERSION`, `KIND_RECOGNISER`, `FEATURE_VERSION`, and `SUPPORTED_NN_VERSION` from the vendored sources and writes them to `vendor/ocrcer-core/VENDORED`, failing the sync if one disappears. Reason: the `.ocrw` model itself is not vendored (OCRcer's `.gitignore` excludes `*.ocrw`), so a model file and the vendored reader could otherwise drift apart unnoticed. A packager compares a model's container version (LE u16 at offset 4) against `model-container-version` before shipping it; `OcrcerEngine::from_bytes` remains the load-time gate.
+
+**Decisions made this session:**
+- Extends decision 160 (`ARCHITECTURE.md` §12), not a new decision number: the local OCRcer build tree's `D:/Dev/OCRcer/model/out/ocrcer.ocrw` IS the model source of truth for now, since the model has no versioned home upstream. Superseded if OCRcer ever gives the model a committed manifest or tagged release asset.
+
+**Findings + decisions:**
+- All four accepted versions are currently `1`. The local model on disk has header version 1, sha256 `0a3ba063237415df42c9736560c86dd9325e3a9fa20133ba2f4c2a251e95b50a`.
+- Reply written and `INDEX.md` row added by the engineer: `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/reply_G042_vendored_records_the_model_format_versions_FIXED.md`. The same reply notices `pdfcer-gui` that `UnmappableCode`, `ActualTextPrecedence`, `TextOrigin`, `ContentStreamRef` (and structs `ExtractedGlyph`, `TextRun`) lost `#[non_exhaustive]` in the `pdfcer-text` split (`47d9c50a`, the 601st filing) — a consumer's `_ =>` arm on those types will fail `unreachable_patterns` on the next rev bump.
+- Owed outbound ask, open: `D:/Dev/FeatureRequests/OCRcer_FeatureRequests/request_the_ocrw_model_needs_a_versioned_home.md` asks OCRcer for a committed model manifest (sha256, size, format versions) or a tagged release asset.
+- No core API change, no dependency change, no `cargo tree` change. Gates were green at the previous commit; a fresh `tools/run-gates.sh` was in progress at filing time.
+
+**Still in flight:** `Pass 325.0` step 3 (see the 601st filing) — unaffected by this filing.
+
+**For next session:** Watch for OCRcer providing a versioned model home (would supersede the "local build tree is the source" ruling above); watch for the outbound OCRcer request's response.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, mechanism description, sha256, and reply/request file paths are relayed from the dispatching engineer's own report of `ef873835`; not independently reproduced here.
+
 ## 2026-09-26 (601st filing) — `Pass 325.0` step 3 continues (`47d9c50a`): fifth leaf crate `pdfcer-text` extracted
 
 **Shipped:**

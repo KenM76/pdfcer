@@ -11395,6 +11395,8 @@ per the operator's own ordered plan in `docs/NEXT_SESSION.md`).
 
 **Decision ceiling: `159` → `160`**, next free `161`. **Pass ceiling: `Pass 327.1`**, next free family `328`.
 
+**Extension, 2026-09-26 (602nd filing, `ef873835`), not a new decision number — answers `pdfcer-gui` channel request `G042`.** `ocrcer-core` is vendored per decision 160, but the `.ocrw` model itself is not: OCRcer's `.gitignore` excludes `*.ocrw`, so a model file and the vendored reader can drift independently. Ruling extending decision 160's reasoning to the model: the local OCRcer build tree (`D:/Dev/OCRcer/model/out/ocrcer.ocrw`) IS the model source for now — superseded if OCRcer ever gives the model a versioned, committed home (manifest or tagged release asset; outbound ask filed at `D:/Dev/FeatureRequests/OCRcer_FeatureRequests/request_the_ocrw_model_needs_a_versioned_home.md`). Mechanism: `tools/sync-ocrcer.py` now also reads `SUPPORTED_VERSION`/`KIND_RECOGNISER`/`FEATURE_VERSION`/`SUPPORTED_NN_VERSION` from the vendored sources and writes them to `vendor/ocrcer-core/VENDORED`, failing the sync if one disappears, so a packager can compare a model's container version (LE u16 at offset 4) against `model-container-version` before shipping it; `OcrcerEngine::from_bytes` remains the load-time gate. No core API, dependency, or `cargo tree` change. Sourcing (hard rule 8): no shell this filing, relayed from the dispatching engineer's report of `ef873835`.
+
 ### 2026-09-25 (593rd filing, `Pass 329.0`, `3691999f`/`21af5926`) — decision 161: TESSERACT SHIPS AS A SUBPROCESS, BUILT STATIC-MSVC FROM A VCPKG OVERLAY PORT, NOT LINKED AND NOT A CARGO DEPENDENCY
 
 **Status: DECIDED (operator directive, Ken, 2026-09-25 — "How can we supply
