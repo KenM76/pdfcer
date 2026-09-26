@@ -335,6 +335,19 @@ pub struct Model {
     pub bigrams: Option<crate::decode::bigram::Bigrams>,
     /// Context priors for look-alike pairs, when the file carries them.
     pub confusions: Option<crate::decode::confusion::Confusions>,
+    /// The optional neural classifier, dequantised, when the file carries
+    /// one this build's `nn_version` recognises. `None` for every file
+    /// written before chunk 15, and for one whose `nn` table this build
+    /// cannot or will not read -- see `nn_status` for which. `Engine`
+    /// (`crate::pipeline`) falls back to prototype scoring when
+    /// `match.classifier == 1` and this is `None`, and reports why via
+    /// `Engine::classifier_fallback`, the same shape of fallback an
+    /// unreadable `nn` table itself uses.
+    pub nn: Option<crate::nn::Nn>,
+    /// Why `nn` is `Some` or `None`. Reading this is how a caller (or
+    /// `ocrcer-build inspect`) reports the reason without the load itself
+    /// ever failing over it.
+    pub nn_status: crate::nn::NnStatus,
 }
 
 impl Model {
@@ -451,6 +464,16 @@ impl Model {
                 });
             }
         }
+        // `match.classifier == 2` (fused prototype + network scoring) is a
+        // hard load-time refusal, not a fallback: the fusion rule is
+        // undecided (`ARCHITECTURE.md` §11, "Chunk 15 interfaces", item 5),
+        // so there is no reading of this file that reflects what the
+        // parameter asked for. `0` and `1` both load; `1` degrades to
+        // prototype-only scoring when no network is present, which is a
+        // reportable fact, not a format error.
+        if params.matching.classifier == 2 {
+            return Err(Error::UnsupportedClassifier(2));
+        }
 
         let lexicon = match c.table(T_LEXICON) {
             None => None,
@@ -488,6 +511,11 @@ impl Model {
             })?),
         };
 
+        // Additive and never load-critical (`ARCHITECTURE.md` section 11,
+        // 2026-09-25 chunk 15 interfaces): an unknown `nn_version` or a
+        // malformed `nn` table degrades to no network, not a load failure.
+        let (nn, nn_status) = crate::nn::load(&c);
+
         if let Some(&worst) = prototype_class.iter().max() {
             if worst as usize >= classes.len() {
                 return Err(Error::BadTable {
@@ -520,6 +548,8 @@ impl Model {
             lexicon,
             bigrams,
             confusions,
+            nn,
+            nn_status,
         })
     }
 
@@ -767,5 +797,122 @@ mod tests {
         }
         assert!(matches!(Container::load(b"NOPE"), Err(Error::BadMagic)));
         assert!(matches!(Container::load(b""), Err(Error::Truncated)));
+    }
+
+    /// `match.classifier == 2` is undecided (fusion), so a model asking for
+    /// it is refused at load rather than silently falling back
+    /// (`ARCHITECTURE.md` §11, "Chunk 15 interfaces", item 5).
+    #[test]
+    fn classifier_two_is_refused_at_load() {
+        let mut params_bytes: Vec<u8> = Vec::new();
+        params_bytes.extend_from_slice(b"PARM");
+        params_bytes.extend_from_slice(&1u16.to_le_bytes());
+        params_bytes.extend_from_slice(&0u16.to_le_bytes());
+        params_bytes.extend_from_slice(&1u32.to_le_bytes());
+        let name = "match.classifier";
+        params_bytes.push(name.len() as u8);
+        params_bytes.push(1u8); // u32 tag
+        params_bytes.extend_from_slice(name.as_bytes());
+        params_bytes.extend_from_slice(&2u32.to_le_bytes());
+
+        let bytes = model_with_params_table(&params_bytes);
+        assert!(matches!(Model::load(&bytes), Err(Error::UnsupportedClassifier(2))));
+    }
+
+    /// Builds a minimal loadable recogniser model, with the given `params`
+    /// table bytes, so `Model::load`'s classifier gate can be tested without
+    /// a real prototype bank. Kept file-local: this is scaffolding for one
+    /// test, not a second builder to keep in sync with `ocrcer-build`.
+    fn model_with_params_table(params_bytes: &[u8]) -> Vec<u8> {
+        let meta = format!(
+            "{{\"feature_version\":{},\"feature_dims\":{},\"charset\":[{{\"index\":0,\"cp\":65,\"category\":\"letter\"}}]}}",
+            FEATURE_VERSION, FEATURE_DIMS
+        );
+        let proto_data: Vec<u8> = {
+            let mut v = Vec::new();
+            for _ in 0..FEATURE_DIMS {
+                v.extend_from_slice(&0i8.to_le_bytes());
+            }
+            v
+        };
+        let class_data: Vec<u8> = 0u16.to_le_bytes().to_vec();
+        let norm_data: Vec<u8> = {
+            let mut v = Vec::new();
+            for _ in 0..FEATURE_DIMS {
+                v.extend_from_slice(&0.0f32.to_le_bytes());
+            }
+            for _ in 0..FEATURE_DIMS {
+                v.extend_from_slice(&1.0f32.to_le_bytes());
+            }
+            v
+        };
+        let holes_data: Vec<u8> = vec![0u8];
+
+        let names: Vec<(&str, u8, Vec<u32>, Vec<f32>, Vec<u8>)> = vec![
+            (T_PROTOTYPES, 1, vec![1, FEATURE_DIMS as u32], vec![1.0; FEATURE_DIMS], proto_data),
+            (T_PROTOTYPE_CLASS, 2, vec![1], vec![], class_data),
+            (T_FEATURE_NORM, 0, vec![2 * FEATURE_DIMS as u32], vec![], norm_data),
+            (T_CLASS_HOLES, 2, vec![1], vec![], holes_data),
+            (T_PARAMS, 2, vec![params_bytes.len() as u32], vec![], params_bytes.to_vec()),
+        ];
+
+        let header_len = 4 + 2 + 2 + 4 + 4 + meta.len() + 4 + 8;
+        let dir_len: usize = names
+            .iter()
+            .map(|(n, _, d, _, _)| 2 + n.len() + 1 + 1 + 4 * d.len() + 4 + 8 + 8 + 8)
+            .sum();
+        // Scales are stored contiguously ahead of the blob, one region per
+        // table that has any; simplest correct layout is to concatenate all
+        // scale arrays and record each table's own offset into it.
+        let mut scales_blob: Vec<u8> = Vec::new();
+        let mut scale_offs = Vec::new();
+        for (_, _, _, s, _) in &names {
+            scale_offs.push(scales_blob.len());
+            for v in s {
+                scales_blob.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        let scales_start = header_len + dir_len;
+        let blob_start = (scales_start + scales_blob.len()).div_ceil(64) * 64;
+
+        let mut blob: Vec<u8> = Vec::new();
+        let mut data_offs = Vec::new();
+        for (_, _, _, _, data) in &names {
+            let at = (blob_start + blob.len()).div_ceil(64) * 64;
+            blob.resize(at - blob_start, 0);
+            data_offs.push(at);
+            blob.extend_from_slice(data);
+        }
+
+        let mut dir: Vec<u8> = Vec::new();
+        for (i, (n, k, d, s, data)) in names.iter().enumerate() {
+            dir.extend_from_slice(&(n.len() as u16).to_le_bytes());
+            dir.extend_from_slice(n.as_bytes());
+            dir.push(*k);
+            dir.push(d.len() as u8);
+            for v in d {
+                dir.extend_from_slice(&v.to_le_bytes());
+            }
+            dir.extend_from_slice(&(s.len() as u32).to_le_bytes());
+            dir.extend_from_slice(&((scales_start + scale_offs[i]) as u64).to_le_bytes());
+            dir.extend_from_slice(&(data_offs[i] as u64).to_le_bytes());
+            dir.extend_from_slice(&(data.len() as u64).to_le_bytes());
+        }
+
+        let mut out = Vec::new();
+        out.extend_from_slice(b"OCRW");
+        out.extend_from_slice(&1u16.to_le_bytes());
+        out.extend_from_slice(&KIND_RECOGNISER.to_le_bytes());
+        out.extend_from_slice(&(names.len() as u32).to_le_bytes());
+        out.extend_from_slice(&(meta.len() as u32).to_le_bytes());
+        out.extend_from_slice(meta.as_bytes());
+        out.extend_from_slice(&crc32(&blob).to_le_bytes());
+        out.extend_from_slice(&[0u8; 8]);
+        out.extend_from_slice(&dir);
+        out.resize(scales_start, 0);
+        out.extend_from_slice(&scales_blob);
+        out.resize(blob_start, 0);
+        out.extend_from_slice(&blob);
+        out
     }
 }

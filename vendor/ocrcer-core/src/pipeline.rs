@@ -97,6 +97,15 @@ pub struct Rect {
 pub struct Engine {
     model: Model,
     cal: confidence::Calibration,
+    /// `Some(reason)` when `match.classifier == 1` was requested but no
+    /// network is loaded, so every word was read with prototype scoring
+    /// instead of the network the model file asked for. Computed once at
+    /// load rather than per word: the fact is about the model, not about any
+    /// one page, and a per-call counter behind `OCRCER_PROFILE=1` would let
+    /// this go unnoticed on an ordinary run (`CLAUDE.md` rule 5 — a promise
+    /// about confidence extends to a promise about which scorer produced
+    /// it).
+    classifier_fallback: Option<&'static str>,
 }
 
 impl Engine {
@@ -108,12 +117,25 @@ impl Engine {
         // disagreeing decoder is allowed to lower a confidence.
         let cal =
             confidence::Calibration { lm_floor: model.params.confidence.lm_floor, ..confidence::AUTHORED };
-        Ok(Engine { model, cal })
+        let classifier_fallback = if model.params.matching.classifier == 1 && model.nn.is_none() {
+            Some("match.classifier=1 requested but no nn table is loaded; scoring with prototypes")
+        } else {
+            None
+        };
+        Ok(Engine { model, cal, classifier_fallback })
     }
 
     /// The loaded model, for a caller that wants to report what it is running.
     pub fn model(&self) -> &Model {
         &self.model
+    }
+
+    /// `Some(reason)` when this engine is scoring with prototypes despite the
+    /// model asking for the network (`match.classifier == 1` with no `nn`
+    /// table loaded). `None` otherwise — including when `classifier == 0`,
+    /// where there is nothing to fall back from.
+    pub fn classifier_fallback(&self) -> Option<&'static str> {
+        self.classifier_fallback
     }
 
     /// The parameter block this engine reads with.
@@ -373,6 +395,14 @@ impl Engine {
         let mut hyps: Vec<Hyp> = Vec::with_capacity(lat.edges.len());
         let mut boxes: Vec<(u32, u32, u32, u32)> = Vec::with_capacity(lat.edges.len());
 
+        // `use_nn` is decided once, outside the loop, from facts the loop
+        // itself cannot change (the loaded model, not any one edge). This is
+        // what makes `classifier == 0` byte-identical to every fixture that
+        // predates this field by construction rather than by testing alone:
+        // whenever it is false, every edge below runs the exact prototype
+        // path this function has always run, untouched.
+        let use_nn = p.matching.classifier == 1 && self.model.nn.is_some();
+
         for e in &lat.edges {
             let Some(g) = segment::crop(lat, labels, page_width, e) else {
                 continue;
@@ -380,24 +410,43 @@ impl Engine {
             if g.width == 0 || g.height == 0 {
                 continue;
             }
-            let extract_t = crate::prof::start();
-            let raw = crate::feature::extract(&g.input(line));
-            extract_t.stop(&crate::prof::COUNTERS.extract_ns);
-            let match_t = crate::prof::start();
-            let matched = crate::r#match::nearest(&self.model, &raw, k, italic_ok);
-            match_t.stop(&crate::prof::COUNTERS.match_ns);
-            if crate::prof::enabled() {
-                crate::prof::add(&crate::prof::COUNTERS.match_calls, 1);
-            }
-            let Some(m) = matched else {
-                continue;
+            let cands: Vec<Cand> = if use_nn {
+                let extract_t = crate::prof::start();
+                let (raw, grid) = crate::feature::extract_with_grid(&g.input(line));
+                extract_t.stop(&crate::prof::COUNTERS.extract_ns);
+                // The same normalisation code the matcher uses (`CLAUDE.md`
+                // rule 4): there is no second normalisation path for the
+                // network's input.
+                let normalised = self.model.standardise(&raw);
+                let match_t = crate::prof::start();
+                // `use_nn` is only ever true when `self.model.nn` is
+                // `Some(..)`.
+                let net = self.model.nn.as_ref().expect("use_nn implies a loaded network");
+                let forward = net.forward(&grid, &normalised);
+                match_t.stop(&crate::prof::COUNTERS.match_ns);
+                if crate::prof::enabled() {
+                    crate::prof::add(&crate::prof::COUNTERS.match_calls, 1);
+                }
+                let Ok(log_probs) = forward else {
+                    continue;
+                };
+                nn_candidates(net, &log_probs, k, p.nn.scale)
+            } else {
+                let extract_t = crate::prof::start();
+                let raw = crate::feature::extract(&g.input(line));
+                extract_t.stop(&crate::prof::COUNTERS.extract_ns);
+                let match_t = crate::prof::start();
+                let matched = crate::r#match::nearest(&self.model, &raw, k, italic_ok);
+                match_t.stop(&crate::prof::COUNTERS.match_ns);
+                if crate::prof::enabled() {
+                    crate::prof::add(&crate::prof::COUNTERS.match_calls, 1);
+                }
+                let Some(m) = matched else {
+                    continue;
+                };
+                let ratio = m.ratio();
+                m.best.iter().map(|c| Cand { class: c.class, distance: c.distance, ratio }).collect()
             };
-            let ratio = m.ratio();
-            let cands: Vec<Cand> = m
-                .best
-                .iter()
-                .map(|c| Cand { class: c.class, distance: c.distance, ratio })
-                .collect();
             if cands.is_empty() {
                 continue;
             }
@@ -458,6 +507,43 @@ impl Engine {
             chars,
         })
     }
+}
+
+/// Turns a network forward pass's log-probabilities into up-to-`k` [`Cand`]s,
+/// scored in the prototype matcher's distance units.
+///
+/// Junk (`net.junk_index`) is excluded from the candidate pool entirely, per
+/// the 2026-09-25 junk-output amendment's item 4: junk is never emitted and
+/// is never a rival class for confidence, so it must not win a lattice edge
+/// and must not be counted when the top-two margin is measured. `distance`
+/// is `nn.scale * (-log p(c))`; `ratio` is one value shared by every
+/// returned candidate, the same shape `crate::r#match::nearest`'s single
+/// `Match::ratio()` takes — it is a property of the edge's top two charset
+/// classes, not of any one candidate within it.
+fn nn_candidates(net: &crate::nn::Nn, log_probs: &[f32], k: usize, scale: f32) -> Vec<Cand> {
+    let junk_index = net.junk_index as usize;
+    let mut charset: Vec<(u16, f32)> = log_probs
+        .iter()
+        .enumerate()
+        .filter(|&(i, _)| i != junk_index)
+        .map(|(i, &lp)| (i as u16, lp))
+        .collect();
+    // Descending by log-probability (best first); ties to the lower class
+    // index, the same rule `crate::r#match` uses.
+    charset.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+
+    let margin = match (charset.first(), charset.get(1)) {
+        (Some(&(_, top1)), Some(&(_, top2))) => top1 - top2,
+        (Some(_), None) => f32::INFINITY, // one charset class stood: no rival.
+        (None, _) => return Vec::new(),
+    };
+    let ratio = confidence::nn_ratio_from_margin(margin);
+
+    charset
+        .into_iter()
+        .take(k.max(1))
+        .map(|(class, lp)| Cand { class, distance: scale * -lp, ratio })
+        .collect()
 }
 
 /// Maps a y in the deskewed page back to the input image's y.

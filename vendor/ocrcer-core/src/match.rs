@@ -273,6 +273,8 @@ mod tests {
             lexicon: None,
             bigrams: None,
             confusions: None,
+            nn: None,
+            nn_status: crate::nn::NnStatus::Absent,
         }
     }
 

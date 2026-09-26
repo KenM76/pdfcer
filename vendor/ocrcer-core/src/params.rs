@@ -46,6 +46,7 @@ pub struct Params {
     pub matching: Matching,
     pub confidence: Confidence,
     pub decode: Decode,
+    pub nn: Nn,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -143,6 +144,28 @@ pub struct Layout {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Matching {
     pub top_k: u32,
+    /// Which scorer a lattice candidate's distance comes from
+    /// (`ARCHITECTURE.md` §11, "Chunk 15 interfaces", item 5). `0` (default,
+    /// authored): prototype matching only, exactly as every fixture before
+    /// this field existed. `1`: the loaded network only, if one is loaded
+    /// (`crate::ocrw::Model::nn`) — a model with `classifier == 1` and no
+    /// loaded network falls back to `0`'s behaviour and reports why (see
+    /// `crate::pipeline::Engine::classifier_fallback`). `2`: fused scoring,
+    /// refused outright at load time (`crate::Error::UnsupportedClassifier`)
+    /// — the fusion rule is undecided.
+    pub classifier: u32,
+}
+
+/// The optional neural classifier's own parameters
+/// (`ARCHITECTURE.md` §11, "Chunk 15 interfaces", item 5). Unused, and
+/// therefore inert, whenever `matching.classifier != 1`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Nn {
+    /// Scales `-log p(c)` into the prototype-distance unit space so
+    /// `decode::viterbi`'s scoring formula does not need to know which
+    /// scorer produced a `Cand`'s `distance`. Guess, to be fitted on the
+    /// train split once the network exists.
+    pub scale: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -448,7 +471,10 @@ impl Params {
         // Fitted, `ARCHITECTURE.md` section 11, 2026-09-25 ("How chunk 12b's
         // vector is chosen"). `model/params.tsv` carries the full provenance
         // note; `tools/fit12b` is the script.
-        matching: Matching { top_k: 3 },
+        // `classifier` authored, `ARCHITECTURE.md` §11, "Chunk 15
+        // interfaces", item 5: default 0, prototypes only, so every fixture
+        // predating this field reads exactly as it always did.
+        matching: Matching { top_k: 3, classifier: 0 },
         confidence: Confidence { lm_floor: 0.8 },
         decode: Decode {
             w_match: 1.0,
@@ -473,6 +499,10 @@ impl Params {
             case_shape_penalty: 3.44,
             beam_width: 14,
         },
+        // Guess, `ARCHITECTURE.md` §11, "Chunk 15 interfaces", item 5: to be
+        // fitted on train once the network exists. Inert while
+        // `matching.classifier != 1`.
+        nn: Nn { scale: 1.0 },
     };
 
     /// Overrides from a `params` table, returning how many rows were applied.
@@ -599,6 +629,7 @@ impl Params {
             "decode.seg_split_penalty" => &mut self.decode.seg_split_penalty,
             "decode.w_confusion" => &mut self.decode.w_confusion,
             "decode.case_shape_penalty" => &mut self.decode.case_shape_penalty,
+            "nn.scale" => &mut self.nn.scale,
             _ => return false,
         };
         *slot = v;
@@ -623,6 +654,7 @@ impl Params {
             "segment.max_splits" => &mut self.segment.max_splits,
             "layout.italic_gating" => &mut self.layout.italic_gating,
             "match.top_k" => &mut self.matching.top_k,
+            "match.classifier" => &mut self.matching.classifier,
             "decode.identifier_min_length" => &mut self.decode.identifier_min_length,
             "decode.beam_width" => &mut self.decode.beam_width,
             _ => return false,
@@ -633,7 +665,7 @@ impl Params {
 
     /// Every name this build understands, for a loader that wants to report
     /// which ones a file left at their defaults.
-    pub const NAMES: [&'static str; 78] = [
+    pub const NAMES: [&'static str; 80] = [
         "binarize.window",
         "binarize.k",
         "binarize.r",
@@ -691,6 +723,7 @@ impl Params {
         "layout.slant_margin",
         "layout.italic_gating",
         "match.top_k",
+        "match.classifier",
         "confidence.lm_floor",
         "decode.w_match",
         "decode.char_bonus",
@@ -712,6 +745,7 @@ impl Params {
         "decode.w_confusion",
         "decode.case_shape_penalty",
         "decode.beam_width",
+        "nn.scale",
     ];
 
     /// The value a name currently holds, as an `f32`. For a report, and for
@@ -760,7 +794,7 @@ fn find_changed_u32(before: &Params, after: &Params) -> f32 {
     f32::NAN
 }
 
-fn f32_fields(p: &Params) -> [f32; 61] {
+fn f32_fields(p: &Params) -> [f32; 62] {
     [
         p.binarize.k,
         p.binarize.r,
@@ -823,10 +857,11 @@ fn f32_fields(p: &Params) -> [f32; 61] {
         p.decode.seg_split_penalty,
         p.decode.w_confusion,
         p.decode.case_shape_penalty,
+        p.nn.scale,
     ]
 }
 
-fn u32_fields(p: &Params) -> [u32; 17] {
+fn u32_fields(p: &Params) -> [u32; 18] {
     [
         p.binarize.window,
         p.lines.min_area,
@@ -843,6 +878,7 @@ fn u32_fields(p: &Params) -> [u32; 17] {
         p.segment.max_splits,
         p.layout.italic_gating,
         p.matching.top_k,
+        p.matching.classifier,
         p.decode.identifier_min_length,
         p.decode.beam_width,
     ]
@@ -964,10 +1000,17 @@ mod tests {
     #[test]
     fn a_file_overrides_the_default_by_name() {
         let mut p = Params::DEFAULT;
-        let t = table(&[("decode.w_bigram", 0, 0.9f32.to_le_bytes()), ("match.top_k", 1, 9u32.to_le_bytes())]);
-        assert_eq!(p.apply(&t), Some(2));
+        let t = table(&[
+            ("decode.w_bigram", 0, 0.9f32.to_le_bytes()),
+            ("match.top_k", 1, 9u32.to_le_bytes()),
+            ("match.classifier", 1, 1u32.to_le_bytes()),
+            ("nn.scale", 0, 2.5f32.to_le_bytes()),
+        ]);
+        assert_eq!(p.apply(&t), Some(4));
         assert_eq!(p.decode.w_bigram, 0.9);
         assert_eq!(p.matching.top_k, 9);
+        assert_eq!(p.matching.classifier, 1);
+        assert_eq!(p.nn.scale, 2.5);
         // Everything it did not name is untouched.
         assert_eq!(p.decode.w_lex, Params::DEFAULT.decode.w_lex);
     }
@@ -1022,6 +1065,8 @@ mod tests {
         // to match.
         assert_eq!(p.get("decode.w_bigram"), Some(p.decode.w_bigram));
         assert_eq!(p.get("match.top_k"), Some(p.matching.top_k as f32));
+        assert_eq!(p.get("match.classifier"), Some(p.matching.classifier as f32));
+        assert_eq!(p.get("nn.scale"), Some(p.nn.scale));
         assert_eq!(p.get("nothing.here"), None);
     }
 }

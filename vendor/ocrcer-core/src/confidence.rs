@@ -122,6 +122,39 @@ pub fn adjust(cal: &Calibration, base: f32, agreement: f32) -> f32 {
     (base * (f + (1.0 - f) * a)).clamp(0.0, 1.0)
 }
 
+/// Turns the network head's margin — `log p1 - log p2` over charset classes,
+/// junk excluded (`ARCHITECTURE.md` §11, "Chunk 15 interfaces", item 5, and
+/// the 2026-09-25 junk-output amendment's item 4) — into a [`character`]-
+/// shaped ratio, so `classifier == 1` can share the same calibration entry
+/// point as prototype matching rather than a second one.
+///
+/// **Provisional and unauthored.** The real curve architecture calls for is
+/// "calibrated on val" (same item 5) — a validation split this chunk does
+/// not have. This is only division, chosen to satisfy this module's
+/// no-`ln`/no-`exp`/no-`powf` determinism doctrine while guaranteeing the one
+/// property that must hold even before calibration exists: a *larger* margin
+/// (more confident) must map to a *smaller* ratio, because [`character`]
+/// reads a smaller ratio as more confident. Getting that direction backwards
+/// would be a silent, systematic confidence inversion — worse than reporting
+/// no confidence at all, which `CLAUDE.md` rule 5 names as the thing not to
+/// do. Never reached while `match.classifier != 1`.
+///
+/// An infinite margin — the network saw only one charset class worth
+/// considering, so there was no rival to measure a gap against — reads as
+/// `0.0`, a perfect margin, the same way [`crate::r#match::Match::ratio`]
+/// reads an infinite `d2` (no rival of a different class) as `0.0` rather
+/// than as an error. `NaN` and a negative margin are the only inputs treated
+/// as the worst case.
+pub fn nn_ratio_from_margin(margin: f32) -> f32 {
+    if margin.is_nan() || margin < 0.0 {
+        return 1.0;
+    }
+    if margin.is_infinite() {
+        return 0.0;
+    }
+    (1.0 / (1.0 + margin)).clamp(0.0, 1.0)
+}
+
 /// A word's confidence: the geometric mean over its characters.
 ///
 /// An empty word reports `0.0`. Nothing was read, so nothing was read
@@ -304,6 +337,35 @@ mod tests {
         assert!((agree - base).abs() < 1e-6);
         assert!(disagree < base);
         assert!(disagree >= base * AUTHORED.lm_floor - 1e-6);
+    }
+
+    /// A larger margin must never read as less confident: getting this
+    /// backwards would silently invert every `classifier == 1` confidence.
+    #[test]
+    fn nn_ratio_from_margin_is_monotonically_decreasing() {
+        let margins = [0.0f32, 0.1, 0.5, 1.0, 3.0, 10.0, 100.0];
+        let mut last = f32::INFINITY;
+        for &m in &margins {
+            let r = nn_ratio_from_margin(m);
+            assert!((0.0..=1.0).contains(&r), "ratio {r} for margin {m} out of range");
+            assert!(r <= last + 1e-6, "not monotone at margin {m}: {r} > {last}");
+            last = r;
+        }
+        assert!((nn_ratio_from_margin(0.0) - 1.0).abs() < 1e-6, "zero margin is the least confident");
+    }
+
+    #[test]
+    fn nn_ratio_from_margin_rejects_nan_and_negative_as_worst_case() {
+        assert_eq!(nn_ratio_from_margin(f32::NAN), 1.0);
+        assert_eq!(nn_ratio_from_margin(-1.0), 1.0);
+    }
+
+    /// An infinite margin means there was no rival class at all, which is the
+    /// most confident reading, not the least — mirroring
+    /// `Match::ratio`'s treatment of an infinite `d2`.
+    #[test]
+    fn nn_ratio_from_margin_reads_an_infinite_margin_as_no_rival() {
+        assert_eq!(nn_ratio_from_margin(f32::INFINITY), 0.0);
     }
 
     #[test]

@@ -11,6 +11,7 @@ pub mod image;
 pub mod json;
 pub mod layout;
 pub mod r#match;
+pub mod nn;
 pub mod ocrw;
 pub mod params;
 pub mod pipeline;
@@ -61,6 +62,12 @@ pub enum Error {
     MissingTable(&'static str),
     /// A table is present but malformed.
     BadTable { name: String, why: &'static str },
+    /// `match.classifier` names a value this runtime does not implement.
+    /// Only `2` (fused prototype + network scoring) currently does this:
+    /// the fusion rule is undecided (`ARCHITECTURE.md` §11), so loading a
+    /// model that asks for it is refused outright rather than silently
+    /// falling back, the way an unloadable `nn` table does.
+    UnsupportedClassifier(u32),
 }
 
 impl core::fmt::Display for Error {
@@ -92,6 +99,10 @@ impl core::fmt::Display for Error {
             }
             Error::MissingTable(n) => write!(f, "model file has no {n:?} table"),
             Error::BadTable { name, why } => write!(f, "table {name:?}: {why}"),
+            Error::UnsupportedClassifier(v) => write!(
+                f,
+                "match.classifier = {v} is not implemented (fusion rule is undecided, ARCHITECTURE.md §11)"
+            ),
         }
     }
 }

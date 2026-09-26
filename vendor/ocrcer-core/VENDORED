@@ -1,3 +1,3 @@
 source = https://github.com/KenM76/ocrcer (local checkout)
-commit = 355e7079982d6f26ebd1ad78ff87955107b62489
+commit = 1293fc61799a3770b891820dbd270e8401a6c1a2
 synced-by = tools/sync-ocrcer.py
