@@ -186,8 +186,6 @@ pub use intent::{RenderingIntent, image_intent};
 
 use cmyk_table::{GRID_L, NODES};
 
-use crate::settings::CmykIntent;
-
 /// Convert `DeviceGray` (§8.6.4.2) to sRGB: 0.0 = black, 1.0 = white.
 ///
 /// Note the polarity trap this exists to keep visible — `DeviceGray` 0.0 is
@@ -197,8 +195,8 @@ use crate::settings::CmykIntent;
 /// # Examples
 ///
 /// ```
-/// assert_eq!(pdfcer_core::color::gray_to_srgb(1.0), [1.0, 1.0, 1.0]);
-/// assert_eq!(pdfcer_core::color::gray_to_srgb(0.0), [0.0, 0.0, 0.0]);
+/// assert_eq!(pdfcer_color::color::gray_to_srgb(1.0), [1.0, 1.0, 1.0]);
+/// assert_eq!(pdfcer_color::color::gray_to_srgb(0.0), [0.0, 0.0, 0.0]);
 /// ```
 #[must_use]
 pub fn gray_to_srgb(v: f32) -> [f32; 3] {
@@ -216,7 +214,7 @@ pub fn gray_to_srgb(v: f32) -> [f32; 3] {
 /// # Examples
 ///
 /// ```
-/// assert_eq!(pdfcer_core::color::rgb_to_srgb(0.25, 0.5, 2.0), [0.25, 0.5, 1.0]);
+/// assert_eq!(pdfcer_color::color::rgb_to_srgb(0.25, 0.5, 2.0), [0.25, 0.5, 1.0]);
 /// ```
 #[must_use]
 pub fn rgb_to_srgb(r: f32, g: f32, b: f32) -> [f32; 3] {
@@ -284,7 +282,7 @@ pub fn rgb_to_srgb(r: f32, g: f32, b: f32) -> [f32; 3] {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::color::cmyk_to_srgb;
+/// use pdfcer_color::color::cmyk_to_srgb;
 ///
 /// // No ink at all is exactly paper white, and four-colour solid is exactly
 /// // black — both pinned, because both are directly observable on a page.
@@ -375,8 +373,8 @@ pub fn cmyk_to_srgb(c: f32, m: f32, y: f32, k: f32) -> [f32; 3] {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::color::cmyk_to_srgb_with;
-/// use pdfcer_core::settings::CmykIntent;
+/// use pdfcer_color::color::cmyk_to_srgb_with;
+/// use pdfcer_color::color::CmykIntent;
 ///
 /// // The whole point of the alternative: pure K becomes true black.
 /// assert_eq!(
@@ -456,6 +454,202 @@ fn node(i: usize) -> [f32; 3] {
 #[inline]
 fn lerp([ar, ag, ab]: [f32; 3], [br, bg, bb]: [f32; 3], t: f32) -> [f32; 3] {
     [ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t]
+}
+
+/// `CmykIntent::Naive` — the additive `1 − min(1, x + k)` formula pdfcer used
+/// before it was calibrated — was removed by the same ruling: *"you can also
+/// remove the old pdfcer formula from that section, even the code for it."*
+///
+/// It existed so an operator could reproduce a pre-calibration pdfcer export.
+/// That justification was true when written and **expired silently as those
+/// files aged out** — no test failed, no gate fired, and the copy describing
+/// it still read sensibly. A control whose only purpose is bug-compatibility
+/// with your own past is removable only by somebody deciding to, because
+/// nothing will ever tell you it has become dead weight.
+///
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CmykIntent {
+    /// The calibrated table in [`crate::color`] — agreement with the
+    /// SWOP-family rendering that Acrobat's default profile and pdfium
+    /// both produce.
+    ///
+    /// **The shipped default** (`Pass 153.0`, operator ruling 2026-08-28),
+    /// and also the best-evidenced answer — the two agree now, and the type
+    /// docs record that they did not always.
+    ///
+    /// Its visible consequence is that solid black ink (`0 0 0 1 k`) renders
+    /// `#231F20` rather than `#000000`, and mid greys come out slightly cool.
+    ///
+    /// **`#231F20` IS ONE OF TWO ANSWERS, ONE COUNT APART, AND BOTH ARE
+    /// CORRECT.** Measured 2026-08-29 with the ink probe (`Pass 174.0`) on one
+    /// page rendered both ways:
+    ///
+    /// ```text
+    /// 0 0 0 1 k, page composited on screen      35, 31, 31   #231F1F
+    /// 0 0 0 1 k, page composited in the buffer  35, 31, 32   #231F20
+    /// ```
+    ///
+    /// The two paths reach this same table at different precisions — one
+    /// converts an 8-bit paint colour, the other converts `f32` colorants at
+    /// the very end (`CmykBuffer::to_srgb_over_white`) — so **every**
+    /// `DeviceCMYK` colour carries a ±1 blue uncertainty that is a property of
+    /// the compositing path and not of the table. The saturated green this
+    /// project has chased all week shows exactly the same thing: `47,180,73`
+    /// on screen against `47,181,73` in ink.
+    ///
+    /// Recorded because it is the kind of one-count difference a future
+    /// session will find, read as a defect in one of the two paths, and try to
+    /// remove. It is not a defect. Every doc comment in this workspace that
+    /// states `#231F20` is quoting the colorant path and is right to — a
+    /// `grep` will find them, and a count stated here would be one more number
+    /// nothing keeps true.
+    ///
+    /// # THE SECOND HALF OF THAT SENTENCE WAS A CLAIM, AND IT HAS BEEN
+    /// MEASURED. It was wrong.
+    ///
+    /// This paragraph read, until `Pass 174.1`:
+    ///
+    /// > ~~"…and mid greys are slightly cool. **That is what Acrobat shows,
+    /// > which is the point**: *"what will this look like in Acrobat?"* and
+    /// > *"what does pdfcer show?"* now have one answer."~~
+    ///
+    /// Measured 2026-08-29 against a reference engine's own renders of the
+    /// licensed print-conformance corpus, over **every flat achromatic region
+    /// of at least 2 000 px in all 51 patches** (`tools/flat-color-parity.py
+    /// --neutrals`), with the probe (`--probe-ink`) confirming each grey's
+    /// route:
+    ///
+    /// ```text
+    ///   pure-K ink      reference        pdfcer (Calibrated)     spread
+    ///   0 0 0 0.500     156,156,156       147,149,152             5
+    ///   0 0 0 0.749      98, 98, 98        99,100,103             4
+    /// ```
+    ///
+    /// **The reference renders pure-K greys EXACTLY neutral — channel spread
+    /// zero — at both levels the corpus offers. pdfcer does not, at either.**
+    /// (Two, not more: a third achromatic pair, on the output-intent-change
+    /// patch, is excluded because pdfcer's whole region there is 65–70 counts
+    /// dark, which is a different defect and not a hue one. Two levels is a
+    /// small sample and is stated as one.)
+    /// So the cool cast is a divergence, not agreement, and the sentence that
+    /// justified it was justifying the opposite of what it claimed.
+    ///
+    /// **The other half of the claim SURVIVES, and separating them is the
+    /// point of stating both.** `Calibrated` tracks the reference's
+    /// *lightness* closely — `99` against `98` at `K = 0.749` — where a naive
+    /// `1 − K` formula would have given `64`, more than thirty counts out.
+    /// The table is right about how dark ink looks and wrong about its hue.
+    /// A future session must not read this note as an argument for reverting
+    /// to a naive conversion; it is an argument about **neutrality**, on the
+    /// achromatic axis only.
+    ///
+    /// **The aggregate number is the trap here, and it is recorded so the
+    /// measurement is not re-run and re-misread.** Over the same corpus,
+    /// **125 of 132** achromatic reference regions come out of pdfcer still
+    /// achromatic — 95 %, which reads as a strong result and is one. Segment
+    /// out the regions the reference painted **paper white**, where a
+    /// conversion that did nothing at all would also score perfectly, and the
+    /// population is **7 mid-grey regions of which pdfcer leaves 0 neutral**.
+    /// A fixture whose expected value equals what the code writes anyway
+    /// cannot falsify anything, and 125 of those 132 were that fixture.
+    ///
+    /// # A THIRD INDEPENDENT LINE ARRIVED, AND IT MOVES THE "THIN BASIS"
+    /// SENTENCE BELOW
+    ///
+    /// The paragraph after this one says two grey levels is a thin basis for
+    /// moving a shipped default. That was true when written and is weaker now,
+    /// so it is qualified here rather than left to read as current.
+    ///
+    /// On 2026-08-29 the sibling `iccce` project ran the **actual ICC
+    /// transform** — the print-conformance patch's own `/DestOutputProfile`
+    /// (a v2.4.0 `prtr` CMYK/Lab) to the OS-shipped sRGB profile,
+    /// media-relative colorimetric — over 49 operands, and corroborated its
+    /// own arithmetic against `lcms2` 2.19.1 to **0.22 counts**. On the
+    /// achromatic axis:
+    ///
+    /// ```text
+    ///   pure-K ink   reference    pdfcer (Calibrated)   iccce (real transform)
+    ///   0 0 0 0.50   156,156,156     147,148,152           158,159,159
+    ///   0 0 0 0.35        —          177,178,182           189,189,190
+    /// ```
+    ///
+    /// **iccce returns NEUTRAL greys and lands within 2–3 counts of the
+    /// reference; pdfcer is cool on every row, blue above red by 2 to 5.** So
+    /// the evidence for the hue divergence is now three lines that did not
+    /// come from each other: the reference's own exact neutrality, pdfcer's
+    /// measured spread over the corpus, and the profile's own answer computed
+    /// by a separate engine against `lcms2`. **Still not a reason to change
+    /// the conversion here** — decision 064 puts it in `iccce`'s domain and
+    /// the operator ruled the default — but a future session weighing the
+    /// evidence should weigh three lines, not two.
+    ///
+    /// # AND THE BLACK END IS A FALSE-DEFECT TRAP — pdfcer IS THE CLOSER
+    /// ANSWER THERE, WHICH THE TABLE DOES NOT SHOW
+    ///
+    /// The same 49-operand comparison disagrees far more at the dark end
+    /// (median worst-channel difference 11 counts, maximum 34), and **on every
+    /// one of the six worst rows `iccce` is LIGHTER**:
+    ///
+    /// ```text
+    ///   operand              pdfcer        iccce
+    ///   0.00 0.00 0.00 1.00  35, 31, 31   43, 43, 42
+    ///   1.00 1.00 1.00 1.00   0,  0,  0   28, 27, 24
+    ///   0.10 1.00 1.00 1.00  11,  0,  0   45, 28, 22
+    /// ```
+    ///
+    /// **Read naively, that table says pdfcer's blacks are 8 to 34 counts
+    /// wrong.** They are not, and `iccce` said so unprompted and in its own
+    /// words: *"on the black end, do not read my column as the better answer …
+    /// it is the answer of an engine that declined to estimate something yours
+    /// effectively assumes. Refusing and being wrong look identical in a
+    /// table; only this paragraph distinguishes them."*
+    ///
+    /// The mechanism is **black point compensation**. Media-relative *without*
+    /// BPC returns the profile's actual darkest printable colour, which is
+    /// what `iccce` returns because its black-point estimator **refuses by
+    /// name** on this profile rather than guessing. Acrobat's display path is
+    /// almost certainly media-relative *with* BPC, which pulls that black down
+    /// toward display black — and pdfcer's `35, 31, 31` is within a count of
+    /// the `#231F20` this type documents for K-only black, i.e. pdfcer matches
+    /// the reference here and `iccce` does not.
+    ///
+    /// **Recorded because the trap is asymmetric and invisible in the
+    /// numbers.** The SAME comparison makes pdfcer look wrong on the grey axis
+    /// (it is) and wrong on the black end (it is not), and nothing in the
+    /// table distinguishes the two. A session that "fixes" the black end
+    /// toward `iccce`'s column would move pdfcer AWAY from the reference by up
+    /// to 34 counts while believing it had closed a gap. *"Which engine is
+    /// better"* is the wrong question — different regions, different answers,
+    /// different causes.
+    ///
+    /// **Not a fitting target either way.** `iccce`'s own position, held to
+    /// symmetrically: *"you should not hand-tune toward these 49 numbers any
+    /// more than I should tune toward the Acrobat capture."* 49 pixels bought
+    /// at the cost of every other one is the trade decision 064 exists to
+    /// prevent. The right use is a **regression datum** — what a real
+    /// transform through a real declared output condition returns for the
+    /// operands pdfcer actually paints.
+    ///
+    /// **Not changed here, deliberately.** The conversion itself is the
+    /// sibling `iccce` project's domain under decision 064, and the operator
+    /// ruled this default on 2026-08-28. What is owed is an accurate
+    /// justification, and that is what this is. (The "two levels is a thin
+    /// basis" reasoning above stands as the state of the evidence when it was
+    /// measured; the third line qualifying it is recorded two sections up
+    /// rather than by rewriting it, because the sequence is the part a future
+    /// session needs.)
+    #[default]
+    Calibrated,
+    /// As [`Self::Calibrated`], except that pure black — `C = M = Y = 0`
+    /// with any `K` — is forced to a neutral grey of `1 − K`, so pure-K
+    /// line art renders `#000000`.
+    ///
+    /// **Was the shipped default until 2026-08-28**, by an operator ruling
+    /// the same operator has since reversed. Still the right choice for CAD
+    /// and engineering drawings, where every line is stroked in pure K and
+    /// true black on white is the expectation — the reasoning did not stop
+    /// being true, it stopped being the default.
+    NeutralBlack,
 }
 
 #[cfg(test)]

@@ -65,11 +65,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use super::ActualTextPrecedence;
 use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
 use crate::page_tree::{Page, Rect};
-use crate::settings::ActualTextPrecedence;
 use crate::span::ByteSpan;
 use crate::text_state::{AmbientTextState, TextStateParam};
 use crate::textstring::decode_text_string;

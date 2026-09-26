@@ -139,7 +139,6 @@ use std::sync::Arc;
 use crate::content::ContentError;
 use crate::document::Document;
 use crate::page_tree::{self, Page, PageTreeError, Rect};
-use crate::settings::{ActualTextPrecedence, UnmappableCode};
 use crate::span::ByteSpan;
 use crate::text_state::AmbientTextState;
 use crate::view::DocumentView;
@@ -1852,6 +1851,149 @@ fn document_facts(doc: &DocumentView<'_>, diagnostics: &mut TextDiagnostics) {
                 .to_string(),
         );
     }
+}
+
+/// What character extraction emits for a code no rung of the §9.10.2
+/// ladder could map (spec ambiguity `TX-A1`).
+///
+/// # The silence being filled
+///
+/// §9.10.2's failure clause is *grammatically broken* — it says a
+/// conforming reader *"may choose a character code of their choosing"*
+/// where a **Unicode value** is what is being produced — and **no
+/// sentinel is specified anywhere in the standard**: not U+FFFD, not
+/// omission, not a placeholder.
+///
+/// # Default: [`Self::ReplacementChar`] — **EVIDENCE TIER (d)**
+///
+/// Tier (d): reasoned inference only — **a guess**. The reasoning is that
+/// U+FFFD is the only option that is simultaneously length-preserving
+/// *and* visibly wrong, which is what rule 4 wants; omission silently
+/// shortens the text and makes the failure invisible. No census, no
+/// Acrobat citation, no documented third-party behaviour backs it.
+///
+/// # This is an EXTRACT-radius setting, which makes it a correctness knob
+///
+/// Downstream of extraction sit search, clipboard copy, **and
+/// redaction-by-text**. Changing the sentinel changes character offsets,
+/// therefore changes which runs a redaction pattern matches (**R35**). A
+/// redaction built under one value is not equivalent under another.
+/// Whatever is chosen, the rung-4 counter keeps counting — that counter is
+/// documented as *"the headline honesty metric"* and the setting must not
+/// be able to switch it off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum UnmappableCode {
+    /// U+FFFD REPLACEMENT CHARACTER, one per unmappable code.
+    ///
+    /// **The shipped default.** Length-preserving and visibly wrong.
+    #[default]
+    ReplacementChar,
+    /// `?`, one per unmappable code.
+    ///
+    /// Also length-preserving, but it survives being pasted into tools
+    /// that mangle U+FFFD, and it reads as a question rather than as a
+    /// font problem. It is *less* honest than U+FFFD in one specific way:
+    /// a genuine `?` in the document is indistinguishable from a failure.
+    QuestionMark,
+    /// Nothing at all — the code contributes no characters.
+    ///
+    /// The failure is still counted (`ladder_failures`), so it is never
+    /// hidden from the operator; only the text is shorter, and the
+    /// shortening is invisible **in the text itself**. Choose this when
+    /// the extracted text is being fed to something that chokes on
+    /// sentinels.
+    ///
+    /// **Two consequences worth knowing before choosing it**, both
+    /// measured rather than assumed:
+    ///
+    /// 1. **Character offsets move**, so a search hit and a
+    ///    redaction-by-text match land in different places than they do
+    ///    under the other two values (R35). That is true of any change
+    ///    here, but `omit` is the one that changes them the most.
+    /// 2. **A run whose codes are ALL unmappable disappears entirely** —
+    ///    glyph records included. The layout pass drops a run with no
+    ///    characters (it has nothing a caller can index into), so under
+    ///    `omit` a page of `Identity-H` text with no `/ToUnicode` yields
+    ///    zero runs rather than runs of sentinels. A caller that needs
+    ///    per-glyph positions for unmappable codes must not choose this.
+    ///    Pinned by
+    ///    `the_unmappable_sentinel_changes_the_characters_but_never_the_count`.
+    ///
+    /// **Scope: extraction output only.** Three internal paths pin the
+    /// sentinel to [`Self::ReplacementChar`] regardless, because in each
+    /// of them a zero-length character would break something structural
+    /// rather than merely look different — the text-editing slot table
+    /// (a zero-length span is a glyph the operator can see and cannot
+    /// address), the redaction audit record (which must not report a
+    /// removal as nothing), and the vector-object text preview (which must
+    /// not make an undecodable run look empty). Each site says so at the
+    /// call.
+    Omit,
+}
+
+/// Whether `/ActualText` replaces the glyph-derived characters
+/// (spec ambiguity `AT-A1`).
+///
+/// # The disagreement being resolved
+///
+/// Three statements in ISO 32000-1 do not agree, and none dislodges the
+/// others:
+///
+/// - **§14.9.4**: `/ActualText` *"shall be used as a replacement"* — the
+///   only **`shall`** in the set.
+/// - **§14.8.2.4.2 NOTE 2**: readers *"may choose to use"* it, and *"some
+///   conforming readers"* do — a `may`, inside an **informative NOTE**.
+/// - **§9.10.1**: it *"may be used"*.
+///
+/// The only sentence that addresses precedence is the `may`, and it sits
+/// in a NOTE, so neither reading can be eliminated from the standard.
+///
+/// # Default: [`Self::Always`] — **EVIDENCE TIER (d)**
+///
+/// Tier (d) — **a guess**, though the best-supported guess available:
+/// §14.9.4's is the only `shall`, and its competitors are a NOTE and a
+/// `may`. Per the standing normative-vs-informative rule, the NOTE is
+/// **not** cited alone as authority anywhere in the code.
+///
+/// # A bound that is NOT a setting
+///
+/// **No length correspondence exists** between `/ActualText` and the
+/// content it replaces — the standard's own example maps two shown
+/// characters to one. Character-level mapping back to glyph positions is
+/// therefore *impossible* across an `/ActualText` run, which bounds
+/// search-highlight, selection and redaction-by-text to **sequence**
+/// granularity whichever value is chosen. That is a fact to disclose, not
+/// a direction to pick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum ActualTextPrecedence {
+    /// `/ActualText` replaces the glyphs it covers, wherever it appears.
+    ///
+    /// **The shipped default.** §14.9.4's `shall`, applied literally.
+    #[default]
+    Always,
+    /// `/ActualText` replaces the glyphs only when the marked-content
+    /// sequence carrying it is part of the structure tree.
+    ///
+    /// "Part of the structure tree" is tested as **an `/MCID` in scope** —
+    /// on the sequence itself or on an enclosing one. That is the only
+    /// test available inside a content stream: `/MCID` is precisely what
+    /// §14.7.4.2 uses to join a marked-content sequence to a structure
+    /// element, so a sequence without one in scope is not tagged content
+    /// in any sense the page itself can express. Elsewhere the glyphs win.
+    ///
+    /// Choose this when a producer sprinkles `/ActualText` outside its
+    /// tagged content and the replacements are worse than the glyphs.
+    TaggedOnly,
+    /// The glyphs always win; `/ActualText` is counted and reported but
+    /// never substituted.
+    ///
+    /// The forensic setting: what is extracted is what the page draws.
+    /// Note that this **loses** genuinely unrecoverable text — a ligature
+    /// whose only Unicode identity was in its `/ActualText` extracts as
+    /// whatever the ladder makes of the glyph, which may be U+FFFD.
+    Glyphs,
 }
 
 #[cfg(test)]

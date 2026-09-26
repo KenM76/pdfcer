@@ -375,6 +375,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdfcer-color"
+version = "0.55.0"
+
+[[package]]
 name = "pdfcer-core"
 version = "0.55.0"
 dependencies = [
@@ -382,6 +386,7 @@ dependencies = [
  "cbc",
  "flate2",
  "jpeg-encoder",
+ "pdfcer-color",
  "pdfcer-fonts",
  "pdfcer-image-codec",
  "pdfcer-model",

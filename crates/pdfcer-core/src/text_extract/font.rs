@@ -80,11 +80,11 @@
 //! predicted might be unreachable without font-program access, and it
 //! is: it is unreachable, it is named, and it is counted.**
 
+use super::UnmappableCode;
 use crate::filters;
 use crate::fontdata::{self, BaseEncoding, Std14};
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
-use crate::settings::UnmappableCode;
 use crate::view::DocumentView;
 
 use super::cmap::ToUnicodeCMap;

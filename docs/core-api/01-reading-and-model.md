@@ -136,7 +136,7 @@ builds `--no-default-features`, so both configurations compile.
 | Decode a stream through its `/Filter` chain | `filters::decode_stream(&Dict, &[u8])` — `filters/mod.rs:186` | §11.1 |
 | Know which image codec a stream ends in, without decoding | `image_codec::terminal_codec(&Dict)` — `pdfcer-image-codec/src/lib.rs:509` | §11.2 |
 | Decode an image XObject to samples | `image_codec::decode_image(&Document, &Dict, &[u8], inline)` — `pdfcer-image-codec/src/lib.rs:545` | §11.2 |
-| Convert a device colour to sRGB | `color::{gray_to_srgb, rgb_to_srgb, cmyk_to_srgb}` — `color/mod.rs:197, 215, 254` | §11.3 |
+| Convert a device colour to sRGB | `color::{gray_to_srgb, rgb_to_srgb, cmyk_to_srgb}` — `color/mod.rs:202, 220, 298` | §11.3 |
 | Resolve a full `/ColorSpace` object (Separation, ICCBased, Indexed…) | **Not in `pdfcer-core`** — `pdfcer_render::ColorSpace`, `pdfcer-render/src/color.rs:215` | §11.3 |
 | Evaluate a PDF function (type 0/2/3/4) | `function::PdfFunction::load(&DocumentView, &Object)` then `::eval` / `::eval_into` — `function.rs:751, 979, 1025` | §11.4 |
 | Enumerate bookmarks as a tree, pages already resolved | `outline::read_outline(&graph)` — `outline.rs:1066`; flat list `Outline::flatten()` — `outline.rs:919` | §12.1 |
@@ -2215,15 +2215,16 @@ samples plus an honest statement of what they are.
 ### 11.3 Colour
 
 **★ There is no `/ColorSpace` object parser in `pdfcer-core`.** `color/mod.rs`
-has exactly three device converters plus an intent variant:
+has exactly three device converters plus an intent variant (source:
+`crates/pdfcer-color/src/color/`, re-exported by `pdfcer-core` at the same path):
 
 ```rust
 use pdfcer_core::color::{gray_to_srgb, rgb_to_srgb, cmyk_to_srgb, cmyk_to_srgb_with};
-let rgb = cmyk_to_srgb(0.0, 0.0, 0.0, 1.0);   // color/mod.rs:254
+let rgb = cmyk_to_srgb(0.0, 0.0, 0.0, 1.0);   // color/mod.rs:298
 ```
 
-`gray_to_srgb` `:197`, `rgb_to_srgb` `:215`, `cmyk_to_srgb` `:254`,
-`cmyk_to_srgb_with(CmykIntent, …)` `:354`. All take/return `f32` components
+`gray_to_srgb` `:202`, `rgb_to_srgb` `:220`, `cmyk_to_srgb` `:298`,
+`cmyk_to_srgb_with(CmykIntent, …)` `:394`. All take/return `f32` components
 in **0.0–1.0**, returning `[f32; 3]` sRGB.
 
 Full `/ColorSpace` resolution (`Separation`, `DeviceN`, `ICCBased`,
@@ -2233,12 +2234,12 @@ layer never decides colour"* — not a gap. A `Separation`/`DeviceN` colour is
 a two-step composition: `PdfFunction::eval` (tint → alternate-space
 components), then the matching `*_to_srgb`.
 
-**★ `DeviceGray` 0.0 = black; `DeviceCMYK` 0.0 = white.** `color/mod.rs:186-188`
+**★ `DeviceGray` 0.0 = black; `DeviceCMYK` 0.0 = white.** `color/mod.rs:188-192`
 exists to keep that polarity trap visible: *"The two device spaces run
 opposite ways."*
 
 **★ `cmyk_to_srgb` is a calibrated house choice, never "colorimetrically
-correct".** `color/mod.rs:28-31`, `:225-228`: *"There is no 'correct' answer
+correct".** `color/mod.rs:28-31`, `:230-233`: *"There is no 'correct' answer
 to be spec-compliant about … it should never be described as
 'colorimetrically correct'."* It uses a calibrated 6⁴ node grid — so
 `cmyk_to_srgb(0,0,0,1)` is a rich near-black, **not** `[0,0,0]`. Do not

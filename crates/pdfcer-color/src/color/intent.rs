@@ -70,7 +70,7 @@
 //! file's choice faithfully to whatever converts colour — never to decide that
 //! one intent "looks right" because a fixture matches it.
 //!
-//! # Not to be confused with [`crate::settings::CmykIntent`]
+//! # Not to be confused with [`crate::color::CmykIntent`]
 //!
 //! That is pdfcer's own CMYK→sRGB *back*-conversion policy
 //! (`Calibrated`/`NeutralBlack`). It is a display choice about a table pdfcer
@@ -126,7 +126,7 @@ impl RenderingIntent {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::color::RenderingIntent;
+    /// use pdfcer_color::color::RenderingIntent;
     ///
     /// assert_eq!(
     ///     RenderingIntent::from_name(b"Saturation"),
@@ -227,7 +227,7 @@ impl RenderingIntent {
 /// # Examples
 ///
 /// ```
-/// use pdfcer_core::color::{RenderingIntent, image_intent};
+/// use pdfcer_color::color::{RenderingIntent, image_intent};
 ///
 /// let gs = RenderingIntent::Saturation;
 /// // Absent: the graphics state's intent survives.

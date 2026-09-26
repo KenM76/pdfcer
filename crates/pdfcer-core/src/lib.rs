@@ -86,7 +86,6 @@ pub mod build;
 /// is not something `pdfcer-core` should be offering. The file's own header
 /// comments carry the reasoning and the leap-year cases.
 mod civil_time;
-pub mod color;
 pub mod dimension;
 pub mod edit;
 pub mod editable;
@@ -100,6 +99,7 @@ pub mod formcsv;
 pub mod forms;
 pub mod forms_author;
 pub mod function;
+pub use pdfcer_color::color;
 pub use pdfcer_fonts::{font_embed, fontdata, fontinfo, linebreak, textstring, vartext};
 pub use pdfcer_image_codec as image_codec;
 use pdfcer_pkix::{asn1, cms};
