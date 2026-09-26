@@ -115,6 +115,53 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 332.0` (`e9236215`), 2026-09-26 — Adding a form field no longer wipes an indirect `/Fields`, `/DR` or `/CO`
+
+**Verdict: SHIPPED, closes the Backlog `/CO` entry filed 2026-09-16 (563rd
+filing, `Pass 308.6`) — widened after measurement found the same
+direct-only-match defect on `/Fields` and `/DR`/`/DR` `/Font` too, both worse
+than the `/CO` case that triggered the filing.**
+
+The three `/AcroForm` writers in `crates/pdfcer-core/src/edit.rs`
+(`acroform_write`, `acroform_register_write`, `acroform_ensure_font_write`)
+matched only a **direct** array/dictionary at `/Fields`, `/CO`, `/DR` and
+`/DR` `/Font` — ISO 32000-1 §7.3.10 permits any of these as an indirect
+reference. A file storing one indirectly had it silently replaced by a
+fresh value holding only what the edit added. Measured before the fix:
+adding a text field orphaned every existing field (`["Extra"]` instead of
+`["Extra","Total"]`); `/DR` lost every embedded font but `/Helv`;
+`set_field_calculation` dropped existing `/CO` entries. Affected every
+field-authoring verb, field paste, `set_field_calculation`, signature-field
+creation and standard-14 `/DA` writes, in every release up to v0.56.0.
+
+Fixed by a new private `acroform_write_parts` that resolves the four entries
+for the patch, writes back only the ones that changed to their own object
+(restoring the reference), and leaves the rest untouched; an entry the patch
+removed stays removed. `acroform_register_write`/`acroform_ensure_font_write`
+are now closures over it — one place answers "inline or indirect." The
+delete path's `/CO` prune already handled indirect references correctly and
+needed no change. No `pub` API change; `docs/core-api` untouched.
+
+**Tests:** new `crates/pdfcer-core/tests/indirect_acroform_entries.rs` — 3
+tests (fields kept + `/Fields` stays a reference to its object, `/DR`
+`/Cour` kept, `/CO` appended in place), all 3 failed before the fix.
+`pdfcer-core` test suite: 2047 passed / 2 ignored. `tools/run-gates.sh`:
+PASS (39 commands, incl. the two filing gates). No manifest change —
+`cargo tree` invariant unaffected.
+
+**Not fixed, noted not filed:** a 4-line doc comment describing
+`/AcroForm` `/DA`/`/DR` `/Helv` defaulting is welded onto
+`std14_resource_key`'s doc block in `edit.rs` instead of sitting on
+`ensure_default_resources` — pre-existing doc misplacement, left as found.
+
+**GUI notified:**
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-26_adding_a_field_no_longer_wipes_an_indirect_fields_dr_or_co.md`
+plus an `INDEX.md` row; no reply owed.
+
+`docs/FEATURES.md`: no box change — this is a correctness fix under an
+already-ticked form-field authoring/paste/calculation capability, not a new
+reach.
+
 ### `Pass 331.1` (`8ac54da6`), 2026-09-26 — A second embedded subset from the same donor gets its own subset tag
 
 **Verdict: SHIPPED, defect found while working `Pass 331.0`.** ISO
@@ -16527,6 +16574,14 @@ other export shape already is.
 ★ **Widened 2026-09-16 (563rd filing, `Pass 308.6`), on the engineer's own recommendation.** `Pass 308.6` found a THIRD instance of the sibling shape — `AdvisoryHelper::Keystroke` reads correctly (for disclosure) and cannot be written back or written through, because its arguments were never captured — after `/Q` (`308.4`) and `/MK /R` on buttons (`308.5`). Widen this audit's question from *"does regeneration read every staged edit?"* to the more general *"for any modelled value: can it be written back, and does the writer read what it needs to reconstruct it?"* — the same failure shape (a value good enough for one direction assumed good enough for the other) recurs across regeneration paths and value-capturing types alike.
 
 ### Unscoped — An INDIRECT `/CO` reference is silently replaced by a fresh array on append, losing whatever else referenced it — filed 2026-09-16 (563rd filing, `Pass 308.6`), no Pass ID
+
+**CLOSED by `Pass 332.0` (`e9236215`, 2026-09-26, 615th filing) — see
+*Shipped*, above.** Kept legible below rather than deleted, per this file's
+own convention for a superseded entry. Measurement found the fix needed to
+be WIDER than this entry states: the same direct-only match also hit
+`/Fields` and `/DR`/`/DR` `/Font`, both worse than the `/CO` case below —
+all three, plus this one, fixed together by one shared helper
+(`acroform_write_parts`).
 
 The existing field-paste path's `/CO` append (`crates/pdfcer-core/src/edit.rs` ~`:49158`) matches only a **direct** `Object::Array` at `/AcroForm` `/CO`; an **indirect** reference (a `/CO` entry stored as its own object, potentially referenced from elsewhere) is silently replaced by a fresh one-entry array rather than dereferenced and appended in place. `Pass 308.6`'s new `set_field_calculation` verb inherits the same defect through the shared `acroform_write` seam, and was shipped without fixing it — this is a **real latent data-loss bug in a shipped path** (the paste verb), not a limitation of the new one.
 

@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (615th filing) — `e9236215`: `Pass 332.0` SHIPPED — adding a form field no longer wipes an indirect `/Fields`, `/DR` or `/CO`
+
+**Shipped:**
+- `Pass 332.0` — closes the Backlog entry filed 2026-09-16 (563rd filing,
+  `Pass 308.6`), widened after measurement: the three `/AcroForm` writers in
+  `crates/pdfcer-core/src/edit.rs` matched only a DIRECT `/Fields`, `/CO`,
+  `/DR` and `/DR` `/Font` — an indirect one (ISO 32000-1 §7.3.10 permits it)
+  was silently replaced by a fresh value holding only what the edit added.
+  `/Fields` and `/DR` were hit too, and both are worse than the `/CO` case
+  that triggered the filing. Fixed by a shared `acroform_write_parts` that
+  resolves, edits and writes back only the changed entries.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- Affected every field-authoring verb, field paste, `set_field_calculation`,
+  signature-field creation and standard-14 `/DA` writes, in every release up
+  to v0.56.0 — measured (not merely suspected): adding a text field orphaned
+  every existing field; `/DR` lost every font but `/Helv`;
+  `set_field_calculation` dropped existing `/CO` entries.
+- New `crates/pdfcer-core/tests/indirect_acroform_entries.rs`: 3 tests, all
+  3 failed before the fix. `pdfcer-core` suite: 2047 passed / 2 ignored.
+  `tools/run-gates.sh`: PASS (39 commands). No manifest change.
+- `docs/FEATURES.md`: no row change — correctness fix under an
+  already-ticked capability.
+- Noted, not fixed: a doc comment on `/AcroForm` `/DA`/`/DR` defaulting is
+  welded onto the wrong function's doc block in `edit.rs` (pre-existing
+  misplacement).
+- GUI notified via `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+
+**Still in flight:** `Pass 142.0` (embedded-donor `format-text --set-font`)
+scoping continues.
+
+**For next session:** none specific.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own verified report of `e9236215`, not
+independently reproduced.
+
 ## 2026-09-26 (614th filing) — `8ac54da6`: `Pass 331.1` SHIPPED — a second embedded subset from the same donor gets its own subset tag
 
 **Shipped:**
