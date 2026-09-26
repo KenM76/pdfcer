@@ -1393,401 +1393,6 @@ pub(crate) fn render_poster_label(
     Ok(rendered.pixmap)
 }
 
-/// The poster tiler's differential oracle.
-///
-/// # Why a second implementation lives here, when this project treats "two
-/// paths for one thing" as a trap
-///
-/// Because this is the *test* side of a differential, not a second shipping
-/// path — the same shape `crates/pdfcer-render/tests/region_matches_full_page.rs`
-/// uses, where a region render is proved against a crop of a full-page one.
-///
-/// The change being tested replaced "render the whole page, crop each tile
-/// out of it" with "render each tile as a region". The only oracle worth
-/// having is the implementation it replaced, held byte-for-byte — so it is
-/// kept, verbatim, behind `#[cfg(test)]`, and the new one has to match it on
-/// a page small enough that the old one still works.
-///
-/// It cannot drift into production: it is unreachable outside `cargo test`,
-/// and if it ever stops compiling that is a signal the geometry it encodes
-/// changed and the assertion below needs re-deriving rather than deleting.
-#[cfg(all(test, windows))]
-mod poster_tiling_tests {
-    use super::{PosterRoute, poster_sheets_for_page};
-
-    /// The PREVIOUS implementation, kept verbatim as the oracle: render the
-    /// whole page once at tile scale, then copy each tile's window out of it.
-    fn whole_page_reference(
-        view: &pdfcer_core::view::DocumentView<'_>,
-        page: &pdfcer_core::page_tree::Page,
-        layout: &pdfcer_print::imposition::PosterLayout,
-        tile_scale: f64,
-        dpi: u32,
-        printable_pt: (f64, f64),
-        options: &pdfcer_render::RenderOptions,
-    ) -> Vec<Vec<u8>> {
-        let px = |pt: f64| (pt * f64::from(dpi) / 72.0).round().max(1.0) as u32;
-        let (sw, sh) = (px(printable_pt.0), px(printable_pt.1));
-        let render_scale = (f64::from(dpi) / 72.0) * tile_scale;
-        let rendered =
-            pdfcer_render::render_page_with_view(view, page, render_scale as f32, options)
-                .expect("the reference implementation must be able to render this page whole");
-        let mut out = Vec::new();
-        for tile in &layout.tiles {
-            let mut sheet = pdfcer_render::tiny_skia::Pixmap::new(sw, sh).expect("sheet");
-            sheet.fill(pdfcer_render::tiny_skia::Color::WHITE);
-            let sx = px(tile.source_pt.x * tile_scale) as i32;
-            let sy = px(tile.source_pt.y * tile_scale) as i32;
-            sheet.draw_pixmap(
-                px(tile.sheet_pt.x) as i32 - sx,
-                px(tile.sheet_pt.y) as i32 - sy,
-                rendered.pixmap.as_ref(),
-                &pdfcer_render::tiny_skia::PixmapPaint::default(),
-                pdfcer_render::tiny_skia::Transform::identity(),
-                None,
-            );
-            out.push(sheet.data().to_vec());
-        }
-        out
-    }
-
-    fn fixture(rel: &str) -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../fixtures/synthetic")
-            .join(rel)
-    }
-
-    /// Per-tile regions produce byte-identical sheets to cropping a
-    /// whole-page render.
-    ///
-    /// Run over several magnifications, because the tile grid changes shape
-    /// with `tile_scale` and a geometry error that cancels on a 2x2 grid
-    /// will not on a 3x3.
-    #[test]
-    fn tiles_rendered_as_regions_match_the_whole_page_crop() {
-        let doc = pdfcer_core::document::Document::load(&fixture("addtext/plain.pdf"))
-            .expect("fixture loads");
-        let page = pdfcer_core::page_tree::pages(&doc)
-            .expect("page tree")
-            .remove(0);
-        let size = (
-            page.crop_box.urx - page.crop_box.llx,
-            page.crop_box.ury - page.crop_box.lly,
-        );
-        // An A4 printable area, near enough — the exact paper does not
-        // matter, only that the page needs more than one sheet of it.
-        let printable_pt = (560.0, 770.0);
-        let options = pdfcer_render::RenderOptions::default();
-
-        for tile_scale in [1.5_f64, 2.0, 3.0] {
-            let spec = pdfcer_print::imposition::PosterSpec {
-                tile_scale,
-                overlap_pt: 12.0,
-                cut_marks: false,
-                labels: false,
-                tile_only_large_pages: false,
-                max_tiles: 64,
-            };
-            let layout = pdfcer_print::imposition::plan_poster(printable_pt, size, &spec)
-                .expect("poster plans");
-            assert!(
-                layout.tiles.len() > 1,
-                "a tile_scale of {tile_scale} must actually tile, or this proves nothing"
-            );
-
-            let expected = whole_page_reference(
-                &doc.view(),
-                &page,
-                &layout,
-                tile_scale,
-                150,
-                printable_pt,
-                &options,
-            );
-            let (got, route) = poster_sheets_for_page(
-                &doc.view(),
-                &page,
-                &layout,
-                tile_scale,
-                150,
-                printable_pt,
-                &options,
-                "",
-            )
-            .expect("tiles rasterise");
-
-            assert_eq!(
-                route,
-                PosterRoute::Recorded,
-                "a plain text page must take the recorded route, or this test is \
-                 measuring the fallback and not the change"
-            );
-            assert_eq!(got.len(), expected.len(), "sheet count at {tile_scale}x");
-            for (i, (sheet, want)) in got.iter().zip(expected.iter()).enumerate() {
-                let differing = sheet
-                    .rgba
-                    .iter()
-                    .zip(want.iter())
-                    .filter(|(a, b)| a != b)
-                    .count();
-                assert_eq!(
-                    differing,
-                    0,
-                    "{tile_scale}x sheet {i}: rendering a tile as a REGION must give \
-                     the same bytes as cropping it out of a whole-page render; \
-                     {differing} of {} bytes differ. A count in the thousands with \
-                     the right sheet size means the window is offset, not that the \
-                     drawing is wrong.",
-                    want.len()
-                );
-            }
-        }
-    }
-
-    /// The bug this change exists to fix: a magnification whose whole-page
-    /// raster exceeds `MAX_PIXMAP_EDGE` now tiles instead of failing.
-    ///
-    /// The control matters as much as the case — the reference implementation
-    /// is asserted to FAIL here, so the test cannot pass because the numbers
-    /// happened to stay small.
-    #[test]
-    fn a_magnification_too_large_to_raster_whole_still_tiles() {
-        let doc = pdfcer_core::document::Document::load(&fixture("addtext/plain.pdf"))
-            .expect("fixture loads");
-        let page = pdfcer_core::page_tree::pages(&doc)
-            .expect("page tree")
-            .remove(0);
-        let size = (
-            page.crop_box.urx - page.crop_box.llx,
-            page.crop_box.ury - page.crop_box.lly,
-        );
-        let printable_pt = (560.0, 770.0);
-        let options = pdfcer_render::RenderOptions::default();
-        // 612 x 792 pt at 150 DPI is 1275 x 1650 px; x30 magnification is
-        // 38,250 x 49,500 -- comfortably past MAX_PIXMAP_EDGE (16,384).
-        let tile_scale = 30.0;
-        let spec = pdfcer_print::imposition::PosterSpec {
-            tile_scale,
-            overlap_pt: 0.0,
-            cut_marks: false,
-            labels: false,
-            tile_only_large_pages: false,
-            max_tiles: 4096,
-        };
-        let layout =
-            pdfcer_print::imposition::plan_poster(printable_pt, size, &spec).expect("poster plans");
-
-        // THE CONTROL: the old route cannot even produce the raster.
-        let render_scale = ((150.0 / 72.0) * tile_scale) as f32;
-        assert!(
-            matches!(
-                pdfcer_render::render_page_with_view(&doc.view(), &page, render_scale, &options),
-                Err(pdfcer_render::RenderError::BadRasterSize { .. })
-            ),
-            "this test is only meaningful while a whole-page raster at this \
-             magnification is impossible; if that changed, re-derive the numbers"
-        );
-
-        // Rasterise a few tiles rather than all 1,000-odd: the assertion is
-        // about REACHABILITY, and byte-identity is already covered above.
-        //
-        // Which tiles is not a free choice, and two guesses were wrong before
-        // this comment existed. Tile 0 is the page's top-left margin; the
-        // middle of the grid is the middle of a text page's leading. Both are
-        // legitimately blank, and asserting ink on a blank tile tests the
-        // fixture's layout rather than the code.
-        //
-        // So the inked tile is LOCATED rather than guessed: a cheap scale-1
-        // render gives the page's ink bounding box, and the tiles chosen are
-        // the ones whose source window contains its centre.
-        let probe = pdfcer_render::render_page_with_view(&doc.view(), &page, 1.0, &options)
-            .expect("a scale-1 render of a text page");
-        let (mut ix0, mut iy0, mut ix1, mut iy1) = (u32::MAX, u32::MAX, 0_u32, 0_u32);
-        for y in 0..probe.pixmap.height() {
-            for x in 0..probe.pixmap.width() {
-                let px = probe.pixmap.pixel(x, y).expect("in bounds");
-                if px.red() != 255 || px.green() != 255 || px.blue() != 255 {
-                    ix0 = ix0.min(x);
-                    iy0 = iy0.min(y);
-                    ix1 = ix1.max(x);
-                    iy1 = iy1.max(y);
-                }
-            }
-        }
-        assert!(ix0 <= ix1, "the fixture must have ink on page 1");
-        // Scale 1 is one device pixel per point, and the device frame is
-        // already top-left-origin -- the same frame `source_pt` uses.
-        let ink_cx = f64::from(ix0 + ix1) / 2.0;
-        let ink_cy = f64::from(iy0 + iy1) / 2.0;
-        let inked: Vec<_> = layout
-            .tiles
-            .iter()
-            .filter(|t| {
-                t.source_pt.x <= ink_cx
-                    && ink_cx < t.source_pt.x + t.source_pt.width
-                    && t.source_pt.y <= ink_cy
-                    && ink_cy < t.source_pt.y + t.source_pt.height
-            })
-            .cloned()
-            .collect();
-        assert!(
-            !inked.is_empty(),
-            "the tile grid must cover the page ink at ({ink_cx}, {ink_cy})"
-        );
-
-        let mut trimmed = layout.clone();
-        trimmed.tiles = inked;
-        let wanted = trimmed.tiles.len();
-        let (sheets, route) = poster_sheets_for_page(
-            &doc.view(),
-            &page,
-            &trimmed,
-            tile_scale,
-            150,
-            printable_pt,
-            &options,
-            "",
-        )
-        .expect("tiles that no whole-page raster could hold must still rasterise");
-        assert_eq!(route, PosterRoute::Recorded);
-        assert_eq!(sheets.len(), wanted);
-        assert!(
-            sheets.iter().any(|s| s.rgba.iter().any(|&b| b != 255)),
-            "the tile covering the page ink must carry ink at 30x, or the region path is producing blank paper and the reachability claim is empty"
-        );
-    }
-}
-
-#[cfg(test)]
-mod print_line_width_arg_tests {
-    use super::parse_line_width_mm;
-
-    #[test]
-    fn accepts_a_positive_width_up_to_an_inch() {
-        assert_eq!(parse_line_width_mm("0.35"), Ok(0.35));
-        assert_eq!(parse_line_width_mm("25.4"), Ok(25.4));
-    }
-
-    #[test]
-    fn refuses_zero_negative_huge_and_non_numbers() {
-        for bad in ["0", "-1", "25.5", "NaN", "inf", "thin"] {
-            assert!(parse_line_width_mm(bad).is_err(), "{bad} was accepted");
-        }
-    }
-}
-
-#[cfg(all(test, windows))]
-mod poster_marks_tests {
-    use super::{
-        CommentsArg, draw_poster_marks, print_render_options, render_poster_label, winansi_bytes,
-    };
-    use pdfcer_print::imposition::{PosterLayout, PosterSpec, Rect, plan_poster};
-    use pdfcer_render::tiny_skia::{Color, Pixmap};
-
-    const SCALE: f64 = 150.0 / 72.0;
-
-    fn layout(cut_marks: bool, labels: bool) -> PosterLayout {
-        let spec = PosterSpec {
-            tile_scale: 1.0,
-            overlap_pt: 0.0,
-            cut_marks,
-            labels,
-            tile_only_large_pages: false,
-            max_tiles: 64,
-        };
-        plan_poster((612.0, 792.0), (1224.0, 1584.0), &spec).expect("poster plans")
-    }
-
-    /// Dark pixels inside `rect` (points), on a sheet drawn at [`SCALE`].
-    fn dark_in(sheet: &Pixmap, rect: Rect) -> usize {
-        let px = |pt: f64| (pt * SCALE).round() as u32;
-        let (x0, y0) = (px(rect.x), px(rect.y));
-        let (x1, y1) = (
-            px(rect.x + rect.width).min(sheet.width()),
-            px(rect.y + rect.height).min(sheet.height()),
-        );
-        (y0..y1)
-            .flat_map(|y| (x0..x1).map(move |x| (x, y)))
-            .filter(|&(x, y)| sheet.pixel(x, y).is_some_and(|p| p.red() < 128))
-            .count()
-    }
-
-    fn drawn(layout: &PosterLayout) -> Pixmap {
-        let px = |pt: f64| (pt * SCALE).round() as u32;
-        let mut sheet = Pixmap::new(px(612.0), px(792.0)).expect("sheet");
-        sheet.fill(Color::WHITE);
-        draw_poster_marks(&mut sheet, layout, &layout.tiles[0], SCALE, "plan.pdf")
-            .expect("marks draw");
-        sheet
-    }
-
-    #[test]
-    fn nothing_is_drawn_when_both_flags_are_off() {
-        let l = layout(false, false);
-        assert_eq!(dark_in(&drawn(&l), Rect::new(0.0, 0.0, 612.0, 792.0)), 0);
-    }
-
-    #[test]
-    fn cut_marks_land_in_the_band_and_nowhere_on_the_tile() {
-        let l = layout(true, false);
-        let sheet = drawn(&l);
-        let tile = l.tiles[0].sheet_pt;
-        assert!(dark_in(&sheet, Rect::new(0.0, 0.0, 612.0, tile.y)) > 0);
-        // One point of stroke antialiasing may touch the tile edge.
-        let inner = Rect::new(
-            tile.x + 1.0,
-            tile.y + 1.0,
-            tile.width - 2.0,
-            tile.height - 2.0,
-        );
-        assert_eq!(dark_in(&sheet, inner), 0);
-    }
-
-    #[test]
-    fn the_label_is_printed_inside_its_rectangle() {
-        let l = layout(false, true);
-        let rect = l
-            .label_rect(&l.tiles[0])
-            .expect("labels reserve a rectangle");
-        let sheet = drawn(&l);
-        assert!(dark_in(&sheet, rect) > 50, "no label text was drawn");
-        let tile = l.tiles[0].sheet_pt;
-        assert_eq!(
-            dark_in(&sheet, Rect::new(tile.x, tile.y, tile.width, tile.height)),
-            0
-        );
-    }
-
-    #[test]
-    fn an_empty_label_renders_fully_transparent() {
-        let label = render_poster_label("", 200.0, 12.0, SCALE).expect("renders");
-        assert!(label.pixels().iter().all(|p| p.alpha() == 0));
-        let label = render_poster_label("row 1", 200.0, 12.0, SCALE).expect("renders");
-        assert!(label.pixels().iter().any(|p| p.alpha() > 0));
-    }
-
-    #[test]
-    fn characters_outside_winansi_become_question_marks_and_are_counted() {
-        let (bytes, replaced) = winansi_bytes("a\u{2014}\u{e9}\u{20ac}\u{6f22}");
-        assert_eq!(bytes, vec![b'a', 0x97, 0xE9, 0x80, b'?']);
-        assert_eq!(replaced, 1);
-    }
-
-    #[test]
-    fn line_width_becomes_a_fixed_device_width_at_the_job_dpi() {
-        let options = print_render_options(CommentsArg::Document, Some(25.4), 300);
-        assert_eq!(
-            options.stroke_display,
-            pdfcer_render::StrokeDisplay::Fixed { device_px: 300.0 }
-        );
-        let options = print_render_options(CommentsArg::Document, None, 300);
-        assert_eq!(
-            options.stroke_display,
-            pdfcer_render::StrokeDisplay::default()
-        );
-    }
-}
-
 /// `print-preview` — what a print WOULD do, without doing it.
 ///
 /// # Why this exists before `print` does
@@ -2598,4 +2203,399 @@ pub(crate) fn cmd_printer_properties(
          (docs/decisions/003-distribution-posture.md §4.1)"
     );
     exit::EDIT_REFUSED
+}
+
+/// The poster tiler's differential oracle.
+///
+/// # Why a second implementation lives here, when this project treats "two
+/// paths for one thing" as a trap
+///
+/// Because this is the *test* side of a differential, not a second shipping
+/// path — the same shape `crates/pdfcer-render/tests/region_matches_full_page.rs`
+/// uses, where a region render is proved against a crop of a full-page one.
+///
+/// The change being tested replaced "render the whole page, crop each tile
+/// out of it" with "render each tile as a region". The only oracle worth
+/// having is the implementation it replaced, held byte-for-byte — so it is
+/// kept, verbatim, behind `#[cfg(test)]`, and the new one has to match it on
+/// a page small enough that the old one still works.
+///
+/// It cannot drift into production: it is unreachable outside `cargo test`,
+/// and if it ever stops compiling that is a signal the geometry it encodes
+/// changed and the assertion below needs re-deriving rather than deleting.
+#[cfg(all(test, windows))]
+mod poster_tiling_tests {
+    use super::{PosterRoute, poster_sheets_for_page};
+
+    /// The PREVIOUS implementation, kept verbatim as the oracle: render the
+    /// whole page once at tile scale, then copy each tile's window out of it.
+    fn whole_page_reference(
+        view: &pdfcer_core::view::DocumentView<'_>,
+        page: &pdfcer_core::page_tree::Page,
+        layout: &pdfcer_print::imposition::PosterLayout,
+        tile_scale: f64,
+        dpi: u32,
+        printable_pt: (f64, f64),
+        options: &pdfcer_render::RenderOptions,
+    ) -> Vec<Vec<u8>> {
+        let px = |pt: f64| (pt * f64::from(dpi) / 72.0).round().max(1.0) as u32;
+        let (sw, sh) = (px(printable_pt.0), px(printable_pt.1));
+        let render_scale = (f64::from(dpi) / 72.0) * tile_scale;
+        let rendered =
+            pdfcer_render::render_page_with_view(view, page, render_scale as f32, options)
+                .expect("the reference implementation must be able to render this page whole");
+        let mut out = Vec::new();
+        for tile in &layout.tiles {
+            let mut sheet = pdfcer_render::tiny_skia::Pixmap::new(sw, sh).expect("sheet");
+            sheet.fill(pdfcer_render::tiny_skia::Color::WHITE);
+            let sx = px(tile.source_pt.x * tile_scale) as i32;
+            let sy = px(tile.source_pt.y * tile_scale) as i32;
+            sheet.draw_pixmap(
+                px(tile.sheet_pt.x) as i32 - sx,
+                px(tile.sheet_pt.y) as i32 - sy,
+                rendered.pixmap.as_ref(),
+                &pdfcer_render::tiny_skia::PixmapPaint::default(),
+                pdfcer_render::tiny_skia::Transform::identity(),
+                None,
+            );
+            out.push(sheet.data().to_vec());
+        }
+        out
+    }
+
+    fn fixture(rel: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/synthetic")
+            .join(rel)
+    }
+
+    /// Per-tile regions produce byte-identical sheets to cropping a
+    /// whole-page render.
+    ///
+    /// Run over several magnifications, because the tile grid changes shape
+    /// with `tile_scale` and a geometry error that cancels on a 2x2 grid
+    /// will not on a 3x3.
+    #[test]
+    fn tiles_rendered_as_regions_match_the_whole_page_crop() {
+        let doc = pdfcer_core::document::Document::load(&fixture("addtext/plain.pdf"))
+            .expect("fixture loads");
+        let page = pdfcer_core::page_tree::pages(&doc)
+            .expect("page tree")
+            .remove(0);
+        let size = (
+            page.crop_box.urx - page.crop_box.llx,
+            page.crop_box.ury - page.crop_box.lly,
+        );
+        // An A4 printable area, near enough — the exact paper does not
+        // matter, only that the page needs more than one sheet of it.
+        let printable_pt = (560.0, 770.0);
+        let options = pdfcer_render::RenderOptions::default();
+
+        for tile_scale in [1.5_f64, 2.0, 3.0] {
+            let spec = pdfcer_print::imposition::PosterSpec {
+                tile_scale,
+                overlap_pt: 12.0,
+                cut_marks: false,
+                labels: false,
+                tile_only_large_pages: false,
+                max_tiles: 64,
+            };
+            let layout = pdfcer_print::imposition::plan_poster(printable_pt, size, &spec)
+                .expect("poster plans");
+            assert!(
+                layout.tiles.len() > 1,
+                "a tile_scale of {tile_scale} must actually tile, or this proves nothing"
+            );
+
+            let expected = whole_page_reference(
+                &doc.view(),
+                &page,
+                &layout,
+                tile_scale,
+                150,
+                printable_pt,
+                &options,
+            );
+            let (got, route) = poster_sheets_for_page(
+                &doc.view(),
+                &page,
+                &layout,
+                tile_scale,
+                150,
+                printable_pt,
+                &options,
+                "",
+            )
+            .expect("tiles rasterise");
+
+            assert_eq!(
+                route,
+                PosterRoute::Recorded,
+                "a plain text page must take the recorded route, or this test is \
+                 measuring the fallback and not the change"
+            );
+            assert_eq!(got.len(), expected.len(), "sheet count at {tile_scale}x");
+            for (i, (sheet, want)) in got.iter().zip(expected.iter()).enumerate() {
+                let differing = sheet
+                    .rgba
+                    .iter()
+                    .zip(want.iter())
+                    .filter(|(a, b)| a != b)
+                    .count();
+                assert_eq!(
+                    differing,
+                    0,
+                    "{tile_scale}x sheet {i}: rendering a tile as a REGION must give \
+                     the same bytes as cropping it out of a whole-page render; \
+                     {differing} of {} bytes differ. A count in the thousands with \
+                     the right sheet size means the window is offset, not that the \
+                     drawing is wrong.",
+                    want.len()
+                );
+            }
+        }
+    }
+
+    /// The bug this change exists to fix: a magnification whose whole-page
+    /// raster exceeds `MAX_PIXMAP_EDGE` now tiles instead of failing.
+    ///
+    /// The control matters as much as the case — the reference implementation
+    /// is asserted to FAIL here, so the test cannot pass because the numbers
+    /// happened to stay small.
+    #[test]
+    fn a_magnification_too_large_to_raster_whole_still_tiles() {
+        let doc = pdfcer_core::document::Document::load(&fixture("addtext/plain.pdf"))
+            .expect("fixture loads");
+        let page = pdfcer_core::page_tree::pages(&doc)
+            .expect("page tree")
+            .remove(0);
+        let size = (
+            page.crop_box.urx - page.crop_box.llx,
+            page.crop_box.ury - page.crop_box.lly,
+        );
+        let printable_pt = (560.0, 770.0);
+        let options = pdfcer_render::RenderOptions::default();
+        // 612 x 792 pt at 150 DPI is 1275 x 1650 px; x30 magnification is
+        // 38,250 x 49,500 -- comfortably past MAX_PIXMAP_EDGE (16,384).
+        let tile_scale = 30.0;
+        let spec = pdfcer_print::imposition::PosterSpec {
+            tile_scale,
+            overlap_pt: 0.0,
+            cut_marks: false,
+            labels: false,
+            tile_only_large_pages: false,
+            max_tiles: 4096,
+        };
+        let layout =
+            pdfcer_print::imposition::plan_poster(printable_pt, size, &spec).expect("poster plans");
+
+        // THE CONTROL: the old route cannot even produce the raster.
+        let render_scale = ((150.0 / 72.0) * tile_scale) as f32;
+        assert!(
+            matches!(
+                pdfcer_render::render_page_with_view(&doc.view(), &page, render_scale, &options),
+                Err(pdfcer_render::RenderError::BadRasterSize { .. })
+            ),
+            "this test is only meaningful while a whole-page raster at this \
+             magnification is impossible; if that changed, re-derive the numbers"
+        );
+
+        // Rasterise a few tiles rather than all 1,000-odd: the assertion is
+        // about REACHABILITY, and byte-identity is already covered above.
+        //
+        // Which tiles is not a free choice, and two guesses were wrong before
+        // this comment existed. Tile 0 is the page's top-left margin; the
+        // middle of the grid is the middle of a text page's leading. Both are
+        // legitimately blank, and asserting ink on a blank tile tests the
+        // fixture's layout rather than the code.
+        //
+        // So the inked tile is LOCATED rather than guessed: a cheap scale-1
+        // render gives the page's ink bounding box, and the tiles chosen are
+        // the ones whose source window contains its centre.
+        let probe = pdfcer_render::render_page_with_view(&doc.view(), &page, 1.0, &options)
+            .expect("a scale-1 render of a text page");
+        let (mut ix0, mut iy0, mut ix1, mut iy1) = (u32::MAX, u32::MAX, 0_u32, 0_u32);
+        for y in 0..probe.pixmap.height() {
+            for x in 0..probe.pixmap.width() {
+                let px = probe.pixmap.pixel(x, y).expect("in bounds");
+                if px.red() != 255 || px.green() != 255 || px.blue() != 255 {
+                    ix0 = ix0.min(x);
+                    iy0 = iy0.min(y);
+                    ix1 = ix1.max(x);
+                    iy1 = iy1.max(y);
+                }
+            }
+        }
+        assert!(ix0 <= ix1, "the fixture must have ink on page 1");
+        // Scale 1 is one device pixel per point, and the device frame is
+        // already top-left-origin -- the same frame `source_pt` uses.
+        let ink_cx = f64::from(ix0 + ix1) / 2.0;
+        let ink_cy = f64::from(iy0 + iy1) / 2.0;
+        let inked: Vec<_> = layout
+            .tiles
+            .iter()
+            .filter(|t| {
+                t.source_pt.x <= ink_cx
+                    && ink_cx < t.source_pt.x + t.source_pt.width
+                    && t.source_pt.y <= ink_cy
+                    && ink_cy < t.source_pt.y + t.source_pt.height
+            })
+            .cloned()
+            .collect();
+        assert!(
+            !inked.is_empty(),
+            "the tile grid must cover the page ink at ({ink_cx}, {ink_cy})"
+        );
+
+        let mut trimmed = layout.clone();
+        trimmed.tiles = inked;
+        let wanted = trimmed.tiles.len();
+        let (sheets, route) = poster_sheets_for_page(
+            &doc.view(),
+            &page,
+            &trimmed,
+            tile_scale,
+            150,
+            printable_pt,
+            &options,
+            "",
+        )
+        .expect("tiles that no whole-page raster could hold must still rasterise");
+        assert_eq!(route, PosterRoute::Recorded);
+        assert_eq!(sheets.len(), wanted);
+        assert!(
+            sheets.iter().any(|s| s.rgba.iter().any(|&b| b != 255)),
+            "the tile covering the page ink must carry ink at 30x, or the region path is producing blank paper and the reachability claim is empty"
+        );
+    }
+}
+
+#[cfg(test)]
+mod print_line_width_arg_tests {
+    use super::parse_line_width_mm;
+
+    #[test]
+    fn accepts_a_positive_width_up_to_an_inch() {
+        assert_eq!(parse_line_width_mm("0.35"), Ok(0.35));
+        assert_eq!(parse_line_width_mm("25.4"), Ok(25.4));
+    }
+
+    #[test]
+    fn refuses_zero_negative_huge_and_non_numbers() {
+        for bad in ["0", "-1", "25.5", "NaN", "inf", "thin"] {
+            assert!(parse_line_width_mm(bad).is_err(), "{bad} was accepted");
+        }
+    }
+}
+
+#[cfg(all(test, windows))]
+mod poster_marks_tests {
+    use super::{
+        CommentsArg, draw_poster_marks, print_render_options, render_poster_label, winansi_bytes,
+    };
+    use pdfcer_print::imposition::{PosterLayout, PosterSpec, Rect, plan_poster};
+    use pdfcer_render::tiny_skia::{Color, Pixmap};
+
+    const SCALE: f64 = 150.0 / 72.0;
+
+    fn layout(cut_marks: bool, labels: bool) -> PosterLayout {
+        let spec = PosterSpec {
+            tile_scale: 1.0,
+            overlap_pt: 0.0,
+            cut_marks,
+            labels,
+            tile_only_large_pages: false,
+            max_tiles: 64,
+        };
+        plan_poster((612.0, 792.0), (1224.0, 1584.0), &spec).expect("poster plans")
+    }
+
+    /// Dark pixels inside `rect` (points), on a sheet drawn at [`SCALE`].
+    fn dark_in(sheet: &Pixmap, rect: Rect) -> usize {
+        let px = |pt: f64| (pt * SCALE).round() as u32;
+        let (x0, y0) = (px(rect.x), px(rect.y));
+        let (x1, y1) = (
+            px(rect.x + rect.width).min(sheet.width()),
+            px(rect.y + rect.height).min(sheet.height()),
+        );
+        (y0..y1)
+            .flat_map(|y| (x0..x1).map(move |x| (x, y)))
+            .filter(|&(x, y)| sheet.pixel(x, y).is_some_and(|p| p.red() < 128))
+            .count()
+    }
+
+    fn drawn(layout: &PosterLayout) -> Pixmap {
+        let px = |pt: f64| (pt * SCALE).round() as u32;
+        let mut sheet = Pixmap::new(px(612.0), px(792.0)).expect("sheet");
+        sheet.fill(Color::WHITE);
+        draw_poster_marks(&mut sheet, layout, &layout.tiles[0], SCALE, "plan.pdf")
+            .expect("marks draw");
+        sheet
+    }
+
+    #[test]
+    fn nothing_is_drawn_when_both_flags_are_off() {
+        let l = layout(false, false);
+        assert_eq!(dark_in(&drawn(&l), Rect::new(0.0, 0.0, 612.0, 792.0)), 0);
+    }
+
+    #[test]
+    fn cut_marks_land_in_the_band_and_nowhere_on_the_tile() {
+        let l = layout(true, false);
+        let sheet = drawn(&l);
+        let tile = l.tiles[0].sheet_pt;
+        assert!(dark_in(&sheet, Rect::new(0.0, 0.0, 612.0, tile.y)) > 0);
+        // One point of stroke antialiasing may touch the tile edge.
+        let inner = Rect::new(
+            tile.x + 1.0,
+            tile.y + 1.0,
+            tile.width - 2.0,
+            tile.height - 2.0,
+        );
+        assert_eq!(dark_in(&sheet, inner), 0);
+    }
+
+    #[test]
+    fn the_label_is_printed_inside_its_rectangle() {
+        let l = layout(false, true);
+        let rect = l
+            .label_rect(&l.tiles[0])
+            .expect("labels reserve a rectangle");
+        let sheet = drawn(&l);
+        assert!(dark_in(&sheet, rect) > 50, "no label text was drawn");
+        let tile = l.tiles[0].sheet_pt;
+        assert_eq!(
+            dark_in(&sheet, Rect::new(tile.x, tile.y, tile.width, tile.height)),
+            0
+        );
+    }
+
+    #[test]
+    fn an_empty_label_renders_fully_transparent() {
+        let label = render_poster_label("", 200.0, 12.0, SCALE).expect("renders");
+        assert!(label.pixels().iter().all(|p| p.alpha() == 0));
+        let label = render_poster_label("row 1", 200.0, 12.0, SCALE).expect("renders");
+        assert!(label.pixels().iter().any(|p| p.alpha() > 0));
+    }
+
+    #[test]
+    fn characters_outside_winansi_become_question_marks_and_are_counted() {
+        let (bytes, replaced) = winansi_bytes("a\u{2014}\u{e9}\u{20ac}\u{6f22}");
+        assert_eq!(bytes, vec![b'a', 0x97, 0xE9, 0x80, b'?']);
+        assert_eq!(replaced, 1);
+    }
+
+    #[test]
+    fn line_width_becomes_a_fixed_device_width_at_the_job_dpi() {
+        let options = print_render_options(CommentsArg::Document, Some(25.4), 300);
+        assert_eq!(
+            options.stroke_display,
+            pdfcer_render::StrokeDisplay::Fixed { device_px: 300.0 }
+        );
+        let options = print_render_options(CommentsArg::Document, None, 300);
+        assert_eq!(
+            options.stroke_display,
+            pdfcer_render::StrokeDisplay::default()
+        );
+    }
 }
