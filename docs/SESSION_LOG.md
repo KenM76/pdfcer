@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (600th filing) — `Pass 325.0` step 3 continues (`c07d560a`): fourth leaf crate `pdfcer-color` extracted
+
+**Shipped:**
+- `Pass 325.0` step 3, fourth leaf (`c07d560a`) — new crate `pdfcer-color` (device colour: `color/mod.rs`, `intent.rs`, `cmyk_table.rs`), `git mv`'d out of `pdfcer-core`, depending on NOTHING — not even `pdfcer-model` — the first dependency-free crate in the workspace. Preceded by a `settings` inversion: `CmykIntent` moved into `color/mod.rs`, `UnmappableCode`/`ActualTextPrecedence` moved into `text_extract/mod.rs` (still core-resident), `settings` re-exporting all three, removing the only edges from `color`/`text_extract` into `settings` and unblocking both extractions. `pdfcer-core` re-exports the crate at its old path (`pub use pdfcer_color::color;`). Structural Pass: no `FEATURES.md` row change. `Pass 325.0` stays **IN PROGRESS**: step 3 continues (`text_extract` plus `text_state` next, as a text crate); steps 4 (rest), 6, 7 remain open.
+
+**Decisions made this session:** none new. `ARCHITECTURE.md` §3 got a body update (new `pdfcer-color` entry; `pdfcer-core`'s dependency note extended and its "keeps directly" clause narrowed from "color spaces" to the PDF colour-SPACE objects that now consume `pdfcer-color`'s conversions).
+
+**Findings + decisions:**
+- `CmykIntent` lost `#[non_exhaustive]` because `settings` matches it exhaustively across the new crate boundary (E0004) — same mechanism as every other moved enum in this Pass. Already covered comprehensively by `D:\dev\rag\rust\splitting_a_crate_turns_an_in_crate_non_exhaustive_match_into_a_cross_crate_e0004.md` (written at step 2, `last_verified: 2026-09-26`); grepped before filing, no new note added since nothing beyond a fourth confirmation was learned.
+- `tools/run-gates.sh` PASS, 37 commands, 9,274 passed / 0 failed (previous run 9,286; the −12 reconciles as colour's 6 unit tests + 6 doctests leaving core's `--no-default-features` rerun as duplicates — same shape as the 598th/599th filings' `pdfcer-fonts`/`pdfcer-pkix` findings, since `pdfcer-color` also carries no Cargo features; no test lost).
+- `cargo tree -p pdfcer-color`: no dependencies at all. Workspace clippy/fmt/wasm32/fuzz all clean. `docs/core-api/01-reading-and-model.md` §11.3's colour line refs (already stale at 197/215/254/354) remapped to 202/220/298/394 with a source note naming `crates/pdfcer-color/src/color/`; `index.md` line count 3,142.
+- Rebuild after a one-line `pdfcer-color` edit: CLI build 13.3 s warm.
+
+**Still in flight:**
+- `Pass 325.0` step 3 (remaining: `text_extract`/`text_state` as a text crate — its two settings enums already moved into `text_extract/mod.rs` this step; `ocr` is not a leaf; `sign` needs `edit::EditError`; `crypto`, `form_script`, `dimension`, `vector`, `text_edit` not yet surveyed), step 4 (facade — done for model/codec/fonts/pkix/color, open for the rest), 6, 7 — all open.
+
+**For next session:**
+- Continue `Pass 325.0` step 3 with the `text_extract`/`text_state` crate.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, moved-module list, gate/test counts and rebuild-time measurement are relayed from the dispatching engineer's own report of `c07d560a`; not independently reproduced here.
+
 ## 2026-09-26 (599th filing) — `Pass 325.0` step 3 continues (`47ca4d68`): third leaf crate `pdfcer-pkix` extracted
 
 **Shipped:**

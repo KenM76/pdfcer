@@ -349,6 +349,38 @@ D:\Dev\pdfcer\
                                    `pdfcer-image-codec`/`pdfcer-fonts`
                                    (rule 2), its own `cargo tree -p
                                    pdfcer-pkix` CI step, wasm32-clean.
+    pdfcer-color\                <- (`Pass 325.0` step 3, fourth leaf, 2026-09-26,
+                                   `c07d560a`) device colour — RGB/CMYK/Gray
+                                   conversion, rendering intent (decision 114,
+                                   §12), CMYK approximation table —
+                                   `color/mod.rs`, `intent.rs`,
+                                   `cmyk_table.rs` — `git mv`'d out of
+                                   `pdfcer-core`. Depends on NOTHING — not
+                                   even `pdfcer-model` — the first
+                                   dependency-free crate in the workspace.
+                                   `pdfcer-core` re-exports it (`pub use
+                                   pdfcer_color::color;`) so every
+                                   `pdfcer_core::color::…` path resolves
+                                   unchanged. Preceded by a `settings`
+                                   inversion needed to unblock this and
+                                   `text_extract`: `CmykIntent` moved into
+                                   `color/mod.rs`; `UnmappableCode`/
+                                   `ActualTextPrecedence` moved into
+                                   `text_extract/mod.rs` (still core-resident
+                                   — `text_extract` is not yet its own
+                                   crate); `settings` re-exports all three,
+                                   so every public path is unchanged and the
+                                   only edges from `color`/`text_extract`
+                                   into `settings` are gone. `CmykIntent`
+                                   lost `#[non_exhaustive]` for the same
+                                   cross-crate-exhaustive-match reason
+                                   (`settings` matches it exhaustively,
+                                   E0004) as every other moved enum in this
+                                   Pass. Same zero-GUI/network invariant as
+                                   `pdfcer-model`/`pdfcer-image-codec`/
+                                   `pdfcer-fonts`/`pdfcer-pkix` (rule 2), its
+                                   own `cargo tree -p pdfcer-color` CI step,
+                                   wasm32-clean.
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital
@@ -362,16 +394,22 @@ D:\Dev\pdfcer\
                                    2026-09-26) for the four terminal image
                                    codecs, `pdfcer-fonts` (step 3, second
                                    leaf, 2026-09-26) for fonts and text
-                                   encoding, and `pdfcer-pkix` (step 3,
+                                   encoding, `pdfcer-pkix` (step 3,
                                    third leaf, 2026-09-26) for DER/CMS/X.509
-                                   and chain validation — see each crate's
-                                   own entry. This paragraph now describes
-                                   the surface `pdfcer-core` keeps directly:
-                                   color spaces, the session side of
-                                   signature verification (`sign::apply`),
-                                   the content-stream interpreter, and
-                                   everything `edit`/`settings` and the
-                                   remaining feature modules below.**
+                                   and chain validation, and `pdfcer-color`
+                                   (step 3, fourth leaf, 2026-09-26) for
+                                   device colour conversion and rendering
+                                   intent — see each crate's own entry.
+                                   This paragraph now describes the surface
+                                   `pdfcer-core` keeps directly: the PDF
+                                   colour-SPACE objects (`/DeviceRGB`,
+                                   `/ICCBased`, …) that consume
+                                   `pdfcer-color`'s conversions, the session
+                                   side of signature verification
+                                   (`sign::apply`), the content-stream
+                                   interpreter, and everything `edit`/
+                                   `settings` and the remaining feature
+                                   modules below.**
                                    **`font_embed.rs`/`fontinfo.rs`/
                                    `fontdata/`/`textstring.rs`/`vartext.rs`/
                                    `linebreak.rs` now live in `pdfcer-fonts`
