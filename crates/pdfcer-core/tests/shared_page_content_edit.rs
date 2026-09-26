@@ -266,3 +266,67 @@ fn a_reflow_reports_the_stream_it_wrote() {
         assert!(page_text(bytes, 1).contains("BODY TEXT"));
     }
 }
+
+/// Two pages drawing one stroked line (object 4) through the same `/Contents`.
+fn two_pages_sharing_a_path() -> Vec<u8> {
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 4 0 R >>";
+    assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>".to_owned(),
+        page.to_owned(),
+        stream(LINE),
+        page.to_owned(),
+    ])
+}
+
+const LINE: &str = "10 10 m 100 10 l S";
+
+fn page_stream(bytes: &[u8], index: usize) -> String {
+    let doc = Document::from_bytes(bytes.to_vec()).expect("edited document reloads");
+    let pages = pdfcer_core::page_tree::pages(&doc).expect("page tree walks");
+    let content = pdfcer_core::content::ContentStream::from_page(&doc.view(), &pages[index])
+        .expect("page parses")
+        .buf;
+    String::from_utf8_lossy(&content).trim().to_owned()
+}
+
+#[test]
+fn a_vector_move_leaves_the_other_page_unmoved() {
+    let doc = Document::from_bytes(two_pages_sharing_a_path()).expect("fixture loads");
+    let mut session = EditSession::new(doc);
+    let disclosures = session
+        .move_objects(0, &[0], 5.0, 0.0)
+        .expect("the move succeeds");
+    assert!(
+        disclosures.iter().any(|d| d.contains(SHARED)),
+        "{disclosures:?}"
+    );
+    let (bytes, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("the session saves");
+    assert_ne!(page_stream(&bytes, 0), LINE);
+    assert_eq!(page_stream(&bytes, 1), LINE);
+}
+
+#[test]
+fn a_vector_transform_leaves_the_other_page_untransformed() {
+    let doc = Document::from_bytes(two_pages_sharing_a_path()).expect("fixture loads");
+    let mut session = EditSession::new(doc);
+    let outcome = session
+        .transform_objects(
+            0,
+            &[0],
+            pdfcer_core::vector::Matrix::new(2.0, 0.0, 0.0, 2.0, 0.0, 0.0),
+            pdfcer_core::vector::TransformOptions::default(),
+        )
+        .expect("the transform succeeds");
+    assert!(
+        outcome.disclosures.iter().any(|d| d.contains(SHARED)),
+        "{outcome:?}"
+    );
+    let (bytes, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("the session saves");
+    assert!(page_stream(&bytes, 0).contains(" cm"));
+    assert_eq!(page_stream(&bytes, 1), LINE);
+}
