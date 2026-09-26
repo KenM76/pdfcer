@@ -201,9 +201,11 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
 - `ExtractFont` accessors, `advance_tx` and `Code` are `#[doc(hidden)] pub`
   (workspace-internal).
 - Rebuild after an edit: text 11.9 s, colour 13.3 s (CLI).
-- **Still to survey for leaf status:** `crypto`, `form_script`, `dimension`,
-  `vector`, `text_edit`. After that come steps 4, 6 and 7, then the §12
-  decision.
+- **No clean leaves remain (surveyed).** `form_script` needs forms and pageops.
+  `dimension`, `vector` and `text_edit` all reach `edit` (the session). `crypto`
+  already moved with the model. A further cut means splitting the session layer
+  first. Weigh that in the §12 decision; do not force it. Next come steps 4, 6
+  and 7.
 - **G042 answered.** VENDORED records the accepted OCRcer model versions, and
   the local OCRcer build tree is the model source. The outbound ask to OCRcer
   for a versioned model home is OPEN. Check `OCRcer_FeatureRequests` for its
