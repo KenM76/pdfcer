@@ -464,12 +464,18 @@ pub fn apply_reflow(
     block_index: usize,
     req: &ReflowRequest,
 ) -> Result<ReflowOutcome, ReflowApplyError> {
-    let plan = plan_reflow_from_doc(&doc.view(), page_index, block_index, req)?;
+    let mut plan = plan_reflow_from_doc(&doc.view(), page_index, block_index, req)?;
     let pages = page_tree::pages(doc)?;
     let page = pages
         .get(page_index)
         .ok_or(ReflowApplyError::PageIndex(page_index))?;
-    let (bytes, _content_object, _extra) = write_incremental(doc, page, &plan.new_content)?;
+    let (bytes, _content_object, _extra, decoupled) =
+        write_incremental(doc, page, &plan.new_content)?;
+    if decoupled {
+        plan.report
+            .disclosures
+            .push(crate::text_edit::edit::SHARED_CONTENT_DISCLOSURE.to_owned());
+    }
     Ok(ReflowOutcome {
         bytes,
         report: plan.report,

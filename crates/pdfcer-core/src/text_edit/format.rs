@@ -1641,7 +1641,7 @@ pub fn set_format(
     // BASE READ (decision 018 caller audit) — same rationale as
     // `text_edit::edit_text`: this is the one-shot `&Document` entry point,
     // planning against the file as loaded for an incremental save.
-    let (plan, target) = plan_format_anywhere(&doc.view(), page, req, opts)?;
+    let (mut plan, target) = plan_format_anywhere(&doc.view(), page, req, opts)?;
     // Incremental save (R34/R70), exactly as 14.1 — and, since `Pass 119.2`,
     // to whichever stream held the run: the page's first content object, or
     // the form XObject's own. The plan's report already carries the correct
@@ -1725,9 +1725,15 @@ pub fn set_format(
             .map_err(FormatError::from_edit)?
         }
         None => {
-            write_incremental_with(doc, page, &plan.new_content, &extra_objects)
-                .map_err(FormatError::from_edit)?
-                .0
+            let (bytes, _, _, decoupled) =
+                write_incremental_with(doc, page, &plan.new_content, &extra_objects)
+                    .map_err(FormatError::from_edit)?;
+            if decoupled {
+                plan.report
+                    .disclosures
+                    .push(crate::text_edit::edit::SHARED_CONTENT_DISCLOSURE.to_owned());
+            }
+            bytes
         }
     };
     Ok(FormatOutcome {

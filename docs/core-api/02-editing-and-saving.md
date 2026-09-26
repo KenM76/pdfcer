@@ -310,6 +310,14 @@ need their own policy).
 > `invocation_map(doc, view)` answers the fan-out for all of them in **one**
 > document walk. `pdfcer inspect --forms` prints the same thing.
 >
+> **A shared PAGE content stream is the opposite case.** A page's `/Contents`
+> can always be re-pointed, so when an edit (text edit, format, reflow, merge,
+> vector move/delete) lands on a page whose content stream another page also
+> draws, the edited page gets its own stream and every other page renders
+> byte-identically. Shared streams are never rewritten or emptied. The report's
+> `disclosures` gets one line containing `"shared a content stream"`; undo
+> restores the page's original `/Contents`.
+>
 > ### Limits, so you do not find them by pressing
 >
 > - **A `/Ref` reference XObject or an OPI proxy is refused by name.** Its

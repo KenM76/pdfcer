@@ -10970,13 +10970,17 @@ impl EditSession {
                 Some(content_id) => {
                     let stream = self.current_page_content(&page).map_err(TeError::Content)?;
                     match plan_edit(&self.view(), &page, &stream, req, opts) {
-                        Ok(plan) => {
-                            let command = self.text_edit_command(
-                                CommandKind::EditText,
-                                content_id,
-                                &page,
-                                plan.new_content,
-                            );
+                        Ok(mut plan) => {
+                            let command = self
+                                .text_edit_command(
+                                    CommandKind::EditText,
+                                    content_id,
+                                    &page,
+                                    plan.new_content,
+                                    Vec::new(),
+                                    &mut plan.report.disclosures,
+                                )
+                                .map_err(|e| TeError::Unsupported(e.to_string()))?;
                             self.commit(command);
                             return Ok(plan.report);
                         }
@@ -11255,12 +11259,7 @@ impl EditSession {
                     match plan_format(&self.view(), &page, &stream, req, opts) {
                         Ok(plan) => {
                             let mut report = plan.report;
-                            let mut command = self.text_edit_command(
-                                CommandKind::FormatText,
-                                content_id,
-                                &page,
-                                plan.new_content,
-                            );
+                            let mut prior = Vec::new();
                             // `Pass 162.0`: the plan may require a `/Font`
                             // resource that does not exist yet. It goes into
                             // the SAME command, so one undo removes both the
@@ -11282,7 +11281,7 @@ impl EditSession {
                                             "the new font resource could not be allocated: {e}"
                                         ))
                                     })?;
-                                command.objects.extend(writes);
+                                prior = writes;
                                 if shared {
                                     report.disclosures.push(
                                         "font: this page's /Resources is an object SHARED with \
@@ -11296,6 +11295,16 @@ impl EditSession {
                                     );
                                 }
                             }
+                            let command = self
+                                .text_edit_command(
+                                    CommandKind::FormatText,
+                                    content_id,
+                                    &page,
+                                    plan.new_content,
+                                    prior,
+                                    &mut report.disclosures,
+                                )
+                                .map_err(|e| FmtError::Unsupported(e.to_string()))?;
                             self.commit(command);
                             return Ok(report);
                         }
@@ -11903,12 +11912,21 @@ impl EditSession {
         // `reflow_keeps_text_added_this_session` is what will notice, and it
         // asserts the surviving text rather than the refusal.
 
-        let plan = plan_reflow_from_doc(&self.view(), page_index, block_index, req)?;
+        let mut plan = plan_reflow_from_doc(&self.view(), page_index, block_index, req)?;
         let kind = CommandKind::ReflowBlock {
             lines_before: plan.report.lines_before,
             lines_after: plan.report.lines_after,
         };
-        let command = self.text_edit_command(kind, content_id, page, plan.new_content);
+        let command = self
+            .text_edit_command(
+                kind,
+                content_id,
+                page,
+                plan.new_content,
+                Vec::new(),
+                &mut plan.report.disclosures,
+            )
+            .map_err(|e| crate::text_edit::ReflowApplyError::Unsupported(e.to_string()))?;
         self.commit(command);
         Ok(plan.report)
     }
@@ -15112,12 +15130,17 @@ impl EditSession {
             .map_err(FmtError::Content)?;
         let plan =
             crate::text_edit::merge::plan_merge(&self.view(), &target, &stream, &spans, opts)?;
-        let command = self.text_edit_command(
-            CommandKind::MergeTextRuns,
-            target.content_id,
-            &page,
-            plan.new_content,
-        );
+        let mut plan = plan;
+        let command = self
+            .text_edit_command(
+                CommandKind::MergeTextRuns,
+                target.content_id,
+                &page,
+                plan.new_content,
+                Vec::new(),
+                &mut plan.report.disclosures,
+            )
+            .map_err(|e| crate::text_edit::FormatError::Unsupported(e.to_string()))?;
         self.commit(command);
         Ok(plan.report)
     }
@@ -16990,7 +17013,7 @@ impl EditSession {
         // Undo is unaffected: each command still records its own before/after
         // for `content_id`, and `text_edit_command`'s `first_edit` gate
         // already distinguishes the first rewrite from later ones.
-        let new_content = {
+        let mut new_content = {
             // ONE CALL FOR BOTH HALVES (`Pass 181.0`), and it used to be
             // three separate pieces of work here: decode the content stream,
             // build the XObject and font resolvers, decompose.
@@ -17006,8 +17029,16 @@ impl EditSession {
         };
 
         if let Some(kind) = kind {
-            let command =
-                self.text_edit_command(kind, content_id, page, new_content.content.clone());
+            let mut disclosures = std::mem::take(&mut new_content.disclosures);
+            let command = self.text_edit_command(
+                kind,
+                content_id,
+                page,
+                new_content.content.clone(),
+                Vec::new(),
+                &mut disclosures,
+            )?;
+            new_content.disclosures = disclosures;
             self.commit(command);
         }
         Ok(new_content)
@@ -17090,8 +17121,28 @@ impl EditSession {
         content_id: ObjId,
         page: &Page,
         new_content: Vec<u8>,
-    ) -> Command {
+        mut prior: Vec<ObjectWrite>,
+        disclosures: &mut Vec<String>,
+    ) -> Result<Command, EditError> {
         use crate::text_edit::edit::make_raw_stream;
+        let is_page_stream = page.contents.first() == Some(&content_id);
+        let shared = if is_page_stream {
+            self.content_streams_shared_with_other_pages(page)?
+        } else {
+            BTreeSet::new()
+        };
+        if !shared.is_empty() {
+            let command = self.decoupled_text_edit_command(
+                kind,
+                content_id,
+                page,
+                &new_content,
+                &shared,
+                prior,
+            )?;
+            disclosures.push(crate::text_edit::edit::SHARED_CONTENT_DISCLOSURE.to_owned());
+            return Ok(command);
+        }
         let content_before = self.state.get(&content_id).cloned();
 
         let len = new_content.len();
@@ -17101,6 +17152,7 @@ impl EditSession {
             before: content_before,
             after: Some(make_raw_stream(span, len)),
         }];
+        objects.append(&mut prior);
 
         // Empty every EXTRA content stream (contents[1..]) whose CURRENT payload
         // is non-empty. The splice above concatenated the whole /Contents list
@@ -17111,6 +17163,9 @@ impl EditSession {
         // (Pass 251.0). `self.value` reads the overlay-or-base current payload;
         // an already-empty extra is skipped so no redundant no-op write is kept.
         for id in page.contents.iter().skip(1) {
+            if *id == content_id {
+                continue;
+            }
             let nonempty =
                 matches!(self.value(*id), Some(Object::Stream(s)) if s.data_span.len > 0);
             if nonempty {
@@ -17123,12 +17178,101 @@ impl EditSession {
             }
         }
 
-        Command {
+        Ok(Command {
             kind,
             objects,
             removals: Vec::new(),
             trailer: None,
+        })
+    }
+
+    /// The streams in `page`'s `/Contents` that at least one OTHER page also
+    /// draws. Such a stream must never be rewritten or emptied by an edit to
+    /// `page` alone.
+    fn content_streams_shared_with_other_pages(
+        &self,
+        page: &Page,
+    ) -> Result<BTreeSet<ObjId>, EditError> {
+        let mine: BTreeSet<ObjId> = page.contents.iter().copied().collect();
+        let mut shared = BTreeSet::new();
+        for other in self.pages()?.iter().filter(|p| p.id != page.id) {
+            shared.extend(other.contents.iter().filter(|id| mine.contains(id)));
         }
+        Ok(shared)
+    }
+
+    /// [`Self::text_edit_command`] for a page drawing a stream another page
+    /// also draws: the new content goes into `contents[0]` when that stream is
+    /// this page's alone, otherwise into a fresh stream; the page's
+    /// `/Contents` becomes that one stream; exclusive extras are emptied and
+    /// shared ones left for the pages that still draw them.
+    ///
+    /// A write in `prior` to the page dictionary itself (a `/Font` resource
+    /// added inline) is merged with the `/Contents` change rather than
+    /// duplicated, so neither overwrites the other.
+    fn decoupled_text_edit_command(
+        &mut self,
+        kind: CommandKind,
+        content_id: ObjId,
+        page: &Page,
+        new_content: &[u8],
+        shared: &BTreeSet<ObjId>,
+        mut prior: Vec<ObjectWrite>,
+    ) -> Result<Command, EditError> {
+        use crate::text_edit::edit::make_raw_stream;
+        let target = if shared.contains(&content_id) {
+            ObjId::new(self.alloc_number()?, 0)
+        } else {
+            content_id
+        };
+        let span = self.stage_bytes(new_content);
+        let mut objects = vec![ObjectWrite {
+            id: target,
+            before: self.state.get(&target).cloned(),
+            after: Some(make_raw_stream(span, new_content.len())),
+        }];
+        for id in page.contents.iter().collect::<BTreeSet<_>>() {
+            if *id == target || shared.contains(id) {
+                continue;
+            }
+            let nonempty =
+                matches!(self.value(*id), Some(Object::Stream(s)) if s.data_span.len > 0);
+            if nonempty {
+                let empty = self.stage_bytes(&[]);
+                objects.push(ObjectWrite {
+                    id: *id,
+                    before: self.state.get(id).cloned(),
+                    after: Some(make_raw_stream(empty, 0)),
+                });
+            }
+        }
+        let page_write = match prior.iter().position(|w| w.id == page.id) {
+            Some(i) => prior.remove(i),
+            None => ObjectWrite {
+                id: page.id,
+                before: self.state.get(&page.id).cloned(),
+                after: self.value(page.id).cloned(),
+            },
+        };
+        let Some(Object::Dict(mut dict)) = page_write.after else {
+            return Err(EditError::NotADictionary {
+                id: page.id,
+                key: "Contents",
+            });
+        };
+        dict.insert(Name::from(b"Contents"), Object::Reference(target));
+        objects.push(ObjectWrite {
+            id: page.id,
+            before: page_write.before,
+            after: Some(Object::Dict(dict)),
+        });
+        objects.append(&mut prior);
+        Ok(Command {
+            kind,
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        })
     }
 
     // -- internals ------------------------------------------------------

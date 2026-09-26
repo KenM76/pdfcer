@@ -122,6 +122,7 @@ mod separation_sets;
 mod session_graph_resolution;
 mod session_overlay_skew;
 mod set_font_new_resource;
+mod shared_page_content_edit;
 mod sign_certify;
 mod sign_document;
 mod sign_hardening;

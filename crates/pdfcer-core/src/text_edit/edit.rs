@@ -1673,7 +1673,7 @@ pub fn edit_text(
     // own view; there is no overlay here) and hands the plan to an
     // incremental save. The GUI's accumulating multi-edit path is
     // `EditSession::edit_text`, which plans against the session view.
-    let (plan, target) = plan_edit_anywhere(&doc.view(), page, req, opts)?;
+    let (mut plan, target) = plan_edit_anywhere(&doc.view(), page, req, opts)?;
     // Incremental save (R34/R70). Which object gets rewritten now depends on
     // where the text was found (`Pass 119.0`): the page's first content
     // object, or the form XObject's own stream. Both are one-object rewrites
@@ -1683,7 +1683,15 @@ pub fn edit_text(
         // The report's content_object / extra_objects_emptied are already
         // correct (the plan derives them from `page.contents`), so the
         // returned identity is discarded here.
-        None => write_incremental(doc, page, &plan.new_content)?.0,
+        None => {
+            let (bytes, _, _, decoupled) = write_incremental(doc, page, &plan.new_content)?;
+            if decoupled {
+                plan.report
+                    .disclosures
+                    .push(SHARED_CONTENT_DISCLOSURE.to_owned());
+            }
+            bytes
+        }
     };
     Ok(EditOutcome {
         bytes,
@@ -3934,15 +3942,22 @@ pub(crate) fn splice(buf: &[u8], edits: &mut [(usize, usize, Vec<u8>)]) -> Vec<u
 // Save (incremental, R34/R70)
 // ===================================================================
 
+/// The disclosure every edit route adds when the edited page shared a content
+/// stream with another page and was given its own copy.
+pub(crate) const SHARED_CONTENT_DISCLOSURE: &str = "content: this page shared a content stream \
+    with another page, so the edit went into a copy this page alone draws; the other page \
+    renders unchanged";
+
 /// Replace the page's first content object with `new_content` (emptying any
 /// extra content objects) and save **incrementally**. Returns the appended
-/// bytes, the rewritten content object number, and how many extras were
-/// emptied.
+/// bytes, the rewritten content object number, how many extras were
+/// emptied, and whether the page was decoupled from a content stream another
+/// page also draws (see [`write_incremental_with`]).
 pub(crate) fn write_incremental(
     doc: &Document,
     page: &Page,
     new_content: &[u8],
-) -> Result<(Vec<u8>, u32, u64), EditError> {
+) -> Result<(Vec<u8>, u32, u64, bool), EditError> {
     write_incremental_with(doc, page, new_content, &[])
 }
 
@@ -3956,38 +3971,80 @@ pub(crate) fn write_incremental(
 /// file. An id `extra` names that the base does not define is a **created**
 /// object — `DirtySet::replace` appends it and gives it a fresh
 /// cross-reference entry (§7.5.6).
+///
+/// A content stream another page also draws is never rewritten or emptied:
+/// the new content goes into a fresh stream (or `contents[0]` when that one is
+/// this page's alone), the page's `/Contents` is pointed at it, and the shared
+/// streams are left for the pages still drawing them. The returned `bool` is
+/// `true` when that happened, so the caller can disclose it.
 pub(crate) fn write_incremental_with(
     doc: &Document,
     page: &Page,
     new_content: &[u8],
     extra_objects: &[(ObjId, Object)],
-) -> Result<(Vec<u8>, u32, u64), EditError> {
-    let content_id = *page
+) -> Result<(Vec<u8>, u32, u64, bool), EditError> {
+    let first = *page
         .contents
         .first()
         .ok_or_else(|| EditError::Unsupported("the page has no /Contents to edit".to_owned()))?;
+    let mine: BTreeSet<ObjId> = page.contents.iter().copied().collect();
+    let mut shared: BTreeSet<ObjId> = BTreeSet::new();
+    for other in page_tree::pages(doc)?.iter().filter(|p| p.id != page.id) {
+        shared.extend(other.contents.iter().filter(|id| mine.contains(id)));
+    }
 
     let mut dirty = DirtySet::empty();
     let base_len = doc.bytes().len();
     let mut staging: Vec<u8> = Vec::new();
 
+    let content_id = if shared.contains(&first) {
+        let taken = extra_objects
+            .iter()
+            .map(|(id, _)| id.num)
+            .max()
+            .unwrap_or(0);
+        let next = doc.next_object_number().ok_or(EditError::Unsupported(
+            "no object number is left to allocate".to_owned(),
+        ))?;
+        ObjId::new(next.max(taken.saturating_add(1)), 0)
+    } else {
+        first
+    };
     let span = stage(&mut staging, base_len, new_content);
     dirty.replace(content_id, make_raw_stream(span, new_content.len()));
 
     let mut extra = 0u64;
-    for id in page.contents.iter().skip(1) {
+    for id in &mine {
+        if *id == content_id || shared.contains(id) {
+            continue;
+        }
         let empty = stage(&mut staging, base_len, &[]);
         dirty.replace(*id, make_raw_stream(empty, 0));
         extra += 1;
     }
 
+    let mut page_dict = None;
     for (id, value) in extra_objects {
-        dirty.replace(*id, value.clone());
+        if *id == page.id && !shared.is_empty() {
+            page_dict = Some(value.clone());
+        } else {
+            dirty.replace(*id, value.clone());
+        }
+    }
+    if !shared.is_empty() {
+        let page_dict = page_dict.or_else(|| doc.get(page.id).map(|o| o.value.clone()));
+        let Some(Object::Dict(mut dict)) = page_dict else {
+            return Err(EditError::Unsupported(
+                "the page object is not a dictionary".to_owned(),
+            ));
+        };
+        dict.insert(Name::from(b"Contents"), Object::Reference(content_id));
+        dirty.replace(page.id, Object::Dict(dict));
     }
 
     dirty.set_staging(staging);
     let (bytes, _report) = save_incremental(doc, &dirty, &SaveOptions::identity())?;
-    Ok((bytes, content_id.num, extra))
+    Ok((bytes, content_id.num, extra, !shared.is_empty()))
 }
 
 /// Replace one **form XObject's** content stream with `new_content` and save
