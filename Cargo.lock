@@ -865,6 +865,7 @@ dependencies = [
  "pbkdf2",
  "pdfcer-color",
  "pdfcer-fonts",
+ "pdfcer-function",
  "pdfcer-image-codec",
  "pdfcer-model",
  "pdfcer-pkix",
@@ -891,6 +892,14 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-fonts"
+version = "0.55.0"
+dependencies = [
+ "pdfcer-model",
+ "thiserror",
+]
+
+[[package]]
+name = "pdfcer-function"
 version = "0.55.0"
 dependencies = [
  "pdfcer-model",

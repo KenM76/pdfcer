@@ -153,6 +153,8 @@ pdfcer-pkix = { path = "../pdfcer-pkix" }
 pdfcer-color = { path = "../pdfcer-color" }
 # pdfcer-text: split out and re-exported at the old paths (Pass 325.0 step 3).
 pdfcer-text = { path = "../pdfcer-text" }
+# pdfcer-function: split out and re-exported at the old path (Pass 325.0 step 3).
+pdfcer-function = { path = "../pdfcer-function" }
 
 # thiserror: the ecosystem-standard derive for well-behaved error types
 # (Rust API Guidelines C-GOOD-ERR — errors implement std::error::Error and

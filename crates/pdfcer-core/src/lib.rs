@@ -13,6 +13,7 @@
 //! | `trust_chain`, `trust_store` (and the private `asn1`, `cms`) | `pdfcer-pkix` |
 //! | `color` | `pdfcer-color` |
 //! | `text_extract`, `text_state` | `pdfcer-text` |
+//! | `function` | `pdfcer-function` |
 //! | everything else | this crate |
 //!
 //! Items marked `#[doc(hidden)]` with a "workspace-internal" comment are
@@ -67,7 +68,6 @@ pub mod formclip;
 pub mod formcsv;
 pub mod forms;
 pub mod forms_author;
-pub mod function;
 pub mod image_import;
 pub mod layers;
 /// OCR text layers — turning recognised words into an invisible, selectable
@@ -99,6 +99,7 @@ pub mod wrapper;
 // `tests/facade_paths.rs` fails if one stops resolving.
 pub use pdfcer_color::color;
 pub use pdfcer_fonts::{font_embed, fontdata, fontinfo, linebreak, textstring, vartext};
+pub use pdfcer_function::function;
 pub use pdfcer_image_codec as image_codec;
 pub use pdfcer_model::{
     HEADER_SCAN_WINDOW, PdfError, PdfVersion, probe_cos_header, probe_file, probe_header,

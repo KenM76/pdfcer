@@ -56,6 +56,7 @@ another crate.
 | `trust_chain`, `trust_store` | `crates/pdfcer-pkix/src/` |
 | `color` | `crates/pdfcer-color/src/` |
 | `text_extract`, `text_state` | `crates/pdfcer-text/src/` |
+| `function` | `crates/pdfcer-function/src/` |
 | everything else (`edit`, `forms`, `annot`, `redact`, `ocr`, …) | `crates/pdfcer-core/src/` |
 
 `#[doc(hidden)]` items commented "workspace-internal" are `pub` only so

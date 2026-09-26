@@ -6,8 +6,8 @@
 #[allow(unused_imports)]
 use pdfcer_core::{
     HEADER_SCAN_WINDOW, PdfError, PdfVersion, color, content, crypto, document, filters,
-    font_embed, fontdata, fontinfo, graph, image_codec, lexer, linearization, linebreak, object,
-    objstm, page_tree, parser, probe_cos_header, probe_file, probe_header, recover, span,
+    font_embed, fontdata, fontinfo, function, graph, image_codec, lexer, linearization, linebreak,
+    object, objstm, page_tree, parser, probe_cos_header, probe_file, probe_header, recover, span,
     text_extract, text_state, textstring, trust_chain, trust_store, vartext, view, writer, xref,
 };
 

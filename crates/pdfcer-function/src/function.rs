@@ -152,11 +152,11 @@
 //! - `iso32000__annex__c.md` — implementation limits, which type 4
 //!   *intermediates* are explicitly exempt from.
 
-use crate::filters::{self, FilterError};
-use crate::graph::ObjectGraph as _;
-use crate::lexer::{LexError, Lexer, TokenKind};
-use crate::object::{Dict, Object, Stream};
-use crate::view::DocumentView;
+use pdfcer_model::filters::{self, FilterError};
+use pdfcer_model::graph::ObjectGraph as _;
+use pdfcer_model::lexer::{LexError, Lexer, TokenKind};
+use pdfcer_model::object::{Dict, Object, Stream};
+use pdfcer_model::view::DocumentView;
 
 // ---------------------------------------------------------------------------
 // Resource bounds
@@ -191,7 +191,7 @@ pub const PS_STACK_LIMIT: usize = 100;
 /// `if`/`ifelse` it is attached to — so an evaluation's step count is bounded
 /// above by the number of nodes in the parsed program. A type 4 function
 /// therefore cannot hang. The hazard is *size*, not looping: a function stream
-/// may decode to as much as [`crate::filters::MAX_DECODED_LEN`] (256 MiB), which
+/// may decode to as much as [`pdfcer_model::filters::MAX_DECODED_LEN`] (256 MiB), which
 /// is room for tens of millions of operators, and a `DeviceN` image runs the
 /// transform **once per pixel**. This cap keeps that product bounded.
 ///
@@ -290,7 +290,7 @@ pub enum FunctionError {
 
     /// The stream's byte span could not be served by the view — a truncated
     /// file or a span from a different document (see
-    /// [`crate::view::StreamSource::slice`]).
+    /// [`pdfcer_model::view::StreamSource::slice`]).
     #[error("the function stream's data span could not be read from this document")]
     StreamUnreadable,
 
@@ -630,7 +630,7 @@ impl FunctionType {
     /// # Examples
     ///
     /// ```
-    /// use pdfcer_core::function::FunctionType;
+    /// use pdfcer_function::function::FunctionType;
     /// assert_eq!(FunctionType::Stitching.as_i64(), 3);
     /// ```
     #[must_use]
@@ -658,11 +658,11 @@ impl FunctionType {
 /// strength):
 ///
 /// ```
-/// use pdfcer_core::PdfVersion;
-/// use pdfcer_core::function::PdfFunction;
-/// use pdfcer_core::graph::ObjectGraph;
-/// use pdfcer_core::object::{Dict, Name, ObjId, Object};
-/// use pdfcer_core::view::DocumentView;
+/// use pdfcer_model::PdfVersion;
+/// use pdfcer_function::function::PdfFunction;
+/// use pdfcer_model::graph::ObjectGraph;
+/// use pdfcer_model::object::{Dict, Name, ObjId, Object};
+/// use pdfcer_model::view::DocumentView;
 ///
 /// // A function whose entries are all direct needs no real document behind it.
 /// struct NoObjects;
@@ -956,11 +956,11 @@ impl PdfFunction {
     /// # Examples
     ///
     /// ```
-    /// # use pdfcer_core::PdfVersion;
-    /// # use pdfcer_core::function::PdfFunction;
-    /// # use pdfcer_core::graph::ObjectGraph;
-    /// # use pdfcer_core::object::{Dict, Name, ObjId, Object};
-    /// # use pdfcer_core::view::DocumentView;
+    /// # use pdfcer_model::PdfVersion;
+    /// # use pdfcer_function::function::PdfFunction;
+    /// # use pdfcer_model::graph::ObjectGraph;
+    /// # use pdfcer_model::object::{Dict, Name, ObjId, Object};
+    /// # use pdfcer_model::view::DocumentView;
     /// # struct G;
     /// # impl ObjectGraph for G {
     /// #     fn value(&self, _: ObjId) -> Option<&Object> { None }
@@ -2807,7 +2807,7 @@ fn exec_block(ops: &[PsOp], stack: &mut PsStack, steps: &mut usize) -> Result<()
 /// `rangecheck`.
 ///
 /// This is exactly the shape of thing that belongs in
-/// [`crate::settings::Settings`] alongside the other resolved ambiguities
+/// `pdfcer_core::settings::Settings` alongside the other resolved ambiguities
 /// rather than being frozen in a constant; it is a constant here only because
 /// this module was added without touching the settings surface. Wiring it up is
 /// a small, mechanical follow-up.
@@ -3398,10 +3398,10 @@ fn logical(
 )]
 mod tests {
     use super::*;
-    use crate::PdfVersion;
-    use crate::graph::ObjectGraph;
-    use crate::object::{Name, ObjId};
-    use crate::span::ByteSpan;
+    use pdfcer_model::PdfVersion;
+    use pdfcer_model::graph::ObjectGraph;
+    use pdfcer_model::object::{Name, ObjId};
+    use pdfcer_model::span::ByteSpan;
     use std::collections::BTreeMap;
 
     const V17: PdfVersion = PdfVersion { major: 1, minor: 7 };
