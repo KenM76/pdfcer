@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (607th filing) — `78aecacf`: `tools/gh-release.py` closes the Backlog's `gh release` rollback item
+
+**Shipped:**
+- `78aecacf` — new `tools/gh-release.py`: creates a release empty (or reuses it), uploads assets with `gh release upload --clobber` and exponential backoff (5 s doubling, 5 tries default), then requires every named asset `state: uploaded` at its local byte size via `gh release view --json assets` before exiting 0. Re-running after any failure is safe. `--dry-run` prints the commands without running them.
+
+**Decisions made this session:** none — a tooling recipe closing a Backlog item, not an architectural decision. Deliberately not registered as a gate (no `check-ci-parity`/`ci.yml` entry) — it's about publishing without losing a release, not about release correctness.
+
+**Findings + decisions:**
+- Verified against the live `v0.55.0` release: clean match on a real downloaded `.sha256` asset (96 bytes); correctly FAILED on a one-byte-longer copy ("96 bytes remote, 97 local") and on an asset the release doesn't carry.
+- A first verify attempt was vacuous — the local glob matched no zip, so it checked an empty asset list and reported clean for the wrong reason. Caught and redone with a real asset; worth naming so a future verify-script check doesn't repeat it.
+- `tools/verify-release.py`'s "GitHub release exists" failure hint now points at `tools/gh-release.py`; `docs/NEXT_SESSION.md`'s release note updated the same way.
+- `docs/FEATURES.md`: no rows affected — release tooling, not a product capability.
+
+**Still in flight:** none for this item.
+
+**For next session:** nothing owed by this closure.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, script behaviour, and verification results are relayed from the dispatching engineer's own report of `78aecacf`; not independently reproduced here.
+
 ## 2026-09-26 (606th filing) — `65b1d15a`: `tools/check-ci-crate-lists.py` gates CI's hand-kept engine crate lists — `Pass 325.0` follow-up
 
 **Shipped:**
