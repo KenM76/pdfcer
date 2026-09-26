@@ -235,6 +235,49 @@ struct KnockoutPlanes {
 ///   `f64` buffer would narrow there. Narrowing is lossy, widening is not.
 pub(crate) type Chan = f32;
 
+/// `plane[idx]`, or `0.0` (no ink, transparent) past the plane's end.
+#[inline]
+fn at(plane: &[Chan], idx: usize) -> Chan {
+    plane.get(idx).copied().unwrap_or(0.0)
+}
+
+/// `plane[idx] = value`, dropped past the plane's end.
+#[inline]
+fn put(plane: &mut [Chan], idx: usize, value: Chan) {
+    if let Some(slot) = plane.get_mut(idx) {
+        *slot = value;
+    }
+}
+
+/// Copy `src[span]` over `dst[span]` when both planes hold the span.
+fn copy_span(dst: &mut [Chan], src: &[Chan], span: std::ops::Range<usize>) {
+    if let (Some(d), Some(s)) = (dst.get_mut(span.clone()), src.get(span)) {
+        d.copy_from_slice(s);
+    }
+}
+
+/// Zero `plane[span]` when the plane holds the span.
+fn clear_span(plane: &mut [Chan], span: std::ops::Range<usize>) {
+    if let Some(s) = plane.get_mut(span) {
+        s.fill(0.0);
+    }
+}
+
+impl KnockoutPlanes {
+    /// The group's initial backdrop at `idx`; unpainted past the planes' end.
+    fn initial_at(&self, idx: usize) -> PixelCmyk {
+        let mut s = [0.0; crate::compositor::MAX_SPOTS];
+        for (slot, plane) in s.iter_mut().zip(&self.initial_spots) {
+            *slot = at(plane, idx);
+        }
+        PixelCmyk {
+            c: self.initial.each_ref().map(|p| at(p, idx)),
+            s,
+            a: at(&self.initial_alpha, idx),
+        }
+    }
+}
+
 /// The largest buffer this module will allocate **when nobody says
 /// otherwise**, in bytes. Re-exported as
 /// [`crate::DEFAULT_MAX_CMYK_BUFFER_BYTES`], which is where a consumer
@@ -990,25 +1033,21 @@ impl CmykBuffer {
         self.unbridged_images += 1;
     }
 
-    /// Read one pixel into the standard's model.
-    ///
-    /// # Panics
-    ///
-    /// Never for an `idx` produced from this buffer's own dimensions; the
-    /// slice index is bounds-checked by Rust and a caller that violates it
-    /// has a bug this function should not paper over.
+    /// Read one pixel into the standard's model. An `idx` outside this
+    /// buffer reads as unpainted: every plane `0.0`.
     #[inline]
     pub(crate) fn pixel(&self, idx: usize) -> PixelCmyk {
         PixelCmyk {
-            c: [
-                self.planes[0][idx],
-                self.planes[1][idx],
-                self.planes[2][idx],
-                self.planes[3][idx],
-            ],
+            c: self.process_at(idx),
             s: self.read_spots(idx),
-            a: self.alpha[idx],
+            a: at(&self.alpha, idx),
         }
+    }
+
+    /// The four process planes at `idx`, `[C, M, Y, K]`.
+    #[inline]
+    fn process_at(&self, idx: usize) -> [Chan; 4] {
+        self.planes.each_ref().map(|p| at(p, idx))
     }
 
     /// This pixel's spot tints, padded to [`crate::compositor::MAX_SPOTS`].
@@ -1023,7 +1062,7 @@ impl CmykBuffer {
     fn read_spots(&self, idx: usize) -> [Chan; crate::compositor::MAX_SPOTS] {
         let mut out = [0.0; crate::compositor::MAX_SPOTS];
         for (slot, plane) in out.iter_mut().zip(self.spots.iter()) {
-            *slot = plane.tint[idx];
+            *slot = at(&plane.tint, idx);
         }
         out
     }
@@ -1082,16 +1121,12 @@ impl CmykBuffer {
     /// Note it clamps and does NOT mark dirty -- see [`Self::mark_dirty`]
     /// for why that is the caller's job.
     ///
-    /// # Panics
-    ///
-    /// Never for an `idx` produced from this buffer's own dimensions. The
-    /// slice index is bounds-checked by Rust and a caller that violates it
-    /// has a bug this function should not paper over -- the same contract
-    /// [`Self::pixel`] states.
+    /// An `idx` outside this buffer writes nothing, the counterpart of
+    /// [`Self::pixel`]'s read.
     #[inline]
     pub(crate) fn set_pixel(&mut self, idx: usize, px: PixelCmyk) {
-        for i in 0..4 {
-            self.planes[i][idx] = px.c[i].clamp(0.0, 1.0);
+        for (plane, value) in self.planes.iter_mut().zip(px.c) {
+            put(plane, idx, value.clamp(0.0, 1.0));
         }
         // Spot planes clamp on exactly the same argument as the process
         // ones -- a spot tint feeds the same blend functions and compounds
@@ -1101,9 +1136,9 @@ impl CmykBuffer {
         // value that reached here from a buffer with a longer roster (a
         // transparency group's child, say).
         for (plane, value) in self.spots.iter_mut().zip(px.s.iter()) {
-            plane.tint[idx] = value.clamp(0.0, 1.0);
+            put(&mut plane.tint, idx, value.clamp(0.0, 1.0));
         }
-        self.alpha[idx] = px.a.clamp(0.0, 1.0);
+        put(&mut self.alpha, idx, px.a.clamp(0.0, 1.0));
     }
 
     /// The plane index for `colorant`, allocating one if this page has not
@@ -1344,7 +1379,7 @@ impl CmykBuffer {
         for y in y0..y1 {
             for x in x0..x1 {
                 let idx = (y * self.width + x) as usize;
-                let c = Chan::from(cov[idx]) / 255.0;
+                let c = Chan::from(cov.get(idx).copied().unwrap_or(0)) / 255.0;
                 if c <= 0.0 {
                     continue;
                 }
@@ -1444,7 +1479,9 @@ impl CmykBuffer {
         for y in y0..y1 {
             for x in x0..x1 {
                 let idx = (y * self.width + x) as usize;
-                let px = pixels[idx];
+                let Some(&px) = pixels.get(idx) else {
+                    continue;
+                };
                 let a = Chan::from(px.alpha()) / 255.0;
                 if a <= 0.0 {
                     continue;
@@ -1716,15 +1753,17 @@ impl CmykBuffer {
                 let idx = (y * self.width + x) as usize;
                 let before = self.pixel(idx);
                 let mut out = before;
-                for ch in 0..4 {
+                for (((o, &b), &s), rule) in
+                    out.c.iter_mut().zip(&before.c).zip(&source).zip(&rules)
+                {
                     // Table 149 per colorant, then §11.4.4's ordinary
                     // source-over weighting on the value the rule selected.
                     // The rule decides WHICH tint competes; alpha decides how
                     // much of it lands. Collapsing the two would make a
                     // `Backdrop` component fade toward zero as alpha fell,
                     // which is the opposite of preserving it.
-                    let target = rules[ch].apply(before.c[ch], source[ch]);
-                    out.c[ch] = target.mul_add(a, before.c[ch] * (1.0 - a));
+                    let target = rule.apply(b, s);
+                    *o = target.mul_add(a, b * (1.0 - a));
                 }
                 // The spot planes the source named take its tint at the same
                 // weighting; the rest keep the backdrop — `out` started as
@@ -1767,22 +1806,23 @@ impl CmykBuffer {
         for y in y0..y1 {
             for x in x0..x1 {
                 let idx = (y * self.width + x) as usize;
-                let c = Chan::from(cov[idx]) / 255.0;
+                let c = Chan::from(cov.get(idx).copied().unwrap_or(0)) / 255.0;
                 if c <= 0.0 {
                     continue;
                 }
                 let t = c * alpha;
                 let before = self.pixel(idx);
                 let mut out = [0.0_f32; 4];
-                for i in 0..4 {
-                    out[i] = rules[i].apply(before.c[i], source[i]).clamp(0.0, 1.0);
+                for (((o, rule), &b), &s) in out.iter_mut().zip(&rules).zip(&before.c).zip(&source)
+                {
+                    *o = rule.apply(b, s).clamp(0.0, 1.0);
                 }
                 // Interpolate between the backdrop and the overprint result
                 // by `t`, so partial coverage and partial alpha behave the
                 // way every other paint in the renderer does.
                 let mut mixed = [0.0_f32; 4];
-                for i in 0..4 {
-                    mixed[i] = t.mul_add(out[i] - before.c[i], before.c[i]);
+                for ((m, &o), &b) in mixed.iter_mut().zip(&out).zip(&before.c) {
+                    *m = t.mul_add(o - b, b);
                 }
                 // TABLE 149's SPOT RULE — and the DERIVATION below was wrong until
                 // 2026-09-02, though the behaviour was right.
@@ -1892,11 +1932,13 @@ impl CmykBuffer {
             let row = (y * self.width) as usize;
             for x in x0 as usize..x1 as usize {
                 let i = row + x;
-                let m8 = data[i];
-                if m8 == u8::MAX || self.alpha[i] <= 0.0 {
+                let (Some(&m8), Some(a)) = (data.get(i), self.alpha.get_mut(i)) else {
+                    continue;
+                };
+                if m8 == u8::MAX || *a <= 0.0 {
                     continue;
                 }
-                self.alpha[i] *= Chan::from(m8) / 255.0;
+                *a *= Chan::from(m8) / 255.0;
             }
         }
     }
@@ -2073,7 +2115,7 @@ impl CmykBuffer {
         let mut out = Pixmap::new(self.width, self.height)?;
         let dst = out.pixels_mut();
         for (idx, slot) in dst.iter_mut().enumerate() {
-            let a = self.alpha[idx].clamp(0.0, 1.0);
+            let a = at(&self.alpha, idx).clamp(0.0, 1.0);
             if a <= 0.0 {
                 continue;
             }
@@ -2082,12 +2124,7 @@ impl CmykBuffer {
             // ONE. See this function's "Which conversion" section: this is
             // one leg of a ROUND TRIP and the return leg is
             // `overprint::rgb_to_cmyk`, of which this is the exact inverse.
-            let (r, g, bl) = crate::overprint::cmyk_to_rgb([
-                self.planes[0][idx],
-                self.planes[1][idx],
-                self.planes[2][idx],
-                self.planes[3][idx],
-            ]);
+            let (r, g, bl) = crate::overprint::cmyk_to_rgb(self.process_at(idx));
             let rgb = [r, g, bl];
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let q = |v: f32| (v.clamp(0.0, 1.0) * a * 255.0).round() as u8;
@@ -2146,9 +2183,9 @@ impl CmykBuffer {
         };
         (y0..y1).any(|y| {
             let row = (y * self.width) as usize;
-            self.alpha[row + x0 as usize..row + x1 as usize]
-                .iter()
-                .any(|a| *a > 0.0)
+            self.alpha
+                .get(row + x0 as usize..row + x1 as usize)
+                .is_some_and(|span| span.iter().any(|a| *a > 0.0))
         })
     }
 
@@ -2216,13 +2253,13 @@ impl CmykBuffer {
         for y in y0..y1 {
             let row = (y * self.width) as usize;
             let (a, b) = (row + x0 as usize, row + x1 as usize);
-            for plane in 0..4 {
-                child.planes[plane][a..b].copy_from_slice(&self.planes[plane][a..b]);
+            for (dst, src) in child.planes.iter_mut().zip(&self.planes) {
+                copy_span(dst, src, a..b);
             }
             for (dst, src) in child.spots.iter_mut().zip(self.spots.iter()) {
-                dst.tint[a..b].copy_from_slice(&src.tint[a..b]);
+                copy_span(&mut dst.tint, &src.tint, a..b);
             }
-            child.alpha[a..b].copy_from_slice(&self.alpha[a..b]);
+            copy_span(&mut child.alpha, &self.alpha, a..b);
         }
         // The copied span counts as written: `give_back_child` clears only
         // the dirty rectangle, and a child handed back with backdrop still
@@ -2291,7 +2328,7 @@ impl CmykBuffer {
         for y in y0..y1 {
             for x in x0..x1 {
                 let idx = (y * self.width + x) as usize;
-                let agn = iso.alpha[idx];
+                let agn = at(&iso.alpha, idx);
                 if agn <= 0.0 {
                     continue;
                 }
@@ -2315,8 +2352,8 @@ impl CmykBuffer {
                     } else {
                         a0.mul_add(-1.0, a0 / agn)
                     };
-                    for (i, slot) in s.iter_mut().enumerate() {
-                        *slot = k.mul_add(over.s[i] - backdrop.s[i], over.s[i]);
+                    for ((slot, &o), &b) in s.iter_mut().zip(&over.s).zip(&backdrop.s) {
+                        *slot = k.mul_add(o - b, o);
                     }
                 }
                 let m = mask.map_or(1.0, |d| d.get(idx).map_or(1.0, |v| Chan::from(*v) / 255.0));
@@ -2361,12 +2398,12 @@ impl CmykBuffer {
                 let row = (y * child.width) as usize;
                 let (a, b) = (row + x0 as usize, row + x1 as usize);
                 for plane in &mut child.planes {
-                    plane[a..b].fill(0.0);
+                    clear_span(plane, a..b);
                 }
                 for plane in &mut child.spots {
-                    plane.tint[a..b].fill(0.0);
+                    clear_span(&mut plane.tint, a..b);
                 }
-                child.alpha[a..b].fill(0.0);
+                clear_span(&mut child.alpha, a..b);
             }
         }
         // The roster goes too (`Pass 239.0`): the next group starts with
@@ -2523,22 +2560,9 @@ impl CmykBuffer {
             let row = y * width;
             (x0..x1).map(move |x| (row + x) as usize)
         }) {
-            let ag = ko.group_alpha[idx];
+            let ag = at(&ko.group_alpha, idx);
             let accum = self.pixel(idx);
-            let mut s0 = [0.0; crate::compositor::MAX_SPOTS];
-            for (slot, plane) in s0.iter_mut().zip(ko.initial_spots.iter()) {
-                *slot = plane[idx];
-            }
-            let initial = PixelCmyk {
-                c: [
-                    ko.initial[0][idx],
-                    ko.initial[1][idx],
-                    ko.initial[2][idx],
-                    ko.initial[3][idx],
-                ],
-                s: s0,
-                a: ko.initial_alpha[idx],
-            };
+            let initial = ko.initial_at(idx);
             let c = remove_backdrop_cmyk(accum, initial, ag);
             // §11.4.4's removal on the spot planes too (`Pass 239.0`): the
             // same `C_n + (C_n − C_0)·(α_0/α_gn − α_0)`, per plane. This
@@ -2553,8 +2577,8 @@ impl CmykBuffer {
                 } else {
                     a0.mul_add(-1.0, a0 / agn)
                 };
-                for (i, slot) in s.iter_mut().enumerate() {
-                    *slot = k.mul_add(accum.s[i] - initial.s[i], accum.s[i]);
+                for ((slot, &n), &i0) in s.iter_mut().zip(&accum.s).zip(&initial.s) {
+                    *slot = k.mul_add(n - i0, n);
                 }
             }
             self.set_pixel(idx, PixelCmyk { c, s, a: ag });
@@ -2594,34 +2618,25 @@ impl CmykBuffer {
     ) -> bool {
         let before = self.pixel(idx);
         let after = if let Some(ko) = self.knockout.as_deref_mut() {
-            let mut s0 = [0.0; crate::compositor::MAX_SPOTS];
-            for (slot, plane) in s0.iter_mut().zip(ko.initial_spots.iter()) {
-                *slot = plane[idx];
-            }
-            let initial = PixelCmyk {
-                c: [
-                    ko.initial[0][idx],
-                    ko.initial[1][idx],
-                    ko.initial[2][idx],
-                    ko.initial[3][idx],
-                ],
-                s: s0,
-                a: ko.initial_alpha[idx],
-            };
+            let initial = ko.initial_at(idx);
             let (px, ag) = composite_element_knockout_cmyk(
                 initial,
                 before,
                 source,
                 shape,
-                ko.group_alpha[idx],
+                at(&ko.group_alpha, idx),
                 blend,
             );
-            ko.group_alpha[idx] = ag;
+            put(&mut ko.group_alpha, idx, ag);
             // f_gi = Union(f_g(i−1), f_si) — the shape recurrence, which
             // §11.4.8 gives the same form as the alpha one with `f` in
             // place of `α`.
-            let f_prev = ko.group_shape[idx];
-            ko.group_shape[idx] = crate::compositor::union_(f_prev, shape.clamp(0.0, 1.0));
+            let f_prev = at(&ko.group_shape, idx);
+            put(
+                &mut ko.group_shape,
+                idx,
+                crate::compositor::union_(f_prev, shape.clamp(0.0, 1.0)),
+            );
             px
         } else {
             composite_element_cmyk(before, source, blend)
@@ -2696,7 +2711,7 @@ impl CmykBuffer {
         let mut out = Pixmap::new(self.width, self.height)?;
         let dst = out.pixels_mut();
         for (idx, slot) in dst.iter_mut().enumerate() {
-            let a = self.alpha[idx].clamp(0.0, 1.0);
+            let a = at(&self.alpha, idx).clamp(0.0, 1.0);
             // Step one: convert the group's colour, in the group's
             // space, to the device's. This happens for EVERY pixel,
             // including fully transparent ones, because the media
@@ -2704,13 +2719,8 @@ impl CmykBuffer {
             // toward -- and for a transparent pixel that colour is
             // multiplied by zero anyway, so the value is free to be
             // whatever the undefined colour converts to.
-            let rgb = pdfcer_core::color::cmyk_to_srgb_with(
-                self.intent,
-                self.planes[0][idx],
-                self.planes[1][idx],
-                self.planes[2][idx],
-                self.planes[3][idx],
-            );
+            let [c, m, y, k] = self.process_at(idx);
+            let rgb = pdfcer_core::color::cmyk_to_srgb_with(self.intent, c, m, y, k);
             // Step one-and-a-half: ISO 32000-2 §10.8.3's separation
             // simulation, folding this page's SPOT colorants in. See
             // `spot_simulated_srgb` -- it is a MULTIPLY, per step (c), and
@@ -2772,14 +2782,9 @@ impl CmykBuffer {
         let mut out = Pixmap::new(self.width, self.height)?;
         let dst = out.pixels_mut();
         for (idx, slot) in dst.iter_mut().enumerate() {
-            let a = self.alpha[idx].clamp(0.0, 1.0);
-            let rgb = pdfcer_core::color::cmyk_to_srgb_with(
-                self.intent,
-                self.planes[0][idx],
-                self.planes[1][idx],
-                self.planes[2][idx],
-                self.planes[3][idx],
-            );
+            let a = at(&self.alpha, idx).clamp(0.0, 1.0);
+            let [c, m, y, k] = self.process_at(idx);
+            let rgb = pdfcer_core::color::cmyk_to_srgb_with(self.intent, c, m, y, k);
             let rgb = self.fold_spots_srgb(idx, rgb);
             // Premultiply, and NOTHING else: no white, no `1 − a`.
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -2863,7 +2868,12 @@ impl CmykBuffer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
     use pdfcer_core::settings::CmykIntent;

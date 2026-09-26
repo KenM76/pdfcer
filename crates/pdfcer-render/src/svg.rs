@@ -438,19 +438,23 @@ impl Writer<'_> {
 
     fn ensure_clip(&mut self, id: ClipId) {
         let i = id.index();
-        if self.clip_written.get(i).copied().unwrap_or(true) {
-            return;
+        match self.clip_written.get_mut(i) {
+            Some(written) if !*written => *written = true,
+            _ => return,
         }
-        self.clip_written[i] = true;
-        let def = &self.clips[i];
-        let parent_attr = match def.parent {
+        let Some(parent) = self.clips.get(i).map(|def| def.parent) else {
+            return;
+        };
+        let parent_attr = match parent {
             Some(p) => {
                 self.ensure_clip(p);
                 format!(r#" clip-path="url(#c{})""#, p.index())
             }
             None => String::new(),
         };
-        let def = &self.clips[i];
+        let Some(def) = self.clips.get(i) else {
+            return;
+        };
         let mut d = String::new();
         let _ = write!(d, r#"<clipPath id="c{i}"{parent_attr}>"#);
         match def
@@ -797,7 +801,9 @@ impl Writer<'_> {
             Some(m) if self.masks_written.contains_key(&(Arc::as_ptr(m) as usize)) => {
                 format!(
                     r#" mask="url(#{})""#,
-                    self.masks_written[&(Arc::as_ptr(m) as usize)]
+                    self.masks_written
+                        .get(&(Arc::as_ptr(m) as usize))
+                        .map_or("", String::as_str)
                 )
             }
             Some(m) => {
@@ -849,8 +855,10 @@ impl Writer<'_> {
         };
         let mut used = vec![false; plan.fonts.len()];
         for i in 0..plan.runs.len() {
-            if let Ok(run) = plan.resolved(i) {
-                used[run.font] = true;
+            if let Ok(run) = plan.resolved(i)
+                && let Some(u) = used.get_mut(run.font)
+            {
+                *u = true;
             }
         }
         let mut css = String::new();
@@ -882,7 +890,9 @@ impl Writer<'_> {
             return;
         };
         self.ops += 1;
-        let font = &plan.fonts[run.font];
+        let Some(font) = plan.fonts.get(run.font) else {
+            return;
+        };
         let clip_attr = self.clip_attr(run.clip);
         let blend_attr = self.blend_attr(run.blend);
         let wrapped = !clip_attr.is_empty() || !blend_attr.is_empty();
@@ -1124,6 +1134,7 @@ fn mask_png(mask: &Mask) -> Option<Vec<u8>> {
 
 /// Standard base64 (RFC 4648 §4), padded. Twenty lines beats a dependency
 /// for one data-URI writer.
+#[allow(clippy::indexing_slicing)] // `chunks(3)` never yields an empty chunk; every `T` index is masked to 0..64
 fn base64(bytes: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
@@ -1153,7 +1164,12 @@ fn base64(bytes: &[u8]) -> String {
 fn _types(_: Arc<Pixmap>) {}
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

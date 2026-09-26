@@ -8,8 +8,6 @@ starts a fresh lib.rs, and nothing else notices the policy did not follow it.
 Exceptions, each for a stated reason:
 - pdfcer-print: calls the platform print API, so it cannot forbid unsafe.
 - pdfcer-cli, pdfcer-fetch: shells, not parsers of untrusted PDF bytes.
-- pdfcer-render: `indexing_slicing` not yet denied (~344 pixel-buffer sites).
-  A known gap, listed so the gate fails the day it closes and the list is stale.
 
 usage: python tools/check-engine-lint-policy.py
 """
@@ -22,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DENY = ("unwrap_used", "expect_used", "panic", "indexing_slicing")
 NO_DENY = {"pdfcer-cli", "pdfcer-fetch"}
 NO_FORBID = {"pdfcer-print", "pdfcer-cli"}
-WAIVED = {"pdfcer-render": {"indexing_slicing"}}
+WAIVED: dict[str, set[str]] = {}
 
 
 def main() -> int:

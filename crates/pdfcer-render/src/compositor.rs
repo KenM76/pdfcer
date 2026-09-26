@@ -343,8 +343,8 @@ impl Blend {
             }
             _ => {
                 let mut out = [0.0_f32; 4];
-                for i in 0..4 {
-                    out[i] = 1.0 - blend_separable(self, 1.0 - cb[i], 1.0 - cs[i]);
+                for ((o, &b), &s) in out.iter_mut().zip(&cb).zip(&cs) {
+                    *o = 1.0 - blend_separable(self, 1.0 - b, 1.0 - s);
                 }
                 out
             }
@@ -679,6 +679,7 @@ impl PixelCmyk {
 /// const generic would put a type parameter on the one function every
 /// per-pixel loop in this crate calls.
 #[must_use]
+#[allow(clippy::indexing_slicing)] // every loop runs 0..N over `[f32; N]` arrays (N = 3, 4 or MAX_SPOTS)
 pub fn composite_element_cmyk(backdrop: PixelCmyk, source: PixelCmyk, blend: Blend) -> PixelCmyk {
     let ab = backdrop.a.clamp(0.0, 1.0);
     let a_s = source.a.clamp(0.0, 1.0);
@@ -844,6 +845,7 @@ fn blend_spots(blend: Blend, backdrop: PixelCmyk, source: PixelCmyk, ab: f32) ->
 ///
 /// `(⟨C_i, α_i⟩, α_gi)`.
 #[must_use]
+#[allow(clippy::indexing_slicing)] // every loop runs 0..N over `[f32; N]` arrays (N = 3, 4 or MAX_SPOTS)
 pub fn composite_element_knockout(
     initial: Pixel,
     accum: Pixel,
@@ -921,6 +923,7 @@ pub fn composite_element_knockout(
 /// excluding the backdrop, which the caller must carry forward because it
 /// cannot be recovered from `α_i` alone.
 #[must_use]
+#[allow(clippy::indexing_slicing)] // every loop runs 0..N over `[f32; N]` arrays (N = 3, 4 or MAX_SPOTS)
 pub fn composite_element_knockout_cmyk(
     initial: PixelCmyk,
     accum: PixelCmyk,
@@ -990,8 +993,8 @@ pub fn remove_backdrop_cmyk(group: PixelCmyk, initial: PixelCmyk, group_alpha: f
     }
     let k = a0.mul_add(-1.0, a0 / agn);
     let mut out = [0.0_f32; 4];
-    for (i, o) in out.iter_mut().enumerate() {
-        *o = k.mul_add(group.c[i] - initial.c[i], group.c[i]);
+    for ((o, &g), &b) in out.iter_mut().zip(&group.c).zip(&initial.c) {
+        *o = k.mul_add(g - b, g);
     }
     out
 }
@@ -1047,7 +1050,12 @@ pub fn remove_backdrop(group: Pixel, initial: Pixel, group_alpha: f32) -> [f32; 
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

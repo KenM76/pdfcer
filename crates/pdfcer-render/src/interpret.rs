@@ -3292,9 +3292,9 @@ impl Interpreter<'_> {
                 // the problem from the other end for a page whose `cm`
                 // needs more than seven digits.
                 if nums.len() == 6
-                    && let Some(v) = operand_f64s(op, 6)
+                    && let Some([a, b, c, d, e, f]) = operand_f64s(op)
                 {
-                    let m = Mat64::from_row(v[0], v[1], v[2], v[3], v[4], v[5]);
+                    let m = Mat64::from_row(a, b, c, d, e, f);
                     // PRE-multiply: CTM' = M × CTM (§8.3.4).
                     self.gs
                         .current
@@ -3507,11 +3507,10 @@ impl Interpreter<'_> {
             b"m" => {
                 if nums.len() == 2 {
                     self.capture_path_ctm();
-                    let Some(v) = self.path_coords(op, &nums, 2) else {
+                    let Some([x, y]) = self.path_coords(op, &nums) else {
                         self.diag.tolerated += 1;
                         return;
                     };
-                    let (x, y) = (v[0], v[1]);
                     // Consecutive-`m` override (Table 59): PathBuilder
                     // naturally collapses a move_to followed by
                     // another move_to into the latter (no empty
@@ -3524,22 +3523,22 @@ impl Interpreter<'_> {
             }
             b"l" => {
                 if nums.len() == 2 && self.begin_segment() {
-                    let Some(v) = self.path_coords(op, &nums, 2) else {
+                    let Some([x, y]) = self.path_coords(op, &nums) else {
                         self.diag.tolerated += 1;
                         return;
                     };
-                    self.path.line_to(v[0], v[1]);
-                    self.current = Some((v[0], v[1]));
+                    self.path.line_to(x, y);
+                    self.current = Some((x, y));
                 }
             }
             b"c" => {
                 if nums.len() == 6 && self.begin_segment() {
-                    let Some(v) = self.path_coords(op, &nums, 6) else {
+                    let Some([x1, y1, x2, y2, x3, y3]) = self.path_coords(op, &nums) else {
                         self.diag.tolerated += 1;
                         return;
                     };
-                    self.path.cubic_to(v[0], v[1], v[2], v[3], v[4], v[5]);
-                    self.current = Some((v[4], v[5]));
+                    self.path.cubic_to(x1, y1, x2, y2, x3, y3);
+                    self.current = Some((x3, y3));
                 }
             }
             b"v" => {
@@ -3549,7 +3548,7 @@ impl Interpreter<'_> {
                     && self.begin_segment()
                     && let Some((cx, cy)) = self.current
                 {
-                    let Some(v) = self.path_coords(op, &nums, 4) else {
+                    let Some([x2, y2, x3, y3]) = self.path_coords(op, &nums) else {
                         self.diag.tolerated += 1;
                         return;
                     };
@@ -3557,19 +3556,19 @@ impl Interpreter<'_> {
                     // `current` is kept there — an affine map takes
                     // control points to control points, so a Bezier
                     // mapped point-by-point is the mapped Bezier.
-                    self.path.cubic_to(cx, cy, v[0], v[1], v[2], v[3]);
-                    self.current = Some((v[2], v[3]));
+                    self.path.cubic_to(cx, cy, x2, y2, x3, y3);
+                    self.current = Some((x3, y3));
                 }
             }
             b"y" => {
                 // Second control point = ENDPOINT.
                 if nums.len() == 4 && self.begin_segment() {
-                    let Some(v) = self.path_coords(op, &nums, 4) else {
+                    let Some([x1, y1, x3, y3]) = self.path_coords(op, &nums) else {
                         self.diag.tolerated += 1;
                         return;
                     };
-                    self.path.cubic_to(v[0], v[1], v[2], v[3], v[2], v[3]);
-                    self.current = Some((v[2], v[3]));
+                    self.path.cubic_to(x1, y1, x3, y3, x3, y3);
+                    self.current = Some((x3, y3));
                 }
             }
             b"h" => {
@@ -3581,7 +3580,7 @@ impl Interpreter<'_> {
                 self.needs_move = true;
             }
             b"re" => {
-                if let &[_x, _y, _w, _h] = nums.as_slice() {
+                if let &[nx, ny, nw, nh] = nums.as_slice() {
                     self.capture_path_ctm();
                     // `re`'s operands are an ORIGIN AND A SIZE, not two
                     // corners, so its four corner points have to be
@@ -3589,15 +3588,14 @@ impl Interpreter<'_> {
                     // is what carries the page magnitude, and adding
                     // after narrowing would put the quantisation back.
                     let Some(c) = (if self.path_precise {
-                        operand_f64s(op, 4).map(|v| {
-                            let (x, y, w, h) = (v[0], v[1], v[2], v[3]);
+                        operand_f64s(op).map(|[x, y, w, h]| {
                             let (ox, oy) = *self.path_origin.get_or_insert((x, y));
                             #[allow(clippy::cast_possible_truncation)]
                             [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
                                 .map(|(a, b)| ((a - ox) as f32, (b - oy) as f32))
                         })
                     } else {
-                        let (x, y, w, h) = (nums[0], nums[1], nums[2], nums[3]);
+                        let (x, y, w, h) = (nx, ny, nw, nh);
                         Some([(x, y), (x + w, y), (x + w, y + h), (x, y + h)])
                     }) else {
                         self.diag.tolerated += 1;
@@ -3606,13 +3604,14 @@ impl Interpreter<'_> {
                     // Table 59's defined expansion: m, l, l, l, h — a
                     // COMPLETE subpath (a following segment op starts
                     // a new subpath at (x, y) per the h rule).
-                    self.path.move_to(c[0].0, c[0].1);
-                    self.path.line_to(c[1].0, c[1].1);
-                    self.path.line_to(c[2].0, c[2].1);
-                    self.path.line_to(c[3].0, c[3].1);
+                    let [c0, c1, c2, c3] = c;
+                    self.path.move_to(c0.0, c0.1);
+                    self.path.line_to(c1.0, c1.1);
+                    self.path.line_to(c2.0, c2.1);
+                    self.path.line_to(c3.0, c3.1);
                     self.path.close();
-                    self.current = Some(c[0]);
-                    self.subpath_start = Some(c[0]);
+                    self.current = Some(c0);
+                    self.subpath_start = Some(c0);
                     self.needs_move = true;
                 }
             }
@@ -4604,21 +4603,31 @@ impl Interpreter<'_> {
     /// `x = 540` has an `f32` spacing of `6.1e-5 pt` — 21.5 µm — so a
     /// 30 µm feature written in page coordinates is barely more than one
     /// representable step wide before any matrix touches it.
-    fn path_coords(&mut self, op: &Operation<'_>, nums: &[f32], n: usize) -> Option<Vec<f32>> {
-        if nums.len() != n {
-            return None;
-        }
+    fn path_coords<const N: usize>(
+        &mut self,
+        op: &Operation<'_>,
+        nums: &[f32],
+    ) -> Option<[f32; N]> {
+        let nums: [f32; N] = nums.try_into().ok()?;
         if !self.path_precise {
-            return Some(nums.to_vec());
+            return Some(nums);
         }
-        let v = operand_f64s(op, n)?;
-        let (ox, oy) = *self.path_origin.get_or_insert((v[0], v[1]));
-        #[allow(clippy::cast_possible_truncation)]
-        Some(
-            v.chunks_exact(2)
-                .flat_map(|p| [(p[0] - ox) as f32, (p[1] - oy) as f32])
-                .collect(),
-        )
+        let v: [f64; N] = operand_f64s(op)?;
+        let &[x0, y0, ..] = v.as_slice() else {
+            return None;
+        };
+        let (ox, oy) = *self.path_origin.get_or_insert((x0, y0));
+        let mut out = [0.0_f32; N];
+        for (o, p) in out.chunks_exact_mut(2).zip(v.chunks_exact(2)) {
+            if let ([x_out, y_out], &[x, y]) = (o, p) {
+                #[allow(clippy::cast_possible_truncation)]
+                {
+                    *x_out = (x - ox) as f32;
+                    *y_out = (y - oy) as f32;
+                }
+            }
+        }
+        Some(out)
     }
 
     /// Common preamble for segment operators (`l c v y`): a segment
@@ -5504,9 +5513,9 @@ impl Interpreter<'_> {
                         .ramp
                         .as_ref()
                         .map_or([true; 4], super::shading::ColorRamp::ink_reach);
-                    for (i, rule) in rules.iter_mut().enumerate() {
+                    for (i, (rule, reaches)) in rules.iter_mut().zip(reach).enumerate() {
                         if *rule == crate::overprint::ComponentRule::Source
-                            && !reach[i]
+                            && !reaches
                             && !crate::overprint::names_process_channel(&kind, i)
                         {
                             // The shading never puts ink here and never named
@@ -9816,8 +9825,12 @@ fn intersect_clip(
         let new_data = mask.data_mut();
         for y in y0..y1 {
             let row = y * w;
-            let new_row = &mut new_data[row + x0..row + x1];
-            let old_row = &old_data[row + x0..row + x1];
+            let (Some(new_row), Some(old_row)) = (
+                new_data.get_mut(row + x0..row + x1),
+                old_data.get(row + x0..row + x1),
+            ) else {
+                continue;
+            };
             for (n, o) in new_row.iter_mut().zip(old_row.iter()) {
                 *n = ((u16::from(*n) * u16::from(*o)) / 255) as u8;
             }
@@ -9898,7 +9911,7 @@ fn matrix_entry64(doc: &DocumentView<'_>, dict: &Dict) -> Option<Mat64> {
 /// deep-zoom scale, and seven digits is not enough to survive the
 /// cancellation that follows. This reads the same operands again without
 /// that narrowing, and is called only from the two matrix sites.
-fn operand_f64s(op: &Operation<'_>, n: usize) -> Option<Vec<f64>> {
+fn operand_f64s<const N: usize>(op: &Operation<'_>) -> Option<[f64; N]> {
     let v: Vec<f64> = op
         .operands
         .iter()
@@ -9907,7 +9920,7 @@ fn operand_f64s(op: &Operation<'_>, n: usize) -> Option<Vec<f64>> {
             _ => None,
         })
         .collect();
-    (v.len() == n).then_some(v)
+    v.try_into().ok()
 }
 
 /// Read a four-number rectangle entry, **normalized** per §7.9.5.
@@ -10065,7 +10078,12 @@ fn image_edge_needs_antialiasing(ctm: Transform) -> bool {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod image_edge_antialiasing_tests {
     use super::image_edge_needs_antialiasing;
     use tiny_skia::Transform;

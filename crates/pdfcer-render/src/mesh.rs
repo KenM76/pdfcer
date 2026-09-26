@@ -570,7 +570,7 @@ impl<'a> BitReader<'a> {
         }
         let mut value: u64 = 0;
         for _ in 0..bits {
-            let byte = self.data[self.pos >> 3];
+            let &byte = self.data.get(self.pos >> 3)?;
             let bit = (byte >> (7 - (self.pos & 7))) & 1;
             value = (value << 1) | u64::from(bit);
             self.pos += 1;
@@ -656,8 +656,8 @@ struct ShadeContext<'a> {
 impl Params {
     /// Read a coordinate pair and decode it.
     fn read_point(&self, r: &mut BitReader<'_>) -> Option<[f32; 2]> {
-        let x = decode_field(r.read(self.bpco)?, self.bpco, self.decode[0]);
-        let y = decode_field(r.read(self.bpco)?, self.bpco, self.decode[1]);
+        let x = decode_field(r.read(self.bpco)?, self.bpco, *self.decode.first()?);
+        let y = decode_field(r.read(self.bpco)?, self.bpco, *self.decode.get(1)?);
         Some([x, y])
     }
 
@@ -688,10 +688,10 @@ impl Params {
         comps.clear();
         for i in 0..self.ncomp {
             let raw = r.read(self.bpcp)?;
-            comps.push(decode_field(raw, self.bpcp, self.decode[2 + i]));
+            comps.push(decode_field(raw, self.bpcp, *self.decode.get(2 + i)?));
         }
         if self.parametric {
-            return Some(Shade::Parametric(comps[0]));
+            return comps.first().map(|&t| Shade::Parametric(t));
         }
         // Through the page's bridges (`Pass 243.0`), so an `ICCBased` or
         // `Lab` corner converts as a fill in the same space does.
@@ -859,8 +859,13 @@ pub fn parse(input: &ParseInput<'_>, diag: &mut ColorDiagnostics) -> Result<Mesh
     if ncomp == 0 || raw_decode.len() < 4 + 2 * ncomp {
         return Err(MeshRefusal::BadDecode);
     }
-    let decode: Vec<[f32; 2]> = (0..2 + ncomp)
-        .map(|i| [raw_decode[2 * i], raw_decode[2 * i + 1]])
+    let decode: Vec<[f32; 2]> = raw_decode
+        .chunks_exact(2)
+        .take(2 + ncomp)
+        .filter_map(|p| match *p {
+            [lo, hi] => Some([lo, hi]),
+            _ => None,
+        })
         .collect();
 
     let params = Params {
@@ -1133,12 +1138,11 @@ fn parse_type5(
     // MSH22, verbatim: for 0 ≤ i ≤ m−2 and 0 ≤ j ≤ k−2,
     //   (V_i,j , V_i,j+1 , V_i+1,j)  and  (V_i,j+1 , V_i+1,j , V_i+1,j+1)
     let mut tris = Vec::with_capacity(2 * (m - 1) * (k - 1));
-    for i in 0..m - 1 {
-        for j in 0..k - 1 {
-            let a = verts[i * k + j];
-            let b = verts[i * k + j + 1];
-            let c = verts[(i + 1) * k + j];
-            let d = verts[(i + 1) * k + j + 1];
+    for (row, next) in verts.chunks_exact(k).zip(verts.chunks_exact(k).skip(1)) {
+        for (top, bottom) in row.windows(2).zip(next.windows(2)) {
+            let (&[a, b], &[c, d]) = (top, bottom) else {
+                continue;
+            };
             tris.push(triangle_of([a, b, c]));
             tris.push(triangle_of([b, c, d]));
         }
@@ -1240,12 +1244,14 @@ fn parse_patches(
 
         let mut pts = [[0.0f32; 2]; 16];
         let mut ok = true;
-        for &(i, j) in &PATCH_ORDER[read_from..read_to] {
+        for &(i, j) in PATCH_ORDER.iter().take(read_to).skip(read_from) {
             let Some(xy) = p.read_point(r) else {
                 ok = false;
                 break;
             };
-            pts[i * 4 + j] = xy;
+            if let Some(slot) = pts.get_mut(i * 4 + j) {
+                *slot = xy;
+            }
         }
         if !ok {
             *truncated = true;
@@ -1287,8 +1293,10 @@ fn parse_patches(
                 2 => [(3, 3), (3, 2), (3, 1), (3, 0)],
                 _ => [(3, 0), (2, 0), (1, 0), (0, 0)],
             };
-            for (slot, (i, j)) in src.into_iter().enumerate() {
-                pts[slot] = prev_patch.p[i][j];
+            for (slot, (i, j)) in pts.iter_mut().zip(src) {
+                if let Some(&xy) = prev_patch.p.get(i).and_then(|col| col.get(j)) {
+                    *slot = xy;
+                }
             }
             let (c0, c1) = match flag {
                 1 => (prev_patch.corner[1], prev_patch.corner[2]),
@@ -1309,10 +1317,8 @@ fn parse_patches(
         debug_assert_eq!(PATCH_ORDER[3], (0, 3));
 
         let mut grid = [[[0.0f32; 2]; 4]; 4];
-        for (i, col) in grid.iter_mut().enumerate() {
-            for (j, cell) in col.iter_mut().enumerate() {
-                *cell = pts[i * 4 + j];
-            }
+        for (cell, xy) in grid.iter_mut().flatten().zip(pts) {
+            *cell = xy;
         }
         if !tensor {
             // MSH30 — a Coons patch IS a tensor patch whose four internal
@@ -1384,14 +1390,13 @@ fn coons_internals(g: &mut [[[f32; 2]; 4]; 4]) {
              i: [f32; 2],
              j: [f32; 2]|
      -> [f32; 2] {
-        let mut out = [0.0f32; 2];
-        for t in 0..2 {
-            out[t] = (-4.0 * a[t] + 6.0 * (b[t] + c[t]) - 2.0 * (d[t] + e[t])
-                + 3.0 * (h[t] + i[t])
-                - j[t])
-                / 9.0;
-        }
-        out
+        let axis = |t: usize| {
+            let at = |p: [f32; 2]| p.get(t).copied().unwrap_or(0.0);
+            (-4.0 * at(a) + 6.0 * (at(b) + at(c)) - 2.0 * (at(d) + at(e)) + 3.0 * (at(h) + at(i))
+                - at(j))
+                / 9.0
+        };
+        [axis(0), axis(1)]
     };
 
     g[1][1] = f(p00, p01, p10, p03, p30, p31, p13, p33);
@@ -1785,28 +1790,24 @@ fn rasterise(
                 }
                 // MSH32: increasing v outer, increasing u inner, painted in
                 // that order, so the largest-v point wins a fold.
-                for jv in 0..n as usize {
-                    for iu in 0..n as usize {
-                        let a = jv * side + iu;
-                        let b = a + 1;
-                        let c = a + side;
-                        let d = c + 1;
-                        fill_triangle(
-                            &mut scratch,
-                            ox,
-                            oy,
-                            [grid_p[a], grid_p[b], grid_p[c]],
-                            [grid_s[a], grid_s[b], grid_s[c]],
-                            ramp,
-                        );
-                        fill_triangle(
-                            &mut scratch,
-                            ox,
-                            oy,
-                            [grid_p[b], grid_p[c], grid_p[d]],
-                            [grid_s[b], grid_s[c], grid_s[d]],
-                            ramp,
-                        );
+                let rows_p = grid_p
+                    .chunks_exact(side)
+                    .zip(grid_p.chunks_exact(side).skip(1));
+                let rows_s = grid_s
+                    .chunks_exact(side)
+                    .zip(grid_s.chunks_exact(side).skip(1));
+                for ((p0, p1), (s0, s1)) in rows_p.zip(rows_s) {
+                    let cells = p0
+                        .windows(2)
+                        .zip(p1.windows(2))
+                        .zip(s0.windows(2).zip(s1.windows(2)));
+                    for ((pt, pb), (st, sb)) in cells {
+                        let (&[pa, pb_], &[pc, pd], &[sa, sb_], &[sc, sd]) = (pt, pb, st, sb)
+                        else {
+                            continue;
+                        };
+                        fill_triangle(&mut scratch, ox, oy, [pa, pb_, pc], [sa, sb_, sc], ramp);
+                        fill_triangle(&mut scratch, ox, oy, [pb_, pc, pd], [sb_, sc, sd], ramp);
                     }
                 }
             }
@@ -1834,10 +1835,8 @@ fn patch_device_extent(patch: &Patch, to_device: tiny_skia::Transform) -> f32 {
     for col in &patch.p {
         for pt in col {
             let d = map(to_device, *pt);
-            for t in 0..2 {
-                lo[t] = lo[t].min(d[t]);
-                hi[t] = hi[t].max(d[t]);
-            }
+            lo = [lo[0].min(d[0]), lo[1].min(d[1])];
+            hi = [hi[0].max(d[0]), hi[1].max(d[1])];
         }
     }
     (hi[0] - lo[0]).max(hi[1] - lo[1])
@@ -1949,7 +1948,13 @@ fn fill_triangle(
             // CRACK_MARGIN_PX for why the unconditional form was wrong.
             if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
                 let in_margin = w0 >= t0 && w1 >= t1 && w2 >= t2;
-                if !in_margin || scratch.rgba.pixels()[idx].alpha() != 0 {
+                if !in_margin
+                    || scratch
+                        .rgba
+                        .pixels()
+                        .get(idx)
+                        .is_none_or(|p| p.alpha() != 0)
+                {
                     continue;
                 }
             }
@@ -1972,8 +1977,9 @@ fn fill_triangle(
             // documents for the analytic path.
             if let Some(c) =
                 tiny_skia::PremultipliedColorU8::from_rgba(to8(rgb.r), to8(rgb.g), to8(rgb.b), 255)
+                && let Some(px) = scratch.rgba.pixels_mut().get_mut(idx)
             {
-                scratch.rgba.pixels_mut()[idx] = c;
+                *px = c;
                 // The ink plane is written INSIDE the same `if`, keyed on
                 // the same `idx`, so a pixel is never marked painted in one
                 // plane and not the other. `alpha != 0` in `rgba` is the
@@ -1983,8 +1989,9 @@ fn fill_triangle(
                 // disagree.
                 if let Some(ink) = scratch.ink.as_mut()
                     && let Some(c) = shaded.resolve_cmyk(ramp)
+                    && let Some(slot) = ink.get_mut(idx)
                 {
-                    ink[idx] = c;
+                    *slot = c;
                 }
             }
         }
@@ -2091,7 +2098,9 @@ fn composite(
 
     for sy in 0..sh {
         for sx in 0..sw {
-            let src = scratch.pixels()[sy * sw + sx];
+            let Some(&src) = scratch.pixels().get(sy * sw + sx) else {
+                continue;
+            };
             if src.alpha() == 0 {
                 continue;
             }
@@ -2113,7 +2122,7 @@ fn composite(
             }
 
             let coverage = match clip {
-                Some(mask) => f32::from(mask.data()[didx]) / 255.0,
+                Some(mask) => mask.data().get(didx).map_or(0.0, |&m| f32::from(m) / 255.0),
                 None => 1.0,
             };
             let a = alpha * coverage;
@@ -2125,7 +2134,9 @@ fn composite(
             // the same channel-clamped-to-alpha guard, that
             // `shading::paint_region` documents at length. The source is
             // opaque here, so `src.red()` is already the straight value.
-            let dst = pixmap.pixels()[didx];
+            let Some(&dst) = pixmap.pixels().get(didx) else {
+                continue;
+            };
             let inv = 1.0 - a;
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let out_a = a
@@ -2145,8 +2156,9 @@ fn composite(
                 mix(src.green(), dst.green()),
                 mix(src.blue(), dst.blue()),
                 out_a,
-            ) {
-                pixmap.pixels_mut()[didx] = c;
+            ) && let Some(px) = pixmap.pixels_mut().get_mut(didx)
+            {
+                *px = c;
                 painted += 1;
             }
         }
@@ -2155,7 +2167,12 @@ fn composite(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

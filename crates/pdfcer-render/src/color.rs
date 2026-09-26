@@ -1992,11 +1992,11 @@ fn tint_to_cmyk(
         diag.tint_transform_not_applied += 1;
         return None;
     };
-    if out.len() < 4 {
+    let [c, m, y, k, ..] = out[..] else {
         return None;
-    }
+    };
     #[allow(clippy::cast_possible_truncation)]
-    Some([out[0] as f32, out[1] as f32, out[2] as f32, out[3] as f32])
+    Some([c as f32, m as f32, y as f32, k as f32])
 }
 
 fn tint_through(

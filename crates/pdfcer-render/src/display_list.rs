@@ -1170,10 +1170,10 @@ impl<'a> MaskBuilder<'a> {
 
     fn mask_for(&mut self, id: Option<ClipId>) -> Option<Arc<Mask>> {
         let id = id?;
-        if let Some(cached) = &self.built[id.index()] {
+        if let Some(cached) = self.built.get(id.index())? {
             return cached.clone();
         }
-        let def = self.defs[id.index()].clone();
+        let def = self.defs.get(id.index())?.clone();
         // Parent first — except for an empty clip, which deliberately does
         // NOT recurse: it admits nothing regardless of what it was
         // intersected with, and the painting path models it as a bare
@@ -1184,7 +1184,9 @@ impl<'a> MaskBuilder<'a> {
             self.mask_for(def.parent)
         };
         let built = self.build(&def, parent.as_deref());
-        self.built[id.index()] = Some(built.clone());
+        if let Some(slot) = self.built.get_mut(id.index()) {
+            *slot = Some(built.clone());
+        }
         built
     }
 
@@ -1634,7 +1636,12 @@ impl RecorderState {
             for row in 0..bh {
                 let s0 = ((y0 + row) * w + x0) as usize;
                 let d0 = (row * bw) as usize;
-                dst[d0..d0 + bw as usize].copy_from_slice(&src[s0..s0 + bw as usize]);
+                if let (Some(d), Some(s)) = (
+                    dst.get_mut(d0..d0 + bw as usize),
+                    src.get(s0..s0 + bw as usize),
+                ) {
+                    d.copy_from_slice(s);
+                }
             }
         }
         export.scratch.fill(tiny_skia::Color::TRANSPARENT);
@@ -1802,7 +1809,12 @@ impl Recorder {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
     use tiny_skia::{BlendMode, PathBuilder, Rect as SkRect};

@@ -92,11 +92,12 @@ impl TextPlan {
     /// The run's final decision, font build included.
     pub(crate) fn resolved(&self, i: usize) -> Result<&TextRunPlan, Fallback> {
         match self.runs.get(i) {
-            Some(Ok(run)) => match &self.fonts[run.font].font {
-                Ok(_) => Ok(run),
-                Err(WebFontError::Restricted) => Err(Fallback::Restricted),
-                Err(WebFontError::NotSfnt) => Err(Fallback::NotSfnt),
-                Err(_) => Err(Fallback::FontBuild),
+            Some(Ok(run)) => match self.fonts.get(run.font).map(|f| &f.font) {
+                Some(Ok(_)) => Ok(run),
+                None => Err(Fallback::FontBuild),
+                Some(Err(WebFontError::Restricted)) => Err(Fallback::Restricted),
+                Some(Err(WebFontError::NotSfnt)) => Err(Fallback::NotSfnt),
+                Some(Err(_)) => Err(Fallback::FontBuild),
             },
             Some(Err(f)) => Err(*f),
             None => Err(Fallback::Paint),
@@ -121,8 +122,10 @@ impl TextPlan {
         // A font counts as embedded when some run is written with it.
         let mut used = vec![false; self.fonts.len()];
         for i in 0..self.runs.len() {
-            if let Ok(run) = self.resolved(i) {
-                used[run.font] = true;
+            if let Ok(run) = self.resolved(i)
+                && let Some(u) = used.get_mut(run.font)
+            {
+                *u = true;
             }
         }
         o.fonts_embedded = used.iter().filter(|u| **u).count();
@@ -218,7 +221,9 @@ impl Planner {
                 self.fonts.len() - 1
             }
         };
-        let map = &mut self.fonts[slot].1;
+        let Some((_, map, _)) = self.fonts.get_mut(slot) else {
+            return Err(Fallback::Paint);
+        };
         // Check the whole run before recording any of it, so a refused run
         // leaves no characters behind.
         let mut pending = BTreeMap::new();
@@ -333,7 +338,12 @@ pub(crate) fn family_of(base_font: &str) -> String {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

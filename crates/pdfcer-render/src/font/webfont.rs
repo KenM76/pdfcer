@@ -131,8 +131,12 @@ pub(crate) fn build(
     let os2 = match source_os2.filter(|t| t.len() >= 78) {
         Some(src) => {
             let mut t = src.to_vec();
-            t[64..66].copy_from_slice(&first.to_be_bytes());
-            t[66..68].copy_from_slice(&last.to_be_bytes());
+            if let Some(d) = t.get_mut(64..66) {
+                d.copy_from_slice(&first.to_be_bytes());
+            }
+            if let Some(d) = t.get_mut(66..68) {
+                d.copy_from_slice(&last.to_be_bytes());
+            }
             t
         }
         None => synthesize_os2(head, hhea, first, last),
@@ -177,12 +181,16 @@ pub(crate) fn wrap_cff(cff: &[u8], used: impl IntoIterator<Item = u16>) -> Optio
         let (advance, bounds) = program.cff_metrics(u32::from(gid))?;
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let advance = advance.round().clamp(0.0, 65535.0) as u16;
-        advances[usize::from(gid)] = advance;
+        if let Some(a) = advances.get_mut(usize::from(gid)) {
+            *a = advance;
+        }
         max_advance = max_advance.max(advance);
         if let Some(b) = bounds {
             #[allow(clippy::cast_possible_truncation)]
             {
-                lsbs[usize::from(gid)] = b.left().round().clamp(-32768.0, 32767.0) as i16;
+                if let Some(l) = lsbs.get_mut(usize::from(gid)) {
+                    *l = b.left().round().clamp(-32768.0, 32767.0) as i16;
+                }
             }
             x0 = x0.min(b.left());
             y0 = y0.min(b.top());
@@ -305,7 +313,9 @@ fn read_u32(d: &[u8], at: usize) -> Option<u32> {
 fn checksum(data: &[u8]) -> u32 {
     data.chunks(4).fold(0u32, |sum, c| {
         let mut w = [0u8; 4];
-        w[..c.len()].copy_from_slice(c);
+        for (d, s) in w.iter_mut().zip(c) {
+            *d = *s;
+        }
         sum.wrapping_add(u32::from_be_bytes(w))
     })
 }
@@ -330,8 +340,10 @@ fn assemble(flavor: u32, mut tables: Vec<([u8; 4], Vec<u8>)>) -> Vec<u8> {
     let mut offset = 12 + tables.len() * 16;
     let mut head_at = None;
     for (tag, data) in &mut tables {
-        if tag == b"head" {
-            data[8..12].fill(0);
+        if tag == b"head"
+            && let Some(adjust) = data.get_mut(8..12)
+        {
+            adjust.fill(0);
             head_at = Some(offset);
         }
         out.extend_from_slice(tag);
@@ -346,7 +358,9 @@ fn assemble(flavor: u32, mut tables: Vec<([u8; 4], Vec<u8>)>) -> Vec<u8> {
     }
     if let Some(at) = head_at {
         let adjust = 0xB1B0_AFBAu32.wrapping_sub(checksum(&out));
-        out[at + 8..at + 12].copy_from_slice(&adjust.to_be_bytes());
+        if let Some(d) = out.get_mut(at + 8..at + 12) {
+            d.copy_from_slice(&adjust.to_be_bytes());
+        }
     }
     out
 }
@@ -535,12 +549,19 @@ fn post_v3(source: Option<&[u8]>) -> Vec<u8> {
         Some(header) => header.to_vec(),
         None => vec![0; 32],
     };
-    t[..4].copy_from_slice(&0x0003_0000u32.to_be_bytes());
+    if let Some(version) = t.get_mut(..4) {
+        version.copy_from_slice(&0x0003_0000u32.to_be_bytes());
+    }
     t
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

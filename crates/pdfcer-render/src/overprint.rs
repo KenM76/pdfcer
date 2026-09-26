@@ -625,7 +625,7 @@ pub fn authored_tints(kind: &SourceKind, comps: &[f32]) -> Option<[f32; 4]> {
         // -- the whole point of the variant is that the tints are stated even
         // though the overprint row is not Row 1.
         SourceKind::DeviceCmykDirect | SourceKind::ProcessCmykIndirect if comps.len() == 4 => {
-            Some([comps[0], comps[1], comps[2], comps[3]])
+            <[f32; 4]>::try_from(comps).ok()
         }
         SourceKind::SeparationOrDeviceN { names } => {
             let mut t = [0.0_f32; 4];
@@ -641,8 +641,8 @@ pub fn authored_tints(kind: &SourceKind, comps: &[f32]) -> Option<[f32; 4]> {
                         // one had already drifted in type -- it took a `&str`
                         // while the other took bytes. Consolidated rather than
                         // patched twice.
-                        if let Some(ch) = process_channel(name) {
-                            t[ch] = *v;
+                        if let Some(slot) = process_channel(name).and_then(|ch| t.get_mut(ch)) {
+                            *slot = *v;
                         }
                     }
                 }
@@ -1118,14 +1118,8 @@ pub fn cmyk_group_rules_with_planes(
 
         SourceKind::DeviceCmykDirect => {
             let mut out = [ComponentRule::Source; 4];
-            for (i, rule) in out.iter_mut().enumerate() {
-                *rule = compatible_overprint_cmyk(
-                    source,
-                    &Component::ProcessCmyk,
-                    op,
-                    opm,
-                    source_cmyk[i],
-                );
+            for (rule, &tint) in out.iter_mut().zip(&source_cmyk) {
+                *rule = compatible_overprint_cmyk(source, &Component::ProcessCmyk, op, opm, tint);
             }
             out
         }
@@ -1157,7 +1151,9 @@ pub fn cmyk_group_rules_with_planes(
                     Colorant::None => {}
                     Colorant::Named(name) => {
                         if let Some(ch) = process_channel(name) {
-                            out[ch] = ComponentRule::Source;
+                            if let Some(rule) = out.get_mut(ch) {
+                                *rule = ComponentRule::Source;
+                            }
                             named_process = true;
                         } else {
                             // A colorant pdfcer has no plate for. Its ink is
@@ -1283,7 +1279,10 @@ pub fn composite(
     for y in y0..y1 {
         for x in x0..x1 {
             let idx = (y * width + x) as usize;
-            let c = f32::from(cov[idx]) / 255.0;
+            let Some(&cv) = cov.get(idx) else {
+                continue;
+            };
+            let c = f32::from(cv) / 255.0;
             if c <= 0.0 {
                 continue;
             }
@@ -1292,7 +1291,9 @@ pub fn composite(
             // and a `ca` of 0.5 attenuate identically.
             let t = c * alpha;
 
-            let px = pixmap.pixels()[idx];
+            let Some(&px) = pixmap.pixels().get(idx) else {
+                continue;
+            };
             // `tiny_skia` stores premultiplied; demultiply to get the
             // colour Table 149 reasons about. A fully transparent pixel
             // has no meaningful colour, so it is treated as white paper —
@@ -1309,10 +1310,7 @@ pub fn composite(
             };
 
             let backdrop = rgb_to_cmyk(br, bg, bb);
-            let mut out = [0.0_f32; 4];
-            for i in 0..4 {
-                out[i] = rules[i].apply(backdrop[i], source_cmyk[i]).clamp(0.0, 1.0);
-            }
+            let out = apply_rules(&rules, &backdrop, &source_cmyk);
             let (nr, ng, nb) = cmyk_to_rgb(out);
 
             // Interpolate between the backdrop and the overprint result by
@@ -1337,11 +1335,22 @@ pub fn composite(
                 if np != px {
                     changed += 1;
                 }
-                pixmap.pixels_mut()[idx] = np;
+                if let Some(slot) = pixmap.pixels_mut().get_mut(idx) {
+                    *slot = np;
+                }
             }
         }
     }
     changed
+}
+
+/// Table 149's per-colorant result, each clamped to 0–1.
+fn apply_rules(rules: &[ComponentRule; 4], backdrop: &[f32; 4], source: &[f32; 4]) -> [f32; 4] {
+    let mut out = [0.0_f32; 4];
+    for (((o, rule), &b), &s) in out.iter_mut().zip(rules).zip(backdrop).zip(source) {
+        *o = rule.apply(b, s).clamp(0.0, 1.0);
+    }
+    out
 }
 
 /// Whether this source space names at least one **process** colorant.
@@ -1548,10 +1557,7 @@ pub fn composite_varying(
                 )
             };
             let backdrop = rgb_to_cmyk(br, bg, bb);
-            let mut out = [0.0_f32; 4];
-            for i in 0..4 {
-                out[i] = rules[i].apply(backdrop[i], source[i]).clamp(0.0, 1.0);
-            }
+            let out = apply_rules(&rules, &backdrop, &source);
             let (nr, ng, nb) = cmyk_to_rgb(out);
             let fr = br + (nr - br) * t;
             let fg = bg + (ng - bg) * t;
@@ -1579,7 +1585,12 @@ pub fn composite_varying(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 

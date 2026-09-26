@@ -188,15 +188,18 @@ fn face_from_base_font(base_font: &str) -> String {
     }
     let mut out = String::with_capacity(stem.len() + 4);
     let chars: Vec<char> = stem.chars().collect();
+    let mut prev: Option<char> = None;
     for (i, &c) in chars.iter().enumerate() {
-        if i > 0 && c.is_ascii_uppercase() {
-            let prev = chars[i - 1];
+        if let Some(prev) = prev
+            && c.is_ascii_uppercase()
+        {
             let next_lower = chars.get(i + 1).is_some_and(char::is_ascii_lowercase);
             if prev.is_ascii_lowercase() || (prev.is_ascii_uppercase() && next_lower) {
                 out.push(' ');
             }
         }
         out.push(c);
+        prev = Some(c);
     }
     if out.is_empty() {
         "Arial".to_owned()
@@ -258,7 +261,12 @@ fn style(run: &TextRunInfo) -> (i32, bool) {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
 
