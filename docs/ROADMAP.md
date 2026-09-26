@@ -115,6 +115,70 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 330.0` (`3127b18c`), 2026-09-26 — Edit routes must not rewrite a page content stream another page also draws
+
+**Verdict: SHIPPED.** Found by rotation, not report — the redaction
+shared-content-stream fix (`e92cf7dd`, 608th filing) fixed this defect
+shape in `apply_redactions` only; the same pattern existed in the general
+edit routes.
+
+**What shipped.** `EditSession`'s private `text_edit_command` — the shared
+path behind `edit_text`, `format_text`, reflow apply, `merge_text_runs` and
+vector surgery (`move_object`/`delete_object` etc.) — now checks whether any
+stream in the page's `/Contents` is also drawn by another page. If so: the
+new content goes into `contents[0]` when that stream is exclusive to the
+page, else into a freshly allocated object; the page's `/Contents` is
+repointed to it; exclusive extras are emptied; shared streams are left
+untouched. A `/Font` resource `format_text` adds inline to the same page
+dict is merged into the single page write (previously two writes to one
+object). The one-shot path (`text_edit::edit_text`, `set_format`,
+`apply_reflow` via `write_incremental_with`) carries the same rule; the
+fresh object number avoids colliding with a font object created in the
+same revision.
+
+**Not decision 076/112's territory.** Those decisions rule on shared Form
+XObjects (edit-in-place, disclosed, deliberately not decoupled). No standing
+decision yet covers a shared **page** content stream; `e92cf7dd`'s default
+(decouple, never mutate a resource another page also draws) is the
+engineer's precedent here too, not yet promoted to a §12 decision — mint one
+if a future Pass confirms the same default suits every route.
+
+**Disclosure.** Every route pushes one line containing "shared a content
+stream" into the report's existing `disclosures`. No `pub` signature
+changed; the form-XObject route is unaffected.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gains a paragraph, "A
+shared PAGE content stream is the opposite case"; `index.md` line count
+updated. `check-core-api-verbs` PASS.
+
+**Tests.** New `crates/pdfcer-core/tests/shared_page_content_edit.rs`, 6
+tests: single shared stream; shared trailing stream; unshared control;
+session edit + undo leaves 0 objects written; format adding a font on both
+paths, other page's raw content byte-identical; vector `delete_object`.
+Sabotage: disabling shared detection fails 5 targeted tests; dropping the
+page-write merge fails the format test on each path separately. `pdfcer-core`
+tests: 1223 lib + 2040 integration (2 ignored) + 121 pass; clippy clean.
+
+**Known residuals** (Backlog notes on this entry, not new Passes): (1) the
+reports' `extra_objects_emptied` / "multi-stream page: N additional streams
+collapsed" disclosure is computed at plan time as `contents.len()-1`, so it
+can overstate by the shared streams dropped from the page rather than
+emptied; (2) vector verbs other than `delete_object` share the same code
+path but have no dedicated fixture.
+
+**No cargo manifest touched** (`cargo tree` unchanged). No CLI change
+needed — the CLI already prints report disclosures.
+
+**FEATURES.md.** Annotated, no checkbox move: edit existing text runs in
+place, text formatting on existing text, reflow within a block, merge text
+runs, and move/delete a whole object — each row gained a clause naming the
+decoupling; core/cli boxes unchanged, no `gui` box moved (not this
+project's shell).
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's report of `3127b18c`, not independently
+reproduced.
+
 ### `Pass 325.0` (13 commits, `0fbf6cbb`→`3057b06c`; full list in `SESSION_LOG.md` 594th–605th filings), 2026-09-23–26 — split `pdfcer-core` into a model crate + seven leaf crates behind a facade
 
 **Verdict: SHIPPED, all 7 steps + the §12 decision.** Operator ask: *"Why was
@@ -6975,10 +7039,10 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★ **ONE ITEM ADDED 2026-09-26 (608th filing) — `Pass 330.0`, new family,
-> found by rotation from the redaction shared-content-stream fix (`e92cf7dd`,
-> Backlog closure above).** Live entry filed immediately before the
-> `Pass 5.4` heading further down this section.
+> ★★★★ **`Pass 330.0` SHIPPED, 2026-09-26 (609th filing), `3127b18c`** — see
+> top of *Shipped*. Filed *Next up* by the 608th filing, found by rotation
+> from the redaction shared-content-stream fix (`e92cf7dd`); this banner is
+> left as the pointer, the live entry has moved.
 
 > ★★★★ **ONE ITEM ADDED 2026-09-05 (439th filing) — `Pass 256.0`, EDIT TEXT
 > ACROSS SHOW OPERATORS, from the `pdfcer-gui` correction of the same
@@ -7187,43 +7251,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
-
-### `Pass 330.0` — Edit routes must not rewrite a page content stream another page also draws — filed 2026-09-26 (608th filing), **NOT STARTED**, new family
-
-**Found by rotation, not by report.** `e92cf7dd` fixed this defect shape in
-`apply_redactions` only: rewrite `contents[0]` in place, empty
-`contents[1..]`, without checking whether another page also draws the same
-stream object. The same pattern exists in the general edit routes —
-`text_edit/edit.rs` (the `Surgery` target `page()` and the write near its
-`content_id`/`extra_emptied` loop), `text_edit/reflow_apply.rs`, and several
-`edit.rs` vector/page verbs (the `page.contents.first()` sites and the extras
-loop near the `contents[0]` comment, `~line 17068`). Editing one page through
-any of these routes can therefore silently change or blank another page that
-shares the same content stream.
-
-**Not covered by decision 076/112.** Those decisions rule on shared **Form
-XObjects** — edit-in-place, disclosed, deliberately not decoupled. No
-standing decision covers a shared **page content stream**; `e92cf7dd`'s
-default (decouple: fresh stream for the edited page, shared stream dropped
-from its `/Contents`, emptied only once every drawing page has been edited)
-is the engineer's precedent for this Pass, not yet a §12 decision — mint one
-if this Pass confirms the same default suits every route.
-
-**Acceptance criteria.** Per-route fixtures: (a) a stream shared as EVERY
-page's sole `/Contents` entry, edited through each route in turn; (b) a
-stream shared as one page's TRAILING `/Contents` entry (the emptied-not-
-dropped shape `e92cf7dd` also had to handle). After each edit: the page
-edited reflects the edit; every OTHER page sharing the stream is
-byte-identical to before the edit; undo restores the pre-edit document
-exactly; the disclosure (status line / CLI print, per CLAUDE.md rule 4) names
-the decoupling when it happens. No route may regress an existing round-trip
-or minimal-diff test.
-
-**`docs/FEATURES.md`:** none of the affected routes' rows claim shared-
-content-stream handling today (only the redaction row now does, after
-`e92cf7dd`) — no new row; this Pass will annotate the affected rows in the
-same filing it ships, the same way the redaction row was annotated without
-a checkbox move.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 

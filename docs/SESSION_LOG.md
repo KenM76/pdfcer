@@ -4,6 +4,56 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (609th filing) — `3127b18c`: `Pass 330.0` SHIPPED — edit routes decouple a page content stream another page also draws
+
+**Shipped:**
+- `Pass 330.0` — `EditSession`'s private `text_edit_command` (the shared path
+  behind `edit_text`, `format_text`, reflow apply, `merge_text_runs`, and
+  vector surgery — `move_object`/`delete_object` etc.) now checks whether any
+  stream in the page's `/Contents` is also drawn by another page; if so, the
+  edited page gets a fresh stream (or `contents[0]` when exclusive) and the
+  shared stream is left untouched. The one-shot path (`edit_text`,
+  `set_format`, `apply_reflow`) carries the same rule. A `/Font` `format_text`
+  adds inline is now merged into the single page write. Every route discloses
+  "shared a content stream" off-canvas. Closes the family this Pass opened at
+  the 608th filing, in rotation from the redaction fix (`e92cf7dd`).
+
+**Decisions made this session:** none newly numbered. `e92cf7dd`'s decouple
+default is confirmed as the right default for every edit route by this
+Pass's own acceptance criteria, but stays engineer precedent inside
+`Pass 330.0` rather than a §12 decision — mint one only if a further route
+needs the same rule.
+
+**Findings + decisions:**
+- `docs/FEATURES.md`: five rows annotated (no checkbox move, core/cli already
+  ticked) — edit existing text runs in place, text formatting on existing
+  text, reflow within a block, merge text runs, and move/delete a whole
+  object — each gained a clause naming the decoupling and citing `Pass
+  330.0`/`3127b18c`.
+- Known residuals filed as Backlog notes on the Shipped entry, not new
+  Passes: the `extra_objects_emptied` disclosure can overstate by shared
+  streams dropped rather than emptied; vector verbs other than
+  `delete_object` share the code path with no dedicated fixture yet.
+- **Gotcha for next time:** a Python heredoc patch again dropped a Rust
+  line-continuation backslash while editing this Pass's code — the same
+  known trap prior filings have hit. `tools/check-string-gaps.sh` caught it
+  before push; still worth a beat of caution before trusting a heredoc-edited
+  `.rs` file, backslash continuations are the recurring casualty.
+
+**Still in flight:** none for this Pass — SHIPPED end to end (session +
+one-shot paths, docs, tests).
+
+**For next session:** decide whether the decouple-shared-page-stream default
+should graduate to a §12 decision once another route independently needs it;
+the two known residuals above are Backlog notes, not blocking.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, test counts
+and all measured figures are relayed from the dispatching engineer's own
+report of `3127b18c`; not independently reproduced. The Pass-330.0 ROADMAP
+move (Next up → Shipped) and the FEATURES.md row identification were
+independently verified here by `Grep`/`Read` against the live documents,
+within this role's reach without a shell.
+
 ## 2026-09-26 (608th filing) — `e92cf7dd`/`11e7a0e5` (merged `a0f3bb79`): redaction stops rewriting a shared page content stream in place; `pdfcer-render` denies `indexing_slicing` crate-wide; `Pass 330.0` opened
 
 **Shipped:**
