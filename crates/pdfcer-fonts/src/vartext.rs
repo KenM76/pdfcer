@@ -84,6 +84,8 @@
 //!   COUNTED** ([`VarTextAppearance::unencodable_chars`]) — disclosed, not
 //!   silently dropped (fuzzy-never-sneaky).
 
+use std::collections::BTreeMap;
+
 use crate::fontdata::{self, BaseEncoding, Std14};
 use pdfcer_model::content::{ContentStream, ContentTokenKind};
 use pdfcer_model::object::{Dict, Name, Object};
@@ -185,6 +187,48 @@ pub struct FontResource {
     /// as the code for `?` and counted as unencodable. `widths` must be
     /// indexed by the same codes. `None` writes `WinAnsi`.
     pub codes: Option<Box<[Option<char>; 256]>>,
+    /// The resource's own two-byte codes, when it is a `/Type0` font with
+    /// `/Encoding /Identity-H` (§9.7.5.2: code = CID). The generator then
+    /// writes each character as its two-byte code, big-endian, and measures
+    /// with these widths; `widths` and `codes` are ignored. `None` for a
+    /// simple font.
+    pub cid: Option<Box<CidCodes>>,
+}
+
+/// A composite font's character→code table and widths, for
+/// [`FontResource::cid`].
+///
+/// A code is a CID under `Identity-H` (§9.7.5.2), written as two bytes,
+/// most significant first. A character with no code is written as the code
+/// for `?`, else CID 0, and counted as unencodable. Line wrapping breaks at
+/// the code for U+0020.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CidCodes {
+    /// Character → code. One code per character.
+    pub codes: BTreeMap<char, u16>,
+    /// Code → advance width (glyph space, 1000 = 1 text-space unit), from
+    /// the descendant's `/W` (§9.7.4.3).
+    pub widths: BTreeMap<u16, u16>,
+    /// The width of a code not in `widths`: the descendant's `/DW`,
+    /// default 1000 (§9.7.4.3 Table 117).
+    pub default_width: u16,
+}
+
+impl CidCodes {
+    /// A table from its three parts.
+    #[must_use]
+    pub const fn new(
+        codes: BTreeMap<char, u16>,
+        widths: BTreeMap<u16, u16>,
+        default_width: u16,
+    ) -> Self {
+        Self {
+            codes,
+            widths,
+            default_width,
+        }
+    }
 }
 
 /// The widths a layout measures with: a resource's own, else its
@@ -195,6 +239,7 @@ struct Face<'a> {
     widths: Option<&'a [u16; 256]>,
     ascent: Option<u16>,
     codes: Option<&'a [Option<char>; 256]>,
+    cid: Option<&'a CidCodes>,
 }
 
 impl<'a> Face<'a> {
@@ -204,6 +249,7 @@ impl<'a> Face<'a> {
             widths: None,
             ascent: None,
             codes: None,
+            cid: None,
         }
     }
 
@@ -213,13 +259,29 @@ impl<'a> Face<'a> {
             widths: r.widths.as_deref(),
             ascent: r.ascent,
             codes: r.codes.as_deref(),
+            cid: r.cid.as_deref(),
         }
     }
 
     /// `text` in this face's codes, and how many characters had none.
-    fn encode(self, text: &str) -> (Vec<u8>, usize) {
+    fn encode(self, text: &str) -> (Vec<u16>, usize) {
+        if let Some(cid) = self.cid {
+            let question = cid.codes.get(&'?').copied().unwrap_or(0);
+            let mut miss = 0usize;
+            let out = text
+                .chars()
+                .map(|ch| {
+                    cid.codes.get(&ch).copied().unwrap_or_else(|| {
+                        miss += 1;
+                        question
+                    })
+                })
+                .collect();
+            return (out, miss);
+        }
         let Some(codes) = self.codes else {
-            return encode_winansi(text);
+            let (bytes, miss) = encode_winansi(text);
+            return (bytes.into_iter().map(u16::from).collect(), miss);
         };
         let code_of = |ch: char| {
             (0u8..=255).find(|&c| codes.get(usize::from(c)).copied().flatten() == Some(ch))
@@ -229,13 +291,33 @@ impl<'a> Face<'a> {
         let mut miss = 0usize;
         for ch in text.chars() {
             if let Some(c) = code_of(ch) {
-                out.push(c);
+                out.push(u16::from(c));
             } else {
-                out.push(question);
+                out.push(u16::from(question));
                 miss += 1;
             }
         }
         (out, miss)
+    }
+
+    /// The code line wrapping breaks at.
+    fn space(self) -> u16 {
+        self.cid
+            .and_then(|c| c.codes.get(&' ').copied())
+            .unwrap_or(32)
+    }
+
+    /// The `Tj` operand bytes for `codes`: two bytes each, big-endian, for
+    /// a composite face (§9.7.6.2); one byte each otherwise.
+    fn show_bytes(self, codes: &[u16]) -> Vec<u8> {
+        if self.cid.is_some() {
+            codes.iter().flat_map(|c| c.to_be_bytes()).collect()
+        } else {
+            codes
+                .iter()
+                .map(|&c| u8::try_from(c).unwrap_or(b'?'))
+                .collect()
+        }
     }
 
     /// The ascent at `size` points.
@@ -247,7 +329,13 @@ impl<'a> Face<'a> {
         units / 1000.0 * size
     }
 
-    fn width(self, code: u8) -> u16 {
+    fn width(self, code: u16) -> u16 {
+        if let Some(cid) = self.cid {
+            return cid.widths.get(&code).copied().unwrap_or(cid.default_width);
+        }
+        let Ok(code) = u8::try_from(code) else {
+            return 0;
+        };
         match self.widths {
             Some(w) => w.get(usize::from(code)).copied().unwrap_or(0),
             None => glyph_width(self.font, code),
@@ -509,10 +597,11 @@ const AUTOFIT_PAD: f64 = 1.0;
 /// defend into the appearance of every form pdfcer fills.
 #[must_use]
 pub fn auto_fit(font: Std14, rect_w: f64, rect_h: f64, text: &[u8]) -> AutoFit {
-    auto_fit_face(Face::std(font), rect_w, rect_h, text)
+    let codes: Vec<u16> = text.iter().map(|&b| u16::from(b)).collect();
+    auto_fit_face(Face::std(font), rect_w, rect_h, &codes)
 }
 
-fn auto_fit_face(face: Face<'_>, rect_w: f64, rect_h: f64, text: &[u8]) -> AutoFit {
+fn auto_fit_face(face: Face<'_>, rect_w: f64, rect_h: f64, text: &[u16]) -> AutoFit {
     let bbox = fontdata::std14_descriptor(face.font).font_bbox;
     // Height extent of the font's bounding box, in ems. Guarded because a
     // malformed descriptor would otherwise divide by zero or invert the size.
@@ -870,7 +959,7 @@ pub fn build_variable_text(
     // string. That reasoning is about the ENCODE/MEASURE order and is
     // untouched; only the newline is removed first.
     let mut unencodable_chars = 0usize;
-    let paragraphs: Vec<Vec<u8>> = if multiline {
+    let paragraphs: Vec<Vec<u16>> = if multiline {
         text.split('\n')
             .map(|para| {
                 // `\r` stripped HERE rather than per-paragraph inside
@@ -897,7 +986,7 @@ pub fn build_variable_text(
     };
     // The single-line measuring string. Only the `!multiline` branch reads
     // it, and there it is the whole (flattened) text.
-    let bytes: Vec<u8> = paragraphs.first().cloned().unwrap_or_default();
+    let bytes: Vec<u16> = paragraphs.first().cloned().unwrap_or_default();
 
     // VT1: size 0 ⇒ auto-size, disclosed.
     let (size, applied_autosize, applied_autosize_bound) = if parsed.font_size == 0.0 {
@@ -951,13 +1040,13 @@ pub fn build_variable_text(
     let first = lines.first().map_or(&[][..], Vec::as_slice);
     let mut running_x = align_x(quad, w, measure(face, size, first));
     b.set_text_matrix(1.0, 0.0, 0.0, 1.0, running_x, first_baseline);
-    b.show_text(first);
+    b.show_text(&face.show_bytes(first));
     // Subsequent lines: relative Td moves (never another Tm).
     for line in lines.iter().skip(1) {
         let x = align_x(quad, w, measure(face, size, line));
         b.text_move(x - running_x, -line_height);
         running_x = x;
-        b.show_text(line);
+        b.show_text(&face.show_bytes(line));
     }
 
     b.end_text();
@@ -1068,7 +1157,7 @@ pub fn build_comb_text(
             b.text_move(x - prev_x, 0.0);
         }
         prev_x = x;
-        b.show_text(&[code]);
+        b.show_text(&face.show_bytes(&[code]));
     }
     b.end_text();
     b.restore_state();
@@ -1181,16 +1270,16 @@ fn glyph_width(font: Std14, code: u8) -> u16 {
 /// "definitely wide enough" and still clips.
 #[must_use]
 pub fn text_width(font: Std14, size: f64, text: &str) -> f64 {
-    let (bytes, _unencodable) = encode_winansi(text);
-    measure(Face::std(font), size, &bytes)
+    let (codes, _unencodable) = Face::std(font).encode(text);
+    measure(Face::std(font), size, &codes)
 }
 
 /// Measure a run of `WinAnsi` bytes in text-space points at `size`
 /// (§9.4.4: advance = Σ width/1000 × size, before Tc/Tw/Th, which this
 /// generator leaves at their defaults).
 #[must_use]
-fn measure(face: Face<'_>, size: f64, bytes: &[u8]) -> f64 {
-    let units: u32 = bytes.iter().map(|&c| u32::from(face.width(c))).sum();
+fn measure(face: Face<'_>, size: f64, codes: &[u16]) -> f64 {
+    let units: u32 = codes.iter().map(|&c| u32::from(face.width(c))).sum();
     f64::from(units) / 1000.0 * size
 }
 
@@ -1217,26 +1306,27 @@ fn measure(face: Face<'_>, size: f64, bytes: &[u8]) -> f64 {
 fn wrap_lines(
     face: Face<'_>,
     size: f64,
-    paragraphs: &[Vec<u8>],
+    paragraphs: &[Vec<u16>],
     max_width: f64,
     multiline: bool,
-) -> Vec<Vec<u8>> {
+) -> Vec<Vec<u16>> {
     if !multiline {
         // Already flattened to spaces by the caller, which is where the
         // newline is now taken out -- see the note there. One paragraph by
         // construction.
         return vec![paragraphs.first().cloned().unwrap_or_default()];
     }
-    let mut lines: Vec<Vec<u8>> = Vec::new();
+    let space = face.space();
+    let mut lines: Vec<Vec<u16>> = Vec::new();
     for para in paragraphs {
         // `\n` split and `\r` stripped UPSTREAM, before encoding. They used
         // to be handled here, which was too late: the encoder has no WinAnsi
         // code for either and had already turned them into `?`.
-        let para: Vec<u8> = para.clone();
+        let para: Vec<u16> = para.clone();
         // Non-empty, space-delimited words (runs of spaces collapse, exactly
         // as the previous inline loop's `if word.is_empty() { continue }`).
-        let words: Vec<&[u8]> = para
-            .split(|&b| b == b' ')
+        let words: Vec<&[u16]> = para
+            .split(|&b| b == space)
             .filter(|w| !w.is_empty())
             .collect();
         if words.is_empty() {
@@ -1249,10 +1339,14 @@ fn wrap_lines(
         // Std14 AFM points — the same bytes and the same `measure` the old
         // inline `candidate` built, so the break points are identical.
         let ranges = crate::linebreak::greedy_pack(words.len(), max_width, |s, e| {
-            measure(face, size, &join_words(words.get(s..e).unwrap_or(&[])))
+            measure(
+                face,
+                size,
+                &join_words(words.get(s..e).unwrap_or(&[]), space),
+            )
         });
         for r in ranges {
-            lines.push(join_words(words.get(r).unwrap_or(&[])));
+            lines.push(join_words(words.get(r).unwrap_or(&[]), space));
         }
     }
     if lines.is_empty() {
@@ -1265,11 +1359,11 @@ fn wrap_lines(
 /// each — the natural inter-word spacing [`measure`] assumes and the exact
 /// form the previous inline packer built its `candidate`/pushed-line bytes
 /// as. An empty slice yields empty bytes.
-fn join_words(words: &[&[u8]]) -> Vec<u8> {
+fn join_words(words: &[&[u16]], space: u16) -> Vec<u16> {
     let mut out = Vec::new();
     for (i, word) in words.iter().enumerate() {
         if i > 0 {
-            out.push(b' ');
+            out.push(space);
         }
         out.extend_from_slice(word);
     }
@@ -1294,6 +1388,7 @@ mod tests {
             widths: None,
             ascent: None,
             codes: None,
+            cid: None,
         }]
     }
 
@@ -1370,6 +1465,7 @@ mod tests {
             widths: None,
             ascent: None,
             codes: None,
+            cid: None,
         }];
         let da = default_appearance_string(b"Sy", 12.0, TextColor::Gray(0.0));
         let err = build_variable_text(bbox(100.0, 20.0), "hi", &da, Quadding::Left, false, &res)
@@ -1409,7 +1505,7 @@ mod tests {
     #[test]
     fn quadding_places_lines_by_afm_width() {
         // "AV" in Helvetica: A=667, V=667 ⇒ 1334/1000*10 = 13.34 pt.
-        let width = measure(Face::std(Std14::Helvetica), 10.0, b"AV");
+        let width = measure(Face::std(Std14::Helvetica), 10.0, &[65, 86]);
         assert!((width - 13.34).abs() < 1e-9, "{width}");
         let da = default_appearance_string(b"Helv", 10.0, TextColor::Gray(0.0));
         let w = 200.0;

@@ -1136,6 +1136,71 @@ fn a_fill_writes_a_re_encoded_dr_fonts_own_codes() {
     );
 }
 
+/// A `/Type0` `/Identity-H` `/DR` font is filled with its own two-byte
+/// codes (Â§9.7.5.2), read back through its `/ToUnicode` CMap: "HA" is
+/// written as CIDs 0x002B and 0x0024, not the one-byte WinAnsi `(HA)`.
+#[test]
+fn a_fill_writes_a_composite_dr_fonts_two_byte_codes() {
+    let dir = TempDir::new("dr-font-type0");
+    let cmap = "/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n\
+                1 begincodespacerange <0000> <FFFF> endcodespacerange\n\
+                3 beginbfchar <0003> <0020> <0024> <0041> <002B> <0048> endbfchar\n\
+                endcmap end end";
+    let src = dir.write(
+        "type0.pdf",
+        &build_pdf(&[
+            (
+                1,
+                "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] \
+                 /DR << /Font << /F1 5 0 R >> >> >> >>"
+                    .to_owned(),
+            ),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned()),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [4 0 R] >>"
+                    .to_owned(),
+            ),
+            (
+                4,
+                "<< /FT /Tx /T (t) /Type /Annot /Subtype /Widget /P 3 0 R \
+                 /Rect [20 50 200 72] /DA (/F1 12 Tf 0 g) >>"
+                    .to_owned(),
+            ),
+            (
+                5,
+                "<< /Type /Font /Subtype /Type0 /BaseFont /Calibri /Encoding /Identity-H \
+                 /ToUnicode 6 0 R /DescendantFonts [<< /Type /Font /Subtype /CIDFontType2 \
+                 /BaseFont /Calibri /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) \
+                 /Supplement 0 >> /W [36 [250] 43 [1000]] >>] >>"
+                    .to_owned(),
+            ),
+            (
+                6,
+                format!(
+                    "<< /Length {} >>\nstream\n{cmap}\nendstream",
+                    cmap.len() + 1
+                ),
+            ),
+        ]),
+    );
+    let out = dir.join("type0-filled.pdf");
+    let r = run(&[
+        "fill-field",
+        src.to_str().unwrap(),
+        "--set",
+        "t=HA",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    let filled = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(
+        filled.contains("(\\000+\\000$) Tj"),
+        "one-byte codes written into a composite font: {filled}"
+    );
+}
+
 /// `flatten --field A` then `flatten --field B` on the same page: the
 /// saved page binds both burned appearances, under different names.
 #[test]

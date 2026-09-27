@@ -34,7 +34,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::fontdata::Std14;
 use pdfcer_core::page_tree::{self, Rect};
-use pdfcer_core::vartext::{self, FontResource, Quadding, TextColor};
+use pdfcer_core::vartext::{self, CidCodes, FontResource, Quadding, TextColor};
 use pdfcer_core::writer::SaveOptions;
 use pdfcer_core::writer::content::reemit_canonical;
 
@@ -354,6 +354,17 @@ fuzz_target!(|data: &[u8]| {
                 Box::new(std::array::from_fn(|i| {
                     char::from_u32(u32::from(c.byte())).filter(|_| i % 3 != 0)
                 }))
+            }),
+            cid: (c.byte() & 1 == 1).then(|| {
+                let codes = (0..16)
+                    .filter_map(|_| {
+                        char::from_u32(u32::from(c.byte())).map(|ch| (ch, u16::from(c.byte()) << 4))
+                    })
+                    .collect();
+                let widths = (0..8)
+                    .map(|_| (u16::from(c.byte()) << 4, u16::from(c.byte()) * 8))
+                    .collect();
+                Box::new(CidCodes::new(codes, widths, u16::from(c.byte()) * 8))
             }),
         }];
         let quad = match c.byte() % 3 {

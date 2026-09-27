@@ -24272,6 +24272,7 @@ impl EditSession {
             widths: None,
             ascent: None,
             codes: None,
+            cid: None,
         }];
         // THE SAME builder a fill uses (R92: one regenerator, never two).
         // A created field and a filled one therefore cannot disagree about
@@ -26411,6 +26412,7 @@ impl EditSession {
                         widths: None,
                         ascent: None,
                         codes: None,
+                        cid: None,
                     }),
                 )
             }
@@ -28577,6 +28579,7 @@ impl EditSession {
             widths: None,
             ascent: None,
             codes: None,
+            cid: None,
         }];
         let appearance = annot_author::build_push_button_appearance(
             w,
@@ -28824,6 +28827,7 @@ impl EditSession {
             widths: None,
             ascent: None,
             codes: None,
+            cid: None,
         }];
         // THE SAME builder a fill and a text field use (R92).
         let appearance = annot_author::build_field_text_appearance(
@@ -40955,6 +40959,7 @@ impl EditSession {
                         widths: None,
                         ascent: None,
                         codes: None,
+                        cid: None,
                     });
                 }
                 Some(crate::vartext::default_appearance_string(
@@ -41742,8 +41747,10 @@ impl EditSession {
             widths: None,
             ascent: None,
             codes: None,
+            cid: None,
         }];
         let graph = self.graph();
+        let view = self.view();
         let dr_font = graph
             .catalog_dict()
             .and_then(|c| c.get(b"AcroForm").map(|o| graph.resolve(o)))
@@ -41766,8 +41773,16 @@ impl EditSession {
                 // come from one font.
                 let bound = fd.filter(|fd| Self::dr_font_is_bindable(&graph, fd));
                 let widths = bound.and_then(|fd| Self::simple_font_widths(&graph, fd));
-                let ascent = bound.and_then(|fd| Self::font_ascent(&graph, fd));
                 let codes = bound.and_then(|fd| Self::simple_font_codes(&graph, fd));
+                let cid = fd
+                    .and_then(|fd| Self::composite_font_codes(&view, fd))
+                    .map(Box::new);
+                let ascent = if cid.is_some() {
+                    fd.and_then(|fd| Self::composite_descendant(&graph, fd))
+                        .and_then(|d| Self::font_ascent(&graph, &d))
+                } else {
+                    bound.and_then(|fd| Self::font_ascent(&graph, fd))
+                };
                 let nm = name.as_bytes().to_vec();
                 if !out.iter().any(|r| r.name == nm) {
                     out.push(FontResource {
@@ -41776,6 +41791,7 @@ impl EditSession {
                         widths,
                         ascent,
                         codes,
+                        cid,
                     });
                 }
             }
@@ -41795,6 +41811,7 @@ impl EditSession {
     /// because the generator's bytes would select the wrong glyphs.
     fn bind_dr_fonts(&self, ap_dict: &mut Dict) {
         let graph = self.graph();
+        let view = self.view();
         let Some(dr_fonts) = graph
             .catalog_dict()
             .and_then(|c| c.get(b"AcroForm").map(|o| graph.resolve(o)))
@@ -41817,11 +41834,10 @@ impl EditSession {
             let Some(raw) = dr_fonts.get(key.as_bytes()) else {
                 continue;
             };
-            if graph
-                .resolve(raw)
-                .as_dict()
-                .is_some_and(|fd| Self::dr_font_is_bindable(&graph, fd))
-            {
+            if graph.resolve(raw).as_dict().is_some_and(|fd| {
+                Self::dr_font_is_bindable(&graph, fd)
+                    || Self::composite_font_codes(&view, fd).is_some()
+            }) {
                 *slot = raw.clone();
             }
         }
@@ -41987,6 +42003,121 @@ impl EditSession {
     /// A font's `/FontDescriptor` `/Ascent` (§9.8.1 Table 122), rounded;
     /// `None` when absent, not a number, or not positive (a zero or negative
     /// ascent would put the baseline at or above the box top).
+    /// The code table a `/Type0` `/DR` font is drawn with (§9.7), or
+    /// `None` so the field keeps its standard-14 stand-in.
+    ///
+    /// Bound only when every piece the generator needs is readable:
+    /// `/Encoding /Identity-H` (two-byte codes, code = CID, §9.7.5.2; a
+    /// vertical or predefined CMap is not), a horizontal descendant CIDFont,
+    /// and a `/ToUnicode` CMap (§9.10.3) from which each character maps back
+    /// to exactly one code (R110 — a character two codes produce is left out
+    /// and so written as unencodable) that names U+0020 (line wrapping
+    /// breaks there). Widths come from the descendant's `/W`, else `/DW`,
+    /// default 1000 (§9.7.4.3 Table 117).
+    fn composite_font_codes(
+        view: &DocumentView<'_>,
+        fd: &Dict,
+    ) -> Option<crate::vartext::CidCodes> {
+        use crate::text_extract::cmap::ToUnicodeCMap;
+        let name = |d: &Dict, k: &[u8]| {
+            d.get(k)
+                .map(|o| view.resolve(o))
+                .and_then(Object::as_name)
+                .map(|n| n.as_bytes().to_vec())
+        };
+        if name(fd, b"Subtype").as_deref() != Some(b"Type0")
+            || name(fd, b"Encoding").as_deref() != Some(b"Identity-H")
+        {
+            return None;
+        }
+        let descendant = Self::composite_descendant(view, fd)?;
+        let Object::Stream(stream) = view.resolve(fd.get(b"ToUnicode")?) else {
+            return None;
+        };
+        let raw = view.slice(stream.data_span)?;
+        let decoded = crate::filters::decode_stream(&stream.dict, raw).ok()?;
+        let inverse = ToUnicodeCMap::parse(&decoded).partial_inverse().ok()?;
+        let codes: std::collections::BTreeMap<char, u16> = inverse
+            .unambiguous
+            .into_iter()
+            .filter_map(|(ch, code)| u16::try_from(code).ok().map(|c| (ch, c)))
+            .collect();
+        if !codes.contains_key(&' ') {
+            return None;
+        }
+        let number = |o: &Object| match view.resolve(o) {
+            Object::Integer(i) => Some(*i as f64),
+            Object::Real(r) => Some(*r),
+            _ => None,
+        };
+        let to_width = |w: f64| (w.max(0.0).round().min(f64::from(u16::MAX))) as u16;
+        let default_width = descendant
+            .get(b"DW")
+            .and_then(number)
+            .map_or(1000, to_width);
+        let mut widths = std::collections::BTreeMap::new();
+        if let Some(items) = descendant
+            .get(b"W")
+            .map(|o| view.resolve(o))
+            .and_then(Object::as_array)
+        {
+            // `c [w1 … wn]` or `cfirst clast w` (§9.7.4.3). Only codes the
+            // table can write are kept, so a malicious range cannot
+            // allocate more than 65,536 entries.
+            let mut i = 0usize;
+            while let Some(first) = items
+                .get(i)
+                .and_then(number)
+                .filter(|f| *f >= 0.0 && *f <= f64::from(u16::MAX))
+            {
+                let first = first as u32;
+                match items.get(i + 1).map(|o| view.resolve(o)) {
+                    Some(Object::Array(list)) => {
+                        for (k, w) in list.iter().enumerate() {
+                            let Some(cid) = u32::try_from(k)
+                                .ok()
+                                .and_then(|k| first.checked_add(k))
+                                .and_then(|c| u16::try_from(c).ok())
+                            else {
+                                break;
+                            };
+                            if let Some(w) = number(w) {
+                                widths.insert(cid, to_width(w));
+                            }
+                        }
+                        i += 2;
+                    }
+                    Some(last) => {
+                        let (Some(last), Some(w)) =
+                            (number(last), items.get(i + 2).and_then(number))
+                        else {
+                            break;
+                        };
+                        let last = last.clamp(0.0, f64::from(u16::MAX)) as u32;
+                        for cid in codes
+                            .values()
+                            .filter(|&&c| (first..=last).contains(&u32::from(c)))
+                        {
+                            widths.insert(*cid, to_width(w));
+                        }
+                        i += 3;
+                    }
+                    None => break,
+                }
+            }
+        }
+        Some(crate::vartext::CidCodes::new(codes, widths, default_width))
+    }
+
+    /// A `/Type0` font's single descendant CIDFont dictionary (§9.7.6.1
+    /// Table 119), when it is horizontal: a `/W2` or `/DW2` means vertical
+    /// metrics, which the generator does not lay out.
+    fn composite_descendant(graph: &impl ObjectGraph, fd: &Dict) -> Option<Dict> {
+        let arr = graph.resolve(fd.get(b"DescendantFonts")?).as_array()?;
+        let d = graph.resolve(arr.first()?).as_dict()?;
+        (d.get(b"W2").is_none() && d.get(b"DW2").is_none()).then(|| d.clone())
+    }
+
     fn font_ascent(graph: &impl ObjectGraph, fd: &Dict) -> Option<u16> {
         let ascent = match fd
             .get(b"FontDescriptor")

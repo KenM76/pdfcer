@@ -315,3 +315,117 @@ fn a_symbolic_font_keeps_the_standard_14_stand_in() {
     s.fill_text_field("t", "HA").unwrap();
     assert!(matches!(ap_font(&s, b"F5"), Object::Dict(_)));
 }
+
+/// A one-field form whose `/DA` names `/F1`, a `/Type0` font (object 5)
+/// built from `font` with its `/ToUnicode` stream at object 6. The CMap
+/// maps codes 0x0003 → space, 0x0024 → A, 0x002B → H and 0x0022 → ?.
+fn composite_session(font: &str) -> EditSession {
+    let cmap = "/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n\
+                1 begincodespacerange <0000> <FFFF> endcodespacerange\n\
+                4 beginbfchar <0003> <0020> <0024> <0041> <002B> <0048> <0022> <003F> endbfchar\n\
+                endcmap end end";
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] \
+         /DR << /Font << /F1 5 0 R >> >> /DA (/F1 0 Tf 0 g) >> >>"
+            .to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [4 0 R] >>".to_owned(),
+        "<< /FT /Tx /T (t) /Type /Annot /Subtype /Widget /P 3 0 R \
+         /Rect [20 50 200 72] /Q 1 /DA (/F1 12 Tf 0 g) >>"
+            .to_owned(),
+        font.to_owned(),
+        format!(
+            "<< /Length {} >>\nstream\n{cmap}\nendstream",
+            cmap.len() + 1
+        ),
+    ];
+    EditSession::new(Document::from_bytes(assemble(&bodies)).expect("fixture parses"))
+}
+
+/// A horizontal Identity-H composite font: H (CID 43) is 1000 wide by
+/// `/W`'s list form, A (CID 36) 250 by its range form, everything else
+/// `/DW` 500.
+fn identity_h(encoding: &str, descendant_extra: &str, to_unicode: bool) -> String {
+    format!(
+        "<< /Type /Font /Subtype /Type0 /BaseFont /Calibri /Encoding /{encoding} {} \
+         /DescendantFonts [<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Calibri \
+         /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> \
+         /W [43 [1000] 36 36 250] /DW 500 {descendant_extra} \
+         /FontDescriptor << /Ascent 900 >> >>] >>",
+        if to_unicode { "/ToUnicode 6 0 R" } else { "" }
+    )
+}
+
+/// `first_tj`'s literal-string bytes with the writer's `\ddd` and `\c`
+/// escapes undone.
+fn unescape(raw: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < raw.len() {
+        if raw[i] == b'\\' {
+            let oct: Vec<u8> = raw[i + 1..]
+                .iter()
+                .take(3)
+                .take_while(|b| (b'0'..=b'7').contains(b))
+                .copied()
+                .collect();
+            if oct.is_empty() {
+                out.push(raw[i + 1]);
+                i += 2;
+            } else {
+                out.push(oct.iter().fold(0u8, |a, d| a * 8 + (d - b'0')));
+                i += 1 + oct.len();
+            }
+        } else {
+            out.push(raw[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
+/// A `/Type0` `/Identity-H` font draws with its own two-byte codes, read
+/// back through `/ToUnicode`, and is measured with its descendant's `/W`.
+#[test]
+fn an_identity_h_composite_font_draws_with_two_byte_codes() {
+    let mut s = composite_session(&identity_h("Identity-H", "", true));
+    let out = s.fill_text_field("t", "HA").unwrap();
+    assert_eq!(ap_font(&s, b"F1"), Object::Reference(ObjId::new(5, 0)));
+    assert_eq!(unescape(&first_tj(&s)), [0x00, 0x2B, 0x00, 0x24]);
+    assert_eq!(out.unencodable_chars, 0);
+    let want = (180.0 - 12.0 * 1.25) / 2.0;
+    assert!(
+        (first_x(&s) - want).abs() < 1e-6,
+        "centred at {}, want {want}: not measured with /W",
+        first_x(&s)
+    );
+    let y = first_tm(&s, 5);
+    let want = 22.0 - 2.0 - 900.0 * 12.0 / 1000.0;
+    assert!((y - want).abs() < 1e-6, "baseline {y}, want {want}");
+}
+
+/// A character the `/ToUnicode` CMap cannot produce is written as the code
+/// for `?` and counted, never dropped silently.
+#[test]
+fn a_composite_font_counts_an_unmapped_character() {
+    let mut s = composite_session(&identity_h("Identity-H", "", true));
+    let out = s.fill_text_field("t", "HZ").unwrap();
+    assert_eq!(unescape(&first_tj(&s)), [0x00, 0x2B, 0x00, 0x22]);
+    assert_eq!(out.unencodable_chars, 1);
+}
+
+/// Composite fonts whose codes or metrics cannot be read keep the stand-in:
+/// a vertical CMap, no `/ToUnicode`, and vertical descendant metrics.
+#[test]
+fn an_unreadable_composite_font_keeps_the_standard_14_stand_in() {
+    for font in [
+        identity_h("Identity-V", "", true),
+        identity_h("Identity-H", "", false),
+        identity_h("Identity-H", "/DW2 [880 -1000]", true),
+        identity_h("Identity-H", "/W2 [43 [-1000 500 880]]", true),
+    ] {
+        let mut s = composite_session(&font);
+        s.fill_text_field("t", "HA").unwrap();
+        assert!(matches!(ap_font(&s, b"F1"), Object::Dict(_)), "{font}");
+    }
+}

@@ -1801,6 +1801,7 @@ fn overlay_font_resources(
         widths: None,
         ascent: None,
         codes: None,
+        cid: None,
     }];
     if let Some(fonts) = page_resources
         .get(b"Font")
@@ -1823,6 +1824,7 @@ fn overlay_font_resources(
                     widths: None,
                     ascent: None,
                     codes: None,
+                    cid: None,
                 });
             }
         }
@@ -1840,6 +1842,7 @@ fn overlay_font_resources(
             widths: None,
             ascent: None,
             codes: None,
+            cid: None,
         });
     }
     out
