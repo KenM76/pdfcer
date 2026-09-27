@@ -650,16 +650,17 @@ pub struct Widget {
     /// # Why `Option`, and why [`Self::annot_flags`] sits beside it
     ///
     /// [`Visibility`](crate::edit::Visibility) is deliberately the small,
-    /// decidable surface: four combinations out of a flag word that admits
-    /// dozens. That makes it a good **authoring** type and an incomplete
-    /// **reading** one — a file may legitimately carry `Print | Hidden`, or
-    /// `NoZoom`, or nothing at all, and none of those is one of the four.
+    /// decidable surface: four combinations of the visibility bits
+    /// ([`Visibility::FLAG_MASK`](crate::edit::Visibility::FLAG_MASK)). Other
+    /// bits (`NoZoom`, `Locked`, ...) are ignored here and preserved by an edit
+    /// that sets visibility. A file may still carry visibility bits that are
+    /// none of the four (`Print | Hidden`, `Hidden | NoView`).
     ///
     /// Collapsing such a widget onto the nearest of the four would be the same
-    /// invention [`Self::border`] refuses. So the mapping is exact-or-`None`,
-    /// and the raw flags are published beside it so a control can say *"this
-    /// widget's flags are not one of the four pdfcer can set"* rather than show
-    /// nothing or show a lie.
+    /// invention [`Self::border`] refuses. So the mapping is exact-or-`None`
+    /// on the visibility bits, and the raw flags are published beside it so a
+    /// control can say *"this widget's visibility is not one of the four pdfcer
+    /// can set"* rather than show nothing or show a lie.
     ///
     /// Note `/F` absent is `0` per Table 164, which **is** one of the four
     /// ([`Visibility::ScreenOnly`](crate::edit::Visibility::ScreenOnly)) — so
@@ -1771,17 +1772,17 @@ fn read_widget_border<G: ObjectGraph + ?Sized>(graph: &G, dict: &Dict) -> Option
     })
 }
 
-/// Map a raw `/F` flag word onto the four combinations pdfcer writes, or `None`
-/// when it is not one of them (`Pass 146.0`).
+/// Map a raw `/F` flag word onto the four visibility combinations pdfcer
+/// writes, or `None` when its visibility bits are not one of them.
 ///
-/// **Exact match, never nearest.** The four values are `Visibility`'s own
-/// [`flags()`](crate::edit::Visibility::flags) outputs, read off the enum
-/// rather than restated here, so the reader and the writer cannot drift
-/// (`R221`). A file carrying `Print | NoZoom` is *not* `VisibleAndPrints` with
-/// a detail dropped — it is a widget whose flags pdfcer cannot set, and saying
-/// so is the honest answer. [`Widget::annot_flags`] carries the raw value for
-/// exactly that case.
+/// Only [`Visibility::FLAG_MASK`] is compared: the other bits (`Locked`,
+/// `NoZoom`, ...) are independent of visibility, and the writer
+/// ([`Visibility::apply_to`]) preserves them, so `Print | NoZoom` reads as
+/// `VisibleAndPrints` and round-trips. The four values are read off the enum,
+/// so reader and writer cannot drift (`R221`). [`Widget::annot_flags`]
+/// carries the raw word.
 fn visibility_of(flags: AnnotFlags) -> Option<Visibility> {
+    let bits = i64::from(flags.0) & Visibility::FLAG_MASK;
     [
         Visibility::VisibleAndPrints,
         Visibility::ScreenOnly,
@@ -1789,7 +1790,7 @@ fn visibility_of(flags: AnnotFlags) -> Option<Visibility> {
         Visibility::Hidden,
     ]
     .into_iter()
-    .find(|v| u32::try_from(v.flags()).is_ok_and(|f| f == flags.0))
+    .find(|v| v.flags() == bits)
 }
 
 /// Read a widget's `/AP` `/N`: whether it is usable, (for a state
@@ -3313,15 +3314,18 @@ mod tests {
     }
 
     #[test]
-    fn flags_outside_the_four_read_none_and_the_raw_word_is_still_published() {
-        // `Print | NoZoom` is legal and is not one of the four pdfcer writes.
-        // Collapsing it onto the nearest would be the border defect wearing a
-        // different hat; `None` plus the raw word lets a control say "these
-        // flags are not something pdfcer can set" instead of showing a lie.
+    fn only_the_visibility_bits_decide_visibility_and_the_raw_word_is_still_published() {
+        // `NoZoom` is not a visibility bit, so `Print | NoZoom` reads as
+        // `VisibleAndPrints`; `edit_widget` preserves it, so the read is exact.
         let w = widget_with("/F 12");
-        assert_eq!(w.visibility, None);
+        assert_eq!(w.visibility, Some(Visibility::VisibleAndPrints));
         assert_eq!(w.annot_flags.0, 12);
         assert!(w.annot_flags.print() && w.annot_flags.no_zoom());
+        // `Hidden | Print` is a visibility combination outside the four: refused,
+        // not collapsed onto the nearest.
+        let w = widget_with("/F 6");
+        assert_eq!(w.visibility, None);
+        assert_eq!(w.annot_flags.0, 6);
     }
 
     #[test]

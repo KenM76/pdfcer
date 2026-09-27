@@ -1580,6 +1580,19 @@ pub enum Visibility {
 }
 
 impl Visibility {
+    /// The `/F` bits a visibility choice owns: `Hidden` (2), `Print` (4) and
+    /// `NoView` (32), Table 165. Every other bit (`ReadOnly`, `Locked`,
+    /// `NoZoom`, `LockedContents`, ...) is independent of visibility, so an
+    /// edit that sets visibility preserves it and a reader ignores it.
+    pub const FLAG_MASK: i64 = 2 | 4 | 32;
+
+    /// `flags` with its visibility bits replaced by this choice's, every
+    /// other bit kept.
+    #[must_use]
+    pub const fn apply_to(self, flags: i64) -> i64 {
+        (flags & !Self::FLAG_MASK) | self.flags()
+    }
+
     /// The `/F` value this choice writes.
     #[must_use]
     pub const fn flags(self) -> i64 {
@@ -26295,7 +26308,13 @@ impl EditSession {
         }
 
         if let Some(visibility) = edit.visibility {
-            updated.insert(Name::from(b"F"), Object::Integer(visibility.flags()));
+            // Only the visibility bits change; `Locked`, `ReadOnly`, `NoZoom`
+            // and the rest are the widget's own and survive the edit.
+            let old = match updated.get(b"F").map(|o| self.graph().resolve(o).clone()) {
+                Some(Object::Integer(f)) => f,
+                _ => 0,
+            };
+            updated.insert(Name::from(b"F"), Object::Integer(visibility.apply_to(old)));
         }
         // `/MK` is ONE dictionary of appearance characteristics (Table 189)
         // and this verb can now touch three of its entries. They are applied

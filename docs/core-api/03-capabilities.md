@@ -696,14 +696,19 @@ but missing `/W` takes Table 166's default of **1**: the file has committed to
 having a border, so filling in the width the standard specifies is reading.
 A width of **0** is a value ("no border", Table 166), never an absence.
 
-**`visibility: Option<Visibility>` is exact-or-`None`, and `annot_flags`
-carries the raw `/F` beside it.** `Visibility` is deliberately the four
-combinations pdfcer can *set*, out of a flag word that admits dozens. That
-makes it a good authoring type and an incomplete reading one: a file may
-legitimately carry `Print | NoZoom`. Collapsing such a widget onto the nearest
-of the four would be the border defect wearing a different hat, so the mapping
-refuses and `annot_flags` lets a control say *"these flags are not something
-pdfcer can set"* instead of showing nothing or showing a lie.
+**`visibility: Option<Visibility>` is exact-or-`None` over the visibility
+bits, and `annot_flags` carries the raw `/F` beside it.** `Visibility` is the
+four combinations pdfcer can *set*. A visibility-bit combination outside them
+is refused rather than collapsed onto the nearest (the border defect in a
+different hat); `annot_flags` lets a control show the real word instead.
+
+**Only the visibility bits are compared.** `Visibility::FLAG_MASK` is
+`Hidden | Print | NoView` (2|4|32, Table 165); every other bit (`ReadOnly`,
+`Locked`, `NoZoom`, `LockedContents`, ...) is independent of visibility, so
+`Print | NoZoom` reads as `VisibleAndPrints`. `edit_widget` writes
+`Visibility::apply_to(old_F)`: it replaces those three bits and preserves the
+rest. `None` therefore means the visibility bits are a combination outside
+the four (e.g. `Hidden | Print`).
 
 `/F` absent is `0` per Table 164, which **is** one of the four (`ScreenOnly`) —
 so `None` always means *present and unmappable*, never *absent*.
