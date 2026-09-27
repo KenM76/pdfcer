@@ -303,6 +303,154 @@ appended={} out_bytes={} undo_verified={} undo_identical={} delinearized={}",
     finish_edit(input, &outcome)
 }
 
+/// Parse `scale-pages --size`: a sheet name, or `WIDTHxHEIGHT` in points.
+fn parse_scale_size(spec: &str) -> Result<(f64, f64), String> {
+    use pdfcer_core::paper::{Orientation, PaperSize};
+    if let Some(paper) = PaperSize::from_id(spec) {
+        let r = paper.rect_with(Orientation::Portrait);
+        return Ok((r.width(), r.height()));
+    }
+    let parsed = spec
+        .split_once(['x', 'X'])
+        .and_then(|(w, h)| Some((w.trim().parse::<f64>().ok()?, h.trim().parse::<f64>().ok()?)));
+    match parsed {
+        Some((w, h)) if w.is_finite() && h.is_finite() && w > 0.0 && h > 0.0 => Ok((w, h)),
+        _ => Err(format!(
+            "`{spec}` is neither a sheet name ({}) nor WIDTHxHEIGHT in points",
+            PaperSize::ALL
+                .iter()
+                .map(|s| s.id())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
+}
+
+/// Implement `pdfcer scale-pages`.
+#[allow(clippy::too_many_arguments)] // one per CLI flag, mirroring the clap variant
+pub(crate) fn cmd_scale_pages(
+    input: &Path,
+    pages: &str,
+    size: &str,
+    scale_mode: ScaleModeArg,
+    orientation: ScaleOrientationArg,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    use pdfcer_core::pageops::{OrientationPolicy, ScaleMode, ScaleRequest};
+
+    let (width, height) = match parse_scale_size(size) {
+        Ok(wh) => wh,
+        Err(msg) => {
+            eprintln!("pdfcer: --size: {msg}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let request = ScaleRequest::new(width, height)
+        .with_mode(match scale_mode {
+            ScaleModeArg::Fit => ScaleMode::Fit,
+            ScaleModeArg::Fill => ScaleMode::Fill,
+        })
+        .with_orientation(match orientation {
+            ScaleOrientationArg::Match => OrientationPolicy::Match,
+            ScaleOrientationArg::Exact => OrientationPolicy::Exact,
+        });
+
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let count = match session.pages() {
+        Ok(pages) => pages.len(),
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let targets = match parse_pages(pages, count) {
+        Ok(list) => list,
+        Err(msg) => {
+            eprintln!("pdfcer: {}: --pages: {msg}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+
+    let report = match session.scale_pages(&targets, &request) {
+        Ok(report) => report,
+        Err(err) => return report_edit_error(input, &err),
+    };
+
+    let (mut annotations, mut measures, mut flipped) = (0_usize, 0_usize, 0_usize);
+    for page in &report.pages {
+        let p = page.placement;
+        annotations += page.annotations;
+        measures += page.measures;
+        flipped += usize::from(p.orientation_flipped);
+        eprintln!(
+            "pdfcer: page {}: scale={:.6} offset=({:.4}, {:.4}) mode={} sheet={:.4}x{:.4}{}",
+            page.page_index + 1,
+            p.scale,
+            p.offset_x,
+            p.offset_y,
+            scale_mode.name(),
+            p.target.width(),
+            p.target.height(),
+            if p.orientation_flipped {
+                " (target turned to match the page)"
+            } else {
+                ""
+            },
+        );
+    }
+    if report.geo_measures_unchanged > 0 {
+        eprintln!(
+            "pdfcer: note: {} geospatial measure dictionar(ies) left unchanged; their \
+             registration is not a linear factor pdfcer can rescale",
+            report.geo_measures_unchanged
+        );
+    }
+
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+
+    let r = &outcome.report;
+    println!(
+        "scale-pages {} pages {pages} mode={} -> {}; \
+size={width:.4}x{height:.4} scale_mode={} pages_scaled={} orientation_turned={flipped} \
+annotations={annotations} measures={measures} destinations={} geo_unchanged={} \
+changed={} objects={} verbatim={} reserialized={} promoted={} appended={} out_bytes={} \
+undo_verified={} undo_identical={} delinearized={}",
+        input.display(),
+        mode.name(),
+        output.display(),
+        scale_mode.name(),
+        report.pages.len(),
+        report.destinations,
+        report.geo_measures_unchanged,
+        outcome.changed,
+        r.objects_written,
+        r.objects_verbatim,
+        r.objects_reserialized,
+        r.promoted.len(),
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+        u32::from(r.delinearized),
+    );
+    finish_edit(input, &outcome)
+}
+
 /// Implement `pdfcer set-info`.
 ///
 /// `sets` is every `(field, Option<value>)` pair the flags produced;

@@ -46,6 +46,7 @@ mod rotate_annotation_absolute;
 mod rotate_widget;
 mod run_repertoire;
 mod save_refusal_hints;
+mod scale_pages;
 mod sign_certify;
 mod sign_into_field;
 mod sign_timestamp;

@@ -52,6 +52,10 @@
 //!   (§7.7.3.3). Named sizes come from `pdfcer_core::paper`, so the CLI,
 //!   the GUI and any future shell all quote the same numbers. See
 //!   [`cmd_set_page_size`].
+//! - `scale-pages <in> -o <out> --size NAME|WxH [--scale-mode fit|fill]
+//!   [--orientation match|exact]` (Pass 364.0): scales page content onto a
+//!   new sheet, moving annotations and destinations with it. See
+//!   [`cmd_scale_pages`].
 //! - Every other subcommand is a **documented stub** that exits with
 //!   [`exit::UNIMPLEMENTED`]. The real bodies land alongside each feature's
 //!   own Pass (docs/ROADMAP.md "CLI batch operations"). Stubs are listed

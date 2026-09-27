@@ -603,6 +603,35 @@ impl From<GotoViewArg> for pdfcer_core::edit::PageView {
 /// verification-only `append-identity` variant that has no meaning for
 /// an edit — merging them would put a mode in `--help` that cannot do
 /// what its name suggests.
+/// `scale-pages --mode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ScaleModeArg {
+    /// Fit inside the sheet; the spare margin is left blank, centred.
+    Fit,
+    /// Cover the sheet; content past its edges is outside the new page
+    /// boxes (hidden, not deleted).
+    Fill,
+}
+
+impl ScaleModeArg {
+    /// The `scale_mode=` token on the stdout line.
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Fit => "fit",
+            Self::Fill => "fill",
+        }
+    }
+}
+
+/// `scale-pages --orientation`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ScaleOrientationArg {
+    /// Turn the target to each page's own orientation.
+    Match,
+    /// Use the size exactly as given.
+    Exact,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum SaveMode {
     /// Append a §7.5.6 revision, leaving every prior byte intact. The

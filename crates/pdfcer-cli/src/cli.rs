@@ -754,6 +754,52 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
 
+    /// Scale pages' content onto a new sheet size.
+    ///
+    /// Each page's visible region is scaled uniformly and centred on the
+    /// new sheet, and every page box becomes the new size. Annotations,
+    /// measurement scales, viewports, article beads and every link or
+    /// bookmark destination pointing at a scaled page move with the
+    /// content. The page's own content streams are left byte-identical and
+    /// wrapped in a scaling transform.
+    ///
+    /// The per-page scale factor, offset and mode are printed to stderr.
+    ///
+    /// Refused: a page carrying pdfcer-authored (ce) dimensions, whose
+    /// model would no longer match the drawing.
+    ///
+    /// `--size` takes a sheet name (`a0`…`a6`, `letter`, `legal`,
+    /// `tabloid`, `executive`, `ansi-a`…`ansi-e`) or `WIDTHxHEIGHT` in
+    /// points, e.g. `595x842`.
+    ScalePages {
+        /// Input PDF.
+        input: PathBuf,
+        /// Which pages, 1-based: `3`, `1,4,7`, `2-5`, or `all`.
+        #[arg(long, default_value = "all", value_name = "SPEC")]
+        pages: String,
+        /// Target sheet: a name (`a4`, `letter`, …) or `WIDTHxHEIGHT` in
+        /// points.
+        #[arg(long, value_name = "NAME|WxH")]
+        size: String,
+        /// `fit` leaves a margin; `fill` covers the sheet and crops.
+        #[arg(long, value_enum, default_value_t = ScaleModeArg::Fit)]
+        scale_mode: ScaleModeArg,
+        /// `match` turns the target to each page's orientation (portrait
+        /// stays portrait); `exact` uses it as given.
+        #[arg(long, value_enum, default_value_t = ScaleOrientationArg::Match)]
+        orientation: ScaleOrientationArg,
+        /// Output path. The input is never modified.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the edit reproduces the input file
+        /// byte for byte (ARCHITECTURE.md §11.1). Costs one extra save.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+
     /// Set or clear document information dictionary fields (§14.3.3).
     ///
     /// Creates an `/Info` dictionary if the file has none — the operator

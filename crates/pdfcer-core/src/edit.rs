@@ -381,6 +381,12 @@ pub enum CommandKind {
         /// because nothing was written for them.
         count: usize,
     },
+    /// Pages' content was scaled to a new sheet size in one operation
+    /// ([`EditSession::scale_pages`]).
+    ScalePages {
+        /// How many pages the one operation scaled.
+        count: usize,
+    },
     /// Pages were removed from the document (Pass 3.2).
     DeletePages {
         /// How many pages the one operation removed.
@@ -8892,6 +8898,25 @@ pub enum EditError {
         /// The requested height (`ury - lly` after §7.9.5 normalization).
         h: f64,
     },
+    /// A page selected for [`EditSession::scale_pages`] carries ce
+    /// dimensions.
+    ///
+    /// A ce dimension's geometry and drawing scale live twice: in its
+    /// annotation and in the catalog `/PieceInfo` sidecar that is the
+    /// authoritative model. Scaling the page moves the annotation; the
+    /// sidecar would then describe a different drawing, and re-baking
+    /// either from the other would silently change a measured value.
+    #[error(
+        "page {page_index} carries {count} ce dimension(s); scaling the page would \
+         desynchronise them from the ce-dimension model, so pdfcer refuses — delete or \
+         move them first"
+    )]
+    ScaleRefusedCeDimensions {
+        /// 0-based page index.
+        page_index: usize,
+        /// How many ce dimensions sit on it.
+        count: usize,
+    },
 }
 
 /// Find every occurrence of `needle` in `hay`, returned as `(start, end)`
@@ -10441,6 +10466,408 @@ impl EditSession {
             });
         }
         Ok(changes)
+    }
+
+    /// Scale pages' content uniformly onto a new sheet size, as **one**
+    /// undoable command (`Pass 364.0`).
+    ///
+    /// Each page's visible region (its crop box clipped to its media box)
+    /// is mapped into the target by one uniform scale and a centring
+    /// offset; [`ScaleMode`](crate::pageops::ScaleMode) picks fit (pad) or
+    /// fill (crop), [`OrientationPolicy`](crate::pageops::OrientationPolicy)
+    /// whether the target turns to match each page. A `/Rotate` page is
+    /// sized as displayed. The target is in points; a page with
+    /// `/UserUnit` (§14.10.2 Table 30) gets it divided through.
+    ///
+    /// **Minimal diff (§5 of the architecture):** the page's own content
+    /// streams are not touched. `/Contents` gains a new first stream,
+    /// `q <scale> 0 0 <scale> <tx> <ty> cm <old region> re W n`, and a new
+    /// last stream, `Q`. The clip keeps whatever the old crop box hid still
+    /// hidden. `/MediaBox` becomes the target, as does every page box the
+    /// page carries or inherits (`/CropBox`) or carries itself
+    /// (`/BleedBox`, `/TrimBox`, `/ArtBox`).
+    ///
+    /// **What moves with the content:** annotation geometry (`/Rect`,
+    /// `/QuadPoints`, `/InkList`, `/Vertices`, `/L`, `/CL`, `/Path`, `/RD`,
+    /// leader lengths — a NoZoom annotation keeps its size and moves by its
+    /// upper-left corner); appearance streams follow their `/Rect` by
+    /// §12.5.5 unchanged; `/Measure` conversion factors (annotation and
+    /// viewport) are rescaled so a measurement still reads the same value;
+    /// viewports and article beads; every explicit destination naming a
+    /// scaled page (`/XYZ`, `/FitH`, `/FitV`, `/FitR` and the `B` forms),
+    /// wherever it sits. Each is written only if it changed.
+    ///
+    /// The report gives, per page, the scale factor, offset and mode (rule
+    /// 4) plus counts of what moved, and names geospatial measures left
+    /// unchanged.
+    ///
+    /// `indices` is sorted and de-duplicated. An empty selection is a
+    /// no-op.
+    ///
+    /// # Errors
+    ///
+    /// All raised before anything is written:
+    ///
+    /// - [`EditError::MediaBoxDegenerate`] — a zero-area or non-finite
+    ///   target, or a page whose crop box misses its media box.
+    /// - [`EditError::ScaleRefusedCeDimensions`] — a selected page carries
+    ///   ce dimensions.
+    /// - [`EditError::CertificationForbidsChange`], as
+    ///   [`EditSession::rotate_pages`].
+    /// - [`EditError::PageOutOfRange`], [`EditError::PageTree`],
+    ///   [`EditError::NotADictionary`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::document::Document;
+    /// use pdfcer_core::edit::EditSession;
+    /// use pdfcer_core::pageops::ScaleRequest;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let bytes: Vec<u8> =
+    ///     include_bytes!("../../../fixtures/synthetic/hello.pdf").to_vec();
+    /// let mut session = EditSession::new(Document::from_bytes(bytes)?);
+    /// let was = session.pages()?[0].media_box;
+    ///
+    /// let half = ScaleRequest::new(was.width() / 2.0, was.height() / 2.0);
+    /// let report = session.scale_pages(&[0], &half)?;
+    ///
+    /// assert_eq!(report.pages[0].placement.scale, 0.5);
+    /// assert_eq!(session.pages()?[0].media_box.width(), was.width() / 2.0);
+    /// session.undo();
+    /// assert!(!session.is_modified());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn scale_pages(
+        &mut self,
+        indices: &[usize],
+        request: &crate::pageops::ScaleRequest,
+    ) -> Result<crate::pageops::ScaleReport, EditError> {
+        use crate::pageops::scale;
+
+        self.check_certification()?;
+        normalize_media_box(page_tree::Rect {
+            llx: 0.0,
+            lly: 0.0,
+            urx: request.width,
+            ury: request.height,
+        })?;
+        let mut targets: Vec<usize> = indices.to_vec();
+        targets.sort_unstable();
+        targets.dedup();
+        let mut report = scale::ScaleReport::default();
+        if targets.is_empty() {
+            return Ok(report);
+        }
+
+        let pages = self.pages()?;
+        let slots = self.page_slots()?;
+        let dim_annots: HashSet<ObjId> = self
+            .read_dimension_model()
+            .dimensions()
+            .iter()
+            .filter_map(|d| d.annot)
+            .collect();
+
+        // Existing objects rewritten, keyed so a shared object is written
+        // once and later reads see the earlier rewrite.
+        let mut pending: BTreeMap<ObjId, Object> = BTreeMap::new();
+        let mut placements: HashMap<ObjId, scale::PagePlacement> = HashMap::new();
+        let mut contents: Vec<(ObjId, Vec<u8>, Vec<Object>)> = Vec::new();
+        let mut seen: HashSet<ObjId> = HashSet::new();
+
+        for &index in &targets {
+            let count = pages.len();
+            let (page, slot) = pages
+                .get(index)
+                .zip(slots.get(index))
+                .ok_or(EditError::PageOutOfRange { index, count })?;
+            let id = page.id;
+            let read = |pending: &BTreeMap<ObjId, Object>, o: &Object| -> Object {
+                match o {
+                    Object::Reference(r) => pending
+                        .get(r)
+                        .cloned()
+                        .or_else(|| self.value(*r).cloned())
+                        .unwrap_or(Object::Null),
+                    other => other.clone(),
+                }
+            };
+            let Object::Dict(mut dict) = read(&pending, &Object::Reference(id)) else {
+                return Err(EditError::NotADictionary { id, key: "Scale" });
+            };
+
+            let annot_refs: Vec<Object> = dict
+                .get(b"Annots")
+                .map(|a| read(&pending, a))
+                .and_then(|a| a.as_array().map(<[Object]>::to_vec))
+                .unwrap_or_default();
+            let dims = annot_refs
+                .iter()
+                .filter_map(Object::as_reference)
+                .filter(|r| dim_annots.contains(r))
+                .count();
+            if dims > 0 {
+                return Err(EditError::ScaleRefusedCeDimensions {
+                    page_index: index,
+                    count: dims,
+                });
+            }
+
+            let degenerate = EditError::MediaBoxDegenerate {
+                w: page.crop_box.width(),
+                h: page.crop_box.height(),
+            };
+            let source = scale::visible_region(page.media_box, page.crop_box).ok_or(degenerate)?;
+            let user_unit = dict
+                .get(b"UserUnit")
+                .and_then(|o| read(&pending, o).as_number())
+                .filter(|u| u.is_finite() && *u > 0.0)
+                .unwrap_or(1.0);
+            let unit_request = scale::ScaleRequest {
+                width: request.width / user_unit,
+                height: request.height / user_unit,
+                ..*request
+            };
+            let placement = scale::plan_placement(source, page.rotate, &unit_request).ok_or(
+                EditError::MediaBoxDegenerate {
+                    w: request.width,
+                    h: request.height,
+                },
+            )?;
+            let target = rect_array(placement.target);
+
+            // Page boxes.
+            dict.insert(Name::from(b"MediaBox"), target.clone());
+            if dict.get(b"CropBox").is_some() || slot.inherited.crop_box.is_some() {
+                dict.insert(Name::from(b"CropBox"), target.clone());
+            }
+            for key in [&b"BleedBox"[..], b"TrimBox", b"ArtBox"] {
+                if dict.get(key).is_some() {
+                    dict.insert(Name::from(key), target.clone());
+                }
+            }
+
+            let mut measures = 0;
+            // Rescale a `/Measure` held in `holder`: indirect ones go to
+            // `pending` once, direct ones are replaced in place. Returns
+            // whether one was rescaled.
+            let rescale = |pending: &mut BTreeMap<ObjId, Object>,
+                           seen: &mut HashSet<ObjId>,
+                           report: &mut scale::ScaleReport,
+                           holder: &mut Dict|
+             -> bool {
+                let Some(m) = holder.get(b"Measure").cloned() else {
+                    return false;
+                };
+                if let Some(mid) = m.as_reference()
+                    && !seen.insert(mid)
+                {
+                    return false;
+                }
+                let resolved = read(pending, &m);
+                let Some(md) = resolved.as_dict() else {
+                    return false;
+                };
+                let outcome = {
+                    let view: &BTreeMap<ObjId, Object> = pending;
+                    scale::scale_measure(&|o| read(view, o), md, placement.scale)
+                };
+                match outcome {
+                    Err(()) => {
+                        report.geo_measures_unchanged += 1;
+                        false
+                    }
+                    Ok(None) => false,
+                    Ok(Some(new)) => {
+                        match m.as_reference() {
+                            Some(mid) => {
+                                pending.insert(mid, Object::Dict(new));
+                            }
+                            None => holder.insert(Name::from(b"Measure"), Object::Dict(new)),
+                        }
+                        true
+                    }
+                }
+            };
+
+            // Annotations.
+            let mut annotations = 0;
+            let mut direct_changed = false;
+            let mut new_annots = annot_refs.clone();
+            for slot_obj in &mut new_annots {
+                let (aid, resolved) = match slot_obj.as_reference() {
+                    Some(aid) => {
+                        if !seen.insert(aid) {
+                            continue;
+                        }
+                        (Some(aid), read(&pending, slot_obj))
+                    }
+                    None => (None, slot_obj.clone()),
+                };
+                let Some(ad) = resolved.as_dict() else {
+                    continue;
+                };
+                let mut out = scale::transform_annotation(&|o| read(&pending, o), ad, &placement);
+                let moved = out.is_some();
+                let mut holder = out.take().unwrap_or_else(|| ad.clone());
+                if rescale(&mut pending, &mut seen, &mut report, &mut holder) {
+                    measures += 1;
+                }
+                if !moved && &holder == ad {
+                    continue;
+                }
+                if moved {
+                    annotations += 1;
+                }
+                match aid {
+                    Some(aid) => {
+                        pending.insert(aid, Object::Dict(holder));
+                    }
+                    None => {
+                        *slot_obj = Object::Dict(holder);
+                        direct_changed = true;
+                    }
+                }
+            }
+            if direct_changed {
+                match dict.get(b"Annots").and_then(Object::as_reference) {
+                    Some(arr_id) => {
+                        pending.insert(arr_id, Object::Array(new_annots));
+                    }
+                    None => dict.insert(Name::from(b"Annots"), Object::Array(new_annots)),
+                }
+            }
+
+            // Viewports (Table 265) and article beads (Table 162).
+            for (key, is_viewport) in [(&b"VP"[..], true), (b"B", false)] {
+                let Some(held) = dict.get(key).cloned() else {
+                    continue;
+                };
+                let Some(items) = read(&pending, &held).as_array().map(<[Object]>::to_vec) else {
+                    continue;
+                };
+                let mut items_out = items.clone();
+                let mut direct = false;
+                for item in &mut items_out {
+                    let iid = item.as_reference();
+                    if iid.is_some_and(|i| !seen.insert(i)) {
+                        continue;
+                    }
+                    let resolved = read(&pending, item);
+                    let Some(d) = resolved.as_dict() else {
+                        continue;
+                    };
+                    let r = |o: &Object| read(&pending, o);
+                    let moved = if is_viewport {
+                        scale::transform_viewport(&r, d, &placement)
+                    } else {
+                        scale::transform_bead(&r, d, &placement)
+                    };
+                    let Some(mut moved) = moved else {
+                        continue;
+                    };
+                    if is_viewport && rescale(&mut pending, &mut seen, &mut report, &mut moved) {
+                        measures += 1;
+                    }
+                    match iid {
+                        Some(i) => {
+                            pending.insert(i, Object::Dict(moved));
+                        }
+                        None => {
+                            *item = Object::Dict(moved);
+                            direct = true;
+                        }
+                    }
+                }
+                if direct {
+                    match held.as_reference() {
+                        Some(arr_id) => {
+                            pending.insert(arr_id, Object::Array(items_out));
+                        }
+                        None => dict.insert(Name::from(key), Object::Array(items_out)),
+                    }
+                }
+            }
+
+            // The content streams to wrap: a stream, an array, or a
+            // reference to an array (Table 30).
+            let existing: Vec<Object> = match dict.get(b"Contents") {
+                None => Vec::new(),
+                Some(c @ Object::Reference(_)) => match read(&pending, c) {
+                    Object::Array(items) => items,
+                    _ => vec![c.clone()],
+                },
+                Some(Object::Array(items)) => items.clone(),
+                Some(other) => vec![other.clone()],
+            };
+            if !existing.is_empty() {
+                contents.push((id, scale::content_prefix(source, &placement), existing));
+            }
+
+            pending.insert(id, Object::Dict(dict));
+            placements.insert(id, placement);
+            report.pages.push(scale::PageScaled {
+                page_index: index,
+                source,
+                placement,
+                mode: request.mode,
+                annotations,
+                measures,
+            });
+        }
+
+        // Destinations naming a scaled page, in any live object. The
+        // pages' own rewrites are scanned in their rewritten form.
+        for oid in self.live_object_ids() {
+            let current = pending.get(&oid).or_else(|| self.value(oid));
+            let Some(current) = current else {
+                continue;
+            };
+            if matches!(current, Object::Stream(_)) {
+                continue;
+            }
+            if let Some((rewritten, n)) = scale::rewrite_destinations(current, &placements) {
+                report.destinations += n;
+                pending.insert(oid, rewritten);
+            }
+        }
+
+        // The wrapping streams; only now may the session be borrowed
+        // mutably.
+        let mut objects: Vec<ObjectWrite> = Vec::new();
+        for (page_id, prefix, existing) in contents {
+            let pre = self.new_stream(Dict::new(), &prefix, &mut objects)?;
+            let post = self.new_stream(Dict::new(), scale::CONTENT_SUFFIX, &mut objects)?;
+            let mut array = Vec::with_capacity(existing.len() + 2);
+            array.push(Object::Reference(pre));
+            array.extend(existing);
+            array.push(Object::Reference(post));
+            if let Some(Object::Dict(d)) = pending.get_mut(&page_id) {
+                d.insert(Name::from(b"Contents"), Object::Array(array));
+            }
+        }
+        for (id, after) in pending {
+            if self.value(id) == Some(&after) {
+                continue;
+            }
+            objects.push(ObjectWrite {
+                id,
+                before: self.state.get(&id).cloned(),
+                after: Some(after),
+            });
+        }
+        self.commit(Command {
+            kind: CommandKind::ScalePages {
+                count: report.pages.len(),
+            },
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(report)
     }
 
     /// Work out the single object write setting `page_index`'s media box
@@ -58327,6 +58754,244 @@ mod tests {
         for id in [ObjId::new(3, 0), ObjId::new(4, 0)] {
             assert!(s.dirty_set().contains(id), "page {id} must be rewritten");
         }
+    }
+
+    fn stream_obj(data: &str) -> String {
+        format!("<< /Length {} >>\nstream\n{data}\nendstream", data.len())
+    }
+
+    /// A letter page with an indirect Square annotation carrying an
+    /// indirect `/Measure`, a direct Link annotation whose `/Dest` names
+    /// the page, and a catalog `/OpenAction` naming it too.
+    fn annotated_letter_page() -> Vec<u8> {
+        build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R /OpenAction [3 0 R /XYZ 100 700 0] >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> \
+                 /Contents 4 0 R /Annots [5 0 R << /Type /Annot /Subtype /Link \
+                 /Rect [10 10 20 20] /Dest [3 0 R /FitR 0 0 612 792] >>] >>",
+                &stream_obj("0 0 m 612 792 l S"),
+                "<< /Type /Annot /Subtype /Square /Rect [100 100 200 200] /Measure 6 0 R >>",
+                "<< /Type /Measure /Subtype /RL /R (1 in = 1 in) \
+                 /X [<< /U (in) /C 0.5 >>] /D [<< /U (in) /C 1 >>] /A [<< /U (sq in) /C 0.25 >>] >>",
+            ],
+            "",
+        )
+    }
+
+    fn nums_of(o: &Object) -> Vec<f64> {
+        o.as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_number().unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn scale_pages_moves_content_annotations_measures_and_destinations_together() {
+        use crate::pageops::ScaleRequest;
+
+        let original = annotated_letter_page();
+        let mut s = session(original.clone());
+        let report = s
+            .scale_pages(&[0], &ScaleRequest::new(306.0, 396.0))
+            .unwrap();
+
+        let page = &report.pages[0];
+        assert_eq!(page.placement.scale, 0.5);
+        assert_eq!(page.annotations, 2);
+        assert_eq!(page.measures, 1);
+        assert_eq!(report.destinations, 2, "OpenAction and the link's /Dest");
+        assert_eq!(
+            s.pages().unwrap()[0].media_box,
+            page_tree::Rect::from_corners(0.0, 0.0, 306.0, 396.0)
+        );
+
+        // Minimal diff: the page's own content stream is untouched and
+        // wrapped, not rewritten.
+        assert!(!s.dirty_set().contains(ObjId::new(4, 0)));
+        let pd = dict_of(&s, ObjId::new(3, 0));
+        let contents = pd.get(b"Contents").unwrap().as_array().unwrap().to_vec();
+        assert_eq!(contents.len(), 3);
+        assert_eq!(contents[1], Object::Reference(ObjId::new(4, 0)));
+
+        // Annotations, measure, destinations.
+        let sq = dict_of(&s, ObjId::new(5, 0));
+        assert_eq!(
+            nums_of(sq.get(b"Rect").unwrap()),
+            [50.0, 50.0, 100.0, 100.0]
+        );
+        let m = dict_of(&s, ObjId::new(6, 0));
+        let c = |k: &[u8]| {
+            m.get(k).unwrap().as_array().unwrap()[0]
+                .as_dict()
+                .unwrap()
+                .get(b"C")
+                .unwrap()
+                .as_number()
+                .unwrap()
+        };
+        assert_eq!((c(b"X"), c(b"D"), c(b"A")), (1.0, 2.0, 1.0));
+        let link = pd.get(b"Annots").unwrap().as_array().unwrap()[1]
+            .as_dict()
+            .unwrap()
+            .clone();
+        assert_eq!(nums_of(link.get(b"Rect").unwrap()), [5.0, 5.0, 10.0, 10.0]);
+        let dest = link.get(b"Dest").unwrap().as_array().unwrap();
+        assert_eq!(
+            nums_of(&Object::Array(dest[2..].to_vec())),
+            [0.0, 0.0, 306.0, 396.0]
+        );
+        let cat = dict_of(&s, ObjId::new(1, 0));
+        let open = cat.get(b"OpenAction").unwrap().as_array().unwrap();
+        assert_eq!(open[2].as_number(), Some(50.0));
+        assert_eq!(open[3].as_number(), Some(350.0));
+        assert_eq!(open[4].as_number(), Some(0.0), "zoom kept");
+
+        // Round trip: an incremental save appends and reopens scaled.
+        let saved = s
+            .to_incremental_bytes(&crate::writer::SaveOptions::identity())
+            .unwrap()
+            .0;
+        assert!(
+            saved.starts_with(&original),
+            "the base revision is untouched"
+        );
+        let reopened = session(saved);
+        let p = &reopened.pages().unwrap()[0];
+        assert_eq!(p.media_box.width(), 306.0);
+        assert_eq!(p.contents.len(), 3);
+
+        // One undo entry.
+        assert_eq!(s.undo(), Some(CommandKind::ScalePages { count: 1 }));
+        assert!(!s.is_modified());
+    }
+
+    #[test]
+    fn scale_pages_downscales_a_landscape_sheet_onto_letter() {
+        use crate::pageops::ScaleRequest;
+
+        let mut s = session(build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 2384 1684] /CropBox [0 0 2384 1684] \
+                 /TrimBox [10 10 2374 1674] /Resources << >> /Contents 4 0 R >>",
+                &stream_obj("0 0 m 2384 1684 l S"),
+            ],
+            "",
+        ));
+        let report = s
+            .scale_pages(&[0], &ScaleRequest::new(612.0, 792.0))
+            .unwrap();
+        let p = report.pages[0].placement;
+        assert!(
+            p.orientation_flipped,
+            "portrait target turned to the landscape sheet"
+        );
+        assert!(p.scale < 1.0 / 3.0);
+        let page = &s.pages().unwrap()[0];
+        let letter_landscape = page_tree::Rect::from_corners(0.0, 0.0, 792.0, 612.0);
+        assert_eq!(page.media_box, letter_landscape);
+        assert_eq!(page.crop_box, letter_landscape);
+        let pd = dict_of(&s, page.id);
+        assert_eq!(
+            nums_of(pd.get(b"TrimBox").unwrap()),
+            [0.0, 0.0, 792.0, 612.0]
+        );
+    }
+
+    #[test]
+    fn scale_pages_sizes_a_rotated_page_as_displayed() {
+        use crate::pageops::{OrientationPolicy, ScaleRequest};
+
+        let rotated = || {
+            build(
+                &[
+                    "<< /Type /Catalog /Pages 2 0 R >>",
+                    "<< /Type /Pages /Kids [3 0 R] /Count 1 /Rotate 90 >>",
+                    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> \
+                     /Contents 4 0 R >>",
+                    &stream_obj("0 0 m 10 10 l S"),
+                ],
+                "",
+            )
+        };
+        // Displayed landscape (inherited /Rotate 90) onto a landscape A3:
+        // the unrotated sheet is portrait.
+        let mut s = session(rotated());
+        s.scale_pages(&[0], &ScaleRequest::new(1190.0, 842.0))
+            .unwrap();
+        let mb = s.pages().unwrap()[0].media_box;
+        assert_eq!((mb.width(), mb.height()), (842.0, 1190.0));
+
+        // Exact with a portrait target on the same page: no turn, so the
+        // unrotated sheet is landscape.
+        let mut s = session(rotated());
+        let r = ScaleRequest::new(842.0, 1190.0).with_orientation(OrientationPolicy::Exact);
+        s.scale_pages(&[0], &r).unwrap();
+        let mb = s.pages().unwrap()[0].media_box;
+        assert_eq!((mb.width(), mb.height()), (1190.0, 842.0));
+    }
+
+    #[test]
+    fn scale_pages_fill_covers_the_sheet() {
+        use crate::pageops::{ScaleMode, ScaleRequest};
+
+        let mut s = session(annotated_letter_page());
+        let r = ScaleRequest::new(595.0, 842.0).with_mode(ScaleMode::Fill);
+        let report = s.scale_pages(&[0], &r).unwrap();
+        let p = report.pages[0].placement;
+        assert_eq!(report.pages[0].mode, ScaleMode::Fill);
+        assert!((p.scale - 842.0 / 792.0).abs() < 1e-12);
+        assert!(p.offset_x < 0.0, "the overflow is split both sides");
+    }
+
+    #[test]
+    fn scale_pages_refuses_a_degenerate_target_and_a_page_with_ce_dimensions() {
+        use crate::dimension::{DEFAULT_GROUP_ID, DimensionKind};
+        use crate::pageops::ScaleRequest;
+        use crate::vector::Point;
+
+        let mut s = session(annotated_letter_page());
+        let err = s
+            .scale_pages(&[0], &ScaleRequest::new(0.0, 100.0))
+            .unwrap_err();
+        assert!(matches!(err, EditError::MediaBoxDegenerate { .. }));
+        let err = s
+            .scale_pages(&[3], &ScaleRequest::new(100.0, 100.0))
+            .unwrap_err();
+        assert!(matches!(err, EditError::PageOutOfRange { index: 3, .. }));
+        assert!(!s.is_modified());
+
+        s.add_dimension(
+            0,
+            DEFAULT_GROUP_ID,
+            DimensionKind::Perimeter {
+                points: vec![
+                    Point::new(20.0, 20.0),
+                    Point::new(80.0, 20.0),
+                    Point::new(80.0, 60.0),
+                ],
+                closed: true,
+                offset: 0.0,
+                text_along: 0.0,
+            },
+        )
+        .unwrap();
+        let before = s.undo_kind();
+        let err = s
+            .scale_pages(&[0], &ScaleRequest::new(306.0, 396.0))
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            EditError::ScaleRefusedCeDimensions {
+                page_index: 0,
+                count: 1
+            }
+        ));
+        assert_eq!(s.undo_kind(), before, "nothing was committed");
     }
 
     #[test]
