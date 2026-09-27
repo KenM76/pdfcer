@@ -640,6 +640,12 @@ pub enum CommandKind {
         /// How many fields were flattened.
         count: usize,
     },
+    /// Annotations were burned into a page's content and removed
+    /// ([`EditSession::flatten_annotations`]). Destructive; one undo entry.
+    FlattenAnnotations {
+        /// How many annotations were flattened.
+        count: usize,
+    },
     /// One `/Redact` **mark** was removed from a page before it was ever
     /// applied (Pass 8.1 review surface, R52).
     ///
@@ -8188,6 +8194,15 @@ pub enum EditError {
     AnnotationNotFound {
         /// The object that was asked for.
         id: ObjId,
+    },
+    /// [`EditSession::flatten_annotations`] was asked to burn an annotation
+    /// it will not burn; nothing was written.
+    #[error("annotation {id} cannot be flattened: {reason}")]
+    AnnotationNotFlattenable {
+        /// The annotation that was asked for.
+        id: ObjId,
+        /// Why it is refused.
+        reason: AnnotFlattenRefusalReason,
     },
     /// [`EditSession::delete_annotation`] was given a `/Widget`.
     ///
@@ -23779,6 +23794,104 @@ pub struct FieldRename {
     pub action_targets_retargeted: usize,
 }
 
+/// Why [`EditSession::flatten_annotations`] will not burn an annotation.
+///
+/// Each reason names something a burned appearance cannot keep, or a state
+/// in which what would be burned differs from what is shown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum AnnotFlattenRefusalReason {
+    /// The annotation is a direct object in `/Annots`, so it cannot be
+    /// removed by reference.
+    NotIndirect,
+    /// A form-field widget; use [`EditSession::flatten_fields`].
+    Widget,
+    /// A pop-up window (§12.5.6.14). It is removed with its parent instead.
+    Popup,
+    /// A link; flattening would remove where it goes.
+    Link,
+    /// A redaction mark; apply or delete it instead.
+    Redact,
+    /// A file attachment; flattening would drop the attached file.
+    FileAttachment,
+    /// A media annotation (`Sound`, `Movie`, `Screen`, `RichMedia`, `3D`).
+    Media,
+    /// `Locked` (§12.5.3 bit 8): the annotation may not be deleted.
+    Locked,
+    /// It runs an action (`/A`) when activated.
+    HasAction,
+    /// `Hidden` (bit 2): it is not shown, so burning it would show it.
+    Hidden,
+    /// `NoView` (bit 6): it is not shown on screen.
+    NoView,
+    /// No usable normal appearance stream (§12.5.5).
+    NoAppearance,
+    /// `/N` is a state dictionary and `/AS` does not select a state.
+    StateUnresolved,
+    /// `/Rect`, or the appearance box through `/Matrix`, has no area.
+    DegenerateAppearance,
+    /// `NoRotate` (bit 5) on a page with `/Rotate`: the burned appearance
+    /// would turn with the page.
+    NoRotateOnRotatedPage,
+}
+
+impl std::fmt::Display for AnnotFlattenRefusalReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::NotIndirect => "it is not an indirect object",
+            Self::Widget => "it is a form-field widget; flatten the field instead",
+            Self::Popup => "it is a pop-up window; it goes with the annotation it belongs to",
+            Self::Link => "it is a link; flattening would remove where it goes",
+            Self::Redact => "it is a redaction mark; apply or delete it instead",
+            Self::FileAttachment => "it carries an attached file flattening would drop",
+            Self::Media => "it plays media a burned appearance cannot",
+            Self::Locked => "it is locked against deletion",
+            Self::HasAction => "it runs an action when activated",
+            Self::Hidden => "it is hidden",
+            Self::NoView => "it is not shown on screen",
+            Self::NoAppearance => "it has no appearance to burn",
+            Self::StateUnresolved => "its appearance state cannot be selected",
+            Self::DegenerateAppearance => "its rectangle or appearance has no area",
+            Self::NoRotateOnRotatedPage => "it does not rotate but the page does",
+        })
+    }
+}
+
+/// One annotation [`EditSession::flatten_annotations`] would not burn.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AnnotFlattenRefusal {
+    /// The annotation, `None` when it is a direct object.
+    pub id: Option<ObjId>,
+    /// Its `/Subtype`, raw.
+    pub subtype: Vec<u8>,
+    /// Why it is refused.
+    pub reason: AnnotFlattenRefusalReason,
+}
+
+/// What [`EditSession::flatten_annotations`] did.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct AnnotFlattenOutcome {
+    /// Whether anything was written. `false` records no undo entry.
+    pub changed: bool,
+    /// Annotations burned into the page and removed.
+    pub flattened: usize,
+    /// Of those, burned inside a transparency group to keep their `/CA`.
+    pub grouped: usize,
+    /// Of those, burned inside a form carrying their `/OC`, so they stay on
+    /// their layer.
+    pub layered: usize,
+    /// Pop-up windows removed with the annotation that owned them.
+    pub popups_removed: usize,
+    /// Replies elsewhere whose `/IRT` named a flattened annotation, un-linked.
+    pub replies_unlinked: usize,
+    /// Annotations left in place when every annotation was asked for.
+    pub skipped: Vec<AnnotFlattenRefusal>,
+    /// What the operator is told (rule 4), most important first.
+    pub disclosures: Vec<String>,
+}
+
 /// What a [`flatten_fields`](EditSession::flatten_fields) operation did
 /// (Pass 7.1, R48).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23920,6 +24033,47 @@ fn fit_matrix_for(bbox: [f64; 4], matrix: [f64; 6], rect: crate::page_tree::Rect
     let tx = rect.llx - sx * minx;
     let ty = rect.lly - sy * miny;
     [sx, 0.0, 0.0, sy, tx, ty]
+}
+
+/// A form's `/Matrix` (§8.10.1), identity when absent or malformed.
+fn read_matrix_entry<G: ObjectGraph + ?Sized>(graph: &G, dict: &Dict) -> [f64; 6] {
+    dict.get(b"Matrix")
+        .map(|o| graph.resolve(o))
+        .and_then(Object::as_array)
+        .and_then(|a| {
+            let nums: Vec<f64> = a
+                .iter()
+                .filter_map(|o| graph.resolve(o).as_number())
+                .collect();
+            match nums.as_slice() {
+                &[a, b, c, d, e, f] => Some([a, b, c, d, e, f]),
+                _ => None,
+            }
+        })
+        .unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+}
+
+/// One annotation's burn, read before the first write.
+struct AnnotBurn {
+    ap: ObjId,
+    cm: [f64; 6],
+    alpha: Option<f64>,
+    oc: Option<ObjId>,
+    has_resources: bool,
+    rect: [f64; 4],
+}
+
+/// A form XObject dictionary (§8.10.2) with `bbox` and `resources`.
+fn form_dict(bbox: [f64; 4], resources: Dict) -> Dict {
+    let mut d = Dict::new();
+    d.insert(Name::from(b"Type"), Object::Name(Name::from(b"XObject")));
+    d.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Form")));
+    d.insert(
+        Name::from(b"BBox"),
+        Object::Array(bbox.iter().map(|v| Object::Real(*v)).collect()),
+    );
+    d.insert(Name::from(b"Resources"), Object::Dict(resources));
+    d
 }
 
 /// Read a four-number rectangle array (each element possibly indirect) as
@@ -42391,6 +42545,529 @@ impl EditSession {
             widgets_burned,
             pages_touched,
         })
+    }
+
+    /// Burn annotations into page `page_index`'s content and remove them, so
+    /// the page looks the same and they are no longer annotations.
+    ///
+    /// `ids = Some(&[…])` burns exactly those annotations, which must be on
+    /// that page; `None` burns every one that can be burned and reports the
+    /// rest in [`AnnotFlattenOutcome::skipped`]. Refusals are listed on
+    /// [`AnnotFlattenRefusalReason`]; widgets go through
+    /// [`Self::flatten_fields`].
+    ///
+    /// Each annotation's normal appearance (§12.5.5) is invoked from a new
+    /// content stream appended to the page, placed by the same §12.5.5
+    /// algorithm render uses, in `/Annots` order. The original content
+    /// streams are not rewritten. An annotation with `/CA` below 1 is burned
+    /// inside a transparency group (§11.6.6) painted at that alpha, which is
+    /// how the annotation itself composites; one with `/OC` is burned inside
+    /// a form carrying that `/OC` (§8.11.3.3), so it stays on its layer.
+    ///
+    /// The annotation dictionaries are deleted, with the pop-up each names;
+    /// their appearance streams stay as page resources. Replies whose `/IRT`
+    /// names a flattened annotation lose `/IRT` and `/RT`. Disclosed (rule
+    /// 4): pop-ups removed, replies un-linked, `/StructParent` references
+    /// left dangling, annotations set not to print that now print, `NoZoom`
+    /// annotations that now scale, and that an incremental save keeps them
+    /// in the previous revision.
+    ///
+    /// One undo entry, [`CommandKind::FlattenAnnotations`]. Nothing to burn
+    /// writes nothing and returns `changed: false`.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::PageOutOfRange`].
+    /// - [`EditError::AnnotationNotFound`] — a named id is not an annotation
+    ///   on that page.
+    /// - [`EditError::AnnotationNotFlattenable`] — a named annotation is
+    ///   refused.
+    /// - The [`Self::flatten_refusal`] set: [`EditError::DocumentEncrypted`],
+    ///   [`EditError::CertificationForbidsChange`],
+    ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`]; and
+    ///   [`EditError::ObjectNumbersExhausted`], [`EditError::PageTree`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::EditSession;
+    /// # fn run(session: &mut EditSession) -> Result<(), Box<dyn std::error::Error>> {
+    /// let outcome = session.flatten_annotations(0, None)?;
+    /// for skipped in &outcome.skipped {
+    ///     println!("kept {:?}: {}", skipped.id, skipped.reason);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn flatten_annotations(
+        &mut self,
+        page_index: usize,
+        ids: Option<&[ObjId]>,
+    ) -> Result<AnnotFlattenOutcome, EditError> {
+        self.flatten_guards()?;
+        let slots = self.page_slots()?;
+        let rotate = self.page_rotation_at(page_index)?;
+        let page_id = slots
+            .get(page_index)
+            .ok_or(EditError::PageOutOfRange {
+                index: page_index,
+                count: slots.len(),
+            })?
+            .id;
+        let graph = self.graph();
+        let on_page = crate::annot::page_annotations(&graph, page_id);
+        let mut outcome = AnnotFlattenOutcome::default();
+
+        let wanted: Option<BTreeSet<ObjId>> = match ids {
+            None => None,
+            Some(ids) => {
+                for &id in ids {
+                    let Some(a) = on_page.iter().find(|a| a.id == Some(id)) else {
+                        return Err(EditError::AnnotationNotFound { id });
+                    };
+                    if let Err(reason) = self.annot_burn_plan(a, rotate) {
+                        return Err(EditError::AnnotationNotFlattenable { id, reason });
+                    }
+                }
+                Some(ids.iter().copied().collect())
+            }
+        };
+        // (annotation, appearance stream, placement) in `/Annots` order.
+        let mut chosen: Vec<(&crate::annot::Annotation, ObjId, [f64; 6])> = Vec::new();
+        for a in &on_page {
+            if let Some(w) = &wanted {
+                if a.id.is_some_and(|id| w.contains(&id))
+                    && let Ok((ap, cm)) = self.annot_burn_plan(a, rotate)
+                {
+                    chosen.push((a, ap, cm));
+                }
+                continue;
+            }
+            if a.is_popup || a.subtype == b"Popup" {
+                continue;
+            }
+            match self.annot_burn_plan(a, rotate) {
+                Ok((ap, cm)) => chosen.push((a, ap, cm)),
+                Err(reason) => outcome.skipped.push(AnnotFlattenRefusal {
+                    id: a.id,
+                    subtype: a.subtype.clone(),
+                    reason,
+                }),
+            }
+        }
+        if !outcome.skipped.is_empty() {
+            outcome.disclosures.push(format!(
+                "left {} annotation(s) in place that cannot be flattened",
+                outcome.skipped.len()
+            ));
+        }
+        if chosen.is_empty() {
+            return Ok(outcome);
+        }
+
+        // Everything else is read before the first write.
+        let all: Vec<crate::annot::Annotation> = slots
+            .iter()
+            .flat_map(|s| crate::annot::page_annotations(&graph, s.id))
+            .collect();
+        let flat_ids: BTreeSet<ObjId> = chosen.iter().filter_map(|(a, _, _)| a.id).collect();
+        let mut removing: Vec<ObjId> = chosen.iter().filter_map(|(a, _, _)| a.id).collect();
+        for (a, _, _) in &chosen {
+            if let Some(p) = a.popup
+                && !removing.contains(&p)
+                && all.iter().any(|x| x.id == Some(p) && x.is_popup)
+            {
+                removing.push(p);
+                outcome.popups_removed += 1;
+            }
+        }
+        let mut replies: Vec<ObjId> = Vec::new();
+        for x in &all {
+            if let Some(id) = x.id
+                && x.in_reply_to.is_some_and(|t| flat_ids.contains(&t))
+                && !removing.contains(&id)
+                && !replies.contains(&id)
+            {
+                replies.push(id);
+            }
+        }
+        let struct_parents = chosen
+            .iter()
+            .filter(|(a, _, _)| {
+                a.id.and_then(|id| graph.resolved(id).as_dict().cloned())
+                    .is_some_and(|d| d.contains_key(b"StructParent"))
+            })
+            .count();
+        let unprinted = chosen.iter().filter(|(a, _, _)| !a.flags.print()).count();
+        let no_zoom = chosen.iter().filter(|(a, _, _)| a.flags.no_zoom()).count();
+        let flattened = chosen.len();
+        let page_resources = self.effective_resources(page_id, &slots);
+        let burns: Vec<AnnotBurn> = chosen
+            .iter()
+            .map(|(a, ap, cm)| AnnotBurn {
+                ap: *ap,
+                cm: *cm,
+                alpha: a.constant_alpha.filter(|v| *v < 1.0).map(|v| v.max(0.0)),
+                oc: a.oc,
+                has_resources: graph
+                    .resolved(*ap)
+                    .as_dict()
+                    .is_some_and(|d| d.contains_key(b"Resources")),
+                rect: a.rect.map_or([0.0; 4], |r| [r.llx, r.lly, r.urx, r.ury]),
+            })
+            .collect();
+        drop(on_page);
+        self.refuse_if_in_page_tree("the flattened annotation", &removing)?;
+
+        let mut objects: Vec<ObjectWrite> = Vec::new();
+        let mut invocations: Vec<(Vec<u8>, Option<[f64; 6]>)> = Vec::new();
+        let mut xobjects: Vec<(Vec<u8>, ObjId)> = Vec::new();
+        let mut taken: BTreeSet<Vec<u8>> = BTreeSet::new();
+        for burn in burns {
+            let (target, placement) = if burn.alpha.is_none() && burn.oc.is_none() {
+                (burn.ap, Some(burn.cm))
+            } else {
+                let target =
+                    self.annot_burn_wrapper(&burn, &page_resources, &mut objects, &mut outcome)?;
+                (target, None)
+            };
+            let name = self.free_page_resource_name(page_id, &slots, b"XObject", "pdfceAn", &taken);
+            taken.insert(name.clone());
+            invocations.push((name.clone(), placement));
+            xobjects.push((name, target));
+        }
+
+        let mut cb = ContentBuilder::new();
+        for (name, cm) in &invocations {
+            cb.save_state();
+            if let Some(cm) = cm {
+                cb.concat_matrix(cm[0], cm[1], cm[2], cm[3], cm[4], cm[5]);
+            }
+            cb.invoke_xobject(name);
+            cb.restore_state();
+        }
+        let overlay_id = self.new_stream(Dict::new(), &cb.into_bytes(), &mut objects)?;
+
+        // Every page listing a removed id is patched: a pop-up may sit on a
+        // different page from its parent. One write per id (see
+        // `flatten_fields`), so a shared indirect `/Annots` is written once.
+        let mut written: BTreeSet<ObjId> = BTreeSet::new();
+        for slot in &slots {
+            let listed = slot.id == page_id
+                || crate::annot::page_annotations(&self.graph(), slot.id)
+                    .iter()
+                    .any(|a| a.id.is_some_and(|id| removing.contains(&id)));
+            if !listed {
+                continue;
+            }
+            let Some(Object::Dict(page_dict)) = self.value(slot.id) else {
+                return Err(EditError::NotADictionary {
+                    id: slot.id,
+                    key: "Annots",
+                });
+            };
+            let mut updated = page_dict.clone();
+            if slot.id == page_id {
+                self.append_page_content(&mut updated, overlay_id);
+                self.add_page_xobjects(&mut updated, page_id, &xobjects, &slots);
+            }
+            if let Some(shared) = self.remove_from_annots(&mut updated, &removing)?
+                && written.insert(shared.id)
+            {
+                objects.push(shared);
+            }
+            if written.insert(slot.id) {
+                objects.push(self.page_write(slot.id, updated));
+            }
+        }
+        for id in &replies {
+            let Some(Object::Dict(d)) = self.value(*id) else {
+                continue;
+            };
+            let mut updated = d.clone();
+            // Both or neither: Table 170 requires /IRT when /RT is present.
+            updated.remove(b"IRT");
+            updated.remove(b"RT");
+            objects.push(ObjectWrite {
+                id: *id,
+                before: self.state.get(id).cloned(),
+                after: Some(Object::Dict(updated)),
+            });
+        }
+        let removals: Vec<Removal> = removing
+            .iter()
+            .copied()
+            .filter(|id| self.base.get(*id).is_some() || self.state.contains_key(id))
+            .map(|id| Removal {
+                id,
+                was_deleted: self.deleted.contains(&id),
+                is_deleted: true,
+            })
+            .collect();
+
+        outcome.changed = true;
+        outcome.flattened = flattened;
+        outcome.replies_unlinked = replies.len();
+        let mut notes = vec![format!(
+            "burned {flattened} annotation(s) into page {}; they are page content now, not annotations",
+            page_index + 1
+        )];
+        if outcome.layered > 0 {
+            notes.push(format!("{} stay on their layer", outcome.layered));
+        }
+        if outcome.popups_removed > 0 {
+            notes.push(format!(
+                "removed {} pop-up window(s) with them",
+                outcome.popups_removed
+            ));
+        }
+        if outcome.replies_unlinked > 0 {
+            notes.push(format!(
+                "{} repl(ies) no longer point at a flattened annotation",
+                outcome.replies_unlinked
+            ));
+        }
+        if struct_parents > 0 {
+            notes.push(format!(
+                "{struct_parents} had a structure-tree entry that now names a deleted object"
+            ));
+        }
+        if unprinted > 0 {
+            notes.push(format!("{unprinted} set not to print now print"));
+        }
+        if no_zoom > 0 {
+            notes.push(format!("{no_zoom} set not to zoom now scale with the page"));
+        }
+        notes.push(
+            "an incremental save keeps them in the previous revision; a full rewrite removes them"
+                .to_owned(),
+        );
+        outcome.disclosures.splice(0..0, notes);
+
+        self.commit(Command {
+            kind: CommandKind::FlattenAnnotations { count: flattened },
+            objects,
+            removals,
+            trailer: None,
+        });
+        Ok(outcome)
+    }
+
+    /// The form that burns one annotation with `/CA` below 1 or an `/OC`:
+    /// `W` carries the `/OC` and, for alpha, paints a transparency group
+    /// `G` (holding the placed appearance) at that alpha, so the appearance
+    /// composites as one object as it does unflattened. Both `/BBox`es are
+    /// the annotation's `/Rect` in page space.
+    fn annot_burn_wrapper(
+        &mut self,
+        burn: &AnnotBurn,
+        page_resources: &Dict,
+        objects: &mut Vec<ObjectWrite>,
+        outcome: &mut AnnotFlattenOutcome,
+    ) -> Result<ObjId, EditError> {
+        // An appearance with no /Resources draws with its caller's (§7.8.3),
+        // so the form around it carries the page's.
+        let base = if burn.has_resources {
+            Dict::new()
+        } else {
+            page_resources.clone()
+        };
+        let inner = self.free_name_in(&base, b"XObject", "pdfceAp");
+        let mut res = base;
+        self.put_resource(&mut res, b"XObject", &inner, Object::Reference(burn.ap));
+        let mut cb = ContentBuilder::new();
+        let cm = burn.cm;
+        cb.concat_matrix(cm[0], cm[1], cm[2], cm[3], cm[4], cm[5]);
+        cb.invoke_xobject(&inner);
+        let (res, content) = if let Some(alpha) = burn.alpha {
+            let mut group = Dict::new();
+            group.insert(Name::from(b"S"), Object::Name(Name::from(b"Transparency")));
+            let mut gdict = form_dict(burn.rect, res);
+            gdict.insert(Name::from(b"Group"), Object::Dict(group));
+            let gid = self.new_stream(gdict, &cb.into_bytes(), objects)?;
+            let mut gs = Dict::new();
+            gs.insert(Name::from(b"CA"), Object::Real(alpha));
+            gs.insert(Name::from(b"ca"), Object::Real(alpha));
+            let mut outer = Dict::new();
+            self.put_resource(&mut outer, b"ExtGState", b"pdfceGs1", Object::Dict(gs));
+            self.put_resource(&mut outer, b"XObject", b"pdfceGr1", Object::Reference(gid));
+            let mut ob = ContentBuilder::new();
+            ob.set_ext_gstate(b"pdfceGs1");
+            ob.invoke_xobject(b"pdfceGr1");
+            outcome.grouped += 1;
+            (outer, ob.into_bytes())
+        } else {
+            (res, cb.into_bytes())
+        };
+        let mut wdict = form_dict(burn.rect, res);
+        if let Some(oc) = burn.oc {
+            wdict.insert(Name::from(b"OC"), Object::Reference(oc));
+            outcome.layered += 1;
+        }
+        self.new_stream(wdict, &content, objects)
+    }
+
+    /// Every annotation on page `page_index`, other than pop-ups, that
+    /// [`Self::flatten_annotations`] would refuse, and why. Document-level
+    /// refusals are [`Self::flatten_refusal`]'s. A pure query.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::PageOutOfRange`], [`EditError::PageTree`].
+    pub fn annotation_flatten_refusals(
+        &self,
+        page_index: usize,
+    ) -> Result<Vec<AnnotFlattenRefusal>, EditError> {
+        let slots = self.page_slots()?;
+        let rotate = self.page_rotation_at(page_index)?;
+        let page_id = slots
+            .get(page_index)
+            .ok_or(EditError::PageOutOfRange {
+                index: page_index,
+                count: slots.len(),
+            })?
+            .id;
+        Ok(crate::annot::page_annotations(&self.graph(), page_id)
+            .iter()
+            .filter(|a| !a.is_popup && a.subtype != b"Popup")
+            .filter_map(|a| {
+                self.annot_burn_plan(a, rotate)
+                    .err()
+                    .map(|reason| AnnotFlattenRefusal {
+                        id: a.id,
+                        subtype: a.subtype.clone(),
+                        reason,
+                    })
+            })
+            .collect())
+    }
+
+    /// The effective `/Rotate` of page `page_index`; 0 past the end, where
+    /// the caller reports the range error.
+    fn page_rotation_at(&self, page_index: usize) -> Result<u16, EditError> {
+        Ok(self.pages()?.get(page_index).map_or(0, |p| p.rotate))
+    }
+
+    /// The appearance stream and §12.5.5 placement to burn `a` with, or why
+    /// it is refused, checked in [`AnnotFlattenRefusalReason`] order.
+    fn annot_burn_plan(
+        &self,
+        a: &crate::annot::Annotation,
+        rotate: u16,
+    ) -> Result<(ObjId, [f64; 6]), AnnotFlattenRefusalReason> {
+        use AnnotFlattenRefusalReason as R;
+        if a.id.is_none() {
+            return Err(R::NotIndirect);
+        }
+        match a.subtype.as_slice() {
+            b"Widget" => return Err(R::Widget),
+            b"Popup" => return Err(R::Popup),
+            b"Link" => return Err(R::Link),
+            b"Redact" => return Err(R::Redact),
+            b"FileAttachment" => return Err(R::FileAttachment),
+            b"Sound" | b"Movie" | b"Screen" | b"RichMedia" | b"3D" => return Err(R::Media),
+            _ if a.is_popup => return Err(R::Popup),
+            _ => {}
+        }
+        if a.flags.locked() {
+            return Err(R::Locked);
+        }
+        if a.action_type.is_some() {
+            return Err(R::HasAction);
+        }
+        if a.flags.hidden() {
+            return Err(R::Hidden);
+        }
+        if a.flags.no_view() {
+            return Err(R::NoView);
+        }
+        let ap = match a.appearance {
+            crate::annot::Appearance::Normal {
+                stream_id: Some(id),
+            } => id,
+            crate::annot::Appearance::StateUnresolved => return Err(R::StateUnresolved),
+            _ => return Err(R::NoAppearance),
+        };
+        let graph = self.graph();
+        let Some(dict) = graph.resolved(ap).as_dict() else {
+            return Err(R::NoAppearance);
+        };
+        let rect = a.rect.ok_or(R::DegenerateAppearance)?;
+        let bbox = dict
+            .get(b"BBox")
+            .and_then(|o| read_rect_array(&graph, o))
+            .ok_or(R::DegenerateAppearance)?;
+        let matrix = read_matrix_entry(&graph, dict);
+        // Render refuses the same degenerate transformed box (§12.5.5 step a).
+        let [ma, mb, mc, md, _, _] = matrix;
+        let (mut minx, mut maxx, mut miny, mut maxy) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
+        for x in [bbox[0], bbox[2]] {
+            for y in [bbox[1], bbox[3]] {
+                let (tx, ty) = (ma * x + mc * y, mb * x + md * y);
+                minx = minx.min(tx);
+                maxx = maxx.max(tx);
+                miny = miny.min(ty);
+                maxy = maxy.max(ty);
+            }
+        }
+        if maxx - minx <= 1e-6 || maxy - miny <= 1e-6 || rect.width() <= 0.0 || rect.height() <= 0.0
+        {
+            return Err(R::DegenerateAppearance);
+        }
+        if !rotate.is_multiple_of(360) && a.flags.no_rotate() {
+            return Err(R::NoRotateOnRotatedPage);
+        }
+        Ok((ap, fit_matrix_for(bbox, matrix, rect)))
+    }
+
+    /// Put `name -> value` in `resources`' `category` sub-dictionary,
+    /// copying an indirect one (§7.3.10) inline.
+    fn put_resource(&self, resources: &mut Dict, category: &[u8], name: &[u8], value: Object) {
+        let mut sub = resources
+            .get(category)
+            .map(|o| self.graph().resolve(o).clone())
+            .and_then(|o| o.as_dict().cloned())
+            .unwrap_or_default();
+        sub.insert(Name(name.to_vec()), value);
+        resources.insert(Name(category.to_vec()), Object::Dict(sub));
+    }
+
+    /// `{prefix}{n}` for the least `n >= 1` not in `resources`' `category`.
+    fn free_name_in(&self, resources: &Dict, category: &[u8], prefix: &str) -> Vec<u8> {
+        let graph = self.graph();
+        let present = resources
+            .get(category)
+            .map(|o| graph.resolve(o))
+            .and_then(|o| o.as_dict().cloned())
+            .unwrap_or_default();
+        (1u32..)
+            .map(|n| format!("{prefix}{n}").into_bytes())
+            .find(|c| present.get(c.as_slice()).is_none())
+            .unwrap_or_default()
+    }
+
+    /// Create a stream object from `dict` and `content`, pushing its write.
+    fn new_stream(
+        &mut self,
+        mut dict: Dict,
+        content: &[u8],
+        objects: &mut Vec<ObjectWrite>,
+    ) -> Result<ObjId, EditError> {
+        let id = ObjId::new(self.alloc_number()?, 0);
+        dict.insert(
+            Name::from(b"Length"),
+            Object::Integer(i64::try_from(content.len()).unwrap_or(i64::MAX)),
+        );
+        let span = self.stage_bytes(content);
+        objects.push(ObjectWrite {
+            id,
+            before: None,
+            after: Some(Object::Stream(Stream {
+                dict,
+                data_span: span,
+            })),
+        });
+        Ok(id)
     }
 
     /// Resolve a widget's burn target: the object id of the `/AP` `/N`

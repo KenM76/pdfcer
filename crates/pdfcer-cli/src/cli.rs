@@ -8250,6 +8250,51 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Burn annotations into the page, so they look the same and are no
+    /// longer annotations.
+    ///
+    /// Without `--index`, every annotation on the page that can be burned is,
+    /// and the rest are listed as `skipped:` lines. With `--index` (the
+    /// `index=` `list-annotations` prints; repeatable), exactly those are,
+    /// and one that cannot be is exit 9. Form fields go through
+    /// `flatten-fields`; links, redaction marks, file attachments, media,
+    /// locked, hidden and action-running annotations are never burned.
+    ///
+    /// Each burn paints the annotation's appearance as it is shown: its
+    /// opacity and its layer are kept. Its pop-up note is removed with it,
+    /// and replies to it are un-linked. An incremental save keeps the
+    /// annotations in the previous revision.
+    ///
+    /// Prints one `flatten-annotations` line (flattened, grouped, layered,
+    /// popups, replies, skipped, changed), one `skipped:` line per annotation
+    /// left in place and one `disclosure:` line per statement of what
+    /// changed. `--dry-run` writes nothing.
+    ///
+    /// Exit 9 when a named annotation cannot be burned, the page or index is
+    /// out of range, or the document refuses the edit.
+    FlattenAnnotations {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-based.
+        #[arg(long)]
+        page: usize,
+        /// An annotation to burn, 0-based within the page, as
+        /// `list-annotations` prints it. Repeatable; none means all.
+        #[arg(long)]
+        index: Vec<usize>,
+        /// Print what would change and write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Output path.
+        #[arg(short, long, required_unless_present = "dry_run")]
+        output: Option<PathBuf>,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Put an annotation on a layer, move it to another layer, or take it
     /// off every layer (`--none`).
     ///

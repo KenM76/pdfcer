@@ -19,6 +19,7 @@ mod export_image;
 mod extract_text;
 mod fill_rich_text;
 mod find_text;
+mod flatten_annotations;
 mod font_licence_notice;
 mod font_preflight;
 mod format_text;

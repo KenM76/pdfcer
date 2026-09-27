@@ -2254,6 +2254,21 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         ),
+        Command::FlattenAnnotations {
+            input,
+            page,
+            index,
+            dry_run,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_flatten_annotations(
+            &input,
+            (page, &index),
+            (!dry_run).then_some(output).flatten().as_deref(),
+            mode,
+            verify_undo,
+        ),
         Command::LayerMerge {
             input,
             into,

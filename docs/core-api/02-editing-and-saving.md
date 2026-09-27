@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 264 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 266 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 264 public `EditSession` methods
+## 1. Verb index — all 266 public `EditSession` methods
 
-**Count: 264.** Established by brace-matched extraction of the six
+**Count: 266.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -90,7 +90,8 @@ when `Pass 358.2` added `delete_layer`, and again at 259 when `Pass 358.3` added
 `add_layer_folder`, `rename_layer_folder`, `delete_layer_folder` and `move_layer_node`, and again at 260 when `Pass 358.4` added
 `set_annotation_layer`, and again at 261 when `Pass 358.4` added `set_objects_layer`, and again at 262
 when `Pass 358.5` added `paste_objects_on_layer`, and again at 263 when `Pass 358.6` added `merge_layers`, and again at 264 when `Pass 358.6`
-added `flatten_layers`.
+added `flatten_layers`, and again at 266 when `Pass 360.0` added
+`flatten_annotations` and `annotation_flatten_refusals`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -1734,6 +1735,8 @@ would alter how every pdfcer-authored check box already in the wild renders.
 | Import data | `import_form_data(&mut self, data: &fdf::FormData) -> Result<ImportOutcome, EditError>` | 13471 | ⚠️ **Each field is its own undo entry.** Unknown names are counted and skipped, never an error. |
 | Regenerate appearances, clear `/NeedAppearances` | `regenerate_appearances(&mut self) -> Result<RegenOutcome, EditError>` | 13600 | ONE undo entry. |
 | Flatten fields into page content | `flatten_fields(&mut self, names: Option<&[&str]>) -> Result<FlattenOutcome, EditError>` | 13730 | **Destructive.** ONE undo entry. Burns by overlay-append (§5.8). ⚠️ **Refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** — `Pass 185.1`'s exact input against a verb that never received that fix, and it reached further than the original: the `emptied_parents` cascade read a page's `/Parent` (the `/Pages` node) as a field's `/Kids`, found no survivors, and **deleted the page-tree root**. The guard runs over the whole delete list **after** the cascade, because the cascade is what adds the ids nobody named. §6.8. |
+| Flatten annotations into page content | `flatten_annotations(&mut self, page_index: usize, ids: Option<&[ObjId]>) -> Result<AnnotFlattenOutcome, EditError>` | edit.rs | `Pass 360.0`. Burns each annotation's normal appearance (§12.5.5 placement, the same as render) into ONE new content stream appended to the page, in `/Annots` order, and deletes the annotation. `None` = every burnable one, the rest in `skipped: Vec<AnnotFlattenRefusal { id, subtype, reason }>`; `Some(ids)` = exactly those, each on that page (`AnnotationNotFound`) and burnable (`AnnotationNotFlattenable { id, reason }`, nothing written). `AnnotFlattenRefusalReason` (`#[non_exhaustive]`, `Display`): `NotIndirect`, `Widget` (use `flatten_fields`), `Popup`, `Link`, `Redact`, `FileAttachment`, `Media`, `Locked`, `HasAction`, `Hidden`, `NoView`, `NoAppearance`, `StateUnresolved`, `DegenerateAppearance`, `NoRotateOnRotatedPage`. `/CA` < 1 → burned inside a transparency group painted at that alpha (`grouped`); `/OC` → inside a form carrying that `/OC`, so it stays on its layer (`layered`). Its `/Popup` is deleted too (`popups_removed`); replies anywhere whose `/IRT` names it lose `/IRT` and `/RT` (`replies_unlinked`). Appearance streams are kept. Disclosures (rule 4): pop-ups, replies, dangling `/StructParent`, unprinted annotations that now print, `NoZoom` ones that now scale, and that an incremental save keeps the previous revision. One undo entry, `CommandKind::FlattenAnnotations { count }`; nothing burnable → `changed: false`, no entry. `AnnotFlattenOutcome { changed, flattened, grouped, layered, popups_removed, replies_unlinked, skipped, disclosures }` (`#[non_exhaustive]`, `Default`). CLI: `pdfcer flatten-annotations IN --page N [--index I]... [--dry-run] -o OUT`. |
+| Which annotations cannot be flattened | `annotation_flatten_refusals(&self, page_index: usize) -> Result<Vec<AnnotFlattenRefusal>, EditError>` | edit.rs | `Pass 360.0`. Pure query: every non-pop-up annotation on the page `flatten_annotations` would refuse, and why. Document-level refusals are `flatten_refusal`'s. Use it to grey out a per-annotation Flatten command. |
 
 ### 1.14 Form refusal preflights (5) — see §6.4 for whether they are load-bearing
 
@@ -5009,7 +5012,7 @@ borrow it (`tests/image_placement.rs:238-247`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**148 variants** at `Pass 358.6` (`HiddenLayersNeedPolicy`, from `flatten_layers`), counted at depth 1 inside `pub enum EditError`.
+**149 variants** at `Pass 360.0` (`AnnotationNotFlattenable`, from `flatten_annotations`), counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 

@@ -1727,6 +1727,92 @@ pub(crate) fn cmd_layer_flatten(
     finish_edit(input, &outcome)
 }
 
+/// `flatten-annotations`: burn annotations on one page; `output` `None` is
+/// `--dry-run`.
+pub(crate) fn cmd_flatten_annotations(
+    input: &Path,
+    (page, indices): (usize, &[usize]),
+    output: Option<&Path>,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let mut ids = Vec::with_capacity(indices.len());
+    for &index in indices {
+        match crate::annot_edit::resolve_annotation(&session, input, page, index) {
+            Ok(id) => ids.push(id),
+            Err(code) => return code,
+        }
+    }
+    if page == 0 {
+        eprintln!("pdfcer: --page is 1-based; 0 is not a page");
+        return exit::EDIT_REFUSED;
+    }
+    let chosen = (!ids.is_empty()).then_some(ids.as_slice());
+    let flat = match session.flatten_annotations(page - 1, chosen) {
+        Ok(flat) => flat,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let counts = format!(
+        "flattened={} grouped={} layered={} popups={} replies={} skipped={} changed={}",
+        flat.flattened,
+        flat.grouped,
+        flat.layered,
+        flat.popups_removed,
+        flat.replies_unlinked,
+        flat.skipped.len(),
+        flat.changed,
+    );
+    let print_details = || {
+        for s in &flat.skipped {
+            let id =
+                s.id.map_or_else(|| "direct".to_owned(), |id| id.num.to_string());
+            println!(
+                "  skipped: id={id} subtype={} {}",
+                String::from_utf8_lossy(&s.subtype),
+                s.reason
+            );
+        }
+        for d in &flat.disclosures {
+            println!("  disclosure: {d}");
+        }
+    };
+    let Some(output) = output else {
+        println!(
+            "flatten-annotations {} page={page} dry-run; {counts}",
+            input.display()
+        );
+        print_details();
+        return exit::SUCCESS;
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "flatten-annotations {} page={page} mode={} -> {}; {counts} objects={} appended={} out_bytes={}",
+        input.display(),
+        mode.name(),
+        output.display(),
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    print_details();
+    finish_edit(input, &outcome)
+}
+
 /// `layer-merge`: rebind every layer in `merged` onto `into`.
 pub(crate) fn cmd_layer_merge(
     input: &Path,
