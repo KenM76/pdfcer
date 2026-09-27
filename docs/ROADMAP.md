@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 355.0` (`65da5c15`), 2026-09-27 — A bound `/DR` font places the baseline by its own `/Ascent`
+
+**Verdict: SHIPPED, closes the vertical-metrics half of D4 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing) — the remaining D4 half (a non-WinAnsi/Type0 `/DR` font still drawing with the standard-14 stand-in) stays open.
+
+A regenerated form-field appearance drawing with the document's own `/DR` font — a bindable WinAnsi simple font, already bound for glyph widths by an earlier Pass — placed its first baseline by the standard-14 stand-in's ascender instead of the bound font's own `/FontDescriptor` `/Ascent` (ISO 32000-1 §9.8.1 Table 122). Applies to wrapped and comb layouts; a missing, non-numeric or non-positive `/Ascent` keeps the stand-in's value.
+
+**Fix.** `pdfcer-fonts` `vartext::FontResource` gained `ascent: Option<u16>` — not on the core-api surface the GUI consumes, no `docs/core-api` change.
+
+**Tests.** Core `form_dr_font_binding::a_bound_font_places_its_baseline_with_its_own_ascent`; CLI `edit_field::a_fill_places_the_baseline_by_the_dr_fonts_own_ascent`. Both sabotage-verified (baseline 11.384 vs expected 9.2). Fuzz target `annot_author` extended and builds.
+
+**Shells.** Core + CLI this Pass; GUI is a separate project, not wired.
+
+**Gates.** `tools/run-gates.sh`: PASS, 39 commands. No dependency or manifest change — `cargo tree` unaffected.
+
+**`docs/FEATURES.md`.** Row 318's `/DA`/`/DR` clause extended with the ascent fix, citing `Pass 355.0`; row trimmed to stay under the 1,200-char cap (measured ~1,120 chars after trim). No box change.
+
+**Backlog.** D4 narrows to its one remaining half: a non-WinAnsi/Type0 `/DR` font still draws with the standard-14 stand-in.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `65da5c15`, not independently reproduced.
+
 ### `Pass 354.0` (`7570a850`), 2026-09-27 — A multi-select choice field can be given a multi-value default
 
 **Verdict: SHIPPED, closes D8's last clause (b) from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`353.0`) — **D8 is now fully closed.** Only D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics) is left open from this audit.

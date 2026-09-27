@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (641st filing) — `65da5c15`: `Pass 355.0` SHIPPED — a bound `/DR` font places the baseline by its own `/Ascent`
+
+**Shipped:**
+- `Pass 355.0` — closes the vertical-metrics half of D4 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item: a regenerated form-field appearance drawing with the document's own `/DR` font placed its first baseline by the standard-14 stand-in's ascender instead of the bound font's own `/FontDescriptor` `/Ascent` (ISO 32000-1 §9.8.1 Table 122); applies to wrapped and comb layouts.
+
+**Decisions made this session:**
+- None beyond the fix itself. D4 narrows to its one remaining half: a non-WinAnsi/Type0 `/DR` font still draws with the standard-14 stand-in.
+
+**Findings + decisions:**
+- Fix: `pdfcer-fonts` `vartext::FontResource` gained `ascent: Option<u16>` — not on the core-api surface the GUI consumes. Missing, non-numeric or non-positive `/Ascent` keeps the stand-in's value.
+- Tests: core `form_dr_font_binding::a_bound_font_places_its_baseline_with_its_own_ascent`; CLI `edit_field::a_fill_places_the_baseline_by_the_dr_fonts_own_ascent`. Both sabotage-verified (baseline 11.384 vs expected 9.2). Fuzz target `annot_author` extended and builds. `tools/run-gates.sh`: PASS (39 commands). No dependency/manifest change.
+- `docs/FEATURES.md` row 318: `/DA`/`/DR` clause extended with the ascent fix, citing `Pass 355.0`; row trimmed and confirmed under the 1,200-char cap (~1,120 chars). No box change.
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item narrows to D4's one remaining half: a non-WinAnsi/Type0 `/DR` font still draws with the standard-14 stand-in.
+- Unscoped, still open: a stale plaintext password carried in earlier incremental revisions.
+
+**For next session:**
+- Next candidates: D4's remaining half (non-WinAnsi/Type0 `/DR` fonts), or the plaintext-password remainder.
+
 ## 2026-09-27 (640th filing) — `7570a850`: `Pass 354.0` SHIPPED — a multi-select choice field can be given a multi-value default
 
 **Shipped:**
