@@ -39946,6 +39946,7 @@ impl EditSession {
 
             let ap_id = ObjId::new(self.alloc_number()?, 0);
             let mut ap_dict = appearance.ap_dict;
+            self.bind_dr_fonts(&mut ap_dict);
             // `/Matrix` (§8.10.1 Table 95). Written only for a real rotation,
             // so an unrotated widget's appearance dict is byte-identical to
             // what every earlier build produced (R34) -- the identity matrix
@@ -40295,6 +40296,7 @@ impl EditSession {
                 let before = self.state.get(id).cloned();
                 let span = self.stage_bytes(&content.content);
                 let mut dict = content.ap_dict;
+                self.bind_dr_fonts(&mut dict);
                 dict.insert(
                     Name::from(b"Length"),
                     Object::Integer(i64::try_from(content.content.len()).unwrap_or(i64::MAX)),
@@ -41009,6 +41011,70 @@ impl EditSession {
             }
         }
         out
+    }
+
+    /// Point a regenerated appearance's `/Resources` `/Font` entries at the
+    /// document's own `/DR` fonts where those are not standard-14.
+    ///
+    /// The generator writes a standard-14 font dictionary for every face it
+    /// lays out with; for a `/DR` font such as an embedded TrueType that made
+    /// the field draw in Helvetica. The `/DR` object is used instead when it
+    /// is a simple font (§9.6) whose encoding is `/WinAnsiEncoding` with no
+    /// `/Differences` — the code set the generator writes — so the glyphs
+    /// are the document's. Any other encoding keeps the standard-14 stand-in,
+    /// because the generator's bytes would select the wrong glyphs.
+    fn bind_dr_fonts(&self, ap_dict: &mut Dict) {
+        let graph = self.graph();
+        let Some(dr_fonts) = graph
+            .catalog_dict()
+            .and_then(|c| c.get(b"AcroForm").map(|o| graph.resolve(o)))
+            .and_then(Object::as_dict)
+            .and_then(|af| af.get(b"DR").map(|o| graph.resolve(o)))
+            .and_then(Object::as_dict)
+            .and_then(|dr| dr.get(b"Font").map(|o| graph.resolve(o)))
+            .and_then(Object::as_dict)
+            .cloned()
+        else {
+            return;
+        };
+        let Some(Object::Dict(mut res)) = ap_dict.get(b"Resources").cloned() else {
+            return;
+        };
+        let Some(Object::Dict(mut fonts)) = res.get(b"Font").cloned() else {
+            return;
+        };
+        for (key, slot) in &mut fonts.0 {
+            let Some(raw) = dr_fonts.get(key.as_bytes()) else {
+                continue;
+            };
+            let Some(fd) = graph.resolve(raw).as_dict() else {
+                continue;
+            };
+            let simple = fd
+                .get(b"Subtype")
+                .and_then(Object::as_name)
+                .is_some_and(|n| matches!(n.as_bytes(), b"Type1" | b"TrueType" | b"MMType1"));
+            let standard = fd
+                .get(b"BaseFont")
+                .and_then(Object::as_name)
+                .and_then(|n| crate::fontdata::basefont_to_std14(n.as_bytes()))
+                .is_some();
+            let winansi = match fd.get(b"Encoding").map(|o| graph.resolve(o)) {
+                Some(Object::Name(n)) => n.as_bytes() == b"WinAnsiEncoding",
+                Some(Object::Dict(e)) => {
+                    e.get(b"Differences").is_none()
+                        && e.get(b"BaseEncoding")
+                            .and_then(Object::as_name)
+                            .is_some_and(|n| n.as_bytes() == b"WinAnsiEncoding")
+                }
+                _ => false,
+            };
+            if simple && !standard && winansi {
+                *slot = raw.clone();
+            }
+        }
+        res.insert(Name::from(b"Font"), Object::Dict(fonts));
+        ap_dict.insert(Name::from(b"Resources"), Object::Dict(res));
     }
 
     // -- Pass 7.1: export/import, regenerate, flatten -------------------

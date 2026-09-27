@@ -49,6 +49,7 @@ mod fontinfo_session;
 mod form_choice_indices;
 mod form_comb_fields;
 mod form_delete_page_tree;
+mod form_dr_font_binding;
 mod form_edit_audit;
 mod form_field_authoring;
 mod form_field_clipboard;

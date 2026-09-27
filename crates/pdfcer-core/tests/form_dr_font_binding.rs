@@ -1,0 +1,173 @@
+//! A regenerated field appearance draws with the document's own `/DR` font
+//! when that font is not standard-14, rather than a Helvetica stand-in.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::{EditSession, FieldAppearance, FieldEdit, NewPushButton};
+use pdfcer_core::forms;
+use pdfcer_core::graph::ObjectGraph as _;
+use pdfcer_core::object::{Dict, ObjId, Object};
+use pdfcer_core::page_tree::Rect;
+use pdfcer_core::vartext::TextColor;
+
+fn assemble(bodies: &[String]) -> Vec<u8> {
+    let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    buf
+}
+
+/// A one-field form whose `/DA` names `da_key`. `/DR` `/Font` carries
+/// `/F1` (a WinAnsi Calibri, object 5), `/F2` (the same face with
+/// `/Differences`, object 6) and `/Helv` (standard-14, object 7).
+fn session(da_key: &str) -> EditSession {
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] \
+         /DR << /Font << /F1 5 0 R /F2 6 0 R /Helv 7 0 R >> >> /DA (/Helv 0 Tf 0 g) >> >>"
+            .to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [4 0 R] >>".to_owned(),
+        format!(
+            "<< /FT /Tx /T (t) /Type /Annot /Subtype /Widget /P 3 0 R \
+             /Rect [20 50 200 72] /DA (/{da_key} 12 Tf 0 g) >>"
+        ),
+        "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
+         /Encoding /WinAnsiEncoding >>"
+            .to_owned(),
+        "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
+         /Encoding << /BaseEncoding /WinAnsiEncoding /Differences [65 /B] >> >>"
+            .to_owned(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica \
+         /Encoding /WinAnsiEncoding >>"
+            .to_owned(),
+    ];
+    EditSession::new(Document::from_bytes(assemble(&bodies)).expect("fixture parses"))
+}
+
+/// The `/Resources` `/Font` entry `key` of the field's `/AP` `/N`.
+fn ap_font(s: &EditSession, key: &[u8]) -> Object {
+    let g = s.graph();
+    let Object::Dict(field) = g.resolve(&Object::Reference(ObjId::new(4, 0))).clone() else {
+        panic!("field is not a dictionary");
+    };
+    let ap: Dict = field
+        .get(b"AP")
+        .map(|o| g.resolve(o))
+        .and_then(Object::as_dict)
+        .cloned()
+        .expect("/AP");
+    let Some(Object::Stream(n)) = ap.get(b"N").map(|o| g.resolve(o).clone()) else {
+        panic!("no /AP /N stream");
+    };
+    n.dict
+        .get(b"Resources")
+        .and_then(Object::as_dict)
+        .and_then(|r| r.get(b"Font"))
+        .and_then(Object::as_dict)
+        .and_then(|f| f.get(key))
+        .cloned()
+        .unwrap_or_else(|| panic!("no /Font entry {}", String::from_utf8_lossy(key)))
+}
+
+#[test]
+fn a_winansi_dr_font_is_the_font_the_appearance_draws_with() {
+    let mut s = session("F1");
+    s.fill_text_field("t", "Hi").unwrap();
+    assert_eq!(
+        ap_font(&s, b"F1"),
+        Object::Reference(ObjId::new(5, 0)),
+        "the appearance drew /F1 with a stand-in, not the document's Calibri"
+    );
+}
+
+#[test]
+fn a_font_with_differences_keeps_the_standard_14_stand_in() {
+    // The generator writes WinAnsi codes; under /Differences those would
+    // select other glyphs, so the document's font is not used.
+    let mut s = session("F2");
+    s.fill_text_field("t", "Hi").unwrap();
+    assert!(
+        matches!(ap_font(&s, b"F2"), Object::Dict(_)),
+        "a re-encoded font was bound to WinAnsi bytes"
+    );
+}
+
+#[test]
+fn a_standard_14_dr_font_is_unchanged() {
+    let mut s = session("Helv");
+    s.fill_text_field("t", "Hi").unwrap();
+    assert!(matches!(ap_font(&s, b"Helv"), Object::Dict(_)));
+}
+
+/// The push-button route redraws through its own builder; it binds too.
+#[test]
+fn a_push_button_caption_draws_with_the_dr_font() {
+    let mut s = session("F1");
+    s.add_push_button(
+        &NewPushButton::new(
+            0,
+            "Go",
+            Rect {
+                llx: 20.0,
+                lly: 100.0,
+                urx: 120.0,
+                ury: 124.0,
+            },
+            "Send",
+        )
+        .declining_tooltip(),
+    )
+    .unwrap();
+    s.edit_field(
+        "Go",
+        &FieldEdit::new().with_appearance(FieldAppearance::resource(
+            "F1",
+            12.0,
+            TextColor::Gray(0.0),
+        )),
+    )
+    .unwrap();
+    let g = s.graph();
+    let button = forms::parse_acroform(&g)
+        .unwrap()
+        .fields
+        .into_iter()
+        .find(|f| f.fully_qualified_name == "Go")
+        .unwrap();
+    let ap = g
+        .resolved(button.widgets[0].id)
+        .as_dict()
+        .and_then(|d| d.get(b"AP"))
+        .map(|o| g.resolve(o).clone())
+        .expect("/AP");
+    let Some(Object::Stream(n)) = ap
+        .as_dict()
+        .and_then(|d| d.get(b"N"))
+        .map(|o| g.resolve(o).clone())
+    else {
+        panic!("no /AP /N stream");
+    };
+    let font = n
+        .dict
+        .get(b"Resources")
+        .and_then(Object::as_dict)
+        .and_then(|r| r.get(b"Font"))
+        .and_then(Object::as_dict)
+        .and_then(|f| f.get(b"F1"))
+        .cloned();
+    assert_eq!(font, Some(Object::Reference(ObjId::new(5, 0))));
+}
