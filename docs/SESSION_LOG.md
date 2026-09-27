@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (633rd filing) — `ab671a64`: `Pass 348.0` SHIPPED — a field drawn in a non-standard `/DR` font uses that font
+
+**Shipped:**
+- `Pass 348.0` — partially closes D4 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item: every regenerated field appearance forced a standard-14 stand-in font into `/Resources`, so a field whose `/DA` named a non-standard-14 `/DR` font (e.g. embedded Calibri under `/F1`) drew in Helvetica regardless.
+
+**Decisions made this session:**
+- None beyond the fix itself. D4 is split rather than closed: the WinAnsi-encoded-simple-font case is fixed here; the standard-14-metrics-for-layout and non-WinAnsi/Type0 cases are reworded into D4's remainder and filed as a `Pass 348.1` candidate in the same audit list, not a new Backlog item.
+
+**Findings + decisions:**
+- Fix binds each appearance `/Resources` `/Font` entry to the `/DR` object itself when it is a simple font (Type1/TrueType/MMType1, ISO 32000-1 §9.6) with `/WinAnsiEncoding` and no `/Differences`; other encodings keep the standard-14 stand-in since WinAnsi bytes would pick wrong glyphs. Standard-14 `/DR` fonts unaffected.
+- The "resource not in `/DR`" half of D4's old wording was already correct — that's the existing `FieldFontNotInResources` refusal, not a Helvetica substitution. No new `pub` API; core-only, CLI inherits through `edit_field`/`field-edit`. New test module `tests/form_dr_font_binding.rs`, 4 tests.
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item stays open — two `FieldEdit` findings (D4's remainder, D8) and two `WidgetEdit` findings remain.
+
+**For next session:**
+- Next candidate from the same audit is D4's remainder (`Pass 348.1`: standard-14 layout metrics for a non-standard face; non-WinAnsi/Type0 `/DR` fonts still using the stand-in) or D8 (round-trip gaps: inherited quadding read-back, multi-select `/DV`, Regenerated-over-identical-bytes on check box/radio `/DA`).
+
 ## 2026-09-27 (632nd filing) — `149db066`: `Pass 347.0` SHIPPED — replacing a choice field's options re-points `/I` and `/TI`
 
 **Shipped:**

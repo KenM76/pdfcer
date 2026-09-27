@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 348.0` (`ab671a64`), 2026-09-27 — A field drawn in a non-standard `/DR` font uses that font
+
+**Verdict: SHIPPED, partially closes D4 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`347.0`) — the item stays open, two `FieldEdit` findings and two `WidgetEdit` findings remain (see *Backlog*); D4's own remainder is filed there as a `Pass 348.1` candidate.
+
+Found by the form-editing audit (finding D4): every regenerated field appearance wrote a standard-14 font dict into its `/Resources` for the `/DA` face, so a field whose `/DA` named a non-standard-14 `/DR` font (e.g. embedded Calibri under `/F1`) drew in Helvetica regardless.
+
+**Fix.** The text and push-button regenerators now bind each appearance `/Resources` `/Font` entry to the `/DR` object itself when it is a simple font (Type1/TrueType/MMType1, ISO 32000-1 §9.6) with `/WinAnsiEncoding` and no `/Differences`. A `/DR` font with any other encoding still gets the standard-14 stand-in, since WinAnsi bytes would pick the wrong glyphs against it. Standard-14 `/DR` fonts are unaffected — bytes unchanged.
+
+**Remainder, not closed here.** Layout is still measured with standard-14 metrics, not the bound font's own `/Widths`, so centring/right-align/auto-size stay approximate for a non-standard face; and a non-WinAnsi (`/Differences`, Type0) `/DR` font still draws with the stand-in. Filed as a `Pass 348.1` candidate in the same Backlog list. (The "resource not in `/DR`" half of D4's old wording named the existing `FieldFontNotInResources` refusal, not a Helvetica substitution — that half was already correct, and stays so.)
+
+**API.** No new `pub` item; no `docs/core-api` change.
+
+**CLI.** `field-edit`/`fill-field` inherit the fix through core; no new flag.
+
+**Tests.** New `tests/form_dr_font_binding.rs`, 4 tests. Sabotage: removing either bind call fails its test. `tools/run-gates.sh`: PASS (39 commands).
+
+**Shells.** Core fix only; CLI inherits unchanged. GUI is a separate project and has not wired it. Neither box moves.
+
+**`docs/FEATURES.md`:** row 318 checked against the 1,200-char cap — already within ~50–100 characters of it; no clause added, row unchanged (a further refinement under the row's existing "font fallback...not a hard-coded Helvetica" wording).
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `ab671a64`, not independently reproduced.
+
 ### `Pass 347.0` (`149db066`), 2026-09-27 — Replacing a choice field's options re-points `/I` and `/TI`
 
 **Verdict: SHIPPED, closes D7 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`346.0`) — the item stays open, two `FieldEdit` findings and two `WidgetEdit` findings remain (see *Backlog*).
@@ -17087,11 +17109,13 @@ suspicion this entry recorded.
 
 ★ **Twelfth fix shipped — 2026-09-27 (632nd filing, `Pass 347.0`, `149db066`).** Closes D7, below: `edit_field` with new choice options left `/I`/`/TI` holding positions in the OLD list; both are now re-derived against the new list from the field's stored `/V` selection — see *Shipped*, above. **Kept open** — two `FieldEdit` findings and two `WidgetEdit` findings remain.
 
+★ **Thirteenth fix shipped — 2026-09-27 (633rd filing, `Pass 348.0`, `ab671a64`).** Partially closes D4, below: every regenerated field appearance forced a standard-14 stand-in font into `/Resources`, so a field whose `/DA` named a non-standard-14 `/DR` font drew in Helvetica regardless; the text and push-button regenerators now bind `/Resources` `/Font` to the `/DR` object itself for a WinAnsi-encoded, no-`/Differences` simple font — see *Shipped*, above. **D4 stays open**, reworded below to its remainder and filed as a `Pass 348.1` candidate. **Kept open** — two `FieldEdit` findings and two `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
 - D5/X1 — CLOSED by `Pass 338.0`, above. Was: `regen_after_property_change` fell back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redrew in Helvetica, and a non-Helv `/DA` key gave `FontUnresolved` on a later edit.
-- D4 — a resource font not in `/DR`, or not standard-14, is still forced to Helvetica (partly fixed by `Pass 338.0`: a Resource face present in `/DR` now gets `/DR`'s standard-14 metrics).
+- D4 — CLOSED for a WinAnsi-encoded, no-`/Differences` simple `/DR` font by `Pass 348.0`, above (bound to the `/DR` object itself, in place of the standard-14 stand-in). **Remainder, filed as a `Pass 348.1` candidate:** layout is still measured with standard-14 metrics, not the font's own `/Widths`, so centring/right-align/auto-size stay approximate; and a non-WinAnsi (`/Differences`, Type0) `/DR` font still draws with the stand-in. (The "resource not in `/DR`" case was already refused by `FieldFontNotInResources`, not a Helvetica substitution — D4's old wording named that refusal, not a bug.)
 - D4b — CLOSED by `Pass 344.0`, above. Was: a push-button `/DA` edit is not redrawn — measured worse than filed, it failed outright with `FontUnresolved` for any non-Helvetica face.
 - D1 — CLOSED by `Pass 346.0`, above. Was: comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.
