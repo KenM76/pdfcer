@@ -4,6 +4,29 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (636th filing) — `c36f4c2d`: `Pass 350.0` SHIPPED — a button redraw that changes nothing is not reported as one
+
+**Shipped:**
+- `Pass 350.0` — closes D8's remainder clause (c) and the WidgetEdit "Radio caption and text/choice caption falsely report Regenerated" finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item: pdfcer draws check-box/radio artwork from its own shapes, not `/DA`, so a `/DA` edit on those widgets — or an `edit_widget` caption on a radio, or wrongly on a text/choice widget — reproduced identical appearance bytes but still rewrote both state streams and reported Regenerated.
+
+**Decisions made this session:**
+- None beyond the fix itself. D8 narrows again to (a) inherited quadding read-back and (b) multi-select `/DV`; the WidgetEdit list's one remaining open finding is stroke-width scaling.
+
+**Findings + decisions:**
+- `regen_button_appearance` now compares each redrawn state (dict + stream bytes) against what's stored and writes only the ones that differ; identical states leave `appearance_regenerated: false` and a new `pub` field `FieldEditOutcome::appearance_stale: Option<String>` names the `/DA` written but not drawn. The private property-redraw helper returns a tri-state (`Rebuilt`/`Unchanged`/`NotRebuilt`) instead of a bool; `AppearanceOutcome` gains `RecordedNotPainted(String)` for `edit_widget`'s caption path.
+- `edit_widget`'s caption trigger — previously any widget — is now gated to push buttons and check boxes (`/MK` `/CA` is a button key, ISO 32000-1 Table 189); a caption on a text/choice widget no longer forces a redraw or mints a needless `/AP`.
+- `rotate_widget` inherits the same tri-state: a turn leaving a button's artwork byte-identical now reports `appearance_regenerated: false` / `appearance_stale: None`. Its doc comment, which still claimed push buttons are never redrawn (stale since `Pass 308.5`), is corrected.
+- CLI: `edit-field`/`edit-widget` print the new stale-disclosure sentence when present. Minimal-diff invariant strengthened: an identical appearance stream is no longer re-emitted.
+- Tests: core `tests/button_redraw_honesty.rs` (5 tests, incl. an `/AP` stream-span check and a control case that a genuine redraw still reports Regenerated); CLI `tests/edit_field.rs::a_property_pdfcer_does_not_draw_is_disclosed_not_reported_redrawn`. Sabotage: disabling the identical-skip, forcing `caption_drawn` unconditionally, and dropping the CLI print each independently fail. `tools/run-gates.sh`: PASS (39 commands).
+- `docs/core-api/02-editing-and-saving.md` `edit_field` row updated; `check-core-api-verbs` PASS (251 verbs). No manifest change.
+- `docs/FEATURES.md` row 318: existing Pass 349.0 clause reworded and extended to cover Pass 350.0, trimmed elsewhere to stay under the 1,200-char cap; no box change.
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item stays open — two `FieldEdit` findings (D4's remainder, D8's narrower remainder) and one `WidgetEdit` finding (stroke-width scaling) remain.
+
+**For next session:**
+- Next candidates from the same audit: D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics), D8's remainder (inherited quadding read-back, multi-select `/DV`), or the stroke-width-scaling `WidgetEdit` finding.
+
 ## 2026-09-27 (635th filing) — `a5cfe53f`: `Pass 349.0` SHIPPED — a side-effect field redraw discloses its layout decisions
 
 **Shipped:**

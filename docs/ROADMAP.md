@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 350.0` (`c36f4c2d`), 2026-09-27 — A button redraw that changes nothing is not reported as one
+
+**Verdict: SHIPPED, closes D8's remainder clause (c) AND the WidgetEdit "Radio caption and text/choice caption falsely report Regenerated" finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`349.0`) — D8 narrows again to (a) inherited quadding read-back and (b) multi-select `/DV`; the WidgetEdit list's one remaining open finding is stroke-width scaling.
+
+pdfcer draws check-box/radio artwork from its own shapes, not from `/DA`, so a `/DA` edit on those widgets — or an `edit_widget` caption (`/MK` `/CA`) on a radio, or wrongly on a text/choice widget — reproduced identical appearance-stream bytes but still rewrote both state streams and reported `appearance_regenerated: true`/Regenerated.
+
+**Fix.** `regen_button_appearance` now compares each redrawn state (dict + stream bytes) against what's stored and writes only the ones that differ; when every state is identical, `FieldEditOutcome::appearance_regenerated` is `false` and a new `pub` field `FieldEditOutcome::appearance_stale: Option<String>` carries a sentence noting the `/DA` was written but not drawn. The private property-redraw helper returns a tri-state (`Rebuilt`/`Unchanged`/`NotRebuilt`) instead of a bool. `AppearanceOutcome` gains `RecordedNotPainted(String)` for the same case on `edit_widget`'s caption path. `edit_widget`'s caption trigger — previously any widget — is now gated to push buttons and check boxes (`/MK` `/CA` is a button key, ISO 32000-1 Table 189); a caption on a text or choice widget no longer forces a text redraw or mints a needless new `/AP`.
+
+**Rotation.** `rotate_widget` inherits the same tri-state: a turn leaving a button's artwork byte-identical now reports `appearance_regenerated: false` / `appearance_stale: None`. Its doc comment, which still claimed push buttons are never redrawn (stale since `Pass 308.5`), is corrected.
+
+**CLI.** `edit-field`/`edit-widget` print the new stale-disclosure sentence when present.
+
+**Invariant.** Minimal-diff strengthened: an appearance stream identical to what's already stored is no longer re-emitted.
+
+**Tests.** Core `tests/button_redraw_honesty.rs`, 5 tests — including an `/AP` stream-span check (untouched after a check-box `/DA` edit) and a control case (a genuine background-colour redraw still reports Regenerated). CLI `tests/edit_field.rs::a_property_pdfcer_does_not_draw_is_disclosed_not_reported_redrawn`. Sabotage: disabling the identical-skip fails 2 core tests, forcing `caption_drawn` unconditionally fails 2 core tests, dropping the CLI print fails the CLI test.
+
+**API.** `docs/core-api/02-editing-and-saving.md`'s `edit_field` row updated; `check-core-api-verbs` PASS (251 verbs).
+
+**Shells.** Core + CLI this Pass; GUI is a separate project and has not wired it. No manifest change — `cargo tree` unaffected, no dependencies added.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `c36f4c2d`, not independently reproduced.
+
 ### `Pass 349.0` (`a5cfe53f`), 2026-09-27 — A side-effect field redraw discloses its layout decisions
 
 **Verdict: SHIPPED, closes D8's undisclosed-counts half from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`348.1`) — D8's other findings (inherited quadding read-back, multi-select `/DV`, Regenerated-over-identical-bytes on check box/radio `/DA`) stay open, reworded below.
@@ -17155,6 +17177,8 @@ suspicion this entry recorded.
 
 ★ **Fifteenth fix shipped — 2026-09-27 (635th filing, `Pass 349.0`, `a5cfe53f`).** Closes D8's undisclosed-counts half, below: `edit_field`, `edit_widget`, `rotate_widget` and `reset_form` each redraw an appearance as a side effect and discarded what it decided (an applied auto-size, an unmodelled `/DA` colour, unencodable characters); new `pub` type `edit::LayoutDisclosure` is now carried on all four outcomes and printed by the CLI — see *Shipped*, above. A `da_colour_unmodelled` bug found on discovery (reported only inside the auto-size branch, so a fixed-size `/DA` never disclosed it on ANY route) is fixed alongside. **D8 stays open**, reworded below to its remainder. **Kept open** — two `FieldEdit` findings (D4's remainder, D8's remainder) and two `WidgetEdit` findings remain.
 
+★ **Sixteenth fix shipped — 2026-09-27 (636th filing, `Pass 350.0`, `c36f4c2d`).** Closes D8's remainder clause (c) and the WidgetEdit radio/text-choice-caption finding, below: pdfcer draws check-box/radio artwork from shapes, not `/DA`, so a `/DA` edit or an `edit_widget` caption on those widgets (or wrongly on a text/choice widget) rewrote byte-identical appearance streams while reporting Regenerated; `regen_button_appearance`'s redraw is now compared state-by-state against what's stored and skipped when identical, and `edit_widget`'s caption trigger is gated to buttons only — see *Shipped*, above. **Kept open** — two `FieldEdit` findings (D4's remainder, D8's narrower remainder) and one `WidgetEdit` finding remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -17164,13 +17188,13 @@ suspicion this entry recorded.
 - D1 — CLOSED by `Pass 346.0`, above. Was: comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.
 - D7 — CLOSED by `Pass 347.0`, above. Was: replacing a choice field's options left `/I`/`/TI` pointing at positions in the OLD list.
-- D8 — undisclosed-counts half CLOSED by `Pass 349.0`, above: a side-effect redraw's auto-size, `/DA`-colour and unencodable-character decisions are now carried as `edit::LayoutDisclosure` on `edit_field`/`edit_widget`/`rotate_widget`/`reset_form` and printed by the CLI. **Open remainder:** round-trip gaps — inherited quadding read-back, multi-select `/DV`; check box/radio `/DA` edits report Regenerated over identical bytes.
+- D8 — undisclosed-counts half CLOSED by `Pass 349.0`, above; the check box/radio `/DA`-over-identical-bytes clause CLOSED by `Pass 350.0`, above: a side-effect redraw's auto-size, `/DA`-colour and unencodable-character decisions are now carried as `edit::LayoutDisclosure` on `edit_field`/`edit_widget`/`rotate_widget`/`reset_form` and printed by the CLI, and `regen_button_appearance` no longer rewrites an identical check-box/radio appearance while reporting Regenerated. **Open remainder:** round-trip gaps — inherited quadding read-back, multi-select `/DV`.
 
 **WidgetEdit:**
 - Border width/style — CLOSED by `Pass 340.0`, above. Was: every widget builder hard-coded a 1pt solid frame; a border edited or authored with `/BS` width or style (dashed/underline/beveled/inset) was written but never painted, while the outcome reported Regenerated.
 - `border_dict` drops `/D` — CLOSED by `Pass 341.0`, above. Was: an `edit_widget` border edit replaced `/BS` wholesale, dropping the widget's own `/D` dash array; every redraw after then drew the default `[3]` dash instead.
 - Stroke-width scaling is reported but not drawn.
-- Radio caption and text/choice caption falsely report Regenerated (text/choice also churns a new `/AP` it didn't need to).
+- Radio caption and text/choice caption falsely report Regenerated — CLOSED by `Pass 350.0`, above. Was: identical caption artwork on a radio, or ANY caption on a text/choice widget (which shouldn't trigger a redraw at all), rewrote bytes and reported Regenerated regardless.
 - `/MK` `/BG`/`/BC` colour widening — CLOSED by `Pass 342.0`, above. Was: `MkColor::to_array` widened each `f32` component through `f64::from`, writing e.g. `[0.20000000298023224]` for a component given as `0.2`.
 - X2 — CLOSED by `Pass 339.0`, above. Was: `regen_field_appearance` rebuilds every sibling widget while reporting `siblings_untouched`.
 
