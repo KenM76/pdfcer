@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (658th filing) — `54b40f51`: `Pass 359.0` SHIPPED (bug found on discovery); `Pass 360.0` (annotation flattening) scoped and moved Backlog → Next up
+
+**Shipped:**
+- Pass 359.0 — `EditSession::flatten_fields` used to name burned appearances `pdfceFm1, pdfceFm2, …` from a fixed per-call counter with no check against existing `/Resources` names; a second flatten on a page an earlier flatten had touched could rebind `pdfceFm1` onto the new field's appearance, silently erasing the first field's burn from the page. Fixed via new private `free_page_resource_name`, which picks free against the page's own-or-inherited `/Resources` and names already claimed in the same command.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- Bug found on discovery while scoping `Pass 360.0`, not filed for later (rule: fix bugs on discovery). No `pub`/dependency change. Tests: core `a_second_flatten_on_the_same_page_keeps_the_first_burn`, CLI `two_flatten_runs_on_one_page_keep_both_burns`, both fail pre-fix. `docs/FEATURES.md`'s form-field flatten row gained a citing sentence, no box change.
+- `Pass 360.0` minted: `flatten_annotations(page_index, ids)` bakes EXISTING annotations' `/AP` into `/Contents` and removes them, per-annotation refusal list (`/Widget`, `/Popup`, `/Link`, `/Redact`, media/3D, Hidden/NoView, Locked, no usable appearance, NoRotate-on-rotated-page), CLI `flatten-annotations --dry-run`. `G043`'s option B (option A shipped as `Pass 356.0`); moved from *Backlog* to *Next up* in `ROADMAP.md`. `docs/FEATURES.md` gained an unticked Planned row citing it.
+
+**Still in flight:**
+- `Pass 360.0` — scoped, not started.
+
+**For next session:**
+- Pick up `Pass 360.0`.
+
 ## 2026-09-27 (657th filing) — `5ea510b6`: `Pass 358.6` (flatten half) SHIPPED — `Pass 358.6` and family `358` now COMPLETE
 
 **Shipped:**

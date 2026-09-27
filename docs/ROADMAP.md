@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 359.0` (`54b40f51`), 2026-09-27 — a second flatten no longer repaints the first
+
+**Verdict: SHIPPED.** Bug found on discovery while scoping `Pass 360.0` (annotation flattening, *Next up* below): `EditSession::flatten_fields` named each burned appearance `pdfceFm1, pdfceFm2, …`, counting from 1 on every call and inserting into the page's own-or-inherited `/Resources` `/XObject` without checking existing names. A second `flatten_fields` call on a page an earlier flatten had already touched rebound `pdfceFm1` to the new field's appearance, so the first field's burn painted the SECOND field's appearance and the first vanished from the page — silent visual data loss.
+
+**Fix.** Names are now chosen free against the page's own-or-inherited `/Resources` (ISO 32000-2 §7.7.3.4) and against names already claimed earlier in the same command, via a new private helper `free_page_resource_name`.
+
+**Tests.** Core `a_second_flatten_on_the_same_page_keeps_the_first_burn` (`form_field_hierarchy.rs`); CLI `two_flatten_runs_on_one_page_keep_both_burns` (`edit_field.rs`); both fail on the pre-fix naming.
+
+**Gates.** No `pub` change, no dependency change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected.
+
+**Shells.** core `[x]`, cli `[x]` — unchanged; the bug and its fix are both inside an already-shipped, already-ticked verb.
+
+**`docs/FEATURES.md`.** No box change. Form-field flatten row's text gains a citation of this fix (see that file).
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `54b40f51`, not independently reproduced.
+
 ### `Pass 358.6` (flatten half, `5ea510b6`), 2026-09-27 — `flatten_layers` + `pdfcer layer-flatten` — `Pass 358.6` now COMPLETE, family `358` COMPLETE
 
 **Verdict: SHIPPED IN FULL. `Pass 358.6` (merge half `99a708d0` + flatten half `5ea510b6`) is now COMPLETE. Family `358`'s scoped items (`358.0`–`358.6`: properties, create/delete, folders, content/annotation `/OC` assignment, layer-on-add, merge/flatten) are now COMPLETE** — OCMD/`/RBGroups`/`/Configs`/Import-as-Layer were deliberately out of scope and stay Backlog ("Unscoped — OCMD/RBGroups/Configs/Import-as-Layer" below). Acrobat's Flatten Layers is document-wide, discards hidden content, not undoable; pdfcer matches the capability but discloses it (rule 4).
@@ -17343,17 +17359,29 @@ overrides the image dictionary; `/ColorSpace` optional,
 `/ColorSpace`/`/BitsPerComponent` that Table 89 makes optional
 (decision 005 §10 item 3).
 
+### `Pass 360.0` — annotation flattening: `flatten_annotations`, promoted from Backlog — filed 2026-09-27 (658th filing)
+
+**Scope, from `G043`'s option B** (Backlog since the 642nd filing; option A shipped as `Pass 356.0`). Bake EXISTING annotations into page content, complementing `356.0`'s route for freshly authored ones.
+
+- Core `EditSession::flatten_annotations(page_index, ids: Option<&[ObjId]>) -> Result<AnnotFlattenOutcome, EditError>` — burns each in-scope annotation's `/AP` `/N` (honouring `/AS`) into a new content stream appended to `/Contents`, placed per §12.5.5 (`/BBox` via `/Matrix` onto `/Rect`) exactly as `flatten_fields` does; removes the annotation from `/Annots`; one undo entry. `ids = None` = every annotation on the page.
+- Preserved on the way in: `/CA` (§12.5.2) → an `/ExtGState` `gs` around the burn; `/OC` (§8.11.3.3) → the burn wrapped in `BDC /OC … EMC` bound through `/Properties`, so a layered comment stays on its layer. A flattened markup's `/Popup` is deleted with it.
+- **Per-annotation refusal list, never all-or-nothing:** `/Widget` (use `flatten`), a `/Popup` on its own, `/Link` (its action would be lost), `/Redact` (flattening would HIDE content, not remove it — use redact-apply), `/FileAttachment` (attachment lost), media/3D (`/Sound /Movie /Screen /RichMedia /3D`), Hidden or NoView (§12.5.3 — flattening would make it show), Locked, no usable appearance, NoRotate on a rotated page, and a named id not on the page.
+- A pure query `annotation_flatten_refusals(page_index)` shares the same classification, so a shell can grey out what will not flatten.
+- Disclosures (rule 4): replies (`/IRT`) left pointing at a flattened annotation; structure-tree references; an incremental save keeps the annotation in the previous revision (not redaction).
+- Gate: strict certification (modifies page content), encryption, `/Size` suppression.
+- CLI `pdfcer flatten-annotations IN --page N [--id N]... [--dry-run] -o OUT`, printing counts, one line per refusal, and disclosures.
+
+**Acceptance.** A markup (Square/Ink/Highlight/FreeText/Stamp) renders the same before and after flatten; refusals named per annotation while the rest flattens; undo restores byte-identically; core + CLI tests with sabotage.
+
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
-### Unscoped — `flatten_annotations`: bake existing annotations into page content — filed 2026-09-27 (642nd filing), `G043`'s option B, no Pass ID
+### `flatten_annotations` — PROMOTED to *Next up* as `Pass 360.0`, 2026-09-27 (658th filing)
 
-**Scope.** `G043` (`pdfcer-gui` request, operator row O246) asked for review-layer drawings that can also draw as ordinary page content. `Pass 356.0` (*Shipped*, above) shipped option A — a verb committing a FRESH `MarkupSpec` as page content. Option B is the complement: bake EXISTING annotations into page content, refusing by name (not aborting the whole call) any annotation that cannot flatten cleanly — a `/Widget`, a signature, a `/Popup`, anything whose appearance state depends on interaction pdfcer cannot bake once and be done with.
-
-**Acceptance criteria, once scoped.** A `flatten_annotations(page_index, options)` verb that moves each in-scope annotation's baked `/AP` into `/Contents` and removes the annotation, one undo entry, with a per-annotation refusal list rather than an all-or-nothing failure; CLI `flatten-annotations` with a dry-run preview, mirroring the pattern already used elsewhere in this file (annotation-deletion preview, resize preview).
+Was filed here 2026-09-27 (642nd filing) as `G043`'s option B, unscoped. Now scoped and moved to *Next up* — see `Pass 360.0` above. Nothing remains here.
 
 ---
 
