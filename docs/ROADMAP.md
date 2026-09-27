@@ -8312,9 +8312,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 **Filed 2026-09-27 (644th filing), family `358`.** Acrobat has no New Layer/Delete Layer command at all — delete exists only as a Preflight fixup (`layers__layer_properties_authoring.md`). Both directions here EXCEED Acrobat (operator standing rule: parity is a floor).
 
-**Scope.** Create: a new empty OCG appended to `/OCGs` and `/D /Order` (root, or into a folder — composes with `Pass 358.3`). Delete: remove an OCG from `/OCGs`/`/Order`/`/RBGroups` with an explicit content policy — `keep unlayered` (SAFE DEFAULT) or `remove content` (the same confirm-before-destructive-save posture as redaction, `ARCHITECTURE.md` §11.2). Delete-by-name is the Preflight-parity item.
+**CREATE half SHIPPED 2026-09-27 (648th filing, `006c0155`).** `EditSession::add_layer(name, edit)` appends a new empty OCG to `/OCProperties /OCGs` and the root of `/D /Order` (creating `/OCProperties`/`/D` when absent; an absent `/Order` gets `[new]` per Table 101); other `LayerEdit` fields apply in the same command, visible by default. CLI `pdfcer layer-add`. Refusals: `EmptyLayerName`, `DocumentEncrypted`, certification. `set_layer_properties` refactored onto a shared private stage/commit helper. DELETE half below is still open.
 
-**Acceptance criteria.** `keep unlayered` strips every `BDC /OC /name` wrapper naming the deleted layer (unwrap, never delete the content) and clears `/OC` on any annotation/widget naming it. `remove content` actually removes the marked content and annotations, disclosed by count. An OCG still referenced by an OCMD or `/RBGroups` entry the deletion doesn't also clean up is refused by name, never left dangling.
+**DELETE — still open.** Remove an OCG from `/OCGs`/`/Order`/`/RBGroups` with an explicit content policy — `keep unlayered` (SAFE DEFAULT) or `remove content` (the same confirm-before-destructive-save posture as redaction, `ARCHITECTURE.md` §11.2). Delete-by-name is the Preflight-parity item.
+
+**Acceptance criteria (delete).** `keep unlayered` strips every `BDC /OC /name` wrapper naming the deleted layer (unwrap, never delete the content) and clears `/OC` on any annotation/widget naming it. `remove content` actually removes the marked content and annotations, disclosed by count. An OCG still referenced by an OCMD or `/RBGroups` entry the deletion doesn't also clean up is refused by name, never left dangling.
 
 ### `Pass 358.3` — Organise `/Order` folders
 

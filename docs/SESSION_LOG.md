@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (648th filing) — `006c0155`: `Pass 358.2` CREATE half SHIPPED — `add_layer` / `pdfcer layer-add`
+
+**Shipped:**
+- Pass 358.2 (create half) — `EditSession::add_layer(name: &str, edit: &LayerEdit) -> Result<ObjId, EditError>` appends a new empty OCG (ISO 32000-1 §8.11.2) to `/OCProperties /OCGs` and the root of `/D /Order`; creates `/OCProperties`/`/D` when absent, and an absent `/Order` gets `/Order [new]` (Table 101: absent `/Order` presents no groups). Other `LayerEdit` fields apply in the same command; visible by default; `edit.name` ignored. Indirect arrays edited in place (minimal diff). One undo entry, `CommandKind::AddLayer { layer }`. Refusals: `EmptyLayerName`, `DocumentEncrypted`, certification. `set_layer_properties` refactored onto a shared private stage/commit helper.
+- CLI `pdfcer layer-add <in> --name N [--visible on|off] [--locked on|off] [--print/--export when-visible|always|never] [--intent view|design|both] -o out [--mode] [--verify-undo]`, exit 9 on empty name. README subcommand count 157.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- `docs/core-api` 02 §1.32 "Layers (2)" row added, verb count 254, `check-core-api-verbs` green.
+- Tests: core `tests/layer_edit.rs` 15 (5 new), CLI `tests/layer_edit.rs` 9 (2 new). Sabotage: 4 mutations, all caught. `clippy -D warnings` clean, `fmt` applied. No manifest change → `cargo tree` unaffected, no new dependency.
+- `docs/FEATURES.md`'s create/delete-a-layer row ticked core `[x]` / cli `[x]`; gui and the delete half stay unticked — row stays in *Planned* since the whole capability hasn't landed.
+
+**Still in flight:**
+- `Pass 358.2` DELETE half — keep-unlayered default / remove-content, refuse while an OCMD or `/RBGroups` references the group. Stays in *Next up*, not moved to *Shipped*.
+- `Pass 358.3`–`358.6` (folder organisation, content/annotation `/OC` assignment, layer-on-add, merge/flatten) — none started.
+- `flatten_annotations` (`G043` option B) — still unscoped, carried forward.
+
+**For next session:**
+- Pick up `Pass 358.2`'s delete half, or move on to `Pass 358.3`/`358.4` — either is open, neither blocks the other.
+
 ## 2026-09-27 (647th filing) — `d469d742`/`d4fee7ef`: Pass 358.1 doctest+README fix; `G044` ruling (closed-set types)
 
 **Shipped:**
