@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (664th filing) — `Pass 364.0` scoped (scale page contents to a target size, "resize page contents")
+
+**Shipped:**
+- Nothing — a scoping filing. `Pass 364.0` minted and filed to *Next up* (not *Backlog*, per `docs/NEXT_SESSION.md`'s operator ordered plan naming "resize-page-contents" ahead of the backlog).
+
+**Decisions made this session:**
+- None new — a Backlog/Next-up scoping filing, not an architectural decision.
+
+**Findings + decisions:**
+- Acrobat research this session by `pdfcer-acrobat-librarian`: `D:\Dev\Rag-Specialized\Acrobat_Features\core_ops__scale_pages_to_fit_size.md`, `core_ops__change_page_size_no_scale.md`, `core_ops__crop_pages_margins.md`. Confirms pdfcer's shipped `set-page-size` verb already matches Acrobat's "Change Page Size" (box-only, content translated, never scaled) — a different operation from `Pass 364.0`.
+- `Pass 364.0`'s eight acceptance criteria: a new `EditSession` verb (`fit`/`fill` mode, uniform scale, undoable), minimal-diff `q cm ... Q` wrapping plus box rewrites, annotation/widget/link-destination scaling that exceeds a confirmed Acrobat defect, downscaling as a first-class case, a disclosed orientation policy (`match` default vs `exact`) rather than a silent one, per-page disclosure of scale/offset/mode, a `pdfcer scale-pages` CLI verb in the same Pass, and `docs/core-api` + fixture-test coverage. Crop Pages (box-only) is out of scope, per the third RAG file.
+
+**Still in flight:**
+- `Pass 364.0` is scoped only — no code written. Next up ahead of it in the operator's ordered plan per the same filing: `Pass 142.0` (embedded-donor `format-text --set-font`).
+
+**For next session:**
+- Pick up `Pass 364.0` implementation, or whatever the operator's ordered plan places first at that point — check `docs/NEXT_SESSION.md`.
+
 ## 2026-09-27 (663rd filing) — `45298418`: `Pass 259.0` (`docs/core-api/` line citations → symbol-only, gated) SHIPPED
 
 **Shipped:**

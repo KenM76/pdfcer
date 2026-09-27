@@ -8337,6 +8337,64 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★ **ONE ITEM ADDED 2026-09-27 (664th filing) — `Pass 364.0`, SCALE
+> PAGE CONTENTS TO A TARGET SIZE ("resize page contents"), the operator's
+> own ordered-plan item (`docs/NEXT_SESSION.md`), scoped from
+> `pdfcer-acrobat-librarian`'s survey of
+> `Acrobat_Features/core_ops__scale_pages_to_fit_size.md`,
+> `core_ops__change_page_size_no_scale.md` and
+> `core_ops__crop_pages_margins.md`.** Filed *Next up*, not *Backlog*,
+> because the ordered plan puts it ahead of the backlog. Distinct from the
+> shipped `set-page-size` verb (box-only, content translated, never scaled
+> — Acrobat's "Change Page Size"); Crop Pages is explicitly out of scope.
+> The live entry is the HEAD of this section, just below. `docs/FEATURES.md`:
+> one new *Planned* row, all pdfcer boxes unticked. Nothing shipped this
+> filing.
+
+### Pass 364.0 — Scale page contents to a target size ("resize page contents")
+
+**Delivers core + cli** (gui is the separate `pdfcer-gui` project's
+concern). Acrobat reference: `pdfcer-acrobat-librarian`'s
+`Acrobat_Features/core_ops__scale_pages_to_fit_size.md`,
+`core_ops__change_page_size_no_scale.md`,
+`core_ops__crop_pages_margins.md` (664th filing).
+
+Acceptance criteria:
+1. A new `EditSession` verb scales each selected page's content
+   uniformly (aspect preserved, no stretch) to a target size, mode
+   **fit** (scale to fit inside, pad, centred) or **fill** (scale to
+   cover, overflow cropped by the new boxes). One undoable command
+   (`ARCHITECTURE.md` §11.4).
+2. Minimal diff (`ARCHITECTURE.md` §5): original content streams
+   untouched — the transform is a `q <cm>` stream prepended and a `Q`
+   stream appended to `/Contents`. `/MediaBox` and any present
+   `/CropBox`/`/BleedBox`/`/TrimBox`/`/ArtBox` rewritten to the target,
+   resolving inherited page attributes (§7.7.3.4) rather than assuming
+   them on the leaf.
+3. **Exceeds Acrobat** (a confirmed Acrobat defect, per the RAG
+   survey): annotations and widgets move and scale WITH the content —
+   `/Rect`, `/QuadPoints`, `/InkList`, `/Vertices`, `/L`, `/CL`, `/RD`
+   as applicable; an `/AP` follows its `/Rect` via the §12.5.5
+   BBox→Rect mapping. `/XYZ` and `/FitR` link destinations targeting a
+   scaled page are transformed too.
+4. Downscaling is a first-class tested case — Acrobat's own reduction
+   is unreliable, per the RAG survey.
+5. Mixed page sizes and `/Rotate` get a stated, disclosed setting
+   rather than a silent default: orientation policy `match` (default —
+   the target is flipped to each page's own orientation) vs `exact`; a
+   `/Rotate` page scales in its displayed orientation. Both are open
+   gaps against Acrobat itself.
+6. Rule 4 disclosure: the report states, per page, the scale factor,
+   the offset and the mode used.
+7. CLI `scale-pages <in> -o <out> --pages SPEC --size NAME|WxH [--mode
+   fit|fill] [--orientation match|exact]`, shipped the same Pass
+   (`CLAUDE.md` rule 11).
+8. `docs/core-api` updated for the new verb; fixture-based tests
+   including an annotated page and a downscale case.
+
+Crop Pages (box-only) is explicitly out of scope, per
+`core_ops__crop_pages_margins.md` — a distinct operation.
+
 > ★★★★ **`Pass 330.0` SHIPPED, 2026-09-26 (609th filing), `3127b18c`** — see
 > top of *Shipped*. Filed *Next up* by the 608th filing, found by rotation
 > from the redaction shared-content-stream fix (`e92cf7dd`); this banner is
