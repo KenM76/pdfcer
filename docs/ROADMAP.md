@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 365.0` (`794750d2`), 2026-09-27 — bound every network wait in the shell-side timestamp transport — `G047`
+
+**Verdict: SHIPPED.** Defect fix answering `G047` (`pdfcer-gui` request): `post_time_stamp_query`, the shell-side transport `Pass 10.11` (`09c8e673`) added for `sign_with_timestamp`/`pdfcer sign --tsa-url`, built a bare `ureq` request; `ureq` 3.4.0 defaults every timeout to `None`, so a TSA that accepted the connection and never answered hung the sign call forever.
+
+**Fix (`crates/pdfcer-fetch/src/lib.rs`).** `post_time_stamp_query(url, der)` now delegates to new `post_time_stamp_query_with(url, der, &TimeStampOptions)`; `TimeStampOptions` (`#[non_exhaustive]`, `Default` = `DEFAULT_TIMEOUT` 30 s, `with_timeout`) bounds the whole exchange (resolve/connect/send/response/body). New `FetchError::TimedOut { url, after: Duration }`, distinct from `Transport`. Same hole, second route: `fetch_verified` (model downloads) now bounds resolve/connect/send/response-headers at 30 s each (`DOWNLOAD_ANSWER_TIMEOUT`); the body stays unbounded on purpose (a large artifact over a slow link is legitimate), still capped by `MAX_ARTIFACT_BYTES`.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md`'s `sign_with_timestamp` row now names the transport and `TimedOut`, in the same commit.
+
+**Tests.** `pdfcer-fetch` +2 (9 of 9 tests pass, `--features download`): `a_silent_time_stamp_server_times_out` (a local listener that accepts and never writes; 500 ms bound; returns `TimedOut` well under 4 s) and `time_stamp_options_default_to_thirty_seconds`. `clippy -D warnings` clean on `pdfcer-fetch` and `pdfcer-cli` with `download`.
+
+**Gates.** No manifest change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected, no new dependency. No new CLI flag — `sign --tsa-url` inherits the 30 s bound.
+
+**Shells.** core `[x]` (`sign_with_timestamp`'s transport contract), cli `[x]` (`--tsa-url`, `download` feature), gui `[ ]` — `pdfcer-fetch` carries no GUI dependency either way.
+
+**`docs/FEATURES.md`.** No box change — the PAdES B-T row (already `[x] [x] [ ]`) gains a clause naming the bound; no capability changed.
+
+**Channel.** Answers `G047`: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G047_post_time_stamp_query_has_no_timeout_so_a_silent_tsa_hangs_signing_forever.md`; reply `open\reply_G047_time_stamp_transport_is_bounded_DONE.md`.
+
+**Sourcing (hard rule 8).** No shell this filing. Test-run/clippy/gate results relayed from the dispatching engineer's report of `794750d2`, not independently reproduced; the new symbol names (`TimeStampOptions`, `DEFAULT_TIMEOUT`, `with_timeout`, `FetchError::TimedOut`, `DOWNLOAD_ANSWER_TIMEOUT`), both new test names, and the `docs/core-api` update were independently confirmed by reading `crates/pdfcer-fetch/src/lib.rs` and `docs/core-api/02-editing-and-saving.md` directly. Committed to `main`; push status not independently checked this filing.
+
 ### `Pass 364.0` (`e234bef7`), 2026-09-27 — Scale page contents to a target size ("resize page contents")
 
 **Verdict: SHIPPED.** All eight acceptance criteria from the 664th filing's scope met (Acrobat reference: `pdfcer-acrobat-librarian`'s `core_ops__scale_pages_to_fit_size.md`, `core_ops__change_page_size_no_scale.md`, `core_ops__crop_pages_margins.md`). Distinct from the shipped `set-page-size` verb (box-only, content translated, never scaled — Acrobat's "Change Page Size"); Crop Pages remains explicitly out of scope.

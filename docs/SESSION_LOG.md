@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (667th filing) — `794750d2`: `Pass 365.0` (bound every network wait, G047) SHIPPED
+
+**Shipped:**
+- Pass 365.0 — defect fix answering `G047`: `pdfcer-fetch`'s `post_time_stamp_query` built a bare `ureq` request with no timeout, so a TSA that accepted and never answered hung `sign_with_timestamp`/`pdfcer sign --tsa-url` forever. Now bounded at 30 s by default (`TimeStampOptions`, `post_time_stamp_query_with`, new `FetchError::TimedOut`); the same missing bound fixed on `fetch_verified`'s connect/send/header phases. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new — a defect fix in an already-shipped transport, no open criterion left unbound.
+
+**Findings + decisions:**
+- `ureq` 3.4.0 defaults every timeout to `None`; a crate wrapping it must set one explicitly per request or per-agent, or a silent peer can hang the caller indefinitely. Candidate for `D:\dev\rag\rust\` — not written this filing, out of scope (`pdfcer-librarian` may pick this up on a future dispatch).
+- Mint-and-ship in one filing, same pattern as `Pass 361.0`/`G045`: no separate scoping filing preceded this one.
+
+**Still in flight:**
+- `Pass 10.10` (shell-side key sources) and B-LT/B-LTA (gated on `Pass 10.6`) remain the open items in the digital-signing arc, unaffected by this filing.
+
+**For next session:**
+- `794750d2` is committed to `main`; push status not independently checked this filing (hard rule 8 — no shell available). Check `docs/NEXT_SESSION.md` for the operator's next ordered-plan item.
+
 ## 2026-09-27 (666th filing) — `e234bef7`: `Pass 364.0` (scale pages onto a new sheet size) SHIPPED
 
 **Shipped:**
