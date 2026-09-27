@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 358.4` (annotation half, `62a40a5d`), 2026-09-27 — `set_annotation_layer`
+
+**Verdict: SHIPPED (annotation half only); family `358` continues — the content-stream `BDC /OC` half of `358.4` stays in *Next up*, and `358.5`–`358.6` are unstarted.** Acrobat's own GUI has no route to set `/OC` on an annotation at all (`layers__annotation_form_field_oc_assignment.md`) — this exceeds Acrobat's GUI once wired.
+
+**Core (`crates/pdfcer-core/src/edit.rs`).** `EditSession::set_annotation_layer(annot_id, layer: Option<ObjId>) -> Result<AnnotationLayerChange, EditError>`. Writes or removes the annotation's `/OC` (ISO 32000-1 §12.5.2 Table 164); its `/Popup` gets the same `/OC` so the pair can't show/hide independently. Widgets accepted. An existing `/OC` naming an OCMD is replaced, reported as `before`. Refusals: `LayerNotFound`, `AnnotationLocked` (Table 165 bit 8), `AnnotationNotFound`, `NotADictionary`, `DocumentEncrypted`, certification. One undo entry, `CommandKind::SetAnnotationLayer`. `AnnotationLayerChange { changed, subtype, before, after, popup_written }` is `#[non_exhaustive]`/`Default`; a no-op records no undo entry. `EditSession` verb count 260. `docs/core-api` updated in the same commit.
+
+**CLI.** `pdfcer set-annotation-layer --page P --index I (--layer NAME | --id N | --none)`, prints `oc=<before>-><after> popup=0|1 changed=`. `list-annotations` appends ` oc=<id>|none` per line. README subcommand count 163 (`358.3` had shipped 4 commands without updating it; caught by `check-clap-help`).
+
+**Tests.** Core: 5 (put/move/clear + undo, no-op, OCMD-replaced + widget, refusals, incremental round trip, 2-entry dirty set). CLI: 2. Sabotage: 2 mutations (popup write, oc listing), both caught.
+
+**Shells.** core `[x]`, cli `[x]`. gui `[ ]` — separate project, no caller yet.
+
+**`docs/FEATURES.md`.** Split the `358.4` row: "Put an annotation (including a widget) onto a layer" now `[x]`/`[x]`/`[ ]`, citing this commit; "Put existing page content onto a layer" (the `BDC /OC` half) stays `[ ]`/`[ ]`/`[ ]` in *Next up* under the same Pass ID.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `62a40a5d`, not independently reproduced.
+
 ### `Pass 358.3` (`eef4f9f0`), 2026-09-27 — Organise `/Order` folders
 
 **Verdict: SHIPPED, family `358` continues (358.4–358.6 remain).** Acrobat can reorder `/Order` but cannot create a folder (`layers__order_folder_reordering.md`) — folder creation here exceeds Acrobat.
@@ -8350,13 +8366,13 @@ closes out the *prior* filing's business rather than opening this one's.
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
 
-### `Pass 358.4` — Put existing content or an annotation onto a layer
+### `Pass 358.4` — Put existing content onto a layer (content-stream half; annotation half SHIPPED)
 
-**Filed 2026-09-27 (644th filing), family `358`.** Answers the operator's second question directly: pdfcer can already tell which layer an object is on (`Pass 250.0`, read-only) but has no writer at all — no verb puts page content or an annotation ONTO a layer. Acrobat itself has no GUI for this either; `/OC` on an annotation is JS/SDK-only in Acrobat (`layers__annotation_form_field_oc_assignment.md`) — this EXCEEDS Acrobat's own GUI.
+**Filed 2026-09-27 (644th filing), family `358`. Annotation half SHIPPED `62a40a5d` (653rd filing, see *Shipped*) — this entry now covers only the content-stream half.** Answers the operator's second question directly: pdfcer can already tell which layer an object is on (`Pass 250.0`, read-only) but had no writer at all — no verb puts page content ONTO a layer. Acrobat itself has no GUI for this either (`layers__annotation_form_field_oc_assignment.md`) — this EXCEEDS Acrobat's own GUI once built.
 
-**Scope.** Assign selected page objects to a layer, move between layers, or clear (content-stream `BDC /OC /name … EMC` wrapping bound through `/Properties`, §8.11.3.2). Set/clear `/OC` on an annotation or widget (a direct dict entry). Must handle an object already inside a `BDC /OC` section: re-wrap or split the enclosing marked-content run, never nest a contradictory `/OC` silently.
+**Scope.** Assign selected page objects to a layer, move between layers, or clear (content-stream `BDC /OC /name … EMC` wrapping bound through `/Properties`, §8.11.3.2). Must handle an object already inside a `BDC /OC` section: re-wrap or split the enclosing marked-content run, never nest a contradictory `/OC` silently.
 
-**Acceptance criteria.** An object mid-run inside an existing `BDC /OC` section, moved to a DIFFERENT layer, splits the run so untouched siblings keep their original wrapping. Clearing `/OC` removes the wrapper only if no other object depends on the same `BDC` for other state. Annotation `/OC` assignment is a single dict-entry write, one undo entry.
+**Acceptance criteria.** An object mid-run inside an existing `BDC /OC` section, moved to a DIFFERENT layer, splits the run so untouched siblings keep their original wrapping. Clearing `/OC` removes the wrapper only if no other object depends on the same `BDC` for other state.
 
 ### `Pass 358.5` — Pick a layer when adding new content
 

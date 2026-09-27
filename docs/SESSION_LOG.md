@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (653rd filing) — `62a40a5d`: `Pass 358.4` (annotation half) SHIPPED — content-stream half remains
+
+**Shipped:**
+- Pass 358.4 (annotation half only) — `EditSession::set_annotation_layer(annot_id, layer: Option<ObjId>)`, writes/removes `/OC` on an annotation (widgets included) and keeps its `/Popup` in step. CLI `set-annotation-layer --page --index (--layer|--id|--none)`; `list-annotations` now shows `oc=`.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- `EditSession` verb count 260. Tests: core 5, CLI 2; sabotage 2 mutations caught, both. README subcommand count corrected 158→163 (`Pass 358.3` had shipped 4 commands without updating it — `check-clap-help` caught it this filing). `docs/FEATURES.md`'s `358.4` row split in two: annotation half ticked core/cli, content-stream half left open under the same Pass ID.
+
+**Still in flight:**
+- `Pass 358.4` content-stream half (`BDC /OC … EMC` wrapping/splitting for page content) — not started. `358.5` (layer-on-add), `358.6` (merge/flatten) — none started.
+
+**For next session:**
+- Pick up `Pass 358.4`'s content-stream half.
+
 ## 2026-09-27 (652nd filing) — `eef4f9f0`: `Pass 358.3` (layer-panel folders) SHIPPED
 
 **Shipped:**
