@@ -413,3 +413,77 @@ fn set_annotation_layer_refuses_an_unregistered_group() {
     assert_eq!(o.status.code(), Some(EDIT_REFUSED));
     assert!(!out.exists());
 }
+
+fn object_layers(path: &Path) -> Vec<String> {
+    let o = run(&["object-list", path.to_str().expect("utf-8 path")]);
+    String::from_utf8_lossy(&o.stdout)
+        .lines()
+        .filter(|l| l.starts_with("object "))
+        .filter_map(|l| {
+            l.split(' ')
+                .find(|t| t.starts_with("oc="))
+                .map(str::to_owned)
+        })
+        .collect()
+}
+
+/// Move two objects onto a layer, then take a nested one off every layer;
+/// `object-list` shows `oc=` each time and the neighbours keep theirs.
+#[test]
+fn set_object_layer_moves_and_clears() {
+    let src = fixture("painted-layers.pdf");
+    assert_eq!(
+        object_layers(&src),
+        ["oc=4", "oc=5", "oc=7", "oc=6", "oc=none"]
+    );
+    let (o, moved) = order_edit(
+        "set-object-layer",
+        &src,
+        &["--objects", "4,0", "--layer", "Hidden Box"],
+        "olayer",
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(
+        stdout.contains("moved=2 unchanged=0 name=L2 binding_added=0"),
+        "{stdout}"
+    );
+    assert_eq!(
+        object_layers(&moved),
+        ["oc=5", "oc=5", "oc=7", "oc=6", "oc=5"]
+    );
+
+    let (o, cleared) = order_edit(
+        "set-object-layer",
+        &moved,
+        &["--objects", "2", "--none"],
+        "onone",
+    );
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert_eq!(
+        object_layers(&cleared),
+        ["oc=5", "oc=5", "oc=none", "oc=6", "oc=5"]
+    );
+    for p in [moved, cleared] {
+        std::fs::remove_file(p).ok();
+    }
+}
+
+/// An out-of-range index refuses the whole call with exit 9.
+#[test]
+fn set_object_layer_refuses_an_out_of_range_index() {
+    let src = fixture("painted-layers.pdf");
+    let (o, out) = order_edit(
+        "set-object-layer",
+        &src,
+        &["--objects", "0,9", "--id", "5"],
+        "orange",
+    );
+    assert_eq!(
+        o.status.code(),
+        Some(9),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(!out.exists());
+}

@@ -895,3 +895,150 @@ fn set_annotation_layer_round_trips() {
     let annots = pdfcer_core::annot::page_annotations(view.graph(), ObjId::new(3, 0));
     assert_eq!(annots.first().and_then(|a| a.oc), Some(ObjId::new(9, 0)));
 }
+
+// ---- Pass 358.4: page objects onto a layer --------------------------------
+
+/// Objects 4 = Welds (bound as /L1), 9 = Holes (unbound); page 3's content 5.
+fn content_session(content: &str) -> EditSession {
+    let stream = format!(
+        "<< /Length {} >>\nstream\n{content}\nendstream",
+        content.len() + 1
+    );
+    let bytes = assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [4 0 R 9 0 R] /D << /Order [4 0 R 9 0 R] >> >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Properties << /L1 4 0 R >> /XObject << /Im 6 0 R >> >> >>",
+        "<< /Type /OCG /Name (Welds) >>",
+        &stream,
+        "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /OC 4 0 R /Length 1 >>\nstream\n\u{0}\nendstream",
+        "<< >>",
+        "<< >>",
+        "<< /Type /OCG /Name (Holes) >>",
+    ]);
+    EditSession::new(Document::from_bytes(bytes).expect("parses"))
+}
+
+const THREE_PATHS: &str = "/OC /L1 BDC 0 0 m 10 10 l S 20 20 m 30 30 l S EMC 40 40 m 50 50 l S";
+
+fn layers_of(s: &mut EditSession) -> Vec<Option<u32>> {
+    s.page_objects(0)
+        .unwrap()
+        .objects
+        .iter()
+        .map(|o| o.oc().map(|id| id.num))
+        .collect()
+}
+
+/// Put an unlayered object on a layer, split one out of an enclosing
+/// section, take one off every layer; neighbours keep their layer.
+#[test]
+fn set_objects_layer_puts_splits_and_clears() {
+    let mut s = content_session(THREE_PATHS);
+    assert_eq!(layers_of(&mut s), [Some(4), Some(4), None]);
+
+    let c = s
+        .set_objects_layer(0, &[2], Some(ObjId::new(9, 0)))
+        .unwrap();
+    assert_eq!((c.moved, c.unchanged, c.binding_added), (1, 0, true));
+    assert_eq!(c.property_name.as_deref(), Some("OC1"));
+    assert_eq!(layers_of(&mut s), [Some(4), Some(4), Some(9)]);
+
+    let c = s
+        .set_objects_layer(0, &[0], Some(ObjId::new(9, 0)))
+        .unwrap();
+    assert_eq!((c.moved, c.binding_added), (1, false), "reuses /OC1");
+    assert_eq!(layers_of(&mut s), [Some(9), Some(4), Some(9)]);
+
+    s.set_objects_layer(0, &[1], None).unwrap();
+    assert_eq!(layers_of(&mut s), [Some(9), None, Some(9)]);
+
+    assert_eq!(s.undo_depth(), 3);
+    while s.undo_depth() > 0 {
+        s.undo().unwrap();
+    }
+    assert_eq!(layers_of(&mut s), [Some(4), Some(4), None]);
+}
+
+/// A selection already on the layer writes nothing.
+#[test]
+fn set_objects_layer_no_op() {
+    let mut s = content_session(THREE_PATHS);
+    let c = s
+        .set_objects_layer(0, &[0, 1], Some(ObjId::new(4, 0)))
+        .unwrap();
+    assert_eq!((c.moved, c.unchanged), (0, 2));
+    let c = s.set_objects_layer(0, &[2], None).unwrap();
+    assert_eq!((c.moved, c.unchanged), (0, 1));
+    assert_eq!(s.undo_depth(), 0);
+}
+
+/// A structure tag OUTSIDE the layer section is left whole; one inside it,
+/// or a section opened at another `q` depth, refuses by name (§14.6).
+#[test]
+fn set_objects_layer_respects_nesting() {
+    let mut s =
+        content_session("/P << /MCID 0 >> BDC /OC /L1 BDC 0 0 m 1 1 l S 2 2 m 3 3 l S EMC EMC");
+    s.set_objects_layer(0, &[0], None).unwrap();
+    assert_eq!(layers_of(&mut s), [None, Some(4)]);
+
+    let mut s = content_session("/OC /L1 BDC /P << /MCID 0 >> BDC 0 0 m 1 1 l S EMC EMC");
+    assert!(matches!(
+        s.set_objects_layer(0, &[0], None),
+        Err(EditError::VectorEdit(
+            pdfcer_core::vector::VectorEditError::LayerSectionHoldsTaggedContent { .. }
+        ))
+    ));
+
+    // A text object that opens a section it does not close.
+    let mut s = content_session("/OC /L1 BDC BT /P << /MCID 0 >> BDC 0 0 Td (a) Tj ET EMC EMC");
+    assert!(matches!(
+        s.set_objects_layer(0, &[0], None),
+        Err(EditError::VectorEdit(
+            pdfcer_core::vector::VectorEditError::LayerSpanUnbalanced { .. }
+        ))
+    ));
+
+    let mut s = content_session("/OC /L1 BDC q 0 0 m 1 1 l S Q EMC");
+    assert!(matches!(
+        s.set_objects_layer(0, &[0], Some(ObjId::new(9, 0))),
+        Err(EditError::VectorEdit(
+            pdfcer_core::vector::VectorEditError::LayerSectionCrossesNesting { .. }
+        ))
+    ));
+    assert_eq!(s.undo_depth(), 0);
+}
+
+#[test]
+fn set_objects_layer_refusals() {
+    let mut s = content_session("0 0 m 1 1 l S q 1 0 0 1 0 0 cm /Im Do Q");
+    assert!(matches!(
+        s.set_objects_layer(0, &[0], Some(ObjId::new(7, 0))),
+        Err(EditError::LayerNotFound { .. })
+    ));
+    assert!(matches!(
+        s.set_objects_layer(0, &[0, 5], Some(ObjId::new(9, 0))),
+        Err(EditError::VectorEdit(
+            pdfcer_core::vector::VectorEditError::ObjectOutOfRange { index: 5, .. }
+        ))
+    ));
+    // The image's own /OC can only be intersected by a section.
+    assert!(matches!(
+        s.set_objects_layer(0, &[1], Some(ObjId::new(9, 0))),
+        Err(EditError::LayerContentNotRewritable { .. })
+    ));
+    assert_eq!(s.undo_depth(), 0);
+}
+
+/// Saved and reopened, the membership reads back; the page's resources
+/// gained the binding.
+#[test]
+fn set_objects_layer_round_trips() {
+    let mut s = content_session(THREE_PATHS);
+    s.set_objects_layer(0, &[0, 2], Some(ObjId::new(9, 0)))
+        .unwrap();
+    let (bytes, _) = s
+        .to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .expect("incremental save");
+    let mut reopened = EditSession::new(Document::from_bytes(bytes).expect("reopens"));
+    assert_eq!(layers_of(&mut reopened), [Some(9), Some(4), Some(9)]);
+}

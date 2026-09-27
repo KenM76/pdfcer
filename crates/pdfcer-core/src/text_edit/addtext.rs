@@ -2175,7 +2175,31 @@ pub(crate) fn bind_font_resource<G: crate::graph::ObjectGraph + ?Sized>(
     font: Dict,
 ) -> (Vec<(ObjId, Object)>, bool) {
     let mut out: Vec<(ObjId, Object)> = vec![(font_id, Object::Dict(font))];
-    let bind = Object::Reference(font_id);
+    let (writes, shared) = bind_resource(
+        graph,
+        owner_id,
+        may_inherit,
+        b"Font",
+        key,
+        Object::Reference(font_id),
+    );
+    out.extend(writes);
+    (out, shared)
+}
+
+/// [`bind_font_resource`]'s patching for any resource category: bind `key`
+/// to `bind` in the owner's `/Resources /<category>`, written at the
+/// innermost indirect level. Returns the objects to write and whether the
+/// patched dictionary may be shared with another owner.
+pub(crate) fn bind_resource<G: crate::graph::ObjectGraph + ?Sized>(
+    graph: &G,
+    owner_id: ObjId,
+    may_inherit: bool,
+    category: &[u8],
+    key: &[u8],
+    bind: Object,
+) -> (Vec<(ObjId, Object)>, bool) {
+    let mut out: Vec<(ObjId, Object)> = Vec::new();
 
     // --- which object holds /Resources? ---
     let mut holder = owner_id;
@@ -2224,12 +2248,12 @@ pub(crate) fn bind_font_resource<G: crate::graph::ObjectGraph + ?Sized>(
         _ => Dict::new(),
     };
 
-    // --- and /Font inside that? ---
-    let font_ref = match resources.get(b"Font") {
+    // --- and /<category> inside that? ---
+    let cat_ref = match resources.get(category) {
         Some(Object::Reference(r)) => Some(*r),
         _ => None,
     };
-    let mut fonts = match resources.get(b"Font") {
+    let mut entries = match resources.get(category) {
         Some(Object::Reference(r)) => match graph.value(*r) {
             Some(Object::Dict(d)) => d.clone(),
             _ => Dict::new(),
@@ -2237,15 +2261,15 @@ pub(crate) fn bind_font_resource<G: crate::graph::ObjectGraph + ?Sized>(
         Some(Object::Dict(d)) => d.clone(),
         _ => Dict::new(),
     };
-    fonts.insert(Name(key.to_vec()), bind);
+    entries.insert(Name(key.to_vec()), bind);
 
-    let shared = res_ref.is_some() || font_ref.is_some() || holder != owner_id;
+    let shared = res_ref.is_some() || cat_ref.is_some() || holder != owner_id;
 
-    if let Some(fid) = font_ref {
-        out.push((fid, Object::Dict(fonts)));
+    if let Some(fid) = cat_ref {
+        out.push((fid, Object::Dict(entries)));
         return (out, shared);
     }
-    resources.insert(Name::from(b"Font"), Object::Dict(fonts));
+    resources.insert(Name(category.to_vec()), Object::Dict(entries));
     if let Some(rid) = res_ref {
         out.push((rid, Object::Dict(resources)));
         return (out, shared);

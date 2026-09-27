@@ -1525,6 +1525,65 @@ pub(crate) fn cmd_set_annotation_layer(
     finish_edit(input, &outcome)
 }
 
+/// `set-object-layer` — put page objects on a layer or take them off.
+pub(crate) fn cmd_set_object_layer(
+    input: &Path,
+    (page, objects): (u32, &[usize]),
+    pick: Option<LayerPick>,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let layer = match pick.map(|p| pick_layer(input, &session, &p)).transpose() {
+        Ok(layer) => layer,
+        Err(code) => return code,
+    };
+    let page_index = (page.max(1) - 1) as usize;
+    let change = match session.set_objects_layer(page_index, objects, layer) {
+        Ok(change) => change,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    for note in &change.disclosures {
+        eprintln!("pdfcer: {}: {note}", input.display());
+    }
+    let list = objects
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    let r = &outcome.report;
+    println!(
+        "set-object-layer {} page={page} objects={list} mode={} -> {}; moved={} unchanged={} name={} binding_added={} changed={} objects_written={} appended={} out_bytes={}",
+        input.display(),
+        mode.name(),
+        output.display(),
+        change.moved,
+        change.unchanged,
+        change.property_name.as_deref().unwrap_or("none"),
+        u8::from(change.binding_added),
+        change.moved > 0,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    finish_edit(input, &outcome)
+}
+
 /// `layer-delete` — delete a layer, keeping or removing its content.
 pub(crate) fn cmd_layer_delete(
     input: &Path,

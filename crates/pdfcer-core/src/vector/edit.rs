@@ -245,6 +245,34 @@ pub enum VectorEditError {
         /// The later span's end offset.
         end: usize,
     },
+    /// Taking an object out of its `/OC` section would split a non-`/OC`
+    /// marked-content section (a structure tag) that lies inside it (§14.6).
+    #[error(
+        "the object at byte {start} sits in a tagged marked-content section inside its layer section; splitting it would break the document's logical structure"
+    )]
+    LayerSectionHoldsTaggedContent {
+        /// The object's start offset.
+        start: usize,
+    },
+    /// The object's `/OC` section opened at a different `q` depth or
+    /// text-object state than the object, so closing it around the object
+    /// would break §14.6 nesting (ISO 32000-2 erratum #302).
+    #[error(
+        "the layer section around the object at byte {start} opened outside a q/Q or BT/ET the object is inside; it cannot be split there"
+    )]
+    LayerSectionCrossesNesting {
+        /// The object's start offset.
+        start: usize,
+    },
+    /// The object's own span leaves marked content, `q` or `BT` open or
+    /// closes one it did not open.
+    #[error(
+        "the object at byte {start} opens or closes marked content, q or BT without balancing it"
+    )]
+    LayerSpanUnbalanced {
+        /// The object's start offset.
+        start: usize,
+    },
     /// Deleting this subpath would silently MOVE the next one.
     ///
     /// The following subpath was started implicitly — by a segment operator
@@ -1156,6 +1184,206 @@ pub fn plan_delete_many(
     let touched = kept.len();
     let mut edits: Vec<(usize, usize, Vec<u8>)> =
         kept.into_iter().map(|(s, e)| (s, e, Vec::new())).collect();
+    Ok(PlannedEdit {
+        content: splice(&content.buf, &mut edits),
+        operators_touched: touched,
+        disclosures: Vec::new(),
+    })
+}
+
+/// A marked-content section open at some point of a content stream, as
+/// [`plan_set_layer`] tracks it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OpenSection {
+    /// Byte range of the whole opening operation (`tag props BDC` / `tag BMC`).
+    start: usize,
+    end: usize,
+    /// The `/Properties` name when this is an `/OC` section.
+    oc_name: Option<Vec<u8>>,
+    /// `q` depth and text-object state when the section opened.
+    q_depth: usize,
+    in_bt: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LayerState {
+    stack: Vec<OpenSection>,
+    q_depth: usize,
+    in_bt: bool,
+}
+
+/// **Put objects on a layer, or take them off every layer** (`Pass 358.4`).
+///
+/// `target` is the `/Properties` resource name already bound to the
+/// destination optional-content group; `None` leaves the objects on no layer.
+/// Each object's byte span gets `/OC /target BDC … EMC` around it (§8.11.3.2).
+/// When the object already sits inside `/OC` sections, those sections are
+/// closed just before the object and reopened, byte-verbatim, just after —
+/// every other object keeps the membership it had.
+///
+/// §14.6: marked-content sections shall nest with `BT`/`ET`, and (ISO 32000-2
+/// erratum #302) with `q`/`Q` and `BX`/`EX`. So an enclosing `/OC` section is
+/// only split where it opened at the object's own `q` depth and text-object
+/// state, and never where a non-`/OC` section (a structure tag carrying
+/// `/MCID`) lies between — splitting that would break the logical structure.
+///
+/// An object already on exactly `target` and nothing else is left alone and
+/// not counted in `operators_touched`.
+///
+/// # Errors
+///
+/// - [`VectorEditError::OverlappingObjectSpans`] — a torn selection, as in
+///   [`plan_delete_many`].
+/// - [`VectorEditError::LayerSectionHoldsTaggedContent`] — a non-`/OC`
+///   marked-content section sits inside the `/OC` section to be split.
+/// - [`VectorEditError::LayerSectionCrossesNesting`] — the `/OC` section
+///   opened at a different `q` depth or text-object state than the object.
+/// - [`VectorEditError::LayerSpanUnbalanced`] — the object's own span opens
+///   or closes marked content, `q` or `BT` without closing it.
+pub fn plan_set_layer(
+    content: &ContentStream,
+    objs: &[&VectorObject],
+    target: Option<&crate::object::Name>,
+) -> Result<PlannedEdit, VectorEditError> {
+    let mut spans: Vec<(usize, usize)> = objs
+        .iter()
+        .map(|o| {
+            let s = o.bytes();
+            (s.start, s.end())
+        })
+        .collect();
+    spans.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+    let mut kept: Vec<(usize, usize)> = Vec::with_capacity(spans.len());
+    for (start, end) in spans {
+        match kept.last() {
+            Some(&(_, prev_end)) if end <= prev_end => continue,
+            Some(&(_, prev_end)) if start < prev_end => {
+                return Err(VectorEditError::OverlappingObjectSpans { start, end });
+            }
+            _ => kept.push((start, end)),
+        }
+    }
+
+    // Every span boundary, in order, with the state in force there.
+    let mut points: Vec<usize> = kept.iter().flat_map(|&(s, e)| [s, e]).collect();
+    points.sort_unstable();
+    points.dedup();
+    let mut states: BTreeMap<usize, LayerState> = BTreeMap::new();
+    let mut state = LayerState {
+        stack: Vec::new(),
+        q_depth: 0,
+        in_bt: false,
+    };
+    let mut next = 0usize;
+    for op in content.operations() {
+        let op_start = op
+            .operands
+            .first()
+            .map_or(op.operator.span.start, |t| t.span.start);
+        while let Some(&p) = points.get(next)
+            && p <= op_start
+        {
+            states.insert(p, state.clone());
+            next += 1;
+        }
+        let op_end = op.operator.span.end();
+        match op.operator_name(&content.buf) {
+            Some(b"q") => state.q_depth += 1,
+            Some(b"Q") => state.q_depth = state.q_depth.saturating_sub(1),
+            Some(b"BT") => state.in_bt = true,
+            Some(b"ET") => state.in_bt = false,
+            Some(b"BDC" | b"BMC") => {
+                let is_oc = op.operands.first().is_some_and(|t| {
+                    matches!(&t.kind, ContentTokenKind::Operand(crate::object::Object::Name(n)) if n.as_bytes() == b"OC")
+                });
+                let oc_name = match op.operands.get(1).map(|t| &t.kind) {
+                    Some(ContentTokenKind::Operand(crate::object::Object::Name(n))) if is_oc => {
+                        Some(n.as_bytes().to_vec())
+                    }
+                    _ => None,
+                };
+                state.stack.push(OpenSection {
+                    start: op_start,
+                    end: op_end,
+                    oc_name,
+                    q_depth: state.q_depth,
+                    in_bt: state.in_bt,
+                });
+            }
+            Some(b"EMC") => {
+                state.stack.pop();
+            }
+            _ => {}
+        }
+    }
+    for &p in points.get(next..).unwrap_or_default() {
+        states.insert(p, state.clone());
+    }
+
+    let target_bytes = target.map(|n| {
+        let mut out = b"/OC ".to_vec();
+        crate::writer::serialize::write_object(
+            &mut out,
+            &crate::object::Object::Name(n.clone()),
+            crate::object::ObjId::new(0, 0),
+            &[],
+            &crate::writer::IdentityEncoder,
+        );
+        out
+    });
+
+    let mut edits: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+    let mut touched = 0usize;
+    for (start, end) in kept {
+        let (Some(at_start), Some(at_end)) = (states.get(&start), states.get(&end)) else {
+            continue;
+        };
+        if at_start != at_end {
+            return Err(VectorEditError::LayerSpanUnbalanced { start });
+        }
+        let first_oc = at_start.stack.iter().position(|s| s.oc_name.is_some());
+        let split: &[OpenSection] = match first_oc {
+            Some(k) => at_start.stack.get(k..).unwrap_or_default(),
+            None => &[],
+        };
+        if split.iter().any(|s| s.oc_name.is_none()) {
+            return Err(VectorEditError::LayerSectionHoldsTaggedContent { start });
+        }
+        if split
+            .iter()
+            .any(|s| s.q_depth != at_start.q_depth || s.in_bt != at_start.in_bt)
+        {
+            return Err(VectorEditError::LayerSectionCrossesNesting { start });
+        }
+        let already = match (split, target) {
+            ([], None) => true,
+            ([only], Some(t)) => only.oc_name.as_deref() == Some(t.as_bytes()),
+            _ => false,
+        };
+        if already {
+            continue;
+        }
+        touched += 1;
+        let mut before = Vec::new();
+        let mut after = Vec::new();
+        for _ in split {
+            before.extend_from_slice(b" EMC");
+        }
+        if let Some(t) = &target_bytes {
+            before.push(b' ');
+            before.extend_from_slice(t);
+            before.extend_from_slice(b" BDC");
+            after.extend_from_slice(b" EMC");
+        }
+        for s in split {
+            after.push(b' ');
+            after.extend_from_slice(content.buf.get(s.start..s.end).unwrap_or_default());
+        }
+        before.push(b' ');
+        after.push(b' ');
+        edits.push((start, start, before));
+        edits.push((end, end, after));
+    }
     Ok(PlannedEdit {
         content: splice(&content.buf, &mut edits),
         operators_touched: touched,

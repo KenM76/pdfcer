@@ -8202,6 +8202,49 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Put page objects on a layer, move them to another, or take them off
+    /// every layer.
+    ///
+    /// Pick objects by the `index=` `object-list` prints for the page (its
+    /// `oc=` column shows the layer each is on now) and the layer by the
+    /// name `list-layers` prints, or by its `id=`. Neighbouring objects keep
+    /// their layer. Prints one `set-object-layer` line: `moved=` objects
+    /// changed, `unchanged=` already there, and `name=` the resource name
+    /// the page's content uses for the layer (`binding_added=1` when the
+    /// page gained it). Nothing to change still writes the output file.
+    ///
+    /// Exit 9 when the layer does not exist, an index is out of range, the
+    /// object is an image or form carrying its own layer, or the page's
+    /// marked content cannot be split around the object (a structure tag
+    /// inside the layer section, or a section crossing `q`/`Q` or `BT`/`ET`).
+    SetObjectLayer {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based paint-order object indices, comma-separated.
+        #[arg(long, value_delimiter = ',', required = true)]
+        objects: Vec<usize>,
+        /// The layer's name, exactly as `list-layers` prints it.
+        #[arg(long, required_unless_present_any = ["id", "none"], conflicts_with_all = ["id", "none"])]
+        layer: Option<String>,
+        /// The layer's object number, the `id=` `list-layers` prints.
+        #[arg(long, conflicts_with = "none")]
+        id: Option<u32>,
+        /// Take the objects off every layer.
+        #[arg(long)]
+        none: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Edit a layer's properties: rename it, set whether it is visible when
     /// the document opens, lock it, and set whether it prints or exports.
     ///

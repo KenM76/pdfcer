@@ -934,6 +934,14 @@ pub enum CommandKind {
         /// The annotation.
         annot: ObjId,
     },
+    /// Page objects were put on a layer or taken off every layer
+    /// ([`EditSession::set_objects_layer`], `/OC` marked content,
+    /// §8.11.3.2) — ONE undo entry covering the content stream and the
+    /// resource binding.
+    SetObjectsLayer {
+        /// The page.
+        page_index: usize,
+    },
     /// One vector object was **moved** (Pass 9c-min, decision 011 §2.5): all
     /// of its path-construction operands were translated by a page-space
     /// `(dx, dy)` through content-stream surgery (the R46/§5.7 named
@@ -48764,6 +48772,175 @@ impl EditSession {
         })
     }
 
+    /// Put page objects on a layer, move them to another, or take them off
+    /// every layer (`layer: None`).
+    ///
+    /// `object_indices` are paint-order indices into the page's
+    /// decomposition ([`Self::page_objects`]), the numbering
+    /// [`Self::delete_objects`] takes. Each object is wrapped in an
+    /// `/OC /name BDC … EMC` section (ISO 32000-1 §8.11.3.2) naming `layer`,
+    /// an optional content group registered in `/OCProperties /OCGs`; `name`
+    /// is the page's existing `/Properties` binding for the group, or a new
+    /// `OC<n>` binding added to the page's resources. An enclosing `/OC`
+    /// section is closed around the object and reopened after it, so its
+    /// neighbours keep their layer. Every other byte stays verbatim.
+    ///
+    /// Objects already on exactly `layer` are counted in
+    /// [`ObjectsLayerChange::unchanged`]; when every object is, nothing is
+    /// written and no undo entry is recorded. Otherwise one undo entry,
+    /// [`CommandKind::SetObjectsLayer`], covers the content stream and the
+    /// resource binding.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::LayerNotFound`] — `layer` is not a registered group.
+    /// - [`EditError::LayerContentNotRewritable`] — an image or form XObject
+    ///   in the selection carries its own `/OC` (§8.11.3.3), which a
+    ///   content-stream section can only intersect, not replace.
+    /// - [`EditError::VectorEdit`] wrapping
+    ///   [`ObjectOutOfRange`](crate::vector::VectorEditError::ObjectOutOfRange),
+    ///   [`LayerSectionHoldsTaggedContent`](crate::vector::VectorEditError::LayerSectionHoldsTaggedContent),
+    ///   [`LayerSectionCrossesNesting`](crate::vector::VectorEditError::LayerSectionCrossesNesting)
+    ///   or [`LayerSpanUnbalanced`](crate::vector::VectorEditError::LayerSpanUnbalanced)
+    ///   — see [`crate::vector::plan_set_layer`].
+    /// - [`EditError::PageOutOfRange`], [`EditError::VectorEditNoContents`],
+    ///   [`EditError::DocumentEncrypted`] and the certification gate.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use pdfcer_core::{edit::EditSession, object::ObjId};
+    /// # fn f(session: &mut EditSession, welds: ObjId) -> Result<(), Box<dyn std::error::Error>> {
+    /// let change = session.set_objects_layer(0, &[3, 4], Some(welds))?;
+    /// assert_eq!(change.moved + change.unchanged, 2);
+    /// session.set_objects_layer(0, &[3], None)?; // off every layer
+    /// # Ok(()) }
+    /// ```
+    pub fn set_objects_layer(
+        &mut self,
+        page_index: usize,
+        object_indices: &[usize],
+        layer: Option<ObjId>,
+    ) -> Result<ObjectsLayerChange, EditError> {
+        if let Some(layer) = layer
+            && !self.is_registered_layer(layer)
+        {
+            return Err(EditError::LayerNotFound { id: layer });
+        }
+        let pages = self.pages()?;
+        let count = pages.len();
+        let page = pages
+            .get(page_index)
+            .ok_or(EditError::PageOutOfRange {
+                index: page_index,
+                count,
+            })?
+            .clone();
+        let content_id = *page
+            .contents
+            .first()
+            .ok_or(EditError::VectorEditNoContents { page_index })?;
+
+        let props = self.deref_dict(page.resources.get(b"Properties"));
+        let mut binding: Option<(Name, bool)> = None;
+        if let Some(layer) = layer {
+            let existing = props.as_ref().and_then(|p| {
+                p.0.iter()
+                    .find(|(_, v)| v.as_reference() == Some(layer))
+                    .map(|(k, _)| k.clone())
+            });
+            binding = Some(match existing {
+                Some(name) => (name, false),
+                None => {
+                    let taken = |n: &[u8]| props.as_ref().is_some_and(|p| p.get(n).is_some());
+                    let name = (1..)
+                        .map(|i| format!("OC{i}").into_bytes())
+                        .find(|n| !taken(n))
+                        .unwrap_or_default();
+                    (Name(name), true)
+                }
+            });
+        }
+
+        // An XObject's own `/OC` (§8.11.3.3) is intersected with any section
+        // around its `Do`, never replaced by it.
+        let model = self.page_objects(page_index)?;
+        let own_oc = object_indices.iter().any(|&i| match model.objects.get(i) {
+            Some(crate::vector::VectorObject::Image(img)) => img
+                .xobject
+                .and_then(|id| self.value(id))
+                .is_some_and(|o| matches!(o, Object::Stream(s) if s.dict.get(b"OC").is_some())),
+            _ => false,
+        });
+        if own_oc {
+            return Err(EditError::LayerContentNotRewritable {
+                stream: content_id,
+                reason: "an image or form XObject in the selection carries its own /OC, \
+                         which a content-stream section can only intersect",
+            });
+        }
+        let target = binding.as_ref().map(|(n, _)| n.clone());
+        let mut unchanged = 0usize;
+        let planned = self.vector_surgery_inner(None, page_index, |stream, model| {
+            let count = model.objects.len();
+            let objs = object_indices
+                .iter()
+                .map(|&i| {
+                    model
+                        .objects
+                        .get(i)
+                        .ok_or(crate::vector::VectorEditError::ObjectOutOfRange { index: i, count })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let planned = crate::vector::plan_set_layer(stream, &objs, target.as_ref())?;
+            unchanged = objs.len().saturating_sub(planned.operators_touched);
+            Ok(planned)
+        })?;
+        let mut change = ObjectsLayerChange {
+            moved: planned.operators_touched,
+            unchanged,
+            property_name: binding
+                .as_ref()
+                .map(|(n, _)| String::from_utf8_lossy(n.as_bytes()).into_owned()),
+            binding_added: false,
+            disclosures: Vec::new(),
+        };
+        if change.moved == 0 {
+            return Ok(change);
+        }
+
+        let mut prior = Vec::new();
+        if let (Some(layer), Some((name, true))) = (layer, &binding) {
+            let (objects, _shared) = crate::text_edit::addtext::bind_resource(
+                &self.graph(),
+                page.id,
+                true,
+                b"Properties",
+                name.as_bytes(),
+                Object::Reference(layer),
+            );
+            prior = objects
+                .into_iter()
+                .map(|(id, value)| ObjectWrite {
+                    id,
+                    before: self.state.get(&id).cloned(),
+                    after: Some(value),
+                })
+                .collect();
+            change.binding_added = true;
+        }
+        let (command, _) = self.text_edit_command(
+            CommandKind::SetObjectsLayer { page_index },
+            content_id,
+            &page,
+            planned.content,
+            prior,
+            &mut change.disclosures,
+        )?;
+        self.commit(command);
+        Ok(change)
+    }
+
     /// Whether `layer` is a dictionary listed in `/OCProperties /OCGs`.
     fn is_registered_layer(&self, layer: ObjId) -> bool {
         let ocp = self
@@ -51431,6 +51608,25 @@ pub struct AnnotationLayerChange {
     pub after: Option<ObjId>,
     /// Whether its `/Popup` companion was given the same `/OC`.
     pub popup_written: bool,
+}
+
+/// What [`EditSession::set_objects_layer`] did.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct ObjectsLayerChange {
+    /// Objects rewritten onto the requested layer (or off every layer).
+    pub moved: usize,
+    /// Objects already there, left alone. `moved == 0` records no undo
+    /// entry.
+    pub unchanged: usize,
+    /// The `/Properties` name the content names the layer by; `None` when
+    /// taking objects off every layer.
+    pub property_name: Option<String>,
+    /// Whether that name was newly added to the page's resources.
+    pub binding_added: bool,
+    /// Operator-facing notes on how the edit was expressed (a content
+    /// stream shared with another page was copied first).
+    pub disclosures: Vec<String>,
 }
 
 /// A layer-panel position as the CLI prints it: `1.0.2`, or `root`.

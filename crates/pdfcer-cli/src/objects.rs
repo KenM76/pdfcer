@@ -475,8 +475,10 @@ numbered 1..={})",
             _ => images += 1,
         }
         println!(
-            "object page={page_number} index={index} kind={kind} bbox={} {detail}",
+            "object page={page_number} index={index} kind={kind} bbox={} oc={} {detail}",
             bbox_token(obj.page_bbox()),
+            obj.oc()
+                .map_or_else(|| "none".to_owned(), |id| id.num.to_string()),
         );
     }
 
