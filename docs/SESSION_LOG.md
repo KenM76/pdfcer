@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (640th filing) — `7570a850`: `Pass 354.0` SHIPPED — a multi-select choice field can be given a multi-value default
+
+**Shipped:**
+- `Pass 354.0` — closes D8's last clause (b) from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item: `FieldEdit::default_value` was a single string, so a MultiSelect list box could not be given a default of several items; `/DV` takes the type of `/V` (ISO 32000-1 Table 228), an array of export values on a MultiSelect field (Table 231).
+
+**Decisions made this session:**
+- None beyond the fix itself. **D8 is now fully CLOSED.** Only D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics) is left open from this audit.
+
+**Findings + decisions:**
+- Fix: new `pub` field `FieldEdit::default_selections: Option<Vec<String>>` and builder `with_default_selections(items)`. Each item is matched against `/Opt` — the edit's own list where supplied, else the field's — by export value then by label, the same resolution `set_choice_value` uses for a fill, and stored as an array on a MultiSelect field, a string otherwise. Whichever of this and `with_default_value` is called later wins; an empty list removes `/DV`. Refused before any write: several items on a single-select field (`ChoiceRequiresMultiSelect`); an item matching no option unless the field is an editable combo (`ChoiceValueNotInOptions`); a non-choice field (`FieldPropertyTypeMismatch`). `reset_form` (`Pass 353.0`) restores the default with `/I` to match.
+- CLI: `edit-field --default-selection OPTION`, repeatable, conflicts with `--default-value`/`--clear-default-value`.
+- Tests: core `tests/choice_default_selections.rs` (7 tests); CLI `edit_field::a_multi_select_default_is_set_and_restored` (add a multi-select list box with options A=Alpha, B=Beta, C=Gamma → fill B → `--default-selection Alpha --default-selection C` → `reset-form --apply` → `/V [(A) (C)]/I [0 2]/DV [(A) (C)]`). Sabotage: writing a string instead of an array fails 2 tests; dropping the single-select refusal fails 1; storing the label instead of the export fails 3; unwiring the CLI flag fails the CLI test. `tools/run-gates.sh`: PASS (39 commands). No dependency change; `docs/core-api/02-editing-and-saving.md`'s `FieldEdit` row updated, line count unchanged at 5,674.
+- `docs/FEATURES.md` row 318: trailing "Open defect: no writer for a multi-value `/DV`" clause replaced with the closing note, citing `Pass 354.0`; no box change on row 318 or row 324. Row confirmed at 1,170 characters, under the 1,200 cap.
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item narrows to its last remainder: D4 (non-WinAnsi/Type0 `/DR` fonts, vertical metrics) — every other finding from this audit is now closed.
+- Unscoped, still open: a stale plaintext password carried in earlier incremental revisions.
+
+**For next session:**
+- Next candidates: D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics), or the plaintext-password remainder.
+
 ## 2026-09-27 (639th filing) — `5eb3c7a1`: `Pass 353.0` SHIPPED — a reset moves a choice field's `/I` and `/TI` to its default
 
 **Shipped:**

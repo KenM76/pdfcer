@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 354.0` (`7570a850`), 2026-09-27 — A multi-select choice field can be given a multi-value default
+
+**Verdict: SHIPPED, closes D8's last clause (b) from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`353.0`) — **D8 is now fully closed.** Only D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics) is left open from this audit.
+
+`FieldEdit::default_value` was a single string, so a MultiSelect list box could not be given a default of several items. `/DV` takes the type of `/V` (ISO 32000-1 Table 228), an array of export values on a MultiSelect field (Table 231).
+
+**Fix.** New `pub` field `FieldEdit::default_selections: Option<Vec<String>>` and builder `with_default_selections(items)`. Each item is matched against `/Opt` — the edit's own list where supplied, else the field's — by export value then by label, the same resolution `set_choice_value` uses for a fill, and stored as the export value: an array on a MultiSelect field, a string otherwise. Whichever of this and `with_default_value` is called later wins; an empty list removes `/DV`. Refused before any write: several items on a single-select field (`ChoiceRequiresMultiSelect`); an item matching no option, unless the field is an editable combo (`ChoiceValueNotInOptions`); a non-choice field (`FieldPropertyTypeMismatch`). `reset_form` (`Pass 353.0`) restores the default with `/I` to match.
+
+**CLI.** `edit-field --default-selection OPTION`, repeatable, conflicts with `--default-value`/`--clear-default-value`.
+
+**Tests.** Core `tests/choice_default_selections.rs` (7 tests). CLI `edit_field::a_multi_select_default_is_set_and_restored`: add a multi-select list box (options A=Alpha, B=Beta, C=Gamma) → fill B → `--default-selection Alpha --default-selection C` → `reset-form --apply` → output contains `/V [(A) (C)]/I [0 2]/DV [(A) (C)]`. Sabotage: writing a string instead of an array fails 2 tests; dropping the single-select refusal fails 1; storing the label instead of the export fails 3; unwiring the CLI flag fails the CLI test.
+
+**Shells.** Core + CLI this Pass; GUI is a separate project and has not wired it. No dependency change — `cargo tree` unaffected.
+
+**Gates.** `tools/run-gates.sh`: PASS, 39 commands. `docs/core-api/02-editing-and-saving.md`'s `FieldEdit` row updated, line count unchanged at 5,674; `check-core-api-verbs.py` clean.
+
+**`docs/FEATURES.md`.** Row 318's trailing clause replaced (the prior "Open defect: no writer for a multi-value `/DV`" is now closed); no box change on row 318 or row 324.
+
+**Backlog.** D8 CLOSED. The "Audit every `FieldEdit`/`WidgetEdit` property" item narrows to its last remainder: D4 (non-WinAnsi/Type0 `/DR` fonts, vertical metrics).
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `7570a850`, not independently reproduced.
+
 ### `Pass 353.0` (`5eb3c7a1`), 2026-09-27 — A reset moves a choice field's `/I` and `/TI` to its default
 
 **Verdict: SHIPPED, narrows D8's last clause (b) multi-select `/DV` from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`352.0`) — `reset_form` now resolves a choice field's selection against `/DV` correctly; D8(b)'s remaining piece is that `FieldEdit::default_value` has no writer for a multi-value `/DV`.
@@ -17245,6 +17267,8 @@ suspicion this entry recorded.
 
 ★ **Nineteenth fix shipped — 2026-09-27 (639th filing, `Pass 353.0`, `5eb3c7a1`).** Narrows D8's last clause (b), below: `reset_form` restored a choice field's `/V` from `/DV` but left `/I`/`/TI` at the previously-filled selection's positions in `/Opt`; a new private helper, `default_choice_selection`, now resolves `/DV` against `/Opt` the same way a fill does — see *Shipped*, above. **Kept open** — two `FieldEdit` findings remain: D4's remainder, and D8's now-narrower remainder (no writer exists for a multi-value `/DV`).
 
+★ **Twentieth fix shipped — 2026-09-27 (640th filing, `Pass 354.0`, `7570a850`).** Closes D8's last clause (b), below — **D8 is now fully CLOSED**: `FieldEdit::default_value` was a single string with no way to express a MultiSelect field's array-valued `/DV`; new `pub` field `default_selections: Option<Vec<String>>` and builder `with_default_selections` resolve each item against `/Opt` the same way a fill does and write it as an array — see *Shipped*, above. **Kept open** — one `FieldEdit` finding remains: D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics).
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -17254,7 +17278,7 @@ suspicion this entry recorded.
 - D1 — CLOSED by `Pass 346.0`, above. Was: comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.
 - D7 — CLOSED by `Pass 347.0`, above. Was: replacing a choice field's options left `/I`/`/TI` pointing at positions in the OLD list.
-- D8 — undisclosed-counts half CLOSED by `Pass 349.0`, above; the check box/radio `/DA`-over-identical-bytes clause CLOSED by `Pass 350.0`, above; the inherited-quadding read-back clause CLOSED by `Pass 352.0`, above: a side-effect redraw's auto-size, `/DA`-colour and unencodable-character decisions are now carried as `edit::LayoutDisclosure` on `edit_field`/`edit_widget`/`rotate_widget`/`reset_form` and printed by the CLI, `regen_button_appearance` no longer rewrites an identical check-box/radio appearance while reporting Regenerated, and `forms::parse_acroform` now seeds its field walk with the `/AcroForm` `/Q` so a field with no `/Q` anywhere in its ancestry reads back and fills against the document's default rather than falling to left. `Pass 353.0` NARROWED the last clause: `reset_form` now resolves a multi-select choice field's `/I`/`/TI` against `/DV`/`/Opt` correctly on reset. **Open remainder:** `FieldEdit::default_value` has no writer for a multi-value `/DV` (a single string today); plan is a builder, not a `pub`-type change.
+- D8 — **CLOSED.** Undisclosed-counts half CLOSED by `Pass 349.0`, above; the check box/radio `/DA`-over-identical-bytes clause CLOSED by `Pass 350.0`, above; the inherited-quadding read-back clause CLOSED by `Pass 352.0`, above; `Pass 353.0` narrowed the last clause (reset-side `/I`/`/TI` resolution against `/DV`/`/Opt`); `Pass 354.0` closed it: `FieldEdit::default_selections: Option<Vec<String>>` + `with_default_selections` write a MultiSelect field's array-valued `/DV`, resolving each item against `/Opt` the same way a fill does.
 
 **WidgetEdit:**
 - Border width/style — CLOSED by `Pass 340.0`, above. Was: every widget builder hard-coded a 1pt solid frame; a border edited or authored with `/BS` width or style (dashed/underline/beveled/inset) was written but never painted, while the outcome reported Regenerated.
