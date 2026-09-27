@@ -1612,6 +1612,11 @@ both would be inventing document state — and does not refuse the edit, because
 shortening a limit is a legitimate authoring act. It reports
 `FieldEditOutcome::value_no_longer_fits`, a ready-made sentence. **Show it.**
 
+Replacing a choice field's options keeps the selection that is still in the
+list selected: `/I` (multi-select) and `/TI` (list-box scroll) are positions in
+`/Opt`, so they are re-derived for the new list rather than left pointing at
+other items.
+
 Also surface `widgets_affected` when it is `> 1` ("one field, three things on
 screen changed"), `siblings_untouched` from `edit_widget` for the same reason
 in reverse, and `sort_claim_unmet` — setting `Sort` over an unsorted `/Opt`

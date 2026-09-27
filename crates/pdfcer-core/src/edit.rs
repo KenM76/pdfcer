@@ -26909,6 +26909,7 @@ impl EditSession {
         }
         if let Some(options) = &options_after {
             dict.insert(Name::from(b"Opt"), choice_opt_array(options));
+            self.reindex_choice_selection(&field, flags, options, &mut dict);
         }
         // `/Q` (§12.7.3.3 Table 222). `Some(None)` REMOVES the key, which is
         // not the same fact as an explicit 0 -- and removing it means the
@@ -27777,6 +27778,72 @@ impl EditSession {
         // `count - visible` is positive here: `first < count` (it indexes
         // `/Opt`) and `first >= visible`, so `count > visible`.
         Some(first.min(count - visible))
+    }
+
+    /// Rewrite `/I` and `/TI` (§12.7.4.4 Table 231) of a choice field whose
+    /// `/Opt` is being replaced by `options`. Both are positions IN `/Opt`, so
+    /// a new list makes the old numbers point at other items.
+    ///
+    /// `/I` is the positions of the stored `/V` selection in the new list,
+    /// written only for a multi-select field (as `set_choice_value` does); a
+    /// selection no longer in the list has no position and is left to
+    /// `value_no_longer_fits` to disclose. `/TI` is re-derived for a list box
+    /// and removed for a combo box.
+    fn reindex_choice_selection(
+        &self,
+        field: &Field,
+        flags: forms::FieldFlags,
+        options: &[ChoiceOption],
+        dict: &mut Dict,
+    ) {
+        if field.field_type != Some(forms::FieldType::Choice) {
+            return;
+        }
+        let forms::FieldValue::Choice(selected) = &field.value else {
+            dict.remove(b"I");
+            dict.remove(b"TI");
+            return;
+        };
+        let mut indices: Vec<i64> = selected
+            .iter()
+            .map(|v| decode_text_string(v).text)
+            .filter_map(|v| options.iter().position(|o| o.export == v))
+            .filter_map(|i| i64::try_from(i).ok())
+            .collect();
+        indices.sort_unstable();
+        indices.dedup();
+        if flags.has(forms::FieldFlags::MULTI_SELECT) && !indices.is_empty() {
+            dict.insert(
+                Name::from(b"I"),
+                Object::Array(indices.iter().map(|i| Object::Integer(*i)).collect()),
+            );
+        } else {
+            dict.remove(b"I");
+        }
+        let top_index = if flags.has(forms::FieldFlags::COMBO) {
+            None
+        } else {
+            let mut after = field.clone();
+            after.options = options
+                .iter()
+                .map(|o| forms::ChoiceOption {
+                    export: encode_text_string(&o.export),
+                    display: encode_text_string(&o.display),
+                })
+                .collect();
+            let default_da = forms::parse_acroform(&self.graph())
+                .and_then(|f| f.default_appearance)
+                .unwrap_or_else(|| b"/Helv 0 Tf 0 g".to_vec());
+            self.derive_top_index(&after, &indices, &default_da)
+        };
+        match top_index {
+            Some(ti) => {
+                dict.insert(Name::from(b"TI"), Object::Integer(ti));
+            }
+            None => {
+                dict.remove(b"TI");
+            }
+        }
     }
 
     /// Read the facts about an existing radio group that a new member has to
@@ -57018,6 +57085,66 @@ endstream",
         // And a combo box is not scrollable, so no `/TI` either.
         assert!(d.get(b"TI").is_none(), "a combo box has no scroll position");
         assert_eq!(out.top_index, None);
+    }
+
+    /// `/I` and `/TI` are positions in `/Opt`; replacing the list must
+    /// re-point them (§12.7.4.4 Table 231), not leave the old numbers.
+    #[test]
+    fn replacing_options_reindexes_i_and_ti() {
+        let letters = ["a", "b", "c", "d", "e", "f", "g", "h"];
+        let reversed: Vec<ChoiceOption> = letters
+            .iter()
+            .rev()
+            .map(|l| ChoiceOption::plain(*l))
+            .collect();
+        let opt = "[ (a) (b) (c) (d) (e) (f) (g) (h) ]";
+        let field_dict = |s: &EditSession| match s.value(ObjId::new(4, 0)) {
+            Some(Object::Dict(d)) => d.clone(),
+            _ => panic!("choice field missing"),
+        };
+        let ints = |d: &Dict, k: &[u8]| {
+            d.get(k)
+                .and_then(Object::as_array)
+                .map(|a| a.iter().filter_map(Object::as_int).collect::<Vec<_>>())
+        };
+
+        // Multi-select list box: /I follows the values to their new places,
+        // and the list now has to scroll down to the first of them.
+        let mut s = session(pdf_with_choice(2097152, opt));
+        s.set_choice_value("Color", &["a", "c"]).unwrap();
+        let d = field_dict(&s);
+        assert_eq!(ints(&d, b"I"), Some(vec![0, 2]));
+        assert!(d.get(b"TI").is_none(), "a is visible unscrolled");
+        s.edit_field("Color", &FieldEdit::new().with_options(reversed.clone()))
+            .unwrap();
+        let d = field_dict(&s);
+        assert_eq!(ints(&d, b"I"), Some(vec![5, 7]), "stale /I");
+        assert!(
+            d.get(b"TI").and_then(Object::as_int).is_some_and(|t| t > 0),
+            "c is now near the bottom, yet /TI was not set: {:?}",
+            d.get(b"TI")
+        );
+
+        // Single-select list box: the selection moves to the top, so a stale
+        // scroll would hide it.
+        let mut s = session(pdf_with_choice(0, opt));
+        s.set_choice_value("Color", &["h"]).unwrap();
+        assert!(field_dict(&s).get(b"TI").is_some(), "h starts off screen");
+        s.edit_field("Color", &FieldEdit::new().with_options(reversed))
+            .unwrap();
+        let d = field_dict(&s);
+        assert!(d.get(b"I").is_none(), "single-select carries no /I");
+        assert!(d.get(b"TI").is_none(), "h is now first; stale /TI");
+
+        // Combo box: never a /TI.
+        let mut s = session(pdf_with_choice(131072, opt));
+        s.set_choice_value("Color", &["h"]).unwrap();
+        s.edit_field(
+            "Color",
+            &FieldEdit::new().with_options(vec![ChoiceOption::plain("h")]),
+        )
+        .unwrap();
+        assert!(field_dict(&s).get(b"TI").is_none());
     }
 
     #[test]
