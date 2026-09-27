@@ -115,6 +115,85 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.57.0` — RELEASED (2026-09-26)
+
+Release filing, not a Pass — packages **13 commits already filed** since
+`v0.56.0` (`941e6718`). Version-bump commit `6d722b3d` ("chore: v0.57.0")
+bumps `Cargo.toml` 0.56.0 → 0.57.0 plus both lockfiles (`Cargo.lock`,
+`fuzz/Cargo.lock`). Tag `v0.57.0` at `6d722b3d`, pushed; `origin/main` =
+`6d722b3d`. **Independently confirmed this filing:** `Cargo.toml`'s
+`version = "0.57.0"` (`Grep`, live source).
+
+**Range `v0.56.0..6d722b3d`: 13 commits.** Highlights, not refiled here —
+each already has its own entry above: `Pass 332.0` (`e9236215`) — AcroForm
+writers now preserve an indirect `/Fields`, `/DR` or `/CO` (data loss
+present in every release through `v0.56.0`); `Pass 331.1` (`8ac54da6`) —
+per-donor subset-tag collision guard; `Pass 331.0` (`5d48365d`) — session
+`add_text` embeds a supplied face instead of a Standard-14 stand-in;
+`Pass 330.2` (`89eb180b`) — vector-edit shared-stream test fixtures;
+`Pass 330.1` (`ffc76e7b`) — decoupled-edit reports name the stream they
+actually wrote.
+
+**Gates (relayed).** `tools/run-gates.sh` PASS, 39 commands including 2
+filing gates, run before the bump commit; exit 0, 33 "test result: ok"
+lines. `cargo about generate` regenerated `THIRD_PARTY_LICENSES.md` with
+no diff. OCRcer vendored copy current at `97cc36afe501` (`sync-ocrcer`
+reported already synced). No dependency change; `cargo tree` unaffected.
+
+**Build (relayed).** `D:\builds\pdfcer-20260926-2017-6d722b3`,
+46,560,406 B. Zip `pdfcer-v0.57.0-windows-x64.zip`, sha256
+`9c288e7e093a8d18f43c426763ec90047332286c370373adf1600019cb1f2d78`.
+
+**Smoke test (relayed), fresh folder.** `--version` reports `pdfcer
+0.57.0`, revision `v0.57.0`. `rotate` (incremental) OK; `add-text-field`
+run twice on the same file then `list-fields` shows **both** fields (`a`,
+`b`) with `default_resources=1` — the `Pass 332.0` scenario exercised
+end-to-end through the packaged binary; `render-page` OK.
+
+**GitHub release (relayed).** Published via `tools/gh-release.py`: 2
+assets (`pdfcer-v0.57.0-windows-x64.zip` plus its `.sha256`) — `PASS` at
+their local sizes, first try. Title "pdfcer v0.57.0".
+
+**OneDrive (relayed).** `tools/deploy-onedrive.py` wrote slot `pdfcer2`
+(was `0.55.0`); `pdfcer1` keeps `0.56.0` as the previous version. The
+next release writes `pdfcer1`.
+
+**`verify-release.py v0.57.0` (relayed).** OneDrive current+previous ok,
+tag/push/asset ok. **FAIL** "working tree clean" — the untracked
+`target-case/` directory, not the engineer's, standing since before this
+session, same false-alarm class as `v0.56.0`'s. CI at the tagged commit
+was **in progress at filing time** (run `36282708742`) — not yet
+confirmed green; engineer re-verifies.
+
+**`docs/FEATURES.md`: no rows changed — a release ships no new
+capability.** Said explicitly so the silence is not read as a missed
+sweep.
+
+**No decision-log entry** — a release carries no architectural decision.
+Highest decision record remains `162`.
+
+**Sourcing (hard rule 8).** No shell this filing. Independently confirmed
+via `Grep` against live source: `Cargo.toml`'s `version = "0.57.0"`. All
+other facts above — the commit range and its highlights, the gate-sweep
+results, the build/zip byte counts and sha256, the smoke test transcript,
+the GitHub release and OneDrive deploy results, the `verify-release.py`
+output, and the CI run status — are **relayed from the dispatching
+engineer's own report of `6d722b3d`, not independently reproduced.**
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.56.0` (`941e6718`, 2026-09-26) | **`v0.57.0` (`6d722b3d`, 2026-09-26) — 13 commits since `v0.56.0`** |
+| Pass families | `332` (highest `.0`), next free `333` | unchanged — no new Pass this filing |
+| Standing rules | `R258` next free (unresolved `R251` discrepancy carried, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `162` | unchanged |
+| `SESSION_LOG` filings | `615` | **`616`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
+| CI at the tagged commit | `v0.56.0` verified GREEN (610th filing) | **`v0.57.0`: CI in progress at filing time (run `36282708742`) — engineer re-verifies** |
+
+---
+
 ### `Pass 332.0` (`e9236215`), 2026-09-26 — Adding a form field no longer wipes an indirect `/Fields`, `/DR` or `/CO`
 
 **Verdict: SHIPPED, closes the Backlog `/CO` entry filed 2026-09-16 (563rd

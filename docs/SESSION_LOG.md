@@ -4,6 +4,64 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (616th filing) — `6d722b3d`: `v0.57.0` RELEASED
+
+**Shipped:**
+- `v0.57.0` — release filing, not a Pass. Packages 13 commits since
+  `v0.56.0` (`941e6718`..`6d722b3d`), version-bump commit `6d722b3d`
+  ("chore: v0.57.0"), tag `v0.57.0` at `6d722b3d`, pushed, `origin/main` =
+  `6d722b3d`. Headline carried: `Pass 332.0` (`e9236215`) — AcroForm
+  writers now preserve an indirect `/Fields`, `/DR` or `/CO` (data loss
+  present in every release through `v0.56.0`); also `Pass 331.1`
+  (`8ac54da6`), `Pass 331.0` (`5d48365d`), `Pass 330.2` (`89eb180b`) and
+  `Pass 330.1` (`ffc76e7b`) — each already filed under its own entry, not
+  refiled here.
+
+**Decisions made this session:** none — a release carries no
+architectural decision. Highest decision record remains `162`.
+
+**Findings + decisions:**
+- Gates, build and smoke test all relayed from the dispatching engineer
+  (no shell this filing): `tools/run-gates.sh` PASS (39 commands
+  including 2 filing gates, exit 0, 33 "test result: ok" lines); `cargo
+  about generate` regenerated `THIRD_PARTY_LICENSES.md` with no diff;
+  OCRcer vendored copy current at `97cc36afe501`. Packaged build
+  `D:\builds\pdfcer-20260926-2017-6d722b3`, 46,560,406 B.
+- Fresh-folder smoke test PASSED: `--version` reports `0.57.0` / revision
+  `v0.57.0`; `rotate` (incremental) OK; `add-text-field` run twice on the
+  same file then `list-fields` shows both fields (`a`, `b`) with
+  `default_resources=1` — the `Pass 332.0` scenario exercised end-to-end
+  through the packaged binary; `render-page` OK.
+- `tools/gh-release.py`: 2 assets uploaded (zip + `.sha256`) at their
+  local sizes, PASS on the first try. Zip sha256
+  `9c288e7e093a8d18f43c426763ec90047332286c370373adf1600019cb1f2d78`.
+- `tools/deploy-onedrive.py` wrote slot `pdfcer2` (was `0.55.0`);
+  `pdfcer1` keeps `0.56.0` as the previous version. The next release
+  writes `pdfcer1`.
+- `verify-release.py v0.57.0`: OneDrive current+previous ok, tag/push/
+  asset ok; FAIL "working tree clean" — the untracked `target-case/`
+  directory, not the engineer's, standing, same false-alarm class as
+  `v0.56.0`'s. CI at the tagged commit was **in progress at filing time**
+  (run `36282708742`), not yet confirmed green — engineer re-verifies.
+- `docs/FEATURES.md`: **no rows changed** — a release ships no new
+  capability. Said explicitly so the silence is not read as a missed
+  sweep.
+- Independently confirmed by this filing (no shell, `Grep` only):
+  `Cargo.toml`'s `version = "0.57.0"`.
+
+**Still in flight:** nothing opened by this filing; see
+`docs/NEXT_SESSION.md` for the engineer's own state.
+
+**For next session:** none specific to this release.
+
+**Sourcing (hard rule 8).** No shell this filing. All figures above
+except `Cargo.toml`'s live version string are relayed from the
+dispatching engineer's own report of `6d722b3d`, not independently
+reproduced. The `ROADMAP.md` `v0.57.0` entry (new, top of *Shipped*) and
+its Ledger table were filed by this same pass, independently checked
+against live `ROADMAP.md`/`Cargo.toml` content within this role's
+no-shell reach.
+
 ## 2026-09-26 (615th filing) — `e9236215`: `Pass 332.0` SHIPPED — adding a form field no longer wipes an indirect `/Fields`, `/DR` or `/CO`
 
 **Shipped:**
