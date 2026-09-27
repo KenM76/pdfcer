@@ -115,6 +115,16 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 358.5` (`bbd3402c`), 2026-09-27 — pick a layer when adding new content
+
+**Verdict: SHIPPED. Family `358` continues — `358.6` (merge/flatten) remains *Next up*.** Every add verb now takes an optional layer: `EditSession::add_text` (`AddTextRequest.layer`/`::on_layer`), `add_image` (`NewImage.layer`/`::on_layer`), `add_markup_with`/`add_markup_as_content`/`add_text_annotation_with`/`add_text_annotation_reporting` (`MarkupOptions.layer`), and new verb `paste_objects_on_layer(page_index, clip, at, layer: Option<ObjId>)` (`paste_objects` delegates with `None`). Each appended content stream is wrapped whole in `/OC /name BDC … EMC` (ISO 32000-2 §8.11.3.2) — minimal-diff, no existing bytes touched; binds a new `OC<n>` `/Properties` name if the page has none; each created annotation and its `/Popup` gets `/OC` (§12.5.2 Table 164). Add + placement coalesce into one undo entry labelled as the add; a placement failure undoes the add. An unregistered layer is refused by name (`EditError::LayerNotFound`) before any write. New `AddTextError` variants `LayerNeedsSession` (the free `text_edit::add_text` refuses a layered request) and `Layer(Box<EditError>)`. `EditError` count unchanged at 147.
+
+CLI: `--layer NAME`/`--layer-id N` on `add-text`, `add-image`, `annotate`, `object-paste` (no new subcommand; README count unchanged at 164).
+
+**Tests.** 8 new core (`crates/pdfcer-core/tests/layer_edit.rs`: `add_text_on_a_layer`, `add_text_reuses_the_page_binding`, `add_text_refuses_an_unregistered_layer`, `add_text_on_a_layer_round_trips`, `add_image_on_a_layer`, `add_markup_annotation_on_a_layer`, `add_markup_as_content_on_a_layer`, `paste_objects_on_a_layer`; core `layer_edit` total 47), 5 new CLI (`crates/pdfcer-cli/tests/layer_edit.rs`: `add_text_on_a_layer`, `add_image_on_a_layer`, `annotate_on_a_layer`, `object_paste_on_a_layer`, `an_add_on_an_unknown_layer_is_refused`; CLI `layer_edit` total 21). Sabotage: removing the wrap, the annotation `/OC`, the coalesce (core) and the CLI resolver (all 5 CLI tests red) each caught.
+
+**Gates.** `tools/run-gates.sh` PASS (39 commands). `docs/core-api` verb count 261→262, `check-core-api-verbs` PASS. No manifest change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected.
+
 ### `Pass 358.4` (content half, `669b3f3a`), 2026-09-27 — `set_objects_layer` — `Pass 358.4` now COMPLETE
 
 **Verdict: SHIPPED IN FULL. `Pass 358.4` (annotation half `62a40a5d` + content half `669b3f3a`) is now COMPLETE; family `358` continues — `358.5`–`358.6` unstarted.** Acrobat itself has no GUI for either half (`layers__annotation_form_field_oc_assignment.md`) — both halves exceed Acrobat's own GUI once wired.
@@ -8383,12 +8393,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
-
-### `Pass 358.5` — Pick a layer when adding new content
-
-**Filed 2026-09-27 (644th filing), family `358`, builds on `Pass 358.4`.** An optional layer parameter on `add_text`, `add_image`, `paste_objects` and `add_markup_as_content` (`Pass 356.0`), plus matching `--layer` CLI flags on each. Parity-plus, same as `358.4` — Acrobat's own add-content dialogs offer no layer choice at all.
-
-**Acceptance criteria.** Omitting `--layer` is byte-identical to today's behavior (no `/OC` wrapper introduced where none existed). An unknown layer name/id is refused by name, not silently ignored. Each verb's existing disclosure fields are unchanged in shape — a layer assignment is operator-stated, not pdfcer-inferred, so rule 4 does not add a new field.
 
 ### `Pass 358.6` — Merge and flatten layers
 

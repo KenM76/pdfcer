@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (655th filing) — `bbd3402c`: `Pass 358.5` (layer on add-content verbs) SHIPPED
+
+**Shipped:**
+- Pass 358.5 — every add verb takes an optional layer: `EditSession::add_text`, `add_image`, `add_markup_with`/`add_markup_as_content`/`add_text_annotation_with`/`add_text_annotation_reporting`, plus new verb `paste_objects_on_layer(page_index, clip, at, layer)` (`paste_objects` delegates with `None`). Each appended content stream wrapped whole in `/OC /name BDC … EMC`; add + placement coalesce into one undo entry. CLI `--layer NAME`/`--layer-id N` on `add-text`, `add-image`, `annotate`, `object-paste`.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- `EditSession` verb count 262 (`paste_objects_on_layer` new). `EditError` count unchanged at 147; new `AddTextError` variants `LayerNeedsSession`, `Layer(Box<EditError>)`. Tests: core 8 (`layer_edit` total 47), CLI 5 (`layer_edit` total 21); sabotage 4 core + CLI-resolver mutations, all caught. `docs/FEATURES.md`'s "Choose a layer when adding NEW content" row ticked core/cli, citing `bbd3402c`.
+
+**Still in flight:**
+- `Pass 358.6` (merge/flatten) — not started, last of family `358`. `flatten_annotations` (`G043` option B) still unscoped.
+
+**For next session:**
+- Pick up `Pass 358.6`.
+
 ## 2026-09-27 (654th filing) — `669b3f3a`: `Pass 358.4` (content half) SHIPPED — `Pass 358.4` now COMPLETE
 
 **Shipped:**
