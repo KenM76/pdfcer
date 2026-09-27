@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (628th filing) — `340fa5af`: `Pass 343.0` SHIPPED — a ce dimension's colour survives a restyle, with its own digits
+
+**Shipped:**
+- `Pass 343.0` — closes two defects found in the sibling sweep recommended
+  after `Pass 342.0`: (1) `set_dimension_style`/`set_group_style` rebuilt
+  a ce dimension's `/AP` in the new colour but never updated the
+  annotation's own `/C` mirror (`/C` was missing from
+  `dimension::AUTHORED_ANNOT_KEYS`); (2) every ce-dimension colour write
+  (`/AP` operators, `/C`, the `/PieceInfo` sidecar `/Color`) widened
+  `f32` through `f64::from` before formatting, so `0.2` wrote as
+  `0.20000000298023224` — the same mechanism as the `/MK` writers fixed
+  in `Pass 308.0`/`342.0`.
+
+**Decisions made this session:** none — a scoped correctness fix, no
+architecture change.
+
+**Findings + decisions:**
+- Fix: `/C` is now an authored key (`AUTHORED_ANNOT_KEYS` widened
+  `[&[u8]; 7]` → `[&[u8]; 8]`, not in `docs/core-api`). All ten
+  `f32`-widening sites in `dimension/author.rs` and `dimension/sidecar.rs`,
+  plus `forms::MkColor::to_array`, now share one `pub(crate)` helper,
+  `annot_author::mk_component`.
+- `dimension_roundtrip::a_ce_dimension_colour_is_written_with_the_digits_it_was_given`
+  added, sabotage-checked three ways (each of the three reverts fails
+  independently). `tools/run-gates.sh`: PASS (39 commands). No manifest
+  change.
+- Core only — CLI and GUI already round-trip whatever core writes;
+  neither box moves.
+- `docs/FEATURES.md`: row 254 (ce-dimension style) gets one added clause,
+  well under the 1,200-char cap; no box change.
+- `D:/dev/rag/rust/shortest_roundtrip_float_format_needs_derived_value_rounding.md`
+  gets a FIFTH INSTANCE — the widen-then-format shape recurring in a
+  third, unrelated subsystem, this time consolidated behind one shared
+  helper rather than fixed at each site again.
+
+**Still in flight:** none new from this filing.
+
+**For next session:** none flagged — a sibling-sweep closure, not part of
+the open `FieldEdit`/`WidgetEdit` audit item.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`340fa5af`, not independently reproduced.
+
 ## 2026-09-27 (627th filing) — `84c7396c`: `Pass 342.0` SHIPPED — a colour is stored with the digits it was given
 
 **Shipped:**

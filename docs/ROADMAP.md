@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 343.0` (`340fa5af`), 2026-09-27 — A ce dimension's colour survives a restyle, with its own digits
+
+**Verdict: SHIPPED, closes two defects found in the sibling sweep recommended after `Pass 342.0`** — the widen-then-format pattern from `D:/dev/rag/rust/shortest_roundtrip_float_format_needs_derived_value_rounding.md` (third and fourth instances, `Pass 308.0`/`342.0`), extended to the ce-dimension writer.
+
+1. `EditSession::set_dimension_style` and `set_group_style` rebuilt a ce dimension's `/AP` in the new colour but never touched the annotation's own `/C` mirror — `/C` was absent from `dimension::AUTHORED_ANNOT_KEYS`, so a reader drawing the underlying `/Line` from its own dictionary keys, rather than replaying the baked `/AP`, showed the pre-restyle colour.
+
+2. Every ce-dimension colour write — `/AP` colour operators, `/C`, and the `/PieceInfo` sidecar's `/Color` — widened each `f32` component through `f64::from` before formatting, the same mechanism as the `/MK` writers: `0.2` was written as `0.20000000298023224`.
+
+**Fix.** `/C` is now an authored key (`AUTHORED_ANNOT_KEYS` widened `[&[u8]; 7]` → `[&[u8]; 8]`; not in `docs/core-api`, no GUI dependency on the array's length). All ten `f32`-widening sites across `dimension/author.rs` and `dimension/sidecar.rs`, plus `forms::MkColor::to_array`, now share one helper, `annot_author::mk_component` (widened from private to `pub(crate)`).
+
+**Tests.** `dimension_roundtrip::a_ce_dimension_colour_is_written_with_the_digits_it_was_given` (`crates/pdfcer-core/tests/dimension_roundtrip.rs`), sabotage-checked three ways — fails with `/C` left out of `AUTHORED_ANNOT_KEYS`, with `author.rs`'s widening restored, and with `sidecar.rs`'s widening restored, each reverted independently. `tools/run-gates.sh`: PASS (39 commands). No manifest change.
+
+**Shells.** Core fix only; CLI and GUI already round-trip whatever core writes. Neither box moves.
+
+**`docs/FEATURES.md`:** row 254 (ce-dimension style) gets one added clause, well under the 1,200-char cap; no box change — correctness fix under an already-ticked capability.
+
+**RAG.** `D:/dev/rag/rust/shortest_roundtrip_float_format_needs_derived_value_rounding.md` gets a FIFTH INSTANCE — the same widen-then-format shape recurring in a third, unrelated subsystem, this time consolidated behind one shared helper rather than fixed at each site again.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `340fa5af`, not independently reproduced.
+
 ### `Pass 342.0` (`84c7396c`), 2026-09-27 — A colour is stored with the digits it was given
 
 **Verdict: SHIPPED, closes the `/MK` f32-widening finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`341.0`) — the item stays open, two `WidgetEdit` findings remain (see *Backlog*).
