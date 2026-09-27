@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (646th filing) — `7d2922d0`: `Pass 358.1` SHIPPED — edit a layer's own properties
+
+**Shipped:**
+- Pass 358.1 — `EditSession::set_layer_properties` (CLI `layer-edit`) writes a layer's `/Name`, default on/off, lock, Print/Export usage and Intent as real saved edits. `list-layers` now prints ` id=N` on every layer line, flat and `--tree` alike.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- New core types: `LayerEdit` (non-exhaustive builder), `LayerOutputState`, `LayerIntent`, `LayerEditOutcome`; `EditError::LayerNotFound`/`EmptyLayerName`. A usage state (`Always`/`Never`) writes/creates the `/AS` entry per ISO 32000-1 §8.11.2 Table 103; `WhenVisible` removes it. No-op edits add no undo entry.
+- Tests: core `layer_edit` 10, CLI `layer_edit` 4, five sabotages each caught. fmt + clippy clean; no manifest change, `cargo tree` unaffected. `docs/core-api` §1.32 added (253 verbs).
+- `docs/FEATURES.md` row ticked core/cli `[x]` (gui stays `[ ]`); stays in *Planned* since the whole capability (gui) hasn't landed.
+
+**Still in flight:**
+- `Pass 358.2`–`358.6` (create/delete, folder organisation, content/annotation `/OC` assignment, layer-on-add, merge/flatten) — none started.
+- `flatten_annotations` (`G043` option B) — still unscoped, carried forward.
+
+**For next session:**
+- Pick up `Pass 358.2` (create/delete a layer) or `flatten_annotations`'s scoping — both open, neither blocks the other.
+
 ## 2026-09-27 (645th filing) — `ea518cbf`: `Pass 358.0` SHIPPED — `list-layers --tree` shows folders and sublayers
 
 **Shipped:**

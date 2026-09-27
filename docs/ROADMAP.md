@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 358.1` (`7d2922d0`), 2026-09-27 — Edit a layer's own properties
+
+**Verdict: SHIPPED**, family `358` (see `Pass 358.0`). Acrobat Pro edits Name, Locked, Intent, Default State and Print/Export usage as real saved edits — no New Layer/Delete Layer command exists in Acrobat itself. `358.2`–`358.6` (create/delete, folder organisation, content/annotation `/OC` assignment, layer-on-add, merge/flatten) remain unstarted.
+
+**Core.** New `EditSession::set_layer_properties(layer: ObjId, edit: &LayerEdit) -> Result<LayerEditOutcome, EditError>`. New `pub` types: `LayerEdit` (`#[non_exhaustive]` builder — name, visible_by_default, locked, print, export, intent), `LayerOutputState { WhenVisible, Always, Never }`, `LayerIntent { View, Design, Both }`, `LayerEditOutcome { changed: bool }`; `EditError::LayerNotFound { id }`, `EditError::EmptyLayerName`; `CommandKind::SetLayerProperties { layer }`. ISO 32000-1 §8.11.2 Table 98 (`/Name`/`/Intent`/`/Usage`), Table 101 (`/D` `/ON`/`/OFF`/`/BaseState`/`/Locked`/`/AS`), Table 102 (`/PrintState`/`/ExportState`), Table 103 (a usage state applies only to groups an `/AS` entry lists for that event — `Always`/`Never` write/create the `/AS` entry, `WhenVisible` removes both). Visibility respects `/BaseState`. Indirect objects are edited in place; only changed objects are written; a no-op edit adds no undo entry.
+
+**CLI.** `pdfcer layer-edit <in> (--layer NAME | --id N) [--rename S] [--visible on|off] [--locked on|off] [--print|--export when-visible|always|never] [--intent view|design|both] -o OUT [--mode] [--verify-undo]`; exit 9 on an unknown/ambiguous layer or an empty rename. `list-layers` now prints ` id=N` on every layer line, flat and `--tree` alike.
+
+**Tests.** Core `layer_edit`, 10 tests; CLI `layer_edit`, 4 tests; `list_layers_tree` expectations updated for the new `id=`. Five sabotage mutations, each caught, both suites.
+
+**Gates.** `cargo fmt --check` + `cargo clippy -- -D warnings` clean. No manifest change — `cargo tree` unaffected. `docs/core-api` §1.32 added (verb count 253, `EditError` variant count 140); `check-core-api-verbs.py` clean.
+
+**Shells.** core `[x]`, cli `[x]`. gui `[ ]` — separate project, not wired.
+
+**`docs/FEATURES.md`.** Row "Edit a layer's own properties" ticked core `[x]` / cli `[x]` (gui stays `[ ]`); stays in *Planned* (not the whole family's capability yet).
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `7d2922d0`, not independently reproduced.
+
 ### `Pass 358.0` (`ea518cbf`), 2026-09-27 — `list-layers --tree` shows folders and sublayers
 
 **Verdict: SHIPPED**, the cheapest item of family `358` (general-purpose OCG layer authoring, filed 644th filing) — a CLI read verb over the core `OrderNode` tree that already existed since `Pass 57.0`. `358.1`–`358.6` (properties, create/delete, folder authoring, content/annotation `/OC` assignment, layer-on-add, merge/flatten) are unstarted.
@@ -8277,14 +8295,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
-
-### `Pass 358.1` — Edit a layer's own properties
-
-**Filed 2026-09-27 (644th filing), family `358` (see `Pass 358.0`).** Acrobat Pro edits Name, Locked, Intent (View/Design), Default State and Print/Export initial usage as real saved edits — no New Layer/Delete Layer command exists in Acrobat itself (`layers__layer_properties_authoring.md`).
-
-**Scope.** `EditSession` verb(s) writing: rename (`/Name`); default on/off (`/D` `/ON`/`/OFF`); lock (`/D` `/Locked`); Print/Export usage (`/Usage` `/Print`/`/Export`, `/AS` entries — read the exact Table before writing, rule 1); Intent (`/Intent` `/View`/`/Design`, §8.11.4.3). Each a real saved edit, undoable, incremental-minimal-diff (rule 3). CLI `layer-edit`.
-
-**Acceptance criteria.** Round-trip: an untouched OCG's `/Usage` subkeys pdfcer doesn't model survive byte-for-byte. Locking a layer whose content is mid-edit is refused by name or disclosed, never silently allowed. Renaming does not touch `/OCProperties/D/Order` ordering.
 
 ### `Pass 358.2` — Create and delete a layer
 
