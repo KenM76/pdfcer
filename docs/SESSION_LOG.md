@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (634th filing) — `7e0b3732`: `Pass 348.1` SHIPPED — a bound `/DR` font lays text out with its own `/Widths`
+
+**Shipped:**
+- `Pass 348.1` — narrows D4's remainder from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item: `Pass 348.0` bound a field's drawing font to a non-standard-14 `/DR` font, but layout still measured with the standard-14 stand-in's metrics; layout now uses the bound font's own `/Widths`.
+
+**Decisions made this session:**
+- None beyond the fix itself. D4 stays open, reworded to its own remainder rather than closed — see *Findings*.
+
+**Findings + decisions:**
+- `vartext::FontResource` (`pdfcer-fonts`, `pub`) gains `widths: Option<Box<[u16; 256]>>`; measure/wrap/auto-fit/comb paths prefer it when present. `resolve_dr_fonts` fills it from `/Widths[code - FirstChar]`, else `/MissingWidth`, else 0 (ISO 32000-1 §9.6.2.1 Table 111, §9.8.1 Table 122).
+- D4's remainder is now exactly: non-WinAnsi/Type0 `/DR` fonts still use the stand-in, and vertical metrics (ascent) stay standard-14 even for a bound font.
+- Additive `pub` field, no break; no `docs/core-api` change (GUI doesn't consume `FontResource`). Core-only fix, CLI inherits through existing fill/regenerate commands. New test `form_dr_font_binding::a_bound_font_is_laid_out_with_its_own_widths`; sabotage fails 81.666 vs 82.5. Fuzz target `annot_author` now exercises widths. `tools/run-gates.sh`: PASS (39 commands).
+- `docs/FEATURES.md` row 318 checked, left unedited (already covered by its generic "Open defects: the audit item in *Backlog*" clause; this filing's scope was ROADMAP.md/SESSION_LOG.md only).
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item stays open — two `FieldEdit` findings (D4's narrowed remainder, D8) and two `WidgetEdit` findings remain.
+
+**For next session:**
+- Next candidates from the same audit: D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics), or D8 (round-trip gaps: inherited quadding read-back, multi-select `/DV`, Regenerated-over-identical-bytes on check box/radio `/DA`).
+
 ## 2026-09-27 (633rd filing) — `ab671a64`: `Pass 348.0` SHIPPED — a field drawn in a non-standard `/DR` font uses that font
 
 **Shipped:**
