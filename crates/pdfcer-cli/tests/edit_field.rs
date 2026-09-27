@@ -817,3 +817,47 @@ fn a_property_pdfcer_does_not_draw_is_disclosed_not_reported_redrawn() {
         stderr(&r)
     );
 }
+
+/// `--scale-stroke-width` draws the border at the scaled width, not only
+/// records it in `/BS`.
+#[test]
+fn a_scaled_border_width_is_drawn() {
+    let dir = TempDir::new("edit-widget-stroke");
+    let src = dir.write("blank.pdf", &multipage_pdf(&["0 0 0 rg 0 0 10 10 re f"]));
+    let pdf = dir.join("framed.pdf");
+    let r = run(&[
+        "add-text-field",
+        src.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--page",
+        "1",
+        "--rect",
+        "10,10,110,34",
+        "--no-tooltip",
+        "--border-color",
+        "0",
+        "-o",
+        pdf.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    let out = dir.join("scaled.pdf");
+    let r = run(&[
+        "edit-widget",
+        pdf.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--rect",
+        "10,10,310,82",
+        "--scale-stroke-width",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    assert!(stdout(&r).contains("regenerated=1"), "{}", stdout(&r));
+    let bytes = std::fs::read(&out).unwrap();
+    assert!(
+        bytes.windows(4).any(|w| w == b"\n3 w"),
+        "the redraw kept the old border width"
+    );
+}

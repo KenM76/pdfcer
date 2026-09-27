@@ -26471,8 +26471,16 @@ impl EditSession {
                 .map_or(widget.border_color, MkColorEdit::resolved),
         );
         // The `/BS` this command leaves, drawn by the redraw below: the edit's
-        // border, else the widget's own.
-        let chrome_after = match edit.border.or(widget.border) {
+        // border, else the widget's own, at the scaled width when the resize
+        // scaled it.
+        let border_after = match (edit.border.or(widget.border), stroke_width) {
+            (border, Some((_, width))) => Some(BorderSpec {
+                width,
+                ..border.unwrap_or_default()
+            }),
+            (border, None) => border,
+        };
+        let chrome_after = match border_after {
             Some(border) => chrome_after.with_border(border),
             None => chrome_after,
         };

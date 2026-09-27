@@ -516,3 +516,25 @@ fn a_background_colour_is_stored_with_the_digits_it_was_given() {
         "f32 widening wrote a precision the operator never chose"
     );
 }
+
+#[test]
+fn a_resize_that_scales_the_border_draws_it_scaled() {
+    let mut s = bordered_text_field("/BS << /S /S /W 2 >>");
+    let out = s
+        .edit_widget(
+            "Name",
+            0,
+            &WidgetEdit::new()
+                .with_rect(pdfcer_core::page_tree::Rect {
+                    llx: 20.0,
+                    lly: 300.0,
+                    urx: 420.0,
+                    ury: 348.0,
+                })
+                .with_resize(pdfcer_core::edit::ResizeOptions::new().with_scale_stroke_width(true)),
+        )
+        .unwrap();
+    assert_eq!(out.stroke_width, Some((2.0, 4.0)));
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(contains(&ap, b"4 w"), "{}", String::from_utf8_lossy(&ap));
+}
