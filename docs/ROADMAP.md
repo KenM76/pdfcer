@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 340.0` (`463b0008`), 2026-09-27 — Widget borders are drawn in their `/BS` width and style
+
+**Verdict: SHIPPED, closes the "Border width/style never drawn" finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`339.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
+
+Every widget appearance builder (check box, radio, push button, text/choice) hard-coded a 1pt solid frame, so a border edited or authored as e.g. 3pt dashed/underline/beveled/inset was written to `/BS` but never painted, while `edit_widget` reported the appearance Regenerated.
+
+**Fix.** `annot_author::WidgetChrome` gains `pub border: Option<edit::BorderSpec>` and `with_border(spec)`. A private `stroke_frame` draws: the `/W` width inset by half; a `[3] 0 d` dash for Dashed (Table 166's default dash, `/BS` carries no `/D`); the bottom edge only for Underline; a light/shadow band one border-width deep for Beveled/Inset; width 0 = no frame. Radio ring honours width and dash only. No `/BS` = the old 1pt frame, byte-identical. Creation, `edit_widget` and property redraws all read the widget's (or edit's) `/BS`. Spec: ISO 32000 §12.5.4 Table 166.
+
+**Tests.** 5 new in `crates/pdfcer-core/tests/form_edit_audit.rs`, each sabotage-checked. `tools/run-gates.sh`: PASS (9,173 tests). No manifest change — `cargo tree` unaffected. `docs/core-api/02-editing-and-saving.md` documents `with_border`.
+
+**Shells.** Core fix only, reached by CLI's `edit-widget --border-*` unchanged. Neither box moves.
+
+**`docs/FEATURES.md`:** row 318 gets one added clause (checked against the 1,200-char cap); no box change — correctness fix under an already-ticked capability.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `463b0008`, not independently reproduced.
+
 ### `Pass 339.0` (`af7bd6f3`), 2026-09-27 — A per-widget edit no longer redraws its siblings
 
 **Verdict: SHIPPED, closes X2 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`338.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
@@ -16925,6 +16941,8 @@ suspicion this entry recorded.
 
 ★ **Fifth fix shipped — 2026-09-27 (624th filing, `Pass 339.0`, `af7bd6f3`).** Closes X2, below: `EditSession::edit_widget` and `rotate_widget` passed the whole field to the shared regenerator, which rebuilt every sibling widget's `/AP` while `siblings_untouched` reported `n-1`; both verbs now narrow the regenerator's input to the edited widget alone — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and five `WidgetEdit` findings remain.
 
+★ **Sixth fix shipped — 2026-09-27 (625th filing, `Pass 340.0`, `463b0008`).** Closes the border-width/style finding, below: every widget appearance builder hard-coded a 1pt solid frame; `WidgetChrome` now carries `border: Option<BorderSpec>` and a `stroke_frame` helper draws width/dash for Dashed/Underline/Beveled/Inset, honouring the widget's own `/BS` — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and four `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -16937,7 +16955,7 @@ suspicion this entry recorded.
 - D8 — round-trip gaps: inherited quadding read-back, multi-select `/DV`. Check box/radio `/DA` edits report Regenerated over identical bytes. Regen auto-size and unencodable-character counts are dropped, undisclosed.
 
 **WidgetEdit:**
-- Border width/style never drawn — the builders hard-code line width 1, no dash/bevel/inset/underline — while the outcome reports Regenerated.
+- Border width/style — CLOSED by `Pass 340.0`, above. Was: every widget builder hard-coded a 1pt solid frame; a border edited or authored with `/BS` width or style (dashed/underline/beveled/inset) was written but never painted, while the outcome reported Regenerated.
 - `border_dict` drops `/D`.
 - Stroke-width scaling is reported but not drawn.
 - Radio caption and text/choice caption falsely report Regenerated (text/choice also churns a new `/AP` it didn't need to).

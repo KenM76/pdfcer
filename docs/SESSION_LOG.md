@@ -4,6 +4,55 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (625th filing) — `463b0008`: `Pass 340.0` SHIPPED — widget borders are drawn in their `/BS` width and style
+
+**Shipped:**
+- `Pass 340.0` — closes the "Border width/style never drawn" finding
+  from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property"
+  item (filed 2026-09-16, 562nd filing; earlier fixes were
+  `Pass 335.0`–`339.0`); the item stays open. Every widget appearance
+  builder hard-coded a 1pt solid frame, so a `/BS` border edited or
+  authored with a non-default width or style (dashed, underline,
+  beveled, inset) was written but never painted, while `edit_widget`
+  reported the appearance Regenerated.
+
+**Decisions made this session:** none — a scoped correctness fix, no
+architecture change.
+
+**Findings + decisions:**
+- Fix: `annot_author::WidgetChrome` gains `border: Option<BorderSpec>`
+  and `with_border(spec)`; a private `stroke_frame` draws the `/W`
+  width inset by half, a `[3] 0 d` dash for Dashed, the bottom edge
+  only for Underline, and a light/shadow band for Beveled/Inset. Radio
+  rings honour width and dash only. No `/BS` = the old 1pt frame,
+  byte-identical. Creation, `edit_widget` and property redraws all
+  read the widget's (or edit's) `/BS`. Spec: ISO 32000 §12.5.4 Table
+  166.
+- 5 new tests in `crates/pdfcer-core/tests/form_edit_audit.rs`, each
+  sabotage-checked. `tools/run-gates.sh`: PASS (9,173 tests). No
+  manifest change — `cargo tree` unaffected.
+  `docs/core-api/02-editing-and-saving.md` documents `with_border`.
+- Core only — CLI's `edit-widget --border-*` already reaches the fix,
+  no CLI change; neither box moves.
+- `docs/FEATURES.md`: row 318 gets one added clause ("A widget's
+  border width and style are now drawn (`Pass 340.0`)"), checked
+  against the 1,200-char cap.
+- `docs/ROADMAP.md`'s audit Backlog entry marks the border finding
+  CLOSED by `Pass 340.0`; six `FieldEdit` findings and four
+  `WidgetEdit` findings remain.
+
+**Still in flight:** the widened audit entry's remaining findings are
+unscoped, no Pass IDs assigned yet. D4/D4b look like the next
+candidates on the `FieldEdit` side; `border_dict` dropping `/D` looks
+like the next candidate on the `WidgetEdit` side.
+
+**For next session:** scope the next-worst remaining audit finding into
+a Pass.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`463b0008`, not independently reproduced.
+
 ## 2026-09-27 (624th filing) — `af7bd6f3`: `Pass 339.0` SHIPPED — a per-widget edit no longer redraws its siblings
 
 **Shipped:**
