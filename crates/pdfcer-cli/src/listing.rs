@@ -346,7 +346,7 @@ pub(crate) fn cmd_list_signatures(input: &Path) -> u8 {
 /// no save path for it, so there is nothing to offer — and offering a
 /// toggle that silently did not persist would be worse than not offering
 /// one (R83).
-pub(crate) fn cmd_list_layers(input: &Path) -> u8 {
+pub(crate) fn cmd_list_layers(input: &Path, tree: bool) -> u8 {
     let doc = match open_document(input) {
         Ok(doc) => doc,
         Err(err) => {
@@ -357,7 +357,10 @@ pub(crate) fn cmd_list_layers(input: &Path) -> u8 {
     let session = pdfcer_core::edit::EditSession::new(doc);
     let read = pdfcer_core::layers::read_layers(&session.graph());
 
-    for l in &read.layers {
+    if tree {
+        print_order_tree(&read);
+    }
+    for l in read.layers.iter().filter(|l| !tree || !l.in_order) {
         // An undeclared name is reported as `-`, never invented. Table 98
         // marks `/Name` Required, so its absence is a real malformation,
         // and a synthesised "Layer 3" would hide it behind something that
@@ -501,6 +504,43 @@ pub(crate) fn cmd_list_layers(input: &Path) -> u8 {
         read.radio_groups.len(),
     );
     exit::SUCCESS
+}
+
+/// The `/Order` tree, one indented line per node; a layer line carries
+/// the flat listing's `name` and `visible` fields.
+fn print_order_tree(read: &pdfcer_core::layers::Layers) {
+    fn walk(
+        read: &pdfcer_core::layers::Layers,
+        nodes: &[pdfcer_core::layers::OrderNode],
+        depth: usize,
+    ) {
+        let pad = "  ".repeat(depth);
+        for n in nodes {
+            match (n.group, n.label.as_deref()) {
+                (Some(id), _) => match read.layers.iter().find(|l| l.id == id) {
+                    Some(l) => {
+                        let name = if l.name_declared {
+                            format!("{:?}", l.name)
+                        } else {
+                            "-".to_owned()
+                        };
+                        let locked = if l.locked { " locked" } else { "" };
+                        println!(
+                            "{pad}layer name={name} visible={}{locked}",
+                            u32::from(l.visible_by_default)
+                        );
+                    }
+                    // Counted in the diagnostics (dangling or malformed);
+                    // the tree still shows where the file put it.
+                    None => println!("{pad}layer name=- unresolved={}", id.num),
+                },
+                (None, Some(label)) => println!("{pad}folder label={label:?}"),
+                (None, None) => println!("{pad}group"),
+            }
+            walk(read, &n.children, depth + 1);
+        }
+    }
+    walk(read, &read.order, 0);
 }
 
 /// Render one font's `fsType` state as a single stable token.

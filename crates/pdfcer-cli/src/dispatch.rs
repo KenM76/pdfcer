@@ -359,7 +359,7 @@ pub(crate) fn run() -> ExitCode {
             output,
             mode,
         } => cmd_detach_file(&input, &name, apply, output.as_deref(), mode),
-        Command::ListLayers { input } => cmd_list_layers(&input),
+        Command::ListLayers { input, tree } => cmd_list_layers(&input, tree),
         Command::ListFonts {
             input,
             reasons,

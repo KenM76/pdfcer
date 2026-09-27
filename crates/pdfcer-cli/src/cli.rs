@@ -1966,6 +1966,20 @@ pub(crate) enum Command {
     ListLayers {
         /// Input PDF.
         input: PathBuf,
+        /// Print the layers as the document's own panel tree (`/D /Order`,
+        /// Table 101) instead of a flat list, one line per node indented
+        /// two spaces per level:
+        ///
+        /// - `folder label="…"` is a named folder: a heading with no layer
+        ///   of its own and nothing to show or hide;
+        /// - `layer name=…` is a layer, with the same fields as the flat
+        ///   list; its indented children are sublayers;
+        /// - `group` is an unnamed grouping with no layer of its own.
+        ///
+        /// Layers the tree does not reach are printed after it at depth 0,
+        /// flagged `not-in-order`. The summary line is unchanged.
+        #[arg(long)]
+        tree: bool,
     },
 
     /// **List a document's fonts** — what they are, what they cost, and
