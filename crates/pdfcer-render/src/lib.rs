@@ -76,6 +76,7 @@ pub(crate) mod cmyk_paint;
 pub mod color;
 pub mod compositor;
 pub mod display_list;
+pub mod edit_preview;
 pub mod emf;
 mod emf_text;
 pub mod export;

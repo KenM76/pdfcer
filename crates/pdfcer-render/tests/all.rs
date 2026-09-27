@@ -14,6 +14,7 @@ mod cmyk_variants;
 mod constant_alpha;
 mod deep_zoom_refuses_instead_of_panicking;
 mod devicen_image_ink;
+mod edit_preview_outlines;
 mod edited_view_is_what_renders;
 mod embed_font_roundtrip;
 mod export_emf;

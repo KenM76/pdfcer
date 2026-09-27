@@ -9278,6 +9278,11 @@ pub struct EditSession {
     /// longer `Sync`, and `Send + Sync` is exactly what lets a shell move the
     /// session to a worker thread and keep this cost off the UI thread.
     page_objects_cache: Option<PageObjectsCache>,
+    /// One page's decoded content and text-edit operator records, so a
+    /// typing preview does not repeat a ~400 ms decode and walk per
+    /// keystroke (`Pass 366.0`). Keyed like `page_objects_cache`, plus the
+    /// fonts the records were decoded with; see [`TextWalkCache`].
+    text_walk_cache: Option<TextWalkCache>,
     /// Set once [`EditSession::apply_redactions`] has finalized a redaction
     /// into this session (`Pass 250.1`). A disclosure signal only: the
     /// redaction collapsed the session onto a clean, fully-rewritten base, so
@@ -9376,6 +9381,7 @@ impl EditSession {
             widget_tab_tail: WidgetTabTail::default(),
             tab_row_tolerance: crate::settings::DEFAULT_TAB_ROW_TOLERANCE,
             page_objects_cache: None,
+            text_walk_cache: None,
             redacted: false,
             redaction_pending: false,
             #[cfg(debug_assertions)]
@@ -11556,7 +11562,7 @@ impl EditSession {
     ) -> Result<crate::text_edit::EditReport, crate::text_edit::EditError> {
         use crate::text_edit::EditError as TeError;
         use crate::text_edit::EditTarget;
-        use crate::text_edit::edit::plan_edit;
+        use crate::text_edit::edit::{EditPlanTarget, PlanMode, plan_edit_with_records};
 
         if self.base.trailer().contains_key(b"Encrypt") {
             return Err(TeError::Encrypted);
@@ -11577,8 +11583,19 @@ impl EditSession {
         {
             match page.contents.first().copied() {
                 Some(content_id) => {
-                    let stream = self.current_page_content(&page).map_err(TeError::Content)?;
-                    match plan_edit(&self.view(), &page, &stream, req, opts) {
+                    let (stream, recs) = self.page_text_walk(&page)?;
+                    let planned = EditPlanTarget::page(&page).and_then(|target| {
+                        plan_edit_with_records(
+                            &self.view(),
+                            &target,
+                            &stream,
+                            &recs,
+                            req,
+                            opts,
+                            PlanMode::Commit,
+                        )
+                    });
+                    match planned {
                         Ok(mut plan) => {
                             let (command, decoupled) = self
                                 .text_edit_command(
@@ -11624,6 +11641,96 @@ impl EditSession {
         }
 
         self.edit_text_in_form(&page, req, opts, page_attempt)
+    }
+
+    /// Lay out `req`'s replacement exactly as [`Self::edit_text`] would
+    /// commit it, writing nothing (`Pass 366.0`).
+    ///
+    /// For a shell drawing typed text in the run's own font while the
+    /// operator types: the codes, positions, refusals and disclosures come
+    /// from the same plan the commit runs, so what is drawn is what Enter
+    /// produces. `pdfcer_render::edit_preview::preview_outlines` turns the
+    /// result into page-space outlines through the renderer's own font
+    /// loading.
+    ///
+    /// **Cost.** The first call on a page decodes its content and walks it
+    /// (hundreds of milliseconds on a large CAD page); later calls reuse
+    /// that and cost a few milliseconds, until an edit changes the page.
+    /// A shell may call this once when its editor opens to pay the first
+    /// cost up front. `&mut self` because that cache lives in the session:
+    /// interior mutability would cost the session its `Sync`.
+    ///
+    /// **Scope.** Page content only. Text inside a form XObject returns the
+    /// page's own error (usually [`crate::text_edit::EditError::NoMatch`])
+    /// although [`Self::edit_text`] with [`crate::text_edit::EditTarget::Auto`]
+    /// would go on to edit it; a [`crate::text_edit::EditTarget::Form`]
+    /// request is refused as unsupported.
+    ///
+    /// Nothing is staged, no command is recorded, and the undo stack does
+    /// not change.
+    ///
+    /// # Errors
+    ///
+    /// The same [`crate::text_edit::EditError`] [`Self::edit_text`] returns
+    /// for the page's content: a refused character, no match, an
+    /// unsupported run, an encrypted document, a bad page index.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use pdfcer_core::{document::Document, edit::EditSession};
+    /// use pdfcer_core::text_edit::{EditOptions, EditRequest};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut session = EditSession::new(Document::load(std::path::Path::new("drawing.pdf"))?);
+    /// // The operator has typed "Howdy" over "Hello" so far.
+    /// let req = EditRequest::find_replace(0, "Hello", "Howdy");
+    /// let preview = session.edit_text_preview(&req, &EditOptions::default())?;
+    /// for g in &preview.glyphs {
+    ///     println!("{:?} code {} at {:?}", g.ch, g.code, g.matrix);
+    /// }
+    /// assert!(!session.can_undo());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn edit_text_preview(
+        &mut self,
+        req: &crate::text_edit::EditRequest,
+        opts: &crate::text_edit::EditOptions,
+    ) -> Result<crate::text_edit::TextEditPreview, crate::text_edit::EditError> {
+        use crate::text_edit::EditError as TeError;
+        use crate::text_edit::edit::{EditPlanTarget, PlanMode, plan_edit_with_records};
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(TeError::Encrypted);
+        }
+        if matches!(req.target, crate::text_edit::EditTarget::Form { .. }) {
+            return Err(TeError::Unsupported(
+                "the typing preview covers page content; text in a form XObject is not previewed"
+                    .to_owned(),
+            ));
+        }
+        let pages = self.pages()?;
+        let page = pages
+            .get(req.page_index)
+            .ok_or(TeError::PageIndex(req.page_index))?
+            .clone();
+        let target = EditPlanTarget::page(&page)?;
+        let (stream, recs) = self.page_text_walk(&page)?;
+        let plan = plan_edit_with_records(
+            &self.view(),
+            &target,
+            &stream,
+            &recs,
+            req,
+            opts,
+            PlanMode::Preview,
+        )?;
+        Ok(crate::text_edit::TextEditPreview::new(
+            req.page_index,
+            plan.layout,
+            plan.report.disclosures,
+        ))
     }
 
     /// The form-XObject half of [`Self::edit_text`] (`Pass 119.0`): try each
@@ -17536,6 +17643,83 @@ impl EditSession {
     ///
     /// Returns the decoded stream as well as the model: the decode is the
     /// expensive half and both callers need it.
+    /// The objects a page's text-edit records depend on beyond its content
+    /// and resource dictionary: everything reachable from `/Font` and
+    /// `/Properties`, with the session's current value of each.
+    fn text_walk_deps(&self, resources: &Dict) -> Vec<(ObjId, Option<Object>)> {
+        // Font → Type0 → DescendantFonts → CIDFont → FontDescriptor →
+        // FontFile is six levels; the id cap bounds a hostile graph.
+        const MAX_DEPTH: u8 = 6;
+        const MAX_IDS: usize = 4096;
+        let view = self.view();
+        let mut ids = std::collections::BTreeSet::new();
+        let mut stack: Vec<(&Object, u8)> = [b"Font".as_slice(), b"Properties"]
+            .iter()
+            .filter_map(|k| resources.get(k).map(|o| (o, 0)))
+            .collect();
+        while let Some((o, depth)) = stack.pop() {
+            match o {
+                Object::Reference(id) => {
+                    if depth < MAX_DEPTH && ids.len() < MAX_IDS && ids.insert(*id) {
+                        stack.push((view.resolve(o), depth + 1));
+                    }
+                }
+                Object::Dict(d) => stack.extend(d.iter().map(|(_, v)| (v, depth))),
+                Object::Stream(st) => stack.extend(st.dict.iter().map(|(_, v)| (v, depth))),
+                Object::Array(a) => stack.extend(a.iter().map(|v| (v, depth))),
+                _ => {}
+            }
+        }
+        ids.into_iter()
+            .map(|id| (id, self.state.get(&id).cloned()))
+            .collect()
+    }
+
+    /// A page's decoded content and its text-edit operator records, memoised
+    /// (`Pass 366.0`). Reuses `page_objects_cache`'s decode when it is
+    /// current.
+    fn page_text_walk(
+        &mut self,
+        page: &Page,
+    ) -> Result<
+        (
+            std::sync::Arc<crate::content::ContentStream>,
+            std::sync::Arc<Vec<crate::text_edit::edit::OpRec>>,
+        ),
+        crate::text_edit::EditError,
+    > {
+        let key = self.page_model_key(page);
+        let deps = self.text_walk_deps(&page.resources);
+        if let Some(c) = &self.text_walk_cache
+            && c.key == key
+            && c.deps == deps
+        {
+            return Ok((
+                std::sync::Arc::clone(&c.stream),
+                std::sync::Arc::clone(&c.recs),
+            ));
+        }
+        let stream = match &self.page_objects_cache {
+            Some(c) if c.key == key => std::sync::Arc::clone(&c.stream),
+            _ => std::sync::Arc::new(
+                self.current_page_content(page)
+                    .map_err(crate::text_edit::EditError::Content)?,
+            ),
+        };
+        let recs = std::sync::Arc::new(crate::text_edit::edit::walk_records(
+            &self.view(),
+            &page.resources,
+            &stream,
+        ));
+        self.text_walk_cache = Some(TextWalkCache {
+            key,
+            deps,
+            stream: std::sync::Arc::clone(&stream),
+            recs: std::sync::Arc::clone(&recs),
+        });
+        Ok((stream, recs))
+    }
+
     fn page_content_and_objects(
         &mut self,
         page: &Page,
@@ -20112,6 +20296,32 @@ struct ButtonApPlan {
     /// The caption the CURRENT artwork was drawn with (`/MK` `/CA`), used as
     /// the redraw's caption unless the command staged a new one.
     caption: String,
+}
+
+/// [`EditSession::page_text_walk`]'s memo (`Pass 366.0`).
+///
+/// The records depend on the page's content bytes and resources (the
+/// [`PageModelKey`]) and on every font and property-list object those
+/// resources reach: a font's widths and `/ToUnicode` are baked into each
+/// record. `deps` holds the session's CURRENT value of each such object --
+/// `None` for one no edit has touched -- so an in-place change to any of
+/// them misses. The keys are spans and values, never a counter a mutation
+/// site would have to remember to bump.
+struct TextWalkCache {
+    key: PageModelKey,
+    deps: Vec<(ObjId, Option<Object>)>,
+    stream: std::sync::Arc<crate::content::ContentStream>,
+    recs: std::sync::Arc<Vec<crate::text_edit::edit::OpRec>>,
+}
+
+impl std::fmt::Debug for TextWalkCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TextWalkCache")
+            .field("key", &self.key)
+            .field("deps", &self.deps.len())
+            .field("records", &self.recs.len())
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug)]

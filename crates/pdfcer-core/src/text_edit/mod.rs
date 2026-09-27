@@ -82,7 +82,7 @@ pub use addtext::{
 };
 pub use edit::{
     EditError, EditGlyphSource, EditOptions, EditOutcome, EditReport, EditRequest, EditTarget,
-    FollowerDisposition, edit_text,
+    FollowerDisposition, PreviewColour, PreviewGlyph, TextEditPreview, edit_text,
 };
 pub use refusal_kind::{RefusalClass, RefusalKind};
 // `CompositeEncoding` sits beside `InverseEncoding` deliberately: they are the

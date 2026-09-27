@@ -40,6 +40,7 @@ mod dimension_roundtrip;
 mod dxf_export;
 mod dxf_scale;
 mod edit_latency;
+mod edit_text_preview;
 mod edit_undo;
 mod editable_roundtrip;
 mod encryption;

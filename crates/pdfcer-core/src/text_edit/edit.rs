@@ -932,6 +932,8 @@ pub(crate) struct ShowData {
     /// refuses (rule 4: fuzzy, never sneaky). A `Tm`/`Td`/`TD`/`T*`
     /// operator re-establishes the matrix absolutely and clears the flag.
     pub(crate) matrix_known: bool,
+    /// The CTM in force at the operator (§8.3.2).
+    pub(crate) ctm: [f64; 6],
 }
 
 impl ShowData {
@@ -1074,6 +1076,9 @@ struct GState {
     /// The line width (§8.4.3.2) — Pass 19.2, for the synthetic-bold
     /// stroke width restore.
     line_width: LineWidth,
+    /// The current transformation matrix (§8.3.2), for placing a run on the
+    /// page. The surgery never needs it; the typing preview does.
+    ctm: [f64; 6],
 }
 
 impl GState {
@@ -1081,6 +1086,7 @@ impl GState {
     /// every §9.3 parameter at its Table 105 initial value.
     fn initial() -> Self {
         Self {
+            ctm: IDENTITY,
             font_name: Vec::new(),
             tf_size: 0.0,
             ambient: AmbientTextState::initial(),
@@ -1250,6 +1256,13 @@ impl<'a> Walk<'a> {
             b"Q" => {
                 if let Some(prev) = self.gs_stack.pop() {
                     self.gs = prev;
+                }
+                Rec::Ignore
+            }
+            // §8.4.4 Table 56: `a b c d e f cm` sets CTM' = M × CTM.
+            b"cm" => {
+                if let [a, b, c, d, e, f] = Self::nums(op)[..] {
+                    self.gs.ctm = mat_mul([a, b, c, d, e, f], self.gs.ctm);
                 }
                 Rec::Ignore
             }
@@ -1634,6 +1647,7 @@ impl<'a> Walk<'a> {
             line_width: self.gs.line_width.clone(),
             text_matrix: self.tm,
             matrix_known: self.tm_known,
+            ctm: self.gs.ctm,
         };
         self.advance_matrix(font.as_ref(), &at_start.elems);
         Rec::Show(Box::new(at_start))
@@ -1719,30 +1733,188 @@ pub(crate) struct EditPlan {
     pub(crate) new_content: Vec<u8>,
     /// The complete disclosure/diagnostic report.
     pub(crate) report: EditReport,
+    /// Where the replacement's glyphs land.
+    pub(crate) layout: EditLayout,
 }
 
-/// Plan a REPLACE edit over an already-decoded content `stream`: locate the
-/// anchor, re-encode, gate, relayout, and splice — returning the new content
-/// buffer and the full report, but performing NO save.
+/// A replacement laid out exactly as [`crate::EditSession::edit_text`] would
+/// commit it, with nothing written (`Pass 366.0`).
 ///
-/// Factored out of [`edit_text`] so the interactive session path reuses the
-/// identical surgery (Pass 14.3 §0.2). The free function passes the page's
-/// [`ContentStream::from_page`] decode; the session passes a
-/// [`ContentStream::parse`] of its own current (possibly already-edited) raw
-/// content, which is what makes five sequential edits accumulate correctly.
-///
-/// # Errors
-///
-/// See [`EditError`]: a named refusal, no match, an unsupported run, a
-/// page with no `/Contents`, or a content-parse failure.
-pub(crate) fn plan_edit(
-    doc: &DocumentView<'_>,
-    page: &Page,
-    stream: &ContentStream,
-    req: &EditRequest,
-    opts: &EditOptions,
-) -> Result<EditPlan, EditError> {
-    plan_edit_target(doc, &EditPlanTarget::page(page)?, stream, req, opts)
+/// Returned by [`crate::EditSession::edit_text_preview`]. The glyph codes,
+/// positions and refusals come from the same plan the commit runs, so a
+/// shell drawing these glyphs while the operator types shows what Enter
+/// will produce. `pdfcer_render::edit_preview` turns it into outlines.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct TextEditPreview {
+    /// The page the run is on.
+    pub page_index: usize,
+    /// The run's font resource name (the `Tf` operand).
+    pub font_resource: Vec<u8>,
+    /// The run's font dictionary, as the session sees it.
+    pub font: Dict,
+    /// `/BaseFont`, verbatim.
+    pub base_font: String,
+    /// One entry per code of the replacement, in order.
+    pub glyphs: Vec<PreviewGlyph>,
+    /// The replacement's advance box `[x0, y0, x1, y1]` in page user space
+    /// (points, y up): the width the commit will occupy, and the font's
+    /// ascent to descent (§9.8 Table 122).
+    pub bbox: [f64; 4],
+    /// The run's non-stroking colour.
+    pub fill: PreviewColour,
+    /// The run's stroking colour (text render modes 1, 2, 5, 6).
+    pub stroke: PreviewColour,
+    /// The run's text rendering mode `Tr` (§9.3.6 Table 106).
+    pub render_mode: i64,
+    /// What the commit's [`EditReport::disclosures`] would say.
+    pub disclosures: Vec<String>,
+}
+
+/// One glyph of a [`TextEditPreview`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct PreviewGlyph {
+    /// The character typed, when the code maps back to one.
+    pub ch: Option<char>,
+    /// The character code the commit will write (§9.4.3).
+    pub code: u32,
+    /// Glyph space in text-space units (one unit = one em at size 1) to page
+    /// user space: `[Tfs×Th 0 0 Tfs x Trise] × Tm × CTM` (§9.4.4). A font
+    /// program's outline, scaled by `1/unitsPerEm`, lands on the page
+    /// through this matrix.
+    pub matrix: [f64; 6],
+}
+
+/// A run's colour as its operators set it (§8.6.4).
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum PreviewColour {
+    /// DeviceGray, one component in `0..=1`. Also the initial colour.
+    Gray(f64),
+    /// DeviceRGB.
+    Rgb([f64; 3]),
+    /// DeviceCMYK.
+    Cmyk([f64; 4]),
+    /// Any other space (ICC-based, Separation, a pattern…); the operator
+    /// bytes that set it.
+    Other(Vec<u8>),
+}
+
+impl PreviewColour {
+    fn from_state(state: &FillState) -> Self {
+        match state {
+            FillState::Default => Self::Gray(0.0),
+            FillState::Device { space, comps, raw } => match (space, comps.as_slice()) {
+                (DeviceSpace::Gray, [g]) => Self::Gray(*g),
+                (DeviceSpace::Rgb, [r, g, b]) => Self::Rgb([*r, *g, *b]),
+                (DeviceSpace::Cmyk, [c, m, y, k]) => Self::Cmyk([*c, *m, *y, *k]),
+                _ => Self::Other(raw.clone()),
+            },
+            FillState::Other { raw } => Self::Other(raw.clone()),
+        }
+    }
+}
+
+impl TextEditPreview {
+    pub(crate) fn new(page_index: usize, layout: EditLayout, disclosures: Vec<String>) -> Self {
+        Self {
+            page_index,
+            font_resource: layout.font_name,
+            font: layout.font_dict,
+            base_font: layout.base_font,
+            glyphs: layout
+                .glyphs
+                .into_iter()
+                .map(|(ch, code, matrix)| PreviewGlyph { ch, code, matrix })
+                .collect(),
+            bbox: layout.bbox,
+            fill: PreviewColour::from_state(&layout.fill),
+            stroke: PreviewColour::from_state(&layout.stroke),
+            // `Tr` is an integer operand (Table 106); 0 when unset.
+            #[allow(clippy::cast_possible_truncation)] // 0..=7 by §9.3.6
+            render_mode: layout.render_mode as i64,
+            disclosures,
+        }
+    }
+}
+
+/// The replacement text as the edit lays it out: one entry per code, in the
+/// anchor run's own font, text state and matrices.
+#[derive(Debug, Clone)]
+pub(crate) struct EditLayout {
+    pub(crate) font_name: Vec<u8>,
+    pub(crate) font_dict: Dict,
+    pub(crate) base_font: String,
+    /// `(char, code, glyph matrix)`; the matrix maps glyph space in text-space
+    /// units (one unit = one em at size 1) to page user space.
+    pub(crate) glyphs: Vec<(Option<char>, u32, [f64; 6])>,
+    /// The advance box `[x0, y0, x1, y1]` in page user space.
+    pub(crate) bbox: [f64; 4],
+    pub(crate) fill: FillState,
+    pub(crate) stroke: FillState,
+    pub(crate) render_mode: f64,
+}
+
+impl EditLayout {
+    fn new(
+        anchor: &ShowData,
+        font_dict: &Dict,
+        font: &ExtractFont,
+        replace: &str,
+        codes: &[u32],
+        origin_x: f64,
+    ) -> Self {
+        // §9.4.4: Trm = [Tfs×Th 0 0 Tfs 0 Trise] × Tm × CTM, with Tm advanced
+        // by each glyph's displacement along the line.
+        let tfs = anchor.tf_size;
+        let th = anchor.th();
+        let rise = anchor.text_state.rise.value;
+        let line = mat_mul(anchor.text_matrix, anchor.ctm);
+        let mut chars = replace.chars();
+        let mut x = origin_x;
+        let mut glyphs = Vec::with_capacity(codes.len());
+        for &code in codes {
+            let m = mat_mul([tfs * th, 0.0, 0.0, tfs, x, rise], line);
+            glyphs.push((chars.next(), code, m));
+            x += glyph_advance(font, code, anchor);
+        }
+        // The box spans the advance along the line and the font's
+        // ascent/descent (§9.8 Table 122, text space per unit size).
+        let (asc, desc) = (f64::from(font.ascent()), f64::from(font.descent()));
+        let corners = [
+            (origin_x, desc * tfs + rise),
+            (x, desc * tfs + rise),
+            (origin_x, asc * tfs + rise),
+            (x, asc * tfs + rise),
+        ];
+        let mut bbox = [
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ];
+        for (cx, cy) in corners {
+            let px = cx * line[0] + cy * line[2] + line[4];
+            let py = cx * line[1] + cy * line[3] + line[5];
+            bbox = [
+                bbox[0].min(px),
+                bbox[1].min(py),
+                bbox[2].max(px),
+                bbox[3].max(py),
+            ];
+        }
+        Self {
+            font_name: anchor.font_name.clone(),
+            font_dict: font_dict.clone(),
+            base_font: font.base_font.clone(),
+            glyphs,
+            bbox,
+            fill: anchor.fill_color.clone(),
+            stroke: anchor.stroke_color.clone(),
+            render_mode: anchor.text_state.render_mode.value,
+        }
+    }
 }
 
 /// The stream an edit is being planned against, with everything the planner
@@ -1826,6 +1998,52 @@ pub(crate) fn plan_edit_target(
     req: &EditRequest,
     opts: &EditOptions,
 ) -> Result<EditPlan, EditError> {
+    let recs = walk_records(doc, &target.resources, stream);
+    plan_edit_with_records(doc, target, stream, &recs, req, opts, PlanMode::Commit)
+}
+
+/// Pass 1 of the planner: every operator of `stream` with its text state.
+///
+/// Separate so the session can cache the records per page: on a large CAD
+/// page this walk is ~200 ms, the rest of the plan a few.
+pub(crate) fn walk_records(
+    doc: &DocumentView<'_>,
+    resources: &Dict,
+    stream: &ContentStream,
+) -> Vec<OpRec> {
+    let mut walk = Walk::new(doc, resources);
+    for op in stream.operations() {
+        walk.operation(&op, &stream.buf);
+    }
+    walk.recs
+}
+
+/// Whether [`plan_edit_with_records`] builds the new content or only the
+/// layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PlanMode {
+    /// Splice the edit into a new content buffer.
+    Commit,
+    /// Everything but the splice: the gates, the report and the layout.
+    /// `EditPlan::new_content` comes back empty.
+    Preview,
+}
+
+/// [`plan_edit_target`] over already-walked `recs` (from [`walk_records`]
+/// over the same `stream` and `target.resources`).
+///
+/// # Errors
+///
+/// See [`EditError`].
+pub(crate) fn plan_edit_with_records(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    stream: &ContentStream,
+    recs: &[OpRec],
+    req: &EditRequest,
+    opts: &EditOptions,
+    mode: PlanMode,
+) -> Result<EditPlan, EditError> {
     let content_id = target.content_id;
     let extra_emptied = target.extra_emptied;
 
@@ -1835,19 +2053,12 @@ pub(crate) fn plan_edit_target(
         refuse_unsuitable_form(form)?;
     }
 
-    // --- pass 1: record every operator with its text state ---
-    let mut walk = Walk::new(doc, &target.resources);
-    for op in stream.operations() {
-        walk.operation(&op, &stream.buf);
-    }
-    let recs = walk.recs;
-
     // --- locate the anchor show operator ---
-    let span = find_anchor_span(&recs, req)?;
+    let span = find_anchor_span(recs, req)?;
     // A span edit touches only the part of the match that actually changes,
     // so the producer's own positioning of the unchanged glyphs survives.
     let narrowed_req;
-    let (span, req, narrowed) = match narrow_span(&recs, span, req) {
+    let (span, req, narrowed) = match narrow_span(recs, span, req) {
         Some((s, r)) => {
             narrowed_req = r;
             (s, &narrowed_req, true)
@@ -2049,7 +2260,7 @@ pub(crate) fn plan_edit_target(
     // --- embedded-subset floor: a new code the subset does not already
     //     carry is REFUSED by name (the one refusal in the four-case table).
     if class.embedded && class.subset {
-        let carried = carried_codes(&recs, &anchor.font_name);
+        let carried = carried_codes(recs, &anchor.font_name);
         for (u, &code) in req.replace.chars().zip(encoded.codes.iter()) {
             if !carried.contains(&code) {
                 // COMPUTED ONCE, spent TWICE (`Pass 296.1`). It used to be
@@ -2062,7 +2273,7 @@ pub(crate) fn plan_edit_target(
                 let reachable = crate::text_edit::format::std14_faces_reachable(
                     doc,
                     &target.resources,
-                    &recs,
+                    recs,
                     u,
                 );
                 return Err(EditError::Refused(Refusal {
@@ -2169,6 +2380,25 @@ pub(crate) fn plan_edit_target(
         }
     }
     let delta: f64 = round4(lead_shift + a_new - a_old_last);
+
+    // Where the replacement lands: at the match's start, along the anchor's
+    // line. For a span the replacement is moved back to where the match
+    // began in the first operator (`p0`); inside one operator it replaces
+    // the matched codes in place.
+    let origin_x = match leading_matches.first() {
+        Some((_, s0, mr0)) => {
+            line_x(&reference, &s0.text_matrix) + advance_before(&font, s0, mr0.elem, mr0.b_lo)
+        }
+        None => advance_before(&font, anchor, m.elem, m.b_lo),
+    };
+    let layout = EditLayout::new(
+        anchor,
+        font_dict,
+        &font,
+        &req.replace,
+        &encoded.codes,
+        origin_x,
+    );
     // Reflow: everything after the anchor moves by the net change. Pin: the
     // compensating number absorbs it inside the anchor, and the anchor's own
     // move is undone for the operators after it.
@@ -2198,7 +2428,7 @@ pub(crate) fn plan_edit_target(
         FollowerDisposition::Pin => lead_shift != 0.0,
     };
     let mut reflowed = if walk_needed {
-        reposition_followers(&recs, anchor, &op_deltas)
+        reposition_followers(recs, anchor, &op_deltas)
     } else {
         Reflowed::default()
     };
@@ -2207,7 +2437,10 @@ pub(crate) fn plan_edit_target(
     edits.append(&mut reflowed.edits);
 
     // --- splice the edits into the decoded buffer ---
-    let new_content = splice(&stream.buf, &mut edits);
+    let new_content = match mode {
+        PlanMode::Commit => splice(&stream.buf, &mut edits),
+        PlanMode::Preview => Vec::new(),
+    };
 
     // --- assemble the report + disclosures (NO save happens here; the
     //     caller — the free function or the session — performs its own
@@ -2325,6 +2558,7 @@ pub(crate) fn plan_edit_target(
     Ok(EditPlan {
         new_content,
         report,
+        layout,
     })
 }
 
