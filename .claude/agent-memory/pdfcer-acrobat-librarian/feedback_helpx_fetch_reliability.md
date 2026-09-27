@@ -271,3 +271,35 @@ GAP in the RAG file rather than guessing. Nothing new here; this entry
 exists to keep the "how many times has this exact pattern recurred" count
 accurate for future sessions deciding how much time to budget for fresh
 verification attempts before falling back.
+
+Confirmed a sixteenth time (2026-09-27, layers/OCG authoring bucket
+session), with two genuinely NEW data points worth separating from the
+timeout pattern above: **(1) every direct `helpx.adobe.com` WebFetch
+attempt this session returned an outright HTTP 403** (5+ attempts across
+3 distinct URLs: `layer-properties.html`, `merge-layers.html`,
+`manage-layers.html`, `import-layers.html`, `pdf-layers.html`) — zero
+timeouts, zero ECONNRESET, a clean 403 every time. This is a DIFFERENT
+failure signature than the dominant "60s timeout" pattern logged above
+(closer to the occasional 403-bot-block seen from `pdfa.org`/`clrn.org`/
+`evermap.com`), and it's the first time 403 (not timeout) was the
+CONSISTENT result against `helpx.adobe.com` specifically across an
+entire session rather than an occasional one-off. Whether Adobe has
+started actively bot-blocking this tool's fetch signature (vs. the
+timeout being a capacity/routing issue) is unconfirmed, but the
+practical mitigation is identical either way. **(2) `web.archive.org` is
+BLOCKED AT THE TOOL LEVEL, not site-side** — 4 attempts to fetch archived
+helpx.adobe.com snapshots as a 403-workaround all returned the same
+canned message, "Claude Code is unable to fetch from web.archive.org,"
+before any network request appears to happen. This is a hard tool
+restriction, not worth retrying with different URL formats or archive
+timestamps — skip straight to WebSearch-synthesis + community-source
+WebFetch instead of trying an archive.org workaround at all in future
+sessions. Both findings held despite WebSearch's own indexed synthesis
+of the same helpx pages working fine throughout (used for every
+helpx-attributed fact in this session's 4 new files) and every
+non-Adobe direct WebFetch succeeding normally (layersmagazine.com,
+community.adobe.com ×3, answers.acrobatusers.com) — reinforces the
+standing default: don't burn more than 1-2 attempts on `helpx.adobe.com`
+directly (403 now joins timeout as an equally-likely outcome), never
+try `web.archive.org` as a fallback at all, and go straight to
+WebSearch snippets + community-forum direct fetch.
