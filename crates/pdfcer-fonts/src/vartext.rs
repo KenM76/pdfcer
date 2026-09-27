@@ -178,6 +178,13 @@ pub struct FontResource {
     /// (§9.8.1 Table 122). It places the first baseline. `None` uses
     /// `font`'s.
     pub ascent: Option<u16>,
+    /// The resource's own code→character table (its resolved `/Encoding`,
+    /// §9.6.6.1), when that is not `/WinAnsiEncoding`. The generator then
+    /// writes these codes instead of `WinAnsi` ones, taking the lowest code
+    /// for a character two codes share; a character with no code is written
+    /// as the code for `?` and counted as unencodable. `widths` must be
+    /// indexed by the same codes. `None` writes `WinAnsi`.
+    pub codes: Option<Box<[Option<char>; 256]>>,
 }
 
 /// The widths a layout measures with: a resource's own, else its
@@ -187,6 +194,7 @@ struct Face<'a> {
     font: Std14,
     widths: Option<&'a [u16; 256]>,
     ascent: Option<u16>,
+    codes: Option<&'a [Option<char>; 256]>,
 }
 
 impl<'a> Face<'a> {
@@ -195,6 +203,7 @@ impl<'a> Face<'a> {
             font,
             widths: None,
             ascent: None,
+            codes: None,
         }
     }
 
@@ -203,7 +212,30 @@ impl<'a> Face<'a> {
             font: r.font,
             widths: r.widths.as_deref(),
             ascent: r.ascent,
+            codes: r.codes.as_deref(),
         }
+    }
+
+    /// `text` in this face's codes, and how many characters had none.
+    fn encode(self, text: &str) -> (Vec<u8>, usize) {
+        let Some(codes) = self.codes else {
+            return encode_winansi(text);
+        };
+        let code_of = |ch: char| {
+            (0u8..=255).find(|&c| codes.get(usize::from(c)).copied().flatten() == Some(ch))
+        };
+        let question = code_of('?').unwrap_or(b'?');
+        let mut out = Vec::with_capacity(text.len());
+        let mut miss = 0usize;
+        for ch in text.chars() {
+            if let Some(c) = code_of(ch) {
+                out.push(c);
+            } else {
+                out.push(question);
+                miss += 1;
+            }
+        }
+        (out, miss)
     }
 
     /// The ascent at `size` points.
@@ -845,7 +877,7 @@ pub fn build_variable_text(
                 // `wrap_lines`, because that filter has to travel with the
                 // split or a CRLF becomes `?` at the end of every line.
                 let para: String = para.chars().filter(|&c| c != '\r').collect();
-                let (b, miss) = encode_winansi(&para);
+                let (b, miss) = face.encode(&para);
                 unencodable_chars += miss;
                 b
             })
@@ -859,7 +891,7 @@ pub fn build_variable_text(
             .chars()
             .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
             .collect();
-        let (b, miss) = encode_winansi(&flat);
+        let (b, miss) = face.encode(&flat);
         unencodable_chars += miss;
         vec![b]
     };
@@ -998,7 +1030,7 @@ pub fn build_comb_text(
 
     let kept: String = text.chars().filter(|c| !matches!(c, '\r' | '\n')).collect();
     let kept: String = kept.chars().take(cells).collect();
-    let (bytes, miss) = encode_winansi(&kept);
+    let (bytes, miss) = face.encode(&kept);
 
     let (size, applied_autosize, applied_autosize_bound) = if parsed.font_size == 0.0 {
         let widest = bytes
@@ -1261,6 +1293,7 @@ mod tests {
             font: Std14::Helvetica,
             widths: None,
             ascent: None,
+            codes: None,
         }]
     }
 
@@ -1336,6 +1369,7 @@ mod tests {
             font: Std14::Symbol,
             widths: None,
             ascent: None,
+            codes: None,
         }];
         let da = default_appearance_string(b"Sy", 12.0, TextColor::Gray(0.0));
         let err = build_variable_text(bbox(100.0, 20.0), "hi", &da, Quadding::Left, false, &res)

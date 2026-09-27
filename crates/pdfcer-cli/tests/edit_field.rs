@@ -1082,3 +1082,56 @@ fn a_fill_places_the_baseline_by_the_dr_fonts_own_ascent() {
     let y: f64 = tm.split(' ').nth(5).unwrap().parse().unwrap();
     assert!((y - 9.2).abs() < 1e-6, "baseline at {y} in {tm:?}");
 }
+
+/// A `/DR` font whose `/Differences` moves glyphs is filled with ITS codes:
+/// "HA" is written as `(AH)`, the codes that show H and A in this font
+/// (§9.6.6.1), not the WinAnsi `(HA)` that would draw "AH".
+#[test]
+fn a_fill_writes_a_re_encoded_dr_fonts_own_codes() {
+    let dir = TempDir::new("dr-font-differences");
+    let src = dir.write(
+        "differences.pdf",
+        &build_pdf(&[
+            (
+                1,
+                "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] \
+                 /DR << /Font << /F1 5 0 R >> >> >> >>"
+                    .to_owned(),
+            ),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned()),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [4 0 R] >>"
+                    .to_owned(),
+            ),
+            (
+                4,
+                "<< /FT /Tx /T (t) /Type /Annot /Subtype /Widget /P 3 0 R \
+                 /Rect [20 50 200 72] /DA (/F1 12 Tf 0 g) >>"
+                    .to_owned(),
+            ),
+            (
+                5,
+                "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
+                 /Encoding << /BaseEncoding /WinAnsiEncoding /Differences [65 /H 72 /A] >> \
+                 /FirstChar 65 /LastChar 72 /Widths [500 0 0 0 0 0 0 1000] >>"
+                    .to_owned(),
+            ),
+        ]),
+    );
+    let out = dir.join("differences-filled.pdf");
+    let r = run(&[
+        "fill-field",
+        src.to_str().unwrap(),
+        "--set",
+        "t=HA",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    let filled = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(
+        filled.contains("(AH) Tj"),
+        "WinAnsi codes written: {filled}"
+    );
+}

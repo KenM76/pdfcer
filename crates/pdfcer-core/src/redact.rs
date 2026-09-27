@@ -1800,6 +1800,7 @@ fn overlay_font_resources(
         font: crate::fontdata::Std14::Helvetica,
         widths: None,
         ascent: None,
+        codes: None,
     }];
     if let Some(fonts) = page_resources
         .get(b"Font")
@@ -1821,6 +1822,7 @@ fn overlay_font_resources(
                     font: face,
                     widths: None,
                     ascent: None,
+                    codes: None,
                 });
             }
         }
@@ -1837,6 +1839,7 @@ fn overlay_font_resources(
             font: crate::fontdata::Std14::Helvetica,
             widths: None,
             ascent: None,
+            codes: None,
         });
     }
     out

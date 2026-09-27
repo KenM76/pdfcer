@@ -350,6 +350,11 @@ fuzz_target!(|data: &[u8]| {
             widths: (c.byte() & 1 == 1)
                 .then(|| Box::new([0u16; 256].map(|_| u16::from(c.byte()) * 8))),
             ascent: (c.byte() & 1 == 1).then(|| u16::from(c.byte()) * 8),
+            codes: (c.byte() & 1 == 1).then(|| {
+                Box::new(std::array::from_fn(|i| {
+                    char::from_u32(u32::from(c.byte())).filter(|_| i % 3 != 0)
+                }))
+            }),
         }];
         let quad = match c.byte() % 3 {
             0 => Quadding::Left,

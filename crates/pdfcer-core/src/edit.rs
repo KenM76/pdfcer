@@ -23931,6 +23931,7 @@ impl EditSession {
             font: crate::fontdata::Std14::Helvetica,
             widths: None,
             ascent: None,
+            codes: None,
         }];
         // THE SAME builder a fill uses (R92: one regenerator, never two).
         // A created field and a filled one therefore cannot disagree about
@@ -26069,6 +26070,7 @@ impl EditSession {
                         font: metrics,
                         widths: None,
                         ascent: None,
+                        codes: None,
                     }),
                 )
             }
@@ -28234,6 +28236,7 @@ impl EditSession {
             font: crate::fontdata::Std14::Helvetica,
             widths: None,
             ascent: None,
+            codes: None,
         }];
         let appearance = annot_author::build_push_button_appearance(
             w,
@@ -28480,6 +28483,7 @@ impl EditSession {
             font: crate::fontdata::Std14::Helvetica,
             widths: None,
             ascent: None,
+            codes: None,
         }];
         // THE SAME builder a fill and a text field use (R92).
         let appearance = annot_author::build_field_text_appearance(
@@ -40599,6 +40603,7 @@ impl EditSession {
                         },
                         widths: None,
                         ascent: None,
+                        codes: None,
                     });
                 }
                 Some(crate::vartext::default_appearance_string(
@@ -41385,6 +41390,7 @@ impl EditSession {
             font: Std14::Helvetica,
             widths: None,
             ascent: None,
+            codes: None,
         }];
         let graph = self.graph();
         let dr_font = graph
@@ -41410,6 +41416,7 @@ impl EditSession {
                 let bound = fd.filter(|fd| Self::dr_font_is_bindable(&graph, fd));
                 let widths = bound.and_then(|fd| Self::simple_font_widths(&graph, fd));
                 let ascent = bound.and_then(|fd| Self::font_ascent(&graph, fd));
+                let codes = bound.and_then(|fd| Self::simple_font_codes(&graph, fd));
                 let nm = name.as_bytes().to_vec();
                 if !out.iter().any(|r| r.name == nm) {
                     out.push(FontResource {
@@ -41417,6 +41424,7 @@ impl EditSession {
                         font: base,
                         widths,
                         ascent,
+                        codes,
                     });
                 }
             }
@@ -41470,9 +41478,11 @@ impl EditSession {
         ap_dict.insert(Name::from(b"Resources"), Object::Dict(res));
     }
 
-    /// Whether a `/DR` font can be drawn with the generator's `WinAnsi`
-    /// bytes in place of its standard-14 stand-in: a simple font (§9.6) that
-    /// is not standard-14, encoded `/WinAnsiEncoding` with no `/Differences`.
+    /// Whether a `/DR` font can be drawn in place of its standard-14
+    /// stand-in: a simple font (§9.6) that is not standard-14, and either
+    /// encoded `/WinAnsiEncoding` with no `/Differences` (the generator's own
+    /// bytes), or carrying a code table [`Self::simple_font_codes`] can read
+    /// and its own `/Widths` to measure those codes with.
     fn dr_font_is_bindable(graph: &impl ObjectGraph, fd: &Dict) -> bool {
         let simple = fd
             .get(b"Subtype")
@@ -41493,7 +41503,93 @@ impl EditSession {
             }
             _ => false,
         };
-        simple && !standard && winansi
+        simple
+            && !standard
+            && (winansi
+                || (Self::simple_font_codes(graph, fd).is_some()
+                    && Self::simple_font_widths(graph, fd).is_some()))
+    }
+
+    /// A simple font's code→character table from its own `/Encoding`
+    /// (§9.6.6.1 Table 114): a named `/WinAnsiEncoding`, `/MacRomanEncoding`
+    /// or `/StandardEncoding` base, with any `/Differences` over it, each
+    /// glyph name mapped through the AGL.
+    ///
+    /// `None` — so the field keeps its standard-14 stand-in — when:
+    /// - the encoding is plain `/WinAnsiEncoding` (the generator's own codes
+    ///   already; no table needed);
+    /// - there is no named base: the implicit base of an embedded font is its
+    ///   program's built-in encoding, which is not readable from objects;
+    /// - the descriptor's Symbolic flag is set (Table 123 bit 3): a symbolic
+    ///   TrueType ignores `/Encoding` (§9.6.6.4);
+    /// - code 32 is not space or code 63 is not `?`: line wrapping breaks at
+    ///   code 32 and an unencodable character is written as `?`.
+    fn simple_font_codes(graph: &impl ObjectGraph, fd: &Dict) -> Option<Box<[Option<char>; 256]>> {
+        use crate::fontdata::{BaseEncoding, encoding_glyph_name, glyph_name_to_unicode};
+        let symbolic = fd
+            .get(b"FontDescriptor")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_dict)
+            .and_then(|d| d.get(b"Flags"))
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_int)
+            .is_some_and(|f| f & 4 != 0);
+        if symbolic {
+            return None;
+        }
+        let encoding = fd.get(b"Encoding").map(|o| graph.resolve(o))?;
+        let (base, differences) = match encoding {
+            Object::Name(n) => (n.as_bytes().to_vec(), None),
+            Object::Dict(d) => (
+                d.get(b"BaseEncoding")
+                    .map(|o| graph.resolve(o))
+                    .and_then(Object::as_name)?
+                    .as_bytes()
+                    .to_vec(),
+                d.get(b"Differences")
+                    .map(|o| graph.resolve(o))
+                    .and_then(Object::as_array),
+            ),
+            _ => return None,
+        };
+        let base = match base.as_slice() {
+            b"WinAnsiEncoding" if differences.is_none() => return None,
+            b"WinAnsiEncoding" => BaseEncoding::WinAnsi,
+            b"MacRomanEncoding" => BaseEncoding::MacRoman,
+            b"StandardEncoding" => BaseEncoding::Standard,
+            _ => return None,
+        };
+        let mut names: [Option<Vec<u8>>; 256] = std::array::from_fn(|c| {
+            u8::try_from(c)
+                .ok()
+                .and_then(|c| encoding_glyph_name(base, c))
+                .map(|n| n.as_bytes().to_vec())
+        });
+        // "an integer sets the current code, each following name assigns and
+        // increments"; a name before any integer is skipped.
+        let mut cur: Option<usize> = None;
+        for item in differences.into_iter().flatten() {
+            match graph.resolve(item) {
+                Object::Integer(v) => cur = usize::try_from(*v).ok(),
+                Object::Name(n) => {
+                    if let Some(code) = cur {
+                        if let Some(slot) = names.get_mut(code) {
+                            *slot = Some(n.as_bytes().to_vec());
+                        }
+                        cur = code.checked_add(1);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let codes: Box<[Option<char>; 256]> = Box::new(std::array::from_fn(|c| {
+            names
+                .get(c)
+                .and_then(Option::as_deref)
+                .and_then(|n| std::str::from_utf8(n).ok())
+                .and_then(glyph_name_to_unicode)
+        }));
+        (codes.get(32) == Some(&Some(' ')) && codes.get(63) == Some(&Some('?'))).then_some(codes)
     }
 
     /// A simple font's advance widths by code: `Widths[code - FirstChar]`,
