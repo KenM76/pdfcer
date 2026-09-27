@@ -1135,3 +1135,65 @@ fn a_fill_writes_a_re_encoded_dr_fonts_own_codes() {
         "WinAnsi codes written: {filled}"
     );
 }
+
+/// `flatten --field A` then `flatten --field B` on the same page: the
+/// saved page binds both burned appearances, under different names.
+#[test]
+fn two_flatten_runs_on_one_page_keep_both_burns() {
+    use pdfcer_core::graph::ObjectGraph as _;
+    let src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/forms/nested-form.pdf");
+    let dir = std::env::temp_dir();
+    let tag = std::process::id();
+    let regen = dir.join(format!("pdfcer_flat2_regen_{tag}.pdf"));
+    let one = dir.join(format!("pdfcer_flat2_one_{tag}.pdf"));
+    let two = dir.join(format!("pdfcer_flat2_two_{tag}.pdf"));
+    let s = |p: &PathBuf| p.to_str().unwrap().to_owned();
+    for args in [
+        vec![
+            "regenerate-appearances".to_owned(),
+            s(&src),
+            "-o".into(),
+            s(&regen),
+        ],
+        vec![
+            "flatten".into(),
+            s(&regen),
+            "--field".into(),
+            "Personal.Address.Zip".into(),
+            "-o".into(),
+            s(&one),
+        ],
+        vec![
+            "flatten".into(),
+            s(&one),
+            "--field".into(),
+            "Personal.Address.City".into(),
+            "-o".into(),
+            s(&two),
+        ],
+    ] {
+        let out = Command::new(BIN).args(&args).output().expect("runs");
+        assert!(
+            out.status.success(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    let doc = pdfcer_core::document::Document::load(&two).expect("loads");
+    let session = pdfcer_core::edit::EditSession::new(doc);
+    let graph = session.graph();
+    let page = session.pages().expect("pages")[0].id;
+    let xobjects = graph
+        .resolved(page)
+        .as_dict()
+        .and_then(|d| d.get(b"Resources").map(|o| graph.resolve(o).clone()))
+        .and_then(|r| r.as_dict().and_then(|r| r.get(b"XObject").cloned()))
+        .map(|x| graph.resolve(&x).clone())
+        .and_then(|x| x.as_dict().cloned())
+        .expect("page has /XObject");
+    assert_eq!(xobjects.iter().count(), 2, "{xobjects:?}");
+    for p in [regen, one, two] {
+        let _ = std::fs::remove_file(p);
+    }
+}

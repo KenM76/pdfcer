@@ -1291,3 +1291,36 @@ fn deleting_a_group_undoes_as_a_single_command() {
         "a single undo must restore every terminal, widget and node"
     );
 }
+
+/// Two flattens on one page each keep their own appearance: the second
+/// must not bind its burn under a resource name the first already used,
+/// or the first burn's `Do` would paint the second field's appearance.
+#[test]
+fn a_second_flatten_on_the_same_page_keeps_the_first_burn() {
+    let mut s = session("nested-form.pdf");
+    s.regenerate_appearances().expect("regen");
+    s.flatten_fields(Some(&["Personal.Address.Zip"]))
+        .expect("flatten Zip");
+    s.flatten_fields(Some(&["Personal.Address.City"]))
+        .expect("flatten City");
+    let graph = s.graph();
+    let page = s.pages().expect("pages")[0].id;
+    let xobjects = graph
+        .resolved(page)
+        .as_dict()
+        .and_then(|d| d.get(b"Resources").map(|o| graph.resolve(o).clone()))
+        .and_then(|r| r.as_dict().and_then(|r| r.get(b"XObject").cloned()))
+        .map(|x| graph.resolve(&x).clone())
+        .and_then(|x| x.as_dict().cloned())
+        .expect("page has /XObject");
+    let burned: Vec<_> = xobjects
+        .iter()
+        .filter_map(|(_, v)| v.as_reference())
+        .collect();
+    assert_eq!(
+        burned.len(),
+        2,
+        "each flatten binds its own appearance: {xobjects:?}"
+    );
+    assert_ne!(burned[0], burned[1]);
+}

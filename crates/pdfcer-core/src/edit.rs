@@ -42190,7 +42190,6 @@ impl EditSession {
         let mut per_page: BTreeMap<ObjId, PageFlatten> = BTreeMap::new();
         let mut delete_ids: Vec<ObjId> = Vec::new();
         let mut widget_removals: BTreeMap<ObjId, Vec<ObjId>> = BTreeMap::new();
-        let mut xobj_counter = 0u32;
         let mut widgets_burned = 0usize;
 
         for field in &targets {
@@ -42205,9 +42204,11 @@ impl EditSession {
                     continue;
                 };
                 let cm = fit_matrix_for(bbox, matrix, rect);
-                xobj_counter += 1;
-                let name = format!("pdfceFm{xobj_counter}").into_bytes();
                 let entry = per_page.entry(page_id).or_default();
+                let taken: BTreeSet<Vec<u8>> =
+                    entry.xobjects.iter().map(|(n, _)| n.clone()).collect();
+                let name =
+                    self.free_page_resource_name(page_id, &slots, b"XObject", "pdfceFm", &taken);
                 entry.invocations.push((name.clone(), cm));
                 entry.xobjects.push((name, ap_id));
                 widget_removals.entry(page_id).or_default().push(widget.id);
@@ -53846,6 +53847,41 @@ impl EditSession {
             Object::Integer(i64::try_from(img.data.len()).unwrap_or(i64::MAX)),
         );
         d
+    }
+
+    /// A `/Resources /<category>` name free on `page_id` (its own or
+    /// inherited resources, §7.7.3.4) and not in `taken`: `{prefix}{n}` for
+    /// the least `n >= 1`. Binding under a name already present would rebind
+    /// every existing use of it.
+    fn free_page_resource_name(
+        &self,
+        page_id: ObjId,
+        slots: &[PageSlot],
+        category: &[u8],
+        prefix: &str,
+        taken: &BTreeSet<Vec<u8>>,
+    ) -> Vec<u8> {
+        let graph = self.graph();
+        let existing = self
+            .value(page_id)
+            .and_then(Object::as_dict)
+            .and_then(|p| p.get(b"Resources"))
+            .map(|o| graph.resolve(o))
+            .and_then(|o| o.as_dict().cloned())
+            .unwrap_or_else(|| self.effective_resources(page_id, slots));
+        let present = existing
+            .get(category)
+            .map(|o| graph.resolve(o))
+            .and_then(|o| o.as_dict().cloned())
+            .unwrap_or_default();
+        for n in 1u32.. {
+            let candidate = format!("{prefix}{n}").into_bytes();
+            if present.get(candidate.as_slice()).is_none() && !taken.contains(&candidate) {
+                return candidate;
+            }
+        }
+        // `1u32..` is not empty, so this is unreachable.
+        prefix.as_bytes().to_vec()
     }
 
     /// Pick a `/XObject` resource name not already in use on this page.
