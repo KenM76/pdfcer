@@ -25,6 +25,7 @@ mod button_action_submit;
 mod button_redraw_honesty;
 mod button_rotation_bakes;
 mod check_styles;
+mod choice_reset_selection;
 mod clip_version_gating;
 mod composite_descriptor;
 mod composite_refusal_reachable;

@@ -1721,7 +1721,7 @@ would alter how every pdfcer-authored check box already in the wild renders.
 | Fill a rich-text field, downgrading it | `fill_text_field_downgrading_rich_text(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | 12384 | **Lossy and deliberate** — clears `/Ff` bit 26, deletes `/RV`. |
 | Select a check box / radio state | `set_button_state(&mut self, fqn, on_state) -> Result<(), EditError>` | 12570 | Sets `/V` + every widget `/AS`. No regeneration. |
 | Preview a form reset | `reset_preview(&self, only: Option<&[String]>) -> Vec<ResetPreviewRow>` | 12755 | Rows for **every** field in scope, including ineligible and already-at-default ones. Filtering is the shell's job. |
-| Reset fields to defaults | `reset_form(&mut self, only: Option<&[String]>) -> Result<ResetOutcome, EditError>` | 12884 | `/V` is **removed**, not blanked. Never writes `/DV`. Never recomputes calculated fields. |
+| Reset fields to defaults | `reset_form(&mut self, only: Option<&[String]>) -> Result<ResetOutcome, EditError>` | 12884 | `/V` is **removed**, not blanked. Never writes `/DV`. Never recomputes calculated fields. A choice field's `/I` and `/TI` follow the default (Table 231) and a list box draws it one selection per line, as `set_choice_value` does. |
 | Set a choice selection | `set_choice_value(&mut self, fqn, selections: &[&str]) -> Result<FillOutcome, EditError>` | 13138 | `/V` + `/I` + regenerated `/AP`. |
 | Export filled data | `export_form_data(&self) -> Option<fdf::FormData>` | 13446 | `None` ⇒ no interactive form. |
 | Import data | `import_form_data(&mut self, data: &fdf::FormData) -> Result<ImportOutcome, EditError>` | 13471 | ⚠️ **Each field is its own undo entry.** Unknown names are counted and skipped, never an error. |

@@ -23586,6 +23586,39 @@ fn match_option<'a>(
         })
 }
 
+/// A choice field's `/DV` resolved against its `/Opt`: the display value of
+/// each selection (the selection itself when it is no option, as an editable
+/// combo box allows) and the sorted, deduplicated option indices.
+struct ChoiceSelection {
+    display: Vec<String>,
+    indices: Vec<i64>,
+}
+
+fn default_choice_selection(field: &Field) -> ChoiceSelection {
+    let items: Vec<String> = match &field.default_value {
+        forms::FieldValue::Choice(items) => {
+            items.iter().map(|b| decode_text_string(b).text).collect()
+        }
+        forms::FieldValue::Text(b) => vec![decode_text_string(b).text],
+        forms::FieldValue::Name(b) => vec![String::from_utf8_lossy(b).into_owned()],
+        forms::FieldValue::Absent | forms::FieldValue::Signature => Vec::new(),
+    };
+    let mut display = Vec::with_capacity(items.len());
+    let mut indices = Vec::new();
+    for item in items {
+        match match_option(&field.options, &item) {
+            Some((idx, opt)) => {
+                display.push(decode_text_string(&opt.display).text);
+                indices.extend(i64::try_from(idx).ok());
+            }
+            None => display.push(item),
+        }
+    }
+    indices.sort_unstable();
+    indices.dedup();
+    ChoiceSelection { display, indices }
+}
+
 /// The display text a choice field's current `/V` should show: each stored
 /// **export** value mapped to its `/Opt` **display** value, joined by newline
 /// (§12.7.4.4 — the appearance shows the display, `/V` stores the export).
@@ -39808,11 +39841,18 @@ impl EditSession {
                     // appearance is regenerated from the default's text, or
                     // from nothing — a reset that left the old text drawn on
                     // the widget would clear the value and not the page.
-                    let text = match &field.default_value {
-                        forms::FieldValue::Absent => String::new(),
-                        other => other.display_text(),
+                    let choice = (field.field_type == Some(FieldType::Choice))
+                        .then(|| default_choice_selection(field));
+                    let text = match (&choice, &field.default_value) {
+                        (Some(sel), _) => sel.display.join("\n"),
+                        (None, forms::FieldValue::Absent) => String::new(),
+                        (None, other) => other.display_text(),
                     };
-                    let multiline = field.flags.has(forms::FieldFlags::MULTILINE);
+                    let list_box = !field.flags.has(forms::FieldFlags::COMBO);
+                    let multiline = match choice {
+                        Some(_) => list_box,
+                        None => field.flags.has(forms::FieldFlags::MULTILINE),
+                    };
                     let merged_ap = self.regen_field_appearance(
                         field,
                         &text,
@@ -39850,6 +39890,34 @@ impl EditSession {
                         // (§12.7.4.4). Left behind, it names a selection the
                         // value no longer has.
                         updated.remove(b"I");
+                    }
+                    // `/I` and `/TI` are positions in `/Opt` of the selection `/V`
+                    // holds (Table 231), so they follow the default, as a fill does.
+                    if let Some(sel) = &choice {
+                        let multi = field.flags.has(forms::FieldFlags::MULTI_SELECT);
+                        if multi && !sel.indices.is_empty() {
+                            updated.insert(
+                                Name::from(b"I"),
+                                Object::Array(
+                                    sel.indices.iter().map(|i| Object::Integer(*i)).collect(),
+                                ),
+                            );
+                        } else {
+                            updated.remove(b"I");
+                        }
+                        let top_index = if list_box {
+                            self.derive_top_index(field, &sel.indices, &default_da)
+                        } else {
+                            None
+                        };
+                        match top_index {
+                            Some(ti) => {
+                                updated.insert(Name::from(b"TI"), Object::Integer(ti));
+                            }
+                            None => {
+                                updated.remove(b"TI");
+                            }
+                        }
                     }
                 }
             }

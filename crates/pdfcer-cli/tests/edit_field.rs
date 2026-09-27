@@ -922,3 +922,54 @@ fn a_fill_honours_the_forms_default_quadding() {
         "the form-wide centring was not drawn"
     );
 }
+
+/// Resetting a multi-select list box moves `/I` to the default's position in
+/// `/Opt` (Table 231); the filled `[1 2]` would keep the old items selected.
+#[test]
+fn a_reset_reindexes_a_list_box_selection() {
+    let dir = TempDir::new("reset-list-box");
+    let src = dir.write("blank.pdf", &multipage_pdf(&["0 0 0 rg 0 0 10 10 re f"]));
+    let p = |name: &str| dir.join(name).to_str().unwrap().to_owned();
+    let steps: [Vec<&str>; 4] = [
+        vec![
+            "add-choice-field",
+            "--name",
+            "L",
+            "--page",
+            "1",
+            "--rect",
+            "20,50,200,110",
+            "--no-tooltip",
+            "--option",
+            "a",
+            "--option",
+            "b",
+            "--option",
+            "c",
+            "--multi-select",
+        ],
+        vec!["fill-field", "--set", "L=b|c"],
+        vec!["edit-field", "--name", "L", "--default-value", "a"],
+        vec!["reset-form", "--apply"],
+    ];
+    let mut input = src.to_str().unwrap().to_owned();
+    for (i, step) in steps.iter().enumerate() {
+        let out = p(&format!("step{i}.pdf"));
+        let mut args = vec![step[0], input.as_str()];
+        args.extend(step[1..].iter().copied());
+        args.extend(["-o", out.as_str()]);
+        let r = run(&args);
+        assert_eq!(code(&r), 0, "{}: {}", step[0], stderr(&r));
+        input = out;
+    }
+    let bytes = std::fs::read(&input).unwrap();
+    let last = bytes
+        .windows(4)
+        .rposition(|w| w == b"/V (")
+        .expect("a /V string");
+    assert!(
+        bytes[last..].starts_with(b"/V (a)/I [0]"),
+        "the reset left the filled selection indexed: {}",
+        String::from_utf8_lossy(&bytes[last..(last + 20).min(bytes.len())])
+    );
+}
