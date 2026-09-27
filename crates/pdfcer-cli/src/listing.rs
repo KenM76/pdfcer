@@ -400,6 +400,26 @@ pub(crate) fn cmd_list_layers(input: &Path, tree: bool) -> u8 {
         if !l.intent_view {
             flags.push("intent-not-view");
         }
+        // Usage and intent as `layer-edit` sets them (G045), again only
+        // when not the default.
+        match l.print {
+            Some(pdfcer_core::edit::LayerOutputState::WhenVisible) => {}
+            Some(pdfcer_core::edit::LayerOutputState::Always) => flags.push("print=always"),
+            Some(pdfcer_core::edit::LayerOutputState::Never) => flags.push("print=never"),
+            _ => flags.push("print=unknown"),
+        }
+        match l.export {
+            Some(pdfcer_core::edit::LayerOutputState::WhenVisible) => {}
+            Some(pdfcer_core::edit::LayerOutputState::Always) => flags.push("export=always"),
+            Some(pdfcer_core::edit::LayerOutputState::Never) => flags.push("export=never"),
+            _ => flags.push("export=unknown"),
+        }
+        match l.intent_kind {
+            Some(pdfcer_core::edit::LayerIntent::View) => {}
+            Some(pdfcer_core::edit::LayerIntent::Design) => flags.push("intent=design"),
+            Some(pdfcer_core::edit::LayerIntent::Both) => flags.push("intent=both"),
+            _ => flags.push("intent=unknown"),
+        }
         let rb = match l.radio_group {
             Some(g) => format!(" radio_group={g}"),
             None => String::new(),

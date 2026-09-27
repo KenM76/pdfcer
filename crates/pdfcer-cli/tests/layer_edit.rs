@@ -792,3 +792,37 @@ fn layer_flatten_dry_run_writes_nothing() {
     assert!(stdout.contains("hidden=show dry-run; layers=4"), "{stdout}");
     assert!(stdout.contains("now always show"), "{stdout}");
 }
+
+/// `list-layers` reports print, export and intent in `layer-edit`'s own
+/// vocabulary, and says nothing for the defaults (G045).
+#[test]
+fn list_layers_reports_usage_and_intent() {
+    let src = fixture("basic-layers.pdf");
+    let before = listing(&src);
+    assert!(
+        !before.contains("print=") && !before.contains("export=") && !before.contains("intent="),
+        "{before}"
+    );
+    let (o, out) = edit(
+        &src,
+        &[
+            "--id", "4", "--print", "always", "--export", "never", "--intent", "design",
+        ],
+        "usage",
+    );
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let listed = listing(&out);
+    let line = listed
+        .lines()
+        .find(|l| l.contains(" id=4"))
+        .unwrap_or_else(|| panic!("no layer 4 in {listed}"));
+    for flag in ["print=always", "export=never", "intent=design"] {
+        assert!(line.contains(flag), "{flag} missing: {line}");
+    }
+    std::fs::remove_file(out).ok();
+}

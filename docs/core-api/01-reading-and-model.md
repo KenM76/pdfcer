@@ -2462,6 +2462,9 @@ for l in &layers.layers {                        // Layer — layers.rs:509
     let on   = l.visible_by_default;             // :550 — INITIAL /D state only
     let locked = l.locked;                        // :576 — a UI hint, NOT enforced
     let _ = (l.radio_group, l.in_default_config, l.in_order);  // :586, :592, :600
+    // Seed a properties window with the values set_layer_properties takes:
+    // Option<LayerOutputState> / Option<LayerIntent>, None = a value pdfcer cannot name.
+    let _ = (l.print, l.export, l.intent_kind);
 }
 let _ = (&layers.order, &layers.radio_groups, &layers.config_name, &layers.diagnostics);
 ```

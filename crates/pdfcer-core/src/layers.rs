@@ -401,6 +401,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::annot::{optional_content_default_off, page_annotations};
+use crate::edit::{LayerIntent, LayerOutputState};
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, ObjId, Object};
 use crate::page_tree::pages_in;
@@ -615,12 +616,27 @@ pub struct Layer {
     /// nothing to stop a reader meeting a third value. Rather than fold an
     /// unknown intent into a boolean, the raw names are preserved.
     pub intent: Option<Vec<String>>,
+    /// [`Layer::intent`] as the value
+    /// [`LayerEdit::intent`](crate::edit::LayerEdit::intent) sets: absent is
+    /// `View` (the §8.11.2.3 default); `View` and `Design` both present is
+    /// `Both`; other names alongside them are ignored. `None` when neither
+    /// `View` nor `Design` is named, so a properties window has no value to
+    /// show.
+    pub intent_kind: Option<LayerIntent>,
+    /// When the layer prints: `/Usage /Print /PrintState` (Table 102) as the
+    /// value [`LayerEdit::print`](crate::edit::LayerEdit::print) sets.
+    ///
+    /// `WhenVisible` when there is no `PrintState`, `Always` for `/ON`,
+    /// `Never` for `/OFF`; `None` for any other value, which pdfcer cannot
+    /// name.
+    pub print: Option<LayerOutputState>,
+    /// When the layer exports: `/Usage /Export /ExportState`, read as
+    /// [`Layer::print`] is.
+    pub export: Option<LayerOutputState>,
     /// Whether the group's dictionary carries a `/Usage` entry (Table 102).
     ///
-    /// Not parsed — see the module's "Not covered here". Reported so that
-    /// a caller can tell a group whose author supplied print/zoom/export
-    /// automation apart from one that did not, without this module
-    /// pretending to understand it.
+    /// Only `Print` and `Export` are read ([`Layer::print`],
+    /// [`Layer::export`]); zoom, language, user and the rest are not.
     pub has_usage: bool,
     /// Whether the object declared `/Type /OCG`.
     ///
@@ -1814,6 +1830,36 @@ fn build_layer<G: ObjectGraph + ?Sized>(
     let intent_view = intent
         .as_ref()
         .is_none_or(|names| names.iter().any(|n| n == "View"));
+    let intent_kind = match &intent {
+        None => Some(LayerIntent::View),
+        Some(names) => {
+            let has = |x: &str| names.iter().any(|n| n == x);
+            match (has("View"), has("Design")) {
+                (true, true) => Some(LayerIntent::Both),
+                (true, false) => Some(LayerIntent::View),
+                (false, true) => Some(LayerIntent::Design),
+                (false, false) => None,
+            }
+        }
+    };
+    let usage = dict
+        .get(b"Usage")
+        .map(|o| graph.resolve(o))
+        .and_then(Object::as_dict);
+    let output_state = |category: &[u8], key: &[u8]| {
+        let state = usage
+            .and_then(|u| u.get(category))
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_dict)
+            .and_then(|c| c.get(key))
+            .map(|o| graph.resolve(o));
+        match state {
+            None => Some(LayerOutputState::WhenVisible),
+            Some(Object::Name(n)) if n.0 == b"ON" => Some(LayerOutputState::Always),
+            Some(Object::Name(n)) if n.0 == b"OFF" => Some(LayerOutputState::Never),
+            Some(_) => None,
+        }
+    };
 
     Some(Layer {
         id,
@@ -1827,6 +1873,9 @@ fn build_layer<G: ObjectGraph + ?Sized>(
         in_order: ordered.contains(&id),
         intent_view,
         intent,
+        intent_kind,
+        print: output_state(b"Print", b"PrintState"),
+        export: output_state(b"Export", b"ExportState"),
         has_usage: dict.get(b"Usage").is_some(),
         type_declared: dict
             .get(b"Type")

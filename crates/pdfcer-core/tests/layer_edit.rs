@@ -1460,3 +1460,70 @@ fn flatten_layers_rolls_back_a_refusal() {
     assert_eq!(read_layers(&s.graph()).layers.len(), layers);
     assert_eq!(s.redo(), Some(CommandKind::AddLayer { layer: redo }));
 }
+
+/// `read_layers` reports print, export and intent as the values
+/// `set_layer_properties` takes, so a properties window can seed them
+/// (G045).
+#[test]
+fn output_states_and_intent_read_back_as_written() {
+    let mut s = fixture("basic-layers.pdf");
+    let id = ObjId::new(4, 0);
+    let l = layer(&read_layers(&s.graph()), 4).clone();
+    assert_eq!(l.print, Some(LayerOutputState::WhenVisible));
+    assert_eq!(l.export, Some(LayerOutputState::WhenVisible));
+    assert_eq!(l.intent_kind, Some(LayerIntent::View));
+    for (print, export, intent) in [
+        (
+            LayerOutputState::Never,
+            LayerOutputState::Always,
+            LayerIntent::Design,
+        ),
+        (
+            LayerOutputState::Always,
+            LayerOutputState::Never,
+            LayerIntent::Both,
+        ),
+        (
+            LayerOutputState::WhenVisible,
+            LayerOutputState::WhenVisible,
+            LayerIntent::View,
+        ),
+    ] {
+        s.set_layer_properties(
+            id,
+            &LayerEdit::new().print(print).export(export).intent(intent),
+        )
+        .unwrap();
+        let l = layer(&read_layers(&s.graph()), 4).clone();
+        assert_eq!(
+            (l.print, l.export, l.intent_kind),
+            (Some(print), Some(export), Some(intent))
+        );
+    }
+}
+
+/// A state pdfcer cannot name reads as `None`; an indirect `/Usage` and
+/// an indirect category are followed; an `/Intent` naming neither View nor
+/// Design is `None`.
+#[test]
+fn unnameable_and_indirect_usage() {
+    let bytes = assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties 3 0 R >>",
+        "<< /Type /Pages /Kids [] /Count 0 >>",
+        "<< /OCGs [4 0 R 5 0 R] /D << /Order [4 0 R 5 0 R] >> >>",
+        "<< /Type /OCG /Name (A) /Usage 6 0 R /Intent /Other >>",
+        "<< /Type /OCG /Name (B) /Usage << /Print << /PrintState /Maybe >> >> /Intent [/Design] >>",
+        "<< /Print 7 0 R /Export << /ExportState /OFF >> >>",
+        "<< /PrintState /ON >>",
+    ]);
+    let s = EditSession::new(Document::from_bytes(bytes).expect("parses"));
+    let read = read_layers(&s.graph());
+    let a = layer(&read, 4);
+    assert_eq!(a.print, Some(LayerOutputState::Always));
+    assert_eq!(a.export, Some(LayerOutputState::Never));
+    assert_eq!(a.intent_kind, None);
+    let b = layer(&read, 5);
+    assert_eq!(b.print, None);
+    assert_eq!(b.export, Some(LayerOutputState::WhenVisible));
+    assert_eq!(b.intent_kind, Some(LayerIntent::Design));
+}
