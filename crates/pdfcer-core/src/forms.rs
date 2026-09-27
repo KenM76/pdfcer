@@ -440,9 +440,7 @@ impl MkColor {
     /// the same reasoning that keeps [`Self::from_array`] from flattening it.
     #[must_use]
     pub fn to_array(self) -> Object {
-        // Via `f32`'s shortest round-trip `Display`: `f64::from(0.2f32)` is
-        // 0.20000000298…, a precision the operator never chose.
-        let n = |v: f32| Object::Real(v.to_string().parse::<f64>().unwrap_or(f64::from(v)));
+        let n = |v: f32| Object::Real(crate::annot_author::mk_component(v));
         Object::Array(match self {
             Self::None => Vec::new(),
             Self::Gray(g) => vec![n(g)],

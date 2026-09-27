@@ -2368,3 +2368,42 @@ fn restyling_a_perimeter_as_plain_markup_is_refused_by_name() {
         );
     }
 }
+
+#[test]
+fn a_ce_dimension_colour_is_written_with_the_digits_it_was_given() {
+    use pdfcer_core::dimension::StyleOverrides;
+    use pdfcer_core::vector::Rgb;
+    let (_, mut s) = session();
+    let (annot_id, dim_id) = s.add_dimension(0, DEFAULT_GROUP_ID, linear()).unwrap();
+    s.set_dimension_style(
+        dim_id,
+        StyleOverrides {
+            color: Some(Rgb {
+                r: 0.2,
+                g: 0.4,
+                b: 0.6,
+            }),
+            ..StyleOverrides::default()
+        },
+    )
+    .unwrap();
+    let saved = save(&s);
+    let reloaded = Document::from_bytes(saved.clone()).unwrap();
+    let Object::Dict(annot) = &reloaded.get(annot_id).unwrap().value else {
+        panic!("annotation is not a dict");
+    };
+    assert_eq!(
+        annot.get(b"C"),
+        Some(&Object::Array(vec![
+            Object::Real(0.2),
+            Object::Real(0.4),
+            Object::Real(0.6)
+        ])),
+        "the /C mirror carries f32 widening noise"
+    );
+    let text = String::from_utf8_lossy(&saved);
+    assert!(
+        !text.contains("0.2000000"),
+        "a widened component reached the file (the /AP or the sidecar /Color)"
+    );
+}

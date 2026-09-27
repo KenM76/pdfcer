@@ -4029,7 +4029,7 @@ impl WidgetChrome {
 /// This matters beyond tidiness: rule 3 makes a re-emitted object's bytes
 /// part of the contract, and an appearance regenerated from a colour read out
 /// of the same file should come back with the same digits it went in with.
-fn mk_component(v: f32) -> f64 {
+pub(crate) fn mk_component(v: f32) -> f64 {
     v.to_string().parse::<f64>().unwrap_or(f64::from(v))
 }
 

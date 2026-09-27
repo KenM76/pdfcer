@@ -793,9 +793,9 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
         d.insert(
             Name::from(b"Color"),
             Object::Array(vec![
-                Object::Real(f64::from(c.r)),
-                Object::Real(f64::from(c.g)),
-                Object::Real(f64::from(c.b)),
+                Object::Real(crate::annot_author::mk_component(c.r)),
+                Object::Real(crate::annot_author::mk_component(c.g)),
+                Object::Real(crate::annot_author::mk_component(c.b)),
             ]),
         );
     }

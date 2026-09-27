@@ -230,13 +230,16 @@ impl DimensionStyle {
 /// `/Vertices`. A dictionary carrying both would give a reader that honours
 /// `/L` and a reader that honours `/Vertices` two different pictures of the
 /// same annotation.
-pub const AUTHORED_ANNOT_KEYS: [&[u8]; 7] = [
+/// `/C` is here so a restyle moves the colour mirror with the `/AP`; a reader
+/// that draws a `/Line` from its keys would otherwise keep the old colour.
+pub const AUTHORED_ANNOT_KEYS: [&[u8]; 8] = [
     b"Type",
     b"Subtype",
     b"IT",
     b"Rect",
     b"L",
     b"Vertices",
+    b"C",
     b"Contents",
 ];
 
@@ -460,11 +463,19 @@ pub fn author_dimension_with_label(
     // untouched/explicitly-grey colour takes the legacy path.
     let grey = c.r == c.g && c.g == c.b;
     if grey {
-        b.set_stroke_gray(f64::from(c.r));
-        b.set_fill_gray(f64::from(c.r));
+        b.set_stroke_gray(crate::annot_author::mk_component(c.r));
+        b.set_fill_gray(crate::annot_author::mk_component(c.r));
     } else {
-        b.set_stroke_rgb(f64::from(c.r), f64::from(c.g), f64::from(c.b));
-        b.set_fill_rgb(f64::from(c.r), f64::from(c.g), f64::from(c.b));
+        b.set_stroke_rgb(
+            crate::annot_author::mk_component(c.r),
+            crate::annot_author::mk_component(c.g),
+            crate::annot_author::mk_component(c.b),
+        );
+        b.set_fill_rgb(
+            crate::annot_author::mk_component(c.r),
+            crate::annot_author::mk_component(c.g),
+            crate::annot_author::mk_component(c.b),
+        );
     }
     b.set_line_width(style.line_width);
     b.set_line_cap(LineCap::Butt);
@@ -719,9 +730,9 @@ pub fn author_dimension_with_label(
     annot.insert(
         Name::from(b"C"),
         Object::Array(vec![
-            Object::Real(f64::from(style.color.r)),
-            Object::Real(f64::from(style.color.g)),
-            Object::Real(f64::from(style.color.b)),
+            Object::Real(crate::annot_author::mk_component(style.color.r)),
+            Object::Real(crate::annot_author::mk_component(style.color.g)),
+            Object::Real(crate::annot_author::mk_component(style.color.b)),
         ]),
     );
     annot.insert(
