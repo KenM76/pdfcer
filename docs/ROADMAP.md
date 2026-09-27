@@ -115,6 +115,71 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 333.0` (`ea5ecc0d`, `673d9e0c`), 2026-09-26 — Fix-on-discovery sweep: edits no longer wipe an indirect `/XObject`, `/MK`, `/AP`, `/OCGs` or inherited `/Resources`
+
+**Verdict: SHIPPED, fix-on-discovery sweep following `Pass 332.0`** (same
+session, same class of defect): an entry ISO 32000-1 §7.3.10 permits as
+indirect — or, for page `/Resources`, one a page inherits under
+§7.7.3.4 — was read via an unresolved `.get(key).and_then(as_dict/
+as_array)`, treated `None` as absent, and rebuilt holding only the new
+item. Seven paths had the pattern:
+
+1. `add_image`/flatten: an indirect page `/XObject` lost every existing
+   image and form.
+2. `rotate_widget`, `edit_widget`, the check-box style edit: an
+   indirect widget `/MK` lost its colours and captions.
+3. `set_widget_ap`, the Shape-B appearance regen: an indirect `/AP`
+   lost `/D` and `/R`.
+4. ce dimension writes (`catalog_dimension_write`): an indirect `/OCGs`
+   lost the file's own layers. Separately, `/D` was rebuilt from
+   scratch on every write, dropping `/OFF`, `/Order`, `/Locked`,
+   `/BaseState`, `/RBGroups` and `/AS` even when direct — fixed by a
+   new `merge_ocproperties` in `dimension/measure_dict.rs`.
+5. A redaction overlay on a page inheriting `/Resources`: the new own
+   `/Resources` shadowed the inherited fonts — fixed by basing the
+   write on the effective (resolved-and-inherited) resources, not a
+   fresh dict.
+6. `format_text` binding a new font into a form XObject:
+   `bind_font_resource` treated the Stream's owner dict as absent and
+   replaced it with `/Resources` only, losing `/BBox`, `/Subtype`,
+   `/Matrix`.
+
+**Deliberately unchanged.** The two text-field `/AP` rebuilds still
+start from a fresh dict — carrying a stale `/D` would show old text on
+mousedown.
+
+**Tests.** New `crates/pdfcer-core/tests/indirect_entry_edits.rs`, 7
+tests, one per path above; all 7 fail with the source fixes reverted
+(sabotage-checked via `git stash`). `tools/run-gates.sh`: PASS, 39
+commands including 2 filing gates.
+
+**Amendment (`673d9e0c`).** Same-session, comment-only follow-up in
+`edit.rs`: the doc comments for `ensure_default_resources` and
+`std14_resource_key` were stranded above `acroform_dr_font_keys`, so
+rustdoc concatenated all three onto that one function; each now sits
+on its own item, no code change. Resolves the residual `Pass 332.0`'s
+entry and `NEXT_SESSION.md` named as "a welded doc comment on
+`std14_resource_key` in `edit.rs` (not fixed)".
+
+**No manifest change** — `cargo tree` unaffected. **No writer-format
+change** — round-trip unaffected. **No `pub` API change** —
+`docs/core-api` untouched. Delivered in `pdfcer-core` only; the CLI and
+GUI inherit the fix through the same verbs, no separate wiring.
+
+**Open, low confidence, not fixed — recorded here, not as Backlog:**
+(a) an inline (direct) `/Outlines` dict — only a non-conforming file
+has one; (b) an indirect `/Kids` array left with a dangling kid on some
+edit — not data loss, unlike the six above.
+
+**`docs/FEATURES.md`:** no row change — correctness fixes under
+already-ticked capabilities (image/XObject editing, widget authoring,
+appearance-stream writes, ce-dimension layers, redaction, in-form text
+formatting), not new reach.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`ea5ecc0d` (parent `35721953`), not independently reproduced.
+
 ### `v0.57.0` — RELEASED (2026-09-26)
 
 Release filing, not a Pass — packages **13 commits already filed** since

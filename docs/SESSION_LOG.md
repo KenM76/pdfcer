@@ -4,6 +4,65 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (617th filing) — `ea5ecc0d`, `673d9e0c`: `Pass 333.0` SHIPPED — fix-on-discovery sweep, six indirect/inherited-entry clobbers fixed
+
+**Shipped:**
+- `Pass 333.0` — new Pass number, never separately scoped; fix-on-
+  discovery sweep following `Pass 332.0`'s indirect-`/AcroForm`-entry
+  fix, same session. Seven edit paths read an entry ISO 32000-1 §7.3.10
+  permits as indirect (or, for page `/Resources`, one a page inherits
+  under §7.7.3.4) via an unresolved `as_dict`/`as_array` read, treated
+  `None` as absent, and rebuilt the entry holding only the new item:
+  page `/XObject` (image add/flatten), widget `/MK` (rotate/edit/
+  checkbox style), `/AP` (`set_widget_ap`, Shape-B regen), ce-dimension
+  `/OCGs` plus a separate `/D` full-rebuild dropping `/OFF`/`/Order`/
+  `/Locked`/`/BaseState`/`/RBGroups`/`/AS`, a redaction overlay's
+  inherited page `/Resources`, and `format_text`'s font-bind into a
+  form XObject (`bind_font_resource` lost `/BBox`/`/Subtype`/`/Matrix`).
+
+**Decisions made this session:** none — pattern-class bug fix, no
+architecture change.
+
+**Findings + decisions:**
+- The clobber pattern: `.get(key).and_then(as_dict/as_array)` → `None`
+  → `unwrap_or_default()` → overwrite, applied to an entry the spec
+  allows indirect. Fix resolves before reading, and for page
+  `/Resources` reads the effective (inherited) value as the write base,
+  not a fresh dict — same class as `Pass 332.0`'s `/AcroForm` fix,
+  generalized past AcroForm. Written up as a `personal_rag/pdf` lesson
+  (see below).
+- Deliberately unchanged: the two text-field `/AP` rebuilds still start
+  fresh — carrying a stale `/D` would show old text on mousedown.
+- Open, low confidence, not fixed: (a) an inline (direct) `/Outlines`
+  dict — only non-conforming files have one; (b) an indirect `/Kids`
+  array left with a dangling kid on some edit — not data loss. Recorded
+  here only, not filed as Backlog.
+- New `crates/pdfcer-core/tests/indirect_entry_edits.rs`: 7 tests, one
+  per path, all 7 fail with the fixes reverted (sabotage-checked via
+  `git stash`). `tools/run-gates.sh`: PASS, 39 commands including 2
+  filing gates. No manifest change, no writer-format change, no `pub`
+  API change — round-trip and `cargo tree` both unaffected.
+- `docs/FEATURES.md`: no row change — correctness fixes under
+  already-ticked capabilities, not new reach.
+- New lesson:
+  `C:\personal_rag\pdf\lesson_20260926_indirect_entry_clobber_class.md`,
+  indexed in that subject's `index.md` and the master
+  `C:\personal_rag\index.md`.
+- Amendment: `673d9e0c`, same session, unwelds three doc comments in
+  `edit.rs` (`ensure_default_resources`, `std14_resource_key`,
+  `acroform_dr_font_keys` had been concatenated onto the last of the
+  three). No code change — resolves the `Pass 332.0`/`NEXT_SESSION.md`
+  residual on `std14_resource_key`.
+
+**Still in flight:** `Pass 142.0` (embedded-donor `format-text
+--set-font`) scoping continues.
+
+**For next session:** none specific.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`ea5ecc0d` (parent `35721953`), not independently reproduced.
+
 ## 2026-09-26 (616th filing) — `6d722b3d`: `v0.57.0` RELEASED
 
 **Shipped:**
