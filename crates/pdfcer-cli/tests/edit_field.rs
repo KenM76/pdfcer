@@ -973,3 +973,57 @@ fn a_reset_reindexes_a_list_box_selection() {
         String::from_utf8_lossy(&bytes[last..(last + 20).min(bytes.len())])
     );
 }
+
+/// `--default-selection`, repeated, gives a multi-select list box a
+/// multi-value `/DV`, stored as export values, and a reset restores it.
+#[test]
+fn a_multi_select_default_is_set_and_restored() {
+    let dir = TempDir::new("default-selection");
+    let src = dir.write("blank.pdf", &multipage_pdf(&["0 0 0 rg 0 0 10 10 re f"]));
+    let p = |name: &str| dir.join(name).to_str().unwrap().to_owned();
+    let steps: [Vec<&str>; 4] = [
+        vec![
+            "add-choice-field",
+            "--name",
+            "L",
+            "--page",
+            "1",
+            "--rect",
+            "20,50,200,110",
+            "--no-tooltip",
+            "--option",
+            "A=Alpha",
+            "--option",
+            "B=Beta",
+            "--option",
+            "C=Gamma",
+            "--multi-select",
+        ],
+        vec!["fill-field", "--set", "L=B"],
+        vec![
+            "edit-field",
+            "--name",
+            "L",
+            "--default-selection",
+            "Alpha",
+            "--default-selection",
+            "C",
+        ],
+        vec!["reset-form", "--apply"],
+    ];
+    let mut input = src.to_str().unwrap().to_owned();
+    for (i, step) in steps.iter().enumerate() {
+        let out = p(&format!("step{i}.pdf"));
+        let mut args = vec![step[0], input.as_str()];
+        args.extend(step[1..].iter().copied());
+        args.extend(["-o", out.as_str()]);
+        let r = run(&args);
+        assert_eq!(code(&r), 0, "{}: {}", step[0], stderr(&r));
+        input = out;
+    }
+    let text = String::from_utf8_lossy(&std::fs::read(&input).unwrap()).into_owned();
+    assert!(
+        text.contains("/V [(A) (C)]/I [0 2]/DV [(A) (C)]"),
+        "the reset did not restore the multi-value default: {text}"
+    );
+}

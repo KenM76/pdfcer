@@ -366,6 +366,8 @@ pub(crate) struct EditFieldArgs<'a> {
     pub(crate) clear_quadding: bool,
     /// `/DV`, the value a reset restores.
     pub(crate) default_value: Option<&'a str>,
+    /// A choice field's default selection; empty when not given.
+    pub(crate) default_selections: &'a [String],
     /// Remove `/DV`, so a reset clears the field.
     pub(crate) clear_default_value: bool,
     /// `Ff` bit 3, NoExport.
@@ -475,6 +477,9 @@ pub(crate) fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
     }
     if let Some(v) = args.default_value {
         edit = edit.with_default_value(v);
+    }
+    if !args.default_selections.is_empty() {
+        edit = edit.with_default_selections(args.default_selections.iter().cloned());
     }
     if args.clear_default_value {
         edit = edit.clearing_default_value();

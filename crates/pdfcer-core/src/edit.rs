@@ -22585,6 +22585,21 @@ pub struct FieldEdit {
     /// Writing a string onto a check box would produce a default no reader
     /// could match against an appearance state.
     pub default_value: Option<Option<String>>,
+    /// `/DV` as a **selection** on a choice field: each item matched against
+    /// `/Opt` (the edit's own list when it supplies one) by export then
+    /// display value, and written as the export value, as
+    /// [`EditSession::set_choice_value`] writes `/V`. A MultiSelect field
+    /// gets an array (Table 231); any other a single string.
+    ///
+    /// Takes precedence over [`Self::default_value`] when both are set; the
+    /// builders clear one when setting the other. An empty list removes the
+    /// default as [`Self::clearing_default_value`] does. Refused, before
+    /// anything is written, on a non-choice field
+    /// ([`EditError::FieldPropertyTypeMismatch`]), with several items on a
+    /// single-select field ([`EditError::ChoiceRequiresMultiSelect`]), and
+    /// with an item no option matches unless the field is an editable combo
+    /// box ([`EditError::ChoiceValueNotInOptions`]).
+    pub default_selections: Option<Vec<String>>,
     /// `Ff` bit 3 — **NoExport**: the field's value is not submitted by a
     /// `SubmitForm` action (§12.7.4.1 Table 226).
     ///
@@ -22941,6 +22956,26 @@ impl FieldEdit {
     #[must_use]
     pub fn with_default_value(mut self, v: impl Into<String>) -> Self {
         self.default_value = Some(Some(v.into()));
+        self.default_selections = None;
+        self
+    }
+
+    /// Set a choice field's `/DV` to a selection — several items on a
+    /// MultiSelect list box. See [`Self::default_selections`].
+    ///
+    /// ```
+    /// use pdfcer_core::edit::FieldEdit;
+    /// let edit = FieldEdit::new().with_default_selections(["a", "c"]);
+    /// assert_eq!(edit.default_selections, Some(vec!["a".to_owned(), "c".to_owned()]));
+    /// ```
+    #[must_use]
+    pub fn with_default_selections<I, S>(mut self, items: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.default_selections = Some(items.into_iter().map(Into::into).collect());
+        self.default_value = None;
         self
     }
 
@@ -22949,6 +22984,7 @@ impl FieldEdit {
     #[must_use]
     pub fn clearing_default_value(mut self) -> Self {
         self.default_value = Some(None);
+        self.default_selections = None;
         self
     }
 
@@ -26838,6 +26874,7 @@ impl EditSession {
                 (edit.multi_select.is_some(), "multi_select"),
                 (edit.sort.is_some(), "sort"),
                 (edit.options.is_some(), "options"),
+                (edit.default_selections.is_some(), "default_selections"),
             ] {
                 if touched {
                     return Err(mismatch(prop));
@@ -26969,6 +27006,16 @@ impl EditSession {
         if let Some(options) = &options_after {
             Self::refuse_duplicate_exports(options)?;
         }
+        let default_selection = match &edit.default_selections {
+            Some(items) => Some(Self::resolve_default_selection(
+                fqn,
+                &field,
+                flags,
+                options_after.as_deref(),
+                items,
+            )?),
+            None => None,
+        };
 
         // ---- rule 4: does the stored value still fit? -----------------
         let value_no_longer_fits =
@@ -27072,7 +27119,15 @@ impl EditSession {
             }
             None => {}
         }
-        match &edit.default_value {
+        let default_value = match default_selection {
+            Some(Some(value)) => {
+                dict.insert(Name::from(b"DV"), value);
+                None
+            }
+            Some(None) => Some(None),
+            None => edit.default_value.clone(),
+        };
+        match &default_value {
             Some(Some(v)) => {
                 let value = if ft == Some(forms::FieldType::Button) {
                     Object::Name(Name::from(v.as_bytes()))
@@ -27916,6 +27971,63 @@ impl EditSession {
         // `count - visible` is positive here: `first < count` (it indexes
         // `/Opt`) and `first >= visible`, so `count > visible`.
         Some(first.min(count - visible))
+    }
+
+    /// Resolve [`FieldEdit::default_selections`] to the `/DV` it writes, or
+    /// `None` for an empty list (the default is removed).
+    fn resolve_default_selection(
+        fqn: &str,
+        field: &Field,
+        flags: forms::FieldFlags,
+        options_after: Option<&[ChoiceOption]>,
+        items: &[String],
+    ) -> Result<Option<Object>, EditError> {
+        if items.is_empty() {
+            return Ok(None);
+        }
+        let multi = flags.has(forms::FieldFlags::MULTI_SELECT);
+        if items.len() > 1 && !multi {
+            return Err(EditError::ChoiceRequiresMultiSelect {
+                name: fqn.to_owned(),
+                count: items.len(),
+            });
+        }
+        let options: Vec<forms::ChoiceOption> = match options_after {
+            Some(list) => list
+                .iter()
+                .map(|o| forms::ChoiceOption {
+                    export: encode_text_string(&o.export),
+                    display: encode_text_string(&o.display),
+                })
+                .collect(),
+            None => field.options.clone(),
+        };
+        let editable_combo =
+            flags.has(forms::FieldFlags::COMBO) && flags.has(forms::FieldFlags::EDIT);
+        let mut exports: Vec<Object> = Vec::with_capacity(items.len());
+        for item in items {
+            match match_option(&options, item) {
+                Some((_, opt)) => exports.push(Object::String(opt.export.clone())),
+                None if editable_combo => {
+                    exports.push(Object::String(encode_text_string(item)));
+                }
+                None => {
+                    return Err(EditError::ChoiceValueNotInOptions {
+                        name: fqn.to_owned(),
+                        value: item.clone(),
+                        available: options
+                            .iter()
+                            .map(|o| decode_text_string(&o.display).text)
+                            .collect(),
+                    });
+                }
+            }
+        }
+        Ok(Some(if multi {
+            Object::Array(exports)
+        } else {
+            exports.swap_remove(0)
+        }))
     }
 
     /// Rewrite `/I` and `/TI` (§12.7.4.4 Table 231) of a choice field whose

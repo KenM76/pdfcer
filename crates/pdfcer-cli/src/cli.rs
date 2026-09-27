@@ -5715,14 +5715,19 @@ pub(crate) enum Command {
         /// CENTRED, not left.
         #[arg(long, conflicts_with = "quadding")]
         clear_quadding: bool,
-        /// `/DV` — the default value `reset-form` restores.
-        ///
-        /// Until now `/DV` was readable and unwritable, so a reset could only
-        /// restore defaults some OTHER application had authored: a form
-        /// pdfcer built reset every field to empty whatever the author
-        /// intended.
+        /// `/DV` — the default value `reset-form` restores, written as given.
         #[arg(long)]
         default_value: Option<String>,
+        /// A choice field's default selection, matched against its options
+        /// by export value then label and stored as the export value, as
+        /// `fill-field` stores a selection. Repeat for several defaults on a
+        /// multi-select list box.
+        #[arg(
+            long = "default-selection",
+            value_name = "OPTION",
+            conflicts_with_all = ["default_value", "clear_default_value"]
+        )]
+        default_selections: Vec<String>,
         /// REMOVE `/DV`, so a reset CLEARS this field instead of restoring a
         /// value.
         #[arg(long, conflicts_with = "default_value")]
