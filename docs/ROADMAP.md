@@ -133,6 +133,18 @@ wherever it appears.*
 
 **Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `7d2922d0`, not independently reproduced.
 
+**Follow-up (`d469d742`), same day.** The `set_layer_properties` doctest named `pdfcer_core::ObjId`; corrected to `pdfcer_core::object::ObjId`. README's subcommand count corrected 155→156 (missed `layer-edit`), caught by `check-clap-help`.
+
+### `G044` (docs-only, no Pass ID), 2026-09-27 — `ContentStreamRef` and eleven siblings are a closed set by design
+
+**Verdict: DONE (ruling).** `pdfcer-gui` asked whether dropping `#[non_exhaustive]` from `ContentStreamRef` in the `Pass 325.0` crate split (`47d9c50a`) was intended. Ruling: yes — these are closed sets `pdfcer-core` matches exhaustively across the crate boundary, so a new variant is meant to be a compile error downstream, not a silently-ignored `_` arm. Twelve types lost the attribute on purpose, across `0fbf6cbb`/`bda11bd9`/`c07d560a`/`47d9c50a`: model (`Object`, `SectionShape`, `XrefEntryEol`, `TrailingEol`), image codec (`CmykJpegPolarity`), colour (`CmykIntent`), text (`ContentStreamRef`, `TextOrigin`, `UnmappableCode`, `ActualTextPrecedence`, structs `ExtractedGlyph`, `TextRun`) — the earlier `G042` notice had named only the five text ones.
+
+**Docs.** `docs/core-api/index.md` gains a "Closed sets" section listing all twelve (`d4fee7ef`). No code change, no `cargo tree` change, no `docs/FEATURES.md` row — nothing user-reachable changed.
+
+**Channel.** Reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G044_contentstreamref_is_a_closed_set_by_design_DONE.md`; `INDEX.md` row already added (see that file's newest row).
+
+**Sourcing (hard rule 8).** No shell this filing. Relayed from the dispatching engineer's own report of `d4fee7ef`, not independently reproduced.
+
 ### `Pass 358.0` (`ea518cbf`), 2026-09-27 — `list-layers --tree` shows folders and sublayers
 
 **Verdict: SHIPPED**, the cheapest item of family `358` (general-purpose OCG layer authoring, filed 644th filing) — a CLI read verb over the core `OrderNode` tree that already existed since `Pass 57.0`. `358.1`–`358.6` (properties, create/delete, folder authoring, content/annotation `/OC` assignment, layer-on-add, merge/flatten) are unstarted.

@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (647th filing) — `d469d742`/`d4fee7ef`: Pass 358.1 doctest+README fix; `G044` ruling (closed-set types)
+
+**Shipped:**
+- Follow-up to Pass 358.1 (`d469d742`) — the `set_layer_properties` doctest named `pdfcer_core::ObjId`, corrected to `pdfcer_core::object::ObjId`. README's subcommand count corrected 155→156 (missed `layer-edit`), caught by `check-clap-help`.
+
+**Decisions made this session:**
+- `G044` ruling (`d4fee7ef`): dropping `#[non_exhaustive]` from twelve types in the `Pass 325.0` crate split was intentional — they're closed sets `pdfcer-core` matches exhaustively across the crate boundary. Full list (model, image-codec, colour, text) now in `docs/core-api/index.md`'s new "Closed sets" section; the earlier `G042` reply had named only the text five. No code change, no `docs/FEATURES.md` row.
+
+**Findings + decisions:**
+- Reply sent: `pdfce_FeatureRequests/open/reply_G044_contentstreamref_is_a_closed_set_by_design_DONE.md`; `INDEX.md` row added.
+
+**Still in flight:**
+- `Pass 358.2`–`358.6` (create/delete, folder organisation, content/annotation `/OC` assignment, layer-on-add, merge/flatten) — none started.
+- `flatten_annotations` (`G043` option B) — still unscoped, carried forward.
+
+**For next session:**
+- Pick up `Pass 358.2` (create/delete a layer) or `flatten_annotations`'s scoping — both open, neither blocks the other.
+
 ## 2026-09-27 (646th filing) — `7d2922d0`: `Pass 358.1` SHIPPED — edit a layer's own properties
 
 **Shipped:**
