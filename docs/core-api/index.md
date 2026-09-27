@@ -64,6 +64,16 @@ sibling crates can call them. They are not API; do not call them.
 `crates/pdfcer-core/tests/facade_paths.rs` fails the build if a path in this
 table stops resolving.
 
+**Closed sets.** Twelve types that moved into a sibling crate are
+deliberately *not* `#[non_exhaustive]`, because `pdfcer-core` matches or
+builds them exhaustively across the new crate boundary and wants a new
+variant or field to be a compile error there: enums `Object`, `SectionShape`,
+`XrefEntryEol`, `TrailingEol` (model), `CmykJpegPolarity` (image codec),
+`CmykIntent` (colour), `ContentStreamRef`, `TextOrigin`, `UnmappableCode`,
+`ActualTextPrecedence` (text), and structs `ExtractedGlyph` and `TextRun`
+(text). Match them exhaustively; a `_` arm is unreachable. Adding a variant
+to one is a breaking change and is announced on the request channel.
+
 ## Read these four things before writing any code against this crate
 
 1. **Coordinate spaces.** PDF user space is **y-UP**; image and screen
