@@ -819,6 +819,7 @@ clear. Re-run with --apply --output FILE to perform it.",
         Ok(out) => out,
         Err(err) => return report_edit_error(input, &err),
     };
+    print_layout("reset-form", &out.layout);
     let Some(output) = output else {
         eprintln!("pdfcer: --apply needs --output");
         return exit::EDIT_REFUSED;
@@ -1170,62 +1171,13 @@ AcroForm half, which most viewers read, but cannot write the XFA half — so an 
 may still show the OLD value."
         );
     }
-    if let Some(sz) = out.applied_autosize {
-        // NAMES THE CONSTRAINT THAT BOUND, at a consuming shell's request:
-        // an operator who thinks the text is too small wants to know whether
-        // to widen the box or heighten it, and those are different answers.
-        // The old wording — "a reviewable pdfcer heuristic" — was accurate when
-        // the answer was a flat 12 pt and stopped being the useful thing to
-        // say once it became a fit.
-        let why = match out.applied_autosize_bound {
-            Some(pdfcer_core::vartext::AutoFitBound::Height) => {
-                "fitted to the field's HEIGHT; make the box taller to change it"
-            }
-            Some(pdfcer_core::vartext::AutoFitBound::Width) => {
-                "shrunk to fit the field's WIDTH — the text was too long at the \
-height-derived size"
-            }
-            Some(pdfcer_core::vartext::AutoFitBound::Floor) => {
-                "held at pdfcer's legibility FLOOR — the box is too small for the text, \
-which will overflow"
-            }
-            // A multiline field still takes the older height-only route, so
-            // there is no bound to name and claiming one would be a fact pdfcer
-            // did not establish.
-            None => "a reviewable pdfcer heuristic; §12.7.3.3 mandates no formula",
-            // `AutoFitBound` is `#[non_exhaustive]`, so a catch-all is forced
-            // from outside `pdfcer-core` and the compile-time guarantee this
-            // match wanted is unavailable. It resolves to the SAME wording as
-            // the no-bound case rather than inventing a description of a
-            // constraint this binary has never heard of — saying nothing is
-            // the honest failure here, and saying "height" would be a guess
-            // presented as a measurement.
-            Some(_) => "a reviewable pdfcer heuristic; §12.7.3.3 mandates no formula",
-        };
-        eprintln!("pdfcer: field {name:?}: auto-sized to {sz:.3} pt ({why})");
-    }
-    if out.da_colour_unmodelled {
-        // Rule 4: pdfcer substituted a colour the FILE DID NOT ASK FOR into
-        // an appearance it wrote into the document. The `/DA` named a
-        // `/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed` or `/Lab`
-        // colour, none of which this generator can emit, so the text was
-        // painted in §8.6.8's default black.
-        //
-        // Before `Pass 221.0` the parser aliased that onto "the /DA set no
-        // colour" -- which ALREADY meant "render black" -- so the narrowing
-        // was indistinguishable from the file's own instruction and nothing
-        // could report it.
-        eprintln!(
-            "pdfcer: field {name:?}: the field's default appearance names a colour space pdfcer cannot emit (Separation/DeviceN/ICCBased/Indexed/Lab), so this appearance was generated in BLACK -- a narrowing, not the colour the file asked for"
-        );
-    }
-    if out.unencodable_chars > 0 {
-        eprintln!(
-            "pdfcer: field {name:?}: {} character(s) had no WinAnsi code and were substituted \
-with '?' (Base-14 Latin only)",
-            out.unencodable_chars
-        );
-    }
+    print_layout_disclosure(
+        &format!("field {name:?}"),
+        out.applied_autosize,
+        out.applied_autosize_bound,
+        out.da_colour_unmodelled,
+        out.unencodable_chars,
+    );
     if let Some(limit) = out.exceeds_max_len {
         eprintln!(
             "pdfcer: field {name:?}: the value is longer than the field's limit of {limit} characters (/MaxLen); it was stored in full, and a comb field shows only the first {limit}"
@@ -1623,4 +1575,83 @@ pub(crate) fn exit_code_for_doc(err: &pdfcer_core::document::DocError) -> u8 {
         DocError::Header(inner) => exit_code_for(inner),
         _ => exit::RUNTIME_ERROR,
     }
+}
+
+/// Print what a regenerated text/choice appearance decided on the operator's
+/// behalf (rule 4): auto-size, a narrowed `/DA` colour, unencodable
+/// characters. `subject` opens each line, e.g. `field "a.b"`.
+pub(crate) fn print_layout_disclosure(
+    subject: &str,
+    autosize: Option<f64>,
+    bound: Option<pdfcer_core::vartext::AutoFitBound>,
+    colour_unmodelled: bool,
+    unencodable_chars: usize,
+) {
+    if let Some(sz) = autosize {
+        // NAMES THE CONSTRAINT THAT BOUND, at a consuming shell's request:
+        // an operator who thinks the text is too small wants to know whether
+        // to widen the box or heighten it, and those are different answers.
+        // The old wording — "a reviewable pdfcer heuristic" — was accurate when
+        // the answer was a flat 12 pt and stopped being the useful thing to
+        // say once it became a fit.
+        let why = match bound {
+            Some(pdfcer_core::vartext::AutoFitBound::Height) => {
+                "fitted to the field's HEIGHT; make the box taller to change it"
+            }
+            Some(pdfcer_core::vartext::AutoFitBound::Width) => {
+                "shrunk to fit the field's WIDTH — the text was too long at the \
+height-derived size"
+            }
+            Some(pdfcer_core::vartext::AutoFitBound::Floor) => {
+                "held at pdfcer's legibility FLOOR — the box is too small for the text, \
+which will overflow"
+            }
+            // A multiline field still takes the older height-only route, so
+            // there is no bound to name and claiming one would be a fact pdfcer
+            // did not establish.
+            None => "a reviewable pdfcer heuristic; §12.7.3.3 mandates no formula",
+            // `AutoFitBound` is `#[non_exhaustive]`, so a catch-all is forced
+            // from outside `pdfcer-core` and the compile-time guarantee this
+            // match wanted is unavailable. It resolves to the SAME wording as
+            // the no-bound case rather than inventing a description of a
+            // constraint this binary has never heard of — saying nothing is
+            // the honest failure here, and saying "height" would be a guess
+            // presented as a measurement.
+            Some(_) => "a reviewable pdfcer heuristic; §12.7.3.3 mandates no formula",
+        };
+        eprintln!("pdfcer: {subject}: auto-sized to {sz:.3} pt ({why})");
+    }
+    if colour_unmodelled {
+        // Rule 4: pdfcer substituted a colour the FILE DID NOT ASK FOR into
+        // an appearance it wrote into the document. The `/DA` named a
+        // `/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed` or `/Lab`
+        // colour, none of which this generator can emit, so the text was
+        // painted in §8.6.8's default black.
+        //
+        // Before `Pass 221.0` the parser aliased that onto "the /DA set no
+        // colour" -- which ALREADY meant "render black" -- so the narrowing
+        // was indistinguishable from the file's own instruction and nothing
+        // could report it.
+        eprintln!(
+            "pdfcer: {subject}: the field's default appearance names a colour space pdfcer cannot emit (Separation/DeviceN/ICCBased/Indexed/Lab), so this appearance was generated in BLACK -- a narrowing, not the colour the file asked for"
+        );
+    }
+    if unencodable_chars > 0 {
+        eprintln!(
+            "pdfcer: {subject}: {} character(s) had no WinAnsi code and were substituted \
+with '?' (Base-14 Latin only)",
+            unencodable_chars
+        );
+    }
+}
+
+/// [`print_layout_disclosure`] for a verb that redrew as a side effect.
+pub(crate) fn print_layout(subject: &str, l: &pdfcer_core::edit::LayoutDisclosure) {
+    print_layout_disclosure(
+        subject,
+        l.applied_autosize,
+        l.applied_autosize_bound,
+        l.da_colour_unmodelled,
+        l.unencodable_chars,
+    );
 }

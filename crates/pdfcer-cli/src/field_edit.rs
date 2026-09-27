@@ -558,6 +558,7 @@ pub(crate) fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
     if let Some(complaint) = &outcome.value_no_longer_fits {
         eprintln!("pdfcer: field {:?}: ★ {complaint}", args.name);
     }
+    crate::fields::print_layout(&format!("field {:?}", args.name), &outcome.layout);
     if outcome.sort_claim_unmet {
         eprintln!(
             "pdfcer: field {:?}: the Sort flag is now set and the option list is NOT in alphabetical order. ISO 32000-1 Table 230 makes that flag a record of what the WRITER did, and says conforming readers \"shall display the options in the order in which they occur\" — so pdfcer did not reorder anything, and the file now claims something that is not true. Pass the options in the order you want them.",
@@ -1120,6 +1121,10 @@ pub(crate) fn cmd_edit_widget(args: &EditWidgetArgs<'_>) -> u8 {
             args.name, args.index
         );
     }
+    crate::fields::print_layout(
+        &format!("field {:?} widget {}", args.name, args.index),
+        &outcome.layout,
+    );
     // Rule 4 in the shell that has no session: the invocation IS the commit,
     // so anything pdfcer decided on the way past is printed on the way past.
     match outcome.stroke_width {
@@ -1299,6 +1304,10 @@ pub(crate) fn cmd_rotate_widget(args: &RotateWidgetArgs) -> u8 {
         Ok(r) => r,
         Err(err) => return report_edit_error(args.input, &err),
     };
+    crate::fields::print_layout(
+        &format!("field {:?} widget {}", args.name, args.index),
+        &rotation.layout,
+    );
     let outcome = match save_edited(
         &mut session,
         &source,

@@ -3744,7 +3744,8 @@ Grep target for "what does this return actually contain".
 | `FieldAuthorOutcome` | 990 | `field_id: ObjId`, `merged: bool`, `disclosures: FieldAuthorDisclosures` |
 | `DeleteOutcome` | 5594 | `pages_removed`, `objects_freed`, `dangling: DanglingReport`, `separations: SeparationImpact`, `signature: SignatureImpact` |
 | `ResetPreviewRow` | 5677 | `field: String`, `current: String`, `target: String`, `would_remove: bool`, `would_change: bool`, `ineligible: Option<ResetIneligible>` |
-| `ResetOutcome` | 5707 | `fields_reset`, `values_defaulted`, `values_removed`, `widgets_updated`, `skipped_pushbuttons`, `skipped_signatures`, `skipped_read_only` |
+| `ResetOutcome` | 5707 | `fields_reset`, `values_defaulted`, `values_removed`, `widgets_updated`, `skipped_pushbuttons`, `skipped_signatures`, `skipped_read_only`, **`layout: LayoutDisclosure`** |
+| `LayoutDisclosure` | — | `applied_autosize: Option<f64>`, `applied_autosize_bound`, `da_colour_unmodelled`, `unencodable_chars` — what a text/choice appearance redrawn **as a side effect** decided (rule 4). Carried as `layout` by `ResetOutcome`, `FieldEditOutcome`, `WidgetEditOutcome` and `WidgetRotation`; all default when nothing text-shaped was redrawn. **Show it** as `RegenOutcome`'s same fields. Those four outcomes no longer derive `Eq` (a float). |
 | `FillOutcome` | 5756 | `field_id`, `widgets_updated`, `applied_autosize: Option<f64>`, `unencodable_chars`, **`xfa_may_disagree: bool`**, `top_index: Option<i64>`, **`password_value_withheld: bool`**, **`exceeds_max_len: Option<i64>`** |
 | `RegenOutcome` | 5809 | `regenerated`, `need_appearances_cleared`, `applied_autosize`, `unencodable_chars` |
 | `ImportOutcome` | 5824 | `applied`, `skipped`, `password_values_withheld` |

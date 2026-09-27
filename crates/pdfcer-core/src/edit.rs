@@ -18039,7 +18039,7 @@ pub struct ResetPreviewRow {
 /// a skipped signature is a preserved signature, a skipped read-only field
 /// is a field the operator never controlled — and a shell that can only say
 /// "3 skipped" cannot tell the operator which of those happened.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ResetOutcome {
     /// Fields whose `/V` was set or removed.
     pub fields_reset: usize,
@@ -18057,6 +18057,8 @@ pub struct ResetOutcome {
     pub skipped_signatures: usize,
     /// Read-only fields skipped — not the operator's to clear.
     pub skipped_read_only: usize,
+    /// What the redrawn text and choice appearances decided (rule 4).
+    pub layout: LayoutDisclosure,
 }
 
 /// The `/DV` a field inherits from its nearest ancestor that sets one
@@ -18284,6 +18286,30 @@ pub struct RegenOutcome {
     /// [`crate::vartext::VarTextAppearance::da_colour_unmodelled`].
     pub da_colour_unmodelled: bool,
     /// Characters that had no `WinAnsi` code (disclosure).
+    pub unencodable_chars: usize,
+}
+
+/// What a text or choice appearance redrawn as a SIDE EFFECT decided on the
+/// operator's behalf (rule 4): the facts [`RegenOutcome`] reports, carried by
+/// the verbs that redraw because another property changed —
+/// [`EditSession::edit_field`], [`EditSession::edit_widget`],
+/// [`EditSession::rotate_widget`] and [`EditSession::reset_form`].
+///
+/// All default (`None`, `false`, `0`) when nothing was redrawn, or when the
+/// redraw was a button's.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[non_exhaustive]
+pub struct LayoutDisclosure {
+    /// The font size an auto-sized field (`/DA` size 0) was drawn at. When
+    /// several widgets were redrawn, the last one that auto-sized.
+    pub applied_autosize: Option<f64>,
+    /// Which constraint decided [`Self::applied_autosize`].
+    pub applied_autosize_bound: Option<crate::vartext::AutoFitBound>,
+    /// A `/DA` colour pdfcer does not model was drawn in black instead.
+    pub da_colour_unmodelled: bool,
+    /// Characters drawn as `?` for want of a `WinAnsi` code, plus, for a comb
+    /// field, characters past `/MaxLen`, which are not drawn. The stored
+    /// value keeps them all.
     pub unencodable_chars: usize,
 }
 
@@ -23137,7 +23163,7 @@ impl WidgetEdit {
 
 /// What [`EditSession::edit_field`] changed, and everything about it the
 /// operator must be told (rule 4).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub struct FieldEditOutcome {
     /// The field's fully-qualified name, echoed.
@@ -23200,6 +23226,8 @@ pub struct FieldEditOutcome {
     /// [`EditSession::fill_text_field`]. The appearance keeps one `*` per
     /// character.
     pub password_value_removed: bool,
+    /// What the redrawn appearance decided (rule 4).
+    pub layout: LayoutDisclosure,
 }
 
 /// What [`EditSession::rotate_widget`] did (`Pass 177.0`).
@@ -23209,7 +23237,7 @@ pub struct FieldEditOutcome {
 /// zero), whether pdfcer normalised the number the caller passed, and whether
 /// the appearance was actually redrawn — because a rotation whose pixels did
 /// not move is the case an operator will otherwise report as a defect.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct WidgetRotation {
     /// The fully-qualified field name.
@@ -23270,6 +23298,8 @@ pub struct WidgetRotation {
     /// rotated differently, and a shell that assumed otherwise would report a
     /// change it did not make.
     pub siblings_untouched: usize,
+    /// What the redrawn appearance decided (rule 4).
+    pub layout: LayoutDisclosure,
 }
 
 /// What happened to a widget's **appearance stream** during an
@@ -23399,6 +23429,8 @@ pub struct WidgetEditOutcome {
     /// one text-appearance builder (R49) and a button's appearance is not
     /// text laid out by it.
     pub appearance_stale: Option<String>,
+    /// What the redrawn appearance decided (rule 4).
+    pub layout: LayoutDisclosure,
 }
 
 /// What a [`EditSession::rename_field`] changed.
@@ -25864,6 +25896,7 @@ impl EditSession {
         // exact disagreement `/MK /R` had before rotation became
         // write-plus-regenerate. Found by the test, not by review.
         appearance: Option<&FieldAppearance>,
+        layout: &mut LayoutDisclosure,
     ) -> Result<bool, EditError> {
         let (display, multiline) = match field.field_type {
             Some(forms::FieldType::Text) => match &field.value {
@@ -25946,10 +25979,6 @@ impl EditSession {
         {
             fonts.push(extra);
         }
-        let mut applied_autosize = None;
-        let mut applied_autosize_bound = None;
-        let mut da_colour_unmodelled = false;
-        let mut unencodable = 0usize;
         let merged_ap = self.regen_field_appearance(
             field,
             &display,
@@ -25957,10 +25986,10 @@ impl EditSession {
             multiline,
             &fonts,
             objects,
-            &mut applied_autosize,
-            &mut applied_autosize_bound,
-            &mut da_colour_unmodelled,
-            &mut unencodable,
+            &mut layout.applied_autosize,
+            &mut layout.applied_autosize_bound,
+            &mut layout.da_colour_unmodelled,
+            &mut layout.unencodable_chars,
             pending,
         )?;
         // Shape A: the field dict IS the widget, so its `/AP` `/N` is folded
@@ -26125,6 +26154,7 @@ impl EditSession {
         // snapshotted before the `/MK` write above, so its `rotation` is
         // still the old one, and a field's other widgets keep their own.
         let mut appearance_stale = None;
+        let mut layout = LayoutDisclosure::default();
         let appearance_regenerated = self.regen_after_property_change(
             &Self::only_widget(&field, widget.id),
             field.flags,
@@ -26136,6 +26166,7 @@ impl EditSession {
             },
             // A rotation changes no /DA, so the field's own stays in force.
             None,
+            &mut layout,
         )?;
         if !appearance_regenerated {
             // THE SENTENCE USED TO ENUMERATE THE WRONG SET, IN BOTH
@@ -26185,6 +26216,7 @@ impl EditSession {
             appearance_regenerated,
             appearance_stale,
             siblings_untouched: field.widgets.len().saturating_sub(1),
+            layout,
         })
     }
 
@@ -26511,6 +26543,7 @@ impl EditSession {
             || edit.caption.is_some()
             || edit.background.is_some()
             || edit.border_color.is_some();
+        let mut layout = LayoutDisclosure::default();
         let appearance_regenerated = if needs_regen {
             let done = self.regen_after_property_change(
                 &Self::only_widget(&field, widget.id),
@@ -26518,6 +26551,7 @@ impl EditSession {
                 &mut objects,
                 &pending,
                 None,
+                &mut layout,
             )?;
             if !done {
                 // Nothing here is pdfcer's to rebuild: a signature field, or a
@@ -26558,6 +26592,7 @@ impl EditSession {
             stroke_width,
             rect_differences_scaled,
             siblings_untouched,
+            layout,
             appearance_stale,
         })
     }
@@ -27035,6 +27070,7 @@ impl EditSession {
             || edit.password.is_some()
             || options_after.is_some();
         let mut password_removals = Vec::new();
+        let mut layout = LayoutDisclosure::default();
         let appearance_regenerated = if layout_changed {
             // The snapshot is made TRUTHFUL rather than overridden.
             //
@@ -27101,6 +27137,7 @@ impl EditSession {
                 &mut objects,
                 &PendingWidgetEdit::default(),
                 edit.appearance.as_ref(),
+                &mut layout,
             )?
         } else {
             false
@@ -27125,6 +27162,7 @@ impl EditSession {
             sort_claim_unmet,
             options_sorted,
             password_value_removed,
+            layout,
         })
     }
 
@@ -39717,10 +39755,10 @@ impl EditSession {
                         multiline,
                         &fonts,
                         &mut objects,
-                        &mut None,
-                        &mut None,
-                        &mut false,
-                        &mut 0,
+                        &mut out.layout.applied_autosize,
+                        &mut out.layout.applied_autosize_bound,
+                        &mut out.layout.da_colour_unmodelled,
+                        &mut out.layout.unencodable_chars,
                         // Not a rotation call -- see the sibling above.
                         &PendingWidgetEdit::default(),
                     )?;
@@ -39944,8 +39982,8 @@ impl EditSession {
             if appearance.applied_autosize.is_some() {
                 *applied_autosize = appearance.applied_autosize;
                 *applied_autosize_bound = appearance.applied_autosize_bound;
-                *da_colour_unmodelled = appearance.da_colour_unmodelled;
             }
+            *da_colour_unmodelled |= appearance.da_colour_unmodelled;
             *unencodable += appearance.unencodable_chars;
 
             let ap_id = ObjId::new(self.alloc_number()?, 0);

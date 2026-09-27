@@ -714,3 +714,40 @@ fn clearing_a_format_reports_what_it_removed() {
         "it names what it took away: {line}"
     );
 }
+
+/// Rule 4 on every command that redraws a field as a side effect: the Ω has
+/// no `WinAnsi` code and is drawn as `?`, and each command says so.
+#[test]
+fn a_side_effect_redraw_discloses_what_it_substituted() {
+    let dir = TempDir::new("edit-field-layout");
+    let pdf = field_to_edit(&dir, "Ωx");
+    let p = |name: &str| dir.join(name).to_str().unwrap().to_owned();
+    let src = pdf.to_str().unwrap();
+    let runs: [(&str, Vec<&str>); 4] = [
+        (
+            "edit-field",
+            vec!["--quadding", "1", "--default-value", "Ωx"],
+        ),
+        ("edit-widget", vec!["--index", "0", "--background", "0.5"]),
+        ("rotate-widget", vec!["--index", "0", "--degrees", "90"]),
+        ("reset-form", vec!["--apply"]),
+    ];
+    let mut input = src.to_owned();
+    for (i, (cmd, extra)) in runs.iter().enumerate() {
+        let out = p(&format!("step{i}.pdf"));
+        let mut args = vec![*cmd, input.as_str()];
+        if *cmd != "reset-form" {
+            args.extend(["--name", "Customer"]);
+        }
+        args.extend(extra.iter().copied());
+        args.extend(["-o", out.as_str()]);
+        let r = run(&args);
+        assert_eq!(code(&r), 0, "{cmd}: {}", stderr(&r));
+        assert!(
+            stderr(&r).contains("had no WinAnsi code"),
+            "{cmd} redrew the field and did not disclose the substitution: {}",
+            stderr(&r)
+        );
+        input = out;
+    }
+}
