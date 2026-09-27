@@ -143,6 +143,7 @@ use crate::forms::{self, ButtonKind, Field, FieldType};
 use crate::forms_author::{self, FieldPath, FieldShape, FormAuthorError};
 use crate::graph::ObjectGraph;
 use crate::image_import::ImportedImage;
+use crate::layers::OrderNode;
 use crate::object::{Dict, IndirectObject, Name, ObjId, Object, Stream};
 use crate::page_tree::{self, Page, PageSlot, PageTreeError};
 use crate::pageops::references::{DanglingReport, census_dangling};
@@ -922,6 +923,10 @@ pub enum CommandKind {
         /// The optional content group that was deleted.
         layer: ObjId,
     },
+    /// The layer panel's arrangement was edited — a folder added, renamed or
+    /// removed, or an entry moved ([`EditSession::add_layer_folder`] and its
+    /// siblings, §8.11.4.3 Table 101 `/Order`) — ONE undo entry.
+    EditLayerOrder,
     /// One vector object was **moved** (Pass 9c-min, decision 011 §2.5): all
     /// of its path-construction operands were translated by a page-space
     /// `(dx, dy)` through content-stream surgery (the R46/§5.7 named
@@ -7724,10 +7729,38 @@ pub enum EditError {
         /// The object that was passed.
         id: ObjId,
     },
-    /// A layer rename gave an empty name. `/Name` is Required (Table 98) and
-    /// an empty one leaves the layer panel with a blank row.
-    #[error("a layer name cannot be empty")]
+    /// A layer or layer-panel folder was given an empty name. `/Name` is
+    /// Required (Table 98), and an empty name or folder label leaves the layer
+    /// panel with a blank row.
+    #[error("a layer or folder name cannot be empty")]
     EmptyLayerName,
+    /// A layer-panel arrangement verb named a position with no entry. A
+    /// position is a path of child indices into [`crate::layers::Layers::order`].
+    #[error("the layer panel has no entry at {}", dotted_path(.path))]
+    LayerOrderPathNotFound {
+        /// The position that was passed.
+        path: Vec<usize>,
+    },
+    /// A folder verb named a layer or an unlabelled grouping rather than a
+    /// folder or label.
+    #[error("the layer-panel entry at {} is not a folder", dotted_path(.path))]
+    NotALayerFolder {
+        /// The position that was passed.
+        path: Vec<usize>,
+    },
+    /// The requested arrangement cannot be written as `/Order` (Table 101)
+    /// without changing how other entries group: for example a folder as a
+    /// layer's first sublayer, which reads back as the layer's sibling, or an
+    /// entry placed so that a neighbouring sublayer array attaches to it.
+    /// Nothing is written.
+    #[error("the layer panel cannot hold that arrangement; it would regroup other entries")]
+    LayerOrderInexpressible,
+    /// The document's `/D /Order` cannot be edited safely.
+    #[error("this document's layer-panel arrangement cannot be edited: {reason}")]
+    LayerOrderNotEditable {
+        /// Why, in words.
+        reason: &'static str,
+    },
     /// A layer delete was refused because an optional content membership
     /// dictionary (§8.11.2.2) names the layer: removing it would silently
     /// change what that dictionary shows or hides.
@@ -48167,6 +48200,451 @@ impl EditSession {
         Ok(outcome)
     }
 
+    /// Add a folder to the layer panel, as child `index` of the entry at
+    /// `parent` (`&[]` for the top level).
+    ///
+    /// A folder is a nested `/D /Order` array whose first element is its
+    /// label (ISO 32000-1 §8.11.4.3 Table 101). It groups entries in the
+    /// panel only: it has no visibility of its own and hides nothing. A
+    /// position is a path of child indices into
+    /// [`crate::layers::Layers::order`]; the returned
+    /// [`LayerOrderOutcome::path`] is the new folder's. Only `/D /Order` is
+    /// written; `/Order` is created if absent. One undo entry,
+    /// [`CommandKind::EditLayerOrder`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::EmptyLayerName`] — `label` is empty.
+    /// - [`EditError::LayerOrderPathNotFound`] — no entry at `parent`, or
+    ///   `index` is past its last child.
+    /// - [`EditError::LayerOrderInexpressible`] — `/Order` cannot hold a
+    ///   folder there (a layer's first sublayer).
+    /// - [`EditError::LayerOrderNotEditable`], [`EditError::NotADictionary`]
+    ///   (no `/OCProperties`), [`EditError::DocumentEncrypted`] and the
+    ///   certification guard.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::EditSession;
+    /// # fn run(session: &mut EditSession) -> Result<(), Box<dyn std::error::Error>> {
+    /// let added = session.add_layer_folder(&[], 0, "Sheet metal")?;
+    /// assert_eq!(added.path, vec![0]);
+    /// # Ok(()) }
+    /// ```
+    pub fn add_layer_folder(
+        &mut self,
+        parent: &[usize],
+        index: usize,
+        label: &str,
+    ) -> Result<LayerOrderOutcome, EditError> {
+        if label.is_empty() {
+            return Err(EditError::EmptyLayerName);
+        }
+        let (catalog_id, mut root) = self.load_order()?;
+        let tree = self.pending_order(&BTreeMap::new());
+        let not_found = || EditError::LayerOrderPathNotFound {
+            path: parent.to_vec(),
+        };
+        let point = order_insert_point(&tree, &root, parent, index).ok_or_else(not_found)?;
+        let mut expected = strip_order(&tree);
+        order_children_mut(&mut expected, parent)
+            .filter(|k| index <= k.len())
+            .ok_or_else(not_found)?
+            .insert(
+                index,
+                OrderNode {
+                    label: Some(label.to_owned()),
+                    group: None,
+                    children: Vec::new(),
+                    position: Vec::new(),
+                },
+            );
+        let folder = RawOrder::Array {
+            id: None,
+            items: vec![RawOrder::Item(Object::String(encode_text_string(label)))],
+        };
+        let follows_layer = self.place_order(&mut root, point, vec![folder])?;
+        let changed = self.commit_order(catalog_id, &root, BTreeMap::new(), &expected)?;
+        let mut path = parent.to_vec();
+        path.push(index);
+        Ok(LayerOrderOutcome {
+            changed,
+            path,
+            follows_layer,
+        })
+    }
+
+    /// Rename the layer-panel folder or label at `at`.
+    ///
+    /// Writes the label string in `/D /Order` (Table 101) and nothing else.
+    /// One undo entry, [`CommandKind::EditLayerOrder`], unless the label is
+    /// unchanged.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::EmptyLayerName`] — `label` is empty.
+    /// - [`EditError::LayerOrderPathNotFound`] — no entry at `at`.
+    /// - [`EditError::NotALayerFolder`] — the entry is a layer or an
+    ///   unlabelled grouping.
+    /// - As [`Self::add_layer_folder`] otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::EditSession;
+    /// # fn run(session: &mut EditSession) -> Result<(), Box<dyn std::error::Error>> {
+    /// session.rename_layer_folder(&[0], "Weldments")?;
+    /// # Ok(()) }
+    /// ```
+    pub fn rename_layer_folder(
+        &mut self,
+        at: &[usize],
+        label: &str,
+    ) -> Result<LayerOrderOutcome, EditError> {
+        if label.is_empty() {
+            return Err(EditError::EmptyLayerName);
+        }
+        let (catalog_id, mut root) = self.load_order()?;
+        let tree = self.pending_order(&BTreeMap::new());
+        let node = self.order_label_node(&tree, at)?;
+        let (&last, container) = node
+            .position
+            .split_last()
+            .ok_or_else(|| EditError::LayerOrderPathNotFound { path: at.to_vec() })?;
+        let text = RawOrder::Item(Object::String(encode_text_string(label)));
+        let slot = root
+            .items_at_mut(container)
+            .and_then(|items| items.get_mut(last))
+            .ok_or(EditError::LayerOrderNotEditable {
+                reason: "its entries moved while it was read",
+            })?;
+        match slot {
+            RawOrder::Array { items, .. } => match items.first_mut() {
+                Some(first) => *first = text,
+                None => items.push(text),
+            },
+            RawOrder::Item(_) => *slot = text,
+        }
+        let mut expected = strip_order(&tree);
+        if let Some((&i, parent)) = at.split_last()
+            && let Some(n) = order_children_mut(&mut expected, parent).and_then(|k| k.get_mut(i))
+        {
+            n.label = Some(label.to_owned());
+        }
+        let changed = self.commit_order(catalog_id, &root, BTreeMap::new(), &expected)?;
+        Ok(LayerOrderOutcome {
+            changed,
+            path: at.to_vec(),
+            follows_layer: false,
+        })
+    }
+
+    /// Remove the layer-panel folder or label at `at`, lifting what it held
+    /// into its place.
+    ///
+    /// No layer is deleted and nothing on any page changes: the folder's
+    /// entries take its position, in order. Only `/D /Order` (Table 101) is
+    /// written. [`LayerOrderOutcome::path`] is where the first lifted entry
+    /// now is. One undo entry, [`CommandKind::EditLayerOrder`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::LayerOrderPathNotFound`] — no entry at `at`.
+    /// - [`EditError::NotALayerFolder`] — the entry is a layer or an
+    ///   unlabelled grouping.
+    /// - [`EditError::LayerOrderInexpressible`] — the lifted entries would
+    ///   regroup with their new neighbours.
+    /// - As [`Self::add_layer_folder`] otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::EditSession;
+    /// # fn run(session: &mut EditSession) -> Result<(), Box<dyn std::error::Error>> {
+    /// session.delete_layer_folder(&[0])?;
+    /// # Ok(()) }
+    /// ```
+    pub fn delete_layer_folder(&mut self, at: &[usize]) -> Result<LayerOrderOutcome, EditError> {
+        let (catalog_id, mut root) = self.load_order()?;
+        let tree = self.pending_order(&BTreeMap::new());
+        let node = self.order_label_node(&tree, at)?;
+        let not_editable = EditError::LayerOrderNotEditable {
+            reason: "its entries moved while it was read",
+        };
+        let (container, start, end) = order_extent(node).ok_or(not_editable.clone())?;
+        let drained: Vec<RawOrder> = root
+            .items_at_mut(&container)
+            .filter(|items| end < items.len())
+            .ok_or(not_editable)?
+            .drain(start..=end)
+            .collect();
+        let mut lifted = Vec::new();
+        for (k, item) in drained.into_iter().enumerate() {
+            match item {
+                RawOrder::Array { items, .. } if k == 0 => lifted.extend(items.into_iter().skip(1)),
+                RawOrder::Array { items, .. } => lifted.extend(items),
+                RawOrder::Item(_) if k == 0 => {}
+                other => lifted.push(other),
+            }
+        }
+        let follows_layer =
+            self.place_order(&mut root, (container.clone(), start, false), lifted)?;
+        prune_empty_order(&mut root, &container);
+
+        let mut expected = strip_order(&tree);
+        if let Some((&i, parent)) = at.split_last()
+            && let Some(kids) = order_children_mut(&mut expected, parent)
+            && i < kids.len()
+        {
+            let removed = kids.remove(i);
+            kids.splice(i..i, removed.children);
+            drop_empty_groupings(&mut expected, parent);
+        }
+        let changed = self.commit_order(catalog_id, &root, BTreeMap::new(), &expected)?;
+        Ok(LayerOrderOutcome {
+            changed,
+            path: at.to_vec(),
+            follows_layer,
+        })
+    }
+
+    /// Move the layer-panel entry at `from` — a layer with its sublayers, a
+    /// folder with its contents, or a grouping — to child `index` of the
+    /// entry at `parent`.
+    ///
+    /// `parent` and `index` are read **after** the entry is taken out, as
+    /// with `Vec::remove` then `Vec::insert`. Moving a layer under another
+    /// makes it a sublayer in the panel only (Table 101): visibility still
+    /// follows each group's own state. Only `/D /Order` is written, and a
+    /// moved indirect array keeps its object. One undo entry,
+    /// [`CommandKind::EditLayerOrder`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::LayerOrderPathNotFound`] — no entry at `from` or
+    ///   `parent`, or `index` is past the last child.
+    /// - [`EditError::LayerOrderInexpressible`] — `/Order` cannot hold the
+    ///   result without regrouping other entries.
+    /// - As [`Self::add_layer_folder`] otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::EditSession;
+    /// # fn run(session: &mut EditSession) -> Result<(), Box<dyn std::error::Error>> {
+    /// // The second top-level entry into the first folder, as its first entry.
+    /// session.move_layer_node(&[1], &[0], 0)?;
+    /// # Ok(()) }
+    /// ```
+    pub fn move_layer_node(
+        &mut self,
+        from: &[usize],
+        parent: &[usize],
+        index: usize,
+    ) -> Result<LayerOrderOutcome, EditError> {
+        let from_missing = || EditError::LayerOrderPathNotFound {
+            path: from.to_vec(),
+        };
+        let Some((&last, from_parent)) = from.split_last() else {
+            return Err(from_missing());
+        };
+        let (catalog_id, mut root) = self.load_order()?;
+        let tree = self.pending_order(&BTreeMap::new());
+        let node = order_node(&tree, from).ok_or_else(from_missing)?;
+        let (container, start, end) = order_extent(node).ok_or_else(from_missing)?;
+        let seq: Vec<RawOrder> = root
+            .items_at_mut(&container)
+            .filter(|items| end < items.len())
+            .ok_or(EditError::LayerOrderNotEditable {
+                reason: "its entries moved while it was read",
+            })?
+            .drain(start..=end)
+            .collect();
+        prune_empty_order(&mut root, &container);
+
+        let mut expected = strip_order(&tree);
+        let moved = order_children_mut(&mut expected, from_parent)
+            .filter(|k| last < k.len())
+            .ok_or_else(from_missing)?
+            .remove(last);
+        drop_empty_groupings(&mut expected, from_parent);
+        let mut staged = BTreeMap::new();
+        self.stage_order(catalog_id, &root, &mut staged);
+        let mid = self.pending_order(&staged);
+        if strip_order(&mid) != expected {
+            return Err(EditError::LayerOrderInexpressible);
+        }
+
+        let to_missing = || EditError::LayerOrderPathNotFound {
+            path: parent.to_vec(),
+        };
+        let point = order_insert_point(&mid, &root, parent, index).ok_or_else(to_missing)?;
+        order_children_mut(&mut expected, parent)
+            .filter(|k| index <= k.len())
+            .ok_or_else(to_missing)?
+            .insert(index, moved);
+        let follows_layer = self.place_order(&mut root, point, seq)?;
+        let changed = self.commit_order(catalog_id, &root, staged, &expected)?;
+        let mut path = parent.to_vec();
+        path.push(index);
+        Ok(LayerOrderOutcome {
+            changed,
+            path,
+            follows_layer,
+        })
+    }
+
+    /// The catalog and the raw `/D /Order` of an editable document with
+    /// `/OCProperties`; an absent `/Order` loads as an empty array.
+    fn load_order(&self) -> Result<(ObjId, RawOrder), EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification()?;
+        let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
+            id: ObjId::new(0, 0),
+            key: "Root",
+        })?;
+        let ocp = self
+            .value(catalog_id)
+            .and_then(Object::as_dict)
+            .and_then(|c| self.deref_dict(c.get(b"OCProperties")))
+            .ok_or(EditError::NotADictionary {
+                id: catalog_id,
+                key: "OCProperties",
+            })?;
+        let order = self
+            .deref_dict(ocp.get(b"D"))
+            .and_then(|d| d.get(b"Order").cloned());
+        let root = match order {
+            None => RawOrder::Array {
+                id: None,
+                items: Vec::new(),
+            },
+            Some(o) => {
+                let mut budget = crate::layers::MAX_ORDER_NODES;
+                let raw = RawOrder::load(self, &o, 0, &mut BTreeSet::new(), &mut budget)
+                    .map_err(|reason| EditError::LayerOrderNotEditable { reason })?;
+                if !matches!(raw, RawOrder::Array { .. }) {
+                    return Err(EditError::LayerOrderNotEditable {
+                        reason: "/Order is not an array",
+                    });
+                }
+                raw
+            }
+        };
+        Ok((catalog_id, root))
+    }
+
+    /// The layer-panel tree as it reads with `staged` applied.
+    fn pending_order(&self, staged: &BTreeMap<ObjId, Object>) -> Vec<OrderNode> {
+        let removed = HashSet::new();
+        let pending = PendingGraph {
+            session: self,
+            scratch: staged,
+            removed: &removed,
+        };
+        crate::layers::read_layers_with(&pending, crate::layers::LayerScan::CatalogOnly).order
+    }
+
+    /// The label node at `at`.
+    fn order_label_node<'a>(
+        &self,
+        tree: &'a [OrderNode],
+        at: &[usize],
+    ) -> Result<&'a OrderNode, EditError> {
+        let node = order_node(tree, at)
+            .ok_or_else(|| EditError::LayerOrderPathNotFound { path: at.to_vec() })?;
+        if node.label.is_none() {
+            return Err(EditError::NotALayerFolder { path: at.to_vec() });
+        }
+        Ok(node)
+    }
+
+    /// Splice `seq` into the raw arrays at `point`. Returns whether a folder
+    /// now directly follows a layer (DA-A3).
+    fn place_order(
+        &self,
+        root: &mut RawOrder,
+        (container, at, wrap): (Vec<usize>, usize, bool),
+        seq: Vec<RawOrder>,
+    ) -> Result<bool, EditError> {
+        let seq = if wrap {
+            vec![RawOrder::Array {
+                id: None,
+                items: seq,
+            }]
+        } else {
+            seq
+        };
+        let folder_first = seq.first().is_some_and(RawOrder::is_folder);
+        let items = root
+            .items_at_mut(&container)
+            .filter(|items| at <= items.len())
+            .ok_or(EditError::LayerOrderNotEditable {
+                reason: "its entries moved while it was read",
+            })?;
+        let follows = folder_first
+            && at
+                .checked_sub(1)
+                .and_then(|i| items.get(i))
+                .is_some_and(|prev| match prev {
+                    RawOrder::Item(Object::Reference(r)) => {
+                        matches!(self.value(*r), Some(Object::Dict(_) | Object::Stream(_)))
+                    }
+                    _ => false,
+                });
+        items.splice(at..at, seq);
+        Ok(follows)
+    }
+
+    /// Write `root` back as `/D /Order`.
+    fn stage_order(
+        &self,
+        catalog_id: ObjId,
+        root: &RawOrder,
+        staged: &mut BTreeMap<ObjId, Object>,
+    ) {
+        let load = |id: ObjId| self.value(id).cloned();
+        let mut catalog = Object::Reference(catalog_id);
+        layer_node(&load, staged, &mut catalog, |staged, c| {
+            let Object::Dict(c) = c else { return };
+            let Some(mut ocp) = c.get(b"OCProperties").cloned() else {
+                return;
+            };
+            layer_node(&load, staged, &mut ocp, |staged, o| {
+                let Object::Dict(o) = o else { return };
+                let mut d = o.get(b"D").cloned().unwrap_or(Object::Dict(Dict::new()));
+                layer_node(&load, staged, &mut d, |staged, d| {
+                    if !matches!(d, Object::Dict(_)) {
+                        *d = Object::Dict(Dict::new());
+                    }
+                    let Object::Dict(d) = d else { return };
+                    let order = root.store(staged);
+                    d.insert(Name::from(b"Order"), order);
+                });
+                o.insert(Name::from(b"D"), d);
+            });
+            c.insert(Name::from(b"OCProperties"), ocp);
+        });
+    }
+
+    /// Stage `root`, check it reads back as `expected`, and commit.
+    fn commit_order(
+        &mut self,
+        catalog_id: ObjId,
+        root: &RawOrder,
+        mut staged: BTreeMap<ObjId, Object>,
+        expected: &[OrderNode],
+    ) -> Result<bool, EditError> {
+        self.stage_order(catalog_id, root, &mut staged);
+        if strip_order(&self.pending_order(&staged)) != expected {
+            return Err(EditError::LayerOrderInexpressible);
+        }
+        Ok(self.commit_staged(CommandKind::EditLayerOrder, staged))
+    }
+
     /// The catalog id, when `layer` is a dictionary listed in
     /// `/OCProperties /OCGs` of an unencrypted, editable document.
     fn require_layer(&self, layer: ObjId) -> Result<ObjId, EditError> {
@@ -50781,6 +51259,259 @@ struct LayerDeletePlan {
 pub struct LayerEditOutcome {
     /// Whether anything was written. `false` records no undo entry.
     pub changed: bool,
+}
+
+/// What a layer-panel arrangement edit did.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct LayerOrderOutcome {
+    /// Whether anything was written. `false` records no undo entry.
+    pub changed: bool,
+    /// Where the entry now is: child indices into
+    /// [`crate::layers::Layers::order`], root level first. For a removed
+    /// folder, where its first lifted entry now is.
+    pub path: Vec<usize>,
+    /// Ambiguity DA-A3: a folder was written directly after a layer in the
+    /// same `/Order` array, a placement Table 101 does not define. pdfcer
+    /// reads it as the layer's sibling; another reader may show it as the
+    /// layer's sublayer folder.
+    pub follows_layer: bool,
+}
+
+/// A layer-panel position as the CLI prints it: `1.0.2`, or `root`.
+fn dotted_path(path: &[usize]) -> String {
+    if path.is_empty() {
+        return "root".to_owned();
+    }
+    path.iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+/// One `/D /Order` element, with arrays reached through references loaded
+/// so the arrangement can be edited as a whole and written back. An array
+/// keeps its object id, so moving it moves the reference.
+#[derive(Debug, Clone)]
+enum RawOrder {
+    /// A group reference, a label string, or anything else, kept as is.
+    Item(Object),
+    /// A nested array.
+    Array {
+        /// The array's object, when it is indirect.
+        id: Option<ObjId>,
+        /// Its elements.
+        items: Vec<RawOrder>,
+    },
+}
+
+impl RawOrder {
+    /// Load `obj`, refusing what the reader would not have read whole.
+    fn load(
+        session: &EditSession,
+        obj: &Object,
+        depth: usize,
+        seen: &mut BTreeSet<ObjId>,
+        budget: &mut usize,
+    ) -> Result<Self, &'static str> {
+        let (id, value) = match obj.as_reference() {
+            Some(id) => (Some(id), session.value(id).cloned().unwrap_or(Object::Null)),
+            None => (None, obj.clone()),
+        };
+        let Object::Array(items) = value else {
+            return Ok(Self::Item(obj.clone()));
+        };
+        if depth >= crate::layers::MAX_ORDER_DEPTH {
+            return Err("it nests deeper than pdfcer reads");
+        }
+        if let Some(id) = id
+            && !seen.insert(id)
+        {
+            return Err("an array in it is shared or cyclic");
+        }
+        let mut out = Vec::with_capacity(items.len());
+        for item in &items {
+            if *budget == 0 {
+                return Err("it has more entries than pdfcer reads");
+            }
+            *budget -= 1;
+            out.push(Self::load(session, item, depth + 1, seen, budget)?);
+        }
+        Ok(Self::Array { id, items: out })
+    }
+
+    /// The object to write, staging every indirect array.
+    fn store(&self, staged: &mut BTreeMap<ObjId, Object>) -> Object {
+        match self {
+            Self::Item(o) => o.clone(),
+            Self::Array { id, items } => {
+                let array = Object::Array(items.iter().map(|i| i.store(staged)).collect());
+                match id {
+                    Some(id) => {
+                        staged.insert(*id, array);
+                        Object::Reference(*id)
+                    }
+                    None => array,
+                }
+            }
+        }
+    }
+
+    fn at(&self, path: &[usize]) -> Option<&Self> {
+        match path.split_first() {
+            None => Some(self),
+            Some((i, rest)) => match self {
+                Self::Array { items, .. } => items.get(*i)?.at(rest),
+                Self::Item(_) => None,
+            },
+        }
+    }
+
+    /// The elements of the array at `path`.
+    fn items_at_mut(&mut self, path: &[usize]) -> Option<&mut Vec<Self>> {
+        let Self::Array { items, .. } = self else {
+            return None;
+        };
+        match path.split_first() {
+            None => Some(items),
+            Some((i, rest)) => items.get_mut(*i)?.items_at_mut(rest),
+        }
+    }
+
+    /// Whether this is a folder: an array whose first element is a label.
+    fn is_folder(&self) -> bool {
+        matches!(self, Self::Array { items, .. }
+            if matches!(items.first(), Some(Self::Item(Object::String(_)))))
+    }
+}
+
+/// Remove, from the innermost outwards, non-root arrays on `container`'s
+/// path left empty. An empty sublayer array presents nothing.
+fn prune_empty_order(root: &mut RawOrder, container: &[usize]) {
+    let mut c = container.to_vec();
+    while let Some((&last, parent)) = c.split_last() {
+        let empty = matches!(root.at(&c), Some(RawOrder::Array { items, .. }) if items.is_empty());
+        if !empty {
+            break;
+        }
+        if let Some(items) = root.items_at_mut(parent)
+            && last < items.len()
+        {
+            items.remove(last);
+        }
+        c.pop();
+    }
+}
+
+/// The tree node at `path`.
+fn order_node<'a>(tree: &'a [OrderNode], path: &[usize]) -> Option<&'a OrderNode> {
+    let (first, rest) = path.split_first()?;
+    let node = tree.get(*first)?;
+    if rest.is_empty() {
+        Some(node)
+    } else {
+        order_node(&node.children, rest)
+    }
+}
+
+/// The children of the tree node at `path`; the root level for `[]`.
+fn order_children_mut<'a>(
+    tree: &'a mut Vec<OrderNode>,
+    path: &[usize],
+) -> Option<&'a mut Vec<OrderNode>> {
+    match path.split_first() {
+        None => Some(tree),
+        Some((i, rest)) => order_children_mut(&mut tree.get_mut(*i)?.children, rest),
+    }
+}
+
+/// The tree with raw positions cleared, for comparing shapes.
+fn strip_order(nodes: &[OrderNode]) -> Vec<OrderNode> {
+    nodes
+        .iter()
+        .map(|n| OrderNode {
+            label: n.label.clone(),
+            group: n.group,
+            children: strip_order(&n.children),
+            position: Vec::new(),
+        })
+        .collect()
+}
+
+/// After a removal under `path`, drop unlabelled groupings left empty, as
+/// [`prune_empty_order`] does to their arrays.
+fn drop_empty_groupings(tree: &mut Vec<OrderNode>, path: &[usize]) {
+    let mut p = path.to_vec();
+    while let Some((&last, parent)) = p.split_last() {
+        let empty = order_node(tree, &p)
+            .is_some_and(|n| n.label.is_none() && n.group.is_none() && n.children.is_empty());
+        if !empty {
+            break;
+        }
+        if let Some(kids) = order_children_mut(tree, parent)
+            && last < kids.len()
+        {
+            kids.remove(last);
+        }
+        p.pop();
+    }
+}
+
+/// The raw span a tree node occupies: its container array's path, and the
+/// first and last indices of its own element and of the sublayer array that
+/// follows it, if any.
+fn order_extent(node: &OrderNode) -> Option<(Vec<usize>, usize, usize)> {
+    let (&start, container) = node.position.split_last()?;
+    let mut end = start;
+    if let Some(child) = node.children.first()
+        && child.position.starts_with(container)
+        && let Some(&j) = child.position.get(container.len())
+    {
+        end = end.max(j);
+    }
+    Some((container.to_vec(), start, end))
+}
+
+/// Where a new child `index` of tree node `parent` goes in the raw arrays:
+/// container path, element index, and whether the child must be wrapped in
+/// a new sublayer array (a parent with no children yet that is not itself
+/// an array).
+fn order_insert_point(
+    tree: &[OrderNode],
+    root: &RawOrder,
+    parent: &[usize],
+    index: usize,
+) -> Option<(Vec<usize>, usize, bool)> {
+    let kids: &[OrderNode] = if parent.is_empty() {
+        tree
+    } else {
+        &order_node(tree, parent)?.children
+    };
+    if let Some(k) = kids.get(index) {
+        let (&at, c) = k.position.split_last()?;
+        return Some((c.to_vec(), at, false));
+    }
+    if index > kids.len() {
+        return None;
+    }
+    if let Some(last) = kids.last() {
+        let (c, _, end) = order_extent(last)?;
+        return Some((c, end + 1, false));
+    }
+    if parent.is_empty() {
+        let RawOrder::Array { items, .. } = root else {
+            return None;
+        };
+        return Some((Vec::new(), items.len(), false));
+    }
+    let node = order_node(tree, parent)?;
+    match root.at(&node.position)? {
+        RawOrder::Array { items, .. } => Some((node.position.clone(), items.len(), false)),
+        RawOrder::Item(_) => {
+            let (&at, c) = node.position.split_last()?;
+            Some((c.to_vec(), at + 1, true))
+        }
+    }
 }
 
 /// Edit a value that may be an indirect reference: a reference is followed

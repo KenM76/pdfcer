@@ -590,3 +590,201 @@ fn delete_layer_remove_content_refuses_a_widget() {
     }
     assert_eq!(s.undo_depth(), 0);
 }
+
+/// Layers A (4), B (5), C (6), D (7), E (9). `/Order` is object 3,
+/// `[A, 8 0 R, D, [E]]`, where object 8 is the folder `[(Parts) B C]`.
+fn order_session() -> EditSession {
+    let bytes = assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [4 0 R 5 0 R 6 0 R 7 0 R 9 0 R] /D << /Order 3 0 R >> >> >>",
+        "<< /Type /Pages /Kids [] /Count 0 >>",
+        "[4 0 R 8 0 R 7 0 R [9 0 R]]",
+        "<< /Type /OCG /Name (A) >>",
+        "<< /Type /OCG /Name (B) >>",
+        "<< /Type /OCG /Name (C) >>",
+        "<< /Type /OCG /Name (D) >>",
+        "[(Parts) 5 0 R 6 0 R]",
+        "<< /Type /OCG /Name (E) >>",
+    ]);
+    EditSession::new(Document::from_bytes(bytes).expect("parses"))
+}
+
+/// The layer panel as text: a folder is `(label: …)`, sublayers `{…}`.
+fn shape<G: pdfcer_core::graph::ObjectGraph + ?Sized>(g: &G) -> String {
+    fn walk(
+        read: &pdfcer_core::layers::Layers,
+        nodes: &[pdfcer_core::layers::OrderNode],
+    ) -> String {
+        nodes
+            .iter()
+            .map(|n| {
+                let kids = walk(read, &n.children);
+                match (&n.label, n.group) {
+                    (Some(l), _) => {
+                        format!("({l}:{}{kids})", if kids.is_empty() { "" } else { " " })
+                    }
+                    (None, Some(id)) => {
+                        let name = &layer(read, id.num).name;
+                        if kids.is_empty() {
+                            name.clone()
+                        } else {
+                            format!("{name}{{{kids}}}")
+                        }
+                    }
+                    (None, None) => format!("[{kids}]"),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+    let read = read_layers(g);
+    walk(&read, &read.order)
+}
+
+/// A folder added at the top level rewrites only the `/Order` array object,
+/// is one undo entry, and discloses a folder placed right after a layer.
+#[test]
+fn add_layer_folder_at_the_top_level() {
+    let mut s = order_session();
+    assert_eq!(shape(&s.graph()), "A (Parts: B C) D{E}");
+    let out = s.add_layer_folder(&[], 1, "New").unwrap();
+    assert_eq!(shape(&s.graph()), "A (New:) (Parts: B C) D{E}");
+    assert!(out.changed);
+    assert_eq!(out.path, vec![1]);
+    assert!(out.follows_layer);
+    assert_eq!(s.dirty_set().len(), 1);
+    assert_eq!(s.undo(), Some(CommandKind::EditLayerOrder));
+    assert_eq!(shape(&s.graph()), "A (Parts: B C) D{E}");
+
+    let first = s.add_layer_folder(&[], 0, "Top").unwrap();
+    assert!(!first.follows_layer);
+    assert_eq!(shape(&s.graph()), "(Top:) A (Parts: B C) D{E}");
+}
+
+/// A folder inside a folder edits only that folder's array object.
+#[test]
+fn add_layer_folder_inside_a_folder() {
+    let mut s = order_session();
+    s.add_layer_folder(&[1], 2, "Sub").unwrap();
+    assert_eq!(shape(&s.graph()), "A (Parts: B C (Sub:)) D{E}");
+    assert_eq!(s.dirty_set().len(), 1);
+    assert!(matches!(
+        resolved(&s, ObjId::new(8, 0)),
+        Object::Array(a) if a.len() == 4
+    ));
+}
+
+/// Renaming writes the label in the folder's own array object; a layer is
+/// not a folder.
+#[test]
+fn rename_layer_folder() {
+    let mut s = order_session();
+    s.rename_layer_folder(&[1], "Sheet metal").unwrap();
+    assert_eq!(shape(&s.graph()), "A (Sheet metal: B C) D{E}");
+    assert_eq!(s.dirty_set().len(), 1);
+    assert!(matches!(
+        s.rename_layer_folder(&[0], "X"),
+        Err(EditError::NotALayerFolder { .. })
+    ));
+    assert!(matches!(
+        s.rename_layer_folder(&[1], ""),
+        Err(EditError::EmptyLayerName)
+    ));
+    assert!(!s.rename_layer_folder(&[1], "Sheet metal").unwrap().changed);
+}
+
+/// Removing a folder lifts its entries into its place; no layer goes.
+#[test]
+fn delete_layer_folder_lifts_its_entries() {
+    let mut s = order_session();
+    let layers = read_layers(&s.graph()).layers.len();
+    let out = s.delete_layer_folder(&[1]).unwrap();
+    assert_eq!(shape(&s.graph()), "A B C D{E}");
+    assert_eq!(out.path, vec![1]);
+    assert_eq!(read_layers(&s.graph()).layers.len(), layers);
+    assert_eq!(s.dirty_set().len(), 1);
+    assert!(matches!(
+        s.delete_layer_folder(&[0]),
+        Err(EditError::NotALayerFolder { .. })
+    ));
+}
+
+/// Moves: into a folder (the folder keeps its object), a layer with its
+/// sublayers, under a layer with none, and a last sublayer out.
+#[test]
+fn move_layer_node_cases() {
+    let mut s = order_session();
+    s.move_layer_node(&[0], &[0], 0).unwrap();
+    assert_eq!(shape(&s.graph()), "(Parts: A B C) D{E}");
+    assert_eq!(
+        resolved(&s, ObjId::new(3, 0))
+            .as_array()
+            .and_then(|a| a.first().cloned()),
+        Some(Object::Reference(ObjId::new(8, 0)))
+    );
+    s.undo();
+
+    s.move_layer_node(&[2], &[], 0).unwrap();
+    assert_eq!(shape(&s.graph()), "D{E} A (Parts: B C)");
+    s.undo();
+
+    s.move_layer_node(&[0], &[0, 0], 0).unwrap();
+    assert_eq!(shape(&s.graph()), "(Parts: B{A} C) D{E}");
+    s.undo();
+
+    let out = s.move_layer_node(&[2, 0], &[], 0).unwrap();
+    assert_eq!(shape(&s.graph()), "E A (Parts: B C) D");
+    assert_eq!(out.path, vec![0]);
+    // D's emptied sublayer array is removed, not left as `[]`.
+    let r = |n| Object::Reference(ObjId::new(n, 0));
+    assert_eq!(
+        resolved(&s, ObjId::new(3, 0)),
+        Object::Array(vec![r(9), r(4), r(8), r(7)])
+    );
+    s.undo();
+    assert_eq!(shape(&s.graph()), "A (Parts: B C) D{E}");
+}
+
+/// Refusals: a folder as a layer's first sublayer reads back as its
+/// sibling; positions that do not exist.
+#[test]
+fn layer_order_refusals() {
+    let mut s = order_session();
+    assert!(matches!(
+        s.add_layer_folder(&[0], 0, "X"),
+        Err(EditError::LayerOrderInexpressible)
+    ));
+    // Read after the folder is taken out, `[1, 0]` is D's sublayer E: a
+    // folder as E's first sublayer is inexpressible too.
+    assert!(matches!(
+        s.move_layer_node(&[1], &[1, 0], 0),
+        Err(EditError::LayerOrderInexpressible)
+    ));
+    assert!(matches!(
+        s.add_layer_folder(&[7], 0, "X"),
+        Err(EditError::LayerOrderPathNotFound { .. })
+    ));
+    assert!(matches!(
+        s.add_layer_folder(&[], 9, "X"),
+        Err(EditError::LayerOrderPathNotFound { .. })
+    ));
+    assert!(matches!(
+        s.move_layer_node(&[], &[], 0),
+        Err(EditError::LayerOrderPathNotFound { .. })
+    ));
+    assert_eq!(s.undo_depth(), 0);
+}
+
+/// An arrangement edit survives an incremental save and reopen, and the
+/// objects it did not touch are not in the update.
+#[test]
+fn layer_order_edit_round_trips() {
+    let mut s = order_session();
+    s.move_layer_node(&[0], &[0], 1).unwrap();
+    let (bytes, _) = s
+        .to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .expect("incremental save");
+    let doc = Document::from_bytes(bytes).expect("reopens");
+    let view = doc.view();
+    assert_eq!(shape(view.graph()), "(Parts: B A C) D{E}");
+    assert_eq!(s.dirty_set().len(), 2);
+}

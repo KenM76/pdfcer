@@ -616,6 +616,28 @@ pub(crate) enum SaveMode {
     Full,
 }
 
+/// A layer-panel position: the `at=` `list-layers` prints, such as `1.0.2`,
+/// or `root` for the top level.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LayerPathArg(pub(crate) Vec<usize>);
+
+impl std::str::FromStr for LayerPathArg {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "root" {
+            return Ok(Self(Vec::new()));
+        }
+        s.split('.')
+            .map(|part| {
+                part.parse::<usize>()
+                    .map_err(|_| format!("{s:?} is not a position like 1.0.2 or root"))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(Self)
+    }
+}
+
 /// `layer-delete`'s `--content`, the CLI face of
 /// [`pdfcer_core::edit::LayerContentPolicy`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]

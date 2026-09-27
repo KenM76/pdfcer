@@ -7996,6 +7996,128 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Add a folder to the layer panel.
+    ///
+    /// A folder groups entries in the panel only: it has no visibility of its
+    /// own and hides nothing. `--parent` is the `at=` of the entry to put it
+    /// in (`list-layers --tree` prints them; default `root`, the top level)
+    /// and `--index` its place among that entry's entries (default: last).
+    /// Prints one `layer-folder-add` line with the new folder's `at=`.
+    /// `follows_layer=1` means it sits directly after a layer, a placement
+    /// the PDF standard leaves undefined: pdfcer shows it as that layer's
+    /// sibling, other viewers may show it as the layer's sublayer folder.
+    ///
+    /// Exit 9 when there is no entry at `--parent`, `--index` is past its
+    /// last entry, the label is empty, or a folder cannot go there (a folder
+    /// cannot be a layer's first sublayer). Nothing is written then.
+    LayerFolderAdd {
+        /// Input PDF.
+        input: PathBuf,
+        /// The folder's name.
+        #[arg(long)]
+        label: String,
+        /// Where to put it: an `at=` position, or `root`.
+        #[arg(long, default_value = "root")]
+        parent: LayerPathArg,
+        /// Its place among the parent's entries, from 0. Default: last.
+        #[arg(long)]
+        index: Option<usize>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// Rename a layer-panel folder.
+    ///
+    /// Pick the folder by the `at=` `list-layers --tree` prints. Prints one
+    /// `layer-folder-rename` line with `changed=true|false`.
+    ///
+    /// Exit 9 when there is no entry there, it is a layer rather than a
+    /// folder, or the name is empty.
+    LayerFolderRename {
+        /// Input PDF.
+        input: PathBuf,
+        /// The folder's `at=` position.
+        #[arg(long)]
+        at: LayerPathArg,
+        /// The new name.
+        #[arg(long)]
+        label: String,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// Remove a layer-panel folder, keeping what it held.
+    ///
+    /// No layer is deleted and no page changes: the folder's entries take
+    /// its place, in order. Prints one `layer-folder-delete` line with the
+    /// `at=` of the first entry it held.
+    ///
+    /// Exit 9 when there is no entry there, it is a layer rather than a
+    /// folder, or its entries would regroup with their new neighbours.
+    LayerFolderDelete {
+        /// Input PDF.
+        input: PathBuf,
+        /// The folder's `at=` position.
+        #[arg(long)]
+        at: LayerPathArg,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// Move a layer-panel entry: a layer with its sublayers, or a folder
+    /// with what it holds.
+    ///
+    /// `--from` is the entry's `at=` (`list-layers --tree`). `--parent` and
+    /// `--index` say where it goes, read as if the entry were already taken
+    /// out: `--parent root --index 0` makes it first; `--parent 2` puts it in
+    /// the entry now at `2`. Under a folder it joins the folder; under a
+    /// layer it becomes a sublayer in the panel, which changes no visibility.
+    /// Prints one `layer-move` line with the entry's new `at=` and
+    /// `follows_layer` as for `layer-folder-add`.
+    ///
+    /// Exit 9 when a position does not exist, or the result cannot be written
+    /// without regrouping other entries (a folder cannot be a layer's first
+    /// sublayer). Nothing is written then.
+    LayerMove {
+        /// Input PDF.
+        input: PathBuf,
+        /// The entry's `at=` position.
+        #[arg(long)]
+        from: LayerPathArg,
+        /// The new parent: an `at=` position, or `root`.
+        #[arg(long, default_value = "root")]
+        parent: LayerPathArg,
+        /// Its place among the parent's entries, from 0. Default: last.
+        #[arg(long)]
+        index: Option<usize>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Delete a layer, keeping or removing what is drawn on it.
     ///
     /// The layer leaves the layer panel and every layer setting. With

@@ -667,6 +667,11 @@ pub struct OrderNode {
     pub group: Option<ObjId>,
     /// Nested nodes. Non-empty for a subtree; empty for a leaf.
     pub children: Vec<OrderNode>,
+    /// Where the node sits in the raw `/D /Order` arrays: one index per
+    /// level, references to arrays followed. A group's is its reference,
+    /// a folder's or an unlabelled grouping's is its array, a label that
+    /// is not first in its array is the string.
+    pub(crate) position: Vec<usize>,
 }
 
 /// Everything [`read_layers`] found.
@@ -1070,7 +1075,7 @@ pub fn read_layers_with<G: ObjectGraph + ?Sized>(graph: &G, scan: LayerScan) -> 
             seen: &mut seen,
             diag: &mut diag,
         };
-        out.order = walk.entry(d.get(b"Order"), 0);
+        out.order = walk.entry(d.get(b"Order"));
     }
 
     // --- Step 4: every other route ---------------------------------------
@@ -1162,7 +1167,7 @@ pub fn read_layers_with<G: ObjectGraph + ?Sized>(graph: &G, scan: LayerScan) -> 
                 seen: &mut seen,
                 diag: &mut diag,
             };
-            let _ = walk.entry(cfg.get(b"Order"), 0);
+            let _ = walk.entry(cfg.get(b"Order"));
         }
     }
 
@@ -1347,7 +1352,7 @@ struct OrderWalk<'a, G: ?Sized> {
 impl<G: ObjectGraph + ?Sized> OrderWalk<'_, G> {
     /// Enter the `/Order` entry itself, which may be a direct array or an
     /// indirect reference to one (§7.3.10 substitutability).
-    fn entry(&mut self, obj: Option<&Object>, depth: usize) -> Vec<OrderNode> {
+    fn entry(&mut self, obj: Option<&Object>) -> Vec<OrderNode> {
         let Some(raw) = obj else {
             return Vec::new();
         };
@@ -1363,7 +1368,7 @@ impl<G: ObjectGraph + ?Sized> OrderWalk<'_, G> {
         let Some(items) = self.graph.resolve(raw).as_array() else {
             return Vec::new();
         };
-        self.walk(items, depth)
+        self.walk(items, &[])
     }
 
     /// Walk one `/Order` array level.
@@ -1390,9 +1395,11 @@ impl<G: ObjectGraph + ?Sized> OrderWalk<'_, G> {
     /// Recursion depth is capped at [`MAX_ORDER_DEPTH`] before the
     /// recursive call, so the stack is bounded by a constant regardless of
     /// input.
-    fn walk(&mut self, items: &[Object], depth: usize) -> Vec<OrderNode> {
+    fn walk(&mut self, items: &[Object], path: &[usize]) -> Vec<OrderNode> {
+        let depth = path.len();
+        let at = |i: usize| [path, &[i]].concat();
         let mut out: Vec<OrderNode> = Vec::new();
-        for item in items {
+        for (i, item) in items.iter().enumerate() {
             if self.budget == 0 {
                 self.diag.order_node_truncation = true;
                 break;
@@ -1416,6 +1423,7 @@ impl<G: ObjectGraph + ?Sized> OrderWalk<'_, G> {
                             label: None,
                             group: Some(id),
                             children: Vec::new(),
+                            position: at(i),
                         });
                     }
                     // A direct dictionary in `/Order`: displayable in
@@ -1427,6 +1435,7 @@ impl<G: ObjectGraph + ?Sized> OrderWalk<'_, G> {
                     label: Some(decode_text_string(bytes).text),
                     group: None,
                     children: Vec::new(),
+                    position: at(i),
                 }),
                 Object::Array(nested) => {
                     if depth + 1 >= MAX_ORDER_DEPTH {
@@ -1445,8 +1454,8 @@ impl<G: ObjectGraph + ?Sized> OrderWalk<'_, G> {
                     // level is cheap (references and short strings) and is
                     // bounded by the element budget above.
                     let nested: Vec<Object> = nested.to_vec();
-                    let sub = self.walk(&nested, depth + 1);
-                    merge_nested(&mut out, sub);
+                    let sub = self.walk(&nested, &at(i));
+                    merge_nested(&mut out, sub, at(i));
                 }
                 // A dangling reference resolves to null (§7.3.10); a
                 // number, name or boolean is a type Table 101 does not
@@ -1491,7 +1500,7 @@ impl<G: ObjectGraph + ?Sized> OrderWalk<'_, G> {
 ///    level).
 /// 3. Otherwise the subtree stands alone as an unlabelled grouping node,
 ///    so no group is lost to a shape the file did not quite express.
-fn merge_nested(out: &mut Vec<OrderNode>, mut sub: Vec<OrderNode>) {
+fn merge_nested(out: &mut Vec<OrderNode>, mut sub: Vec<OrderNode>, array: Vec<usize>) {
     if sub.is_empty() {
         return;
     }
@@ -1501,6 +1510,7 @@ fn merge_nested(out: &mut Vec<OrderNode>, mut sub: Vec<OrderNode>) {
     if leads_with_label {
         let mut root = sub.remove(0);
         root.children.extend(sub);
+        root.position = array;
         out.push(root);
         return;
     }
@@ -1514,6 +1524,7 @@ fn merge_nested(out: &mut Vec<OrderNode>, mut sub: Vec<OrderNode>) {
         label: None,
         group: None,
         children: sub,
+        position: array,
     });
 }
 
@@ -2005,6 +2016,37 @@ mod tests {
         // Pre-order flattening: 4 before its children, 7 last.
         let ids: Vec<ObjId> = layers.layers.iter().map(|l| l.id).collect();
         assert_eq!(ids, [id(4), id(5), id(6), id(7)]);
+    }
+
+    /// Each node records its raw `/Order` position: a folder's is its
+    /// array, a group's its reference, an anonymous grouping's its array.
+    #[test]
+    fn order_positions_are_raw_paths() {
+        let order = Object::Array(vec![
+            Object::Reference(id(4)),
+            Object::Array(vec![
+                Object::String(b"F".to_vec()),
+                Object::Reference(id(5)),
+                Object::Array(vec![Object::Reference(id(6))]),
+            ]),
+            Object::Array(vec![Object::Reference(id(7))]),
+        ]);
+        let graph = graph_with(
+            Object::Dict(dict(&[
+                (b"OCGs", refs(&[4, 5, 6, 7])),
+                (b"D", Object::Dict(dict(&[(b"Order", order)]))),
+            ])),
+            &[(4, ocg("A")), (5, ocg("B")), (6, ocg("C")), (7, ocg("D"))],
+        );
+        let order = read_layers(&graph).order;
+        assert_eq!(order.len(), 3);
+        assert_eq!(order[0].position, [0]);
+        assert_eq!(order[1].label.as_deref(), Some("F"));
+        assert_eq!(order[1].position, [1]);
+        assert_eq!(order[1].children[0].position, [1, 1]);
+        assert_eq!(order[1].children[0].children[0].position, [1, 2, 0]);
+        assert_eq!((order[2].group, &order[2].position[..]), (None, &[2][..]));
+        assert_eq!(order[2].children[0].position, [2, 0]);
     }
 
     /// A self-referential `/Order` terminates, is counted, and does not

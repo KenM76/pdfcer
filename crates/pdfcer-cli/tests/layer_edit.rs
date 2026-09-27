@@ -253,3 +253,105 @@ fn layer_delete_can_remove_the_content() {
     assert!(!bytes.contains("400 60 120 120 re f"));
     std::fs::remove_file(out).ok();
 }
+
+fn order_edit(verb: &str, src: &Path, extra: &[&str], tag: &str) -> (Output, PathBuf) {
+    let out = temp_path(tag);
+    let mut args = vec![verb, src.to_str().unwrap()];
+    args.extend_from_slice(extra);
+    args.extend(["--output", out.to_str().unwrap(), "--verify-undo"]);
+    (run(&args), out)
+}
+
+fn tree(path: &Path) -> String {
+    String::from_utf8_lossy(&run(&["list-layers", path.to_str().unwrap(), "--tree"]).stdout)
+        .into_owned()
+}
+
+/// Add a folder at the end, then move a layer and its sublayer into it; the
+/// tree prints each entry's `at=`.
+#[test]
+fn layer_folder_add_then_move_a_layer_into_it() {
+    let (o, added) = order_edit(
+        "layer-folder-add",
+        &fixture("nested-order.pdf"),
+        &["--label", "Parts"],
+        "fadd",
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(
+        stdout.contains("at=2 changed=true follows_layer=0"),
+        "{stdout}"
+    );
+    assert!(tree(&added).contains("folder label=\"Parts\" at=2"));
+
+    let (o, moved) = order_edit(
+        "layer-move",
+        &added,
+        &["--from", "1", "--parent", "1"],
+        "fmove",
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(stdout.starts_with("layer-move "), "{stdout}");
+    assert!(stdout.contains("at=1.0 changed=true"), "{stdout}");
+    let t = tree(&moved);
+    assert!(t.contains("folder label=\"Parts\" at=1\n"), "{t}");
+    assert!(
+        t.contains("  layer name=\"WHISKEY\" visible=1 id=7 at=1.0\n"),
+        "{t}"
+    );
+    assert!(
+        t.contains("    layer name=\"VICTOR\" visible=1 id=8 at=1.0.0\n"),
+        "{t}"
+    );
+    for p in [added, moved] {
+        std::fs::remove_file(p).ok();
+    }
+}
+
+/// Rename a folder, then remove it: its layer takes its place.
+#[test]
+fn layer_folder_rename_then_delete() {
+    let (o, renamed) = order_edit(
+        "layer-folder-rename",
+        &fixture("nested-order.pdf"),
+        &["--at", "0", "--label", "Sheets"],
+        "fren",
+    );
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(tree(&renamed).contains("folder label=\"Sheets\" at=0\n"));
+
+    let (o, deleted) = order_edit("layer-folder-delete", &renamed, &["--at", "0"], "fdel");
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let t = tree(&deleted);
+    assert!(!t.contains("folder label"), "{t}");
+    assert!(
+        t.starts_with("layer name=\"ZULU\" visible=1 id=4 at=0\n"),
+        "{t}"
+    );
+    for p in [renamed, deleted] {
+        std::fs::remove_file(p).ok();
+    }
+}
+
+/// A layer is not a folder; a malformed position is a usage error.
+#[test]
+fn layer_folder_refusals() {
+    let (o, out) = order_edit(
+        "layer-folder-rename",
+        &fixture("nested-order.pdf"),
+        &["--at", "1", "--label", "X"],
+        "fref",
+    );
+    assert_eq!(o.status.code(), Some(EDIT_REFUSED));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("is not a folder"));
+    assert!(!out.exists());
+    let (o, _) = order_edit(
+        "layer-folder-delete",
+        &fixture("nested-order.pdf"),
+        &["--at", "x.1"],
+        "fbad",
+    );
+    assert_eq!(o.status.code(), Some(2));
+}

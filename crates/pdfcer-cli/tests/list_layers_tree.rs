@@ -35,12 +35,12 @@ fn a_folder_and_sublayers_print_as_an_indented_tree() {
     assert_eq!(
         lines[..6],
         [
-            "folder label=\"Sheet metal\"",
-            "  layer name=\"ZULU\" visible=1 id=4",
-            "    layer name=\"YANKEE\" visible=1 id=5",
-            "    layer name=\"XRAY\" visible=1 id=6",
-            "layer name=\"WHISKEY\" visible=1 id=7",
-            "  layer name=\"VICTOR\" visible=1 id=8",
+            "folder label=\"Sheet metal\" at=0",
+            "  layer name=\"ZULU\" visible=1 id=4 at=0.0",
+            "    layer name=\"YANKEE\" visible=1 id=5 at=0.0.0",
+            "    layer name=\"XRAY\" visible=1 id=6 at=0.0.1",
+            "layer name=\"WHISKEY\" visible=1 id=7 at=1",
+            "  layer name=\"VICTOR\" visible=1 id=8 at=1.0",
         ]
     );
     assert!(lines[6].starts_with("list-layers "), "{out}");

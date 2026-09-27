@@ -512,10 +512,12 @@ fn print_order_tree(read: &pdfcer_core::layers::Layers) {
     fn walk(
         read: &pdfcer_core::layers::Layers,
         nodes: &[pdfcer_core::layers::OrderNode],
-        depth: usize,
+        path: &mut Vec<usize>,
     ) {
-        let pad = "  ".repeat(depth);
-        for n in nodes {
+        let pad = "  ".repeat(path.len());
+        for (i, n) in nodes.iter().enumerate() {
+            path.push(i);
+            let at = dotted(path);
             match (n.group, n.label.as_deref()) {
                 (Some(id), _) => match read.layers.iter().find(|l| l.id == id) {
                     Some(l) => {
@@ -526,22 +528,168 @@ fn print_order_tree(read: &pdfcer_core::layers::Layers) {
                         };
                         let locked = if l.locked { " locked" } else { "" };
                         println!(
-                            "{pad}layer name={name} visible={}{locked} id={}",
+                            "{pad}layer name={name} visible={}{locked} id={} at={at}",
                             u32::from(l.visible_by_default),
                             l.id.num
                         );
                     }
                     // Counted in the diagnostics (dangling or malformed);
                     // the tree still shows where the file put it.
-                    None => println!("{pad}layer name=- unresolved={}", id.num),
+                    None => println!("{pad}layer name=- unresolved={} at={at}", id.num),
                 },
-                (None, Some(label)) => println!("{pad}folder label={label:?}"),
-                (None, None) => println!("{pad}group"),
+                (None, Some(label)) => println!("{pad}folder label={label:?} at={at}"),
+                (None, None) => println!("{pad}group at={at}"),
             }
-            walk(read, &n.children, depth + 1);
+            walk(read, &n.children, path);
+            path.pop();
         }
     }
-    walk(read, &read.order, 0);
+    walk(read, &read.order, &mut Vec::new());
+}
+
+/// A layer-panel position as `layer-*` commands take it: `1.0.2` or `root`.
+fn dotted(path: &[usize]) -> String {
+    if path.is_empty() {
+        return "root".to_owned();
+    }
+    path.iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+/// One layer-panel arrangement edit, as the four `layer-folder-*` and
+/// `layer-move` commands ask for it.
+pub(crate) enum LayerOrderOp {
+    /// `layer-folder-add`.
+    Add {
+        parent: Vec<usize>,
+        index: Option<usize>,
+        label: String,
+    },
+    /// `layer-folder-rename`.
+    Rename { at: Vec<usize>, label: String },
+    /// `layer-folder-delete`.
+    Delete { at: Vec<usize> },
+    /// `layer-move`.
+    Move {
+        from: Vec<usize>,
+        parent: Vec<usize>,
+        index: Option<usize>,
+    },
+}
+
+/// The number of entries under `parent` in `tree`, or 0 when there is no
+/// such entry (the engine then refuses with the position).
+fn order_len(tree: &[pdfcer_core::layers::OrderNode], parent: &[usize]) -> usize {
+    let mut kids = tree;
+    for &i in parent {
+        match kids.get(i) {
+            Some(n) => kids = &n.children,
+            None => return 0,
+        }
+    }
+    kids.len()
+}
+
+/// Remove entry `last` under `parent`, if both exist.
+fn remove_order_entry(
+    tree: &mut Vec<pdfcer_core::layers::OrderNode>,
+    parent: &[usize],
+    last: usize,
+) {
+    match parent.split_first() {
+        None => {
+            if last < tree.len() {
+                tree.remove(last);
+            }
+        }
+        Some((&i, rest)) => {
+            if let Some(n) = tree.get_mut(i) {
+                remove_order_entry(&mut n.children, rest, last);
+            }
+        }
+    }
+}
+
+/// `layer-folder-add`, `layer-folder-rename`, `layer-folder-delete` and
+/// `layer-move`.
+pub(crate) fn cmd_layer_order(
+    input: &Path,
+    op: LayerOrderOp,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let tree = pdfcer_core::layers::read_layers(&session.graph()).order;
+    let (verb, result) = match &op {
+        LayerOrderOp::Add {
+            parent,
+            index,
+            label,
+        } => (
+            "layer-folder-add",
+            session.add_layer_folder(
+                parent,
+                index.unwrap_or_else(|| order_len(&tree, parent)),
+                label,
+            ),
+        ),
+        LayerOrderOp::Rename { at, label } => (
+            "layer-folder-rename",
+            session.rename_layer_folder(at, label),
+        ),
+        LayerOrderOp::Delete { at } => ("layer-folder-delete", session.delete_layer_folder(at)),
+        LayerOrderOp::Move {
+            from,
+            parent,
+            index,
+        } => {
+            // The default index is the end of `parent` read with the entry
+            // taken out, as the engine reads it.
+            let index = index.unwrap_or_else(|| {
+                let mut after = tree.clone();
+                if let Some((&last, from_parent)) = from.split_last() {
+                    remove_order_entry(&mut after, from_parent, last);
+                }
+                order_len(&after, parent)
+            });
+            ("layer-move", session.move_layer_node(from, parent, index))
+        }
+    };
+    let done = match result {
+        Ok(done) => done,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "{verb} {} mode={} -> {}; at={} changed={} follows_layer={} objects={} appended={} out_bytes={}",
+        input.display(),
+        mode.name(),
+        output.display(),
+        dotted(&done.path),
+        done.changed,
+        u8::from(done.follows_layer),
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    finish_edit(input, &outcome)
 }
 
 /// Render one font's `fsType` state as a single stable token.
