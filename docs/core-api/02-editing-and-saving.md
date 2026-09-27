@@ -3148,6 +3148,16 @@ and everywhere. So the colour has to go into the stream.
 
 - `annot_author::WidgetChrome { background, border_color }` — both
   `Option<MkColor>` — is taken by all four appearance builders.
+- `WidgetChrome::border: Option<BorderSpec>`, set with
+  `WidgetChrome::with_border(spec)`, is the `/BS` the builders **draw**
+  (§12.5.4 Table 166): the stroke width, a `[3] 0 d` dash for `Dashed`, the
+  bottom edge only for `Underline`, and a light/shadow band one border-width
+  deep for `Beveled` (white over 50% grey) and `Inset` (50% over 75%).
+  Width `0` draws no frame. A radio ring honours width and dash only.
+  `None` draws the one-point solid frame, byte-identical to before.
+  Creation, `edit_widget` (the edit's border, else the widget's own) and
+  every fill/property redraw pass it; a GUI calling a builder directly
+  should pass `.with_border(widget.border)` too.
 - `needs_regen` now includes `edit.background.is_some() || edit.border_color.is_some()`.
   ⚠ **The two halves are inseparable**: the flag without the builders would
   repaint in the hard-coded default and *discard* the operator's colour, which

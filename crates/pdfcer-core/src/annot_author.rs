@@ -3928,6 +3928,11 @@ pub struct WidgetChrome {
     /// `/MK` `/BC`. `None` = the widget states none; the builder draws its
     /// border in black, as it always has.
     pub border_color: Option<MkColor>,
+    /// `/BS` `/S` and `/W` (§12.5.4 Table 166) — how wide the border is and
+    /// how it is drawn. `None` = the widget states none, which Table 166
+    /// defines as solid and one point, so it draws exactly what `Some` of
+    /// the default does. See [`Self::with_border`].
+    pub border: Option<crate::edit::BorderSpec>,
 }
 
 impl WidgetChrome {
@@ -3937,7 +3942,32 @@ impl WidgetChrome {
         Self {
             background,
             border_color,
+            border: None,
         }
+    }
+
+    /// The same colours with a `/BS` border style, which every widget
+    /// builder draws: the width, a dash for [`BorderStyle::Dashed`]
+    /// (Table 166's default `[3]`, since [`BorderSpec`] carries no `/D`), a
+    /// bottom edge only for `Underline`, and a highlight/shadow band inside
+    /// the frame for `Beveled` and `Inset`. Width `0` draws no border.
+    ///
+    /// A radio button's ring honours the width and the dash; `Underline`,
+    /// `Beveled` and `Inset` draw it as a solid ring.
+    ///
+    /// [`BorderStyle::Dashed`]: crate::edit::BorderStyle::Dashed
+    /// [`BorderSpec`]: crate::edit::BorderSpec
+    #[must_use]
+    pub const fn with_border(mut self, border: crate::edit::BorderSpec) -> Self {
+        self.border = Some(border);
+        self
+    }
+
+    /// The border width to stroke at; `None` when it is zero (Table 166:
+    /// no border) or not a finite number.
+    fn border_width(self) -> Option<f64> {
+        let w = self.border.unwrap_or_default().width;
+        (w.is_finite() && w > 0.0).then_some(w)
     }
 
     /// The background to fill with, or `None` to fill nothing — resolving
@@ -3983,6 +4013,74 @@ impl WidgetChrome {
 /// of the same file should come back with the same digits it went in with.
 fn mk_component(v: f32) -> f64 {
     v.to_string().parse::<f64>().unwrap_or(f64::from(v))
+}
+
+/// Stroke a `w` × `h` widget's rectangular border in its `/BS` style
+/// (§12.5.4 Table 166) and its `/MK` `/BC` colour.
+///
+/// The frame is inset by half its width because a stroke straddles its
+/// path, and one drawn on the BBox edge loses half its width to the form
+/// XObject's clip. With no `/BS` this emits exactly the one-point solid
+/// frame every builder drew before border styles were painted, so an
+/// appearance for a widget with no `/BS` is byte-identical to one authored
+/// earlier.
+///
+/// `Beveled` and `Inset` add a band one border-width deep inside the frame,
+/// lit on the left and top and shaded on the right and bottom: white over
+/// 50% grey for beveled (raised), 50% over 75% grey for inset (sunken). The
+/// greys are pdfcer's choice — Table 166 names the effect, not its colours.
+fn stroke_frame(b: &mut ContentBuilder, chrome: WidgetChrome, w: f64, h: f64) {
+    use crate::edit::BorderStyle;
+    let Some(bw) = chrome.border_width() else {
+        return;
+    };
+    let style = chrome.border.unwrap_or_default().style;
+    let i = bw / 2.0;
+    set_stroke(b, chrome.stroke());
+    b.set_line_width(bw);
+    if style == BorderStyle::Underline {
+        b.move_to(0.0, i);
+        b.line_to(w, i);
+        b.paint(Paint::Stroke);
+        return;
+    }
+    let dashed = style == BorderStyle::Dashed;
+    if dashed {
+        b.set_dash(&[3.0], 0.0);
+    }
+    b.rect(i, i, w - 2.0 * i, h - 2.0 * i);
+    b.paint(Paint::Stroke);
+    if dashed {
+        b.set_dash(&[], 0.0);
+    }
+    let (light, dark) = match style {
+        BorderStyle::Beveled => (1.0, 0.5),
+        BorderStyle::Inset => (0.5, 0.75),
+        _ => return,
+    };
+    // Too small for a band inside the frame: the frame alone is the border.
+    if w <= 4.0 * bw || h <= 4.0 * bw {
+        return;
+    }
+    let (o, n) = (bw, 2.0 * bw);
+    b.set_fill_gray(light);
+    b.move_to(o, o);
+    b.line_to(o, h - o);
+    b.line_to(w - o, h - o);
+    b.line_to(w - n, h - n);
+    b.line_to(n, h - n);
+    b.line_to(n, n);
+    b.close_subpath();
+    b.paint(Paint::Fill);
+    b.set_fill_gray(dark);
+    b.move_to(w - o, h - o);
+    b.line_to(w - o, o);
+    b.line_to(o, o);
+    b.line_to(n, n);
+    b.line_to(w - n, n);
+    b.line_to(w - n, h - n);
+    b.close_subpath();
+    b.paint(Paint::Fill);
 }
 
 /// Set the non-stroking colour from an [`MkColor`] (§8.6.8's `g`, `rg`, `k`).
@@ -4081,11 +4179,6 @@ pub fn build_check_box_appearances(
         urx: w,
         ury: h,
     };
-    // A half-unit inset keeps the 1.0-wide border stroke INSIDE the BBox.
-    // A stroke is centred on its path, so a border drawn at the BBox edge
-    // would have half its width clipped away by the form XObject.
-    let inset = 0.5;
-
     // The box, then its border. A check box has no background of its own
     // historically, so an absent `/BG` fills nothing and the stream is
     // byte-identical to every one pdfcer has authored (R34).
@@ -4102,10 +4195,7 @@ pub fn build_check_box_appearances(
             b.rect(0.0, 0.0, w, h);
             b.paint(Paint::Fill);
         }
-        set_stroke(b, chrome_bc);
-        b.set_line_width(1.0);
-        b.rect(inset, inset, w - 2.0 * inset, h - 2.0 * inset);
-        b.paint(Paint::Stroke);
+        stroke_frame(b, chrome, w, h);
     };
 
     let mut off = ContentBuilder::new();
@@ -4284,7 +4374,8 @@ pub fn build_radio_button_appearances(
     // The half-unit inset keeps the 1.0-wide ring stroke inside the BBox, for
     // the same reason the check box insets its border: a stroke straddles its
     // path, so one drawn at the edge loses half its width to the clip.
-    let inset = 0.5;
+    let ring_width = chrome.border_width();
+    let inset = ring_width.map_or(0.5, |bw| bw / 2.0);
     let r = (w.min(h) / 2.0 - inset).max(0.5);
 
     /// Append a circle of radius `r` centred at `(cx, cy)` as four Béziers.
@@ -4313,10 +4404,21 @@ pub fn build_radio_button_appearances(
             circle(b, cx, cy, r);
             b.paint(Paint::Fill);
         }
-        set_stroke(b, chrome_bc);
-        b.set_line_width(1.0);
-        circle(b, cx, cy, r);
-        b.paint(Paint::Stroke);
+        if let Some(bw) = ring_width {
+            let dashed = chrome
+                .border
+                .is_some_and(|s| s.style == crate::edit::BorderStyle::Dashed);
+            set_stroke(b, chrome_bc);
+            b.set_line_width(bw);
+            if dashed {
+                b.set_dash(&[3.0], 0.0);
+            }
+            circle(b, cx, cy, r);
+            b.paint(Paint::Stroke);
+            if dashed {
+                b.set_dash(&[], 0.0);
+            }
+        }
     };
 
     let mut off = ContentBuilder::new();
@@ -4449,9 +4551,7 @@ pub fn build_push_button_appearance(
     // button look every desktop toolkit converges on, and it is pdfcer's own
     // design choice rather than a spec requirement or a parity claim — the
     // same discipline `build_radio_button_appearances` records for drawing a
-    // circle. The half-unit inset keeps the 1.0-wide stroke inside the BBox:
-    // a stroke straddles its path, so one drawn at the edge loses half its
-    // width to the form XObject's clip.
+    // circle. The frame is `stroke_frame`, in the widget's `/BS` style.
     //
     // This is the ONE builder whose default background is not "nothing".
     // The plate grey is what a push button has always been drawn on, and
@@ -4464,17 +4564,13 @@ pub fn build_push_button_appearance(
     // `Some(MkColor::None)` — Table 189's empty array, *"no colour"* — gets
     // no plate at all. That is a real thing to ask for (a transparent button
     // over artwork) and an absent key cannot express it.
-    let inset = 0.5;
     let mut plate = ContentBuilder::new();
     if let Some(bg) = chrome.fill(Some(MkColor::Gray(PUSH_BUTTON_PLATE_GRAY as f32))) {
         set_fill(&mut plate, bg);
         plate.rect(0.0, 0.0, w, h);
         plate.paint(Paint::Fill);
     }
-    set_stroke(&mut plate, chrome.stroke());
-    plate.set_line_width(1.0);
-    plate.rect(inset, inset, w - 2.0 * inset, h - 2.0 * inset);
-    plate.paint(Paint::Stroke);
+    stroke_frame(&mut plate, chrome, w, h);
     let mut content = plate.into_bytes();
 
     // THE CAPTION. Resolved size first (see the auto-size trap above), then a
@@ -4624,14 +4720,7 @@ pub fn build_field_text_appearance(
             box_art.paint(Paint::Fill);
         }
         if has_border {
-            // Inset by half the stroke width, for the reason every other
-            // builder here insets: a stroke straddles its path, so one drawn
-            // on the BBox edge loses half its width to the form XObject clip.
-            let inset = 0.5;
-            set_stroke(&mut box_art, chrome.stroke());
-            box_art.set_line_width(1.0);
-            box_art.rect(inset, inset, bbox.urx - 2.0 * inset, bbox.ury - 2.0 * inset);
-            box_art.paint(Paint::Stroke);
+            stroke_frame(&mut box_art, chrome, bbox.urx, bbox.ury);
         }
         content.extend_from_slice(&box_art.into_bytes());
     }

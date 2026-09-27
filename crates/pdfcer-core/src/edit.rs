@@ -23783,7 +23783,7 @@ impl EditSession {
             // written from, so the two cannot disagree. Defaults to stating
             // neither colour, which keeps a created text field's appearance
             // byte-identical — see `creation_chrome`.
-            spec.chrome,
+            spec.chrome.with_border(spec.border),
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -24831,7 +24831,7 @@ impl EditSession {
         // cannot draw a check mark.
         // `Pass 308.1`: the SAME chrome the `/MK` dictionary below is written
         // from, so the two cannot disagree. See `creation_chrome`.
-        let chrome = spec.chrome;
+        let chrome = spec.chrome.with_border(spec.border);
         let (off, on) = annot_author::build_check_box_appearances(w, h, spec.style, chrome);
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
@@ -25065,7 +25065,7 @@ impl EditSession {
             &spec.tooltip,
         )?;
         // `Pass 308.1`: the same chrome the `/MK` below is written from.
-        let chrome = spec.chrome;
+        let chrome = spec.chrome.with_border(spec.border);
         let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome);
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
@@ -26364,6 +26364,12 @@ impl EditSession {
             edit.border_color
                 .map_or(widget.border_color, MkColorEdit::resolved),
         );
+        // The `/BS` this command leaves, drawn by the redraw below: the edit's
+        // border, else the widget's own.
+        let chrome_after = match edit.border.or(widget.border) {
+            Some(border) => chrome_after.with_border(border),
+            None => chrome_after,
+        };
         if edit.caption.is_some() || edit.background.is_some() || edit.border_color.is_some() {
             let mut mk = self.deref_dict(updated.get(b"MK")).unwrap_or_default();
             if let Some(caption) = &edit.caption {
@@ -27835,7 +27841,7 @@ impl EditSession {
             // no longer the builder's fallback happening to equal it. The
             // agreement is now by construction rather than by coincidence,
             // which is the whole of what `Pass 308.0` found wrong here.
-            spec.chrome,
+            spec.chrome.with_border(spec.border),
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -28079,7 +28085,7 @@ impl EditSession {
             false,
             &resources,
             // `Pass 308.1`: the same chrome the `/MK` below is written from.
-            spec.chrome,
+            spec.chrome.with_border(spec.border),
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -40302,7 +40308,11 @@ impl EditSession {
     /// keys — the failure `build_button_states`'s own doc comment describes
     /// for the artwork, applied to the colours that artwork is drawn in.
     fn widget_chrome(widget: &forms::Widget) -> annot_author::WidgetChrome {
-        annot_author::WidgetChrome::new(widget.background, widget.border_color)
+        let chrome = annot_author::WidgetChrome::new(widget.background, widget.border_color);
+        match widget.border {
+            Some(border) => chrome.with_border(border),
+            None => chrome,
+        }
     }
 
     /// Whether the stream object `id` currently holds exactly `expected`.

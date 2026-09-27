@@ -9,7 +9,10 @@
 )]
 
 use pdfcer_core::document::Document;
-use pdfcer_core::edit::{ChoiceOption, EditSession, FieldEdit, Visibility, WidgetEdit};
+use pdfcer_core::edit::{
+    BorderSpec, BorderStyle, ChoiceOption, EditSession, FieldEdit, NewCheckBox, Visibility,
+    WidgetEdit,
+};
 use pdfcer_core::forms;
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{Dict, ObjId, Object};
@@ -292,5 +295,155 @@ endstream",
         obj_dict(&s, 6),
         before,
         "the sibling widget's dictionary (and its /AP) was rewritten"
+    );
+}
+
+/// A text field with a stated border colour and, optionally, a `/BS`.
+fn bordered_text_field(bs: &str) -> EditSession {
+    session(&[
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] /DA (/Helv 0 Tf 0 g) >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Annots [4 0 R] >>",
+        &format!(
+            "<< /FT /Tx /T (Name) /V (Hi) /Type /Annot /Subtype /Widget /P 3 0 R \
+             /Rect [20 300 220 324] /MK << /BC [0] >> {bs} >>"
+        ),
+    ])
+}
+
+/// The bytes of one `/AP` `/N` state stream of a button widget.
+fn state_ap_bytes(s: &EditSession, widget: u32, state: &[u8]) -> Vec<u8> {
+    let g = s.graph();
+    let Some(Object::Dict(ap)) = obj_dict(s, widget).get(b"AP").map(|o| g.resolve(o).clone())
+    else {
+        return Vec::new();
+    };
+    let Some(Object::Dict(n)) = ap.get(b"N").map(|o| g.resolve(o).clone()) else {
+        return Vec::new();
+    };
+    let Some(Object::Stream(st)) = n.get(state).map(|o| g.resolve(o).clone()) else {
+        return Vec::new();
+    };
+    s.view().slice(st.data_span).unwrap_or_default().to_vec()
+}
+
+#[test]
+fn a_border_edit_draws_the_width_and_the_dash() {
+    let mut s = bordered_text_field("");
+    s.edit_widget(
+        "Name",
+        0,
+        &WidgetEdit::new().with_border(BorderSpec {
+            style: BorderStyle::Dashed,
+            width: 3.0,
+        }),
+    )
+    .unwrap();
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(contains(&ap, b"3 w"), "{}", String::from_utf8_lossy(&ap));
+    assert!(
+        contains(&ap, b"[3] 0 d"),
+        "{}",
+        String::from_utf8_lossy(&ap)
+    );
+    assert!(
+        contains(&ap, b"1.5 1.5 197 21 re"),
+        "{}",
+        String::from_utf8_lossy(&ap)
+    );
+}
+
+#[test]
+fn a_resize_redraws_in_the_widgets_existing_border_style() {
+    let mut s = bordered_text_field("/BS << /S /U /W 2 >>");
+    s.edit_widget(
+        "Name",
+        0,
+        &WidgetEdit::new().with_rect(pdfcer_core::page_tree::Rect {
+            llx: 20.0,
+            lly: 300.0,
+            urx: 120.0,
+            ury: 330.0,
+        }),
+    )
+    .unwrap();
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(contains(&ap, b"2 w"), "{}", String::from_utf8_lossy(&ap));
+    // Underline: one bottom edge, no rectangle.
+    assert!(contains(&ap, b"0 1 m"), "{}", String::from_utf8_lossy(&ap));
+    assert!(
+        !contains(&ap, b" re\nS"),
+        "{}",
+        String::from_utf8_lossy(&ap)
+    );
+}
+
+#[test]
+fn a_zero_width_border_draws_no_frame_on_a_check_box() {
+    let mut s = session(&[
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] >>",
+    ]);
+    let rect = pdfcer_core::page_tree::Rect {
+        llx: 20.0,
+        lly: 300.0,
+        urx: 40.0,
+        ury: 320.0,
+    };
+    s.add_check_box(&NewCheckBox::new(0, "Ok", rect).declining_tooltip())
+        .unwrap();
+    let widget = field(&s, "Ok").widgets[0].id.num;
+    assert!(contains(&state_ap_bytes(&s, widget, b"Off"), b"1 w"));
+    let out = s
+        .edit_widget(
+            "Ok",
+            0,
+            &WidgetEdit::new().with_border(BorderSpec {
+                style: BorderStyle::Solid,
+                width: 0.0,
+            }),
+        )
+        .unwrap();
+    assert!(out.appearance_regenerated);
+    // No background and no frame: the /Off state is now an empty stream.
+    let off = state_ap_bytes(&s, widget, b"Off");
+    assert!(
+        !contains(
+            &off, b" w
+"
+        ),
+        "{}",
+        String::from_utf8_lossy(&off)
+    );
+}
+
+#[test]
+fn a_beveled_border_draws_its_light_and_shadow_bands() {
+    let mut s = bordered_text_field("");
+    s.edit_widget(
+        "Name",
+        0,
+        &WidgetEdit::new().with_border(BorderSpec {
+            style: BorderStyle::Beveled,
+            width: 2.0,
+        }),
+    )
+    .unwrap();
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(contains(&ap, b"1 g"), "{}", String::from_utf8_lossy(&ap));
+    assert!(contains(&ap, b"0.5 g"), "{}", String::from_utf8_lossy(&ap));
+}
+
+#[test]
+fn filling_a_field_redraws_it_in_its_border_style() {
+    let mut s = bordered_text_field("/BS << /S /D /W 2 >>");
+    s.fill_text_field("Name", "Typed").unwrap();
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(contains(&ap, b"2 w"), "{}", String::from_utf8_lossy(&ap));
+    assert!(
+        contains(&ap, b"[3] 0 d"),
+        "{}",
+        String::from_utf8_lossy(&ap)
     );
 }
