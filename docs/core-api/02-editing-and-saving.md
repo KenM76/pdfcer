@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 251 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 252 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 251 public `EditSession` methods
+## 1. Verb index — all 252 public `EditSession` methods
 
-**Count: 251.** Established by brace-matched extraction of the six
+**Count: 252.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -1750,6 +1750,7 @@ always errors.
 |---|---|---|---|
 | Author a geometric markup | `add_markup(&mut self, page_index, spec: &MarkupSpec) -> Result<ObjId, EditError>` | 9986 | New annotation id. Exactly `add_markup_with(.., &MarkupOptions::default())`. |
 | Author a geometric markup **with options** | `add_markup_with(&mut self, page_index, spec: &MarkupSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | — | `Pass 81.1` + `Pass 150.0`. `MarkupOptions` now carries `opacity: Option<f64>` (§12.5.2 Table 164 `/CA`) **and `note: Option<MarkupNote>`** (`/Contents` + `/T` + `/M`). **One verb, one undo entry** — see the two notes below. |
+| Draw a geometric markup **as page content** | `add_markup_as_content(&mut self, page_index, spec: &MarkupSpec, options: &MarkupOptions) -> Result<MarkupContentOutcome, EditError>` | — | `Pass 356.0` (G043). The same bytes `add_markup_with` would put in `/AP` `/N`, appended to `/Contents` (§7.8.2) through `paste_objects` — so **one undo entry**, `q`…`Q`-wrapped, resources (Highlight's Multiply `/ExtGState`) bound under fresh names, and the **strict** certification gate (it modifies page content), not the annotation one. No annotation is created; the result is ordinary vector objects that `move_objects`/`transform_objects`/`delete_objects` take. `MarkupContentOutcome { objects: Range<usize>, paste: PasteOutcome }` (`#[non_exhaustive]`): `objects` is the index range in `page_objects` after the call (the page's LAST objects; select it to hand the shape on). `opacity` becomes a bound `/ExtGState` with `/CA` and `/ca` (§8.4.5 Table 57); `dash` draws as on the annotation; `note` is **not written** and is disclosed in `paste.disclosures`. Refuses bad opacity/geometry before writing anything. Text-bearing kinds have no `MarkupSpec` form, so this takes geometric shapes only. |
 | Author a text-bearing annotation | `add_text_annotation(&mut self, page_index, spec: &TextAnnotSpec) -> Result<ObjId, EditError>` | 12034 | FreeText / Text+`/Popup` / Stamp. Exactly `add_text_annotation_with(.., &MarkupOptions::default())`. |
 | Author a text-bearing annotation **at an opacity** | `add_text_annotation_with(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | — | `Pass 81.1`. The twin of the above, shipped in the same Pass because Table 164 is the **markup-annotation** entry list and a sticky note is a markup annotation. `/CA` goes on the parent, never on its `/Popup`. |
 | Place one page's artwork on a page | `place_page_artwork(&mut self, source: &DocumentView<'_>, source_page: usize, page_index: usize, rect: Rect) -> Result<PlacedArtwork, EditError>` | — | `Pass 293.0`. The artwork becomes a **form XObject** behind a `/Stamp` annotation's `/AP` `/N` — vector, selectable, and the target page's content stream is **never touched** (R47). One undo entry for the form, the annotation, the imported resource closure and the `/Annots` patch. Reports scaling (§12.5.5 stretches anisotropically — normative), what was left behind on the source page (annotations, **widgets — the dynamic-stamp number**), and how much the file grew. Refuses with `SourcePageOutOfRange` for the SOURCE's index, distinct from `PageOutOfRange`. |

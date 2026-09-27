@@ -405,6 +405,8 @@ pub(crate) struct AnnotateArgs<'a> {
     pub(crate) note: Option<String>,
     pub(crate) note_author: Option<String>,
     pub(crate) note_date: Option<String>,
+    /// `--as-content`: draw into the page content, not as an annotation.
+    pub(crate) as_content: bool,
     pub(crate) kind: AnnotKindArg,
     pub(crate) page: u32,
     pub(crate) rect: Option<&'a str>,
@@ -533,6 +535,15 @@ pub(crate) fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
     // what the generator decided, and a stamp whose label was shrunk or
     // clipped reached the operator as silence.
     let mut authored_text: Option<pdfcer_core::edit::TextAnnotOutcome> = None;
+    let mut drawn: Option<pdfcer_core::edit::MarkupContentOutcome> = None;
+    if args.as_content && is_text_bearing(args.kind) {
+        eprintln!(
+            "pdfcer: {}: --as-content draws geometric shapes only; {:?} is a text-bearing annotation",
+            input.display(),
+            args.kind
+        );
+        return exit::EDIT_REFUSED;
+    }
     let add_result = if is_text_bearing(args.kind) {
         match build_text_annot_spec(args) {
             Ok(spec) => session
@@ -547,6 +558,11 @@ pub(crate) fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
         }
     } else {
         match build_markup_spec(args) {
+            Ok(spec) if args.as_content => session
+                .add_markup_as_content(index, &spec, &markup_options)
+                .map(|o| {
+                    drawn = Some(o);
+                }),
             Ok(spec) => session
                 .add_markup_with(index, &spec, &markup_options)
                 .map(|_| ()),
@@ -565,6 +581,18 @@ pub(crate) fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
     // annotation pdfcer did not have to decide anything about.
     if let Some(o) = &authored_text {
         report_text_annot_inferences(input, o);
+    }
+    if let Some(o) = &drawn {
+        println!(
+            "annotate {}: drawn as page content objects={}..{} resources_added={}",
+            input.display(),
+            o.objects.start,
+            o.objects.end,
+            o.paste.resources_added
+        );
+        for d in &o.paste.disclosures {
+            println!("  {d}");
+        }
     }
 
     let outcome = match save_edited(

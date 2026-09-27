@@ -946,6 +946,20 @@ pub(crate) enum Command {
         /// there looks authoritative and nothing downstream would report it.
         #[arg(long, value_name = "D:YYYYMMDDHHMMSS")]
         note_date: Option<String>,
+        /// Draw the shape into the page's own content instead of adding a
+        /// comment: it becomes an ordinary vector object beside the page's
+        /// existing lines, which the object move, transform and delete
+        /// commands then handle, and no comment list shows it.
+        ///
+        /// For the geometric types only (square, circle, line, polygon,
+        /// polyline, ink, and the text-markup types); `freetext`, `text` and
+        /// `stamp` are refused. `--opacity` is drawn through a graphics state.
+        /// A note has nowhere to go in page content, so the note flags
+        /// cannot be combined with this.
+        ///
+        /// Prints the index range of the new page objects.
+        #[arg(long, conflicts_with_all = ["note", "note_author", "note_date"])]
+        as_content: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

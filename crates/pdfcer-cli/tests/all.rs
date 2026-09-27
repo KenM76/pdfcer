@@ -4,6 +4,7 @@
 
 mod add_fields;
 mod add_text;
+mod annotate_as_content;
 mod annotate_note;
 mod bookmarks;
 mod copy_page;

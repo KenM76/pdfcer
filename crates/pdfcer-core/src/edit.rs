@@ -4332,6 +4332,21 @@ pub struct PasteOutcome {
     pub disclosures: Vec<String>,
 }
 
+/// What [`EditSession::add_markup_as_content`] drew.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct MarkupContentOutcome {
+    /// The page objects the shape became, as indices into
+    /// [`EditSession::page_objects`] after the call. They are the last
+    /// objects on the page; this is the range a shell selects to hand the new
+    /// shape to the move, transform and delete verbs. A shape can be more
+    /// than one object (an arrow's line and its head).
+    pub objects: std::ops::Range<usize>,
+    /// The paste the shape was committed through: its page-space bounds, the
+    /// resource bindings the page gained, and every disclosure.
+    pub paste: PasteOutcome,
+}
+
 /// What [`EditSession::transform_objects`] did — and what
 /// [`EditSession::transform_preview`] says it *would* do (`Pass 113.0`).
 ///
@@ -29106,6 +29121,86 @@ impl EditSession {
         // byte-identical rather than partway through a command.
         options.validate()?;
         self.add_markup_inner(page_index, spec, options)
+    }
+
+    /// Draw a markup shape as **ordinary page content** rather than as an
+    /// annotation: the same bytes [`Self::add_markup_with`] would put in the
+    /// annotation's `/AP` `/N`, appended to the page's `/Contents` (§7.8.2)
+    /// inside `q`…`Q`, with the resources they use (the Highlight Multiply
+    /// `/ExtGState`) bound under fresh page-resource names.
+    ///
+    /// The result is a vector object like any the page already has: the
+    /// move, transform and delete verbs handle it, and no comment panel lists
+    /// it. One undo entry.
+    ///
+    /// [`MarkupOptions::opacity`] becomes an `/ExtGState` with `/CA` and
+    /// `/ca` (§8.4.5 Table 57) selected before the shape, since page content
+    /// has no annotation to carry `/CA`. [`MarkupOptions::dash`] draws as it
+    /// does on the annotation. [`MarkupOptions::note`] has nowhere to go in
+    /// page content; it is not written, and the outcome discloses that.
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::{Color, MarkupSpec};
+    /// use pdfcer_core::document::Document;
+    /// use pdfcer_core::edit::{EditSession, MarkupOptions};
+    /// use pdfcer_core::page_tree::Rect;
+    ///
+    /// let bytes = std::fs::read(concat!(
+    ///     env!("CARGO_MANIFEST_DIR"),
+    ///     "/../../fixtures/synthetic/hello.pdf"
+    /// ))?;
+    /// let mut s = EditSession::new(Document::from_bytes(bytes)?);
+    /// let spec = MarkupSpec::Square {
+    ///     rect: Rect { llx: 100.0, lly: 100.0, urx: 200.0, ury: 150.0 },
+    ///     border: Some(Color::Rgb(1.0, 0.0, 0.0)),
+    ///     interior: None,
+    ///     border_width: 2.0,
+    ///     border_effect: None,
+    /// };
+    /// let drawn = s.add_markup_as_content(0, &spec, &MarkupOptions::default())?;
+    /// assert!(!drawn.objects.is_empty());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::MarkupOpacityOutOfRange`] and the geometry refusals of
+    /// [`Self::add_markup_with`], before anything is written; then
+    /// [`Self::paste_objects`]'s: encryption, certification (this modifies
+    /// page content, so the strict gate applies, not the annotation one),
+    /// and [`EditError::PageOutOfRange`].
+    pub fn add_markup_as_content(
+        &mut self,
+        page_index: usize,
+        spec: &MarkupSpec,
+        options: &MarkupOptions,
+    ) -> Result<MarkupContentOutcome, EditError> {
+        options.validate()?;
+        validate_geometry(spec)?;
+        let authored = annot_author::build_appearance_opts(
+            spec,
+            &annot_author::AppearanceOptions {
+                quad_order: self.quad_point_order,
+                dash: options.dash.clone(),
+            },
+        );
+        let clip = markup_content_clip(&authored, options.opacity);
+        let before = match self.page_objects(page_index) {
+            Ok(objects) => objects.objects.len(),
+            Err(EditError::VectorEditNoContents { .. }) => 0,
+            Err(e) => return Err(e),
+        };
+        let mut paste = self.paste_objects(page_index, &clip, crate::vector::Matrix::IDENTITY)?;
+        if options.note.is_some() {
+            paste
+                .disclosures
+                .push("the note was not written: page content carries no comment text".to_owned());
+        }
+        let after = self.page_objects(page_index)?.objects.len();
+        Ok(MarkupContentOutcome {
+            objects: before..after,
+            paste,
+        })
     }
 
     fn add_markup_inner(
@@ -59124,4 +59219,71 @@ fn reject_dotted_partial(partial: &str) -> Result<(), EditError> {
 struct DecoupledContent {
     content_object: u32,
     emptied: u64,
+}
+
+/// A one-item [`crate::vector::ObjectClip`] carrying an authored markup
+/// appearance as page content, for [`EditSession::add_markup_as_content`].
+/// Each `/Resources` entry of the appearance becomes a clip object bound by
+/// its own name; `opacity` adds an `/ExtGState` selected ahead of the shape.
+fn markup_content_clip(
+    authored: &annot_author::AuthoredAppearance,
+    opacity: Option<f64>,
+) -> crate::vector::ObjectClip {
+    use crate::vector::{Bounds, ClipBinding, ClipItem, ClipObject, ObjectClip, Point};
+    let mut objects: BTreeMap<u32, ClipObject> = BTreeMap::new();
+    let mut bindings: Vec<ClipBinding> = Vec::new();
+    let mut bind = |category: &[u8], name: &[u8], value: Object| {
+        let object = u32::try_from(objects.len() + 1).unwrap_or(u32::MAX);
+        objects.insert(
+            object,
+            ClipObject {
+                value,
+                payload: None,
+            },
+        );
+        bindings.push(ClipBinding {
+            category: category.to_vec(),
+            name: name.to_vec(),
+            object,
+        });
+    };
+    let mut bytes = Vec::new();
+    if let Some(alpha) = opacity {
+        let mut gs = Dict::new();
+        gs.insert(Name::from(b"Type"), Object::Name(Name::from(b"ExtGState")));
+        gs.insert(Name::from(b"CA"), Object::Real(alpha));
+        gs.insert(Name::from(b"ca"), Object::Real(alpha));
+        bind(b"ExtGState", b"PdfcerAlpha", Object::Dict(gs));
+        bytes.extend_from_slice(b"/PdfcerAlpha gs\n");
+    }
+    if let Some(Object::Dict(resources)) = authored.ap_dict.get(b"Resources") {
+        for (category, entries) in resources.iter() {
+            if let Object::Dict(entries) = entries {
+                for (name, value) in entries.iter() {
+                    bind(&category.0, &name.0, value.clone());
+                }
+            }
+        }
+    }
+    bytes.extend_from_slice(&authored.ap_content);
+    bindings.sort();
+    let r = authored.rect;
+    let bbox = Bounds {
+        min: Point { x: r.llx, y: r.lly },
+        max: Point { x: r.urx, y: r.ury },
+    };
+    ObjectClip {
+        version: crate::vector::CLIP_VERSION,
+        items: vec![ClipItem {
+            bytes,
+            ctm: crate::vector::Matrix::IDENTITY,
+            kind: "path",
+            bbox,
+            bindings,
+            prelude: Vec::new(),
+        }],
+        objects,
+        bbox,
+        annotations: Vec::new(),
+    }
 }

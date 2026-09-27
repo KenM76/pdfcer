@@ -81,6 +81,7 @@ mod insert_pages_preserves_undo;
 mod layers;
 mod locked_contents;
 mod malformed_opens;
+mod markup_as_content;
 mod markup_border_style;
 mod markup_clip_carry;
 mod markup_note;
