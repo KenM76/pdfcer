@@ -616,6 +616,35 @@ pub(crate) enum SaveMode {
     Full,
 }
 
+/// `layer-delete`'s `--content`, the CLI face of
+/// [`pdfcer_core::edit::LayerContentPolicy`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum LayerContentArg {
+    /// Keep what the layer drew, always visible and on no layer.
+    Keep,
+    /// Remove what the layer drew, so the page looks as it did with the
+    /// layer hidden. Colour, position and clipping it set still apply.
+    Remove,
+}
+
+impl LayerContentArg {
+    /// The core policy this names.
+    pub(crate) const fn to_core(self) -> pdfcer_core::edit::LayerContentPolicy {
+        match self {
+            Self::Keep => pdfcer_core::edit::LayerContentPolicy::KeepUnlayered,
+            Self::Remove => pdfcer_core::edit::LayerContentPolicy::RemoveContent,
+        }
+    }
+
+    /// The value as typed.
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Keep => "keep",
+            Self::Remove => "remove",
+        }
+    }
+}
+
 /// `text-object-split`'s `--granularity`, the CLI face of
 /// [`pdfcer_core::vector::SplitGranularity`].
 ///

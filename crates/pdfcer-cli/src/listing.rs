@@ -1319,16 +1319,15 @@ pub(crate) fn cmd_layer_edit(
     finish_edit(input, &outcome)
 }
 
-/// `layer-delete` — delete a layer, keeping its content unlayered.
+/// `layer-delete` — delete a layer, keeping or removing its content.
 pub(crate) fn cmd_layer_delete(
     input: &Path,
     pick: &LayerPick,
+    content: LayerContentArg,
     output: &Path,
     mode: SaveMode,
     verify_undo: bool,
 ) -> u8 {
-    use pdfcer_core::edit::LayerContentPolicy;
-
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
@@ -1337,7 +1336,7 @@ pub(crate) fn cmd_layer_delete(
         Ok(layer) => layer,
         Err(code) => return code,
     };
-    let deleted = match session.delete_layer(layer, LayerContentPolicy::KeepUnlayered) {
+    let deleted = match session.delete_layer(layer, content.to_core()) {
         Ok(deleted) => deleted,
         Err(err) => return report_edit_error(input, &err),
     };
@@ -1354,15 +1353,18 @@ pub(crate) fn cmd_layer_delete(
     };
     let r = &outcome.report;
     println!(
-        "layer-delete {} id={} mode={} -> {}; sections={} streams={} annotations={} xobjects={} objects={} appended={} out_bytes={}",
+        "layer-delete {} id={} content={} mode={} -> {}; sections={} streams={} annotations={} xobjects={} paints={} xobject_calls={} objects={} appended={} out_bytes={}",
         input.display(),
         layer.num,
+        content.name(),
         mode.name(),
         output.display(),
         deleted.sections,
         deleted.streams,
         deleted.annotations,
         deleted.xobjects,
+        deleted.paints,
+        deleted.xobject_calls,
         r.objects_written,
         r.bytes_appended,
         r.bytes_written,

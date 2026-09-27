@@ -222,3 +222,34 @@ fn layer_delete_refuses_a_membership_member() {
     assert!(String::from_utf8_lossy(&o.stderr).contains("membership"));
     assert!(!out.exists());
 }
+
+/// `--content remove` stops the layer painting and says how much it removed.
+#[test]
+fn layer_delete_can_remove_the_content() {
+    let (o, out) = delete(
+        &fixture("painted-layers.pdf"),
+        &[
+            "--layer",
+            "Hidden Box",
+            "--content",
+            "remove",
+            "--mode",
+            "full",
+            "--verify-undo",
+        ],
+        "delete_remove",
+    );
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(stdout.contains("content=remove"), "{stdout}");
+    assert!(stdout.contains("paints=2 xobject_calls=0"), "{stdout}");
+    let bytes = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(bytes.contains("400 60 120 120 re n"));
+    assert!(!bytes.contains("400 60 120 120 re f"));
+    std::fs::remove_file(out).ok();
+}

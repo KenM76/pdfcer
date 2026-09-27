@@ -7738,6 +7738,15 @@ pub enum EditError {
         /// The membership dictionary naming it.
         ocmd: ObjId,
     },
+    /// A layer delete removing content was refused because a form field's
+    /// widget is on the layer; delete the field instead.
+    #[error("widget annotation {annot} is on layer {layer}; delete its form field first")]
+    LayerHasWidget {
+        /// The layer that was to be deleted.
+        layer: ObjId,
+        /// The widget annotation.
+        annot: ObjId,
+    },
     /// A layer delete could not rewrite a content stream that draws on the
     /// layer, so nothing was written.
     #[error("content stream {stream} cannot be rewritten: {reason}")]
@@ -48028,20 +48037,23 @@ impl EditSession {
         layer: ObjId,
         policy: LayerContentPolicy,
     ) -> Result<LayerDeleteOutcome, EditError> {
-        match policy {
-            LayerContentPolicy::KeepUnlayered => {}
-        }
+        let remove = match policy {
+            LayerContentPolicy::KeepUnlayered => false,
+            LayerContentPolicy::RemoveContent => true,
+        };
         let catalog_id = self.require_layer(layer)?;
-        let plan = self.plan_layer_delete(layer)?;
+        let plan = self.plan_layer_delete(layer, remove)?;
 
         let mut outcome = LayerDeleteOutcome {
-            annotations: plan.annots.len(),
+            annotations: plan.annots.len() + plan.removed_annots.len(),
             xobjects: plan.xobject_oc.len(),
             ..LayerDeleteOutcome::default()
         };
         let mut rewrites: Vec<(ObjId, ByteSpan, usize)> = Vec::new();
-        for (id, bytes, sections) in plan.rewrites {
-            outcome.sections += sections;
+        for (id, bytes, count) in plan.rewrites {
+            outcome.sections += count.sections;
+            outcome.paints += count.paints;
+            outcome.xobject_calls += count.calls;
             outcome.streams += 1;
             let span = self.stage_bytes(&bytes);
             rewrites.push((id, span, bytes.len()));
@@ -48084,6 +48096,25 @@ impl EditSession {
                     r.insert(Name::from(b"Properties"), props);
                 });
                 o.insert(Name::from(b"Resources"), res);
+            });
+        }
+        for (page, annot, popup) in &plan.removed_annots {
+            let gone = |x: &Object| {
+                let r = x.as_reference();
+                r == Some(*annot) || (popup.is_some() && r == *popup)
+            };
+            let mut slot = Object::Reference(*page);
+            layer_node(&load, &mut staged, &mut slot, |staged, p| {
+                let Object::Dict(p) = p else { return };
+                let Some(mut annots) = p.get(b"Annots").cloned() else {
+                    return;
+                };
+                layer_node(&load, staged, &mut annots, |_, a| {
+                    if let Object::Array(a) = a {
+                        a.retain(|x| !gone(x));
+                    }
+                });
+                p.insert(Name::from(b"Annots"), annots);
             });
         }
         for id in plan.xobject_oc.iter().chain(&plan.annots) {
@@ -48168,7 +48199,7 @@ impl EditSession {
     /// Everything [`Self::delete_layer`] must touch outside the
     /// configuration, found without writing anything: the refusals happen
     /// here.
-    fn plan_layer_delete(&self, layer: ObjId) -> Result<LayerDeletePlan, EditError> {
+    fn plan_layer_delete(&self, layer: ObjId, remove: bool) -> Result<LayerDeletePlan, EditError> {
         let view = self.view();
         let pages = self.pages()?;
         let me = Object::Reference(layer);
@@ -48187,7 +48218,7 @@ impl EditSession {
 
         let mut plan = LayerDeletePlan::default();
         let mut owners: BTreeSet<ObjId> = BTreeSet::new();
-        let mut streams: BTreeMap<ObjId, BTreeSet<Vec<u8>>> = BTreeMap::new();
+        let mut streams: BTreeMap<ObjId, OcNames> = BTreeMap::new();
         let mut visited: BTreeSet<ObjId> = BTreeSet::new();
         // (resources, the object whose /Resources entry holds them, the
         // content streams those resources serve)
@@ -48207,8 +48238,16 @@ impl EditSession {
                 };
                 if let Some(oc) = a.get(b"OC").and_then(Object::as_reference) {
                     check_oc(oc)?;
-                    if oc == layer {
+                    if oc == layer && !remove {
                         plan.annots.push(annot);
+                    } else if oc == layer {
+                        let subtype = a.get(b"Subtype").and_then(Object::as_name);
+                        if subtype.map(Name::as_bytes) == Some(b"Widget") {
+                            return Err(EditError::LayerHasWidget { layer, annot });
+                        }
+                        let popup = a.get(b"Popup").and_then(Object::as_reference);
+                        plan.removed_annots.push((page.id, annot, popup));
+                        continue;
                     }
                 }
                 if let Some(ap) = self.deref_dict(a.get(b"AP")) {
@@ -48251,17 +48290,30 @@ impl EditSession {
                     reason: "more than 10000 resource dictionaries",
                 });
             }
-            let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
+            let mut names = OcNames::default();
             if let Some(props) = self.deref_dict(resources.get(b"Properties")) {
                 for (name, value) in &props.0 {
                     if *value == me {
-                        names.insert(name.as_bytes().to_vec());
+                        names.props.insert(name.as_bytes().to_vec());
                     } else if let Some(id) = value.as_reference() {
                         check_oc(id)?;
                     }
                 }
             }
-            if !names.is_empty() {
+            if remove && let Some(xobjects) = self.deref_dict(resources.get(b"XObject")) {
+                for (name, value) in &xobjects.0 {
+                    let on_layer = value
+                        .as_reference()
+                        .and_then(|id| self.value(id))
+                        .is_some_and(
+                            |o| matches!(o, Object::Stream(x) if x.dict.get(b"OC") == Some(&me)),
+                        );
+                    if on_layer {
+                        names.xobjects.insert(name.as_bytes().to_vec());
+                    }
+                }
+            }
+            if !names.props.is_empty() {
                 let Some(owner) = owner else {
                     return Err(EditError::LayerContentNotRewritable {
                         stream: contents.first().copied().unwrap_or(ObjId::new(0, 0)),
@@ -48269,6 +48321,8 @@ impl EditSession {
                     });
                 };
                 owners.insert(owner);
+            }
+            if names != OcNames::default() {
                 for id in &contents {
                     match streams.get(id) {
                         Some(existing) if *existing != names => {
@@ -48324,8 +48378,10 @@ impl EditSession {
                 .map_err(|_| unreadable("it could not be decoded"))?;
             let cs = crate::content::ContentStream::parse(decoded)
                 .map_err(|_| unreadable("it could not be parsed"))?;
-            if let Some((bytes, sections)) = unwrap_oc_sections(&cs, &names).map_err(unreadable)? {
-                plan.rewrites.push((id, bytes, sections));
+            if let Some((bytes, count)) =
+                rewrite_oc_sections(&cs, &names, remove).map_err(unreadable)?
+            {
+                plan.rewrites.push((id, bytes, count));
             }
         }
         plan.owners = owners.into_iter().collect();
@@ -50648,6 +50704,18 @@ pub enum LayerContentPolicy {
     /// Keep the content, always visible and on no layer (the default).
     #[default]
     KeepUnlayered,
+    /// Remove what the layer draws, leaving the page as it looked with the
+    /// layer hidden.
+    ///
+    /// Hidden content still applies its graphics state (§8.11.3.1: colour,
+    /// transformation, clipping and text position), so only the painting
+    /// goes: inside each section path-painting operators become `n` (the
+    /// path still clips), `Tj`/`TJ` are removed, `'` and `"` keep their
+    /// line move and spacing, and `Do`, `sh` and inline images are removed.
+    /// A `Do` of an XObject whose own `/OC` is the layer is removed wherever
+    /// it is. Annotations on the layer are removed from `/Annots`, with
+    /// their pop-ups.
+    RemoveContent,
 }
 
 /// What [`EditSession::delete_layer`] did.
@@ -50660,10 +50728,36 @@ pub struct LayerDeleteOutcome {
     pub sections: usize,
     /// Content streams rewritten.
     pub streams: usize,
-    /// Annotations whose `/OC` was removed.
+    /// Annotations whose `/OC` was removed ([`LayerContentPolicy::KeepUnlayered`])
+    /// or that were removed ([`LayerContentPolicy::RemoveContent`]), pop-ups
+    /// not counted.
     pub annotations: usize,
     /// Form or image XObjects whose `/OC` was removed.
     pub xobjects: usize,
+    /// Painting operators removed or turned into `n`: path paints, text
+    /// runs, `Do`, `sh` and inline images inside the layer's sections.
+    /// Always 0 for [`LayerContentPolicy::KeepUnlayered`].
+    pub paints: usize,
+    /// `Do` operators removed because the XObject they draw is itself on
+    /// the layer. Always 0 for [`LayerContentPolicy::KeepUnlayered`].
+    pub xobject_calls: usize,
+}
+
+/// The resource names a content stream uses for the layer being deleted.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct OcNames {
+    /// `/Properties` names bound to the layer.
+    props: BTreeSet<Vec<u8>>,
+    /// `/XObject` names whose XObject's `/OC` is the layer.
+    xobjects: BTreeSet<Vec<u8>>,
+}
+
+/// What [`rewrite_oc_sections`] changed.
+#[derive(Debug, Clone, Copy, Default)]
+struct OcRewrite {
+    sections: usize,
+    paints: usize,
+    calls: usize,
 }
 
 /// The reading half of [`EditSession::delete_layer`].
@@ -50671,12 +50765,14 @@ pub struct LayerDeleteOutcome {
 struct LayerDeletePlan {
     /// Objects whose `/Resources /Properties` bind a name to the layer.
     owners: Vec<ObjId>,
-    /// Rewritten content: stream, new decoded bytes, sections unwrapped.
-    rewrites: Vec<(ObjId, Vec<u8>, usize)>,
+    /// Rewritten content: stream, new decoded bytes, what changed.
+    rewrites: Vec<(ObjId, Vec<u8>, OcRewrite)>,
     /// XObjects whose `/OC` is the layer.
     xobject_oc: Vec<ObjId>,
-    /// Annotations whose `/OC` is the layer.
+    /// Annotations whose `/OC` is the layer, to keep unlayered.
     annots: Vec<ObjId>,
+    /// Annotations on the layer to remove: page, annotation, its pop-up.
+    removed_annots: Vec<(ObjId, ObjId, Option<ObjId>)>,
 }
 
 /// What [`EditSession::set_layer_properties`] did.
@@ -50816,64 +50912,165 @@ fn forget_in_order(
 }
 
 /// `cs` without the `BDC` and matching `EMC` of every `/OC /name` section
-/// whose `name` is in `names` (§8.11.3.2); what is between them is kept.
-/// Each removed operator becomes one space, so neighbouring tokens cannot
-/// fuse. `Ok(None)` when no section names the layer.
+/// whose `name` is in `names.props` (§8.11.3.2).
+///
+/// With `remove` false what is between them is kept. With `remove` true the
+/// painting inside is removed as [`LayerContentPolicy::RemoveContent`]
+/// describes, and a `Do` of a name in `names.xobjects` is removed anywhere.
+/// Each removed span becomes one space, so neighbouring tokens cannot fuse.
+/// `Ok(None)` when nothing changes.
 ///
 /// # Errors
 ///
-/// A section naming the layer that is not closed in this stream.
-fn unwrap_oc_sections(
+/// - a section naming the layer is not closed in this stream;
+/// - a removed text run's advance positions visible text after it in the
+///   same text object (§9.4.4) — removing the run would move that text;
+/// - a removed text run is drawn in a clipping text render mode (`Tr` 4–7,
+///   §9.3.6), so removing it would change the clip;
+/// - a `"` operator without its three operands.
+fn rewrite_oc_sections(
     cs: &crate::content::ContentStream,
-    names: &BTreeSet<Vec<u8>>,
-) -> Result<Option<(Vec<u8>, usize)>, &'static str> {
-    use crate::content::ContentTokenKind;
+    names: &OcNames,
+    remove: bool,
+) -> Result<Option<(Vec<u8>, OcRewrite)>, &'static str> {
+    use crate::content::{ContentToken, ContentTokenKind};
     let buf = cs.buf.as_slice();
-    let span_of = |op: &crate::content::Operation<'_>| {
-        let start = op
-            .operands
-            .first()
-            .map_or(op.operator.span.start, |t| t.span.start);
-        (start, op.operator.span.end())
+    let name_of = |t: &ContentToken| match &t.kind {
+        ContentTokenKind::Operand(Object::Name(n)) => Some(n.as_bytes().to_vec()),
+        _ => None,
     };
-    let mut cuts: Vec<(usize, usize)> = Vec::new();
+    let text = |t: &ContentToken| buf.get(t.span.start..t.span.end()).unwrap_or_default();
+    let mut edits: Vec<(usize, usize, Vec<u8>)> = Vec::new();
     let mut open: Vec<bool> = Vec::new();
-    let mut sections = 0;
+    let mut inside = 0_usize;
+    let mut count = OcRewrite::default();
+    // A removed text run's advance is still owed by this text object.
+    let mut moved = false;
+    let mut clipping_text = false;
     for op in cs.operations() {
-        match op.operator_name(buf) {
+        let name = op.operator_name(buf);
+        let whole = (
+            op.operands
+                .first()
+                .map_or(op.operator.span.start, |t| t.span.start),
+            op.operator.span.end(),
+        );
+        let cut =
+            |edits: &mut Vec<(usize, usize, Vec<u8>)>| edits.push((whole.0, whole.1, vec![b' ']));
+        match name {
             Some(b"BDC") => {
                 let target = matches!(
                     op.operands,
-                    [tag, name]
-                        if matches!(&tag.kind, ContentTokenKind::Operand(Object::Name(t)) if t.as_bytes() == b"OC")
-                        && matches!(&name.kind, ContentTokenKind::Operand(Object::Name(n)) if names.contains(n.as_bytes()))
+                    [tag, n] if name_of(tag).as_deref() == Some(b"OC")
+                        && name_of(n).is_some_and(|n| names.props.contains(&n))
                 );
                 if target {
-                    cuts.push(span_of(&op));
-                    sections += 1;
+                    cut(&mut edits);
+                    count.sections += 1;
+                    inside += 1;
                 }
                 open.push(target);
+                continue;
             }
-            Some(b"BMC") => open.push(false),
-            Some(b"EMC") if open.pop() == Some(true) => cuts.push(span_of(&op)),
+            Some(b"BMC") => {
+                open.push(false);
+                continue;
+            }
+            Some(b"EMC") => {
+                if open.pop() == Some(true) {
+                    cut(&mut edits);
+                    inside -= 1;
+                }
+                continue;
+            }
+            _ => {}
+        }
+        if !remove {
+            continue;
+        }
+        match name {
+            Some(b"BT" | b"ET" | b"Td" | b"TD" | b"Tm" | b"T*") => moved = false,
+            Some(b"Tr") => {
+                clipping_text = matches!(
+                    op.operands,
+                    [m] if matches!(m.kind, ContentTokenKind::Operand(Object::Integer(4..=7)))
+                );
+            }
+            _ => {}
+        }
+        let layer_call = name == Some(b"Do")
+            && op
+                .operands
+                .first()
+                .and_then(name_of)
+                .is_some_and(|n| names.xobjects.contains(&n));
+        if inside == 0 {
+            match name {
+                _ if layer_call => {
+                    cut(&mut edits);
+                    count.calls += 1;
+                }
+                Some(b"Tj" | b"TJ") if moved => {
+                    return Err("removing its text would move visible text that follows it");
+                }
+                Some(b"'" | b"\"") => moved = false,
+                _ => {}
+            }
+            continue;
+        }
+        match name {
+            Some(b"f" | b"F" | b"f*" | b"B" | b"B*" | b"b" | b"b*" | b"S" | b"s") => {
+                edits.push((
+                    op.operator.span.start,
+                    op.operator.span.end(),
+                    b"n".to_vec(),
+                ));
+                count.paints += 1;
+            }
+            Some(b"Tj" | b"TJ" | b"'" | b"\"") => {
+                if clipping_text {
+                    return Err("its text on the layer is also a clipping path");
+                }
+                let keep = match name {
+                    Some(b"'") => b" T*".to_vec(),
+                    Some(b"\"") => {
+                        let [aw, ac, _] = op.operands else {
+                            return Err("a \" operator does not have three operands");
+                        };
+                        [b" ".as_slice(), text(aw), b" Tw ", text(ac), b" Tc T*"].concat()
+                    }
+                    _ => vec![b' '],
+                };
+                edits.push((whole.0, whole.1, keep));
+                moved = true;
+                count.paints += 1;
+            }
+            Some(b"Do" | b"sh") | None => {
+                cut(&mut edits);
+                if layer_call {
+                    count.calls += 1;
+                } else {
+                    count.paints += 1;
+                }
+            }
             _ => {}
         }
     }
     if open.contains(&true) {
         return Err("a layer section is not closed in the same stream");
     }
-    if sections == 0 {
+    if edits.is_empty() {
         return Ok(None);
     }
     let mut out = Vec::with_capacity(buf.len());
     let mut at = 0;
-    for (start, end) in cuts {
+    for (start, end, with) in edits {
         out.extend_from_slice(buf.get(at..start).unwrap_or_default());
-        out.push(b' ');
+        out.extend_from_slice(&with);
         at = end;
     }
     out.extend_from_slice(buf.get(at..).unwrap_or_default());
-    Ok(Some((out, sections)))
+    Ok(Some((out, count)))
 }
 
 /// Apply a [`LayerEdit`]'s `/D` fields for group `me` to the default

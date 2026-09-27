@@ -473,3 +473,120 @@ fn delete_layer_refuses_a_membership_member() {
     ));
     assert_eq!(s.undo_depth(), 0);
 }
+
+/// The unfiltered data of stream `num` after a full rewrite and reload.
+fn saved_stream(s: &EditSession, num: u32) -> String {
+    let (bytes, _) = s
+        .to_full_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .expect("full rewrite");
+    let doc = Document::from_bytes(bytes).expect("reopens");
+    let view = doc.view();
+    let Some(Object::Stream(stream)) = view.graph().value(ObjId::new(num, 0)).cloned() else {
+        panic!("object {num} is not a stream");
+    };
+    String::from_utf8_lossy(view.slice(stream.data_span).expect("in range")).into_owned()
+}
+
+/// Removing a layer's content turns its paints into `n` (a nested layer's
+/// too) and leaves other layers and state alone.
+#[test]
+fn delete_layer_remove_content_paints_nothing() {
+    let mut s = fixture("painted-layers.pdf");
+    let outcome = s
+        .delete_layer(ObjId::new(5, 0), LayerContentPolicy::RemoveContent)
+        .expect("deletes");
+    assert_eq!((outcome.sections, outcome.paints), (1, 2));
+    let content = saved_stream(&s, 8);
+    assert!(content.contains("400 60 120 120 re n"), "{content}");
+    assert!(content.contains("/OC /L4 BDC"), "{content}");
+    assert!(content.contains("400 220 120 120 re n"), "{content}");
+    assert!(content.contains("60 60 120 120 re f"), "{content}");
+    assert!(content.contains("0 600 612 60 re f"), "{content}");
+    assert!(!content.contains("/L2"), "{content}");
+}
+
+/// A clip on the layer still clips once its content is removed.
+#[test]
+fn delete_layer_remove_content_keeps_a_clip() {
+    let mut s = fixture("painted-layers.pdf");
+    let outcome = s
+        .delete_layer(ObjId::new(6, 0), LayerContentPolicy::RemoveContent)
+        .expect("deletes");
+    assert_eq!((outcome.sections, outcome.paints), (1, 0));
+    assert!(saved_stream(&s, 8).contains("0 0 300 792 re W n"));
+}
+
+/// A page with a text run, an XObject and an annotation on the layer.
+fn remove_session(content: &str, subtype: &str) -> EditSession {
+    let form = "0 0 5 5 re f";
+    let bytes = assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [4 0 R] /D << /Order [4 0 R] >> >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Properties << /L1 4 0 R >> /XObject << /X1 7 0 R >> >> /Contents 5 0 R /Annots [6 0 R 8 0 R] >>",
+        "<< /Type /OCG /Name (Welds) >>",
+        &format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len() + 1
+        ),
+        &format!("<< /Type /Annot /Subtype /{subtype} /Rect [0 0 10 10] /OC 4 0 R /Popup 8 0 R >>"),
+        &format!(
+            "<< /Type /XObject /Subtype /Form /BBox [0 0 10 10] /OC 4 0 R /Length {} >>\nstream\n{form}\nendstream",
+            form.len() + 1
+        ),
+        "<< /Type /Annot /Subtype /Popup /Rect [0 0 10 10] /Parent 6 0 R >>",
+    ]);
+    EditSession::new(Document::from_bytes(bytes).expect("parses"))
+}
+
+/// Text, an on-layer XObject's `Do` and an annotation with its pop-up are
+/// removed; the text after a `Td` stays where it was.
+#[test]
+fn delete_layer_remove_content_removes_text_calls_and_annotations() {
+    let mut s = remove_session(
+        "BT 72 700 Td /OC /L1 BDC (abc) Tj EMC 0 -14 Td (def) Tj ET /X1 Do",
+        "Square",
+    );
+    let outcome = s
+        .delete_layer(ObjId::new(4, 0), LayerContentPolicy::RemoveContent)
+        .expect("deletes");
+    assert_eq!(
+        (outcome.paints, outcome.xobject_calls, outcome.annotations),
+        (1, 1, 1)
+    );
+    let content = saved_stream(&s, 5);
+    assert!(!content.contains("abc"), "{content}");
+    assert!(!content.contains("Do"), "{content}");
+    assert!(content.contains("0 -14 Td (def) Tj"), "{content}");
+    let Object::Dict(page) = resolved(&s, ObjId::new(3, 0)) else {
+        panic!("page");
+    };
+    assert_eq!(page.get(b"Annots"), Some(&Object::Array(vec![])));
+    assert_eq!(s.undo_depth(), 1);
+}
+
+/// Removing a run whose advance places later visible text is refused.
+#[test]
+fn delete_layer_remove_content_refuses_moving_text() {
+    let mut s = remove_session(
+        "BT 72 700 Td /OC /L1 BDC (abc) Tj EMC (def) Tj ET",
+        "Square",
+    );
+    assert!(matches!(
+        s.delete_layer(ObjId::new(4, 0), LayerContentPolicy::RemoveContent),
+        Err(EditError::LayerContentNotRewritable { .. })
+    ));
+    assert_eq!(s.undo_depth(), 0);
+}
+
+/// A form field's widget on the layer is refused.
+#[test]
+fn delete_layer_remove_content_refuses_a_widget() {
+    let mut s = remove_session("0 0 1 1 re f", "Widget");
+    match s.delete_layer(ObjId::new(4, 0), LayerContentPolicy::RemoveContent) {
+        Err(EditError::LayerHasWidget { layer, annot }) => {
+            assert_eq!((layer.num, annot.num), (4, 6));
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(s.undo_depth(), 0);
+}

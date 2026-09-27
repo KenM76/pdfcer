@@ -7996,19 +7996,24 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
-    /// Delete a layer, keeping everything drawn on it.
+    /// Delete a layer, keeping or removing what is drawn on it.
     ///
-    /// The layer leaves the layer panel and every layer setting. What was
-    /// drawn on it stays on the page, always visible and on no layer, and
-    /// anything nested inside it keeps its own layer. Prints one
-    /// `layer-delete` line with how many layer sections were unwrapped, in how
-    /// many content streams, and how many annotations and XObjects lost the
-    /// layer.
+    /// The layer leaves the layer panel and every layer setting. With
+    /// `--content keep` (the default) what was drawn on it stays on the page,
+    /// always visible and on no layer. With `--content remove` it goes: the
+    /// page looks as it did with the layer hidden, and annotations on the
+    /// layer are deleted with their pop-ups. Either way anything nested inside
+    /// it keeps its own layer. Prints one `layer-delete` line: layer sections
+    /// unwrapped, content streams rewritten, annotations and XObjects
+    /// affected, and for `remove` the paint operators and XObject calls
+    /// removed.
     ///
     /// Exit 9 when there is no such layer, when a visibility expression or
     /// membership dictionary names it (deleting it would change what that
-    /// shows), or when a content stream that draws on it cannot be rewritten.
-    /// Nothing is written then.
+    /// shows), when a content stream that draws on it cannot be rewritten,
+    /// and for `remove` when a form field's widget is on the layer or
+    /// removing its text would move visible text after it. Nothing is
+    /// written then.
     LayerDelete {
         /// Input PDF.
         input: PathBuf,
@@ -8018,6 +8023,9 @@ pub(crate) enum Command {
         /// The layer's object number, the `id=` `list-layers` prints.
         #[arg(long)]
         id: Option<u32>,
+        /// What happens to what the layer draws.
+        #[arg(long, value_enum, default_value_t = LayerContentArg::Keep)]
+        content: LayerContentArg,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
