@@ -243,6 +243,9 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
 /// `too_many_arguments`, matching [`EditTextArgs`]).
 pub(crate) struct AddTextArgs<'a> {
     pub(crate) input: &'a Path,
+    /// `--layer` / `--layer-id` (`Pass 358.5`): the layer what is added
+    /// goes on, or `None` for none.
+    pub(crate) layer: Option<LayerPick>,
     pub(crate) output: &'a Path,
     /// 1-based page number.
     pub(crate) page: usize,
@@ -290,7 +293,7 @@ pub(crate) struct AddTextArgs<'a> {
 pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
     use pdfcer_core::fontdata::{Std14, std14_base_font_name, std14_by_base_font};
     use pdfcer_core::text_edit::{
-        AddTextError, AddTextRequest, BlockAlignment, FontProvenance, NewTextColor, add_text,
+        AddTextRequest, BlockAlignment, FontProvenance, NewTextColor, add_text,
     };
 
     if args.page == 0 {
@@ -500,44 +503,53 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
     }
 
     req = req.with_render_mode(args.render_mode);
-    let outcome = match add_text(&doc, &req) {
-        Ok(o) => o,
-        Err(err) => {
-            eprintln!("pdfcer: add-text refused: {err}");
-            return match err {
-                AddTextError::Refused(_)
-                | AddTextError::PageIndex(_)
-                | AddTextError::EmptyText
-                | AddTextError::InvalidRenderMode { .. }
-                | AddTextError::InvalidSize(_)
-                | AddTextError::InvalidBox(..)
-                | AddTextError::NoWordsToWrap
-                | AddTextError::Encrypted
-                | AddTextError::CertificationForbidsChange { .. }
-                | AddTextError::HiddenObjects { .. }
-                | AddTextError::ObjectNumbersExhausted
-                // Both FF-C refusals are operator-facing: something about
-                // the request cannot be honoured, and the operator can
-                // change it. They belong with the refusals, not in the
-                // `_ => RUNTIME_ERROR` catch-all, which would have told a
-                // script that pdfcer had crashed rather than declined.
-                | AddTextError::EmbeddedBoxedUnsupported
-                | AddTextError::EmbeddedPlanIncomplete { .. }
-                | AddTextError::Embed(_)
-                | AddTextError::Unsupported(_) => exit::EDIT_REFUSED,
-                AddTextError::Write(_) => exit::SAVE_REFUSED,
-                AddTextError::PageTree(_) => exit::RUNTIME_ERROR,
-                _ => exit::RUNTIME_ERROR,
-            };
+    // `--layer` needs the session route: the section around the new stream
+    // and the page's `/Properties` binding are undoable session writes, which
+    // the one-shot `add_text` does not have.
+    let (owned_report, layer_outcome) = if let Some(pick) = &args.layer {
+        let (source, mut session) = match open_for_edit(args.input) {
+            Ok(pair) => pair,
+            Err(code) => return code,
+        };
+        let layer = match resolve_add_layer(args.input, &session, Some(pick)) {
+            Ok(Some(layer)) => layer,
+            Ok(None) => return exit::EDIT_REFUSED,
+            Err(code) => return code,
+        };
+        let report = match session.add_text(&req.on_layer(layer)) {
+            Ok(report) => report,
+            Err(err) => {
+                eprintln!("pdfcer: add-text refused: {err}");
+                return add_text_exit(&err);
+            }
+        };
+        match save_edited(
+            &mut session,
+            &source,
+            args.output,
+            SaveMode::Incremental,
+            ProducerArg::Preserve,
+            false,
+        ) {
+            Ok(outcome) => (report, Some(outcome)),
+            Err(code) => return code,
         }
+    } else {
+        let outcome = match add_text(&doc, &req) {
+            Ok(o) => o,
+            Err(err) => {
+                eprintln!("pdfcer: add-text refused: {err}");
+                return add_text_exit(&err);
+            }
+        };
+        if let Err(err) = std::fs::write(args.output, &outcome.bytes) {
+            eprintln!("pdfcer: {}: {err}", args.output.display());
+            return exit::IO_ERROR;
+        }
+        (outcome.report, None)
     };
 
-    if let Err(err) = std::fs::write(args.output, &outcome.bytes) {
-        eprintln!("pdfcer: {}: {err}", args.output.display());
-        return exit::IO_ERROR;
-    }
-
-    let report = &outcome.report;
+    let report = &owned_report;
     println!(
         "add-text {} -> {}",
         args.input.display(),
@@ -582,11 +594,50 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
         report.tagged_untagged,
         supplied_registered
     );
+    if let Some(pick) = &args.layer {
+        match (&pick.name, pick.id) {
+            (Some(name), _) => println!("  layer={name:?}"),
+            (None, Some(id)) => println!("  layer_id={id}"),
+            (None, None) => {}
+        }
+    }
     println!("  disclosures:");
     for d in &report.disclosures {
         println!("    - {d}");
     }
-    exit::SUCCESS
+    match &layer_outcome {
+        Some(outcome) => finish_edit(args.input, outcome),
+        None => exit::SUCCESS,
+    }
+}
+
+/// The exit code for an `add-text` refusal.
+fn add_text_exit(err: &pdfcer_core::text_edit::AddTextError) -> u8 {
+    use pdfcer_core::text_edit::AddTextError;
+    match err {
+        AddTextError::Refused(_)
+        | AddTextError::PageIndex(_)
+        | AddTextError::EmptyText
+        | AddTextError::InvalidRenderMode { .. }
+        | AddTextError::InvalidSize(_)
+        | AddTextError::InvalidBox(..)
+        | AddTextError::NoWordsToWrap
+        | AddTextError::Encrypted
+        | AddTextError::CertificationForbidsChange { .. }
+        | AddTextError::HiddenObjects { .. }
+        | AddTextError::ObjectNumbersExhausted
+        // Both FF-C refusals are operator-facing: something about the
+        // request cannot be honoured, and the operator can change it. The
+        // `_ => RUNTIME_ERROR` catch-all would tell a script pdfcer crashed.
+        | AddTextError::EmbeddedBoxedUnsupported
+        | AddTextError::EmbeddedPlanIncomplete { .. }
+        | AddTextError::Embed(_)
+        | AddTextError::LayerNeedsSession
+        | AddTextError::Layer(_)
+        | AddTextError::Unsupported(_) => exit::EDIT_REFUSED,
+        AddTextError::Write(_) => exit::SAVE_REFUSED,
+        _ => exit::RUNTIME_ERROR,
+    }
 }
 
 /// Named arguments for [`cmd_place_text`] (grouped to dodge clippy's

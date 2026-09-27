@@ -487,3 +487,171 @@ fn set_object_layer_refuses_an_out_of_range_index() {
     );
     assert!(!out.exists());
 }
+
+// ---- Pass 358.5: new content onto a layer ----------------------------------
+
+fn add(verb: &str, extra: &[&str], tag: &str) -> (Output, PathBuf) {
+    let src = fixture("painted-layers.pdf");
+    let out = temp_path(tag);
+    let mut args = vec![verb, src.to_str().unwrap()];
+    args.extend_from_slice(extra);
+    args.extend(["--output", out.to_str().unwrap()]);
+    (run(&args), out)
+}
+
+fn assert_ok(o: &Output) {
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+}
+
+/// `add-text --layer` puts the new text on the layer; the existing objects
+/// keep theirs.
+#[test]
+fn add_text_on_a_layer() {
+    let before = object_layers(&fixture("painted-layers.pdf"));
+    let (o, out) = add(
+        "add-text",
+        &[
+            "--page",
+            "1",
+            "--at",
+            "100,100",
+            "--text",
+            "Hi",
+            "--layer",
+            "Hidden Box",
+        ],
+        "atext",
+    );
+    assert_ok(&o);
+    assert!(String::from_utf8_lossy(&o.stdout).contains("layer=\"Hidden Box\""));
+    let after = object_layers(&out);
+    assert_eq!(after[..before.len()], before[..]);
+    assert_eq!(after[before.len()..], ["oc=5"]);
+    std::fs::remove_file(out).ok();
+}
+
+/// `add-image --layer-id` names the layer by object number.
+#[test]
+fn add_image_on_a_layer() {
+    let image =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/images/rgb8.png");
+    let (o, out) = add(
+        "add-image",
+        &[
+            "--image",
+            image.to_str().unwrap(),
+            "--page",
+            "1",
+            "--rect",
+            "10,10,110,110",
+            "--layer-id",
+            "6",
+        ],
+        "aimage",
+    );
+    assert_ok(&o);
+    assert_eq!(object_layers(&out).last().map(String::as_str), Some("oc=6"));
+    std::fs::remove_file(out).ok();
+}
+
+/// `annotate --layer` sets the annotation's `/OC`; with `--as-content` the
+/// drawn shape is on the layer instead.
+#[test]
+fn annotate_on_a_layer() {
+    let square = [
+        "--type",
+        "square",
+        "--page",
+        "1",
+        "--rect",
+        "100,100,200,150",
+    ];
+    let mut args = square.to_vec();
+    args.extend(["--layer", "Hidden Box"]);
+    let (o, out) = add("annotate", &args, "aannot");
+    assert_ok(&o);
+    assert!(
+        annotations(&out)
+            .lines()
+            .next()
+            .is_some_and(|l| l.ends_with(" oc=5")),
+        "{}",
+        annotations(&out)
+    );
+    std::fs::remove_file(out).ok();
+
+    let before = object_layers(&fixture("painted-layers.pdf")).len();
+    args.push("--as-content");
+    let (o, out) = add("annotate", &args, "acontent");
+    assert_ok(&o);
+    let after = object_layers(&out);
+    assert!(after.len() > before);
+    assert!(after[before..].iter().all(|l| l == "oc=5"), "{after:?}");
+    std::fs::remove_file(out).ok();
+}
+
+/// `object-paste --layer` places the pasted copy on the layer.
+#[test]
+fn object_paste_on_a_layer() {
+    let src = fixture("painted-layers.pdf");
+    let clip = temp_path("clip").with_extension("pdfceclip");
+    let o = run(&[
+        "object-copy",
+        src.to_str().unwrap(),
+        "--page",
+        "1",
+        "--objects",
+        "4",
+        "--clip",
+        clip.to_str().unwrap(),
+    ]);
+    assert_ok(&o);
+    let (o, out) = add(
+        "object-paste",
+        &[
+            "--page",
+            "1",
+            "--clip",
+            clip.to_str().unwrap(),
+            "--layer",
+            "Clip Only",
+        ],
+        "apaste",
+    );
+    assert_ok(&o);
+    let after = object_layers(&out);
+    assert_eq!(after.last().map(String::as_str), Some("oc=6"), "{after:?}");
+    for p in [out, clip] {
+        std::fs::remove_file(p).ok();
+    }
+}
+
+/// An unknown layer refuses with exit 9 and writes nothing.
+#[test]
+fn an_add_on_an_unknown_layer_is_refused() {
+    for (verb, args) in [
+        (
+            "add-text",
+            vec![
+                "--page", "1", "--at", "1,1", "--text", "x", "--layer", "Nope",
+            ],
+        ),
+        (
+            "annotate",
+            vec![
+                "--type",
+                "square",
+                "--page",
+                "1",
+                "--rect",
+                "1,1,9,9",
+                "--layer-id",
+                "99",
+            ],
+        ),
+    ] {
+        let (o, out) = add(verb, &args, "anone");
+        assert_eq!(o.status.code(), Some(EDIT_REFUSED), "{verb}");
+        assert!(!out.exists(), "{verb}");
+    }
+}

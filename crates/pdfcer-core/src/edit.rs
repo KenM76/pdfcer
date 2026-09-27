@@ -5635,6 +5635,13 @@ impl MarkupNote {
 /// value — `let a = opts; let b = opts;`.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct MarkupOptions {
+    /// The optional-content group (layer) the markup is placed on, or `None`
+    /// for no layer (`Pass 358.5`): the annotation's `/OC` (and its
+    /// `/Popup`'s) on the annotation route, an `/OC` section around the
+    /// drawn content on [`EditSession::add_markup_as_content`]. Refused with
+    /// [`EditError::LayerNotFound`] unless registered in `/OCProperties
+    /// /OCGs`.
+    pub layer: Option<ObjId>,
     /// `/CA` — the annotation's constant opacity, `0.0`–`1.0` (§12.5.2,
     /// Table 164). `None` omits the key entirely.
     ///
@@ -12762,6 +12769,14 @@ impl EditSession {
             plan_add_text(req, page, &self.graph())?
         };
 
+        let layered = req
+            .layer
+            .map(|layer| {
+                self.layer_add_snapshot(req.page_index, layer)
+                    .map(|snapshot| (layer, snapshot))
+            })
+            .transpose()
+            .map_err(|e| AtError::Layer(Box::new(e)))?;
         let content_num = self
             .alloc_number()
             .map_err(|_| AtError::ObjectNumbersExhausted)?;
@@ -12812,6 +12827,10 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
+        if let Some((layer, snapshot)) = &layered {
+            self.place_added_content_on_layer(req.page_index, snapshot, *layer)
+                .map_err(|e| AtError::Layer(Box::new(e)))?;
+        }
 
         let mut report = prep.report;
         report.content_object = content_num;
@@ -13922,6 +13941,7 @@ impl EditSession {
                         dash: carry.dash.clone(),
                         opacity: carry.opacity,
                         note,
+                        layer: None,
                     };
                     self.add_markup_with(page_index, &moved.0, &opts)?;
                     placed += 1;
@@ -14081,6 +14101,44 @@ impl EditSession {
     /// one; the session-level guards this shares with every content-appending
     /// verb — encryption, an enforced certification, a missing page.
     pub fn paste_objects(
+        &mut self,
+        page_index: usize,
+        clip: &crate::vector::ObjectClip,
+        at: crate::vector::Matrix,
+    ) -> Result<PasteOutcome, EditError> {
+        self.paste_objects_on_layer(page_index, clip, at, None)
+    }
+
+    /// [`Self::paste_objects`], placing everything pasted on `layer`
+    /// (`Pass 358.5`).
+    ///
+    /// The pasted page content is wrapped in one `/OC /name BDC … EMC`
+    /// section (§8.11.3.2), binding `name` in the page's `/Properties` when
+    /// the page has no name for the group yet; every pasted annotation gets
+    /// `/OC` (§12.5.2 Table 164). `layer: None` is exactly
+    /// [`Self::paste_objects`]. With a layer, the paste and everything it
+    /// placed is ONE undo entry, labelled as the paste. A layered image or
+    /// form XObject in the clip keeps its own `/OC`, which the section
+    /// intersects (§8.11.3.3).
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::paste_objects`], and [`EditError::LayerNotFound`]
+    /// before any write when `layer` is not registered in `/OCProperties
+    /// /OCGs`.
+    pub fn paste_objects_on_layer(
+        &mut self,
+        page_index: usize,
+        clip: &crate::vector::ObjectClip,
+        at: crate::vector::Matrix,
+        layer: Option<ObjId>,
+    ) -> Result<PasteOutcome, EditError> {
+        self.on_layer_if(page_index, layer, |s| {
+            s.paste_objects_unlayered(page_index, clip, at)
+        })
+    }
+
+    fn paste_objects_unlayered(
         &mut self,
         page_index: usize,
         clip: &crate::vector::ObjectClip,
@@ -29231,7 +29289,9 @@ impl EditSession {
         // is allocated, so a rejected opacity leaves the session
         // byte-identical rather than partway through a command.
         options.validate()?;
-        self.add_markup_inner(page_index, spec, options)
+        self.on_layer_if(page_index, options.layer, |s| {
+            s.add_markup_inner(page_index, spec, options)
+        })
     }
 
     /// Draw a markup shape as **ordinary page content** rather than as an
@@ -29301,7 +29361,12 @@ impl EditSession {
             Err(EditError::VectorEditNoContents { .. }) => 0,
             Err(e) => return Err(e),
         };
-        let mut paste = self.paste_objects(page_index, &clip, crate::vector::Matrix::IDENTITY)?;
+        let mut paste = self.paste_objects_on_layer(
+            page_index,
+            &clip,
+            crate::vector::Matrix::IDENTITY,
+            options.layer,
+        )?;
         if options.note.is_some() {
             paste
                 .disclosures
@@ -37146,8 +37211,10 @@ impl EditSession {
         options: &MarkupOptions,
     ) -> Result<ObjId, EditError> {
         options.validate()?;
-        self.add_text_annotation_inner(page_index, spec, options, None, &[])
-            .map(|o| o.annot_id)
+        self.on_layer_if(page_index, options.layer, |s| {
+            s.add_text_annotation_inner(page_index, spec, options, None, &[])
+        })
+        .map(|o| o.annot_id)
     }
 
     /// Author a text-bearing annotation and **report what the generator
@@ -37188,7 +37255,9 @@ impl EditSession {
         options: &MarkupOptions,
     ) -> Result<TextAnnotOutcome, EditError> {
         options.validate()?;
-        self.add_text_annotation_inner(page_index, spec, options, None, &[])
+        self.on_layer_if(page_index, options.layer, |s| {
+            s.add_text_annotation_inner(page_index, spec, options, None, &[])
+        })
     }
 
     /// Place one page's **artwork** onto a page of this document as a
@@ -48841,26 +48910,7 @@ impl EditSession {
             .first()
             .ok_or(EditError::VectorEditNoContents { page_index })?;
 
-        let props = self.deref_dict(page.resources.get(b"Properties"));
-        let mut binding: Option<(Name, bool)> = None;
-        if let Some(layer) = layer {
-            let existing = props.as_ref().and_then(|p| {
-                p.0.iter()
-                    .find(|(_, v)| v.as_reference() == Some(layer))
-                    .map(|(k, _)| k.clone())
-            });
-            binding = Some(match existing {
-                Some(name) => (name, false),
-                None => {
-                    let taken = |n: &[u8]| props.as_ref().is_some_and(|p| p.get(n).is_some());
-                    let name = (1..)
-                        .map(|i| format!("OC{i}").into_bytes())
-                        .find(|n| !taken(n))
-                        .unwrap_or_default();
-                    (Name(name), true)
-                }
-            });
-        }
+        let binding = layer.map(|layer| self.layer_property_binding(&page, layer));
 
         // An XObject's own `/OC` (§8.11.3.3) is intersected with any section
         // around its `Do`, never replaced by it.
@@ -48911,22 +48961,7 @@ impl EditSession {
 
         let mut prior = Vec::new();
         if let (Some(layer), Some((name, true))) = (layer, &binding) {
-            let (objects, _shared) = crate::text_edit::addtext::bind_resource(
-                &self.graph(),
-                page.id,
-                true,
-                b"Properties",
-                name.as_bytes(),
-                Object::Reference(layer),
-            );
-            prior = objects
-                .into_iter()
-                .map(|(id, value)| ObjectWrite {
-                    id,
-                    before: self.state.get(&id).cloned(),
-                    after: Some(value),
-                })
-                .collect();
+            prior = self.layer_binding_writes(page.id, name, layer);
             change.binding_added = true;
         }
         let (command, _) = self.text_edit_command(
@@ -48939,6 +48974,225 @@ impl EditSession {
         )?;
         self.commit(command);
         Ok(change)
+    }
+
+    /// The page's `/Properties` name for `layer`: the existing binding
+    /// (`false`), or the first free `OC<n>` (`true`, not yet written).
+    fn layer_property_binding(&self, page: &Page, layer: ObjId) -> (Name, bool) {
+        let props = self.deref_dict(page.resources.get(b"Properties"));
+        let existing = props.as_ref().and_then(|p| {
+            p.0.iter()
+                .find(|(_, v)| v.as_reference() == Some(layer))
+                .map(|(k, _)| k.clone())
+        });
+        match existing {
+            Some(name) => (name, false),
+            None => {
+                let taken = |n: &[u8]| props.as_ref().is_some_and(|p| p.get(n).is_some());
+                let name = (1..)
+                    .map(|i| format!("OC{i}").into_bytes())
+                    .find(|n| !taken(n))
+                    .unwrap_or_default();
+                (Name(name), true)
+            }
+        }
+    }
+
+    /// The writes binding `/Properties /name` to `layer` on page `page_id`.
+    fn layer_binding_writes(&self, page_id: ObjId, name: &Name, layer: ObjId) -> Vec<ObjectWrite> {
+        let (objects, _shared) = crate::text_edit::addtext::bind_resource(
+            &self.graph(),
+            page_id,
+            true,
+            b"Properties",
+            name.as_bytes(),
+            Object::Reference(layer),
+        );
+        objects
+            .into_iter()
+            .map(|(id, value)| ObjectWrite {
+                id,
+                before: self.state.get(&id).cloned(),
+                after: Some(value),
+            })
+            .collect()
+    }
+
+    /// Run the add verb `add`, then put what it added to page `page_index`
+    /// on `layer` when there is one (`Pass 358.5`).
+    fn on_layer_if<T>(
+        &mut self,
+        page_index: usize,
+        layer: Option<ObjId>,
+        add: impl FnOnce(&mut Self) -> Result<T, EditError>,
+    ) -> Result<T, EditError> {
+        let Some(layer) = layer else {
+            return add(self);
+        };
+        let snapshot = self.layer_add_snapshot(page_index, layer)?;
+        let out = add(self)?;
+        self.place_added_content_on_layer(page_index, &snapshot, layer)?;
+        Ok(out)
+    }
+
+    /// Refuse an unregistered `layer`, then record what page `page_index`
+    /// holds before an add verb runs (`Pass 358.5`).
+    fn layer_add_snapshot(
+        &mut self,
+        page_index: usize,
+        layer: ObjId,
+    ) -> Result<LayerAddSnapshot, EditError> {
+        if !self.is_registered_layer(layer) {
+            return Err(EditError::LayerNotFound { id: layer });
+        }
+        let pages = self.pages()?;
+        let (contents, annots) = pages.get(page_index).map_or_else(Default::default, |page| {
+            (page.contents.clone(), self.page_annot_refs(page.id))
+        });
+        Ok(LayerAddSnapshot {
+            contents,
+            annots,
+            depth: self.undo.len(),
+        })
+    }
+
+    /// The indirect annotations in page `page_id`'s `/Annots`.
+    fn page_annot_refs(&self, page_id: ObjId) -> Vec<ObjId> {
+        let annots = self
+            .value(page_id)
+            .and_then(Object::as_dict)
+            .and_then(|d| self.deref_value(d.get(b"Annots")));
+        match annots {
+            Some(Object::Array(items)) => items.iter().filter_map(Object::as_reference).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Put what an add verb just added to page `page_index` on `layer`
+    /// (`Pass 358.5`), relative to `before`.
+    ///
+    /// Every content stream in the page's `/Contents` that is not in
+    /// `before` is new, unfiltered and self-contained (the add verbs write it
+    /// that way), so it is wrapped whole in `/OC /name BDC … EMC` (§8.11.3.2)
+    /// and no pre-existing byte is touched. Every new `/Annots` entry gets
+    /// `/OC` (§12.5.2 Table 164). All of it, with any new `/Properties`
+    /// binding, is folded with the add's own undo entries into one, labelled
+    /// as the add. On a failure the add is undone, so the verb either lands
+    /// on the layer or not at all.
+    fn place_added_content_on_layer(
+        &mut self,
+        page_index: usize,
+        before: &LayerAddSnapshot,
+        layer: ObjId,
+    ) -> Result<(), EditError> {
+        let result = self.wrap_added_content(page_index, before, layer);
+        if result.is_err() {
+            while self.undo.len() > before.depth && self.undo().is_some() {
+                self.redo.pop();
+            }
+        }
+        result
+    }
+
+    fn wrap_added_content(
+        &mut self,
+        page_index: usize,
+        before: &LayerAddSnapshot,
+        layer: ObjId,
+    ) -> Result<(), EditError> {
+        let added = self.undo.len().saturating_sub(before.depth);
+        // The gesture is labelled by its first command: a paste's own entry,
+        // not the last annotation it placed.
+        let Some(kind) = self.undo.get(before.depth).map(|c| c.kind) else {
+            return Ok(());
+        };
+        let pages = self.pages()?;
+        let count = pages.len();
+        let page = pages
+            .get(page_index)
+            .ok_or(EditError::PageOutOfRange {
+                index: page_index,
+                count,
+            })?
+            .clone();
+        let (name, bind) = self.layer_property_binding(&page, layer);
+        let mut open = b"/OC ".to_vec();
+        crate::writer::serialize::write_object(
+            &mut open,
+            &Object::Name(name.clone()),
+            ObjId::new(0, 0),
+            &[],
+            &crate::writer::IdentityEncoder,
+        );
+        open.extend_from_slice(b" BDC\n");
+
+        let mut objects = Vec::new();
+        let mut wrapped_any = false;
+        for &id in page
+            .contents
+            .iter()
+            .filter(|id| !before.contents.contains(id))
+        {
+            let Some(Object::Stream(stream)) = self.value(id).cloned() else {
+                continue;
+            };
+            let data = StreamSource::Split {
+                base: self.base.bytes(),
+                staged: &self.staging,
+            }
+            .slice(stream.data_span)
+            .map(<[u8]>::to_vec);
+            let (None, Some(data)) = (stream.dict.get(b"Filter"), data) else {
+                return Err(EditError::LayerContentNotRewritable {
+                    stream: id,
+                    reason: "the added content stream is filtered or unreadable",
+                });
+            };
+            let mut wrapped = open.clone();
+            wrapped.extend_from_slice(&data);
+            wrapped.extend_from_slice(b"\nEMC\n");
+            let mut dict = stream.dict.clone();
+            dict.insert(
+                Name::from(b"Length"),
+                Object::Integer(i64::try_from(wrapped.len()).unwrap_or(i64::MAX)),
+            );
+            let data_span = self.stage_bytes(&wrapped);
+            objects.push(ObjectWrite {
+                id,
+                before: Some(Object::Stream(stream)),
+                after: Some(Object::Stream(Stream { dict, data_span })),
+            });
+            wrapped_any = true;
+        }
+        for id in self.page_annot_refs(page.id) {
+            if before.annots.contains(&id) {
+                continue;
+            }
+            let Some(Object::Dict(annot)) = self.value(id).cloned() else {
+                continue;
+            };
+            let mut updated = annot.clone();
+            updated.insert(Name::from(b"OC"), Object::Reference(layer));
+            objects.push(ObjectWrite {
+                id,
+                before: Some(Object::Dict(annot)),
+                after: Some(Object::Dict(updated)),
+            });
+        }
+        if objects.is_empty() {
+            return Ok(());
+        }
+        if bind && wrapped_any {
+            objects.extend(self.layer_binding_writes(page.id, &name, layer));
+        }
+        self.commit(Command {
+            kind,
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        self.coalesce_last(added + 1, kind);
+        Ok(())
     }
 
     /// Whether `layer` is a dictionary listed in `/OCProperties /OCGs`.
@@ -51629,6 +51883,15 @@ pub struct ObjectsLayerChange {
     pub disclosures: Vec<String>,
 }
 
+/// What a page held before an add verb ran, so the additions can be put on a
+/// layer (`Pass 358.5`).
+#[derive(Debug, Clone, Default)]
+struct LayerAddSnapshot {
+    contents: Vec<ObjId>,
+    annots: Vec<ObjId>,
+    depth: usize,
+}
+
 /// A layer-panel position as the CLI prints it: `1.0.2`, or `root`.
 fn dotted_path(path: &[usize]) -> String {
     if path.is_empty() {
@@ -52327,6 +52590,9 @@ pub struct NewImage<'a> {
     pub fit: ImageFit,
     /// The parsed image.
     pub image: &'a ImportedImage,
+    /// The optional-content group (layer) the image is placed on, or `None`
+    /// for no layer (`Pass 358.5`).
+    pub layer: Option<ObjId>,
 }
 
 impl<'a> NewImage<'a> {
@@ -52338,7 +52604,16 @@ impl<'a> NewImage<'a> {
             rect,
             fit: ImageFit::Contain,
             image,
+            layer: None,
         }
+    }
+
+    /// Place the image on `layer`, an optional-content group registered in
+    /// `/OCProperties /OCGs` (`Pass 358.5`).
+    #[must_use]
+    pub const fn on_layer(mut self, layer: ObjId) -> Self {
+        self.layer = Some(layer);
+        self
     }
 
     /// Fill `rect` exactly, distorting the aspect ratio if it differs.
@@ -52754,6 +53029,13 @@ impl EditSession {
         if suppressed > 0 {
             return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
         }
+        let layered = spec
+            .layer
+            .map(|layer| {
+                self.layer_add_snapshot(spec.page_index, layer)
+                    .map(|snapshot| (layer, snapshot))
+            })
+            .transpose()?;
         let slots = self.page_slots()?;
         let page_id = slots
             .get(spec.page_index)
@@ -52885,6 +53167,9 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
+        if let Some((layer, snapshot)) = &layered {
+            self.place_added_content_on_layer(spec.page_index, snapshot, *layer)?;
+        }
 
         Ok(ImageAuthorOutcome {
             image_id,

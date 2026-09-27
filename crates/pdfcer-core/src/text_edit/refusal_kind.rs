@@ -125,11 +125,16 @@ impl RefusalClass for AddTextError {
             AddTextError::Encrypted
             | AddTextError::CertificationForbidsChange { .. }
             | AddTextError::HiddenObjects { .. } => RefusalKind::StructureFrozen,
-            // The edit named an absent page.
+            // The edit named an absent page or layer.
             AddTextError::PageIndex(_) => RefusalKind::NotFound,
+            AddTextError::Layer(inner) => match **inner {
+                crate::edit::EditError::LayerNotFound { .. } => RefusalKind::NotFound,
+                _ => RefusalKind::Other,
+            },
             // Invalid parameters, an unbuilt combination, exhaustion, parse /
             // save failures.
             AddTextError::EmbeddedBoxedUnsupported
+            | AddTextError::LayerNeedsSession
             | AddTextError::EmptyText
             | AddTextError::InvalidSize(_)
             | AddTextError::InvalidRenderMode { .. }

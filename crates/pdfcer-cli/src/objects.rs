@@ -1339,6 +1339,9 @@ pub(crate) fn cmd_object_copy(args: &ObjectCopyArgs<'_>) -> u8 {
 /// clippy `too_many_arguments` bound.
 pub(crate) struct ObjectPasteArgs<'a> {
     pub(crate) input: &'a Path,
+    /// `--layer` / `--layer-id` (`Pass 358.5`): the layer what is added
+    /// goes on, or `None` for none.
+    pub(crate) layer: Option<LayerPick>,
     pub(crate) page: u32,
     pub(crate) clip: &'a Path,
     pub(crate) translate: Option<&'a str>,
@@ -1423,6 +1426,10 @@ pub(crate) fn cmd_object_paste(args: &ObjectPasteArgs<'_>) -> u8 {
         Err(code) => return code,
     };
 
+    let layer = match resolve_add_layer(args.input, &session, args.layer.as_ref()) {
+        Ok(layer) => layer,
+        Err(code) => return code,
+    };
     if args.preview {
         match session.paste_preview(page_index, &clip, at) {
             Err(err) => return report_edit_error(args.input, &err),
@@ -1446,7 +1453,7 @@ pub(crate) fn cmd_object_paste(args: &ObjectPasteArgs<'_>) -> u8 {
         }
     }
 
-    let pasted = match session.paste_objects(page_index, &clip, at) {
+    let pasted = match session.paste_objects_on_layer(page_index, &clip, at, layer) {
         Err(err) => return report_edit_error(args.input, &err),
         Ok(outcome) => {
             report_disclosures(&outcome.disclosures);

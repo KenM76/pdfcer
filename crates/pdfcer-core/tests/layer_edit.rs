@@ -1042,3 +1042,204 @@ fn set_objects_layer_round_trips() {
     let mut reopened = EditSession::new(Document::from_bytes(bytes).expect("reopens"));
     assert_eq!(layers_of(&mut reopened), [Some(9), Some(4), Some(9)]);
 }
+
+// ---- Pass 358.5: new content onto a layer ----------------------------------
+
+const ONE_PATH: &str = "0 0 m 10 10 l S";
+
+fn holes() -> ObjId {
+    ObjId::new(9, 0)
+}
+
+fn text_request() -> pdfcer_core::text_edit::AddTextRequest {
+    pdfcer_core::text_edit::AddTextRequest::new(0, (100.0, 100.0), "Hi".to_owned())
+}
+
+/// New text lands on the layer in its own section; the page's original
+/// stream is untouched and the add is one undo entry.
+#[test]
+fn add_text_on_a_layer() {
+    let mut s = content_session(ONE_PATH);
+    let original = saved_stream(&s, 5);
+    s.add_text(&text_request().on_layer(holes())).unwrap();
+    assert_eq!(layers_of(&mut s), [None, Some(9)]);
+    assert_eq!(saved_stream(&s, 5), original);
+    assert_eq!(s.undo_depth(), 1);
+    assert_eq!(s.undo_kind(), Some(CommandKind::AddText));
+    let props = s
+        .graph()
+        .resolve(&Object::Reference(ObjId::new(3, 0)))
+        .as_dict()
+        .and_then(|d| d.get(b"Resources"))
+        .and_then(Object::as_dict)
+        .and_then(|r| r.get(b"Properties"))
+        .and_then(Object::as_dict)
+        .and_then(|p| p.get(b"OC1"))
+        .and_then(Object::as_reference);
+    assert_eq!(props, Some(holes()));
+    s.undo().unwrap();
+    assert_eq!(layers_of(&mut s), [None]);
+    assert!(s.dirty_set().is_empty());
+}
+
+/// A layer the page already names reuses the name and adds no binding.
+#[test]
+fn add_text_reuses_the_page_binding() {
+    let mut s = content_session(ONE_PATH);
+    s.add_text(&text_request().on_layer(ObjId::new(4, 0)))
+        .unwrap();
+    assert_eq!(layers_of(&mut s), [None, Some(4)]);
+    // Only the new stream and the page's /Contents array: no binding.
+    let props = s
+        .graph()
+        .resolve(&Object::Reference(ObjId::new(3, 0)))
+        .as_dict()
+        .and_then(|d| d.get(b"Resources"))
+        .and_then(Object::as_dict)
+        .and_then(|r| r.get(b"Properties"))
+        .and_then(Object::as_dict)
+        .map(|p| p.0.len());
+    assert_eq!(props, Some(1));
+}
+
+/// An unregistered layer is refused before anything is written.
+#[test]
+fn add_text_refuses_an_unregistered_layer() {
+    let mut s = content_session(ONE_PATH);
+    let err = s
+        .add_text(&text_request().on_layer(ObjId::new(7, 0)))
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        pdfcer_core::text_edit::AddTextError::Layer(ref inner)
+            if matches!(**inner, EditError::LayerNotFound { .. })
+    ));
+    assert_eq!(s.undo_depth(), 0);
+    assert!(s.dirty_set().is_empty());
+    // The one-shot route has no session to hold the writes.
+    let doc = Document::from_bytes(
+        s.to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+            .unwrap()
+            .0,
+    )
+    .unwrap();
+    assert!(matches!(
+        pdfcer_core::text_edit::add_text(&doc, &text_request().on_layer(holes())),
+        Err(pdfcer_core::text_edit::AddTextError::LayerNeedsSession)
+    ));
+}
+
+/// Saved and reopened, the new text reads as on the layer.
+#[test]
+fn add_text_on_a_layer_round_trips() {
+    let mut s = content_session(ONE_PATH);
+    s.add_text(&text_request().on_layer(holes())).unwrap();
+    let (bytes, _) = s
+        .to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .unwrap();
+    let mut reopened = EditSession::new(Document::from_bytes(bytes).unwrap());
+    assert_eq!(layers_of(&mut reopened), [None, Some(9)]);
+}
+
+#[test]
+fn add_image_on_a_layer() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/images/rgb8.png");
+    let image = pdfcer_core::image_import::import(&std::fs::read(path).unwrap()).unwrap();
+    let rect = pdfcer_core::page_tree::Rect {
+        llx: 10.0,
+        lly: 10.0,
+        urx: 110.0,
+        ury: 110.0,
+    };
+    let mut s = content_session(ONE_PATH);
+    let original = saved_stream(&s, 5);
+    s.add_image(&pdfcer_core::edit::NewImage::new(0, rect, &image).on_layer(holes()))
+        .unwrap();
+    assert_eq!(layers_of(&mut s), [None, Some(9)]);
+    assert_eq!(saved_stream(&s, 5), original);
+    assert_eq!(s.undo_depth(), 1);
+    assert_eq!(s.undo_kind(), Some(CommandKind::AddImage));
+    assert!(matches!(
+        s.add_image(&pdfcer_core::edit::NewImage::new(0, rect, &image).on_layer(ObjId::new(7, 0))),
+        Err(EditError::LayerNotFound { .. })
+    ));
+    assert_eq!(s.undo_depth(), 1);
+}
+
+fn square() -> pdfcer_core::annot_author::MarkupSpec {
+    pdfcer_core::annot_author::MarkupSpec::Square {
+        rect: pdfcer_core::page_tree::Rect {
+            llx: 100.0,
+            lly: 100.0,
+            urx: 200.0,
+            ury: 150.0,
+        },
+        border: Some(pdfcer_core::annot_author::Color::Rgb(1.0, 0.0, 0.0)),
+        interior: None,
+        border_width: 2.0,
+        border_effect: None,
+    }
+}
+
+fn on_holes() -> pdfcer_core::edit::MarkupOptions {
+    pdfcer_core::edit::MarkupOptions {
+        layer: Some(holes()),
+        ..Default::default()
+    }
+}
+
+/// An authored annotation gets `/OC`; the page content is untouched.
+#[test]
+fn add_markup_annotation_on_a_layer() {
+    let mut s = content_session(ONE_PATH);
+    let id = s.add_markup_with(0, &square(), &on_holes()).unwrap();
+    assert_eq!(
+        dict(&s, id).get(b"OC").and_then(Object::as_reference),
+        Some(holes())
+    );
+    assert_eq!(s.undo_depth(), 1);
+    assert!(matches!(
+        s.undo_kind(),
+        Some(CommandKind::AddAnnotation { .. })
+    ));
+    assert!(!s.dirty_set().contains(ObjId::new(5, 0)));
+    s.undo().unwrap();
+    assert!(s.dirty_set().is_empty());
+}
+
+/// Drawn as content, the shape's objects are on the layer.
+#[test]
+fn add_markup_as_content_on_a_layer() {
+    let mut s = content_session(ONE_PATH);
+    let original = saved_stream(&s, 5);
+    let drawn = s.add_markup_as_content(0, &square(), &on_holes()).unwrap();
+    assert!(!drawn.objects.is_empty());
+    let layers = layers_of(&mut s);
+    assert_eq!(layers.first(), Some(&None));
+    assert!(layers.iter().skip(1).all(|l| *l == Some(9)), "{layers:?}");
+    assert_eq!(saved_stream(&s, 5), original);
+    assert_eq!(s.undo_depth(), 1);
+}
+
+/// A pasted selection is placed on the layer as one gesture.
+#[test]
+fn paste_objects_on_a_layer() {
+    let mut s = content_session(THREE_PATHS);
+    let original = saved_stream(&s, 5);
+    let clip = s.copy_objects(0, &[2]).unwrap();
+    s.paste_objects_on_layer(
+        0,
+        &clip,
+        pdfcer_core::vector::Matrix::IDENTITY,
+        Some(holes()),
+    )
+    .unwrap();
+    assert_eq!(layers_of(&mut s), [Some(4), Some(4), None, Some(9)]);
+    assert_eq!(saved_stream(&s, 5), original);
+    assert_eq!(s.undo_depth(), 1);
+    // `None` is plain paste: the copy keeps no layer.
+    s.paste_objects_on_layer(0, &clip, pdfcer_core::vector::Matrix::IDENTITY, None)
+        .unwrap();
+    assert_eq!(layers_of(&mut s), [Some(4), Some(4), None, Some(9), None]);
+}

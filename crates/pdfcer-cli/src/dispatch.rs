@@ -749,6 +749,8 @@ pub(crate) fn run() -> ExitCode {
         }),
         Command::AddImage {
             input,
+            layer,
+            layer_id,
             image,
             page,
             rect,
@@ -761,6 +763,7 @@ pub(crate) fn run() -> ExitCode {
             verify_undo,
         } => cmd_add_image(&AddImageArgs {
             input: &input,
+            layer: layer_pick(layer, layer_id),
             image: &image,
             page,
             rect: &rect,
@@ -1688,6 +1691,8 @@ pub(crate) fn run() -> ExitCode {
         ),
         Command::AddText {
             input,
+            layer,
+            layer_id,
             page,
             at,
             wrap_box,
@@ -1703,6 +1708,7 @@ pub(crate) fn run() -> ExitCode {
             output,
         } => cmd_add_text(&AddTextArgs {
             input: &input,
+            layer: layer_pick(layer, layer_id),
             output: &output,
             page,
             at: at.as_deref(),
@@ -2358,6 +2364,8 @@ pub(crate) fn run() -> ExitCode {
         }),
         Command::ObjectPaste {
             input,
+            layer,
+            layer_id,
             page,
             clip,
             translate,
@@ -2369,6 +2377,7 @@ pub(crate) fn run() -> ExitCode {
             verify_undo,
         } => cmd_object_paste(&ObjectPasteArgs {
             input: &input,
+            layer: layer_pick(layer, layer_id),
             page,
             clip: &clip,
             translate: translate.as_deref(),
@@ -2690,6 +2699,8 @@ pub(crate) fn run() -> ExitCode {
         ),
         Command::Annotate {
             input,
+            layer,
+            layer_id,
             kind,
             page,
             rect,
@@ -2721,6 +2732,7 @@ pub(crate) fn run() -> ExitCode {
             verify_undo,
         } => cmd_annotate(&AnnotateArgs {
             input: &input,
+            layer: layer_pick(layer, layer_id),
             kind,
             page,
             rect: rect.as_deref(),

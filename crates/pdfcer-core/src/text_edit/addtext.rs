@@ -324,6 +324,12 @@ pub struct AddTextRequest {
     /// inserted into an OCR layer without printing over the scan (`G034`).
     /// Out of range is [`AddTextError::InvalidRenderMode`].
     pub render_mode: u8,
+    /// The optional-content group (layer) the new text is placed on, or
+    /// `None` for no layer (`Pass 358.5`). Honoured by
+    /// [`EditSession::add_text`](crate::edit::EditSession::add_text) only;
+    /// the free [`add_text`] refuses it with
+    /// [`AddTextError::LayerNeedsSession`].
+    pub layer: Option<ObjId>,
 }
 
 impl AddTextRequest {
@@ -343,7 +349,16 @@ impl AddTextRequest {
             alignment: BlockAlignment::Left,
             leading: None,
             render_mode: 0,
+            layer: None,
         }
+    }
+
+    /// Place the new text on `layer`, an optional-content group registered
+    /// in `/OCProperties /OCGs` (`Pass 358.5`).
+    #[must_use]
+    pub const fn on_layer(mut self, layer: ObjId) -> Self {
+        self.layer = Some(layer);
+        self
     }
 
     /// Switch to the **boxed** variant (16.1): wrap the text to the rectangle
@@ -507,6 +522,18 @@ pub struct AddTextOutcome {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum AddTextError {
+    /// [`AddTextRequest::layer`] was set on the free [`add_text`], which
+    /// writes no undoable session state; use
+    /// [`EditSession::add_text`](crate::edit::EditSession::add_text).
+    #[error(
+        "placing new text on a layer needs an edit session; the one-shot add-text route has none"
+    )]
+    LayerNeedsSession,
+    /// [`AddTextRequest::layer`] could not be honoured: the group is not
+    /// registered ([`EditError::LayerNotFound`](crate::edit::EditError::LayerNotFound)),
+    /// or the added stream could not be wrapped. Nothing was added.
+    #[error("the new text could not be placed on the layer: {0}")]
+    Layer(#[source] Box<crate::edit::EditError>),
     /// A text rendering mode outside `0..=7` (§9.3.6 Table 106).
     #[error(
         "text rendering mode {mode} does not exist: §9.3.6 Table 106 defines modes 0 to 7 \
@@ -652,6 +679,9 @@ pub enum AddTextError {
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, AddTextError> {
+    if req.layer.is_some() {
+        return Err(AddTextError::LayerNeedsSession);
+    }
     // Guards mirror `EditSession::add_markup`, in the SAME order (encryption →
     // certification → suppressed-objects): each is a named refusal made BEFORE
     // any allocation.

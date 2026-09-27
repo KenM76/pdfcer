@@ -1404,6 +1404,21 @@ pub(crate) fn cmd_list_attachments(input: &Path) -> u8 {
     exit::SUCCESS
 }
 
+/// `--layer NAME` / `--layer-id N` as a [`LayerPick`], or `None` for neither.
+pub(crate) fn layer_pick(name: Option<String>, id: Option<u32>) -> Option<LayerPick> {
+    (name.is_some() || id.is_some()).then_some(LayerPick { name, id })
+}
+
+/// The layer an add command's `--layer` / `--layer-id` names, or the refusal
+/// exit code after saying why.
+pub(crate) fn resolve_add_layer(
+    input: &Path,
+    session: &pdfcer_core::edit::EditSession,
+    pick: Option<&LayerPick>,
+) -> Result<Option<pdfcer_core::object::ObjId>, u8> {
+    pick.map(|p| pick_layer(input, session, p)).transpose()
+}
+
 /// Which layer `layer-edit` names.
 pub(crate) struct LayerPick {
     pub(crate) name: Option<String>,

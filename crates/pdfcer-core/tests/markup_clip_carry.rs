@@ -74,6 +74,7 @@ fn author_rich_square(s: &mut EditSession) -> ObjId {
         dash: BorderDash::new(vec![4.0, 2.0]),
         opacity: Some(0.5),
         note: Some(MarkupNote::new("a note that must survive").by("Ken")),
+        layer: None,
     };
     s.add_markup_with(0, &spec, &opts).expect("author")
 }

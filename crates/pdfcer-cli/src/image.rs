@@ -5,6 +5,9 @@ use super::*;
 /// than by an `#[allow]`.
 pub(crate) struct AddImageArgs<'a> {
     pub(crate) input: &'a Path,
+    /// `--layer` / `--layer-id` (`Pass 358.5`): the layer what is added
+    /// goes on, or `None` for none.
+    pub(crate) layer: Option<LayerPick>,
     pub(crate) image: &'a Path,
     pub(crate) page: usize,
     pub(crate) rect: &'a str,
@@ -97,7 +100,14 @@ pub(crate) fn cmd_add_image(args: &AddImageArgs<'_>) -> u8 {
         Err(code) => return code,
     };
 
+    let layer = match resolve_add_layer(args.input, &session, args.layer.as_ref()) {
+        Ok(layer) => layer,
+        Err(code) => return code,
+    };
     let mut spec = NewImage::new(page_index, rect, &img);
+    if let Some(layer) = layer {
+        spec = spec.on_layer(layer);
+    }
     if args.stretch || args.natural {
         // `--natural` implies an exact fit: the rectangle WAS computed from
         // the image's own aspect ratio, so "contain" would be a no-op that

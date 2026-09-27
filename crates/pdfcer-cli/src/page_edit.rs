@@ -399,6 +399,9 @@ to hold the metadata you asked for, and the trailer now references it.",
 /// so [`cmd_annotate`] stays under clippy's argument-count limit.
 pub(crate) struct AnnotateArgs<'a> {
     pub(crate) input: &'a Path,
+    /// `--layer` / `--layer-id` (`Pass 358.5`): the layer what is added
+    /// goes on, or `None` for none.
+    pub(crate) layer: Option<LayerPick>,
     /// `--note` / `--note-author` / `--note-date` (`Pass 150.0`). Owned
     /// rather than borrowed because they are assembled into a `MarkupNote`
     /// the session keeps.
@@ -524,10 +527,15 @@ pub(crate) fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
             return exit::EDIT_REFUSED;
         }
     };
+    let layer = match resolve_add_layer(input, &session, args.layer.as_ref()) {
+        Ok(layer) => layer,
+        Err(code) => return code,
+    };
     let markup_options = pdfcer_core::edit::MarkupOptions {
         opacity: args.opacity,
         note,
         dash,
+        layer,
     };
     // `Pass 291.0`: the reporting route, because the CLI's whole disclosure
     // mechanism is PRINTING (rule 11 -- the invocation is the commit, there is

@@ -103,6 +103,7 @@ fn clip_of_squares(n: usize, rich: bool) -> ObjectClip {
         dash: BorderDash::new(vec![4.0, 2.0]),
         opacity: Some(0.5),
         note: Some(MarkupNote::new("a note").by("Ken")),
+        layer: None,
     };
     let mut ids = Vec::new();
     for i in 0..n {

@@ -833,6 +833,15 @@ pub(crate) enum Command {
     Annotate {
         /// Input PDF.
         input: PathBuf,
+        /// Place what is added on this layer, named exactly as
+        /// `list-layers` prints it. Refused (exit 9) when no layer has the
+        /// name, or several do; pick one of those with `--layer-id`.
+        #[arg(long, conflicts_with = "layer_id")]
+        layer: Option<String>,
+        /// Place what is added on the layer with this object number, the
+        /// `id=` `list-layers` prints.
+        #[arg(long)]
+        layer_id: Option<u32>,
         /// The markup subtype to author.
         #[arg(long = "type", value_enum)]
         kind: AnnotKindArg,
@@ -6929,6 +6938,15 @@ pub(crate) enum Command {
     AddText {
         /// Input PDF.
         input: PathBuf,
+        /// Place what is added on this layer, named exactly as
+        /// `list-layers` prints it. Refused (exit 9) when no layer has the
+        /// name, or several do; pick one of those with `--layer-id`.
+        #[arg(long, conflicts_with = "layer_id")]
+        layer: Option<String>,
+        /// Place what is added on the layer with this object number, the
+        /// `id=` `list-layers` prints.
+        #[arg(long)]
+        layer_id: Option<u32>,
         /// 1-based page number to add text to.
         #[arg(long, default_value_t = 1)]
         page: usize,
@@ -8633,6 +8651,15 @@ pub(crate) enum Command {
     ObjectPaste {
         /// Input PDF — the destination.
         input: PathBuf,
+        /// Place what is added on this layer, named exactly as
+        /// `list-layers` prints it. Refused (exit 9) when no layer has the
+        /// name, or several do; pick one of those with `--layer-id`.
+        #[arg(long, conflicts_with = "layer_id")]
+        layer: Option<String>,
+        /// Place what is added on the layer with this object number, the
+        /// `id=` `list-layers` prints.
+        #[arg(long)]
+        layer_id: Option<u32>,
         /// 1-based page number to paste onto.
         #[arg(long, default_value_t = 1)]
         page: u32,
@@ -9421,6 +9448,15 @@ pub(crate) enum Command {
     AddImage {
         /// Input PDF.
         input: PathBuf,
+        /// Place what is added on this layer, named exactly as
+        /// `list-layers` prints it. Refused (exit 9) when no layer has the
+        /// name, or several do; pick one of those with `--layer-id`.
+        #[arg(long, conflicts_with = "layer_id")]
+        layer: Option<String>,
+        /// Place what is added on the layer with this object number, the
+        /// `id=` `list-layers` prints.
+        #[arg(long)]
+        layer_id: Option<u32>,
         /// The image file to place: PNG, JPEG or BMP.
         #[arg(long, value_name = "FILE")]
         image: PathBuf,
