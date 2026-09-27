@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 259.0` (`45298418`), 2026-09-27 — `docs/core-api/` line citations become symbol-only, gated in CI
+
+**Verdict: SHIPPED**, remedy **(b)** of the three named at filing (467th filing, 2026-09-07, Backlog): drop line numbers from citations, keep symbol names, plus a gate. Not (a) fix-the-numbers — the filing's own 0-of-6 strict sample showed a hand-maintained line number isn't sustained in this codebase; not (c) a line-resolving gate — the filing's own leaning, but staging it against hundreds of pre-existing failures was more machinery than the problem needed once (b) was on the table.
+
+**Why (b).** `edit.rs` changes in nearly every Pass, so a line number into it churns immediately; a symbol name is a grep target that survives the edit. No existing tool ever resolved a line number anyway — checked against `check-cited-commits-exist`, `check-cited-verbs-exist`, `check-core-api-verbs`.
+
+**Measurement, before the fix.** ~1,365 citations across the three `docs/core-api/*.md` files (~880 file-qualified + ~485–517 bare) — up from the Backlog entry's 941 (2026-09-07), consistent with ~196 filings' worth of new core-api citations landing between the two measurements, not a contradiction of the earlier count. Of the ~1,365: 142 verifiably correct, 208 past end-of-file, 250 pointing at the wrong item; remainder uncheckable (322 no symbol, 183 undefined symbol, ~280 ambiguous file such as `lib.rs`/`mod.rs`).
+
+**Fix.** Every `file.rs:N` → `file.rs`; bare `:N` spans removed; all-numeric Line-table columns dropped, across `01-reading-and-model.md`, `02-editing-and-saving.md`, `03-capabilities.md`. One history block in `03-capabilities.md` (a "Corrected 2026-09-15 (G018)" note, with its four § refs) deleted per the bounded-doc rule — history, not current contract. `index.md`'s size/clause figures re-derived by `check-core-api-verbs --fix`.
+
+**Gate.** New `tools/check-core-api-no-line-citations.py`: fails on a `file.(rs|md|toml):N` or bare `:N` code span, or a Line-headed table column, anywhere in `docs/core-api`; allows `@`-pinned citations (`repo@hash:path:N`, which can't drift). Wired into `.github/workflows/ci.yml` (audits job renamed "(29 checks)") and into `tools/check-ci-parity.py` (LOCAL) so `run-gates.sh` runs it too. Sabotage-tested: caught `edit.rs:123`, a bare `:45`, and a Line column; passed a commit-pinned `pdfce@cce414e:x.rs:9`.
+
+**Docs.** `docs/core-api/index.md` now states the citation rule up front: cite file and symbol, grep the symbol.
+
+**Gates.** `tools/run-gates.sh` PASS (40 commands, up from 39 — the new gate). `check-core-api-verbs` PASS. No `Cargo.toml` touched — `cargo tree` unaffected.
+
+**Shells.** No `core`/`cli`/`gui` box applies — internal documentation tooling, not a product capability, same precedent as `check-cited-commits-exist`/`check-cited-verbs-exist`/`check-core-api-verbs`.
+
+**`docs/FEATURES.md`.** No row change — matches the no-row precedent noted in the Backlog entry itself.
+
+**Standing lesson, not yet promoted to a RAG tier.** An unverified line-number citation with no re-deriving tool decays silently and non-uniformly: 208 of ~1,365 (≈15%) had drifted past end-of-file alone. Candidate for `D:\dev\rag\rust\` (documentation-tooling / CI-gate pattern); not written this filing — out of this filing's scope.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's report of `45298418`, not independently reproduced.
+
 ### `Pass 363.0` (`f1a708b8`), 2026-09-27 — `--help` no longer prints project history
 
 **Verdict: SHIPPED, minted-and-shipped in one filing.** Found by the engineer while reading `set-page-size`'s `clap` definition on an unrelated loop tick — no request or roadmap item originated it. A dated instance of `R230` (a `clap`-derive `///` doc comment is shipped user interface, only its first line the summary; see Standing rules) — not a new mint.
@@ -17986,121 +18010,16 @@ this should not read it as the same shape as `Pass 261.4`.
 **Source.** `Acrobat_Features/markup__3d_and_projection_annotations.md`
 (new).
 
-> ★★ **ONE ITEM ADDED 2026-09-07 (467th filing) — `docs/core-api/`'s
-> LINE-NUMBER CITATIONS ARE SYSTEMICALLY WRONG, MEASURED FOR THE FIRST TIME
-> RATHER THAN SPOT-FIXED.** `docs/NEXT_SESSION.md` carried one owed citation
-> (`StickyIcon` at `:1181`, actually `:2837`) inherited from a prior session.
-> This filing measured the CLASS instead of discharging the one instance —
-> see `Pass 259.0` below. No remedy chosen here; the acceptance criteria
-> embed the open choice. `docs/FEATURES.md`: no row (internal doc tooling,
-> not a product capability — see the entry's own note).
-
-### `Pass 259.0` — ★★ **`docs/core-api/`'S 941 LINE-NUMBER CITATIONS ARE UNGATED BY ANY EXISTING TOOL, AND A STRICT SAMPLE MEASURED 0 OF 6 CORRECT** — filed 2026-09-07 (467th filing), **NOT STARTED** — new family (documentation-integrity tooling; no origin Pass)
-
-**Origin.** `docs/NEXT_SESSION.md` inherited a single owed item from a prior
-session: `03-capabilities.md:1181` cites `StickyIcon` at
-`annot_author.rs:1022`; the live location is `:2837`. Fixing that one
-citation and calling the owed item discharged would have retired the flag
-while the class stayed wrong — this filing measured the class instead,
-during an idle loop tick (no shell available to this filing; the counts
-below are relayed from the dispatching session's measurement, not
-independently re-run here).
-
-**Scope measured, across the three `docs/core-api/*.md` files:**
-
-| citation kind | count |
-|---|---|
-| file-qualified (`` `edit.rs:123` ``) | 460 |
-| bare (`` `:123` ``, file taken from surrounding context) | 481 |
-| **total** | **941** |
-
-**No existing gate resolves a line number.**
-`tools/check-cited-commits-exist.py` checks commit hashes;
-`tools/check-cited-verbs-exist.py` checks that a named verb exists
-somewhere in the target file; `tools/check-core-api-verbs.py` counts verbs
-against a stated total. None of the three opens the cited file at the
-cited line.
-
-**Sample 1 — strict.** 17 bare `Symbol:N` citations in
-`03-capabilities.md`, checked against
-`crates/pdfcer-core/src/annot_author.rs` by resolving each named `pub`
-item's real definition line. **6 of 17 resolved to a real item by name; 0
-of those 6 landed on the correct line:**
-
-| symbol | cited | actual |
-|---|---|---|
-| `Color` | `:85` | `:87` |
-| `Quad` | `:129` | `:222` |
-| `TextMarkupKind` | `:179` | `:282` |
-| `LineEnding` | `:299` | `:1153` |
-| `StickyIcon` | `:1022` | `:2837` |
-| `StampName` | `:1060` | `:2960` |
-
-Two more citations on the same lines, same pattern: `MarkupSpec` cited
-`:215`, actual `:318`; `TextAnnotSpec` cited `:1144`, actual `:3044`;
-`Quad::from_rect` cited `:145`, actual `:238`.
-
-**Sample 2 — generous, cross-document.** 40 file-qualified citations,
-random seed 7, drawn across all three `docs/core-api/*.md` files, checked
-by opening the named file at the named line: **26 of 40 (65%) land on a
-plausible definition/doc/blank line; 3 of 40 (7.5%) land past end-of-file;
-11 of 40 (27.5%) land on unrelated code.** The 26-of-40 pass criterion is
-deliberately generous — a citation scores as a pass if the landing line
-merely *starts with* `pub`, `impl`, `fn`, `const`, `#[`, `///`, `//`, or is
-blank, so the honest reading of this sample is *"at least 14 of 40 (35%)
-demonstrably wrong; the remaining 26 unverified, not confirmed."* The 3 of
-40 past-end-of-file citations (e.g. `mod.rs:1148` cited in a 568-line
-file) are wrong under any reading and require no judgement call to
-detect — the natural first gate stage.
-
-**Why this is a Pass and not a doc fix.** `docs/core-api/` is what
-`pdfcer-gui` — a separate project, separate repository, separate engineer
-— builds against; that is the reason this document tree exists at all
-(ruled 2026-08-18, after it was found eight verbs behind and `pdfcer-gui`
-shipped a wrong operator-facing disclosure sourced from the gap). A wrong
-line number sends a consuming project's reader to the wrong code with
-full confidence. The dispatching session characterised this as `R244`'s
-shape one level down — a claim that reads as maintained because nothing
-can check it, and decays silently until someone follows it and lands
-somewhere wrong.
-
-**Acceptance criteria — the scoping Pass decides the REMEDY; none is
-pre-chosen by this filing:**
-
-1. **(a) Fix the numbers.** Restores the class to true today; does not
-   survive the next edit to any cited file. A hand-maintained line number
-   has not been shown sustainable in this codebase — the 0-of-6 strict
-   sample is direct evidence for that, not merely a plausibility argument.
-2. **(b) Drop line numbers from citations, keep symbol names only.**
-   Self-maintaining (a symbol name is a grep target that survives edits; a
-   line number is not) and costs nothing to build, but discards real
-   navigational value for a reader who today jumps straight to a line, and
-   changes a citation convention used ~941 times.
-3. **(c) Build `tools/check-doc-line-citations.py` and drive it to
-   green.** Converts an unfalsifiable claim into a checked one — the
-   staged-denominator treatment already prescribed for
-   `tools/check-public-fns-documented.py` applies here too, since this
-   gate would also start **red at baseline across hundreds of instances**.
-   Natural staging: stage 1 is the past-end-of-file check alone (3 known
-   failures in sample 2, zero judgement calls, trivially correct); stage 2
-   is file-qualified citations; stage 3 is bare citations (hardest of the
-   three — requires resolving "file taken from context" per citation).
-
-No remedy is chosen by this filing. A leaning is recorded, not binding on
-the scoping Pass: **(c), staged as above** — because (a) alone is
-evidenced not to hold unassisted, and (b) throws away value the six
-correctly-named (if wrongly-numbered) symbols in sample 1 show a reader
-currently relies on. **Whichever remedy is picked, fixing a subset of the
-941 and calling this entry discharged is explicitly the wrong shape** — a
-partial fix retires the flag while the remainder stays wrong, which reads
-to a future reader as *more* trustworthy than an un-fixed document, not
-less.
-
-**`docs/FEATURES.md`: no row.** This is internal documentation tooling,
-not a product capability — no `core`/`cli`/`gui` box applies, matching the
-precedent already set by `check-cited-commits-exist`,
-`check-cited-verbs-exist` and `check-core-api-verbs`, none of which carry
-a `FEATURES.md` row either.
+> ★★ **`Pass 259.0` SHIPPED and has left this section, 2026-09-27 (663rd
+> filing, code `45298418`).** Filed here *Backlog* 2026-09-07 (467th filing)
+> as `docs/core-api/`'s 941 line-number citations being ungated by any
+> existing tool (strict sample: 0 of 6 correct), with three named remedies
+> and no binding choice. Remedy **(b)** was picked — line numbers dropped
+> from every `docs/core-api/*.md` citation, symbol names kept — plus a new
+> gate, `tools/check-core-api-no-line-citations.py`, enforcing the
+> convention in CI. Full entry, including both measurements (941 at filing
+> time; ~1,365 at fix time) and the three-remedy acceptance criteria, is at
+> the **top of *Shipped***. No remnant of the entry stays here.
 
 > ★★★ **`Pass 255.0` SHIPPED and has left this section, 2026-09-05 (435th
 > filing, code `35ca5be`).** Filed here *Backlog* by the 432nd filing, given

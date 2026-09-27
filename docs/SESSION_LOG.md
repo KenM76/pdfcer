@@ -4,6 +4,31 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (663rd filing) — `45298418`: `Pass 259.0` (`docs/core-api/` line citations → symbol-only, gated) SHIPPED
+
+**Shipped:**
+- Pass 259.0 — remedy (b) chosen from the three named at filing (467th filing, 2026-09-07): dropped line numbers from every `docs/core-api/*.md` citation, kept symbol names only, plus a new CI gate enforcing the convention.
+
+**Decisions made this session:**
+- None new — the remedy choice was the open acceptance criterion the Backlog entry left unbound; not a fresh architectural decision.
+
+**Findings + decisions:**
+- Why (b) over (a)/(c): `edit.rs` changes in nearly every Pass so a line number into it churns immediately; a symbol name is a grep target that survives the edit; no existing tool (`check-cited-commits-exist`, `check-cited-verbs-exist`, `check-core-api-verbs`) ever resolved a line number, so (c)'s staged gate would have been new machinery for a maintenance style (a) already showed unsustainable at filing time (0-of-6 strict sample).
+- Pre-fix measurement: ~1,365 citations (~880 file-qualified, ~485–517 bare) across the three `docs/core-api/*.md` files — up from the Backlog entry's 941 (2026-09-07), consistent with ~196 filings' worth of new core-api citations landing meanwhile, not a contradiction of the earlier count. Of those: 142 verifiably correct, 208 past end-of-file, 250 pointing at the wrong item; remainder uncheckable (322 no symbol, 183 undefined symbol, ~280 ambiguous file such as `lib.rs`/`mod.rs`).
+- Fix: every `file.rs:N` → `file.rs`; bare `:N` spans removed; all-numeric Line-table columns dropped, across `01-reading-and-model.md`, `02-editing-and-saving.md`, `03-capabilities.md`. One history block in `03-capabilities.md` (a "Corrected 2026-09-15 (G018)" note, plus its four § refs) deleted per the bounded-doc rule. `index.md`'s size/clause figures re-derived by `check-core-api-verbs --fix`.
+- New gate `tools/check-core-api-no-line-citations.py`: fails on any `file.(rs|md|toml):N` or bare `:N` code span, or a Line-headed table column, inside `docs/core-api`; allows `@`-pinned citations (`repo@hash:path:N`, which can't drift). Wired into `.github/workflows/ci.yml` (audits job renamed "(29 checks)") and into `tools/check-ci-parity.py` (LOCAL) so `run-gates.sh` runs it too. Sabotage-tested: caught `edit.rs:123`, a bare `:45`, and a Line column; passed a commit-pinned `pdfce@cce414e:x.rs:9`.
+- `docs/core-api/index.md` now states the citation rule up front: cite file and symbol, grep the symbol.
+- `tools/run-gates.sh`: PASS, 40 commands (up from 39 — the new gate). `check-core-api-verbs`: PASS. No `Cargo.toml` touched — `cargo tree` unaffected.
+- `docs/FEATURES.md`: no row affected — documentation/tooling Pass, no `core`/`cli`/`gui` capability changed, matching the no-row precedent already set by `check-cited-commits-exist`/`check-cited-verbs-exist`/`check-core-api-verbs`.
+- Standing lesson, not yet written to a RAG tier: an unverified line-number citation with no re-deriving tool decays silently and non-uniformly — here 208 of ~1,365 (≈15%) had drifted past end-of-file alone. Candidate for `D:\dev\rag\rust\`; out of this filing's scope.
+
+**Still in flight:**
+- Committed to `main` (`45298418`); push status not independently checked this filing (hard rule 8 — no shell available).
+
+**For next session:**
+- No named successor to `Pass 259.0`; pick up whatever's next in *Next up*/*Backlog*.
+- Consider dispatching a write of the line-citation-decay finding to `D:\dev\rag\rust\`.
+
 ## 2026-09-27 (662nd filing) — `f1a708b8`: `Pass 363.0` (`--help` no longer prints project history) SHIPPED
 
 **Shipped:**
