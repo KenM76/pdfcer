@@ -28421,21 +28421,6 @@ impl EditSession {
         })
     }
 
-    /// Ensure an `/AcroForm` carries a `/DA` and a `/DR` `/Font` `/Helv` the
-    /// authored fields' `/DA` can resolve against (§12.7.3.3).
-    ///
-    /// Only ADDS what is missing — an existing `/DR` or `/DA` belongs to the
-    /// document's own author and is left exactly as found.
-    /// The conventional `/AcroForm` `/DR` `/Font` key for a standard-14 face.
-    ///
-    /// These four-letter keys are Acrobat's own and are what every reader
-    /// expects to find — `Helv`, `TiRo`, `Cour`, `Symb`, `ZaDb`. pdfcer uses
-    /// them rather than inventing keys so a field it authors is editable in
-    /// Acrobat afterwards, and so a document that already carries `Helv` gets
-    /// its existing resource reused instead of a duplicate.
-    ///
-    /// The bold/italic members of each family share their family's key with a
-    /// suffix, matching what Acrobat writes.
     /// The keys in `/AcroForm` `/DR` `/Font`, for validating a
     /// [`FieldFont::Resource`] and for naming the alternatives in the refusal.
     ///
@@ -28463,6 +28448,16 @@ impl EditSession {
         fonts.0.iter().map(|(k, _)| k.as_bytes().to_vec()).collect()
     }
 
+    /// The conventional `/AcroForm` `/DR` `/Font` key for a standard-14 face.
+    ///
+    /// These four-letter keys are Acrobat's own and are what every reader
+    /// expects to find — `Helv`, `TiRo`, `Cour`, `Symb`, `ZaDb`. pdfcer uses
+    /// them rather than inventing keys so a field it authors is editable in
+    /// Acrobat afterwards, and so a document that already carries `Helv` gets
+    /// its existing resource reused instead of a duplicate.
+    ///
+    /// The bold/italic members of each family share their family's key with a
+    /// suffix, matching what Acrobat writes.
     fn std14_resource_key(font: crate::fontdata::Std14) -> &'static [u8] {
         use crate::fontdata::Std14 as F;
         match font {
@@ -28483,6 +28478,11 @@ impl EditSession {
         }
     }
 
+    /// Ensure an `/AcroForm` carries a `/DA` and a `/DR` `/Font` `/Helv` the
+    /// authored fields' `/DA` can resolve against (§12.7.3.3).
+    ///
+    /// Only ADDS what is missing — an existing `/DR` or `/DA` belongs to the
+    /// document's own author and is left exactly as found.
     fn ensure_default_resources(af: &mut Dict, also: &[crate::fontdata::Std14]) {
         if af.get(b"DA").is_none() {
             af.insert(
