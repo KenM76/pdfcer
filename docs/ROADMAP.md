@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 358.3` (`eef4f9f0`), 2026-09-27 — Organise `/Order` folders
+
+**Verdict: SHIPPED, family `358` continues (358.4–358.6 remain).** Acrobat can reorder `/Order` but cannot create a folder (`layers__order_folder_reordering.md`) — folder creation here exceeds Acrobat.
+
+**Core (`crates/pdfcer-core/src/edit.rs`).** `EditSession::add_layer_folder(parent, index, label)`, `rename_layer_folder(at, label)`, `delete_layer_folder(at)` (children lifted into the folder's place), `move_layer_node(from, parent, index)` (`parent`/`index` read after removal, `Vec::remove` then `insert` semantics). Each returns `LayerOrderOutcome { changed, path, follows_layer }` — `#[non_exhaustive]`, `Default`. One undo entry, `CommandKind::EditLayerOrder`. Only `/D /Order` is written; indirect arrays edited in place, an emptied array pruned.
+
+**Position model.** A position is a path of child indices into `Layers::order`. `OrderNode` gained a `pub(crate) raw` position. A folder cannot be a labelled-array-first sibling of a layer at the same level — `/Order` (ISO 32000-1 §8.11.4.3 Table 101) reads a label-first array after a layer as a sibling folder (pdfcer's DA-A3 resolution, `Pass 358.3`'s 651st-filing correction), so that placement is refused with `LayerOrderInexpressible`. `follows_layer` discloses a folder written directly after a layer, undefined by Table 101 (DA-A3), per rule 4.
+
+**Verification.** Every rewrite is re-read through the panel's own `/Order` reader and compared with the intended tree; a mismatch is refused before any write.
+
+**`EditError`** +4: `LayerOrderPathNotFound`, `NotALayerFolder`, `LayerOrderInexpressible`, `LayerOrderNotEditable` — variant count 147. `EmptyLayerName` message now reads "a layer or folder name cannot be empty". `EditSession` verb count 259. `docs/core-api` updated in the same commit; `check-core-api-verbs` passes.
+
+**CLI.** `pdfcer layer-folder-add --label [--parent] [--index]`, `layer-folder-rename --at --label`, `layer-folder-delete --at`, `layer-move --from [--parent] [--index]` (`--index` defaults to end); exit 9 on refusal. `list-layers --tree` now prints `at=<dotted position>` on every entry.
+
+**Tests.** Core `layer_` integration: 43 passing (7 new — add at top level, add inside a folder, rename, delete-lifts, move cases with a prune assertion, refusals, incremental-save round trip with a 2-entry dirty set). Lib `layers`: 19 (new `order_positions_are_raw_paths`). CLI: +3 (folder add then move, rename then delete, refusals exit 9 / usage exit 2); `list_layers_tree` expectations updated for `at=`. Sabotage: 4 mutations (oracle, extent end, prune, CLI move default index), all caught. No manifest change — `cargo tree` unaffected. clippy/fmt clean.
+
+**Shells.** core `[x]`, cli `[x]`. gui `[ ]` — separate project, no caller yet.
+
+**`docs/FEATURES.md`.** "Organise `/Order` folders" row: core `[x]` / cli `[x]` / gui `[ ]`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `eef4f9f0`, not independently reproduced.
+
 ### `Pass 358.2` (`a103d697`), 2026-09-27 — Create and delete a layer (both content policies)
 
 **Verdict: SHIPPED, family `358` COMPLETE for create/delete.** Acrobat has no New Layer/Delete Layer command at all — delete exists only as a Preflight fixup (`layers__layer_properties_authoring.md`). Both directions here exceed Acrobat (operator standing rule: parity is a floor). `358.3`–`358.6` (folders, content/annotation `/OC` assignment, layer-on-add, merge/flatten) remain unstarted.
@@ -8327,16 +8349,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
-
-### `Pass 358.3` — Organise `/Order` folders
-
-**Filed 2026-09-27 (644th filing), family `358`.** Answers the operator's folder question directly — Acrobat can reorder `/Order` but CANNOT create a folder (`layers__order_folder_reordering.md`); folder CREATION here exceeds Acrobat.
-
-**Scope.** Add, rename, delete a label-node folder in `/D /Order`; deleting a folder lifts its children up a level rather than deleting them. Move a layer into/out of a folder; reorder within a level. Round-trip: unrelated `/Order` structure (unknown entries, nested unlabelled arrays a foreign producer wrote) preserved byte-for-byte when untouched.
-
-**Acceptance criteria.** ★ **Corrected 2026-09-27 (651st filing) — the original wording below was wrong.** A folder is a *nested array whose first element is a text string label*, the label being non-selectable and the array's remaining elements its children — `[(Label) child...]`, per ISO 32000-1 Table 101 and `PDF_Spec\iso32000\iso32000__ref__optional_content_order.md` §2.1/2.2 (not "a label string followed by an array"). pdfcer authors that shape exactly; the reader already models it this way (`OrderNode { label, group: None, children }`, `crates/pdfcer-core/src/layers.rs`). Reordering leaves membership (`/OCGs`) untouched — `/Order` is presentation, not membership. A round-trip test on a file with a foreign, deeply-nested, partially-unlabelled `/Order` array pdfcer didn't touch stays byte-identical.
-
-**Design note (added 651st filing).** A labelled array placed immediately after an OCG at the same level is DA-A3 — undefined by the standard: it can be read as a named folder *under* that OCG, or as a sibling folder. pdfcer's reader takes the sibling reading. When pdfcer *authors* or *moves* a folder into that position, it must disclose the ambiguity in the outcome/CLI output (rule 4) rather than silently reorder the operator's structure to dodge it. Which reading pdfcer commits to on the write side is not yet decided — open at implementation.
 
 ### `Pass 358.4` — Put existing content or an annotation onto a layer
 

@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (652nd filing) — `eef4f9f0`: `Pass 358.3` (layer-panel folders) SHIPPED
+
+**Shipped:**
+- Pass 358.3 — `/Order` folder authoring: `EditSession::add_layer_folder`/`rename_layer_folder`/`delete_layer_folder` (children lifted on delete) and `move_layer_node` (parent/index read after removal), returning `LayerOrderOutcome { changed, path, follows_layer }`. CLI `layer-folder-add`/`layer-folder-rename`/`layer-folder-delete`/`layer-move`; `list-layers --tree` prints `at=<dotted position>`.
+
+**Decisions made this session:**
+- None new. A labelled-array-first sibling of a layer at the same level is refused (`LayerOrderInexpressible`), per the DA-A3 resolution corrected in the 651st filing; `follows_layer` discloses the adjacent-undefined-position case per rule 4.
+
+**Findings + decisions:**
+- `EditError` +4 (147 total); `EditSession` verb count 259; `docs/core-api` updated, `check-core-api-verbs` clean. Tests: core `layer_` 43 (+7), lib `layers` 19 (+1), CLI +3. Sabotage: 4 mutations caught. No manifest change.
+
+**Still in flight:**
+- `Pass 358.4` (assign content/annotation to a layer), `358.5` (layer option on add-content verbs), `358.6` (merge/flatten) — none started. `flatten_annotations` (`G043` option B) still unscoped.
+
+**For next session:**
+- Pick up `Pass 358.4` next.
+
 ## 2026-09-27 (651st filing) — correction: `Pass 358.3` `/Order` folder shape was mis-stated
 
 **Correction, not a ship.** `Pass 358.3`'s acceptance criteria (`docs/ROADMAP.md`) said "a folder is a label string followed by an array per §8.11.4.3." Wrong: per ISO 32000-1 Table 101 and `PDF_Spec\iso32000\iso32000__ref__optional_content_order.md` §2.1/2.2, a folder is a *nested array whose first element is a text string label*, remaining elements its children — `[(Label) child...]`. pdfcer's reader already models it correctly (`OrderNode`, `crates/pdfcer-core/src/layers.rs`); only the write-side acceptance criterion was wrong, corrected in place with a dated marker. Also added a design note: a labelled array immediately after an OCG at the same level is DA-A3 (undefined by spec — sibling-folder vs. named-folder-under-that-OCG); authoring/moving into that position must disclose the ambiguity (rule 4), never silently resolve it. No box in `FEATURES.md` changes.
