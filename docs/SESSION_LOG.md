@@ -4,6 +4,62 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (620th filing) — `5a774124`: `Pass 335.0` SHIPPED — widget visibility edits keep the other `/F` bits
+
+**Shipped:**
+- `Pass 335.0` — first fix from the Backlog's "Audit every `FieldEdit`/
+  `WidgetEdit` property" item (filed 2026-09-16, 562nd filing); the item
+  stays open. `EditSession::edit_widget` wrote a widget's `Visibility`
+  choice by replacing the WHOLE `/F` flag word, silently clearing
+  `Locked`/`ReadOnly`/`NoZoom`/`LockedContents` and any other set bit
+  (ISO 32000-1 §12.5.3 Table 165).
+
+**Decisions made this session:** none — a scoped correctness fix, no
+architecture change.
+
+**Findings + decisions:**
+- Fix: new `pub Visibility::FLAG_MASK` (Hidden|Print|NoView) and
+  `Visibility::apply_to(flags) -> i64`, replacing only those three bits.
+  `edit_widget` composes through it instead of assigning a fresh word.
+- Read-side contract change: `forms::Widget::visibility` now compares
+  only the visibility bits, so `Print|NoZoom` reads
+  `Some(VisibleAndPrints)` — it read `None` under `Pass 146.0`'s design,
+  whose rationale (a write would clear `NoZoom`) no longer holds now the
+  write side doesn't clobber it. `pdfcer-gui` needs to know about this.
+- New `crates/pdfcer-core/tests/form_edit_audit.rs`, 2 tests, both fail
+  with the fix reverted. Forms unit test renamed
+  `only_the_visibility_bits_decide_visibility_and_the_raw_word_is_still_published`.
+  `tools/run-gates.sh`: PASS (39 commands). No `Cargo.toml` change,
+  `cargo tree` unaffected. `docs/core-api/03-capabilities.md` updated;
+  `check-core-api-verbs`: PASS.
+- Core only this Pass — no CLI or GUI surface touched, neither box
+  moves. `docs/FEATURES.md` row updated in prose only (Forms ▸ "Change
+  a field's properties…"), no box change.
+- `docs/ROADMAP.md`'s audit Backlog entry widened with the remaining
+  findings from the same audit pass, worst first — nine `FieldEdit`
+  items (D1–D8, D4b, D5/X1) and six `WidgetEdit` items (border
+  width/style never drawn, `border_dict` dropping `/D`, unrecorded
+  stroke-width scaling, false Regenerated reports on radio/text/choice
+  captions, f32-widened `/MK` colours, `regen_field_appearance`'s
+  `siblings_untouched` over rebuilt siblings) — see `ROADMAP.md`,
+  Backlog, "Audit every `FieldEdit`/`WidgetEdit` property".
+
+**Still in flight:** `Pass 142.0` (embedded-donor `format-text
+--set-font`) scoping continues; the widened audit entry's remaining
+findings are unscoped, no Pass IDs assigned yet.
+
+**For next session:** scope the worst of the newly-recorded audit
+findings (D6's inherited-flag re-exposure and D5/X1's `/DA`/`/DR`
+fallback look like the next candidates) into a Pass. Also: confirm
+`docs/FEATURES.md` row 318 ("Change a field's properties…") against
+`tools/check-register-entry-size.py` — it reads over the 1,200-character
+cap and is not listed in `tools/register-entry-size-baseline.txt`,
+independent of this filing's own (kept short) addition to it.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`5a774124`, not independently reproduced.
+
 ## 2026-09-26 (619th filing) — `94504f0a`: `v0.58.0` RELEASED
 
 **Shipped:**

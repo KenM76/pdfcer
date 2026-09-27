@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 335.0` (`5a774124`), 2026-09-26 — Widget visibility edits keep the other `/F` bits
+
+**Verdict: SHIPPED, first fix from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing) — the item stays open; remaining findings widened onto that entry, not resolved by this Pass (see *Backlog*).
+
+`EditSession::edit_widget` wrote a widget's `Visibility` choice by replacing the WHOLE annotation `/F` flag word with just that choice's bits, silently clearing whatever else the word held — `Locked` (128), `ReadOnly` (64), `NoZoom` (8), `LockedContents` (512), any other set bit (ISO 32000-1 §12.5.3 Table 165). A locked, no-zoom widget lost both properties the moment its visibility was touched.
+
+**Fix.** New `pub Visibility::FLAG_MASK` (`Hidden`(2) | `Print`(4) | `NoView`(32)) and `Visibility::apply_to(flags: i64) -> i64`, replacing only those three bits and leaving the rest of the word untouched. `edit_widget` now composes through `apply_to` instead of assigning a fresh word.
+
+**Read-side contract change.** `forms::Widget::visibility` now compares only the visibility bits rather than the whole word: `Print|NoZoom` now reads `Some(VisibleAndPrints)` — it previously read `None`, by a `Pass 146.0` design whose rationale (a write would clear `NoZoom`) no longer holds now the write side no longer clobbers it. `Hidden|Print` still reads `None`. **This is a contract change `pdfcer-gui` needs to know about.**
+
+**Tests.** New `crates/pdfcer-core/tests/form_edit_audit.rs`, 2 tests, both fail with the source fix reverted (sabotage-checked). Forms unit test renamed `only_the_visibility_bits_decide_visibility_and_the_raw_word_is_still_published`. `tools/run-gates.sh`: PASS (39 commands). `docs/core-api/03-capabilities.md` updated; `check-core-api-verbs`: PASS.
+
+**No manifest change** — no `Cargo.toml` edit, `cargo tree` unaffected.
+
+**Shells.** Core only this Pass — no CLI subcommand or GUI surface touched; neither box moves.
+
+**`docs/FEATURES.md`:** no box change — correctness fix under an already-ticked widget-property-editing capability (*Forms (AcroForm)*), noted in prose there, not new reach.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `5a774124`, not independently reproduced.
+
 ### `Pass 334.0` (`12182b5b`), 2026-09-26 — SVG and EMF export are deterministic under soft masks
 
 **Verdict: SHIPPED, closes the Backlog entry "EMF export nondeterministic on
@@ -16830,6 +16850,27 @@ suspicion this entry recorded.
 **Scope:** enumerate every settable property on both edit types and check, for each, that the regeneration function it feeds actually has that property in its parameter list (or its live snapshot read) — not merely that regeneration is *called*. See `D:\dev\rag\rust\a_regeneration_success_flag_that_reads_fewer_staged_inputs_than_it_writes_still_reports_full_success.md` for the full mechanism and how to test for it (an end-to-end stream-bytes assertion, not a writer test and a painter test run separately).
 
 ★ **Widened 2026-09-16 (563rd filing, `Pass 308.6`), on the engineer's own recommendation.** `Pass 308.6` found a THIRD instance of the sibling shape — `AdvisoryHelper::Keystroke` reads correctly (for disclosure) and cannot be written back or written through, because its arguments were never captured — after `/Q` (`308.4`) and `/MK /R` on buttons (`308.5`). Widen this audit's question from *"does regeneration read every staged edit?"* to the more general *"for any modelled value: can it be written back, and does the writer read what it needs to reconstruct it?"* — the same failure shape (a value good enough for one direction assumed good enough for the other) recurs across regeneration paths and value-capturing types alike.
+
+★ **First fix shipped, and remaining findings enumerated — 2026-09-26 (620th filing, `Pass 335.0`, `5a774124`).** `Pass 335.0` fixed the instance this audit's own exercise turned up: `EditSession::edit_widget` wrote a `Visibility` choice by replacing the WHOLE `/F` word rather than only the visibility bits, silently clearing `Locked`/`ReadOnly`/`NoZoom`/`LockedContents` and any other set bit — see *Shipped*, above. **Kept open** — this is one instance closed, not the audit finished. The remaining findings, worst first, as reported back this filing so they are on disk rather than only in a dispatch note:
+
+**FieldEdit:**
+- D6 — clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
+- D3 — an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
+- D5/X1 — `regen_after_property_change` falls back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redraws in Helvetica, and a non-Helv `/DA` key gives `FontUnresolved` on a later edit.
+- D4 — a resource font is forced to Helvetica.
+- D4b — a push-button `/DA` edit is not redrawn.
+- D1 — comb/`max_len` get no comb layout, yet report Regenerated.
+- D2 — password has no masking; plaintext lands in `/V` and `/AP`.
+- D7 — stale `/I`/`/TI` after an `/Opt` change.
+- D8 — round-trip gaps: inherited quadding read-back, multi-select `/DV`. Check box/radio `/DA` edits report Regenerated over identical bytes. Regen auto-size and unencodable-character counts are dropped, undisclosed.
+
+**WidgetEdit:**
+- Border width/style never drawn — the builders hard-code line width 1, no dash/bevel/inset/underline — while the outcome reports Regenerated.
+- `border_dict` drops `/D`.
+- Stroke-width scaling is reported but not drawn.
+- Radio caption and text/choice caption falsely report Regenerated (text/choice also churns a new `/AP` it didn't need to).
+- `/MK` `/BG`/`/BC` written f32-widened, e.g. `[0.20000000298023224]` (`MkColor::to_array`).
+- X2 — `regen_field_appearance` rebuilds every sibling widget while reporting `siblings_untouched`.
 
 ### Unscoped — An INDIRECT `/CO` reference is silently replaced by a fresh array on append, losing whatever else referenced it — filed 2026-09-16 (563rd filing, `Pass 308.6`), no Pass ID
 
