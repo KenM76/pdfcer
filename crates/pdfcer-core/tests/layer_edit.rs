@@ -3,7 +3,8 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{
-    CommandKind, EditError, EditSession, LayerEdit, LayerIntent, LayerOutputState,
+    CommandKind, EditError, EditSession, LayerContentPolicy, LayerEdit, LayerIntent,
+    LayerOutputState,
 };
 use pdfcer_core::graph::ObjectGraph as _;
 use pdfcer_core::layers::read_layers;
@@ -391,6 +392,84 @@ fn add_layer_refuses_an_empty_name() {
     assert!(matches!(
         s.add_layer("", &LayerEdit::new()),
         Err(EditError::EmptyLayerName)
+    ));
+    assert_eq!(s.undo_depth(), 0);
+}
+
+/// Page 1's content stream, as saved by a full rewrite and reloaded.
+fn saved_content(s: &EditSession) -> String {
+    let (bytes, _) = s
+        .to_full_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .expect("full rewrite");
+    let doc = Document::from_bytes(bytes).expect("reopens");
+    let view = doc.view();
+    let Some(Object::Stream(stream)) = view.graph().value(ObjId::new(8, 0)).cloned() else {
+        panic!("object 8 is not a stream");
+    };
+    assert!(!stream.dict.contains_key(b"Filter"));
+    String::from_utf8_lossy(view.slice(stream.data_span).expect("in range")).into_owned()
+}
+
+/// Deleting a layer unwraps its section, keeps what it drew and what is
+/// nested in it, and removes it from `/OCGs`, `/Order`, `/OFF` and
+/// `/Properties`. One undo entry restores it all.
+#[test]
+fn delete_layer_unwraps_its_sections() {
+    let mut s = fixture("painted-layers.pdf");
+    let l2 = ObjId::new(5, 0);
+    let outcome = s
+        .delete_layer(l2, LayerContentPolicy::KeepUnlayered)
+        .expect("deletes");
+    assert!(outcome.changed);
+    assert_eq!((outcome.sections, outcome.streams), (1, 1));
+
+    let content = saved_content(&s);
+    assert!(!content.contains("/L2"), "{content}");
+    assert!(
+        content.contains("0 0 0 rg 400 60 120 120 re f"),
+        "{content}"
+    );
+    assert!(content.contains("/OC /L4 BDC"), "{content}");
+    assert_eq!(content.matches("EMC").count(), 3, "{content}");
+    assert_eq!(content.matches("BDC").count(), 3, "{content}");
+
+    let read = read_layers(&s.graph());
+    assert!(read.layers.iter().all(|l| l.id != l2));
+    let d = default_config(&s);
+    assert!(!members(&s, &d, b"OFF").contains(&l2));
+    assert!(!members(&s, &d, b"Order").contains(&l2));
+    let page = dict(&s, ObjId::new(3, 0));
+    let props = page
+        .get(b"Resources")
+        .and_then(Object::as_dict)
+        .and_then(|r| r.get(b"Properties"))
+        .and_then(Object::as_dict)
+        .expect("/Properties");
+    assert!(props.get(b"L2").is_none());
+    assert!(props.get(b"L4").is_some());
+
+    assert_eq!(s.undo(), Some(CommandKind::DeleteLayer { layer: l2 }));
+    assert!(read_layers(&s.graph()).layers.iter().any(|l| l.id == l2));
+    assert!(saved_content(&s).contains("/OC /L2 BDC"));
+}
+
+/// A layer named by a membership dictionary is refused, by name, and
+/// nothing is written.
+#[test]
+fn delete_layer_refuses_a_membership_member() {
+    let mut s = fixture("ocmd-membership.pdf");
+    for (layer, ocmd) in [(4, 10), (5, 12)] {
+        match s.delete_layer(ObjId::new(layer, 0), LayerContentPolicy::KeepUnlayered) {
+            Err(EditError::LayerInMembership { layer: l, ocmd: m }) => {
+                assert_eq!(l, ObjId::new(layer, 0));
+                assert_eq!(m.num, ocmd);
+            }
+            other => panic!("layer {layer}: {other:?}"),
+        }
+    }
+    assert!(matches!(
+        s.delete_layer(ObjId::new(7, 0), LayerContentPolicy::KeepUnlayered),
+        Err(EditError::LayerNotFound { .. })
     ));
     assert_eq!(s.undo_depth(), 0);
 }

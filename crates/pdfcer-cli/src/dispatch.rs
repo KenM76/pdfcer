@@ -2117,6 +2117,20 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         ),
+        Command::LayerDelete {
+            input,
+            layer,
+            id,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_layer_delete(
+            &input,
+            &LayerPick { name: layer, id },
+            &output,
+            mode,
+            verify_undo,
+        ),
         Command::LayerEdit {
             input,
             layer,

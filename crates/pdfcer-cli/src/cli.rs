@@ -7996,6 +7996,38 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Delete a layer, keeping everything drawn on it.
+    ///
+    /// The layer leaves the layer panel and every layer setting. What was
+    /// drawn on it stays on the page, always visible and on no layer, and
+    /// anything nested inside it keeps its own layer. Prints one
+    /// `layer-delete` line with how many layer sections were unwrapped, in how
+    /// many content streams, and how many annotations and XObjects lost the
+    /// layer.
+    ///
+    /// Exit 9 when there is no such layer, when a visibility expression or
+    /// membership dictionary names it (deleting it would change what that
+    /// shows), or when a content stream that draws on it cannot be rewritten.
+    /// Nothing is written then.
+    LayerDelete {
+        /// Input PDF.
+        input: PathBuf,
+        /// The layer's name, exactly as `list-layers` prints it.
+        #[arg(long, required_unless_present = "id", conflicts_with = "id")]
+        layer: Option<String>,
+        /// The layer's object number, the `id=` `list-layers` prints.
+        #[arg(long)]
+        id: Option<u32>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Edit a layer's properties: rename it, set whether it is visible when
     /// the document opens, lock it, and set whether it prints or exports.
     ///

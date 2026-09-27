@@ -179,3 +179,46 @@ fn layer_add_refuses_an_empty_name() {
     assert_eq!(o.status.code(), Some(EDIT_REFUSED));
     assert!(!out.exists());
 }
+
+fn delete(src: &Path, extra: &[&str], tag: &str) -> (Output, PathBuf) {
+    let out = temp_path(tag);
+    let mut args = vec!["layer-delete", src.to_str().unwrap()];
+    args.extend_from_slice(extra);
+    args.extend(["--output", out.to_str().unwrap()]);
+    (run(&args), out)
+}
+
+/// `layer-delete` removes the layer from `list-layers`, keeps what it drew,
+/// and reports the unwrapped section.
+#[test]
+fn layer_delete_keeps_the_content() {
+    let (o, out) = delete(
+        &fixture("painted-layers.pdf"),
+        &["--layer", "Hidden Box", "--mode", "full", "--verify-undo"],
+        "delete",
+    );
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(stdout.contains("sections=1 streams=1"), "{stdout}");
+    let listed = listing(&out);
+    assert!(!listed.contains("Hidden Box"), "{listed}");
+    assert!(listed.contains("Nested Inner"), "{listed}");
+    let bytes = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(!bytes.contains("/OC /L2 BDC"));
+    assert!(bytes.contains("400 60 120 120 re f"));
+    std::fs::remove_file(out).ok();
+}
+
+/// A layer a membership dictionary names is refused and nothing is written.
+#[test]
+fn layer_delete_refuses_a_membership_member() {
+    let (o, out) = delete(&fixture("ocmd-membership.pdf"), &["--id", "4"], "ocmd");
+    assert_eq!(o.status.code(), Some(EDIT_REFUSED));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("membership"));
+    assert!(!out.exists());
+}

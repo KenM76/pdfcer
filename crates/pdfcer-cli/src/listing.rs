@@ -1285,36 +1285,9 @@ pub(crate) fn cmd_layer_edit(
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let read = pdfcer_core::layers::read_layers(&session.graph());
-    let matches: Vec<pdfcer_core::object::ObjId> = read
-        .layers
-        .iter()
-        .filter(|l| match (&pick.name, pick.id) {
-            (Some(name), _) => l.name_declared && &l.name == name,
-            (None, Some(id)) => l.id.num == id,
-            (None, None) => false,
-        })
-        .map(|l| l.id)
-        .collect();
-    let layer = match matches.as_slice() {
-        [one] => *one,
-        [] => {
-            eprintln!(
-                "pdfcer: {}: no such layer; `pdfcer list-layers` shows the names and ids",
-                input.display()
-            );
-            return exit::EDIT_REFUSED;
-        }
-        many => {
-            let ids: Vec<String> = many.iter().map(|id| id.num.to_string()).collect();
-            eprintln!(
-                "pdfcer: {}: {} layers have that name (ids {}); pick one with --id",
-                input.display(),
-                many.len(),
-                ids.join(", ")
-            );
-            return exit::EDIT_REFUSED;
-        }
+    let layer = match pick_layer(input, &session, pick) {
+        Ok(layer) => layer,
+        Err(code) => return code,
     };
     let edited = match session.set_layer_properties(layer, &layer_edit(args)) {
         Ok(edited) => edited,
@@ -1344,6 +1317,96 @@ pub(crate) fn cmd_layer_edit(
         r.bytes_written,
     );
     finish_edit(input, &outcome)
+}
+
+/// `layer-delete` — delete a layer, keeping its content unlayered.
+pub(crate) fn cmd_layer_delete(
+    input: &Path,
+    pick: &LayerPick,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    use pdfcer_core::edit::LayerContentPolicy;
+
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let layer = match pick_layer(input, &session, pick) {
+        Ok(layer) => layer,
+        Err(code) => return code,
+    };
+    let deleted = match session.delete_layer(layer, LayerContentPolicy::KeepUnlayered) {
+        Ok(deleted) => deleted,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "layer-delete {} id={} mode={} -> {}; sections={} streams={} annotations={} xobjects={} objects={} appended={} out_bytes={}",
+        input.display(),
+        layer.num,
+        mode.name(),
+        output.display(),
+        deleted.sections,
+        deleted.streams,
+        deleted.annotations,
+        deleted.xobjects,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    finish_edit(input, &outcome)
+}
+
+/// The one layer `pick` names, or the refusal exit code after saying why.
+fn pick_layer(
+    input: &Path,
+    session: &pdfcer_core::edit::EditSession,
+    pick: &LayerPick,
+) -> Result<pdfcer_core::object::ObjId, u8> {
+    let read = pdfcer_core::layers::read_layers(&session.graph());
+    let matches: Vec<pdfcer_core::object::ObjId> = read
+        .layers
+        .iter()
+        .filter(|l| match (&pick.name, pick.id) {
+            (Some(name), _) => l.name_declared && &l.name == name,
+            (None, Some(id)) => l.id.num == id,
+            (None, None) => false,
+        })
+        .map(|l| l.id)
+        .collect();
+    match matches.as_slice() {
+        [one] => Ok(*one),
+        [] => {
+            eprintln!(
+                "pdfcer: {}: no such layer; `pdfcer list-layers` shows the names and ids",
+                input.display()
+            );
+            Err(exit::EDIT_REFUSED)
+        }
+        many => {
+            let ids: Vec<String> = many.iter().map(|id| id.num.to_string()).collect();
+            eprintln!(
+                "pdfcer: {}: {} layers have that name (ids {}); pick one with --id",
+                input.display(),
+                many.len(),
+                ids.join(", ")
+            );
+            Err(exit::EDIT_REFUSED)
+        }
+    }
 }
 
 /// `layer-add` — create a new, empty layer.

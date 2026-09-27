@@ -915,6 +915,13 @@ pub enum CommandKind {
         /// The new optional content group.
         layer: ObjId,
     },
+    /// A layer was deleted ([`EditSession::delete_layer`], §8.11) — ONE undo
+    /// entry covering the configuration, resources and every rewritten
+    /// content stream.
+    DeleteLayer {
+        /// The optional content group that was deleted.
+        layer: ObjId,
+    },
     /// One vector object was **moved** (Pass 9c-min, decision 011 §2.5): all
     /// of its path-construction operands were translated by a page-space
     /// `(dx, dy)` through content-stream surgery (the R46/§5.7 named
@@ -7721,6 +7728,26 @@ pub enum EditError {
     /// an empty one leaves the layer panel with a blank row.
     #[error("a layer name cannot be empty")]
     EmptyLayerName,
+    /// A layer delete was refused because an optional content membership
+    /// dictionary (§8.11.2.2) names the layer: removing it would silently
+    /// change what that dictionary shows or hides.
+    #[error("layer {layer} is named by the membership dictionary {ocmd}; it cannot be deleted")]
+    LayerInMembership {
+        /// The layer that was to be deleted.
+        layer: ObjId,
+        /// The membership dictionary naming it.
+        ocmd: ObjId,
+    },
+    /// A layer delete could not rewrite a content stream that draws on the
+    /// layer, so nothing was written.
+    #[error("content stream {stream} cannot be rewritten: {reason}")]
+    LayerContentNotRewritable {
+        /// The stream (a page content stream or a form, pattern or
+        /// appearance XObject).
+        stream: ObjId,
+        /// Why, in words.
+        reason: &'static str,
+    },
     /// A ce-dimension operation named a group the sidecar model does not
     /// contain (Pass 25.5).
     #[error("no ce dimension group with id {id} exists in this document")]
@@ -47704,25 +47731,7 @@ impl EditSession {
         if edit.name.as_deref().is_some_and(str::is_empty) {
             return Err(EditError::EmptyLayerName);
         }
-        let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
-            id: ObjId::new(0, 0),
-            key: "Root",
-        })?;
-        let ocp = self
-            .value(catalog_id)
-            .and_then(Object::as_dict)
-            .and_then(|c| self.deref_dict(c.get(b"OCProperties")));
-        let registered = ocp
-            .as_ref()
-            .and_then(|o| self.deref_value(o.get(b"OCGs")))
-            .and_then(|a| {
-                a.as_array()
-                    .map(|a| a.iter().any(|o| o.as_reference() == Some(layer)))
-            })
-            .unwrap_or(false);
-        if !registered || !matches!(self.value(layer), Some(Object::Dict(_))) {
-            return Err(EditError::LayerNotFound { id: layer });
-        }
+        let catalog_id = self.require_layer(layer)?;
 
         let mut staged: BTreeMap<ObjId, Object> = BTreeMap::new();
         self.stage_layer_edit(catalog_id, layer, edit, &mut staged);
@@ -47967,6 +47976,397 @@ impl EditSession {
         self.stage_layer_edit(catalog_id, layer, &rest, &mut staged);
         self.commit_staged(CommandKind::AddLayer { layer }, staged);
         Ok(layer)
+    }
+
+    /// Delete a layer (an optional content group, ISO 32000-1 §8.11.2),
+    /// keeping everything drawn on it.
+    ///
+    /// The group is removed from `/OCProperties /OCGs` and, in the default
+    /// configuration and every `/Configs` entry, from `/ON`, `/OFF`,
+    /// `/Locked`, `/Order` (at any depth), `/RBGroups` and the `/AS` usage
+    /// entries; an inner `/RBGroups` array or an `/AS` entry left with no
+    /// groups is dropped.
+    ///
+    /// With [`LayerContentPolicy::KeepUnlayered`] the content stays, always
+    /// visible: every `/OC /name BDC … EMC` section naming the group
+    /// (§8.11.3.2) loses its `BDC` and matching `EMC` but keeps what is
+    /// between them, the `/Properties` entry binding `name` is removed, and
+    /// `/OC` is removed from any annotation, form or image XObject that names
+    /// the group directly (§8.11.3.3). Page content, form XObjects, tiling
+    /// patterns and annotation appearance streams are all rewritten. A
+    /// rewritten stream is stored unfiltered, and keeps its other entries.
+    ///
+    /// The group object itself is left in the file, unreferenced. One undo
+    /// entry, [`CommandKind::DeleteLayer`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::LayerNotFound`] — `layer` is not in `/OCProperties
+    ///   /OCGs`.
+    /// - [`EditError::LayerInMembership`] — an optional content membership
+    ///   dictionary (§8.11.2.2) names the group; deleting it would change what
+    ///   that dictionary shows.
+    /// - [`EditError::LayerContentNotRewritable`] — a content stream naming
+    ///   the group could not be decoded, closes a section in a different
+    ///   stream, or is drawn by two pages that bind the same name
+    ///   differently.
+    /// - [`EditError::DocumentEncrypted`] and the certification guard.
+    ///
+    /// All refusals happen before anything is written.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::{EditSession, LayerContentPolicy};
+    /// # fn run(session: &mut EditSession, layer: pdfcer_core::object::ObjId) -> Result<(), Box<dyn std::error::Error>> {
+    /// let outcome = session.delete_layer(layer, LayerContentPolicy::KeepUnlayered)?;
+    /// println!("{} sections unwrapped", outcome.sections);
+    /// # Ok(()) }
+    /// ```
+    pub fn delete_layer(
+        &mut self,
+        layer: ObjId,
+        policy: LayerContentPolicy,
+    ) -> Result<LayerDeleteOutcome, EditError> {
+        match policy {
+            LayerContentPolicy::KeepUnlayered => {}
+        }
+        let catalog_id = self.require_layer(layer)?;
+        let plan = self.plan_layer_delete(layer)?;
+
+        let mut outcome = LayerDeleteOutcome {
+            annotations: plan.annots.len(),
+            xobjects: plan.xobject_oc.len(),
+            ..LayerDeleteOutcome::default()
+        };
+        let mut rewrites: Vec<(ObjId, ByteSpan, usize)> = Vec::new();
+        for (id, bytes, sections) in plan.rewrites {
+            outcome.sections += sections;
+            outcome.streams += 1;
+            let span = self.stage_bytes(&bytes);
+            rewrites.push((id, span, bytes.len()));
+        }
+
+        let load = |id: ObjId| self.value(id).cloned();
+        let me = Object::Reference(layer);
+        let mut staged: BTreeMap<ObjId, Object> = BTreeMap::new();
+        for (id, span, len) in rewrites {
+            let Some(Object::Stream(mut stream)) = load(id) else {
+                continue;
+            };
+            for key in [b"Filter".as_slice(), b"DecodeParms", b"DL"] {
+                stream.dict.remove(key);
+            }
+            stream.dict.insert(
+                Name::from(b"Length"),
+                Object::Integer(i64::try_from(len).unwrap_or(i64::MAX)),
+            );
+            stream.data_span = span;
+            staged.insert(id, Object::Stream(stream));
+        }
+        for owner in plan.owners {
+            let mut slot = Object::Reference(owner);
+            layer_node(&load, &mut staged, &mut slot, |staged, o| {
+                let Some(o) = dict_mut(o) else { return };
+                let Some(mut res) = o.get(b"Resources").cloned() else {
+                    return;
+                };
+                layer_node(&load, staged, &mut res, |staged, r| {
+                    let Some(r) = dict_mut(r) else { return };
+                    let Some(mut props) = r.get(b"Properties").cloned() else {
+                        return;
+                    };
+                    layer_node(&load, staged, &mut props, |_, p| {
+                        if let Some(p) = dict_mut(p) {
+                            p.0.retain(|(_, v)| *v != me);
+                        }
+                    });
+                    r.insert(Name::from(b"Properties"), props);
+                });
+                o.insert(Name::from(b"Resources"), res);
+            });
+        }
+        for id in plan.xobject_oc.iter().chain(&plan.annots) {
+            let mut slot = Object::Reference(*id);
+            layer_node(&load, &mut staged, &mut slot, |_, o| {
+                if let Some(o) = dict_mut(o) {
+                    o.remove(b"OC");
+                }
+            });
+        }
+
+        let mut catalog = Object::Reference(catalog_id);
+        layer_node(&load, &mut staged, &mut catalog, |staged, c| {
+            let Object::Dict(c) = c else { return };
+            let Some(mut ocp) = c.get(b"OCProperties").cloned() else {
+                return;
+            };
+            layer_node(&load, staged, &mut ocp, |staged, o| {
+                let Object::Dict(o) = o else { return };
+                if let Some(mut ocgs) = o.get(b"OCGs").cloned() {
+                    layer_node(&load, staged, &mut ocgs, |_, a| {
+                        if let Object::Array(a) = a {
+                            a.retain(|x| *x != me);
+                        }
+                    });
+                    o.insert(Name::from(b"OCGs"), ocgs);
+                }
+                if let Some(mut d) = o.get(b"D").cloned() {
+                    layer_node(&load, staged, &mut d, |staged, d| {
+                        forget_group_in_config(&load, staged, d, &me);
+                    });
+                    o.insert(Name::from(b"D"), d);
+                }
+                if let Some(mut configs) = o.get(b"Configs").cloned() {
+                    layer_node(&load, staged, &mut configs, |staged, a| {
+                        let Object::Array(a) = a else { return };
+                        for d in a.iter_mut() {
+                            layer_node(&load, staged, d, |staged, d| {
+                                forget_group_in_config(&load, staged, d, &me);
+                            });
+                        }
+                    });
+                    o.insert(Name::from(b"Configs"), configs);
+                }
+            });
+            c.insert(Name::from(b"OCProperties"), ocp);
+        });
+
+        outcome.changed = self.commit_staged(CommandKind::DeleteLayer { layer }, staged);
+        Ok(outcome)
+    }
+
+    /// The catalog id, when `layer` is a dictionary listed in
+    /// `/OCProperties /OCGs` of an unencrypted, editable document.
+    fn require_layer(&self, layer: ObjId) -> Result<ObjId, EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification()?;
+        let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
+            id: ObjId::new(0, 0),
+            key: "Root",
+        })?;
+        let ocp = self
+            .value(catalog_id)
+            .and_then(Object::as_dict)
+            .and_then(|c| self.deref_dict(c.get(b"OCProperties")));
+        let registered = ocp
+            .as_ref()
+            .and_then(|o| self.deref_value(o.get(b"OCGs")))
+            .and_then(|a| {
+                a.as_array()
+                    .map(|a| a.iter().any(|o| o.as_reference() == Some(layer)))
+            })
+            .unwrap_or(false);
+        if !registered || !matches!(self.value(layer), Some(Object::Dict(_))) {
+            return Err(EditError::LayerNotFound { id: layer });
+        }
+        Ok(catalog_id)
+    }
+
+    /// Everything [`Self::delete_layer`] must touch outside the
+    /// configuration, found without writing anything: the refusals happen
+    /// here.
+    fn plan_layer_delete(&self, layer: ObjId) -> Result<LayerDeletePlan, EditError> {
+        let view = self.view();
+        let pages = self.pages()?;
+        let me = Object::Reference(layer);
+        let check_oc = |oc: ObjId| -> Result<(), EditError> {
+            if oc == layer {
+                return Ok(());
+            }
+            if let Some(Object::Dict(d)) = self.value(oc)
+                && d.get(b"Type").and_then(Object::as_name).map(Name::as_bytes) == Some(b"OCMD")
+                && self.mentions_ref(&Object::Dict(d.clone()), layer, 0)
+            {
+                return Err(EditError::LayerInMembership { layer, ocmd: oc });
+            }
+            Ok(())
+        };
+
+        let mut plan = LayerDeletePlan::default();
+        let mut owners: BTreeSet<ObjId> = BTreeSet::new();
+        let mut streams: BTreeMap<ObjId, BTreeSet<Vec<u8>>> = BTreeMap::new();
+        let mut visited: BTreeSet<ObjId> = BTreeSet::new();
+        // (resources, the object whose /Resources entry holds them, the
+        // content streams those resources serve)
+        let mut queue: Vec<(Dict, Option<ObjId>, Vec<ObjId>)> = Vec::new();
+        let mut appearances: Vec<ObjId> = Vec::new();
+
+        for page in &pages {
+            let page_dict = self.value(page.id).and_then(Object::as_dict).cloned();
+            let annots = page_dict
+                .as_ref()
+                .and_then(|d| self.deref_value(d.get(b"Annots")))
+                .and_then(|a| a.as_array().map(<[Object]>::to_vec))
+                .unwrap_or_default();
+            for annot in annots.iter().filter_map(Object::as_reference) {
+                let Some(Object::Dict(a)) = self.value(annot) else {
+                    continue;
+                };
+                if let Some(oc) = a.get(b"OC").and_then(Object::as_reference) {
+                    check_oc(oc)?;
+                    if oc == layer {
+                        plan.annots.push(annot);
+                    }
+                }
+                if let Some(ap) = self.deref_dict(a.get(b"AP")) {
+                    for (_, v) in &ap.0 {
+                        match v {
+                            Object::Reference(id) => appearances.push(*id),
+                            Object::Dict(states) => appearances.extend(
+                                states
+                                    .0
+                                    .iter()
+                                    .map(|(_, v)| v)
+                                    .filter_map(Object::as_reference),
+                            ),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            queue.push((
+                page.resources.clone(),
+                self.resources_owner(page.id),
+                page.contents.clone(),
+            ));
+        }
+        for id in appearances {
+            if visited.insert(id)
+                && let Some(Object::Stream(s)) = self.value(id)
+                && let Some(res) = self.deref_dict(s.dict.get(b"Resources"))
+            {
+                queue.push((res, Some(id), vec![id]));
+            }
+        }
+
+        let mut budget = 10_000_usize;
+        while let Some((resources, owner, contents)) = queue.pop() {
+            budget = budget.saturating_sub(1);
+            if budget == 0 {
+                return Err(EditError::LayerContentNotRewritable {
+                    stream: contents.first().copied().unwrap_or(ObjId::new(0, 0)),
+                    reason: "more than 10000 resource dictionaries",
+                });
+            }
+            let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
+            if let Some(props) = self.deref_dict(resources.get(b"Properties")) {
+                for (name, value) in &props.0 {
+                    if *value == me {
+                        names.insert(name.as_bytes().to_vec());
+                    } else if let Some(id) = value.as_reference() {
+                        check_oc(id)?;
+                    }
+                }
+            }
+            if !names.is_empty() {
+                let Some(owner) = owner else {
+                    return Err(EditError::LayerContentNotRewritable {
+                        stream: contents.first().copied().unwrap_or(ObjId::new(0, 0)),
+                        reason: "its resources have no owning object",
+                    });
+                };
+                owners.insert(owner);
+                for id in &contents {
+                    match streams.get(id) {
+                        Some(existing) if *existing != names => {
+                            return Err(EditError::LayerContentNotRewritable {
+                                stream: *id,
+                                reason: "two pages draw it with different /Properties bindings",
+                            });
+                        }
+                        _ => {
+                            streams.insert(*id, names.clone());
+                        }
+                    }
+                }
+            }
+            for key in [b"XObject".as_slice(), b"Pattern"] {
+                let Some(entries) = self.deref_dict(resources.get(key)) else {
+                    continue;
+                };
+                for id in entries
+                    .0
+                    .iter()
+                    .map(|(_, v)| v)
+                    .filter_map(Object::as_reference)
+                {
+                    if !visited.insert(id) {
+                        continue;
+                    }
+                    let Some(Object::Stream(s)) = self.value(id) else {
+                        continue;
+                    };
+                    if let Some(oc) = s.dict.get(b"OC").and_then(Object::as_reference) {
+                        check_oc(oc)?;
+                        if oc == layer {
+                            plan.xobject_oc.push(id);
+                        }
+                    }
+                    if let Some(res) = self.deref_dict(s.dict.get(b"Resources")) {
+                        queue.push((res, Some(id), vec![id]));
+                    }
+                }
+            }
+        }
+
+        for (id, names) in streams {
+            let unreadable = |reason| EditError::LayerContentNotRewritable { stream: id, reason };
+            let Object::Stream(stream) = view.resolved(id) else {
+                return Err(unreadable("it is not a stream"));
+            };
+            let raw = view
+                .slice(stream.data_span)
+                .ok_or_else(|| unreadable("its bytes are out of range"))?;
+            let decoded = crate::filters::decode_stream(&stream.dict, raw)
+                .map_err(|_| unreadable("it could not be decoded"))?;
+            let cs = crate::content::ContentStream::parse(decoded)
+                .map_err(|_| unreadable("it could not be parsed"))?;
+            if let Some((bytes, sections)) = unwrap_oc_sections(&cs, &names).map_err(unreadable)? {
+                plan.rewrites.push((id, bytes, sections));
+            }
+        }
+        plan.owners = owners.into_iter().collect();
+        Ok(plan)
+    }
+
+    /// The page or `/Pages` ancestor whose dictionary holds the `/Resources`
+    /// `page` inherits (§7.7.3.4), or `None` when there is none.
+    fn resources_owner(&self, page: ObjId) -> Option<ObjId> {
+        let mut at = page;
+        for _ in 0..64 {
+            let d = self.value(at).and_then(Object::as_dict)?;
+            if d.contains_key(b"Resources") {
+                return Some(at);
+            }
+            at = d.get(b"Parent").and_then(Object::as_reference)?;
+        }
+        None
+    }
+
+    /// Whether `obj` contains a reference to `target`, looking through
+    /// directly nested and indirect arrays (a `/VE` expression or `/OCGs`,
+    /// §8.11.2.2) but not through dictionaries it only references.
+    fn mentions_ref(&self, obj: &Object, target: ObjId, depth: usize) -> bool {
+        if depth > 32 {
+            return false;
+        }
+        match obj {
+            Object::Reference(r) if *r == target => true,
+            Object::Reference(r) => match self.value(*r) {
+                Some(a @ Object::Array(_)) => self.mentions_ref(a, target, depth + 1),
+                _ => false,
+            },
+            Object::Array(a) => a.iter().any(|o| self.mentions_ref(o, target, depth + 1)),
+            Object::Dict(d) => {
+                d.0.iter()
+                    .map(|(_, v)| v)
+                    .any(|o| self.mentions_ref(o, target, depth + 1))
+            }
+            _ => false,
+        }
     }
 
     /// Every ce dimension wired onto `page_index`, with its page-space
@@ -50240,6 +50640,45 @@ pub enum LayerIntent {
     Both,
 }
 
+/// What [`EditSession::delete_layer`] does with the content drawn on the
+/// layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum LayerContentPolicy {
+    /// Keep the content, always visible and on no layer (the default).
+    #[default]
+    KeepUnlayered,
+}
+
+/// What [`EditSession::delete_layer`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct LayerDeleteOutcome {
+    /// Whether anything was written. `false` records no undo entry.
+    pub changed: bool,
+    /// Marked-content sections naming the layer that were unwrapped.
+    pub sections: usize,
+    /// Content streams rewritten.
+    pub streams: usize,
+    /// Annotations whose `/OC` was removed.
+    pub annotations: usize,
+    /// Form or image XObjects whose `/OC` was removed.
+    pub xobjects: usize,
+}
+
+/// The reading half of [`EditSession::delete_layer`].
+#[derive(Default)]
+struct LayerDeletePlan {
+    /// Objects whose `/Resources /Properties` bind a name to the layer.
+    owners: Vec<ObjId>,
+    /// Rewritten content: stream, new decoded bytes, sections unwrapped.
+    rewrites: Vec<(ObjId, Vec<u8>, usize)>,
+    /// XObjects whose `/OC` is the layer.
+    xobject_oc: Vec<ObjId>,
+    /// Annotations whose `/OC` is the layer.
+    annots: Vec<ObjId>,
+}
+
 /// What [`EditSession::set_layer_properties`] did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
@@ -50268,6 +50707,173 @@ fn layer_node<T>(
     } else {
         f(staged, slot)
     }
+}
+
+/// The dictionary of a dictionary or a stream.
+fn dict_mut(o: &mut Object) -> Option<&mut Dict> {
+    match o {
+        Object::Dict(d) => Some(d),
+        Object::Stream(s) => Some(&mut s.dict),
+        _ => None,
+    }
+}
+
+/// Remove group `me` from an optional content configuration dictionary
+/// (Table 101): `/ON`, `/OFF`, `/Locked`, `/Order` at any depth,
+/// `/RBGroups` (dropping an inner array left empty) and `/AS` (dropping an
+/// entry left with no groups).
+fn forget_group_in_config(
+    load: &dyn Fn(ObjId) -> Option<Object>,
+    staged: &mut BTreeMap<ObjId, Object>,
+    d: &mut Object,
+    me: &Object,
+) {
+    let Object::Dict(d) = d else { return };
+    for key in [b"ON".as_slice(), b"OFF", b"Locked"] {
+        if let Some(mut a) = d.get(key).cloned() {
+            layer_node(load, staged, &mut a, |_, a| {
+                if let Object::Array(a) = a {
+                    a.retain(|x| x != me);
+                }
+            });
+            d.insert(Name::from(key), a);
+        }
+    }
+    if let Some(mut order) = d.get(b"Order").cloned() {
+        forget_in_order(load, staged, &mut order, me, 0);
+        d.insert(Name::from(b"Order"), order);
+    }
+    if let Some(mut groups) = d.get(b"RBGroups").cloned() {
+        layer_node(load, staged, &mut groups, |staged, a| {
+            let Object::Array(a) = a else { return };
+            a.retain_mut(|inner| {
+                layer_node(load, staged, inner, |_, g| match g {
+                    Object::Array(g) => {
+                        g.retain(|x| x != me);
+                        !g.is_empty()
+                    }
+                    _ => true,
+                })
+            });
+        });
+        d.insert(Name::from(b"RBGroups"), groups);
+    }
+    if let Some(mut entries) = d.get(b"AS").cloned() {
+        layer_node(load, staged, &mut entries, |staged, a| {
+            let Object::Array(a) = a else { return };
+            a.retain_mut(|entry| {
+                layer_node(load, staged, entry, |staged, e| {
+                    let Object::Dict(e) = e else { return true };
+                    let Some(mut ocgs) = e.get(b"OCGs").cloned() else {
+                        return true;
+                    };
+                    let keep = layer_node(load, staged, &mut ocgs, |_, g| match g {
+                        Object::Array(g) => {
+                            g.retain(|x| x != me);
+                            !g.is_empty()
+                        }
+                        _ => true,
+                    });
+                    e.insert(Name::from(b"OCGs"), ocgs);
+                    keep
+                })
+            });
+        });
+        d.insert(Name::from(b"AS"), entries);
+    }
+}
+
+/// Remove `me` from an `/Order` array and every array nested in it
+/// (§8.11.4.3). Only references to arrays are followed.
+fn forget_in_order(
+    load: &dyn Fn(ObjId) -> Option<Object>,
+    staged: &mut BTreeMap<ObjId, Object>,
+    slot: &mut Object,
+    me: &Object,
+    depth: usize,
+) {
+    if depth > 32 {
+        return;
+    }
+    if let Object::Reference(r) = slot
+        && !matches!(
+            staged.get(r).cloned().or_else(|| load(*r)),
+            Some(Object::Array(_))
+        )
+    {
+        return;
+    }
+    layer_node(load, staged, slot, |staged, a| {
+        if let Object::Array(a) = a {
+            a.retain(|x| x != me);
+            for x in a.iter_mut() {
+                if matches!(x, Object::Array(_) | Object::Reference(_)) {
+                    forget_in_order(load, staged, x, me, depth + 1);
+                }
+            }
+        }
+    });
+}
+
+/// `cs` without the `BDC` and matching `EMC` of every `/OC /name` section
+/// whose `name` is in `names` (§8.11.3.2); what is between them is kept.
+/// Each removed operator becomes one space, so neighbouring tokens cannot
+/// fuse. `Ok(None)` when no section names the layer.
+///
+/// # Errors
+///
+/// A section naming the layer that is not closed in this stream.
+fn unwrap_oc_sections(
+    cs: &crate::content::ContentStream,
+    names: &BTreeSet<Vec<u8>>,
+) -> Result<Option<(Vec<u8>, usize)>, &'static str> {
+    use crate::content::ContentTokenKind;
+    let buf = cs.buf.as_slice();
+    let span_of = |op: &crate::content::Operation<'_>| {
+        let start = op
+            .operands
+            .first()
+            .map_or(op.operator.span.start, |t| t.span.start);
+        (start, op.operator.span.end())
+    };
+    let mut cuts: Vec<(usize, usize)> = Vec::new();
+    let mut open: Vec<bool> = Vec::new();
+    let mut sections = 0;
+    for op in cs.operations() {
+        match op.operator_name(buf) {
+            Some(b"BDC") => {
+                let target = matches!(
+                    op.operands,
+                    [tag, name]
+                        if matches!(&tag.kind, ContentTokenKind::Operand(Object::Name(t)) if t.as_bytes() == b"OC")
+                        && matches!(&name.kind, ContentTokenKind::Operand(Object::Name(n)) if names.contains(n.as_bytes()))
+                );
+                if target {
+                    cuts.push(span_of(&op));
+                    sections += 1;
+                }
+                open.push(target);
+            }
+            Some(b"BMC") => open.push(false),
+            Some(b"EMC") if open.pop() == Some(true) => cuts.push(span_of(&op)),
+            _ => {}
+        }
+    }
+    if open.contains(&true) {
+        return Err("a layer section is not closed in the same stream");
+    }
+    if sections == 0 {
+        return Ok(None);
+    }
+    let mut out = Vec::with_capacity(buf.len());
+    let mut at = 0;
+    for (start, end) in cuts {
+        out.extend_from_slice(buf.get(at..start).unwrap_or_default());
+        out.push(b' ');
+        at = end;
+    }
+    out.extend_from_slice(buf.get(at..).unwrap_or_default());
+    Ok(Some((out, sections)))
 }
 
 /// Apply a [`LayerEdit`]'s `/D` fields for group `me` to the default
