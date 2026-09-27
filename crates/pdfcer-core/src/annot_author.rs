@@ -3919,7 +3919,7 @@ impl CheckStyle {
 /// intent for a widget's chrome, and a silent conversion would be exactly
 /// the substitution `Widget::border` refuses elsewhere — the operator's
 /// separation is what the file says, so it is what the stream says.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub struct WidgetChrome {
     /// `/MK` `/BG`. `None` = the widget states none; the builder's own
@@ -3933,6 +3933,9 @@ pub struct WidgetChrome {
     /// defines as solid and one point, so it draws exactly what `Some` of
     /// the default does. See [`Self::with_border`].
     pub border: Option<crate::edit::BorderSpec>,
+    /// `/BS` `/D` — the dash pattern a `Dashed` border is drawn with. `None`
+    /// draws Table 166's default `[3]`. Ignored for every other style.
+    pub border_dash: Option<BorderDash>,
 }
 
 impl WidgetChrome {
@@ -3943,12 +3946,13 @@ impl WidgetChrome {
             background,
             border_color,
             border: None,
+            border_dash: None,
         }
     }
 
     /// The same colours with a `/BS` border style, which every widget
     /// builder draws: the width, a dash for [`BorderStyle::Dashed`]
-    /// (Table 166's default `[3]`, since [`BorderSpec`] carries no `/D`), a
+    /// ([`Self::with_border_dash`], else Table 166's default `[3]`), a
     /// bottom edge only for `Underline`, and a highlight/shadow band inside
     /// the frame for `Beveled` and `Inset`. Width `0` draws no border.
     ///
@@ -3958,14 +3962,28 @@ impl WidgetChrome {
     /// [`BorderStyle::Dashed`]: crate::edit::BorderStyle::Dashed
     /// [`BorderSpec`]: crate::edit::BorderSpec
     #[must_use]
-    pub const fn with_border(mut self, border: crate::edit::BorderSpec) -> Self {
+    pub fn with_border(mut self, border: crate::edit::BorderSpec) -> Self {
         self.border = Some(border);
         self
     }
 
+    /// The `/BS` `/D` pattern a `Dashed` border is drawn with.
+    #[must_use]
+    pub fn with_border_dash(mut self, dash: BorderDash) -> Self {
+        self.border_dash = Some(dash);
+        self
+    }
+
+    /// The dash to stroke a `Dashed` border with.
+    fn dash_pattern(&self) -> &[f64] {
+        self.border_dash
+            .as_ref()
+            .map_or(&[3.0], BorderDash::pattern)
+    }
+
     /// The border width to stroke at; `None` when it is zero (Table 166:
     /// no border) or not a finite number.
-    fn border_width(self) -> Option<f64> {
+    fn border_width(&self) -> Option<f64> {
         let w = self.border.unwrap_or_default().width;
         (w.is_finite() && w > 0.0).then_some(w)
     }
@@ -3973,7 +3991,7 @@ impl WidgetChrome {
     /// The background to fill with, or `None` to fill nothing — resolving
     /// `Some(MkColor::None)` (Table 189's *"no colour"*) to *draw nothing*
     /// and an absent key to `fallback`.
-    fn fill(self, fallback: Option<MkColor>) -> Option<MkColor> {
+    fn fill(&self, fallback: Option<MkColor>) -> Option<MkColor> {
         match self.background {
             Some(MkColor::None) => None,
             Some(c) => Some(c),
@@ -3991,7 +4009,7 @@ impl WidgetChrome {
     /// stroke" would give two unrelated keys the same meaning and make
     /// `/BS /W 3` with an empty `/BC` draw nothing — which is not what
     /// either key says.
-    fn stroke(self) -> MkColor {
+    fn stroke(&self) -> MkColor {
         match self.border_color {
             Some(MkColor::None) | None => MkColor::Gray(0.0),
             Some(c) => c,
@@ -4029,7 +4047,7 @@ fn mk_component(v: f32) -> f64 {
 /// lit on the left and top and shaded on the right and bottom: white over
 /// 50% grey for beveled (raised), 50% over 75% grey for inset (sunken). The
 /// greys are pdfcer's choice — Table 166 names the effect, not its colours.
-fn stroke_frame(b: &mut ContentBuilder, chrome: WidgetChrome, w: f64, h: f64) {
+fn stroke_frame(b: &mut ContentBuilder, chrome: &WidgetChrome, w: f64, h: f64) {
     use crate::edit::BorderStyle;
     let Some(bw) = chrome.border_width() else {
         return;
@@ -4046,7 +4064,7 @@ fn stroke_frame(b: &mut ContentBuilder, chrome: WidgetChrome, w: f64, h: f64) {
     }
     let dashed = style == BorderStyle::Dashed;
     if dashed {
-        b.set_dash(&[3.0], 0.0);
+        b.set_dash(chrome.dash_pattern(), 0.0);
     }
     b.rect(i, i, w - 2.0 * i, h - 2.0 * i);
     b.paint(Paint::Stroke);
@@ -4195,7 +4213,7 @@ pub fn build_check_box_appearances(
             b.rect(0.0, 0.0, w, h);
             b.paint(Paint::Fill);
         }
-        stroke_frame(b, chrome, w, h);
+        stroke_frame(b, &chrome, w, h);
     };
 
     let mut off = ContentBuilder::new();
@@ -4411,7 +4429,7 @@ pub fn build_radio_button_appearances(
             set_stroke(b, chrome_bc);
             b.set_line_width(bw);
             if dashed {
-                b.set_dash(&[3.0], 0.0);
+                b.set_dash(chrome.dash_pattern(), 0.0);
             }
             circle(b, cx, cy, r);
             b.paint(Paint::Stroke);
@@ -4570,7 +4588,7 @@ pub fn build_push_button_appearance(
         plate.rect(0.0, 0.0, w, h);
         plate.paint(Paint::Fill);
     }
-    stroke_frame(&mut plate, chrome, w, h);
+    stroke_frame(&mut plate, &chrome, w, h);
     let mut content = plate.into_bytes();
 
     // THE CAPTION. Resolved size first (see the auto-size trap above), then a
@@ -4720,7 +4738,7 @@ pub fn build_field_text_appearance(
             box_art.paint(Paint::Fill);
         }
         if has_border {
-            stroke_frame(&mut box_art, chrome, bbox.urx, bbox.ury);
+            stroke_frame(&mut box_art, &chrome, bbox.urx, bbox.ury);
         }
         content.extend_from_slice(&box_art.into_bytes());
     }

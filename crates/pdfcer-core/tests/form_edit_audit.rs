@@ -447,3 +447,48 @@ fn filling_a_field_redraws_it_in_its_border_style() {
         String::from_utf8_lossy(&ap)
     );
 }
+
+#[test]
+fn re_setting_a_border_keeps_and_draws_the_widgets_dash_pattern() {
+    let mut s = bordered_text_field("/BS << /S /D /D [4 2] /W 1 >>");
+    s.edit_widget(
+        "Name",
+        0,
+        &WidgetEdit::new().with_border(BorderSpec {
+            style: BorderStyle::Dashed,
+            width: 2.0,
+        }),
+    )
+    .unwrap();
+    let g = s.graph();
+    let Some(Object::Dict(bs)) = obj_dict(&s, 4).get(b"BS").map(|o| g.resolve(o).clone()) else {
+        panic!("no /BS");
+    };
+    assert!(bs.get(b"D").is_some(), "the /D dash pattern was dropped");
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(contains(&ap, b"2 w"), "{}", String::from_utf8_lossy(&ap));
+    assert!(
+        contains(&ap, b"[4 2] 0 d"),
+        "{}",
+        String::from_utf8_lossy(&ap)
+    );
+}
+
+#[test]
+fn a_fill_draws_the_widgets_own_dash_pattern() {
+    let mut s = bordered_text_field("/BS << /S /D /D [5 1] >>");
+    s.fill_text_field("Name", "Typed").unwrap();
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(
+        contains(&ap, b"[5 1] 0 d"),
+        "{}",
+        String::from_utf8_lossy(&ap)
+    );
+}
+
+#[test]
+fn a_dash_array_with_no_style_reads_as_dashed() {
+    let s = bordered_text_field("/BS << /D [4 2] >>");
+    let border = field(&s, "Name").widgets[0].border.expect("a /BS");
+    assert_eq!(border.style, BorderStyle::Dashed);
+}

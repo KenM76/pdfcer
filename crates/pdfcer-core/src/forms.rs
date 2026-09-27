@@ -1733,6 +1733,12 @@ fn read_widget_border<G: ObjectGraph + ?Sized>(graph: &G, dict: &Dict) -> Option
             Some(b"B") => BorderStyle::Beveled,
             Some(b"I") => BorderStyle::Inset,
             Some(b"U") => BorderStyle::Underline,
+            // No `/S` but a usable `/D`: producers write this meaning dashed
+            // and Acrobat draws it dashed, so it reads as dashed here too —
+            // the same answer `annot_author::read_border_dash` gives.
+            None if crate::annot_author::read_border_dash(graph, dict).is_some() => {
+                BorderStyle::Dashed
+            }
             // Table 166 makes /S default to solid and names exactly these
             // five, so an absent key and an unrecognised name are the same
             // answer: solid. An unrecognised name is a malformed file, not a

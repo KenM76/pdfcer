@@ -1748,7 +1748,7 @@ const fn push_button_creation_chrome() -> annot_author::WidgetChrome {
 /// `/CA` written beside them survives. A `None` component writes no key at
 /// all — the widget states nothing, which is not the same as
 /// [`forms::MkColor::None`]'s empty array.
-fn insert_mk_chrome(mk: &mut Dict, chrome: annot_author::WidgetChrome) {
+fn insert_mk_chrome(mk: &mut Dict, chrome: &annot_author::WidgetChrome) {
     if let Some(bg) = chrome.background {
         mk.insert(Name::from(b"BG"), bg.to_array());
     }
@@ -19288,7 +19288,7 @@ impl PendingWidgetEdit {
     /// The staged `/MK` colours for `id`, scoped to that widget like every
     /// other field here — a radio group's other buttons keep their own.
     fn chrome_for(&self, id: ObjId) -> Option<annot_author::WidgetChrome> {
-        self.id.filter(|p| *p == id).and(self.chrome)
+        self.id.filter(|p| *p == id).and(self.chrome.clone())
     }
 
     /// The staged caption for `id`.
@@ -19374,7 +19374,7 @@ struct FormReach {
 /// nothing since `/MK` `/R` shipped. **Both were a property the redraw could
 /// read and did not** — so the properties are one value now, and adding a
 /// sixth means adding it to one struct rather than remembering two call sites.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ButtonLook<'a> {
     /// The widget's `/Rect` width.
     w: f64,
@@ -23783,7 +23783,7 @@ impl EditSession {
             // written from, so the two cannot disagree. Defaults to stating
             // neither colour, which keeps a created text field's appearance
             // byte-identical — see `creation_chrome`.
-            spec.chrome.with_border(spec.border),
+            spec.chrome.clone().with_border(spec.border),
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -23821,7 +23821,7 @@ impl EditSession {
             ap.insert(Name::from(b"N"), Object::Reference(ap_id));
             w.insert(Name::from(b"AP"), Object::Dict(ap));
             let mut mk = Dict::new();
-            insert_mk_chrome(&mut mk, spec.chrome);
+            insert_mk_chrome(&mut mk, &spec.chrome);
             if !mk.is_empty() {
                 w.insert(Name::from(b"MK"), Object::Dict(mk));
             }
@@ -23914,7 +23914,7 @@ impl EditSession {
         // at all rather than the phantom `/BC [0 0 0]` this used to write;
         // `creation_chrome` carries that reasoning in full.
         let mut mk = Dict::new();
-        insert_mk_chrome(&mut mk, spec.chrome);
+        insert_mk_chrome(&mut mk, &spec.chrome);
         if !mk.is_empty() {
             d.insert(Name::from(b"MK"), Object::Dict(mk));
         }
@@ -24831,8 +24831,8 @@ impl EditSession {
         // cannot draw a check mark.
         // `Pass 308.1`: the SAME chrome the `/MK` dictionary below is written
         // from, so the two cannot disagree. See `creation_chrome`.
-        let chrome = spec.chrome.with_border(spec.border);
-        let (off, on) = annot_author::build_check_box_appearances(w, h, spec.style, chrome);
+        let chrome = spec.chrome.clone().with_border(spec.border);
+        let (off, on) = annot_author::build_check_box_appearances(w, h, spec.style, chrome.clone());
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
 
@@ -24909,7 +24909,7 @@ impl EditSession {
             // no key at all when the operator named none — which is what a
             // check box has always written, and what keeps its `/MK` to the
             // `/CA` above.
-            insert_mk_chrome(&mut mk, chrome);
+            insert_mk_chrome(&mut mk, &chrome);
             d.insert(Name::from(b"MK"), Object::Dict(mk));
         }
 
@@ -25065,8 +25065,8 @@ impl EditSession {
             &spec.tooltip,
         )?;
         // `Pass 308.1`: the same chrome the `/MK` below is written from.
-        let chrome = spec.chrome.with_border(spec.border);
-        let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome);
+        let chrome = spec.chrome.clone().with_border(spec.border);
+        let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome.clone());
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
 
@@ -25114,7 +25114,7 @@ impl EditSession {
         // look is per widget.
         {
             let mut mk = Dict::new();
-            insert_mk_chrome(&mut mk, chrome);
+            insert_mk_chrome(&mut mk, &chrome);
             if !mk.is_empty() {
                 d.insert(Name::from(b"MK"), Object::Dict(mk));
             }
@@ -26260,8 +26260,18 @@ impl EditSession {
                 ]),
             );
         }
+        // PATCHED, not replaced: `/BS` may carry a `/D` dash pattern that
+        // [`BorderSpec`] does not model, and rewriting the dictionary would
+        // silently reset a custom dash to Table 166's `[3]`.
         if let Some(border) = edit.border {
-            updated.insert(Name::from(b"BS"), Object::Dict(border_dict(border)));
+            let mut bs = self.deref_dict(updated.get(b"BS")).unwrap_or_default();
+            let fresh = border_dict(border);
+            for key in [b"S", b"W"] {
+                if let Some(v) = fresh.get(key) {
+                    bs.insert(Name::from(key), v.clone());
+                }
+            }
+            updated.insert(Name::from(b"BS"), Object::Dict(bs));
         }
 
         // ---- the operator's three resize answers (`Pass 187.0`), applied
@@ -26368,6 +26378,12 @@ impl EditSession {
         // border, else the widget's own.
         let chrome_after = match edit.border.or(widget.border) {
             Some(border) => chrome_after.with_border(border),
+            None => chrome_after,
+        };
+        // The `/D` survives a border edit (the `/BS` is patched, not
+        // replaced), so a dashed border keeps drawing the widget's pattern.
+        let chrome_after = match self.border_dash_of(widget.id) {
+            Some(dash) => chrome_after.with_border_dash(dash),
             None => chrome_after,
         };
         if edit.caption.is_some() || edit.background.is_some() || edit.border_color.is_some() {
@@ -27841,7 +27857,7 @@ impl EditSession {
             // no longer the builder's fallback happening to equal it. The
             // agreement is now by construction rather than by coincidence,
             // which is the whole of what `Pass 308.0` found wrong here.
-            spec.chrome.with_border(spec.border),
+            spec.chrome.clone().with_border(spec.border),
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -27903,7 +27919,7 @@ impl EditSession {
         // default is `push_button_creation_chrome` — the same constants, now
         // reached through the one value the builder was also handed, so an
         // operator's `--background` lands in both places or in neither.
-        insert_mk_chrome(&mut mk, spec.chrome);
+        insert_mk_chrome(&mut mk, &spec.chrome);
         d.insert(Name::from(b"MK"), Object::Dict(mk));
         let mut ap = Dict::new();
         ap.insert(Name::from(b"N"), Object::Reference(ap_id));
@@ -28085,7 +28101,7 @@ impl EditSession {
             false,
             &resources,
             // `Pass 308.1`: the same chrome the `/MK` below is written from.
-            spec.chrome.with_border(spec.border),
+            spec.chrome.clone().with_border(spec.border),
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -28119,7 +28135,7 @@ impl EditSession {
         // omitted entirely when the operator stated no colour — the same
         // retirement of the phantom `/BC [0 0 0]` `add_text_field` makes.
         let mut mk = Dict::new();
-        insert_mk_chrome(&mut mk, spec.chrome);
+        insert_mk_chrome(&mut mk, &spec.chrome);
         if !mk.is_empty() {
             d.insert(Name::from(b"MK"), Object::Dict(mk));
         }
@@ -39702,7 +39718,7 @@ impl EditSession {
             // this command's `/MK` write.
             let chrome = pending
                 .chrome_for(widget.id)
-                .unwrap_or_else(|| Self::widget_chrome(widget));
+                .unwrap_or_else(|| self.widget_chrome(widget));
             let appearance = annot_author::build_field_text_appearance(
                 w, h, text, &da, quad, multiline, fonts, chrome,
             )?;
@@ -39999,7 +40015,7 @@ impl EditSession {
             // above follow.
             let chrome = pending
                 .chrome_for(widget.id)
-                .unwrap_or_else(|| Self::widget_chrome(widget));
+                .unwrap_or_else(|| self.widget_chrome(widget));
             // AND THE STAGED ROTATION, WHICH WAS THE WHOLE OF `G023`
             // (`Pass 308.5`). `rotate_widget` stages `/MK /R` and regenerates
             // inside one command, and this function never read it — so it
@@ -40069,12 +40085,18 @@ impl EditSession {
         // before the code was written.
         // The widget's properties AS STORED — never the ones this command is
         // staging. See [`ButtonLook`] for what goes wrong in each direction.
-        fn stored<'a>(widget: &forms::Widget, w: f64, h: f64, caption: &'a str) -> ButtonLook<'a> {
+        fn stored<'a>(
+            widget: &forms::Widget,
+            chrome: annot_author::WidgetChrome,
+            w: f64,
+            h: f64,
+            caption: &'a str,
+        ) -> ButtonLook<'a> {
             ButtonLook {
                 w,
                 h,
                 caption,
-                chrome: EditSession::widget_chrome(widget),
+                chrome,
                 quarter: EditSession::quarter_of(widget.rotation),
             }
         }
@@ -40104,8 +40126,11 @@ impl EditSession {
                 let Some(id) = n.as_reference() else {
                     return Ok(None);
                 };
-                let expected =
-                    self.build_button_states(field, kind, &stored(widget, w, h, &caption))?;
+                let expected = self.build_button_states(
+                    field,
+                    kind,
+                    &stored(widget, self.widget_chrome(widget), w, h, &caption),
+                )?;
                 let Some(first) = expected.first() else {
                     return Ok(None);
                 };
@@ -40141,8 +40166,11 @@ impl EditSession {
                 else {
                     return Ok(None);
                 };
-                let expected =
-                    self.build_button_states(field, kind, &stored(widget, w, h, &caption))?;
+                let expected = self.build_button_states(
+                    field,
+                    kind,
+                    &stored(widget, self.widget_chrome(widget), w, h, &caption),
+                )?;
                 let [off, on] = expected.as_slice() else {
                     return Ok(None);
                 };
@@ -40181,7 +40209,7 @@ impl EditSession {
             w,
             h,
             caption,
-            chrome,
+            ref chrome,
             quarter,
         } = look;
         // DRAWN IN THE ROTATED FRAME AND TURNED UPRIGHT BY `/Matrix`,
@@ -40227,11 +40255,12 @@ impl EditSession {
                     .copied()
                     .and_then(annot_author::CheckStyle::from_mk_caption_char)
                     .unwrap_or_default();
-                let (off, on) = annot_author::build_check_box_appearances(w, h, style, chrome);
+                let (off, on) =
+                    annot_author::build_check_box_appearances(w, h, style, chrome.clone());
                 vec![off, on]
             }
             forms::ButtonKind::Radio => {
-                let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome);
+                let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome.clone());
                 vec![off, on]
             }
             forms::ButtonKind::Push => {
@@ -40250,8 +40279,14 @@ impl EditSession {
                     name: b"Helv".to_vec(),
                     font: crate::fontdata::Std14::Helvetica,
                 }];
-                let built =
-                    annot_author::build_push_button_appearance(w, h, caption, &da, &fonts, chrome)?;
+                let built = annot_author::build_push_button_appearance(
+                    w,
+                    h,
+                    caption,
+                    &da,
+                    &fonts,
+                    chrome.clone(),
+                )?;
                 vec![annot_author::CheckBoxStateAppearance {
                     ap_dict: built.ap_dict,
                     content: built.content,
@@ -40307,11 +40342,26 @@ impl EditSession {
     /// ownership test and the redraw cannot drift into reading different
     /// keys — the failure `build_button_states`'s own doc comment describes
     /// for the artwork, applied to the colours that artwork is drawn in.
-    fn widget_chrome(widget: &forms::Widget) -> annot_author::WidgetChrome {
+    fn widget_chrome(&self, widget: &forms::Widget) -> annot_author::WidgetChrome {
         let chrome = annot_author::WidgetChrome::new(widget.background, widget.border_color);
-        match widget.border {
+        let chrome = match widget.border {
             Some(border) => chrome.with_border(border),
             None => chrome,
+        };
+        match self.border_dash_of(widget.id) {
+            Some(dash) => chrome.with_border_dash(dash),
+            None => chrome,
+        }
+    }
+
+    /// The `/BS` `/D` dash pattern widget `id` is drawn with, if it states a
+    /// dashed border (§12.5.4 Table 166; see `annot_author::read_border_dash`
+    /// for the `/D`-without-`/S` case).
+    fn border_dash_of(&self, id: ObjId) -> Option<annot_author::BorderDash> {
+        let graph = self.graph();
+        match graph.resolve(&Object::Reference(id)) {
+            Object::Dict(d) => annot_author::read_border_dash(&graph, d),
+            _ => None,
         }
     }
 

@@ -3158,6 +3158,13 @@ and everywhere. So the colour has to go into the stream.
   Creation, `edit_widget` (the edit's border, else the widget's own) and
   every fill/property redraw pass it; a GUI calling a builder directly
   should pass `.with_border(widget.border)` too.
+- `WidgetChrome::border_dash: Option<BorderDash>`, set with
+  `WidgetChrome::with_border_dash(dash)`, is the widget's `/BS /D` array
+  (default `[3]`); the builders draw it for `Dashed`. Every engine redraw
+  reads it from the widget. `WidgetChrome` is `Clone`, no longer `Copy`.
+- `edit_widget` with `border: Some(..)` **patches** `/BS` — only `/S` and `/W`
+  change, so an existing `/D` survives. A `/BS` with `/D` and no `/S` reads
+  as `Dashed` (a common producer shape).
 - `needs_regen` now includes `edit.background.is_some() || edit.border_color.is_some()`.
   ⚠ **The two halves are inseparable**: the flag without the builders would
   repaint in the hard-coded default and *discard* the operator's colour, which
