@@ -177,6 +177,48 @@ pub struct Params {
     /// and this default is `false`; either way both toggles' behaviour is
     /// fixed here, not by which one ships.
     pub pitch_grid_check: bool,
+    /// The narrowest gap a [`ThresholdSource::Valley`] split may cut at when
+    /// doing so would strand a sub-word of three members or fewer on either
+    /// side, as a fraction of the x-height: `0` disables the rule outright,
+    /// so a caller measuring whether this feature changed anything gets the
+    /// byte-for-byte prior behaviour.
+    ///
+    /// `ARCHITECTURE.md` section 11, "Fix W1 (over-split short cells)": a
+    /// valley only asks whether two gap populations separate, not whether the
+    /// piece it carves off is long enough to be a real word, so a short
+    /// identifier in a narrow table cell -- a CUSIP, an account number -- gets
+    /// cut into 3-character-or-fewer fragments at its own tightest internal
+    /// gap. [`Params::min_valley_x_heights`] does not catch this: that floor
+    /// rejects an entire fragment's valley when its *narrowest called space*
+    /// is too narrow, which throws away the fragment's other, genuine splits
+    /// along with the spurious one. This is a second, independent floor,
+    /// applied per candidate split rather than per fragment: a cut that would
+    /// strand a short piece is suppressed unless its own gap clears this
+    /// floor, and every other cut in the same fragment is unaffected. Scoped
+    /// to a "compact run": every word the raw valley split would produce
+    /// must be short, not merely the two either side of one cut, else an
+    /// ordinary sentence's incidental short word ("is", "of") would be
+    /// merged into its long neighbour across a genuine space.
+    ///
+    /// Measured, `docs/measurements/2026-09-27_W1.md`: across all 320
+    /// `finfilings-train-unseen` pages, the gap in x-height units of every
+    /// compact-run valley split (4,819 samples, one fragment often
+    /// contributing several) against the same quantity for an ordinary
+    /// multi-word fragment's splits (21,718 samples, both sides always
+    /// longer than three members). Unlike `lines.isolated_mark_height_fraction`
+    /// (`ARCHITECTURE.md` section 11, "L1"), this distribution does not
+    /// separate into two populations with an empty gap between them -- it has
+    /// a steep, four-fold jump between the 0.70-0.75 and 0.75-0.80 x-height
+    /// buckets (149 to 810 samples), which is where the floor is set, at
+    /// 0.70. The choice is corroborated, not merely read off a jump: 0.70 is
+    /// already this module's own `Params::lone_gap_x_heights` -- the
+    /// pre-existing, independently measured ceiling above which a gap is
+    /// always a space -- so this floor does not introduce a new belief about
+    /// where real spaces sit, it reuses the one already authored. Below 0.70,
+    /// 39% of compact-run splits sit (1,890 of 4,819) against under 0.5% of
+    /// ordinary-fragment splits (91 of 21,718), so the floor mainly catches
+    /// the population this fix targets.
+    pub short_split_x_heights: f32,
 }
 
 /// The shipped values, taken from the parameter block rather than restated.
@@ -359,7 +401,7 @@ pub fn split_with(line: &TextLine, components: &[Component], p: &Params) -> Vec<
     }
     let g = gaps(line, components);
     let rule = space_rule_with(&g, line.x_height, p);
-    split_by_rule(line, components, &g, &rule)
+    split_by_rule(line, components, &g, &rule, p)
 }
 
 /// The space threshold for every fragment of one band, pooling gaps across
@@ -424,7 +466,7 @@ pub fn split_band_with(
                 FragmentRule::Pitch(pitch, _) => split_by_pitch(line, components, *pitch, p),
                 FragmentRule::Gap(r) => {
                     let g = gaps(line, components);
-                    split_by_rule(line, components, &g, r)
+                    split_by_rule(line, components, &g, r, p)
                 }
             }
         })
@@ -880,7 +922,8 @@ fn split_by(line: &TextLine, components: &[Component], is_space: impl Fn(usize) 
     out
 }
 
-/// Splits `line` at every gap in `g` strictly wider than `rule.threshold`.
+/// Splits `line` at every gap in `g` strictly wider than `rule.threshold`,
+/// less any [`Params::short_split_x_heights`] suppresses.
 ///
 /// Shared by [`split_with`], which measures `rule` from the line's own gaps,
 /// and [`split_band_with`], which measures it from the band pool instead --
@@ -890,8 +933,63 @@ fn split_by_rule(
     components: &[Component],
     g: &[u32],
     rule: &SpaceRule,
+    p: &Params,
 ) -> Vec<WordSpan> {
-    split_by(line, components, |n| g[n] > rule.threshold)
+    let accept = accepted_valley_splits(line, g, rule, p);
+    split_by(line, components, |n| accept[n])
+}
+
+/// Fewest members a resulting sub-word may have and still be exempt from
+/// [`Params::short_split_x_heights`] -- `ARCHITECTURE.md` section 11's "3
+/// characters or fewer", read at the segmentation stage as a member count
+/// since no glyph has been classified yet.
+const SHORT_SPLIT_MEMBERS: usize = 3;
+
+/// Which of `g`'s valley-crossing gaps survive as real splits, after
+/// [`Params::short_split_x_heights`] suppresses a cut that would otherwise
+/// strand a sub-word of [`SHORT_SPLIT_MEMBERS`] or fewer on either side.
+///
+/// Only [`ThresholdSource::Valley`] is in scope: a fallback, capped, uniform
+/// or fixed-pitch rule already answers a different question, and is
+/// unaffected. Further gated to a "compact run of components"
+/// (`ARCHITECTURE.md` section 11, Fix W1) by requiring *every* word the raw
+/// valley split would produce to be [`SHORT_SPLIT_MEMBERS`] or fewer, not
+/// merely the two either side of one cut -- an ordinary sentence fragment
+/// carries plenty of three-letter-or-shorter words ("is", "of") beside long
+/// ones, each with a genuine, ordinary-width space either side, and those
+/// must not be merged. Requiring the whole fragment to resolve short is
+/// exactly `docs/measurements/2026-09-27_W1.md`'s measurement population, so
+/// the suppression below never fires outside it -- once every run already
+/// qualifies, each candidate cut is judged on its own gap alone, with no
+/// run-length bookkeeping needed.
+fn accepted_valley_splits(line: &TextLine, g: &[u32], rule: &SpaceRule, p: &Params) -> Vec<bool> {
+    let mut accept = vec![false; g.len()];
+    let raws: Vec<usize> = (0..g.len()).filter(|&n| g[n] > rule.threshold).collect();
+    for &n in &raws {
+        accept[n] = true;
+    }
+    if rule.source != ThresholdSource::Valley || p.short_split_x_heights <= 0.0 || raws.is_empty() {
+        return accept;
+    }
+
+    let mut run_lengths: Vec<usize> = Vec::with_capacity(raws.len() + 1);
+    let mut prev = 0usize;
+    for &b in &raws {
+        run_lengths.push(b + 1 - prev);
+        prev = b + 1;
+    }
+    run_lengths.push(line.members.len() - prev);
+    if run_lengths.iter().any(|&n| n > SHORT_SPLIT_MEMBERS) {
+        return accept;
+    }
+
+    let floor = threshold_at(line.x_height, p.short_split_x_heights);
+    for &b in &raws {
+        if g[b] <= floor {
+            accept[b] = false;
+        }
+    }
+    accept
 }
 
 /// Splits a fixed-pitch fragment into words.
@@ -1221,6 +1319,73 @@ mod tests {
         // One step up it is caught, which is what the sweep traded away.
         let higher = Params { min_valley_x_heights: 0.4, ..p };
         assert_eq!(space_rule_with(&[1, 3, 1], 9.0, &higher).source, ThresholdSource::Fallback);
+    }
+
+    /// Fix W1 (`ARCHITECTURE.md` section 11): "AB CD", a compact run of two
+    /// two-letter words, whose only evidence for the cut is a 4 px valley on
+    /// a 5 px floor (`x_height 7.43 * 0.70`). Suppressed by default; restored
+    /// byte-for-byte with the rule switched off, which is `short_split_x_heights`'s
+    /// own control value.
+    #[test]
+    fn a_compact_run_valley_split_below_the_floor_is_suppressed() {
+        let (comps, line) = line_of(&[0, 9, 21, 30]);
+        let p = Params::default();
+        let rule = space_rule_with(&gaps(&line, &comps), line.x_height, &p);
+        assert_eq!(rule.source, ThresholdSource::Valley);
+        assert_eq!(split_with(&line, &comps, &p).len(), 1);
+
+        let off = Params { short_split_x_heights: 0.0, ..p };
+        let words_off = split_with(&line, &comps, &off);
+        assert_eq!(words_off.len(), 2);
+        assert_eq!(words_off[0].members.len(), 2);
+        assert_eq!(words_off[1].members.len(), 2);
+    }
+
+    /// "A split backed by a real space-sized gap is unchanged"
+    /// (`ARCHITECTURE.md` section 11): same shape as above, but the cut is a
+    /// 6 px gap, above the 5 px floor, so it stays split whether or not the
+    /// rule is enabled.
+    #[test]
+    fn a_compact_run_valley_split_above_the_floor_still_splits() {
+        let (comps, line) = line_of(&[0, 9, 23, 32]);
+        let p = Params::default();
+        let rule = space_rule_with(&gaps(&line, &comps), line.x_height, &p);
+        assert_eq!(rule.source, ThresholdSource::Valley);
+        assert_eq!(split_with(&line, &comps, &p).len(), 2);
+    }
+
+    /// The floor only scopes to a fragment that resolves entirely short: "AB"
+    /// beside a five-member word, cut by the same 4 px gap the first test
+    /// suppresses, must not merge -- the mirror-image error rule 6 warns
+    /// against ("This is fine" losing "is" to its neighbour).
+    ///
+    /// Widths vary (unlike [`line_of`]'s uniform 8 px) so the five-member word
+    /// does not itself read as fixed-pitch and take the pitch code path
+    /// instead of the gap-valley one this test means to exercise; the six
+    /// edge-to-edge gaps are still exactly `[1, 4, 1, 1, 1, 1]`.
+    #[test]
+    fn the_floor_is_scoped_to_a_whole_short_run_not_one_side_of_a_cut() {
+        let comps = vec![
+            c(1, 0, 20, 8, 10),
+            c(2, 9, 20, 8, 10),
+            c(3, 21, 20, 17, 10),
+            c(4, 39, 20, 5, 10),
+            c(5, 45, 20, 23, 10),
+            c(6, 69, 20, 3, 10),
+            c(7, 73, 20, 15, 10),
+        ];
+        let mut ls = lines::group(&comps, 600, 100);
+        assert_eq!(ls.len(), 1);
+        let line = ls.remove(0);
+        assert_eq!(gaps(&line, &comps), vec![1, 4, 1, 1, 1, 1]);
+
+        let p = Params::default();
+        let rule = space_rule_with(&gaps(&line, &comps), line.x_height, &p);
+        assert_eq!(rule.source, ThresholdSource::Valley);
+        let words = split_with(&line, &comps, &p);
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].members.len(), 2);
+        assert_eq!(words[1].members.len(), 5);
     }
 
     #[test]

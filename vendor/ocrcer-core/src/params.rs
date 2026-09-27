@@ -110,6 +110,7 @@ pub struct Words {
     pub pitch_tolerance: f32,
     pub pitch_cell_merge: u32,
     pub pitch_grid_check: u32,
+    pub short_split_x_heights: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -447,6 +448,12 @@ impl Params {
             // `docs/measurements/2026-09-22_fixed_pitch_spaces.txt`,
             // section "Fitted grid".
             pitch_grid_check: 0,
+            // Authored, `docs/measurements/2026-09-27_W1.md`: the steep jump
+            // in the compact-run gap distribution, corroborated by equalling
+            // this same block's own lone_gap_x_heights ceiling. 0 disables
+            // the rule (byte-for-byte prior behaviour) and is the control
+            // value Fix W1's step 2/3/4 gates run against.
+            short_split_x_heights: 0.70,
         },
         segment: Segment {
             max_merge: 3,
@@ -613,6 +620,7 @@ impl Params {
             "words.min_valley_x_heights" => &mut self.words.min_valley_x_heights,
             "words.pitch_agreement" => &mut self.words.pitch_agreement,
             "words.pitch_tolerance" => &mut self.words.pitch_tolerance,
+            "words.short_split_x_heights" => &mut self.words.short_split_x_heights,
             "segment.max_merge_x_heights" => &mut self.segment.max_merge_x_heights,
             "segment.split_min_x_heights" => &mut self.segment.split_min_x_heights,
             "segment.valley_fraction" => &mut self.segment.valley_fraction,
@@ -675,7 +683,7 @@ impl Params {
 
     /// Every name this build understands, for a loader that wants to report
     /// which ones a file left at their defaults.
-    pub const NAMES: [&'static str; 81] = [
+    pub const NAMES: [&'static str; 82] = [
         "binarize.window",
         "binarize.k",
         "binarize.r",
@@ -723,6 +731,7 @@ impl Params {
         "words.pitch_tolerance",
         "words.pitch_cell_merge",
         "words.pitch_grid_check",
+        "words.short_split_x_heights",
         "segment.max_merge",
         "segment.max_merge_x_heights",
         "segment.split_min_x_heights",
@@ -805,7 +814,7 @@ fn find_changed_u32(before: &Params, after: &Params) -> f32 {
     f32::NAN
 }
 
-fn f32_fields(p: &Params) -> [f32; 63] {
+fn f32_fields(p: &Params) -> [f32; 64] {
     [
         p.binarize.k,
         p.binarize.r,
@@ -843,6 +852,7 @@ fn f32_fields(p: &Params) -> [f32; 63] {
         p.words.min_valley_x_heights,
         p.words.pitch_agreement,
         p.words.pitch_tolerance,
+        p.words.short_split_x_heights,
         p.segment.max_merge_x_heights,
         p.segment.split_min_x_heights,
         p.segment.valley_fraction,
@@ -962,6 +972,7 @@ impl Params {
             pitch_tolerance: self.words.pitch_tolerance,
             pitch_cell_merge: self.words.pitch_cell_merge != 0,
             pitch_grid_check: self.words.pitch_grid_check != 0,
+            short_split_x_heights: self.words.short_split_x_heights,
         }
     }
 
