@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (644th filing) — filed `Pass 358.0`–`358.6`: general-purpose OCG layer authoring (Next up, no code yet)
+
+**Shipped:**
+- None — this filing is a roadmap-update (new request), not a completion.
+
+**Decisions made this session:**
+- Operator asked, verbatim, whether pdfcer can view/organise layers into folders (as seen in Acrobat Reader) and whether a new or existing object's layer can be edited. Parsed into seven Next-up Passes, `Pass 358.0`–`358.6`, rather than one bucket — each is independently shippable and several exceed Acrobat's own capability (folder creation, content/annotation `/OC` assignment have no Acrobat GUI route at all).
+- OCMD authoring, `/RBGroups` authoring, `/Configs` switching and Import as Layer stay OUT of this family — filed as a separate unscoped Backlog bullet; Import as Layer specifically deferred to after `Pass 358.5` since it composes with that Pass's layer-on-add-content plumbing.
+
+**Findings + decisions:**
+- Premises this scoping rests on (measured by the engineer): core already reads the full `/OCProperties` `/D /Order` tree including folders (`layers::read_layers`/`OrderNode`) but `list-layers` prints flat only; no general OCG has any writer; the only `/Order`/`/OC` writer in the codebase is the ce-dimension group subsystem; no verb puts existing content or an annotation onto a layer; no add-content verb takes a layer.
+- `pdfcer-acrobat-librarian` scoped the family the same day: five new findings files under `D:\Dev\Rag-Specialized\Acrobat_Features\` — `layers__layer_properties_authoring.md`, `layers__order_folder_reordering.md`, `layers__import_merge_flatten_content_authoring.md`, `layers__annotation_form_field_oc_assignment.md`, `layers__ocmd_rbgroups_configs_nested_xobjects.md`. Key findings: Acrobat Pro has no New/Delete Layer command (delete only via Preflight); Pro reorders `/Order` but cannot create a folder; Merge Layers silently takes the target's properties; Flatten Layers is document-wide, discards hidden content, not undoable; no GUI route exists to put content or an annotation on a layer at all.
+- `docs/FEATURES.md`: seven new *Planned* rows (top of the flat Planned table), all three boxes unticked; the generic "Vector editing at Inkscape-parity breadth" row gained a one-clause pointer to the new family instead of re-describing it. `docs/ROADMAP.md`'s "Document-wide OCG/layers panel" Backlog bullet (view/toggle, `Pass 57.0`) gained a dated note distinguishing it from this authoring family; a new unscoped Backlog bullet covers the four excluded capabilities.
+
+**Still in flight:**
+- `flatten_annotations` (`G043` option B) — still unscoped, no Pass ID, carried from the 643rd filing.
+- `Pass 358.0`–`358.6` — none started; `358.0` is the cheapest (no writer, builds on an already-existing core reader).
+
+**For next session:**
+- Start `Pass 358.0`, or pick up `flatten_annotations`'s scoping — both are open, neither blocks the other.
+
 ## 2026-09-27 (643rd filing) — `a6695bae`: `Pass 357.0` SHIPPED — a re-encoded `/DR` font draws with its own codes
 
 **Shipped:**
