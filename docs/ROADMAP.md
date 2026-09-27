@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 352.0` (`3dd22938`), 2026-09-27 — A field with no `/Q` reads back and fills with the `/AcroForm` `/Q`
+
+**Verdict: SHIPPED, closes D8's remainder clause (a) from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`351.0`) — D8 narrows to its last clause, (b) multi-select `/DV`; D4's remainder is the only other open `FieldEdit` finding.
+
+`forms::parse_acroform` seeded its field walk with an empty `Inherited`, so `Field::quadding` fell straight to left for any field with no `/Q` on itself or an ancestor — never checking the `/AcroForm` `/Q`, the document-wide default (ISO 32000-1 §12.7.2 Table 218). `fill_text_field`/CLI `fill-field` drew a centred form's fields left-aligned, and a read-back after `clearing_quadding()` disagreed with what `EditSession::inherited_quadding` resolved for the redraw.
+
+**Fix.** The walk's root is now seeded with the `/AcroForm` `/Q`, so own → ancestors → `/AcroForm` → left holds on both the read and draw paths. `Field::quadding`'s doc comment updated.
+
+**API.** No new `pub` item. `docs/core-api/02-editing-and-saving.md`: one corrected line (had claimed the read model "has always agreed" with `inherited_quadding`); `check-core-api-verbs` PASS, line count unchanged at 5,674.
+
+**Tests.** Core `tests/acroform_quadding.rs`, 3 tests (read-back under `/Q 1`/`/Q 2`/none, an own `/Q 0` overriding; a fill under `/AcroForm /Q 1` matches an own `/Q 1`; clearing a field's `/Q` reads back the form's value). CLI `crates/pdfcer-cli/tests/edit_field.rs::a_fill_honours_the_forms_default_quadding`. Sabotage (root re-seeded empty): 3 core tests and 1 CLI test fail. `tools/run-gates.sh`: PASS, 39 commands.
+
+**Shells.** Core + CLI this Pass; GUI is a separate project and has not wired it. No manifest/dependency change.
+
+**`docs/FEATURES.md`.** Row 318: `Pass 308.4`'s clause corrected to note clearing quadding now inherits the `/AcroForm` default rather than left, cited alongside `352.0`; the row's trailing defect note narrowed to the one remaining finding (multi-select `/DV`).
+
+**Backlog.** D8 narrowed to its last clause: (b) multi-select `/DV` only.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `3dd22938`, not independently reproduced.
+
 ### `Pass 351.0` (`7ff64e2e`), 2026-09-27 — A widget resize that scales the border draws it scaled
 
 **Verdict: SHIPPED, closes the WidgetEdit "Stroke-width scaling is reported but not drawn" finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`350.0`) — every `WidgetEdit` finding from this audit is now closed; two `FieldEdit` findings remain (D4's remainder, D8's remainder).
@@ -17199,6 +17219,8 @@ suspicion this entry recorded.
 
 ★ **Seventeenth fix shipped — 2026-09-27 (637th filing, `Pass 351.0`, `7ff64e2e`).** Closes stroke-width scaling, below — the LAST `WidgetEdit` finding from this audit: `edit_widget`'s resize with `ResizeOptions::scale_stroke_width` scaled `/BS /W` and reported it through `WidgetEditOutcome::stroke_width`, but the redraw built its border from the widget's pre-edit border, so the artwork stayed at the old width — see *Shipped*, above. **Kept open** — two `FieldEdit` findings (D4's remainder, D8's remainder); every `WidgetEdit` finding from this audit is now closed.
 
+★ **Eighteenth fix shipped — 2026-09-27 (638th filing, `Pass 352.0`, `3dd22938`).** Closes D8's remainder clause (a), below: `forms::parse_acroform` seeded its field walk with an empty `Inherited`, so a field with no `/Q` anywhere in its ancestry read back and filled at left instead of the document's `/AcroForm` `/Q` default; the walk's root is now seeded with it — see *Shipped*, above. **Kept open** — two `FieldEdit` findings remain: D4's remainder, and D8's last clause, (b) multi-select `/DV`.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -17208,7 +17230,7 @@ suspicion this entry recorded.
 - D1 — CLOSED by `Pass 346.0`, above. Was: comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.
 - D7 — CLOSED by `Pass 347.0`, above. Was: replacing a choice field's options left `/I`/`/TI` pointing at positions in the OLD list.
-- D8 — undisclosed-counts half CLOSED by `Pass 349.0`, above; the check box/radio `/DA`-over-identical-bytes clause CLOSED by `Pass 350.0`, above: a side-effect redraw's auto-size, `/DA`-colour and unencodable-character decisions are now carried as `edit::LayoutDisclosure` on `edit_field`/`edit_widget`/`rotate_widget`/`reset_form` and printed by the CLI, and `regen_button_appearance` no longer rewrites an identical check-box/radio appearance while reporting Regenerated. **Open remainder:** round-trip gaps — inherited quadding read-back, multi-select `/DV`.
+- D8 — undisclosed-counts half CLOSED by `Pass 349.0`, above; the check box/radio `/DA`-over-identical-bytes clause CLOSED by `Pass 350.0`, above; the inherited-quadding read-back clause CLOSED by `Pass 352.0`, above: a side-effect redraw's auto-size, `/DA`-colour and unencodable-character decisions are now carried as `edit::LayoutDisclosure` on `edit_field`/`edit_widget`/`rotate_widget`/`reset_form` and printed by the CLI, `regen_button_appearance` no longer rewrites an identical check-box/radio appearance while reporting Regenerated, and `forms::parse_acroform` now seeds its field walk with the `/AcroForm` `/Q` so a field with no `/Q` anywhere in its ancestry reads back and fills against the document's default rather than falling to left. **Open remainder:** multi-select `/DV` read-back.
 
 **WidgetEdit:**
 - Border width/style — CLOSED by `Pass 340.0`, above. Was: every widget builder hard-coded a 1pt solid frame; a border edited or authored with `/BS` width or style (dashed/underline/beveled/inset) was written but never painted, while the outcome reported Regenerated.

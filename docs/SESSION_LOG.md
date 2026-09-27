@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (638th filing) — `3dd22938`: `Pass 352.0` SHIPPED — a field with no `/Q` reads back and fills with the `/AcroForm` `/Q`
+
+**Shipped:**
+- `Pass 352.0` — closes D8's remainder clause (a) from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item: `forms::parse_acroform` seeded its field walk with an empty `Inherited`, so `Field::quadding` fell straight to left for any field with no `/Q` on itself or an ancestor, never checking the `/AcroForm` `/Q` (ISO 32000-1 §12.7.2 Table 218) — a centred form's fields filled left-aligned, and a cleared-`/Q` read-back disagreed with what the redraw path resolved.
+
+**Decisions made this session:**
+- None beyond the fix itself. D8 narrows to its last clause, (b) multi-select `/DV`; D4's remainder is the only other open `FieldEdit` finding.
+
+**Findings + decisions:**
+- Fix: the walk's root is now seeded with the `/AcroForm` `/Q`, so own → ancestors → `/AcroForm` → left holds on both the read and draw paths. `Field::quadding`'s doc comment updated.
+- No new `pub` item. `docs/core-api/02-editing-and-saving.md`: one corrected line (had claimed the read model "has always agreed" with `inherited_quadding`); `check-core-api-verbs` PASS, line count unchanged at 5,674.
+- Tests: core `tests/acroform_quadding.rs` (3 tests — read-back under `/Q 1`/`/Q 2`/none and an own `/Q 0` override; a fill under `/AcroForm /Q 1` matches an own `/Q 1`; clearing a field's `/Q` reads back the form's value); CLI `tests/edit_field.rs::a_fill_honours_the_forms_default_quadding`. Sabotage (root re-seeded empty): 3 core tests and 1 CLI test fail. `tools/run-gates.sh`: PASS (39 commands). No manifest/dependency change.
+- `docs/FEATURES.md` row 318: `Pass 308.4`'s clause corrected (clearing quadding now inherits the `/AcroForm` default, not left, cited alongside `352.0`); trailing defect note narrowed to the one remaining finding (multi-select `/DV`).
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item stays open — one `FieldEdit` finding beyond D4's remainder: D8's last clause, (b) multi-select `/DV`. Every `WidgetEdit` finding from this audit is closed.
+- Unscoped, still open: a stale plaintext password carried in earlier incremental revisions.
+
+**For next session:**
+- Next candidates: D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics), D8's last clause (multi-select `/DV`), or the plaintext-password remainder.
+
 ## 2026-09-27 (637th filing) — `7ff64e2e`: `Pass 351.0` SHIPPED — a widget resize that scales the border draws it scaled
 
 **Shipped:**
