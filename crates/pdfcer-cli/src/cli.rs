@@ -8158,6 +8158,50 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Put an annotation on a layer, move it to another layer, or take it
+    /// off every layer (`--none`).
+    ///
+    /// The annotation then shows, prints and exports as that layer does. Its
+    /// pop-up note moves with it. Form fields are accepted. Pick the
+    /// annotation by the `page=` and `index=` `list-annotations` prints, and
+    /// the layer by the name or `id=` `list-layers` prints.
+    /// `list-annotations` prints the current layer as `oc=<id>|none`.
+    ///
+    /// Prints one `set-annotation-layer` line with `oc=<before>-><after>`
+    /// (`none` for no layer; a `before` that is not a layer is a visibility
+    /// expression that was replaced), `popup=1|0` and `changed=true|false`.
+    ///
+    /// Exit 9 when there is no such layer, the name matches more than one
+    /// layer, or the annotation is Locked.
+    SetAnnotationLayer {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-based: the `page=` value `list-annotations` prints.
+        #[arg(long)]
+        page: usize,
+        /// Index within that page's annotations, 0-based: the `index=`
+        /// value `list-annotations` prints.
+        #[arg(long)]
+        index: usize,
+        /// The layer's name, exactly as `list-layers` prints it.
+        #[arg(long, required_unless_present_any = ["id", "none"], conflicts_with_all = ["id", "none"])]
+        layer: Option<String>,
+        /// The layer's object number, the `id=` `list-layers` prints.
+        #[arg(long, conflicts_with = "none")]
+        id: Option<u32>,
+        /// Take the annotation off every layer.
+        #[arg(long)]
+        none: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Edit a layer's properties: rename it, set whether it is visible when
     /// the document opens, lock it, and set whether it prints or exports.
     ///

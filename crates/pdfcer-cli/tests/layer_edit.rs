@@ -355,3 +355,61 @@ fn layer_folder_refusals() {
     );
     assert_eq!(o.status.code(), Some(2));
 }
+
+fn annotations(path: &Path) -> String {
+    String::from_utf8_lossy(&run(&["list-annotations", path.to_str().unwrap()]).stdout).into_owned()
+}
+
+/// Replace an annotation's visibility expression with a layer, then take it
+/// off every layer; `list-annotations` shows `oc=` each time.
+#[test]
+fn set_annotation_layer_puts_and_clears() {
+    let src = fixture("ocmd-membership.pdf");
+    let (o, put) = order_edit(
+        "set-annotation-layer",
+        &src,
+        &["--page", "1", "--index", "0", "--layer", "Registered B"],
+        "alayer",
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(stdout.contains("subtype=Square oc="), "{stdout}");
+    assert!(stdout.contains("->5 popup=0 changed=true"), "{stdout}");
+    let listed = annotations(&put);
+    assert!(
+        listed.lines().next().is_some_and(|l| l.ends_with(" oc=5")),
+        "{listed}"
+    );
+
+    let (o, cleared) = order_edit(
+        "set-annotation-layer",
+        &put,
+        &["--page", "1", "--index", "0", "--none"],
+        "anone",
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(stdout.contains("oc=5->none"), "{stdout}");
+    assert!(
+        annotations(&cleared)
+            .lines()
+            .next()
+            .is_some_and(|l| l.ends_with(" oc=none"))
+    );
+    for p in [put, cleared] {
+        std::fs::remove_file(p).ok();
+    }
+}
+
+/// A group missing from `/OCGs` is refused; nothing is written.
+#[test]
+fn set_annotation_layer_refuses_an_unregistered_group() {
+    let (o, out) = order_edit(
+        "set-annotation-layer",
+        &fixture("ocmd-membership.pdf"),
+        &["--page", "1", "--index", "0", "--id", "7"],
+        "aunreg",
+    );
+    assert_eq!(o.status.code(), Some(EDIT_REFUSED));
+    assert!(!out.exists());
+}

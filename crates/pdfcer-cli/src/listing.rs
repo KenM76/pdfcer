@@ -1467,6 +1467,64 @@ pub(crate) fn cmd_layer_edit(
     finish_edit(input, &outcome)
 }
 
+/// `set-annotation-layer` — put an annotation on a layer, or on none
+/// (`pick: None`).
+pub(crate) fn cmd_set_annotation_layer(
+    input: &Path,
+    (page, index): (usize, usize),
+    pick: Option<LayerPick>,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let annot = match crate::annot_edit::resolve_annotation(&session, input, page, index) {
+        Ok(id) => id,
+        Err(code) => return code,
+    };
+    let layer = match pick.map(|p| pick_layer(input, &session, &p)).transpose() {
+        Ok(layer) => layer,
+        Err(code) => return code,
+    };
+    let change = match session.set_annotation_layer(annot, layer) {
+        Ok(change) => change,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let oc = |id: Option<pdfcer_core::object::ObjId>| {
+        id.map_or_else(|| "none".to_owned(), |id| id.num.to_string())
+    };
+    let r = &outcome.report;
+    println!(
+        "set-annotation-layer {} page={page} index={index} mode={} -> {}; subtype={} oc={}->{} popup={} changed={} objects={} appended={} out_bytes={}",
+        input.display(),
+        mode.name(),
+        output.display(),
+        change.subtype,
+        oc(change.before),
+        oc(change.after),
+        u8::from(change.popup_written),
+        change.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    finish_edit(input, &outcome)
+}
+
 /// `layer-delete` — delete a layer, keeping or removing its content.
 pub(crate) fn cmd_layer_delete(
     input: &Path,

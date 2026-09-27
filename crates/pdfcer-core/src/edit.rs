@@ -927,6 +927,13 @@ pub enum CommandKind {
     /// removed, or an entry moved ([`EditSession::add_layer_folder`] and its
     /// siblings, §8.11.4.3 Table 101 `/Order`) — ONE undo entry.
     EditLayerOrder,
+    /// An annotation was put on a layer or taken off one
+    /// ([`EditSession::set_annotation_layer`], `/OC`, §12.5.2 Table 164) —
+    /// ONE undo entry covering it and its `/Popup`.
+    SetAnnotationLayer {
+        /// The annotation.
+        annot: ObjId,
+    },
     /// One vector object was **moved** (Pass 9c-min, decision 011 §2.5): all
     /// of its path-construction operands were translated by a page-space
     /// `(dx, dy)` through content-stream surgery (the R46/§5.7 named
@@ -48645,6 +48652,137 @@ impl EditSession {
         Ok(self.commit_staged(CommandKind::EditLayerOrder, staged))
     }
 
+    /// Put an annotation on a layer, move it to another, or take it off
+    /// every layer (`layer: None`).
+    ///
+    /// Writes the annotation's `/OC` (ISO 32000-1 §12.5.2 Table 164) as a
+    /// reference to `layer`, an optional content group registered in
+    /// `/OCProperties /OCGs`; the annotation then shows, prints and exports
+    /// as that layer does (§8.11.3.3). `None` removes `/OC`. Form widgets are
+    /// accepted: Table 164 applies to every annotation. A markup
+    /// annotation's `/Popup` gets the same `/OC`, so the pair cannot show
+    /// and hide separately. An existing `/OC` naming a membership
+    /// dictionary is replaced; [`AnnotationLayerChange::before`] reports
+    /// what was there. Already on `layer` → `changed: false` and no undo
+    /// entry. One undo entry, [`CommandKind::SetAnnotationLayer`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::LayerNotFound`] — `layer` is not a registered group.
+    /// - [`EditError::AnnotationNotFound`], [`EditError::NotADictionary`].
+    /// - [`EditError::AnnotationLocked`] — Table 165 bit 8 forbids changing
+    ///   the annotation's properties.
+    /// - [`EditError::DocumentEncrypted`] and the annotation certification
+    ///   gate.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use pdfcer_core::{edit::EditSession, object::ObjId};
+    /// # fn f(session: &mut EditSession, note: ObjId, layer: ObjId) -> Result<(), Box<dyn std::error::Error>> {
+    /// let change = session.set_annotation_layer(note, Some(layer))?;
+    /// assert!(change.changed);
+    /// session.set_annotation_layer(note, None)?; // off every layer
+    /// # Ok(()) }
+    /// ```
+    pub fn set_annotation_layer(
+        &mut self,
+        annot_id: ObjId,
+        layer: Option<ObjId>,
+    ) -> Result<AnnotationLayerChange, EditError> {
+        let (target, _all) = self.locate_annotation(annot_id)?;
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification_for_annotation()?;
+        if let Some(layer) = layer
+            && !self.is_registered_layer(layer)
+        {
+            return Err(EditError::LayerNotFound { id: layer });
+        }
+        if target.flags.locked() {
+            return Err(EditError::AnnotationLocked {
+                id: annot_id,
+                subtype: String::from_utf8_lossy(&target.subtype).into_owned(),
+            });
+        }
+        let Some(Object::Dict(dict)) = self.value(annot_id) else {
+            return Err(EditError::NotADictionary {
+                id: annot_id,
+                key: "OC",
+            });
+        };
+        let before = dict.get(b"OC").and_then(Object::as_reference);
+        let with_oc = |d: &Dict| {
+            let mut d = d.clone();
+            match layer {
+                Some(l) => d.insert(Name::from(b"OC"), Object::Reference(l)),
+                None => {
+                    d.remove(b"OC");
+                }
+            }
+            d
+        };
+        let mut writes = Vec::new();
+        let updated = with_oc(dict);
+        if updated != *dict {
+            writes.push((annot_id, updated));
+        }
+        let mut popup_written = false;
+        if let Some(popup) = target.popup
+            && let Some(Object::Dict(pd)) = self.value(popup)
+        {
+            let updated = with_oc(pd);
+            popup_written = true;
+            if updated != *pd {
+                writes.push((popup, updated));
+            }
+        }
+        let changed = !writes.is_empty();
+        if changed {
+            let objects = writes
+                .into_iter()
+                .map(|(id, after)| ObjectWrite {
+                    id,
+                    before: self.state.get(&id).cloned(),
+                    after: Some(Object::Dict(after)),
+                })
+                .collect();
+            self.commit(Command {
+                kind: CommandKind::SetAnnotationLayer { annot: annot_id },
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            });
+        }
+        Ok(AnnotationLayerChange {
+            changed,
+            subtype: target.subtype_label(),
+            before,
+            after: layer,
+            popup_written,
+        })
+    }
+
+    /// Whether `layer` is a dictionary listed in `/OCProperties /OCGs`.
+    fn is_registered_layer(&self, layer: ObjId) -> bool {
+        let ocp = self
+            .graph()
+            .catalog_id()
+            .and_then(|c| self.value(c))
+            .and_then(Object::as_dict)
+            .and_then(|c| self.deref_dict(c.get(b"OCProperties")));
+        let registered = ocp
+            .as_ref()
+            .and_then(|o| self.deref_value(o.get(b"OCGs")))
+            .and_then(|a| {
+                a.as_array()
+                    .map(|a| a.iter().any(|o| o.as_reference() == Some(layer)))
+            })
+            .unwrap_or(false);
+        registered && matches!(self.value(layer), Some(Object::Dict(_)))
+    }
+
     /// The catalog id, when `layer` is a dictionary listed in
     /// `/OCProperties /OCGs` of an unencrypted, editable document.
     fn require_layer(&self, layer: ObjId) -> Result<ObjId, EditError> {
@@ -51276,6 +51414,23 @@ pub struct LayerOrderOutcome {
     /// reads it as the layer's sibling; another reader may show it as the
     /// layer's sublayer folder.
     pub follows_layer: bool,
+}
+
+/// What [`EditSession::set_annotation_layer`] did.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct AnnotationLayerChange {
+    /// Whether anything was written. `false` records no undo entry.
+    pub changed: bool,
+    /// The annotation's `/Subtype`, for the report.
+    pub subtype: String,
+    /// The `/OC` reference before: a layer, a membership dictionary, or
+    /// `None` when the annotation was on no layer.
+    pub before: Option<ObjId>,
+    /// The layer it is on now; `None` for no layer.
+    pub after: Option<ObjId>,
+    /// Whether its `/Popup` companion was given the same `/OC`.
+    pub popup_written: bool,
 }
 
 /// A layer-panel position as the CLI prints it: `1.0.2`, or `root`.

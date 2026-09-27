@@ -788,3 +788,110 @@ fn layer_order_edit_round_trips() {
     assert_eq!(shape(view.graph()), "(Parts: B A C) D{E}");
     assert_eq!(s.dirty_set().len(), 2);
 }
+
+/// Layers Welds (4) and Holes (9); object 7 is a membership dictionary on
+/// Welds. Annotation 6 carries `extra` and has the pop-up 8.
+fn annot_session(extra: &str, subtype: &str) -> EditSession {
+    let bytes = assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [4 0 R 9 0 R] /D << /Order [4 0 R 9 0 R] >> >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [6 0 R 8 0 R] >>",
+        "<< /Type /OCG /Name (Welds) >>",
+        "<< /Length 0 >>\nstream\n\nendstream",
+        &format!("<< /Type /Annot /Subtype /{subtype} /Rect [0 0 10 10] /Popup 8 0 R {extra} >>"),
+        "<< /Type /OCMD /OCGs [4 0 R] >>",
+        "<< /Type /Annot /Subtype /Popup /Rect [0 0 10 10] /Parent 6 0 R >>",
+        "<< /Type /OCG /Name (Holes) >>",
+    ]);
+    EditSession::new(Document::from_bytes(bytes).expect("parses"))
+}
+
+fn oc_of(s: &EditSession, num: u32) -> Option<&'static str> {
+    match dict(s, ObjId::new(num, 0)).get(b"OC") {
+        None => None,
+        Some(Object::Reference(r)) if r.num == 4 => Some("Welds"),
+        Some(Object::Reference(r)) if r.num == 9 => Some("Holes"),
+        Some(other) => panic!("unexpected /OC {other:?}"),
+    }
+}
+
+/// Put on a layer, move to another, take off: the annotation and its pop-up
+/// change together, one undo entry each.
+#[test]
+fn set_annotation_layer_puts_moves_and_clears() {
+    let mut s = annot_session("", "Square");
+    let annot = ObjId::new(6, 0);
+    let put = s
+        .set_annotation_layer(annot, Some(ObjId::new(4, 0)))
+        .unwrap();
+    assert!(put.changed && put.popup_written);
+    assert_eq!((put.before, put.subtype.as_str()), (None, "Square"));
+    assert_eq!((oc_of(&s, 6), oc_of(&s, 8)), (Some("Welds"), Some("Welds")));
+
+    let moved = s
+        .set_annotation_layer(annot, Some(ObjId::new(9, 0)))
+        .unwrap();
+    assert_eq!(moved.before, Some(ObjId::new(4, 0)));
+    assert_eq!((oc_of(&s, 6), oc_of(&s, 8)), (Some("Holes"), Some("Holes")));
+
+    let cleared = s.set_annotation_layer(annot, None).unwrap();
+    assert!(cleared.changed && cleared.after.is_none());
+    assert_eq!((oc_of(&s, 6), oc_of(&s, 8)), (None, None));
+    assert_eq!(s.undo_depth(), 3);
+
+    s.undo().unwrap();
+    assert_eq!((oc_of(&s, 6), oc_of(&s, 8)), (Some("Holes"), Some("Holes")));
+}
+
+/// Already there: nothing written, no undo entry.
+#[test]
+fn set_annotation_layer_no_op() {
+    let mut s = annot_session("", "Square");
+    s.set_annotation_layer(ObjId::new(6, 0), None)
+        .map(|c| assert!(!c.changed))
+        .unwrap();
+    assert_eq!(s.undo_depth(), 0);
+}
+
+/// A membership dictionary is replaced and reported; a widget is accepted.
+#[test]
+fn set_annotation_layer_replaces_a_membership_and_takes_widgets() {
+    let mut s = annot_session("/OC 7 0 R", "Widget");
+    let c = s
+        .set_annotation_layer(ObjId::new(6, 0), Some(ObjId::new(9, 0)))
+        .unwrap();
+    assert_eq!(c.before, Some(ObjId::new(7, 0)));
+    assert_eq!(oc_of(&s, 6), Some("Holes"));
+}
+
+#[test]
+fn set_annotation_layer_refusals() {
+    let mut s = annot_session("", "Square");
+    // The membership dictionary is not a registered group.
+    assert!(matches!(
+        s.set_annotation_layer(ObjId::new(6, 0), Some(ObjId::new(7, 0))),
+        Err(EditError::LayerNotFound { .. })
+    ));
+    let mut locked = annot_session("/F 128", "Square");
+    assert!(matches!(
+        locked.set_annotation_layer(ObjId::new(6, 0), Some(ObjId::new(4, 0))),
+        Err(EditError::AnnotationLocked { .. })
+    ));
+    assert_eq!(s.undo_depth() + locked.undo_depth(), 0);
+}
+
+/// Saved incrementally and reopened, the annotation reads as on the layer.
+#[test]
+fn set_annotation_layer_round_trips() {
+    let mut s = annot_session("", "Square");
+    s.set_annotation_layer(ObjId::new(6, 0), Some(ObjId::new(9, 0)))
+        .unwrap();
+    assert_eq!(s.dirty_set().len(), 2);
+    let (bytes, _) = s
+        .to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .expect("incremental save");
+    let doc = Document::from_bytes(bytes).expect("reopens");
+    let view = doc.view();
+    let annots = pdfcer_core::annot::page_annotations(view.graph(), ObjId::new(3, 0));
+    assert_eq!(annots.first().and_then(|a| a.oc), Some(ObjId::new(9, 0)));
+}
