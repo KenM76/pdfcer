@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (650th filing) — `a103d697`: `Pass 358.2` DELETE (remove content) SHIPPED — `Pass 358.2` now COMPLETE
+
+**Shipped:**
+- Pass 358.2 (delete half, `LayerContentPolicy::RemoveContent`) — hidden optional content still applies graphics state (ISO 32000-1 §8.11.3.1), so only painting is removed: inside each `/OC /name BDC…EMC` section, path-paint operators (`f F f* B B* b b* S s`) become `n` (a clip still clips); `Tj`/`TJ` removed; `'`→`T*`; `"`→`aw Tw ac Tc T*`; `Do`/`sh`/inline images removed; a `Do` of an XObject whose own `/OC` is the layer is removed anywhere; annotations with `/OC` = the layer removed from `/Annots` with their `/Popup`. New `EditError::LayerHasWidget { layer, annot }` (widget on the layer refused by name); `LayerContentNotRewritable` extended to cover a removed text run whose advance repositions later visible text in the same `BT`, or clipping-mode text (`Tr` 4–7). `LayerDeleteOutcome` gains `paints`/`xobject_calls`; `annotations` now counts under this policy too. `EditError` variant count 143.
+- With this, `Pass 358.2` (create + delete, both content policies) is COMPLETE — moved from *Next up* to *Shipped* in full, one consolidated entry citing `006c0155`/`f773a1d4`/`a103d697`.
+- CLI `pdfcer layer-delete ... --content keep|remove` (default `keep`), prints `content= sections= streams= paints= xobject_calls= annotations=`.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- Tests: 5 new core remove-content tests, +1 CLI. Sabotage: 4 core mutations + 1 CLI mutation, each caught. `tools/run-gates.sh`: PASS, 39 commands. No manifest change — `cargo tree` unaffected.
+- `docs/core-api` §1.32 `delete_layer` row updated for the new policy/refusal.
+- `docs/FEATURES.md` "Create and delete a layer" row text updated to state both delete policies shipped in full; boxes unchanged (core `[x]` / cli `[x]` / gui `[ ]`) — left in *Planned* consistent with siblings `Pass 358.0`/`358.1`, which stayed there too despite each fully shipping for core/cli, pending the rest of family `358`.
+
+**Still in flight:**
+- `Pass 358.3` (folders), `358.4` (assign content/annotation to a layer), `358.5` (layer option on add-content verbs), `358.6` (merge/flatten) — none started.
+- `flatten_annotations` (`G043` option B) — still unscoped, carried forward.
+
+**For next session:**
+- Pick up `Pass 358.3` or `358.4` — either is open, neither blocks the other.
+
 ## 2026-09-27 (649th filing) — `f773a1d4`: `Pass 358.2` DELETE (keep-unlayered) SHIPPED — `delete_layer` / `pdfcer layer-delete`
 
 **Shipped:**

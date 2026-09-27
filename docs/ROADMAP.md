@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 358.2` (`a103d697`), 2026-09-27 — Create and delete a layer (both content policies)
+
+**Verdict: SHIPPED, family `358` COMPLETE for create/delete.** Acrobat has no New Layer/Delete Layer command at all — delete exists only as a Preflight fixup (`layers__layer_properties_authoring.md`). Both directions here exceed Acrobat (operator standing rule: parity is a floor). `358.3`–`358.6` (folders, content/annotation `/OC` assignment, layer-on-add, merge/flatten) remain unstarted.
+
+**Create.** `EditSession::add_layer(name, edit) -> Result<ObjId, EditError>` (`006c0155`) appends a new empty OCG (ISO 32000-1 §8.11.2) to `/OCProperties /OCGs` and the root of `/D /Order`, creating `/OCProperties`/`/D` when absent (an absent `/Order` gets `[new]` per Table 101); other `LayerEdit` fields apply in the same command, visible by default. CLI `pdfcer layer-add`. Refusals: `EmptyLayerName`, `DocumentEncrypted`, certification.
+
+**Delete, `keep unlayered` (default).** `EditSession::delete_layer(layer, LayerContentPolicy::KeepUnlayered)` (`f773a1d4`) removes the OCG from `/OCGs`/`/ON`/`/OFF`/`/Locked`/`/Order` (any depth)/`/RBGroups`/`/AS` in `/D` and every `/Configs` entry; unwraps every `/OC /name BDC…EMC` naming it (§8.11.3.2) across page content, form XObjects, tiling patterns and annotation `/AP` streams, keeping the content and dropping the bound `/Properties` name and any direct `/OC`. Refusals: `LayerNotFound`, `LayerInMembership`, `LayerContentNotRewritable`, `DocumentEncrypted`, certification.
+
+**Delete, `remove content` (`a103d697`).** New `LayerContentPolicy::RemoveContent` variant. Hidden optional content still applies graphics state (§8.11.3.1), so only PAINTING is removed: inside each `/OC /name BDC…EMC` section, path-paint operators (`f F f* B B* b b* S s`) become `n` (a clip still clips); `Tj`/`TJ` removed; `'`→`T*`; `"`→`aw Tw ac Tc T*`; `Do`/`sh`/inline images removed. A `Do` of an XObject whose own `/OC` is the layer is removed anywhere. Annotations with `/OC` = the layer are removed from `/Annots` together with their `/Popup`. New: `EditError::LayerHasWidget { layer, annot }` — a widget on the layer is refused by name, never silently removed. `LayerContentNotRewritable` extended to cover a removed text run whose advance would reposition later visible text in the same `BT` (§9.4.4), or text drawn under clipping `Tr` 4–7 (§9.3.6). `LayerDeleteOutcome` gains `paints`/`xobject_calls`; `annotations` now counts removed annotations under this policy. `EditError` variant count 143.
+
+**CLI.** `pdfcer layer-delete <in> --layer NAME | --id N -o out [--content keep|remove] [--mode] [--verify-undo]` (default `keep`), prints `content= sections= streams= paints= xobject_calls= annotations=`. README subcommand count unchanged at 158 (`--content` is a flag, not a new subcommand).
+
+**Tests.** Core: 5 new remove-content tests alongside the 2 keep-half tests (`painted-layers.pdf`, `ocmd-membership.pdf`). CLI: `layer_edit.rs`, +1. Sabotage: 4 core mutations + 1 CLI mutation, each caught. `tools/run-gates.sh`: PASS, 39 commands. No manifest change — `cargo tree` unaffected. `docs/core-api` §1.32 `delete_layer` row updated for the new policy/refusal.
+
+**Shells.** core `[x]`, cli `[x]`. gui `[ ]` — separate project, no caller yet.
+
+**`docs/FEATURES.md`.** "Create and delete a layer" row text updated to state both delete policies shipped; boxes unchanged (core `[x]` / cli `[x]` / gui `[ ]`).
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `a103d697`, not independently reproduced.
+
 ### `Pass 358.1` (`7d2922d0`), 2026-09-27 — Edit a layer's own properties
 
 **Verdict: SHIPPED**, family `358` (see `Pass 358.0`). Acrobat Pro edits Name, Locked, Intent, Default State and Print/Export usage as real saved edits — no New Layer/Delete Layer command exists in Acrobat itself. `358.2`–`358.6` (create/delete, folder organisation, content/annotation `/OC` assignment, layer-on-add, merge/flatten) remain unstarted.
@@ -8307,22 +8327,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
-
-### `Pass 358.2` — Create and delete a layer
-
-**Filed 2026-09-27 (644th filing), family `358`.** Acrobat has no New Layer/Delete Layer command at all — delete exists only as a Preflight fixup (`layers__layer_properties_authoring.md`). Both directions here EXCEED Acrobat (operator standing rule: parity is a floor).
-
-**CREATE half SHIPPED 2026-09-27 (648th filing, `006c0155`).** `EditSession::add_layer(name, edit)` appends a new empty OCG to `/OCProperties /OCGs` and the root of `/D /Order` (creating `/OCProperties`/`/D` when absent; an absent `/Order` gets `[new]` per Table 101); other `LayerEdit` fields apply in the same command, visible by default. CLI `pdfcer layer-add`. Refusals: `EmptyLayerName`, `DocumentEncrypted`, certification. `set_layer_properties` refactored onto a shared private stage/commit helper. DELETE half below is now partly shipped — `remove content` policy still open.
-
-**DELETE — `keep unlayered` (SAFE DEFAULT) SHIPPED 2026-09-27 (649th filing, `f773a1d4`).** `EditSession::delete_layer(layer, LayerContentPolicy::KeepUnlayered) -> Result<LayerDeleteOutcome, EditError>` — `LayerContentPolicy` is `#[non_exhaustive]` and today has only this one variant. Removes the OCG from `/OCGs`; from `/ON`/`/OFF`/`/Locked`/`/Order` (any depth)/`/RBGroups`/`/AS` in `/D` and every `/Configs` entry (an emptied `/RBGroups` inner array or `/AS` entry is dropped rather than left empty). Unwraps every `/OC /name BDC … EMC` naming it (ISO 32000-1 §8.11.3.2) across page content, form XObjects, tiling patterns and annotation `/AP` streams — the BDC/EMC pair is cut, the content between kept, a nested section keeps its own layer. Also removes the layer's bound `/Properties` names and any direct `/OC` on annotations/XObjects. Rewritten streams are stored unfiltered; the OCG object itself stays in the file, unreferenced. One undo entry, `CommandKind::DeleteLayer`. Disclosure: `LayerDeleteOutcome { changed, sections, streams, annotations, xobjects }`. Refusals, all pre-write: `LayerNotFound`; new `LayerInMembership { layer, ocmd }` (an OCMD names the layer in `/OCGs`/`/VE`); new `LayerContentNotRewritable { stream, reason }` (undecodable stream, a marked-content section not closed within its own stream, or a stream shared across pages that bind the names differently); `DocumentEncrypted`; certification. **Deviation from the acceptance criteria below:** `/RBGroups` membership is cleaned up, not refused — this satisfies "a reference the deletion doesn't also clean up is refused" by construction rather than by name.
-
-**CLI.** `pdfcer layer-delete <in> --layer NAME | --id N -o out [--mode] [--verify-undo]`, prints `sections= streams= annotations= xobjects=`, exit 9 on refusal. README subcommand count 158.
-
-**Tests.** 2 core (`painted-layers.pdf` unwrap+undo; `ocmd-membership.pdf` refusal), 2 CLI. 4 sabotage mutations, each caught. `tools/run-gates.sh`: PASS, 39 commands. No dependency/manifest change — `cargo tree` unaffected. `docs/core-api` §1.32 gains a row; verb count 255, `EditError` variant count 142.
-
-**DELETE — `remove content` policy still open.** A second `LayerContentPolicy::RemoveContent` variant: remove the marked sections, the `Do` of XObjects on the layer, and non-widget annotations on it; refuse widgets by name; disclose the counts, same confirm-before-destructive-save posture as redaction (`ARCHITECTURE.md` §11.2). This is the only piece of `Pass 358.2` still unshipped.
-
-**Acceptance criteria (delete, remove-content half).** Removes the marked content and annotations, disclosed by count. A widget on the layer is refused by name, never silently removed. An OCG still referenced by an OCMD the deletion doesn't also clean up is refused by name, never left dangling.
 
 ### `Pass 358.3` — Organise `/Order` folders
 
