@@ -255,3 +255,42 @@ fn a_property_edit_on_a_field_naming_a_dr_font_does_not_fail() {
         String::from_utf8_lossy(&ap)
     );
 }
+
+// ---------------------------------------------------------------------------
+// A per-widget edit leaves the field's other widgets alone
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_widget_edit_does_not_redraw_its_siblings() {
+    // One text field, two widgets (5, 6), each with its own appearance (7, 8).
+    let mut s = session(&[
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R]          /DA (/Helv 0 Tf 0 g) >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Annots [5 0 R 6 0 R] >>",
+        "<< /FT /Tx /T (Name) /V (Hi) /Kids [5 0 R 6 0 R] >>",
+        "<< /Type /Annot /Subtype /Widget /Parent 4 0 R /P 3 0 R          /Rect [20 300 220 324] /AP << /N 7 0 R >> >>",
+        "<< /Type /Annot /Subtype /Widget /Parent 4 0 R /P 3 0 R          /Rect [20 200 220 224] /AP << /N 8 0 R >> >>",
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 200 24] /Length 0 >>
+stream
+
+endstream",
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 200 24] /Length 0 >>
+stream
+
+endstream",
+    ]);
+    let before = obj_dict(&s, 6);
+    let out = s
+        .edit_widget(
+            "Name",
+            0,
+            &WidgetEdit::new().with_background(forms::MkColor::Gray(0.5)),
+        )
+        .unwrap();
+    assert_eq!(out.siblings_untouched, 1);
+    assert_eq!(
+        obj_dict(&s, 6),
+        before,
+        "the sibling widget's dictionary (and its /AP) was rewritten"
+    );
+}

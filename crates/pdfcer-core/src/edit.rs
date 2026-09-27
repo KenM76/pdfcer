@@ -25783,6 +25783,15 @@ impl EditSession {
         })
     }
 
+    /// `field` narrowed to the one widget a per-widget verb edits, so the
+    /// redraw leaves its siblings byte-identical (what `siblings_untouched`
+    /// reports).
+    fn only_widget(field: &forms::Field, id: ObjId) -> forms::Field {
+        let mut only = field.clone();
+        only.widgets.retain(|w| w.id == id);
+        only
+    }
+
     /// Rebuild every widget appearance of `field` after a **property**
     /// change, using the field's own stored value and its POST-EDIT flags.
     ///
@@ -26077,7 +26086,7 @@ impl EditSession {
         // still the old one, and a field's other widgets keep their own.
         let mut appearance_stale = None;
         let appearance_regenerated = self.regen_after_property_change(
-            &field,
+            &Self::only_widget(&field, widget.id),
             field.flags,
             &mut objects,
             &PendingWidgetEdit {
@@ -26442,7 +26451,7 @@ impl EditSession {
             || edit.border_color.is_some();
         let appearance_regenerated = if needs_regen {
             let done = self.regen_after_property_change(
-                &field,
+                &Self::only_widget(&field, widget.id),
                 field.flags,
                 &mut objects,
                 &pending,
