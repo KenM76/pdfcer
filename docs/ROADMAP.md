@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 351.0` (`7ff64e2e`), 2026-09-27 — A widget resize that scales the border draws it scaled
+
+**Verdict: SHIPPED, closes the WidgetEdit "Stroke-width scaling is reported but not drawn" finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`350.0`) — every `WidgetEdit` finding from this audit is now closed; two `FieldEdit` findings remain (D4's remainder, D8's remainder).
+
+`EditSession::edit_widget` with `ResizeOptions::scale_stroke_width` scaled `/BS /W` and reported the change through `WidgetEditOutcome::stroke_width = Some((before, after))`, but the redraw built its `WidgetChrome` border from the widget's PRE-edit border — the artwork kept the old line width while the dictionary and the outcome both said it had changed.
+
+**Fix.** The redraw's border (`border_after`) now uses the scaled width when `stroke_width` is `Some`, falling back to the widget's own style or Table 166's solid default when it has none. Private change — no `pub` surface or core-api change.
+
+**Tests.** Core `tests/form_edit_audit.rs::a_resize_that_scales_the_border_draws_it_scaled` (a 2 pt border scaled 2x asserts `4 w` in `/AP` `/N`); CLI `crates/pdfcer-cli/tests/edit_field.rs::a_scaled_border_width_is_drawn` (a framed field resized with `edit-widget --scale-stroke-width`, asserts `3 w` and `regenerated=1`). Sabotage: ignoring the scaled width fails both.
+
+**Shells.** Core + CLI this Pass; GUI is a separate project and has not wired it. No manifest/dependency change — `cargo tree` unaffected.
+
+**Gates.** `tools/run-gates.sh`: PASS, 39 commands.
+
+**FEATURES.md.** Row 318 (the property-audit trail) gets one sentence; no box change.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `7ff64e2e`, not independently reproduced.
+
 ### `Pass 350.0` (`c36f4c2d`), 2026-09-27 — A button redraw that changes nothing is not reported as one
 
 **Verdict: SHIPPED, closes D8's remainder clause (c) AND the WidgetEdit "Radio caption and text/choice caption falsely report Regenerated" finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`349.0`) — D8 narrows again to (a) inherited quadding read-back and (b) multi-select `/DV`; the WidgetEdit list's one remaining open finding is stroke-width scaling.
@@ -17179,6 +17197,8 @@ suspicion this entry recorded.
 
 ★ **Sixteenth fix shipped — 2026-09-27 (636th filing, `Pass 350.0`, `c36f4c2d`).** Closes D8's remainder clause (c) and the WidgetEdit radio/text-choice-caption finding, below: pdfcer draws check-box/radio artwork from shapes, not `/DA`, so a `/DA` edit or an `edit_widget` caption on those widgets (or wrongly on a text/choice widget) rewrote byte-identical appearance streams while reporting Regenerated; `regen_button_appearance`'s redraw is now compared state-by-state against what's stored and skipped when identical, and `edit_widget`'s caption trigger is gated to buttons only — see *Shipped*, above. **Kept open** — two `FieldEdit` findings (D4's remainder, D8's narrower remainder) and one `WidgetEdit` finding remain.
 
+★ **Seventeenth fix shipped — 2026-09-27 (637th filing, `Pass 351.0`, `7ff64e2e`).** Closes stroke-width scaling, below — the LAST `WidgetEdit` finding from this audit: `edit_widget`'s resize with `ResizeOptions::scale_stroke_width` scaled `/BS /W` and reported it through `WidgetEditOutcome::stroke_width`, but the redraw built its border from the widget's pre-edit border, so the artwork stayed at the old width — see *Shipped*, above. **Kept open** — two `FieldEdit` findings (D4's remainder, D8's remainder); every `WidgetEdit` finding from this audit is now closed.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -17193,7 +17213,7 @@ suspicion this entry recorded.
 **WidgetEdit:**
 - Border width/style — CLOSED by `Pass 340.0`, above. Was: every widget builder hard-coded a 1pt solid frame; a border edited or authored with `/BS` width or style (dashed/underline/beveled/inset) was written but never painted, while the outcome reported Regenerated.
 - `border_dict` drops `/D` — CLOSED by `Pass 341.0`, above. Was: an `edit_widget` border edit replaced `/BS` wholesale, dropping the widget's own `/D` dash array; every redraw after then drew the default `[3]` dash instead.
-- Stroke-width scaling is reported but not drawn.
+- Stroke-width scaling is reported but not drawn — CLOSED by `Pass 351.0`, above. Was: a resize's `--scale-stroke-width` scaled `/BS /W` and reported it, but the redraw used the widget's pre-edit border, so the artwork stayed at the old width.
 - Radio caption and text/choice caption falsely report Regenerated — CLOSED by `Pass 350.0`, above. Was: identical caption artwork on a radio, or ANY caption on a text/choice widget (which shouldn't trigger a redraw at all), rewrote bytes and reported Regenerated regardless.
 - `/MK` `/BG`/`/BC` colour widening — CLOSED by `Pass 342.0`, above. Was: `MkColor::to_array` widened each `f32` component through `f64::from`, writing e.g. `[0.20000000298023224]` for a component given as `0.2`.
 - X2 — CLOSED by `Pass 339.0`, above. Was: `regen_field_appearance` rebuilds every sibling widget while reporting `siblings_untouched`.

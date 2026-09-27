@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (637th filing) — `7ff64e2e`: `Pass 351.0` SHIPPED — a widget resize that scales the border draws it scaled
+
+**Shipped:**
+- `Pass 351.0` — closes the WidgetEdit "Stroke-width scaling is reported but not drawn" finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item, the LAST `WidgetEdit` finding from that audit: `edit_widget`'s resize with `ResizeOptions::scale_stroke_width` scaled `/BS /W` and reported it via `WidgetEditOutcome::stroke_width`, but the redraw built its border from the widget's pre-edit border — the artwork stayed at the old width.
+
+**Decisions made this session:**
+- None beyond the fix itself. Every `WidgetEdit` finding from this audit is now closed; two `FieldEdit` findings remain (D4's remainder, D8's remainder).
+
+**Findings + decisions:**
+- Fix: the redraw's border (`border_after`) now uses the scaled width when `stroke_width` is `Some`, falling back to the widget's own style or Table 166's solid default otherwise. Private change, no `pub`/core-api surface change.
+- Tests: core `tests/form_edit_audit.rs::a_resize_that_scales_the_border_draws_it_scaled` (2 pt → 4 pt on a uniform 2x resize, asserts `4 w` in `/AP` `/N`); CLI `tests/edit_field.rs::a_scaled_border_width_is_drawn` (a framed field resized with `--scale-stroke-width`, asserts `3 w` and `regenerated=1`). Sabotage: ignoring the scaled width fails both.
+- `tools/run-gates.sh`: PASS (39 commands). No dependency/manifest change, `cargo tree` unaffected.
+- `docs/FEATURES.md` row 318 (the property-audit trail): one sentence added; no box change.
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item stays open — every `WidgetEdit` finding is closed; two `FieldEdit` findings remain (D4's remainder: non-WinAnsi/Type0 `/DR` fonts, vertical metrics; D8's remainder: inherited quadding read-back, multi-select `/DV`).
+- Unscoped, still open: a stale plaintext password carried in earlier incremental revisions.
+
+**For next session:**
+- Next candidates: D4's remainder or D8's remainder, closing the "Audit every `FieldEdit`/`WidgetEdit` property" item entirely, or the plaintext-password remainder.
+
 ## 2026-09-27 (636th filing) — `c36f4c2d`: `Pass 350.0` SHIPPED — a button redraw that changes nothing is not reported as one
 
 **Shipped:**
