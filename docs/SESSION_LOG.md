@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (669th filing) — `2fe0e96e`: `Pass 366.0` (WYSIWYG typing preview, G046) SHIPPED
+
+**Shipped:**
+- Pass 366.0 — WYSIWYG typing preview for text editing, answering `G046`/`O247`: `EditSession::edit_text_preview` runs `edit_text`'s own plan with the content splice skipped, backed by a new per-session `TextWalkCache`; `pdfcer_render::edit_preview::preview_outlines` turns the result into page-space glyph paths through the render path's own font loading. ~10 ms/keystroke measured on the benchmark CAD site plan (first call ~351 ms, then cached), against a 16 ms budget. Page content only, no CLI (no batch shape for a per-keystroke preview). Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- The verb takes `&mut self`, not the `&self` the request sketched — the new walk cache needs it, and a `RefCell` would cost the session `Sync`. Disclosed in the `G046` reply rather than left as a silent deviation from the ask.
+
+**Findings + decisions:**
+- None beyond what's in the `ROADMAP.md` entry.
+
+**Still in flight:**
+- `Pass 10.10` (shell-side key sources) and B-LT/B-LTA (gated on `Pass 10.6`) remain the open items in the digital-signing arc, unaffected by this filing.
+- `pdfcer-gui` has not yet consumed `edit_text_preview`/`preview_outlines` — `FEATURES.md`'s new row stays `gui [ ]`.
+
+**For next session:**
+- `2fe0e96e` is committed to `main`; push status not independently checked this filing (hard rule 8 — no shell available). Check `docs/NEXT_SESSION.md` for the operator's next ordered-plan item.
+
 ## 2026-09-27 (667th filing) — `794750d2`: `Pass 365.0` (bound every network wait, G047) SHIPPED
 
 **Shipped:**

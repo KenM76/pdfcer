@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 366.0` (`2fe0e96e`), 2026-09-27 — WYSIWYG typing preview for text editing, in the run's own font — `G046`
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` request `G046` (operator ask `O247`, scoped 668th filing): a read-only preview of what `edit_text` would commit, so a caret can show the run's own font instead of egui's pop-up box in a mismatched face. Acceptance criteria from the 668th filing's scope met (design rationale and the measured `edit_text` per-keystroke cost this preview avoids are on that entry, `docs/history/` once rotated).
+
+**Core.** `EditSession::edit_text_preview(&mut self, &EditRequest, &EditOptions) -> Result<TextEditPreview, text_edit::EditError>` (`crates/pdfcer-core/src/edit.rs`) runs `edit_text`'s own plan with the content splice skipped (`PlanMode::Preview`) — same anchor, gates, re-encode and refusal logic, so a refusal here is the same `EditError` `edit_text` would give. Deviates from the request's own `&self` sketch, disclosed in the reply: a new per-session `TextWalkCache` (decoded content + walk records, keyed on the page model key plus the session state of every object reachable from the page's `/Font`/`/Properties`, depth 6, cap 4096) needs `&mut self` — a `RefCell` would cost the session `Sync`. `TextEditPreview` carries the font resource key/dict, base font, per-glyph `PreviewGlyph { ch, code, matrix }` (glyph-space→page-user-space §9.4.4 Trm, CTM now tracked through the walk's `cm`), the advance×ascent/descent bbox, `PreviewColour` (fill/stroke), render_mode and disclosures. Nothing is staged, no undo entry. Scope is page content only — `EditTarget::Form` returns `Unsupported`, `Auto` does not fall through to forms.
+
+**Render.** New module `pdfcer_render::edit_preview::preview_outlines(&DocumentView, &TextEditPreview, &FontEnvironment) -> PreviewOutlines { glyphs, source, skipped }` — page-space `tiny_skia::Path`s via the render path's own font loading, so a preview glyph shape is the one a post-commit render would paint (rule 4).
+
+**Measured** on `D:\Dev\pdfTests\ncored-benchmark-cad-drawing.pdf` ("krovimo"), release build: first preview 351 ms (decode + walk, cached after); each later keystroke 10.0–10.7 ms core + 0.15 ms outlines, against the request's <16 ms/keystroke budget.
+
+**Tests.** 7 new in `crates/pdfcer-core/tests/edit_text_preview.rs`: preview/commit parity (nonembedded, embedded_full, tm_follower with a length change) on a synthetic in-test PDF; refusal parity (subset_missing, no-match); writes-nothing (`can_undo` false, not `is_modified`); form target refused; CTM reflected in the layout. 2 new in `crates/pdfcer-render/tests/edit_preview_outlines.rs`: embedded font → `Embedded` source, nonembedded → `Bundled`, outlines inside the reported bbox.
+
+**Gates.** No `Cargo.toml` change either crate — `cargo tree -p pdfcer-core`/`-p pdfcer-render` invariant unaffected (independently confirmed: both new modules are plain source files, no new dependency edges). `fmt --check`/`clippy -D warnings --all-targets` relayed clean from the dispatching engineer's report; not independently re-run (no shell this filing). `docs/core-api/02-editing-and-saving.md` carries the new verb row, verb count 268→269 (confirmed on disk); `check-core-api-verbs` PASS relayed. No CLI surface — the verb is interactive-only; both this entry and `docs/core-api` say so rather than leaving a silent gap.
+
+**Known limits.** Span-case parity (a match spanning multiple show operators) not separately tested; no test for cache invalidation on a font-object-only change; no CLI, by design — no batch shape for a per-keystroke preview.
+
+**Channel.** `open/reply_G046_typing_preview_in_the_runs_own_font_DONE.md` posted; request moved to `open/`, INDEX row added.
+
+**Sourcing (hard rule 8).** No shell this filing. Test-run/gate results relayed from the dispatching engineer's report of `2fe0e96e`, not independently reproduced. Symbol names (`edit_text_preview`, `TextEditPreview`, `TextWalkCache`, `PlanMode::Preview`, `preview_outlines`, `PreviewOutlines`) and both new test files independently confirmed present by reading `crates/pdfcer-core/src/edit.rs`, `crates/pdfcer-render/src/edit_preview.rs` and the two `tests/` files directly. Committed to `main`; push status not independently checked this filing.
+
 ### `Pass 365.0` (`794750d2`), 2026-09-27 — bound every network wait in the shell-side timestamp transport — `G047`
 
 **Verdict: SHIPPED.** Defect fix answering `G047` (`pdfcer-gui` request): `post_time_stamp_query`, the shell-side transport `Pass 10.11` (`09c8e673`) added for `sign_with_timestamp`/`pdfcer sign --tsa-url`, built a bare `ureq` request; `ureq` 3.4.0 defaults every timeout to `None`, so a TSA that accepted the connection and never answered hung the sign call forever.
@@ -8399,28 +8419,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-### `Pass 366.0` — WYSIWYG typing preview for text editing — inbound `pdfcer-gui` request `G046` (operator ask `O247`), filed 2026-09-27 (668th filing), **NOT STARTED**
-
-**Ask (verbatim, O247):** *"When we edit text can we make it edit wysiwyg fashion instead of the pop up text box with unmatched font?"* `G046` left the core/render split open — this Pass makes that call.
-
-**Problem, measured on the benchmark site plan** (`D:\pdfTests\ncored-benchmark-cad-drawing.pdf`): `EditSession::edit_text` costs **~500–560 ms per call**, against a <16 ms/keystroke budget. Split: `current_page_content` decode **~185 ms over 14,188,066 decoded bytes**; the text-edit `Walk` in `plan_edit_target` **~190–224 ms over 1,142,725 operator records**; remaining plan **~45 ms**; command build **5–12 ms**.
-
-**Design (core/render seam is the engine's call — `G046` left it open):**
-1. **Core**: a one-slot text-walk cache on `EditSession` (decoded page stream + `Walk` records), keyed like `page_objects_cache` (`PageModelKey`: page id + staged content spans + resources) plus the staged spans of the page's `/Font` resource objects — a span key, same reasoning as `page_objects_cache`, not a digest/generation counter. Plain field behind `&mut self`, so the verb is `EditSession::edit_text_preview(&mut self, …)`, **not** the `&self` the request sketched — the deviation is stated here so it is visible, not silent, and belongs in the reply to `G046`.
-2. **Core**: `edit_text_preview(&mut self, &EditRequest, &EditOptions) -> Result<TextEditPreview, text_edit::EditError>` runs the SAME plan (anchor, gates, re-encode, refusals, disclosures) against the cached records, writes nothing, and returns laid-out codes: per-glyph char + code + glyph-space→page-user-space matrix (`Walk` gains CTM tracking for this), the run's font dict, fill colour as device components, advance bbox in page space, and the disclosures `edit_text`'s report would carry. `edit_text`'s own page branch reuses the same cache.
-3. **Render**: turns a `TextEditPreview` into page-space `tiny_skia` outline paths through the render path's own font loading (embedded/bundled/supplied program, code→GID ladder) — so the preview's glyph shapes are the ones a post-commit render would paint (rule 4: a preview must not differ from the committed result).
-
-**Acceptance:**
-1. A preview on the benchmark plan's "krovimo" run is under 16 ms after the first call on that page.
-2. Preview glyph codes/positions equal what `edit_text` commits — test compares preview layout against the committed stream re-walked.
-3. Refused characters return the same `EditError` `edit_text` would.
-4. A preview stages nothing — undo stack and staging unchanged, asserted by test.
-5. `docs/core-api` updated for the new verb and cache field.
-6. Reply posted to `G046` on the channel.
-
-**`docs/FEATURES.md`**: new row in *Planned, in predicted order* — `[ ] — [ ] ?`, "live typing preview in the run's own font"; `cli` is `—`, not `[ ]` — a per-keystroke preview has no batch shape, stated in the row itself.
-
----
+> ★★★★ **`Pass 366.0` SHIPPED, 2026-09-27 (669th filing), `2fe0e96e`** — see
+> top of *Shipped*. Filed *Next up* by the 668th filing (scoping); this
+> banner is left as the pointer, the live entry has moved.
 
 > ★★★★ **`Pass 330.0` SHIPPED, 2026-09-26 (609th filing), `3127b18c`** — see
 > top of *Shipped*. Filed *Next up* by the 608th filing, found by rotation
