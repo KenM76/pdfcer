@@ -732,6 +732,7 @@ Guards: `MAX_FORM_FIELDS = 500_000` `forms.rs:77`,
 |---|---|
 | `fill_text_field(fqn, text) -> Result<FillOutcome, EditError>` | `12340` |
 | `fill_text_field_downgrading_rich_text(fqn, text) -> Result<FillOutcome, EditError>` | `12384` |
+| `fill_text_field_storing_password(fqn, text) -> Result<FillOutcome, EditError>` | — |
 | `set_button_state(fqn, on_state) -> Result<(), EditError>` | `12570` |
 | `set_choice_value(fqn, &[&str]) -> Result<FillOutcome, EditError>` | `13138` |
 | `regenerate_appearances() -> Result<RegenOutcome, EditError>` | `13600` |

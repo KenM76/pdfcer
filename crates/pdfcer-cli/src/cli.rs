@@ -6287,6 +6287,14 @@ pub(crate) enum Command {
         /// the operator WHICH field lost its formatting.
         #[arg(long)]
         downgrade_rich_text: bool,
+        /// Store a PASSWORD field's value in the saved file, in plain text.
+        ///
+        /// By default a password field is drawn as asterisks and its value
+        /// is not written to /V, as ISO 32000 §12.7.4.3 recommends: anyone
+        /// who opens the file could read it. Use this only when a later
+        /// submitter must receive the password from the saved file.
+        #[arg(long)]
+        store_password_values: bool,
     },
 
     /// Regenerate widget appearances and clear /NeedAppearances (Pass 7.1).

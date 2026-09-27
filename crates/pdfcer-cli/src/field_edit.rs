@@ -564,6 +564,12 @@ pub(crate) fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
             args.name
         );
     }
+    if outcome.password_value_removed {
+        eprintln!(
+            "pdfcer: field {:?}: now a password field -- its stored value was REMOVED and it is drawn as asterisks (ISO 32000 §12.7.4.3: a password field keeps no stored value)",
+            args.name
+        );
+    }
     if outcome.widgets_affected > 1 {
         eprintln!(
             "pdfcer: field {:?}: this is ONE field with {} widgets, so the change applies to all {} of them — that is what a field-scope property is. Use `edit-widget` for the per-placement ones (position, border, visibility, caption).",
@@ -2630,6 +2636,12 @@ pub(crate) fn cmd_add_text_field(args: &AddTextFieldArgs<'_>) -> u8 {
     }
     if let Some(v) = args.value {
         spec = spec.with_value(v);
+        if args.password && !v.is_empty() {
+            eprintln!(
+                "pdfcer: field {:?}: password field -- the --value is drawn as asterisks and NOT saved (ISO 32000 §12.7.4.3)",
+                args.name
+            );
+        }
     }
     if let Some(m) = args.max_len {
         spec = spec.with_max_len(m);

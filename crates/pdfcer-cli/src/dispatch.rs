@@ -1544,6 +1544,7 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
             downgrade_rich_text,
+            store_password_values,
         } => cmd_fill_field(
             &input,
             &sets,
@@ -1551,6 +1552,7 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
             downgrade_rich_text,
+            store_password_values,
         ),
         Command::RegenerateAppearances {
             input,

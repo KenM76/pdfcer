@@ -57,6 +57,7 @@ mod form_field_hierarchy;
 mod form_field_merge;
 mod form_geometry_edit;
 mod form_group_deletion_shapes;
+mod form_password_fields;
 mod form_push_buttons;
 mod form_radio_groups;
 mod form_recursion;

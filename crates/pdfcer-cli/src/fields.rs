@@ -1003,6 +1003,7 @@ pub(crate) fn cmd_fill_field(
     mode: SaveMode,
     verify_undo: bool,
     downgrade_rich_text: bool,
+    store_password_values: bool,
 ) -> u8 {
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
@@ -1080,6 +1081,9 @@ pub(crate) fn cmd_fill_field(
                     .fill_text_field_downgrading_rich_text(name, value)
                     .map(|out| disclose_fill(name, &out))
             }
+            _ if store_password_values => session
+                .fill_text_field_storing_password(name, value)
+                .map(|out| disclose_fill(name, &out)),
             _ => session
                 .fill_text_field(name, value)
                 .map(|out| disclose_fill(name, &out)),
@@ -1220,6 +1224,11 @@ which will overflow"
             "pdfcer: field {name:?}: {} character(s) had no WinAnsi code and were substituted \
 with '?' (Base-14 Latin only)",
             out.unencodable_chars
+        );
+    }
+    if out.password_value_withheld {
+        eprintln!(
+            "pdfcer: field {name:?}: password field -- drawn as asterisks and its value was NOT saved (ISO 32000 §12.7.4.3); pass --store-password-values to store it in plain text"
         );
     }
     if let Some(ti) = out.top_index {
@@ -1465,6 +1474,13 @@ pub(crate) fn cmd_import_data(input: &Path, data_path: &Path, output: &Path, mod
         eprintln!(
             "pdfcer: {}: {rich_targets} rich-text field(s) were left untouched — not even their plain value was applied. Writing plain text beside a field's existing formatting makes conforming readers display the OLD text (ISO 32000-1 §12.7.3.3), so pdfcer leaves such a field alone rather than corrupt what it shows.",
             input.display()
+        );
+    }
+    if outcome.password_values_withheld > 0 {
+        eprintln!(
+            "pdfcer: {}: {} password field(s) were drawn as asterisks and their values NOT saved (ISO 32000 §12.7.4.3)",
+            input.display(),
+            outcome.password_values_withheld
         );
     }
     let saved = match save_edited(

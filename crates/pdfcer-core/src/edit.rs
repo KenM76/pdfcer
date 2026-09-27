@@ -2138,6 +2138,10 @@ impl NewTextField {
     }
 
     /// Set the password flag (`/Ff` bit 14).
+    ///
+    /// A password field's initial value is drawn as one `*` per character
+    /// and is **not** written to `/V` (§12.7.4.3), as with
+    /// [`EditSession::fill_text_field`].
     #[must_use]
     pub const fn with_password(mut self, password: bool) -> Self {
         self.password = password;
@@ -18208,6 +18212,13 @@ pub struct FillOutcome {
     /// position that appears only inside a saved dictionary is invisible
     /// until a different program renders it.
     pub top_index: Option<i64>,
+    /// The field is a `Password` field (§12.7.4.3 Table 228, bit 14) and its
+    /// value was **not** written to `/V`; any `/V` it had was removed. The
+    /// appearance shows one `*` per character, never the text. §12.7.4.3's
+    /// NOTE: a reader "should never store the value of the text field in
+    /// the PDF file if this flag is set". Callers that need the value stored
+    /// use [`EditSession::fill_text_field_storing_password`].
+    pub password_value_withheld: bool,
 }
 
 /// What [`EditSession::add_text_annotation_reporting`] authored, and what it
@@ -18282,6 +18293,10 @@ pub struct ImportOutcome {
     /// How many named fields the document did not have (counted + skipped,
     /// never an error — a data file may name a superset).
     pub skipped: usize,
+    /// How many of the applied fields were `Password` fields whose value was
+    /// drawn masked and **not** stored in `/V`
+    /// ([`FillOutcome::password_value_withheld`]).
+    pub password_values_withheld: usize,
 }
 
 /// What a [`move_widget`](EditSession::move_widget) call moved, and what it
@@ -23175,6 +23190,12 @@ pub struct FieldEditOutcome {
     /// `false` when the list was already in order, when no list was supplied,
     /// or when the edit did not set the flag: in all three cases nothing moved.
     pub options_sorted: bool,
+    /// The edit set `Password` (§12.7.4.3 Table 228, bit 14) on a field
+    /// whose own `/V` held a value, and that value was **removed**: a
+    /// password field keeps no stored value, as with
+    /// [`EditSession::fill_text_field`]. The appearance keeps one `*` per
+    /// character.
+    pub password_value_removed: bool,
 }
 
 /// What [`EditSession::rotate_widget`] did (`Pass 177.0`).
@@ -23775,10 +23796,14 @@ impl EditSession {
         // A created field and a filled one therefore cannot disagree about
         // how a value is drawn — which they could if this hand-assembled its
         // own appearance dict.
+        // A password field shows asterisks and keeps no `/V`, exactly as a
+        // fill does (`fill_text_field`, §12.7.4.3 Table 228 bit 14).
+        let masked = "*".repeat(spec.value.chars().count());
+        let shown = if spec.password { &masked } else { &spec.value };
         let appearance = annot_author::build_field_text_appearance(
             w,
             h,
-            &spec.value,
+            shown,
             &da,
             crate::vartext::Quadding::Left,
             spec.multiline,
@@ -23901,10 +23926,12 @@ impl EditSession {
         // and absent from paper, which is not what an operator placing a form
         // field means — and is a difference they would not see until printing.
         d.insert(Name::from(b"F"), Object::Integer(4));
-        d.insert(
-            Name::from(b"V"),
-            Object::String(encode_text_string(&spec.value)),
-        );
+        if !spec.password {
+            d.insert(
+                Name::from(b"V"),
+                Object::String(encode_text_string(&spec.value)),
+            );
+        }
         if let Some(max) = spec.max_len {
             d.insert(Name::from(b"MaxLen"), Object::Integer(max));
         }
@@ -26940,6 +26967,9 @@ impl EditSession {
             }
             None => {}
         }
+        let password_value_removed = edit.password == Some(true)
+            && ft == Some(forms::FieldType::Text)
+            && dict.remove(b"V").is_some();
 
         // A standard-14 `/DA` needs its resource in `/AcroForm` `/DR` `/Font`,
         // and `edit_field` does not otherwise touch the `/AcroForm` -- so
@@ -26991,7 +27021,10 @@ impl EditSession {
             // why no test caught it: every `/Q` test drove the builder
             // directly and every `edit_field` test asserted the dictionary.
             || edit.quadding.is_some()
+            // `Password` swaps the drawn value for asterisks, or back.
+            || edit.password.is_some()
             || options_after.is_some();
+        let mut password_removals = Vec::new();
         let appearance_regenerated = if layout_changed {
             // The snapshot is made TRUTHFUL rather than overridden.
             //
@@ -27007,6 +27040,11 @@ impl EditSession {
             // second precedence rule. There is then ONE answer to "what /DA
             // does this field have", and it is the one being written.
             let mut field = field.clone();
+            // The regenerator masks on `field.flags`; the snapshot's are stale.
+            field.flags = flags;
+            if edit.password == Some(true) {
+                password_removals = self.superseded_session_appearances(&field);
+            }
             if let (Some(app), Some(key)) = (&edit.appearance, &da_font_key) {
                 field.default_appearance = Some(crate::vartext::default_appearance_string(
                     key, app.size, app.color,
@@ -27060,7 +27098,7 @@ impl EditSession {
         self.commit(Command {
             kind: CommandKind::EditFormField,
             objects,
-            removals: Vec::new(),
+            removals: password_removals,
             trailer: None,
         });
 
@@ -27074,6 +27112,7 @@ impl EditSession {
             tooltip_removed,
             sort_claim_unmet,
             options_sorted,
+            password_value_removed,
         })
     }
 
@@ -37400,8 +37439,31 @@ impl EditSession {
     ///   (a malformed/unresolvable `/DA`, or a symbolic font).
     /// - [`EditError::DocumentEncrypted`], the fill certification gate, the
     ///   `/Size`-suppression guard, [`EditError::ObjectNumbersExhausted`].
+    ///
+    /// A `Password` field (Table 228, bit 14) is drawn masked, one `*` per
+    /// character, and its value is **not** stored in `/V` (see
+    /// [`FillOutcome::password_value_withheld`]).
     pub fn fill_text_field(&mut self, fqn: &str, text: &str) -> Result<FillOutcome, EditError> {
-        self.fill_text_field_inner(fqn, text, false)
+        self.fill_text_field_inner(fqn, text, false, false)
+    }
+
+    /// [`Self::fill_text_field`], except a `Password` field's value **is**
+    /// stored in `/V`, in plain text, against §12.7.4.3's recommendation.
+    ///
+    /// For a form whose saved file must carry the password to a later
+    /// submitter. Anyone who opens the file can read it. The appearance is
+    /// still masked. On any other field this is identical to
+    /// [`Self::fill_text_field`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::fill_text_field`].
+    pub fn fill_text_field_storing_password(
+        &mut self,
+        fqn: &str,
+        text: &str,
+    ) -> Result<FillOutcome, EditError> {
+        self.fill_text_field_inner(fqn, text, false, true)
     }
 
     /// **Fill a rich-text field with plain text, converting it to a plain
@@ -37449,7 +37511,7 @@ impl EditSession {
         fqn: &str,
         text: &str,
     ) -> Result<FillOutcome, EditError> {
-        self.fill_text_field_inner(fqn, text, true)
+        self.fill_text_field_inner(fqn, text, true, false)
     }
 
     /// The shared body of the two fills above; `downgrade_rich_text` decides
@@ -37459,6 +37521,7 @@ impl EditSession {
         fqn: &str,
         text: &str,
         downgrade_rich_text: bool,
+        store_password: bool,
     ) -> Result<FillOutcome, EditError> {
         self.fill_guards()?;
 
@@ -37498,6 +37561,7 @@ impl EditSession {
             });
         }
         let primary_id = primary.id;
+        let withhold = !store_password && primary.flags.has(forms::FieldFlags::PASSWORD);
 
         let fonts = self.resolve_dr_fonts();
         let default_da = form
@@ -37514,8 +37578,12 @@ impl EditSession {
         // The new /V string, shared across every same-FQN representation.
         let v_string = Object::String(encode_text_string(text));
 
+        let mut removals = Vec::new();
         for field in &targets {
             let multiline = field.flags.has(forms::FieldFlags::MULTILINE);
+            if field.flags.has(forms::FieldFlags::PASSWORD) {
+                removals.extend(self.superseded_session_appearances(field));
+            }
 
             // THE SHARED REGENERATOR (R92: one appearance path, never two).
             //
@@ -37557,7 +37625,11 @@ impl EditSession {
             };
             let before = self.state.get(&field.id).cloned();
             let mut updated = field_dict.clone();
-            updated.insert(Name::from(b"V"), v_string.clone());
+            if withhold {
+                updated.remove(b"V");
+            } else {
+                updated.insert(Name::from(b"V"), v_string.clone());
+            }
             if is_rich {
                 // THE DOWNGRADE, and both halves are load-bearing.
                 //
@@ -37600,7 +37672,7 @@ impl EditSession {
         self.commit(Command {
             kind: CommandKind::FillTextField,
             objects,
-            removals: Vec::new(),
+            removals,
             trailer: None,
         });
         Ok(FillOutcome {
@@ -37616,6 +37688,7 @@ impl EditSession {
             // `/TI` is a CHOICE-field key (§12.7.4.4 Table 231). A text
             // field has no option list to scroll.
             top_index: None,
+            password_value_withheld: withhold,
         })
     }
 
@@ -39615,6 +39688,41 @@ impl EditSession {
         Ok(out)
     }
 
+    /// Removals for each widget's current `/AP` `/N` stream when this session
+    /// created it: a regeneration supersedes it, and left in place it is an
+    /// unreferenced object still written on save. Used for `Password`
+    /// fields, whose superseded stream draws the plaintext. Base objects are
+    /// left alone (an incremental save keeps them regardless).
+    fn superseded_session_appearances(&self, field: &Field) -> Vec<Removal> {
+        let mut out: Vec<Removal> = Vec::new();
+        for w in &field.widgets {
+            let Some(Object::Dict(d)) = self.value(w.id) else {
+                continue;
+            };
+            let ap = match d.get(b"AP") {
+                Some(Object::Reference(r)) => self.value(*r),
+                Some(o) => Some(o),
+                None => None,
+            };
+            let Some(Object::Dict(ap)) = ap else {
+                continue;
+            };
+            if let Some(Object::Reference(n)) = ap.get(b"N")
+                && self.base.get(*n).is_none()
+                && self.state.contains_key(n)
+                && !self.deleted.contains(n)
+                && !out.iter().any(|r| r.id == *n)
+            {
+                out.push(Removal {
+                    id: *n,
+                    was_deleted: false,
+                    is_deleted: true,
+                });
+            }
+        }
+        out
+    }
+
     /// Regenerate every widget appearance of `field` to display `text`,
     /// pushing the created `/AP` stream writes (and Shape-B widget `/AP`
     /// patches) onto `objects`, and returning the merged-widget `/AP` stream
@@ -39639,6 +39747,16 @@ impl EditSession {
         unencodable: &mut usize,
         pending: &PendingWidgetEdit,
     ) -> Result<Option<ObjId>, EditError> {
+        // A `Password` field's value is "echoed in some unreadable form, such
+        // as asterisks" (§12.7.4.3 Table 228, bit 14). Masked HERE, the one
+        // regenerator, so no route (fill, resize, restyle) can draw the text.
+        let masked;
+        let text = if field.flags.has(forms::FieldFlags::PASSWORD) {
+            masked = "*".repeat(text.chars().filter(|c| !matches!(c, '\r' | '\n')).count());
+            masked.as_str()
+        } else {
+            text
+        };
         let da = field
             .default_appearance
             .clone()
@@ -40749,6 +40867,7 @@ impl EditSession {
             // reflects the session rather than the file on disk.
             xfa_may_disagree: form.xfa.is_present(),
             top_index,
+            password_value_withheld: false,
         })
     }
 
@@ -40858,6 +40977,7 @@ impl EditSession {
 
         let mut applied = 0usize;
         let mut skipped = 0usize;
+        let mut password_values_withheld = 0usize;
         for entry in &data.fields {
             // Re-model each time so later imports see earlier overlay writes.
             let Some(form) = forms::parse_acroform(&self.graph()) else {
@@ -40923,7 +41043,9 @@ impl EditSession {
                         continue;
                     }
                     let text = entry.values.first().map_or("", String::as_str);
-                    self.fill_text_field(&entry.name, text).map(|_| ())
+                    self.fill_text_field(&entry.name, text).map(|o| {
+                        password_values_withheld += usize::from(o.password_value_withheld);
+                    })
                 }
                 Some(FieldType::Signature) | None => {
                     skipped += 1;
@@ -40936,7 +41058,11 @@ impl EditSession {
                 skipped += 1;
             }
         }
-        Ok(ImportOutcome { applied, skipped })
+        Ok(ImportOutcome {
+            applied,
+            skipped,
+            password_values_withheld,
+        })
     }
 
     /// Regenerate widget appearances that need it and clear
