@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 345.0` (`100532ec`), 2026-09-27 — A password field is drawn masked and keeps no stored value
+
+**Verdict: SHIPPED, closes D2 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`344.0`) — the item stays open, four `FieldEdit` findings and two `WidgetEdit` findings remain (see *Backlog*).
+
+Found by the form-editing audit (finding D2): a Password field had no masking — the appearance regenerator drew the raw characters, and `/V` stored plaintext. Spec: ISO 32000-1 §12.7.4.3 Table 228 bit 14 (Password); value "echoed in some unreadable form", with a NOTE that a conforming reader "should never store the value of the text field in the PDF file if this flag is set."
+
+**Fix.** The single appearance regenerator now masks a Password field, one `*` per character — fill, resize, restyle and regenerate all draw the mask. `fill_text_field` withholds `/V` by default (removing any existing `/V`) and reports the new `FillOutcome::password_value_withheld`; a new `pub` verb `EditSession::fill_text_field_storing_password` is the explicit opt-in (plaintext `/V`, appearance still masked) — safe default plus a stricter/looser option, per standing rule. `add_text_field` with password and an initial value masks and writes no `/V`. `edit_field` turning Password on removes the field's own `/V` (new `FieldEditOutcome::password_value_removed`) and redraws masked; one undo entry restores both the flag and the value. `import_form_data` counts withheld values (new `ImportOutcome::password_values_withheld`). The superseded session-created `/AP` stream is now REMOVED rather than orphaned — it held the plaintext and was still written on save (found by the end-to-end saved-bytes test).
+
+**API.** `docs/core-api` 02/03/index updated, verb count 251; `check-core-api-verbs` PASS.
+
+**CLI.** `fill-field --store-password-values`; the withholding/removal/masking disclosures print from `fill-field`, `import-data`, `edit-field` and `add-text-field`. Verified on real output files: the secret is absent by default and present only with the flag.
+
+**Tests.** New `form_password_fields` module, 4 tests, asserting on saved bytes; sabotage of the mask, of the withholding, and of the orphan-stream removal each fail independently. `tools/run-gates.sh`: PASS (39 commands). No manifest change (`cargo tree` unaffected).
+
+**Shells.** Core + CLI this Pass; GUI is a separate project and has not wired it.
+
+**Known open limit, recorded not fixed here.** An INCREMENTAL save of a file whose EARLIER revision already holds a plaintext password keeps that older revision's bytes — inherent to incremental update; only a full rewrite drops it. Filed to *Backlog* below.
+
+**`docs/FEATURES.md`:** row 318 (field-scope property edits) gets one added clause and one existing clause trimmed, to stay under the 1,200-char cap; no box change — core/cli were already `[x]`, correctness/security fix under an already-ticked capability.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `100532ec`, not independently reproduced.
+
 ### `Pass 344.0` (`16f91155`), 2026-09-27 — A push button's `/DA` edit redraws its caption
 
 **Verdict: SHIPPED, closes D4b from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`342.0`) — the item stays open, five `FieldEdit` findings and two `WidgetEdit` findings remain (see *Backlog*).
@@ -17019,6 +17041,8 @@ suspicion this entry recorded.
 
 ★ **Ninth fix shipped — 2026-09-27 (629th filing, `Pass 344.0`, `16f91155`).** Closes D4b, below: a push button's `/DA` edit failed outright with `FontUnresolved` for any face but Helvetica, and could never have redrawn even for Helvetica — `edit_field`'s ownership test drew its expected artwork from the pre-command snapshot already patched with the NEW `/DA`, so pdfcer's own stored caption could never match, and the button builder was only ever handed `Helv` as a font resource; `regen_button_appearance` now re-reads the STORED `/DA` for the ownership test and passes the STAGED `/DA` for the redraw, both against the `/DR` fonts plus the caller's staged face — see *Shipped*, above. **Kept open** — five `FieldEdit` findings and two `WidgetEdit` findings remain.
 
+★ **Tenth fix shipped — 2026-09-27 (630th filing, `Pass 345.0`, `100532ec`).** Closes D2, below: a Password field had no masking — the appearance regenerator drew raw characters and `/V` stored plaintext, against ISO 32000-1 §12.7.4.3 Table 228 bit 14's "echoed in some unreadable form" and its should-never-store NOTE; the regenerator now masks with `*`, `fill_text_field` withholds `/V` by default (opt-in `fill_text_field_storing_password` stores it), `add_text_field`/`edit_field`/`import_form_data` all follow the same rule, and a superseded plaintext `/AP` stream is now removed rather than orphaned — see *Shipped*, above. **Kept open** — four `FieldEdit` findings and two `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -17026,7 +17050,7 @@ suspicion this entry recorded.
 - D4 — a resource font not in `/DR`, or not standard-14, is still forced to Helvetica (partly fixed by `Pass 338.0`: a Resource face present in `/DR` now gets `/DR`'s standard-14 metrics).
 - D4b — CLOSED by `Pass 344.0`, above. Was: a push-button `/DA` edit is not redrawn — measured worse than filed, it failed outright with `FontUnresolved` for any non-Helvetica face.
 - D1 — comb/`max_len` get no comb layout, yet report Regenerated.
-- D2 — password has no masking; plaintext lands in `/V` and `/AP`.
+- D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.
 - D7 — stale `/I`/`/TI` after an `/Opt` change.
 - D8 — round-trip gaps: inherited quadding read-back, multi-select `/DV`. Check box/radio `/DA` edits report Regenerated over identical bytes. Regen auto-size and unencodable-character counts are dropped, undisclosed.
 
@@ -17037,6 +17061,10 @@ suspicion this entry recorded.
 - Radio caption and text/choice caption falsely report Regenerated (text/choice also churns a new `/AP` it didn't need to).
 - `/MK` `/BG`/`/BC` colour widening — CLOSED by `Pass 342.0`, above. Was: `MkColor::to_array` widened each `f32` component through `f64::from`, writing e.g. `[0.20000000298023224]` for a component given as `0.2`.
 - X2 — CLOSED by `Pass 339.0`, above. Was: `regen_field_appearance` rebuilds every sibling widget while reporting `siblings_untouched`.
+
+### Unscoped — An incremental save can still carry an earlier revision's plaintext password — filed 2026-09-27 (630th filing, `Pass 345.0`'s own named remainder), no Pass ID
+
+`Pass 345.0` stops a NEW plaintext password from landing in `/V`/`/AP`, but an incremental save appends rather than removes: if an earlier revision of the file already holds a plaintext `/V` (written before this Pass, or by another tool), that revision's bytes remain on disk under the new xref, inherent to incremental update (`ARCHITECTURE.md` §5). Only a full rewrite drops it. **Scope, if picked up:** either a `regenerate-appearances`-style full-rewrite path that also purges stale plaintext password revisions, or a disclosed warning when opening a file with a Password field whose superseded revisions are inspected and found to carry `/V`.
 
 ### Unscoped — An INDIRECT `/CO` reference is silently replaced by a fresh array on append, losing whatever else referenced it — filed 2026-09-16 (563rd filing, `Pass 308.6`), no Pass ID
 

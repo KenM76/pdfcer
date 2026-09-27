@@ -4,6 +4,64 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (630th filing) — `100532ec`: `Pass 345.0` SHIPPED — a password field is drawn masked and keeps no stored value
+
+**Shipped:**
+- `Pass 345.0` — closes D2 from the Backlog's "Audit every `FieldEdit`/
+  `WidgetEdit` property" item (filed 2026-09-16, 562nd filing; earlier
+  fixes `Pass 335.0`–`344.0`); the item stays open, four `FieldEdit`
+  findings and two `WidgetEdit` findings remain.
+
+**Decisions made this session:** none — a scoped correctness/security
+fix, no architecture change.
+
+**Findings + decisions:**
+- Found by the form-editing audit: a Password field (ISO 32000-1
+  §12.7.4.3 Table 228 bit 14) had no masking — the appearance regenerator
+  drew the raw characters, and `/V` stored plaintext. The spec requires
+  the value "echoed in some unreadable form" and a NOTE that a reader
+  "should never store the value... if this flag is set."
+- Fix: the appearance regenerator now masks a Password field, one `*`
+  per character, so fill/resize/restyle/regenerate all draw the mask.
+  `fill_text_field` withholds `/V` by default (removing any existing
+  one) and reports `FillOutcome::password_value_withheld`; a new opt-in
+  verb `fill_text_field_storing_password` stores plaintext explicitly
+  (appearance still masked). `add_text_field` with password + an initial
+  value masks and writes no `/V`. `edit_field` turning Password ON
+  removes the field's own `/V` (`FieldEditOutcome::password_value_removed`,
+  one undo entry). `import_form_data` counts withheld values
+  (`ImportOutcome::password_values_withheld`).
+- A session-created `/AP` stream superseded by masking is now REMOVED,
+  not orphaned — it held the plaintext and was still written on save
+  (caught by an end-to-end saved-bytes test).
+- CLI: `fill-field --store-password-values`; disclosures printed by
+  `fill-field`, `import-data`, `edit-field` and `add-text-field`.
+  `docs/core-api` 02/03/index updated (verb count 251);
+  `check-core-api-verbs` PASS.
+- New test module `form_password_fields` (4 tests) asserts on saved
+  bytes; sabotage of the mask, of the withholding, and of orphan removal
+  each fail independently. `tools/run-gates.sh`: PASS (39 commands). No
+  manifest change. CLI verified on real output files: secret absent by
+  default, present only with `--store-password-values`.
+- Known open limit, not fixed here: an INCREMENTAL save of a file whose
+  EARLIER revision already holds a plaintext password keeps that older
+  revision's bytes — inherent to incremental update; only a full rewrite
+  drops it. Noted to *Backlog*.
+- `docs/FEATURES.md`: row 318 (field-scope property edits) gets one
+  added clause and one trimmed to stay under the 1,200-char cap; no box
+  change — correctness/security fix under an already-ticked capability.
+
+**Still in flight:** the audit item — four `FieldEdit` findings (D4, D1,
+D7, D8) and two `WidgetEdit` findings (stroke-width scaling not drawn;
+radio/text/choice caption falsely reports Regenerated) remain.
+
+**For next session:** the incremental-save plaintext-retention limit
+above is worth a Backlog line if it isn't already one.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`100532ec`, not independently reproduced.
+
 ## 2026-09-27 (629th filing) — `16f91155`: `Pass 344.0` SHIPPED — a push button's font edit redraws its caption
 
 **Shipped:**
