@@ -187,7 +187,24 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
 
-### SINCE THE LAST HANDOFF — 2026-09-26, latest (`Pass 330.1`–`331.1`, 611th–614th filings)
+### SINCE THE LAST HANDOFF — 2026-09-26, newest (`Pass 332.0`, `v0.57.0`)
+
+- **Adding a form field no longer wipes an indirect `/Fields`, `/DR` or `/CO`**
+  (`e9236215`, filed 615th). §7.3.10 lets each be a reference; the AcroForm
+  writers now inline them for the patch and write each changed one back to its
+  own object (`acroform_write_parts`, `Held`). Data loss in every release
+  through `v0.56.0`. Notice posted to the pdfcer-gui channel. Residual: a
+  welded doc comment on `std14_resource_key` in `edit.rs` (not fixed).
+- **`v0.57.0` RELEASED** (`6d722b3d`, tag pushed, GitHub release zip + sha256,
+  OneDrive `pdfcer2`; `pdfcer1` keeps 0.56.0). **The next release writes
+  `pdfcer1`.** Smoke test exercised the 332.0 path through the shipped binary
+  (two `add-text-field` then `list-fields` shows both). `verify-release.py`
+  needs the tag as an argument; its standing FAIL is the untracked `target-case/`.
+- **Next:** Pass 142.0 (de-prioritised; design in its Backlog entry), the EMF
+  nondeterminism Backlog item, a FieldEdit/WidgetEdit audit for other
+  indirect-entry clobbers of the same class as 332.0.
+
+### SINCE THE LAST HANDOFF — 2026-09-26, earlier-latest (`Pass 330.1`–`331.1`, 611th–614th filings)
 
 Pushed through the 614th filing (`66f996c8`), CI green. Since `v0.56.0`.
 - **The two `330.0` residuals below are CLOSED.** The report names the
