@@ -4,6 +4,65 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (619th filing) — `94504f0a`: `v0.58.0` RELEASED
+
+**Shipped:**
+- `v0.58.0` — release filing, not a Pass. Packages 9 commits since
+  `v0.57.0` (`6d722b3d`..`94504f0a`), version-bump commit `94504f0a`
+  ("chore: v0.58.0"), annotated tag `v0.58.0` (tag object `b2d8e3ae`) at
+  `94504f0a`, pushed, `origin/main` = `94504f0a`. Headline carried:
+  `Pass 334.0` (`12182b5b`) — SVG and EMF export deterministic under
+  soft masks; also `Pass 333.0` (`ea5ecc0d`, amendment `673d9e0c`) — seven
+  indirect/inherited-entry clobbers fixed — each already filed under its
+  own entry, not refiled here.
+
+**Decisions made this session:** none — a release carries no
+architectural decision. Highest decision record remains `162`.
+
+**Findings + decisions:**
+- Gates, build and smoke test all relayed from the dispatching engineer
+  (no shell this filing): `tools/run-gates.sh` PASS (39 commands
+  including 2 filing gates) run before the bump commit; `cargo about
+  generate` regenerated `THIRD_PARTY_LICENSES.md` with no diff; OCRcer
+  vendored copy current at `531c44dd5b2b`. Packaged build
+  `D:\builds\pdfcer-20260926-2235-94504f0`.
+- Fresh-folder smoke test PASSED: `--version` reports `0.58.0` / revision
+  `v0.58.0`; 5 runs each of EMF and SVG export on veraPDF
+  `6-2-9-t04-fail-d` were byte-identical, matching the fixed md5s — the
+  `Pass 334.0` scenario exercised end-to-end through the packaged binary.
+- `tools/gh-release.py`: 2 assets uploaded (zip + `.sha256`), PASS. Zip
+  sha256
+  `df82d4ef01cdaaded2f650bd2412b2370ad423e4f96a47a544b0cdf9b570d11b`.
+- `tools/deploy-onedrive.py` wrote slot `pdfcer1` (previously `0.57.0`);
+  `pdfcer2` keeps `0.57.0` as the previous version. The next release
+  writes `pdfcer2`.
+- `verify-release.py v0.58.0`: the standing FAIL is the untracked
+  `target-case/` directory, not the engineer's — same false-alarm class
+  as `v0.56.0`/`v0.57.0`'s. CI at the tagged commit was **in progress at
+  filing time**, not yet confirmed green — engineer re-verifies via
+  `docs/NEXT_SESSION.md`.
+- `docs/FEATURES.md`: **no rows changed** — a release ships no new
+  capability. Said explicitly so the silence is not read as a missed
+  sweep.
+- GUI side: a `FeatureRequests` notice was posted for `Pass 334.0`,
+  alongside the one already posted for `Pass 333.0`.
+- Independently confirmed by this filing (no shell, `Grep` only):
+  `Cargo.toml`'s `version = "0.58.0"`.
+
+**Still in flight:** `Pass 142.0` (embedded-donor `format-text
+--set-font`) scoping continues; see `docs/NEXT_SESSION.md` for the
+engineer's own state.
+
+**For next session:** confirm CI green at `94504f0a`/`v0.58.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. All figures above
+except `Cargo.toml`'s live version string are relayed from the
+dispatching engineer's own report of `94504f0a`, not independently
+reproduced. The `ROADMAP.md` `v0.58.0` entry (new, top of *Shipped*) and
+its Ledger table were filed by this same pass, independently checked
+against live `ROADMAP.md`/`Cargo.toml` content within this role's
+no-shell reach.
+
 ## 2026-09-26 (618th filing) — `12182b5b`: `Pass 334.0` SHIPPED — SVG and EMF export are deterministic under soft masks
 
 **Shipped:**

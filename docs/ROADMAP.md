@@ -222,6 +222,85 @@ formatting), not new reach.
 relayed from the dispatching engineer's own verified report of
 `ea5ecc0d` (parent `35721953`), not independently reproduced.
 
+### `v0.58.0` — RELEASED (2026-09-26)
+
+Release filing, not a Pass — packages **9 commits already filed** since
+`v0.57.0` (`6d722b3d`). Version-bump commit `94504f0a` ("chore: v0.58.0")
+bumps `Cargo.toml` 0.57.0 → 0.58.0 plus both lockfiles (`Cargo.lock`,
+`fuzz/Cargo.lock`). Annotated tag `v0.58.0` (tag object `b2d8e3ae`), pushed;
+`origin/main` = `94504f0a`. **Independently confirmed this filing:**
+`Cargo.toml`'s `version = "0.58.0"` (`Grep`, live source).
+
+**Range `v0.57.0..94504f0a`: 9 commits.** Highlights, not refiled here —
+each already has its own entry above: `Pass 334.0` (`12182b5b`) — SVG and
+EMF export deterministic under soft masks (an address-keyed mask cache read
+after the source `Arc` could be freed); `Pass 333.0` (`ea5ecc0d`, amendment
+`673d9e0c`) — fix-on-discovery sweep, seven indirect/inherited-entry
+clobbers fixed across page `/XObject`, widget `/MK`/`/AP`, ce-dimension
+`/OCGs`/`/D`, redaction-overlay inherited `/Resources`, and
+`format_text`'s form-XObject font bind.
+
+**Gates (relayed).** `tools/run-gates.sh` PASS, 39 commands including 2
+filing gates, run before the bump commit. `cargo about generate`
+regenerated `THIRD_PARTY_LICENSES.md` with no diff. OCRcer vendored copy
+current at `531c44dd5b2b` (`sync-ocrcer` reported already synced). No
+dependency change; `cargo tree` unaffected.
+
+**Build (relayed).** `D:\builds\pdfcer-20260926-2235-94504f0`. Zip
+`pdfcer-v0.58.0-windows-x64.zip`, sha256
+`df82d4ef01cdaaded2f650bd2412b2370ad423e4f96a47a544b0cdf9b570d11b`.
+
+**Smoke test (relayed), fresh folder.** `--version` reports `pdfcer
+0.58.0`, revision `v0.58.0`. 5 runs each of EMF and SVG export on veraPDF
+`6-2-9-t04-fail-d` were byte-identical, matching the fixed md5s — the
+`Pass 334.0` scenario exercised end-to-end through the packaged binary.
+
+**GitHub release (relayed).** Published via `tools/gh-release.py`: 2
+assets (`pdfcer-v0.58.0-windows-x64.zip` plus its `.sha256`) — `PASS`.
+Title "pdfcer v0.58.0".
+
+**OneDrive (relayed).** `tools/deploy-onedrive.py` wrote slot `pdfcer1`
+(previously `0.57.0`); `pdfcer2` keeps `0.57.0` as the previous version.
+The next release writes `pdfcer2`.
+
+**`verify-release.py v0.58.0` (relayed).** The standing **FAIL** is the
+untracked `target-case/` directory, not the engineer's — same false-alarm
+class as `v0.56.0`/`v0.57.0`'s. CI at the tagged commit was **in progress
+at filing time** — not yet confirmed green; engineer re-verifies (see
+`docs/NEXT_SESSION.md`).
+
+**`docs/FEATURES.md`: no rows changed — a release ships no new
+capability.** Said explicitly so the silence is not read as a missed
+sweep.
+
+**No decision-log entry** — a release carries no architectural decision.
+Highest decision record remains `162`.
+
+**GUI notified.** A `FeatureRequests` notice was posted for `Pass 334.0`,
+alongside the one already posted for `Pass 333.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Independently confirmed
+via `Grep` against live source: `Cargo.toml`'s `version = "0.58.0"`. All
+other facts above — the commit range and its highlights, the gate-sweep
+results, the build/zip byte counts and sha256, the smoke test transcript,
+the GitHub release and OneDrive deploy results, the `verify-release.py`
+output, and the CI run status — are **relayed from the dispatching
+engineer's own report of `94504f0a`, not independently reproduced.**
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.57.0` (`6d722b3d`, 2026-09-26) | **`v0.58.0` (`94504f0a`, 2026-09-26) — 9 commits since `v0.57.0`** |
+| Pass families | `334` (highest `.0`), next free `335` | unchanged — no new Pass this filing |
+| Standing rules | `R258` next free (unresolved `R251` discrepancy carried, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `162` | unchanged |
+| `SESSION_LOG` filings | `618` | **`619`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
+| CI at the tagged commit | `v0.57.0`: CI in progress at filing time (616th filing) | **`v0.58.0`: CI in progress at filing time — engineer re-verifies** |
+
+---
+
 ### `v0.57.0` — RELEASED (2026-09-26)
 
 Release filing, not a Pass — packages **13 commits already filed** since
