@@ -327,7 +327,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (28 checks)
+    name: repository audits (29 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -408,6 +408,11 @@ jobs:
       # published figure nobody re-derives goes stale silently.
       - name: check every public verb is documented and the counts agree
         run: python tools/check-core-api-verbs.py
+
+      # Line numbers into source decay with every edit; core-api cites the
+      # file and symbol instead (Pass 259.0).
+      - name: check core-api cites symbols, not line numbers
+        run: python tools/check-core-api-no-line-citations.py
 
       # `check-public-fns-documented.py` detects a doc block that went MISSING
       # -- the neighbour left bare by an edit that landed between a block and

@@ -36,7 +36,7 @@ Document (BASE revision)             ← immutable for the session's life
    trailer
         │  EditSession::new(doc)  — takes the Document BY VALUE
         ▼
-EditSession                                         edit.rs:3325
+EditSession                                         edit.rs
    base:        Document                            ← never mutated
    state:       BTreeMap<ObjId, Object>             ← overlay: touched objects only
    deleted:     BTreeSet<ObjId>                     ← existence changes
@@ -54,7 +54,7 @@ Five consequences a GUI author must internalise before writing any code:
 
 1. **There is no `EditSession::save()`.** Saving is `to_incremental_bytes` /
    `to_full_bytes`, which return `(Vec<u8>, SaveReport)`. Writing the file is
-   the shell's job. (`edit.rs:4053`, `edit.rs:4071`.)
+   the shell's job. (`edit.rs`, `edit.rs`.)
 2. **`session.document()` is the BASE, not the edited state.** Rendering it
    shows the file as loaded, with none of the operator's edits. Use
    `session.view()`. This exact defect shipped for 13 Passes — see trap T-01.
@@ -63,7 +63,7 @@ Five consequences a GUI author must internalise before writing any code:
 4. **Every mutating verb is one undo entry** — with named exceptions
    (`import_form_data` is N entries; see §3.4).
 5. **`EditSession` is the only mutation path in the whole project.** Module doc,
-   `edit.rs:3-7`: *"`pdfce-gui` and `pdfcer` both go through `EditSession`,
+   `edit.rs`: *"`pdfce-gui` and `pdfcer` both go through `EditSession`,
    and nothing anywhere constructs a `DirtySet` with real changes except
    `EditSession::dirty_set`."*
 
@@ -123,51 +123,51 @@ Read the columns as: **I want to…** → **call this** → **returns / what tha
 
 ### 1.1 Construct and dispose (2)
 
-| I want to… | Call | Line | Returns — and what it means |
-|---|---|---|---|
-| Open an editing session | `new(doc: Document) -> Self` | 3368 | The session **is** the open document now. Takes `Document` **by value**; a second handle would be a stale view. |
-| Give the document back, throwing away unsaved edits | `into_document(self) -> Document` | 3399 | The **base** document. Edits are discarded — this is not a commit. |
+| I want to… | Call | Returns — and what it means |
+|---|---|---|
+| Open an editing session | `new(doc: Document) -> Self` | The session **is** the open document now. Takes `Document` **by value**; a second handle would be a stale view. |
+| Give the document back, throwing away unsaved edits | `into_document(self) -> Document` | The **base** document. Edits are discarded — this is not a commit. |
 
 ### 1.2 Read the current state (7)
 
-| I want to… | Call | Line | Returns — and what it means |
-|---|---|---|---|
-| Read the file *as loaded* | `document(&self) -> &Document` | 3393 | ⚠️ The **base revision**. Not the edited state. |
-| Read one object's *current* value | `value(&self, id: ObjId) -> Option<&Object>` | 3409 | Overlay if touched, else base. A deleted object reads `None`. |
-| Walk the edited object graph | `graph(&self) -> SessionGraph<'_>` | 3429 | Base + overlay, deletions honoured. `impl ObjectGraph`. |
-| Render / hit-test / decompose the edited document | `view(&self) -> DocumentView<'_>` | 3469 | Graph **plus stream bytes** via `StreamSource::Split{base,staged}`. **This is what the canvas draws.** Read-only — must never reach the writer. |
-| Resolve a staged span from one flat buffer | `authored_source(&self) -> Cow<'_,[u8]>` | 3561 | `base` borrowed when nothing authored; `base ++ staging` **owned** otherwise. ⚠️ ~14 MB memcpy per call once anything is authored — never per frame. |
-| List pages as the operator has them | `pages(&self) -> Result<Vec<Page>, PageTreeError>` | 4016 | Document order, all unsaved structural + rotation edits applied. |
-| List pages as *structural slots* | `page_slots(&self) -> Result<Vec<PageSlot>, PageTreeError>` | 4032 | Parent node, index within it, ancestor chain, inherited raw attributes. Survives a damaged file that `pages()` cannot resolve. |
+| I want to… | Call | Returns — and what it means |
+|---|---|---|
+| Read the file *as loaded* | `document(&self) -> &Document` | ⚠️ The **base revision**. Not the edited state. |
+| Read one object's *current* value | `value(&self, id: ObjId) -> Option<&Object>` | Overlay if touched, else base. A deleted object reads `None`. |
+| Walk the edited object graph | `graph(&self) -> SessionGraph<'_>` | Base + overlay, deletions honoured. `impl ObjectGraph`. |
+| Render / hit-test / decompose the edited document | `view(&self) -> DocumentView<'_>` | Graph **plus stream bytes** via `StreamSource::Split{base,staged}`. **This is what the canvas draws.** Read-only — must never reach the writer. |
+| Resolve a staged span from one flat buffer | `authored_source(&self) -> Cow<'_,[u8]>` | `base` borrowed when nothing authored; `base ++ staging` **owned** otherwise. ⚠️ ~14 MB memcpy per call once anything is authored — never per frame. |
+| List pages as the operator has them | `pages(&self) -> Result<Vec<Page>, PageTreeError>` | Document order, all unsaved structural + rotation edits applied. |
+| List pages as *structural slots* | `page_slots(&self) -> Result<Vec<PageSlot>, PageTreeError>` | Parent node, index within it, ancestor chain, inherited raw attributes. Survives a damaged file that `pages()` cannot resolve. |
 
 ### 1.3 Dirty state (2)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Compute what a save would write | `dirty_set(&self) -> DirtySet` | 3497 | Structural diff vs base, **right now**. Never consults history. |
-| Show an "unsaved changes" indicator | `is_modified(&self) -> bool` | 3580 | `!self.dirty_set().is_empty()`. Cannot disagree with the writer. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Compute what a save would write | `dirty_set(&self) -> DirtySet` | Structural diff vs base, **right now**. Never consults history. |
+| Show an "unsaved changes" indicator | `is_modified(&self) -> bool` | `!self.dirty_set().is_empty()`. Cannot disagree with the writer. |
 
 ### 1.4 Undo / redo (7)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Enable/disable the Undo control | `can_undo(&self) -> bool` | 3588 | |
-| Enable/disable the Redo control | `can_redo(&self) -> bool` | 3594 | |
-| Label the Undo control | `undo_kind(&self) -> Option<CommandKind>` | 3601 | Peeks; does not undo. |
-| Label the Redo control | `redo_kind(&self) -> Option<CommandKind>` | 3607 | |
-| Undo | `undo(&mut self) -> Option<CommandKind>` | 3617 | What was undone. `None` ⇒ stack empty. |
-| Redo | `redo(&mut self) -> Option<CommandKind>` | 3634 | What was redone. |
-| Show history depth | `undo_depth(&self) -> usize` | 3653 | Bounded by `MAX_UNDO_DEPTH` = **256** (`edit.rs:166`). |
+| I want to… | Call | Returns |
+|---|---|---|
+| Enable/disable the Undo control | `can_undo(&self) -> bool` | |
+| Enable/disable the Redo control | `can_redo(&self) -> bool` | |
+| Label the Undo control | `undo_kind(&self) -> Option<CommandKind>` | Peeks; does not undo. |
+| Label the Redo control | `redo_kind(&self) -> Option<CommandKind>` | |
+| Undo | `undo(&mut self) -> Option<CommandKind>` | What was undone. `None` ⇒ stack empty. |
+| Redo | `redo(&mut self) -> Option<CommandKind>` | What was redone. |
+| Show history depth | `undo_depth(&self) -> usize` | Bounded by `MAX_UNDO_DEPTH` = **256** (`edit.rs`). |
 
 ### 1.5 Save (5)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Save (the default) | `to_incremental_bytes(&self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), WriteError>` | 4053 | Bytes + report. §7.5.6 append. **Superseded objects stay in the file.** |
-| Save as one revision | `to_full_bytes(&self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), WriteError>` | 4071 | Bytes + report. ⚠️ Destroys every existing signature. |
-| Encrypt on save (AES-256 /R6) | `set_encryption(&self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | Plaintext ⇒ encrypted. §5.5. Refuses a signed doc by name, and (`Pass 250.3`) a pending deferred redaction (`EncryptError::RedactionPending`) — else it would encrypt the un-redacted content. |
-| Re-key permissions (owner-only) | `set_permissions(&mut self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | New /P on an encrypted doc; `&mut self`. §5.5. Refuses a pending deferred redaction (`EncryptError::RedactionPending`, `Pass 250.3`). |
-| Remove encryption (owner-only) | `remove_encryption(&mut self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | Plaintext full rewrite; `&mut self`. §5.5. Refuses a pending deferred redaction (`EncryptError::RedactionPending`, `Pass 250.3`). |
+| I want to… | Call | Returns |
+|---|---|---|
+| Save (the default) | `to_incremental_bytes(&self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), WriteError>` | Bytes + report. §7.5.6 append. **Superseded objects stay in the file.** |
+| Save as one revision | `to_full_bytes(&self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), WriteError>` | Bytes + report. ⚠️ Destroys every existing signature. |
+| Encrypt on save (AES-256 /R6) | `set_encryption(&self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | Plaintext ⇒ encrypted. §5.5. Refuses a signed doc by name, and (`Pass 250.3`) a pending deferred redaction (`EncryptError::RedactionPending`) — else it would encrypt the un-redacted content. |
+| Re-key permissions (owner-only) | `set_permissions(&mut self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | New /P on an encrypted doc; `&mut self`. §5.5. Refuses a pending deferred redaction (`EncryptError::RedactionPending`, `Pass 250.3`). |
+| Remove encryption (owner-only) | `remove_encryption(&mut self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | Plaintext full rewrite; `&mut self`. §5.5. Refuses a pending deferred redaction (`EncryptError::RedactionPending`, `Pass 250.3`). |
 
 The first two take `&self`; the two mutating encryption verbs take `&mut self`
 (they drop the old `/Encrypt` state before re-serialising). Saving does not
@@ -175,38 +175,38 @@ clear the undo stack or the dirty set, and none write to disk. **Detail: §5.5.*
 
 ### 1.6 Signature / structure queries (3)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Ask what saving would do to signatures | `signature_impact_of_save(&self, mode: SaveMode) -> SignatureImpact` | 6992 | `None` / `ByteRangePreserved` / `Invalidated`. Ask **immediately before Save**, not at edit time. |
-| Census the document's signatures | `signature_census(&self) -> SignatureCensus` | 6998 | Counts + `/P` + `perms_enforced`. |
-| Ask whether pages were added/removed/moved | `changes_structure(&self) -> bool` | 7010 | Computed from the page tree, not from history. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Ask what saving would do to signatures | `signature_impact_of_save(&self, mode: SaveMode) -> SignatureImpact` | `None` / `ByteRangePreserved` / `Invalidated`. Ask **immediately before Save**, not at edit time. |
+| Census the document's signatures | `signature_census(&self) -> SignatureCensus` | Counts + `/P` + `perms_enforced`. |
+| Ask whether pages were added/removed/moved | `changes_structure(&self) -> bool` | Computed from the page tree, not from history. |
 
 ### 1.7 Document metadata (3)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Set or clear `/Title`, `/Author`, … | `set_info_field(&mut self, field: InfoField, value: Option<&str>) -> Result<(), EditError>` | 3689 | `Some` sets, `None` **removes the key**. Creates `/Info` if absent. **A no-op records no command.** |
-| Name the pages, making a stamp collection | `set_named_pages(&mut self, names: Vec<Object>) -> Result<(), EditError>` | 9158 | Writes the catalog's `/Names` → `/Pages` name tree (§7.7.4 Table 31) — the structure that makes a PDF an **Acrobat-compatible stamp collection** (`Pass 288.0`, §12 of `03-capabilities.md`). `names` is the flattened tree, **already sorted lexicographically** (§7.9.6 requires it; Adobe's own files obey it, so page order is *not* tree order). ⚠️ **Preserves an existing `/Names` dictionary's other trees** — `Dynamic.pdf` carries `/JavaScript` beside `/Pages`, and replacing the dictionary wholesale would delete the document-level JavaScript its dynamic stamps need. Refuses on an encrypted document. Prefer `stamp_file::name_stamp_pages`, which sorts and validates page indices for you. |
-| Read a field's raw bytes | `info_bytes(&self, field: InfoField) -> Option<Vec<u8>>` | 3788 | Reflects unsaved edits. |
-| Read a field as text | `info_text(&self, field: InfoField) -> Option<InfoText>` | 3807 | `InfoText{ text, exact }`. `exact == false` ⇒ **do not write it back** unless the operator changed it. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Set or clear `/Title`, `/Author`, … | `set_info_field(&mut self, field: InfoField, value: Option<&str>) -> Result<(), EditError>` | `Some` sets, `None` **removes the key**. Creates `/Info` if absent. **A no-op records no command.** |
+| Name the pages, making a stamp collection | `set_named_pages(&mut self, names: Vec<Object>) -> Result<(), EditError>` | Writes the catalog's `/Names` → `/Pages` name tree (§7.7.4 Table 31) — the structure that makes a PDF an **Acrobat-compatible stamp collection** (`Pass 288.0`, §12 of `03-capabilities.md`). `names` is the flattened tree, **already sorted lexicographically** (§7.9.6 requires it; Adobe's own files obey it, so page order is *not* tree order). ⚠️ **Preserves an existing `/Names` dictionary's other trees** — `Dynamic.pdf` carries `/JavaScript` beside `/Pages`, and replacing the dictionary wholesale would delete the document-level JavaScript its dynamic stamps need. Refuses on an encrypted document. Prefer `stamp_file::name_stamp_pages`, which sorts and validates page indices for you. |
+| Read a field's raw bytes | `info_bytes(&self, field: InfoField) -> Option<Vec<u8>>` | Reflects unsaved edits. |
+| Read a field as text | `info_text(&self, field: InfoField) -> Option<InfoText>` | `InfoText{ text, exact }`. `exact == false` ⇒ **do not write it back** unless the operator changed it. |
 
-`InfoField` (`edit.rs:197`, `#[non_exhaustive]`) deliberately **excludes**
+`InfoField` (`edit.rs`, `#[non_exhaustive]`) deliberately **excludes**
 `/Producer` (R41 fingerprint rule) and `/CreationDate`/`/ModDate` (§7.9.4 dates
 need their own policy).
 
 ### 1.8 Page rotation, geometry and organisation (9)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Set one page's absolute rotation | `set_page_rotation(&mut self, page_index, degrees: i32) -> Result<(), EditError>` | 3848 | Refuses non-multiples of 90 (`RotationNotMultipleOf90`). |
-| Turn one page relative to its current rotation | `rotate_page_by(&mut self, page_index, delta: i32) -> Result<(), EditError>` | 3981 | Delegates to `set_page_rotation`. |
-| Delete pages | `delete_pages(&mut self, indices: &[usize]) -> Result<DeleteOutcome, EditError>` | 14644 | See `DeleteOutcome`, §1.25. |
-| Delete pages, answering the pre-separation question | `delete_pages_with(&mut self, indices, separations: SeparationPolicy) -> Result<DeleteOutcome, EditError>` | 14663 | |
-| Reorder pages | `reorder_pages(&mut self, new_order: &[usize]) -> Result<(), EditError>` | 14944 | `NotAPermutation` if `new_order` is not one. ONE undo entry. |
-| Rotate several pages | `rotate_pages(&mut self, indices: &[usize], delta: i32) -> Result<usize, EditError>` | 15063 | Count of pages turned. ONE undo entry. |
-| Set one page's `/MediaBox` | `set_media_box(&mut self, page_index: usize, rect: page_tree::Rect) -> Result<MediaBoxChange, EditError>` | 5013 | |
-| Set several pages' `/MediaBox` | `set_media_boxes(&mut self, indices: &[usize], rect: page_tree::Rect) -> Result<Vec<MediaBoxChange>, EditError>` | 5061 | |
-| **Insert pages from another document** | `insert_pages(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition) -> Result<InsertOutcome, EditError>` | 16978 | `InsertOutcome { pages_inserted, orphaned_widgets }`. **Read the warning below before writing a disclosure about it.** |
+| I want to… | Call | Returns |
+|---|---|---|
+| Set one page's absolute rotation | `set_page_rotation(&mut self, page_index, degrees: i32) -> Result<(), EditError>` | Refuses non-multiples of 90 (`RotationNotMultipleOf90`). |
+| Turn one page relative to its current rotation | `rotate_page_by(&mut self, page_index, delta: i32) -> Result<(), EditError>` | Delegates to `set_page_rotation`. |
+| Delete pages | `delete_pages(&mut self, indices: &[usize]) -> Result<DeleteOutcome, EditError>` | See `DeleteOutcome`, §1.25. |
+| Delete pages, answering the pre-separation question | `delete_pages_with(&mut self, indices, separations: SeparationPolicy) -> Result<DeleteOutcome, EditError>` | |
+| Reorder pages | `reorder_pages(&mut self, new_order: &[usize]) -> Result<(), EditError>` | `NotAPermutation` if `new_order` is not one. ONE undo entry. |
+| Rotate several pages | `rotate_pages(&mut self, indices: &[usize], delta: i32) -> Result<usize, EditError>` | Count of pages turned. ONE undo entry. |
+| Set one page's `/MediaBox` | `set_media_box(&mut self, page_index: usize, rect: page_tree::Rect) -> Result<MediaBoxChange, EditError>` | |
+| Set several pages' `/MediaBox` | `set_media_boxes(&mut self, indices: &[usize], rect: page_tree::Rect) -> Result<Vec<MediaBoxChange>, EditError>` | |
+| **Insert pages from another document** | `insert_pages(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition) -> Result<InsertOutcome, EditError>` | `InsertOutcome { pages_inserted, orphaned_widgets }`. **Read the warning below before writing a disclosure about it.** |
 
 > #### ★★ `insert_pages`: THE WIDGETS ARRIVE, THEIR FIELDS DO NOT — and one
 > consumer has already shipped the wrong sentence about it
@@ -410,20 +410,20 @@ need their own policy).
 > | 3,007 single-character `Tj` spelling the producer's watermark | the **page** stream — editable, and nobody wants to edit it |
 > | 1,696 show operators: every label, the title block, every *pdf dimension* callout | a **form XObject** — editable as of `Pass 119.0` |
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Replace text in place | `edit_text(&mut self, &EditRequest, &EditOptions) -> Result<EditReport, text_edit::EditError>` | 4126 | Report, **not** saved bytes. One undo entry. **`Pass 256.0`:** `find` may span CONSECUTIVE show operators of one text object that share font resource, size, spacing and baseline (the one-glyph-per-`Tj` producer shape, and `TJ`-element splits); the replacement lands in the operator holding the match END, earlier matched glyphs are removed (an emptied operator stays as `() Tj`), and the following `Td`/`Tm` steps on the line are re-spaced by the net advance — with a new line's `Td` compensated so it stays put. `EditReport::operators_spanned` (1 for the old single-operator case) discloses it. A `Tf`/size/MCID change or `ET` inside the would-be span is still `NoMatch`. `Td` steps are NOT re-spaced when a later line of the same text object uses `T*`/`'`/`"` (uncompensatable) — disclosed. **`Pass 256.1`:** a composite font whose `/ToUnicode` has a collision is no longer refused wholesale — the unambiguous characters edit, and a replacement needing an ambiguous one is refused per character (`RInvTrigger::Ambiguous`, message names the codes); the report discloses the font's ambiguous characters. |
-| Change size / colour / family in place | `format_text(&mut self, &FormatRequest, &FormatOptions) -> Result<FormatReport, text_edit::FormatError>` | 4171 | One undo entry. **`Pass 179.0`:** `FormatRequest::set_style` (builder `.style(StyleSynthesis)`) asks for bold/italic WITHOUT naming a face — the ladder binds a real page face (rung 1, through the `set_font` coverage gate), else the standard-14 sibling of the run's own family (rung 2, nothing embedded), else synthesises (rung 4; `style_policy = refuse` → `FormatError::SynthesisRefusedByPosture`). Per axis. Outcome on `FormatReport::style_ladder: Option<StyleLadder>` (`rung: StyleRung`, `bound`, `synthesised`, `passed_over`) and in the disclosures. `set_synthetic` stays as the explicit override; not combinable with `set_font` or an overlapping `set_synthetic` axis (`Unsupported`). |
-| Ask what synthetic bold/italic *would* do | `preview_style_resolution(&self, page_index, find, pinned_span, want) -> Result<StyleResolution, FormatError>` | 7388 | Pure query. **Decides where a style button routes** — see below; an empty `find` is not a wildcard here. |
-| Ask which fonts `set_font` would ACCEPT for a run | `preview_font_resources(&self, page_index, find, pinned_span) -> Result<FontPreflight, FormatError>` | 7459 | Pure query. **Per RUN, not per page** — see below. `FontPreflight` now also carries `standard_14: Vec<Std14Entry>` (every standard-14 face coverage-tested for the same text, `presence` = `OnPage { resource }` / `WouldBeAdded`) and `candidate: None` (`Pass 142.2`). |
-| Ask which fonts can hold the text ABOUT TO BE TYPED | `preview_font_resources_for(&self, page_index, find, pinned_span, candidate: &str) -> Result<FontPreflight, FormatError>` | edit.rs | **`Pass 142.2`**, pdfcer-gui request 2026-09-05. `find`/`pinned_span` locate the run; every `FontAcceptance` — page faces AND the standard 14 — is computed against `candidate` through the same gate `set_font` applies (embedded-subset floor included), so `Refused { character }` names the first character a face cannot hold. `candidate == ""` behaves exactly as `preview_font_resources`. CLI: `font-preflight --candidate TEXT`. |
-| **Ask which characters this run will accept, before the first keystroke** | `run_repertoire(&self, page_index, find, pinned_span) -> Result<RunRepertoire, FormatError>` | edit.rs | **`Pass 280.0`**, pdfcer-gui request 2026-09-09. A character in `accepted` is one `edit_text` will not refuse for that run — decided by calling the accepting code, not by describing it (`R221`). Strict: an embedded subset is narrowed to the codes this page carries. A run with no usable encoding is an EMPTY answer with a `reason`, not an `Err`, so an editor can decline to open. **Not** `preview_font_resources_for` per keystroke — that walks the whole page content stream per call. CLI: `run-repertoire [--list]`. See below. |
-| Re-wrap a recognised paragraph | `reflow_block(&mut self, page_index, block_index, &ReflowRequest) -> Result<ReflowApplyReport, ReflowApplyError>` | 4297 | One undo entry. **Planned against the SESSION VIEW** since `Pass 257.0` — composes with an earlier `edit_text`/`format_text` on the same page and with structural page edits (T-14 records the refusals that stood before). Still refuses (not silently deletes) a page carrying a run appended this session (`Pass 251.0`): the plan re-emits the first content object only and the sweep would drop the extra. |
-| Add a new text run at coordinates | `add_text(&mut self, &AddTextRequest) -> Result<AddTextReport, AddTextError>` | 4365 | Appends a new content stream; originals stay byte-verbatim. |
-| Add an invisible OCR text layer to one or more pages | `add_ocr_layer(&mut self, &[OcrPageLayer<'_>], &OcrLayerOptions) -> Result<Vec<OcrLayerReport>, OcrLayerError>` | 7313 | **ONE undo entry for the whole run**, however many pages. Reads the SESSION graph, not the base. A page already carrying a pdfcer layer is handled per `OcrLayerOptions::existing` (default `Replace`; the replaced layer comes off in the same undo entry). |
-| List the OCR layers pdfcer wrote | `find_ocr_layers(&self) -> Result<Vec<ocr::marker::OcrLayerRef>, PageTreeError>` | edit.rs | **`Pass 318.0`**, pdfcer-gui request G036. Pure query over the session state. Only layers carrying pdfcer's `/pdfc_OCR` marker are listed; invisible text other software wrote is never reported. |
-| Remove one OCR layer pdfcer wrote | `remove_ocr_layer(&mut self, &OcrLayerRef) -> Result<(), OcrLayerError>` | edit.rs | **`Pass 318.0`**. One undo entry, `CommandKind::RemoveOcrLayer`. The layer's stream leaves `/Contents`; its font leaves `/Font` unless the page's remaining content still selects that name; both objects are freed when no other page references them. A reference that no longer matches the page is refused (`LayerNotFound`), never applied to whatever sits there now. |
-| Give ONE page a private copy of a shared form XObject | `unshare_form(&mut self, page_index, form: ObjId) -> Result<UnshareFormReport, EditError>` | 7367 | Copy-on-write. Refuses a **nested** invocation by name. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Replace text in place | `edit_text(&mut self, &EditRequest, &EditOptions) -> Result<EditReport, text_edit::EditError>` | Report, **not** saved bytes. One undo entry. **`Pass 256.0`:** `find` may span CONSECUTIVE show operators of one text object that share font resource, size, spacing and baseline (the one-glyph-per-`Tj` producer shape, and `TJ`-element splits); the replacement lands in the operator holding the match END, earlier matched glyphs are removed (an emptied operator stays as `() Tj`), and the following `Td`/`Tm` steps on the line are re-spaced by the net advance — with a new line's `Td` compensated so it stays put. `EditReport::operators_spanned` (1 for the old single-operator case) discloses it. A `Tf`/size/MCID change or `ET` inside the would-be span is still `NoMatch`. `Td` steps are NOT re-spaced when a later line of the same text object uses `T*`/`'`/`"` (uncompensatable) — disclosed. **`Pass 256.1`:** a composite font whose `/ToUnicode` has a collision is no longer refused wholesale — the unambiguous characters edit, and a replacement needing an ambiguous one is refused per character (`RInvTrigger::Ambiguous`, message names the codes); the report discloses the font's ambiguous characters. |
+| Change size / colour / family in place | `format_text(&mut self, &FormatRequest, &FormatOptions) -> Result<FormatReport, text_edit::FormatError>` | One undo entry. **`Pass 179.0`:** `FormatRequest::set_style` (builder `.style(StyleSynthesis)`) asks for bold/italic WITHOUT naming a face — the ladder binds a real page face (rung 1, through the `set_font` coverage gate), else the standard-14 sibling of the run's own family (rung 2, nothing embedded), else synthesises (rung 4; `style_policy = refuse` → `FormatError::SynthesisRefusedByPosture`). Per axis. Outcome on `FormatReport::style_ladder: Option<StyleLadder>` (`rung: StyleRung`, `bound`, `synthesised`, `passed_over`) and in the disclosures. `set_synthetic` stays as the explicit override; not combinable with `set_font` or an overlapping `set_synthetic` axis (`Unsupported`). |
+| Ask what synthetic bold/italic *would* do | `preview_style_resolution(&self, page_index, find, pinned_span, want) -> Result<StyleResolution, FormatError>` | Pure query. **Decides where a style button routes** — see below; an empty `find` is not a wildcard here. |
+| Ask which fonts `set_font` would ACCEPT for a run | `preview_font_resources(&self, page_index, find, pinned_span) -> Result<FontPreflight, FormatError>` | Pure query. **Per RUN, not per page** — see below. `FontPreflight` now also carries `standard_14: Vec<Std14Entry>` (every standard-14 face coverage-tested for the same text, `presence` = `OnPage { resource }` / `WouldBeAdded`) and `candidate: None` (`Pass 142.2`). |
+| Ask which fonts can hold the text ABOUT TO BE TYPED | `preview_font_resources_for(&self, page_index, find, pinned_span, candidate: &str) -> Result<FontPreflight, FormatError>` | **`Pass 142.2`**, pdfcer-gui request 2026-09-05. `find`/`pinned_span` locate the run; every `FontAcceptance` — page faces AND the standard 14 — is computed against `candidate` through the same gate `set_font` applies (embedded-subset floor included), so `Refused { character }` names the first character a face cannot hold. `candidate == ""` behaves exactly as `preview_font_resources`. CLI: `font-preflight --candidate TEXT`. |
+| **Ask which characters this run will accept, before the first keystroke** | `run_repertoire(&self, page_index, find, pinned_span) -> Result<RunRepertoire, FormatError>` | **`Pass 280.0`**, pdfcer-gui request 2026-09-09. A character in `accepted` is one `edit_text` will not refuse for that run — decided by calling the accepting code, not by describing it (`R221`). Strict: an embedded subset is narrowed to the codes this page carries. A run with no usable encoding is an EMPTY answer with a `reason`, not an `Err`, so an editor can decline to open. **Not** `preview_font_resources_for` per keystroke — that walks the whole page content stream per call. CLI: `run-repertoire [--list]`. See below. |
+| Re-wrap a recognised paragraph | `reflow_block(&mut self, page_index, block_index, &ReflowRequest) -> Result<ReflowApplyReport, ReflowApplyError>` | One undo entry. **Planned against the SESSION VIEW** since `Pass 257.0` — composes with an earlier `edit_text`/`format_text` on the same page and with structural page edits (T-14 records the refusals that stood before). Still refuses (not silently deletes) a page carrying a run appended this session (`Pass 251.0`): the plan re-emits the first content object only and the sweep would drop the extra. |
+| Add a new text run at coordinates | `add_text(&mut self, &AddTextRequest) -> Result<AddTextReport, AddTextError>` | Appends a new content stream; originals stay byte-verbatim. |
+| Add an invisible OCR text layer to one or more pages | `add_ocr_layer(&mut self, &[OcrPageLayer<'_>], &OcrLayerOptions) -> Result<Vec<OcrLayerReport>, OcrLayerError>` | **ONE undo entry for the whole run**, however many pages. Reads the SESSION graph, not the base. A page already carrying a pdfcer layer is handled per `OcrLayerOptions::existing` (default `Replace`; the replaced layer comes off in the same undo entry). |
+| List the OCR layers pdfcer wrote | `find_ocr_layers(&self) -> Result<Vec<ocr::marker::OcrLayerRef>, PageTreeError>` | **`Pass 318.0`**, pdfcer-gui request G036. Pure query over the session state. Only layers carrying pdfcer's `/pdfc_OCR` marker are listed; invisible text other software wrote is never reported. |
+| Remove one OCR layer pdfcer wrote | `remove_ocr_layer(&mut self, &OcrLayerRef) -> Result<(), OcrLayerError>` | **`Pass 318.0`**. One undo entry, `CommandKind::RemoveOcrLayer`. The layer's stream leaves `/Contents`; its font leaves `/Font` unless the page's remaining content still selects that name; both objects are freed when no other page references them. A reference that no longer matches the page is refused (`LayerNotFound`), never applied to whatever sits there now. |
+| Give ONE page a private copy of a shared form XObject | `unshare_form(&mut self, page_index, form: ObjId) -> Result<UnshareFormReport, EditError>` | Copy-on-write. Refuses a **nested** invocation by name. |
 
 #### ★ The FOUR entry points that take a `find` and a pin all resolve it the same way (`Pass 148.0`)
 
@@ -1178,35 +1178,35 @@ so re-opens exactly this hazard, silently.
 build move/resize until it was answered. Part 1 covers picking and snapping and
 said nothing about identity across edits — this section is that gap closed.*
 
-| I want to… | Call | Line |
-|---|---|---|
-| Move one object | `move_object(page_index, object_index, dx, dy)` | 4483 |
-| Delete one object | `delete_object(page_index, object_index)` | 4533 |
-| Move a multi-object selection, ONE undo entry — paths **and text** (`G029`); an image refuses the whole call with `NotAPath { kind: "image", index }`, so grey it with `vector::object_move_refusal(obj, index)` | `move_objects(page_index, object_indices: &[usize], dx, dy)` | 4574 |
-| Delete a multi-object selection, ONE undo entry | `delete_objects(page_index, object_indices: &[usize])` | 4641 |
-| Delete one anchor node | `delete_node(page_index, object_index, node_index)` | 4751 |
-| Delete one subpath | `delete_subpath(page_index, object_index, subpath_index)` | 4770 |
-| Delete one show operator (text run) | `delete_text_run(page_index, object_index, run_index)` | 4825 |
-| Move one subpath | `move_subpath(page_index, object_index, subpath_index, dx, dy)` | 4875 |
-| Move one show operator (text run) | `move_text_run(page_index, object_index, run_index, dx, dy)` | — |
-| Ask whether that move will be refused, and why | `vector::text_run_move_refusal(&TextObject, run_index) -> Option<VectorEditError>` | — |
-| **Fit one show operator to a page width** (through `Tz`, render mode kept, nothing after it moves) | `set_text_run_width(page_index, object_index, run_index, width_pts) -> Result<FormatReport, FormatError>` | — |
-| Ask whether that fit will be refused, and why | `vector::text_run_width_refusal(&TextObject, run_index) -> Option<VectorEditError>` | — |
-| **Merge consecutive show operators into one** (text joined with a separator, first run's state kept, scaled to span the originals by default) | `merge_text_runs(page_index, object_index, runs: &[usize], &MergeOptions) -> Result<MergeReport, FormatError>` | — |
-| Ask whether that merge will be refused on structure alone | `vector::text_merge_refusal(&TextObject, runs) -> Option<VectorEditError>` | — |
-| **Move several show operators as one edit** (a whole line) | `move_text_runs(page_index, object_index, runs: &[usize], dx, dy) -> Vec<String>` | — |
-| Ask whether that set move will be refused, and why | `vector::text_run_move_refusal_of_set(&TextObject, runs) -> Option<VectorEditError>` | — |
-| **Cut one text object into several** | `split_text_object(page_index, object_index, before_runs: &[usize])` | — |
-| Ask where a bulk split would cut, and what was inferred | `text_object_split_plan(page_index, object_index, granularity) -> (Vec<usize>, Vec<String>)` | — |
-| Ask whether one cut will be refused, and why | `vector::text_split_refusal(&ContentStream, &TextObject, index) -> Option<VectorEditError>` | — |
-| Drag one anchor node | `move_node(page_index, object_index, node_index, to: Point)` | 4939 |
-| Drag a multi-node selection, ONE undo entry | `move_nodes(page_index, object_index, moves: &[(usize, Point)])` | 5001 |
-| Drag a Bézier control point | `move_handle(page_index, object_index, node_index, handle: Handle, to: Point)` | 5057 |
+| I want to… | Call |
+|---|---|
+| Move one object | `move_object(page_index, object_index, dx, dy)` |
+| Delete one object | `delete_object(page_index, object_index)` |
+| Move a multi-object selection, ONE undo entry — paths **and text** (`G029`); an image refuses the whole call with `NotAPath { kind: "image", index }`, so grey it with `vector::object_move_refusal(obj, index)` | `move_objects(page_index, object_indices: &[usize], dx, dy)` |
+| Delete a multi-object selection, ONE undo entry | `delete_objects(page_index, object_indices: &[usize])` |
+| Delete one anchor node | `delete_node(page_index, object_index, node_index)` |
+| Delete one subpath | `delete_subpath(page_index, object_index, subpath_index)` |
+| Delete one show operator (text run) | `delete_text_run(page_index, object_index, run_index)` |
+| Move one subpath | `move_subpath(page_index, object_index, subpath_index, dx, dy)` |
+| Move one show operator (text run) | `move_text_run(page_index, object_index, run_index, dx, dy)` |
+| Ask whether that move will be refused, and why | `vector::text_run_move_refusal(&TextObject, run_index) -> Option<VectorEditError>` |
+| **Fit one show operator to a page width** (through `Tz`, render mode kept, nothing after it moves) | `set_text_run_width(page_index, object_index, run_index, width_pts) -> Result<FormatReport, FormatError>` |
+| Ask whether that fit will be refused, and why | `vector::text_run_width_refusal(&TextObject, run_index) -> Option<VectorEditError>` |
+| **Merge consecutive show operators into one** (text joined with a separator, first run's state kept, scaled to span the originals by default) | `merge_text_runs(page_index, object_index, runs: &[usize], &MergeOptions) -> Result<MergeReport, FormatError>` |
+| Ask whether that merge will be refused on structure alone | `vector::text_merge_refusal(&TextObject, runs) -> Option<VectorEditError>` |
+| **Move several show operators as one edit** (a whole line) | `move_text_runs(page_index, object_index, runs: &[usize], dx, dy) -> Vec<String>` |
+| Ask whether that set move will be refused, and why | `vector::text_run_move_refusal_of_set(&TextObject, runs) -> Option<VectorEditError>` |
+| **Cut one text object into several** | `split_text_object(page_index, object_index, before_runs: &[usize])` |
+| Ask where a bulk split would cut, and what was inferred | `text_object_split_plan(page_index, object_index, granularity) -> (Vec<usize>, Vec<String>)` |
+| Ask whether one cut will be refused, and why | `vector::text_split_refusal(&ContentStream, &TextObject, index) -> Option<VectorEditError>` |
+| Drag one anchor node | `move_node(page_index, object_index, node_index, to: Point)` |
+| Drag a multi-node selection, ONE undo entry | `move_nodes(page_index, object_index, moves: &[(usize, Point)])` |
+| Drag a Bézier control point | `move_handle(page_index, object_index, node_index, handle: Handle, to: Point)` |
 
 ⚠️ **Never loop the singular verbs over a selection.** Indices go stale between
 iterations because each call re-splices the content stream, and N calls are N
 undo entries. Use `move_objects` / `delete_objects` / `move_nodes`
-(`edit.rs:4600-4620`).
+(`edit.rs`).
 
 #### 1.10.0a From a clicked glyph to a run index — `vector::locate_text_run` (`G037`)
 
@@ -1450,41 +1450,41 @@ All five return `Result<FieldAuthorOutcome, EditError>` and are **ONE undo
 entry** each — field dict + widget + baked `/AP` + page `/Annots` + `/AcroForm
 /Fields` registration land together.
 
-| I want to… | Call | Line |
-|---|---|---|
-| Add a text field | `add_text_field(&mut self, spec: &NewTextField)` | 7087 |
-| Add a check box | `add_check_box(&mut self, spec: &NewCheckBox)` | 8043 |
-| Add one member of a radio group | `add_radio_button(&mut self, spec: &NewRadioButton)` | 8253 |
-| Add a push button | `add_push_button(&mut self, spec: &NewPushButton)` | 9414 |
-| Add a list box / combo box | `add_choice_field(&mut self, spec: &NewChoiceField)` | 9633 |
+| I want to… | Call |
+|---|---|
+| Add a text field | `add_text_field(&mut self, spec: &NewTextField)` |
+| Add a check box | `add_check_box(&mut self, spec: &NewCheckBox)` |
+| Add one member of a radio group | `add_radio_button(&mut self, spec: &NewRadioButton)` |
+| Add a push button | `add_push_button(&mut self, spec: &NewPushButton)` |
+| Add a list box / combo box | `add_choice_field(&mut self, spec: &NewChoiceField)` |
 
-`FieldAuthorOutcome` (`edit.rs:990`): `field_id: ObjId`, `merged: bool`,
+`FieldAuthorOutcome` (`edit.rs`): `field_id: ObjId`, `merged: bool`,
 `disclosures: FieldAuthorDisclosures`. **Read the disclosures** —
-`edit.rs:1077-1090` records that a successful push-button creation yields *"the
+`edit.rs` records that a successful push-button creation yields *"the
 only creation verb whose successful result is a control that does not work"*
 (no action attached).
 
 ### 1.12 Form-field structure (7)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Delete a whole field | `delete_field(&mut self, fqn: &str) -> Result<FieldDeletion, EditError>` | 8464 | Every widget + dict + registration + emptied grouping nodes. ⚠️ **Refuses with `FieldObjectIsInPageTree` when the field (or a widget, or an emptied node) is ALSO a page-tree node** (`Pass 185.1`) — a malformed `/AcroForm` can name a `/Page` in its `/Fields`, and deleting it produced a file pdfcer could not reopen. Same guard on `delete_field_group` and `delete_widget`. ⚠️ **That variant's MESSAGE changed at `Pass 191.1`** — it no longer says "a form field", because the guard now protects seven other carriers; `name` carries a phrase such as `the form field "Order.Qty"` or `the outline item`. **No API break; re-read the string if you display it.** §6.8. ★ **`action_targets_orphaned` (`Pass 184.0`) — button actions left naming a field that is gone.** Reset, submit and show/hide targets are fully-qualified **name strings**, so a deletion strands them. **Counted, never repaired**, and the asymmetry with `rename_field` is deliberate: a rename supplies the new name so the rewrite is a substitution, while *"what should this button reset instead?"* has no correct answer. **`census_dangling` cannot see it** — a name is not a reference. JavaScript is not counted, so this is a floor for scripted forms. |
-| Preview a grouping-node deletion | `field_group_deletion_preview(&mut self, fqn) -> Result<FieldGroupDeletion, EditError>` | 8535 | ⚠️ Takes `&mut self` although it writes nothing. |
-| Delete a grouping node and its subtree | `delete_field_group(&mut self, fqn) -> Result<FieldGroupDeletion, EditError>` | 8574 | Refuses a terminal with `NotAGroupingNode` — deliberately **not** redirected to `delete_field`. ★ **`action_targets_orphaned` (`Pass 184.0`) — button actions left naming a field that is gone.** Reset, submit and show/hide targets are fully-qualified **name strings**, so a deletion strands them. **Counted, never repaired**, and the asymmetry with `rename_field` is deliberate: a rename supplies the new name so the rewrite is a substitution, while *"what should this button reset instead?"* has no correct answer. **`census_dangling` cannot see it** — a name is not a reference. JavaScript is not counted, so this is a floor for scripted forms. Matched by **prefix** here, since the node takes its subtree. ⚠️ **`0` on the PREVIEW is *not measured***, not a count of zero. |
-| Delete ONE widget of a field | `delete_widget(&mut self, fqn, index: usize) -> Result<FieldDeletion, EditError>` | 8764 | Siblings survive. `action_targets_orphaned` is **always `0` and that is a fact, not a not-tracked**: the field, its name and every action naming it survive a deleted appearance. |
-| Rename a field | `rename_field(&mut self, fqn, new_partial: &str) -> Result<FieldRename, EditError>` | 8889 | `new_partial` is **one path segment**, never an FQN; a period is refused. ★ **`FieldRename::action_targets_retargeted` (`Pass 184.0`) — a rename REPAIRS the buttons that named the field**, in the **same undoable command**, and this is how many name strings it rewrote. Reset, submit and show/hide targets are fully-qualified **name strings**, so a rename would otherwise leave them pointing at nothing. Counts **name strings**, not buttons. **Descendants included** — renaming `Address` rewrites an action naming `Address.City` — and a same-prefix sibling like `Addressed` is **not** touched. **JavaScript is NOT rewritten** (`R55`), so a form whose logic lives in a script is not fixed by this. ⚠️ **This field replaced `actions_not_retargeted`**, which existed for six hours as a categorical upper bound; the old name will not compile. **`census_dangling` cannot see any of this** — a name string leaves no dangling object reference. |
-| Move one widget's `/Rect` | `move_widget(&mut self, fqn, index, dx, dy) -> Result<WidgetMove, EditError>` | 9032 | **No appearance regeneration** — §12.5.5 step b makes matrix **A** a pure translation. |
-| **Give a push button an action** | `set_button_action(&mut self, fqn, action: Option<ButtonAction>) -> Result<ButtonActionChange, EditError>` | 24148 | ✅ **`ResetForm`** (`Pass 182.0`) **+ `SubmitForm` / `GoToPage` / `Named` / `Uri`** (`Pass 183.0`, second operator ruling the same day). **`/JavaScript` and `/Launch` are refused permanently.** `None` removes any action, including one pdfcer would never author — `ButtonActionChange::replaced` NAMES it, so a form editor knows it destroyed a script. A submit fills `ButtonActionChange::submit` with what the button *would* send — read §1.12b before wiring one. Refuses a non-push-button, a reset/submit target that does not exist, an undecidable destination, a Table 237 flag gate, and a page index past the end — all before writing. |
-| **Recolour page objects** | `set_object_paint(&mut self, page, objects, fill: Option<Rgb>, stroke: Option<Rgb>) -> Result<PaintOutcome, EditError>` | 10850 | **`Pass 219.0`, at pdfcer-gui's request.** The first colour verb for PAGE CONTENT — every previous one coloured an annotation, a ce dimension, a redaction mark or a text run, so a line or a CAD stroke was movable and deletable but not recolourable. `fill` and `stroke` are INDEPENDENT; `None` leaves that channel alone, and passing neither is a no-op that still reports what it WOULD refuse, so a shell can drive the control's enabled state without making an edit. ★★ **REFUSES a spot ink by name rather than converting it.** An object whose paint is in a space pdfcer does not decode (`/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed`, `/Lab`) is left alone and listed in `PaintOutcome::refused` with its `cs` resource name — writing `DeviceRGB` over a named ink looks right on screen and destroys the printing plate, invisibly. Patterns refuse separately (§8.7.3 — a pattern has no colour at all). Refusal is per CHANNEL: recolouring the fill of an object whose stroke is a spot ink is legitimate and is not blocked. ★ The refusal is DATA, not an error — the call succeeds and reports 'nine of twelve changed'. Implemented by wrapping each object's own bytes in `q <colour> … Q` rather than rewriting the operand it inherits: one `0 0 1 RG` commonly governs every stroke on a sheet, so rewriting it would recolour a thousand objects when the operator selected one. Every other byte stays verbatim. One undoable command. **The READER is `page_objects`** — `PathObject::fill_paint`/`stroke_paint` carry the honest answer including `PathPaint::Other`, so no separate colour reader ships; open the swatch on `PathPaint::rgb()` and show the ink's name when that is `None`. |
-| **Read what a push button DOES** | `button_action(&self, fqn) -> Result<ButtonActionState, EditError>` | 26337 | **`Pass 212.0`, added at pdfcer-gui's request.** The read half of `set_button_action`, which shipped write-only -- so the control that SETS an action could not show what it was SET TO. Returns four states, not three: `None` (no `/A`), `Known(ButtonAction)` (modelled, and writable back unchanged), `Unmodelled(String)` (a subtype pdfcer AUTHORS but did not decode this instance of -- today `GoTo` and `SubmitForm`, or a malformed one), and `Foreign(String)` (a subtype pdfcer recognises and will NOT author -- `JavaScript`, `Launch`, `GoToR`, `Movie`). ★★ **`Unmodelled` and `Foreign` differ in whether a control should OFFER TO REPLACE**, which is the decision the operator is actually being asked to make -- a three-state shape would have had to call an unread `SubmitForm` 'Foreign' and tell the shell pdfcer will not touch an action it writes happily. Answers for the field's FIRST widget: §12.7.3.1 lets one field own widgets on several pages and nothing requires their `/A` entries to agree, so this picks rather than reconciles, and says so. Refused on the same footing as the writer -- a non-push-button is `ButtonActionWrongFieldType`, so a shell cannot learn through the reader about a field it would be refused permission to change. |
-| **Set a field's FORMAT script** | `set_field_format(&mut self, fqn, helper: Option<FormatHelper>) -> Result<FieldScriptChange, EditError>` | 37085 | **`Pass 308.6`**, request `G024`. Writes `/AA` `/F` **and the paired `AF*_Keystroke` filter into `/AA` `/K`** — Acrobat's Format tab emits both, and a file with one is not one Acrobat authored. `None` clears both. Six `FormatHelper` variants; **no `&str` route**, so arbitrary JavaScript stays unrepresentable. Never touches `/V`: a format is display-only and a writer is a new chance to break that. Refuses any kind but a text field or a **combo** choice field — a LIST BOX carries none of the three. `FieldScriptChange::replaced` classifies what was displaced. |
-| **Set a field's VALIDATE script** | `set_field_validation(&mut self, fqn, helper: Option<AdvisoryHelper>) -> Result<FieldScriptChange, EditError>` | 37135 | **`Pass 308.6`.** Writes `/AA` `/V`. Only `AdvisoryHelper::RangeValidate` is authorable — a `Keystroke` is **refused by name**, because the classifier keeps such a helper's name and discards its arguments, so re-emitting one would drop the filter while reporting success. ★ pdfcer writes a constraint it will not ENFORCE (decision 009 §6 makes validation advisory): it is authoring a rule for other readers, not starting to keep one. |
-| **Set a field's CALCULATE script** | `set_field_calculation(&mut self, fqn, helper: Option<CalcHelper>) -> Result<FieldScriptChange, EditError>` | 37180 | **`Pass 308.6`.** Writes `/AA` `/C` **and the AcroForm `/CO` entry**, in ONE undoable command — a calculate action absent from `/CO` is one Acrobat will not run, a field that looks calculated everywhere and computes nothing. Set appends, clear prunes, and an emptied `/CO` is removed rather than left behind. `CalcOrderChange` reports position, count, and array created/removed. Appended at the end and disclosed; Acrobat's own ordering is documented as silently reordered, so there is no rule to match. Refuses an operand that names no field or names a grouping node, before writing anything. |
-| **Fold N commands into one undo entry** | `coalesce_last(&mut self, count, kind: CommandKind) -> bool` | 12892 | **`Pass 212.0`, made public at pdfcer-gui's request.** Was private; `cut_field` already used it internally (`copy_field` + `delete_field` + `coalesce_last`). A shell gesture that needs TWO verbs -- place a button, then give it an action -- otherwise costs TWO undos, so `Ctrl+Z` leaves an inert button on the page. ★ **Check the return.** `false` means every change was applied and only the GROUPING failed (the stack was shorter than `count`); disclose that the gesture takes more than one undo rather than retrying. `count` counts commands YOU just pushed, most recent first -- overcounting folds an unrelated earlier edit in, and nothing guards that. Fold immediately, before anything else can push a command. `0` and `1` are no-ops returning `true`. |
-| **Rotate one widget** | `rotate_widget(&mut self, fqn, index, degrees: i64) -> Result<WidgetRotation, EditError>` | 16588 | ✅ **`/MK /R` + a REDRAWN appearance** (`Pass 177.0`). ⚠️ **COUNTERCLOCKWISE** — the page's `/Rotate` is the clockwise one. Multiples of 90 only, reduced into `[0, 360)` and the reduction reported. **`/Rect` does not move**; the appearance is redrawn into a `w`/`h`-swapped `/BBox` and stood upright by `/Matrix`. Rotating to `0` **removes** the key. Refuses a non-multiple of 90 with `WidgetRotationNotQuarterTurn`. |
-| Read an existing field's copyable properties | `field_defaults(&self, source: &str) -> Result<FieldDefaults, EditError>` | 9211 | For `--defaults-from` / "copy style from". |
-| **Change a field's field-scope properties** | `edit_field(&mut self, fqn, edit: &FieldEdit) -> Result<FieldEditOutcome, EditError>` | — | `Pass 134.0`. Flags, `/MaxLen`, `/TU`, `/Opt`. **Shared by every widget the field owns.** Setting `password` on a text field removes its own `/V` (`password_value_removed`) and redraws it masked. `appearance_stale: Option<String>` is `Some` when a property was written and nothing was drawn (a `/DA` edit on a check box or radio, whose artwork is shapes, not text) — **show it**. A button redraw that reproduces its artwork exactly writes nothing and reports `appearance_regenerated: false`, on this verb, `edit_widget` and `rotate_widget`. A `/MK /CA` caption edit on a radio, text or choice widget is `AppearanceOutcome::RecordedNotPainted`. |
-| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | — | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Delete a whole field | `delete_field(&mut self, fqn: &str) -> Result<FieldDeletion, EditError>` | Every widget + dict + registration + emptied grouping nodes. ⚠️ **Refuses with `FieldObjectIsInPageTree` when the field (or a widget, or an emptied node) is ALSO a page-tree node** (`Pass 185.1`) — a malformed `/AcroForm` can name a `/Page` in its `/Fields`, and deleting it produced a file pdfcer could not reopen. Same guard on `delete_field_group` and `delete_widget`. ⚠️ **That variant's MESSAGE changed at `Pass 191.1`** — it no longer says "a form field", because the guard now protects seven other carriers; `name` carries a phrase such as `the form field "Order.Qty"` or `the outline item`. **No API break; re-read the string if you display it.** §6.8. ★ **`action_targets_orphaned` (`Pass 184.0`) — button actions left naming a field that is gone.** Reset, submit and show/hide targets are fully-qualified **name strings**, so a deletion strands them. **Counted, never repaired**, and the asymmetry with `rename_field` is deliberate: a rename supplies the new name so the rewrite is a substitution, while *"what should this button reset instead?"* has no correct answer. **`census_dangling` cannot see it** — a name is not a reference. JavaScript is not counted, so this is a floor for scripted forms. |
+| Preview a grouping-node deletion | `field_group_deletion_preview(&mut self, fqn) -> Result<FieldGroupDeletion, EditError>` | ⚠️ Takes `&mut self` although it writes nothing. |
+| Delete a grouping node and its subtree | `delete_field_group(&mut self, fqn) -> Result<FieldGroupDeletion, EditError>` | Refuses a terminal with `NotAGroupingNode` — deliberately **not** redirected to `delete_field`. ★ **`action_targets_orphaned` (`Pass 184.0`) — button actions left naming a field that is gone.** Reset, submit and show/hide targets are fully-qualified **name strings**, so a deletion strands them. **Counted, never repaired**, and the asymmetry with `rename_field` is deliberate: a rename supplies the new name so the rewrite is a substitution, while *"what should this button reset instead?"* has no correct answer. **`census_dangling` cannot see it** — a name is not a reference. JavaScript is not counted, so this is a floor for scripted forms. Matched by **prefix** here, since the node takes its subtree. ⚠️ **`0` on the PREVIEW is *not measured***, not a count of zero. |
+| Delete ONE widget of a field | `delete_widget(&mut self, fqn, index: usize) -> Result<FieldDeletion, EditError>` | Siblings survive. `action_targets_orphaned` is **always `0` and that is a fact, not a not-tracked**: the field, its name and every action naming it survive a deleted appearance. |
+| Rename a field | `rename_field(&mut self, fqn, new_partial: &str) -> Result<FieldRename, EditError>` | `new_partial` is **one path segment**, never an FQN; a period is refused. ★ **`FieldRename::action_targets_retargeted` (`Pass 184.0`) — a rename REPAIRS the buttons that named the field**, in the **same undoable command**, and this is how many name strings it rewrote. Reset, submit and show/hide targets are fully-qualified **name strings**, so a rename would otherwise leave them pointing at nothing. Counts **name strings**, not buttons. **Descendants included** — renaming `Address` rewrites an action naming `Address.City` — and a same-prefix sibling like `Addressed` is **not** touched. **JavaScript is NOT rewritten** (`R55`), so a form whose logic lives in a script is not fixed by this. ⚠️ **This field replaced `actions_not_retargeted`**, which existed for six hours as a categorical upper bound; the old name will not compile. **`census_dangling` cannot see any of this** — a name string leaves no dangling object reference. |
+| Move one widget's `/Rect` | `move_widget(&mut self, fqn, index, dx, dy) -> Result<WidgetMove, EditError>` | **No appearance regeneration** — §12.5.5 step b makes matrix **A** a pure translation. |
+| **Give a push button an action** | `set_button_action(&mut self, fqn, action: Option<ButtonAction>) -> Result<ButtonActionChange, EditError>` | ✅ **`ResetForm`** (`Pass 182.0`) **+ `SubmitForm` / `GoToPage` / `Named` / `Uri`** (`Pass 183.0`, second operator ruling the same day). **`/JavaScript` and `/Launch` are refused permanently.** `None` removes any action, including one pdfcer would never author — `ButtonActionChange::replaced` NAMES it, so a form editor knows it destroyed a script. A submit fills `ButtonActionChange::submit` with what the button *would* send — read §1.12b before wiring one. Refuses a non-push-button, a reset/submit target that does not exist, an undecidable destination, a Table 237 flag gate, and a page index past the end — all before writing. |
+| **Recolour page objects** | `set_object_paint(&mut self, page, objects, fill: Option<Rgb>, stroke: Option<Rgb>) -> Result<PaintOutcome, EditError>` | **`Pass 219.0`, at pdfcer-gui's request.** The first colour verb for PAGE CONTENT — every previous one coloured an annotation, a ce dimension, a redaction mark or a text run, so a line or a CAD stroke was movable and deletable but not recolourable. `fill` and `stroke` are INDEPENDENT; `None` leaves that channel alone, and passing neither is a no-op that still reports what it WOULD refuse, so a shell can drive the control's enabled state without making an edit. ★★ **REFUSES a spot ink by name rather than converting it.** An object whose paint is in a space pdfcer does not decode (`/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed`, `/Lab`) is left alone and listed in `PaintOutcome::refused` with its `cs` resource name — writing `DeviceRGB` over a named ink looks right on screen and destroys the printing plate, invisibly. Patterns refuse separately (§8.7.3 — a pattern has no colour at all). Refusal is per CHANNEL: recolouring the fill of an object whose stroke is a spot ink is legitimate and is not blocked. ★ The refusal is DATA, not an error — the call succeeds and reports 'nine of twelve changed'. Implemented by wrapping each object's own bytes in `q <colour> … Q` rather than rewriting the operand it inherits: one `0 0 1 RG` commonly governs every stroke on a sheet, so rewriting it would recolour a thousand objects when the operator selected one. Every other byte stays verbatim. One undoable command. **The READER is `page_objects`** — `PathObject::fill_paint`/`stroke_paint` carry the honest answer including `PathPaint::Other`, so no separate colour reader ships; open the swatch on `PathPaint::rgb()` and show the ink's name when that is `None`. |
+| **Read what a push button DOES** | `button_action(&self, fqn) -> Result<ButtonActionState, EditError>` | **`Pass 212.0`, added at pdfcer-gui's request.** The read half of `set_button_action`, which shipped write-only -- so the control that SETS an action could not show what it was SET TO. Returns four states, not three: `None` (no `/A`), `Known(ButtonAction)` (modelled, and writable back unchanged), `Unmodelled(String)` (a subtype pdfcer AUTHORS but did not decode this instance of -- today `GoTo` and `SubmitForm`, or a malformed one), and `Foreign(String)` (a subtype pdfcer recognises and will NOT author -- `JavaScript`, `Launch`, `GoToR`, `Movie`). ★★ **`Unmodelled` and `Foreign` differ in whether a control should OFFER TO REPLACE**, which is the decision the operator is actually being asked to make -- a three-state shape would have had to call an unread `SubmitForm` 'Foreign' and tell the shell pdfcer will not touch an action it writes happily. Answers for the field's FIRST widget: §12.7.3.1 lets one field own widgets on several pages and nothing requires their `/A` entries to agree, so this picks rather than reconciles, and says so. Refused on the same footing as the writer -- a non-push-button is `ButtonActionWrongFieldType`, so a shell cannot learn through the reader about a field it would be refused permission to change. |
+| **Set a field's FORMAT script** | `set_field_format(&mut self, fqn, helper: Option<FormatHelper>) -> Result<FieldScriptChange, EditError>` | **`Pass 308.6`**, request `G024`. Writes `/AA` `/F` **and the paired `AF*_Keystroke` filter into `/AA` `/K`** — Acrobat's Format tab emits both, and a file with one is not one Acrobat authored. `None` clears both. Six `FormatHelper` variants; **no `&str` route**, so arbitrary JavaScript stays unrepresentable. Never touches `/V`: a format is display-only and a writer is a new chance to break that. Refuses any kind but a text field or a **combo** choice field — a LIST BOX carries none of the three. `FieldScriptChange::replaced` classifies what was displaced. |
+| **Set a field's VALIDATE script** | `set_field_validation(&mut self, fqn, helper: Option<AdvisoryHelper>) -> Result<FieldScriptChange, EditError>` | **`Pass 308.6`.** Writes `/AA` `/V`. Only `AdvisoryHelper::RangeValidate` is authorable — a `Keystroke` is **refused by name**, because the classifier keeps such a helper's name and discards its arguments, so re-emitting one would drop the filter while reporting success. ★ pdfcer writes a constraint it will not ENFORCE (decision 009 §6 makes validation advisory): it is authoring a rule for other readers, not starting to keep one. |
+| **Set a field's CALCULATE script** | `set_field_calculation(&mut self, fqn, helper: Option<CalcHelper>) -> Result<FieldScriptChange, EditError>` | **`Pass 308.6`.** Writes `/AA` `/C` **and the AcroForm `/CO` entry**, in ONE undoable command — a calculate action absent from `/CO` is one Acrobat will not run, a field that looks calculated everywhere and computes nothing. Set appends, clear prunes, and an emptied `/CO` is removed rather than left behind. `CalcOrderChange` reports position, count, and array created/removed. Appended at the end and disclosed; Acrobat's own ordering is documented as silently reordered, so there is no rule to match. Refuses an operand that names no field or names a grouping node, before writing anything. |
+| **Fold N commands into one undo entry** | `coalesce_last(&mut self, count, kind: CommandKind) -> bool` | **`Pass 212.0`, made public at pdfcer-gui's request.** Was private; `cut_field` already used it internally (`copy_field` + `delete_field` + `coalesce_last`). A shell gesture that needs TWO verbs -- place a button, then give it an action -- otherwise costs TWO undos, so `Ctrl+Z` leaves an inert button on the page. ★ **Check the return.** `false` means every change was applied and only the GROUPING failed (the stack was shorter than `count`); disclose that the gesture takes more than one undo rather than retrying. `count` counts commands YOU just pushed, most recent first -- overcounting folds an unrelated earlier edit in, and nothing guards that. Fold immediately, before anything else can push a command. `0` and `1` are no-ops returning `true`. |
+| **Rotate one widget** | `rotate_widget(&mut self, fqn, index, degrees: i64) -> Result<WidgetRotation, EditError>` | ✅ **`/MK /R` + a REDRAWN appearance** (`Pass 177.0`). ⚠️ **COUNTERCLOCKWISE** — the page's `/Rotate` is the clockwise one. Multiples of 90 only, reduced into `[0, 360)` and the reduction reported. **`/Rect` does not move**; the appearance is redrawn into a `w`/`h`-swapped `/BBox` and stood upright by `/Matrix`. Rotating to `0` **removes** the key. Refuses a non-multiple of 90 with `WidgetRotationNotQuarterTurn`. |
+| Read an existing field's copyable properties | `field_defaults(&self, source: &str) -> Result<FieldDefaults, EditError>` | For `--defaults-from` / "copy style from". |
+| **Change a field's field-scope properties** | `edit_field(&mut self, fqn, edit: &FieldEdit) -> Result<FieldEditOutcome, EditError>` | `Pass 134.0`. Flags, `/MaxLen`, `/TU`, `/Opt`. **Shared by every widget the field owns.** Setting `password` on a text field removes its own `/V` (`password_value_removed`) and redraws it masked. `appearance_stale: Option<String>` is `Some` when a property was written and nothing was drawn (a `/DA` edit on a check box or radio, whose artwork is shapes, not text) — **show it**. A button redraw that reproduces its artwork exactly writes nothing and reports `appearance_regenerated: false`, on this verb, `edit_widget` and `rotate_widget`. A `/MK /CA` caption edit on a radio, text or choice widget is `AppearanceOutcome::RecordedNotPainted`. |
+| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. |
 
 #### ★ 1.12b Button actions (`Pass 183.0`/`Pass 183.1`) — and the one disclosure a shell MUST surface
 
@@ -1722,70 +1722,70 @@ would alter how every pdfcer-authored check box already in the wild renders.
 
 ### 1.13 Form-field values (10)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Fill a text or choice field | `fill_text_field(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | 12340 | Refuses a rich-text field (`FieldIsRichText`). A **Password** field (`/Ff` bit 14) is drawn as one `*` per character and its value is **not** stored in `/V` (§12.7.4.3); `password_value_withheld` says so. A value longer than `/MaxLen` is stored whole and flagged in `exceeds_max_len`; a **comb** field (bit 25) draws one character per `/MaxLen` cell, up to the limit. |
-| Fill a password field, storing the value | `fill_text_field_storing_password(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | — | As `fill_text_field`, but writes the plaintext `/V`. Appearance still masked. For forms whose saved file must carry the password. |
-| Fill a rich-text field, downgrading it | `fill_text_field_downgrading_rich_text(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | 12384 | **Lossy and deliberate** — clears `/Ff` bit 26, deletes `/RV`. |
-| Select a check box / radio state | `set_button_state(&mut self, fqn, on_state) -> Result<(), EditError>` | 12570 | Sets `/V` + every widget `/AS`. No regeneration. |
-| Preview a form reset | `reset_preview(&self, only: Option<&[String]>) -> Vec<ResetPreviewRow>` | 12755 | Rows for **every** field in scope, including ineligible and already-at-default ones. Filtering is the shell's job. |
-| Reset fields to defaults | `reset_form(&mut self, only: Option<&[String]>) -> Result<ResetOutcome, EditError>` | 12884 | `/V` is **removed**, not blanked. Never writes `/DV`. Never recomputes calculated fields. A choice field's `/I` and `/TI` follow the default (Table 231) and a list box draws it one selection per line, as `set_choice_value` does. |
-| Set a choice selection | `set_choice_value(&mut self, fqn, selections: &[&str]) -> Result<FillOutcome, EditError>` | 13138 | `/V` + `/I` + regenerated `/AP`. |
-| Export filled data | `export_form_data(&self) -> Option<fdf::FormData>` | 13446 | `None` ⇒ no interactive form. |
-| Import data | `import_form_data(&mut self, data: &fdf::FormData) -> Result<ImportOutcome, EditError>` | 13471 | ⚠️ **Each field is its own undo entry.** Unknown names are counted and skipped, never an error. |
-| Regenerate appearances, clear `/NeedAppearances` | `regenerate_appearances(&mut self) -> Result<RegenOutcome, EditError>` | 13600 | ONE undo entry. |
-| Flatten fields into page content | `flatten_fields(&mut self, names: Option<&[&str]>) -> Result<FlattenOutcome, EditError>` | 13730 | **Destructive.** ONE undo entry. Burns by overlay-append (§5.8). ⚠️ **Refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** — `Pass 185.1`'s exact input against a verb that never received that fix, and it reached further than the original: the `emptied_parents` cascade read a page's `/Parent` (the `/Pages` node) as a field's `/Kids`, found no survivors, and **deleted the page-tree root**. The guard runs over the whole delete list **after** the cascade, because the cascade is what adds the ids nobody named. §6.8. |
-| Flatten annotations into page content | `flatten_annotations(&mut self, page_index: usize, ids: Option<&[ObjId]>) -> Result<AnnotFlattenOutcome, EditError>` | edit.rs | `Pass 360.0`. Burns each annotation's normal appearance (§12.5.5 placement, the same as render) into ONE new content stream appended to the page, in `/Annots` order, and deletes the annotation. `None` = every burnable one, the rest in `skipped: Vec<AnnotFlattenRefusal { id, subtype, reason }>`; `Some(ids)` = exactly those, each on that page (`AnnotationNotFound`) and burnable (`AnnotationNotFlattenable { id, reason }`, nothing written). `AnnotFlattenRefusalReason` (`#[non_exhaustive]`, `Display`): `NotIndirect`, `Widget` (use `flatten_fields`), `Popup`, `Link`, `Redact`, `FileAttachment`, `Media`, `Locked`, `HasAction`, `Hidden`, `NoView`, `NoAppearance`, `StateUnresolved`, `DegenerateAppearance`, `NoRotateOnRotatedPage`. `/CA` < 1 → burned inside a transparency group painted at that alpha (`grouped`); `/OC` → inside a form carrying that `/OC`, so it stays on its layer (`layered`). Its `/Popup` is deleted too (`popups_removed`); replies anywhere whose `/IRT` names it lose `/IRT` and `/RT` (`replies_unlinked`). Appearance streams are kept. Disclosures (rule 4): pop-ups, replies, dangling `/StructParent`, unprinted annotations that now print, `NoZoom` ones that now scale, and that an incremental save keeps the previous revision. One undo entry, `CommandKind::FlattenAnnotations { count }`; nothing burnable → `changed: false`, no entry. `AnnotFlattenOutcome { changed, flattened, grouped, layered, popups_removed, replies_unlinked, skipped, disclosures }` (`#[non_exhaustive]`, `Default`). CLI: `pdfcer flatten-annotations IN --page N [--index I]... [--dry-run] -o OUT`. |
-| Which annotations cannot be flattened | `annotation_flatten_refusals(&self, page_index: usize) -> Result<Vec<AnnotFlattenRefusal>, EditError>` | edit.rs | `Pass 360.0`. Pure query: every non-pop-up annotation on the page `flatten_annotations` would refuse, and why. Document-level refusals are `flatten_refusal`'s. Use it to grey out a per-annotation Flatten command. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Fill a text or choice field | `fill_text_field(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | Refuses a rich-text field (`FieldIsRichText`). A **Password** field (`/Ff` bit 14) is drawn as one `*` per character and its value is **not** stored in `/V` (§12.7.4.3); `password_value_withheld` says so. A value longer than `/MaxLen` is stored whole and flagged in `exceeds_max_len`; a **comb** field (bit 25) draws one character per `/MaxLen` cell, up to the limit. |
+| Fill a password field, storing the value | `fill_text_field_storing_password(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | As `fill_text_field`, but writes the plaintext `/V`. Appearance still masked. For forms whose saved file must carry the password. |
+| Fill a rich-text field, downgrading it | `fill_text_field_downgrading_rich_text(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | **Lossy and deliberate** — clears `/Ff` bit 26, deletes `/RV`. |
+| Select a check box / radio state | `set_button_state(&mut self, fqn, on_state) -> Result<(), EditError>` | Sets `/V` + every widget `/AS`. No regeneration. |
+| Preview a form reset | `reset_preview(&self, only: Option<&[String]>) -> Vec<ResetPreviewRow>` | Rows for **every** field in scope, including ineligible and already-at-default ones. Filtering is the shell's job. |
+| Reset fields to defaults | `reset_form(&mut self, only: Option<&[String]>) -> Result<ResetOutcome, EditError>` | `/V` is **removed**, not blanked. Never writes `/DV`. Never recomputes calculated fields. A choice field's `/I` and `/TI` follow the default (Table 231) and a list box draws it one selection per line, as `set_choice_value` does. |
+| Set a choice selection | `set_choice_value(&mut self, fqn, selections: &[&str]) -> Result<FillOutcome, EditError>` | `/V` + `/I` + regenerated `/AP`. |
+| Export filled data | `export_form_data(&self) -> Option<fdf::FormData>` | `None` ⇒ no interactive form. |
+| Import data | `import_form_data(&mut self, data: &fdf::FormData) -> Result<ImportOutcome, EditError>` | ⚠️ **Each field is its own undo entry.** Unknown names are counted and skipped, never an error. |
+| Regenerate appearances, clear `/NeedAppearances` | `regenerate_appearances(&mut self) -> Result<RegenOutcome, EditError>` | ONE undo entry. |
+| Flatten fields into page content | `flatten_fields(&mut self, names: Option<&[&str]>) -> Result<FlattenOutcome, EditError>` | **Destructive.** ONE undo entry. Burns by overlay-append (§5.8). ⚠️ **Refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** — `Pass 185.1`'s exact input against a verb that never received that fix, and it reached further than the original: the `emptied_parents` cascade read a page's `/Parent` (the `/Pages` node) as a field's `/Kids`, found no survivors, and **deleted the page-tree root**. The guard runs over the whole delete list **after** the cascade, because the cascade is what adds the ids nobody named. §6.8. |
+| Flatten annotations into page content | `flatten_annotations(&mut self, page_index: usize, ids: Option<&[ObjId]>) -> Result<AnnotFlattenOutcome, EditError>` | `Pass 360.0`. Burns each annotation's normal appearance (§12.5.5 placement, the same as render) into ONE new content stream appended to the page, in `/Annots` order, and deletes the annotation. `None` = every burnable one, the rest in `skipped: Vec<AnnotFlattenRefusal { id, subtype, reason }>`; `Some(ids)` = exactly those, each on that page (`AnnotationNotFound`) and burnable (`AnnotationNotFlattenable { id, reason }`, nothing written). `AnnotFlattenRefusalReason` (`#[non_exhaustive]`, `Display`): `NotIndirect`, `Widget` (use `flatten_fields`), `Popup`, `Link`, `Redact`, `FileAttachment`, `Media`, `Locked`, `HasAction`, `Hidden`, `NoView`, `NoAppearance`, `StateUnresolved`, `DegenerateAppearance`, `NoRotateOnRotatedPage`. `/CA` < 1 → burned inside a transparency group painted at that alpha (`grouped`); `/OC` → inside a form carrying that `/OC`, so it stays on its layer (`layered`). Its `/Popup` is deleted too (`popups_removed`); replies anywhere whose `/IRT` names it lose `/IRT` and `/RT` (`replies_unlinked`). Appearance streams are kept. Disclosures (rule 4): pop-ups, replies, dangling `/StructParent`, unprinted annotations that now print, `NoZoom` ones that now scale, and that an incremental save keeps the previous revision. One undo entry, `CommandKind::FlattenAnnotations { count }`; nothing burnable → `changed: false`, no entry. `AnnotFlattenOutcome { changed, flattened, grouped, layered, popups_removed, replies_unlinked, skipped, disclosures }` (`#[non_exhaustive]`, `Default`). CLI: `pdfcer flatten-annotations IN --page N [--index I]... [--dry-run] -o OUT`. |
+| Which annotations cannot be flattened | `annotation_flatten_refusals(&self, page_index: usize) -> Result<Vec<AnnotFlattenRefusal>, EditError>` | `Pass 360.0`. Pure query: every non-pop-up annotation on the page `flatten_annotations` would refuse, and why. Document-level refusals are `flatten_refusal`'s. Use it to grey out a per-annotation Flatten command. |
 
 ### 1.14 Form refusal preflights (5) — see §6.4 for whether they are load-bearing
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Ask whether filling would be refused | `fill_refusal(&self) -> Option<EditError>` | 12200 | ⚠️ **Strict subset** of what a fill enforces. |
-| Ask whether field/widget deletion would be refused | `deletion_refusal(&self) -> Option<EditError>` | 12239 | |
-| Ask whether a rename would be refused | `rename_refusal(&self) -> Option<EditError>` | 12268 | |
+| I want to… | Call | Returns |
+|---|---|---|
+| Ask whether filling would be refused | `fill_refusal(&self) -> Option<EditError>` | ⚠️ **Strict subset** of what a fill enforces. |
+| Ask whether field/widget deletion would be refused | `deletion_refusal(&self) -> Option<EditError>` | |
+| Ask whether a rename would be refused | `rename_refusal(&self) -> Option<EditError>` | |
 
-`edit.rs:12220-12222`: *"**there are documents where filling is offered and
+`edit.rs`: *"**there are documents where filling is offered and
 deletion is refused.** They are not rare — a certified fillable form is the
 ordinary case."* Gating a Delete control on `fill_refusal` ships a button that
 always errors.
 
-| Why a flatten would refuse, before attempting it | `flatten_refusal(&self) -> Option<EditError>` | 13915 | `None` when a flatten would proceed. |
-| Where a page's widgets are | `widget_rects(&self, page_index: usize) -> Vec<(ObjId, [f64; 4])>` | 17893 | Annotation id and `/Rect`. A **query**, not an edit — useful for hit-testing and for reporting orphans (see `insert_pages`). |
+| Why a flatten would refuse, before attempting it | `flatten_refusal(&self) -> Option<EditError>` | `None` when a flatten would proceed. |
+| Where a page's widgets are | `widget_rects(&self, page_index: usize) -> Vec<(ObjId, [f64; 4])>` | Annotation id and `/Rect`. A **query**, not an edit — useful for hit-testing and for reporting orphans (see `insert_pages`). |
 
 ### 1.15 Annotations (21) — detail in part 3
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Author a geometric markup | `add_markup(&mut self, page_index, spec: &MarkupSpec) -> Result<ObjId, EditError>` | 9986 | New annotation id. Exactly `add_markup_with(.., &MarkupOptions::default())`. |
-| Author a geometric markup **with options** | `add_markup_with(&mut self, page_index, spec: &MarkupSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | — | `Pass 81.1` + `Pass 150.0`. `MarkupOptions` now carries `opacity: Option<f64>` (§12.5.2 Table 164 `/CA`) **and `note: Option<MarkupNote>`** (`/Contents` + `/T` + `/M`). **One verb, one undo entry** — see the two notes below. |
-| Draw a geometric markup **as page content** | `add_markup_as_content(&mut self, page_index, spec: &MarkupSpec, options: &MarkupOptions) -> Result<MarkupContentOutcome, EditError>` | — | `Pass 356.0` (G043). The same bytes `add_markup_with` would put in `/AP` `/N`, appended to `/Contents` (§7.8.2) through `paste_objects` — so **one undo entry**, `q`…`Q`-wrapped, resources (Highlight's Multiply `/ExtGState`) bound under fresh names, and the **strict** certification gate (it modifies page content), not the annotation one. No annotation is created; the result is ordinary vector objects that `move_objects`/`transform_objects`/`delete_objects` take. `MarkupContentOutcome { objects: Range<usize>, paste: PasteOutcome }` (`#[non_exhaustive]`): `objects` is the index range in `page_objects` after the call (the page's LAST objects; select it to hand the shape on). `opacity` becomes a bound `/ExtGState` with `/CA` and `/ca` (§8.4.5 Table 57); `dash` draws as on the annotation; `note` is **not written** and is disclosed in `paste.disclosures`. Refuses bad opacity/geometry before writing anything. Text-bearing kinds have no `MarkupSpec` form, so this takes geometric shapes only. |
-| Author a text-bearing annotation | `add_text_annotation(&mut self, page_index, spec: &TextAnnotSpec) -> Result<ObjId, EditError>` | 12034 | FreeText / Text+`/Popup` / Stamp. Exactly `add_text_annotation_with(.., &MarkupOptions::default())`. |
-| Author a text-bearing annotation **at an opacity** | `add_text_annotation_with(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | — | `Pass 81.1`. The twin of the above, shipped in the same Pass because Table 164 is the **markup-annotation** entry list and a sticky note is a markup annotation. `/CA` goes on the parent, never on its `/Popup`. |
-| Place one page's artwork on a page | `place_page_artwork(&mut self, source: &DocumentView<'_>, source_page: usize, page_index: usize, rect: Rect) -> Result<PlacedArtwork, EditError>` | — | `Pass 293.0`. The artwork becomes a **form XObject** behind a `/Stamp` annotation's `/AP` `/N` — vector, selectable, and the target page's content stream is **never touched** (R47). One undo entry for the form, the annotation, the imported resource closure and the `/Annots` patch. Reports scaling (§12.5.5 stretches anisotropically — normative), what was left behind on the source page (annotations, **widgets — the dynamic-stamp number**), and how much the file grew. Refuses with `SourcePageOutOfRange` for the SOURCE's index, distinct from `PageOutOfRange`. |
-| Preview which style RUNG a run would take | `preview_style_ladder(&self, page_index, find, pinned_span, want: StyleSynthesis, options: &FormatOptions) -> Result<StyleLadder, FormatError>` | — | `Pass 295.0`. Read-only, cheap enough for a hover: runs the SAME planner `format_text` runs, stages nothing. **Not `preview_style_resolution`**, which previews the R90 gate — that answers *"no real face on this page claims the style"* and is blind to rung 2 (the standard-14 sibling needs no font file and is not on the page), so a tooltip built on it predicted synthesis while the commit bound a real `Helvetica-Bold`. Pass the options the commit will use: under `StylePolicy::Refuse` this returns `SynthesisRefusedByPosture`, which is the honest preview of a commit that would refuse. |
-| Read a placed stamp's label + size | `stamp_label_parameters(&self, annot_id: ObjId) -> Result<Option<StampLabelParameters>, EditError>` | — | `Pass 292.0`. `None` = not a stamp pdfcer can describe (Acrobat's custom stamps are artwork). **Read `size_source` before presenting the number**: `DeclaredInDa` / `RecoveredFromAppearance` / `DaUnreadable` are three different facts. Read-only twin for callers with no session: `annot::stamp_label_parameters_in`. |
-| Author a text-bearing annotation **and hear what was decided** | `add_text_annotation_reporting(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<TextAnnotOutcome, EditError>` | — | `Pass 291.0`. Identical work, guards and single undo entry; returns `TextAnnotOutcome { annot_id, rect, stamp_label_fit, applied_autosize, unencodable_chars }` instead of only the id. **The only route to a stamp's fit outcome** — `rect` is also the *post-fit* rectangle, which `GrowToText` widens. Added rather than substituted: widening the two verbs above would break every existing call site to serve callers that want the disclosure. See §12 of `03-capabilities.md` for `StampLabelFit`. |
-| Author a `/Redact` mark (non-destructive) | `add_redaction(&mut self, page_index, spec: &RedactSpec) -> Result<ObjId, EditError>` | 10480 | A **mark**. Nothing is removed yet. |
-| Un-mark a redaction | `delete_redaction_mark(&mut self, annot_id) -> Result<(), EditError>` | 10617 | Refuses any non-`/Redact` annotation. ⚠️ **Also refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** when `annot_id` is a page or page-tree node. `delete_annotation` guarded before *routing* here — but this is a public verb the GUI and the CLI call **directly**, and that route bypassed the guard entirely: **a guard installed on one route is not a guard on the verb**, so it now lives inside this one. ✅ **Its `/AP` `/N` is COLLATERAL and is FILTERED, not refused** — a malformed appearance must not make the mark permanently undeletable, so the call still returns `Ok` and simply does not free the wrong-kinded pointee. **Do not write an error path for that half.** §6.8. |
-| **Apply** every `/Redact` mark (destructive, into the session) | `apply_redactions(&mut self) -> Result<RedactionReport, RedactError>` | edit.rs | **`Pass 250.1`, `pdfcer-gui` request 2026-09-04.** Removes the marked content INTO the session so Save commits it, instead of writing a file immediately. **FINALIZES** the document: it collapses the session onto a clean, fully-rewritten redacted base and **clears undo** (the operator ruled 2026-09-04 that a redaction cannot be undone; a shell MUST disclose that). ★ **No save mode is refused** — because the base is now clean, an incremental save appends to already-redacted bytes and cannot leak, so the refuse-guard the request's §4.1 asked for is unnecessary here (it assumed a redaction left in a dirty set over the ORIGINAL base). The undo-preserving *deferred* variant that WOULD need the guard shipped as `Pass 250.2` — see `apply_redactions_deferred` / `save_applying_redaction` below. Returns the removal `RedactionReport` (verify absence against the SAVED bytes); the session is left UNCHANGED on any error (no half-redaction). |
-| Has a redaction been finalized? | `has_applied_redaction(&self) -> bool` | edit.rs | `Pass 250.1`. Disclosure signal, not a save gate. |
-| **Stage** a redaction to apply AT SAVE, undo-preserving | `apply_redactions_deferred(&mut self) -> Result<RedactionReport, RedactError>` | edit.rs | **`Pass 250.2`.** The undo-preserving counterpart to `apply_redactions`. Does **not** touch the session — base, overlay and the **full undo/redo history** are left intact, so the operator keeps editing and undoing freely. Returns a **preview** report of what *would* be removed. While staged, `has_pending_redaction()` is true and **both ordinary save modes are refused** by name (`WriteError::RedactionPending`) — this is the §4.1 leak-guard the eager collapse did not need (the un-redacted content is still live). Save via `save_applying_redaction`, or clear with `cancel_pending_redaction`. On any error the flag is not set. |
-| Is a deferred redaction staged? | `has_pending_redaction(&self) -> bool` | edit.rs | `Pass 250.2`. While true, ordinary saves return `WriteError::RedactionPending`. |
-| Un-stage a deferred redaction | `cancel_pending_redaction(&mut self)` | edit.rs | `Pass 250.2`. Clears the flag; the session was never mutated by staging, so nothing else changes. Idempotent. |
-| **Save** applying a staged redaction (the only save allowed while pending) | `save_applying_redaction(&self, &SaveOptions) -> Result<(Vec<u8>, RedactionReport), RedactError>` | edit.rs | `Pass 250.2`. Runs the removal over the session's CURRENT state and returns clean redacted full-rewrite bytes + report. Takes `&self` — **does not mutate the session**, so undo survives the save. The bytes are single-revision with content already gone (no leak in any later save); verify absence against these SAVED bytes. |
-| **Choose how far a redaction may reach beyond the marked regions** | `set_residual_scope(&mut self, scope: redact::ResidualScope)` / `residual_scope(&self) -> redact::ResidualScope` | edit.rs | **`Pass 310.0`, operator report 2026-09-17: redacting one phrase removed matching text the operator never selected.** Applying a mark removes the content under its geometry — that is not configurable. What this governs is the **residual sweep** that runs afterwards over every object in the file. Three settings: `MarkedOnly` (the sweep reports and changes nothing), **`HiddenCarriers` — the default** (scrub `/Info`, XMP and dictionary string entries; leave drawable page content alone), and `WholeDocument` (blank matching text anywhere, including pages the operator did not mark). Set on the SESSION, so `apply_redactions`, `apply_redactions_deferred` and `save_applying_redaction` cannot disagree; survives the collapse `apply_redactions` performs. ★★ **A narrower scope changes what pdfcer EDITS, never what it TELLS YOU** — every declined match is counted in `RedactionReport::residual_matches_left`, recorded as `CarrierAction::FoundNotScrubbed`, and named by object id in a report note. ⚠️ **Ask `has_unscrubbed_matches()` for that, not `has_disclosed_residuals()`** — the latter means pdfcer *could not* act and drives the CLI's non-zero exit; found-and-deliberately-left is a different fact and must not fail a redaction. The two needle sets differ by design: invisible carriers match on tokens, drawable content only on whole redacted runs, because redacting `INVOICE 4412` must not make `INVOICE` an independent needle. **No persisted settings key yet** — the shell passes the operator's choice per session; the CLI spells it `--residual-scope`. |
-| Delete any annotation | `delete_annotation(&mut self, annot_id) -> Result<AnnotationDeletion, EditError>` | 10847 | **Routes** to the two specialised verbs above for `/Redact` and ce dimensions. ⚠️ **Refuses with `AnnotationObjectIsStructural` when the `/Annots` entry is the document catalog, the `/AcroForm`, a page-tree node or a page** (`Pass 190.1`) — **an entry in a structural array is not necessarily the kind of object that array is for**, and a page whose `/Annots` named the catalog produced a file with no page-tree root. Same shape as `delete_field`'s `FieldObjectIsInPageTree` above, in a second carrier; the guard is `refuse_if_in_page_tree` plus an identity check plus a `/Type` test (`/Type` is optional on an annotation, so its **absence** proves nothing and its **presence** naming something else is decisive). ★ The refusal lives in `annotation_deletion_guards`, which `annotation_deletion_preview` also calls, **so the dry run and the real run agree.** ⚠️ **Widened at `Pass 191.1`: the guard now runs over the whole removal SET, after the cascades rather than before them.** It had run on the *target* only, and this command deletes a set — the `/Popup` cascade joined it afterwards, un-guarded, and could take a page with it. A guard written over "the target plus whatever the cascades added" cannot be out-flanked by a cascade added later. §6.8. |
-| **Move** any annotation | `move_annotation(&mut self, annot_id, dx, dy) -> Result<AnnotationMove, EditError>` | 16978 | `Pass 149.0`. Translates `/Rect` **and every geometry key**. **Refuses** a widget and a ce dimension by name — see below. |
-| **Resize** any annotation | `resize_annotation(&mut self, annot_id, anchor: (f64, f64), sx, sy, opts: &ResizeOptions) -> Result<AnnotationResize, EditError>` | 17442 | `Pass 151.0`. Scales `/Rect` **and every geometry key** about `anchor`. `/RD` scales by default; `/BS /W` does not — both are flags. **Re-authors the `/AP` only where pdfcer drew it**, refusing rather than distorting a foreign one. Same two refusals as `move_annotation`. |
-| **Rotate** any annotation | `rotate_annotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | 17429 | `Pass 155.0`. Turns geometry keys AND composes the rotation into the appearance's own `/Matrix` (§12.5.5 step a), so a FOREIGN appearance rotates correctly and nothing is redrawn. No options type — a rotation is an isometry, so no stroke can distort. `/Rect` grows to the upright box that bounds the result, which §12.5.2 requires. **★ The angle is applied AS GIVEN and the result is never snapped** — see below. **★★ `Pass 155.1` (2026-09-07): the verb is now COMPOSABLE — it was not, and the artwork grew on every turn after the first. `AnnotationRotate` gains `rect_derived_from`. See the box below.** |
-| **Set** an annotation's rotation ABSOLUTELY | `set_annotation_rotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | edit.rs | **`Pass 155.2`, `pdfcer-gui` request 2026-09-07.** `degrees` is measured anticlockwise **from the annotation's authored orientation** — the same zero `Annotation::appearance_rotation_degrees` reports against, because both go through `annot::rotation_degrees`. Reads the current angle out of the file and applies the difference, so it is **idempotent**: setting 45 twice moves nothing the second time. This is what a typed properties field needs; `rotate_annotation` stays the drag-grip delta. Returns that verb's outcome unchanged, so `AnnotationRotate::degrees` is **the delta applied, not the absolute target**. ⚠️ **Refuses `AnnotationRotationUnreadable`** when the current angle cannot be read (no appearance stream — §12.5.2 requires `/Rect` upright, so there is nowhere to record one — or a `/Matrix` carrying a shear or a mirror, which is not an angle). It refuses rather than assuming zero: an operator typing 45 on an object already at 30 would silently get 75. **`rotate_annotation` still works on both**, because a delta needs no starting angle. |
-| Preview an annotation deletion | `annotation_deletion_preview(&self, annot_id) -> Result<AnnotationDeletion, EditError>` | 11316 | Pure `&self` query. |
-| **Reorder** a page's annotations — the tab order | `reorder_annotations(&mut self, page_index: usize, new_order: &[ObjId]) -> Result<AnnotsReorder, EditError>` | — | `Pass 237.0`. Permutes the page's `/Annots` array, **moving references and nothing else** — no annotation dictionary is read or written, so every widget keeps its id, its field, its `/Parent` chain and its `/AA`. ONE undo entry. `new_order` is the page's indirect entries **by id**, each once; refuses `AnnotsNotAPermutation` (naming missing / unknown / repeated ids), `AnnotsDuplicateReference`, `TrapNetMustStayLast`, `AnnotStatesMismatch`. Honours the three `shall`s a permutation can break (TrapNet-last, `/AnnotStates`, `/GoToE` `/A`). **Reads `/Tabs`, never writes it** — see below. |
-| **Ask what order a reader tabs a page in** | `page_tab_sequence(&self, page_index: usize) -> Result<TabSequence, EditError>` | edit.rs | **`Pass 307.0`, `pdfcer-gui` request `G019`.** Pure `&self` query — nothing written, nothing staged, no command recorded. Answers all six `/Tabs` states: `/A` and `/W` are read off the array, `/R` and `/C` are **computed from `/Rect` geometry** with `/Rotate` applied and `/ViewerPreferences` `/Direction` honoured, `Absent` and an unknown name fall back to array order **as a disclosed convention**, and `/S` returns an **empty** sequence rather than a guess. `TabSequence::notes` is the rule-4 disclosure, ready to print verbatim. Refuses `PageOutOfRange`, `AnnotsNotAnArray`. **See the box below — the `derived` bool cannot say everything `basis` can.** |
-| Choose which reading of `/Tabs /W`'s contested tail to apply | `set_widget_tab_tail(&mut self, tail: WidgetTabTail)` / `widget_tab_tail(&self) -> WidgetTabTail` | edit.rs | `Pass 307.0`. Spec ambiguity `TAB-A1`: ISO 32000-2 Table 31 says the non-widget tail follows in `/Annots` order, §12.5.1 says row order, and the contradiction is unreported in the errata. Default `WidgetTabTail::ArrayOrder` (Table 31's). **Setting it never suppresses the disclosure** — a `/W` page's notes name the contradiction and the reading applied either way. Settings key `widget_tab_tail`; the shell reads the store and hands it over, as with `quad_point_order`. |
-| Set the row/column grouping tolerance | `set_tab_row_tolerance(&mut self, points: f64)` / `tab_row_tolerance(&self) -> f64` | edit.rs | `Pass 307.0`. In points; clamped to `MIN_TAB_ROW_TOLERANCE`..=`MAX_TAB_ROW_TOLERANCE` (0..=72), and a non-finite value is **ignored** rather than stored — a `NaN` here would make no two annotations ever share a row. Default `DEFAULT_TAB_ROW_TOLERANCE` = **1.0**. Adjustable because §12.5.1 states no tolerance at all: the number is pdfcer's, so an operator whose forms disagree with it needs somewhere to say so. Settings key `tab_row_tolerance`. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Author a geometric markup | `add_markup(&mut self, page_index, spec: &MarkupSpec) -> Result<ObjId, EditError>` | New annotation id. Exactly `add_markup_with(.., &MarkupOptions::default())`. |
+| Author a geometric markup **with options** | `add_markup_with(&mut self, page_index, spec: &MarkupSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 81.1` + `Pass 150.0`. `MarkupOptions` now carries `opacity: Option<f64>` (§12.5.2 Table 164 `/CA`) **and `note: Option<MarkupNote>`** (`/Contents` + `/T` + `/M`). **One verb, one undo entry** — see the two notes below. |
+| Draw a geometric markup **as page content** | `add_markup_as_content(&mut self, page_index, spec: &MarkupSpec, options: &MarkupOptions) -> Result<MarkupContentOutcome, EditError>` | `Pass 356.0` (G043). The same bytes `add_markup_with` would put in `/AP` `/N`, appended to `/Contents` (§7.8.2) through `paste_objects` — so **one undo entry**, `q`…`Q`-wrapped, resources (Highlight's Multiply `/ExtGState`) bound under fresh names, and the **strict** certification gate (it modifies page content), not the annotation one. No annotation is created; the result is ordinary vector objects that `move_objects`/`transform_objects`/`delete_objects` take. `MarkupContentOutcome { objects: Range<usize>, paste: PasteOutcome }` (`#[non_exhaustive]`): `objects` is the index range in `page_objects` after the call (the page's LAST objects; select it to hand the shape on). `opacity` becomes a bound `/ExtGState` with `/CA` and `/ca` (§8.4.5 Table 57); `dash` draws as on the annotation; `note` is **not written** and is disclosed in `paste.disclosures`. Refuses bad opacity/geometry before writing anything. Text-bearing kinds have no `MarkupSpec` form, so this takes geometric shapes only. |
+| Author a text-bearing annotation | `add_text_annotation(&mut self, page_index, spec: &TextAnnotSpec) -> Result<ObjId, EditError>` | FreeText / Text+`/Popup` / Stamp. Exactly `add_text_annotation_with(.., &MarkupOptions::default())`. |
+| Author a text-bearing annotation **at an opacity** | `add_text_annotation_with(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 81.1`. The twin of the above, shipped in the same Pass because Table 164 is the **markup-annotation** entry list and a sticky note is a markup annotation. `/CA` goes on the parent, never on its `/Popup`. |
+| Place one page's artwork on a page | `place_page_artwork(&mut self, source: &DocumentView<'_>, source_page: usize, page_index: usize, rect: Rect) -> Result<PlacedArtwork, EditError>` | `Pass 293.0`. The artwork becomes a **form XObject** behind a `/Stamp` annotation's `/AP` `/N` — vector, selectable, and the target page's content stream is **never touched** (R47). One undo entry for the form, the annotation, the imported resource closure and the `/Annots` patch. Reports scaling (§12.5.5 stretches anisotropically — normative), what was left behind on the source page (annotations, **widgets — the dynamic-stamp number**), and how much the file grew. Refuses with `SourcePageOutOfRange` for the SOURCE's index, distinct from `PageOutOfRange`. |
+| Preview which style RUNG a run would take | `preview_style_ladder(&self, page_index, find, pinned_span, want: StyleSynthesis, options: &FormatOptions) -> Result<StyleLadder, FormatError>` | `Pass 295.0`. Read-only, cheap enough for a hover: runs the SAME planner `format_text` runs, stages nothing. **Not `preview_style_resolution`**, which previews the R90 gate — that answers *"no real face on this page claims the style"* and is blind to rung 2 (the standard-14 sibling needs no font file and is not on the page), so a tooltip built on it predicted synthesis while the commit bound a real `Helvetica-Bold`. Pass the options the commit will use: under `StylePolicy::Refuse` this returns `SynthesisRefusedByPosture`, which is the honest preview of a commit that would refuse. |
+| Read a placed stamp's label + size | `stamp_label_parameters(&self, annot_id: ObjId) -> Result<Option<StampLabelParameters>, EditError>` | `Pass 292.0`. `None` = not a stamp pdfcer can describe (Acrobat's custom stamps are artwork). **Read `size_source` before presenting the number**: `DeclaredInDa` / `RecoveredFromAppearance` / `DaUnreadable` are three different facts. Read-only twin for callers with no session: `annot::stamp_label_parameters_in`. |
+| Author a text-bearing annotation **and hear what was decided** | `add_text_annotation_reporting(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<TextAnnotOutcome, EditError>` | `Pass 291.0`. Identical work, guards and single undo entry; returns `TextAnnotOutcome { annot_id, rect, stamp_label_fit, applied_autosize, unencodable_chars }` instead of only the id. **The only route to a stamp's fit outcome** — `rect` is also the *post-fit* rectangle, which `GrowToText` widens. Added rather than substituted: widening the two verbs above would break every existing call site to serve callers that want the disclosure. See §12 of `03-capabilities.md` for `StampLabelFit`. |
+| Author a `/Redact` mark (non-destructive) | `add_redaction(&mut self, page_index, spec: &RedactSpec) -> Result<ObjId, EditError>` | A **mark**. Nothing is removed yet. |
+| Un-mark a redaction | `delete_redaction_mark(&mut self, annot_id) -> Result<(), EditError>` | Refuses any non-`/Redact` annotation. ⚠️ **Also refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** when `annot_id` is a page or page-tree node. `delete_annotation` guarded before *routing* here — but this is a public verb the GUI and the CLI call **directly**, and that route bypassed the guard entirely: **a guard installed on one route is not a guard on the verb**, so it now lives inside this one. ✅ **Its `/AP` `/N` is COLLATERAL and is FILTERED, not refused** — a malformed appearance must not make the mark permanently undeletable, so the call still returns `Ok` and simply does not free the wrong-kinded pointee. **Do not write an error path for that half.** §6.8. |
+| **Apply** every `/Redact` mark (destructive, into the session) | `apply_redactions(&mut self) -> Result<RedactionReport, RedactError>` | **`Pass 250.1`, `pdfcer-gui` request 2026-09-04.** Removes the marked content INTO the session so Save commits it, instead of writing a file immediately. **FINALIZES** the document: it collapses the session onto a clean, fully-rewritten redacted base and **clears undo** (the operator ruled 2026-09-04 that a redaction cannot be undone; a shell MUST disclose that). ★ **No save mode is refused** — because the base is now clean, an incremental save appends to already-redacted bytes and cannot leak, so the refuse-guard the request's §4.1 asked for is unnecessary here (it assumed a redaction left in a dirty set over the ORIGINAL base). The undo-preserving *deferred* variant that WOULD need the guard shipped as `Pass 250.2` — see `apply_redactions_deferred` / `save_applying_redaction` below. Returns the removal `RedactionReport` (verify absence against the SAVED bytes); the session is left UNCHANGED on any error (no half-redaction). |
+| Has a redaction been finalized? | `has_applied_redaction(&self) -> bool` | `Pass 250.1`. Disclosure signal, not a save gate. |
+| **Stage** a redaction to apply AT SAVE, undo-preserving | `apply_redactions_deferred(&mut self) -> Result<RedactionReport, RedactError>` | **`Pass 250.2`.** The undo-preserving counterpart to `apply_redactions`. Does **not** touch the session — base, overlay and the **full undo/redo history** are left intact, so the operator keeps editing and undoing freely. Returns a **preview** report of what *would* be removed. While staged, `has_pending_redaction()` is true and **both ordinary save modes are refused** by name (`WriteError::RedactionPending`) — this is the §4.1 leak-guard the eager collapse did not need (the un-redacted content is still live). Save via `save_applying_redaction`, or clear with `cancel_pending_redaction`. On any error the flag is not set. |
+| Is a deferred redaction staged? | `has_pending_redaction(&self) -> bool` | `Pass 250.2`. While true, ordinary saves return `WriteError::RedactionPending`. |
+| Un-stage a deferred redaction | `cancel_pending_redaction(&mut self)` | `Pass 250.2`. Clears the flag; the session was never mutated by staging, so nothing else changes. Idempotent. |
+| **Save** applying a staged redaction (the only save allowed while pending) | `save_applying_redaction(&self, &SaveOptions) -> Result<(Vec<u8>, RedactionReport), RedactError>` | `Pass 250.2`. Runs the removal over the session's CURRENT state and returns clean redacted full-rewrite bytes + report. Takes `&self` — **does not mutate the session**, so undo survives the save. The bytes are single-revision with content already gone (no leak in any later save); verify absence against these SAVED bytes. |
+| **Choose how far a redaction may reach beyond the marked regions** | `set_residual_scope(&mut self, scope: redact::ResidualScope)` / `residual_scope(&self) -> redact::ResidualScope` | **`Pass 310.0`, operator report 2026-09-17: redacting one phrase removed matching text the operator never selected.** Applying a mark removes the content under its geometry — that is not configurable. What this governs is the **residual sweep** that runs afterwards over every object in the file. Three settings: `MarkedOnly` (the sweep reports and changes nothing), **`HiddenCarriers` — the default** (scrub `/Info`, XMP and dictionary string entries; leave drawable page content alone), and `WholeDocument` (blank matching text anywhere, including pages the operator did not mark). Set on the SESSION, so `apply_redactions`, `apply_redactions_deferred` and `save_applying_redaction` cannot disagree; survives the collapse `apply_redactions` performs. ★★ **A narrower scope changes what pdfcer EDITS, never what it TELLS YOU** — every declined match is counted in `RedactionReport::residual_matches_left`, recorded as `CarrierAction::FoundNotScrubbed`, and named by object id in a report note. ⚠️ **Ask `has_unscrubbed_matches()` for that, not `has_disclosed_residuals()`** — the latter means pdfcer *could not* act and drives the CLI's non-zero exit; found-and-deliberately-left is a different fact and must not fail a redaction. The two needle sets differ by design: invisible carriers match on tokens, drawable content only on whole redacted runs, because redacting `INVOICE 4412` must not make `INVOICE` an independent needle. **No persisted settings key yet** — the shell passes the operator's choice per session; the CLI spells it `--residual-scope`. |
+| Delete any annotation | `delete_annotation(&mut self, annot_id) -> Result<AnnotationDeletion, EditError>` | **Routes** to the two specialised verbs above for `/Redact` and ce dimensions. ⚠️ **Refuses with `AnnotationObjectIsStructural` when the `/Annots` entry is the document catalog, the `/AcroForm`, a page-tree node or a page** (`Pass 190.1`) — **an entry in a structural array is not necessarily the kind of object that array is for**, and a page whose `/Annots` named the catalog produced a file with no page-tree root. Same shape as `delete_field`'s `FieldObjectIsInPageTree` above, in a second carrier; the guard is `refuse_if_in_page_tree` plus an identity check plus a `/Type` test (`/Type` is optional on an annotation, so its **absence** proves nothing and its **presence** naming something else is decisive). ★ The refusal lives in `annotation_deletion_guards`, which `annotation_deletion_preview` also calls, **so the dry run and the real run agree.** ⚠️ **Widened at `Pass 191.1`: the guard now runs over the whole removal SET, after the cascades rather than before them.** It had run on the *target* only, and this command deletes a set — the `/Popup` cascade joined it afterwards, un-guarded, and could take a page with it. A guard written over "the target plus whatever the cascades added" cannot be out-flanked by a cascade added later. §6.8. |
+| **Move** any annotation | `move_annotation(&mut self, annot_id, dx, dy) -> Result<AnnotationMove, EditError>` | `Pass 149.0`. Translates `/Rect` **and every geometry key**. **Refuses** a widget and a ce dimension by name — see below. |
+| **Resize** any annotation | `resize_annotation(&mut self, annot_id, anchor: (f64, f64), sx, sy, opts: &ResizeOptions) -> Result<AnnotationResize, EditError>` | `Pass 151.0`. Scales `/Rect` **and every geometry key** about `anchor`. `/RD` scales by default; `/BS /W` does not — both are flags. **Re-authors the `/AP` only where pdfcer drew it**, refusing rather than distorting a foreign one. Same two refusals as `move_annotation`. |
+| **Rotate** any annotation | `rotate_annotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | `Pass 155.0`. Turns geometry keys AND composes the rotation into the appearance's own `/Matrix` (§12.5.5 step a), so a FOREIGN appearance rotates correctly and nothing is redrawn. No options type — a rotation is an isometry, so no stroke can distort. `/Rect` grows to the upright box that bounds the result, which §12.5.2 requires. **★ The angle is applied AS GIVEN and the result is never snapped** — see below. **★★ `Pass 155.1` (2026-09-07): the verb is now COMPOSABLE — it was not, and the artwork grew on every turn after the first. `AnnotationRotate` gains `rect_derived_from`. See the box below.** |
+| **Set** an annotation's rotation ABSOLUTELY | `set_annotation_rotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | **`Pass 155.2`, `pdfcer-gui` request 2026-09-07.** `degrees` is measured anticlockwise **from the annotation's authored orientation** — the same zero `Annotation::appearance_rotation_degrees` reports against, because both go through `annot::rotation_degrees`. Reads the current angle out of the file and applies the difference, so it is **idempotent**: setting 45 twice moves nothing the second time. This is what a typed properties field needs; `rotate_annotation` stays the drag-grip delta. Returns that verb's outcome unchanged, so `AnnotationRotate::degrees` is **the delta applied, not the absolute target**. ⚠️ **Refuses `AnnotationRotationUnreadable`** when the current angle cannot be read (no appearance stream — §12.5.2 requires `/Rect` upright, so there is nowhere to record one — or a `/Matrix` carrying a shear or a mirror, which is not an angle). It refuses rather than assuming zero: an operator typing 45 on an object already at 30 would silently get 75. **`rotate_annotation` still works on both**, because a delta needs no starting angle. |
+| Preview an annotation deletion | `annotation_deletion_preview(&self, annot_id) -> Result<AnnotationDeletion, EditError>` | Pure `&self` query. |
+| **Reorder** a page's annotations — the tab order | `reorder_annotations(&mut self, page_index: usize, new_order: &[ObjId]) -> Result<AnnotsReorder, EditError>` | `Pass 237.0`. Permutes the page's `/Annots` array, **moving references and nothing else** — no annotation dictionary is read or written, so every widget keeps its id, its field, its `/Parent` chain and its `/AA`. ONE undo entry. `new_order` is the page's indirect entries **by id**, each once; refuses `AnnotsNotAPermutation` (naming missing / unknown / repeated ids), `AnnotsDuplicateReference`, `TrapNetMustStayLast`, `AnnotStatesMismatch`. Honours the three `shall`s a permutation can break (TrapNet-last, `/AnnotStates`, `/GoToE` `/A`). **Reads `/Tabs`, never writes it** — see below. |
+| **Ask what order a reader tabs a page in** | `page_tab_sequence(&self, page_index: usize) -> Result<TabSequence, EditError>` | **`Pass 307.0`, `pdfcer-gui` request `G019`.** Pure `&self` query — nothing written, nothing staged, no command recorded. Answers all six `/Tabs` states: `/A` and `/W` are read off the array, `/R` and `/C` are **computed from `/Rect` geometry** with `/Rotate` applied and `/ViewerPreferences` `/Direction` honoured, `Absent` and an unknown name fall back to array order **as a disclosed convention**, and `/S` returns an **empty** sequence rather than a guess. `TabSequence::notes` is the rule-4 disclosure, ready to print verbatim. Refuses `PageOutOfRange`, `AnnotsNotAnArray`. **See the box below — the `derived` bool cannot say everything `basis` can.** |
+| Choose which reading of `/Tabs /W`'s contested tail to apply | `set_widget_tab_tail(&mut self, tail: WidgetTabTail)` / `widget_tab_tail(&self) -> WidgetTabTail` | `Pass 307.0`. Spec ambiguity `TAB-A1`: ISO 32000-2 Table 31 says the non-widget tail follows in `/Annots` order, §12.5.1 says row order, and the contradiction is unreported in the errata. Default `WidgetTabTail::ArrayOrder` (Table 31's). **Setting it never suppresses the disclosure** — a `/W` page's notes name the contradiction and the reading applied either way. Settings key `widget_tab_tail`; the shell reads the store and hands it over, as with `quad_point_order`. |
+| Set the row/column grouping tolerance | `set_tab_row_tolerance(&mut self, points: f64)` / `tab_row_tolerance(&self) -> f64` | `Pass 307.0`. In points; clamped to `MIN_TAB_ROW_TOLERANCE`..=`MAX_TAB_ROW_TOLERANCE` (0..=72), and a non-finite value is **ignored** rather than stored — a `NaN` here would make no two annotations ever share a row. Default `DEFAULT_TAB_ROW_TOLERANCE` = **1.0**. Adjustable because §12.5.1 states no tolerance at all: the number is pdfcer's, so an operator whose forms disagree with it needs somewhere to say so. Settings key `tab_row_tolerance`. |
 
 > #### ★★ `Pass 155.1` — the rectangle is derived from the ARTWORK, and which rule was used is REPORTED
 >
@@ -1844,9 +1844,9 @@ always errors.
 > float equality will answer *yes* to a 360° turn and may loop.
 
 
-| Ask whether annotation deletion is refused document-wide | `annotation_deletion_refusal(&self) -> Option<EditError>` | 11492 | ⚠️ Takes no `annot_id`, so it cannot see the three per-annotation refusals. |
+| Ask whether annotation deletion is refused document-wide | `annotation_deletion_refusal(&self) -> Option<EditError>` | ⚠️ Takes no `annot_id`, so it cannot see the three per-annotation refusals. |
 
-| Restyle an existing markup annotation | `set_markup_style(&mut self, annot_id: ObjId, style: &MarkupStyle) -> Result<MarkupStyleChange, EditError>` | 12372 | Rebuilds the baked `/AP`. **`Pass 258.0`:** `MarkupStyle` is no longer `Copy`; `endings` is now `Option<StyleEdit<..>>` so `/LE` can be REMOVED and not merely set to `[/None /None]`; a new `dash: Option<StyleEdit<BorderDash>>` sets or clears a dashed border. Refuses `StylePropertyNotApplicable` for a property the subtype has not -- ask `MarkupStyleSupport::for_subtype` first. |
+| Restyle an existing markup annotation | `set_markup_style(&mut self, annot_id: ObjId, style: &MarkupStyle) -> Result<MarkupStyleChange, EditError>` | Rebuilds the baked `/AP`. **`Pass 258.0`:** `MarkupStyle` is no longer `Copy`; `endings` is now `Option<StyleEdit<..>>` so `/LE` can be REMOVED and not merely set to `[/None /None]`; a new `dash: Option<StyleEdit<BorderDash>>` sets or clears a dashed border. Refuses `StylePropertyNotApplicable` for a property the subtype has not -- ask `MarkupStyleSupport::for_subtype` first. |
 | **Reshape a markup annotation — one vertex** | `reshape_annotation(&mut self, annot_id: ObjId, edit: VertexEdit, modified: Option<&str>) -> Result<AnnotationReshape, EditError>` | edit.rs | **`Pass 255.0`, `pdfcer-gui` request 2026-09-05.** Move / insert / remove one vertex of a `/Polygon` (plain or cloudy), `/PolyLine`, or (move only) `/Line`; rebuilds `/Vertices` (or `/L`), `/Rect` AND the `/AP` stream from ONE bake — the same one `add_markup` used, so a reshaped cloud scallops identically to a redrawn one. `modified` stamps `/M` verbatim; `None` leaves it (pdfcer reads no clock). See the box below for the matrix. |
 | Preview a reshape (pure) | `reshape_annotation_preview(&self, annot_id: ObjId, edit: VertexEdit) -> Result<ReshapeForecast, EditError>` | edit.rs | `Pass 255.0`. Same guards, same refusals, same recomputed `/Rect`, nothing written. Grey a handle with this. |
 | Drag one vertex | `move_annotation_vertex(&mut self, annot_id: ObjId, index: usize, dx: f64, dy: f64) -> Result<AnnotationReshape, EditError>` | edit.rs | `Pass 255.0`. `reshape_annotation(id, VertexEdit::Move{..}, None)`. |
@@ -2021,19 +2021,19 @@ always errors.
 > CLI: `pdfcer run-repertoire --find TEXT [--pin-span START:LEN] [--list]`,
 > printing **code points** rather than raw characters — a set containing a
 > space, a comma or a quote cannot be printed unambiguously otherwise.
-| **Write a note onto an existing annotation** | `set_markup_note(&mut self, annot_id: ObjId, note: &MarkupNote) -> Result<MarkupNoteChange, EditError>` | 18327 | `Pass 154.0`. `/Contents`, and `/T`/`/M` only if the note carries them — a partial note does **not** clear the author. Reports the text it REPLACED. **`Pass 258.1`:** on a `/FreeText` it now also RE-BAKES `/AP` from the new words, in the same command (one undo entry) — that subtype's `/Contents` *is* what its appearance paints, so the edit used to leave the page showing the old text. `MarkupNoteChange::appearance_rebaked` says whether it moved; `false` on a sticky/stamp (their notes are not painted) and on a `/FreeText` whose appearance pdfcer did not author, which is left alone rather than replaced. |
-| **Open or close an annotation's pop-up window** | `set_annotation_open(&mut self, annot_id: ObjId, open: bool) -> Result<AnnotationOpenChange, EditError>` | 26205 | `Pass 253.3`. Writes `/Open` on the annotation **and its `/Popup` companion**, one undo entry — Table 170 gives geometric markup no `/Open` of its own, so a square's window state lives only on the companion and writing one of the two would leave them disagreeing. Does **not** create a `/Popup`: an annotation without one has no window, and choosing its `/Rect` would be authoring. That case is a reported no-op (`annotation_written`/`popup_written` both `false`, no undo entry), NOT a refusal, so a shell may pass a mixed selection without filtering by subtype. Read half: `Annotation::open`, an `Option<bool>` because absent and explicitly-`false` are different facts. |
+| **Write a note onto an existing annotation** | `set_markup_note(&mut self, annot_id: ObjId, note: &MarkupNote) -> Result<MarkupNoteChange, EditError>` | `Pass 154.0`. `/Contents`, and `/T`/`/M` only if the note carries them — a partial note does **not** clear the author. Reports the text it REPLACED. **`Pass 258.1`:** on a `/FreeText` it now also RE-BAKES `/AP` from the new words, in the same command (one undo entry) — that subtype's `/Contents` *is* what its appearance paints, so the edit used to leave the page showing the old text. `MarkupNoteChange::appearance_rebaked` says whether it moved; `false` on a sticky/stamp (their notes are not painted) and on a `/FreeText` whose appearance pdfcer did not author, which is left alone rather than replaced. |
+| **Open or close an annotation's pop-up window** | `set_annotation_open(&mut self, annot_id: ObjId, open: bool) -> Result<AnnotationOpenChange, EditError>` | `Pass 253.3`. Writes `/Open` on the annotation **and its `/Popup` companion**, one undo entry — Table 170 gives geometric markup no `/Open` of its own, so a square's window state lives only on the companion and writing one of the two would leave them disagreeing. Does **not** create a `/Popup`: an annotation without one has no window, and choosing its `/Rect` would be authoring. That case is a reported no-op (`annotation_written`/`popup_written` both `false`, no undo entry), NOT a refusal, so a shell may pass a mixed selection without filtering by subtype. Read half: `Annotation::open`, an `Option<bool>` because absent and explicitly-`false` are different facts. |
 | **Set an annotation's `/F` display flags** | `set_annotation_flags(&mut self, annot_id: ObjId, flags: AnnotFlags) -> Result<AnnotationFlagsChange, EditError>` | edit.rs | **`Pass 262.0`, 2026-09-08.** The WRITE half of `AnnotFlags`, which had **eight read accessors and no writer** — an operator could see a markup was hidden and not un-hide it, could see it would not print and not make it print, and **could not LOCK anything**, so pdfcer's own Locked gate was unreachable from pdfcer. Takes the **whole word**, not per-bit setters: Table 165's bits interact (`NoView` + `Print` = *prints but is not on screen*, a combination reached deliberately), so a per-bit API lets a caller build a state by a sequence of individually-sensible writes whose result is not. Read `Annotation::flags`, modify, write back. ⚠️ **Refuses a `/Widget` by name** — a widget's `/F` is `edit_widget`'s `Visibility`, a four-combination type that cannot express a contradictory pair, and two writers of one key with different vocabularies is how a field reaches a state its own editor cannot describe. ★ **A Locked annotation CAN still have its flags changed, including clearing Locked** — a lock undoable only outside the API that set it would be a one-way door; Table 165 protects content from casual edits, it does not seal a file. |
 | Field properties: justification, default value, no-export | `FieldEdit::{quadding, default_value, no_export}` | edit.rs | **`Pass 265.0`, 2026-09-08** — three properties the read model exposed with **no writer anywhere in the crate**. `/Q` (Table 233, 0 left / 1 centred / 2 right) and `/DV` (Table 228) are `Option<Option<T>>`: absent, set, or **removed**. Table 233 defaults `/Q` to left, so `Some(Some(0))` and `Some(None)` render identically and are different facts about the file — a round trip must preserve which it met. ★★ **`/DV` matters more than it looks:** `reset_form` reads it and removes `/V` where there is none, so with no writer **a reset could only restore defaults another application had authored** — a pdfcer-built form reset every field to empty whatever its author intended. `/DV`'s TYPE follows `/V`: a NAME for a `/Btn`, a text string elsewhere. **`FieldEdit::with_default_selections(items)`** (choice only) writes `/DV` as a selection: each item matched against `/Opt` by export then label and stored as the export value, an ARRAY on a MultiSelect field, a string otherwise; the later of it and `with_default_value` wins; an empty list removes `/DV`. Refused before writing: several items on a single-select (`ChoiceRequiresMultiSelect`), an unmatched item unless editable combo (`ChoiceValueNotInOptions`), a non-choice field (`FieldPropertyTypeMismatch`). CLI: `edit-field --default-selection OPTION` (repeatable). **Inheritance (`Pass 336.0`):** `/DV` and `/Ff` inherit (§12.7.3.1). Where an ancestor sets one, removing the kid's own key would expose the ancestor's value. So a cleared `/DV` is written as the empty value (`/Off` for a button, `()` otherwise), and `default_value` reads back as that. A cleared `/Ff` is written as `0`. `NO_EXPORT` (Table 226 bit 3) was **defined and referenced nowhere else in the workspace**. ⚠️ A `/Q` outside `0..=2` is **refused** (`EditError::QuaddingInvalid`) and validated before anything is written — clamping `7` to `2` would silently right-align a field the caller meant otherwise. CLI: `edit-field --quadding/--clear-quadding/--default-value/--clear-default-value/--no-export`. |
 | Field text: **font, size and colour** (`/DA`) | `FieldEdit::appearance: Option<FieldAppearance>` | edit.rs | **`Pass 268.0`, 2026-09-08** — the last and largest of the four readable-and-unwritable field properties. `Field::default_appearance` was readable since the forms layer shipped and **nothing wrote it**; the value pdfcer wrote at creation was **hard-coded `/Helv 0 Tf 0 g`**, so every field pdfcer authored was black Helvetica auto-sized with no way to say otherwise. ★★ **`/DA` names a font by a RESOURCE KEY that must resolve in `/AcroForm` `/DR` `/Font`, and a key that does not resolve DOES NOT FAIL LOUDLY** — the reader substitutes and the field looks normal. So the API splits by what pdfcer can promise: `FieldFont::Standard(Std14)` — pdfcer **authors** the resource under Acrobat's own short key (`Helv`, `TiRo`, `Cour`, `ZaDb`…), reusing an existing one, so it cannot fail for want of a resource; and `FieldFont::Resource(key)` — pdfcer only **checks**, refusing `EditError::FieldFontNotInResources` **and listing what is available**. `size` of `0.0` is Table 224's **auto-size** and is written as zero, never rounded. ⚠️ **Setting it REGENERATES the appearance** — writing `/DA` alone would leave the field claiming one face and drawing another. ⚠️ **Limit:** a `Resource` face is one pdfcer cannot measure, so auto-size metrics fall back to Helvetica while the name written is the caller's. Colour is the VALUE's glyphs; the box's fill and border are `WidgetEdit::{background, border_color}`. CLI: `edit-field --font/--font-resource/--font-size/--font-color`. |
 | Field: the four advisory flags and the export name | `FieldEdit::{file_select, no_spell_check, no_scroll, commit_on_sel_change, mapping_name}` | edit.rs | **`Pass 269.0`, 2026-09-08** — the residue. `Ff` bits 21 **FileSelect** (the value is a FILE PATH to submit — a submit hazard, disclosed by the existing scan; setting it changes what the field *is*, not what a submit does), 23 **DoNotSpellCheck**, 24 **DoNotScroll** (overflow is CLIPPED, not scrolled), 27 **CommitOnSelChange** (a `/Ch` commits on selection, not on blur). ★ **Three of the four had ZERO references outside `forms.rs`** — defined, documented and touched by nothing; `DO_NOT_SPELL_CHECK`'s own doc said *"nothing in pdfcer consumes this flag yet"*. `/TM` (Table 226) is the **mapping name an EXPORT keys on**, `Option<Option<String>>` so `Some(None)` removes it and the export reverts to the field's own name — not the same as an empty string, which would export as a blank key. ★ `/TM` is the one with consequences nobody sees by looking: it changes the exported payload and nothing on the page. CLI: `edit-field --file-select/--no-spell-check/--no-scroll/--commit-on-sel-change/--mapping-name/--clear-mapping-name`. **With these, every field property the 2026-09-08 form audit listed as readable-and-unwritable is writable**, except `/AA` and `/CO`, which are structural rather than properties. |
-| **Restyle a text-bearing annotation** | `set_text_annot_style(&mut self, annot_id: ObjId, style: &TextAnnotStyle) -> Result<TextAnnotStyleChange, EditError>` | 26290 | `Pass 253.2`. A sticky note's `/Name` icon and/or `/C` colour, keeping object identity. **`set_markup_style` cannot reach these subtypes** — it reads through `spec_from_dict`, which has no `/Text` arm — so before this the only route was delete-and-replace, losing `/M`, the object id and any reply. Regenerates `/AP` (R43). `icon` on anything but `/Text` is `StylePropertyNotApplicable`. Cannot CLEAR the colour: `TextAnnotSpec`'s variants all carry a REQUIRED `Color`, so "no colour" is not expressible and faking a fallback was refused. **★ `Pass 253.5` (`5d5fafb`, 2026-09-07) fixed two defects here, and one changes what you must read off the report.** (1) On a `/FreeText` the wrap is **measured**, not taken from `text_spec_from_dict` — that reader reports `multiline: false` ALWAYS (§12.5.6.6 gives the subtype no such key) and baking it back un-wrapped the box. Both re-bakers now call one helper. (2) `TextAnnotStyleChange::appearance_was_foreign: bool` is NEW — `true` means neither layout reproduced the `/AP` bytes, i.e. the appearance was somebody else's and this verb has just replaced it with pdfcer's plainer one. **Show it.** This verb cannot decline the re-bake (`R43`), so the disclosure is all the operator gets. `false` for every non-`/FreeText` subtype. (3) An icon `/Name` outside the seven now survives a colour change — `StickyIcon::Other(Vec<u8>)`, `from_name_lossless` for readers. **BREAKING at the same commit:** `StickyIcon` is no longer `Copy`; `name()` is `fn name(&self) -> &[u8]`, not `const fn name(self) -> &'static [u8]`. |
-| **Reply to a comment** | `add_reply(&mut self, parent_id: ObjId, note: &MarkupNote) -> Result<ReplyAdded, EditError>` | 26433 | `Pass 253.0`. A `/Text` carrying `/IRT parent` + `/RT /R`, the note keys and its own `/Popup`, on the parent's page at the parent's `/Rect`, in the parent's colour, arriving closed. `/RT /Group` is deliberately NOT authorable (§12.5.6.2's "shall be ignored" group-attribute rule is a different feature). Reports `parent_had_popup`/`reply_has_popup` — asked for by name, because a pop-up is structural and a shell that draws them should not meet a second window on a screenshot. |
-| **Set a review status** | `add_review_state(&mut self, target_id: ObjId, state: ReviewState, author: &str, modified: Option<&str>) -> Result<ReviewStateAdded, EditError>` | 26556 | `Pass 253.1`, §12.5.6.3. ★ The status is a **separate** `/Text` annotation referring back by `/IRT` — the target is untouched, and the standard says so with a `shall`. ★★ A second status **by the same author chains onto their previous one**, not onto the target; `attached_to`/`chain_depth` report it, because a star renders identically to a chain and nothing else would ever catch the wrong shape. `/State` and `/StateModel` are **text strings, not names**; the model is derived from the state so the one non-conforming pairing cannot be expressed. **No resolver** for which status is current — the standard says nothing about ordering, `/M` is optional and empirically ties, so shipping none is spec-correct rather than a scope cut. |
-| **Import a text file as pages** | `place_text(&mut self, text: &str, template: &text_edit::PageTemplate, position: pageops::InsertPosition) -> Result<text_edit::PlaceTextReport, text_edit::PlaceTextError>` | 11017 | `Pass 252.0`. Paginates a `&str` into as many pages as it needs and places it, as **ONE undo entry** (`insert_pages` + N boxed `add_text`, folded by `coalesce_last`; `coalesced: false` and a real `undo_entries` if an import exceeds the undo depth). `text_edit::blank_document` is the primitive that made it possible — **nothing in the crate could CREATE a page before, only copy one**. Refuses by name rather than dropping: unmappable characters (naming every one with counts; `Unmappable::Drop` is an explicit opt-in that reports each lost code point), empty input, a column too short for one line. U+000C is a hard page break, matching `extract-text`'s own separator so the round trip keeps its pagination. `PlaceTextReport` carries 23 fields including `box_overflow_lines`, a self-check that must be 0. |
+| **Restyle a text-bearing annotation** | `set_text_annot_style(&mut self, annot_id: ObjId, style: &TextAnnotStyle) -> Result<TextAnnotStyleChange, EditError>` | `Pass 253.2`. A sticky note's `/Name` icon and/or `/C` colour, keeping object identity. **`set_markup_style` cannot reach these subtypes** — it reads through `spec_from_dict`, which has no `/Text` arm — so before this the only route was delete-and-replace, losing `/M`, the object id and any reply. Regenerates `/AP` (R43). `icon` on anything but `/Text` is `StylePropertyNotApplicable`. Cannot CLEAR the colour: `TextAnnotSpec`'s variants all carry a REQUIRED `Color`, so "no colour" is not expressible and faking a fallback was refused. **★ `Pass 253.5` (`5d5fafb`, 2026-09-07) fixed two defects here, and one changes what you must read off the report.** (1) On a `/FreeText` the wrap is **measured**, not taken from `text_spec_from_dict` — that reader reports `multiline: false` ALWAYS (§12.5.6.6 gives the subtype no such key) and baking it back un-wrapped the box. Both re-bakers now call one helper. (2) `TextAnnotStyleChange::appearance_was_foreign: bool` is NEW — `true` means neither layout reproduced the `/AP` bytes, i.e. the appearance was somebody else's and this verb has just replaced it with pdfcer's plainer one. **Show it.** This verb cannot decline the re-bake (`R43`), so the disclosure is all the operator gets. `false` for every non-`/FreeText` subtype. (3) An icon `/Name` outside the seven now survives a colour change — `StickyIcon::Other(Vec<u8>)`, `from_name_lossless` for readers. **BREAKING at the same commit:** `StickyIcon` is no longer `Copy`; `name()` is `fn name(&self) -> &[u8]`, not `const fn name(self) -> &'static [u8]`. |
+| **Reply to a comment** | `add_reply(&mut self, parent_id: ObjId, note: &MarkupNote) -> Result<ReplyAdded, EditError>` | `Pass 253.0`. A `/Text` carrying `/IRT parent` + `/RT /R`, the note keys and its own `/Popup`, on the parent's page at the parent's `/Rect`, in the parent's colour, arriving closed. `/RT /Group` is deliberately NOT authorable (§12.5.6.2's "shall be ignored" group-attribute rule is a different feature). Reports `parent_had_popup`/`reply_has_popup` — asked for by name, because a pop-up is structural and a shell that draws them should not meet a second window on a screenshot. |
+| **Set a review status** | `add_review_state(&mut self, target_id: ObjId, state: ReviewState, author: &str, modified: Option<&str>) -> Result<ReviewStateAdded, EditError>` | `Pass 253.1`, §12.5.6.3. ★ The status is a **separate** `/Text` annotation referring back by `/IRT` — the target is untouched, and the standard says so with a `shall`. ★★ A second status **by the same author chains onto their previous one**, not onto the target; `attached_to`/`chain_depth` report it, because a star renders identically to a chain and nothing else would ever catch the wrong shape. `/State` and `/StateModel` are **text strings, not names**; the model is derived from the state so the one non-conforming pairing cannot be expressed. **No resolver** for which status is current — the standard says nothing about ordering, `/M` is optional and empirically ties, so shipping none is spec-correct rather than a scope cut. |
+| **Import a text file as pages** | `place_text(&mut self, text: &str, template: &text_edit::PageTemplate, position: pageops::InsertPosition) -> Result<text_edit::PlaceTextReport, text_edit::PlaceTextError>` | `Pass 252.0`. Paginates a `&str` into as many pages as it needs and places it, as **ONE undo entry** (`insert_pages` + N boxed `add_text`, folded by `coalesce_last`; `coalesced: false` and a real `undo_entries` if an import exceeds the undo depth). `text_edit::blank_document` is the primitive that made it possible — **nothing in the crate could CREATE a page before, only copy one**. Refuses by name rather than dropping: unmappable characters (naming every one with counts; `Unmappable::Drop` is an explicit opt-in that reports each lost code point), empty input, a column too short for one line. U+000C is a hard page break, matching `extract-text`'s own separator so the round trip keeps its pagination. `PlaceTextReport` carries 23 fields including `box_overflow_lines`, a self-check that must be 0. |
 | **Remove a note** | `clear_markup_note(&mut self, annot_id: ObjId) -> Result<MarkupNoteChange, EditError>` | — | `Pass 154.0`. Removes `/Contents`, `/T`, `/M`. A distinct act from an empty note; the shape stays. |
-| Set the `/QuadPoints` corner order | `set_quad_point_order(&mut self, order: QuadPointOrder)` | 5476 | ⚠️ **Session state, not a per-call argument.** Governs what is AUTHORED from now on; does **not** sweep the document. ~~*"decision 062 fixes markup authoring at one entry point, so an `add_markup_with` would be a second"*~~ — **corrected 2026-08-27**: `add_markup_with` now exists and is **not** a second entry point (see §1.15.1). The ruling stands on its own ground: quad order is a **document-wide convention**, so a per-call argument would let two annotations in one file disagree about what UL/UR/LL/LR means, which is the divergence `Pass 62.x` exists to prevent. |
-| Read it back | `quad_point_order(&self) -> QuadPointOrder` | 5482 | Defaults to `ReadingOrder` — what Acrobat, PDFBox and pdf.js emit and expect. |
+| Set the `/QuadPoints` corner order | `set_quad_point_order(&mut self, order: QuadPointOrder)` | ⚠️ **Session state, not a per-call argument.** Governs what is AUTHORED from now on; does **not** sweep the document. ~~*"decision 062 fixes markup authoring at one entry point, so an `add_markup_with` would be a second"*~~ — **corrected 2026-08-27**: `add_markup_with` now exists and is **not** a second entry point (see §1.15.1). The ruling stands on its own ground: quad order is a **document-wide convention**, so a per-call argument would let two annotations in one file disagree about what UL/UR/LL/LR means, which is the divergence `Pass 62.x` exists to prevent. |
+| Read it back | `quad_point_order(&self) -> QuadPointOrder` | Defaults to `ReadingOrder` — what Acrobat, PDFBox and pdf.js emit and expect. |
 
 #### ★★ `MarkupNote` — note text on markup, and pdfcer does NOT read a clock (`Pass 150.0`)
 
@@ -2498,39 +2498,39 @@ rather than pushed onto every consumer as an unconstructable type.
 
 ### 1.16 Search-driven redaction marking (5)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Mark every literal occurrence | `mark_redactions_by_search(&mut self, query, case_insensitive) -> Result<Vec<ObjId>, EditError>` | 11512 | Created mark ids. **Matches LITERALLY.** |
-| …with full options | `mark_redactions_by_search_with(&mut self, query, &TextSearchOptions) -> Result<Vec<ObjId>, EditError>` | 11556 | |
-| …**and hear what the scan could not read** | `search_and_mark_redactions(&mut self, query, &TextSearchOptions) -> Result<RedactionMarking, EditError>` | 16199 | ✅★★ **Use this for any operator-facing redaction.** `created.is_empty()` cannot distinguish “the term is absent” from “this document's text was never recoverable as Unicode” — and on a redaction path those demand opposite reactions. Read `diagnostics.ladder_failures`, `.type3_fonts_without_to_unicode`, `.identity_fonts_without_to_unicode`. `Pass 127.1`. |
-| …with an explicit mark appearance | `search_and_mark_redactions_styled(&mut self, query, &TextSearchOptions, &RedactAppearance)` | 16217 | Same, plus the fill / overlay text / quadding the operator chose. |
-| …**and hear what the scan could not read** (pattern) | `search_and_mark_redactions_by_pattern(&mut self, pattern, case_insensitive) -> Result<RedactionMarking, EditError>` | 3200 | ✅★★ **Use this for any operator-facing PATTERN redaction.** The pattern route is the MORE exposed of the two, not the less: what an operator reaches for wildcards for is the structured confidential material — account numbers, part numbers, phone numbers, revision stamps. `Pass 296.3`. |
-| …with an explicit mark appearance | `search_and_mark_redactions_by_pattern_styled(&mut self, pattern, case_insensitive, &RedactAppearance) -> Result<RedactionMarking, EditError>` | 900 | The verb the other three pattern entry points delegate to. `Pass 296.3`. |
-| Mark by simple pattern | `mark_redactions_by_pattern(&mut self, pattern, case_insensitive) -> Result<Vec<ObjId>, EditError>` | 11584 | `#` = ASCII digit, `?` = any char, everything else literal. `###-##-####` ⇒ SSN-shaped runs. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Mark every literal occurrence | `mark_redactions_by_search(&mut self, query, case_insensitive) -> Result<Vec<ObjId>, EditError>` | Created mark ids. **Matches LITERALLY.** |
+| …with full options | `mark_redactions_by_search_with(&mut self, query, &TextSearchOptions) -> Result<Vec<ObjId>, EditError>` | |
+| …**and hear what the scan could not read** | `search_and_mark_redactions(&mut self, query, &TextSearchOptions) -> Result<RedactionMarking, EditError>` | ✅★★ **Use this for any operator-facing redaction.** `created.is_empty()` cannot distinguish “the term is absent” from “this document's text was never recoverable as Unicode” — and on a redaction path those demand opposite reactions. Read `diagnostics.ladder_failures`, `.type3_fonts_without_to_unicode`, `.identity_fonts_without_to_unicode`. `Pass 127.1`. |
+| …with an explicit mark appearance | `search_and_mark_redactions_styled(&mut self, query, &TextSearchOptions, &RedactAppearance)` | Same, plus the fill / overlay text / quadding the operator chose. |
+| …**and hear what the scan could not read** (pattern) | `search_and_mark_redactions_by_pattern(&mut self, pattern, case_insensitive) -> Result<RedactionMarking, EditError>` | ✅★★ **Use this for any operator-facing PATTERN redaction.** The pattern route is the MORE exposed of the two, not the less: what an operator reaches for wildcards for is the structured confidential material — account numbers, part numbers, phone numbers, revision stamps. `Pass 296.3`. |
+| …with an explicit mark appearance | `search_and_mark_redactions_by_pattern_styled(&mut self, pattern, case_insensitive, &RedactAppearance) -> Result<RedactionMarking, EditError>` | The verb the other three pattern entry points delegate to. `Pass 296.3`. |
+| Mark by simple pattern | `mark_redactions_by_pattern(&mut self, pattern, case_insensitive) -> Result<Vec<ObjId>, EditError>` | `#` = ASCII digit, `?` = any char, everything else literal. `###-##-####` ⇒ SSN-shaped runs. |
 
-| Mark by search, choosing the mark's appearance | `mark_redactions_by_search_styled(&mut self, query: &str, options: &TextSearchOptions, appearance: &annot_author::RedactAppearance) -> Result<Vec<ObjId>, EditError>` | 13201 | Ids of the marks created. |
-| Mark by regex, choosing the mark's appearance | `mark_redactions_by_pattern_styled(&mut self, pattern: &str, case_insensitive: bool, appearance: &annot_author::RedactAppearance) -> Result<Vec<ObjId>, EditError>` | 13254 | |
+| Mark by search, choosing the mark's appearance | `mark_redactions_by_search_styled(&mut self, query: &str, options: &TextSearchOptions, appearance: &annot_author::RedactAppearance) -> Result<Vec<ObjId>, EditError>` | Ids of the marks created. |
+| Mark by regex, choosing the mark's appearance | `mark_redactions_by_pattern_styled(&mut self, pattern: &str, case_insensitive: bool, appearance: &annot_author::RedactAppearance) -> Result<Vec<ObjId>, EditError>` | |
 
 ### 1.17 Text search (2)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Find text (legacy shape) | `find_text(&mut self, needle, case_insensitive) -> Vec<TextMatch>` | 11792 | ⚠️ Hard-codes `with_wildcards(true)`. **Not what a Find bar wants.** |
-| Find text with options | `find_text_with(&mut self, needle, &TextSearchOptions) -> Vec<TextMatch>` | 11853 | ✅ Use this. `TextSearchOptions::wildcards` defaults to `false`. |
-| Search text **and hear what it could not read** | `search_text(&mut self, needle, &TextSearchOptions) -> TextSearch` | 16450 | ✅★ **Prefer this over `find_text_with` for any operator-facing search.** Returns `TextSearch { matches, diagnostics }` — the same hits, plus the extraction's `TextDiagnostics`. `matches.is_empty()` alone cannot tell *“the needle is absent”* from *“this document's text was never recoverable as Unicode”*; `diagnostics.type3_fonts_without_to_unicode`, `.identity_fonts_without_to_unicode` and `.ladder_failures` can. `Pass 127.0`. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Find text (legacy shape) | `find_text(&mut self, needle, case_insensitive) -> Vec<TextMatch>` | ⚠️ Hard-codes `with_wildcards(true)`. **Not what a Find bar wants.** |
+| Find text with options | `find_text_with(&mut self, needle, &TextSearchOptions) -> Vec<TextMatch>` | ✅ Use this. `TextSearchOptions::wildcards` defaults to `false`. |
+| Search text **and hear what it could not read** | `search_text(&mut self, needle, &TextSearchOptions) -> TextSearch` | ✅★ **Prefer this over `find_text_with` for any operator-facing search.** Returns `TextSearch { matches, diagnostics }` — the same hits, plus the extraction's `TextDiagnostics`. `matches.is_empty()` alone cannot tell *“the needle is absent”* from *“this document's text was never recoverable as Unicode”*; `diagnostics.type3_fonts_without_to_unicode`, `.identity_fonts_without_to_unicode` and `.ladder_failures` can. `Pass 127.0`. |
 
 Both take `&mut self` despite changing nothing (they read `self.view()`).
-`TextMatch` = `{ page_index, quad: Quad, text: String }` (`edit.rs:6080`).
+`TextMatch` = `{ page_index, quad: Quad, text: String }` (`edit.rs`).
 
 ### 1.18 Attachments (2)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Embed a file | `attach_file(&mut self, name, bytes, description: Option<&str>) -> Result<ObjId, EditError>` | 10147 | §7.11.4.1 route 2 (`/EmbeddedFiles` name tree). ONE undo entry. |
-| Remove an attachment | `detach_file(&mut self, key: &[u8]) -> Result<(), EditError>` | 10347 | By name-tree key. ⚠️ **Not a redaction verb** — see §5.4. ⚠️ **Refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** when the name-tree value (the filespec) is a page or page-tree node — a filespec's declared type is a *dictionary*, so a type test cannot distinguish it from a page and the structural guard is the one that applies. ✅ **Its `/EF` `/F` and `/UF` are COLLATERAL and are FILTERED** (§7.11.4 Table 45 defines both as embedded-file **streams**): a malformed `/EF` must not make the attachment permanently undetachable, so the call returns `Ok` and leaves the wrong-kinded pointee alone. §6.8. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Embed a file | `attach_file(&mut self, name, bytes, description: Option<&str>) -> Result<ObjId, EditError>` | §7.11.4.1 route 2 (`/EmbeddedFiles` name tree). ONE undo entry. |
+| Remove an attachment | `detach_file(&mut self, key: &[u8]) -> Result<(), EditError>` | By name-tree key. ⚠️ **Not a redaction verb** — see §5.4. ⚠️ **Refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** when the name-tree value (the filespec) is a page or page-tree node — a filespec's declared type is a *dictionary*, so a type test cannot distinguish it from a page and the structural guard is the one that applies. ✅ **Its `/EF` `/F` and `/UF` are COLLATERAL and are FILTERED** (§7.11.4 Table 45 defines both as embedded-file **streams**): a malformed `/EF` must not make the attachment permanently undetachable, so the call returns `Ok` and leaves the wrong-kinded pointee alone. §6.8. |
 
-`AttachmentTreeUnsupported` (`edit.rs:2374`) is a refused name-tree shape;
-`AttachmentNotFound` (`edit.rs:2386`) is an unknown key.
+`AttachmentTreeUnsupported` (`edit.rs`) is a refused name-tree shape;
+`AttachmentNotFound` (`edit.rs`) is an unknown key.
 
 ### 1.19 Outline / bookmarks (1)
 
@@ -3670,47 +3670,47 @@ constructed, then committed, under one `&mut`.
 > scale, format or unit — which is why the members question has no quiet
 > default and the deletion refuses rather than orphaning them.
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Read the sidecar model | `dimension_model(&self) -> DimensionModel` | 15361 | Overlay-aware; a fresh model if none stored. |
-| Author a ce dimension | `add_dimension(&mut self, page_index, group: GroupId, kind: DimensionKind) -> Result<(ObjId, DimensionId), EditError>` | 15380 | Annotation id + model id. ONE undo entry. ⚠️ **Refuses an unknown `group` since `Pass 178.1`** — it used to author into the DEFAULT group silently and return success, and the group carries the scale, so the ce dimension was measured at a scale nobody chose. |
-| Create a group | `add_dimension_group(&mut self, name, unit: Unit) -> Result<GroupId, EditError>` | 15523 | Scale-never-set, visible, OCG allocated lazily. |
-| Set a group's scale + number format | `set_group_scale(&mut self, group, scale: ScaleState, format: NumberFormat) -> Result<usize, EditError>` | 15549 | **Count of members regenerated.** ⚠️ **Refuses an unknown `group` since `Pass 178.2`** — it used to return `Ok` and change nothing. ⚠️ **Can also return `CarrierIsNotAStream` (`Pass 191.1`)** — it regenerates through the shared path that overwrites each member's attacker-supplied sidecar `/Ap` wholesale. §6.8. |
-| Toggle a group's layer | `toggle_dimension_layer(&mut self, group, visible) -> Result<bool, EditError>` | 15600 | Resulting visibility. The default group is un-hideable. |
-| **The page's vector objects, memoised** | `page_objects(&mut self, page_index) -> Result<Arc<PageObjects>, EditError>` | 11400 | ⚡ **Use this instead of `vector::decompose_page`** (`Pass 181.0`). The editing verbs share the same cache, so a shell that decomposes to get object indices does not pay for the identical parse again inside `move_objects` — measured **385 ms → 0 ms** on a 130k-object CAD page. `&mut self` because populating a cache is a mutation; see below. |
-| **Has this page's model changed?** | `page_content_generation(&mut self, page_index) -> Result<u64, EditError>` | 11700 | ⚡ A cheap `u64` that moves whenever the page's drawable content does — the FNV-1a digest of the key `page_objects` memoises on (page id + every `/Contents` entry with its staged span + the effective `/Resources`) **plus the descended-form set**. Compare two of these instead of decomposing twice. **Session-local and not a content digest** — see the box below. ⚠️ **`&self` → `&mut self` at `Pass 197.0`**: it must run the memoised walk, because which forms a page reaches is an *output* of that walk. Before that it published the key alone and an edit INSIDE a form left it unchanged. `Pass 186.0`, amended `Pass 197.0`. |
-| Hit-test ce dimensions on a page | `dimension_rects(&self, page_index) -> Vec<(DimensionId, [f64;4])>` | 15645 | `[llx, lly, urx, ury]` page space. |
-| List groups present on a page | `dimension_groups_on_page(&self, page_index) -> Vec<GroupId>` | 15725 | Model order. |
-| **Drag** a ce dimension | `place_dimension(&mut self, dimension, offset: f64, text_along: f64) -> Result<(), EditError>` | 15804 | ✅ **This, not `move_dimension`, is what dragging does.** Value-preserving by construction. |
-| Toggle radius ↔ diameter | `set_dimension_display(&mut self, dimension, show_diameter: bool) -> Result<(), EditError>` | 15921 | ⚠️ **Commits even when nothing changes** (opposite of `set_info_field`). |
-| Set a group's drafting standard | `set_group_standard(&mut self, group, standard: DimStandard) -> Result<usize, EditError>` | 15983 | Count of members regenerated. |
-| Set a group's style defaults | `set_group_style(&mut self, group, style: GroupStyle) -> Result<usize, EditError>` | 16052 | ⚠️ **Count REGENERATED, not count MOVED.** See §8, trap T-00. |
-| Set one ce dimension's overrides | `set_dimension_style(&mut self, dimension, style: StyleOverrides) -> Result<usize, EditError>` | 16115 | ⚠️ Count of **properties overridden afterwards** — a different unit from the sibling above, same type. |
-| **Override / restore one ce dimension's TEXT** | `set_dimension_label(&mut self, dimension, label: Option<&str>) -> Result<DimensionLabelChange, EditError>` | 29734 | ✅ **`Some` overrides, `None` restores the measurement exactly** — the measured value is SHADOWED, never replaced, and survives in the sidecar. `<DIM>` in the text is substituted with the measured caption at bake time, so `"2X <DIM> TYP"` keeps tracking the geometry. ⚠️ **0 undo entries on a no-op** (a third granularity exception — see §3.4). Refuses empty, >128 chars, or any character outside `WinAnsiEncoding`. ⚠️★ **Can now also return `CarrierIsNotAStream` (`Pass 191.1`)** — this verb re-bakes the appearance through the shared regenerate path, which **overwrites the sidecar's `/Ap` object wholesale**, and the sidecar is attacker-writable. **A sidecar naming the page-tree root turned this label edit into page-tree destruction.** Refused rather than filtered: skipping would leave the operator seeing a label change that did not happen. Unreachable on a well-formed document — present it as a corrupt-file diagnostic. §6.8. |
-| Delete a ce dimension | `delete_dimension(&mut self, dimension) -> Result<(), EditError>` | 16178 | `/Annots` ref + dict + `/AP` + sidecar record. Group survives. ⚠️ **Both sidecar ids are now guarded (`Pass 191.1`), and the two halves answer differently.** The `/PieceInfo` sidecar is attacker-writable — `check_dimension_sidecar` compares a **version integer and nothing else** — so `/Annot` and `/Ap` are ids a hostile file chose. `/Annot` is the **TARGET** ⇒ **refused** with `FieldObjectIsInPageTree`; `/Ap` is **COLLATERAL** ⇒ ✅ **FILTERED, still `Ok`** (a poisoned sidecar must not make the ce dimension permanently undeletable). Guarded inside this verb because `delete_annotation` guards before *routing* here while the GUI and the CLI call it **directly**. §6.8. |
-| **Translate** a ce dimension | `move_dimension(&mut self, dimension, dx, dy) -> Result<(), EditError>` | 16779 | ⚠️ Translates the **measured points** — takes the ce dimension off the feature it was measuring. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Read the sidecar model | `dimension_model(&self) -> DimensionModel` | Overlay-aware; a fresh model if none stored. |
+| Author a ce dimension | `add_dimension(&mut self, page_index, group: GroupId, kind: DimensionKind) -> Result<(ObjId, DimensionId), EditError>` | Annotation id + model id. ONE undo entry. ⚠️ **Refuses an unknown `group` since `Pass 178.1`** — it used to author into the DEFAULT group silently and return success, and the group carries the scale, so the ce dimension was measured at a scale nobody chose. |
+| Create a group | `add_dimension_group(&mut self, name, unit: Unit) -> Result<GroupId, EditError>` | Scale-never-set, visible, OCG allocated lazily. |
+| Set a group's scale + number format | `set_group_scale(&mut self, group, scale: ScaleState, format: NumberFormat) -> Result<usize, EditError>` | **Count of members regenerated.** ⚠️ **Refuses an unknown `group` since `Pass 178.2`** — it used to return `Ok` and change nothing. ⚠️ **Can also return `CarrierIsNotAStream` (`Pass 191.1`)** — it regenerates through the shared path that overwrites each member's attacker-supplied sidecar `/Ap` wholesale. §6.8. |
+| Toggle a group's layer | `toggle_dimension_layer(&mut self, group, visible) -> Result<bool, EditError>` | Resulting visibility. The default group is un-hideable. |
+| **The page's vector objects, memoised** | `page_objects(&mut self, page_index) -> Result<Arc<PageObjects>, EditError>` | ⚡ **Use this instead of `vector::decompose_page`** (`Pass 181.0`). The editing verbs share the same cache, so a shell that decomposes to get object indices does not pay for the identical parse again inside `move_objects` — measured **385 ms → 0 ms** on a 130k-object CAD page. `&mut self` because populating a cache is a mutation; see below. |
+| **Has this page's model changed?** | `page_content_generation(&mut self, page_index) -> Result<u64, EditError>` | ⚡ A cheap `u64` that moves whenever the page's drawable content does — the FNV-1a digest of the key `page_objects` memoises on (page id + every `/Contents` entry with its staged span + the effective `/Resources`) **plus the descended-form set**. Compare two of these instead of decomposing twice. **Session-local and not a content digest** — see the box below. ⚠️ **`&self` → `&mut self` at `Pass 197.0`**: it must run the memoised walk, because which forms a page reaches is an *output* of that walk. Before that it published the key alone and an edit INSIDE a form left it unchanged. `Pass 186.0`, amended `Pass 197.0`. |
+| Hit-test ce dimensions on a page | `dimension_rects(&self, page_index) -> Vec<(DimensionId, [f64;4])>` | `[llx, lly, urx, ury]` page space. |
+| List groups present on a page | `dimension_groups_on_page(&self, page_index) -> Vec<GroupId>` | Model order. |
+| **Drag** a ce dimension | `place_dimension(&mut self, dimension, offset: f64, text_along: f64) -> Result<(), EditError>` | ✅ **This, not `move_dimension`, is what dragging does.** Value-preserving by construction. |
+| Toggle radius ↔ diameter | `set_dimension_display(&mut self, dimension, show_diameter: bool) -> Result<(), EditError>` | ⚠️ **Commits even when nothing changes** (opposite of `set_info_field`). |
+| Set a group's drafting standard | `set_group_standard(&mut self, group, standard: DimStandard) -> Result<usize, EditError>` | Count of members regenerated. |
+| Set a group's style defaults | `set_group_style(&mut self, group, style: GroupStyle) -> Result<usize, EditError>` | ⚠️ **Count REGENERATED, not count MOVED.** See §8, trap T-00. |
+| Set one ce dimension's overrides | `set_dimension_style(&mut self, dimension, style: StyleOverrides) -> Result<usize, EditError>` | ⚠️ Count of **properties overridden afterwards** — a different unit from the sibling above, same type. |
+| **Override / restore one ce dimension's TEXT** | `set_dimension_label(&mut self, dimension, label: Option<&str>) -> Result<DimensionLabelChange, EditError>` | ✅ **`Some` overrides, `None` restores the measurement exactly** — the measured value is SHADOWED, never replaced, and survives in the sidecar. `<DIM>` in the text is substituted with the measured caption at bake time, so `"2X <DIM> TYP"` keeps tracking the geometry. ⚠️ **0 undo entries on a no-op** (a third granularity exception — see §3.4). Refuses empty, >128 chars, or any character outside `WinAnsiEncoding`. ⚠️★ **Can now also return `CarrierIsNotAStream` (`Pass 191.1`)** — this verb re-bakes the appearance through the shared regenerate path, which **overwrites the sidecar's `/Ap` object wholesale**, and the sidecar is attacker-writable. **A sidecar naming the page-tree root turned this label edit into page-tree destruction.** Refused rather than filtered: skipping would leave the operator seeing a label change that did not happen. Unreachable on a well-formed document — present it as a corrupt-file diagnostic. §6.8. |
+| Delete a ce dimension | `delete_dimension(&mut self, dimension) -> Result<(), EditError>` | `/Annots` ref + dict + `/AP` + sidecar record. Group survives. ⚠️ **Both sidecar ids are now guarded (`Pass 191.1`), and the two halves answer differently.** The `/PieceInfo` sidecar is attacker-writable — `check_dimension_sidecar` compares a **version integer and nothing else** — so `/Annot` and `/Ap` are ids a hostile file chose. `/Annot` is the **TARGET** ⇒ **refused** with `FieldObjectIsInPageTree`; `/Ap` is **COLLATERAL** ⇒ ✅ **FILTERED, still `Ok`** (a poisoned sidecar must not make the ce dimension permanently undeletable). Guarded inside this verb because `delete_annotation` guards before *routing* here while the GUI and the CLI call it **directly**. §6.8. |
+| **Translate** a ce dimension | `move_dimension(&mut self, dimension, dx, dy) -> Result<(), EditError>` | ⚠️ Translates the **measured points** — takes the ce dimension off the feature it was measuring. |
 
-| **Move one vertex** of a ce dimension | `move_dimension_vertex(&mut self, dimension, index: usize, dx, dy) -> Result<VertexOutcome, EditError>` | 22304 | ⚠️ **The ONLY ce-dimension verb that deliberately RE-MEASURES.** Works on a perimeter at any index and on a linear at 0/1. Cannot refuse for a shape reason, so a drag preview may always be drawn. |
-| Insert a vertex into a perimeter | `insert_dimension_vertex(&mut self, dimension, after: usize, at: Point) -> Result<VertexOutcome, EditError>` | 22339 | `after == len-1` splits the **closing** segment of a closed shape, or extends an open path. Refused on a linear ce dimension (structurally two points). |
-| Remove a vertex from a perimeter | `remove_dimension_vertex(&mut self, dimension, index: usize) -> Result<VertexOutcome, EditError>` | 22367 | Refuses below **2** vertices (open) or **3** (closed) — pdfcer policy, not a spec rule. |
-| Preflight a vertex edit | `vertex_edit_preview(&self, dimension, edit: VertexEdit) -> Result<VertexOutcome, EditError>` | 22399 | ✅ **Load-bearing** — shares one body with the three verbs above. `.err()` **is** the refusal predicate; there is deliberately no second one. |
+| **Move one vertex** of a ce dimension | `move_dimension_vertex(&mut self, dimension, index: usize, dx, dy) -> Result<VertexOutcome, EditError>` | ⚠️ **The ONLY ce-dimension verb that deliberately RE-MEASURES.** Works on a perimeter at any index and on a linear at 0/1. Cannot refuse for a shape reason, so a drag preview may always be drawn. |
+| Insert a vertex into a perimeter | `insert_dimension_vertex(&mut self, dimension, after: usize, at: Point) -> Result<VertexOutcome, EditError>` | `after == len-1` splits the **closing** segment of a closed shape, or extends an open path. Refused on a linear ce dimension (structurally two points). |
+| Remove a vertex from a perimeter | `remove_dimension_vertex(&mut self, dimension, index: usize) -> Result<VertexOutcome, EditError>` | Refuses below **2** vertices (open) or **3** (closed) — pdfcer policy, not a spec rule. |
+| Preflight a vertex edit | `vertex_edit_preview(&self, dimension, edit: VertexEdit) -> Result<VertexOutcome, EditError>` | ✅ **Load-bearing** — shares one body with the three verbs above. `.err()` **is** the refusal predicate; there is deliberately no second one. |
 
 ### 1.23 Fonts (6)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Preview an unembed | `unembed_preview(&self, &UnembedRequest) -> UnembedPlan` | 16278 | Pure. `bytes_reclaimable` is **vacuous under incremental save**. |
-| Ask whether unembedding is refused | `unembed_refusal(&self) -> Option<EditError>` | 16303 | ✅ **Load-bearing** — the verb calls it. |
-| Remove embedded font programs | `unembed_fonts(&mut self, &UnembedRequest) -> Result<UnembedPlan, EditError>` | 16373 | ONE undo entry however many fonts. ⚠️ **Bytes are reclaimed by a FULL REWRITE, not by this call.** ✅ **`/FontDescriptor` `/CIDSet` is now FILTERED, not refused (`Pass 191.1`)** — §9.7.4.2 Table 117 defines it as a **stream**, and a descriptor pointing it at a page could take the page with the font program. Its `/FontFile*` sibling was always guarded; `/CIDSet` was never routed through the same test. **This adds no error case** — the call still returns `Ok` and `UnembedPlan`'s counts simply omit the object pdfcer declined to free. §6.8. |
-| Preview an embed | `embed_preview(&self, &EmbedRequest) -> EmbedPlan` | 16530 | Pure. |
-| Ask whether embedding is refused | `embed_refusal(&self) -> Option<EditError>` | 16553 | ✅ Load-bearing. |
-| Add missing font programs | `embed_fonts(&mut self, &EmbedRequest) -> Result<EmbedPlan, EditError>` | 16625 | ONE undo entry. **The file gets bigger, and the save mode does not change that.** |
+| I want to… | Call | Returns |
+|---|---|---|
+| Preview an unembed | `unembed_preview(&self, &UnembedRequest) -> UnembedPlan` | Pure. `bytes_reclaimable` is **vacuous under incremental save**. |
+| Ask whether unembedding is refused | `unembed_refusal(&self) -> Option<EditError>` | ✅ **Load-bearing** — the verb calls it. |
+| Remove embedded font programs | `unembed_fonts(&mut self, &UnembedRequest) -> Result<UnembedPlan, EditError>` | ONE undo entry however many fonts. ⚠️ **Bytes are reclaimed by a FULL REWRITE, not by this call.** ✅ **`/FontDescriptor` `/CIDSet` is now FILTERED, not refused (`Pass 191.1`)** — §9.7.4.2 Table 117 defines it as a **stream**, and a descriptor pointing it at a page could take the page with the font program. Its `/FontFile*` sibling was always guarded; `/CIDSet` was never routed through the same test. **This adds no error case** — the call still returns `Ok` and `UnembedPlan`'s counts simply omit the object pdfcer declined to free. §6.8. |
+| Preview an embed | `embed_preview(&self, &EmbedRequest) -> EmbedPlan` | Pure. |
+| Ask whether embedding is refused | `embed_refusal(&self) -> Option<EditError>` | ✅ Load-bearing. |
+| Add missing font programs | `embed_fonts(&mut self, &EmbedRequest) -> Result<EmbedPlan, EditError>` | ONE undo entry. **The file gets bigger, and the save mode does not change that.** |
 
 ### 1.24 Images (1 session verb + 3 pure previews on `NewImage`)
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| Place a raster image | `add_image(&mut self, spec: &NewImage<'_>) -> Result<ImageAuthorOutcome, EditError>` | 17437 | `{ image_id, soft_mask_id, content_id, resource_name, placed_rect, disclosures }`. Image XObject + optional `/SMask` + `q…cm…Do…Q` overlay stream + page patches, ONE undo entry. Additive — originals stay byte-verbatim. |
+| I want to… | Call | Returns |
+|---|---|---|
+| Place a raster image | `add_image(&mut self, spec: &NewImage<'_>) -> Result<ImageAuthorOutcome, EditError>` | `{ image_id, soft_mask_id, content_id, resource_name, placed_rect, disclosures }`. Image XObject + optional `/SMask` + `q…cm…Do…Q` overlay stream + page patches, ONE undo entry. Additive — originals stay byte-verbatim. |
 
 #### ★ The pure preview trio on `NewImage` — call these, do not re-derive them
 
@@ -3750,26 +3750,26 @@ them.
 
 Grep target for "what does this return actually contain".
 
-| Struct | Line | Public fields |
-|---|---|---|
-| `FieldAuthorOutcome` | 990 | `field_id: ObjId`, `merged: bool`, `disclosures: FieldAuthorDisclosures` |
-| `DeleteOutcome` | 5594 | `pages_removed`, `objects_freed`, `dangling: DanglingReport`, `separations: SeparationImpact`, `signature: SignatureImpact` |
-| `ResetPreviewRow` | 5677 | `field: String`, `current: String`, `target: String`, `would_remove: bool`, `would_change: bool`, `ineligible: Option<ResetIneligible>` |
-| `ResetOutcome` | 5707 | `fields_reset`, `values_defaulted`, `values_removed`, `widgets_updated`, `skipped_pushbuttons`, `skipped_signatures`, `skipped_read_only`, **`layout: LayoutDisclosure`** |
-| `LayoutDisclosure` | — | `applied_autosize: Option<f64>`, `applied_autosize_bound`, `da_colour_unmodelled`, `unencodable_chars` — what a text/choice appearance redrawn **as a side effect** decided (rule 4). Carried as `layout` by `ResetOutcome`, `FieldEditOutcome`, `WidgetEditOutcome` and `WidgetRotation`; all default when nothing text-shaped was redrawn. **Show it** as `RegenOutcome`'s same fields. Those four outcomes no longer derive `Eq` (a float). |
-| `FillOutcome` | 5756 | `field_id`, `widgets_updated`, `applied_autosize: Option<f64>`, `unencodable_chars`, **`xfa_may_disagree: bool`**, `top_index: Option<i64>`, **`password_value_withheld: bool`**, **`exceeds_max_len: Option<i64>`** |
-| `RegenOutcome` | 5809 | `regenerated`, `need_appearances_cleared`, `applied_autosize`, `unencodable_chars` |
-| `ImportOutcome` | 5824 | `applied`, `skipped`, `password_values_withheld` |
-| `WidgetMove` | 5847 | `from: Rect`, `to: Rect`, `siblings_left_behind: usize` |
-| `AnnotsReorder` | — | `entries`, `moved`, `non_widgets_moved`, `pinned`, `tabs: PageTabs`, `array_copied`, `trap_net_pinned`, `annot_states_permuted`, `goto_e_targets_reindexed` — `Pass 237.0`, §1.15 |
-| `AnnotationDeletion` | 5936 | `subtype: String`, `route: AnnotationDeletionRoute`, `popup_removed`, `parent_popup_cleared`, `replies_orphaned`, `group_members_promoted`, **`appearance_streams_removed`** |
-| `FieldDeletion` | 6052 | `widgets_removed`, `field_removed`, `selection_cleared`, `emptied_parents` |
-| `TextMatch` | 6080 | `page_index`, `quad: Quad`, `text: String` |
-| `FieldGroupDeletion` | 6704 | `group_name`, `terminals: Vec<String>`, `widgets_removed`, `nodes_removed`, `nodes: Vec<String>` |
-| `FieldRename` | 6775 | `from`, `to`, **`descendants_renamed: usize`** |
-| `FlattenOutcome` | 6792 | `fields_flattened`, `widgets_burned`, `pages_touched` |
-| `ImageAuthorOutcome` | 17172 | `image_id`, `soft_mask_id: Option<ObjId>`, `content_id`, `resource_name: Vec<u8>`, `placed_rect: Rect`, `disclosures` |
-| `SaveReport` | `writer/save.rs:208` | `bytes_written`, `bytes_appended`, `objects_written`, `objects_verbatim`, `objects_reserialized`, `byte_identical`, `delinearized`, `promoted: Vec<ObjId>`, `objects_deleted` |
+| Struct | Public fields |
+|---|---|
+| `FieldAuthorOutcome` | `field_id: ObjId`, `merged: bool`, `disclosures: FieldAuthorDisclosures` |
+| `DeleteOutcome` | `pages_removed`, `objects_freed`, `dangling: DanglingReport`, `separations: SeparationImpact`, `signature: SignatureImpact` |
+| `ResetPreviewRow` | `field: String`, `current: String`, `target: String`, `would_remove: bool`, `would_change: bool`, `ineligible: Option<ResetIneligible>` |
+| `ResetOutcome` | `fields_reset`, `values_defaulted`, `values_removed`, `widgets_updated`, `skipped_pushbuttons`, `skipped_signatures`, `skipped_read_only`, **`layout: LayoutDisclosure`** |
+| `LayoutDisclosure` | `applied_autosize: Option<f64>`, `applied_autosize_bound`, `da_colour_unmodelled`, `unencodable_chars` — what a text/choice appearance redrawn **as a side effect** decided (rule 4). Carried as `layout` by `ResetOutcome`, `FieldEditOutcome`, `WidgetEditOutcome` and `WidgetRotation`; all default when nothing text-shaped was redrawn. **Show it** as `RegenOutcome`'s same fields. Those four outcomes no longer derive `Eq` (a float). |
+| `FillOutcome` | `field_id`, `widgets_updated`, `applied_autosize: Option<f64>`, `unencodable_chars`, **`xfa_may_disagree: bool`**, `top_index: Option<i64>`, **`password_value_withheld: bool`**, **`exceeds_max_len: Option<i64>`** |
+| `RegenOutcome` | `regenerated`, `need_appearances_cleared`, `applied_autosize`, `unencodable_chars` |
+| `ImportOutcome` | `applied`, `skipped`, `password_values_withheld` |
+| `WidgetMove` | `from: Rect`, `to: Rect`, `siblings_left_behind: usize` |
+| `AnnotsReorder` | `entries`, `moved`, `non_widgets_moved`, `pinned`, `tabs: PageTabs`, `array_copied`, `trap_net_pinned`, `annot_states_permuted`, `goto_e_targets_reindexed` — `Pass 237.0`, §1.15 |
+| `AnnotationDeletion` | `subtype: String`, `route: AnnotationDeletionRoute`, `popup_removed`, `parent_popup_cleared`, `replies_orphaned`, `group_members_promoted`, **`appearance_streams_removed`** |
+| `FieldDeletion` | `widgets_removed`, `field_removed`, `selection_cleared`, `emptied_parents` |
+| `TextMatch` | `page_index`, `quad: Quad`, `text: String` |
+| `FieldGroupDeletion` | `group_name`, `terminals: Vec<String>`, `widgets_removed`, `nodes_removed`, `nodes: Vec<String>` |
+| `FieldRename` | `from`, `to`, **`descendants_renamed: usize`** |
+| `FlattenOutcome` | `fields_flattened`, `widgets_burned`, `pages_touched` |
+| `ImageAuthorOutcome` | `image_id`, `soft_mask_id: Option<ObjId>`, `content_id`, `resource_name: Vec<u8>`, `placed_rect: Rect`, `disclosures` |
+| `SaveReport` | `bytes_written`, `bytes_appended`, `objects_written`, `objects_verbatim`, `objects_reserialized`, `byte_identical`, `delinearized`, `promoted: Vec<ObjId>`, `objects_deleted` |
 
 ---
 
@@ -4186,9 +4186,9 @@ operator has to get the order of right.
 
 ### 1.31 Digital signing (1) — `Pass 10.9`
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| **Sign the document** (PAdES B-B / `adbe.pkcs7.detached`) | `sign(&mut self, signer: &dyn sign::Signer, request: &sign::apply::SignRequest, options: &SaveOptions) -> Result<(Vec<u8>, sign::apply::SignReport), sign::apply::SignApplyError>` | edit.rs | **`Pass 10.9`** (feature `signing`, default on). Stages a `/FT /Sig` field + Table 252 dictionary, serialises an **incremental update**, patches `/ByteRange` to EOF, digests, builds the CMS through the `Signer`, back-patches the hole, then **self-verifies with `signature_verify`** before returning. **`Pass 10.14`:** a visible signature's `/AP` carries the frame plus composed text (signer CN, `Date:`, `Reason:`/`Location:` when given) in Helvetica, shrink-to-fit between 10 pt and 4 pt; too small → `SignApplyError::AppearanceOverflow` before any object is staged; the lines are on `SignReport.appearance_lines` (empty when invisible). **`Pass 10.12`:** `SignRequest::certify: Option<MdpPermission>` (`NoChanges`=1 / `FormFillAndSign`=2 / `FormFillSignAnnotate`=3, §12.8.2.2 Table 254) makes it a CERTIFICATION signature — `/Reference [SigRef /DocMDP /TransformParams << /P n /V /1.2 >>]` on the signature dictionary and `/Perms << /DocMDP >>` on the catalog in the same update (no `DigestMethod`, deprecated in PDF 2.0); refused by name when the document is already certified (`AlreadyCertified`) or carries any signature (`CertificationNotFirst` — a certification is the FIRST signature, §12.8.2.2.1). `SignReport::certification` echoes the level; `SignatureVerdict::certification: Option<u8>` reads it back. **`Pass 10.13`:** a `field_name` that names an EXISTING empty merged `/FT /Sig` field is signed INTO — the field's `/Rect`/page place the appearance (`visible` refused alongside it: `RectRefusedForExistingField`), its `/Lock` (Table 233) is copied into a `/FieldMDP` reference (§12.8.2.4; `SignReport::field_lock`), and its `/SV` seed value (Table 234) is enforced in full by `apply::check_seed_value` — required constraints unmet → `SeedValueViolated`; `/Cert`, a required `/TimeStamp`/`/LegalAttestation`, `/AddRevInfo true`, unknown keys → `SeedValueUnevaluable`; recommended ones unmet → `SignReport::notes`. Already signed → `FieldAlreadySigned`; not `/FT /Sig` → `FieldNotSignature`; widgets under `/Kids` → `FieldHasKids`. `SignReport::field_reused` says which path ran. Only the field dictionary and the AcroForm holder (`/SigFlags`) are rewritten among pre-existing objects. |
+| I want to… | Call | Returns |
+|---|---|---|
+| **Sign the document** (PAdES B-B / `adbe.pkcs7.detached`) | `sign(&mut self, signer: &dyn sign::Signer, request: &sign::apply::SignRequest, options: &SaveOptions) -> Result<(Vec<u8>, sign::apply::SignReport), sign::apply::SignApplyError>` | **`Pass 10.9`** (feature `signing`, default on). Stages a `/FT /Sig` field + Table 252 dictionary, serialises an **incremental update**, patches `/ByteRange` to EOF, digests, builds the CMS through the `Signer`, back-patches the hole, then **self-verifies with `signature_verify`** before returning. **`Pass 10.14`:** a visible signature's `/AP` carries the frame plus composed text (signer CN, `Date:`, `Reason:`/`Location:` when given) in Helvetica, shrink-to-fit between 10 pt and 4 pt; too small → `SignApplyError::AppearanceOverflow` before any object is staged; the lines are on `SignReport.appearance_lines` (empty when invisible). **`Pass 10.12`:** `SignRequest::certify: Option<MdpPermission>` (`NoChanges`=1 / `FormFillAndSign`=2 / `FormFillSignAnnotate`=3, §12.8.2.2 Table 254) makes it a CERTIFICATION signature — `/Reference [SigRef /DocMDP /TransformParams << /P n /V /1.2 >>]` on the signature dictionary and `/Perms << /DocMDP >>` on the catalog in the same update (no `DigestMethod`, deprecated in PDF 2.0); refused by name when the document is already certified (`AlreadyCertified`) or carries any signature (`CertificationNotFirst` — a certification is the FIRST signature, §12.8.2.2.1). `SignReport::certification` echoes the level; `SignatureVerdict::certification: Option<u8>` reads it back. **`Pass 10.13`:** a `field_name` that names an EXISTING empty merged `/FT /Sig` field is signed INTO — the field's `/Rect`/page place the appearance (`visible` refused alongside it: `RectRefusedForExistingField`), its `/Lock` (Table 233) is copied into a `/FieldMDP` reference (§12.8.2.4; `SignReport::field_lock`), and its `/SV` seed value (Table 234) is enforced in full by `apply::check_seed_value` — required constraints unmet → `SeedValueViolated`; `/Cert`, a required `/TimeStamp`/`/LegalAttestation`, `/AddRevInfo true`, unknown keys → `SeedValueUnevaluable`; recommended ones unmet → `SignReport::notes`. Already signed → `FieldAlreadySigned`; not `/FT /Sig` → `FieldNotSignature`; widgets under `/Kids` → `FieldHasKids`. `SignReport::field_reused` says which path ran. Only the field dictionary and the AcroForm holder (`/SigFlags`) are rewritten among pre-existing objects. |
 
 > #### ★ `sign` returns the DOCUMENT; the session does not become it
 >
@@ -4235,17 +4235,17 @@ operator has to get the order of right.
 
 ### 1.32 Layers (3) — `Pass 358.1`, `Pass 358.2`
 
-| I want to… | Call | Line | Returns |
-|---|---|---|---|
-| **Rename, show/hide, lock, set print/export or intent of a layer** | `set_layer_properties(&mut self, layer: ObjId, edit: &LayerEdit) -> Result<LayerEditOutcome, EditError>` | edit.rs | `layer` is an OCG registered in `/OCProperties /OCGs` (`layers::read_layers` lists them; `Layer::id`). `LayerEdit` is a `#[non_exhaustive]` builder (`LayerEdit::new().name(..).visible_by_default(..).locked(..).print(..).export(..).intent(..)`); only the fields set change. `name` → `/Name` as a PDF text string (§8.11.2 Table 98). `visible_by_default` → `/D /ON` or `/D /OFF` against `/D /BaseState` (Table 101): with base ON a hidden layer is listed in `/OFF`; with base OFF a shown one is listed in `/ON`, and it is taken out of the other array. `locked` → `/D /Locked`. `print`/`export: LayerOutputState` — `WhenVisible` removes `/Usage /Print` (`/Export`) and takes the group out of `/D /AS`; `Always`/`Never` write `/PrintState` (`/ExportState`) `ON`/`OFF` (Table 102) **and** list the group in a `/D /AS` entry for that event (Table 103 — a usage state applies only to groups listed there), creating `<< /Event /Print /OCGs [..] /Category [/Print] >>` when none exists; an emptied direct entry and an emptied `/AS` are dropped. `intent: LayerIntent` — `View` (the default; `/Intent` removed if it said only View), `Design`, `Both` (`[/View /Design]`). Indirect `/OCProperties`, `/D`, arrays and `/AS` entries are **edited in place** — only objects whose value actually changes are written, so a rename dirties the group alone. Nothing changed → `LayerEditOutcome { changed: false }` and no undo entry. One undo entry, `CommandKind::SetLayerProperties { layer }`. Refusals: `Encrypted`, certification, `EmptyLayerName`, `LayerNotFound { id }` (not registered, or not a dictionary). CLI: `pdfcer layer-edit` (`--layer NAME` or `--id N`, `--rename`, `--visible/--locked on\|off`, `--print/--export when-visible\|always\|never`, `--intent view\|design\|both`). Acrobat has no New Layer and no content-to-layer move; those are `Pass 358.2`–`358.5`. |
-| **Create a new, empty layer** | `add_layer(&mut self, name: &str, edit: &LayerEdit) -> Result<ObjId, EditError>` | edit.rs | `Pass 358.2`. A fresh `<< /Type /OCG /Name .. >>` appended to `/OCProperties /OCGs` and to the ROOT of `/D /Order` (last in the panel). No `/OCProperties` → one is created; a `/D` with no `/Order` gains `/Order [new]` (an absent `/Order` presents NO groups, Table 101, so other groups keep their presentation). `edit`'s other fields are applied to the new group in the same command; `edit.name` is ignored; visible by default unless `edit.visible_by_default(false)`. Indirect `/OCGs`/`/Order` arrays are appended in place. One undo entry, `CommandKind::AddLayer { layer }`. Refusals: `EmptyLayerName`, `DocumentEncrypted`, certification. Returns the new id. CLI: `pdfcer layer-add --name N [--visible/--locked/--print/--export/--intent]`. Acrobat has no New Layer. |
-| **Delete a layer, keeping or removing its content** | `delete_layer(&mut self, layer: ObjId, policy: LayerContentPolicy) -> Result<LayerDeleteOutcome, EditError>` | edit.rs | `Pass 358.2`. `LayerContentPolicy` is `#[non_exhaustive]`: `KeepUnlayered` (the default) or `RemoveContent`. Removes the OCG from `/OCGs` and, in `/D` and every `/Configs` entry, from `/ON` `/OFF` `/Locked`, `/Order` at any depth, `/RBGroups` (an inner array left empty is dropped) and `/AS` (an entry left with no groups is dropped). Every `/OC /name BDC … EMC` naming it (§8.11.3.2) in page content, form XObjects, tiling patterns and annotation `/AP` streams loses its `BDC` and matching `EMC` — the content between stays, and a nested section keeps its own layer; the `/Properties` names bound to it are removed; `/OC` naming it directly is removed from annotations and XObjects. A rewritten stream is stored unfiltered. The OCG object stays in the file, unreferenced. **`RemoveContent`** additionally stops the layer painting while keeping the graphics state it sets (§8.11.3.1): inside each section path paints (`f F f* B B* b b* S s`) become `n` (a clip still clips), `Tj`/`TJ` go, `'` becomes `T*` and `"` becomes `aw Tw ac Tc T*`, and `Do`, `sh` and inline images go; a `Do` of an XObject whose own `/OC` is the layer goes anywhere; annotations with `/OC` the layer are removed from `/Annots` with their `/Popup`. `LayerDeleteOutcome { changed, sections, streams, annotations, xobjects, paints, xobject_calls }` (`#[non_exhaustive]`, `Default`) is the disclosure; `annotations` counts removed annotations under `RemoveContent`. One undo entry, `CommandKind::DeleteLayer { layer }`. Refusals, all before any write: `LayerNotFound`; `LayerInMembership { layer, ocmd }` (an OCMD reachable from `/Properties`, annotation or XObject `/OC` names it in `/OCGs` or `/VE`); `LayerContentNotRewritable { stream, reason }` (undecodable, a section not closed in its own stream, or one stream drawn by pages binding the names differently); `DocumentEncrypted`; certification; under `RemoveContent` also `LayerHasWidget { layer, annot }` (delete the field instead) and `LayerContentNotRewritable` when a removed text run's advance places later visible text in the same `BT` (no `Td`/`TD`/`Tm`/`T*`/`'`/`"` between) or is drawn in a clipping `Tr` 4–7. CLI: `pdfcer layer-delete --content keep|remove`. |
-| **Merge layers into one** | `merge_layers(&mut self, target: ObjId, merged: &[ObjId]) -> Result<LayerMergeOutcome, EditError>` | edit.rs | `Pass 358.6`. Rebinds references; **no content stream changes**. Every page, form XObject, tiling pattern and annotation `/AP` resource `/Properties` entry naming a merged layer is repointed at `target` (§8.11.3.2 — the marked-content name stays, only its binding moves); annotation and XObject `/OC` naming one becomes `target`; a membership dictionary's `/OCGs` and `/VE` (§8.11.2.2, at any nesting depth, indirect arrays followed) have merged refs replaced by `target`. The merged groups then leave `/OCProperties /OCGs` and, in `/D` and every `/Configs` entry, `/ON` `/OFF` `/Locked` `/Order` `/RBGroups` `/AS` exactly as `delete_layer` removes them; the OCG objects stay in the file, unreferenced. What the merged layers drew therefore shows, hides, locks, prints and exports as `target` does, and `LayerMergeOutcome::disclosures` says so (rule 4). `target` in `merged` is ignored; an empty remainder is `changed: false` with no undo entry. `LayerMergeOutcome { changed, layers, bindings, annotations, xobjects, memberships, disclosures }` (`#[non_exhaustive]`, `Default`). One undo entry, `CommandKind::MergeLayers { target }`. Refusals, before any write: `LayerNotFound` for `target` or any merged layer; `DocumentEncrypted`; certification. CLI: `pdfcer layer-merge --into NAME|--into-id N (--layer NAME | --id N)...`. |
-| **Flatten every layer into the page** | `flatten_layers(&mut self, hidden: HiddenLayerPolicy) -> Result<LayerFlattenOutcome, EditError>` | edit.rs | `Pass 358.6`. Deletes every layer in `/OCProperties /OCGs` as `delete_layer` does: a layer ON in `/D` (§8.11.4.3) with `KeepUnlayered`; a layer OFF in `/D` per `HiddenLayerPolicy` (`#[non_exhaustive]`): `Refuse` (the **default**) → `EditError::HiddenLayersNeedPolicy { layers }` before any write; `Remove` → `RemoveContent` (destructive; content nested inside a hidden section goes with it whatever its own layer); `Show` → `KeepUnlayered`, now always shown. Visible layers first, then hidden, each in `/OCGs` order. Only `/D`'s on/off decides — print/export usage (§8.11.4.4) does not. Groups missing from `/OCGs` are left in place and counted. **Any `delete_layer` refusal part-way (e.g. `LayerInMembership`) undoes the layers already flattened and restores the redo stack** — nothing is written. One undo entry, `CommandKind::FlattenLayers` (if folding fails a disclosure says how many undo steps it takes). Nothing to flatten → `changed: false`, no entry. `LayerFlattenOutcome { changed, layers, hidden_layers, sections, annotations, xobjects, paints, unregistered, disclosures }` (`#[non_exhaustive]`, `Default`); `paints` counts painting operators and XObject calls removed. Disclosures (rule 4) name the kept, removed or now-shown layers; removal is **not redaction** — an incremental save keeps the previous revision, and the disclosure says so. **Preview:** call it, read the outcome, `undo()`. CLI: `pdfcer layer-flatten --hidden refuse|remove|show [--dry-run] -o OUT`. |
-| **Arrange the layer panel: add, rename or remove a folder; move a layer or folder** | `add_layer_folder(&mut self, parent: &[usize], index: usize, label: &str)`, `rename_layer_folder(&mut self, at: &[usize], label: &str)`, `delete_layer_folder(&mut self, at: &[usize])`, `move_layer_node(&mut self, from: &[usize], parent: &[usize], index: usize)`, each `-> Result<LayerOrderOutcome, EditError>` | edit.rs | `Pass 358.3`. A folder is a nested `/D /Order` array whose FIRST element is its label (§8.11.4.3 Table 101); it groups entries in the panel only, has no visibility and hides nothing. A **position** is a path of child indices into `layers::Layers::order` (`&[]` is the top level); `pdfcer list-layers --tree` prints each entry's as `at=1.0.2` (`root` for the top level). `delete_layer_folder` lifts the folder's entries into its place. `move_layer_node` reads `parent`/`index` **after** the entry is taken out (`Vec::remove` then `insert`); moving a layer under another makes it a sublayer in the panel only — visibility still follows each group's own state. Only `/D /Order` is written (created if absent); indirect arrays are edited in place, a moved indirect array keeps its object, and an array left empty is pruned. Every result is **verified by re-reading** the staged `/Order` with the same reader the panel uses and comparing with the intended tree; a mismatch is refused before any write. ★ **A folder cannot be a layer's first sublayer**: Table 101 puts a layer's sublayers in the array after it, and a label-first array there reads as a folder BESIDE the layer (the rule pdfcer applies, DA-A3). Such a request is `LayerOrderInexpressible`, as is any placement that would make a neighbouring sublayer array attach to a different entry. `LayerOrderOutcome { changed, path, follows_layer }` (`#[non_exhaustive]`, `Default`): `path` is the entry's final position; `follows_layer` is true when a folder was written directly after a layer in the same `/Order` array, a placement Table 101 does not define: pdfcer reads it as the layer's sibling, another reader may show it as the layer's sublayer folder — the disclosure for DA-A3. Nothing changed → no undo entry. One undo entry, `CommandKind::EditLayerOrder`. Refusals: `EmptyLayerName` (now reads "a layer or folder name cannot be empty"); `LayerOrderPathNotFound { path }`; `NotALayerFolder { path }` (rename/delete of a layer or unlabelled grouping); `LayerOrderInexpressible`; `LayerOrderNotEditable { reason }` (an `/Order` too deep, cyclic or too large to rewrite); `NotADictionary` (no `/OCProperties`); `DocumentEncrypted`; certification. CLI: `pdfcer layer-folder-add --label L [--parent P] [--index N]`, `layer-folder-rename --at P --label L`, `layer-folder-delete --at P`, `layer-move --from P [--parent P] [--index N]`; `--index` defaults to the end; exit 9 on a refusal. |
-| **Put an annotation on a layer, move it, or take it off** | `set_annotation_layer(&mut self, annot_id: ObjId, layer: Option<ObjId>) -> Result<AnnotationLayerChange, EditError>` | edit.rs | `Pass 358.4`. Writes the annotation's `/OC` (§12.5.2 Table 164) as a reference to `layer`, a group registered in `/OCProperties /OCGs`; `None` removes `/OC`. The annotation then shows, prints and exports as the layer does (§8.11.3.3). Form widgets are accepted. A markup annotation's `/Popup` gets the same `/OC`, so the pair cannot show and hide separately. An existing `/OC` naming a membership dictionary is REPLACED — `before` reports what was there, and a shell should say so. `AnnotationLayerChange { changed, subtype, before, after, popup_written }` (`#[non_exhaustive]`, `Default`). Already there → `changed: false`, no undo entry. One undo entry, `CommandKind::SetAnnotationLayer { annot }`. Refusals: `LayerNotFound` (not registered — including an OCMD or an unregistered OCG), `AnnotationNotFound`, `NotADictionary`, `AnnotationLocked` (Table 165 bit 8), `DocumentEncrypted`, the annotation certification gate. CLI: `pdfcer set-annotation-layer --page P --index I (--layer NAME | --id N | --none)`; `list-annotations` appends `oc=<id>|none`. |
-| **Put page objects on a layer, move them, or take them off every layer** | `set_objects_layer(&mut self, page_index: usize, object_indices: &[usize], layer: Option<ObjId>) -> Result<ObjectsLayerChange, EditError>` | edit.rs | `Pass 358.4`. `object_indices` are paint-order indices into `page_objects(page_index)`, the numbering `delete_objects` takes. Each object's byte span is wrapped in `/OC /name BDC … EMC` (§8.11.3.2); `name` is the page's existing `/Properties` binding for `layer`, or a new `OC<n>` binding added to the page's resources (`binding_added`). An enclosing `/OC` section is closed just before the object and reopened byte-verbatim just after, so neighbours keep their layer; the split may leave an empty `/OC /x BDC EMC` pair, which is harmless. Every other byte stays verbatim. Already on exactly `layer` (and no other `/OC` section) → counted in `unchanged`; all unchanged → nothing written, no undo entry. `ObjectsLayerChange { moved, unchanged, property_name, binding_added, disclosures }` (`#[non_exhaustive]`, `Default`). One undo entry, `CommandKind::SetObjectsLayer { page_index }`, covering the content stream and the resource binding. Refusals, before any write: `LayerNotFound`; `LayerContentNotRewritable` when a selected image or form XObject carries its own `/OC` (§8.11.3.3 — a section can only intersect it); `VectorEdit` wrapping `ObjectOutOfRange`, `OverlappingObjectSpans`, `LayerSectionHoldsTaggedContent` (a structure tag lies inside the `/OC` section to split — splitting it would break logical structure), `LayerSectionCrossesNesting` (the section opened at another `q` depth or `BT` state — §14.6, ISO 32000-2 erratum #302) or `LayerSpanUnbalanced` (the object's own span leaves marked content, `q` or `BT` open); `PageOutOfRange`; `VectorEditNoContents`; `DocumentEncrypted`; certification. Edits the page's first content stream. Pure planner: `vector::plan_set_layer(&ContentStream, &[&VectorObject], Option<&Name>)`. CLI: `pdfcer set-object-layer --page P --objects 0,2 (--layer NAME | --id N | --none)`; `list-objects` rows carry `oc=<id>|none` (the innermost `/OC`). |
-| **Add new content straight onto a layer** | `paste_objects_on_layer(&mut self, page_index, clip: &ObjectClip, at: Matrix, layer: Option<ObjId>) -> Result<PasteOutcome, EditError>`; the `layer: Option<ObjId>` field on `NewImage` (`NewImage::on_layer`), `MarkupOptions` and `AddTextRequest` (`AddTextRequest::on_layer`) | edit.rs | `Pass 358.5`. One mechanism for every add verb: `add_text`, `add_image`, `add_markup_with`, `add_markup_as_content`, `add_text_annotation_with`, `add_text_annotation_reporting` and `paste_objects_on_layer`. `None` is exactly the unlayered verb. With a layer, each content stream the add appended is wrapped whole in `/OC /name BDC … EMC` (§8.11.3.2) — no original byte changes; `name` is the page's existing `/Properties` binding for the group, or a new `OC<n>` binding. Each annotation the add created (and its `/Popup`) gets `/OC` (§12.5.2 Table 164). The add and the placement are **one undo entry**, labelled as the add. A layered image or form XObject inside a pasted clip keeps its own `/OC`, which the section intersects (§8.11.3.3). Refusals: `LayerNotFound` before any write when the group is not registered in `/OCProperties /OCGs`; otherwise those of the underlying add. If placement fails after the add, the add is undone. **`add_text` with a layer needs the session route**: the free function `text_edit::add_text` refuses such a request with `AddTextError::LayerNeedsSession`; `EditSession::add_text` wraps a layer refusal in `AddTextError::Layer(Box<EditError>)` (`RefusalKind::NotFound` for `LayerNotFound`, otherwise `Other`). CLI: `--layer NAME` or `--layer-id N` on `add-text`, `add-image`, `annotate` and `object-paste`. |
+| I want to… | Call | Returns |
+|---|---|---|
+| **Rename, show/hide, lock, set print/export or intent of a layer** | `set_layer_properties(&mut self, layer: ObjId, edit: &LayerEdit) -> Result<LayerEditOutcome, EditError>` | `layer` is an OCG registered in `/OCProperties /OCGs` (`layers::read_layers` lists them; `Layer::id`). `LayerEdit` is a `#[non_exhaustive]` builder (`LayerEdit::new().name(..).visible_by_default(..).locked(..).print(..).export(..).intent(..)`); only the fields set change. `name` → `/Name` as a PDF text string (§8.11.2 Table 98). `visible_by_default` → `/D /ON` or `/D /OFF` against `/D /BaseState` (Table 101): with base ON a hidden layer is listed in `/OFF`; with base OFF a shown one is listed in `/ON`, and it is taken out of the other array. `locked` → `/D /Locked`. `print`/`export: LayerOutputState` — `WhenVisible` removes `/Usage /Print` (`/Export`) and takes the group out of `/D /AS`; `Always`/`Never` write `/PrintState` (`/ExportState`) `ON`/`OFF` (Table 102) **and** list the group in a `/D /AS` entry for that event (Table 103 — a usage state applies only to groups listed there), creating `<< /Event /Print /OCGs [..] /Category [/Print] >>` when none exists; an emptied direct entry and an emptied `/AS` are dropped. `intent: LayerIntent` — `View` (the default; `/Intent` removed if it said only View), `Design`, `Both` (`[/View /Design]`). Indirect `/OCProperties`, `/D`, arrays and `/AS` entries are **edited in place** — only objects whose value actually changes are written, so a rename dirties the group alone. Nothing changed → `LayerEditOutcome { changed: false }` and no undo entry. One undo entry, `CommandKind::SetLayerProperties { layer }`. Refusals: `Encrypted`, certification, `EmptyLayerName`, `LayerNotFound { id }` (not registered, or not a dictionary). CLI: `pdfcer layer-edit` (`--layer NAME` or `--id N`, `--rename`, `--visible/--locked on\|off`, `--print/--export when-visible\|always\|never`, `--intent view\|design\|both`). Acrobat has no New Layer and no content-to-layer move; those are `Pass 358.2`–`358.5`. |
+| **Create a new, empty layer** | `add_layer(&mut self, name: &str, edit: &LayerEdit) -> Result<ObjId, EditError>` | `Pass 358.2`. A fresh `<< /Type /OCG /Name .. >>` appended to `/OCProperties /OCGs` and to the ROOT of `/D /Order` (last in the panel). No `/OCProperties` → one is created; a `/D` with no `/Order` gains `/Order [new]` (an absent `/Order` presents NO groups, Table 101, so other groups keep their presentation). `edit`'s other fields are applied to the new group in the same command; `edit.name` is ignored; visible by default unless `edit.visible_by_default(false)`. Indirect `/OCGs`/`/Order` arrays are appended in place. One undo entry, `CommandKind::AddLayer { layer }`. Refusals: `EmptyLayerName`, `DocumentEncrypted`, certification. Returns the new id. CLI: `pdfcer layer-add --name N [--visible/--locked/--print/--export/--intent]`. Acrobat has no New Layer. |
+| **Delete a layer, keeping or removing its content** | `delete_layer(&mut self, layer: ObjId, policy: LayerContentPolicy) -> Result<LayerDeleteOutcome, EditError>` | `Pass 358.2`. `LayerContentPolicy` is `#[non_exhaustive]`: `KeepUnlayered` (the default) or `RemoveContent`. Removes the OCG from `/OCGs` and, in `/D` and every `/Configs` entry, from `/ON` `/OFF` `/Locked`, `/Order` at any depth, `/RBGroups` (an inner array left empty is dropped) and `/AS` (an entry left with no groups is dropped). Every `/OC /name BDC … EMC` naming it (§8.11.3.2) in page content, form XObjects, tiling patterns and annotation `/AP` streams loses its `BDC` and matching `EMC` — the content between stays, and a nested section keeps its own layer; the `/Properties` names bound to it are removed; `/OC` naming it directly is removed from annotations and XObjects. A rewritten stream is stored unfiltered. The OCG object stays in the file, unreferenced. **`RemoveContent`** additionally stops the layer painting while keeping the graphics state it sets (§8.11.3.1): inside each section path paints (`f F f* B B* b b* S s`) become `n` (a clip still clips), `Tj`/`TJ` go, `'` becomes `T*` and `"` becomes `aw Tw ac Tc T*`, and `Do`, `sh` and inline images go; a `Do` of an XObject whose own `/OC` is the layer goes anywhere; annotations with `/OC` the layer are removed from `/Annots` with their `/Popup`. `LayerDeleteOutcome { changed, sections, streams, annotations, xobjects, paints, xobject_calls }` (`#[non_exhaustive]`, `Default`) is the disclosure; `annotations` counts removed annotations under `RemoveContent`. One undo entry, `CommandKind::DeleteLayer { layer }`. Refusals, all before any write: `LayerNotFound`; `LayerInMembership { layer, ocmd }` (an OCMD reachable from `/Properties`, annotation or XObject `/OC` names it in `/OCGs` or `/VE`); `LayerContentNotRewritable { stream, reason }` (undecodable, a section not closed in its own stream, or one stream drawn by pages binding the names differently); `DocumentEncrypted`; certification; under `RemoveContent` also `LayerHasWidget { layer, annot }` (delete the field instead) and `LayerContentNotRewritable` when a removed text run's advance places later visible text in the same `BT` (no `Td`/`TD`/`Tm`/`T*`/`'`/`"` between) or is drawn in a clipping `Tr` 4–7. CLI: `pdfcer layer-delete --content keep|remove`. |
+| **Merge layers into one** | `merge_layers(&mut self, target: ObjId, merged: &[ObjId]) -> Result<LayerMergeOutcome, EditError>` | `Pass 358.6`. Rebinds references; **no content stream changes**. Every page, form XObject, tiling pattern and annotation `/AP` resource `/Properties` entry naming a merged layer is repointed at `target` (§8.11.3.2 — the marked-content name stays, only its binding moves); annotation and XObject `/OC` naming one becomes `target`; a membership dictionary's `/OCGs` and `/VE` (§8.11.2.2, at any nesting depth, indirect arrays followed) have merged refs replaced by `target`. The merged groups then leave `/OCProperties /OCGs` and, in `/D` and every `/Configs` entry, `/ON` `/OFF` `/Locked` `/Order` `/RBGroups` `/AS` exactly as `delete_layer` removes them; the OCG objects stay in the file, unreferenced. What the merged layers drew therefore shows, hides, locks, prints and exports as `target` does, and `LayerMergeOutcome::disclosures` says so (rule 4). `target` in `merged` is ignored; an empty remainder is `changed: false` with no undo entry. `LayerMergeOutcome { changed, layers, bindings, annotations, xobjects, memberships, disclosures }` (`#[non_exhaustive]`, `Default`). One undo entry, `CommandKind::MergeLayers { target }`. Refusals, before any write: `LayerNotFound` for `target` or any merged layer; `DocumentEncrypted`; certification. CLI: `pdfcer layer-merge --into NAME|--into-id N (--layer NAME | --id N)...`. |
+| **Flatten every layer into the page** | `flatten_layers(&mut self, hidden: HiddenLayerPolicy) -> Result<LayerFlattenOutcome, EditError>` | `Pass 358.6`. Deletes every layer in `/OCProperties /OCGs` as `delete_layer` does: a layer ON in `/D` (§8.11.4.3) with `KeepUnlayered`; a layer OFF in `/D` per `HiddenLayerPolicy` (`#[non_exhaustive]`): `Refuse` (the **default**) → `EditError::HiddenLayersNeedPolicy { layers }` before any write; `Remove` → `RemoveContent` (destructive; content nested inside a hidden section goes with it whatever its own layer); `Show` → `KeepUnlayered`, now always shown. Visible layers first, then hidden, each in `/OCGs` order. Only `/D`'s on/off decides — print/export usage (§8.11.4.4) does not. Groups missing from `/OCGs` are left in place and counted. **Any `delete_layer` refusal part-way (e.g. `LayerInMembership`) undoes the layers already flattened and restores the redo stack** — nothing is written. One undo entry, `CommandKind::FlattenLayers` (if folding fails a disclosure says how many undo steps it takes). Nothing to flatten → `changed: false`, no entry. `LayerFlattenOutcome { changed, layers, hidden_layers, sections, annotations, xobjects, paints, unregistered, disclosures }` (`#[non_exhaustive]`, `Default`); `paints` counts painting operators and XObject calls removed. Disclosures (rule 4) name the kept, removed or now-shown layers; removal is **not redaction** — an incremental save keeps the previous revision, and the disclosure says so. **Preview:** call it, read the outcome, `undo()`. CLI: `pdfcer layer-flatten --hidden refuse|remove|show [--dry-run] -o OUT`. |
+| **Arrange the layer panel: add, rename or remove a folder; move a layer or folder** | `add_layer_folder(&mut self, parent: &[usize], index: usize, label: &str)`, `rename_layer_folder(&mut self, at: &[usize], label: &str)`, `delete_layer_folder(&mut self, at: &[usize])`, `move_layer_node(&mut self, from: &[usize], parent: &[usize], index: usize)`, each `-> Result<LayerOrderOutcome, EditError>` | `Pass 358.3`. A folder is a nested `/D /Order` array whose FIRST element is its label (§8.11.4.3 Table 101); it groups entries in the panel only, has no visibility and hides nothing. A **position** is a path of child indices into `layers::Layers::order` (`&[]` is the top level); `pdfcer list-layers --tree` prints each entry's as `at=1.0.2` (`root` for the top level). `delete_layer_folder` lifts the folder's entries into its place. `move_layer_node` reads `parent`/`index` **after** the entry is taken out (`Vec::remove` then `insert`); moving a layer under another makes it a sublayer in the panel only — visibility still follows each group's own state. Only `/D /Order` is written (created if absent); indirect arrays are edited in place, a moved indirect array keeps its object, and an array left empty is pruned. Every result is **verified by re-reading** the staged `/Order` with the same reader the panel uses and comparing with the intended tree; a mismatch is refused before any write. ★ **A folder cannot be a layer's first sublayer**: Table 101 puts a layer's sublayers in the array after it, and a label-first array there reads as a folder BESIDE the layer (the rule pdfcer applies, DA-A3). Such a request is `LayerOrderInexpressible`, as is any placement that would make a neighbouring sublayer array attach to a different entry. `LayerOrderOutcome { changed, path, follows_layer }` (`#[non_exhaustive]`, `Default`): `path` is the entry's final position; `follows_layer` is true when a folder was written directly after a layer in the same `/Order` array, a placement Table 101 does not define: pdfcer reads it as the layer's sibling, another reader may show it as the layer's sublayer folder — the disclosure for DA-A3. Nothing changed → no undo entry. One undo entry, `CommandKind::EditLayerOrder`. Refusals: `EmptyLayerName` (now reads "a layer or folder name cannot be empty"); `LayerOrderPathNotFound { path }`; `NotALayerFolder { path }` (rename/delete of a layer or unlabelled grouping); `LayerOrderInexpressible`; `LayerOrderNotEditable { reason }` (an `/Order` too deep, cyclic or too large to rewrite); `NotADictionary` (no `/OCProperties`); `DocumentEncrypted`; certification. CLI: `pdfcer layer-folder-add --label L [--parent P] [--index N]`, `layer-folder-rename --at P --label L`, `layer-folder-delete --at P`, `layer-move --from P [--parent P] [--index N]`; `--index` defaults to the end; exit 9 on a refusal. |
+| **Put an annotation on a layer, move it, or take it off** | `set_annotation_layer(&mut self, annot_id: ObjId, layer: Option<ObjId>) -> Result<AnnotationLayerChange, EditError>` | `Pass 358.4`. Writes the annotation's `/OC` (§12.5.2 Table 164) as a reference to `layer`, a group registered in `/OCProperties /OCGs`; `None` removes `/OC`. The annotation then shows, prints and exports as the layer does (§8.11.3.3). Form widgets are accepted. A markup annotation's `/Popup` gets the same `/OC`, so the pair cannot show and hide separately. An existing `/OC` naming a membership dictionary is REPLACED — `before` reports what was there, and a shell should say so. `AnnotationLayerChange { changed, subtype, before, after, popup_written }` (`#[non_exhaustive]`, `Default`). Already there → `changed: false`, no undo entry. One undo entry, `CommandKind::SetAnnotationLayer { annot }`. Refusals: `LayerNotFound` (not registered — including an OCMD or an unregistered OCG), `AnnotationNotFound`, `NotADictionary`, `AnnotationLocked` (Table 165 bit 8), `DocumentEncrypted`, the annotation certification gate. CLI: `pdfcer set-annotation-layer --page P --index I (--layer NAME | --id N | --none)`; `list-annotations` appends `oc=<id>|none`. |
+| **Put page objects on a layer, move them, or take them off every layer** | `set_objects_layer(&mut self, page_index: usize, object_indices: &[usize], layer: Option<ObjId>) -> Result<ObjectsLayerChange, EditError>` | `Pass 358.4`. `object_indices` are paint-order indices into `page_objects(page_index)`, the numbering `delete_objects` takes. Each object's byte span is wrapped in `/OC /name BDC … EMC` (§8.11.3.2); `name` is the page's existing `/Properties` binding for `layer`, or a new `OC<n>` binding added to the page's resources (`binding_added`). An enclosing `/OC` section is closed just before the object and reopened byte-verbatim just after, so neighbours keep their layer; the split may leave an empty `/OC /x BDC EMC` pair, which is harmless. Every other byte stays verbatim. Already on exactly `layer` (and no other `/OC` section) → counted in `unchanged`; all unchanged → nothing written, no undo entry. `ObjectsLayerChange { moved, unchanged, property_name, binding_added, disclosures }` (`#[non_exhaustive]`, `Default`). One undo entry, `CommandKind::SetObjectsLayer { page_index }`, covering the content stream and the resource binding. Refusals, before any write: `LayerNotFound`; `LayerContentNotRewritable` when a selected image or form XObject carries its own `/OC` (§8.11.3.3 — a section can only intersect it); `VectorEdit` wrapping `ObjectOutOfRange`, `OverlappingObjectSpans`, `LayerSectionHoldsTaggedContent` (a structure tag lies inside the `/OC` section to split — splitting it would break logical structure), `LayerSectionCrossesNesting` (the section opened at another `q` depth or `BT` state — §14.6, ISO 32000-2 erratum #302) or `LayerSpanUnbalanced` (the object's own span leaves marked content, `q` or `BT` open); `PageOutOfRange`; `VectorEditNoContents`; `DocumentEncrypted`; certification. Edits the page's first content stream. Pure planner: `vector::plan_set_layer(&ContentStream, &[&VectorObject], Option<&Name>)`. CLI: `pdfcer set-object-layer --page P --objects 0,2 (--layer NAME | --id N | --none)`; `list-objects` rows carry `oc=<id>|none` (the innermost `/OC`). |
+| **Add new content straight onto a layer** | `paste_objects_on_layer(&mut self, page_index, clip: &ObjectClip, at: Matrix, layer: Option<ObjId>) -> Result<PasteOutcome, EditError>`; the `layer: Option<ObjId>` field on `NewImage` (`NewImage::on_layer`), `MarkupOptions` and `AddTextRequest` (`AddTextRequest::on_layer`) | `Pass 358.5`. One mechanism for every add verb: `add_text`, `add_image`, `add_markup_with`, `add_markup_as_content`, `add_text_annotation_with`, `add_text_annotation_reporting` and `paste_objects_on_layer`. `None` is exactly the unlayered verb. With a layer, each content stream the add appended is wrapped whole in `/OC /name BDC … EMC` (§8.11.3.2) — no original byte changes; `name` is the page's existing `/Properties` binding for the group, or a new `OC<n>` binding. Each annotation the add created (and its `/Popup`) gets `/OC` (§12.5.2 Table 164). The add and the placement are **one undo entry**, labelled as the add. A layered image or form XObject inside a pasted clip keeps its own `/OC`, which the section intersects (§8.11.3.3). Refusals: `LayerNotFound` before any write when the group is not registered in `/OCProperties /OCGs`; otherwise those of the underlying add. If placement fails after the add, the add is undone. **`add_text` with a layer needs the session route**: the free function `text_edit::add_text` refuses such a request with `AddTextError::LayerNeedsSession`; `EditSession::add_text` wraps a layer refusal in `AddTextError::Layer(Box<EditError>)` (`RefusalKind::NotFound` for `LayerNotFound`, otherwise `Other`). CLI: `--layer NAME` or `--layer-id N` on `add-text`, `add-image`, `annotate` and `object-paste`. |
 
 ## 2. Construction, and the session's three read views
 
@@ -4254,16 +4254,16 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 
 let doc = Document::from_bytes(bytes)?;          // part 1
-let mut session = EditSession::new(doc);         // edit.rs:3368 — BY VALUE
+let mut session = EditSession::new(doc);         // edit.rs — BY VALUE
 ```
 
-`new` takes the `Document` by value on purpose (`edit.rs:3363-3366`): *"the
+`new` takes the `Document` by value on purpose (`edit.rs`): *"the
 session **is** the open document from this point on, and a second handle to the
 same `Document` would be a second, stale view of it."* Recover it with
 `into_document` — which **discards** unsaved edits; it is not a commit.
 
 `new` clones the trailer and caches `doc.next_object_number()`
-(`edit.rs:3369-3370`). It cannot fail.
+(`edit.rs`). It cannot fail.
 
 ### 2.1 The canonical lifecycle, verbatim from the tests
 
@@ -4276,7 +4276,7 @@ bytes → Document::from_bytes(bytes)
       → std::fs::write(path, &bytes)                // the SHELL writes the file
 ```
 
-The doctest on `EditSession` itself, `edit.rs:3304-3320` — this is the Pass's
+The doctest on `EditSession` itself, `edit.rs` — this is the Pass's
 headline contract:
 
 ```rust
@@ -4299,7 +4299,7 @@ assert!(report.byte_identical);
 ```
 
 The integration harness every test file re-declares
-(`crates/pdfcer-core/tests/edit_undo.rs:229-239`):
+(`crates/pdfcer-core/tests/edit_undo.rs`):
 
 ```rust
 fn session(bytes: &[u8]) -> EditSession {
@@ -4310,7 +4310,7 @@ fn save(session: &EditSession) -> Vec<u8> {
 }
 ```
 
-Edit → save → reload → verify (`edit_undo.rs:410-422`):
+Edit → save → reload → verify (`edit_undo.rs`):
 
 ```rust
 let base = classic_pdf(true, true);
@@ -4329,23 +4329,23 @@ nothing in `pdfcer-core` does this for you.
 
 ### 2.2 There is no round trip back to `Document` — and you do not need one
 
-★ **`into_document` (`edit.rs:3399`) has ZERO callers in the entire repository.**
+★ **`into_document` (`edit.rs`) has ZERO callers in the entire repository.**
 `grep -rn "into_document" --include=*.rs crates/ tools/` returns exactly two
-lines — the definition (`edit.rs:3399`) and one doc cross-reference
-(`edit.rs:3366`). The only other mentions are prose in
+lines — the definition (`edit.rs`) and one doc cross-reference
+(`edit.rs`). The only other mentions are prose in
 `SESSION_LOG.md` / `ROADMAP.md` classifying it as
 *"plumbing… not capabilities, nothing to reach"*. It returns `self.base` — it
 **discards unsaved edits** and is not a commit path. Do not reach for it
 expecting "finish editing and hand back the document."
 
 `pdfce-gui` holds one `EditSession` for the life of the open document
-(constructed at `pdfce@cce414e:crates/pdfce-gui/src/main.rs:4855`, `:4928`; owned by `OpenDoc`)
+(constructed at `pdfce@cce414e:crates/pdfce-gui/src/main.rs:4855`; owned by `OpenDoc`)
 and never converts back. Three read views (§2.3) make conversion unnecessary.
 
 The two idioms that genuinely produce a `Document` again:
 
 **(a) The reopen loop** — save, then build a fresh session from the output.
-This is the ordinary operator loop, and `edit_undo.rs:874-894` pins that
+This is the ordinary operator loop, and `edit_undo.rs` pins that
 successive saves chain `/Prev` correctly into three revisions:
 
 ```rust
@@ -4368,20 +4368,20 @@ step under incremental save would carry the prior revision forward into the
 
 | The consumer needs | Use | Why |
 |---|---|---|
-| The file exactly as loaded (writer span lookups, "revert" comparisons) | `document()` `:3393` | The base revision. |
-| One object's current value | `value(id)` `:3409` | Overlay, then base, `None` if deleted. |
-| To walk the edited graph (page tree, forms, annotations) | `graph()` `:3429` | `SessionGraph` implements `ObjectGraph`. |
-| **To render, hit-test, or decompose vectors** | **`view()` `:3469`** | Graph **+ stream bytes**, zero-allocation span resolution. Used by the renderer at `crates/pdfcer-render/tests/preview_equals_saved.rs:414`. |
-| A single flat buffer for a once-per-operation `pageops` call | `authored_source()` `:3561` | Returns `Cow`; owned ⇒ full memcpy. |
+| The file exactly as loaded (writer span lookups, "revert" comparisons) | `document()` | The base revision. |
+| One object's current value | `value(id)` | Overlay, then base, `None` if deleted. |
+| To walk the edited graph (page tree, forms, annotations) | `graph()` | `SessionGraph` implements `ObjectGraph`. |
+| **To render, hit-test, or decompose vectors** | **`view()`** | Graph **+ stream bytes**, zero-allocation span resolution. Used by the renderer at `crates/pdfcer-render/tests/preview_equals_saved.rs`. |
+| A single flat buffer for a once-per-operation `pageops` call | `authored_source()` | Returns `Cow`; owned ⇒ full memcpy. |
 
-**T-01 — the defect that shipped for 13 Passes.** From `edit.rs:3438-3444`:
+**T-01 — the defect that shipped for 13 Passes.** From `edit.rs`:
 *"from Pass 3.1 to Pass 16.2 the GUI rasterized `EditSession::document` — the
 BASE revision — so every edit the operator made was authored correctly and
 displayed not at all."* Recorded in
 `docs/decisions/018-edited-state-is-what-the-canvas-renders.md`. **A new shell
 must pass `&session.view()` wherever a `&Document` looks like it would fit.**
 
-`view()`'s return is read-only by contract (`edit.rs:3462-3467`): *"The returned
+`view()`'s return is read-only by contract (`edit.rs`): *"The returned
 view must never reach the writer… Saving goes through `EditSession::dirty_set`,
 which hands the writer the staging buffer under its own contract."*
 
@@ -4392,23 +4392,23 @@ which hands the writer the staging buffer under its own contract."*
 ### 3.1 What a command is
 
 ```rust
-struct Command {                                          // edit.rs:691
-    kind: CommandKind,                                    // :692
-    objects: Vec<ObjectWrite>,                            // :693
-    removals: Vec<Removal>,                               // :703
-    trailer: Option<(Dict, Dict)>,                        // :709
+struct Command {                                          // edit.rs
+    kind: CommandKind,                                    //
+    objects: Vec<ObjectWrite>,                            //
+    removals: Vec<Removal>,                               //
+    trailer: Option<(Dict, Dict)>,                        //
 }
-struct ObjectWrite { id: ObjId, before: Option<Object>, after: Option<Object> }  // :715
-struct Removal    { id: ObjId, was_deleted: bool, is_deleted: bool }             // :2288
+struct ObjectWrite { id: ObjId, before: Option<Object>, after: Option<Object> }  //
+struct Removal    { id: ObjId, was_deleted: bool, is_deleted: bool }             //
 ```
 
 `Command` and `ObjectWrite` are **private**. The only thing a consumer sees is
-`CommandKind` (`edit.rs:238`, `pub`, `Copy`, `#[non_exhaustive]`), returned by
+`CommandKind` (`edit.rs`, `pub`, `Copy`, `#[non_exhaustive]`), returned by
 `undo_kind` / `redo_kind` / `undo` / `redo`.
 
 `before`/`after` are `Option<Object>` because *absent from the overlay* is a
 real, distinct value: it means read through to the base, and for a created
-object it means the object does not exist (`edit.rs:685-689`).
+object it means the object does not exist (`edit.rs`).
 
 **There is no `begin_command` / `push_command` / two-phase transaction API.**
 (`NOT FOUND — searched `begin_command`, `push_command` across `crates/`.) Each
@@ -4416,12 +4416,12 @@ verb assembles a whole `Command` value in a local `Vec<ObjectWrite>` off to the
 side and hands it to one infallible call:
 
 ```rust
-fn commit(&mut self, command: Command) { … }              // edit.rs:5305, returns ()
+fn commit(&mut self, command: Command) { … }              // edit.rs, returns ()
 ```
 
-`commit` applies every write (`:5306`), every removal (`:5309`), the trailer
-swap (`:5312`), **clears the redo stack** (`:5315`), pushes onto `undo`
-(`:5316`), and drops the oldest entry past `MAX_UNDO_DEPTH` (`:5318-5320`).
+`commit` applies every write, every removal, the trailer
+swap, **clears the redo stack**, pushes onto `undo`
+, and drops the oldest entry past `MAX_UNDO_DEPTH`.
 
 **`commit` cannot fail. That is the structural reason a verb is atomic:** it
 either never reaches `commit` (nothing changed) or completes it (everything
@@ -4429,22 +4429,22 @@ changed).
 
 ### 3.2 Undo granularity — what makes ONE entry
 
-`CommandKind` has **46 variants** (`edit.rs:238-641`) and each one's doc comment
+`CommandKind` has **46 variants** (`edit.rs`) and each one's doc comment
 states its granularity explicitly. The rule, stated once: **one operator gesture is one entry**, and
 every object the gesture must touch to leave a valid document goes in that entry.
 
 Worked examples from the source:
 
-- **Field creation** (`CommandKind::AddFormField`, `edit.rs:295`): field dict +
+- **Field creation** (`CommandKind::AddFormField`, `edit.rs`): field dict +
   widget + `/AP` + page `/Annots` + `/AcroForm /Fields`, together — *"a field
   registered but not annotated, or annotated but not registered, is a document
   no undo can repair."*
-- **Page reorder** (`ReorderPages`, `edit.rs:255`): one entry however many pages
+- **Page reorder** (`ReorderPages`, `edit.rs`): one entry however many pages
   moved. §11.3's snapshot fallback, on the same stack — **do not build a second
   undo system for bulk edits.**
 - **Group-wide ce-dimension regeneration** (`SetGroupScale`, `SetGroupStandard`,
   `SetGroupStyle`): one entry however many members regenerated.
-- **`unembed_fonts` / `embed_fonts`** (`edit.rs:16346`, `:16585`): one entry
+- **`unembed_fonts` / `embed_fonts`** (`edit.rs`): one entry
   however many fonts — *"a partial undo of it — three fonts restored, four not —
   is a document state the operator never asked for."*
 
@@ -4455,7 +4455,7 @@ Worked examples from the source:
 a label can state a magnitude (`RotatePages{count, delta}`,
 `RegenerateAppearances{count}`, `FlattenFields{count}`,
 `UnembedFonts{count}`, `SetGroupStyle{members}`, `SetDimensionStyle{overrides}`,
-`ReflowBlock{lines_before, lines_after}`). `edit.rs:290-294`: *"If a label ever
+`ReflowBlock{lines_before, lines_after}`). `edit.rs`: *"If a label ever
 needs the name, the right move is an interned id, not `String`."*
 
 Distinctions the enum preserves on purpose, which a label must not flatten:
@@ -4469,27 +4469,27 @@ Distinctions the enum preserves on purpose, which a label must not flatten:
 
 ### 3.4 The three granularity exceptions a GUI must special-case
 
-| Verb | Granularity | Line |
-|---|---|---|
-| `import_form_data` | **N entries** — one per field. Ctrl+Z after an FDF import undoes one field. | `edit.rs:13458-13460` |
-| `set_info_field` | **0 entries on a no-op.** Setting a field to its existing value, or clearing an absent one, records nothing and leaves the redo stack alone. | `edit.rs:3677-3682` |
-| `set_dimension_display` | **1 entry even on a no-op** — deliberately the inverse, so a toggle control's undo behaviour is not sometimes-present. | `edit.rs:15901-15908` |
-| `set_dimension_label` | **0 entries on a no-op** — setting the override that already holds, or clearing one that is not there, records nothing. `DimensionLabelChange::changed` reports which happened, so a shell never has to guess. | `edit.rs:29734` |
+| Verb | Granularity |
+|---|---|
+| `import_form_data` | **N entries** — one per field. Ctrl+Z after an FDF import undoes one field. |
+| `set_info_field` | **0 entries on a no-op.** Setting a field to its existing value, or clearing an absent one, records nothing and leaves the redo stack alone. |
+| `set_dimension_display` | **1 entry even on a no-op** — deliberately the inverse, so a toggle control's undo behaviour is not sometimes-present. |
+| `set_dimension_label` | **0 entries on a no-op** — setting the override that already holds, or clearing one that is not there, records nothing. `DimensionLabelChange::changed` reports which happened, so a shell never has to guess. |
 
 A shell that keeps its own dirty counter incremented per successful call will
 drift from `undo_depth()` on the first and second of these.
 
 ### 3.5 History bounding, and why it is free
 
-`MAX_UNDO_DEPTH = 256` (`edit.rs:166`). Dropping the oldest command is safe
-**only** because the dirty set is a diff rather than a replay. `edit.rs:65-69`:
+`MAX_UNDO_DEPTH = 256` (`edit.rs`). Dropping the oldest command is safe
+**only** because the dirty set is a diff rather than a replay. `edit.rs`:
 *"Under a replay design, dropping a command would corrupt what gets saved; here
 it costs exactly what it appears to cost — the operator can no longer step back
 past that point."*
 
 ### 3.6 Redo invalidation
 
-`commit` clears `redo` unconditionally (`edit.rs:5315`). Standard editor
+`commit` clears `redo` unconditionally (`edit.rs`). Standard editor
 behaviour; stated because a shell that caches "can redo" must re-query after
 every mutation.
 
@@ -4499,7 +4499,7 @@ every mutation.
 
 **This is the section that prevents the expensive bug.**
 
-`ARCHITECTURE.md` §11.1, quoted in `edit.rs:44-50`:
+`ARCHITECTURE.md` §11.1, quoted in `edit.rs`:
 
 > the "dirty set" … is computed as a **structural diff against the base
 > revision at save time** — it is *not* the union of every object any command
@@ -4507,20 +4507,20 @@ every mutation.
 > that specific edit before saving, that object must **not** appear in the
 > incremental update.
 
-`EditSession::dirty_set` (`edit.rs:3497`) does exactly four things:
+`EditSession::dirty_set` (`edit.rs`) does exactly four things:
 
 1. For every `(id, value)` in `state`: **skip** if `base.get(id).value == value`
    — net-zero against the base is *not dirty*. Else `dirty.replace(id, …)`.
-   (`edit.rs:3499-3506`.)
+   (`edit.rs`.)
 2. For every id in `deleted`: emit a free entry **only if the base defined it**
-   — an id the base never had cannot be deleted into it. (`edit.rs:3511-3515`.)
+   — an id the base never had cannot be deleted into it. (`edit.rs`.)
 3. For every trailer key that differs from the base's: `patch_trailer`.
-   (`edit.rs:3516-3520`.)
+   (`edit.rs`.)
 4. If `staging` is non-empty: hand it to the `DirtySet` (R45), so an authored
    appearance stream's span — which points past the base — resolves.
-   (`edit.rs:3527-3529`.)
+   (`edit.rs`.)
 
-Three properties fall out (`edit.rs:63-75`), each of which would need defensive
+Three properties fall out (`edit.rs`), each of which would need defensive
 code under a history-replay design:
 
 - **Bounding undo is free** (§3.5).
@@ -4534,22 +4534,22 @@ objects to write, from the undo stack. `can_undo() == true` after an
 edit-then-undo, while `is_modified() == false` and the save is byte-identical.
 Both are correct; they answer different questions.
 
-`DirtySet` itself lives at `crates/pdfcer-model/src/writer/mod.rs:217` (re-exported as `pdfcer_core::writer::DirtySet`) with all
-fields private. Relevant public methods: `empty()` `:271`, `is_empty()` `:392`
-(note: **staging is not consulted**), `len()` `:401`, `changes_content()` `:414`
-(the §14.4 `/ID[1]` regeneration trigger), `trailer_patch()` `:441`,
-`staging()` `:471`, `combined_source()` `:488`.
+`DirtySet` itself lives at `crates/pdfcer-model/src/writer/mod.rs` (re-exported as `pdfcer_core::writer::DirtySet`) with all
+fields private. Relevant public methods: `empty()`, `is_empty()`
+(note: **staging is not consulted**), `len()`, `changes_content()`
+(the §14.4 `/ID[1]` regeneration trigger), `trailer_patch()`,
+`staging()`, `combined_source()`.
 
 Executably pinned (`ARCHITECTURE.md` §11.5): **edit → undo → save is
 byte-identical across 2,897/2,897 corpus files (100%)**, plus fixture tests
 including a 12-command history and undo → redo → save. The corpus gate lives in
-`tools/roundtrip/src/main.rs:665-793` (`fn check_mutation`, *"Check 3: THE
-contract"*, `:765-772`); the fixture tests are
-`crates/pdfcer-core/tests/edit_undo.rs:308` (single edit), `:350` (12-command
-history), `:374` (undo → redo → save), `:923`
+`tools/roundtrip/src/main.rs` (`fn check_mutation`, *"Check 3: THE
+contract"*); the fixture tests are
+`crates/pdfcer-core/tests/edit_undo.rs` (single edit) (12-command
+history) (undo → redo → save)
 (`a_save_does_not_consume_the_undo_history`).
 
-★ **A save does not consume the undo history** (`edit_undo.rs:923`). After
+★ **A save does not consume the undo history** (`edit_undo.rs`). After
 saving, `can_undo()` is still true and `is_modified()` is still false. A shell
 that wires "Save" to "clear undo" is inventing a restriction the core does not
 impose.
@@ -4566,11 +4566,11 @@ against the source. A new shell can offer the same self-check cheaply.
 
 ```rust
 pub fn to_incremental_bytes(&self, options: &SaveOptions)
-    -> Result<(Vec<u8>, SaveReport), WriteError>          // edit.rs:4053
+    -> Result<(Vec<u8>, SaveReport), WriteError>          // edit.rs
     // -> writer::save_incremental(&self.base, &self.dirty_set(), options)
 
 pub fn to_full_bytes(&self, options: &SaveOptions)
-    -> Result<(Vec<u8>, SaveReport), WriteError>          // edit.rs:4071
+    -> Result<(Vec<u8>, SaveReport), WriteError>          // edit.rs
     // -> writer::save_full(&self.base, &self.dirty_set(), options)
 ```
 
@@ -4579,7 +4579,7 @@ Both take `&self`. **Saving does not clear the undo stack, does not reset
 "saved ⇒ unmodified" must track that itself, or re-open from the saved bytes.
 
 The mode is expressed by **which method you call** — there is no mode parameter.
-`SaveMode` (`crates/pdfcer-core/src/signature.rs:249`, variants `Incremental` /
+`SaveMode` (`crates/pdfcer-core/src/signature.rs`, variants `Incremental` /
 `FullRewrite`) exists **only** for the signature-impact query.
 
 ★ **The two modes are given different `SaveOptions` in the shipped CLI, and the
@@ -4609,16 +4609,16 @@ this split rather than pass one `SaveOptions` to both.
 | Linearization | invalidated, **reported** via `SaveReport::delinearized`, never repaired | same |
 | `/ID[1]` | regenerated iff `dirty.changes_content()` | same rule |
 | Empty dirty set | **byte-identical to the input**; `SaveReport::byte_identical == true` | not byte-identical |
-| Refused when | base was loaded via xref recovery (`WriteError::RecoveredBaseForbidsIncremental`, `writer/save.rs:309`) | hybrid-reference input (`WriteError::HybridFullRewrite`, `save.rs:580`) |
+| Refused when | base was loaded via xref recovery (`WriteError::RecoveredBaseForbidsIncremental`, `writer/save.rs`) | hybrid-reference input (`WriteError::HybridFullRewrite`, `save.rs`) |
 
 Both refuse an encrypted document (`WriteError::EncryptedSaveUnsupported`,
-`save.rs:318` / `:589`).
+`save.rs`).
 
 ### 5.3 ★ Why an absence assertion over incrementally-saved bytes is vacuous
 
 Incremental save **structurally preserves** superseded content — this is
 required by §7.5.6, not a pdfcer shortcoming. The old bytes of every replaced
-object stay in the file by construction (`edit.rs:4042-4047`).
+object stay in the file by construction (`edit.rs`).
 
 Therefore:
 
@@ -4629,7 +4629,7 @@ Therefore:
 > one.
 
 The same applies to size claims: `UnembedPlan::bytes_reclaimable` is a
-full-rewrite figure. `edit.rs:16337-16345`: *"An incremental save (the default)
+full-rewrite figure. `edit.rs`: *"An incremental save (the default)
 appends an update section, so the freed objects' bytes stay in the prior
 revision and the file gets **larger**… Every shell that reports the byte figure
 must report the mode that delivers it."*
@@ -4640,14 +4640,14 @@ Three families, `ARCHITECTURE.md` §5.2 / §5.9 / §5.10:
 
 | Rule | Trigger | Enforced where |
 |---|---|---|
-| **R35** | Redaction *apply* | **Structurally.** `redact.rs:95` imports `save_full` only; `redact::apply_redactions` (`redact.rs:1078`) has **no mode parameter** and calls `save_full` at `redact.rs:1224`. The caller cannot ask for incremental. |
-| **R67** | Base document was loaded via cross-reference recovery | **In the writer.** `writer/save.rs:309-311`: `if doc.loaded_via_recovery() { return Err(WriteError::RecoveredBaseForbidsIncremental) }` — checked *first*, even for an empty dirty set. |
+| **R35** | Redaction *apply* | **Structurally.** `redact.rs` imports `save_full` only; `redact::apply_redactions` (`redact.rs`) has **no mode parameter** and calls `save_full` at `redact.rs`. The caller cannot ask for incremental. |
+| **R67** | Base document was loaded via cross-reference recovery | **In the writer.** `writer/save.rs`: `if doc.loaded_via_recovery() { return Err(WriteError::RecoveredBaseForbidsIncremental) }` — checked *first*, even for an empty dirty set. |
 | **R58** | Every *other* removal/scrub operation | ★ **NOT ENFORCED IN CODE.** |
 
 ★ **The R58 gap is the single most important thing in this section for a new
 shell.** `force_full` / `forces_full` / `requires_full` / `RequiresFullRewrite`
 as identifiers: **NOT FOUND anywhere in `crates/**/*.rs`**. `R58` appears in
-exactly two comments (`writer/mod.rs:757`, `writer/save.rs:308`). Nothing in
+exactly two comments (`writer/mod.rs`, `writer/save.rs`). Nothing in
 `EditSession` or the writer refuses an incremental save after a delete.
 
 So these verbs will happily save incrementally, leaving the removed content
@@ -4655,11 +4655,11 @@ recoverable, and **only the shell can prevent it**:
 
 | Verb | What its own doc says |
 |---|---|
-| `delete_pages` / `delete_pages_with` `:14644`/`:14663` | *"It is **not redaction**. Under the default incremental save the removed page's bytes remain in the file by construction… Front ends must say so."* (`edit.rs:14603-14608`) |
-| `flatten_fields` `:13730` | *"under the default **incremental** save the prior revision still holds them … the R35 sibling. This is the R48 destructive-disclosure the caller must surface."* (`edit.rs:13710-13716`) |
-| `detach_file` `:10347` | *"This frees the objects; it does not rewrite history… This is NOT a redaction verb and must not be described as one."* (`edit.rs:10327-10338`) |
-| `delete_annotation` `:10847` | *"**Deleting a comment is not redacting it** … A full rewrite drops the bytes; the default save mode does not."* (`edit.rs:10771-10778`) |
-| `unembed_fonts` `:16373` | *"Bytes are reclaimed by a FULL REWRITE, not by this call."* (`edit.rs:16337`) |
+| `delete_pages` / `delete_pages_with` | *"It is **not redaction**. Under the default incremental save the removed page's bytes remain in the file by construction… Front ends must say so."* (`edit.rs`) |
+| `flatten_fields` | *"under the default **incremental** save the prior revision still holds them … the R35 sibling. This is the R48 destructive-disclosure the caller must surface."* (`edit.rs`) |
+| `detach_file` | *"This frees the objects; it does not rewrite history… This is NOT a redaction verb and must not be described as one."* (`edit.rs`) |
+| `delete_annotation` | *"**Deleting a comment is not redacting it** … A full rewrite drops the bytes; the default save mode does not."* (`edit.rs`) |
+| `unembed_fonts` | *"Bytes are reclaimed by a FULL REWRITE, not by this call."* (`edit.rs`) |
 
 **Reference behaviour in the shipped shells:** `pdfcer` exposes
 `--full-rewrite` and, when it is absent after a flatten, prints to stderr
@@ -4676,16 +4676,16 @@ nothing below it will.
 
 ### 5.5 One thing a full rewrite still does not remove
 
-`edit.rs:4062-4065`: a full rewrite *"does **not** by itself remove the
+`edit.rs`: a full rewrite *"does **not** by itself remove the
 superseded value of a compressed object that an edit promoted out of its object
 stream."* The object stream carries through verbatim in **both** modes;
 `SaveReport::promoted` names the affected ids. Redaction handles this by
-decomposing containers (`redact.rs:1666`); nothing else does.
+decomposing containers (`redact.rs`); nothing else does.
 
 ### 5.6 Signature impact — ask immediately before saving
 
 ```rust
-let impact = session.signature_impact_of_save(SaveMode::Incremental);  // edit.rs:6992
+let impact = session.signature_impact_of_save(SaveMode::Incremental);  // edit.rs
 ```
 
 | census | mode | structural change? | → |
@@ -4695,21 +4695,21 @@ let impact = session.signature_impact_of_save(SaveMode::Incremental);  // edit.r
 | any | `Incremental` | no | `ByteRangePreserved` |
 | any | `Incremental` | yes | `Invalidated` |
 
-(`signature.rs:575-593`.) `changes_structure()` is computed from the page tree,
-not from history, for the same reason `dirty_set` is (`edit.rs:7003-7008`) — and
+(`signature.rs`.) `changes_structure()` is computed from the page tree,
+not from history, for the same reason `dirty_set` is (`edit.rs`) — and
 it is the **only** caller of that method in the whole workspace.
 
-⚠️ `edit.rs:6987-6989`: *"`SignatureImpact::ByteRangePreserved` must never be
+⚠️ `edit.rs`: *"`SignatureImpact::ByteRangePreserved` must never be
 rendered on its own as 'the signature is still valid'."* It means stage 1 (the
 byte-range digest) still verifies, and *only* that.
 
-Ask it **at save time, not at edit time** (`edit.rs:6982-6986`): the dirty set is
+Ask it **at save time, not at edit time** (`edit.rs`): the dirty set is
 computed at save time, so "does this save change structure?" is not knowable
 when the edit is made.
 
 ### 5.7 `SaveReport` — read it, do not synthesise it
 
-`crates/pdfcer-model/src/writer/save.rs:223` (re-exported as `pdfcer_core::writer::SaveReport`), `#[non_exhaustive]`. Field notes
+`crates/pdfcer-model/src/writer/save.rs` (re-exported as `pdfcer_core::writer::SaveReport`), `#[non_exhaustive]`. Field notes
 worth carrying:
 
 - `byte_identical` — *"Only ever true for an empty-dirty-set `save_incremental`."*
@@ -4722,7 +4722,7 @@ worth carrying:
 - `delinearized` — set from `Linearization::save_invalidates_fast_web_view()`,
   which is true only for a **Live** linearization; a `Stale` one returns false
   because a previous save already spent the property
-  (`linearization.rs:110`, `:274-286`).
+  (`linearization.rs`).
 
 There is **no session-level save outcome type**. `SaveOutcome` exists but is
 private to `pdfce-gui` (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:1411`). `WriteReport`:
@@ -4817,12 +4817,12 @@ three `EditSession` verbs above and should not touch those directly.
 
 | Guard | Error variant | Check | Meaning |
 |---|---|---|---|
-| **Encryption** | `EditError::DocumentEncrypted` `edit.rs:2765` | inlined `if self.base.trailer().contains_key(b"Encrypt")` — **no named helper** (`NOT FOUND — searched `refuse_if_encrypted`, `is_encrypted`, `encryption_refusal` across `crates/`); 38 occurrences in `edit.rs` | Today pdfcer refuses to *load* an encrypted file at all, so this is a forward-compatible R37 seam (`edit.rs:19338`), not a path a loadable file currently reaches. |
-| **Enforced certification** | `EditError::CertificationForbidsChange { permission: u8 }` `edit.rs:2722` | three functions, §6.2 | The catalog carries `/Perms → /DocMDP` **and** at least one signature exists (`signature.rs:332`). |
-| **Sidecar version** | `EditError::SidecarWrittenByNewerBuild { found, supported }` `edit.rs:2415` | `check_dimension_sidecar` `edit.rs:16917` | The ce-dimension `/PieceInfo` sidecar declares a version above `SIDECAR_VERSION` — **read the constant, do not quote a number here** (`grep 'pub const SIDECAR_VERSION' crates/pdfcer-core/src/dimension/sidecar.rs`). Note it is emitted **per document**: a file using no post-`3` feature is still written at `3`. No sidecar ⇒ `Ok`. |
-| **`/Size` suppression** | `EditError::ObjectCreationWouldExposeHiddenObjects { count }` `edit.rs:2355` | `self.base.suppressed_object_count() > 0` | §7.5.5: objects at or above `/Size` *"shall be ignored and defined to be missing"*. Creating an object raises `/Size` and would resurrect objects nobody touched. **Only creation is refused; editing an existing object is unaffected.** |
+| **Encryption** | `EditError::DocumentEncrypted` `edit.rs` | inlined `if self.base.trailer().contains_key(b"Encrypt")` — **no named helper** (`NOT FOUND — searched `refuse_if_encrypted`, `is_encrypted`, `encryption_refusal` across `crates/`); 38 occurrences in `edit.rs` | Today pdfcer refuses to *load* an encrypted file at all, so this is a forward-compatible R37 seam, not a path a loadable file currently reaches. |
+| **Enforced certification** | `EditError::CertificationForbidsChange { permission: u8 }` `edit.rs` | three functions, §6.2 | The catalog carries `/Perms → /DocMDP` **and** at least one signature exists (`signature.rs`). |
+| **Sidecar version** | `EditError::SidecarWrittenByNewerBuild { found, supported }` `edit.rs` | `check_dimension_sidecar` `edit.rs` | The ce-dimension `/PieceInfo` sidecar declares a version above `SIDECAR_VERSION` — **read the constant, do not quote a number here** (`grep 'pub const SIDECAR_VERSION' crates/pdfcer-core/src/dimension/sidecar.rs`). Note it is emitted **per document**: a file using no post-`3` feature is still written at `3`. No sidecar ⇒ `Ok`. |
+| **`/Size` suppression** | `EditError::ObjectCreationWouldExposeHiddenObjects { count }` `edit.rs` | `self.base.suppressed_object_count() > 0` | §7.5.5: objects at or above `/Size` *"shall be ignored and defined to be missing"*. Creating an object raises `/Size` and would resurrect objects nobody touched. **Only creation is refused; editing an existing object is unaffected.** |
 
-Plus the allocator's `EditError::ObjectNumbersExhausted` (`edit.rs:2336`).
+Plus the allocator's `EditError::ObjectNumbersExhausted` (`edit.rs`).
 
 ★ **These four are session-level preflights — they ask "may this document be
 edited at all."** A **fifth, per-verb** family asks a different question: *"is
@@ -4834,32 +4834,32 @@ one of its variants is new at `Pass 191.1`. **§6.8.**
 ### 6.2 Certification is THREE gates, not one — and they disagree on purpose
 
 ```rust
-fn check_certification(&self)                -> Result<SignatureCensus, EditError>  // :6970  STRICT
-fn check_certification_for_annotation(&self) -> Result<(), EditError>               // :11449 permits /P 3
-fn check_certification_for_fill(&self)       -> Result<(), EditError>               // :12289 refuses only /P 1
+fn check_certification(&self)                -> Result<SignatureCensus, EditError>  //  STRICT
+fn check_certification_for_annotation(&self) -> Result<(), EditError>               // permits /P 3
+fn check_certification_for_fill(&self)       -> Result<(), EditError>               // refuses only /P 1
 ```
 
-- **Strict** (`:6973`): refuses whenever `forbids_structural_change()`. `/P` is
+- **Strict**: refuses whenever `forbids_structural_change()`. `/P` is
   carried into the message only.
-- **Annotation-aware** (`:11454`): refuses only when `permission < 3`.
-- **Fill-aware** (`:12293`): refuses only `permission == Some(1)`; separately
+- **Annotation-aware**: refuses only when `permission < 3`.
+- **Fill-aware**: refuses only `permission == Some(1)`; separately
   refuses any `/FieldMDP` with `EditError::FieldLockedBySignature`.
 
-Table 254's default `/P = 2` is applied via `unwrap_or(2)` (`:6974`, `:11453`).
+Table 254's default `/P = 2` is applied via `unwrap_or(2)` ().
 A DocMDP transform in a signature's `/Reference` alone is **detection only** —
 the edit proceeds and the impact is reported. Only the catalog's `/Perms`
-upgrades it to **prevention** (`edit.rs:6951-6957`).
+upgrades it to **prevention** (`edit.rs`).
 
 **Which gate a verb takes:**
 
 | Gate | Verbs |
 |---|---|
-| **Strict** `check_certification` | all 11 vector verbs (via `vector_surgery` `:5116`); all 5 field-creation verbs (via `field_authoring_preflight` `:7406`); `delete_field`, `delete_widget`, `move_widget` (via `deletion_preflight` `:9101`); `delete_field_group`, `field_group_deletion_preview` (`:8668`); `rename_field` `:8893`; `flatten_fields` `:13737`; `delete_pages_with` `:14668`; `reorder_pages` `:14945`; `rotate_pages` `:15064`; all 11 ce-dimension verbs; `unembed_refusal` `:16307`; `embed_refusal` `:16557`; `add_image` `:17450`; `deletion_refusal`/`rename_refusal` (via `structural_form_refusal` `:12286`) |
-| **Annotation** | `add_markup` `:10008`; `attach_file` `:10156`; `detach_file` `:10351`; `add_redaction` `:10500`; `delete_redaction_mark` `:10632`; `delete_annotation`+`annotation_deletion_preview` (via `annotation_deletion_guards` `:11146`); `annotation_deletion_refusal` `:11496`; the three `mark_redactions_*` (via `author_text_matches` `:11677`); `add_text_annotation` `:12048` |
-| **Fill** | `fill_text_field`, `fill_text_field_downgrading_rich_text`, `reset_form`, `set_choice_value`, `regenerate_appearances` (via `fill_guards` `:12308`); `set_button_state` `:12576`; `fill_refusal` `:12201` |
-| **None** | `set_info_field` `:3689` (deliberate — argued at `edit.rs:6957-6968` as an owed decision, not an oversight); `set_page_rotation` `:3848`; `rotate_page_by` `:3981`; `delete_pages` `:14644` (encryption-ungated too) |
+| **Strict** `check_certification` | all 11 vector verbs (via `vector_surgery`); all 5 field-creation verbs (via `field_authoring_preflight`); `delete_field`, `delete_widget`, `move_widget` (via `deletion_preflight`); `delete_field_group`, `field_group_deletion_preview`; `rename_field`; `flatten_fields`; `delete_pages_with`; `reorder_pages`; `rotate_pages`; all 11 ce-dimension verbs; `unembed_refusal`; `embed_refusal`; `add_image`; `deletion_refusal`/`rename_refusal` (via `structural_form_refusal`) |
+| **Annotation** | `add_markup`; `attach_file`; `detach_file`; `add_redaction`; `delete_redaction_mark`; `delete_annotation`+`annotation_deletion_preview` (via `annotation_deletion_guards`); `annotation_deletion_refusal`; the three `mark_redactions_*` (via `author_text_matches`); `add_text_annotation` |
+| **Fill** | `fill_text_field`, `fill_text_field_downgrading_rich_text`, `reset_form`, `set_choice_value`, `regenerate_appearances` (via `fill_guards`); `set_button_state`; `fill_refusal` |
+| **None** | `set_info_field` (deliberate — argued at `edit.rs` as an owed decision, not an oversight); `set_page_rotation`; `rotate_page_by`; `delete_pages` (encryption-ungated too) |
 
-★ **The singular/plural page verbs diverge.** `rotate_pages` (plural, `:15063`)
+★ **The singular/plural page verbs diverge.** `rotate_pages` (plural)
 takes the strict certification gate; `set_page_rotation` / `rotate_page_by`
 (singular) take **no guard at all**. A shell that offers both must not assume
 they refuse alike.
@@ -4872,27 +4872,23 @@ and is the last thing a verb does.
 
 Verified orderings (guard line < first mutation line < commit line):
 
-| Verb | Encrypt | Cert | `/Size` | Sidecar | first `alloc_number` | `commit` |
-|---|---|---|---|---|---|---|
-| `add_markup` `:9986` | 9991 | 10008 | 10027 | — | 10034 | 10082 |
-| `add_image` `:17437` | 17448 | 17450 | 17453 | — | 17472 | 17580 |
-| `add_dimension` `:15380` | 15387 | 15389 | 15402 | 15405 | 15417 | 15505 |
-| `flatten_fields` `:13730` | 13732 | 13737 | 13740 | — | 13816 | 13940 |
+Checked for `add_markup`, `add_image`, `add_dimension`, `flatten_fields`: in each, every guard precedes the first
+mutation, which precedes `commit`.
 
-★ **The one genuine counterexample — `add_radio_button` (`edit.rs:8253`).** On
+★ **The one genuine counterexample — `add_radio_button` (`edit.rs`).** On
 the merge-into-existing-group branch:
 
 ```
-edit.rs:8383      self.commit(Command { kind: CommandKind::AddFormField, objects, … });
-edit.rs:8389      if spec.selected {
-edit.rs:8390          self.set_button_state(&spec.name, &spec.export_value)?;   // can Err AFTER the commit
+      self.commit(Command { kind: CommandKind::AddFormField, objects, … });
+      if spec.selected {
+          self.set_button_state(&spec.name, &spec.export_value)?;   // can Err AFTER the commit
 ```
 
-`set_button_state` runs its own encryption guard (`:12574`) and fill
-certification gate (`:12576`), either of which can return `Err` **after** the
+`set_button_state` runs its own encryption guard and fill
+certification gate, either of which can return `Err` **after** the
 merge has been applied. The session is then left holding a committed
 `AddFormField` command and an unselected radio member. It is deliberate —
-`edit.rs:8378-8382`: *"it is reached below, after the merge is committed, so it
+`edit.rs`: *"it is reached below, after the merge is committed, so it
 sees the group the merge actually produced rather than a prediction of it
 (R92)."* The stranded state is one `Command`, so a single `undo()` reverses it,
 but **`add_radio_button` is the one verb whose `Err` return does not imply
@@ -4903,14 +4899,14 @@ re-query the field state.
 
 All six are `&self`, `#[must_use]`, and return `Option<EditError>`.
 
-| Accessor | Line | Body | Does the mutating verb re-check the same things? |
-|---|---|---|---|
-| `fill_refusal` | 12200 | `check_certification_for_fill().err()` | ❌ **STRICT SUBSET.** The verbs call `fill_guards` (`:12304`) = Encrypt + cert-for-fill + `/Size`. `fill_refusal` can say `None` on a document where the fill returns `DocumentEncrypted` or `ObjectCreationWouldExposeHiddenObjects`. `import_form_data` calls `fill_refusal()` (`:13489`) and then **immediately re-adds the missing encryption check** (`:13492-13494`) — the codebase knows. |
-| `deletion_refusal` | 12239 | `structural_form_refusal()` = Encrypt + strict cert | ✅ Same checks, **independently open-coded** in `deletion_preflight` (`:9096-9101`). Advisory but currently exact. |
-| `rename_refusal` | 12268 | `structural_form_refusal()` | ✅ Same, open-coded in `rename_field` (`:8890-8893`). |
-| `annotation_deletion_refusal` | 11492 | Encrypt + annotation cert | ❌ **DOCUMENT-SCOPE ONLY.** Takes no `annot_id`, so it cannot run the three per-annotation refusals `annotation_deletion_guards` (`:11110`) runs first: `AnnotationLocked` (`:11120`), `AnnotationIsTrapNet` (`:11130`), `AnnotationIsWidget` (`:11141`). |
-| `unembed_refusal` | 16303 | Encrypt + strict cert | ✅ **LOAD-BEARING** — `unembed_fonts` calls it at `:16375`. |
-| `embed_refusal` | 16553 | Encrypt + strict cert | ✅ **LOAD-BEARING** — `embed_fonts` calls it at `:16627`. |
+| Accessor | Body | Does the mutating verb re-check the same things? |
+|---|---|---|
+| `fill_refusal` | `check_certification_for_fill().err()` | ❌ **STRICT SUBSET.** The verbs call `fill_guards` = Encrypt + cert-for-fill + `/Size`. `fill_refusal` can say `None` on a document where the fill returns `DocumentEncrypted` or `ObjectCreationWouldExposeHiddenObjects`. `import_form_data` calls `fill_refusal()` and then **immediately re-adds the missing encryption check** — the codebase knows. |
+| `deletion_refusal` | `structural_form_refusal()` = Encrypt + strict cert | ✅ Same checks, **independently open-coded** in `deletion_preflight`. Advisory but currently exact. |
+| `rename_refusal` | `structural_form_refusal()` | ✅ Same, open-coded in `rename_field`. |
+| `annotation_deletion_refusal` | Encrypt + annotation cert | ❌ **DOCUMENT-SCOPE ONLY.** Takes no `annot_id`, so it cannot run the three per-annotation refusals `annotation_deletion_guards` runs first: `AnnotationLocked`, `AnnotationIsTrapNet`, `AnnotationIsWidget`. |
+| `unembed_refusal` | Encrypt + strict cert | ✅ **LOAD-BEARING** — `unembed_fonts` calls it. |
+| `embed_refusal` | Encrypt + strict cert | ✅ **LOAD-BEARING** — `embed_fonts` calls it. |
 
 **GUI consequence.** Use these to *grey out or explain* controls, never as the
 sole gate. Two of the six under-report: a control enabled because
@@ -4920,7 +4916,7 @@ on a locked, TrapNet, or widget annotation. The correct pattern is
 **preflight for the label, handle the `Err` for the truth.**
 
 The deliberate duplication of `deletion_refusal` and `rename_refusal` is argued
-at `edit.rs:12253-12266`: *"both delegate to `structural_form_refusal`, so if a
+at `edit.rs`: *"both delegate to `structural_form_refusal`, so if a
 future spec nuance ever separates them, the split happens HERE, once."*
 
 ### 6.5 Preflight-then-commit — the four preview pairs, and their tested contract
@@ -4931,19 +4927,19 @@ with the verb they preview.
 
 | Preview | Verb | Test pinning agreement |
 |---|---|---|
-| `reset_preview(&self, only)` `:12755` | `reset_form` `:12884` | `edit.rs:18252-18271` — `preview.iter().filter(\|r\| r.would_change).count() == out.fields_reset` |
-| `annotation_deletion_preview(&self, id)` `:11316` | `delete_annotation` `:10847` | `tests/annot_deletion.rs:334-379` — *"preview said yes but the delete said {e}"*; plus `:385-399 previewing_changes_nothing` and `:403-420 the_preview_refuses_exactly_what_the_deletion_refuses` |
-| `unembed_preview(&self, req)` `:16278` / `embed_preview` `:16530` | `unembed_fonts` `:16373` / `embed_fonts` `:16625` | `font_unembed.rs:1567-1580`, `font_embed_missing.rs:2260+` |
-| `field_group_deletion_preview(&mut self, fqn)` `:8535` | `delete_field_group` `:8574` | `tests/form_field_hierarchy.rs:1166-1196` — `done.terminals == preview.terminals` |
+| `reset_preview(&self, only)` | `reset_form` | `edit.rs` — `preview.iter().filter(\|r\| r.would_change).count() == out.fields_reset` |
+| `annotation_deletion_preview(&self, id)` | `delete_annotation` | `tests/annot_deletion.rs` — *"preview said yes but the delete said {e}"*; plus `previewing_changes_nothing` and `the_preview_refuses_exactly_what_the_deletion_refuses` |
+| `unembed_preview(&self, req)` / `embed_preview` | `unembed_fonts` / `embed_fonts` | `font_unembed.rs`, `font_embed_missing.rs` |
+| `field_group_deletion_preview(&mut self, fqn)` | `delete_field_group` | `tests/form_field_hierarchy.rs` — `done.terminals == preview.terminals` |
 
 Two of these previews are **called internally by the verb**, so the external
 call is purely for showing the operator, not for correctness:
 `unembed_fonts` calls `unembed_refusal()` then `unembed_preview(request)`
-(`edit.rs:16375-16379`); `delete_field_group` calls
-`field_group_deletion_preview` (`edit.rs:8573-8574`).
+(`edit.rs`); `delete_field_group` calls
+`field_group_deletion_preview` (`edit.rs`).
 
 `annotation_deletion_preview` is explicitly designed to be safe to call every
-frame while the pointer rests on a row (`annot_deletion.rs:385-399`).
+frame while the pointer rests on a row (`annot_deletion.rs`).
 
 ### 6.6 Orderings that are required — and three that look required but are not
 
@@ -4980,38 +4976,38 @@ exists. ~25 tests do exactly that and are unaffected.
 `EditError::DimensionGroupNotFound`. **Two of those became true only in
 `Pass 178.0`/`178.2`** — `toggle_dimension_layer` and `set_group_scale` used to
 return `Ok` and change nothing — so a shell that special-cased them can stop.
-The canonical ordered fixture, `tests/dxf_scale.rs:313-331`: `new` →
+The canonical ordered fixture, `tests/dxf_scale.rs`: `new` →
 `add_dimension_group` ×2 → `set_group_scale` → `add_dimension` ×2.
 
 **Semantically ordered, not error-enforced:** calibrating a group's scale
 *after* its members exist regenerates their labels
-(`tests/dimension_roundtrip.rs:209-230`); calibrating *before* any member exists
+(`tests/dimension_roundtrip.rs`); calibrating *before* any member exists
 labels nothing.
 
 **NOT required — `find_text` before `mark_redactions_by_search`.** They are
 siblings, not a sequence: the marking verb runs its own scan through the shared
-`scan_text_matches` (`edit.rs:11679`). They also **disagree on query
+`scan_text_matches` (`edit.rs`). They also **disagree on query
 semantics** (trap T-05), so feeding one's results to the other is wrong, not
 merely redundant. `pdfce-gui` keeps `find_matches` separate from the Find bar
-(`pdfce@cce414e:crates/pdfce-gui/src/main.rs:9812`, `:9932`) and never feeds them in.
+(`pdfce@cce414e:crates/pdfce-gui/src/main.rs:9812`) and never feeds them in.
 
 **Required — mark → materialise → apply, for redaction.**
 `prepare_redaction_apply` refuses with `NothingToApply` when no mark exists
 (`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs:275-277`), and reads the census from
 `session.graph()` (the edited view) rather than `session.document()` — the
-unsaved-mark trap, `redact_apply.rs:272-274`.
+unsaved-mark trap, `redact_apply.rs`.
 
 **Works immediately — author then fill.** A field pdfcer just authored is
 accepted by the ordinary fill path with no save/reopen
-(`tests/form_field_authoring.rs:202-213`).
+(`tests/form_field_authoring.rs`).
 
 **Type-enforced — import then place, for images.** `image_import::import(&bytes)`
 must produce an `ImportedImage` before `NewImage::new(page, rect, &img)` can
-borrow it (`tests/image_placement.rs:238-247`).
+borrow it (`tests/image_placement.rs`).
 
 ### 6.7 The `EditError` taxonomy
 
-`edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
+`edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
 **149 variants** at `Pass 360.0` (`AnnotationNotFlattenable`, from `flatten_annotations`), counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
@@ -5063,7 +5059,7 @@ No inherent `impl EditError` block and **no `is_*` classification helpers**
 > claim to cover every variant, and the earlier wording that said they did was
 > the second of the two wrong numbers.
 
-`edit.rs:2295-2296`: *"Every variant names a
+`edit.rs`: *"Every variant names a
 condition the operator (or the calling front end) can act on. There is
 deliberately no catch-all 'edit failed'."*
 
@@ -5107,7 +5103,7 @@ the three **structural-carrier** refusals — `FieldObjectIsInPageTree`,
 (`edit_text`, `format_text`, `preview_style_resolution`, `reflow_block`,
 `add_text`) return `crate::text_edit`'s own error types, and encryption there
 surfaces as `text_edit::EditError::Encrypted`, **not** `EditError::DocumentEncrypted`
-(guards at `edit.rs:4134`, `:4193`, `:4252`, `:4306`, `:4376`).
+(guards at `edit.rs`).
 
 ### 6.8 The structural-carrier guards — one defect class, eleven verbs, TWO different answers
 
@@ -5330,20 +5326,20 @@ Two pre-commit mutations exist, and both are bookkeeping rather than document
 state.
 
 ```rust
-fn alloc_number(&mut self) -> Result<u32, EditError>   // edit.rs:14451
-fn stage_bytes(&mut self, content: &[u8]) -> ByteSpan  // edit.rs:14461
+fn alloc_number(&mut self) -> Result<u32, EditError>   // edit.rs
+fn stage_bytes(&mut self, content: &[u8]) -> ByteSpan  // edit.rs
 ```
 
 **Object numbers.** `alloc_number` hands out `next_number` and increments it.
-`edit.rs:14448-14450`: *"The counter is **not** rewound on undo — §7.5.4/§7.5.7
+`edit.rs`: *"The counter is **not** rewound on undo — §7.5.4/§7.5.7
 never reuse a number, so a skipped one is harmless, and rewinding would risk a
 collision with a redo."* One site open-codes the same logic
-(`set_info_field`, `edit.rs:3759`).
+(`set_info_field`, `edit.rs`).
 
 **Consequence for a shell:** a verb that allocates a number and *then* hits a
 fallible `?` leaks the number (and possibly staged bytes). This **does not dirty
 the document** — `dirty_set` diffs `state`/`deleted`/`trailer`, and no `Command`
-was pushed. Pinned by the test `a_refused_comb_stages_nothing` (`edit.rs:18171`).
+was pushed. Pinned by the test `a_refused_comb_stages_nothing` (`edit.rs`).
 Do not attempt to reclaim numbers.
 
 **Staging (R45).** Authored appearance streams keep the span model rather than
@@ -5353,9 +5349,9 @@ consumers resolve that span, and they are not interchangeable:
 
 | Consumer | Mechanism | Cost |
 |---|---|---|
-| `view()` `:3469` | `StreamSource::Split { base, staged }` | one integer comparison, **no allocation** — safe per frame |
-| `authored_source()` `:3561` | `Cow::Owned(base ++ staging)` | full memcpy, ~14 MB on the benchmark document — **once per operation only** |
-| the writer | `DirtySet::combined_source` (`writer/mod.rs:488`), fed by `dirty_set()` step 4 | at save time |
+| `view()` | `StreamSource::Split { base, staged }` | one integer comparison, **no allocation** — safe per frame |
+| `authored_source()` | `Cow::Owned(base ++ staging)` | full memcpy, ~14 MB on the benchmark document — **once per operation only** |
+| the writer | `DirtySet::combined_source` (`writer/mod.rs`), fed by `dirty_set()` step 4 | at save time |
 
 A session that has authored nothing keeps `staging` empty, and the save path is
 byte-for-byte identical to the pre-R45 path.
@@ -5376,20 +5372,20 @@ pub fn set_group_style(
     &mut self,
     group: GroupId,
     style: crate::dimension::GroupStyle,
-) -> Result<usize, EditError>                              // edit.rs:16052
+) -> Result<usize, EditError>                              // edit.rs
 ```
 
-Body (`edit.rs:16074-16090`): the returned `usize` is `members.len()`, where
+Body (`edit.rs`): the returned `usize` is `members.len()`, where
 `members` is *every wired member of the group* (`d.annot.is_some() &&
 d.ap.is_some()`), unconditionally regenerated.
 
-Method doc, verbatim (`edit.rs:16022-16024`):
+Method doc, verbatim (`edit.rs`):
 
 > *"**Set a ce dimension GROUP's style defaults** and regenerate every wired
 > member, as one undoable command (Pass 69.0). Returns how many members were
 > regenerated."*
 
-And on the command kind, `edit.rs:481-496`, verbatim:
+And on the command kind, `edit.rs`, verbatim:
 
 > *"`members` counts what was REGENERATED, which is every wired member — not
 > every member the change was VISIBLE on. Those differ whenever a member
@@ -5402,7 +5398,7 @@ And on the command kind, `edit.rs:481-496`, verbatim:
 **Why a GUI gets this wrong.** *"Applied to 17 ce dimensions"* is the natural
 toast, and it is a confident answer to the wrong question: a member that
 overrides the edited property regenerated to byte-identical output and did not
-move. The method's own rationale (`edit.rs:16036-16043`) explains why it does
+move. The method's own rationale (`edit.rs`) explains why it does
 not filter — filtering would duplicate the cascade's logic in a second place
 where the two could disagree.
 
@@ -5410,7 +5406,7 @@ where the two could disagree.
 
 - It is **not** the group's membership count either. Un-wired members
   (`annot`/`ap` absent) are excluded from both the regeneration and the number.
-- `set_dimension_style` (`edit.rs:16115`) is `Result<usize, EditError>` too, but
+- `set_dimension_style` (`edit.rs`) is `Result<usize, EditError>` too, but
   its `usize` is *"how many properties it overrides afterwards"* — a **property**
   count, not a member count. Two sibling methods, identical types, incompatible
   units. A status bar sharing one formatter prints "17 dimensions updated" for a
@@ -5420,17 +5416,17 @@ where the two could disagree.
 
 ```rust
 pdfcer_core::dimension::style_provenance(&group, &member_overrides) -> StyleProvenance
-//   crates/pdfcer-core/src/dimension/style.rs:526
-//   re-exported at crates/pdfcer-core/src/dimension/mod.rs:90
+//   crates/pdfcer-core/src/dimension/style.rs
+//   re-exported at crates/pdfcer-core/src/dimension/mod.rs
 ```
 
 read the `StyleSource` field named after the property you changed
-(`StyleProvenance` has one field per property, `style.rs:390-405`), and count
-those where `StyleSource::follows_group()` is `true` (`style.rs:378`).
+(`StyleProvenance` has one field per property, `style.rs`), and count
+those where `StyleSource::follows_group()` is `true` (`style.rs`).
 
 **Sub-trap — do not hand-match the variant.** `follows_group` is
 `matches!(self, Self::Factory | Self::Group)`. `Factory` **counts as moving**:
-`style.rs:370-376` — *"a factory-sourced property DOES follow a group edit,
+`style.rs` — *"a factory-sourced property DOES follow a group edit,
 because the group has simply not spoken yet."* Counting only `Group` under-reports
 by every member sitting on a factory default, which on a fresh document is most
 of them.
@@ -5438,29 +5434,29 @@ of them.
 **Sub-trap — four properties are two-tier only.** `style_provenance` never
 returns `Factory` for `unit`, `fraction`, `decimal_marker`, or `standard`,
 because the group's tier for those is a concrete field rather than an `Option`
-(`style.rs:527-539`: *"saying otherwise would be a lie an operator could act on
+(`style.rs`: *"saying otherwise would be a lie an operator could act on
 ('that will follow the factory default' — it will not; it follows the group)"*).
 A "Factory" chip on those four in an inheritance panel is unreachable dead UI.
 
 **Sub-trap — `StyleOverrides::tolerance`'s `None` is not "no tolerance."**
-`style.rs:302-306`: `None` means *inherit*; "no tolerance" is
+`style.rs`: `None` means *inherit*; "no tolerance" is
 `Some(Tolerance::None)`, *"deliberately distinct from `None`"*. A checkbox that
 writes `None` to mean "off" silently re-enables the group's tolerance.
 
 **Sub-trap — pair the two queries against one snapshot.** `resolve_style` and
-`style_provenance` are deliberately separate functions (`style.rs:521-524`);
+`style_provenance` are deliberately separate functions (`style.rs`);
 values and sources are computed independently. Rendering a value from one and a
 source from a stale call to the other shows mismatched pairs.
 
 ### T-01 ★ `document()` is the base; the canvas must render `view()`
 
-§2.3. Shipped as a defect for 13 Passes. `edit.rs:3438-3444`.
+§2.3. Shipped as a defect for 13 Passes. `edit.rs`.
 
 ### T-02 ★ `delete_subpath` has NO doc comment, and `delete_node`'s rustdoc opens with subpath semantics
 
-`edit.rs:4770` — `pub fn delete_subpath` has **no `///` block at all**. The
-preceding `///` run (`edit.rs:~4676-4749`) is one contiguous block and therefore
-documents `delete_node` (`edit.rs:4751`) in full. Its first half describes
+`edit.rs` — `pub fn delete_subpath` has **no `///` block at all**. The
+preceding `///` run is one contiguous block and therefore
+documents `delete_node` (`edit.rs`) in full. Its first half describes
 subpath deletion — *"Content-stream surgery via `plan_delete_subpath`… Lands as
 one `CommandKind::DeleteSubpath`… **Deleting the only subpath deletes the
 object**"* — and only then continues with `delete_node`'s actual contract.
@@ -5468,7 +5464,7 @@ object**"* — and only then continues with `delete_node`'s actual contract.
 **Consequence:** a GUI author reading `delete_node`'s rustdoc will implement
 subpath semantics for a node delete, and will find `delete_subpath` documented
 nowhere. `missing_docs` is **not** enforced on this crate (it appears only as an
-aspirational comment at `crates/pdfcer-core/Cargo.toml:108`), so nothing catches
+aspirational comment at `crates/pdfcer-core/Cargo.toml`), so nothing catches
 it. Trust the **bodies**: `delete_node` → `plan_delete_node` +
 `CommandKind::DeleteNode`; `delete_subpath` → `plan_delete_subpath` +
 `CommandKind::DeleteSubpath`.
@@ -5484,10 +5480,10 @@ it. Trust the **bodies**: `delete_node` → `plan_delete_node` +
 
 ### T-05 `find_text` is a wildcard search; `find_text_with` is not; `mark_redactions_by_search` is literal
 
-`find_text` (`edit.rs:11792`) hard-codes `with_wildcards(true)`, so `#` matches
+`find_text` (`edit.rs`) hard-codes `with_wildcards(true)`, so `#` matches
 any ASCII digit and `?` matches any character — *"Searching for a literal `?`
-therefore matches every character on the page"* (`edit.rs:11762-11790`).
-`TextSearchOptions::wildcards` defaults to **`false`** (`edit.rs:6502-6520`).
+therefore matches every character on the page"* (`edit.rs`).
+`TextSearchOptions::wildcards` defaults to **`false`** (`edit.rs`).
 `mark_redactions_by_search` matches **literally**, so pairing the two behind a
 "redact every hit" control produces *"the search highlights hits the redaction
 then declines to mark."*
@@ -5497,7 +5493,7 @@ then declines to mark."*
 
 ### T-06 `move_dimension` re-measures; `place_dimension` is what a drag does
 
-`edit.rs:15804` vs `:16779`. `place_dimension` writes only fields the value
+Both in `edit.rs`. `place_dimension` writes only fields the value
 function does not read — value-preserving by construction. `move_dimension`
 translates the measured points, *"it does take the ce dimension off the feature
 it was measuring."* A drag handler wired to `move_dimension` silently changes
@@ -5505,21 +5501,21 @@ what the ce dimension says.
 
 ### T-07 `AnnotationDeletion::appearance_streams_removed == 0` means "not tracked", not "none"
 
-`edit.rs:6030-6046`, verbatim: *"**Not a count of zero — a 'not tracked'.**"*
+`edit.rs`, verbatim: *"**Not a count of zero — a 'not tracked'.**"*
 Always `0` on the delegated routes (`delete_redaction_mark`, `delete_dimension`)
-and always `0` from `annotation_deletion_preview` (`edit.rs:11293-11298`:
+and always `0` from `annotation_deletion_preview` (`edit.rs`:
 *"reported as **0**, not computed"*).
 
 ### T-08 `FillOutcome::xfa_may_disagree` — a success return that is not a success
 
-`edit.rs:5791`: the document also carries an XFA packet, so the filled value may
+`edit.rs`: the document also carries an XFA packet, so the filled value may
 not be what an XFA-aware viewer shows, and *"which one an operator sees depends
 on their viewer."* Rendering the new value with no warning shows a value some
 readers will never display.
 
 ### T-09 `FieldRename::descendants_renamed` — one request can rename six fields
 
-`edit.rs:6785`, `edit.rs:8865-8868`: only one dictionary is written; every
+`edit.rs`, `edit.rs`: only one dictionary is written; every
 descendant's FQN re-derives. *"an operator not told so has silently broken every
 FDF and JavaScript reference that named them (rule 4)."* A tree
 view refreshing only the renamed row shows stale FQNs.
@@ -5533,22 +5529,22 @@ and still silently. Related:
 
 ### T-10 `InfoText::exact == false` ⇒ do not write the field back
 
-`edit.rs:3282-3284`. Re-encoding would not reproduce the original bytes. A
+`edit.rs`. Re-encoding would not reproduce the original bytes. A
 metadata dialog that writes all fields on OK silently corrupts non-exact values.
 
 ### T-11 Never loop a singular vector verb over a selection
 
-`edit.rs:4600-4620`: indices go stale between iterations (each call re-splices
-the stream), and N calls are N undo entries. Use `move_objects` `:4574`,
-`delete_objects` `:4641`, `move_nodes` `:5001`.
+`edit.rs`: indices go stale between iterations (each call re-splices
+the stream), and N calls are N undo entries. Use `move_objects`,
+`delete_objects`, `move_nodes`.
 
 ### T-12 `find_text`, `find_text_with`, `field_group_deletion_preview` take `&mut self` but change nothing
 
-`edit.rs:11792`, `:11853`, `:8535`. They read `self.view()` or run a preflight,
+`edit.rs`. They read `self.view()` or run a preflight,
 so the borrow is exclusive. A shell holding any other borrow of the session
 while the Find bar updates will not compile; a `RefCell`/`RwLock` wrapper must
 take the **write** lock to search. Note the asymmetry:
-`annotation_deletion_preview` (`:11316`) and `reset_preview` (`:12755`) are
+`annotation_deletion_preview` and `reset_preview` are
 `&self`.
 
 ### T-13 `import_form_data` is N undo entries; `set_info_field` may be zero
@@ -5570,7 +5566,7 @@ refusal that remains is a page carrying a content stream APPENDED this session
 ### T-15 One object, one merged write per command — last write wins, silently
 
 `ARCHITECTURE.md` §11.1 correction (2026-08-03, Pass 17.1) and
-`edit.rs:14026-14033`. `EditSession` applies a command's `ObjectWrite`s in
+`edit.rs`. `EditSession` applies a command's `ObjectWrite`s in
 sequence against the **pre-command** state, so a second whole-dictionary write to
 the same id **replaces** the first. Found via `flatten_fields`, which issued
 three whole-dict writes to one page object (`/Contents`, `/Resources /XObject`,
@@ -5580,13 +5576,13 @@ counters**. Binding rule: accumulate ONE merged dictionary write per id per
 command.
 
 Related, for anything building a multi-object command:
-`edit.rs:7844-7851` — *"a parent this same call had just created is NOT there to
+`edit.rs` — *"a parent this same call had just created is NOT there to
 read — its `ObjectWrite` is still pending in the command being assembled, and
 `self.value` sees committed state."*
 
 ### T-16 Redaction marks must be placed against the session, not the base
 
-`edit.rs:11610-11626`: after `delete_pages` / `reorder_pages`, base page indices
+`edit.rs`: after `delete_pages` / `reorder_pages`, base page indices
 and `page_slots` diverge, and a mark lands *"on a **different page** than the one
 holding the matched text — silently, with correct-looking geometry."* A shell
 caching `find_text` results across a page reorder and then redacting them
@@ -5594,51 +5590,51 @@ reproduces exactly this.
 
 ### T-17 `reset_form` removes `/V`, does not blank it, and never recomputes
 
-`edit.rs:12815-12824`: *"An absent key and a key holding an empty string are
+`edit.rs`: *"An absent key and a key holding an empty string are
 different bytes, a different incremental delta, and — for a choice field — a
 different meaning."* Skipped push-button / signature / read-only fields are
 **counted**, never silently cleared. `/DV` is never written. Calculated fields
-are **not** recomputed (`edit.rs:12869`). `reset_preview` returns a row for
+are **not** recomputed (`edit.rs`). `reset_preview` returns a row for
 **every** field in scope including no-ops — filter on `would_change`.
 
 ### T-18 `delete_field` / `delete_field_group` / `delete_widget` remove different amounts
 
-`edit.rs:8464` / `:8574` / `:8764`. `delete_field_group` on a terminal returns
+`edit.rs`. `delete_field_group` on a terminal returns
 `NotAGroupingNode` and is *"deliberately not redirected to `delete_field` — the
 two remove different amounts, and guessing which the caller meant is exactly the
-sneakiness rule 4 forbids"* (`edit.rs:8528-8532`). Preview with
+sneakiness rule 4 forbids"* (`edit.rs`). Preview with
 `field_group_deletion_preview` before offering the group verb.
 
 ### T-19 `TextSearchOptions::whole_word` does not fix cross-run matching
 
-`edit.rs:6572-6584`: *"Matching itself remains **per run** … a needle split
+`edit.rs`: *"Matching itself remains **per run** … a needle split
 across two runs is still not found at all, with or without this option."*
 `word_boundary` is ignored when `whole_word` is `false` but must not be reset on
-toggle (`edit.rs:6588-6592`).
+toggle (`edit.rs`).
 
 ### T-20 A successful push-button creation yields a control that does nothing
 
-`edit.rs:1077-1090`: *"the only creation verb whose successful result is a
+`edit.rs`: *"the only creation verb whose successful result is a
 control that does not work."* The disclosure says so; a shell that reports
 "field created" without it ships a dead button.
 
 ### T-21 `FieldDefaults` caption ambiguity is silently resolved
 
-`edit.rs:1159-1161`: `caption` and `on_state` are read from the **first** widget
+`edit.rs`: `caption` and `on_state` are read from the **first** widget
 of a multi-widget field. On-state disagreement is reported
-(`defaults_on_state_ambiguous`, `edit.rs:1070-1076`); **caption disagreement is
+(`defaults_on_state_ambiguous`, `edit.rs`); **caption disagreement is
 not.** A "copy defaults from" UI picks one of N captions with no flag.
 
 ### T-22 `set_dimension_display` commits on a no-op; `set_info_field` does not
 
-§3.4. `edit.rs:15901-15908` argues the inverse policy deliberately: *"an early
+§3.4. `edit.rs` argues the inverse policy deliberately: *"an early
 return on `show_diameter == current` would make an undo stack that sometimes
 gains an entry from a control press and sometimes does not."* Two same-shaped
 setters, opposite policies. A caller wanting suppression must compare first.
 
 ### T-23 `embed_fonts` grows the file regardless of save mode; `unembed_fonts`'s saving depends on it
 
-`edit.rs:16590-16599` vs `:16337-16345`. Same-shaped plan struct, one figure is
+Both in `edit.rs`. Same-shaped plan struct, one figure is
 mode-dependent and one is not.
 
 ### T-24 `add_radio_button` can return `Err` after committing
@@ -5656,15 +5652,15 @@ breaking change and the project treats it as routine.
 
 | Area | Assessment | Evidence |
 |---|---|---|
-| Session construction, overlay model, `commit`/`undo`/`redo`, `dirty_set` | **Stable.** Shipped Pass 3.1 (2026-07-31) and unchanged in shape since; `ARCHITECTURE.md` §11.5 records it as the executable form of a design-locked section, pinned by a 2,897-file corpus assertion. | `edit.rs:3325-3660`, `ARCHITECTURE.md` §11.5 |
-| `to_incremental_bytes` / `to_full_bytes` / `SaveReport` | **Stable.** Two-method shape unchanged since Pass 3.x; `SaveReport` is `#[non_exhaustive]` and has gained fields additively (`objects_deleted`, `delinearized`). | `writer/save.rs:208` |
-| Guard model (encryption / certification / `/Size`) | **Stable in shape, still growing in coverage.** The three-gate certification split is argued as a permanent design (`edit.rs:12253-12266`). The encryption guard is explicitly a *forward-compatible seam* — `edit.rs:19338` records that no loadable file currently reaches it, so its behaviour when encrypted loading ships is **UNVERIFIED — re-check when `Pass 5` (Encryption) delivers a decrypting loader**. | `edit.rs:6970`, `:11449`, `:12289`, `:19338` |
+| Session construction, overlay model, `commit`/`undo`/`redo`, `dirty_set` | **Stable.** Shipped Pass 3.1 (2026-07-31) and unchanged in shape since; `ARCHITECTURE.md` §11.5 records it as the executable form of a design-locked section, pinned by a 2,897-file corpus assertion. | `edit.rs`, `ARCHITECTURE.md` §11.5 |
+| `to_incremental_bytes` / `to_full_bytes` / `SaveReport` | **Stable.** Two-method shape unchanged since Pass 3.x; `SaveReport` is `#[non_exhaustive]` and has gained fields additively (`objects_deleted`, `delinearized`). | `writer/save.rs` |
+| Guard model (encryption / certification / `/Size`) | **Stable in shape, still growing in coverage.** The three-gate certification split is argued as a permanent design (`edit.rs`). The encryption guard is explicitly a *forward-compatible seam* — `edit.rs` records that no loadable file currently reaches it, so its behaviour when encrypted loading ships is **UNVERIFIED — re-check when `Pass 5` (Encryption) delivers a decrypting loader**. | `edit.rs` |
 | Forms (authoring, structure, values) | **Recently active.** Four of the last fifteen `edit.rs` commits touch forms (`3fe8a19` border spec, `ce5642d` hybrid fail-open, `f83be5a` four authoring properties, `7d2b71b` reset-form). Expect additive changes to `New*Field` specs and to `FieldAuthorDisclosures`. | `git log -15 -- crates/pdfcer-core/src/edit.rs` |
 | ce dimensions (see §1's ce-dimension block for the current set) | **★ Actively changing — the least stable area.** `set_group_style` / `set_dimension_style` and the whole `dimension::style` cascade shipped 2026-08-13 (`7ebee12`), `dimension::tolerance` in the next commit (`dbc4aa9`, same day), and `set_dimension_label` on 2026-08-30 (`c7ac578`). The project has an explicit, argued policy about when `SIDECAR_VERSION` bumps (`ARCHITECTURE.md` §12) and it is now emitted **per document** rather than per build. Treat every ce-dimension signature as provisional. | `git log -3 -- crates/pdfcer-core/src/dimension/style.rs` |
 | Attachments (`attach_file` / `detach_file`) | **New.** Shipped 2026-08-12 (`74582ca`, `95c3416`). Only two verbs; the refused name-tree shape (`AttachmentTreeUnsupported`) is a known boundary. | `ARCHITECTURE.md` §12 (Q) |
-| Fonts (`embed_*` / `unembed_*`) | **New.** Shipped 2026-08-12–13 (`f3acd24`, `d87fb58`). These are the only two verbs whose `*_refusal` accessor is load-bearing, which may or may not be a pattern the project generalises. **UNVERIFIED — whether the other four refusal accessors will be made load-bearing; nothing in the source states an intent either way.** | `edit.rs:16375`, `:16627` |
-| Vector geometry (11 verbs) | **Stable in shape, `Vec<String>` return is a weak contract.** Every verb returns an untyped disclosure list. `ARCHITECTURE.md` §4.1 (C) records decision 027 already changed five `EditSession` signatures in this family once and removed two error variants. **UNVERIFIED — whether `Vec<String>` will become a typed disclosure struct; decision 027 moved in that direction for `PlannedEdit` but stopped at the session boundary.** | `edit.rs:4483-5057`, `ARCHITECTURE.md` §4.1 (C) |
-| Page-text editing (5 verbs) | **Stable, but separate error universe.** These return `text_edit`'s types and have done since Pass 14.3. A shell needs a second error presenter for them. | `edit.rs:4126-4365` |
+| Fonts (`embed_*` / `unembed_*`) | **New.** Shipped 2026-08-12–13 (`f3acd24`, `d87fb58`). These are the only two verbs whose `*_refusal` accessor is load-bearing, which may or may not be a pattern the project generalises. **UNVERIFIED — whether the other four refusal accessors will be made load-bearing; nothing in the source states an intent either way.** | `edit.rs` |
+| Vector geometry (11 verbs) | **Stable in shape, `Vec<String>` return is a weak contract.** Every verb returns an untyped disclosure list. `ARCHITECTURE.md` §4.1 (C) records decision 027 already changed five `EditSession` signatures in this family once and removed two error variants. **UNVERIFIED — whether `Vec<String>` will become a typed disclosure struct; decision 027 moved in that direction for `PlannedEdit` but stopped at the session boundary.** | `edit.rs`, `ARCHITECTURE.md` §4.1 (C) |
+| Page-text editing (5 verbs) | **Stable, but separate error universe.** These return `text_edit`'s types and have done since Pass 14.3. A shell needs a second error presenter for them. | `edit.rs` |
 
 ---
 

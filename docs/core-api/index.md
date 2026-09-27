@@ -13,9 +13,9 @@ index and ends with **Traps**.
 
 | file | covers | size |
 |---|---|---|
-| [`01-reading-and-model.md`](01-reading-and-model.md) | loading, the COS object model, pages, content streams, text extraction, fonts, vector picking/snapping, filters, colour, navigation, metadata | 3,147 lines · 170 clauses cited |
-| [`02-editing-and-saving.md`](02-editing-and-saving.md) | `EditSession` end to end — **all 266 public verbs**, the command/undo contract, the dirty set, the save path, the guard/refusal model, `EditError`'s 149 variants | 5,699 lines · 206 clauses cited |
-| [`03-capabilities.md`](03-capabilities.md) | ce dimensions, forms, markup, redaction, **off-canvas content**, OCR, print/imposition, rasterising, raster export — each with **★ what the UI must disclose** | 3,880 lines · 103 clauses cited |
+| [`01-reading-and-model.md`](01-reading-and-model.md) | loading, the COS object model, pages, content streams, text extraction, fonts, vector picking/snapping, filters, colour, navigation, metadata | 3,146 lines · 170 clauses cited |
+| [`02-editing-and-saving.md`](02-editing-and-saving.md) | `EditSession` end to end — **all 266 public verbs**, the command/undo contract, the dirty set, the save path, the guard/refusal model, `EditError`'s 149 variants | 5,695 lines · 206 clauses cited |
+| [`03-capabilities.md`](03-capabilities.md) | ce dimensions, forms, markup, redaction, **off-canvas content**, OCR, print/imposition, rasterising, raster export — each with **★ what the UI must disclose** | 3,844 lines · 99 clauses cited |
 
 > ### ★ Every figure above was stale, and the verb count caused an incident
 >
@@ -96,13 +96,15 @@ to one is a breaking change and is announced on the request channel.
 
 ## How these were built, and what that means for trusting them
 
-Every symbol was enumerated from source and its `file:line` **machine-checked
-against HEAD** — a pass that caught 23 wrong line numbers and one false
-claim about a re-export. Anything that could not be verified is written as
+Every symbol was enumerated from source. **Citations name the file and the
+symbol, never a line number** — grep the symbol. Line numbers decay with every
+edit and nothing re-derives them; `tools/check-core-api-no-line-citations.py`
+fails the build on one (commit-pinned `repo@hash:path:N` citations excepted,
+since they cannot drift). Anything that could not be verified is written as
 `UNVERIFIED — <what to check>` rather than guessed: **an honest gap is
 useful; a confident wrong answer costs a day.** 18 such markers survive in
 part 2 alone, and they are content, not omissions.
 
 **Source is authoritative when these disagree with it.** They are a dated
 snapshot of a moving crate; re-verify anything load-bearing before relying
-on it, and prefer a `file:line` citation over prose.
+on it, and prefer a file-and-symbol citation over prose.

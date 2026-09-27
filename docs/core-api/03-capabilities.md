@@ -111,43 +111,8 @@ new shell exists to build. Those rows are flagged as **opportunities**.
 `core [x] · cli [x] · gui [x]` for authoring, groups, scale, radius/diameter
 toggle, reposition, layer toggle, delete, and the two-line gesture.
 `core [x] · cli [x] · gui [x]` for the **style cascade** and for
-**tolerance** as well — `FEATURES.md:248` (style cascade) and
-`FEATURES.md:250` (tolerance).
-
-> ★★ **Corrected 2026-09-15 (G018), and the correction is the same failure the
-> 2026-09-11 audit in §11 diagnosed — landed on the table and never on the
-> prose.** This paragraph read:
->
-> > ~~"**`core [x] · cli [x] · gui [ ]`** for the **style cascade** and for
-> > **tolerance** — `FEATURES.md:103-104`. Those two rows are the single
-> > largest ready-made opportunity in this document…"~~
->
-> Two things were wrong. **(1)** Both are **shipped in `pdfcer-gui`**:
-> tolerance and tolerance decimals are two of the eleven overridable
-> properties in the Properties-panel editor, each with an override checkbox
-> and a sentence naming the tier in force; the dimension-group window sets the
-> middle tier's five defaults. The `[ ]` on `FEATURES.md:250` is the
-> **fourth** column — **Acrobat** — not `gui`, which is the third and is
-> ticked. **(2)** The line citation was stale: `FEATURES.md:103-104` is now
-> inside an overprint/PCS paragraph; the rows are at `:248` and `:250`.
-> Reported by `pdfcer-gui` (`DESIGNS.md` §15, O183 ce-dimension survey),
-> measured against this tree.
->
-> ★ **One claim in that report does not survive checking, and it is recorded
-> rather than quietly dropped.** G018 §3 says the style cascade "no longer has
-> a row of its own" and asks whether it should be separately trackable. **It
-> does have one** — `FEATURES.md:248`, *"ce-dimension style — a per-group
-> default with a per-ce-dimension override, independently per property"*, with
-> its own `gui [x]` and its own prose. The report read `:250`'s *"inheriting
-> through the style cascade like any other property"* (tolerance's row,
-> pointing **at** the cascade) as the cascade's only mention. So **no
-> `FEATURES.md` change is owed**, and the two rows this paragraph names are two
-> real rows. The reporter's own trap, one row up.
->
-> ★ **Note the shape, because §11 already named it and this paragraph still
-> got missed:** a four-column table read as three columns fails *silently* —
-> every tick is real, the misread is in which header the last one belongs to.
-> **Count the columns before quoting a row.**
+**tolerance** as well — each has its own `FEATURES.md` row (ce-dimension
+style, and tolerance).
 
 `docs/ui_specs/tool-options-dock-and-ce-dimension-properties.md`
 **Amendment B (2026-08-13)** remains the written, current design for that
@@ -167,12 +132,12 @@ designing anything in this area; do not re-derive it.
 - Author a ce dimension of three kinds: **linear** (with an axis
   constraint), **circular** (best-fit circle, displayed as radius *or*
   diameter — one geometry, a display flag), and **angular** (`Pass 68.0`).
-  `crates/pdfcer-core/src/dimension/group.rs:153`.
+  `crates/pdfcer-core/src/dimension/group.rs`.
 - Named **groups** carrying scale, number format (decimal / fraction /
   feet-inches), decimal marker, drafting standard (ANSI/ISO), an OCG layer,
-  and a group-tier style. `group.rs:50`.
+  and a group-tier style. `group.rs`.
 - A **tri-state scale**: never-set / explicit 1:1 / calibrated
-  (`units.rs:423`). Never-set means measurements display raw page units *and
+  (`units.rs`). Never-set means measurements display raw page units *and
   say so*.
 - The **style cascade** — factory → group → ce dimension, **per property**
   (`style.rs`), with provenance readable per property.
@@ -186,69 +151,69 @@ designing anything in this area; do not re-derive it.
 ### 1.2 What it cannot do today
 
 - **No per-ce-dimension scale.** Deliberate, and a refusal rather than an
-  omission — `style.rs:67-72`. Scale lives on the group.
+  omission — `style.rs`. Scale lives on the group.
 - **The ISO 286 fit classes are not implemented** —
   `swTolFIT`/`swTolFITWITHTOL`/`swTolFITTOLONLY`, plus block and general
-  tolerance. Reason stated at `tolerance.rs:36-41`: the reference RAG flags
+  tolerance. Reason stated at `tolerance.rs`: the reference RAG flags
   its own class list as `UNVERIFIED`, and a wrong `H7/g6` deviation is a
-  manufacturing defect. `FEATURES.md:215`.
+  manufacturing defect. `FEATURES.md`.
 - **Re-measure a placed ce dimension** (change what it measures, keep id /
-  group / placement) — planned, not built. `FEATURES.md:218`.
-- **Drag a ce dimension's extension lines** — planned. `FEATURES.md:217`.
+  group / placement) — planned, not built. `FEATURES.md`.
+- **Drag a ce dimension's extension lines** — planned. `FEATURES.md`.
 - **Select/delete a ce dimension from the canvas** — planned;
   `EditSession::dimension_rects` gives you the hit rectangles today but the
-  selection model is not there. `FEATURES.md:214`.
+  selection model is not there. `FEATURES.md`.
 
 ### 1.3 Entry points and the types that flow
 
 **Read (no mutation).**
 
-| call | returns | `file:line` |
-|---|---|---|
-| `EditSession::dimension_model(&self) -> DimensionModel` | the whole model, cloned out of the `/PieceInfo` sidecar | `crates/pdfcer-core/src/edit.rs:15361` |
-| `EditSession::dimension_rects(&self, page_index) -> Vec<(DimensionId, [f64;4])>` | hit rectangles for the canvas, filtered by the annotation's own `/P` | `edit.rs:15645` |
-| `EditSession::dimension_groups_on_page(&self, page_index) -> Vec<GroupId>` | which groups have members on this page | `edit.rs:15725` |
+| call | returns |
+|---|---|
+| `EditSession::dimension_model(&self) -> DimensionModel` | the whole model, cloned out of the `/PieceInfo` sidecar |
+| `EditSession::dimension_rects(&self, page_index) -> Vec<(DimensionId, [f64;4])>` | hit rectangles for the canvas, filtered by the annotation's own `/P` |
+| `EditSession::dimension_groups_on_page(&self, page_index) -> Vec<GroupId>` | which groups have members on this page |
 
-`DimensionModel` (`dimension/group.rs:586`) is the authoritative model:
+`DimensionModel` (`dimension/group.rs`) is the authoritative model:
 `groups()` / `dimensions()` / `group(id)` / `dimension(id)` /
 `members(group)` / `member_count(group)` / `display(id)`
-(`group.rs:630-780`). It is a **snapshot**; mutating it does not touch the
+(`group.rs`). It is a **snapshot**; mutating it does not touch the
 document. Every persistent change goes through an `EditSession` verb below.
 
 **Mutate — every one of these is one undo entry.**
 
-| call | returns | `file:line` |
-|---|---|---|
-| `add_dimension(page_index, group: GroupId, kind: DimensionKind)` | `Result<(ObjId, DimensionId), EditError>` | `edit.rs:15380` |
-| `add_dimension_group(name: &str, unit: Unit)` | `Result<GroupId, EditError>` | `edit.rs:15523` |
-| `set_group_scale(group, scale: ScaleState, format: NumberFormat)` | `Result<usize, EditError>` — members **regenerated** | `edit.rs:15549` |
-| `set_group_standard(group, …)` | `Result<usize, EditError>` | `edit.rs:15983` |
-| `set_group_style(group, style: GroupStyle)` | `Result<usize, EditError>` — members **regenerated** | `edit.rs:16052` |
-| `set_dimension_style(dimension, style: StyleOverrides)` | `Result<usize, EditError>` — always this one member | `edit.rs:16115` |
-| `set_dimension_display(dimension, show_diameter: bool)` | `Result<(), EditError>` — circular only | `edit.rs:15921` |
-| `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` | `edit.rs:15804` |
-| `move_dimension(dimension, dx, dy)` | `Result<(), EditError>` | `edit.rs:16779` |
-| `toggle_dimension_layer(group, visible: bool)` | `Result<bool, EditError>` | `edit.rs:15600` |
-| `delete_dimension(dimension)` | `Result<(), EditError>` — annotation + `/AP` + sidecar together | `edit.rs:16178` |
+| call | returns |
+|---|---|
+| `add_dimension(page_index, group: GroupId, kind: DimensionKind)` | `Result<(ObjId, DimensionId), EditError>` |
+| `add_dimension_group(name: &str, unit: Unit)` | `Result<GroupId, EditError>` |
+| `set_group_scale(group, scale: ScaleState, format: NumberFormat)` | `Result<usize, EditError>` — members **regenerated** |
+| `set_group_standard(group, …)` | `Result<usize, EditError>` |
+| `set_group_style(group, style: GroupStyle)` | `Result<usize, EditError>` — members **regenerated** |
+| `set_dimension_style(dimension, style: StyleOverrides)` | `Result<usize, EditError>` — always this one member |
+| `set_dimension_display(dimension, show_diameter: bool)` | `Result<(), EditError>` — circular only |
+| `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` |
+| `move_dimension(dimension, dx, dy)` | `Result<(), EditError>` |
+| `toggle_dimension_layer(group, visible: bool)` | `Result<bool, EditError>` |
+| `delete_dimension(dimension)` | `Result<(), EditError>` — annotation + `/AP` + sidecar together |
 
 **Pure helpers a panel calls without an `EditSession`** (all in
-`pdfcer_core::dimension`, re-exported at `dimension/mod.rs:77-97`):
+`pdfcer_core::dimension`, re-exported at `dimension/mod.rs`):
 
-- `resolve_style(&Group, &StyleOverrides) -> DimensionStyle` — `style.rs:479`
-- `style_provenance(&Group, &StyleOverrides) -> StyleProvenance` — `style.rs:526`
-- `preview_group_scale(ScaleEntry) -> Option<ScalePreview>` — `units.rs:660`
-- `format_measurement(points, ScaleState, NumberFormat) -> MeasurementDisplay` — `units.rs:499`
-- `format_angle_degrees(degrees, NumberFormat) -> String` — `units.rs:558`
-- `parse_length(&str, default_unit: Unit) -> Result<ParsedLength, LengthParseError>` — `length_parse.rs:139`
-- `fit_circle_taubin(&[Point]) -> Option<FitCircle>` / `fit_circle_taubin_refined` — `fit.rs:109`, `fit.rs:131`
-- `author_from_two_lines(&PickedLine, &PickedLine, ParallelPolicy, TwoLinePlacement) -> Result<TwoLineAuthoring, TwoLineRefusal>` — `two_lines.rs:248`
-- `author_dimension(&DimensionKind, DimensionStyle) -> AuthoredDimension` — `author.rs:279`; the `/AP` baker. `AuthoredDimension::label` (`author.rs:240`) is **the exact string baked into the page** — see trap (b).
+- `resolve_style(&Group, &StyleOverrides) -> DimensionStyle` — `style.rs`
+- `style_provenance(&Group, &StyleOverrides) -> StyleProvenance` — `style.rs`
+- `preview_group_scale(ScaleEntry) -> Option<ScalePreview>` — `units.rs`
+- `format_measurement(points, ScaleState, NumberFormat) -> MeasurementDisplay` — `units.rs`
+- `format_angle_degrees(degrees, NumberFormat) -> String` — `units.rs`
+- `parse_length(&str, default_unit: Unit) -> Result<ParsedLength, LengthParseError>` — `length_parse.rs`
+- `fit_circle_taubin(&[Point]) -> Option<FitCircle>` / `fit_circle_taubin_refined` — `fit.rs`, `fit.rs`
+- `author_from_two_lines(&PickedLine, &PickedLine, ParallelPolicy, TwoLinePlacement) -> Result<TwoLineAuthoring, TwoLineRefusal>` — `two_lines.rs`
+- `author_dimension(&DimensionKind, DimensionStyle) -> AuthoredDimension` — `author.rs`; the `/AP` baker. `AuthoredDimension::label` (`author.rs`) is **the exact string baked into the page** — see trap (b).
 
 Geometry the canvas needs comes from `pdfcer_core::vector`:
 `decompose_page(&DocumentView, &Page, Matrix) -> Result<PageObjects, ContentError>`
-(`vector/decompose.rs:1293`), then
+(`vector/decompose.rs`), then
 `snap_candidates(Point, &SnapConfig, &PageObjects) -> Vec<SnapCandidate>`
-(`vector/snap.rs:449`) and
+(`vector/snap.rs`) and
 `linepick::pick_line_in_page(&PageObjects, Point, tolerance) -> Option<PickedLine>`
 (`vector/linepick.rs`).
 
@@ -264,7 +229,7 @@ Pass; everything else is additive.**
 
 **(a) Calibrate a group, then author a linear ce dimension.** This is the
 shape the integration test uses —
-`crates/pdfcer-core/tests/dimension_roundtrip.rs:113-126`.
+`crates/pdfcer-core/tests/dimension_roundtrip.rs`.
 
 ```rust
 use pdfcer_core::dimension::{
@@ -344,7 +309,7 @@ fn two_line_preview(
 
     // Everything the shell must SHOW comes back with the result. Do not
     // re-measure in the shell: a shell-side re-measure is how a disclosure
-    // comes to contradict the ce dimension it describes (two_lines.rs:44-53).
+    // comes to contradict the ce dimension it describes (two_lines.rs).
     let d = Disclosure {
         measured_angle_degrees: authored.measured_angle_degrees,
         forced_parallel: authored.forced_parallel,
@@ -386,7 +351,7 @@ fn clear_arrow_form_override(over: &mut StyleOverrides) { over.arrow_form = None
 
 `set_group_style` / `set_dimension_style` are **read-modify-write**: take
 the current struct, change one field, pass the whole thing back
-(`edit.rs:16030-16034` explains why there is no per-property setter).
+(`edit.rs` explains why there is no per-property setter).
 
 ### 1.5 ★ What the UI must disclose
 
@@ -395,8 +360,8 @@ a scale the operator calibrated, and a cascade pdfcer resolved. Six concrete
 obligations:
 
 1. **The best-fit circle's residual.** `FitCircle::residual`
-   (`fit.rs:64`) is the RMS distance of the picked points to the fitted
-   circle, in page units. `fit.rs:56-65` and decision 011 §2.3 require it be
+   (`fit.rs`) is the RMS distance of the picked points to the fitted
+   circle, in page units. `fit.rs` and decision 011 §2.3 require it be
    **surfaced always, never on request** — it is the number that says whether
    the fit is trustworthy. Show it with the centre and radius *before*
    `add_dimension` is called. A circular ce dimension placed without the
@@ -404,37 +369,37 @@ obligations:
 
 2. **Raw page units, verbatim.** When the group's scale is
    `ScaleState::NeverSet`, `format_measurement` returns
-   `MeasurementDisplay { raw_page_units: true, .. }` (`units.rs:462`) and the
+   `MeasurementDisplay { raw_page_units: true, .. }` (`units.rs`) and the
    shell must render the constant `NO_SCALE_DISCLOSURE` —
-   `"no scale set — showing raw page units"` (`units.rs:471`) — **verbatim,
+   `"no scale set — showing raw page units"` (`units.rs`) — **verbatim,
    not paraphrased**. The string lives in core precisely so shells cannot
    invent their own wording.
 
 3. **The scale preview before the commit.** `preview_group_scale` is the
-   pure sibling of `set_group_scale` (`units.rs:660`). Show
+   pure sibling of `set_group_scale` (`units.rs`). Show
    `ScalePreview::scale`, `unit` and `ratio_label` before mutating; a
    calibration accepted unseen silently rescales every existing member of the
    group.
 
 4. **The two-line classification, including the angle it overrode.**
    `TwoLineAuthoring::measured_angle_degrees` is populated **even when
-   `forced_parallel` is true** — `two_lines.rs:139-147` states this is
+   `forced_parallel` is true** — `two_lines.rs` states this is
    deliberate: *"a checkbox that hides the number it is overriding is
    withholding the fact that makes the decision a decision."* So the panel
    must read, in words, something like *"0.8° apart — read as parallel
    because you asked"*. And `apex_is_real() == Some(false)` means the two
    lines only meet if extended — ordinary in CAD, **not refused**, but a fact
-   the operator may not have noticed (`two_lines.rs:158-171`). Say it.
+   the operator may not have noticed (`two_lines.rs`). Say it.
 
 5. **A derived snap point is a guess; the rest are facts.**
-   `SnapKind::is_derived()` (`vector/snap.rs:234`) is `true` for exactly one
+   `SnapKind::is_derived()` (`vector/snap.rs`) is `true` for exactly one
    variant, `DerivedCenterline` — the inferred midline of a filled thin quad.
    Render it with a distinct glyph and gate it behind an extra confirm.
    Every other `SnapKind` is a deterministic fact about geometry already on
    the page and needs no confirm. `snap_candidates` returns the list sorted
    by (priority, distance) so index 0 is the default and the shell offers a
    cycle (Tab) through the rest — returning only a winner would make the
-   override impossible (`snap.rs:248-258`).
+   override impossible (`snap.rs`).
 
 6. **Which tier supplied each style value, and what a group edit will move.**
    See trap (a) below. This is the whole point of the style Properties
@@ -442,13 +407,13 @@ obligations:
 
 **Refusals must be surfaced by name, never swallowed.**
 `TwoLineRefusal::Collinear` and `::Degenerate` carry `thiserror` messages
-written for an operator (`two_lines.rs:112-122`). `ToleranceError`'s
-`Display` likewise (`tolerance.rs:133-144`) — e.g.
+written for an operator (`two_lines.rs`). `ToleranceError`'s
+`Display` likewise (`tolerance.rs`) — e.g.
 *"a symmetric tolerance's magnitude must not be negative (write ±0.1, not
 ±-0.1)"*. Nothing is clamped, swapped or absolutised;
-`Tolerance::validate` (`tolerance.rs:180`) refuses and says why, because *"a
+`Tolerance::validate` (`tolerance.rs`) refuses and says why, because *"a
 corrected value the operator never saw is exactly the sneaky case"*
-(`tolerance.rs:179`).
+(`tolerance.rs`).
 
 ### 1.6 Traps
 
@@ -456,12 +421,12 @@ corrected value the operator never saw is exactly the sneaky case"*
 `true` for `Factory`.**
 
 The cascade is factory → group → ce dimension, **independently for each of
-eleven properties** (`style.rs:1-16`). An `Option<T>` per property *is* the
+eleven properties** (`style.rs`). An `Option<T>` per property *is* the
 operator's override checkbox: `None` = clear = inherit, `Some(v)` = ticked.
 
-`style_provenance()` (`style.rs:526`) exists so a panel can **render** the
+`style_provenance()` (`style.rs`) exists so a panel can **render** the
 inherited-vs-overridden state instead of recomputing it, and
-`StyleSource::follows_group()` (`style.rs:378`) is the predicate the panel
+`StyleSource::follows_group()` (`style.rs`) is the predicate the panel
 actually wants — *"will a group edit move this?"*
 
 ```rust
@@ -474,36 +439,36 @@ pub const fn follows_group(self) -> bool {
 *will* move when the group sets one — the group simply has not spoken. A
 panel that derives the predicate by hand and tests only for `Group` will grey
 out rows that are about to change, and the test that pins this exists:
-`style.rs:643` `factory_sourced_properties_still_follow_a_group_edit`.
+`style.rs` `factory_sourced_properties_still_follow_a_group_edit`.
 
 Four further points a panel gets wrong if it guesses:
 
 - **Four properties can never report `Factory`.** `unit`, `fraction`,
   `decimal_marker` and `standard` have a *concrete* field on `Group`, not an
   `Option`, so their provenance is `Group` or `Dimension` and nothing else
-  (`style.rs:527-539`). Saying "factory" for them "would be a lie an operator
+  (`style.rs`). Saying "factory" for them "would be a lie an operator
   could act on."
 - **`StyleProvenance::each()` returns a fixed-size `[(&'static str,
-  StyleSource); 11]`** (`style.rs:423`) so a loop gets a **compile error**,
+  StyleSource); 11]`** (`style.rs`) so a loop gets a **compile error**,
   not a silently short list, when a twelfth property lands.
   ⚠️ `docs/ui_specs/…-ce-dimension-properties.md` **Amendment B §B.2 says
   "nine"** — that text predates `Pass 69.1` adding `tolerance` and
-  `tolerance_places`. The code at `style.rs:423` is authoritative: **eleven**.
+  `tolerance_places`. The code at `style.rs` is authoritative: **eleven**.
   Same for §B.4's "the same nine properties".
 - **Clearing an override restores inheritance**, live and in both
   directions — deliberately unlike the reference tool, whose `DeleteStyle`
-  leaves the attributes frozen into the annotation (`style.rs:269-278`).
+  leaves the attributes frozen into the annotation (`style.rs`).
 - **`Some(Tolerance::None)` ≠ `None`.** The first overrides a group default
   *with* "no tolerance"; the second inherits the group's. A group that
   tolerances everything and one feature that must not be toleranced is a real
-  drawing and cannot be expressed if the two collapse (`style.rs:299-306`).
+  drawing and cannot be expressed if the two collapse (`style.rs`).
 
 **★ Trap (b) — a limit tolerance SUPPRESSES the nominal; it does not print
 beside it.**
 
-`Tolerance::suppresses_nominal()` (`tolerance.rs:169`) is `true` for exactly
+`Tolerance::suppresses_nominal()` (`tolerance.rs`) is `true` for exactly
 `Tolerance::Limit { upper, lower }`. The `/AP` baker branches on it
-(`author.rs:297-309`):
+(`author.rs`):
 
 ```rust
 let label = if style.tolerance.suppresses_nominal() {
@@ -520,24 +485,24 @@ consequences of the same branch:
 
 - `Tolerance::Basic.caption()` returns the **empty string** — a Basic
   tolerance prints no text at all; the **box** is the notation, drawn by the
-  baker at `author.rs:447`. `is_boxed()` (`tolerance.rs:161`) is the named
+  baker at `author.rs`. `is_boxed()` (`tolerance.rs`) is the named
   predicate; do not re-derive it with `matches!`.
 - `Tolerance::caption` emits **no unit suffix** in any branch
-  (`tolerance.rs:258-260`): a tolerance is read in the nominal's unit, and
+  (`tolerance.rs`): a tolerance is read in the nominal's unit, and
   `"50.00 mm ±0.10 mm"` is not how a drawing is written.
 
 **The safe way to preview a label is not to build one.** `author_dimension`
-returns `AuthoredDimension::label` (`author.rs:240`) — the exact string it
+returns `AuthoredDimension::label` (`author.rs`) — the exact string it
 baked. `Pass 68.0` shipped a defect whose entire cause was two independent
 derivations of a display value: the properties pane read `77.5°` while the
-`/AP` in the document read `77.47 pt` (`author.rs:288-293`,
+`/AP` in the document read `77.47 pt` (`author.rs`,
 `group.rs:~265`). One producer, always.
 
 **Other traps**
 
 - **An angle does not scale.** `DimensionKind::Angular`'s
   `measured_points()` returns **degrees**, and `display_with()`
-  (`group.rs:288`) branches to `format_angle_degrees` and never applies the
+  (`group.rs`) branches to `format_angle_degrees` and never applies the
   group scale. 30° at 1:50 is 30°, not 1500 of anything. Never feed an
   angular kind to `format_measurement` — it will produce a plausible, wrong
   number with `raw_page_units: false`, i.e. wrong *and* undisclosed.
@@ -546,14 +511,14 @@ derivations of a display value: the properties pane read `77.5°` while the
   It is the number of members **regenerated** — which is *every* wired
   member, including those that override the changed property, because
   regenerating an overrider is byte-identical and free in the diff
-  (`edit.rs:16036-16044`). The number that will visibly **move** is the count
+  (`edit.rs`). The number that will visibly **move** is the count
   of members whose `StyleProvenance` for the edited property reports
   `follows_group() == true`, and **it must be computed before the edit if it
   is to be disclosed before the edit**. Stated verbatim in ui-spec
   Amendment B §B.4.
-- **`EditError::SidecarWrittenByNewerBuild`** (`edit.rs:16930`) — every
+- **`EditError::SidecarWrittenByNewerBuild`** (`edit.rs`) — every
   ce-dimension mutation first calls `check_dimension_sidecar()`
-  (`edit.rs:16917`) and refuses if the document's `/PieceInfo` sidecar
+  (`edit.rs`) and refuses if the document's `/PieceInfo` sidecar
   version exceeds `SIDECAR_VERSION` (read the constant — `grep 'pub const
   SIDECAR_VERSION' crates/pdfcer-core/src/dimension/sidecar.rs`; it was `2` when
   this line was written, `3` when it was next read and `4` now, and the line
@@ -562,27 +527,27 @@ derivations of a display value: the properties pane read `77.5°` while the
   generic failure.
 - **Kind-mismatch refusals.** `set_dimension_display` refuses a
   non-circular target with `EditError::NotACircularDimension`
-  (`edit.rs:15939`); there is a matching `NotALinearDimension`. Both refuse
+  (`edit.rs`); there is a matching `NotALinearDimension`. Both refuse
   **before** mutating — "a refusal never leaves a half-written model behind"
-  (`edit.rs:16063`, `edit.rs:16134`).
+  (`edit.rs`, `edit.rs`).
 - **`DimensionModel` is a snapshot.** `dimension_model()` clones out of the
   sidecar. Mutating the returned model changes nothing in the document; a
   panel that edits it and expects a save is editing a copy.
 - **`StyleDefaults::FACTORY` is a compatibility surface, not a preferences
-  file** (`style.rs:164-176`, values at `style.rs:205`: text 10.0, line 0.75,
+  file** (`style.rs`, values at `style.rs`: text 10.0, line 0.75,
   arrow 7.0, filled, black, no tolerance). Changing a number there silently
   redraws every existing document on its next regeneration. A shell must not
   offer "change the factory defaults" — offer group defaults instead.
 - **Scale is group-only, by refusal.** `StyleOverrides` has no scale field
-  and this is asserted structurally (`style.rs:650`). Do not add a
+  and this is asserted structurally (`style.rs`). Do not add a
   per-ce-dimension scale control to the panel.
 - **The parallel epsilon is a setting, never a literal.**
   `ParallelPolicy::from_setting(Settings::parallel_epsilon_degrees)`
-  (`linepick.rs:169`), default 0.5° (`linepick.rs:155-160`). A shell that
+  (`linepick.rs`), default 0.5° (`linepick.rs`). A shell that
   hard-codes it re-creates the CLI/GUI disagreement that centralising it
-  prevented (`two_lines.rs:35-39`).
+  prevented (`two_lines.rs`).
 - **`force_parallel` does not move the lines or fake the measurement**
-  (`linepick.rs:144-150`). The reported distance is the real perpendicular
+  (`linepick.rs`). The reported distance is the real perpendicular
   distance *at the pick point*. For genuinely diverging lines that is the
   distance where the operator pointed — which is exactly why obligation 4
   above is not optional.
@@ -598,7 +563,7 @@ fill, flatten, create, delete, rename, move, reset, import — is a method on
 **`EditSession`** in `crates/pdfcer-core/src/edit.rs`. A shell that goes
 looking for `forms::fill(…)` will not find it.
 
-Nothing is re-exported at the crate root (`lib.rs:84-123` are plain
+Nothing is re-exported at the crate root (`lib.rs` are plain
 `pub mod`), so spell the full path: `pdfcer_core::forms::parse_acroform`.
 
 ### 2.1 State, and where the opportunities are
@@ -606,19 +571,19 @@ Nothing is re-exported at the crate root (`lib.rs:84-123` are plain
 | capability | core | cli | gui | note |
 |---|:--:|:--:|:--:|---|
 | Fill text / check box / radio / choice | x | x | x | rich text `/RV` is read + exported, replaceable only by a **disclosed downgrade** |
-| **Flatten to static page content** | x | x | **[ ]** | **opportunity** — `FEATURES.md:122` |
+| **Flatten to static page content** | x | x | **[ ]** | **opportunity** — `FEATURES.md` |
 | Import/export FDF, XFDF, two-column CSV | x | x | x | |
-| Create a field | x | x | ◐ | **the GUI cannot create a push button** — `FEATURES.md:124` |
+| Create a field | x | x | ◐ | **the GUI cannot create a push button** — `FEATURES.md` |
 | Delete field / widget / grouping subtree | x | x | x | |
 | Rename a field | x | x | x | |
-| **Move a widget** (carrying its artwork) | x | x | **[ ]** | **opportunity** — `FEATURES.md:127` |
+| **Move a widget** (carrying its artwork) | x | x | **[ ]** | **opportunity** — `FEATURES.md` |
 | Reset to defaults | x | x | x | `/V` is *removed* where no `/DV` exists, never blanked |
-| **Script census + native recompute** | x | x | **[ ]** | **opportunity**; `FEATURES.md:129` — **no script is ever executed** |
+| **Script census + native recompute** | x | x | **[ ]** | **opportunity**; `FEATURES.md` — **no script is ever executed** |
 | Read `/I`/`/TI` and `/MK /CA` | x | x | — | other `/MK` keys are not read |
 | Detect XFA + warn the half goes stale | x | x | x | the XFA half is **never** written |
 
-**Cannot today:** wide/batch CSV (one row per document) `FEATURES.md:222`;
-reading/filling the static-XFA half `FEATURES.md:223`; barcode fields (never);
+**Cannot today:** wide/batch CSV (one row per document) `FEATURES.md`;
+reading/filling the static-XFA half `FEATURES.md`; barcode fields (never);
 executing embedded JavaScript (never — standing rule).
 
 **ui_specs to read:** `docs/ui_specs/forms-panel.md` — **this supersedes**
@@ -634,25 +599,25 @@ those by reference.
 ```rust
 pdfcer_core::forms::parse_acroform<G: ObjectGraph + ?Sized>(graph: &G) -> Option<AcroForm>
 ```
-`forms.rs:955`. Generic over `ObjectGraph`, so it runs over a `Document`
-**and** over a live edit overlay (`&session.graph()`) — `forms.rs:945-948`.
+`forms.rs`. Generic over `ObjectGraph`, so it runs over a `Document`
+**and** over a live edit overlay (`&session.graph()`) — `forms.rs`.
 `None` means no `/AcroForm`. It never panics; malformed shapes are tolerated
-(`forms.rs:950-952`).
+(`forms.rs`).
 
-`AcroForm` (`forms.rs:745`) carries `fields`, `groups`, `need_appearances`,
+`AcroForm` (`forms.rs`) carries `fields`, `groups`, `need_appearances`,
 `sig_flags`, `signatures_exist`, `append_only`, `calc_order`, `xfa`,
 `inline_field_roots`, `default_appearance`, `quadding`. Navigation:
-`fillable_fields()` `forms.rs:840`, `field_by_name(fqn)` `:851`,
-`fields_named(fqn)` `:857`, `descendants_of(fqn)` `:901`.
+`fillable_fields()` `forms.rs`, `field_by_name(fqn)`,
+`fields_named(fqn)`, `descendants_of(fqn)`.
 
-`Field` (`forms.rs:446`) → `fully_qualified_name`, `partial_name`,
+`Field` (`forms.rs`) → `fully_qualified_name`, `partial_name`,
 `alternate_name` (`/TU`), `mapping_name` (`/TM`), `rich_value` (`/RV`),
 `default_style` (`/DS`), `value: FieldValue`, `selected_indices`,
 `widgets: Vec<Widget>`, `has_additional_actions`, `shares_parent_name`,
-`parent`. Predicates: `is_fillable()` `:596`, `is_rich_text()` `:639`,
-`radios_in_unison()` `:651`, `has_appearance()` `:661`.
+`parent`. Predicates: `is_fillable()`, `is_rich_text()`,
+`radios_in_unison()`, `has_appearance()`.
 
-`Widget` (`forms.rs:388`) → `id`, `rect`, `appearance_state`, `on_states`,
+`Widget` (`forms.rs`) → `id`, `rect`, `appearance_state`, `on_states`,
 `has_off_appearance`, `page`, `caption` (`/MK /CA`), **`background`** (`/MK /BG`,
 `MkColor`), `rotation` (`/MK /R`), **`border`**, **`visibility`**,
 **`annot_flags`**, `has_normal_appearance`, `merged`.
@@ -723,8 +688,8 @@ border, visibility, raw flags and appearance state. Per **widget**, not per
 field, because a field may own several widgets with different ones — a single
 field-level column would be a lie the moment a field has two.
 
-Guards: `MAX_FORM_FIELDS = 500_000` `forms.rs:77`,
-`MAX_FIELD_TREE_DEPTH = 64` `forms.rs:84`.
+Guards: `MAX_FORM_FIELDS = 500_000` `forms.rs`,
+`MAX_FIELD_TREE_DEPTH = 64` `forms.rs`.
 
 **Fill and value.** All on `EditSession`, all one undo entry.
 
@@ -740,47 +705,47 @@ Guards: `MAX_FORM_FIELDS = 500_000` `forms.rs:77`,
 | `rename_refusal(&self) -> Option<EditError>` — same | `12268` |
 
 **Reset.** `reset_preview(&self, only: Option<&[String]>) -> Vec<ResetPreviewRow>`
-`edit.rs:12755` (**non-mutating**), then
-`reset_form(&mut self, only) -> Result<ResetOutcome, EditError>` `edit.rs:12884`.
+`edit.rs` (**non-mutating**), then
+`reset_form(&mut self, only) -> Result<ResetOutcome, EditError>` `edit.rs`.
 
 **Interchange.** `export_form_data(&self) -> Option<fdf::FormData>`
-`edit.rs:13446` → `FormData::to_fdf(source)` `fdf.rs:208` /
-`to_xfdf(href)` `fdf.rs:256` / `formcsv::to_csv(&data) -> CsvExport`
-`formcsv.rs:111`. Inbound: `FormData::parse_fdf` `fdf.rs:305` /
-`parse_xfdf` `fdf.rs:335` / `formcsv::parse_csv` `formcsv.rs:206`, then
+`edit.rs` → `FormData::to_fdf(source)` `fdf.rs` /
+`to_xfdf(href)` `fdf.rs` / `formcsv::to_csv(&data) -> CsvExport`
+`formcsv.rs`. Inbound: `FormData::parse_fdf` `fdf.rs` /
+`parse_xfdf` `fdf.rs` / `formcsv::parse_csv` `formcsv.rs`, then
 `import_form_data(&data) -> Result<ImportOutcome, EditError>`
-`edit.rs:13471`.
+`edit.rs`.
 
 **Flatten.** `flatten_fields(names: Option<&[&str]>) -> Result<FlattenOutcome, EditError>`
-`edit.rs:13730`. `None` = the whole form.
+`edit.rs`. `None` = the whole form.
 
-**Create.** `add_text_field` `edit.rs:7087`, `add_check_box` `:8043`,
-`add_radio_button` `:8253`, `add_push_button` `:9414`, `add_choice_field`
-`:9633` — each takes a `&New*` spec (`NewTextField` `edit.rs:882`,
-`NewCheckBox` `:1410`, `NewRadioButton` `:1485`, `NewChoiceField` `:1854`,
-`NewPushButton` `:2135`) and returns `FieldAuthorOutcome` (`edit.rs:990`)
-carrying `FieldAuthorDisclosures` (`edit.rs:1006`).
+**Create.** `add_text_field` `edit.rs`, `add_check_box`,
+`add_radio_button`, `add_push_button`, `add_choice_field`
+ — each takes a `&New*` spec (`NewTextField` `edit.rs`,
+`NewCheckBox`, `NewRadioButton`, `NewChoiceField`,
+`NewPushButton`) and returns `FieldAuthorOutcome` (`edit.rs`)
+carrying `FieldAuthorDisclosures` (`edit.rs`).
 `field_defaults(&self, source) -> Result<FieldDefaults, EditError>`
-`edit.rs:9211` implements "copy settings from an existing field".
+`edit.rs` implements "copy settings from an existing field".
 
-**Structure.** `delete_field` `:8464`, `field_group_deletion_preview`
-`:8535`, `delete_field_group` `:8574`, `delete_widget(fqn, index)` `:8764`,
-`rename_field(fqn, new_partial)` `:8889`, `move_widget(fqn, index, dx, dy)`
-`:9032`.
+**Structure.** `delete_field`, `field_group_deletion_preview`
+, `delete_field_group`, `delete_widget(fqn, index)`,
+`rename_field(fqn, new_partial)`, `move_widget(fqn, index, dx, dy)`
+.
 
 **Scripts (census + native recompute).** These take a `DocumentView`, not an
 `EditSession`:
 `form_script::inventory::inventory(&DocumentView) -> ScriptInventory`
-(`form_script/inventory.rs:166`) and
+(`form_script/inventory.rs`) and
 `form_script::recompute::plan(&DocumentView, CommaPolicy) -> RecomputePlan`
-(`form_script/recompute.rs:263`).
+(`form_script/recompute.rs`).
 Document-wide counters come from `forms::scan_javascript(graph) -> FormJavaScript`
-(`forms.rs:1813`).
+(`forms.rs`).
 
 ### 2.3 Minimal worked sequences
 
 **(a) Open → read the tree → fill → save.** Read idiom from
-`crates/pdfcer-core/tests/form_field_authoring.rs:49-54`.
+`crates/pdfcer-core/tests/form_field_authoring.rs`.
 
 ```rust
 use pdfcer_core::{document::Document, edit::EditSession, forms, writer::SaveOptions};
@@ -813,7 +778,7 @@ fn fill(bytes: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 ```
 
 **(b) Selective flatten — the `gui [ ]` opportunity.** From
-`crates/pdfcer-core/tests/form_field_hierarchy.rs:466-474` and `:246-259`.
+`crates/pdfcer-core/tests/form_field_hierarchy.rs`.
 
 ```rust
 // Appearances first: flatten burns the artwork, so there must be artwork.
@@ -858,122 +823,122 @@ value pdfcer **inferred, substituted or declined** and each has a field on an
 outcome struct precisely so the shell can render it — they exist to be shown,
 not to be logged.
 
-**On every fill** (`FillOutcome`, `edit.rs:5756`):
+**On every fill** (`FillOutcome`, `edit.rs`):
 
-1. **`xfa_may_disagree`** (`edit.rs:5769-5791`). The document also carries an
+1. **`xfa_may_disagree`** (`edit.rs`). The document also carries an
    XFA packet; pdfcer filled the AcroForm half and **cannot write the XFA
    half**, so an XFA-aware viewer may show the old value. *"Nothing about the
    saved file looks wrong"* — which is exactly why the shell must say it. Note
    the deliberate asymmetry: **filling succeeds and discloses; field
    *creation* is refused outright** with `EditError::FieldAuthoringRefusedXfa`
-   (`edit.rs:2492-2502`), because a one-sided add makes two viewers disagree
+   (`edit.rs`), because a one-sided add makes two viewers disagree
    about how many fields the document has.
-2. **`applied_autosize`** (`edit.rs:5828`, `vartext.rs:228-232`) — pdfcer
+2. **`applied_autosize`** (`edit.rs`, `vartext.rs`) — pdfcer
    *chose* the point size by its own heuristic; auto-size is not specified.
    That is an inference. Show the number it picked.
-3. **`unencodable_chars`** (`edit.rs:5830`, `vartext.rs:233-235`) — characters
+3. **`unencodable_chars`** (`edit.rs`, `vartext.rs`) — characters
    replaced with `?` because WinAnsi could not encode them. Silent character
    loss is the worst kind.
-4. **`need_appearances_cleared`** (`edit.rs:5826`) — pdfcer cleared the
+4. **`need_appearances_cleared`** (`edit.rs`) — pdfcer cleared the
    producer's "appearances are stale" flag on output.
 
 **On rich text.** `fill_text_field` **refuses** a rich-text field outright
-rather than writing half the `/DS` + `/RV` pair (`forms.rs:475-481`). The
+rather than writing half the `/DS` + `/RV` pair (`forms.rs`). The
 only way through is `fill_text_field_downgrading_rich_text`, and the shell
 must present it *as a downgrade*: it clears `/Ff` bit 26, **deletes** `/RV`
 (not empties it — §12.7.3.4 gives an empty one no meaning), and regenerates a
-plain appearance (`edit.rs:12492-12502`). Formatting is lost. Also:
+plain appearance (`edit.rs`). Formatting is lost. Also:
 `import_form_data` **skips and counts** rich-text targets rather than failing
-the import (`edit.rs:13534-13538`), so `ImportOutcome::skipped` must be shown
+the import (`edit.rs`), so `ImportOutcome::skipped` must be shown
 — an import that reports "done" while silently dropping entries is the sneaky
 case. And rendering rich text at all *"is policy, not conformance"*
-(`richtext.rs:75-90`): pdfcer's choice, disclosed as pdfcer's choice.
+(`richtext.rs`): pdfcer's choice, disclosed as pdfcer's choice.
 
 **On the script census / recompute** — the whole feature is a disclosure
 feature:
 
 5. **pdfcer never runs the script.** Every branch of `Disclosure::message()`
-   says so, repetitively and on purpose (`form_script/disclose.rs:92-97`) —
+   says so, repetitively and on purpose (`form_script/disclose.rs`) —
    it is *"the single fact most likely to be assumed away by a reader who has
    used Acrobat, and the one whose absence would turn a careful disclosure
    into a false claim of authority."* Do not deduplicate that sentence out of
    the UI.
 6. **The calculation order may be pdfcer's guess.** `RecomputePlan::order_source`
-   with `is_pdfcer_choice()` (`recompute.rs:95-124`) plus
+   with `is_pdfcer_choice()` (`recompute.rs`) plus
    `unlisted_calculations`. The existing GUI renders it in the warning colour
    (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:7952-7957`).
 7. **Blank and non-numeric operands were counted as ZERO**, not skipped —
-   `RecomputePlan::coerced_operands()` (`recompute.rs:243-254`). `calc.rs:499-503`
+   `RecomputePlan::coerced_operands()` (`recompute.rs`). `calc.rs`
    calls this *"the single most important behaviour in this module, because the
    intuitive reimplementation ('skip what isn't a number') is wrong."*
 8. **List the skipped fields BEFORE the proposed changes.** The existing GUI
    does (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:7957-7968`) and it is the right order:
    what pdfcer declined to compute matters more than what it did.
 9. **Never auto-run recompute on open** (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:7930-7933`).
-10. **`Field::has_additional_actions`** (`forms.rs:544-548`) — the value shown
+10. **`Field::has_additional_actions`** (`forms.rs`) — the value shown
     is *as stored*, possibly stale, because pdfcer does not recompute `/CO`
     automatically. Badge the field.
 
 **On CSV export.** `CsvExport::neutralised`, `.neutralised_fields` and
-`.message()` (`formcsv.rs:89-106`, `:303`). Values a spreadsheet would
+`.message()` (`formcsv.rs`). Values a spreadsheet would
 evaluate as formulae get a `'` prefix. The PDF is unchanged; the change is
 **visible, not silent**; and it is **reversible on import** (`parse_csv`
-strips it). `formcsv.rs:30-38` names the hazard, including
+strips it). `formcsv.rs` names the hazard, including
 `=WEBSERVICE(…)` reaching the network — a capability pdfcer refuses itself.
 
-**On authoring a field** (`FieldAuthorDisclosures`, `edit.rs:1006-1035`):
+**On authoring a field** (`FieldAuthorDisclosures`, `edit.rs`):
 
 11. `tagged_document` — the new field is **untagged** in a Tagged PDF.
 12. `structure_tab_order` — under `/Tabs /S` the new field has **no tab
     position at all**.
 13. `tooltip_declined` — the accessibility name was declined. Note
     `TooltipChoice::Undecided` **refuses** creation
-    (`EditError::TooltipDecisionRequired`, `edit.rs:930-950`): `Option<String>`
+    (`EditError::TooltipDecisionRequired`, `edit.rs`): `Option<String>`
     cannot distinguish *"chose not to"* from *"nobody thought about it"*.
-14. `FieldAuthorOutcome::merged` (`edit.rs:994-999`) — the create **merged**
+14. `FieldAuthorOutcome::merged` (`edit.rs`) — the create **merged**
     into an existing same-named field, so the new widget **shares a value**
     with one already on the form. That is not what "add a field" sounds like.
 15. A choice field created with an empty `/Opt` is **unfillable**; a push
-    button with an empty `/MK /CA` is **blank** (`edit.rs:1033-1035`, `:1098-1100`).
+    button with an empty `/MK /CA` is **blank** (`edit.rs`).
 
 **On structural edits:**
 
-16. `WidgetMove::siblings_left_behind` (`edit.rs:5852-5861`) — *"moving one
+16. `WidgetMove::siblings_left_behind` (`edit.rs`) — *"moving one
     and silently leaving two behind is the kind of partial result that reads
     as a bug later."*
-17. `FieldRename::descendants_renamed` (`edit.rs:6786-6791`) — descendants'
+17. `FieldRename::descendants_renamed` (`edit.rs`) — descendants'
     FQNs changed **without any of their own objects being written**, so every
     FDF and JavaScript reference naming them now points at nothing
-    (`edit.rs:6774-6777`). ⚠️ **Not "submit mapping" any more**: since
+    (`edit.rs`). ⚠️ **Not "submit mapping" any more**: since
     `Pass 184.0` a rename REPAIRS the button actions naming the field, and
     reports how many in `FieldRename::action_targets_retargeted`. A deletion
     does not repair, and reports `action_targets_orphaned` instead.
-18. `FieldDeletion::selection_cleared` (`edit.rs:6058-6064`) — *"silently
+18. `FieldDeletion::selection_cleared` (`edit.rs`) — *"silently
     leaving the dangling `/V` would be sneaky; silently clearing it would also
     be."*
-19. `FieldGroupDeletion::node_names` (`edit.rs:6727-6743`) — the shell must
+19. `FieldGroupDeletion::node_names` (`edit.rs`) — the shell must
     invalidate its own per-FQN state (open rename drafts, selections) or a
     stale draft resurfaces pre-filled with an old value.
 
-**On reset:** `ResetPreviewRow::would_remove` (`edit.rs:5686-5690`) —
+**On reset:** `ResetPreviewRow::would_remove` (`edit.rs`) —
 *"an absent key and an empty string are different bytes, and a shell that
 showed both as `""` would be describing the wrong edit."* Rows are returned
 for **every** field in scope including ineligible ones and ones already at
-their default (`edit.rs:12751-12754`), and the three ineligibility reasons
-(`PushButton`, `Signature`, `ReadOnly` — `edit.rs:5653-5661`) stay distinct
+their default (`edit.rs`), and the three ineligibility reasons
+(`PushButton`, `Signature`, `ReadOnly` — `edit.rs`) stay distinct
 because *"a shell that can only say '3 skipped' cannot tell the operator
 which of those happened."*
 
 **On flatten:** it is destructive but **revision-recoverable** under the
 default incremental save — the pre-flatten values survive in the earlier
-revision until a full rewrite (`edit.rs:13720-13726`). That is an R48
+revision until a full rewrite (`edit.rs`). That is an R48
 destructive-disclosure the caller must surface, and the honest wording is
 *"recoverable from the previous revision until you do a full rewrite"*.
 
 **On the document as a whole:** `AcroForm::need_appearances`
-(`forms.rs:765-767`) — the producer's assertion that appearances are stale,
+(`forms.rs`) — the producer's assertion that appearances are stale,
 *"disclosed, never a silent on-load regenerate"*; and
-`AcroForm::inline_field_roots` (`forms.rs:825-838`) — malformed direct dicts
+`AcroForm::inline_field_roots` (`forms.rs`) — malformed direct dicts
 in `/Fields` that were skipped, meaning `fields.len()` understates the true
 count by exactly that many.
 
@@ -981,26 +946,26 @@ count by exactly that many.
 
 - **`/Ff` bit 26 is overloaded** — rich text on `/Tx`, radios-in-unison on
   `/Btn`. *"A caller holding only the flag word cannot decode it correctly
-  even in principle"* (`forms.rs:620-632`). Use `Field::is_rich_text()`
-  (`:639`) and `radios_in_unison()` (`:651`); never test the raw bit.
+  even in principle"* (`forms.rs`). Use `Field::is_rich_text()`
+ and `radios_in_unison()`; never test the raw bit.
 - **Do not derive grouping nodes by splitting an FQN.**
   `Personal.Address.Zip` *looks* like it yields `Personal` and
   `Personal.Address` for free. *"It does not, and the failure is silent"*
-  (`forms.rs:718-721`). Use `AcroForm::groups` — and note it is
-  **deepest-first (post-order)** (`forms.rs:750-757`), so a breadcrumb built
+  (`forms.rs`). Use `AcroForm::groups` — and note it is
+  **deepest-first (post-order)** (`forms.rs`), so a breadcrumb built
   in iteration order renders backwards.
-- **`resolve_field_path`** (`forms_author.rs:308`) is *"the ONLY entry point
+- **`resolve_field_path`** (`forms_author.rs`) is *"the ONLY entry point
   through which an authoring write may learn what a name currently denotes"*
-  (R100, `forms_author.rs:274-276`). It retains grouping nodes that
+  (R100, `forms_author.rs`). It retains grouping nodes that
   `parse_acroform` discards. Do not resolve names any other way.
 - **Same-name create MERGES; same-name rename REFUSES.** Deliberate
-  asymmetry (`forms_author.rs:176-193`): a create with an existing name
+  asymmetry (`forms_author.rs`): a create with an existing name
   attaches another widget to one field; a rename names an existing field
   *and* a new name, and silently fusing them *"would destroy an identity they
   never offered up."* Surface `FieldTypeCollision`, `NameIsGroupingNode`,
   `FieldPathCrossesTerminal`, `RenameCollision`, `DottedPartialName`,
   `EmptyNameSegment` (renamed from `PeriodInPartialName`, `Pass 299.0` — the
-  old name stated `DottedPartialName`'s rule), `EmptyName`, `PathTooDeep` (`forms_author.rs:145`) as operator-actionable
+  old name stated `DottedPartialName`'s rule), `EmptyName`, `PathTooDeep` (`forms_author.rs`) as operator-actionable
   refusals — each names the field and what is in the way.
 - ★★ **A dotted path may not nest under an existing TERMINAL field**, and this
   is the refusal to wire if you are wiring only one. `FieldPathCrossesTerminal
@@ -1029,64 +994,64 @@ count by exactly that many.
   not built.
 - **A widget written with a `/T` is not a second view of a field — it is a
   second field underneath it**, silently composing `Ref.Ref`
-  (`forms_author.rs:528-535`, `FIELD_ONLY_KEYS`).
+  (`forms_author.rs`, `FIELD_ONLY_KEYS`).
 - **`move_widget` translates only.** `/Rect`'s extent is unchanged, so
   §12.5.5's matrix degenerates to a pure translation and the existing artwork
   is carried at its original size by the algorithm every conforming reader
-  already runs (`edit.rs:8993-9002`). **Resize is deliberately not this
+  already runs (`edit.rs`). **Resize is deliberately not this
   method** — the same algorithm applies a non-uniform stretch, normatively, so
-  a resized check box gets a distorted tick (`edit.rs:9004-9012`). Move takes
-  the **strict** certification gate (`edit.rs:9026-9031`); fill takes the
-  `/P >= 2` gate (`edit.rs:13728-13730`).
-- **`FormData` omits any field with no value** (`fdf.rs:126-131`), so an
+  a resized check box gets a distorted tick (`edit.rs`). Move takes
+  the **strict** certification gate (`edit.rs`); fill takes the
+  `/P >= 2` gate (`edit.rs`).
+- **`FormData` omits any field with no value** (`fdf.rs`), so an
   import **never clears a field the file did not name**. A shell offering
   "import" must not describe it as "replace the form's data".
-- **Import is document-gated once, up front** (`edit.rs:13478-13485`) —
+- **Import is document-gated once, up front** (`edit.rs`) —
   *"discovering that on entry seventeen, after sixteen have already been
   committed, is both late and destructive."*
 - **A CSV row missing a column is an error, not a best-effort skip**
-  (`formcsv.rs:452-456`) — otherwise a spreadsheet that lost its value column
+  (`formcsv.rs`) — otherwise a spreadsheet that lost its value column
   imports as names with empty values and blanks the whole form. And a value
   that genuinely begins with `=`/`+`/`-`/`@` **cannot survive the round trip**
-  (`formcsv.rs:196-199`); that trade is deliberate.
+  (`formcsv.rs`); that trade is deliberate.
 - **Format helpers are display-only.** *"Nothing here produces a value a
-  caller could store"* (`form_script/format.rs:962-966`); storing formatted
+  caller could store"* (`form_script/format.rs`); storing formatted
   output destroys `/V`. A helper on the wrong trigger deliberately does not
-  classify (`form_script/mod.rs:599-602`).
+  classify (`form_script/mod.rs`).
 - **Percent multiplies by 100** — writing `8.5` into such a field makes it
-  read `850%` (`format.rs:743-747`). **Ambiguous dates decline rather than
-  guess** — `03/04/2026` (`format.rs:902-905`, `datetime.rs:527-530`).
+  read `850%` (`format.rs`). **Ambiguous dates decline rather than
+  guess** — `03/04/2026` (`format.rs`, `datetime.rs`).
   **`CommaPolicy::default()` refuses to guess** the decimal separator,
   because pdf.js's first-comma rewrite turns `1,234` into `1.234` — a
-  thousand-fold error (`calc.rs:594-598`).
+  thousand-fold error (`calc.rs`).
 - **A script pdfcer could not read is always `Custom`** by construction, never
-  optimistically a known built-in (`inventory.rs:56-63`); a `/JS` carried as
+  optimistically a known built-in (`inventory.rs`); a `/JS` carried as
   a **stream** is still classified, because *"a form whose scripts all live in
-  streams would otherwise be reported script-free"* (`inventory.rs:321-324`).
+  streams would otherwise be reported script-free"* (`inventory.rs`).
 - **`Style` fields in `richtext.rs` are `Option`, and `None` means
-  *unspecified*, not *default*** (`richtext.rs:153-160`). Unknown markup keeps
+  *unspecified*, not *default*** (`richtext.rs`). Unknown markup keeps
   its text: *"a missed style is a cosmetic difference the operator can see; a
-  dropped run is text that vanishes"* (`richtext.rs:60-73`). CSS `justify` is
-  **not** an accepted `Align` (`richtext.rs:114-118`). `/DA` vs `/DS`
+  dropped run is text that vanishes"* (`richtext.rs`). CSS `justify` is
+  **not** an accepted `Align` (`richtext.rs`). `/DA` vs `/DS`
   precedence is **undefined by the standard** and is a setting, resolved
-  elsewhere — this module never reads `/DA` (`richtext.rs:93-102`).
+  elsewhere — this module never reads `/DA` (`richtext.rs`).
 - **No font substitution in variable text.** `VarTextError::FontUnresolved`
   refuses rather than substituting, *"because a substituted font changes glyph
   advances, so the operator would see different metrics than every other
-  reader"* (`vartext.rs:196-203`).
+  reader"* (`vartext.rs`).
 - **Creation refusals to surface by name:** comb combined with
-  `/MaxLen`/multiline/password/file-select (`edit.rs:914-921`); a duplicate
+  `/MaxLen`/multiline/password/file-select (`edit.rs`); a duplicate
   choice export, because the fill verb resolves to the first match
-  (`edit.rs:9642-9648`); `Off` as an on-state (`edit.rs:8258-8262`); an
-  editable list box (`ChoiceEditRequiresCombo`, `edit.rs:9637-9639`).
+  (`edit.rs`); `Off` as an on-state (`edit.rs`); an
+  editable list box (`ChoiceEditRequiresCombo`, `edit.rs`).
   Setting the `/Opt`-sort flag alone does nothing visible — readers display
-  `/Opt` order regardless (`edit.rs:1876-1880`).
+  `/Opt` order regardless (`edit.rs`).
 
 ---
 
 ## 3. Annotations & markup
 
-`core [x] · cli [x] · gui [x]` across the board (`FEATURES.md:110-115`), so
+`core [x] · cli [x] · gui [x]` across the board (`FEATURES.md`), so
 this is a *rebuild*, not a gap — but two named limits shape what the shell
 can offer, and they are limits of the **model**, not of the old GUI.
 
@@ -1191,36 +1156,36 @@ refuse both by name.
 ### 3.2 Entry points
 
 **Read.** `annot::page_annotations(graph, page_id) -> Vec<Annotation>`
-(`annot.rs:531`) and `page_annotations_with(graph, page_id, missing_as)`
-(`annot.rs:567`). Both generic over `ObjectGraph` — pass `&document` **or**
-`&session.graph()` (`annot.rs:513-516`). `page_id` comes from
+(`annot.rs`) and `page_annotations_with(graph, page_id, missing_as)`
+(`annot.rs`). Both generic over `ObjectGraph` — pass `&document` **or**
+`&session.graph()` (`annot.rs`). `page_id` comes from
 `page_tree::Page::id`. `/Annots` is **not inheritable**, so there is no
-page-tree walk (`annot.rs:509-511`). Bounded by
-`MAX_ANNOTS_PER_PAGE = 1_000_000` (`annot.rs:117`).
+page-tree walk (`annot.rs`). Bounded by
+`MAX_ANNOTS_PER_PAGE = 1_000_000` (`annot.rs`).
 
-`Annotation` (`annot.rs:290`): `id`, `subtype`, `rect`, `flags: AnnotFlags`,
-`appearance: Appearance`, `is_popup`, `contents` (`:336`), `title` (`:348`),
-`mod_date` (`:360`, **raw and unparsed**), `oc`, `popup`, `in_reply_to`,
-`reply_type`. Methods: `is_widget()` `:450`, `is_group_subordinate()` `:468`,
-`effective_reply_type()` `:485`, `subtype_label()` `:495`.
+`Annotation` (`annot.rs`): `id`, `subtype`, `rect`, `flags: AnnotFlags`,
+`appearance: Appearance`, `is_popup`, `contents`, `title`,
+`mod_date` (**raw and unparsed**), `oc`, `popup`, `in_reply_to`,
+`reply_type`. Methods: `is_widget()`, `is_group_subordinate()`,
+`effective_reply_type()`, `subtype_label()`.
 
-`AnnotFlags` (`annot.rs:132`) — `hidden()` `:184`, `no_view()` `:190`,
-`print()` `:197`, `invisible()` `:203`, `no_zoom()` `:209`, `no_rotate()`
-`:215`, `locked()` `:226`, `suppressed_on_screen()` `:239`.
+`AnnotFlags` (`annot.rs`) — `hidden()`, `no_view()`,
+`print()`, `invisible()`, `no_zoom()`, `no_rotate()`
+, `locked()`, `suppressed_on_screen()`.
 
-`Appearance` (`annot.rs:253`) — `Normal { stream_id }` / `None` /
+`Appearance` (`annot.rs`) — `Normal { stream_id }` / `None` /
 `StateUnresolved`.
 
 Optional content: `optional_content_default_off(graph) -> BTreeSet<ObjId>`
-(`annot.rs:701`), `oc_is_hidden(graph, oc, &off)` (`annot.rs:994`),
+(`annot.rs`), `oc_is_hidden(graph, oc, &off)` (`annot.rs`),
 `apply_view_usage(graph, &mut off, magnification) -> UsageNotes`
-(`annot.rs:1268`).
+(`annot.rs`).
 
 **Pure builders** (no document, no allocation — R47,
-`annot_author.rs:353-354`):
-`build_appearance(&MarkupSpec) -> AuthoredAppearance` `annot_author.rs:356`;
-`build_redact_mark(&RedactSpec) -> AuthoredAppearance` `:930`;
-`build_text_annotation(&TextAnnotSpec) -> Result<AuthoredTextAnnot, VarTextError>` `:1238`.
+`annot_author.rs`):
+`build_appearance(&MarkupSpec) -> AuthoredAppearance` `annot_author.rs`;
+`build_redact_mark(&RedactSpec) -> AuthoredAppearance`;
+`build_text_annotation(&TextAnnotSpec) -> Result<AuthoredTextAnnot, VarTextError>`.
 Use these to draw a **live preview** on the canvas without touching the
 document — that is what makes rule-4 disclosure cheap here.
 
@@ -1234,12 +1199,12 @@ document — that is what makes rule-4 disclosure cheap here.
 | `annotation_deletion_preview(&self, annot_id) -> Result<AnnotationDeletion, EditError>` — **non-mutating** | `11316` |
 | `annotation_deletion_refusal(&self) -> Option<EditError>` — pre-flight | `11492` |
 
-`MarkupSpec` (`annot_author.rs:215`, `#[non_exhaustive]`) — `Square`,
+`MarkupSpec` (`annot_author.rs`, `#[non_exhaustive]`) — `Square`,
 `Circle`, `Line`, `Ink`, `Polygon`, `PolyLine`, `TextMarkup`. `TextAnnotSpec`
-(`:1144`, `#[non_exhaustive]`) — `FreeText`, `Sticky`, `Stamp`. Supporting:
-`Color` `:85`, `Quad` `:129` + `Quad::from_rect(rect)` `:145`,
-`TextMarkupKind` `:179`, `LineEnding` `:299`, `StickyIcon` `:1022`,
-`StampName` `:1060` (14 names).
+(`#[non_exhaustive]`) — `FreeText`, `Sticky`, `Stamp`. Supporting:
+`Color`, `Quad` + `Quad::from_rect(rect)`,
+`TextMarkupKind`, `LineEnding`, `StickyIcon`,
+`StampName` (14 names).
 
 ★★ **A stamp's label size is a PROPERTY, and the box follows the text
 (`Pass 287.0`).** `TextAnnotSpec::Stamp` gained `style: StampStyle`;
@@ -1389,23 +1354,22 @@ already in a document the first time it was touched.
 intent, and inferring one from the current geometry would invent a decision the
 author never made. A re-bake uses the caller's policy with the author's *size*.
 
-`AnnotationDeletion` (`edit.rs:5936`) reports `subtype`, `route`
+`AnnotationDeletion` (`edit.rs`) reports `subtype`, `route`
 (`AnnotationDeletionRoute::{General, RedactionMark, Dimension}`,
-`edit.rs:5908`), `popup_removed`, `parent_popup_cleared`,
+`edit.rs`), `popup_removed`, `parent_popup_cleared`,
 `replies_orphaned`, `group_members_promoted`, `appearance_streams_removed`.
 
-**Shared guards** on all three authoring verbs (`edit.rs:9958-9985`,
-`:10039-10048`, `:12039-12048`): `DocumentEncrypted` → certification →
+**Shared guards** on all three authoring verbs (`edit.rs`
+): `DocumentEncrypted` → certification →
 hidden-object refusal → `EmptyGeometry`; plus `PageOutOfRange`, `PageTree`,
 `ObjectNumbersExhausted`, `AnnotsNotAnArray`, `NotADictionary`, and
-`VariableText` for the text ones. The **certification gate** (`edit.rs:11449`)
+`VariableText` for the text ones. The **certification gate** (`edit.rs`)
 refuses at `/P` 1 and 2 and **permits at `/P` 3** (§12.8.2.2 Table 254); `/P`
 **defaults to 2 when absent**, so an absent `/P` is a refusal.
 
 ### 3.3 Minimal worked sequence
 
-From `crates/pdfcer-core/src/edit.rs:18980-19022` and its round-trip sibling
-at `:19029-19060`.
+From the round-trip tests at the end of `crates/pdfcer-core/src/edit.rs`.
 
 ```rust
 use pdfcer_core::annot_author::{Color, MarkupSpec, build_appearance};
@@ -1445,57 +1409,57 @@ fn comments(session: &EditSession, page_id: pdfcer_core::object::ObjId) {
 1. **"Delete is not redaction."** `delete_annotation` *"does not remove
    content from the file … **Deleting a comment is not redacting it**, and a
    caller whose operator might believe otherwise must say so"*
-   (`edit.rs:10770-10778`). This is mandatory copy, not a nicety — the
-   existing shell carries it at `ui_text.rs:1700`, `:6046-6052`, `:6093-6094`,
-   `:6145-6146`. Undo labels must distinguish the two as well
-   (`ui_text.rs:4825-4834`: *"remove a redaction mark"*, deliberately never
+   (`edit.rs`). This is mandatory copy, not a nicety — the
+   existing shell carries it at `ui_text.rs`,
+. Undo labels must distinguish the two as well
+   (`ui_text.rs`: *"remove a redaction mark"*, deliberately never
    *"undo redaction"*).
 2. **Shapes pdfcer drew carry no note text — say it is expected.** See limit 1.
    A bare "No note text" column reads as data loss.
 3. **The collateral of a deletion, before it happens.**
-   `annotation_deletion_preview` (`edit.rs:11316`) returns the same
+   `annotation_deletion_preview` (`edit.rs`) returns the same
    `AnnotationDeletion` struct the real call does: how many replies get
    **orphaned**, whether the popup goes, how many group members get
    **promoted**. Show it before the delete. ⚠️ But see the preview's own
    limits in §3.5 — it is not a perfect oracle.
-4. **`Appearance::StateUnresolved`** (`annot.rs:271-278`) — pdfcer *"displays
+4. **`Appearance::StateUnresolved`** (`annot.rs`) — pdfcer *"displays
    nothing and does not guess a first / `On` / `Off` key."* A blank annotation
    with no explanation looks like a rendering bug; say the appearance state
    could not be resolved. The governing setting is
    `MissingAppearanceState`, default `PaintNothing`, and it is explicitly
-   **evidence tier (d), a reasoned guess** (`annot.rs:551-556`) — i.e. an
+   **evidence tier (d), a reasoned guess** (`annot.rs`) — i.e. an
    inference, i.e. rule 4 applies.
 5. **Suppressed annotations.** `AnnotFlags::suppressed_on_screen()`
-   (`annot.rs:239`) — an annotation the file says not to show. A Comments
+   (`annot.rs`) — an annotation the file says not to show. A Comments
    panel that silently omits it is hiding document content; list it and mark
    it hidden.
 
 ### 3.5 Traps
 
 - **★ `apply_view_usage` must never be reachable from a print or export
-  path** (`annot.rs:1209`) — §8.11.4.5 is a `shall not`.
+  path** (`annot.rs`) — §8.11.4.5 is a `shall not`.
   `optional_content_default_off` *"is the complete and correct answer for
   printing and for aggregation, and calling this on the way to a printed page
-  would violate the standard"* (`annot.rs:1219-1224`). They are two functions
+  would violate the standard"* (`annot.rs`). They are two functions
   *"so that the print path cannot acquire this one by accident."*
 - **`/Contents` is dual-purpose** — *"a UI labelling this 'comment' is right
-  for markup and wrong for a Link"* (`annot.rs:315-324`). And the §12.5.6.2
+  for markup and wrong for a Link"* (`annot.rs`). And the §12.5.6.2
   group-attribute inheritance rule is **deliberately not applied**; `contents`
-  is the raw dictionary value (`annot.rs:326-335`).
+  is the raw dictionary value (`annot.rs`).
 - **`title` is `/T` from Table 170, not 164.** `None` on a Link means *"this
-  subtype has no such concept"*, not *"anonymous"* (`annot.rs:340-347`).
+  subtype has no such concept"*, not *"anonymous"* (`annot.rs`).
   `mod_date` is stored **raw** because §12.5.2 requires accepting a string in
-  any format (`annot.rs:352-359`) — do not assume it parses.
+  any format (`annot.rs`) — do not assume it parses.
 - **`reply_type: None` is NOT `ReplyType::Reply`.** Use
-  `effective_reply_type()` (`annot.rs:415-420`, `:485`).
-- **The deletion preview is not a perfect oracle** (`edit.rs:11293-11308`):
+  `effective_reply_type()` (`annot.rs`).
+- **The deletion preview is not a perfect oracle** (`edit.rs`):
   `appearance_streams_removed` is reported as **0, not computed**; a
   *delegated* target comes back with zeroed counts; and **the preview does not
   run the destination verb's certification gate**, so *"a preview can say
   'this would work' where the real call refuses."* Handle the refusal at the
   real call anyway.
 - **`delete_annotation` does not chase `/S /Hide` actions and does not
-  update `/StructParent` / `/OBJR`** (`edit.rs:10779-10789`). Named gaps, not
+  update `/StructParent` / `/OBJR`** (`edit.rs`). Named gaps, not
   bugs.
 - **Widget annotations are not canvas-selectable** and cannot become so until
   that work lands (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:801`).
@@ -1834,7 +1798,7 @@ then had nothing else to find.
 ## 4. Redaction
 
 `core [x] · cli [x] · gui [x]` for mark and apply; **`gui [ ]`** for the
-unencrypted-wrapper warning (`FEATURES.md:137-139`).
+unencrypted-wrapper warning (`FEATURES.md`).
 
 **ui_spec to read:** `docs/ui_specs/pass-8-redaction.md` — the
 **Mark → Review → Apply** three-phase model. That phase split is the
@@ -1845,7 +1809,7 @@ feature's safety property, not a UI preference.
 **The "runtime-verified true-removal proof" is NOT in `pdfcer-core`.** Core
 provides `redact::apply_redactions` and *keeps the material* for a proof —
 `RedactionReport::redacted_text` exists *"for the absence-proof gate to
-grep"* (`redact.rs:317-319`). The proof itself is implemented in the **GUI
+grep"* (`redact.rs`). The proof itself is implemented in the **GUI
 crate**:
 
 `pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs`
@@ -1882,15 +1846,15 @@ proof: a change that helps the proof and quietly narrows the sweep would
 re-open the leak `Pass 284.0` closed.
 
 
-| item | line |
-|---|---|
-| `pub fn prepare_redaction_apply(session: &EditSession) -> Result<PreparedRedaction, RedactApplyRefusal>` | `269` |
-| `PreparedRedaction { bytes, report, verification, promoted_by_materialisation }` | `234` |
-| `AbsenceVerification { strings_checked, strings_too_short_for_raw_check, raw_byte_residuals }` | `197` |
-| `AbsenceVerification::is_clean()` | `219` |
-| `RedactApplyRefusal { NothingToApply, FullRewriteUnavailable, MaterialisedDocumentUnreadable, CoreRefused, VerificationFailed { survivors } }` | `141` |
-| `MIN_VERIFIABLE_LEN: usize = 4` | `127` |
-| `leaked_in_decoded_streams` / `verify_absence` (private) | `338` / `361` |
+| item |
+|---|
+| `pub fn prepare_redaction_apply(session: &EditSession) -> Result<PreparedRedaction, RedactApplyRefusal>` |
+| `PreparedRedaction { bytes, report, verification, promoted_by_materialisation }` |
+| `AbsenceVerification { strings_checked, strings_too_short_for_raw_check, raw_byte_residuals }` |
+| `AbsenceVerification::is_clean()` |
+| `RedactApplyRefusal { NothingToApply, FullRewriteUnavailable, MaterialisedDocumentUnreadable, CoreRefused, VerificationFailed { survivors } }` |
+| `MIN_VERIFIABLE_LEN: usize = 4` |
+| `leaked_in_decoded_streams` / `verify_absence` (private) |
 
 A shell that calls `redact::apply_redactions` directly and writes the bytes
 **ships an unverified redaction** and may legitimately not know it. Either
@@ -1899,7 +1863,7 @@ do not skip it. **UNVERIFIED — whether `prepare_redaction_apply` should be
 promoted into `pdfcer-core` is an open engineering question; no decision
 record was found. Raise it with the operator before duplicating the file.**
 
-The three-way verdict it implements (`redact_apply.rs:80-84`):
+The three-way verdict it implements (`redact_apply.rs`):
 
 | redacted text found… | verdict |
 |---|---|
@@ -1909,12 +1873,12 @@ The three-way verdict it implements (`redact_apply.rs:80-84`):
 
 Two further constraints from the same file: there is **deliberately no
 `to_incremental_bytes` call anywhere in it, and no fallback that could
-introduce one** (`redact_apply.rs:33-55`); and it must be handed the
+introduce one** (`redact_apply.rs`); and it must be handed the
 **session**, not `session.document()` — passing the base revision would apply
 **zero** marks placed this session *"and report success … not a disclosure
 that stayed silent, but an apply that removed nothing while saying it had"*
-(`redact_apply.rs:59-67`). The same bug class was already fixed once in core
-(`redact.rs:1892-1901`).
+(`redact_apply.rs`). The same bug class was already fixed once in core
+(`redact.rs`).
 
 ### 4.2 Entry points
 
@@ -1929,24 +1893,24 @@ that stayed silent, but an apply that removed nothing while saying it had"*
 | `delete_redaction_mark(annot_id) -> Result<(), EditError>` | `10617` | refuses a non-`/Redact` subtype by name |
 
 Empty query or pattern returns `Ok(vec![])`, not an error.
-`RedactSpec` is `annot_author.rs:908`: `quads: Vec<Quad>`,
+`RedactSpec` is `annot_author.rs`: `quads: Vec<Quad>`,
 `fill: Option<Color>`, `overlay_text: Option<String>`, `quadding: Quadding`.
 A "whole page" mark is just `Quad::from_rect(page.crop_box)` — **CropBox, not
 MediaBox**, deliberately (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:9881-9892`).
 
 **Census (read-only, generic over `ObjectGraph`).**
-`redact::redaction_marks(graph) -> Vec<RedactionMark>` (`redact.rs:1822`) and
-`count_redaction_marks(graph) -> usize` (`redact.rs:1921`).
-`RedactionMark { page_index, annot_id, rect }` (`redact.rs:1792`).
+`redact::redaction_marks(graph) -> Vec<RedactionMark>` (`redact.rs`) and
+`count_redaction_marks(graph) -> usize` (`redact.rs`).
+`RedactionMark { page_index, annot_id, rect }` (`redact.rs`).
 **Pass `&session.graph()`, never `&document`** — see §4.4.
 
 **Apply (destructive).**
 `redact::apply_redactions(doc: &Document, options: &SaveOptions) -> Result<(Vec<u8>, RedactionReport), RedactError>`
-(`redact.rs:1079`). Takes a **`&Document`, not an `EditSession`**, and returns
+(`redact.rs`). Takes a **`&Document`, not an `EditSession`**, and returns
 **new bytes**; it mutates nothing in place and **forces a full rewrite**
-internally (`redact.rs:1220-1224`).
+internally (`redact.rs`).
 
-`RedactionReport` (`redact.rs:290`): `pages_redacted`, `marks_applied`,
+`RedactionReport` (`redact.rs`): `pages_redacted`, `marks_applied`,
 `glyphs_removed`, `show_operators_edited`, `content_streams_rewritten`,
 `annotations_removed`, `containers_decomposed`, `objects_promoted`,
 `info_strings_scrubbed`, **`residual_sweep_entries_scrubbed`,
@@ -1967,10 +1931,10 @@ it drives the CLI's non-zero exit and its `--acknowledge-residuals` override.
 `has_unscrubbed_matches()` means pdfcer **was told not to** act, by the
 residual scope below. Every ordinary redaction of a phrase that also appears
 elsewhere would exit non-zero if the second were folded into the first.
-`CarrierStatus { carrier, present, action }` (`redact.rs:242`) with
+`CarrierStatus { carrier, present, action }` (`redact.rs`) with
 `CarrierAction::{Absent, Scrubbed, DroppedByRewrite, DisclosedNotScrubbed,
 FoundNotScrubbed, CheckedClean}`
-(`redact.rs:256`) and `as_str()` (`:274`) yielding
+(`redact.rs`) and `as_str()` yielding
 `"DISCLOSED_NOT_SCRUBBED"`. The fourteen carriers: `info`, `xmp`, **`images`**,
 `xfa`, `struct_tree`, `attachments`, `ocg`, `thumbnails`, `object_streams`,
 `prior_revisions`, `overlapping_annotations`, **`vector_paths`**,
@@ -2134,15 +2098,15 @@ drawings: a whole-page mark drops 780 and 1,089 path objects respectively,
 a corner mark cuts 25, and `pdfcer-render`'s
 `redaction_leaves_no_ink.rs` proves by pixels that the region renders white.
 
-`RedactError` (`redact.rs:195`): `PageTree`, `NothingToApply`,
+`RedactError` (`redact.rs`): `PageTree`, `NothingToApply`,
 **`ImageUndestroyable { page, reason }`** (replaces `ImageRegion { page }`,
 which is gone as of `Pass 245.0`), `Content { page, source }`, `Encrypted`,
 `Write`.
 
 ### 4.3 Minimal worked sequence
 
-Mark-then-apply, from `crates/pdfcer-core/src/redact.rs:2006-2014` and
-`:2182-2214`.
+Mark-then-apply, from `crates/pdfcer-core/src/redact.rs` and
+.
 
 ```rust
 use pdfcer_core::{document::Document, edit::EditSession, redact, writer::SaveOptions};
@@ -2169,40 +2133,40 @@ let _ = out;
 The `pdfcer` consumer path is a clean non-GUI reference:
 `cmd_redact_apply` in `crates/pdfcer-cli/src/security.rs` → `apply_redactions`
 → per-carrier report → the acknowledgement gate
-(`:13544-13552`) → exit code `exit::REDACTION_RESIDUALS` (`:13553`).
+ → exit code `exit::REDACTION_RESIDUALS`.
 
 ### 4.4 ★ What the UI must disclose
 
 Redaction is the capability where a missed disclosure is not a usability
 defect but a **security failure**. The cardinal rule, verbatim
-(`redact.rs:12-18`):
+(`redact.rs`):
 
 > **pdfcer must NEVER claim content is redacted when it is not.**
 > Under-redaction that is *disclosed* or *refused* is acceptable; silent
 > under-redaction is a catastrophic failure.
 
 1. **A mark is a RED OUTLINE, never a solid fill.**
-   `annot_author.rs:903-906`: *"so a marked-but-unapplied region can never be
+   `annot_author.rs`: *"so a marked-but-unapplied region can never be
    mistaken for a completed redaction (the #1 real-world redaction failure is
    saving a marked doc believing it is done)."* Implemented at
-   `annot_author.rs:955-967` — stroke RGB(1,0,0), width 1, `Paint::Stroke`.
+   `annot_author.rs` — stroke RGB(1,0,0), width 1, `Paint::Stroke`.
    `RedactSpec::fill` is the **apply-time** `/IC`, **not** the preview colour
-   (`annot_author.rs:911-913`). A shell that fills the mark black has built
+   (`annot_author.rs`). A shell that fills the mark black has built
    the exact trap the feature exists to prevent.
 2. **A persistent, unmissable pending-marks warning.** Existing copy,
    `pdfce@cce414e:crates/pdfce-gui/src/ui_text.rs:109-113`:
    *"⚠ {count} UNAPPLIED redaction mark(s) — this document is NOT redacted;
    its marked content is still present until you apply the redactions"*; and
-   `:6927-6936` *"{count} pending redaction mark(s) — the content underneath
+ *"{count} pending redaction mark(s) — the content underneath
    them is STILL IN THIS DOCUMENT."* Also the negative case, said plainly:
    *"No redaction marks in this document. Nothing is marked, and nothing has
    been removed."*
 3. **Apply is irreversible and writes a NEW file.** First line of the modal,
-   in the warning colour (`ui_text.rs:7159-7164`): *"Applying writes a NEW
+   in the warning colour (`ui_text.rs`): *"Applying writes a NEW
    file with the marked content permanently removed. It is a full rewrite,
    not an edit: nothing in that file can bring the removed content back — not
    Undo, not a previous revision, not any recovery tool."*
-4. **The three-rule wording contract** (`ui_text.rs:6879-6896`) — binding on
+4. **The three-rule wording contract** (`ui_text.rs`) — binding on
    any shell:
    1. never say *"removed"* unqualified when anything was left; the residual
       goes in the **same sentence**;
@@ -2210,24 +2174,24 @@ defect but a **security failure**. The cardinal rule, verbatim
       from a clean `AbsenceVerification`;
    3. **never put the word "Undo" anywhere near a post-apply state.**
 5. **The scanned-page caveat is mandatory, not decorative**
-   (`ui_text.rs:7010-7020`, `:7053-7063`): *"It can only find text pdfcer can
+   (`ui_text.rs`): *"It can only find text pdfcer can
    extract — on a scanned page with no text layer it will find nothing, which
    is not the same as there being nothing sensitive there."* This is the
    single most consequential sentence in the whole redaction UI.
-6. **Zero matches is never silent** (`ui_text.rs:7102-7108`), and the search
+6. **Zero matches is never silent** (`ui_text.rs`), and the search
    result line must say nothing has been removed yet
-   (`ui_text.rs:7094-7098`).
-7. **Per-carrier residuals, by name.** Heading (`ui_text.rs:7248-7250`):
+   (`ui_text.rs`).
+7. **Per-carrier residuals, by name.** Heading (`ui_text.rs`):
    *"⚠ pdfcer could NOT remove the following — read this before continuing:"*,
    then one line per `CarrierStatus` with `action.as_str()`. The verification
-   limit line too (`ui_text.rs:7239-7245`): strings under
+   limit line too (`ui_text.rs`): strings under
    `MIN_VERIFIABLE_LEN` (4 chars) *"were too short for a whole-file byte
    search to say anything useful, so those were checked against the decoded
    page content only."*
 8. **The removal summary is a measurement, not a prediction**
-   (`ui_text.rs:7202-7207`) — the apply already ran in memory before the modal
+   (`ui_text.rs`) — the apply already ran in memory before the modal
    opened. Word it in the past tense. And `annotations_removed` is a
-   **total, not an overlap count** (`ui_text.rs:7212-7226`); an earlier draft
+   **total, not an overlap count** (`ui_text.rs`); an earlier draft
    mis-attributed it, and the correction is recorded as *"overstating
    collateral damage is a smaller sin than understating it, and still a lie."*
 9. **Friction on the confirm, deliberately** (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:10146-10180`):
@@ -2235,7 +2199,7 @@ defect but a **security failure**. The cardinal rule, verbatim
    open or confirm**, the absence is stated on screen, and the confirm button
    is gated one frame behind the acknowledgement checkboxes.
 10. **Removing a mark needs no confirmation**, and the asymmetry is the point
-    (`edit.rs:10603-10608`): *"It changes nothing about the page's content. A
+    (`edit.rs`): *"It changes nothing about the page's content. A
     mark that was never applied never removed anything … the reason this
     method is safe to offer with no confirmation while `apply_redactions` is
     not."*
@@ -2243,9 +2207,9 @@ defect but a **security failure**. The cardinal rule, verbatim
 ### 4.5 Traps
 
 - **Redaction is the one deliberate exception to round-trip / minimal-diff**
-  (`redact.rs:3-8`, R35, `ARCHITECTURE.md` §5 corollary) — *"correctness IS
+  (`redact.rs`, R35, `ARCHITECTURE.md` §5 corollary) — *"correctness IS
   security."* It **forces a full rewrite, never incremental**
-  (`redact.rs:1066-1070`), because an incremental save *"structurally
+  (`redact.rs`), because an incremental save *"structurally
   preserves superseded content … the 'removed' text would sit in the saved
   file one `startxref` hop away, trivially recoverable by any parser that
   walks `/Prev`"* (`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs:22-28`).
@@ -2271,47 +2235,47 @@ defect but a **security failure**. The cardinal rule, verbatim
   will not see one unless the mark carries an `/IC`.
 - **`RedactionMark::rect` is display information only.**
   *"This must never be used to decide what gets removed, only to describe a
-  mark to a human"* (`redact.rs:1786-1790`) — apply uses `/QuadPoints`.
+  mark to a human"* (`redact.rs`) — apply uses `/QuadPoints`.
 - **Never cache the mark list.** It is produced fresh on every call —
   *"never a cached list a UI keeps and patches incrementally"*
-  (`redact.rs:1776-1783`).
+  (`redact.rs`).
 - **Census must read the session graph, not the base document.** The
   `&Document`-only version of `count_redaction_marks` meant *"a `/Redact` mark
   the operator placed during this session was not counted"*
-  (`redact.rs:1892-1901`). The same class of error, one layer up, is §4.1's
+  (`redact.rs`). The same class of error, one layer up, is §4.1's
   base-revision trap.
 - **Search-marking reads the session view, not `self.document()`** — the
   pre-fix behaviour placed marks *"on a different page than the one holding
   the matched text — silently, with correct-looking geometry"*
-  (`edit.rs:11610-11631`).
+  (`edit.rs`).
 - **Find and Redact must use the same options.** `mark_redactions_by_search_with`
   exists because a Find bar with whole-word on and a redact verb without it
   means *"the mark set is a superset of what you were shown"*, and that *"is
-  not a cosmetic mismatch"* (`edit.rs:11529-11538`). There is deliberately no
-  `_with` variant for the pattern form (`edit.rs:11593-11598`).
+  not a cosmetic mismatch"* (`edit.rs`). There is deliberately no
+  `_with` variant for the pattern form (`edit.rs`).
 - **A redaction mark carries no `/F Print`** — it is *"transient review
-  state, not page content — it must not print"* (`edit.rs:10540-10541`).
+  state, not page content — it must not print"* (`edit.rs`).
 - **`delete_redaction_mark` is deliberately not a general
   `delete_annotation`** and refuses any non-`/Redact` subtype by name
-  (`EditError::NotARedactionMark`, `edit.rs:10582-10588`).
+  (`EditError::NotARedactionMark`, `edit.rs`).
 - **Width estimation is cosmetic, never a security regression** — the
   security guarantee is independent of width accuracy
-  (`redact.rs:66-71`); `estimated_width_fonts` is disclosed as a layout
+  (`redact.rs`); `estimated_width_fonts` is disclosed as a layout
   caveat, not a redaction caveat.
 - **Unencrypted wrapper (§7.6.7) — `gui [ ]` opportunity.** Core and CLI
   detect a wrapper document and warn that *"the visible page is a cover, not
-  the document"*; no GUI surfaces it (`FEATURES.md:139`). A new shell showing
+  the document"*; no GUI surfaces it (`FEATURES.md`). A new shell showing
   a wrapper's cover page without that warning is showing the wrong document
   and saying nothing.
   The entry point is `pdfcer_core::wrapper::detect(graph) -> WrapperInfo`
-  (`wrapper.rs:90`), generic over `ObjectGraph`. `WrapperInfo`
-  (`wrapper.rs:66`) carries `is_wrapper`, `payload_name: Option<String>` and
+  (`wrapper.rs`), generic over `ObjectGraph`. `WrapperInfo`
+  (`wrapper.rs`) carries `is_wrapper`, `payload_name: Option<String>` and
   `payload_count: usize`. It is *"cheap: one catalog lookup and a walk of a
   normally-empty array. **Safe to call on every document open, which is the
   point — a detector an operator has to remember to run is a detector that
-  does not fire on the day it matters**"* (`wrapper.rs:83-87`). Call it on
+  does not fire on the day it matters**"* (`wrapper.rs`). Call it on
   open, unconditionally, and **name the payload** — *"'this document wraps an
-  encrypted payload' is a weaker statement than naming it"* (`wrapper.rs:69-72`).
+  encrypted payload' is a weaker statement than naming it"* (`wrapper.rs`).
   `payload_count > 1` is reported rather than collapsed and should be shown.
 
 ---
@@ -2390,12 +2354,12 @@ an API gap.
 
 | item | `file:line` |
 |---|---|
-| `RecognizedWord { text, rect, confidence: Option<f32> }` | `ocr/mod.rs:87` |
-| `OcrPage { words, confidence_available: bool }` | `ocr/mod.rs:108` |
-| `OcrPage::mean_confidence() -> Option<f32>` | `ocr/mod.rs:132` |
-| `OcrPage::words_needing_review(threshold) -> Vec<&RecognizedWord>` | `ocr/mod.rs:148` |
-| `trait OcrEngine { recognize(w, h, pixels); reports_confidence() }` | `ocr/mod.rs:163` |
-| `words_to_page_space(words, img_w, img_h, page_rect)` — the y-flip, **`/Rotate 0` ONLY** | `ocr/mod.rs:211` |
+| `RecognizedWord { text, rect, confidence: Option<f32> }` | `ocr/mod.rs` |
+| `OcrPage { words, confidence_available: bool }` | `ocr/mod.rs` |
+| `OcrPage::mean_confidence() -> Option<f32>` | `ocr/mod.rs` |
+| `OcrPage::words_needing_review(threshold) -> Vec<&RecognizedWord>` | `ocr/mod.rs` |
+| `trait OcrEngine { recognize(w, h, pixels); reports_confidence() }` | `ocr/mod.rs` |
+| `words_to_page_space(words, img_w, img_h, page_rect)` — the y-flip, **`/Rotate 0` ONLY** | `ocr/mod.rs` |
 | ★ `words_to_page_space_on(words, img_w, img_h, PagePlacement)` — **use this one** | `ocr/mod.rs` |
 | `PagePlacement::new(rect, rotate)` / `PagePlacement::upright(rect)` | `ocr/mod.rs` |
 
@@ -2403,16 +2367,16 @@ an API gap.
 
 | item | `file:line` |
 |---|---|
-| `add_ocr_layer(&doc, page_index, &OcrPage, &opts) -> Result<OcrLayerOutcome, OcrLayerError>` | `ocr/layer.rs:603` |
-| `build_layer_content(&OcrPage, font_name, &opts) -> (Vec<u8>, OcrLayerReport)` — **pure**, no `Document`, no I/O | `ocr/layer.rs:496` |
+| `add_ocr_layer(&doc, page_index, &OcrPage, &opts) -> Result<OcrLayerOutcome, OcrLayerError>` | `ocr/layer.rs` |
+| `build_layer_content(&OcrPage, font_name, &opts) -> (Vec<u8>, OcrLayerReport)` — **pure**, no `Document`, no I/O | `ocr/layer.rs` |
 | `OcrLayerOptions::new()` / `.with_font(Std14)` / `.with_engine(name)` / `.with_existing(ExistingLayers)` | `ocr/layer.rs` |
 | `ExistingLayers` (`Replace` default, `Refuse`, `Stack`) — what to do with a layer pdfcer already wrote on the page | `ocr/layer.rs` |
-| `OcrLayerReport` — see §5.4, every field is a disclosure | `ocr/layer.rs:259` |
-| `OcrLayerReport::disclosures() -> Vec<String>` — **ready-to-show lines** | `ocr/layer.rs:313` |
+| `OcrLayerReport` — see §5.4, every field is a disclosure | `ocr/layer.rs` |
+| `OcrLayerReport::disclosures() -> Vec<String>` — **ready-to-show lines** | `ocr/layer.rs` |
 | `OcrLayerError` (`PageIndex`, `Encrypted`, `NothingToWrite`, `Unsupported`, `PageTree`, `ObjectNumbersExhausted`, `Write`, `LayerPresent { page_index, count }`, `LayerNotFound { page_index, content }`, …) | `ocr/layer.rs` |
 | `OcrLayerReport::layers_replaced` — earlier pdfcer layers taken off this page | `ocr/layer.rs` |
-| `OcrLayerOutcome { bytes, report }` | `ocr/layer.rs:397` |
-| `HELVETICA_ASCENT_FRAC` 0.718 · `HELVETICA_DESCENT_FRAC` 0.207 · `MIN_TZ` 1.0 · `MAX_TZ` 10 000.0 | `ocr/layer.rs:182`, `:190`, `:199`, `:207` |
+| `OcrLayerOutcome { bytes, report }` | `ocr/layer.rs` |
+| `HELVETICA_ASCENT_FRAC` 0.718 · `HELVETICA_DESCENT_FRAC` 0.207 · `MIN_TZ` 1.0 · `MAX_TZ` 10 000.0 | `ocr/layer.rs` |
 
 **Piece 2b — finding layers** (`crates/pdfcer-core/src/ocr/marker.rs`, `Pass 318.0`)
 
@@ -2429,12 +2393,12 @@ prefix is not registered (open operator question `(ce)`). CLI: `pdfcer ocr
 
 **Piece 3 — the engine** (`crates/pdfcer-core/src/ocr/engine_ocrs.rs`, feature `ocrs`, **on by default**)
 
-| item | `file:line` |
-|---|---|
-| `OcrsEngine::from_model_dir(&Path)` | `engine_ocrs.rs:184` |
-| `OcrsEngine::from_model_files(&Path, &Path)` | `engine_ocrs.rs:193` |
-| `MODEL_DIR` `"ocrs"` · `DETECTION_MODEL` · `RECOGNITION_MODEL` | `engine_ocrs.rs:86`, `:89`, `:97` |
-| `OcrsEngineError` (`ModelMissing`, `ModelLoad`, `ImageSize`, `Image`, `Recognition`) | `engine_ocrs.rs:108` |
+| item |
+|---|
+| `OcrsEngine::from_model_dir(&Path)` |
+| `OcrsEngine::from_model_files(&Path, &Path)` |
+| `MODEL_DIR` `"ocrs"` · `DETECTION_MODEL` · `RECOGNITION_MODEL` |
+| `OcrsEngineError` (`ModelMissing`, `ModelLoad`, `ImageSize`, `Image`, `Recognition`) |
 
 **Piece 3b — the second engine, OCRcer** (`crates/pdfcer-core/src/ocr/engine_ocrcer.rs`, feature `ocrcer`, **on by default**; `ocrs` stays the default engine)
 
@@ -2444,10 +2408,10 @@ its model is one file handed in as bytes — the caller reads it, the engine doe
 no I/O. The file is OCRcer's own adapter, vendored from the newest local
 OCRcer by `tools/sync-ocrcer.py`; do not edit it here.
 
-| item | `file:line` |
-|---|---|
-| `OcrcerEngine::from_bytes(&[u8]) -> Result<Self, ocrcer_core::Error>` — a malformed or non-`.ocrw` file is an `Err` | `engine_ocrcer.rs:84` |
-| `MODEL_DIR` `"ocrcer"` · `MODEL_FILE` `"ocrcer.ocrw"` — resolve the folder with piece 4, then read `MODEL_FILE` inside it | `engine_ocrcer.rs:53`, `:56` |
+| item |
+|---|
+| `OcrcerEngine::from_bytes(&[u8]) -> Result<Self, ocrcer_core::Error>` — a malformed or non-`.ocrw` file is an `Err` |
+| `MODEL_DIR` `"ocrcer"` · `MODEL_FILE` `"ocrcer.ocrw"` — resolve the folder with piece 4, then read `MODEL_FILE` inside it |
 
 **Piece 3c — Tesseract, parse only** (`crates/pdfcer-core/src/ocr/tesseract_tsv.rs`, always compiled)
 
@@ -2460,10 +2424,10 @@ name needs a `tessdata/configs` file the bundle does not ship. The CLI's
 ships `models/tesseract/{tesseract.exe, tessdata/}`; a stock install has the
 same layout.
 
-| item | `file:line` |
-|---|---|
-| `parse_tsv(&str) -> Result<Vec<RecognizedWord>, TsvError>` — word rows (level 5) only; rects are **image pixels, y-down**, like every engine; conf −1 → `None`, else conf/100 | `tesseract_tsv.rs:72` |
-| `TsvError` (`MissingHeader`, `BadRow { line, reason }`), `#[non_exhaustive]` | `tesseract_tsv.rs:30` |
+| item |
+|---|
+| `parse_tsv(&str) -> Result<Vec<RecognizedWord>, TsvError>` — word rows (level 5) only; rects are **image pixels, y-down**, like every engine; conf −1 → `None`, else conf/100 |
+| `TsvError` (`MissingHeader`, `BadRow { line, reason }`), `#[non_exhaustive]` |
 
 Tesseract reports confidence, so pass `confidence_available: true`.
 
@@ -2478,8 +2442,8 @@ reference caller.
 |---|---|
 | `resolve_model_dir(engine, explicit, exe_dir, user_data) -> Result<ModelSource, ModelsNotFound>` | `models.rs` |
 | ★ `resolve_model_dir_with(…, required: &[&str])` — a dir only counts if it CONTAINS the files | `models.rs` |
-| `ModelSource` (`OperatorSupplied` / `BesideExecutable` / `UserData`), `.path()` | `models.rs:84`, `:100` |
-| `ModelsNotFound { engine, searched }` — **carries every path tried** | `models.rs:126` |
+| `ModelSource` (`OperatorSupplied` / `BesideExecutable` / `UserData`), `.path()` | `models.rs` |
+| `ModelsNotFound { engine, searched }` — **carries every path tried** | `models.rs` |
 
 ### 5.3 Worked sequence, end to end
 
@@ -2490,7 +2454,7 @@ use pdfcer_core::ocr::{OcrEngine as _, OcrPage, PagePlacement, layer, models,
 use pdfcer_core::ocr::engine_ocrs::{MODEL_DIR, OcrsEngine};
 
 // 1. Find the weights. An operator-named path that does not exist is REPORTED,
-//    never silently replaced by a bundled copy (models.rs:164).
+//    never silently replaced by a bundled copy (models.rs).
 // `_with`, naming the engine's two files. An EMPTY `models/ocrs` otherwise
 // resolves AND SHADOWS a good directory further down the search order, and
 // the failure then arrives later wearing the engine's vocabulary instead of
@@ -2632,10 +2596,10 @@ that reports honestly.
 
 ## 6. Print & imposition (`pdfcer-print`)
 
-`Print`: `core [x] · cli [x] · gui [x]` (`FEATURES.md:166`).
-**`Imposition`: `core — · cli [x] · gui [ ]`** (`FEATURES.md:167`) — *"N-up,
+`Print`: `core [x] · cli [x] · gui [x]` (`FEATURES.md`).
+**`Imposition`: `core — · cli [x] · gui [ ]`** (`FEATURES.md`) — *"N-up,
 booklet, poster; mutually exclusive, refused in combination. **No GUI surface
-at all.**"* `FEATURES.md:210` names the planned work: *"needs the sheet
+at all.**"* `FEATURES.md` names the planned work: *"needs the sheet
 composition extracted into `pdfcer-print` so both shells share one
 implementation."*
 
@@ -2644,41 +2608,41 @@ implementation."*
 `crates/pdfcer-cli/src/print.rs`. The planners are built, tested and unused by
 any GUI.
 
-**Crate posture:** *"core rasterises, the shell spools"* (`lib.rs:16`).
+**Crate posture:** *"core rasterises, the shell spools"* (`lib.rs`).
 `pdfcer-print` *"does device setup, placement and blitting, and knows nothing
 about PDF — which is why it does not depend on `pdfcer-render`"*
-(`lib.rs:1893-1896`). **The caller rasterises.**
+(`lib.rs`). **The caller rasterises.**
 Every entry point returns `Err(PrintError::Unsupported)` on non-Windows
-(`lib.rs:1848`, `:1858`, `:1874`, `:2323`).
+(`lib.rs`).
 
 ### 6.1 Entry points
 
 **Device.** `list_printers() -> Result<Vec<Printer>, PrintError>`
-`lib.rs:260`; `printer_caps(name) -> Result<PrinterCaps, PrintError>`
-`lib.rs:432`; `device_features(printer) -> Result<DeviceFeatures, PrintError>`
-`lib.rs:1820` (`supports_duplex`, `max_copies`).
+`lib.rs`; `printer_caps(name) -> Result<PrinterCaps, PrintError>`
+`lib.rs`; `device_features(printer) -> Result<DeviceFeatures, PrintError>`
+`lib.rs` (`supports_duplex`, `max_copies`).
 
-**Planning.** `JobSpec` `lib.rs:1179` (`pages`, `mode: ScaleMode`, `max_dpi`,
+**Planning.** `JobSpec` `lib.rs` (`pages`, `mode: ScaleMode`, `max_dpi`,
 `subset: PageSubset`, `reverse`, `copies`, `collate`) →
-`JobSpec::sequence()` `lib.rs:1263`, `first_page_pt(&page_sizes)` `:1339`.
+`JobSpec::sequence()` `lib.rs`, `first_page_pt(&page_sizes)`.
 `DeviceGeometry::from_caps(&caps, requested_orientation, first_page_pt)`
-`lib.rs:1779` — **the only route from `PrinterCaps` to `DeviceGeometry`**.
-`job_resolution(&device, &spec) -> JobResolution` `lib.rs:1464`;
-`plan_job(&device, &page_sizes, &spec) -> Vec<PagePlan>` `lib.rs:1486`.
-`PagePlan { index, placement, render_scale }` `lib.rs:1357`.
-`place_page(page, printable, ScaleMode) -> Placement` `lib.rs:544`;
-`ScaleMode { Fit, ActualSize, ShrinkOversized, Custom(f64) }` `lib.rs:496`.
+`lib.rs` — **the only route from `PrinterCaps` to `DeviceGeometry`**.
+`job_resolution(&device, &spec) -> JobResolution` `lib.rs`;
+`plan_job(&device, &page_sizes, &spec) -> Vec<PagePlan>` `lib.rs`.
+`PagePlan { index, placement, render_scale }` `lib.rs`.
+`place_page(page, printable, ScaleMode) -> Placement` `lib.rs`;
+`ScaleMode { Fit, ActualSize, ShrinkOversized, Custom(f64) }` `lib.rs`.
 
 **Spool.** `PageBitmap { width, height, rgba, placement, page_pt }`
-`lib.rs:1898` — **RGBA8, row-major, top row first, i.e. `pixmap.data().to_vec()`
-handed over unchanged** (`lib.rs:1903-1905`).
+`lib.rs` — **RGBA8, row-major, top row first, i.e. `pixmap.data().to_vec()`
+handed over unchanged** (`lib.rs`).
 `spool(printer, &[PageBitmap], DryRun, output, DeviceSettings, first_page_pt) -> Result<SpoolReport, PrintError>`
-`lib.rs:1979`. `SpoolReport { pages, printed, dpi, clipped_pages, job_id }`
-`lib.rs:1943`.
+`lib.rs`. `SpoolReport { pages, printed, dpi, clipped_pages, job_id }`
+`lib.rs`.
 
-**Imposition** (`pdfcer_print::imposition`, `lib.rs:104`). The planners take
+**Imposition** (`pdfcer_print::imposition`, `lib.rs`). The planners take
 **only** `(f64, f64)` printable areas and page-size slices — never a driver
-type (`imposition.rs:31-34`) — and return rectangles you composite into one
+type (`imposition.rs`) — and return rectangles you composite into one
 pixmap per **sheet**:
 
 | planner | `imposition.rs` | returns |
@@ -2691,10 +2655,10 @@ pixmap per **sheet**:
 | `fit_into_cell(page, cell, auto_rotate)` | `269` | `CellFit { rect, scale, rotated }` |
 
 Specs: `NUpSpec { grid: NUpGrid, order: PageOrder, border, auto_rotate }`
-`:557`; `BookletSpec { binding, subset, sheets: Option<(usize,usize)>, auto_rotate }`
-`:911`; `PosterSpec { tile_scale, overlap_pt, cut_marks, labels, tile_only_large_pages, max_tiles }`
-`:1243`. Limits: `MAX_CELLS_PER_SHEET = 1024` `:132`,
-`DEFAULT_MAX_TILES = 400` `:142`, `MAX_BOOKLET_SHEETS = 100_000` `:150`.
+; `BookletSpec { binding, subset, sheets: Option<(usize,usize)>, auto_rotate }`
+; `PosterSpec { tile_scale, overlap_pt, cut_marks, labels, tile_only_large_pages, max_tiles }`
+. Limits: `MAX_CELLS_PER_SHEET = 1024`,
+`DEFAULT_MAX_TILES = 400`, `MAX_BOOKLET_SHEETS = 100_000`.
 
 **Poster marks and labels.** When `cut_marks` or `labels` is set,
 `plan_poster` reserves a `POSTER_MARK_BAND_PT` (18 pt) band:
@@ -2718,7 +2682,7 @@ The engine gives geometry, and you draw it:
 ### 6.2 Minimal worked sequences
 
 **(a) The canonical print pipeline.** Both existing shells follow it
-(`pdfce@cce414e:crates/pdfce-gui/src/print_flow.rs:637-702`, `:1793-1852`).
+(`pdfce@cce414e:crates/pdfce-gui/src/print_flow.rs:637-702`).
 
 ```rust
 use pdfcer_print::{
@@ -2785,37 +2749,37 @@ for sheet_index in 0..layout.sheets {
 
 ### 6.3 ★ What the UI must disclose
 
-1. **★ Spooling is an irreversible outward-facing act** (`lib.rs:58-71`):
+1. **★ Spooling is an irreversible outward-facing act** (`lib.rs`):
    *"Printing consumes paper, occupies a device other people may share, and
    cannot be undone. Nothing in this crate starts a job as a side effect of
    anything else: `spool` is the only function that reaches `StartDoc`, and it
    is reached only from a control an operator deliberately clicked."* A shell
    must never spool as a consequence of anything but a deliberate click.
 2. **Clipping is REPORTED, not refused** — `Placement::clipped`
-   (`lib.rs:529`) and `SpoolReport::clipped_pages` (`lib.rs:1950-1955`).
+   (`lib.rs`) and `SpoolReport::clipped_pages` (`lib.rs`).
    *"Acrobat's documented behaviour here is to clip SILENTLY … pdfcer reports
-   it instead"* (`lib.rs:522-528`). Show it **before** the job goes out; it is
+   it instead"* (`lib.rs`). Show it **before** the job goes out; it is
    pdfcer's inference that the page will not fit.
 3. **Resolution capping.** `JobResolution { dpi, device_dpi, capped }`
-   (`lib.rs:1381`) — when `capped`, pdfcer is printing at less than the device
+   (`lib.rs`) — when `capped`, pdfcer is printing at less than the device
    can do, by pdfcer's own memory judgement. Say so; `uncapped_page_mb()`
-   (`lib.rs:1400`) is the number that justifies it.
-4. **Duplex is driver-gated, never simulated** (`lib.rs:1533-1543`): *"A
+   (`lib.rs`) is the number that justifies it.
+4. **Duplex is driver-gated, never simulated** (`lib.rs`): *"A
    printer that cannot do it will not be made to by reordering pages and
    asking the operator to reinsert the stack."* Consult
    `DeviceFeatures::supports_duplex` **before offering the control at all**
    (R83). A duplex setting the driver declines produces *"a job that silently
-   comes out single-sided"* (`lib.rs:1560-1566`) — which is exactly why
+   comes out single-sided"* (`lib.rs`) — which is exactly why
    `DeviceSettings` is kept separate from `JobSpec`, so a shell can say it.
 5. **`DryRun::Yes` is the development mode, not a test convenience**
-   (`lib.rs:1915-1932`) — it runs every step except `StartDoc`/`StartPage`/
+   (`lib.rs`) — it runs every step except `StartDoc`/`StartPage`/
    `EndPage`/`EndDoc` and the blit. Offer it.
 6. **Imposition: blanks and padding.** `BookletLayout::padded_pages` and
-   `blank_positions` (`imposition.rs:1116-1120`) — pdfcer **added blank pages**
+   `blank_positions` (`imposition.rs`) — pdfcer **added blank pages**
    to reach a multiple of four. That is an inference about intent; show the
    count. Likewise `PosterLayout::rows × columns` and `tiles` — how many
    sheets of paper the operator is about to consume.
-7. **`CellFit::rotated`** (`imposition.rs:242`) — pdfcer **turned the page**
+7. **`CellFit::rotated`** (`imposition.rs`) — pdfcer **turned the page**
    to make it fit. Visible in the preview, and stated.
 
 ### 6.4 Traps
@@ -2835,50 +2799,50 @@ for sheet_index in 0..layout.sheets {
   guard.** Message shape: *"{modes} cannot be combined — each one changes the
   shape of the job, and no two of them compose. Pick one."*
 - **★ Imposition `Rect` is y-DOWN, origin top-left — deliberately NOT PDF's
-  convention** (`imposition.rs:36-53`): *"Introducing a second, y-up
+  convention** (`imposition.rs`): *"Introducing a second, y-up
   convention here would mean a flip on every hand-off, and a flip that is
   applied twice — or zero times — prints upside down, which is obvious on
   paper and invisible in every test that does not print."*
 - **★ Booklet `sheets` counts PHYSICAL SHEETS, not document pages**
-  (`imposition.rs:920-927`): *"'Sheets 1 to 1' of a 40-page booklet prints the
+  (`imposition.rs`): *"'Sheets 1 to 1' of a 40-page booklet prints the
   outermost sheet, which carries document pages 40, 1, 2 and 39 … exactly what
   a document-page reading would get wrong while looking right."* An
   overrunning end is **clamped**; a range starting past the end is **refused**
-  (`:1140-1144`).
-- **★ Auto-rotate is always CLOCKWISE** (`imposition.rs:230-239`) — the
+.
+- **★ Auto-rotate is always CLOCKWISE** (`imposition.rs`) — the
   direction is unsourced, and *"a sheet with one page turned clockwise and its
   neighbour turned counter-clockwise is unreadable at any head angle."* And
-  `CellFit::rect` **already accounts for the rotation** (`:216-221`): placing
+  `CellFit::rect` **already accounts for the rotation**: placing
   the page by its unrotated size *"would produce a sideways page hanging out
   of its cell."*
-- **★ `tiles_page` is measured AFTER the tile scale** (`imposition.rs:1302-1310`)
+- **★ `tiles_page` is measured AFTER the tile scale** (`imposition.rs`)
   — *"a 200-point page at 800% is a 1600-point poster … measuring the unscaled
   page instead would pass it through untiled and print the top-left corner of
   a poster eight times too big, silently."*
-- **★ Odd/even is by DOCUMENT page number** (`lib.rs:1217-1224`): *"an
+- **★ Odd/even is by DOCUMENT page number** (`lib.rs`): *"an
   operator printing '2-9, odd' means document pages 3, 5, 7, 9 — the numbers
   printed on the paper."* Order of operations is **subset → reverse → copies**
-  (`lib.rs:1246-1261`).
+  (`lib.rs`).
 - **★ The orientation page is the first page SENT, not `pages[0]`**
-  (`lib.rs:1130`). Take `first_page_pt` from `bitmaps.first()`.
-- **★ An asymmetric device renders at its SMALLER axis** (`lib.rs:758`,
-  `:1466-1471`).
-- **`Fit` ≠ `ShrinkOversized`** (`lib.rs:490-494`) — *"treating them as one,
+  (`lib.rs`). Take `first_page_pt` from `bitmaps.first()`.
+- **★ An asymmetric device renders at its SMALLER axis** (`lib.rs`,
+).
+- **`Fit` ≠ `ShrinkOversized`** (`lib.rs`) — *"treating them as one,
   which is the natural simplification, silently blows a business card up to
   A4."*
 - **`plan_n_up` degrades on a malformed page; `plan_poster` refuses.**
   Asymmetric on purpose: *"refusing a whole 40-page job over one malformed
-  MediaBox would lose 39 good pages to save one bad one"* (`imposition.rs:1430-1434`)
-  versus `DegeneratePage` (`:1444-1447`).
-- **Every planner refuses rather than clamps** (`imposition.rs:55-60`):
+  MediaBox would lose 39 good pages to save one bad one"* (`imposition.rs`)
+  versus `DegeneratePage`.
+- **Every planner refuses rather than clamps** (`imposition.rs`):
   *"the output of this module becomes **paper**."* `ImpositionError`
-  (`:313`) has twelve named variants — `NoPages`, `EmptySheet`,
+ has twelve named variants — `NoPages`, `EmptySheet`,
   `DegeneratePage`, `ZeroCells`, `TooManyCells`, `SheetRangeEmpty`,
   `SheetRangeBeyondBooklet`, `BookletTooLarge`, `InvalidTileScale`,
   `NegativeOverlap`, `OverlapExceedsSheet`, `TooManyTiles` — surface each by
   name. It is deliberately **not `Eq`** (several variants carry `f64`).
 - **Non-Windows `list_printers` returns `Err(Unsupported)`, not an empty
-  `Vec`** (`lib.rs:1859-1866`) — *"reporting the same value for 'this platform
+  `Vec`** (`lib.rs`) — *"reporting the same value for 'this platform
   cannot enumerate printers at all' would collapse two different facts into
   one and send a caller looking for hardware."*
 
@@ -2886,14 +2850,14 @@ for sheet_index in 0..layout.sheets {
 
 ## 7. Rasterising a page for display (`pdfcer-render`)
 
-`core [x] · gui [x] · cli —` (`FEATURES.md:145-146`). A new shell rebuilds
+`core [x] · gui [x] · cli —` (`FEATURES.md`). A new shell rebuilds
 the *worker*, not the rasteriser.
 
 **Zero GUI/windowing dependency, verified by `cargo tree` in CI**
-(`lib.rs:13-19`) — a CPU rasteriser is fine, a windowing toolkit is not. And
+(`lib.rs`) — a CPU rasteriser is fine, a windowing toolkit is not. And
 *"`pdfcer-render` itself never enumerates, opens, or reads a font (rule R19),
 which is what makes the same document render to the same pixels on a CI
-runner, a developer laptop, and the WASM fork"* (`lib.rs:224-228`).
+runner, a developer laptop, and the WASM fork"* (`lib.rs`).
 
 ### 7.1 The one call
 
@@ -2902,47 +2866,47 @@ pdfcer_render::render_page_with_view(
     view: &DocumentView<'_>, page: &Page, scale: f32, options: &RenderOptions
 ) -> Result<RenderedPage, RenderError>
 ```
-`crates/pdfcer-render/src/lib.rs:235` — **the real implementation**;
-`render_page` (`:165`), `render_page_with` (`:176`) and `render_page_view`
-(`:211`) are wrappers.
+`crates/pdfcer-render/src/lib.rs` — **the real implementation**;
+`render_page`, `render_page_with` and `render_page_view`
+ are wrappers.
 
 - `scale` is **device pixels per user-space unit** = `dpi / 72.0`;
-  `1.0 ≈ 72 DPI` (`lib.rs:154-155`).
+  `1.0 ≈ 72 DPI` (`lib.rs`).
 - **`view` must be `session.view()`, not `session.document()`.** Decision 018,
-  `lib.rs:188-199`: *"Until Pass 17.0 this crate only knew how to render a
+  `lib.rs`: *"Until Pass 17.0 this crate only knew how to render a
   `&Document`, and the GUI could only give it `EditSession::document()` — the
   BASE revision. Every editing feature from Pass 3.1 to Pass 16.2 therefore
   authored correctly and displayed not at all."* This is the same base-revision
   trap as §4.1, in a different subsystem. `DocumentView` is re-exported at
-  `lib.rs:81`.
+  `lib.rs`.
 - `page: &Page` from `pdfcer_core::page_tree::pages(&doc)`.
-- Returns `RenderedPage { pixmap, diagnostics }` (`lib.rs:147`).
+- Returns `RenderedPage { pixmap, diagnostics }` (`lib.rs`).
 
-**Pixel format:** `tiny_skia::Pixmap` — white-filled (`lib.rs:249`), RGBA8,
+**Pixel format:** `tiny_skia::Pixmap` — white-filled (`lib.rs`), RGBA8,
 **PREMULTIPLIED**, row-major, top row first. `tiny_skia` is re-exported at
-`lib.rs:102` so a shell need not depend on it directly.
+`lib.rs` so a shell need not depend on it directly.
 
 **Geometry:** `page_device_geometry(page, scale) -> (u32, u32, Transform)`
-`lib.rs:344`. Composition (`lib.rs:21-33`): translate the resolved **CropBox**
+`lib.rs`. Composition (`lib.rs`): translate the resolved **CropBox**
 to the origin → flip y and scale → apply `/Rotate` **clockwise** (the
 opposite sense to §8.3.3's CCW matrices), swapping width/height for 90°/270°.
 The GUI uses it for hit-testing (`pdfce@cce414e:crates/pdfce-gui/src/object_provider.rs:48`).
 
-**Size guard:** `MAX_PIXMAP_EDGE = 16384` (`lib.rs:115`); zero or oversized
-gives `RenderError::BadRasterSize { width, height }` (`lib.rs:137`).
+**Size guard:** `MAX_PIXMAP_EDGE = 16384` (`lib.rs`); zero or oversized
+gives `RenderError::BadRasterSize { width, height }` (`lib.rs`).
 
 ### 7.2 `RenderOptions` — the knobs
 
-`crates/pdfcer-render/src/font/mod.rs:428`, `#[non_exhaustive]` (so **use the
-builders**, `:684-690`): `fonts: FontEnvironment` `:432`, `annotations: bool`
-`:470`, `annotation_scope: AnnotationScope` `:484`, `cancel: Option<RenderCancel>`
-`:494`, `layers: Option<LayerVisibility>` `:507`, `view_magnification: Option<f32>`
-`:532`, `cmyk_intent` `:597`, `mask_resample` `:640`, `image_minify` `:648`,
-`cmyk_jpeg_polarity` `:655`, `missing_as` `:664`. Builders:
-`with_annotations` `:805`, `with_annotation_scope` `:821`, `with_cmyk_intent`
-`:878`, `with_cancel` `:972`, `with_mask_resample` `:996`, `with_image_minify`
-`:1004`, `with_cmyk_jpeg_polarity` `:1012`, `with_layers` `:1028`,
-`with_view_magnification` `:1038`, `with_missing_as` `:1043`,
+`crates/pdfcer-render/src/font/mod.rs`, `#[non_exhaustive]` (so **use the
+builders**): `fonts: FontEnvironment`, `annotations: bool`
+, `annotation_scope: AnnotationScope`, `cancel: Option<RenderCancel>`
+, `layers: Option<LayerVisibility>`, `view_magnification: Option<f32>`
+, `cmyk_intent`, `mask_resample`, `image_minify`,
+`cmyk_jpeg_polarity`, `missing_as`. Builders:
+`with_annotations`, `with_annotation_scope`, `with_cmyk_intent`
+, `with_cancel`, `with_mask_resample`, `with_image_minify`
+, `with_cmyk_jpeg_polarity`, `with_layers`,
+`with_view_magnification`, `with_missing_as`,
 `with_max_cmyk_buffer_bytes` (`Pass 132.0` — see **§7.3a**, which is the one
 knob whose value you should COMPUTE rather than pick), `with_ink_probe`
 (`Pass 174.0` — see **§7.3b**; it is the only one of these that ANSWERS a
@@ -2964,15 +2928,15 @@ A non-finite or non-positive `device_px` renders as `Actual`. Each changed
 stroke is counted: `Hairline` counts into `Diagnostics::strokes_hairlined`,
 and `Fixed` into `strokes_width_fixed`. The enum is `#[non_exhaustive]`.
 
-`AnnotationScope` (`annot.rs:348`) is the comments-and-forms filter:
+`AnnotationScope` (`annot.rs`) is the comments-and-forms filter:
 
 | Acrobat's name | variant | paints |
 |---|---|---|
-| Document | `Document` `:376` | page content + non-markup annotations |
-| Document and Markups | `DocumentAndMarkups` `:385` (**`RenderOptions` default**) | page content + every annotation |
-| Document and Stamps | `DocumentAndStamps` `:388` | page content + non-markup + `/Stamp` **only** |
-| Form fields only | `FormFieldsOnly` `:403` | `/Widget` appearances, **no page content at all** |
-| (pdfcer's own) | `ContentOnly` `:360` | page content, no annotations |
+| Document | `Document` | page content + non-markup annotations |
+| Document and Markups | `DocumentAndMarkups` (**`RenderOptions` default**) | page content + every annotation |
+| Document and Stamps | `DocumentAndStamps` | page content + non-markup + `/Stamp` **only** |
+| Form fields only | `FormFieldsOnly` | `/Widget` appearances, **no page content at all** |
+| (pdfcer's own) | `ContentOnly` | page content, no annotations |
 
 ### 7.3a The CMYK compositing ceiling — READ it before you size a raster
 
@@ -3147,38 +3111,38 @@ and a stale one is a wrong claim that reads as an illustration.)*
 
 ### 7.3 Cancellation — the off-thread contract
 
-`RenderCancel` (`crates/pdfcer-render/src/cancel.rs:85`) is a plain
+`RenderCancel` (`crates/pdfcer-render/src/cancel.rs`) is a plain
 `Arc<AtomicBool>` — *"no windowing, runtime or executor dependency, and works
-identically under wasm"* (`cancel.rs:3-8`). `new()` `:90`, `cancel()` `:100`
+identically under wasm"* (`cancel.rs`). `new()`, `cancel()`
 (idempotent, any thread, returns immediately without waiting), `is_cancelled()`
-`:109`. Wire via `RenderOptions::with_cancel`.
+. Wire via `RenderOptions::with_cancel`.
 
-- **It stops the work, not just the result** (`cancel.rs:32-37`): *"Dropping a
+- **It stops the work, not just the result** (`cancel.rs`): *"Dropping a
   receiver would discard the result while the worker carried on painting for
   another 58 seconds — still occupying a core."*
-- **Granularity is one operator** (`cancel.rs:52-58`) — worst-case latency
+- **Granularity is one operator** (`cancel.rs`) — worst-case latency
   *"a third of a millisecond, not the whole render."*
-- **`RenderError::Cancelled` is NOT a failure** (`lib.rs:124-132`): *"It means
+- **`RenderError::Cancelled` is NOT a failure** (`lib.rs`): *"It means
   the answer stopped being wanted … a caller should discard it silently rather
   than surfacing it."* It is an error variant only because a cancelled render
   has no pixmap, *"and inventing a half-painted one would be worse than saying
   so."*
-- **The flag is checked AFTER the work** (`lib.rs:317-332`): *"a render
+- **The flag is checked AFTER the work** (`lib.rs`): *"a render
   cancelled on its last operator is still cancelled, and a partial raster is
   exactly what must not escape."*
-- **Default is `None`, deliberately** (`font/mod.rs:496-501`) — existing
+- **Default is `None`, deliberately** (`font/mod.rs`) — existing
   callers cannot acquire a new failure mode; only a caller that opts in can be
   cancelled.
 
 **Thread-safety:** `pdfcer-render` declares no `Send`/`Sync` bounds and
 contains no threading. `RenderCancel` is asserted `Send + Sync`
-(`cancel.rs:155-158`). **The threading model is entirely the shell's** —
+(`cancel.rs`). **The threading model is entirely the shell's** —
 `pdfce@cce414e:crates/pdfce-gui/src/render_worker.rs` is the reference implementation:
-`RenderWorker` `:172`, `RenderRequest` `:199` (holds `Arc<EditSession>`),
-`spawn()` `:242`, `poll()` `:323` (never blocks), `cancel_and_wait()` `:387`,
-`Drop` cancels `:416`.
+`RenderWorker`, `RenderRequest` (holds `Arc<EditSession>`),
+`spawn()`, `poll()` (never blocks), `cancel_and_wait()`,
+`Drop` cancels.
 
-Why (`cancel.rs:10-30`): *"On a real CAD sheet that is ~10 s at 1× and ~58 s
+Why (`cancel.rs`): *"On a real CAD sheet that is ~10 s at 1× and ~58 s
 at 2× (measured 2026-08-07) … The operator's report was 'it took minutes to
 try and update the view and hung the entire gui.'"* The worker holds an
 `Arc<EditSession>` while rendering, so `Arc::get_mut` fails and an edit
@@ -3188,7 +3152,7 @@ proceeds**, which is only viable because cancellation is fast.
 
 ### 7.4 Minimal worked sequences
 
-**(a) Synchronous** — `crates/pdfcer-render/tests/cmyk_intent.rs:102-107`.
+**(a) Synchronous** — `crates/pdfcer-render/tests/cmyk_intent.rs`.
 
 ```rust
 use pdfcer_core::{document::Document, page_tree, settings::CmykIntent};
@@ -3232,7 +3196,7 @@ fn render_on_worker(session: &pdfcer_core::edit::EditSession,
 ### 7.5 ★ What the UI must disclose
 
 **Rendering is best-effort by design, and every shortfall is COUNTED**
-(`lib.rs:35-50`): *"every shortfall is COUNTED in `Diagnostics` and returned
+(`lib.rs`): *"every shortfall is COUNTED in `Diagnostics` and returned
 with the pixels — the caller can always tell a faithful raster from a partial
 one ('fuzzy, never sneaky')."* And, explicitly: *"A shell that renders pages
 is expected to surface these; **they are not decoration**."*
@@ -3242,12 +3206,12 @@ is expected to surface these; **they are not decoration**."*
    missing face should look like. It is the canonical rule-4 case in rendering.
 2. **`glyphs_notdef`** — *"is anything missing?"*
 3. **`fonts_unsupported`** — *"was any text skipped outright?"*
-4. **`contents_streams_unresolved`** (`lib.rs:270-275`) — copied from the page
+4. **`contents_streams_unresolved`** (`lib.rs`) — copied from the page
    because the interpreter cannot observe it: *"without this the raster of a
    page with a dangling `/Contents` would be silently blank."* A blank page
    that is blank for a reason must say so.
 5. **`page_content_suppressed`** — set under `AnnotationScope::FormFieldsOnly`
-   (`annot.rs:392-402`). The page looks empty on purpose.
+   (`annot.rs`). The page looks empty on purpose.
 6. **`MissingAppearanceState`** — see §3.4 item 4; the default is a **reasoned
    guess**, i.e. an inference.
 7. **A cancelled render is discarded silently** — never surface it as an
@@ -3265,42 +3229,42 @@ is expected to surface these; **they are not decoration**."*
   *"`tiny-skia` stores pixels PREMULTIPLIED, both egui constructors accept the
   bytes without complaint, and the wrong one silently darkens every antialiased
   glyph edge."* Use the premultiply-correct upload path, or demultiply
-  (`crates/pdfcer-render/tests/cmyk_intent.rs:110-114`). For `pdfcer-print`, hand
+  (`crates/pdfcer-render/tests/cmyk_intent.rs`). For `pdfcer-print`, hand
   `pixmap.data().to_vec()` over **unchanged**.
 - **★ Check the cancel token, don't match the error variant**
-  (`render_worker.rs:461-466`).
+  (`render_worker.rs`).
 - **★ `RenderOptions::layers` REPLACES the document's configuration; it does
-  not merge** (`lib.rs:2732`). Related pinned behaviours: *"a hidden section's
-  CLIP still applies to what follows"* (`lib.rs:2873`) and *"an image XObject
-  inside a hidden section is not drawn"* (`lib.rs:3000`).
+  not merge** (`lib.rs`). Related pinned behaviours: *"a hidden section's
+  CLIP still applies to what follows"* (`lib.rs`) and *"an image XObject
+  inside a hidden section is not drawn"* (`lib.rs`).
 - **★ "Document and Stamps" is not a synonym for "and Markups."**
-  `annot.rs:294-301`: *"It admits `/Stamp` and no other markup type … a
+  `annot.rs`: *"It admits `/Stamp` and no other markup type … a
   two-option implementation that collapsed the two would over-include every
   non-stamp markup, and would do it silently, since the result still looks
   like 'a page with annotations on it'."*
-- **Scope and §12.5.3's flags compose as AND, never OR** (`annot.rs:331-340`)
+- **Scope and §12.5.3's flags compose as AND, never OR** (`annot.rs`)
   — neither mechanism can override the other, and both are counted.
   `annotations: bool` is a **master gate that can only subtract**
-  (`font/mod.rs:483-501`); read the composition **only** through
-  `effective_annotation_scope()` (`font/mod.rs:749`), never either field
+  (`font/mod.rs`); read the composition **only** through
+  `effective_annotation_scope()` (`font/mod.rs`), never either field
   directly.
-- **`FormFieldsOnly` never decodes content streams** (`lib.rs:278-291`), so
+- **`FormFieldsOnly` never decodes content streams** (`lib.rs`), so
   that branch **cannot** return `RenderError::Content`, and
   `contents_streams_unresolved` stays 0 *"because pdfcer did not look.
   Reporting a page-level incompleteness it never measured would be an invented
   fact."*
 - **★ Annotation flags come from Table 169, not §12.5.6.2's prose — the prose
-  is wrong** (erratum T169-E1, `annot.rs:114`).
+  is wrong** (erratum T169-E1, `annot.rs`).
 - **The default `AnnotationScope` differs between layers.**
-  `RenderOptions::default()` is `DocumentAndMarkups` (`font/mod.rs:640-676`);
+  `RenderOptions::default()` is `DocumentAndMarkups` (`font/mod.rs`);
   the GUI's print dialog defaults to `Document` — Reader's default,
   deliberately narrower (`pdfce@cce414e:crates/pdfce-gui/src/print_flow.rs:570`,
-  `annot.rs:303-316`). Pick deliberately; do not inherit by accident.
+  `annot.rs`). Pick deliberately; do not inherit by accident.
 - **`RenderPolicy` is `PartialEq` but deliberately not `Eq`**
-  (`font/mod.rs:605-609`) — `view_magnification` is an `f32`, and *"claiming
+  (`font/mod.rs`) — `view_magnification` is an `f32`, and *"claiming
   `Eq` for a type that can hold a NaN would be a lie the compiler happens to
   allow via the other fields."*
-- **Render mode 7 is a future trap** (`interpret.rs:1828-1832`): modes 3 and
+- **Render mode 7 is a future trap** (`interpret.rs`): modes 3 and
   7 both paint nothing, and skipping the outline lookup is safe **only**
   because text clipping is unimplemented — when modes 4–7 land, mode 7 must
   still compute outlines.

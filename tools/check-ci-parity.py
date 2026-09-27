@@ -108,6 +108,7 @@ LOCAL = {
     "tools/check-commits-filed.py": "python tools/check-commits-filed.py",
     "tools/check-bypass-paths.sh": "bash tools/check-bypass-paths.sh",
     "tools/check-core-api-verbs.py": "python tools/check-core-api-verbs.py",
+    "tools/check-core-api-no-line-citations.py": "python tools/check-core-api-no-line-citations.py",
     "tools/check-reexport-closure.py": "python tools/check-reexport-closure.py --stats",
     "tools/check-doc-block-spliced.py": "python tools/check-doc-block-spliced.py --stats",
     "tools/check-skippable-tests-declared.py": "python tools/check-skippable-tests-declared.py --stats",
