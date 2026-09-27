@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (654th filing) — `669b3f3a`: `Pass 358.4` (content half) SHIPPED — `Pass 358.4` now COMPLETE
+
+**Shipped:**
+- Pass 358.4 (content half) — `EditSession::set_objects_layer(page_index, object_indices, layer: Option<ObjId>)`, wraps/rewraps page-content object spans in `/OC /name BDC … EMC`, splitting an enclosing run so untouched siblings keep their wrapping. CLI `set-object-layer --page --objects --layer|--id|--none`; `list-objects` now shows `oc=`. With this, `Pass 358.4` (annotation half `62a40a5d` + content half `669b3f3a`) is COMPLETE.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- `EditSession` verb count 261. Tests: core 5, CLI 2; 3 sabotage mutations caught (unbalanced span, dispatch dropping the target layer, `oc` column blanked). README subcommand count 163→164. `docs/FEATURES.md`'s "Put existing page content onto a layer" row ticked core/cli, citing `669b3f3a`.
+
+**Still in flight:**
+- `Pass 358.5` (layer option on add-content verbs), `358.6` (merge/flatten) — neither started. `flatten_annotations` (`G043` option B) still unscoped.
+
+**For next session:**
+- Pick up `Pass 358.5`.
+
 ## 2026-09-27 (653rd filing) — `62a40a5d`: `Pass 358.4` (annotation half) SHIPPED — content-stream half remains
 
 **Shipped:**

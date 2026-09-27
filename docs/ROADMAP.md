@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 358.4` (content half, `669b3f3a`), 2026-09-27 — `set_objects_layer` — `Pass 358.4` now COMPLETE
+
+**Verdict: SHIPPED IN FULL. `Pass 358.4` (annotation half `62a40a5d` + content half `669b3f3a`) is now COMPLETE; family `358` continues — `358.5`–`358.6` unstarted.** Acrobat itself has no GUI for either half (`layers__annotation_form_field_oc_assignment.md`) — both halves exceed Acrobat's own GUI once wired.
+
+**Core (`crates/pdfcer-core/src/edit.rs`).** `EditSession::set_objects_layer(page_index, object_indices: &[usize], layer: Option<ObjId>) -> Result<ObjectsLayerChange, EditError>`. Indices are paint-order indices from `page_objects`. Each object span is wrapped in `/OC /name BDC … EMC` (ISO 32000-1 §8.11.3.2); an enclosing `/OC` section is closed before the object and reopened byte-verbatim after it, so untouched siblings keep their wrapping. The name reuses the page's `/Properties` binding or adds `OC<n>`. No-op when every object is already on exactly that layer. One undo entry, `CommandKind::SetObjectsLayer`. Pure planner: `vector::plan_set_layer`. Three new `VectorEditError` variants: `LayerSectionHoldsTaggedContent`, `LayerSectionCrossesNesting` (§14.6, ISO 32000-2 erratum #302, `q`/`Q` nesting), `LayerSpanUnbalanced`. An image or form XObject carrying its own `/OC` is refused (`LayerContentNotRewritable`) rather than having its `/OC` replaced — §8.11.3.3's own-`/OC` and an enclosing section's `/OC` would intersect, not compose. Private `bind_resource` generalised from `bind_font_resource`. `EditSession` verb count 261; `docs/core-api` updated in the same commit, `check-core-api-verbs` clean.
+
+**CLI.** `pdfcer set-object-layer --page P --objects 0,2 (--layer NAME | --id N | --none)`. `list-objects` rows gain `oc=<id>|none`. README subcommand count 163→164.
+
+**Tests.** Core: 5 (`crates/pdfcer-core/tests/layer_edit.rs`). CLI: 2 (`crates/pdfcer-cli/tests/layer_edit.rs`). Sabotage: 3 mutations caught (unbalanced span, dispatch dropping the target layer, `oc` column blanked).
+
+**Known harmless artefact.** A split can leave an empty `/OC /x BDC EMC` pair where the object ended a section.
+
+**Shells.** core `[x]`, cli `[x]`. gui `[ ]` — separate project, no caller yet.
+
+**`docs/FEATURES.md`.** "Put existing page content onto a layer" row now `[x]`/`[x]`/`[ ]`, citing this commit; text updated to state `Pass 358.4` shipped in full.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `669b3f3a`/`62a40a5d`, not independently reproduced; the "full `run-gates.sh` running now" state is stated as-relayed, not independently confirmed.
+
 ### `Pass 358.4` (annotation half, `62a40a5d`), 2026-09-27 — `set_annotation_layer`
 
 **Verdict: SHIPPED (annotation half only); family `358` continues — the content-stream `BDC /OC` half of `358.4` stays in *Next up*, and `358.5`–`358.6` are unstarted.** Acrobat's own GUI has no route to set `/OC` on an annotation at all (`layers__annotation_form_field_oc_assignment.md`) — this exceeds Acrobat's GUI once wired.
@@ -8365,14 +8383,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
-
-### `Pass 358.4` — Put existing content onto a layer (content-stream half; annotation half SHIPPED)
-
-**Filed 2026-09-27 (644th filing), family `358`. Annotation half SHIPPED `62a40a5d` (653rd filing, see *Shipped*) — this entry now covers only the content-stream half.** Answers the operator's second question directly: pdfcer can already tell which layer an object is on (`Pass 250.0`, read-only) but had no writer at all — no verb puts page content ONTO a layer. Acrobat itself has no GUI for this either (`layers__annotation_form_field_oc_assignment.md`) — this EXCEEDS Acrobat's own GUI once built.
-
-**Scope.** Assign selected page objects to a layer, move between layers, or clear (content-stream `BDC /OC /name … EMC` wrapping bound through `/Properties`, §8.11.3.2). Must handle an object already inside a `BDC /OC` section: re-wrap or split the enclosing marked-content run, never nest a contradictory `/OC` silently.
-
-**Acceptance criteria.** An object mid-run inside an existing `BDC /OC` section, moved to a DIFFERENT layer, splits the run so untouched siblings keep their original wrapping. Clearing `/OC` removes the wrapper only if no other object depends on the same `BDC` for other state.
 
 ### `Pass 358.5` — Pick a layer when adding new content
 
