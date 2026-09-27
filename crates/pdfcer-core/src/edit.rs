@@ -24866,11 +24866,7 @@ impl EditSession {
         // PRESERVE-AND-PATCH, because `/MK` carries more than one thing —
         // the glyph choice here and the chrome colours beside it.
         {
-            let mut mk = d
-                .get(b"MK")
-                .and_then(Object::as_dict)
-                .cloned()
-                .unwrap_or_default();
+            let mut mk = self.deref_dict(d.get(b"MK")).unwrap_or_default();
             mk.insert(
                 Name::from(b"CA"),
                 Object::String(vec![spec.style.mk_caption_char()]),
@@ -26034,11 +26030,7 @@ impl EditSession {
         // `/MK` also carries `/BC`, `/BG`, `/RC`, `/AC`, `/I`, `/RI`, `/IX`,
         // `/IF` and `/TP`, none of which pdfcer models, and writing a fresh
         // dictionary would silently delete an operator's border colour.
-        let mut mk = updated
-            .get(b"MK")
-            .and_then(Object::as_dict)
-            .cloned()
-            .unwrap_or_default();
+        let mut mk = self.deref_dict(updated.get(b"MK")).unwrap_or_default();
         if quarter == 0 {
             mk.remove(b"R");
         } else {
@@ -26335,11 +26327,7 @@ impl EditSession {
                 .map_or(widget.border_color, MkColorEdit::resolved),
         );
         if edit.caption.is_some() || edit.background.is_some() || edit.border_color.is_some() {
-            let mut mk = updated
-                .get(b"MK")
-                .and_then(Object::as_dict)
-                .cloned()
-                .unwrap_or_default();
+            let mut mk = self.deref_dict(updated.get(b"MK")).unwrap_or_default();
             if let Some(caption) = &edit.caption {
                 if caption.is_empty() {
                     mk.remove(b"CA");
@@ -37694,10 +37682,7 @@ impl EditSession {
         let before = self.state.get(&widget_id).cloned();
         let mut updated = dict.clone();
         // Preserve /R and /D if the /AP was a dict; overwrite /N only.
-        let mut ap = match updated.get(b"AP").and_then(Object::as_dict) {
-            Some(existing) => existing.clone(),
-            None => Dict::new(),
-        };
+        let mut ap = self.deref_dict(updated.get(b"AP")).unwrap_or_default();
         ap.insert(Name::from(b"N"), Object::Reference(ap_id));
         updated.insert(Name::from(b"AP"), Object::Dict(ap));
         Ok(ObjectWrite {
@@ -39730,10 +39715,7 @@ impl EditSession {
                 // The same fold as `merged_ap`'s, one level out: `/AP` `/N`
                 // goes into the dictionary that is already on its way, and
                 // `/R`, `/D` and every other `/AP` entry survive.
-                let mut ap = match existing.get(b"AP").and_then(Object::as_dict) {
-                    Some(e) => e.clone(),
-                    None => Dict::new(),
-                };
+                let mut ap = self.deref_dict(existing.get(b"AP")).unwrap_or_default();
                 ap.insert(Name::from(b"N"), Object::Reference(ap_id));
                 existing.insert(Name::from(b"AP"), Object::Dict(ap));
             } else {
@@ -41328,10 +41310,12 @@ impl EditSession {
             .and_then(Object::as_dict)
             .cloned()
             .unwrap_or_else(|| self.effective_resources(page_id, slots));
+        // §7.3.10: `/XObject` may be indirect; an unresolved read would
+        // rebuild it empty and drop every existing image and form.
         let mut xobj = resources
             .get(b"XObject")
-            .and_then(Object::as_dict)
-            .cloned()
+            .map(|o| self.graph().resolve(o).clone())
+            .and_then(|o| o.as_dict().cloned())
             .unwrap_or_default();
         for (name, id) in xobjects {
             xobj.insert(Name(name.clone()), Object::Reference(*id));
@@ -48733,8 +48717,27 @@ impl EditSession {
             .filter_map(|g| g.ocg.map(|o| (o, g.visible)))
             .collect();
         let mine_ids: std::collections::BTreeSet<ObjId> = mine.iter().map(|(id, _)| *id).collect();
-        let foreign: Vec<ObjId> = self
+        // §7.3.10: `/OCProperties`, its `/OCGs` and `/D`, and `/D`'s arrays
+        // may each be indirect; resolve them all before merging, or an
+        // indirect layer list reads as empty and every foreign layer is lost.
+        let existing_ocp = self
             .deref_dict(catalog.get(b"OCProperties"))
+            .map(|mut ocp| {
+                if let Some(Object::Array(a)) = self.deref_value(ocp.get(b"OCGs")) {
+                    ocp.insert(Name::from(b"OCGs"), Object::Array(a));
+                }
+                if let Some(mut d) = self.deref_dict(ocp.get(b"D")) {
+                    for key in [&b"ON"[..], &b"OFF"[..], &b"Order"[..]] {
+                        if let Some(Object::Array(a)) = self.deref_value(d.get(key)) {
+                            d.insert(Name(key.to_vec()), Object::Array(a));
+                        }
+                    }
+                    ocp.insert(Name::from(b"D"), Object::Dict(d));
+                }
+                ocp
+            });
+        let foreign: Vec<ObjId> = existing_ocp
+            .as_ref()
             .and_then(|ocp| {
                 ocp.get(b"OCGs").and_then(Object::as_array).map(|a| {
                     a.iter()
@@ -48748,10 +48751,13 @@ impl EditSession {
         let mut cat2 = catalog.clone();
         cat2.insert(Name::from(b"PieceInfo"), Object::Dict(piece));
         if !mine.is_empty() || !foreign.is_empty() {
-            cat2.insert(
-                Name::from(b"OCProperties"),
-                build_ocproperties(&mine, &foreign),
-            );
+            let ocp = match &existing_ocp {
+                Some(existing) => {
+                    crate::dimension::measure_dict::merge_ocproperties(existing, &mine, &foreign)
+                }
+                None => build_ocproperties(&mine, &foreign),
+            };
+            cat2.insert(Name::from(b"OCProperties"), ocp);
         }
         Ok(ObjectWrite {
             id: catalog_id,

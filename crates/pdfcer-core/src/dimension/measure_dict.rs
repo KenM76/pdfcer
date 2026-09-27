@@ -293,6 +293,112 @@ pub fn build_ocproperties(group_ocgs: &[(ObjId, bool)], foreign_ocgs: &[ObjId]) 
     Object::Dict(d)
 }
 
+/// Merge pdfcer's group OCGs into an EXISTING `/OCProperties` (§8.11.4.2)
+/// instead of rebuilding it, so a file's own layer setup survives a ce
+/// dimension edit.
+///
+/// `existing` must already be resolved: its `/OCGs` array, its `/D` dict and
+/// that dict's `/ON`, `/OFF` and `/Order` arrays inline. Every other entry
+/// (`/Configs`, and `/D`'s `/Name`, `/BaseState`, `/Locked`, `/RBGroups`,
+/// `/AS`, `/Intent`, `/ListMode`) is carried unchanged.
+///
+/// `/OCGs` becomes `foreign_ocgs` then `group_ocgs`. In `/D`, references to
+/// an OCG no longer registered, and every reference to a group OCG, are
+/// removed from `/ON`, `/OFF` and `/Order` (recursively for nested `/Order`
+/// arrays); each group OCG is then appended to `/Order` and to `/OFF` when
+/// hidden, or to `/ON` when visible under `/BaseState /OFF`. A missing `/D`
+/// or `/Order` is created as [`build_ocproperties`] would.
+#[must_use]
+pub(crate) fn merge_ocproperties(
+    existing: &Dict,
+    group_ocgs: &[(ObjId, bool)],
+    foreign_ocgs: &[ObjId],
+) -> Object {
+    let fresh = build_ocproperties(group_ocgs, foreign_ocgs);
+    let Object::Dict(fresh) = fresh else {
+        return fresh;
+    };
+    let registered: std::collections::BTreeSet<ObjId> = foreign_ocgs
+        .iter()
+        .copied()
+        .chain(group_ocgs.iter().map(|(id, _)| *id))
+        .collect();
+    let mine: std::collections::BTreeSet<ObjId> = group_ocgs.iter().map(|(id, _)| *id).collect();
+    let keep = |o: &Object| match o {
+        Object::Reference(r) => registered.contains(r) && !mine.contains(r),
+        _ => true,
+    };
+
+    let mut out = existing.clone();
+    if let Some(ocgs) = fresh.get(b"OCGs") {
+        out.insert(Name::from(b"OCGs"), ocgs.clone());
+    }
+    let Some(Object::Dict(existing_d)) = existing.get(b"D") else {
+        if let Some(d) = fresh.get(b"D") {
+            out.insert(Name::from(b"D"), d.clone());
+        }
+        return Object::Dict(out);
+    };
+    let mut d = existing_d.clone();
+    let base_off = matches!(d.get(b"BaseState"), Some(Object::Name(n)) if n.as_bytes() == b"OFF");
+    for key in [&b"ON"[..], &b"OFF"[..]] {
+        if let Some(Object::Array(a)) = d.get(key) {
+            let kept: Vec<Object> = a.iter().filter(|o| keep(o)).cloned().collect();
+            d.insert(Name(key.to_vec()), Object::Array(kept));
+        }
+    }
+    let mut order = match d.get(b"Order") {
+        Some(Object::Array(a)) => filter_order(a, &keep, 0),
+        // No /Order: create the flat one build_ocproperties would, so the
+        // foreign layers stay listed beside pdfcer's.
+        _ => foreign_ocgs
+            .iter()
+            .map(|id| Object::Reference(*id))
+            .collect(),
+    };
+    let mut on: Vec<Object> = match d.get(b"ON") {
+        Some(Object::Array(a)) => a.clone(),
+        _ => Vec::new(),
+    };
+    let mut off: Vec<Object> = match d.get(b"OFF") {
+        Some(Object::Array(a)) => a.clone(),
+        _ => Vec::new(),
+    };
+    for &(id, visible) in group_ocgs {
+        order.push(Object::Reference(id));
+        if !visible {
+            off.push(Object::Reference(id));
+        } else if base_off {
+            on.push(Object::Reference(id));
+        }
+    }
+    d.insert(Name::from(b"Order"), Object::Array(order));
+    if !on.is_empty() || d.get(b"ON").is_some() {
+        d.insert(Name::from(b"ON"), Object::Array(on));
+    }
+    if !off.is_empty() || d.get(b"OFF").is_some() {
+        d.insert(Name::from(b"OFF"), Object::Array(off));
+    }
+    out.insert(Name::from(b"D"), Object::Dict(d));
+    Object::Dict(out)
+}
+
+/// `/Order` with dropped references removed, nested arrays filtered in turn
+/// (depth-guarded; `ARCHITECTURE.md` §10) and kept even when emptied, since a
+/// nested array may carry a label string only.
+fn filter_order(a: &[Object], keep: &dyn Fn(&Object) -> bool, depth: usize) -> Vec<Object> {
+    const MAX_ORDER_DEPTH: usize = 64;
+    a.iter()
+        .filter(|o| keep(o))
+        .map(|o| match o {
+            Object::Array(inner) if depth < MAX_ORDER_DEPTH => {
+                Object::Array(filter_order(inner, keep, depth + 1))
+            }
+            other => other.clone(),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

@@ -2238,6 +2238,7 @@ pub fn apply_redactions_with(
             &remove_annots,
             &ov.fonts,
             &image_clones,
+            &page.resources,
         );
         if let Some((new_dict, thumb)) = page_write {
             dirty.replace(red.page_id, Object::Dict(new_dict));
@@ -2808,7 +2809,8 @@ fn collect_refs(_doc: &Document, obj: &Object, out: &mut Vec<ObjId>) {
 /// Build the rewritten page dictionary: `/Contents -> [content_id]`,
 /// `/Annots` with `remove` filtered out, `/Thumb` dropped. Returns the new
 /// dict and the dropped `/Thumb` object id, or `None` if the page dict is
-/// unreadable.
+/// unreadable. `effective_resources` is the page's §7.7.3.4 resolved
+/// `/Resources` (own or inherited), the base for any resource merge.
 fn rewrite_page_dict(
     doc: &Document,
     page_id: ObjId,
@@ -2816,6 +2818,7 @@ fn rewrite_page_dict(
     remove: &[ObjId],
     overlay_fonts: &Dict,
     image_clones: &Dict,
+    effective_resources: &Dict,
 ) -> Option<(Dict, Option<ObjId>)> {
     let page = doc
         .get(page_id)
@@ -2852,7 +2855,7 @@ fn rewrite_page_dict(
             .map(|o| doc.resolve(o))
             .and_then(Object::as_dict)
             .cloned()
-            .unwrap_or_default();
+            .unwrap_or_else(|| effective_resources.clone());
         if !overlay_fonts.is_empty() {
             let mut fonts = resources
                 .get(b"Font")

@@ -2197,8 +2197,12 @@ pub(crate) fn bind_font_resource<G: crate::graph::ObjectGraph + ?Sized>(
             }
         }
     }
+    // A form XObject owner is a STREAM; its dictionary is the owner. Reading
+    // it as absent would return a bare `/Resources` as the form's whole
+    // dictionary, dropping `/BBox`, `/Matrix` and every existing resource.
     let owner = match graph.value(holder) {
         Some(Object::Dict(d)) => d.clone(),
+        Some(Object::Stream(s)) => s.dict.clone(),
         _ => Dict::new(),
     };
 
