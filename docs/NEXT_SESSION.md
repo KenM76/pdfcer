@@ -197,8 +197,13 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   identical on veraPDF 6-2-9-t04-fail-d, both formats. Test:
   `display_list::tests::a_masked_export_layer_shares_the_graphics_state_mask`
   (sabotage-checked). Backlog item closed; SVG was affected too.
-- **Next:** Pass 142.0, a v0.58.0 release (writes `pdfcer1`), and the
-  FieldEdit/WidgetEdit audit Backlog item.
+- **`v0.58.0` RELEASED** (`94504f0a`, tag pushed, GitHub release zip + sha256,
+  OneDrive `pdfcer1`; `pdfcer2` keeps 0.57.0; filed 619th `62aa18d2`). CI green
+  at the tagged commit. Smoke: 5x EMF + 5x SVG on 6-2-9-t04-fail-d identical
+  through the shipped binary. `verify-release.py`'s one FAIL is the untracked
+  `target-case/`. **The next release writes `pdfcer2`.** GUI notice posted for
+  334.0.
+- **Next:** Pass 142.0 and the FieldEdit/WidgetEdit audit Backlog item.
 
 ### SINCE THE LAST HANDOFF — 2026-09-26, earlier (`Pass 333.0`, 617th filing)
 
