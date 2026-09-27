@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (639th filing) — `5eb3c7a1`: `Pass 353.0` SHIPPED — a reset moves a choice field's `/I` and `/TI` to its default
+
+**Shipped:**
+- `Pass 353.0` — narrows D8's last clause (b) from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item: `EditSession::reset_form` restored a choice field's `/V` from `/DV` but left `/I`/`/TI` at the previously-filled selection's positions in `/Opt` (ISO 32000-1 §12.7.4.4 Table 231) — a multi-select list box filled `b|c` and reset to default `a` still carried `/I [1 2]`, and drew the default as one joined line instead of one per line.
+
+**Decisions made this session:**
+- None beyond the fix itself. D8's last clause narrows further: reset-side `/I`/`/TI` resolution is now correct; the open remainder is that `FieldEdit::default_value` has no writer for a multi-value `/DV`.
+
+**Findings + decisions:**
+- Fix: `reset_form`'s choice branch now resolves `/DV` against `/Opt` through a new private helper, `default_choice_selection`, the same way `set_choice_value` resolves a fill: one display value per line for a list box; `/I` written for a non-empty multi-select, else removed; `/TI` re-derived for a list box, removed for a combo box.
+- No new `pub` item. `docs/core-api/02-editing-and-saving.md`'s `reset_form` row updated, line count unchanged at 5,674; `check-core-api-verbs.py` clean.
+- Tests: core `tests/choice_reset_selection.rs` (3 tests); CLI `edit_field::a_reset_reindexes_a_list_box_selection` (add-choice-field `--multi-select` → fill-field `b|c` → edit-field `--default-value a` → reset-form `--apply` → `/V (a)`/`/I [0]`). Sabotage: disabling the `/I` write fails 2 core tests + the CLI test; forcing single-line drawing fails the draw test. `tools/run-gates.sh`: PASS (39 commands). No dependency/manifest change.
+- `docs/FEATURES.md`: no box change on the reset/"Reset fields to defaults" row (already `[x]`/`[x]`/`[x]`/`[x]`) — this is a correctness fix, not a new capability; one sentence added.
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item stays open — one `FieldEdit` finding remains beyond D4's remainder: D8's last clause, narrowed to "no writer for a multi-value `/DV`" (a builder, not a `pub`-type change).
+- Unscoped, still open: a stale plaintext password carried in earlier incremental revisions.
+
+**For next session:**
+- Next candidates: D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics), D8's narrowed last clause (a multi-value `/DV` writer), or the plaintext-password remainder.
+
 ## 2026-09-27 (638th filing) — `3dd22938`: `Pass 352.0` SHIPPED — a field with no `/Q` reads back and fills with the `/AcroForm` `/Q`
 
 **Shipped:**
