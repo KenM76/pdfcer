@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (659th filing) — `46f7a7c0`: `Pass 360.0` (`flatten_annotations`) SHIPPED
+
+**Shipped:**
+- Pass 360.0 — `EditSession::flatten_annotations(page_index, ids)` bakes existing annotations' `/AP` into a new content stream per page (§12.5.5), then deletes them and their `/Popup`; `/CA` burns inside a transparency group, `/OC` inside a form carrying it so a layered comment stays layered. CLI `flatten-annotations --page N [--index I]... [--dry-run]`. `G043` option B, complementing `Pass 356.0`'s fresh-markup route.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- Per-annotation refusal list, never all-or-nothing (`AnnotFlattenRefusalReason`, 15 variants): `Widget`, `Popup`, `Link`, `Redact`, `FileAttachment`, media/3D, `Locked`, `HasAction`, `Hidden`, `NoView`, `NoAppearance`, `StateUnresolved`, `DegenerateAppearance`, `NoRotateOnRotatedPage`. Pure query `annotation_flatten_refusals` shares the classification. Disclosures: pop-ups removed, replies un-linked, `NoZoom` now scales, incremental save keeps the prior revision.
+- Tests: 9 core, 3 CLI, 1 render pixel-equality (rotate 0/90, layer on/off, max channel diff ≤1). Four sabotage checks (alpha, `/OC`, `/Matrix`, CLI `--index`) each caught; the `/Matrix` fixture was corrected from a null-mutation square box to a non-square one. `tools/run-gates.sh` PASS (39 commands); `check-core-api-verbs` 266 verbs / 149 `EditError` variants; README 167 subcommands; `cargo tree` unchanged.
+- `docs/FEATURES.md`: moved the Planned "Bake EXISTING annotations into page content" row to *Implemented* → Annotations & markup, core/cli ticked, gui unticked; corrected `Pass 356.0`'s row to point at this shipped sibling instead of "not yet built."
+
+**Still in flight:**
+- gui not wired for `flatten_annotations` — separate `pdfcer-gui` project's job; can use `annotation_flatten_refusals` to grey out the command.
+
+**For next session:**
+- No named successor to `Pass 360.0`; pick up whatever's next in *Next up*/*Backlog*.
+
 ## 2026-09-27 (658th filing) — `54b40f51`: `Pass 359.0` SHIPPED (bug found on discovery); `Pass 360.0` (annotation flattening) scoped and moved Backlog → Next up
 
 **Shipped:**

@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 360.0` (`46f7a7c0`), 2026-09-27 — `flatten_annotations` — `G043` option B
+
+**Verdict: SHIPPED.** Bakes existing annotations into page content, complementing `Pass 356.0`'s route for freshly authored ones (`G043`, GUI request O246; option B, promoted from Backlog and scoped in the 658th filing).
+
+**Core.** `EditSession::flatten_annotations(page_index, ids: Option<&[ObjId]>) -> Result<AnnotFlattenOutcome, EditError>` — burns each in-scope annotation's `/AP` `/N` into one new content stream per page, in `/Annots` order (§12.5.5 placement), then deletes the annotation and its `/Popup`. `/CA` < 1 is burned inside a transparency group (§11.6.6); `/OC` is burned inside a form carrying it (§8.11.3.3), so a layered comment stays on its layer. Replies anywhere lose `/IRT`/`/RT`. One undo entry (`CommandKind::FlattenAnnotations { count }`); nothing burnable → `changed: false`, no undo entry.
+
+**Refusals, per annotation, never all-or-nothing** (`AnnotFlattenRefusalReason`, 15 variants: `Widget`, `Popup`, `Link`, `Redact`, `FileAttachment`, media/3D, `Locked`, `HasAction`, `Hidden`, `NoView`, `NoAppearance`, `StateUnresolved`, `DegenerateAppearance`, `NoRotateOnRotatedPage`). A named id refuses with `EditError::AnnotationNotFlattenable { id, reason }` and writes nothing; `ids: None` lists refusals in `skipped` and flattens the rest. Pure query `annotation_flatten_refusals(page_index)` shares the classification.
+
+**Disclosures (rule 4).** Pop-ups removed, replies un-linked, dangling `/StructParent`, unprinted annotations now print, `NoZoom` annotations now scale, incremental save keeps the previous revision.
+
+**CLI.** `pdfcer flatten-annotations IN --page N [--index I]... [--dry-run] -o OUT [--mode] [--verify-undo]`; a summary line, then `skipped:`/`disclosure:` lines; exit 9 on a named refusal.
+
+**Tests.** 9 core (`crates/pdfcer-core/tests/flatten_annotations.rs`), 3 CLI (`crates/pdfcer-cli/tests/flatten_annotations.rs`), 1 render pixel-equality test across rotate 0/90 and the layer on/off (max channel diff ≤1). Four sabotage checks (forced alpha, dropped `/OC`, ignored `/Matrix`, CLI ignoring `--index`) each went red then green; the `/Matrix` sabotage's first fixture was a square box under a 90° turn — a null mutation — and was replaced with a non-square matrix.
+
+**Gates.** `tools/run-gates.sh` PASS (39 commands); `check-core-api-verbs` PASS (266 verbs / 149 `EditError` variants); README 167 subcommands; `cargo tree -p pdfcer-core`/`-p pdfcer-render` unchanged (no manifest touched).
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — the separate `pdfcer-gui` project can call `annotation_flatten_refusals` to grey out the command.
+
+**`docs/FEATURES.md`.** Moved the Planned "Bake EXISTING annotations into page content" row into *Implemented* → Annotations & markup, core/cli ticked, gui unticked.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `46f7a7c0`, not independently reproduced.
+
 ### `Pass 359.0` (`54b40f51`), 2026-09-27 — a second flatten no longer repaints the first
 
 **Verdict: SHIPPED.** Bug found on discovery while scoping `Pass 360.0` (annotation flattening, *Next up* below): `EditSession::flatten_fields` named each burned appearance `pdfceFm1, pdfceFm2, …`, counting from 1 on every call and inserting into the page's own-or-inherited `/Resources` `/XObject` without checking existing names. A second `flatten_fields` call on a page an earlier flatten had already touched rebound `pdfceFm1` to the new field's appearance, so the first field's burn painted the SECOND field's appearance and the first vanished from the page — silent visual data loss.
@@ -17358,20 +17380,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 `pdfce-render`'s image path for any hard requirement on
 `/ColorSpace`/`/BitsPerComponent` that Table 89 makes optional
 (decision 005 §10 item 3).
-
-### `Pass 360.0` — annotation flattening: `flatten_annotations`, promoted from Backlog — filed 2026-09-27 (658th filing)
-
-**Scope, from `G043`'s option B** (Backlog since the 642nd filing; option A shipped as `Pass 356.0`). Bake EXISTING annotations into page content, complementing `356.0`'s route for freshly authored ones.
-
-- Core `EditSession::flatten_annotations(page_index, ids: Option<&[ObjId]>) -> Result<AnnotFlattenOutcome, EditError>` — burns each in-scope annotation's `/AP` `/N` (honouring `/AS`) into a new content stream appended to `/Contents`, placed per §12.5.5 (`/BBox` via `/Matrix` onto `/Rect`) exactly as `flatten_fields` does; removes the annotation from `/Annots`; one undo entry. `ids = None` = every annotation on the page.
-- Preserved on the way in: `/CA` (§12.5.2) → an `/ExtGState` `gs` around the burn; `/OC` (§8.11.3.3) → the burn wrapped in `BDC /OC … EMC` bound through `/Properties`, so a layered comment stays on its layer. A flattened markup's `/Popup` is deleted with it.
-- **Per-annotation refusal list, never all-or-nothing:** `/Widget` (use `flatten`), a `/Popup` on its own, `/Link` (its action would be lost), `/Redact` (flattening would HIDE content, not remove it — use redact-apply), `/FileAttachment` (attachment lost), media/3D (`/Sound /Movie /Screen /RichMedia /3D`), Hidden or NoView (§12.5.3 — flattening would make it show), Locked, no usable appearance, NoRotate on a rotated page, and a named id not on the page.
-- A pure query `annotation_flatten_refusals(page_index)` shares the same classification, so a shell can grey out what will not flatten.
-- Disclosures (rule 4): replies (`/IRT`) left pointing at a flattened annotation; structure-tree references; an incremental save keeps the annotation in the previous revision (not redaction).
-- Gate: strict certification (modifies page content), encryption, `/Size` suppression.
-- CLI `pdfcer flatten-annotations IN --page N [--id N]... [--dry-run] -o OUT`, printing counts, one line per refusal, and disclosures.
-
-**Acceptance.** A markup (Square/Ink/Highlight/FreeText/Stamp) renders the same before and after flatten; refusals named per annotation while the rest flattens; undo restores byte-identically; core + CLI tests with sabotage.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
