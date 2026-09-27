@@ -492,3 +492,27 @@ fn a_dash_array_with_no_style_reads_as_dashed() {
     let border = field(&s, "Name").widgets[0].border.expect("a /BS");
     assert_eq!(border.style, BorderStyle::Dashed);
 }
+
+#[test]
+fn a_background_colour_is_stored_with_the_digits_it_was_given() {
+    let mut s = bordered_text_field("");
+    s.edit_widget(
+        "Name",
+        0,
+        &WidgetEdit::new().with_background(forms::MkColor::Rgb(0.2, 0.4, 0.6)),
+    )
+    .unwrap();
+    let g = s.graph();
+    let Some(Object::Dict(mk)) = obj_dict(&s, 4).get(b"MK").map(|o| g.resolve(o).clone()) else {
+        panic!("no /MK");
+    };
+    assert_eq!(
+        mk.get(b"BG"),
+        Some(&Object::Array(vec![
+            Object::Real(0.2),
+            Object::Real(0.4),
+            Object::Real(0.6)
+        ])),
+        "f32 widening wrote a precision the operator never chose"
+    );
+}
