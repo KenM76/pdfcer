@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 356.0` (`c4e2048b`), 2026-09-27 — A Review shape can be drawn as page content
+
+**Verdict: SHIPPED, answers `G043`** (`pdfcer-gui` request, operator row O246: *"can we add the drawing tools that draw on the review layer so that these can also just draw on the ordinary pdf layer that contains our drawing and table and etc lines?"*) — the GUI offered two routes: a verb committing a `MarkupSpec` as page content (A) or `flatten_annotations` baking EXISTING annotations into content (B); the engineer chose A. B is filed to *Backlog* below.
+
+New `EditSession::add_markup_as_content(page_index, &MarkupSpec, &MarkupOptions) -> Result<MarkupContentOutcome, EditError>` draws the same bytes `add_markup_with` would put in `/AP` `/N` directly into `/Contents` (ISO 32000-1 §7.8.2) via `paste_objects`: one undo entry, `q`/`Q` wrapped, AP resources (Highlight `Multiply` `/ExtGState`) bound under fresh names, gated by the strict certification gate rather than the annotation gate. Opacity binds an `/ExtGState` with `/CA` and `/ca` (§8.4.5 Table 57); dash matches the annotation route. A note is refused rather than silently dropped — page content has nowhere to carry one, and the refusal is itself the rule 4 disclosure. New `pub` struct `MarkupContentOutcome { objects: Range<usize>, paste: PasteOutcome }`, `#[non_exhaustive]`. The drawn shape is ordinary vector content: it moves, transforms and deletes like any other page object, with none of the annotation machinery.
+
+**CLI.** `pdfcer annotate --as-content`; conflicts with `--note`/`--note-author`/`--note-date`; the text-bearing types (`freetext`/`text`/`stamp`) are refused by name, exit 9. Prints `drawn as page content objects=S..E resources_added=N` plus disclosures.
+
+**Tests.** Core `tests/markup_as_content.rs`, 7 tests, sabotage-verified (3 failures). CLI `tests/annotate_as_content.rs`, 3 tests, sabotage-verified (2 failures).
+
+**Shells.** Core + CLI this Pass; GUI is the requester but has not wired it yet.
+
+**Gates.** `tools/run-gates.sh`: PASS, 39 commands. No manifest/dependency change — `cargo tree` unaffected. `docs/core-api` gains the verb row (count 252); `check-core-api-verbs.py` clean.
+
+**`docs/FEATURES.md`.** New row in *Annotations & markup*, "Annotations & markup" *Implemented*: "draw a Review shape as page content instead of an annotation" — core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Backlog.** New item filed: option B from `G043` — `flatten_annotations` (bake EXISTING annotations into page content, with a refusal query for ones that cannot flatten) — not yet built.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `c4e2048b`, not independently reproduced.
+
 ### `Pass 355.0` (`65da5c15`), 2026-09-27 — A bound `/DR` font places the baseline by its own `/Ascent`
 
 **Verdict: SHIPPED, closes the vertical-metrics half of D4 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing) — the remaining D4 half (a non-WinAnsi/Type0 `/DR` font still drawing with the standard-14 stand-in) stays open.
@@ -17142,6 +17162,12 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Unscoped — `flatten_annotations`: bake existing annotations into page content — filed 2026-09-27 (642nd filing), `G043`'s option B, no Pass ID
+
+**Scope.** `G043` (`pdfcer-gui` request, operator row O246) asked for review-layer drawings that can also draw as ordinary page content. `Pass 356.0` (*Shipped*, above) shipped option A — a verb committing a FRESH `MarkupSpec` as page content. Option B is the complement: bake EXISTING annotations into page content, refusing by name (not aborting the whole call) any annotation that cannot flatten cleanly — a `/Widget`, a signature, a `/Popup`, anything whose appearance state depends on interaction pdfcer cannot bake once and be done with.
+
+**Acceptance criteria, once scoped.** A `flatten_annotations(page_index, options)` verb that moves each in-scope annotation's baked `/AP` into `/Contents` and removes the annotation, one undo entry, with a per-annotation refusal list rather than an all-or-nothing failure; CLI `flatten-annotations` with a dry-run preview, mirroring the pattern already used elsewhere in this file (annotation-deletion preview, resize preview).
 
 ### `Pass 327.2` — OCRcer LLM rescoring as its own opt-in add-on — filed 2026-09-24 (590th filing), **BLOCKED on OCRcer**, family `327` after `Pass 327.1`
 

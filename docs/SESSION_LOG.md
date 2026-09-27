@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (642nd filing) — `c4e2048b`: `Pass 356.0` SHIPPED — a Review shape can be drawn as page content
+
+**Shipped:**
+- `Pass 356.0` — answers `G043` (`pdfcer-gui` request, operator row O246: drawing tools that draw on the review layer should also be able to draw on the ordinary page-content layer). New `EditSession::add_markup_as_content(page_index, &MarkupSpec, &MarkupOptions)` bakes the same bytes `add_markup_with` would put in `/AP` `/N` directly into `/Contents` (ISO 32000-1 §7.8.2) via `paste_objects`, one undo entry. CLI `annotate --as-content`.
+
+**Decisions made this session:**
+- `G043` offered two routes — a verb committing a fresh `MarkupSpec` as page content (A), or `flatten_annotations` baking EXISTING annotations into content (B). Engineer chose A for this Pass; B filed to `ROADMAP.md` *Backlog* as unscoped, citing `G043`.
+
+**Findings + decisions:**
+- The drawn shape carries none of the annotation machinery — it is ordinary vector content, so it moves/transforms/deletes like any other page object and cannot be selected or restyled through annotation verbs.
+- A note is refused rather than silently dropped (page content has nowhere to carry one) — the refusal is itself the rule 4 disclosure.
+- Tests: core `tests/markup_as_content.rs` (7, sabotage-verified, 3 failures); CLI `tests/annotate_as_content.rs` (3, sabotage-verified, 2 failures). `tools/run-gates.sh` PASS (39 commands). No manifest/dependency change. `docs/core-api` verb count now 252, `check-core-api-verbs.py` clean.
+- `docs/FEATURES.md`: new row in *Annotations & markup* — core `[x]` / cli `[x]` / gui `[ ]` / Acrobat `?`.
+
+**Still in flight:**
+- `flatten_annotations` (`G043` option B) — unscoped Backlog item, no Pass ID yet.
+
+**For next session:**
+- Scope `flatten_annotations`, or pick up D4's remaining half (non-WinAnsi/Type0 `/DR` fonts) from the property-audit Backlog item.
+
 ## 2026-09-27 (641st filing) — `65da5c15`: `Pass 355.0` SHIPPED — a bound `/DR` font places the baseline by its own `/Ascent`
 
 **Shipped:**
