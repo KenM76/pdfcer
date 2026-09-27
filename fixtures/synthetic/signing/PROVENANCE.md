@@ -49,6 +49,7 @@ makes the files an oracle for the importer rather than a mirror of it
 | `ecp384-modern.pfx`, `ecp384.cer`, `ecp384.key.der` | EC P-384 (`secp384r1`) | PBES2 / AES-256-CBC, MAC SHA-256 | the ECDSA P-384 / SHA-384 signing path end to end (was recorded UNTESTED by the 438th filing for want of a store) |
 | `foreign-pyhanko-first.pdf` | signed by **pyHanko** with `rsa2048-modern.pfx` | — | pdfcer adds an approval signature ON TOP of a signature it did not write; both verify, the foreign `/ByteRange` intact |
 | `pdfcer-then-pyhanko.pdf` | `pdfcer sign` (field `Signature1`), then pyHanko countersigns (field `ForeignSig`) | — | a foreign tool countersigning pdfcer's output; both verify |
+| `tsa-rsa2048.cer`, `tsa-rsa2048.key.der` | RSA-2048 self-signed TSA certificate (CN `pdfcer synthetic TSA (test fixture, trust nothing)`), `extendedKeyUsage=critical,timeStamping`, `keyUsage=critical,digitalSignature`; PKCS#8 key in plaintext | — | the **OpenSSL TSA oracle only** (`openssl ts -reply` answers pdfcer's RFC 3161 requests in the B-T tests, core and CLI). pdfcer never loads the key; it checks the certificate's critical time-stamping EKU (`tools/gen-signing-fixtures.py --tsa`) |
 
 The two `.pdf` fixtures come from `tools/gen-foreign-signature-fixtures.py`
 (pyHanko is a generator-side tool only — never linked, rule 13; it stamps the

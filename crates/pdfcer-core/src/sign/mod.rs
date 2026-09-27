@@ -56,6 +56,7 @@ pub mod apply;
 pub mod cms_build;
 pub(crate) mod der_out;
 pub mod pkcs12;
+pub mod timestamp;
 
 use sha2::Digest as _;
 

@@ -175,6 +175,17 @@ pub enum FetchError {
         /// The ceiling.
         limit: u64,
     },
+    /// This build was compiled without the `download` feature, so an RFC 3161
+    /// time-stamp cannot be requested. A named refusal, like
+    /// [`FetchError::FeatureUnsupported`].
+    #[error(
+        "this build was compiled without network support (the `download` feature is off) — \
+         a time-stamp cannot be requested from {url}"
+    )]
+    TimeStampUnsupported {
+        /// The time-stamping authority's URL.
+        url: String,
+    },
     /// Writing the verified bytes failed.
     #[error("could not write {path}: {source}")]
     Write {
@@ -193,6 +204,78 @@ pub enum FetchError {
 /// editor. It exists because a caller cannot otherwise bound what a remote
 /// endpoint hands back.
 pub const MAX_ARTIFACT_BYTES: u64 = 64 * 1024 * 1024;
+
+/// The largest RFC 3161 `TimeStampResp` accepted, in bytes (1 MiB). A real
+/// response is a few KB (token plus the TSA's certificate chain).
+pub const MAX_TIME_STAMP_RESPONSE_BYTES: u64 = 1024 * 1024;
+
+/// POST a DER `TimeStampReq` to an RFC 3161 time-stamping authority and
+/// return the raw `TimeStampResp` bytes (RFC 3161 §3.4, HTTP transport:
+/// `Content-Type: application/timestamp-query`).
+///
+/// The bytes are returned **unverified**: the caller (`pdfcer-core`'s
+/// `EditSession::sign_with_timestamp`) checks status, imprint, nonce, the
+/// TSA certificate's key usage and the TSA's signature before embedding
+/// anything. That is also why plain `http://` is accepted here, unlike
+/// [`fetch_verified`]: the response is signed, the nonce defeats replay, and
+/// many public TSAs serve HTTP only. Any other scheme is refused.
+///
+/// # Errors
+///
+/// [`FetchError::TimeStampUnsupported`] when the `download` feature is off;
+/// [`FetchError::InsecureUrl`] for a scheme other than `http`/`https`;
+/// [`FetchError::Transport`], [`FetchError::HttpStatus`] or
+/// [`FetchError::TooLarge`] (over [`MAX_TIME_STAMP_RESPONSE_BYTES`]).
+#[cfg_attr(not(feature = "download"), allow(unused_variables))]
+pub fn post_time_stamp_query(url: &str, query_der: &[u8]) -> Result<Vec<u8>, FetchError> {
+    #[cfg(not(feature = "download"))]
+    {
+        Err(FetchError::TimeStampUnsupported {
+            url: url.to_owned(),
+        })
+    }
+
+    #[cfg(feature = "download")]
+    {
+        if !(url.starts_with("https://") || url.starts_with("http://")) {
+            return Err(FetchError::InsecureUrl {
+                url: url.to_owned(),
+            });
+        }
+        let response = ureq::post(url)
+            .header("Content-Type", "application/timestamp-query")
+            .send(query_der)
+            .map_err(|e| match &e {
+                ureq::Error::StatusCode(code) => FetchError::HttpStatus {
+                    url: url.to_owned(),
+                    status: *code,
+                },
+                other => FetchError::Transport {
+                    url: url.to_owned(),
+                    reason: other.to_string(),
+                },
+            })?;
+        response
+            .into_body()
+            .with_config()
+            .limit(MAX_TIME_STAMP_RESPONSE_BYTES)
+            .read_to_vec()
+            .map_err(|e| {
+                let msg = e.to_string();
+                if msg.contains("limit") {
+                    FetchError::TooLarge {
+                        url: url.to_owned(),
+                        limit: MAX_TIME_STAMP_RESPONSE_BYTES,
+                    }
+                } else {
+                    FetchError::Transport {
+                        url: url.to_owned(),
+                        reason: msg,
+                    }
+                }
+            })
+    }
+}
 
 /// Verify `bytes` against `artifact`'s pinned digest.
 ///
@@ -421,6 +504,25 @@ mod tests {
             matches!(err, FetchError::InsecureUrl { .. }),
             "expected InsecureUrl, got {err:?}"
         );
+    }
+
+    #[cfg(not(feature = "download"))]
+    #[test]
+    fn a_stripped_build_refuses_a_time_stamp_request_by_name() {
+        let err =
+            post_time_stamp_query("http://tsa.example.invalid/", b"q").expect_err("must refuse");
+        assert!(matches!(err, FetchError::TimeStampUnsupported { .. }));
+        assert!(err.to_string().contains("tsa.example.invalid"));
+    }
+
+    /// Only `http`/`https` reach the network; an RFC 3161 response is
+    /// self-authenticating, so plain HTTP is accepted here.
+    #[cfg(feature = "download")]
+    #[test]
+    fn a_time_stamp_request_refuses_a_non_http_scheme() {
+        let err =
+            post_time_stamp_query("ftp://tsa.example.invalid/", b"q").expect_err("must refuse");
+        assert!(matches!(err, FetchError::InsecureUrl { .. }), "{err:?}");
     }
 
     /// Verification is available with the fetcher stripped.

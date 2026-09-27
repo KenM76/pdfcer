@@ -64,6 +64,8 @@ pub(crate) struct SignArgs<'a> {
     pub(crate) reason: Option<&'a str>,
     pub(crate) location: Option<&'a str>,
     pub(crate) contact: Option<&'a str>,
+    /// `--tsa-url` (`Pass 10.11`).
+    pub(crate) tsa_url: Option<&'a str>,
     /// `--certify` / `--mdp-level` (`Pass 10.12`).
     pub(crate) certify: bool,
     pub(crate) mdp_level: Option<MdpLevelArg>,
@@ -107,6 +109,39 @@ pub(crate) fn pdf_date_now() -> String {
     )
 }
 
+/// An RFC 3161 authority reached over HTTP(S) through `pdfcer-fetch`.
+#[cfg(all(feature = "signing", feature = "download"))]
+struct HttpTsa<'a>(&'a str);
+
+#[cfg(all(feature = "signing", feature = "download"))]
+impl pdfcer_core::sign::timestamp::TimestampAuthority for HttpTsa<'_> {
+    fn time_stamp(&self, request_der: &[u8]) -> Result<Vec<u8>, String> {
+        pdfcer_fetch::post_time_stamp_query(self.0, request_der).map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(all(feature = "signing", feature = "download"))]
+fn tsa(url: Option<&str>) -> Option<HttpTsa<'_>> {
+    url.map(HttpTsa)
+}
+
+/// Without `download` the request was refused earlier; this only types the
+/// call site.
+#[cfg(all(feature = "signing", not(feature = "download")))]
+enum NoTsa {}
+
+#[cfg(all(feature = "signing", not(feature = "download")))]
+impl pdfcer_core::sign::timestamp::TimestampAuthority for NoTsa {
+    fn time_stamp(&self, _: &[u8]) -> Result<Vec<u8>, String> {
+        match *self {}
+    }
+}
+
+#[cfg(all(feature = "signing", not(feature = "download")))]
+fn tsa(_: Option<&str>) -> Option<NoTsa> {
+    None
+}
+
 /// `sign` (`Pass 10.9`): PKCS#12 in, signed PDF out, every derived or
 /// disclosed fact printed (rules 4 and 11).
 #[cfg(feature = "signing")]
@@ -115,6 +150,16 @@ pub(crate) fn cmd_sign(args: &SignArgs<'_>) -> u8 {
     use pdfcer_core::sign::cms_build::SubFilter;
     use pdfcer_core::sign::pkcs12::Pkcs12Signer;
     use pdfcer_core::sign::{SignatureAlgorithm, Signer as _};
+
+    // A B-T request this build cannot honour is refused before anything is
+    // read, never downgraded to B-B.
+    #[cfg(not(feature = "download"))]
+    if let Some(url) = args.tsa_url {
+        eprintln!(
+            "pdfcer: --tsa-url {url}: this build was compiled without network support (the `download` feature is off), so no time-stamp can be requested; nothing was written. Rebuild with `--features download`, or sign without --tsa-url for a B-B signature."
+        );
+        return exit::EDIT_REFUSED;
+    }
 
     // --- the digital ID -----------------------------------------------------
     let pfx = match std::fs::read(args.cert) {
@@ -234,11 +279,12 @@ pub(crate) fn cmd_sign(args: &SignArgs<'_>) -> u8 {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let (bytes, report) = match session.sign(
-        &signer,
-        &request,
-        &pdfcer_core::writer::SaveOptions::identity(),
-    ) {
+    let save = pdfcer_core::writer::SaveOptions::identity();
+    let signed = match tsa(args.tsa_url) {
+        Some(authority) => session.sign_with_timestamp(&signer, &authority, &request, &save),
+        None => session.sign(&signer, &request, &save),
+    };
+    let (bytes, report) = match signed {
         Ok(pair) => pair,
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", args.input.display());
@@ -253,6 +299,7 @@ pub(crate) fn cmd_sign(args: &SignArgs<'_>) -> u8 {
                 | SignApplyError::SeedValueUnevaluable { .. } => exit::EDIT_REFUSED,
                 SignApplyError::Sign(_)
                 | SignApplyError::Cms(_)
+                | SignApplyError::Timestamp(_)
                 | SignApplyError::ReservationTooSmall { .. }
                 | SignApplyError::SelfVerificationFailed { .. }
                 | SignApplyError::PlaceholderNotFound { .. } => exit::SIGNATURE_FAILED,
@@ -296,6 +343,18 @@ pub(crate) fn cmd_sign(args: &SignArgs<'_>) -> u8 {
         u8::from(report.self_verified),
         bytes.len(),
     );
+    // `Pass 10.11`: the authority's assertion, verbatim (rule 4).
+    if let Some(ts) = &report.timestamp {
+        println!(
+            "  timestamp: gen_time={} tsa={} serial={} policy={} digest={} token_bytes={}",
+            ts.gen_time,
+            quoted_token(&ts.tsa_subject),
+            ts.serial_hex,
+            ts.policy_oid,
+            ts.digest_algorithm,
+            ts.token_bytes,
+        );
+    }
     // `Pass 10.13`: what signing INTO the author's field carried with it.
     if let Some(lock) = &report.field_lock {
         println!("  field_lock: /FieldMDP {lock} (copied from the field's /Lock, Table 233)");

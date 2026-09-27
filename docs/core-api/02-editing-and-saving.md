@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 266 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 267 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 266 public `EditSession` methods
+## 1. Verb index — all 267 public `EditSession` methods
 
-**Count: 266.** Established by brace-matched extraction of the six
+**Count: 267.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -4189,6 +4189,7 @@ operator has to get the order of right.
 | I want to… | Call | Returns |
 |---|---|---|
 | **Sign the document** (PAdES B-B / `adbe.pkcs7.detached`) | `sign(&mut self, signer: &dyn sign::Signer, request: &sign::apply::SignRequest, options: &SaveOptions) -> Result<(Vec<u8>, sign::apply::SignReport), sign::apply::SignApplyError>` | **`Pass 10.9`** (feature `signing`, default on). Stages a `/FT /Sig` field + Table 252 dictionary, serialises an **incremental update**, patches `/ByteRange` to EOF, digests, builds the CMS through the `Signer`, back-patches the hole, then **self-verifies with `signature_verify`** before returning. **`Pass 10.14`:** a visible signature's `/AP` carries the frame plus composed text (signer CN, `Date:`, `Reason:`/`Location:` when given) in Helvetica, shrink-to-fit between 10 pt and 4 pt; too small → `SignApplyError::AppearanceOverflow` before any object is staged; the lines are on `SignReport.appearance_lines` (empty when invisible). **`Pass 10.12`:** `SignRequest::certify: Option<MdpPermission>` (`NoChanges`=1 / `FormFillAndSign`=2 / `FormFillSignAnnotate`=3, §12.8.2.2 Table 254) makes it a CERTIFICATION signature — `/Reference [SigRef /DocMDP /TransformParams << /P n /V /1.2 >>]` on the signature dictionary and `/Perms << /DocMDP >>` on the catalog in the same update (no `DigestMethod`, deprecated in PDF 2.0); refused by name when the document is already certified (`AlreadyCertified`) or carries any signature (`CertificationNotFirst` — a certification is the FIRST signature, §12.8.2.2.1). `SignReport::certification` echoes the level; `SignatureVerdict::certification: Option<u8>` reads it back. **`Pass 10.13`:** a `field_name` that names an EXISTING empty merged `/FT /Sig` field is signed INTO — the field's `/Rect`/page place the appearance (`visible` refused alongside it: `RectRefusedForExistingField`), its `/Lock` (Table 233) is copied into a `/FieldMDP` reference (§12.8.2.4; `SignReport::field_lock`), and its `/SV` seed value (Table 234) is enforced in full by `apply::check_seed_value` — required constraints unmet → `SeedValueViolated`; `/Cert`, a required `/TimeStamp`/`/LegalAttestation`, `/AddRevInfo true`, unknown keys → `SeedValueUnevaluable`; recommended ones unmet → `SignReport::notes`. Already signed → `FieldAlreadySigned`; not `/FT /Sig` → `FieldNotSignature`; widgets under `/Kids` → `FieldHasKids`. `SignReport::field_reused` says which path ran. Only the field dictionary and the AcroForm holder (`/SigFlags`) are rewritten among pre-existing objects. |
+| **Sign with a trusted time-stamp** (PAdES B-T) | `sign_with_timestamp(&mut self, signer: &dyn sign::Signer, authority: &dyn sign::timestamp::TimestampAuthority, request: &sign::apply::SignRequest, options: &SaveOptions) -> Result<(Vec<u8>, sign::apply::SignReport), sign::apply::SignApplyError>` | **`Pass 10.11`** (feature `signing`). `sign`, plus an RFC 3161 signature time-stamp: after the CMS is built, `SignerInfo.signature` is hashed under the signature's own digest (SHA-256, or SHA-384 for P-384) and sent as a DER `TimeStampReq` (random 64-bit nonce, `certReq` TRUE) to `authority.time_stamp(request_der) -> Result<Vec<u8>, String>` — the one method a shell implements; the engine does no I/O. The `TimeStampResp` is checked before anything is embedded: status granted, `id-ct-TSTInfo` content, the imprint and nonce echoed, a TSA certificate with a critical `id-kp-timeStamping` EKU, and the TSA's signature valid. The token goes in as the unsigned attribute `id-aa-timeStampToken` (no signed byte changes) and shares `request.reserve` with the signature — raise it for a long TSA chain. Result: `SignReport::pades_level == "B-T"` and `SignReport::timestamp: Option<sign::timestamp::TimestampInfo>` (`gen_time`, `serial_hex`, `policy_oid`, `tsa_subject`, `digest_algorithm`, `token_bytes` — the authority's assertion, verbatim; show it). Any failure is `SignApplyError::Timestamp(sign::timestamp::TimestampError)` — `Transport` (the shell's `Err` string), `RandomUnavailable`, `Malformed`, `Rejected { status, detail }`, `ImprintMismatch`, `NonceMismatch`, `NoTsaCertificate`, `NotATimeStampingCertificate`, `TokenSignatureInvalid`, `EmbedFailed` — and **nothing is returned: a requested B-T is never downgraded to B-B.** CLI: `pdfcer sign --tsa-url URL` (build feature `download`; refused by name without it). |
 
 > #### ★ `sign` returns the DOCUMENT; the session does not become it
 >
@@ -4211,8 +4212,9 @@ operator has to get the order of right.
 > and written to `/M` verbatim; pdfcer reads no clock. `name`/`reason`/
 > `location`/`contact_info` are the operator's words. RSA signs only through
 > blinded paths and **refuses on wasm32** (`SignError::RandomUnavailable`);
-> ECDSA (RFC 6979) signs everywhere. The report's `pades_level` is always
-> `"B-B"` — never a level the embedded material does not support.
+> ECDSA (RFC 6979) signs everywhere. The report's `pades_level` is `"B-T"`
+> after `sign_with_timestamp`, else `"B-B"` — never a level the embedded
+> material does not support.
 >
 > **Refusals (`SignApplyError`)**: `SigningTimeNotPdfDate`, `Encrypted` (the
 > incremental writer cannot append to an encrypted base yet — broader than
@@ -4223,7 +4225,8 @@ operator has to get the order of right.
 > since `Pass 10.14` `AppearanceOverflow`; since `Pass 10.12` `AlreadyCertified`,
 > `CertificationNotFirst`; since `Pass 10.13` (an existing `field_name`)
 > `FieldAlreadySigned`, `FieldNotSignature`, `FieldHasKids`,
-> `RectRefusedForExistingField`, `SeedValueViolated`, `SeedValueUnevaluable` —
+> `RectRefusedForExistingField`, `SeedValueViolated`, `SeedValueUnevaluable`;
+> since `Pass 10.11` `Timestamp(TimestampError)` (`sign_with_timestamp` only) —
 > `FieldNameTaken` is now only the internal fallback (name listed, field
 > unresolvable).
 >

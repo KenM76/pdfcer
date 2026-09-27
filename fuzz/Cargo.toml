@@ -94,7 +94,9 @@ libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 [dependencies.pdfcer-core]
 path = "../crates/pdfcer-core"
 default-features = false
-features = ["jpx"]
+# `signing` for the `timestamp_response` target (RFC 3161 responses arrive
+# from the network); pure-Rust crypto, no C toolchain.
+features = ["jpx", "signing"]
 
 # pdfcer-render, for the FF-C donor-subsetting target (Pass 21.0). The
 # subsetter lives there, not in core, because producing a subset requires
@@ -490,6 +492,13 @@ bench = false
 # arithmetic -- every one of them new and on the hostile path. The seeds are
 # the seven pyHanko-signed fixtures, so libFuzzer's mutations start from
 # real CMS objects and real certificates rather than from noise.
+[[bin]]
+name = "timestamp_response"
+path = "fuzz_targets/timestamp_response.rs"
+test = false
+doc = false
+bench = false
+
 [[bin]]
 name = "signature_verify"
 path = "fuzz_targets/signature_verify.rs"

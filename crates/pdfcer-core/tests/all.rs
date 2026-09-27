@@ -141,6 +141,7 @@ mod sign_certify;
 mod sign_document;
 mod sign_hardening;
 mod sign_into_field;
+mod sign_timestamp;
 mod signature_coverage;
 mod signature_verify;
 mod span_from_pin;

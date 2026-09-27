@@ -1494,11 +1494,13 @@ pub(crate) enum Command {
     /// a colliding `--field-name`; a `--page` out of range; a CMS larger than
     /// `--reserve` bytes (default 12288 — raise it for a long chain).
     ///
-    /// The level printed is always `B-B`: pdfcer embeds no timestamp and no
-    /// revocation data yet, and never claims a level the material does not
-    /// support. Exit 12 when the signature was refused or failed
-    /// self-verification; 9 for a refused request; 3 for a file that cannot
-    /// be read or written.
+    /// The level printed is `B-T` when `--tsa-url` embedded a signature
+    /// time-stamp, else `B-B`: pdfcer embeds no revocation data yet, and
+    /// never claims a level the material does not support. Exit 12 when the
+    /// signature was refused, failed self-verification, or the time-stamp
+    /// could not be obtained or verified (a requested B-T is never downgraded
+    /// to B-B); 9 for a refused request; 3 for a file that cannot be read or
+    /// written.
     Sign {
         /// Input PDF.
         input: PathBuf,
@@ -1534,6 +1536,16 @@ pub(crate) enum Command {
         /// `/ContactInfo`.
         #[arg(long)]
         contact: Option<String>,
+        /// RFC 3161 time-stamping authority URL (`http://` or `https://`):
+        /// embed a signature time-stamp, making the signature PAdES B-T. The
+        /// TSA's answer is verified (status, imprint, nonce, time-stamping
+        /// certificate, signature) before it is embedded, and its time,
+        /// authority, serial and policy are printed. The token shares
+        /// `--reserve` with the signature; raise it for a long TSA chain.
+        /// Needs a build with the `download` feature; refused by name
+        /// otherwise.
+        #[arg(long, value_name = "URL")]
+        tsa_url: Option<String>,
         /// Make this a CERTIFICATION (author) signature (`Pass 10.12`, ISO
         /// 32000-1 §12.8.2.2): writes the `/DocMDP` transform and the
         /// catalog's `/Perms`, which every conforming reader enforces on

@@ -73,6 +73,8 @@ PASSWORD = "pdfcer"
 DAYS = "36500"
 
 EXPECTED = [
+    "tsa-rsa2048.cer",
+    "tsa-rsa2048.key.der",
     "rsa2048-modern.pfx",
     "rsa2048-legacy.pfx",
     "ecp256-modern.pfx",
@@ -232,6 +234,27 @@ def added_shapes(work: Path, rsa_key: Path, rsa_cert: Path, major: int) -> None:
         print(f"wrote {OUT / f} ({(OUT / f).stat().st_size} B)")
 
 
+def tsa_shape(work: Path) -> None:
+    """`Pass 10.11`: a synthetic RFC 3161 time-stamping authority (key + cert).
+
+    RFC 3161 §2.3: the TSA certificate carries exactly one extendedKeyUsage,
+    id-kp-timeStamping, marked critical. The tests run `openssl ts -reply`
+    with this key as the TSA oracle; pdfcer only ever sees its responses.
+    """
+    key = work / "tsa.key.pem"
+    cert = work / "tsa.cert.pem"
+    run("openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+        "-keyout", str(key), "-out", str(cert), "-days", DAYS, "-sha256",
+        "-subj", "/CN=pdfcer synthetic TSA (test fixture, trust nothing)/O=pdfcer fixtures/C=CA",
+        "-addext", "extendedKeyUsage=critical,timeStamping",
+        "-addext", "keyUsage=critical,digitalSignature")
+    run("openssl", "x509", "-in", str(cert), "-outform", "DER", "-out", str(OUT / "tsa-rsa2048.cer"))
+    run("openssl", "pkcs8", "-topk8", "-nocrypt", "-in", str(key), "-outform", "DER",
+        "-out", str(OUT / "tsa-rsa2048.key.der"))
+    for f in ("tsa-rsa2048.cer", "tsa-rsa2048.key.der"):
+        print(f"wrote {OUT / f} ({(OUT / f).stat().st_size} B)")
+
+
 def main() -> int:
     if "--check" in sys.argv:
         missing = [f for f in EXPECTED if not (OUT / f).exists()]
@@ -245,12 +268,15 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         if not regen:
-            print("base stores exist; adding the Pass 10.14 shapes only (pass --regen to re-mint everything)")
+            print("base stores exist; adding only the missing shapes (pass --regen to re-mint everything)")
             rsa_key = work / "rsa.key.pem"
             rsa_cert = work / "rsa.cert.pem"
             run("openssl", "pkey", "-inform", "DER", "-in", str(OUT / "rsa2048.key.der"), "-out", str(rsa_key))
             run("openssl", "x509", "-inform", "DER", "-in", str(OUT / "rsa2048.cer"), "-out", str(rsa_cert))
-            added_shapes(work, rsa_key, rsa_cert, major)
+            if "--tsa" in sys.argv or not (OUT / "tsa-rsa2048.cer").exists():
+                tsa_shape(work)
+            else:
+                added_shapes(work, rsa_key, rsa_cert, major)
             return 0
 
         # --- RSA-2048 -------------------------------------------------------
@@ -279,6 +305,7 @@ def main() -> int:
             "-out", str(OUT / "ecp256.key.der"))
 
         added_shapes(work, rsa_key, rsa_cert, major)
+        tsa_shape(work)
 
     for f in EXPECTED:
         print(f"wrote {OUT / f} ({(OUT / f).stat().st_size} B)")

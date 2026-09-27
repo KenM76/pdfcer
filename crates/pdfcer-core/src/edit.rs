@@ -56323,6 +56323,49 @@ impl EditSession {
         request: &crate::sign::apply::SignRequest,
         options: &SaveOptions,
     ) -> Result<(Vec<u8>, crate::sign::apply::SignReport), crate::sign::apply::SignApplyError> {
+        self.sign_impl(signer, None, request, options)
+    }
+
+    /// [`sign`](Self::sign), plus an RFC 3161 **signature time-stamp** from
+    /// `authority` — PAdES **B-T** (`Pass 10.11`,
+    /// `security__rfc3161_timestamp.md` `TS-5`/`TS-6`).
+    ///
+    /// After the CMS is built, the `SignerInfo.signature` value is hashed
+    /// under the signature's own digest and sent to `authority` in a
+    /// `TimeStampReq` with a random 64-bit nonce and `certReq` TRUE. The
+    /// answer is checked before anything is embedded (`TS-10`): status
+    /// granted, the imprint and nonce echoed, a TSA certificate present
+    /// with a critical `id-kp-timeStamping` extended key usage, and the
+    /// TSA's signature over the `TSTInfo` valid. The token is then added as
+    /// the unsigned attribute `id-aa-timeStampToken`, which changes no
+    /// signed byte, and the whole goes through the same self-verification.
+    ///
+    /// The token (typically 2–8 KB with the TSA certificate) shares the
+    /// `/Contents` reservation with the signature (`TS-9`); raise
+    /// `request.reserve` when a TSA returns a long chain.
+    ///
+    /// # Errors
+    ///
+    /// Everything [`sign`](Self::sign) refuses, plus
+    /// [`SignApplyError::Timestamp`](crate::sign::apply::SignApplyError::Timestamp)
+    /// naming what failed — never a B-B result in place of the B-T asked for.
+    pub fn sign_with_timestamp(
+        &mut self,
+        signer: &dyn crate::sign::Signer,
+        authority: &dyn crate::sign::timestamp::TimestampAuthority,
+        request: &crate::sign::apply::SignRequest,
+        options: &SaveOptions,
+    ) -> Result<(Vec<u8>, crate::sign::apply::SignReport), crate::sign::apply::SignApplyError> {
+        self.sign_impl(signer, Some(authority), request, options)
+    }
+
+    fn sign_impl(
+        &mut self,
+        signer: &dyn crate::sign::Signer,
+        authority: Option<&dyn crate::sign::timestamp::TimestampAuthority>,
+        request: &crate::sign::apply::SignRequest,
+        options: &SaveOptions,
+    ) -> Result<(Vec<u8>, crate::sign::apply::SignReport), crate::sign::apply::SignApplyError> {
         use crate::sign::apply::{self as apply, SignApplyError};
 
         // --- 1. guards ---------------------------------------------------
@@ -56774,7 +56817,23 @@ impl EditSession {
         let hole = apply::locate_hole(&bytes, revision_start, sig_id, request.reserve.max(1))?;
         let byte_range = apply::patch_byte_range(&mut bytes, hole);
         let digest = apply::digest_spans(&bytes, hole, algorithm);
-        let cms = crate::sign::cms_build::build(signer, algorithm, &digest)?;
+        let mut cms = crate::sign::cms_build::build(signer, algorithm, &digest)?;
+        let timestamp = match authority {
+            None => None,
+            Some(tsa) => {
+                use crate::sign::timestamp::{self as ts, TimestampError};
+                let value = ts::signature_value(&cms.der).ok_or(TimestampError::EmbedFailed)?;
+                let hash = crate::cms::hash_for(algorithm.digest_oid())
+                    .ok_or(TimestampError::Malformed("internal: unknown digest"))?;
+                let query = ts::build_request(hash, &value)?;
+                let response = tsa
+                    .time_stamp(&query.der)
+                    .map_err(TimestampError::Transport)?;
+                let (token, info) = ts::accept_response(&response, &query)?;
+                cms.der = ts::embed_token(&cms.der, &token).ok_or(TimestampError::EmbedFailed)?;
+                Some(info)
+            }
+        };
         apply::back_patch(&mut bytes, hole, &cms.der)?;
 
         // --- 5. self-verify ----------------------------------------------------
@@ -56824,7 +56883,8 @@ impl EditSession {
                 cms_bytes: cms.der.len(),
                 reserved_bytes: request.reserve.max(1),
                 signing_time: request.signing_time.clone(),
-                pades_level: "B-B",
+                pades_level: if timestamp.is_some() { "B-T" } else { "B-B" },
+                timestamp,
                 self_verified: true,
                 prior_signatures,
                 appearance_lines,

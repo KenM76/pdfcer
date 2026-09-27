@@ -225,9 +225,14 @@ pub struct SignReport {
     pub reserved_bytes: usize,
     /// The `/M` written, verbatim.
     pub signing_time: String,
-    /// The PAdES level the material present supports — always `"B-B"` from
-    /// this verb (`PC-12`: never claim higher than what was embedded).
+    /// The PAdES level the material present supports (`PC-12`: never claim
+    /// higher than what was embedded): `"B-T"` when a signature time-stamp
+    /// was embedded, else `"B-B"`.
     pub pades_level: &'static str,
+    /// The embedded signature time-stamp (`Pass 10.11`), or `None` when the
+    /// signature was made without one. Its `gen_time` is the authority's
+    /// assertion, reported verbatim.
+    pub timestamp: Option<super::timestamp::TimestampInfo>,
     /// Whether `signature_verify` re-read the output and reported
     /// `Integrity::Verified` before it was returned. Always `true` on `Ok`;
     /// present so the fact is *stated*, not assumed.
@@ -327,6 +332,11 @@ pub enum SignApplyError {
     /// The CMS could not be built.
     #[error(transparent)]
     Cms(#[from] super::cms_build::CmsBuildError),
+    /// A time-stamp was requested and could not be obtained, verified or
+    /// embedded (`Pass 10.11`). Nothing is written: a requested B-T is never
+    /// silently downgraded to B-B.
+    #[error(transparent)]
+    Timestamp(#[from] super::timestamp::TimestampError),
     /// The DER did not fit the reserved hole (`SC-6`).
     #[error(
         "the signature is {needed} bytes but only {reserved} were reserved; sign again with a larger reserve — the hole cannot be grown after layout"
