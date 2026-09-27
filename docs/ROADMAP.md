@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 342.0` (`84c7396c`), 2026-09-27 — A colour is stored with the digits it was given
+
+**Verdict: SHIPPED, closes the `/MK` f32-widening finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`341.0`) — the item stays open, two `WidgetEdit` findings remain (see *Backlog*).
+
+`forms::MkColor::to_array` widened each `f32` component through `f64::from`, so a colour given as `0.2` was written into `/MK` `/BG`, `/MK` `/BC` and every annotation `/C`/`/IC` as `0.20000000298023224`.
+
+**Fix.** `to_array` now converts through `f32`'s shortest round-trip `Display`, the same conversion the appearance builders (`annot_author::mk_component`) already used, so the dictionary and the baked `/AP` carry the same digits. No `pub` signature change; no `docs/core-api` update needed.
+
+**Tests.** `form_edit_audit::a_background_colour_is_stored_with_the_digits_it_was_given` (`crates/pdfcer-core/tests/form_edit_audit.rs`), fails with the `forms.rs` change reverted. `form_edit_audit`: 18/18. `tools/run-gates.sh`: PASS (39 commands, including the 2 filing gates). No manifest change.
+
+**Shells.** Core fix only; CLI and GUI already round-trip whatever core writes. Neither box moves.
+
+**`docs/FEATURES.md`:** row 318 already sits within ~50 characters of the 1,200-char cap — no clause added, row unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `84c7396c`, not independently reproduced.
+
 ### `Pass 341.0` (`4f6b5461`), 2026-09-27 — A widget's dash pattern survives a border edit and is drawn
 
 **Verdict: SHIPPED, closes the `border_dict` drops `/D` finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`340.0`) — the item stays open, three `WidgetEdit` findings remain (see *Backlog*).
@@ -16963,6 +16979,8 @@ suspicion this entry recorded.
 
 ★ **Seventh fix shipped — 2026-09-27 (626th filing, `Pass 341.0`, `4f6b5461`).** Closes `border_dict` drops `/D`, below: `edit_widget` with a border edit replaced `/BS` wholesale, dropping the widget's own `/D` dash array; `/BS` is now patched (only `/S`/`/W` change) and `WidgetChrome::border_dash` carries the dash through every redraw — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and three `WidgetEdit` findings remain.
 
+★ **Eighth fix shipped — 2026-09-27 (627th filing, `Pass 342.0`, `84c7396c`).** Closes the `/MK` f32-widening finding, below: `MkColor::to_array` widened each `f32` component through `f64::from`, writing e.g. `0.20000000298023224` into `/MK` `/BG`, `/MK` `/BC` and every annotation `/C`/`/IC` for a component given as `0.2`; it now converts through `f32`'s shortest round-trip `Display`, the same conversion the appearance builders already used — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and two `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -16979,7 +16997,7 @@ suspicion this entry recorded.
 - `border_dict` drops `/D` — CLOSED by `Pass 341.0`, above. Was: an `edit_widget` border edit replaced `/BS` wholesale, dropping the widget's own `/D` dash array; every redraw after then drew the default `[3]` dash instead.
 - Stroke-width scaling is reported but not drawn.
 - Radio caption and text/choice caption falsely report Regenerated (text/choice also churns a new `/AP` it didn't need to).
-- `/MK` `/BG`/`/BC` written f32-widened, e.g. `[0.20000000298023224]` (`MkColor::to_array`).
+- `/MK` `/BG`/`/BC` colour widening — CLOSED by `Pass 342.0`, above. Was: `MkColor::to_array` widened each `f32` component through `f64::from`, writing e.g. `[0.20000000298023224]` for a component given as `0.2`.
 - X2 — CLOSED by `Pass 339.0`, above. Was: `regen_field_appearance` rebuilds every sibling widget while reporting `siblings_untouched`.
 
 ### Unscoped — An INDIRECT `/CO` reference is silently replaced by a fresh array on append, losing whatever else referenced it — filed 2026-09-16 (563rd filing, `Pass 308.6`), no Pass ID

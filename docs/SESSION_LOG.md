@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (627th filing) — `84c7396c`: `Pass 342.0` SHIPPED — a colour is stored with the digits it was given
+
+**Shipped:**
+- `Pass 342.0` — closes the `MkColor::to_array` f32-widening finding from
+  the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item
+  (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–
+  `341.0`); the item stays open, two `WidgetEdit` findings remain.
+  `forms::MkColor::to_array` widened each `f32` component with
+  `f64::from`, so a colour given as `0.2` was written into `/MK` `/BG`,
+  `/MK` `/BC` and every annotation `/C`/`/IC` as `0.20000000298023224`.
+
+**Decisions made this session:** none — a scoped correctness fix, no
+architecture change.
+
+**Findings + decisions:**
+- Fix: `to_array` now converts through `f32`'s shortest round-trip
+  `Display`, the same conversion the appearance builders
+  (`annot_author::mk_component`) already used, so the dictionary and
+  the baked `/AP` carry the same digits. No `pub` signature change; no
+  `docs/core-api` update needed.
+- `form_edit_audit::a_background_colour_is_stored_with_the_digits_it_was_given`
+  added, fails with the `forms.rs` change reverted. `form_edit_audit`:
+  18/18. `tools/run-gates.sh`: PASS (39 commands, including the 2
+  filing gates). No manifest change.
+- Core only — CLI and GUI already round-trip whatever core writes;
+  neither box moves.
+- `docs/FEATURES.md`: row 318 already sits within ~50 characters of
+  the 1,200-char cap — no clause added, row unchanged.
+- `docs/ROADMAP.md`'s audit Backlog entry marks the `/MK` f32-widening
+  finding CLOSED by `Pass 342.0`; six `FieldEdit` findings and two
+  `WidgetEdit` findings remain.
+
+**Still in flight:** the widened audit entry's remaining findings are
+unscoped, no Pass IDs assigned yet. D4/D4b look like the next
+candidates on the `FieldEdit` side; stroke-width scaling reported but
+not drawn looks like the next candidate on the `WidgetEdit` side.
+
+**For next session:** scope the next-worst remaining audit finding into
+a Pass.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`84c7396c`, not independently reproduced.
+
 ## 2026-09-27 (626th filing) — `4f6b5461`: `Pass 341.0` SHIPPED — a widget's dash pattern survives a border edit and is drawn
 
 **Shipped:**
