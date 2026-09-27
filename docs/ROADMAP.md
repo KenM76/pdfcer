@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 10.11` (`09c8e673`), 2026-09-27 — PAdES B-T: verify-then-embed an RFC 3161 timestamp; `pdfcer sign --tsa-url` behind the opt-in `download` feature
+
+**Verdict: SHIPPED**, third stage of decision 136's arc to ship (`10.7`-`10.9` approval B-B, `10.12` certifying, `10.13` pre-placed field, `10.14` hardening — all already shipped). Sourced from the spec RAG's RFC 3161 and PAdES-by-level reference files.
+
+**Core.** `EditSession::sign_with_timestamp(signer, authority: &dyn sign::timestamp::TimestampAuthority, request, options)`. The engine does no I/O — the shell implements `TimestampAuthority::time_stamp(&self, request_der) -> Result<Vec<u8>, String>`. Builds a DER `TimeStampReq` over the signature's own hash, a random 64-bit nonce, `certReq TRUE`. Verifies the response fully before embedding: status granted/grantedWithMods, `id-ct-TSTInfo` content with one signer, imprint+nonce echoed, a TSA cert with a critical `id-kp-timeStamping` EKU, correct signed attrs, valid TSA signature. Embeds the token as the UNSIGNED `id-aa-timeStampToken` attribute — no signed bytes change — then self-verifies the result. `SignReport.timestamp: Option<TimestampInfo>`; `pades_level = "B-T"`. Failures are a named `SignApplyError::Timestamp(TimestampError)` variant set. **A requested B-T is never silently downgraded to B-B.**
+
+**CLI.** `pdfcer sign --tsa-url URL` via `pdfcer_fetch::post_time_stamp_query`, behind the opt-in `download` feature (shared with `fetch-ocr-models`). http:// allowed as well as https:// (the response is itself signed and nonce-bound). Without `download`, `--tsa-url` is refused by name before anything is read. Prints `level=B-T` plus the timestamp fields on success; a TSA failure exits non-zero and writes nothing.
+
+**Tests.** Core: 7 integration (`tests/sign_timestamp.rs`, OpenSSL-oracle-verified: round trip, replay, wrong-signature imprint mismatch, tampered token, rejection, transport failure, P-384/SHA-384) + 5 unit. CLI: 3 (default-build refusal; a local-server round trip; a TSA-error path). `pdfcer-fetch`: 2 new. New fuzz target `timestamp_response`: 101,603 runs / 61 s, 0 crashes.
+
+**Fixture.** `fixtures/synthetic/signing/tsa-rsa2048.{cer,key.der}` via `tools/gen-signing-fixtures.py --tsa`, PROVENANCE row added.
+
+**Gates.** `cargo tree -p pdfcer-core` clean (no network crate, no new dependency). `fmt`/`clippy -D warnings` clean, default features and `--features download`. `docs/core-api` verb count now 267, `check-core-api-verbs` PASS. `tools/run-gates.sh`: 39 of 40 green — the one red was this same filing's Part 1 register-size defect, fixed below.
+
+**Not met — recorded, not rounded up.** (1) `--timestamp-token <file>` (a pre-fetched token) dropped as INFEASIBLE, not deferred: the imprint is the hash of this signature's own bytes and the nonce is this request's own, neither exists before signing, so no token can be fetched in advance — no follow-up Pass filed. (2) TSA auth (HTTP basic / client cert) not built — Backlog note, no new Pass ID. (3) README's no-network claim NOT rewritten, and stays true: the HTTP client is opt-in and off by default, so the released binary still ships none and refuses `--tsa-url` by name; B-T needs a `download`-feature build or a shell implementing `TimestampAuthority` itself. (4) A `/SV` seed value requiring `/TimeStamp` is still `SeedValueUnevaluable` even with a TSA supplied — possible follow-up, noted only. (5) B-LT/B-LTA remain out of scope, gated on `Pass 10.6`'s revocation material, as originally scoped.
+
+**Shells.** core `[x]`, cli `[x]` (`download`-feature build only; refused by name otherwise), gui `[ ]`.
+
+**`docs/FEATURES.md`.** Planned B-T row moved to *Implemented*, next to "Sign into a pre-placed empty signature field": `[x] [x] [ ]`.
+
+**Sourcing (hard rule 8).** No shell this filing. Core/CLI/test/gate facts relayed from the dispatching engineer's report of `09c8e673`, not independently reproduced here. Committed to `main`, not yet pushed as of this filing — goes out with the 664th filing (`0171545f`) in the same push.
+
 ### `Pass 259.0` (`45298418`), 2026-09-27 — `docs/core-api/` line citations become symbol-only, gated in CI
 
 **Verdict: SHIPPED**, remedy **(b)** of the three named at filing (467th filing, 2026-09-07, Backlog): drop line numbers from citations, keep symbol names, plus a gate. Not (a) fix-the-numbers — the filing's own 0-of-6 strict sample showed a hand-maintained line number isn't sustained in this codebase; not (c) a line-resolving gate — the filing's own leaning, but staging it against hundreds of pre-existing failures was more machinery than the problem needed once (b) was on the table.
@@ -8337,64 +8359,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★ **ONE ITEM ADDED 2026-09-27 (664th filing) — `Pass 364.0`, SCALE
-> PAGE CONTENTS TO A TARGET SIZE ("resize page contents"), the operator's
-> own ordered-plan item (`docs/NEXT_SESSION.md`), scoped from
-> `pdfcer-acrobat-librarian`'s survey of
-> `Acrobat_Features/core_ops__scale_pages_to_fit_size.md`,
-> `core_ops__change_page_size_no_scale.md` and
-> `core_ops__crop_pages_margins.md`.** Filed *Next up*, not *Backlog*,
-> because the ordered plan puts it ahead of the backlog. Distinct from the
-> shipped `set-page-size` verb (box-only, content translated, never scaled
-> — Acrobat's "Change Page Size"); Crop Pages is explicitly out of scope.
-> The live entry is the HEAD of this section, just below. `docs/FEATURES.md`:
-> one new *Planned* row, all pdfcer boxes unticked. Nothing shipped this
-> filing.
-
-### Pass 364.0 — Scale page contents to a target size ("resize page contents")
-
-**Delivers core + cli** (gui is the separate `pdfcer-gui` project's
-concern). Acrobat reference: `pdfcer-acrobat-librarian`'s
-`Acrobat_Features/core_ops__scale_pages_to_fit_size.md`,
-`core_ops__change_page_size_no_scale.md`,
-`core_ops__crop_pages_margins.md` (664th filing).
-
-Acceptance criteria:
-1. A new `EditSession` verb scales each selected page's content
-   uniformly (aspect preserved, no stretch) to a target size, mode
-   **fit** (scale to fit inside, pad, centred) or **fill** (scale to
-   cover, overflow cropped by the new boxes). One undoable command
-   (`ARCHITECTURE.md` §11.4).
-2. Minimal diff (`ARCHITECTURE.md` §5): original content streams
-   untouched — the transform is a `q <cm>` stream prepended and a `Q`
-   stream appended to `/Contents`. `/MediaBox` and any present
-   `/CropBox`/`/BleedBox`/`/TrimBox`/`/ArtBox` rewritten to the target,
-   resolving inherited page attributes (§7.7.3.4) rather than assuming
-   them on the leaf.
-3. **Exceeds Acrobat** (a confirmed Acrobat defect, per the RAG
-   survey): annotations and widgets move and scale WITH the content —
-   `/Rect`, `/QuadPoints`, `/InkList`, `/Vertices`, `/L`, `/CL`, `/RD`
-   as applicable; an `/AP` follows its `/Rect` via the §12.5.5
-   BBox→Rect mapping. `/XYZ` and `/FitR` link destinations targeting a
-   scaled page are transformed too.
-4. Downscaling is a first-class tested case — Acrobat's own reduction
-   is unreliable, per the RAG survey.
-5. Mixed page sizes and `/Rotate` get a stated, disclosed setting
-   rather than a silent default: orientation policy `match` (default —
-   the target is flipped to each page's own orientation) vs `exact`; a
-   `/Rotate` page scales in its displayed orientation. Both are open
-   gaps against Acrobat itself.
-6. Rule 4 disclosure: the report states, per page, the scale factor,
-   the offset and the mode used.
-7. CLI `scale-pages <in> -o <out> --pages SPEC --size NAME|WxH [--mode
-   fit|fill] [--orientation match|exact]`, shipped the same Pass
-   (`CLAUDE.md` rule 11).
-8. `docs/core-api` updated for the new verb; fixture-based tests
-   including an annotated page and a downscale case.
-
-Crop Pages (box-only) is explicitly out of scope, per
-`core_ops__crop_pages_margins.md` — a distinct operation.
-
 > ★★★★ **`Pass 330.0` SHIPPED, 2026-09-26 (609th filing), `3127b18c`** — see
 > top of *Shipped*. Filed *Next up* by the 608th filing, found by rotation
 > from the redaction shared-content-stream fix (`e92cf7dd`); this banner is
@@ -8607,6 +8571,68 @@ Crop Pages (box-only) is explicitly out of scope, per
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
+
+> ★★★★ **ONE ITEM ADDED 2026-09-27 (664th filing) — `Pass 364.0`, SCALE
+> PAGE CONTENTS TO A TARGET SIZE ("resize page contents"), the operator's
+> own ordered-plan item (`docs/NEXT_SESSION.md`), scoped from
+> `pdfcer-acrobat-librarian`'s survey of
+> `Acrobat_Features/core_ops__scale_pages_to_fit_size.md`,
+> `core_ops__change_page_size_no_scale.md` and
+> `core_ops__crop_pages_margins.md`.** Filed *Next up*, not *Backlog*,
+> because the ordered plan puts it ahead of the backlog. Distinct from the
+> shipped `set-page-size` verb (box-only, content translated, never scaled
+> — Acrobat's "Change Page Size"); Crop Pages is explicitly out of scope.
+> The live entry is the HEAD of this section, just below. `docs/FEATURES.md`:
+> one new *Planned* row, all pdfcer boxes unticked. Nothing shipped this
+> filing. **Moved below the historical banner run above at the 665th
+> filing (register-entry-size fix — see `SESSION_LOG.md`); the run had no
+> `###` heading over it before this Pass's heading landed ahead of it, so
+> `check-register-entry-size.py` was counting all 212 of those lines as
+> this entry's own.**
+
+### Pass 364.0 — Scale page contents to a target size ("resize page contents")
+
+**Delivers core + cli** (gui is the separate `pdfcer-gui` project's
+concern). Acrobat reference: `pdfcer-acrobat-librarian`'s
+`Acrobat_Features/core_ops__scale_pages_to_fit_size.md`,
+`core_ops__change_page_size_no_scale.md`,
+`core_ops__crop_pages_margins.md` (664th filing).
+
+Acceptance criteria:
+1. A new `EditSession` verb scales each selected page's content
+   uniformly (aspect preserved, no stretch) to a target size, mode
+   **fit** (scale to fit inside, pad, centred) or **fill** (scale to
+   cover, overflow cropped by the new boxes). One undoable command
+   (`ARCHITECTURE.md` §11.4).
+2. Minimal diff (`ARCHITECTURE.md` §5): original content streams
+   untouched — the transform is a `q <cm>` stream prepended and a `Q`
+   stream appended to `/Contents`. `/MediaBox` and any present
+   `/CropBox`/`/BleedBox`/`/TrimBox`/`/ArtBox` rewritten to the target,
+   resolving inherited page attributes (§7.7.3.4) rather than assuming
+   them on the leaf.
+3. **Exceeds Acrobat** (a confirmed Acrobat defect, per the RAG
+   survey): annotations and widgets move and scale WITH the content —
+   `/Rect`, `/QuadPoints`, `/InkList`, `/Vertices`, `/L`, `/CL`, `/RD`
+   as applicable; an `/AP` follows its `/Rect` via the §12.5.5
+   BBox→Rect mapping. `/XYZ` and `/FitR` link destinations targeting a
+   scaled page are transformed too.
+4. Downscaling is a first-class tested case — Acrobat's own reduction
+   is unreliable, per the RAG survey.
+5. Mixed page sizes and `/Rotate` get a stated, disclosed setting
+   rather than a silent default: orientation policy `match` (default —
+   the target is flipped to each page's own orientation) vs `exact`; a
+   `/Rotate` page scales in its displayed orientation. Both are open
+   gaps against Acrobat itself.
+6. Rule 4 disclosure: the report states, per page, the scale factor,
+   the offset and the mode used.
+7. CLI `scale-pages <in> -o <out> --pages SPEC --size NAME|WxH [--mode
+   fit|fill] [--orientation match|exact]`, shipped the same Pass
+   (`CLAUDE.md` rule 11).
+8. `docs/core-api` updated for the new verb; fixture-based tests
+   including an annotated page and a downscale case.
+
+Crop Pages (box-only) is explicitly out of scope, per
+`core_ops__crop_pages_margins.md` — a distinct operation.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
@@ -25248,6 +25274,12 @@ added. See that section below.
   dated note on the *Encryption* bullet (incremental save over an encrypted
   base is that bullet's first-class requirement; the gate falls out of it).
   `docs/FEATURES.md`: three new *Planned* rows after the `10.11` row.
+  ★ **`Pass 10.11` SHIPPED 2026-09-27 (665th filing, `09c8e673`) — see top of
+  *Shipped*.** B-T timestamps now round-trip via `pdfcer sign --tsa-url`
+  (opt-in `download` feature); `--timestamp-token` was dropped as
+  infeasible, not deferred (see the entry below). Still in this section:
+  `Pass 10.10` (shell-side key sources); B-LT/B-LTA remain gated on
+  `Pass 10.6`.
 
 #### `Pass 10.2` — **IMPORT AN INSTALLED ACROBAT/READER TRUST STORE AS A TRUST-ANCHOR SOURCE (opt-in)** — filed 2026-09-04 (414th filing), ~~*Backlog*, NOT STARTED~~ **SHIPPED `79e259a` (417th filing) — see top of *Shipped***
 
@@ -25525,9 +25557,24 @@ same line shape as `Pass 10.9`.
 (deliberately never in core: a shape, not a gap), `cli [ ]`, `gui [ ]`,
 `Acrobat [x]`. **Not scheduled** — after `10.7`–`10.9` ship.
 
-#### `Pass 10.11` — **PAdES B-T — EMBED A SUPPLIED RFC 3161 TOKEN as the `id-aa-timeStampToken` unsigned attribute (`pdfcer-core`); the TSA round trip is `pdfcer`'s (network, shell); the hole is sized for it; the level and the time's SOURCE are printed. B-LT / B-LTA stay gated on `Pass 10.6`** — filed 2026-09-05 (436th filing), *Backlog*, NOT STARTED — depends on `Pass 10.8` + `Pass 10.9`
+#### `Pass 10.11` — **PAdES B-T — EMBED A SUPPLIED RFC 3161 TOKEN as the `id-aa-timeStampToken` unsigned attribute (`pdfcer-core`); the TSA round trip is `pdfcer`'s (network, shell); the hole is sized for it; the level and the time's SOURCE are printed. B-LT / B-LTA stay gated on `Pass 10.6`** — filed 2026-09-05 (436th filing), ~~*Backlog*, NOT STARTED~~ **SHIPPED `09c8e673` (665th filing) — see top of *Shipped*** — depended on `Pass 10.8` + `Pass 10.9`
 
-**Status: NOT STARTED.** Third stage of decision 136's shape (*"then B-T
+**Status: ~~NOT STARTED~~ SHIPPED `09c8e673`, 2026-09-27 (665th filing).**
+Criteria walked at ship time against the 5 numbered items below: (1) shipped
+as scoped — core embeds and verifies-before-embedding, never silently
+downgrades a requested B-T to B-B; (2) the CLI round trip shipped as
+`pdfcer sign --tsa-url`, gated behind the opt-in `download` feature rather
+than unconditional, so `--timestamp-token <file>` (a pre-fetched token) was
+DROPPED AS INFEASIBLE, not deferred — the imprint hashes this signature's
+own not-yet-existing bytes and the nonce is this request's own, so no token
+can be fetched ahead of signing; optional TSA auth (basic/client-cert) is
+NOT built, Backlog note, no new Pass ID; (3) `README.md`'s no-network claim
+was NOT rewritten and STAYS TRUE — the HTTP client ships off by default, so
+the released binary still contains none and refuses `--tsa-url` by name;
+(4) a `/SV` seed value requiring `/TimeStamp` is still `SeedValueUnevaluable`
+even with a TSA supplied — possible follow-up, not filed; (5) B-LT/B-LTA
+remain out of scope, as originally scoped below. Full ship record at the top
+of *Shipped*. Third stage of decision 136's shape (*"then B-T
 (timestamp)"*). Sourced from
 `D:\Dev\Rag-Specialized\PDF_Spec\security\security__rfc3161_timestamp.md`
 (`TS-0`…`TS-11`) and `pades__ref__creation_by_level.md` (`PC-5`, `PC-6`,
@@ -25576,8 +25623,8 @@ embedding one is in-core.
 verifier for the token reuses `Pass 10.1`'s CMS path); the `no-network`
 CI job stays green for the engine.
 
-`docs/FEATURES.md`: one *Planned* row in the signature cluster, all pdfcer
-columns `[ ]`, `Acrobat [x]`. **Not scheduled** — after `10.9` ships.
+`docs/FEATURES.md`: row moved to *Implemented* at the 665th filing, next to
+"Sign into a pre-placed empty signature field" — `[x] [x] [ ]`, `Acrobat [x]`.
 
 #### `Pass 10.12` — **CERTIFYING SIGNATURES — the `/DocMDP` transform (`/Reference [<< /Type /SigRef /TransformMethod /DocMDP /TransformParams << /P 1|2|3 /V /1.2 >> >>]`) + the catalog `/Perms /DocMDP`; `pdfcer sign --certify --mdp-level none|form-fill|annotate`; ONE per document, a second refused by name; must be the document's FIRST signature** — filed 2026-09-05 (439th filing; the 438th's recorded deviation `10.9` #8, which named this ID in advance), ~~*Backlog*, NOT STARTED~~ **SHIPPED `02bb1ba` (452nd filing) — see top of *Shipped*** — depended on `Pass 10.9` (shipped `7734261`)
 

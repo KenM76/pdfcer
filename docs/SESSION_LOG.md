@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (665th filing) — register-entry-size fix + `09c8e673`: `Pass 10.11` (PAdES B-T) SHIPPED
+
+**Shipped:**
+- Pass 10.11 — PAdES B-T: core verifies-then-embeds a supplied RFC 3161 token as the unsigned `id-aa-timeStampToken` attribute, never silently downgrading a requested B-T to B-B; `pdfcer sign --tsa-url` does the round trip via `pdfcer_fetch::post_time_stamp_query`, behind the opt-in `download` feature (refused by name in the default build). 7 core integration tests (OpenSSL oracle) + 5 unit + 3 CLI + 2 `pdfcer-fetch` + a new fuzz target (`timestamp_response`, 101,603 runs, 0 crashes). Fixture `tsa-rsa2048.{cer,key.der}` via `tools/gen-signing-fixtures.py --tsa`. `docs/core-api` verb count now 267. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new. `--timestamp-token <file>` (a pre-fetched token) was DROPPED as infeasible, not deferred: the imprint hashes this signature's own not-yet-existing bytes and the nonce is this request's own, so no token can exist before signing. Recorded on the `Pass 10.11` entry, not as a numbered decision.
+
+**Findings + decisions:**
+- **Register-entry-size defect fixed.** The 664th filing's `### Pass 364.0` heading landed directly ABOVE a ~212-line run of historical standing-rule banners (`Pass 330.0` SHIPPED through "19 items removed 2026-09-10") that previously sat under `## Next up` with no `###` heading over it, so `tools/check-register-entry-size.py` had never counted those lines toward any entry. Once the new heading landed just above the run, the checker attributed all 212 lines to `Pass 364.0`, pushing it to 257 lines against the 80-line Next-up cap. Fixed by relocating the banner run back to the top of `## Next up` (no heading above it, as before) and re-inserting the `Pass 364.0` heading + body immediately after it, ahead of `### `Pass 5.4``. Content unchanged; only position moved. `Pass 364.0` entry now spans ~44 lines.
+- Five acceptance criteria from the original `Pass 10.11` scope were walked at ship time and NOT all met, recorded plainly on the entry rather than rounded up: `--timestamp-token` dropped (see above); optional TSA auth (basic/client-cert) not built, Backlog note only; `README.md`'s no-network claim NOT rewritten and stays true (the HTTP client is opt-in and off by default, so the released binary still ships none); a `/SV` seed value requiring `/TimeStamp` is still `SeedValueUnevaluable` even with a TSA supplied; B-LT/B-LTA remain out of scope, gated on `Pass 10.6`.
+- Sourcing (hard rule 8): this filing has no shell. Core/CLI/test/gate facts for `Pass 10.11` were relayed from the dispatching engineer's own report of `09c8e673`, not independently reproduced.
+
+**Still in flight:**
+- `Pass 10.10` (shell-side key sources) and B-LT/B-LTA (gated on `Pass 10.6`) remain the open items in the digital-signing arc.
+- `Pass 364.0` (scale page contents) still scoped-only per the 664th filing, unaffected in content by this filing's structural move.
+
+**For next session:**
+- `0171545f` (664th filing) and `09c8e673` (`Pass 10.11`) are both unpushed as of this filing — go out together in the next push. Check `docs/NEXT_SESSION.md` for the operator's ordered plan.
+
 ## 2026-09-27 (664th filing) — `Pass 364.0` scoped (scale page contents to a target size, "resize page contents")
 
 **Shipped:**
