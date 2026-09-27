@@ -187,6 +187,28 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
 
+### SINCE THE LAST HANDOFF — 2026-09-26, latest (`Pass 333.0`, 617th filing)
+
+- **Seven more indirect-entry clobbers fixed** (`ea5ecc0d`), the audit 332.0's
+  handoff asked for: page `/XObject` (add_image/flatten), widget `/MK` (three
+  sites), widget `/AP` (`set_widget_ap`, Shape-B regen), `/OCProperties`
+  (indirect `/OCGs`, and `/D` rebuilt from scratch every time: new
+  `merge_ocproperties` in `dimension/measure_dict.rs`), redaction overlay on a
+  page inheriting `/Resources` (`rewrite_page_dict` now takes the effective
+  resources), and `bind_font_resource` on a form-XObject owner. Tests:
+  `tests/indirect_entry_edits.rs`, 7, all red with the fixes stashed. Notice
+  posted to the GUI channel.
+- **Deliberately unchanged:** the two text-field `/AP` rebuilds (edit_field font
+  path, fill_text_field) start fresh on purpose, because a carried `/D` shows
+  stale text on mousedown.
+- **Welded doc comment fixed** (`673d9e0c`): the `std14_resource_key` residual
+  from 332.0.
+- **Not fixed, low confidence:** an inline `/Outlines` (only non-conforming
+  files have one) and an indirect `/Kids` leaving a dangling kid (not data
+  loss).
+- **Next:** Pass 142.0, the EMF nondeterminism Backlog item, and a v0.58.0
+  release (writes `pdfcer1`).
+
 ### SINCE THE LAST HANDOFF — 2026-09-26, newest (`Pass 332.0`, `v0.57.0`)
 
 - **Adding a form field no longer wipes an indirect `/Fields`, `/DR` or `/CO`**
@@ -194,7 +216,7 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   writers now inline them for the patch and write each changed one back to its
   own object (`acroform_write_parts`, `Held`). Data loss in every release
   through `v0.56.0`. Notice posted to the pdfcer-gui channel. Residual: a
-  welded doc comment on `std14_resource_key` in `edit.rs` (not fixed).
+  welded doc comment on `std14_resource_key` in `edit.rs` (fixed in 333.0).
 - **`v0.57.0` RELEASED** (`6d722b3d`, tag pushed, GitHub release zip + sha256,
   OneDrive `pdfcer2`; `pdfcer1` keeps 0.56.0). **The next release writes
   `pdfcer1`.** Smoke test exercised the 332.0 path through the shipped binary
