@@ -1365,11 +1365,6 @@ pub(crate) struct ExportState {
     pub dirty: bool,
     /// What was rasterised or approximated, for the disclosure.
     pub tally: ExportTally,
-    /// The last soft-mask coverage an elementary op was recorded under,
-    /// keyed by the address of the graphics state's own `Arc<Mask>`, so
-    /// a thousand glyphs under one mask share one `Arc` rather than
-    /// each copying a page-sized buffer.
-    pub mask_cache: Option<(*const Mask, Arc<Mask>)>,
     /// Whether shown strings are wrapped in [`Op::Text`] (G033).
     pub keep_text: bool,
     /// Each font seen while keeping text, with its §9.10.2 Unicode
@@ -1453,7 +1448,6 @@ impl RecorderState {
             pending_clip: None,
             dirty: false,
             tally: ExportTally::default(),
-            mask_cache: None,
             keep_text: false,
             text_fonts: Vec::new(),
         });
@@ -1686,24 +1680,23 @@ impl RecorderState {
     /// ops because that is the semantics (each object is masked
     /// individually, not the group of them). Cache mode is refused at
     /// the `gs` site by the interpreter.
-    pub(crate) fn push_masked(&mut self, op: Op, mask: Option<&Mask>) {
+    ///
+    /// The layer shares the graphics state's own `Arc`, so a thousand glyphs
+    /// under one mask share one allocation. Sharing the allocation is also
+    /// what makes it safe: a cache keyed on the mask's ADDRESS, holding only
+    /// a copy, let a freed mask's address be reused by the next glyph's
+    /// different mask, which then recorded under the stale coverage —
+    /// allocator-dependent, so SVG and EMF export varied from run to run.
+    pub(crate) fn push_masked(&mut self, op: Op, mask: Option<&Arc<Mask>>) {
         let Some(mask) = mask else {
             self.push(op);
             return;
         };
-        let Some(export) = self.export.as_mut() else {
+        if self.export.is_none() {
             self.push(op);
             return;
-        };
-        let ptr: *const Mask = mask;
-        let arc = match &export.mask_cache {
-            Some((p, arc)) if std::ptr::eq(*p, ptr) => Arc::clone(arc),
-            _ => {
-                let arc = Arc::new(mask.clone());
-                export.mask_cache = Some((ptr, Arc::clone(&arc)));
-                arc
-            }
-        };
+        }
+        let arc = Arc::clone(mask);
         self.push(Op::Layer {
             paint: LayerPaint {
                 opacity: 1.0,
@@ -1941,5 +1934,31 @@ mod tests {
         };
         assert_ne!(rec.push_clip(nested), a);
         assert_eq!(rec.clips.len(), 2);
+    }
+
+    /// A soft-masked op in an export recording carries the graphics
+    /// state's own mask allocation, so two glyphs with different masks
+    /// can never be recorded against the same mask. A recorder that
+    /// copied the mask and keyed the copy on the source's address let a
+    /// freed mask's address be reused by the next glyph's mask, and SVG
+    /// and EMF export varied between runs.
+    #[test]
+    fn a_masked_export_layer_shares_the_graphics_state_mask() {
+        let mut rec = Recorder::new_for_export(8, 8).expect("export recorder");
+        let first = Arc::new(Mask::new(8, 8).expect("mask"));
+        let second = Arc::new(Mask::new(8, 8).expect("mask"));
+        rec.push_masked(unit_fill(), Some(&first));
+        rec.push_masked(unit_fill(), Some(&second));
+        let (ops, _) = rec.finish();
+        let masks: Vec<Arc<Mask>> = ops
+            .iter()
+            .filter_map(|op| match op {
+                Op::Layer { mask, .. } => mask.clone(),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(masks.len(), 2, "one masked layer per op");
+        assert!(Arc::ptr_eq(&masks[0], &first));
+        assert!(Arc::ptr_eq(&masks[1], &second));
     }
 }

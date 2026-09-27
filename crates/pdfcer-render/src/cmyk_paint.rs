@@ -138,7 +138,7 @@ fn coverage(
         let stroked = path.clone().stroke(stroke?, 1.0)?;
         cov.fill_path(&stroked, FillRule::Winding, anti_alias, ctm);
     }
-    if let Some(old) = clip.mask {
+    if let Some(old) = clip.coverage() {
         // AND MULTIPLY THE CLIP ONLY OVER THE REGION, reading the clip
         // in place. The previous version did `old.data().to_vec()` — a
         // full page-sized COPY — and then multiplied across the whole
@@ -490,7 +490,7 @@ mod tests {
             None,
             Transform::identity(),
             ClipRef {
-                mask: Some(&clip),
+                mask: Some(&std::sync::Arc::new(clip)),
                 id: None,
             },
         );

@@ -677,7 +677,7 @@ impl GraphicsState {
     /// mask and forget the id — see [`Self::clip_id`].
     pub(crate) fn clip_ref(&self) -> crate::canvas::ClipRef<'_> {
         crate::canvas::ClipRef {
-            mask: self.clip.as_deref(),
+            mask: self.clip.as_ref(),
             id: self.clip_id,
         }
     }

@@ -506,11 +506,20 @@ pub(crate) struct LayerPaint {
 /// the pair they are.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct ClipRef<'a> {
-    /// The built coverage mask — always `None` while recording, because a
-    /// recording canvas never builds one.
-    pub mask: Option<&'a Mask>,
+    /// The graphics state's own coverage mask. While recording it is the
+    /// soft-mask coverage only (a recording canvas never builds a path
+    /// clip). Borrowed as the `Arc` so the recorder can hold the SAME
+    /// allocation rather than a copy — see `DisplayList::push_masked`.
+    pub mask: Option<&'a Arc<Mask>>,
     /// The recorded clip definition — always `None` while painting.
     pub id: Option<ClipId>,
+}
+
+impl<'a> ClipRef<'a> {
+    /// The coverage mask as the painters take it.
+    pub(crate) fn coverage(self) -> Option<&'a Mask> {
+        self.mask.map(|m| &**m)
+    }
 }
 
 /// The interpreter's drawing target.
@@ -756,12 +765,12 @@ impl<'a> Canvas<'a> {
         clip: ClipRef<'_>,
     ) {
         match self {
-            Self::Paint(p) => p.fill_path(path, &brush.to_paint(), rule, ctm, clip.mask),
+            Self::Paint(p) => p.fill_path(path, &brush.to_paint(), rule, ctm, clip.coverage()),
             Self::Knockout(k) => {
                 let bounds = fill_bounds(path, ctm);
                 let (opaque, q_s) = brush.split_shape_and_opacity();
                 k.element(bounds, q_s, brush.blend, |scratch| {
-                    scratch.fill_path(path, &opaque.to_paint(), rule, ctm, clip.mask);
+                    scratch.fill_path(path, &opaque.to_paint(), rule, ctm, clip.coverage());
                 });
             }
             Self::Cmyk(b) => {
@@ -792,12 +801,12 @@ impl<'a> Canvas<'a> {
         clip: ClipRef<'_>,
     ) {
         match self {
-            Self::Paint(p) => p.stroke_path(path, &brush.to_paint(), stroke, ctm, clip.mask),
+            Self::Paint(p) => p.stroke_path(path, &brush.to_paint(), stroke, ctm, clip.coverage()),
             Self::Knockout(k) => {
                 let bounds = stroke_bounds(path, stroke, ctm);
                 let (opaque, q_s) = brush.split_shape_and_opacity();
                 k.element(bounds, q_s, brush.blend, |scratch| {
-                    scratch.stroke_path(path, &opaque.to_paint(), stroke, ctm, clip.mask);
+                    scratch.stroke_path(path, &opaque.to_paint(), stroke, ctm, clip.coverage());
                 });
             }
             Self::Cmyk(b) => {
@@ -909,7 +918,7 @@ impl<'a> Canvas<'a> {
                     anti_alias,
                     force_hq_pipeline: false,
                 };
-                p.fill_path(path, &paint, FillRule::Winding, ctm, clip.mask);
+                p.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
             }
             Self::Cmyk(b) => {
                 // THIS USED TO BE "THE ONE PAINT KIND THAT CANNOT GO
@@ -974,7 +983,7 @@ impl<'a> Canvas<'a> {
                                 anti_alias,
                                 force_hq_pipeline: false,
                             };
-                            dst.fill_path(path, &paint, FillRule::Winding, ctm, clip.mask);
+                            dst.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
                         };
                         draw(&src.tints.cmy, &mut cmy);
                         draw(&src.tints.k, &mut k);
@@ -1037,7 +1046,7 @@ impl<'a> Canvas<'a> {
                             anti_alias,
                             force_hq_pipeline: false,
                         };
-                        dst.fill_path(path, &paint, FillRule::Winding, ctm, clip.mask);
+                        dst.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
                     };
                     draw(&ink.cmy, &mut cmy);
                     draw(&ink.k, &mut k);
@@ -1079,7 +1088,7 @@ impl<'a> Canvas<'a> {
                         anti_alias,
                         force_hq_pipeline: false,
                     };
-                    scratch.fill_path(path, &paint, FillRule::Winding, ctm, clip.mask);
+                    scratch.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
                     let region = device_region(fill_bounds(path, ctm), 1.0, b.width(), b.height());
                     if let Some(region) = region {
                         b.composite_srgb_with(
@@ -1113,7 +1122,7 @@ impl<'a> Canvas<'a> {
                         anti_alias,
                         force_hq_pipeline: false,
                     };
-                    scratch.fill_path(path, &paint, FillRule::Winding, ctm, clip.mask);
+                    scratch.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
                 });
             }
         }
@@ -1210,7 +1219,7 @@ impl<'a> Canvas<'a> {
                     anti_alias,
                     force_hq_pipeline: false,
                 };
-                dst.fill_path(path, &paint, FillRule::Winding, ctm, clip.mask);
+                dst.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
             };
             draw(&tints.cmy, &mut cmy);
             draw(&tints.k, &mut k);
