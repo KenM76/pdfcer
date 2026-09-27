@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 339.0` (`af7bd6f3`), 2026-09-27 — A per-widget edit no longer redraws its siblings
+
+**Verdict: SHIPPED, closes X2 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`338.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
+
+`EditSession::edit_widget` and `rotate_widget` passed the WHOLE field to the shared regenerator (`regen_field_appearance`), which rebuilds every widget belonging to that field. An edit on ONE placement minted new `/AP` streams for every sibling placement too — incremental-save churn plus replaced sibling artwork — while `WidgetEditOutcome::siblings_untouched` reported `n-1`, the opposite of what happened.
+
+**Fix.** Both verbs now narrow the field to the edited widget alone before calling the shared regenerator, via a private `only_widget` helper, so siblings are re-emitted byte-identical.
+
+**Tests.** `crates/pdfcer-core/tests/form_edit_audit.rs::a_widget_edit_does_not_redraw_its_siblings` asserts the sibling's `/AP` `/N` object number is unchanged; before the fix it moved from `8 0 R` to a freshly-allocated object. `tools/run-gates.sh`: PASS (39 commands). No `pub` change, no manifest change.
+
+**Shells.** Core fix only, reached by CLI `edit-widget`/`rotate-widget` unchanged. Neither box moves.
+
+**`docs/FEATURES.md`:** no change — row 318 is already near the 1,200-char cap (~1,106 chars) and this closure needs no new clause there; it's recorded in the Backlog audit item's text below instead.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `af7bd6f3`, not independently reproduced.
+
 ### `Pass 338.0` (`e636f240`), 2026-09-27 — Property redraws use the form's `/DA` and `/DR` fonts
 
 **Verdict: SHIPPED, closes D5/X1 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`, `336.0`, `337.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
@@ -16907,6 +16923,8 @@ suspicion this entry recorded.
 
 ★ **Fourth fix shipped — 2026-09-27 (623rd filing, `Pass 338.0`, `e636f240`).** Closes D5/X1, below, and partly fixes D4: `regen_after_property_change` fell back to a hard-coded `/Helv 0 Tf 0 g` and resolved only `Helv`; it now falls back to the `/AcroForm`'s `/DA` and resolves every `/DR` font plus the caller's staged face — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and six `WidgetEdit` findings remain.
 
+★ **Fifth fix shipped — 2026-09-27 (624th filing, `Pass 339.0`, `af7bd6f3`).** Closes X2, below: `EditSession::edit_widget` and `rotate_widget` passed the whole field to the shared regenerator, which rebuilt every sibling widget's `/AP` while `siblings_untouched` reported `n-1`; both verbs now narrow the regenerator's input to the edited widget alone — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and five `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -16924,7 +16942,7 @@ suspicion this entry recorded.
 - Stroke-width scaling is reported but not drawn.
 - Radio caption and text/choice caption falsely report Regenerated (text/choice also churns a new `/AP` it didn't need to).
 - `/MK` `/BG`/`/BC` written f32-widened, e.g. `[0.20000000298023224]` (`MkColor::to_array`).
-- X2 — `regen_field_appearance` rebuilds every sibling widget while reporting `siblings_untouched`.
+- X2 — CLOSED by `Pass 339.0`, above. Was: `regen_field_appearance` rebuilds every sibling widget while reporting `siblings_untouched`.
 
 ### Unscoped — An INDIRECT `/CO` reference is silently replaced by a fresh array on append, losing whatever else referenced it — filed 2026-09-16 (563rd filing, `Pass 308.6`), no Pass ID
 
