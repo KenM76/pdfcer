@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 337.0` (`35ab8c5f`), 2026-09-26 — An options change redraws the new label, not the stale one
+
+**Verdict: SHIPPED, closes D3 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0` and `Pass 336.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
+
+`EditSession::edit_field` redraws a choice field's appearance from a pre-command field snapshot. `choice_display_text` maps `/V`'s export value to display text through that snapshot's OPTIONS — so renaming the selected option's display label (export `a`: `Apple` → `Avocado`) re-baked `(Apple) Tj` into the `/AP` stream while `/Opt` already said `Avocado`, and reported `appearance_regenerated=true`.
+
+**Fix.** The snapshot's options are patched from the options list actually being written, before `choice_display_text` runs — the same repair `/DA` and `/Q` already needed (`Pass 268.0`, `308.4`).
+
+**Tests.** `crates/pdfcer-core/tests/form_edit_audit.rs::renaming_the_selected_options_label_redraws_the_new_label` asserts `/AP` stream bytes; fails with the source fix stashed. `tools/run-gates.sh`: PASS (39 commands). No manifest change, no `pub` surface change, `docs/core-api/` unchanged.
+
+**Shells.** Core fix only, reached by CLI `edit-field`'s options flags with no CLI change. Neither box moves.
+
+**`docs/FEATURES.md`:** row 318 noted in prose (well under the 1,200-char cap); no box change — correctness fix under an already-ticked capability.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `35ab8c5f`, not independently reproduced.
+
 ### `Pass 336.0` (`6af2773c`), 2026-09-26 — Clearing a kid's `/Ff` or `/DV` no longer inherits the parent's
 
 **Verdict: SHIPPED, closes D6 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; first fix was `Pass 335.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
@@ -16871,9 +16887,11 @@ suspicion this entry recorded.
 
 ★ **Second fix shipped — 2026-09-26 (621st filing, `Pass 336.0`, `6af2773c`).** Closes D6, below: a cleared `/Ff` now writes `/Ff 0` and a cleared `/DV` writes the type's own empty value, when an ancestor sets that key, instead of deleting the kid's own key and re-exposing the ancestor's — see *Shipped*, above. **Kept open** — eight `FieldEdit` findings and six `WidgetEdit` findings remain.
 
+★ **Third fix shipped — 2026-09-26 (622nd filing, `Pass 337.0`, `35ab8c5f`).** Closes D3, below: `EditSession::edit_field` redrew a choice field's label through the pre-command snapshot's stale options; the snapshot is now patched from the options list being written, before `choice_display_text` runs — same repair as `/DA` and `/Q`. **Kept open** — seven `FieldEdit` findings and six `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
-- D3 — an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
+- D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
 - D5/X1 — `regen_after_property_change` falls back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redraws in Helvetica, and a non-Helv `/DA` key gives `FontUnresolved` on a later edit.
 - D4 — a resource font is forced to Helvetica.
 - D4b — a push-button `/DA` edit is not redrawn.
