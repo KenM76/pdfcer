@@ -115,6 +115,48 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 334.0` (`12182b5b`), 2026-09-26 — SVG and EMF export are deterministic under soft masks
+
+**Verdict: SHIPPED, closes the Backlog entry "EMF export nondeterministic on
+veraPDF `6-2-9-t04-fail-d`" filed 2026-09-26 (608th filing) — measurement
+found SVG export shared the same defect, not reported at filing time.**
+
+The export recorder (`DisplayList` in export mode, shared by SVG and EMF
+export — `crates/pdfcer-render/src/display_list.rs`) copied each soft mask
+into a new `Arc` and memoised that copy keyed on the **source mask's
+pointer address**, without holding the source `Arc` alive. Once a glyph's
+graphics state was freed, a later glyph's *different* mask could be
+allocated at the freed address and get recorded against the stale cached
+copy — a classic address-reuse-after-drop bug. `canvas.rs`, `cmyk_paint.rs`
+and `gstate.rs` were touched only to plumb the shared `Arc` through; no
+behavior change there.
+
+**Repro.** `fixtures/external/veraPDF-corpus/PDF_A-4/6.2 Graphics/6.2.9
+Transparency/veraPDF test suite 6-2-9-t04-fail-d.pdf` — a Type3 string with
+one luminosity `/SMask` per glyph. Before the fix: EMF gave 3 distinct
+outputs across 6 runs (bitmap-fallback element count 3 vs 4); SVG varied
+too, previously unreported. After the fix: 20/20 identical EMF exports and
+20/20 identical SVG exports, rasters=4 stable.
+
+**Fix.** `Op::Layer` now shares the graphics state's own `Arc<Mask>`
+directly instead of copying it; the address-keyed cache was removed.
+
+**Tests.** New
+`display_list::tests::a_masked_export_layer_shares_the_graphics_state_mask`
+— sabotage-checked, fails if `push_masked` copies the mask instead of
+sharing it. `tools/run-gates.sh`: PASS (39 commands, including 2 filing
+gates). `cargo fmt --check` and `cargo clippy -- -D warnings` clean.
+
+**No manifest change** — `cargo tree` unaffected (touches `pdfcer-render`
+only). **No CLI or public-API surface change** — `docs/core-api` untouched.
+
+**`docs/FEATURES.md`:** no row change — correctness fix under
+already-shipped SVG/EMF export capabilities, not new reach.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own verified report of `12182b5b`, not
+independently reproduced.
+
 ### `Pass 333.0` (`ea5ecc0d`, `673d9e0c`), 2026-09-26 — Fix-on-discovery sweep: edits no longer wipe an indirect `/XObject`, `/MK`, `/AP`, `/OCGs` or inherited `/Resources`
 
 **Verdict: SHIPPED, fix-on-discovery sweep following `Pass 332.0`** (same
@@ -16694,20 +16736,13 @@ under Next up.**
 
 ### Unscoped — EMF export nondeterministic on veraPDF `6-2-9-t04-fail-d`: bitmap-fallback element count varies 2–4 across runs — filed 2026-09-26 (608th filing, found during `11e7a0e5`'s A/B verification), no Pass ID
 
-**Found, not introduced.** The A/B comparison of `pdfcer-render`'s
-`indexing_slicing` lint pass (2,293 of 2,294 exports byte-identical across
-860 fixtures × 4 export shapes) turned up one mismatch: repeat EMF exports
-of veraPDF fixture `6-2-9-t04-fail-d` embed 2, 3 or 4 elements as bitmap
-fallback across runs — and the **pre-`11e7a0e5` binary reproduces the same
-variance**, so this is not a regression from that commit, only a defect it
-happened to surface. Some prior state (raster-cache eviction order, a HashMap
-iteration order, or similar) decides the fallback threshold nondeterministically
-for this one fixture.
-
-**Scope, not yet measured.** Bisect which element(s) flip and why (iteration
-order over an unordered collection is the leading suspect); a fix should make
-EMF export byte-identical across repeat runs on the same input, same as every
-other export shape already is.
+**CLOSED by `Pass 334.0` (`12182b5b`, 2026-09-26, 618th filing) — see
+*Shipped*, above.** Kept legible below rather than deleted, per this file's
+own convention for a superseded entry. Measurement found the defect wider
+than this entry states: SVG export shared the same address-keyed soft-mask
+cache bug as EMF, not reported at filing time — root cause was a cache
+keyed on a freed `Arc<Mask>`'s pointer address, not the iteration-order
+suspicion this entry recorded.
 
 ### Unscoped — Audit every `FieldEdit`/`WidgetEdit` property: does its regeneration path actually READ it? — filed 2026-09-16 (562nd filing, `pdfcer-gui`'s own recommendation after `G022`/`G023`), no Pass ID
 

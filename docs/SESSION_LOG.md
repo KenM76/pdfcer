@@ -4,6 +4,51 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (618th filing) — `12182b5b`: `Pass 334.0` SHIPPED — SVG and EMF export are deterministic under soft masks
+
+**Shipped:**
+- `Pass 334.0` — closes the Backlog entry "EMF export nondeterministic on
+  veraPDF `6-2-9-t04-fail-d`" filed 2026-09-26 (608th filing). Measurement
+  found SVG export shared the same defect, not reported at filing time.
+
+**Decisions made this session:** none — bug fix, no architecture change.
+
+**Findings + decisions:**
+- Root cause: the export recorder (`DisplayList` in export mode, shared by
+  SVG and EMF export) copied each soft mask into a new `Arc` and memoised
+  the copy keyed on the **source mask's pointer address**, without holding
+  the source `Arc` alive. After a glyph's graphics state was freed, a later
+  glyph's different mask could land at the freed address and get recorded
+  against the stale cached copy — address-reuse-after-drop, not the
+  iteration-order theory the Backlog entry had recorded.
+- Repro: veraPDF `6-2-9-t04-fail-d.pdf` (one luminosity `/SMask` per glyph,
+  Type3 string). Before: EMF 3 distinct outputs in 6 runs, SVG also varied.
+  After: 20/20 identical EMF, 20/20 identical SVG, rasters=4 stable.
+- Fix: `Op::Layer` shares the graphics state's own `Arc<Mask>` instead of
+  copying; the address-keyed cache was removed. Touches `pdfcer-render`
+  only (`canvas.rs`, `cmyk_paint.rs`, `display_list.rs`, `gstate.rs`); no
+  manifest change, no CLI/API surface change.
+- New sabotage-checked test:
+  `display_list::tests::a_masked_export_layer_shares_the_graphics_state_mask`.
+  `tools/run-gates.sh`: PASS (39 commands, incl. 2 filing gates); fmt and
+  clippy `-D warnings` clean.
+- `docs/FEATURES.md`: no row change — correctness fix under already-shipped
+  export capabilities.
+- New lesson: `D:\dev\rag\rust\a_cache_keyed_on_a_pointer_address_is_unsound_without_holding_the_allocation_alive.md`,
+  indexed in `D:\dev\rag\rust\index.md`.
+- Checked the Backlog `/CO`-indirect-reference entry (filed 563rd filing):
+  already CLOSED, pointing at `Pass 332.0` (`e9236215`) — no further action
+  needed this filing.
+
+**Still in flight:** `Pass 142.0` (embedded-donor `format-text --set-font`)
+scoping continues.
+
+**For next session:** none specific.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own verified report of `12182b5b`, not
+independently reproduced.
+
 ## 2026-09-26 (617th filing) — `ea5ecc0d`, `673d9e0c`: `Pass 333.0` SHIPPED — fix-on-discovery sweep, six indirect/inherited-entry clobbers fixed
 
 **Shipped:**
