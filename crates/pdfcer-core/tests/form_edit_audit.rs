@@ -9,7 +9,7 @@
 )]
 
 use pdfcer_core::document::Document;
-use pdfcer_core::edit::{EditSession, Visibility, WidgetEdit};
+use pdfcer_core::edit::{EditSession, FieldEdit, Visibility, WidgetEdit};
 use pdfcer_core::forms;
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{Dict, ObjId, Object};
@@ -104,5 +104,60 @@ fn visibility_reads_through_flags_it_does_not_own() {
         field(&s, "Name").widgets[0].visibility,
         None,
         "Print | Hidden is not one of the four and still reads as None"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Clearing an inheritable entry must not re-expose the parent's (12.7.3.1)
+// ---------------------------------------------------------------------------
+
+/// Parent `P` (object 4) carries `parent`; its kid `P.K` (object 5, a merged
+/// text field + widget) carries `kid`.
+fn parent_and_kid(parent: &str, kid: &str) -> EditSession {
+    let parent = format!("<< /FT /Tx /T (P) /Kids [5 0 R] {parent} >>");
+    let kid = format!(
+        "<< /Type /Annot /Subtype /Widget /Parent 4 0 R /T (K) /P 3 0 R          /Rect [20 300 220 324] {kid} >>"
+    );
+    session(&[
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Annots [5 0 R] >>",
+        &parent,
+        &kid,
+    ])
+}
+
+#[test]
+fn clearing_a_kids_last_flag_does_not_inherit_the_parents_flags() {
+    // Parent is ReadOnly (1); the kid overrides with its own Required (2).
+    let mut s = parent_and_kid("/Ff 1", "/Ff 2");
+    s.edit_field("P.K", &FieldEdit::new().with_required(false))
+        .unwrap();
+    assert_eq!(
+        obj_dict(&s, 5).get(b"Ff").and_then(Object::as_int),
+        Some(0),
+        "removing the kid's /Ff would make it inherit the parent's ReadOnly"
+    );
+    assert!(!field(&s, "P.K").flags.has(forms::FieldFlags::READ_ONLY));
+}
+
+#[test]
+fn clearing_a_kids_last_flag_with_no_ancestor_flags_still_removes_the_key() {
+    let mut s = parent_and_kid("", "/Ff 2");
+    s.edit_field("P.K", &FieldEdit::new().with_required(false))
+        .unwrap();
+    assert!(obj_dict(&s, 5).get(b"Ff").is_none());
+}
+
+#[test]
+fn clearing_a_kids_default_does_not_inherit_the_parents_default() {
+    let mut s = parent_and_kid("/DV (parent)", "/DV (kid) /V (typed)");
+    s.edit_field("P.K", &FieldEdit::new().clearing_default_value())
+        .unwrap();
+    s.reset_form(None).unwrap();
+    let v = obj_dict(&s, 5).get(b"V").cloned();
+    assert!(
+        !matches!(&v, Some(Object::String(t)) if t.as_slice() == b"parent"),
+        "a reset after clearing the default restored the parent's: {v:?}"
     );
 }

@@ -18078,6 +18078,24 @@ fn inherited_dv<G: ObjectGraph + ?Sized>(graph: &G, start: ObjId) -> Option<Obje
     }
     None
 }
+/// The value `key` would take on `field` if the field's own entry were
+/// removed: the nearest ancestor's (§12.7.3.1), or `None` when no ancestor
+/// sets it. Removing a key is only a no-op "clear" when this is `None`;
+/// otherwise the removal re-exposes the ancestor's value.
+fn ancestor_entry<G: ObjectGraph + ?Sized>(graph: &G, field: ObjId, key: &[u8]) -> Option<Object> {
+    let mut current = graph
+        .resolved(field)
+        .as_dict()
+        .and_then(|d| d.get(b"Parent").and_then(Object::as_reference));
+    for _ in 0..forms::MAX_FIELD_TREE_DEPTH {
+        let dict = graph.resolved(current?).as_dict()?;
+        if let Some(v) = dict.get(key) {
+            return Some(graph.resolve(v).clone());
+        }
+        current = dict.get(b"Parent").and_then(Object::as_reference);
+    }
+    None
+}
 /// What [`EditSession::set_object_paint`] did, per object (`Pass 219.0`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -22489,6 +22507,9 @@ pub struct FieldEdit {
     /// `Some(None)` removes it, which makes a reset CLEAR the field
     /// (`reset_form` already reads `/DV` and removes `/V` where there is
     /// none). `Some(Some(text))` sets it.
+    /// When an ancestor sets `/DV` (§12.7.3.1), removal would inherit it, so
+    /// `Some(None)` writes the empty value instead (`/Off` for a button, an
+    /// empty string otherwise) and `default_value` reads back as that.
     ///
     /// # Why this matters more than it looks
     ///
@@ -26801,7 +26822,9 @@ impl EditSession {
             });
         };
         let mut dict = dict.clone();
-        if flags.0 == 0 {
+        // Removing `/Ff` re-exposes an ancestor's flags (§12.7.3.1), so a
+        // cleared word is only dropped when nothing above would take its place.
+        if flags.0 == 0 && ancestor_entry(&self.graph(), field.id, b"Ff").is_none() {
             dict.remove(b"Ff");
         } else {
             dict.insert(Name::from(b"Ff"), Object::Integer(i64::from(flags.0)));
@@ -26875,6 +26898,18 @@ impl EditSession {
                     Object::String(encode_text_string(v))
                 };
                 dict.insert(Name::from(b"DV"), value);
+            }
+            // Removing `/DV` would inherit an ancestor's default, so under one
+            // a cleared default is written as the type's empty value instead:
+            // `/Off` for a button, an empty string otherwise. A reset then
+            // empties the field, which is what "no default" means.
+            Some(None) if ancestor_entry(&self.graph(), field.id, b"DV").is_some() => {
+                let empty = if ft == Some(forms::FieldType::Button) {
+                    Object::Name(Name::from(b"Off"))
+                } else {
+                    Object::String(encode_text_string(""))
+                };
+                dict.insert(Name::from(b"DV"), empty);
             }
             Some(None) => {
                 dict.remove(b"DV");
