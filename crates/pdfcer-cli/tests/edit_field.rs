@@ -861,3 +861,64 @@ fn a_scaled_border_width_is_drawn() {
         "the redraw kept the old border width"
     );
 }
+
+/// A field with no `/Q` of its own is filled with the `/AcroForm` `/Q`
+/// (Table 218's document-wide default), exactly as if it carried it.
+#[test]
+fn a_fill_honours_the_forms_default_quadding() {
+    let dir = TempDir::new("acroform-q");
+    let pdf = |acro_q: &str, field_q: &str| {
+        build_pdf(&[
+            (
+                1,
+                format!(
+                    "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] {acro_q} \
+                     /DA (/Helv 10 Tf 0 g) /DR << /Font << /Helv 5 0 R >> >> >> >>"
+                ),
+            ),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned()),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [4 0 R] >>"
+                    .to_owned(),
+            ),
+            (
+                4,
+                format!(
+                    "<< /FT /Tx /T (t) /Type /Annot /Subtype /Widget /P 3 0 R \
+                     /Rect [20 50 200 72] {field_q} >>"
+                ),
+            ),
+            (
+                5,
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica \
+                 /Encoding /WinAnsiEncoding >>"
+                    .to_owned(),
+            ),
+        ])
+    };
+    let text_matrix = |name: &str, bytes: Vec<u8>| {
+        let src = dir.write(&format!("{name}.pdf"), &bytes);
+        let out = dir.join(&format!("{name}-filled.pdf"));
+        let r = run(&[
+            "fill-field",
+            src.to_str().unwrap(),
+            "--set",
+            "t=Hi",
+            "-o",
+            out.to_str().unwrap(),
+        ]);
+        assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+        let filled = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+        filled
+            .lines()
+            .find(|l| l.ends_with(" Tm"))
+            .expect("a text matrix in the filled appearance")
+            .to_owned()
+    };
+    assert_eq!(
+        text_matrix("inherited", pdf("/Q 1", "")),
+        text_matrix("own", pdf("", "/Q 1")),
+        "the form-wide centring was not drawn"
+    );
+}

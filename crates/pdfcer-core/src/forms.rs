@@ -770,7 +770,8 @@ pub struct Field {
     /// The resolved `/DA` default-appearance string (raw bytes), or `None`
     /// (a variable-text field then falls back to the AcroForm `/DA`).
     pub default_appearance: Option<Vec<u8>>,
-    /// The resolved `/Q` quadding for variable text (default left).
+    /// The resolved `/Q` quadding for variable text: the field's own, else
+    /// an ancestor's, else the `/AcroForm` `/Q` (Table 218), else left.
     pub quadding: Quadding,
     /// `/MaxLen` — the maximum text length / comb count (text fields).
     pub max_len: Option<i64>,
@@ -1277,11 +1278,20 @@ pub fn parse_acroform<G: ObjectGraph + ?Sized>(graph: &G) -> Option<AcroForm> {
                 None => inline_field_roots += 1,
             }
         }
+        // The `/AcroForm` `/Q` is the document-wide default quadding
+        // (Table 218), so it seeds the chain below every field's ancestors.
+        let root = Inherited {
+            quadding: acro
+                .get(b"Q")
+                .map(|o| graph.resolve(o))
+                .and_then(Object::as_int),
+            ..Inherited::default()
+        };
         for id in root_ids {
             walk_field(
                 graph,
                 id,
-                &Inherited::default(),
+                &root,
                 String::new(),
                 None,
                 0,

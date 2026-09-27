@@ -3329,7 +3329,7 @@ reader rather than by a test.
 (§12.7.3.2), resolved own → ancestors → `/AcroForm` → `0`. A field under a
 parent carrying `/Q 1` goes back to **centred** when its own key is removed.
 `EditSession::inherited_quadding` resolves it, and the read model
-(`forms::Field::quadding`) has always agreed — the two now cannot disagree. If
+(`forms::Field::quadding`) resolves the same chain, `/AcroForm` `/Q` included. If
 your UI labels the clear action, *"inherit"* is the honest word; *"left"* is
 only correct when nothing above the field states one.
 
