@@ -8399,6 +8399,29 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+### `Pass 366.0` — WYSIWYG typing preview for text editing — inbound `pdfcer-gui` request `G046` (operator ask `O247`), filed 2026-09-27 (668th filing), **NOT STARTED**
+
+**Ask (verbatim, O247):** *"When we edit text can we make it edit wysiwyg fashion instead of the pop up text box with unmatched font?"* `G046` left the core/render split open — this Pass makes that call.
+
+**Problem, measured on the benchmark site plan** (`D:\pdfTests\ncored-benchmark-cad-drawing.pdf`): `EditSession::edit_text` costs **~500–560 ms per call**, against a <16 ms/keystroke budget. Split: `current_page_content` decode **~185 ms over 14,188,066 decoded bytes**; the text-edit `Walk` in `plan_edit_target` **~190–224 ms over 1,142,725 operator records**; remaining plan **~45 ms**; command build **5–12 ms**.
+
+**Design (core/render seam is the engine's call — `G046` left it open):**
+1. **Core**: a one-slot text-walk cache on `EditSession` (decoded page stream + `Walk` records), keyed like `page_objects_cache` (`PageModelKey`: page id + staged content spans + resources) plus the staged spans of the page's `/Font` resource objects — a span key, same reasoning as `page_objects_cache`, not a digest/generation counter. Plain field behind `&mut self`, so the verb is `EditSession::edit_text_preview(&mut self, …)`, **not** the `&self` the request sketched — the deviation is stated here so it is visible, not silent, and belongs in the reply to `G046`.
+2. **Core**: `edit_text_preview(&mut self, &EditRequest, &EditOptions) -> Result<TextEditPreview, text_edit::EditError>` runs the SAME plan (anchor, gates, re-encode, refusals, disclosures) against the cached records, writes nothing, and returns laid-out codes: per-glyph char + code + glyph-space→page-user-space matrix (`Walk` gains CTM tracking for this), the run's font dict, fill colour as device components, advance bbox in page space, and the disclosures `edit_text`'s report would carry. `edit_text`'s own page branch reuses the same cache.
+3. **Render**: turns a `TextEditPreview` into page-space `tiny_skia` outline paths through the render path's own font loading (embedded/bundled/supplied program, code→GID ladder) — so the preview's glyph shapes are the ones a post-commit render would paint (rule 4: a preview must not differ from the committed result).
+
+**Acceptance:**
+1. A preview on the benchmark plan's "krovimo" run is under 16 ms after the first call on that page.
+2. Preview glyph codes/positions equal what `edit_text` commits — test compares preview layout against the committed stream re-walked.
+3. Refused characters return the same `EditError` `edit_text` would.
+4. A preview stages nothing — undo stack and staging unchanged, asserted by test.
+5. `docs/core-api` updated for the new verb and cache field.
+6. Reply posted to `G046` on the channel.
+
+**`docs/FEATURES.md`**: new row in *Planned, in predicted order* — `[ ] — [ ] ?`, "live typing preview in the run's own font"; `cli` is `—`, not `[ ]` — a per-keystroke preview has no batch shape, stated in the row itself.
+
+---
+
 > ★★★★ **`Pass 330.0` SHIPPED, 2026-09-26 (609th filing), `3127b18c`** — see
 > top of *Shipped*. Filed *Next up* by the 608th filing, found by rotation
 > from the redaction shared-content-stream fix (`e92cf7dd`); this banner is
