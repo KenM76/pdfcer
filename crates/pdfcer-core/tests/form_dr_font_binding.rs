@@ -43,10 +43,11 @@ fn session(da_key: &str) -> EditSession {
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [4 0 R] >>".to_owned(),
         format!(
             "<< /FT /Tx /T (t) /Type /Annot /Subtype /Widget /P 3 0 R \
-             /Rect [20 50 200 72] /DA (/{da_key} 12 Tf 0 g) >>"
+             /Rect [20 50 200 72] /Q 1 /DA (/{da_key} 12 Tf 0 g) >>"
         ),
         "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
-         /Encoding /WinAnsiEncoding >>"
+         /Encoding /WinAnsiEncoding /FirstChar 72 /LastChar 72 /Widths [1000] \
+         /FontDescriptor << /MissingWidth 250 >> >>"
             .to_owned(),
         "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
          /Encoding << /BaseEncoding /WinAnsiEncoding /Differences [65 /B] >> >>"
@@ -170,4 +171,43 @@ fn a_push_button_caption_draws_with_the_dr_font() {
         .and_then(|f| f.get(b"F1"))
         .cloned();
     assert_eq!(font, Some(Object::Reference(ObjId::new(5, 0))));
+}
+
+/// The first `Tm` x origin in the field's `/AP` `/N`.
+fn first_x(s: &EditSession) -> f64 {
+    let g = s.graph();
+    let Object::Dict(field) = g.resolve(&Object::Reference(ObjId::new(4, 0))).clone() else {
+        panic!("field is not a dictionary");
+    };
+    let n = field
+        .get(b"AP")
+        .map(|o| g.resolve(o))
+        .and_then(Object::as_dict)
+        .and_then(|ap| ap.get(b"N"))
+        .map(|o| g.resolve(o).clone());
+    let Some(Object::Stream(n)) = n else {
+        panic!("no /AP /N stream");
+    };
+    let body =
+        String::from_utf8_lossy(s.view().slice(n.data_span).unwrap_or_default()).into_owned();
+    let tm = body
+        .lines()
+        .find(|l| l.ends_with(" Tm"))
+        .unwrap_or_else(|| panic!("no Tm in {body}"));
+    tm.split(' ').nth(4).unwrap().parse().unwrap()
+}
+
+/// A bound font is also measured with its own `/Widths`: centring "HA" in
+/// the 180 pt box uses H = 1000 (`/Widths`) and A = 250 (`/MissingWidth`,
+/// A lying outside `FirstChar..=LastChar`), not Helvetica's 722 + 667.
+#[test]
+fn a_bound_font_is_laid_out_with_its_own_widths() {
+    let mut s = session("F1");
+    s.fill_text_field("t", "HA").unwrap();
+    let x = first_x(&s);
+    let want = (180.0 - 12.0 * 1.25) / 2.0;
+    assert!(
+        (x - want).abs() < 1e-6,
+        "centred at {x}, want {want}: measured with Helvetica, not /Widths"
+    );
 }

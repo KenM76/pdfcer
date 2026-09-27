@@ -4813,6 +4813,7 @@ fn free_text(
     let resources = [FontResource {
         name: TEXT_FONT_RESOURCE.to_vec(),
         font,
+        widths: None,
     }];
     let va = vartext::build_variable_text(bbox, text, &da, quadding, multiline, &resources)?;
 
@@ -5143,6 +5144,7 @@ fn stamp(
     let resources = [FontResource {
         name: TEXT_FONT_RESOURCE.to_vec(),
         font: Std14::HelveticaBold,
+        widths: None,
     }];
     let da = vartext::default_appearance_string(TEXT_FONT_RESOURCE, size, TextColor::from(color));
     let band_h = vartext::text_band_height(Std14::HelveticaBold, size);

@@ -23795,6 +23795,7 @@ impl EditSession {
         let resources = [crate::vartext::FontResource {
             name: b"Helv".to_vec(),
             font: crate::fontdata::Std14::Helvetica,
+            widths: None,
         }];
         // THE SAME builder a fill uses (R92: one regenerator, never two).
         // A created field and a filled one therefore cannot disagree about
@@ -25925,6 +25926,7 @@ impl EditSession {
                     Some(crate::vartext::FontResource {
                         name: key,
                         font: metrics,
+                        widths: None,
                     }),
                 )
             }
@@ -27965,6 +27967,7 @@ impl EditSession {
         let resources = [crate::vartext::FontResource {
             name: b"Helv".to_vec(),
             font: crate::fontdata::Std14::Helvetica,
+            widths: None,
         }];
         let appearance = annot_author::build_push_button_appearance(
             w,
@@ -28209,6 +28212,7 @@ impl EditSession {
         let resources = [crate::vartext::FontResource {
             name: b"Helv".to_vec(),
             font: crate::fontdata::Std14::Helvetica,
+            widths: None,
         }];
         // THE SAME builder a fill and a text field use (R92).
         let appearance = annot_author::build_field_text_appearance(
@@ -40211,6 +40215,7 @@ impl EditSession {
                             FieldFont::Standard(f) => *f,
                             FieldFont::Resource(_) => crate::fontdata::Std14::Helvetica,
                         },
+                        widths: None,
                     });
                 }
                 Some(crate::vartext::default_appearance_string(
@@ -40981,6 +40986,7 @@ impl EditSession {
         let mut out = vec![FontResource {
             name: b"Helv".to_vec(),
             font: Std14::Helvetica,
+            widths: None,
         }];
         let graph = self.graph();
         let dr_font = graph
@@ -40994,18 +41000,24 @@ impl EditSession {
             .cloned();
         if let Some(fonts) = dr_font {
             for (name, val) in fonts.iter() {
-                let base = graph
-                    .resolve(val)
-                    .as_dict()
+                let fd = graph.resolve(val).as_dict();
+                let base = fd
                     .and_then(|fd| fd.get(b"BaseFont"))
                     .and_then(Object::as_name)
                     .and_then(|n| crate::fontdata::basefont_to_std14(n.as_bytes()))
                     .unwrap_or(Std14::Helvetica);
+                // Measured with the font's own `/Widths` exactly when
+                // `bind_dr_fonts` will draw with it, so layout and glyphs
+                // come from one font.
+                let widths = fd
+                    .filter(|fd| Self::dr_font_is_bindable(&graph, fd))
+                    .and_then(|fd| Self::simple_font_widths(&graph, fd));
                 let nm = name.as_bytes().to_vec();
                 if !out.iter().any(|r| r.name == nm) {
                     out.push(FontResource {
                         name: nm,
                         font: base,
+                        widths,
                     });
                 }
             }
@@ -41047,34 +41059,83 @@ impl EditSession {
             let Some(raw) = dr_fonts.get(key.as_bytes()) else {
                 continue;
             };
-            let Some(fd) = graph.resolve(raw).as_dict() else {
-                continue;
-            };
-            let simple = fd
-                .get(b"Subtype")
-                .and_then(Object::as_name)
-                .is_some_and(|n| matches!(n.as_bytes(), b"Type1" | b"TrueType" | b"MMType1"));
-            let standard = fd
-                .get(b"BaseFont")
-                .and_then(Object::as_name)
-                .and_then(|n| crate::fontdata::basefont_to_std14(n.as_bytes()))
-                .is_some();
-            let winansi = match fd.get(b"Encoding").map(|o| graph.resolve(o)) {
-                Some(Object::Name(n)) => n.as_bytes() == b"WinAnsiEncoding",
-                Some(Object::Dict(e)) => {
-                    e.get(b"Differences").is_none()
-                        && e.get(b"BaseEncoding")
-                            .and_then(Object::as_name)
-                            .is_some_and(|n| n.as_bytes() == b"WinAnsiEncoding")
-                }
-                _ => false,
-            };
-            if simple && !standard && winansi {
+            if graph
+                .resolve(raw)
+                .as_dict()
+                .is_some_and(|fd| Self::dr_font_is_bindable(&graph, fd))
+            {
                 *slot = raw.clone();
             }
         }
         res.insert(Name::from(b"Font"), Object::Dict(fonts));
         ap_dict.insert(Name::from(b"Resources"), Object::Dict(res));
+    }
+
+    /// Whether a `/DR` font can be drawn with the generator's `WinAnsi`
+    /// bytes in place of its standard-14 stand-in: a simple font (§9.6) that
+    /// is not standard-14, encoded `/WinAnsiEncoding` with no `/Differences`.
+    fn dr_font_is_bindable(graph: &impl ObjectGraph, fd: &Dict) -> bool {
+        let simple = fd
+            .get(b"Subtype")
+            .and_then(Object::as_name)
+            .is_some_and(|n| matches!(n.as_bytes(), b"Type1" | b"TrueType" | b"MMType1"));
+        let standard = fd
+            .get(b"BaseFont")
+            .and_then(Object::as_name)
+            .and_then(|n| crate::fontdata::basefont_to_std14(n.as_bytes()))
+            .is_some();
+        let winansi = match fd.get(b"Encoding").map(|o| graph.resolve(o)) {
+            Some(Object::Name(n)) => n.as_bytes() == b"WinAnsiEncoding",
+            Some(Object::Dict(e)) => {
+                e.get(b"Differences").is_none()
+                    && e.get(b"BaseEncoding")
+                        .and_then(Object::as_name)
+                        .is_some_and(|n| n.as_bytes() == b"WinAnsiEncoding")
+            }
+            _ => false,
+        };
+        simple && !standard && winansi
+    }
+
+    /// A simple font's advance widths by code: `Widths[code - FirstChar]`,
+    /// else `/FontDescriptor` `/MissingWidth` (default 0) — §9.6.2.1
+    /// Table 111, §9.8.1 Table 122. `None` when `/Widths` or `/FirstChar`
+    /// is absent or malformed.
+    fn simple_font_widths(graph: &impl ObjectGraph, fd: &Dict) -> Option<Box<[u16; 256]>> {
+        let first = fd
+            .get(b"FirstChar")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_int)?;
+        let widths = fd
+            .get(b"Widths")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_array)?;
+        let number = |o: &Object| match graph.resolve(o) {
+            Object::Integer(i) => Some(*i as f64),
+            Object::Real(r) => Some(*r),
+            _ => None,
+        };
+        let missing = fd
+            .get(b"FontDescriptor")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_dict)
+            .and_then(|d| d.get(b"MissingWidth"))
+            .and_then(number)
+            .unwrap_or(0.0);
+        let clamp = |w: f64| w.round().clamp(0.0, f64::from(u16::MAX)) as u16;
+        let mut out = Box::new([clamp(missing); 256]);
+        for (i, w) in widths.iter().enumerate() {
+            let Some(code) = i64::try_from(i)
+                .ok()
+                .and_then(|i| usize::try_from(first + i).ok())
+            else {
+                continue;
+            };
+            if let (Some(slot), Some(w)) = (out.get_mut(code), number(w)) {
+                *slot = clamp(w);
+            }
+        }
+        Some(out)
     }
 
     // -- Pass 7.1: export/import, regenerate, flatten -------------------

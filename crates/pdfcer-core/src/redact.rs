@@ -1798,6 +1798,7 @@ fn overlay_font_resources(
     let mut out = vec![crate::vartext::FontResource {
         name: b"Helv".to_vec(),
         font: crate::fontdata::Std14::Helvetica,
+        widths: None,
     }];
     if let Some(fonts) = page_resources
         .get(b"Font")
@@ -1817,6 +1818,7 @@ fn overlay_font_resources(
                 out.push(crate::vartext::FontResource {
                     name: nm,
                     font: face,
+                    widths: None,
                 });
             }
         }
@@ -1831,6 +1833,7 @@ fn overlay_font_resources(
         out.push(crate::vartext::FontResource {
             name: parsed.font_name,
             font: crate::fontdata::Std14::Helvetica,
+            widths: None,
         });
     }
     out

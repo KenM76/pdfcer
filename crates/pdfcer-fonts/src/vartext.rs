@@ -164,8 +164,43 @@ impl Quadding {
 pub struct FontResource {
     /// The resource name (no leading `/`), e.g. `b"Helv"`.
     pub name: Vec<u8>,
-    /// The standard-14 face it maps to.
+    /// The standard-14 face it maps to. Its descriptor supplies the
+    /// vertical metrics, and the widths when `widths` is `None`.
     pub font: Std14,
+    /// The resource's own advance widths by `WinAnsi` code (glyph space,
+    /// 1000 = 1 text-space unit), when it is a font other than `font` whose
+    /// `/Widths` are known: `Widths[code - FirstChar]`, else the descriptor's
+    /// `/MissingWidth` (§9.6.2.1 Table 111, §9.8.1 Table 122). `None`
+    /// measures with `font`.
+    pub widths: Option<Box<[u16; 256]>>,
+}
+
+/// The widths a layout measures with: a resource's own, else its
+/// standard-14 face's.
+#[derive(Clone, Copy)]
+struct Face<'a> {
+    font: Std14,
+    widths: Option<&'a [u16; 256]>,
+}
+
+impl<'a> Face<'a> {
+    const fn std(font: Std14) -> Self {
+        Self { font, widths: None }
+    }
+
+    fn of(r: &'a FontResource) -> Self {
+        Self {
+            font: r.font,
+            widths: r.widths.as_deref(),
+        }
+    }
+
+    fn width(self, code: u8) -> u16 {
+        match self.widths {
+            Some(w) => w.get(usize::from(code)).copied().unwrap_or(0),
+            None => glyph_width(self.font, code),
+        }
+    }
 }
 
 /// A parsed `/DA` default-appearance string (§12.7.3.3 Table 222).
@@ -422,7 +457,11 @@ const AUTOFIT_PAD: f64 = 1.0;
 /// defend into the appearance of every form pdfcer fills.
 #[must_use]
 pub fn auto_fit(font: Std14, rect_w: f64, rect_h: f64, text: &[u8]) -> AutoFit {
-    let bbox = fontdata::std14_descriptor(font).font_bbox;
+    auto_fit_face(Face::std(font), rect_w, rect_h, text)
+}
+
+fn auto_fit_face(face: Face<'_>, rect_w: f64, rect_h: f64, text: &[u8]) -> AutoFit {
+    let bbox = fontdata::std14_descriptor(face.font).font_bbox;
     // Height extent of the font's bounding box, in ems. Guarded because a
     // malformed descriptor would otherwise divide by zero or invert the size.
     let bbox_em = f64::from(i32::from(bbox[3]) - i32::from(bbox[1])) / 1000.0;
@@ -433,7 +472,7 @@ pub fn auto_fit(font: Std14, rect_w: f64, rect_h: f64, text: &[u8]) -> AutoFit {
     };
 
     let usable_w = rect_w - 2.0 * AUTOFIT_PAD;
-    let at_candidate = measure(font, candidate, text);
+    let at_candidate = measure(face, candidate, text);
     let (size, bound) = if at_candidate > usable_w && at_candidate > 0.0 && usable_w > 0.0 {
         (candidate * usable_w / at_candidate, AutoFitBound::Width)
     } else {
@@ -733,13 +772,14 @@ pub fn build_variable_text(
     resources: &[FontResource],
 ) -> Result<VarTextAppearance, VarTextError> {
     let parsed = parse_default_appearance(da)?;
-    let font = resources
+    let face = resources
         .iter()
         .find(|r| r.name == parsed.font_name)
-        .map(|r| r.font)
+        .map(Face::of)
         .ok_or_else(|| {
             VarTextError::FontUnresolved(String::from_utf8_lossy(&parsed.font_name).into_owned())
         })?;
+    let font = face.font;
     if matches!(font, Std14::Symbol | Std14::ZapfDingbats) {
         return Err(VarTextError::SymbolicFont(
             String::from_utf8_lossy(&parsed.font_name).into_owned(),
@@ -825,14 +865,14 @@ pub fn build_variable_text(
         if multiline {
             (auto_size(h), Some(auto_size(h)), None)
         } else {
-            let fit = auto_fit(font, w, h, &bytes);
+            let fit = auto_fit_face(face, w, h, &bytes);
             (fit.size, Some(fit.size), Some(fit.bound))
         }
     } else {
         (parsed.font_size, None, None)
     };
     let max_width = (w - 2.0 * TEXT_PAD).max(0.0);
-    let lines = wrap_lines(font, size, &paragraphs, max_width, multiline);
+    let lines = wrap_lines(face, size, &paragraphs, max_width, multiline);
 
     // Vertical metrics: ascent from the face descriptor (Base-14, GUI-free).
     let ascent = f64::from(fontdata::std14_descriptor(font).ascender) / 1000.0 * size;
@@ -858,12 +898,12 @@ pub fn build_variable_text(
 
     // First line: one Tm (VT4) at its /Q-aligned origin.
     let first = lines.first().map_or(&[][..], Vec::as_slice);
-    let mut running_x = align_x(quad, w, measure(font, size, first));
+    let mut running_x = align_x(quad, w, measure(face, size, first));
     b.set_text_matrix(1.0, 0.0, 0.0, 1.0, running_x, first_baseline);
     b.show_text(first);
     // Subsequent lines: relative Td moves (never another Tm).
     for line in lines.iter().skip(1) {
-        let x = align_x(quad, w, measure(font, size, line));
+        let x = align_x(quad, w, measure(face, size, line));
         b.text_move(x - running_x, -line_height);
         running_x = x;
         b.show_text(line);
@@ -919,13 +959,14 @@ pub fn build_comb_text(
     resources: &[FontResource],
 ) -> Result<VarTextAppearance, VarTextError> {
     let parsed = parse_default_appearance(da)?;
-    let font = resources
+    let face = resources
         .iter()
         .find(|r| r.name == parsed.font_name)
-        .map(|r| r.font)
+        .map(Face::of)
         .ok_or_else(|| {
             VarTextError::FontUnresolved(String::from_utf8_lossy(&parsed.font_name).into_owned())
         })?;
+    let font = face.font;
     if matches!(font, Std14::Symbol | Std14::ZapfDingbats) {
         return Err(VarTextError::SymbolicFont(
             String::from_utf8_lossy(&parsed.font_name).into_owned(),
@@ -944,9 +985,9 @@ pub fn build_comb_text(
         let widest = bytes
             .iter()
             .copied()
-            .max_by_key(|&c| glyph_width(font, c))
+            .max_by_key(|&c| face.width(c))
             .map_or_else(Vec::new, |c| vec![c]);
-        let fit = auto_fit(font, cell_w, h, &widest);
+        let fit = auto_fit_face(face, cell_w, h, &widest);
         (fit.size, Some(fit.size), Some(fit.bound))
     } else {
         (parsed.font_size, None, None)
@@ -969,7 +1010,7 @@ pub fn build_comb_text(
     }
     let mut prev_x = 0.0;
     for (i, &code) in bytes.iter().enumerate() {
-        let x = i as f64 * cell_w + (cell_w - measure(font, size, &[code])) / 2.0;
+        let x = i as f64 * cell_w + (cell_w - measure(face, size, &[code])) / 2.0;
         if i == 0 {
             b.set_text_matrix(1.0, 0.0, 0.0, 1.0, x, baseline);
         } else {
@@ -1090,15 +1131,15 @@ fn glyph_width(font: Std14, code: u8) -> u16 {
 #[must_use]
 pub fn text_width(font: Std14, size: f64, text: &str) -> f64 {
     let (bytes, _unencodable) = encode_winansi(text);
-    measure(font, size, &bytes)
+    measure(Face::std(font), size, &bytes)
 }
 
 /// Measure a run of `WinAnsi` bytes in text-space points at `size`
 /// (§9.4.4: advance = Σ width/1000 × size, before Tc/Tw/Th, which this
 /// generator leaves at their defaults).
 #[must_use]
-fn measure(font: Std14, size: f64, bytes: &[u8]) -> f64 {
-    let units: u32 = bytes.iter().map(|&c| u32::from(glyph_width(font, c))).sum();
+fn measure(face: Face<'_>, size: f64, bytes: &[u8]) -> f64 {
+    let units: u32 = bytes.iter().map(|&c| u32::from(face.width(c))).sum();
     f64::from(units) / 1000.0 * size
 }
 
@@ -1123,7 +1164,7 @@ fn measure(font: Std14, size: f64, bytes: &[u8]) -> f64 {
 /// The observable output is byte-identical to the previous inline packing
 /// (the appearance-generation tests below pass verbatim).
 fn wrap_lines(
-    font: Std14,
+    face: Face<'_>,
     size: f64,
     paragraphs: &[Vec<u8>],
     max_width: f64,
@@ -1157,7 +1198,7 @@ fn wrap_lines(
         // Std14 AFM points — the same bytes and the same `measure` the old
         // inline `candidate` built, so the break points are identical.
         let ranges = crate::linebreak::greedy_pack(words.len(), max_width, |s, e| {
-            measure(font, size, &join_words(words.get(s..e).unwrap_or(&[])))
+            measure(face, size, &join_words(words.get(s..e).unwrap_or(&[])))
         });
         for r in ranges {
             lines.push(join_words(words.get(r).unwrap_or(&[])));
@@ -1199,6 +1240,7 @@ mod tests {
         vec![FontResource {
             name: b"Helv".to_vec(),
             font: Std14::Helvetica,
+            widths: None,
         }]
     }
 
@@ -1272,6 +1314,7 @@ mod tests {
         let res = vec![FontResource {
             name: b"Sy".to_vec(),
             font: Std14::Symbol,
+            widths: None,
         }];
         let da = default_appearance_string(b"Sy", 12.0, TextColor::Gray(0.0));
         let err = build_variable_text(bbox(100.0, 20.0), "hi", &da, Quadding::Left, false, &res)
@@ -1311,7 +1354,7 @@ mod tests {
     #[test]
     fn quadding_places_lines_by_afm_width() {
         // "AV" in Helvetica: A=667, V=667 ⇒ 1334/1000*10 = 13.34 pt.
-        let width = measure(Std14::Helvetica, 10.0, b"AV");
+        let width = measure(Face::std(Std14::Helvetica), 10.0, b"AV");
         assert!((width - 13.34).abs() < 1e-9, "{width}");
         let da = default_appearance_string(b"Helv", 10.0, TextColor::Gray(0.0));
         let w = 200.0;

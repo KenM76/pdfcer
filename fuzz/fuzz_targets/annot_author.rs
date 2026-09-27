@@ -347,6 +347,8 @@ fuzz_target!(|data: &[u8]| {
         let resources = [FontResource {
             name: b"Helv".to_vec(),
             font: face(&mut c),
+            widths: (c.byte() & 1 == 1)
+                .then(|| Box::new([0u16; 256].map(|_| u16::from(c.byte()) * 8))),
         }];
         let quad = match c.byte() % 3 {
             0 => Quadding::Left,
