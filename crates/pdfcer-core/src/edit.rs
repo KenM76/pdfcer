@@ -27004,6 +27004,17 @@ impl EditSession {
             // `Quadding::default()` would left-align a field sitting under a
             // parent that says centred -- reintroducing this very defect on
             // the branch that looks too simple to get wrong.
+            // `/Opt` likewise: the choice label is looked up in
+            // `field.options`, so a stale list bakes the old display text.
+            if let Some(options) = &options_after {
+                field.options = options
+                    .iter()
+                    .map(|o| forms::ChoiceOption {
+                        export: encode_text_string(&o.export),
+                        display: encode_text_string(&o.display),
+                    })
+                    .collect();
+            }
             if let Some(q) = edit.quadding {
                 field.quadding = match q {
                     Some(code) => crate::vartext::Quadding::from_code(code),

@@ -9,7 +9,7 @@
 )]
 
 use pdfcer_core::document::Document;
-use pdfcer_core::edit::{EditSession, FieldEdit, Visibility, WidgetEdit};
+use pdfcer_core::edit::{ChoiceOption, EditSession, FieldEdit, Visibility, WidgetEdit};
 use pdfcer_core::forms;
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{Dict, ObjId, Object};
@@ -159,5 +159,51 @@ fn clearing_a_kids_default_does_not_inherit_the_parents_default() {
     assert!(
         !matches!(&v, Some(Object::String(t)) if t.as_slice() == b"parent"),
         "a reset after clearing the default restored the parent's: {v:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// A choice field's redraw uses the options being written
+// ---------------------------------------------------------------------------
+
+fn normal_ap_bytes(s: &EditSession, widget: u32) -> Vec<u8> {
+    let g = s.graph();
+    let Some(Object::Dict(ap)) = obj_dict(s, widget).get(b"AP").map(|o| g.resolve(o).clone())
+    else {
+        return Vec::new();
+    };
+    let Some(Object::Stream(st)) = ap.get(b"N").map(|o| g.resolve(o).clone()) else {
+        return Vec::new();
+    };
+    s.view().slice(st.data_span).unwrap_or_default().to_vec()
+}
+
+fn contains(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
+}
+
+#[test]
+fn renaming_the_selected_options_label_redraws_the_new_label() {
+    let mut s = session(&[
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R]          /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 5 0 R >> >> >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Annots [4 0 R] >>",
+        "<< /Type /Annot /Subtype /Widget /FT /Ch /Ff 131072 /T (Fruit) /P 3 0 R          /Rect [20 300 220 324] /Opt [[(a) (Apple)] [(b) (Banana)]] /V (a)          /DA (/Helv 12 Tf 0 g) >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]);
+    s.edit_field(
+        "Fruit",
+        &FieldEdit::new().with_options(vec![
+            ChoiceOption::new("a", "Avocado"),
+            ChoiceOption::new("b", "Banana"),
+        ]),
+    )
+    .unwrap();
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(!ap.is_empty(), "the options change was redrawn");
+    assert!(
+        contains(&ap, b"Avocado") && !contains(&ap, b"Apple"),
+        "the redraw shows the new label for export `a`: {}",
+        String::from_utf8_lossy(&ap)
     );
 }
