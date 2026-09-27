@@ -4,6 +4,60 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (626th filing) — `4f6b5461`: `Pass 341.0` SHIPPED — a widget's dash pattern survives a border edit and is drawn
+
+**Shipped:**
+- `Pass 341.0` — closes the `border_dict` drops `/D` finding from the
+  Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item (filed
+  2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`340.0`);
+  the item stays open, three `WidgetEdit` findings remain.
+  `EditSession::edit_widget` with `border: Some(..)` replaced the
+  widget's `/BS` dictionary wholesale, dropping its own `/D` dash
+  array, so every redraw after a border edit (fill, resize, property
+  edit) drew the default `[3]` dash instead of the widget's own.
+
+**Decisions made this session:** none — a scoped correctness fix, no
+architecture change.
+
+**Findings + decisions:**
+- Fix: `/BS` is now patched — only `/S` and `/W` change; `/D` and any
+  other key survive. `annot_author::WidgetChrome` gains
+  `pub border_dash: Option<BorderDash>` and `with_border_dash(dash)`;
+  every engine redraw reads it from the widget's `/BS` `/D` and the
+  builders draw it for Dashed borders. `forms::read_widget_border` now
+  reads a `/BS` carrying `/D` with no `/S` as Dashed (ISO 32000-2
+  §12.5.4 Table 166; common producer shape).
+- `WidgetChrome` is now `Clone`, no longer `Copy` (it owns a `Vec`).
+  `docs/core-api/02-editing-and-saving.md` updated in the same commit;
+  `check-core-api-verbs` PASS.
+- 3 new end-to-end `/AP`-byte tests in
+  `crates/pdfcer-core/tests/form_edit_audit.rs`, each sabotage-checked.
+  `form_edit_audit`: 17/17. `tools/run-gates.sh`: PASS (39 commands,
+  including the 2 filing gates). No manifest change — `cargo tree`
+  unaffected.
+- Core only — CLI's `edit-widget --border-*` already reaches the fix,
+  no CLI change; neither box moves.
+- `docs/FEATURES.md`: row 318 gets one added clause ("its dash pattern
+  now survives a border edit too (`Pass 341.0`)"); trimmed the
+  `duplicate_choice_export` symbol-name clause to stay under the
+  1,200-char cap (checked via scratch-file length probe — no shell
+  this session).
+- `docs/ROADMAP.md`'s audit Backlog entry marks `border_dict` drops
+  `/D` CLOSED by `Pass 341.0`; six `FieldEdit` findings and three
+  `WidgetEdit` findings remain.
+
+**Still in flight:** the widened audit entry's remaining findings are
+unscoped, no Pass IDs assigned yet. D4/D4b look like the next
+candidates on the `FieldEdit` side; stroke-width scaling reported but
+not drawn looks like the next candidate on the `WidgetEdit` side.
+
+**For next session:** scope the next-worst remaining audit finding into
+a Pass.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`4f6b5461`, not independently reproduced.
+
 ## 2026-09-27 (625th filing) — `463b0008`: `Pass 340.0` SHIPPED — widget borders are drawn in their `/BS` width and style
 
 **Shipped:**

@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 341.0` (`4f6b5461`), 2026-09-27 — A widget's dash pattern survives a border edit and is drawn
+
+**Verdict: SHIPPED, closes the `border_dict` drops `/D` finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`340.0`) — the item stays open, three `WidgetEdit` findings remain (see *Backlog*).
+
+`EditSession::edit_widget` with `border: Some(..)` replaced the widget's `/BS` dictionary wholesale, dropping its `/D` dash array; every appearance redraw (fill, resize, property edit) then drew the default `[3]` dash instead of the widget's own.
+
+**Fix.** `/BS` is now patched — only `/S` and `/W` change; `/D` and any other key survive. `annot_author::WidgetChrome` gains `pub border_dash: Option<BorderDash>` and `with_border_dash(dash)`; every engine redraw reads it from the widget's `/BS` `/D` and the builders draw it for Dashed borders. `forms::read_widget_border` now reads a `/BS` carrying `/D` with no `/S` as Dashed (ISO 32000-2 §12.5.4 Table 166; common producer shape).
+
+**API.** `WidgetChrome` is now `Clone`, no longer `Copy` (it owns a `Vec`). `docs/core-api/02-editing-and-saving.md` updated in the same commit; `check-core-api-verbs` PASS.
+
+**Tests.** 3 new end-to-end `/AP`-byte tests in `crates/pdfcer-core/tests/form_edit_audit.rs` (`re_setting_a_border_keeps_and_draws_the_widgets_dash_pattern`, `a_fill_draws_the_widgets_own_dash_pattern`, `a_dash_array_with_no_style_reads_as_dashed`), each sabotage-checked. `form_edit_audit`: 17/17. `tools/run-gates.sh`: PASS (39 commands, including the 2 filing gates). No manifest change — `cargo tree` unaffected; no writer-structure change beyond the `/BS` patch.
+
+**Shells.** Core fix only, reached by CLI's `edit-widget --border-*` unchanged. Neither box moves.
+
+**`docs/FEATURES.md`:** row 318 gets one added clause ("its dash pattern now survives a border edit too (`Pass 341.0`)"), and an existing clause trimmed (the `duplicate_choice_export` symbol name dropped) to stay under the 1,200-char cap; no box change.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `4f6b5461`, not independently reproduced.
+
 ### `Pass 340.0` (`463b0008`), 2026-09-27 — Widget borders are drawn in their `/BS` width and style
 
 **Verdict: SHIPPED, closes the "Border width/style never drawn" finding from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`339.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
@@ -16943,6 +16961,8 @@ suspicion this entry recorded.
 
 ★ **Sixth fix shipped — 2026-09-27 (625th filing, `Pass 340.0`, `463b0008`).** Closes the border-width/style finding, below: every widget appearance builder hard-coded a 1pt solid frame; `WidgetChrome` now carries `border: Option<BorderSpec>` and a `stroke_frame` helper draws width/dash for Dashed/Underline/Beveled/Inset, honouring the widget's own `/BS` — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and four `WidgetEdit` findings remain.
 
+★ **Seventh fix shipped — 2026-09-27 (626th filing, `Pass 341.0`, `4f6b5461`).** Closes `border_dict` drops `/D`, below: `edit_widget` with a border edit replaced `/BS` wholesale, dropping the widget's own `/D` dash array; `/BS` is now patched (only `/S`/`/W` change) and `WidgetChrome::border_dash` carries the dash through every redraw — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and three `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -16956,7 +16976,7 @@ suspicion this entry recorded.
 
 **WidgetEdit:**
 - Border width/style — CLOSED by `Pass 340.0`, above. Was: every widget builder hard-coded a 1pt solid frame; a border edited or authored with `/BS` width or style (dashed/underline/beveled/inset) was written but never painted, while the outcome reported Regenerated.
-- `border_dict` drops `/D`.
+- `border_dict` drops `/D` — CLOSED by `Pass 341.0`, above. Was: an `edit_widget` border edit replaced `/BS` wholesale, dropping the widget's own `/D` dash array; every redraw after then drew the default `[3]` dash instead.
 - Stroke-width scaling is reported but not drawn.
 - Radio caption and text/choice caption falsely report Regenerated (text/choice also churns a new `/AP` it didn't need to).
 - `/MK` `/BG`/`/BC` written f32-widened, e.g. `[0.20000000298023224]` (`MkColor::to_array`).
