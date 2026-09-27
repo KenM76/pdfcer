@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 358.6` (flatten half, `5ea510b6`), 2026-09-27 — `flatten_layers` + `pdfcer layer-flatten` — `Pass 358.6` now COMPLETE, family `358` COMPLETE
+
+**Verdict: SHIPPED IN FULL. `Pass 358.6` (merge half `99a708d0` + flatten half `5ea510b6`) is now COMPLETE. Family `358`'s scoped items (`358.0`–`358.6`: properties, create/delete, folders, content/annotation `/OC` assignment, layer-on-add, merge/flatten) are now COMPLETE** — OCMD/`/RBGroups`/`/Configs`/Import-as-Layer were deliberately out of scope and stay Backlog ("Unscoped — OCMD/RBGroups/Configs/Import-as-Layer" below). Acrobat's Flatten Layers is document-wide, discards hidden content, not undoable; pdfcer matches the capability but discloses it (rule 4).
+
+**Core.** `EditSession::flatten_layers(policy: HiddenLayerPolicy) -> Result<LayerFlattenOutcome, EditError>`. Deletes every layer in `/OCProperties /OCGs` via `delete_layer`: layers ON in the default config `/D` (ISO 32000-2 §8.11.4.3) keep their content unlayered regardless of policy; layers OFF follow `HiddenLayerPolicy` (`#[non_exhaustive]`): `Refuse` (default — refuses the whole call with `EditError::HiddenLayersNeedPolicy { layers }` before any write), `Remove` (drops the content, matching `delete_layer`'s `RemoveContent`), `Show` (keeps it, now always shown, matching `KeepUnlayered`). Only `/D` on/off decides; print/export usage (§8.11.4.4) is not consulted. A group missing from `/OCGs` is left in place and counted separately. A `delete_layer` refusal part-way through undoes the layers already flattened and restores the redo stack. One undo entry, `CommandKind::FlattenLayers`. `LayerFlattenOutcome { changed, layers, hidden_layers, sections, annotations, xobjects, paints, unregistered, disclosures }` (`#[non_exhaustive]`, `Default`) — disclosures name kept/removed/now-shown layers and state that removal is not redaction (an incremental save retains the prior revision). Core-level preview is flatten-then-`undo()`. New `EditError::HiddenLayersNeedPolicy`; variant count 147→148. `EditSession` verb count 263→264.
+
+**Acceptance criterion (the Next-up entry this Pass closes).** MET — "Flatten's hidden-content removal is refused without the destructive-save confirmation already used for redaction, with a dry-run/preview path before it," read as: core refuses by default (`HiddenLayerPolicy::Refuse` → `EditError::HiddenLayersNeedPolicy`, nothing written); removal happens only on the explicit opt-in `HiddenLayerPolicy::Remove`, the core/CLI form of the confirmation (in the CLI the invocation is the commit, CLAUDE.md rule 4, so the confirmation is a deliberately typed `--hidden remove`). The §11.2 confirmation dialog is `pdfcer-gui`'s to build — why gui stays `[ ]` below. Preview: `--dry-run` in the CLI, flatten-then-`undo()` in core. Unlike redaction this does not force a full rewrite: it is not redaction, and the disclosure states an incremental save keeps removed content recoverable in the prior revision — redact-apply, not this, is the route to unrecoverable loss.
+
+**CLI.** `pdfcer layer-flatten <in> --hidden refuse|remove|show [--dry-run] -o <out> [--mode] [--verify-undo]`; exit 9 on refusal, printing the hidden layer ids and the `--hidden` hint. README subcommand count 165→166.
+
+**Tests.** Core 4 (`crates/pdfcer-core/tests/layer_edit.rs`: default refuses hidden layers; `remove` keeps only what the page showed and undo restores it; `show` keeps hidden content visible; a refusal mid-flatten rolls back with redo preserved). CLI 3 (refuses by default; `remove` drops hidden content; `--dry-run` writes nothing). Sabotage: all 5 core mutations caught (redo restore, undo-rollback loop, `Refuse` check, `Remove` mapping, coalesce) and both CLI mutations (`--hidden` ignored, dry-run saving). `docs/core-api` updated in the same commit, `check-core-api-verbs` PASS. `tools/run-gates.sh` PASS, 39 commands. No `Cargo.toml` change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected. Incremental save stays default; no writer change beyond reuse of `delete_layer`.
+
+**Shells.** core `[x]`, cli `[x]`. gui `[ ]` — separate project, no caller yet.
+
+**`docs/FEATURES.md`.** "Flatten every layer into plain content" row now `[x]`/`[x]`/`[ ]`, citing this commit; moved out of *Next up* text, family `358` marked COMPLETE.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `5ea510b6`, not independently reproduced.
+
 ### `Pass 358.6` (merge half, `99a708d0`), 2026-09-27 — `merge_layers` + `pdfcer layer-merge` — flatten half remains
 
 **Verdict: SHIPPED (merge half only); family `358` continues — flatten (hidden-layer policy, destructive-save confirmation, preview) stays in *Next up* under the same Pass ID.** Acrobat's Merge Layers silently takes the target's properties; pdfcer matches the capability but discloses it (rule 4).
@@ -8409,18 +8427,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
-
-### `Pass 358.6` — Flatten layers (merge half SHIPPED `99a708d0` — see *Shipped*)
-
-**Filed 2026-09-27 (644th filing), family `358`.** **Merge half shipped 2026-09-27 (656th filing, `99a708d0`) — see *Shipped* above; this entry now scopes flatten only.** Acrobat's Flatten Layers (`layers__import_merge_flatten_content_authoring.md`) is document-wide, discards hidden content, not undoable. pdfcer matches the capability but discloses the removal.
-
-**Scope.** Strip every `BDC /OC … EMC` wrapper and every annotation `/OC`; hidden-layer content removed only through the confirm-before-destructive-save posture (`ARCHITECTURE.md` §11.2), operator told so.
-
-**Acceptance criteria.** Flatten's hidden-content removal is refused without the destructive-save confirmation already used for redaction, with a dry-run/preview path before it (mirroring annotation-deletion preview, resize preview, `flatten_annotations`'s own planned preview).
-
-**Out of scope for family `358` (Backlog, not here).** OCMD authoring/visibility expressions; `/RBGroups` authoring; `/Configs` switching; Import as Layer — filed as its own unscoped Backlog bullet below, "Unscoped — OCMD/RBGroups/Configs/Import-as-Layer, beyond `Pass 358.x`".
-
----
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
@@ -23559,6 +23565,10 @@ added. See that section below.
   flatten. `FEATURES.md`'s Planned section gained matching rows; the
   generic *Vector editing* Planned row now points here instead of
   naming the capability itself.
+  **★ SHIPPED IN FULL 2026-09-27 (657th filing) — `Pass 358.0`–`358.6`
+  (scoped items) are all SHIPPED; see `Pass 358.6`'s flatten-half entry,
+  top of *Shipped*.** OCMD/`/RBGroups`/`/Configs`/Import-as-Layer were
+  deliberately out of scope and remain their own Backlog bullet below.
 - **Full-screen / read mode (filed 2026-08-10, Reader-parity sweep).**
   Acrobat Reader's presentation-style single-page, chrome-free view.
   Not yet scoped to a Pass; no core/CLI component expected (a GUI-only

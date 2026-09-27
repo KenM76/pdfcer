@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (657th filing) — `5ea510b6`: `Pass 358.6` (flatten half) SHIPPED — `Pass 358.6` and family `358` now COMPLETE
+
+**Shipped:**
+- Pass 358.6 (flatten half) — `EditSession::flatten_layers(HiddenLayerPolicy)` deletes every layer via `delete_layer`; layers ON in `/D` keep content unlayered regardless of policy, layers OFF follow `Refuse` (default, refuses before any write)/`Remove`/`Show`. CLI `layer-flatten --hidden refuse|remove|show [--dry-run]`.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- New `EditError::HiddenLayersNeedPolicy { layers }`; variant count 147→148. `EditSession` verb count 263→264. `LayerFlattenOutcome { changed, layers, hidden_layers, sections, annotations, xobjects, paints, unregistered, disclosures }`; one undo entry `CommandKind::FlattenLayers`; a mid-flatten refusal undoes what was already flattened and restores the redo stack. Tests: core 4, CLI 3; sabotage of all 5 core mutations and both CLI mutations caught. README subcommand count 165→166. `docs/FEATURES.md`'s "Flatten every layer into plain content" row ticked core/cli, citing `5ea510b6`. Acceptance criterion MET: hidden-content removal is refused by default (`HiddenLayerPolicy::Refuse` → `EditError::HiddenLayersNeedPolicy`) and proceeds only on the explicit `HiddenLayerPolicy::Remove`/CLI `--hidden remove` opt-in — the core/CLI confirmation, since the CLI's invocation is the commit (rule 4); the §11.2 dialog itself is `pdfcer-gui`'s to build. Preview via `--dry-run`/flatten-then-`undo()`; unlike redaction this is not a forced-rewrite path, since an incremental save keeps removed content recoverable in the prior revision. With this, `Pass 358.6` (merge `99a708d0` + flatten `5ea510b6`) is COMPLETE, and family `358`'s scoped items (`358.0`–`358.6`) are all SHIPPED — OCMD/`/RBGroups`/`/Configs`/Import-as-Layer stay Backlog, deliberately out of scope.
+
+**Still in flight:**
+- `flatten_annotations` (`G043` option B) — next Backlog item, still unscoped (no Pass ID minted).
+
+**For next session:**
+- Scope `flatten_annotations` into a Pass when picked up.
+
 ## 2026-09-27 (656th filing) — `99a708d0`: `Pass 358.6` (merge half) SHIPPED — flatten half remains
 
 **Shipped:**
