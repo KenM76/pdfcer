@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 357.0` (`a6695bae`), 2026-09-27 — A re-encoded `/DR` font draws with its own codes
+
+**Verdict: SHIPPED, closes D4's remainder** from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item (filed 2026-09-16, 562nd filing) — **D4 is now closed** for every simple font with a nameable base encoding; the item's audit is complete.
+
+A `/DR` simple font whose `/Encoding` is `/MacRomanEncoding`, `/StandardEncoding`, or a `/WinAnsiEncoding` base plus `/Differences` (§9.6.6.1 Table 114) now binds to a regenerated field appearance, given it carries its own `/Widths` — before this, only plain `/WinAnsiEncoding` bound, and the rest kept the standard-14 stand-in. The generator writes that font's own codes (lowest code per character, glyph names resolved through the AGL) and measures them against its own `/Widths`; a character with no code writes `?`'s code and counts as unencodable (existing counter). New `pub` field `pdfcer_fonts::vartext::FontResource::codes: Option<Box<[Option<char>; 256]>>` — not on `docs/core-api`, no verb-table change.
+
+**Stand-in still used for:** symbolic fonts (Table 123 bit 3; §9.6.6.4); fonts with no named base (built-in encoding of an embedded program, unreadable from the objects); Type0/composite fonts; a table where code 32 isn't space or 63 isn't `?`. These are stated limits, not filed as bugs.
+
+**Tests.** Core `form_dr_font_binding` +3 (6 → 9); CLI `edit_field` +1. Two sabotage runs, each failing 2 core tests plus the CLI test.
+
+**Gates.** `tools/run-gates.sh`: PASS, 39 commands. No manifest change — `cargo tree` unaffected; no writer structural change beyond appearance-stream bytes.
+
+**Shells.** core `[x]`, cli `[x]` — fill-field, edit-field and push-button caption routes share the generator. gui: unchanged from us, inherited through the fill verbs.
+
+**`docs/FEATURES.md`.** Row 319's `/DA`/`/DR` clause widened from "own `/Ascent`" to "own baseline and own codes for MacRoman/Standard/WinAnsi+`/Differences`", citing `Pass 355.0`–`357.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `a6695bae`, not independently reproduced.
+
 ### `Pass 356.0` (`c4e2048b`), 2026-09-27 — A Review shape can be drawn as page content
 
 **Verdict: SHIPPED, answers `G043`** (`pdfcer-gui` request, operator row O246: *"can we add the drawing tools that draw on the review layer so that these can also just draw on the ordinary pdf layer that contains our drawing and table and etc lines?"*) — the GUI offered two routes: a verb committing a `MarkupSpec` as page content (A) or `flatten_annotations` baking EXISTING annotations into content (B); the engineer chose A. B is filed to *Backlog* below.
@@ -17267,7 +17285,7 @@ cache bug as EMF, not reported at filing time — root cause was a cache
 keyed on a freed `Arc<Mask>`'s pointer address, not the iteration-order
 suspicion this entry recorded.
 
-### Unscoped — Audit every `FieldEdit`/`WidgetEdit` property: does its regeneration path actually READ it? — filed 2026-09-16 (562nd filing, `pdfcer-gui`'s own recommendation after `G022`/`G023`), no Pass ID
+### Unscoped — Audit every `FieldEdit`/`WidgetEdit` property: does its regeneration path actually READ it? — filed 2026-09-16 (562nd filing, `pdfcer-gui`'s own recommendation after `G022`/`G023`), no Pass ID — **CLOSED 2026-09-27 (643rd filing, `Pass 357.0`)**: every `FieldEdit` and `WidgetEdit` finding this audit turned up (D1–D8, D4b, X1, X2) is now closed; see the twenty-two dated fixes below.
 
 `Pass 308.4` (`/Q`) and `Pass 308.5` (button rotation) are the same defect found on two different keys, six hours apart: a property is validated, written to the dictionary, and never reaches the baked appearance — while the outcome reports success. `pdfcer-gui` did this audit for `FieldEdit` and found `/Q`; nobody has done it for `WidgetEdit`, and the button-rotation hole was exactly what it would have found.
 
@@ -17315,11 +17333,15 @@ suspicion this entry recorded.
 
 ★ **Twentieth fix shipped — 2026-09-27 (640th filing, `Pass 354.0`, `7570a850`).** Closes D8's last clause (b), below — **D8 is now fully CLOSED**: `FieldEdit::default_value` was a single string with no way to express a MultiSelect field's array-valued `/DV`; new `pub` field `default_selections: Option<Vec<String>>` and builder `with_default_selections` resolve each item against `/Opt` the same way a fill does and write it as an array — see *Shipped*, above. **Kept open** — one `FieldEdit` finding remains: D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics).
 
+★ **Twenty-first fix shipped — 2026-09-27 (641st filing, `Pass 355.0`, `65da5c15`).** Narrows D4's remainder's vertical-metrics half, below: a bound `/DR` font's baseline was placed by the standard-14 stand-in's ascender instead of the font's own `/FontDescriptor` `/Ascent` (§9.8.1 Table 122) — see *Shipped*, above. **Belatedly recorded here at the 643rd filing** — the 641st filing shipped this fix but did not update this narrative or the D4 bullet below; caught while filing `Pass 357.0`. **Kept open** — one `FieldEdit` finding remains: D4's encoding half (non-WinAnsi/Type0 `/DR` fonts still stand in).
+
+★ **Twenty-second fix shipped — 2026-09-27 (643rd filing, `Pass 357.0`, `a6695bae`).** Closes D4's remaining encoding half, below — **D4 is now closed and this audit is COMPLETE**: a `/DR` simple font encoded `/MacRomanEncoding`, `/StandardEncoding`, or `/WinAnsiEncoding`+`/Differences`, carrying its own `/Widths`, now binds and draws its own codes instead of the standard-14 stand-in — see *Shipped*, above. **Stated limits, not bugs:** symbolic fonts, fonts with no named base, Type0/composite fonts, and a table where code 32/63 isn't space/`?`.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
 - D5/X1 — CLOSED by `Pass 338.0`, above. Was: `regen_after_property_change` fell back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redrew in Helvetica, and a non-Helv `/DA` key gave `FontUnresolved` on a later edit.
-- D4 — bind (`Pass 348.0`) and horizontal layout via the font's own `/Widths` (`Pass 348.1`) both done for a WinAnsi-encoded, no-`/Differences` simple `/DR` font. **Open remainder:** a non-WinAnsi (`/Differences`, Type0) `/DR` font still draws with the standard-14 stand-in; vertical metrics (ascent) stay standard-14 even for a bound font. (The "resource not in `/DR`" case was already refused by `FieldFontNotInResources`, not a Helvetica substitution — D4's old wording named that refusal, not a bug.)
+- D4 — **CLOSED.** Bind (`Pass 348.0`) and horizontal layout via the font's own `/Widths` (`Pass 348.1`) for a WinAnsi-encoded, no-`/Differences` simple `/DR` font; vertical metrics via the font's own `/Ascent` (`Pass 355.0`); binding widened to MacRoman/Standard/WinAnsi+`/Differences` fonts carrying their own `/Widths`, drawing their own codes (`Pass 357.0`). **Stated limits, not bugs:** symbolic fonts, fonts with no named base, Type0/composite fonts, a table where code 32/63 isn't space/`?`. (The "resource not in `/DR`" case was already refused by `FieldFontNotInResources`, not a Helvetica substitution — D4's old wording named that refusal, not a bug.)
 - D4b — CLOSED by `Pass 344.0`, above. Was: a push-button `/DA` edit is not redrawn — measured worse than filed, it failed outright with `FontUnresolved` for any non-Helvetica face.
 - D1 — CLOSED by `Pass 346.0`, above. Was: comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.

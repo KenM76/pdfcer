@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (643rd filing) — `a6695bae`: `Pass 357.0` SHIPPED — a re-encoded `/DR` font draws with its own codes
+
+**Shipped:**
+- `Pass 357.0` — closes D4's remaining encoding half from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item; **D4 is now fully closed and the audit is complete**. A `/DR` simple font encoded `/MacRomanEncoding`, `/StandardEncoding`, or `/WinAnsiEncoding`+`/Differences` (ISO 32000-2 §9.6.6.1 Table 114), carrying its own `/Widths`, now binds to a regenerated field appearance and draws its own codes (lowest code per character, resolved through the AGL), instead of the standard-14 stand-in.
+
+**Decisions made this session:**
+- None beyond the fix itself. Stated limits, not filed as bugs: symbolic fonts (Table 123 bit 3), fonts with no named base (unreadable built-in encoding), Type0/composite fonts, and a table where code 32/63 isn't space/`?`.
+
+**Findings + decisions:**
+- Fix: `pdfcer_fonts::vartext::FontResource` gained `codes: Option<Box<[Option<char>; 256]>>` — not on `docs/core-api`, no verb-table change.
+- Tests: core `form_dr_font_binding` +3 (6 → 9); CLI `edit_field` +1. Two sabotage runs, each failing 2 core tests plus the CLI test. `tools/run-gates.sh`: PASS (39 commands). No manifest/dependency change.
+- `docs/FEATURES.md` row 319: `/DA`/`/DR` clause widened from "own `/Ascent`" to "own baseline and own codes for MacRoman/Standard/WinAnsi+`/Differences`", citing `Pass 355.0`–`357.0`; confirmed under the 1,200-char cap.
+- **Correction to the 641st filing (`Pass 355.0`):** that filing shipped its fix but never recorded it in `ROADMAP.md`'s Backlog audit narrative or updated the D4 bullet — caught this filing and backfilled as a "Twenty-first fix" entry, dated to when it actually shipped, per hard rule 10's correction-is-a-claim discipline. Found by re-reading the audit narrative before adding this Pass's own entry, not by any check script.
+
+**Still in flight:**
+- `flatten_annotations` (`G043` option B) — unscoped Backlog item, no Pass ID yet. No other open item from the property-audit Backlog bucket; it is closed.
+
+**For next session:**
+- Scope `flatten_annotations`, or pull the next Backlog bucket — the field/widget property audit that has run since the 562nd filing is done.
+
 ## 2026-09-27 (642nd filing) — `c4e2048b`: `Pass 356.0` SHIPPED — a Review shape can be drawn as page content
 
 **Shipped:**
