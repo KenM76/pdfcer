@@ -8065,56 +8065,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-### `Pass 358.1` — Edit a layer's own properties
-
-**Filed 2026-09-27 (644th filing), family `358` (see `Pass 358.0`).** Acrobat Pro edits Name, Locked, Intent (View/Design), Default State and Print/Export initial usage as real saved edits — no New Layer/Delete Layer command exists in Acrobat itself (`layers__layer_properties_authoring.md`).
-
-**Scope.** `EditSession` verb(s) writing: rename (`/Name`); default on/off (`/D` `/ON`/`/OFF`); lock (`/D` `/Locked`); Print/Export usage (`/Usage` `/Print`/`/Export`, `/AS` entries — read the exact Table before writing, rule 1); Intent (`/Intent` `/View`/`/Design`, §8.11.4.3). Each a real saved edit, undoable, incremental-minimal-diff (rule 3). CLI `layer-edit`.
-
-**Acceptance criteria.** Round-trip: an untouched OCG's `/Usage` subkeys pdfcer doesn't model survive byte-for-byte. Locking a layer whose content is mid-edit is refused by name or disclosed, never silently allowed. Renaming does not touch `/OCProperties/D/Order` ordering.
-
-### `Pass 358.2` — Create and delete a layer
-
-**Filed 2026-09-27 (644th filing), family `358`.** Acrobat has no New Layer/Delete Layer command at all — delete exists only as a Preflight fixup (`layers__layer_properties_authoring.md`). Both directions here EXCEED Acrobat (operator standing rule: parity is a floor).
-
-**Scope.** Create: a new empty OCG appended to `/OCGs` and `/D /Order` (root, or into a folder — composes with `Pass 358.3`). Delete: remove an OCG from `/OCGs`/`/Order`/`/RBGroups` with an explicit content policy — `keep unlayered` (SAFE DEFAULT) or `remove content` (the same confirm-before-destructive-save posture as redaction, `ARCHITECTURE.md` §11.2). Delete-by-name is the Preflight-parity item.
-
-**Acceptance criteria.** `keep unlayered` strips every `BDC /OC /name` wrapper naming the deleted layer (unwrap, never delete the content) and clears `/OC` on any annotation/widget naming it. `remove content` actually removes the marked content and annotations, disclosed by count. An OCG still referenced by an OCMD or `/RBGroups` entry the deletion doesn't also clean up is refused by name, never left dangling.
-
-### `Pass 358.3` — Organise `/Order` folders
-
-**Filed 2026-09-27 (644th filing), family `358`.** Answers the operator's folder question directly — Acrobat can reorder `/Order` but CANNOT create a folder (`layers__order_folder_reordering.md`); folder CREATION here exceeds Acrobat.
-
-**Scope.** Add, rename, delete a label-node folder in `/D /Order`; deleting a folder lifts its children up a level rather than deleting them. Move a layer into/out of a folder; reorder within a level. Round-trip: unrelated `/Order` structure (unknown entries, nested unlabelled arrays a foreign producer wrote) preserved byte-for-byte when untouched.
-
-**Acceptance criteria.** A folder is a label string followed by an array per §8.11.4.3 and pdfcer authors that shape exactly. Reordering leaves membership (`/OCGs`) untouched — `/Order` is presentation, not membership. A round-trip test on a file with a foreign, deeply-nested, partially-unlabelled `/Order` array pdfcer didn't touch stays byte-identical.
-
-### `Pass 358.4` — Put existing content or an annotation onto a layer
-
-**Filed 2026-09-27 (644th filing), family `358`.** Answers the operator's second question directly: pdfcer can already tell which layer an object is on (`Pass 250.0`, read-only) but has no writer at all — no verb puts page content or an annotation ONTO a layer. Acrobat itself has no GUI for this either; `/OC` on an annotation is JS/SDK-only in Acrobat (`layers__annotation_form_field_oc_assignment.md`) — this EXCEEDS Acrobat's own GUI.
-
-**Scope.** Assign selected page objects to a layer, move between layers, or clear (content-stream `BDC /OC /name … EMC` wrapping bound through `/Properties`, §8.11.3.2). Set/clear `/OC` on an annotation or widget (a direct dict entry). Must handle an object already inside a `BDC /OC` section: re-wrap or split the enclosing marked-content run, never nest a contradictory `/OC` silently.
-
-**Acceptance criteria.** An object mid-run inside an existing `BDC /OC` section, moved to a DIFFERENT layer, splits the run so untouched siblings keep their original wrapping. Clearing `/OC` removes the wrapper only if no other object depends on the same `BDC` for other state. Annotation `/OC` assignment is a single dict-entry write, one undo entry.
-
-### `Pass 358.5` — Pick a layer when adding new content
-
-**Filed 2026-09-27 (644th filing), family `358`, builds on `Pass 358.4`.** An optional layer parameter on `add_text`, `add_image`, `paste_objects` and `add_markup_as_content` (`Pass 356.0`), plus matching `--layer` CLI flags on each. Parity-plus, same as `358.4` — Acrobat's own add-content dialogs offer no layer choice at all.
-
-**Acceptance criteria.** Omitting `--layer` is byte-identical to today's behavior (no `/OC` wrapper introduced where none existed). An unknown layer name/id is refused by name, not silently ignored. Each verb's existing disclosure fields are unchanged in shape — a layer assignment is operator-stated, not pdfcer-inferred, so rule 4 does not add a new field.
-
-### `Pass 358.6` — Merge and flatten layers
-
-**Filed 2026-09-27 (644th filing), family `358`.** Acrobat's Merge Layers and Flatten Layers (`layers__import_merge_flatten_content_authoring.md`): merged layers silently take the TARGET's properties; flatten is document-wide, discards hidden content, not undoable. pdfcer matches the capability but not the silence.
-
-**Scope.** Merge N layers into a target — reassign every `BDC /OC`/annotation `/OC` reference from the merged layers to the target, remove the merged OCGs from `/OCGs`/`/Order`. Flatten — strip every `BDC /OC … EMC` wrapper and every annotation `/OC`, hidden-layer content removed only through the confirm-before-destructive-save posture (`ARCHITECTURE.md` §11.2), operator told so.
-
-**Acceptance criteria.** Merge discloses, off-canvas, that the merged layers took the target's properties (rule 4 — the one place this Pass matches Acrobat's outcome but not its silence). Flatten's hidden-content removal is refused without the destructive-save confirmation already used for redaction, with a dry-run/preview path before it (mirroring annotation-deletion preview, resize preview, `flatten_annotations`'s own planned preview).
-
-**Out of scope for family `358` (Backlog, not here).** OCMD authoring/visibility expressions; `/RBGroups` authoring; `/Configs` switching; Import as Layer — filed as its own unscoped Backlog bullet below, "Unscoped — OCMD/RBGroups/Configs/Import-as-Layer, beyond `Pass 358.x`".
-
----
-
 > ★★★★ **`Pass 330.0` SHIPPED, 2026-09-26 (609th filing), `3127b18c`** — see
 > top of *Shipped*. Filed *Next up* by the 608th filing, found by rotation
 > from the redaction shared-content-stream fix (`e92cf7dd`); this banner is
@@ -8327,6 +8277,56 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
+
+### `Pass 358.1` — Edit a layer's own properties
+
+**Filed 2026-09-27 (644th filing), family `358` (see `Pass 358.0`).** Acrobat Pro edits Name, Locked, Intent (View/Design), Default State and Print/Export initial usage as real saved edits — no New Layer/Delete Layer command exists in Acrobat itself (`layers__layer_properties_authoring.md`).
+
+**Scope.** `EditSession` verb(s) writing: rename (`/Name`); default on/off (`/D` `/ON`/`/OFF`); lock (`/D` `/Locked`); Print/Export usage (`/Usage` `/Print`/`/Export`, `/AS` entries — read the exact Table before writing, rule 1); Intent (`/Intent` `/View`/`/Design`, §8.11.4.3). Each a real saved edit, undoable, incremental-minimal-diff (rule 3). CLI `layer-edit`.
+
+**Acceptance criteria.** Round-trip: an untouched OCG's `/Usage` subkeys pdfcer doesn't model survive byte-for-byte. Locking a layer whose content is mid-edit is refused by name or disclosed, never silently allowed. Renaming does not touch `/OCProperties/D/Order` ordering.
+
+### `Pass 358.2` — Create and delete a layer
+
+**Filed 2026-09-27 (644th filing), family `358`.** Acrobat has no New Layer/Delete Layer command at all — delete exists only as a Preflight fixup (`layers__layer_properties_authoring.md`). Both directions here EXCEED Acrobat (operator standing rule: parity is a floor).
+
+**Scope.** Create: a new empty OCG appended to `/OCGs` and `/D /Order` (root, or into a folder — composes with `Pass 358.3`). Delete: remove an OCG from `/OCGs`/`/Order`/`/RBGroups` with an explicit content policy — `keep unlayered` (SAFE DEFAULT) or `remove content` (the same confirm-before-destructive-save posture as redaction, `ARCHITECTURE.md` §11.2). Delete-by-name is the Preflight-parity item.
+
+**Acceptance criteria.** `keep unlayered` strips every `BDC /OC /name` wrapper naming the deleted layer (unwrap, never delete the content) and clears `/OC` on any annotation/widget naming it. `remove content` actually removes the marked content and annotations, disclosed by count. An OCG still referenced by an OCMD or `/RBGroups` entry the deletion doesn't also clean up is refused by name, never left dangling.
+
+### `Pass 358.3` — Organise `/Order` folders
+
+**Filed 2026-09-27 (644th filing), family `358`.** Answers the operator's folder question directly — Acrobat can reorder `/Order` but CANNOT create a folder (`layers__order_folder_reordering.md`); folder CREATION here exceeds Acrobat.
+
+**Scope.** Add, rename, delete a label-node folder in `/D /Order`; deleting a folder lifts its children up a level rather than deleting them. Move a layer into/out of a folder; reorder within a level. Round-trip: unrelated `/Order` structure (unknown entries, nested unlabelled arrays a foreign producer wrote) preserved byte-for-byte when untouched.
+
+**Acceptance criteria.** A folder is a label string followed by an array per §8.11.4.3 and pdfcer authors that shape exactly. Reordering leaves membership (`/OCGs`) untouched — `/Order` is presentation, not membership. A round-trip test on a file with a foreign, deeply-nested, partially-unlabelled `/Order` array pdfcer didn't touch stays byte-identical.
+
+### `Pass 358.4` — Put existing content or an annotation onto a layer
+
+**Filed 2026-09-27 (644th filing), family `358`.** Answers the operator's second question directly: pdfcer can already tell which layer an object is on (`Pass 250.0`, read-only) but has no writer at all — no verb puts page content or an annotation ONTO a layer. Acrobat itself has no GUI for this either; `/OC` on an annotation is JS/SDK-only in Acrobat (`layers__annotation_form_field_oc_assignment.md`) — this EXCEEDS Acrobat's own GUI.
+
+**Scope.** Assign selected page objects to a layer, move between layers, or clear (content-stream `BDC /OC /name … EMC` wrapping bound through `/Properties`, §8.11.3.2). Set/clear `/OC` on an annotation or widget (a direct dict entry). Must handle an object already inside a `BDC /OC` section: re-wrap or split the enclosing marked-content run, never nest a contradictory `/OC` silently.
+
+**Acceptance criteria.** An object mid-run inside an existing `BDC /OC` section, moved to a DIFFERENT layer, splits the run so untouched siblings keep their original wrapping. Clearing `/OC` removes the wrapper only if no other object depends on the same `BDC` for other state. Annotation `/OC` assignment is a single dict-entry write, one undo entry.
+
+### `Pass 358.5` — Pick a layer when adding new content
+
+**Filed 2026-09-27 (644th filing), family `358`, builds on `Pass 358.4`.** An optional layer parameter on `add_text`, `add_image`, `paste_objects` and `add_markup_as_content` (`Pass 356.0`), plus matching `--layer` CLI flags on each. Parity-plus, same as `358.4` — Acrobat's own add-content dialogs offer no layer choice at all.
+
+**Acceptance criteria.** Omitting `--layer` is byte-identical to today's behavior (no `/OC` wrapper introduced where none existed). An unknown layer name/id is refused by name, not silently ignored. Each verb's existing disclosure fields are unchanged in shape — a layer assignment is operator-stated, not pdfcer-inferred, so rule 4 does not add a new field.
+
+### `Pass 358.6` — Merge and flatten layers
+
+**Filed 2026-09-27 (644th filing), family `358`.** Acrobat's Merge Layers and Flatten Layers (`layers__import_merge_flatten_content_authoring.md`): merged layers silently take the TARGET's properties; flatten is document-wide, discards hidden content, not undoable. pdfcer matches the capability but not the silence.
+
+**Scope.** Merge N layers into a target — reassign every `BDC /OC`/annotation `/OC` reference from the merged layers to the target, remove the merged OCGs from `/OCGs`/`/Order`. Flatten — strip every `BDC /OC … EMC` wrapper and every annotation `/OC`, hidden-layer content removed only through the confirm-before-destructive-save posture (`ARCHITECTURE.md` §11.2), operator told so.
+
+**Acceptance criteria.** Merge discloses, off-canvas, that the merged layers took the target's properties (rule 4 — the one place this Pass matches Acrobat's outcome but not its silence). Flatten's hidden-content removal is refused without the destructive-save confirmation already used for redaction, with a dry-run/preview path before it (mirroring annotation-deletion preview, resize preview, `flatten_annotations`'s own planned preview).
+
+**Out of scope for family `358` (Backlog, not here).** OCMD authoring/visibility expressions; `/RBGroups` authoring; `/Configs` switching; Import as Layer — filed as its own unscoped Backlog bullet below, "Unscoped — OCMD/RBGroups/Configs/Import-as-Layer, beyond `Pass 358.x`".
+
+---
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
