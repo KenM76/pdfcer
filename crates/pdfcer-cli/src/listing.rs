@@ -1281,8 +1281,6 @@ pub(crate) fn cmd_layer_edit(
     mode: SaveMode,
     verify_undo: bool,
 ) -> u8 {
-    use pdfcer_core::edit::{LayerEdit, LayerIntent, LayerOutputState};
-
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
@@ -1318,6 +1316,82 @@ pub(crate) fn cmd_layer_edit(
             return exit::EDIT_REFUSED;
         }
     };
+    let edited = match session.set_layer_properties(layer, &layer_edit(args)) {
+        Ok(edited) => edited,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "layer-edit {} id={} mode={} -> {}; changed={} objects={} appended={} out_bytes={}",
+        input.display(),
+        layer.num,
+        mode.name(),
+        output.display(),
+        edited.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    finish_edit(input, &outcome)
+}
+
+/// `layer-add` — create a new, empty layer.
+pub(crate) fn cmd_layer_add(
+    input: &Path,
+    name: &str,
+    args: &LayerEditArgs,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let layer = match session.add_layer(name, &layer_edit(args)) {
+        Ok(layer) => layer,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "layer-add {} id={} mode={} -> {}; objects={} appended={} out_bytes={}",
+        input.display(),
+        layer.num,
+        mode.name(),
+        output.display(),
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    finish_edit(input, &outcome)
+}
+
+/// The core `LayerEdit` for the shared layer options.
+fn layer_edit(args: &LayerEditArgs) -> pdfcer_core::edit::LayerEdit {
+    use pdfcer_core::edit::{LayerEdit, LayerIntent, LayerOutputState};
+
     let output_state = |a: LayerOutputArg| match a {
         LayerOutputArg::WhenVisible => LayerOutputState::WhenVisible,
         LayerOutputArg::Always => LayerOutputState::Always,
@@ -1346,34 +1420,7 @@ pub(crate) fn cmd_layer_edit(
             LayerIntentArg::Both => LayerIntent::Both,
         });
     }
-    let edited = match session.set_layer_properties(layer, &edit) {
-        Ok(edited) => edited,
-        Err(err) => return report_edit_error(input, &err),
-    };
-    let outcome = match save_edited(
-        &mut session,
-        &source,
-        output,
-        mode,
-        ProducerArg::Preserve,
-        verify_undo,
-    ) {
-        Ok(outcome) => outcome,
-        Err(code) => return code,
-    };
-    let r = &outcome.report;
-    println!(
-        "layer-edit {} id={} mode={} -> {}; changed={} objects={} appended={} out_bytes={}",
-        input.display(),
-        layer.num,
-        mode.name(),
-        output.display(),
-        edited.changed,
-        r.objects_written,
-        r.bytes_appended,
-        r.bytes_written,
-    );
-    finish_edit(input, &outcome)
+    edit
 }
 
 /// `layer-toggle` — show/hide a dimension group's optional-content layer.

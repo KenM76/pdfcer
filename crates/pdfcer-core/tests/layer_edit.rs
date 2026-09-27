@@ -300,3 +300,97 @@ fn refusals() {
     ));
     assert_eq!(s.undo_depth(), 0);
 }
+
+/// A new layer joins `/OCGs` and the end of `/Order`, visible, in one undo
+/// entry; the other layers are untouched.
+#[test]
+fn add_layer_appends_to_ocgs_and_order() {
+    let mut s = fixture("basic-layers.pdf");
+    let before = read_layers(&s.graph()).layers.len();
+    let id = s.add_layer("Welds", &LayerEdit::new()).unwrap();
+    let read = read_layers(&s.graph());
+    assert_eq!(read.layers.len(), before + 1);
+    let l = layer(&read, id.num);
+    assert_eq!(l.name, "Welds");
+    assert!(l.visible_by_default);
+    let d = default_config(&s);
+    assert_eq!(members(&s, &d, b"Order").last(), Some(&id));
+    assert_eq!(s.undo(), Some(CommandKind::AddLayer { layer: id }));
+    assert_eq!(read_layers(&s.graph()).layers.len(), before);
+}
+
+/// A document with no layers gains `/OCProperties` with `/Order [new]`.
+#[test]
+fn add_layer_to_a_document_without_layers() {
+    let bytes = assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [] /Count 0 >>",
+    ]);
+    let mut s = EditSession::new(Document::from_bytes(bytes).expect("parses"));
+    let id = s.add_layer("Notes", &LayerEdit::new()).unwrap();
+    let read = read_layers(&s.graph());
+    assert_eq!(read.layers.len(), 1);
+    assert!(layer(&read, id.num).visible_by_default);
+    assert_eq!(members(&s, &default_config(&s), b"Order"), vec![id]);
+}
+
+/// Options apply to the new layer: hidden under an OFF base state goes
+/// nowhere, shown goes to `/ON`; lock and print are written.
+#[test]
+fn add_layer_applies_the_other_options() {
+    let mut s = fixture("basestate-off.pdf");
+    let shown = s
+        .add_layer("Shown", &LayerEdit::new().locked(true))
+        .unwrap();
+    let hidden = s
+        .add_layer(
+            "Hidden",
+            &LayerEdit::new()
+                .visible_by_default(false)
+                .print(LayerOutputState::Never)
+                .name("ignored"),
+        )
+        .unwrap();
+    let read = read_layers(&s.graph());
+    assert!(layer(&read, shown.num).visible_by_default);
+    assert!(layer(&read, shown.num).locked);
+    assert!(!layer(&read, hidden.num).visible_by_default);
+    assert_eq!(layer(&read, hidden.num).name, "Hidden");
+    let d = default_config(&s);
+    assert!(members(&s, &d, b"ON").contains(&shown));
+    assert!(!members(&s, &d, b"OFF").contains(&hidden));
+    assert!(dict(&s, hidden).get(b"Usage").is_some());
+}
+
+/// Indirect `/OCGs` and `/Order` arrays are appended in place.
+#[test]
+fn add_layer_edits_indirect_arrays_in_place() {
+    let bytes = assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs 3 0 R /D << /Order 4 0 R >> >> >>",
+        "<< /Type /Pages /Kids [] /Count 0 >>",
+        "[5 0 R]",
+        "[5 0 R]",
+        "<< /Type /OCG /Name (Old) >>",
+    ]);
+    let mut s = EditSession::new(Document::from_bytes(bytes).expect("parses"));
+    let id = s.add_layer("New", &LayerEdit::new()).unwrap();
+    let expect = Object::Array(vec![
+        Object::Reference(ObjId::new(5, 0)),
+        Object::Reference(id),
+    ]);
+    assert_eq!(resolved(&s, ObjId::new(3, 0)), expect);
+    assert_eq!(resolved(&s, ObjId::new(4, 0)), expect);
+    // The new group plus the two arrays; the catalog is not rewritten.
+    assert_eq!(s.dirty_set().len(), 3);
+}
+
+/// An empty name is refused before anything is allocated.
+#[test]
+fn add_layer_refuses_an_empty_name() {
+    let mut s = fixture("basic-layers.pdf");
+    assert!(matches!(
+        s.add_layer("", &LayerEdit::new()),
+        Err(EditError::EmptyLayerName)
+    ));
+    assert_eq!(s.undo_depth(), 0);
+}

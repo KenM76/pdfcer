@@ -909,6 +909,12 @@ pub enum CommandKind {
         /// The optional content group that was edited.
         layer: ObjId,
     },
+    /// A layer was created ([`EditSession::add_layer`], §8.11.2) — ONE undo
+    /// entry.
+    AddLayer {
+        /// The new optional content group.
+        layer: ObjId,
+    },
     /// One vector object was **moved** (Pass 9c-min, decision 011 §2.5): all
     /// of its path-construction operands were translated by a page-space
     /// `(dx, dy)` through content-stream surgery (the R46/§5.7 named
@@ -47718,13 +47724,29 @@ impl EditSession {
             return Err(EditError::LayerNotFound { id: layer });
         }
 
-        let load = |id: ObjId| self.value(id).cloned();
         let mut staged: BTreeMap<ObjId, Object> = BTreeMap::new();
+        self.stage_layer_edit(catalog_id, layer, edit, &mut staged);
+        let changed = self.commit_staged(CommandKind::SetLayerProperties { layer }, staged);
+        Ok(LayerEditOutcome { changed })
+    }
+
+    /// Stage `edit` for `layer` into `staged`: the group's own entries and
+    /// the default configuration's `/ON`, `/OFF`, `/Locked` and `/AS`.
+    /// Reads `staged` before the document, so a group staged earlier in
+    /// the same command is edited, not re-read.
+    fn stage_layer_edit(
+        &self,
+        catalog_id: ObjId,
+        layer: ObjId,
+        edit: &LayerEdit,
+        staged: &mut BTreeMap<ObjId, Object>,
+    ) {
+        let load = |id: ObjId| self.value(id).cloned();
         let me = Object::Reference(layer);
 
         // The group itself: /Name, /Intent, /Usage.
         let mut group = Object::Reference(layer);
-        layer_node(&load, &mut staged, &mut group, |staged, g| {
+        layer_node(&load, staged, &mut group, |staged, g| {
             let Object::Dict(g) = g else { return };
             if let Some(name) = &edit.name {
                 g.insert(
@@ -47809,7 +47831,7 @@ impl EditSession {
             || edit.export.is_some();
         if touches_d {
             let mut catalog = Object::Reference(catalog_id);
-            layer_node(&load, &mut staged, &mut catalog, |staged, c| {
+            layer_node(&load, staged, &mut catalog, |staged, c| {
                 let Object::Dict(c) = c else { return };
                 let mut ocp = c.get(b"OCProperties").cloned().unwrap_or(Object::Null);
                 layer_node(&load, staged, &mut ocp, |staged, o| {
@@ -47824,7 +47846,11 @@ impl EditSession {
                 c.insert(Name::from(b"OCProperties"), ocp);
             });
         }
+    }
 
+    /// Commit the staged objects whose value differs from the current one,
+    /// as one undo entry of `kind`. Returns whether anything was committed.
+    fn commit_staged(&mut self, kind: CommandKind, staged: BTreeMap<ObjId, Object>) -> bool {
         let objects: Vec<ObjectWrite> = staged
             .into_iter()
             .filter(|(id, after)| self.value(*id) != Some(after))
@@ -47837,13 +47863,110 @@ impl EditSession {
         let changed = !objects.is_empty();
         if changed {
             self.commit(Command {
-                kind: CommandKind::SetLayerProperties { layer },
+                kind,
                 objects,
                 removals: Vec::new(),
                 trailer: None,
             });
         }
-        Ok(LayerEditOutcome { changed })
+        changed
+    }
+
+    /// Create a new, empty layer (an optional content group, ISO 32000-1
+    /// §8.11.2) named `name`, and apply `edit`'s other fields to it.
+    ///
+    /// The group is appended to `/OCProperties /OCGs` and to the root of
+    /// `/D /Order`, so it appears last in the layer panel. A document with
+    /// no `/OCProperties` gains one; a `/D` with no `/Order` gains
+    /// `/Order [new]`, because an absent `/Order` presents no groups at all
+    /// (Table 101) and the operator asked for a layer they can see. Other
+    /// groups keep their presentation. `edit.name` is ignored; `name` wins.
+    /// The layer is visible by default unless `edit` says otherwise.
+    ///
+    /// One undo entry, [`CommandKind::AddLayer`]. Returns the new group's id.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::EmptyLayerName`] — `name` is empty.
+    /// - [`EditError::DocumentEncrypted`] and the certification guard.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::{EditSession, LayerEdit};
+    /// # fn run(session: &mut EditSession) -> Result<(), Box<dyn std::error::Error>> {
+    /// let id = session.add_layer("Welds", &LayerEdit::new().locked(true))?;
+    /// # let _ = id;
+    /// # Ok(()) }
+    /// ```
+    pub fn add_layer(&mut self, name: &str, edit: &LayerEdit) -> Result<ObjId, EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification()?;
+        if name.is_empty() {
+            return Err(EditError::EmptyLayerName);
+        }
+        let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
+            id: ObjId::new(0, 0),
+            key: "Root",
+        })?;
+        let layer = ObjId::new(self.alloc_number()?, 0);
+        let me = Object::Reference(layer);
+        let mut staged: BTreeMap<ObjId, Object> = BTreeMap::new();
+        let mut group = Dict::new();
+        group.insert(Name::from(b"Type"), Object::Name(Name::from(b"OCG")));
+        group.insert(
+            Name::from(b"Name"),
+            Object::String(encode_text_string(name)),
+        );
+        staged.insert(layer, Object::Dict(group));
+
+        let load = |id: ObjId| self.value(id).cloned();
+        let append = |staged: &mut BTreeMap<ObjId, Object>, slot: Option<&Object>| {
+            let mut list = slot.cloned().unwrap_or(Object::Array(Vec::new()));
+            layer_node(&load, staged, &mut list, |_, a| match a {
+                Object::Array(a) => a.push(me.clone()),
+                other => *other = Object::Array(vec![me.clone()]),
+            });
+            list
+        };
+        let mut catalog = Object::Reference(catalog_id);
+        layer_node(&load, &mut staged, &mut catalog, |staged, c| {
+            let Object::Dict(c) = c else { return };
+            let mut ocp = c
+                .get(b"OCProperties")
+                .cloned()
+                .unwrap_or(Object::Dict(Dict::new()));
+            layer_node(&load, staged, &mut ocp, |staged, o| {
+                if !matches!(o, Object::Dict(_)) {
+                    *o = Object::Dict(Dict::new());
+                }
+                let Object::Dict(o) = o else { return };
+                let ocgs = append(staged, o.get(b"OCGs"));
+                o.insert(Name::from(b"OCGs"), ocgs);
+                let mut d = o.get(b"D").cloned().unwrap_or(Object::Dict(Dict::new()));
+                layer_node(&load, staged, &mut d, |staged, d| {
+                    if !matches!(d, Object::Dict(_)) {
+                        *d = Object::Dict(Dict::new());
+                    }
+                    let Object::Dict(d) = d else { return };
+                    let order = append(staged, d.get(b"Order"));
+                    d.insert(Name::from(b"Order"), order);
+                });
+                o.insert(Name::from(b"D"), d);
+            });
+            c.insert(Name::from(b"OCProperties"), ocp);
+        });
+
+        let mut rest = edit.clone();
+        rest.name = None;
+        if rest.visible_by_default.is_none() {
+            rest.visible_by_default = Some(true);
+        }
+        self.stage_layer_edit(catalog_id, layer, &rest, &mut staged);
+        self.commit_staged(CommandKind::AddLayer { layer }, staged);
+        Ok(layer)
     }
 
     /// Every ce dimension wired onto `page_index`, with its page-space

@@ -123,3 +123,59 @@ fn an_empty_name_is_refused() {
     assert_eq!(o.status.code(), Some(EDIT_REFUSED));
     assert!(!out.exists());
 }
+
+/// `layer-add` creates a layer `list-layers` then shows, hidden and locked
+/// as asked.
+#[test]
+fn layer_add_creates_a_listed_layer() {
+    let out = temp_path("add");
+    let o = run(&[
+        "layer-add",
+        fixture("basic-layers.pdf").to_str().unwrap(),
+        "--name",
+        "Welds",
+        "--visible",
+        "off",
+        "--locked",
+        "on",
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout).into_owned();
+    let id = stdout
+        .split_whitespace()
+        .find_map(|w| w.strip_prefix("id="))
+        .unwrap_or_else(|| panic!("no id in {stdout}"))
+        .to_owned();
+    let listed = listing(&out);
+    let line = listed
+        .lines()
+        .find(|l| l.contains("name=\"Welds\""))
+        .unwrap_or_else(|| panic!("no new layer in {listed}"));
+    assert!(line.contains("visible=0"), "{line}");
+    assert!(line.contains("locked"), "{line}");
+    assert!(line.contains(&format!(" id={id}")), "{line}");
+    std::fs::remove_file(out).ok();
+}
+
+/// An empty name is refused and nothing is written.
+#[test]
+fn layer_add_refuses_an_empty_name() {
+    let out = temp_path("add_empty");
+    let o = run(&[
+        "layer-add",
+        fixture("basic-layers.pdf").to_str().unwrap(),
+        "--name",
+        "",
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(o.status.code(), Some(EDIT_REFUSED));
+    assert!(!out.exists());
+}

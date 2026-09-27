@@ -7957,6 +7957,45 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Add a new, empty layer.
+    ///
+    /// The layer is listed last in the layer panel and is visible by default
+    /// unless `--visible off`. A file with no layers gains a layer panel. Use
+    /// `layer-edit` to change it later. Prints one `layer-add` line with the
+    /// new layer's `id=`.
+    ///
+    /// Exit 9 when the name is empty.
+    LayerAdd {
+        /// Input PDF.
+        input: PathBuf,
+        /// The new layer's name.
+        #[arg(long)]
+        name: String,
+        /// Whether the layer is shown when the document opens (default on).
+        #[arg(long, value_enum)]
+        visible: Option<OnOffArg>,
+        /// Whether the layer panel locks the layer's visibility.
+        #[arg(long, value_enum)]
+        locked: Option<OnOffArg>,
+        /// When the layer prints.
+        #[arg(long, value_enum)]
+        print: Option<LayerOutputArg>,
+        /// When the layer is kept on export.
+        #[arg(long, value_enum)]
+        export: Option<LayerOutputArg>,
+        /// Whether the layer is for viewing, for design tools, or both.
+        #[arg(long, value_enum)]
+        intent: Option<LayerIntentArg>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Edit a layer's properties: rename it, set whether it is visible when
     /// the document opens, lock it, and set whether it prints or exports.
     ///
