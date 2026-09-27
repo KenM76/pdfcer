@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 346.0` (`337aff7f`), 2026-09-27 — A comb field is drawn one character per `/MaxLen` cell
+
+**Verdict: SHIPPED, closes D1 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`345.0`) — the item stays open, three `FieldEdit` findings and two `WidgetEdit` findings remain (see *Backlog*).
+
+Found by the form-editing audit (finding D1): a comb field (ISO 32000-1 §12.7.4.3 Table 228 bit 25) was drawn as a plain text run while the appearance regenerator reported the appearance Regenerated. Spec: each character of a comb field occupies its own cell, `width / MaxLen` wide.
+
+**Fix.** `vartext::build_comb_text` lays out one glyph per cell — `width / MaxLen`, each glyph centred on the single-line baseline; a `/DA` size of `0` fits the widest character to one cell; characters past `MaxLen` are not drawn. `build_field_text_appearance` takes `comb: Option<usize>`; a bordered comb also draws cell dividers in the border colour and width (Acrobat draws them; the spec is silent). `regen_field_appearance` lays out comb only where Table 228 permits it (`MaxLen > 0`; Multiline/Password/FileSelect clear it) — an ill-formed comb draws as plain text. Every route follows: fill, create, regenerate, and `edit_field` toggling comb or changing `/MaxLen`. A second defect found on discovery: `/MaxLen` was read from the terminal field only — it is INHERITED from an ancestor field (Table 229) and is now read that way everywhere comb layout is decided.
+
+**API.** New `pub` field `FillOutcome::exceeds_max_len: Option<i64>` — `Some(limit)` when the fill value is longer than `/MaxLen`; the value is stored WHOLE, never truncated. `docs/core-api/02` updated; `check-core-api-verbs` PASS (251 verbs, unchanged).
+
+**CLI.** `fill-field` prints the over-length disclosure; no new flags.
+
+**Tests.** `form_comb_fields` (5 end-to-end tests) plus `forms::max_len_is_inherited_and_overridden`. Sabotage: plain layout instead of comb fails all 5; dropping inheritance fails the unit test; `>=` instead of `>` for the limit check fails the exact-fit case. Workspace tests: 5,756 passed (relayed, no shell this filing). No `Cargo.toml` change — no `cargo tree` check needed. No packaging change.
+
+**Shells.** Core + CLI this Pass; GUI is a separate project and has not wired it.
+
+**`docs/FEATURES.md`:** row 307 (Fill fields) and row 310 (create a field) each get one added clause, both checked against the 1,200-char cap; no box change — correctness fix under an already-ticked capability.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `337aff7f`, not independently reproduced.
+
 ### `Pass 345.0` (`100532ec`), 2026-09-27 — A password field is drawn masked and keeps no stored value
 
 **Verdict: SHIPPED, closes D2 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`344.0`) — the item stays open, four `FieldEdit` findings and two `WidgetEdit` findings remain (see *Backlog*).
@@ -17043,13 +17063,15 @@ suspicion this entry recorded.
 
 ★ **Tenth fix shipped — 2026-09-27 (630th filing, `Pass 345.0`, `100532ec`).** Closes D2, below: a Password field had no masking — the appearance regenerator drew raw characters and `/V` stored plaintext, against ISO 32000-1 §12.7.4.3 Table 228 bit 14's "echoed in some unreadable form" and its should-never-store NOTE; the regenerator now masks with `*`, `fill_text_field` withholds `/V` by default (opt-in `fill_text_field_storing_password` stores it), `add_text_field`/`edit_field`/`import_form_data` all follow the same rule, and a superseded plaintext `/AP` stream is now removed rather than orphaned — see *Shipped*, above. **Kept open** — four `FieldEdit` findings and two `WidgetEdit` findings remain.
 
+★ **Eleventh fix shipped — 2026-09-27 (631st filing, `Pass 346.0`, `337aff7f`).** Closes D1, below: a comb field drew as a plain text run while reporting the appearance Regenerated; `vartext::build_comb_text` now lays out one glyph per `width / MaxLen` cell, `/MaxLen` is now read INHERITED rather than terminal-only (a second defect found on discovery), and a new `FillOutcome::exceeds_max_len` discloses an over-length value stored whole, never truncated — see *Shipped*, above. **Kept open** — three `FieldEdit` findings and two `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
 - D5/X1 — CLOSED by `Pass 338.0`, above. Was: `regen_after_property_change` fell back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redrew in Helvetica, and a non-Helv `/DA` key gave `FontUnresolved` on a later edit.
 - D4 — a resource font not in `/DR`, or not standard-14, is still forced to Helvetica (partly fixed by `Pass 338.0`: a Resource face present in `/DR` now gets `/DR`'s standard-14 metrics).
 - D4b — CLOSED by `Pass 344.0`, above. Was: a push-button `/DA` edit is not redrawn — measured worse than filed, it failed outright with `FontUnresolved` for any non-Helvetica face.
-- D1 — comb/`max_len` get no comb layout, yet report Regenerated.
+- D1 — CLOSED by `Pass 346.0`, above. Was: comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.
 - D7 — stale `/I`/`/TI` after an `/Opt` change.
 - D8 — round-trip gaps: inherited quadding read-back, multi-select `/DV`. Check box/radio `/DA` edits report Regenerated over identical bytes. Regen auto-size and unencodable-character counts are dropped, undisclosed.

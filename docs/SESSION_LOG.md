@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (631st filing) — `337aff7f`: `Pass 346.0` SHIPPED — a comb field is drawn one character per `/MaxLen` cell
+
+**Shipped:**
+- `Pass 346.0` — closes D1 from the Backlog's "Audit every `FieldEdit`/
+  `WidgetEdit` property" item (filed 2026-09-16, 562nd filing; earlier
+  fixes `Pass 335.0`–`345.0`); the item stays open, three `FieldEdit`
+  findings and two `WidgetEdit` findings remain.
+
+**Decisions made this session:** none — a scoped correctness fix, no
+architecture change.
+
+**Findings + decisions:**
+- Found by the form-editing audit: a comb field (ISO 32000-1 §12.7.4.3
+  Table 228 bit 25) drew as a plain text run while the appearance
+  regenerator reported the appearance Regenerated. The spec puts each
+  character in its own cell, `width / MaxLen` wide.
+- Fix: `vartext::build_comb_text` now lays out one glyph per cell,
+  centred on the baseline; a `/DA` size of `0` fits the widest character
+  to one cell; characters past `MaxLen` are not drawn. A bordered comb
+  also draws cell dividers. `regen_field_appearance` applies comb layout
+  only where Table 228 permits it; every route follows — fill, create,
+  regenerate, and `edit_field` toggling comb or `/MaxLen`.
+- Second defect found on discovery: `/MaxLen` was read from the terminal
+  field only; it is INHERITED from an ancestor field (Table 229) and is
+  now read that way everywhere comb layout is decided.
+- New `pub` field `FillOutcome::exceeds_max_len: Option<i64>` — the fill
+  value is stored WHOLE when it exceeds `/MaxLen`, never truncated;
+  `fill-field` prints the disclosure. `docs/core-api/02` updated;
+  `check-core-api-verbs` PASS (251 verbs, unchanged).
+- New test module `form_comb_fields` (5 tests) plus
+  `forms::max_len_is_inherited_and_overridden`; each sabotage-checked.
+  Workspace tests: 5,756 passed (relayed, no shell this filing). No
+  `Cargo.toml` change, no packaging change.
+- `docs/FEATURES.md`: row 307 (Fill fields, 1,070 chars) and row 310
+  (create a field, 1,084 chars) each get one added clause; no box
+  change — correctness fix under an already-ticked capability.
+
+**Still in flight:** the audit item — three `FieldEdit` findings (D4,
+D7, D8) and two `WidgetEdit` findings (stroke-width scaling not drawn;
+radio/text/choice caption falsely reports Regenerated) remain.
+
+**For next session:** next audit finding in queue is D4 (a resource
+font not in `/DR`, or not standard-14, is still forced to Helvetica).
+
 ## 2026-09-27 (630th filing) — `100532ec`: `Pass 345.0` SHIPPED — a password field is drawn masked and keeps no stored value
 
 **Shipped:**
