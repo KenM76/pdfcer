@@ -36,11 +36,11 @@ fn a_folder_and_sublayers_print_as_an_indented_tree() {
         lines[..6],
         [
             "folder label=\"Sheet metal\"",
-            "  layer name=\"ZULU\" visible=1",
-            "    layer name=\"YANKEE\" visible=1",
-            "    layer name=\"XRAY\" visible=1",
-            "layer name=\"WHISKEY\" visible=1",
-            "  layer name=\"VICTOR\" visible=1",
+            "  layer name=\"ZULU\" visible=1 id=4",
+            "    layer name=\"YANKEE\" visible=1 id=5",
+            "    layer name=\"XRAY\" visible=1 id=6",
+            "layer name=\"WHISKEY\" visible=1 id=7",
+            "  layer name=\"VICTOR\" visible=1 id=8",
         ]
     );
     assert!(lines[6].starts_with("list-layers "), "{out}");

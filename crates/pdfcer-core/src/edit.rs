@@ -903,6 +903,12 @@ pub enum CommandKind {
         /// The resulting default visibility.
         visible: bool,
     },
+    /// A layer's properties were edited ([`EditSession::set_layer_properties`],
+    /// §8.11.2.1 Table 98, §8.11.4.3 Table 101) — ONE undo entry.
+    SetLayerProperties {
+        /// The optional content group that was edited.
+        layer: ObjId,
+    },
     /// One vector object was **moved** (Pass 9c-min, decision 011 §2.5): all
     /// of its path-construction operands were translated by a page-space
     /// `(dx, dy)` through content-stream surgery (the R46/§5.7 named
@@ -7698,6 +7704,17 @@ pub enum EditError {
         /// The key, lossily decoded for display; the real key is bytes.
         name: String,
     },
+    /// A layer verb named an object that is not an optional content group
+    /// listed in the catalog's `/OCProperties /OCGs` (§8.11.4.2 Table 100).
+    #[error("object {id} is not a layer listed in /OCProperties /OCGs")]
+    LayerNotFound {
+        /// The object that was passed.
+        id: ObjId,
+    },
+    /// A layer rename gave an empty name. `/Name` is Required (Table 98) and
+    /// an empty one leaves the layer panel with a blank row.
+    #[error("a layer name cannot be empty")]
+    EmptyLayerName,
     /// A ce-dimension operation named a group the sidecar model does not
     /// contain (Pass 25.5).
     #[error("no ce dimension group with id {id} exists in this document")]
@@ -47619,6 +47636,216 @@ impl EditSession {
         Ok(result)
     }
 
+    /// Edit one layer's properties: its name, whether it is visible when the
+    /// document opens, whether its visibility is locked in the layer panel,
+    /// whether it prints or exports, and its intent. Only the fields set in
+    /// `edit` change. One undo entry, or none when nothing would change.
+    ///
+    /// | Field | Written to |
+    /// |---|---|
+    /// | `name` | the group's `/Name` (§8.11.2.1 Table 98) |
+    /// | `visible_by_default` | `/OCProperties /D` `/ON` or `/OFF` (Table 101) |
+    /// | `locked` | `/D /Locked` (Table 101, PDF 1.6) — a UI lock only |
+    /// | `print`, `export` | the group's `/Usage /Print /PrintState` or `/Export /ExportState` (Table 102), and a `/D /AS` entry for that event (Table 103) |
+    /// | `intent` | the group's `/Intent` (Table 98) |
+    ///
+    /// Visibility is written against `/D /BaseState`: with the default `ON`
+    /// base a hidden layer is added to `/OFF` and a shown one is only removed
+    /// from it; with an `OFF` base the same happens through `/ON`.
+    ///
+    /// A usage state takes effect only for groups listed in a `/D /AS` entry
+    /// of the same event (§8.11.4.4), so [`LayerOutputState::Always`] and
+    /// [`LayerOutputState::Never`] also list the group in an `/AS` entry with
+    /// `/Event` and `/Category` of that name, creating one when there is
+    /// none. [`LayerOutputState::WhenVisible`] removes the usage sub-dictionary
+    /// and the group from those entries; an entry left with no groups is
+    /// dropped.
+    ///
+    /// An indirect dictionary or array along the way is edited in place, so
+    /// the file's structure is kept.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::LayerNotFound`] — `layer` is not in `/OCProperties
+    ///   /OCGs`, or is not a dictionary.
+    /// - [`EditError::EmptyLayerName`] — `edit` renames to an empty string.
+    /// - [`EditError::DocumentEncrypted`] and the certification guard.
+    ///
+    /// All refusals happen before anything is written.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::{EditSession, LayerEdit, LayerOutputState};
+    /// # fn run(session: &mut EditSession, layer: pdfcer_core::ObjId) -> Result<(), Box<dyn std::error::Error>> {
+    /// let edit = LayerEdit::new()
+    ///     .name("Dimensions")
+    ///     .locked(true)
+    ///     .print(LayerOutputState::Never);
+    /// let outcome = session.set_layer_properties(layer, &edit)?;
+    /// assert!(outcome.changed);
+    /// # Ok(()) }
+    /// ```
+    pub fn set_layer_properties(
+        &mut self,
+        layer: ObjId,
+        edit: &LayerEdit,
+    ) -> Result<LayerEditOutcome, EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification()?;
+        if edit.name.as_deref().is_some_and(str::is_empty) {
+            return Err(EditError::EmptyLayerName);
+        }
+        let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
+            id: ObjId::new(0, 0),
+            key: "Root",
+        })?;
+        let ocp = self
+            .value(catalog_id)
+            .and_then(Object::as_dict)
+            .and_then(|c| self.deref_dict(c.get(b"OCProperties")));
+        let registered = ocp
+            .as_ref()
+            .and_then(|o| self.deref_value(o.get(b"OCGs")))
+            .and_then(|a| {
+                a.as_array()
+                    .map(|a| a.iter().any(|o| o.as_reference() == Some(layer)))
+            })
+            .unwrap_or(false);
+        if !registered || !matches!(self.value(layer), Some(Object::Dict(_))) {
+            return Err(EditError::LayerNotFound { id: layer });
+        }
+
+        let load = |id: ObjId| self.value(id).cloned();
+        let mut staged: BTreeMap<ObjId, Object> = BTreeMap::new();
+        let me = Object::Reference(layer);
+
+        // The group itself: /Name, /Intent, /Usage.
+        let mut group = Object::Reference(layer);
+        layer_node(&load, &mut staged, &mut group, |staged, g| {
+            let Object::Dict(g) = g else { return };
+            if let Some(name) = &edit.name {
+                g.insert(
+                    Name::from(b"Name"),
+                    Object::String(encode_text_string(name)),
+                );
+            }
+            if let Some(intent) = edit.intent {
+                let current: Vec<Vec<u8>> = match g.get(b"Intent") {
+                    Some(Object::Name(n)) => vec![n.as_bytes().to_vec()],
+                    Some(Object::Array(a)) => a
+                        .iter()
+                        .filter_map(Object::as_name)
+                        .map(|n| n.as_bytes().to_vec())
+                        .collect(),
+                    _ => vec![b"View".to_vec()],
+                };
+                let has = |n: &[u8]| current.iter().any(|c| c == n);
+                let already = match intent {
+                    LayerIntent::View => has(b"View") && !has(b"Design"),
+                    LayerIntent::Design => has(b"Design") && !has(b"View"),
+                    LayerIntent::Both => has(b"View") && has(b"Design"),
+                };
+                if !already {
+                    let value = match intent {
+                        LayerIntent::View => Object::Name(Name::from(b"View")),
+                        LayerIntent::Design => Object::Name(Name::from(b"Design")),
+                        LayerIntent::Both => Object::Array(vec![
+                            Object::Name(Name::from(b"View")),
+                            Object::Name(Name::from(b"Design")),
+                        ]),
+                    };
+                    g.insert(Name::from(b"Intent"), value);
+                }
+            }
+            for (state, category, key) in [
+                (edit.print, &b"Print"[..], &b"PrintState"[..]),
+                (edit.export, &b"Export"[..], &b"ExportState"[..]),
+            ] {
+                let Some(state) = state else { continue };
+                let mut usage = g
+                    .get(b"Usage")
+                    .cloned()
+                    .unwrap_or(Object::Dict(Dict::new()));
+                layer_node(&load, staged, &mut usage, |staged, u| {
+                    let Object::Dict(u) = u else { return };
+                    match state.as_name() {
+                        None => {
+                            u.remove(category);
+                        }
+                        Some(on_off) => {
+                            let mut sub = u
+                                .get(category)
+                                .cloned()
+                                .unwrap_or(Object::Dict(Dict::new()));
+                            layer_node(&load, staged, &mut sub, |_, s| {
+                                if let Object::Dict(s) = s {
+                                    s.insert(Name(key.to_vec()), Object::Name(Name::from(on_off)));
+                                } else {
+                                    let mut d = Dict::new();
+                                    d.insert(Name(key.to_vec()), Object::Name(Name::from(on_off)));
+                                    *s = Object::Dict(d);
+                                }
+                            });
+                            u.insert(Name(category.to_vec()), sub);
+                        }
+                    }
+                });
+                match &usage {
+                    Object::Dict(u) if u.is_empty() => {
+                        g.remove(b"Usage");
+                    }
+                    _ => g.insert(Name::from(b"Usage"), usage),
+                }
+            }
+        });
+
+        // The default configuration: /ON, /OFF, /Locked, /AS.
+        let touches_d = edit.visible_by_default.is_some()
+            || edit.locked.is_some()
+            || edit.print.is_some()
+            || edit.export.is_some();
+        if touches_d {
+            let mut catalog = Object::Reference(catalog_id);
+            layer_node(&load, &mut staged, &mut catalog, |staged, c| {
+                let Object::Dict(c) = c else { return };
+                let mut ocp = c.get(b"OCProperties").cloned().unwrap_or(Object::Null);
+                layer_node(&load, staged, &mut ocp, |staged, o| {
+                    let Object::Dict(o) = o else { return };
+                    let mut d = o.get(b"D").cloned().unwrap_or(Object::Dict(Dict::new()));
+                    layer_node(&load, staged, &mut d, |staged, d| {
+                        let Object::Dict(d) = d else { return };
+                        edit_default_config(&load, staged, d, &me, edit);
+                    });
+                    o.insert(Name::from(b"D"), d);
+                });
+                c.insert(Name::from(b"OCProperties"), ocp);
+            });
+        }
+
+        let objects: Vec<ObjectWrite> = staged
+            .into_iter()
+            .filter(|(id, after)| self.value(*id) != Some(after))
+            .map(|(id, after)| ObjectWrite {
+                id,
+                before: self.state.get(&id).cloned(),
+                after: Some(after),
+            })
+            .collect();
+        let changed = !objects.is_empty();
+        if changed {
+            self.commit(Command {
+                kind: CommandKind::SetLayerProperties { layer },
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            });
+        }
+        Ok(LayerEditOutcome { changed })
+    }
+
     /// Every ce dimension wired onto `page_index`, with its page-space
     /// `/Rect` as `[llx, lly, urx, ury]` — the query a shell hit-tests
     /// against to let an operator click one (Pass 25.5).
@@ -49777,6 +50004,244 @@ impl EditSession {
             before: self.state.get(&catalog_id).cloned(),
             after: Some(Object::Dict(cat2)),
         })
+    }
+}
+
+// =====================================================================
+// Layer properties (`set_layer_properties`)
+// =====================================================================
+
+/// The fields [`EditSession::set_layer_properties`] changes; `None` leaves a
+/// field as it is. Build with [`LayerEdit::new`] and the setters.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct LayerEdit {
+    /// The new `/Name`. Must not be empty.
+    pub name: Option<String>,
+    /// Whether the layer is shown when the document opens.
+    pub visible_by_default: Option<bool>,
+    /// Whether the layer panel refuses to toggle it (`/D /Locked`).
+    pub locked: Option<bool>,
+    /// Whether the layer prints.
+    pub print: Option<LayerOutputState>,
+    /// Whether the layer is kept when the document is exported.
+    pub export: Option<LayerOutputState>,
+    /// The layer's `/Intent`.
+    pub intent: Option<LayerIntent>,
+}
+
+impl LayerEdit {
+    /// An edit that changes nothing.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Rename the layer.
+    #[must_use]
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Show or hide the layer when the document opens.
+    #[must_use]
+    pub fn visible_by_default(mut self, visible: bool) -> Self {
+        self.visible_by_default = Some(visible);
+        self
+    }
+
+    /// Lock or unlock the layer's visibility in the layer panel.
+    #[must_use]
+    pub fn locked(mut self, locked: bool) -> Self {
+        self.locked = Some(locked);
+        self
+    }
+
+    /// Set whether the layer prints.
+    #[must_use]
+    pub fn print(mut self, state: LayerOutputState) -> Self {
+        self.print = Some(state);
+        self
+    }
+
+    /// Set whether the layer is kept on export.
+    #[must_use]
+    pub fn export(mut self, state: LayerOutputState) -> Self {
+        self.export = Some(state);
+        self
+    }
+
+    /// Set the layer's intent.
+    #[must_use]
+    pub fn intent(mut self, intent: LayerIntent) -> Self {
+        self.intent = Some(intent);
+        self
+    }
+}
+
+/// Whether a layer is printed or exported (§8.11.4.4, Table 102 `Print` and
+/// `Export`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum LayerOutputState {
+    /// Follows the layer's visibility: no usage entry.
+    WhenVisible,
+    /// Always, even when hidden: usage state `ON`.
+    Always,
+    /// Never, even when shown: usage state `OFF`.
+    Never,
+}
+
+impl LayerOutputState {
+    /// The usage-state name this writes, `None` for no entry.
+    const fn as_name(self) -> Option<&'static [u8]> {
+        match self {
+            Self::WhenVisible => None,
+            Self::Always => Some(b"ON"),
+            Self::Never => Some(b"OFF"),
+        }
+    }
+}
+
+/// A layer's `/Intent` (Table 98): `View` layers are shown and hidden by
+/// the reader; `Design` layers belong to authoring tools.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum LayerIntent {
+    /// `/View`, the default.
+    View,
+    /// `/Design`.
+    Design,
+    /// `[/View /Design]`.
+    Both,
+}
+
+/// What [`EditSession::set_layer_properties`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct LayerEditOutcome {
+    /// Whether anything was written. `false` records no undo entry.
+    pub changed: bool,
+}
+
+/// Edit a value that may be an indirect reference: a reference is followed
+/// once and the referenced object is edited in `staged`; a direct value is
+/// edited in place.
+fn layer_node<T>(
+    load: &dyn Fn(ObjId) -> Option<Object>,
+    staged: &mut BTreeMap<ObjId, Object>,
+    slot: &mut Object,
+    f: impl FnOnce(&mut BTreeMap<ObjId, Object>, &mut Object) -> T,
+) -> T {
+    if let Object::Reference(r) = *slot {
+        let mut obj = staged
+            .remove(&r)
+            .or_else(|| load(r))
+            .unwrap_or(Object::Null);
+        let out = f(staged, &mut obj);
+        staged.insert(r, obj);
+        out
+    } else {
+        f(staged, slot)
+    }
+}
+
+/// Apply a [`LayerEdit`]'s `/D` fields for group `me` to the default
+/// configuration dictionary `d` (Table 101).
+fn edit_default_config(
+    load: &dyn Fn(ObjId) -> Option<Object>,
+    staged: &mut BTreeMap<ObjId, Object>,
+    d: &mut Dict,
+    me: &Object,
+    edit: &LayerEdit,
+) {
+    // Add or remove `me` in the array at `key`, creating it only to add.
+    let set_member = |staged: &mut BTreeMap<ObjId, Object>, d: &mut Dict, key: &[u8], on: bool| {
+        let Some(mut arr) = d
+            .get(key)
+            .cloned()
+            .or_else(|| on.then(|| Object::Array(Vec::new())))
+        else {
+            return;
+        };
+        layer_node(load, staged, &mut arr, |_, a| {
+            if let Object::Array(a) = a {
+                a.retain(|o| o != me);
+                if on {
+                    a.push(me.clone());
+                }
+            }
+        });
+        d.insert(Name(key.to_vec()), arr);
+    };
+    if let Some(visible) = edit.visible_by_default {
+        let base_off =
+            matches!(d.get(b"BaseState"), Some(Object::Name(n)) if n.as_bytes() == b"OFF");
+        set_member(staged, d, b"ON", visible && base_off);
+        set_member(staged, d, b"OFF", !visible && !base_off);
+    }
+    if let Some(locked) = edit.locked {
+        set_member(staged, d, b"Locked", locked);
+    }
+    for (state, event) in [(edit.print, &b"Print"[..]), (edit.export, &b"Export"[..])] {
+        let Some(state) = state else { continue };
+        let listed = state.as_name().is_some();
+        let Some(mut list) = d
+            .get(b"AS")
+            .cloned()
+            .or_else(|| listed.then(|| Object::Array(Vec::new())))
+        else {
+            continue;
+        };
+        layer_node(load, staged, &mut list, |staged, list| {
+            let Object::Array(list) = list else { return };
+            let is_event = |e: &Dict| matches!(e.get(b"Event"), Some(Object::Name(n)) if n.as_bytes() == event);
+            let mut found = false;
+            let mut kept = Vec::with_capacity(list.len() + 1);
+            for mut entry in std::mem::take(list) {
+                let keep = layer_node(load, staged, &mut entry, |staged, e| {
+                    let Object::Dict(e) = e else { return true };
+                    if !is_event(e) {
+                        return true;
+                    }
+                    found = true;
+                    let mut ocgs = e.get(b"OCGs").cloned().unwrap_or(Object::Array(Vec::new()));
+                    let empty = layer_node(load, staged, &mut ocgs, |_, a| {
+                        let Object::Array(a) = a else { return false };
+                        let present = a.contains(me);
+                        if !listed {
+                            a.retain(|o| o != me);
+                        } else if !present {
+                            a.push(me.clone());
+                        }
+                        a.is_empty()
+                    });
+                    e.insert(Name::from(b"OCGs"), ocgs);
+                    !empty
+                });
+                if keep || matches!(entry, Object::Reference(_)) {
+                    kept.push(entry);
+                }
+            }
+            if listed && !found {
+                let mut e = Dict::new();
+                e.insert(Name::from(b"Event"), Object::Name(Name(event.to_vec())));
+                e.insert(Name::from(b"OCGs"), Object::Array(vec![me.clone()]));
+                e.insert(
+                    Name::from(b"Category"),
+                    Object::Array(vec![Object::Name(Name(event.to_vec()))]),
+                );
+                kept.push(Object::Dict(e));
+            }
+            *list = kept;
+        });
+        match &list {
+            Object::Array(a) if a.is_empty() => {
+                d.remove(b"AS");
+            }
+            _ => d.insert(Name::from(b"AS"), list),
+        }
     }
 }
 

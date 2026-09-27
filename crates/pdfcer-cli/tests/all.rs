@@ -26,6 +26,7 @@ mod import_structure_certified;
 mod ink_edit;
 mod inspect_reflow_preview;
 mod inspect_text_blocks;
+mod layer_edit;
 mod list_fonts;
 mod list_layers_tree;
 mod list_links;

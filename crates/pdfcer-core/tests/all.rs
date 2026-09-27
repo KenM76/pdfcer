@@ -78,6 +78,7 @@ mod indirect_acroform_entries;
 mod indirect_entry_edits;
 mod ink_reshape;
 mod insert_pages_preserves_undo;
+mod layer_edit;
 mod layers;
 mod locked_contents;
 mod malformed_opens;

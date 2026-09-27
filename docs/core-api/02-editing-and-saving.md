@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 252 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 253 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 252 public `EditSession` methods
+## 1. Verb index — all 253 public `EditSession` methods
 
-**Count: 252.** Established by brace-matched extraction of the six
+**Count: 253.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -84,7 +84,8 @@ and again at 246 when `G030` added two (`move_text_runs`,
 `move_text_runs_in_form`), and again at 248 when `G036` added two
 (`find_ocr_layers`, `remove_ocr_layer`), and again at 249 when `G038`
 added `set_text_run_width`, and again at 250 when `G035` added
-`merge_text_runs`.
+`merge_text_runs`, and again at 253 when `Pass 358.1` added
+`set_layer_properties`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -4223,6 +4224,12 @@ operator has to get the order of right.
 > (`Pass 10.14`; `SignReport::appearance_lines`, `AppearanceOverflow` when
 > the rectangle cannot hold the lines). CLI: `pdfcer sign`.
 
+### 1.32 Layers (1) — `Pass 358.1`
+
+| I want to… | Call | Line | Returns |
+|---|---|---|---|
+| **Rename, show/hide, lock, set print/export or intent of a layer** | `set_layer_properties(&mut self, layer: ObjId, edit: &LayerEdit) -> Result<LayerEditOutcome, EditError>` | edit.rs | `layer` is an OCG registered in `/OCProperties /OCGs` (`layers::read_layers` lists them; `Layer::id`). `LayerEdit` is a `#[non_exhaustive]` builder (`LayerEdit::new().name(..).visible_by_default(..).locked(..).print(..).export(..).intent(..)`); only the fields set change. `name` → `/Name` as a PDF text string (§8.11.2 Table 98). `visible_by_default` → `/D /ON` or `/D /OFF` against `/D /BaseState` (Table 101): with base ON a hidden layer is listed in `/OFF`; with base OFF a shown one is listed in `/ON`, and it is taken out of the other array. `locked` → `/D /Locked`. `print`/`export: LayerOutputState` — `WhenVisible` removes `/Usage /Print` (`/Export`) and takes the group out of `/D /AS`; `Always`/`Never` write `/PrintState` (`/ExportState`) `ON`/`OFF` (Table 102) **and** list the group in a `/D /AS` entry for that event (Table 103 — a usage state applies only to groups listed there), creating `<< /Event /Print /OCGs [..] /Category [/Print] >>` when none exists; an emptied direct entry and an emptied `/AS` are dropped. `intent: LayerIntent` — `View` (the default; `/Intent` removed if it said only View), `Design`, `Both` (`[/View /Design]`). Indirect `/OCProperties`, `/D`, arrays and `/AS` entries are **edited in place** — only objects whose value actually changes are written, so a rename dirties the group alone. Nothing changed → `LayerEditOutcome { changed: false }` and no undo entry. One undo entry, `CommandKind::SetLayerProperties { layer }`. Refusals: `Encrypted`, certification, `EmptyLayerName`, `LayerNotFound { id }` (not registered, or not a dictionary). CLI: `pdfcer layer-edit` (`--layer NAME` or `--id N`, `--rename`, `--visible/--locked on\|off`, `--print/--export when-visible\|always\|never`, `--intent view\|design\|both`). Acrobat has no New Layer and no content-to-layer move; those are `Pass 358.2`–`358.5`. |
+
 ## 2. Construction, and the session's three read views
 
 ```rust
@@ -4988,7 +4995,7 @@ borrow it (`tests/image_placement.rs:238-247`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**138 variants** at `Pass 293.0`, counted at depth 1 inside `pub enum EditError`.
+**140 variants** at `Pass 358.1`, counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 

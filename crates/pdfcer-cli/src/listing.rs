@@ -415,7 +415,7 @@ pub(crate) fn cmd_list_layers(input: &Path, tree: bool) -> u8 {
             // Inlined rather than a nested `format!`: clippy's
             // `format_in_format_args` is right that the inner allocation
             // is pointless when the outer macro can format it directly.
-            format_args!(" via={:?}", l.discovered_via),
+            format_args!(" via={:?} id={}", l.discovered_via, l.id.num),
         );
     }
 
@@ -526,8 +526,9 @@ fn print_order_tree(read: &pdfcer_core::layers::Layers) {
                         };
                         let locked = if l.locked { " locked" } else { "" };
                         println!(
-                            "{pad}layer name={name} visible={}{locked}",
-                            u32::from(l.visible_by_default)
+                            "{pad}layer name={name} visible={}{locked} id={}",
+                            u32::from(l.visible_by_default),
+                            l.id.num
                         );
                     }
                     // Counted in the diagnostics (dangling or malformed);
@@ -1253,6 +1254,126 @@ pub(crate) fn cmd_list_attachments(input: &Path) -> u8 {
         items.len(),
     );
     exit::SUCCESS
+}
+
+/// Which layer `layer-edit` names.
+pub(crate) struct LayerPick {
+    pub(crate) name: Option<String>,
+    pub(crate) id: Option<u32>,
+}
+
+/// `layer-edit`'s property options.
+pub(crate) struct LayerEditArgs {
+    pub(crate) rename: Option<String>,
+    pub(crate) visible: Option<OnOffArg>,
+    pub(crate) locked: Option<OnOffArg>,
+    pub(crate) print: Option<LayerOutputArg>,
+    pub(crate) export: Option<LayerOutputArg>,
+    pub(crate) intent: Option<LayerIntentArg>,
+}
+
+/// `layer-edit` — edit one layer's properties.
+pub(crate) fn cmd_layer_edit(
+    input: &Path,
+    pick: &LayerPick,
+    args: &LayerEditArgs,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    use pdfcer_core::edit::{LayerEdit, LayerIntent, LayerOutputState};
+
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let read = pdfcer_core::layers::read_layers(&session.graph());
+    let matches: Vec<pdfcer_core::object::ObjId> = read
+        .layers
+        .iter()
+        .filter(|l| match (&pick.name, pick.id) {
+            (Some(name), _) => l.name_declared && &l.name == name,
+            (None, Some(id)) => l.id.num == id,
+            (None, None) => false,
+        })
+        .map(|l| l.id)
+        .collect();
+    let layer = match matches.as_slice() {
+        [one] => *one,
+        [] => {
+            eprintln!(
+                "pdfcer: {}: no such layer; `pdfcer list-layers` shows the names and ids",
+                input.display()
+            );
+            return exit::EDIT_REFUSED;
+        }
+        many => {
+            let ids: Vec<String> = many.iter().map(|id| id.num.to_string()).collect();
+            eprintln!(
+                "pdfcer: {}: {} layers have that name (ids {}); pick one with --id",
+                input.display(),
+                many.len(),
+                ids.join(", ")
+            );
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let output_state = |a: LayerOutputArg| match a {
+        LayerOutputArg::WhenVisible => LayerOutputState::WhenVisible,
+        LayerOutputArg::Always => LayerOutputState::Always,
+        LayerOutputArg::Never => LayerOutputState::Never,
+    };
+    let mut edit = LayerEdit::new();
+    if let Some(name) = &args.rename {
+        edit = edit.name(name.clone());
+    }
+    if let Some(v) = args.visible {
+        edit = edit.visible_by_default(v == OnOffArg::On);
+    }
+    if let Some(v) = args.locked {
+        edit = edit.locked(v == OnOffArg::On);
+    }
+    if let Some(v) = args.print {
+        edit = edit.print(output_state(v));
+    }
+    if let Some(v) = args.export {
+        edit = edit.export(output_state(v));
+    }
+    if let Some(v) = args.intent {
+        edit = edit.intent(match v {
+            LayerIntentArg::View => LayerIntent::View,
+            LayerIntentArg::Design => LayerIntent::Design,
+            LayerIntentArg::Both => LayerIntent::Both,
+        });
+    }
+    let edited = match session.set_layer_properties(layer, &edit) {
+        Ok(edited) => edited,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "layer-edit {} id={} mode={} -> {}; changed={} objects={} appended={} out_bytes={}",
+        input.display(),
+        layer.num,
+        mode.name(),
+        output.display(),
+        edited.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    finish_edit(input, &outcome)
 }
 
 /// `layer-toggle` — show/hide a dimension group's optional-content layer.

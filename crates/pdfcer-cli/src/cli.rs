@@ -89,6 +89,37 @@ pub(crate) struct Cli {
 /// "no password supplied" and therefore cannot produce a wrong decryption —
 /// it can only produce a `PasswordRequired` the operator will understand.
 pub(crate) static CLI_PASSWORD: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+/// `layer-edit --visible/--locked`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum OnOffArg {
+    /// Turn it on.
+    On,
+    /// Turn it off.
+    Off,
+}
+
+/// `layer-edit --print/--export`: when the layer is printed or exported.
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub(crate) enum LayerOutputArg {
+    /// Only when the layer is visible (no usage entry).
+    WhenVisible,
+    /// Always, even when hidden.
+    Always,
+    /// Never, even when shown.
+    Never,
+}
+
+/// `layer-edit --intent`.
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub(crate) enum LayerIntentArg {
+    /// A layer the viewer shows and hides (the default).
+    View,
+    /// A layer for authoring tools.
+    Design,
+    /// Both.
+    Both,
+}
+
 /// `text-run-merge --fit`: how wide the merged run is (`G035`).
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub(crate) enum MergeFitArg {
@@ -7916,6 +7947,53 @@ pub(crate) enum Command {
         /// Decimal precision (decimal units) or fraction denominator (ft-in).
         #[arg(long)]
         precision: Option<u32>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// Edit a layer's properties: rename it, set whether it is visible when
+    /// the document opens, lock it, and set whether it prints or exports.
+    ///
+    /// Only the options given change. Pick the layer by the name
+    /// `list-layers` prints, or by its `id=` when two layers share a name.
+    /// Prints one `layer-edit` line with `changed=true|false`; nothing to
+    /// change still writes the output file and reports `changed=false`.
+    ///
+    /// Exit 9 when the layer does not exist, the name matches more than one
+    /// layer, or the new name is empty.
+    LayerEdit {
+        /// Input PDF.
+        input: PathBuf,
+        /// The layer's name, exactly as `list-layers` prints it.
+        #[arg(long, required_unless_present = "id", conflicts_with = "id")]
+        layer: Option<String>,
+        /// The layer's object number, the `id=` `list-layers` prints.
+        #[arg(long)]
+        id: Option<u32>,
+        /// A new name.
+        #[arg(long)]
+        rename: Option<String>,
+        /// Whether the layer is shown when the document opens.
+        #[arg(long, value_enum)]
+        visible: Option<OnOffArg>,
+        /// Whether the layer panel locks the layer's visibility.
+        #[arg(long, value_enum)]
+        locked: Option<OnOffArg>,
+        /// When the layer prints.
+        #[arg(long, value_enum)]
+        print: Option<LayerOutputArg>,
+        /// When the layer is kept on export.
+        #[arg(long, value_enum)]
+        export: Option<LayerOutputArg>,
+        /// Whether the layer is for viewing, for design tools, or both.
+        #[arg(long, value_enum)]
+        intent: Option<LayerIntentArg>,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
