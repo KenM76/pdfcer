@@ -72,6 +72,7 @@ pub struct Lines {
     pub mark_reach_fraction: f32,
     pub descender_fraction: f32,
     pub descender_reach_fraction: f32,
+    pub isolated_mark_height_fraction: f32,
     pub x_height_per_cap: f32,
     pub x_height_floor_per_cap: f32,
     pub inherit_x_height_below: f32,
@@ -255,6 +256,14 @@ impl Params {
             mark_reach_fraction: 0.6,
             descender_fraction: 0.12,
             descender_reach_fraction: 0.4,
+            // Authored, `docs/measurements/2026-09-26_L1.md`: a leftover
+            // band's tallest member as a fraction of the nearest other
+            // band's median (by vertical overlap, else nearest gap)
+            // measured cleanly bimodal across 7,523 orphan-line samples on
+            // all 320 finfilings-train-unseen pages -- isolated marks at or
+            // below 0.9412, genuine one-line components at 1.0 or above,
+            // nothing between. 0.95 sits in that gap.
+            isolated_mark_height_fraction: 0.95,
             x_height_per_cap: 0.7431,
             // Measured, `ARCHITECTURE.md` section 11, 2026-09-23 ("Merged
             // lines: split on two baselines"): half of the smallest per-face
@@ -579,6 +588,7 @@ impl Params {
             "lines.mark_reach_fraction" => &mut self.lines.mark_reach_fraction,
             "lines.descender_fraction" => &mut self.lines.descender_fraction,
             "lines.descender_reach_fraction" => &mut self.lines.descender_reach_fraction,
+            "lines.isolated_mark_height_fraction" => &mut self.lines.isolated_mark_height_fraction,
             "lines.x_height_per_cap" => &mut self.lines.x_height_per_cap,
             "lines.x_height_floor_per_cap" => &mut self.lines.x_height_floor_per_cap,
             "lines.inherit_x_height_below" => &mut self.lines.inherit_x_height_below,
@@ -665,7 +675,7 @@ impl Params {
 
     /// Every name this build understands, for a loader that wants to report
     /// which ones a file left at their defaults.
-    pub const NAMES: [&'static str; 80] = [
+    pub const NAMES: [&'static str; 81] = [
         "binarize.window",
         "binarize.k",
         "binarize.r",
@@ -679,6 +689,7 @@ impl Params {
         "lines.mark_reach_fraction",
         "lines.descender_fraction",
         "lines.descender_reach_fraction",
+        "lines.isolated_mark_height_fraction",
         "lines.x_height_per_cap",
         "lines.x_height_floor_per_cap",
         "lines.inherit_x_height_below",
@@ -794,7 +805,7 @@ fn find_changed_u32(before: &Params, after: &Params) -> f32 {
     f32::NAN
 }
 
-fn f32_fields(p: &Params) -> [f32; 62] {
+fn f32_fields(p: &Params) -> [f32; 63] {
     [
         p.binarize.k,
         p.binarize.r,
@@ -807,6 +818,7 @@ fn f32_fields(p: &Params) -> [f32; 62] {
         p.lines.mark_reach_fraction,
         p.lines.descender_fraction,
         p.lines.descender_reach_fraction,
+        p.lines.isolated_mark_height_fraction,
         p.lines.x_height_per_cap,
         p.lines.x_height_floor_per_cap,
         p.lines.inherit_x_height_below,
@@ -911,6 +923,7 @@ impl Params {
             mark_reach_fraction: self.lines.mark_reach_fraction,
             descender_fraction: self.lines.descender_fraction,
             descender_reach_fraction: self.lines.descender_reach_fraction,
+            isolated_mark_height_fraction: self.lines.isolated_mark_height_fraction,
             x_height_per_cap: self.lines.x_height_per_cap,
             x_height_floor_per_cap: self.lines.x_height_floor_per_cap,
             inherit_x_height_below: self.lines.inherit_x_height_below,

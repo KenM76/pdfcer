@@ -104,6 +104,50 @@ pub struct Params {
     /// this band also has its top edge inside it, but hangs below by close to
     /// a whole median, so the reach is what separates the two.
     pub descender_reach_fraction: f32,
+    /// A band that fails every other seeding test -- [`Params::overlap_fraction`],
+    /// [`hangs_below`], and [`fold_marks`]'s own x-overlap-gated
+    /// [`Params::mark_height_fraction`] -- is still too small to found a
+    /// line of its own when its tallest member is no more than this
+    /// fraction of the height of the band it sits *inside*: the band it
+    /// overlaps vertically, or, failing that, the nearest one by vertical
+    /// gap. It is merged into that band instead of standing as a line by
+    /// itself. See [`merge_isolated_marks`], whose nearest-line fallback
+    /// reuses [`Params::mark_reach_fraction`] as its own reach cap, rather
+    /// than add a second guess about the same question ("how far may an
+    /// undersized band sit from the host it joins").
+    ///
+    /// The case: a thousands-separator comma in a dense numeric table,
+    /// whose ink mostly hugs the baseline and so shares too little
+    /// vertical overlap with its digit row to pass the overlap test or
+    /// [`Params::descender_reach_fraction`]'s hang test, and whose height
+    /// relative to the row is too large for `mark_height_fraction` (tuned
+    /// for an `i`-dot or accent, a much smaller mark against its own stem)
+    /// to fold on `fold_marks`' usual same-column path. Left alone it seeds
+    /// a line of its own -- one row per stray comma, in a page full of
+    /// tables (`docs/measurements/2026-09-26_c15_tableseg.md`).
+    ///
+    /// Deliberately a *different* host-selection rule from `fold_marks`:
+    /// that pass requires the mark and its host to share an x-range, true
+    /// of an `i`-dot over its own stem but nearly meaningless in a numeric
+    /// column, where every row shares the same x-range as every other row.
+    /// Vertical overlap picks out the one row whose ink band the mark's own
+    /// ink actually falls inside, which is what a misplaced x-overlap match
+    /// across several candidate rows cannot do.
+    ///
+    /// Authored: `docs/measurements/2026-09-26_L1.md` measured, across all
+    /// 320 `finfilings-train-unseen` pages at pre-fix line grouping, the
+    /// height of every single-member band that seeded a line of its own, as
+    /// a fraction of the nearest other band's median member height (by
+    /// vertical overlap, else nearest gap) -- 7,523 samples, cleanly
+    /// bimodal: every sample from a genuinely isolated mark measured at or
+    /// below 0.9412, every sample from a component that legitimately reads
+    /// as one line on its own measured at 1.0 or above, nothing in between.
+    /// 0.95 sits in that empty gap, with headroom on both sides. The rule
+    /// this value gates is applied without a member-count restriction, the
+    /// same way `fold_marks` carries none, so a small cluster of marks (two
+    /// adjacent commas that joined each other at seeding but never found a
+    /// host) is merged by the same test as a single one.
+    pub isolated_mark_height_fraction: f32,
     /// x-height as a fraction of cap height, used when a line shows only one
     /// ink band and the band has to be read as one or the other.
     ///
@@ -556,6 +600,7 @@ pub fn group_with_bands(
     }
 
     fold_marks(&mut bands, p);
+    merge_isolated_marks(&mut bands, p);
 
     // Two-baseline split (`ARCHITECTURE.md` section 11, 2026-09-23, "Merged
     // lines: split on two baselines"): after marks have been folded in, so a
@@ -1240,6 +1285,10 @@ impl Band {
         self.x0 < other.x1 && other.x0 < self.x1
     }
 
+    fn overlaps_y(&self, other: &Band) -> bool {
+        self.y0 < other.y1 && other.y0 < self.y1
+    }
+
     /// Running median height. Even counts take the upper middle, so the value
     /// is always one of the observed heights and never a half-pixel.
     fn median(&self) -> u32 {
@@ -1304,6 +1353,84 @@ fn fold_marks(bands: &mut Vec<Band>, p: &Params) {
         let mark = bands.remove(m);
         let h = if h > m { h - 1 } else { h };
         bands[h].take(mark);
+    }
+}
+
+/// Merges a band too small to found a line of its own into the band it
+/// overlaps vertically, or, failing that, the nearest one -- what
+/// [`fold_marks`] leaves behind, since that pass gates on sharing an
+/// x-range with its host, which a mark can fail even when it plainly sits
+/// inside another band's row.
+///
+/// See [`Params::isolated_mark_height_fraction`] for the smallness test
+/// and the measurement behind its value. Runs to a fixed point, same
+/// termination argument as `fold_marks`: every round that changes anything
+/// removes a band.
+///
+/// A round's medians are read fresh from `bands` and cannot change until
+/// this round's chosen merge is applied, so they are computed once per round
+/// rather than once per (m, h) pair -- `medians[h]` is exactly `bands[h].median()`
+/// at every point it is read below. `max_med`, the largest of them, bounds
+/// every host's median a candidate `m` could possibly clear this round
+/// (`fraction * host.median() <= fraction * max_med` for every host, `m`'s
+/// own band included, which only makes the bound looser, never wrong), so a
+/// candidate whose own tallest member already fails against `max_med` fails
+/// against every real host too and the O(bands) host scan for it is skipped
+/// outright. Neither changes which `(small, host)` pair the round picks --
+/// only how much work the round does to find it.
+fn merge_isolated_marks(bands: &mut Vec<Band>, p: &Params) {
+    let mut medians: Vec<u32> = Vec::with_capacity(bands.len());
+    loop {
+        medians.clear();
+        medians.extend(bands.iter().map(Band::median));
+        let Some(&max_med) = medians.iter().max() else { return };
+        let fraction = f64::from(p.isolated_mark_height_fraction);
+        let reach = f64::from(p.mark_reach_fraction);
+
+        let mut chosen: Option<(usize, usize)> = None; // small band, host
+        'outer: for m in 0..bands.len() {
+            let small = &bands[m];
+            if f64::from(small.max_height()) > fraction * f64::from(max_med) {
+                continue;
+            }
+            let mut overlap_host: Option<usize> = None;
+            let mut nearest_host: Option<(usize, u32)> = None;
+            for (h, host) in bands.iter().enumerate() {
+                if h == m {
+                    continue;
+                }
+                let median = medians[h];
+                if f64::from(small.max_height()) > fraction * f64::from(median) {
+                    continue;
+                }
+                if overlap_host.is_none() && small.overlaps_y(host) {
+                    overlap_host = Some(h);
+                }
+                let gap = small.gap(host);
+                // The nearest-line fallback still needs a reach, the same
+                // way fold_marks' does: without one, a real short line with
+                // no taller neighbour nearby would walk the page to the
+                // tallest band on it. Reusing mark_reach_fraction rather
+                // than adding a second guess about the same thing -- "how
+                // far may an undersized band sit from the host it joins".
+                if gap <= (reach * f64::from(median)) as u32 {
+                    match nearest_host {
+                        None => nearest_host = Some((h, gap)),
+                        Some((_, bg)) if gap < bg => nearest_host = Some((h, gap)),
+                        _ => {}
+                    }
+                }
+            }
+            let host = overlap_host.or(nearest_host.map(|(h, _)| h));
+            if let Some(h) = host {
+                chosen = Some((m, h));
+                break 'outer;
+            }
+        }
+        let Some((m, h)) = chosen else { return };
+        let small = bands.remove(m);
+        let h = if h > m { h - 1 } else { h };
+        bands[h].take(small);
     }
 }
 
@@ -1886,6 +2013,37 @@ mod tests {
         let lines = group(&comps, 200, 100);
         assert_eq!(lines.len(), 1, "a dot must not become a line");
         assert_eq!(lines[0].members.len(), 6);
+    }
+
+    /// A thousands-separator comma in a dense numeric table hugs the
+    /// baseline closely enough to clear neither `overlap_fraction` nor
+    /// `descender_reach_fraction`'s hang test, and is too tall relative to
+    /// the row for `fold_marks`' `mark_height_fraction` to fold it on the
+    /// same-column path either -- the mechanism
+    /// `docs/measurements/2026-09-26_c15_tableseg.md` traced. It must join
+    /// the digit row it sits inside rather than seed a line of its own.
+    #[test]
+    fn isolated_thousands_separators_join_their_digit_row() {
+        let mut comps = vec![];
+        // "1 234 567 890" as seven digit-height components, baseline near
+        // y = 32, bodies 12 tall.
+        let digit_x = [10u32, 30, 50, 70, 90, 110, 130];
+        for (k, &x) in digit_x.iter().enumerate() {
+            comps.push(c(1 + k as u32, x, 20, 8, 12));
+        }
+        // Two commas: short (7 tall against a 12-tall row, ratio 0.583,
+        // well past `mark_height_fraction`'s 0.35), baseline-hugging (top
+        // edge 10px into the row, bottom edge 5px past it -- past
+        // `descender_reach_fraction`'s 0.4 x 12 = 4.8px hang allowance).
+        comps.push(c(100, 26, 30, 3, 7));
+        comps.push(c(101, 66, 30, 3, 7));
+        let lines = group(&comps, 400, 100);
+        assert_eq!(
+            lines.len(),
+            1,
+            "the commas must join the digit row, not found lines of their own"
+        );
+        assert_eq!(lines[0].members.len(), 9);
     }
 
     /// The baseline is the row below flat-bottomed ink, and the x-height band
