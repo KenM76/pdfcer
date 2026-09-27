@@ -1652,6 +1652,67 @@ pub(crate) fn cmd_layer_delete(
     finish_edit(input, &outcome)
 }
 
+/// `layer-merge`: rebind every layer in `merged` onto `into`.
+pub(crate) fn cmd_layer_merge(
+    input: &Path,
+    into: &LayerPick,
+    merged: &[LayerPick],
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let target = match pick_layer(input, &session, into) {
+        Ok(layer) => layer,
+        Err(code) => return code,
+    };
+    let mut layers = Vec::with_capacity(merged.len());
+    for pick in merged {
+        match pick_layer(input, &session, pick) {
+            Ok(layer) => layers.push(layer),
+            Err(code) => return code,
+        }
+    }
+    let merge = match session.merge_layers(target, &layers) {
+        Ok(merge) => merge,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "layer-merge {} into={} mode={} -> {}; layers={} bindings={} annotations={} xobjects={} memberships={} objects={} appended={} out_bytes={}",
+        input.display(),
+        target.num,
+        mode.name(),
+        output.display(),
+        merge.layers,
+        merge.bindings,
+        merge.annotations,
+        merge.xobjects,
+        merge.memberships,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    for d in &merge.disclosures {
+        println!("  disclosure: {d}");
+    }
+    finish_edit(input, &outcome)
+}
+
 /// The one layer `pick` names, or the refusal exit code after saying why.
 fn pick_layer(
     input: &Path,

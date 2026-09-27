@@ -8176,6 +8176,43 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Merge layers into one: what they draw moves onto the target layer.
+    ///
+    /// Nothing drawn changes; each merged layer's content, annotations,
+    /// XObjects and visibility-expression mentions are rebound to the target,
+    /// and the merged layers leave the layer panel and every layer setting.
+    /// What they drew then shows, hides, locks, prints and exports as the
+    /// target does, which is stated as a disclosure. Prints one `layer-merge`
+    /// line: layers merged, resource bindings, annotations, XObjects and
+    /// membership dictionaries rebound.
+    ///
+    /// Exit 9 when the target or a merged layer does not exist, or a name
+    /// matches more than one layer. Nothing is written then.
+    LayerMerge {
+        /// Input PDF.
+        input: PathBuf,
+        /// The target layer's name, exactly as `list-layers` prints it.
+        #[arg(long, required_unless_present = "into_id", conflicts_with = "into_id")]
+        into: Option<String>,
+        /// The target layer's object number.
+        #[arg(long)]
+        into_id: Option<u32>,
+        /// A layer to merge into the target, by name. Repeatable.
+        #[arg(long, required_unless_present = "id")]
+        layer: Vec<String>,
+        /// A layer to merge into the target, by object number. Repeatable.
+        #[arg(long)]
+        id: Vec<u32>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Put an annotation on a layer, move it to another layer, or take it
     /// off every layer (`--none`).
     ///

@@ -2240,6 +2240,39 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         ),
+        Command::LayerMerge {
+            input,
+            into,
+            into_id,
+            layer,
+            id,
+            output,
+            mode,
+            verify_undo,
+        } => {
+            let merged: Vec<LayerPick> = layer
+                .into_iter()
+                .map(|name| LayerPick {
+                    name: Some(name),
+                    id: None,
+                })
+                .chain(id.into_iter().map(|id| LayerPick {
+                    name: None,
+                    id: Some(id),
+                }))
+                .collect();
+            cmd_layer_merge(
+                &input,
+                &LayerPick {
+                    name: into,
+                    id: into_id,
+                },
+                &merged,
+                &output,
+                mode,
+                verify_undo,
+            )
+        }
         Command::LayerEdit {
             input,
             layer,

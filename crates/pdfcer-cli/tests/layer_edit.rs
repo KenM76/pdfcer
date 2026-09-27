@@ -655,3 +655,68 @@ fn an_add_on_an_unknown_layer_is_refused() {
         assert!(!out.exists(), "{verb}");
     }
 }
+
+fn merge(src: &Path, extra: &[&str], tag: &str) -> (Output, PathBuf) {
+    let out = temp_path(tag);
+    let mut args = vec!["layer-merge", src.to_str().unwrap()];
+    args.extend_from_slice(extra);
+    args.extend(["--output", out.to_str().unwrap()]);
+    (run(&args), out)
+}
+
+/// `layer-merge` rebinds two layers onto a third by name and id: they leave
+/// `list-layers`, every object they drew is now on the target, and the
+/// disclosure says the merged content takes the target's settings.
+#[test]
+fn layer_merge_rebinds_onto_the_target() {
+    let src = fixture("painted-layers.pdf");
+    let (o, out) = merge(
+        &src,
+        &[
+            "--into",
+            "Visible Box",
+            "--layer",
+            "Hidden Box",
+            "--id",
+            "7",
+            "--mode",
+            "full",
+            "--verify-undo",
+        ],
+        "merge",
+    );
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(stdout.contains("into=4"), "{stdout}");
+    assert!(stdout.contains("layers=2"), "{stdout}");
+    assert!(
+        stdout.contains("disclosure: merged \"Hidden Box\", \"Nested Inner\" into \"Visible Box\""),
+        "{stdout}"
+    );
+    let listed = listing(&out);
+    assert!(!listed.contains("Hidden Box"), "{listed}");
+    assert!(!listed.contains("Nested Inner"), "{listed}");
+    assert!(listed.contains("Clip Only"), "{listed}");
+    assert_eq!(
+        object_layers(&out),
+        ["oc=4", "oc=4", "oc=4", "oc=6", "oc=none"]
+    );
+    std::fs::remove_file(out).ok();
+}
+
+/// An unknown merged layer refuses with exit 9 and writes nothing.
+#[test]
+fn layer_merge_refuses_an_unknown_layer() {
+    let (o, out) = merge(
+        &fixture("painted-layers.pdf"),
+        &["--into-id", "4", "--layer", "No Such Layer"],
+        "merge_unknown",
+    );
+    assert_eq!(o.status.code(), Some(EDIT_REFUSED));
+    assert!(!out.exists());
+}

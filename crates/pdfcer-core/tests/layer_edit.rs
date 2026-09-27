@@ -1243,3 +1243,126 @@ fn paste_objects_on_a_layer() {
         .unwrap();
     assert_eq!(layers_of(&mut s), [Some(4), Some(4), None, Some(9), None]);
 }
+
+// ---- Pass 358.6: merge layers ---------------------------------------------
+
+/// Merging rebinds `/Properties`; the content stream is not rewritten, the
+/// merged groups leave `/OCGs`, `/Order` and `/OFF`, and one undo restores
+/// them.
+#[test]
+fn merge_layers_rebinds_without_rewriting_content() {
+    let mut s = fixture("painted-layers.pdf");
+    let original = saved_stream(&s, 8);
+    let (visible, hidden, nested) = (ObjId::new(4, 0), ObjId::new(5, 0), ObjId::new(7, 0));
+    let outcome = s.merge_layers(visible, &[hidden, nested]).unwrap();
+    assert!(outcome.changed);
+    assert_eq!((outcome.layers, outcome.bindings), (2, 2));
+    let said = outcome.disclosures.join("\n");
+    assert!(
+        said.contains("\"Hidden Box\"") && said.contains("\"Visible Box\""),
+        "{said}"
+    );
+    assert!(!s.dirty_set().contains(ObjId::new(8, 0)));
+    assert_eq!(saved_stream(&s, 8), original);
+
+    let page = dict(&s, ObjId::new(3, 0));
+    let props = page
+        .get(b"Resources")
+        .and_then(Object::as_dict)
+        .and_then(|r| r.get(b"Properties"))
+        .and_then(Object::as_dict)
+        .expect("/Properties")
+        .clone();
+    for (name, want) in [(b"L1", 4), (b"L2", 4), (b"L3", 6), (b"L4", 4)] {
+        assert_eq!(
+            props
+                .get(name)
+                .and_then(Object::as_reference)
+                .map(|r| r.num),
+            Some(want)
+        );
+    }
+    let ids: Vec<u32> = read_layers(&s.graph())
+        .layers
+        .iter()
+        .map(|l| l.id.num)
+        .collect();
+    assert_eq!(ids, [4, 6]);
+    let d = default_config(&s);
+    assert_eq!(members(&s, &d, b"Order"), [visible, ObjId::new(6, 0)]);
+    assert_eq!(members(&s, &d, b"OFF"), [ObjId::new(6, 0)]);
+
+    assert_eq!(s.undo(), Some(CommandKind::MergeLayers { target: visible }));
+    assert!(s.dirty_set().is_empty());
+}
+
+/// An image XObject's `/OC` follows the merge, and the page objects drawn
+/// in the section report the target.
+#[test]
+fn merge_layers_retargets_xobject_oc() {
+    let mut s = content_session(THREE_PATHS);
+    let outcome = s.merge_layers(holes(), &[ObjId::new(4, 0)]).unwrap();
+    assert_eq!((outcome.bindings, outcome.xobjects), (1, 1));
+    assert_eq!(layers_of(&mut s), [Some(9), Some(9), None]);
+    assert_eq!(
+        dict_or_stream(&s, ObjId::new(6, 0))
+            .get(b"OC")
+            .and_then(Object::as_reference),
+        Some(holes())
+    );
+}
+
+/// An annotation's `/OC` follows the merge.
+#[test]
+fn merge_layers_retargets_annotation_oc() {
+    let mut s = content_session(ONE_PATH);
+    let id = s.add_markup_with(0, &square(), &on_holes()).unwrap();
+    let outcome = s.merge_layers(ObjId::new(4, 0), &[holes()]).unwrap();
+    assert_eq!(outcome.annotations, 1);
+    assert_eq!(
+        dict(&s, id).get(b"OC").and_then(Object::as_reference),
+        Some(ObjId::new(4, 0))
+    );
+    assert_eq!(s.undo_depth(), 2);
+}
+
+/// A membership dictionary naming a merged group names the target
+/// afterwards; one that does not is left alone.
+#[test]
+fn merge_layers_retargets_membership() {
+    let mut s = fixture("ocmd-membership.pdf");
+    let a = ObjId::new(4, 0);
+    let outcome = s.merge_layers(a, &[ObjId::new(5, 0)]).unwrap();
+    assert_eq!(outcome.memberships, 1);
+    assert_eq!(
+        dict(&s, ObjId::new(12, 0))
+            .get(b"OCGs")
+            .and_then(Object::as_reference),
+        Some(a)
+    );
+    assert!(!s.dirty_set().contains(ObjId::new(10, 0)));
+    assert!(!s.dirty_set().contains(ObjId::new(22, 0)));
+}
+
+/// Merging a layer into itself writes nothing; an unregistered layer is
+/// refused before any write.
+#[test]
+fn merge_layers_no_op_and_refusal() {
+    let mut s = fixture("painted-layers.pdf");
+    let visible = ObjId::new(4, 0);
+    let outcome = s.merge_layers(visible, &[visible]).unwrap();
+    assert!(!outcome.changed);
+    assert!(matches!(
+        s.merge_layers(visible, &[ObjId::new(5, 0), ObjId::new(3, 0)]),
+        Err(EditError::LayerNotFound { .. })
+    ));
+    assert_eq!(s.undo_depth(), 0);
+}
+
+fn dict_or_stream(s: &EditSession, id: ObjId) -> Dict {
+    match resolved(s, id) {
+        Object::Dict(d) => d,
+        Object::Stream(st) => st.dict,
+        other => panic!("{id} is {other:?}"),
+    }
+}

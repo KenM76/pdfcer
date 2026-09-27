@@ -923,6 +923,13 @@ pub enum CommandKind {
         /// The optional content group that was deleted.
         layer: ObjId,
     },
+    /// Layers were merged into another ([`EditSession::merge_layers`],
+    /// §8.11) — ONE undo entry covering the configuration, the resource
+    /// bindings, annotations, XObjects and membership dictionaries.
+    MergeLayers {
+        /// The optional content group the others were merged into.
+        target: ObjId,
+    },
     /// The layer panel's arrangement was edited — a folder added, renamed or
     /// removed, or an entry moved ([`EditSession::add_layer_folder`] and its
     /// siblings, §8.11.4.3 Table 101 `/Order`) — ONE undo entry.
@@ -48284,6 +48291,291 @@ impl EditSession {
         Ok(outcome)
     }
 
+    /// Merge the layers `merged` into `target`: everything drawn on them is
+    /// drawn on `target` afterwards, and they leave the layer list.
+    ///
+    /// No content stream is rewritten. Every reference to a merged group
+    /// becomes a reference to `target`: `/Resources /Properties` entries
+    /// (so each `/OC /name BDC` section, §8.11.3.2, now names `target`),
+    /// annotation and XObject `/OC` (§8.11.3.3), and the `/OCGs` and `/VE`
+    /// of every membership dictionary reachable from them (§8.11.2.2). The
+    /// merged groups are then removed from `/OCProperties /OCGs` and from
+    /// the default and every `/Configs` configuration as
+    /// [`Self::delete_layer`] removes them; the group objects stay in the
+    /// file, unreferenced.
+    ///
+    /// Merged content takes `target`'s visibility, lock, print, export and
+    /// intent; [`LayerMergeOutcome::disclosures`] says so. `target` itself,
+    /// and any repeat, in `merged` is ignored; nothing left to merge writes
+    /// nothing. One undo entry, [`CommandKind::MergeLayers`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::LayerNotFound`] — `target` or a merged layer is not in
+    ///   `/OCProperties /OCGs`.
+    /// - [`EditError::LayerContentNotRewritable`] — more than 10000 resource
+    ///   dictionaries.
+    /// - [`EditError::DocumentEncrypted`] and the certification guard.
+    ///
+    /// All refusals happen before anything is written.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::EditSession;
+    /// # fn run(session: &mut EditSession, target: pdfcer_core::object::ObjId, other: pdfcer_core::object::ObjId) -> Result<(), Box<dyn std::error::Error>> {
+    /// let outcome = session.merge_layers(target, &[other])?;
+    /// for line in &outcome.disclosures {
+    ///     println!("{line}");
+    /// }
+    /// # Ok(()) }
+    /// ```
+    pub fn merge_layers(
+        &mut self,
+        target: ObjId,
+        merged: &[ObjId],
+    ) -> Result<LayerMergeOutcome, EditError> {
+        let catalog_id = self.require_layer(target)?;
+        let mut set: BTreeSet<ObjId> = BTreeSet::new();
+        for &layer in merged {
+            self.require_layer(layer)?;
+            if layer != target {
+                set.insert(layer);
+            }
+        }
+        let mut outcome = LayerMergeOutcome::default();
+        if set.is_empty() {
+            return Ok(outcome);
+        }
+        let plan = self.plan_layer_merge(&set)?;
+        let name_of = |id: ObjId| {
+            self.value(id)
+                .and_then(Object::as_dict)
+                .and_then(|d| match d.get(b"Name") {
+                    Some(Object::String(b)) => Some(decode_text_string(b).text),
+                    _ => None,
+                })
+                .unwrap_or_else(|| id.to_string())
+        };
+        let names: Vec<String> = set.iter().map(|&id| format!("{:?}", name_of(id))).collect();
+        outcome.layers = set.len();
+        outcome.disclosures.push(format!(
+            "merged {} into {:?}: what they drew now shows, hides, locks, prints and exports as {:?} does",
+            names.join(", "),
+            name_of(target),
+            name_of(target),
+        ));
+
+        let load = |id: ObjId| self.value(id).cloned();
+        let to = Object::Reference(target);
+        let mut staged: BTreeMap<ObjId, Object> = BTreeMap::new();
+        for owner in &plan.owners {
+            let mut slot = Object::Reference(*owner);
+            layer_node(&load, &mut staged, &mut slot, |staged, o| {
+                let Some(o) = dict_mut(o) else { return };
+                let Some(mut res) = o.get(b"Resources").cloned() else {
+                    return;
+                };
+                layer_node(&load, staged, &mut res, |staged, r| {
+                    let Some(r) = dict_mut(r) else { return };
+                    let Some(mut props) = r.get(b"Properties").cloned() else {
+                        return;
+                    };
+                    layer_node(&load, staged, &mut props, |_, p| {
+                        let Some(p) = dict_mut(p) else { return };
+                        for (_, v) in &mut p.0 {
+                            if v.as_reference().is_some_and(|r| set.contains(&r)) {
+                                *v = to.clone();
+                                outcome.bindings += 1;
+                            }
+                        }
+                    });
+                    r.insert(Name::from(b"Properties"), props);
+                });
+                o.insert(Name::from(b"Resources"), res);
+            });
+        }
+        for id in plan.annots.iter().chain(&plan.xobjects) {
+            let mut slot = Object::Reference(*id);
+            layer_node(&load, &mut staged, &mut slot, |_, o| {
+                if let Some(o) = dict_mut(o) {
+                    o.insert(Name::from(b"OC"), to.clone());
+                }
+            });
+        }
+        outcome.annotations = plan.annots.len();
+        outcome.xobjects = plan.xobjects.len();
+        for id in &plan.memberships {
+            let mut slot = Object::Reference(*id);
+            layer_node(&load, &mut staged, &mut slot, |staged, o| {
+                if let Some(o) = dict_mut(o) {
+                    for key in [b"OCGs".as_slice(), b"VE"] {
+                        if let Some(mut v) = o.get(key).cloned() {
+                            retarget_group_refs(&load, staged, &mut v, &set, &to, 0);
+                            o.insert(Name::from(key), v);
+                        }
+                    }
+                }
+            });
+        }
+        outcome.memberships = plan.memberships.len();
+
+        let mut catalog = Object::Reference(catalog_id);
+        layer_node(&load, &mut staged, &mut catalog, |staged, c| {
+            let Object::Dict(c) = c else { return };
+            let Some(mut ocp) = c.get(b"OCProperties").cloned() else {
+                return;
+            };
+            layer_node(&load, staged, &mut ocp, |staged, o| {
+                let Object::Dict(o) = o else { return };
+                if let Some(mut ocgs) = o.get(b"OCGs").cloned() {
+                    layer_node(&load, staged, &mut ocgs, |_, a| {
+                        if let Object::Array(a) = a {
+                            a.retain(|x| !x.as_reference().is_some_and(|r| set.contains(&r)));
+                        }
+                    });
+                    o.insert(Name::from(b"OCGs"), ocgs);
+                }
+                for &layer in &set {
+                    let me = Object::Reference(layer);
+                    if let Some(mut d) = o.get(b"D").cloned() {
+                        layer_node(&load, staged, &mut d, |staged, d| {
+                            forget_group_in_config(&load, staged, d, &me);
+                        });
+                        o.insert(Name::from(b"D"), d);
+                    }
+                    if let Some(mut configs) = o.get(b"Configs").cloned() {
+                        layer_node(&load, staged, &mut configs, |staged, a| {
+                            let Object::Array(a) = a else { return };
+                            for d in a.iter_mut() {
+                                layer_node(&load, staged, d, |staged, d| {
+                                    forget_group_in_config(&load, staged, d, &me);
+                                });
+                            }
+                        });
+                        o.insert(Name::from(b"Configs"), configs);
+                    }
+                }
+            });
+            c.insert(Name::from(b"OCProperties"), ocp);
+        });
+
+        outcome.changed = self.commit_staged(CommandKind::MergeLayers { target }, staged);
+        Ok(outcome)
+    }
+
+    /// Everything [`Self::merge_layers`] must retarget outside the
+    /// configuration: resource owners binding a merged group, annotations
+    /// and XObjects whose `/OC` is one, and membership dictionaries naming
+    /// one.
+    fn plan_layer_merge(&self, set: &BTreeSet<ObjId>) -> Result<LayerMergePlan, EditError> {
+        let pages = self.pages()?;
+        let mut plan = LayerMergePlan::default();
+        let mut owners: BTreeSet<ObjId> = BTreeSet::new();
+        let mut memberships: BTreeSet<ObjId> = BTreeSet::new();
+        let mut visited: BTreeSet<ObjId> = BTreeSet::new();
+        let mut queue: Vec<(Dict, Option<ObjId>)> = Vec::new();
+        let names_merged = |oc: ObjId| {
+            matches!(self.value(oc), Some(Object::Dict(d))
+                if d.get(b"Type").and_then(Object::as_name).map(Name::as_bytes) == Some(b"OCMD")
+                    && set.iter().any(|&m| self.mentions_ref(&Object::Dict(d.clone()), m, 0)))
+        };
+        let classify =
+            |oc: ObjId, holder: ObjId, list: &mut Vec<ObjId>, memberships: &mut BTreeSet<ObjId>| {
+                if set.contains(&oc) {
+                    list.push(holder);
+                } else if names_merged(oc) {
+                    memberships.insert(oc);
+                }
+            };
+
+        for page in &pages {
+            let annots = self
+                .value(page.id)
+                .and_then(Object::as_dict)
+                .and_then(|d| self.deref_value(d.get(b"Annots")))
+                .and_then(|a| a.as_array().map(<[Object]>::to_vec))
+                .unwrap_or_default();
+            for annot in annots.iter().filter_map(Object::as_reference) {
+                let Some(Object::Dict(a)) = self.value(annot) else {
+                    continue;
+                };
+                if let Some(oc) = a.get(b"OC").and_then(Object::as_reference) {
+                    classify(oc, annot, &mut plan.annots, &mut memberships);
+                }
+                let Some(ap) = self.deref_dict(a.get(b"AP")) else {
+                    continue;
+                };
+                for (_, v) in &ap.0 {
+                    let ids: Vec<ObjId> = match v {
+                        Object::Reference(id) => vec![*id],
+                        Object::Dict(states) => states
+                            .0
+                            .iter()
+                            .filter_map(|(_, v)| v.as_reference())
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+                    for id in ids {
+                        if visited.insert(id)
+                            && let Some(Object::Stream(s)) = self.value(id)
+                            && let Some(res) = self.deref_dict(s.dict.get(b"Resources"))
+                        {
+                            queue.push((res, Some(id)));
+                        }
+                    }
+                }
+            }
+            queue.push((page.resources.clone(), self.resources_owner(page.id)));
+        }
+
+        let mut budget = 10_000_usize;
+        while let Some((resources, owner)) = queue.pop() {
+            budget = budget.saturating_sub(1);
+            if budget == 0 {
+                return Err(EditError::LayerContentNotRewritable {
+                    stream: owner.unwrap_or(ObjId::new(0, 0)),
+                    reason: "more than 10000 resource dictionaries",
+                });
+            }
+            if let Some(props) = self.deref_dict(resources.get(b"Properties")) {
+                let mut binds = false;
+                for id in props.0.iter().filter_map(|(_, v)| v.as_reference()) {
+                    if set.contains(&id) {
+                        binds = true;
+                    } else if names_merged(id) {
+                        memberships.insert(id);
+                    }
+                }
+                if binds && let Some(owner) = owner {
+                    owners.insert(owner);
+                }
+            }
+            for key in [b"XObject".as_slice(), b"Pattern"] {
+                let Some(entries) = self.deref_dict(resources.get(key)) else {
+                    continue;
+                };
+                for id in entries.0.iter().filter_map(|(_, v)| v.as_reference()) {
+                    if !visited.insert(id) {
+                        continue;
+                    }
+                    let Some(Object::Stream(s)) = self.value(id) else {
+                        continue;
+                    };
+                    if let Some(oc) = s.dict.get(b"OC").and_then(Object::as_reference) {
+                        classify(oc, id, &mut plan.xobjects, &mut memberships);
+                    }
+                    if let Some(res) = self.deref_dict(s.dict.get(b"Resources")) {
+                        queue.push((res, Some(id)));
+                    }
+                }
+            }
+        }
+        plan.owners = owners.into_iter().collect();
+        plan.memberships = memberships.into_iter().collect();
+        Ok(plan)
+    }
+
     /// Add a folder to the layer panel, as child `index` of the entry at
     /// `parent` (`&[]` for the top level).
     ///
@@ -51788,6 +52080,75 @@ pub struct LayerDeleteOutcome {
     /// `Do` operators removed because the XObject they draw is itself on
     /// the layer. Always 0 for [`LayerContentPolicy::KeepUnlayered`].
     pub xobject_calls: usize,
+}
+
+/// What [`EditSession::merge_layers`] did.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct LayerMergeOutcome {
+    /// Whether anything was written. `false` records no undo entry.
+    pub changed: bool,
+    /// Layers merged into the target and removed from the layer list.
+    pub layers: usize,
+    /// `/Properties` entries rebound to the target.
+    pub bindings: usize,
+    /// Annotations whose `/OC` now names the target.
+    pub annotations: usize,
+    /// Form or image XObjects whose `/OC` now names the target.
+    pub xobjects: usize,
+    /// Membership dictionaries whose `/OCGs` or `/VE` now name the target.
+    pub memberships: usize,
+    /// What the operator is told (rule 4): the merged layers took the
+    /// target's properties.
+    pub disclosures: Vec<String>,
+}
+
+/// The reading half of [`EditSession::merge_layers`].
+#[derive(Default)]
+struct LayerMergePlan {
+    /// Objects whose `/Resources /Properties` bind a name to a merged group.
+    owners: Vec<ObjId>,
+    /// Annotations whose `/OC` is a merged group.
+    annots: Vec<ObjId>,
+    /// XObjects whose `/OC` is a merged group.
+    xobjects: Vec<ObjId>,
+    /// Membership dictionaries naming a merged group.
+    memberships: Vec<ObjId>,
+}
+
+/// Replace every reference to a group in `set` by `to` inside a membership
+/// dictionary's `/OCGs` or `/VE` value (§8.11.2.2 Table 99), following
+/// indirect arrays but not referenced dictionaries.
+fn retarget_group_refs(
+    load: &dyn Fn(ObjId) -> Option<Object>,
+    staged: &mut BTreeMap<ObjId, Object>,
+    slot: &mut Object,
+    set: &BTreeSet<ObjId>,
+    to: &Object,
+    depth: usize,
+) {
+    if depth > 32 {
+        return;
+    }
+    match slot {
+        Object::Reference(r) if set.contains(r) => *slot = to.clone(),
+        Object::Reference(r) => {
+            if matches!(
+                staged.get(r).cloned().or_else(|| load(*r)),
+                Some(Object::Array(_))
+            ) {
+                layer_node(load, staged, slot, |staged, a| {
+                    retarget_group_refs(load, staged, a, set, to, depth + 1);
+                });
+            }
+        }
+        Object::Array(a) => {
+            for x in a.iter_mut() {
+                retarget_group_refs(load, staged, x, set, to, depth + 1);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// The resource names a content stream uses for the layer being deleted.
