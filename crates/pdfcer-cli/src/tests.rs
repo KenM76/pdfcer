@@ -52,6 +52,25 @@ fn pass_id_at(s: &str) -> Option<usize> {
     None
 }
 
+/// The byte offset of the first `YYYY-MM-DD` date in `s`. A date in help
+/// text is history ("this said X until 2026-08-27"), which belongs in git,
+/// not in what an operator reads.
+fn iso_date_at(s: &str) -> Option<usize> {
+    let b = s.as_bytes();
+    let shape = b"dddd-dd-dd";
+    (0..b.len().saturating_sub(shape.len() - 1)).find(|&i| {
+        shape.iter().enumerate().all(|(k, &c)| {
+            let x = b[i + k];
+            if c == b'd' {
+                x.is_ascii_digit()
+            } else {
+                x == c
+            }
+        }) && (i == 0 || !b[i - 1].is_ascii_digit())
+            && b.get(i + shape.len()).is_none_or(|x| !x.is_ascii_digit())
+    })
+}
+
 /// A short, char-boundary-safe window around `at`, for a failure message
 /// that names the sentence rather than only the command.
 fn snippet(s: &str, at: usize) -> String {
@@ -106,6 +125,12 @@ fn cli_help_ships_no_internal_markup() {
                 if let Some(at) = rendered.find(needle) {
                     offenders.push(format!("{path}: {what}: {}", snippet(&rendered, at)));
                 }
+            }
+            if let Some(at) = iso_date_at(&rendered) {
+                offenders.push(format!(
+                    "{path}: a date (history): {}",
+                    snippet(&rendered, at)
+                ));
             }
             if let Some(at) = pass_id_at(&rendered) {
                 offenders.push(format!(

@@ -695,14 +695,6 @@ pub(crate) enum Command {
         #[arg(long)]
         relative: bool,
         /// Output path. The input is never modified.
-        ///
-        /// This said "Never the input path by default — see `--in-place`"
-        /// until 2026-08-27, and **there was no `--in-place` flag on this
-        /// subcommand or on any other**. Operator-facing `--help` text
-        /// pointed at an option that had never existed. Corrected rather than
-        /// silently deleted, because the operator was right to want it: `ocr`
-        /// now has `--in-place`, and extending it to the other editing
-        /// subcommands is filed rather than done here.
         #[arg(short, long)]
         output: PathBuf,
         /// Which save path to use.
@@ -751,14 +743,6 @@ pub(crate) enum Command {
         #[arg(long, requires = "width", value_name = "PT")]
         height: Option<f64>,
         /// Output path. The input is never modified.
-        ///
-        /// This said "Never the input path by default — see `--in-place`"
-        /// until 2026-08-27, and **there was no `--in-place` flag on this
-        /// subcommand or on any other**. Operator-facing `--help` text
-        /// pointed at an option that had never existed. Corrected rather than
-        /// silently deleted, because the operator was right to want it: `ocr`
-        /// now has `--in-place`, and extending it to the other editing
-        /// subcommands is filed rather than done here.
         #[arg(short, long)]
         output: PathBuf,
         /// Which save path to use.
@@ -2092,10 +2076,9 @@ pub(crate) enum Command {
     ///   printed is the one `--set-font` itself would print, verbatim.
     /// - **Whether a real Bold or Italic of the family would be ACCEPTED** —
     ///   accepted, not merely named `Bold`. A `real_bold=-` does NOT mean a
-    ///   style control should be disabled — but the reason is broader than
-    ///   this line used to give. It said "it means synthesis is the route";
-    ///   synthesis is ONE route, and `--set-font Helvetica-Bold` is another
-    ///   that needs no embedding and that this survey does not look for.
+    ///   style control should be disabled: synthesis is one route, and
+    ///   `--set-font Helvetica-Bold` is another that needs no embedding and
+    ///   that this survey does not look for.
     ///
     /// Read-only: it opens the file, answers, and writes nothing.
     FontPreflight {
@@ -2772,56 +2755,10 @@ pub(crate) enum Command {
         /// right one, because scanner output is described in DPI and
         /// recognisers are tuned against it.
         ///
-        /// # MORE RESOLUTION IS WORSE, WHICH IS THE OPPOSITE OF THE
-        /// OBVIOUS EXPECTATION
-        ///
-        /// This defaulted to **300** on the reasoning quoted here until
-        /// 2026-08-26 — *"300 is what document scanners produce and what
-        /// `ocrs` was trained near; below about 150 recognition degrades
-        /// sharply"*. **Every clause of that was an assumption, and the
-        /// measured direction is backwards.**
-        ///
-        /// `pdfce-gui` scored a real CAD sheet (130 ground-truth tokens,
-        /// against the page's own vector text) with the current detection
-        /// model:
-        ///
-        /// ```text
-        ///   72 dpi  56.5 %     200 dpi  53.9 %
-        ///  100 dpi  56.7 %     300 dpi  35.1 %   <- the old default
-        ///  150 dpi  54.5 %
-        /// ```
-        ///
-        /// A **plateau from 72 to 200** — a spread under three points, inside
-        /// the noise of that sample — and then a **cliff**. 300 was the worst
-        /// of the five by twenty points.
-        ///
-        /// The mechanism is a property of the crate rather than of the
-        /// weights, which is why it is trustworthy beyond one document:
-        /// `ocrs` resizes its input to a **fixed model input size**, so past
-        /// that size more pixels means the text is *smaller* relative to the
-        /// model's window, not larger. Corroborated twice, by two different
-        /// detection models — one of which was the broken one, which is a
-        /// peculiar but real form of independent confirmation.
-        ///
-        /// 150 sits inside the plateau and is what a fitted-pixel-budget
-        /// approach independently lands on for a Letter sheet. There is **no
-        /// measured optimum** to pick: the plateau is flat within sampling
-        /// noise, and reading a maximum out of it would repeat the mistake
-        /// this correction is undoing.
-        ///
-        /// # What pdfcer's OWN corpus can and cannot say about this
-        ///
-        /// It **cannot** corroborate the cliff, and that is a limitation of
-        /// the fixture rather than a disagreement. Swept over
-        /// `fixtures/synthetic/ocr/scan.pdf` at 72/100/150/200/300/400 dpi,
-        /// content recall is **100 % at every value up to 300** and 97.9 % at
-        /// 400. It saturates, so it cannot rank anything.
-        ///
-        /// That is by design — the fixture's own docs say its degradation is
-        /// "deliberately mild… not a stress test of the recogniser's
-        /// tolerance". It proves the *pipeline*, not the *difficulty*. So the
-        /// DPI evidence here is entirely `pdfce-gui`'s, and pdfcer's fixture
-        /// is not being cited as agreement.
+        /// More is not better with `ocrs`: it resizes each page to a fixed
+        /// model input, so past about 200 dpi text gets smaller relative to
+        /// the model, not larger. On a CAD sheet, recognition was flat from
+        /// 72 to 200 dpi (54–57 %) and fell to 35 % at 300.
         ///
         /// Raise it for genuinely small text; lower it for speed. Both are
         /// cheap to try — the flag exists because no single value is right.
@@ -3074,10 +3011,7 @@ pub(crate) enum Command {
         ///
         /// # Where the real ceiling is, and WHICH ceiling
         ///
-        /// There are **two**, they differ by four orders of magnitude,
-        /// and this block used to name only the higher one. Standing rule
-        /// `R213`: a magnitude claim is a claim about ONE quantity, and
-        /// the quantity has to be in the sentence.
+        /// There are **two**, and they differ by four orders of magnitude.
         ///
         /// **The VIEWPORT's ceiling — one trillion percent.** A region's
         /// device geometry is derived in `f64` with the region's origin
@@ -5500,13 +5434,6 @@ pub(crate) enum Command {
     /// ISO 32000-1 12.6.4 and 12.7.5): reset, submit, navigate, open a URL,
     /// or take the action away again.
     ///
-    /// pdfcer used to author push buttons that were valid and INERT, and said
-    /// so on every creation, because writing `/A` reaches launch actions,
-    /// network submits and JavaScript. The operator moved that boundary
-    /// twice on 2026-08-30: first "a reset button should actually reset",
-    /// then "make the submit and other options that don't need javascript
-    /// available for buttons with the safeguards like we had planned".
-    ///
     /// WHAT A BUTTON CAN BE GIVEN
     ///
     /// `--reset` resets every field; `--reset-only A,B` just those;
@@ -7811,11 +7738,8 @@ pub(crate) enum Command {
     },
     /// **Set a placed ce dimension's radius/diameter display** (Pass 34.2).
     ///
-    /// Radius-versus-diameter used to be a draw-time choice only: whatever was
-    /// picked when the ce dimension was authored was permanent, and the only
-    /// way to change it was to delete and redraw — which also loses the
-    /// dimension's id, its group and its placement. This changes the reading
-    /// on an already-placed ce dimension.
+    /// Changes the reading on an already-placed ce dimension, without the
+    /// delete-and-redraw that would lose its id, its group and its placement.
     ///
     /// It does NOT re-measure: the fitted circle's centre, radius and fit
     /// residual are untouched, and only the flag deciding whether the label
