@@ -187,7 +187,20 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
 
-### SINCE THE LAST HANDOFF — 2026-09-26, latest (`Pass 333.0`, 617th filing)
+### SINCE THE LAST HANDOFF — 2026-09-26, newest (`Pass 334.0`, 618th filing)
+
+- **SVG/EMF export deterministic under soft masks** (`12182b5b`, filed
+  `3215ee7f`). The export recorder memoised a copied mask on the source
+  mask's ADDRESS without holding it; a freed mask's address was reused by the
+  next glyph's mask. `Op::Layer` now shares the gstate's `Arc<Mask>`
+  (`ClipRef.mask` is `&Arc`, painters use `ClipRef::coverage()`). 20/20
+  identical on veraPDF 6-2-9-t04-fail-d, both formats. Test:
+  `display_list::tests::a_masked_export_layer_shares_the_graphics_state_mask`
+  (sabotage-checked). Backlog item closed; SVG was affected too.
+- **Next:** Pass 142.0, a v0.58.0 release (writes `pdfcer1`), and the
+  FieldEdit/WidgetEdit audit Backlog item.
+
+### SINCE THE LAST HANDOFF — 2026-09-26, earlier (`Pass 333.0`, 617th filing)
 
 - **Seven more indirect-entry clobbers fixed** (`ea5ecc0d`), the audit 332.0's
   handoff asked for: page `/XObject` (add_image/flatten), widget `/MK` (three
