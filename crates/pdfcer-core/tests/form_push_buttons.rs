@@ -507,3 +507,63 @@ fn read_only_is_the_only_flag_and_required_is_unrepresentable() {
         Some(i64::from(FieldFlags::PUSHBUTTON | FieldFlags::READ_ONLY))
     );
 }
+
+/// The push button's single `/AP` `/N` stream, decoded as authored.
+fn push_ap_bytes(s: &EditSession, id: pdfcer_core::object::ObjId) -> String {
+    let g = s.graph();
+    let ap = dict_of(s, id);
+    let Some(Object::Dict(ap)) = ap.get(b"AP").map(|o| g.resolve(o).clone()) else {
+        return String::new();
+    };
+    let Some(Object::Stream(st)) = ap.get(b"N").map(|o| g.resolve(o).clone()) else {
+        return String::new();
+    };
+    String::from_utf8_lossy(s.view().slice(st.data_span).unwrap_or_default()).into_owned()
+}
+
+#[test]
+fn a_push_button_da_edit_redraws_the_caption_and_a_second_edit_still_can() {
+    use pdfcer_core::edit::{FieldAppearance, FieldEdit};
+    use pdfcer_core::fontdata::Std14;
+    use pdfcer_core::vartext::TextColor;
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_push_button(&NewPushButton::new(0, "Submit", rect(), "Send it").declining_tooltip())
+        .unwrap();
+    let id = field_named(&s, "Submit").unwrap().widgets[0].id;
+
+    let out = s
+        .edit_field(
+            "Submit",
+            &FieldEdit::new().with_appearance(FieldAppearance::standard(
+                Std14::TimesBold,
+                14.0,
+                TextColor::Gray(0.0),
+            )),
+        )
+        .unwrap();
+    assert!(out.appearance_regenerated, "the caption was not redrawn");
+    let ap = push_ap_bytes(&s, id);
+    assert!(
+        ap.contains("/TiBo 14 Tf"),
+        "caption not in the new face: {ap}"
+    );
+
+    // The stored /DA now names a non-Helvetica face: the ownership test must
+    // still recognise pdfcer's own artwork.
+    let out = s
+        .edit_field(
+            "Submit",
+            &FieldEdit::new().with_appearance(FieldAppearance::standard(
+                Std14::Courier,
+                10.0,
+                TextColor::Gray(0.0),
+            )),
+        )
+        .unwrap();
+    assert!(out.appearance_regenerated, "a second /DA edit was refused");
+    let ap = push_ap_bytes(&s, id);
+    assert!(
+        ap.contains("/Cour 10 Tf"),
+        "caption not in the new face: {ap}"
+    );
+}

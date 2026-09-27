@@ -19388,6 +19388,10 @@ struct ButtonLook<'a> {
     /// `/MK` `/R` as a quarter turn, already reduced by
     /// [`EditSession::quarter_of`].
     quarter: i64,
+    /// The push-button caption's `/DA`; `None` draws with pdfcer's default.
+    da: Option<Vec<u8>>,
+    /// The `/DR` fonts a push-button `/DA` may name.
+    fonts: &'a [FontResource],
 }
 
 /// One button widget's appearance-rebuild plan (`Pass 187.0`).
@@ -25860,7 +25864,7 @@ impl EditSession {
             // rebuild exactly. Two verbs, one situation, opposite stances;
             // this is the half that was wrong.
             Some(forms::FieldType::Button) => {
-                return self.regen_button_appearance(field, objects, pending);
+                return self.regen_button_appearance(field, objects, pending, appearance);
             }
             _ => return Ok(false),
         };
@@ -39968,10 +39972,40 @@ impl EditSession {
         field: &forms::Field,
         objects: &mut Vec<ObjectWrite>,
         pending: &PendingWidgetEdit,
+        // The `/DA` this command writes, if any. `field` may already carry it
+        // (`edit_field` patches its snapshot), so the STORED `/DA` the
+        // ownership test needs is re-read from the graph, which this command
+        // has not written yet.
+        appearance: Option<&FieldAppearance>,
     ) -> Result<bool, EditError> {
         let Some(kind) = field.button_kind else {
             // `/FT /Btn` with no resolvable kind. Not pdfcer's to guess at.
             return Ok(false);
+        };
+        let stored_da = forms::parse_acroform(&self.graph())
+            .and_then(|f| f.fields.into_iter().find(|f| f.id == field.id))
+            .and_then(|f| f.default_appearance);
+        let mut fonts = self.resolve_dr_fonts();
+        let staged_da = match appearance {
+            Some(app) => {
+                let key = match &app.font {
+                    FieldFont::Standard(f) => Self::std14_resource_key(*f).to_vec(),
+                    FieldFont::Resource(name) => name.clone(),
+                };
+                if !fonts.iter().any(|r| r.name == key) {
+                    fonts.push(FontResource {
+                        name: key.clone(),
+                        font: match &app.font {
+                            FieldFont::Standard(f) => *f,
+                            FieldFont::Resource(_) => crate::fontdata::Std14::Helvetica,
+                        },
+                    });
+                }
+                Some(crate::vartext::default_appearance_string(
+                    &key, app.size, app.color,
+                ))
+            }
+            None => stored_da.clone(),
         };
 
         // ---- pass 1: is EVERY widget's artwork pdfcer's own? Writes nothing.
@@ -39984,7 +40018,13 @@ impl EditSession {
             let Some(old) = widget.rect else {
                 return Ok(false);
             };
-            let Some(plan) = self.button_ap_plan(field, widget, kind, old.width(), old.height())?
+            let Some(plan) = self.button_ap_plan(
+                widget,
+                kind,
+                old.width(),
+                old.height(),
+                (stored_da.clone(), &fonts),
+            )?
             else {
                 return Ok(false);
             };
@@ -40029,7 +40069,6 @@ impl EditSession {
             // `/MK` write, so it still carries the OLD angle.
             let quarter = Self::quarter_of(pending.rotation_for(widget.id).or(widget.rotation));
             let redrawn = self.build_button_states(
-                field,
                 kind,
                 &ButtonLook {
                     w,
@@ -40037,6 +40076,8 @@ impl EditSession {
                     caption: &caption,
                     chrome,
                     quarter,
+                    da: staged_da.clone(),
+                    fonts: &fonts,
                 },
             )?;
             for (id, content) in plan.slots.iter().zip(redrawn) {
@@ -40069,11 +40110,11 @@ impl EditSession {
     /// do not match what pdfcer draws for these properties at this size.
     fn button_ap_plan(
         &self,
-        field: &forms::Field,
         widget: &forms::Widget,
         kind: forms::ButtonKind,
         w: f64,
         h: f64,
+        (da, fonts): (Option<Vec<u8>>, &[FontResource]),
     ) -> Result<Option<ButtonApPlan>, EditError> {
         // The ownership test draws with the widget's properties **as
         // stored**, never with the ones this command is staging. It is asking
@@ -40085,21 +40126,15 @@ impl EditSession {
         // before the code was written.
         // The widget's properties AS STORED — never the ones this command is
         // staging. See [`ButtonLook`] for what goes wrong in each direction.
-        fn stored<'a>(
-            widget: &forms::Widget,
-            chrome: annot_author::WidgetChrome,
-            w: f64,
-            h: f64,
-            caption: &'a str,
-        ) -> ButtonLook<'a> {
-            ButtonLook {
-                w,
-                h,
-                caption,
-                chrome,
-                quarter: EditSession::quarter_of(widget.rotation),
-            }
-        }
+        let stored = |widget: &forms::Widget, chrome, caption| ButtonLook {
+            w,
+            h,
+            caption,
+            chrome,
+            quarter: EditSession::quarter_of(widget.rotation),
+            da: da.clone(),
+            fonts,
+        };
         let Some(Object::Dict(dict)) = self.value(widget.id) else {
             return Err(EditError::NotADictionary {
                 id: widget.id,
@@ -40127,9 +40162,8 @@ impl EditSession {
                     return Ok(None);
                 };
                 let expected = self.build_button_states(
-                    field,
                     kind,
-                    &stored(widget, self.widget_chrome(widget), w, h, &caption),
+                    &stored(widget, self.widget_chrome(widget), &caption),
                 )?;
                 let Some(first) = expected.first() else {
                     return Ok(None);
@@ -40167,9 +40201,8 @@ impl EditSession {
                     return Ok(None);
                 };
                 let expected = self.build_button_states(
-                    field,
                     kind,
-                    &stored(widget, self.widget_chrome(widget), w, h, &caption),
+                    &stored(widget, self.widget_chrome(widget), &caption),
                 )?;
                 let [off, on] = expected.as_slice() else {
                     return Ok(None);
@@ -40198,7 +40231,6 @@ impl EditSession {
     /// stopped redrawing.
     fn build_button_states(
         &self,
-        field: &forms::Field,
         kind: forms::ButtonKind,
         // AS STORED for the ownership test, AS STAGED for the redraw — see
         // [`ButtonLook`], which exists to make that split one decision rather
@@ -40211,6 +40243,8 @@ impl EditSession {
             caption,
             ref chrome,
             quarter,
+            ref da,
+            fonts,
         } = look;
         // DRAWN IN THE ROTATED FRAME AND TURNED UPRIGHT BY `/Matrix`,
         // which is the same construction `regen_field_appearance` uses for a
@@ -40268,23 +40302,19 @@ impl EditSession {
                 // the ownership comparison can succeed at all. A field whose
                 // `/DA` differs simply fails the byte match and is treated as
                 // foreign, which is the honest answer rather than a guess.
-                let da = field.default_appearance.clone().unwrap_or_else(|| {
+                let da = da.clone().unwrap_or_else(|| {
                     crate::vartext::default_appearance_string(
                         b"Helv",
                         0.0,
                         crate::vartext::TextColor::Gray(0.0),
                     )
                 });
-                let fonts = [crate::vartext::FontResource {
-                    name: b"Helv".to_vec(),
-                    font: crate::fontdata::Std14::Helvetica,
-                }];
                 let built = annot_author::build_push_button_appearance(
                     w,
                     h,
                     caption,
                     &da,
-                    &fonts,
+                    fonts,
                     chrome.clone(),
                 )?;
                 vec![annot_author::CheckBoxStateAppearance {
