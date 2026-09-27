@@ -667,6 +667,38 @@ impl LayerContentArg {
     }
 }
 
+/// `layer-flatten`'s `--hidden`, the CLI face of
+/// [`pdfcer_core::edit::HiddenLayerPolicy`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum HiddenLayerArg {
+    /// Refuse while any layer is hidden when the document opens.
+    Refuse,
+    /// Remove what hidden layers draw. Destructive.
+    Remove,
+    /// Keep what hidden layers draw; it always shows afterwards.
+    Show,
+}
+
+impl HiddenLayerArg {
+    /// The core policy this names.
+    pub(crate) const fn to_core(self) -> pdfcer_core::edit::HiddenLayerPolicy {
+        match self {
+            Self::Refuse => pdfcer_core::edit::HiddenLayerPolicy::Refuse,
+            Self::Remove => pdfcer_core::edit::HiddenLayerPolicy::Remove,
+            Self::Show => pdfcer_core::edit::HiddenLayerPolicy::Show,
+        }
+    }
+
+    /// The value as typed.
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Refuse => "refuse",
+            Self::Remove => "remove",
+            Self::Show => "show",
+        }
+    }
+}
+
 /// `text-object-split`'s `--granularity`, the CLI face of
 /// [`pdfcer_core::vector::SplitGranularity`].
 ///

@@ -8213,6 +8213,43 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Flatten every layer into the page, so the document has no layers.
+    ///
+    /// Each page keeps what it showed when the document opened: what visible
+    /// layers draw stays, on no layer. A layer hidden when the document
+    /// opens needs `--hidden`: `refuse` (the default) exits 9 and writes
+    /// nothing, `remove` removes what it draws (colour, position
+    /// and clipping it set still apply), `show` keeps it, now always shown.
+    /// Removal is not redaction: an incremental save keeps the previous
+    /// revision's bytes; use `redact-apply` to make content unrecoverable.
+    ///
+    /// `--dry-run` flattens in memory, prints what it would do and writes
+    /// nothing. Prints one `layer-flatten` line (layers, hidden layers,
+    /// sections, annotations, XObjects, paints removed, groups
+    /// missing from the layer list and left in place) and one `disclosure:`
+    /// line per statement of what changed.
+    ///
+    /// Exit 9 when a layer is hidden and `--hidden refuse`, or when a layer
+    /// cannot be deleted (see `layer-delete`). Nothing is written then.
+    LayerFlatten {
+        /// Input PDF.
+        input: PathBuf,
+        /// What happens to layers hidden when the document opens.
+        #[arg(long, value_enum, default_value_t = HiddenLayerArg::Refuse)]
+        hidden: HiddenLayerArg,
+        /// Print what would change and write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Output path.
+        #[arg(short, long, required_unless_present = "dry_run")]
+        output: Option<PathBuf>,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Put an annotation on a layer, move it to another layer, or take it
     /// off every layer (`--none`).
     ///

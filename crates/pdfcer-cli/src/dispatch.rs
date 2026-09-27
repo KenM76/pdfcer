@@ -2240,6 +2240,20 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         ),
+        Command::LayerFlatten {
+            input,
+            hidden,
+            dry_run,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_layer_flatten(
+            &input,
+            hidden,
+            (!dry_run).then_some(output).flatten().as_deref(),
+            mode,
+            verify_undo,
+        ),
         Command::LayerMerge {
             input,
             into,

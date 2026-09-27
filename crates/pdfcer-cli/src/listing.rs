@@ -1652,6 +1652,81 @@ pub(crate) fn cmd_layer_delete(
     finish_edit(input, &outcome)
 }
 
+/// `layer-flatten`: flatten every layer; `output` `None` is `--dry-run`.
+pub(crate) fn cmd_layer_flatten(
+    input: &Path,
+    hidden: HiddenLayerArg,
+    output: Option<&Path>,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let flat = match session.flatten_layers(hidden.to_core()) {
+        Ok(flat) => flat,
+        Err(err) => {
+            let code = report_edit_error(input, &err);
+            if let pdfcer_core::edit::EditError::HiddenLayersNeedPolicy { layers } = &err {
+                let ids: Vec<String> = layers.iter().map(|id| id.num.to_string()).collect();
+                eprintln!(
+                    "pdfcer: hidden layer ids {}; pass --hidden remove or --hidden show",
+                    ids.join(",")
+                );
+            }
+            return code;
+        }
+    };
+    let counts = format!(
+        "layers={} hidden_layers={} sections={} annotations={} xobjects={} paints={} unregistered={}",
+        flat.layers,
+        flat.hidden_layers,
+        flat.sections,
+        flat.annotations,
+        flat.xobjects,
+        flat.paints,
+        flat.unregistered,
+    );
+    let Some(output) = output else {
+        println!(
+            "layer-flatten {} hidden={} dry-run; {counts}",
+            input.display(),
+            hidden.name()
+        );
+        for d in &flat.disclosures {
+            println!("  disclosure: {d}");
+        }
+        return exit::SUCCESS;
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "layer-flatten {} hidden={} mode={} -> {}; {counts} objects={} appended={} out_bytes={}",
+        input.display(),
+        hidden.name(),
+        mode.name(),
+        output.display(),
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+    );
+    for d in &flat.disclosures {
+        println!("  disclosure: {d}");
+    }
+    finish_edit(input, &outcome)
+}
+
 /// `layer-merge`: rebind every layer in `merged` onto `into`.
 pub(crate) fn cmd_layer_merge(
     input: &Path,

@@ -3,8 +3,8 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{
-    CommandKind, EditError, EditSession, LayerContentPolicy, LayerEdit, LayerIntent,
-    LayerOutputState,
+    CommandKind, EditError, EditSession, HiddenLayerPolicy, LayerContentPolicy, LayerEdit,
+    LayerIntent, LayerOutputState,
 };
 use pdfcer_core::graph::ObjectGraph as _;
 use pdfcer_core::layers::read_layers;
@@ -1365,4 +1365,98 @@ fn dict_or_stream(s: &EditSession, id: ObjId) -> Dict {
         Object::Stream(st) => st.dict,
         other => panic!("{id} is {other:?}"),
     }
+}
+
+// ---- Pass 358.6: flatten layers ----
+
+/// Hidden layers refuse a flatten until told what to do with them; nothing
+/// is written.
+#[test]
+fn flatten_layers_refuses_hidden_layers_by_default() {
+    let mut s = fixture("painted-layers.pdf");
+    match s.flatten_layers(HiddenLayerPolicy::default()) {
+        Err(EditError::HiddenLayersNeedPolicy { layers }) => {
+            assert_eq!(layers, [ObjId::new(5, 0), ObjId::new(6, 0)]);
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(s.undo_depth(), 0);
+    assert_eq!(read_layers(&s.graph()).layers.len(), 4);
+}
+
+/// `Remove` keeps what visible layers draw, removes what hidden ones draw
+/// (a visible layer nested in a hidden one with it), keeps a hidden clip,
+/// and leaves no layer and no section. One undo entry restores it all.
+#[test]
+fn flatten_layers_remove_keeps_what_the_page_showed() {
+    let mut s = fixture("painted-layers.pdf");
+    let original = saved_stream(&s, 8);
+    let outcome = s
+        .flatten_layers(HiddenLayerPolicy::Remove)
+        .expect("flattens");
+    assert!(outcome.changed);
+    assert_eq!((outcome.layers, outcome.hidden_layers), (4, 2));
+    assert_eq!(outcome.sections, 4);
+    let content = saved_stream(&s, 8);
+    assert!(!content.contains("BDC"), "{content}");
+    assert!(!content.contains("EMC"), "{content}");
+    assert!(content.contains("60 60 120 120 re f"), "{content}");
+    assert!(content.contains("400 60 120 120 re n"), "{content}");
+    assert!(content.contains("400 220 120 120 re n"), "{content}");
+    assert!(content.contains("0 0 300 792 re W n"), "{content}");
+    assert!(content.contains("0 600 612 60 re f"), "{content}");
+    assert!(read_layers(&s.graph()).layers.is_empty());
+    assert!(
+        outcome
+            .disclosures
+            .iter()
+            .any(|d| d.starts_with("removed what hidden \"Hidden Box\", \"Clip Only\" drew")),
+        "{:?}",
+        outcome.disclosures
+    );
+    assert_eq!(s.undo_depth(), 1);
+    assert_eq!(s.undo(), Some(CommandKind::FlattenLayers));
+    assert_eq!(saved_stream(&s, 8), original);
+    assert_eq!(read_layers(&s.graph()).layers.len(), 4);
+}
+
+/// `Show` keeps what hidden layers draw; a second flatten has nothing to do.
+#[test]
+fn flatten_layers_show_keeps_hidden_content() {
+    let mut s = fixture("painted-layers.pdf");
+    let outcome = s.flatten_layers(HiddenLayerPolicy::Show).expect("flattens");
+    assert_eq!((outcome.layers, outcome.paints), (4, 0));
+    let content = saved_stream(&s, 8);
+    assert!(!content.contains("BDC"), "{content}");
+    assert!(content.contains("400 60 120 120 re f"), "{content}");
+    assert!(content.contains("400 220 120 120 re f"), "{content}");
+    let again = s.flatten_layers(HiddenLayerPolicy::Refuse).expect("no-op");
+    assert!(!again.changed);
+    assert_eq!(s.undo_depth(), 1);
+}
+
+/// A refusal part-way through undoes the layers already flattened and
+/// keeps the redo stack.
+#[test]
+fn flatten_layers_rolls_back_a_refusal() {
+    let mut s = fixture("ocmd-membership.pdf");
+    for id in [4, 5] {
+        s.set_layer_properties(
+            ObjId::new(id, 0),
+            &LayerEdit::new().visible_by_default(false),
+        )
+        .unwrap();
+    }
+    s.add_layer("Extra", &LayerEdit::new()).unwrap();
+    let redo = s.add_layer("Redo", &LayerEdit::new()).unwrap();
+    s.undo();
+    let depth = s.undo_depth();
+    let layers = read_layers(&s.graph()).layers.len();
+    assert!(matches!(
+        s.flatten_layers(HiddenLayerPolicy::Show),
+        Err(EditError::LayerInMembership { .. })
+    ));
+    assert_eq!(s.undo_depth(), depth);
+    assert_eq!(read_layers(&s.graph()).layers.len(), layers);
+    assert_eq!(s.redo(), Some(CommandKind::AddLayer { layer: redo }));
 }

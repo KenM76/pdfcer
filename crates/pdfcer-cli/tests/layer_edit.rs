@@ -720,3 +720,75 @@ fn layer_merge_refuses_an_unknown_layer() {
     assert_eq!(o.status.code(), Some(EDIT_REFUSED));
     assert!(!out.exists());
 }
+
+fn flatten(src: &Path, extra: &[&str], tag: &str) -> (Output, PathBuf) {
+    let out = temp_path(tag);
+    let mut args = vec!["layer-flatten", src.to_str().unwrap()];
+    args.extend_from_slice(extra);
+    args.extend(["--output", out.to_str().unwrap()]);
+    (run(&args), out)
+}
+
+/// Hidden layers refuse a flatten by default, naming them; nothing written.
+#[test]
+fn layer_flatten_refuses_hidden_layers_by_default() {
+    let (o, out) = flatten(&fixture("painted-layers.pdf"), &[], "flat_refuse");
+    assert_eq!(o.status.code(), Some(EDIT_REFUSED));
+    assert!(
+        String::from_utf8_lossy(&o.stderr).contains("hidden layer ids 5,6"),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(!out.exists());
+}
+
+/// `--hidden remove` leaves no layer, keeps visible content and stops the
+/// hidden content painting.
+#[test]
+fn layer_flatten_removes_hidden_content() {
+    let (o, out) = flatten(
+        &fixture("painted-layers.pdf"),
+        &["--hidden", "remove", "--mode", "full", "--verify-undo"],
+        "flat_remove",
+    );
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(
+        stdout.contains("layers=4 hidden_layers=2 sections=4"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("disclosure: removed what hidden"),
+        "{stdout}"
+    );
+    assert!(listing(&out).contains("layers=0"));
+    assert_eq!(
+        object_layers(&out),
+        ["oc=none", "oc=none", "oc=none", "oc=none", "oc=none"]
+    );
+    let bytes = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(bytes.contains("400 60 120 120 re n"));
+    assert!(bytes.contains("60 60 120 120 re f"));
+    std::fs::remove_file(out).ok();
+}
+
+/// `--dry-run` reports and writes nothing.
+#[test]
+fn layer_flatten_dry_run_writes_nothing() {
+    let o = run(&[
+        "layer-flatten",
+        fixture("painted-layers.pdf").to_str().unwrap(),
+        "--hidden",
+        "show",
+        "--dry-run",
+    ]);
+    assert_eq!(o.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(stdout.contains("hidden=show dry-run; layers=4"), "{stdout}");
+    assert!(stdout.contains("now always show"), "{stdout}");
+}

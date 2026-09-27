@@ -930,6 +930,9 @@ pub enum CommandKind {
         /// The optional content group the others were merged into.
         target: ObjId,
     },
+    /// Every layer was flattened into the page ([`EditSession::flatten_layers`],
+    /// §8.11) — ONE undo entry.
+    FlattenLayers,
     /// The layer panel's arrangement was edited — a folder added, renamed or
     /// removed, or an entry moved ([`EditSession::add_layer_folder`] and its
     /// siblings, §8.11.4.3 Table 101 `/Order`) — ONE undo entry.
@@ -7799,6 +7802,17 @@ pub enum EditError {
         layer: ObjId,
         /// The membership dictionary naming it.
         ocmd: ObjId,
+    },
+    /// Flattening was refused because a layer is hidden when the document
+    /// opens and [`HiddenLayerPolicy::Refuse`] was given: removing what it
+    /// draws is destructive, and showing it changes the page.
+    #[error(
+        "{} layer(s) are hidden when the document opens; flattening must be told to remove or show what they draw",
+        layers.len()
+    )]
+    HiddenLayersNeedPolicy {
+        /// The layers hidden by the default configuration, in `/OCGs` order.
+        layers: Vec<ObjId>,
     },
     /// A layer delete removing content was refused because a form field's
     /// widget is on the layer; delete the field instead.
@@ -48291,6 +48305,150 @@ impl EditSession {
         Ok(outcome)
     }
 
+    /// Flatten every layer into the page: afterwards the document has no
+    /// layers, and each page shows what it showed when the document opened.
+    ///
+    /// Each layer in `/OCProperties /OCGs` is deleted as [`Self::delete_layer`]
+    /// deletes it. A layer visible in the default configuration (§8.11.4.3
+    /// `/D`) keeps what it draws, on no layer
+    /// ([`LayerContentPolicy::KeepUnlayered`]). A hidden one is governed by
+    /// `hidden`: [`HiddenLayerPolicy::Refuse`] (the default) refuses before
+    /// any write, [`HiddenLayerPolicy::Remove`] removes what it draws
+    /// ([`LayerContentPolicy::RemoveContent`]) and [`HiddenLayerPolicy::Show`]
+    /// keeps it, now always visible. Under `Remove`, content nested in a
+    /// hidden layer's section goes with it, whatever its own layer.
+    ///
+    /// Only the default configuration's on/off state decides; print and
+    /// export usage (§8.11.4.4) do not. Content on a group missing from
+    /// `/OCGs` is left on it and reported. Removal is not redaction: an
+    /// incremental save keeps the previous revision's bytes.
+    ///
+    /// One undo entry, [`CommandKind::FlattenLayers`]. Nothing to flatten
+    /// writes nothing. To preview, flatten and [`Self::undo`]: the outcome
+    /// counts are the preview.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::HiddenLayersNeedPolicy`] — a layer is hidden and
+    ///   `hidden` is [`HiddenLayerPolicy::Refuse`].
+    /// - Any refusal of [`Self::delete_layer`] for one of the layers, for
+    ///   example [`EditError::LayerInMembership`]; the layers already
+    ///   flattened are undone first, so nothing is written.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::{EditSession, HiddenLayerPolicy};
+    /// # fn run(session: &mut EditSession) -> Result<(), Box<dyn std::error::Error>> {
+    /// let outcome = session.flatten_layers(HiddenLayerPolicy::Remove)?;
+    /// for line in &outcome.disclosures {
+    ///     println!("{line}");
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn flatten_layers(
+        &mut self,
+        hidden: HiddenLayerPolicy,
+    ) -> Result<LayerFlattenOutcome, EditError> {
+        let read = crate::layers::read_layers(&self.graph());
+        let label = |l: &crate::layers::Layer| {
+            if l.name_declared {
+                format!("{:?}", l.name)
+            } else {
+                l.id.to_string()
+            }
+        };
+        let registered: Vec<&crate::layers::Layer> =
+            read.layers.iter().filter(|l| l.in_default_config).collect();
+        let hidden_layers: Vec<&crate::layers::Layer> = registered
+            .iter()
+            .copied()
+            .filter(|l| !l.visible_by_default)
+            .collect();
+        if hidden == HiddenLayerPolicy::Refuse && !hidden_layers.is_empty() {
+            return Err(EditError::HiddenLayersNeedPolicy {
+                layers: hidden_layers.iter().map(|l| l.id).collect(),
+            });
+        }
+        let mut steps: Vec<(ObjId, LayerContentPolicy)> = registered
+            .iter()
+            .filter(|l| l.visible_by_default)
+            .map(|l| (l.id, LayerContentPolicy::KeepUnlayered))
+            .collect();
+        let hidden_content = match hidden {
+            HiddenLayerPolicy::Remove => LayerContentPolicy::RemoveContent,
+            _ => LayerContentPolicy::KeepUnlayered,
+        };
+        steps.extend(hidden_layers.iter().map(|l| (l.id, hidden_content)));
+
+        let depth = self.undo.len();
+        let redo = self.redo.clone();
+        let mut outcome = LayerFlattenOutcome::default();
+        for (layer, policy) in steps {
+            match self.delete_layer(layer, policy) {
+                Ok(d) => {
+                    outcome.layers += 1;
+                    outcome.sections += d.sections;
+                    outcome.annotations += d.annotations;
+                    outcome.xobjects += d.xobjects;
+                    outcome.paints += d.paints + d.xobject_calls;
+                }
+                Err(err) => {
+                    while self.undo.len() > depth {
+                        self.undo();
+                    }
+                    self.redo = redo;
+                    return Err(err);
+                }
+            }
+        }
+        let pushed = self.undo.len() - depth;
+        outcome.changed = pushed > 0;
+        let names = |ls: &[&crate::layers::Layer]| {
+            ls.iter().map(|l| label(l)).collect::<Vec<_>>().join(", ")
+        };
+        let visible: Vec<&crate::layers::Layer> = registered
+            .iter()
+            .copied()
+            .filter(|l| l.visible_by_default)
+            .collect();
+        if !visible.is_empty() {
+            outcome.disclosures.push(format!(
+                "kept what {} drew, now on no layer",
+                names(&visible)
+            ));
+        }
+        if !hidden_layers.is_empty() {
+            outcome.hidden_layers = hidden_layers.len();
+            outcome.disclosures.push(match hidden {
+                HiddenLayerPolicy::Remove => format!(
+                    "removed what hidden {} drew; an incremental save keeps it in the previous revision",
+                    names(&hidden_layers)
+                ),
+                _ => format!(
+                    "hidden {} now always show",
+                    names(&hidden_layers)
+                ),
+            });
+        }
+        let unregistered = read.layers.iter().filter(|l| !l.in_default_config).count();
+        if unregistered > 0 {
+            outcome.unregistered = unregistered;
+            outcome.disclosures.push(format!(
+                "left {unregistered} group(s) missing from the layer list in place"
+            ));
+        }
+        if pushed > 1 && !self.coalesce_last(pushed, CommandKind::FlattenLayers) {
+            outcome
+                .disclosures
+                .push(format!("undoing this takes {pushed} undo steps"));
+        } else if pushed == 1 {
+            self.coalesce_last(1, CommandKind::FlattenLayers);
+        }
+        Ok(outcome)
+    }
+
     /// Merge the layers `merged` into `target`: everything drawn on them is
     /// drawn on `target` afterwards, and they leave the layer list.
     ///
@@ -52080,6 +52238,47 @@ pub struct LayerDeleteOutcome {
     /// `Do` operators removed because the XObject they draw is itself on
     /// the layer. Always 0 for [`LayerContentPolicy::KeepUnlayered`].
     pub xobject_calls: usize,
+}
+
+/// What [`EditSession::flatten_layers`] does with a layer hidden when the
+/// document opens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum HiddenLayerPolicy {
+    /// Refuse to flatten while any layer is hidden (the default): both other
+    /// choices change what the document holds or shows.
+    #[default]
+    Refuse,
+    /// Remove what hidden layers draw, as
+    /// [`LayerContentPolicy::RemoveContent`] does. Destructive.
+    Remove,
+    /// Keep what hidden layers draw; it is always visible afterwards.
+    Show,
+}
+
+/// What [`EditSession::flatten_layers`] did.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct LayerFlattenOutcome {
+    /// Whether anything was written. `false` records no undo entry.
+    pub changed: bool,
+    /// Layers removed from the layer list.
+    pub layers: usize,
+    /// Of those, layers hidden when the document opened.
+    pub hidden_layers: usize,
+    /// Marked-content sections unwrapped.
+    pub sections: usize,
+    /// Annotations whose `/OC` was removed, or that were removed with a
+    /// hidden layer under [`HiddenLayerPolicy::Remove`].
+    pub annotations: usize,
+    /// Form or image XObjects whose `/OC` was removed.
+    pub xobjects: usize,
+    /// Painting operators and XObject calls removed with hidden layers.
+    pub paints: usize,
+    /// Groups not in `/OCProperties /OCGs`, left in place.
+    pub unregistered: usize,
+    /// What the operator is told (rule 4).
+    pub disclosures: Vec<String>,
 }
 
 /// What [`EditSession::merge_layers`] did.
