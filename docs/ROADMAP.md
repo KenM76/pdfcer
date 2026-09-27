@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 364.0` (`e234bef7`), 2026-09-27 — Scale page contents to a target size ("resize page contents")
+
+**Verdict: SHIPPED.** All eight acceptance criteria from the 664th filing's scope met (Acrobat reference: `pdfcer-acrobat-librarian`'s `core_ops__scale_pages_to_fit_size.md`, `core_ops__change_page_size_no_scale.md`, `core_ops__crop_pages_margins.md`). Distinct from the shipped `set-page-size` verb (box-only, content translated, never scaled — Acrobat's "Change Page Size"); Crop Pages remains explicitly out of scope.
+
+**Core.** `EditSession::scale_pages(&mut self, indices: &[usize], request: &pageops::ScaleRequest) -> Result<pageops::ScaleReport, EditError>` (`crates/pdfcer-core/src/edit.rs`); new module `crates/pdfcer-core/src/pageops/scale.rs` (`ScaleMode` {Fit default, Fill}, `OrientationPolicy` {Match default, Exact}, `ScaleRequest`, `PagePlacement`, `PageScaled`, `ScaleReport`, `visible_region`, `plan_placement`). Source region is crop ∩ media; honours `/Rotate` (displayed dimensions) and `/UserUnit`. Minimal diff (rule 3): original content streams untouched, wrapped by a new prefix stream (`q <cm>`) and suffix stream (`Q`); every page box rewritten to the target sheet. **Exceeds Acrobat** (criterion 3, a confirmed Acrobat defect): annotations (`/Rect`, `/QuadPoints`, `/InkList`, `/Vertices`, `/L`, `/CL`, `/RD`), `/Measure` RL factors (GEO left unchanged, counted separately as `geo_measures_unchanged`), `/VP` viewports, `/B` beads, and every explicit destination naming a scaled page (shape-scanned, depth guard 32) all move and scale with the content. One undo entry (`CommandKind::ScalePages { count }`). New `EditError::ScaleRefusedCeDimensions { page_index, count }`: a page carrying ce dimensions is refused rather than silently mis-scaled (`CLAUDE.md` rule 15).
+
+**CLI.** `pdfcer scale-pages <input> -o <out> --size NAME|WxH [--pages SPEC] [--scale-mode fit|fill] [--orientation match|exact] [--mode] [--verify-undo]`. Per-page scale/offset/mode disclosed on stderr (rule 4); summary on stdout.
+
+**Docs.** `docs/core-api` updated in the same commit: `EditSession` verb count 267→268, `EditError` variant count 150. `check-core-api-verbs` PASS. README subcommand count 167→168, `check-clap-help` PASS.
+
+**Tests.** 14 unit (`scale.rs`) + 5 integration (`edit.rs`: move-together including incremental round trip with base revision untouched, downscale A1→Letter, a rotated page, fill mode, ce-dimensions refusal) + 3 CLI (`crates/pdfcer-cli/tests/scale_pages.rs`).
+
+**Gates.** `tools/run-gates.sh` green; `cargo fmt --check`/`clippy -D warnings` clean. `cargo tree -p pdfcer-core`/`-p pdfcer-render`: no manifest change, invariant unaffected — no new dependency, no packaging change.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` (separate `pdfcer-gui` project's concern).
+
+**`docs/FEATURES.md`.** *Planned* row ("Scale page contents to a target size") moved to *Implemented → Document & pages*: `[x] [x] [ ]`.
+
+**Sourcing (hard rule 8).** No shell this filing. Core/CLI/test/gate facts relayed from the dispatching engineer's report of `e234bef7`, not independently reproduced.
+
 ### `Pass 10.11` (`09c8e673`), 2026-09-27 — PAdES B-T: verify-then-embed an RFC 3161 timestamp; `pdfcer sign --tsa-url` behind the opt-in `download` feature
 
 **Verdict: SHIPPED**, third stage of decision 136's arc to ship (`10.7`-`10.9` approval B-B, `10.12` certifying, `10.13` pre-placed field, `10.14` hardening — all already shipped). Sourced from the spec RAG's RFC 3161 and PAdES-by-level reference files.
@@ -8572,67 +8592,14 @@ closes out the *prior* filing's business rather than opening this one's.
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
 
-> ★★★★ **ONE ITEM ADDED 2026-09-27 (664th filing) — `Pass 364.0`, SCALE
-> PAGE CONTENTS TO A TARGET SIZE ("resize page contents"), the operator's
-> own ordered-plan item (`docs/NEXT_SESSION.md`), scoped from
-> `pdfcer-acrobat-librarian`'s survey of
-> `Acrobat_Features/core_ops__scale_pages_to_fit_size.md`,
-> `core_ops__change_page_size_no_scale.md` and
-> `core_ops__crop_pages_margins.md`.** Filed *Next up*, not *Backlog*,
-> because the ordered plan puts it ahead of the backlog. Distinct from the
-> shipped `set-page-size` verb (box-only, content translated, never scaled
-> — Acrobat's "Change Page Size"); Crop Pages is explicitly out of scope.
-> The live entry is the HEAD of this section, just below. `docs/FEATURES.md`:
-> one new *Planned* row, all pdfcer boxes unticked. Nothing shipped this
-> filing. **Moved below the historical banner run above at the 665th
-> filing (register-entry-size fix — see `SESSION_LOG.md`); the run had no
-> `###` heading over it before this Pass's heading landed ahead of it, so
-> `check-register-entry-size.py` was counting all 212 of those lines as
-> this entry's own.**
-
-### Pass 364.0 — Scale page contents to a target size ("resize page contents")
-
-**Delivers core + cli** (gui is the separate `pdfcer-gui` project's
-concern). Acrobat reference: `pdfcer-acrobat-librarian`'s
-`Acrobat_Features/core_ops__scale_pages_to_fit_size.md`,
-`core_ops__change_page_size_no_scale.md`,
-`core_ops__crop_pages_margins.md` (664th filing).
-
-Acceptance criteria:
-1. A new `EditSession` verb scales each selected page's content
-   uniformly (aspect preserved, no stretch) to a target size, mode
-   **fit** (scale to fit inside, pad, centred) or **fill** (scale to
-   cover, overflow cropped by the new boxes). One undoable command
-   (`ARCHITECTURE.md` §11.4).
-2. Minimal diff (`ARCHITECTURE.md` §5): original content streams
-   untouched — the transform is a `q <cm>` stream prepended and a `Q`
-   stream appended to `/Contents`. `/MediaBox` and any present
-   `/CropBox`/`/BleedBox`/`/TrimBox`/`/ArtBox` rewritten to the target,
-   resolving inherited page attributes (§7.7.3.4) rather than assuming
-   them on the leaf.
-3. **Exceeds Acrobat** (a confirmed Acrobat defect, per the RAG
-   survey): annotations and widgets move and scale WITH the content —
-   `/Rect`, `/QuadPoints`, `/InkList`, `/Vertices`, `/L`, `/CL`, `/RD`
-   as applicable; an `/AP` follows its `/Rect` via the §12.5.5
-   BBox→Rect mapping. `/XYZ` and `/FitR` link destinations targeting a
-   scaled page are transformed too.
-4. Downscaling is a first-class tested case — Acrobat's own reduction
-   is unreliable, per the RAG survey.
-5. Mixed page sizes and `/Rotate` get a stated, disclosed setting
-   rather than a silent default: orientation policy `match` (default —
-   the target is flipped to each page's own orientation) vs `exact`; a
-   `/Rotate` page scales in its displayed orientation. Both are open
-   gaps against Acrobat itself.
-6. Rule 4 disclosure: the report states, per page, the scale factor,
-   the offset and the mode used.
-7. CLI `scale-pages <in> -o <out> --pages SPEC --size NAME|WxH [--mode
-   fit|fill] [--orientation match|exact]`, shipped the same Pass
-   (`CLAUDE.md` rule 11).
-8. `docs/core-api` updated for the new verb; fixture-based tests
-   including an annotated page and a downscale case.
-
-Crop Pages (box-only) is explicitly out of scope, per
-`core_ops__crop_pages_margins.md` — a distinct operation.
+> ★★★★ **`Pass 364.0` SHIPPED and has left this section, 2026-09-27
+> (666th filing, code `e234bef7`).** Filed here by the 664th filing the
+> same day; moved once within this section at the 665th filing
+> (register-entry-size fix, no content change). Its full entry — all
+> eight acceptance criteria walked and met, the exceeds-Acrobat
+> annotation/destination scaling, the new ce-dimensions refusal — is at
+> the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
+> *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 

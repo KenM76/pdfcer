@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (666th filing) — `e234bef7`: `Pass 364.0` (scale pages onto a new sheet size) SHIPPED
+
+**Shipped:**
+- Pass 364.0 — scale page contents to a target size ("resize page contents"): `EditSession::scale_pages` (fit/fill mode, orientation policy match/exact, minimal-diff `q cm`/`Q` wrap, annotation/destination scaling exceeding a confirmed Acrobat defect, ce-dimensions refusal), CLI `scale-pages`. All eight acceptance criteria from the 664th filing's scope met. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new — implementation of an already-scoped Pass, no open criterion left unbound.
+
+**Findings + decisions:**
+- None beyond what's in the `ROADMAP.md` entry.
+
+**Still in flight:**
+- `Pass 10.10` (shell-side key sources) and B-LT/B-LTA (gated on `Pass 10.6`) remain the open items in the digital-signing arc, unaffected by this filing.
+
+**For next session:**
+- `e234bef7` is committed to `main`; push status not independently checked this filing (hard rule 8 — no shell available). Check `docs/NEXT_SESSION.md` for the operator's next ordered-plan item.
+
 ## 2026-09-27 (665th filing) — register-entry-size fix + `09c8e673`: `Pass 10.11` (PAdES B-T) SHIPPED
 
 **Shipped:**
