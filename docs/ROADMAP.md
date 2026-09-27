@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 347.0` (`149db066`), 2026-09-27 — Replacing a choice field's options re-points `/I` and `/TI`
+
+**Verdict: SHIPPED, closes D7 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`346.0`) — the item stays open, two `FieldEdit` findings and two `WidgetEdit` findings remain (see *Backlog*).
+
+Found by the form-editing audit (finding D7): `EditSession::edit_field` with new choice options rewrote `/Opt` but left `/I` and `/TI` holding positions into the OLD list (ISO 32000-1 §12.7.4.4 Table 231) — a multi-select list highlighted the wrong items after an options change, and a list box could open scrolled to a position that no longer matched its selection.
+
+**Fix.** `edit_field` maps the field's stored `/V` selection onto positions in the NEW options list before writing: `/I` is rewritten for a multi-select field (removed entirely when the mapped selection is empty), and `/TI` is re-derived for a list box and removed for a combo box, where it has no meaning. A stored selection no longer present in the new options is left unmapped — still disclosed via the existing `FieldEditOutcome::value_no_longer_fits`, never silently re-pointed at whatever position happens to remain.
+
+**API.** No new `pub` item — behaviour change to the existing `edit_field`. `docs/core-api/02-editing-and-saving.md` gained one paragraph; `check-core-api-verbs` PASS (251 verbs, unchanged).
+
+**CLI.** `field-edit` inherits the fix through core; no new flag.
+
+**Tests.** `edit::tests::replacing_options_reindexes_i_and_ti`. Sabotage: removing the reindex call fails it on a stale `/I`. `tools/run-gates.sh`: PASS (39 commands, relayed). No manifest change — no `cargo tree` check needed. No packaging change.
+
+**Shells.** Core + CLI this Pass; GUI is a separate project and has not wired it. Neither box moves — behaviour fix under an already-ticked capability.
+
+**`docs/FEATURES.md`:** row 318 (field-scope property edits) — checked against the 1,200-char cap; no clause added and no box change, per the "never round a box up" rule.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `149db066`, not independently reproduced.
+
 ### `Pass 346.0` (`337aff7f`), 2026-09-27 — A comb field is drawn one character per `/MaxLen` cell
 
 **Verdict: SHIPPED, closes D1 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`345.0`) — the item stays open, three `FieldEdit` findings and two `WidgetEdit` findings remain (see *Backlog*).
@@ -17065,6 +17085,8 @@ suspicion this entry recorded.
 
 ★ **Eleventh fix shipped — 2026-09-27 (631st filing, `Pass 346.0`, `337aff7f`).** Closes D1, below: a comb field drew as a plain text run while reporting the appearance Regenerated; `vartext::build_comb_text` now lays out one glyph per `width / MaxLen` cell, `/MaxLen` is now read INHERITED rather than terminal-only (a second defect found on discovery), and a new `FillOutcome::exceeds_max_len` discloses an over-length value stored whole, never truncated — see *Shipped*, above. **Kept open** — three `FieldEdit` findings and two `WidgetEdit` findings remain.
 
+★ **Twelfth fix shipped — 2026-09-27 (632nd filing, `Pass 347.0`, `149db066`).** Closes D7, below: `edit_field` with new choice options left `/I`/`/TI` holding positions in the OLD list; both are now re-derived against the new list from the field's stored `/V` selection — see *Shipped*, above. **Kept open** — two `FieldEdit` findings and two `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -17073,7 +17095,7 @@ suspicion this entry recorded.
 - D4b — CLOSED by `Pass 344.0`, above. Was: a push-button `/DA` edit is not redrawn — measured worse than filed, it failed outright with `FontUnresolved` for any non-Helvetica face.
 - D1 — CLOSED by `Pass 346.0`, above. Was: comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.
-- D7 — stale `/I`/`/TI` after an `/Opt` change.
+- D7 — CLOSED by `Pass 347.0`, above. Was: replacing a choice field's options left `/I`/`/TI` pointing at positions in the OLD list.
 - D8 — round-trip gaps: inherited quadding read-back, multi-select `/DV`. Check box/radio `/DA` edits report Regenerated over identical bytes. Regen auto-size and unencodable-character counts are dropped, undisclosed.
 
 **WidgetEdit:**

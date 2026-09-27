@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (632nd filing) — `149db066`: `Pass 347.0` SHIPPED — replacing a choice field's options re-points `/I` and `/TI`
+
+**Shipped:**
+- `Pass 347.0` — closes D7 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item: `edit_field` with new choice options rewrote `/Opt` but left `/I`/`/TI` pointing at positions in the OLD list (§12.7.4.4 Table 231), so a multi-select list highlighted the wrong items and a list box could open scrolled off its selection.
+
+**Decisions made this session:**
+- None beyond the fix itself — same repair shape as `Pass 337.0`/`338.0`: stale post-write state re-derived from the field's own stored data rather than left pointing at the pre-edit layout.
+
+**Findings + decisions:**
+- Fix maps the stored `/V` selection onto positions in the new options list: `/I` rewritten for multi-select (removed if empty), `/TI` re-derived for a list box and removed for a combo box. A selection no longer in the list is left unmapped and disclosed via `FieldEditOutcome::value_no_longer_fits`, not re-pointed.
+- No new `pub` API; core-only behaviour fix, CLI inherits through `edit_field`/`field-edit`. Test: `edit::tests::replacing_options_reindexes_i_and_ti`.
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item stays open — two `FieldEdit` findings (D4, D8) and two `WidgetEdit` findings remain.
+
+**For next session:**
+- Next candidate from the same audit is D4 (a resource font not in `/DR`, or not standard-14, still forced to Helvetica) or D8 (round-trip gaps: inherited quadding read-back, multi-select `/DV`, Regenerated-over-identical-bytes on check box/radio `/DA`).
+
 ## 2026-09-27 (631st filing) — `337aff7f`: `Pass 346.0` SHIPPED — a comb field is drawn one character per `/MaxLen` cell
 
 **Shipped:**
