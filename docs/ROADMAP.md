@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 361.0` (`7457c487`), 2026-09-27 — `read_layers` reports print, export and intent — `G045`
+
+**Verdict: SHIPPED.** Answers `G045` (`pdfcer-gui` request): `read_layers`/`list-layers` reported a layer's name, visibility and locked state but nothing from `/Usage`, so the GUI had no way to seed a layer Properties window with the same print/export/intent values `set_layer_properties` already accepts.
+
+**Core.** `Layer` gains `print: Option<LayerOutputState>` and `export: Option<LayerOutputState>`, read from `/Usage /Print /PrintState` and `/Usage /Export /ExportState` (ISO 32000-1 Table 102): no state → `WhenVisible`; `/ON` → `Always`; `/OFF` → `Never`; any other value → `None`. `intent_kind: Option<LayerIntent>` reads the OCG's `/Intent`: absent → `View`; `View`+`Design` → `Both`; `View` only → `View`; `Design` only → `Design`; neither → `None`. Indirect `/Usage` dictionaries and indirect categories inside it are followed. All three types match what `set_layer_properties`/`LayerEdit` already take, so a caller can read a layer's state and hand it straight back to the setter with no second representation.
+
+**CLI.** `pdfcer list-layers` prints `print=always|never|unknown`, `export=always|never|unknown` and `intent=design|both|unknown` flags, shown only where the value diverges from the default.
+
+**Tests.** Core `tests/layer_edit.rs` +2 (`output_states_and_intent_read_back_as_written`, `unnameable_and_indirect_usage`); CLI `tests/layer_edit.rs` +1 (`list_layers_reports_usage_and_intent`). Sabotage caught: core forced ON→`Never`; CLI dropped the export flag.
+
+**Gates.** `tools/run-gates.sh` PASS (39 commands); `check-core-api-verbs` PASS, verb count unchanged at 266; core-api `01-reading-and-model.md` §12.3 documents the new fields; `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected — no manifest touched.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Channel.** Answers `G045`: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G045_read_layers_does_not_report_a_layers_print_export_or_intent.md`; reply `open\reply_G045_read_layers_does_not_report_a_layers_print_export_or_intent_FIXED.md`.
+
+**`docs/FEATURES.md`.** Appended a citing sentence to the "Edit a layer's own properties" row (family `358`) noting the read-back; no box change (already core `[x]` cli `[x]` gui `[ ]`).
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `7457c487`, not independently reproduced.
+
 ### `Pass 360.0` (`46f7a7c0`), 2026-09-27 — `flatten_annotations` — `G043` option B
 
 **Verdict: SHIPPED.** Bakes existing annotations into page content, complementing `Pass 356.0`'s route for freshly authored ones (`G043`, GUI request O246; option B, promoted from Backlog and scoped in the 658th filing).

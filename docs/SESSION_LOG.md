@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (660th filing) — `7457c487`: `Pass 361.0` (`read_layers` reports print/export/intent) SHIPPED
+
+**Shipped:**
+- Pass 361.0 — `Layer` gains `print`/`export: Option<LayerOutputState>` (read from `/Usage /Print /PrintState` and `/Usage /Export /ExportState`, ISO 32000-1 Table 102) and `intent_kind: Option<LayerIntent>` (from `/Intent`), matching the exact types `set_layer_properties`/`LayerEdit` take. CLI `list-layers` prints `print=`/`export=`/`intent=` flags when non-default. Answers `G045`.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- No state/no `/Usage` → `WhenVisible`; `/ON` → `Always`; `/OFF` → `Never`; anything else → `None`. `/Intent` absent → `View`; both `View`+`Design` → `Both`; either alone → itself; neither → `None`. Indirect `/Usage` and indirect categories inside it are followed.
+- Tests: core +2, CLI +1. Sabotage caught: core forced ON→`Never`; CLI dropped the export flag. `tools/run-gates.sh` PASS (39 commands); `check-core-api-verbs` verb count unchanged at 266; `cargo tree` unaffected.
+- `docs/FEATURES.md`: appended a citing sentence to the "Edit a layer's own properties" row (family `358`); no box change (already core `[x]` cli `[x]` gui `[ ]`).
+
+**Still in flight:**
+- gui not wired — separate `pdfcer-gui` project's job, now has real values to seed a layer Properties window.
+
+**For next session:**
+- No named successor to `Pass 361.0`; pick up whatever's next in *Next up*/*Backlog*.
+
 ## 2026-09-27 (659th filing) — `46f7a7c0`: `Pass 360.0` (`flatten_annotations`) SHIPPED
 
 **Shipped:**
