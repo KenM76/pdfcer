@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (662nd filing) — `f1a708b8`: `Pass 363.0` (`--help` no longer prints project history) SHIPPED
+
+**Shipped:**
+- Pass 363.0 — minted-and-shipped in one filing. Four subcommands' operator-facing `--help` carried dated project history because `clap` renders every `///` doc comment as help text: `set-page-size`/`rotate-page --output` explained a 2026-08-27 correction to their own wording, `ocr --dpi` carried a ~60-line measurement essay about the old 300 dpi default, `set-button-action` quoted the operator's 2026-08-30 ruling verbatim. All four rewritten to current-behaviour-only text.
+
+**Decisions made this session:**
+- None new — a dated instance of `R230` (a `clap`-derive doc comment is shipped user interface), not a fresh mint.
+
+**Findings + decisions:**
+- Found by the engineer while reading `set-page-size`'s `clap` definition on an unrelated loop tick — no request or roadmap item originated it.
+- The `--dpi` essay's operative fact survives in 4 lines: `ocrs` resizes to a fixed model input; recognition was flat at 72–200 dpi (54–57%) and 35% at 300 dpi on a CAD sheet. The full measurement stays in `docs/history`. Undated "used to"-style narration also removed from `font-preflight`, `set-dimension-display`, render's ceiling note. Net: 86 lines removed, 10 added, `crates/pdfcer-cli/src/cli.rs`.
+- Existing `cli_help_ships_no_internal_markup` (`crates/pdfcer-cli/src/tests.rs`) gained an `iso_date_at` helper refusing any `YYYY-MM-DD` in rendered `--help`; sabotage against pre-fix `cli.rs` fails on exactly the four subcommands. pdfcer-cli: 29 unit + 542 integration passing, clippy clean.
+- "used to" deliberately left un-gated (legitimate in help prose, e.g. "the certificate used to sign") — a bare date is the unambiguous tell.
+- No `docs/FEATURES.md` row change — no capability changed, only help-text correction.
+
+**Still in flight:**
+- Committed to `main` (`f1a708b8`); not yet pushed.
+
+**For next session:**
+- No named successor; pick up whatever's next in *Next up*/*Backlog*.
+
 ## 2026-09-27 (661st filing) — `b65a988d`: `Pass 362.0` (Type0 Identity-H `/DR` font) SHIPPED
 
 **Shipped:**
