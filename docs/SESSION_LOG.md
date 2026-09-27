@@ -4,6 +4,53 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (621st filing) — `6af2773c`: `Pass 336.0` SHIPPED — clearing a kid's `/Ff` or `/DV` no longer inherits the parent's
+
+**Shipped:**
+- `Pass 336.0` — closes D6 from the Backlog's "Audit every `FieldEdit`/
+  `WidgetEdit` property" item (filed 2026-09-16, 562nd filing; first fix
+  was `Pass 335.0`); the item stays open. `EditSession::edit_field`
+  removed a kid's own `/Ff` or `/DV` key entirely once the cleared result
+  was empty, re-exposing the nearest ancestor's inherited value
+  (ISO 32000-1 §12.7.3.1) — clearing Required under a ReadOnly parent
+  left the kid read-only; clearing a default let `reset_form` restore
+  the parent's `/DV`.
+
+**Decisions made this session:** none — a scoped correctness fix, no
+architecture change.
+
+**Findings + decisions:**
+- Fix: a cleared `/Ff` writes `/Ff 0`, a cleared `/DV` writes the
+  field type's own empty value (`/Off` for `/Btn`, empty string
+  otherwise), whenever an ancestor sets that key — otherwise the key
+  is still removed outright, unchanged. Contract: after
+  `clearing_default_value()` under an ancestor `/DV`,
+  `Field::default_value` reads back as the empty value, not `Absent`.
+  `docs/core-api/02-editing-and-saving.md` updated.
+- 3 new tests in `crates/pdfcer-core/tests/form_edit_audit.rs` — the 2
+  defect tests fail with the source fix stashed, the control passes
+  both ways. `tools/run-gates.sh`: PASS (39 commands). No manifest
+  change.
+- Core only — CLI's `edit-field --clear-default-value`/`--required`
+  already reach the fix, no CLI code change; neither box moves.
+- `docs/FEATURES.md` row 320 already reads over the 1,200-character
+  cap (pre-existing, not from this filing) — per the size rule,
+  nothing added to it this filing.
+- `docs/ROADMAP.md`'s audit Backlog entry marks D6 CLOSED by
+  `Pass 336.0`; eight `FieldEdit` findings and six `WidgetEdit`
+  findings remain open.
+
+**Still in flight:** the widened audit entry's remaining findings are
+unscoped, no Pass IDs assigned yet. D5/X1 (`/DA`/`/DR` fallback) looks
+like the next candidate.
+
+**For next session:** scope the next-worst remaining audit finding into
+a Pass.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`6af2773c`, not independently reproduced.
+
 ## 2026-09-26 (620th filing) — `5a774124`: `Pass 335.0` SHIPPED — widget visibility edits keep the other `/F` bits
 
 **Shipped:**

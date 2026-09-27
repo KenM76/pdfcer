@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 336.0` (`6af2773c`), 2026-09-26 — Clearing a kid's `/Ff` or `/DV` no longer inherits the parent's
+
+**Verdict: SHIPPED, closes D6 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; first fix was `Pass 335.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
+
+`/Ff` and `/DV` are inheritable field attributes (ISO 32000-1 §12.7.3.1 defined-term table). `EditSession::edit_field` removed a kid's own key entirely once the cleared result was empty, which re-exposed the nearest ancestor's value instead of the empty state the operator was clearing to — clearing `Required` on a kid under a `ReadOnly` parent left the kid read-only; clearing a default let `reset_form` restore the parent's `/DV`.
+
+**Fix.** A cleared `/Ff` is now written as `/Ff 0`, and a cleared `/DV` as the field type's own empty value (`/Off` for `/Btn`, empty string otherwise), whenever an ancestor sets that key — otherwise the key is still removed outright, unchanged from before. Contract: after `clearing_default_value()` under an ancestor `/DV`, `Field::default_value` reads back as the empty value, not `Absent`. `docs/core-api/02-editing-and-saving.md` updated.
+
+**Tests.** 3 new tests in `crates/pdfcer-core/tests/form_edit_audit.rs` — the 2 defect tests fail with the source fix stashed, the control passes both ways (sabotage-checked). `tools/run-gates.sh`: PASS (39 commands). No manifest change — `cargo tree` unaffected.
+
+**Shells.** Core fix only. CLI's `edit-field --clear-default-value`/`--required` already reach it, no CLI code change. Neither box moves.
+
+**`docs/FEATURES.md`:** row 320 ("Write a field's quadding, default value and NoExport flag") already reads over the 1,200-character cap (pre-existing, not from this filing) — per the size rule, nothing added to it this filing.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `6af2773c`, not independently reproduced.
+
 ### `Pass 335.0` (`5a774124`), 2026-09-26 — Widget visibility edits keep the other `/F` bits
 
 **Verdict: SHIPPED, first fix from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing) — the item stays open; remaining findings widened onto that entry, not resolved by this Pass (see *Backlog*).
@@ -16853,8 +16869,10 @@ suspicion this entry recorded.
 
 ★ **First fix shipped, and remaining findings enumerated — 2026-09-26 (620th filing, `Pass 335.0`, `5a774124`).** `Pass 335.0` fixed the instance this audit's own exercise turned up: `EditSession::edit_widget` wrote a `Visibility` choice by replacing the WHOLE `/F` word rather than only the visibility bits, silently clearing `Locked`/`ReadOnly`/`NoZoom`/`LockedContents` and any other set bit — see *Shipped*, above. **Kept open** — this is one instance closed, not the audit finished. The remaining findings, worst first, as reported back this filing so they are on disk rather than only in a dispatch note:
 
+★ **Second fix shipped — 2026-09-26 (621st filing, `Pass 336.0`, `6af2773c`).** Closes D6, below: a cleared `/Ff` now writes `/Ff 0` and a cleared `/DV` writes the type's own empty value, when an ancestor sets that key, instead of deleting the kid's own key and re-exposing the ancestor's — see *Shipped*, above. **Kept open** — eight `FieldEdit` findings and six `WidgetEdit` findings remain.
+
 **FieldEdit:**
-- D6 — clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
+- D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
 - D5/X1 — `regen_after_property_change` falls back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redraws in Helvetica, and a non-Helv `/DA` key gives `FontUnresolved` on a later edit.
 - D4 — a resource font is forced to Helvetica.
