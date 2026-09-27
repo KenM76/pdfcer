@@ -4,6 +4,52 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (629th filing) — `16f91155`: `Pass 344.0` SHIPPED — a push button's font edit redraws its caption
+
+**Shipped:**
+- `Pass 344.0` — closes D4b from the Backlog's "Audit every `FieldEdit`/
+  `WidgetEdit` property" item (filed 2026-09-16, 562nd filing; earlier
+  fixes `Pass 335.0`–`342.0`); the item stays open, five `FieldEdit`
+  findings and two `WidgetEdit` findings remain.
+
+**Decisions made this session:** none — a scoped correctness fix, no
+architecture change.
+
+**Findings + decisions:**
+- The measured defect was worse than filed: `EditSession::edit_field`
+  with a `/DA` edit on a push button failed outright with
+  `EditError::VariableText(FontUnresolved)` for any face but Helvetica,
+  and could never have redrawn even for Helvetica — `edit_field` patches
+  its field snapshot with the new `/DA` before the button's ownership
+  test runs, and that test drew its expected artwork from the snapshot
+  (the NEW `/DA`), so pdfcer's own stored caption could never match. The
+  push-button builder was also only ever handed `Helv` as a font
+  resource.
+- Fix: `regen_button_appearance` now re-reads the STORED `/DA` from the
+  graph for the ownership test and passes the STAGED `/DA` for the
+  redraw; private `ButtonLook` gains `da`/`fonts` fields, both drawing
+  against the `/DR` fonts plus the caller's staged face — the same
+  resolution `Pass 338.0` gave text fields.
+- `form_push_buttons::a_push_button_da_edit_redraws_the_caption_and_a_second_edit_still_can`
+  added (Times-Bold then Courier; asserts `appearance_regenerated` and
+  the `/AP` carries `/TiBo 14 Tf` then `/Cour 10 Tf`); fails with
+  `FontUnresolved` on the pre-fix `edit.rs`. `tools/run-gates.sh`: PASS
+  (39 commands). No manifest change.
+- Core only — CLI and GUI already reach `edit_field`/`edit-field`
+  unchanged; neither box moves.
+- `docs/FEATURES.md`: row 318 sits within ~50 characters of the
+  1,200-char cap — no clause added, row unchanged.
+
+**Still in flight:** the audit item — five `FieldEdit` findings (D4, D1,
+D2, D7, D8) and two `WidgetEdit` findings (stroke-width scaling not
+drawn; radio/text/choice caption falsely reports Regenerated) remain.
+
+**For next session:** none flagged beyond the open audit item above.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`16f91155`, not independently reproduced.
+
 ## 2026-09-27 (628th filing) — `340fa5af`: `Pass 343.0` SHIPPED — a ce dimension's colour survives a restyle, with its own digits
 
 **Shipped:**

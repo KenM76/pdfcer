@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 344.0` (`16f91155`), 2026-09-27 — A push button's `/DA` edit redraws its caption
+
+**Verdict: SHIPPED, closes D4b from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`–`342.0`) — the item stays open, five `FieldEdit` findings and two `WidgetEdit` findings remain (see *Backlog*).
+
+The measured defect was worse than filed: `EditSession::edit_field` with an appearance (`/DA`) on a push button failed outright with `EditError::VariableText(FontUnresolved)` for any face but Helvetica, and could never have redrawn even for Helvetica — `edit_field` patches its field snapshot with the new `/DA` before the button's ownership test runs, and that test drew its expected artwork from the snapshot (the NEW `/DA`), so pdfcer's own stored caption could never match. The push-button builder was also only ever handed `Helv` as a font resource.
+
+**Fix.** `regen_button_appearance` now re-reads the STORED `/DA` from the graph for the ownership test and passes the STAGED `/DA` for the redraw; a private `ButtonLook` gains `da`/`fonts` fields, and both draw against the `/DR` fonts plus the caller's staged face — the same resolution `Pass 338.0` gave text fields. A push button whose stored `/DA` names a non-Helv face is now recognised as pdfcer's own on a later resize or edit too.
+
+**Tests.** `form_push_buttons::a_push_button_da_edit_redraws_the_caption_and_a_second_edit_still_can` (Times-Bold then Courier; asserts `appearance_regenerated` and the `/AP` carries `/TiBo 14 Tf` then `/Cour 10 Tf`) — fails with `FontUnresolved` on the pre-fix `edit.rs`. `tools/run-gates.sh`: PASS (39 commands). No manifest change.
+
+**Shells.** Core fix only; CLI and GUI already reach `edit_field`/`edit-field` unchanged. Neither box moves.
+
+**`docs/FEATURES.md`:** row 318 sits within ~50 characters of the 1,200-char cap — no clause added, row unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `16f91155`, not independently reproduced.
+
 ### `Pass 343.0` (`340fa5af`), 2026-09-27 — A ce dimension's colour survives a restyle, with its own digits
 
 **Verdict: SHIPPED, closes two defects found in the sibling sweep recommended after `Pass 342.0`** — the widen-then-format pattern from `D:/dev/rag/rust/shortest_roundtrip_float_format_needs_derived_value_rounding.md` (third and fourth instances, `Pass 308.0`/`342.0`), extended to the ce-dimension writer.
@@ -17001,12 +17017,14 @@ suspicion this entry recorded.
 
 ★ **Eighth fix shipped — 2026-09-27 (627th filing, `Pass 342.0`, `84c7396c`).** Closes the `/MK` f32-widening finding, below: `MkColor::to_array` widened each `f32` component through `f64::from`, writing e.g. `0.20000000298023224` into `/MK` `/BG`, `/MK` `/BC` and every annotation `/C`/`/IC` for a component given as `0.2`; it now converts through `f32`'s shortest round-trip `Display`, the same conversion the appearance builders already used — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and two `WidgetEdit` findings remain.
 
+★ **Ninth fix shipped — 2026-09-27 (629th filing, `Pass 344.0`, `16f91155`).** Closes D4b, below: a push button's `/DA` edit failed outright with `FontUnresolved` for any face but Helvetica, and could never have redrawn even for Helvetica — `edit_field`'s ownership test drew its expected artwork from the pre-command snapshot already patched with the NEW `/DA`, so pdfcer's own stored caption could never match, and the button builder was only ever handed `Helv` as a font resource; `regen_button_appearance` now re-reads the STORED `/DA` for the ownership test and passes the STAGED `/DA` for the redraw, both against the `/DR` fonts plus the caller's staged face — see *Shipped*, above. **Kept open** — five `FieldEdit` findings and two `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
 - D5/X1 — CLOSED by `Pass 338.0`, above. Was: `regen_after_property_change` fell back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redrew in Helvetica, and a non-Helv `/DA` key gave `FontUnresolved` on a later edit.
 - D4 — a resource font not in `/DR`, or not standard-14, is still forced to Helvetica (partly fixed by `Pass 338.0`: a Resource face present in `/DR` now gets `/DR`'s standard-14 metrics).
-- D4b — a push-button `/DA` edit is not redrawn.
+- D4b — CLOSED by `Pass 344.0`, above. Was: a push-button `/DA` edit is not redrawn — measured worse than filed, it failed outright with `FontUnresolved` for any non-Helvetica face.
 - D1 — comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — password has no masking; plaintext lands in `/V` and `/AP`.
 - D7 — stale `/I`/`/TI` after an `/Opt` change.
