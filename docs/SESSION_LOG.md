@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (656th filing) — `99a708d0`: `Pass 358.6` (merge half) SHIPPED — flatten half remains
+
+**Shipped:**
+- Pass 358.6 (merge half only) — `EditSession::merge_layers(target, merged)` rebinds `/Properties`, annotation/XObject `/OC`, and OCMD `/OCGs`/`/VE` references from merged layers onto the target with no content-stream rewrite; removes merged OCGs from `/OCGs`/`/D`/every `/Configs` entry. CLI `layer-merge --into NAME|--into-id N (--layer|--id)... `.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- `LayerMergeOutcome { changed, layers, bindings, annotations, xobjects, memberships, disclosures }` (`#[non_exhaustive]`, `Default`); one undo entry `CommandKind::MergeLayers`. Exceeds `delete_layer`: an OCMD naming a merged layer is rewritten rather than refused. Tests: core 5, CLI 2; sabotage of Properties retarget, membership retarget, `/OC` insert, and the CLI's merged-list each caught. `docs/core-api` verb count 262→263. README subcommand count 164→165. `docs/FEATURES.md`'s merge/flatten row split: "Merge layers into a target" ticked core/cli citing `99a708d0`; "Flatten every layer into plain content" stays unticked.
+
+**Still in flight:**
+- `Pass 358.6` flatten half (strip `BDC /OC…EMC`/annotation `/OC`, destructive-save confirmation + preview) — last item of family `358`. `flatten_annotations` (`G043` option B) still unscoped.
+
+**For next session:**
+- Pick up `Pass 358.6`'s flatten half.
+
 ## 2026-09-27 (655th filing) — `bbd3402c`: `Pass 358.5` (layer on add-content verbs) SHIPPED
 
 **Shipped:**

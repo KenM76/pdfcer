@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 358.6` (merge half, `99a708d0`), 2026-09-27 — `merge_layers` + `pdfcer layer-merge` — flatten half remains
+
+**Verdict: SHIPPED (merge half only); family `358` continues — flatten (hidden-layer policy, destructive-save confirmation, preview) stays in *Next up* under the same Pass ID.** Acrobat's Merge Layers silently takes the target's properties; pdfcer matches the capability but discloses it (rule 4).
+
+**Core.** `EditSession::merge_layers(target: ObjId, merged: &[ObjId]) -> Result<LayerMergeOutcome, EditError>`. Rebinds references only — no content-stream rewrite (minimal-diff holds): `/Resources /Properties` entries across pages/form XObjects/tiling patterns/annotation `/AP` retargeted (ISO 32000-1 §8.11.3.2); annotation and XObject `/OC` retargeted; OCMD `/OCGs`/`/VE` refs replaced (§8.11.2.2, nested/indirect arrays followed to depth 32). Merged OCGs removed from `/OCGs`/`/D`/every `/Configs` entry exactly as `delete_layer` does. `LayerMergeOutcome { changed, layers, bindings, annotations, xobjects, memberships, disclosures }` (`#[non_exhaustive]`, `Default`). One undo entry, `CommandKind::MergeLayers { target }`. `target` inside `merged` is ignored; an empty remainder is a no-op (no undo entry). Refusals: `LayerNotFound`, `DocumentEncrypted`, certification. Exceeds `delete_layer`: an OCMD naming a merged layer is rewritten rather than refused.
+
+**CLI.** `pdfcer layer-merge <in> --into NAME|--into-id N (--layer NAME|--id N)... -o out [--mode] [--verify-undo]`; prints one `layer-merge` line (`layers bindings annotations xobjects memberships objects appended out_bytes`) plus `disclosure:` lines; exit 9 on unknown/ambiguous layer. README subcommand count 164→165.
+
+**Tests.** Core 5 (`crates/pdfcer-core/tests/layer_edit.rs`), CLI 2. Sabotage: Properties retarget, membership retarget, `/OC` insert, and the CLI's merged-layer list each caught by a mutation. `docs/core-api` verb count 262→263, `check-core-api-verbs` PASS. `tools/run-gates.sh` PASS, 39 commands. No manifest change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected.
+
+**Shells.** core `[x]`, cli `[x]`. gui `[ ]` — separate project, no caller yet.
+
+**`docs/FEATURES.md`.** Split the merge/flatten row: "Merge layers into a target" now `[x]`/`[x]`/`[ ]`; "Flatten every layer into plain content" stays `[ ]`/`[ ]`/`[ ]` under the same Pass ID.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `99a708d0`, not independently reproduced.
+
 ### `Pass 358.5` (`bbd3402c`), 2026-09-27 — pick a layer when adding new content
 
 **Verdict: SHIPPED. Family `358` continues — `358.6` (merge/flatten) remains *Next up*.** Every add verb now takes an optional layer: `EditSession::add_text` (`AddTextRequest.layer`/`::on_layer`), `add_image` (`NewImage.layer`/`::on_layer`), `add_markup_with`/`add_markup_as_content`/`add_text_annotation_with`/`add_text_annotation_reporting` (`MarkupOptions.layer`), and new verb `paste_objects_on_layer(page_index, clip, at, layer: Option<ObjId>)` (`paste_objects` delegates with `None`). Each appended content stream is wrapped whole in `/OC /name BDC … EMC` (ISO 32000-2 §8.11.3.2) — minimal-diff, no existing bytes touched; binds a new `OC<n>` `/Properties` name if the page has none; each created annotation and its `/Popup` gets `/OC` (§12.5.2 Table 164). Add + placement coalesce into one undo entry labelled as the add; a placement failure undoes the add. An unregistered layer is refused by name (`EditError::LayerNotFound`) before any write. New `AddTextError` variants `LayerNeedsSession` (the free `text_edit::add_text` refuses a layered request) and `Layer(Box<EditError>)`. `EditError` count unchanged at 147.
@@ -8394,13 +8410,13 @@ closes out the *prior* filing's business rather than opening this one's.
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
 
-### `Pass 358.6` — Merge and flatten layers
+### `Pass 358.6` — Flatten layers (merge half SHIPPED `99a708d0` — see *Shipped*)
 
-**Filed 2026-09-27 (644th filing), family `358`.** Acrobat's Merge Layers and Flatten Layers (`layers__import_merge_flatten_content_authoring.md`): merged layers silently take the TARGET's properties; flatten is document-wide, discards hidden content, not undoable. pdfcer matches the capability but not the silence.
+**Filed 2026-09-27 (644th filing), family `358`.** **Merge half shipped 2026-09-27 (656th filing, `99a708d0`) — see *Shipped* above; this entry now scopes flatten only.** Acrobat's Flatten Layers (`layers__import_merge_flatten_content_authoring.md`) is document-wide, discards hidden content, not undoable. pdfcer matches the capability but discloses the removal.
 
-**Scope.** Merge N layers into a target — reassign every `BDC /OC`/annotation `/OC` reference from the merged layers to the target, remove the merged OCGs from `/OCGs`/`/Order`. Flatten — strip every `BDC /OC … EMC` wrapper and every annotation `/OC`, hidden-layer content removed only through the confirm-before-destructive-save posture (`ARCHITECTURE.md` §11.2), operator told so.
+**Scope.** Strip every `BDC /OC … EMC` wrapper and every annotation `/OC`; hidden-layer content removed only through the confirm-before-destructive-save posture (`ARCHITECTURE.md` §11.2), operator told so.
 
-**Acceptance criteria.** Merge discloses, off-canvas, that the merged layers took the target's properties (rule 4 — the one place this Pass matches Acrobat's outcome but not its silence). Flatten's hidden-content removal is refused without the destructive-save confirmation already used for redaction, with a dry-run/preview path before it (mirroring annotation-deletion preview, resize preview, `flatten_annotations`'s own planned preview).
+**Acceptance criteria.** Flatten's hidden-content removal is refused without the destructive-save confirmation already used for redaction, with a dry-run/preview path before it (mirroring annotation-deletion preview, resize preview, `flatten_annotations`'s own planned preview).
 
 **Out of scope for family `358` (Backlog, not here).** OCMD authoring/visibility expressions; `/RBGroups` authoring; `/Configs` switching; Import as Layer — filed as its own unscoped Backlog bullet below, "Unscoped — OCMD/RBGroups/Configs/Import-as-Layer, beyond `Pass 358.x`".
 
