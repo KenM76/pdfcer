@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 362.0` (`b65a988d`), 2026-09-27 — A Type0 Identity-H `/DR` font draws with its own two-byte codes
+
+**Verdict: SHIPPED, narrows D4's stated Type0/composite-font limit** from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item (filed 2026-09-16, 562nd filing; item CLOSED 2026-09-27 at `Pass 357.0`) — a regenerated field appearance whose `/DA` names a composite `/DR` font now draws its own codes instead of the standard-14 stand-in, when the font is `/Encoding /Identity-H`, its descendant CIDFont is horizontal (no `/W2`/`/DW2`), and a `/ToUnicode` CMap's unambiguous inverse (R110) names U+0020 for space.
+
+**Core.** Characters write as two-byte big-endian codes (code = CID under Identity-H, ISO 32000-1 §9.7.5.2), measured against the descendant's `/W` (list and range forms) then `/DW`, default 1000 (§9.7.4.3 Table 117); the baseline uses the descendant's FontDescriptor `/Ascent`. A character the CMap can't produce writes the code for `?` (else CID 0) and counts in `FillOutcome.unencodable_chars` — rule 4 disclosure. `pdfcer-fonts` `FontResource` gains `pub cid: Option<Box<CidCodes>>`; new `#[non_exhaustive] pub struct CidCodes { codes, widths, default_width }`. No `EditSession` verb changed; `docs/core-api` unaffected.
+
+**Still stand-in:** predefined non-Identity CMaps, Identity-V/vertical metrics, a symbolic or unreadable simple font.
+
+**Tests.** Core `form_dr_font_binding` +3 (9 → 12): two-byte codes with `/W` centring and `/Ascent` baseline; an unmapped character counted; Identity-V/no-ToUnicode/`/DW2`/`/W2` keep the stand-in. CLI `edit_field` +1. Sabotage: one-byte `show_bytes` (core+CLI), `/DW`-only widths, dropped bind arm, `/W2` accepted — all red then restored. Fuzz target `annot_author` extended (60 s, 2,689 runs, 0 crashes).
+
+**Gates.** `tools/run-gates.sh` PASS, 39 commands. `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected — no manifest touched.
+
+**Shells.** core `[x]`, cli `[x]`, gui unchanged (inherited through the fill verbs, not yet wired by that project).
+
+**`docs/FEATURES.md`.** Row 320 ("Change a field's properties after placing it") widened: the `/DR`-binding clause now reads "draws its own codes, simple or Type0 Identity-H", citing `Pass 355.0`–`362.0`.
+
+**Backlog.** D4's stated Type0/composite limit narrowed to the remaining cases — see the audit item's twenty-third fix, above.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `b65a988d`, not independently reproduced.
+
 ### `Pass 361.0` (`7457c487`), 2026-09-27 — `read_layers` reports print, export and intent — `G045`
 
 **Verdict: SHIPPED.** Answers `G045` (`pdfcer-gui` request): `read_layers`/`list-layers` reported a layer's name, visibility and locked state but nothing from `/Usage`, so the GUI had no way to seed a layer Properties window with the same print/export/intent values `set_layer_properties` already accepts.
@@ -17573,7 +17593,7 @@ suspicion this entry recorded.
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
 - D5/X1 — CLOSED by `Pass 338.0`, above. Was: `regen_after_property_change` fell back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redrew in Helvetica, and a non-Helv `/DA` key gave `FontUnresolved` on a later edit.
-- D4 — **CLOSED.** Bind (`Pass 348.0`) and horizontal layout via the font's own `/Widths` (`Pass 348.1`) for a WinAnsi-encoded, no-`/Differences` simple `/DR` font; vertical metrics via the font's own `/Ascent` (`Pass 355.0`); binding widened to MacRoman/Standard/WinAnsi+`/Differences` fonts carrying their own `/Widths`, drawing their own codes (`Pass 357.0`). **Stated limits, not bugs:** symbolic fonts, fonts with no named base, Type0/composite fonts, a table where code 32/63 isn't space/`?`. (The "resource not in `/DR`" case was already refused by `FieldFontNotInResources`, not a Helvetica substitution — D4's old wording named that refusal, not a bug.)
+- D4 — **CLOSED.** Bind (`Pass 348.0`) and horizontal layout via the font's own `/Widths` (`Pass 348.1`) for a WinAnsi-encoded, no-`/Differences` simple `/DR` font; vertical metrics via the font's own `/Ascent` (`Pass 355.0`); binding widened to MacRoman/Standard/WinAnsi+`/Differences` fonts carrying their own `/Widths`, drawing their own codes (`Pass 357.0`); the Type0/composite stated limit narrowed to Identity-H horizontal fonts with a ToUnicode CMap, drawing two-byte codes measured against `/W`/`/DW` (`Pass 362.0`). **Stated limits, not bugs:** symbolic fonts, fonts with no named base, predefined non-Identity CMaps, Identity-V/vertical composite metrics, a table where code 32/63 isn't space/`?`. (The "resource not in `/DR`" case was already refused by `FieldFontNotInResources`, not a Helvetica substitution — D4's old wording named that refusal, not a bug.)
 - D4b — CLOSED by `Pass 344.0`, above. Was: a push-button `/DA` edit is not redrawn — measured worse than filed, it failed outright with `FontUnresolved` for any non-Helvetica face.
 - D1 — CLOSED by `Pass 346.0`, above. Was: comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.
@@ -17587,6 +17607,8 @@ suspicion this entry recorded.
 - Radio caption and text/choice caption falsely report Regenerated — CLOSED by `Pass 350.0`, above. Was: identical caption artwork on a radio, or ANY caption on a text/choice widget (which shouldn't trigger a redraw at all), rewrote bytes and reported Regenerated regardless.
 - `/MK` `/BG`/`/BC` colour widening — CLOSED by `Pass 342.0`, above. Was: `MkColor::to_array` widened each `f32` component through `f64::from`, writing e.g. `[0.20000000298023224]` for a component given as `0.2`.
 - X2 — CLOSED by `Pass 339.0`, above. Was: `regen_field_appearance` rebuilds every sibling widget while reporting `siblings_untouched`.
+
+★ **Twenty-third fix shipped — 2026-09-27 (661st filing, `Pass 362.0`, `b65a988d`).** Narrows D4's stated Type0/composite-font limit, above: a `/DR` font with `/Encoding /Identity-H`, a horizontal descendant CIDFont (no `/W2`/`/DW2`), and a `/ToUnicode` CMap whose unambiguous inverse (R110) names U+0020, now binds and draws its own two-byte codes, measured against the descendant's `/W`/`/DW` (default 1000). Still stand-in: predefined non-Identity CMaps, Identity-V/vertical metrics, symbolic or unreadable simple fonts.
 
 ### Unscoped — An incremental save can still carry an earlier revision's plaintext password — filed 2026-09-27 (630th filing, `Pass 345.0`'s own named remainder), no Pass ID
 

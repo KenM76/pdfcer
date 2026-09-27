@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (661st filing) — `b65a988d`: `Pass 362.0` (Type0 Identity-H `/DR` font) SHIPPED
+
+**Shipped:**
+- Pass 362.0 — a regenerated field appearance whose `/DA` names a composite `/DR` font now binds and draws its own two-byte codes, when `/Encoding /Identity-H`, the descendant CIDFont is horizontal (no `/W2`/`/DW2`), and a `/ToUnicode` CMap's unambiguous inverse (R110) names U+0020 for space. Closes the D4 remainder named in `NEXT_SESSION.md` after `Pass 355.0`.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- Codes are measured against the descendant's `/W` (list/range forms) then `/DW`, default 1000 (§9.7.4.3 Table 117); baseline uses the descendant's `/Ascent`. An unencodable character writes the code for `?` (else CID 0) and counts in `FillOutcome.unencodable_chars` — rule 4 disclosure. New `pub` `pdfcer_fonts::vartext::FontResource::cid: Option<Box<CidCodes>>`, `CidCodes { codes, widths, default_width }`, `#[non_exhaustive]`. No `EditSession` verb changed — `docs/core-api` unaffected.
+- Still stand-in: predefined non-Identity CMaps, Identity-V/vertical metrics, symbolic/unreadable simple fonts.
+- Tests: core `form_dr_font_binding` +3 (9→12), CLI `edit_field` +1. Sabotage: one-byte `show_bytes` (core+CLI), `/DW`-only widths, dropped bind arm, `/W2` accepted — all red then restored. Fuzz target `annot_author` extended, 60s/2,689 runs/0 crashes. `tools/run-gates.sh` PASS (39 commands); `cargo tree` unaffected — no manifest touched.
+- `docs/FEATURES.md`: row 320's `/DR`-binding clause widened to "draws its own codes, simple or Type0 Identity-H", citing `Pass 355.0`–`362.0`.
+- Also filed this tick: the `G045` reply gained an "Answers:" line naming its request file, closing a `check-requests-scoped` flag (outside the repo, in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`).
+
+**Still in flight:**
+- gui unchanged — inherited through the fill verbs, not yet wired by the separate `pdfcer-gui` project.
+
+**For next session:**
+- No named successor to `Pass 362.0`; D4's Type0 case is narrowed, not fully closed (non-Identity CMaps, vertical metrics remain stand-in) — pick up whatever's next in *Next up*/*Backlog*.
+
 ## 2026-09-27 (660th filing) — `7457c487`: `Pass 361.0` (`read_layers` reports print/export/intent) SHIPPED
 
 **Shipped:**
