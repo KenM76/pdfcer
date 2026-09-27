@@ -137,6 +137,18 @@ pub enum FetchError {
         /// What the client reported.
         reason: String,
     },
+    /// The server did not answer within the bound.
+    ///
+    /// Distinct from [`FetchError::Transport`] so a caller can say "the
+    /// server did not answer" rather than quote the client's text. The
+    /// request was abandoned; nothing is left running.
+    #[error("{url} did not answer within {} s", after.as_secs_f64())]
+    TimedOut {
+        /// The URL attempted.
+        url: String,
+        /// The bound that was exceeded.
+        after: std::time::Duration,
+    },
     /// The server answered, but not with success.
     #[error("{url} returned HTTP {status}")]
     HttpStatus {
@@ -209,6 +221,64 @@ pub const MAX_ARTIFACT_BYTES: u64 = 64 * 1024 * 1024;
 /// response is a few KB (token plus the TSA's certificate chain).
 pub const MAX_TIME_STAMP_RESPONSE_BYTES: u64 = 1024 * 1024;
 
+/// How long a download may wait for the server to connect and answer.
+///
+/// Bounds resolve, connect, sending the request and receiving the response
+/// headers, each separately. The body itself is not time-bounded (a large
+/// model over a slow link is legitimate); [`MAX_ARTIFACT_BYTES`] bounds it.
+pub const DOWNLOAD_ANSWER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Options for [`post_time_stamp_query_with`].
+///
+/// # Examples
+///
+/// ```
+/// use std::time::Duration;
+/// use pdfcer_fetch::TimeStampOptions;
+///
+/// let opts = TimeStampOptions::default().with_timeout(Duration::from_secs(10));
+/// assert_eq!(opts.timeout, Duration::from_secs(10));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TimeStampOptions {
+    /// The whole exchange — resolve, connect, send, response and body —
+    /// must finish within this, or [`FetchError::TimedOut`]. Default
+    /// [`TimeStampOptions::DEFAULT_TIMEOUT`].
+    pub timeout: std::time::Duration,
+}
+
+impl TimeStampOptions {
+    /// 30 s: a real TSA answers in well under a second; this only has to
+    /// separate a slow server from a silent one.
+    pub const DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+    /// Replace the timeout.
+    #[must_use]
+    pub const fn with_timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+}
+
+impl Default for TimeStampOptions {
+    fn default() -> Self {
+        Self {
+            timeout: Self::DEFAULT_TIMEOUT,
+        }
+    }
+}
+
+/// [`post_time_stamp_query_with`] with [`TimeStampOptions::default`] — a
+/// 30 s bound on the whole exchange.
+///
+/// # Errors
+///
+/// As [`post_time_stamp_query_with`].
+pub fn post_time_stamp_query(url: &str, query_der: &[u8]) -> Result<Vec<u8>, FetchError> {
+    post_time_stamp_query_with(url, query_der, &TimeStampOptions::default())
+}
+
 /// POST a DER `TimeStampReq` to an RFC 3161 time-stamping authority and
 /// return the raw `TimeStampResp` bytes (RFC 3161 §3.4, HTTP transport:
 /// `Content-Type: application/timestamp-query`).
@@ -224,10 +294,15 @@ pub const MAX_TIME_STAMP_RESPONSE_BYTES: u64 = 1024 * 1024;
 ///
 /// [`FetchError::TimeStampUnsupported`] when the `download` feature is off;
 /// [`FetchError::InsecureUrl`] for a scheme other than `http`/`https`;
+/// [`FetchError::TimedOut`] past `opts.timeout`;
 /// [`FetchError::Transport`], [`FetchError::HttpStatus`] or
 /// [`FetchError::TooLarge`] (over [`MAX_TIME_STAMP_RESPONSE_BYTES`]).
 #[cfg_attr(not(feature = "download"), allow(unused_variables))]
-pub fn post_time_stamp_query(url: &str, query_der: &[u8]) -> Result<Vec<u8>, FetchError> {
+pub fn post_time_stamp_query_with(
+    url: &str,
+    query_der: &[u8],
+    opts: &TimeStampOptions,
+) -> Result<Vec<u8>, FetchError> {
     #[cfg(not(feature = "download"))]
     {
         Err(FetchError::TimeStampUnsupported {
@@ -242,25 +317,27 @@ pub fn post_time_stamp_query(url: &str, query_der: &[u8]) -> Result<Vec<u8>, Fet
                 url: url.to_owned(),
             });
         }
-        let response = ureq::post(url)
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(opts.timeout))
+            .build()
+            .into();
+        let response = agent
+            .post(url)
             .header("Content-Type", "application/timestamp-query")
             .send(query_der)
-            .map_err(|e| match &e {
-                ureq::Error::StatusCode(code) => FetchError::HttpStatus {
-                    url: url.to_owned(),
-                    status: *code,
-                },
-                other => FetchError::Transport {
-                    url: url.to_owned(),
-                    reason: other.to_string(),
-                },
-            })?;
+            .map_err(|e| transport_error(url, e, opts.timeout))?;
         response
             .into_body()
             .with_config()
             .limit(MAX_TIME_STAMP_RESPONSE_BYTES)
             .read_to_vec()
             .map_err(|e| {
+                if matches!(e, ureq::Error::Timeout(_)) {
+                    return FetchError::TimedOut {
+                        url: url.to_owned(),
+                        after: opts.timeout,
+                    };
+                }
                 let msg = e.to_string();
                 if msg.contains("limit") {
                     FetchError::TooLarge {
@@ -274,6 +351,25 @@ pub fn post_time_stamp_query(url: &str, query_der: &[u8]) -> Result<Vec<u8>, Fet
                     }
                 }
             })
+    }
+}
+
+/// Map a ureq request error to the named [`FetchError`] variants.
+#[cfg(feature = "download")]
+fn transport_error(url: &str, e: ureq::Error, bound: std::time::Duration) -> FetchError {
+    match e {
+        ureq::Error::StatusCode(status) => FetchError::HttpStatus {
+            url: url.to_owned(),
+            status,
+        },
+        ureq::Error::Timeout(_) => FetchError::TimedOut {
+            url: url.to_owned(),
+            after: bound,
+        },
+        other => FetchError::Transport {
+            url: url.to_owned(),
+            reason: other.to_string(),
+        },
     }
 }
 
@@ -359,16 +455,18 @@ pub fn fetch_verified(artifact: &PinnedArtifact, dir: &Path) -> Result<PathBuf, 
             });
         }
 
-        let response = ureq::get(&artifact.url).call().map_err(|e| match &e {
-            ureq::Error::StatusCode(code) => FetchError::HttpStatus {
-                url: artifact.url.clone(),
-                status: *code,
-            },
-            other => FetchError::Transport {
-                url: artifact.url.clone(),
-                reason: other.to_string(),
-            },
-        })?;
+        let t = Some(DOWNLOAD_ANSWER_TIMEOUT);
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_resolve(t)
+            .timeout_connect(t)
+            .timeout_send_request(t)
+            .timeout_recv_response(t)
+            .build()
+            .into();
+        let response = agent
+            .get(&artifact.url)
+            .call()
+            .map_err(|e| transport_error(&artifact.url, e, DOWNLOAD_ANSWER_TIMEOUT))?;
 
         let bytes = response
             .into_body()
@@ -416,6 +514,48 @@ pub fn fetch_verified(artifact: &PinnedArtifact, dir: &Path) -> Result<PathBuf, 
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// A TSA that accepts the connection and never answers must not hang
+    /// the caller (G047).
+    #[cfg(feature = "download")]
+    #[test]
+    fn a_silent_time_stamp_server_times_out() {
+        use std::time::{Duration, Instant};
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        // Accept and hold the socket open without ever writing.
+        let holder = std::thread::spawn(move || {
+            let (sock, _) = listener.accept().unwrap();
+            std::thread::sleep(Duration::from_secs(5));
+            drop(sock);
+        });
+        let url = format!("http://{addr}/tsa");
+        let opts = TimeStampOptions::default().with_timeout(Duration::from_millis(500));
+        let start = Instant::now();
+        let err = post_time_stamp_query_with(&url, b"\x30\x00", &opts).unwrap_err();
+        assert!(
+            start.elapsed() < Duration::from_secs(4),
+            "{:?}",
+            start.elapsed()
+        );
+        match err {
+            FetchError::TimedOut { url: u, after } => {
+                assert_eq!(u, url);
+                assert_eq!(after, Duration::from_millis(500));
+            }
+            other => panic!("expected TimedOut, got {other:?}"),
+        }
+        holder.join().unwrap();
+    }
+
+    #[test]
+    fn time_stamp_options_default_to_thirty_seconds() {
+        assert_eq!(
+            TimeStampOptions::default().timeout,
+            std::time::Duration::from_secs(30)
+        );
+    }
 
     /// The SHA-256 of the empty string, from the standard test vectors.
     const EMPTY_SHA256: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
