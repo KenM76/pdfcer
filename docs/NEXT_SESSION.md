@@ -5,6 +5,7 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
+**Latest:** 2026-09-27, after `Pass 356.0` (`c4e2048b`, filed `f947bf22`, pushed). `G043` answered (reply in the channel; option B `flatten_annotations` is Backlog). Open from D4: a bound `/DR` font now supplies its own widths and `/Ascent` (`Pass 355.0`), but a non-WinAnsi or `/Type0` `/DR` font still draws with the standard-14 stand-in — next candidate.
 **Amended:** 2026-09-26, after `Pass 330.0` and the 609th filing; **everything pushed** (`96129f96`). See the 2026-09-26 (`Pass 330.0`) **SINCE THE LAST HANDOFF** block, newest in STATE.
 **Earlier amendment:** 2026-09-25, after `Pass 329.0` and the 593rd filing (Tesseract OCR engine); **at least 3 commits UNPUSHED** (`3691999f`, `21af5926`, `c3fed5bd`) plus this filing's own — see the 2026-09-25 **SINCE THE LAST HANDOFF** block, right after the OCRcer section in STATE. Full reconciliation against `origin/main` not checked this filing (no shell) — run `git log origin/main..HEAD --oneline` on resume before trusting any push-status line in this file.
 **Earlier amendment:** 2026-09-23, after `Pass 326.2` and the 588th filing; **2 commits UNPUSHED** — see the 2026-09-23 **SINCE THE LAST HANDOFF** block at the top of STATE.
