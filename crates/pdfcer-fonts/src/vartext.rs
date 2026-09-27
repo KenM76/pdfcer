@@ -893,6 +893,115 @@ pub fn build_variable_text(
     })
 }
 
+/// Generate a comb-field appearance body (§12.7.4.3 Table 228 bit 25):
+/// the box is divided into `cells` equal-width positions and each character
+/// is centred in its own cell.
+///
+/// The spec fixes the cell count and width (`/MaxLen`, `/Rect` width over
+/// `/MaxLen`) and nothing else; centring each glyph horizontally is
+/// pdfcer's choice. The baseline is the single-line one, so a comb field
+/// and a plain field of the same box put their text at the same height.
+/// Characters past `cells` are not drawn; the caller discloses a value
+/// longer than `/MaxLen`.
+/// Line breaks are dropped. A `/DA` size of 0 fits the widest character to
+/// one cell.
+///
+/// `cells` of 0 is treated as 1.
+///
+/// # Errors
+///
+/// As [`build_variable_text`].
+pub fn build_comb_text(
+    bbox: Rect,
+    text: &str,
+    da: &[u8],
+    cells: usize,
+    resources: &[FontResource],
+) -> Result<VarTextAppearance, VarTextError> {
+    let parsed = parse_default_appearance(da)?;
+    let font = resources
+        .iter()
+        .find(|r| r.name == parsed.font_name)
+        .map(|r| r.font)
+        .ok_or_else(|| {
+            VarTextError::FontUnresolved(String::from_utf8_lossy(&parsed.font_name).into_owned())
+        })?;
+    if matches!(font, Std14::Symbol | Std14::ZapfDingbats) {
+        return Err(VarTextError::SymbolicFont(
+            String::from_utf8_lossy(&parsed.font_name).into_owned(),
+        ));
+    }
+    let cells = cells.max(1);
+    let w = bbox.width();
+    let h = bbox.height();
+    let cell_w = w / cells as f64;
+
+    let kept: String = text.chars().filter(|c| !matches!(c, '\r' | '\n')).collect();
+    let kept: String = kept.chars().take(cells).collect();
+    let (bytes, miss) = encode_winansi(&kept);
+
+    let (size, applied_autosize, applied_autosize_bound) = if parsed.font_size == 0.0 {
+        let widest = bytes
+            .iter()
+            .copied()
+            .max_by_key(|&c| glyph_width(font, c))
+            .map_or_else(Vec::new, |c| vec![c]);
+        let fit = auto_fit(font, cell_w, h, &widest);
+        (fit.size, Some(fit.size), Some(fit.bound))
+    } else {
+        (parsed.font_size, None, None)
+    };
+
+    let ascent = f64::from(fontdata::std14_descriptor(font).ascender) / 1000.0 * size;
+    let baseline = h - TEXT_PAD - ascent;
+
+    let mut b = ContentBuilder::new();
+    b.begin_marked_content(b"Tx");
+    b.save_state();
+    b.rect(0.0, 0.0, w, h);
+    b.clip_nonzero();
+    b.paint(Paint::NoPaint);
+    b.begin_text();
+    b.set_font(&parsed.font_name, size);
+    match parsed.color {
+        Some(c) => c.apply_fill(&mut b),
+        None => b.set_fill_gray(0.0),
+    }
+    let mut prev_x = 0.0;
+    for (i, &code) in bytes.iter().enumerate() {
+        let x = i as f64 * cell_w + (cell_w - measure(font, size, &[code])) / 2.0;
+        if i == 0 {
+            b.set_text_matrix(1.0, 0.0, 0.0, 1.0, x, baseline);
+        } else {
+            b.text_move(x - prev_x, 0.0);
+        }
+        prev_x = x;
+        b.show_text(&[code]);
+    }
+    b.end_text();
+    b.restore_state();
+    b.end_marked_content();
+
+    let mut fonts = Dict::new();
+    fonts.insert(
+        Name(parsed.font_name.clone()),
+        Object::Dict(standard14_font_dict(font)),
+    );
+    let mut res = Dict::new();
+    res.insert(Name::from(b"Font"), Object::Dict(fonts));
+
+    Ok(VarTextAppearance {
+        content: b.into_bytes(),
+        resources: res,
+        applied_autosize,
+        applied_autosize_bound,
+        da_colour_unmodelled: parsed.color_unmodelled,
+        unencodable_chars: miss,
+        used_font: font,
+        used_size: size,
+    })
+}
+
 /// The x origin of a line of width `line_width` in a box of width `w`
 /// under quadding `q` (§12.7.3.3 `/Q`). Clamped so a line wider than the
 /// box still starts inside it (left-anchored) rather than off the left

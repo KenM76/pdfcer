@@ -47,6 +47,7 @@ mod font_preflight;
 mod font_preflight_candidate;
 mod fontinfo_session;
 mod form_choice_indices;
+mod form_comb_fields;
 mod form_delete_page_tree;
 mod form_edit_audit;
 mod form_field_authoring;

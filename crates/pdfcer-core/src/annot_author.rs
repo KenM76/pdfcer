@@ -4691,6 +4691,11 @@ pub const PUSH_BUTTON_PLATE_GRAY: f64 = 0.85;
 /// Any [`VarTextError`] from the generator — a malformed `/DA`, a `/DA` font
 /// name absent from `resources`, or a symbolic font this Latin generator
 /// cannot lay out.
+///
+/// `comb` is `Some(cells)` for a comb field (§12.7.4.3 Table 228 bit 25,
+/// `cells` = `/MaxLen`): the text is laid out one character per cell by
+/// [`vartext::build_comb_text`], `quad` and `multiline` are ignored, and a
+/// drawn border also draws the cell dividers.
 #[allow(clippy::too_many_arguments)]
 pub fn build_field_text_appearance(
     width: f64,
@@ -4699,6 +4704,7 @@ pub fn build_field_text_appearance(
     da: &[u8],
     quad: Quadding,
     multiline: bool,
+    comb: Option<usize>,
     resources: &[FontResource],
     chrome: WidgetChrome,
 ) -> Result<FieldAppearance, VarTextError> {
@@ -4711,7 +4717,10 @@ pub fn build_field_text_appearance(
         urx: width.max(1.0),
         ury: height.max(1.0),
     };
-    let va = vartext::build_variable_text(bbox, text, da, quad, multiline, resources)?;
+    let va = match comb {
+        Some(cells) => vartext::build_comb_text(bbox, text, da, cells, resources)?,
+        None => vartext::build_variable_text(bbox, text, da, quad, multiline, resources)?,
+    };
 
     // A TEXT FIELD DRAWS NO BOX BY DEFAULT, AND THAT MUST NOT CHANGE.
     // This builder has never painted a background or a frame; the box an
@@ -4739,6 +4748,9 @@ pub fn build_field_text_appearance(
         }
         if has_border {
             stroke_frame(&mut box_art, &chrome, bbox.urx, bbox.ury);
+            if let Some(cells) = comb.filter(|&c| c > 1) {
+                comb_dividers(&mut box_art, &chrome, bbox.urx, bbox.ury, cells);
+            }
         }
         content.extend_from_slice(&box_art.into_bytes());
     }
@@ -4752,6 +4764,25 @@ pub fn build_field_text_appearance(
         da_colour_unmodelled: va.da_colour_unmodelled,
         unencodable_chars: va.unencodable_chars,
     })
+}
+
+/// The `cells - 1` vertical dividers of a bordered comb field, in the
+/// border colour and width. Acrobat draws them; the spec is silent.
+fn comb_dividers(b: &mut ContentBuilder, chrome: &WidgetChrome, w: f64, h: f64, cells: usize) {
+    let (Some(color), Some(bw)) = (chrome.border_color, chrome.border_width()) else {
+        return;
+    };
+    b.save_state();
+    set_stroke(b, color);
+    b.set_line_width(bw);
+    let cell_w = w / cells as f64;
+    for i in 1..cells {
+        let x = i as f64 * cell_w;
+        b.move_to(x, 0.0);
+        b.line_to(x, h);
+    }
+    b.paint(Paint::Stroke);
+    b.restore_state();
 }
 
 /// FreeText (§12.5.6.6): `/DA`-driven text in a `[0 0 W H]` appearance,

@@ -1226,6 +1226,11 @@ with '?' (Base-14 Latin only)",
             out.unencodable_chars
         );
     }
+    if let Some(limit) = out.exceeds_max_len {
+        eprintln!(
+            "pdfcer: field {name:?}: the value is longer than the field's limit of {limit} characters (/MaxLen); it was stored in full, and a comb field shows only the first {limit}"
+        );
+    }
     if out.password_value_withheld {
         eprintln!(
             "pdfcer: field {name:?}: password field -- drawn as asterisks and its value was NOT saved (ISO 32000 §12.7.4.3); pass --store-password-values to store it in plain text"

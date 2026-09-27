@@ -1711,7 +1711,7 @@ would alter how every pdfcer-authored check box already in the wild renders.
 
 | I want to… | Call | Line | Returns |
 |---|---|---|---|
-| Fill a text or choice field | `fill_text_field(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | 12340 | Refuses a rich-text field (`FieldIsRichText`). A **Password** field (`/Ff` bit 14) is drawn as one `*` per character and its value is **not** stored in `/V` (§12.7.4.3); `password_value_withheld` says so. |
+| Fill a text or choice field | `fill_text_field(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | 12340 | Refuses a rich-text field (`FieldIsRichText`). A **Password** field (`/Ff` bit 14) is drawn as one `*` per character and its value is **not** stored in `/V` (§12.7.4.3); `password_value_withheld` says so. A value longer than `/MaxLen` is stored whole and flagged in `exceeds_max_len`; a **comb** field (bit 25) draws one character per `/MaxLen` cell, up to the limit. |
 | Fill a password field, storing the value | `fill_text_field_storing_password(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | — | As `fill_text_field`, but writes the plaintext `/V`. Appearance still masked. For forms whose saved file must carry the password. |
 | Fill a rich-text field, downgrading it | `fill_text_field_downgrading_rich_text(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | 12384 | **Lossy and deliberate** — clears `/Ff` bit 26, deletes `/RV`. |
 | Select a check box / radio state | `set_button_state(&mut self, fqn, on_state) -> Result<(), EditError>` | 12570 | Sets `/V` + every widget `/AS`. No regeneration. |
@@ -3740,7 +3740,7 @@ Grep target for "what does this return actually contain".
 | `DeleteOutcome` | 5594 | `pages_removed`, `objects_freed`, `dangling: DanglingReport`, `separations: SeparationImpact`, `signature: SignatureImpact` |
 | `ResetPreviewRow` | 5677 | `field: String`, `current: String`, `target: String`, `would_remove: bool`, `would_change: bool`, `ineligible: Option<ResetIneligible>` |
 | `ResetOutcome` | 5707 | `fields_reset`, `values_defaulted`, `values_removed`, `widgets_updated`, `skipped_pushbuttons`, `skipped_signatures`, `skipped_read_only` |
-| `FillOutcome` | 5756 | `field_id`, `widgets_updated`, `applied_autosize: Option<f64>`, `unencodable_chars`, **`xfa_may_disagree: bool`**, `top_index: Option<i64>`, **`password_value_withheld: bool`** |
+| `FillOutcome` | 5756 | `field_id`, `widgets_updated`, `applied_autosize: Option<f64>`, `unencodable_chars`, **`xfa_may_disagree: bool`**, `top_index: Option<i64>`, **`password_value_withheld: bool`**, **`exceeds_max_len: Option<i64>`** |
 | `RegenOutcome` | 5809 | `regenerated`, `need_appearances_cleared`, `applied_autosize`, `unencodable_chars` |
 | `ImportOutcome` | 5824 | `applied`, `skipped`, `password_values_withheld` |
 | `WidgetMove` | 5847 | `from: Rect`, `to: Rect`, `siblings_left_behind: usize` |

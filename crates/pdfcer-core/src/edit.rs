@@ -18219,6 +18219,10 @@ pub struct FillOutcome {
     /// the PDF file if this flag is set". Callers that need the value stored
     /// use [`EditSession::fill_text_field_storing_password`].
     pub password_value_withheld: bool,
+    /// `Some(limit)` when the value is longer than the field's `/MaxLen`
+    /// (§12.7.4.3 Table 229). The value is stored in full, not truncated; a
+    /// comb field draws only its first `limit` characters, one per cell.
+    pub exceeds_max_len: Option<i64>,
 }
 
 /// What [`EditSession::add_text_annotation_reporting`] authored, and what it
@@ -23807,6 +23811,9 @@ impl EditSession {
             &da,
             crate::vartext::Quadding::Left,
             spec.multiline,
+            spec.max_len
+                .filter(|_| spec.comb)
+                .and_then(|n| usize::try_from(n).ok()),
             &resources,
             // `Pass 308.1`: the SAME chrome the `/MK` dictionary below is
             // written from, so the two cannot disagree. Defaults to stating
@@ -27042,6 +27049,8 @@ impl EditSession {
             let mut field = field.clone();
             // The regenerator masks on `field.flags`; the snapshot's are stale.
             field.flags = flags;
+            // Comb cells are `/MaxLen`; read the value being written.
+            field.max_len = max_len_after;
             if edit.password == Some(true) {
                 password_removals = self.superseded_session_appearances(&field);
             }
@@ -28142,6 +28151,7 @@ impl EditSession {
             &da,
             crate::vartext::Quadding::Left,
             false,
+            None,
             &resources,
             // `Pass 308.1`: the same chrome the `/MK` below is written from.
             spec.chrome.clone().with_border(spec.border),
@@ -37562,6 +37572,9 @@ impl EditSession {
         }
         let primary_id = primary.id;
         let withhold = !store_password && primary.flags.has(forms::FieldFlags::PASSWORD);
+        let exceeds_max_len = primary
+            .max_len
+            .filter(|&n| usize::try_from(n).is_ok_and(|n| text.chars().count() > n));
 
         let fonts = self.resolve_dr_fonts();
         let default_da = form
@@ -37689,6 +37702,7 @@ impl EditSession {
             // field has no option list to scroll.
             top_index: None,
             password_value_withheld: withhold,
+            exceeds_max_len,
         })
     }
 
@@ -39762,6 +39776,18 @@ impl EditSession {
             .clone()
             .unwrap_or_else(|| default_da.to_vec());
         let quad = field.quadding;
+        // Comb layout only where Table 228 bit 25 permits it: `/MaxLen`
+        // present and positive, Multiline/Password/FileSelect clear. An
+        // ill-formed comb is drawn as plain text (field_flags V2/A1).
+        let comb = (field.flags.has(forms::FieldFlags::COMB)
+            && !multiline
+            && !field.flags.has(forms::FieldFlags::MULTILINE)
+            && !field.flags.has(forms::FieldFlags::PASSWORD)
+            && !field.flags.has(forms::FieldFlags::FILE_SELECT))
+        .then_some(field.max_len)
+        .flatten()
+        .and_then(|n| usize::try_from(n).ok())
+        .filter(|&n| n > 0);
         let mut merged_ap: Option<ObjId> = None;
         for widget in &field.widgets {
             // THE STAGED RECT, NOT THE SNAPSHOT'S (`Pass 187.0`).
@@ -39842,7 +39868,7 @@ impl EditSession {
                 .chrome_for(widget.id)
                 .unwrap_or_else(|| self.widget_chrome(widget));
             let appearance = annot_author::build_field_text_appearance(
-                w, h, text, &da, quad, multiline, fonts, chrome,
+                w, h, text, &da, quad, multiline, comb, fonts, chrome,
             )?;
             if appearance.applied_autosize.is_some() {
                 *applied_autosize = appearance.applied_autosize;
@@ -40868,6 +40894,7 @@ impl EditSession {
             xfa_may_disagree: form.xfa.is_present(),
             top_index,
             password_value_withheld: false,
+            exceeds_max_len: None,
         })
     }
 

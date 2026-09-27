@@ -1171,6 +1171,8 @@ struct Inherited {
     default_value: Option<Object>,
     default_appearance: Option<Vec<u8>>,
     quadding: Option<i64>,
+    /// `/MaxLen` is inheritable (§12.7.4.3 Table 229).
+    max_len: Option<i64>,
 }
 
 /// Parse a document's interactive form (ISO 32000-1 §12.7.2), or `None`
@@ -1391,6 +1393,12 @@ fn walk_field<G: ObjectGraph + ?Sized>(
         .and_then(Object::as_int);
     let q_code = own_q.or(inherited.quadding);
 
+    let max_len = dict
+        .get(b"MaxLen")
+        .map(|o| graph.resolve(o))
+        .and_then(Object::as_int)
+        .or(inherited.max_len);
+
     // This node's partial name and the fully-qualified name it contributes.
     let partial_name = dict
         .get(b"T")
@@ -1432,6 +1440,7 @@ fn walk_field<G: ObjectGraph + ?Sized>(
         default_value: dv_obj.clone(),
         default_appearance: da.clone(),
         quadding: q_code,
+        max_len,
     };
 
     // MIXED `/Kids` — a node may hold BOTH child fields and bare widgets.
@@ -1569,10 +1578,7 @@ fn walk_field<G: ObjectGraph + ?Sized>(
         default_value,
         default_appearance: da,
         quadding: Quadding::from_code(q_code.unwrap_or(0)),
-        max_len: dict
-            .get(b"MaxLen")
-            .map(|o| graph.resolve(o))
-            .and_then(Object::as_int),
+        max_len,
         options: read_options(graph, &dict),
         top_index: dict
             .get(b"TI")
@@ -3543,6 +3549,31 @@ mod tests {
         }
         assert_eq!(form.fields[0].fully_qualified_name, "group.a");
         assert_eq!(form.fields[1].fully_qualified_name, "group.b");
+    }
+
+    #[test]
+    fn max_len_is_inherited_and_overridden() {
+        // Table 229: `/MaxLen` is inheritable.
+        let doc = doc_with_acroform(
+            "<< /Fields [5 0 R] >>",
+            &[
+                (
+                    5,
+                    b"<< /FT /Tx /MaxLen 6 /T (g) /Kids [6 0 R 7 0 R] >>".to_vec(),
+                ),
+                (
+                    6,
+                    b"<< /T (a) /Subtype /Widget /Rect [0 0 10 10] >>".to_vec(),
+                ),
+                (
+                    7,
+                    b"<< /T (b) /MaxLen 3 /Subtype /Widget /Rect [0 20 10 30] >>".to_vec(),
+                ),
+            ],
+        );
+        let form = parse_acroform(&doc).unwrap();
+        assert_eq!(form.fields[0].max_len, Some(6));
+        assert_eq!(form.fields[1].max_len, Some(3));
     }
 
     #[test]
