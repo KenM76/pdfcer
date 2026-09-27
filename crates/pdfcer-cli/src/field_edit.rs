@@ -558,6 +558,9 @@ pub(crate) fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
     if let Some(complaint) = &outcome.value_no_longer_fits {
         eprintln!("pdfcer: field {:?}: ★ {complaint}", args.name);
     }
+    if let Some(stale) = &outcome.appearance_stale {
+        eprintln!("pdfcer: field {:?}: ★ {stale}", args.name);
+    }
     crate::fields::print_layout(&format!("field {:?}", args.name), &outcome.layout);
     if outcome.sort_claim_unmet {
         eprintln!(

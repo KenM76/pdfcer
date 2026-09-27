@@ -751,3 +751,69 @@ fn a_side_effect_redraw_discloses_what_it_substituted() {
         input = out;
     }
 }
+
+/// A property written and not drawn is said, not reported as a redraw: a
+/// check box's `/DA` (its artwork is shapes, not text) and a text field's
+/// `/MK /CA` (only a push button or check box draws a caption).
+#[test]
+fn a_property_pdfcer_does_not_draw_is_disclosed_not_reported_redrawn() {
+    let dir = TempDir::new("edit-field-not-painted");
+    let src = dir.write("blank.pdf", &multipage_pdf(&["0 0 0 rg 0 0 10 10 re f"]));
+    let boxed = dir.join("box.pdf");
+    let r = run(&[
+        "add-check-box",
+        src.to_str().unwrap(),
+        "--name",
+        "Agree",
+        "--page",
+        "1",
+        "--rect",
+        "20,20,44,44",
+        "--no-tooltip",
+        "-o",
+        boxed.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    let out = dir.join("da.pdf");
+    let r = run(&[
+        "edit-field",
+        boxed.to_str().unwrap(),
+        "--name",
+        "Agree",
+        "--font",
+        "helvetica",
+        "--font-size",
+        "10",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    assert!(stdout(&r).contains("regenerated=0"), "{}", stdout(&r));
+    assert!(
+        stderr(&r).contains("did NOT redraw"),
+        "a /DA written and not drawn went unsaid: {}",
+        stderr(&r)
+    );
+
+    let text = field_to_edit(&dir, "Hi");
+    let out = dir.join("caption.pdf");
+    let r = run(&[
+        "edit-widget",
+        text.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--index",
+        "0",
+        "--caption",
+        "X",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    assert!(stdout(&r).contains("regenerated=0"), "{}", stdout(&r));
+    assert!(
+        stderr(&r).contains("did NOT redraw"),
+        "a caption written and not drawn went unsaid: {}",
+        stderr(&r)
+    );
+}

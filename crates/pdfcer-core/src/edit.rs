@@ -18313,6 +18313,18 @@ pub struct LayoutDisclosure {
     pub unencodable_chars: usize,
 }
 
+/// What a property-change redraw did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Redraw {
+    /// New appearance streams were written.
+    Rebuilt,
+    /// A button's redraw matched its existing artwork byte for byte, so
+    /// nothing was written.
+    Unchanged,
+    /// Not pdfcer's to redraw: a signature, or artwork pdfcer did not author.
+    NotRebuilt,
+}
+
 /// What an [`import_form_data`](EditSession::import_form_data) operation did
 /// (Pass 7.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23178,6 +23190,11 @@ pub struct FieldEditOutcome {
     pub widgets_affected: usize,
     /// Whether the appearance streams were rebuilt.
     pub appearance_regenerated: bool,
+    /// The disclosure owed when a property was written and the pixels did
+    /// not change: a `/DA` edit on a check box or radio button, whose
+    /// artwork pdfcer draws as shapes rather than from `/DA`. `None` when the
+    /// edit was drawn, or needed no redraw.
+    pub appearance_stale: Option<String>,
     /// **The stored value no longer fits the field**, and pdfcer did not
     /// change it.
     ///
@@ -23278,9 +23295,10 @@ pub struct WidgetRotation {
     /// Whether the widget's appearance stream was **redrawn** in the rotated
     /// frame.
     ///
-    /// `false` for a push button, a signature, or any field whose appearance
-    /// pdfcer did not author — see [`Self::appearance_stale`], which is
-    /// `Some` exactly when this is `false`.
+    /// `false` for a signature or any field whose appearance pdfcer did not
+    /// author, and then [`Self::appearance_stale`] is `Some`. Also `false`,
+    /// with `appearance_stale` `None`, when a button's redraw reproduced its
+    /// artwork exactly (the angle did not change), so nothing was written.
     pub appearance_regenerated: bool,
     /// The disclosure owed when [`Self::appearance_regenerated`] is `false`:
     /// `/MK /R` was written and the pixels did not change.
@@ -25866,6 +25884,11 @@ impl EditSession {
     /// Rebuild every widget appearance of `field` after a **property**
     /// change, using the field's own stored value and its POST-EDIT flags.
     ///
+    /// Returns [`Redraw::Unchanged`], writing nothing, when a button's
+    /// redraw reproduces its existing artwork exactly: the edited property is
+    /// one pdfcer's artwork does not draw from, and claiming a redraw would
+    /// report a change nobody can see.
+    ///
     /// # Why a property change needs this at all
     ///
     /// `multiline`, `comb`, `combo` and `/MaxLen` are not cosmetic: they
@@ -25897,7 +25920,7 @@ impl EditSession {
         // write-plus-regenerate. Found by the test, not by review.
         appearance: Option<&FieldAppearance>,
         layout: &mut LayoutDisclosure,
-    ) -> Result<bool, EditError> {
+    ) -> Result<Redraw, EditError> {
         let (display, multiline) = match field.field_type {
             Some(forms::FieldType::Text) => match &field.value {
                 forms::FieldValue::Text(b) => (
@@ -25934,7 +25957,7 @@ impl EditSession {
             Some(forms::FieldType::Button) => {
                 return self.regen_button_appearance(field, objects, pending, appearance);
             }
-            _ => return Ok(false),
+            _ => return Ok(Redraw::NotRebuilt),
         };
         // The face this redraw measures and draws with. An `appearance`
         // supplied by the caller wins, because it is being written in this
@@ -26004,7 +26027,7 @@ impl EditSession {
             ap.insert(Name::from(b"N"), Object::Reference(ap_id));
             d.insert(Name::from(b"AP"), Object::Dict(ap));
         }
-        Ok(true)
+        Ok(Redraw::Rebuilt)
     }
 
     /// **Rotate a form-field widget** — `/MK /R` plus a redrawn appearance,
@@ -26155,7 +26178,7 @@ impl EditSession {
         // still the old one, and a field's other widgets keep their own.
         let mut appearance_stale = None;
         let mut layout = LayoutDisclosure::default();
-        let appearance_regenerated = self.regen_after_property_change(
+        let redraw = self.regen_after_property_change(
             &Self::only_widget(&field, widget.id),
             field.flags,
             &mut objects,
@@ -26168,7 +26191,8 @@ impl EditSession {
             None,
             &mut layout,
         )?;
-        if !appearance_regenerated {
+        let appearance_regenerated = redraw == Redraw::Rebuilt;
+        if redraw == Redraw::NotRebuilt {
             // THE SENTENCE USED TO ENUMERATE THE WRONG SET, IN BOTH
             // DIRECTIONS, AND `pdfcer-gui` BUILT AN INVENTORY OUT OF IT
             // (`G023`, `Pass 308.5`). It read:
@@ -26538,14 +26562,30 @@ impl EditSession {
         //     would repaint in the hard-coded default and DISCARD what the
         //     operator chose.
         let mut appearance_stale = None;
+        // Only a push button (its label) and a check box (its glyph style)
+        // draw `/MK` `/CA`. Table 189 defines it for buttons alone, and
+        // pdfcer's radio artwork is a fixed circle.
+        let caption_drawn = matches!(
+            field.button_kind,
+            Some(forms::ButtonKind::Push | forms::ButtonKind::Check)
+        ) && field.field_type == Some(forms::FieldType::Button);
         let needs_regen = resized
             || edit.border.is_some()
-            || edit.caption.is_some()
+            || (edit.caption.is_some() && caption_drawn)
             || edit.background.is_some()
             || edit.border_color.is_some();
+        let caption_not_drawn = || {
+            edit.caption.as_ref().filter(|_| !caption_drawn).map(|_| {
+                "pdfcer wrote this widget's /MK /CA caption but did NOT redraw its appearance -- \
+                 pdfcer draws a caption only on a push button (its label) or a check box (its \
+                 glyph), so the widget looks exactly as before; a processor that regenerates \
+                 appearances from /MK may show it"
+                    .to_owned()
+            })
+        };
         let mut layout = LayoutDisclosure::default();
         let appearance_regenerated = if needs_regen {
-            let done = self.regen_after_property_change(
+            let redraw = self.regen_after_property_change(
                 &Self::only_widget(&field, widget.id),
                 field.flags,
                 &mut objects,
@@ -26553,7 +26593,11 @@ impl EditSession {
                 None,
                 &mut layout,
             )?;
-            if !done {
+            if redraw == Redraw::Unchanged {
+                appearance_stale = caption_not_drawn();
+            }
+            let done = redraw == Redraw::Rebuilt;
+            if redraw == Redraw::NotRebuilt {
                 // Nothing here is pdfcer's to rebuild: a signature field, or a
                 // button carrying another producer's artwork. Whether that is
                 // a refusal or a disclosure depends on whether the geometry
@@ -26563,6 +26607,7 @@ impl EditSession {
             }
             done
         } else {
+            appearance_stale = caption_not_drawn();
             false
         };
 
@@ -27070,6 +27115,7 @@ impl EditSession {
             || edit.password.is_some()
             || options_after.is_some();
         let mut password_removals = Vec::new();
+        let mut appearance_stale = None;
         let mut layout = LayoutDisclosure::default();
         let appearance_regenerated = if layout_changed {
             // The snapshot is made TRUTHFUL rather than overridden.
@@ -27131,14 +27177,24 @@ impl EditSession {
                     None => self.inherited_quadding(field.id),
                 };
             }
-            self.regen_after_property_change(
+            let redraw = self.regen_after_property_change(
                 &field,
                 flags,
                 &mut objects,
                 &PendingWidgetEdit::default(),
                 edit.appearance.as_ref(),
                 &mut layout,
-            )?
+            )?;
+            if redraw == Redraw::Unchanged && edit.appearance.is_some() {
+                appearance_stale = Some(
+                    "pdfcer wrote this field's /DA but did NOT redraw its appearance -- pdfcer's \
+                     check-box and radio artwork is drawn as shapes, not from /DA, so the widget \
+                     looks exactly as before; a processor that regenerates appearances from /DA \
+                     may show the new font or colour"
+                        .to_owned(),
+                );
+            }
+            redraw == Redraw::Rebuilt
         } else {
             false
         };
@@ -27157,6 +27213,7 @@ impl EditSession {
             flags_after: flags.0,
             widgets_affected,
             appearance_regenerated,
+            appearance_stale,
             value_no_longer_fits,
             tooltip_removed,
             sort_claim_unmet,
@@ -40231,10 +40288,10 @@ impl EditSession {
         // ownership test needs is re-read from the graph, which this command
         // has not written yet.
         appearance: Option<&FieldAppearance>,
-    ) -> Result<bool, EditError> {
+    ) -> Result<Redraw, EditError> {
         let Some(kind) = field.button_kind else {
             // `/FT /Btn` with no resolvable kind. Not pdfcer's to guess at.
-            return Ok(false);
+            return Ok(Redraw::NotRebuilt);
         };
         let stored_da = forms::parse_acroform(&self.graph())
             .and_then(|f| f.fields.into_iter().find(|f| f.id == field.id))
@@ -40271,7 +40328,7 @@ impl EditSession {
         let mut plans = Vec::with_capacity(field.widgets.len());
         for widget in &field.widgets {
             let Some(old) = widget.rect else {
-                return Ok(false);
+                return Ok(Redraw::NotRebuilt);
             };
             let Some(plan) = self.button_ap_plan(
                 widget,
@@ -40281,7 +40338,7 @@ impl EditSession {
                 (stored_da.clone(), &fonts),
             )?
             else {
-                return Ok(false);
+                return Ok(Redraw::NotRebuilt);
             };
             plans.push((widget, plan));
         }
@@ -40296,6 +40353,7 @@ impl EditSession {
         // one's `after` is built from the PRE-command dictionary, so it would
         // silently discard the resize it was triggered by). Reusing the ids
         // means there is no second write to compose.
+        let mut changed = false;
         for (widget, plan) in plans {
             let (w, h) = pending
                 .rect_for(widget.id)
@@ -40337,13 +40395,22 @@ impl EditSession {
             )?;
             for (id, content) in plan.slots.iter().zip(redrawn) {
                 let before = self.state.get(id).cloned();
-                let span = self.stage_bytes(&content.content);
                 let mut dict = content.ap_dict;
                 self.bind_dr_fonts(&mut dict);
                 dict.insert(
                     Name::from(b"Length"),
                     Object::Integer(i64::try_from(content.content.len()).unwrap_or(i64::MAX)),
                 );
+                // A state this redraw reproduces exactly is not rewritten:
+                // the property being edited is one the artwork does not draw
+                // from, and a rewrite would be churn reported as a change.
+                if matches!(self.value(*id), Some(Object::Stream(old)) if old.dict == dict)
+                    && self.stream_bytes_match(*id, &content.content)
+                {
+                    continue;
+                }
+                changed = true;
+                let span = self.stage_bytes(&content.content);
                 objects.push(ObjectWrite {
                     id: *id,
                     before,
@@ -40354,7 +40421,11 @@ impl EditSession {
                 });
             }
         }
-        Ok(true)
+        Ok(if changed {
+            Redraw::Rebuilt
+        } else {
+            Redraw::Unchanged
+        })
     }
 
     /// One widget's rebuild plan: the appearance objects to overwrite, in the
