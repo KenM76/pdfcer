@@ -23915,6 +23915,7 @@ impl EditSession {
             name: b"Helv".to_vec(),
             font: crate::fontdata::Std14::Helvetica,
             widths: None,
+            ascent: None,
         }];
         // THE SAME builder a fill uses (R92: one regenerator, never two).
         // A created field and a filled one therefore cannot disagree about
@@ -26052,6 +26053,7 @@ impl EditSession {
                         name: key,
                         font: metrics,
                         widths: None,
+                        ascent: None,
                     }),
                 )
             }
@@ -28216,6 +28218,7 @@ impl EditSession {
             name: b"Helv".to_vec(),
             font: crate::fontdata::Std14::Helvetica,
             widths: None,
+            ascent: None,
         }];
         let appearance = annot_author::build_push_button_appearance(
             w,
@@ -28461,6 +28464,7 @@ impl EditSession {
             name: b"Helv".to_vec(),
             font: crate::fontdata::Std14::Helvetica,
             widths: None,
+            ascent: None,
         }];
         // THE SAME builder a fill and a text field use (R92).
         let appearance = annot_author::build_field_text_appearance(
@@ -40499,6 +40503,7 @@ impl EditSession {
                             FieldFont::Resource(_) => crate::fontdata::Std14::Helvetica,
                         },
                         widths: None,
+                        ascent: None,
                     });
                 }
                 Some(crate::vartext::default_appearance_string(
@@ -41284,6 +41289,7 @@ impl EditSession {
             name: b"Helv".to_vec(),
             font: Std14::Helvetica,
             widths: None,
+            ascent: None,
         }];
         let graph = self.graph();
         let dr_font = graph
@@ -41306,15 +41312,16 @@ impl EditSession {
                 // Measured with the font's own `/Widths` exactly when
                 // `bind_dr_fonts` will draw with it, so layout and glyphs
                 // come from one font.
-                let widths = fd
-                    .filter(|fd| Self::dr_font_is_bindable(&graph, fd))
-                    .and_then(|fd| Self::simple_font_widths(&graph, fd));
+                let bound = fd.filter(|fd| Self::dr_font_is_bindable(&graph, fd));
+                let widths = bound.and_then(|fd| Self::simple_font_widths(&graph, fd));
+                let ascent = bound.and_then(|fd| Self::font_ascent(&graph, fd));
                 let nm = name.as_bytes().to_vec();
                 if !out.iter().any(|r| r.name == nm) {
                     out.push(FontResource {
                         name: nm,
                         font: base,
                         widths,
+                        ascent,
                     });
                 }
             }
@@ -41433,6 +41440,24 @@ impl EditSession {
             }
         }
         Some(out)
+    }
+
+    /// A font's `/FontDescriptor` `/Ascent` (§9.8.1 Table 122), rounded;
+    /// `None` when absent, not a number, or not positive (a zero or negative
+    /// ascent would put the baseline at or above the box top).
+    fn font_ascent(graph: &impl ObjectGraph, fd: &Dict) -> Option<u16> {
+        let ascent = match fd
+            .get(b"FontDescriptor")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_dict)
+            .and_then(|d| d.get(b"Ascent"))
+            .map(|o| graph.resolve(o))?
+        {
+            Object::Integer(i) => *i as f64,
+            Object::Real(r) => *r,
+            _ => return None,
+        };
+        (ascent >= 1.0).then(|| ascent.round().min(f64::from(u16::MAX)) as u16)
     }
 
     // -- Pass 7.1: export/import, regenerate, flatten -------------------

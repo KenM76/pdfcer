@@ -47,7 +47,7 @@ fn session(da_key: &str) -> EditSession {
         ),
         "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
          /Encoding /WinAnsiEncoding /FirstChar 72 /LastChar 72 /Widths [1000] \
-         /FontDescriptor << /MissingWidth 250 >> >>"
+         /FontDescriptor << /MissingWidth 250 /Ascent 900 >> >>"
             .to_owned(),
         "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
          /Encoding << /BaseEncoding /WinAnsiEncoding /Differences [65 /B] >> >>"
@@ -175,6 +175,11 @@ fn a_push_button_caption_draws_with_the_dr_font() {
 
 /// The first `Tm` x origin in the field's `/AP` `/N`.
 fn first_x(s: &EditSession) -> f64 {
+    first_tm(s, 4)
+}
+
+/// Operand `i` of the first `Tm` in the field's `/AP` `/N`.
+fn first_tm(s: &EditSession, i: usize) -> f64 {
     let g = s.graph();
     let Object::Dict(field) = g.resolve(&Object::Reference(ObjId::new(4, 0))).clone() else {
         panic!("field is not a dictionary");
@@ -194,7 +199,7 @@ fn first_x(s: &EditSession) -> f64 {
         .lines()
         .find(|l| l.ends_with(" Tm"))
         .unwrap_or_else(|| panic!("no Tm in {body}"));
-    tm.split(' ').nth(4).unwrap().parse().unwrap()
+    tm.split(' ').nth(i).unwrap().parse().unwrap()
 }
 
 /// A bound font is also measured with its own `/Widths`: centring "HA" in
@@ -209,5 +214,19 @@ fn a_bound_font_is_laid_out_with_its_own_widths() {
     assert!(
         (x - want).abs() < 1e-6,
         "centred at {x}, want {want}: measured with Helvetica, not /Widths"
+    );
+}
+
+/// A bound font's first baseline sits its own `/Ascent` (900) below the
+/// padded box top — 22 - 2 - 10.8 — not Helvetica's 718.
+#[test]
+fn a_bound_font_places_its_baseline_with_its_own_ascent() {
+    let mut s = session("F1");
+    s.fill_text_field("t", "HA").unwrap();
+    let y = first_tm(&s, 5);
+    let want = 22.0 - 2.0 - 900.0 * 12.0 / 1000.0;
+    assert!(
+        (y - want).abs() < 1e-6,
+        "baseline at {y}, want {want}: Helvetica's ascent, not /Ascent"
     );
 }

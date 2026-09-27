@@ -164,8 +164,8 @@ impl Quadding {
 pub struct FontResource {
     /// The resource name (no leading `/`), e.g. `b"Helv"`.
     pub name: Vec<u8>,
-    /// The standard-14 face it maps to. Its descriptor supplies the
-    /// vertical metrics, and the widths when `widths` is `None`.
+    /// The standard-14 face it maps to. Its descriptor supplies the ascent
+    /// when `ascent` is `None`, and the widths when `widths` is `None`.
     pub font: Std14,
     /// The resource's own advance widths by `WinAnsi` code (glyph space,
     /// 1000 = 1 text-space unit), when it is a font other than `font` whose
@@ -173,6 +173,11 @@ pub struct FontResource {
     /// `/MissingWidth` (§9.6.2.1 Table 111, §9.8.1 Table 122). `None`
     /// measures with `font`.
     pub widths: Option<Box<[u16; 256]>>,
+    /// The resource's own ascent (glyph space, positive), when it is a font
+    /// other than `font` whose `/FontDescriptor` `/Ascent` is known
+    /// (§9.8.1 Table 122). It places the first baseline. `None` uses
+    /// `font`'s.
+    pub ascent: Option<u16>,
 }
 
 /// The widths a layout measures with: a resource's own, else its
@@ -181,18 +186,33 @@ pub struct FontResource {
 struct Face<'a> {
     font: Std14,
     widths: Option<&'a [u16; 256]>,
+    ascent: Option<u16>,
 }
 
 impl<'a> Face<'a> {
     const fn std(font: Std14) -> Self {
-        Self { font, widths: None }
+        Self {
+            font,
+            widths: None,
+            ascent: None,
+        }
     }
 
     fn of(r: &'a FontResource) -> Self {
         Self {
             font: r.font,
             widths: r.widths.as_deref(),
+            ascent: r.ascent,
         }
+    }
+
+    /// The ascent at `size` points.
+    fn ascent_at(self, size: f64) -> f64 {
+        let units = self.ascent.map_or_else(
+            || f64::from(fontdata::std14_descriptor(self.font).ascender),
+            f64::from,
+        );
+        units / 1000.0 * size
     }
 
     fn width(self, code: u8) -> u16 {
@@ -874,8 +894,7 @@ pub fn build_variable_text(
     let max_width = (w - 2.0 * TEXT_PAD).max(0.0);
     let lines = wrap_lines(face, size, &paragraphs, max_width, multiline);
 
-    // Vertical metrics: ascent from the face descriptor (Base-14, GUI-free).
-    let ascent = f64::from(fontdata::std14_descriptor(font).ascender) / 1000.0 * size;
+    let ascent = face.ascent_at(size);
     let line_height = size * LINE_FACTOR;
     let first_baseline = h - TEXT_PAD - ascent;
 
@@ -993,7 +1012,7 @@ pub fn build_comb_text(
         (parsed.font_size, None, None)
     };
 
-    let ascent = f64::from(fontdata::std14_descriptor(font).ascender) / 1000.0 * size;
+    let ascent = face.ascent_at(size);
     let baseline = h - TEXT_PAD - ascent;
 
     let mut b = ContentBuilder::new();
@@ -1241,6 +1260,7 @@ mod tests {
             name: b"Helv".to_vec(),
             font: Std14::Helvetica,
             widths: None,
+            ascent: None,
         }]
     }
 
@@ -1315,6 +1335,7 @@ mod tests {
             name: b"Sy".to_vec(),
             font: Std14::Symbol,
             widths: None,
+            ascent: None,
         }];
         let da = default_appearance_string(b"Sy", 12.0, TextColor::Gray(0.0));
         let err = build_variable_text(bbox(100.0, 20.0), "hi", &da, Quadding::Left, false, &res)

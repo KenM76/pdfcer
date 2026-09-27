@@ -349,6 +349,7 @@ fuzz_target!(|data: &[u8]| {
             font: face(&mut c),
             widths: (c.byte() & 1 == 1)
                 .then(|| Box::new([0u16; 256].map(|_| u16::from(c.byte()) * 8))),
+            ascent: (c.byte() & 1 == 1).then(|| u16::from(c.byte()) * 8),
         }];
         let quad = match c.byte() % 3 {
             0 => Quadding::Left,

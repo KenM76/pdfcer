@@ -1027,3 +1027,58 @@ fn a_multi_select_default_is_set_and_restored() {
         "the reset did not restore the multi-value default: {text}"
     );
 }
+
+/// A fill that draws with the document's own `/DR` font places the first
+/// baseline by that font's `/FontDescriptor` `/Ascent` (Table 122):
+/// 22 - 2 - 900 x 12 / 1000, not Helvetica's 718.
+#[test]
+fn a_fill_places_the_baseline_by_the_dr_fonts_own_ascent() {
+    let dir = TempDir::new("dr-font-ascent");
+    let src = dir.write(
+        "ascent.pdf",
+        &build_pdf(&[
+            (
+                1,
+                "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] \
+                 /DR << /Font << /F1 5 0 R >> >> >> >>"
+                    .to_owned(),
+            ),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned()),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Annots [4 0 R] >>"
+                    .to_owned(),
+            ),
+            (
+                4,
+                "<< /FT /Tx /T (t) /Type /Annot /Subtype /Widget /P 3 0 R \
+                 /Rect [20 50 200 72] /DA (/F1 12 Tf 0 g) >>"
+                    .to_owned(),
+            ),
+            (
+                5,
+                "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
+                 /Encoding /WinAnsiEncoding /FirstChar 72 /LastChar 72 /Widths [1000] \
+                 /FontDescriptor << /Ascent 900 >> >>"
+                    .to_owned(),
+            ),
+        ]),
+    );
+    let out = dir.join("ascent-filled.pdf");
+    let r = run(&[
+        "fill-field",
+        src.to_str().unwrap(),
+        "--set",
+        "t=Hi",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    let filled = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    let tm = filled
+        .lines()
+        .find(|l| l.ends_with(" Tm"))
+        .expect("a text matrix in the filled appearance");
+    let y: f64 = tm.split(' ').nth(5).unwrap().parse().unwrap();
+    assert!((y - 9.2).abs() < 1e-6, "baseline at {y} in {tm:?}");
+}
