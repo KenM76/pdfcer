@@ -207,3 +207,51 @@ fn renaming_the_selected_options_label_redraws_the_new_label() {
         String::from_utf8_lossy(&ap)
     );
 }
+
+// ---------------------------------------------------------------------------
+// A property redraw uses the form's own font, as a fill does
+// ---------------------------------------------------------------------------
+
+/// A filled text field (object 4) under an `/AcroForm` whose `/DR` maps
+/// `/TiRo` and `/F1` to Times; `field_da` is the field's own `/DA` entry.
+fn times_form(form_da: &str, field_da: &str) -> EditSession {
+    let catalog = format!(
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] {form_da}          /DR << /Font << /TiRo 5 0 R /F1 5 0 R >> >> >> >>"
+    );
+    let widget = format!(
+        "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /P 3 0 R          /Rect [20 300 220 324] /V (Hello) {field_da} >>"
+    );
+    session(&[
+        &catalog,
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Annots [4 0 R] >>",
+        &widget,
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>",
+    ])
+}
+
+#[test]
+fn a_property_redraw_uses_the_acroform_default_appearance() {
+    let mut s = times_form("/DA (/TiRo 11 Tf 0 g)", "");
+    s.edit_field("Name", &FieldEdit::new().with_multiline(true))
+        .unwrap();
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(
+        contains(&ap, b"/TiRo 11 Tf") && !contains(&ap, b"/Helv"),
+        "the inherited /DA face is kept: {}",
+        String::from_utf8_lossy(&ap)
+    );
+}
+
+#[test]
+fn a_property_edit_on_a_field_naming_a_dr_font_does_not_fail() {
+    let mut s = times_form("", "/DA (/F1 10 Tf 0 g)");
+    s.edit_field("Name", &FieldEdit::new().with_multiline(true))
+        .unwrap();
+    let ap = normal_ap_bytes(&s, 4);
+    assert!(
+        contains(&ap, b"/F1 10 Tf"),
+        "{}",
+        String::from_utf8_lossy(&ap)
+    );
+}

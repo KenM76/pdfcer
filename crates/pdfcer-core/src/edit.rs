@@ -25857,56 +25857,45 @@ impl EditSession {
         };
         // The face this redraw measures and draws with. An `appearance`
         // supplied by the caller wins, because it is being written in this
-        // same command; otherwise the historic Helvetica default stands, so
-        // every existing caller is byte-for-byte unchanged.
-        let (da_key, da_font, da_size, da_colour) = match appearance {
+        // same command; otherwise the field's own `/DA` (read by the
+        // regenerator) or, failing that, the `/AcroForm` `/DA` -- the same
+        // precedence fill uses (§12.7.3.3), so a property edit and a fill
+        // draw one field the same way.
+        let (default_da, caller_font) = match appearance {
             Some(app) => {
                 let key = match &app.font {
                     FieldFont::Standard(f) => Self::std14_resource_key(*f).to_vec(),
                     FieldFont::Resource(name) => name.clone(),
                 };
-                // A `Resource` face is one pdfcer did not author and cannot
-                // measure, so the metrics fall back to Helvetica while the
-                // NAME written is the caller's. That is a real limit and it
-                // is stated rather than hidden: an embedded face with wider
-                // glyphs will auto-size slightly differently from what a
-                // reader finally draws.
+                // A `Resource` face pdfcer cannot measure is laid out with
+                // Helvetica metrics under the caller's name (stated limit).
                 let metrics = match &app.font {
                     FieldFont::Standard(f) => *f,
                     FieldFont::Resource(_) => crate::fontdata::Std14::Helvetica,
                 };
-                (key, metrics, app.size, app.color)
+                (
+                    crate::vartext::default_appearance_string(&key, app.size, app.color),
+                    Some(crate::vartext::FontResource {
+                        name: key,
+                        font: metrics,
+                    }),
+                )
             }
             None => (
-                b"Helv".to_vec(),
-                crate::fontdata::Std14::Helvetica,
-                0.0,
-                crate::vartext::TextColor::Gray(0.0),
+                forms::parse_acroform(&self.graph())
+                    .and_then(|f| f.default_appearance)
+                    .unwrap_or_else(|| b"/Helv 0 Tf 0 g".to_vec()),
+                None,
             ),
         };
-        let default_da = crate::vartext::default_appearance_string(&da_key, da_size, da_colour);
-        // BOTH keys, and the second one is not belt-and-braces.
-        //
-        // `regen_field_appearance` resolves the font named by the /DA it is
-        // actually drawing, and that /DA may be the FIELD'S OWN -- every field
-        // pdfcer ever authored carries `/Helv`. Offering only the new key made
-        // the whole redraw fail with `FontUnresolved("Helv")` on the first
-        // test that changed a face, because the field's existing /DA still
-        // named Helvetica.
-        //
-        // So the list describes what `/DR` `/Font` will CONTAIN after this
-        // command: Helvetica, which `ensure_default_resources` guarantees, plus
-        // whatever the caller asked for. Deduped, so asking for Helvetica does
-        // not offer it twice.
-        let mut fonts = vec![crate::vartext::FontResource {
-            name: b"Helv".to_vec(),
-            font: crate::fontdata::Std14::Helvetica,
-        }];
-        if da_key != b"Helv" {
-            fonts.push(crate::vartext::FontResource {
-                name: da_key.clone(),
-                font: da_font,
-            });
+        // What `/DR` `/Font` will contain after this command: the document's
+        // own fonts (plus `Helv`), and the caller's face, whose `/DR` entry is
+        // staged in this command and not yet visible in the graph.
+        let mut fonts = self.resolve_dr_fonts();
+        if let Some(extra) = caller_font
+            && !fonts.iter().any(|r| r.name == extra.name)
+        {
+            fonts.push(extra);
         }
         let mut applied_autosize = None;
         let mut applied_autosize_bound = None;
@@ -37475,7 +37464,7 @@ impl EditSession {
         }
         let primary_id = primary.id;
 
-        let fonts = self.resolve_dr_fonts(&form);
+        let fonts = self.resolve_dr_fonts();
         let default_da = form
             .default_appearance
             .clone()
@@ -39448,7 +39437,7 @@ impl EditSession {
             .cloned()
             .collect();
 
-        let fonts = self.resolve_dr_fonts(&form);
+        let fonts = self.resolve_dr_fonts();
         let default_da = form
             .default_appearance
             .clone()
@@ -40537,7 +40526,7 @@ impl EditSession {
         // (multiline) list box, a single line for a combo.
         let display_text = display_values.join("\n");
 
-        let fonts = self.resolve_dr_fonts(&form);
+        let fonts = self.resolve_dr_fonts();
         let default_da = form
             .default_appearance
             .clone()
@@ -40674,7 +40663,7 @@ impl EditSession {
     /// path, and its name simply falls through to the Helvetica default). A
     /// synthetic `Helv → Helvetica` entry is always included so the common
     /// `/DA /Helv …` resolves even when a producer omitted `/DR`.
-    fn resolve_dr_fonts(&self, _form: &forms::AcroForm) -> Vec<FontResource> {
+    fn resolve_dr_fonts(&self) -> Vec<FontResource> {
         let mut out = vec![FontResource {
             name: b"Helv".to_vec(),
             font: Std14::Helvetica,
@@ -40876,7 +40865,7 @@ impl EditSession {
         self.fill_guards()?;
         let form = forms::parse_acroform(&self.graph()).ok_or(EditError::NoInteractiveForm)?;
         let want_all = form.need_appearances;
-        let fonts = self.resolve_dr_fonts(&form);
+        let fonts = self.resolve_dr_fonts();
         let default_da = form
             .default_appearance
             .clone()
