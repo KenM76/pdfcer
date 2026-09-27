@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (635th filing) — `a5cfe53f`: `Pass 349.0` SHIPPED — a side-effect field redraw discloses its layout decisions
+
+**Shipped:**
+- `Pass 349.0` — closes D8's undisclosed-counts half from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item: `edit_field`, `edit_widget`, `rotate_widget` and `reset_form` each redraw a text/choice field appearance as a side effect and discarded what that redraw decided — an applied auto-size, an unmodelled `/DA` colour, unencodable characters. `fill`/`regenerate_appearances` already reported these; these four were silent (rule 4).
+
+**Decisions made this session:**
+- None beyond the fix itself. D8 is narrowed rather than closed — its round-trip-gap findings (inherited quadding read-back, multi-select `/DV`, Regenerated-over-identical-bytes on check box/radio `/DA`) remain open.
+
+**Findings + decisions:**
+- New `pub` core type `edit::LayoutDisclosure { applied_autosize, applied_autosize_bound, da_colour_unmodelled, unencodable_chars }`, `#[non_exhaustive]`, `Default`; carried as a `layout` field on `ResetOutcome`, `FieldEditOutcome`, `WidgetEditOutcome` and `WidgetRotation` — all four drop `Eq` (new `f64` field), and nothing in the CLI or `pdfcer-gui` compared them by equality.
+- Bug found on discovery: `regen_field_appearance` recorded `da_colour_unmodelled` only inside the auto-size branch, so a FIXED-size `/DA` with an unmodelled colour reported nothing on any route, including `fill` and `regenerate`. Now OR-ed per widget.
+- CLI: the `fill` printer's three disclosures factored into a shared printer; `edit-field`, `edit-widget`, `rotate-widget` and `reset-form --apply` now print them to stderr.
+- Tests: core `tests/form_layout_disclosure.rs` (5 tests), CLI `tests/edit_field.rs::a_side_effect_redraw_discloses_what_it_substituted` (black-box, all four commands). Sabotage: reverting the colour OR, zeroing reset's counter, zeroing the shared counter, and dropping the CLI rotate print each independently fail. `tools/run-gates.sh`: PASS (39 commands).
+- `docs/core-api/02-editing-and-saving.md`: new `LayoutDisclosure` row, `ResetOutcome` row updated; `check-core-api-verbs` PASS. No manifest change — `cargo tree` unaffected, no dependencies added.
+- `docs/FEATURES.md` row 318: one clause added (and two trimmed to stay under the 1,200-char cap); no box change — core/cli were already ticked, gui stays untouched (GUI project hasn't wired these verbs).
+
+**Still in flight:**
+- The "Audit every `FieldEdit`/`WidgetEdit` property" Backlog item stays open — two `FieldEdit` findings (D4's remainder, D8's remainder) and two `WidgetEdit` findings remain.
+
+**For next session:**
+- Next candidates from the same audit: D4's remainder (non-WinAnsi/Type0 `/DR` fonts, vertical metrics), D8's remainder (inherited quadding read-back, multi-select `/DV`, Regenerated-over-identical-bytes on check box/radio `/DA`), or the two remaining `WidgetEdit` findings (stroke-width scaling reported but not drawn; radio/text-choice caption falsely reports Regenerated).
+
 ## 2026-09-27 (634th filing) — `7e0b3732`: `Pass 348.1` SHIPPED — a bound `/DR` font lays text out with its own `/Widths`
 
 **Shipped:**

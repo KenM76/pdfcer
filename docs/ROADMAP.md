@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 349.0` (`a5cfe53f`), 2026-09-27 — A side-effect field redraw discloses its layout decisions
+
+**Verdict: SHIPPED, closes D8's undisclosed-counts half from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`348.1`) — D8's other findings (inherited quadding read-back, multi-select `/DV`, Regenerated-over-identical-bytes on check box/radio `/DA`) stay open, reworded below.
+
+`fill`/`regenerate_appearances` already reported an applied auto-size, an unmodelled `/DA` colour and unencodable characters. `edit_field`, `edit_widget`, `rotate_widget` and `reset_form` each redraw a text/choice field appearance as a side effect and discarded what that redraw decided — a rule 4 (fuzzy, never sneaky) gap.
+
+**Fix.** New `pub` core type `edit::LayoutDisclosure { applied_autosize: Option<f64>, applied_autosize_bound: Option<vartext::AutoFitBound>, da_colour_unmodelled: bool, unencodable_chars: usize }`, `#[non_exhaustive]`, `Default`. Carried as a `layout` field on `ResetOutcome`, `FieldEditOutcome`, `WidgetEditOutcome` and `WidgetRotation` — all four drop their `Eq` derive (the new `f64` field), and nothing in the CLI or `pdfcer-gui` compared them by equality. A bug found on discovery: `regen_field_appearance` recorded `da_colour_unmodelled` only inside the auto-size branch, so a FIXED-size `/DA` with an unmodelled colour reported nothing on every route, including `fill` and `regenerate` — now OR-ed per widget regardless of branch.
+
+**CLI.** The `fill` printer's three disclosures are now a shared printer; `edit-field`, `edit-widget`, `rotate-widget` and `reset-form --apply` print them to stderr.
+
+**API.** `docs/core-api/02-editing-and-saving.md` gains the `LayoutDisclosure` row; `ResetOutcome`'s row updated; `check-core-api-verbs` PASS (index count updated).
+
+**Tests.** Core `tests/form_layout_disclosure.rs`, 5 tests (one per verb plus a colour-flag-without-auto-size case). CLI `tests/edit_field.rs::a_side_effect_redraw_discloses_what_it_substituted`, black-box over all four commands. Sabotage: reverting the colour OR, zeroing reset's counter, zeroing the shared counter, and dropping the CLI rotate print each independently fail their test. `tools/run-gates.sh`: PASS (39 commands, 2 filing gates).
+
+**Shells.** Core + CLI this Pass; GUI is a separate project and has not wired it. No manifest change — `cargo tree` unaffected, no dependencies added.
+
+**Backlog.** D8 narrowed to its remainder: (a) inherited quadding read-back, (b) multi-select `/DV`, (c) check box/radio `/DA` edits reporting Regenerated over identical bytes.
+
+**`docs/FEATURES.md`.** Row 318 gets one added clause (and two trimmed, to stay under the 1,200-char cap); no box change — core and cli were already ticked, gui stays untouched since the GUI project has not wired these verbs.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `a5cfe53f`, not independently reproduced.
+
 ### `Pass 348.1` (`7e0b3732`), 2026-09-27 — A bound `/DR` font lays text out with its own `/Widths`
 
 **Verdict: SHIPPED, narrows D4's remainder** (Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item, filed 2026-09-16, 562nd filing; earlier fixes `Pass 335.0`–`348.0`) — D4 stays open, reworded below.
@@ -17131,6 +17153,8 @@ suspicion this entry recorded.
 
 ★ **Fourteenth fix shipped — 2026-09-27 (634th filing, `Pass 348.1`, `7e0b3732`).** Narrows D4's remainder further, below: layout was still measured against the standard-14 stand-in's metrics even after `Pass 348.0` bound the drawing font; `vartext::FontResource` now carries the bound font's own `/Widths` and every measure/wrap/auto-fit/comb path prefers it — see *Shipped*, above. **D4 stays open** — non-WinAnsi/Type0 `/DR` fonts and vertical metrics (ascent) still use the stand-in. **Kept open** — two `FieldEdit` findings and two `WidgetEdit` findings remain.
 
+★ **Fifteenth fix shipped — 2026-09-27 (635th filing, `Pass 349.0`, `a5cfe53f`).** Closes D8's undisclosed-counts half, below: `edit_field`, `edit_widget`, `rotate_widget` and `reset_form` each redraw an appearance as a side effect and discarded what it decided (an applied auto-size, an unmodelled `/DA` colour, unencodable characters); new `pub` type `edit::LayoutDisclosure` is now carried on all four outcomes and printed by the CLI — see *Shipped*, above. A `da_colour_unmodelled` bug found on discovery (reported only inside the auto-size branch, so a fixed-size `/DA` never disclosed it on ANY route) is fixed alongside. **D8 stays open**, reworded below to its remainder. **Kept open** — two `FieldEdit` findings (D4's remainder, D8's remainder) and two `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
@@ -17140,7 +17164,7 @@ suspicion this entry recorded.
 - D1 — CLOSED by `Pass 346.0`, above. Was: comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — CLOSED by `Pass 345.0`, above. Was: password has no masking; plaintext lands in `/V` and `/AP`.
 - D7 — CLOSED by `Pass 347.0`, above. Was: replacing a choice field's options left `/I`/`/TI` pointing at positions in the OLD list.
-- D8 — round-trip gaps: inherited quadding read-back, multi-select `/DV`. Check box/radio `/DA` edits report Regenerated over identical bytes. Regen auto-size and unencodable-character counts are dropped, undisclosed.
+- D8 — undisclosed-counts half CLOSED by `Pass 349.0`, above: a side-effect redraw's auto-size, `/DA`-colour and unencodable-character decisions are now carried as `edit::LayoutDisclosure` on `edit_field`/`edit_widget`/`rotate_widget`/`reset_form` and printed by the CLI. **Open remainder:** round-trip gaps — inherited quadding read-back, multi-select `/DV`; check box/radio `/DA` edits report Regenerated over identical bytes.
 
 **WidgetEdit:**
 - Border width/style — CLOSED by `Pass 340.0`, above. Was: every widget builder hard-coded a 1pt solid frame; a border edited or authored with `/BS` width or style (dashed/underline/beveled/inset) was written but never painted, while the outcome reported Regenerated.
