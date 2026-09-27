@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (645th filing) — `ea518cbf`: `Pass 358.0` SHIPPED — `list-layers --tree` shows folders and sublayers
+
+**Shipped:**
+- Pass 358.0 — `pdfcer list-layers --tree` prints the `/D /Order` panel tree (folders, nesting, radio groups, unresolved refs, not-in-order layers). Cheapest item of family `358` (filed 644th filing); core `OrderNode` reader pre-existed since `Pass 57.0`, this is the first shell surface reaching it.
+
+**Decisions made this session:**
+- None new — this filing is a completion of a Pass scoped in the prior (644th) filing.
+
+**Findings + decisions:**
+- No core change was needed; `layers::read_layers().order` already modelled folders/nesting/radio groups. The gap was purely a CLI presentation gap.
+
+**Still in flight:**
+- `Pass 358.1`–`358.6` (layer properties, create/delete, folder authoring, content/annotation `/OC` assignment, layer-on-add, merge/flatten) — none started.
+- `flatten_annotations` (`G043` option B) — still unscoped, carried forward.
+
+**For next session:**
+- Pick up `Pass 358.1` (edit a layer's own properties) or `flatten_annotations`'s scoping — both open, neither blocks the other.
+
 ## 2026-09-27 (644th filing) — filed `Pass 358.0`–`358.6`: general-purpose OCG layer authoring (Next up, no code yet)
 
 **Shipped:**

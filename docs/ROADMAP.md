@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 358.0` (`ea518cbf`), 2026-09-27 — `list-layers --tree` shows folders and sublayers
+
+**Verdict: SHIPPED**, the cheapest item of family `358` (general-purpose OCG layer authoring, filed 644th filing) — a CLI read verb over the core `OrderNode` tree that already existed since `Pass 57.0`. `358.1`–`358.6` (properties, create/delete, folder authoring, content/annotation `/OC` assignment, layer-on-add, merge/flatten) are unstarted.
+
+`pdfcer list-layers --tree` prints the document's `/D /Order` panel tree (ISO 32000-1 §8.11.4.3 Table 101), one line per node, two-space indent per depth: `folder label="..."` for a labelled nested array (non-selectable), `layer name=... visible=N [locked]` for a group with indented sublayer children, `layer name=- unresolved=N` for a dangling reference, `group` for an unlabelled grouping with no layer. Layers not reached by `/Order` print afterwards at depth 0, flagged not-in-order. Default flat output is unchanged.
+
+**Core.** No change — `layers::read_layers().order` (`OrderNode { label, group, children }`) already existed and is already on `docs/core-api`.
+
+**Tests.** 3 new CLI tests, `crates/pdfcer-cli/tests/list_layers_tree.rs`: exact tree against `fixtures/synthetic/layers/nested-order.pdf`; a layer not reached by `/Order` still lists in `basic-layers.pdf`; the flat default has no folder rows. Sabotage verified twice (mutations caught).
+
+**Shells.** cli `[x]`. core `[x]` (pre-existing). gui `[ ]` — separate project, not wired.
+
+**Gates.** No manifest change — `cargo tree` unaffected.
+
+**`docs/FEATURES.md`.** Row for "View the `/OCProperties` layer tree with FOLDERS" ticked cli `[x]` (core was already `[x]`); gui stays `[ ]`. Organising/creating folders (`358.3`) is a separate row, untouched.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `ea518cbf`, not independently reproduced.
+
 ### `Pass 357.0` (`a6695bae`), 2026-09-27 — A re-encoded `/DR` font draws with its own codes
 
 **Verdict: SHIPPED, closes D4's remainder** from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item (filed 2026-09-16, 562nd filing) — **D4 is now closed** for every simple font with a nameable base encoding; the item's audit is complete.
@@ -8046,16 +8064,6 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
-
-### `Pass 358.0` — Layer tree read surface (folders, nesting, radio groups)
-
-**Filed 2026-09-27 (644th filing).** Operator, verbatim: *"Also layers can be organized into folders. I saw that in Acrobat Reader. Not sure if we are able to view organize and add folders yet."* Family `358` — general-purpose OCG layer authoring, the Backlog item at this file's "Document-wide OCG/layers panel" bullet, VIEW-only since `Pass 57.0`. Scoped against `pdfcer-acrobat-librarian`'s five 2026-09-27 findings files: `layers__layer_properties_authoring.md`, `layers__order_folder_reordering.md`, `layers__import_merge_flatten_content_authoring.md`, `layers__annotation_form_field_oc_assignment.md`, `layers__ocmd_rbgroups_configs_nested_xobjects.md` (`D:\Dev\Rag-Specialized\Acrobat_Features\`).
-
-**Premise (measured, not re-derived).** Core already reads the full `/OCProperties` `/D /Order` tree — `layers::read_layers`, `OrderNode { label, group, children }` — but `list-layers` prints a FLAT list only; no general OCG has any writer; the only `/Order`/`/OC` writer in the codebase is the ce-dimension group subsystem (unrelated — see the Glossary's ce-dimension entry).
-
-**Scope.** A shell-facing read verb returning the existing `OrderNode` tree — folders as label nodes, nesting, radio groups, locked, default state, usage — no new core reader needed. `list-layers --tree` prints it indented; folders render as non-selectable headings distinct from OCG rows. The flat output stays the default.
-
-**Acceptance criteria.** A nested folder prints correctly indented; a radio group prints as a group, not flattened into siblings; an OCG two folders deep round-trips its full path; `list-layers` with no flag is byte-identical to pre-Pass output.
 
 ### `Pass 358.1` — Edit a layer's own properties
 

@@ -472,7 +472,7 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
-| [ ] | [ ] | [ ] | [x] | **View the `/OCProperties` layer tree with FOLDERS** — `list-layers --tree`, reading the existing (already-built) `OrderNode` folder/nesting/radio-group model no shell surface reaches yet. `Pass 358.0`, *Next up* — family `358`, general OCG layer authoring (Acrobat_Features/`layers__layer_properties_authoring.md`). |
+| [x] | [x] | [ ] | [x] | **View the `/OCProperties` layer tree with FOLDERS** — `list-layers --tree` reads the existing `OrderNode` folder/nesting/radio-group model. `Pass 358.0` SHIPPED (`ea518cbf`) — family `358`, general OCG layer authoring (Acrobat_Features/`layers__layer_properties_authoring.md`). |
 | [ ] | [ ] | [ ] | [x] | **Edit a layer's own properties** — name, default on/off, lock, Print/Export usage, Intent, as real saved edits. `Pass 358.1`, *Next up* — family `358` (Acrobat_Features/`layers__layer_properties_authoring.md`). |
 | [ ] | [ ] | [ ] | ◐ | **Create and delete a layer** — Acrobat has no New Layer command at all and deletes only via Preflight, so both directions here exceed Acrobat once built. `Pass 358.2`, *Next up* — family `358` (Acrobat_Features/`layers__layer_properties_authoring.md`). |
 | [ ] | [ ] | [ ] | ◐ | **Organise `/Order` folders** — add/rename/delete a folder, move a layer in or out, reorder; Acrobat reorders `/Order` but cannot create a folder, so folder creation exceeds Acrobat. `Pass 358.3`, *Next up* — family `358` (Acrobat_Features/`layers__order_folder_reordering.md`). |
