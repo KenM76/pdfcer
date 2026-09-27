@@ -4,6 +4,52 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (623rd filing) — `e636f240`: `Pass 338.0` SHIPPED — property redraws use the form's `/DA` and `/DR` fonts
+
+**Shipped:**
+- `Pass 338.0` — closes D5/X1 from the Backlog's "Audit every `FieldEdit`/
+  `WidgetEdit` property" item (filed 2026-09-16, 562nd filing; earlier
+  fixes were `Pass 335.0`, `336.0`, `337.0`); the item stays open.
+  `regen_after_property_change`, the redraw path for `edit_field` and
+  `edit_widget`, fell back to a hard-coded `/Helv 0 Tf 0 g` and resolved
+  only `Helv` plus the caller's staged face, instead of the `/AcroForm`
+  `/DA`/`/DR` fonts the fill path already reads (§12.7.3.3). A field
+  with no own `/DA` under a non-Helv `/AcroForm` `/DA` redrew in
+  Helvetica; a field whose own `/DA` named a non-Helv `/DR` key failed
+  every property edit with `FontUnresolved`.
+
+**Decisions made this session:** none — a scoped correctness fix, no
+architecture change.
+
+**Findings + decisions:**
+- Fix: the fallback is now the `/AcroForm`'s `/DA`, and the fonts
+  resolved are `resolve_dr_fonts` plus the caller's staged face. Partly
+  fixes D4 too: a Resource face present in `/DR` now gets `/DR`'s
+  standard-14 metrics instead of Helvetica's — D4 stays open for a
+  Resource face outside `/DR` or not standard-14.
+- 2 new tests in `crates/pdfcer-core/tests/form_edit_audit.rs` assert
+  `/AP` stream bytes; both fail with the source fix stashed.
+  `tools/run-gates.sh`: PASS (39 commands). No `pub` change, no
+  manifest change.
+- Core only — CLI's `edit-field`/`edit-widget` already reach the fix,
+  no CLI change; neither box moves.
+- `docs/FEATURES.md` row 318 gets one added clause (still under the
+  1,200-character cap); no box change.
+- `docs/ROADMAP.md`'s audit Backlog entry marks D5/X1 CLOSED by
+  `Pass 338.0` and notes D4's partial fix; six `FieldEdit` findings
+  and six `WidgetEdit` findings remain.
+
+**Still in flight:** the widened audit entry's remaining findings are
+unscoped, no Pass IDs assigned yet. D4/D4b look like the next
+candidates.
+
+**For next session:** scope the next-worst remaining audit finding into
+a Pass.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verified report of
+`e636f240`, not independently reproduced.
+
 ## 2026-09-26 (622nd filing) — `35ab8c5f`: `Pass 337.0` SHIPPED — an options change redraws the new label
 
 **Shipped:**

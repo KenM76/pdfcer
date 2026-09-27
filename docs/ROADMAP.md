@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 338.0` (`e636f240`), 2026-09-27 — Property redraws use the form's `/DA` and `/DR` fonts
+
+**Verdict: SHIPPED, closes D5/X1 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0`, `336.0`, `337.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
+
+`regen_after_property_change`, the redraw path shared by `edit_field` and `edit_widget`, fell back to a hard-coded `/Helv 0 Tf 0 g` and resolved only `Helv` plus the caller's staged face, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads (ISO 32000-1 §12.7.3.3). A field with no own `/DA`, under an `/AcroForm` `/DA` naming another face, was redrawn in Helvetica by any property edit; a field whose own `/DA` named any `/DR` key other than `Helv` failed every property edit with `VariableText(FontUnresolved)`.
+
+**Fix.** The fallback is now the `/AcroForm`'s `/DA`, and the fonts resolved are `resolve_dr_fonts` plus the caller's staged face. This also partly fixes D4, below: a Resource face present in `/DR` now gets `/DR`'s standard-14 metrics instead of Helvetica's — D4 stays open for a Resource face that is not in `/DR` or is not standard-14.
+
+**Tests.** 2 new tests in `crates/pdfcer-core/tests/form_edit_audit.rs` asserting `/AP` stream bytes; both fail with the source fix stashed. `tools/run-gates.sh`: PASS (39 commands). No `pub` change, no manifest change.
+
+**Shells.** Core fix only, reached by CLI `edit-field`/`edit-widget` unchanged. Neither box moves.
+
+**`docs/FEATURES.md`:** row 318 gets one added clause (well under the 1,200-char cap); no box change — correctness fix under an already-ticked capability.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's own verified report of `e636f240`, not independently reproduced.
+
 ### `Pass 337.0` (`35ab8c5f`), 2026-09-26 — An options change redraws the new label, not the stale one
 
 **Verdict: SHIPPED, closes D3 from the Backlog's "Audit every `FieldEdit`/`WidgetEdit` property" item** (filed 2026-09-16, 562nd filing; earlier fixes were `Pass 335.0` and `Pass 336.0`) — the item stays open, remaining findings unresolved (see *Backlog*).
@@ -16889,11 +16905,13 @@ suspicion this entry recorded.
 
 ★ **Third fix shipped — 2026-09-26 (622nd filing, `Pass 337.0`, `35ab8c5f`).** Closes D3, below: `EditSession::edit_field` redrew a choice field's label through the pre-command snapshot's stale options; the snapshot is now patched from the options list being written, before `choice_display_text` runs — same repair as `/DA` and `/Q`. **Kept open** — seven `FieldEdit` findings and six `WidgetEdit` findings remain.
 
+★ **Fourth fix shipped — 2026-09-27 (623rd filing, `Pass 338.0`, `e636f240`).** Closes D5/X1, below, and partly fixes D4: `regen_after_property_change` fell back to a hard-coded `/Helv 0 Tf 0 g` and resolved only `Helv`; it now falls back to the `/AcroForm`'s `/DA` and resolves every `/DR` font plus the caller's staged face — see *Shipped*, above. **Kept open** — six `FieldEdit` findings and six `WidgetEdit` findings remain.
+
 **FieldEdit:**
 - D6 — CLOSED by `Pass 336.0`, above. Was: clearing a `/Ff` bit on a kid deletes its own `/Ff` and re-exposes the parent's inherited bits (§12.7.3.1 inheritable) — clearing Required made the kid ReadOnly. Same shape for `/DV` and `reset_form`.
 - D3 — CLOSED by `Pass 337.0`, above. Was: an options change bakes a stale label: `choice_display_text` reads the pre-edit snapshot's options, not the new ones.
-- D5/X1 — `regen_after_property_change` falls back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redraws in Helvetica, and a non-Helv `/DA` key gives `FontUnresolved` on a later edit.
-- D4 — a resource font is forced to Helvetica.
+- D5/X1 — CLOSED by `Pass 338.0`, above. Was: `regen_after_property_change` fell back to a hard-coded `/Helv 0 Tf 0 g` and only `[Helv]`, instead of the `/AcroForm` `/DA`/`/DR` fonts the fill path already reads: an inherited `/DA` redrew in Helvetica, and a non-Helv `/DA` key gave `FontUnresolved` on a later edit.
+- D4 — a resource font not in `/DR`, or not standard-14, is still forced to Helvetica (partly fixed by `Pass 338.0`: a Resource face present in `/DR` now gets `/DR`'s standard-14 metrics).
 - D4b — a push-button `/DA` edit is not redrawn.
 - D1 — comb/`max_len` get no comb layout, yet report Regenerated.
 - D2 — password has no masking; plaintext lands in `/V` and `/AP`.
