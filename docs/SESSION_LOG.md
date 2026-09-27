@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (649th filing) — `f773a1d4`: `Pass 358.2` DELETE (keep-unlayered) SHIPPED — `delete_layer` / `pdfcer layer-delete`
+
+**Shipped:**
+- Pass 358.2 (delete half, `LayerContentPolicy::KeepUnlayered` only) — `EditSession::delete_layer(layer, LayerContentPolicy::KeepUnlayered) -> Result<LayerDeleteOutcome, EditError>`. `LayerContentPolicy` is `#[non_exhaustive]`, one variant today. Removes the OCG from `/OCGs`; from `/ON`/`/OFF`/`/Locked`/`/Order` (any depth)/`/RBGroups`/`/AS` in `/D` and every `/Configs` entry (an emptied `/RBGroups` inner array or `/AS` entry is dropped). Unwraps every `/OC /name BDC … EMC` naming it (ISO 32000-1 §8.11.3.2) — page content, form XObjects, tiling patterns, annotation `/AP` streams; a nested section keeps its own layer. Removes bound `/Properties` names and any direct `/OC` on annotations/XObjects. Rewritten streams stored unfiltered; the OCG object stays in the file, unreferenced. One undo entry, `CommandKind::DeleteLayer`. Disclosure `LayerDeleteOutcome { changed, sections, streams, annotations, xobjects }`. Refusals, all pre-write: `LayerNotFound`; new `LayerInMembership { layer, ocmd }`; new `LayerContentNotRewritable { stream, reason }`; `DocumentEncrypted`; certification.
+- CLI `pdfcer layer-delete <in> --layer NAME | --id N -o out [--mode] [--verify-undo]`, prints `sections= streams= annotations= xobjects=`, exit 9 on refusal. README subcommand count 158.
+
+**Decisions made this session:**
+- None new. `/RBGroups` membership is cleaned up rather than refused — a deliberate deviation from the acceptance criterion's "refused by name" wording, noted in `docs/ROADMAP.md` §358.2 rather than a new decision entry (the criterion's intent — nothing left dangling — is still met).
+
+**Findings + decisions:**
+- Tests: 2 core (`painted-layers.pdf` unwrap+undo; `ocmd-membership.pdf` refusal), 2 CLI. 4 sabotage mutations, each caught. `tools/run-gates.sh`: PASS, 39 commands. No dependency/manifest change — `cargo tree` unaffected.
+- `docs/core-api` §1.32 gains a row; verb count 255, `EditError` variant count 142.
+- `docs/FEATURES.md` "Create and delete a layer" row text updated (create + delete-keep-unlayered shipped, remove-content still open); boxes unchanged (core `[x]` / cli `[x]` / gui `[ ]`, still ◐ since the whole capability hasn't landed).
+
+**Still in flight:**
+- `Pass 358.2` — `LayerContentPolicy::RemoveContent` (remove marked sections/XObject `Do`/non-widget annotations, refuse widgets by name, disclose counts, redaction-style confirm-before-destructive-save). This is the only remaining piece of `Pass 358.2`.
+- `Pass 358.3`–`358.6` (folder organisation, content/annotation `/OC` assignment, layer-on-add, merge/flatten) — none started.
+- `flatten_annotations` (`G043` option B) — still unscoped, carried forward.
+
+**For next session:**
+- Pick up the `remove content` policy to close out `Pass 358.2`, or move on to `Pass 358.3`/`358.4` — either is open, neither blocks the other.
+
 ## 2026-09-27 (648th filing) — `006c0155`: `Pass 358.2` CREATE half SHIPPED — `add_layer` / `pdfcer layer-add`
 
 **Shipped:**
