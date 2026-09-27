@@ -47677,7 +47677,7 @@ impl EditSession {
     ///
     /// ```no_run
     /// use pdfcer_core::edit::{EditSession, LayerEdit, LayerOutputState};
-    /// # fn run(session: &mut EditSession, layer: pdfcer_core::ObjId) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn run(session: &mut EditSession, layer: pdfcer_core::object::ObjId) -> Result<(), Box<dyn std::error::Error>> {
     /// let edit = LayerEdit::new()
     ///     .name("Dimensions")
     ///     .locked(true)
