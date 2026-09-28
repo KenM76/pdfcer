@@ -164,6 +164,7 @@ mod style_ladder;
 mod subpath_delete;
 mod subpath_hit;
 mod synthesis_gate;
+mod table_detect;
 mod text_edit;
 mod text_edit_span;
 mod text_extract;

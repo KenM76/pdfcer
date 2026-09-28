@@ -23,6 +23,7 @@ mod embed_font;
 mod export_dxf;
 mod export_image;
 mod extract_layout;
+mod extract_tables;
 mod extract_tags;
 mod extract_text;
 mod fill_rich_text;

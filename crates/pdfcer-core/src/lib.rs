@@ -92,6 +92,7 @@ pub mod sound;
 /// one page per stamp, names in the catalog's `/Names` -> `/Pages` tree.
 pub mod stamp_file;
 pub mod structure;
+pub mod table_detect;
 pub mod text_edit;
 pub mod vector;
 pub mod wrapper;

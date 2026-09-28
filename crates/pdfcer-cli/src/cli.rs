@@ -3025,6 +3025,31 @@ pub(crate) enum Command {
         json: bool,
     },
 
+    /// Find ruled tables: each table's grid of rows and columns, its cells
+    /// (with row and column spans for merged cells) and each cell's text.
+    ///
+    /// A table is found from drawn rules: stroked lines, stroked
+    /// rectangles and thin filled bars. White rules and a lone box (a
+    /// frame) are not tables. The first row is reported as a header when
+    /// its text is bold, it is shaded, or the rule under it is heavier;
+    /// the header line says which.
+    ///
+    /// Everything here is inferred. The result line counts each table,
+    /// merged cell and header guess, so a script can disclose them.
+    ExtractTables {
+        /// Input PDF.
+        input: PathBuf,
+        /// Write the tables here instead of to stdout.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Emit JSON: per table, the page, box, header evidence, row and
+        /// column bands, and the cells (row, col, spans, box, text, and
+        /// the [run, glyph] indices of their glyphs in `extract-text
+        /// --json` order).
+        #[arg(long)]
+        json: bool,
+    },
+
     /// **Download the OCR model weights**, verified against a pinned
     /// SHA-256 before anything is written.
     ///

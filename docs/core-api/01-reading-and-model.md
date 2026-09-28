@@ -1350,6 +1350,51 @@ let n = layout.diagnostics.inferred();          // heuristic kind decisions
   minus the rest's, in points.
 - CLI: `pdfcer extract-layout in.pdf [--json] [-o out]`.
 
+### 8.4.4 Tables — ruled cell grids (`Pass 374.0`)
+
+A page's tables as rows, columns and cells, from drawn rules. Every table,
+merged cell and header guess is an inference and is counted in
+`diagnostics`; the shell must say so (CLAUDE.md rule 4). A tagged file's own
+`/Table` structure is §8.4.2, not this.
+
+```rust
+use pdfcer_core::table_detect::{self, HeaderEvidence, TableOptions};
+
+let found = table_detect::detect_tables(&doc, &opts, &TableOptions::default())?;
+for t in &found.tables {                        // by page, then top to bottom
+    // t.page_index, t.bbox (user space), t.source: BoundarySource::Ruled
+    // t.rows / t.columns: Vec<Rect> bands, user space, top-to-bottom /
+    //                     left-to-right as displayed
+    // t.header_rows: 0 or 1; t.header_evidence: Bold | Filled | HeavyRule
+    for c in &t.cells {                         // row-major by top-left
+        // c.row, c.col, c.row_span, c.col_span (>= 1), c.bbox
+        // c.glyphs: Vec<GlyphRef{run, glyph}> into found.text.pages[t.page_index]
+        // c.text: a space at a word gap, '\n' between lines
+    }
+    let cell = t.cell(0, 0);                    // by top-left position
+}
+let n = found.diagnostics.inferred();           // tables + merged cells + headers
+```
+
+- Rules are stroked axis-aligned segments (per subpath segment, so a CAD
+  view drawn as one path still yields its lines) and filled rectangles at
+  most `thin_fill` (2 pt) thick, from the page and its form XObjects. White
+  ink and curves are ignored. Rules within `snap_tolerance` (3 pt) merge;
+  collinear pieces within `join_tolerance` (3 pt) join; rules under
+  `min_rule_length` (3 pt) are dropped.
+- A cell is the smallest rectangle closed by four connected rule crossings.
+  Cells sharing a corner form one table; a lone box is a frame, not a table
+  (`single_cell_frames`). Spans come from the table's distinct cell edges.
+- A glyph belongs to the smallest cell containing its centre.
+- Header row: row 0's glyphs ≥ 60% bold and the rest < 30%; else a
+  non-white fill covering ≥ 80% of row 0 and not of row 1; else the rule
+  under row 0 ≥ 1.5 × the median of the table's other horizontal rules.
+- Over 50,000 rules or 20,000 crossings on a page, that page is skipped and
+  counted (`pages_over_limit`) rather than searched.
+- Analysis runs as displayed (`/Rotate` applied); boxes are user space.
+- Whitespace-aligned (unruled) tables are not detected yet.
+- CLI: `pdfcer extract-tables in.pdf [--json] [-o out]`.
+
 ### 8.5 ★ Search — it lives on `EditSession`
 
 There is no read-only search entry point. Text search is:

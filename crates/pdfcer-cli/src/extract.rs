@@ -1989,6 +1989,168 @@ fn layout_json(layout: &pdfcer_core::block_layout::DocumentLayout) -> String {
     out
 }
 
+/// **Find ruled tables** (`G055`).
+///
+/// Text output is one table per header line,
+/// `page N table K ruled rows=R cols=C header=<none|bold|filled|heavy-rule>`,
+/// then one cell per line, `r<row>c<col>[<rows>x<cols>] "<text>"`, where the
+/// bracket appears only for a merged cell. The result line counts every
+/// inference and every rule source.
+pub(crate) fn cmd_extract_tables(input: &Path, output: Option<&Path>, json: bool) -> u8 {
+    use pdfcer_core::table_detect::{TableOptions, detect_tables};
+    use pdfcer_core::text_extract::ExtractOptions;
+
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let found = match detect_tables(
+        &doc.view(),
+        &ExtractOptions::default(),
+        &TableOptions::default(),
+    ) {
+        Ok(found) => found,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let payload = if json {
+        tables_json(&found)
+    } else {
+        tables_text(&found)
+    };
+    match output {
+        Some(path) => {
+            if let Err(err) = std::fs::write(path, payload.as_bytes()) {
+                eprintln!("pdfcer: {}: {err}", path.display());
+                return exit::IO_ERROR;
+            }
+        }
+        None => print!("{payload}"),
+    }
+    let d = &found.diagnostics;
+    println!(
+        "tables {} pages={} tables={} inferred={} ruled={} cells={} merged_cells={} \
+header_rows={} rules_from_strokes={} rules_from_fills={} single_cell_frames={} \
+pages_over_limit={} pages_unreadable={}",
+        input.display(),
+        d.pages,
+        found.tables.len(),
+        d.inferred(),
+        d.tables_ruled,
+        d.cells,
+        d.merged_cells,
+        d.header_rows_inferred,
+        d.rules_from_strokes,
+        d.rules_from_fills,
+        d.single_cell_frames,
+        d.pages_over_limit,
+        d.pages_unreadable(),
+    );
+    exit::SUCCESS
+}
+
+fn header_evidence_name(e: Option<pdfcer_core::table_detect::HeaderEvidence>) -> &'static str {
+    use pdfcer_core::table_detect::HeaderEvidence;
+    match e {
+        None => "none",
+        Some(HeaderEvidence::Bold) => "bold",
+        Some(HeaderEvidence::Filled) => "filled",
+        Some(HeaderEvidence::HeavyRule) => "heavy-rule",
+        Some(_) => "other",
+    }
+}
+
+fn table_source_name(s: pdfcer_core::table_detect::BoundarySource) -> &'static str {
+    use pdfcer_core::table_detect::BoundarySource;
+    match s {
+        BoundarySource::Ruled => "ruled",
+        _ => "other",
+    }
+}
+
+fn tables_text(found: &pdfcer_core::table_detect::DocumentTables) -> String {
+    let mut out = String::new();
+    let mut per_page = std::collections::HashMap::<usize, usize>::new();
+    for t in &found.tables {
+        let k = per_page.entry(t.page_index).or_insert(0);
+        *k += 1;
+        out.push_str(&format!(
+            "page {} table {} {} rows={} cols={} header={}\n",
+            t.page_index + 1,
+            k,
+            table_source_name(t.source),
+            t.rows.len(),
+            t.columns.len(),
+            header_evidence_name(t.header_evidence)
+        ));
+        for c in &t.cells {
+            let span = if c.row_span > 1 || c.col_span > 1 {
+                format!("[{}x{}]", c.row_span, c.col_span)
+            } else {
+                String::new()
+            };
+            out.push_str(&format!("  r{}c{}{span} {:?}\n", c.row, c.col, c.text));
+        }
+    }
+    out
+}
+
+fn tables_json(found: &pdfcer_core::table_detect::DocumentTables) -> String {
+    let rects = |v: &[pdfcer_core::page_tree::Rect]| {
+        v.iter()
+            .map(layout_rect_json)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let mut out = String::from("{\n  \"tables\": [");
+    for (ti, t) in found.tables.iter().enumerate() {
+        if ti > 0 {
+            out.push(',');
+        }
+        let cells: Vec<String> = t
+            .cells
+            .iter()
+            .map(|c| {
+                let glyphs: Vec<String> = c
+                    .glyphs
+                    .iter()
+                    .map(|g| format!("[{}, {}]", g.run, g.glyph))
+                    .collect();
+                format!(
+                    "\n        {{\"row\": {}, \"col\": {}, \"row_span\": {}, \"col_span\": {}, \
+\"bbox\": {}, \"text\": \"{}\", \"glyphs\": [{}]}}",
+                    c.row,
+                    c.col,
+                    c.row_span,
+                    c.col_span,
+                    layout_rect_json(&c.bbox),
+                    json_escape(&c.text),
+                    glyphs.join(", ")
+                )
+            })
+            .collect();
+        out.push_str(&format!(
+            "\n    {{\"page\": {}, \"source\": \"{}\", \"bbox\": {}, \"header_rows\": {}, \
+\"header_evidence\": \"{}\", \"rows\": [{}], \"columns\": [{}], \"cells\": [{}\n      ]}}",
+            t.page_index + 1,
+            table_source_name(t.source),
+            layout_rect_json(&t.bbox),
+            t.header_rows,
+            header_evidence_name(t.header_evidence),
+            rects(&t.rows),
+            rects(&t.columns),
+            cells.join(",")
+        ));
+    }
+    out.push_str("\n  ]\n}\n");
+    out
+}
+
 fn tags_text(tree: &pdfcer_core::structure_tree::StructureTree) -> String {
     let mut out = String::new();
     for (i, e) in tree.elements.iter().enumerate() {

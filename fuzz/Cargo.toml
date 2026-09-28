@@ -258,6 +258,14 @@ test = false
 doc = false
 bench = false
 
+# G055: ruled table detection (path geometry, rotation, tolerances).
+[[bin]]
+name = "table_detect"
+path = "fuzz_targets/table_detect.rs"
+test = false
+doc = false
+bench = false
+
 # Pass 6.0 (docs/decisions/008): the annotation-walk target. Drives the
 # read-side annotation model — the /Annots walk and the §12.5.5 /AP /N
 # appearance selection with its negative-result taxonomy (cyclic /AP,
