@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (709th filing) — `310489bd`: `Pass 380.0` SHIPPED — export detected tables to Excel (XLSX)
+
+**Shipped:**
+- `Pass 380.0` (`310489bd`) — `pdfcer_core::export::xlsx::write_xlsx`, hand-
+  written SpreadsheetML (ECMA-376 Part 1 §18) in an OPC zip over a new
+  private zip writer (`export/ooxml_zip.rs`, built on the existing
+  `flate2` dependency, no new one). `SheetLayout`/`NumberLocale` options;
+  Auto number parsing stays text (and is counted) on a genuinely ambiguous
+  separator-plus-three-digits cell — the deliberate fix for Acrobat's
+  documented silent-wrong-number failure. CLI `pdfcer export-xlsx`.
+  Full detail: `ROADMAP.md` *Shipped*, top of file.
+- Chore `0bf5dba4` ("chore(vendor): sync OCRcer to f87a39267425") — also
+  filed this session; unrelated housekeeping, recorded so
+  `check-commits-filed.py` sees it filed.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- None beyond what's in the `Pass 380.0` Shipped entry.
+
+**Still in flight:**
+- `Pass 381.0` (DOCX export) is now the sole head of *Next up* — same
+  Backlog bucket, reuses `380.0`'s zip container and `Pass 373.0`'s block
+  layout.
+
+**For next session:**
+- No shell this filing (hard rule 8). Backup/push/release state not
+  verifiable from here; latest release on record remains `v0.61.0`
+  (tagged on `7abc3daf`).
+
 ## 2026-09-28 (707th filing) — `7abc3daf`: `v0.61.0` RELEASED
 
 **Shipped:**

@@ -115,6 +115,83 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 380.0` (`310489bd`), 2026-09-28 — export detected tables to Excel (XLSX)
+
+**Verdict: SHIPPED.** Head of *Next up* (scoped 708th filing, from the
+"Export to Word/Excel" Backlog bucket). New
+`pdfcer_core::export::xlsx::write_xlsx(&[Table], &XlsxOptions) ->
+Result<XlsxOutput, PackageError>`, writing SpreadsheetML (ECMA-376 Part 1
+§18) in an OPC zip (Part 2) over a new private zip writer
+(`export/ooxml_zip.rs`) built on the existing `flate2` dependency — no new
+dependency, no ZIP64 (`PackageError::TooLarge` past 4 GiB/65,535 parts),
+deterministic bytes (fixed 1980-01-01 DOS date).
+
+**Options.** `SheetLayout::{PerTable (default)/PerPage/Single}`;
+`NumberLocale::{Auto (default)/Us/European/Off}`. Auto converts only
+locale-independent numbers; a single separator followed by exactly 3
+digits (`1,234`/`1.234`) is ambiguous, stays text, and is counted in
+`ambiguous_numbers` — the deliberate fix for Acrobat's documented
+silent-wrong-number failure (exceed-Acrobat divergence,
+`office_export__excel_table_extraction.md`). Leading zero, >15 significant
+digits, or any other character stays text under every locale; `(x)` reads
+as negative.
+
+**Layout.** Merged cells become merged ranges; header rows (`Pass 374.0`'s
+guess) bold; multi-line cells wrap; column widths from column bands at
+5.25 pt/unit, clamped 3–80. No tables → one empty sheet.
+
+**Disclosure (rule 4).** `XlsxReport` counts sheets, tables, cells, merged
+cells, header rows, numbers, ambiguous numbers, characters dropped, cells
+truncated, cells beyond Excel's row/column limits — printed on the CLI
+result line.
+
+**CLI.** `pdfcer export-xlsx in.pdf -o out.xlsx [--sheets
+table|page|single] [--numbers auto|us|european|off]`. Subcommand count
+177 → 178 (README updated).
+
+**Tests.** 9 new core unit tests (2 zip, 7 xlsx; 11 of 11 export-module
+tests pass), 2 new CLI integration tests (`tests/export_xlsx.rs`,
+harnessed in `tests/all.rs`). Sabotage checks on the ambiguous-number
+branch and the merged-cell count both caught.
+
+**External verification.** openpyxl read the merged range and the number;
+Microsoft Excel via COM opened the file and read `B3=1234` as a Double
+under `--numbers us`, merged `A1:B1` True.
+
+**Gates.** `tools/run-gates.sh` re-run after fixing 4 unrelated failures
+(help-text markup, clap-help count, control bytes, undocumented fn) plus
+the `0bf5dba4` OCRcer vendoring sync — engineer reports it green; not
+independently re-run from here (no shell).
+
+**`cargo tree`.** No dependency change — `flate2`/`thiserror` already in
+`pdfcer-core`.
+
+**Docs.** `docs/core-api/03-capabilities.md` §7.12 added;
+`check-core-api-verbs` PASS.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — no GUI wiring this Pass.
+
+**`docs/FEATURES.md`.** Row moved *Planned* → *Implemented*, *Export*
+section: core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`. The DOCX row
+(`Pass 381.0`) stays in *Planned*, updated to note it's now the sole head
+of *Next up*.
+
+**No §12 decision.** New export module + private zip writer, no crate
+boundary or invariant change — same call as `Pass 373.0`/`374.0`. Highest
+decision record stays `165`.
+
+**Also filed this session.** Chore commit `0bf5dba4` ("chore(vendor): sync
+OCRcer to f87a39267425") — unrelated housekeeping (upstream OCRcer moved,
+`check-ocrcer-vendored` had failed); `ocrcer-core` unit tests 214 of 214;
+its `nn_parity` test needs an unvendored fixture and fails identically
+before and after — pre-existing, not a regression. Recorded so
+`check-commits-filed.py` sees it filed.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
+dispatching engineer's own verification at `310489bd`/`0bf5dba4`, not
+independently reproduced. Backup/push/release state not verifiable from
+here; latest release on record remains `v0.61.0` (tagged on `7abc3daf`).
+
 ### `v0.61.0` — RELEASED (2026-09-28)
 
 Release filing, not a Pass — completes the engineer's in-progress release
@@ -9590,6 +9667,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★ **`Pass 380.0` SHIPPED, 2026-09-28 (709th filing), `310489bd`** — see
+> top of *Shipped*. Closes the XLSX half of the pair scoped the 708th
+> filing (Backlog bucket below). **`Pass 381.0` (DOCX export) is now the
+> sole head of *Next up*.**
+
 > ★★★★★ **TWO ITEMS ADDED 2026-09-28 (708th filing) — `Pass 380.0`/
 > `Pass 381.0`, DOCX/XLSX WRITERS, scoped from the "Export to Word/Excel"
 > Backlog bucket (filed 701st filing, line ~18750).** Both consume
@@ -18818,6 +18900,10 @@ real DOCX/XLSX writer needs.
 writer as `Pass 380.0` and the DOCX writer as `Pass 381.0`, filed under
 *Next up* (top of this file), `380.0` first. Nothing remains unscoped in
 this bucket.
+
+**`Pass 380.0` SHIPPED 2026-09-28** (709th filing, `310489bd`) — see
+*Shipped*, top of this file. `Pass 381.0` (DOCX export) is now the sole
+head of *Next up*.
 
 **New follow-on, filed 2026-09-28 (703rd filing), no Pass ID.** `374.0`
 deliberately runs table detection over the vector/text extraction only —
