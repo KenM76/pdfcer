@@ -978,6 +978,58 @@ fn resolve_page<G: ObjectGraph + ?Sized>(
     })
 }
 
+impl Page {
+    /// A page that states no production boxes, as [`pages`] resolves one:
+    /// `crop_box` is the effective box, bleed, trim and art equal it (Table
+    /// 30 defaults), every resolution is [`BoxResolution::Defaulted`], and
+    /// resources and contents are empty (`resources_defaulted` `false`).
+    ///
+    /// `crop_box` is taken as given, not intersected with `media_box`.
+    /// `rotate` is normalized as the page tree normalizes it: a multiple of
+    /// 90 reduced into {0, 90, 180, 270}, anything else 0.
+    ///
+    /// Set any other field afterwards, or with struct-update syntax: new
+    /// fields added to `Page` are then filled here and do not break callers.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_model::object::ObjId;
+    /// use pdfcer_model::page_tree::{BoxResolution, Page, Rect};
+    ///
+    /// let media = Rect::from_corners(0.0, 0.0, 612.0, 792.0);
+    /// let page = Page {
+    ///     contents: vec![ObjId::new(4, 0)],
+    ///     ..Page::with_boxes(ObjId::new(3, 0), media, media, 450)
+    /// };
+    /// assert_eq!(page.rotate, 90);
+    /// assert_eq!(page.trim_box, media);
+    /// assert_eq!(page.art_box_resolution, BoxResolution::Defaulted);
+    /// ```
+    #[must_use]
+    pub fn with_boxes(id: ObjId, media_box: Rect, crop_box: Rect, rotate: u16) -> Self {
+        let rotate = if rotate.is_multiple_of(90) { rotate % 360 } else { 0 };
+        Self {
+            id,
+            resources: Dict::new(),
+            resources_defaulted: false,
+            media_box,
+            crop_box,
+            crop_box_resolution: BoxResolution::Defaulted,
+            bleed_box: crop_box,
+            bleed_box_resolution: BoxResolution::Defaulted,
+            trim_box: crop_box,
+            trim_box_resolution: BoxResolution::Defaulted,
+            art_box: crop_box,
+            art_box_resolution: BoxResolution::Defaulted,
+            rotate,
+            contents: Vec::new(),
+            contents_unresolved: 0,
+            contents_flattened: 0,
+        }
+    }
+}
+
 /// Resolve a written page box against the media box (§14.11.2.1), falling
 /// back to `default` when the intersection has no area (PB-A1).
 fn clip_to_media(written: Rect, media_box: Rect, default: Rect) -> (Rect, BoxResolution) {

@@ -826,6 +826,16 @@ GUI wants `pages`/`pages_in`.
 | `contents_unresolved` | `usize` | **see below** |
 | `contents_flattened` | `usize` | nested `/Contents` arrays flattened on the way in (damage a pre-`Pass 111.0` pdfcer wrote) |
 
+**Building one (fixtures): `Page::with_boxes(id, media_box, crop_box, rotate) -> Page`.**
+The page `pages` resolves for a page that writes no bleed/trim/art box: those
+three equal `crop_box`, every `*_resolution` is `Defaulted`, `resources` empty,
+`contents` empty, counters zero. `rotate` is normalised as the walk does
+(`630` → `270`; not a multiple of 90 → `0`). `crop_box` is taken as given — pass
+the effective (already clipped) box. Override other fields with struct-update
+syntax, `Page { contents, ..Page::with_boxes(..) }`; a field added later gets a
+default here, so such fixtures keep compiling. `Page` is deliberately **not**
+`#[non_exhaustive]`: that would forbid struct-update syntax outside the crate.
+
 **★ `contents_unresolved` is a count you must surface.** `page_tree.rs`:
 a `/Contents` element naming an object not in the file degrades to nothing
 (§7.3.10 makes a dangling reference the null object; Table 30 makes absent

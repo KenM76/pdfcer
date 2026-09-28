@@ -118,6 +118,7 @@ mod page_clipboard;
 mod page_objects_cache;
 mod page_ops;
 mod page_tree_nested_count;
+mod page_with_boxes;
 mod pdf15_streams;
 mod pkcs12_import;
 mod place_artwork;
