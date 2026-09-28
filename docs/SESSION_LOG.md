@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (717th filing) — `b494ce93`: chore — v0.62.0 version bump, release IN PROGRESS
+
+**Shipped:**
+- Chore commit `b494ce93` ("chore: v0.62.0") bumps `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.61.0 → 0.62.0. Recorded so `check-commits-filed.py` sees it filed. Full details under `Pass 386.0`'s "Also filed this session" note in `ROADMAP.md`'s *Shipped*.
+
+**Still in flight:**
+- v0.62.0 release IN PROGRESS — batches `380.0`, the OCRcer vendor sync (`0bf5dba4`), `381.0`, `382.0`, `383.0`, `384.0`, `385.0`, `386.0`, all already shipped since `v0.61.0`. Tag, GitHub release and OneDrive deploy not yet done — OneDrive slot `pdfcer1` next (`v0.61.0` went to `pdfcer2`).
+
+**For next session:**
+- No shell available this filing (hard rule 8). Backup/push/release state not verifiable from here; latest release on record remains `v0.61.0`.
+
 ## 2026-09-28 (716th filing) — `3ffaef8e`: `Pass 386.0` SHIPPED — a circular ce dimension's leader stops short of its text
 
 **Shipped:**

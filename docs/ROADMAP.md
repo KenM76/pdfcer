@@ -149,6 +149,20 @@ sabotage (restoring the full rim→anchor leader) fails the main one.
 **`docs/FEATURES.md`.** Appearance fix to the existing *Circular
 ce-dimension placement* row — no new row; a dated clause appended.
 
+**Also filed this session.** Chore commit `b494ce93` ("chore: v0.62.0",
+`Cargo.toml` 0.61.0 → 0.62.0 plus `Cargo.lock`/`fuzz/Cargo.lock`) —
+recorded so `check-commits-filed.py` sees it filed. **Release in
+progress**: v0.62.0 will batch every Pass shipped since `v0.61.0`
+(`7abc3daf`) — `380.0` (XLSX export, `310489bd`), the OCRcer vendor sync
+(`0bf5dba4`), `381.0` (DOCX export, `4dc85998`), `382.0` (table detection
+on chosen pages, `b6bcca64`), `383.0` (tables to `.ods`, `d8962485`),
+`384.0` (ce-dimension preview, `28de8fcb`), `385.0` (angular ce dimension
+text follows `text_along`, `c658ab2f`), and `386.0` (this entry,
+`3ffaef8e`) — all already filed above. OneDrive slot `pdfcer1` next
+(`v0.61.0` went to `pdfcer2`). Tag, GitHub release and OneDrive deploy not
+yet done; not yet confirmed from here — full release filing to follow once
+tag/deploy details are relayed.
+
 **Sourcing (hard rule 8).** No shell this filing — facts relayed from the
 dispatching engineer's own verification at `3ffaef8e`, not independently
 reproduced.
