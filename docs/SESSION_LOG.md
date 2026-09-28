@@ -4,6 +4,33 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (711th filing) — four Passes filed to *Next up*: `382.0`–`385.0` (`G061`–`G064`)
+
+**Shipped:**
+- None this filing — a roadmap-update-new-request filing only.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- None — request text for `G061`–`G064` matched the operator's own
+  summary closely; no correction needed against the source files in
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+
+**Still in flight:**
+- *Next up* now heads with `Pass 382.0` — table detection limited to
+  chosen pages (`G061`), then `383.0` (.ods export, `G062`), `384.0`
+  (ce-dimension preview before it exists, `G063`), `385.0` (angular ce
+  dimension text placement, `G064`). Full scope + acceptance criteria:
+  `ROADMAP.md` *Next up*, top of file. `FEATURES.md` *Planned* rows
+  added at the top of its layers-tree block (lines ~496-499) with all
+  boxes unticked.
+
+**For next session:**
+- No shell this filing (hard rule 8). HEAD/`origin/main` reported as
+  `9b9bc458` by the dispatching engineer's own git-status snapshot;
+  not independently verified from here.
+
 ## 2026-09-28 (710th filing) — `4dc85998`: `Pass 381.0` SHIPPED — export flowing text to Word (DOCX)
 
 **Shipped:**

@@ -9741,6 +9741,65 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★ **FOUR ITEMS ADDED 2026-09-28 (711th filing) — `Pass 382.0`–
+> `Pass 385.0`, from `pdfcer-gui` feature requests `G061`–`G064`
+> (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`, all dated
+> 2026-09-28). Nothing has shipped for any of the four. `Pass 382.0` is
+> now the head of *Next up*; order below is ship order.**
+>
+> - **`Pass 382.0`** — table detection limited to chosen pages (`G061`).
+>   `table_detect::detect_tables_in_pages(view, pages: &[usize], extract,
+>   options)`: only the listed pages are extracted and decomposed, and
+>   `TableDiagnostics` counts only the pages examined. Today's
+>   `detect_tables` extracts and decomposes the whole document and the
+>   shell filters `DocumentTables::tables` afterwards, paying full-
+>   document cost for a one-page export and losing per-page attribution
+>   on the skipped-page counters (`pages_over_limit`/`pages_unreadable`).
+>   CLI: `extract-tables`/`export-xlsx`/`export-docx` gain `--pages
+>   RANGE`. Delivers core + cli. Acceptance: a 3-page fixture with
+>   `--pages 2` reports `pages=1` and only page-2 tables; an out-of-range
+>   page is refused by name.
+> - **`Pass 383.0`** — detected tables as an OpenDocument spreadsheet,
+>   `.ods` (`G062`). `export::ods::write_ods(&DocumentTables, &OdsOptions)
+>   -> Result<OdsOutput, PackageError>` beside `write_xlsx`: the same
+>   `SheetLayout`, the same `NumberLocale` rule (one engine rule for which
+>   cell is a number, not a second narrower one duplicated in the shell),
+>   an `OdsReport` carrying the same counts as `XlsxReport`. Package is
+>   ODF 1.2+ (OASIS/ISO-IEC 26300): `mimetype` is the first zip entry and
+>   stored, not deflated — the private zip writer (`export/ooxml_zip.rs`,
+>   `Pass 380.0`) gains stored entries alongside its existing deflated
+>   ones. CLI `pdfcer export-ods <in> -o <out>`. Delivers core + cli.
+>   Acceptance: opens clean in LibreOffice, merged cells span; a Rust test
+>   re-reads the zip.
+> - **`Pass 384.0`** — preview a ce dimension before it exists (`G063`,
+>   `O261`). `EditSession::new_dimension_preview(group: GroupId, kind:
+>   &DimensionKind) -> Result<DimensionPreview, EditError>` bakes through
+>   the same style cascade `add_dimension` uses, so the placing preview
+>   under the pointer is exactly what the commit click writes — nothing is
+>   staged. Today's `dimension_preview` needs an existing `DimensionId`
+>   (it reads that record's style/label overrides), so a not-yet-existing
+>   ce dimension has no verb; the shell's workaround
+>   (`pdfcer_gui_base::measure::pick::dimension_preview_segments` plus its
+>   own label layout) is a second, close-but-not-identical drawing path
+>   for the same ce dimension (no arrowheads, text height, ANSI line
+>   break or standard extension overshoot). Delivers core only — a
+>   preview for an object with no id yet is a GUI concept, no CLI caller.
+>   Acceptance: the baked preview and a committed `add_dimension` call
+>   with the same inputs render pixel-identical.
+> - **`Pass 385.0`** — an angular ce dimension's text can be placed
+>   (`G064`, `O261`). `DimensionKind::placement_from_point` resolves
+>   `Angular` into `(radius, text_along)` — distance from the apex, signed
+>   degrees from the arc's midpoint — instead of returning `None`; the
+>   baker draws the value at `text_along` degrees along the arc, as the
+>   field's own doc comment already claims (a defect: documented behavior
+>   the code does not perform). `label_anchor` answers `Angular` too, so
+>   `author_dimension` stops anchoring at the chord midpoint regardless of
+>   `text_along`. Delivers core; add a CLI flag only if `add-dimension`
+>   already exposes `Angular`'s `text_along`, otherwise deferred.
+>   Acceptance: an Angular ce dimension authored with a non-zero
+>   `text_along` places its value off the chord midpoint, at the stated
+>   arc position.
+
 > ★★★★★ **`Pass 381.0` SHIPPED, 2026-09-28 (710th filing), `4dc85998`** —
 > see top of *Shipped*. Closes the DOCX half of the pair scoped the 708th
 > filing; the whole "Export to Word/Excel" Backlog bucket
