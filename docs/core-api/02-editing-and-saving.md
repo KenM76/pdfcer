@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 275 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 276 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 275 public `EditSession` methods
+## 1. Verb index — all 276 public `EditSession` methods
 
-**Count: 275.** Established by brace-matched extraction of the six
+**Count: 276.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -94,7 +94,8 @@ added `flatten_layers`, and again at 266 when `Pass 360.0` added
 `flatten_annotations` and `annotation_flatten_refusals`, and again at 272 when `Pass 261.0`
 added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
-added `add_sound_annotation`.
+added `add_sound_annotation`, and at 276 when `Pass 261.3` added
+`add_screen_annotation`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -1759,7 +1760,7 @@ always errors.
 | Why a flatten would refuse, before attempting it | `flatten_refusal(&self) -> Option<EditError>` | `None` when a flatten would proceed. |
 | Where a page's widgets are | `widget_rects(&self, page_index: usize) -> Vec<(ObjId, [f64; 4])>` | Annotation id and `/Rect`. A **query**, not an edit — useful for hit-testing and for reporting orphans (see `insert_pages`). |
 
-### 1.15 Annotations (24) — detail in part 3
+### 1.15 Annotations (25) — detail in part 3
 
 | I want to… | Call | Returns |
 |---|---|---|
@@ -1769,6 +1770,7 @@ always errors.
 | Author a text-bearing annotation | `add_text_annotation(&mut self, page_index, spec: &TextAnnotSpec) -> Result<ObjId, EditError>` | FreeText / Text+`/Popup` / Stamp. Exactly `add_text_annotation_with(.., &MarkupOptions::default())`. |
 | Author a text-bearing annotation **at an opacity** | `add_text_annotation_with(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 81.1`. The twin of the above, shipped in the same Pass because Table 164 is the **markup-annotation** entry list and a sticky note is a markup annotation. `/CA` goes on the parent, never on its `/Popup`. |
 | Author a **sound** annotation — an icon that plays a clip | `add_sound_annotation(&mut self, page_index, spec: &SoundSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 261.2`, §12.5.6.16 + §13.3. Returns the `/Sound` annotation id; ONE undo entry. `SoundSpec::new(rect, sound: SoundData)` (speaker, mid-blue), then set `icon: SoundIcon` (`Speaker` default, `Mic`, `Other(bytes)`) and `color`. The samples are written as an indirect Flate stream `/Type /Sound` with `/R /C /B /E` always present (defaults included) and never `/CO`/`/CP`. `SoundData` comes only from `pdfcer_core::sound::SoundData::from_wav(bytes, &WavImportOptions) -> Result<WavImport, WavError>`; `WavImport.conversions: Vec<SoundConversion>` lists what changed (`FloatToSigned16`, `Resampled`, `Downmixed`) and a shell MUST show it. `WavImportOptions { rate_policy: SoundRatePolicy::{KeepNative (default), SpecRate}, downmix: bool }` — the §13.3 portable-rate `shall` contradicts its own paragraph, so it is a setting. Deprecated in PDF 2.0 (a GUI should say so when offering it). `AnnotKind::Sound` (new variant). Guards as `add_file_attachment_annotation`. |
+| Author a **screen** annotation — a region that plays an embedded video or audio clip | `add_screen_annotation(&mut self, page_index, spec: &ScreenSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 261.3`, §12.5.6.18 + §12.6.4.13 + §13.2. Returns the `/Screen` id; ONE undo entry covering the whole chain: screen (always `/P` and a pdfcer `/AP` — frame + play triangle), rendition action (`/OP 0`, `/AN` = the screen) as `/A` or `/AA /PO`, indirect media rendition `/S /MR`, media clip data `/S /MCD` with `/CT` and `/P << /TF >>`, `/Type /Filespec` + `/EF`, embedded file stream. `ScreenSpec::new(rect, file_name, content_type, bytes)`, then set `title` (`/T` — a title, not an author: `options.note`'s author is NOT written), `color`, `trigger: ScreenTrigger::{Click (default), PageOpen}`, `temp_access: MediaTempAccess::{Never, Access (default), Always}`. `Access` departs from the standard's `TEMPNEVER` default (some players refuse to play without a temp file) — a shell MUST disclose it, and should say playback depends on the reader (no codec is required). The MIME type is the caller's; the CLI infers it from the extension and says so. The file is not in `/EmbeddedFiles`. `AnnotKind::Screen` (new variant). Guards as `add_file_attachment_annotation`. |
 | Author a **caret** — where text goes | `add_caret_annotation(&mut self, page_index, spec: &CaretSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 261.1`, §12.5.6.11. Returns the `/Caret` id; ONE undo entry. `options.note` is the text to insert (`/Contents`) plus `/T`/`/M`; `opacity` and `layer` apply. `CaretSpec::new(rect)` (mid-blue), then set `color` and `symbol: CaretSymbol` (`None` default — `/Sy` omitted; `Paragraph` writes `/Sy /P` and draws ¶). `/RD` is never written. The artwork is pdfcer's own. Advisory: page content is untouched. `AnnotKind::Caret` (new variant). Guards as `add_file_attachment_annotation`. |
 | Author a **Replace Text** edit (caret + strikeout, grouped) | `add_replace_text(&mut self, page_index, caret: &CaretSpec, struck: &[Quad], options: &MarkupOptions) -> Result<ReplaceTextAdded, EditError>` | `Pass 261.1`. ONE undo entry, both appended to `/Annots` caret-first. The **caret is the group primary**: `/IT /Replace`, carries `options.note` (the replacement text). The **strikeout** (over `struck`, in `caret.color`) has `/IRT` → caret, `/RT /Group`, `/IT /StrikeOutTextEdit` and no note of its own. The standard is silent on this pairing; the shape is the empirical Acrobat convention, so Acrobat regroups it as one comment. `ReplaceTextAdded { caret_id, strike_out_id }` (`#[non_exhaustive]`, `Copy`). `EmptyGeometry` for empty `struck`, then the usual guards. `AnnotKind::ReplaceText` (new variant). |
 | Place one page's artwork on a page | `place_page_artwork(&mut self, source: &DocumentView<'_>, source_page: usize, page_index: usize, rect: Rect) -> Result<PlacedArtwork, EditError>` | `Pass 293.0`. The artwork becomes a **form XObject** behind a `/Stamp` annotation's `/AP` `/N` — vector, selectable, and the target page's content stream is **never touched** (R47). One undo entry for the form, the annotation, the imported resource closure and the `/Annots` patch. Reports scaling (§12.5.5 stretches anisotropically — normative), what was left behind on the source page (annotations, **widgets — the dynamic-stamp number**), and how much the file grew. Refuses with `SourcePageOutOfRange` for the SOURCE's index, distinct from `PageOutOfRange`. |
@@ -4869,7 +4871,7 @@ upgrades it to **prevention** (`edit.rs`).
 | Gate | Verbs |
 |---|---|
 | **Strict** `check_certification` | all 11 vector verbs (via `vector_surgery`); all 5 field-creation verbs (via `field_authoring_preflight`); `delete_field`, `delete_widget`, `move_widget` (via `deletion_preflight`); `delete_field_group`, `field_group_deletion_preview`; `rename_field`; `flatten_fields`; `delete_pages_with`; `reorder_pages`; `rotate_pages`; all 11 ce-dimension verbs; `unembed_refusal`; `embed_refusal`; `add_image`; `deletion_refusal`/`rename_refusal` (via `structural_form_refusal`) |
-| **Annotation** | `add_markup`; `attach_file`; `add_file_attachment_annotation`; `add_caret_annotation`; `add_replace_text`; `add_sound_annotation`; `detach_file`; `add_redaction`; `delete_redaction_mark`; `delete_annotation`+`annotation_deletion_preview` (via `annotation_deletion_guards`); `annotation_deletion_refusal`; the three `mark_redactions_*` (via `author_text_matches`); `add_text_annotation` |
+| **Annotation** | `add_markup`; `attach_file`; `add_file_attachment_annotation`; `add_caret_annotation`; `add_replace_text`; `add_sound_annotation`; `add_screen_annotation`; `detach_file`; `add_redaction`; `delete_redaction_mark`; `delete_annotation`+`annotation_deletion_preview` (via `annotation_deletion_guards`); `annotation_deletion_refusal`; the three `mark_redactions_*` (via `author_text_matches`); `add_text_annotation` |
 | **Fill** | `fill_text_field`, `fill_text_field_downgrading_rich_text`, `reset_form`, `set_choice_value`, `regenerate_appearances` (via `fill_guards`); `set_button_state`; `fill_refusal` |
 | **None** | `set_info_field` (deliberate — argued at `edit.rs` as an owed decision, not an oversight); `set_page_rotation`; `rotate_page_by`; `delete_pages` (encryption-ungated too) |
 

@@ -5851,6 +5851,144 @@ pub(crate) fn sound(spec: &SoundSpec) -> AuthoredTextAnnot {
     }
 }
 
+/// Whether a media player may copy an embedded clip to a temporary file
+/// (§13.2.4.3, Table 275 `/TF`). The standard's default is
+/// [`Self::Never`]; players that need a temporary file then refuse to play,
+/// and the standard is silent on which ones do, so pdfcer's default is
+/// [`Self::Access`] and every shell discloses it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MediaTempAccess {
+    /// `(TEMPNEVER)` — never write a temporary file.
+    Never,
+    /// `(TEMPACCESS)` — a temporary file may be written if the document
+    /// permits access to its content.
+    #[default]
+    Access,
+    /// `(TEMPALWAYS)` — a temporary file may always be written.
+    Always,
+}
+
+impl MediaTempAccess {
+    /// The `/TF` string bytes.
+    #[must_use]
+    pub fn as_bytes(self) -> &'static [u8] {
+        match self {
+            Self::Never => b"TEMPNEVER",
+            Self::Access => b"TEMPACCESS",
+            Self::Always => b"TEMPALWAYS",
+        }
+    }
+}
+
+/// What starts a screen annotation's clip (§12.6.3, Table 194). The
+/// standard leaves the choice to the producer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ScreenTrigger {
+    /// The reader clicks the annotation: the rendition action is `/A`.
+    #[default]
+    Click,
+    /// The page opens: the rendition action is `/AA /PO`.
+    PageOpen,
+}
+
+/// A screen annotation to author (§12.5.6.18): a page region that plays an
+/// embedded media clip through a rendition action (§12.6.4.13) naming a
+/// media rendition (§13.2.3) whose media clip data (§13.2.4) embeds `bytes`.
+///
+/// Build with [`Self::new`]. `content_type` is written as the clip's `/CT`;
+/// the standard names no required MIME types or codecs, so what plays is up
+/// to the reader.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct ScreenSpec {
+    /// The play region, in default user space.
+    pub rect: Rect,
+    /// The frame and play-symbol colour of pdfcer's appearance.
+    pub color: Color,
+    /// `/T`, the annotation's title. Not an author: a screen is not markup.
+    pub title: Option<String>,
+    /// The clip's file name, written to the filespec and as the rendition
+    /// and clip `/N`.
+    pub file_name: String,
+    /// The clip's MIME type, e.g. `video/mp4`.
+    pub content_type: String,
+    /// The clip's bytes, stored Flate-compressed in an embedded file stream.
+    pub bytes: Vec<u8>,
+    /// The clip's `/P /TF` temporary-file permission.
+    pub temp_access: MediaTempAccess,
+    /// What starts playback.
+    pub trigger: ScreenTrigger,
+}
+
+impl ScreenSpec {
+    /// A click-to-play region in dark grey at `rect`, with
+    /// [`MediaTempAccess::Access`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::{ScreenSpec, ScreenTrigger};
+    /// use pdfcer_core::page_tree::Rect;
+    ///
+    /// let rect = Rect { llx: 72.0, lly: 500.0, urx: 392.0, ury: 680.0 };
+    /// let mut spec = ScreenSpec::new(rect, "clip.mp4", "video/mp4", vec![0; 16]);
+    /// spec.trigger = ScreenTrigger::PageOpen;
+    /// assert_eq!(spec.temp_access.as_bytes(), b"TEMPACCESS");
+    /// ```
+    #[must_use]
+    pub fn new(rect: Rect, file_name: &str, content_type: &str, bytes: Vec<u8>) -> Self {
+        Self {
+            rect,
+            color: Color::Rgb(0.25, 0.25, 0.25),
+            title: None,
+            file_name: file_name.to_owned(),
+            content_type: content_type.to_owned(),
+            bytes,
+            temp_access: MediaTempAccess::default(),
+            trigger: ScreenTrigger::default(),
+        }
+    }
+}
+
+/// The annotation dictionary and appearance for a [`ScreenSpec`], without
+/// `/P`, `/AP`, `/T` or the action (the session adds those). The appearance
+/// is a frame with a play triangle, shown whenever the clip is not playing
+/// and printed (erratum #42 makes `/AP` required in PDF 2.0).
+pub(crate) fn screen(spec: &ScreenSpec) -> AuthoredTextAnnot {
+    let rect = positive_rect(spec.rect);
+    let w = rect.width();
+    let h = rect.height();
+    let s = w.min(h);
+
+    let mut b = ContentBuilder::new();
+    spec.color.apply_fill(&mut b);
+    spec.color.apply_stroke(&mut b);
+    let lw = (s * 0.03).clamp(0.5, 3.0);
+    b.set_line_width(lw);
+    b.set_line_join(LineJoin::Round);
+    b.rect(lw / 2.0, lw / 2.0, w - lw, h - lw);
+    b.paint(Paint::Stroke);
+    let t = s * 0.3;
+    let (cx, cy) = (w / 2.0, h / 2.0);
+    b.move_to(cx - t * 0.4, cy - t / 2.0);
+    b.line_to(cx + t * 0.5, cy);
+    b.line_to(cx - t * 0.4, cy + t / 2.0);
+    b.close_subpath();
+    b.paint(Paint::FillStroke);
+
+    AuthoredTextAnnot {
+        annot: base_annot(b"Screen", rect),
+        ap_dict: text_form_dict(rect, Dict::new()),
+        ap_content: b.into_bytes(),
+        rect,
+        flags: AnnotFlags::PRINT,
+        popup: None,
+        applied_autosize: None,
+        stamp_label_fit: None,
+        unencodable_chars: 0,
+    }
+}
+
 /// A caret annotation's `/Sy` (§12.5.6.11, Table 180): whether a paragraph
 /// symbol accompanies the caret. Default `None`, the spec's value when `/Sy`
 /// is absent.

@@ -4,6 +4,7 @@
 
 mod add_caret;
 mod add_fields;
+mod add_screen;
 mod add_sound;
 mod add_text;
 mod annotate_as_content;

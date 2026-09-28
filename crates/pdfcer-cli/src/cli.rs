@@ -2316,6 +2316,62 @@ pub(crate) enum Command {
         mode: SaveMode,
     },
 
+    /// **Embed a video or audio clip** that plays in a region of a page
+    /// (a screen annotation, §12.5.6.18, with a rendition action, §13.2).
+    ///
+    /// The clip's MIME type is taken from `--content-type`, or inferred from
+    /// the file extension and printed. Whether a reader can play the clip
+    /// depends on the reader: the standard requires no codec. The region
+    /// shows a frame with a play symbol when the clip is not playing. A DRY
+    /// RUN unless `--apply`.
+    AddScreen {
+        /// Input PDF.
+        input: PathBuf,
+        /// The media file to embed (e.g. `.mp4`, `.mp3`).
+        #[arg(long)]
+        file: PathBuf,
+        /// 1-based page number.
+        #[arg(long)]
+        page: u32,
+        /// Play region `x0,y0,x1,y1` in default user space.
+        #[arg(long)]
+        rect: String,
+        /// MIME type, e.g. `video/mp4`. Default: inferred from the extension
+        /// (mp4, m4v, mov, webm, avi, mp3, m4a, aac, wav, ogg); any other
+        /// extension needs this flag.
+        #[arg(long, value_name = "MIME")]
+        content_type: Option<String>,
+        /// Title of the region (`/T`).
+        #[arg(long)]
+        title: Option<String>,
+        /// Description a reader shows for the region (`/Contents`).
+        #[arg(long)]
+        desc: Option<String>,
+        /// What starts playback: `click` (default) or `page-open`.
+        #[arg(long, value_enum, default_value_t = ScreenTriggerArg::Click)]
+        trigger: ScreenTriggerArg,
+        /// Whether a player may copy the clip to a temporary file: `access`
+        /// (default), `always`, or `never` (the standard's own default, which
+        /// stops some players from playing it).
+        #[arg(long, value_enum, default_value_t = MediaTempArg::Access)]
+        temp: MediaTempArg,
+        /// Frame colour as `RRGGBB` hex. Default dark grey.
+        #[arg(long)]
+        color: Option<String>,
+        /// Opacity `/CA`, `0.0`-`1.0`. Out of range is refused, not clamped.
+        #[arg(long, value_name = "ALPHA")]
+        opacity: Option<f64>,
+        /// Actually write the output. Without it this is a DRY RUN.
+        #[arg(long)]
+        apply: bool,
+        /// Output path. Required with `--apply`.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// **Attach a sound clip** to a page: a speaker or microphone icon that
     /// plays a WAV recording (§12.5.6.16, §13.3).
     ///

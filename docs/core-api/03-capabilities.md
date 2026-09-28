@@ -1216,6 +1216,9 @@ build with `new`) and `CaretSymbol` (`None`, `Paragraph`; `name`/`from_name`)
 `new`) and `SoundIcon` (`Speaker`, `Mic`, `Other`), carrying a
 `pdfcer_core::sound::SoundData` from `SoundData::from_wav` (`Pass 261.2`;
 `MAX_SOUND_BYTES` = 512 MiB output ceiling; `WavError` names each refusal).
+For a media clip: `ScreenSpec` (`#[non_exhaustive]`; build with `new`),
+`ScreenTrigger` (`Click`, `PageOpen`) and `MediaTempAccess` (`Never`,
+`Access`, `Always`; `as_bytes` gives the `/TF` string) (`Pass 261.3`).
 
 ★★ **A stamp's label size is a PROPERTY, and the box follows the text
 (`Pass 287.0`).** `TextAnnotSpec::Stamp` gained `style: StampStyle`;

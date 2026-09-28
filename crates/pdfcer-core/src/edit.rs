@@ -126,7 +126,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::annot::AnnotFlags;
 use crate::annot_author::{
-    self, CaretSpec, FileAttachmentSpec, MarkupSpec, SoundSpec, TextAnnotSpec,
+    self, CaretSpec, FileAttachmentSpec, MarkupSpec, ScreenSpec, SoundSpec, TextAnnotSpec,
 };
 // `Pass 292.0`: the stamp-parameter types live in `annot`, where the parse
 // they describe lives, and are re-exported here because `EditSession` is where
@@ -1187,6 +1187,8 @@ pub enum AnnotKind {
     ReplaceText,
     /// `/Sound` (Pass 261.2, §12.5.6.16).
     Sound,
+    /// `/Screen` with its rendition chain (Pass 261.3, §12.5.6.18).
+    Screen,
 }
 
 /// One entry on the undo stack: the set of writes it performed, each
@@ -30926,6 +30928,141 @@ impl EditSession {
             s.commit(Command {
                 kind: CommandKind::AddAnnotation {
                     kind: AnnotKind::Sound,
+                },
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            });
+            Ok(annot_id)
+        })
+    }
+
+    /// Author a **screen annotation** (ISO 32000-1 §12.5.6.18, Table 187)
+    /// on page `page_index`: a region that plays `spec.bytes` as an embedded
+    /// media clip. One undo entry. Returns the screen annotation's id.
+    ///
+    /// Writes the minimal viable chain (§13.2): the screen, with a
+    /// rendition action (§12.6.4.13, `/OP 0`, `/AN` = the screen) as `/A`
+    /// or, for [`annot_author::ScreenTrigger::PageOpen`], `/AA /PO`; an
+    /// indirect media rendition (`/S /MR`); media clip data (`/S /MCD`,
+    /// `/CT`, `/P << /TF >>`); a full filespec with `/Type /Filespec` (a
+    /// clip whose `/D` lacks `/Type` is non-viable); and the embedded file
+    /// stream. The screen always carries `/P` (required when a rendition
+    /// references it) and an `/AP` of pdfcer's drawing (required in PDF 2.0).
+    ///
+    /// - `/T` is `spec.title`. `options.note`'s text becomes `/Contents`;
+    ///   its author is **not** written, because a screen's `/T` is a title.
+    /// - The file is not added to `/EmbeddedFiles`; it belongs to the clip.
+    /// - The header version is not raised to 1.5, as no pdfcer verb raises
+    ///   it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::add_file_attachment_annotation`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use pdfcer_core::{document::Document, edit::{EditSession, MarkupOptions}};
+    /// # use pdfcer_core::annot_author::ScreenSpec;
+    /// # use pdfcer_core::page_tree::Rect;
+    /// # fn demo(doc: Document, mp4: Vec<u8>) -> Result<(), pdfcer_core::edit::EditError> {
+    /// let mut session = EditSession::new(doc);
+    /// let rect = Rect { llx: 72.0, lly: 500.0, urx: 392.0, ury: 680.0 };
+    /// let spec = ScreenSpec::new(rect, "clip.mp4", "video/mp4", mp4);
+    /// session.add_screen_annotation(0, &spec, &MarkupOptions::default())?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn add_screen_annotation(
+        &mut self,
+        page_index: usize,
+        spec: &ScreenSpec,
+        options: &MarkupOptions,
+    ) -> Result<ObjId, EditError> {
+        options.validate()?;
+        self.on_layer_if(page_index, options.layer, |s| {
+            let (slots, page_id) = s.annotation_author_target(page_index)?;
+            let (annot_id, mut annot, ap_write) =
+                s.stage_authored_icon(annot_author::screen(spec), page_id, options)?;
+            annot.remove(b"T");
+            if let Some(title) = &spec.title {
+                annot.insert(Name::from(b"T"), Object::String(encode_text_string(title)));
+            }
+            let rendition_id = ObjId::new(s.alloc_number()?, 0);
+            let clip_id = ObjId::new(s.alloc_number()?, 0);
+            let spec_id = ObjId::new(s.alloc_number()?, 0);
+            let file_id = ObjId::new(s.alloc_number()?, 0);
+            let (mut file_stream, filespec) =
+                s.embedded_file_objects(&spec.file_name, &spec.bytes, None, file_id);
+            if let Object::Stream(st) = &mut file_stream {
+                st.dict.insert(
+                    Name::from(b"Subtype"),
+                    Object::Name(Name(spec.content_type.as_bytes().to_vec())),
+                );
+            }
+            let clip_name = Object::String(encode_text_string(&spec.file_name));
+
+            let mut perms = Dict::new();
+            perms.insert(
+                Name::from(b"Type"),
+                Object::Name(Name::from(b"MediaPermissions")),
+            );
+            perms.insert(
+                Name::from(b"TF"),
+                Object::String(spec.temp_access.as_bytes().to_vec()),
+            );
+            let mut clip = Dict::new();
+            clip.insert(Name::from(b"Type"), Object::Name(Name::from(b"MediaClip")));
+            clip.insert(Name::from(b"S"), Object::Name(Name::from(b"MCD")));
+            clip.insert(Name::from(b"N"), clip_name.clone());
+            clip.insert(
+                Name::from(b"CT"),
+                Object::String(spec.content_type.as_bytes().to_vec()),
+            );
+            clip.insert(Name::from(b"D"), Object::Reference(spec_id));
+            clip.insert(Name::from(b"P"), Object::Dict(perms));
+
+            let mut rendition = Dict::new();
+            rendition.insert(Name::from(b"Type"), Object::Name(Name::from(b"Rendition")));
+            rendition.insert(Name::from(b"S"), Object::Name(Name::from(b"MR")));
+            rendition.insert(Name::from(b"N"), clip_name);
+            rendition.insert(Name::from(b"C"), Object::Reference(clip_id));
+
+            let mut action = Dict::new();
+            action.insert(Name::from(b"Type"), Object::Name(Name::from(b"Action")));
+            action.insert(Name::from(b"S"), Object::Name(Name::from(b"Rendition")));
+            action.insert(Name::from(b"OP"), Object::Integer(0));
+            action.insert(Name::from(b"AN"), Object::Reference(annot_id));
+            action.insert(Name::from(b"R"), Object::Reference(rendition_id));
+            match spec.trigger {
+                annot_author::ScreenTrigger::Click => {
+                    annot.insert(Name::from(b"A"), Object::Dict(action));
+                }
+                annot_author::ScreenTrigger::PageOpen => {
+                    let mut aa = Dict::new();
+                    aa.insert(Name::from(b"PO"), Object::Dict(action));
+                    annot.insert(Name::from(b"AA"), Object::Dict(aa));
+                }
+            }
+
+            let new = |id, obj| ObjectWrite {
+                id,
+                before: None,
+                after: Some(obj),
+            };
+            let mut objects = vec![
+                ap_write,
+                new(annot_id, Object::Dict(annot)),
+                new(rendition_id, Object::Dict(rendition)),
+                new(clip_id, Object::Dict(clip)),
+                new(spec_id, Object::Dict(filespec)),
+                new(file_id, file_stream),
+            ];
+            objects.append(&mut s.annots_append(page_id, &[annot_id], &slots)?);
+            s.commit(Command {
+                kind: CommandKind::AddAnnotation {
+                    kind: AnnotKind::Screen,
                 },
                 objects,
                 removals: Vec::new(),

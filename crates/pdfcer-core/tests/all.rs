@@ -138,6 +138,7 @@ mod rotated_text;
 mod route_enumeration;
 mod run_repertoire;
 mod scattered_text_hit;
+mod screen_annotation;
 mod separation_sets;
 mod session_graph_resolution;
 mod session_overlay_skew;

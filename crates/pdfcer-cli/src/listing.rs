@@ -1481,6 +1481,154 @@ pub(crate) fn cmd_add_caret(a: &AddCaretArgs<'_>) -> u8 {
     finish_attachment_save(a.input, &mut session, a.output, a.mode)
 }
 
+/// The arguments of `add-screen`, borrowed from the parsed command.
+pub(crate) struct AddScreenArgs<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) file: &'a Path,
+    pub(crate) page: u32,
+    pub(crate) rect: &'a str,
+    pub(crate) content_type: Option<&'a str>,
+    pub(crate) title: Option<&'a str>,
+    pub(crate) desc: Option<&'a str>,
+    pub(crate) trigger: ScreenTriggerArg,
+    pub(crate) temp: MediaTempArg,
+    pub(crate) color: Option<&'a str>,
+    pub(crate) opacity: Option<f64>,
+    pub(crate) apply: bool,
+    pub(crate) output: Option<&'a Path>,
+    pub(crate) mode: SaveMode,
+}
+
+/// The MIME type `add-screen` infers from a media file's extension.
+pub(crate) fn media_type_for(path: &Path) -> Option<&'static str> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    Some(match ext.as_str() {
+        "mp4" | "m4v" => "video/mp4",
+        "mov" => "video/quicktime",
+        "webm" => "video/webm",
+        "avi" => "video/x-msvideo",
+        "mp3" => "audio/mpeg",
+        "m4a" => "audio/mp4",
+        "aac" => "audio/aac",
+        "wav" => "audio/wav",
+        "ogg" => "audio/ogg",
+        _ => return None,
+    })
+}
+
+/// `add-screen` — embed a media clip that plays in a page region.
+pub(crate) fn cmd_add_screen(a: &AddScreenArgs<'_>) -> u8 {
+    use pdfcer_core::annot_author::{MediaTempAccess, ScreenSpec, ScreenTrigger};
+    use pdfcer_core::edit::{MarkupNote, MarkupOptions};
+
+    let rect = match crate::annot_parse::rect_from(a.rect) {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!("pdfcer: --rect: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let color = match a.color.map(crate::annot_parse::parse_color).transpose() {
+        Ok(c) => c,
+        Err(err) => {
+            eprintln!("pdfcer: --color: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let Some(page_index) = (a.page as usize).checked_sub(1) else {
+        eprintln!("pdfcer: --page is 1-based; 0 names no page");
+        return exit::EDIT_REFUSED;
+    };
+    let (content_type, inferred) = match (a.content_type, media_type_for(a.file)) {
+        (Some(ct), _) if !ct.trim().is_empty() && ct.is_ascii() => (ct.to_owned(), false),
+        (Some(_), _) => {
+            eprintln!("pdfcer: --content-type must be a non-empty ASCII MIME type");
+            return exit::EDIT_REFUSED;
+        }
+        (None, Some(ct)) => (ct.to_owned(), true),
+        (None, None) => {
+            eprintln!(
+                "pdfcer: {}: unknown media extension; pass --content-type",
+                a.file.display()
+            );
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let file_name = a
+        .file
+        .file_name()
+        .map_or_else(|| "clip".to_owned(), |n| n.to_string_lossy().into_owned());
+    let bytes = match std::fs::read(a.file) {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.file.display());
+            return exit::IO_ERROR;
+        }
+    };
+    let doc = match open_document(a.input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let mut spec = ScreenSpec::new(rect, &file_name, &content_type, bytes);
+    spec.title = a.title.map(str::to_owned);
+    spec.trigger = match a.trigger {
+        ScreenTriggerArg::Click => ScreenTrigger::Click,
+        ScreenTriggerArg::PageOpen => ScreenTrigger::PageOpen,
+    };
+    spec.temp_access = match a.temp {
+        MediaTempArg::Never => MediaTempAccess::Never,
+        MediaTempArg::Access => MediaTempAccess::Access,
+        MediaTempArg::Always => MediaTempAccess::Always,
+    };
+    if let Some(c) = color {
+        spec.color = c;
+    }
+    let options = MarkupOptions {
+        note: a.desc.map(MarkupNote::new),
+        opacity: a.opacity,
+        ..Default::default()
+    };
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    let annot = match session.add_screen_annotation(page_index, &spec, &options) {
+        Ok(id) => id,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    println!(
+        "add-screen {} page={} annot={} content-type={} bytes={} trigger={} temp={} mode={} applied={}",
+        a.input.display(),
+        a.page,
+        annot.num,
+        content_type,
+        spec.bytes.len(),
+        match a.trigger {
+            ScreenTriggerArg::Click => "click",
+            ScreenTriggerArg::PageOpen => "page-open",
+        },
+        String::from_utf8_lossy(spec.temp_access.as_bytes()),
+        mode_token(a.mode),
+        u32::from(a.apply)
+    );
+    if inferred {
+        println!("inferred: content-type {content_type} from the file extension");
+    }
+    if a.temp == MediaTempArg::Access {
+        println!(
+            "default: temp=TEMPACCESS lets players that copy the clip to a temporary file play it (the standard's default, TEMPNEVER, stops them)"
+        );
+    }
+    if !a.apply {
+        eprintln!("pdfcer: dry run — pass --apply with --output to write the file.");
+        return exit::SUCCESS;
+    }
+    finish_attachment_save(a.input, &mut session, a.output, a.mode)
+}
+
 /// The arguments of `add-sound`, borrowed from the parsed command.
 pub(crate) struct AddSoundArgs<'a> {
     pub(crate) input: &'a Path,
@@ -1616,7 +1764,7 @@ pub(crate) fn cmd_add_sound(a: &AddSoundArgs<'_>) -> u8 {
 }
 
 /// Shared save tail for `attach-file`, `detach-file`,
-/// `attach-file-annotation`, `add-caret` and `add-sound`.
+/// `attach-file-annotation`, `add-caret`, `add-sound` and `add-screen`.
 ///
 /// One function rather than two copies: the recovered-base hint, the
 /// output-required check and the exit codes must not drift apart between

@@ -956,6 +956,26 @@ impl AttachIconArg {
     }
 }
 
+/// What starts an `add-screen` clip.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ScreenTriggerArg {
+    /// Clicking the region (default).
+    Click,
+    /// Opening the page.
+    PageOpen,
+}
+
+/// The `/TF` temporary-file permission `add-screen` writes (§13.2.4.3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum MediaTempArg {
+    /// TEMPNEVER, the standard's default; some players then refuse to play.
+    Never,
+    /// TEMPACCESS (default).
+    Access,
+    /// TEMPALWAYS.
+    Always,
+}
+
 /// Sound annotation icon name (§12.5.6.16).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum SoundIconArg {
