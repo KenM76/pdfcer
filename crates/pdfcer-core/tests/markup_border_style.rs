@@ -722,3 +722,216 @@ fn the_dash_reads_every_table_166_spelling() {
         Some(BorderDash::table_166_default())
     );
 }
+
+// ---------------------------------------------------------------------------
+// 4. The cloudy border (`/BE`, ISO 32000-1 §12.5.4 Table 167) — Pass 264.3
+// ---------------------------------------------------------------------------
+
+fn annot_dict(s: &EditSession, id: ObjId) -> pdfcer_core::object::Dict {
+    match s.graph().value(id) {
+        Some(Object::Dict(d)) => d.clone(),
+        other => panic!("annotation {id:?} is not a dictionary: {other:?}"),
+    }
+}
+
+fn intensity(s: &EditSession, id: ObjId) -> Option<f64> {
+    let graph = s.graph();
+    let annot = annot_dict(s, id);
+    let Object::Dict(be) = graph.resolve(annot.get(b"BE")?) else {
+        return None;
+    };
+    match be.get(b"S") {
+        Some(Object::Name(n)) if n.as_bytes() == b"C" => {}
+        _ => return None,
+    }
+    be.get(b"I").and_then(Object::as_number)
+}
+
+fn subtype_of(s: &EditSession, id: ObjId) -> Vec<u8> {
+    match annot_dict(s, id).get(b"Subtype") {
+        Some(Object::Name(n)) => n.as_bytes().to_vec(),
+        other => panic!("no /Subtype: {other:?}"),
+    }
+}
+
+fn rect_of(s: &EditSession, id: ObjId) -> Vec<f64> {
+    match annot_dict(s, id).get(b"Rect") {
+        Some(Object::Array(a)) => a.iter().filter_map(Object::as_number).collect(),
+        other => panic!("no /Rect: {other:?}"),
+    }
+}
+
+fn cloud(i: f64) -> MarkupStyle {
+    MarkupStyle {
+        border_effect: Some(StyleEdit::Set(i)),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_straight_square_can_be_made_cloudy_and_straight_again() {
+    let mut s = session();
+    let id = s.add_markup(0, &square()).expect("author");
+    let straight_rect = rect_of(&s, id);
+
+    s.set_markup_style(id, &cloud(1.5)).expect("make cloudy");
+    assert_eq!(intensity(&s, id), Some(1.5));
+    assert!(
+        annot_dict(&s, id).get(b"RD").is_some(),
+        "a cloudy square carries its bulge"
+    );
+    assert_ne!(
+        rect_of(&s, id),
+        straight_rect,
+        "/Rect grows to contain the bulge"
+    );
+
+    s.set_markup_style(
+        id,
+        &MarkupStyle {
+            border_effect: Some(StyleEdit::Clear),
+            ..Default::default()
+        },
+    )
+    .expect("clear");
+    let d = annot_dict(&s, id);
+    assert!(d.get(b"BE").is_none(), "Clear removes /BE");
+    assert!(d.get(b"RD").is_none(), "Clear removes the bulge's /RD");
+    assert_eq!(rect_of(&s, id), straight_rect, "/Rect returns to the shape");
+}
+
+#[test]
+fn the_intensity_of_a_cloudy_square_can_be_changed() {
+    let mut s = session();
+    let id = s.add_markup(0, &square()).expect("author");
+    s.set_markup_style(id, &cloud(1.0)).expect("cloudy");
+    s.set_markup_style(id, &cloud(2.0))
+        .expect("change intensity");
+    assert_eq!(intensity(&s, id), Some(2.0));
+}
+
+#[test]
+fn a_restyle_that_omits_the_border_effect_keeps_the_cloud() {
+    let mut s = session();
+    let id = s.add_markup(0, &square()).expect("author");
+    s.set_markup_style(id, &cloud(0.5)).expect("cloudy");
+    s.set_markup_style(
+        id,
+        &MarkupStyle {
+            width: Some(3.0),
+            ..Default::default()
+        },
+    )
+    .expect("widen");
+    assert_eq!(intensity(&s, id), Some(0.5), "None means leave it alone");
+}
+
+#[test]
+fn a_polygon_becomes_a_cloud_and_back() {
+    let mut s = session();
+    let id = s.add_markup(0, &polygon()).expect("author");
+    s.set_markup_style(id, &cloud(1.0)).expect("make cloudy");
+    assert_eq!(intensity(&s, id), Some(1.0));
+    assert_eq!(subtype_of(&s, id), b"Polygon");
+    assert!(
+        annot_dict(&s, id).get(b"RD").is_none(),
+        "a cloudy polygon writes no /RD"
+    );
+
+    s.set_markup_style(
+        id,
+        &MarkupStyle {
+            border_effect: Some(StyleEdit::Clear),
+            ..Default::default()
+        },
+    )
+    .expect("clear");
+    assert!(annot_dict(&s, id).get(b"BE").is_none());
+    assert_eq!(subtype_of(&s, id), b"Polygon");
+}
+
+#[test]
+fn a_cloud_on_a_circle_is_refused_by_name() {
+    let mut s = session();
+    let circle = MarkupSpec::Circle {
+        rect: Rect {
+            llx: 10.0,
+            lly: 10.0,
+            urx: 60.0,
+            ury: 40.0,
+        },
+        border: Some(Color::Gray(0.0)),
+        interior: None,
+        border_width: 1.0,
+    };
+    let id = s.add_markup(0, &circle).expect("author");
+    let depth = s.undo_depth();
+    match s.set_markup_style(id, &cloud(1.0)) {
+        Err(EditError::StylePropertyNotApplicable { property, .. }) => {
+            assert_eq!(property, "border effect");
+        }
+        other => panic!("expected StylePropertyNotApplicable, got {other:?}"),
+    }
+    assert_eq!(s.undo_depth(), depth);
+    assert!(!MarkupStyleSupport::for_subtype(b"Circle").takes_border_effect);
+    assert!(MarkupStyleSupport::for_subtype(b"Square").takes_border_effect);
+    assert!(MarkupStyleSupport::for_subtype(b"Polygon").takes_border_effect);
+    assert!(!MarkupStyleSupport::for_subtype(b"Highlight").takes_border_effect);
+}
+
+#[test]
+fn an_intensity_outside_zero_to_two_is_refused() {
+    let mut s = session();
+    let id = s.add_markup(0, &square()).expect("author");
+    for bad in [-0.1, 2.5, f64::NAN, f64::INFINITY] {
+        assert!(
+            matches!(
+                s.set_markup_style(id, &cloud(bad)),
+                Err(EditError::BorderEffectIntensityOutOfRange { .. })
+            ),
+            "{bad} must be refused"
+        );
+    }
+    assert_eq!(intensity(&s, id), None);
+}
+
+/// A cloudy square's `/Rect` already contains the bulge. Reading it back as
+/// the square itself made every restyle grow the box by one bulge.
+#[test]
+fn restyling_a_cloudy_square_does_not_grow_it() {
+    let mut s = session();
+    let id = s.add_markup(0, &square()).expect("author");
+    s.set_markup_style(id, &cloud(1.0)).expect("cloudy");
+    let cloudy_rect = rect_of(&s, id);
+    for _ in 0..3 {
+        s.set_markup_style(
+            id,
+            &MarkupStyle {
+                stroke: Some(StyleEdit::Set(Color::Rgb(1.0, 0.0, 0.0))),
+                ..Default::default()
+            },
+        )
+        .expect("recolour");
+    }
+    assert_eq!(rect_of(&s, id), cloudy_rect);
+}
+
+/// pdfcer's own cloudy square, recoloured, lost nothing — so nothing is
+/// reported as dropped. `/RD` is re-authored with the cloud, and the old
+/// appearance is exactly what pdfcer would have drawn.
+#[test]
+fn recolouring_pdfcers_own_cloudy_square_reports_no_loss() {
+    let mut s = session();
+    let id = s.add_markup(0, &square()).expect("author");
+    s.set_markup_style(id, &cloud(1.0)).expect("cloudy");
+    let change = s
+        .set_markup_style(
+            id,
+            &MarkupStyle {
+                stroke: Some(StyleEdit::Set(Color::Rgb(1.0, 0.0, 0.0))),
+                ..Default::default()
+            },
+        )
+        .expect("recolour");
+    assert_eq!(change.dropped, Vec::<DroppedProperty>::new());
+}

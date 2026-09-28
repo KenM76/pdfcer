@@ -4935,8 +4935,7 @@ pub(crate) enum Command {
     /// declared geometry, not just its `/C` — pdfcer paints from `/AP` or
     /// not at all, so setting the colour without redrawing would leave the
     /// change invisible. Anything the original appearance expressed that
-    /// pdfcer does not model (a cloudy `/BE` border, a dashed `/BS`, an
-    /// exotic arrowhead) is reported on stderr as it is dropped.
+    /// pdfcer does not model (an exotic arrowhead, say) is reported on stderr as it is dropped.
     ///
     /// Refuses, by name: a ce dimension (use `set-dimension-style`), a
     /// subtype pdfcer cannot author an appearance for (`FreeText`,
@@ -4983,6 +4982,16 @@ pub(crate) enum Command {
         /// Refused by name on a text markup, which has no border to dash.
         #[arg(long, value_name = "ON,OFF,...|solid")]
         dash: Option<String>,
+        /// Cloudy border (`/BE << /S /C /I n >>`, ISO 32000-1 §12.5.4
+        /// Table 167) at intensity `n`, a continuous value in `0..=2`; or
+        /// `none` to make the border straight again.
+        ///
+        /// OMITTING THIS PRESERVES AN EXISTING CLOUD. `none` also removes a
+        /// cloudy square's `/RD`, which only the cloud's bulge needed.
+        ///
+        /// `Square` and `Polygon` only; refused by name elsewhere.
+        #[arg(long, value_name = "0-2|none")]
+        cloud: Option<String>,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

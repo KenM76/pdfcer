@@ -19,6 +19,31 @@ pub(crate) struct MarkupStyleArg<'a> {
     pub(crate) opacity: Option<&'a str>,
     /// `--dash ON,OFF,...|solid`.
     pub(crate) dash: Option<&'a str>,
+    /// `--cloud 0-2|none`.
+    pub(crate) cloud: Option<&'a str>,
+}
+
+/// Parse `--cloud 0-2|none`: absent keeps the border effect, `none` clears
+/// it, a number sets the intensity. Range is checked by the engine, which
+/// refuses by name.
+///
+/// # Errors
+///
+/// The value is neither `none` nor a number.
+pub(crate) fn parse_cloud_edit(
+    value: Option<&str>,
+) -> Result<Option<pdfcer_core::edit::StyleEdit<f64>>, String> {
+    use pdfcer_core::edit::StyleEdit;
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.eq_ignore_ascii_case("none") {
+        return Ok(Some(StyleEdit::Clear));
+    }
+    raw.trim()
+        .parse::<f64>()
+        .map(|i| Some(StyleEdit::Set(i)))
+        .map_err(|_| format!("--cloud: `{raw}` is not a number in 0-2 or `none`"))
 }
 
 /// Parse a `--dash ON,OFF,...|solid` flag into a
@@ -994,6 +1019,13 @@ pub(crate) fn cmd_set_markup_style(
             return exit::EDIT_REFUSED;
         }
     };
+    let border_effect = match parse_cloud_edit(style.cloud) {
+        Ok(c) => c,
+        Err(msg) => {
+            eprintln!("pdfcer: {msg}");
+            return exit::EDIT_REFUSED;
+        }
+    };
     let wanted = MarkupStyle {
         stroke,
         interior,
@@ -1001,6 +1033,7 @@ pub(crate) fn cmd_set_markup_style(
         opacity,
         endings: None,
         dash,
+        border_effect,
     };
 
     let (source, mut session) = match open_for_edit(input) {
@@ -1099,7 +1132,7 @@ pub(crate) fn cmd_set_markup_style(
         eprintln!(
             "pdfcer: {}: /Rect moved. For every subtype except Square and Circle the \
              rectangle is derived from the geometry plus a margin that contains the stroke and \
-             any arrowheads, so changing the width resizes the box. This is correct, not drift.",
+             any arrowheads, so changing the width resizes the box; a cloudy border's bulge              widens it too, on a Square as well. This is correct, not drift.",
             input.display()
         );
     }

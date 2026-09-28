@@ -47,6 +47,7 @@ mod rotate_widget;
 mod run_repertoire;
 mod save_refusal_hints;
 mod scale_pages;
+mod set_markup_style_cloud;
 mod sign_certify;
 mod sign_into_field;
 mod sign_timestamp;

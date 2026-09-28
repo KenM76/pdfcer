@@ -506,6 +506,33 @@ pub enum SpecReadError {
     },
 }
 
+/// `rect` shrunk by `/RD` (ISO 32000-1 §12.5.6.8 Table 180: left, top,
+/// right, bottom, each ≥ 0). An absent or unusable `/RD`, or one that would
+/// leave no area, returns `rect` unchanged.
+fn inset_by_rect_differences<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict, rect: Rect) -> Rect {
+    let rd = read_numbers(graph, annot, b"RD");
+    let [left, top, right, bottom] = rd.as_slice() else {
+        return rect;
+    };
+    if [left, top, right, bottom]
+        .iter()
+        .any(|v| !v.is_finite() || **v < 0.0)
+    {
+        return rect;
+    }
+    let inner = Rect {
+        llx: rect.llx + left,
+        lly: rect.lly + bottom,
+        urx: rect.urx - right,
+        ury: rect.ury - top,
+    };
+    if inner.urx > inner.llx && inner.ury > inner.lly {
+        inner
+    } else {
+        rect
+    }
+}
+
 /// Read a [`MarkupSpec`] back out of an existing annotation dictionary —
 /// the inverse of [`build_appearance`]'s dictionary half.
 ///
@@ -571,6 +598,19 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
             let rect = read_rect(graph, annot, b"Rect")
                 .ok_or(SpecReadError::BadGeometry { key: "Rect" })?;
             let (border, interior) = (color(b"C"), color(b"IC"));
+            let border_effect = if subtype == b"Square" {
+                read_border_effect(graph, annot)
+            } else {
+                None
+            };
+            // A cloudy square's `/Rect` includes the bulge; the spec's
+            // `rect` is the square itself, and authoring re-adds the bulge
+            // and rewrites `/RD`. Without this inset every restyle grew the
+            // box by one bulge.
+            let rect = match border_effect {
+                Some(_) => inset_by_rect_differences(graph, annot, rect),
+                None => rect,
+            };
             Ok(if subtype == b"Circle" {
                 MarkupSpec::Circle {
                     rect,
@@ -595,7 +635,7 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
                     // said so — but "why did my cloud go flat?" is a
                     // question the operator should not have to ask, and the
                     // fix is one already-open dictionary key.
-                    border_effect: read_border_effect(graph, annot),
+                    border_effect,
                 }
             })
         }

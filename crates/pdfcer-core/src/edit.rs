@@ -3656,6 +3656,10 @@ fn apply_markup_style(
     // `build_appearance` would happily inset a rectangle by it and
     // produce a shape larger than its own BBox.
     let width = |current: f64| style.width.map_or(current, |w| w.max(0.0));
+    let cloud_before = match &spec {
+        MarkupSpec::Cloud { intensity, .. } => Some(*intensity),
+        _ => None,
+    };
 
     match spec {
         MarkupSpec::Square {
@@ -3669,10 +3673,13 @@ fn apply_markup_style(
             border: colour(border, style.stroke),
             interior: colour(interior, style.interior),
             border_width: width(border_width),
-            // Style changes colour and width; cloudiness is GEOMETRY, not
-            // style, so restyling a cloudy box keeps it cloudy and
-            // restyling a plain one does not make it cloudy.
-            border_effect,
+            // Kept unless `border_effect` names it: restyling a cloudy box's
+            // colour keeps it cloudy.
+            border_effect: match style.border_effect {
+                None => border_effect,
+                Some(StyleEdit::Clear) => None,
+                Some(StyleEdit::Set(i)) => Some(i),
+            },
         },
         MarkupSpec::Circle {
             rect,
@@ -3718,31 +3725,45 @@ fn apply_markup_style(
             color: required(color, style.stroke),
             width: width(w),
         },
+        // A cloud is a `/Polygon` with `/BE`, so `border_effect` moves a
+        // polygon between the two variants.
         MarkupSpec::Polygon {
             vertices,
             border,
             interior,
             width: w,
-        } => MarkupSpec::Polygon {
-            vertices,
-            border: colour(border, style.stroke),
-            interior: colour(interior, style.interior),
-            width: width(w),
-        },
-        MarkupSpec::Cloud {
+        }
+        | MarkupSpec::Cloud {
             vertices,
             border,
             interior,
             width: w,
-            intensity,
-        } => MarkupSpec::Cloud {
-            vertices,
-            border: colour(border, style.stroke),
-            interior: colour(interior, style.interior),
-            width: width(w),
-            // Intensity is geometry, not style — see the `Square` arm.
-            intensity,
-        },
+            ..
+        } => {
+            let border = colour(border, style.stroke);
+            let interior = colour(interior, style.interior);
+            let width = width(w);
+            let intensity = match style.border_effect {
+                None => cloud_before,
+                Some(StyleEdit::Clear) => None,
+                Some(StyleEdit::Set(i)) => Some(i),
+            };
+            match intensity {
+                Some(intensity) => MarkupSpec::Cloud {
+                    vertices,
+                    border,
+                    interior,
+                    width,
+                    intensity,
+                },
+                None => MarkupSpec::Polygon {
+                    vertices,
+                    border,
+                    interior,
+                    width,
+                },
+            }
+        }
         MarkupSpec::PolyLine {
             vertices,
             color,
@@ -5131,7 +5152,14 @@ fn dropped_properties<G: ObjectGraph + ?Sized>(
             out.push(DroppedProperty::BorderEffect);
         }
     }
-    if annot.get(b"RD").is_some() {
+    // A cloudy square's `/RD` is the cloud's bulge: read back as the
+    // square's inset and re-authored with the cloud, or removed with it
+    // when the operator clears the cloud. Neither is a loss.
+    let square_cloud = matches!(
+        annot.get(b"Subtype").map(|o| graph.resolve(o)),
+        Some(Object::Name(n)) if n.as_bytes() == b"Square"
+    ) && crate::annot_author::read_border_effect(graph, annot).is_some();
+    if annot.get(b"RD").is_some() && !square_cloud {
         out.push(DroppedProperty::RectDifferences);
     }
     if let Some(Object::Dict(bs)) = annot.get(b"BS").map(|o| graph.resolve(o)) {
@@ -5337,6 +5365,22 @@ pub struct MarkupStyle {
     /// Ignored by the text-markup family, which has no border; ask
     /// [`MarkupStyleSupport::takes_border`] rather than assuming.
     pub dash: Option<StyleEdit<annot_author::BorderDash>>,
+    /// `/BE` — the cloudy border effect (§12.5.4, Table 167), `Pass 264.3`.
+    ///
+    /// `Set(i)` makes the border cloudy at intensity `i` (`0.0..=2.0`,
+    /// Table 167's continuous range — out of range or non-finite is
+    /// [`EditError::BorderEffectIntensityOutOfRange`]); on a cloud it
+    /// changes the intensity. `Clear` makes the border straight and removes
+    /// `/BE` (and, on a `/Square`, the `/RD` inset the cloud's bulge
+    /// wrote). `None` leaves the effect as it is.
+    ///
+    /// `/Square` and `/Polygon` only — the subtypes pdfcer bakes a cloud
+    /// for. A `/Polygon` made cloudy becomes a [`MarkupSpec::Cloud`] and
+    /// a cloud made straight becomes a plain `/Polygon`; the subtype is
+    /// `/Polygon` either way. Anything else is
+    /// [`EditError::StylePropertyNotApplicable`]; ask
+    /// [`MarkupStyleSupport::takes_border_effect`].
+    pub border_effect: Option<StyleEdit<f64>>,
 }
 
 /// Which [`MarkupStyle`] properties a given `/Subtype` can actually take.
@@ -5387,6 +5431,11 @@ pub struct MarkupStyleSupport {
     /// means something. `/Line` only — Table 176's `/LE` is declared for
     /// `/PolyLine` too, but pdfcer authors endings on a line alone.
     pub takes_endings: bool,
+    /// The subtype can be made cloudy, so [`MarkupStyle::border_effect`]
+    /// means something: `/Square` and `/Polygon`. Table 167 also allows
+    /// `/BE` on `/Circle` and `/FreeText`, which pdfcer does not bake
+    /// cloudy.
+    pub takes_border_effect: bool,
 }
 
 impl MarkupStyleSupport {
@@ -5405,29 +5454,41 @@ impl MarkupStyleSupport {
     /// assert!(MarkupStyleSupport::for_subtype(b"Square").takes_border);
     /// assert!(!MarkupStyleSupport::for_subtype(b"Highlight").takes_border);
     /// assert!(MarkupStyleSupport::for_subtype(b"Line").takes_endings);
+    /// assert!(MarkupStyleSupport::for_subtype(b"Polygon").takes_border_effect);
+    /// assert!(!MarkupStyleSupport::for_subtype(b"Circle").takes_border_effect);
     /// ```
     #[must_use]
     pub fn for_subtype(subtype: &[u8]) -> Self {
         match subtype {
-            b"Square" | b"Circle" | b"Polygon" => Self {
+            b"Square" | b"Polygon" => Self {
                 takes_border: true,
                 takes_interior: true,
                 takes_endings: false,
+                takes_border_effect: true,
+            },
+            b"Circle" => Self {
+                takes_border: true,
+                takes_interior: true,
+                takes_endings: false,
+                takes_border_effect: false,
             },
             b"PolyLine" | b"Ink" => Self {
                 takes_border: true,
                 takes_interior: false,
                 takes_endings: false,
+                takes_border_effect: false,
             },
             b"Line" => Self {
                 takes_border: true,
                 takes_interior: false,
                 takes_endings: true,
+                takes_border_effect: false,
             },
             _ => Self {
                 takes_border: false,
                 takes_interior: false,
                 takes_endings: false,
+                takes_border_effect: false,
             },
         }
     }
@@ -35264,6 +35325,18 @@ impl EditSession {
                 property: "line endings",
             });
         }
+        if style.border_effect.is_some() && !support.takes_border_effect {
+            return Err(EditError::StylePropertyNotApplicable {
+                id: annot_id,
+                subtype: named(),
+                property: "border effect",
+            });
+        }
+        if let Some(StyleEdit::Set(i)) = style.border_effect
+            && (!i.is_finite() || !(0.0..=2.0).contains(&i))
+        {
+            return Err(EditError::BorderEffectIntensityOutOfRange { given: i });
+        }
 
         // Read the current geometry + style back out.
         let original = annot_author::spec_from_dict(&self.graph(), &current)?;
@@ -35338,6 +35411,19 @@ impl EditSession {
         // and gains back the shape it had before an operator experimented.
         if matches!(style.endings, Some(StyleEdit::Clear)) {
             regen.updated.remove(b"LE");
+        }
+
+        // `/BE` is not on the regeneration's removal list (a `/BE` pdfcer
+        // cannot bake survives a restyle), so a cleared cloud leaves here.
+        // A cloudy `/Square`'s `/RD` is the bulge the cloud wrote, and goes
+        // with it; a straight square's `/RD` is someone else's inset.
+        if matches!(style.border_effect, Some(StyleEdit::Clear)) {
+            if subtype_name == b"Square"
+                && annot_author::read_border_effect(&self.graph(), &current).is_some()
+            {
+                regen.updated.remove(b"RD");
+            }
+            regen.updated.remove(b"BE");
         }
 
         let change = MarkupStyleChange {
@@ -60096,16 +60182,11 @@ endstream",
             )
             .unwrap();
 
-        for expected in [
-            DroppedProperty::RectDifferences,
-            DroppedProperty::ForeignAppearance,
-        ] {
-            assert!(
-                change.dropped.contains(&expected),
-                "{expected:?} must be disclosed; got {:?}",
-                change.dropped
-            );
-        }
+        assert!(
+            change.dropped.contains(&DroppedProperty::ForeignAppearance),
+            "ForeignAppearance must be disclosed; got {:?}",
+            change.dropped
+        );
         // THREE properties have LEFT that list, in two Passes, and each
         // departure is a fix rather than a regression. The list this test
         // began with was `BorderEffect`, `RectDifferences`, `BorderStyle`,
@@ -60122,9 +60203,13 @@ endstream",
         // nothing to disclose. That was the whole defect — a dashed mark
         // silently solidified on its first recolour.
         //
+        // `/RD` on a cloudy `/Square` is the bulge: read back as the
+        // square's inset and re-authored with the cloud (Pass 264.3).
+        //
         // Rule 4 cuts both ways: a reported loss that did not happen trains
-        // the operator to discount the two above, which did.
+        // the operator to discount the one above, which did.
         for absent in [
+            DroppedProperty::RectDifferences,
             DroppedProperty::BorderEffect,
             DroppedProperty::BorderStyle,
             DroppedProperty::DashPattern,
