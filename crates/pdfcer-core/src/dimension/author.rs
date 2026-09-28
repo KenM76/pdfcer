@@ -575,6 +575,21 @@ pub fn author_dimension_with_label(
         DimensionKind::Circular {
             fit, show_diameter, ..
         } => {
+            // Circular text is horizontal under both standards (no axis
+            // frame), so its box is axis-aligned; `lift` is the same rule the
+            // label below uses, since a circle is never angular or perimeter.
+            let lift = if style.breaks_line_for_text() {
+                -label_size * 0.35
+            } else {
+                TEXT_ABOVE_GAP
+            };
+            let (tx, ty) = (anchor.x - text_w / 2.0, anchor.y + lift);
+            let text_box = [
+                tx - TEXT_BREAK_PAD,
+                label_size.mul_add(-0.3, ty) - TEXT_BREAK_PAD,
+                tx + text_w + TEXT_BREAK_PAD,
+                ty + label_size + TEXT_BREAK_PAD,
+            ];
             draw_circular(
                 &mut b,
                 &mut bounds,
@@ -583,6 +598,7 @@ pub fn author_dimension_with_label(
                 circular_leader(kind),
                 show_diameter,
                 style,
+                text_box,
             );
         }
         DimensionKind::Angular {
@@ -1065,7 +1081,10 @@ fn circular_leader(kind: &DimensionKind) -> (Point, Point, bool) {
 }
 
 /// Draw a circular dimension: the fitted circle outline plus the leader from
-/// [`circular_leader`] with its arrowhead(s) on the rim.
+/// [`circular_leader`] with its arrowhead(s) on the rim. An outside leader
+/// stops where it enters `text_box` (`[llx, lly, urx, ury]`, the label grown
+/// by its padding), so it points at the value rather than running through it.
+#[allow(clippy::too_many_arguments)] // one call site; a struct would only rename them
 fn draw_circular(
     b: &mut ContentBuilder,
     bounds: &mut BoundsAcc,
@@ -1074,19 +1093,27 @@ fn draw_circular(
     (from, to, outside): (Point, Point, bool),
     show_diameter: bool,
     style: DimensionStyle,
+    text_box: [f64; 4],
 ) {
+    let (ux, uy) = unit_vector(from, to);
+    let end = if outside {
+        segment_entry(from, to, text_box).unwrap_or(to)
+    } else {
+        to
+    };
     // The fitted circle outline (four kappa cubics), for context.
     if radius.is_finite() && radius > 0.0 {
         emit_circle(b, center, radius);
         bounds.add(Point::new(center.x - radius, center.y - radius));
         bounds.add(Point::new(center.x + radius, center.y + radius));
     }
-    b.move_to(from.x, from.y);
-    b.line_to(to.x, to.y);
-    b.paint(Paint::Stroke);
+    if end != from {
+        b.move_to(from.x, from.y);
+        b.line_to(end.x, end.y);
+        b.paint(Paint::Stroke);
+    }
     bounds.add(from);
-    bounds.add(to);
-    let (ux, uy) = unit_vector(from, to);
+    bounds.add(end);
     if outside {
         // `from` is the rim; the arrow points back along the leader, inward.
         arrowhead(b, bounds, from, (-ux, -uy), style);
@@ -1354,6 +1381,34 @@ fn emit_circle_path(b: &mut ContentBuilder, c: Point, r: f64) {
 
 /// The unit vector from `a` to `b`, or `(1, 0)` for a degenerate (zero-length)
 /// segment.
+/// Where the segment `a`→`b` first enters the axis-aligned box
+/// `[llx, lly, urx, ury]` (Liang-Barsky): `a` itself when it starts inside,
+/// `None` when the segment misses the box.
+fn segment_entry(a: Point, b: Point, [llx, lly, urx, ury]: [f64; 4]) -> Option<Point> {
+    let (dx, dy) = (b.x - a.x, b.y - a.y);
+    let (mut t0, mut t1) = (0.0_f64, 1.0_f64);
+    for (p, q) in [
+        (-dx, a.x - llx),
+        (dx, urx - a.x),
+        (-dy, a.y - lly),
+        (dy, ury - a.y),
+    ] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return None;
+            }
+        } else {
+            let r = q / p;
+            if p < 0.0 {
+                t0 = t0.max(r);
+            } else {
+                t1 = t1.min(r);
+            }
+        }
+    }
+    (t0 <= t1).then(|| Point::new(dx.mul_add(t0, a.x), dy.mul_add(t0, a.y)))
+}
+
 fn unit_vector(a: Point, b: Point) -> (f64, f64) {
     let dx = b.x - a.x;
     let dy = b.y - a.y;
@@ -1582,6 +1637,64 @@ mod tests {
         );
         assert_eq!(d.label, "100.00 pt");
         assert!(d.annot.get(b"Measure").is_none());
+    }
+
+    /// Every `x y l` line end in an appearance stream.
+    fn line_ends(ap: &[u8]) -> Vec<Point> {
+        let text = String::from_utf8_lossy(ap);
+        let tok: Vec<&str> = text.split_whitespace().collect();
+        tok.windows(3)
+            .filter(|w| w[2] == "l")
+            .filter_map(|w| Some(Point::new(w[0].parse().ok()?, w[1].parse().ok()?)))
+            .collect()
+    }
+
+    /// A leader to text past the rim stops at the text, under both standards
+    /// and at any leader angle.
+    #[test]
+    fn a_circular_leader_stops_short_of_its_text() {
+        let fit = FitCircle {
+            center: Point::new(300.0, 300.0),
+            radius: 100.0,
+            residual: 0.0,
+        };
+        for standard in [DimStandard::Ansi, DimStandard::Iso] {
+            for leader_angle in [0.0, 30.0, 90.0, 200.0] {
+                let d = author_dimension(
+                    &DimensionKind::Circular {
+                        fit,
+                        show_diameter: false,
+                        leader_angle,
+                        text_distance: Some(60.0),
+                    },
+                    DimensionStyle::new(
+                        ScaleState::NeverSet,
+                        Unit::Millimeter.default_format(),
+                        standard,
+                    ),
+                );
+                let r = d.label_rect();
+                let ends = line_ends(&d.ap_content);
+                assert!(!ends.is_empty(), "{standard:?} {leader_angle}: no leader");
+                for e in ends {
+                    let inside = e.x > r.llx && e.x < r.urx && e.y > r.lly && e.y < r.ury;
+                    assert!(
+                        !inside,
+                        "{standard:?} {leader_angle}: leader ends in the text at {e:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_segment_enters_a_box_at_its_near_edge() {
+        let b = [10.0, 10.0, 20.0, 20.0];
+        let e = segment_entry(Point::new(0.0, 15.0), Point::new(15.0, 15.0), b).unwrap();
+        assert!((e.x - 10.0).abs() < 1e-12 && (e.y - 15.0).abs() < 1e-12);
+        let inside = segment_entry(Point::new(12.0, 12.0), Point::new(30.0, 12.0), b).unwrap();
+        assert_eq!((inside.x, inside.y), (12.0, 12.0));
+        assert!(segment_entry(Point::new(0.0, 0.0), Point::new(5.0, 30.0), b).is_none());
     }
 
     #[test]
