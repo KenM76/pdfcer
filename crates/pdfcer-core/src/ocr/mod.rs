@@ -91,6 +91,11 @@ pub mod engine_paddle;
 #[doc(hidden)]
 pub mod paddle_post;
 
+// Workspace-internal: rewrites a below-opset-13 ONNX model into the operator
+// forms the model runtime reads. Ungated and pub only for the fuzz crate.
+#[doc(hidden)]
+pub mod onnx_upgrade;
+
 /// Reader for Tesseract's TSV output. Parsing only: the shell runs
 /// `tesseract.exe`, so this crate never spawns a process.
 pub mod tesseract_tsv;

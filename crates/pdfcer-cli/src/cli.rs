@@ -3052,8 +3052,9 @@ pub(crate) enum Command {
         /// package ships PP-OCRv4 (Chinese and English, Apache-2.0) in
         /// `models/paddle`. For another language, replace `rec.onnx` with
         /// that language's PP-OCR recognition model and add its `dict.txt`
-        /// if the model does not embed one. Which dictionary was used is
-        /// printed. Boxes are upright rectangles, so a steeply skewed scan
+        /// if the model does not embed one. PaddlePaddle's own exports load
+        /// as downloaded, including the older-format (opset 7) PP-OCRv5
+        /// recognisers. Which dictionary was used is printed. Boxes are upright rectangles, so a steeply skewed scan
         /// reads better deskewed first.
         ///
         /// `tesseract` runs the Tesseract program (Apache-2.0) in

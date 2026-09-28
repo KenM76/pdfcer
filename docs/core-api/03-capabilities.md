@@ -2455,6 +2455,17 @@ classes) or `classes − 1` (blank only). When the model's class count is
 fixed, a mismatch is refused at load. `ocr::paddle_post` is `#[doc(hidden)]`:
 it is workspace-internal, public only for the fuzz crate.
 
+Models exported below ONNX opset 13 load: the operator forms that changed
+(`BatchNormalization` `spatial`, attribute-form `Slice`, pre-13
+`Softmax`/`LogSoftmax`/`Hardmax` axis semantics) are rewritten on load the
+way `onnx.version_converter` rewrites them, weights untouched. PaddlePaddle's
+own PP-OCRv5 recogniser exports (opset 7) therefore load as downloaded; the
+official latin recogniser computes bit-identically to its opset-13
+conversion. Any other operator an old export uses in a pre-13 form still
+fails, and the `ModelLoad` reason then names the model's opset and says to
+convert it to 13. The rewriter (`ocr::onnx_upgrade`) is `#[doc(hidden)]`,
+public only for the fuzz crate.
+
 **Piece 3c — Tesseract, parse only** (`crates/pdfcer-core/src/ocr/tesseract_tsv.rs`, always compiled)
 
 Tesseract is a separate program, and core never spawns processes (wasm32), so

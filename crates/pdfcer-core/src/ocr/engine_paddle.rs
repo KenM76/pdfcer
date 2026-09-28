@@ -130,9 +130,26 @@ fn load(path: &Path) -> Result<rten::Model, PaddleEngineError> {
             path: path.to_path_buf(),
         });
     }
-    rten::Model::load_file(path).map_err(|e| PaddleEngineError::ModelLoad {
+    let fail = |reason: String| PaddleEngineError::ModelLoad {
         path: path.to_path_buf(),
-        reason: e.to_string(),
+        reason,
+    };
+    let bytes = std::fs::read(path).map_err(|e| fail(e.to_string()))?;
+    // rten reads every operator in its opset-13 form; older exports
+    // (PaddlePaddle's own PP-OCRv5 recognisers are opset 7) are rewritten
+    // first, the same rewrites `onnx.version_converter` makes.
+    let up = super::onnx_upgrade::upgrade(bytes).map_err(|e| fail(e.to_string()))?;
+    let opset = up.opset;
+    rten::Model::load(up.bytes).map_err(|e| {
+        let mut reason = e.to_string();
+        if let Some(v) = opset.filter(|&v| v < super::onnx_upgrade::TARGET_OPSET) {
+            reason.push_str(&format!(
+                " (the model is opset {v}; pdfcer upgrades BatchNormalization, Slice \
+                 and Softmax from older opsets, and anything else must be \
+                 converted to opset 13, e.g. with onnx.version_converter)"
+            ));
+        }
+        fail(reason)
     })
 }
 
@@ -158,7 +175,9 @@ impl PaddleEngine {
     /// # Errors
     ///
     /// [`PaddleEngineError::ModelMissing`] naming the absent file (detection
-    /// first); [`PaddleEngineError::ModelLoad`] when the runtime rejects one;
+    /// first); [`PaddleEngineError::ModelLoad`] when the runtime rejects one
+    /// (for a model below opset 13 the reason names its opset: the forms
+    /// `ocr::onnx_upgrade` rewrites load, others must be converted);
     /// [`PaddleEngineError::Dictionary`] when no dictionary is available or,
     /// for a model with a fixed class count, it does not fit.
     pub fn from_model_files(
@@ -344,6 +363,41 @@ impl OcrEngine for PaddleEngine {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    fn onnx_fixture(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/synthetic/onnx")
+            .join(name)
+    }
+
+    fn run_fixture(model: &rten::Model) -> Vec<f32> {
+        let x: Vec<f32> = (0..120)
+            .map(|i| ((i * 37) % 23) as f32 / 7.0 - 1.5)
+            .collect();
+        let tensor = NdTensor::from_data([2, 3, 4, 5], x);
+        let out: rten_tensor::Tensor<f32> = model
+            .run_one(tensor.view().into(), None)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        assert_eq!(out.shape(), [2, 3, 4, 3]);
+        out.to_vec()
+    }
+
+    #[test]
+    fn an_opset_7_model_computes_what_its_opset_13_conversion_does() {
+        let old = std::fs::read(onnx_fixture("opset7.onnx")).unwrap();
+        assert!(
+            rten::Model::load(old).is_err(),
+            "the fixture must be one rten cannot read unaided"
+        );
+        let upgraded = load(&onnx_fixture("opset7.onnx")).unwrap();
+        let reference = load(&onnx_fixture("opset7-as13.onnx")).unwrap();
+        let (got, want) = (run_fixture(&upgraded), run_fixture(&reference));
+        for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+            assert!((g - w).abs() < 1e-5, "element {i}: {g} vs {w}");
+        }
+    }
 
     #[test]
     fn a_missing_model_names_the_path_and_the_fix() {
