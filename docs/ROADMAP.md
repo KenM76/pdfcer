@@ -115,7 +115,7 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `Pass 379.0` (`c3fdc733`), 2026-09-28 — `Page::with_boxes` constructor (G060); corrects a Pass-ID collision baked into the commit message
+### `Pass 379.0` (`c3fdc733`, `5c189d99`), 2026-09-28 — `Page::with_boxes` constructor (G060); corrects a Pass-ID collision baked into the commit message
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G060`: "a Page has no
 constructor, so every new field breaks every fixture." New
@@ -150,6 +150,11 @@ constructor field-by-field against `pages()` on a synthetic file, one
 covers rotation normalisation plus struct-update. 1 doctest. 5 sabotage
 mutations all caught. `cargo fmt`/`clippy -- -D warnings` clean;
 `check-core-api-verbs` PASS.
+
+**Follow-up (`5c189d99`).** A full gate run (39/40 green, `fmt` the only
+failure) caught one line in `page_tree.rs` left too long after a later
+`is_multiple_of` clippy fix re-wrapped it past `rustfmt`'s width.
+Whitespace-only; re-ran clean.
 
 **Docs.** `docs/core-api/01-reading-and-model.md` §6.2, "Building one".
 
