@@ -4,6 +4,36 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (710th filing) — `4dc85998`: `Pass 381.0` SHIPPED — export flowing text to Word (DOCX)
+
+**Shipped:**
+- `Pass 381.0` (`4dc85998`) — `pdfcer_core::export::docx::write_docx`,
+  hand-written WordprocessingML (ECMA-376 Part 1 §17) over `Pass 380.0`'s
+  OPC zip writer, consuming `373.0`'s block layout and `374.0`'s tables.
+  Headings → `Heading 1..6`; tables → `w:tbl` with merges/header rows;
+  running header/footer/page-number blocks → a real Word header/footer
+  part with a live `PAGE` field (exceed-Acrobat divergence — Acrobat
+  inlines them as repeated body text; only the first variant per position
+  is kept, the rest counted). CLI `pdfcer export-docx`. Closes the
+  "Export to Word/Excel" Backlog bucket end to end (`373.0`/`374.0`/
+  `380.0`/`381.0`). Full detail: `ROADMAP.md` *Shipped*, top of file.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- None beyond what's in the `Pass 381.0` Shipped entry.
+
+**Still in flight:**
+- *Next up* has no named head — the export Backlog bucket is fully
+  shipped. Next Pass is whatever the engineer scopes next session.
+
+**For next session:**
+- No shell this filing (hard rule 8). Facts relayed from the dispatching
+  engineer's own verification at `4dc85998`. **Not yet pushed** —
+  `origin/main` is `b1f3118c` per this session's own git-status snapshot;
+  backup/CI state beyond that is not verifiable from here.
+
 ## 2026-09-28 (709th filing) — `310489bd`: `Pass 380.0` SHIPPED — export detected tables to Excel (XLSX)
 
 **Shipped:**

@@ -115,6 +115,80 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 381.0` (`4dc85998`), 2026-09-28 — export flowing text to Word (DOCX)
+
+**Verdict: SHIPPED.** Closes the "Export to Word/Excel" Backlog bucket
+(both `380.0`/`381.0` scoped 708th filing) — *Next up* is now empty. New
+`pdfcer_core::export::docx::write_docx(&DocumentLayout, &[PageGeometry],
+&[Table], &DocxOptions) -> Result<DocxOutput, PackageError>`, writing
+WordprocessingML (ECMA-376 Part 1 §17) over the existing OPC zip writer
+(`export/ooxml_zip.rs`, `Pass 380.0`) — no new dependency.
+
+**Mapping.** Heading blocks become built-in `Heading 1`-`6` styles;
+paragraphs carry alignment and first-line indent; list items become `List
+Paragraph`; captions become `Caption`. Detected tables (`Pass 374.0`)
+replace their source blocks as `w:tbl` with `gridSpan`/`vMerge` merges
+and repeating bold header rows (`tblHeader`); a table wider than Word's
+63-column limit is left as text and counted. Running header/footer text
+is written once into `header1`/`footer1`; the page number becomes a live
+`PAGE` field (roman when the source was roman). Page size comes from the
+first page's displayed crop box; margins are 1 inch.
+
+**Divergence (rule 4 / exceed-Acrobat).** Acrobat's flowing mode leaves
+running headers as page-repeated body text; pdfcer instead writes real
+Word header/footer parts carrying a live page-number field. Only the
+first running-block variant survives per position — the rest are counted
+in `running_variants_dropped` rather than silently kept or dropped
+unmarked.
+
+**Disclosure (rule 4).** `DocxReport`: `inferred_blocks`, `tables`,
+`table_cells`, `merged_cells`, `blocks_in_tables`, `tables_too_wide`,
+`header`, `footer`, `page_number_field`, `running_blocks`,
+`running_variants_dropped`, `characters_dropped` — all printed on the CLI
+result line.
+
+**CLI.** `pdfcer export-docx IN -o OUT [--no-page-breaks] [--no-tables]`;
+prints the report plus `runs_not_horizontal`/`runs_watermark_skipped`.
+Subcommand count 178 → 179 (README updated).
+
+**Tests.** 7 core unit tests + 1 doctest + 2 CLI integration tests
+(`crates/pdfcer-cli/tests/export_docx.rs`). Sabotage checks caught the
+table-replaced-block skip, the running-block skip, `page_number_field`,
+and the dropped-variant count.
+
+**External verification.** python-docx reads the styles, table, header
+and page size. Word (COM) opened the file without repair (2 pages, 1
+table, `Heading 1`). Word's own PDF export of the file renders "Page 1" /
+"Page 2" from the field.
+
+**Gates.** `tools/run-gates.sh` PASS, 40 of 40 (including both filing
+gates) — engineer-reported, not independently re-run from here (no
+shell).
+
+**`cargo tree`.** No dependency change — `flate2`/`thiserror` already in
+`pdfcer-core`.
+
+**Docs.** `docs/core-api/03-capabilities.md` §7.13 added.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — no GUI wiring this Pass.
+
+**`docs/FEATURES.md`.** Row moved *Planned* → *Implemented*, *Export*
+section: core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`.
+
+**Backlog.** "Export to Word/Excel" bucket (filed 701st filing) is now
+fully shipped end to end — `373.0`, `374.0`, `380.0`, `381.0`; closing
+note added there. *Next up* has no named head.
+
+**No §12 decision.** Same call as `373.0`/`374.0`/`380.0` — a new export
+module reusing the existing zip writer, no crate-boundary or invariant
+change. Highest decision record stays `165`.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own verification at `4dc85998`, not
+independently reproduced. **Not yet pushed** — `origin/main` is
+`b1f3118c` per this session's own git-status snapshot; backup/CI state
+beyond that is not verifiable from here.
+
 ### `Pass 380.0` (`310489bd`), 2026-09-28 — export detected tables to Excel (XLSX)
 
 **Verdict: SHIPPED.** Head of *Next up* (scoped 708th filing, from the
@@ -9667,6 +9741,12 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★ **`Pass 381.0` SHIPPED, 2026-09-28 (710th filing), `4dc85998`** —
+> see top of *Shipped*. Closes the DOCX half of the pair scoped the 708th
+> filing; the whole "Export to Word/Excel" Backlog bucket
+> (`373.0`/`374.0`/`380.0`/`381.0`) is now shipped end to end. **`Next up`
+> has no named head.**
+
 > ★★★★ **`Pass 380.0` SHIPPED, 2026-09-28 (709th filing), `310489bd`** — see
 > top of *Shipped*. Closes the XLSX half of the pair scoped the 708th
 > filing (Backlog bucket below). **`Pass 381.0` (DOCX export) is now the
@@ -18902,8 +18982,11 @@ writer as `Pass 380.0` and the DOCX writer as `Pass 381.0`, filed under
 this bucket.
 
 **`Pass 380.0` SHIPPED 2026-09-28** (709th filing, `310489bd`) — see
-*Shipped*, top of this file. `Pass 381.0` (DOCX export) is now the sole
-head of *Next up*.
+*Shipped*, top of this file.
+
+**`Pass 381.0` SHIPPED 2026-09-28** (710th filing, `4dc85998`) — see
+*Shipped*, top of this file. **This bucket is now fully shipped**:
+`373.0`, `374.0`, `380.0`, `381.0` all done; nothing remains here.
 
 **New follow-on, filed 2026-09-28 (703rd filing), no Pass ID.** `374.0`
 deliberately runs table detection over the vector/text extraction only —
