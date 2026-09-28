@@ -1153,6 +1153,7 @@ mod tests {
             artifact: None,
             mcid: None,
             mcid_stream: None,
+            artifact_subtype: None,
             bbox: None,
         }
     }
@@ -1174,6 +1175,7 @@ mod tests {
             artifact: None,
             mcid: None,
             mcid_stream: None,
+            artifact_subtype: None,
             bbox: None,
         };
         let mut cur_x = x;

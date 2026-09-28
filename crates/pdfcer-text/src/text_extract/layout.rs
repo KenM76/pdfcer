@@ -128,8 +128,8 @@ use pdfcer_model::page_tree::Rect;
 
 use super::page::{GlyphItem, Item};
 use super::{
-    ArtifactKind, ContentStreamRef, ExtractOptions, ExtractedGlyph, TextDiagnostics, TextOrigin,
-    TextRun,
+    ArtifactKind, ArtifactSubtype, ContentStreamRef, ExtractOptions, ExtractedGlyph,
+    TextDiagnostics, TextOrigin, TextRun,
 };
 
 /// The geometry of the last emitted glyph, for gap analysis.
@@ -191,6 +191,7 @@ struct OpenRun {
     artifact: Option<ArtifactKind>,
     mcid: Option<u32>,
     mcid_stream: Option<ContentStreamRef>,
+    artifact_subtype: Option<ArtifactSubtype>,
     llx: f32,
     lly: f32,
     urx: f32,
@@ -244,7 +245,10 @@ impl Builder<'_> {
         // content's characters must never share a run, or the caller
         // cannot filter one without the other.
         if self.open.as_ref().is_some_and(|r| {
-            r.artifact != g.artifact || r.mcid != g.mcid || r.mcid_stream != g.mcid_stream
+            r.artifact != g.artifact
+                || r.artifact_subtype != g.artifact_subtype
+                || r.mcid != g.mcid
+                || r.mcid_stream != g.mcid_stream
         }) {
             self.close_run();
         }
@@ -255,6 +259,7 @@ impl Builder<'_> {
             artifact: g.artifact.clone(),
             mcid: g.mcid,
             mcid_stream: g.mcid_stream,
+            artifact_subtype: g.artifact_subtype.clone(),
             llx: f32::MAX,
             lly: f32::MAX,
             urx: f32::MIN,
@@ -342,6 +347,7 @@ impl Builder<'_> {
             artifact: r.artifact,
             mcid: r.mcid,
             mcid_stream: r.mcid_stream,
+            artifact_subtype: r.artifact_subtype,
             bbox: r.bbox,
         });
         // The cursor moves to the right edge of what the replacement
@@ -455,6 +461,7 @@ impl Builder<'_> {
             artifact: None,
             mcid: None,
             mcid_stream: None,
+            artifact_subtype: None,
             bbox: None,
         });
     }
@@ -486,6 +493,7 @@ impl Builder<'_> {
             artifact: run.artifact,
             mcid: run.mcid,
             mcid_stream: run.mcid_stream,
+            artifact_subtype: run.artifact_subtype,
             bbox,
         });
     }
@@ -579,6 +587,7 @@ mod tests {
             artifact: None,
             mcid: None,
             mcid_stream: None,
+            artifact_subtype: None,
             provenance: None,
         })
     }
@@ -682,6 +691,7 @@ mod tests {
             artifact: None,
             mcid: None,
             mcid_stream: None,
+            artifact_subtype: None,
             provenance: None,
         }));
         let (runs, d) = run(items);
@@ -705,6 +715,7 @@ mod tests {
             artifact: Some(ArtifactKind::Pagination),
             mcid: None,
             mcid_stream: None,
+            artifact_subtype: None,
             provenance: None,
         }));
         let (runs, _) = run(items);

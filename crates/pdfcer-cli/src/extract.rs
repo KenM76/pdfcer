@@ -217,6 +217,8 @@ contents_unresolved={} type3_no_tounicode={} pages_resources_defaulted={}",
 ///           "sourced": true,             // did this come from the FILE?
 ///           "text": "Hello",
 ///           "artifact": "pagination",    // omitted when not an artifact
+///           "artifact_subtype": "header", // header | footer | watermark |
+///                                        // producer name; omitted if absent
 ///           "mcid": 0,                   // omitted when absent
 ///           "bbox": [llx, lly, urx, ury],
 ///           "glyphs": [
@@ -360,6 +362,12 @@ pub(crate) fn extraction_json(
                 out.push_str(&format!(
                     ", \"artifact\": \"{}\"",
                     json_escape(artifact.as_str())
+                ));
+            }
+            if let Some(subtype) = &run.artifact_subtype {
+                out.push_str(&format!(
+                    ", \"artifact_subtype\": \"{}\"",
+                    json_escape(subtype.as_str())
                 ));
             }
             if let Some(mcid) = run.mcid {

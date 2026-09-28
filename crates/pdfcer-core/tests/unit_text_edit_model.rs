@@ -39,6 +39,7 @@ fn glyph_run(chars: &[(&str, f32, f32, f32, f32)]) -> TextRun {
         artifact: None,
         mcid: None,
         mcid_stream: None,
+        artifact_subtype: None,
         bbox: None,
     }
 }
@@ -51,6 +52,7 @@ fn line_break() -> TextRun {
         artifact: None,
         mcid: None,
         mcid_stream: None,
+        artifact_subtype: None,
         bbox: None,
     }
 }

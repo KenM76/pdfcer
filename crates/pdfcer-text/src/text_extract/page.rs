@@ -77,7 +77,8 @@ use pdfcer_model::view::DocumentView;
 
 use super::font::{ExtractFont, FontNote, LadderRung, Rung3Gap};
 use super::{
-    ArtifactKind, ContentStreamRef, ExtractOptions, GlyphProvenance, TextColor, TextDiagnostics,
+    ArtifactKind, ArtifactSubtype, ContentStreamRef, ExtractOptions, GlyphProvenance, TextColor,
+    TextDiagnostics,
 };
 
 /// One thing the walk produced, before derived whitespace is inserted.
@@ -120,6 +121,7 @@ pub(super) struct GlyphItem {
     pub mcid: Option<u32>,
     /// Which content stream `mcid` is scoped to; `Some` exactly when it is.
     pub mcid_stream: Option<ContentStreamRef>,
+    pub artifact_subtype: Option<ArtifactSubtype>,
     /// Source-operator identity + text state, captured only when
     /// [`ExtractOptions::capture_provenance`] is set (otherwise `None`).
     pub provenance: Option<GlyphProvenance>,
@@ -136,6 +138,7 @@ pub(super) struct ReplacementItem {
     pub mcid: Option<u32>,
     /// Which content stream `mcid` is scoped to; `Some` exactly when it is.
     pub mcid_stream: Option<ContentStreamRef>,
+    pub artifact_subtype: Option<ArtifactSubtype>,
     /// Bounding box of the glyphs the replacement covered, if it covered
     /// any. This is the *only* positional information an `/ActualText`
     /// run can carry — §14.9.4 N4 makes per-character correspondence
@@ -347,6 +350,7 @@ struct MarkedLevel {
     artifact: Option<ArtifactKind>,
     mcid: Option<u32>,
     mcid_stream: Option<ContentStreamRef>,
+    artifact_subtype: Option<ArtifactSubtype>,
     reversed_chars: bool,
     /// Present when this level is a `/Span` carrying `/ActualText`, and
     /// this level is the OUTERMOST such level (see the nesting policy in
@@ -1117,6 +1121,7 @@ impl Walk<'_> {
             artifact,
             mcid: self.mcid(),
             mcid_stream: self.mcid_stream(),
+            artifact_subtype: self.artifact_subtype(),
             provenance,
         }));
     }
@@ -1167,6 +1172,7 @@ impl Walk<'_> {
             artifact: self.artifact(),
             mcid: self.mcid(),
             mcid_stream: self.mcid_stream(),
+            artifact_subtype: self.artifact_subtype(),
             reversed_chars: self.reversed_chars(),
             actual_text: None,
             covered: None,
@@ -1176,6 +1182,7 @@ impl Walk<'_> {
             b"Artifact" => {
                 self.diagnostics.artifact_sequences += 1;
                 level.artifact = Some(artifact_kind(self.doc, props));
+                level.artifact_subtype = artifact_subtype_of(self.doc, props);
             }
             b"ReversedChars" => {
                 self.diagnostics.reversed_chars_sequences += 1;
@@ -1302,6 +1309,7 @@ impl Walk<'_> {
             artifact: level.artifact,
             mcid: level.mcid,
             mcid_stream: level.mcid_stream,
+            artifact_subtype: level.artifact_subtype,
             bbox: level.covered,
         }));
     }
@@ -1309,6 +1317,11 @@ impl Walk<'_> {
     /// The innermost enclosing artifact classification.
     fn artifact(&self) -> Option<ArtifactKind> {
         self.marked.last().and_then(|l| l.artifact.clone())
+    }
+
+    /// The innermost enclosing artifact `/Subtype`.
+    fn artifact_subtype(&self) -> Option<ArtifactSubtype> {
+        self.marked.last().and_then(|l| l.artifact_subtype.clone())
     }
 
     /// The innermost enclosing `/MCID`.
@@ -1584,6 +1597,19 @@ fn artifact_kind(doc: &DocumentView<'_>, props: Option<&Dict>) -> ArtifactKind {
             other => ArtifactKind::Other(String::from_utf8_lossy(other).into_owned()),
         },
         _ => ArtifactKind::Unspecified,
+    }
+}
+
+/// Table 363's `/Subtype`; `None` when absent or not a name.
+fn artifact_subtype_of(doc: &DocumentView<'_>, props: Option<&Dict>) -> Option<ArtifactSubtype> {
+    match doc.resolve(props?.get(b"Subtype")?) {
+        Object::Name(n) => Some(match n.as_bytes() {
+            b"Header" => ArtifactSubtype::Header,
+            b"Footer" => ArtifactSubtype::Footer,
+            b"Watermark" => ArtifactSubtype::Watermark,
+            other => ArtifactSubtype::Other(String::from_utf8_lossy(other).into_owned()),
+        }),
+        _ => None,
     }
 }
 

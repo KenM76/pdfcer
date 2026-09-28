@@ -18,7 +18,8 @@ use std::path::{Path, PathBuf};
 use pdfcer_core::document::Document;
 use pdfcer_core::settings::{ActualTextPrecedence, UnmappableCode};
 use pdfcer_core::text_extract::{
-    self, ArtifactKind, Editability, ExtractOptions, ExtractedText, LadderRung, TextOrigin,
+    self, ArtifactKind, ArtifactSubtype, Editability, ExtractOptions, ExtractedText, LadderRung,
+    TextOrigin,
 };
 
 /// A fixture path under `fixtures/synthetic/text/`.
@@ -491,6 +492,21 @@ fn artifacts_are_classified_kept_and_excluded_by_policy() {
             .iter()
             .any(|r| r.artifact == Some(ArtifactKind::Unspecified)),
         "the bare /Artifact BMC form is a generic artifact, not an error"
+    );
+    // Table 363's /Subtype is what tells a header from a footer.
+    for r in &artifact_runs {
+        let expected = match r.artifact {
+            Some(ArtifactKind::Pagination) => Some(ArtifactSubtype::Header),
+            _ => None,
+        };
+        assert_eq!(r.artifact_subtype, expected, "{:?}", r.text);
+    }
+    assert!(
+        text.pages
+            .iter()
+            .flat_map(|p| p.runs.iter())
+            .filter(|r| r.artifact.is_none())
+            .all(|r| r.artifact_subtype.is_none())
     );
 }
 

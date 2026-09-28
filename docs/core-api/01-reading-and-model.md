@@ -1097,6 +1097,9 @@ for page in &all.pages {                       // Vec<PageText>            mod.r
 
 `TextRun`: `text`, `origin`, `glyphs`, `artifact`, `mcid`, `mcid_stream`
 (which content stream's MCID namespace `mcid` belongs to),
+`artifact_subtype: Option<ArtifactSubtype>` (`Header` | `Footer` |
+`Watermark` | `Other(name)`, Table 363 — how to tell a running head from
+a running foot),
 `bbox: Option<Rect>`; method `direction() -> (f32, f32)`.
 ★ `text` is **not** one `char` per glyph and the run is **not** one show
 operator — see §8.4.0 before building anything that locates an edit from a

@@ -227,6 +227,33 @@ pub enum ArtifactKind {
     Other(String),
 }
 
+/// An artifact's `/Subtype` (ISO 32000-2 Table 363; PDF 1.7).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ArtifactSubtype {
+    /// A running head.
+    Header,
+    /// A running foot.
+    Footer,
+    /// A watermark (§14.8.2.2 NOTE 2 makes it a `Pagination` artifact).
+    Watermark,
+    /// Any other name (Annex E second-class names are permitted).
+    Other(String),
+}
+
+impl ArtifactSubtype {
+    /// A short stable identifier for machine-readable output.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Header => "header",
+            Self::Footer => "footer",
+            Self::Watermark => "watermark",
+            Self::Other(name) => name,
+        }
+    }
+}
+
 impl ArtifactKind {
     /// A short stable identifier for machine-readable output.
     #[must_use]
@@ -682,8 +709,7 @@ pub struct TextRun {
     /// policy must be reversible by the caller.
     pub artifact: Option<ArtifactKind>,
     /// The enclosing `/MCID` (§14.7.4.2), the join key to the structure
-    /// tree. Recorded now so a later structure-order Pass has it; not
-    /// used for ordering this Pass.
+    /// tree ([`crate::structure_tree`]). Content order is unaffected.
     pub mcid: Option<u32>,
     /// The content stream [`Self::mcid`] is scoped to — `Some` exactly when
     /// `mcid` is. An MCID identifies a sequence only "within its content
@@ -692,6 +718,13 @@ pub struct TextRun {
     /// form painted inside a page-level sequence carries the page's key
     /// (§14.7.4.2 case 1).
     pub mcid_stream: Option<ContentStreamRef>,
+    /// The enclosing artifact's `/Subtype` (Table 363, PDF 1.7):
+    /// `Header`, `Footer`, `Watermark` or a producer's own name. `None`
+    /// when the run is not an artifact or the property list has no
+    /// `/Subtype`. Recorded whatever the `/Type`: the spec says it
+    /// "should" appear only on `Pagination`, and a reader cannot enforce a
+    /// "should".
+    pub artifact_subtype: Option<ArtifactSubtype>,
     /// Bounding box in default user space, when the run has geometry.
     /// `None` for derived-whitespace runs and for an `/ActualText` run
     /// that covered no glyphs.
