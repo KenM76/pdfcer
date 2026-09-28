@@ -63800,6 +63800,52 @@ mod text_edit_session_tests {
             .0
     }
 
+    /// The preview's walk cache keys on the session state of every object
+    /// reachable from `/Font`: a change to the font object alone (here its
+    /// `/Encoding`, which changes how the run decodes) must reach the next
+    /// preview, with the page and its resources untouched.
+    #[test]
+    fn edit_text_preview_sees_a_font_object_change() {
+        let src = text_pdf(
+            "BT /F1 12 Tf 72 700 Td (teh cat) Tj ET
+",
+        );
+        let mut session = EditSession::new(Document::from_bytes(src).unwrap());
+        let req = EditRequest::find_replace(0, "teh", "the");
+        session
+            .edit_text_preview(&req, &EditOptions::default())
+            .expect("previewable before the change");
+
+        // Code 116 ('t') now names /x: the run reads "xeh cax".
+        let font_id = ObjId::new(5, 0);
+        let mut font = session
+            .view()
+            .resolve(&Object::Reference(font_id))
+            .as_dict()
+            .cloned()
+            .unwrap();
+        let mut enc = Dict::new();
+        enc.insert(
+            Name::from(b"BaseEncoding"),
+            Object::Name(Name::from(b"WinAnsiEncoding")),
+        );
+        enc.insert(
+            Name::from(b"Differences"),
+            Object::Array(vec![Object::Integer(116), Object::Name(Name::from(b"x"))]),
+        );
+        font.insert(Name::from(b"Encoding"), Object::Dict(enc));
+        session.state.insert(font_id, Object::Dict(font));
+
+        assert!(matches!(
+            session.edit_text_preview(&req, &EditOptions::default()),
+            Err(crate::text_edit::EditError::NoMatch { .. })
+        ));
+        assert!(matches!(
+            session.edit_text(&req, &EditOptions::default()),
+            Err(crate::text_edit::EditError::NoMatch { .. })
+        ));
+    }
+
     #[test]
     fn edit_text_is_one_undoable_command_that_reverts_and_reapplies() {
         let src = text_pdf("BT /F1 12 Tf 72 700 Td (teh cat) Tj ET\n");

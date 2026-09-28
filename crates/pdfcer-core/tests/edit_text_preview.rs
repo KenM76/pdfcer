@@ -166,3 +166,41 @@ fn the_ctm_is_in_the_layout() {
     assert_eq!(p.base_font, "Helvetica");
     assert_eq!(p.font_resource, b"F1");
 }
+
+/// A match across three show operators (`Pass 256.0`): the commit collapses
+/// it into the last operator at the match's start, and the preview must
+/// already have laid it out there.
+#[test]
+fn preview_matches_the_commit_across_operators() {
+    parity("text/composite-per-glyph.pdf", "ABC", "CBA");
+    parity("text/composite-per-glyph.pdf", "ABC", "CABA");
+    parity("text/composite-tj-split.pdf", "ABC", "CBA");
+}
+
+/// Un-embedding the subset changes the font descriptor and nothing on the
+/// page; the next preview's refusal follows it, as the commit's does. (The
+/// gate re-reads the font per plan, so this passes even with a stale walk;
+/// `edit_text_preview_sees_a_font_object_change` in `edit.rs` is the test
+/// that pins the cache.)
+#[test]
+fn a_font_object_change_reaches_the_next_preview() {
+    let mut s = session("textedit/subset_missing.pdf");
+    assert!(preview(&mut s, "cat", "caz").is_err(), "the subset lacks z");
+    let plan = s
+        .unembed_fonts(&pdfcer_core::font_unembed::UnembedRequest::all_removable())
+        .expect("unembed");
+    assert!(s.is_modified(), "{plan:?}");
+    let after_preview = preview(&mut s, "cat", "caz").map(|p| p.glyphs.len());
+    let after_commit = s
+        .edit_text(
+            &EditRequest::find_replace(0, "cat", "caz"),
+            &EditOptions::default(),
+        )
+        .map(|_| ());
+    assert_eq!(
+        after_preview.is_ok(),
+        after_commit.is_ok(),
+        "{after_preview:?} {after_commit:?}"
+    );
+    assert_eq!(after_preview.ok(), Some(3));
+}
