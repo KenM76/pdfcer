@@ -222,9 +222,23 @@ pub(crate) fn cmd_list_annotations(input: &Path, pages_spec: &str) -> u8 {
                         .join(",")
                 },
             );
+            // `/RC` rich text (either form, resolved to its XHTML) and the
+            // `/DS` default style. Appended, never inserted.
+            let rich_note = annot
+                .rich_contents
+                .as_ref()
+                .and_then(|r| {
+                    pdfcer_core::annot::rich_text_in(
+                        &doc,
+                        pdfcer_core::view::StreamSource::Contiguous(doc.bytes()),
+                        r,
+                    )
+                })
+                .map_or_else(|| "none".to_owned(), |t| quoted_token(&t));
+            let default_style = opt_token(annot.default_style.as_ref());
             println!(
                 "annot page={} index={array_index} subtype={subtype} rect={rect} \
-flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} open={} color={} icon={} vertices={vertices} line={line} ink={ink} stamp_label={stamp_label} stamp_size={stamp_size} stamp_size_from={stamp_size_from} oc={oc} dash={dash}",
+flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} open={} color={} icon={} vertices={vertices} line={line} ink={ink} stamp_label={stamp_label} stamp_size={stamp_size} stamp_size_from={stamp_size_from} oc={oc} dash={dash} rich_note={rich_note} default_style={default_style}",
                 page_index + 1,
                 annot.flags.0,
                 usize::from(annot.is_widget()),

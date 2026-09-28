@@ -98,6 +98,7 @@ raster alone.
     renders (with and without ``--no-annotations``) and lists.
 """
 
+import zlib
 from pathlib import Path
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "synthetic" / "annot"
@@ -304,6 +305,28 @@ def main() -> int:
                 b"/DS (font: 12pt Helvetica) /C [0 0 1] /AP << /N 5 0 R >> >>"
             ),
             5: fill_ap((0, 0, 100, 60)),
+        },
+    )
+
+    # `/RC` as a TEXT STREAM (12.7.3.4: rich text "may be packaged as text
+    # streams", 7.9.3), Flate-compressed and UTF-16BE with a BOM, so a reader
+    # must both decode the filter and decode the text-string encoding. The
+    # accented letter makes a Latin-1 misreading visible.
+    rc_stream = zlib.compress(
+        "﻿<?xml version=\"1.0\"?><body><p>STREAMED RICH WORDS é</p></body>".encode(
+            "utf-16-be"
+        )
+    )
+    files["rich-text-stream.pdf"] = one_page(
+        "/Annots [4 0 R]",
+        {
+            4: (
+                b"<< /Type /Annot /Subtype /Text /Rect [100 100 120 120] "
+                b"/Contents (the plain words) /RC 6 0 R "
+                b"/AP << /N 5 0 R >> >>"
+            ),
+            5: fill_ap((0, 0, 20, 20)),
+            6: stream("/Filter /FlateDecode", rc_stream),
         },
     )
 

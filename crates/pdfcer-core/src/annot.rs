@@ -680,6 +680,33 @@ pub struct Annotation {
     /// with [`Self::effective_reply_type`] rather than being unable to
     /// tell "the file said `R`" from "the file said nothing".
     pub reply_type: Option<ReplyType>,
+    /// `/RC` — the annotation's **rich-text** comment (ISO 32000-1
+    /// §12.5.6.2 Table 170, PDF 1.5; on a `/FreeText` also Table 174), an
+    /// XHTML fragment in the §12.7.3.4 grammar. `None` when absent, or when
+    /// the value is neither a string nor a stream.
+    ///
+    /// It is the styled twin of [`Self::contents`]: Table 170 makes it the
+    /// text shown **in the pop-up window**, and on a `/FreeText` the text the
+    /// appearance is generated from. The two can disagree in a file written
+    /// by a tool that updated one and not the other; both are reported as
+    /// the file carries them.
+    ///
+    /// Read for every subtype, on [`Self::title`]'s reasoning. A widget's
+    /// `/MK` also has an `/RC` (its rollover caption), which is a different
+    /// key in a different dictionary and is not this field.
+    pub rich_contents: Option<RichText>,
+    /// `/DS` — the **default style string** (§12.7.3.4; Table 174 on a
+    /// `/FreeText`), a CSS2 declaration list such as
+    /// `font: 12pt Helvetica; color:#000000`, decoded as a text string.
+    /// `None` when absent or not a string.
+    ///
+    /// §12.7.3.4 makes it an input to appearance generation beside `/RC`:
+    /// it supplies every style attribute a rich-text run does not set.
+    /// Table 170 does not list `/DS` for markup annotations in general, but
+    /// producers write it beside `/RC` on notes too, and §12.5.6.2's group
+    /// attributes name the pair ("`RC` and `DS`"), so it is read for every
+    /// subtype rather than gated on `/FreeText`.
+    pub default_style: Option<String>,
     /// `/Open` — whether this annotation's window is **initially displayed
     /// open** (§12.5.6.4 Table 172 on a `/Text`, §12.5.6.14 Table 183 on a
     /// `/Popup`).
@@ -856,6 +883,72 @@ pub fn rotation_degrees(matrix: [f64; 6]) -> Option<f64> {
         return None;
     }
     Some(b.atan2(a).to_degrees())
+}
+
+/// An annotation's `/RC` rich text (ISO 32000-1 §12.7.3.4, Table 170), in
+/// whichever of its two permitted forms the file uses.
+///
+/// §12.7.3.4 lets rich text be a text string **or** a text stream (§7.9.3).
+/// The read model decodes the string form directly; the stream form is
+/// reported by id because decoding a stream needs the document's bytes,
+/// which [`page_annotations`] does not take. [`rich_text_in`] resolves
+/// either form to text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RichText {
+    /// Given as a text string, decoded per §7.9.2 (PDFDocEncoding, or
+    /// UTF-16BE / UTF-8 with a byte-order mark).
+    Inline(String),
+    /// Given as a text stream: the stream object's id.
+    Stream(ObjId),
+}
+
+/// The text of an annotation's `/RC` rich text, whichever form it takes.
+///
+/// A [`RichText::Inline`] value is returned as is. A [`RichText::Stream`] is
+/// decoded through its filters and then as a text string (§7.9.3: a text
+/// stream's bytes use the text-string encodings). `None` when the id does
+/// not name a stream or its bytes cannot be sliced from `source`; a filter
+/// that fails to decode yields the raw bytes, matching how appearance
+/// streams are read elsewhere in this module.
+///
+/// ```no_run
+/// use pdfcer_core::annot::{page_annotations, rich_text_in};
+/// use pdfcer_core::document::Document;
+/// use pdfcer_core::page_tree::pages;
+/// use pdfcer_core::view::StreamSource;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let doc = Document::load(std::path::Path::new("input.pdf"))?;
+/// for page in pages(&doc)? {
+///     for annot in page_annotations(&doc, page.id) {
+///         if let Some(rich) = &annot.rich_contents {
+///             let xhtml = rich_text_in(&doc, StreamSource::Contiguous(doc.bytes()), rich);
+///             println!("{xhtml:?}");
+///         }
+///     }
+/// }
+/// # Ok(())
+/// # }
+/// ```
+#[must_use]
+pub fn rich_text_in<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    source: crate::view::StreamSource<'_>,
+    rich: &RichText,
+) -> Option<String> {
+    match rich {
+        RichText::Inline(text) => Some(text.clone()),
+        RichText::Stream(id) => {
+            let Some(Object::Stream(stream)) = graph.value(*id) else {
+                return None;
+            };
+            let raw = source.slice(stream.data_span)?;
+            let decoded =
+                crate::filters::decode_stream(&stream.dict, raw).unwrap_or_else(|_| raw.to_vec());
+            Some(crate::edit::decode_text_string(&decoded).text)
+        }
+    }
 }
 
 /// `/RT` — the relationship [`Annotation::in_reply_to`] expresses
@@ -1486,6 +1579,21 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
             other => ReplyType::Other(other.to_vec()),
         });
 
+    // `/RC` (Table 170) may be a text string or a text stream (§7.9.3); a
+    // stream is always indirect, so its id is kept and decoded on request by
+    // `rich_text_in`, which has the byte source this reader does not.
+    let rich_contents = match dict.get(b"RC") {
+        Some(o) => match graph.resolve(o) {
+            Object::String(bytes) => Some(RichText::Inline(
+                crate::edit::decode_text_string(bytes).text,
+            )),
+            Object::Stream(_) => o.as_reference().map(RichText::Stream),
+            _ => None,
+        },
+        None => None,
+    };
+    let default_style = text_of(b"DS");
+
     // `/Open` (Table 172 / Table 183). A non-boolean value reads as absent
     // rather than as `false`: the key is malformed, and reporting a
     // definite "the file said closed" from bytes that said no such thing
@@ -1536,6 +1644,8 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
         popup,
         in_reply_to,
         reply_type,
+        rich_contents,
+        default_style,
         open,
         action_type,
         action_chains,

@@ -3721,6 +3721,12 @@ pub(crate) enum Command {
     /// — it says *which* annotations are which, where the counters say
     /// *how many*. Emits the locale-invariant stable-line format; nothing
     /// is modified.
+    ///
+    /// `rich_note=` is the comment's rich-text version (`/RC`, an XHTML
+    /// fragment, read from a string or a stream) and `default_style=` its
+    /// default style (`/DS`, CSS text). Both are quoted, or `none` when the
+    /// file has no such key. `note=` and `rich_note=` can disagree when a
+    /// tool updated one and not the other; both are printed as found.
     ListAnnotations {
         /// Input PDF.
         input: PathBuf,

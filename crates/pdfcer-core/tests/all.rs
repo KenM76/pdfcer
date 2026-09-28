@@ -15,6 +15,7 @@ mod annot_rotate;
 mod annot_rotate_composable;
 mod annotation_clip_serialisation;
 mod annotation_open_state;
+mod annotation_rich_text_read;
 mod attachment_clipboard;
 mod attachments;
 mod bezier_handles;
