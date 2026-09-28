@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (677th filing) — `Pass 368.0`–`370.0` scoped: ce-dimension drag preview, per-end extension gap, circular placement
+
+**Shipped:**
+- No new Pass shipped. Three *Next up* Passes filed from `pdfcer-gui` requests `G049`–`G051` (operator ask `O249` via the GUI; priority high): `Pass 368.0` (`dimension_preview(&self, ...)`, the commit-shaped read-only preview `G049` asked for, plus a label hit-test rectangle), `Pass 369.0` (`set_dimension_extension_gap`, a per-end extension-line gap for Linear ce dimensions), `Pass 370.0` (Circular ce-dimension leader-angle/text-distance placement, extending `place_dimension`/`placement_from_point`/`label_anchor`). All three are ce dimensions (pdfcer-authored) — never pdf dimensions. Full record at the top of `ROADMAP.md`'s *Next up*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- None beyond the `ROADMAP.md` entry.
+
+**Still in flight:**
+- Same open items as the 676th filing (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- `Pass 261.0` (the item the 676th filing named as owed after `G049`–`G051`) is still queued behind these three.
+
+**For next session:**
+- Build `Pass 368.0` first — the 676th filing's own request text notes `G050`'s and `G051`'s previews both ride on it ("the G049 preview then covers it with no extra work").
+- `docs/FEATURES.md`: three new *Planned* rows added under *ce dimensions*, all boxes unticked; no existing row's boxes moved.
+- No shell available this filing — no commit/push claim made; this session only edited `docs/ROADMAP.md`, `docs/FEATURES.md` and this file.
+
 ## 2026-09-27 (676th filing) — `c1987c5e`: `v0.59.0` RELEASED
 
 **Shipped:**

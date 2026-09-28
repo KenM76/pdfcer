@@ -8585,6 +8585,37 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★ **THREE ITEMS ADDED 2026-09-27 (677th filing) — `Pass 368.0`–`370.0`,
+> ce-dimension DRAG PREVIEW, PER-END EXTENSION GAP AND CIRCULAR PLACEMENT,
+> from `pdfcer-gui` requests `G049`–`G051` (operator ask `O249` via the GUI;
+> priority high).** All three are **ce dimensions** (pdfcer-authored) —
+> never pdf dimensions.
+>
+> - **`Pass 368.0`** (`G049`) — `EditSession::dimension_preview(&self, id,
+>   moved: &DimensionKind) -> Result<DimensionPreview, EditError>`: a
+>   read-only preview of the appearance a commit would bake (page-space
+>   filled/stroked outlines, the `edit_text_preview`/`G046` shape) plus the
+>   label's page-space rectangle, for hit-testing text vs. line. Nothing
+>   staged, `&self`. Acceptance: preview outlines equal the committed `/AP`
+>   for the same kind; label rect contains the label glyphs. Core only —
+>   a preview has no batch use, no CLI owed.
+> - **`Pass 369.0`** (`G050`) — a per-end extension-line gap on a Linear ce
+>   dimension: `set_dimension_extension_gap(&mut self, id, end:
+>   DimensionEnd, gap: Option<f64>)` (`None` = the standard's), undoable,
+>   survives re-bake/group restyle/sidecar round-trip; pure accessor
+>   `DimensionKind::extension_segments(&self, style)`. Refusals: a negative
+>   gap, or a gap ≥ the distance from the pick to the dimension line. CLI:
+>   `--extension-gap-a`/`-b` on the existing dimension-edit subcommand.
+> - **`Pass 370.0`** (`G051`) — Circular ce-dimension placement: a leader
+>   **angle** plus a text **distance** beyond the rim (inside allowed);
+>   `placement_from_point`/`label_anchor`/`place_dimension` extended to
+>   accept `Circular`; a diameter leader crosses the centre. Sidecar
+>   back-compat not required (pre-release format — re-key fixtures). CLI:
+>   the existing place subcommand accepts circular dimensions.
+>
+> `docs/FEATURES.md`: three new *Planned* rows under *ce dimensions*, all
+> pdfcer boxes unticked — nothing ships this filing, no existing box moves.
+
 > ★★★★ **`Pass 366.0` SHIPPED, 2026-09-27 (669th filing), `2fe0e96e`** — see
 > top of *Shipped*. Filed *Next up* by the 668th filing (scoping); this
 > banner is left as the pointer, the live entry has moved.
