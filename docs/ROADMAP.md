@@ -115,6 +115,112 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 385.0` (`c658ab2f`), 2026-09-28 — an angular ce dimension's text follows text_along
+
+**Verdict: SHIPPED.** Answers `G064`. Fixes a defect: `Angular::text_along`
+was documented as the value's position along the arc, but `label_anchor`
+returned `None` for `Angular`, so `author_dimension` ignored it and
+anchored the label at the chord midpoint regardless; `placement_from_point`
+also returned `None` for `Angular`, so a shell had no way to turn a drag
+into an offset in the first place.
+
+**Fix.** `label_anchor` now returns the point on the arc `text_along`
+degrees from the arc's midpoint (positive = anticlockwise); the baker
+centres the value just outside the arc there, pushed radially until the
+label box clears the arc (ANSI and ISO). `placement_from_point` returns
+`(radius, text_along)` — distance from the apex, degrees from the arc
+midpoint in `[-180, 180)` — and is the exact inverse of `label_anchor`. One
+shared `angular_arc` sweep helper is now used by the baker and both
+functions, so the three agree by construction rather than by three
+separate implementations of the same arc math.
+
+**Visible change.** An unplaced (freshly authored, default `text_along`)
+angular ce dimension moves from the chord midpoint to just outside the arc
+midpoint on the next regeneration. Saved appearances are unchanged until
+regenerated — not a round-trip break.
+
+**CLI.** `pdfcer dimension-offset --offset R --text-along DEG` already
+reached angular ce dimensions (it always took a `DimensionKind`) but had no
+effect on one; it now does. `--help` updated to state both the angular and
+circular meanings of `--text-along`.
+
+**Tests.** 3 new core unit tests (`crates/pdfcer-core/src/dimension/group.rs`
+×2, `author.rs` ×1); all 3 fail with the angular anchor removed
+(sabotage-checked).
+
+**Docs.** `docs/core-api/02-editing-and-model.md` `place_dimension` row
+updated: the angular case is now resolved rather than silently refused.
+
+**Gates.** `tools/run-gates.sh` — one gate failed and was fixed in the same
+commit before the run went green: a doc comment orphaned by the
+`angular_arc` extraction (`check-public-fns-documented`).
+
+**`cargo tree`.** Not applicable — no manifest change.
+
+**Round-trip.** No writer change — unaffected.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not wired.
+
+**`docs/FEATURES.md`.** Row added to *ce dimensions*: core `[x]`,
+cli `[x]`, gui `[ ]`.
+
+**Batch.** With `Pass 384.0` also shipped this session, the `G061`–`G064`
+`pdfcer-gui` feature-request batch (711th filing) is now complete end to
+end. *Next up* has no named head.
+
+**Sourcing (hard rule 8).** No shell this filing — facts relayed from the
+dispatching engineer's own verification at `c658ab2f`, not independently
+reproduced.
+
+### `Pass 384.0` (`28de8fcb`), 2026-09-28 — preview a ce dimension before it exists
+
+**Verdict: SHIPPED.** Answers `G063`. New core verb
+`EditSession::new_dimension_preview(&self, group: GroupId, kind:
+&DimensionKind) -> Result<DimensionPreview, EditError>`: bakes `kind` with
+the group's own style exactly as `add_dimension` would
+(`DimensionStyle::from(&Group)` then `author_dimension`) — read-only,
+`&self`, nothing staged, no undo entry. An unknown group is refused by
+name (`DimensionGroupNotFound`), matching every sibling group verb.
+
+**Why.** The existing `dimension_preview` (`Pass 368.0`) needs an existing
+`DimensionId` — it reads that record's style/label overrides — so a
+not-yet-placed ce dimension had no preview verb at all; `pdfcer-gui`'s
+workaround (`pdfcer_gui_base::measure::pick::dimension_preview_segments`
+plus its own label layout) was a second, close-but-not-identical drawing
+path for the same ce dimension (no arrowheads, text height, ANSI line
+break or standard extension overshoot) — exactly the second-rendering-path
+risk rule 4 exists to close.
+
+**Tests.** 2 integration tests, `crates/pdfcer-core/tests/dimension_preview.rs`:
+the preview's baked bytes equal the committed `/AP` from `add_dimension`
+given the same inputs, in a non-default group (inches, scale 0.05, 3
+places, ISO → label "10,000 in"); the preview call leaves saved bytes
+unchanged; an unknown group is refused. Sabotage: baking with the factory
+style instead of the group's own fails the equality test.
+
+**Docs.** `docs/core-api/02-editing-and-model.md` verb table (279 → 280
+verbs) and §3 verb list.
+
+**Gates.** `tools/run-gates.sh` PASS.
+
+**`cargo tree`.** Not applicable — no manifest change.
+
+**Round-trip.** No writer change — unaffected.
+
+**Shells.** core `[x]`, cli `—`, gui `[ ]` — **no CLI by design**: a live
+placement preview for an object with no id yet is a GUI concept, not a
+batch shape; the `—` is not a gap.
+
+**`docs/FEATURES.md`.** Row added to *ce dimensions*: core `[x]`,
+cli `—`, gui `[ ]`.
+
+**Next up.** `Pass 385.0` (angular ce-dimension text placement, `G064`)
+shipped in the same session — see above.
+
+**Sourcing (hard rule 8).** No shell this filing — facts relayed from the
+dispatching engineer's own verification at `28de8fcb`, not independently
+reproduced.
+
 ### `Pass 383.0` (`d8962485`), 2026-09-28 — export detected tables to an OpenDocument spreadsheet (.ods)
 
 **Verdict: SHIPPED.** Answers `G062`. New `pdfcer_core::export::ods` module:
@@ -9837,6 +9943,21 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **No named head.** `Pass 385.0` (below) closed the `G061`–`G064`
+> `pdfcer-gui` feature-request batch opened the 711th filing. Nothing is
+> currently in *Next up*.
+
+> ★★★★★★★ **`Pass 385.0` SHIPPED, 2026-09-28 (715th filing), `c658ab2f`** —
+> see top of *Shipped*. Closes `G064` from the 711th filing's four-item
+> scoping banner below. With `384.0` also shipped this session, the
+> `G061`–`G064` batch is complete end to end. **`Next up` has no named
+> head.**
+
+> ★★★★★★★ **`Pass 384.0` SHIPPED, 2026-09-28 (714th filing), `28de8fcb`** —
+> see top of *Shipped*. Closes `G063` from the 711th filing's four-item
+> scoping banner below. **`Pass 385.0` (angular ce-dimension text
+> placement, `G064`) is now the head of *Next up*.**
 
 > ★★★★★★ **`Pass 383.0` SHIPPED, 2026-09-28 (713th filing), `d8962485`** —
 > see top of *Shipped*. Closes `G062` from the 711th filing's four-item

@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (714th/715th filings) — `28de8fcb`/`c658ab2f`: `Pass 384.0` + `Pass 385.0` SHIPPED — ce-dimension preview before it exists; angular ce-dimension text follows text_along
+
+**Shipped:**
+- `Pass 384.0` (`28de8fcb`) — new `EditSession::new_dimension_preview(group, &DimensionKind) -> Result<DimensionPreview, EditError>`: bakes through the group's own style cascade exactly as `add_dimension` would, read-only, nothing staged. Replaces `pdfcer-gui`'s own close-but-not-identical placing-preview drawing path. Answers `G063`. `cli —` by design (no batch shape for a not-yet-existing object's live preview). Full detail: `ROADMAP.md` *Shipped*, top of file.
+- `Pass 385.0` (`c658ab2f`) — defect fix: `DimensionKind::placement_from_point` and `label_anchor` now resolve `Angular` (they returned `None`), so an angular ce dimension's value follows its own `text_along` field along the arc instead of always sitting at the chord midpoint. One shared `angular_arc` helper backs the baker and both functions. `dimension-offset --text-along` now has effect on an angular ce dimension. Answers `G064`. Full detail: `ROADMAP.md` *Shipped*, top of file.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- `Pass 385.0` closes a *documented-but-unimplemented* defect: `Angular::text_along`'s own doc comment already claimed the behaviour the code did not perform.
+
+**Still in flight:**
+- With both Passes shipped, the `G061`–`G064` `pdfcer-gui` feature-request
+  batch (opened 711th filing) is complete end to end. *Next up* has no
+  named head.
+
+**For next session:**
+- No shell either filing (hard rule 8). Facts relayed from the dispatching
+  engineer's own verification at `28de8fcb`/`c658ab2f`; not independently
+  verified from here.
+
 ## 2026-09-28 (713th filing) — `d8962485`: `Pass 383.0` SHIPPED — export detected tables to an OpenDocument spreadsheet (.ods)
 
 **Shipped:**
