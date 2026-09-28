@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (675th filing) — `379ba59e`/`468558b8`: two follow-up commits filed for the commits-filed gate
+
+**Shipped:**
+- No new Pass. `379ba59e` — `tools/deploy-onedrive.py`'s `VERSION.txt` now names `OCRcer` among the shipped models when its release model verified at packaging (belongs to the 674th filing's `5853259a` work). `468558b8` — Pass 264.3 follow-up: the full gate sweep (not run at that Pass's ship time) failed on a test pinning the old `/RD`-growth bug (replaced with `a_cloudy_square_reads_back_from_its_dictionary_at_its_authored_size`) and a `check-string-gaps.sh` catch (missing line-continuation backslash in the CLI's `/Rect`-moved message). Both filed as follow-ups on the 673rd/674th entries in `ROADMAP.md`, not new Shipped rows.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- Lesson for the ledger: Pass 264.3 shipped on a targeted test run, not the full gate sweep; the sweep is what caught both survivors. Recorded as a follow-up note on that entry, not a standing rule — one instance so far.
+
+**Still in flight:**
+- Same open items as the 674th filing below (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- Release v0.59.0 is being cut next filing, per the 674th filing's owed item.
+
+**For next session:**
+- `379ba59e` and `468558b8` are committed to `main`; push status not independently checked this filing (hard rule 8 — no shell available).
+- `docs/FEATURES.md` unchanged this filing — neither commit cites a row or a test name a row points at.
+
 ## 2026-09-27 (674th filing) — `5853259a`: OCRcer v0.1.0 vendored + portable package now ships its model
 
 **Shipped:**

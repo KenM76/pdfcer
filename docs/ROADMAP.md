@@ -133,7 +133,9 @@ OCRcer tagged **v0.1.0** at `b0cd1db` and added a tracked `model/MODEL.toml` (sh
 
 **Still owed, next filing.** OCRcer's reply says its W1 fix targets `pdfcer-gui`'s open request `request_digit_run_split_around_narrow_1.md` ("41 1 77") and asks the GUI to re-run `ocrcer_recognises_the_synthetic_page`; a release (v0.59.0 expected) follows once pdfcer's own gate sweep is green (OCRcer already released). Cutting the pdfcer release and notifying `pdfcer-gui` are the next filing.
 
-**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's report of `5853259a`, not independently reproduced.
+**Follow-up (`379ba59e`).** `tools/deploy-onedrive.py`'s generated `VERSION.txt` now names the models folder's contents explicitly: `ocrs`, and — when a release model verified at packaging time — `OCRcer`. Filed here, not as a new Pass; no core/CLI/test change.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's report of `5853259a`/`379ba59e`, not independently reproduced.
 
 ### `Pass 264.3` (`fffca91e`), 2026-09-27 — `/BE` border effect / cloudy edge gains a restyle route: set, change, clear
 
@@ -155,7 +157,9 @@ OCRcer tagged **v0.1.0** at `b0cd1db` and added a tracked `model/MODEL.toml` (sh
 
 **`docs/FEATURES.md`.** *Planned* row for the write-once gap removed; a new *Implemented → Annotations & markup* row added (core `[x]`, cli `[x]`, gui `[ ]`). "Restyle a placed markup" row gains `border_effect` in its refusal-by-name list plus a pointer to the new row. "Revision clouds" row notes a cloud can now be added, changed or removed after placement.
 
-**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `fffca91e`, not independently reproduced. Committed to `main`; push status not independently checked this filing.
+**Follow-up (`468558b8`), gate sweep after this Pass's targeted run.** The full sweep — not run at ship time — failed on two survivors of the `/RD`-inset fix above: (a) `tests/annotation_clip_serialisation.rs`'s `the_annotation_dictionary_route_is_not_lossless_which_is_why_the_codec_exists` had pinned the old growth bug (asserted the read-back `/Rect` grew); replaced with `a_cloudy_square_reads_back_from_its_dictionary_at_its_authored_size` (read-back equals authored spec across two author/read cycles — the clipboard codec round-trip assertion is unaffected, this pins one variant of it, not the codec itself). (b) `tools/check-string-gaps.sh` caught a missing line-continuation backslash in the CLI `set-markup-style` `/Rect`-moved message (`crates/pdfcer-cli/src/annot_edit.rs`), which had baked a run of spaces into operator-visible text. Test count unchanged (one replaced, not added). Lesson for the ledger: this Pass's own ship ran targeted tests only; run the full gate sweep before calling a Pass shipped, not after.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `fffca91e`/`468558b8`, not independently reproduced. Committed to `main`; push status not independently checked this filing.
 
 ### `Pass 367.0` (`001b91f8`), 2026-09-27 — `edit_text_preview` takes `&self` — `G048`
 
