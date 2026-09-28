@@ -39,6 +39,7 @@ mod list_layers_tree;
 mod list_links;
 mod locked_contents_refusal;
 mod move_annotation;
+mod object_clip_replies;
 mod object_list;
 mod ocr_engine;
 mod pin_span;

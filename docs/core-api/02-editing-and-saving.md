@@ -1021,8 +1021,10 @@ The two exceptions are `transform_objects` / `transform_preview`
 > `CLIP_VERSION`.** `ObjectClip::needed_version` returns the *lowest* version
 > that fully represents the clip's annotations: `2` for ordinary content, `3`
 > (`CLIP_VERSION_PRE_MARKUP_CARRY`) when a ce dimension carries a text
-> override, `4` (`CLIP_VERSION`, `Pass 270.1`) when a markup carries an
-> author-time property — its dash, opacity, note or author. The reason is the
+> override, `4` (`CLIP_VERSION_PRE_REPLY_COUNT`, `Pass 270.1`) when a markup
+> carries an author-time property — its dash, opacity, note or author, and `5`
+> (`CLIP_VERSION`, `Pass 253.4`) when the clip broke a reply link (see
+> `replies_unthreaded` below). The copy verb sets the version; the reason is the
 > operator's: he runs two builds side by side out of two folders and copies in
 > one to paste in the other, so writing the newest version unconditionally
 > would break every paste between them to protect a field most clips do not
@@ -1079,6 +1081,14 @@ The two exceptions are `transform_objects` / `transform_preview`
 >
 > **Stripped at copy time**, each because it names something that exists only
 > in the source: `/P`, `/Parent`, `/StructParent`, `/NM`, `/Popup`, `/IRT`.
+>
+> **A stripped `/IRT` is counted, not silent** (`Pass 253.4`):
+> `ObjectClip::replies_unthreaded: u64` is how many copied annotations were
+> replies, and `PasteOutcome::replies_unthreaded` echoes it from both
+> `paste_objects` and `paste_preview`. Non-zero adds the disclosure
+> `paste: N annotation(s) were replies; the reply link was not carried, so they
+> arrive as separate comments`. The link is not remapped, even when the parent
+> was copied too. CLI: `object-paste` prints `replies_unthreaded=N`.
 >
 > **Four subtypes are still refused, by policy rather than for want of a
 > model** — ask the clip and grey the control rather than letting a paste fail:

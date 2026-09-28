@@ -47,7 +47,8 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditSession, MarkupNote, MarkupOptions};
 use pdfcer_core::page_tree::Rect;
 use pdfcer_core::vector::{
-    CLIP_VERSION, CLIP_VERSION_PRE_LABEL_OVERRIDE, ClipAnnotation, ObjectClip,
+    CLIP_VERSION, CLIP_VERSION_PRE_LABEL_OVERRIDE, CLIP_VERSION_PRE_REPLY_COUNT, ClipAnnotation,
+    ObjectClip,
 };
 
 fn fixture(rel: &str) -> PathBuf {
@@ -148,7 +149,7 @@ fn a_plain_markup_clip_still_declares_version_two() {
 #[test]
 fn a_carrying_markup_clip_declares_the_new_version() {
     let c = clip_of_squares(1, true);
-    assert_eq!(c.version, CLIP_VERSION);
+    assert_eq!(c.version, CLIP_VERSION_PRE_REPLY_COUNT);
 }
 
 /// THE REGRESSION. An old-format payload, read by the new reader.
@@ -205,7 +206,7 @@ fn a_version_two_payload_with_two_markups_reads_back_intact() {
 #[test]
 fn a_version_four_payload_round_trips_the_carry() {
     let c = clip_of_squares(2, true);
-    assert_eq!(c.version, CLIP_VERSION);
+    assert_eq!(c.version, CLIP_VERSION_PRE_REPLY_COUNT);
 
     let back = ObjectClip::from_bytes(&c.to_bytes()).expect("round trip");
     assert_eq!(back.annotations.len(), 2);
@@ -239,4 +240,64 @@ fn a_newer_payload_is_refused_rather_than_guessed_at() {
         ObjectClip::from_bytes(&c.to_bytes()).is_err(),
         "a payload from a newer build must be refused, not read optimistically"
     );
+}
+
+/// A copied reply loses its `/IRT` link, and the clip counts it (`Pass 253.4`).
+///
+/// Copies a parent square plus its reply; the count must be 1, survive the
+/// byte round trip, and reach the paste as a disclosure. A clip with no reply
+/// stays at its older version, which `a_plain_markup_clip_still_declares_version_two`
+/// already pins.
+#[test]
+fn a_copied_reply_is_counted_and_disclosed_on_paste() {
+    let mut s = EditSession::new(
+        Document::load(&fixture("annot/demo-annotated.pdf")).expect("load the fixture"),
+    );
+    let parent = s
+        .add_markup_with(0, &square(40.0), &MarkupOptions::default())
+        .expect("author");
+    let reply = s
+        .add_reply(parent, &MarkupNote::new("a reply").by("Ken"))
+        .expect("reply")
+        .reply_id;
+    let all = page_annotations(&s.graph(), s.page_slots().expect("slots")[0].id);
+    let idx: Vec<usize> = [parent, reply]
+        .iter()
+        .map(|id| all.iter().position(|a| a.id == Some(*id)).expect("on page"))
+        .collect();
+    let clip = s.copy_annotations(0, &idx).expect("copy");
+    assert_eq!(
+        clip.replies_unthreaded, 1,
+        "only the reply had a link to lose"
+    );
+    assert_eq!(clip.version, CLIP_VERSION);
+
+    let back = ObjectClip::from_bytes(&clip.to_bytes()).expect("round trip");
+    assert_eq!(back.replies_unthreaded, 1);
+    assert_eq!(back.annotations.len(), clip.annotations.len());
+
+    // An older-format write of the same clip drops the count and still parses.
+    let mut old = clip.clone();
+    old.version = CLIP_VERSION_PRE_REPLY_COUNT;
+    let old_back = ObjectClip::from_bytes(&old.to_bytes()).expect("old payload");
+    assert_eq!(old_back.replies_unthreaded, 0);
+    assert_eq!(old_back.annotations.len(), clip.annotations.len());
+
+    let preview = s
+        .paste_preview(0, &back, pdfcer_core::vector::Matrix::IDENTITY)
+        .expect("preview");
+    let pasted = s
+        .paste_objects(0, &back, pdfcer_core::vector::Matrix::IDENTITY)
+        .expect("paste");
+    for outcome in [&preview, &pasted] {
+        assert_eq!(outcome.replies_unthreaded, 1);
+        assert!(
+            outcome
+                .disclosures
+                .iter()
+                .any(|d| d.contains("1 annotation(s) were replies")),
+            "the lost thread must be disclosed: {:?}",
+            outcome.disclosures
+        );
+    }
 }

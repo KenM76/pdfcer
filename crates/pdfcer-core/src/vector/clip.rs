@@ -98,7 +98,16 @@ use super::geometry::{Bounds, Matrix};
 /// field has no such property — miss it and the parse is off by one object
 /// for the rest of the payload. The rule was right; its stated scope did not
 /// reach the change that needed it.
-pub const CLIP_VERSION: u32 = 4;
+///
+/// `5` (`Pass 253.4`) appends [`ObjectClip::replies_unthreaded`] after the
+/// annotations, and is emitted only when that count is non-zero.
+pub const CLIP_VERSION: u32 = 5;
+
+/// The version a clip that broke no reply link is written at, at most.
+///
+/// The `4`-shaped constant for the `5` bump: the markup author-time carry
+/// is gated on this, the reply count on [`CLIP_VERSION`].
+pub const CLIP_VERSION_PRE_REPLY_COUNT: u32 = 4;
 
 /// The version a clip that carries no markup author-time properties, and no
 /// ce-dimension text override, is written at.
@@ -492,6 +501,16 @@ pub struct ObjectClip {
     /// the CLI only ever has the file. The whole annotation half of the
     /// clipboard was reachable in-process only.
     pub annotations: Vec<ClipAnnotation>,
+    /// How many copied annotations were **replies** (`/IRT`, ISO 32000-2
+    /// §12.5.6.2 Table 172) whose reply link the clip does not carry
+    /// (`Pass 253.4`).
+    ///
+    /// `/IRT` names an object in the source file, which does not exist in the
+    /// destination, so it is stripped; the reply pastes as a standalone
+    /// comment. The paste reports this count as a disclosure rather than
+    /// losing the threading silently. Serialised only at version
+    /// [`CLIP_VERSION`]; a clip with a zero count keeps its older version.
+    pub replies_unthreaded: u64,
 }
 
 impl ObjectClip {
@@ -806,7 +825,7 @@ impl ObjectClip {
     /// annotations (`Pass 175.0`).
     ///
     /// The highest version any single annotation in the clip requires:
-    /// [`CLIP_VERSION`] if some markup carries an author-time property,
+    /// [`CLIP_VERSION_PRE_REPLY_COUNT`] if some markup carries an author-time property,
     /// else [`CLIP_VERSION_PRE_MARKUP_CARRY`] if some ce dimension carries a
     /// text override, else [`CLIP_VERSION_PRE_LABEL_OVERRIDE`].
     ///
@@ -838,7 +857,7 @@ impl ObjectClip {
                 ClipAnnotation::Markup(_, carry)
                     if **carry != crate::annot_author::MarkupCarry::default() =>
                 {
-                    CLIP_VERSION
+                    CLIP_VERSION_PRE_REPLY_COUNT
                 }
                 ClipAnnotation::Dimension {
                     label_override: Some(_),
@@ -947,7 +966,7 @@ impl ObjectClip {
                     // `needed_version` only reaches 4 when some markup has a
                     // property to carry, so an ordinary clip is still written
                     // at 2 and still pastes into the other folder's build.
-                    if self.version >= CLIP_VERSION {
+                    if self.version >= CLIP_VERSION_PRE_REPLY_COUNT {
                         put_cos(&mut out, &crate::annot_author::encode_carry(carry));
                     }
                 }
@@ -1032,6 +1051,12 @@ impl ObjectClip {
                     put_bytes(&mut out, subtype.as_bytes());
                 }
             }
+        }
+        if self.version >= CLIP_VERSION {
+            put_u32(
+                &mut out,
+                u32::try_from(self.replies_unthreaded).unwrap_or(u32::MAX),
+            );
         }
         out
     }
@@ -1145,7 +1170,7 @@ impl ObjectClip {
                         // check has to be here: an unconditional read of a
                         // second object could not report going wrong, it would
                         // just quietly consume the next annotation's tag byte.
-                        let carry = if version >= CLIP_VERSION {
+                        let carry = if version >= CLIP_VERSION_PRE_REPLY_COUNT {
                             crate::annot_author::decode_carry(&r.cos()?)
                         } else {
                             crate::annot_author::MarkupCarry::default()
@@ -1245,12 +1270,20 @@ impl ObjectClip {
             }
         }
 
+        // Appended after the annotations, so an older payload simply ends here.
+        let replies_unthreaded = if version >= CLIP_VERSION {
+            u64::from(r.u32()?)
+        } else {
+            0
+        };
+
         Ok(Self {
             version,
             items,
             objects,
             bbox,
             annotations,
+            replies_unthreaded,
         })
     }
 }

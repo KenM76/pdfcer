@@ -1436,12 +1436,13 @@ pub(crate) fn cmd_object_paste(args: &ObjectPasteArgs<'_>) -> u8 {
             Ok(outcome) => {
                 report_disclosures(&outcome.disclosures);
                 println!(
-                    "object-paste {} page {} clip={} PREVIEW; would_paste={} annotations={} resources={} bbox={:.2},{:.2},{:.2},{:.2}",
+                    "object-paste {} page {} clip={} PREVIEW; would_paste={} annotations={} replies_unthreaded={} resources={} bbox={:.2},{:.2},{:.2},{:.2}",
                     args.input.display(),
                     args.page,
                     args.clip.display(),
                     outcome.objects_pasted,
                     outcome.annotations_pasted,
+                    outcome.replies_unthreaded,
                     outcome.resources_added,
                     outcome.bbox.min.x,
                     outcome.bbox.min.y,
@@ -1477,7 +1478,7 @@ pub(crate) fn cmd_object_paste(args: &ObjectPasteArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "object-paste {} page {} clip={} mode={} -> {}; pasted={} annotations={} resources={} \
+        "object-paste {} page {} clip={} mode={} -> {}; pasted={} annotations={} replies_unthreaded={} resources={} \
 bbox={:.2},{:.2},{:.2},{:.2} changed={} objects_written={} appended={} out_bytes={} \
 undo_verified={} undo_identical={}",
         args.input.display(),
@@ -1487,6 +1488,7 @@ undo_verified={} undo_identical={}",
         output.display(),
         pasted.objects_pasted,
         pasted.annotations_pasted,
+        pasted.replies_unthreaded,
         pasted.resources_added,
         pasted.bbox.min.x,
         pasted.bbox.min.y,

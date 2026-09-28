@@ -1324,6 +1324,7 @@ mod tests {
             objects: BTreeMap::new(),
             bbox: crate::vector::Bounds::EMPTY,
             annotations: Vec::new(),
+            replies_unthreaded: 0,
         }
         .to_bytes();
         assert_eq!(

@@ -4430,6 +4430,11 @@ pub struct PasteOutcome {
     /// This is what a shell draws its paste outline from, which is why
     /// [`EditSession::paste_preview`] exists at all.
     pub bbox: crate::vector::Bounds,
+    /// How many pasted annotations were replies whose reply link was not
+    /// carried ([`ObjectClip::replies_unthreaded`](crate::vector::ObjectClip::replies_unthreaded),
+    /// `Pass 253.4`). They arrive as standalone comments; a non-zero count
+    /// also adds a line to [`Self::disclosures`].
+    pub replies_unthreaded: u64,
     /// Every operator-facing disclosure, verbatim. Empty for an ordinary
     /// paste.
     pub disclosures: Vec<String>,
@@ -14190,6 +14195,7 @@ impl EditSession {
         }
 
         let mut annotations = Vec::with_capacity(annotation_indices.len());
+        let mut replies_unthreaded = 0u64;
         if !annotation_indices.is_empty() {
             let all = crate::annot::page_annotations(&self.graph(), page_id);
             let count = all.len();
@@ -14203,7 +14209,15 @@ impl EditSession {
                         max: crate::vector::Point::new(rect.urx, rect.ury),
                     });
                 }
-                annotations.push(self.clip_annotation(annot)?);
+                let clipped = self.clip_annotation(annot)?;
+                // `/IRT` is stripped on every carried kind (it names a source
+                // object); count the links that loses so the paste can say so.
+                if annot.in_reply_to.is_some()
+                    && !matches!(clipped, crate::vector::ClipAnnotation::Unsupported { .. })
+                {
+                    replies_unthreaded += 1;
+                }
+                annotations.push(clipped);
             }
         }
 
@@ -14212,11 +14226,19 @@ impl EditSession {
             // text override is still written at version 2, so it still pastes
             // into the build the operator has open in the other folder. See
             // `ObjectClip::needed_version`.
-            version: crate::vector::ObjectClip::needed_version(&annotations),
+            // The reply count needs version 5 only when it is non-zero.
+            version: crate::vector::ObjectClip::needed_version(&annotations).max(
+                if replies_unthreaded > 0 {
+                    crate::vector::CLIP_VERSION
+                } else {
+                    0
+                },
+            ),
             items,
             objects: clip_objects,
             bbox,
             annotations,
+            replies_unthreaded,
         })
     }
 
@@ -14792,13 +14814,15 @@ impl EditSession {
     ) -> Result<PasteOutcome, EditError> {
         let (plan, page_id, page_resources) = self.plan_paste_at(page_index, clip, at)?;
         if plan.items == 0 {
-            let (annotations_pasted, disclosures) =
+            let (annotations_pasted, mut disclosures) =
                 self.paste_clip_annotations(page_index, clip, at)?;
+            disclosures.extend(unthreaded_reply_disclosure(clip));
             return Ok(PasteOutcome {
                 objects_pasted: 0,
                 annotations_pasted,
                 resources_added: 0,
                 bbox: plan.bbox,
+                replies_unthreaded: clip.replies_unthreaded,
                 disclosures,
             });
         }
@@ -14857,13 +14881,15 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
-        let (annotations_pasted, disclosures) =
+        let (annotations_pasted, mut disclosures) =
             self.paste_clip_annotations(page_index, clip, at)?;
+        disclosures.extend(unthreaded_reply_disclosure(clip));
         Ok(PasteOutcome {
             objects_pasted: plan.items as u64,
             annotations_pasted,
             resources_added: plan.resources.len() as u64,
             bbox: plan.bbox,
+            replies_unthreaded: clip.replies_unthreaded,
             disclosures,
         })
     }
@@ -14908,11 +14934,13 @@ impl EditSession {
                 _ => annotations_pasted += 1,
             }
         }
+        disclosures.extend(unthreaded_reply_disclosure(clip));
         Ok(PasteOutcome {
             objects_pasted: plan.items as u64,
             annotations_pasted,
             resources_added: plan.resources.len() as u64,
             bbox: plan.bbox,
+            replies_unthreaded: clip.replies_unthreaded,
             disclosures,
         })
     }
@@ -57636,6 +57664,17 @@ type FieldPlacement = (Vec<ObjectWrite>, Option<ObjId>, String, Option<ObjId>);
 /// may not exist here. A `/Popup` is refused because it is not an independent
 /// annotation at all. Telling the operator the wrong one of those wastes the
 /// only chance the paste had to be useful.
+/// The paste disclosure for replies whose `/IRT` link the clip dropped
+/// (`Pass 253.4`); `None` when there were none.
+fn unthreaded_reply_disclosure(clip: &crate::vector::ObjectClip) -> Option<String> {
+    (clip.replies_unthreaded > 0).then(|| {
+        format!(
+            "paste: {} annotation(s) were replies; the reply link was not carried, so they arrive as separate comments",
+            clip.replies_unthreaded
+        )
+    })
+}
+
 fn unsupported_paste_reason(subtype: &str) -> String {
     let why = match subtype {
         "Widget" => {
@@ -65382,5 +65421,6 @@ fn markup_content_clip(
         objects,
         bbox,
         annotations: Vec::new(),
+        replies_unthreaded: 0,
     }
 }

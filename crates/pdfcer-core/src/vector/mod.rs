@@ -69,8 +69,8 @@ pub use centerline::{
 };
 pub use clip::{
     CLIP_MAGIC, CLIP_VERSION, CLIP_VERSION_PRE_LABEL_OVERRIDE, CLIP_VERSION_PRE_MARKUP_CARRY,
-    ClipAnnotation, ClipBinding, ClipError, ClipItem, ClipObject, ClipPdf, ObjectClip, PastePlan,
-    plan_paste,
+    CLIP_VERSION_PRE_REPLY_COUNT, ClipAnnotation, ClipBinding, ClipError, ClipItem, ClipObject,
+    ClipPdf, ObjectClip, PastePlan, plan_paste,
 };
 pub(crate) use decompose::collect_form_leaves;
 #[allow(unused_imports)]
