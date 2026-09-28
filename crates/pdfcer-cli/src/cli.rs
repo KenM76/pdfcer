@@ -8339,7 +8339,10 @@ pub(crate) enum Command {
         #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
         offset: f64,
         /// Where the value sits along the dimension line, in points from its
-        /// midpoint. 0 is centred.
+        /// midpoint. 0 is centred. For an angle, `--offset` is the arc radius
+        /// and this is degrees along the arc from its midpoint, positive
+        /// anticlockwise; for a radius or diameter, the distance past the rim
+        /// and the leader angle.
         #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
         text_along: f64,
         /// Output path.

@@ -519,9 +519,12 @@ impl DimensionKind {
     /// which is the specific thing an operator cannot be expected to catch.
     ///
     /// Where the value TEXT is anchored: the midpoint of the dimension line,
-    /// slid along it by `text_along` (Pass 27.1).
+    /// slid along it by `text_along` (Pass 27.1). For an angular kind, the
+    /// point on the arc `text_along` degrees from its midpoint (positive
+    /// anticlockwise); the baker sets the text just outside the arc there.
+    /// A circle anchors on its leader, a perimeter on its vertex centroid.
     ///
-    /// `None` for a non-linear or degenerate dimension.
+    /// `None` for a degenerate dimension.
     #[must_use]
     pub fn label_anchor(&self) -> Option<Point> {
         // A perimeter anchors on its vertex centroid, displaced by the same
@@ -546,6 +549,21 @@ impl DimensionKind {
             let t = self.circular_text_distance()?;
             return Some(point_on_ray(fit.center, leader_angle, fit.radius + t));
         }
+        if let Self::Angular {
+            apex,
+            dir_a,
+            dir_b,
+            radius,
+            text_along,
+        } = *self
+        {
+            if !(radius.is_finite() && radius > 0.0) {
+                return None;
+            }
+            let (a0, sweep) = angular_arc(dir_a, dir_b);
+            let at = sweep.mul_add(0.5, a0).to_degrees() + text_along;
+            return Some(point_on_ray(apex, at, radius));
+        }
         let Self::Linear { text_along, .. } = *self else {
             return None;
         };
@@ -568,7 +586,12 @@ impl DimensionKind {
     /// it writes fields the value function does not read, so the number cannot
     /// change no matter where the operator drops it.
     ///
-    /// `None` for a non-linear or degenerate dimension.
+    /// Each kind answers in its own terms, the pair `place_dimension` takes:
+    /// a circle `(distance past the rim, leader degrees)`, an angle
+    /// `(radius, degrees from the arc's midpoint)` in `[-180, 180)`, a
+    /// perimeter a page-space displacement from its vertex centroid.
+    ///
+    /// `None` for a degenerate dimension.
     #[must_use]
     pub fn placement_from_point(&self, p: Point) -> Option<(f64, f64)> {
         // A perimeter's placement pair IS the page-space displacement from the
@@ -596,6 +619,28 @@ impl DimensionKind {
                 leader_angle
             };
             return Some((dist - fit.radius, angle));
+        }
+        // An angle resolves in polar terms about its apex: the arc passes
+        // through the point, and the text sits at its bearing. On the apex
+        // the bearing is undefined, so the current `text_along` stays.
+        if let Self::Angular {
+            apex,
+            dir_a,
+            dir_b,
+            text_along,
+            ..
+        } = *self
+        {
+            let (dx, dy) = (p.x - apex.x, p.y - apex.y);
+            let dist = dx.hypot(dy);
+            let along = if dist > 0.0 {
+                let (a0, sweep) = angular_arc(dir_a, dir_b);
+                let mid = sweep.mul_add(0.5, a0).to_degrees();
+                (dy.atan2(dx).to_degrees() - mid + 180.0).rem_euclid(360.0) - 180.0
+            } else {
+                text_along
+            };
+            return Some((dist, along));
         }
         let Self::Linear { a, b, .. } = *self else {
             return None;
@@ -1364,6 +1409,45 @@ mod tests {
     use super::*;
     use crate::dimension::units::ScaleState;
 
+    fn angle(text_along: f64) -> DimensionKind {
+        // Arms along +x and +y: a 90 degree wedge whose arc midpoint is 45.
+        DimensionKind::Angular {
+            apex: Point::new(100.0, 100.0),
+            dir_a: Point::new(1.0, 0.0),
+            dir_b: Point::new(0.0, 1.0),
+            radius: 50.0,
+            text_along,
+        }
+    }
+
+    #[test]
+    fn an_angular_label_sits_on_the_arc_at_text_along() {
+        let mid = angle(0.0).label_anchor().unwrap();
+        let (s, c) = 45f64.to_radians().sin_cos();
+        assert!((mid.x - (100.0 + 50.0 * c)).abs() < 1e-9);
+        assert!((mid.y - (100.0 + 50.0 * s)).abs() < 1e-9);
+        // +30 is anticlockwise: towards the +y arm.
+        let slid = angle(30.0).label_anchor().unwrap();
+        let (s, c) = 75f64.to_radians().sin_cos();
+        assert!((slid.x - (100.0 + 50.0 * c)).abs() < 1e-9);
+        assert!((slid.y - (100.0 + 50.0 * s)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn an_angular_placement_is_the_inverse_of_its_anchor() {
+        for along in [-40.0, 0.0, 20.0, 170.0] {
+            let p = angle(along).label_anchor().unwrap();
+            let (r, t) = angle(0.0).placement_from_point(p).unwrap();
+            assert!((r - 50.0).abs() < 1e-9, "{r}");
+            assert!((t - along).abs() < 1e-9, "{along} -> {t}");
+        }
+        // On the apex the bearing is undefined: text_along is kept.
+        let (r, t) = angle(12.0)
+            .placement_from_point(Point::new(100.0, 100.0))
+            .unwrap();
+        assert!(r == 0.0 && t == 12.0);
+    }
+
     fn linear(a: (f64, f64), b: (f64, f64), c: AxisConstraint) -> DimensionKind {
         DimensionKind::Linear {
             a: Point::new(a.0, a.1),
@@ -1593,6 +1677,20 @@ mod angular_tests {
             other => panic!("expected Angular, got {other:?}"),
         }
     }
+}
+
+/// An angular ce dimension's arc as `(start, sweep)` in radians: from
+/// `dir_a`, the short way to `dir_b`, sweep in `(-pi, pi]`.
+pub(crate) fn angular_arc(dir_a: Point, dir_b: Point) -> (f64, f64) {
+    let a0 = dir_a.y.atan2(dir_a.x);
+    let mut sweep = dir_b.y.atan2(dir_b.x) - a0;
+    while sweep > std::f64::consts::PI {
+        sweep -= std::f64::consts::TAU;
+    }
+    while sweep <= -std::f64::consts::PI {
+        sweep += std::f64::consts::TAU;
+    }
+    (a0, sweep)
 }
 
 /// The point `dist` along the ray from `origin` at `degrees` counter-clockwise

@@ -59,6 +59,11 @@ const TEXT_BREAK_PAD: f64 = 3.0;
 /// **Convention, not mandated.**
 const TEXT_ABOVE_GAP: f64 = 3.0;
 
+/// Half the label box's height, in units of the label size: the box runs
+/// from 0.3 below the baseline to 1.0 above it, and is centred on its anchor
+/// by a 0.35 drop, so each side is 0.65.
+const ANGULAR_HALF_HEIGHT: f64 = 0.65;
+
 /// The token an operator's text override may contain to have the MEASURED
 /// caption substituted in (`Pass 175.0`, decision 097) — see
 /// [`author_dimension_with_label`] for the contract.
@@ -525,7 +530,20 @@ pub fn author_dimension_with_label(
     // ANSI the line is broken to make room for it. Computing them here rather
     // than after drawing is what lets one function serve both standards.
     let text_w = estimate_text_width(&label, label_size);
-    let anchor = kind.label_anchor().unwrap_or_else(|| l0.midpoint(l1));
+    let mut anchor = kind.label_anchor().unwrap_or_else(|| l0.midpoint(l1));
+    // An angle's anchor is ON the arc; the label is centred just outside it,
+    // pushed along the radius far enough that its box clears the arc.
+    let angular_out = match *kind {
+        DimensionKind::Angular { apex, radius, .. } if radius.is_finite() && radius > 0.0 => {
+            let (dx, dy) = ((anchor.x - apex.x) / radius, (anchor.y - apex.y) / radius);
+            let clear = TEXT_ABOVE_GAP
+                + dx.abs() * text_w / 2.0
+                + dy.abs() * label_size * ANGULAR_HALF_HEIGHT;
+            anchor = Point::new(dx.mul_add(clear, anchor.x), dy.mul_add(clear, anchor.y));
+            true
+        }
+        _ => false,
+    };
 
     match *kind {
         DimensionKind::Linear { extension_gap, .. } => {
@@ -613,7 +631,11 @@ pub fn author_dimension_with_label(
     };
     // Perpendicular to the text direction, for the ISO standoff.
     let (px, py) = (-uy, ux);
-    let lift = if matches!(kind, DimensionKind::Perimeter { .. }) {
+    let lift = if angular_out {
+        // Centred on the pushed-out anchor under both standards: the push
+        // already cleared the arc.
+        -label_size * 0.35
+    } else if matches!(kind, DimensionKind::Perimeter { .. }) {
         // A perimeter's anchor is a FREE POINT the operator dropped (the
         // vertex centroid, displaced by the placement pair), not a line the
         // number has to clear. So it is centred ON that point under BOTH
@@ -1105,19 +1127,11 @@ fn draw_angular(
     if !(radius.is_finite() && radius > 0.0) {
         return;
     }
-    let a0 = dir_a.y.atan2(dir_a.x);
-    let a1 = dir_b.y.atan2(dir_b.x);
     // Sweep the SHORT way between the two arms. The arms already point into
     // the wedge the operator chose, so the angle between them is the one to
     // draw; normalising into (-pi, pi] picks that sweep without needing to
     // know which arm was clicked first.
-    let mut sweep = a1 - a0;
-    while sweep > std::f64::consts::PI {
-        sweep -= std::f64::consts::TAU;
-    }
-    while sweep <= -std::f64::consts::PI {
-        sweep += std::f64::consts::TAU;
-    }
+    let (a0, sweep) = super::group::angular_arc(dir_a, dir_b);
 
     // Extension lines: from the apex out past the arc, so the arc visibly
     // spans between two drawn arms rather than floating.
@@ -1451,6 +1465,46 @@ mod tests {
     use crate::dimension::fit::FitCircle;
     use crate::dimension::units::Unit;
     use crate::vector::AxisConstraint;
+
+    /// `text_along` moves an angular value along its arc, and the label
+    /// clears the arc on its outside.
+    #[test]
+    fn an_angular_value_is_drawn_at_text_along_outside_the_arc() {
+        let kind = |text_along| DimensionKind::Angular {
+            apex: Point::new(100.0, 100.0),
+            dir_a: Point::new(1.0, 0.0),
+            dir_b: Point::new(0.0, 1.0),
+            radius: 60.0,
+            text_along,
+        };
+        let style = DimensionStyle::new(
+            ScaleState::NeverSet,
+            Unit::Millimeter.default_format(),
+            DimStandard::Ansi,
+        );
+        for (along, bearing) in [(0.0, 45.0), (35.0, 80.0), (-35.0, 10.0)] {
+            let d = author_dimension(&kind(along), style);
+            let r = d.label_rect();
+            let (cx, cy) = ((r.llx + r.urx) / 2.0 - 100.0, (r.lly + r.ury) / 2.0 - 100.0);
+            let got = cy.atan2(cx).to_degrees();
+            assert!(
+                (got - bearing).abs() < 3.0,
+                "{along}: at {got} not {bearing}"
+            );
+            // No corner of the label box is inside the arc.
+            for (x, y) in [
+                (r.llx, r.lly),
+                (r.urx, r.lly),
+                (r.llx, r.ury),
+                (r.urx, r.ury),
+            ] {
+                assert!(
+                    (x - 100.0).hypot(y - 100.0) > 60.0,
+                    "{along}: box crosses the arc"
+                );
+            }
+        }
+    }
 
     fn linear() -> DimensionKind {
         DimensionKind::Linear {
