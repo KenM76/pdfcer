@@ -4785,6 +4785,42 @@ Keeping it `pub(crate)` "until something asks" assigns the discovery cost
 to the party that cannot see the gap, who then reaches for `Debug` or
 prose instead.
 
+### 8.3 A struct stays exhaustive when a constructor already carries its growth promise
+
+*(Added 2026-09-28, 704th filing, `Pass 379.0` / `c3fdc733`. Created by
+**decision 165**, §12.)*
+
+**The rule.** `page_tree::Page` is a plain, exhaustive struct — no
+`#[non_exhaustive]` — even though its field set is expected to grow. The
+growth promise is carried instead by `Page::with_boxes(..)`, a constructor
+whose return value downstream fixtures build on via struct-update syntax
+(`Page { extra_field, ..Page::with_boxes(..) }`). `#[non_exhaustive]` would
+forbid struct-update construction from outside the defining crate
+outright — regardless of field visibility — which is exactly the pattern
+the constructor exists to support, so it is the wrong mechanism here, not
+merely an omitted one.
+
+**Why this looks like an omission when it is not.** This section's usual
+convention (and `rust-style-guide-and-api-guidelines.md`) defaults a new
+public struct toward `#[non_exhaustive]` so a future field never breaks a
+downstream literal. That default assumes downstream code constructs the
+type by naming every field. `pdfcer-gui`'s fixtures do the opposite — build
+a baseline via the constructor and override only what a given test cares
+about — and `#[non_exhaustive]` breaks that pattern outright.
+
+**The distinguishing test.** A type earns `#[non_exhaustive]` when
+downstream code is expected to construct it field-by-field. A type stays
+exhaustive, with a documented constructor instead, when downstream code is
+expected to construct it by struct-update over a baseline (test fixtures,
+builders). Ask which pattern the actual call sites use before reaching for
+the attribute by default.
+
+**Forbidden refactor:** adding `#[non_exhaustive]` to `Page` without first
+replacing every downstream struct-update fixture with field-by-field
+construction through a builder. Permitted and expected: adding new fields
+to `Page` and to `with_boxes`'s resolved-default behaviour together, same
+as any other field addition.
+
 ## 9. Open-source dependencies & attribution
 
 pdfcer builds on the existing Rust/OSS ecosystem rather than
@@ -11653,3 +11689,35 @@ directly.
 
 **Decision ceiling unaffected** — no new number minted, per the same
 addendum convention as the 2026-08-13 addendum to decision 061.
+
+### 2026-09-28 (704th filing, `Pass 379.0`, `c3fdc733`) — decision 165: `page_tree::Page` STAYS EXHAUSTIVE; ITS CONSTRUCTOR, NOT `#[non_exhaustive]`, IS THE FIELD-GROWTH COMPATIBILITY PROMISE
+
+**Status: DECIDED (engineer's call, `pdfcer-gui` request `G060`).**
+
+**What was decided.** `Page::with_boxes(id, media_box, crop_box, rotate) ->
+Page` is now `page_tree::Page`'s public constructor, re-exported as
+`pdfcer_core::page_tree::Page`. `Page` itself is deliberately left
+exhaustive — no `#[non_exhaustive]` — because `pdfcer-gui`'s fixtures build
+a `Page` by struct-update over the constructor's baseline (`Page { f,
+..Page::with_boxes(..) }`), and `#[non_exhaustive]` forbids struct-update
+construction from outside the defining crate regardless of field
+visibility. The constructor, not the attribute, is what keeps a future
+field from breaking every fixture.
+
+**Body-section effect.** `ARCHITECTURE.md` §8 gains §8.3, stating the
+general rule and its distinguishing test (field-by-field construction →
+`#[non_exhaustive]`; struct-update-over-a-constructor → stay exhaustive,
+document the constructor).
+
+**Scope.** `pdfcer-core::page_tree::Page` only. No other struct in the
+crate is reopened by this entry; each one's own choice is judged by the
+same distinguishing test going forward, not retroactively.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
+dispatching engineer's own verification at `c3fdc733`, not independently
+reproduced.
+
+**Decision ceiling: `164` → `165`**, next free `166`. **Pass ceiling: `378`
+→ `379`** — the commit message itself reads `Pass 375.0`, already shipped
+(699th filing); see `ROADMAP.md`'s Shipped entry for the full ID-collision
+correction.

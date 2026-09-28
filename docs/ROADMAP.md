@@ -115,6 +115,58 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 379.0` (`c3fdc733`), 2026-09-28 — `Page::with_boxes` constructor (G060); corrects a Pass-ID collision baked into the commit message
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` request `G060`: "a Page has no
+constructor, so every new field breaks every fixture." New
+`pdfcer_model::page_tree::Page::with_boxes(id: ObjId, media_box: Rect,
+crop_box: Rect, rotate: u16) -> Page`, re-exported as
+`pdfcer_core::page_tree::Page`. Returns the `Page` that `pages()` resolves
+for a page writing no bleed/trim/art box: bleed/trim/art equal `crop_box`;
+every `*_resolution` is `Defaulted`; resources and contents are empty and
+their counters are zero; `rotate` is normalised the way the tree walk does
+(630 → 270; anything not a multiple of 90 → 0).
+
+**ID correction (hard rule 2 — Pass IDs never get reused).** The commit
+message reads `Pass 375.0`, but `375.0` was already shipped (699th filing,
+`20b2f1f6`, `set_crop_boxes` + `resize_pages`) — the collision is inside the
+immutable commit text itself. This entry is filed under **`Pass 379.0`**,
+the true next-free ID (ceiling was `378.0` going into this filing). The
+commit message is not rewritten — history doesn't get rewritten — but every
+register reference to this work uses `379.0`.
+
+**Design decision — `Page` stays exhaustive, not `#[non_exhaustive]`.**
+`pdfcer-gui`'s fixtures build a `Page` by struct-update over the
+constructor's baseline (`Page { f, ..Page::with_boxes(..) }`); a future
+field then doesn't break them. `#[non_exhaustive]` would forbid
+struct-update construction from outside the crate outright, which is
+exactly the pattern the constructor exists to support — so the constructor,
+not the attribute, is the compatibility promise. Decision 165,
+`ARCHITECTURE.md` §8.3.
+
+**Tests.** 2 new out-of-crate tests
+(`crates/pdfcer-core/tests/page_with_boxes.rs`): one compares the
+constructor field-by-field against `pages()` on a synthetic file, one
+covers rotation normalisation plus struct-update. 1 doctest. 5 sabotage
+mutations all caught. `cargo fmt`/`clippy -- -D warnings` clean;
+`check-core-api-verbs` PASS.
+
+**Docs.** `docs/core-api/01-reading-and-model.md` §6.2, "Building one".
+
+**Shells.** core `[x]` / cli n/a (no subcommand — this is a Rust
+constructor, not a CLI surface) / gui `[ ]` — `pdfcer-gui` is the actual
+consumer per `G060` and has not yet migrated its own fixtures. No
+`docs/FEATURES.md` row: this is a GUI test-support API with no user-facing
+capability, not a candidate for that file's capability list; this Shipped
+entry plus the `SESSION_LOG.md` line are the record.
+
+**cargo tree.** No manifest changed this Pass — invariant not re-run. A
+full `tools/run-gates.sh` is reported pending before push.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
+dispatching engineer's own verification at `c3fdc733`, not independently
+reproduced. Backup/push/release state not verifiable from here.
+
 ### `Pass 374.0` (`40aea1d5` + `784ab6c0`), 2026-09-28 — table cell-grid detection + `pdfcer extract-tables` (G055)
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui`/Office-export ask `G055`, closing
@@ -9430,6 +9482,14 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★ **`Pass 379.0` SHIPPED, 2026-09-28 (704th filing), `c3fdc733`** — see
+> top of *Shipped*. `G060`; not previously filed under *Next up*/*Backlog* —
+> requested and shipped in the same session, same shape as `376.0`/`377.0`
+> below. **Ledger correction:** the commit message itself says `Pass 375.0`;
+> that ID was already shipped (699th filing, `set_crop_boxes` +
+> `resize_pages`). Filed here as `379.0`, the actual next-free ID — see the
+> Shipped entry for the full correction. No named head occupies *Next up*.
 
 > ★★★★★ **`Pass 374.0` SHIPPED, 2026-09-28 (703rd filing), `40aea1d5` +
 > `784ab6c0`** — see top of *Shipped*. `G055`; closes the table-cell-grid

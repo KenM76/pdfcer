@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (704th filing) — `c3fdc733`: `Pass 379.0` SHIPPED — `Page::with_boxes` constructor (G060); corrects a Pass-ID collision in the commit message
+
+**Shipped:**
+- `Pass 379.0` (`G060`) — `pdfcer_model::page_tree::Page::with_boxes(id, media_box, crop_box, rotate) -> Page`, re-exported as `pdfcer_core::page_tree::Page`. Answers `pdfcer-gui`'s "a Page has no constructor, so every new field breaks every fixture." Returns what `pages()` resolves for a page writing no bleed/trim/art box (bleed/trim/art = crop_box, every `*_resolution` `Defaulted`, resources/contents empty, counters zero); `rotate` normalised as the walk does. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- Decision 165 — `page_tree::Page` stays exhaustive (no `#[non_exhaustive]`); the constructor is the field-growth compatibility promise instead, because `pdfcer-gui`'s fixtures build via struct-update over `with_boxes`'s baseline and `#[non_exhaustive]` would forbid that outright. `ARCHITECTURE.md` §8.3 gained the general rule and its distinguishing test.
+
+**Findings + decisions:**
+- **Pass-ID collision caught, not filed as-is.** The dispatch asked for this to be filed as "`Pass 375.0` (new; the next after `374.0`)," matching the commit message's own text. Both are wrong: `375.0` was already shipped the 699th filing (`set_crop_boxes` + `resize_pages`), and the true ceiling going into this filing was `378.0` (`372.0`–`378.0` all already used earlier the same day). Filed instead as `Pass 379.0`. The commit message is not corrected — git history doesn't get rewritten — but `ROADMAP.md`'s *Next up* banner and every other register reference cite `379.0` and flag the discrepancy. Per hard rule 2 and this role's standing practice: grep the target ID against the live ledger before filing, every time, even when the dispatch states the number with confidence.
+- No `docs/FEATURES.md` row added or changed. `Page::with_boxes` is a GUI test-support constructor with no user-facing capability — searched the file for a page-model/page-tree/test-support row and found none to tick; per the maintenance contract, a Shipped ROADMAP entry plus this line are the record rather than inventing a row.
+- 2 new out-of-crate tests + 1 doctest; 5 sabotage mutations all caught; `cargo fmt`/`clippy` clean; `check-core-api-verbs` PASS. No manifest change — `cargo tree` invariant not applicable this Pass.
+
+**Still in flight:**
+- No named head currently occupies *Next up* (unchanged by this Pass — it was requested and shipped outside the `G053`–`G059` family, same shape as `376.0`/`377.0`).
+
+**For next session:**
+- No shell available this filing. A full `tools/run-gates.sh` is reported pending before push. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes commit `c3fdc733`).
+
 ## 2026-09-28 (703rd filing) — `40aea1d5` + `784ab6c0`: `Pass 374.0` SHIPPED — table cell-grid detection + `pdfcer extract-tables` (G055)
 
 **Shipped:**
