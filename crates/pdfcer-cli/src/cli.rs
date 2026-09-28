@@ -3110,6 +3110,37 @@ pub(crate) enum Command {
         numbers: NumbersArg,
     },
 
+    /// Write the document's text to a Word document (.docx).
+    ///
+    /// The text flows: one Word paragraph per block of text, in reading
+    /// order, columns one after another, a page break between PDF pages.
+    /// Headings become Heading 1 to 6, list items keep their bullet or
+    /// number with a hanging indent, captions use the Caption style, and
+    /// paragraphs keep their alignment and first-line indent. Text repeated
+    /// at the top or bottom of the pages becomes the Word page header or
+    /// footer, written once; a page number becomes a live page-number
+    /// field. Tables found as `extract-tables` finds them become Word
+    /// tables.
+    ///
+    /// Every block kind is inferred. The result line counts what was
+    /// written, the running text moved to the header and footer, any
+    /// header or footer variant left out (alternating odd and even
+    /// headers keep the first), and text the layout could not place
+    /// (text not running left to right as displayed).
+    ExportDocx {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output document.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Run the pages together, with no page break between them.
+        #[arg(long)]
+        no_page_breaks: bool,
+        /// Leave tables as paragraphs of text.
+        #[arg(long)]
+        no_tables: bool,
+    },
+
     /// **Download the OCR model weights**, verified against a pinned
     /// SHA-256 before anything is written.
     ///

@@ -650,6 +650,12 @@ pub(crate) fn run() -> ExitCode {
             sheets,
             numbers,
         } => cmd_export_xlsx(&input, &output, sheets, numbers),
+        Command::ExportDocx {
+            input,
+            output,
+            no_page_breaks,
+            no_tables,
+        } => cmd_export_docx(&input, &output, !no_page_breaks, !no_tables),
         Command::FetchOcrModels { dir } => cmd_fetch_ocr_models(dir.as_deref()),
         Command::ListStandards { standard } => cmd_list_standards(standard.as_deref()),
         Command::Ocr {

@@ -11,6 +11,7 @@
 //! dependency ever reaches here, so the shells and the eventual WASM fork
 //! all consume these through the same API.
 
+pub mod docx;
 pub mod dxf;
 mod ooxml_zip;
 pub mod xlsx;

@@ -2057,6 +2057,95 @@ pages_over_limit={} pages_unreadable={}",
     exit::SUCCESS
 }
 
+/// `pdfcer export-docx`: block layout (and tables) written as a Word
+/// document, every inference counted on the result line.
+pub(crate) fn cmd_export_docx(input: &Path, output: &Path, page_breaks: bool, tables: bool) -> u8 {
+    use pdfcer_core::block_layout::{LayoutOptions, PageGeometry, analyze_layout};
+    use pdfcer_core::export::docx::{DocxOptions, write_docx};
+    use pdfcer_core::page_tree::pages_in;
+    use pdfcer_core::table_detect::{TableOptions, detect_tables};
+    use pdfcer_core::text_extract::ExtractOptions;
+
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let view = doc.view();
+    let found = analyze_layout(&view, &ExtractOptions::default(), &LayoutOptions::default())
+        .and_then(|layout| Ok((layout, pages_in(&view)?)));
+    let (layout, pages) = match found {
+        Ok(found) => found,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let geometry: Vec<PageGeometry> = layout
+        .pages
+        .iter()
+        .filter_map(|p| pages.get(p.page_index))
+        .map(|p| PageGeometry::new(p.crop_box, p.rotate))
+        .collect();
+    let (detected, table_inferences) = if tables {
+        match detect_tables(&view, &ExtractOptions::default(), &TableOptions::default()) {
+            Ok(found) => {
+                let n = found.diagnostics.inferred();
+                (found.tables, n)
+            }
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", input.display());
+                return exit::RUNTIME_ERROR;
+            }
+        }
+    } else {
+        (Vec::new(), 0)
+    };
+    let options = DocxOptions::default()
+        .with_page_breaks(page_breaks)
+        .with_tables(tables);
+    let out = match write_docx(&layout, &geometry, &detected, &options) {
+        Ok(out) => out,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", output.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    if let Err(err) = std::fs::write(output, &out.bytes) {
+        eprintln!("pdfcer: {}: {err}", output.display());
+        return exit::IO_ERROR;
+    }
+    let d = &layout.diagnostics;
+    let r = &out.report;
+    println!(
+        "export-docx {} -> {} pages={} inferred={} headings={} paragraphs={} list_items={} captions={} tables={} table_cells={} merged_cells={} blocks_in_tables={} tables_too_wide={} header={} footer={} page_number_field={} running_blocks={} running_variants_dropped={} runs_not_horizontal={} runs_watermark_skipped={} characters_dropped={}",
+        input.display(),
+        output.display(),
+        r.pages,
+        r.inferred_blocks + table_inferences,
+        r.headings,
+        r.paragraphs,
+        r.list_items,
+        r.captions,
+        r.tables,
+        r.table_cells,
+        r.merged_cells,
+        r.blocks_in_tables,
+        r.tables_too_wide,
+        u8::from(r.header),
+        u8::from(r.footer),
+        u8::from(r.page_number_field),
+        r.running_blocks,
+        r.running_variants_dropped,
+        d.runs_not_horizontal,
+        d.runs_watermark_skipped,
+        r.characters_dropped,
+    );
+    exit::SUCCESS
+}
+
 /// Implement `pdfcer export-xlsx`.
 pub(crate) fn cmd_export_xlsx(
     input: &Path,

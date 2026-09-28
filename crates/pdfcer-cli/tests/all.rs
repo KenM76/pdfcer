@@ -20,6 +20,7 @@ mod edit_commands;
 mod edit_field;
 mod edit_text;
 mod embed_font;
+mod export_docx;
 mod export_dxf;
 mod export_image;
 mod export_xlsx;

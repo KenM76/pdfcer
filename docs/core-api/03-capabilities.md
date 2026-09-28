@@ -3679,6 +3679,59 @@ is inferred (`DocumentTables::diagnostics.inferred()`). On top of that,
   because there is no ZIP64.
 - Sheet names are fixed English strings, and the shell cannot rename them yet.
 
+### 7.13 Exporting text as a Word document (`Pass 381.0`)
+
+`core [x] · cli [x] · gui [ ]`.
+`pdfcer_core::export::docx::write_docx(&DocumentLayout, &[PageGeometry], &[Table], &DocxOptions) -> Result<DocxOutput, PackageError>`;
+CLI `pdfcer export-docx in.pdf -o out.docx [--no-page-breaks] [--no-tables]`.
+Inputs: `block_layout::analyze_layout` (§7 block layout), `geometry[i]` for
+`layout.pages[i]` (crop box + `/Rotate`, from `page_tree::pages_in`), and
+`table_detect::detect_tables(..).tables` (pass `&[]` for none).
+Output is WordprocessingML (ECMA-376 Part 1 §17) in the same private OPC
+zip as §7.12: deterministic bytes, no new dependency.
+
+The text flows (Acrobat's "flowing text" mode, not a positioned replica):
+
+| Block | Word |
+|---|---|
+| `Heading { level }` | style `Heading n` (built-in, so the navigation pane and a TOC see it) |
+| `Paragraph` | `Normal` + `w:jc` from `alignment` + first-line / hanging indent |
+| `ListItem` | `List Paragraph`, marker kept as text, hanging indent |
+| `Caption` | `Caption` |
+| `RunningHeader` / `RunningFooter` | the page header / footer part, written once |
+| `PageNumber` | a `PAGE` field (digits, or `\* roman` / `\* ROMAN`) in the header or footer, by which half of the displayed page it sat in |
+| block whose centre is inside a table | replaced by the Word table |
+
+- Page size is the first page's crop box as displayed (landscape when
+  wider), margins 1 inch. A page break separates PDF pages unless
+  `DocxOptions::page_breaks` is off.
+- Tables: merged cells become `gridSpan` / `vMerge`, header rows repeat
+  (`tblHeader`) and are bold, and column widths come from the column bands.
+  A table is placed where its first replaced block was, or above the
+  first block below it.
+- Runs carry bold and size only where they differ from the body style
+  (headings always carry their size).
+
+**★ What the UI must disclose.** `DocxReport`:
+
+- `inferred_blocks` — every block written, or folded into the header or
+  footer, whose kind was inferred. The CLI adds the table inferences.
+- `running_blocks` and `running_variants_dropped`. Only the first header,
+  footer and page-number text is kept; alternating odd and even headers,
+  or a chapter-title header, lose the other variants. This is the one
+  place text is left out, so show it.
+- `blocks_in_tables` and `tables_too_wide` (more than Word's 63 columns;
+  left as text).
+- `characters_dropped`.
+- Also surface `DocumentLayout::diagnostics.runs_not_horizontal` and
+  `runs_watermark_skipped`: text the layout never placed is missing from
+  the file.
+
+**Traps.**
+- `PackageError::TooLarge` works as in §7.12.
+- No images, no fonts, no colours. Block text joins lines with a space,
+  and a hyphen at a line end is kept.
+
 ## 13. Off-canvas content — find it, and cut it at the page edge (`Pass 294.0`)
 
 `core [x] · cli [x] · gui [ ]`
