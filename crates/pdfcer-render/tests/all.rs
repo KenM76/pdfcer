@@ -27,6 +27,7 @@ mod ext_gstate_indirect;
 mod external_tools;
 mod flatten_annotations_look_the_same;
 mod format_embed_font;
+mod format_style_donor;
 mod grey_overprint;
 mod group_spot_planes;
 mod hairline_minimum;

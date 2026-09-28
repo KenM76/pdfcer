@@ -7051,7 +7051,9 @@ pub(crate) enum Command {
         /// Make the run BOLD and let pdfcer choose how (`Pass 179.0`): a real
         /// bold face already on the page if one can show the text, else the
         /// standard-14 bold sibling of the run's own family (`Helvetica` →
-        /// `Helvetica-Bold`, nothing embedded), else the synthetic stroke —
+        /// `Helvetica-Bold`, nothing embedded), else — only with
+        /// `--embed-styled-face` — a bold face of the run's family from
+        /// `--font-dir`, subset and embedded, else the synthetic stroke —
         /// the last step subject to `--style-policy` (`refuse` stops there
         /// and names `--bold-synthetic` as the explicit override). The rung
         /// taken is printed. Not with `--set-font` (name the styled face
@@ -7063,6 +7065,19 @@ pub(crate) enum Command {
         /// while Italic is synthesised in the same operation.
         #[arg(long, conflicts_with_all = ["set_font", "italic_synthetic"])]
         italic: bool,
+        /// Let `--bold`/`--italic` EMBED a matching face from `--font-dir`
+        /// before falling back to the synthetic style.
+        ///
+        /// pdfcer looks in the font folders for a face of the run's own
+        /// family carrying exactly the requested style (`Arial-BoldMT` for
+        /// bold on `ArialMT` text), keeps only the glyphs of `--find`, and
+        /// adds it to the document; the report names the face and its size.
+        /// A face of another family is never taken. Embedding is never
+        /// inferred from `--font-dir` alone, so this flag is the request.
+        /// Needs `--find`, `--font-dir`, and `--bold` or `--italic`.
+        /// TrueType (`.ttf`) faces only.
+        #[arg(long = "embed-styled-face", requires = "font_dirs")]
+        embed_styled_face: bool,
         /// Apply SYNTHETIC italic: a 12-degree oblique shear premultiplied
         /// into the run's text matrix. Same `--style-policy` handling as
         /// `--bold-synthetic`. REFUSED when a Td/TD/T* next-line operator

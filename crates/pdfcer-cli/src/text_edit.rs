@@ -1200,6 +1200,79 @@ fn donor_plan(
     })
 }
 
+/// Rung-3 candidates for `format-text --embed-styled-face` (`Pass 142.3`):
+/// every TrueType face in `font_dirs` whose PostScript name claims a
+/// requested axis, subset for the characters of `find`.
+///
+/// Only the axis claim is checked here, to avoid subsetting a whole system
+/// font folder; which candidate is of the run's family and carries exactly
+/// the right style is decided by the ladder in core, the one selector. A face
+/// that cannot be subset (CFF, licence, missing glyph) is skipped with a
+/// `font-dir:` note.
+fn style_donor_plans(
+    font_dirs: &[PathBuf],
+    find: &str,
+    style: pdfcer_core::text_edit::StyleSynthesis,
+) -> Result<Vec<pdfcer_core::font_embed::FontEmbedPlan>, u8> {
+    use pdfcer_core::text_edit::synth::{name_claims_bold, name_claims_italic};
+    use pdfcer_render::font::program::FontProgram;
+
+    if style.is_none() {
+        eprintln!("pdfcer: format-text refused: --embed-styled-face needs --bold or --italic");
+        return Err(exit::EDIT_REFUSED);
+    }
+    if find.is_empty() {
+        eprintln!(
+            "pdfcer: format-text refused: --embed-styled-face needs --find, because the \
+             subset is built for exactly the characters of the run"
+        );
+        return Err(exit::EDIT_REFUSED);
+    }
+    let mut wanted: Vec<char> = find.chars().collect();
+    wanted.sort_unstable();
+    wanted.dedup();
+
+    let mut plans = Vec::new();
+    for dir in font_dirs {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue; // `build_font_environment` already reported it.
+        };
+        let mut files: Vec<PathBuf> = entries
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.is_file() && has_font_extension(p))
+            .collect();
+        files.sort();
+        for path in files {
+            if std::fs::metadata(&path).is_ok_and(|m| m.len() > MAX_FONT_FILE_BYTES) {
+                continue;
+            }
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
+            let Some(name) = FontProgram::parse(&bytes)
+                .ok()
+                .and_then(|p| p.face_names().into_iter().next())
+            else {
+                continue;
+            };
+            if !((style.bold() && name_claims_bold(&name))
+                || (style.italic() && name_claims_italic(&name)))
+            {
+                continue;
+            }
+            let tag = pdfcer_render::font::subset::subset_tag_for(&name);
+            match pdfcer_render::font::subset::plan_subset(&bytes, 0, &wanted, &name, &tag) {
+                Ok(plan) => plans.push(plan),
+                Err(e) => eprintln!(
+                    "pdfcer: font-dir: {} ({name}) cannot be a style donor: {e}",
+                    path.display()
+                ),
+            }
+        }
+    }
+    Ok(plans)
+}
+
 /// Arguments for [`cmd_format_text`], grouped to stay under the clippy
 /// `too_many_arguments` bound (same pattern as [`EditTextArgs`]).
 pub(crate) struct FormatTextArgs<'a> {
@@ -1236,6 +1309,9 @@ pub(crate) struct FormatTextArgs<'a> {
     pub(crate) synthetic: pdfcer_core::text_edit::StyleSynthesis,
     /// `--bold` / `--italic`: the automatic ladder (`Pass 179.0`).
     pub(crate) style: pdfcer_core::text_edit::StyleSynthesis,
+    /// `--embed-styled-face`: offer `--font-dir`'s faces to rung 3
+    /// (`Pass 142.3`).
+    pub(crate) embed_styled_face: bool,
     /// `--style-policy`, or `None` to use the stored setting. Overrides the
     /// setting for this invocation only; nothing is persisted.
     pub(crate) style_policy: Option<StylePolicyArg>,
@@ -1515,6 +1591,16 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     }
     if !args.style.is_none() {
         req = req.style(args.style);
+    }
+    if args.embed_styled_face {
+        match style_donor_plans(args.font_dirs, args.find, args.style) {
+            Ok(plans) => {
+                for plan in plans {
+                    req = req.style_donor(plan);
+                }
+            }
+            Err(code) => return code,
+        }
     }
     // The bold/italic fallback posture (`Pass 179.0`, decision 106).
     //

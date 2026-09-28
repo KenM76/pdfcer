@@ -12402,6 +12402,54 @@ impl EditSession {
             pinned_span,
             want,
             options,
+            &[],
+        )
+    }
+
+    /// [`Self::preview_style_ladder`], with the rung-3 candidates the commit
+    /// will offer (`Pass 142.3`).
+    ///
+    /// Pass exactly the [`FormatRequest::style_donors`](crate::text_edit::FormatRequest::style_donors)
+    /// the following [`Self::format_text`] will carry; a preview without them
+    /// cannot see rung 3 and would predict a synthesis the commit does not do.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::preview_style_ladder`].
+    pub fn preview_style_ladder_with_donors(
+        &self,
+        page_index: usize,
+        find: &str,
+        pinned_span: Option<crate::span::ByteSpan>,
+        want: crate::text_edit::StyleSynthesis,
+        options: &crate::text_edit::FormatOptions,
+        donors: &[crate::font_embed::FontEmbedPlan],
+    ) -> Result<crate::text_edit::StyleLadder, crate::text_edit::FormatError> {
+        use crate::text_edit::FormatError as FmtError;
+        use crate::text_edit::format::preview_style_ladder;
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(FmtError::Encrypted);
+        }
+        let pages = self.pages()?;
+        let page = pages
+            .get(page_index)
+            .ok_or(FmtError::PageIndex(page_index))?;
+        if page.contents.is_empty() {
+            return Err(FmtError::Unsupported(
+                "the page has no /Contents to edit".to_owned(),
+            ));
+        }
+        let stream = self.current_page_content(page).map_err(FmtError::Content)?;
+        preview_style_ladder(
+            &self.view(),
+            page,
+            &stream,
+            find,
+            pinned_span,
+            want,
+            options,
+            donors,
         )
     }
 

@@ -307,6 +307,10 @@ scan() {
                 if (code !~ /"/) next
                 hit = 0
                 if (code ~ /[A-Za-z,.:;)]   +[A-Za-z]/) hit = 1
+                # A placeholder `{}` then a continuation-indent-sized run: the
+                # lost backslash sat right after an argument. Six or more, so a
+                # deliberate three-space column after `{:?}` is not flagged.
+                if (code ~ /}      +[A-Za-z(]/) hit = 1
                 # ★ THE TRAILING CLASS ADMITS `-` AND `/` IN PROSE — widened
                 # 2026-08-27, and the reason is the third instance of one
                 # shape. The 2026-08-20 note above says the fix "widens BOTH
@@ -410,6 +414,15 @@ fn refuse() {
     eprintln!("pdfcer: format-text needs --find TEXT, or --pin-span with an empty          --find");
 }
 EOF
+    # A gap after a placeholder in a `format!` that is not prose-marked
+    # (no `#[error`, no `"pdfcer: `): the rule-4 disclosure of an embedded
+    # font shipped this way while this gate reported PASS.
+    mkdir -p "$tmp/dirty6"
+    cat > "$tmp/dirty6/format_placeholder.rs" <<'EOF'
+fn say(n: usize) -> String {
+    format!("font: embedded a subset: {}          glyph(s)", n)
+}
+EOF
     # The 2026-08-26 widening: a `\n\` continuation that kept its escape and
     # lost its trailing backslash, stranding the `\n` at the start of the next
     # line. This is the shape that shipped into a generated settings file
@@ -485,6 +498,10 @@ EOF
     fi
     if scan "$tmp/dirty4" > /dev/null; then
         echo "SELF-TEST FAILED: a displaced \\n (lost trailing backslash) was not detected"
+        fail=1
+    fi
+    if scan "$tmp/dirty6" > /dev/null; then
+        echo "SELF-TEST FAILED: a gap after a {} in a plain format! was not detected"
         fail=1
     fi
     if scan "$tmp/dirty5" > /dev/null; then

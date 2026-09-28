@@ -702,8 +702,12 @@ pub struct FormatRequest {
     ///    (`Helvetica`→`Helvetica-Bold`, `Times-Roman`→`Times-BoldItalic`,
     ///    …) — bound as a new `/Font` resource, nothing embedded
     ///    ([`crate::fontdata::std14_styled`]);
-    /// 3. *(a `--font-dir` donor — `Pass 142.0`, not built)*;
-    /// 4. synthesis (R90), subject to the posture: `auto`/`warn` apply it
+    /// 3. a caller-supplied face of the run's own family
+    ///    ([`Self::style_donors`]) that claims exactly the requested axes and
+    ///    passes the same coverage gate — subset and embedded; never offered
+    ///    unless the caller supplies donors (R108);
+    /// 4. synthesis (R90), subject to the posture (which gates only this
+    ///    rung — rungs 1–3 fake nothing): `auto`/`warn` apply it
     ///    and disclose the rung; `refuse` returns
     ///    [`FormatError::SynthesisRefusedByPosture`] so nothing is faked
     ///    without an explicit [`Self::set_synthetic`].
@@ -743,6 +747,18 @@ pub struct FormatRequest {
     /// wins; a character the plan lacks is [`FormatError::CoverageFailure`].
     /// Set with [`Self::embedded_font`].
     pub embed_font: Option<Box<crate::font_embed::FontEmbedPlan>>,
+    /// Faces the style ladder may **embed** at rung 3 when
+    /// [`Self::set_style`] asks for bold/italic (`Pass 142.3`).
+    ///
+    /// The shell subsets each candidate for the run's characters (core has no
+    /// font parser) and passes them all; the ladder picks. A donor is taken
+    /// only when its `base_name` is the run's own family (subset tag, `-`/`,`
+    /// suffix, and a trailing `MT`/`PS` ignored) and claims exactly the
+    /// requested axes plus any the run already has, and it must show every
+    /// character — else it is recorded on [`StyleLadder::passed_over`] and the
+    /// ladder falls through to synthesis. Empty (the default) means rung 3 is
+    /// skipped. Add with [`Self::style_donor`].
+    pub style_donors: Vec<crate::font_embed::FontEmbedPlan>,
 }
 
 impl FormatRequest {
@@ -769,6 +785,7 @@ impl FormatRequest {
             fit_width: None,
             target: EditTarget::Auto,
             embed_font: None,
+            style_donors: Vec::new(),
         }
     }
 
@@ -871,6 +888,13 @@ impl FormatRequest {
     pub fn embedded_font(mut self, plan: crate::font_embed::FontEmbedPlan) -> Self {
         self.set_font = Some(FontSelector::new(&plan.base_name));
         self.embed_font = Some(Box::new(plan));
+        self
+    }
+
+    /// Offer `plan` to the style ladder's rung 3 (see [`Self::style_donors`]).
+    #[must_use]
+    pub fn style_donor(mut self, plan: crate::font_embed::FontEmbedPlan) -> Self {
+        self.style_donors.push(plan);
         self
     }
 
@@ -993,6 +1017,9 @@ pub enum StyleRung {
     /// The standard-14 sibling of the run's own family was bound as a new
     /// resource, nothing embedded (rung 2).
     StandardFourteenSibling,
+    /// A face the caller supplied ([`FormatRequest::style_donors`]) of the
+    /// run's own family was subset and embedded as a new resource (rung 3).
+    SuppliedFaceEmbedded,
     /// No real face; the stroke/shear was synthesised (rung 4).
     Synthetic,
     /// The run already had the requested style; nothing to change.
@@ -1004,6 +1031,7 @@ impl std::fmt::Display for StyleRung {
         f.write_str(match self {
             Self::RealFaceOnPage => "rung 1: a real face on the page",
             Self::StandardFourteenSibling => "rung 2: the standard-14 sibling",
+            Self::SuppliedFaceEmbedded => "rung 3: a supplied face, embedded",
             Self::Synthetic => "rung 4: synthetic",
             Self::AlreadyStyled => "already styled",
         })
@@ -3144,10 +3172,13 @@ fn plan_style_ladder(
     // Bind `selector` through the ONE gate; a coverage refusal is a rung
     // miss, not an error.
     let try_bind = |selector: &str,
+                    embed: Option<&crate::font_embed::FontEmbedPlan>,
                     passed_over: &mut Vec<PassedOver>|
      -> Result<Option<FontPlan>, FormatError> {
         let mut probe = req.clone();
         probe.set_font = Some(FontSelector::new(selector));
+        probe.style_donors = Vec::new();
+        probe.embed_font = embed.map(|p| Box::new(p.clone()));
         match plan_font(doc, resources, recs, &probe, find) {
             Ok(plan) => Ok(plan),
             Err(FormatError::CoverageFailure(r)) => {
@@ -3229,7 +3260,7 @@ fn plan_style_ladder(
         let Some(face) = found else {
             return Ok(None);
         };
-        Ok(try_bind(&face.selector, passed_over)?.map(|plan| (plan, rest)))
+        Ok(try_bind(&face.selector, None, passed_over)?.map(|plan| (plan, rest)))
     };
     if let Some((plan, rest)) = try_page_face(style, StyleSynthesis::None, &mut passed_over)? {
         let bound = plan.font.base_font.clone();
@@ -3255,8 +3286,11 @@ fn plan_style_ladder(
             style.italic() || crate::text_edit::synth::name_claims_italic(&orig_font.base_font);
         if let Some(sib) = crate::fontdata::std14_styled(own, bold, italic)
             && sib != own
-            && let Some(plan) =
-                try_bind(crate::fontdata::std14_base_font_name(sib), &mut passed_over)?
+            && let Some(plan) = try_bind(
+                crate::fontdata::std14_base_font_name(sib),
+                None,
+                &mut passed_over,
+            )?
         {
             let bound = plan.font.base_font.clone();
             return Ok((
@@ -3275,6 +3309,35 @@ fn plan_style_ladder(
                 }),
                 StyleSynthesis::None,
             ));
+        }
+    }
+
+    // --- rung 3: a supplied face of the run's own family, embedded (FULL
+    //     style, so it outranks a half-synthesised page face like rung 2) ---
+    {
+        let bold = style.bold() || crate::text_edit::synth::name_claims_bold(&orig_font.base_font);
+        let italic =
+            style.italic() || crate::text_edit::synth::name_claims_italic(&orig_font.base_font);
+        for donor in req.style_donors.iter().filter(|d| {
+            family_stem(&d.base_name) == want
+                && crate::text_edit::synth::name_claims_bold(&d.base_name) == bold
+                && crate::text_edit::synth::name_claims_italic(&d.base_name) == italic
+        }) {
+            if let Some(plan) = try_bind(&donor.base_name, Some(donor), &mut passed_over)? {
+                let bound = plan.font.base_font.clone();
+                return Ok((
+                    Some(plan),
+                    Some(StyleLadder {
+                        requested: style,
+                        same_family: Some(family_stem(&bound) == family_stem(&orig_font.base_font)),
+                        bound: Some(bound),
+                        rung: StyleRung::SuppliedFaceEmbedded,
+                        synthesised: StyleSynthesis::None,
+                        passed_over,
+                    }),
+                    StyleSynthesis::None,
+                ));
+            }
         }
     }
 
@@ -3303,7 +3366,7 @@ fn plan_style_ladder(
         }
     }
 
-    // --- rung 4: synthesise (rung 3, a donor face, is Pass 142.0) ---
+    // --- rung 4: synthesise ---
     Ok((
         None,
         Some(StyleLadder {
@@ -3356,8 +3419,9 @@ fn disclosure_style_ladder(l: &StyleLadder) -> String {
             axes_label(l.requested)
         ),
         (StyleRung::Synthetic, _) => format!(
-            "style: {} via {} — no real face on the page claims it and the run's family has no \
-             standard-14 sibling, so the style is synthesised (Tr 2 stroke / Tm shear).{passed}",
+            "style: {} via {} — no real face on the page claims it, the run's family has no \
+             standard-14 sibling and no supplied face of its family can show the run, so the \
+             style is synthesised (Tr 2 stroke / Tm shear).{passed}",
             axes_label(l.requested),
             l.rung
         ),
@@ -3367,6 +3431,8 @@ fn disclosure_style_ladder(l: &StyleLadder) -> String {
             rung,
             if rung == StyleRung::StandardFourteenSibling {
                 ", a standard-14 face, so nothing is embedded"
+            } else if rung == StyleRung::SuppliedFaceEmbedded {
+                ", from the supplied fonts, embedded as a subset"
             } else {
                 ""
             }
@@ -3585,7 +3651,9 @@ fn plan_embedded_font(
         .unwrap_or_default();
     let key = crate::text_edit::addtext::pick_font_name(&existing_fonts);
     let disclosures = vec![format!(
-        "font: '{}' was not in this document, so pdfcer EMBEDDED a subset of it as /{}: {}          glyph(s), {} byte(s) of font program, as a Type0 font with Identity-H encoding (ISO          32000-1 §9.7.6.2). The run's {} character(s) were re-encoded as its two-byte CIDs.",
+        "font: '{}' was not in this document, so pdfcer EMBEDDED a subset of it as /{}: {} \
+         glyph(s), {} byte(s) of font program, as a Type0 font with Identity-H encoding (ISO \
+         32000-1 §9.7.6.2). The run's {} character(s) were re-encoded as its two-byte CIDs.",
         plan.base_name,
         String::from_utf8_lossy(&key),
         plan.glyphs.len(),
@@ -3632,7 +3700,19 @@ fn plan_embedded_font(
 fn family_stem(base_font: &str) -> String {
     let stem = subset_stem(base_font);
     let cut = stem.find(['-', ',']).unwrap_or(stem.len());
-    stem.get(..cut).unwrap_or(stem).to_ascii_lowercase()
+    let family = stem.get(..cut).unwrap_or(stem).to_ascii_lowercase();
+    // Monotype's `MT` and Adobe's `PS` are vendor suffixes, not a family:
+    // `ArialMT` and `Arial-BoldMT` are one family, as are
+    // `TimesNewRomanPSMT` and `TimesNewRomanPS-BoldMT`.
+    let mut trimmed = family.as_str();
+    for suffix in ["mt", "ps"] {
+        if let Some(rest) = trimmed.strip_suffix(suffix)
+            && !rest.is_empty()
+        {
+            trimmed = rest;
+        }
+    }
+    trimmed.to_owned()
 }
 
 /// R90's gate: **answer whether** a real face with the requested style is
@@ -3994,6 +4074,9 @@ fn probe_synthesis(
 /// [`FormatError::SynthesisRefusedByPosture`] when `opts` forbids synthesis
 /// and the ladder found no real face — **which is the honest preview of a
 /// commit that would refuse**, not a failure of the preview.
+// One parameter per argument of the public preview verbs it serves; a
+// bundling struct would exist only to satisfy this lint.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn preview_style_ladder(
     doc: &DocumentView<'_>,
     page: &crate::page_tree::Page,
@@ -4002,6 +4085,7 @@ pub(crate) fn preview_style_ladder(
     pinned_span: Option<ByteSpan>,
     want: StyleSynthesis,
     opts: &FormatOptions,
+    donors: &[crate::font_embed::FontEmbedPlan],
 ) -> Result<StyleLadder, FormatError> {
     let mut walk = Walk::new(doc, &page.resources);
     for op in stream.operations() {
@@ -4049,7 +4133,8 @@ pub(crate) fn preview_style_ladder(
         )));
     }
 
-    let req = FormatRequest::new(0, find).style(want);
+    let mut req = FormatRequest::new(0, find).style(want);
+    req.style_donors = donors.to_vec();
     let (_plan, ladder, synthesis) =
         plan_style_ladder(doc, resources, &recs, &req, find, anchor, &orig_font)?;
 

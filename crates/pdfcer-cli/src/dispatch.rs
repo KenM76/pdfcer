@@ -1754,6 +1754,7 @@ pub(crate) fn run() -> ExitCode {
             italic_synthetic,
             bold,
             italic,
+            embed_styled_face,
             style_policy,
             output,
             pin,
@@ -1780,6 +1781,7 @@ pub(crate) fn run() -> ExitCode {
                 italic_synthetic,
             ),
             style: pdfcer_core::text_edit::StyleSynthesis::new(bold, italic),
+            embed_styled_face,
             style_policy,
             // clap's `conflicts_with` guarantees at most one is set, so this
             // ladder cannot silently prefer one over another.

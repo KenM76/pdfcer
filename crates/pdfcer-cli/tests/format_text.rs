@@ -624,3 +624,124 @@ fn embed_font_missing_a_glyph_is_refused_with_no_output() {
     assert_ne!(out.status.code(), Some(0), "{}", stdout(&out));
     assert!(!out_path.exists(), "a refusal must write no output file");
 }
+
+// ---------------------------------------------------------------------------
+// `Pass 142.3` — rung 3: a supplied face of the run's family, embedded, and
+// only when the operator says so per invocation (R108).
+// ---------------------------------------------------------------------------
+
+/// A per-call temp dir holding `subset-donor-bold.ttf` (advertised as
+/// `pdfceSubsetDemo-Bold`) plus a one-page PDF whose run `CAB` is set in the
+/// non-embedded, non-standard-14 `pdfceSubsetDemo`, so neither rung 1 nor
+/// rung 2 can answer first. Returns `(dir, input_pdf)`.
+fn styled_face_setup() -> (PathBuf, PathBuf) {
+    static N: AtomicU32 = AtomicU32::new(0);
+    let n = N.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("pdfcer_fmt_esf_{}_{n}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let ttf = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/text/subset-donor-bold.ttf");
+    std::fs::copy(ttf, dir.join("donor.ttf")).unwrap();
+
+    let widths = (0..95).map(|_| "500").collect::<Vec<_>>().join(" ");
+    let content = "BT /F1 12 Tf 72 700 Td (CAB) Tj ET";
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+         /Resources << /Font << /F1 5 0 R >> >> >>"
+            .to_owned(),
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        ),
+        format!(
+            "<< /Type /Font /Subtype /Type1 /BaseFont /pdfceSubsetDemo \
+             /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 126 /Widths [{widths}] >>"
+        ),
+    ];
+    let mut pdf = b"%PDF-1.4\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = pdf.len();
+    pdf.extend_from_slice(b"xref\n0 6\n0000000000 65535 f \n");
+    for off in offsets {
+        pdf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+    );
+    let input = dir.join("in.pdf");
+    std::fs::write(&input, pdf).unwrap();
+    (dir, input)
+}
+
+#[test]
+fn embed_styled_face_embeds_the_supplied_bold_face_of_the_runs_family() {
+    let (dir, input) = styled_face_setup();
+    let out_path = dir.join("out.pdf");
+    let out = run(&[
+        input.to_str().unwrap(),
+        "--find",
+        "CAB",
+        "--bold",
+        "--font-dir",
+        dir.to_str().unwrap(),
+        "--embed-styled-face",
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "exit 0: {}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("rung=SuppliedFaceEmbedded"), "{text}");
+    assert!(
+        text.contains("style: bold via rung 3: a supplied face, embedded"),
+        "{text}"
+    );
+    let s = String::from_utf8_lossy(&std::fs::read(&out_path).unwrap()).into_owned();
+    assert!(s.contains("/FontFile2") && s.contains("+pdfceSubsetDemo-Bold"));
+    assert!(!s.contains("2 Tr"), "no synthetic stroke");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn without_embed_styled_face_a_font_dir_bold_face_is_never_embedded() {
+    // R108: embedding is chosen per action, never inferred from --font-dir.
+    let (dir, input) = styled_face_setup();
+    let out_path = dir.join("out.pdf");
+    let out = run(&[
+        input.to_str().unwrap(),
+        "--find",
+        "CAB",
+        "--bold",
+        "--font-dir",
+        dir.to_str().unwrap(),
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "exit 0: {}", stderr(&out));
+    assert!(stdout(&out).contains("rung=Synthetic"), "{}", stdout(&out));
+    let s = String::from_utf8_lossy(&std::fs::read(&out_path).unwrap()).into_owned();
+    assert!(!s.contains("/FontFile2"), "nothing embedded");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn embed_styled_face_without_a_font_dir_is_a_usage_error() {
+    let (dir, input) = styled_face_setup();
+    let out = run(&[
+        input.to_str().unwrap(),
+        "--find",
+        "CAB",
+        "--bold",
+        "--embed-styled-face",
+        "-o",
+        dir.join("out.pdf").to_str().unwrap(),
+    ]);
+    assert_eq!(out.status.code(), Some(2), "{}", stderr(&out));
+    assert!(stderr(&out).contains("--font-dir"), "{}", stderr(&out));
+    let _ = std::fs::remove_dir_all(dir);
+}

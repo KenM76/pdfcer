@@ -389,7 +389,7 @@ pub enum StylePolicy {
     /// to actively ignore, for a workflow where a faked weight in the output
     /// is a problem worth noticing at the moment it is created.
     ///
-    /// A rung-1 or rung-2 result — a genuine face — warns about nothing,
+    /// A rung-1, -2 or -3 result — a genuine face — warns about nothing,
     /// because nothing was faked.
     Warn,
     /// **Refuse a synthesis request when a real face is available**, naming

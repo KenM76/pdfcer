@@ -1010,7 +1010,7 @@ PDF /N vs header channel count — MEASURED per embedding"
             );
             println!("  {d:>7}  {pct:>5.1}%  DISAGREE  (of {total_n} that declared /N)");
             println!(
-                "  {:>7}         no /N declared by the PDF",
+                "  {:>7}         no /N declared by the PDF", // string-gap-exempt: a right-aligned column, like the lines above
                 c.n_absent_embeddings
             );
             // Each disagreement NAMED. A count alone cannot say which

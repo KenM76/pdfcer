@@ -94,8 +94,9 @@ UPEM = 1000
 ADVANCE = 600
 
 
-def build_subset_truetype() -> bytes:
-    """A minimal TrueType carrying outlines for `CARRIED` and nothing else.
+def build_subset_truetype(style: str = "Regular") -> bytes:
+    """A minimal TrueType carrying outlines for `CARRIED` and nothing else,
+    advertised as `FAMILY-style` (name ID 6) unless `style` is Regular.
 
     Each carried character gets a distinguishable outline — a bar whose
     height varies by index — so a rendering test can tell the glyphs apart
@@ -131,7 +132,11 @@ def build_subset_truetype() -> bytes:
         {name: (ADVANCE, 80) for name in glyph_names}
     )
     fb.setupHorizontalHeader(ascent=800, descent=-200)
-    fb.setupNameTable({"familyName": FAMILY, "styleName": "Regular"})
+    names = {"familyName": FAMILY, "styleName": style}
+    if style != "Regular":
+        # The Regular donor predates this and carries no name ID 6.
+        names["psName"] = f"{FAMILY}-{style}"
+    fb.setupNameTable(names)
     # A cmap covering ONLY the carried characters. This is what makes the
     # font a real subset rather than one that merely claims to be: a
     # consumer asking for 'Z' finds nothing, which is the truth the
@@ -677,6 +682,14 @@ def main() -> int:
     donor = out_dir / "subset-donor.ttf"
     donor.write_bytes(build_subset_truetype())
     print(f"wrote {donor} ({donor.stat().st_size} bytes)")
+
+    # The same outlines advertised as the family's Bold (name ID 6
+    # `pdfceSubsetDemo-Bold`): the CLI's `--embed-styled-face` picks a donor
+    # by its advertised name, so a rung-3 test needs a face whose name claims
+    # the axis. Only the name table differs from `subset-donor.ttf`.
+    bold = out_dir / "subset-donor-bold.ttf"
+    bold.write_bytes(build_subset_truetype("Bold"))
+    print(f"wrote {bold} ({bold.stat().st_size} bytes)")
 
     ce = out_dir / "composite-editable.pdf"
     ce.write_bytes(composite_editable())
