@@ -1210,7 +1210,9 @@ document — that is what makes rule-4 disclosure cheap here.
 `TextMarkupKind`, `LineEnding`, `StickyIcon`,
 `StampName` (14 names). For a page-level file attachment:
 `FileAttachmentSpec` (`#[non_exhaustive]`; build with `new`) and
-`AttachmentIcon` (`Pass 261.0`).
+`AttachmentIcon` (`Pass 261.0`). For a caret: `CaretSpec` (`#[non_exhaustive]`;
+build with `new`) and `CaretSymbol` (`None`, `Paragraph`; `name`/`from_name`)
+(`Pass 261.1`).
 
 ★★ **A stamp's label size is a PROPERTY, and the box follows the text
 (`Pass 287.0`).** `TextAnnotSpec::Stamp` gained `style: StampStyle`;

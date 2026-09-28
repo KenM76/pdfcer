@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 272 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 274 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 272 public `EditSession` methods
+## 1. Verb index — all 274 public `EditSession` methods
 
-**Count: 272.** Established by brace-matched extraction of the six
+**Count: 274.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -92,7 +92,8 @@ when `Pass 358.2` added `delete_layer`, and again at 259 when `Pass 358.3` added
 when `Pass 358.5` added `paste_objects_on_layer`, and again at 263 when `Pass 358.6` added `merge_layers`, and again at 264 when `Pass 358.6`
 added `flatten_layers`, and again at 266 when `Pass 360.0` added
 `flatten_annotations` and `annotation_flatten_refusals`, and again at 272 when `Pass 261.0`
-added `add_file_attachment_annotation`.
+added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
+`add_caret_annotation` and `add_replace_text`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -1757,7 +1758,7 @@ always errors.
 | Why a flatten would refuse, before attempting it | `flatten_refusal(&self) -> Option<EditError>` | `None` when a flatten would proceed. |
 | Where a page's widgets are | `widget_rects(&self, page_index: usize) -> Vec<(ObjId, [f64; 4])>` | Annotation id and `/Rect`. A **query**, not an edit — useful for hit-testing and for reporting orphans (see `insert_pages`). |
 
-### 1.15 Annotations (21) — detail in part 3
+### 1.15 Annotations (23) — detail in part 3
 
 | I want to… | Call | Returns |
 |---|---|---|
@@ -1766,6 +1767,8 @@ always errors.
 | Draw a geometric markup **as page content** | `add_markup_as_content(&mut self, page_index, spec: &MarkupSpec, options: &MarkupOptions) -> Result<MarkupContentOutcome, EditError>` | `Pass 356.0` (G043). The same bytes `add_markup_with` would put in `/AP` `/N`, appended to `/Contents` (§7.8.2) through `paste_objects` — so **one undo entry**, `q`…`Q`-wrapped, resources (Highlight's Multiply `/ExtGState`) bound under fresh names, and the **strict** certification gate (it modifies page content), not the annotation one. No annotation is created; the result is ordinary vector objects that `move_objects`/`transform_objects`/`delete_objects` take. `MarkupContentOutcome { objects: Range<usize>, paste: PasteOutcome }` (`#[non_exhaustive]`): `objects` is the index range in `page_objects` after the call (the page's LAST objects; select it to hand the shape on). `opacity` becomes a bound `/ExtGState` with `/CA` and `/ca` (§8.4.5 Table 57); `dash` draws as on the annotation; `note` is **not written** and is disclosed in `paste.disclosures`. Refuses bad opacity/geometry before writing anything. Text-bearing kinds have no `MarkupSpec` form, so this takes geometric shapes only. |
 | Author a text-bearing annotation | `add_text_annotation(&mut self, page_index, spec: &TextAnnotSpec) -> Result<ObjId, EditError>` | FreeText / Text+`/Popup` / Stamp. Exactly `add_text_annotation_with(.., &MarkupOptions::default())`. |
 | Author a text-bearing annotation **at an opacity** | `add_text_annotation_with(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 81.1`. The twin of the above, shipped in the same Pass because Table 164 is the **markup-annotation** entry list and a sticky note is a markup annotation. `/CA` goes on the parent, never on its `/Popup`. |
+| Author a **caret** — where text goes | `add_caret_annotation(&mut self, page_index, spec: &CaretSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 261.1`, §12.5.6.11. Returns the `/Caret` id; ONE undo entry. `options.note` is the text to insert (`/Contents`) plus `/T`/`/M`; `opacity` and `layer` apply. `CaretSpec::new(rect)` (mid-blue), then set `color` and `symbol: CaretSymbol` (`None` default — `/Sy` omitted; `Paragraph` writes `/Sy /P` and draws ¶). `/RD` is never written. The artwork is pdfcer's own. Advisory: page content is untouched. `AnnotKind::Caret` (new variant). Guards as `add_file_attachment_annotation`. |
+| Author a **Replace Text** edit (caret + strikeout, grouped) | `add_replace_text(&mut self, page_index, caret: &CaretSpec, struck: &[Quad], options: &MarkupOptions) -> Result<ReplaceTextAdded, EditError>` | `Pass 261.1`. ONE undo entry, both appended to `/Annots` caret-first. The **caret is the group primary**: `/IT /Replace`, carries `options.note` (the replacement text). The **strikeout** (over `struck`, in `caret.color`) has `/IRT` → caret, `/RT /Group`, `/IT /StrikeOutTextEdit` and no note of its own. The standard is silent on this pairing; the shape is the empirical Acrobat convention, so Acrobat regroups it as one comment. `ReplaceTextAdded { caret_id, strike_out_id }` (`#[non_exhaustive]`, `Copy`). `EmptyGeometry` for empty `struck`, then the usual guards. `AnnotKind::ReplaceText` (new variant). |
 | Place one page's artwork on a page | `place_page_artwork(&mut self, source: &DocumentView<'_>, source_page: usize, page_index: usize, rect: Rect) -> Result<PlacedArtwork, EditError>` | `Pass 293.0`. The artwork becomes a **form XObject** behind a `/Stamp` annotation's `/AP` `/N` — vector, selectable, and the target page's content stream is **never touched** (R47). One undo entry for the form, the annotation, the imported resource closure and the `/Annots` patch. Reports scaling (§12.5.5 stretches anisotropically — normative), what was left behind on the source page (annotations, **widgets — the dynamic-stamp number**), and how much the file grew. Refuses with `SourcePageOutOfRange` for the SOURCE's index, distinct from `PageOutOfRange`. |
 | Preview which style RUNG a run would take | `preview_style_ladder(&self, page_index, find, pinned_span, want: StyleSynthesis, options: &FormatOptions) -> Result<StyleLadder, FormatError>` | `Pass 295.0`. Read-only, cheap enough for a hover: runs the SAME planner `format_text` runs, stages nothing. **Not `preview_style_resolution`**, which previews the R90 gate — that answers *"no real face on this page claims the style"* and is blind to rung 2 (the standard-14 sibling needs no font file and is not on the page), so a tooltip built on it predicted synthesis while the commit bound a real `Helvetica-Bold`. Pass the options the commit will use: under `StylePolicy::Refuse` this returns `SynthesisRefusedByPosture`, which is the honest preview of a commit that would refuse. |
 | Read a placed stamp's label + size | `stamp_label_parameters(&self, annot_id: ObjId) -> Result<Option<StampLabelParameters>, EditError>` | `Pass 292.0`. `None` = not a stamp pdfcer can describe (Acrobat's custom stamps are artwork). **Read `size_source` before presenting the number**: `DeclaredInDa` / `RecoveredFromAppearance` / `DaUnreadable` are three different facts. Read-only twin for callers with no session: `annot::stamp_label_parameters_in`. |
@@ -4864,7 +4867,7 @@ upgrades it to **prevention** (`edit.rs`).
 | Gate | Verbs |
 |---|---|
 | **Strict** `check_certification` | all 11 vector verbs (via `vector_surgery`); all 5 field-creation verbs (via `field_authoring_preflight`); `delete_field`, `delete_widget`, `move_widget` (via `deletion_preflight`); `delete_field_group`, `field_group_deletion_preview`; `rename_field`; `flatten_fields`; `delete_pages_with`; `reorder_pages`; `rotate_pages`; all 11 ce-dimension verbs; `unembed_refusal`; `embed_refusal`; `add_image`; `deletion_refusal`/`rename_refusal` (via `structural_form_refusal`) |
-| **Annotation** | `add_markup`; `attach_file`; `add_file_attachment_annotation`; `detach_file`; `add_redaction`; `delete_redaction_mark`; `delete_annotation`+`annotation_deletion_preview` (via `annotation_deletion_guards`); `annotation_deletion_refusal`; the three `mark_redactions_*` (via `author_text_matches`); `add_text_annotation` |
+| **Annotation** | `add_markup`; `attach_file`; `add_file_attachment_annotation`; `add_caret_annotation`; `add_replace_text`; `detach_file`; `add_redaction`; `delete_redaction_mark`; `delete_annotation`+`annotation_deletion_preview` (via `annotation_deletion_guards`); `annotation_deletion_refusal`; the three `mark_redactions_*` (via `author_text_matches`); `add_text_annotation` |
 | **Fill** | `fill_text_field`, `fill_text_field_downgrading_rich_text`, `reset_form`, `set_choice_value`, `regenerate_appearances` (via `fill_guards`); `set_button_state`; `fill_refusal` |
 | **None** | `set_info_field` (deliberate — argued at `edit.rs` as an owed decision, not an oversight); `set_page_rotation`; `rotate_page_by`; `delete_pages` (encryption-ungated too) |
 

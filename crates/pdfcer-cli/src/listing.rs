@@ -1370,10 +1370,122 @@ pub(crate) const fn mode_token(mode: SaveMode) -> &'static str {
     }
 }
 
-/// Shared save tail for `attach-file` and `detach-file`.
+/// The arguments of `add-caret`, borrowed from the parsed command.
+pub(crate) struct AddCaretArgs<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) page: u32,
+    pub(crate) rect: &'a str,
+    pub(crate) text: Option<&'a str>,
+    pub(crate) author: Option<&'a str>,
+    pub(crate) paragraph: bool,
+    pub(crate) strike: &'a [String],
+    pub(crate) color: Option<&'a str>,
+    pub(crate) opacity: Option<f64>,
+    pub(crate) apply: bool,
+    pub(crate) output: Option<&'a Path>,
+    pub(crate) mode: SaveMode,
+}
+
+/// `add-caret` — a caret, or with `--strike` a grouped Replace Text edit.
+pub(crate) fn cmd_add_caret(a: &AddCaretArgs<'_>) -> u8 {
+    use pdfcer_core::annot_author::{CaretSpec, CaretSymbol, Quad};
+    use pdfcer_core::edit::{MarkupNote, MarkupOptions};
+
+    let rect = match crate::annot_parse::rect_from(a.rect) {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!("pdfcer: --rect: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let mut struck = Vec::with_capacity(a.strike.len());
+    for r in a.strike {
+        match crate::annot_parse::rect_from(r) {
+            Ok(r) => struck.push(Quad::from_rect(r)),
+            Err(err) => {
+                eprintln!("pdfcer: --strike {r}: {err}");
+                return exit::EDIT_REFUSED;
+            }
+        }
+    }
+    let color = match a.color.map(crate::annot_parse::parse_color).transpose() {
+        Ok(c) => c,
+        Err(err) => {
+            eprintln!("pdfcer: --color: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let Some(page_index) = (a.page as usize).checked_sub(1) else {
+        eprintln!("pdfcer: --page is 1-based; 0 names no page");
+        return exit::EDIT_REFUSED;
+    };
+    let doc = match open_document(a.input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let mut spec = CaretSpec::new(rect);
+    if a.paragraph {
+        spec.symbol = CaretSymbol::Paragraph;
+    }
+    if let Some(c) = color {
+        spec.color = c;
+    }
+    let options = MarkupOptions {
+        note: a.text.map(|t| {
+            let note = MarkupNote::new(t);
+            match a.author {
+                Some(who) => note.by(who),
+                None => note,
+            }
+        }),
+        opacity: a.opacity,
+        ..Default::default()
+    };
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    let result = if struck.is_empty() {
+        session
+            .add_caret_annotation(page_index, &spec, &options)
+            .map(|id| format!("caret={}", id.num))
+    } else {
+        session
+            .add_replace_text(page_index, &spec, &struck, &options)
+            .map(|r| format!("caret={} strikeout={}", r.caret_id.num, r.strike_out_id.num))
+    };
+    let ids = match result {
+        Ok(ids) => ids,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    println!(
+        "add-caret {} page={} kind={} {ids} sy={} mode={} applied={}",
+        a.input.display(),
+        a.page,
+        if struck.is_empty() {
+            "insert"
+        } else {
+            "replace"
+        },
+        String::from_utf8_lossy(spec.symbol.name()),
+        mode_token(a.mode),
+        u32::from(a.apply)
+    );
+    if !a.apply {
+        eprintln!("pdfcer: dry run — pass --apply with --output to write the file.");
+        return exit::SUCCESS;
+    }
+    finish_attachment_save(a.input, &mut session, a.output, a.mode)
+}
+
+/// Shared save tail for `attach-file`, `detach-file`,
+/// `attach-file-annotation` and `add-caret`.
 ///
 /// One function rather than two copies: the recovered-base hint, the
-/// output-required check and the exit codes must not drift apart between two
+/// output-required check and the exit codes must not drift apart between
 /// commands an operator will reasonably expect to behave identically.
 pub(crate) fn finish_attachment_save(
     input: &Path,

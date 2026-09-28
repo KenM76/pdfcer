@@ -5663,6 +5663,157 @@ pub(crate) fn file_attachment(spec: &FileAttachmentSpec) -> AuthoredTextAnnot {
     }
 }
 
+/// A caret annotation's `/Sy` (§12.5.6.11, Table 180): whether a paragraph
+/// symbol accompanies the caret. Default `None`, the spec's value when `/Sy`
+/// is absent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CaretSymbol {
+    /// `/None` — the caret alone. Written by omitting `/Sy`.
+    #[default]
+    None,
+    /// `/P` — a new-paragraph symbol (¶) is drawn with the caret.
+    Paragraph,
+}
+
+impl CaretSymbol {
+    /// The `/Sy` name bytes.
+    #[must_use]
+    pub fn name(self) -> &'static [u8] {
+        match self {
+            Self::None => b"None",
+            Self::Paragraph => b"P",
+        }
+    }
+
+    /// The symbol a `/Sy` name denotes, or `None` for a name Table 180 does
+    /// not define.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::CaretSymbol;
+    ///
+    /// assert_eq!(CaretSymbol::from_name(b"P"), Some(CaretSymbol::Paragraph));
+    /// assert_eq!(CaretSymbol::from_name(b"Q"), None);
+    /// ```
+    #[must_use]
+    pub fn from_name(name: &[u8]) -> Option<Self> {
+        match name {
+            b"None" => Some(Self::None),
+            b"P" => Some(Self::Paragraph),
+            _ => None,
+        }
+    }
+}
+
+/// A `/Caret` annotation to author (§12.5.6.11): a mark showing where text
+/// is to be inserted. The inserted text, author and date travel in
+/// [`crate::edit::MarkupOptions::note`].
+///
+/// `/RD` is not written: the caret fills `rect`.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct CaretSpec {
+    /// The caret's rectangle, in default user space.
+    pub rect: Rect,
+    /// The caret colour, also written as `/C`.
+    pub color: Color,
+    /// Whether a paragraph symbol accompanies the caret.
+    pub symbol: CaretSymbol,
+}
+
+impl CaretSpec {
+    /// A plain caret in mid-blue at `rect`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::{CaretSpec, CaretSymbol};
+    /// use pdfcer_core::page_tree::Rect;
+    ///
+    /// let mut spec = CaretSpec::new(Rect { llx: 100.0, lly: 500.0, urx: 108.0, ury: 510.0 });
+    /// spec.symbol = CaretSymbol::Paragraph;
+    /// assert_eq!(spec.symbol.name(), b"P");
+    /// ```
+    #[must_use]
+    pub fn new(rect: Rect) -> Self {
+        Self {
+            rect,
+            color: Color::Rgb(0.2, 0.4, 0.8),
+            symbol: CaretSymbol::None,
+        }
+    }
+}
+
+/// The annotation dictionary and appearance for a [`CaretSpec`], without
+/// `/P` or `/AP`. The standard names the symbol but defines no artwork, so
+/// the caret and pilcrow are pdfcer's own drawing.
+pub(crate) fn caret(spec: &CaretSpec) -> AuthoredTextAnnot {
+    let rect = positive_rect(spec.rect);
+    let w = rect.width();
+    let h = rect.height();
+
+    let mut b = ContentBuilder::new();
+    spec.color.apply_fill(&mut b);
+    // With a pilcrow, the caret takes the lower part of the box.
+    let ch = match spec.symbol {
+        CaretSymbol::None => h,
+        CaretSymbol::Paragraph => h * 0.5,
+    };
+    // A wedge with concave flanks and a notched base.
+    b.move_to(0.0, 0.0);
+    b.curve_to(w * 0.3, ch * 0.2, w * 0.45, ch * 0.6, w * 0.5, ch);
+    b.curve_to(w * 0.55, ch * 0.6, w * 0.7, ch * 0.2, w, 0.0);
+    b.line_to(w * 0.5, ch * 0.3);
+    b.close_subpath();
+    b.paint(Paint::Fill);
+
+    if spec.symbol == CaretSymbol::Paragraph {
+        // ¶: a filled bowl left of two stems, above the caret.
+        spec.color.apply_stroke(&mut b);
+        let top = h;
+        let bottom = ch + h * 0.05;
+        let sw = (w * 0.08).max(0.3);
+        b.set_line_width(sw);
+        let s1 = w * 0.55;
+        let s2 = w * 0.75;
+        b.move_to(s1, bottom);
+        b.line_to(s1, top);
+        b.line_to(s2, top);
+        b.line_to(s2, bottom);
+        b.paint(Paint::Stroke);
+        let r = ((top - bottom) * 0.25).min(s1 * 0.9);
+        let cy = top - r;
+        let k = 0.552_284_75 * r;
+        b.move_to(s1, top);
+        b.curve_to(s1 - k, top, s1 - r, cy + k, s1 - r, cy);
+        b.curve_to(s1 - r, cy - k, s1 - k, cy - r, s1, cy - r);
+        b.close_subpath();
+        b.paint(Paint::Fill);
+    }
+
+    let mut annot = base_annot(b"Caret", rect);
+    annot.insert(Name::from(b"C"), spec.color.to_array());
+    if spec.symbol != CaretSymbol::None {
+        annot.insert(
+            Name::from(b"Sy"),
+            Object::Name(Name(spec.symbol.name().to_vec())),
+        );
+    }
+
+    AuthoredTextAnnot {
+        annot,
+        ap_dict: text_form_dict(rect, Dict::new()),
+        ap_content: b.into_bytes(),
+        rect,
+        flags: AnnotFlags::PRINT,
+        popup: None,
+        applied_autosize: None,
+        stamp_label_fit: None,
+        unencodable_chars: 0,
+    }
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

@@ -2316,6 +2316,53 @@ pub(crate) enum Command {
         mode: SaveMode,
     },
 
+    /// **Mark where text goes** with a caret annotation (§12.5.6.11) — or,
+    /// with `--strike`, propose REPLACING text: a caret plus a strikeout over
+    /// the old words, grouped so a reader treats them as one comment.
+    ///
+    /// Advisory only: the page's text is not changed. `--text` is the text
+    /// to insert (or the replacement). A DRY RUN unless `--apply`.
+    AddCaret {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long)]
+        page: u32,
+        /// Caret rectangle `x0,y0,x1,y1` in default user space.
+        #[arg(long)]
+        rect: String,
+        /// The text to insert, or the replacement text with `--strike`.
+        #[arg(long)]
+        text: Option<String>,
+        /// Who made the edit (`/T`). Needs `--text`.
+        #[arg(long, requires = "text")]
+        author: Option<String>,
+        /// Draw a new-paragraph symbol (¶) with the caret (`/Sy /P`).
+        #[arg(long)]
+        paragraph: bool,
+        /// Strike out the text being replaced: a rectangle
+        /// `x0,y0,x1,y1`, repeatable (one per line of text). Makes this a
+        /// Replace Text edit.
+        #[arg(long, value_name = "RECT")]
+        strike: Vec<String>,
+        /// Colour as `RRGGBB` hex, for the caret and the strikeout. Default
+        /// mid-blue.
+        #[arg(long)]
+        color: Option<String>,
+        /// Opacity `/CA`, `0.0`-`1.0`. Out of range is refused, not clamped.
+        #[arg(long, value_name = "ALPHA")]
+        opacity: Option<f64>,
+        /// Actually write the output. Without it this is a DRY RUN.
+        #[arg(long)]
+        apply: bool,
+        /// Output path. Required with `--apply`.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// **Remove a document-level attachment** from a PDF (§7.11.4.1).
     ///
     /// Removes the name-tree entry, the file specification AND the embedded

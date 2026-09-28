@@ -125,7 +125,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::annot::AnnotFlags;
-use crate::annot_author::{self, FileAttachmentSpec, MarkupSpec, TextAnnotSpec};
+use crate::annot_author::{self, CaretSpec, FileAttachmentSpec, MarkupSpec, TextAnnotSpec};
 // `Pass 292.0`: the stamp-parameter types live in `annot`, where the parse
 // they describe lives, and are re-exported here because `EditSession` is where
 // a caller meets them.
@@ -1179,6 +1179,10 @@ pub enum AnnotKind {
     Redact,
     /// `/FileAttachment` (Pass 261.0, §12.5.6.15).
     FileAttachment,
+    /// `/Caret` (Pass 261.1, §12.5.6.11).
+    Caret,
+    /// A `/Caret` plus its grouped `/StrikeOut` — one Replace Text edit.
+    ReplaceText,
 }
 
 /// One entry on the undo stack: the set of writes it performed, each
@@ -19902,6 +19906,16 @@ pub struct ReviewStateAdded {
     pub state: ReviewState,
 }
 
+/// What [`EditSession::add_replace_text`] authored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ReplaceTextAdded {
+    /// The `/Caret` — the group's primary, carrying the replacement text.
+    pub caret_id: ObjId,
+    /// The `/StrikeOut` over the replaced text, grouped under the caret.
+    pub strike_out_id: ObjId,
+}
+
 /// What [`EditSession::add_reply`] authored.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -30719,6 +30733,53 @@ impl EditSession {
         spec: &FileAttachmentSpec,
         options: &MarkupOptions,
     ) -> Result<ObjId, EditError> {
+        let (slots, page_id) = self.annotation_author_target(page_index)?;
+        let (annot_id, mut annot, ap_write) =
+            self.stage_authored_icon(annot_author::file_attachment(spec), page_id, options)?;
+        let file_id = ObjId::new(self.alloc_number()?, 0);
+        let spec_id = ObjId::new(self.alloc_number()?, 0);
+        let description = options.note.as_ref().map(|n| n.text.as_str());
+        let (file_stream, filespec) =
+            self.embedded_file_objects(&spec.file_name, &spec.bytes, description, file_id);
+        annot.insert(Name::from(b"FS"), Object::Reference(spec_id));
+
+        let mut objects = vec![
+            ap_write,
+            ObjectWrite {
+                id: annot_id,
+                before: None,
+                after: Some(Object::Dict(annot)),
+            },
+            ObjectWrite {
+                id: file_id,
+                before: None,
+                after: Some(file_stream),
+            },
+            ObjectWrite {
+                id: spec_id,
+                before: None,
+                after: Some(Object::Dict(filespec)),
+            },
+        ];
+        objects.append(&mut self.annots_append(page_id, &[annot_id], &slots)?);
+        self.commit(Command {
+            kind: CommandKind::AddAnnotation {
+                kind: AnnotKind::FileAttachment,
+            },
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(annot_id)
+    }
+
+    /// The guards every annotation-authoring verb applies, in order
+    /// (encryption, certification, page, hidden objects), returning the page
+    /// slots and the target page's id.
+    fn annotation_author_target(
+        &mut self,
+        page_index: usize,
+    ) -> Result<(Vec<page_tree::PageSlot>, ObjId), EditError> {
         if self.base.trailer().contains_key(b"Encrypt") {
             return Err(EditError::DocumentEncrypted);
         }
@@ -30736,35 +30797,41 @@ impl EditSession {
         if suppressed > 0 {
             return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
         }
+        Ok((slots, page_id))
+    }
 
-        let authored = annot_author::file_attachment(spec);
+    /// Allocate and stage an icon-style annotation built by `annot_author`:
+    /// its `/AP /N` stream, `/P`, `/F`, `/CA`, and `/Contents` + `/T` + `/M`
+    /// from `options.note`. Returns the annotation's id, its dictionary (for
+    /// the caller to extend and write) and the appearance stream's write.
+    fn stage_authored_icon(
+        &mut self,
+        authored: annot_author::AuthoredTextAnnot,
+        page_id: ObjId,
+        options: &MarkupOptions,
+    ) -> Result<(ObjId, Dict, ObjectWrite), EditError> {
         let ap_id = ObjId::new(self.alloc_number()?, 0);
         let annot_id = ObjId::new(self.alloc_number()?, 0);
-        let file_id = ObjId::new(self.alloc_number()?, 0);
-        let spec_id = ObjId::new(self.alloc_number()?, 0);
-
         let mut ap_dict = authored.ap_dict;
         ap_dict.insert(
             Name::from(b"Length"),
             Object::Integer(i64::try_from(authored.ap_content.len()).unwrap_or(i64::MAX)),
         );
         let ap_span = self.stage_bytes(&authored.ap_content);
-        let ap_stream = Object::Stream(Stream {
-            dict: ap_dict,
-            data_span: ap_span,
-        });
-
-        let description = options.note.as_ref().map(|n| n.text.as_str());
-        let (file_stream, filespec) =
-            self.embedded_file_objects(&spec.file_name, &spec.bytes, description, file_id);
-
+        let ap_write = ObjectWrite {
+            id: ap_id,
+            before: None,
+            after: Some(Object::Stream(Stream {
+                dict: ap_dict,
+                data_span: ap_span,
+            })),
+        };
         let mut annot = authored.annot;
         let mut ap = Dict::new();
         ap.insert(Name::from(b"N"), Object::Reference(ap_id));
         annot.insert(Name::from(b"AP"), Object::Dict(ap));
         annot.insert(Name::from(b"P"), Object::Reference(page_id));
         annot.insert(Name::from(b"F"), Object::Integer(i64::from(authored.flags)));
-        annot.insert(Name::from(b"FS"), Object::Reference(spec_id));
         if let Some(alpha) = options.opacity {
             annot.insert(Name::from(b"CA"), Object::Real(alpha));
         }
@@ -30780,41 +30847,183 @@ impl EditSession {
                 annot.insert(Name::from(b"M"), Object::String(m.as_bytes().to_vec()));
             }
         }
+        Ok((annot_id, annot, ap_write))
+    }
 
-        let mut objects = vec![
-            ObjectWrite {
-                id: ap_id,
-                before: None,
-                after: Some(ap_stream),
-            },
-            ObjectWrite {
-                id: annot_id,
-                before: None,
-                after: Some(Object::Dict(annot)),
-            },
-            ObjectWrite {
-                id: file_id,
-                before: None,
-                after: Some(file_stream),
-            },
-            ObjectWrite {
-                id: spec_id,
-                before: None,
-                after: Some(Object::Dict(filespec)),
-            },
-        ];
-        let mut annots_writes = self.annots_append(page_id, &[annot_id], &slots)?;
-        objects.append(&mut annots_writes);
+    /// Author a **caret annotation** (ISO 32000-1 §12.5.6.11, Table 180):
+    /// a proofreading mark on page `page_index` showing where text is to be
+    /// inserted. One undo entry.
+    ///
+    /// - `options.note` carries the text to insert (`/Contents`), the author
+    ///   (`/T`) and `/M`; `opacity` and `layer` apply as on every markup verb.
+    /// - `/Sy /P` is written for [`annot_author::CaretSymbol::Paragraph`];
+    ///   the default `None` omits `/Sy`. `/RD` is not written. The caret and
+    ///   pilcrow are pdfcer's own drawing — the standard defines no artwork.
+    /// - Advisory only, as in every reader: page content is not changed.
+    ///
+    /// To propose replacing existing text, use [`Self::add_replace_text`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::add_file_attachment_annotation`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use pdfcer_core::{document::Document, edit::{EditSession, MarkupNote, MarkupOptions}};
+    /// # use pdfcer_core::annot_author::CaretSpec;
+    /// # use pdfcer_core::page_tree::Rect;
+    /// # fn demo(doc: Document) -> Result<(), pdfcer_core::edit::EditError> {
+    /// let mut session = EditSession::new(doc);
+    /// let spec = CaretSpec::new(Rect { llx: 100.0, lly: 500.0, urx: 108.0, ury: 510.0 });
+    /// let options = MarkupOptions { note: Some(MarkupNote::new("not ")), ..Default::default() };
+    /// session.add_caret_annotation(0, &spec, &options)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn add_caret_annotation(
+        &mut self,
+        page_index: usize,
+        spec: &CaretSpec,
+        options: &MarkupOptions,
+    ) -> Result<ObjId, EditError> {
+        options.validate()?;
+        self.on_layer_if(page_index, options.layer, |s| {
+            let (slots, page_id) = s.annotation_author_target(page_index)?;
+            let (annot_id, annot, ap_write) =
+                s.stage_authored_icon(annot_author::caret(spec), page_id, options)?;
+            let mut objects = vec![
+                ap_write,
+                ObjectWrite {
+                    id: annot_id,
+                    before: None,
+                    after: Some(Object::Dict(annot)),
+                },
+            ];
+            objects.append(&mut s.annots_append(page_id, &[annot_id], &slots)?);
+            s.commit(Command {
+                kind: CommandKind::AddAnnotation {
+                    kind: AnnotKind::Caret,
+                },
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            });
+            Ok(annot_id)
+        })
+    }
 
-        self.commit(Command {
-            kind: CommandKind::AddAnnotation {
-                kind: AnnotKind::FileAttachment,
-            },
-            objects,
-            removals: Vec::new(),
-            trailer: None,
-        });
-        Ok(annot_id)
+    /// Author a **Replace Text** edit: a `/Caret` at `caret.rect` and a
+    /// `/StrikeOut` over `struck`, grouped (§12.5.6.2, Table 170) so a reader
+    /// shows, moves and deletes them as one comment. One undo entry.
+    ///
+    /// The standard says nothing about this pairing; the shape is what
+    /// Acrobat writes, so Acrobat groups it back into one Replace Text
+    /// comment:
+    ///
+    /// - the **caret is the group's primary** and carries `options.note`
+    ///   (`/Contents` = the replacement text, `/T`, `/M`) and `/IT /Replace`;
+    /// - the **strikeout is subordinate**: `/IRT` → the caret, `/RT /Group`,
+    ///   `/IT /StrikeOutTextEdit`, and no note of its own (a group member's
+    ///   `/Contents` and `/T` are ignored in favour of the primary's).
+    ///
+    /// Both use `caret.color` and `options.opacity`. `options.note` of
+    /// `None` authors a replacement with no text. Page content is not
+    /// changed.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::EmptyGeometry`] when `struck` is empty, then the guards
+    /// of [`Self::add_file_attachment_annotation`].
+    pub fn add_replace_text(
+        &mut self,
+        page_index: usize,
+        caret: &CaretSpec,
+        struck: &[annot_author::Quad],
+        options: &MarkupOptions,
+    ) -> Result<ReplaceTextAdded, EditError> {
+        options.validate()?;
+        let strike_spec = MarkupSpec::TextMarkup {
+            kind: annot_author::TextMarkupKind::StrikeOut,
+            quads: struck.to_vec(),
+            color: caret.color,
+        };
+        validate_geometry(&strike_spec)?;
+        self.on_layer_if(page_index, options.layer, |s| {
+            let (slots, page_id) = s.annotation_author_target(page_index)?;
+            let (caret_id, mut caret_annot, caret_ap) =
+                s.stage_authored_icon(annot_author::caret(caret), page_id, options)?;
+            caret_annot.insert(Name::from(b"IT"), Object::Name(Name::from(b"Replace")));
+
+            let strike = annot_author::build_appearance_opts(
+                &strike_spec,
+                &annot_author::AppearanceOptions {
+                    quad_order: s.quad_point_order,
+                    dash: None,
+                },
+            );
+            let strike_ap_id = ObjId::new(s.alloc_number()?, 0);
+            let strike_id = ObjId::new(s.alloc_number()?, 0);
+            let mut ap_dict = strike.ap_dict;
+            ap_dict.insert(
+                Name::from(b"Length"),
+                Object::Integer(i64::try_from(strike.ap_content.len()).unwrap_or(i64::MAX)),
+            );
+            let ap_span = s.stage_bytes(&strike.ap_content);
+            let mut strike_annot = strike.annot;
+            let mut ap = Dict::new();
+            ap.insert(Name::from(b"N"), Object::Reference(strike_ap_id));
+            strike_annot.insert(Name::from(b"AP"), Object::Dict(ap));
+            strike_annot.insert(Name::from(b"P"), Object::Reference(page_id));
+            strike_annot.insert(
+                Name::from(b"F"),
+                Object::Integer(i64::from(AnnotFlags::PRINT)),
+            );
+            if let Some(alpha) = options.opacity {
+                strike_annot.insert(Name::from(b"CA"), Object::Real(alpha));
+            }
+            strike_annot.insert(Name::from(b"IRT"), Object::Reference(caret_id));
+            strike_annot.insert(Name::from(b"RT"), Object::Name(Name::from(b"Group")));
+            strike_annot.insert(
+                Name::from(b"IT"),
+                Object::Name(Name::from(b"StrikeOutTextEdit")),
+            );
+
+            let mut objects = vec![
+                caret_ap,
+                ObjectWrite {
+                    id: caret_id,
+                    before: None,
+                    after: Some(Object::Dict(caret_annot)),
+                },
+                ObjectWrite {
+                    id: strike_ap_id,
+                    before: None,
+                    after: Some(Object::Stream(Stream {
+                        dict: ap_dict,
+                        data_span: ap_span,
+                    })),
+                },
+                ObjectWrite {
+                    id: strike_id,
+                    before: None,
+                    after: Some(Object::Dict(strike_annot)),
+                },
+            ];
+            objects.append(&mut s.annots_append(page_id, &[caret_id, strike_id], &slots)?);
+            s.commit(Command {
+                kind: CommandKind::AddAnnotation {
+                    kind: AnnotKind::ReplaceText,
+                },
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            });
+            Ok(ReplaceTextAdded {
+                caret_id,
+                strike_out_id: strike_id,
+            })
+        })
     }
 
     /// Remove a document-level attachment, by its `/EmbeddedFiles` name-tree

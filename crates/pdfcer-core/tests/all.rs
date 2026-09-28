@@ -24,6 +24,7 @@ mod button_action;
 mod button_action_submit;
 mod button_redraw_honesty;
 mod button_rotation_bakes;
+mod caret_annotation;
 mod check_styles;
 mod choice_default_selections;
 mod choice_reset_selection;
