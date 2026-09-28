@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (676th filing) — `c1987c5e`: `v0.59.0` RELEASED
+
+**Shipped:**
+- `v0.59.0` — 133 commits since `v0.58.0`, headlined by OCRcer v0.1.0 vendored with its model now shipping in the portable package (`5853259a`/`379ba59e`). Gate sweep PASS (40 commands); build `D:\builds\pdfcer-20260927-2226-c1987c5` (53,586,559 B); fresh-folder smoke test incl. `pdfcer ocr --ocr-engine ocrcer` against `fixtures/synthetic/ocr/scan.pdf` (49 words, 69.8% mean confidence, no `--model-dir` needed); GitHub release published (2 assets); OneDrive slot `pdfcer2` written. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new — a release carries no architectural decision (highest remains decision 162).
+
+**Findings + decisions:**
+- None beyond the `ROADMAP.md` entry.
+
+**Still in flight:**
+- Same open items as prior filings (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- `verify-release.py`'s "working tree clean" FAIL is the untracked `target-case/`/`target-probe/` directories — known false alarm, not the engineer's.
+- CI at `c1987c5e` was in progress at filing time — engineer re-verifies.
+
+**For next session:**
+- This discharges Ken's 2026-09-27 directive to release once OCRcer's engine landed. Channel notice posted to `pdfcer-gui`: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-27_v0.59.0_released_with_ocrcer_v0.1.0.md` (also asks it to re-run `ocrcer_recognises_the_synthetic_page` for OCRcer's W1 fix).
+- Owed next: scope `G049`/`G050`/`G051`, then `Pass 261.0`.
+- `c1987c5e` is committed to `main` and tagged `v0.59.0`, pushed; push status not independently checked this filing (hard rule 8 — no shell available).
+- `docs/FEATURES.md` unchanged this filing — a release ships no new capability, and row 221 already names the shipped model as of the prior filing.
+
 ## 2026-09-27 (675th filing) — `379ba59e`/`468558b8`: two follow-up commits filed for the commits-filed gate
 
 **Shipped:**

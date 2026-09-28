@@ -115,6 +115,90 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.59.0` — RELEASED (2026-09-27)
+
+Release filing, not a Pass — discharges Ken's 2026-09-27 directive ("once
+[OCRcer's release] is done, implement and release a new version, inform
+pdfcer-gui"). Packages **133 commits** since `v0.58.0` (`94504f0a`).
+Version-bump commit `c1987c5e` ("chore: v0.59.0") bumps `Cargo.toml`
+0.58.0 → 0.59.0 plus both lockfiles (`Cargo.lock`, `fuzz/Cargo.lock`); no
+dependency change, so `THIRD_PARTY_LICENSES.md` was not regenerated.
+Annotated tag `v0.59.0` on `c1987c5e`, pushed with `main`.
+
+**Range `v0.58.0..c1987c5e`: 133 commits.** Highlights, not refiled here
+— each already has its own entry above or in `history/`: layers editing
+(`Pass 358.x`), PAdES B-T (`Pass 10.11`), scale-pages (`Pass 364.0`),
+flatten-annotations (`Pass 360.0`), cloudy-border restyle (`Pass 264.3`),
+border-dash accessor (`Pass 264.2`), typing preview (`Pass 366.0`),
+`edit_text_preview` taking `&self` (`Pass 367.0`, `G048`), bounded fetch
+(`Pass 365.0`), stale `--help` history removed (`Pass 363.0`), ~30 form
+appearance fixes (`Pass 335.0`–`357.0`, `362.0`), and OCRcer v0.1.0
+vendored with its model now shipping in the portable package (this
+filing's own entry immediately below, `5853259a`/`379ba59e`).
+
+**Gates (relayed).** `tools/run-gates.sh` PASS on `c1987c5e`, 40 commands
+including 2 filing gates. CI green on the previous tip (`0a6fa953`); CI
+on `c1987c5e` was in progress at filing time.
+
+**Build (relayed).** `D:\builds\pdfcer-20260927-2226-c1987c5`, 53,586,559
+bytes. First release shipping `models/ocrcer/{ocrcer.ocrw (5,634,668 B),
+LICENSE, PROVENANCE.md}`, model sha256 verified against `1aed06b2…`
+(OCRcer v0.1.0).
+
+**Smoke test (relayed), fresh folder.** `pdfcer --version` → `0.59.0`.
+`pdfcer ocr scan.pdf --ocr-engine ocrcer -o out.pdf` against
+`fixtures/synthetic/ocr/scan.pdf` recognised/wrote 49 words over the
+words extracted, mean confidence 69.8 %; models loaded beside the
+executable with no `--model-dir` passed. `extract-text` reads the
+written layer back.
+
+**GitHub release (relayed).** Published via `tools/gh-release.py`: PASS,
+2 assets — `pdfcer-v0.59.0-windows-x64.zip` (sha256
+`a06c0f65943703d5fdf3e599adda2dd633c1abe25c334be9fc2a7367c857ef9f`) plus
+its `.sha256` — 32 zip entries.
+
+**OneDrive (relayed).** `tools/deploy-onedrive.py` wrote slot `pdfcer2`
+(0.59.0); `pdfcer1` keeps `0.58.0`. `check-ocrcer-model.py` OK on the
+deployed model.
+
+**`verify-release.py v0.59.0` (relayed).** OneDrive checks OK. The
+standing "working tree clean" **FAIL** is the untracked `target-case/`/
+`target-probe/` directories, same false-alarm class as prior releases —
+not the engineer's. CI checks were pending at run time.
+
+**`docs/FEATURES.md`: no rows changed** — row 221 (OCR engine choice)
+already names the shipped OCRcer model as of the prior filing's commit;
+a release ships no new capability of its own.
+
+**No decision-log entry** — a release carries no architectural decision.
+Highest decision record remains `162`.
+
+**GUI notified.** Channel notice posted:
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-27_v0.59.0_released_with_ocrcer_v0.1.0.md`
+— also asks `pdfcer-gui` to re-run `ocrcer_recognises_the_synthetic_page`
+for OCRcer's W1 fix on its own open request ("41 1 77").
+
+**Owed next.** Scope `G049`/`G050`/`G051` (`check-requests-scoped` lists
+them not yet taken up), then `Pass 261.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own report of `c1987c5e`, not
+independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.58.0` (`94504f0a`, 2026-09-26) | **`v0.59.0` (`c1987c5e`, 2026-09-27) — 133 commits since `v0.58.0`** |
+| Pass families | `367` (highest `.0`), next free `368` | unchanged — no new Pass this filing |
+| Standing rules | `R258` next free (unresolved `R251` discrepancy carried, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `162` | unchanged |
+| `SESSION_LOG` filings | `675` | **`676`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
+| CI at the tagged commit | `v0.58.0`: in progress at filing time | **`v0.59.0`: in progress at filing time — engineer re-verifies** |
+
+---
+
 ### `5853259a` (no Pass ID), 2026-09-27 — OCRcer v0.1.0 vendored; the portable package now ships its hash-verified model
 
 **Verdict: SHIPPED.** Answers pdfcer's own outbound request `request_the_ocrw_model_needs_a_versioned_home.md` (reply: `D:\Dev\FeatureRequests\OCRcer_FeatureRequests\reply_the_ocrw_model_needs_a_versioned_home_DONE.md`) and Ken's 2026-09-27 directive: *"Ocrcer is working on releasing a new engine... Once it is done please implement and release a new version. Inform pdfcer-gui when this is done."*
