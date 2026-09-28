@@ -12,3 +12,7 @@
 //! all consume these through the same API.
 
 pub mod dxf;
+mod ooxml_zip;
+pub mod xlsx;
+
+pub use ooxml_zip::PackageError;

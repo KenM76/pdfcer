@@ -2057,6 +2057,85 @@ pages_over_limit={} pages_unreadable={}",
     exit::SUCCESS
 }
 
+/// Implement `pdfcer export-xlsx`.
+pub(crate) fn cmd_export_xlsx(
+    input: &Path,
+    output: &Path,
+    sheets: SheetsArg,
+    numbers: NumbersArg,
+) -> u8 {
+    use pdfcer_core::export::xlsx::{NumberLocale, SheetLayout, XlsxOptions, write_xlsx};
+    use pdfcer_core::table_detect::{TableOptions, detect_tables};
+    use pdfcer_core::text_extract::ExtractOptions;
+
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let found = match detect_tables(
+        &doc.view(),
+        &ExtractOptions::default(),
+        &TableOptions::default(),
+    ) {
+        Ok(found) => found,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let options = XlsxOptions::default()
+        .with_sheets(match sheets {
+            SheetsArg::Table => SheetLayout::PerTable,
+            SheetsArg::Page => SheetLayout::PerPage,
+            SheetsArg::Single => SheetLayout::Single,
+        })
+        .with_numbers(match numbers {
+            NumbersArg::Auto => NumberLocale::Auto,
+            NumbersArg::Us => NumberLocale::Us,
+            NumbersArg::European => NumberLocale::European,
+            NumbersArg::Off => NumberLocale::Off,
+        });
+    let out = match write_xlsx(&found.tables, &options) {
+        Ok(out) => out,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", output.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    if let Err(err) = std::fs::write(output, &out.bytes) {
+        eprintln!("pdfcer: {}: {err}", output.display());
+        return exit::IO_ERROR;
+    }
+    let d = &found.diagnostics;
+    let r = &out.report;
+    println!(
+        "export-xlsx {} -> {} pages={} tables={} inferred={} ruled={} aligned={} merged_cells={} \
+header_rows={} pages_unreadable={} sheets={} cells={} numbers={} ambiguous_numbers={} \
+characters_dropped={} cells_truncated={} cells_beyond_limits={}",
+        input.display(),
+        output.display(),
+        d.pages,
+        r.tables,
+        d.inferred(),
+        d.tables_ruled,
+        d.tables_aligned,
+        r.merged_cells,
+        r.header_rows,
+        d.pages_unreadable(),
+        r.sheets,
+        r.cells,
+        r.numbers,
+        r.ambiguous_numbers,
+        r.characters_dropped,
+        r.cells_truncated,
+        r.cells_beyond_limits,
+    );
+    exit::SUCCESS
+}
+
 fn header_evidence_name(e: Option<pdfcer_core::table_detect::HeaderEvidence>) -> &'static str {
     use pdfcer_core::table_detect::HeaderEvidence;
     match e {

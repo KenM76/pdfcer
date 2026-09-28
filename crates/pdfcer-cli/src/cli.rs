@@ -98,6 +98,30 @@ pub(crate) enum OnOffArg {
     Off,
 }
 
+/// `export-xlsx --sheets`: which tables share a worksheet.
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub(crate) enum SheetsArg {
+    /// One worksheet per table.
+    Table,
+    /// One worksheet per page, its tables stacked.
+    Page,
+    /// Every table on one worksheet.
+    Single,
+}
+
+/// `export-xlsx --numbers`: how digits and separators are read.
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub(crate) enum NumbersArg {
+    /// A number only when every locale reads it the same way.
+    Auto,
+    /// Comma groups thousands, point is the decimal: 1,234.56.
+    Us,
+    /// Point groups thousands, comma is the decimal: 1.234,56.
+    European,
+    /// Every cell stays text.
+    Off,
+}
+
 /// `layer-edit --print/--export`: when the layer is printed or exported.
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub(crate) enum LayerOutputArg {
@@ -3053,6 +3077,37 @@ pub(crate) enum Command {
         /// --json` order).
         #[arg(long)]
         json: bool,
+    },
+
+    /// Write the document's tables to an Excel workbook (.xlsx).
+    ///
+    /// Tables are found exactly as `extract-tables` finds them. Each cell
+    /// becomes a cell; a merged cell becomes a merged range with its text
+    /// in the top-left; a header row is bold; a cell with several lines
+    /// wraps.
+    ///
+    /// A cell becomes a number only when its value is certain. Under the
+    /// default `--numbers auto`, `1,234` and `1.234` stay text because
+    /// their value depends on the country that printed them; the result
+    /// line counts them as `ambiguous_numbers`, and `--numbers us` or
+    /// `--numbers european` decides. A leading zero (`007`) or more than
+    /// 15 digits always stays text.
+    ///
+    /// The result line repeats `extract-tables`' counts (every table,
+    /// merged cell and header row is inferred) and adds what the workbook
+    /// holds and anything dropped.
+    ExportXlsx {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output workbook.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// One worksheet per table, per page, or one for all.
+        #[arg(long, value_enum, default_value = "table")]
+        sheets: SheetsArg,
+        /// How numbers are read.
+        #[arg(long, value_enum, default_value = "auto")]
+        numbers: NumbersArg,
     },
 
     /// **Download the OCR model weights**, verified against a pinned

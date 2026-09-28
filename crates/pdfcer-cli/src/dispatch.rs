@@ -644,6 +644,12 @@ pub(crate) fn run() -> ExitCode {
             output,
             json,
         } => cmd_extract_tables(&input, output.as_deref(), json),
+        Command::ExportXlsx {
+            input,
+            output,
+            sheets,
+            numbers,
+        } => cmd_export_xlsx(&input, &output, sheets, numbers),
         Command::FetchOcrModels { dir } => cmd_fetch_ocr_models(dir.as_deref()),
         Command::ListStandards { standard } => cmd_list_standards(standard.as_deref()),
         Command::Ocr {

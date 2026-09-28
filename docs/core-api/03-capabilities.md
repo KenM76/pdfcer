@@ -3634,6 +3634,51 @@ operator must set on import). The CLI prints both to stderr.
 
 ---
 
+### 7.12 Exporting tables as an Excel workbook (`Pass 380.0`)
+
+`core [x] · cli [x] · gui [ ]`.
+`pdfcer_core::export::xlsx::write_xlsx(&[Table], &XlsxOptions) -> Result<XlsxOutput, PackageError>`;
+CLI `pdfcer export-xlsx in.pdf -o out.xlsx [--sheets table|page|single] [--numbers auto|us|european|off]`.
+Input is `table_detect::detect_tables(..).tables` (01 §8.4.4). Output is
+SpreadsheetML (ECMA-376 Part 1 §18) in an OPC zip (Part 2), deterministic
+bytes, no new dependency.
+
+| I want to… | set |
+|---|---|
+| one worksheet per table (default) | `XlsxOptions::sheets = SheetLayout::PerTable` — sheets `Table 1`, `Table 2`, … |
+| one worksheet per page | `SheetLayout::PerPage` — `Page N`; its tables stacked, one blank row between |
+| everything on one worksheet | `SheetLayout::Single` — `Tables` |
+| numbers only when certain (default) | `XlsxOptions::numbers = NumberLocale::Auto` |
+| read `1,234.56` / `1.234,56` | `NumberLocale::Us` / `NumberLocale::European` |
+| every cell as text | `NumberLocale::Off` |
+
+- A merged cell becomes a merged range with the text in its top-left cell.
+- Header rows (`Table::header_rows`) are bold, and a cell with `\n` wraps.
+- Column widths come from the column bands, at 5.25 pt per width unit,
+  clamped to 3–80.
+- With no tables, the workbook has one empty sheet (`sheets = 1, tables = 0`).
+- `(12.50)` reads as −12.50.
+- A leading zero (`007`), more than 15 significant digits, or any other
+  character (`$5`, `12%`) stays text under every locale.
+
+**★ What the UI must disclose.** Every table, merged cell and header row
+is inferred (`DocumentTables::diagnostics.inferred()`). On top of that,
+`XlsxReport` counts the following:
+
+- `ambiguous_numbers` — `Auto` only. A cell with one separator followed
+  by exactly three digits (`1,234`, `1.234`) means 1234 in one country and
+  1.234 in another, so it stays text. Show the count, and offer the
+  locale choice. The silent wrong value is Acrobat's worst documented Excel
+  failure; this is the answer to it.
+- `characters_dropped` — XML-illegal control characters.
+- `cells_truncated` — cut at 32,767 characters.
+- `cells_beyond_limits` — past row 1,048,576 or column 16,384.
+
+**Traps.**
+- `PackageError::TooLarge` means the package exceeds 4 GiB or 65,535 parts,
+  because there is no ZIP64.
+- Sheet names are fixed English strings, and the shell cannot rename them yet.
+
 ## 13. Off-canvas content — find it, and cut it at the page edge (`Pass 294.0`)
 
 `core [x] · cli [x] · gui [ ]`

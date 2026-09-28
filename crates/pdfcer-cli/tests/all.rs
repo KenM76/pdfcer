@@ -22,6 +22,7 @@ mod edit_text;
 mod embed_font;
 mod export_dxf;
 mod export_image;
+mod export_xlsx;
 mod extract_layout;
 mod extract_tables;
 mod extract_tags;
