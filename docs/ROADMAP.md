@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 376.0` + `Pass 377.0` (`44228d5d`), 2026-09-28 — DXF carries its version's object graph; R12/R2000/R2004 choice
+
+**Verdict: SHIPPED — closes both.** `Pass 376.0` answers `pdfcer-gui` defect `O251` (`G057`): an R2000/AC1015 export declared its version without the structure AutoCAD LT 2004/ODA require. `Pass 377.0` answers operator ask `O252` (`G058`): a version choice at export time.
+
+**`Pass 376.0`.** R2000/R2004 output now carries a full object graph: `VPORT *Active`; `LTYPE` ByBlock/ByLayer/CONTINUOUS; `VIEW`/`UCS`/`APPID ACAD`/`DIMSTYLE Standard`; `BLOCK_RECORD *Model_Space`/`*Paper_Space`, each pointing at its `LAYOUT`; a `BLOCKS` section; every entity owned by the model-space record (group 330); `OBJECTS` (root dict, `ACAD_GROUP`, `ACAD_LAYOUT` for Model/Layout1, `ACAD_MLINESTYLE`, `ACAD_PLOTSTYLENAME`). Still no `MATERIAL`/`MLEADERSTYLE`/group 94, which LT 2004 refuses. `$HANDSEED` is computed above the last handle (was a fixed `FFFF`). `$DWGCODEPAGE ANSI_1252`; non-ASCII text writes as `\U+XXXX` so the file is pure ASCII (previously UTF-8 mojibake). The 255-byte `TEXT` cap applies to written bytes and never splits an escape.
+
+**`Pass 377.0`.** `DxfOptions::version: DxfVersion { R12, R2000 (default), R2004 }`, `#[non_exhaustive]`, `DxfVersion::acadver()`. R12 writes `POLYLINE`/`VERTEX`/`SEQEND`, no handles/owners/`CLASSES`/`BLOCKS`/`OBJECTS`, and flattens splines into polylines — both disclosed via new `DxfOutcome::splines_flattened`/`units_undeclared` (R12 has no `$INSUNITS`). CLI: `export-dxf --dxf-version r12|r2000|r2004`; the report line gains `version=`, `splines_flattened=`, `units_undeclared=`; stderr discloses both R12 losses.
+
+**Verification.** ODA File Converter 27.1 converts a banana-at-scale export at all three versions; ezdxf recover+audit reports 0 errors/0 fixes — noted as NOT an oracle for this defect (it silently repairs), which is why structural assertions were added instead.
+
+**Tests.** Core +2 integration (modern object graph closed; R12 classic entities + disclosures), the LT-2004-rejects test now covers all three versions, +2 sanitizer unit tests; CLI +1 (flag reaches the file). The old `every_entity_handle_is_unique` test was vacuous under the new entity head and is superseded by the graph test. Sabotaged six ways (seed, owner, dangling pointer, flatten count, units flag, CLI forwarding), all caught.
+
+**Docs.** `docs/core-api/03-capabilities.md` §7.11 updated in the same commit.
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands. No `Cargo.toml` change — `cargo tree` invariant not applicable. No packaging change.
+
+**Shells.** core `[x]`, cli `[x]`; gui unaffected by this Pass (`pdfcer-gui` owns whether it exposes the version flag).
+
+**`docs/FEATURES.md`.** DXF export row updated — version choice + corrected R2000 structure; gui box unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own verification at `44228d5d`, not independently reproduced. Backup/push/release state not verifiable from here.
+
 ### `Pass 73.1` (`96a3f227`), 2026-09-28 — `add_radio_button` is atomic and one undo entry
 
 **Verdict: SHIPPED — closes `Pass 73.1` in full.** Filed 2026-08-13 (139th filing). Defect B's criteria 1–2 shipped earlier via `Pass 78.0` (`fa243df`, 147th filing) from an independently-arrived external report; criterion 3 (the `annotation_deletion_refusal` doc-comment) and Defect A (this commit) were the "WHAT REMAINS" named by the 147th filing's own amendment. Both now closed.
@@ -9077,6 +9099,56 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★ **FIVE ITEMS ADDED 2026-09-28 (697th filing) — `G053`–`G056`, `G059`,
+> from `pdfcer-gui`'s DOCX/XLSX-export ask (`O257`) and the page-resize defect
+> (`O250`).** `Pass 378.0` is the new head of *Next up* — the engineer's own
+> stated order is `378.0` then `375.0`.
+>
+> - **`Pass 378.0`** (`G059`) — `Page::crop_box` resolved as `CropBox ∩
+>   MediaBox` (ISO 32000-2 §14.11.2.1's own intersection rule, which
+>   `set_media_boxes`'s contract already assumes every reader applies); an
+>   empty intersection is reported, not guessed. `BleedBox`/`TrimBox`/`ArtBox`
+>   clip to the resolved crop box the same way. `render_page_with_view` and
+>   the region/geometry helpers frame by the resolved box.
+> - **`Pass 375.0`** (`G056`) — new `EditSession::set_crop_boxes(pages,
+>   CropBoxChange)`: set or remove `/CropBox` on named pages, same
+>   inheritance/sibling-preservation discipline as `set_media_boxes` (write on
+>   the leaf, never mutate a shared inherited value); `Remove` restores the
+>   full media box (the Crop ▸ Reset shape). CLI verb. A resize actually
+>   grows the visible page once paired with `378.0`.
+> - **`Pass 372.0`** (`G053`) — read a tagged PDF's structure tree back:
+>   `/RoleMap`-resolved standard type (raw `/S` + non-standard flag when
+>   unmapped) with a visited-set cycle guard (no hop-count/depth limit — the
+>   spec sets none); each element's text via its MCIDs/`/MCR`/`/OBJR`
+>   resolved against extraction glyphs, page + box; `/Alt`/`/ActualText`/
+>   `/Lang`; a named/unnamed-MCID mismatch count in both directions.
+>   Attribute resolution order: `/A` (own attributes) beats `/C` (class
+>   list), then the inheritable parent, then the default; revision integers
+>   in `/A`/`/C` arrays are skipped. `NonStruct` skips the element and keeps
+>   its children; `Private` (1.7) skips the subtree; `Artifact` (2.0) ignores
+>   the subtree. `RowSpan`/`ColSpan` default to 1. Spec RAG ingested this
+>   filing: `iso32000__s__14.7.2.md`/`14.7.3.md`/`14.7.4.md`/`14.8.4.md`/
+>   `14.8.5.md`, settings register `SW-A1`–`SW-A10`. **Not yet ingested:
+>   Tables 344–346, §14.8.3** — note for whoever builds this.
+> - **`Pass 373.0`** (`G054`) — block-level layout for an untagged page:
+>   reading-order blocks over the existing line pass, a kind per block
+>   (heading with a derived level, paragraph, list item, caption, running
+>   header/footer, page number), column reading order, document-level
+>   running-header/footer detection (repeated text at a stable position
+>   across most pages), per-block alignment and first-line indent, an
+>   inference count per decision.
+> - **`Pass 374.0`** (`G055`) — extract a page's tables as a cell grid: box +
+>   row/column grid per table, cells with span + text (glyph indices into
+>   extraction), boundary provenance (**ruled** from strokes/thin filled
+>   rects, or **aligned** from a whitespace gutter) with an inference count,
+>   a header-row guess. Number parsing stays a shell concern.
+>
+> `docs/FEATURES.md`: five new *Planned* rows, all boxes unticked.
+
+> ★★★★ **`Pass 376.0` + `Pass 377.0` SHIPPED, 2026-09-28 (697th filing),
+> `44228d5d`** — see top of *Shipped*. `G057`/`G058`; not previously filed
+> under *Next up*/*Backlog* — requested and shipped in the same session.
 
 > ★★★★ **`Pass 327.3` SHIPPED, 2026-09-28 (685th filing), `ecbf5ee1`** — see
 > top of *Shipped*. Fourth engine in the `Pass 327.x` OCR-engine family

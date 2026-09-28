@@ -4,6 +4,32 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (697th filing) — `44228d5d`: `Pass 376.0`+`377.0` SHIPPED — DXF object graph + version choice; five new Passes filed
+
+**Shipped:**
+- `Pass 376.0` (`G057`, defect `O251`) — R2000/R2004 DXF export now carries a full object graph (`VPORT`/`LTYPE`/`VIEW`/`UCS`/`APPID`/`DIMSTYLE`/`BLOCK_RECORD`+`LAYOUT`/`BLOCKS`/`OBJECTS`), a correctly-computed `$HANDSEED`, ANSI codepage output with `\U+XXXX` escapes for non-ASCII text. ODA File Converter and ezdxf both clean; ezdxf explicitly NOT trusted as the oracle (it silently repairs).
+- `Pass 377.0` (`G058`, ask `O252`) — `DxfOptions::version: DxfVersion {R12, R2000, R2004}`; CLI `export-dxf --dxf-version`; R12 writes classic `POLYLINE`/`VERTEX` with no handles/`BLOCKS`/`OBJECTS`, flattened splines, both disclosed.
+- Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- Five new Passes filed under *Next up*: `Pass 372.0` (`G053`, read a tagged structure tree back), `Pass 373.0` (`G054`, block-level layout for an untagged page), `Pass 374.0` (`G055`, extract a page's tables as a cell grid), `Pass 375.0` (`G056`, author `/CropBox`), `Pass 378.0` (`G059`, `Page::crop_box` intersected with `/MediaBox`). `Pass 378.0` is the new head — engineer's stated next order is `378.0` then `375.0`.
+- Spec RAG ingested for `Pass 372.0`: `iso32000__s__14.7.2.md`/`14.7.3.md`/`14.7.4.md`/`14.8.4.md`/`14.8.5.md` and settings-register entries `SW-A1`–`SW-A10`. Tables 344–346 and §14.8.3 remain un-ingested — noted on the Pass.
+- `docs/FEATURES.md`: DXF export row rewritten for the version choice + corrected R2000 structure (gui box unchanged, per "never round a box up"); five new *Planned* rows added for the structure-tree/layout/table/crop-box family, all boxes unticked.
+
+**RAG lessons written this filing:**
+- `C:\personal_rag\dxf\lesson_20260928_r2000_minimal_object_graph_oda_and_lt2004_accept.md` (new) — the minimal R2000 object graph, the `$HANDSEED`-counts-as-a-handle test trap, ezdxf-vs-ODA oracle choice.
+- `C:\personal_rag\claude_code\lesson_20260921_write_text_converts_lf_to_crlf_on_windows.md` — dated footer added, third occurrence (three pdfcer Rust files, one holding a multi-line string literal whose VALUE the conversion could have changed, not just its formatting).
+- `C:\personal_rag\pdf\lesson_20260928_attribute_objects_with_the_same_owner_issue_32.md` (new) — real files/processors disagree on two attribute objects sharing one owner; PDF Association issue #32 closed without a fix, ISO 32000-2's own determinate answer (`SW-A6`, "later wins") is a separate, newer issue (#289).
+
+**Still in flight:**
+- `Pass 378.0`/`375.0` next, per the engineer.
+
+**For next session:**
+- No shell available this filing. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes commit `44228d5d`).
+
 ## 2026-09-28 (696th filing) — register-size correction + decision 062 §2 amendment (no code commit)
 
 **Shipped:**

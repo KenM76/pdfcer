@@ -7898,3 +7898,28 @@ Media clip `/CT` row says Optional, but a sentence below the table makes CT iden
 
 ### 84f. Filing
 Five files (LF), each ends with a flat-grep index — checked against the 1.7 dump with a whitespace-normalising script; misses were `-layout` interleaving (confirmed with `-raw`) and two quotes truncated before a clause's title in quotes (`(see 13.3, "Sounds")`). Index: 5 manifest rows, 5 trigger rows, recipe block (brace Glob + ID grep, all RUN), 3 ambiguity rows, total 202→207, `iso32000__s__` 108→113. In-place dated note in `12.5.6.md` (CRLF). personal_rag/pdf: 0 empirical multimedia entries.
+
+## 85. Structure-tree WALK (G053) — five files, 2026-09-28
+
+Dispatch shape: "an implementer needs to walk a tagged PDF read-only — RoleMap/namespaces, text via MCID/MCR/OBJR, attributes, table spans". Files: `iso32000__s__14.7.2.md` (SE-*), `14.7.3.md` (RM-*, algorithm RM-0.2), `14.7.4.md` (CI-*, recipe CI-0.2), `14.8.4.md` (ST-*), `14.8.5.md` (SA-*, recipe SA-0.2). Register intake SW-A1..A10.
+
+### 85a. Answers the dispatch asked for (clause refs, paraphrase)
+RoleMap cycles permitted, stop at recognised or revisited type, no depth limit (1.7 §14.7.3 NOTE 2). Unmappable type: 0 hits — keep raw `S`. Tag operand never role-mapped (2.0 §14.6.1 NOTE 3 — I first cited the wrong clause; verify location, not just wording). RowSpan/ColSpan default 1 both editions; 1.7 has NO Scope default, 2.0 adds a positional one.
+
+### 85b. Erratum status is per `data-iso` attribute — check it
+`#470` (Formula BT/ET deletion) has NO `data-iso="approved"`; I had filed it as approved. `#133` both rewrites Link AND renumbers Ruby/Warichu to 2.0 §14.8.4.7.4. Extract status + ALL edits of an issue number, not the first hit.
+
+### 85c. Errata-page table numbers differ from printed ones
+#346/#347 call the 2.0 artifact attribute table "Table 382"; printed is Table 385. Same family as #452 heading numbers. Record both in the file's §0.
+
+### 85d. A printed default can change silently between editions
+Placement: 1.7 `Inline`, 2.0 context-dependent (+#188 NOTE). A phrase-count probe on "Default value: Inline" (2/1) does not show it — read the row.
+
+### 85e. Two carriers of one concept can disagree inside one edition
+2.0 artifact Type `Inline` exists in the structure-element attribute table but not in the marked-content property-list table. Register as ambiguity, read the union.
+
+### 85f. Quotations from memory fail qcheck
+One "verbatim" 1.7 sentence in 14.8.5 was reconstructed from memory and did not exist; qcheck caught it. Also several 2.0 "tightening" claims (shall vs may) needed re-reading. **Never write a quote before grepping it.**
+
+### 85g. Filing
+5 new files (LF), qcheck 0 misses each. Dated notes in `14.7.md` (clause line, banner, NOT INGESTED struck) and `14.8.md` (clause line, banner, 2.0 artifact delta after A1–A3, NOT INGESTED struck). Index: 5 manifest rows, 7 trigger rows, recipe block (RUN), 3 Pass-4 gaps closed, 10 ambiguity rows, total 207→212, `iso32000__s__` 113→118. Empirical follow-up for pdfcer-librarian: pdf-issues #32 (processors disagree on same-owner attribute objects).
