@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (681st filing) — `4cd2ed35`: `Pass 261.0` SHIPPED — page-level `/FileAttachment` marker annotation authoring
+
+**Shipped:**
+- `Pass 261.0` — `EditSession::add_file_attachment_annotation(page_index, &FileAttachmentSpec, &MarkupOptions) -> Result<ObjId, EditError>` authors a page-level `/FileAttachment` annotation (§12.5.6.15, Table 184). New `annot_author` types `FileAttachmentSpec` and `AttachmentIcon` {Graph, PushPin (default), Paperclip, Tag, Other}, all four with pdfcer's own baked `/AP` artwork. Indirect `/FS`+`/EF`; `/Contents`/`/T`/`/M` from `MarkupOptions::note` (also becomes the filespec `/Desc`); one undo entry. The file is private to the annotation, not added to `/EmbeddedFiles`. CLI `attach-file-annotation`. Build order 1 of 4 of the family scoped 468th filing; `Pass 261.1` (`/Caret`) is next. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- Bug fixed on the way in: document-level `attach_file` wrote `/UF`/`/Desc` as raw UTF-8 instead of encoding them as §7.9.2 text strings — a non-ASCII attachment name or description came back mangled. Fixed via a shared `encode_text_string` helper, sabotage-verified.
+
+**Still in flight:**
+- Same open items as the 680th filing (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- `Pass 261.1` (author a `/Caret` annotation) is now the head of *Next up* — build order 2 of 4.
+
+**For next session:**
+- Build `Pass 261.1` next.
+- `docs/FEATURES.md`: the `Pass 261.0` *Planned* row replaced by an *Implemented → Annotations & markup* row (core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`); the document-level-attachment row gained a clause on the `/UF`/`/Desc` fix.
+- No shell available this filing — no independent commit/push verification; `4cd2ed35` is relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.59.0`.
+
 ## 2026-09-28 (680th filing) — `ab68af1e`: `Pass 370.0` SHIPPED — circular ce-dimension placement (`G051`)
 
 **Shipped:**

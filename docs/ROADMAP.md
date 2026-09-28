@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 261.0` (`4cd2ed35`), 2026-09-28 — page-level `/FileAttachment` marker annotation authoring
+
+**Verdict: SHIPPED.** Build order 1 of 4 of the family scoped 468th filing (the operator's Acrobat-parity challenge, `docs/ROADMAP.md` Backlog line ~18289); `Pass 261.1` (`/Caret`) is next.
+
+**Core.** `EditSession::add_file_attachment_annotation(page_index, &FileAttachmentSpec, &MarkupOptions) -> Result<ObjId, EditError>` authors a page-level `/FileAttachment` annotation (§12.5.6.15, Table 184). New `annot_author` types: `FileAttachmentSpec` (`#[non_exhaustive]`, `new(rect, file_name, bytes)`; fields rect/icon/color/file_name/bytes) and `AttachmentIcon` {`Graph`, `PushPin` (default), `Paperclip`, `Tag`, `Other(Vec<u8>)`} — all four carry pdfcer's own baked `/AP` artwork. Indirect `/FS` + `/EF`; `/Contents`/`/T`/`/M` come from `MarkupOptions::note` (the note text also becomes the filespec `/Desc`); `/CA` and layer as on every markup verb; one undo entry. The file is private to the annotation, never added to `/EmbeddedFiles` — `list_attachments` reports it as `AttachmentKind::PageAnnotation`, still extractable. New `AnnotKind::FileAttachment`. Guards: opacity out of range, layer not found, encrypted/certified document, page out of range, hidden-object exposure.
+
+**Bug fixed on the way in.** Document-level `attach_file` wrote `/UF` and `/Desc` as raw UTF-8 bytes; both are §7.9.2 text strings and now route through `encode_text_string` via a shared helper — a non-ASCII attachment name or description now reads back as written. Sabotage-verified.
+
+**CLI.** `pdfcer attach-file-annotation <in> --file F [--name] --page N --rect x0,y0,x1,y1 [--icon push-pin|paperclip|graph|tag] [--color RRGGBB] [--desc] [--author (needs --desc)] [--apply -o OUT] [--mode]`; dry run unless `--apply`; a bad rect/colour or page 0 exits 9. README subcommand count 169 → 170.
+
+**Tests.** 5 new core (`crates/pdfcer-core/tests/file_attachment_annotation.rs`), 2 new CLI (`crates/pdfcer-cli/tests/attach_file_annotation.rs`). `tools/run-gates.sh` PASS, 40 commands. `cargo tree`: no manifest change, invariant not applicable. `docs/core-api`: 272 verbs, `check-core-api-verbs` PASS.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui`'s own column, not consumed yet.
+
+**`docs/FEATURES.md`.** The *Planned* row (~line 497) moved to *Implemented → Annotations & markup*: core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`. The document-level-attachment row (~line 428) gains a clause on the `/UF`/`/Desc` encoding fix.
+
+**Next up.** `Pass 261.1` (author a `/Caret` annotation) is now the head of *Next up* — build order 2 of 4.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `4cd2ed35`, not independently reproduced. Backup/push/release state not verifiable from here — engineer should check; latest release on record remains `v0.59.0`.
+
 ### `Pass 370.0` (`ab68af1e`), 2026-09-28 — circular ce-dimension placement — `G051`
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G051` (operator ask `O249`), scoped 677th filing, shipped 680th. All ce-dimension terminology below is pdfcer-authored — never a pdf dimension. `G049`–`G051` are now all shipped.
@@ -8660,6 +8680,12 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★ **`Pass 261.0` SHIPPED, 2026-09-28 (681st filing), `4cd2ed35`** — see
+> top of *Shipped*. Filed under *Backlog* (line ~18289) at the 468th filing
+> (scoping); this banner is left as the pointer, the live entry has moved.
+> `Pass 261.1` (author a `/Caret` annotation) is now the head of *Next up* —
+> build order 2 of 4 of the family.
 
 > ★★★★ **`Pass 370.0` SHIPPED, 2026-09-28 (680th filing), `ab68af1e`** — see
 > top of *Shipped*. Filed *Next up* by the 677th filing (scoping); this
@@ -18286,7 +18312,7 @@ generalises the finding.
 > three refusal rows naming `Pass 261.4`–`261.6` and stating why each will
 > not be built.
 
-### `Pass 261.0` — Author a page-level `/FileAttachment` marker annotation — filed 2026-09-07 (468th filing), **NOT STARTED** — new family, build order 1 of 4
+### `Pass 261.0` — ★★★ **SHIPPED 2026-09-28 (`4cd2ed35`, 681st filing) — see *Shipped*.** Body below kept as history (filed 468th filing, build order 1 of 4)
 
 **Gap, precisely.** Document-level embedded files already ship in full
 (*Implemented*, "List, extract, attach and detach embedded attachments") —
