@@ -51,6 +51,7 @@ mod facade_paths;
 mod field_appearance;
 mod field_properties;
 mod field_script_authoring;
+mod file_attachment_annotation;
 mod flatten_annotations;
 mod font_preflight;
 mod font_preflight_candidate;

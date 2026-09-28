@@ -125,7 +125,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::annot::AnnotFlags;
-use crate::annot_author::{self, MarkupSpec, TextAnnotSpec};
+use crate::annot_author::{self, FileAttachmentSpec, MarkupSpec, TextAnnotSpec};
 // `Pass 292.0`: the stamp-parameter types live in `annot`, where the parse
 // they describe lives, and are re-exported here because `EditSession` is where
 // a caller meets them.
@@ -1177,6 +1177,8 @@ pub enum AnnotKind {
     /// non-destructive MARK phase; removal is
     /// [`crate::redact::apply_redactions`].
     Redact,
+    /// `/FileAttachment` (Pass 261.0, §12.5.6.15).
+    FileAttachment,
 }
 
 /// One entry on the undo stack: the set of writes it performed, each
@@ -30541,52 +30543,8 @@ impl EditSession {
         let file_id = ObjId::new(self.alloc_number()?, 0);
         let spec_id = ObjId::new(self.alloc_number()?, 0);
 
-        // -- 1. The embedded file stream.
-        let encoded = crate::filters::flate::encode(bytes);
-        let mut params = Dict::new();
-        params.insert(
-            Name::from(b"Size"),
-            // The UNCOMPRESSED length (Table 46), not `encoded.len()`.
-            Object::Integer(i64::try_from(bytes.len()).unwrap_or(i64::MAX)),
-        );
-        let mut file_dict = Dict::new();
-        file_dict.insert(
-            Name::from(b"Type"),
-            Object::Name(Name::from(b"EmbeddedFile")),
-        );
-        file_dict.insert(
-            Name::from(b"Filter"),
-            Object::Name(Name::from(b"FlateDecode")),
-        );
-        file_dict.insert(Name::from(b"Params"), Object::Dict(params));
-        file_dict.insert(
-            Name::from(b"Length"),
-            Object::Integer(i64::try_from(encoded.len()).unwrap_or(i64::MAX)),
-        );
-        let file_span = self.stage_bytes(&encoded);
-        let file_stream = Object::Stream(Stream {
-            dict: file_dict,
-            data_span: file_span,
-        });
-
-        // -- 2. The file specification dictionary.
+        let (file_stream, spec) = self.embedded_file_objects(name, bytes, description, file_id);
         let name_bytes = name.as_bytes().to_vec();
-        let mut ef = Dict::new();
-        ef.insert(Name::from(b"F"), Object::Reference(file_id));
-        ef.insert(Name::from(b"UF"), Object::Reference(file_id));
-        let mut spec = Dict::new();
-        spec.insert(Name::from(b"Type"), Object::Name(Name::from(b"Filespec")));
-        spec.insert(Name::from(b"F"), Object::String(name_bytes.clone()));
-        spec.insert(Name::from(b"UF"), Object::String(name_bytes.clone()));
-        spec.insert(Name::from(b"EF"), Object::Dict(ef));
-        if let Some(desc) = description {
-            // Table 44: /Desc "shall be used for files in the EmbeddedFiles
-            // name tree" — this is precisely that case, so it is written.
-            spec.insert(
-                Name::from(b"Desc"),
-                Object::String(desc.as_bytes().to_vec()),
-            );
-        }
 
         // -- 3. The name-tree patch, sorted per §7.9.6.
         entries.retain(|(k, _)| k != &name_bytes);
@@ -30644,6 +30602,219 @@ impl EditSession {
             trailer: None,
         });
         Ok(spec_id)
+    }
+
+    /// The embedded file stream (§7.11.4, Table 45/46: Flate, `/Params
+    /// /Size` = the uncompressed length) and the file specification
+    /// dictionary that points at it (§7.11.3, Table 44: `/F`, `/UF`,
+    /// `/EF << /F /UF >>`, optional `/Desc`), for a stream to be written as
+    /// `file_id`. Shared by the document-level and annotation-level routes.
+    fn embedded_file_objects(
+        &mut self,
+        name: &str,
+        bytes: &[u8],
+        description: Option<&str>,
+        file_id: ObjId,
+    ) -> (Object, Dict) {
+        let encoded = crate::filters::flate::encode(bytes);
+        let mut params = Dict::new();
+        params.insert(
+            Name::from(b"Size"),
+            Object::Integer(i64::try_from(bytes.len()).unwrap_or(i64::MAX)),
+        );
+        let mut file_dict = Dict::new();
+        file_dict.insert(
+            Name::from(b"Type"),
+            Object::Name(Name::from(b"EmbeddedFile")),
+        );
+        file_dict.insert(
+            Name::from(b"Filter"),
+            Object::Name(Name::from(b"FlateDecode")),
+        );
+        file_dict.insert(Name::from(b"Params"), Object::Dict(params));
+        file_dict.insert(
+            Name::from(b"Length"),
+            Object::Integer(i64::try_from(encoded.len()).unwrap_or(i64::MAX)),
+        );
+        let file_span = self.stage_bytes(&encoded);
+        let file_stream = Object::Stream(Stream {
+            dict: file_dict,
+            data_span: file_span,
+        });
+
+        // `/F` is a byte string (§7.11.2); `/UF` and `/Desc` are text
+        // strings (§7.9.2), so a non-ASCII name reads back as written.
+        let mut ef = Dict::new();
+        ef.insert(Name::from(b"F"), Object::Reference(file_id));
+        ef.insert(Name::from(b"UF"), Object::Reference(file_id));
+        let mut spec = Dict::new();
+        spec.insert(Name::from(b"Type"), Object::Name(Name::from(b"Filespec")));
+        spec.insert(Name::from(b"F"), Object::String(name.as_bytes().to_vec()));
+        spec.insert(Name::from(b"UF"), Object::String(encode_text_string(name)));
+        spec.insert(Name::from(b"EF"), Object::Dict(ef));
+        if let Some(desc) = description {
+            spec.insert(
+                Name::from(b"Desc"),
+                Object::String(encode_text_string(desc)),
+            );
+        }
+        (file_stream, spec)
+    }
+
+    /// Author a page-level **file attachment annotation** (ISO 32000-1
+    /// §12.5.6.15, Table 184): an icon on page `page_index` whose `/FS`
+    /// embeds `spec.bytes` as `spec.file_name`. One undo entry.
+    ///
+    /// - `/Name` is [`AttachmentIcon`]'s name; the icon is pdfcer's own
+    ///   drawing (the standard names icons but defines no artwork).
+    /// - `options.note` supplies `/Contents` (the description a reader shows,
+    ///   used in preference to the filespec's `/Desc`), `/T` (the author,
+    ///   not the file name) and `/M`. Its text is also written as the
+    ///   filespec's `/Desc`, so both routes agree.
+    /// - The file specification is indirect and carries `/EF`, which PDF 2.0
+    ///   requires of this annotation. It is **not** added to the
+    ///   `/EmbeddedFiles` name tree: an annotation's file is private to it
+    ///   and deleting the annotation removes it. It is still listed and
+    ///   extractable through [`crate::attachments`] as a page-level
+    ///   attachment.
+    ///
+    /// # Errors
+    ///
+    /// The guards every annotation-authoring verb applies, in the same
+    /// order: [`EditError::MarkupOpacityOutOfRange`],
+    /// [`EditError::LayerNotFound`], [`EditError::DocumentEncrypted`], the
+    /// certification refusal, [`EditError::PageOutOfRange`] and
+    /// [`EditError::ObjectCreationWouldExposeHiddenObjects`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use pdfcer_core::{document::Document, edit::{EditSession, MarkupOptions}};
+    /// # use pdfcer_core::annot_author::FileAttachmentSpec;
+    /// # use pdfcer_core::page_tree::Rect;
+    /// # fn demo(doc: Document) -> Result<(), pdfcer_core::edit::EditError> {
+    /// let mut session = EditSession::new(doc);
+    /// let rect = Rect { llx: 72.0, lly: 700.0, urx: 92.0, ury: 724.0 };
+    /// let spec = FileAttachmentSpec::new(rect, "notes.txt", b"hello".to_vec());
+    /// let annot = session.add_file_attachment_annotation(0, &spec, &MarkupOptions::default())?;
+    /// # let _ = annot;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn add_file_attachment_annotation(
+        &mut self,
+        page_index: usize,
+        spec: &FileAttachmentSpec,
+        options: &MarkupOptions,
+    ) -> Result<ObjId, EditError> {
+        options.validate()?;
+        self.on_layer_if(page_index, options.layer, |s| {
+            s.add_file_attachment_annotation_inner(page_index, spec, options)
+        })
+    }
+
+    fn add_file_attachment_annotation_inner(
+        &mut self,
+        page_index: usize,
+        spec: &FileAttachmentSpec,
+        options: &MarkupOptions,
+    ) -> Result<ObjId, EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification_for_annotation()?;
+        let slots = self.page_slots()?;
+        let count = slots.len();
+        let page_id = slots
+            .get(page_index)
+            .ok_or(EditError::PageOutOfRange {
+                index: page_index,
+                count,
+            })?
+            .id;
+        let suppressed = self.base.suppressed_object_count();
+        if suppressed > 0 {
+            return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
+        }
+
+        let authored = annot_author::file_attachment(spec);
+        let ap_id = ObjId::new(self.alloc_number()?, 0);
+        let annot_id = ObjId::new(self.alloc_number()?, 0);
+        let file_id = ObjId::new(self.alloc_number()?, 0);
+        let spec_id = ObjId::new(self.alloc_number()?, 0);
+
+        let mut ap_dict = authored.ap_dict;
+        ap_dict.insert(
+            Name::from(b"Length"),
+            Object::Integer(i64::try_from(authored.ap_content.len()).unwrap_or(i64::MAX)),
+        );
+        let ap_span = self.stage_bytes(&authored.ap_content);
+        let ap_stream = Object::Stream(Stream {
+            dict: ap_dict,
+            data_span: ap_span,
+        });
+
+        let description = options.note.as_ref().map(|n| n.text.as_str());
+        let (file_stream, filespec) =
+            self.embedded_file_objects(&spec.file_name, &spec.bytes, description, file_id);
+
+        let mut annot = authored.annot;
+        let mut ap = Dict::new();
+        ap.insert(Name::from(b"N"), Object::Reference(ap_id));
+        annot.insert(Name::from(b"AP"), Object::Dict(ap));
+        annot.insert(Name::from(b"P"), Object::Reference(page_id));
+        annot.insert(Name::from(b"F"), Object::Integer(i64::from(authored.flags)));
+        annot.insert(Name::from(b"FS"), Object::Reference(spec_id));
+        if let Some(alpha) = options.opacity {
+            annot.insert(Name::from(b"CA"), Object::Real(alpha));
+        }
+        if let Some(note) = &options.note {
+            annot.insert(
+                Name::from(b"Contents"),
+                Object::String(encode_text_string(&note.text)),
+            );
+            if let Some(author) = &note.author {
+                annot.insert(Name::from(b"T"), Object::String(encode_text_string(author)));
+            }
+            if let Some(m) = &note.modified {
+                annot.insert(Name::from(b"M"), Object::String(m.as_bytes().to_vec()));
+            }
+        }
+
+        let mut objects = vec![
+            ObjectWrite {
+                id: ap_id,
+                before: None,
+                after: Some(ap_stream),
+            },
+            ObjectWrite {
+                id: annot_id,
+                before: None,
+                after: Some(Object::Dict(annot)),
+            },
+            ObjectWrite {
+                id: file_id,
+                before: None,
+                after: Some(file_stream),
+            },
+            ObjectWrite {
+                id: spec_id,
+                before: None,
+                after: Some(Object::Dict(filespec)),
+            },
+        ];
+        let mut annots_writes = self.annots_append(page_id, &[annot_id], &slots)?;
+        objects.append(&mut annots_writes);
+
+        self.commit(Command {
+            kind: CommandKind::AddAnnotation {
+                kind: AnnotKind::FileAttachment,
+            },
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(annot_id)
     }
 
     /// Remove a document-level attachment, by its `/EmbeddedFiles` name-tree

@@ -2268,6 +2268,54 @@ pub(crate) enum Command {
         mode: SaveMode,
     },
 
+    /// **Attach a file to a page** as a file attachment annotation: an icon
+    /// the reader can open to get the file (§12.5.6.15).
+    ///
+    /// The file belongs to the icon: it is not added to the document's
+    /// attachment list, and deleting the icon removes it. `list-attachments`
+    /// and `extract-attachment` still see it. A DRY RUN unless `--apply`.
+    ///
+    /// ⚠️ Attaching does not encrypt or protect the file.
+    AttachFileAnnotation {
+        /// Input PDF.
+        input: PathBuf,
+        /// The file to embed.
+        #[arg(long)]
+        file: PathBuf,
+        /// The name to file it under. Defaults to the source file's own
+        /// name.
+        #[arg(long)]
+        name: Option<String>,
+        /// 1-based page number to place the icon on.
+        #[arg(long)]
+        page: u32,
+        /// Icon rectangle `x0,y0,x1,y1` in default user space.
+        #[arg(long)]
+        rect: String,
+        /// Icon: `push-pin` (default), `paperclip`, `graph`, `tag`. The
+        /// drawing is pdfcer's own.
+        #[arg(long, value_enum, default_value_t = AttachIconArg::PushPin)]
+        icon: AttachIconArg,
+        /// Icon colour as `RRGGBB` hex. Default mid-blue.
+        #[arg(long)]
+        color: Option<String>,
+        /// Description a reader shows for the attachment (`/Contents`).
+        #[arg(long)]
+        desc: Option<String>,
+        /// Who attached it (`/T`). Needs `--desc`.
+        #[arg(long, requires = "desc")]
+        author: Option<String>,
+        /// Actually write the output. Without it this is a DRY RUN.
+        #[arg(long)]
+        apply: bool,
+        /// Output path. Required with `--apply`.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// **Remove a document-level attachment** from a PDF (§7.11.4.1).
     ///
     /// Removes the name-tree entry, the file specification AND the embedded

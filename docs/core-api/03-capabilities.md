@@ -1208,7 +1208,9 @@ document — that is what makes rule-4 disclosure cheap here.
 (`#[non_exhaustive]`) — `FreeText`, `Sticky`, `Stamp`. Supporting:
 `Color`, `Quad` + `Quad::from_rect(rect)`,
 `TextMarkupKind`, `LineEnding`, `StickyIcon`,
-`StampName` (14 names).
+`StampName` (14 names). For a page-level file attachment:
+`FileAttachmentSpec` (`#[non_exhaustive]`; build with `new`) and
+`AttachmentIcon` (`Pass 261.0`).
 
 ★★ **A stamp's label size is a PROPERTY, and the box follows the text
 (`Pass 287.0`).** `TextAnnotSpec::Stamp` gained `style: StampStyle`;

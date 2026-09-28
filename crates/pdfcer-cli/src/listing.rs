@@ -1187,6 +1187,117 @@ pub(crate) fn cmd_attach_file(
     finish_attachment_save(input, &mut session, output, mode)
 }
 
+/// The arguments of `attach-file-annotation`, borrowed from the parsed command.
+pub(crate) struct AttachFileAnnotationArgs<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) file: &'a Path,
+    pub(crate) name: Option<&'a str>,
+    pub(crate) page: u32,
+    pub(crate) rect: &'a str,
+    pub(crate) icon: AttachIconArg,
+    pub(crate) color: Option<&'a str>,
+    pub(crate) desc: Option<&'a str>,
+    pub(crate) author: Option<&'a str>,
+    pub(crate) apply: bool,
+    pub(crate) output: Option<&'a Path>,
+    pub(crate) mode: SaveMode,
+}
+
+/// `attach-file-annotation` — embed a file behind an icon on a page.
+pub(crate) fn cmd_attach_file_annotation(a: &AttachFileAnnotationArgs<'_>) -> u8 {
+    use pdfcer_core::annot_author::FileAttachmentSpec;
+    use pdfcer_core::edit::{MarkupNote, MarkupOptions};
+
+    let rect = match crate::annot_parse::rect_from(a.rect) {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!("pdfcer: --rect: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let color = match a.color.map(crate::annot_parse::parse_color).transpose() {
+        Ok(c) => c,
+        Err(err) => {
+            eprintln!("pdfcer: --color: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let Some(page_index) = (a.page as usize).checked_sub(1) else {
+        eprintln!("pdfcer: --page is 1-based; 0 names no page");
+        return exit::EDIT_REFUSED;
+    };
+    let bytes = match std::fs::read(a.file) {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.file.display());
+            return exit::IO_ERROR;
+        }
+    };
+    // The name, never the full path: see `cmd_attach_file`.
+    let stored = match a.name {
+        Some(n) => n.to_string(),
+        None => match a.file.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n.to_string(),
+            None => {
+                eprintln!(
+                    "pdfcer: {}: cannot derive a name from this path; pass --name",
+                    a.file.display()
+                );
+                return exit::EDIT_REFUSED;
+            }
+        },
+    };
+    let doc = match open_document(a.input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let mut spec = FileAttachmentSpec::new(rect, &stored, bytes);
+    spec.icon = a.icon.to_icon();
+    if let Some(c) = color {
+        spec.color = c;
+    }
+    let options = MarkupOptions {
+        note: a.desc.map(|d| {
+            let note = MarkupNote::new(d);
+            match a.author {
+                Some(who) => note.by(who),
+                None => note,
+            }
+        }),
+        ..Default::default()
+    };
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    let annot = match session.add_file_attachment_annotation(page_index, &spec, &options) {
+        Ok(id) => id,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    println!(
+        "attach-file-annotation {} page={} annot={} name={stored:?} bytes={} icon={} mode={} applied={}",
+        a.input.display(),
+        a.page,
+        annot.num,
+        spec.bytes.len(),
+        String::from_utf8_lossy(spec.icon.name()),
+        mode_token(a.mode),
+        u32::from(a.apply)
+    );
+    eprintln!(
+        "pdfcer: the attachment is NOT protected — it travels with the PDF, and anyone who \
+         can open the PDF can extract it."
+    );
+    if !a.apply {
+        eprintln!("pdfcer: dry run — pass --apply with --output to write the file.");
+        return exit::SUCCESS;
+    }
+    finish_attachment_save(a.input, &mut session, a.output, a.mode)
+}
+
 /// `detach-file` — remove a document-level attachment.
 pub(crate) fn cmd_detach_file(
     input: &Path,

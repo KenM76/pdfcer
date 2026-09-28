@@ -5447,6 +5447,222 @@ pub fn transform_spec(spec: &MarkupSpec, m: crate::vector::Matrix) -> (MarkupSpe
     }
 }
 
+/// A file-attachment annotation icon name (§12.5.6.15, Table 184). Default
+/// `PushPin`, the spec's value when `/Name` is absent.
+///
+/// The set is open (*"Additional names may be supported as well"*), so
+/// [`Self::Other`] carries an unmodelled name verbatim. The standard defines
+/// the names, not the pictures: each modelled icon is drawn with pdfcer's own
+/// glyph, and [`Self::Other`] is drawn as a push-pin.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum AttachmentIcon {
+    /// `/Graph`.
+    Graph,
+    /// `/PushPin` — the default.
+    #[default]
+    PushPin,
+    /// `/Paperclip`.
+    Paperclip,
+    /// `/Tag`.
+    Tag,
+    /// A name the standard permits and pdfcer does not model, written as
+    /// these exact bytes.
+    Other(Vec<u8>),
+}
+
+impl AttachmentIcon {
+    /// The `/Name` bytes (§12.5.6.15).
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        match self {
+            Self::Graph => b"Graph",
+            Self::PushPin => b"PushPin",
+            Self::Paperclip => b"Paperclip",
+            Self::Tag => b"Tag",
+            Self::Other(raw) => raw,
+        }
+    }
+
+    /// The icon a `/Name` denotes, or `None` for one pdfcer does not model.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::AttachmentIcon;
+    ///
+    /// assert_eq!(AttachmentIcon::from_name(b"Tag"), Some(AttachmentIcon::Tag));
+    /// assert_eq!(AttachmentIcon::from_name(b"Sparkle"), None);
+    /// ```
+    #[must_use]
+    pub fn from_name(name: &[u8]) -> Option<Self> {
+        match name {
+            b"Graph" => Some(Self::Graph),
+            b"PushPin" => Some(Self::PushPin),
+            b"Paperclip" => Some(Self::Paperclip),
+            b"Tag" => Some(Self::Tag),
+            _ => None,
+        }
+    }
+
+    /// Like [`Self::from_name`], but an unmodelled name becomes
+    /// [`Self::Other`] rather than `None`.
+    #[must_use]
+    pub fn from_name_lossless(name: &[u8]) -> Self {
+        Self::from_name(name).unwrap_or_else(|| Self::Other(name.to_vec()))
+    }
+}
+
+/// A page-level file attachment to author: a `/FileAttachment` annotation
+/// (§12.5.6.15) whose `/FS` embeds `bytes` under `file_name`.
+///
+/// Build with [`Self::new`] and set the public fields; the description and
+/// author travel in [`crate::edit::MarkupOptions::note`], as for every other
+/// markup annotation.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct FileAttachmentSpec {
+    /// The icon rectangle, in default user space.
+    pub rect: Rect,
+    /// Which icon to draw and name.
+    pub icon: AttachmentIcon,
+    /// The icon colour, also written as `/C`.
+    pub color: Color,
+    /// The file name, written to the file specification's `/F` and `/UF`.
+    pub file_name: String,
+    /// The file's bytes, stored Flate-compressed in an embedded file stream.
+    pub bytes: Vec<u8>,
+}
+
+impl FileAttachmentSpec {
+    /// A push-pin attachment in mid-blue, at `rect`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::{AttachmentIcon, FileAttachmentSpec};
+    /// use pdfcer_core::page_tree::Rect;
+    ///
+    /// let rect = Rect { llx: 72.0, lly: 700.0, urx: 92.0, ury: 724.0 };
+    /// let mut spec = FileAttachmentSpec::new(rect, "notes.txt", b"hello".to_vec());
+    /// spec.icon = AttachmentIcon::Paperclip;
+    /// assert_eq!(spec.icon.name(), b"Paperclip");
+    /// ```
+    #[must_use]
+    pub fn new(rect: Rect, file_name: &str, bytes: Vec<u8>) -> Self {
+        Self {
+            rect,
+            icon: AttachmentIcon::PushPin,
+            color: Color::Rgb(0.2, 0.4, 0.8),
+            file_name: file_name.to_owned(),
+            bytes,
+        }
+    }
+}
+
+/// The annotation dictionary and appearance for a [`FileAttachmentSpec`],
+/// without `/FS`, `/P` or `/AP` (the session adds those once it has object
+/// numbers). Flags are Print only: unlike a `/Text` note, §12.5.6.15 does
+/// not ask the icon to ignore zoom or rotation.
+pub(crate) fn file_attachment(spec: &FileAttachmentSpec) -> AuthoredTextAnnot {
+    let rect = positive_rect(spec.rect);
+    let w = rect.width();
+    let h = rect.height();
+    let s = w.min(h);
+
+    let mut b = ContentBuilder::new();
+    spec.color.apply_fill(&mut b);
+    spec.color.apply_stroke(&mut b);
+    b.set_line_width((s * 0.08).max(0.5));
+    b.set_line_join(LineJoin::Round);
+    b.set_line_cap(LineCap::Round);
+    let m = (s * 0.12).max(0.5);
+    match spec.icon {
+        AttachmentIcon::Graph => {
+            // Axes and a rising polyline.
+            b.move_to(m, h - m);
+            b.line_to(m, m);
+            b.line_to(w - m, m);
+            b.paint(Paint::Stroke);
+            b.move_to(m, m + (h - 2.0 * m) * 0.2);
+            b.line_to(m + (w - 2.0 * m) * 0.35, m + (h - 2.0 * m) * 0.55);
+            b.line_to(m + (w - 2.0 * m) * 0.6, m + (h - 2.0 * m) * 0.4);
+            b.line_to(w - m, h - m);
+            b.paint(Paint::Stroke);
+        }
+        AttachmentIcon::Paperclip => {
+            // Two nested U-loops sharing one long side.
+            let cx = w / 2.0;
+            let outer = (w - 2.0 * m) * 0.4;
+            let inner = outer * 0.55;
+            b.move_to(cx + inner, h * 0.35);
+            b.line_to(cx + inner, h - m - inner);
+            b.curve_to(
+                cx + inner,
+                h - m,
+                cx - inner,
+                h - m,
+                cx - inner,
+                h - m - inner,
+            );
+            b.line_to(cx - inner, m + outer);
+            b.curve_to(cx - inner, m, cx + outer, m, cx + outer, m + outer);
+            b.line_to(cx + outer, h - m - outer);
+            b.paint(Paint::Stroke);
+        }
+        AttachmentIcon::Tag => {
+            // A luggage tag: a pentagon pointing up-left, with a hole.
+            let n = (s * 0.35).min(w - 2.0 * m);
+            b.move_to(m, h - m);
+            b.line_to(m + n, h - m);
+            b.line_to(w - m, m + n);
+            b.line_to(w - m - n, m);
+            b.line_to(m, h - m - n);
+            b.close_subpath();
+            b.paint(Paint::Stroke);
+            let r = s * 0.07;
+            let (hx, hy) = (m + n * 0.55, h - m - n * 0.55);
+            b.rect(hx - r, hy - r, 2.0 * r, 2.0 * r);
+            b.paint(Paint::Fill);
+        }
+        AttachmentIcon::PushPin | AttachmentIcon::Other(_) => {
+            // A round head over a needle.
+            let cx = w / 2.0;
+            let r = (w - 2.0 * m) * 0.3;
+            let cy = h - m - r;
+            let k = 0.552_284_75 * r;
+            b.move_to(cx + r, cy);
+            b.curve_to(cx + r, cy + k, cx + k, cy + r, cx, cy + r);
+            b.curve_to(cx - k, cy + r, cx - r, cy + k, cx - r, cy);
+            b.curve_to(cx - r, cy - k, cx - k, cy - r, cx, cy - r);
+            b.curve_to(cx + k, cy - r, cx + r, cy - k, cx + r, cy);
+            b.close_subpath();
+            b.paint(Paint::FillStroke);
+            b.move_to(cx, cy - r);
+            b.line_to(cx, m);
+            b.paint(Paint::Stroke);
+        }
+    }
+
+    let mut annot = base_annot(b"FileAttachment", rect);
+    annot.insert(
+        Name::from(b"Name"),
+        Object::Name(Name(spec.icon.name().to_vec())),
+    );
+    annot.insert(Name::from(b"C"), spec.color.to_array());
+
+    AuthoredTextAnnot {
+        annot,
+        ap_dict: text_form_dict(rect, Dict::new()),
+        ap_content: b.into_bytes(),
+        rect,
+        flags: AnnotFlags::PRINT,
+        popup: None,
+        applied_autosize: None,
+        stamp_label_fit: None,
+        unencodable_chars: 0,
+    }
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

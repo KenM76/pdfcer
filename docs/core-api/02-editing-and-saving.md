@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 271 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 272 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 271 public `EditSession` methods
+## 1. Verb index — all 272 public `EditSession` methods
 
-**Count: 271.** Established by brace-matched extraction of the six
+**Count: 272.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -91,7 +91,8 @@ when `Pass 358.2` added `delete_layer`, and again at 259 when `Pass 358.3` added
 `set_annotation_layer`, and again at 261 when `Pass 358.4` added `set_objects_layer`, and again at 262
 when `Pass 358.5` added `paste_objects_on_layer`, and again at 263 when `Pass 358.6` added `merge_layers`, and again at 264 when `Pass 358.6`
 added `flatten_layers`, and again at 266 when `Pass 360.0` added
-`flatten_annotations` and `annotation_flatten_refusals`.
+`flatten_annotations` and `annotation_flatten_refusals`, and again at 272 when `Pass 261.0`
+added `add_file_attachment_annotation`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -2524,11 +2525,12 @@ rather than pushed onto every consumer as an unconstructable type.
 Both take `&mut self` despite changing nothing (they read `self.view()`).
 `TextMatch` = `{ page_index, quad: Quad, text: String }` (`edit.rs`).
 
-### 1.18 Attachments (2)
+### 1.18 Attachments (3)
 
 | I want to… | Call | Returns |
 |---|---|---|
 | Embed a file | `attach_file(&mut self, name, bytes, description: Option<&str>) -> Result<ObjId, EditError>` | §7.11.4.1 route 2 (`/EmbeddedFiles` name tree). ONE undo entry. |
+| Attach a file to a page, behind an icon | `add_file_attachment_annotation(&mut self, page_index, spec: &FileAttachmentSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 261.0`, §12.5.6.15. Returns the `/FileAttachment` annotation's id. ONE undo entry (annotation, `/AP`, filespec, embedded stream, `/Annots`). **Not** added to `/EmbeddedFiles`: the file is private to the annotation, and `delete_annotation` removes it — `detach_file` does not reach it. `list_attachments` reports it as `AttachmentKind::PageAnnotation`. `options.note` is the description (`/Contents`, also written as the filespec's `/Desc`) and author (`/T`); `opacity` and `layer` apply as on every markup verb. `FileAttachmentSpec::new(rect, file_name, bytes)` then set `icon: AttachmentIcon` (`PushPin` default, `Paperclip`, `Graph`, `Tag`, `Other(Vec<u8>)`; `name`/`from_name`/`from_name_lossless` as on `StickyIcon`) and `color`. Every icon is pdfcer's own drawing. `CommandKind::AddAnnotation { kind: AnnotKind::FileAttachment }` (new variant). Guards: `MarkupOpacityOutOfRange`, `LayerNotFound`, `DocumentEncrypted`, certification, `PageOutOfRange`, `ObjectCreationWouldExposeHiddenObjects`. |
 | Remove an attachment | `detach_file(&mut self, key: &[u8]) -> Result<(), EditError>` | By name-tree key. ⚠️ **Not a redaction verb** — see §5.4. ⚠️ **Refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** when the name-tree value (the filespec) is a page or page-tree node — a filespec's declared type is a *dictionary*, so a type test cannot distinguish it from a page and the structural guard is the one that applies. ✅ **Its `/EF` `/F` and `/UF` are COLLATERAL and are FILTERED** (§7.11.4 Table 45 defines both as embedded-file **streams**): a malformed `/EF` must not make the attachment permanently undetachable, so the call returns `Ok` and leaves the wrong-kinded pointee alone. §6.8. |
 
 `AttachmentTreeUnsupported` (`edit.rs`) is a refused name-tree shape;
@@ -4862,7 +4864,7 @@ upgrades it to **prevention** (`edit.rs`).
 | Gate | Verbs |
 |---|---|
 | **Strict** `check_certification` | all 11 vector verbs (via `vector_surgery`); all 5 field-creation verbs (via `field_authoring_preflight`); `delete_field`, `delete_widget`, `move_widget` (via `deletion_preflight`); `delete_field_group`, `field_group_deletion_preview`; `rename_field`; `flatten_fields`; `delete_pages_with`; `reorder_pages`; `rotate_pages`; all 11 ce-dimension verbs; `unembed_refusal`; `embed_refusal`; `add_image`; `deletion_refusal`/`rename_refusal` (via `structural_form_refusal`) |
-| **Annotation** | `add_markup`; `attach_file`; `detach_file`; `add_redaction`; `delete_redaction_mark`; `delete_annotation`+`annotation_deletion_preview` (via `annotation_deletion_guards`); `annotation_deletion_refusal`; the three `mark_redactions_*` (via `author_text_matches`); `add_text_annotation` |
+| **Annotation** | `add_markup`; `attach_file`; `add_file_attachment_annotation`; `detach_file`; `add_redaction`; `delete_redaction_mark`; `delete_annotation`+`annotation_deletion_preview` (via `annotation_deletion_guards`); `annotation_deletion_refusal`; the three `mark_redactions_*` (via `author_text_matches`); `add_text_annotation` |
 | **Fill** | `fill_text_field`, `fill_text_field_downgrading_rich_text`, `reset_form`, `set_choice_value`, `regenerate_appearances` (via `fill_guards`); `set_button_state`; `fill_refusal` |
 | **None** | `set_info_field` (deliberate — argued at `edit.rs` as an owed decision, not an oversight); `set_page_rotation`; `rotate_page_by`; `delete_pages` (encryption-ungated too) |
 

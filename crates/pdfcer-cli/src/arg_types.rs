@@ -930,6 +930,32 @@ impl IconArg {
     }
 }
 
+/// File-attachment icon name (§12.5.6.15).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum AttachIconArg {
+    /// /PushPin (default).
+    PushPin,
+    /// /Paperclip.
+    Paperclip,
+    /// /Graph.
+    Graph,
+    /// /Tag.
+    Tag,
+}
+
+impl AttachIconArg {
+    /// The core attachment icon this word names.
+    pub(crate) fn to_icon(self) -> pdfcer_core::annot_author::AttachmentIcon {
+        use pdfcer_core::annot_author::AttachmentIcon;
+        match self {
+            Self::PushPin => AttachmentIcon::PushPin,
+            Self::Paperclip => AttachmentIcon::Paperclip,
+            Self::Graph => AttachmentIcon::Graph,
+            Self::Tag => AttachmentIcon::Tag,
+        }
+    }
+}
+
 /// Standard rubber-stamp name (§12.5.6.12).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum StampArg {
