@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (678th filing) — `870fdd64`: `Pass 368.0` SHIPPED — ce-dimension drag preview (`G049`)
+
+**Shipped:**
+- `Pass 368.0` — `EditSession::dimension_preview(&self, id, moved: &DimensionKind) -> Result<DimensionPreview, EditError>`, read-only, stages nothing, bakes through the same `author_dimension_with_label` a commit uses; `DimensionPreview`/`AuthoredDimension::label_quad`/`label_rect()` for hit-testing the label. Render-side `pdfcer_render::edit_preview::paint_dimension_preview` paints through the same page interpreter a commit's render uses — one rendering path (rule 4). Answers `pdfcer-gui` request `G049`. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- None beyond the `ROADMAP.md` entry.
+
+**Still in flight:**
+- Same open items as the 677th filing (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- `Pass 369.0` (`G050`, per-end extension gap) is now the head of *Next up*; `Pass 370.0` (`G051`, circular placement) follows it. `Pass 261.0` remains queued behind both.
+
+**For next session:**
+- Build `Pass 369.0` next.
+- `docs/FEATURES.md`: the `Pass 368.0` *Planned* row replaced by an *Implemented → ce dimensions* row (core `[x]`, cli `—`, gui `[ ]`, Acrobat `—`); the two remaining *Planned* rows (`369.0`/`370.0`) unchanged.
+- Channel reply posted: `open/reply_G049_a_ce_dimension_drag_preview_draws_what_the_commit_will_draw_DONE.md`.
+- No shell available this filing — no independent commit/push verification; facts relayed from the dispatching engineer's report of `870fdd64`.
+
 ## 2026-09-27 (677th filing) — `Pass 368.0`–`370.0` scoped: ce-dimension drag preview, per-end extension gap, circular placement
 
 **Shipped:**

@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 368.0` (`870fdd64`), 2026-09-27 — ce-dimension drag preview — `G049`
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` request `G049` (operator ask `O249`), scoped 677th filing. All ce-dimension terminology below is pdfcer-authored — never a pdf dimension.
+
+**Core.** `EditSession::dimension_preview(&self, id: DimensionId, moved: &DimensionKind) -> Result<DimensionPreview, EditError>` — read-only, `&self`, stages nothing and opens no undo entry. Bakes through the SAME `author_dimension_with_label` a commit uses, with the resolved group style cascade and any label override, so the preview is what a save would draw, not a second rendering path (rule 4). Refuses `DimensionNotFound`/`DimensionGroupNotFound` by name; `moved` itself is not validated. New `DimensionPreview { appearance: AuthoredDimension }` (`#[non_exhaustive]`); `AuthoredDimension` gains `label_quad: [Point; 4]` (the label's page-space box, descender to cap line, rotates with the text) and `label_rect() -> Rect`, for hit-testing text against the dimension line while dragging.
+
+**Render.** `pdfcer_render::edit_preview::paint_dimension_preview(doc, &preview, &options, page_to_device, &mut pixmap) -> Diagnostics` paints the appearance bytes through the same page interpreter a committed render uses — one rendering path, not a provisional one.
+
+**Tests.** 4 new: core — preview bytes equal the committed `/AP` after `place_dimension`; label rect tracks `text_along` and lies inside `/Rect`; an unknown id is refused by name. Render — preview paint vs. the committed page render at scale 2 differs in 0 pixels, sabotage-tested (a 1 pt `text_along` change fails the pin). Workspace: `tools/run-gates.sh` PASS, 40 commands, 9,621 of 9,621 tests passed.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gains the "Live-preview a ce dimension drag" row; verb count 269→270. `03-capabilities.md` and `index.md` updated. `check-core-api-verbs` PASS.
+
+**Gates.** No manifest change either crate — `cargo tree -p pdfcer-core`/`-p pdfcer-render` invariant unaffected; no new dependency; no writer change.
+
+**Shells.** core `[x]`. cli — deliberately none: a live drag preview has no batch shape. gui: `pdfcer-gui`'s own column, not ticked here — it requested this and has not yet consumed it.
+
+**`docs/FEATURES.md`.** The `Pass 368.0` *Planned* row (added 677th filing) replaced by a new *Implemented → ce dimensions* row: core `[x]`, cli `—`, gui `[ ]`, Acrobat `—` (an internal preview mechanism behind a GUI's own drag feedback, not a capability to compare in its own right).
+
+**Channel.** Reply posted: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G049_a_ce_dimension_drag_preview_draws_what_the_commit_will_draw_DONE.md`.
+
+**Also filed this session (relayed, not this Pass's own work): `v0.59.0` went green on CI** (run `36370911892`, "chore: v0.59.0", success) and `verify-release.py v0.59.0` passes apart from the standing "working tree clean" false alarm from the untracked `target-case/`/`target-probe/` directories (same class noted at the 676th filing).
+
+**Next up.** `Pass 369.0` (`G050`, per-end extension gap) is promoted to the head of *Next up*; `Pass 370.0` (`G051`, circular placement) follows it, unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `870fdd64`, not independently reproduced.
+
 ### `v0.59.0` — RELEASED (2026-09-27)
 
 Release filing, not a Pass — discharges Ken's 2026-09-27 directive ("once
@@ -8585,20 +8611,17 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★ **THREE ITEMS ADDED 2026-09-27 (677th filing) — `Pass 368.0`–`370.0`,
-> ce-dimension DRAG PREVIEW, PER-END EXTENSION GAP AND CIRCULAR PLACEMENT,
-> from `pdfcer-gui` requests `G049`–`G051` (operator ask `O249` via the GUI;
-> priority high).** All three are **ce dimensions** (pdfcer-authored) —
-> never pdf dimensions.
+> ★★★★ **`Pass 368.0` SHIPPED, 2026-09-27 (678th filing), `870fdd64`** — see
+> top of *Shipped*. Filed *Next up* by the 677th filing (scoping); this
+> banner is left as the pointer, the live entry has moved.
+
+> ★★★★ **TWO ITEMS REMAIN 2026-09-27 (677th filing, 368.0 promoted out
+> 678th) — `Pass 369.0`–`370.0`, PER-END EXTENSION GAP AND CIRCULAR
+> PLACEMENT, from `pdfcer-gui` requests `G050`–`G051` (operator ask `O249`
+> via the GUI; priority high).** Both are **ce dimensions** (pdfcer-
+> authored) — never pdf dimensions. `Pass 369.0` is now the head of this
+> family.
 >
-> - **`Pass 368.0`** (`G049`) — `EditSession::dimension_preview(&self, id,
->   moved: &DimensionKind) -> Result<DimensionPreview, EditError>`: a
->   read-only preview of the appearance a commit would bake (page-space
->   filled/stroked outlines, the `edit_text_preview`/`G046` shape) plus the
->   label's page-space rectangle, for hit-testing text vs. line. Nothing
->   staged, `&self`. Acceptance: preview outlines equal the committed `/AP`
->   for the same kind; label rect contains the label glyphs. Core only —
->   a preview has no batch use, no CLI owed.
 > - **`Pass 369.0`** (`G050`) — a per-end extension-line gap on a Linear ce
 >   dimension: `set_dimension_extension_gap(&mut self, id, end:
 >   DimensionEnd, gap: Option<f64>)` (`None` = the standard's), undoable,
@@ -8613,8 +8636,9 @@ closes out the *prior* filing's business rather than opening this one's.
 >   back-compat not required (pre-release format — re-key fixtures). CLI:
 >   the existing place subcommand accepts circular dimensions.
 >
-> `docs/FEATURES.md`: three new *Planned* rows under *ce dimensions*, all
-> pdfcer boxes unticked — nothing ships this filing, no existing box moves.
+> `docs/FEATURES.md`: the `Pass 368.0` *Planned* row is now *Implemented*
+> (see that Shipped entry); the two remaining *Planned* rows under *ce
+> dimensions* are unchanged, boxes still unticked.
 
 > ★★★★ **`Pass 366.0` SHIPPED, 2026-09-27 (669th filing), `2fe0e96e`** — see
 > top of *Shipped*. Filed *Next up* by the 668th filing (scoping); this
