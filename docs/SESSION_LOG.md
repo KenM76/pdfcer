@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (691st filing) — `f3a68e9c`: `Pass 264.0` SHIPPED — read `/RC` rich text and `/DS` default style on every annotation subtype
+
+**Shipped:**
+- `Pass 264.0` — `Annotation` gains `rich_contents: Option<RichText>` (`/RC`) and `default_style: Option<String>` (`/DS`), both read for every subtype (not gated on `/FreeText`); new `RichText` enum covers the inline-string-or-stream form `/RC` may take (§7.9.3), resolved by `annot::rich_text_in`. CLI `list-annotations` prints `rich_note=`/`default_style=`. Full record at the top of `ROADMAP.md`'s *Shipped*.
+- Closes the residue flagged when `Pass 273.0` shipped the desync-guard half of this ID — "neither key is modelled on read at all" was the entirety of what remained open under `Pass 264.0`.
+
+**Decisions made this session:**
+- None new — a read accessor for an existing spec-defined key, not an architectural decision. Highest decision record stays `164`.
+
+**Findings + decisions:**
+- None new this filing.
+
+**Still in flight:**
+- Same open items as the 690th filing — no named head in *Next up*.
+
+**For next session:**
+- `docs/FEATURES.md` row (*Planned*) ticked core `[x]`, cli `[x]`; stays in *Planned* — gui `[ ]`, no evidence `pdfcer-gui` consumes these fields.
+- No shell available this filing — `f3a68e9c` relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes this commit).
+
 ## 2026-09-28 (690th filing) — `30a5c6c5`: `Pass 127.2` SHIPPED — `redact-mark` reports unreadable text on its summary line
 
 **Shipped:**
