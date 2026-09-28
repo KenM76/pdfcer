@@ -115,6 +115,48 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 382.0` (`b6bcca64`), 2026-09-28 — detect tables on chosen pages only
+
+**Verdict: SHIPPED.** Answers `G061` (`pdfcer-gui` feature request, scoped
+711th filing). New `pdfcer_core::table_detect::detect_tables_in_pages(view,
+pages: &[usize], extract, options) -> Result<DocumentTables, TableError>`:
+extracts and decomposes only the listed page-tree indices, in the order
+given, and every `TableDiagnostics` count covers only those pages.
+`detect_tables` is now the full-document case of the same private body. An
+out-of-range index returns `TableError::Extract(ExtractError::NoSuchPage{
+index, count})`. `Table::page_index` stays the page-tree index, so
+`text.pages[t.page_index]` is valid only for a full-document detect.
+
+**CLI.** `extract-tables`, `export-xlsx` and `export-docx` gain `--pages`
+(1-based; default `all`; accepts `3`, `1-4`, `5,1-2`, order honoured). A
+page past the end exits 9 (EDIT_REFUSED). `export-docx` now lays out only
+the chosen pages (`extract_pages_view` + `block_layout::layout_text`), so
+running headers/footers are detected among those pages alone.
+
+**Docs.** `docs/core-api/01-reading-and-model.md` §8.4.4 updated;
+`check-core-api-verbs` passes.
+
+**Tests.** 2 new core integration tests in
+`crates/pdfcer-core/tests/table_detect.rs` (15/15 in the file); 3 new CLI
+tests (2 in `export_docx.rs`, 1 in `export_xlsx.rs`). Sabotage checks:
+CLI ignoring `--pages`, and the subset reading the whole document, both
+caught.
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands.
+
+**`cargo tree`.** Not applicable — no manifest change, no new dependency.
+
+**Round-trip.** No writer change — unaffected.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` to adopt
+(reply filed as `reply_G061_table_detection_reads_only_the_chosen_pages_FIXED.md`).
+
+**`docs/FEATURES.md`.** Row moved *Planned* → *Implemented*: core `[x]`,
+cli `[x]`, gui `[ ]`.
+
+**Next up.** `Pass 383.0` (.ods export, `G062`) now heads *Next up*;
+`384.0`/`385.0` (`G063`/`G064`) remain behind it, unshipped.
+
 ### `Pass 381.0` (`4dc85998`), 2026-09-28 — export flowing text to Word (DOCX)
 
 **Verdict: SHIPPED.** Closes the "Export to Word/Excel" Backlog bucket
@@ -9740,6 +9782,11 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★ **`Pass 382.0` SHIPPED, 2026-09-28 (712th filing), `b6bcca64`** —
+> see top of *Shipped*. Closes `G061` from the 711th filing's four-item
+> scoping banner below. **`Pass 383.0` (.ods export, `G062`) is now the
+> head of *Next up*; `384.0`/`385.0` remain unshipped.**
 
 > ★★★★★★ **FOUR ITEMS ADDED 2026-09-28 (711th filing) — `Pass 382.0`–
 > `Pass 385.0`, from `pdfcer-gui` feature requests `G061`–`G064`

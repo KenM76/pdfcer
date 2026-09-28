@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (712th filing) — `b6bcca64`: `Pass 382.0` SHIPPED — table detection limited to chosen pages
+
+**Shipped:**
+- `Pass 382.0` (`b6bcca64`) — `pdfcer_core::table_detect::detect_tables_in_pages(view, pages: &[usize], extract, options)`, extracting/decomposing only the listed page-tree indices so `TableDiagnostics` counts only those pages; `detect_tables` is now the full-document case of the same body. CLI: `extract-tables`/`export-xlsx`/`export-docx` gain `--pages` (1-based, `all` default, ranges/lists honoured); `export-docx` now lays out only the chosen pages. Answers `G061`. Full detail: `ROADMAP.md` *Shipped*, top of file.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- None beyond what's in the `Pass 382.0` Shipped entry.
+
+**Still in flight:**
+- *Next up* now heads with `Pass 383.0` — detected tables to OpenDocument
+  spreadsheet (.ods, `G062`); `384.0`/`385.0` (ce-dimension preview,
+  angular text placement — `G063`/`G064`) remain behind it, unshipped.
+- **Related finding:** `pdfcer-spec-librarian` created a new cross-project
+  ODF RAG at `D:\dev\rag\odf\` (`ods_minimal_writer.md`), the source
+  `Pass 383.0`'s ODS writer will build on.
+
+**For next session:**
+- No shell this filing (hard rule 8). Facts relayed from the dispatching
+  engineer's own verification at `b6bcca64`; not independently verified
+  from here.
+
 ## 2026-09-28 (711th filing) — four Passes filed to *Next up*: `382.0`–`385.0` (`G061`–`G064`)
 
 **Shipped:**
