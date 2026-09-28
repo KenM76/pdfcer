@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (699th filing) — `20b2f1f6` + `0cc63029`: `Pass 375.0` SHIPPED — `set_crop_boxes` + `resize_pages` crop follow
+
+**Shipped:**
+- `Pass 375.0` (`G056`) — `EditSession::set_crop_boxes(indices, CropBoxEdit::{Set, Reset})` writes `/CropBox` on the leaf only, keeps the base file's spelling when it already denotes the result (set-then-reset is a no-op), refuses an empty/non-finite/zero-area rect before commit. `EditSession::resize_pages(indices, rect, CropFollow)` moves a matching crop box along with a resize by default (`WhenItMatched`). CLI `set-crop-box`; `set-page-size` gains `--crop keep|when-matched|always`. Full record at the top of `ROADMAP.md`'s *Shipped*.
+- `0cc63029` — `docs(readme)`: bumped README.md's published subcommand count from 173 to 174 (new `set-crop-box` subcommand from `Pass 375.0`); caught by the `check-clap-help.py` gate.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- **CLI behaviour change, not additive-only**: `set-page-size` now moves a page's crop box by default when it matched the old sheet size — `--crop keep` restores the prior behaviour. Flagged here because it's the kind of default-flip hard rule 11 asks a sweep to check for elsewhere in the CLI surface.
+- `docs/FEATURES.md`: the `Pass 375.0` *Planned* row removed and replaced by an *Implemented* row (core `[x]`/cli `[x]`/gui `[ ]`); the "Set a page's size" row gained a sentence for `resize_pages`'s crop-follow behaviour.
+- `docs/ROADMAP.md`'s *Next up* banner rewritten: `Pass 375.0` removed (shipped), `Pass 372.0` is now the stated head of the `G053`–`G055` family.
+
+**Still in flight:**
+- `Pass 372.0` (`G053`, structure-tree read) is the head of *Next up*; `373.0`/`374.0` queued behind it.
+
+**For next session:**
+- No shell available this filing. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes commit `20b2f1f6`).
+
 ## 2026-09-28 (698th filing) — `079bd6f1`: `Pass 378.0` SHIPPED — page boxes intersected with the media box; corrects two errors in the 697th filing
 
 **Shipped:**

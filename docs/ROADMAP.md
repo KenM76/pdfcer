@@ -115,6 +115,52 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 375.0` (`20b2f1f6` + `0cc63029`), 2026-09-28 — `set_crop_boxes` + `resize_pages` crop follow
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` request `G056`. New
+`EditSession::set_crop_boxes(indices, CropBoxEdit) -> Result<Vec<CropBoxChange>, EditError>`,
+`CropBoxEdit::{Set(Rect), Reset}`. Writes `/CropBox` on the leaf page only,
+never an inherited `/Pages` value (ISO 32000-2 §7.7.3.4); keeps the base
+file's own spelling when it already denotes the result, so set-then-reset is
+a net-zero no-op (`!is_modified()`). `Reset` removes the page's own entry;
+when an ancestor crop would then show instead, writes the media box on the
+leaf. Returns `CropBoxChange { page_index, before, after, entry, overhangs_media_box }`
+with before/after as EFFECTIVE boxes (the `Pass 378.0` intersection); `entry`
+is `CropBoxEntry::{BaseSpellingKept, InheritedSoOwnEntryRemoved, ExplicitWritten, Absent}`.
+A rect with no intersection with the media box, non-finite or zero area is
+refused before commit (`EditError::CropBoxEmpty { page_index }`). One undo
+entry, `CommandKind::SetCropBoxes { count }`.
+
+**`resize_pages`.** New `EditSession::resize_pages(indices, rect, CropFollow) -> Result<Vec<PageResize>, EditError>`,
+`CropFollow::{Keep, WhenItMatched (default), Always}` — affects only pages
+carrying a crop box, own or inherited; one `ObjectWrite` per page touching
+both entries, one undo entry (`CommandKind::ResizePages { count }`).
+`PageResize { media: MediaBoxChange, crop: Option<CropBoxChange> }`.
+`set_media_boxes` is unchanged.
+
+**CLI.** New `pdfcer set-crop-box IN --pages SPEC (--rect x0,y0,x1,y1 | --reset) -o OUT`;
+metrics line `pages_set=`/`explicit=`/`removed=`/`base_kept=`/`overhang=`/
+`changed=` plus save counters. `set-page-size` gains `--crop keep|when-matched|always`
+(default `when-matched`) and appends `crop_followed=` to its metrics line
+(append-only). **CLI behaviour change:** a crop box equal to the old sheet
+now follows a resize by default; `--crop keep` restores the prior behaviour.
+
+**Docs/tests.** `docs/core-api` updated to 279 verbs / 152 `EditError`
+variants; `check-core-api-verbs` PASS. 8 new core unit tests (`edit.rs`), 4
+CLI integration tests (`crates/pdfcer-cli/tests/set_crop_box.rs`); sabotage
+of the Reset guard and the follow condition each fail 2 tests. Full
+`tools/run-gates.sh` green (core 2263 passed/2 ignored; cli 1275; render
+577). No manifest change — `cargo tree` invariant not applicable.
+
+**Shells.** core `[x]`, cli `[x]`; gui unaffected — `pdfcer-gui` consumes on
+its own schedule. `docs/FEATURES.md`: row moved *Planned* → *Implemented*.
+
+**Reply filed.** `FeatureRequests/open/reply_G056_crop_box_can_be_set_and_resize_moves_it_FIXED.md`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
+dispatching engineer's own verification at `20b2f1f6`, not independently
+reproduced. Backup/push/release state not verifiable from here.
+
 ### `Pass 378.0` (`079bd6f1`), 2026-09-28 — page boxes are intersected with the media box
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` defect `O250` / ask `G059`. ISO 32000-2 §14.11.2.1: the crop, bleed, trim and art boxes are each the INTERSECTION of the box as written with the media box, not the box as written. `Page::crop_box` is now the EFFECTIVE box; three new page-own-only fields (`bleed_box`, `trim_box`, `art_box` — not inheritable) each clip to the media box and default to the effective crop box when absent, each with a `BoxResolution` (`Defaulted`/`AsWritten`/`Clipped`/`Unusable`, `#[non_exhaustive]`).
@@ -9120,20 +9166,14 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★ **FOUR ITEMS REMAIN 2026-09-28 (697th filing) — `G053`–`G056`, from
-> `pdfcer-gui`'s DOCX/XLSX-export ask (`O257`).** The fifth item filed this
-> session, `Pass 378.0` (`G059`, page-resize defect `O250`), **SHIPPED
-> 2026-09-28 (698th filing, `079bd6f1`)** — see top of *Shipped*, entry
-> removed from this list. The engineer's own stated order was `378.0` then
-> `375.0`; **`Pass 375.0` is now the head of *Next up***.
+> ★★★★★ **THREE ITEMS REMAIN 2026-09-28 (699th filing) — `G053`–`G055`, from
+> `pdfcer-gui`'s DOCX/XLSX-export ask (`O257`).** Two items filed this
+> family have now shipped: `Pass 378.0` (`G059`, page-resize defect `O250`),
+> SHIPPED 2026-09-28 (698th filing, `079bd6f1`); `Pass 375.0` (`G056`,
+> `/CropBox` authoring), SHIPPED 2026-09-28 (699th filing, `20b2f1f6`) — see
+> top of *Shipped* for both, entries removed from this list. **`Pass 372.0`
+> is now the head of *Next up***.
 >
-> - **`Pass 375.0`** (`G056`) — new `EditSession::set_crop_boxes(pages,
->   CropBoxChange)`: set or remove `/CropBox` on named pages, same
->   inheritance/sibling-preservation discipline as `set_media_boxes` (write on
->   the leaf, never mutate a shared inherited value); `Remove` restores the
->   full media box (the Crop ▸ Reset shape). CLI verb. `Pass 378.0`
->   (SHIPPED) already makes the resolved crop box the effective one, so a
->   `/CropBox` this Pass writes actually grows or shrinks the visible page.
 > - **`Pass 372.0`** (`G053`) — read a tagged PDF's structure tree back:
 >   `/RoleMap`-resolved standard type (raw `/S` + non-standard flag when
 >   unmapped) with a visited-set cycle guard (no hop-count/depth limit — the
@@ -9166,7 +9206,12 @@ closes out the *prior* filing's business rather than opening this one's.
 > export row had changed (verified by `Grep` against the live file). Four
 > new *Planned* rows (`372.0`–`375.0`) added this filing, all boxes
 > unticked; `378.0`'s row shipped straight to *Implemented*, never passing
-> through *Planned*.
+> through *Planned*. `375.0`'s row also moved to *Implemented* (699th
+> filing, core `[x]`/cli `[x]`/gui `[ ]`) — see that Shipped entry.
+
+> ★★★★ **`Pass 375.0` SHIPPED, 2026-09-28 (699th filing), `20b2f1f6`** — see
+> top of *Shipped*. `G056`; closes the `/CropBox`-authoring half of the
+> family filed under *Next up* the 697th filing.
 
 > ★★★★ **`Pass 378.0` SHIPPED, 2026-09-28 (698th filing), `079bd6f1`** — see
 > top of *Shipped*. `G059`; closes the page-resize defect `O250` half of the
