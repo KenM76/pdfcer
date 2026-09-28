@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (713th filing) — `d8962485`: `Pass 383.0` SHIPPED — export detected tables to an OpenDocument spreadsheet (.ods)
+
+**Shipped:**
+- `Pass 383.0` (`d8962485`) — new `pdfcer_core::export::ods::write_ods(&[Table], &OdsOptions)`, sharing the xlsx writer's `SheetLayout`/`NumberLocale` rule and zip container; `OdsReport` mirrors `XlsxReport` minus `cells_truncated`. ODF 1.3 package (`mimetype` stored first, `content.xml`, `META-INF/manifest.xml`); output validated against the OASIS ODF v1.3 RELAX NG schemas. CLI `pdfcer export-ods`. Answers `G062`. Full detail: `ROADMAP.md` *Shipped*, top of file.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- LibreOffice is not installed on this machine — no `.ods` output has been opened in Calc, only schema-validated. Recorded as an open verification item in the `ROADMAP.md` Shipped entry.
+
+**Still in flight:**
+- *Next up* now heads with `Pass 384.0` — preview a ce dimension before it
+  exists (`G063`); `385.0` (angular ce dimension text placement, `G064`)
+  remains behind it, unshipped.
+
+**For next session:**
+- No shell this filing (hard rule 8). Facts relayed from the dispatching
+  engineer's own verification at `d8962485`; not independently verified
+  from here.
+
 ## 2026-09-28 (712th filing) — `b6bcca64`: `Pass 382.0` SHIPPED — table detection limited to chosen pages
 
 **Shipped:**

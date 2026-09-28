@@ -115,6 +115,61 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 383.0` (`d8962485`), 2026-09-28 — export detected tables to an OpenDocument spreadsheet (.ods)
+
+**Verdict: SHIPPED.** Answers `G062`. New `pdfcer_core::export::ods` module:
+`write_ods(tables: &[Table], options: &OdsOptions) -> Result<OdsOutput,
+PackageError>`. `OdsOptions` reuses `SheetLayout`/`NumberLocale` from the
+xlsx writer (`with_sheets`, `with_numbers`), so a cell is a number in the
+`.ods` exactly when it is one in the `.xlsx` — one engine rule, not a second
+narrower copy. `OdsOutput { bytes, report: OdsReport }`; `OdsReport` is
+`XlsxReport` minus `cells_truncated` (an ODF cell has no length limit),
+`cells_beyond_limits` checked against Calc's 1,048,576 × 16,384 grid.
+
+**Package.** ODF 1.3 Part 2: `mimetype` first entry, stored not deflated;
+`content.xml`; `META-INF/manifest.xml` with `manifest:version="1.3"`. Every
+cell carries `office:value-type`; a merge is a spanned cell plus
+`table:covered-table-cell` at each covered position; multi-line cells are
+one `text:p` per line; repeated/leading/trailing spaces become `text:s`, a
+tab becomes `text:tab`; header rows are bold (including CJK/complex
+font-weight properties); column widths come from the detected column bands,
+in points. Zip writer (`export/ooxml_zip.rs`) gained stored entries
+(`add_stored`) alongside its existing deflated ones.
+
+**CLI.** `pdfcer export-ods IN -o OUT [--sheets table|page|single]
+[--numbers auto|us|european|off] [--pages ..]`; result line mirrors
+`export-xlsx` minus `cells_truncated`. `export-xlsx` now shares the table
+and option helpers with `export-ods`.
+
+**Validation.** Output validates against the official OASIS ODF v1.3
+RELAX NG schemas for both `content.xml` and the manifest (checked with
+lxml). LibreOffice is not installed on this machine, so no file has been
+opened in Calc — open item.
+
+**Tests.** 5 core `ods` unit tests, 1 new zip-writer unit test, 2 CLI
+integration tests. Sabotage checks: deflating `mimetype`, or collapsing
+edge spaces, each fail 4 of the 5 core tests.
+
+**Gates.** `tools/run-gates.sh` — two gates failed and were fixed in the
+same commit, both re-run green: `check-clap-help` (README subcommand count
+179 → 180), `check-public-fns-documented` (doc comment added to a shared
+test helper).
+
+**`cargo tree`.** Not applicable — no new dependency, the existing `flate2`
+is reused.
+
+**Round-trip.** No writer change to PDF output — unaffected.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not wired.
+
+**Docs.** `docs/core-api/03-capabilities.md` §7.12a.
+
+**`docs/FEATURES.md`.** Row moved *Planned* → *Implemented*: core `[x]`,
+cli `[x]`, gui `[ ]`.
+
+**Next up.** `Pass 384.0` (ce-dimension preview before it exists, `G063`)
+now heads *Next up*; `385.0` (`G064`) follows it, unshipped.
+
 ### `Pass 382.0` (`b6bcca64`), 2026-09-28 — detect tables on chosen pages only
 
 **Verdict: SHIPPED.** Answers `G061` (`pdfcer-gui` feature request, scoped
@@ -9782,6 +9837,11 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★ **`Pass 383.0` SHIPPED, 2026-09-28 (713th filing), `d8962485`** —
+> see top of *Shipped*. Closes `G062` from the 711th filing's four-item
+> scoping banner below. **`Pass 384.0` (ce-dimension preview, `G063`) is now
+> the head of *Next up*; `385.0` remains unshipped.**
 
 > ★★★★★★ **`Pass 382.0` SHIPPED, 2026-09-28 (712th filing), `b6bcca64`** —
 > see top of *Shipped*. Closes `G061` from the 711th filing's four-item
