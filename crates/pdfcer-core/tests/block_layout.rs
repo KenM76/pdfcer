@@ -318,7 +318,12 @@ fn a_tagged_header_wins_on_a_single_page() {
         Some(&BlockKind::Paragraph)
     );
     assert_eq!(l.diagnostics.tagged_artifact_blocks, 1);
-    assert_eq!(l.diagnostics.inferred(), 0);
+    // Every untagged block is an inference, paragraphs included.
+    assert_eq!(l.diagnostics.inferred(), 2);
+    assert_eq!(
+        l.diagnostics.inferred(),
+        l.diagnostics.blocks - l.diagnostics.tagged_artifact_blocks
+    );
 }
 
 #[test]

@@ -1331,7 +1331,7 @@ for page in &layout.pages {
         let text = block.text(page);
     }
 }
-let n = layout.diagnostics.inferred();          // heuristic kind decisions
+let n = layout.diagnostics.inferred();          // untagged blocks, paragraphs included
 ```
 
 - Analysis runs in display space (`/Rotate` applied); every box returned is

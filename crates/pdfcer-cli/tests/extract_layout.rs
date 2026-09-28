@@ -96,7 +96,7 @@ fn extract_layout_prints_blocks_and_counts_each_inference() {
     );
     assert!(stdout.contains("  page-number inferred "), "{stdout}");
     let last = stdout.lines().last().unwrap();
-    assert!(last.contains(" pages=2 blocks=6 inferred=4 "), "{last}");
+    assert!(last.contains(" pages=2 blocks=6 inferred=6 "), "{last}");
     assert!(last.contains(" headings_from_size=2 "), "{last}");
     assert!(last.contains(" page_numbers=2 "), "{last}");
 }

@@ -265,10 +265,14 @@ pub struct LayoutDiagnostics {
 }
 
 impl LayoutDiagnostics {
-    /// Every kind decision made by heuristic rather than by a tag.
+    /// Every block whose kind came from heuristics rather than a tag, so
+    /// `blocks - tagged_artifact_blocks`. Paragraphs count: calling a group
+    /// of lines a paragraph is as much an inference as calling it a heading,
+    /// and it matches the per-block [`BlockSource::Inferred`].
     #[must_use]
     pub const fn inferred(&self) -> usize {
-        self.headings_from_size
+        self.paragraphs
+            + self.headings_from_size
             + self.headings_from_weight
             + self.list_items
             + self.captions
