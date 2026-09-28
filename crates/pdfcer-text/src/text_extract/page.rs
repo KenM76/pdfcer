@@ -77,8 +77,8 @@ use pdfcer_model::view::DocumentView;
 
 use super::font::{ExtractFont, FontNote, LadderRung, Rung3Gap};
 use super::{
-    ArtifactKind, ArtifactSubtype, ContentStreamRef, ExtractOptions, GlyphProvenance, TextColor,
-    TextDiagnostics,
+    ArtifactKind, ArtifactSubtype, ContentStreamRef, ExtractOptions, FontWeight, GlyphProvenance,
+    TextColor, TextDiagnostics, WeightSource,
 };
 
 /// One thing the walk produced, before derived whitespace is inserted.
@@ -115,6 +115,7 @@ pub(super) struct GlyphItem {
     pub direction: (f32, f32),
     /// Text rendering mode 3 or 7.
     pub invisible: bool,
+    pub weight: FontWeight,
     /// Enclosing `/Artifact` classification, if any.
     pub artifact: Option<ArtifactKind>,
     /// Enclosing `/MCID`, if any.
@@ -1028,6 +1029,14 @@ impl Walk<'_> {
         ) as f32;
 
         let invisible = matches!(self.ts.render_mode(), 3 | 7);
+        let weight = if matches!(self.ts.render_mode(), 2 | 6) && font.weight().value < 700 {
+            FontWeight {
+                value: 700,
+                source: WeightSource::Synthetic,
+            }
+        } else {
+            font.weight()
+        };
         if invisible {
             self.diagnostics.invisible_glyphs += 1;
         }
@@ -1118,6 +1127,7 @@ impl Walk<'_> {
             size,
             direction,
             invisible,
+            weight,
             artifact,
             mcid: self.mcid(),
             mcid_stream: self.mcid_stream(),

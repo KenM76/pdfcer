@@ -7,7 +7,7 @@
 )]
 
 use pdfcer_core::text_edit::model::*;
-use pdfcer_core::text_extract::{ExtractedGlyph, PageText, TextOrigin, TextRun};
+use pdfcer_core::text_extract::{ExtractedGlyph, FontWeight, PageText, TextOrigin, TextRun};
 
 /// A `Glyphs` run built from `(char, x, y, advance, size)` tuples, at a
 /// given starting run text — enough to drive recognition without the
@@ -29,6 +29,7 @@ fn glyph_run(chars: &[(&str, f32, f32, f32, f32)]) -> TextRun {
             size,
             direction: (1.0, 0.0),
             invisible: false,
+            weight: FontWeight::UNKNOWN,
             provenance: None,
         });
     }

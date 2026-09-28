@@ -80,7 +80,7 @@
 //! predicted might be unreachable without font-program access, and it
 //! is: it is unreachable, it is named, and it is counted.**
 
-use super::UnmappableCode;
+use super::{FontWeight, UnmappableCode, WeightSource};
 use pdfcer_fonts::fontdata::{self, BaseEncoding, Std14};
 use pdfcer_model::filters;
 use pdfcer_model::graph::ObjectGraph;
@@ -279,6 +279,8 @@ pub struct ExtractFont {
     vertical: Vertical,
     /// Everything worth disclosing about this font.
     pub notes: Vec<FontNote>,
+    /// Table 122 weight; see [`FontWeight`].
+    weight: FontWeight,
 }
 
 /// A font's vertical extent in **text space** (already divided by the
@@ -433,7 +435,7 @@ impl ExtractFont {
 
         let to_unicode = load_to_unicode(doc, font_dict, &mut notes);
 
-        match subtype.as_str() {
+        let mut font = match subtype.as_str() {
             "Type0" => Self::resolve_composite(doc, font_dict, base_font, to_unicode, notes),
             "Type1" | "MMType1" | "TrueType" | "Type3" => {
                 let is_type3 = subtype == "Type3";
@@ -443,7 +445,16 @@ impl ExtractFont {
                 notes.push(FontNote::UnknownSubtype);
                 Self::resolve_simple(doc, font_dict, base_font, to_unicode, notes, false)
             }
-        }
+        };
+        font.weight = resolve_weight(doc, font_dict, &font.base_font);
+        font
+    }
+
+    /// Table 122 weight: `/FontWeight` when declared, else a style word in
+    /// `/BaseFont` (Table 332), else 400.
+    #[must_use]
+    pub fn weight(&self) -> FontWeight {
+        self.weight
     }
 
     /// §9.6 simple font (and Type 3, which extracts the same way).
@@ -525,6 +536,7 @@ impl ExtractFont {
             width_scale,
             vertical,
             notes,
+            weight: FontWeight::UNKNOWN,
         }
     }
 
@@ -630,6 +642,7 @@ impl ExtractFont {
             width_scale: 0.001,
             vertical,
             notes,
+            weight: FontWeight::UNKNOWN,
         }
     }
 
@@ -1350,6 +1363,65 @@ fn string_of(doc: &DocumentView<'_>, dict: &Dict, key: &[u8]) -> String {
         Some(Object::Name(n)) => String::from_utf8_lossy(n.as_bytes()).into_owned(),
         _ => String::new(),
     }
+}
+
+/// The weight of `font_dict`: its (or, for Type 0, its descendant's)
+/// `/FontDescriptor /FontWeight` (Table 122), else the style word in
+/// the `/BaseFont` name, else [`FontWeight::UNKNOWN`]. `ForceBold` and
+/// `StemV` are ignored, as Table 332 says they should be.
+fn resolve_weight(doc: &DocumentView<'_>, font_dict: &Dict, base_font: &str) -> FontWeight {
+    let descriptor_of = |d: &Dict| {
+        doc.resolve(d.get(b"FontDescriptor").unwrap_or(&Object::Null))
+            .as_dict()
+            .cloned()
+    };
+    let descriptor = descriptor_of(font_dict).or_else(|| {
+        let first = doc
+            .resolve(font_dict.get(b"DescendantFonts")?)
+            .as_array()?
+            .first()?;
+        descriptor_of(doc.resolve(first).as_dict()?)
+    });
+    if let Some(w) = descriptor
+        .as_ref()
+        .and_then(|d| doc.resolve(d.get(b"FontWeight")?).as_number())
+        && w.is_finite()
+    {
+        return FontWeight {
+            value: w.clamp(100.0, 900.0).round() as u16,
+            source: WeightSource::Declared,
+        };
+    }
+    weight_from_name(strip_subset_tag(base_font)).unwrap_or(FontWeight::UNKNOWN)
+}
+
+/// A weight from a style word in a font name, longest match first so
+/// `SemiBold` is not read as `Bold`.
+fn weight_from_name(name: &str) -> Option<FontWeight> {
+    const WORDS: [(&str, u16); 14] = [
+        ("extrablack", 900),
+        ("ultrablack", 900),
+        ("extrabold", 800),
+        ("ultrabold", 800),
+        ("semibold", 600),
+        ("demibold", 600),
+        ("extralight", 200),
+        ("ultralight", 200),
+        ("hairline", 100),
+        ("black", 900),
+        ("heavy", 900),
+        ("bold", 700),
+        ("medium", 500),
+        ("light", 300),
+    ];
+    let lower = name.to_ascii_lowercase();
+    WORDS
+        .iter()
+        .find(|(word, _)| lower.contains(word))
+        .map(|&(_, value)| FontWeight {
+            value,
+            source: WeightSource::FontName,
+        })
 }
 
 /// Strip a §9.6.4 subset tag (`ABCDEF+Helvetica` → `Helvetica`).

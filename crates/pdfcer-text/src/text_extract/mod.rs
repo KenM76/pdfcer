@@ -227,6 +227,55 @@ pub enum ArtifactKind {
     Other(String),
 }
 
+/// A glyph's font weight on the ISO 32000-2 Table 122 scale: 100–900,
+/// where 400 is normal and 700 is bold.
+///
+/// The standard gives a reader only one declared source,
+/// `/FontDescriptor /FontWeight` (PDF 1.5). Table 332 says that when it is
+/// absent the weight "shall be derived from the font name in a manner of
+/// the conforming reader's choosing", and that `ForceBold` and `StemV`
+/// "should not be used". [`Self::source`] says which route produced the
+/// value, so a caller can disclose a derived one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct FontWeight {
+    /// Table 122 weight, 100–900.
+    pub value: u16,
+    /// How [`Self::value`] was found.
+    pub source: WeightSource,
+}
+
+impl FontWeight {
+    /// Normal weight with nothing to go on.
+    pub const UNKNOWN: Self = Self {
+        value: 400,
+        source: WeightSource::Default,
+    };
+
+    /// `value >= 600`: semibold or heavier.
+    #[must_use]
+    pub fn is_bold(&self) -> bool {
+        self.value >= 600
+    }
+}
+
+/// Where a [`FontWeight`] came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WeightSource {
+    /// `/FontDescriptor /FontWeight` (Table 122).
+    Declared,
+    /// A style word in `/BaseFont` (`Bold`, `Semibold`, `Black`, `Light`,
+    /// …). DERIVED: Table 332 leaves the method to the reader.
+    FontName,
+    /// Fill-then-stroke rendering (`Tr` 2 or 6, Table 104), the way word
+    /// processors embolden a face with no bold variant. Reported as 700.
+    /// DERIVED.
+    Synthetic,
+    /// No descriptor weight and no style word: assumed 400.
+    Default,
+}
+
 /// An artifact's `/Subtype` (ISO 32000-2 Table 363; PDF 1.7).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -548,6 +597,8 @@ pub struct ExtractedGlyph {
     /// know that covered-but-present text is still extractable, not so
     /// that a caller can drop it.
     pub invisible: bool,
+    /// The font weight in effect ([`FontWeight`]).
+    pub weight: FontWeight,
     /// Source-operator identity and text state behind this glyph — the
     /// substrate later edit surgery needs (decision 014, Pass 14.1).
     ///

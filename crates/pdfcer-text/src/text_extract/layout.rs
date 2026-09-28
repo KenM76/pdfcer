@@ -280,6 +280,7 @@ impl Builder<'_> {
             size: g.size,
             direction: g.direction,
             invisible: g.invisible,
+            weight: g.weight,
             // Carry the walk's provenance straight through; layout adds no
             // provenance of its own (it only segments). `None` when
             // capture was off.
@@ -584,6 +585,7 @@ mod tests {
             size: 10.0,
             direction: (1.0, 0.0),
             invisible: false,
+            weight: crate::text_extract::FontWeight::UNKNOWN,
             artifact: None,
             mcid: None,
             mcid_stream: None,
@@ -688,6 +690,7 @@ mod tests {
             size: 10.0,
             direction: (1.0, 0.0),
             invisible: false,
+            weight: crate::text_extract::FontWeight::UNKNOWN,
             artifact: None,
             mcid: None,
             mcid_stream: None,
@@ -712,6 +715,7 @@ mod tests {
             size: 10.0,
             direction: (1.0, 0.0),
             invisible: false,
+            weight: crate::text_extract::FontWeight::UNKNOWN,
             artifact: Some(ArtifactKind::Pagination),
             mcid: None,
             mcid_stream: None,

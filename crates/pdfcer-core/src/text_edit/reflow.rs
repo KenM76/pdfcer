@@ -1143,7 +1143,9 @@ fn median(mut values: Vec<f64>) -> Option<f64> {
 )]
 mod tests {
     use super::*;
-    use crate::text_extract::{ExtractedGlyph, LadderRung, PageText, TextOrigin, TextRun};
+    use crate::text_extract::{
+        ExtractedGlyph, FontWeight, LadderRung, PageText, TextOrigin, TextRun,
+    };
 
     fn line_break() -> TextRun {
         TextRun {
@@ -1194,6 +1196,7 @@ mod tests {
                 size: 10.0,
                 direction: (1.0, 0.0),
                 invisible: false,
+                weight: FontWeight::UNKNOWN,
                 provenance: None,
             });
             cur_x += 6.0;

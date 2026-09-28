@@ -1108,7 +1108,19 @@ run.
 `DerivedLineBreak`. Only `Glyphs` runs have glyphs.
 `ExtractedGlyph`: `code`, `rung`, `text_start`, `text_len`,
 `x`, `y`, `advance`, `size`, **`direction: (f32, f32)`**, `invisible`,
-`provenance`; methods `up()`, `advance_end()`, `cell()`.
+`weight`, `provenance`; methods `up()`, `advance_end()`, `cell()`.
+`FontWeight { value: u16, source: WeightSource }`; `is_bold()` is
+`value >= 600`; `FontWeight::UNKNOWN` is 400/`Default`. The source is
+chosen in this order:
+1. `Declared`: the descriptor's `/FontWeight` (Table 122), clamped to
+   100–900. A Type0 font's descendant descriptor is used too.
+2. `FontName`: a style word in `/BaseFont`, with the subset tag stripped
+   and the longest word tried first. For example, `SemiBold` gives 600,
+   not 700.
+3. `Synthetic`: text drawn with `Tr` 2 or 6 (fill+stroke) over a font
+   lighter than 700 reads as 700.
+
+`/ForceBold` and `/StemV` are ignored, per Table 332.
 `GlyphProvenance`: `operator_span`, `text_matrix`, `ctm`,
 `tf_size`, `composite`, … — `None` for every glyph unless
 `capture_provenance` was set.

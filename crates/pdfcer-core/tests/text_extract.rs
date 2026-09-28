@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 use pdfcer_core::document::Document;
 use pdfcer_core::settings::{ActualTextPrecedence, UnmappableCode};
 use pdfcer_core::text_extract::{
-    self, ArtifactKind, ArtifactSubtype, Editability, ExtractOptions, ExtractedText, LadderRung,
-    TextOrigin,
+    self, ArtifactKind, ArtifactSubtype, Editability, ExtractOptions, ExtractedText, FontWeight,
+    LadderRung, TextOrigin, WeightSource,
 };
 
 /// A fixture path under `fixtures/synthetic/text/`.
@@ -1295,5 +1295,86 @@ fn an_empty_redaction_query_is_a_no_op() {
     assert_eq!(
         marked.diagnostics.codes_total, 0,
         "no extraction should have run at all"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Font weight — Table 122 /FontWeight, Table 332's name fallback, Tr 2
+// ---------------------------------------------------------------------------
+
+/// A one-page PDF from object bodies; `STREAM:` bodies become streams.
+fn build_pdf(bodies: &[&str]) -> Vec<u8> {
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        let body = match body.strip_prefix("STREAM:") {
+            Some(data) => format!("<< /Length {} >>\nstream\n{data}\nendstream", data.len()),
+            None => (*body).to_owned(),
+        };
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f\r\n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n\r\n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    buf
+}
+
+#[test]
+fn glyph_weight_comes_from_descriptor_then_name_then_render_mode() {
+    let pdf = build_pdf(&[
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+         /Resources << /Font << /FD 5 0 R /FN 7 0 R /FR 8 0 R >> >> >>",
+        "STREAM:BT /FD 12 Tf 72 700 Td (Declared) Tj ET\n\
+         BT /FN 12 Tf 72 680 Td (Named) Tj ET\n\
+         BT /FR 12 Tf 72 660 Td (Regular) Tj ET\n\
+         BT /FR 12 Tf 2 Tr 72 640 Td (Stroked) Tj ET",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+Anything /FontDescriptor 6 0 R >>",
+        "<< /Type /FontDescriptor /FontName /ABCDEF+Anything /Flags 32 /FontWeight 800 >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /QRSTUV+Arial-SemiBoldItalic >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]);
+    let doc = Document::from_bytes(pdf).expect("loads");
+    let text = text_extract::extract_document(&doc, &ExtractOptions::default()).expect("runs");
+    let weight_of = |needle: &str| {
+        let run = text.pages[0]
+            .runs
+            .iter()
+            .find(|r| r.text.contains(needle))
+            .unwrap_or_else(|| panic!("no run for {needle}"));
+        assert!(!run.glyphs.is_empty());
+        let w = run.glyphs[0].weight;
+        assert!(run.glyphs.iter().all(|g| g.weight == w), "{needle}");
+        w
+    };
+
+    let declared = weight_of("Declared");
+    assert_eq!(
+        (declared.value, declared.source),
+        (800, WeightSource::Declared)
+    );
+    assert!(declared.is_bold());
+
+    let named = weight_of("Named");
+    assert_eq!((named.value, named.source), (600, WeightSource::FontName));
+    assert!(named.is_bold());
+
+    let regular = weight_of("Regular");
+    assert_eq!(regular, FontWeight::UNKNOWN);
+    assert!(!regular.is_bold());
+
+    let stroked = weight_of("Stroked");
+    assert_eq!(
+        (stroked.value, stroked.source),
+        (700, WeightSource::Synthetic)
     );
 }
