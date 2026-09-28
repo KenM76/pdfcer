@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (670th filing) — `838bfa29`: `Pass 366.0` follow-up (preview parity across operators, cache pinned) — test-only
+
+**Shipped:**
+- Pass 366.0 follow-up — test-only, no code/pub-surface/dependency change. New integration test `preview_matches_the_commit_across_operators` (`crates/pdfcer-core/tests/edit_text_preview.rs`): preview/commit parity on a match spanning three show operators and a `TJ` split. New integration test `a_font_object_change_reaches_the_next_preview` plus unit test `edit_text_preview_sees_a_font_object_change` (`crates/pdfcer-core/src/edit.rs`): an `/Encoding`-only change on the font object reaches the next preview via `text_walk_deps`, mutation-proven; the walk cache itself stays pinned. Closes the two gaps `Pass 366.0`'s own filing (669th) named as untested. `edit_text_preview` suite 7→9 integration tests, +1 unit. Full record appended as a "Follow-up" paragraph under `Pass 366.0` in `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new — a test-only follow-up, no scope or contract change.
+
+**Findings + decisions:**
+- None beyond what's in the `ROADMAP.md` follow-up paragraph.
+
+**Still in flight:**
+- Same open items as the 669th filing (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, `pdfcer-gui` not yet consuming `edit_text_preview`/`preview_outlines`).
+
+**For next session:**
+- `838bfa29` is committed to `main`; push status not independently checked this filing (hard rule 8 — no shell available).
+
 ## 2026-09-27 (669th filing) — `2fe0e96e`: `Pass 366.0` (WYSIWYG typing preview, G046) SHIPPED
 
 **Shipped:**
