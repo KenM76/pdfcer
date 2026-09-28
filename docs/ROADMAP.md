@@ -9590,6 +9590,60 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★ **TWO ITEMS ADDED 2026-09-28 (708th filing) — `Pass 380.0`/
+> `Pass 381.0`, DOCX/XLSX WRITERS, scoped from the "Export to Word/Excel"
+> Backlog bucket (filed 701st filing, line ~18750).** Both consume
+> `Pass 373.0`'s block layout and `Pass 374.0`'s table grid, now that both
+> have shipped and their output shapes are settled — see that bucket's own
+> entry, updated this filing to point here. **`Pass 380.0` is now the head
+> of *Next up*; `380.0` ships before `381.0`.**
+>
+> - **`Pass 380.0`** — export detected tables to Excel (XLSX). Delivers
+>   core + cli (`gui` unchanged, `[ ]`). `pdfcer_core::export::xlsx` writes
+>   a Workbook (ECMA-376/ISO 29500-1 SpreadsheetML) via hand-written OOXML
+>   over a private zip container built on the existing `flate2` dependency
+>   (its `Crc` + `DeflateEncoder`) — **no new dependency**; deterministic
+>   bytes (fixed 1980-01-01 zip timestamps). Worksheet layout is an operator
+>   option per the Acrobat RAG (`office_export__excel_table_extraction.md`):
+>   `SheetLayout::{PerTable (default)/PerPage/Single}`, stacked tables
+>   separated by a blank row. Merged cells → `<mergeCells>`, content in the
+>   top-left cell only (no Acrobat-style asymmetric split). Header-row guess
+>   (`374.0`) → bold style; multi-line cell text → wrap; column widths from
+>   the column bands. `NumberLocale::{Auto (default)/Us/European/Off}` —
+>   Auto parses a cell as a number only when the reading is locale-
+>   independent; a single-separator-then-three-digits cell (`1,234`/
+>   `1.234`) stays text and is COUNTED, a deliberate response to the RAG's
+>   highest-severity sourced Acrobat failure (silent wrong numbers from a
+>   locale mismatch) — an exceed-Acrobat divergence. Rule 4 disclosure:
+>   sheets/tables/cells/merged cells/header rows/numbers parsed/ambiguous
+>   numbers kept as text/anything dropped (illegal control chars, over-long
+>   cells, beyond Excel's row/column limits). CLI: `pdfcer export-xlsx <in>
+>   -o <out> [--sheets table|page|single] [--numbers
+>   auto|us|european|off]`, printing detection + export counts on its
+>   result line. Acceptance: output opens in openpyxl (external smoke) and
+>   a Rust test re-reads the zip; sabotage-checked tests; fmt/clippy/
+>   run-gates green; core-api updated.
+> - **`Pass 381.0`** — export to Word (DOCX). Delivers core + cli. Consumes
+>   `Pass 373.0`'s `block_layout::DocumentLayout` (and `374.0`'s tables
+>   where they fall); reuses `380.0`'s zip container. Baseline is Acrobat's
+>   "Retain Flowing Text" mode, not "Retain Page Layout"
+>   (`office_export__word_structure_recognition.md`). Headings → Word
+>   `Heading 1..6` styles; paragraphs → Normal with the block's alignment
+>   (`w:jc`) and first-line/hanging indent (`w:ind`); list items → list
+>   paragraphs with the marker kept; captions → Caption style. Running
+>   header/footer/page-number blocks → a genuine Word header/footer part
+>   (emitted once, from the repetition detector), NOT inlined body text —
+>   the RAG found no clean Acrobat baseline here (contested), so this is
+>   the structurally correct choice, recorded as a divergence. Rule 4: the
+>   report counts every inferred block kind carried into the file. CLI:
+>   `pdfcer export-docx <in> -o <out>`. Acceptance: opens in python-docx
+>   (external smoke), Rust test re-reads the zip, gates green, core-api
+>   updated.
+>
+> `docs/FEATURES.md`: two new *Planned* rows added at the top (predicted-
+> order head, ahead of the `358` family), core/cli/gui unticked, Acrobat
+> `[x]` (Acrobat has both writers).
+
 > ★★★★ **`Pass 379.0` SHIPPED, 2026-09-28 (704th filing), `c3fdc733`** — see
 > top of *Shipped*. `G060`; not previously filed under *Next up*/*Backlog* —
 > requested and shipped in the same session, same shape as `376.0`/`377.0`
@@ -18760,11 +18814,10 @@ table cell grid) both SHIPPED 2026-09-28** (702nd/703rd filings,
 file. Both were the prerequisite reading-order/table-detection layers a
 real DOCX/XLSX writer needs.
 
-**Still unscoped, this bucket's remainder:** the actual DOCX writer (block
-kinds → Word paragraph/heading/list styles) and XLSX writer (cell grid →
-worksheet, with the header-row guess and merged-cell spans from `374.0`
-carried through) — neither has a Pass ID yet. Scope now that `373.0`/
-`374.0` have shipped and their output shapes are settled.
+**Both writers are now scoped**, 2026-09-28 (708th filing): the XLSX
+writer as `Pass 380.0` and the DOCX writer as `Pass 381.0`, filed under
+*Next up* (top of this file), `380.0` first. Nothing remains unscoped in
+this bucket.
 
 **New follow-on, filed 2026-09-28 (703rd filing), no Pass ID.** `374.0`
 deliberately runs table detection over the vector/text extraction only —
