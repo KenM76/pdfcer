@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (684th filing) — `1c7fb0dc`: `Pass 261.3` SHIPPED — `/Screen` annotation with embedded media clip
+
+**Shipped:**
+- `Pass 261.3` — `EditSession::add_screen_annotation(page_index, &ScreenSpec, &MarkupOptions) -> Result<ObjId, EditError>` authors the minimal viable §13.2 rich-media chain: `/Screen` (§12.5.6.18, always `/P` plus pdfcer's own frame+play-triangle `/AP` — required in PDF 2.0 by erratum #42), a rendition action (§12.6.4.13) as `/A` (`ScreenTrigger::Click`, default) or `/AA /PO` (`ScreenTrigger::PageOpen`), indirect media rendition/clip data (`/S /MR`, `/S /MCD`), and an embedded filespec (`/Type /Filespec` + `/EF`, without which the clip is non-viable). New types `ScreenSpec`, `ScreenTrigger{Click, PageOpen}`, `MediaTempAccess{Never, Access (default), Always}`; new `AnnotKind::Screen`. Build order 4 of 4 — **the four-item comment-type-parity family scoped at the 468th filing is now COMPLETE** (`261.4`/`261.5` refused by name, `261.6` authoring-refused/read-half-unscoped, all three unchanged in *Backlog*). CLI `add-screen`, README 173 subcommands. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new (the media-permissions `/TF` ambiguity is resolved via the standing "spec ambiguity → setting" rule, not a fresh §12 entry — same shape as `Pass 261.2`'s sound-rate resolution).
+
+**Findings + decisions:**
+- §13.2's `/TF` (media temp-file permission) defaults to `TEMPNEVER` per the spec, which stops players that need a temp file; the standard doesn't say which do (spec RAG `MM-A2`). pdfcer defaults to `TEMPACCESS`, disclosed every CLI invocation.
+- Cross-cutting gap noted, not opened as a Pass: no pdfcer verb raises the header version to 1.5, and `/Screen` (like several recent annotation subtypes) is a PDF 1.5+ feature. Worth a line in the record for whoever next touches header-version tracking.
+
+**Still in flight:**
+- Same open items as the 683rd filing (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- **The 261-family is closed.** *Next up* currently has no named head — the operator has asked (on the channel) for PaddleOCR support followed by a release; Pass IDs for that are pending a separate filing.
+
+**For next session:**
+- Await the PaddleOCR + release Pass entries from the engineer.
+- `docs/FEATURES.md`: the `Pass 261.3` *Planned* row (was ~line 500) replaced by an *Implemented → Annotations & markup* row (core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`), immediately after the `/Sound` row.
+- No shell available this filing — no independent commit/push verification; `1c7fb0dc` is relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.59.0`.
+
 ## 2026-09-28 (683rd filing) — `5db53428`: `Pass 261.2` SHIPPED — `/Sound` annotation and WAV import
 
 **Shipped:**

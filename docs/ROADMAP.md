@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 261.3` (`1c7fb0dc`), 2026-09-28 — `/Screen` annotation with embedded media clip
+
+**Verdict: SHIPPED.** Build order 4 of 4 — the family scoped 468th filing is now COMPLETE (`261.4`/`261.5` stay refused by name, `261.6` stays authoring-refused/read-half-unscoped).
+
+**Core.** `EditSession::add_screen_annotation(page_index, &ScreenSpec, &MarkupOptions) -> Result<ObjId, EditError>`, one undo entry. Minimal viable §13.2 chain: `/Screen` (§12.5.6.18) always carrying `/P` and a pdfcer-drawn `/AP` (frame + play triangle — required in PDF 2.0 by erratum #42); a rendition action (§12.6.4.13, `/OP 0`, `/AN` = the screen) as `/A` (`ScreenTrigger::Click`, default) or `/AA /PO` (`ScreenTrigger::PageOpen`); indirect media rendition (`/S /MR`); media clip data (`/S /MCD`, `/CT`, `/P << /Type /MediaPermissions /TF >>`); filespec (`/Type /Filespec` + `/EF` — without `/Type` the clip is non-viable) and an embedded file stream (`/Subtype` = MIME). `/T` is the spec's title, not an author — not written when absent. File is private to the annotation, not added to `/EmbeddedFiles`. New types: `ScreenSpec` (`#[non_exhaustive]`, `new(rect, file_name, content_type, bytes)`), `ScreenTrigger { Click, PageOpen }`, `MediaTempAccess { Never, Access (default), Always }`; new `AnnotKind::Screen`. Header version is NOT raised to 1.5 — no pdfcer verb raises it, a cross-cutting gap noted here rather than opened as its own Pass.
+
+**Decision-worthy (spec ambiguity → setting).** §13.2's media permissions `/TF` defaults to `TEMPNEVER`, which stops players needing a temp file; the standard is silent on which do (spec RAG `MM-A2`). pdfcer defaults to `TEMPACCESS` and the CLI discloses it every invocation.
+
+**CLI.** `pdfcer add-screen <in> --file clip --page N --rect x0,y0,x1,y1 [--content-type MIME] [--title] [--desc] [--trigger click|page-open] [--temp never|access|always] [--color] [--opacity] [--apply -o out] [--mode]`. MIME inferred from extension (mp4/m4v/mov/webm/avi/mp3/m4a/aac/wav/ogg) prints `inferred:`; an unknown extension with no `--content-type` is refused. README subcommand count → 173.
+
+**Tests.** 4 new core (`crates/pdfcer-core/tests/screen_annotation.rs`), 2 new CLI (`crates/pdfcer-cli/tests/add_screen.rs`), all pass. `tools/run-gates.sh` PASS, 40 commands. `cargo tree -p pdfcer-core` clean — no dependency/manifest change, no GUI crate; invariant holds. No new untrusted-input parser, so no new fuzz target.
+
+**Docs.** `docs/core-api`: 276 verbs, Annotations section now 25.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui`'s own column, not consumed (no GUI caller; separate project).
+
+**Verified by rendering.** The frame + play-triangle `/AP` paints.
+
+**`docs/FEATURES.md`.** The *Planned* row (~line 500) moved to *Implemented → Annotations & markup*: core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`.
+
+**Family closed.** All four build-order items of the 468th filing's comment-type parity catalogue have now shipped (`261.0`–`261.3`); the three refusals (`261.4`–`261.6`) are unchanged and stay in *Backlog* as a permanent record of why each will not be built (or, for `261.6`, not built as authoring).
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `1c7fb0dc`, not independently reproduced. Backup/push/release state not verifiable from here — engineer should check; latest release on record remains `v0.59.0`.
+
 ### `Pass 261.2` (`5db53428`), 2026-09-28 — `/Sound` annotation and WAV import
 
 **Verdict: SHIPPED.** Build order 3 of 4 of the family scoped 468th filing; `Pass 261.3` (`/Screen`) is next. Also this session: chore commit `de6e2e9d` (agent memory only, no code) — recorded so `check-commits-filed.py` sees it filed.
@@ -8726,6 +8750,16 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★ **`Pass 261.3` SHIPPED, 2026-09-28 (684th filing), `1c7fb0dc`** — see
+> top of *Shipped*. Filed under *Backlog* (line ~18400) at the 468th filing
+> (scoping); this banner is left as the pointer, the live entry has moved.
+> **The four-item family scoped 468th filing is now COMPLETE** — `261.0`–
+> `261.3` all shipped, `261.4`/`261.5` stay refused by name, `261.6` stays
+> authoring-refused/read-half-unscoped, all three unchanged in *Backlog*.
+> **No named head currently occupies *Next up*** — the operator has asked
+> (on the channel, not yet parsed into a Pass entry) for PaddleOCR support
+> followed by a release; those Pass IDs are pending a separate filing.
 
 > ★★★★ **`Pass 261.2` SHIPPED, 2026-09-28 (683rd filing), `5db53428`** — see
 > top of *Shipped*. Filed under *Backlog* (line ~18370) at the 468th filing
@@ -18408,7 +18442,7 @@ first-class; live recording is fading). Recommended third.
 (new — covers `/Sound` and `/Movie` together, since Acrobat's own
 treatment of the two has diverged).
 
-### `Pass 261.3` — Author a `/Screen` annotation — filed 2026-09-07 (468th filing), **NOT STARTED** — new family, build order 4 of 4
+### `Pass 261.3` — ★★★ **SHIPPED 2026-09-28 (`1c7fb0dc`, 684th filing) — see *Shipped*.** Body below kept as history (filed 468th filing, build order 4 of 4)
 
 **Gap.** `/Screen` (§12.5.6.18, rich media/screen annotations) is current
 but buried in Acrobat's own UI — clearly not an Adobe priority today, which
