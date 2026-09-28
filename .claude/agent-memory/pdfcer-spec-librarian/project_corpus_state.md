@@ -7923,3 +7923,15 @@ One "verbatim" 1.7 sentence in 14.8.5 was reconstructed from memory and did not 
 
 ### 85g. Filing
 5 new files (LF), qcheck 0 misses each. Dated notes in `14.7.md` (clause line, banner, NOT INGESTED struck) and `14.8.md` (clause line, banner, 2.0 artifact delta after A1–A3, NOT INGESTED struck). Index: 5 manifest rows, 7 trigger rows, recipe block (RUN), 3 Pass-4 gaps closed, 10 ambiguity rows, total 207→212, `iso32000__s__` 113→118. Empirical follow-up for pdfcer-librarian: pdf-issues #32 (processors disagree on same-owner attribute objects).
+
+## 86. "Check these writer claims against a NON-PDF open standard" (2026-09-28, ODF 1.3 .ods, Pass 383.0)
+
+Shape: "verdict per claim CONFIRMED/WRONG/UNSOURCEABLE with clause numbers; file if in remit".
+
+### 86a. Route per 81a — new cross-project family `D:\devag\odf\`, pointer row in PDF_Spec `index.md`
+### 86b. The RNG schema outranks the prose modality — fetch it
+P2 §4.16.10 says media-type "should", the manifest RNG makes it required; P3 §19.389 says value-type "shall be specified", the RNG makes it optional. Report both. OASIS v1.3 RNGs live at `.../v1.3/os/schemas/`, NOT beside each part (404 returns a 41 KB HTML page with status 404 — check the code, not the size).
+### 86c. A package-part "should" can be a document-part "shall"
+P2 §3.3 mimetype = should; P3 §2.2.4 B = shall for a spreadsheet package. Grep the per-document-type conformance clause.
+### 86d. ★ Backslash paths in a Python patch string become control chars
+PDF_Spec index had `D:\dev<CR>ag\emf<TAB>ext_records.md` (three rows, from the G033 filing). Fixed 2026-09-28. Write paths with forward slashes in patch scripts.

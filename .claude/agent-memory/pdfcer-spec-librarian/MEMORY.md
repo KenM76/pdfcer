@@ -1,7 +1,7 @@
 # Memory index — pdfcer-spec-librarian
 
 - [Spec source extraction toolchain](reference_spec_source_extraction.md) — how to GET a spec and get text out of it: 21 routes (4a–4u), verified free URLs, paywall workarounds, errata recipes.
-- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 84 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
+- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 86 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
 - [Font + spec-data licensing patterns](project_embeddable_data_licensing.md) — what may cross into pdfcer's MIT tree; data-vs-document, availability ≠ redistribution licence.
 
 ## Routing — find your dispatch's shape, then READ THE NAMED ITEM (the detail is there, not here)
@@ -33,6 +33,7 @@
 | **"add clause C + its 2.0 counterpart; is the standard silent on pairing P?"** / a key whose TYPE column is wrong | corpus **83** |
 | **"an authoring Pass needs clause C + its dependency chain / minimum object graph"** / "is X deprecated — may a writer still emit it?" / an erratum that looks wrong | corpus **84** |
 | **"an implementer needs the structure-tree WALK"** (RoleMap/namespaces/MCID/MCR/attributes/table spans) / an erratum's approval status | corpus **85** |
+| **a claim list for a NON-PDF open standard (ODF, …) — "CONFIRMED / WRONG / UNSOURCEABLE"** | corpus **86** + **81** |
 | "close the exclusion banner" / "ingest C AND give me the step list" | corpus **70** + **58** |
 | "is the base standard silent on X?" and a later edition fixes it | corpus **70e** — check whether a PROFILE of the base edition also fixes it |
 | a PDF/UA or PDF/A conformance question | corpus **69e** (answer PER PART — a later part can WIDEN a rule) + **69f** (free-quotation route) |
