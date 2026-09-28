@@ -118,6 +118,8 @@ pub(super) struct GlyphItem {
     pub artifact: Option<ArtifactKind>,
     /// Enclosing `/MCID`, if any.
     pub mcid: Option<u32>,
+    /// Which content stream `mcid` is scoped to; `Some` exactly when it is.
+    pub mcid_stream: Option<ContentStreamRef>,
     /// Source-operator identity + text state, captured only when
     /// [`ExtractOptions::capture_provenance`] is set (otherwise `None`).
     pub provenance: Option<GlyphProvenance>,
@@ -132,6 +134,8 @@ pub(super) struct ReplacementItem {
     pub artifact: Option<ArtifactKind>,
     /// Enclosing `/MCID`, if any.
     pub mcid: Option<u32>,
+    /// Which content stream `mcid` is scoped to; `Some` exactly when it is.
+    pub mcid_stream: Option<ContentStreamRef>,
     /// Bounding box of the glyphs the replacement covered, if it covered
     /// any. This is the *only* positional information an `/ActualText`
     /// run can carry — §14.9.4 N4 makes per-character correspondence
@@ -342,6 +346,7 @@ impl Default for TextState {
 struct MarkedLevel {
     artifact: Option<ArtifactKind>,
     mcid: Option<u32>,
+    mcid_stream: Option<ContentStreamRef>,
     reversed_chars: bool,
     /// Present when this level is a `/Span` carrying `/ActualText`, and
     /// this level is the OUTERMOST such level (see the nesting policy in
@@ -393,6 +398,16 @@ struct Walk<'a> {
     /// The `/F1`-style resource name of the font selected by the most
     /// recent `Tf` (§9.3.1), as raw name bytes — for provenance only.
     cur_font_resource: Option<Vec<u8>>,
+    /// Every `/MCID` a `BDC` declared, keyed by its content stream, in
+    /// declaration order — including sequences that paint no text.
+    declared_mcids: Vec<(ContentStreamRef, u32)>,
+}
+
+/// What [`walk_page`] produced.
+pub(super) struct WalkOutput {
+    pub items: Vec<Item>,
+    pub diagnostics: TextDiagnostics,
+    pub declared_mcids: Vec<(ContentStreamRef, u32)>,
 }
 
 /// Walk one page and return its raw items plus diagnostics.
@@ -416,7 +431,7 @@ pub(super) fn walk_page(
     doc: &DocumentView<'_>,
     page: &Page,
     options: &ExtractOptions,
-) -> Result<(Vec<Item>, TextDiagnostics), ContentError> {
+) -> Result<WalkOutput, ContentError> {
     let stream = ContentStream::from_page(doc, page)?;
     let mut walk = Walk {
         doc,
@@ -437,9 +452,14 @@ pub(super) fn walk_page(
         stream_ref: ContentStreamRef::Page,
         cur_op_span: ByteSpan::new(0, 0),
         cur_font_resource: None,
+        declared_mcids: Vec::new(),
     };
     walk.run(&stream, &page.resources);
-    Ok((walk.items, walk.diagnostics))
+    Ok(WalkOutput {
+        items: walk.items,
+        diagnostics: walk.diagnostics,
+        declared_mcids: walk.declared_mcids,
+    })
 }
 
 impl Walk<'_> {
@@ -1096,6 +1116,7 @@ impl Walk<'_> {
             invisible,
             artifact,
             mcid: self.mcid(),
+            mcid_stream: self.mcid_stream(),
             provenance,
         }));
     }
@@ -1145,6 +1166,7 @@ impl Walk<'_> {
         let mut level = MarkedLevel {
             artifact: self.artifact(),
             mcid: self.mcid(),
+            mcid_stream: self.mcid_stream(),
             reversed_chars: self.reversed_chars(),
             actual_text: None,
             covered: None,
@@ -1179,6 +1201,8 @@ impl Walk<'_> {
                 .and_then(|v| u32::try_from(v).ok())
             {
                 level.mcid = Some(mcid);
+                level.mcid_stream = Some(self.stream_ref);
+                self.declared_mcids.push((self.stream_ref, mcid));
             }
             // /Alt and /E are counted, never substituted — see the
             // module docs on `super`.
@@ -1277,6 +1301,7 @@ impl Walk<'_> {
             text,
             artifact: level.artifact,
             mcid: level.mcid,
+            mcid_stream: level.mcid_stream,
             bbox: level.covered,
         }));
     }
@@ -1289,6 +1314,11 @@ impl Walk<'_> {
     /// The innermost enclosing `/MCID`.
     fn mcid(&self) -> Option<u32> {
         self.marked.last().and_then(|l| l.mcid)
+    }
+
+    /// The stream the innermost enclosing `/MCID` was declared in.
+    fn mcid_stream(&self) -> Option<ContentStreamRef> {
+        self.marked.last().and_then(|l| l.mcid_stream)
     }
 
     /// Whether any enclosing sequence is `/ReversedChars`.

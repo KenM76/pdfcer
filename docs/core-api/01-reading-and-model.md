@@ -1095,7 +1095,8 @@ for page in &all.pages {                       // Vec<PageText>            mod.r
 }
 ```
 
-`TextRun`: `text`, `origin`, `glyphs`, `artifact`, `mcid`,
+`TextRun`: `text`, `origin`, `glyphs`, `artifact`, `mcid`, `mcid_stream`
+(which content stream's MCID namespace `mcid` belongs to),
 `bbox: Option<Rect>`; method `direction() -> (f32, f32)`.
 ★ `text` is **not** one `char` per glyph and the run is **not** one show
 operator — see §8.4.0 before building anything that locates an edit from a
@@ -1246,6 +1247,43 @@ Note the pairing: `ExtractedGlyph::size` is the **effective** size (the
 y-scale of the text rendering matrix); `GlyphProvenance::tf_size` is the
 **raw operand**. `mod.rs` contrasts them explicitly. Use `size` to
 draw; use `tf_size` only to reason about the source operator.
+
+### 8.4.2 The structure tree — reading order and element types (`Pass 372.0`)
+
+```rust
+use pdfcer_core::structure_tree::{self, StructKid, StructTreatment};
+
+let tree = structure_tree::read_structure_tree(&doc, &opts)?;   // untagged: Ok, empty
+for (i, e) in tree.elements.iter().enumerate() {   // pre-order = logical reading order
+    // e.resolved_type: role-mapped standard name ("H1", "TD"); e.raw_type: /S as written
+    // e.standard: false when the chain never reached a standard type
+    // e.treatment: Normal | NonStruct | Private | Artifact
+    let text = tree.element_text(i);               // ActualText replaces the subtree
+    let boxes = tree.element_bbox(i);              // Vec<(page_index, Rect)>, user space
+}
+```
+
+- `StructElement`: `raw_type`, `resolved_type`, `namespace`, `standard`,
+  `treatment`, `parent`, `depth`, `object`, `id`, `title`, `alt`,
+  `actual_text`, `expansion`, `lang`, `effective_lang` (inherited),
+  `page_index`, `kids`, and for standard `TH`/`TD` `row_span`/`col_span`
+  (default 1), `scope`, `headers`; `list_numbering` (inherited). Attributes
+  resolve `/A` then `/C` via ClassMap, later wins (ISO 32000-2 §14.7.6).
+- `StructKid`: `Element(index)` (always a later index), `MarkedContent
+  { page_index, stream, mcid, runs, declared }` (`runs` index into
+  `tree.text.pages[page_index].runs`), `Object { page_index, object,
+  subtype, rect }` (an annotation or XObject by OBJR).
+- Role mapping always applies once, even to a standard name (ISO 32000-2
+  §14.7.3 NOTE 3), then follows the chain; `/NS` elements use that
+  namespace's `RoleMapNS`. PDF 2.0 namespace accepts `Hn`.
+- `tree.diagnostics` counts every disagreement between the tree and the
+  content (`named_not_declared`, `declared_unclaimed`, `claimed_twice`,
+  `role_map_cycles`, `elements_revisited`, `page_unresolved`, …). Nothing
+  is guessed silently; a broken tree still returns what it could read.
+- `PageText::marked_content_ids` lists every `(ContentStreamRef, mcid)` a
+  `BDC` declared on the page, including sequences with no text — the join
+  needs it to tell "declared, no text" from "absent".
+- CLI: `pdfcer extract-tags in.pdf [--json] [-o out]`.
 
 ### 8.5 ★ Search — it lives on `EditSession`
 

@@ -38,6 +38,7 @@ fn glyph_run(chars: &[(&str, f32, f32, f32, f32)]) -> TextRun {
         glyphs,
         artifact: None,
         mcid: None,
+        mcid_stream: None,
         bbox: None,
     }
 }
@@ -49,6 +50,7 @@ fn line_break() -> TextRun {
         glyphs: Vec::new(),
         artifact: None,
         mcid: None,
+        mcid_stream: None,
         bbox: None,
     }
 }

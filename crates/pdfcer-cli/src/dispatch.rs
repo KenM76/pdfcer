@@ -629,6 +629,11 @@ pub(crate) fn run() -> ExitCode {
             include_artifacts,
             spans,
         ),
+        Command::ExtractTags {
+            input,
+            output,
+            json,
+        } => cmd_extract_tags(&input, output.as_deref(), json),
         Command::FetchOcrModels { dir } => cmd_fetch_ocr_models(dir.as_deref()),
         Command::ListStandards { standard } => cmd_list_standards(standard.as_deref()),
         Command::Ocr {

@@ -2972,6 +2972,33 @@ pub(crate) enum Command {
         spans: bool,
     },
 
+    /// Read a tagged PDF's structure tree: headings, paragraphs, lists,
+    /// tables and figures in reading order, with their text.
+    ///
+    /// Each element's type is shown after role mapping (a producer's own
+    /// name such as `Heading1` becomes `H1`), with the producer's name in
+    /// parentheses when they differ. Text comes from the marked content the
+    /// element points at, or from its `/ActualText`.
+    ///
+    /// The result line counts what does not add up: content the tree points
+    /// at that the page never marks (`named_not_declared`), marked content no
+    /// element owns (`declared_unclaimed`), and types no role map reaches a
+    /// standard name for (`non_standard`). An untagged file prints nothing
+    /// and reports `struct_tree=false`; it is not an error.
+    ExtractTags {
+        /// Input PDF.
+        input: PathBuf,
+        /// Write the tree here instead of to stdout.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Emit JSON: every element's type, raw type, namespace, page,
+        /// boxes, text, `/Alt`, `/ActualText`, `/Lang`, table spans and
+        /// headers, list numbering and kids (MCIDs with their runs,
+        /// annotation references).
+        #[arg(long)]
+        json: bool,
+    },
+
     /// **Download the OCR model weights**, verified against a pinned
     /// SHA-256 before anything is written.
     ///

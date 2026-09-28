@@ -1719,3 +1719,210 @@ pub(crate) fn fill_color_json(color: Option<&pdfcer_core::text_extract::TextColo
         Some(_) => "\"unknown\"".to_string(),
     }
 }
+
+/// **Read a tagged PDF's structure tree** (`G053`): elements in logical
+/// order with their role-mapped type, text, page and box.
+///
+/// Text output is one element per line, indented by depth:
+/// `<type>[ (<raw>)] p<page> "<text>"`. `--json` carries every field of
+/// `pdfcer_core::structure_tree::StructElement` plus the element's text and
+/// per-page boxes. Diagnostic notes go to stderr; the result line is on
+/// stdout after the payload (or alone with `-o`).
+pub(crate) fn cmd_extract_tags(input: &Path, output: Option<&Path>, json: bool) -> u8 {
+    use pdfcer_core::structure_tree::read_structure_tree;
+    use pdfcer_core::text_extract::ExtractOptions;
+
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let tree = match read_structure_tree(&doc.view(), &ExtractOptions::default()) {
+        Ok(tree) => tree,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let payload = if json {
+        tags_json(&tree)
+    } else {
+        tags_text(&tree)
+    };
+    match output {
+        Some(path) => {
+            if let Err(err) = std::fs::write(path, payload.as_bytes()) {
+                eprintln!("pdfcer: {}: {err}", path.display());
+                return exit::IO_ERROR;
+            }
+        }
+        None => print!("{payload}"),
+    }
+    let d = &tree.diagnostics;
+    for note in &d.notes {
+        eprintln!("pdfcer: {note}");
+    }
+    println!(
+        "tags {} struct_tree={} elements={} non_standard={} role_map_cycles={} \
+revisited={} mcids_named={} named_not_declared={} declared_unclaimed={} \
+claimed_twice={} object_refs={} malformed={} page_inherited={} page_unresolved={}",
+        input.display(),
+        d.struct_tree_present,
+        d.elements,
+        d.non_standard_types,
+        d.role_map_cycles,
+        d.elements_revisited,
+        d.mcids_named,
+        d.named_not_declared,
+        d.declared_unclaimed,
+        d.claimed_twice,
+        d.object_refs,
+        d.malformed_kids,
+        d.page_inherited,
+        d.page_unresolved,
+    );
+    exit::SUCCESS
+}
+
+fn tags_text(tree: &pdfcer_core::structure_tree::StructureTree) -> String {
+    let mut out = String::new();
+    for (i, e) in tree.elements.iter().enumerate() {
+        out.push_str(&"  ".repeat(e.depth));
+        out.push_str(&e.resolved_type);
+        if e.raw_type != e.resolved_type {
+            out.push_str(&format!(" ({})", e.raw_type));
+        }
+        if let Some(p) = e.page_index {
+            out.push_str(&format!(" p{}", p + 1));
+        }
+        let text = tree.element_text(i);
+        if !text.is_empty() {
+            out.push_str(&format!(" {text:?}"));
+        }
+        out.push('\n');
+    }
+    out
+}
+
+fn tags_json(tree: &pdfcer_core::structure_tree::StructureTree) -> String {
+    use pdfcer_core::structure_tree::{StructKid, StructTreatment};
+    use pdfcer_core::text_extract::ContentStreamRef;
+
+    let s = |v: &Option<String>| {
+        v.as_deref()
+            .map_or_else(|| "null".to_owned(), |t| format!("\"{}\"", json_escape(t)))
+    };
+    fn n<T: std::fmt::Display>(v: Option<T>) -> String {
+        v.map_or_else(|| "null".to_owned(), |x| x.to_string())
+    }
+    let mut out = String::from("{\n  \"elements\": [");
+    for (i, e) in tree.elements.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        let treatment = match e.treatment {
+            StructTreatment::NonStruct => "NonStruct",
+            StructTreatment::Private => "Private",
+            StructTreatment::Artifact => "Artifact",
+            _ => "Normal",
+        };
+        let kids: Vec<String> = e
+            .kids
+            .iter()
+            .map(|k| match k {
+                StructKid::Element(c) => format!("{{\"element\": {c}}}"),
+                StructKid::MarkedContent {
+                    page_index,
+                    stream,
+                    mcid,
+                    runs,
+                    declared,
+                } => {
+                    let stream = match stream {
+                        ContentStreamRef::Form { object } => object.to_string(),
+                        _ => "null".to_owned(),
+                    };
+                    format!(
+                        "{{\"mcid\": {mcid}, \"page\": {}, \"form\": {stream}, \"declared\": {declared}, \"runs\": {runs:?}}}",
+                        n(page_index.map(|p| p + 1))
+                    )
+                }
+                StructKid::Object {
+                    page_index,
+                    object,
+                    subtype,
+                    ..
+                } => format!(
+                    "{{\"object\": \"{object}\", \"page\": {}, \"subtype\": {}}}",
+                    n(page_index.map(|p| p + 1)),
+                    s(subtype)
+                ),
+                _ => "null".to_owned(),
+            })
+            .collect();
+        let boxes: Vec<String> = tree
+            .element_bbox(i)
+            .iter()
+            .map(|(p, r)| {
+                format!(
+                    "{{\"page\": {}, \"rect\": [{:.2}, {:.2}, {:.2}, {:.2}]}}",
+                    p + 1,
+                    r.llx,
+                    r.lly,
+                    r.urx,
+                    r.ury
+                )
+            })
+            .collect();
+        let headers: Vec<String> = e
+            .headers
+            .iter()
+            .map(|h| format!("\"{}\"", json_escape(h)))
+            .collect();
+        out.push_str(&format!(
+            "\n    {{\"index\": {i}, \"type\": \"{}\", \"raw_type\": \"{}\", \"namespace\": {}, \
+\"standard\": {}, \"treatment\": \"{treatment}\", \"parent\": {}, \"depth\": {}, \
+\"page\": {}, \"id\": {}, \"title\": {}, \"alt\": {}, \"actual_text\": {}, \
+\"expansion\": {}, \"lang\": {}, \"effective_lang\": {}, \"row_span\": {}, \
+\"col_span\": {}, \"scope\": {}, \"headers\": [{}], \"list_numbering\": {}, \
+\"text\": \"{}\", \"boxes\": [{}], \"kids\": [{}]}}",
+            json_escape(&e.resolved_type),
+            json_escape(&e.raw_type),
+            s(&e.namespace),
+            e.standard,
+            n(e.parent),
+            e.depth,
+            n(e.page_index.map(|p| p + 1)),
+            s(&e.id),
+            s(&e.title),
+            s(&e.alt),
+            s(&e.actual_text),
+            s(&e.expansion),
+            s(&e.lang),
+            s(&e.effective_lang),
+            n(e.row_span),
+            n(e.col_span),
+            s(&e.scope),
+            headers.join(", "),
+            s(&e.list_numbering),
+            json_escape(&tree.element_text(i)),
+            boxes.join(", "),
+            kids.join(", "),
+        ));
+    }
+    let roots: Vec<String> = tree.roots.iter().map(ToString::to_string).collect();
+    let notes: Vec<String> = tree
+        .diagnostics
+        .notes
+        .iter()
+        .map(|t| format!("\"{}\"", json_escape(t)))
+        .collect();
+    out.push_str(&format!(
+        "\n  ],\n  \"roots\": [{}],\n  \"notes\": [{}]\n}}\n",
+        roots.join(", "),
+        notes.join(", ")
+    ));
+    out
+}

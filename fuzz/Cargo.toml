@@ -242,6 +242,14 @@ test = false
 doc = false
 bench = false
 
+# G053: the structure-tree reader (/K graphs, role-map chains, attributes).
+[[bin]]
+name = "structure_tree"
+path = "fuzz_targets/structure_tree.rs"
+test = false
+doc = false
+bench = false
+
 # Pass 6.0 (docs/decisions/008): the annotation-walk target. Drives the
 # read-side annotation model — the /Annots walk and the §12.5.5 /AP /N
 # appearance selection with its negative-result taxonomy (cyclic /AP,

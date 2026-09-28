@@ -1152,6 +1152,7 @@ mod tests {
             glyphs: Vec::new(),
             artifact: None,
             mcid: None,
+            mcid_stream: None,
             bbox: None,
         }
     }
@@ -1172,6 +1173,7 @@ mod tests {
             glyphs: Vec::new(),
             artifact: None,
             mcid: None,
+            mcid_stream: None,
             bbox: None,
         };
         let mut cur_x = x;

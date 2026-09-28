@@ -685,6 +685,13 @@ pub struct TextRun {
     /// tree. Recorded now so a later structure-order Pass has it; not
     /// used for ordering this Pass.
     pub mcid: Option<u32>,
+    /// The content stream [`Self::mcid`] is scoped to — `Some` exactly when
+    /// `mcid` is. An MCID identifies a sequence only "within its content
+    /// stream" (§14.7.4.2), so a form XObject's own MCIDs (`Form`) and the
+    /// page's (`Page`) are different keys even when the integers match. A
+    /// form painted inside a page-level sequence carries the page's key
+    /// (§14.7.4.2 case 1).
+    pub mcid_stream: Option<ContentStreamRef>,
     /// Bounding box in default user space, when the run has geometry.
     /// `None` for derived-whitespace runs and for an `/ActualText` run
     /// that covered no glyphs.
@@ -919,6 +926,12 @@ pub struct PageText {
     pub runs: Vec<TextRun>,
     /// What this page's extraction had to derive, tolerate or defer.
     pub diagnostics: TextDiagnostics,
+    /// Every marked-content identifier (`/MCID`, §14.7.4.2) a `BDC` on this
+    /// page declared, with the content stream it is scoped to, in
+    /// declaration order. Unlike [`TextRun::mcid`] it includes sequences
+    /// that paint no text (an image, a path), so a structure-tree reader can
+    /// tell "declared, no text" from "named but absent".
+    pub marked_content_ids: Vec<(ContentStreamRef, u32)>,
     /// Whether [`PageText::plain_text`] includes artifact runs.
     ///
     /// Captured from [`ExtractOptions::include_artifacts`] at extraction
@@ -1617,7 +1630,11 @@ pub fn extract_page_view(
     page_index: usize,
     options: &ExtractOptions,
 ) -> Result<PageText, ExtractError> {
-    let (items, mut diagnostics) = page::walk_page(doc, page, options)?;
+    let page::WalkOutput {
+        items,
+        mut diagnostics,
+        declared_mcids,
+    } = page::walk_page(doc, page, options)?;
     document_facts(doc, &mut diagnostics);
     // A `/Contents` element that named a missing object contributed no
     // bytes to `walk_page`, so nothing downstream can observe it. Carry the
@@ -1655,6 +1672,7 @@ pub fn extract_page_view(
         page_index,
         runs,
         diagnostics,
+        marked_content_ids: declared_mcids,
         include_artifacts: options.include_artifacts,
     })
 }
@@ -1715,6 +1733,7 @@ pub fn extract_document_view(
                     page_index: index,
                     runs: Vec::new(),
                     diagnostics,
+                    marked_content_ids: Vec::new(),
                     include_artifacts: options.include_artifacts,
                 }
             }
@@ -1777,6 +1796,7 @@ pub fn extract_pages_view(
                 page_index: index,
                 runs: Vec::new(),
                 diagnostics,
+                marked_content_ids: Vec::new(),
                 include_artifacts: options.include_artifacts,
             }
         });
