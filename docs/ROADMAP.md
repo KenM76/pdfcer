@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 142.0` (`62deb938`), 2026-09-28 — restyle existing text into a donor face, embedding a subset
+
+**Verdict: SHIPPED — the embedded-donor half of FF-C for `format_text`.** Closes this entry's own acceptance criterion 4 ("embedded-donor creation is a separate slice if it lands at all"); criteria 1–3 shipped earlier as `Pass 162.0` (standard-14 half). The automatic style-ladder's rung 3 (`--bold`/`--italic` auto-picking a donor with no `--find`) is NOT this Pass — filed separately as `Pass 142.3`, *Backlog*, below.
+
+**Core.** `FormatRequest::embedded_font(FontEmbedPlan)` (new builder) / new `pub embed_font: Option<Box<FontEmbedPlan>>` field. When no page font resource matches the plan's base name, or a matching resource is an embedded subset lacking a needed glyph, `format_text`/`set_format` embed the donor: Type0 wrapper + CIDFontType2 (direct `/W`, `/DW`) + `/FontDescriptor` + `FontFile2` + `/ToUnicode` (§9.6.4 ST1–ST4, subset tag made unique file-wide); the run is re-encoded as two-byte Identity-H CIDs (§9.7.6.2). §9.3.3's `Tw` applies only to single-byte code 32, so `tw` is not counted for the two-byte case. Works on the one-shot page path, the one-shot form-XObject path, and `EditSession` (page + form) as one undo entry covering all five new objects. A character the plan does not cover refuses by name (`FormatError::CoverageFailure`), nothing applied. Reuses `embedded_font_objects` (shared with `add_text`'s `--embed-font`) rather than a second implementation, per the note flagged at the 613th filing.
+
+**CLI.** `format-text --embed-font FILE` — conflicts with `--set-font`/`--bold`/`--italic`; requires `--find` (the subset must cover exactly the find text's characters), refused with exit 9 otherwise.
+
+**Disclosure.** *"EMBEDDED a subset … N glyph(s), M byte(s) of font program … Type0 … Identity-H"*, off-canvas, both shells (rule 4).
+
+**Wording fix.** Refusal messages that previously called this "deferred (FF-C)" now name the remedy directly ("supply the face's font program…").
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gained a row; index counts updated; `check-core-api-verbs` PASS.
+
+**Tests.** `pdfcer-render`: `format_embed_font` (3 — one-shot, session with byte-identical undo, coverage refusal; sabotage-checked: forcing single-byte encoding and dropping staged stream bytes each caught). `pdfcer-cli`: `format_text` +2 (saved file re-read via `list-fonts`/`extract-text`; missing glyph writes no output).
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands incl. 2 filing gates. No `Cargo.toml` change — `cargo tree` invariant not applicable, no new dependency.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` has not consumed this.
+
+**`docs/FEATURES.md`.** New *Implemented → Text* row for explicit donor-face restyle (core `[x]`, cli `[x]`, gui `[ ]`); *Planned* row narrowed to the automatic-ladder rung 3 only, now pointing at `Pass 142.3`; rows 201 and 207's "Planned" citations of `Pass 142.0` corrected to point at this shipped Pass / at `Pass 142.3`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `62deb938`, not independently reproduced. Not yet released (latest release remains `v0.60.0`, tagged on `040c24d7`, which precedes this commit); backup/push state not verifiable from here.
+
 ### `Pass 264.0` (`f3a68e9c`), 2026-09-28 — read `/RC` rich text and `/DS` default style on every annotation subtype
 
 **Verdict: SHIPPED — closes `Pass 264.0` in full.** Closes the residue flagged when `Pass 273.0` (`890d5df`, *Shipped*) shipped the desync-guard half of this ID: "neither key is modelled on read at all" — the entirety of what remained open.
@@ -20439,177 +20463,22 @@ remapping its target either dangles the reference or silently re-targets it
 at whatever object now occupies that id. Unscoped, awaiting `pdfceGUI`'s
 answer on whether they need this before it is sized into a real Pass.
 
-### `Pass 142.0` — **FF-C WIRED INTO `format_text`: RESTYLE EXISTING TEXT TO A FACE THE PAGE DOES NOT ALREADY CARRY** — ★★ **READ THE SCOPE CORRECTION FIRST, BECAUSE THE COMMIT THAT PROMPTED THIS ENTRY STATES THE GAP TOO WIDELY** — filed 2026-08-27 (293rd filing), **NOT STARTED. ★★★ NO LONGER BLOCKED — THE ANSWER ARRIVED 2026-08-27; DE-PRIORITISED, *NOT* CLOSED (296th filing, amendment below). ★★★★ NARROWED 2026-08-29 (319th filing) — THE STANDARD-14 HALF SHIPPED AS `Pass 162.0`; ONLY THE NON-STANDARD-14 (EMBEDDED-DONOR) HALF REMAINS HERE**
+### `Pass 142.3` — **AUTOMATIC BOLD/ITALIC LADDER, RUNG 3: EMBED A DONOR PICKED FROM `--font-dir` BY FAMILY AND STYLE, BEFORE FALLING TO SYNTHESIS** — filed 2026-09-28 (692nd filing), NOT STARTED
 
-> **★★★★★ RE-WEIGHTED 2026-08-30 (340th filing), by an OPERATOR RULING —
-> decision `106`. THIS ENTRY DOES NOT MOVE, AND THAT IS THE POINT.** Ken,
-> verbatim: *"bold font should be automatically used if available, but
-> otherwise synthetic should be supported, and the user shouldn't have to
-> intervene."* Given in reply to the engineer asking whether to take **this
-> item** or the colour work next. Three consequences, all of them about
-> where `142.0` now sits rather than about what it contains:
->
-> 1. **The ruling raises the NEW automatic-ladder work (`Pass 179.0`) above
->    `142.0`; it does NOT raise `142.0` itself.** The ladder's **rung 2** —
->    the standard-14 Bold sibling of the run's own face,
->    `Helvetica`→`Helvetica-Bold` — delivers a **real** bold for
->    Helvetica / Times / Courier text with **no embedding**, and that covers
->    a large share of the CAD and office documents this project actually
->    sees. ⇒ **Much of what `142.0` was wanted for arrives without `142.0`.**
-> 2. **★★ `142.0` IS THE LADDER'S RUNG 3.** `Pass 179.0`'s rung 3 — *"a face
->    supplied via `--font-dir`"* — is not new work; it is **this entry**.
->    `--font-dir` on `format-text` today supplies non-embedded faces for
->    rendering and measurement only (decision 012, `main.rs:5332`); binding a
->    donor face a run never referenced needs subsetting and embedding, which
->    is criterion 4 below verbatim. ⇒ **`179.0` ships with rung 3 ABSENT and
->    grows it when this lands.** The two are not competitors.
-> 3. The consuming project's use report — *"Synthetic is enough. Drop
->    `142.0` down the queue"*, recorded in the 296th-filing amendment below —
->    **stands unchanged.** Nothing in the ruling contradicts it; the ruling
->    is about **who chooses** between real and synthetic, not about whether
->    an embedded donor is needed.
->
-> **★ De-prioritised, still NOT closed and still NOT declined**, exactly as
-> the 296th filing left it.
+**The gap.** `FormatRequest::style`'s automatic ladder (`Pass 179.0`) stops at rung 2 (`fontdata::std14_styled`, the standard-14 sibling of the run's own family) and falls straight to synthesis when neither a real page face nor a standard-14 sibling covers the run. Rung 3 — *"a face supplied via `--font-dir`"* — was named as `Pass 142.0`'s scope by decision 106, but `Pass 142.0` (`62deb938`, *Shipped*) built the EMBEDDING machinery only, behind an EXPLICIT `--embed-font FILE` gated on `--find` naming exactly the covered characters. Rung 3 needs the ladder to pick a donor AUTOMATICALLY — by family and style, from `--font-dir`, with no `--find` and no named file — then call that same embedding machinery before synthesising.
 
-> **★★★★ NARROWED 2026-08-29 (319th filing), from `Pass 162.0` (`9c3a1c9`).**
-> `format-text --set-font` now authors a **standard-14** (§9.6.2.2) font
-> resource on demand when the target's `/Resources` lacks it — see
-> `Pass 162.0`'s *Shipped* entry above for the full account (`bind_font_
-> resource`, the three-save-paths trap, the §7.8.3 inheritance-shadowing
-> trap). **This entry's remaining scope is exactly its own criterion 4**,
-> unchanged below: a face **outside** the standard 14, which needs a real
-> font program — subset from `--font-dir`, a `/FontDescriptor` with
-> `/FontFile2`/`/FontFile3`, widths, encoding and a file-unique subset tag
-> (§9.6.4 ST1–ST4, uniqueness scoped to the **whole file**, not session
-> state). **Not deleted** — the amendment two paragraphs below already
-> establishes that the consuming shell's *"synthetic is enough"* was a
-> report of **their** use, not a decision about ours, and that reasoning is
-> unaffected by how much of the gap has shipped. `162.0`'s own entry
-> records that `bind_font_resource` is now the **single** implementation
-> this remaining half extends, not a second one to write.
+**Why it is not a re-implementation.** `embedded_font_objects`/`FontEmbedPlan` already do the subset/embed work; this Pass is a SELECTOR in front of it (matching `--font-dir`'s faces by family + style, the way `preview_style_resolution`/`gate_synthesis` already match by family + coverage) plus wiring it into `set_style`'s ladder instead of `format_text`'s explicit path. `R221` applies: build the selector once, call it from both paths if both need it — not two predicates for "does a covering donor exist here."
 
-> **★★★ AMENDED 2026-08-27 (296th filing) — THE OPEN QUESTION AT THE FOOT
-> OF THIS ENTRY IS ANSWERED, AND THE ANSWER IS "NOT NOW", NOT "NEVER".**
->
-> This entry closed by saying the question was *"the requester's, not the
-> engineer's"* and that a correction to the reply was **owed** before the
-> answer was acted on. **Both happened.** The correction went out
-> (`correction_bold_and_italic_DO_work_...`, 14:54); the requester answered
-> at 17:18 (`reply_synthetic_is_enough_and_142_1_is_the_one_we_want.md`):
->
-> > **"Synthetic is enough. Drop `142.0` down the queue."**
->
-> **The reasoning is a USE REPORT, not a preference**, which is why it is
-> quoted rather than summarised: CAD exports — SolidWorks drawings, site
-> plans, title blocks; the restyled text is *"a part number, a revision
-> letter, a note added during review"*; the audience is *"a fabricator
-> reading a print, not a typographer"*; *"on a 1:50 site plan at 8 pt, a
-> stroked regular face and a real Bold are not distinguishable on paper"*;
-> and *"the operator's standing complaint about this program is that basic
-> things do not work, not that they work imperfectly."*
->
-> **★ THEY SCOPED THEIR OWN ANSWER, AND THE SCOPING IS BINDING ON HOW THIS
-> ENTRY IS READ:** *"This is a report of our operator's use, not a decision
-> about yours… we are not asking you to close `142.0`, only saying it does
-> not block us."*
->
-> ⇒ **`142.0` STAYS HERE, unstarted, NOT closed and NOT declined.** A
-> consumer setting body text would weigh it differently. Two things changed
-> and nothing else did: it is **no longer blocked**, and it is **behind
-> `142.1`** in the queue. **Do not read "de-prioritised" as "answered no"** —
-> the typographic gap this entry describes is real and unchanged.
->
-> **`Pass 142.1` has been PROMOTED to *Next up*** by the same filing, with
-> two refinements; see its entry there. The prediction in this entry's
-> sibling — that `142.1` *"is worth shipping even if `142.0` is declined"* —
-> is **confirmed by the requester**, not superseded by them.
+**Acceptance criteria, provisional:**
 
-> **★★ SCOPE CORRECTION, MADE AT FILING TIME AND NOT AFTERWARDS.** The
-> dispatch that opened this entry, and `3ffd86f`'s
-> `docs/core-api/03-capabilities.md` §3.6, both say **bold and italic do
-> not work on existing text**. **They do**, via
-> `FormatRequest::set_synthetic` (`Pass 19.2`, `ebe35d8`, 2026-08-03;
-> CLI `format-text --bold-synthetic --italic-synthetic`), and
-> `gate_synthesis` permits synthesis **precisely when no real face is a
-> page resource** — the exact complement of `set_font`'s predicate. Full
-> evidence in the 293rd filing's *Shipped* entry. **This Pass is therefore
-> about TYPOGRAPHIC QUALITY, not about capability**: a real `Helvetica-Bold`
-> outline instead of a §9.3.6 mode-2 stroke-widened `Helvetica`.
+1. `set_style`'s ladder gains rung 3 between the standard-14 sibling and synthesis: search `--font-dir` for a face matching the run's family + requested style (bold/italic/bold-italic); if found and it covers the run's characters, embed and bind it, one undo entry.
+2. `style_policy` (`auto`/`warn`/`refuse`, `Pass 179.2`) governs rung 3 exactly as it governs synthesis today — `refuse` stops before rung 3 embeds anything the operator did not ask for by name, or `179.2`'s posture contract needs restating.
+3. `FormatReport::style_ladder`'s `rung` gains a value naming rung 3, disclosed off-canvas on both shells.
+4. No `--font-dir` supplied, or no covering face found there, falls through to synthesis exactly as today — pinned by a test.
 
-**The gap, stated accurately.** `EditSession::format_text`'s
-`set_font: Option<FontSelector>` **selects** a font; it does not **create**
-one. The target must already be in the page's `/Resources /Font`, located by
-resource key or by `/BaseFont` with the §9.6.4 subset tag stripped. Where it
-is not, the verb refuses by name:
+**Also owed**, noted at ship time and not yet built: a dedicated test for `Pass 142.0`'s form-XObject embedding path — `format_embed_font`'s 3 tests cover the one-shot page path, the session path and coverage refusal, none form-XObject-specific, though the code shares `add_text`'s proven form route.
 
-```
-pdfce-cli: format-text refused: the target font "Helvetica-Bold" is not an
-existing font resource on this page; adding a new font resource / embedding
-a new face is deferred (FF-C)
-```
-
-(`FormatError::TargetFontMissing`.) So today, on a page carrying only
-`Helvetica`, an operator asking for real bold gets **synthesised** bold —
-correct, disclosed, self-evident by inspection (decision 019 §3.6's
-*P-selfevident*), and **not the same as a designed Bold face**: mode-2
-stroke widening inflates weight uniformly and does not reshape counters,
-terminals or sidebearings.
-
-**Why it is plausibly small.** The machinery exists and is proven:
-`add_text` already creates **Standard-14** font resources and, via
-`--embed-font`, **subsetted embedded donor** resources. What is missing is
-the wiring — `format_text`'s plan currently produces a **new content buffer
-and no new objects**, so there is no place in it for a resource to be
-created and referenced.
-
-**Why it is nonetheless a decision and not a chore.**
-
-- **`R90` interacts.** Synthesis is a *fallback*, refused when a real face
-  is available. Creating a real face on demand **changes what "available"
-  means mid-verb** — a request for synthetic bold on a Helvetica-only page
-  succeeds today and would have to keep succeeding, or the change is a
-  regression for every existing caller.
-- **Round-trip rule 3.** Creating objects inside a verb whose contract is
-  "one content buffer" widens the minimal diff. The `add_text` precedent
-  says this is acceptable; it needs saying explicitly for `format_text`.
-- **Which face, and from where.** Standard-14 has no embedded program;
-  a donor face needs a source the operator names. There is no honest
-  default.
-
-**Acceptance criteria, provisional** (a real scoping pass should run
-`pdfce-acrobat-librarian` first, per the *Feature-fidelity discipline*
-standing rule):
-
-1. `format_text` may create a Standard-14 font resource on the target page
-   when `set_font` names one and it is absent, referencing it from the new
-   content buffer, as **one undo entry**.
-2. The synthesis fallback's behaviour is **unchanged for every input that
-   works today** — pinned by a test authored to fail if creation silently
-   pre-empts `R90`'s gate.
-3. The disclosure says a resource was **created**, off-canvas, per
-   `CLAUDE.md` rule 4 as amended by decision 059; `pdfce-cli` prints it
-   (rule 11).
-4. Embedded-donor creation is a **separate slice** if it lands at all.
-
-> **Note added 2026-09-26 (613th filing), by `Pass 331.0`.** The five-object
-> embedded-donor build (`/Type0`, `/CIDFontType2`, `/FontDescriptor`,
-> `FontFile2`, `/ToUnicode`) already exists and is shared, as
-> `embedded_font_objects` (`crates/pdfcer-core/src/text_edit/addtext.rs`) —
-> this Pass's design reuses it, not a second implementation. But the
-> subsetter strips `cmap`, so a donor must be embedded as `/Type0`
-> Identity-H — a **composite** (two-byte) target — and `format_text` today
-> refuses composite targets outright. So `142.0` needs a composite re-encode
-> path in `format_text` before criterion 4 above is reachable.
-
-**Open question, and it is the requester's, not the engineer's.**
-`pdfceGUI` filed `request_restyle_an_existing_text_run.md` (2026-08-25)
-describing five buttons. Four of the five work today; the fifth — *a real
-bold/italic FACE* — is this Pass. **Whether that is worth a Pass is their
-call**, and the reply currently in
-`D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/` asks the wrong version
-of the question (it asks whether bold/italic matters at all). **Owed: a
-correction to that reply before the answer is acted on.**
+**De-prioritised, not declined**, on the same 2026-08-27 use report `Pass 142.0`'s Backlog entry carried: the consuming shell reported synthetic weight is enough for its CAD title-block and markup work. A consumer setting body text would weigh it differently.
 
 ### `Pass 142.1` — **A PRE-FLIGHT THAT ENUMERATES A PAGE'S FONT RESOURCES, SO A SHELL CAN DISABLE A CONTROL INSTEAD OF DRIVING IT FROM AN ERROR** — filed 2026-08-27 (293rd filing), NOT STARTED — ★★ **PROMOTED TO *Next up* 2026-08-27 (296th filing). THIS ENTRY IS THE SCOPING RECORD AND STAYS HERE; the LIVE entry, with the requester's two refinements and the `Pass 144.0` dependency, is in *Next up*.**
 

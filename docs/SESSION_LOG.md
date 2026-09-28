@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (692nd filing) — `62deb938`: `Pass 142.0` SHIPPED — restyle existing text into a donor face, embedding a subset
+
+**Shipped:**
+- `Pass 142.0` — `FormatRequest::embedded_font(FontEmbedPlan)` (new builder / new `pub embed_font` field). When no page font resource matches the plan's base name, or a matching one is an embedded subset lacking a needed glyph, `format_text`/`set_format` embed the donor: Type0 wrapper + CIDFontType2 (direct `/W`/`/DW`) + `/FontDescriptor` + `FontFile2` + `/ToUnicode`, file-unique subset tag (§9.6.4), run re-encoded as two-byte Identity-H CIDs (§9.7.6.2). Works on the one-shot page path, the one-shot form-XObject path, and `EditSession` (page + form), one undo entry for all five objects. A character the plan lacks refuses by name (`CoverageFailure`). CLI `format-text --embed-font FILE`, requires `--find`, conflicts with `--set-font`/`--bold`/`--italic`. Reuses `add_text`'s `embedded_font_objects`, not a second implementation. Full record at the top of `ROADMAP.md`'s *Shipped*.
+- Closes this Backlog entry's own acceptance criterion 4 ("embedded-donor creation is a separate slice if it lands at all"); criteria 1–3 shipped earlier as `Pass 162.0`.
+
+**Decisions made this session:**
+- None new — no architectural decision, `ARCHITECTURE.md` §12 unchanged at decision `164`.
+
+**Findings + decisions:**
+- The automatic bold/italic ladder's rung 3 (`Pass 179.0`) is NOT this Pass — `142.0` is an explicit, `--find`-gated embed; rung 3 needs an automatic donor SELECTOR (family + style, no `--find`) calling the same machinery. Filed separately as `Pass 142.3`, *Backlog*.
+- **Ledger discrepancy found and corrected against this dispatch's premise**: the standing-rule ceiling was given as "next free `R251`", but `ROADMAP.md`'s own *Standing rules* section already defines rules through `R257` (with dated instances on several) — the live next-free is `R258`, not `R251`. This filing mints no rule, so the discrepancy is noted here rather than acted on; a future filing should re-verify and reconcile the two figures before relying on either. Decision-number and filing-count premises (next free decision `165`, 691st prior filing) both checked correct against the files.
+
+**Still in flight:**
+- `Pass 142.3` (automatic style-ladder rung 3) filed, *Backlog*, not started; also owed there: a dedicated form-XObject test for `Pass 142.0`'s embedding path (`format_embed_font`'s 3 tests are page/session/refusal, none form-specific).
+- Same open items as the 691st filing otherwise — no named head in *Next up*.
+
+**For next session:**
+- `docs/FEATURES.md`: new *Implemented → Text* row for explicit donor-face restyle (core `[x]`, cli `[x]`, gui `[ ]`); the pre-existing *Planned* row narrowed to rung 3 only and repointed at `Pass 142.3`; two *Implemented* rows' prose citations of "`Pass 142.0`, Planned" corrected to cite the shipped hash.
+- Re-verify the `R251`/`R258` standing-rule ceiling discrepancy flagged above before the next rule mint.
+- No shell available this filing — `62deb938` relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes this commit).
+
 ## 2026-09-28 (691st filing) — `f3a68e9c`: `Pass 264.0` SHIPPED — read `/RC` rich text and `/DS` default style on every annotation subtype
 
 **Shipped:**
