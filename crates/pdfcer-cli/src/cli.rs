@@ -3077,6 +3077,11 @@ pub(crate) enum Command {
         /// --json` order).
         #[arg(long)]
         json: bool,
+        /// 1-based pages to read: `all`, `3`, `1-4`, `5,1-2`. Order is
+        /// honoured; only these pages are read, and the counts cover only
+        /// them.
+        #[arg(long, default_value = "all")]
+        pages: String,
     },
 
     /// Write the document's tables to an Excel workbook (.xlsx).
@@ -3108,6 +3113,11 @@ pub(crate) enum Command {
         /// How numbers are read.
         #[arg(long, value_enum, default_value = "auto")]
         numbers: NumbersArg,
+        /// 1-based pages to read: `all`, `3`, `1-4`, `5,1-2`. Order is
+        /// honoured; only these pages are read, and the counts cover only
+        /// them.
+        #[arg(long, default_value = "all")]
+        pages: String,
     },
 
     /// Write the document's text to a Word document (.docx).
@@ -3139,6 +3149,12 @@ pub(crate) enum Command {
         /// Leave tables as paragraphs of text.
         #[arg(long)]
         no_tables: bool,
+        /// 1-based pages to read: `all`, `3`, `1-4`, `5,1-2`. Order is
+        /// honoured; only these pages are read, and the counts cover only
+        /// them. Running headers and footers are found among these pages
+        /// alone, so a single page has none.
+        #[arg(long, default_value = "all")]
+        pages: String,
     },
 
     /// **Download the OCR model weights**, verified against a pinned

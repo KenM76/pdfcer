@@ -1989,6 +1989,25 @@ fn layout_json(layout: &pdfcer_core::block_layout::DocumentLayout) -> String {
     out
 }
 
+/// Resolve `--pages` against the document, reporting a bad spec.
+fn chosen_pages(
+    doc: &pdfcer_core::document::Document,
+    input: &Path,
+    spec: &str,
+) -> Result<Vec<usize>, u8> {
+    let count = match pdfcer_core::page_tree::pages(doc) {
+        Ok(pages) => pages.len(),
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return Err(exit::RUNTIME_ERROR);
+        }
+    };
+    parse_pages(spec, count).map_err(|message| {
+        eprintln!("pdfcer: {}: --pages {message}", input.display());
+        exit::EDIT_REFUSED
+    })
+}
+
 /// **Find tables**, ruled or whitespace-aligned (`G055`).
 ///
 /// Text output is one table per header line,
@@ -1997,8 +2016,13 @@ fn layout_json(layout: &pdfcer_core::block_layout::DocumentLayout) -> String {
 /// then one cell per line, `r<row>c<col>[<rows>x<cols>] "<text>"`, where the
 /// bracket appears only for a merged cell. The result line counts every
 /// inference and every rule source.
-pub(crate) fn cmd_extract_tables(input: &Path, output: Option<&Path>, json: bool) -> u8 {
-    use pdfcer_core::table_detect::{TableOptions, detect_tables};
+pub(crate) fn cmd_extract_tables(
+    input: &Path,
+    output: Option<&Path>,
+    json: bool,
+    pages: &str,
+) -> u8 {
+    use pdfcer_core::table_detect::{TableOptions, detect_tables_in_pages};
     use pdfcer_core::text_extract::ExtractOptions;
 
     let doc = match open_document(input) {
@@ -2008,8 +2032,13 @@ pub(crate) fn cmd_extract_tables(input: &Path, output: Option<&Path>, json: bool
             return exit_code_for_doc(&err);
         }
     };
-    let found = match detect_tables(
+    let indices = match chosen_pages(&doc, input, pages) {
+        Ok(indices) => indices,
+        Err(code) => return code,
+    };
+    let found = match detect_tables_in_pages(
         &doc.view(),
+        &indices,
         &ExtractOptions::default(),
         &TableOptions::default(),
     ) {
@@ -2059,12 +2088,18 @@ pages_over_limit={} pages_unreadable={}",
 
 /// `pdfcer export-docx`: block layout (and tables) written as a Word
 /// document, every inference counted on the result line.
-pub(crate) fn cmd_export_docx(input: &Path, output: &Path, page_breaks: bool, tables: bool) -> u8 {
-    use pdfcer_core::block_layout::{LayoutOptions, PageGeometry, analyze_layout};
+pub(crate) fn cmd_export_docx(
+    input: &Path,
+    output: &Path,
+    page_breaks: bool,
+    tables: bool,
+    pages: &str,
+) -> u8 {
+    use pdfcer_core::block_layout::{LayoutOptions, PageGeometry, layout_text};
     use pdfcer_core::export::docx::{DocxOptions, write_docx};
     use pdfcer_core::page_tree::pages_in;
-    use pdfcer_core::table_detect::{TableOptions, detect_tables};
-    use pdfcer_core::text_extract::ExtractOptions;
+    use pdfcer_core::table_detect::{TableOptions, detect_tables_in_pages};
+    use pdfcer_core::text_extract::{ExtractOptions, extract_pages_view};
 
     let doc = match open_document(input) {
         Ok(doc) => doc,
@@ -2073,24 +2108,34 @@ pub(crate) fn cmd_export_docx(input: &Path, output: &Path, page_breaks: bool, ta
             return exit_code_for_doc(&err);
         }
     };
+    let indices = match chosen_pages(&doc, input, pages) {
+        Ok(indices) => indices,
+        Err(code) => return code,
+    };
     let view = doc.view();
-    let found = analyze_layout(&view, &ExtractOptions::default(), &LayoutOptions::default())
-        .and_then(|layout| Ok((layout, pages_in(&view)?)));
-    let (layout, pages) = match found {
+    let found = extract_pages_view(&view, &indices, &ExtractOptions::default())
+        .and_then(|text| Ok((text, pages_in(&view)?)));
+    let (text, page_list) = match found {
         Ok(found) => found,
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", input.display());
             return exit::RUNTIME_ERROR;
         }
     };
-    let geometry: Vec<PageGeometry> = layout
+    let geometry: Vec<PageGeometry> = text
         .pages
         .iter()
-        .filter_map(|p| pages.get(p.page_index))
+        .filter_map(|p| page_list.get(p.page_index))
         .map(|p| PageGeometry::new(p.crop_box, p.rotate))
         .collect();
+    let layout = layout_text(text, &geometry, &LayoutOptions::default());
     let (detected, table_inferences) = if tables {
-        match detect_tables(&view, &ExtractOptions::default(), &TableOptions::default()) {
+        match detect_tables_in_pages(
+            &view,
+            &indices,
+            &ExtractOptions::default(),
+            &TableOptions::default(),
+        ) {
             Ok(found) => {
                 let n = found.diagnostics.inferred();
                 (found.tables, n)
@@ -2152,9 +2197,10 @@ pub(crate) fn cmd_export_xlsx(
     output: &Path,
     sheets: SheetsArg,
     numbers: NumbersArg,
+    pages: &str,
 ) -> u8 {
     use pdfcer_core::export::xlsx::{NumberLocale, SheetLayout, XlsxOptions, write_xlsx};
-    use pdfcer_core::table_detect::{TableOptions, detect_tables};
+    use pdfcer_core::table_detect::{TableOptions, detect_tables_in_pages};
     use pdfcer_core::text_extract::ExtractOptions;
 
     let doc = match open_document(input) {
@@ -2164,8 +2210,13 @@ pub(crate) fn cmd_export_xlsx(
             return exit_code_for_doc(&err);
         }
     };
-    let found = match detect_tables(
+    let indices = match chosen_pages(&doc, input, pages) {
+        Ok(indices) => indices,
+        Err(code) => return code,
+    };
+    let found = match detect_tables_in_pages(
         &doc.view(),
+        &indices,
         &ExtractOptions::default(),
         &TableOptions::default(),
     ) {

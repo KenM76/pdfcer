@@ -17,7 +17,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::page_tree::{self, Rect};
-use crate::text_extract::{ExtractError, ExtractOptions, ExtractedText, extract_document_view};
+use crate::text_extract::{
+    ExtractError, ExtractOptions, ExtractedText, extract_document_view, extract_pages_view,
+};
 use crate::vector::{PathObject, Segment, VectorObject, decompose_page};
 use crate::view::DocumentView;
 
@@ -154,7 +156,10 @@ pub struct TableCell {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Table {
-    /// Index into [`ExtractedText::pages`] (and the page tree).
+    /// The page's index in the page tree. After [`detect_tables`] it is also
+    /// the index into [`ExtractedText::pages`]; after [`detect_tables_in_pages`]
+    /// find the page whose [`PageText::page_index`](crate::text_extract::PageText::page_index)
+    /// equals it.
     pub page_index: usize,
     /// Default user space.
     pub bbox: Rect,
@@ -286,7 +291,50 @@ pub fn detect_tables(
     extract: &ExtractOptions,
     options: &TableOptions,
 ) -> Result<DocumentTables, TableError> {
-    let text = extract_document_view(view, extract)?;
+    tables_in(view, extract_document_view(view, extract)?, options)
+}
+
+/// [`detect_tables`] over the listed pages only, in the order given.
+/// `pages` are 0-based indices into the view's page list; only those pages
+/// are extracted and decomposed, and [`TableDiagnostics`] counts only them.
+///
+/// # Errors
+///
+/// As [`detect_tables`], plus [`TableError::Extract`] wrapping
+/// [`ExtractError::NoSuchPage`] for an index past the last page.
+///
+/// # Examples
+///
+/// ```no_run
+/// use pdfcer_core::document::Document;
+/// use pdfcer_core::table_detect::{TableOptions, detect_tables_in_pages};
+/// use pdfcer_core::text_extract::ExtractOptions;
+///
+/// # fn demo(doc: &Document) -> Result<(), Box<dyn std::error::Error>> {
+/// // The tables on page 3 only.
+/// let found = detect_tables_in_pages(
+///     &doc.view(),
+///     &[2],
+///     &ExtractOptions::default(),
+///     &TableOptions::default(),
+/// )?;
+/// assert!(found.tables.iter().all(|t| t.page_index == 2));
+/// # Ok(()) }
+/// ```
+pub fn detect_tables_in_pages(
+    view: &DocumentView<'_>,
+    pages: &[usize],
+    extract: &ExtractOptions,
+    options: &TableOptions,
+) -> Result<DocumentTables, TableError> {
+    tables_in(view, extract_pages_view(view, pages, extract)?, options)
+}
+
+fn tables_in(
+    view: &DocumentView<'_>,
+    text: ExtractedText,
+    options: &TableOptions,
+) -> Result<DocumentTables, TableError> {
     let pages = page_tree::pages_in(view)?;
     let mut diag = TableDiagnostics {
         pages: text.pages.len(),

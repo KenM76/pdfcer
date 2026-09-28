@@ -111,3 +111,38 @@ fn export_xlsx_numbers_flag_decides_the_locale() {
         "{line}"
     );
 }
+
+#[test]
+fn export_xlsx_pages_limits_what_is_read() {
+    let path = input("pages");
+    let out = path.with_file_name("out.xlsx");
+    let o = Command::new(BIN)
+        .args([
+            "export-xlsx",
+            path.to_str().unwrap(),
+            "-o",
+            out.to_str().unwrap(),
+            "--pages",
+            "1",
+        ])
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(
+        String::from_utf8_lossy(&o.stdout).contains(" pages=1 tables=1 "),
+        "{}",
+        String::from_utf8_lossy(&o.stdout)
+    );
+    let o = Command::new(BIN)
+        .args([
+            "export-xlsx",
+            path.to_str().unwrap(),
+            "-o",
+            out.to_str().unwrap(),
+            "--pages",
+            "2",
+        ])
+        .output()
+        .unwrap();
+    assert!(!o.status.success());
+}

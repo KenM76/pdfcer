@@ -5,9 +5,10 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::table_detect::{
-    BoundarySource, DocumentTables, HeaderEvidence, TableOptions, detect_tables,
+    BoundarySource, DocumentTables, HeaderEvidence, TableError, TableOptions, detect_tables,
+    detect_tables_in_pages,
 };
-use pdfcer_core::text_extract::ExtractOptions;
+use pdfcer_core::text_extract::{ExtractError, ExtractOptions};
 
 fn build_pdf(bodies: &[String]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n".to_vec();
@@ -339,4 +340,71 @@ fn a_ruled_and_an_aligned_table_share_a_page() {
     assert_eq!(found.tables[1].rows.len(), 4);
     let d = &found.diagnostics;
     assert_eq!((d.tables_ruled, d.tables_aligned), (1, 1));
+}
+
+/// Three pages: a 3x3 grid on pages 1 and 3, a 2x2 grid on page 2.
+fn three_pages() -> Document {
+    let big = grid_lines(&XS, &YS) + &body_rows("F2");
+    let small = grid_lines(&XS[..3], &YS[..3]);
+    let page = |contents: usize| {
+        format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {contents} 0 R              /Resources << /Font << /F1 9 0 R /F2 10 0 R >> >> >>"
+        )
+    };
+    let bodies = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>".to_owned(),
+        page(6),
+        page(7),
+        page(8),
+        format!("STREAM:{big}"),
+        format!("STREAM:{small}"),
+        format!("STREAM:{big}"),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+            .to_owned(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"
+            .to_owned(),
+    ];
+    Document::from_bytes(build_pdf(&bodies)).expect("loads")
+}
+
+#[test]
+fn a_page_subset_reads_and_counts_only_those_pages() {
+    let d = three_pages();
+    let (x, o) = (ExtractOptions::default(), TableOptions::default());
+    let all = detect_tables(&d.view(), &x, &o).expect("detects");
+    assert_eq!(all.diagnostics.pages, 3);
+    assert_eq!(all.tables.len(), 3);
+
+    let one = detect_tables_in_pages(&d.view(), &[1], &x, &o).expect("detects");
+    assert_eq!(one.diagnostics.pages, 1);
+    assert_eq!(one.text.pages.len(), 1);
+    assert_eq!(one.tables.len(), 1);
+    assert_eq!(one.tables[0].page_index, 1);
+    assert_eq!(
+        (one.tables[0].rows.len(), one.tables[0].columns.len()),
+        (2, 2)
+    );
+    assert_eq!(one.diagnostics.cells, 4);
+
+    let two = detect_tables_in_pages(&d.view(), &[2, 0], &x, &o).expect("detects");
+    let order: Vec<usize> = two.tables.iter().map(|t| t.page_index).collect();
+    assert_eq!(order, [2, 0]);
+    assert_eq!(two.diagnostics.cells, 18);
+}
+
+#[test]
+fn a_page_past_the_end_is_refused() {
+    let d = three_pages();
+    let err = detect_tables_in_pages(
+        &d.view(),
+        &[3],
+        &ExtractOptions::default(),
+        &TableOptions::default(),
+    )
+    .expect_err("page 4 of 3");
+    assert!(matches!(
+        err,
+        TableError::Extract(ExtractError::NoSuchPage { index: 3, count: 3 })
+    ));
 }

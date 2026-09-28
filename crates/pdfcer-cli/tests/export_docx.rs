@@ -125,3 +125,33 @@ fn export_docx_flags_turn_off_tables_and_page_breaks() {
         "{line}"
     );
 }
+
+#[test]
+fn export_docx_pages_reads_only_the_chosen_pages() {
+    let (line, _) = run("pages", &["--pages", "2"]);
+    assert!(
+        line.contains(" pages=1 ") && line.contains(" tables=0 table_cells=0 "),
+        "{line}"
+    );
+    assert!(line.contains(" header=0 footer=0 "), "{line}");
+}
+
+#[test]
+fn export_docx_refuses_a_page_past_the_end() {
+    let path = input("past-end");
+    let out = path.with_file_name("out.docx");
+    let o = Command::new(BIN)
+        .args([
+            "export-docx",
+            path.to_str().unwrap(),
+            "-o",
+            out.to_str().unwrap(),
+            "--pages",
+            "3",
+        ])
+        .output()
+        .unwrap();
+    assert!(!o.status.success());
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.contains("--pages page 3 is past the end"), "{err}");
+}

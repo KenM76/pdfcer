@@ -1418,7 +1418,15 @@ let n = found.diagnostics.inferred();           // ruled + aligned tables, merge
   spanning ≥ 80% of the table lies between rows 0 and 1, and no other
   interior row gap has one (booktabs style; rules above the first and below
   the last row are allowed).
-- CLI: `pdfcer extract-tables in.pdf [--json] [-o out]`.
+- **A page subset:** `detect_tables_in_pages(&doc, &[2, 0], &opts, &TableOptions::default())`
+  reads only those page-tree indices, in the order given, and every count
+  (`found.text.pages.len()`, `diagnostics`) covers only them. An index past
+  the end is `TableError::Extract(ExtractError::NoSuchPage { index, count })`.
+  `t.page_index` stays the page-tree index, so `found.text.pages[t.page_index]`
+  is only right for a full-document detect; otherwise find the `PageText`
+  whose `page_index` equals it.
+- CLI: `pdfcer extract-tables in.pdf [--json] [-o out] [--pages 1-3]`; `export-xlsx`
+  and `export-docx` take the same `--pages` (1-based, order honoured).
 
 ### 8.5 ★ Search — it lives on `EditSession`
 
