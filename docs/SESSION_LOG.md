@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (700th filing) — `c87f4e3d`: `Pass 372.0` SHIPPED — read a tagged PDF's structure tree (G053)
+
+**Shipped:**
+- `Pass 372.0` (`G053`) — `pdfcer_core::structure_tree::read_structure_tree` walks `/StructTreeRoot` pre-order with a cycle-guarded role-map resolution, attribute resolution order `/A` beats `/C` beats inherited beats default, and joins element text to extraction via (page, content stream, MCID). New pub fields `TextRun::mcid_stream`, `PageText::marked_content_ids`. CLI `extract-tags` (README 174 → 175 subcommands). Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new. Highest decision record stays `164`.
+
+**Findings + decisions:**
+- Known gap surfaced by the shipment itself: the pagination artifact's own `/Subtype` (Header/Footer/Watermark, ISO 32000-2 Table 363/§14.8.2.2.2) is not exposed on `TextRun` — only `ArtifactKind::Pagination` is. `G053` had asked for header/footer specifically, so this is filed as `Pass 372.1` and made the new head of *Next up*, ahead of `373.0`/`374.0`.
+- `docs/FEATURES.md`: `Pass 372.0`'s row moved *Planned* → *Implemented* (*Text* section) — core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`. Its old *Planned* row replaced with a new unticked row for `372.1`.
+- `docs/ROADMAP.md`'s *Next up* banner rewritten: "THREE ITEMS REMAIN" → "TWO ITEMS REMAIN" (`373.0`/`374.0`); `Pass 372.1` added as the new head.
+
+**Still in flight:**
+- `Pass 372.1` (the `/Subtype` gap) is the head of *Next up*; the engineer is building it next, this session. `373.0`/`374.0` queued behind it.
+
+**For next session:**
+- No shell available this filing. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes commit `c87f4e3d`).
+
 ## 2026-09-28 (699th filing) — `20b2f1f6` + `0cc63029`: `Pass 375.0` SHIPPED — `set_crop_boxes` + `resize_pages` crop follow
 
 **Shipped:**

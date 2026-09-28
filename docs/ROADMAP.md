@@ -115,6 +115,82 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 372.0` (`c87f4e3d`), 2026-09-28 — read a tagged PDF's structure tree (G053)
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` request `G053`. New
+`pdfcer_core::structure_tree` (re-exported from `pdfcer-text`):
+`read_structure_tree(&DocumentView, &ExtractOptions) -> Result<StructureTree, ExtractError>`
+walks `/StructTreeRoot` pre-order (logical order), iteratively with an
+explicit stack; a visited-set cycle guard counts revisits
+(`elements_revisited`).
+
+**Role mapping.** Applies once even to a standard name (ISO 32000-2
+§14.7.3 NOTE 3), then follows the chain, counting a revisit
+(`role_map_cycles`); `/NS` elements map via `RoleMapNS`, the PDF 2.0
+namespace accepts `Hn`, MathML is recognised. An unresolved type keeps its
+raw `/S` (`standard=false`), counted in `non_standard_types`.
+`StructTreatment` is `Normal`/`NonStruct`/`Private`/`Artifact`.
+
+**Attributes.** Resolution order is `/A`, then `/C` via `ClassMap`, then
+inheritance, then default — `/A` beats `/C`, and within `/A` a later
+object wins (#289, spec RAG `iso32000__s__14.8.5` `SA-0.2`). `RowSpan`/
+`ColSpan` default to 1, TH/TD only; `Scope`/`Headers` read; `ListNumbering`
+inherited; `Lang` inherited as `effective_lang`. `Alt`/`ActualText`/`E`/
+`ID`/`T` carried.
+
+**Text join.** Kids join to text extraction by (page, content stream,
+MCID) — MCIDs are scoped per stream (§14.7.5.1). New pub fields
+`TextRun::mcid_stream` and `PageText::marked_content_ids` (every MCID a
+`BDC` declared, including sequences with no text). Diagnostics:
+`named_not_declared`, `declared_unclaimed`, `claimed_twice`, `object_refs`,
+`malformed_kids`, `page_inherited`, `page_unresolved`, `notes`.
+`element_text(i)` replaces a subtree with `ActualText` when present and
+skips `Private`/`Artifact` subtrees; `element_bbox(i)` unions per page. An
+untagged file returns `Ok` with an empty tree.
+
+**CLI.** `pdfcer extract-tags in.pdf [--json] [-o out]` — README's
+published subcommand count 174 → 175. Notes to stderr, counters on the
+last stdout line.
+
+**Tests.** 12 unit tests, `crates/pdfcer-text/tests/unit_structure_tree.rs`
+(4 sabotages, each caught by a failing test); 2 CLI tests,
+`crates/pdfcer-cli/tests/extract_tags.rs`. New fuzz target
+`structure_tree`, 42,225 runs over 90 s, no crash.
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands. No manifest change
+beyond fuzz's `[[bin]]` — `cargo tree` invariant not applicable.
+
+**Docs.** `docs/core-api/01-reading-and-model.md` new §8.4.2, `mcid_stream`
+field documented; index counts updated; `check-core-api-verbs` PASS.
+
+**Known gap, filed as `Pass 372.1` below.** The pagination artifact's own
+`/Subtype` (Header/Footer/Watermark, ISO 32000-2 Table 363/§14.8.2.2.2) is
+not yet exposed on `TextRun` — today only `ArtifactKind::Pagination` is.
+`G053` asked for header/footer specifically; `372.1` is next, this session.
+
+**Spec RAG ingested this filing.** `iso32000__s__14.7.2.md`/`14.7.3.md`/
+`14.7.4.md`/`14.8.4.md`/`14.8.5.md`, settings register `SW-A1`–`SW-A10`.
+**Not yet ingested: Tables 344–346, §14.8.3** — note for whoever builds
+`Pass 373.0`/`374.0`.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not yet wired in
+`pdfcer-gui`.
+
+**`docs/FEATURES.md`.** New *Implemented* row, *Text* section (core `[x]`,
+cli `[x]`, gui `[ ]`, Acrobat `[x]`); the old *Planned* row (line 491)
+deleted; a new *Planned* row added for `Pass 372.1`.
+
+**Reply filed.** `FeatureRequests/open/reply_G053_a_tagged_pdfs_structure_tree_can_be_read_back_FIXED.md`.
+
+**No §12 decision.** New reader module, no crate boundary or invariant
+change. Highest decision record stays `164`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
+dispatching engineer's own verification at `c87f4e3d`, not independently
+reproduced. Backup/push/release state not verifiable from here; latest
+release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes
+this commit).
+
 ### `Pass 375.0` (`20b2f1f6` + `0cc63029`), 2026-09-28 — `set_crop_boxes` + `resize_pages` crop follow
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G056`. New
@@ -9166,28 +9242,19 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★ **THREE ITEMS REMAIN 2026-09-28 (699th filing) — `G053`–`G055`, from
-> `pdfcer-gui`'s DOCX/XLSX-export ask (`O257`).** Two items filed this
-> family have now shipped: `Pass 378.0` (`G059`, page-resize defect `O250`),
-> SHIPPED 2026-09-28 (698th filing, `079bd6f1`); `Pass 375.0` (`G056`,
-> `/CropBox` authoring), SHIPPED 2026-09-28 (699th filing, `20b2f1f6`) — see
-> top of *Shipped* for both, entries removed from this list. **`Pass 372.0`
-> is now the head of *Next up***.
+> ★★★★★ **TWO ITEMS REMAIN 2026-09-28 (700th filing) — `G054`–`G055`, from
+> `pdfcer-gui`'s DOCX/XLSX-export ask (`O257`).** `Pass 372.0` (`G053`,
+> structure-tree read) SHIPPED 2026-09-28 (700th filing, `c87f4e3d`) — see
+> top of *Shipped*, entry removed from this list. **A known gap in that
+> shipment is filed here as `Pass 372.1`** — the pagination artifact's own
+> `/Subtype` (Header/Footer/Watermark) is not yet exposed on `TextRun`, and
+> `G053` asked for header/footer specifically; the engineer is building it
+> next, this session, so it is the new head of *Next up*, ahead of `373.0`/
+> `374.0`.
 >
-> - **`Pass 372.0`** (`G053`) — read a tagged PDF's structure tree back:
->   `/RoleMap`-resolved standard type (raw `/S` + non-standard flag when
->   unmapped) with a visited-set cycle guard (no hop-count/depth limit — the
->   spec sets none); each element's text via its MCIDs/`/MCR`/`/OBJR`
->   resolved against extraction glyphs, page + box; `/Alt`/`/ActualText`/
->   `/Lang`; a named/unnamed-MCID mismatch count in both directions.
->   Attribute resolution order: `/A` (own attributes) beats `/C` (class
->   list), then the inheritable parent, then the default; revision integers
->   in `/A`/`/C` arrays are skipped. `NonStruct` skips the element and keeps
->   its children; `Private` (1.7) skips the subtree; `Artifact` (2.0) ignores
->   the subtree. `RowSpan`/`ColSpan` default to 1. Spec RAG ingested this
->   filing: `iso32000__s__14.7.2.md`/`14.7.3.md`/`14.7.4.md`/`14.8.4.md`/
->   `14.8.5.md`, settings register `SW-A1`–`SW-A10`. **Not yet ingested:
->   Tables 344–346, §14.8.3** — note for whoever builds this.
+> - **`Pass 372.1`** (`G053` gap) — expose a pagination artifact's own
+>   `/Subtype` on `TextRun`: Header, Footer, Watermark (ISO 32000-2 Table
+>   363/§14.8.2.2.2). Today `ArtifactKind::Pagination` carries no subtype.
 > - **`Pass 373.0`** (`G054`) — block-level layout for an untagged page:
 >   reading-order blocks over the existing line pass, a kind per block
 >   (heading with a derived level, paragraph, list item, caption, running
@@ -9207,7 +9274,10 @@ closes out the *prior* filing's business rather than opening this one's.
 > new *Planned* rows (`372.0`–`375.0`) added this filing, all boxes
 > unticked; `378.0`'s row shipped straight to *Implemented*, never passing
 > through *Planned*. `375.0`'s row also moved to *Implemented* (699th
-> filing, core `[x]`/cli `[x]`/gui `[ ]`) — see that Shipped entry.
+> filing, core `[x]`/cli `[x]`/gui `[ ]`) — see that Shipped entry. `372.0`'s
+> row moved to *Implemented* too (700th filing, core `[x]`/cli `[x]`/gui
+> `[ ]`, Acrobat `[x]`), and its old *Planned* row was replaced by a new one
+> for the `372.1` gap, unticked.
 
 > ★★★★ **`Pass 375.0` SHIPPED, 2026-09-28 (699th filing), `20b2f1f6`** — see
 > top of *Shipped*. `G056`; closes the `/CropBox`-authoring half of the
