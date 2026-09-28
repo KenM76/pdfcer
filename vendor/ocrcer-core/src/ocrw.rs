@@ -340,8 +340,8 @@ pub struct Model {
     /// written before chunk 15, and for one whose `nn` table this build
     /// cannot or will not read -- see `nn_status` for which. `Engine`
     /// (`crate::pipeline`) falls back to prototype scoring when
-    /// `match.classifier == 1` and this is `None`, and reports why via
-    /// `Engine::classifier_fallback`, the same shape of fallback an
+    /// `match.classifier` is `1` or `3` and this is `None`, and reports why
+    /// via `Engine::classifier_fallback`, the same shape of fallback an
     /// unreadable `nn` table itself uses.
     pub nn: Option<crate::nn::Nn>,
     /// Why `nn` is `Some` or `None`. Reading this is how a caller (or

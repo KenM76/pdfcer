@@ -137,7 +137,9 @@ pub fn adjust(cal: &Calibration, base: f32, agreement: f32) -> f32 {
 /// reads a smaller ratio as more confident. Getting that direction backwards
 /// would be a silent, systematic confidence inversion — worse than reporting
 /// no confidence at all, which `CLAUDE.md` rule 5 names as the thing not to
-/// do. Never reached while `match.classifier != 1`.
+/// do. Never reached while `match.classifier` is neither `1` (net-only) nor
+/// `3` (router, chunk 15b: the relabel pass reuses this same conversion for
+/// the net's own top-class probability).
 ///
 /// An infinite margin — the network saw only one charset class worth
 /// considering, so there was no rival to measure a gap against — reads as

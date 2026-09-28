@@ -524,6 +524,39 @@ fn is_identifier(probe: &[Option<(usize, u16)>], info: &[ClassInfo], p: &Decode)
     crate::params::identifier_shape(classes.len(), digits, letters, p)
 }
 
+/// Whether the decoder's lexicon term agrees with a class sequence, for
+/// chunk 15b's router (`match.classifier == 3`, `ARCHITECTURE.md` §11,
+/// 2026-09-27): "words containing a relabelled glyph are re-scored by the
+/// decoder's existing word terms. The path does not change."
+///
+/// This re-runs exactly the lexicon walk [`decode_word`] already performs at
+/// a word's end — same DAWG API, same tier test — against the *relabelled*
+/// string, without touching the beam search that chose the segmentation.
+/// `1.0` (agrees, or nothing to disagree with) when the word is
+/// identifier-shaped (the lexicon term is suppressed there, `CLAUDE.md` rule
+/// 6, so there is no verdict to hold against a relabel), when no lexicon is
+/// loaded, or when the sequence spells a lexicon entry. `0.0` (disagrees)
+/// only when a lexicon is loaded, the word is not identifier-shaped, and the
+/// relabelled string spells nothing in it — the one case where the decoder's
+/// own word-level evidence argues against the network's answer.
+pub fn word_agreement(classes: &[u16], class_info: &[ClassInfo], t: &Tables<'_>, p: &Decode) -> f32 {
+    let Some(lexicon) = t.lexicon else { return 1.0 };
+    let info = |c: u16| class_info.get(c as usize).copied().unwrap_or_default();
+    let digits = classes.iter().filter(|&&c| info(c).digit).count();
+    let letters = classes.iter().filter(|&&c| info(c).letter).count();
+    if crate::params::identifier_shape(classes.len(), digits, letters, p) {
+        return 1.0;
+    }
+    let mut node = lexicon.root_node();
+    for &c in classes {
+        node = lexicon.step_node(node, c);
+        if node.is_none() {
+            break;
+        }
+    }
+    if lexicon.tier_at(node).is_some() { 1.0 } else { 0.0 }
+}
+
 /// The segmentation prior for one edge, in log2 units and never positive.
 ///
 /// Two claims, both authored and both on chunk 8's tuning list:
