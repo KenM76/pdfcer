@@ -2507,7 +2507,11 @@ vertices), `line: Option<[(f64, f64); 2]>` (`/L`, Line — populated for a ce
 dimension too), `ink_list: Option<Vec<Vec<(f64, f64)>>>` (`/InkList`, one
 inner vec per stroke; read-only geometry — per-point ink editing is refused
 by name). Each is read whenever its key is present regardless of subtype;
-absent → `None`, never an empty list. `AnnotFlags::locked_contents()` (bit 10,
+absent → `None`, never an empty list.
+`border_dash: Option<annot_author::BorderDash>` (`/BS`, §12.5.4 Table 166;
+read with `BorderDash::pattern()`) is the dashed-border pattern restyle,
+resize, reshape and paste preserve: `/S /D` alone reads as `[3]`, a `/D`
+array without `/S` reads as that pattern, any other style is `None`. `AnnotFlags::locked_contents()` (bit 10,
 value **512**) joined `locked()` (bit 8, 128) — two gates, see part 2 §1.15.
 **`Pass 155.2` (`pdfcer-gui` request 2026-09-07) added the ORIENTATION**, which
 nothing on this struct carried before — so no shell could show an annotation's

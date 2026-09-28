@@ -625,3 +625,100 @@ fn the_predicate_and_the_refusal_agree() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Reading the dash back (`Annotation::border_dash`)
+// ---------------------------------------------------------------------------
+
+/// The dash `page_annotations` reports for annotation `id`.
+fn read_dash(s: &EditSession, id: ObjId) -> Option<BorderDash> {
+    let page = s.page_slots().expect("slots").first().expect("a page").id;
+    pdfcer_core::annot::page_annotations(&s.graph(), page)
+        .into_iter()
+        .find(|a| a.id == Some(id))
+        .expect("the annotation is on page 0")
+        .border_dash
+}
+
+/// A shell reads the dash it authored, and it is still there after a
+/// recolour — the value the five preserving routes carry is now visible.
+#[test]
+fn the_dash_reads_back_through_the_annotation_model() {
+    let mut s = session();
+    let dashed = s
+        .add_markup_with(
+            0,
+            &square(),
+            &MarkupOptions {
+                dash: Some(dash(&[4.0, 2.0])),
+                ..Default::default()
+            },
+        )
+        .expect("author a dashed square");
+    let solid = s.add_markup(0, &polygon()).expect("author a solid polygon");
+
+    assert_eq!(read_dash(&s, dashed), Some(dash(&[4.0, 2.0])));
+    assert_eq!(read_dash(&s, solid), None, "solid is not a dash");
+
+    s.set_markup_style(
+        dashed,
+        &MarkupStyle {
+            stroke: Some(StyleEdit::Set(Color::Rgb(1.0, 0.0, 0.0))),
+            ..Default::default()
+        },
+    )
+    .expect("recolour");
+    assert_eq!(read_dash(&s, dashed), Some(dash(&[4.0, 2.0])));
+}
+
+/// Table 166's rows as a file states them: `/S /D` alone reads as `[3]`,
+/// `/D` without `/S` reads as its pattern, `/S /S` with a `/D` is solid.
+#[test]
+fn the_dash_reads_every_table_166_spelling() {
+    let annots = [
+        "<< /Type /Annot /Subtype /Square /Rect [0 0 10 10] /BS << /S /D >> >>",
+        "<< /Type /Annot /Subtype /Square /Rect [0 0 10 10] /BS << /D [5 1] >> >>",
+        "<< /Type /Annot /Subtype /Square /Rect [0 0 10 10] /BS << /S /S /D [5 1] >> >>",
+        "<< /Type /Annot /Subtype /Square /Rect [0 0 10 10] /BS << /S /D /D [0 0] >> >>",
+    ];
+    let mut bodies = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Annots [4 0 R 5 0 R 6 0 R 7 0 R] >>"
+            .to_owned(),
+    ];
+    bodies.extend(annots.iter().map(|a| (*a).to_owned()));
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let startxref = out.len();
+    out.extend_from_slice(
+        format!("xref\n0 {}\n0000000000 65535 f \n", bodies.len() + 1).as_bytes(),
+    );
+    for off in &offsets {
+        out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{startxref}\n%%EOF\n",
+            bodies.len() + 1
+        )
+        .as_bytes(),
+    );
+    let s = EditSession::new(Document::from_bytes(out).expect("parses"));
+
+    assert_eq!(
+        read_dash(&s, ObjId::new(4, 0)),
+        Some(BorderDash::table_166_default())
+    );
+    assert_eq!(read_dash(&s, ObjId::new(5, 0)), Some(dash(&[5.0, 1.0])));
+    assert_eq!(read_dash(&s, ObjId::new(6, 0)), None, "/S /S is solid");
+    // An inadmissible pattern under a declared dash falls back to the default.
+    assert_eq!(
+        read_dash(&s, ObjId::new(7, 0)),
+        Some(BorderDash::table_166_default())
+    );
+}

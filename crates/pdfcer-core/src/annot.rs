@@ -618,6 +618,14 @@ pub struct Annotation {
     /// honouring — decision 011 §2.4; full content-stream BDC/EMC `/OC` stays
     /// deferred). `None` when the annotation is on no layer.
     pub oc: Option<ObjId>,
+    /// `/BS` — the dash pattern of a **dashed** border (§12.5.4, Table 166).
+    /// `None` for a solid, beveled, inset or underlined border, for no `/BS`,
+    /// and for a `/D` array §8.4.3.6 does not admit.
+    ///
+    /// `/S /D` with no `/D` reads as Table 166's default `[3]`; a `/D` array
+    /// with `/S` absent reads as that pattern, as Acrobat draws it. This is
+    /// the value restyle, resize, reshape and paste preserve.
+    pub border_dash: Option<crate::annot_author::BorderDash>,
     /// `/Popup` — this markup annotation's pop-up window companion
     /// (Table 170, Optional, PDF 1.3). `None` when the annotation has no
     /// pop-up, which includes every non-markup subtype.
@@ -1521,6 +1529,7 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
         appearance_matrix,
         is_popup,
         oc,
+        border_dash: crate::annot_author::read_border_dash(graph, dict),
         contents,
         title,
         mod_date,

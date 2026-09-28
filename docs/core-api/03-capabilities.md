@@ -1166,7 +1166,7 @@ page-tree walk (`annot.rs`). Bounded by
 `Annotation` (`annot.rs`): `id`, `subtype`, `rect`, `flags: AnnotFlags`,
 `appearance: Appearance`, `is_popup`, `contents`, `title`,
 `mod_date` (**raw and unparsed**), `oc`, `popup`, `in_reply_to`,
-`reply_type`. Methods: `is_widget()`, `is_group_subordinate()`,
+`reply_type`, `border_dash` (the `/BS` dash, part 1). Methods: `is_widget()`, `is_group_subordinate()`,
 `effective_reply_type()`, `subtype_label()`.
 
 `AnnotFlags` (`annot.rs`) — `hidden()`, `no_view()`,
