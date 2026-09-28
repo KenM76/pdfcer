@@ -18,7 +18,7 @@ fn fixture(rel: &str) -> PathBuf {
 }
 
 fn outlines(rel: &str) -> (pdfcer_render::edit_preview::PreviewOutlines, [f64; 4]) {
-    let mut s = EditSession::new(Document::load(&fixture(rel)).expect("fixture parses"));
+    let s = EditSession::new(Document::load(&fixture(rel)).expect("fixture parses"));
     let p = s
         .edit_text_preview(
             &EditRequest::find_replace(0, "teh", "the"),

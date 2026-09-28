@@ -106,7 +106,7 @@ fn a_preview_writes_nothing() {
 
 #[test]
 fn a_form_target_is_refused() {
-    let mut s = session("textedit/nonembedded.pdf");
+    let s = session("textedit/nonembedded.pdf");
     let mut req = EditRequest::find_replace(0, "teh", "the");
     req.target = EditTarget::Form { object: 4 };
     assert!(matches!(
@@ -203,4 +203,30 @@ fn a_font_object_change_reaches_the_next_preview() {
         "{after_preview:?} {after_commit:?}"
     );
     assert_eq!(after_preview.ok(), Some(3));
+}
+
+/// `G048`: a preview needs only shared access, so a shell can run it while a
+/// render worker holds another clone of the session's `Arc`.
+#[test]
+fn a_preview_runs_through_a_shared_handle() {
+    fn send_sync<T: Send + Sync>() {}
+    send_sync::<EditSession>();
+    let s = std::sync::Arc::new(session("textedit/nonembedded.pdf"));
+    let render = std::sync::Arc::clone(&s);
+    let worker = std::thread::spawn(move || render.pages().map(|p| p.len()));
+    let first = s
+        .edit_text_preview(
+            &EditRequest::find_replace(0, "teh", "the"),
+            &EditOptions::default(),
+        )
+        .expect("previewable");
+    let again = s
+        .edit_text_preview(
+            &EditRequest::find_replace(0, "teh", "the"),
+            &EditOptions::default(),
+        )
+        .expect("previewable from the cache");
+    assert_same_layout(&first, &again);
+    assert!(worker.join().expect("worker").expect("pages") > 0);
+    assert!(!s.can_undo());
 }

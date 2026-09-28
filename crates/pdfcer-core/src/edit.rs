@@ -9282,7 +9282,12 @@ pub struct EditSession {
     /// typing preview does not repeat a ~400 ms decode and walk per
     /// keystroke (`Pass 366.0`). Keyed like `page_objects_cache`, plus the
     /// fonts the records were decoded with; see [`TextWalkCache`].
-    text_walk_cache: Option<TextWalkCache>,
+    ///
+    /// Behind a `Mutex`, unlike `page_objects_cache`, so the typing preview
+    /// runs on `&self` while a render worker holds the session (`G048`). A
+    /// `Mutex` keeps `EditSession` `Sync`; a `RefCell` would not. The lock is
+    /// held only to read or store the slot, never across the walk.
+    text_walk_cache: std::sync::Mutex<Option<TextWalkCache>>,
     /// Set once [`EditSession::apply_redactions`] has finalized a redaction
     /// into this session (`Pass 250.1`). A disclosure signal only: the
     /// redaction collapsed the session onto a clean, fully-rewritten base, so
@@ -9381,7 +9386,7 @@ impl EditSession {
             widget_tab_tail: WidgetTabTail::default(),
             tab_row_tolerance: crate::settings::DEFAULT_TAB_ROW_TOLERANCE,
             page_objects_cache: None,
-            text_walk_cache: None,
+            text_walk_cache: std::sync::Mutex::new(None),
             redacted: false,
             redaction_pending: false,
             #[cfg(debug_assertions)]
@@ -11657,8 +11662,9 @@ impl EditSession {
     /// (hundreds of milliseconds on a large CAD page); later calls reuse
     /// that and cost a few milliseconds, until an edit changes the page.
     /// A shell may call this once when its editor opens to pay the first
-    /// cost up front. `&mut self` because that cache lives in the session:
-    /// interior mutability would cost the session its `Sync`.
+    /// cost up front. `&self`: a shell may call it while a render worker
+    /// holds a shared handle to the session. The cache sits behind a lock
+    /// inside the session, which stays `Send + Sync`.
     ///
     /// **Scope.** Page content only. Text inside a form XObject returns the
     /// page's own error (usually [`crate::text_edit::EditError::NoMatch`])
@@ -11694,7 +11700,7 @@ impl EditSession {
     /// # }
     /// ```
     pub fn edit_text_preview(
-        &mut self,
+        &self,
         req: &crate::text_edit::EditRequest,
         opts: &crate::text_edit::EditOptions,
     ) -> Result<crate::text_edit::TextEditPreview, crate::text_edit::EditError> {
@@ -17679,7 +17685,7 @@ impl EditSession {
     /// (`Pass 366.0`). Reuses `page_objects_cache`'s decode when it is
     /// current.
     fn page_text_walk(
-        &mut self,
+        &self,
         page: &Page,
     ) -> Result<
         (
@@ -17690,14 +17696,20 @@ impl EditSession {
     > {
         let key = self.page_model_key(page);
         let deps = self.text_walk_deps(&page.resources);
-        if let Some(c) = &self.text_walk_cache
-            && c.key == key
-            && c.deps == deps
         {
-            return Ok((
-                std::sync::Arc::clone(&c.stream),
-                std::sync::Arc::clone(&c.recs),
-            ));
+            let slot = self
+                .text_walk_cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(c) = slot.as_ref()
+                && c.key == key
+                && c.deps == deps
+            {
+                return Ok((
+                    std::sync::Arc::clone(&c.stream),
+                    std::sync::Arc::clone(&c.recs),
+                ));
+            }
         }
         let stream = match &self.page_objects_cache {
             Some(c) if c.key == key => std::sync::Arc::clone(&c.stream),
@@ -17711,7 +17723,10 @@ impl EditSession {
             &page.resources,
             &stream,
         ));
-        self.text_walk_cache = Some(TextWalkCache {
+        *self
+            .text_walk_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(TextWalkCache {
             key,
             deps,
             stream: std::sync::Arc::clone(&stream),
