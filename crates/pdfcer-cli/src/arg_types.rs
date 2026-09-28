@@ -413,6 +413,18 @@ pub(crate) enum DxfUnitArg {
     Mm,
 }
 
+/// `--dxf-version` for `export-dxf`, mapped to the header's `$ACADVER`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum DxfVersionArg {
+    /// AutoCAD R12 (AC1009): POLYLINE entities, splines flattened, no
+    /// declared units.
+    R12,
+    /// AutoCAD 2000 (AC1015), the widest-read modern version.
+    R2000,
+    /// AutoCAD 2004 (AC1018).
+    R2004,
+}
+
 /// `/Producer` policy, as a CLI value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ProducerArg {

@@ -511,3 +511,54 @@ fn a_non_positive_scale_is_refused_before_anything_is_written() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// DXF version
+// ---------------------------------------------------------------------------
+
+/// **`--dxf-version` reaches the writer, and R12's limits are disclosed.**
+///
+/// The core tests call the writer directly, so a flag that clap parses and
+/// the shell never forwards would pass all of them. This spawns the binary
+/// and reads the file it wrote.
+#[test]
+fn the_dxf_version_flag_changes_the_file_and_r12_says_what_it_lacks() {
+    let dir = TempDir::new("version");
+    let pdf = dir.write("sheet.pdf", &multipage_pdf(1));
+    let mut seen = Vec::new();
+    for (flag, acadver) in [
+        (None, "AC1015"),
+        (Some("r2004"), "AC1018"),
+        (Some("r12"), "AC1009"),
+    ] {
+        let dxf = dir.join(&format!("{acadver}.dxf"));
+        let mut args = vec![
+            "export-dxf",
+            pdf.to_str().unwrap(),
+            "-o",
+            dxf.to_str().unwrap(),
+            "--scale",
+            "1",
+        ];
+        if let Some(v) = flag {
+            args.extend(["--dxf-version", v]);
+        }
+        let out = run(&args);
+        assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+        let text = std::fs::read_to_string(&dxf).unwrap();
+        assert!(text.contains(acadver), "{flag:?} must write {acadver}");
+        assert!(
+            stdout(&out).contains(&format!("version={acadver}")),
+            "{}",
+            stdout(&out)
+        );
+        seen.push((acadver, text, stdout(&out), stderr(&out)));
+    }
+    let (_, r12, r12_out, r12_err) = &seen[2];
+    assert!(r12.contains("\nPOLYLINE\n") && !r12.contains("LWPOLYLINE"));
+    assert!(r12_out.contains("units_undeclared=1"));
+    assert!(r12_err.contains("no units field"), "stderr: {r12_err}");
+    let (_, _, modern_out, modern_err) = &seen[0];
+    assert!(modern_out.contains("units_undeclared=0"));
+    assert!(!modern_err.contains("no units field"));
+}

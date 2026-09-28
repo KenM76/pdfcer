@@ -22,7 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pdfcer_core::content::ContentStream;
-use pdfcer_core::export::dxf::{DxfOptions, DxfText, DxfUnits, write_dxf};
+use pdfcer_core::export::dxf::{DxfOptions, DxfText, DxfUnits, DxfVersion, write_dxf};
 use pdfcer_core::vector::{Matrix, NoXObjects, PageObjects, decompose};
 
 /// Decompose an inline content stream — no fonts needed, this is geometry.
@@ -91,25 +91,246 @@ fn pdf_circle(cx: f64, cy: f64, r: f64) -> Vec<u8> {
 /// the kind of claim that stops being true when somebody adds an entity.
 #[test]
 fn the_output_carries_nothing_autocad_lt_2004_rejects() {
-    let (dxf, _) = export(b"10 10 m 100 10 l 100 100 l h S", &DxfOptions::default());
-
-    assert!(
-        !dxf.contains("MATERIAL"),
-        "a MATERIAL object makes LT 2004 refuse the whole file",
-    );
-    assert!(
-        !dxf.contains("OBJECTS"),
-        "there must be no OBJECTS section for a MATERIAL to live in",
-    );
-    // Group code 94 as a line of its own — codes are written one per line,
-    // so this is exact rather than a substring accident.
-    for line in dxf.lines() {
-        assert_ne!(
-            line.trim(),
-            "94",
-            "group code 94 makes LT 2004 reject the entity",
+    for version in ALL_VERSIONS {
+        let (dxf, _) = export(
+            b"10 10 m 100 10 l 100 100 l h S",
+            &DxfOptions {
+                version,
+                ..DxfOptions::default()
+            },
         );
+        for (code, value) in pairs(&dxf) {
+            assert_ne!(
+                code, 94,
+                "{version:?}: group code 94 makes LT 2004 reject the entity"
+            );
+            if code == 0 {
+                assert!(
+                    value != "MATERIAL" && value != "MLEADERSTYLE",
+                    "{version:?}: a {value} object makes LT 2004 refuse the whole file",
+                );
+            }
+        }
     }
+}
+
+const ALL_VERSIONS: [DxfVersion; 3] = [DxfVersion::R12, DxfVersion::R2000, DxfVersion::R2004];
+
+/// The file as `(group code, value)` pairs. Panics on an odd line count or
+/// a non-numeric code — either means the file is desynchronised.
+fn pairs(dxf: &str) -> Vec<(i32, &str)> {
+    let lines: Vec<&str> = dxf.lines().collect();
+    assert_eq!(lines.len() % 2, 0, "code/value lines must alternate");
+    lines
+        .chunks(2)
+        .map(|c| {
+            let code = c[0]
+                .trim()
+                .parse()
+                .unwrap_or_else(|_| panic!("bad group code {:?}", c[0]));
+            (code, c[1])
+        })
+        .collect()
+}
+
+/// The names of the file's sections, in order.
+fn sections(dxf: &str) -> Vec<String> {
+    let p = pairs(dxf);
+    p.windows(2)
+        .filter(|w| w[0] == (0, "SECTION") && w[1].0 == 2)
+        .map(|w| w[1].1.to_owned())
+        .collect()
+}
+
+/// Every object's handle (group 5, or 105 on a DIMSTYLE record).
+fn handles(dxf: &str) -> Vec<u32> {
+    let p = pairs(dxf);
+    p.iter()
+        .enumerate()
+        // `$HANDSEED`'s value is also group 5, and it is not an object.
+        .filter(|(i, (c, _))| (*c == 5 || *c == 105) && (*i == 0 || p[i - 1] != (9, "$HANDSEED")))
+        .map(|(_, (_, v))| u32::from_str_radix(v.trim(), 16).expect("hex handle"))
+        .collect()
+}
+
+/// **The R2000+ object graph is closed and consistent.**
+///
+/// ODA File Converter and ezdxf both accept this writer's output, but ODA
+/// only fails a file with no `BLOCK_RECORD` table at all, and ezdxf
+/// silently repairs on load. So the graph is checked here directly: every
+/// handle unique, every owner/pointer reference (330, 340, 350) resolving
+/// to an object in the file, `$HANDSEED` above every handle, and every
+/// entity owned by the `*Model_Space` block record.
+#[test]
+fn the_modern_object_graph_is_closed_and_every_entity_is_owned() {
+    for version in [DxfVersion::R2000, DxfVersion::R2004] {
+        let (dxf, out) = export(
+            &[
+                pdf_circle(50.0, 50.0, 20.0),
+                b" 0 0 100 60 re S 0 0 m 10 30 40 30 50 0 c S".to_vec(),
+            ]
+            .concat(),
+            &DxfOptions {
+                version,
+                fit_arcs: false,
+                ..DxfOptions::default()
+            },
+        );
+        assert!(
+            out.splines > 0 && out.polylines > 0,
+            "fixture must yield both kinds"
+        );
+        assert_eq!(
+            sections(&dxf),
+            [
+                "HEADER", "CLASSES", "TABLES", "BLOCKS", "ENTITIES", "OBJECTS"
+            ],
+            "{version:?}"
+        );
+        assert!(
+            dxf.contains(version.acadver()),
+            "{version:?} declares itself"
+        );
+
+        let hs = handles(&dxf);
+        let mut sorted = hs.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            sorted.len(),
+            hs.len(),
+            "{version:?}: duplicate handle in {hs:X?}"
+        );
+
+        let p = pairs(&dxf);
+        for (code, value) in &p {
+            if matches!(code, 330 | 340 | 350) && value.trim() != "0" {
+                let target = u32::from_str_radix(value.trim(), 16).expect("hex pointer");
+                assert!(
+                    sorted.binary_search(&target).is_ok(),
+                    "{version:?}: group {code} points at {value}, which no object carries",
+                );
+            }
+        }
+
+        let seed = p
+            .windows(2)
+            .find(|w| w[0] == (9, "$HANDSEED"))
+            .map(|w| u32::from_str_radix(w[1].1.trim(), 16).expect("hex seed"))
+            .expect("$HANDSEED");
+        assert!(
+            seed > *sorted.last().expect("handles"),
+            "{version:?}: $HANDSEED {seed:X} must exceed every handle",
+        );
+
+        // The *Model_Space block record's handle, then every entity's owner.
+        let model_br = p
+            .windows(6)
+            .find(|w| w[0] == (0, "BLOCK_RECORD") && w.contains(&(2, "*Model_Space")))
+            .map(|w| w[1].1)
+            .expect("*Model_Space BLOCK_RECORD");
+        let start = p
+            .iter()
+            .position(|x| *x == (2, "ENTITIES"))
+            .expect("ENTITIES");
+        let end = start
+            + p[start..]
+                .iter()
+                .position(|x| *x == (0, "ENDSEC"))
+                .expect("end");
+        let mut owned = 0;
+        for (i, (code, _)) in p[start + 1..end].iter().enumerate() {
+            if *code == 0 {
+                let entity = &p[start + 1 + i..];
+                assert_eq!(entity[1].0, 5, "{version:?}: handle comes first");
+                assert_eq!(
+                    entity[2],
+                    (330, model_br),
+                    "{version:?}: then the model-space owner"
+                );
+                owned += 1;
+            }
+        }
+        assert!(owned >= 3, "{version:?}: entities were checked");
+
+        for needed in [
+            "ACAD_LAYOUT",
+            "ACAD_GROUP",
+            "*Paper_Space",
+            "AcDbDimStyleTable",
+        ] {
+            assert!(dxf.contains(needed), "{version:?}: missing {needed}");
+        }
+    }
+}
+
+/// **R12 speaks R12**: no handles, no subclass markers, no owners, no
+/// sections R12 lacks; polylines are `POLYLINE`/`VERTEX`/`SEQEND`, and
+/// curves are flattened into them — counted, because the operator loses
+/// editable curves.
+#[test]
+fn r12_writes_classic_entities_and_discloses_what_it_could_not_carry() {
+    let src = b"0 0 100 60 re S 0 0 m 10 30 40 30 50 0 c S";
+    let (dxf, out) = export(
+        src,
+        &DxfOptions {
+            version: DxfVersion::R12,
+            fit_arcs: false,
+            ..DxfOptions::default()
+        },
+    );
+    assert!(dxf.contains("AC1009"));
+    assert_eq!(sections(&dxf), ["HEADER", "TABLES", "ENTITIES"]);
+    for (code, value) in pairs(&dxf) {
+        assert!(
+            !matches!(code, 5 | 105 | 100 | 330 | 340 | 350),
+            "R12 has no group {code} (value {value:?})",
+        );
+        if code == 0 {
+            assert!(
+                !matches!(value, "LWPOLYLINE" | "SPLINE" | "BLOCK_RECORD"),
+                "R12 has no {value}",
+            );
+        }
+    }
+    assert!(!dxf.contains("$INSUNITS"), "R12 has no $INSUNITS");
+    assert!(out.units_undeclared, "so the missing units are disclosed");
+    assert_eq!(out.splines, 0);
+    assert_eq!(
+        out.splines_flattened, 1,
+        "the one curve was flattened and counted"
+    );
+
+    // The rectangle: one closed POLYLINE, four VERTEXes, one SEQEND.
+    let p = pairs(&dxf);
+    let first = p
+        .iter()
+        .position(|x| *x == (0, "POLYLINE"))
+        .expect("POLYLINE");
+    let seqend = first
+        + p[first..]
+            .iter()
+            .position(|x| *x == (0, "SEQEND"))
+            .expect("SEQEND");
+    let poly = &p[first..seqend];
+    assert!(poly.contains(&(66, "     1")), "vertices-follow flag");
+    assert!(
+        poly.iter().any(|(c, v)| *c == 70 && v.trim() == "1"),
+        "closed flag"
+    );
+    assert_eq!(poly.iter().filter(|x| **x == (0, "VERTEX")).count(), 4);
+
+    // The modern twin of the same page reports neither disclosure.
+    let (_, modern) = export(
+        src,
+        &DxfOptions {
+            fit_arcs: false,
+            ..DxfOptions::default()
+        },
+    );
+    assert!(!modern.units_undeclared);
+    assert_eq!(modern.splines_flattened, 0);
+    assert_eq!(modern.splines, 1);
 }
 
 /// The file is structurally a DXF: sections open and close, and it ends
@@ -120,10 +341,10 @@ fn the_output_is_a_structurally_complete_dxf() {
     let (dxf, _) = export(b"0 0 m 10 0 l S", &DxfOptions::default());
     assert_eq!(
         dxf.matches("SECTION").count(),
-        3,
-        "HEADER, TABLES, ENTITIES"
+        6,
+        "HEADER, CLASSES, TABLES, BLOCKS, ENTITIES, OBJECTS"
     );
-    assert_eq!(dxf.matches("ENDSEC").count(), 3, "each one closed");
+    assert_eq!(dxf.matches("ENDSEC").count(), 6, "each one closed");
     assert!(dxf.trim_end().ends_with("EOF"), "must terminate with EOF");
     assert!(dxf.contains("$ACADVER"), "a version is required");
 }
@@ -336,11 +557,7 @@ fn a_text_object_that_yields_no_runs_is_still_counted() {
     );
     assert_eq!(out.text_entities, 0, "and nothing may be written for it");
     assert!(
-        !dxf.contains(
-            "
-TEXT
-"
-        ),
+        !dxf.contains("\nTEXT\n"),
         "no TEXT entity may be emitted from text that could not be read"
     );
     assert_eq!(out.polylines, 1, "the geometry is unaffected");
@@ -413,38 +630,6 @@ fn the_declared_version_matches_the_entities_actually_emitted() {
     assert!(
         !dxf.contains(" 100\nAcDb"),
         "group code 100 must not carry a leading space:\n{dxf}",
-    );
-}
-
-/// Handles are unique. Two entities sharing one is a malformed R2000 file
-/// that many readers accept and some silently mis-resolve.
-#[test]
-fn every_entity_handle_is_unique() {
-    let (dxf, out) = export(
-        b"0 0 100 60 re S 200 0 m 300 60 l S 400 0 m 500 60 l S",
-        &DxfOptions::default(),
-    );
-    assert!(
-        out.polylines >= 3,
-        "the fixture must produce several entities"
-    );
-
-    let lines: Vec<&str> = dxf.lines().collect();
-    let mut handles = Vec::new();
-    for (i, l) in lines.iter().enumerate() {
-        // A handle is the value after a `  5` code that is followed by the
-        // AcDbEntity marker — i.e. an ENTITY handle, not a table one.
-        if l.trim() == "5" && lines.get(i + 2).is_some_and(|n| n.trim() == "AcDbEntity") {
-            handles.push(lines[i + 1]);
-        }
-    }
-    let mut sorted = handles.clone();
-    sorted.sort_unstable();
-    sorted.dedup();
-    assert_eq!(
-        sorted.len(),
-        handles.len(),
-        "duplicate entity handle in {handles:?}",
     );
 }
 

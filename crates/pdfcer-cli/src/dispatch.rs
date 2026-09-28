@@ -2643,6 +2643,7 @@ pub(crate) fn run() -> ExitCode {
             scale,
             no_fit_arcs,
             no_text,
+            dxf_version,
         } => cmd_export_dxf(ExportDxfArgs {
             input: &input,
             page,
@@ -2653,6 +2654,7 @@ pub(crate) fn run() -> ExitCode {
             scale,
             fit_arcs: !no_fit_arcs,
             text: !no_text,
+            version: dxf_version,
         }),
         Command::TextRunDelete {
             input,

@@ -2626,6 +2626,7 @@ pub(crate) struct ExportDxfArgs<'a> {
     pub(crate) fit_arcs: bool,
     /// Whether page text becomes `TEXT` entities.
     pub(crate) text: bool,
+    pub(crate) version: DxfVersionArg,
 }
 
 /// `export-dxf` — a page's vector geometry as CAD-importable DXF.
@@ -2690,8 +2691,8 @@ pub(crate) struct ExportDxfArgs<'a> {
 /// with the same two remedies (separate runs, or an explicit `--scale`).
 pub(crate) fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
     use pdfcer_core::export::dxf::{
-        DxfOptions, DxfOutcome, DxfScaleSuggestion, DxfText, DxfUnits, suggest_scale_for_groups,
-        write_dxf,
+        DxfOptions, DxfOutcome, DxfScaleSuggestion, DxfText, DxfUnits, DxfVersion,
+        suggest_scale_for_groups, write_dxf,
     };
 
     let ExportDxfArgs {
@@ -2704,6 +2705,7 @@ pub(crate) fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
         scale,
         fit_arcs,
         text,
+        version,
     } = args;
 
     if let Some(s) = scale
@@ -2894,6 +2896,11 @@ pub(crate) fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
         } else {
             DxfText::Omit
         },
+        version: match version {
+            DxfVersionArg::R12 => DxfVersion::R12,
+            DxfVersionArg::R2000 => DxfVersion::R2000,
+            DxfVersionArg::R2004 => DxfVersion::R2004,
+        },
         ..DxfOptions::default()
     };
 
@@ -2928,7 +2935,7 @@ pub(crate) fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
         }
         let entities = out.polylines + out.circles + out.arcs + out.splines + out.text_entities;
         println!(
-            "export-dxf {} page {} -> {}; entities={entities} polylines={} circles={} arcs={} splines={} text={} unreadable_text={} skipped_text={} skipped_images={} units={} scale={} fit_arcs={}",
+            "export-dxf {} page {} -> {}; entities={entities} polylines={} circles={} arcs={} splines={} text={} unreadable_text={} skipped_text={} skipped_images={} units={} scale={} fit_arcs={} version={} splines_flattened={} units_undeclared={}",
             input.display(),
             index + 1,
             path.display(),
@@ -2946,6 +2953,9 @@ pub(crate) fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
             },
             scale,
             u32::from(fit_arcs),
+            opts.version.acadver(),
+            out.splines_flattened,
+            u32::from(out.units_undeclared),
         );
         total.polylines += out.polylines;
         total.circles += out.circles;
@@ -2955,6 +2965,8 @@ pub(crate) fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
         total.skipped_images += out.skipped_images;
         total.text_entities += out.text_entities;
         total.unreadable_text += out.unreadable_text;
+        total.splines_flattened += out.splines_flattened;
+        total.units_undeclared |= out.units_undeclared;
     }
 
     // ---- the disclosures, in prose, on stderr ----
@@ -2986,6 +2998,23 @@ pub(crate) fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
             "pdfcer: {}: {} image(s) were NOT exported — DXF has no raster entity in the subset pdfcer writes, so a scanned or rendered region of the page is simply missing rather than blank.",
             input.display(),
             total.skipped_images
+        );
+    }
+    if total.splines_flattened > 0 {
+        eprintln!(
+            "pdfcer: {}: {} curve(s) were flattened into straight-segment polylines — R12 has no SPLINE entity. The shape is kept to within a twentieth of a paper point, but the curves are no longer editable as curves; use --dxf-version r2000 if the receiving program reads it.",
+            input.display(),
+            total.splines_flattened
+        );
+    }
+    if total.units_undeclared {
+        eprintln!(
+            "pdfcer: {}: R12 has no units field, so this DXF does not say it is in {}. Set the units in the receiving program when you open it.",
+            input.display(),
+            match units {
+                DxfUnitArg::In => "inches",
+                DxfUnitArg::Mm => "millimetres",
+            }
         );
     }
     // Gated on THREE things, and each rules out a different way of telling

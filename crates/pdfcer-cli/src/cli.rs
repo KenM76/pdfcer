@@ -9323,6 +9323,14 @@ pub(crate) enum Command {
         /// and any stray entity is a hazard.
         #[arg(long)]
         no_text: bool,
+        /// DXF version to write: r2000 (default, read by everything
+        /// current), r2004, or r12 for old CAM and cutting software.
+        ///
+        /// R12 has no SPLINE entity and no units field, so curves become
+        /// polylines and the report says how many; declare the units in the
+        /// receiving program yourself.
+        #[arg(long = "dxf-version", value_enum, default_value_t = DxfVersionArg::R2000)]
+        dxf_version: DxfVersionArg,
     },
     /// **Delete ONE text run** — one show operator — out of a text object
     /// (`Pass 32.0`, ISO 32000-1 §9.4).

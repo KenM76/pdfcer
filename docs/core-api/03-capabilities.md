@@ -3593,6 +3593,45 @@ For the clipboard, outlines stay the right default.
   composites the alpha over the slide; a `--background` makes every payload
   opaque, deliberately.
 
+### 7.11 Exporting a page as DXF — versions and what each can carry (`Pass 376.0`, `Pass 377.0`)
+
+`core [x] · cli [x] · gui [ ]`. `pdfcer_core::export::dxf::write_dxf(&PageObjects, &DxfOptions) -> (String, DxfOutcome)`;
+CLI `pdfcer export-dxf … --dxf-version r12|r2000|r2004`.
+
+| I want to… | set |
+|---|---|
+| the widest-read modern file (default) | `DxfOptions::version = DxfVersion::R2000` (`AC1015`) |
+| AutoCAD 2004-era targets | `DxfVersion::R2004` (`AC1018`) — same entities and object graph as R2000 |
+| old CAM / plotter / cutting software | `DxfVersion::R12` (`AC1009`) |
+| the `$ACADVER` string of a choice | `DxfVersion::acadver()` |
+
+`DxfVersion` is `Copy + Eq + Hash + Default`, `#[non_exhaustive]`.
+
+**R2000/R2004 files carry the full object graph those versions require**:
+`BLOCK_RECORD` (`*Model_Space`, `*Paper_Space`), `BLOCKS`, every entity
+owned (`330`) by the model-space block record, and an `OBJECTS` section
+with the root dictionary, `ACAD_LAYOUT` (Model + Layout1), `ACAD_GROUP`,
+`ACAD_MLINESTYLE` and `ACAD_PLOTSTYLENAME`. `$HANDSEED` is above every
+handle. Never `MATERIAL`, `MLEADERSTYLE` or group code 94 — AutoCAD LT 2004
+refuses them. Verified with ODA File Converter (ACAD2000/2004/12) and an
+`ezdxf` audit (zero errors, zero fixes).
+
+**What R12 cannot carry, and the `DxfOutcome` field that says so:**
+
+- **No SPLINE entity** → curves are flattened into the running
+  `POLYLINE` within `arc_tolerance`; `splines_flattened` counts them
+  (`splines` is then 0). Circles and arcs still fit to `CIRCLE`/`ARC`.
+- **No units field** → `units_undeclared = true`. The coordinates are
+  still in `DxfOptions::units`; the receiving program must be told.
+
+**Text** is written pure ASCII in every version: non-ASCII becomes
+AutoCAD's `\U+XXXX`, a character outside the BMP becomes `?`,
+`$DWGCODEPAGE` is `ANSI_1252`.
+
+**★ What the UI must disclose:** under R12, `splines_flattened` (curves are
+no longer editable as curves) and `units_undeclared` (name the units the
+operator must set on import). The CLI prints both to stderr.
+
 ---
 
 ## 13. Off-canvas content — find it, and cut it at the page edge (`Pass 294.0`)

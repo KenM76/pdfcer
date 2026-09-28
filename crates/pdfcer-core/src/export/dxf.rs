@@ -27,55 +27,56 @@
 //! drawing says a feature is and derives the rest. [`DxfOptions::scale`] is
 //! where that answer arrives.
 //!
-//! ## Format: ASCII DXF R2000 (`AC1015`), hand-written
+//! ## Format: ASCII DXF, three versions ([`DxfVersion`])
 //!
-//! `HEADER`, `TABLES` (`LTYPE` + `LAYER`) and `ENTITIES`, using
-//! `LWPOLYLINE`, `CIRCLE`, `ARC` and `SPLINE`.
+//! - **R2000 (`AC1015`)**, the default: `LWPOLYLINE`, `CIRCLE`, `ARC`,
+//!   `SPLINE`, `TEXT`, with handles, `100` subclass markers and `330` owners.
+//! - **R2004 (`AC1018`)**: the same structure under the newest version
+//!   AutoCAD LT 2004 reads.
+//! - **R12 (`AC1009`)**: the most tolerant target. Polylines are
+//!   `POLYLINE`/`VERTEX`/`SEQEND`, splines are flattened (R12 has no
+//!   `SPLINE`), there are no handles, no `OBJECTS` and no `$INSUNITS`. Each
+//!   loss is counted in [`DxfOutcome`].
 //!
-//! ### The version was wrong first, and the RAG had already said so
+//! ### An R2000+ file is an object graph, not a list of entities
 //!
-//! This declared `AC1009` (R12) on my own reasoning that R12 is "one step
-//! more conservative than R2000 and therefore reaches further" — while
-//! emitting `LWPOLYLINE` and `SPLINE`, **which R12 does not have.** R12
-//! draws polylines as `POLYLINE`/`VERTEX`/`SEQEND` and has no spline
-//! entity at all, so the file claimed one dialect and spoke another.
-//! `ezdxf` rejected every output with *"missing 'AcDbPolyline' subclass"*.
+//! Declaring `AC1015` obliges the file to carry the structure that version
+//! defines: every table (`VPORT`, `LTYPE`, `LAYER`, `STYLE`, `VIEW`, `UCS`,
+//! `APPID`, `DIMSTYLE`, `BLOCK_RECORD`), the `*Model_Space` /
+//! `*Paper_Space` block records and their `BLOCKS` entries, a `330` owner on
+//! every entity, and an `OBJECTS` section whose root dictionary holds
+//! `ACAD_GROUP` and `ACAD_LAYOUT` (the two `LAYOUT`s the block records point
+//! at through `340`). Without `BLOCK_RECORD` the ODA libraries behind
+//! eDrawings and SOLIDWORKS refuse the file outright; the rest they repair
+//! silently, which is why the tests assert the structure directly rather
+//! than trusting a reader that loads it.
 //!
-//! `C:\personal_rag\dxf\lesson_20260603_ezdxf_authoring_cut_files_lwpolyline.md`
-//! had already named **`AC1015` (R2000)** as the compatible baseline for
-//! AutoCAD LT 2004 and older plasma controllers. I had read it, and
-//! substituted a guess for its recommendation. Recorded here because the
-//! guess was not merely wrong, it was *incoherent* — and the only thing
-//! that caught it was parsing the output with a real DXF reader instead of
-//! grepping it for strings.
+//! The skeleton mirrors what `ezdxf` writes for R2000 — the structure the
+//! operator's pipeline already delivers to AutoCAD LT 2004 — minus the two
+//! things LT 2004 refuses (next section). Source:
+//! `C:\personal_rag\dxf\lesson_20260928_ac1015_declared_needs_block_records.md`.
 //!
-//! R2000 requires what R12 does not: an entity **handle** (group code 5),
-//! and `100` **subclass markers** (`AcDbEntity`, then `AcDbPolyline` /
-//! `AcDbCircle` / `AcDbArc` / `AcDbSpline`). Those are emitted, and
-//! `$HANDSEED` is kept above every handle issued.
+//! Text is written as pure ASCII: any other character becomes a `\U+XXXX`
+//! escape, so `$DWGCODEPAGE ANSI_1252` is true of every byte.
 //!
 //! **Hand-written, with no new dependency**, matching the precedent
-//! `Pass 48.4` set for TIFF import. That is not merely house style here — it
-//! is what makes the compatibility constraints below hold *by construction*
-//! rather than by post-processing (see the next section).
+//! `Pass 48.4` set for TIFF import. That is what makes the compatibility
+//! constraints below hold *by construction* rather than by post-processing.
 //!
-//! ## The AutoCAD LT 2004 constraints, and why writing by hand satisfies them for free
+//! ## The AutoCAD LT 2004 constraints
 //!
 //! From `C:\personal_rag\dxf\lesson_20260424_autocad_lt_2004_compat.md`:
-//! a plasma cutter's CAM software often runs AutoCAD LT 2004, which
-//! **refuses the whole file** — "Unknown entity" / "Drawing recovery" /
-//! silent failure — when it meets either of two things modern writers emit
-//! even in R2000 mode:
+//! AutoCAD LT 2004 (common on plasma-cutter CAM seats) **refuses the whole
+//! file** when it meets either of two things modern writers emit even in
+//! R2000 mode:
 //!
-//! 1. **`MATERIAL` objects**, auto-created in the `OBJECTS` section.
-//! 2. **Group code 94** on entities.
+//! 1. **`MATERIAL` objects** in the `OBJECTS` section.
+//! 2. **Group code 94** on entities or objects.
 //!
-//! The operator's existing `ezdxf` pipeline has to strip both afterwards.
-//! **This writer emits neither, because it emits only what is listed above
-//! — there is no `OBJECTS` section to hold a `MATERIAL` and no code path
-//! that writes 94.** A constraint that cannot be violated is worth more
-//! than one that is fixed downstream, and it is the concrete payoff of not
-//! reaching for a library.
+//! The operator's `ezdxf` pipeline strips both afterwards. This writer
+//! never emits either: its `OBJECTS` section holds dictionaries, `LAYOUT`s,
+//! one `MLINESTYLE` and a plot-style placeholder, and no code path writes
+//! 94 (which also rules out `MLEADERSTYLE`).
 //!
 //! ## Curves: arcs are recognised, not flattened
 //!
@@ -216,6 +217,46 @@ pub struct DxfOptions {
     pub arc_tolerance: f64,
     /// What to do with the page's text.
     pub text: DxfText,
+    /// Which DXF version to write. [`DxfVersion::R2000`] by default.
+    pub version: DxfVersion,
+}
+
+/// The DXF version an export targets (`$ACADVER`).
+///
+/// Whatever a version cannot carry is counted in [`DxfOutcome`]
+/// ([`DxfOutcome::splines_flattened`], [`DxfOutcome::units_undeclared`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum DxfVersion {
+    /// `AC1009`. The most tolerant target — every CAD program and plotter
+    /// RIP reads it. Polylines become `POLYLINE`/`VERTEX`/`SEQEND`, splines
+    /// are flattened to polylines within [`DxfOptions::arc_tolerance`], and
+    /// there are no handles, no `OBJECTS` section and no `$INSUNITS`.
+    R12,
+    /// `AC1015`, the default: the full R2000 object graph (module docs).
+    #[default]
+    R2000,
+    /// `AC1018`: the R2000 structure under the newest version AutoCAD LT
+    /// 2004 reads.
+    R2004,
+}
+
+impl DxfVersion {
+    /// The `$ACADVER` string: `AC1009`, `AC1015` or `AC1018`.
+    #[must_use]
+    pub const fn acadver(self) -> &'static str {
+        match self {
+            Self::R12 => "AC1009",
+            Self::R2000 => "AC1015",
+            Self::R2004 => "AC1018",
+        }
+    }
+
+    /// Whether this version uses handles, subclass markers and the R2000
+    /// object graph.
+    const fn is_modern(self) -> bool {
+        !matches!(self, Self::R12)
+    }
 }
 
 /// Whether page text becomes `TEXT` entities, and where it lands.
@@ -272,6 +313,7 @@ impl Default for DxfOptions {
             fit_arcs: true,
             arc_tolerance: 0.05,
             text: DxfText::Entities,
+            version: DxfVersion::R2000,
         }
     }
 }
@@ -312,64 +354,126 @@ pub struct DxfOutcome {
     /// can plainly see on screen. Rolling them together would let the
     /// second hide inside the first.
     pub unreadable_text: usize,
+    /// Curves written as flattened polylines because the target version has
+    /// no `SPLINE` ([`DxfVersion::R12`]). Each is also counted in
+    /// [`Self::polylines`].
+    pub splines_flattened: usize,
+    /// The file declares no drawing units: [`DxfVersion::R12`] has no
+    /// `$INSUNITS`, so the receiving program applies its own default. The
+    /// coordinates are still in [`DxfOptions::units`].
+    pub units_undeclared: bool,
 }
 
-/// Write `model` as an ASCII DXF.
+/// Write `model` as an ASCII DXF in [`DxfOptions::version`].
+///
+/// The output is pure ASCII (see the module docs on text).
 ///
 /// # Errors
 ///
-/// None today — the writer cannot fail on well-formed input, and
-/// malformed input is skipped and counted rather than refused. The
-/// signature returns the outcome directly for that reason; if a future
-/// slice gains a refusal (a degenerate CTM, say), it becomes a `Result`
-/// then rather than pre-emptively now.
+/// None — malformed input is skipped and counted in the outcome rather
+/// than refused.
 #[must_use]
 pub fn write_dxf(model: &PageObjects, opts: &DxfOptions) -> (String, DxfOutcome) {
-    let mut out = String::with_capacity(4096);
     let mut outcome = DxfOutcome::default();
     let unit_scale = opts.units.per_point() * opts.scale;
-    let mut handles = Handles(0x100);
+    let mut handles = Handles {
+        next: FIRST_ENTITY_HANDLE,
+        modern: opts.version.is_modern(),
+    };
 
-    header(&mut out, opts, model);
-    tables(&mut out);
-
-    out.push_str("  0\nSECTION\n  2\nENTITIES\n");
+    // Entities first, into their own buffer: `$HANDSEED` must name a handle
+    // above every one issued, and that is only known afterwards.
+    let mut body = String::with_capacity(4096);
     for obj in &model.objects {
         match obj {
             VectorObject::Path(p) => {
-                path_entities(&mut out, p, unit_scale, opts, &mut outcome, &mut handles);
+                path_entities(&mut body, p, unit_scale, opts, &mut outcome, &mut handles);
             }
             VectorObject::Text(t) => match opts.text {
                 DxfText::Entities => {
-                    text_entities(&mut out, t, unit_scale, &mut outcome, &mut handles);
+                    text_entities(&mut body, t, unit_scale, &mut outcome, &mut handles);
                 }
                 DxfText::Omit => outcome.skipped_text += 1,
             },
             VectorObject::Image(_) => outcome.skipped_images += 1,
         }
     }
-    out.push_str("  0\nENDSEC\n  0\nEOF\n");
+
+    let mut out = String::with_capacity(body.len() + 8192);
+    header(&mut out, opts, model, handles.next + 1);
+    if handles.modern {
+        out.push_str("  0\nSECTION\n  2\nCLASSES\n  0\nENDSEC\n");
+    }
+    tables(&mut out, handles.modern);
+    if handles.modern {
+        blocks(&mut out);
+    } else {
+        outcome.units_undeclared = true;
+    }
+    out.push_str("  0\nSECTION\n  2\nENTITIES\n");
+    out.push_str(&body);
+    out.push_str("  0\nENDSEC\n");
+    if handles.modern {
+        objects(&mut out);
+    }
+    out.push_str("  0\nEOF\n");
     (out, outcome)
 }
 
+// Fixed handles of the R2000+ skeleton. Entity handles start above
+// `FIRST_ENTITY_HANDLE`, clear of all of these.
+const H_BLOCK_RECORD_TABLE: u32 = 0x1;
+const H_LAYER_TABLE: u32 = 0x2;
+const H_STYLE_TABLE: u32 = 0x3;
+const H_LTYPE_TABLE: u32 = 0x5;
+const H_VIEW_TABLE: u32 = 0x6;
+const H_UCS_TABLE: u32 = 0x7;
+const H_VPORT_TABLE: u32 = 0x8;
+const H_APPID_TABLE: u32 = 0x9;
+const H_DIMSTYLE_TABLE: u32 = 0xA;
+const H_ROOT_DICT: u32 = 0xC;
+const H_GROUP_DICT: u32 = 0xD;
+const H_LAYOUT_DICT: u32 = 0xE;
+const H_MLINESTYLE_DICT: u32 = 0xF;
+const H_LAYER_0: u32 = 0x10;
+const H_LAYER_TEXT: u32 = 0x11;
+const H_STYLE_STANDARD: u32 = 0x12;
+const H_APPID_ACAD: u32 = 0x13;
+const H_LTYPE_BYBLOCK: u32 = 0x14;
+const H_LTYPE_BYLAYER: u32 = 0x15;
+const H_LTYPE_CONTINUOUS: u32 = 0x16;
+const H_PLOTSTYLE_DICT: u32 = 0x17;
+const H_PLOTSTYLE_NORMAL: u32 = 0x18;
+const H_PAPER_BR: u32 = 0x1B;
+const H_PAPER_BLOCK: u32 = 0x1C;
+const H_PAPER_ENDBLK: u32 = 0x1D;
+const H_MODEL_BR: u32 = 0x1F;
+const H_MODEL_BLOCK: u32 = 0x20;
+const H_MODEL_ENDBLK: u32 = 0x21;
+const H_MODEL_LAYOUT: u32 = 0x22;
+const H_PAPER_LAYOUT: u32 = 0x23;
+const H_MLINESTYLE_STANDARD: u32 = 0x24;
+const H_DIMSTYLE_STANDARD: u32 = 0x27;
+const H_VPORT_ACTIVE: u32 = 0x29;
+const FIRST_ENTITY_HANDLE: u32 = 0x100;
+
 /// The `HEADER` section.
 ///
-/// Deliberately minimal: `$ACADVER`, `$INSUNITS` and the drawing extents.
-/// Every variable omitted is one an old consumer cannot object to, and the
-/// LT 2004 lesson is that objecting means refusing the entire file.
-fn header(out: &mut String, opts: &DxfOptions, model: &PageObjects) {
+/// Deliberately minimal: every variable omitted is one an old consumer
+/// cannot object to. R12 has no `$INSUNITS` (an R2000 variable), so an R12
+/// file cannot say what its numbers mean — disclosed as
+/// [`DxfOutcome::units_undeclared`].
+fn header(out: &mut String, opts: &DxfOptions, model: &PageObjects, handseed: u32) {
     out.push_str("  0\nSECTION\n  2\nHEADER\n");
-    // AC1015 = R2000, the RAG's own recommendation for AutoCAD LT 2004 and
-    // older plasma controllers. See the module docs for the R12 guess that
-    // preceded it and why it could not work.
-    out.push_str("  9\n$ACADVER\n  1\nAC1015\n");
-    // Above every handle this writer issues. A reader allocating new objects
-    // starts here, so a seed below an existing handle is how two objects end
-    // up sharing one.
-    out.push_str("  9\n$HANDSEED\n  5\nFFFF\n");
-    out.push_str("  9\n$INSUNITS\n 70\n");
-    out.push_str(&format!("{:6}\n", opts.units.code()));
-
+    out.push_str(&format!("  9\n$ACADVER\n  1\n{}\n", opts.version.acadver()));
+    out.push_str("  9\n$DWGCODEPAGE\n  3\nANSI_1252\n");
+    if opts.version.is_modern() {
+        // Above every handle issued: a reader allocating new objects starts
+        // here, so a seed below an existing handle makes two objects share one.
+        out.push_str(&format!("  9\n$HANDSEED\n  5\n{handseed:X}\n"));
+        out.push_str("  9\n$INSUNITS\n 70\n");
+        out.push_str(&format!("{:6}\n", opts.units.code()));
+    }
     let unit_scale = opts.units.per_point() * opts.scale;
     let e = extents(model).unwrap_or(Bounds::EMPTY);
     out.push_str("  9\n$EXTMIN\n");
@@ -379,56 +483,271 @@ fn header(out: &mut String, opts: &DxfOptions, model: &PageObjects) {
     out.push_str("  0\nENDSEC\n");
 }
 
-/// The `TABLES` section — one `LAYER` table holding layer `0`.
+/// Writes one symbol table: its head, its records, `ENDTAB`.
 ///
-/// A single layer today. Per-object layers (from OCGs, or by colour) are a
-/// named later slice; emitting a `LAYER` table with only `0` is what makes
-/// every entity's layer reference resolvable, which some consumers require
-/// and none object to.
-fn tables(out: &mut String) {
+/// R12 tables carry neither handles nor subclass markers. R2000+ tables
+/// carry both, with `330 0` on the table and `330 <table>` on each record.
+struct Table<'a> {
+    out: &'a mut String,
+    modern: bool,
+    handle: u32,
+}
+
+impl<'a> Table<'a> {
+    fn open(out: &'a mut String, modern: bool, name: &str, handle: u32, count: usize) -> Self {
+        out.push_str(&format!("  0\nTABLE\n  2\n{name}\n"));
+        if modern {
+            out.push_str(&format!("  5\n{handle:X}\n330\n0\n100\nAcDbSymbolTable\n"));
+        }
+        out.push_str(&format!(" 70\n{count:6}\n"));
+        if modern && name == "DIMSTYLE" {
+            out.push_str("100\nAcDbDimStyleTable\n 71\n     0\n");
+        }
+        Self {
+            out,
+            modern,
+            handle,
+        }
+    }
+
+    /// One record. `body` starts at group 2 (the name).
+    fn record(&mut self, kind: &str, handle: u32, subclass: &str, body: &str) {
+        self.out.push_str(&format!("  0\n{kind}\n"));
+        if self.modern {
+            // DIMSTYLE records carry their handle in 105, not 5.
+            let code = if kind == "DIMSTYLE" { "105" } else { "  5" };
+            self.out.push_str(&format!(
+                "{code}\n{handle:X}\n330\n{:X}\n100\nAcDbSymbolTableRecord\n100\n{subclass}\n",
+                self.handle
+            ));
+        }
+        self.out.push_str(body);
+    }
+
+    fn close(self) {
+        self.out.push_str("  0\nENDTAB\n");
+    }
+}
+
+/// The `TABLES` section.
+///
+/// R2000+ gets every table its object graph requires (module docs). R12
+/// gets the three its entities reference — `LTYPE`, `LAYER`, `STYLE` —
+/// the classic minimal R12 file.
+fn tables(out: &mut String, modern: bool) {
     out.push_str("  0\nSECTION\n  2\nTABLES\n");
-    // LTYPE FIRST: layer 0 names CONTINUOUS, and in R2000 a reference to a
-    // linetype the file never defines is a dangling one. R12 tolerated it;
-    // this is one of the things that changes with the version.
-    out.push_str("  0\nTABLE\n  2\nLTYPE\n  5\n5\n100\nAcDbSymbolTable\n 70\n     1\n");
-    out.push_str("  0\nLTYPE\n  5\n14\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n");
-    out.push_str(
-        "  2\nCONTINUOUS\n 70\n     0\n  3\nSolid line\n 72\n    65\n 73\n     0\n 40\n0.0\n",
-    );
-    out.push_str("  0\nENDTAB\n");
+    if modern {
+        let mut t = Table::open(out, modern, "VPORT", H_VPORT_TABLE, 1);
+        t.record(
+            "VPORT",
+            H_VPORT_ACTIVE,
+            "AcDbViewportTableRecord",
+            "  2\n*Active\n 70\n     0\n 10\n0.0\n 20\n0.0\n 11\n1.0\n 21\n1.0\n 12\n0.0\n 22\n0.0\n 40\n100.0\n 41\n1.0\n",
+        );
+        t.close();
+    }
 
-    // TWO layers: geometry on `0`, text on its own. See TEXT_LAYER for the
-    // sourced reason. The `70` count is 2 to match, and a count that
-    // disagrees with the records that follow it is the kind of internal
-    // inconsistency a strict reader rejects the file over.
-    out.push_str("  0\nTABLE\n  2\nLAYER\n  5\n2\n100\nAcDbSymbolTable\n 70\n     2\n");
-    out.push_str("  0\nLAYER\n  5\n10\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n");
-    out.push_str("  2\n0\n 70\n     0\n 62\n     7\n  6\nCONTINUOUS\n");
-    out.push_str("  0\nLAYER\n  5\n11\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n");
-    // Colour 2 (yellow) rather than 7: the text layer reads as distinct
-    // from the geometry at a glance, which is the point of separating it.
-    out.push_str(&format!(
-        "  2\n{TEXT_LAYER}\n 70\n     0\n 62\n     2\n  6\nCONTINUOUS\n"
-    ));
-    out.push_str("  0\nENDTAB\n");
-
-    // STYLE: `TEXT` entities name a style in group 7, and a name the file
-    // never defines is a dangling reference — the same defect class the
-    // R12→R2000 correction had to fix for LTYPE. Emitted unconditionally,
-    // even when no text is written, because an empty-but-valid table costs
-    // eleven lines and a conditional table is a state that only breaks on
-    // the documents nobody tested.
-    out.push_str("  0\nTABLE\n  2\nSTYLE\n  5\n3\n100\nAcDbSymbolTable\n 70\n     1\n");
-    out.push_str(
-        "  0\nSTYLE\n  5\n12\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n",
+    // LTYPE before LAYER: every layer names CONTINUOUS, and a linetype the
+    // file never defines is a dangling reference.
+    let lt = |name: &str, desc: &str| {
+        format!("  2\n{name}\n 70\n     0\n  3\n{desc}\n 72\n    65\n 73\n     0\n 40\n0.0\n")
+    };
+    let mut t = Table::open(
+        out,
+        modern,
+        "LTYPE",
+        H_LTYPE_TABLE,
+        if modern { 3 } else { 1 },
     );
-    // 40 = fixed height 0 ("not fixed" — each entity carries its own),
-    // 41 = width factor, 50 = oblique, 71 = generation flags, 42 = last
-    // height used. txt.shx is the universal fallback font name.
+    if modern {
+        t.record(
+            "LTYPE",
+            H_LTYPE_BYBLOCK,
+            "AcDbLinetypeTableRecord",
+            &lt("ByBlock", ""),
+        );
+        t.record(
+            "LTYPE",
+            H_LTYPE_BYLAYER,
+            "AcDbLinetypeTableRecord",
+            &lt("ByLayer", ""),
+        );
+    }
+    t.record(
+        "LTYPE",
+        H_LTYPE_CONTINUOUS,
+        "AcDbLinetypeTableRecord",
+        &lt("CONTINUOUS", "Solid line"),
+    );
+    t.close();
+
+    // Two layers: geometry on `0`, text on its own (see TEXT_LAYER). Colour
+    // 2 (yellow) so the text layer reads as distinct at a glance.
+    let mut t = Table::open(out, modern, "LAYER", H_LAYER_TABLE, 2);
+    t.record(
+        "LAYER",
+        H_LAYER_0,
+        "AcDbLayerTableRecord",
+        &format!("  2\n{GEOMETRY_LAYER}\n 70\n     0\n 62\n     7\n  6\nCONTINUOUS\n"),
+    );
+    t.record(
+        "LAYER",
+        H_LAYER_TEXT,
+        "AcDbLayerTableRecord",
+        &format!("  2\n{TEXT_LAYER}\n 70\n     0\n 62\n     2\n  6\nCONTINUOUS\n"),
+    );
+    t.close();
+
+    // STYLE even when no text is written: TEXT names it in group 7, and an
+    // unconditional table cannot break on an untested document. 40 = 0
+    // (height not fixed), 41 width factor, 50 oblique, 71 flags, 42 last
+    // height; txt.shx is the universal fallback font.
+    let mut t = Table::open(out, modern, "STYLE", H_STYLE_TABLE, 1);
+    t.record(
+        "STYLE",
+        H_STYLE_STANDARD,
+        "AcDbTextStyleTableRecord",
+        &format!(
+            "  2\n{TEXT_STYLE}\n 70\n     0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n     0\n 42\n0.2\n  3\ntxt\n  4\n\n"
+        ),
+    );
+    t.close();
+
+    if modern {
+        Table::open(out, modern, "VIEW", H_VIEW_TABLE, 0).close();
+        Table::open(out, modern, "UCS", H_UCS_TABLE, 0).close();
+        let mut t = Table::open(out, modern, "APPID", H_APPID_TABLE, 1);
+        t.record(
+            "APPID",
+            H_APPID_ACAD,
+            "AcDbRegAppTableRecord",
+            "  2\nACAD\n 70\n     0\n",
+        );
+        t.close();
+        let mut t = Table::open(out, modern, "DIMSTYLE", H_DIMSTYLE_TABLE, 1);
+        t.record(
+            "DIMSTYLE",
+            H_DIMSTYLE_STANDARD,
+            "AcDbDimStyleTableRecord",
+            "  2\nStandard\n 70\n     0\n",
+        );
+        t.close();
+        // Each block record points (340) at the LAYOUT that presents it.
+        let mut t = Table::open(out, modern, "BLOCK_RECORD", H_BLOCK_RECORD_TABLE, 2);
+        t.record(
+            "BLOCK_RECORD",
+            H_MODEL_BR,
+            "AcDbBlockTableRecord",
+            &format!("  2\n*Model_Space\n340\n{H_MODEL_LAYOUT:X}\n"),
+        );
+        t.record(
+            "BLOCK_RECORD",
+            H_PAPER_BR,
+            "AcDbBlockTableRecord",
+            &format!("  2\n*Paper_Space\n340\n{H_PAPER_LAYOUT:X}\n"),
+        );
+        t.close();
+    }
+    out.push_str("  0\nENDSEC\n");
+}
+
+/// The R2000+ `BLOCKS` section: an empty `BLOCK`/`ENDBLK` pair for each
+/// layout block. Model-space entities live in `ENTITIES` and name the
+/// model-space block record as their owner.
+fn blocks(out: &mut String) {
+    out.push_str("  0\nSECTION\n  2\nBLOCKS\n");
+    for (name, br, begin, end, paper) in [
+        (
+            "*Model_Space",
+            H_MODEL_BR,
+            H_MODEL_BLOCK,
+            H_MODEL_ENDBLK,
+            false,
+        ),
+        (
+            "*Paper_Space",
+            H_PAPER_BR,
+            H_PAPER_BLOCK,
+            H_PAPER_ENDBLK,
+            true,
+        ),
+    ] {
+        let space = if paper { " 67\n     1\n" } else { "" };
+        out.push_str(&format!(
+            "  0\nBLOCK\n  5\n{begin:X}\n330\n{br:X}\n100\nAcDbEntity\n{space}  8\n0\n100\nAcDbBlockBegin\n  2\n{name}\n 70\n     0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n{name}\n  1\n\n"
+        ));
+        out.push_str(&format!(
+            "  0\nENDBLK\n  5\n{end:X}\n330\n{br:X}\n100\nAcDbEntity\n{space}  8\n0\n100\nAcDbBlockEnd\n"
+        ));
+    }
+    out.push_str("  0\nENDSEC\n");
+}
+
+/// One `DICTIONARY` object and its `name → handle` entries.
+fn dictionary(out: &mut String, h: u32, owner: u32, entries: &[(&str, u32)]) {
     out.push_str(&format!(
-        "  2\n{TEXT_STYLE}\n 70\n     0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n     0\n 42\n0.2\n  3\ntxt\n  4\n\n"
+        "  0\nDICTIONARY\n  5\n{h:X}\n330\n{owner:X}\n100\nAcDbDictionary\n281\n     1\n"
     ));
-    out.push_str("  0\nENDTAB\n  0\nENDSEC\n");
+    for (name, target) in entries {
+        out.push_str(&format!("  3\n{name}\n350\n{target:X}\n"));
+    }
+}
+
+/// The R2000+ `OBJECTS` section.
+///
+/// The root dictionary holds `ACAD_GROUP`, `ACAD_LAYOUT` (the Model and
+/// Layout1 `LAYOUT`s), `ACAD_MLINESTYLE` (Standard) and
+/// `ACAD_PLOTSTYLENAME` (Normal) — `ezdxf`'s R2000 set minus `MATERIAL` and
+/// `MLEADERSTYLE` (module docs).
+fn objects(out: &mut String) {
+    out.push_str("  0\nSECTION\n  2\nOBJECTS\n");
+    dictionary(
+        out,
+        H_ROOT_DICT,
+        0,
+        &[
+            ("ACAD_GROUP", H_GROUP_DICT),
+            ("ACAD_LAYOUT", H_LAYOUT_DICT),
+            ("ACAD_MLINESTYLE", H_MLINESTYLE_DICT),
+            ("ACAD_PLOTSTYLENAME", H_PLOTSTYLE_DICT),
+        ],
+    );
+    dictionary(out, H_GROUP_DICT, H_ROOT_DICT, &[]);
+    dictionary(
+        out,
+        H_LAYOUT_DICT,
+        H_ROOT_DICT,
+        &[("Model", H_MODEL_LAYOUT), ("Layout1", H_PAPER_LAYOUT)],
+    );
+    dictionary(
+        out,
+        H_MLINESTYLE_DICT,
+        H_ROOT_DICT,
+        &[("Standard", H_MLINESTYLE_STANDARD)],
+    );
+    out.push_str(&format!(
+        "  0\nACDBDICTIONARYWDFLT\n  5\n{H_PLOTSTYLE_DICT:X}\n330\n{H_ROOT_DICT:X}\n100\nAcDbDictionary\n281\n     1\n  3\nNormal\n350\n{H_PLOTSTYLE_NORMAL:X}\n100\nAcDbDictionaryWithDefault\n340\n{H_PLOTSTYLE_NORMAL:X}\n"
+    ));
+    out.push_str(&format!(
+        "  0\nACDBPLACEHOLDER\n  5\n{H_PLOTSTYLE_NORMAL:X}\n330\n{H_PLOTSTYLE_DICT:X}\n"
+    ));
+    // Plot settings are ezdxf's A3 defaults; group 70 1024 marks the model
+    // layout, 71 is the tab order, and the trailing 330 names the block record.
+    for (h, name, plot_flags, tab, br) in [
+        (H_MODEL_LAYOUT, "Model", 1024, 0, H_MODEL_BR),
+        (H_PAPER_LAYOUT, "Layout1", 0, 1, H_PAPER_BR),
+    ] {
+        out.push_str(&format!(
+            "  0\nLAYOUT\n  5\n{h:X}\n330\n{H_LAYOUT_DICT:X}\n100\nAcDbPlotSettings\n  1\n\n  4\nA3\n  6\n\n 40\n7.5\n 41\n20.0\n 42\n7.5\n 43\n20.0\n 44\n420.0\n 45\n297.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n 49\n0.0\n140\n0.0\n141\n0.0\n142\n1.0\n143\n1.0\n 70\n{plot_flags:6}\n 72\n     1\n 73\n     0\n 74\n     5\n  7\n\n 75\n    16\n 76\n     0\n 77\n     2\n 78\n   300\n147\n1.0\n148\n0.0\n149\n0.0\n"
+        ));
+        out.push_str(&format!(
+            "100\nAcDbLayout\n  1\n{name}\n 70\n     1\n 71\n{tab:6}\n 10\n0.0\n 20\n0.0\n 11\n420.0\n 21\n297.0\n 12\n0.0\n 22\n0.0\n 32\n0.0\n 14\n1e+20\n 24\n1e+20\n 34\n1e+20\n 15\n-1e+20\n 25\n-1e+20\n 35\n-1e+20\n146\n0.0\n 13\n0.0\n 23\n0.0\n 33\n0.0\n 16\n1.0\n 26\n0.0\n 36\n0.0\n 17\n0.0\n 27\n1.0\n 37\n0.0\n 76\n     1\n330\n{br:X}\n"
+        ));
+    }
+    out.push_str(&format!(
+        "  0\nMLINESTYLE\n  5\n{H_MLINESTYLE_STANDARD:X}\n330\n{H_MLINESTYLE_DICT:X}\n100\nAcDbMlineStyle\n  2\nStandard\n 70\n     0\n  3\n\n 62\n   256\n 51\n90.0\n 52\n90.0\n 71\n     2\n 49\n0.5\n 62\n   256\n  6\nBYLAYER\n 49\n-0.5\n 62\n   256\n  6\nBYLAYER\n"
+    ));
+    out.push_str("  0\nENDSEC\n");
 }
 
 /// Every `TEXT` entity one text object contributes — one per **run**.
@@ -523,12 +842,12 @@ fn text_entities(
             b.min.x * unit_scale,
             b.min.y * unit_scale,
         ));
-        // TEXT carries the AcDbText marker TWICE — once before the data
-        // above and once before the second alignment point's group 73.
-        // Both are emitted because a reader that looks for the second and
-        // does not find it reports the same "missing subclass" error the
-        // R12 mistake produced.
-        out.push_str("100\nAcDbText\n 73\n     0\n");
+        // R2000+ TEXT carries the AcDbText marker TWICE — once before the
+        // data above and once before the second alignment point's group 73;
+        // a reader missing the second reports a missing subclass.
+        if h.modern {
+            out.push_str("100\nAcDbText\n 73\n     0\n");
+        }
         outcome.text_entities += 1;
     }
 }
@@ -541,54 +860,72 @@ fn text_entities(
 /// file** — every subsequent entity misparsed. Control characters are
 /// therefore replaced with spaces rather than escaped.
 ///
-/// Truncated at 255 characters, DXF's limit for a single `TEXT` value.
-/// Truncation is silent here because the alternative — counting it as a
-/// disclosure — would fire on decorative rules and separators that are not
-/// text an operator is trying to read, and a disclosure that cries wolf
-/// gets ignored (the `check-ui-strings.sh` lesson, in a different dialect).
+/// Anything outside printable ASCII becomes AutoCAD's `\U+XXXX` escape, so
+/// the file is pure ASCII and its `$DWGCODEPAGE ANSI_1252` is true of every
+/// byte. A character outside the Basic Multilingual Plane, which `\U+` (four
+/// hex digits) cannot name, becomes `?`.
+///
+/// Truncated at 255 written bytes, DXF's limit for a single `TEXT` value.
+/// Truncation is silent: counting it would fire on decorative rules and
+/// separators that are not text an operator is trying to read.
 fn sanitize_text(s: &str) -> String {
-    s.chars()
+    let kept: String = s
+        .chars()
         .map(|c| if c.is_control() { ' ' } else { c })
-        .take(255)
-        .collect::<String>()
-        .trim_end()
-        .to_string()
+        .collect();
+    let mut out = String::with_capacity(kept.len());
+    for c in kept.trim_end().chars() {
+        let piece = match u32::from(c) {
+            0x20..=0x7E => c.to_string(),
+            cp @ 0x80..=0xFFFF => format!("\\U+{cp:04X}"),
+            _ => "?".to_owned(),
+        };
+        // The 255-byte cap applies to what is WRITTEN, and an escape is
+        // never split: a cut `\U+00` would be read as literal text.
+        if out.len() + piece.len() > 255 {
+            break;
+        }
+        out.push_str(&piece);
+    }
+    out
 }
 
-/// Issues the unique hexadecimal handles R2000 requires on every entity.
+/// Entity handles, and whether the target version uses them at all.
 ///
-/// Starts at `0x100` so it cannot collide with the fixed table handles
-/// above, and `$HANDSEED` is written well above anything this can reach
-/// for a page of realistic size.
-struct Handles(u32);
+/// R2000+ requires a unique hexadecimal handle on every entity, issued from
+/// `FIRST_ENTITY_HANDLE` up so none collides with the fixed skeleton.
+/// R12 files carry none (`modern == false`), along with no subclass
+/// markers and no owners.
+struct Handles {
+    next: u32,
+    modern: bool,
+}
 
 impl Handles {
     fn next(&mut self) -> String {
-        self.0 += 1;
-        format!("{:X}", self.0)
+        self.next += 1;
+        format!("{:X}", self.next)
     }
 }
 
-/// The group codes every R2000 entity opens with: type, handle, the
-/// `AcDbEntity` subclass marker, then the layer.
+/// The group codes every entity opens with.
 ///
-/// One function because the order matters and getting it wrong produces
-/// exactly the error that caught the R12 mistake — a reader looking for a
-/// subclass marker that is not where it must be.
-/// Note the group codes are right-justified in **three** columns: `  0`,
-/// `  5`, `  8`, and `100` with **no** leading space. A four-character
-/// ` 100` is not the same token, and a reader that finds one where a
-/// subclass marker belongs reports the marker as missing — which is
-/// exactly the error message the R12 mistake produced, from a different
-/// cause. Two ways to earn the same symptom is worth one comment.
+/// R2000+: type, handle, `330` owner (the model-space block record),
+/// `AcDbEntity`, layer, then the entity's own subclass marker — in that
+/// order, since a reader looking for a marker where it must be reports it
+/// missing otherwise. R12: type and layer only.
 ///
-/// `layer` is a parameter rather than the constant `0` it began as
-/// because text goes on [`TEXT_LAYER`] — see that constant for why.
+/// Group codes are right-justified in three columns: `100` has no leading
+/// space, and a four-character ` 100` is a different token.
 fn entity_head(out: &mut String, kind: &str, h: &mut Handles, subclass: &str, layer: &str) {
-    out.push_str(&format!(
-        "  0\n{kind}\n  5\n{}\n100\nAcDbEntity\n  8\n{layer}\n100\n{subclass}\n",
-        h.next()
-    ));
+    if h.modern {
+        out.push_str(&format!(
+            "  0\n{kind}\n  5\n{}\n330\n{H_MODEL_BR:X}\n100\nAcDbEntity\n  8\n{layer}\n100\n{subclass}\n",
+            h.next()
+        ));
+    } else {
+        out.push_str(&format!("  0\n{kind}\n  8\n{layer}\n"));
+    }
 }
 
 /// Every entity one path object contributes.
@@ -650,26 +987,37 @@ fn subpath_entities(
                 cursor = *to;
             }
             Segment::Cubic { c1, c2, to } => {
-                flush_run(out, &mut run, false, s, outcome, h);
-                if opts.fit_arcs
-                    && let Some((centre, radius, a0, a1)) =
-                        arc_fit(cursor, *c1, *c2, *to, opts.arc_tolerance)
-                {
+                let arc = if opts.fit_arcs {
+                    arc_fit(cursor, *c1, *c2, *to, opts.arc_tolerance)
+                } else {
+                    None
+                };
+                if let Some((centre, radius, a0, a1)) = arc {
+                    flush_run(out, &mut run, false, s, outcome, h);
                     // An ARC declares AcDbCircle FIRST and then AcDbArc: it
                     // is a circle plus a sweep, and the order is fixed.
                     entity_head(out, "ARC", h, "AcDbCircle", GEOMETRY_LAYER);
                     point3(out, 10, centre.x * s, centre.y * s);
                     out.push_str(&format!(" 40\n{}\n", fmt(radius * s)));
-                    out.push_str("100\nAcDbArc\n");
+                    if h.modern {
+                        out.push_str("100\nAcDbArc\n");
+                    }
                     out.push_str(&format!(" 50\n{}\n", fmt(a0.to_degrees())));
                     out.push_str(&format!(" 51\n{}\n", fmt(a1.to_degrees())));
                     outcome.arcs += 1;
-                } else {
+                    run = vec![*to];
+                } else if h.modern {
+                    flush_run(out, &mut run, false, s, outcome, h);
                     spline(out, cursor, *c1, *c2, *to, s, h);
                     outcome.splines += 1;
+                    run = vec![*to];
+                } else {
+                    // R12 has no SPLINE: the curve joins the running
+                    // polyline as flattened vertices.
+                    run.extend(flatten_cubic(cursor, *c1, *c2, *to, opts.arc_tolerance));
+                    outcome.splines_flattened += 1;
                 }
                 cursor = *to;
-                run = vec![*to];
             }
         }
     }
@@ -694,11 +1042,24 @@ fn flush_run(
         run.clear();
         return;
     }
-    entity_head(out, "LWPOLYLINE", h, "AcDbPolyline", GEOMETRY_LAYER);
-    out.push_str(&format!(" 90\n{:8}\n", run.len()));
-    out.push_str(&format!(" 70\n{:6}\n", i32::from(closed)));
-    for p in run.iter() {
-        out.push_str(&format!(" 10\n{}\n 20\n{}\n", fmt(p.x * s), fmt(p.y * s)));
+    if h.modern {
+        entity_head(out, "LWPOLYLINE", h, "AcDbPolyline", GEOMETRY_LAYER);
+        out.push_str(&format!(" 90\n{:8}\n", run.len()));
+        out.push_str(&format!(" 70\n{:6}\n", i32::from(closed)));
+        for p in run.iter() {
+            out.push_str(&format!(" 10\n{}\n 20\n{}\n", fmt(p.x * s), fmt(p.y * s)));
+        }
+    } else {
+        // R12: POLYLINE (66 = vertices follow), one VERTEX each, SEQEND.
+        entity_head(out, "POLYLINE", h, "", GEOMETRY_LAYER);
+        out.push_str(" 66\n     1\n");
+        point3(out, 10, 0.0, 0.0);
+        out.push_str(&format!(" 70\n{:6}\n", i32::from(closed)));
+        for p in run.iter() {
+            entity_head(out, "VERTEX", h, "", GEOMETRY_LAYER);
+            point3(out, 10, p.x * s, p.y * s);
+        }
+        entity_head(out, "SEQEND", h, "", GEOMETRY_LAYER);
     }
     outcome.polylines += 1;
     run.clear();
@@ -723,6 +1084,29 @@ fn spline(out: &mut String, p0: Point, c1: Point, c2: Point, p3: Point, s: f64, 
             fmt(p.y * s)
         ));
     }
+}
+
+/// A cubic's points at `t = 1/n … 1`, `n` chosen by Wang's formula so the
+/// chords stay within `tol` (PDF points) of the curve, capped at 64.
+fn flatten_cubic(p0: Point, c1: Point, c2: Point, p3: Point, tol: f64) -> Vec<Point> {
+    let tol = if tol.is_finite() && tol > 0.0 {
+        tol
+    } else {
+        0.05
+    };
+    let dd = |a: Point, b: Point, c: Point| (a.x - 2.0 * b.x + c.x).hypot(a.y - 2.0 * b.y + c.y);
+    let m = dd(p0, c1, c2).max(dd(c1, c2, p3));
+    let n = (0.75 * m / tol).sqrt().ceil();
+    let n = if n.is_finite() {
+        n.clamp(1.0, 64.0)
+    } else {
+        64.0
+    };
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // clamped to 1..=64
+    let n = n as u32;
+    (1..=n)
+        .map(|i| cubic_at(p0, c1, c2, p3, f64::from(i) / f64::from(n)))
+        .collect()
 }
 
 /// Try to read a cubic as a circular arc, returning
@@ -1122,5 +1506,33 @@ fn suggest_scale_from<'a>(
             agreeing,
         },
         _ => DxfScaleSuggestion::Conflicting { candidates },
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::sanitize_text;
+
+    #[test]
+    fn non_ascii_becomes_unicode_escapes_and_the_file_stays_ascii() {
+        assert_eq!(sanitize_text("Ø25 ±0.1"), r"\U+00D825 \U+00B10.1");
+        assert_eq!(
+            sanitize_text("a\u{1F600}b"),
+            "a?b",
+            "astral: no 4-digit escape"
+        );
+        assert_eq!(
+            sanitize_text("x\ny"),
+            "x y",
+            "a newline would desync the file"
+        );
+    }
+
+    #[test]
+    fn the_length_cap_never_splits_an_escape() {
+        let s = sanitize_text(&"é".repeat(100));
+        assert!(s.len() <= 255);
+        assert_eq!(s.len() % 7, 0, "whole `\\U+00E9` escapes only: {s}");
     }
 }
