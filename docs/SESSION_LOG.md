@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (683rd filing) — `5db53428`: `Pass 261.2` SHIPPED — `/Sound` annotation and WAV import
+
+**Shipped:**
+- `Pass 261.2` — `EditSession::add_sound_annotation(page_index, &SoundSpec, &MarkupOptions) -> Result<ObjId, EditError>` authors a `/Sound` annotation (§12.5.6.16 + §13.3): an indirect FlateDecode `/Type /Sound` stream with `/R`/`/C`/`/B`/`/E` always written, behind a `SoundIcon::{Speaker (default), Mic, Other}` `/AP` in pdfcer's own artwork. New module `pdfcer_core::sound` — `SoundData::from_wav` converts PCM 8-bit→Raw, 16/24/32-bit→Signed (byte-reversed to big-endian), µ-law/A-law unchanged, float 32/64→Signed 16; `SoundRatePolicy::{KeepNative (default), SpecRate}` resamples on request; `downmix` averages >2 channels, else refused; every conversion is disclosed via `WavImport.conversions`. CLI `add-sound`. Build order 3 of 4; `Pass 261.3` (`/Screen`) is next. Full record at the top of `ROADMAP.md`'s *Shipped*. Also filed this session: chore commit `de6e2e9d` (agent memory only, no code).
+
+**Decisions made this session:**
+- None new (the sound-rate ambiguity is resolved via the standing "spec ambiguity → setting" rule, not a fresh §12 decision).
+
+**Findings + decisions:**
+- ISO 32000 §13.3's portable sample-rate `shall` contradicts its own paragraph — recorded in the Pass entry, not escalated to a decision-log entry since the resolution (a setting, `KeepNative` default) is the project's existing standing policy applied, not a new one.
+
+**Still in flight:**
+- Same open items as the 682nd filing (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- `Pass 261.3` (author a `/Screen` annotation) is now the head of *Next up* — build order 4 of 4, the last of the family.
+
+**For next session:**
+- Build `Pass 261.3` next; the four-item family closes when it ships.
+- `docs/FEATURES.md`: the `Pass 261.2` *Planned* row replaced by an *Implemented → Annotations & markup* row (core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`). Row ~272 (`/FileAttachment`+`/Sound` icon-painting gap) left unchanged — still true, since this Pass writes its own `/AP` rather than closing the reader-side no-`/AP` fallback.
+- No shell available this filing — no independent commit/push verification; `5db53428` and `de6e2e9d` are relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.59.0`.
+
 ## 2026-09-28 (682nd filing) — `f082ccca`: `Pass 261.1` SHIPPED — `/Caret` annotation and Replace Text
 
 **Shipped:**

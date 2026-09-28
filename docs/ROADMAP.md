@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 261.2` (`5db53428`), 2026-09-28 — `/Sound` annotation and WAV import
+
+**Verdict: SHIPPED.** Build order 3 of 4 of the family scoped 468th filing; `Pass 261.3` (`/Screen`) is next. Also this session: chore commit `de6e2e9d` (agent memory only, no code) — recorded so `check-commits-filed.py` sees it filed.
+
+**Core.** New module `pdfcer_core::sound` — `SoundData::from_wav(bytes, &WavImportOptions) -> Result<WavImport, WavError>`. PCM 8-bit → Raw, 16/24/32-bit → Signed (byte-reversed to big-endian), µ-law/A-law copied as-is, float 32/64-bit → Signed 16-bit. `SoundRatePolicy { KeepNative (default), SpecRate }` — `SpecRate` resamples PCM (linear interpolation) to the portable rate (11025 Hz for a source ≤16537 Hz, else 22050 Hz) and refuses a µ-law source not already 8000 Hz mono. `downmix` averages >2 channels to mono; without it, >2 channels is refused. `WavImport.conversions: Vec<SoundConversion>` (`FloatToSigned16`, `Resampled`, `Downmixed`) discloses every conversion performed (CLAUDE.md rule 4). Output capped at `MAX_SOUND_BYTES` = 512 MiB. `WavError` via `thiserror`. `annot_author::SoundIcon { Speaker (default), Mic, Other }`, `SoundSpec { rect, icon, color, sound }` (`#[non_exhaustive]`, `new`) — pdfcer's own speaker/mic `/AP` artwork. `EditSession::add_sound_annotation(page_index, &SoundSpec, &MarkupOptions) -> Result<ObjId, EditError>` — one undo entry; the sound is an indirect FlateDecode `/Type /Sound` stream, always writing `/R`/`/C`/`/B`/`/E`. New `AnnotKind::Sound`. §12.5.6.16 + §13.3.
+
+**Decision-worthy (spec ambiguity → setting).** ISO 32000 §13.3's portable-rate `shall` contradicts its own paragraph, so the rate is a setting (`SoundRatePolicy`) with `KeepNative` as the default, per the standing "make spec ambiguity a setting" rule — not a new architectural decision, no §12 entry needed.
+
+**CLI.** `pdfcer add-sound <in> --file x.wav --page N --rect x0,y0,x1,y1 [--icon speaker|mic] [--color] [--desc] [--author] [--rate native|spec] [--downmix] [--opacity] [--apply -o out] [--mode]`. Prints a `converted:` line per conversion (rule 4) and a PDF 2.0 deprecation note on stderr. README subcommand count 171 → 172.
+
+**Tests.** 10 new core (`crates/pdfcer-core/tests/sound_annotation.rs`), 2 new CLI (`crates/pdfcer-cli/tests/add_sound.rs`), all pass. `tools/run-gates.sh` PASS, 40 commands. `cargo tree -p pdfcer-core` clean — no GUI crate, no new dependency; invariant holds. New fuzz target `wav_import`, 9 committed seeds, 68k runs, coverage 298, 0 crashes.
+
+**Docs.** `docs/core-api`: 275 verbs (274 → 275), Annotations section now 24 verbs.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui`'s own column, not consumed (no GUI caller; the GUI is a separate project).
+
+**Verified by rendering.** The speaker and mic icons paint.
+
+**`docs/FEATURES.md`.** The *Planned* row (~line 499) moved to *Implemented → Annotations & markup*: core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`. The `/FileAttachment`+`/Sound`-icon-painting row (~line 272) is UNCHANGED — this Pass writes its own `/AP`, so that row's remaining claim (no reader-side fallback icon for a `/Sound` lacking `/AP`) stays true.
+
+**Next up.** `Pass 261.3` (author a `/Screen` annotation) is now the head of *Next up* — build order 4 of 4, the last of the family.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `5db53428` (and chore commit `de6e2e9d`), not independently reproduced. Backup/push/release state not verifiable from here — engineer should check; latest release on record remains `v0.59.0`.
+
 ### `Pass 261.1` (`f082ccca`), 2026-09-28 — `/Caret` annotation and Replace Text
 
 **Verdict: SHIPPED.** Build order 2 of 4 of the family scoped 468th filing; `Pass 261.2` (`/Sound`) is next.
@@ -8702,6 +8726,12 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★ **`Pass 261.2` SHIPPED, 2026-09-28 (683rd filing), `5db53428`** — see
+> top of *Shipped*. Filed under *Backlog* (line ~18370) at the 468th filing
+> (scoping); this banner is left as the pointer, the live entry has moved.
+> `Pass 261.3` (author a `/Screen` annotation) is now the head of *Next up* —
+> build order 4 of 4, the last of the family.
 
 > ★★★★ **`Pass 261.1` SHIPPED, 2026-09-28 (682nd filing), `f082ccca`** — see
 > top of *Shipped*. Filed under *Backlog* (line ~18330) at the 468th filing
@@ -18367,7 +18397,7 @@ and most parity-accurate of the four**; recommended second.
 **Source.** `Acrobat_Features/markup__caret_text_edit_annotations.md`
 (new).
 
-### `Pass 261.2` — Author a `/Sound` annotation — filed 2026-09-07 (468th filing), **NOT STARTED** — new family, build order 3 of 4
+### `Pass 261.2` — ★★★ **SHIPPED 2026-09-28 (`5db53428`, 683rd filing) — see *Shipped*.** Body below kept as history (filed 468th filing, build order 3 of 4)
 
 **Gap.** `/Sound` (§12.5.6.18, Table 188) is current, though the newest
 Acrobat UI has quietly dropped its record button (read/play/embed remain
