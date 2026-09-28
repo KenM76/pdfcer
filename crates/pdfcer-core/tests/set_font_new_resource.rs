@@ -248,8 +248,8 @@ fn a_non_standard_14_face_is_still_refused_by_name() {
         "the refusal must name the face: {msg}"
     );
     assert!(
-        msg.contains("FF-C"),
-        "and must name the deferral, so it is not read as a permanent no: {msg}"
+        msg.contains("font program"),
+        "and must name the remedy, so it is not read as a permanent no: {msg}"
     );
 }
 

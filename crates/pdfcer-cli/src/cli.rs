@@ -6948,9 +6948,28 @@ pub(crate) enum Command {
         #[arg(long, value_name = "MODEL:C,..")]
         set_color: Option<String>,
         /// New font family/style: an existing page font resource, named by
-        /// its resource key (`F2`) or its `/BaseFont` (`Times-Bold`).
+        /// its resource key (`F2`) or its `/BaseFont` (`Times-Bold`), or a
+        /// standard-14 face the page lacks, which is added as a new resource
+        /// with no font program.
         #[arg(long, value_name = "NAME")]
         set_font: Option<String>,
+        /// Restyle into the TrueType font in FILE (`.ttf`/`.otf` with glyf
+        /// outlines), embedding a subset of it when the document does not
+        /// already carry that face with the glyphs needed.
+        ///
+        /// The subset covers exactly the characters of `--find`, so `--find`
+        /// is required. It is embedded as a Type0 font with Identity-H
+        /// encoding and the run is re-encoded as two-byte glyph ids; the
+        /// report states the glyph and byte counts. Refused when the font's
+        /// licence forbids embedding, when it lacks a glyph for a character,
+        /// or for CFF-outline fonts. Not with `--set-font`, `--bold` or
+        /// `--italic`: the file names the face.
+        #[arg(
+            long = "embed-font",
+            value_name = "FILE",
+            conflicts_with_all = ["set_font", "bold", "italic"]
+        )]
+        embed_font: Option<PathBuf>,
         /// Character spacing `Tc` (§9.3.2) for the matched run. `0.5` or
         /// `0.5pt` is ABSOLUTE (unscaled text-space units); `20em` is
         /// RELATIVE and means 20 THOUSANDTHS of an em (the tracking unit) —

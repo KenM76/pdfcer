@@ -198,14 +198,12 @@
 //!   **REFUSE-and-disclose by name**, with NOTHING applied — never
 //!   `.notdef`, never a silent substitution, never partial.
 //!
-//! A successful family change NEVER triggers font embedding: the coverage
-//! gate excludes anything needing glyph data pdfcer cannot resolve, so
-//! subsetting stays FF-C. **Scope boundary:** the target is an existing
-//! font RESOURCE on the page (swap `Times-Roman` for an existing
-//! `Times-Bold`) or, since `Pass 162.0`, a standard-14 name the page lacks,
-//! which is bound as a new `/Font` object (`created_font`) — still nothing
-//! embedded. A face that is neither is refused (the embedded-donor half of
-//! FF-C, `Pass 142.0`). Algorithmic
+//! **Scope boundary:** the target is an existing font RESOURCE on the page
+//! (swap `Times-Roman` for an existing `Times-Bold`), a standard-14 name the
+//! page lacks, bound as a new `/Font` object with no program, or a donor the
+//! caller supplied as a [`FontEmbedPlan`](crate::font_embed::FontEmbedPlan)
+//! ([`FormatRequest::embedded_font`]), embedded as a Type0 subset. A face
+//! that is none of these is refused. Algorithmic
 //! faux-bold/faux-italic synthesis is FF-H — not built here. An
 //! outlined/vectorized-text target has no font resource to swap and is
 //! refused with 14.1's existing "font resource is unresolvable" reason, not
@@ -566,9 +564,9 @@ impl NewFill {
 /// The target is an existing font RESOURCE on the page — located by either
 /// its `/Resources /Font` resource key (`F2`) or its `/BaseFont`
 /// (`Times-Bold`, matched exactly or with the §9.6.4 subset tag stripped) —
-/// or, since `Pass 162.0`, a standard-14 name the page lacks, which
-/// `format_text` binds as a new `/Font` object. A face that is neither is
-/// refused (the embedded-donor half of FF-C, `Pass 142.0`). When two
+/// or a standard-14 name the page lacks, which `format_text` binds as a new
+/// `/Font` object. Any other face needs its program supplied through
+/// [`FormatRequest::embedded_font`]; without one it is refused. When two
 /// resources share a `/BaseFont`, the resource key is the unambiguous
 /// spelling.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -735,6 +733,16 @@ pub struct FormatRequest {
     /// `100 × target / advance-at-Th-1`, measured with the font, size, `Tc`
     /// and `Tw` that will be in force over the run.
     pub(crate) fit_width: Option<f64>,
+    /// A donor face to **embed** when [`Self::set_font`] names a face that is
+    /// neither a font resource here nor a standard-14 face (`Pass 142.0`).
+    ///
+    /// The plan comes from the shell (core has no font parser): subset it for
+    /// the run's characters with `pdfcer_render::font::subset::plan_subset`.
+    /// It is bound as a new `/Type0` + `Identity-H` resource (§9.7.6.2) and the
+    /// run is re-encoded as two-byte CIDs. A page resource of that name still
+    /// wins; a character the plan lacks is [`FormatError::CoverageFailure`].
+    /// Set with [`Self::embedded_font`].
+    pub embed_font: Option<Box<crate::font_embed::FontEmbedPlan>>,
 }
 
 impl FormatRequest {
@@ -760,6 +768,7 @@ impl FormatRequest {
             set_render_mode: None,
             fit_width: None,
             target: EditTarget::Auto,
+            embed_font: None,
         }
     }
 
@@ -852,6 +861,16 @@ impl FormatRequest {
     #[must_use]
     pub fn font(mut self, selector: FontSelector) -> Self {
         self.set_font = Some(selector);
+        self
+    }
+
+    /// Restyle into a donor face that is embedded if the document lacks it
+    /// (see [`Self::embed_font`]). Sets [`Self::set_font`] to the plan's
+    /// PostScript name, so a resource already carrying it is reused.
+    #[must_use]
+    pub fn embedded_font(mut self, plan: crate::font_embed::FontEmbedPlan) -> Self {
+        self.set_font = Some(FontSelector::new(&plan.base_name));
+        self.embed_font = Some(Box::new(plan));
         self
     }
 
@@ -1469,7 +1488,7 @@ pub enum FormatError {
     /// `--set-font` names no existing font resource on the page.
     #[error(
         "the target font {0:?} is not an existing font resource on this page; \
-         adding a new font resource / embedding a new face is deferred (FF-C)"
+         supply the face's font program to embed a subset of it"
     )]
     TargetFontMissing(String),
     /// No page at the requested index.
@@ -1661,9 +1680,11 @@ pub fn set_format(
     // The binding rule itself is NOT duplicated here — `bind_font_resource`
     // is the one implementation, taken over an `ObjectGraph` precisely so all
     // three callers can reach it (`R171`).
+    let mut staging: Vec<u8> = Vec::new();
+    let base_len = doc.bytes().len();
     let extra_objects: Vec<(crate::object::ObjId, Object)> = match &plan.created_font {
         None => Vec::new(),
-        Some((key, dict)) => {
+        Some(created) => {
             // A fresh object number for a one-shot save. `next_object_number`
             // is the document's own answer -- the max of what it defines and
             // what its `/Size` claims -- so it cannot collide with an id the
@@ -1685,14 +1706,16 @@ pub fn set_format(
                 Some(form) => (form.id, false),
                 None => (page.id, true),
             };
-            let (objects, _shared) = crate::text_edit::addtext::bind_font_resource(
-                &doc.view(),
-                owner_id,
-                may_inherit,
-                key,
-                font_id,
-                dict.clone(),
-            );
+            // The program and `/ToUnicode` bytes of an embedded face go first
+            // in the update's staging buffer; the writer stages the content
+            // after them.
+            let (objects, _shared) = created
+                .objects(&doc.view(), owner_id, may_inherit, font_id, |bytes| {
+                    let span = ByteSpan::new(base_len + staging.len(), bytes.len());
+                    staging.extend_from_slice(bytes);
+                    span
+                })
+                .map_err(FormatError::Unsupported)?;
             objects
         }
     };
@@ -1721,12 +1744,13 @@ pub fn set_format(
                 &form_dict,
                 &plan.new_content,
                 &side,
+                staging,
             )
             .map_err(FormatError::from_edit)?
         }
         None => {
             let (bytes, content_object, emptied, decoupled) =
-                write_incremental_with(doc, page, &plan.new_content, &extra_objects)
+                write_incremental_with(doc, page, &plan.new_content, &extra_objects, staging)
                     .map_err(FormatError::from_edit)?;
             if decoupled {
                 plan.report.content_object = content_object;
@@ -1839,7 +1863,7 @@ pub(crate) struct FormatPlan {
     /// here is optional to act on — dropping it produces a content stream
     /// naming a resource that does not exist, which §7.8.3 leaves undefined
     /// and which viewers render as missing text rather than as an error.
-    pub(crate) created_font: Option<(Vec<u8>, Dict)>,
+    pub(crate) created_font: Option<CreatedFont>,
 }
 
 /// Plan a FORMAT edit over an already-decoded content `stream`: locate the
@@ -2140,15 +2164,13 @@ pub(crate) fn plan_format_target(
         }
     }
 
-    // The formatting path is SINGLE-BYTE by construction: it re-encodes into a
-    // target simple font's encoding. `m.old_codes` widened to `u32` in Pass
-    // 29.0 for the composite REPLACE path, so it is converted here rather than
-    // widening this path too — a composite run never reaches formatting
-    // (`classify_font` refuses it first), and pretending otherwise would put
-    // two-byte codes into a single-byte emitter.
-    let new_codes: Vec<u32> = match &font_plan {
-        Some(plan) => plan.new_codes.iter().map(|&c| u32::from(c)).collect(),
-        None => m.old_codes.clone(),
+    // The shown codes: single-byte for a simple target (and for no family
+    // change: the run's own codes, which formatting never widens), two-byte
+    // CIDs only for an embedded donor (`Pass 142.0`). `single_byte` gates the
+    // §9.3.3 code-32 `Tw` rule and the emitter.
+    let (new_codes, single_byte): (Vec<u32>, bool) = match &font_plan {
+        Some(plan) => (plan.new_codes.clone(), !plan.two_byte),
+        None => (m.old_codes.clone(), true),
     };
     let advance_font: &ExtractFont = font_plan.as_ref().map_or(&orig_font, |p| &p.font);
 
@@ -2194,7 +2216,15 @@ pub(crate) fn plan_format_target(
             let natural: f64 = new_codes
                 .iter()
                 .map(|&c| {
-                    glyph_advance_with(advance_font, c, emitted_size, eff_tc, eff_tw, 1.0, true)
+                    glyph_advance_with(
+                        advance_font,
+                        c,
+                        emitted_size,
+                        eff_tc,
+                        eff_tw,
+                        1.0,
+                        single_byte,
+                    )
                 })
                 .sum();
             if !(natural.is_finite() && natural > STATE_EPS) {
@@ -2223,7 +2253,17 @@ pub(crate) fn plan_format_target(
         .sum();
     let a_new: f64 = new_codes
         .iter()
-        .map(|&c| glyph_advance_with(advance_font, c, emitted_size, eff_tc, eff_tw, eff_th, true))
+        .map(|&c| {
+            glyph_advance_with(
+                advance_font,
+                c,
+                emitted_size,
+                eff_tc,
+                eff_tw,
+                eff_th,
+                single_byte,
+            )
+        })
         .sum();
     let delta = a_new - a_old;
 
@@ -2232,7 +2272,12 @@ pub(crate) fn plan_format_target(
     // (post-re-encode), because that is the string `Tw` operates on.
     // Reported by value — a `Some(0)` is the honest answer for a run with
     // no spaces, not a reason to suppress the operation.
-    let tw_affected = new_tw.map(|_| new_codes.iter().filter(|&&c| c == 0x20).count());
+    let tw_affected = new_tw.map(|_| {
+        new_codes
+            .iter()
+            .filter(|&&c| single_byte && c == 0x20)
+            .count()
+    });
 
     // --- build the state-set / state-restore operator sequences ---
     let size_changed = req.set_size.is_some();
@@ -2528,14 +2573,22 @@ pub(crate) fn plan_format_target(
         synthetic_italic = Some((tan, rise_offset));
     }
 
-    // Back to bytes for emission. Every code here fits by construction (the
-    // single-byte re-encode above produced them), and `filter_map` keeps that
-    // assumption from turning into a silent truncation if it ever stops
-    // holding — a truncated code is a different, valid, wrong glyph.
-    let mid_bytes: Vec<u8> = new_codes
-        .iter()
-        .filter_map(|&c| u8::try_from(c).ok())
-        .collect();
+    // Back to bytes for emission: one byte per code, or a big-endian pair per
+    // CID for an `Identity-H` face (§9.7.6.2). A single-byte code that does
+    // not fit is dropped rather than truncated: a truncated code is a
+    // different, valid, wrong glyph.
+    let mid_bytes: Vec<u8> = if single_byte {
+        new_codes
+            .iter()
+            .filter_map(|&c| u8::try_from(c).ok())
+            .collect()
+    } else {
+        new_codes
+            .iter()
+            .filter_map(|&c| u16::try_from(c).ok())
+            .flat_map(u16::to_be_bytes)
+            .collect()
+    };
     let mid = vec![ShowElem::Str(mid_bytes)];
     let mut replacement: Vec<u8> = Vec::new();
     let push_seg = |seg: Vec<u8>, out: &mut Vec<u8>| {
@@ -2791,7 +2844,10 @@ pub(crate) fn plan_format_target(
 struct FontPlan {
     resource: Vec<u8>,
     font: ExtractFont,
-    new_codes: Vec<u8>,
+    new_codes: Vec<u32>,
+    /// The codes are two-byte CIDs for an `Identity-H` face (§9.7.6.2), so
+    /// they are emitted as byte pairs and `Tw` never applies (§9.3.3).
+    two_byte: bool,
     embedded: bool,
     subset: bool,
     disclosures: Vec<String>,
@@ -2808,7 +2864,93 @@ struct FontPlan {
     /// operator the splice emits names the resource KEY, which is decided
     /// above, so the content bytes are already correct without knowing what
     /// number the dictionary will get.
-    created: Option<(Vec<u8>, Dict)>,
+    created: Option<CreatedFont>,
+}
+
+/// A `/Font` resource a format plan must create before its content is valid:
+/// the resource key its `Tf` names, and the face to write under it.
+#[derive(Debug, Clone)]
+pub(crate) struct CreatedFont {
+    pub(crate) key: Vec<u8>,
+    pub(crate) face: CreatedFace,
+}
+
+/// What a [`CreatedFont`] writes.
+#[derive(Debug, Clone)]
+pub(crate) enum CreatedFace {
+    /// A complete, all-direct font dictionary (a standard-14 face): one object.
+    Simple(Dict),
+    /// An embedded subset (`Pass 142.0`): the `/Type0` wrapper and four more
+    /// objects (§9.7.4, §9.9), built by the same code add-text uses.
+    Embedded(Box<crate::font_embed::FontEmbedPlan>),
+}
+
+impl CreatedFont {
+    /// How many consecutive object numbers, starting at the font's own, the
+    /// caller must reserve.
+    pub(crate) fn object_count(&self) -> u32 {
+        match self.face {
+            CreatedFace::Simple(_) => 1,
+            CreatedFace::Embedded(_) => 5,
+        }
+    }
+
+    /// The font's objects at `font_id`: its dictionary, bound by the caller
+    /// through `addtext::bind_font_resource`, and anything else it needs. An
+    /// embedded face also writes `font_id + 1 ..= font_id + 4` and stages its
+    /// program and `/ToUnicode` bytes through `stage`.
+    ///
+    /// # Errors
+    ///
+    /// The embedding plan fails validation or its numbers do not fit.
+    pub(crate) fn build(
+        &self,
+        font_id: crate::object::ObjId,
+        stage: impl FnMut(&[u8]) -> ByteSpan,
+    ) -> Result<(Dict, Vec<(crate::object::ObjId, Object)>), String> {
+        match &self.face {
+            CreatedFace::Simple(dict) => Ok((dict.clone(), Vec::new())),
+            CreatedFace::Embedded(plan) => {
+                let mut objects =
+                    crate::text_edit::addtext::embedded_font_objects(plan, font_id, stage)
+                        .map_err(|e| e.to_string())?;
+                let Some(pos) = objects.iter().position(|(id, _)| *id == font_id) else {
+                    return Err("the embedded font has no /Type0 dictionary".to_owned());
+                };
+                match objects.remove(pos).1 {
+                    Object::Dict(wrapper) => Ok((wrapper, objects)),
+                    _ => Err("the embedded font's /Type0 object is not a dictionary".to_owned()),
+                }
+            }
+        }
+    }
+
+    /// [`Self::build`], then bound as `/Font /key` in `owner_id`'s resources;
+    /// also returns whether that resource dictionary is shared.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::build`].
+    pub(crate) fn objects<G: ObjectGraph + ?Sized>(
+        &self,
+        graph: &G,
+        owner_id: crate::object::ObjId,
+        may_inherit: bool,
+        font_id: crate::object::ObjId,
+        stage: impl FnMut(&[u8]) -> ByteSpan,
+    ) -> Result<(Vec<(crate::object::ObjId, Object)>, bool), String> {
+        let (font, rest) = self.build(font_id, stage)?;
+        let (mut bound, shared) = crate::text_edit::addtext::bind_font_resource(
+            graph,
+            owner_id,
+            may_inherit,
+            &self.key,
+            font_id,
+            font,
+        );
+        bound.extend(rest);
+        Ok((bound, shared))
+    }
 }
 
 /// What `set_font`'s acceptance test decided about **one** candidate face,
@@ -2867,9 +3009,9 @@ struct AcceptedFont {
 ///    `/bullet`, so `'o'` has nowhere to go (`R-INV-7`).
 /// 4. **The embedded-subset floor.** When the target is an embedded
 ///    **subset**, every resulting code must already be carried on this page
-///    by that resource — pdfcer cannot add a glyph to a subset without the
-///    deferred FF-C embedding work, so a code the subset does not carry is a
-///    coverage failure rather than a silent `.notdef`.
+///    by that resource — a subset cannot grow a glyph, so a code it does not
+///    carry is a coverage failure rather than a silent `.notdef`. A supplied
+///    donor ([`FormatRequest::embedded_font`]) then embeds a fresh subset.
 ///
 /// # Errors
 ///
@@ -2903,8 +3045,7 @@ fn accept_font_target(
         .map_err(FormatError::CoverageFailure)?;
 
     // (4) Embedded-subset floor on the TARGET: a resulting code the subset
-    // does not already carry on the page is a coverage failure (can't add
-    // glyphs without FF-C).
+    // does not already carry on the page is a coverage failure.
     if embedded && subset {
         let carried = carried_codes(recs, resource);
         for (u, &code) in text.chars().zip(encoded.codes.iter()) {
@@ -2916,8 +3057,8 @@ fn accept_font_target(
                     remedy_faces: Vec::new(),
                     message: format!(
                         "coverage failure: target font '{}' is an embedded SUBSET that does not \
-                         already carry code {} for character U+{:04X} '{}'; embedding a new glyph \
-                         is deferred to FF-C. Nothing was applied.",
+                         already carry code {} for character U+{:04X} '{}'; supply the face's font \
+                         program to embed a fresh subset. Nothing was applied.",
                         target.base_font, code, u as u32, u
                     ),
                 }));
@@ -3254,28 +3395,27 @@ fn plan_font(
     let Some(sel) = &req.set_font else {
         return Ok(None);
     };
-    // Locate an existing font resource by key, then by /BaseFont.
-    //
-    // `Pass 162.0`: a miss is no longer the end. Until now this verb was
-    // strictly READ-ONLY about resources — a face the page did not already
-    // carry was `TargetFontMissing`, and an operator asking for Helvetica on a
-    // page built from Times got a refusal naming a deferral code (FF-C).
-    //
-    // The refusal was honest but it made "restyle this to a face the document
-    // lacks" unreachable through any verb: `embed_font` supplies a missing
-    // font PROGRAM for a face the file already REFERENCES, and cannot
-    // introduce one.
-    //
-    // A **standard-14** face is the half of that gap that needs no font
-    // program at all (§9.6.2.2), so it is closed here. Anything else still
-    // refuses, because introducing it means subsetting and embedding a real
-    // program — `Pass 142.0`, still deferred, and the refusal below still
-    // names FF-C for exactly that case.
+    // Locate an existing font resource by key, then by /BaseFont. On a miss:
+    // a donor the caller supplied for THIS face is embedded (`Pass 142.0`),
+    // else a standard-14 face is authored with no program (`Pass 162.0`,
+    // §9.6.2.2), else the run is refused. The donor applies only when the
+    // selector names it: a style-ladder probe for another face must not
+    // embed this one.
+    let embed_plan = req
+        .embed_font
+        .as_deref()
+        .filter(|p| p.base_name.eq_ignore_ascii_case(&sel.selector));
     let (resource, target_dict, created) =
         match resolve_target_resource(doc, resources, &sel.selector) {
             Some((key, dict)) => (key, dict.clone(), None),
             None => {
-                // Not on the page. Is it a face pdfcer can author outright?
+                // Not on the page. A donor the caller supplied is embedded
+                // (`Pass 142.0`) ahead of the standard-14 fallback: naming a
+                // file is the more specific request.
+                if let Some(plan) = embed_plan {
+                    return plan_embedded_font(doc, resources, plan, find).map(Some);
+                }
+                // Is it a face pdfcer can author outright?
                 let face = crate::fontdata::std14_by_base_font(&sel.selector)
                     .ok_or_else(|| FormatError::TargetFontMissing(sel.selector.clone()))?;
                 let Object::Dict(dict) = crate::text_edit::addtext::std14_resource_dict(face)
@@ -3301,7 +3441,11 @@ fn plan_font(
                     .cloned()
                     .unwrap_or_default();
                 let key = crate::text_edit::addtext::pick_font_name(&existing_fonts);
-                (key.clone(), dict.clone(), Some((key, dict)))
+                let created = CreatedFont {
+                    key: key.clone(),
+                    face: CreatedFace::Simple(dict.clone()),
+                };
+                (key, dict.clone(), Some(created))
             }
         };
 
@@ -3315,14 +3459,25 @@ fn plan_font(
     // path enforces are the same code on the same bytes (`R221`). A synthesized
     // Helvetica that cannot show the run is refused exactly like a page font
     // that cannot — never `.notdef`, never a silent substitution.
-    let accepted = accept_font_target(doc, recs, &resource, &target_dict, find)?;
+    //
+    // A resource of the donor's face that cannot show the run (typically a
+    // subset missing a glyph) gives way to embedding a fresh subset.
+    let accepted = match accept_font_target(doc, recs, &resource, &target_dict, find) {
+        Ok(accepted) => accepted,
+        Err(e) => match embed_plan {
+            Some(plan) if created.is_none() => {
+                return plan_embedded_font(doc, resources, plan, find).map(Some);
+            }
+            _ => return Err(e),
+        },
+    };
 
     let mut disclosures = accepted.disclosures;
     match &created {
         None => disclosures.push(format!(
             "font: the run's family/style was changed to '{}' and its {} character(s) were \
              re-encoded into that face's /Encoding (minimal-diff; no new font resource added, \
-             no embedding — subsetting is FF-C).",
+             no embedding).",
             accepted.font.base_font,
             find.chars().count()
         )),
@@ -3331,11 +3486,10 @@ fn plan_font(
         // the way past (project rule 4). What they asked for was a restyle;
         // what also happened is that this page or form gained a resource it
         // did not have.
-        Some((key, _)) => disclosures.push(format!(
+        Some(CreatedFont { key, .. }) => disclosures.push(format!(
             "font: '{}' was NOT a font resource here, so pdfcer ADDED one as /{} — a standard-14 \
              face (ISO 32000-1 §9.6.2.2), so no font program is embedded and no bytes of glyph \
-             outline were added. The run's {} character(s) were re-encoded into it. A face \
-             outside the standard 14 still requires embedding and is still refused (FF-C).",
+             outline were added. The run's {} character(s) were re-encoded into it.",
             accepted.font.base_font,
             String::from_utf8_lossy(key),
             find.chars().count()
@@ -3345,12 +3499,112 @@ fn plan_font(
     Ok(Some(FontPlan {
         resource,
         font: accepted.font,
-        new_codes: accepted.codes,
+        new_codes: accepted.codes.iter().map(|&c| u32::from(c)).collect(),
+        two_byte: false,
         embedded: accepted.embedded,
         subset: accepted.subset,
         disclosures,
         created,
     }))
+}
+
+/// Plan a family change into a donor face the document does not carry
+/// (`Pass 142.0`): bind `plan` as a new `/Type0` + `Identity-H` resource and
+/// re-encode `find` as its two-byte CIDs (§9.7.6.2).
+///
+/// The plan is the coverage gate: a character it has no glyph for is
+/// [`FormatError::CoverageFailure`]. The advance widths come from the `/W`
+/// array the written descendant will carry, read through [`ExtractFont`], so
+/// the relayout measures what a reader will draw. The subset tag is made
+/// unique within the file (§9.6.4).
+fn plan_embedded_font(
+    doc: &DocumentView<'_>,
+    resources: &Dict,
+    plan: &crate::font_embed::FontEmbedPlan,
+    find: &str,
+) -> Result<FontPlan, FormatError> {
+    let plan = crate::text_edit::addtext::with_file_unique_plan_tag(plan, doc);
+    let mut codes = Vec::with_capacity(find.len());
+    for ch in find.chars() {
+        let Some(glyph) = plan.glyphs.iter().find(|g| g.unicode == ch) else {
+            return Err(FormatError::CoverageFailure(Refusal {
+                trigger: RInvTrigger::TargetAbsent,
+                character: Some(ch),
+                base_font: plan.base_name.clone(),
+                remedy_faces: Vec::new(),
+                message: format!(
+                    "coverage failure: the donor face '{}' was not subset for character \
+                     U+{:04X} '{}', so it has no glyph to show. Nothing was applied.",
+                    plan.base_name, ch as u32, ch
+                ),
+            }));
+        };
+        codes.push(u32::from(glyph.cid));
+    }
+
+    // Resolve the wrapper as a reader will. Its descendant and descriptor do
+    // not exist yet, so they are inlined. The probe numbers sit far above the
+    // §C.2 object-number limit (8,388,607), so a reference left over resolves
+    // to null rather than to an unrelated object.
+    let first = u32::MAX - 8;
+    let built = crate::font_embed::build_objects(&plan, first, Object::Null, Object::Null)
+        .map_err(|e| FormatError::Unsupported(e.to_string()))?;
+    let lookup = |id: &Object| {
+        id.as_reference()
+            .and_then(|r| built.objects.iter().find(|(oid, _)| *oid == r))
+            .and_then(|(_, o)| o.as_dict().cloned())
+    };
+    let wrapper = built
+        .objects
+        .iter()
+        .find(|(id, _)| *id == built.font_dict_id)
+        .and_then(|(_, o)| o.as_dict().cloned())
+        .ok_or_else(|| FormatError::Unsupported("the donor face built no font".to_owned()))?;
+    let mut probe = wrapper.clone();
+    if let Some(Object::Array(kids)) = wrapper.get(b"DescendantFonts")
+        && let Some(mut cid) = kids.first().and_then(lookup)
+    {
+        if let Some(desc) = cid.get(b"FontDescriptor").and_then(lookup) {
+            cid.insert(
+                crate::object::Name::from(b"FontDescriptor"),
+                Object::Dict(desc),
+            );
+        }
+        probe.insert(
+            crate::object::Name::from(b"DescendantFonts"),
+            Object::Array(vec![Object::Dict(cid)]),
+        );
+    }
+    let font = ExtractFont::resolve(doc, &probe);
+
+    let existing_fonts = resources
+        .get(b"Font")
+        .map(|o| doc.resolve(o))
+        .and_then(Object::as_dict)
+        .cloned()
+        .unwrap_or_default();
+    let key = crate::text_edit::addtext::pick_font_name(&existing_fonts);
+    let disclosures = vec![format!(
+        "font: '{}' was not in this document, so pdfcer EMBEDDED a subset of it as /{}: {}          glyph(s), {} byte(s) of font program, as a Type0 font with Identity-H encoding (ISO          32000-1 §9.7.6.2). The run's {} character(s) were re-encoded as its two-byte CIDs.",
+        plan.base_name,
+        String::from_utf8_lossy(&key),
+        plan.glyphs.len(),
+        plan.program.len(),
+        find.chars().count()
+    )];
+    Ok(FontPlan {
+        resource: key.clone(),
+        font,
+        new_codes: codes,
+        two_byte: true,
+        embedded: true,
+        subset: true,
+        disclosures,
+        created: Some(CreatedFont {
+            key,
+            face: CreatedFace::Embedded(Box::new(plan)),
+        }),
+    })
 }
 
 // ===================================================================

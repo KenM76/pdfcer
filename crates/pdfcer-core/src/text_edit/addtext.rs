@@ -1126,20 +1126,31 @@ pub(crate) fn with_file_unique_tag(
     let NewTextFace::Embedded(plan) = &req.face else {
         return None;
     };
+    let unique = with_file_unique_plan_tag(plan, view);
+    if unique.subset_tag == plan.subset_tag {
+        return None;
+    }
+    let mut req = req.clone();
+    req.face = NewTextFace::Embedded(Box::new(unique));
+    Some(req)
+}
+
+/// `plan`, re-tagged when its subset tag is already used in the document
+/// (§9.6.4); shared by add-text and format-text.
+pub(crate) fn with_file_unique_plan_tag(
+    plan: &FontEmbedPlan,
+    view: &crate::view::DocumentView<'_>,
+) -> FontEmbedPlan {
     let taken: BTreeSet<String> = crate::fontinfo::inventory(view)
         .fonts
         .into_iter()
         .filter_map(|f| f.subset_tag)
         .collect();
-    if !taken.contains(&plan.subset_tag) {
-        return None;
-    }
-    let tag = unique_subset_tag(&plan.subset_tag, &taken);
     let mut plan = plan.clone();
-    plan.subset_tag = tag;
-    let mut req = req.clone();
-    req.face = NewTextFace::Embedded(plan);
-    Some(req)
+    if taken.contains(&plan.subset_tag) {
+        plan.subset_tag = unique_subset_tag(&plan.subset_tag, &taken);
+    }
+    plan
 }
 
 /// The first of FNV-1a(`tag`, n) for n = 1, 2, ... not in `taken`.
@@ -1283,14 +1294,6 @@ fn build_content(
     out
 }
 
-/// Build the `q BT…ET Q` body for an EMBEDDED (composite) face.
-///
-/// The Standard-14 sibling [`build_content`] shows a literal `( … )` string of
-/// single-byte codes. A `/Type0` font with `Identity-H` addresses glyphs by
-/// TWO-byte CID (§9.7.6.2), so the operand is a hex string instead — writing
-/// the same literal form here would silently address the wrong glyphs, and
-/// would do so *plausibly*, because half the bytes would still land on real
-/// CIDs.
 /// Map each character of `text` to its CID in `plan`.
 ///
 /// The plan is normally built from this exact string, so a miss "cannot
@@ -1314,6 +1317,14 @@ fn cids_for(plan: &FontEmbedPlan, text: &str) -> Result<Vec<u16>, AddTextError> 
         .collect()
 }
 
+/// Build the `q BT…ET Q` body for an EMBEDDED (composite) face.
+///
+/// The Standard-14 sibling [`build_content`] shows a literal `( … )` string of
+/// single-byte codes. A `/Type0` font with `Identity-H` addresses glyphs by
+/// TWO-byte CID (§9.7.6.2), so the operand is a hex string instead — writing
+/// the same literal form here would silently address the wrong glyphs, and
+/// would do so *plausibly*, because half the bytes would still land on real
+/// CIDs.
 fn build_content_embedded(
     font_name: &[u8],
     size: f64,

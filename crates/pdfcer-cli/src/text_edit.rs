@@ -1170,6 +1170,36 @@ justified_lines={} height_delta={:.1}",
     exit::SUCCESS
 }
 
+/// Subset the donor at `path` for the characters of `find` (`format-text
+/// --embed-font`), or the exit code after printing why not.
+fn donor_plan(
+    path: &std::path::Path,
+    find: &str,
+) -> Result<pdfcer_core::font_embed::FontEmbedPlan, u8> {
+    if find.is_empty() {
+        eprintln!(
+            "pdfcer: format-text refused: --embed-font needs --find, because the subset is built for exactly the characters of the run"
+        );
+        return Err(exit::EDIT_REFUSED);
+    }
+    let donor = std::fs::read(path).map_err(|e| {
+        eprintln!("pdfcer: cannot read the font file {}: {e}", path.display());
+        exit::IO_ERROR
+    })?;
+    let mut wanted: Vec<char> = find.chars().collect();
+    wanted.sort_unstable();
+    wanted.dedup();
+    let stem = path.file_stem().map_or_else(
+        || "EmbeddedFont".to_owned(),
+        |s| s.to_string_lossy().into_owned(),
+    );
+    let tag = pdfcer_render::font::subset::subset_tag_for(&stem);
+    pdfcer_render::font::subset::plan_subset(&donor, 0, &wanted, &stem, &tag).map_err(|e| {
+        eprintln!("pdfcer: format-text refused: {e}");
+        exit::EDIT_REFUSED
+    })
+}
+
 /// Arguments for [`cmd_format_text`], grouped to stay under the clippy
 /// `too_many_arguments` bound (same pattern as [`EditTextArgs`]).
 pub(crate) struct FormatTextArgs<'a> {
@@ -1186,6 +1216,8 @@ pub(crate) struct FormatTextArgs<'a> {
     pub(crate) set_color: Option<&'a str>,
     /// A target font resource key or `/BaseFont`.
     pub(crate) set_font: Option<&'a str>,
+    /// `--embed-font FILE`: a donor to subset for `find` (`Pass 142.0`).
+    pub(crate) embed_font: Option<&'a std::path::Path>,
     /// `--char-spacing` as passed, e.g. `0.5`, `0.5pt`, `20em`.
     pub(crate) char_spacing: Option<&'a str>,
     /// `--word-spacing` as passed, e.g. `2`, `2pt`, `200em` (Pass 19.4).
@@ -1450,6 +1482,12 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     }
     if let Some(name) = args.set_font {
         req = req.font(FontSelector::new(name));
+    }
+    if let Some(donor_path) = args.embed_font {
+        match donor_plan(donor_path, args.find) {
+            Ok(plan) => req = req.embedded_font(plan),
+            Err(code) => return code,
+        }
     }
     if let Some(spec) = char_spacing {
         req = req.char_spacing(spec);

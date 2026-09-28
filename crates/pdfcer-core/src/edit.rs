@@ -9428,7 +9428,7 @@ type FormatFormHit = (
     Dict,
     Vec<u8>,
     crate::text_edit::FormatReport,
-    Option<(Vec<u8>, Dict)>,
+    Option<crate::text_edit::format::CreatedFont>,
 );
 
 impl EditSession {
@@ -11971,22 +11971,26 @@ impl EditSession {
         &mut self,
         owner_id: ObjId,
         may_inherit: bool,
-        key: &[u8],
-        font: Dict,
-    ) -> Result<(Vec<ObjectWrite>, bool), EditError> {
-        let font_id = ObjId::new(self.alloc_number()?, 0);
+        created: &crate::text_edit::format::CreatedFont,
+    ) -> Result<(Vec<ObjectWrite>, bool), String> {
+        let font_id = ObjId::new(self.alloc_number().map_err(|e| e.to_string())?, 0);
+        for _ in 1..created.object_count() {
+            self.alloc_number().map_err(|e| e.to_string())?;
+        }
+        let (font, rest) = created.build(font_id, |bytes| self.stage_bytes(bytes))?;
         // `self.graph()`, not `self.base`: the resource dictionary may
         // already have been edited earlier in this session, and binding
         // against the base revision would drop those edits when this write
         // replaces the object.
-        let (objects, shared) = crate::text_edit::addtext::bind_font_resource(
+        let (mut objects, shared) = crate::text_edit::addtext::bind_font_resource(
             &self.graph(),
             owner_id,
             may_inherit,
-            key,
+            &created.key,
             font_id,
             font,
         );
+        objects.extend(rest);
         let writes = objects
             .into_iter()
             .map(|(id, value)| ObjectWrite {
@@ -12067,9 +12071,9 @@ impl EditSession {
                             // restyle and the resource it needed -- an undo
                             // that left the font behind would leave an
                             // orphaned object the operator never asked for.
-                            if let Some((key, dict)) = plan.created_font {
+                            if let Some(created) = plan.created_font {
                                 let (writes, shared) = self
-                                    .font_resource_writes(page.id, true, &key, dict)
+                                    .font_resource_writes(page.id, true, &created)
                                     .map_err(|e| {
                                         // The only realistic failure is
                                         // object-number exhaustion. Named
@@ -12210,20 +12214,28 @@ impl EditSession {
         // one would be walking the page tree from an object that is not in it.
         let mut form_dict = form_dict;
         let mut extra: Vec<ObjectWrite> = Vec::new();
-        if let Some((key, dict)) = created {
+        if let Some(created) = created {
             let font_id = ObjId::new(
                 self.alloc_number()
                     .map_err(|e| FmtError::Unsupported(format!("{e}")))?,
                 0,
             );
-            let (objects, shared) = crate::text_edit::addtext::bind_font_resource(
+            for _ in 1..created.object_count() {
+                self.alloc_number()
+                    .map_err(|e| FmtError::Unsupported(format!("{e}")))?;
+            }
+            let (font, rest) = created
+                .build(font_id, |bytes| self.stage_bytes(bytes))
+                .map_err(FmtError::Unsupported)?;
+            let (mut objects, shared) = crate::text_edit::addtext::bind_font_resource(
                 &self.graph(),
                 form_id,
                 false,
-                &key,
+                &created.key,
                 font_id,
-                dict,
+                font,
             );
+            objects.extend(rest);
             for (id, value) in objects {
                 if id == form_id {
                     // The binder returned the FORM'S OWN dictionary,

@@ -392,9 +392,9 @@ fn set_font_to_a_face_the_page_lacks_adds_the_resource_to_the_file() {
     );
 }
 
-/// A face outside the standard 14 still needs a font program, so it is still
-/// refused — and the refusal still names both the face and the deferral, so it
-/// does not read as a permanent no.
+/// A face outside the standard 14 needs a font program, so naming it alone is
+/// refused — and the refusal names the face and the remedy, so it does not
+/// read as a permanent no.
 #[test]
 fn set_font_to_a_non_standard_14_face_is_still_refused() {
     let out_path = temp_path("arial");
@@ -410,7 +410,7 @@ fn set_font_to_a_non_standard_14_face_is_still_refused() {
     assert_ne!(out.status.code(), Some(0), "Arial cannot be authored");
     let err = stderr(&out);
     assert!(err.contains("Arial"), "{err}");
-    assert!(err.contains("FF-C"), "{err}");
+    assert!(err.contains("font program"), "{err}");
     assert!(!out_path.exists(), "a refusal must write no output file");
 }
 
@@ -548,4 +548,79 @@ fn bold_and_set_font_together_are_refused_by_clap() {
         "{}",
         stderr(&out)
     );
+}
+
+// ---------------------------------------------------------------------------
+// `Pass 142.0` — `--embed-font FILE`: restyle into a face the file lacks.
+// ---------------------------------------------------------------------------
+
+/// `hello.pdf` plus a run reading `CAB`: the characters the synthetic
+/// subset donor has outlines for.
+fn cab_page() -> PathBuf {
+    let path = temp_path("cab");
+    let hello = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/hello.pdf");
+    let out = run_raw(&[
+        "add-text",
+        hello.to_str().unwrap(),
+        "--at",
+        "72,600",
+        "--text",
+        "CAB",
+        "-o",
+        path.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    path
+}
+
+fn subset_donor() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/text/subset-donor.ttf")
+}
+
+/// The saved file carries the embedded face and the words still read —
+/// asserted on the output file re-read, not on the command's report.
+#[test]
+fn embed_font_restyles_into_a_subset_of_the_donor() {
+    let input = cab_page();
+    let out_path = temp_path("embedded");
+    let out = run(&[
+        input.to_str().unwrap(),
+        "--find",
+        "CAB",
+        "--embed-font",
+        subset_donor().to_str().unwrap(),
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let said = format!("{}{}", stdout(&out), stderr(&out));
+    assert!(said.contains("EMBEDDED a subset"), "{said}");
+
+    let listed = stdout(&run_raw(&["list-fonts", out_path.to_str().unwrap()]));
+    assert!(listed.contains("subset-donor"), "{listed}");
+    assert!(listed.contains("Type0"), "{listed}");
+    let text = stdout(&run_raw(&["extract-text", out_path.to_str().unwrap()]));
+    assert!(text.contains("CAB"), "{text}");
+    for p in [input, out_path] {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
+/// A character the donor has no glyph for refuses the whole edit and writes
+/// nothing.
+#[test]
+fn embed_font_missing_a_glyph_is_refused_with_no_output() {
+    let hello = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/hello.pdf");
+    let out_path = temp_path("noglyph");
+    let out = run(&[
+        hello.to_str().unwrap(),
+        "--find",
+        "Hello",
+        "--embed-font",
+        subset_donor().to_str().unwrap(),
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert_ne!(out.status.code(), Some(0), "{}", stdout(&out));
+    assert!(!out_path.exists(), "a refusal must write no output file");
 }

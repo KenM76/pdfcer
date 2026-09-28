@@ -4194,7 +4194,7 @@ pub(crate) fn write_incremental(
     page: &Page,
     new_content: &[u8],
 ) -> Result<(Vec<u8>, u32, u64, bool), EditError> {
-    write_incremental_with(doc, page, new_content, &[])
+    write_incremental_with(doc, page, new_content, &[], Vec::new())
 }
 
 /// [`write_incremental`] plus objects the plan requires to exist
@@ -4213,11 +4213,16 @@ pub(crate) fn write_incremental(
 /// this page's alone), the page's `/Contents` is pointed at it, and the shared
 /// streams are left for the pages still drawing them. The returned `bool` is
 /// `true` when that happened, so the caller can disclose it.
+///
+/// `staged` is the start of the update's staging buffer: bytes the caller
+/// already placed for `extra_objects`' streams, at spans of
+/// `doc.bytes().len() + offset`.
 pub(crate) fn write_incremental_with(
     doc: &Document,
     page: &Page,
     new_content: &[u8],
     extra_objects: &[(ObjId, Object)],
+    staged: Vec<u8>,
 ) -> Result<(Vec<u8>, u32, u64, bool), EditError> {
     let first = *page
         .contents
@@ -4231,7 +4236,7 @@ pub(crate) fn write_incremental_with(
 
     let mut dirty = DirtySet::empty();
     let base_len = doc.bytes().len();
-    let mut staging: Vec<u8> = Vec::new();
+    let mut staging: Vec<u8> = staged;
 
     let content_id = if shared.contains(&first) {
         let taken = extra_objects
@@ -4319,7 +4324,7 @@ pub(crate) fn write_incremental_form(
     form_dict: &Dict,
     new_content: &[u8],
 ) -> Result<Vec<u8>, EditError> {
-    write_incremental_form_with(doc, form_id, form_dict, new_content, &[])
+    write_incremental_form_with(doc, form_id, form_dict, new_content, &[], Vec::new())
 }
 
 /// [`write_incremental_form`] plus objects the plan requires to exist — the
@@ -4329,13 +4334,14 @@ pub(crate) fn write_incremental_form(
 /// `extra` must NOT contain `form_id`: the form is a stream rebuilt here from
 /// `form_dict`, and a second write for the same id in one revision means the
 /// later silently wins. The caller feeds a patched form dictionary in through
-/// `form_dict` instead.
+/// `form_dict` instead. `staged` is as for [`write_incremental_with`].
 pub(crate) fn write_incremental_form_with(
     doc: &Document,
     form_id: ObjId,
     form_dict: &Dict,
     new_content: &[u8],
     extra: &[(ObjId, Object)],
+    staged: Vec<u8>,
 ) -> Result<Vec<u8>, EditError> {
     debug_assert!(
         !extra.iter().any(|(id, _)| *id == form_id),
@@ -4343,7 +4349,7 @@ pub(crate) fn write_incremental_form_with(
     );
     let mut dirty = DirtySet::empty();
     let base_len = doc.bytes().len();
-    let mut staging: Vec<u8> = Vec::new();
+    let mut staging: Vec<u8> = staged;
     let span = stage(&mut staging, base_len, new_content);
     dirty.replace(
         form_id,

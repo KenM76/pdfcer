@@ -26,6 +26,7 @@ mod export_svg_keep_text;
 mod ext_gstate_indirect;
 mod external_tools;
 mod flatten_annotations_look_the_same;
+mod format_embed_font;
 mod grey_overprint;
 mod group_spot_planes;
 mod hairline_minimum;
