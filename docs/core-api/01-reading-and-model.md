@@ -1350,9 +1350,10 @@ let n = layout.diagnostics.inferred();          // heuristic kind decisions
   minus the rest's, in points.
 - CLI: `pdfcer extract-layout in.pdf [--json] [-o out]`.
 
-### 8.4.4 Tables — ruled cell grids (`Pass 374.0`)
+### 8.4.4 Tables — ruled and aligned cell grids (`Pass 374.0`)
 
-A page's tables as rows, columns and cells, from drawn rules. Every table,
+A page's tables as rows, columns and cells, from drawn rules or from
+whitespace alignment. Every table,
 merged cell and header guess is an inference and is counted in
 `diagnostics`; the shell must say so (CLAUDE.md rule 4). A tagged file's own
 `/Table` structure is §8.4.2, not this.
@@ -1362,10 +1363,10 @@ use pdfcer_core::table_detect::{self, HeaderEvidence, TableOptions};
 
 let found = table_detect::detect_tables(&doc, &opts, &TableOptions::default())?;
 for t in &found.tables {                        // by page, then top to bottom
-    // t.page_index, t.bbox (user space), t.source: BoundarySource::Ruled
+    // t.page_index, t.bbox (user space), t.source: Ruled | Aligned
     // t.rows / t.columns: Vec<Rect> bands, user space, top-to-bottom /
     //                     left-to-right as displayed
-    // t.header_rows: 0 or 1; t.header_evidence: Bold | Filled | HeavyRule
+    // t.header_rows: 0 or 1; t.header_evidence: Bold | Filled | HeavyRule | RuleBelow
     for c in &t.cells {                         // row-major by top-left
         // c.row, c.col, c.row_span, c.col_span (>= 1), c.bbox
         // c.glyphs: Vec<GlyphRef{run, glyph}> into found.text.pages[t.page_index]
@@ -1373,7 +1374,7 @@ for t in &found.tables {                        // by page, then top to bottom
     }
     let cell = t.cell(0, 0);                    // by top-left position
 }
-let n = found.diagnostics.inferred();           // tables + merged cells + headers
+let n = found.diagnostics.inferred();           // ruled + aligned tables, merged cells, headers
 ```
 
 - Rules are stroked axis-aligned segments (per subpath segment, so a CAD
@@ -1392,7 +1393,21 @@ let n = found.diagnostics.inferred();           // tables + merged cells + heade
 - Over 50,000 rules or 20,000 crossings on a page, that page is skipped and
   counted (`pages_over_limit`) rather than searched.
 - Analysis runs as displayed (`/Rotate` applied); boxes are user space.
-- Whitespace-aligned (unruled) tables are not detected yet.
+- Aligned tables come from the glyphs no ruled table took (horizontal as
+  displayed, not whitespace). Lines split into chunks at gaps
+  ≥ `min_gutter_em` (1.0) × font size; `min_aligned_rows` (3) or more
+  consecutive rows of ≥ 2 chunks, each ≤ 2.5 × size below the last, form a
+  candidate. Columns are the union of chunk extents. The candidate is
+  rejected (`aligned_blocks_rejected`) with fewer than 2 columns, a column
+  only one row uses, or a mean above `max_mean_cell_chars` (30) characters
+  per non-empty cell (prose in columns). The grid is full: an empty cell is
+  a cell with empty text, and no aligned cell spans. Column edges sit
+  mid-gutter; row edges midway between rows, 0.6 × size outside the first
+  and last.
+- `RuleBelow` (aligned only, checked before `HeavyRule`): a horizontal rule
+  spanning ≥ 80% of the table lies between rows 0 and 1, and no other
+  interior row gap has one (booktabs style; rules above the first and below
+  the last row are allowed).
 - CLI: `pdfcer extract-tables in.pdf [--json] [-o out]`.
 
 ### 8.5 ★ Search — it lives on `EditSession`

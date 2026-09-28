@@ -3025,14 +3025,19 @@ pub(crate) enum Command {
         json: bool,
     },
 
-    /// Find ruled tables: each table's grid of rows and columns, its cells
+    /// Find tables: each table's grid of rows and columns, its cells
     /// (with row and column spans for merged cells) and each cell's text.
     ///
-    /// A table is found from drawn rules: stroked lines, stroked
+    /// A "ruled" table is found from drawn rules: stroked lines, stroked
     /// rectangles and thin filled bars. White rules and a lone box (a
-    /// frame) are not tables. The first row is reported as a header when
-    /// its text is bold, it is shaded, or the rule under it is heavier;
-    /// the header line says which.
+    /// frame) are not tables. An "aligned" table is found in the remaining
+    /// text: at least three consecutive rows whose columns are separated
+    /// by gaps of at least one font size. Prose set in columns (long
+    /// cells) and blocks with a column only one row uses are rejected and
+    /// counted. The first row is reported as a header when its text is
+    /// bold, it is shaded, the rule under it is heavier, or (aligned
+    /// tables) it is the only row with a rule under it; the header line
+    /// says which.
     ///
     /// Everything here is inferred. The result line counts each table,
     /// merged cell and header guess, so a script can disclose them.

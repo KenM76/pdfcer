@@ -191,7 +191,6 @@ fn a_frame_white_rules_and_curves_are_not_tables() {
     s.push_str(&grid_lines(&XS, &YS).replace("0 G ", ""));
     // A circle-ish curve inside the frame.
     s.push_str("0 G 300 300 m 300 350 350 350 350 300 c S\n");
-    s.push_str(&body_rows("F1"));
     let found = detect(&s, 0);
     assert!(found.tables.is_empty(), "{:?}", found.tables);
     assert_eq!(found.diagnostics.single_cell_frames, 1);
@@ -227,4 +226,117 @@ fn a_cell_with_two_lines_keeps_both() {
         found.tables[0].cell(1, 0).unwrap().text,
         "upper\nlower words"
     );
+}
+
+/// Unruled rows at y = 500, 486, 472, ... with columns at x = 72, 200, 328.
+fn aligned_rows(rows: &[&[&str]], header_font: &str) -> String {
+    let mut s = String::new();
+    for (r, cells) in rows.iter().enumerate() {
+        let font = if r == 0 { header_font } else { "F1" };
+        #[allow(clippy::cast_precision_loss)]
+        let y = 500.0 - 14.0 * r as f32;
+        for (c, t) in cells.iter().enumerate() {
+            if t.is_empty() {
+                continue;
+            }
+            #[allow(clippy::cast_precision_loss)]
+            let x = 72.0 + 128.0 * c as f32;
+            s.push_str(&format!("BT /{font} 10 Tf {x} {y} Td ({t}) Tj ET\n"));
+        }
+    }
+    s
+}
+
+const PARTS: [&[&str]; 4] = [
+    &["Part", "Qty", "Price"],
+    &["Bolt M6", "12", "0.40"],
+    &["Nut M6", "30", "0.10"],
+    &["Washer", "", "0.05"],
+];
+
+#[test]
+fn whitespace_aligned_rows_are_a_table() {
+    // A one-phrase caption line just above is not a row of the table.
+    let caption = "BT /F1 10 Tf 72 514 Td (Parts list) Tj ET\n";
+    let found = detect(&(caption.to_owned() + &aligned_rows(&PARTS, "F2")), 0);
+    assert_eq!(found.tables.len(), 1, "{:?}", found.diagnostics);
+    let t = &found.tables[0];
+    assert_eq!(t.source, BoundarySource::Aligned);
+    assert_eq!((t.rows.len(), t.columns.len(), t.cells.len()), (4, 3, 12));
+    assert_eq!(t.cell(1, 0).unwrap().text, "Bolt M6");
+    assert_eq!(t.cell(2, 2).unwrap().text, "0.10");
+    // The empty cell is still in the grid.
+    assert_eq!(t.cell(3, 1).unwrap().text, "");
+    assert_eq!(t.header_evidence, Some(HeaderEvidence::Bold));
+    // Column edges sit in the gutters, row edges between baselines.
+    let c1 = t.columns[1];
+    assert!(c1.llx > 110.0 && c1.llx < 200.0, "{c1:?}");
+    let r1 = t.rows[1];
+    assert!(r1.ury > 490.0 && r1.ury < 504.0, "{r1:?}");
+    let d = &found.diagnostics;
+    assert_eq!((d.tables_aligned, d.tables_ruled, d.cells), (1, 0, 12));
+    assert_eq!(d.inferred(), 2);
+}
+
+#[test]
+fn two_columns_of_prose_are_not_a_table() {
+    let left = "The quick brown fox jumps over the lazy dog again";
+    let right = "Pack my box with five dozen liquor jugs once more";
+    let rows: Vec<[&str; 2]> = (0..5).map(|_| [left, right]).collect();
+    let mut s = String::new();
+    for (r, [a, b]) in rows.iter().enumerate() {
+        #[allow(clippy::cast_precision_loss)]
+        let y = 500.0 - 12.0 * r as f32;
+        s.push_str(&format!("BT /F1 8 Tf 72 {y} Td ({a}) Tj ET\n"));
+        s.push_str(&format!("BT /F1 8 Tf 320 {y} Td ({b}) Tj ET\n"));
+    }
+    let found = detect(&s, 0);
+    assert!(found.tables.is_empty(), "{:?}", found.tables);
+    assert_eq!(found.diagnostics.aligned_blocks_rejected, 1);
+    assert_eq!(found.diagnostics.inferred(), 0);
+}
+
+#[test]
+fn a_column_used_by_one_row_rejects_the_block() {
+    let rows: [&[&str]; 3] = [&["A", "1"], &["B", "2"], &["C", "3", "stray"]];
+    let found = detect(&aligned_rows(&rows, "F1"), 0);
+    assert!(found.tables.is_empty(), "{:?}", found.tables);
+    assert_eq!(found.diagnostics.aligned_blocks_rejected, 1);
+}
+
+#[test]
+fn two_aligned_rows_are_too_few() {
+    let found = detect(&aligned_rows(&PARTS[..2], "F1"), 0);
+    assert!(found.tables.is_empty());
+    assert_eq!(found.diagnostics.aligned_blocks_rejected, 0);
+}
+
+#[test]
+fn a_booktabs_rule_under_the_first_row_marks_a_header() {
+    let mut s = String::from("0 G 1 w 72 512 m 400 512 l S\n");
+    s.push_str("0.5 w 72 494 m 400 494 l S\n");
+    s.push_str("1 w 72 452 m 400 452 l S\n");
+    s.push_str(&aligned_rows(&PARTS, "F1"));
+    let found = detect(&s, 0);
+    assert_eq!(found.tables.len(), 1, "{:?}", found.diagnostics);
+    let t = &found.tables[0];
+    assert_eq!(t.source, BoundarySource::Aligned);
+    assert_eq!(t.header_evidence, Some(HeaderEvidence::RuleBelow));
+    // A second interior rule makes it a ruled-rows table, not booktabs.
+    let found = detect(&(s + "0.5 w 72 480 m 400 480 l S\n"), 0);
+    assert_eq!(found.tables[0].header_evidence, None);
+}
+
+#[test]
+fn a_ruled_and_an_aligned_table_share_a_page() {
+    let mut s = grid_lines(&XS, &YS);
+    s.push_str(&body_rows("F1"));
+    s.push_str(&aligned_rows(&PARTS, "F1"));
+    let found = detect(&s, 0);
+    let sources: Vec<_> = found.tables.iter().map(|t| t.source).collect();
+    assert_eq!(sources, [BoundarySource::Ruled, BoundarySource::Aligned]);
+    // The ruled table's text is not offered to the aligned pass again.
+    assert_eq!(found.tables[1].rows.len(), 4);
+    let d = &found.diagnostics;
+    assert_eq!((d.tables_ruled, d.tables_aligned), (1, 1));
 }

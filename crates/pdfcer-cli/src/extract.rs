@@ -1989,10 +1989,11 @@ fn layout_json(layout: &pdfcer_core::block_layout::DocumentLayout) -> String {
     out
 }
 
-/// **Find ruled tables** (`G055`).
+/// **Find tables**, ruled or whitespace-aligned (`G055`).
 ///
 /// Text output is one table per header line,
-/// `page N table K ruled rows=R cols=C header=<none|bold|filled|heavy-rule>`,
+/// `page N table K <ruled|aligned> rows=R cols=C
+/// header=<none|bold|filled|heavy-rule|rule-below>`,
 /// then one cell per line, `r<row>c<col>[<rows>x<cols>] "<text>"`, where the
 /// bracket appears only for a merged cell. The result line counts every
 /// inference and every rule source.
@@ -2034,7 +2035,7 @@ pub(crate) fn cmd_extract_tables(input: &Path, output: Option<&Path>, json: bool
     }
     let d = &found.diagnostics;
     println!(
-        "tables {} pages={} tables={} inferred={} ruled={} cells={} merged_cells={} \
+        "tables {} pages={} tables={} inferred={} ruled={} aligned={} aligned_rejected={} cells={} merged_cells={} \
 header_rows={} rules_from_strokes={} rules_from_fills={} single_cell_frames={} \
 pages_over_limit={} pages_unreadable={}",
         input.display(),
@@ -2042,6 +2043,8 @@ pages_over_limit={} pages_unreadable={}",
         found.tables.len(),
         d.inferred(),
         d.tables_ruled,
+        d.tables_aligned,
+        d.aligned_blocks_rejected,
         d.cells,
         d.merged_cells,
         d.header_rows_inferred,
@@ -2061,6 +2064,7 @@ fn header_evidence_name(e: Option<pdfcer_core::table_detect::HeaderEvidence>) ->
         Some(HeaderEvidence::Bold) => "bold",
         Some(HeaderEvidence::Filled) => "filled",
         Some(HeaderEvidence::HeavyRule) => "heavy-rule",
+        Some(HeaderEvidence::RuleBelow) => "rule-below",
         Some(_) => "other",
     }
 }
@@ -2069,6 +2073,7 @@ fn table_source_name(s: pdfcer_core::table_detect::BoundarySource) -> &'static s
     use pdfcer_core::table_detect::BoundarySource;
     match s {
         BoundarySource::Ruled => "ruled",
+        BoundarySource::Aligned => "aligned",
         _ => "other",
     }
 }

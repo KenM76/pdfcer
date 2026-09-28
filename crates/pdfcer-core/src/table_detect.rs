@@ -14,7 +14,7 @@
 //! (§8.5), not what they mean. A tagged file's own table structure is read
 //! by [`crate::structure_tree`] instead.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::page_tree::{self, Rect};
 use crate::text_extract::{ExtractError, ExtractOptions, ExtractedText, extract_document_view};
@@ -34,6 +34,14 @@ pub struct TableOptions {
     pub thin_fill: f32,
     /// Rules shorter than this are dropped (tick marks, dashes).
     pub min_rule_length: f32,
+    /// An unruled table needs at least this many aligned rows.
+    pub min_aligned_rows: usize,
+    /// A whitespace gap at least this many font sizes wide separates two
+    /// columns of an unruled table.
+    pub min_gutter_em: f32,
+    /// An unruled candidate whose cells average more characters than this
+    /// is prose in columns, not a table.
+    pub max_mean_cell_chars: f32,
 }
 
 impl Default for TableOptions {
@@ -43,6 +51,9 @@ impl Default for TableOptions {
             join_tolerance: 3.0,
             thin_fill: 2.0,
             min_rule_length: 3.0,
+            min_aligned_rows: 3,
+            min_gutter_em: 1.0,
+            max_mean_cell_chars: 30.0,
         }
     }
 }
@@ -61,6 +72,27 @@ impl TableOptions {
         self.join_tolerance = points;
         self
     }
+
+    /// Sets [`Self::min_aligned_rows`].
+    #[must_use]
+    pub const fn with_min_aligned_rows(mut self, rows: usize) -> Self {
+        self.min_aligned_rows = rows;
+        self
+    }
+
+    /// Sets [`Self::min_gutter_em`].
+    #[must_use]
+    pub const fn with_min_gutter_em(mut self, em: f32) -> Self {
+        self.min_gutter_em = em;
+        self
+    }
+
+    /// Sets [`Self::max_mean_cell_chars`].
+    #[must_use]
+    pub const fn with_max_mean_cell_chars(mut self, chars: f32) -> Self {
+        self.max_mean_cell_chars = chars;
+        self
+    }
 }
 
 /// How a table's boundaries were found.
@@ -69,6 +101,9 @@ impl TableOptions {
 pub enum BoundarySource {
     /// From drawn rules: stroked lines, rectangle edges, thin fills.
     Ruled,
+    /// From whitespace alone: text rows whose gutters line up. Row edges
+    /// fall midway between baselines, column edges midway across gutters.
+    Aligned,
 }
 
 /// Why the first row was taken as a header.
@@ -81,6 +116,8 @@ pub enum HeaderEvidence {
     Filled,
     /// The rule under it is heavier than the table's other rules.
     HeavyRule,
+    /// An unruled table whose only interior rule is under its first row.
+    RuleBelow,
 }
 
 /// One glyph: `text.pages[page].runs[run].glyphs[glyph]`.
@@ -152,6 +189,11 @@ pub struct TableDiagnostics {
     pub pages: usize,
     /// Tables found from rules.
     pub tables_ruled: usize,
+    /// Tables found from whitespace alignment.
+    pub tables_aligned: usize,
+    /// Aligned-row blocks refused as tables: too few columns, a column
+    /// used by one row, or cells long enough to be prose.
+    pub aligned_blocks_rejected: usize,
     /// Cells across all tables.
     pub cells: usize,
     /// Cells with a row or column span above 1.
@@ -181,7 +223,7 @@ impl TableDiagnostics {
     /// Every table, cell-span and header decision made by heuristic.
     #[must_use]
     pub const fn inferred(&self) -> usize {
-        self.tables_ruled + self.merged_cells + self.header_rows_inferred
+        self.tables_ruled + self.tables_aligned + self.merged_cells + self.header_rows_inferred
     }
 }
 
@@ -216,7 +258,8 @@ const MAX_CORNERS: usize = 20_000;
 /// Upper bound on rules per page, before joining.
 const MAX_RULES: usize = 50_000;
 
-/// Finds every ruled table in the document.
+/// Finds every table in the document: ruled grids first, then
+/// whitespace-aligned blocks among the text no ruled table took.
 ///
 /// # Errors
 ///
@@ -267,9 +310,30 @@ pub fn detect_tables(
                 _ => None,
             });
         let ink = collect_ink(paths, page.rotate, options, &mut diag);
-        let found = ruled_tables(&ink, page.rotate, options, &mut diag);
-        for mut t in found {
-            fill_text(&mut t, page_text, page.rotate);
+        let mut found = ruled_tables(&ink, page.rotate, options, &mut diag);
+        let mut taken = HashSet::new();
+        for t in &mut found {
+            fill_text(t, page_text, page.rotate);
+            taken.extend(t.glyphs.iter().flatten().copied());
+        }
+        let hs = merge_rules(
+            ink.horizontal.clone(),
+            f64::from(options.snap_tolerance),
+            f64::from(options.join_tolerance),
+        );
+        found.extend(aligned_tables(
+            page_text,
+            &taken,
+            &hs,
+            page.rotate,
+            options,
+            &mut diag,
+        ));
+        found.sort_by(|a, b| {
+            let top = |d: &Draft| d.ys.first().copied().unwrap_or(0.0);
+            top(b).total_cmp(&top(a))
+        });
+        for t in found {
             let table = finish(
                 t,
                 &ink,
@@ -537,6 +601,7 @@ struct Draft {
     glyphs: Vec<Vec<GlyphRef>>,
     /// Width of the rule under each row edge index, where one lies on it.
     edge_widths: Vec<f64>,
+    source: BoundarySource,
 }
 
 fn ruled_tables(
@@ -694,6 +759,7 @@ fn ruled_tables(
             cells: rects,
             glyphs: vec![Vec::new(); n],
             edge_widths,
+            source: BoundarySource::Ruled,
         });
     }
     // Top to bottom on the page.
@@ -888,7 +954,10 @@ fn finish(
     } else {
         None
     };
-    diag.tables_ruled += 1;
+    match t.source {
+        BoundarySource::Aligned => diag.tables_aligned += 1,
+        BoundarySource::Ruled => diag.tables_ruled += 1,
+    }
     diag.cells += cells.len();
     diag.merged_cells += cells
         .iter()
@@ -900,7 +969,7 @@ fn finish(
     Table {
         page_index,
         bbox: display_to_rect(rotate, x_lo, x_hi, y_bottom, y_top),
-        source: BoundarySource::Ruled,
+        source: t.source,
         rows,
         columns,
         cells,
@@ -958,6 +1027,16 @@ fn header_guess(
     }
 
     let under = *t.edge_widths.get(1)?;
+    let last = t.edge_widths.len().saturating_sub(1);
+    if t.source == BoundarySource::Aligned
+        && under > 0.0
+        && t.edge_widths
+            .iter()
+            .enumerate()
+            .all(|(i, &w)| i == 0 || i == 1 || i == last || w <= 0.0)
+    {
+        return Some(HeaderEvidence::RuleBelow);
+    }
     let mut others: Vec<f64> = t
         .edge_widths
         .iter()
@@ -968,6 +1047,255 @@ fn header_guess(
     others.sort_by(f64::total_cmp);
     let median = others.get(others.len() / 2).copied()?;
     (under >= 1.5 * median).then_some(HeaderEvidence::HeavyRule)
+}
+
+// ---------------------------------------------------------------------------
+// Aligned (unruled) tables
+// ---------------------------------------------------------------------------
+
+/// A glyph placed in display space for gutter analysis.
+#[derive(Debug, Clone, Copy)]
+struct Placed {
+    r: GlyphRef,
+    x0: f64,
+    x1: f64,
+    y: f64,
+    size: f64,
+    chars: usize,
+}
+
+/// Glyphs of one row with no gap of a gutter's width between them.
+#[derive(Debug)]
+struct Chunk {
+    x0: f64,
+    x1: f64,
+    glyphs: Vec<Placed>,
+}
+
+#[derive(Debug)]
+struct TextRow {
+    y: f64,
+    size: f64,
+    chunks: Vec<Chunk>,
+}
+
+fn glyph_text<'a>(
+    run: &'a crate::text_extract::TextRun,
+    g: &crate::text_extract::ExtractedGlyph,
+) -> &'a str {
+    let Ok(start) = usize::try_from(g.text_start) else {
+        return "";
+    };
+    let Ok(len) = usize::try_from(g.text_len) else {
+        return "";
+    };
+    run.text.get(start..start + len).unwrap_or("")
+}
+
+/// Tables laid out by whitespace alone: consecutive rows of at least two
+/// chunks whose gutters line up down the whole block.
+fn aligned_tables(
+    page: &crate::text_extract::PageText,
+    taken: &HashSet<GlyphRef>,
+    hs: &[Rule],
+    rotate: u16,
+    options: &TableOptions,
+    diag: &mut TableDiagnostics,
+) -> Vec<Draft> {
+    let gutter_em = f64::from(options.min_gutter_em).max(0.1);
+    let mut placed = Vec::new();
+    for (ri, run) in page.runs.iter().enumerate() {
+        for (gi, g) in run.glyphs.iter().enumerate() {
+            let r = GlyphRef { run: ri, glyph: gi };
+            if taken.contains(&r) {
+                continue;
+            }
+            let (dx, dy) = to_display(rotate, f64::from(g.direction.0), f64::from(g.direction.1));
+            if dx <= 0.0 || dx < 0.9 * dx.hypot(dy) {
+                continue;
+            }
+            let text = glyph_text(run, g);
+            if text.trim().is_empty() {
+                continue;
+            }
+            let (cx, cy) = glyph_centre(g, rotate);
+            let half = f64::from(g.advance).abs() / 2.0;
+            placed.push(Placed {
+                r,
+                x0: cx - half,
+                x1: cx + half,
+                y: cy,
+                size: f64::from(g.size).abs().max(1.0),
+                chars: text.chars().count(),
+            });
+        }
+    }
+    placed.sort_by(|a, b| b.y.total_cmp(&a.y));
+    let mut lines: Vec<Vec<Placed>> = Vec::new();
+    for p in placed {
+        match lines.last_mut() {
+            Some(l) if l.first().is_some_and(|f| (f.y - p.y).abs() <= 0.5 * f.size) => l.push(p),
+            _ => lines.push(vec![p]),
+        }
+    }
+    let rows: Vec<TextRow> = lines
+        .into_iter()
+        .map(|mut l| {
+            l.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+            let size = l.iter().map(|p| p.size).fold(0.0, f64::max);
+            let y = l.first().map_or(0.0, |p| p.y);
+            let mut chunks: Vec<Chunk> = Vec::new();
+            for p in l {
+                match chunks.last_mut() {
+                    Some(c) if p.x0 - c.x1 < gutter_em * p.size => {
+                        c.x1 = c.x1.max(p.x1);
+                        c.glyphs.push(p);
+                    }
+                    _ => chunks.push(Chunk {
+                        x0: p.x0,
+                        x1: p.x1,
+                        glyphs: vec![p],
+                    }),
+                }
+            }
+            TextRow { y, size, chunks }
+        })
+        .collect();
+
+    let mut drafts = Vec::new();
+    let mut block: Vec<&TextRow> = Vec::new();
+    let mut flush = |block: &mut Vec<&TextRow>, drafts: &mut Vec<Draft>| {
+        if block.len() >= options.min_aligned_rows.max(2) {
+            match aligned_block(block, hs, gutter_em, f64::from(options.max_mean_cell_chars)) {
+                Some(d) => drafts.push(d),
+                None => diag.aligned_blocks_rejected += 1,
+            }
+        }
+        block.clear();
+    };
+    for row in &rows {
+        let tabular = row.chunks.len() >= 2;
+        let joins = tabular
+            && block
+                .last()
+                .is_none_or(|p| p.y - row.y <= 2.5 * p.size.max(row.size));
+        if !joins {
+            flush(&mut block, &mut drafts);
+        }
+        if tabular {
+            block.push(row);
+        }
+    }
+    flush(&mut block, &mut drafts);
+    drafts
+}
+
+/// One candidate block to a grid, or `None` when its columns do not hold
+/// up: fewer than two, one used by a single row, or cells long enough to
+/// be prose columns.
+fn aligned_block(
+    rows: &[&TextRow],
+    hs: &[Rule],
+    gutter_em: f64,
+    max_mean_chars: f64,
+) -> Option<Draft> {
+    let mut sizes: Vec<f64> = rows.iter().map(|r| r.size).collect();
+    sizes.sort_by(f64::total_cmp);
+    let gutter = gutter_em * sizes.get(sizes.len() / 2).copied()?;
+    let mut spans: Vec<(f64, f64)> = rows
+        .iter()
+        .flat_map(|r| r.chunks.iter().map(|c| (c.x0, c.x1)))
+        .collect();
+    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut cols: Vec<(f64, f64)> = Vec::new();
+    for (a, b) in spans {
+        match cols.last_mut() {
+            Some(c) if a < c.1 + gutter => c.1 = c.1.max(b),
+            _ => cols.push((a, b)),
+        }
+    }
+    let ncols = cols.len();
+    if ncols < 2 {
+        return None;
+    }
+    let mut grid: Vec<Vec<GlyphRef>> = vec![Vec::new(); rows.len() * ncols];
+    let mut used = vec![0usize; ncols];
+    let mut chars = 0usize;
+    for (ri, row) in rows.iter().enumerate() {
+        let mut seen = vec![false; ncols];
+        for chunk in &row.chunks {
+            let ci = cols
+                .iter()
+                .position(|c| chunk.x0 >= c.0 - 0.01 && chunk.x1 <= c.1 + 0.01)?;
+            grid.get_mut(ri * ncols + ci)?
+                .extend(chunk.glyphs.iter().map(|p| p.r));
+            chars += chunk.glyphs.iter().map(|p| p.chars).sum::<usize>();
+            *seen.get_mut(ci)? = true;
+        }
+        for (u, s) in used.iter_mut().zip(&seen) {
+            *u += usize::from(*s);
+        }
+    }
+    let filled: usize = used.iter().sum();
+    #[allow(clippy::cast_precision_loss)]
+    let mean = chars as f64 / filled.max(1) as f64;
+    if used.iter().any(|&u| u < 2) || mean > max_mean_chars {
+        return None;
+    }
+
+    let mut xs = vec![cols.first()?.0];
+    xs.extend(
+        cols.windows(2)
+            .filter_map(|w| Some((w.first()?.1 + w.get(1)?.0) / 2.0)),
+    );
+    xs.push(cols.last()?.1);
+    let (first, last) = (rows.first()?, rows.last()?);
+    let mut ys = vec![first.y + 0.6 * first.size];
+    ys.extend(
+        rows.windows(2)
+            .filter_map(|w| Some((w.first()?.y + w.get(1)?.y) / 2.0)),
+    );
+    ys.push(last.y - 0.6 * last.size);
+
+    let mut cells = Vec::with_capacity(grid.len());
+    for ri in 0..rows.len() {
+        for ci in 0..ncols {
+            cells.push((
+                *xs.get(ci)?,
+                *xs.get(ci + 1)?,
+                *ys.get(ri + 1)?,
+                *ys.get(ri)?,
+            ));
+        }
+    }
+    // A rule counts for a row edge when it lies between the two rows'
+    // baselines (or within 1.5 em outside the first and last) and spans
+    // most of the table.
+    let (x_lo, x_hi) = (*xs.first()?, *xs.last()?);
+    let edge_widths = (0..=rows.len())
+        .map(|i| {
+            let above = i.checked_sub(1).and_then(|p| rows.get(p));
+            let (lo, hi) = match (above, rows.get(i)) {
+                (None, Some(r)) => (r.y, r.y + 1.5 * r.size),
+                (Some(r), None) => (r.y - 1.5 * r.size, r.y),
+                (Some(a), Some(b)) => (b.y, a.y),
+                (None, None) => (0.0, 0.0),
+            };
+            hs.iter()
+                .filter(|h| h.at > lo && h.at < hi)
+                .filter(|h| h.hi.min(x_hi) - h.lo.max(x_lo) >= 0.8 * (x_hi - x_lo))
+                .map(|h| h.width)
+                .fold(0.0, f64::max)
+        })
+        .collect();
+    Some(Draft {
+        xs,
+        ys,
+        cells,
+        glyphs: grid,
+        edge_widths,
+        source: BoundarySource::Aligned,
+    })
 }
 
 #[cfg(test)]

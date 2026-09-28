@@ -75,7 +75,7 @@ fn extract_tables_prints_the_grid_and_counts_each_inference() {
     );
     let last = stdout.lines().last().unwrap();
     assert!(
-        last.contains(" pages=1 tables=1 inferred=2 ruled=1 cells=5 merged_cells=1 header_rows=0 "),
+        last.contains(" pages=1 tables=1 inferred=2 ruled=1 aligned=0 aligned_rejected=0 cells=5 merged_cells=1 header_rows=0 "),
         "{last}"
     );
     assert!(last.contains(" single_cell_frames=0 "), "{last}");
