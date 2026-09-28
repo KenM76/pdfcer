@@ -94,3 +94,61 @@ fn a_note_cannot_be_combined_with_it() {
     assert_eq!(o.status.code(), Some(2), "clap usage error expected");
     assert!(!out.exists());
 }
+
+/// `list-annotations` prints a placed markup's dash in `--dash`'s own
+/// spelling, and `none` for a solid border (`Pass 264.2`).
+#[test]
+fn list_annotations_prints_the_dash() {
+    let src = fixture();
+    let dashed = temp_path("dashed");
+    let o = run(&[
+        "annotate",
+        src.to_str().unwrap(),
+        "--type",
+        "square",
+        "--page",
+        "1",
+        "--rect",
+        "20,15,120,55",
+        "--dash",
+        "4,2",
+        "--output",
+        dashed.to_str().unwrap(),
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let solid = temp_path("solid");
+    let o = run(&[
+        "annotate",
+        dashed.to_str().unwrap(),
+        "--type",
+        "square",
+        "--page",
+        "1",
+        "--rect",
+        "130,15,180,55",
+        "--output",
+        solid.to_str().unwrap(),
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+
+    let listed = run(&["list-annotations", solid.to_str().unwrap()]);
+    let stdout = String::from_utf8_lossy(&listed.stdout).into_owned();
+    let dashes: Vec<&str> = stdout
+        .lines()
+        .filter(|l| l.starts_with("annot "))
+        .filter_map(|l| l.split_whitespace().find(|t| t.starts_with("dash=")))
+        .collect();
+    assert_eq!(dashes, ["dash=4,2", "dash=none"], "{stdout}");
+    let _ = std::fs::remove_file(dashed);
+    let _ = std::fs::remove_file(solid);
+}

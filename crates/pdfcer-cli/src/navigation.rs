@@ -210,9 +210,21 @@ pub(crate) fn cmd_list_annotations(input: &Path, pages_spec: &str) -> u8 {
             let oc = annot
                 .oc
                 .map_or_else(|| "none".to_owned(), |id| id.num.to_string());
+            // `Pass 264.2`: the `/BS` dash in `--dash`'s own `ON,OFF,...`
+            // spelling, or `none` for a border that is not dashed.
+            let dash = annot.border_dash.as_ref().map_or_else(
+                || "none".to_owned(),
+                |d| {
+                    d.pattern()
+                        .iter()
+                        .map(f64::to_string)
+                        .collect::<Vec<_>>()
+                        .join(",")
+                },
+            );
             println!(
                 "annot page={} index={array_index} subtype={subtype} rect={rect} \
-flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} open={} color={} icon={} vertices={vertices} line={line} ink={ink} stamp_label={stamp_label} stamp_size={stamp_size} stamp_size_from={stamp_size_from} oc={oc}",
+flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} open={} color={} icon={} vertices={vertices} line={line} ink={ink} stamp_label={stamp_label} stamp_size={stamp_size} stamp_size_from={stamp_size_from} oc={oc} dash={dash}",
                 page_index + 1,
                 annot.flags.0,
                 usize::from(annot.is_widget()),

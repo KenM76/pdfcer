@@ -377,7 +377,7 @@ fn set_annotation_layer_puts_and_clears() {
     assert!(stdout.contains("->5 popup=0 changed=true"), "{stdout}");
     let listed = annotations(&put);
     assert!(
-        listed.lines().next().is_some_and(|l| l.ends_with(" oc=5")),
+        listed.lines().next().is_some_and(|l| l.contains(" oc=5 ")),
         "{listed}"
     );
 
@@ -394,7 +394,7 @@ fn set_annotation_layer_puts_and_clears() {
         annotations(&cleared)
             .lines()
             .next()
-            .is_some_and(|l| l.ends_with(" oc=none"))
+            .is_some_and(|l| l.contains(" oc=none "))
     );
     for p in [put, cleared] {
         std::fs::remove_file(p).ok();
@@ -574,7 +574,7 @@ fn annotate_on_a_layer() {
         annotations(&out)
             .lines()
             .next()
-            .is_some_and(|l| l.ends_with(" oc=5")),
+            .is_some_and(|l| l.contains(" oc=5 ")),
         "{}",
         annotations(&out)
     );
