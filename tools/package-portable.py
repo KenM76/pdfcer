@@ -330,6 +330,40 @@ def main() -> int:
             "Run tools/tesseract/build-tesseract.py to include it."
         )
 
+    # OCRcer's model is built in the OCRcer checkout, not committed there or
+    # here. It ships only if it is byte-for-byte the release model recorded in
+    # vendor/ocrcer-core/VENDORED (from OCRcer's model/MODEL.toml), so the
+    # shipped model is the one the vendored reader was synced alongside.
+    ocrcer_model = REPO.parent / "OCRcer" / "model" / "out" / "ocrcer.ocrw"
+    verified = ocrcer_model.is_file() and subprocess.run(
+        [sys.executable, str(REPO / "tools" / "check-ocrcer-model.py"), str(ocrcer_model)]
+    ).returncode == 0
+    if verified:
+        dest = out / "models" / "ocrcer"
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ocrcer_model, dest / "ocrcer.ocrw")
+        shutil.copy2(REPO.parent / "OCRcer" / "LICENSE", dest / "LICENSE")
+        vendored = (REPO / "vendor" / "ocrcer-core" / "VENDORED").read_text()
+        (dest / "PROVENANCE.md").write_text(
+            "# ocrcer.ocrw\n\n"
+            "The recogniser model of OCRcer (https://github.com/KenM76/ocrcer), "
+            "MIT-licensed (LICENSE beside this file).\n\n"
+            "Its prototype feature vectors are measured from glyphs rendered from "
+            "OFL-1.1, Apache-2.0 and MIT font faces; each face and its licence is "
+            "listed in the model's own `meta` block. No font file or outline data "
+            "is included.\n\n"
+            "Release record (copied from OCRcer's model/MODEL.toml at sync):\n\n"
+            + "".join(f"    {line}\n" for line in vendored.splitlines() if line.startswith("model-")),
+            encoding="utf-8",
+            newline="\n",
+        )
+        print("package-portable: staged models/ocrcer (model verified against VENDORED)")
+    else:
+        print(
+            "package-portable: WARNING — no verified OCRcer model; `--ocr-engine ocrcer` "
+            "will need --model-dir. Build OCRcer's release model in ../OCRcer to include it."
+        )
+
     # --- what changed since the last build ----------------------------------
     prev = previous_build_commit(args.dest)
     if prev:

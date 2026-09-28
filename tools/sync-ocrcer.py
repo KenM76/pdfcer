@@ -108,6 +108,28 @@ def model_formats(files: dict[str, bytes]) -> str:
     return "".join(out)
 
 
+# OCRcer's tracked record of its blessed shipping model. Copied into VENDORED
+# so a packager can verify the `ocrcer.ocrw` it ships against the model this
+# reader was synced alongside (`check-ocrcer-model.py`).
+MODEL_MANIFEST = "model/MODEL.toml"
+MODEL_MANIFEST_KEYS = ("release", "sha256", "bytes", "build_id")
+
+
+def model_manifest(source: Path, rev: str) -> str:
+    """`model-<key> = value` lines from OCRcer's model manifest, if it has one."""
+    try:
+        text = show(source, rev, MODEL_MANIFEST).decode()
+    except subprocess.CalledProcessError:
+        return ""
+    out = []
+    for key in MODEL_MANIFEST_KEYS:
+        m = re.search(rf'^{key}\s*=\s*"?([^"\s#]+)"?', text, re.M)
+        if m is None:
+            raise SystemExit(f"sync-ocrcer: {MODEL_MANIFEST} has no {key}")
+        out.append(f"model-{key.replace('_', '-')} = {m.group(1)}\n")
+    return "".join(out)
+
+
 def expected_files(source: Path, rev: str) -> dict[str, bytes]:
     """Relative path under vendor/ocrcer-core -> bytes, for the given rev."""
     names = git(source, "ls-tree", "-r", "--name-only", rev, CRATE_SRC).decode().split()
@@ -124,7 +146,7 @@ def expected_files(source: Path, rev: str) -> dict[str, bytes]:
     # on every OCRcer doc commit and would make the gate fail on no change.
     last = git(
         source, "log", "-1", "--format=%H", rev, "--",
-        CRATE_SRC, "LICENSE", "Cargo.toml", ADAPTER_SRC,
+        CRATE_SRC, "LICENSE", "Cargo.toml", ADAPTER_SRC, MODEL_MANIFEST,
     ).decode().strip()
     # `cargo fmt --all` reaches path dependencies; OCRcer formats its own code
     # and this copy must stay byte-identical to it.
@@ -134,6 +156,7 @@ def expected_files(source: Path, rev: str) -> dict[str, bytes]:
         f"commit = {last}\n"
         f"synced-by = tools/sync-ocrcer.py\n"
         + model_formats(files)
+        + model_manifest(source, rev)
     ).encode()
     return files
 
