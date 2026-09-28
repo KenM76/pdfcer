@@ -5049,7 +5049,13 @@ default build. `ocrcer-core` is VENDORED at `vendor/ocrcer-core`
 committed path dependency breaks every clone and CI lacking a sibling
 `../OCRcer` checkout. `THIRD_PARTY_LICENSES.md` gained the `ocrcer-core` MIT
 entry (`Pass 327.1`). `ocrcer-engine` is fast-forwarded into `main` locally;
-push follows a green `tools/run-gates.sh` sweep.
+push follows a green `tools/run-gates.sh` sweep. **The model is a separate
+question from the code** (decision 160's two extensions below): as of
+2026-09-27 (`5853259a`) it ships in the portable package as
+`models/ocrcer/ocrcer.ocrw` whenever `tools/check-ocrcer-model.py` verifies
+a local candidate's sha256/size against `VENDORED`'s `model-sha256`/
+`model-bytes`; `tools/package-portable.py` warns and ships without it
+otherwise.
 
 **Eighth, NOT a Cargo dependency: Tesseract** (2026-09-25; §12 decision
 161; `Pass 329.0`). A standalone `tesseract.exe`, spawned as a subprocess
@@ -11430,6 +11436,8 @@ per the operator's own ordered plan in `docs/NEXT_SESSION.md`).
 **Decision ceiling: `159` → `160`**, next free `161`. **Pass ceiling: `Pass 327.1`**, next free family `328`.
 
 **Extension, 2026-09-26 (602nd filing, `ef873835`), not a new decision number — answers `pdfcer-gui` channel request `G042`.** `ocrcer-core` is vendored per decision 160, but the `.ocrw` model itself is not: OCRcer's `.gitignore` excludes `*.ocrw`, so a model file and the vendored reader can drift independently. Ruling extending decision 160's reasoning to the model: the local OCRcer build tree (`D:/Dev/OCRcer/model/out/ocrcer.ocrw`) IS the model source for now — superseded if OCRcer ever gives the model a versioned, committed home (manifest or tagged release asset; outbound ask filed at `D:/Dev/FeatureRequests/OCRcer_FeatureRequests/request_the_ocrw_model_needs_a_versioned_home.md`). Mechanism: `tools/sync-ocrcer.py` now also reads `SUPPORTED_VERSION`/`KIND_RECOGNISER`/`FEATURE_VERSION`/`SUPPORTED_NN_VERSION` from the vendored sources and writes them to `vendor/ocrcer-core/VENDORED`, failing the sync if one disappears, so a packager can compare a model's container version (LE u16 at offset 4) against `model-container-version` before shipping it; `OcrcerEngine::from_bytes` remains the load-time gate. No core API, dependency, or `cargo tree` change. Sourcing (hard rule 8): no shell this filing, relayed from the dispatching engineer's report of `ef873835`.
+
+**Second extension, 2026-09-27 (674th filing, `5853259a`), not a new decision number — SUPERSEDES the extension above; answers OCRcer's reply to `request_the_ocrw_model_needs_a_versioned_home.md`.** OCRcer tagged **v0.1.0** at `b0cd1db` and added a tracked `model/MODEL.toml` (sha256 `1aed06b27ca842fb1fe922849ac5929adf278c95a38bf3eda251ccc0adb5cd04`, 5,634,668 bytes, `build_id d2997ef3`). The model now has the versioned, committed home the prior extension named as its supersession condition, so the local build tree is **no longer** the model source: the model source is OCRcer's own MODEL.toml-recorded release model, and pdfcer ships only a copy whose sha256/size match it. Mechanism: `tools/sync-ocrcer.py` copies `model-release`/`model-sha256`/`model-bytes`/`model-build-id` from `MODEL.toml` into `vendor/ocrcer-core/VENDORED`; new `tools/check-ocrcer-model.py <file>` verifies a candidate `.ocrw` against those two figures (exit 1 on mismatch); `tools/package-portable.py` stages `models/ocrcer/{ocrcer.ocrw, LICENSE, PROVENANCE.md}` when it verifies, else warns and ships without it. **Also reverses decision 159's stated position** ("OCRcer's model is not shipped either") and `PRIOR_ART.md`'s prior "not shipped, not downloaded" — the model now ships by default in the portable package. Reasoning: MIT (same operator's project), OCRcer already publishes the model as a public GitHub release asset, and its feature vectors derive from OFL-1.1/Apache-2.0/MIT faces with no font data included (OCRcer `NOTICE`). **Flagged to Ken as a reversible call**, not unilaterally final. Open question `(bl)` (whether `ocrs`'s CC-BY-SA-4.0 weights may ship) is untouched — a different engine under a different licence. `docs/PRIOR_ART.md`'s `ocrcer-core` row corrected this filing. No core API, dependency, or `cargo tree` change. Sourcing (hard rule 8): no shell this filing, relayed from the dispatching engineer's report of `5853259a`.
 
 ### 2026-09-25 (593rd filing, `Pass 329.0`, `3691999f`/`21af5926`) — decision 161: TESSERACT SHIPS AS A SUBPROCESS, BUILT STATIC-MSVC FROM A VCPKG OVERLAY PORT, NOT LINKED AND NOT A CARGO DEPENDENCY
 

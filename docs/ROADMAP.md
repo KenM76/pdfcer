@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `5853259a` (no Pass ID), 2026-09-27 — OCRcer v0.1.0 vendored; the portable package now ships its hash-verified model
+
+**Verdict: SHIPPED.** Answers pdfcer's own outbound request `request_the_ocrw_model_needs_a_versioned_home.md` (reply: `D:\Dev\FeatureRequests\OCRcer_FeatureRequests\reply_the_ocrw_model_needs_a_versioned_home_DONE.md`) and Ken's 2026-09-27 directive: *"Ocrcer is working on releasing a new engine... Once it is done please implement and release a new version. Inform pdfcer-gui when this is done."*
+
+OCRcer tagged **v0.1.0** at `b0cd1db` and added a tracked `model/MODEL.toml` (sha256 `1aed06b27ca842fb1fe922849ac5929adf278c95a38bf3eda251ccc0adb5cd04`, 5,634,668 bytes, `build_id d2997ef3`, container/kind/feature `1`/`1`/`1`, no nn table). This **supersedes the decision-160 extension** filed 602nd (`ef873835`) — the local OCRcer build tree is no longer the model source; the model source is now OCRcer's own MODEL.toml-recorded release model, and pdfcer ships only a local copy whose sha256/size match it. `ARCHITECTURE.md` §12 gains a second extension of decision 160 recording this.
+
+**Vendoring.** Crate and adapter were already byte-identical at `b0cd1db`; only `vendor/ocrcer-core/VENDORED` changed (new commit line plus `model-release`/`model-sha256`/`model-bytes`/`model-build-id`, copied from `MODEL.toml` by `tools/sync-ocrcer.py`). New `tools/check-ocrcer-model.py <file>` checks a candidate `.ocrw`'s size + sha256 against `VENDORED`, exit 1 on mismatch.
+
+**Packaging.** `tools/package-portable.py` stages `models/ocrcer/{ocrcer.ocrw, LICENSE, PROVENANCE.md}` when the local model verifies against `VENDORED`, else warns and ships without it — so `pdfcer ocr --ocr-engine ocrcer` now works out of a portable folder with no `--model-dir`.
+
+**Reverses a stated position — flagged to Ken, reversible.** Decision 159's body and `PRIOR_ART.md`'s `ocrcer-core` row both said the model was "not shipped, not downloaded"; that's now stale. Reasoning for shipping it: MIT (same operator's project), OCRcer already publishes it as a public GitHub release asset, and its feature vectors derive from OFL-1.1/Apache-2.0/MIT faces with no font data included (OCRcer `NOTICE`). Open question `(bl)` about `ocrs`'s CC-BY-SA-4.0 weights is untouched — different engine, different licence. `PRIOR_ART.md`'s `ocrcer-core` row corrected in this filing.
+
+**Tests.** Core lib 37, core integration 29, CLI 6 — all pass. No core API, dependency, or `Cargo.toml` change; `cargo tree` unaffected.
+
+**Shells.** core `[x]` / cli `[x]`, both unchanged — this lands packaging, not a CLI/core surface change, so no box moves. `FEATURES.md` row 221 ("Choose the OCR engine") wording updated to say the model now ships.
+
+**Still owed, next filing.** OCRcer's reply says its W1 fix targets `pdfcer-gui`'s open request `request_digit_run_split_around_narrow_1.md` ("41 1 77") and asks the GUI to re-run `ocrcer_recognises_the_synthetic_page`; a release (v0.59.0 expected) follows once pdfcer's own gate sweep is green (OCRcer already released). Cutting the pdfcer release and notifying `pdfcer-gui` are the next filing.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed from the dispatching engineer's report of `5853259a`, not independently reproduced.
+
 ### `Pass 264.3` (`fffca91e`), 2026-09-27 — `/BE` border effect / cloudy edge gains a restyle route: set, change, clear
 
 **Verdict: SHIPPED.** Backlog gap filed 469th filing (2026-09-08, markup-family audit), `NOT STARTED` until this session: `/BE` (§12.5.4 Table 167, cloudy-border intensity) could be authored at creation but had no restyle route.

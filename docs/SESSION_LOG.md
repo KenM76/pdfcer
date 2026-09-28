@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (674th filing) — `5853259a`: OCRcer v0.1.0 vendored + portable package now ships its model
+
+**Shipped:**
+- OCRcer v0.1.0 (`b0cd1db`) re-vendored; the portable package now stages a hash-verified `models/ocrcer/ocrcer.ocrw` instead of shipping none. New `tools/check-ocrcer-model.py`; `tools/sync-ocrcer.py` and `tools/package-portable.py` both extended. No core API/dependency change; `cargo tree` unaffected. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- Extension of decision 160 (`ARCHITECTURE.md` §12): the model's source of truth is now OCRcer's own MODEL.toml-recorded release model, superseding the 602nd filing's "the local build tree is the model source for now" extension.
+- Reverses decision 159's stated "OCRcer's model is not shipped either" — the model now ships in the portable package once its sha256/size verify against `vendor/ocrcer-core/VENDORED`. Flagged to Ken as a reversible call; reasoning (MIT, same operator's project, already a published release asset, no font data in the model) recorded in `ROADMAP.md` and `ARCHITECTURE.md` §12.
+
+**Findings + decisions:**
+- None beyond the above.
+
+**Still in flight:**
+- Same open items as the 673rd filing below (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- **OWED:** OCRcer's reply says a W1 fix (digit-run split, "41 1 77") targets `pdfcer-gui`'s open request and asks it to re-run `ocrcer_recognises_the_synthetic_page`; a release (v0.59.0 expected) follows once pdfcer's own gate sweep is green (OCRcer already released) — cut the pdfcer release and notify `pdfcer-gui` then.
+
+**For next session:**
+- `5853259a` is committed to `main`; push status not independently checked this filing (hard rule 8 — no shell available).
+- OCRcer's release has landed (v0.1.0, `b0cd1db`); follow decision 121's standing release procedure and notify `pdfcer-gui`.
+
 ## 2026-09-27 (673rd filing) — `fffca91e`: `Pass 264.3` (`/BE` border effect restyle route) SHIPPED
 
 **Shipped:**
