@@ -7878,3 +7878,23 @@ Intent names for Caret/StrikeOut 0/0; defined intents (`LineDimension`, `StampIm
 
 ### 83e. Filing
 File + index (manifest row, 5 trigger rows, 3 recipes RUN, 1 spec-ambiguity row, count cell 107→108, total 200→**202** — `font__` cell was stale 16→17). Register intake section (LF file). In-place dated notes: `12.5.6.md` Caret row, `12.5.3.md` BE-7 fact 4 (both CRLF, verified 0 bare LF). Acrobat_Features caret GAP closable — reported, not edited (not my RAG).
+
+## 84. "Two authoring Passes need clauses C1+C2 and their dependency chain; give the minimum object graph" (2026-09-28, Sound §12.5.6.16 + §13.3, Screen §12.5.6.18 + rendition action + §13.2 → 5 files)
+
+### 84a. ★ AN ERRATUM CAN BE PUBLISHED INVERTED
+Issue #179 (2.0 media clip data table): the issue asked to fix the BE row's table reference; the published erratum HTML (`data-issue="179"`) instead edits the MH row, from the correct table to the wrong one. The EC3 caret matches the published (wrong) edit. **After locating an erratum's `<del>`/`<ins>`, check the RESULT against the issue's own request and against 1.7 — the erratum text is not self-validating.** Report it upstream only with operator go-ahead.
+
+### 84b. "Deprecated" is a `should`, not a `shall`
+ISO 32000-2 §3.15 defines deprecated as should-not-write / should-ignore (clause reference only here — do not quote the 2.0 text). So "may a 2.0 writer still author X?" = yes, discouraged; reader may ignore. Always fetch the DEFINITION of a status word before answering "is X allowed".
+
+### 84c. Check which edition a dispatch's clause number is from
+Dispatch said "§12.6.4.14 rendition action" = 2.0 number; 1.7 §12.6.4.14 is Transition. Files are named by the 1.7 number (`iso32000__s__12.6.4.13.md`); RA-0.1 records the shift.
+
+### 84d. A conditional requirement can hide outside the table row
+Media clip `/CT` row says Optional, but a sentence below the table makes CT identify the type whenever `/D` has an embedded file; and "D target must have `/Type`" makes `/Type /Filespec` a viability requirement although Table 44 only "recommends" it. **For an authoring dispatch, read every `shall` between tables, not just the Req column.**
+
+### 84e. A `shall` in a "portability" paragraph
+§13.3 sample-rate `shall` (11,025/22,050) conflicts with its own support list; filed as an ambiguity + setting candidate, not as a hard constraint. Same family as 74 (who is bound).
+
+### 84f. Filing
+Five files (LF), each ends with a flat-grep index — checked against the 1.7 dump with a whitespace-normalising script; misses were `-layout` interleaving (confirmed with `-raw`) and two quotes truncated before a clause's title in quotes (`(see 13.3, "Sounds")`). Index: 5 manifest rows, 5 trigger rows, recipe block (brace Glob + ID grep, all RUN), 3 ambiguity rows, total 202→207, `iso32000__s__` 108→113. In-place dated note in `12.5.6.md` (CRLF). personal_rag/pdf: 0 empirical multimedia entries.
