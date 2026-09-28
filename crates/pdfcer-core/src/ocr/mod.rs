@@ -80,6 +80,17 @@ pub mod engine_ocrs;
 /// applied unmodified.
 #[cfg(feature = "ocrcer")]
 pub mod engine_ocrcer;
+
+/// The PaddleOCR (PP-OCR) recogniser, behind the (default-on) `paddle`
+/// feature: operator-supplied ONNX models run through `rten`.
+#[cfg(feature = "paddle")]
+pub mod engine_paddle;
+
+// Workspace-internal: pub only so the fuzz crate, built without the model
+// runtime, can drive the PP-OCR pre/post-processing. Not API.
+#[doc(hidden)]
+pub mod paddle_post;
+
 /// Reader for Tesseract's TSV output. Parsing only: the shell runs
 /// `tesseract.exe`, so this crate never spawns a process.
 pub mod tesseract_tsv;

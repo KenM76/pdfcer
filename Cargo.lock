@@ -874,6 +874,7 @@ dependencies = [
  "rc2",
  "rsa",
  "rten",
+ "rten-tensor",
  "sha1",
  "sha2",
  "signature",

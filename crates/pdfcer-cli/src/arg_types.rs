@@ -68,15 +68,17 @@ impl From<ExistingOcrArg> for pdfcer_core::ocr::layer::ExistingLayers {
     }
 }
 
-/// `ocr --ocr-engine`. Both variants exist in every build, so a build
-/// without the `ocrcer` feature refuses the choice by name instead of
-/// rejecting an unknown value.
+/// `ocr --ocr-engine`. Every variant exists in every build, so a build
+/// without the `ocrcer` or `paddle` feature refuses the choice by name
+/// instead of rejecting an unknown value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum OcrEngineArg {
     /// The ocrs engine. The default; its models ship in the portable package.
     Ocrs,
     /// The OCRcer engine. Needs a build with the ocrcer feature and the model file ocrcer.ocrw.
     Ocrcer,
+    /// PaddleOCR (PP-OCR) ONNX models det.onnx and rec.onnx in models/paddle. Not shipped.
+    Paddle,
     /// The Tesseract program in models/tesseract. Choose languages with --ocr-lang.
     Tesseract,
 }
@@ -87,6 +89,7 @@ impl OcrEngineArg {
         match self {
             Self::Ocrs => "ocrs",
             Self::Ocrcer => "ocrcer",
+            Self::Paddle => "paddle",
             Self::Tesseract => tesseract::MODEL_DIR,
         }
     }

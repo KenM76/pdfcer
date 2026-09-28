@@ -2,7 +2,8 @@
 //! in both builds, and a missing engine or model is refused by name.
 //!
 //! Recognition is run only for Tesseract, and only when a build is present
-//! (it is not committed). OCRcer's model is not in the repository either,
+//! (it is not committed). OCRcer's and PaddleOCR's models are not in the
+//! repository either,
 //! and `ocrs` inference in a debug test binary costs tens of seconds per page.
 
 use std::path::{Path, PathBuf};
@@ -82,6 +83,75 @@ fn a_file_that_is_not_an_ocrw_model_is_refused() {
     let err = String::from_utf8_lossy(&o.stderr);
     assert_eq!(o.status.code(), Some(1), "stderr: {err}");
     assert!(err.contains("not a usable OCRcer model"), "stderr: {err}");
+}
+
+/// Without the `paddle` feature the choice is refused by name.
+#[cfg(not(feature = "paddle"))]
+#[test]
+fn paddle_is_refused_by_name_when_not_compiled_in() {
+    let o = Command::new(BIN)
+        .arg("ocr")
+        .arg(scan())
+        .args(["--ocr-engine", "paddle", "-o"])
+        .arg(out("paddle-refused.pdf"))
+        .output()
+        .expect("run pdfcer");
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert_eq!(o.status.code(), Some(64), "stderr: {err}");
+    assert!(
+        err.contains("without the `paddle` feature"),
+        "stderr: {err}"
+    );
+}
+
+/// With the feature, a `--model-dir` lacking the PP-OCR models is reported
+/// with the file names and how to supply them.
+#[cfg(feature = "paddle")]
+#[test]
+fn a_model_dir_without_the_paddle_models_is_reported() {
+    let empty = std::env::temp_dir().join("pdfcer-cli-ocr-engine-tests-empty-paddle");
+    std::fs::create_dir_all(&empty).expect("temp dir");
+    let o = Command::new(BIN)
+        .arg("ocr")
+        .arg(scan())
+        .args(["--ocr-engine", "paddle", "--model-dir"])
+        .arg(&empty)
+        .arg("-o")
+        .arg(out("paddle-missing.pdf"))
+        .output()
+        .expect("run pdfcer");
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert_eq!(o.status.code(), Some(1), "stderr: {err}");
+    assert!(err.contains("no OCR models for `paddle`"), "stderr: {err}");
+    assert!(
+        err.contains("det.onnx") && err.contains("models/paddle"),
+        "stderr: {err}"
+    );
+}
+
+/// A file that is not an ONNX model is refused as one.
+#[cfg(feature = "paddle")]
+#[test]
+fn files_that_are_not_onnx_models_are_refused() {
+    let dir = std::env::temp_dir().join("pdfcer-cli-ocr-engine-tests-bogus-paddle");
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    std::fs::write(dir.join("det.onnx"), b"not a model").expect("write");
+    std::fs::write(dir.join("rec.onnx"), b"not a model").expect("write");
+    let o = Command::new(BIN)
+        .arg("ocr")
+        .arg(scan())
+        .args(["--ocr-engine", "paddle", "--model-dir"])
+        .arg(&dir)
+        .arg("-o")
+        .arg(out("paddle-bogus.pdf"))
+        .output()
+        .expect("run pdfcer");
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert_eq!(o.status.code(), Some(1), "stderr: {err}");
+    assert!(
+        err.contains("could not be loaded") && err.contains("det.onnx"),
+        "stderr: {err}"
+    );
 }
 
 fn run_tesseract(model_dir: &Path, lang: &str, name: &str) -> (Option<i32>, String) {
@@ -188,6 +258,45 @@ fn tesseract_bundle_reads_the_scan_when_present() {
     let o = Command::new(BIN)
         .arg("find-text")
         .arg(out("tess-real.pdf"))
+        .args(["--needle", "sleeping"])
+        .output()
+        .expect("run pdfcer");
+    let found = String::from_utf8_lossy(&o.stdout);
+    assert!(
+        o.status.success() && found.contains("sleeping"),
+        "find-text: {found}"
+    );
+}
+
+/// End to end against real PP-OCR ONNX models when present
+/// (`PDFCER_TEST_PADDLE_DIR`, or `target/paddle-models`). Skipped, and says
+/// so, otherwise: no PaddleOCR model is committed.
+#[cfg(feature = "paddle")]
+#[test]
+fn paddle_models_read_the_scan_when_present() {
+    let dir = std::env::var_os("PDFCER_TEST_PADDLE_DIR").map_or_else(
+        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/paddle-models"),
+        PathBuf::from,
+    );
+    if !dir.join("det.onnx").is_file() || !dir.join("rec.onnx").is_file() {
+        eprintln!("skipped: no PaddleOCR models at {}", dir.display());
+        return;
+    }
+    let o = Command::new(BIN)
+        .arg("ocr")
+        .arg(scan())
+        .args(["--ocr-engine", "paddle", "--model-dir"])
+        .arg(&dir)
+        .arg("-o")
+        .arg(out("paddle-real.pdf"))
+        .output()
+        .expect("run pdfcer");
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert_eq!(o.status.code(), Some(0), "stderr: {err}");
+    assert!(err.contains("PaddleOCR dictionary:"), "stderr: {err}");
+    let o = Command::new(BIN)
+        .arg("find-text")
+        .arg(out("paddle-real.pdf"))
         .args(["--needle", "sleeping"])
         .output()
         .expect("run pdfcer");

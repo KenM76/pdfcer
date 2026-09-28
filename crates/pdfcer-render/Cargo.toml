@@ -35,7 +35,7 @@ profile = []
 # forward. A crate that forgets silently defeats stripping for the entire
 # workspace, and the symptom is a flag that appears to work and changes
 # nothing.
-default = ["jpx", "ocrs", "ocrcer"]
+default = ["jpx", "ocrs", "ocrcer", "paddle"]
 jpx = ["pdfcer-core/jpx"]
 # The `ocrs` text-recognition engine. Forwarded even though `pdfcer-render`
 # never calls it: the CLI reaches core THROUGH this crate, so a missing rung
@@ -43,6 +43,7 @@ jpx = ["pdfcer-core/jpx"]
 ocrs = ["pdfcer-core/ocrs"]
 # The OCRcer engine (`Pass 327.0`), forwarded for the same reason.
 ocrcer = ["pdfcer-core/ocrcer"]
+paddle = ["pdfcer-core/paddle"]
 
 [dependencies]
 # Depends on pdfcer-core plus the CPU rasterizer. NOTHING here may pull a

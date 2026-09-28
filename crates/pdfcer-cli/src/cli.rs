@@ -3027,8 +3027,8 @@ pub(crate) enum Command {
         /// cheap to try — the flag exists because no single value is right.
         #[arg(long, default_value_t = 150.0)]
         dpi: f32,
-        /// Which recogniser reads the page: `ocrs` (the default), `ocrcer`
-        /// or `tesseract`.
+        /// Which recogniser reads the page: `ocrs` (the default), `ocrcer`,
+        /// `paddle` or `tesseract`.
         ///
         /// `ocrcer` is the OCRcer engine (MIT, pure Rust), in every standard
         /// build; one compiled with `--no-default-features` and without the
@@ -3037,6 +3037,16 @@ pub(crate) enum Command {
         /// pdfcer does not ship or download: build or copy it from the
         /// OCRcer project (`model/out/ocrcer.ocrw`) into `models/ocrcer`
         /// beside this executable, or name its folder with `--model-dir`.
+        ///
+        /// `paddle` runs PaddleOCR (PP-OCR) models exported to ONNX, in every
+        /// standard build. It reports a per-word confidence and reads the
+        /// languages its recognition model was trained for. pdfcer ships no
+        /// PaddleOCR models: put `det.onnx`, `rec.onnx` and, when the model
+        /// does not embed its dictionary, `dict.txt` in `models/paddle` (for
+        /// example RapidOCR's `ch_PP-OCRv4_det_infer.onnx` and
+        /// `ch_PP-OCRv4_rec_infer.onnx`, renamed). Which dictionary was used
+        /// is printed. Boxes are upright rectangles, so a steeply skewed
+        /// scan reads better deskewed first.
         ///
         /// `tesseract` runs the Tesseract program (Apache-2.0) in
         /// `models/tesseract`, which holds `tesseract.exe` and a `tessdata`
@@ -3050,7 +3060,8 @@ pub(crate) enum Command {
         ///
         /// When omitted, `models/<engine>` beside this executable is used —
         /// `models/ocrs` (two `.rten` files, shipped in the portable
-        /// package), `models/ocrcer` (`ocrcer.ocrw`, not shipped) or
+        /// package), `models/ocrcer` (`ocrcer.ocrw`, not shipped),
+        /// `models/paddle` (`det.onnx`, `rec.onnx`, not shipped) or
         /// `models/tesseract` (`tesseract.exe` plus `tessdata`). A
         /// path given here that lacks the engine's files is REPORTED,
         /// never quietly replaced by the bundled copy — running a different

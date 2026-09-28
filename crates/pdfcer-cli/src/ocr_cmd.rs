@@ -232,6 +232,8 @@ pub(crate) enum LoadedOcrEngine {
     Ocrs(pdfcer_core::ocr::engine_ocrs::OcrsEngine),
     #[cfg(feature = "ocrcer")]
     Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
+    #[cfg(feature = "paddle")]
+    Paddle(Box<pdfcer_core::ocr::engine_paddle::PaddleEngine>),
     Tesseract(tesseract::TesseractEngine),
 }
 
@@ -252,6 +254,10 @@ impl LoadedOcrEngine {
             Self::Ocrcer(e) => e
                 .recognize(width, height, pixels)
                 .map_err(|e| e.to_string()),
+            #[cfg(feature = "paddle")]
+            Self::Paddle(e) => e
+                .recognize(width, height, pixels)
+                .map_err(|e| e.to_string()),
             Self::Tesseract(e) => e.recognize(width, height, pixels),
         }
     }
@@ -263,8 +269,34 @@ impl LoadedOcrEngine {
             Self::Ocrs(e) => e.reports_confidence(),
             #[cfg(feature = "ocrcer")]
             Self::Ocrcer(e) => e.reports_confidence(),
+            #[cfg(feature = "paddle")]
+            Self::Paddle(e) => e.reports_confidence(),
             // Tesseract's TSV carries a `conf` column on every word row.
             Self::Tesseract(_) => true,
+        }
+    }
+
+    /// A line naming anything the engine chose on the operator's behalf, for
+    /// the rule-4 report.
+    pub(crate) fn disclosure(&self) -> Option<String> {
+        match self {
+            #[cfg(feature = "paddle")]
+            Self::Paddle(e) => {
+                use pdfcer_core::ocr::engine_paddle::{DICTIONARY, DictionarySource};
+                Some(match e.dictionary_source() {
+                    DictionarySource::File(p) => format!(
+                        "PaddleOCR dictionary: {} ({} entries)",
+                        p.display(),
+                        e.dictionary_len()
+                    ),
+                    _ => format!(
+                        "PaddleOCR dictionary: no {DICTIONARY}, so the list embedded in \
+                         rec.onnx was used ({} entries)",
+                        e.dictionary_len()
+                    ),
+                })
+            }
+            _ => None,
         }
     }
 }
@@ -363,6 +395,50 @@ pub(crate) fn load_ocr_engine(
                     Err(exit::RUNTIME_ERROR)
                 }
             }
+        }
+        #[cfg(feature = "paddle")]
+        OcrEngineArg::Paddle => {
+            use pdfcer_core::ocr::engine_paddle::{
+                DETECTION_MODEL, MODEL_DIR, PaddleEngine, RECOGNITION_MODEL,
+            };
+            let source = match models::resolve_model_dir_with(
+                MODEL_DIR,
+                model_dir,
+                exe_dir.as_deref(),
+                None,
+                &[DETECTION_MODEL, RECOGNITION_MODEL],
+            ) {
+                Ok(src) => src,
+                Err(err) => {
+                    eprintln!("pdfcer: ocr: {err}");
+                    eprintln!(
+                        "pdfcer: ocr: PaddleOCR models are not shipped or downloaded. Put a \
+                         PP-OCR detection and recognition model, exported to ONNX and named \
+                         `{DETECTION_MODEL}` and `{RECOGNITION_MODEL}` (for example RapidOCR's \
+                         `ch_PP-OCRv4_det_infer.onnx` and `ch_PP-OCRv4_rec_infer.onnx`), plus \
+                         the model's `dict.txt` if its dictionary is not embedded, in a \
+                         `models/paddle` folder beside this executable, or pass \
+                         --model-dir <their folder>."
+                    );
+                    return Err(exit::RUNTIME_ERROR);
+                }
+            };
+            match PaddleEngine::from_model_dir(source.path()) {
+                Ok(e) => Ok((LoadedOcrEngine::Paddle(Box::new(e)), source)),
+                Err(err) => {
+                    eprintln!("pdfcer: ocr: {err}");
+                    Err(exit::RUNTIME_ERROR)
+                }
+            }
+        }
+        #[cfg(not(feature = "paddle"))]
+        OcrEngineArg::Paddle => {
+            eprintln!(
+                "pdfcer: ocr: --ocr-engine paddle: this build was compiled without the `paddle` \
+                 feature, so the PaddleOCR engine is not in it. Rebuild with \
+                 `cargo build -p pdfcer-cli --features paddle`, or use --ocr-engine ocrs."
+            );
+            Err(exit::UNIMPLEMENTED)
         }
         #[cfg(not(feature = "ocrcer"))]
         OcrEngineArg::Ocrcer => {
@@ -712,6 +788,9 @@ recognised={} written={} replaced={} confidence={}",
             models::ModelSource::UserData(_) => "user data",
         }
     );
+    if let Some(line) = engine.disclosure() {
+        eprintln!("pdfcer: ocr: {line}");
+    }
     if !confidence_available {
         eprintln!(
             "pdfcer: ocr: this engine reports NO per-word confidence, so nothing above has \

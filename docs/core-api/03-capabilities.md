@@ -2427,6 +2427,30 @@ OCRcer by `tools/sync-ocrcer.py`; do not edit it here.
 | `OcrcerEngine::from_bytes(&[u8]) -> Result<Self, ocrcer_core::Error>` — a malformed or non-`.ocrw` file is an `Err` |
 | `MODEL_DIR` `"ocrcer"` · `MODEL_FILE` `"ocrcer.ocrw"` — resolve the folder with piece 4, then read `MODEL_FILE` inside it |
 
+**Piece 3d — PaddleOCR (PP-OCR)** (`crates/pdfcer-core/src/ocr/engine_paddle.rs`, feature `paddle`, **on by default**)
+
+Runs operator-supplied PP-OCR ONNX exports through `rten` (the runtime `ocrs`
+uses; wasm32-clean). **pdfcer ships no PaddleOCR models.** It **reports
+per-word confidence**: the mean CTC probability of a word's characters; lines
+scoring under 0.5 are dropped. Parameters are RapidOCR 1.4's defaults, with
+one difference: boxes are **upright rectangles**, not rotated ones, so a
+steeply skewed line picks up some of its neighbours. A crop 1.5× taller than
+wide is turned 90° counter-clockwise and returned as **one word covering the
+crop**. No angle classifier runs.
+
+| item |
+|---|
+| `PaddleEngine::from_model_dir(&Path)` — loads `det.onnx`, `rec.onnx`, and `dict.txt` if present |
+| `PaddleEngine::from_model_files(det: &Path, rec: &Path, dictionary: Option<&Path>)` — `None` uses the rec model's embedded `character` metadata |
+| `PaddleEngine::dictionary_source() -> &DictionarySource` (`File(PathBuf)`, `Embedded`; `#[non_exhaustive]`) · `dictionary_len()` — **disclose these**: a dictionary that does not match the model reads as confident nonsense |
+| `MODEL_DIR` `"paddle"` · `DETECTION_MODEL` `"det.onnx"` · `RECOGNITION_MODEL` `"rec.onnx"` · `DICTIONARY` `"dict.txt"` |
+| `PaddleEngineError` (`ModelMissing`, `ModelLoad`, `Dictionary { path, reason }`, `ImageSize`, `Recognition`), `#[non_exhaustive]` |
+
+A dictionary must have exactly `classes − 2` entries (blank and space
+classes) or `classes − 1` (blank only). When the model's class count is
+fixed, a mismatch is refused at load. `ocr::paddle_post` is `#[doc(hidden)]`:
+it is workspace-internal, public only for the fuzz crate.
+
 **Piece 3c — Tesseract, parse only** (`crates/pdfcer-core/src/ocr/tesseract_tsv.rs`, always compiled)
 
 Tesseract is a separate program, and core never spawns processes (wasm32), so
@@ -2445,7 +2469,7 @@ same layout.
 
 Tesseract reports confidence, so pass `confidence_available: true`.
 
-To offer an engine choice: pass `"ocrs"`, `"ocrcer"` or `"tesseract"` to
+To offer an engine choice: pass `"ocrs"`, `"ocrcer"`, `"paddle"` or `"tesseract"` to
 `OcrLayerOptions::with_engine` so the text-layer marker names what recognised
 it (the CLI does this). The CLI's `pdfcer ocr --ocr-engine ocrcer` is the
 reference caller.

@@ -540,6 +540,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "paddle_post"
+path = "fuzz_targets/paddle_post.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "wav_import"
 path = "fuzz_targets/wav_import.rs"
 test = false

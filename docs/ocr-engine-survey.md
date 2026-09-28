@@ -1035,6 +1035,8 @@ is not a supported pdfcer platform anyway (**R9**).
 
 ### 5.2 `ocr-rs` (rust-paddle-ocr) — the serious third option
 
+> **Outcome (2026-09-28):** PaddleOCR was adopted by a different route — PP-OCR ONNX exports run through `rten` (feature `paddle`, `ocr/engine_paddle.rs`), which is wasm32-clean and adds no crate. `ocr-rs`/MNN was not adopted. Models are operator-supplied; the weights-licence caveat below still governs shipping any. `PRIOR_ART.md` § OCR engines.
+
 This one was not on the brief and should have been. It is a Rust binding to
 **PaddleOCR** models running on **MNN**, Alibaba's inference engine.
 

@@ -39,7 +39,7 @@ autotests = false
 # 4. CI builds `--no-default-features` (see .github/workflows/ci.yml), which
 #    is what stops a `cfg` from rotting into something that no longer
 #    compiles when switched off.
-default = ["jpx", "ocrs", "ocrcer", "signing"]
+default = ["jpx", "ocrs", "ocrcer", "paddle", "signing"]
 
 # Digital SIGNING — the private-key side (PAdES B-B first; `sign` module).
 #
@@ -130,6 +130,14 @@ ocrs = ["dep:ocrs", "dep:rten"]
 # no network structurally (model bytes are handed in by the caller). Compiles
 # for wasm32-unknown-unknown.
 ocrcer = ["dep:ocrcer-core"]
+
+# The PaddleOCR (PP-OCR) engine, `ocr/engine_paddle.rs`. Default ON (rule 1);
+# off, the CLI refuses `--ocr-engine paddle` by name (rule 2). Runs
+# operator-supplied PP-OCR ONNX exports through the same `rten` runtime as
+# `ocrs` (its default `onnx_format` feature), so it adds only `rten-tensor`,
+# already in the graph. No weights ship; no network. The pure pre/post-
+# processing (`ocr/paddle_post.rs`) is ungated so the fuzz crate reaches it.
+paddle = ["dep:rten", "dep:rten-tensor"]
 # NOTE: there is deliberately no `rten` feature. `cargo add --optional` writes
 # one automatically, and it was removed: `rten` alone compiles the inference
 # runtime and nothing that uses it, so it would be a public feature that adds
@@ -377,6 +385,7 @@ ocrs = { version = "0.12.2", optional = true }
 # naming this crate. Gated by the same `ocrs` feature; it has no independent
 # use here. License: MIT OR Apache-2.0.
 rten = { version = "0.24", optional = true }
+rten-tensor = { version = "0.24", optional = true }
 # ocrcer-core: the OCRcer recogniser (`ocrcer` feature). MIT, zero
 # dependencies. VENDORED at `vendor/ocrcer-core`, copied from the newest local
 # OCRcer commit by `tools/sync-ocrcer.py` (operator rule: always the newest
