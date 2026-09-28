@@ -1033,6 +1033,7 @@ fn a_ce_dimension_carries_its_group_across_documents() {
                 constraint: AxisConstraint::Horizontal,
                 offset: 12.0,
                 text_along: 0.5,
+                extension_gap: [None; 2],
             },
         )
         .expect("author a ce dimension");

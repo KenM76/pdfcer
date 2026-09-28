@@ -86,6 +86,7 @@ fn linear() -> DimensionKind {
         constraint: AxisConstraint::Horizontal,
         offset: 0.0,
         text_along: 0.0,
+        extension_gap: [None; 2],
     }
 }
 

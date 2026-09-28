@@ -281,6 +281,7 @@ pub fn author_from_two_lines(
                 constraint: placement.constraint,
                 offset: placement.offset,
                 text_along: placement.text_along,
+                extension_gap: [None; 2],
             }
         }
         TwoLineRelation::Angled { apex, .. } => {

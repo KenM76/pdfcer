@@ -203,6 +203,7 @@ fn a_quarter_turn_puts_the_points_where_the_arithmetic_says() {
         constraint: AxisConstraint::Aligned,
         offset: 0.0,
         text_along: 0.0,
+        extension_gap: [None; 2],
     };
     let turned = kind.rotated(Point::new(0.0, 0.0), std::f64::consts::FRAC_PI_2);
     let DimensionKind::Linear { a, b, .. } = turned else {

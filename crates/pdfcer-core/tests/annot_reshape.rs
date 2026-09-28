@@ -708,6 +708,7 @@ fn a_ce_dimension_is_sent_to_its_own_verbs() {
                 constraint: AxisConstraint::Horizontal,
                 offset: 0.0,
                 text_along: 0.0,
+                extension_gap: [None; 2],
             },
         )
         .expect("author a ce dimension");

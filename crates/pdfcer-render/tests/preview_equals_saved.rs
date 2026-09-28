@@ -764,6 +764,7 @@ fn dimension_preview_equals_saved() {
             constraint: AxisConstraint::Horizontal,
             offset: 0.0,
             text_along: 0.0,
+            extension_gap: [None; 2],
         },
     )
     .expect("add_dimension applies");

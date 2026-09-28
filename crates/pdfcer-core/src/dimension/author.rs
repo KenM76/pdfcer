@@ -347,6 +347,7 @@ pub struct DimensionPreview {
 ///     constraint: AxisConstraint::Horizontal,
 ///     offset: 0.0,
 ///     text_along: 0.0,
+///     extension_gap: [None; 2],
 /// };
 /// let authored = author_dimension(
 ///     &kind,
@@ -527,7 +528,7 @@ pub fn author_dimension_with_label(
     let anchor = kind.label_anchor().unwrap_or_else(|| l0.midpoint(l1));
 
     match *kind {
-        DimensionKind::Linear { .. } => {
+        DimensionKind::Linear { extension_gap, .. } => {
             // The measured points, for the extension lines. `linear_geometry`
             // is the ONE definition of this frame — `leader_endpoints` above
             // reads the same function for the dimension line's ends, so the
@@ -548,6 +549,7 @@ pub fn author_dimension_with_label(
                     dim: (l0, l1),
                     ext: (ext_a, ext_b),
                     style,
+                    gaps: extension_gap,
                     text_break: brk,
                 },
             );
@@ -868,6 +870,30 @@ fn leader_endpoints(kind: &DimensionKind) -> (Point, Point) {
     }
 }
 
+/// One extension line from `gap` clear of `point` to `overshoot` past
+/// `dim_end`; `None` when the line is too short to leave the gap (the
+/// dimension line already passes at or through the point).
+pub(crate) fn extension_segment(
+    point: Point,
+    dim_end: Point,
+    gap: f64,
+    overshoot: f64,
+) -> Option<(Point, Point)> {
+    let (dx, dy) = (dim_end.x - point.x, dim_end.y - point.y);
+    let len = dx.hypot(dy);
+    if !len.is_finite() || len <= gap + overshoot {
+        return None;
+    }
+    let (nx, ny) = (dx / len, dy / len);
+    Some((
+        Point::new(point.x + nx * gap, point.y + ny * gap),
+        Point::new(
+            point.x + nx * (len + overshoot),
+            point.y + ny * (len + overshoot),
+        ),
+    ))
+}
+
 /// Draw a linear ce dimension: the dimension line, real extension (witness)
 /// lines back to the measured points, and terminators (Pass 27.0).
 ///
@@ -894,6 +920,8 @@ struct LinearDraw {
     ext: (Point, Point),
     /// The group's style, which decides the extension metrics.
     style: DimensionStyle,
+    /// Per-end gap overrides (`[a, b]`); `None` ⇒ the standard's.
+    gaps: [Option<f64>; 2],
     /// Where the value interrupts the line, as `(centre, half-width)` — `None`
     /// under a standard that does not break the line.
     text_break: Option<(Point, f64)>,
@@ -904,9 +932,10 @@ fn draw_linear(b: &mut ContentBuilder, bounds: &mut BoundsAcc, d: LinearDraw) {
         dim: (a, c),
         ext: (ext_a, ext_b),
         style,
+        gaps,
         text_break,
     } = d;
-    let (ext_gap, ext_overshoot) = style.extension_metrics();
+    let (std_gap, ext_overshoot) = style.extension_metrics();
     let (ux, uy) = unit_vector(a, c);
 
     // The dimension line — in two pieces when the value interrupts it.
@@ -950,20 +979,12 @@ fn draw_linear(b: &mut ContentBuilder, bounds: &mut BoundsAcc, d: LinearDraw) {
     // Decision 026 records the sourcing and the confidence for each; they are
     // constants here so a per-standard style can replace them without moving
     // the geometry.
-    for (point, dim_end) in [(ext_a, a), (ext_b, c)] {
-        let (dx, dy) = (dim_end.x - point.x, dim_end.y - point.y);
-        let len = dx.hypot(dy);
-        if !len.is_finite() || len <= ext_gap + ext_overshoot {
-            // Too short to draw as a witness line: the dimension line is
-            // already at (or through) the point.
+    for (point, dim_end, gap) in [(ext_a, a, gaps[0]), (ext_b, c, gaps[1])] {
+        let Some((start, end)) =
+            extension_segment(point, dim_end, gap.unwrap_or(std_gap), ext_overshoot)
+        else {
             continue;
-        }
-        let (nx, ny) = (dx / len, dy / len);
-        let start = Point::new(point.x + nx * ext_gap, point.y + ny * ext_gap);
-        let end = Point::new(
-            point.x + nx * (len + ext_overshoot),
-            point.y + ny * (len + ext_overshoot),
-        );
+        };
         b.move_to(start.x, start.y);
         b.line_to(end.x, end.y);
         b.paint(Paint::Stroke);
@@ -1386,6 +1407,7 @@ mod tests {
             constraint: AxisConstraint::Horizontal,
             offset: 0.0,
             text_along: 0.0,
+            extension_gap: [None; 2],
         }
     }
 

@@ -225,6 +225,16 @@ pub enum DimensionKind {
         /// 0.0 is centred, which is where every dimension authored before this
         /// field existed puts its label.
         text_along: f64,
+        /// Per-end extension-line gap in points, indexed by [`DimensionEnd`]
+        /// (`[a, b]`); `None` ⇒ the drafting standard's
+        /// ([`super::DimensionStyle::extension_metrics`]).
+        ///
+        /// Stored on the kind, beside the placement scalars, because it is
+        /// per-instance geometry: placement, re-bake and group restyle carry
+        /// it the way they carry `text_along`. Set it through
+        /// [`crate::edit::EditSession::set_dimension_extension_gap`], which
+        /// refuses a value the extension line could not be drawn with.
+        extension_gap: [Option<f64>; 2],
     },
     /// A radius/diameter dimension over a best-fit circle. Stores the fit
     /// (centre + radius + residual — the residual surfaced per decision 011
@@ -367,6 +377,28 @@ pub enum DimensionKind {
         /// there.
         text_along: f64,
     },
+}
+
+/// One end of a linear ce dimension: [`Self::A`] is the end whose extension
+/// line reaches back to the first picked point `a`, [`Self::B`] the second.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DimensionEnd {
+    /// The end at the first picked point.
+    A,
+    /// The end at the second picked point.
+    B,
+}
+
+impl DimensionEnd {
+    /// The index of this end in [`DimensionKind::Linear`]'s `extension_gap`
+    /// and in [`DimensionKind::extension_segments`]'s result.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+        }
+    }
 }
 
 impl DimensionKind {
@@ -537,6 +569,54 @@ impl DimensionKind {
         Some((offset, along))
     }
 
+    /// Where each extension line of a linear ce dimension is **drawn**, as
+    /// `(start, end)` in page space, indexed by [`DimensionEnd`]: `start` is
+    /// the end nearest the picked point (the gap is between them), `end` lies
+    /// just past the dimension line by the standard's overshoot.
+    ///
+    /// This is the baker's own computation, so a handle placed at `start`
+    /// sits on the drawn line. An entry is `None` where the baker omits that
+    /// extension line — the dimension line passes within `gap + overshoot`
+    /// of the picked point, so there is nothing to draw.
+    ///
+    /// `None` for a non-linear or degenerate ce dimension.
+    #[must_use]
+    pub fn extension_segments(
+        &self,
+        style: super::DimensionStyle,
+    ) -> Option<[Option<(Point, Point)>; 2]> {
+        let Self::Linear { extension_gap, .. } = *self else {
+            return None;
+        };
+        let (dim_a, dim_b, pa, pb) = self.linear_geometry()?;
+        let (std_gap, overshoot) = style.extension_metrics();
+        let [gap_a, gap_b] = extension_gap;
+        let seg = |gap: Option<f64>, point: Point, dim_end: Point| {
+            super::author::extension_segment(point, dim_end, gap.unwrap_or(std_gap), overshoot)
+        };
+        Some([seg(gap_a, pa, dim_a), seg(gap_b, pb, dim_b)])
+    }
+
+    /// The exclusive upper bound on `end`'s extension gap under `style`: the
+    /// distance from the picked point to the dimension line, less the
+    /// standard's overshoot. A gap at or above it leaves no extension line
+    /// for the baker to draw. May be zero or negative when the dimension line
+    /// runs at the point, where no gap is drawable.
+    ///
+    /// `None` for a non-linear or degenerate ce dimension.
+    #[must_use]
+    pub fn extension_reach(&self, end: DimensionEnd, style: super::DimensionStyle) -> Option<f64> {
+        if !matches!(self, Self::Linear { .. }) {
+            return None;
+        }
+        let (dim_a, dim_b, pa, pb) = self.linear_geometry()?;
+        let (p, d) = match end {
+            DimensionEnd::A => (pa, dim_a),
+            DimensionEnd::B => (pb, dim_b),
+        };
+        Some((d.x - p.x).hypot(d.y - p.y) - style.extension_metrics().1)
+    }
+
     /// `None` for a non-linear or degenerate dimension.
     #[must_use]
     pub fn linear_geometry(&self) -> Option<(Point, Point, Point, Point)> {
@@ -615,12 +695,14 @@ impl DimensionKind {
                 constraint,
                 offset,
                 text_along,
+                extension_gap,
             } => Self::Linear {
                 a: map(a),
                 b: map(b),
                 constraint,
                 offset,
                 text_along,
+                extension_gap,
             },
             Self::Circular { fit, show_diameter } => Self::Circular {
                 fit: FitCircle {
@@ -681,6 +763,7 @@ impl DimensionKind {
                 constraint,
                 offset,
                 text_along,
+                extension_gap,
             } => Self::Linear {
                 a: Point::new(a.x + dx, a.y + dy),
                 b: Point::new(b.x + dx, b.y + dy),
@@ -690,6 +773,7 @@ impl DimensionKind {
                 // untouched.
                 offset,
                 text_along,
+                extension_gap,
             },
             Self::Circular { fit, show_diameter } => Self::Circular {
                 fit: FitCircle {
@@ -1207,6 +1291,7 @@ mod tests {
             constraint: c,
             offset: 0.0,
             text_along: 0.0,
+            extension_gap: [None; 2],
         }
     }
 
@@ -1453,12 +1538,14 @@ pub fn transform_kind(kind: &DimensionKind, m: crate::vector::Matrix) -> Dimensi
             constraint,
             offset,
             text_along,
+            extension_gap,
         } => DimensionKind::Linear {
             a: pt(a),
             b: pt(b),
             constraint: *constraint,
             offset: *offset,
             text_along: *text_along,
+            extension_gap: *extension_gap,
         },
         DimensionKind::Circular { fit, show_diameter } => DimensionKind::Circular {
             fit: crate::dimension::FitCircle {

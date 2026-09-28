@@ -254,6 +254,33 @@ impl DisplayReading {
     }
 }
 
+/// Which end of a linear ce dimension `dimension-extension-gap` sets.
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub(crate) enum DimensionEndArg {
+    /// The end at the first picked point.
+    A,
+    /// The end at the second picked point.
+    B,
+}
+
+impl DimensionEndArg {
+    /// The core end this names.
+    pub(crate) const fn to_core(self) -> pdfcer_core::dimension::DimensionEnd {
+        match self {
+            DimensionEndArg::A => pdfcer_core::dimension::DimensionEnd::A,
+            DimensionEndArg::B => pdfcer_core::dimension::DimensionEnd::B,
+        }
+    }
+
+    /// A stable token for CLI output.
+    pub(crate) const fn token(self) -> &'static str {
+        match self {
+            DimensionEndArg::A => "a", // ui-text-exempt: stable output token
+            DimensionEndArg::B => "b", // ui-text-exempt: stable output token
+        }
+    }
+}
+
 /// The linear alignment constraint for [`Command::DimensionAdd`].
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub(crate) enum ConstraintArg {

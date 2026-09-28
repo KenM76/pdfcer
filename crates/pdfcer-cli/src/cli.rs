@@ -7834,6 +7834,41 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Set or clear one extension-line gap on a linear ce dimension**: the
+    /// space between the picked point and where that end's extension line
+    /// starts.
+    ///
+    /// Give `--gap` in points, or `--clear` to return that end to the
+    /// drafting standard's gap. Nothing is re-measured. `dimension-list`
+    /// prints any gap already set as `gap_a=`/`gap_b=`.
+    ///
+    /// Refused for a ce dimension that is not linear, and for a gap that is
+    /// negative or so long that no extension line would be left to draw.
+    DimensionExtensionGap {
+        /// Input PDF.
+        input: PathBuf,
+        /// The ce dimension id, as printed by `dimension-list`.
+        #[arg(long)]
+        dimension: u32,
+        /// Which end: `a` (first picked point) or `b` (second).
+        #[arg(long, value_enum)]
+        end: DimensionEndArg,
+        /// The gap in points.
+        #[arg(long, required_unless_present = "clear", conflicts_with = "clear")]
+        gap: Option<f64>,
+        /// Clear the gap back to the drafting standard's.
+        #[arg(long)]
+        clear: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Set or clear a ce dimension's TEXT OVERRIDE** (Pass 175.0,
     /// decision 097): make it print what you type instead of what it measured
     /// -- or clear the override and get the measurement back, exactly, with no

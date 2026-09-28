@@ -34,6 +34,7 @@ mod content_edit_no_duplication;
 mod contents_append_shapes;
 mod cut_verbs;
 mod deletion_collateral_structural;
+mod dimension_extension_gap;
 mod dimension_label_override;
 mod dimension_preview;
 mod dimension_rotate;

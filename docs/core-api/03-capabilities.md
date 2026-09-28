@@ -192,6 +192,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `set_dimension_style(dimension, style: StyleOverrides)` | `Result<usize, EditError>` — always this one member |
 | `set_dimension_display(dimension, show_diameter: bool)` | `Result<(), EditError>` — circular only |
 | `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` |
+| `set_dimension_extension_gap(dimension, end: DimensionEnd, gap: Option<f64>)` | `Result<(), EditError>` — linear only; `None` = the standard's gap |
 | `dimension_preview(&self, id, moved: &DimensionKind)` | `Result<DimensionPreview, EditError>` — read-only |
 | `move_dimension(dimension, dx, dy)` | `Result<(), EditError>` |
 | `toggle_dimension_layer(group, visible: bool)` | `Result<bool, EditError>` |
@@ -273,6 +274,7 @@ fn calibrate_and_dimension(bytes: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error
             constraint: AxisConstraint::Horizontal,
             offset: 0.0,
             text_along: 0.0,
+            extension_gap: [None; 2],
         },
     )?;
 

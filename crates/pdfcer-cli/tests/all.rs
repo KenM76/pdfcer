@@ -8,6 +8,7 @@ mod annotate_as_content;
 mod annotate_note;
 mod bookmarks;
 mod copy_page;
+mod dimension_extension_gap;
 mod dimension_group_management;
 mod dimension_style;
 mod edit_commands;

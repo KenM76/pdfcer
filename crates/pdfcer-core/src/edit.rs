@@ -817,6 +817,15 @@ pub enum CommandKind {
     /// value function does not read. ONE undoable command. See
     /// [`EditSession::place_dimension`].
     PlaceDimension,
+    /// One end's extension-line gap on a linear ce dimension was set or
+    /// cleared (`Pass 369.0`) and its appearance regenerated. What it
+    /// measures is untouched. See [`EditSession::set_dimension_extension_gap`].
+    SetDimensionExtensionGap {
+        /// Which end.
+        end: crate::dimension::DimensionEnd,
+        /// `true` ⇒ the gap was cleared back to the standard's.
+        cleared: bool,
+    },
     /// A ce dimension's radius-versus-diameter DISPLAY changed (Pass 34.2):
     /// the label now reports `2r` where it reported `r`, or the reverse, and
     /// the baked `/AP` was regenerated to say so. ONE undoable command.
@@ -4597,6 +4606,7 @@ fn vertex_edited_kind(
             constraint,
             offset,
             text_along,
+            extension_gap,
         } => match edit {
             VertexEdit::Move { index, dx, dy } => {
                 // Index 0 is `a`, index 1 is `b` — the pick order, which is
@@ -4624,6 +4634,7 @@ fn vertex_edited_kind(
                     constraint: *constraint,
                     offset: *offset,
                     text_along: *text_along,
+                    extension_gap: *extension_gap,
                 })
             }
             VertexEdit::Insert { .. } | VertexEdit::Remove { .. } => {
@@ -7179,6 +7190,30 @@ pub enum EditError {
     NotALinearDimension {
         /// The dimension id.
         id: u32,
+    },
+    /// A per-end extension gap was aimed at a ce dimension that is not
+    /// linear (`Pass 369.0`). Only a linear ce dimension has the two
+    /// extension lines the gap belongs to.
+    #[error("ce dimension {id} is not linear, and only a linear one has a per-end extension gap")]
+    NoExtensionLines {
+        /// The dimension id.
+        id: u32,
+    },
+    /// An extension gap the line could not be drawn with (`Pass 369.0`):
+    /// negative, not finite, or at least `reach` — the distance from the
+    /// picked point to the dimension line less the standard's overshoot
+    /// ([`DimensionKind::extension_reach`](crate::dimension::DimensionKind::extension_reach)),
+    /// where the extension line would vanish.
+    #[error(
+        "extension gap {gap} on ce dimension {id} is out of range: it must be at least 0 and less than {reach}, or the extension line would not be drawn"
+    )]
+    ExtensionGapOutOfRange {
+        /// The dimension id.
+        id: u32,
+        /// The refused gap, in points.
+        gap: f64,
+        /// The exclusive upper bound for that end, in points.
+        reach: f64,
     },
     /// A display-mode operation named a ce dimension that is not circular
     /// (Pass 34.2) — the mirror of [`Self::NotALinearDimension`].
@@ -51787,13 +51822,18 @@ impl EditSession {
         // its vertex centroid instead of on its longest segment.
         let placed = match record.kind {
             DimensionKind::Linear {
-                a, b, constraint, ..
+                a,
+                b,
+                constraint,
+                extension_gap,
+                ..
             } => DimensionKind::Linear {
                 a,
                 b,
                 constraint,
                 offset,
                 text_along,
+                extension_gap,
             },
             DimensionKind::Angular {
                 apex, dir_a, dir_b, ..
@@ -51834,6 +51874,88 @@ impl EditSession {
         objects.push(self.catalog_dimension_write(&model)?);
         self.commit(Command {
             kind: CommandKind::PlaceDimension,
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(())
+    }
+
+    /// **Set one end's extension-line gap on a linear ce dimension** — the
+    /// space between the picked point and where its extension line starts —
+    /// as one undoable command (`Pass 369.0`). `None` clears it back to the
+    /// drafting standard's gap
+    /// ([`DimensionStyle::extension_metrics`](crate::dimension::DimensionStyle::extension_metrics)).
+    ///
+    /// The gap is stored on the kind beside the placement scalars, so
+    /// [`Self::place_dimension`], a vertex move, a group restyle and a
+    /// sidecar round-trip all keep it. A later edit that brings the
+    /// dimension line within `gap + overshoot` of the point omits that
+    /// extension line, exactly as the standard gap does.
+    /// [`DimensionKind::extension_segments`] reports where each extension
+    /// line is drawn, for a handle; [`DimensionKind::extension_reach`] gives
+    /// the bound checked here.
+    ///
+    /// Setting the value it already has still commits (see
+    /// [`Self::set_dimension_display`]).
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::DimensionNotFound`]; [`EditError::NoExtensionLines`] for a
+    /// ce dimension that is not linear;
+    /// [`EditError::ExtensionGapOutOfRange`] for a negative or non-finite
+    /// gap, or one leaving no extension line to draw; plus the encryption,
+    /// enforced-certification and newer-sidecar guards.
+    pub fn set_dimension_extension_gap(
+        &mut self,
+        dimension: DimensionId,
+        end: crate::dimension::DimensionEnd,
+        gap: Option<f64>,
+    ) -> Result<(), EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification()?;
+        self.check_dimension_sidecar()?;
+
+        let mut model = self.read_dimension_model();
+        let record = model
+            .dimension(dimension)
+            .ok_or(EditError::DimensionNotFound { id: dimension.0 })?;
+        let mut kind = record.kind.clone();
+        let DimensionKind::Linear { extension_gap, .. } = &mut kind else {
+            return Err(EditError::NoExtensionLines { id: dimension.0 });
+        };
+        if let Some(g) = gap {
+            let group = model
+                .group(record.group)
+                .ok_or(EditError::DimensionGroupNotFound { id: record.group.0 })?;
+            let style = crate::dimension::resolve_style(group, &record.style);
+            let reach = record.kind.extension_reach(end, style).unwrap_or(0.0);
+            if !g.is_finite() || g < 0.0 || g >= reach {
+                return Err(EditError::ExtensionGapOutOfRange {
+                    id: dimension.0,
+                    gap: g,
+                    reach,
+                });
+            }
+        }
+        let [gap_a, gap_b] = *extension_gap;
+        *extension_gap = match end {
+            crate::dimension::DimensionEnd::A => [gap, gap_b],
+            crate::dimension::DimensionEnd::B => [gap_a, gap],
+        };
+        if let Some(d) = model.dimension_mut(dimension) {
+            d.kind = kind;
+        }
+
+        let mut objects = self.regenerate_dimension_writes(&model, &[dimension])?;
+        objects.push(self.catalog_dimension_write(&model)?);
+        self.commit(Command {
+            kind: CommandKind::SetDimensionExtensionGap {
+                end,
+                cleared: gap.is_none(),
+            },
             objects,
             removals: Vec::new(),
             trailer: None,

@@ -89,6 +89,7 @@ pub(crate) fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
                 a: *a,
                 b: *b,
                 constraint: constraint.to_core(),
+                extension_gap: [None; 2],
             }
         }
         DimKindArg::Radius | DimKindArg::Diameter => {
@@ -1558,6 +1559,72 @@ pub(crate) fn cmd_dimension_display(
     finish_edit(input, &outcome)
 }
 
+/// Arguments of `dimension-extension-gap` (clippy arg-count).
+pub(crate) struct DimensionExtensionGapArgs<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) dimension: u32,
+    pub(crate) end: DimensionEndArg,
+    /// `None` ⇒ `--clear`.
+    pub(crate) gap: Option<f64>,
+    pub(crate) output: &'a Path,
+    pub(crate) mode: SaveMode,
+    pub(crate) verify_undo: bool,
+}
+
+/// `dimension-extension-gap` -- set or clear one end's extension-line gap on
+/// a linear ce dimension (`Pass 369.0`).
+///
+/// ## Contract
+///
+/// - Emits one `dimension-extension-gap …` line (`gap=standard` after
+///   `--clear`) with the usual save-report fields, then defers the exit code
+///   to [`finish_edit`].
+/// - A non-linear or unknown ce dimension, or an out-of-range gap, is refused
+///   through [`report_edit_error`] before any mutation.
+pub(crate) fn cmd_dimension_extension_gap(args: &DimensionExtensionGapArgs<'_>) -> u8 {
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    if let Err(err) = session.set_dimension_extension_gap(
+        pdfcer_core::dimension::DimensionId(args.dimension),
+        args.end.to_core(),
+        args.gap,
+    ) {
+        return report_edit_error(args.input, &err);
+    }
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let gap = args
+        .gap
+        .map_or_else(|| "standard".to_owned(), |g| g.to_string()); // ui-text-exempt: stable output token
+    let r = &outcome.report;
+    println!(
+        "dimension-extension-gap {} dimension={} end={} gap={gap} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.dimension,
+        args.end.token(),
+        args.mode.name(),
+        args.output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    finish_edit(args.input, &outcome)
+}
+
 /// `dimension-label` -- set or clear one ce dimension's text override
 /// (Pass 175.0, decision 097).
 ///
@@ -2293,8 +2360,19 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
         // current values to adjust from.
         let placement = match d.kind {
             DimensionKind::Linear {
-                offset, text_along, ..
-            } => format!(" offset={offset} text_along={text_along}"),
+                offset,
+                text_along,
+                extension_gap,
+                ..
+            } => {
+                let mut s = format!(" offset={offset} text_along={text_along}");
+                for (key, gap) in [("gap_a", extension_gap[0]), ("gap_b", extension_gap[1])] {
+                    if let Some(g) = gap {
+                        s.push_str(&format!(" {key}={g}"));
+                    }
+                }
+                s
+            }
             DimensionKind::Circular { .. } => String::new(),
             // An angular ce dimension's placement is a radius and a position
             // along the arc — the same one-drag pair as a linear one, in the

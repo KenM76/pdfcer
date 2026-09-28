@@ -87,8 +87,8 @@ pub use author::{
 };
 pub use fit::{FitCircle, fit_circle_taubin, fit_circle_taubin_refined};
 pub use group::{
-    DEFAULT_GROUP_ID, DimStandard, DimensionId, DimensionKind, DimensionModel, DimensionRecord,
-    Group, GroupId, transform_kind,
+    DEFAULT_GROUP_ID, DimStandard, DimensionEnd, DimensionId, DimensionKind, DimensionModel,
+    DimensionRecord, Group, GroupId, transform_kind,
 };
 pub use length_parse::{LengthParseError, ParsedLength, parse_length};
 pub use measure_dict::{build_measure_dict, build_ocg, build_ocproperties};

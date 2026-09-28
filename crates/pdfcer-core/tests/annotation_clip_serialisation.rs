@@ -412,6 +412,7 @@ fn a_ce_dimension_survives_the_clip_file() {
             constraint: pdfcer_core::vector::AxisConstraint::Aligned,
             offset: 12.0,
             text_along: 0.5,
+            extension_gap: [None; 2],
         },
     )
     .expect("dimension");
@@ -688,6 +689,7 @@ fn a_pasted_ce_dimension_reads_the_same_number_it_was_copied_from() {
                 constraint: pdfcer_core::vector::AxisConstraint::Aligned,
                 offset: 12.0,
                 text_along: 0.5,
+                extension_gap: [None; 2],
             },
         )
         .expect("ce dimension");
@@ -771,6 +773,7 @@ fn an_existing_group_keeps_its_own_scale_and_the_paste_discloses_it() {
                 constraint: pdfcer_core::vector::AxisConstraint::Aligned,
                 offset: 12.0,
                 text_along: 0.5,
+                extension_gap: [None; 2],
             },
         )
         .expect("ce dimension");

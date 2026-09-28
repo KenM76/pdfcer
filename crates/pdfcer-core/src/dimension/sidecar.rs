@@ -419,6 +419,7 @@ pub(crate) fn serialize_overrides(style: &StyleOverrides) -> Object {
             constraint: crate::vector::AxisConstraint::Aligned,
             offset: 0.0,
             text_along: 0.5,
+            extension_gap: [None; 2],
         },
         annot: None,
         ap: None,
@@ -488,6 +489,7 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             constraint,
             offset,
             text_along,
+            extension_gap,
         } => {
             d.insert(Name::from(b"Kind"), Object::Name(Name::from(b"linear")));
             d.insert(Name::from(b"A"), point_array(a));
@@ -520,6 +522,15 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             // which is where every pre-27.1 label sits.
             if text_along != 0.0 {
                 d.insert(Name::from(b"TextAlong"), Object::Real(text_along));
+            }
+            // Per-end extension gaps (`Pass 369.0`); absent ⇒ the standard's.
+            for (key, gap) in [
+                (&b"GapA"[..], extension_gap[0]),
+                (b"GapB", extension_gap[1]),
+            ] {
+                if let Some(g) = gap {
+                    d.insert(Name::from(key), Object::Real(g));
+                }
             }
         }
         DimensionKind::Angular {
@@ -674,6 +685,7 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
             // default is what makes that migration free rather than lossy.
             offset: placement_of(d.get(b"Offset")),
             text_along: placement_of(d.get(b"TextAlong")),
+            extension_gap: [gap_of(d.get(b"GapA")), gap_of(d.get(b"GapB"))],
         },
         b"angular" => DimensionKind::Angular {
             apex: point_of(d.get(b"Apex")?)?,
@@ -1049,6 +1061,13 @@ pub fn usable_page_value(v: f64) -> bool {
 /// dimension's POSITION, not the dimension. The measured points are held to a
 /// stricter standard below, because a dimension whose geometry is corrupt has
 /// no meaning to preserve.
+/// A per-end extension gap: a usable, non-negative number, else `None` (the
+/// standard's gap). A hand-edited negative is dropped rather than drawn.
+fn gap_of(obj: Option<&Object>) -> Option<f64> {
+    obj.and_then(Object::as_number)
+        .filter(|v| usable_page_value(*v) && *v >= 0.0)
+}
+
 fn placement_of(obj: Option<&Object>) -> f64 {
     obj.and_then(Object::as_number)
         .filter(|v| usable_page_value(*v))
@@ -1167,6 +1186,7 @@ mod tests {
                 constraint: AxisConstraint::Horizontal,
                 offset: 0.0,
                 text_along: 0.0,
+                extension_gap: [None; 2],
             },
         );
         // Wire fake object handles to prove they round-trip.
@@ -1347,6 +1367,7 @@ mod style_sidecar_tests {
                 constraint: crate::vector::AxisConstraint::Horizontal,
                 offset: 0.0,
                 text_along: 0.0,
+                extension_gap: [None; 2],
             },
         );
         m
