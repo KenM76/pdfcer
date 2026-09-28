@@ -3034,19 +3034,19 @@ pub(crate) enum Command {
         /// build; one compiled with `--no-default-features` and without the
         /// `ocrcer` feature refuses it by name. It reports a per-word confidence;
         /// `ocrs` reports none. Its model is one file, `ocrcer.ocrw`, which
-        /// pdfcer does not ship or download: build or copy it from the
-        /// OCRcer project (`model/out/ocrcer.ocrw`) into `models/ocrcer`
-        /// beside this executable, or name its folder with `--model-dir`.
+        /// the portable package ships in `models/ocrcer`; elsewhere, copy it
+        /// from the OCRcer project (`model/out/ocrcer.ocrw`) into
+        /// `models/ocrcer` beside this executable, or name its folder with
+        /// `--model-dir`.
         ///
         /// `paddle` runs PaddleOCR (PP-OCR) models exported to ONNX, in every
-        /// standard build. It reports a per-word confidence and reads the
-        /// languages its recognition model was trained for. pdfcer ships no
-        /// PaddleOCR models: put `det.onnx`, `rec.onnx` and, when the model
-        /// does not embed its dictionary, `dict.txt` in `models/paddle` (for
-        /// example RapidOCR's `ch_PP-OCRv4_det_infer.onnx` and
-        /// `ch_PP-OCRv4_rec_infer.onnx`, renamed). Which dictionary was used
-        /// is printed. Boxes are upright rectangles, so a steeply skewed
-        /// scan reads better deskewed first.
+        /// standard build. It reports a per-word confidence. The portable
+        /// package ships PP-OCRv4 (Chinese and English, Apache-2.0) in
+        /// `models/paddle`. For another language, replace `rec.onnx` with
+        /// that language's PP-OCR recognition model and add its `dict.txt`
+        /// if the model does not embed one. Which dictionary was used is
+        /// printed. Boxes are upright rectangles, so a steeply skewed scan
+        /// reads better deskewed first.
         ///
         /// `tesseract` runs the Tesseract program (Apache-2.0) in
         /// `models/tesseract`, which holds `tesseract.exe` and a `tessdata`
@@ -3060,8 +3060,8 @@ pub(crate) enum Command {
         ///
         /// When omitted, `models/<engine>` beside this executable is used —
         /// `models/ocrs` (two `.rten` files, shipped in the portable
-        /// package), `models/ocrcer` (`ocrcer.ocrw`, not shipped),
-        /// `models/paddle` (`det.onnx`, `rec.onnx`, not shipped) or
+        /// package), `models/ocrcer` (`ocrcer.ocrw`, shipped),
+        /// `models/paddle` (`det.onnx`, `rec.onnx`, shipped) or
         /// `models/tesseract` (`tesseract.exe` plus `tessdata`). A
         /// path given here that lacks the engine's files is REPORTED,
         /// never quietly replaced by the bundled copy — running a different

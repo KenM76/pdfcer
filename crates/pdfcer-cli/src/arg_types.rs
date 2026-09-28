@@ -77,7 +77,7 @@ pub(crate) enum OcrEngineArg {
     Ocrs,
     /// The OCRcer engine. Needs a build with the ocrcer feature and the model file ocrcer.ocrw.
     Ocrcer,
-    /// PaddleOCR (PP-OCR) ONNX models det.onnx and rec.onnx in models/paddle. Not shipped.
+    /// PaddleOCR PP-OCRv4 (Chinese and English), shipped in models/paddle.
     Paddle,
     /// The Tesseract program in models/tesseract. Choose languages with --ocr-lang.
     Tesseract,

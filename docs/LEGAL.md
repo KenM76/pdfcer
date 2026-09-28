@@ -748,8 +748,8 @@ further features made it a genuine question rather than an obvious no:
   not"*.
   *Superseded in part by `Pass 327.3`:* the "no WASM" was true of the
   `ocr-rs`/MNN route surveyed; PP-OCR ONNX exports run through `rten`
-  (feature `paddle`) do cross into wasm32. The weights still ship only on
-  an operator ruling.
+  (feature `paddle`) do cross into wasm32. The PP-OCRv4 weights ship
+  (Apache-2.0, operator ruling 2026-09-28).
 
 #### 6.7.2 The reasoning the operator accepted — attributed as the SURVEY'S READING, not as an agent's legal conclusion
 

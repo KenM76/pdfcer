@@ -211,6 +211,22 @@ resulting model under CC-BY-SA-4.0 or a compatible licence.
 The human-readable licence deed is linked above; the full legal code is at
 <https://creativecommons.org/licenses/by-sa/4.0/legalcode>.
 
+### Bundled PaddleOCR (PP-OCRv4) model weights (Apache-2.0)
+
+The two ONNX model files in `crates/pdfcer-core/assets/models/paddle/`
+(`det.onnx`, `rec.onnx`), shipped in the portable folder as
+`models/paddle/`, are the PP-OCRv4 text detection and recognition models of
+[PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), by the **PaddleOCR
+authors**. They were converted to ONNX by the
+[RapidOCR](https://github.com/RapidAI/RapidOCR) authors and obtained from the
+`rapidocr_onnxruntime` 1.4.4 wheel on PyPI on 2026-09-28. Both projects
+license them under the **Apache License 2.0**, and a copy ships beside them
+as `models/paddle/LICENSE`. Neither project publishes a NOTICE file.
+
+**pdfcer has made no changes to these files**; they were renamed only.
+Per-file SHA-256 hashes are recorded in
+`crates/pdfcer-core/assets/models/paddle/PROVENANCE.md`.
+
 ### Bundled Tesseract OCR program (Apache-2.0)
 
 `models/tesseract/tesseract.exe` is [Tesseract](https://github.com/tesseract-ocr/tesseract)

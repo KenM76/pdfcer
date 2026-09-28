@@ -370,9 +370,10 @@ pub(crate) fn load_ocr_engine(
                     eprintln!("pdfcer: ocr: {err}");
                     eprintln!(
                         "pdfcer: ocr: the OCRcer model is one file, `{OCRCER_MODEL_FILE}`, which \
-                         pdfcer neither ships nor downloads. Build or copy it from the OCRcer \
-                         project (`model/out/{OCRCER_MODEL_FILE}`) into a `models/ocrcer` \
-                         folder beside this executable, or pass --model-dir <its folder>."
+                         the portable package ships in `models/ocrcer` and pdfcer never \
+                         downloads. Copy that folder, or the OCRcer project's \
+                         `model/out/{OCRCER_MODEL_FILE}`, into a `models/ocrcer` folder beside \
+                         this executable, or pass --model-dir <its folder>."
                     );
                     return Err(exit::RUNTIME_ERROR);
                 }
@@ -412,13 +413,11 @@ pub(crate) fn load_ocr_engine(
                 Err(err) => {
                     eprintln!("pdfcer: ocr: {err}");
                     eprintln!(
-                        "pdfcer: ocr: PaddleOCR models are not shipped or downloaded. Put a \
-                         PP-OCR detection and recognition model, exported to ONNX and named \
-                         `{DETECTION_MODEL}` and `{RECOGNITION_MODEL}` (for example RapidOCR's \
-                         `ch_PP-OCRv4_det_infer.onnx` and `ch_PP-OCRv4_rec_infer.onnx`), plus \
-                         the model's `dict.txt` if its dictionary is not embedded, in a \
-                         `models/paddle` folder beside this executable, or pass \
-                         --model-dir <their folder>."
+                        "pdfcer: ocr: the PaddleOCR models are two files, `{DETECTION_MODEL}` \
+                         and `{RECOGNITION_MODEL}`, in a `models/paddle` folder, which the \
+                         portable package ships. Copy that folder beside this executable, or \
+                         pass --model-dir <a folder holding PP-OCR ONNX models with those \
+                         names, plus `dict.txt` if the recognition model does not embed one>."
                     );
                     return Err(exit::RUNTIME_ERROR);
                 }

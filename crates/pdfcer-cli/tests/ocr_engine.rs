@@ -1,10 +1,10 @@
 //! CLI tests for `ocr --ocr-engine` (`Pass 327.0`): the selection is honoured
 //! in both builds, and a missing engine or model is refused by name.
 //!
-//! Recognition is run only for Tesseract, and only when a build is present
-//! (it is not committed). OCRcer's and PaddleOCR's models are not in the
-//! repository either,
-//! and `ocrs` inference in a debug test binary costs tens of seconds per page.
+//! Recognition is run for PaddleOCR (its models are committed) and for
+//! Tesseract only when a build is present (it is not committed). OCRcer's
+//! model is not in the repository, and `ocrs` inference in a debug test
+//! binary costs tens of seconds per page.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -268,20 +268,20 @@ fn tesseract_bundle_reads_the_scan_when_present() {
     );
 }
 
-/// End to end against real PP-OCR ONNX models when present
-/// (`PDFCER_TEST_PADDLE_DIR`, or `target/paddle-models`). Skipped, and says
-/// so, otherwise: no PaddleOCR model is committed.
+/// End to end against the shipped PP-OCR models
+/// (`crates/pdfcer-core/assets/models/paddle`, or `PDFCER_TEST_PADDLE_DIR`).
 #[cfg(feature = "paddle")]
 #[test]
 fn paddle_models_read_the_scan_when_present() {
     let dir = std::env::var_os("PDFCER_TEST_PADDLE_DIR").map_or_else(
-        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/paddle-models"),
+        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../pdfcer-core/assets/models/paddle"),
         PathBuf::from,
     );
-    if !dir.join("det.onnx").is_file() || !dir.join("rec.onnx").is_file() {
-        eprintln!("skipped: no PaddleOCR models at {}", dir.display());
-        return;
-    }
+    assert!(
+        dir.join("det.onnx").is_file() && dir.join("rec.onnx").is_file(),
+        "no PaddleOCR models at {}",
+        dir.display()
+    );
     let o = Command::new(BIN)
         .arg("ocr")
         .arg(scan())

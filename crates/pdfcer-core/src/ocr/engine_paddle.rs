@@ -1,7 +1,7 @@
 //! The PaddleOCR (PP-OCR) recogniser, bound to [`OcrEngine`], behind the
 //! (default-on) `paddle` Cargo feature.
 //!
-//! Runs operator-supplied PP-OCR ONNX exports — a text **detection** model and
+//! Runs PP-OCR ONNX exports — a text **detection** model and
 //! a text **recognition** model — through `rten`, the pure-Rust runtime the
 //! `ocrs` engine already uses, so this engine adds no dependency beyond
 //! `rten-tensor` and crosses into wasm32 like `ocrs` does. Pre- and
@@ -19,9 +19,10 @@
 //! [`LINE_SCORE_MIN`](super::paddle_post::LINE_SCORE_MIN) are dropped, as
 //! RapidOCR drops them.
 //!
-//! Models are never bundled and never downloaded: pdfcer ships no PP-OCR
-//! weights (their licence is the operator's to accept). Models load from disk
-//! through paths [`crate::ocr::models`] resolved.
+//! Models are never compiled in and never downloaded; they load from disk
+//! through paths [`crate::ocr::models`] resolved. The portable package ships
+//! PP-OCRv4 Chinese/English (Apache-2.0) in `models/paddle`, from
+//! `assets/models/paddle`.
 
 use std::path::{Path, PathBuf};
 

@@ -82,7 +82,7 @@ pub mod engine_ocrs;
 pub mod engine_ocrcer;
 
 /// The PaddleOCR (PP-OCR) recogniser, behind the (default-on) `paddle`
-/// feature: operator-supplied ONNX models run through `rten`.
+/// feature: PP-OCR ONNX models run through `rten`.
 #[cfg(feature = "paddle")]
 pub mod engine_paddle;
 

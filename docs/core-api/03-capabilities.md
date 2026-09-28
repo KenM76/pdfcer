@@ -2429,8 +2429,11 @@ OCRcer by `tools/sync-ocrcer.py`; do not edit it here.
 
 **Piece 3d — PaddleOCR (PP-OCR)** (`crates/pdfcer-core/src/ocr/engine_paddle.rs`, feature `paddle`, **on by default**)
 
-Runs operator-supplied PP-OCR ONNX exports through `rten` (the runtime `ocrs`
-uses; wasm32-clean). **pdfcer ships no PaddleOCR models.** It **reports
+Runs PP-OCR ONNX exports through `rten` (the runtime `ocrs` uses;
+wasm32-clean). The portable package ships PP-OCRv4 (Chinese and English,
+Apache-2.0) as `models/paddle/{det.onnx, rec.onnx}`; the repository copy is
+`crates/pdfcer-core/assets/models/paddle`. Resolve it with piece 4 and
+`MODEL_DIR`. It **reports
 per-word confidence**: the mean CTC probability of a word's characters; lines
 scoring under 0.5 are dropped. Parameters are RapidOCR 1.4's defaults, with
 one difference: boxes are **upright rectangles**, not rotated ones, so a
