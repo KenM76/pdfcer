@@ -7861,3 +7861,20 @@ TN5176 never says how to break the Top-DICT-offset circularity. Two routes: the 
 
 ### 82d. Use `pdftotext -raw` for TN5176 tables
 `-layout` interleaved Table 9, Table 23 and Appendix H columns.
+
+## 83. "Add clause C + its 2.0 counterpart; answer 5 questions incl. 'is the standard silent on pairing P?'" (2026-09-28, §12.5.6.11 Caret → `iso32000__s__12.5.6.11.md`)
+
+### 83a. ★ A TYPE-COLUMN VALUE CAN BE WRONG, AND THE WRONG TYPE CARRIES A HAZARD
+`/RD` is typed `rectangle` (1.7) but is four insets. §7.9.5's NOTE invites normalising rectangles ⇒ a generic `Rect` parser reorders an asymmetric `/RD`. ISO-approved erratum #524 retypes it `array` (all three `/RD` tables). **When a key's TYPE is a structured type (rectangle, date, text string), check the value semantics actually fit it; if not, name what the type's own clause would do to the value.**
+
+### 83b. An erratum TITLE uses ITS edition's table number
+#524's title says "table 180 … square or circle" = 2.0 numbering; 1.7 Table 180 is Caret. The erratum ALSO edits the Caret table. Attribute by `data-issue` heading walk (clause12.html → `id="H<clause>"` preceding each `data-issue`), not by title.
+
+### 83c. The staged EC3 PDF is a CENSUSABLE producer of the feature
+322 StrikeOut→Caret `/RT /Group` pairs, Caret primary, `/IT /Replace` + `/IT /StrikeOutTextEdit`, all `/RD` symmetric. pypdf census over all pages in ~1 min. Extends 72c: not just a worked example, a population. Filed as `measured`, flagged empirical → personal_rag/pdf.
+
+### 83d. "Is the standard silent on pairing P?" — grade with 0-hit probes + a positive control on the SAME vocabulary class
+Intent names for Caret/StrikeOut 0/0; defined intents (`LineDimension`, `StampImage`) present. Plus scan for OUT-OF-CLAUSE constraints on the pair: 2.0 Table 368 `Annot` same-type `shall` (found via `insertion` probe hitting an EXAMPLE). Confirm an erratum did NOT strike a sentence by comparing its `/StrikeOut` rect y-range to pdfminer line y (strike 666–713 vs sentence 640–662).
+
+### 83e. Filing
+File + index (manifest row, 5 trigger rows, 3 recipes RUN, 1 spec-ambiguity row, count cell 107→108, total 200→**202** — `font__` cell was stale 16→17). Register intake section (LF file). In-place dated notes: `12.5.6.md` Caret row, `12.5.3.md` BE-7 fact 4 (both CRLF, verified 0 bare LF). Acrobat_Features caret GAP closable — reported, not edited (not my RAG).
