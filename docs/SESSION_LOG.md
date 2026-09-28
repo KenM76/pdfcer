@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (690th filing) — `30a5c6c5`: `Pass 127.2` SHIPPED — `redact-mark` reports unreadable text on its summary line
+
+**Shipped:**
+- `Pass 127.2` — `redact-mark`'s `stdout` summary line now carries `unreadable_codes=`/`type3_no_tounicode=`/`identity_no_tounicode=` (same names/order as `find-text`, appended after `out_bytes=`), closing the gap `Pass 127.1` left: the disclosure existed but only reached `stderr`, so a batch caller parsing stdout got byte-identical output for a clean run and an unreadable one. CLI only, no core change, no manifest change.
+- Closes the Backlog entry filed 2026-08-26 (263rd filing), owed by `Pass 127.1`'s own scope item (b).
+
+**Decisions made this session:**
+- §12 decision 164: an unreadable-text finding during `redact-mark` does NOT make the run exit non-zero — `exit::SUCCESS` unchanged. The unconditional stderr warning plus the new stdout field are the signal; a machine-readable field is what makes exit `0` safe for a batch caller. Closes the decision owed from `Pass 127.1` scope item (d) (previously mis-numbered `088` against a stale ceiling in the Backlog entry's own filed text — corrected in place, kept verbatim per the citation rule).
+
+**Findings + decisions:**
+- None new this filing beyond the decision above.
+
+**Still in flight:**
+- Same open items as the 689th filing — no named head in *Next up*.
+
+**For next session:**
+- `docs/FEATURES.md`'s "Mark redactions by text search, named region or pattern" row (*Redaction & security*) updated in place — boxes unchanged (core `[x]`, cli `[x]`, gui `[x]`).
+- No shell available this filing — `30a5c6c5` relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes this commit).
+
 ## 2026-09-28 (689th filing) — `68635416`: `Pass 253.4` SHIPPED — annotation clipboard counts and discloses the reply links a copy breaks
 
 **Shipped:**

@@ -4631,6 +4631,12 @@ debug afterthought. Design points:
   documented meaning per non-zero code where it's useful for a calling
   script to distinguish failure modes (e.g. "input not found" vs
   "encrypted, no password given" vs "PDF/A validation failed").
+  **Named exception: `redact-mark`'s unreadable-text finding is not a
+  failure of the run** (marks that could be found were still created),
+  so it does not affect the exit code — the signal is the unconditional
+  stderr warning plus `unreadable_codes=`/`type3_no_tounicode=`/
+  `identity_no_tounicode=` on the `stdout` summary line (`Pass 127.2`,
+  §12 decision 164).
 - **`--open-password <PW>` / `--open-password-file <PATH|->` — global
   flags** (`Pass 5` increment 1's CLI follow-up, 2026-08-11,
   `0a79da4`), so every subcommand that opens a document honours them
@@ -11595,3 +11601,17 @@ dispatching engineer's report; not independently reproduced.
 **Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `040c24d7`; not independently reproduced.
 
 **Decision ceiling: `162` → `163`**, next free `164`. **Pass ceiling: `Pass 327.3` → `Pass 327.4`**, next free family `328` — unaffected.
+
+### 2026-09-28 (690th filing, `Pass 127.2`, `30a5c6c5`) — decision 164: A SEARCH-DRIVEN REDACTION THAT COULD NOT READ SOME TEXT STILL EXITS `0` — THE UNCONDITIONAL WARNING PLUS THE NEW STDOUT FIELD ARE THE SIGNAL, NOT THE EXIT CODE
+
+**Status: DECIDED (engineer's call, per the Backlog entry's own note that scope item (d) was "the engineer's call, not this role's").**
+
+**What was decided.** `Pass 127.1` (`9b941b9`) left open whether an unreadable-text finding during `redact-mark --search`/`--pattern` should make the process exit non-zero. It does not: `exit::SUCCESS` unconditionally, matching the pre-`127.1` behaviour. What changed is that a batch caller no longer has to parse stderr to know: `Pass 127.2` (`30a5c6c5`) puts `unreadable_codes=`/`type3_no_tounicode=`/`identity_no_tounicode=` on the `stdout` summary line, appended after `out_bytes=` in the same field-name/order contract `find-text` already honours. A machine-readable field beats a non-zero exit here because the finding is not a failure of the requested operation — the marks that could be found were still created — so collapsing it into the exit code would force a caller choosing between "treat every partial-readability run as a failure" and "ignore the signal entirely." The field lets a caller decide its own threshold.
+
+**Scope.** CLI only, `crates/pdfcer-cli/src/main.rs` (`redact-mark`'s summary-line builder). No `pdfcer-core` change — the diagnostics were already available at the call site (`marked.diagnostics`) and `report_unsearchable_redaction` already read every field the line needed. `--rect` (no text scanned) and `--pattern` emit the same three fields; `--rect` reports zeros so the line's shape is constant across branches.
+
+**Body-section effect.** `ARCHITECTURE.md` §7's "Exit codes matter" bullet gains a named exception below it, citing this decision.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `30a5c6c5`; not independently reproduced.
+
+**Decision ceiling: `163` → `164`**, next free `165`. **Pass ceiling unaffected** — `Pass 127.2` was already the next free sub-ID in the `127` family.

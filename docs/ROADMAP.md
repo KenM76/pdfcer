@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 127.2` (`30a5c6c5`), 2026-09-28 — `redact-mark` reports unreadable text on its machine-readable summary line, not just stderr
+
+**Verdict: SHIPPED — CLI only, no core change, no manifest change.** Closes the Backlog entry filed 2026-08-26 (263rd filing), owed by `Pass 127.1` (`9b941b9`, *Shipped*)'s own scope item (b): the disclosure landed on `stderr` only, so the batch caller that entry's own justification named — "a batch caller that cannot see stderr is exactly the caller this defect hurts most" — was still not served.
+
+**CLI.** `redact-mark`'s `stdout` summary line now appends ` unreadable_codes=N type3_no_tounicode=N identity_no_tounicode=N` after `out_bytes=` — same field names and order `find-text` already uses, appended never reordered, so an existing parser does not break. `--rect` and `--pattern` emit the same three fields; `--rect` (scans no text) reports zeros, keeping the line's shape constant across branches.
+
+**Decision.** Owed decision from `127.1` scope item (d) — whether an unreadable-text finding makes a scripted redaction exit non-zero — decided now: **no**, `exit::SUCCESS` unchanged. New §12 decision 164: the unconditional stderr warning plus the new stdout field are the signal; a batch caller now has a machine-readable field, which is what makes exit `0` safe. `ARCHITECTURE.md` §7's exit-codes bullet gains a named exception citing it.
+
+**Tests.** `crates/pdfcer-cli/tests/find_text.rs`: `a_search_driven_redaction_warns_about_unreadable_text` now asserts non-zero `unreadable_codes=` on stdout alongside `marks_created=2` over `fixtures/synthetic/type3/tounicode_gate.pdf`; the control `a_readable_document_gets_no_redaction_warning` asserts `unreadable_codes=0 type3_no_tounicode=0 identity_no_tounicode=0` present (zero, not absent). Non-vacuity A/B: reverting `page_edit.rs` to `HEAD~` fails both assertions (2 failed); with the fix, all 4 redaction tests pass.
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands incl. 2 filing gates. `cargo clippy` clean. No `Cargo.toml` change — `cargo tree` invariant not applicable.
+
+**Shells.** core `—` (no core change), cli `[x]`, gui `[ ]` untouched.
+
+**`docs/FEATURES.md`.** *Redaction & security* row "Mark redactions by text search, named region or pattern" — the "CLI says it on stderr only" clause corrected to reflect the new stdout field; boxes unchanged (core `[x]`, cli `[x]`, gui `[x]`).
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `30a5c6c5`, not independently reproduced. Not yet released (latest release remains `v0.60.0`, tagged on `040c24d7`, which precedes this commit); backup/push state not verifiable from here.
+
 ### `Pass 253.4` (`68635416`), 2026-09-28 — the annotation clipboard counts and discloses the reply links a copy breaks
 
 **Verdict: SHIPPED — disclosure only, not `/IRT` remapping** (remapping stays the separate, unscoped "lossless markup/annotation clipboard-copy fidelity" Backlog entry). Filed 2026-09-06 (460th filing) as the second, smaller ask inside `Pass 253.0`'s request; `253.0` shipping did not discharge it.
@@ -21272,6 +21290,16 @@ identifiers only, never by name, in this repository.
 
 ---
 
+### `Pass 127.2` — **SHIPPED 2026-09-28** (`30a5c6c5`) — moved to *Shipped*
+
+The full entry is at the top of *Shipped*, above. Closed both the CLI
+scope (the diagnostics field on `redact-mark`'s `stdout` summary line)
+and the owed decision from scope item (d) — new §12 decision 164, exit
+stays `0`.
+
+<details>
+<summary>Original Backlog entry (filed 2026-08-26, 263rd filing) — kept verbatim for citation</summary>
+
 ### `Pass 127.2` — `redact-mark`'s unreadable-text finding reaches STDERR but not the machine-readable SUMMARY LINE, so the batch caller `Pass 127.1` was ranked for is still not served
 
 **Filed 2026-08-26 (two-hundred-and-sixty-third filing)**, owed by
@@ -21343,6 +21371,12 @@ Worth settling **with** (a) rather than after it: if the summary-line field
 lands, a batch caller has a machine-readable signal for the first time, and
 that materially strengthens the case for leaving the exit code at `0`.
 
+(The `087`/`088` numbering above is as filed 2026-08-26 and is stale — by
+the time this entry closed, the ceiling had moved on independently and the
+closing decision landed as **164**, not `088`. Kept verbatim per this
+entry's own citation-valid rule; see the Shipped entry for the live number.)
+
+</details>
 
 ### Wire `cargo +nightly fuzz build` into CI — unscoped, no Pass ID
 
