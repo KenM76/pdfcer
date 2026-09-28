@@ -26379,7 +26379,12 @@ impl EditSession {
     /// and the encryption, **strict** certification and `/Size` guards.
     /// `Off` as an export value is refused through
     /// [`EditError::CheckBoxOnStateInvalid`] — the same reserved-name rule,
-    /// shared rather than duplicated.
+    /// shared rather than duplicated. A `selected` member joining an existing
+    /// group also returns whatever [`Self::set_button_state`] refuses (e.g.
+    /// [`EditError::FieldNotFillable`] on a read-only group).
+    ///
+    /// Atomic: `Err` means the session is unchanged, and `Ok` is one undo
+    /// entry even when joining a group also re-points its selection.
     pub fn add_radio_button(
         &mut self,
         spec: &NewRadioButton,
@@ -26524,6 +26529,14 @@ impl EditSession {
             // reached below, after the merge is committed, so it sees the
             // group the merge actually produced rather than a prediction of
             // it (R92: one path decides what "selected" looks like).
+            //
+            // The pair is ONE command, atomically: a refused selection rolls
+            // the merge back (restoring the redo stack and any entry the
+            // depth bound evicted), and a successful one folds into it.
+            let redo = self.redo.clone();
+            let evicted = (self.undo.len() >= MAX_UNDO_DEPTH)
+                .then(|| self.undo.first().cloned())
+                .flatten();
             self.commit(Command {
                 kind: CommandKind::AddFormField,
                 objects,
@@ -26531,7 +26544,15 @@ impl EditSession {
                 trailer: None,
             });
             if spec.selected {
-                self.set_button_state(&spec.name, &spec.export_value)?;
+                if let Err(e) = self.set_button_state(&spec.name, &spec.export_value) {
+                    self.undo();
+                    self.redo = redo;
+                    if let Some(oldest) = evicted {
+                        self.undo.insert(0, oldest);
+                    }
+                    return Err(e);
+                }
+                self.coalesce_last(2, CommandKind::AddFormField);
             }
             return Ok(FieldAuthorOutcome {
                 field_id: id,
@@ -37888,6 +37909,14 @@ impl EditSession {
     }
 
     /// Why [`Self::delete_annotation`] would refuse right now, or `None`.
+    ///
+    /// **Document-scoped only:** it answers *may annotations be deleted at
+    /// all* (encryption, certification). `None` does not mean a given
+    /// annotation will delete — [`Self::delete_annotation`] also refuses a
+    /// locked one ([`EditError::AnnotationLocked`]), a `/TrapNet`
+    /// ([`EditError::AnnotationIsTrapNet`]) and a widget
+    /// ([`EditError::AnnotationIsWidget`]). Gate a per-annotation control on
+    /// this *and* on the annotation's own flags and subtype.
     ///
     /// The third member of the [`Self::fill_refusal`] /
     /// [`Self::deletion_refusal`] family, and a **third distinct answer** —

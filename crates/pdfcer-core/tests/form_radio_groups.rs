@@ -784,3 +784,51 @@ fn deleting_a_group_leaves_no_dangling_reference_in_the_bytes() {
         "the group must be gone after a reload too"
     );
 }
+
+/// Merging a SELECTED member into a group is ONE command, and it is atomic:
+/// when re-pointing the selection refuses (here: the group is read-only, so
+/// `set_button_state` returns `FieldNotFillable`), the session is exactly as
+/// it was — the widget is not left merged with the selection un-pointed.
+#[test]
+fn a_selected_member_that_cannot_be_selected_leaves_the_session_unchanged() {
+    let mut s = session("dimension/plain-base.pdf");
+    let mut first = NewRadioButton::new(0, "Locked", member_rect(0), "A").declining_tooltip();
+    first.read_only = true;
+    s.add_radio_button(&first).expect("the group is created");
+    let depth = s.undo_depth();
+    let before = s.to_incremental_bytes(&Default::default()).unwrap().0;
+
+    let second = NewRadioButton::new(0, "Locked", member_rect(1), "B")
+        .declining_tooltip()
+        .selected(true);
+    let err = s.add_radio_button(&second).unwrap_err();
+    assert!(matches!(err, EditError::FieldNotFillable { .. }), "{err:?}");
+    assert_eq!(s.undo_depth(), depth, "no command was left behind");
+    assert_eq!(
+        s.to_incremental_bytes(&Default::default()).unwrap().0,
+        before,
+        "the merge was rolled back"
+    );
+    assert_eq!(the_group(&s, "Locked").widgets.len(), 1);
+}
+
+/// A selected member merged into an existing group is one undo entry: one
+/// `undo` removes the member AND restores the previous selection.
+#[test]
+fn a_selected_merge_is_one_undo_entry() {
+    let mut s = group_of(&["Red", "Green"]);
+    let depth = s.undo_depth();
+    let before = s.to_incremental_bytes(&Default::default()).unwrap().0;
+    s.add_radio_button(
+        &NewRadioButton::new(0, "Colour", member_rect(2), "Blue")
+            .declining_tooltip()
+            .selected(true),
+    )
+    .unwrap();
+    assert_eq!(s.undo_depth(), depth + 1);
+    s.undo().unwrap();
+    assert_eq!(
+        s.to_incremental_bytes(&Default::default()).unwrap().0,
+        before
+    );
+}
