@@ -115,6 +115,73 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 374.0` (`40aea1d5` + `784ab6c0`), 2026-09-28 — table cell-grid detection + `pdfcer extract-tables` (G055)
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui`/Office-export ask `G055`, closing
+the `G054`/`G055` family (`373.0` shipped the 702nd filing). New
+`pdfcer_core::table_detect`: `detect_tables(&DocumentView, &ExtractOptions,
+&TableOptions) -> DocumentTables { text, tables, diagnostics }`.
+
+**Step 1, ruled tables (`40aea1d5`).** Rules come from stroked axis-aligned
+segments (per subpath segment), stroked rectangles and thin fills (<=2pt);
+white ink and curves are ignored. Rules snap/join within 3pt; crossings form
+corners; cells are the nearest closing rectangles; cells sharing a corner
+join into one table; a lone box counts as `single_cell_frames`. Merged cells
+carry `row_span`/`col_span`. Header guess: Bold / Filled / HeavyRule. Caps:
+50,000 rules, 20,000 corners, counted in `pages_over_limit`. Display-space
+analysis honouring `/Rotate`; boxes reported in user space. CLI: `pdfcer
+extract-tables in.pdf [--json] [-o out]`.
+
+**Step 2, whitespace-aligned tables (`784ab6c0`).** New
+`BoundarySource::Aligned` — found among glyphs no ruled table claimed:
+gutter >= 1.0 em, >= 3 rows. Rejected (counted in `aligned_blocks_rejected`)
+on < 2 columns, a column used by only one row, or a mean of > 30 chars/cell
+(prose in columns). Aligned tables get a full grid including empty cells.
+New `HeaderEvidence::RuleBelow` (booktabs); new
+`TableDiagnostics::tables_aligned`; both count in `inferred()`. CLI result
+line gains `aligned=`/`aligned_rejected=`.
+
+**Out of scope, by design.** Number parsing stays a shell concern — the
+parity finding (Excel number format is an Acrobat operator setting that
+fails silently when wrong) is the reason. Running table detection over OCR
+words is a later step; noted in *Backlog* for `G055` follow-on.
+
+**Tests.** Step 1: 7 integration + 5 unit + 2 CLI tests
+(`crates/pdfcer-core/tests/table_detect.rs`,
+`crates/pdfcer-cli/tests/extract_tables.rs`), 8 sabotage mutations all
+caught. Step 2: 6 new integration tests (13 total), 9 sabotage mutations all
+caught — the one that first survived (a single-phrase caption line joining
+the table) produced a new test. Fuzz target `table_detect`: step 1, 546,198
+runs / 61 s, 0 crashes; step 2, 319,164 runs / 61 s, 0 crashes.
+
+**Gates.** `tools/run-gates.sh` PASS on both commits, 40 commands (2 filing
+gates included); workspace total 6,173 tests passed. No manifest change in
+`pdfcer-core`/`pdfcer-render`, no new dependencies — `cargo tree` invariant
+not applicable. CLI subcommand count 176 → 177 (README updated).
+
+**Docs.** `docs/core-api/01-reading-and-model.md` §8.4.4 "Tables — ruled and
+aligned cell grids"; `check-core-api-verbs` PASS.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not yet wired in `pdfcer-gui`.
+
+**`docs/FEATURES.md`.** *Planned* row (line 493) moved to *Implemented*,
+*Text* section: core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]` (Acrobat's
+Export-to-Spreadsheet performs equivalent table recognition, per
+`Acrobat_Features/office_export__excel_table_extraction.md`). The existing
+Excel/CSV *export* row, if any, is untouched — this Pass is detection only.
+
+**Reply filed.** `reply_G055_a_pages_tables_now_extract_as_a_cell_grid_FIXED.md`.
+
+**No §12 decision.** New reader module over existing extraction, no crate
+boundary or invariant change — same call as `Pass 372.0`–`373.0`. Highest
+decision record stays `164`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
+dispatching engineer's own verification at `40aea1d5`/`784ab6c0`, not
+independently reproduced. Backup/push/release state not verifiable from
+here; latest release on record remains `v0.60.0` (tagged on `040c24d7`,
+which precedes these commits).
+
 ### `Pass 373.0` (`4f6254c8` + `9035cfc4`), 2026-09-28 — untagged block layout + `pdfcer extract-layout` (G054)
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui`/Office-export ask `G054`, head of
@@ -9364,6 +9431,14 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★ **`Pass 374.0` SHIPPED, 2026-09-28 (703rd filing), `40aea1d5` +
+> `784ab6c0`** — see top of *Shipped*. `G055`; closes the table-cell-grid
+> half of the `G054`/`G055` family (`373.0` shipped the 702nd filing). **The
+> `G054`/`G055` family is now fully shipped. No named head currently
+> occupies *Next up*** — a Backlog note for "table detection over OCR
+> words" (a `G055` follow-on left explicitly out of scope) is added below;
+> it has no Pass ID yet.
+
 > ★★★★ **`Pass 373.0` SHIPPED, 2026-09-28 (702nd filing), `4f6254c8` +
 > `9035cfc4`** — see top of *Shipped*. `G054`; closes the block-layout half
 > of the `G054`/`G055` family filed the 701st filing. **`Pass 374.0`
@@ -18512,17 +18587,23 @@ new files:
 - `D:\Dev\Rag-Specialized\Acrobat_Features\office_export__word_structure_recognition.md`
 - `D:\Dev\Rag-Specialized\Acrobat_Features\office_export__excel_table_extraction.md`
 
-**Already scoped out of this bucket and into *Next up*:** `Pass 373.0`
-(`G054`, untagged block layout) and `Pass 374.0` (`G055`, table cell grid)
-— both are the prerequisite reading-order/table-detection layers a real
-DOCX/XLSX writer needs. See their bullets under *Next up*, top of this
-file, for the parity findings these two files supplied.
+**`Pass 373.0` (`G054`, untagged block layout) and `Pass 374.0` (`G055`,
+table cell grid) both SHIPPED 2026-09-28** (702nd/703rd filings,
+`4f6254c8`+`9035cfc4` / `40aea1d5`+`784ab6c0`) — see *Shipped*, top of this
+file. Both were the prerequisite reading-order/table-detection layers a
+real DOCX/XLSX writer needs.
 
 **Still unscoped, this bucket's remainder:** the actual DOCX writer (block
 kinds → Word paragraph/heading/list styles) and XLSX writer (cell grid →
 worksheet, with the header-row guess and merged-cell spans from `374.0`
-carried through) — neither has a Pass ID yet. Scope once `373.0`/`374.0`
-ship and their output shapes are settled.
+carried through) — neither has a Pass ID yet. Scope now that `373.0`/
+`374.0` have shipped and their output shapes are settled.
+
+**New follow-on, filed 2026-09-28 (703rd filing), no Pass ID.** `374.0`
+deliberately runs table detection over the vector/text extraction only —
+running the same detection over OCR results (words with positions but no
+underlying content stream) is a later step, noted by the engineer at ship
+time. Scope once OCR word output has a stable public shape to detect over.
 
 ### `flatten_annotations` — PROMOTED to *Next up* as `Pass 360.0`, 2026-09-27 (658th filing)
 

@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (703rd filing) — `40aea1d5` + `784ab6c0`: `Pass 374.0` SHIPPED — table cell-grid detection + `pdfcer extract-tables` (G055)
+
+**Shipped:**
+- `Pass 374.0` (`G055`) — new `pdfcer_core::table_detect` module: `detect_tables`. Step 1 (`40aea1d5`): ruled tables from stroked axis-aligned segments, stroked rectangles and thin fills (<=2pt); rules snap/join within 3pt, crossings form corners, cells are the nearest closing rectangles, merged cells carry `row_span`/`col_span`, header guess Bold/Filled/HeavyRule; CLI `pdfcer extract-tables`. Step 2 (`784ab6c0`): `BoundarySource::Aligned` finds whitespace-aligned tables among glyphs no ruled table claimed (gutter >= 1.0 em, >= 3 rows), rejecting prose-in-columns false positives; new `HeaderEvidence::RuleBelow`. Closes the `G054`/`G055` family in full (`373.0` shipped last filing). Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new. Highest decision record stays `164` — new reader module, no crate boundary or invariant change, same call as `Pass 372.0`–`373.0`.
+
+**Findings + decisions:**
+- Fuzz target `table_detect`: step 1, 546,198 runs / 61 s, 0 crashes; step 2, 319,164 runs / 61 s, 0 crashes. `tools/run-gates.sh` PASS on both commits, 40 commands; workspace total 6,173 tests passed. No manifest change in `pdfcer-core`/`pdfcer-render`, no new dependencies. CLI subcommand count 176 → 177.
+- Step 2's sabotage sweep first survived on a single-phrase caption line joining the table — fixed and a new test added, rather than leaving the survivor unresolved.
+- `docs/FEATURES.md`: the *Planned* row for table extraction (old line 493) moved to *Implemented*, *Text* section — `[x]`/`[x]`/`[ ]`, Acrobat `[x]` (its Export-to-Spreadsheet performs equivalent recognition, per `Acrobat_Features/office_export__excel_table_extraction.md`). No existing Excel/CSV export row exists yet to conflict with — this Pass is detection only.
+- New Backlog follow-on filed, no Pass ID: running table detection over OCR word output (rather than vector/text extraction) is deliberately out of scope for `374.0` and noted for later, once OCR word output has a stable public shape to detect over.
+- Reply written to the `pdfceGUI` channel closing `G055`; the `G054`/`G055` family (Office-export prerequisite reading layers) is now fully shipped. The DOCX/XLSX writers themselves remain unscoped in the "Export to Word/Excel" Backlog bucket.
+
+**Still in flight:**
+- No named head currently occupies *Next up*.
+
+**For next session:**
+- No shell available this filing. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes commits `40aea1d5`/`784ab6c0`).
+
 ## 2026-09-28 (702nd filing) — `4f6254c8` + `9035cfc4`: `Pass 373.0` SHIPPED — untagged block layout + `pdfcer extract-layout` (G054)
 
 **Shipped:**
