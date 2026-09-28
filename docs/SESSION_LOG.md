@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (705th filing) — `c6841754`: `Pass 373.0` follow-up — `inferred()` counts paragraphs
+
+**Shipped:**
+- `Pass 373.0` follow-up (`c6841754`) — `LayoutDiagnostics::inferred()` was undercounting: it left `Paragraph` blocks out of the inferred count, so a page of plain paragraphs reported `inferred=0` even though every block on it was an inference (CLAUDE.md rule 4, fuzzy-never-sneaky). Found via the v0.61.0 fresh-folder smoke test. Fixed to sum paragraphs too; core + CLI tests now pin the identity. Never released — no shipped-contract change. `docs/FEATURES.md` row unchanged.
+
+**Findings + decisions:**
+- D: filled to 0 bytes free mid-session; builds failed with os error 112. Cause: `target/debug/incremental` had grown to 78 GB of a 145 GB `target/`; deleting it freed 116 GB and builds resumed. Written up at `D:\dev\rag\rust\cargo_incremental_cache_grows_unbounded_on_long_lived_workspace.md` (index updated).
+
+**Still in flight:**
+- Unchanged from the 704th filing — no named head currently occupies *Next up*.
+
+**For next session:**
+- No shell available this filing (hard rule 8). Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0`.
+
 ## 2026-09-28 (704th filing) — `c3fdc733`: `Pass 379.0` SHIPPED — `Page::with_boxes` constructor (G060); corrects a Pass-ID collision in the commit message
 
 **Shipped:**

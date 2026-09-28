@@ -316,6 +316,18 @@ independently reproduced. Backup/push/release state not verifiable from
 here; latest release on record remains `v0.60.0` (tagged on `040c24d7`,
 which precedes these commits).
 
+**Follow-up (`c6841754`), 2026-09-28 — `inferred()` undercounted.** Found by
+the v0.61.0 fresh-folder smoke test through the packaged binary.
+`LayoutDiagnostics::inferred()` left `Paragraph` blocks out of the count, so
+a page of plain paragraphs reported `inferred=0` though every block on it
+was an inference — a silent under-report under CLAUDE.md rule 4
+(fuzzy-never-sneaky). Fixed: `inferred()` now sums paragraphs too, so it
+equals `blocks - tagged_artifact_blocks` and agrees with
+`BlockSource::Inferred`. Tests: core `block_layout` test now expects `2`
+and pins the identity; CLI `extract_layout` test expects `inferred=6`; both
+failed against the old sum. `docs/core-api` §8.4.3 updated. Never released
+— no shipped-contract change. `docs/FEATURES.md` row unchanged.
+
 ### `Pass 372.1` (`dfc2121e`), 2026-09-28 — artifact `/Subtype` on extracted runs (G053)
 
 **Verdict: SHIPPED.** Closes the known gap `Pass 372.0` filed. New pub
