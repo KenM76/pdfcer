@@ -115,6 +115,101 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.60.0` — RELEASED (2026-09-28)
+
+Release filing, not a Pass — completes the engineer's in-progress release
+reported at the 686th filing. Version-bump commit `0d87169f` ("chore:
+v0.60.0", already filed at the 685th filing alongside `Pass 327.3`) bumps
+`Cargo.toml` 0.59.0 → 0.60.0. Annotated tag `v0.60.0` sits on
+`040c24d7` — `Pass 327.4`, the ship-the-PaddleOCR-models commit, the same
+commit that closed out this range. Tag pushed.
+
+**Range since `v0.59.0` (`c1987c5e`): highlights, not refiled here** —
+each already has its own entry above: `Pass 327.3` PaddleOCR engine
+(`ecbf5ee1`), `Pass 327.4` PaddleOCR models shipped (`040c24d7`),
+`Pass 261.0`–`261.3` (`4cd2ed35`, `f082ccca`, `5db53428`, `1c7fb0dc`,
+the comment-type-parity family), and `Pass 368.0`/`369.0`/`370.0`
+(`870fdd64`, `52810dcf`, `ab68af1e` — `G049`–`G051`, ce dimension drag
+preview / per-end extension gap / circular placement). Total commit
+count for the range not relayed this filing.
+
+**Gates (relayed).** `tools/run-gates.sh` PASS, 40 commands including 2
+filing gates, run just before two final help-text wording edits (the
+"bring your own weights" → "shipped" corrections noted in `Pass 327.4`'s
+own entry above); after those edits, `cargo fmt --check` and `clippy`
+clean on `pdfcer-cli` and `cargo test -p pdfcer-cli --test all ocr` 9/9.
+Pre-push gates (`check-commits-filed`, `check-suite-name-absent`,
+`check-tests-harnessed`, etc.) clean.
+
+**Build (relayed).** `D:\builds\pdfcer-20260928-0414-040c24d`:
+69,677,081 bytes total; `pdfcer.exe` 26,145,280 B of that; revision
+`v0.59.0-27-g040c24d7`. `models/paddle` staged: `det.onnx` 4,745,517 B,
+`rec.onnx` 10,857,958 B, plus `LICENSE`/`PROVENANCE.md`.
+
+**Smoke test (relayed), fresh folder, no `--model-dir` passed.**
+`pdfcer --version` → `0.60.0`. `pdfcer ocr fixtures/synthetic/ocr/scan.pdf`
+run once per `--ocr-engine` (`paddle`, `ocrs`, `ocrcer`, `tesseract`),
+then `find-text --needle sleeping` matched on page 1 for all four
+engines. `paddle` reported its embedded dictionary (6,623 entries) —
+consistent with `Pass 327.3`'s own finding that a `dict.txt`-less model
+falls back to the rec model's ONNX metadata.
+
+**GitHub release (relayed).** Published via `tools/gh-release.py`: PASS,
+2 assets at local sizes — `pdfcer-v0.60.0-windows-x64.zip`, 42,724,173
+bytes, sha256
+`5185833ce308f2694d8c61788703e6d2744bec480d2883a137ba206d57ac692e` —
+plus its `.sha256`.
+`https://github.com/KenM76/pdfcer/releases/tag/v0.60.0`.
+
+**OneDrive (relayed).** `tools/deploy-onedrive.py` wrote slot `pdfcer1`
+(5 items, 69,675,824 bytes); `pdfcer2` keeps `v0.59.0`.
+
+**`verify-release.py v0.60.0` (relayed).** All checks OK apart from the
+standing "working tree clean" false alarm — the untracked
+`target-case/`/`target-probe/`/`target-wasm/` scratch dirs, same class
+as prior releases, now with a third directory added to the known set.
+CI at `07a5e84e` (the 686th filing's own docs commit, HEAD at check
+time) was still in progress when this was verified; the release was
+deployed ahead of CI going green, same ordering as `v0.59.0`.
+
+**Packaging process note.** No tool in the repo builds the release zip
+end to end; it was assembled by hand with Python's `zipfile`, build-
+folder contents at the zip root — the same layout `v0.59.0`'s zip used,
+this time 37 entries. Worth a `tools/` script if this recurs often
+enough to be worth automating; not opened as a Pass this filing.
+
+**`docs/FEATURES.md`: no rows changed** — row 221 (OCR engine choice)
+already named the shipped PaddleOCR models as of `Pass 327.4`'s own
+filing; a release ships no new capability of its own.
+
+**No decision-log entry** — a release carries no architectural
+decision. Highest decision record remains `163` (`Pass 327.4`, 686th
+filing).
+
+**GUI notified.** Channel notice posted:
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-28_v0.60.0_released_with_paddleocr.md`
+— tells `pdfcer-gui`'s packager to copy `models/paddle` alongside the
+existing `models/ocrs`/`models/ocrcer`/`models/tesseract` dirs.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own report of the tag/build/
+release/deploy steps, not independently reproduced. Backup/remote state
+beyond what's stated here is not verifiable from here.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.59.0` (`c1987c5e`, 2026-09-27) | **`v0.60.0` (`040c24d7`, 2026-09-28)** |
+| Pass families | highest shipped this filing's range: `370.0` | unchanged — no new Pass this filing, release only |
+| Standing rules | not re-verified this filing (no shell) | unchanged — no rule minted |
+| Decision records | `163` | unchanged — a release carries no decision |
+| `SESSION_LOG` filings | `686` | **`687`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
+| CI at the tagged commit | `v0.59.0`: in progress at filing time | **`v0.60.0`: `07a5e84e` in progress at verify time — engineer re-verifies** |
+
+---
+
 ### `Pass 327.4` (`040c24d7`), 2026-09-28 — Ship the PaddleOCR PP-OCRv4 models in the portable package
 
 **Verdict: SHIPPED.** Follow-on to `Pass 327.3` (`ecbf5ee1`). Operator ruling, verbatim, after being told det.onnx is 4.7 MB and rec.onnx is 10.9 MB (15,603,475 bytes together): *"Add it to the package."*

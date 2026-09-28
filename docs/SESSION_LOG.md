@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (687th filing) — `v0.60.0` RELEASED
+
+**Shipped:**
+- `v0.60.0` released. Annotated tag on `040c24d7` (`Pass 327.4`); version bump `0d87169f` already filed at the 685th filing. Range since `v0.59.0`: `Pass 327.3`/`327.4` (PaddleOCR engine + shipped models), `Pass 261.0`–`261.3` (comment-type-parity family), `Pass 368.0`–`370.0` (`G049`–`G051`). Full record at the top of `ROADMAP.md`'s *Shipped*.
+- GitHub release published (`tools/gh-release.py` PASS, 2 assets: `pdfcer-v0.60.0-windows-x64.zip` 42,724,173 bytes, sha256 `5185833c…`). OneDrive slot `pdfcer1` updated (69,675,824 bytes); `pdfcer2` keeps `v0.59.0`.
+- Fresh-folder smoke test (no `--model-dir`): `--version` → `0.60.0`; `ocr` + `find-text --needle sleeping` matched page 1 across all four engines (`paddle`, `ocrs`, `ocrcer`, `tesseract`); `paddle` reported its embedded 6,623-entry dictionary.
+
+**Decisions made this session:**
+- None new — a release carries no architectural decision. Highest decision record remains `163`, minted at the 686th filing.
+
+**Findings + decisions:**
+- Process note, not a RAG finding: no tool in the repo builds the release zip end to end — it's still assembled by hand with Python's `zipfile`. Worth a `tools/` script if this recurs; not opened as a Pass.
+
+**Still in flight:**
+- CI at `07a5e84e` (the 686th filing's docs commit) was still in progress when `verify-release.py` ran; the release was deployed ahead of it, same ordering as `v0.59.0`. Engineer should re-verify CI colour when it lands.
+- `verify-release.py`'s standing "working tree clean" FAIL is the untracked `target-case/`/`target-probe/`/`target-wasm/` scratch dirs — same false-alarm class as prior releases, now three directories instead of two.
+- `docs/FEATURES.md`: no rows changed this filing — row 221 already reflected the shipped PaddleOCR models as of `Pass 327.4`'s own filing.
+
+**For next session:**
+- GUI notified: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-28_v0.60.0_released_with_paddleocr.md` (tells `pdfcer-gui`'s packager to copy `models/paddle`).
+- No shell available this filing — all tag/build/release/deploy facts relayed from the dispatching engineer's own report, not independently reproduced.
+
 ## 2026-09-28 (686th filing) — `040c24d7`: `Pass 327.4` SHIPPED — PaddleOCR PP-OCRv4 models bundled in the portable package
 
 **Shipped:**
