@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (718th filing) — `741c9cb1`: `v0.62.0` RELEASED
+
+**Shipped:**
+- `v0.62.0` released. Annotated tag `1e1fe1b1` on `741c9cb1` (the filing commit that recorded chore `b494ce93` as filed). Range since `v0.61.0`: batches `Pass 380.0`, the OCRcer vendor sync (`0bf5dba4`), `381.0`, `382.0`, `383.0`, `384.0`, `385.0`, `386.0`. Full record at the top of `ROADMAP.md`'s *Shipped*.
+- GitHub release published (`tools/gh-release.py` PASS, 2 assets: `pdfcer-v0.62.0-windows-x64.zip` 43,092,092 bytes, sha256 `6b68bcadeb8391e7adf01ea62024543645ba12645c816555a0414043321f64b2`). OneDrive slot `pdfcer1` updated (replaced `v0.60.0`; 70,574,883 bytes, 5 items); `pdfcer2` keeps `v0.61.0`.
+- Fresh-folder smoke test (rebuilt package `D:\builds\pdfcer-20260928-1921-741c9cb`): `--version` → `0.62.0`; circular ce dimension authored on `hello.pdf` at `115,45 135,65 155,45` — at offset 45 the leader stops before the "R 20.00 pt" text, at offset 12 text overlaps the rim so only the arrow draws (by design).
+
+**Decisions made this session:**
+- None new — a release carries no architectural decision. Highest decision record remains `165`.
+
+**Findings + decisions:**
+- None beyond what's in the `v0.62.0` Shipped entry.
+
+**Still in flight:**
+- CI at `741c9cb1` was still in progress at filing time — not yet confirmed green. Recorded as pending.
+- `docs/FEATURES.md`: no rows changed — a release ships no new capability of its own; all contents were already filed per-Pass.
+
+**For next session:**
+- GUI notified: channel notice `notice_2026-09-28_v0.62.0_released.md` (G061–G065 now released), in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+- No shell available this filing — all tag/build/release/deploy/smoke-test facts relayed from the dispatching engineer's own report, not independently reproduced. Next release writes OneDrive slot `pdfcer2`.
+
 ## 2026-09-28 (717th filing) — `b494ce93`: chore — v0.62.0 version bump, release IN PROGRESS
 
 **Shipped:**

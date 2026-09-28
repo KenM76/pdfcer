@@ -115,6 +115,76 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.62.0` — RELEASED (2026-09-28)
+
+Release filing, not a Pass — completes the engineer's in-progress release
+reported in `Pass 386.0`'s own entry below (717th filing). Version-bump
+commit `b494ce93` ("chore: v0.62.0", already filed at the 717th filing
+alongside `Pass 386.0`) bumps `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock`
+0.61.0 → 0.62.0. Filing commit `741c9cb1` ("docs: file v0.62.0 bump
+(b494ce93) -- release in progress") records the bump as filed. Annotated
+tag `v0.62.0` (tag object `1e1fe1b1`) sits on `741c9cb1`.
+
+**Range since `v0.61.0` (`7abc3daf`): batches every Pass already filed
+below** — `Pass 380.0` (XLSX export), the OCRcer vendor sync (`0bf5dba4`),
+`Pass 381.0` (DOCX export), `382.0` (table detection on chosen pages),
+`383.0` (tables to `.ods`), `384.0` (ce-dimension preview), `385.0`
+(angular ce dimension text along the arc), `386.0` (circular ce dimension
+leader stops short of its text).
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands incl. 2 filing gates; the
+all-features test run and `cargo-about` deliberately skipped, as usual
+without `--full`.
+
+**Build.** `tools/package-portable.py` → `D:\builds\pdfcer-20260928-1921-
+741c9cb`, reports revision `v0.62.0`.
+
+**Fresh-folder smoke test.** `--version` prints `0.62.0`. Circular ce
+dimension authored on `hello.pdf` at points `115,45 135,65 155,45`: at
+offset 45 the leader visibly stops before the "R 20.00 pt" text; at offset
+12 text overlaps the rim so only the arrow is drawn (by design, per
+`Pass 386.0`).
+
+**GitHub release.** Published via `tools/gh-release.py`: PASS, 2 assets at
+local sizes — `pdfcer-v0.62.0-windows-x64.zip`, 43,092,092 bytes, sha256
+`6b68bcadeb8391e7adf01ea62024543645ba12645c816555a0414043321f64b2`, plus
+its `.sha256`.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer1` (replaced
+`v0.60.0`; 70,574,883 bytes, 5 items); `pdfcer2` keeps `v0.61.0` as
+previous. Next release writes `pdfcer2`.
+
+**`verify-release.py v0.62.0`.** CI at `741c9cb1` was still in progress at
+filing time — not yet confirmed green (the OneDrive check ran before
+deploy, ahead of CI). Recorded here as pending, not green.
+
+**`docs/FEATURES.md`: no rows changed** — a release ships no new
+capability of its own; all contents were already filed per-Pass.
+
+**No decision-log entry** — a release carries no architectural decision.
+Highest decision record remains `165`.
+
+**GUI notified.** Channel notice posted:
+`notice_2026-09-28_v0.62.0_released.md` (G061–G065 now released).
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own verification of the tag/build/
+release/deploy/smoke-test steps, not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.61.0` (`7abc3daf`, 2026-09-28) | **`v0.62.0` (`741c9cb1`, 2026-09-28)** |
+| Pass families | highest shipped this filing's range: `386.0` | unchanged — no new Pass this filing, release only |
+| Standing rules | not re-verified this filing (no shell) | unchanged — no rule minted |
+| Decision records | `165` | unchanged — a release carries no decision |
+| `SESSION_LOG` filings | `717` | **`718`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
+| CI at the tagged commit | not yet confirmed pre-release | **pending at `741c9cb1` — not yet green at filing time** |
+
+---
+
 ### `Pass 386.0` (`3ffaef8e`), 2026-09-28 — a circular ce dimension's leader stops short of its text
 
 **Verdict: SHIPPED.** From `pdfcer-gui` request `G065` (reply posted in the
