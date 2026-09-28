@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (702nd filing) — `4f6254c8` + `9035cfc4`: `Pass 373.0` SHIPPED — untagged block layout + `pdfcer extract-layout` (G054)
+
+**Shipped:**
+- `Pass 373.0` (`G054`) — new `pdfcer_core::block_layout` module: reading-order blocks (`Heading{level}`/`Paragraph`/`ListItem{marker}`/`Caption`/`RunningHeader`/`RunningFooter`/`PageNumber`) over the existing line pass, column reading order via x-gutter detection, per-block alignment/first-line indent, `LayoutDiagnostics` inference count. Running header/footer gated on cross-page text repetition, never page position alone — deliberately not copying Acrobat's page-top-is-header heuristic; a tagged `/Artifact /Subtype` (`Pass 372.1`) wins when present. Prerequisite step (`4f6254c8`): `ExtractedGlyph::weight`/`WeightSource` from `/FontWeight`, then font-name, then synthetic bold. CLI `pdfcer extract-layout`. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new. Highest decision record stays `164` — new reader module, no crate boundary or invariant change, same call as `Pass 372.0`/`372.1`.
+
+**Findings + decisions:**
+- Three defects found and fixed during the build: a page-to-page-varying heading-sized top-margin line was misclassed as a running header because digit normalisation made the texts equal (fixed — differing raw text among heading-sized lines is not running text); a centred page number was reported right-aligned because it was measured against the body column it sits outside (fixed — running/page-number blocks align against the page); a right-aligned block was briefly misdetected as a second column (fixed by a both-sides-same-height check) and a first-line-indent rule over-split centred/right blocks (fixed — requires a short previous line or a repeated indent).
+- Fuzz target `block_layout` added: 46,343 runs / 61 s, 0 crashes. `tools/run-gates.sh` PASS, 40 commands; workspace total 9,855 tests passed. No manifest change in `pdfcer-core`/`pdfcer-render` — `cargo tree` invariant not applicable. CLI subcommand count 175 → 176.
+- `docs/FEATURES.md`: the *Planned* row for block-level layout (line 492) moved to *Implemented*, *Text* section — `[x]`/`[x]`/`[ ]`, Acrobat `[x]` (its Retain-Flowing-Text Word export performs the same recognition class, per `Acrobat_Features/office_export__word_structure_recognition.md`).
+- Reply written to the `pdfceGUI` channel closing `G054`.
+
+**Still in flight:**
+- `Pass 374.0` (`G055`, table-cell-grid extraction) is now the sole head of *Next up*, carrying acceptance criteria refined the 701st filing. Not started.
+
+**For next session:**
+- No shell available this filing. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes commits `4f6254c8`/`9035cfc4`).
+
 ## 2026-09-28 (701st filing) — `dfc2121e`: `Pass 372.1` SHIPPED — artifact `/Subtype` on extracted runs (G053); Office-export Backlog bucket registered; `373.0`/`374.0` acceptance criteria refined
 
 **Shipped:**

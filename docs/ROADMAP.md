@@ -115,6 +115,83 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 373.0` (`4f6254c8` + `9035cfc4`), 2026-09-28 — untagged block layout + `pdfcer extract-layout` (G054)
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui`/Office-export ask `G054`, head of
+*Next up*. New `pdfcer_core::block_layout` (re-exported from `pdfcer-text`):
+`analyze_layout`/`layout_text`, `LayoutOptions` (`running_min_fraction` 0.4,
+`margin_band` 0.15), `PageGeometry`, `BlockKind` (`Heading{level}`,
+`Paragraph`, `ListItem{marker}`, `Caption`, `RunningHeader`,
+`RunningFooter`, `PageNumber`), `BlockSource::{Inferred, Tagged}`,
+`Alignment`, `LayoutLine`, `Block`, `PageLayout`, `LayoutDiagnostics`
+(`::inferred()`), `DocumentLayout`. Display-space analysis honouring
+`/Rotate`; boxes reported in user space.
+
+**Prerequisite (step 1, `4f6254c8`).** `ExtractedGlyph::weight: FontWeight`
++ `WeightSource`, resolved `/FontWeight` (Table 122) first, then font-name
+weight (Table 332 permits this), then synthetic bold from `Tr` 2/6.
+`ForceBold`/`StemV` deliberately not consulted.
+
+**Classification.** Running header/footer is gated on cross-page
+repetition of the same text at the same position within the margin band
+(digits and lone canonical roman numerals normalise equal), never on
+position alone — the parity finding against Acrobat's page-top-is-header
+heuristic (see *Next up*, 701st filing). A tagged `/Artifact /Subtype`
+(`Pass 372.1`) wins over the heuristic when present. Columns come from
+coverage gutters with a both-sides-same-height check; a spanning line
+splits reading order into bands. Headings are size >= 1.15x body or
+weight-based; levels ranked document-wide, capped at 6.
+
+**CLI.** `pdfcer extract-layout in.pdf [--json] [-o out]`; the result line
+carries every counter (rule 4). `docs/core-api` §8.4.3 added;
+`check-core-api-verbs` PASS.
+
+**Defects found and fixed in this Pass:**
+1. A heading-sized line in the top margin whose text differs page to page
+   ("Chapter 1", "Chapter 2") classed as a running header because digit
+   normalisation made the texts equal — fixed: a group whose raw texts
+   differ AND whose members are all heading-sized is not running text.
+2. A centred page number reported as right-aligned, measured against the
+   body column it sits outside — fixed: running/page-number blocks are
+   aligned against the page, not the column.
+3. During development, a right-aligned block was misdetected as a second
+   column (fixed by the both-sides check above), and a first-line-indent
+   rule split centred/right blocks (fixed: requires a short previous line
+   or a repeated first-line indent).
+
+**Tests.** 7 core integration tests
+(`crates/pdfcer-core/tests/block_layout.rs`, 6 sabotage mutations each
+failing the suite), 5 unit tests, 1 core unit test for the step-1 glyph
+weight, 2 CLI tests (`crates/pdfcer-cli/tests/extract_layout.rs`, both
+failing on defects 1 and 2 before their fixes). Fuzz target `block_layout`
+added: 46,343 runs / 61 s, 0 crashes.
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands (2 filing gates
+included); workspace total 9,855 tests passed. No manifest touched in
+`pdfcer-core`/`pdfcer-render` (fuzz's own `Cargo.toml` only) — `cargo tree`
+invariant not applicable. CLI subcommand count 175 → 176 (README updated).
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not yet wired in
+`pdfcer-gui`.
+
+**`docs/FEATURES.md`.** *Planned* row (line 492) moved to *Implemented*,
+*Text* section: core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]` (Acrobat's
+Retain-Flowing-Text Word export performs the same recognition class, per
+`Acrobat_Features/office_export__word_structure_recognition.md`).
+
+**Reply filed.** Written to the `pdfceGUI` channel:
+`reply_G054_untagged_block_layout_is_now_readable_FIXED.md`.
+
+**No §12 decision.** New reader module over existing extraction, no crate
+boundary or invariant change — same call as `Pass 372.0`/`372.1`. Highest
+decision record stays `164`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
+dispatching engineer's own verification at `4f6254c8`/`9035cfc4`, not
+independently reproduced. Backup/push/release state not verifiable from
+here; latest release on record remains `v0.60.0` (tagged on `040c24d7`,
+which precedes these commits).
+
 ### `Pass 372.1` (`dfc2121e`), 2026-09-28 — artifact `/Subtype` on extracted runs (G053)
 
 **Verdict: SHIPPED.** Closes the known gap `Pass 372.0` filed. New pub
@@ -9286,6 +9363,11 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★ **`Pass 373.0` SHIPPED, 2026-09-28 (702nd filing), `4f6254c8` +
+> `9035cfc4`** — see top of *Shipped*. `G054`; closes the block-layout half
+> of the `G054`/`G055` family filed the 701st filing. **`Pass 374.0`
+> (`G055`, table-cell-grid extraction) is now the sole head of *Next up*.**
 
 > ★★★★★ **TWO ITEMS REMAIN 2026-09-28 (701st filing) — `G054`–`G055`, from
 > `pdfcer-gui`'s DOCX/XLSX-export ask (`O257`).** `Pass 372.0` (`G053`,
