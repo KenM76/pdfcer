@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (694th filing) — `ee47e67a`: `Pass 142.3` SHIPPED — automatic style ladder, rung 3: a supplied face embedded
+
+**Shipped:**
+- `Pass 142.3` — rung 3 of the automatic bold/italic ladder: `FormatRequest::style_donors`/`style_donor(plan)` let a caller supply donor faces; the ladder now tries (1) a real page face, (2) the standard-14 sibling, (3) a supplied donor of the run's OWN family whose name claims the requested axes and passes the same coverage gate, (4) synthesis. New `StyleRung::SuppliedFaceEmbedded`; `family_stem` now trims trailing `MT`/`PS` vendor suffixes. New pub verb `EditSession::preview_style_ladder_with_donors`; core-API verb count 276 → 277. CLI: `format-text --bold/--italic --font-dir DIR --embed-styled-face` (opt-in flag required — R108, merely passing `--font-dir` never embeds; clap `requires --font-dir`, usage error exit 2 without it). Full record at the top of `ROADMAP.md`'s *Shipped*.
+- Closes the Backlog entry filed when `Pass 142.0` shipped (692nd filing); all four acceptance criteria met, plus the "also owed" form-XObject test.
+
+**Decisions made this session:**
+- None new — restates `R108`/decision `106`'s existing scope (postures govern synthesis, not an explicit-donor rung). Highest decision record stays `164`.
+
+**Findings + decisions:**
+- Defect found and fixed in the same commit: `Pass 142.0`'s embed disclosure literal shipped two 10-space gaps from lost `\` line continuations. `tools/check-string-gaps.sh` had missed it because it only scanned prose-marked literals; it gained a rule (6+ spaces after a `}` placeholder, then a letter/paren) plus a self-test fixture, and `tools/icc-census`'s right-aligned column got a same-line exempt comment.
+
+**Still in flight:**
+- No named head in *Next up*. No other open items surfaced this filing.
+
+**For next session:**
+- `docs/FEATURES.md`: the *Planned* "Rung 3 of the automatic bold/italic ladder" row deleted (folded into the *Implemented* "Make a run bold (or italic)…" row, ticked in place); rows 201/202's stale "`Pass 142.3`, *Planned*" citations corrected to this shipped hash.
+- No shell available this filing — `ee47e67a` relayed from the dispatching engineer's own report, not independently reproduced. Single code commit, nothing pushed yet at time of filing. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes this commit).
+
 ## 2026-09-28 (693rd filing) — `7247d9f5`: `Pass 327.5` SHIPPED — load below-opset-13 PaddleOCR exports by upgrading on load
 
 **Shipped:**

@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 142.3` (`ee47e67a`), 2026-09-28 — automatic style ladder, rung 3: a supplied face embedded
+
+**Verdict: SHIPPED — rung 3 of the automatic bold/italic ladder.** Closes the Backlog entry filed 2026-09-28 (692nd filing) when `Pass 142.0` shipped. `142.0` built the embedding machinery behind an explicit `--embed-font`/`--find` gate; this Pass adds the automatic SELECTOR in front of it, per decision 106's original scope.
+
+**Core.** `FormatRequest::style_donors: Vec<FontEmbedPlan>` / builder `style_donor(plan)`; new `StyleRung::SuppliedFaceEmbedded`. Ladder order is now: 1 a real face already on the page, 2 the standard-14 sibling, 3 a supplied donor of the run's OWN family whose name claims exactly the requested axes (plus any the run already has), passing the same coverage gate as rungs 1–2, 4 synthesis. A donor that cannot show the run is recorded in `passed_over`; cross-family donors are never taken. `family_stem` now trims trailing `MT`/`PS` vendor suffixes so `ArialMT` and `Arial-BoldMT` are recognised as the same family. New pub verb `EditSession::preview_style_ladder_with_donors(.., donors)`. Core-API verb count 276 → 277, `docs/core-api` updated in the same commit, `check-core-api-verbs` PASS.
+
+**R108 restatement (not a new rule).** Embedding stays an explicit, per-action operator choice. Core only offers rung 3 when the caller passes donors; the CLI requires the separate opt-in flag `--embed-styled-face` (clap `requires --font-dir`, usage error exit 2 without it). Merely passing `--font-dir` never embeds. `style_policy` (auto/warn/refuse) does NOT gate rung 3, because it fakes nothing — same standing as rungs 1–2, restating the `Pass 179.2` contract that postures govern synthesis only.
+
+**CLI.** `format-text --bold`/`--italic --font-dir DIR --embed-styled-face` offers every TrueType face in `DIR` whose PostScript name claims the requested axes; subset and embedded. Disclosure appends ", from the supplied fonts, embedded as a subset".
+
+**Defect found and fixed in the same commit.** `Pass 142.0`'s embed disclosure literal shipped two 10-space gaps (lost `\` line continuations) — `"{}          glyph(s)"`, `"(ISO          32000-1"`. `tools/check-string-gaps.sh` had reported PASS because it only scanned prose-marked literals; it gained a rule (6+ spaces after a `}` placeholder, then a letter/paren) plus a self-test fixture; `tools/icc-census`'s right-aligned column got a same-line exempt comment.
+
+**Tests.** 7 new in `crates/pdfcer-render/tests/format_style_donor.rs`, including the form-XObject test owed since `Pass 142.0` (page gains no `/Font`, the form's own `/Resources` does; undo restores bytes). 3 new CLI tests in `crates/pdfcer-cli/tests/format_text.rs` (embed with the flag; R108 no-embed without it; usage error without `--font-dir`). Sabotage-checked: disconnecting the CLI flag fails the embed test. `format_text` suite 23/23.
+
+**Gates.** `tools/run-gates.sh`: 39/40 on first run (the 40th, a clippy `useless_format` in the new test, fixed and re-run clean); `clippy --all-features`/`fmt --check` clean. No manifest change, `cargo tree` invariant not applicable.
+
+**Fixtures.** New `fixtures/synthetic/text/subset-donor-bold.ttf` (synthetic, `tools/gen-subset-font-fixtures.py`; same outlines as `subset-donor.ttf`, name ID 6 `pdfceSubsetDemo-Bold`).
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not yet consumed.
+
+**`docs/FEATURES.md`.** Row 526 (*Planned*, "Rung 3 of the automatic bold/italic ladder") deleted — folded into the *Implemented* "Make a run bold (or italic)…" row, ticked in place; that row's, and rows 201/202's, "`Pass 142.3`, *Planned*" citations corrected to this shipped hash.
+
+**No §12 decision.** Restates `R108`/decision `106`'s scope; mints nothing new. Highest decision record stays `164`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `ee47e67a` (single code commit), not independently reproduced. Nothing pushed yet at time of filing; backup/push/release state not verifiable from here — latest release on record remains `v0.60.0`, tagged on `040c24d7`, which precedes this commit.
+
 ### `Pass 327.5` (`7247d9f5`), 2026-09-28 — load below-opset-13 PaddleOCR exports by upgrading on load
 
 **Verdict: SHIPPED — fifth entry in the `Pass 327.x` PaddleOCR family.** Closes `pdfcer-gui` channel request `request_paddle_loads_official_ppocrv5_onnx.md` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests`). The official PaddlePaddle PP-OCRv5 recogniser export (`latin_PP-OCRv5_mobile_rec` `inference.onnx`, sha256 `7888113072263cb471b93f66dd5e2ad70548dc526fa1ace760d0d973dd121498`) is ONNX opset 7 and failed `PaddleEngine::from_model_dir` (BatchNormalization `spatial`, then attribute-form Slice); the GUI had been shipping a copy pre-converted by `onnx.version_converter` to opset 13.
@@ -20487,22 +20513,12 @@ remapping its target either dangles the reference or silently re-targets it
 at whatever object now occupies that id. Unscoped, awaiting `pdfceGUI`'s
 answer on whether they need this before it is sized into a real Pass.
 
-### `Pass 142.3` — **AUTOMATIC BOLD/ITALIC LADDER, RUNG 3: EMBED A DONOR PICKED FROM `--font-dir` BY FAMILY AND STYLE, BEFORE FALLING TO SYNTHESIS** — filed 2026-09-28 (692nd filing), NOT STARTED
+### `Pass 142.3` — MOVED TO *SHIPPED* on 2026-09-28 (694th filing). Shipped in `ee47e67a`.
 
-**The gap.** `FormatRequest::style`'s automatic ladder (`Pass 179.0`) stops at rung 2 (`fontdata::std14_styled`, the standard-14 sibling of the run's own family) and falls straight to synthesis when neither a real page face nor a standard-14 sibling covers the run. Rung 3 — *"a face supplied via `--font-dir`"* — was named as `Pass 142.0`'s scope by decision 106, but `Pass 142.0` (`62deb938`, *Shipped*) built the EMBEDDING machinery only, behind an EXPLICIT `--embed-font FILE` gated on `--find` naming exactly the covered characters. Rung 3 needs the ladder to pick a donor AUTOMATICALLY — by family and style, from `--font-dir`, with no `--find` and no named file — then call that same embedding machinery before synthesising.
-
-**Why it is not a re-implementation.** `embedded_font_objects`/`FontEmbedPlan` already do the subset/embed work; this Pass is a SELECTOR in front of it (matching `--font-dir`'s faces by family + style, the way `preview_style_resolution`/`gate_synthesis` already match by family + coverage) plus wiring it into `set_style`'s ladder instead of `format_text`'s explicit path. `R221` applies: build the selector once, call it from both paths if both need it — not two predicates for "does a covering donor exist here."
-
-**Acceptance criteria, provisional:**
-
-1. `set_style`'s ladder gains rung 3 between the standard-14 sibling and synthesis: search `--font-dir` for a face matching the run's family + requested style (bold/italic/bold-italic); if found and it covers the run's characters, embed and bind it, one undo entry.
-2. `style_policy` (`auto`/`warn`/`refuse`, `Pass 179.2`) governs rung 3 exactly as it governs synthesis today — `refuse` stops before rung 3 embeds anything the operator did not ask for by name, or `179.2`'s posture contract needs restating.
-3. `FormatReport::style_ladder`'s `rung` gains a value naming rung 3, disclosed off-canvas on both shells.
-4. No `--font-dir` supplied, or no covering face found there, falls through to synthesis exactly as today — pinned by a test.
-
-**Also owed**, noted at ship time and not yet built: a dedicated test for `Pass 142.0`'s form-XObject embedding path — `format_embed_font`'s 3 tests cover the one-shot page path, the session path and coverage refusal, none form-XObject-specific, though the code shares `add_text`'s proven form route.
-
-**De-prioritised, not declined**, on the same 2026-08-27 use report `Pass 142.0`'s Backlog entry carried: the consuming shell reported synthetic weight is enough for its CAD title-block and markup work. A consumer setting body text would weigh it differently.
+**This entry is a forwarding stub, kept because a reader may grep here for the
+rung-3 acceptance criteria.** The full scoping record that used to live here
+is now the Shipped entry at the top of this file — all four acceptance
+criteria were met, and the "also owed" form-XObject test shipped with it.
 
 ### `Pass 142.1` — **A PRE-FLIGHT THAT ENUMERATES A PAGE'S FONT RESOURCES, SO A SHELL CAN DISABLE A CONTROL INSTEAD OF DRIVING IT FROM AN ERROR** — filed 2026-08-27 (293rd filing), NOT STARTED — ★★ **PROMOTED TO *Next up* 2026-08-27 (296th filing). THIS ENTRY IS THE SCOPING RECORD AND STAYS HERE; the LIVE entry, with the requester's two refinements and the `Pass 144.0` dependency, is in *Next up*.**
 
