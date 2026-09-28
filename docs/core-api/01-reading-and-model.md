@@ -1300,6 +1300,56 @@ for (i, e) in tree.elements.iter().enumerate() {   // pre-order = logical readin
   needs it to tell "declared, no text" from "absent".
 - CLI: `pdfcer extract-tags in.pdf [--json] [-o out]`.
 
+### 8.4.3 Untagged block layout — headings, paragraphs, lists, running text (`Pass 373.0`)
+
+For a file with no structure tree. Everything is inferred from geometry and
+type, so every kind decision is counted in `diagnostics` and the shell must
+say so (CLAUDE.md rule 4).
+
+```rust
+use pdfcer_core::block_layout::{self, BlockKind, BlockSource, LayoutOptions};
+
+let layout = block_layout::analyze_layout(&doc, &opts, &LayoutOptions::default())?;
+for page in &layout.pages {
+    // page.columns: Vec<Rect> (user space), empty or one entry when single-column
+    for block in &page.blocks {                 // reading order
+        // block.kind: Heading{level} | Paragraph | ListItem{marker} | Caption
+        //           | RunningHeader | RunningFooter | PageNumber
+        // block.source: Inferred, or Tagged (the file's /Artifact /Subtype)
+        // block.lines: indices into page.lines; each LayoutLine.runs indexes
+        //              layout.text.pages[i].runs
+        let text = block.text(page);
+    }
+}
+let n = layout.diagnostics.inferred();          // heuristic kind decisions
+```
+
+- Analysis runs in display space (`/Rotate` applied); every box returned is
+  in user space. `layout_text(text, &[PageGeometry], &opts)` runs the same
+  analysis on an extraction you already have.
+- Running text is found by **repetition**: text in the top or bottom
+  `margin_band` (default 15% of the page) repeating within 4 pt on at least
+  `max(2, ceil(pages × running_min_fraction))` pages (default 0.4). Digits
+  and lone roman numerals compare equal. A one-page file therefore has no
+  running text unless tagged. A heading-sized group whose text differs page
+  to page (`Chapter 1`, `Chapter 2`) stays headings.
+- A tagged `/Artifact /Subtype /Header|/Footer` beats the heuristic;
+  `/Background` and `/Watermark` artifacts are left out
+  (`runs_watermark_skipped`), as is non-horizontal text
+  (`runs_not_horizontal`).
+- Headings: at most 3 lines, size ≥ 1.15 × body, or bold (≤ 2 lines) when
+  body text is not. Levels rank (size, bold) across the whole document,
+  capped at 6 — level 1 is the largest style in the file, not on the page.
+- Heading weight comes from `ExtractedGlyph::weight` (§8.4): `/FontWeight`,
+  then the font name, then synthetic bold from `Tr` 2/6.
+- Columns need a gutter ≥ 0.5 em with lines on both sides at the same
+  height; a line crossing a gutter spans the page and splits reading order
+  into bands (`spanning_lines`).
+- `alignment` is measured from line extents against the column (running
+  text: against the page); `first_line_indent` is the first line's x
+  minus the rest's, in points.
+- CLI: `pdfcer extract-layout in.pdf [--json] [-o out]`.
+
 ### 8.5 ★ Search — it lives on `EditSession`
 
 There is no read-only search entry point. Text search is:

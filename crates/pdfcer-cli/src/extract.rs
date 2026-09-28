@@ -1794,6 +1794,201 @@ claimed_twice={} object_refs={} malformed={} page_inherited={} page_unresolved={
     exit::SUCCESS
 }
 
+/// **Infer an untagged page's block layout** (`G054`).
+///
+/// Text output is one block per line under a `page N` header:
+/// `<kind> <source> <alignment> "<text>"`, where `<kind>` is
+/// `heading<level>`, `paragraph`, `list-item[<marker>]`, `caption`,
+/// `running-header`, `running-footer` or `page-number`, and `<source>` is
+/// `inferred` or `tagged`. The result line counts each inference by kind.
+pub(crate) fn cmd_extract_layout(input: &Path, output: Option<&Path>, json: bool) -> u8 {
+    use pdfcer_core::block_layout::{LayoutOptions, analyze_layout};
+    use pdfcer_core::text_extract::ExtractOptions;
+
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let layout = match analyze_layout(
+        &doc.view(),
+        &ExtractOptions::default(),
+        &LayoutOptions::default(),
+    ) {
+        Ok(layout) => layout,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let payload = if json {
+        layout_json(&layout)
+    } else {
+        layout_text(&layout)
+    };
+    match output {
+        Some(path) => {
+            if let Err(err) = std::fs::write(path, payload.as_bytes()) {
+                eprintln!("pdfcer: {}: {err}", path.display());
+                return exit::IO_ERROR;
+            }
+        }
+        None => print!("{payload}"),
+    }
+    let d = &layout.diagnostics;
+    println!(
+        "layout {} pages={} blocks={} inferred={} body_size={} paragraphs={} \
+headings_from_size={} headings_from_weight={} list_items={} captions={} \
+running_headers={} running_footers={} page_numbers={} tagged_artifacts={} \
+multi_column_pages={} spanning_lines={} runs_not_horizontal={} runs_watermark_skipped={}",
+        input.display(),
+        d.pages,
+        d.blocks,
+        d.inferred(),
+        d.body_font_size
+            .map_or_else(|| "none".to_owned(), |s| format!("{s:.1}")),
+        d.paragraphs,
+        d.headings_from_size,
+        d.headings_from_weight,
+        d.list_items,
+        d.captions,
+        d.running_headers,
+        d.running_footers,
+        d.page_numbers,
+        d.tagged_artifact_blocks,
+        d.multi_column_pages,
+        d.spanning_lines,
+        d.runs_not_horizontal,
+        d.runs_watermark_skipped,
+    );
+    exit::SUCCESS
+}
+
+fn block_kind_name(kind: &pdfcer_core::block_layout::BlockKind) -> String {
+    use pdfcer_core::block_layout::BlockKind;
+    match kind {
+        BlockKind::Heading { level } => format!("heading{level}"),
+        BlockKind::Paragraph => "paragraph".to_owned(),
+        BlockKind::ListItem { marker } => format!("list-item[{marker}]"),
+        BlockKind::Caption => "caption".to_owned(),
+        BlockKind::RunningHeader => "running-header".to_owned(),
+        BlockKind::RunningFooter => "running-footer".to_owned(),
+        BlockKind::PageNumber => "page-number".to_owned(),
+        _ => "other".to_owned(),
+    }
+}
+
+fn block_source_name(source: pdfcer_core::block_layout::BlockSource) -> &'static str {
+    use pdfcer_core::block_layout::BlockSource;
+    match source {
+        BlockSource::Tagged => "tagged",
+        _ => "inferred",
+    }
+}
+
+fn alignment_name(alignment: pdfcer_core::block_layout::Alignment) -> &'static str {
+    use pdfcer_core::block_layout::Alignment;
+    match alignment {
+        Alignment::Center => "center",
+        Alignment::Right => "right",
+        Alignment::Justified => "justified",
+        _ => "left",
+    }
+}
+
+fn layout_text(layout: &pdfcer_core::block_layout::DocumentLayout) -> String {
+    let mut out = String::new();
+    for page in &layout.pages {
+        out.push_str(&format!("page {}", page.page_index + 1));
+        if page.columns.len() > 1 {
+            out.push_str(&format!(" columns={}", page.columns.len()));
+        }
+        out.push('\n');
+        for block in &page.blocks {
+            out.push_str(&format!(
+                "  {} {} {} {:?}\n",
+                block_kind_name(&block.kind),
+                block_source_name(block.source),
+                alignment_name(block.alignment),
+                block.text(page)
+            ));
+        }
+    }
+    out
+}
+
+fn layout_rect_json(r: &pdfcer_core::page_tree::Rect) -> String {
+    format!("[{:.2}, {:.2}, {:.2}, {:.2}]", r.llx, r.lly, r.urx, r.ury)
+}
+
+fn layout_json(layout: &pdfcer_core::block_layout::DocumentLayout) -> String {
+    use pdfcer_core::block_layout::BlockKind;
+    let mut out = String::from("{\n  \"pages\": [");
+    for (pi, page) in layout.pages.iter().enumerate() {
+        if pi > 0 {
+            out.push(',');
+        }
+        let columns: Vec<String> = page.columns.iter().map(layout_rect_json).collect();
+        let lines: Vec<String> = page
+            .lines
+            .iter()
+            .map(|l| {
+                format!(
+                    "\n        {{\"text\": \"{}\", \"bbox\": {}, \"font_size\": {:.2}, \"bold\": {}, \"runs\": {:?}}}",
+                    json_escape(&l.text),
+                    layout_rect_json(&l.bbox),
+                    l.font_size,
+                    l.bold,
+                    l.runs
+                )
+            })
+            .collect();
+        let blocks: Vec<String> = page
+            .blocks
+            .iter()
+            .map(|b| {
+                let (kind, level, marker) = match &b.kind {
+                    BlockKind::Heading { level } => {
+                        ("heading".to_owned(), level.to_string(), "null".to_owned())
+                    }
+                    BlockKind::ListItem { marker } => (
+                        "list-item".to_owned(),
+                        "null".to_owned(),
+                        format!("\"{}\"", json_escape(marker)),
+                    ),
+                    other => (block_kind_name(other), "null".to_owned(), "null".to_owned()),
+                };
+                format!(
+                    "\n        {{\"kind\": \"{kind}\", \"level\": {level}, \"marker\": {marker}, \
+\"source\": \"{}\", \"lines\": {:?}, \"bbox\": {}, \"column\": {}, \"alignment\": \"{}\", \
+\"first_line_indent\": {:.2}, \"font_size\": {:.2}, \"bold\": {}, \"text\": \"{}\"}}",
+                    block_source_name(b.source),
+                    b.lines,
+                    layout_rect_json(&b.bbox),
+                    b.column
+                        .map_or_else(|| "null".to_owned(), |c| c.to_string()),
+                    alignment_name(b.alignment),
+                    b.first_line_indent,
+                    b.font_size,
+                    b.bold,
+                    json_escape(&b.text(page))
+                )
+            })
+            .collect();
+        out.push_str(&format!(
+            "\n    {{\"page\": {}, \"columns\": [{}], \"lines\": [{}\n      ], \"blocks\": [{}\n      ]}}",
+            page.page_index + 1,
+            columns.join(", "),
+            lines.join(","),
+            blocks.join(",")
+        ));
+    }
+    out.push_str("\n  ]\n}\n");
+    out
+}
+
 fn tags_text(tree: &pdfcer_core::structure_tree::StructureTree) -> String {
     let mut out = String::new();
     for (i, e) in tree.elements.iter().enumerate() {

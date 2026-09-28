@@ -2999,6 +2999,32 @@ pub(crate) enum Command {
         json: bool,
     },
 
+    /// Infer an untagged page's layout: blocks in reading order, each
+    /// classed as a heading (with level), paragraph, list item, caption,
+    /// running header, running footer or page number, with columns,
+    /// alignment and first-line indent.
+    ///
+    /// Everything here is inferred from geometry and typography, except a
+    /// block the file itself tags as a header or footer artifact (shown as
+    /// `tagged`). Running text is found by repetition across pages, not by
+    /// position alone, so a one-page file has none unless it is tagged.
+    ///
+    /// The result line counts every inference by kind, and how many runs
+    /// were left out (vertical text, watermarks), so a script can tell a
+    /// confident layout from a guess.
+    ExtractLayout {
+        /// Input PDF.
+        input: PathBuf,
+        /// Write the layout here instead of to stdout.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Emit JSON: per page, the columns, the lines (text, box, size,
+        /// weight, run indices) and the blocks (kind, level or marker,
+        /// source, line indices, box, column, alignment, indent).
+        #[arg(long)]
+        json: bool,
+    },
+
     /// **Download the OCR model weights**, verified against a pinned
     /// SHA-256 before anything is written.
     ///

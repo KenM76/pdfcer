@@ -14,6 +14,7 @@
     clippy::indexing_slicing
 )]
 
+pub mod block_layout;
 pub mod structure_tree;
 pub mod text_extract;
 pub mod text_state;

@@ -20,6 +20,7 @@ mod attachment_clipboard;
 mod attachments;
 mod bezier_handles;
 mod blend_mode_preserved;
+mod block_layout;
 mod brotli_stream_is_reachable;
 mod button_action;
 mod button_action_submit;

@@ -250,6 +250,14 @@ test = false
 doc = false
 bench = false
 
+# G054: untagged block layout (run geometry, rotation, option thresholds).
+[[bin]]
+name = "block_layout"
+path = "fuzz_targets/block_layout.rs"
+test = false
+doc = false
+bench = false
+
 # Pass 6.0 (docs/decisions/008): the annotation-walk target. Drives the
 # read-side annotation model — the /Annots walk and the §12.5.5 /AP /N
 # appearance selection with its negative-result taxonomy (cyclic /AP,
