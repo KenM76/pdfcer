@@ -628,7 +628,8 @@ blend_space_subtractive={} blend_space_from_output_intent={} blends_in_wrong_spa
 cmyk_buffer={} cmyk_buffer_refused={} cmyk_bridged_pixels={} \
 cmyk_groups_approximated={} cmyk_unbridged_images={} cmyk_native_image_pixels={} rendering_intents_set={} \
 icc_managed_paints={} icc_unmanaged_paints={} \
-overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={}",
+overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={} \
+page_crop_box_clipped={} page_crop_box_unusable={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -1013,6 +1014,11 @@ overprint_process_images_unsupported={} annots_icon_painted={} page_resources_de
         // `cs_unresolved=` and unpainted forms; on a page with no content it
         // is simply a true fact about a file Acrobat writes.
         usize::from(d.page_resources_defaulted),
+        // Appended under the same contract: the effective crop box was
+        // intersected with the media box (§14.11.2.1), or had no overlap
+        // with it and the media box framed the page instead (PB-A1).
+        usize::from(d.page_crop_box == pdfcer_core::page_tree::BoxResolution::Clipped),
+        usize::from(d.page_crop_box == pdfcer_core::page_tree::BoxResolution::Unusable),
     )
 }
 

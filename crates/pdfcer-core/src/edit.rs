@@ -59782,10 +59782,17 @@ mod tests {
             "crop box must not be removed"
         );
         assert_eq!(
-            s.pages().unwrap()[0].crop_box,
-            page_tree::Rect::from_corners(0.0, 0.0, 300.0, 300.0),
-            "and must not be clamped"
+            nums_of(page.get(b"CropBox").unwrap()),
+            vec![0.0, 0.0, 300.0, 300.0],
+            "and must not be clamped in the file"
         );
+        // A reader intersects (§14.11.2.1), so the page frames the sheet.
+        let p = &s.pages().unwrap()[0];
+        assert_eq!(
+            p.crop_box,
+            page_tree::Rect::from_corners(0.0, 0.0, 100.0, 100.0)
+        );
+        assert_eq!(p.crop_box_resolution, page_tree::BoxResolution::Clipped);
     }
 
     #[test]

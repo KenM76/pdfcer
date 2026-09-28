@@ -1036,6 +1036,7 @@ fn render_impl_rasterize(
         // painted, so a scope that suppresses content has no excuse for
         // dropping a fact it already holds.
         diagnostics.page_resources_defaulted = page.resources_defaulted;
+        diagnostics.page_crop_box = page.crop_box_resolution;
 
         // Pass 6.0: survey the page's annotations (ISO 32000-1 §12.5;
         // docs/decisions/008) and paint their appearances OVER the page content

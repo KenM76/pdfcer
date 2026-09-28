@@ -114,6 +114,56 @@ impl Rect {
             && other.urx <= self.urx
             && other.ury <= self.ury
     }
+
+    /// The overlap of two rectangles, or `None` when it has no area
+    /// (disjoint, or touching only along an edge or at a corner).
+    ///
+    /// A zero-area overlap is `None` rather than a degenerate `Rect`
+    /// because every caller is resolving a page box, and a page box with
+    /// no area frames nothing (ISO 32000-2 §14.11.2.1 leaves that case
+    /// undefined — ambiguity PB-A1).
+    #[must_use]
+    pub fn intersection(&self, other: &Self) -> Option<Self> {
+        let r = Self {
+            llx: self.llx.max(other.llx),
+            lly: self.lly.max(other.lly),
+            urx: self.urx.min(other.urx),
+            ury: self.ury.min(other.ury),
+        };
+        (r.urx > r.llx && r.ury > r.lly).then_some(r)
+    }
+}
+
+/// How a resolved page box ([`Page::crop_box`], [`Page::bleed_box`],
+/// [`Page::trim_box`], [`Page::art_box`]) relates to what the file wrote.
+///
+/// ISO 32000-2 §14.11.2.1: "If the bounds of the crop, trim, bleed or art
+/// box extends outside of the bounds of the media box, a processor shall
+/// treat the box as its intersection with the media box." Every resolved
+/// box is therefore already clipped to [`Page::media_box`]; this says
+/// whether that changed anything. Report anything but `Defaulted` /
+/// `AsWritten` off-canvas (project rule 4) — the file is not rewritten.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum BoxResolution {
+    /// The file wrote no such box (nor, for `CropBox`, did an ancestor);
+    /// the Table 30 default is in use.
+    #[default]
+    Defaulted,
+    /// The written box lies inside the media box and is used unchanged.
+    AsWritten,
+    /// The written box extended beyond the media box and was reduced to
+    /// the intersection.
+    Clipped,
+    /// The written box could not be used and the Table 30 default is in
+    /// use instead: its intersection with the media box has no area
+    /// (the spec leaves this undefined, PB-A1), or — for the three
+    /// non-inheritable boxes only — it is not a four-number array.
+    ///
+    /// Falling back to the default rather than framing an empty page is
+    /// pdfcer's choice for PB-A1; a caller that wants the other answer
+    /// (render nothing) can act on this variant.
+    Unusable,
 }
 
 /// One page, fully resolved: every inheritable attribute has its final
@@ -193,9 +243,30 @@ pub struct Page {
     pub resources_defaulted: bool,
     /// Resolved `MediaBox`, normalized (§7.9.5).
     pub media_box: Rect,
-    /// Resolved `CropBox`, normalized; defaults to `media_box`.
-    /// Content is clipped to this at display time (Table 30).
+    /// The effective `CropBox`: the resolved entry intersected with
+    /// [`Self::media_box`] (§14.11.2.1), or `media_box` when absent or
+    /// unusable. Content is clipped to this at display time (Table 30),
+    /// so this is the rectangle a renderer frames the page by. What the
+    /// file itself wrote is left in the file; see
+    /// [`Self::crop_box_resolution`].
     pub crop_box: Rect,
+    /// How [`Self::crop_box`] was obtained from the file.
+    pub crop_box_resolution: BoxResolution,
+    /// The effective `BleedBox` (PDF 1.3, not inheritable): the page's own
+    /// entry intersected with [`Self::media_box`], else [`Self::crop_box`].
+    pub bleed_box: Rect,
+    /// How [`Self::bleed_box`] was obtained.
+    pub bleed_box_resolution: BoxResolution,
+    /// The effective `TrimBox` — the finished page after trimming; same
+    /// resolution rule as [`Self::bleed_box`].
+    pub trim_box: Rect,
+    /// How [`Self::trim_box`] was obtained.
+    pub trim_box_resolution: BoxResolution,
+    /// The effective `ArtBox` — the creator's meaningful content; same
+    /// resolution rule as [`Self::bleed_box`].
+    pub art_box: Rect,
+    /// How [`Self::art_box`] was obtained.
+    pub art_box_resolution: BoxResolution,
     /// Resolved `Rotate`, normalized to {0, 90, 180, 270} — clockwise
     /// display rotation (Table 30).
     pub rotate: u16,
@@ -815,11 +886,25 @@ fn resolve_page<G: ObjectGraph + ?Sized>(
         .ok_or(PageTreeError::MissingRequired("MediaBox"))
         .and_then(|o| parse_rect(doc, o, "MediaBox"))?;
 
-    // CropBox: own → ancestor → default = resolved MediaBox.
-    let crop_box = match page.get(b"CropBox").or(inherited.crop_box) {
-        Some(o) => parse_rect(doc, o, "CropBox")?,
-        None => media_box,
+    // CropBox: own → ancestor → default = resolved MediaBox, then clipped to
+    // the media box (§14.11.2.1). A malformed CropBox still fails the page,
+    // as it always has; only the three production boxes below degrade.
+    let (crop_box, crop_box_resolution) = match page.get(b"CropBox").or(inherited.crop_box) {
+        Some(o) => clip_to_media(parse_rect(doc, o, "CropBox")?, media_box, media_box),
+        None => (media_box, BoxResolution::Defaulted),
     };
+    // Bleed/Trim/Art: own only (not inheritable, Table 30) → default =
+    // effective CropBox.
+    let production_box = |key: &[u8]| match page.get(key) {
+        None => (crop_box, BoxResolution::Defaulted),
+        Some(o) => match parse_rect(doc, o, "BleedBox") {
+            Ok(r) => clip_to_media(r, media_box, crop_box),
+            Err(_) => (crop_box, BoxResolution::Unusable),
+        },
+    };
+    let (bleed_box, bleed_box_resolution) = production_box(b"BleedBox");
+    let (trim_box, trim_box_resolution) = production_box(b"TrimBox");
+    let (art_box, art_box_resolution) = production_box(b"ArtBox");
 
     // Rotate: own → ancestor → 0; multiple of 90; positive modulo.
     let rotate = match page
@@ -879,11 +964,28 @@ fn resolve_page<G: ObjectGraph + ?Sized>(
         resources_defaulted,
         media_box,
         crop_box,
+        crop_box_resolution,
+        bleed_box,
+        bleed_box_resolution,
+        trim_box,
+        trim_box_resolution,
+        art_box,
+        art_box_resolution,
         rotate,
         contents,
         contents_unresolved,
         contents_flattened,
     })
+}
+
+/// Resolve a written page box against the media box (§14.11.2.1), falling
+/// back to `default` when the intersection has no area (PB-A1).
+fn clip_to_media(written: Rect, media_box: Rect, default: Rect) -> (Rect, BoxResolution) {
+    match media_box.intersection(&written) {
+        Some(r) if r == written => (r, BoxResolution::AsWritten),
+        Some(r) => (r, BoxResolution::Clipped),
+        None => (default, BoxResolution::Unusable),
+    }
 }
 
 /// The deepest nesting [`contents_from_array`] will flatten before refusing.
@@ -1142,6 +1244,80 @@ mod tests {
         // Page 3: MediaBox overridden, Rotate still inherited.
         assert_eq!(pages[2].media_box.width(), 200.0);
         assert_eq!(pages[2].rotate, 90);
+    }
+
+    /// One page with MediaBox [0 0 100 100] and the given extra entries.
+    fn one_page(extra: &str) -> Page {
+        let page = format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] {extra} >>");
+        let doc = build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << >> >>",
+            ),
+            (3, &page),
+        ]);
+        pages(&doc).unwrap().remove(0)
+    }
+
+    #[test]
+    fn page_boxes_are_intersected_with_the_media_box() {
+        let r = Rect::from_corners;
+        // §14.11.2.1: a crop box overhanging the sheet frames the sheet.
+        let p = one_page("/CropBox [-50 20 300 80]");
+        assert_eq!(p.crop_box, r(0.0, 20.0, 100.0, 80.0));
+        assert_eq!(p.crop_box_resolution, BoxResolution::Clipped);
+        // A contained one is untouched, and says so.
+        let p = one_page("/CropBox [10 10 90 90]");
+        assert_eq!(p.crop_box, r(10.0, 10.0, 90.0, 90.0));
+        assert_eq!(p.crop_box_resolution, BoxResolution::AsWritten);
+        // PB-A1: no overlap falls back to the media box, disclosed.
+        let p = one_page("/CropBox [200 200 300 300]");
+        assert_eq!(p.crop_box, p.media_box);
+        assert_eq!(p.crop_box_resolution, BoxResolution::Unusable);
+        // Touching only along an edge has no area either.
+        let p = one_page("/CropBox [100 0 200 100]");
+        assert_eq!(p.crop_box_resolution, BoxResolution::Unusable);
+        let p = one_page("");
+        assert_eq!(p.crop_box_resolution, BoxResolution::Defaulted);
+    }
+
+    #[test]
+    fn production_boxes_clip_to_the_media_box_and_default_to_the_crop_box() {
+        let r = Rect::from_corners;
+        let p = one_page(
+            "/CropBox [10 10 90 90] /TrimBox [-5 -5 50 50] \
+             /BleedBox [500 500 600 600] /ArtBox [1 2 3]",
+        );
+        // Clipped to the MEDIA box, not the crop box: the crop box "has no
+        // defined relationship with any of the other boundaries".
+        assert_eq!(p.trim_box, r(0.0, 0.0, 50.0, 50.0));
+        assert_eq!(p.trim_box_resolution, BoxResolution::Clipped);
+        // No overlap, and malformed, both fall back to the effective crop box.
+        assert_eq!(p.bleed_box, p.crop_box);
+        assert_eq!(p.bleed_box_resolution, BoxResolution::Unusable);
+        assert_eq!(p.art_box, p.crop_box);
+        assert_eq!(p.art_box_resolution, BoxResolution::Unusable);
+        // Absent defaults to the effective (clipped) crop box.
+        let p = one_page("/CropBox [50 50 500 500]");
+        assert_eq!(p.trim_box, r(50.0, 50.0, 100.0, 100.0));
+        assert_eq!(p.trim_box_resolution, BoxResolution::Defaulted);
+    }
+
+    #[test]
+    fn production_boxes_are_not_inherited() {
+        let doc = build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << >> \
+                 /MediaBox [0 0 100 100] /TrimBox [10 10 20 20] >>",
+            ),
+            (3, "<< /Type /Page /Parent 2 0 R >>"),
+        ]);
+        let p = pages(&doc).unwrap().remove(0);
+        assert_eq!(p.trim_box, p.media_box);
+        assert_eq!(p.trim_box_resolution, BoxResolution::Defaulted);
     }
 
     #[test]

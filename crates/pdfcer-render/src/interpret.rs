@@ -243,6 +243,12 @@ pub struct Diagnostics {
     /// dictionary, so a page whose only marks are annotations can genuinely
     /// need what it does not have (`Pass 290.0`).
     pub page_resources_defaulted: bool,
+    /// How the page's effective crop box — the rectangle this render is
+    /// framed by — relates to the `/CropBox` the file wrote
+    /// ([`pdfcer_core::page_tree::Page::crop_box_resolution`]). `Clipped`:
+    /// it overhung the media box and was intersected (ISO 32000-2
+    /// §14.11.2.1). `Unusable`: no overlap, so the media box framed the page.
+    pub page_crop_box: pdfcer_core::page_tree::BoxResolution,
     /// Operators recognized but not yet implemented (XObjects,
     /// shading, marked content, Type 3 glyph procedures, and `Tr`'s
     /// clipping modes 4–7), with occurrence counts folded into one

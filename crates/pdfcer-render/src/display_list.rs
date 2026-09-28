@@ -1002,6 +1002,7 @@ fn record_impl(
         // painted, so a scope that suppresses content has no excuse for
         // dropping a fact it already holds.
         diagnostics.page_resources_defaulted = page.resources_defaulted;
+        diagnostics.page_crop_box = page.crop_box_resolution;
         crate::annot::survey_page_annotations(
             doc,
             page,

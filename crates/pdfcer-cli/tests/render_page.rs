@@ -580,6 +580,10 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             // is one fact about one page dictionary -- but it still parses
             // as an integer, which is all the contract promises.
             "page_resources_defaulted",
+            // Appended: the crop box overhung the media box and was
+            // intersected / had no overlap and the media box was used.
+            "page_crop_box_clipped",
+            "page_crop_box_unusable",
         ],
         "metrics key order is part of the stable contract"
     );

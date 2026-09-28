@@ -817,7 +817,10 @@ GUI wants `pages`/`pages_in`.
 | `resources` | `Dict` | resolved: own, inherited, explicit empty, or **defaulted** — see the next row |
 | `resources_defaulted` | `bool` | **see below** (`Pass 290.0`) |
 | `media_box` | `Rect` | normalised, user space, points |
-| `crop_box` | `Rect` | defaults to `media_box`; **this is what you clip display to** (Table 30) |
+| `crop_box` | `Rect` | the **effective** crop box: the written one ∩ `media_box` (ISO 32000-2 §14.11.2.1), defaulting to `media_box`; **this is what you clip display to** (Table 30). Do not intersect it again |
+| `crop_box_resolution` | `BoxResolution` | `Defaulted` / `AsWritten` / `Clipped` / `Unusable` (no overlap with the media box → `media_box` used; ambiguity PB-A1). Report `Clipped`/`Unusable` off-canvas |
+| `bleed_box`, `trim_box`, `art_box` | `Rect` | the page's **own** entry (not inheritable) ∩ `media_box`, defaulting to the effective `crop_box`. Not clipped to the crop box: the spec gives the crop box "no defined relationship" with them |
+| `bleed_box_resolution`, `trim_box_resolution`, `art_box_resolution` | `BoxResolution` | as above; `Unusable` also covers a malformed array, which (unlike a malformed `/CropBox`) does not fail the page |
 | `rotate` | `u16` | 0/90/180/270 clockwise, display only — see §2.2 |
 | `contents` | `Vec<ObjId>` | in order; concatenate. Empty = empty page, **not** an error |
 | `contents_unresolved` | `usize` | **see below** |
