@@ -354,6 +354,11 @@ fn a_search_driven_redaction_warns_about_unreadable_text() {
         s.contains("marks_created=2"),
         "the readable run is still marked: {s}"
     );
+    // `Pass 127.2`: the finding reaches stdout too, for a batch caller.
+    assert!(
+        !s.contains("unreadable_codes=0 ") && s.contains("unreadable_codes="),
+        "a non-zero unreadable_codes= on the summary line: {s}"
+    );
 
     let e = stderr(&out);
     assert!(
@@ -445,6 +450,12 @@ fn a_readable_document_gets_no_redaction_warning() {
         !stderr(&out).contains("could not be mapped to Unicode"),
         "nothing was unreadable here: {}",
         stderr(&out)
+    );
+    // Zero, not absent: the field's presence is the line's contract.
+    assert!(
+        stdout(&out).contains("unreadable_codes=0 type3_no_tounicode=0 identity_no_tounicode=0"),
+        "the summary line reports zero: {}",
+        stdout(&out)
     );
     let _ = std::fs::remove_file(&out_pdf);
 }

@@ -1053,6 +1053,14 @@ pub(crate) enum Command {
     /// The saved marks are drawn as a RED OUTLINE, never a filled box, so
     /// a marked-but-unapplied document can never be mistaken for a redacted
     /// one. Verify with `list-redactions`, then run `redact-apply`.
+    ///
+    /// The summary line ends with `unreadable_codes=N type3_no_tounicode=N
+    /// identity_no_tounicode=N`, as `find-text` prints them: the character
+    /// codes the search could not read as text (so could not have matched),
+    /// then the Type 3 and Identity fonts with no `/ToUnicode`. Non-zero
+    /// means a search- or pattern-driven redaction may have missed content;
+    /// the exit code is still 0 and a warning goes to stderr. `--rect` scans
+    /// no text and reports zeros.
     RedactMark {
         /// Input PDF.
         input: PathBuf,

@@ -835,6 +835,9 @@ pub(crate) fn cmd_redact_mark(args: &RedactMarkArgs<'_>) -> u8 {
         quadding: Quadding::Left,
     };
 
+    // The scan's diagnostics, printed on the summary line. `--rect` scans no
+    // text, so it reports the default (all zero) and the line keeps one shape.
+    let mut diagnostics = pdfcer_core::text_extract::TextDiagnostics::default();
     let created = if let Some(rectspec) = args.rect {
         let Some(index) = args.page.checked_sub(1).map(|i| i as usize) else {
             eprintln!(
@@ -865,6 +868,7 @@ pub(crate) fn cmd_redact_mark(args: &RedactMarkArgs<'_>) -> u8 {
         match session.search_and_mark_redactions_styled(query, &options, &appearance) {
             Ok(marked) => {
                 report_unsearchable_redaction(args.input, &marked.diagnostics);
+                diagnostics = marked.diagnostics;
                 marked.created.len()
             }
             Err(err) => return report_edit_error(args.input, &err),
@@ -884,6 +888,7 @@ pub(crate) fn cmd_redact_mark(args: &RedactMarkArgs<'_>) -> u8 {
         ) {
             Ok(marked) => {
                 report_unsearchable_redaction(args.input, &marked.diagnostics);
+                diagnostics = marked.diagnostics;
                 marked.created.len()
             }
             Err(err) => return report_edit_error(args.input, &err),
@@ -918,13 +923,19 @@ pub(crate) fn cmd_redact_mark(args: &RedactMarkArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "redact-mark {} marks_created={} -> {}; changed={} appended={} out_bytes={}",
+        "redact-mark {} marks_created={} -> {}; changed={} appended={} out_bytes={} unreadable_codes={} type3_no_tounicode={} identity_no_tounicode={}",
         args.input.display(),
         created,
         args.output.display(),
         outcome.changed,
         r.bytes_appended,
         r.bytes_written,
+        // Appended, never reordered; the same fields and spellings as
+        // `find-text`, so a batch caller has the unreadable-text signal on
+        // stdout. The exit code stays 0 (decision in the Pass 127.2 filing).
+        diagnostics.ladder_failures,
+        diagnostics.type3_fonts_without_to_unicode,
+        diagnostics.identity_fonts_without_to_unicode,
     );
     if created > 0 {
         println!(
