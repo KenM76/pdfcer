@@ -146,3 +146,65 @@ fn export_xlsx_pages_limits_what_is_read() {
         .unwrap();
     assert!(!o.status.success());
 }
+
+/// `pdfcer export-ods` (`Pass 383.0`): the same tables and number rule as
+/// `export-xlsx`, written as an OpenDocument spreadsheet.
+fn run_ods(name: &str, extra: &[&str]) -> (String, Vec<u8>) {
+    let path = input(name);
+    let out = path.with_file_name("out.ods");
+    let mut args = vec![
+        "export-ods".to_owned(),
+        path.to_str().unwrap().to_owned(),
+        "-o".to_owned(),
+        out.to_str().unwrap().to_owned(),
+    ];
+    args.extend(extra.iter().map(|s| (*s).to_owned()));
+    let o = Command::new(BIN).args(&args).output().unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    (
+        String::from_utf8_lossy(&o.stdout).into_owned(),
+        std::fs::read(&out).unwrap(),
+    )
+}
+
+#[test]
+fn export_ods_writes_a_spreadsheet_with_the_xlsx_counts() {
+    let (line, bytes) = run_ods("ods-auto", &[]);
+    assert!(
+        line.contains(
+            " pages=1 tables=1 inferred=2 ruled=1 aligned=0 merged_cells=1 header_rows=0 \
+             pages_unreadable=0 sheets=1 cells=5 numbers=0 ambiguous_numbers=1 \
+             characters_dropped=0 cells_beyond_limits=0"
+        ),
+        "{line}"
+    );
+    // A stored `mimetype` entry comes first (ODF 1.3 Part 2 §3.3).
+    assert_eq!(&bytes[..4], &[0x50, 0x4b, 3, 4]);
+    assert_eq!(&bytes[8..10], &[0, 0]);
+    assert_eq!(
+        &bytes[30..73],
+        b"mimetypeapplication/vnd.oasis.opendocument."
+    );
+}
+
+#[test]
+fn export_ods_numbers_and_pages_flags_reach_the_writer() {
+    let (line, _) = run_ods("ods-us", &["--numbers", "us", "--sheets", "single"]);
+    assert!(
+        line.contains(" sheets=1 cells=5 numbers=1 ambiguous_numbers=0 "),
+        "{line}"
+    );
+    let path = input("ods-pages");
+    let o = Command::new(BIN)
+        .args([
+            "export-ods",
+            path.to_str().unwrap(),
+            "-o",
+            path.with_file_name("out.ods").to_str().unwrap(),
+            "--pages",
+            "2",
+        ])
+        .output()
+        .unwrap();
+    assert!(!o.status.success());
+}

@@ -2,7 +2,7 @@
 //! Part 2, Open Packaging Conventions §8 / ISO/IEC 29500-2: a ZIP file per
 //! PKWARE APPNOTE 6.3, no ZIP64, Deflate or Stored entries).
 //!
-//! Every entry is Deflate-compressed with a fixed 1980-01-01 00:00
+//! Entries are Deflate-compressed (or stored, for ODF's `mimetype`) with a fixed 1980-01-01 00:00
 //! timestamp, so identical input gives identical bytes.
 
 use std::io::Write as _;
@@ -27,6 +27,7 @@ pub enum PackageError {
 const DOS_DATE: u16 = (1 << 5) | 1;
 const VERSION: u16 = 20;
 const METHOD_DEFLATE: u16 = 8;
+const METHOD_STORED: u16 = 0;
 
 struct Entry {
     name: String,
@@ -34,6 +35,7 @@ struct Entry {
     compressed: u32,
     size: u32,
     offset: u32,
+    method: u16,
 }
 
 /// Builds a zip archive in memory, entry by entry.
@@ -59,14 +61,32 @@ impl ZipWriter {
         }
     }
 
-    /// Appends `name` (an ASCII part name, no leading `/`) holding `data`.
+    /// Appends `name` (an ASCII part name, no leading `/`) holding `data`,
+    /// Deflate-compressed.
     pub(crate) fn add(&mut self, name: &str, data: &[u8]) -> Result<(), PackageError> {
-        let mut crc = flate2::Crc::new();
-        crc.update(data);
         let mut enc = DeflateEncoder::new(Vec::new(), Compression::best());
         enc.write_all(data)?;
         let packed = enc.finish()?;
+        self.push(name, data, &packed, METHOD_DEFLATE)
+    }
+
+    /// Appends `name` holding `data` uncompressed, with no extra field (ODF
+    /// v1.3 Part 2 §3.3 requires this of `mimetype`).
+    pub(crate) fn add_stored(&mut self, name: &str, data: &[u8]) -> Result<(), PackageError> {
+        self.push(name, data, data, METHOD_STORED)
+    }
+
+    fn push(
+        &mut self,
+        name: &str,
+        data: &[u8],
+        packed: &[u8],
+        method: u16,
+    ) -> Result<(), PackageError> {
+        let mut crc = flate2::Crc::new();
+        crc.update(data);
         let entry = Entry {
+            method,
             name: name.to_owned(),
             crc: crc.sum(),
             compressed: u32_of(packed.len())?,
@@ -78,7 +98,7 @@ impl ZipWriter {
         o.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
         o.extend_from_slice(&VERSION.to_le_bytes());
         o.extend_from_slice(&0u16.to_le_bytes()); // flags
-        o.extend_from_slice(&METHOD_DEFLATE.to_le_bytes());
+        o.extend_from_slice(&method.to_le_bytes());
         o.extend_from_slice(&0u16.to_le_bytes()); // time
         o.extend_from_slice(&DOS_DATE.to_le_bytes());
         o.extend_from_slice(&entry.crc.to_le_bytes());
@@ -87,7 +107,7 @@ impl ZipWriter {
         o.extend_from_slice(&name_len.to_le_bytes());
         o.extend_from_slice(&0u16.to_le_bytes()); // extra length
         o.extend_from_slice(name.as_bytes());
-        o.extend_from_slice(&packed);
+        o.extend_from_slice(packed);
         self.entries.push(entry);
         Ok(())
     }
@@ -101,7 +121,7 @@ impl ZipWriter {
             o.extend_from_slice(&VERSION.to_le_bytes()); // made by
             o.extend_from_slice(&VERSION.to_le_bytes()); // needed
             o.extend_from_slice(&0u16.to_le_bytes()); // flags
-            o.extend_from_slice(&METHOD_DEFLATE.to_le_bytes());
+            o.extend_from_slice(&e.method.to_le_bytes());
             o.extend_from_slice(&0u16.to_le_bytes()); // time
             o.extend_from_slice(&DOS_DATE.to_le_bytes());
             o.extend_from_slice(&e.crc.to_le_bytes());
@@ -148,7 +168,7 @@ pub(crate) fn escape_into(out: &mut String, s: &str) -> usize {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
 pub(crate) mod tests {
     use super::*;
     use std::io::Read as _;
@@ -175,9 +195,15 @@ pub(crate) mod tests {
             assert_eq!(le32(local), 0x0403_4b50);
             let data_at = local + 30 + le16(local + 26) + le16(local + 28);
             let mut data = Vec::new();
-            flate2::read::DeflateDecoder::new(&bytes[data_at..data_at + csize])
-                .read_to_end(&mut data)
-                .unwrap();
+            match le16(at + 10) {
+                0 => data.extend_from_slice(&bytes[data_at..data_at + csize]),
+                8 => {
+                    flate2::read::DeflateDecoder::new(&bytes[data_at..data_at + csize])
+                        .read_to_end(&mut data)
+                        .unwrap();
+                }
+                m => panic!("method {m}"),
+            }
             assert_eq!(data.len(), size);
             let mut c = flate2::Crc::new();
             c.update(&data);
@@ -199,6 +225,21 @@ pub(crate) mod tests {
         assert_eq!(back[0], ("a.xml".to_owned(), b"<a/>".to_vec()));
         assert_eq!(back[1].0, "dir/b.txt");
         assert_eq!(back[1].1, vec![7u8; 5000]);
+    }
+
+    #[test]
+    fn a_stored_entry_is_written_verbatim_with_no_extra_field() {
+        let mut z = ZipWriter::new();
+        z.add_stored("mimetype", b"application/x").unwrap();
+        z.add("b.xml", b"<b/>").unwrap();
+        let bytes = z.finish().unwrap();
+        assert_eq!(&bytes[8..10], &[0, 0]); // local header: method stored
+        assert_eq!(&bytes[28..30], &[0, 0]); // no extra field
+        assert_eq!(&bytes[30..38], b"mimetype");
+        assert_eq!(&bytes[38..51], b"application/x");
+        let back = read_zip(&bytes);
+        assert_eq!(back[0], ("mimetype".to_owned(), b"application/x".to_vec()));
+        assert_eq!(back[1], ("b.xml".to_owned(), b"<b/>".to_vec()));
     }
 
     #[test]

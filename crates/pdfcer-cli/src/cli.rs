@@ -3120,6 +3120,32 @@ pub(crate) enum Command {
         pages: String,
     },
 
+    /// Write the document's tables to an OpenDocument spreadsheet (.ods),
+    /// for LibreOffice Calc.
+    ///
+    /// The same tables, sheets and number rule as `export-xlsx`: a cell is
+    /// a number here exactly when it is one there. A cell's lines, tabs and
+    /// repeated spaces are kept. The result line is `export-xlsx`'s without
+    /// `cells_truncated` (an ODF cell has no length limit).
+    ExportOds {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output spreadsheet.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// One sheet per table, per page, or one for all.
+        #[arg(long, value_enum, default_value = "table")]
+        sheets: SheetsArg,
+        /// How numbers are read.
+        #[arg(long, value_enum, default_value = "auto")]
+        numbers: NumbersArg,
+        /// 1-based pages to read: `all`, `3`, `1-4`, `5,1-2`. Order is
+        /// honoured; only these pages are read, and the counts cover only
+        /// them.
+        #[arg(long, default_value = "all")]
+        pages: String,
+    },
+
     /// Write the document's text to a Word document (.docx).
     ///
     /// The text flows: one Word paragraph per block of text, in reading

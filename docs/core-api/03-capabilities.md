@@ -3679,6 +3679,35 @@ is inferred (`DocumentTables::diagnostics.inferred()`). On top of that,
   because there is no ZIP64.
 - Sheet names are fixed English strings, and the shell cannot rename them yet.
 
+### 7.12a Exporting tables as an OpenDocument spreadsheet (`Pass 383.0`)
+
+`core [x] · cli [x] · gui [ ]`.
+`pdfcer_core::export::ods::write_ods(&[Table], &OdsOptions) -> Result<OdsOutput, PackageError>`;
+CLI `pdfcer export-ods in.pdf -o out.ods [--sheets ..] [--numbers ..] [--pages ..]`.
+It is §7.12 in another format. It takes the same `SheetLayout` and
+`NumberLocale`, groups tables into the same sheets and applies the **same
+number rule**, so a cell is a number in the `.ods` exactly when it is one in
+the `.xlsx`. `OdsReport` has `XlsxReport`'s fields minus `cells_truncated`,
+because an ODF cell has no length limit. Disclose the same counts as §7.12.
+
+- Package (OASIS ODF v1.3 Part 2): `mimetype` first and stored (§3.3),
+  `content.xml`, and `META-INF/manifest.xml` with `manifest:version="1.3"`
+  on the root (§4.16.14.2). No `styles.xml`. The output validates against
+  the official v1.3 RELAX NG schemas, and the bytes are deterministic.
+- Cells:
+  - Every cell carries `office:value-type`: `float` with `office:value`, or `string`.
+  - A merge spans from its top-left cell, and every position it covers is a
+    `table:covered-table-cell` (Part 3 §9.1.5).
+  - Each line of a cell is its own `text:p`.
+  - Runs of spaces, and a leading or trailing space, are written as `text:s`,
+    because ODF would otherwise collapse or strip them (Part 3 §6.1.2). A tab
+    is `text:tab`.
+- Header rows are bold (Latin, Asian and complex scripts), and a multi-line
+  cell wraps. Column widths are the column bands in points, clamped to
+  15.75–420 pt (§7.12's 3–80 width units).
+- `cells_beyond_limits` uses LibreOffice Calc's limits: 1,048,576 rows and
+  16,384 columns. ODF itself has no limits.
+
 ### 7.13 Exporting text as a Word document (`Pass 381.0`)
 
 `core [x] · cli [x] · gui [ ]`.

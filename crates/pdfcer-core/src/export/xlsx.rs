@@ -115,8 +115,8 @@ pub struct XlsxOutput {
     pub report: XlsxReport,
 }
 
-const MAX_ROWS: usize = 1_048_576;
-const MAX_COLS: usize = 16_384;
+pub(super) const MAX_ROWS: usize = 1_048_576;
+pub(super) const MAX_COLS: usize = 16_384;
 const MAX_CELL_CHARS: usize = 32_767;
 /// Points per unit of Excel column width (one digit of 11pt Calibri).
 const POINTS_PER_WIDTH: f64 = 5.25;
@@ -149,26 +149,7 @@ const XML_DECL: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"ye
 /// ```
 pub fn write_xlsx(tables: &[Table], options: &XlsxOptions) -> Result<XlsxOutput, PackageError> {
     let mut report = XlsxReport::default();
-    let mut sheets: Vec<(String, Vec<&Table>)> = Vec::new();
-    for (i, t) in tables.iter().enumerate() {
-        match options.sheets {
-            SheetLayout::PerTable => sheets.push((format!("Table {}", i + 1), vec![t])),
-            SheetLayout::PerPage => {
-                let name = format!("Page {}", t.page_index + 1);
-                match sheets.last_mut() {
-                    Some((n, group)) if *n == name => group.push(t),
-                    _ => sheets.push((name, vec![t])),
-                }
-            }
-            SheetLayout::Single => match sheets.last_mut() {
-                Some((_, group)) => group.push(t),
-                None => sheets.push(("Tables".to_owned(), vec![t])),
-            },
-        }
-    }
-    if sheets.is_empty() {
-        sheets.push(("Tables".to_owned(), Vec::new()));
-    }
+    let sheets = group_sheets(tables, options.sheets);
     report.sheets = sheets.len();
 
     let mut zip = ZipWriter::new();
@@ -191,6 +172,31 @@ pub fn write_xlsx(tables: &[Table], options: &XlsxOptions) -> Result<XlsxOutput,
         bytes: zip.finish()?,
         report,
     })
+}
+
+/// Sheet names and the tables on each; never empty.
+pub(super) fn group_sheets(tables: &[Table], layout: SheetLayout) -> Vec<(String, Vec<&Table>)> {
+    let mut sheets: Vec<(String, Vec<&Table>)> = Vec::new();
+    for (i, t) in tables.iter().enumerate() {
+        match layout {
+            SheetLayout::PerTable => sheets.push((format!("Table {}", i + 1), vec![t])),
+            SheetLayout::PerPage => {
+                let name = format!("Page {}", t.page_index + 1);
+                match sheets.last_mut() {
+                    Some((n, group)) if *n == name => group.push(t),
+                    _ => sheets.push((name, vec![t])),
+                }
+            }
+            SheetLayout::Single => match sheets.last_mut() {
+                Some((_, group)) => group.push(t),
+                None => sheets.push(("Tables".to_owned(), vec![t])),
+            },
+        }
+    }
+    if sheets.is_empty() {
+        sheets.push(("Tables".to_owned(), Vec::new()));
+    }
+    sheets
 }
 
 struct CellOut {
@@ -331,7 +337,7 @@ fn cell_ref(row: usize, col: usize) -> String {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum Parsed {
+pub(super) enum Parsed {
     /// The canonical `xsd:double` lexical form.
     Number(String),
     Ambiguous,
@@ -339,7 +345,7 @@ enum Parsed {
 }
 
 /// Reads `s` as a number. `(1,234.00)` and a leading `-`/`+` give the sign.
-fn parse_number(s: &str, locale: NumberLocale) -> Parsed {
+pub(super) fn parse_number(s: &str, locale: NumberLocale) -> Parsed {
     if locale == NumberLocale::Off || s.is_empty() {
         return Parsed::Text;
     }
@@ -513,7 +519,7 @@ const STYLES: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn n(s: &str) -> Parsed {
@@ -561,7 +567,8 @@ mod tests {
         assert_eq!(parse_number("A1", a), Parsed::Text);
     }
 
-    fn table(
+    /// A test table on `page` from `(row, col, row_span, col_span, text)` cells, shared with the `.ods` tests.
+    pub(crate) fn table(
         page: usize,
         cells: &[(usize, usize, usize, usize, &str)],
         header_rows: usize,

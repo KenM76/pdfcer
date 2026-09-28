@@ -13,6 +13,7 @@
 
 pub mod docx;
 pub mod dxf;
+pub mod ods;
 mod ooxml_zip;
 pub mod xlsx;
 

@@ -652,6 +652,13 @@ pub(crate) fn run() -> ExitCode {
             numbers,
             pages,
         } => cmd_export_xlsx(&input, &output, sheets, numbers, &pages),
+        Command::ExportOds {
+            input,
+            output,
+            sheets,
+            numbers,
+            pages,
+        } => cmd_export_ods(&input, &output, sheets, numbers, &pages),
         Command::ExportDocx {
             input,
             output,

@@ -2191,6 +2191,50 @@ pub(crate) fn cmd_export_docx(
     exit::SUCCESS
 }
 
+/// The tables on `--pages` of `input`, for a spreadsheet export.
+fn tables_for_export(
+    input: &Path,
+    pages: &str,
+) -> Result<pdfcer_core::table_detect::DocumentTables, u8> {
+    use pdfcer_core::table_detect::{TableOptions, detect_tables_in_pages};
+    use pdfcer_core::text_extract::ExtractOptions;
+
+    let doc = open_document(input).map_err(|err| {
+        eprintln!("pdfcer: {}: {err}", input.display());
+        exit_code_for_doc(&err)
+    })?;
+    let indices = chosen_pages(&doc, input, pages)?;
+    detect_tables_in_pages(
+        &doc.view(),
+        &indices,
+        &ExtractOptions::default(),
+        &TableOptions::default(),
+    )
+    .map_err(|err| {
+        eprintln!("pdfcer: {}: {err}", input.display());
+        exit::RUNTIME_ERROR
+    })
+}
+
+fn sheet_layout(sheets: SheetsArg) -> pdfcer_core::export::xlsx::SheetLayout {
+    use pdfcer_core::export::xlsx::SheetLayout;
+    match sheets {
+        SheetsArg::Table => SheetLayout::PerTable,
+        SheetsArg::Page => SheetLayout::PerPage,
+        SheetsArg::Single => SheetLayout::Single,
+    }
+}
+
+fn number_locale(numbers: NumbersArg) -> pdfcer_core::export::xlsx::NumberLocale {
+    use pdfcer_core::export::xlsx::NumberLocale;
+    match numbers {
+        NumbersArg::Auto => NumberLocale::Auto,
+        NumbersArg::Us => NumberLocale::Us,
+        NumbersArg::European => NumberLocale::European,
+        NumbersArg::Off => NumberLocale::Off,
+    }
+}
+
 /// Implement `pdfcer export-xlsx`.
 pub(crate) fn cmd_export_xlsx(
     input: &Path,
@@ -2199,45 +2243,15 @@ pub(crate) fn cmd_export_xlsx(
     numbers: NumbersArg,
     pages: &str,
 ) -> u8 {
-    use pdfcer_core::export::xlsx::{NumberLocale, SheetLayout, XlsxOptions, write_xlsx};
-    use pdfcer_core::table_detect::{TableOptions, detect_tables_in_pages};
-    use pdfcer_core::text_extract::ExtractOptions;
+    use pdfcer_core::export::xlsx::{XlsxOptions, write_xlsx};
 
-    let doc = match open_document(input) {
-        Ok(doc) => doc,
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", input.display());
-            return exit_code_for_doc(&err);
-        }
-    };
-    let indices = match chosen_pages(&doc, input, pages) {
-        Ok(indices) => indices,
+    let found = match tables_for_export(input, pages) {
+        Ok(found) => found,
         Err(code) => return code,
     };
-    let found = match detect_tables_in_pages(
-        &doc.view(),
-        &indices,
-        &ExtractOptions::default(),
-        &TableOptions::default(),
-    ) {
-        Ok(found) => found,
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", input.display());
-            return exit::RUNTIME_ERROR;
-        }
-    };
     let options = XlsxOptions::default()
-        .with_sheets(match sheets {
-            SheetsArg::Table => SheetLayout::PerTable,
-            SheetsArg::Page => SheetLayout::PerPage,
-            SheetsArg::Single => SheetLayout::Single,
-        })
-        .with_numbers(match numbers {
-            NumbersArg::Auto => NumberLocale::Auto,
-            NumbersArg::Us => NumberLocale::Us,
-            NumbersArg::European => NumberLocale::European,
-            NumbersArg::Off => NumberLocale::Off,
-        });
+        .with_sheets(sheet_layout(sheets))
+        .with_numbers(number_locale(numbers));
     let out = match write_xlsx(&found.tables, &options) {
         Ok(out) => out,
         Err(err) => {
@@ -2271,6 +2285,60 @@ characters_dropped={} cells_truncated={} cells_beyond_limits={}",
         r.ambiguous_numbers,
         r.characters_dropped,
         r.cells_truncated,
+        r.cells_beyond_limits,
+    );
+    exit::SUCCESS
+}
+
+/// Implement `pdfcer export-ods`.
+pub(crate) fn cmd_export_ods(
+    input: &Path,
+    output: &Path,
+    sheets: SheetsArg,
+    numbers: NumbersArg,
+    pages: &str,
+) -> u8 {
+    use pdfcer_core::export::ods::{OdsOptions, write_ods};
+
+    let found = match tables_for_export(input, pages) {
+        Ok(found) => found,
+        Err(code) => return code,
+    };
+    let options = OdsOptions::default()
+        .with_sheets(sheet_layout(sheets))
+        .with_numbers(number_locale(numbers));
+    let out = match write_ods(&found.tables, &options) {
+        Ok(out) => out,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", output.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    if let Err(err) = std::fs::write(output, &out.bytes) {
+        eprintln!("pdfcer: {}: {err}", output.display());
+        return exit::IO_ERROR;
+    }
+    let d = &found.diagnostics;
+    let r = &out.report;
+    println!(
+        "export-ods {} -> {} pages={} tables={} inferred={} ruled={} aligned={} merged_cells={} \
+header_rows={} pages_unreadable={} sheets={} cells={} numbers={} ambiguous_numbers={} \
+characters_dropped={} cells_beyond_limits={}",
+        input.display(),
+        output.display(),
+        d.pages,
+        r.tables,
+        d.inferred(),
+        d.tables_ruled,
+        d.tables_aligned,
+        r.merged_cells,
+        r.header_rows,
+        d.pages_unreadable(),
+        r.sheets,
+        r.cells,
+        r.numbers,
+        r.ambiguous_numbers,
+        r.characters_dropped,
         r.cells_beyond_limits,
     );
     exit::SUCCESS
