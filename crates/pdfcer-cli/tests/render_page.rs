@@ -1880,6 +1880,80 @@ endstream"
     );
 }
 
+/// `--omit-annotation INDEX` withholds exactly that annotation, counts it
+/// as out of scope, and refuses an index past the page's annotations.
+#[test]
+fn omit_annotation_withholds_one_annotation_by_index() {
+    let dir = TempDir::new("omit-annotation");
+    let pdf = dir.write(
+        "a.pdf",
+        &build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".into()),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R /Annots [5 0 R 7 0 R] /Resources << >> >>"
+                    .into(),
+            ),
+            (4, "<< /Length 0 >>
+stream
+
+endstream".into()),
+            (
+                5,
+                "<< /Type /Annot /Subtype /Square /Rect [10 10 60 60] /AP << /N 6 0 R >> >>"
+                    .into(),
+            ),
+            (
+                6,
+                "<< /Type /XObject /Subtype /Form /BBox [0 0 50 50] /Resources << >> /Length 23 >>
+stream
+0 0 1 rg 0 0 50 50 re f
+endstream"
+                    .into(),
+            ),
+            (
+                7,
+                "<< /Type /Annot /Subtype /Square /Rect [110 10 160 60] /AP << /N 6 0 R >> >>"
+                    .into(),
+            ),
+        ]),
+    );
+    let png = dir.join("a.png");
+
+    let out = run(&[
+        "render-page",
+        pdf.to_str().unwrap(),
+        "--omit-annotation",
+        "1",
+        "-o",
+        png.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+    let line = stdout(&out);
+    assert!(
+        line.contains(" annots=2 ")
+            && line.contains(" annots_painted=1 ")
+            && line.contains(" annots_out_of_scope=1 "),
+        "one painted, one withheld and attributed: {line:?}"
+    );
+
+    let out = run(&[
+        "render-page",
+        pdf.to_str().unwrap(),
+        "--omit-annotation",
+        "2",
+        "-o",
+        png.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out), 1);
+    assert!(
+        stderr(&out).contains("--omit-annotation 2 is out of range (page 1 has 2 annotation(s))"),
+        "{}",
+        stderr(&out)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // `--probe-ink` — Pass 174.0
 // ---------------------------------------------------------------------------

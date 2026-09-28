@@ -571,7 +571,12 @@ pub(crate) fn survey_page_annotations(
         // against ISO 32000-1 Table 169's markup partition. Counted, and
         // then the survey continues — the counters below must mean the
         // same thing under every scope.
-        let in_scope = scope.paints_class(AnnotationClass::of_subtype(&annot.subtype));
+        // An annotation the caller named in `omit_annotations` is withheld
+        // the same way, so it keeps every other counter's meaning intact.
+        let omitted = annot
+            .id
+            .is_some_and(|id| policy.omit_annotations.contains(&id));
+        let in_scope = !omitted && scope.paints_class(AnnotationClass::of_subtype(&annot.subtype));
         if !in_scope {
             diag.annotations_out_of_scope += 1;
         }
@@ -2051,6 +2056,25 @@ mod tests {
             Some(&1),
             "the R43 census must survive a narrowed scope"
         );
+        assert_eq!(out.diagnostics.annotations_out_of_scope, 1);
+    }
+
+    /// An annotation named in `omit_annotations` is withheld like an
+    /// out-of-scope class, and only that one: the neighbours of the same
+    /// and other classes still paint, and an id matching nothing is inert.
+    #[test]
+    fn an_omitted_annotation_alone_is_withheld_and_counted() {
+        let (doc, page) = doc_with_one_of_each_class();
+        let options =
+            RenderOptions::default().with_omit_annotations([ObjId::new(6, 0), ObjId::new(99, 0)]);
+        let out = render_page_with(&doc, &page, 1.0, &options).unwrap();
+        let black = |(x, y): (u32, u32)| pixel(&out.pixmap, x, y) == (0, 0, 0);
+        assert!(black(HIGHLIGHT_PROBE), "the markup must still paint");
+        assert!(!black(STAMP_PROBE), "the omitted /Stamp must not paint");
+        assert!(black(WIDGET_PROBE), "the widget must still paint");
+        assert!(black(CONTENT_PROBE), "page content must still paint");
+        assert_eq!(out.diagnostics.annotations_total, 4);
+        assert_eq!(out.diagnostics.annotations_painted, 2);
         assert_eq!(out.diagnostics.annotations_out_of_scope, 1);
     }
 

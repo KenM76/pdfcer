@@ -2956,6 +2956,17 @@ question rather than changing what is drawn), and **`with_backdrop`**
 keeps the page group's own alpha instead of compositing it onto paper. See
 **§7.7**; a canvas should never set it, an *export* is what it is for).
 
+`omit_annotations: Vec<ObjId>` / **`with_omit_annotations(ids)`** (request
+G052) leaves the named annotations out of this render; default empty. For a
+drag preview that SHRINKS an annotation: re-render the region under it with
+its id omitted, then composite the preview over that. An omitted annotation
+is counted in `Diagnostics::annotations_out_of_scope` and still counted by
+every other annotation counter; an id matching nothing on the page is
+ignored. Ids come from `Annotation::id`, or `DimensionRecord::annot` for a
+ce dimension. CLI: `render-page --omit-annotation INDEX` (the 0-based
+`index=` from `list-annotations`, repeatable; an index past the end is
+refused).
+
 `stroke_display: StrokeDisplay` sets line weights. It takes one of three
 values:
 

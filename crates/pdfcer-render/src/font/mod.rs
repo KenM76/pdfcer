@@ -540,6 +540,22 @@ pub struct RenderOptions {
     /// CAD drawing rather than like a renderer decision, so the operator
     /// cannot see this one; that is precisely when rule 4 bites.
     pub stroke_display: StrokeDisplay,
+    /// Annotations to leave out of this render, by object identity.
+    /// **Default empty.**
+    ///
+    /// For a shell's live preview: re-render the region under a dragged
+    /// annotation without it, then draw the preview over that, so an edit
+    /// that SHRINKS the annotation shows (a shortened ce dimension extension
+    /// line is a sub-segment of the committed one, and would add no ink over
+    /// it). A display knob only; the document is not touched.
+    ///
+    /// An omitted annotation is withheld exactly as an out-of-scope class
+    /// is: counted in `Diagnostics::annotations_out_of_scope`, and every
+    /// other annotation counter still sees it. An id matching no annotation
+    /// on the page is ignored. Identities come from
+    /// `pdfcer_core::annot::Annotation::id` or, for a ce dimension,
+    /// `DimensionRecord::annot`.
+    pub omit_annotations: Vec<pdfcer_core::object::ObjId>,
     /// **Which classes** of annotation to paint when [`Self::annotations`]
     /// permits any — the four-way Acrobat print scope (Document / Document
     /// and Markups / Document and Stamps / Form fields only) plus pdfcer's
@@ -948,6 +964,8 @@ pub struct RenderPolicy<'a> {
     /// See [`RenderOptions::stroke_display`]. Carried so the interpreter's
     /// `stroke_params` can cap the device width without reaching for options.
     pub stroke_display: StrokeDisplay,
+    /// See [`RenderOptions::omit_annotations`]. Read by the annotation walk.
+    pub omit_annotations: &'a [pdfcer_core::object::ObjId],
 }
 
 /// How strokes are drawn relative to their declared width (`Pass 254.0`).
@@ -1092,6 +1110,7 @@ impl Default for RenderOptions {
             // Faithful widths by default; a shell opts its canvas into
             // hairline display, never an export.
             stroke_display: StrokeDisplay::Actual,
+            omit_annotations: Vec::new(),
             // Every class painted — the pre-existing "annotations on"
             // behaviour, spelled as a scope. See `AnnotationScope`'s type
             // docs for why the default is Acrobat Pro's rather than
@@ -1427,6 +1446,24 @@ impl RenderOptions {
         self
     }
 
+    /// Leave these annotations out of the render (see
+    /// [`Self::omit_annotations`]), returning `self` for chaining.
+    ///
+    /// ```
+    /// use pdfcer_core::object::ObjId;
+    /// let options = pdfcer_render::RenderOptions::default()
+    ///     .with_omit_annotations([ObjId::new(12, 0)]);
+    /// assert_eq!(options.omit_annotations, [ObjId::new(12, 0)]);
+    /// ```
+    #[must_use]
+    pub fn with_omit_annotations(
+        mut self,
+        ids: impl IntoIterator<Item = pdfcer_core::object::ObjId>,
+    ) -> Self {
+        self.omit_annotations = ids.into_iter().collect();
+        self
+    }
+
     /// Render as a VIEWER at this magnification, applying `View`-event
     /// `/AS` usage applications (§8.11.4.4). See
     /// [`RenderOptions::view_magnification`] — do not call this on a
@@ -1486,6 +1523,7 @@ impl RenderOptions {
             view_magnification: self.view_magnification,
             subpixel_culling: self.subpixel_culling,
             stroke_display: self.stroke_display,
+            omit_annotations: self.omit_annotations.as_slice(),
         }
     }
 }
@@ -1577,6 +1615,7 @@ mod render_policy_tests {
                 // Not set by any `with_*` above, so it must still be the
                 // default — same carried-field assertion as its sibling.
                 stroke_display: crate::font::StrokeDisplay::Actual,
+                omit_annotations: &[],
             }
         );
         assert_ne!(options.policy(), RenderPolicy::default());

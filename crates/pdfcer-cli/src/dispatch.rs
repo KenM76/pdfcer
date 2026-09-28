@@ -681,6 +681,7 @@ pub(crate) fn run() -> ExitCode {
             print_state,
             overprint_zero_tint_scope,
             spot_colorant_device_model,
+            omit_annotations,
         } => cmd_render_page(
             &input,
             page,
@@ -698,6 +699,7 @@ pub(crate) fn run() -> ExitCode {
             &show_layers,
             &hide_layers,
             print_state,
+            &omit_annotations,
         ),
         Command::ExportImage {
             input,

@@ -3500,6 +3500,16 @@ pub(crate) enum Command {
         /// sent to a stand-alone printing system."
         #[arg(long)]
         print_state: bool,
+        /// Leave one annotation out of the raster, by the 0-based `index=`
+        /// `list-annotations` prints for this page. Repeatable.
+        ///
+        /// For previewing an edit to that annotation: render without it,
+        /// then draw the edited version over the result. Nothing is
+        /// written. An omitted annotation is counted as out of scope on
+        /// the result line. An index past the end of the page's
+        /// annotations is refused.
+        #[arg(long = "omit-annotation", value_name = "INDEX")]
+        omit_annotations: Vec<usize>,
     },
 
     /// Export page(s) as PNG, JPEG or SVG files — with REAL transparency

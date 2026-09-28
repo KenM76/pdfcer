@@ -394,6 +394,7 @@ pub(crate) fn cmd_render_page(
     show_layers: &[String],
     hide_layers: &[String],
     print_state: bool,
+    omit_annotations: &[usize],
 ) -> u8 {
     // Build the font environment from any `--font-dir` BEFORE loading the
     // document: the walk is pure shell-side I/O (R61), and a bad font dir
@@ -459,6 +460,33 @@ numbered 1..={})",
     ) {
         Ok(options) => options,
         Err(code) => return code,
+    };
+    let render_options = if omit_annotations.is_empty() {
+        render_options
+    } else {
+        let annots = pdfcer_core::annot::page_annotations(&doc, page.id);
+        let mut ids = Vec::with_capacity(omit_annotations.len());
+        for &index in omit_annotations {
+            let Some(annot) = annots.get(index) else {
+                eprintln!(
+                    "pdfcer: {}: --omit-annotation {index} is out of range (page {page_number} has {} annotation(s))",
+                    input.display(),
+                    annots.len()
+                );
+                return exit::RUNTIME_ERROR;
+            };
+            // A direct-object annotation has no identity, so it cannot be
+            // named to the renderer; say so rather than render it anyway.
+            let Some(id) = annot.id else {
+                eprintln!(
+                    "pdfcer: {}: --omit-annotation {index} is a direct object and has no identity to omit",
+                    input.display()
+                );
+                return exit::RUNTIME_ERROR;
+            };
+            ids.push(id);
+        }
+        render_options.with_omit_annotations(ids)
     };
 
     // THE REGION BRANCH, and it is the same engine call with a smaller
