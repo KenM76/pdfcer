@@ -1212,7 +1212,10 @@ document — that is what makes rule-4 disclosure cheap here.
 `FileAttachmentSpec` (`#[non_exhaustive]`; build with `new`) and
 `AttachmentIcon` (`Pass 261.0`). For a caret: `CaretSpec` (`#[non_exhaustive]`;
 build with `new`) and `CaretSymbol` (`None`, `Paragraph`; `name`/`from_name`)
-(`Pass 261.1`).
+(`Pass 261.1`). For a sound: `SoundSpec` (`#[non_exhaustive]`; build with
+`new`) and `SoundIcon` (`Speaker`, `Mic`, `Other`), carrying a
+`pdfcer_core::sound::SoundData` from `SoundData::from_wav` (`Pass 261.2`;
+`MAX_SOUND_BYTES` = 512 MiB output ceiling; `WavError` names each refusal).
 
 ★★ **A stamp's label size is a PROPERTY, and the box follows the text
 (`Pass 287.0`).** `TextAnnotSpec::Stamp` gained `style: StampStyle`;

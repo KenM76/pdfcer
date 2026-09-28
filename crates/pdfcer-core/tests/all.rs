@@ -150,6 +150,7 @@ mod sign_into_field;
 mod sign_timestamp;
 mod signature_coverage;
 mod signature_verify;
+mod sound_annotation;
 mod span_from_pin;
 mod stamp_collection;
 mod stamp_restyle;

@@ -125,7 +125,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::annot::AnnotFlags;
-use crate::annot_author::{self, CaretSpec, FileAttachmentSpec, MarkupSpec, TextAnnotSpec};
+use crate::annot_author::{
+    self, CaretSpec, FileAttachmentSpec, MarkupSpec, SoundSpec, TextAnnotSpec,
+};
 // `Pass 292.0`: the stamp-parameter types live in `annot`, where the parse
 // they describe lives, and are re-exported here because `EditSession` is where
 // a caller meets them.
@@ -1183,6 +1185,8 @@ pub enum AnnotKind {
     Caret,
     /// A `/Caret` plus its grouped `/StrikeOut` — one Replace Text edit.
     ReplaceText,
+    /// `/Sound` (Pass 261.2, §12.5.6.16).
+    Sound,
 }
 
 /// One entry on the undo stack: the set of writes it performed, each
@@ -30848,6 +30852,87 @@ impl EditSession {
             }
         }
         Ok((annot_id, annot, ap_write))
+    }
+
+    /// Author a **sound annotation** (ISO 32000-1 §12.5.6.16, Table 185) on
+    /// page `page_index`: an icon that plays `spec.sound`. One undo entry.
+    ///
+    /// - The samples are embedded Flate-compressed as a sound object
+    ///   (§13.3, Table 294) with `/Type /Sound /R /C /B /E` always written,
+    ///   defaults included; `/CO`/`/CP` never are.
+    /// - `/Name` is [`annot_author::SoundIcon`]'s name; the icon is pdfcer's
+    ///   own drawing. `options.note` supplies `/Contents`, `/T` and `/M`.
+    /// - Sound annotations are deprecated in PDF 2.0 ("should not be
+    ///   written"); this writes one when asked and the CLI says so.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::add_file_attachment_annotation`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use pdfcer_core::{document::Document, edit::{EditSession, MarkupOptions}};
+    /// # use pdfcer_core::annot_author::SoundSpec;
+    /// # use pdfcer_core::sound::{SoundData, WavImportOptions};
+    /// # use pdfcer_core::page_tree::Rect;
+    /// # fn demo(doc: Document, wav: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut session = EditSession::new(doc);
+    /// let import = SoundData::from_wav(wav, &WavImportOptions::default())?;
+    /// let rect = Rect { llx: 72.0, lly: 700.0, urx: 92.0, ury: 720.0 };
+    /// session.add_sound_annotation(0, &SoundSpec::new(rect, import.sound), &MarkupOptions::default())?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn add_sound_annotation(
+        &mut self,
+        page_index: usize,
+        spec: &SoundSpec,
+        options: &MarkupOptions,
+    ) -> Result<ObjId, EditError> {
+        options.validate()?;
+        self.on_layer_if(page_index, options.layer, |s| {
+            let (slots, page_id) = s.annotation_author_target(page_index)?;
+            let (annot_id, mut annot, ap_write) =
+                s.stage_authored_icon(annot_author::sound(spec), page_id, options)?;
+            let sound_id = ObjId::new(s.alloc_number()?, 0);
+            let encoded = crate::filters::flate::encode(&spec.sound.samples);
+            let mut dict = spec.sound.stream_dict();
+            dict.insert(
+                Name::from(b"Filter"),
+                Object::Name(Name::from(b"FlateDecode")),
+            );
+            dict.insert(
+                Name::from(b"Length"),
+                Object::Integer(i64::try_from(encoded.len()).unwrap_or(i64::MAX)),
+            );
+            let data_span = s.stage_bytes(&encoded);
+            annot.insert(Name::from(b"Sound"), Object::Reference(sound_id));
+
+            let mut objects = vec![
+                ap_write,
+                ObjectWrite {
+                    id: annot_id,
+                    before: None,
+                    after: Some(Object::Dict(annot)),
+                },
+                ObjectWrite {
+                    id: sound_id,
+                    before: None,
+                    after: Some(Object::Stream(Stream { dict, data_span })),
+                },
+            ];
+            objects.append(&mut s.annots_append(page_id, &[annot_id], &slots)?);
+            s.commit(Command {
+                kind: CommandKind::AddAnnotation {
+                    kind: AnnotKind::Sound,
+                },
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            });
+            Ok(annot_id)
+        })
     }
 
     /// Author a **caret annotation** (ISO 32000-1 §12.5.6.11, Table 180):

@@ -956,6 +956,35 @@ impl AttachIconArg {
     }
 }
 
+/// Sound annotation icon name (§12.5.6.16).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum SoundIconArg {
+    /// /Speaker (default).
+    Speaker,
+    /// /Mic.
+    Mic,
+}
+
+impl SoundIconArg {
+    /// The core sound icon this word names.
+    pub(crate) fn to_icon(self) -> pdfcer_core::annot_author::SoundIcon {
+        use pdfcer_core::annot_author::SoundIcon;
+        match self {
+            Self::Speaker => SoundIcon::Speaker,
+            Self::Mic => SoundIcon::Mic,
+        }
+    }
+}
+
+/// How `add-sound` treats a sample rate outside the §13.3 portable set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum SoundRateArg {
+    /// Keep the recorded rate (default); readers resample on playback.
+    Native,
+    /// Resample PCM to 11,025 or 22,050 Hz; refuse µ-law not at 8000 Hz mono.
+    Spec,
+}
+
 /// Standard rubber-stamp name (§12.5.6.12).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum StampArg {

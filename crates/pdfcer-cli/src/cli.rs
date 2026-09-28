@@ -2316,6 +2316,60 @@ pub(crate) enum Command {
         mode: SaveMode,
     },
 
+    /// **Attach a sound clip** to a page: a speaker or microphone icon that
+    /// plays a WAV recording (§12.5.6.16, §13.3).
+    ///
+    /// PCM (8/16/24/32-bit), µ-law and A-law WAV are embedded sample-exact;
+    /// float WAV is converted to 16-bit. Every conversion is printed. Sound
+    /// annotations are deprecated in PDF 2.0 and many modern readers do not
+    /// play them. A DRY RUN unless `--apply`.
+    AddSound {
+        /// Input PDF.
+        input: PathBuf,
+        /// The WAV file to embed.
+        #[arg(long)]
+        file: PathBuf,
+        /// 1-based page number to place the icon on.
+        #[arg(long)]
+        page: u32,
+        /// Icon rectangle `x0,y0,x1,y1` in default user space.
+        #[arg(long)]
+        rect: String,
+        /// Icon: `speaker` (default) or `mic`. The drawing is pdfcer's own.
+        #[arg(long, value_enum, default_value_t = SoundIconArg::Speaker)]
+        icon: SoundIconArg,
+        /// Icon colour as `RRGGBB` hex. Default mid-blue.
+        #[arg(long)]
+        color: Option<String>,
+        /// Description a reader shows for the clip (`/Contents`).
+        #[arg(long)]
+        desc: Option<String>,
+        /// Who recorded it (`/T`). Needs `--desc`.
+        #[arg(long, requires = "desc")]
+        author: Option<String>,
+        /// Sample rate: `native` keeps the recording's rate (default);
+        /// `spec` resamples to 11,025 or 22,050 Hz, the rates PDF 1.7 names
+        /// as portable.
+        #[arg(long, value_enum, default_value_t = SoundRateArg::Native)]
+        rate: SoundRateArg,
+        /// Average a recording with more than two channels to mono. Without
+        /// it such a file is refused: a PDF sound holds at most stereo.
+        #[arg(long)]
+        downmix: bool,
+        /// Opacity `/CA`, `0.0`-`1.0`. Out of range is refused, not clamped.
+        #[arg(long, value_name = "ALPHA")]
+        opacity: Option<f64>,
+        /// Actually write the output. Without it this is a DRY RUN.
+        #[arg(long)]
+        apply: bool,
+        /// Output path. Required with `--apply`.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// **Mark where text goes** with a caret annotation (§12.5.6.11) — or,
     /// with `--strike`, propose REPLACING text: a caret plus a strikeout over
     /// the old words, grouped so a reader treats them as one comment.

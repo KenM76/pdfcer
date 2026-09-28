@@ -1481,8 +1481,142 @@ pub(crate) fn cmd_add_caret(a: &AddCaretArgs<'_>) -> u8 {
     finish_attachment_save(a.input, &mut session, a.output, a.mode)
 }
 
+/// The arguments of `add-sound`, borrowed from the parsed command.
+pub(crate) struct AddSoundArgs<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) file: &'a Path,
+    pub(crate) page: u32,
+    pub(crate) rect: &'a str,
+    pub(crate) icon: SoundIconArg,
+    pub(crate) color: Option<&'a str>,
+    pub(crate) desc: Option<&'a str>,
+    pub(crate) author: Option<&'a str>,
+    pub(crate) rate: SoundRateArg,
+    pub(crate) downmix: bool,
+    pub(crate) opacity: Option<f64>,
+    pub(crate) apply: bool,
+    pub(crate) output: Option<&'a Path>,
+    pub(crate) mode: SaveMode,
+}
+
+/// `add-sound` — embed a WAV recording behind a speaker or mic icon.
+pub(crate) fn cmd_add_sound(a: &AddSoundArgs<'_>) -> u8 {
+    use pdfcer_core::annot_author::SoundSpec;
+    use pdfcer_core::edit::{MarkupNote, MarkupOptions};
+    use pdfcer_core::sound::{SoundConversion, SoundData, SoundRatePolicy, WavImportOptions};
+
+    let rect = match crate::annot_parse::rect_from(a.rect) {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!("pdfcer: --rect: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let color = match a.color.map(crate::annot_parse::parse_color).transpose() {
+        Ok(c) => c,
+        Err(err) => {
+            eprintln!("pdfcer: --color: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let Some(page_index) = (a.page as usize).checked_sub(1) else {
+        eprintln!("pdfcer: --page is 1-based; 0 names no page");
+        return exit::EDIT_REFUSED;
+    };
+    let bytes = match std::fs::read(a.file) {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.file.display());
+            return exit::IO_ERROR;
+        }
+    };
+    let import_options = WavImportOptions {
+        rate_policy: match a.rate {
+            SoundRateArg::Native => SoundRatePolicy::KeepNative,
+            SoundRateArg::Spec => SoundRatePolicy::SpecRate,
+        },
+        downmix: a.downmix,
+    };
+    let import = match SoundData::from_wav(&bytes, &import_options) {
+        Ok(i) => i,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.file.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let doc = match open_document(a.input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let mut spec = SoundSpec::new(rect, import.sound);
+    spec.icon = a.icon.to_icon();
+    if let Some(c) = color {
+        spec.color = c;
+    }
+    let options = MarkupOptions {
+        note: a.desc.map(|d| {
+            let note = MarkupNote::new(d);
+            match a.author {
+                Some(who) => note.by(who),
+                None => note,
+            }
+        }),
+        opacity: a.opacity,
+        ..Default::default()
+    };
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    let annot = match session.add_sound_annotation(page_index, &spec, &options) {
+        Ok(id) => id,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let s = &spec.sound;
+    println!(
+        "add-sound {} page={} annot={} rate={} channels={} bits={} encoding={} bytes={} icon={} mode={} applied={}",
+        a.input.display(),
+        a.page,
+        annot.num,
+        s.rate,
+        s.channels,
+        s.bits,
+        String::from_utf8_lossy(s.encoding.name()),
+        s.samples.len(),
+        String::from_utf8_lossy(spec.icon.name()),
+        mode_token(a.mode),
+        u32::from(a.apply)
+    );
+    for c in &import.conversions {
+        match c {
+            SoundConversion::FloatToSigned16 { from_bits } => println!(
+                "converted: {from_bits}-bit float samples to 16-bit signed (a PDF sound has no float encoding)"
+            ),
+            SoundConversion::Resampled { from, to } => {
+                println!("converted: resampled {from} Hz to {to} Hz (linear interpolation)");
+            }
+            SoundConversion::Downmixed { from_channels } => {
+                println!("converted: averaged {from_channels} channels to mono");
+            }
+            _ => println!("converted: {c:?}"),
+        }
+    }
+    eprintln!(
+        "pdfcer: sound annotations are deprecated in PDF 2.0; many current readers show the \
+         icon but do not play it."
+    );
+    if !a.apply {
+        eprintln!("pdfcer: dry run — pass --apply with --output to write the file.");
+        return exit::SUCCESS;
+    }
+    finish_attachment_save(a.input, &mut session, a.output, a.mode)
+}
+
 /// Shared save tail for `attach-file`, `detach-file`,
-/// `attach-file-annotation` and `add-caret`.
+/// `attach-file-annotation`, `add-caret` and `add-sound`.
 ///
 /// One function rather than two copies: the recovered-base hint, the
 /// output-required check and the exit codes must not drift apart between

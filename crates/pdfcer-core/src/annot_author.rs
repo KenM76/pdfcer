@@ -5663,6 +5663,194 @@ pub(crate) fn file_attachment(spec: &FileAttachmentSpec) -> AuthoredTextAnnot {
     }
 }
 
+/// A sound annotation's icon, `/Name` (§12.5.6.16, Table 185). Default
+/// `Speaker`, the spec's value when `/Name` is absent.
+///
+/// The set is open, so [`Self::Other`] carries an unmodelled name verbatim
+/// and is drawn as a speaker. The icons are pdfcer's own drawing.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum SoundIcon {
+    /// `/Speaker` — the default.
+    #[default]
+    Speaker,
+    /// `/Mic`.
+    Mic,
+    /// A name the standard permits and pdfcer does not model, written as
+    /// these exact bytes.
+    Other(Vec<u8>),
+}
+
+impl SoundIcon {
+    /// The `/Name` bytes.
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        match self {
+            Self::Speaker => b"Speaker",
+            Self::Mic => b"Mic",
+            Self::Other(raw) => raw,
+        }
+    }
+
+    /// The icon a `/Name` denotes, or `None` for one pdfcer does not model.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::SoundIcon;
+    ///
+    /// assert_eq!(SoundIcon::from_name(b"Mic"), Some(SoundIcon::Mic));
+    /// assert_eq!(SoundIcon::from_name(b"Horn"), None);
+    /// ```
+    #[must_use]
+    pub fn from_name(name: &[u8]) -> Option<Self> {
+        match name {
+            b"Speaker" => Some(Self::Speaker),
+            b"Mic" => Some(Self::Mic),
+            _ => None,
+        }
+    }
+
+    /// Like [`Self::from_name`], but an unmodelled name becomes
+    /// [`Self::Other`] rather than `None`.
+    #[must_use]
+    pub fn from_name_lossless(name: &[u8]) -> Self {
+        Self::from_name(name).unwrap_or_else(|| Self::Other(name.to_vec()))
+    }
+}
+
+/// A sound annotation to author (§12.5.6.16): an icon that plays `sound`
+/// when activated. Deprecated in PDF 2.0 but valid; see [`crate::sound`].
+///
+/// Build with [`Self::new`]; a description and author travel in
+/// [`crate::edit::MarkupOptions::note`].
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct SoundSpec {
+    /// The icon rectangle, in default user space.
+    pub rect: Rect,
+    /// Which icon to draw and name.
+    pub icon: SoundIcon,
+    /// The icon colour, also written as `/C`.
+    pub color: Color,
+    /// The samples, embedded Flate-compressed as the `/Sound` stream.
+    pub sound: crate::sound::SoundData,
+}
+
+impl SoundSpec {
+    /// A speaker icon in mid-blue, at `rect`, playing `sound`.
+    #[must_use]
+    pub fn new(rect: Rect, sound: crate::sound::SoundData) -> Self {
+        Self {
+            rect,
+            icon: SoundIcon::Speaker,
+            color: Color::Rgb(0.2, 0.4, 0.8),
+            sound,
+        }
+    }
+}
+
+/// The annotation dictionary and appearance for a [`SoundSpec`], without
+/// `/Sound`, `/P` or `/AP` (the session adds those). Flags are Print only.
+pub(crate) fn sound(spec: &SoundSpec) -> AuthoredTextAnnot {
+    let rect = positive_rect(spec.rect);
+    let w = rect.width();
+    let h = rect.height();
+    let s = w.min(h);
+
+    let mut b = ContentBuilder::new();
+    spec.color.apply_fill(&mut b);
+    spec.color.apply_stroke(&mut b);
+    b.set_line_width((s * 0.08).max(0.5));
+    b.set_line_join(LineJoin::Round);
+    b.set_line_cap(LineCap::Round);
+    let m = (s * 0.12).max(0.5);
+    let cy = h / 2.0;
+    match spec.icon {
+        SoundIcon::Mic => {
+            // A capsule head, a cradle arc and a stand.
+            let cx = w / 2.0;
+            let r = (w - 2.0 * m) * 0.18;
+            let top = h - m;
+            let bottom = h * 0.45;
+            let k = 0.552_284_75 * r;
+            b.move_to(cx + r, bottom + r);
+            b.line_to(cx + r, top - r);
+            b.curve_to(cx + r, top - r + k, cx + k, top, cx, top);
+            b.curve_to(cx - k, top, cx - r, top - r + k, cx - r, top - r);
+            b.line_to(cx - r, bottom + r);
+            b.curve_to(cx - r, bottom + r - k, cx - k, bottom, cx, bottom);
+            b.curve_to(cx + k, bottom, cx + r, bottom + r - k, cx + r, bottom + r);
+            b.close_subpath();
+            b.paint(Paint::FillStroke);
+            let cr = r * 1.8;
+            b.move_to(cx - cr, bottom + r);
+            b.curve_to(
+                cx - cr,
+                bottom - r,
+                cx + cr,
+                bottom - r,
+                cx + cr,
+                bottom + r,
+            );
+            b.paint(Paint::Stroke);
+            b.move_to(cx, bottom - r * 0.5);
+            b.line_to(cx, m);
+            b.move_to(cx - r * 1.4, m);
+            b.line_to(cx + r * 1.4, m);
+            b.paint(Paint::Stroke);
+        }
+        SoundIcon::Speaker | SoundIcon::Other(_) => {
+            // A box and cone, filled, then two sound-wave arcs.
+            let bw = (w - 2.0 * m) * 0.2;
+            let bh = (h - 2.0 * m) * 0.3;
+            let cone = (w - 2.0 * m) * 0.25;
+            let x0 = m;
+            b.move_to(x0, cy - bh / 2.0);
+            b.line_to(x0 + bw, cy - bh / 2.0);
+            b.line_to(x0 + bw + cone, m);
+            b.line_to(x0 + bw + cone, h - m);
+            b.line_to(x0 + bw, cy + bh / 2.0);
+            b.line_to(x0, cy + bh / 2.0);
+            b.close_subpath();
+            b.paint(Paint::FillStroke);
+            let wx = x0 + bw + cone;
+            for f in [0.35_f64, 0.7] {
+                let rx = (w - m - wx) * f;
+                let ry = (h / 2.0 - m) * f;
+                b.move_to(wx + rx * 0.4, cy + ry);
+                b.curve_to(
+                    wx + rx,
+                    cy + ry * 0.6,
+                    wx + rx,
+                    cy - ry * 0.6,
+                    wx + rx * 0.4,
+                    cy - ry,
+                );
+                b.paint(Paint::Stroke);
+            }
+        }
+    }
+
+    let mut annot = base_annot(b"Sound", rect);
+    annot.insert(
+        Name::from(b"Name"),
+        Object::Name(Name(spec.icon.name().to_vec())),
+    );
+    annot.insert(Name::from(b"C"), spec.color.to_array());
+
+    AuthoredTextAnnot {
+        annot,
+        ap_dict: text_form_dict(rect, Dict::new()),
+        ap_content: b.into_bytes(),
+        rect,
+        flags: AnnotFlags::PRINT,
+        popup: None,
+        applied_autosize: None,
+        stamp_label_fit: None,
+        unencodable_chars: 0,
+    }
+}
+
 /// A caret annotation's `/Sy` (§12.5.6.11, Table 180): whether a paragraph
 /// symbol accompanies the caret. Default `None`, the spec's value when `/Sy`
 /// is absent.
