@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (696th filing) — register-size correction + decision 062 §2 amendment (no code commit)
+
+**Shipped:**
+- No code — a documentation-discipline follow-up to the 695th filing.
+
+**Decisions made this session:**
+- No new decision number. Amendment recorded against decision 062 §2 in
+  `ARCHITECTURE.md` §12: `/M` is superseded as to caller-supplied values —
+  the engine never reads a clock, so `add_markup`'s `--note-date`
+  (`Pass 149.0`/`Pass 150.0`) stays caller-supplied, refused by name if
+  malformed, omitted if absent. Reason: byte-identical output for
+  identical input is a project-wide acceptance criterion, and a
+  clock-stamped `/M` would defeat it; a system-clock stamp would also be
+  a value pdfcer invents and writes silently (rule 4). §2's original text
+  is unchanged in `docs/history/architecture-decisions-before-2026-09.md`;
+  §§1, 3–4 are untouched.
+
+**Findings + decisions:**
+- `tools/check-register-entry-size.py` failed against the 695th filing's
+  own edits: the closed `~~Pass 73.1~~` and `Pass 80.0` *Next up* entries
+  were 127 and 108 lines respectively, cap 80. Both trimmed in
+  `docs/ROADMAP.md` to a verdict line plus one paragraph and the shipped
+  hashes (`Pass 73.1`: `96a3f227`, earlier partial `fa243df`; `Pass 80.0`:
+  discharged by `Pass 150.0`, `943d482`), per the size rule — the full
+  argument stays in git and in `docs/ROADMAP.md`'s `Pass 73.1` Shipped
+  entry and the `Pass 150.0` Shipped entry
+  (`docs/history/roadmap-shipped-before-2026-09.md`).
+
+**Still in flight:**
+- No named head in *Next up* (unchanged from the 695th filing).
+
+**For next session:**
+- The `/M` divergence flagged at the 695th filing is now resolved — no
+  further action owed on it.
+- No shell available this filing. Backup/push/release state not
+  verifiable from here; latest release on record remains `v0.60.0`
+  (tagged on `040c24d7`, which precedes commit `96a3f227`).
+
 ## 2026-09-28 (695th filing) — `96a3f227`: `Pass 73.1` SHIPPED — `add_radio_button` is atomic and one undo entry
 
 **Shipped:**

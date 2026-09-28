@@ -11568,129 +11568,19 @@ that owes it — found the same day, from a different direction.
 **Terminology (rule 15):** nothing here touches **ce dimensions** or
 **pdf dimensions**.
 
-### ~~Pass 73.1~~ — **two DEFECTS in `pdfce-core`'s edit surface, both found by the same API-mapping pass: the ONE non-atomic verb, and two preflights that under-report what the real path refuses** — filed 2026-08-13 (hundred-and-thirty-ninth filing) — ★★★ **CLOSED 2026-09-28, `96a3f227`. FULLY SHIPPED — see the `Pass 73.1` entry at the top of *Shipped*. Retained below as the scoping/amendment record; nothing remains in scope**
+### ~~Pass 73.1~~ — two defects in `pdfce-core`'s edit surface (a non-atomic verb, two under-reporting preflights) — filed 2026-08-13 (139th filing) — ★★★ **CLOSED 2026-09-28, `96a3f227`. FULLY SHIPPED — see the `Pass 73.1` entry at the top of *Shipped*. Nothing remains in scope.**
 
-> Filed as a Pass, not as trivia, for the reason stated in the dispatch:
-> **a defect goes where a fix will be found.** Both are small; both are
-> the kind that a caller cannot discover from the type signature and will
-> therefore get wrong.
+**Verdict: SHIPPED in full.** Defect A (`add_radio_button` committed a
+group merge before a fallible `set_button_state` call, so `Err` could mean
+a partially-applied edit) and Defect B's third criterion
+(`annotation_deletion_refusal`'s doc comment did not state its
+document-scoped limit) both closed by `96a3f227`. Defect B's other two
+criteria shipped earlier and independently via `Pass 78.0` (`fa243df`,
+147th filing), from an external report that reached the same finding from
+the opposite side of the API before this entry's own scoping was read.
 
-#### Defect A — `add_radio_button` is the only verb that can `Err` AFTER committing
-
-**Measured** by reading `crates/pdfce-core/src/edit.rs:8382–8391`:
-
-```rust
-self.commit(Command { kind: CommandKind::AddFormField, objects, /* … */ });   // :8383
-if spec.selected {
-    self.set_button_state(&spec.name, &spec.export_value)?;                    // :8390
-}
-```
-
-`commit` is **infallible** and, in every other verb on this surface, it
-is **last** — which is exactly what makes those verbs atomic, and what
-lets a caller read `Err` as *"nothing happened"*. Here `commit` is
-followed by a fallible call, so **`Err` from `add_radio_button` means
-"the widget was merged into the field and the group's selection was NOT
-re-pointed"** — a partially applied edit, reported through a channel that
-conventionally means the opposite.
-
-The source comment at `:8377–8382` explains *why* `set_button_state`
-runs after the merge (R92 — one path decides what "selected" looks like,
-and it must see the group the merge actually produced). **That reasoning
-is sound and this Pass must not undo it.** The fix is to make the pair
-land as one command, not to move the call.
-
-**Acceptance:** a test that induces the `set_button_state` failure and
-asserts the session is **unchanged** — same undo depth, same objects —
-and the `# Errors` doc comment states the atomicity contract either way.
-
-#### Defect B — two of the six `*_refusal()` preflights under-report
-
-The six are `annotation_deletion_refusal` (`:11492`), `fill_refusal`
-(`:12200`), `deletion_refusal` (`:12239`), `rename_refusal` (`:12268`),
-`unembed_refusal` (`:16303`), `embed_refusal` (`:16553`). They exist to
-satisfy **R83** — *ask before offering the control* — so a shell greys
-out an action instead of offering a button whose every press errors.
-**Two of the six answer a narrower question than the path they gate**,
-which inverts R83: the control is offered, and then it fails.
-
-| preflight | what it runs | what the real path runs | gap |
-|---|---|---|---|
-| `fill_refusal` (`:12200`) | `self.check_certification_for_fill().err()` — **one** check | `fill_guards` (`:12304`) — `trailer().contains_key(b"Encrypt")` → `DocumentEncrypted`, **then** the same certification check, **then** `suppressed_object_count() > 0` → `ObjectCreationWouldExposeHiddenObjects` | **2 of 3 checks missing.** An encrypted document reports *fillable* and refuses on the first keystroke |
-| `annotation_deletion_refusal` (`:11492`) | encryption + `check_certification_for_annotation` — **document-scoped only** | per-annotation refusals (locked, TrapNet, widget — see open question `(u)`) | takes **`&self` and no `annot_id`**, so it is *structurally incapable* of seeing them. Not an omission in the body; a gap in the signature |
-
-`fill_refusal`'s own sibling proves this is a known standard on this
-surface: `deletion_refusal`'s doc comment argues at length about *why*
-its gate differs from `fill_refusal`'s, and `annotation_deletion_refusal`
-**does** check `Encrypt` — so the encryption check was understood to
-belong in a preflight, and `fill_refusal` simply does not have it.
-
-**This is a fresh instance of an already-filed finding**, and should be
-fixed in that finding's shape rather than patched per-site:
-`D:\dev\rag\rust\a_disclosure_count_must_use_the_same_predicate_as_the_write_it_describes.md`.
-**No new RAG file is owed for Defect B.**
-
-**Acceptance:**
-1. Each of the six preflights calls **the same predicate** the real path
-   calls — not a re-derived subset.
-2. A test that, for each preflight, builds a document tripping **each**
-   guard the real path has and asserts **preflight and real path agree**
-   (both refuse, same variant). This test is what makes the class extinct
-   rather than the two instances.
-3. `annotation_deletion_refusal` either takes an `annot_id` (and answers
-   the per-annotation question), or its doc comment states in its first
-   paragraph that it answers the **document-scoped** question only and
-   that a shell must still handle a per-annotation refusal at press time.
-   **Either is acceptable; silence is not.** Note the interaction with
-   open question `(u)` — if widgets are refused by name, that refusal is
-   per-annotation and lands here.
-4. `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo tree -p
-   pdfce-core` clean.
-
-#### ★★ AMENDMENT 2026-08-14 (hundred-and-forty-seventh filing) — **DEFECT B IS SUBSTANTIALLY DISCHARGED BY `Pass 78.0` (`fa243df`), ITS SECOND ROW WAS RULED THE OTHER WAY, AND THIS PASS STAYS SCHEDULED FOR WHAT REMAINS**
-
-`Pass 78.0` shipped from an **external report** (the `pdfceGUI` session)
-that arrived at Defect B's first row independently, four days after it was
-filed here. **Neither side knew about the other's record**, which is worth
-noting on its own: the same defect was found twice, from opposite sides of
-the API.
-
-**What `Pass 78.0` settled, against this entry's acceptance list:**
-
-| criterion | state after `fa243df` |
-|---|---|
-| **1** — each preflight calls the same predicate the real path calls | **MET for `fill_refusal`** (`self.fill_guards().err()` — delegation, not a third transcription). `embed`/`unembed` were **already healthy via the inverse pattern** (the verb calls the query). `rename_refusal` and `deletion_refusal` swept and found correct. |
-| **2** — a property test comparing preflight and real path across fixtures | **MET** — five new tests, **three of them asserting the PROPERTY** rather than the instance. |
-| **3** — `annotation_deletion_refusal` takes an `annot_id` **or** its doc comment states the document-scoped limit | **NOT MET.** Verified in this dispatch by reading `crates/pdfce-core/src/edit.rs:11459–11490`: the doc comment still does not say it, and `fa243df` did not touch that function. |
-
-**★ AND THE SECOND ROW OF THIS ENTRY'S OWN DEFECT-B TABLE IS RULED THE
-OTHER WAY.** This entry listed `annotation_deletion_refusal` as
-*under-reporting* because it is **document-scoped only** while the real
-path also carries **per-annotation** refusals. `Pass 78.0`'s class sweep
-ruled that **`annotation_deletion_guards` answers a genuinely different
-question** — *may this annotation be deleted* versus *may annotations be
-deleted at all* — **and that this is not drift.** Both queries are
-correct; **what is missing is the disclosure that they are two questions**,
-which is exactly why criterion 3's *doc-comment* branch, and not its
-`annot_id` branch, is the cheap and correct discharge.
-
-**Do not confuse this with the report's rejected item 2.** That was
-**`deletion_refusal`** (document-level field deletion) and it was rejected
-on the merits, with a test now guarding the rejection. This row is
-**`annotation_deletion_refusal`** — a different function, a different
-ruling, and the two are one word apart in the source.
-
-**WHAT REMAINED OF `Pass 73.1` — NOW CLOSED, 2026-09-28, `96a3f227`:**
-
-1. **Defect A** — `add_radio_button` is atomic and one undo entry;
-   `set_button_state`'s refusal rolls the merge back rather than leaving it
-   committed behind an `Err`. `FEATURES.md`'s Forms row's warning is
-   corrected in the same filing.
-2. **Criterion 3** — `annotation_deletion_refusal`'s doc comment now states
-   its document-scoped limit by name, and names the three per-annotation
-   refusals (`Locked`, `/TrapNet`, widget) the real path also carries.
-
-See the `Pass 73.1` entry at the top of *Shipped* for the full record.
+Full design, tests and rulings: the `Pass 73.1` Shipped entry (top of
+*Shipped*, this file) and git history at `96a3f227`/`fa243df`.
 
 **Terminology (rule 15):** nothing here touches **ce dimensions** or
 **pdf dimensions**.
@@ -11784,110 +11674,28 @@ and sends the next bug report at the writer instead of the reader.
 dimensions** — but note that a **pdf** annotation authored elsewhere is
 exactly what renders wrong today.
 
-### `Pass 80.0` — **NOTE TEXT ON GEOMETRIC MARKUP — `/Contents` PLUS `/T` AND `/M` TOGETHER**, because a Comments panel that lists a note with no author *"looks like a bug in the panel rather than an absence in the writer"* — filed 2026-08-14 (hundred-and-forty-seventh filing) — ★★★ **CLOSED 2026-09-28: FULLY DISCHARGED BY `Pass 150.0` (`943d482`, 2026-08-28, 304th filing). NOTHING REMAINS IN SCOPE — DO NOT RE-SCOPE THIS. READ THE AMENDMENT FIRST**
+### ~~Pass 80.0~~ — note text on geometric markup (`/Contents` + `/T` + `/M`) — filed 2026-08-14 (147th filing) — ★★★ **CLOSED 2026-09-28: FULLY DISCHARGED BY `Pass 150.0` (`943d482`, 2026-08-28, 304th filing). NOTHING REMAINS IN SCOPE.**
 
-> **★★★ CLOSED 2026-09-28 (695th filing).** Verified against the `Pass 150.0`
-> Shipped entry (`docs/history/session-log-before-2026-09-09.md`): it ships
-> `MarkupOptions::note: Option<MarkupNote>`, writing `/Contents`, `/T` AND
-> `/M` together (§12.5.2 Table 164; §12.5.6.4 Table 170), reaching **both**
-> author routes through `MarkupOptions::validate`. CLI: `annotate --note
-> TEXT --note-author NAME --note-date D:…`, any one sufficing. **The trio
-> this entry asked for is fully covered — no remainder to keep open.**
->
-> **Why this stays in *Next up* rather than moving to *Shipped***, the same
-> hard-rule-2 reasoning `Pass 120.5` recorded: the work shipped under a
-> **different** ID with its own date, hash and Shipped entry. Moving this
-> entry there would mint a second Shipped record for one capability, and
-> *Shipped* is ordered by ship date — a date `80.0` does not have, because
-> it never shipped under this ID. Hard rule 2 is satisfied by the ID never
-> being reused; hard rule 1 by nothing being deleted.
->
-> **★★ FLAGGED, NOT RESOLVED — Ruling 1 below and `ARCHITECTURE.md` §12
-> decision 062 §2 both say `/M` is ENGINE-STAMPED, NEVER CALLER-SUPPLIED.
-> `Pass 150.0` shipped the opposite**: `--note-date D:…` lets the caller
-> supply `/M` verbatim, justified in that Pass's own entry as "the no-clock
-> decision" — pdfcer reads no clock at all, so a caller-supplied date beats
-> an unreproducible wall-clock one (determinism + rule 4, the `/PieceInfo`
-> sidecar's existing precedent). A later filing (the `Pass 149.0` vertex-
-> reshape entry) already treats caller-supplied `/M` as "an existing
-> ruling," so the project's live behaviour has moved on — but decision
-> 062 §2's text in `ARCHITECTURE.md` §12 carries no dated note recording
-> the reversal. This is this role's own hard rule 11 shape (a meaning
-> change with an unswept survivor) turned on the decision log itself.
-> **Owed:** the engineer decides whether to mint a new decision superseding
-> 062 §2, or amend 062 §2 in place with a dated note — then re-dispatch
-> this role to file it. Not resolved by this filing.
+**Verdict: SHIPPED in full, under a different ID.** `Pass 150.0` ships
+`MarkupOptions::note: Option<MarkupNote>`, writing `/Contents`, `/T` and
+`/M` together (§12.5.2 Table 164; §12.5.6.4 Table 170); CLI `annotate
+--note TEXT --note-author NAME --note-date D:…`. Stays in *Next up* rather
+than moving to *Shipped* per hard rule 2 — the work shipped under a
+different ID, date and hash (same reasoning `Pass 120.5`'s entry records).
 
-> **A named consumer is waiting.** The `pdfceGUI` session's Comments panel
-> shows **"No note text"** on every markup pdfce itself authors, because
-> `MarkupSpec` has no way to carry `/Contents`. pdfce can already **READ**
-> `/Contents`, `/T` and `/M` (`Pass 38.4`, `8228f44`) — **this is the
-> write half of a read surface that already shipped**, which is why it is
-> in *Next up* rather than *Backlog*.
+**The `/M` divergence flagged at closure — RESOLVED 2026-09-28.** This
+entry's own Ruling 1 (and `ARCHITECTURE.md` §12 decision 062 §2) said
+`/M` is engine-stamped, never caller-supplied; `Pass 150.0` shipped the
+opposite (`--note-date`, caller-supplied). Engineer's ruling: the shipped
+behaviour is right — the engine reads no clock, so a caller-supplied `/M`
+is what makes byte-identical output for identical input possible, and a
+malformed date is refused by name rather than inventing a wall-clock one.
+Recorded as a dated amendment to decision 062 §2 in `ARCHITECTURE.md` §12
+(2026-09-28, 696th filing); decision 062 §2's original text is unchanged.
 
-#### The deciding argument is the requester's, and it is about the trio, not the single key
-
-> *"A Comments panel that lists a note with no author … looks like a bug
-> in the panel rather than an absence in the writer."*
-
-**`/Contents` alone would ship the defect it was asked to fix.** Acrobat,
-Bluebeam and pdfce's own Comments panel all display **author and date
-beside the note**; a note that has text but no author renders as a row
-with a blank column, and **a reader blames the reader, not the writer.**
-So the unit of work is the **trio** — `/Contents` + `/T` + `/M` — and the
-two accompanying keys carry **engineer rulings that must survive into the
-implementation.**
-
-#### ★ RULING 1 — `/M` IS ENGINE-STAMPED, NOT CALLER-SUPPLIED
-
-**The caller does not get to supply the modification date.** Two reasons,
-and the second is the structural one:
-
-1. **A caller-supplied date is a caller-supplied lie.** `/M` records when
-   the annotation was written. The only party that knows that is the party
-   doing the writing.
-2. **§7.9.4's date format is exactly the kind of thing two shells would
-   spell differently** — `D:YYYYMMDDHHmmSSOHH'mm`, with an optional
-   timezone that has its own apostrophe convention. Handing that to every
-   caller guarantees two spellings of the same instant in one document,
-   and pdfce would have **shipped the divergence itself**.
-
-**This is the `Pass 78.0` principle applied before the fact:** one
-producer for one value, so two producers cannot disagree.
-
-#### ★ RULING 2 — `/T` IS OPTIONAL, WITH **NO INVENTED PLACEHOLDER**
-
-`title: Option<String>`. **`None` OMITS THE KEY.** It does **not** write
-`"pdfce"`, `"Unknown"`, `"Author"`, or the OS user name.
-
-**This is `CLAUDE.md` rule 4 — *fuzzy, never sneaky* — at the writer.** A
-title pdfce invented would be **a fact invented by the writer**, indistinguishable
-in the saved file from one the operator typed, and **it would travel**:
-every downstream viewer, every export, every comment summary would attribute
-the markup to a name nobody chose. **An absent key is honest and is what
-§12.5.6.2 Table 170 permits** (`/T` is Optional). A panel showing a blank
-author column for an anonymous note is **correct disclosure**, not a defect.
-
-#### Acceptance
-
-1. `MarkupSpec`'s variants carry `contents: Option<String>` and
-   `title: Option<String>`; **`None` omits the key in both cases.**
-2. **`/M` is stamped by `add_markup` itself**, in §7.9.4 format, from the
-   system clock — **no caller parameter exists to override it.**
-3. Text is written as a PDF string with pdfce's existing escaping /
-   encoding path (a note containing `)`, a backslash, or non-Latin text
-   must round-trip).
-4. **Round-trip test against the READ surface that already exists**
-   (`annot::Annotation::{contents, title, modified}`, `Pass 38.4`): write
-   the trio, save, reload, and assert **the reader returns what the writer
-   was given** — the differential-oracle shape, not a value assertion
-   against a hard-coded string.
-5. A test asserting **`None` omits the key**, checked against the saved
-   bytes — otherwise a placeholder could be reintroduced and every
-   round-trip test would still pass.
-6. `pdfce-cli`'s markup subcommands gain the two options (rule 11).
-7. `cargo fmt --check`, `cargo clippy -- -D warnings`,
-   `cargo tree -p pdfce-core` clean.
+Full design, rulings and citations: `docs/history/roadmap-shipped-before-2026-09.md`'s
+`Pass 150.0` Shipped entry and `ARCHITECTURE.md` §12's 2026-09-28
+amendment to decision 062.
 
 **Terminology (rule 15):** nothing here touches **ce dimensions** or **pdf
 dimensions**.

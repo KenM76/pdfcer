@@ -11615,3 +11615,41 @@ dispatching engineer's report; not independently reproduced.
 **Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `30a5c6c5`; not independently reproduced.
 
 **Decision ceiling: `163` → `164`**, next free `165`. **Pass ceiling unaffected** — `Pass 127.2` was already the next free sub-ID in the `127` family.
+
+### 2026-09-28 (696th filing) — AMENDMENT to decision 062 §2, NOT a separate decision: `/M` SUPERSEDED AS TO CALLER-SUPPLIED VALUES — ENGINE NEVER READS A CLOCK
+
+**§2 superseded as to `/M`: caller-supplied, engine never reads a clock.**
+Decision 062 §2 (2026-08-14) ruled `/M` is engine-stamped and refused a
+caller parameter to override it. `Pass 149.0` and `Pass 150.0` (`943d482`,
+2026-08-28, 304th filing) shipped the opposite: `add_markup`'s
+`--note-date D:YYYYMMDDHHmmSS` (§7.9.4) lets the caller supply `/M`
+verbatim; a malformed date is refused by name; omitted, no `/M` is written.
+
+**Why the shipped behaviour is right.** The engine reads no wall clock at
+all — a clock-stamped `/M` would make authored output non-reproducible,
+and byte-identical output for identical input is a project-wide
+acceptance criterion. Stamping one from the system clock would also be a
+value pdfcer invents and writes silently (`CLAUDE.md` rule 4); a
+caller-supplied, name-refused-if-malformed date is the honest
+alternative — the same mechanism §2's sibling ruling (§3, on `/T`) already
+uses: an honest absence or an honest caller-supplied value, never an
+invented one.
+
+**§§1, 3–4 unaffected.** The one-entry-point refusal (§1) and `/T`'s
+no-invented-placeholder rule (§3) are untouched; only §2's
+never-caller-supplied clause is superseded. §2's original text stays as
+written in `docs/history/architecture-decisions-before-2026-09.md` — this
+is the amendment, not a correction of the record.
+
+**Flagged by** `docs/ROADMAP.md`'s `Pass 80.0` entry (695th filing), which
+found the divergence unresolved when closing that entry against
+`Pass 150.0`; resolved here. `Pass 80.0`'s own stub is corrected in the
+same filing to point at this amendment.
+
+**Sourcing (hard rule 8).** No shell this filing. Cross-checked against
+`docs/history/architecture-decisions-before-2026-09.md`'s decision 062 §2
+text and `docs/ROADMAP.md`'s `Pass 80.0`/`Pass 150.0` records, both read
+directly.
+
+**Decision ceiling unaffected** — no new number minted, per the same
+addendum convention as the 2026-08-13 addendum to decision 061.
