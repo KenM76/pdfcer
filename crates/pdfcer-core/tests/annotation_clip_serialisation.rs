@@ -248,24 +248,17 @@ fn every_markup_variant_round_trips_through_cos_syntax() {
     }
 }
 
-/// THE MEASUREMENT THAT REJECTED THE FREE ROUTE, kept as a test.
+/// A cloudy square read back from the annotation dictionary is the square
+/// that was authored, not the bulge-enlarged `/Rect`.
 ///
-/// Carrying the *annotation dictionary* would have cost no new code: both
-/// `build_appearance` and `spec_from_dict` already ship. This is why it was
-/// not done, and it is pinned so nobody re-proposes it — including a future
-/// session of mine reading the codec above and wondering why it exists.
+/// `build_appearance` makes `/Rect` bound what is drawn (§12.5.2), so a cloudy
+/// square's `/Rect` includes the scallops; `/RD` (Table 180) records that
+/// margin, and `spec_from_dict` insets by it. Without the inset every
+/// read-author cycle (a restyle, a paste) grew the box by one bulge.
 ///
-/// `build_appearance` computes a `/Rect` that BOUNDS WHAT IS DRAWN (§12.5.2
-/// requires it), and a cloudy square's scallops bulge outside the nominal
-/// rectangle. So the authored `/Rect` is bigger than the spec's, and reading
-/// it back yields the expanded one — which on a clipboard would grow the box
-/// on **every** copy/paste cycle, compounding, with no error at any step.
-///
-/// `spec_from_dict` is not at fault. It reads FOREIGN annotations, where the
-/// stored `/Rect` is the truth; shrinking it would be an invention. It simply
-/// was never the inverse of the author, and nothing had required it to be.
+/// The codec is still the clipboard route: this pins one variant only.
 #[test]
-fn the_annotation_dictionary_route_is_not_lossless_which_is_why_the_codec_exists() {
+fn a_cloudy_square_reads_back_from_its_dictionary_at_its_authored_size() {
     let s = session("hello.pdf");
     let cloudy = MarkupSpec::Square {
         rect: Rect {
@@ -279,22 +272,13 @@ fn the_annotation_dictionary_route_is_not_lossless_which_is_why_the_codec_exists
         border_width: 3.0,
         border_effect: Some(1.5),
     };
-    let via_annot_dict =
-        spec_from_dict(&s.graph(), &build_appearance(&cloudy).annot).expect("reads back");
-    assert_ne!(
-        via_annot_dict, cloudy,
-        "if this ever becomes equal, the free route is viable and this codec \
-         could be deleted -- but check EVERY variant before believing it",
-    );
-    let MarkupSpec::Square { rect, .. } = via_annot_dict else {
-        panic!("still a square");
-    };
-    assert!(
-        rect.llx < 10.0 && rect.ury > 90.0,
-        "the rectangle GREW, in every direction: {rect:?}",
-    );
+    let authored = build_appearance(&cloudy).annot;
+    let via_annot_dict = spec_from_dict(&s.graph(), &authored).expect("reads back");
+    assert_eq!(via_annot_dict, cloudy);
+    let again = spec_from_dict(&s.graph(), &build_appearance(&via_annot_dict).annot)
+        .expect("reads back twice");
+    assert_eq!(again, cloudy, "a second cycle must not grow the box either");
 
-    // The codec does not.
     assert_eq!(decode_spec(&encode_spec(&cloudy)).expect("codec"), cloudy);
 }
 

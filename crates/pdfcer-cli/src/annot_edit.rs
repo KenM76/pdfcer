@@ -1132,7 +1132,8 @@ pub(crate) fn cmd_set_markup_style(
         eprintln!(
             "pdfcer: {}: /Rect moved. For every subtype except Square and Circle the \
              rectangle is derived from the geometry plus a margin that contains the stroke and \
-             any arrowheads, so changing the width resizes the box; a cloudy border's bulge              widens it too, on a Square as well. This is correct, not drift.",
+             any arrowheads, so changing the width resizes the box; a cloudy border's bulge \
+             widens it too, on a Square as well. This is correct, not drift.",
             input.display()
         );
     }
