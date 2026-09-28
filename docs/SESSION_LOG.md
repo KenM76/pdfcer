@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (682nd filing) — `f082ccca`: `Pass 261.1` SHIPPED — `/Caret` annotation and Replace Text
+
+**Shipped:**
+- `Pass 261.1` — `EditSession::add_caret_annotation(page_index, &CaretSpec, &MarkupOptions) -> Result<ObjId, EditError>` authors a `/Caret` (§12.5.6.11 Table 180) whose `/Contents` is the inserted text. New `CaretSpec`/`CaretSymbol` (None default; Paragraph draws pdfcer's own pilcrow, writes `/Sy /P`); `/RD` never written (erratum #524, open issue #592). `EditSession::add_replace_text(page_index, &CaretSpec, &[Quad], &MarkupOptions) -> Result<ReplaceTextAdded, EditError>` pairs the caret with a grouped `/StrikeOut` (`/IRT`→caret, `/RT /Group`, `/IT /StrikeOutTextEdit`), one undo entry, following the empirical Acrobat convention since the standard is silent on the pairing. New `AnnotKind::Caret`/`AnnotKind::ReplaceText`. CLI `add-caret` (repeatable `--strike` makes it Replace Text). Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- Empirical finding written to `C:\personal_rag\pdf\` — the Caret+StrikeOut pairing convention, sourced from a spec-librarian census of an Acrobat-produced sample document (322 pairs, all `/RT /Group`, symmetric `/RD`). Not in ISO 32000; the file-attachment verb's guards/icon staging refactored into shared helpers on the way in, behaviour unchanged.
+
+**Still in flight:**
+- Same open items as the 681st filing (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- `Pass 261.2` (author a `/Sound` annotation) is now the head of *Next up* — build order 3 of 4.
+
+**For next session:**
+- Build `Pass 261.2` next.
+- `docs/FEATURES.md`: the `Pass 261.1` *Planned* row replaced by an *Implemented → Annotations & markup* row (core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`); Replace Text folded into the same row.
+- No shell available this filing — no independent commit/push verification; `f082ccca` is relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.59.0`.
+
 ## 2026-09-28 (681st filing) — `4cd2ed35`: `Pass 261.0` SHIPPED — page-level `/FileAttachment` marker annotation authoring
 
 **Shipped:**

@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 261.1` (`f082ccca`), 2026-09-28 — `/Caret` annotation and Replace Text
+
+**Verdict: SHIPPED.** Build order 2 of 4 of the family scoped 468th filing; `Pass 261.2` (`/Sound`) is next.
+
+**Core.** `EditSession::add_caret_annotation(page_index, &CaretSpec, &MarkupOptions) -> Result<ObjId, EditError>` authors a `/Caret` (§12.5.6.11 Table 180; 2.0 Table 183) whose `/Contents` is the text to insert. New `annot_author` types `CaretSpec` (`#[non_exhaustive]`, `new(rect)`) and `CaretSymbol` {`None` (default, omits `/Sy`), `Paragraph` (writes `/Sy /P`, draws a pilcrow — pdfcer's own artwork)}. `/RD` is never written: erratum #524 retyped it to an array and open issue #592 disputes LTRB vs LBRT, so pdfcer declines to guess. `EditSession::add_replace_text(page_index, &CaretSpec, &[Quad], &MarkupOptions) -> Result<ReplaceTextAdded, EditError>` adds the caret plus a grouped `/StrikeOut`, one undo entry. **The standard is silent on the pairing** — pdfcer follows the empirical Acrobat convention (measured against a sample document the spec librarian censused, 322 pairs): the caret is primary, `/IT /Replace`, carries the replacement text; the strikeout has `/IRT` → caret, `/RT /Group`, `/IT /StrikeOutTextEdit`, no note of its own. New `AnnotKind::Caret` and `AnnotKind::ReplaceText`. Refactor: the file-attachment verb's guards and icon staging are now shared helpers, behaviour unchanged.
+
+**CLI.** `pdfcer add-caret <in> --text T [--author] [--paragraph] [--color RRGGBB] [--opacity A] --page N --rect x0,y0,x1,y1 [--strike RECT]... -o OUT`; one or more `--strike` makes it a Replace Text edit. README subcommand count 170 → 171.
+
+**Tests.** 5 new core (`crates/pdfcer-core/tests/caret_annotation.rs`), 2 new CLI (`crates/pdfcer-cli/tests/add_caret.rs`). `tools/run-gates.sh` PASS, 40 commands. `cargo tree`: no manifest change, invariant not applicable. `docs/core-api`: 274 verbs (272 → 274), `check-core-api-verbs` PASS.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui`'s own column, not consumed yet.
+
+**Verified by rendering.** The caret, the pilcrow and the grouped red strikeout all paint.
+
+**`docs/FEATURES.md`.** The *Planned* row (~line 498) moved to *Implemented → Annotations & markup*: core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `[x]`; Replace Text folded into the same row (no separate row — it is the caret plus a grouped strikeout, not a new annotation subtype).
+
+**RAG.** `C:\personal_rag\pdf\` — new lesson, "Acrobat's Replace Text is a grouped Caret+StrikeOut pair" (empirical pairing convention; ISO 32000 defines neither intent name).
+
+**Next up.** `Pass 261.2` (author a `/Sound` annotation) is now the head of *Next up* — build order 3 of 4.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `f082ccca`, not independently reproduced. On `main`, not yet pushed, not in a release — latest release on record remains `v0.59.0`.
+
 ### `Pass 261.0` (`4cd2ed35`), 2026-09-28 — page-level `/FileAttachment` marker annotation authoring
 
 **Verdict: SHIPPED.** Build order 1 of 4 of the family scoped 468th filing (the operator's Acrobat-parity challenge, `docs/ROADMAP.md` Backlog line ~18289); `Pass 261.1` (`/Caret`) is next.
@@ -8680,6 +8702,12 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★ **`Pass 261.1` SHIPPED, 2026-09-28 (682nd filing), `f082ccca`** — see
+> top of *Shipped*. Filed under *Backlog* (line ~18330) at the 468th filing
+> (scoping); this banner is left as the pointer, the live entry has moved.
+> `Pass 261.2` (author a `/Sound` annotation) is now the head of *Next up* —
+> build order 3 of 4 of the family.
 
 > ★★★★ **`Pass 261.0` SHIPPED, 2026-09-28 (681st filing), `4cd2ed35`** — see
 > top of *Shipped*. Filed under *Backlog* (line ~18289) at the 468th filing
@@ -18327,7 +18355,7 @@ operator's own challenge was aimed at.
 **Source.** `Acrobat_Features/attachments__file_level_and_annotation_level.md`
 (extended this dispatch to cover the annotation-level half explicitly).
 
-### `Pass 261.1` — Author a `/Caret` annotation — filed 2026-09-07 (468th filing), **NOT STARTED** — new family, build order 2 of 4
+### `Pass 261.1` — ★★★ **SHIPPED 2026-09-28 (`f082ccca`, 682nd filing) — see *Shipped*.** Body below kept as history (filed 468th filing, build order 2 of 4)
 
 **Gap.** `/Caret` (§12.5.6.4, Table 165) is the marker Acrobat's live
 Insert-Text/Replace-Text proofreading tools place, and it is **current**,
