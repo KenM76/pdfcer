@@ -194,6 +194,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` |
 | `set_dimension_extension_gap(dimension, end: DimensionEnd, gap: Option<f64>)` | `Result<(), EditError>` — linear only; `None` = the standard's gap |
 | `dimension_preview(&self, id, moved: &DimensionKind)` | `Result<DimensionPreview, EditError>` — read-only |
+| `new_dimension_preview(&self, group: GroupId, kind: &DimensionKind)` | `Result<DimensionPreview, EditError>` — read-only; the `/AP` `add_dimension` would write |
 | `move_dimension(dimension, dx, dy)` | `Result<(), EditError>` |
 | `toggle_dimension_layer(group, visible: bool)` | `Result<bool, EditError>` |
 | `delete_dimension(dimension)` | `Result<(), EditError>` — annotation + `/AP` + sidecar together |

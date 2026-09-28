@@ -48112,6 +48112,32 @@ impl EditSession {
         Ok(crate::dimension::DimensionPreview { appearance })
     }
 
+    /// The appearance [`EditSession::add_dimension`] would bake for `kind`
+    /// in `group`, for a placing preview of a ce dimension that has no id
+    /// yet. Read-only: nothing is staged and no undo entry is made.
+    ///
+    /// The style is `group`'s, derived exactly as `add_dimension` derives
+    /// it (a new ce dimension has no overrides and no text override), so
+    /// painting `appearance.ap_content` draws the bytes the placing click
+    /// writes. The page does not enter the appearance.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::DimensionGroupNotFound`] for an unknown `group`, as
+    /// `add_dimension` refuses it.
+    pub fn new_dimension_preview(
+        &self,
+        group: GroupId,
+        kind: &DimensionKind,
+    ) -> Result<crate::dimension::DimensionPreview, EditError> {
+        let model = self.read_dimension_model();
+        let group = model
+            .group(group)
+            .ok_or(EditError::DimensionGroupNotFound { id: group.0 })?;
+        let appearance = author_dimension(kind, DimensionStyle::from(group));
+        Ok(crate::dimension::DimensionPreview { appearance })
+    }
+
     /// Author a dimension onto a page: a `/Line` `/IT /LineDimension`
     /// annotation with a baked `/AP` (leader + value label), placed on its
     /// group's optional-content layer (`/OC` → the group `/OCG`, allocated on

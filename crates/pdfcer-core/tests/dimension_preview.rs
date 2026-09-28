@@ -8,7 +8,10 @@
     clippy::indexing_slicing
 )]
 
-use pdfcer_core::dimension::{DEFAULT_GROUP_ID, DimensionId, DimensionKind};
+use pdfcer_core::dimension::{
+    DEFAULT_GROUP_ID, DimStandard, DimensionId, DimensionKind, GroupId, NumberFormat, ScaleState,
+    Unit,
+};
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditError, EditSession};
 use pdfcer_core::object::{ObjId, Object};
@@ -118,5 +121,48 @@ fn previewing_an_unknown_ce_dimension_is_refused_by_name() {
     assert!(matches!(
         s.dimension_preview(DimensionId(7), &linear(0.0, 0.0)),
         Err(EditError::DimensionNotFound { id: 7 })
+    ));
+}
+
+/// A preview for a ce dimension that does not exist yet bakes the bytes the
+/// placing `add_dimension` commits, in a group whose scale, format and
+/// standard all differ from the factory defaults, and stages nothing.
+#[test]
+fn a_new_ce_dimension_previews_as_the_placement_commits_it() {
+    let mut s = EditSession::new(Document::from_bytes(one_page_pdf()).unwrap());
+    let g = s.add_dimension_group("Plan", Unit::Inch).unwrap();
+    s.set_group_scale(
+        g,
+        ScaleState::Calibrated { scale: 0.05 },
+        NumberFormat::decimal(Unit::Inch, 3),
+    )
+    .unwrap();
+    s.set_group_standard(g, DimStandard::Iso).unwrap();
+    let kind = linear(25.0, 30.0);
+
+    let before = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+    let preview = s.new_dimension_preview(g, &kind).unwrap().appearance;
+    assert_eq!(
+        s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0,
+        before,
+        "a preview must not change the document"
+    );
+    // 200 pt at 0.05 in/pt, three places, ISO's decimal comma: the group's
+    // scale, format and standard all reached it.
+    assert_eq!(preview.label, "10,000 in");
+
+    let default = s.new_dimension_preview(DEFAULT_GROUP_ID, &kind).unwrap();
+    assert_ne!(default.appearance.ap_content, preview.ap_content);
+
+    let (annot, _) = s.add_dimension(0, g, kind).unwrap();
+    assert_eq!(preview.ap_content, committed_ap(&s, annot));
+}
+
+#[test]
+fn previewing_into_an_unknown_group_is_refused_by_name() {
+    let s = EditSession::new(Document::from_bytes(one_page_pdf()).unwrap());
+    assert!(matches!(
+        s.new_dimension_preview(GroupId(9), &linear(0.0, 0.0)),
+        Err(EditError::DimensionGroupNotFound { id: 9 })
     ));
 }
