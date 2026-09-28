@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 370.0` (`ab68af1e`), 2026-09-28 — circular ce-dimension placement — `G051`
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` request `G051` (operator ask `O249`), scoped 677th filing, shipped 680th. All ce-dimension terminology below is pdfcer-authored — never a pdf dimension. `G049`–`G051` are now all shipped.
+
+**Core.** `DimensionKind::Circular` gains `leader_angle: f64` (degrees CCW from page +x) and `text_distance: Option<f64>` (points past the rim; negative is inside; `None` keeps the legacy half-radius spot). `place_dimension` accepts `Circular` with a polar pair — offset = text distance, `text_along` = leader angle — clamped at the centre for a radius and at the far rim for a diameter. `label_anchor`/`placement_from_point` answer for `Circular`. New `DimensionKind::circular_text_distance()` returns the effective, clamped distance. Sidecar keys `/LeaderAngle`/`/TextDistance` written only when non-default. `EditError::NotALinearDimension` removed (nothing raised it): 152 → 151 variants.
+
+**Render.** Outside: leader runs rim → text with an arrow at the rim. Inside: a radius runs centre → rim; a diameter runs rim → rim through the centre — an unplaced diameter now draws rim to rim (a visible change from before this Pass); an unplaced radius is unchanged. Rotation turns the angle; `set_dimension_display` keeps the placement.
+
+**CLI.** `dimension-offset` takes the polar pair for radius/diameter; its `--help` no longer says circular is refused. `dimension-list` prints `leader_angle=`/`text_distance=` on circular rows.
+
+**Docs.** `docs/core-api`: `02` `place_dimension` row updated, `EditError` count 151, `index.md` counts updated. `check-core-api-verbs` passes; still 271 verbs, no new verb.
+
+**Tests.** New: core `dimension_circular_placement` (4 tests), CLI `dimension_circular_placement` (1 test). Sabotage-verified: removing the sidecar `/LeaderAngle` read fails 2 of the core tests. Removed the obsolete `placing_a_circular_ce_dimension_is_still_refused_by_name`. `tools/run-gates.sh` PASS, 40 commands, 9,635 tests passed. One failure on the first run: `check-public-fns-documented` — the new helper `point_on_ray` was inserted between `transform_kind`'s doc block and its item, orphaning the doc; fixed before the commit, then clean (fmt, clippy too). **Recurrence**: another instance of "inserting before an anchor orphans its doc comment" — this time the gate caught it.
+
+**Gates.** No manifest change either crate; `cargo tree` invariant not applicable (no dependency change). No packaging change.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui`'s own column, not ticked here; it requested this and has not yet consumed it.
+
+**`docs/FEATURES.md`.** The `Pass 370.0` *Planned* row (~line 531) replaced by an *Implemented → ce dimensions* row: core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Channel.** Reply posted: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G051_a_circular_ce_dimensions_leader_and_text_are_placeable_DONE.md`.
+
+**Next up.** `Pass 261.0` (author a page-level `/FileAttachment` marker annotation) is now the head of *Next up* — the `G049`–`G051` family is fully shipped.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `ab68af1e`, not independently reproduced. Not yet pushed; not in a release (latest release remains `v0.59.0`).
+
 ### `Pass 369.0` (`52810dcf`), 2026-09-27 — per-end extension gap on a Linear ce dimension — `G050`
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G050` (operator ask `O249`), scoped 677th filing, shipped 679th. All ce-dimension terminology below is pdfcer-authored — never a pdf dimension.
@@ -8634,6 +8660,12 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★ **`Pass 370.0` SHIPPED, 2026-09-28 (680th filing), `ab68af1e`** — see
+> top of *Shipped*. Filed *Next up* by the 677th filing (scoping); this
+> banner is left as the pointer, the live entry has moved. The `G049`–`G051`
+> family is now fully shipped; `Pass 261.0` (author a page-level
+> `/FileAttachment` marker annotation) is the new head of *Next up*.
 
 > ★★★★ **`Pass 369.0` SHIPPED, 2026-09-27 (679th filing), `52810dcf`** — see
 > top of *Shipped*. Filed *Next up* by the 677th filing (scoping); this

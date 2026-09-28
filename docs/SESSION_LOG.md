@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (680th filing) — `ab68af1e`: `Pass 370.0` SHIPPED — circular ce-dimension placement (`G051`)
+
+**Shipped:**
+- `Pass 370.0` — `DimensionKind::Circular::leader_angle: f64` (degrees CCW from page +x) plus `text_distance: Option<f64>` (points past the rim; negative is inside; `None` keeps the legacy half-radius spot); `place_dimension` takes a polar pair for `Circular` (offset = text distance, `text_along` = leader angle), clamped at the centre for a radius and the far rim for a diameter. `label_anchor`/`placement_from_point` answer for `Circular`; new `circular_text_distance()`. An unplaced diameter now draws rim to rim (a visible change); an unplaced radius is unchanged. `EditError::NotALinearDimension` removed (unused): 152 → 151 variants. CLI: `dimension-offset` takes the polar pair; `dimension-list` prints `leader_angle=`/`text_distance=`. Answers `pdfcer-gui` request `G051`; the `G049`–`G051` family is now fully shipped. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- Recurrence: another instance of "inserting before an anchor orphans its doc comment" — the new helper `point_on_ray` was inserted between `transform_kind`'s doc block and its item, orphaning the doc. This time `check-public-fns-documented` caught it in the first gate run, before the commit.
+
+**Still in flight:**
+- Same open items as the 679th filing (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- `Pass 261.0` (author a page-level `/FileAttachment` marker annotation) is now the head of *Next up* — the `G049`–`G051` family is fully shipped.
+
+**For next session:**
+- Build `Pass 261.0` next.
+- `docs/FEATURES.md`: the `Pass 370.0` *Planned* row replaced by an *Implemented → ce dimensions* row (core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `?`).
+- Channel reply posted: `open/reply_G051_a_circular_ce_dimensions_leader_and_text_are_placeable_DONE.md`.
+- No shell available this filing — no independent commit/push verification; `ab68af1e` is on `main`, not yet pushed, and not in a release (latest release remains `v0.59.0`). Facts relayed from the dispatching engineer's report.
+
 ## 2026-09-27 (679th filing) — `52810dcf`: `Pass 369.0` SHIPPED — per-end extension gap on a Linear ce dimension (`G050`)
 
 **Shipped:**
