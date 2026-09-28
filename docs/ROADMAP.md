@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 327.5` (`7247d9f5`), 2026-09-28 — load below-opset-13 PaddleOCR exports by upgrading on load
+
+**Verdict: SHIPPED — fifth entry in the `Pass 327.x` PaddleOCR family.** Closes `pdfcer-gui` channel request `request_paddle_loads_official_ppocrv5_onnx.md` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests`). The official PaddlePaddle PP-OCRv5 recogniser export (`latin_PP-OCRv5_mobile_rec` `inference.onnx`, sha256 `7888113072263cb471b93f66dd5e2ad70548dc526fa1ace760d0d973dd121498`) is ONNX opset 7 and failed `PaddleEngine::from_model_dir` (BatchNormalization `spatial`, then attribute-form Slice); the GUI had been shipping a copy pre-converted by `onnx.version_converter` to opset 13.
+
+**Root cause.** `rten` 0.24 reads every operator in its opset-13+ form regardless of a model's own `opset_import` — and this is not only a load-failure risk: a pre-13 Softmax/LogSoftmax/Hardmax on a non-last axis (old default-axis-1 flattening semantics) loads WITHOUT ERROR and computes a DIFFERENT result. RAG finding: `D:\dev\rag\rust\rten_ignores_onnx_opset_import_and_parses_every_operator_in_its_latest_opset_form.md`.
+
+**Core.** New `#[doc(hidden)] pub` module `pdfcer_core::ocr::onnx_upgrade` (ungated, not behind feature `paddle`, so the fuzz crate can reach it). Rewrites at the protobuf level, matching `onnx.version_converter`'s own transforms, weights untouched: BatchNormalization<9 drops `spatial=1`/refuses `spatial=0`; Slice<10 moves attributes to int64 Constant inputs; Softmax/LogSoftmax/Hardmax<13 becomes `Shape → Flatten(axis) → op(axis=1) → Reshape`; subgraphs recurse, capped at depth 16; a model with nothing to rewrite returns byte-identical. `Squeeze`/`Unsqueeze` `axes` attributes are left alone — rten already reads that form. `engine_paddle::load` reads the file's bytes, upgrades them, then calls `rten::Model::load`; a model still failing below opset 13 names its opset in the error and says to convert to opset 13.
+
+**Measured.** The opset-7 latin recogniser now loads; on a 1x3x48x320 input its output is bit-identical (max difference 0) to its `onnx.version_converter` opset-13 twin.
+
+**Tests.** 4 unit tests in `onnx_upgrade`; 1 rten equivalence test in `engine_paddle` (synthetic opset-7 model with Slice/BN/Softmax on axis 2 and LogSoftmax with default axis, vs its converted twin; also asserts rten cannot load the raw fixture unaided; sabotage-checked — skipping the Softmax rewrite fails it). New fixtures `fixtures/synthetic/onnx/{opset7,opset7-as13}.onnx` via new `tools/gen-onnx-opset-fixtures.py` (needs the `onnx` Python package, MIT, dev-time only — `THIRD_PARTY_LICENSES.md` unaffected). New fuzz target `onnx_upgrade`: 772,613 runs over 61 s, 0 crashes.
+
+**Gates.** `tools/run-gates.sh`: 39 of 40 commands passed; the 40th (`check-fmt-excluded`) failed on an unformatted hunk in the fuzz crate, fixed and re-run clean. `cargo tree`: unchanged — no manifest dependency changed, only a fuzz `[[bin]]` added.
+
+**Docs.** `docs/core-api/03-capabilities.md` gains a paragraph on old-opset models under the PaddleOCR entry; index counts updated; `check-core-api-verbs` PASS. `pdfcer ocr --ocr-engine` CLI help updated.
+
+**Shells.** core `[x]`, cli `[x]` (transparent, no new flag), gui — load-path fix, not separately surfaced.
+
+**No §12 decision.** The upgrade happens on load and is not an inference about document content — no disclosure obligation under rule 4.
+
+**`docs/FEATURES.md`.** "Choose the OCR engine" row (Text/OCR section) updated in place, boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`) — notes that official PP-OCRv5 opset-7 exports now load as downloaded.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `7247d9f5`, not independently reproduced. Not yet released (latest release remains `v0.60.0`, tagged on `040c24d7`, which precedes this commit); backup/push state not verifiable from here.
+
 ### `Pass 142.0` (`62deb938`), 2026-09-28 — restyle existing text into a donor face, embedding a subset
 
 **Verdict: SHIPPED — the embedded-donor half of FF-C for `format_text`.** Closes this entry's own acceptance criterion 4 ("embedded-donor creation is a separate slice if it lands at all"); criteria 1–3 shipped earlier as `Pass 162.0` (standard-14 half). The automatic style-ladder's rung 3 (`--bold`/`--italic` auto-picking a donor with no `--find`) is NOT this Pass — filed separately as `Pass 142.3`, *Backlog*, below.

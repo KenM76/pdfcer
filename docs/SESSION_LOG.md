@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (693rd filing) — `7247d9f5`: `Pass 327.5` SHIPPED — load below-opset-13 PaddleOCR exports by upgrading on load
+
+**Shipped:**
+- `Pass 327.5` — official PaddlePaddle PP-OCRv5 recogniser exports (opset 7) now load, via a new `pdfcer_core::ocr::onnx_upgrade` module that rewrites the model at the protobuf level on load (BatchNormalization `spatial`, attribute-form Slice, Softmax/LogSoftmax/Hardmax non-last-axis default), matching `onnx.version_converter`'s own transforms, weights untouched. `engine_paddle::load` upgrades the file's bytes before calling `rten::Model::load`. Measured bit-identical (max diff 0) against the same model's `onnx.version_converter` opset-13 twin. Full record at the top of `ROADMAP.md`'s *Shipped*.
+- Closes `pdfcer-gui` channel request `request_paddle_loads_official_ppocrv5_onnx.md` — fifth entry in the `Pass 327.x` PaddleOCR family (`327.0`/`327.1` OCRcer; `327.2` BLOCKED, *Backlog*; `327.3` engine; `327.4` models).
+
+**Decisions made this session:**
+- None new — a load-path bug fix, not an architectural decision. Highest decision record stays `164`.
+
+**Findings + decisions:**
+- Root cause generalizes past this one model: `rten` 0.24 ignores a model's `opset_import` and parses every operator in its latest-opset form. For BatchNormalization/Slice this fails loudly; for Softmax/LogSoftmax/Hardmax on a non-last axis it loads SILENTLY and computes a different result (old default axis=1 flattening vs new per-axis semantics) — no diagnostic at all. Written up generally at `D:\dev\rag\rust\rten_ignores_onnx_opset_import_and_parses_every_operator_in_its_latest_opset_form.md`, which supersedes (without replacing) the narrower same-day finding `rten_rejects_opset7_paddleocr_exports_convert_to_opset13.md` — that file's Python-side fix for one model file is still correct, it's just not the only place the problem can bite.
+
+**Still in flight:**
+- Same open items as the 692nd filing — no named head in *Next up*; `Pass 142.3` (automatic style-ladder rung 3) still queued, *Backlog*.
+
+**For next session:**
+- `docs/FEATURES.md`'s "Choose the OCR engine" row updated in place — boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`).
+- No shell available this filing — `7247d9f5` relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes this commit).
+
 ## 2026-09-28 (692nd filing) — `62deb938`: `Pass 142.0` SHIPPED — restyle existing text into a donor face, embedding a subset
 
 **Shipped:**
