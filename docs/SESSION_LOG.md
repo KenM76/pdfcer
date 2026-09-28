@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (673rd filing) — `fffca91e`: `Pass 264.3` (`/BE` border effect restyle route) SHIPPED
+
+**Shipped:**
+- Pass 264.3 — `/BE` (border effect / cloudy edge) was write-once (Backlog since the 469th filing); `MarkupStyle` now carries `border_effect: Option<StyleEdit<f64>>`, letting `set-markup-style --cloud 0-2|none` set, change or clear a cloudy border on a placed Square or Polygon. Bug fixed on discovery: a cloudy Square's `/Rect` has grown by one bulge on every restyle since `Pass 98.0` (misread `/RD` inset as the square itself) — fixed, plus a resulting false `RectDifferences` disclosure removed. 8 new core tests + 2 new CLI tests, `markup_border_style` 25/25. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- None beyond the `ROADMAP.md` entry.
+
+**Still in flight:**
+- Same open items as prior filings (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`).
+- **OWED, no Pass yet:** OCRcer's pending engine release (unchanged from the 672nd filing — see that entry).
+- **Owed to `pdfcer-gui`:** a channel notice that the cloudy-border restyle control (`gui [ ]`) is unwired.
+
+**For next session:**
+- `fffca91e` is committed to `main`; push status not independently checked this filing (hard rule 8 — no shell available).
+- The 672nd filing's work (`Pass 367.0`, `001b91f8`) is unchanged by this filing.
+
 ## 2026-09-27 (672nd filing) — `001b91f8`: `Pass 367.0` (`edit_text_preview` takes `&self`, `G048`) SHIPPED
 
 **Shipped:**

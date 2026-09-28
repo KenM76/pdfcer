@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 264.3` (`fffca91e`), 2026-09-27 — `/BE` border effect / cloudy edge gains a restyle route: set, change, clear
+
+**Verdict: SHIPPED.** Backlog gap filed 469th filing (2026-09-08, markup-family audit), `NOT STARTED` until this session: `/BE` (§12.5.4 Table 167, cloudy-border intensity) could be authored at creation but had no restyle route.
+
+**Core.** `MarkupStyle` gains `border_effect: Option<StyleEdit<f64>>`. `Set(i)` makes a Square or Polygon cloudy (`/BE << /S /C /I i >>`, `i` in `0..=2` inclusive; non-finite or out-of-range refused as `EditError::BorderEffectIntensityOutOfRange`); `Clear` removes `/BE` and, on a cloudy Square, its `/RD`; `None` preserves whatever is there. A polygon made cloudy becomes `MarkupSpec::Cloud` internally and stays `/Polygon`; a cleared cloud reverts to a plain Polygon. `MarkupStyleSupport::takes_border_effect: bool` — true only for Square and Polygon; any other subtype refuses by name (`StylePropertyNotApplicable { property: "border effect" }`), nothing written.
+
+**Bug fixed on discovery, pre-existing since `Pass 98.0`.** `annot_author::spec_from_dict` read a cloudy Square's `/Rect` as the square itself rather than insetting by `/RD` (Table 180 order left/top/right/bottom), so every restyle of a cloudy square — even a colour-only change — grew its `/Rect` by one bulge (7.5 pt/side at `/I 1.5`). Verified against the pre-fix binary: `rect_moved=1` on a recolour before, `0` after. A related false disclosure removed: `DroppedProperty::RectDifferences` no longer fires for a cloudy Square's own `/RD` (re-authored with the cloud, or dropped on request) — still fires for a foreign `/RD` on a straight Square or a Circle. `restyling_discloses_what_the_regeneration_dropped` updated.
+
+**CLI.** `pdfcer set-markup-style --cloud 0-2|none` (absent preserves). Refusals exit 9 (`EDIT_REFUSED`). Stale help text claiming a cloudy `/BE` is dropped on restyle corrected; the `/Rect`-moved stderr note now names the bulge.
+
+**Tests.** 8 new core (`crates/pdfcer-core/tests/markup_border_style.rs`): set/clear/change intensity/`None` preserves/polygon↔cloud round trip/Circle refused/out-of-range refused/no growth on recolour/no false disclosure. 2 new CLI (`crates/pdfcer-cli/tests/set_markup_style_cloud.rs`, registered in the `all` harness). `markup_border_style`: 25/25.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md`'s `set_markup_style` row and the `StylePropertyNotApplicable` paragraph updated; clause count 207→208. `check-core-api-verbs` PASS (269 verbs).
+
+**Gates.** No dependency/manifest change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` invariant unaffected. `fmt --check`/`clippy -D warnings` relayed clean.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not yet wired by `pdfcer-gui`; a channel notice is owed.
+
+**`docs/FEATURES.md`.** *Planned* row for the write-once gap removed; a new *Implemented → Annotations & markup* row added (core `[x]`, cli `[x]`, gui `[ ]`). "Restyle a placed markup" row gains `border_effect` in its refusal-by-name list plus a pointer to the new row. "Revision clouds" row notes a cloud can now be added, changed or removed after placement.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `fffca91e`, not independently reproduced. Committed to `main`; push status not independently checked this filing.
+
 ### `Pass 367.0` (`001b91f8`), 2026-09-27 — `edit_text_preview` takes `&self` — `G048`
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G048`. Gap: `Pass 366.0`'s `EditSession::edit_text_preview` took `&mut self` because its per-page `TextWalkCache` lived directly in the session; `pdfcer-gui` holds the session as `Arc<EditSession>` (the render worker clones it), so a per-keystroke preview needed `Arc::get_mut`, and skipped + retried 50 ms later whenever a render was in flight — the preview could lag a render by one cycle.
@@ -17952,14 +17974,6 @@ shell the read accessor this note said was still missing. See `Pass 264.2` in
 
 **Source.** Markup-family audit, `fad0d2d`'s dispatch (2026-09-08); narrowed by
 `Pass 270.0` (474th filing); closed by the accessor half, 671st filing.
-
-### `Pass 264.3` — `/BE` (border effect / cloudy edge) is write-once — filed 2026-09-08 (469th filing), **NOT STARTED**
-
-**Gap.** `/BE` (§12.5.4 Table 167, the cloudy-border intensity) can be
-authored at creation but cannot be changed or cleared on an existing
-annotation — no restyle route reaches it.
-
-**Source.** Markup-family audit, `fad0d2d`'s dispatch (2026-09-08).
 
 ### `Pass 264.4` — ★★ **DISCHARGED 2026-09-27 BY `Pass 358.4`'s annotation half (`62a40a5d`) — SHIPPED UNDER A DIFFERENT NUMBER. See `Pass 358.4` in *Shipped* for the full account**
 
