@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (671st filing) — `a14e2616`/`d822a562`: `Pass 264.2` accessor half SHIPPED; `Pass 264.4` discharged by `Pass 358.4`
+
+**Shipped:**
+- Pass 264.2 (accessor half) — `Annotation::border_dash: Option<annot_author::BorderDash>` (`a14e2616`), populated via the existing `read_border_dash`, so a shell finally reads the `/BS` dash `Pass 258.0` made preservable. `list-annotations` prints `dash=<ON,OFF,...|none>` (`d822a562`). +2 core integration tests, +1 CLI integration test. Both halves of this Backlog entry (accessor + clipboard, the latter shipped earlier as `Pass 270.0`) are now closed. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- `Pass 264.4` ("`/OC` read-without-write on markup") was already discharged by `Pass 358.4`'s annotation half (`62a40a5d`, filed 670th session) — `EditSession::set_annotation_layer` operates on the general annotation model with no subtype restriction, so markup was covered from that commit, not a new gap needing its own build. Verified by reading `crates/pdfcer-core/src/edit.rs` directly rather than trusting the Backlog entry's stale "NOT STARTED" label. `ROADMAP.md`'s `Pass 264.4` entry corrected in place to a discharge pointer; `FEATURES.md`'s dedicated *Planned* row for it removed, and its *Implemented* row ("Put an annotation onto a layer") cross-references the discharge.
+
+**Still in flight:**
+- `Pass 264.3` (`/BE` write-once) remains open, *Backlog*, untouched by this filing.
+- Same digital-signing open items as prior filings (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`).
+
+**For next session:**
+- Both commits are committed to `main`; push status not independently checked this filing (hard rule 8 — no shell available).
+
 ## 2026-09-27 (670th filing) — `838bfa29`: `Pass 366.0` follow-up (preview parity across operators, cache pinned) — test-only
 
 **Shipped:**

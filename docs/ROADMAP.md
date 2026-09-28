@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 264.2` (`a14e2616`/`d822a562`), 2026-09-27 — `/BS` dash gains a public read accessor
+
+**Verdict: SHIPPED — the accessor half. The clipboard half shipped earlier as `Pass 270.0` (`caf4c1d`); both halves of the Backlog entry are now closed.**
+
+**Core (`a14e2616`).** New pub field `Annotation::border_dash: Option<annot_author::BorderDash>`, populated in `model_annotation` via the existing `read_border_dash` (stays `pub(crate)`), so it appears in every `page_annotations` result — document graph or session graph alike. Table 166 spellings: `/S /D` alone -> `[3]`; `/D` with no `/S` -> that pattern; any other style -> `None`; an inadmissible `/D` under a non-`/D` `/S` -> `[3]`. Two new core integration tests (`crates/pdfcer-core/tests/markup_border_style.rs`): `the_dash_reads_back_through_the_annotation_model`, `the_dash_reads_every_table_166_spelling`, both mutation-checked (fail when the field is forced to `None`). `docs/core-api` parts 1 and 3 name the field; `check-core-api-verbs` PASS.
+
+**CLI (`d822a562`).** `list-annotations` appends `dash=<ON,OFF,...|none>` per line, the same spelling `annotate --dash` accepts. One new test, `list_annotations_prints_the_dash`; two existing `layer_edit` tests that asserted `oc=` was the last token on a line now match it as a field, not the tail.
+
+**No dependency or manifest change.**
+
+**Tests.** +2 core integration, +1 CLI integration.
+
+**`docs/FEATURES.md`.** "Border line style" row (*Implemented*) updated in place to state the dash is now publicly readable; core/cli stay `[x]`, gui stays `[ ]`. The dedicated *Planned* row for this gap is removed — nothing remains unbuilt.
+
+**Sourcing (hard rule 8).** No shell this filing; facts relayed from the dispatching engineer's own report of `a14e2616`/`d822a562`, not independently reproduced.
+
 ### `Pass 366.0` (`2fe0e96e`), 2026-09-27 — WYSIWYG typing preview for text editing, in the run's own font — `G046`
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G046` (operator ask `O247`, scoped 668th filing): a read-only preview of what `edit_text` would commit, so a caret can show the run's own font instead of egui's pop-up box in a mismatched face. Acceptance criteria from the 668th filing's scope met (design rationale and the measured `edit_text` per-keystroke cost this preview avoids are on that entry, `docs/history/` once rotated).
@@ -17878,7 +17894,7 @@ question decision `141` answered for `/CA`/`/Contents`/`/T`/dash — **the
 answer is presumably "another `MarkupCarry` field"**, which is why it is
 recorded as residue rather than re-derived later from scratch.
 
-### `Pass 264.2` — `/BS` dash publicly unreadable — filed 2026-09-08 (469th filing), **NARROWED 2026-09-08 (474th filing): THE CLIPBOARD HALF SHIPPED AS `Pass 270.0`; THE ACCESSOR HALF IS STILL NOT STARTED**
+### `Pass 264.2` — ★★★ **SHIPPED 2026-09-27 (`a14e2616`/`d822a562`, 671st filing) — see *Shipped*. Both halves of this entry are now closed**
 
 **Gap, two-part as filed.** `Pass 258.0` made `/BS` `/D` (dash) preservable
 across restyle/resize/reshape/author, but never gave it a public accessor — a
@@ -17911,8 +17927,13 @@ counted.
 > **Not closed. Not re-scoped. Still `NOT STARTED` for the half that names
 > it.**
 
+**★★★ CLOSED 2026-09-27 (671st filing).** `Annotation::border_dash` (a public
+field, `a14e2616`) plus `list-annotations`' `dash=` column (`d822a562`) give a
+shell the read accessor this note said was still missing. See `Pass 264.2` in
+*Shipped* for the full account.
+
 **Source.** Markup-family audit, `fad0d2d`'s dispatch (2026-09-08); narrowed by
-`Pass 270.0` (474th filing).
+`Pass 270.0` (474th filing); closed by the accessor half, 671st filing.
 
 ### `Pass 264.3` — `/BE` (border effect / cloudy edge) is write-once — filed 2026-09-08 (469th filing), **NOT STARTED**
 
@@ -17922,13 +17943,26 @@ annotation — no restyle route reaches it.
 
 **Source.** Markup-family audit, `fad0d2d`'s dispatch (2026-09-08).
 
-### `Pass 264.4` — `/OC` (optional-content membership) read-without-write on markup — filed 2026-09-08 (469th filing), **NOT STARTED**
+### `Pass 264.4` — ★★ **DISCHARGED 2026-09-27 BY `Pass 358.4`'s annotation half (`62a40a5d`) — SHIPPED UNDER A DIFFERENT NUMBER. See `Pass 358.4` in *Shipped* for the full account**
 
-**Gap.** A markup annotation's `/OC` entry (§12.5.2 Table 164, membership
-in an optional-content group) is read but has no write route — a shell can
-report which layer a markup belongs to and cannot move it to another one.
+**Gap, as filed.** A markup annotation's `/OC` entry (§12.5.2 Table 164,
+membership in an optional-content group) is read but has no write route — a
+shell can report which layer a markup belongs to and cannot move it to
+another one.
 
-**Source.** Markup-family audit, `fad0d2d`'s dispatch (2026-09-08).
+**Why the ID differs, in one paragraph.** `62a40a5d` (2026-09-27, family
+`358`, the layer-assignment work) shipped `EditSession::set_annotation_layer`
+/ `pdfcer set-annotation-layer`, which writes, moves and removes any
+annotation's `/OC` — the verb operates on the general annotation model, no
+subtype restriction beyond the existing lock check, so markup is included —
+and keeps its `/Popup` in step. That is exactly this entry's gap, closed
+before this entry was ever revisited. Verified this session by reading
+`crates/pdfcer-core/src/edit.rs`'s `set_annotation_layer` directly, not
+inferred from the ROADMAP entry alone. This entry stays as a pointer, not as
+work.
+
+**Source.** Markup-family audit, `fad0d2d`'s dispatch (2026-09-08); discharged
+by `Pass 358.4`'s annotation half, 671st filing.
 
 ### `Pass 264.5` — ★★★ **DISCHARGED 2026-09-08 BY `Pass 270.2` (`73da5e1`, 475th filing) — SHIPPED UNDER A DIFFERENT NUMBER. See `Pass 270.2` in *Shipped* for the full account, and the 475th filing's Part D for why the number differs**
 
