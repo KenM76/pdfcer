@@ -115,6 +115,51 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 372.1` (`dfc2121e`), 2026-09-28 — artifact `/Subtype` on extracted runs (G053)
+
+**Verdict: SHIPPED.** Closes the known gap `Pass 372.0` filed. New pub
+`#[non_exhaustive]` enum `ArtifactSubtype { Header, Footer, Watermark,
+Other(String) }` and `TextRun::artifact_subtype: Option<ArtifactSubtype>`,
+read from the `/Artifact` property list's `/Subtype` (ISO 32000-2 Table
+363/§14.8.2.2.2) **whatever the `/Type`** — Table 363 says `/Subtype` is
+only meaningful on `/Type /Pagination`, but that "should" is not a "shall",
+so pdfcer reads it wherever present rather than gate on `/Type` first. A
+change in subtype splits a run, matching the existing artifact-kind split
+rule.
+
+**CLI.** `extract-text --json` emits `artifact_subtype` per run.
+
+**Docs.** `docs/core-api/01-reading-and-model.md` §8.4 updated with the new
+field; `check-core-api-verbs` PASS.
+
+**Tests.** The existing `text_extract` artifact test (`Pass 372.0`'s own)
+is extended: asserts `Header` on the Pagination run and `None` elsewhere.
+Sabotage (dropping the `/Subtype` read) caught by the extended assertion.
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands. No manifest change —
+`cargo tree` invariant not applicable.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not yet wired in
+`pdfcer-gui`.
+
+**`docs/FEATURES.md`.** Merged into the `Pass 372.0` row (*Text* section)
+rather than kept as a separate row — the two Passes now read as one
+complete answer to `G053`. Boxes unchanged (`[x]`/`[x]`/`[ ]`). The
+`372.1` *Planned* row deleted.
+
+**Reply filed.** Updates `reply_G053_a_tagged_pdfs_structure_tree_can_be_read_back_FIXED.md`
+to cite this commit alongside `Pass 372.0`'s.
+
+**No §12 decision.** New enum + field on an existing struct, no crate
+boundary or invariant change — same call as `Pass 372.0`. Highest decision
+record stays `164`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
+dispatching engineer's own verification at `dfc2121e`, not independently
+reproduced. Backup/push/release state not verifiable from here; latest
+release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes
+this commit).
+
 ### `Pass 372.0` (`c87f4e3d`), 2026-09-28 — read a tagged PDF's structure tree (G053)
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G053`. New
@@ -9242,31 +9287,60 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★ **TWO ITEMS REMAIN 2026-09-28 (700th filing) — `G054`–`G055`, from
+> ★★★★★ **TWO ITEMS REMAIN 2026-09-28 (701st filing) — `G054`–`G055`, from
 > `pdfcer-gui`'s DOCX/XLSX-export ask (`O257`).** `Pass 372.0` (`G053`,
-> structure-tree read) SHIPPED 2026-09-28 (700th filing, `c87f4e3d`) — see
-> top of *Shipped*, entry removed from this list. **A known gap in that
-> shipment is filed here as `Pass 372.1`** — the pagination artifact's own
-> `/Subtype` (Header/Footer/Watermark) is not yet exposed on `TextRun`, and
-> `G053` asked for header/footer specifically; the engineer is building it
-> next, this session, so it is the new head of *Next up*, ahead of `373.0`/
-> `374.0`.
+> structure-tree read, 700th filing, `c87f4e3d`) **and `Pass 372.1`** (the
+> pagination-artifact `/Subtype` gap it left, 701st filing, `dfc2121e`) are
+> **both now SHIPPED** — see top of *Shipped*; `G053` is fully answered.
+> **`373.0`/`374.0` are now the head of *Next up*, and their acceptance
+> criteria are refined this filing** with Acrobat-parity findings sourced
+> from `pdfcer-acrobat-librarian`'s two new Office-export files (see the
+> new Backlog bucket, below) plus the engineer's own design notes for
+> `373.0`'s block-layout module.
 >
-> - **`Pass 372.1`** (`G053` gap) — expose a pagination artifact's own
->   `/Subtype` on `TextRun`: Header, Footer, Watermark (ISO 32000-2 Table
->   363/§14.8.2.2.2). Today `ArtifactKind::Pagination` carries no subtype.
+> **Parity findings behind the refinement (both Passes).** Across four
+> Acrobat features (autotag, Word export, Excel export, table extraction),
+> Acrobat discloses NO confidence or inference report — pdfcer's
+> per-decision inference counts (`LayoutDiagnostics` below) exceed it, not
+> merely match it. Acrobat's multi-column reading order misorders commonly.
+> Acrobat routes any page-top heading into the header role regardless of
+> repetition; pdfcer must not copy that — see `373.0`'s own bullet. Excel
+> number format is an Acrobat operator setting that fails silently when
+> wrong; `374.0` deliberately leaves number parsing to the calling shell
+> rather than inherit that failure mode. Header-row guessing in a
+> borderless/ruled table has no Acrobat mechanism to reference at all —
+> this is new ground for both projects, not a parity target.
+>
 > - **`Pass 373.0`** (`G054`) — block-level layout for an untagged page:
 >   reading-order blocks over the existing line pass, a kind per block
->   (heading with a derived level, paragraph, list item, caption, running
->   header/footer, page number), column reading order, document-level
->   running-header/footer detection (repeated text at a stable position
->   across most pages), per-block alignment and first-line indent, an
->   inference count per decision.
+>   (`Heading{level}`, `Paragraph`, `ListItem{marker}`, `Caption`,
+>   `RunningHeader`, `RunningFooter`, `PageNumber`), column reading order
+>   via x-gutter detection, per-block alignment and first-line indent, a
+>   `LayoutDiagnostics` inference count per decision. **Running
+>   header/footer is gated on repetition of the same text at the same
+>   position across MOST pages (digits normalised), never on position
+>   alone** — the parity finding above is the reason: Acrobat's
+>   page-top-is-header heuristic is what pdfcer must not inherit. A
+>   tagged `/Artifact /Subtype` (`Pass 372.1`) wins over the heuristic
+>   when present. **Design notes for the build:** a new module over
+>   `ExtractedText` — lines, then blocks in reading order; prerequisite
+>   `ExtractedGlyph` gains a font weight, sourced from `FontDescriptor
+>   /FontWeight` (Table 122, 400 normal / 700 bold) when present, else
+>   derived from the `BaseFont` name as §14.8.2.5.x Table 332 allows ("of
+>   the conforming reader's choosing") — `ForceBold` is NOT used, since
+>   Table 332 says a reader should not rely on it. CLI: `pdfcer
+>   extract-layout`.
 > - **`Pass 374.0`** (`G055`) — extract a page's tables as a cell grid: box +
 >   row/column grid per table, cells with span + text (glyph indices into
 >   extraction), boundary provenance (**ruled** from strokes/thin filled
->   rects, or **aligned** from a whitespace gutter) with an inference count,
->   a header-row guess. Number parsing stays a shell concern.
+>   rects, or **aligned** from a whitespace gutter) with an inference
+>   count, a header-row guess. **Merged cells must report `row_span`/
+>   `col_span` explicitly** — the parity finding above (Acrobat itself
+>   splits a merged cell asymmetrically on its own export) means pdfcer
+>   cannot treat span as a rare case. Borderless/aligned-boundary detection
+>   must count every ambiguous call (wrapped line vs. new row is genuinely
+>   undecidable from geometry alone). Number parsing stays a shell concern
+>   by design, per the parity finding above.
 >
 > `docs/FEATURES.md`: **CORRECTED 2026-09-28 (698th filing)** — the 697th
 > filing's own claim of "five new *Planned* rows" was false; only the DXF
@@ -9277,7 +9351,10 @@ closes out the *prior* filing's business rather than opening this one's.
 > filing, core `[x]`/cli `[x]`/gui `[ ]`) — see that Shipped entry. `372.0`'s
 > row moved to *Implemented* too (700th filing, core `[x]`/cli `[x]`/gui
 > `[ ]`, Acrobat `[x]`), and its old *Planned* row was replaced by a new one
-> for the `372.1` gap, unticked.
+> for the `372.1` gap, unticked. **`372.1` shipped this filing (701st) and
+> was merged into the `372.0` row rather than kept separate** — see that
+> Shipped entry; the `372.1` *Planned* row is deleted. `373.0`/`374.0`'s
+> *Planned* rows gained a clause each for the parity refinements above.
 
 > ★★★★ **`Pass 375.0` SHIPPED, 2026-09-28 (699th filing), `20b2f1f6`** — see
 > top of *Shipped*. `G056`; closes the `/CropBox`-authoring half of the
@@ -18345,6 +18422,25 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Export to Word/Excel (Office formats) — filed 2026-09-28 (701st filing), no Pass ID
+
+**Scope.** DOCX/XLSX export, sourced from `pdfcer-acrobat-librarian`'s two
+new files:
+- `D:\Dev\Rag-Specialized\Acrobat_Features\office_export__word_structure_recognition.md`
+- `D:\Dev\Rag-Specialized\Acrobat_Features\office_export__excel_table_extraction.md`
+
+**Already scoped out of this bucket and into *Next up*:** `Pass 373.0`
+(`G054`, untagged block layout) and `Pass 374.0` (`G055`, table cell grid)
+— both are the prerequisite reading-order/table-detection layers a real
+DOCX/XLSX writer needs. See their bullets under *Next up*, top of this
+file, for the parity findings these two files supplied.
+
+**Still unscoped, this bucket's remainder:** the actual DOCX writer (block
+kinds → Word paragraph/heading/list styles) and XLSX writer (cell grid →
+worksheet, with the header-row guess and merged-cell spans from `374.0`
+carried through) — neither has a Pass ID yet. Scope once `373.0`/`374.0`
+ship and their output shapes are settled.
 
 ### `flatten_annotations` — PROMOTED to *Next up* as `Pass 360.0`, 2026-09-27 (658th filing)
 

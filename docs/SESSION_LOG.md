@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (701st filing) — `dfc2121e`: `Pass 372.1` SHIPPED — artifact `/Subtype` on extracted runs (G053); Office-export Backlog bucket registered; `373.0`/`374.0` acceptance criteria refined
+
+**Shipped:**
+- `Pass 372.1` (`G053` gap) — `TextRun::artifact_subtype: Option<ArtifactSubtype>` (`Header`/`Footer`/`Watermark`/`Other(String)`), read from the `/Artifact` property list's `/Subtype` (ISO 32000-2 Table 363/§14.8.2.2.2) whatever the `/Type` — the clause's "should" restrict it to Pagination, not a "shall". A subtype change splits a run. CLI `extract-text --json` emits it. Closes `G053` in full alongside `Pass 372.0`. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new. Highest decision record stays `164` — new field/enum, no crate boundary or invariant change, same call as `Pass 372.0`.
+
+**Findings + decisions:**
+- New `docs/ROADMAP.md` Backlog bucket, "Export to Word/Excel (Office formats)", citing `pdfcer-acrobat-librarian`'s two new files (`office_export__word_structure_recognition.md`, `office_export__excel_table_extraction.md`). `373.0`/`374.0` are already scoped out of it into *Next up*; the DOCX/XLSX writers themselves remain unscoped.
+- `373.0`/`374.0`'s *Next up* acceptance criteria refined with parity findings from those two files: Acrobat discloses no confidence/inference report across four features (autotag, Word export, Excel export, table extraction) — pdfcer's per-decision inference counts must exceed it; Acrobat misorders multi-column text commonly; Acrobat routes any page-top heading into the header role regardless of repetition, which `373.0`'s running-header/footer detection must NOT copy (gate on cross-page repetition instead); borderless tables are genuinely ambiguous (wrapped line vs. new row) so `374.0`'s aligned-boundary detection must count every such call; Acrobat itself splits merged cells asymmetrically, so `374.0` must report `row_span`/`col_span` explicitly; Excel number format is an Acrobat operator setting that fails silently when wrong, which is why `374.0` deliberately leaves number parsing to the shell; header-row guessing has no Acrobat mechanism at all, so it is new ground for both projects.
+- Engineer design notes for `373.0` recorded on the *Next up* bullet: a new layout module over `ExtractedText` (lines then blocks), block kinds `Heading{level}`/`Paragraph`/`ListItem{marker}`/`Caption`/`RunningHeader`/`RunningFooter`/`PageNumber`, a tagged `/Artifact /Subtype` (this session's `372.1`) winning over the repetition heuristic when present, a `LayoutDiagnostics` inference count, a prerequisite `ExtractedGlyph` font-weight field (from `FontDescriptor /FontWeight` Table 122 when present, else derived from `BaseFont` per §14.8.2.5.x Table 332 — `ForceBold` deliberately not used), and CLI `pdfcer extract-layout`.
+- `docs/FEATURES.md`: `Pass 372.1` merged into the `Pass 372.0` row (*Text* section) rather than kept separate — the old `372.1` *Planned* row deleted; `373.0`/`374.0`'s *Planned* rows each gained a clause for the parity refinements above.
+
+**Still in flight:**
+- `Pass 373.0` (`G054`) is the head of *Next up*, `374.0` behind it — both now carry refined acceptance criteria and, for `373.0`, a design sketch. Neither has started implementation as of this filing.
+
+**For next session:**
+- No shell available this filing. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes commit `dfc2121e`).
+
 ## 2026-09-28 (700th filing) — `c87f4e3d`: `Pass 372.0` SHIPPED — read a tagged PDF's structure tree (G053)
 
 **Shipped:**
