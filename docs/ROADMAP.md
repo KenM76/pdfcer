@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 73.1` (`96a3f227`), 2026-09-28 — `add_radio_button` is atomic and one undo entry
+
+**Verdict: SHIPPED — closes `Pass 73.1` in full.** Filed 2026-08-13 (139th filing). Defect B's criteria 1–2 shipped earlier via `Pass 78.0` (`fa243df`, 147th filing) from an independently-arrived external report; criterion 3 (the `annotation_deletion_refusal` doc-comment) and Defect A (this commit) were the "WHAT REMAINS" named by the 147th filing's own amendment. Both now closed.
+
+**Core.** `EditSession::add_radio_button` used to `commit` a `selected` member's merge into an existing group BEFORE calling `set_button_state` — an infallible commit followed by a fallible call, so `Err` could mean "the merge landed and the reselect did not," on a surface where every other verb's `Err` means "nothing happened." Now atomic: a `set_button_state` refusal (e.g. `FieldNotFillable` on a read-only group) rolls the merge back — restoring the redo stack and any undo entry evicted by the 256-deep bound — leaving the session byte-for-byte unchanged; success coalesces merge + reselect into ONE undo entry. `# Errors` doc now states the contract: "Atomic: `Err` means the session is unchanged, and `Ok` is one undo entry."
+
+**Criterion 3.** `annotation_deletion_refusal`'s doc comment now states its document-scoped limit (encryption, certification) by name, and that `delete_annotation` also refuses locked (`AnnotationLocked`), `/TrapNet` (`AnnotationIsTrapNet`) and widget (`AnnotationIsWidget`) annotations per-annotation — the doc-comment branch `Pass 78.0` ruled correct for this function (it answers a genuinely different question than the real path's per-annotation refusals, not a gap).
+
+**Tests.** `crates/pdfcer-core/tests/form_radio_groups.rs` +2 (`a_selected_member_that_cannot_be_selected_leaves_the_session_unchanged`, `a_selected_merge_is_one_undo_entry`), file 23/23. Rollback sabotage-checked (removing the rollback fails the first test).
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands incl. 2 filing gates. `fmt`/`clippy --all-features` clean. No manifest change — `cargo tree` invariant not applicable.
+
+**Shells.** core `[x]`; no CLI/GUI surface change (doc-comment + internal-behaviour fix only); no `docs/core-api` pub-signature change.
+
+**`docs/FEATURES.md`.** Forms row ("Create a field — text, check box, radio…") — the clause warning that a selected-radio `Err` might not mean "nothing happened" replaced with a statement that the verb is atomic, one undo entry. Boxes unchanged.
+
+**No §12 decision.** Bug fix + doc-comment correction, not an architectural decision. Highest decision record stays `164`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own verification at HEAD = `96a3f227`, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes this commit).
+
 ### `Pass 142.3` (`ee47e67a`), 2026-09-28 — automatic style ladder, rung 3: a supplied face embedded
 
 **Verdict: SHIPPED — rung 3 of the automatic bold/italic ladder.** Closes the Backlog entry filed 2026-09-28 (692nd filing) when `Pass 142.0` shipped. `142.0` built the embedding machinery behind an explicit `--embed-font`/`--find` gate; this Pass adds the automatic SELECTOR in front of it, per decision 106's original scope.
@@ -11548,7 +11568,7 @@ that owes it — found the same day, from a different direction.
 **Terminology (rule 15):** nothing here touches **ce dimensions** or
 **pdf dimensions**.
 
-### Pass 73.1 — **two DEFECTS in `pdfce-core`'s edit surface, both found by the same API-mapping pass: the ONE non-atomic verb, and two preflights that under-report what the real path refuses** — filed 2026-08-13 (hundred-and-thirty-ninth filing) — **UNSTARTED**
+### ~~Pass 73.1~~ — **two DEFECTS in `pdfce-core`'s edit surface, both found by the same API-mapping pass: the ONE non-atomic verb, and two preflights that under-report what the real path refuses** — filed 2026-08-13 (hundred-and-thirty-ninth filing) — ★★★ **CLOSED 2026-09-28, `96a3f227`. FULLY SHIPPED — see the `Pass 73.1` entry at the top of *Shipped*. Retained below as the scoping/amendment record; nothing remains in scope**
 
 > Filed as a Pass, not as trivia, for the reason stated in the dispatch:
 > **a defect goes where a fix will be found.** Both are small; both are
@@ -11660,16 +11680,17 @@ on the merits, with a test now guarding the rejection. This row is
 **`annotation_deletion_refusal`** — a different function, a different
 ruling, and the two are one word apart in the source.
 
-**WHAT REMAINS OF `Pass 73.1`, and it stays in *Next up*:**
+**WHAT REMAINED OF `Pass 73.1` — NOW CLOSED, 2026-09-28, `96a3f227`:**
 
-1. **Defect A in full** — `add_radio_button` is still the one verb that can
-   `Err` **after** committing. `fa243df` did not touch it, and
-   `FEATURES.md`'s Forms row still carries the warning that cites this
-   Pass.
-2. **Criterion 3** — one doc-comment paragraph on
-   `annotation_deletion_refusal`. **The cheapest item in *Next up*, and it
-   is the one that stops a shell from making `Pass 78.0`'s mistake in the
-   annotation family instead of the form family.**
+1. **Defect A** — `add_radio_button` is atomic and one undo entry;
+   `set_button_state`'s refusal rolls the merge back rather than leaving it
+   committed behind an `Err`. `FEATURES.md`'s Forms row's warning is
+   corrected in the same filing.
+2. **Criterion 3** — `annotation_deletion_refusal`'s doc comment now states
+   its document-scoped limit by name, and names the three per-annotation
+   refusals (`Locked`, `/TrapNet`, widget) the real path also carries.
+
+See the `Pass 73.1` entry at the top of *Shipped* for the full record.
 
 **Terminology (rule 15):** nothing here touches **ce dimensions** or
 **pdf dimensions**.
@@ -11763,7 +11784,39 @@ and sends the next bug report at the writer instead of the reader.
 dimensions** — but note that a **pdf** annotation authored elsewhere is
 exactly what renders wrong today.
 
-### Pass 80.0 — **NOTE TEXT ON GEOMETRIC MARKUP — `/Contents` PLUS `/T` AND `/M` TOGETHER**, because a Comments panel that lists a note with no author *"looks like a bug in the panel rather than an absence in the writer"* — filed 2026-08-14 (hundred-and-forty-seventh filing) — **UNSTARTED**
+### `Pass 80.0` — **NOTE TEXT ON GEOMETRIC MARKUP — `/Contents` PLUS `/T` AND `/M` TOGETHER**, because a Comments panel that lists a note with no author *"looks like a bug in the panel rather than an absence in the writer"* — filed 2026-08-14 (hundred-and-forty-seventh filing) — ★★★ **CLOSED 2026-09-28: FULLY DISCHARGED BY `Pass 150.0` (`943d482`, 2026-08-28, 304th filing). NOTHING REMAINS IN SCOPE — DO NOT RE-SCOPE THIS. READ THE AMENDMENT FIRST**
+
+> **★★★ CLOSED 2026-09-28 (695th filing).** Verified against the `Pass 150.0`
+> Shipped entry (`docs/history/session-log-before-2026-09-09.md`): it ships
+> `MarkupOptions::note: Option<MarkupNote>`, writing `/Contents`, `/T` AND
+> `/M` together (§12.5.2 Table 164; §12.5.6.4 Table 170), reaching **both**
+> author routes through `MarkupOptions::validate`. CLI: `annotate --note
+> TEXT --note-author NAME --note-date D:…`, any one sufficing. **The trio
+> this entry asked for is fully covered — no remainder to keep open.**
+>
+> **Why this stays in *Next up* rather than moving to *Shipped***, the same
+> hard-rule-2 reasoning `Pass 120.5` recorded: the work shipped under a
+> **different** ID with its own date, hash and Shipped entry. Moving this
+> entry there would mint a second Shipped record for one capability, and
+> *Shipped* is ordered by ship date — a date `80.0` does not have, because
+> it never shipped under this ID. Hard rule 2 is satisfied by the ID never
+> being reused; hard rule 1 by nothing being deleted.
+>
+> **★★ FLAGGED, NOT RESOLVED — Ruling 1 below and `ARCHITECTURE.md` §12
+> decision 062 §2 both say `/M` is ENGINE-STAMPED, NEVER CALLER-SUPPLIED.
+> `Pass 150.0` shipped the opposite**: `--note-date D:…` lets the caller
+> supply `/M` verbatim, justified in that Pass's own entry as "the no-clock
+> decision" — pdfcer reads no clock at all, so a caller-supplied date beats
+> an unreproducible wall-clock one (determinism + rule 4, the `/PieceInfo`
+> sidecar's existing precedent). A later filing (the `Pass 149.0` vertex-
+> reshape entry) already treats caller-supplied `/M` as "an existing
+> ruling," so the project's live behaviour has moved on — but decision
+> 062 §2's text in `ARCHITECTURE.md` §12 carries no dated note recording
+> the reversal. This is this role's own hard rule 11 shape (a meaning
+> change with an unswept survivor) turned on the decision log itself.
+> **Owed:** the engineer decides whether to mint a new decision superseding
+> 062 §2, or amend 062 §2 in place with a dated note — then re-dispatch
+> this role to file it. Not resolved by this filing.
 
 > **A named consumer is waiting.** The `pdfceGUI` session's Comments panel
 > shows **"No note text"** on every markup pdfce itself authors, because

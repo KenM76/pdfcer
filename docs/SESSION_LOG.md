@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (695th filing) — `96a3f227`: `Pass 73.1` SHIPPED — `add_radio_button` is atomic and one undo entry
+
+**Shipped:**
+- `Pass 73.1` — `EditSession::add_radio_button` used to `commit` a `selected` member's merge into an existing group BEFORE calling `set_button_state`, so a refusal (e.g. `FieldNotFillable` on a read-only group) could leave the merge committed behind an `Err`. Now atomic: a refusal rolls the merge back (redo stack + any 256-deep-bound-evicted undo entry restored); success coalesces merge + reselect into ONE undo entry. `# Errors` doc states the contract. `annotation_deletion_refusal`'s doc comment (criterion 3) now states its document-scoped limit by name and names the three per-annotation refusals the real path also carries. Full record at the top of `ROADMAP.md`'s *Shipped*.
+- Closes `Pass 73.1` in full — Defect B's criteria 1–2 shipped earlier via `Pass 78.0` (`fa243df`); Defect A and criterion 3 were the "WHAT REMAINS" named by the 147th filing's own amendment.
+
+**Decisions made this session:**
+- None new — bug fix + doc-comment correction, not an architectural decision. Highest decision record stays `164`.
+
+**Findings + decisions:**
+- While verifying `Pass 80.0`'s "NOTE TEXT ON GEOMETRIC MARKUP" *Next up* entry against the `Pass 150.0` Shipped record (per the dispatch's third premise): the trio `/Contents` + `/T` + `/M` is fully covered, so `Pass 80.0` is closed as DISCHARGED BY `Pass 150.0` (same hard-rule-2 treatment as `Pass 120.5`). **But `Pass 150.0`'s shipped CLI (`--note-date D:…`) lets the caller supply `/M` verbatim, which contradicts `Pass 80.0`'s own Ruling 1 AND `ARCHITECTURE.md` §12 decision 062 §2 — both say `/M` is engine-stamped, never caller-supplied.** `Pass 150.0`'s own entry justifies the caller-supplied form as "the no-clock decision" (pdfcer reads no clock; determinism + rule 4 + the `/PieceInfo` sidecar precedent), and a later filing (`Pass 149.0`) already treats caller-supplied `/M` as settled — but decision 062 §2's text carries no dated note recording the reversal. Flagged in the `Pass 80.0` entry, not resolved here: the engineer should decide whether to mint a superseding decision or amend 062 §2 in place, then re-dispatch this role to file it.
+
+**Still in flight:**
+- No named head in *Next up* (unchanged from the 694th filing). Decision-log staleness on decision 062 §2 (above) is now the standing owed item.
+
+**For next session:**
+- `docs/FEATURES.md`'s Forms row ("Create a field — text, check box, radio…") — the stale "`Err` does not mean nothing happened" warning corrected to state the verb is now atomic; boxes unchanged.
+- Resolve the decision 062 §2 vs. `Pass 150.0`/`Pass 149.0` `/M` divergence flagged above before it is cited as settled either way again.
+- No shell available this filing — facts verified by the dispatching engineer at HEAD = `96a3f227`, relayed here, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes this commit).
+
 ## 2026-09-28 (694th filing) — `ee47e67a`: `Pass 142.3` SHIPPED — automatic style ladder, rung 3: a supplied face embedded
 
 **Shipped:**
