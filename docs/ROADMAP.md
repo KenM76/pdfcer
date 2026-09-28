@@ -21300,7 +21300,7 @@ stays `0`.
 <details>
 <summary>Original Backlog entry (filed 2026-08-26, 263rd filing) — kept verbatim for citation</summary>
 
-### `Pass 127.2` — `redact-mark`'s unreadable-text finding reaches STDERR but not the machine-readable SUMMARY LINE, so the batch caller `Pass 127.1` was ranked for is still not served
+**Original entry (as filed):** `Pass 127.2` — `redact-mark`'s unreadable-text finding reaches STDERR but not the machine-readable SUMMARY LINE, so the batch caller `Pass 127.1` was ranked for is still not served
 
 **Filed 2026-08-26 (two-hundred-and-sixty-third filing)**, owed by
 `Pass 127.1` (`9b941b9`, *Shipped*) — specifically by **scope item (b) of
