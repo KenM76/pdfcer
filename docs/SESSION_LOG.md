@@ -4,6 +4,52 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (707th filing) — `7abc3daf`: `v0.61.0` RELEASED
+
+**Shipped:**
+- `v0.61.0` released. Annotated tag on `7abc3daf` (the filing commit that
+  recorded chore `24b3f032` as filed). Range since `v0.60.0`: batches
+  `Pass 371.0`, `253.4`, `127.2`, `264.0`, `142.0`, `327.5`, `142.3`,
+  `372.0`, `372.1`, `373.0` (incl. its `c6841754` follow-up), `374.0`,
+  `375.0`, `376.0`+`377.0`, `378.0`, `73.1`, `379.0`. Full record at the
+  top of `ROADMAP.md`'s *Shipped*.
+- GitHub release published (`tools/gh-release.py` PASS, 2 assets:
+  `pdfcer-v0.61.0-windows-x64.zip` 42,944,846 bytes, sha256
+  `b6fd0345f97675512532d9b69f132183142dbd75ade61c78d1d3cfa07b8f2b66`).
+  OneDrive slot `pdfcer2` updated; `pdfcer1` keeps `v0.60.0`.
+- Fresh-folder smoke test (rebuilt package, no `--model-dir`): `--version`
+  → `v0.60.0-55-g7abc3daf`; `extract-tables` on a synthetic ruled 2x2
+  table → 4 of 4 cells; `extract-layout` → `inferred=4 of 4` blocks; `ocr`
+  + `find-text --needle sleeping` matched across all four engines
+  (`paddle`, `ocrs`, `ocrcer`, `tesseract`).
+
+**Decisions made this session:**
+- None new — a release carries no architectural decision. Highest
+  decision record remains `165`, minted at the 706th filing.
+
+**Findings + decisions:**
+- The first smoke test (against the un-rebuilt `24b3f032` build) caught
+  `extract-layout`'s `inferred=` under-report (paragraphs left out of the
+  count — CLAUDE.md rule 4, fuzzy-never-sneaky); fixed in `c6841754`,
+  already filed under `Pass 373.0`'s own entry at the 705th filing. The
+  package was rebuilt before this release's smoke test passed.
+
+**Still in flight:**
+- `verify-release.py`'s standing "working tree clean" FAIL is the
+  untracked `target-case/`/`target-probe/`/`target-wasm/` scratch dirs —
+  same false-alarm class as prior releases.
+- `docs/FEATURES.md`: no rows changed — a release ships no new capability
+  of its own.
+
+**For next session:**
+- GUI notified: two channel notices —
+  `notice_2026-09-28_v0.61.0_released.md` and
+  `notice_2026-09-28_layout_inferred_now_counts_paragraphs.md`, both in
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+- No shell available this filing — all tag/build/release/deploy/smoke-test
+  facts relayed from the dispatching engineer's own report, not
+  independently reproduced.
+
 ## 2026-09-28 (706th filing) — `24b3f032`: chore — v0.61.0 version bump, release IN PROGRESS
 
 **Shipped:**

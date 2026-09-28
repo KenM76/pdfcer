@@ -115,6 +115,85 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.61.0` — RELEASED (2026-09-28)
+
+Release filing, not a Pass — completes the engineer's in-progress release
+reported in `Pass 379.0`'s own entry below (706th filing). Version-bump
+commit `24b3f032` ("chore: v0.61.0", already filed at the 706th filing
+alongside `Pass 379.0`) bumps `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock`
+0.60.0 → 0.61.0. Filing commit `7abc3daf` ("docs: file v0.61.0 bump
+(24b3f032) -- release in progress") records the bump as filed. Annotated
+tag `v0.61.0` sits on `7abc3daf`. Tag pushed; `main` pushed to `7abc3daf`.
+
+**Range since `v0.60.0` (`040c24d7`): batches every Pass already filed
+below** — `Pass 371.0`, `253.4`, `127.2`, `264.0`, `142.0`, `327.5`,
+`142.3`, `372.0`, `372.1`, `373.0` (incl. its `c6841754` follow-up),
+`374.0`, `375.0`, `376.0`+`377.0`, `378.0`, `73.1`, `379.0`.
+
+**Gates.** `tools/run-gates.sh` on the code at `c6841754` plus docs: 39/40,
+the only red check being `check-commits-filed` for the then-unfiled bump
+`24b3f032`. The bump was filed (`7abc3daf`) and the filing gates re-run
+clean. CI green at the tagged commit.
+
+**Fresh-folder smoke test, on the package rebuilt after `c6841754`.**
+`--version` reports `v0.60.0-55-g7abc3daf`. `extract-tables` on a
+synthetic ruled 2x2 table: 4 of 4 cells. `extract-layout`:
+`inferred=4 of 4` blocks. `ocr` with each of `paddle`/`ocrs`/`ocrcer`/
+`tesseract`, no `--model-dir`, finds "sleeping" on
+`fixtures/synthetic/ocr/scan.pdf`.
+
+**What the smoke test found.** The first smoke test, run against the
+`24b3f032` build, found `extract-layout`'s `inferred=` under-reporting
+(`Paragraph` blocks left out of the count — CLAUDE.md rule 4). Fixed in
+`c6841754` (already filed below, under `Pass 373.0`'s own entry), and the
+package was rebuilt before the smoke test above.
+
+**Build.** `D:\builds\pdfcer-20260928-1454-7abc3da`: 70,334,920 bytes.
+
+**GitHub release.** Published via `tools/gh-release.py`: PASS, 2 assets at
+local sizes — `pdfcer-v0.61.0-windows-x64.zip`, 42,944,846 bytes, sha256
+`b6fd0345f97675512532d9b69f132183142dbd75ade61c78d1d3cfa07b8f2b66` — plus
+its `.sha256`. Zip assembled by hand, folder contents at the zip root,
+same layout as `v0.59.0`/`v0.60.0`.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer2`; `pdfcer1`
+keeps `v0.60.0`. Next release writes `pdfcer1`.
+
+**`verify-release.py v0.61.0`.** Only FAIL is the standing "working tree
+clean" false alarm — the untracked `target-case/`/`target-probe/`/
+`target-wasm/` scratch dirs, same class as prior releases.
+
+**`docs/FEATURES.md`: no rows changed** — a release ships no new
+capability of its own; `Pass 373.0`'s follow-up (`c6841754`) corrected an
+existing behaviour, not a new row.
+
+**No decision-log entry** — a release carries no architectural decision.
+Highest decision record remains `165` (`Pass 379.0`, 706th filing).
+
+**GUI notified.** Two channel notices posted:
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-28_v0.61.0_released.md`
+and
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-28_layout_inferred_now_counts_paragraphs.md`.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own verification of the tag/build/
+release/deploy/smoke-test steps, not independently reproduced. Backup/
+remote state beyond what's stated here is not verifiable from here.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.60.0` (`040c24d7`, 2026-09-28) | **`v0.61.0` (`7abc3daf`, 2026-09-28)** |
+| Pass families | highest shipped this filing's range: `379.0` | unchanged — no new Pass this filing, release only |
+| Standing rules | not re-verified this filing (no shell) | unchanged — no rule minted |
+| Decision records | `165` | unchanged — a release carries no decision |
+| `SESSION_LOG` filings | `706` | **`707`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
+| CI at the tagged commit | not yet confirmed pre-release | **green at `7abc3daf` per engineer verification** |
+
+---
+
 ### `Pass 379.0` (`c3fdc733`, `5c189d99`), 2026-09-28 — `Page::with_boxes` constructor (G060); corrects a Pass-ID collision baked into the commit message
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G060`: "a Page has no
