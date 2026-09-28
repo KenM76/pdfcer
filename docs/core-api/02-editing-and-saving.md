@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 269 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 270 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 269 public `EditSession` methods
+## 1. Verb index — all 270 public `EditSession` methods
 
-**Count: 269.** Established by brace-matched extraction of the six
+**Count: 270.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -3684,6 +3684,7 @@ constructed, then committed, under one `&mut`.
 | Hit-test ce dimensions on a page | `dimension_rects(&self, page_index) -> Vec<(DimensionId, [f64;4])>` | `[llx, lly, urx, ury]` page space. |
 | List groups present on a page | `dimension_groups_on_page(&self, page_index) -> Vec<GroupId>` | Model order. |
 | **Drag** a ce dimension | `place_dimension(&mut self, dimension, offset: f64, text_along: f64) -> Result<(), EditError>` | ✅ **This, not `move_dimension`, is what dragging does.** Value-preserving by construction. |
+| **Live-preview** a ce dimension drag | `dimension_preview(&self, id: DimensionId, moved: &DimensionKind) -> Result<DimensionPreview, EditError>` | **`Pass 368.0`**, pdfcer-gui request G049. Bakes `moved` through the commit's own path (the ce dimension's resolved style cascade and text override, `author_dimension_with_label`); stages nothing, no undo entry, `&self`. `DimensionPreview { appearance: AuthoredDimension }`: `appearance.ap_content` is page-space (`/BBox` = `/Rect`, identity matrix). `appearance.label_quad: [Point; 4]` is the value text's box (descender to cap line, in the text's own frame, so rotated for an ISO-aligned label), and `label_rect()` gives its upright bounds; hit-test a press there to set `text_along` only, and elsewhere to set `offset`. `moved` is not validated; the committing verb applies its own refusals. Paint: `pdfcer_render::edit_preview::paint_dimension_preview(&view, &preview, &RenderOptions, page_to_device: Transform, &mut Pixmap) -> Diagnostics`. It runs the same interpreter as the committed `/AP`, and its pixels are tested equal to the committed page render. Pass a transparent pixmap to composite it over the page. `Errors`: `DimensionNotFound`, `DimensionGroupNotFound`. No CLI (interactive only). |
 | Toggle radius ↔ diameter | `set_dimension_display(&mut self, dimension, show_diameter: bool) -> Result<(), EditError>` | ⚠️ **Commits even when nothing changes** (opposite of `set_info_field`). |
 | Set a group's drafting standard | `set_group_standard(&mut self, group, standard: DimStandard) -> Result<usize, EditError>` | Count of members regenerated. |
 | Set a group's style defaults | `set_group_style(&mut self, group, style: GroupStyle) -> Result<usize, EditError>` | ⚠️ **Count REGENERATED, not count MOVED.** See §8, trap T-00. |

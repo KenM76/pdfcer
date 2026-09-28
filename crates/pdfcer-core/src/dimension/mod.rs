@@ -82,8 +82,8 @@ pub mod units;
 
 // Re-export the everyday surface at `crate::dimension::…`.
 pub use author::{
-    AUTHORED_ANNOT_KEYS, AUTHORED_MEASURE_KEY, AuthoredDimension, DIM_PLACEHOLDER, DimensionStyle,
-    author_dimension, author_dimension_with_label,
+    AUTHORED_ANNOT_KEYS, AUTHORED_MEASURE_KEY, AuthoredDimension, DIM_PLACEHOLDER,
+    DimensionPreview, DimensionStyle, author_dimension, author_dimension_with_label,
 };
 pub use fit::{FitCircle, fit_circle_taubin, fit_circle_taubin_refined};
 pub use group::{

@@ -289,6 +289,45 @@ pub struct AuthoredDimension {
     /// recomputed to be disclosed is a fact that will eventually be disclosed
     /// wrongly.
     pub label_overridden: bool,
+    /// The value label's box in page space: the four corners of the text's
+    /// own frame (rotated with an ISO-aligned label), from the descender
+    /// line to the cap line, in order around the box. Width is the baker's
+    /// own estimate, the one `/Rect` is sized from. A shell hit-tests a
+    /// press against it to tell "on the text" from "on the line".
+    pub label_quad: [Point; 4],
+}
+
+impl AuthoredDimension {
+    /// The upright page-space bounds of [`Self::label_quad`].
+    #[must_use]
+    pub fn label_rect(&self) -> Rect {
+        let q = &self.label_quad;
+        let (mut llx, mut lly, mut urx, mut ury) = (q[0].x, q[0].y, q[0].x, q[0].y);
+        for p in &q[1..] {
+            llx = llx.min(p.x);
+            lly = lly.min(p.y);
+            urx = urx.max(p.x);
+            ury = ury.max(p.y);
+        }
+        Rect { llx, lly, urx, ury }
+    }
+}
+
+/// What a ce dimension would look like if a moved geometry were committed:
+/// the appearance the commit would bake, nothing staged
+/// (`EditSession::dimension_preview`).
+///
+/// `appearance.ap_content` is in page space (`/BBox` = `/Rect`, identity
+/// `/Matrix`), so a shell paints it with the page-to-device transform
+/// (`pdfcer_render::edit_preview::paint_dimension_preview`) and gets the
+/// pixels the committed `/AP` will produce. `appearance.label_quad` /
+/// `label_rect()` locate the value text for hit-testing.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct DimensionPreview {
+    /// The appearance the commit would bake, from the same baker, style
+    /// cascade and text override the commit uses.
+    pub appearance: AuthoredDimension,
 }
 
 /// Author a dimension's `/Line` annotation + baked `/AP` from its geometry and
@@ -622,6 +661,14 @@ pub fn author_dimension_with_label(
         }
     }
 
+    let label_quad = [
+        (0.0, -label_size * 0.3),
+        (text_w, -label_size * 0.3),
+        (text_w, label_size),
+        (0.0, label_size),
+    ]
+    .map(|(du, dv)| Point::new(tx + ux * du + px * dv, ty + uy * du + py * dv));
+
     b.begin_text();
     b.set_font(FONT_RESOURCE, label_size);
     b.set_text_matrix(ux, uy, -uy, ux, tx, ty);
@@ -751,6 +798,7 @@ pub fn author_dimension_with_label(
         rect,
         label,
         label_overridden,
+        label_quad,
     }
 }
 

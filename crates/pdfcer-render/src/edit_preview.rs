@@ -111,3 +111,50 @@ fn to_transform(m: [f64; 6]) -> Transform {
         m[5] as f32,
     )
 }
+
+/// Paint a ce dimension drag preview
+/// ([`pdfcer_core::dimension::DimensionPreview`]) onto `pixmap`.
+///
+/// `page_to_device` maps PDF page user space to `pixmap` pixels, as for
+/// the page render. The appearance is run through the same interpreter,
+/// with its own `/Resources`, that paints the committed `/AP` (whose
+/// `/BBox` equals `/Rect` under an identity `/Matrix`, so §12.5.5
+/// placement is the identity), so the preview's pixels are the commit's.
+/// Paints over whatever `pixmap` holds; a shell compositing it over the
+/// page passes a transparent pixmap.
+///
+/// Returns the interpreter's diagnostics. A content stream the baker
+/// wrote and the parser refuses paints nothing and is reported as one
+/// `sample_ops` entry.
+#[must_use]
+pub fn paint_dimension_preview(
+    doc: &DocumentView<'_>,
+    preview: &pdfcer_core::dimension::DimensionPreview,
+    options: &crate::RenderOptions,
+    page_to_device: Transform,
+    pixmap: &mut tiny_skia::Pixmap,
+) -> crate::Diagnostics {
+    let ap = &preview.appearance;
+    let Ok(content) = pdfcer_core::content::ContentStream::parse(ap.ap_content.clone()) else {
+        let mut diag = crate::Diagnostics::default();
+        diag.sample_ops
+            .push("ce dimension preview: appearance did not parse".to_owned());
+        return diag;
+    };
+    let resources = ap
+        .ap_dict
+        .get(b"Resources")
+        .and_then(pdfcer_core::object::Object::as_dict)
+        .cloned()
+        .unwrap_or_default();
+    crate::interpret::run(
+        doc,
+        &content,
+        &resources,
+        &options.fonts,
+        crate::gstate::GraphicsState::default_with_ctm(page_to_device),
+        pixmap,
+        None,
+        options.policy(),
+    )
+}

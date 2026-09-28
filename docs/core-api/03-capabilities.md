@@ -192,6 +192,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `set_dimension_style(dimension, style: StyleOverrides)` | `Result<usize, EditError>` — always this one member |
 | `set_dimension_display(dimension, show_diameter: bool)` | `Result<(), EditError>` — circular only |
 | `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` |
+| `dimension_preview(&self, id, moved: &DimensionKind)` | `Result<DimensionPreview, EditError>` — read-only |
 | `move_dimension(dimension, dx, dy)` | `Result<(), EditError>` |
 | `toggle_dimension_layer(group, visible: bool)` | `Result<bool, EditError>` |
 | `delete_dimension(dimension)` | `Result<(), EditError>` — annotation + `/AP` + sidecar together |

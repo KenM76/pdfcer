@@ -35,6 +35,7 @@ mod contents_append_shapes;
 mod cut_verbs;
 mod deletion_collateral_structural;
 mod dimension_label_override;
+mod dimension_preview;
 mod dimension_rotate;
 mod dimension_roundtrip;
 mod dxf_export;

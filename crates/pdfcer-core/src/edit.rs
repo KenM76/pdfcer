@@ -46964,6 +46964,46 @@ impl EditSession {
         self.read_dimension_model()
     }
 
+    /// The appearance ce dimension `id` would get if its geometry were
+    /// `moved` and committed, for a live drag preview. Read-only: nothing is
+    /// staged and no undo entry is made, so it takes `&self` and a shared
+    /// session can call it while a render holds a clone.
+    ///
+    /// Baked by the commit's own path: `id`'s resolved style cascade and
+    /// text override over `moved`, through
+    /// [`crate::dimension::author_dimension_with_label`]. Painting
+    /// `appearance.ap_content` therefore draws what `move_dimension` /
+    /// `place_dimension` / `rotate_dimension` would write for the same kind.
+    ///
+    /// `moved` is taken as given; the verbs that commit it apply their own
+    /// refusals.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::DimensionNotFound`] for an unknown `id`;
+    /// [`EditError::DimensionGroupNotFound`] if its group is missing from
+    /// the sidecar.
+    pub fn dimension_preview(
+        &self,
+        id: DimensionId,
+        moved: &DimensionKind,
+    ) -> Result<crate::dimension::DimensionPreview, EditError> {
+        let model = self.read_dimension_model();
+        let record = model
+            .dimension(id)
+            .ok_or(EditError::DimensionNotFound { id: id.0 })?;
+        let group = model
+            .group(record.group)
+            .ok_or(EditError::DimensionGroupNotFound { id: record.group.0 })?;
+        let style = crate::dimension::resolve_style(group, &record.style);
+        let appearance = crate::dimension::author_dimension_with_label(
+            moved,
+            style,
+            record.label_override.as_deref(),
+        );
+        Ok(crate::dimension::DimensionPreview { appearance })
+    }
+
     /// Author a dimension onto a page: a `/Line` `/IT /LineDimension`
     /// annotation with a baked `/AP` (leader + value label), placed on its
     /// group's optional-content layer (`/OC` → the group `/OCG`, allocated on
