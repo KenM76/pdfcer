@@ -1008,7 +1008,11 @@ impl Page {
     /// ```
     #[must_use]
     pub fn with_boxes(id: ObjId, media_box: Rect, crop_box: Rect, rotate: u16) -> Self {
-        let rotate = if rotate.is_multiple_of(90) { rotate % 360 } else { 0 };
+        let rotate = if rotate.is_multiple_of(90) {
+            rotate % 360
+        } else {
+            0
+        };
         Self {
             id,
             resources: Dict::new(),
