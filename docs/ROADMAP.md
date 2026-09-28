@@ -168,6 +168,17 @@ entry plus the `SESSION_LOG.md` line are the record.
 **cargo tree.** No manifest changed this Pass — invariant not re-run. A
 full `tools/run-gates.sh` is reported pending before push.
 
+**Also filed this session.** Chore commit `24b3f032` ("chore: v0.61.0",
+`Cargo.toml` 0.60.0 → 0.61.0 plus `Cargo.lock`/`fuzz/Cargo.lock`) —
+recorded so `check-commits-filed.py` sees it filed. **Release in
+progress**: v0.61.0 will batch every Pass shipped since `v0.60.0`
+(`040c24d7`) — `371.0`, `253.4`, `127.2`, `264.0`, `142.0`, `327.5`,
+`142.3`, `372.0`, `372.1`, `373.0` (incl. its `c6841754` follow-up),
+`374.0`, `375.0`, `376.0`, `377.0`, `378.0`, `73.1`, `379.0` — all
+already filed above. Tag, GitHub release and OneDrive deploy not yet
+done; not yet confirmed from here — full release filing to follow once
+tag/deploy details are relayed.
+
 **Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
 dispatching engineer's own verification at `c3fdc733`, not independently
 reproduced. Backup/push/release state not verifiable from here.
