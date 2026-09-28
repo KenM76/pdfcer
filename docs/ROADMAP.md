@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 367.0` (`001b91f8`), 2026-09-27 — `edit_text_preview` takes `&self` — `G048`
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` request `G048`. Gap: `Pass 366.0`'s `EditSession::edit_text_preview` took `&mut self` because its per-page `TextWalkCache` lived directly in the session; `pdfcer-gui` holds the session as `Arc<EditSession>` (the render worker clones it), so a per-keystroke preview needed `Arc::get_mut`, and skipped + retried 50 ms later whenever a render was in flight — the preview could lag a render by one cycle.
+
+**Fix.** `text_walk_cache` is now `std::sync::Mutex<Option<TextWalkCache>>`; `edit_text_preview` and the private `page_text_walk` take `&self`. A `Mutex` (not `RefCell`) keeps `EditSession: Send + Sync`. The lock guards only the slot read/store, never the walk itself. Source-compatible; two tests dropped an unneeded `mut` (`crates/pdfcer-core/tests/edit_text_preview.rs`, `crates/pdfcer-render/tests/edit_preview_outlines.rs`).
+
+**Tests.** New `a_preview_runs_through_a_shared_handle` (`crates/pdfcer-core/tests/edit_text_preview.rs`): previews through an `Arc` while another thread holds a clone, asserts `EditSession: Send + Sync`; cannot compile under a `&mut` receiver. `edit_text_preview` suite 10/10, render `edit_preview_outlines` 2/2, clippy clean.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md`'s `edit_text_preview` row now says `&self` and states why. `check-core-api-verbs` PASS.
+
+**Shells.** core `[x]`. cli: none — the preview is interactive-only, unchanged. gui `[ ]` — `pdfcer-gui` consumes it.
+
+**`docs/FEATURES.md`.** Typing-preview row (`Pass 366.0`) gains a clause naming the shared-access fix; boxes unchanged (core `[x]`, cli `—`, gui `[ ]`).
+
+**Channel.** Reply posted: `open/reply_G048_edit_text_preview_takes_shared_self_FIXED.md`.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `001b91f8`, not independently reproduced.
+
 ### `Pass 264.2` (`a14e2616`/`d822a562`), 2026-09-27 — `/BS` dash gains a public read accessor
 
 **Verdict: SHIPPED — the accessor half. The clipboard half shipped earlier as `Pass 270.0` (`caf4c1d`); both halves of the Backlog entry are now closed.**

@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (672nd filing) — `001b91f8`: `Pass 367.0` (`edit_text_preview` takes `&self`, `G048`) SHIPPED
+
+**Shipped:**
+- Pass 367.0 — `EditSession::edit_text_preview` and the private `page_text_walk` now take `&self`; `text_walk_cache` is a `Mutex<Option<TextWalkCache>>` instead of a plain field, keeping `EditSession: Send + Sync`. Fixes the gap `pdfcer-gui` reported in `G048`: holding the session as `Arc<EditSession>` meant the render worker's per-keystroke preview needed `Arc::get_mut`, and skipped a preview (retrying 50 ms later) whenever a render was in flight. New test `a_preview_runs_through_a_shared_handle` previews through a cloned `Arc` and asserts `Send + Sync`; can't compile under `&mut`. 10/10 preview tests, 2/2 render edit-preview tests, clippy clean. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- None beyond the `ROADMAP.md` entry.
+
+**Still in flight:**
+- Same open items as prior filings (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, `Pass 264.3`).
+- **OWED, no Pass yet:** Ken, 2026-09-27 — OCRcer is releasing a new engine and will inform this project when it's done; once it does, re-vendor via `tools/sync-ocrcer.py` (decision 160), build, run the OCR tests, commit, cut a pdfcer release under decision 121's standing authorization (green gates, fresh-folder smoke test, `verify-release.py`), then notify `pdfcer-gui`. Currently waiting on OCRcer; vendored HEAD is `e38eea2`.
+
+**For next session:**
+- `001b91f8` is committed to `main`; push status not independently checked this filing (hard rule 8 — no shell available).
+- Watch for OCRcer's release announcement — see owed item above.
+
 ## 2026-09-27 (671st filing) — `a14e2616`/`d822a562`: `Pass 264.2` accessor half SHIPPED; `Pass 264.4` discharged by `Pass 358.4`
 
 **Shipped:**
