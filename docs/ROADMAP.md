@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 378.0` (`079bd6f1`), 2026-09-28 — page boxes are intersected with the media box
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` defect `O250` / ask `G059`. ISO 32000-2 §14.11.2.1: the crop, bleed, trim and art boxes are each the INTERSECTION of the box as written with the media box, not the box as written. `Page::crop_box` is now the EFFECTIVE box; three new page-own-only fields (`bleed_box`, `trim_box`, `art_box` — not inheritable) each clip to the media box and default to the effective crop box when absent, each with a `BoxResolution` (`Defaulted`/`AsWritten`/`Clipped`/`Unusable`, `#[non_exhaustive]`).
+
+**Spec ambiguity `PB-A1`.** An empty intersection is undefined by the clause. pdfcer falls back to the Table 30 default and reports `Unusable`. A malformed `/BleedBox`/`/TrimBox`/`/ArtBox` array is `Unusable`, not a page failure; a malformed `/CropBox` still fails the page, unchanged from before this Pass. The file is never rewritten by this read-side change.
+
+**Render + CLI.** New `Diagnostics::page_crop_box`; `render-page`'s metrics line gains `page_crop_box_clipped`/`page_crop_box_unusable` (108 keys). `docs/core-api/01-reading-and-model.md` §6.2 updated; `check-core-api-verbs` PASS.
+
+**Tests.** `page_tree`: 3 new (`page_boxes_are_intersected_with_the_media_box`, `production_boxes_clip_to_the_media_box_and_default_to_the_crop_box`, `production_boxes_are_not_inherited`) — sabotage (intersection replaced by the written box) failed 2 of 3. `render`: 1 new (`crop_box_frames_within_the_sheet`). `edit`: `set_media_box_discloses_a_crop_box_it_no_longer_contains` updated for the new field shape. `pdfcer-cli`: 573 + 29 green.
+
+**Gates.** `tools/run-gates.sh`: 39/40 on first run — `check-metrics-line-contract` rejected a combined `a / b` key-table row (not parsed per key); split into two rows, gate green on re-run.
+
+**Shells.** core `[x]`, cli `[x]` (metrics exposure only); gui unaffected — `pdfcer-gui` consumes the new diagnostics on its own schedule. No `Cargo.toml` change.
+
+**`docs/FEATURES.md`.** New *Implemented* row, *Document & pages* — core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Gotchas.** A Python heredoc turned a Rust `\` line-continuation into a literal `\n`, failing 3 CLI tests; `check-string-gaps.sh` did not catch it — a gate-class hole, not closed by this Pass. `check-metrics-line-contract` rejects a combined `a / b` metrics row — split, don't combine.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own verification at `079bd6f1`, not independently reproduced. Backup/push/release state not verifiable from here.
+
 ### `Pass 376.0` + `Pass 377.0` (`44228d5d`), 2026-09-28 — DXF carries its version's object graph; R12/R2000/R2004 choice
 
 **Verdict: SHIPPED — closes both.** `Pass 376.0` answers `pdfcer-gui` defect `O251` (`G057`): an R2000/AC1015 export declared its version without the structure AutoCAD LT 2004/ODA require. `Pass 377.0` answers operator ask `O252` (`G058`): a version choice at export time.
@@ -9100,23 +9120,20 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★ **FIVE ITEMS ADDED 2026-09-28 (697th filing) — `G053`–`G056`, `G059`,
-> from `pdfcer-gui`'s DOCX/XLSX-export ask (`O257`) and the page-resize defect
-> (`O250`).** `Pass 378.0` is the new head of *Next up* — the engineer's own
-> stated order is `378.0` then `375.0`.
+> ★★★★★ **FOUR ITEMS REMAIN 2026-09-28 (697th filing) — `G053`–`G056`, from
+> `pdfcer-gui`'s DOCX/XLSX-export ask (`O257`).** The fifth item filed this
+> session, `Pass 378.0` (`G059`, page-resize defect `O250`), **SHIPPED
+> 2026-09-28 (698th filing, `079bd6f1`)** — see top of *Shipped*, entry
+> removed from this list. The engineer's own stated order was `378.0` then
+> `375.0`; **`Pass 375.0` is now the head of *Next up***.
 >
-> - **`Pass 378.0`** (`G059`) — `Page::crop_box` resolved as `CropBox ∩
->   MediaBox` (ISO 32000-2 §14.11.2.1's own intersection rule, which
->   `set_media_boxes`'s contract already assumes every reader applies); an
->   empty intersection is reported, not guessed. `BleedBox`/`TrimBox`/`ArtBox`
->   clip to the resolved crop box the same way. `render_page_with_view` and
->   the region/geometry helpers frame by the resolved box.
 > - **`Pass 375.0`** (`G056`) — new `EditSession::set_crop_boxes(pages,
 >   CropBoxChange)`: set or remove `/CropBox` on named pages, same
 >   inheritance/sibling-preservation discipline as `set_media_boxes` (write on
 >   the leaf, never mutate a shared inherited value); `Remove` restores the
->   full media box (the Crop ▸ Reset shape). CLI verb. A resize actually
->   grows the visible page once paired with `378.0`.
+>   full media box (the Crop ▸ Reset shape). CLI verb. `Pass 378.0`
+>   (SHIPPED) already makes the resolved crop box the effective one, so a
+>   `/CropBox` this Pass writes actually grows or shrinks the visible page.
 > - **`Pass 372.0`** (`G053`) — read a tagged PDF's structure tree back:
 >   `/RoleMap`-resolved standard type (raw `/S` + non-standard flag when
 >   unmapped) with a visited-set cycle guard (no hop-count/depth limit — the
@@ -9144,7 +9161,16 @@ closes out the *prior* filing's business rather than opening this one's.
 >   rects, or **aligned** from a whitespace gutter) with an inference count,
 >   a header-row guess. Number parsing stays a shell concern.
 >
-> `docs/FEATURES.md`: five new *Planned* rows, all boxes unticked.
+> `docs/FEATURES.md`: **CORRECTED 2026-09-28 (698th filing)** — the 697th
+> filing's own claim of "five new *Planned* rows" was false; only the DXF
+> export row had changed (verified by `Grep` against the live file). Four
+> new *Planned* rows (`372.0`–`375.0`) added this filing, all boxes
+> unticked; `378.0`'s row shipped straight to *Implemented*, never passing
+> through *Planned*.
+
+> ★★★★ **`Pass 378.0` SHIPPED, 2026-09-28 (698th filing), `079bd6f1`** — see
+> top of *Shipped*. `G059`; closes the page-resize defect `O250` half of the
+> family filed under *Next up* the 697th filing.
 
 > ★★★★ **`Pass 376.0` + `Pass 377.0` SHIPPED, 2026-09-28 (697th filing),
 > `44228d5d`** — see top of *Shipped*. `G057`/`G058`; not previously filed

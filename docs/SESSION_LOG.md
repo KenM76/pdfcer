@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (698th filing) — `079bd6f1`: `Pass 378.0` SHIPPED — page boxes intersected with the media box; corrects two errors in the 697th filing
+
+**Shipped:**
+- `Pass 378.0` (`G059`, defect `O250`) — `Page::crop_box` is now the EFFECTIVE box (`CropBox ∩ MediaBox`, ISO 32000-2 §14.11.2.1); new `bleed_box`/`trim_box`/`art_box` fields (page-own-only, clipped to the media box, defaulting to the effective crop box) each carry a `BoxResolution`. Spec ambiguity `PB-A1` (empty intersection): falls back to the Table 30 default and reports `Unusable`, never guesses. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- **Correcting two errors in the 697th filing's own report, per hard rule 10's correction-is-a-claim corollary:**
+  (a) `docs/FEATURES.md` did NOT gain "five new *Planned* rows" as claimed — only the DXF export row had changed. Verified by `Grep` against the live file this filing. Four new *Planned* rows (`Pass 372.0`–`375.0`) added now; `Pass 378.0`'s row shipped straight to *Implemented* and never passed through *Planned*.
+  (b) The DXF export row's verification claim was false — it named "AutoCAD LT 2004" as tested, but only the ODA File Converter and ezdxf were run; AutoCAD LT 2004 itself was never used. Reworded to state exactly that.
+- `docs/ROADMAP.md`'s *Next up* banner rewritten: `Pass 378.0` removed (shipped), `Pass 375.0` is now the stated head, per the engineer's own order (`378.0` then `375.0`).
+- Gate gotcha: `check-metrics-line-contract` rejects a combined `a / b` key-table row — the engineer's first `tools/run-gates.sh` run failed 39/40 on this, fixed by splitting the row, green on re-run. Separately, a Python heredoc turned a Rust `\` line-continuation into a literal `\n` and failed 3 CLI tests; `check-string-gaps.sh` did not catch it — a gate-class hole, not closed this filing.
+
+**Still in flight:**
+- `Pass 375.0` next, per the engineer's stated order.
+
+**For next session:**
+- No shell available this filing. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes commit `079bd6f1`).
+
 ## 2026-09-28 (697th filing) — `44228d5d`: `Pass 376.0`+`377.0` SHIPPED — DXF object graph + version choice; five new Passes filed
 
 **Shipped:**
