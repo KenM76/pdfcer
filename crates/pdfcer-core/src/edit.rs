@@ -383,6 +383,18 @@ pub enum CommandKind {
         /// because nothing was written for them.
         count: usize,
     },
+    /// Pages' `/CropBox` was set or reset in one operation
+    /// ([`EditSession::set_crop_boxes`]).
+    SetCropBoxes {
+        /// How many page objects were rewritten.
+        count: usize,
+    },
+    /// Pages were resized with their crop boxes following
+    /// ([`EditSession::resize_pages`]).
+    ResizePages {
+        /// How many page objects were rewritten.
+        count: usize,
+    },
     /// Pages' content was scaled to a new sheet size in one operation
     /// ([`EditSession::scale_pages`]).
     ScalePages {
@@ -3461,6 +3473,94 @@ impl PageSizeAdvisory {
         };
         (advisory.below_minimum || advisory.above_maximum).then_some(advisory)
     }
+}
+
+/// How [`EditSession::set_crop_boxes`] changes each page's `/CropBox`
+/// (ISO 32000-2 §14.11.2, Table 30).
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub enum CropBoxEdit {
+    /// Show exactly this rectangle, in default user space. Corners are
+    /// normalized (§7.9.5). A rectangle overhanging the media box is
+    /// written as asked and reported: readers intersect it (§14.11.2.1).
+    Set(page_tree::Rect),
+    /// Show the whole media box — the "reset crop" verb. The page's own
+    /// entry is removed; if an ancestor `Pages` node supplies a crop box
+    /// that would then show instead, the media box is written explicitly
+    /// on the page. An ancestor is never edited: siblings share it.
+    Reset,
+}
+
+/// How a page's own `/CropBox` entry ended up expressed after
+/// [`EditSession::set_crop_boxes`]. Mirrors [`MediaBoxEntry`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CropBoxEntry {
+    /// The base file's own `/CropBox` bytes already denote the result and
+    /// were kept, spelling included.
+    BaseSpellingKept,
+    /// The own entry was removed because an ancestor supplies exactly the
+    /// result (`/CropBox` is inheritable, §7.7.3.4).
+    InheritedSoOwnEntryRemoved,
+    /// An explicit `/CropBox` was written on the page object.
+    ExplicitWritten,
+    /// The page has no `/CropBox`, own or inherited, so it shows its media
+    /// box (Table 30's default).
+    Absent,
+}
+
+/// What [`EditSession::set_crop_boxes`] did to one page. Returned for
+/// every requested page, including those that needed no write.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct CropBoxChange {
+    /// The 0-based page index.
+    pub page_index: usize,
+    /// The **effective** crop box before the call: the written (own or
+    /// inherited) `/CropBox` ∩ the media box, or the media box.
+    pub before: page_tree::Rect,
+    /// The effective crop box after the call — what every conforming
+    /// reader now shows (§14.11.2.1).
+    pub after: page_tree::Rect,
+    /// How the page's own entry ended up expressed.
+    pub entry: CropBoxEntry,
+    /// The requested rectangle overhangs the media box, so
+    /// [`Self::after`] is its intersection with the sheet. Written as
+    /// asked (the spec does not make this invalid); disclose it.
+    pub overhangs_media_box: bool,
+}
+
+/// Whether [`EditSession::resize_pages`] moves a page's `/CropBox` with
+/// its new `/MediaBox`.
+///
+/// Only pages that **carry** a crop box (own or inherited) are affected:
+/// a page without one already shows its whole sheet (Table 30).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum CropFollow {
+    /// Leave `/CropBox` alone — [`EditSession::set_media_boxes`]'s
+    /// behaviour. Growing a sheet then shows nothing new.
+    Keep,
+    /// Set the crop box to the new sheet when it showed the whole old
+    /// sheet (effective crop box == old media box): the Word/Acrobat/CAD
+    /// shape where the operator never distinguished the two. A page
+    /// cropped to a smaller region keeps its crop.
+    #[default]
+    WhenItMatched,
+    /// Set every carried crop box to the new sheet.
+    Always,
+}
+
+/// What [`EditSession::resize_pages`] did to one page.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct PageResize {
+    /// The media-box change. Its [`MediaBoxChange::crop_box_outside`]
+    /// describes the crop box **after** any follow.
+    pub media: MediaBoxChange,
+    /// The crop-box change, when [`CropFollow`] moved it; `None` when the
+    /// crop box was kept or the page carries none.
+    pub crop: Option<CropBoxChange>,
 }
 
 /// What [`EditSession::set_media_box`] did, and what the operator should
@@ -8973,6 +9073,20 @@ pub enum EditError {
         /// The requested height (`ury - lly` after §7.9.5 normalization).
         h: f64,
     },
+    /// [`EditSession::set_crop_boxes`] was asked for a crop box that would
+    /// leave a page nothing visible: zero area, a non-finite coordinate, or
+    /// no overlap with the page's media box.
+    ///
+    /// Refused rather than written because §14.11.2.1 defines the visible
+    /// region as the intersection with the media box and leaves an empty
+    /// intersection undefined (ambiguity PB-A1). Readers disagree on it.
+    #[error(
+        "page {page_index}: the requested crop box leaves nothing visible (zero area, a non-finite coordinate, or no overlap with the media box; ISO 32000-2 §14.11.2.1)"
+    )]
+    CropBoxEmpty {
+        /// The 0-based page the crop box was for.
+        page_index: usize,
+    },
     /// A page selected for [`EditSession::scale_pages`] carries ce
     /// dimensions.
     ///
@@ -11073,6 +11187,284 @@ impl EditSession {
                 after: Some(Object::Dict(updated)),
             }),
         ))
+    }
+
+    /// Set or reset `/CropBox` on several pages as **one** undoable
+    /// command (ISO 32000-2 §14.11.2, Table 30).
+    ///
+    /// The crop box is the region every reader shows. Writes go on the
+    /// **leaf page**; an inherited value on a `Pages` node is never edited,
+    /// because siblings share it (§7.7.3.4). The rules mirror
+    /// [`EditSession::set_media_box`]: the base file's own spelling is kept
+    /// when it already denotes the result; the own entry is removed when an
+    /// ancestor supplies exactly the result.
+    ///
+    /// Returns one [`CropBoxChange`] per requested page, ascending,
+    /// including no-ops. `indices` is sorted and de-duplicated.
+    ///
+    /// # Errors
+    ///
+    /// Raised before anything is committed:
+    /// - [`EditError::CropBoxEmpty`] — the rectangle has no area, is not
+    ///   finite, or misses a page's media box.
+    /// - [`EditError::PageOutOfRange`], [`EditError::NotADictionary`].
+    /// - the certification gate [`EditSession::rotate_pages`] also takes.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use pdfcer_core::document::Document;
+    /// # use pdfcer_core::edit::{CropBoxEdit, CropBoxEntry, EditSession};
+    /// # use pdfcer_core::page_tree::Rect;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let bytes: Vec<u8> =
+    ///     include_bytes!("../../../fixtures/synthetic/hello.pdf").to_vec();
+    /// let mut session = EditSession::new(Document::from_bytes(bytes)?);
+    /// let window = Rect::from_corners(10.0, 10.0, 100.0, 100.0);
+    /// let changes = session.set_crop_boxes(&[0], CropBoxEdit::Set(window))?;
+    /// assert_eq!(changes[0].after, window);
+    /// assert_eq!(changes[0].entry, CropBoxEntry::ExplicitWritten);
+    /// assert_eq!(session.pages()?[0].crop_box, window);
+    /// session.set_crop_boxes(&[0], CropBoxEdit::Reset)?;
+    /// assert!(!session.is_modified(), "set then reset is net zero");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn set_crop_boxes(
+        &mut self,
+        indices: &[usize],
+        edit: CropBoxEdit,
+    ) -> Result<Vec<CropBoxChange>, EditError> {
+        self.check_certification()?;
+        let mut targets: Vec<usize> = indices.to_vec();
+        targets.sort_unstable();
+        targets.dedup();
+
+        let slots = self.page_slots()?;
+        let pages = self.pages()?;
+        let mut changes = Vec::with_capacity(targets.len());
+        let mut writes: Vec<ObjectWrite> = Vec::new();
+        for &index in &targets {
+            let (slot, page) = match (slots.get(index), pages.get(index)) {
+                (Some(slot), Some(page)) => (slot, page),
+                _ => {
+                    return Err(EditError::PageOutOfRange {
+                        index,
+                        count: slots.len(),
+                    });
+                }
+            };
+            let id = slot.id;
+            let Some(Object::Dict(current)) = self.value(id) else {
+                return Err(EditError::NotADictionary { id, key: "CropBox" });
+            };
+            let current = current.clone();
+            let mut updated = current.clone();
+            let change = self.crop_box_update(
+                index,
+                slot,
+                &current,
+                &mut updated,
+                page.media_box,
+                page.media_box,
+                edit,
+            )?;
+            changes.push(change);
+            if updated != current {
+                writes.push(ObjectWrite {
+                    id,
+                    before: self.state.get(&id).cloned(),
+                    after: Some(Object::Dict(updated)),
+                });
+            }
+        }
+        if !writes.is_empty() {
+            self.commit(Command {
+                kind: CommandKind::SetCropBoxes {
+                    count: writes.len(),
+                },
+                objects: writes,
+                removals: Vec::new(),
+                trailer: None,
+            });
+        }
+        Ok(changes)
+    }
+
+    /// Set the same `/MediaBox` on several pages **and** move their
+    /// `/CropBox` with it per `follow`, as **one** undoable command.
+    ///
+    /// The "make the page this size" verb. [`EditSession::set_media_boxes`]
+    /// leaves `/CropBox` alone, and since readers show crop ∩ media
+    /// (§14.11.2.1), growing a sheet whose crop box equals it shows nothing
+    /// new — the shape Word, Acrobat and most CAD exporters write. Each
+    /// page gets one write carrying both entries.
+    ///
+    /// # Errors
+    ///
+    /// As [`EditSession::set_media_boxes`]. Nothing is committed on error.
+    pub fn resize_pages(
+        &mut self,
+        indices: &[usize],
+        rect: page_tree::Rect,
+        follow: CropFollow,
+    ) -> Result<Vec<PageResize>, EditError> {
+        self.check_certification()?;
+        let target = normalize_media_box(rect)?;
+        let mut targets: Vec<usize> = indices.to_vec();
+        targets.sort_unstable();
+        targets.dedup();
+
+        let slots = self.page_slots()?;
+        let pages = self.pages()?;
+        let mut results = Vec::with_capacity(targets.len());
+        let mut writes: Vec<ObjectWrite> = Vec::new();
+        for &index in &targets {
+            let (mut media, write) = self.media_box_write(index, target, &slots)?;
+            // `media_box_write` has already range-checked `index`.
+            let (Some(slot), Some(page)) = (slots.get(index), pages.get(index)) else {
+                return Err(EditError::PageOutOfRange {
+                    index,
+                    count: slots.len(),
+                });
+            };
+            let id = slot.id;
+            let Some(Object::Dict(current)) = self.value(id) else {
+                return Err(EditError::NotADictionary { id, key: "CropBox" });
+            };
+            let current = current.clone();
+            let mut updated = match write.and_then(|w| w.after) {
+                Some(Object::Dict(d)) => d,
+                _ => current.clone(),
+            };
+            let carries_crop = page.crop_box_resolution != page_tree::BoxResolution::Defaulted;
+            let follows = carries_crop
+                && match follow {
+                    CropFollow::Keep => false,
+                    CropFollow::Always => true,
+                    // `WhenItMatched` and any future default.
+                    _ => page.crop_box == page.media_box,
+                };
+            let crop = if follows {
+                let change = self.crop_box_update(
+                    index,
+                    slot,
+                    &current,
+                    &mut updated,
+                    page.media_box,
+                    target,
+                    CropBoxEdit::Set(target),
+                )?;
+                media.crop_box_outside = None;
+                Some(change)
+            } else {
+                None
+            };
+            results.push(PageResize { media, crop });
+            if updated != current {
+                writes.push(ObjectWrite {
+                    id,
+                    before: self.state.get(&id).cloned(),
+                    after: Some(Object::Dict(updated)),
+                });
+            }
+        }
+        if !writes.is_empty() {
+            self.commit(Command {
+                kind: CommandKind::ResizePages {
+                    count: writes.len(),
+                },
+                objects: writes,
+                removals: Vec::new(),
+                trailer: None,
+            });
+        }
+        Ok(results)
+    }
+
+    /// Apply `edit` to `updated` (a copy of page `index`'s dictionary,
+    /// possibly already carrying a new `/MediaBox`) and report the change.
+    ///
+    /// `current` is the page's dictionary before the operation and
+    /// `media_before` its media box then; `media_after` is the media box
+    /// the result is judged against.
+    #[allow(clippy::too_many_arguments)] // one call site per verb; a struct would only rename them
+    fn crop_box_update(
+        &self,
+        index: usize,
+        slot: &PageSlot,
+        current: &Dict,
+        updated: &mut Dict,
+        media_before: page_tree::Rect,
+        media_after: page_tree::Rect,
+        edit: CropBoxEdit,
+    ) -> Result<CropBoxChange, EditError> {
+        let parse = |value: &Object| page_tree::parse_rect(&self.graph(), value, "CropBox").ok();
+        let inherited = slot.inherited.crop_box.as_ref().and_then(parse);
+        let written_before = current.get(b"CropBox").and_then(parse).or(inherited);
+        let before = written_before
+            .and_then(|c| media_before.intersection(&c))
+            .unwrap_or(media_before);
+
+        // The rectangle the page should show, as written, and whether an
+        // ancestor's crop box may stand for it.
+        let (wanted, overhangs) = match edit {
+            CropBoxEdit::Reset => (media_after, false),
+            CropBoxEdit::Set(rect) => {
+                let rect = page_tree::Rect::from_corners(rect.llx, rect.lly, rect.urx, rect.ury);
+                let finite = [rect.llx, rect.lly, rect.urx, rect.ury]
+                    .iter()
+                    .all(|v| v.is_finite());
+                if !finite || media_after.intersection(&rect).is_none() {
+                    return Err(EditError::CropBoxEmpty { page_index: index });
+                }
+                (rect, !media_after.contains(&rect))
+            }
+        };
+
+        let base_own = self
+            .base
+            .get(slot.id)
+            .and_then(|io| io.value.as_dict())
+            .and_then(|d| d.0.iter().find(|(k, _)| k.as_bytes() == b"CropBox"))
+            .map(|(_, value)| value.clone());
+        let base_means_wanted = base_own.as_ref().and_then(parse) == Some(wanted);
+        // What the page shows with no own entry: the inherited crop box
+        // clipped to the sheet, or the sheet itself.
+        let shown_without_own = inherited
+            .and_then(|c| media_after.intersection(&c))
+            .unwrap_or(media_after);
+
+        let entry = match (edit, base_own) {
+            (_, Some(original)) if base_means_wanted => {
+                updated.insert(Name::from(b"CropBox"), original);
+                CropBoxEntry::BaseSpellingKept
+            }
+            (CropBoxEdit::Reset, _) if shown_without_own == media_after => {
+                updated.remove(b"CropBox");
+                if inherited.is_some() {
+                    CropBoxEntry::InheritedSoOwnEntryRemoved
+                } else {
+                    CropBoxEntry::Absent
+                }
+            }
+            _ if inherited == Some(wanted) => {
+                updated.remove(b"CropBox");
+                CropBoxEntry::InheritedSoOwnEntryRemoved
+            }
+            _ => {
+                updated.insert(Name::from(b"CropBox"), rect_array(wanted));
+                CropBoxEntry::ExplicitWritten
+            }
+        };
+        let after = media_after.intersection(&wanted).unwrap_or(media_after);
+        Ok(CropBoxChange {
+            page_index: index,
+            before,
+            after,
+            entry,
+            overhangs_media_box: overhangs,
+        })
     }
 
     /// The document's pages in document order, **as the operator
@@ -59793,6 +60185,167 @@ mod tests {
             page_tree::Rect::from_corners(0.0, 0.0, 100.0, 100.0)
         );
         assert_eq!(p.crop_box_resolution, page_tree::BoxResolution::Clipped);
+    }
+
+    // -----------------------------------------------------------------
+    // set_crop_boxes / resize_pages (§14.11.2, G056)
+    // -----------------------------------------------------------------
+
+    fn rect(a: f64, b: f64, c: f64, d: f64) -> page_tree::Rect {
+        page_tree::Rect::from_corners(a, b, c, d)
+    }
+
+    /// Two pages whose `Pages` node supplies media 200x100 and `extra`.
+    fn two_pages_under(extra: &str, page0: &str) -> Vec<u8> {
+        build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                &format!(
+                    "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 /MediaBox [0 0 200 100] {extra} >>"
+                ),
+                &format!("<< /Type /Page /Parent 2 0 R /Resources << >> {page0} >>"),
+                "<< /Type /Page /Parent 2 0 R /Resources << >> >>",
+            ],
+            "",
+        )
+    }
+
+    #[test]
+    fn set_crop_boxes_writes_on_the_leaf_and_leaves_siblings_alone() {
+        let mut s = session(two_pages_under("/CropBox [0 0 200 100]", ""));
+        let pages_node = s.value(ObjId::new(2, 0)).cloned();
+        let changes = s
+            .set_crop_boxes(&[0], CropBoxEdit::Set(rect(10.0, 10.0, 50.0, 50.0)))
+            .unwrap();
+        assert_eq!(changes[0].entry, CropBoxEntry::ExplicitWritten);
+        assert_eq!(changes[0].before, rect(0.0, 0.0, 200.0, 100.0));
+        assert_eq!(changes[0].after, rect(10.0, 10.0, 50.0, 50.0));
+        assert!(!changes[0].overhangs_media_box);
+        let pages = s.pages().unwrap();
+        assert_eq!(pages[0].crop_box, rect(10.0, 10.0, 50.0, 50.0));
+        assert_eq!(pages[1].crop_box, rect(0.0, 0.0, 200.0, 100.0));
+        assert_eq!(s.value(ObjId::new(2, 0)).cloned(), pages_node);
+        assert_eq!(s.undo_kind(), Some(CommandKind::SetCropBoxes { count: 1 }));
+    }
+
+    #[test]
+    fn reset_under_an_ancestor_crop_writes_the_media_box_on_the_leaf() {
+        let mut s = session(two_pages_under("/CropBox [0 0 50 50]", ""));
+        let changes = s.set_crop_boxes(&[0], CropBoxEdit::Reset).unwrap();
+        assert_eq!(changes[0].entry, CropBoxEntry::ExplicitWritten);
+        assert_eq!(changes[0].after, rect(0.0, 0.0, 200.0, 100.0));
+        let pages = s.pages().unwrap();
+        assert_eq!(pages[0].crop_box, rect(0.0, 0.0, 200.0, 100.0));
+        assert_eq!(pages[1].crop_box, rect(0.0, 0.0, 50.0, 50.0));
+    }
+
+    #[test]
+    fn reset_removes_an_own_crop_box() {
+        let mut s = session(two_pages_under("", "/CropBox [10 10 50 50]"));
+        let changes = s.set_crop_boxes(&[0], CropBoxEdit::Reset).unwrap();
+        assert_eq!(changes[0].entry, CropBoxEntry::Absent);
+        let Some(Object::Dict(page)) = s.value(ObjId::new(3, 0)) else {
+            panic!("page");
+        };
+        assert!(page.get(b"CropBox").is_none());
+        assert_eq!(s.pages().unwrap()[0].crop_box, rect(0.0, 0.0, 200.0, 100.0));
+    }
+
+    #[test]
+    fn set_crop_box_keeps_the_base_spelling_and_writes_nothing() {
+        // Reversed corners are legal (§7.9.5); asking for what they
+        // denote must not normalize them.
+        let mut s = session(two_pages_under("", "/CropBox [50 50 10 10]"));
+        let changes = s
+            .set_crop_boxes(&[0], CropBoxEdit::Set(rect(10.0, 10.0, 50.0, 50.0)))
+            .unwrap();
+        assert_eq!(changes[0].entry, CropBoxEntry::BaseSpellingKept);
+        assert!(!s.is_modified());
+    }
+
+    #[test]
+    fn a_crop_box_that_misses_the_sheet_is_refused_before_anything_is_written() {
+        let mut s = session(two_pages_under("", ""));
+        let err = s
+            .set_crop_boxes(&[0, 1], CropBoxEdit::Set(rect(500.0, 500.0, 600.0, 600.0)))
+            .unwrap_err();
+        assert!(matches!(err, EditError::CropBoxEmpty { page_index: 0 }));
+        let err = s
+            .set_crop_boxes(&[0], CropBoxEdit::Set(rect(10.0, 10.0, 10.0, 50.0)))
+            .unwrap_err();
+        assert!(matches!(err, EditError::CropBoxEmpty { .. }));
+        assert!(!s.is_modified());
+    }
+
+    #[test]
+    fn an_overhanging_crop_box_is_written_and_disclosed() {
+        let mut s = session(two_pages_under("", ""));
+        let changes = s
+            .set_crop_boxes(&[1], CropBoxEdit::Set(rect(-10.0, -10.0, 300.0, 300.0)))
+            .unwrap();
+        assert!(changes[0].overhangs_media_box);
+        assert_eq!(changes[0].after, rect(0.0, 0.0, 200.0, 100.0));
+        let Some(Object::Dict(page)) = s.value(ObjId::new(4, 0)) else {
+            panic!("page");
+        };
+        assert_eq!(
+            nums_of(page.get(b"CropBox").unwrap()),
+            vec![-10.0, -10.0, 300.0, 300.0]
+        );
+    }
+
+    /// Page 0: crop == sheet (the Word shape). Page 1: cropped smaller.
+    fn resize_fixture() -> Vec<u8> {
+        build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] \
+                 /CropBox [0 0 300 300] /Resources << >> >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] \
+                 /CropBox [10 10 100 100] /Resources << >> >>",
+            ],
+            "",
+        )
+    }
+
+    #[test]
+    fn resize_pages_grows_the_visible_page_when_the_crop_matched() {
+        let mut s = session(resize_fixture());
+        let big = rect(0.0, 0.0, 600.0, 600.0);
+        let out = s
+            .resize_pages(&[0, 1], big, CropFollow::WhenItMatched)
+            .unwrap();
+        assert_eq!(out[0].crop.map(|c| c.after), Some(big));
+        assert_eq!(out[0].media.crop_box_outside, None);
+        assert_eq!(out[1].crop, None, "a real crop is kept");
+        let pages = s.pages().unwrap();
+        assert_eq!(pages[0].crop_box, big);
+        assert_eq!(pages[1].crop_box, rect(10.0, 10.0, 100.0, 100.0));
+        // One command, one write per page carrying both entries.
+        assert_eq!(s.undo_kind(), Some(CommandKind::ResizePages { count: 2 }));
+        assert_eq!(s.dirty_set().len(), 2);
+        s.undo();
+        assert!(!s.is_modified());
+    }
+
+    #[test]
+    fn resize_pages_follow_modes() {
+        let big = rect(0.0, 0.0, 600.0, 600.0);
+        let mut s = session(resize_fixture());
+        let out = s.resize_pages(&[0, 1], big, CropFollow::Keep).unwrap();
+        assert!(out.iter().all(|r| r.crop.is_none()));
+        assert_eq!(s.pages().unwrap()[0].crop_box, rect(0.0, 0.0, 300.0, 300.0));
+
+        let mut s = session(resize_fixture());
+        s.resize_pages(&[1], big, CropFollow::Always).unwrap();
+        assert_eq!(s.pages().unwrap()[1].crop_box, big);
+
+        // A page with no crop box needs no follow: it shows its sheet.
+        let mut s = session(two_pages_under("", ""));
+        let out = s.resize_pages(&[0], big, CropFollow::Always).unwrap();
+        assert_eq!(out[0].crop, None);
+        assert_eq!(s.pages().unwrap()[0].crop_box, big);
     }
 
     #[test]

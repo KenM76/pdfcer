@@ -130,6 +130,21 @@ pub(crate) enum MergeFitArg {
     Natural,
 }
 
+/// `set-page-size --crop`: whether a page's `/CropBox` moves with its new
+/// sheet (`G056`).
+#[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
+pub(crate) enum CropFollowArg {
+    /// Leave the crop box alone. Growing a sheet then shows nothing new,
+    /// because readers show the crop box clipped to the sheet.
+    Keep,
+    /// Move the crop box to the new sheet only where it showed the whole
+    /// old sheet. A page cropped to a smaller region keeps its crop.
+    #[default]
+    WhenMatched,
+    /// Move every crop box to the new sheet.
+    Always,
+}
+
 /// What pdfcer does with a file that contradicts itself or omits something the
 /// standard requires (`Pass 283.0`).
 ///
@@ -742,6 +757,52 @@ pub(crate) enum Command {
         /// Custom sheet height in points (1/72 inch). Requires `--width`.
         #[arg(long, requires = "width", value_name = "PT")]
         height: Option<f64>,
+        /// Whether each page's crop box (the region readers show) moves
+        /// with the new sheet.
+        #[arg(long, value_enum, default_value_t = CropFollowArg::WhenMatched)]
+        crop: CropFollowArg,
+        /// Output path. The input is never modified.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the edit reproduces the input file
+        /// byte for byte (ARCHITECTURE.md §11.1). Costs one extra save.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+
+    /// Set or reset one or more pages' crop box — the region every reader
+    /// shows (ISO 32000-2 §14.11.2 `/CropBox`).
+    ///
+    /// The entry is written on each page object, so siblings that inherit
+    /// a shared value are untouched. Content is not changed: what lies
+    /// outside the crop box is hidden, not removed.
+    ///
+    /// Give `--rect x0,y0,x1,y1` in points (default user space), or
+    /// `--reset` to show the whole sheet again. A rectangle reaching past
+    /// the sheet is written as given and reported; readers show only the
+    /// part on the sheet. A rectangle with no area, or entirely off the
+    /// sheet, is refused.
+    SetCropBox {
+        /// Input PDF.
+        input: PathBuf,
+        /// Which pages, 1-based: `3`, `1,4,7`, `2-5`, or `all`.
+        #[arg(long, default_value = "1", value_name = "SPEC")]
+        pages: String,
+        /// The crop rectangle `x0,y0,x1,y1` in points.
+        #[arg(
+            long,
+            value_name = "X0,Y0,X1,Y1",
+            allow_hyphen_values = true,
+            required_unless_present = "reset",
+            conflicts_with = "reset"
+        )]
+        rect: Option<String>,
+        /// Show the whole sheet: remove the page's own crop box.
+        #[arg(long)]
+        reset: bool,
         /// Output path. The input is never modified.
         #[arg(short, long)]
         output: PathBuf,

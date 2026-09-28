@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 277 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 279 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 277 public `EditSession` methods
+## 1. Verb index — all 279 public `EditSession` methods
 
-**Count: 277.** Established by brace-matched extraction of the six
+**Count: 279.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -210,7 +210,9 @@ need their own policy).
 | Reorder pages | `reorder_pages(&mut self, new_order: &[usize]) -> Result<(), EditError>` | `NotAPermutation` if `new_order` is not one. ONE undo entry. |
 | Rotate several pages | `rotate_pages(&mut self, indices: &[usize], delta: i32) -> Result<usize, EditError>` | Count of pages turned. ONE undo entry. |
 | Set one page's `/MediaBox` | `set_media_box(&mut self, page_index: usize, rect: page_tree::Rect) -> Result<MediaBoxChange, EditError>` | |
-| Set several pages' `/MediaBox` | `set_media_boxes(&mut self, indices: &[usize], rect: page_tree::Rect) -> Result<Vec<MediaBoxChange>, EditError>` | |
+| Set several pages' `/MediaBox` | `set_media_boxes(&mut self, indices: &[usize], rect: page_tree::Rect) -> Result<Vec<MediaBoxChange>, EditError>` | Leaves `/CropBox` alone: growing a sheet whose crop box equals it shows nothing new. For "make the page this size" call `resize_pages`. |
+| **Resize pages, crop box following** (`G056`) | `resize_pages(&mut self, indices: &[usize], rect: page_tree::Rect, follow: CropFollow) -> Result<Vec<PageResize>, EditError>` | `CropFollow::{Keep, WhenItMatched (default), Always}` — only pages that carry a crop box are affected; `WhenItMatched` moves it when the effective crop equalled the old sheet (the Word/Acrobat/CAD shape). `PageResize { media: MediaBoxChange, crop: Option<CropBoxChange> }`; `media.crop_box_outside` describes the crop AFTER the follow. One write per page carrying both entries; ONE undo entry, `CommandKind::ResizePages { count }`. Errors as `set_media_boxes`. |
+| **Set / reset pages' `/CropBox`** (`G056`) | `set_crop_boxes(&mut self, indices: &[usize], edit: CropBoxEdit) -> Result<Vec<CropBoxChange>, EditError>` | `CropBoxEdit::{Set(Rect), Reset}` (`non_exhaustive`). Written on the leaf page; an inherited `Pages` value is never edited. `Reset` removes the own entry, or writes the media box when an ancestor crop would otherwise show. `CropBoxChange { page_index, before, after, entry, overhangs_media_box }` — `before`/`after` are EFFECTIVE (∩ media, §14.11.2.1); `entry: CropBoxEntry::{BaseSpellingKept, InheritedSoOwnEntryRemoved, ExplicitWritten, Absent}`. An overhanging rect is written and flagged; zero-area, non-finite or off-sheet is `EditError::CropBoxEmpty { page_index }`, raised before anything commits. ONE undo entry, `CommandKind::SetCropBoxes { count }`; set-then-reset is net zero. CLI: `set-crop-box`, `set-page-size --crop`. |
 | **Scale pages' content onto a new sheet** | `scale_pages(&mut self, indices: &[usize], request: &pageops::ScaleRequest) -> Result<pageops::ScaleReport, EditError>` | `ScaleRequest::new(w, h)` in points, displayed orientation; `.with_mode(ScaleMode::Fit / Fill)`, `.with_orientation(OrientationPolicy::Match / Exact)`. Content streams are wrapped (`q cm clip` … `Q`), never rewritten; every page box becomes the sheet; annotations, `/Measure` factors, viewports, beads and destinations naming the page move with it. `ScaleReport { pages: Vec<PageScaled { page_index, source, placement: PagePlacement { target, scale, offset_x, offset_y, orientation_flipped }, mode, annotations, measures }>, destinations, geo_measures_unchanged }` — show the per-page scale, offset and mode (rule 4). Refuses `ScaleRefusedCeDimensions { page_index, count }` on a page with ce dimensions; `MediaBoxDegenerate` for a bad size. ONE undo entry, `CommandKind::ScalePages { count }`. |
 | **Insert pages from another document** | `insert_pages(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition) -> Result<InsertOutcome, EditError>` | `InsertOutcome { pages_inserted, orphaned_widgets }`. **Read the warning below before writing a disclosure about it.** |
 
@@ -5036,7 +5038,7 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**151 variants** at `Pass 370.0` (`NotALinearDimension` removed: `place_dimension` now accepts every kind, and nothing else raised it), counted at depth 1 inside `pub enum EditError`.
+**152 variants** at `Pass 375.0` (`CropBoxEmpty` added; at `Pass 370.0`, 151: `NotALinearDimension` removed: `place_dimension` now accepts every kind, and nothing else raised it), counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 

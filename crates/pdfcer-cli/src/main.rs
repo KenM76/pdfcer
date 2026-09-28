@@ -48,10 +48,14 @@
 //!   (Pass 3.1): sets one page's `/Rotate` (Table 30). See
 //!   [`cmd_rotate_page`].
 //! - `set-page-size <in> -o <out> --pages SPEC (--size NAME [--landscape]
-//!   | --width W --height H)`: sets a page's `/MediaBox` — the sheet size
-//!   (§7.7.3.3). Named sizes come from `pdfcer_core::paper`, so the CLI,
-//!   the GUI and any future shell all quote the same numbers. See
-//!   [`cmd_set_page_size`].
+//!   | --width W --height H) [--crop keep|when-matched|always]`: sets a
+//!   page's `/MediaBox` — the sheet size (§7.7.3.3) — and by default moves
+//!   a crop box that showed the whole old sheet to the new one (`G056`).
+//!   Named sizes come from `pdfcer_core::paper`, so the CLI, the GUI and
+//!   any future shell all quote the same numbers. See [`cmd_set_page_size`].
+//! - `set-crop-box <in> -o <out> --pages SPEC (--rect X0,Y0,X1,Y1 |
+//!   --reset)` (`G056`): sets or removes a page's `/CropBox`, the region
+//!   readers show (§14.11.2). See [`cmd_set_crop_box`].
 //! - `scale-pages <in> -o <out> --size NAME|WxH [--scale-mode fit|fill]
 //!   [--orientation match|exact]` (Pass 364.0): scales page content onto a
 //!   new sheet, moving annotations and destinations with it. See

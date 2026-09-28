@@ -140,10 +140,12 @@ pub(crate) fn cmd_set_page_size(
     input: &Path,
     pages: &str,
     sheet: &SheetArg<'_>,
+    crop: CropFollowArg,
     output: &Path,
     mode: SaveMode,
     verify_undo: bool,
 ) -> u8 {
+    use pdfcer_core::edit::CropFollow;
     use pdfcer_core::paper::{Orientation, PaperSize};
 
     let &SheetArg {
@@ -210,14 +212,29 @@ pub(crate) fn cmd_set_page_size(
     // one operator gesture one undo entry. The CLI has no undo stack, but
     // the verb it calls is the one the GUI will call, and the granularity
     // is the verb's, not the shell's.
-    let changes = match session.set_media_boxes(&targets, rect) {
-        Ok(changes) => changes,
+    let follow = match crop {
+        CropFollowArg::Keep => CropFollow::Keep,
+        CropFollowArg::WhenMatched => CropFollow::WhenItMatched,
+        CropFollowArg::Always => CropFollow::Always,
+    };
+    let results = match session.resize_pages(&targets, rect, follow) {
+        Ok(results) => results,
         Err(err) => return report_edit_error(input, &err),
     };
+    let mut crop_followed = 0_usize;
 
     let (mut lost_area, mut crop_outside, mut advisories) = (0_usize, 0_usize, 0_usize);
     let (mut explicit, mut base_kept, mut inherited_removed) = (0_usize, 0_usize, 0_usize);
-    for change in &changes {
+    for result in &results {
+        let change = &result.media;
+        if result.crop.is_some() {
+            crop_followed += 1;
+            eprintln!(
+                "pdfcer: note: page {}: its crop box (the region readers show) was moved to \
+                 the new sheet (--crop).",
+                change.page_index + 1
+            );
+        }
         match change.entry {
             pdfcer_core::edit::MediaBoxEntry::ExplicitWritten => explicit += 1,
             pdfcer_core::edit::MediaBoxEntry::BaseSpellingKept => base_kept += 1,
@@ -282,12 +299,137 @@ pub(crate) fn cmd_set_page_size(
 size={:.4}x{:.4} pages_set={} explicit={explicit} base_kept={base_kept} \
 inherited_removed={inherited_removed} lost_area={lost_area} crop_outside={crop_outside} \
 size_advisory={advisories} changed={} objects={} verbatim={} reserialized={} promoted={} \
-appended={} out_bytes={} undo_verified={} undo_identical={} delinearized={}",
+appended={} out_bytes={} undo_verified={} undo_identical={} delinearized={} \
+crop_followed={crop_followed}",
         input.display(),
         mode.name(),
         output.display(),
         rect.width(),
         rect.height(),
+        results.len(),
+        outcome.changed,
+        r.objects_written,
+        r.objects_verbatim,
+        r.objects_reserialized,
+        r.promoted.len(),
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+        u32::from(r.delinearized),
+    );
+    finish_edit(input, &outcome)
+}
+
+/// Implement `pdfcer set-crop-box` (`G056`): set or reset `/CropBox` on
+/// the selected pages through [`pdfcer_core::edit::EditSession::set_crop_boxes`],
+/// one command for the whole selection.
+///
+/// Prints one machine line, `set-crop-box <in> pages <spec> mode=<m> ->
+/// <out>; pages_set=<n> explicit=<n> removed=<n> base_kept=<n>
+/// overhang=<n> changed=<0|1> …save counters…`, and a stderr note per page
+/// whose rectangle overhangs its sheet (rule 4: the CLI prints what it
+/// would otherwise leave unsaid).
+pub(crate) fn cmd_set_crop_box(
+    input: &Path,
+    pages: &str,
+    rect: Option<&str>,
+    reset: bool,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    use pdfcer_core::edit::{CropBoxEdit, CropBoxEntry};
+
+    let edit = match (rect, reset) {
+        (_, true) => CropBoxEdit::Reset,
+        (Some(raw), false) => {
+            let nums: Vec<f64> = raw
+                .split(',')
+                .filter_map(|p| p.trim().parse::<f64>().ok())
+                .collect();
+            let [x0, y0, x1, y1] = nums[..] else {
+                eprintln!(
+                    "pdfcer: --rect: `{raw}` is not four comma-separated numbers `x0,y0,x1,y1`"
+                );
+                return exit::EDIT_REFUSED;
+            };
+            CropBoxEdit::Set(pdfcer_core::page_tree::Rect::from_corners(x0, y0, x1, y1))
+        }
+        (None, false) => {
+            eprintln!("pdfcer: give --rect x0,y0,x1,y1 or --reset");
+            return exit::EDIT_REFUSED;
+        }
+    };
+
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let count = match session.pages() {
+        Ok(pages) => pages.len(),
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let targets = match parse_pages(pages, count) {
+        Ok(list) => list,
+        Err(msg) => {
+            eprintln!("pdfcer: {}: --pages: {msg}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let changes = match session.set_crop_boxes(&targets, edit) {
+        Ok(changes) => changes,
+        Err(err) => return report_edit_error(input, &err),
+    };
+
+    let (mut explicit, mut removed, mut base_kept, mut overhang) = (0_usize, 0_usize, 0_usize, 0);
+    for change in &changes {
+        match change.entry {
+            CropBoxEntry::ExplicitWritten => explicit += 1,
+            CropBoxEntry::BaseSpellingKept => base_kept += 1,
+            CropBoxEntry::InheritedSoOwnEntryRemoved | CropBoxEntry::Absent => removed += 1,
+            // `CropBoxEntry` is #[non_exhaustive].
+            _ => {}
+        }
+        if change.overhangs_media_box {
+            overhang += 1;
+            let a = change.after;
+            eprintln!(
+                "pdfcer: note: page {}: the crop box reaches past the sheet. It is written as \
+                 given; readers show only the part on the sheet, [{:.4} {:.4} {:.4} {:.4}] \
+                 (ISO 32000-2 §14.11.2.1).",
+                change.page_index + 1,
+                a.llx,
+                a.lly,
+                a.urx,
+                a.ury
+            );
+        }
+    }
+
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "set-crop-box {} pages {pages} mode={} -> {}; \
+pages_set={} explicit={explicit} removed={removed} base_kept={base_kept} \
+overhang={overhang} changed={} objects={} verbatim={} reserialized={} promoted={} \
+appended={} out_bytes={} undo_verified={} undo_identical={} delinearized={}",
+        input.display(),
+        mode.name(),
+        output.display(),
         changes.len(),
         outcome.changed,
         r.objects_written,
