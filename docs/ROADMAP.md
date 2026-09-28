@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 369.0` (`52810dcf`), 2026-09-27 — per-end extension gap on a Linear ce dimension — `G050`
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` request `G050` (operator ask `O249`), scoped 677th filing, shipped 679th. All ce-dimension terminology below is pdfcer-authored — never a pdf dimension.
+
+**Core.** `DimensionKind::Linear` gains `extension_gap: [Option<f64>; 2]`; `None` means the drafting standard's own gap. Living on the kind, it is carried automatically through placement, vertex moves, rotate, translate, transform, restyle, `dimension_preview` and the sidecar. New verb `EditSession::set_dimension_extension_gap(id, DimensionEnd, Option<f64>) -> Result<(), EditError>`, one undo entry. New pure helpers `DimensionKind::extension_segments(style)` / `extension_reach(end, style)`, and `DimensionEnd { A, B }`. Sidecar writes `/GapA`/`/GapB` only when a gap is set; `SIDECAR_VERSION` not bumped. Two new `EditError` variants: `NoExtensionLines { id }` (target is not linear) and `ExtensionGapOutOfRange { id, gap, reach }` (negative, non-finite, or ≥ reach — reach is the pick-to-dimension-line distance minus the overshoot, so any accepted gap is drawn).
+
+**CLI.** New subcommand `dimension-extension-gap IN --dimension N --end a|b (--gap PT | --clear) -o OUT [--verify-undo]`. `dimension-list` prints `gap_a=`/`gap_b=` when either is set. **Deviation from the Pass entry's plan:** the entry said "flags on the existing subcommand" — shipped a dedicated subcommand instead, because `dimension-offset`'s defaults would reset the placement. README subcommand count 168 → 169.
+
+**Docs.** core-api: 270 → 271 verbs, 151 → 152 `EditError` variants.
+
+**Tests.** 3 new core (`crates/pdfcer-core/tests/dimension_extension_gap.rs`), 1 new CLI (`crates/pdfcer-cli/tests/dimension_extension_gap.rs`). Sabotage-verified: a baker that ignores the gap fails the first core test. `tools/run-gates.sh` PASS, 40 commands, 9,628 tests passed in total across runs — the first run failed 3 of 40 (an `author.rs` doctest missing the new field, README's stale 168 count), both fixed before the commit.
+
+**Gates.** No manifest change either crate; `cargo tree -p pdfcer-core`/`-p pdfcer-render` invariant unaffected.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui`'s own column, not ticked here; it requested this and has not yet consumed it.
+
+**`docs/FEATURES.md`.** The `Pass 369.0` *Planned* row (added 677th filing) replaced by a new *Implemented → ce dimensions* row: core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Channel.** Reply posted: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G050_a_linear_ce_dimensions_extension_gap_is_settable_per_end_DONE.md`.
+
+**Next up.** `Pass 370.0` (`G051`, circular placement) remains the head of *Next up*.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `52810dcf`, not independently reproduced. Not yet pushed; not in a release (latest release remains `v0.59.0`).
+
 ### `Pass 368.0` (`870fdd64`), 2026-09-27 — ce-dimension drag preview — `G049`
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G049` (operator ask `O249`), scoped 677th filing. All ce-dimension terminology below is pdfcer-authored — never a pdf dimension.
@@ -8611,24 +8635,20 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★ **`Pass 369.0` SHIPPED, 2026-09-27 (679th filing), `52810dcf`** — see
+> top of *Shipped*. Filed *Next up* by the 677th filing (scoping); this
+> banner is left as the pointer, the live entry has moved.
+
 > ★★★★ **`Pass 368.0` SHIPPED, 2026-09-27 (678th filing), `870fdd64`** — see
 > top of *Shipped*. Filed *Next up* by the 677th filing (scoping); this
 > banner is left as the pointer, the live entry has moved.
 
-> ★★★★ **TWO ITEMS REMAIN 2026-09-27 (677th filing, 368.0 promoted out
-> 678th) — `Pass 369.0`–`370.0`, PER-END EXTENSION GAP AND CIRCULAR
-> PLACEMENT, from `pdfcer-gui` requests `G050`–`G051` (operator ask `O249`
-> via the GUI; priority high).** Both are **ce dimensions** (pdfcer-
-> authored) — never pdf dimensions. `Pass 369.0` is now the head of this
-> family.
+> ★★★★ **ONE ITEM REMAINS 2026-09-27 (677th filing; 368.0 promoted out
+> 678th, 369.0 promoted out 679th) — `Pass 370.0`, CIRCULAR PLACEMENT, from
+> `pdfcer-gui` request `G051` (operator ask `O249` via the GUI; priority
+> high).** A **ce dimension** (pdfcer-authored) — never a pdf dimension.
+> `Pass 370.0` is now the head of this family and of *Next up*.
 >
-> - **`Pass 369.0`** (`G050`) — a per-end extension-line gap on a Linear ce
->   dimension: `set_dimension_extension_gap(&mut self, id, end:
->   DimensionEnd, gap: Option<f64>)` (`None` = the standard's), undoable,
->   survives re-bake/group restyle/sidecar round-trip; pure accessor
->   `DimensionKind::extension_segments(&self, style)`. Refusals: a negative
->   gap, or a gap ≥ the distance from the pick to the dimension line. CLI:
->   `--extension-gap-a`/`-b` on the existing dimension-edit subcommand.
 > - **`Pass 370.0`** (`G051`) — Circular ce-dimension placement: a leader
 >   **angle** plus a text **distance** beyond the rim (inside allowed);
 >   `placement_from_point`/`label_anchor`/`place_dimension` extended to
@@ -8636,9 +8656,9 @@ closes out the *prior* filing's business rather than opening this one's.
 >   back-compat not required (pre-release format — re-key fixtures). CLI:
 >   the existing place subcommand accepts circular dimensions.
 >
-> `docs/FEATURES.md`: the `Pass 368.0` *Planned* row is now *Implemented*
-> (see that Shipped entry); the two remaining *Planned* rows under *ce
-> dimensions* are unchanged, boxes still unticked.
+> `docs/FEATURES.md`: the `Pass 369.0` *Planned* row is now *Implemented*
+> (see that Shipped entry); the remaining *Planned* row under *ce
+> dimensions* (`Pass 370.0`) is unchanged, box still unticked.
 
 > ★★★★ **`Pass 366.0` SHIPPED, 2026-09-27 (669th filing), `2fe0e96e`** — see
 > top of *Shipped*. Filed *Next up* by the 668th filing (scoping); this

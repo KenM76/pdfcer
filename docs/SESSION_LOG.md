@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-27 (679th filing) — `52810dcf`: `Pass 369.0` SHIPPED — per-end extension gap on a Linear ce dimension (`G050`)
+
+**Shipped:**
+- `Pass 369.0` — `DimensionKind::Linear::extension_gap: [Option<f64>; 2]` plus `EditSession::set_dimension_extension_gap(id, DimensionEnd, Option<f64>) -> Result<(), EditError>`, one undo entry; `None` restores the drafting standard's own gap and the value rides placement/vertex-move/rotate/translate/transform/restyle/preview/sidecar for free because it lives on the kind. New refusals `NoExtensionLines`/`ExtensionGapOutOfRange`; new pure helpers `extension_segments`/`extension_reach`, `DimensionEnd { A, B }`. Answers `pdfcer-gui` request `G050`. Full record at the top of `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:**
+- None new.
+
+**Findings + decisions:**
+- CLI shipped as a **dedicated** `dimension-extension-gap` subcommand rather than flags on `dimension-offset`, as the scoping entry proposed — `dimension-offset`'s own defaults would reset the placement a caller wasn't touching. Recorded as a deviation on the Pass entry, not a new decision.
+
+**Still in flight:**
+- Same open items as the 678th filing (`Pass 10.10`, B-LT/B-LTA gated on `Pass 10.6`, cloudy-border restyle control unwired in `pdfcer-gui`).
+- `Pass 370.0` (`G051`, circular placement) is now the sole remaining item of the `G049`–`G051` family and the head of *Next up*; `Pass 261.0` remains queued behind it.
+
+**For next session:**
+- Build `Pass 370.0` next.
+- `docs/FEATURES.md`: the `Pass 369.0` *Planned* row replaced by an *Implemented → ce dimensions* row (core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `?`); the remaining *Planned* row (`370.0`) unchanged.
+- Channel reply posted: `open/reply_G050_a_linear_ce_dimensions_extension_gap_is_settable_per_end_DONE.md`.
+- No shell available this filing — no independent commit/push verification; `52810dcf` is on `main`, not yet pushed, and not in a release (latest release remains `v0.59.0`). Facts relayed from the dispatching engineer's report.
+
 ## 2026-09-27 (678th filing) — `870fdd64`: `Pass 368.0` SHIPPED — ce-dimension drag preview (`G049`)
 
 **Shipped:**
