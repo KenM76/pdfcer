@@ -115,6 +115,44 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 386.0` (`3ffaef8e`), 2026-09-28 — a circular ce dimension's leader stops short of its text
+
+**Verdict: SHIPPED.** From `pdfcer-gui` request `G065` (reply posted in the
+channel). Not previously scoped in *Next up*/*Backlog* — filed directly to
+*Shipped*.
+
+**Defect.** With the text past the rim, the baked leader ran
+rim → `label_anchor`, and the label is centred on that anchor — so the
+leader was stroked through the middle of the value instead of stopping at
+its edge.
+
+**Fix.** The outside leader now ends where it enters the label box (grown
+by the 3 pt text padding) — new private `segment_entry` helper, Liang-Barsky
+clip — under both ANSI (text centred) and ISO (text above) label layout.
+`label_anchor`, `placement_from_point` and `label_quad` are unchanged, so
+text position from a drop point or a drag is unaffected — moving the text
+beside the leader end was rejected: it would shift the text off the point
+the operator dropped it at. Text overlapping the rim draws no leader line
+at all, only the rim arrowhead. Inside leaders and `/L` are unchanged.
+
+**Tests.** 2 new core unit tests, `crates/pdfcer-core/src/dimension/author.rs`;
+sabotage (restoring the full rim→anchor leader) fails the main one.
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands.
+
+**`cargo tree`.** Not applicable — no manifest change.
+
+**Round-trip.** No public API change — `docs/core-api/` untouched.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not wired.
+
+**`docs/FEATURES.md`.** Appearance fix to the existing *Circular
+ce-dimension placement* row — no new row; a dated clause appended.
+
+**Sourcing (hard rule 8).** No shell this filing — facts relayed from the
+dispatching engineer's own verification at `3ffaef8e`, not independently
+reproduced.
+
 ### `Pass 385.0` (`c658ab2f`), 2026-09-28 — an angular ce dimension's text follows text_along
 
 **Verdict: SHIPPED.** Answers `G064`. Fixes a defect: `Angular::text_along`
@@ -9944,9 +9982,15 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **No named head.** `Pass 385.0` (below) closed the `G061`–`G064`
-> `pdfcer-gui` feature-request batch opened the 711th filing. Nothing is
+> **No named head.** `Pass 385.0` closed the `G061`–`G064` `pdfcer-gui`
+> feature-request batch opened the 711th filing; `Pass 386.0` (below)
+> shipped off-cycle from `G065`, not scoped through this queue. Nothing is
 > currently in *Next up*.
+
+> ★★★★★★★★ **`Pass 386.0` SHIPPED, 2026-09-28 (716th filing), `3ffaef8e`** —
+> see top of *Shipped*. Off-cycle defect fix answering `pdfcer-gui` request
+> `G065`, not scoped through this queue. **`Next up` still has no named
+> head.**
 
 > ★★★★★★★ **`Pass 385.0` SHIPPED, 2026-09-28 (715th filing), `c658ab2f`** —
 > see top of *Shipped*. Closes `G064` from the 711th filing's four-item

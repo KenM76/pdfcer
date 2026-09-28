@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (716th filing) — `3ffaef8e`: `Pass 386.0` SHIPPED — a circular ce dimension's leader stops short of its text
+
+**Shipped:**
+- `Pass 386.0` (`3ffaef8e`) — defect fix: with the label past the rim, the baked leader used to run rim → `label_anchor` and the label is centred on that anchor, so the leader was stroked through the middle of the value. It now ends where it enters the label box (grown by the 3 pt text padding; new private `segment_entry`, Liang-Barsky clip) under ANSI and ISO layout alike; `label_anchor`/`placement_from_point`/`label_quad` are unchanged, so text position from a drop point or a drag is unaffected. Text overlapping the rim draws no leader line, only the rim arrowhead. Answers `pdfcer-gui` request `G065`. Full detail: `ROADMAP.md` *Shipped*, top of file.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- Not previously scoped through *Next up*/*Backlog* — filed directly to *Shipped* as an off-cycle defect fix from a channel reply, per the standing "if ROADMAP has no entry for it, add it directly as Shipped" instruction.
+
+**Still in flight:**
+- *Next up* still has no named head — `Pass 386.0` was off-cycle, not drawn from the queue.
+
+**For next session:**
+- No shell this filing (hard rule 8). Facts relayed from the dispatching engineer's own verification at `3ffaef8e`; not independently verified from here.
+
 ## 2026-09-28 (714th/715th filings) — `28de8fcb`/`c658ab2f`: `Pass 384.0` + `Pass 385.0` SHIPPED — ce-dimension preview before it exists; angular ce-dimension text follows text_along
 
 **Shipped:**
