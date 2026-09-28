@@ -746,6 +746,10 @@ further features made it a genuine question rather than an obvious no:
   was *"copyleft weights and a web future"* versus *"permissive weights,
   more languages, no web future"*, **not** *"one is clean and one is
   not"*.
+  *Superseded in part by `Pass 327.3`:* the "no WASM" was true of the
+  `ocr-rs`/MNN route surveyed; PP-OCR ONNX exports run through `rten`
+  (feature `paddle`) do cross into wasm32. The weights still ship only on
+  an operator ruling.
 
 #### 6.7.2 The reasoning the operator accepted — attributed as the SURVEY'S READING, not as an agent's legal conclusion
 

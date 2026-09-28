@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (685th filing) — `ecbf5ee1`: `Pass 327.3` SHIPPED — PaddleOCR (PP-OCR) engine via rten
+
+**Shipped:**
+- `Pass 327.3` — `pdfcer_core::ocr::engine_paddle::PaddleEngine` (feature `paddle`, default ON), a fourth `--ocr-engine` choice running operator-supplied PP-OCR ONNX exports through `rten` 0.24. Reports per-word confidence, falls back to the rec model's own embedded dictionary metadata when no `dict.txt` is present, upright-rectangle boxes only (no angle classifier). Fourth member of the `Pass 327.x` family (`327.0`/`327.1` OCRcer shipped; `327.2` stays BLOCKED). Full record at the top of `ROADMAP.md`'s *Shipped*.
+- Chore commit `0d87169f` ("chore: v0.60.0") — version bump only, filed so `check-commits-filed.py` stays clean. A v0.60.0 release (tag, GitHub release, OneDrive deploy) is reported by the engineer as in progress, covering `Pass 327.3` plus the already-shipped `368.0`–`370.0` and `261.0`–`261.3`; not independently confirmed this filing.
+
+**Decisions made this session:**
+- None new — no §12 entry cited for this Pass, unlike `ocrcer` (decisions 159/160) and `tesseract` (decision 161).
+
+**Findings + decisions:**
+- `rten` 0.24 exposes an ONNX model's `metadata_props` via `model.metadata().get("character")`; PP-OCR recognition exports embed their character dictionary there (6,623 entries on the ch_PP-OCRv4 rec model) — written up as a new `D:\dev\rag\rust\` finding.
+- PP-OCR's DB post-processing mean confidence score, computed over a 2×2-dilated text region, is measurably lower than the same score computed over the raw (undilated) region — score assertions/tests need slack for this. Written up in `C:\personal_rag\pdf\`.
+- The missing-space artefacts seen in PaddleOCR/RapidOCR output ("thatlazy"-style joins) come from the PP-OCR recognition model itself, not from pdfcer's line assembly — RapidOCR's own reference implementation joins even more words together on the same render. Confirmed not a pdfcer bug; written up in `C:\personal_rag\pdf\`.
+
+**Still in flight:**
+- Same open items as the 684th filing (`Pass 10.10`; B-LT/B-LTA gated on `Pass 10.6`; cloudy-border restyle control unwired in `pdfcer-gui`).
+- v0.60.0 release packaging — awaiting tag/OneDrive-deploy confirmation from the engineer.
+
+**For next session:**
+- File the v0.60.0 release entry once tag/GitHub-release/OneDrive-deploy details are relayed.
+- `docs/LEGAL.md` §6.7.1 flagged (not edited — likely outside librarian ownership) as stale: it says the PaddleOCR route "has no WASM," true only of the rejected `ocr-rs`/MNN candidate, not the adopted `rten`-based `paddle` feature (which is wasm32-clean).
+- `docs/FEATURES.md`'s "Choose the OCR engine" row now lists `paddle`; boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`).
+- No shell available this filing — no independent commit/push verification; `ecbf5ee1` and `0d87169f` are relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest CONFIRMED release on record remains `v0.59.0` (v0.60.0 reported in progress).
+
 ## 2026-09-28 (684th filing) — `1c7fb0dc`: `Pass 261.3` SHIPPED — `/Screen` annotation with embedded media clip
 
 **Shipped:**

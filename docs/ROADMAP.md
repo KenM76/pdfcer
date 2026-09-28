@@ -115,6 +115,36 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 327.3` (`ecbf5ee1`), 2026-09-28 — PaddleOCR (PP-OCR) engine via rten
+
+**Verdict: SHIPPED.** Operator request (Ken, verbatim, on the channel): "Add paddleocr support then release." Fourth engine in the `Pass 327.x` OCR-engine family (`327.0`/`327.1` = OCRcer, shipped; `327.2` = BLOCKED Backlog LLM-rescoring item, untouched).
+
+**Core.** New `pdfcer_core::ocr::engine_paddle::PaddleEngine` (feature `paddle`, DEFAULT ON in `pdfcer-core`/`pdfcer-render`/`pdfcer-cli`): `from_model_dir`, `from_model_files(det, rec, Option<dict>)`, `dictionary_source() -> DictionarySource` (`#[non_exhaustive]` `{File(PathBuf), Embedded}`), `dictionary_len()`. Constants `MODEL_DIR = "paddle"`, `DETECTION_MODEL = "det.onnx"`, `RECOGNITION_MODEL = "rec.onnx"`, `DICTIONARY = "dict.txt"`. `PaddleEngineError` (`thiserror`): `ModelMissing`, `ModelLoad`, `Dictionary`, `ImageSize`, `Recognition`. Implements `OcrEngine`; runs operator-supplied PP-OCR ONNX exports through `rten` 0.24 (already in `Cargo.lock` — no new crate). Reports per-word confidence (mean CTC probability; lines scoring <0.5 dropped). Pure post-processing lives in `ocr::paddle_post` (`#[doc(hidden)] pub`, workspace-internal for the fuzz crate) at RapidOCR 1.4 defaults. No `dict.txt` on disk falls back to the rec model's own embedded ONNX `metadata_props["character"]`; a dictionary/class-count mismatch is refused at load, not silently truncated. Known limitation: upright-rectangle boxes only — a crop 1.5x taller than wide, rotated 90° CCW, reads as one line/word; no angle classifier.
+
+**CLI.** `pdfcer ocr --ocr-engine paddle [--model-dir DIR]` (default `models/paddle` beside the exe). Rule 4 disclosure prints which dictionary was used (file path or "embedded"). A build without the `paddle` feature refuses by name, exit 64; missing model files exit 1 with a how-to.
+
+**Not shipped.** Model weights are NOT bundled or downloaded — ships as a bring-your-own-weights engine pending the operator's weights-licence ruling (open question `(bl)`, `CLAUDE.md` "Outstanding open items").
+
+**Tests.** 8 new `paddle_post` unit tests + 2 engine unit tests (core), 4 new CLI tests (`tests/ocr_engine.rs`). Manually verified against RapidOCR ch_PP-OCRv4 det/rec on all three OCR fixtures: 47–49 words read per page, mean confidence 98.7–99.8%, ≈1.1 s/page in a release build. New fuzz target `paddle_post`: 121,065 runs in 61 s (≈504 µs/run), 0 crashes. `tools/run-gates.sh` PASS, 40 commands, 9,734 tests passed, 0 failed.
+
+**Gates.** No new crate — `rten`/`rten-tensor` already resolved; `THIRD_PARTY_LICENSES.md` regenerated and diffed unchanged. `cargo tree -p pdfcer-core` / `-p pdfcer-render`: no GUI/network crate, invariant holds. `cargo check --target wasm32-unknown-unknown` passes with `paddle` on.
+
+**Docs.** `docs/core-api/03-capabilities.md` "Piece 3d — PaddleOCR (PP-OCR)"; `docs/PRIOR_ART.md` new ADOPTED row (rten route) plus the `ocr-rs`/MNN candidate marked not-adopted/superseded; `docs/ocr-engine-survey.md` §5.2 outcome note. All three already correct as of this commit — no further edit needed.
+
+**Decision-worthy.** None new — no §12 entry cited by the engineer's own `PRIOR_ART.md` edit, unlike `ocrcer` (decisions 159/160) and `tesseract` (decision 161).
+
+**Flagged, not edited (outside librarian ownership).** `docs/LEGAL.md` §6.7.1 still reads "[PaddleOCR's weights]... but that route has no WASM" — true only of the rejected `ocr-rs`/MNN candidate, now stale against the adopted `rten`-based `paddle` feature, which is wasm32-clean. Owed: a one-line correction pointing at this Pass.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` is a separate project and has not consumed this.
+
+**`docs/FEATURES.md`.** The "Choose the OCR engine" row (~line 221) rewritten to list `paddle` as a fourth `--ocr-engine` choice; boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `?`).
+
+**Also filed this session:** chore commit `0d87169f` ("chore: v0.60.0", `Cargo.toml` 0.59.0 → 0.60.0 plus both lockfiles) — recorded so `check-commits-filed.py` sees it filed. **Release in progress**: v0.60.0 packaging (tag, GitHub release, OneDrive deploy) reported as underway by the engineer; not yet confirmed from here — full release filing to follow in a later session once tag/deploy details are relayed.
+
+**Next up.** No named head — same open items as the 684th filing (`Pass 10.10`; B-LT/B-LTA gated on `Pass 10.6`; cloudy-border restyle control unwired in `pdfcer-gui`).
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `ecbf5ee1` and `0d87169f`, not independently reproduced. Backup/push/release state not verifiable from here — engineer should check; latest CONFIRMED release on record remains `v0.59.0` (v0.60.0 reported in progress, not yet verified).
+
 ### `Pass 261.3` (`1c7fb0dc`), 2026-09-28 — `/Screen` annotation with embedded media clip
 
 **Verdict: SHIPPED.** Build order 4 of 4 — the family scoped 468th filing is now COMPLETE (`261.4`/`261.5` stay refused by name, `261.6` stays authoring-refused/read-half-unscoped).
@@ -8750,6 +8780,14 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★ **`Pass 327.3` SHIPPED, 2026-09-28 (685th filing), `ecbf5ee1`** — see
+> top of *Shipped*. Fourth engine in the `Pass 327.x` OCR-engine family
+> (`327.0`/`327.1` OCRcer shipped; `327.2` stays BLOCKED in *Backlog*).
+> Operator request: "Add paddleocr support then release." **No named head
+> currently occupies *Next up***. Chore commit `0d87169f` ("chore: v0.60.0")
+> also filed this session; a v0.60.0 release is reported in progress by the
+> engineer — not yet confirmed from here, full release filing pending.
 
 > ★★★★ **`Pass 261.3` SHIPPED, 2026-09-28 (684th filing), `1c7fb0dc`** — see
 > top of *Shipped*. Filed under *Backlog* (line ~18400) at the 468th filing
