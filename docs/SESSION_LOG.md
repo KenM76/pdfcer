@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (686th filing) — `040c24d7`: `Pass 327.4` SHIPPED — PaddleOCR PP-OCRv4 models bundled in the portable package
+
+**Shipped:**
+- `Pass 327.4` — follow-on to `Pass 327.3`: the operator, after asking file sizes (det.onnx 4.7 MB + rec.onnx 10.9 MB = 15,603,475 bytes), ruled "Add it to the package." `crates/pdfcer-core/assets/models/paddle/{det.onnx, rec.onnx, LICENSE, PROVENANCE.md}` now ship — RapidOCR 1.4.4's PP-OCRv4 det/rec ONNX exports, Apache-2.0, unmodified but renamed. `pdfcer ocr --ocr-engine paddle` now works with no `--model-dir`. Full record at the top of `ROADMAP.md`'s *Shipped*.
+- Same commit also fixed a stale claim: OCRcer's own `--help`/missing-model text still said its model was unshipped, though the portable package has carried `models/ocrcer` since v0.59.0.
+
+**Decisions made this session:**
+- New §12 decision 163 — the operator ruling to redistribute PaddleOCR's PP-OCRv4 weights (Apache-2.0) in the portable package, citing `crates/pdfcer-core/assets/models/paddle/PROVENANCE.md` as the source of record. `ARCHITECTURE.md` §3 gained a matching ninth dependency-table paragraph.
+
+**Findings + decisions:**
+- None new this filing beyond the decision above — no fresh RAG-worthy empirical finding reported.
+
+**Still in flight:**
+- Same open items as the 685th filing (`Pass 10.10`; B-LT/B-LTA gated on `Pass 10.6`; cloudy-border restyle control unwired in `pdfcer-gui`).
+- v0.60.0 release packaging — reported by the engineer as in progress (covers `Pass 327.3`/`327.4` plus the already-shipped `368.0`–`370.0` and `261.0`–`261.3`); awaiting tag/OneDrive-deploy confirmation, not independently verified this filing.
+
+**For next session:**
+- File the v0.60.0 release entry once tag/GitHub-release/OneDrive-deploy details are relayed.
+- No shell available this filing — no independent commit/push verification; `040c24d7` is relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest CONFIRMED release on record remains `v0.59.0`.
+
 ## 2026-09-28 (685th filing) — `ecbf5ee1`: `Pass 327.3` SHIPPED — PaddleOCR (PP-OCR) engine via rten
 
 **Shipped:**

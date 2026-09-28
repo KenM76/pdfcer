@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 327.4` (`040c24d7`), 2026-09-28 — Ship the PaddleOCR PP-OCRv4 models in the portable package
+
+**Verdict: SHIPPED.** Follow-on to `Pass 327.3` (`ecbf5ee1`). Operator ruling, verbatim, after being told det.onnx is 4.7 MB and rec.onnx is 10.9 MB (15,603,475 bytes together): *"Add it to the package."*
+
+**What shipped.** `crates/pdfcer-core/assets/models/paddle/{det.onnx, rec.onnx, LICENSE, PROVENANCE.md}` — RapidOCR 1.4.4's `ch_PP-OCRv4_det_infer.onnx`/`ch_PP-OCRv4_rec_infer.onnx`, unmodified but renamed, from the PyPI wheel `rapidocr_onnxruntime-1.4.4-py3-none-any.whl` (wheel sha256 `971d7d5f223a7a808662229df1ef69893809d8457d834e6373d3854bc1782cbf`; det sha256 `d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9`; rec sha256 `48fc40f24f6d2a207a2b1091d3437eb3cc3eb6b676dc3ef9c37384005483683b`). Apache-2.0 (PaddleOCR + RapidOCR, confirmed via each project's own LICENSE and the GitHub licence API; neither carries a NOTICE). Chinese+English, 6,623-char dictionary embedded in `rec.onnx`'s own metadata. `.gitattributes` gained `*.onnx binary`; the new `about.hbs` section flows into the regenerated `THIRD_PARTY_LICENSES.md`; `check-shipped-assets` passes 3 asset dirs / 19 files. `tools/package-portable.py` needed no change — it already copies every `assets/models/*` dir — so `pdfcer ocr --ocr-engine paddle` now works with no `--model-dir`.
+
+**Wording corrected to match.** CLI `--help`, the missing-model error, `docs/core-api` Piece 3d, `docs/PRIOR_ART.md`, `docs/LEGAL.md` §6.7.1 and `docs/ocr-engine-survey.md` §5.2 now say "shipped" instead of "bring your own" (all edited by the engineer inside this commit — not re-touched here); `paddle_models_read_the_scan_when_present` drops its opt-in gate and always runs against the committed models. **Separately corrected**: OCRcer's own `--help`/missing-model text still said its model was unshipped, though the portable package has carried `models/ocrcer` since v0.59.0 — a stale claim, fixed the same commit.
+
+**Tests / gates.** `tools/run-gates.sh` PASS (40 commands, 2 filing gates) on the tree before the final two wording edits; after them, `cargo fmt --check`/`clippy` clean on `pdfcer-cli` and `cargo test -p pdfcer-cli --test all ocr` 9/9. No `Cargo.toml` change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unchanged, still no GUI/network crate.
+
+**Decision-worthy.** New §12 decision 163 — the operator ruling to redistribute the PP-OCRv4 weights. `ARCHITECTURE.md` §3 gains a ninth dependency-table paragraph alongside Tesseract's eighth.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — no change to `pdfcer-gui` consumption.
+
+**`docs/FEATURES.md`.** The "Choose the OCR engine" row (~line 221) reworded: `paddle`'s weights now ship in the portable package rather than bring-your-own. Boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `?`).
+
+**Also filed this session.** A v0.60.0 release is reported by the engineer to follow this Pass — full release filing deferred to a later session once tag/deploy details are relayed.
+
+**Next up.** No named head — same open items as the 685th filing.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `040c24d7`, not independently reproduced. Backup/push/release state not verifiable from here — engineer should check; latest CONFIRMED release on record remains `v0.59.0`.
+
 ### `Pass 327.3` (`ecbf5ee1`), 2026-09-28 — PaddleOCR (PP-OCR) engine via rten
 
 **Verdict: SHIPPED.** Operator request (Ken, verbatim, on the channel): "Add paddleocr support then release." Fourth engine in the `Pass 327.x` OCR-engine family (`327.0`/`327.1` = OCRcer, shipped; `327.2` = BLOCKED Backlog LLM-rescoring item, untouched).

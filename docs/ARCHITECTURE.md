@@ -5075,6 +5075,25 @@ static-MSVC subprocess `tesseract.exe` but still links curl and libarchive;
 pdfcer's build disables both. Default bundled language is `eng` only —
 open operator question `(cf)`, `docs/ROADMAP.md`.
 
+**Ninth, NOT a Cargo dependency: PaddleOCR's PP-OCRv4 model weights**
+(2026-09-28; §12 decision 163; `Pass 327.4`).
+`crates/pdfcer-core/assets/models/paddle/{det.onnx, rec.onnx}` —
+RapidOCR 1.4.4's `ch_PP-OCRv4_det_infer.onnx`/`ch_PP-OCRv4_rec_infer.onnx`,
+unmodified but renamed, redistributed from the PyPI wheel
+`rapidocr_onnxruntime-1.4.4-py3-none-any.whl` under Apache-2.0 (both
+PaddleOCR and RapidOCR; neither carries a NOTICE). 15,603,475 bytes total
+(det 4.7 MB + rec 10.9 MB). Read by the `paddle` `--ocr-engine`
+(`PaddleEngine::from_model_dir`), which runs on `rten` — no new Cargo
+dependency, per `Pass 327.3`'s own note that `rten`/`rten-tensor` were
+already resolved. A 6,623-character Chinese+English dictionary is embedded
+in `rec.onnx`'s own ONNX metadata, so no separate `dict.txt` ships.
+`tools/package-portable.py` needed no change — it already copies every
+`assets/models/*` directory. Provenance recorded in
+`crates/pdfcer-core/assets/models/paddle/PROVENANCE.md`, cited here rather
+than a bare URL. Contrast with `ocrs`'s still-open CC-BY-SA-4.0 weights
+question `(bl)` — a different engine, different licence, untouched by this
+decision.
+
 ## 10. Adversarial input hardening & fuzzing
 
 `pdfcer-core` parses files from the public internet by design — every
@@ -11562,3 +11581,17 @@ dispatching engineer's report; not independently reproduced.
 
 **Decision ceiling: `161` → `162`**, next free `163`. **Pass ceiling: `Pass
 329.0`**, next free family `330` — unaffected; `Pass 325.0` already existed.
+
+### 2026-09-28 (686th filing, `Pass 327.4`, `040c24d7`) — decision 163: PADDLEOCR'S PP-OCRV4 DET/REC WEIGHTS ARE REDISTRIBUTED IN THE PORTABLE PACKAGE, APACHE-2.0, ON OPERATOR RULING
+
+**Status: DECIDED (operator ruling, Ken, 2026-09-28, verbatim: "Add it to the package."** — said after being told det.onnx is 4.7 MB and rec.onnx is 10.9 MB, 15,603,475 bytes together.)
+
+**What was decided.** `Pass 327.3` shipped `paddle` as a bring-your-own-weights engine (open question `(bl)` about `ocrs`'s CC-BY-SA-4.0 weights left untouched — a different engine, different licence). This Pass reverses that posture for `paddle` specifically: `crates/pdfcer-core/assets/models/paddle/{det.onnx, rec.onnx, LICENSE, PROVENANCE.md}` now ship in the portable package — RapidOCR 1.4.4's `ch_PP-OCRv4_det_infer.onnx`/`ch_PP-OCRv4_rec_infer.onnx`, unmodified but renamed, sourced from the PyPI wheel `rapidocr_onnxruntime-1.4.4-py3-none-any.whl` (wheel sha256 `971d7d5f223a7a808662229df1ef69893809d8457d834e6373d3854bc1782cbf`; det sha256 `d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9`; rec sha256 `48fc40f24f6d2a207a2b1091d3437eb3cc3eb6b676dc3ef9c37384005483683b`). Both PaddleOCR (upstream model author) and RapidOCR (redistributor) license Apache-2.0, confirmed via each project's own LICENSE file and the GitHub licence API; neither carries a NOTICE, so none is required in `about.hbs`. **Source of record, per this decision's own citation requirement: `crates/pdfcer-core/assets/models/paddle/PROVENANCE.md`, not a bare URL.**
+
+**Mechanism.** No packaging code change — `tools/package-portable.py` already copies every `assets/models/*` directory, so `models/paddle` rides along automatically. `.gitattributes` gained `*.onnx binary`; `check-shipped-assets` now expects 3 asset dirs / 19 files.
+
+**Body-section effects.** `ARCHITECTURE.md` §3 gains a ninth dependency-table paragraph (above, alongside Tesseract's eighth). `docs/LEGAL.md` §6.7.1, `docs/PRIOR_ART.md` and `docs/ocr-engine-survey.md` §5.2 were already corrected by the engineer inside `040c24d7` — not re-touched here. `docs/FEATURES.md`'s "Choose the OCR engine" row reworded this filing.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `040c24d7`; not independently reproduced.
+
+**Decision ceiling: `162` → `163`**, next free `164`. **Pass ceiling: `Pass 327.3` → `Pass 327.4`**, next free family `328` — unaffected.
