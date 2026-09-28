@@ -7770,8 +7770,10 @@ pub(crate) enum Command {
     /// the extension lines stretch, and the printed value is unchanged. Read
     /// the current values from `dimension-list`.
     ///
-    /// Refused by name for a circular dimension, which has no axis to stand
-    /// off from or slide along.
+    /// For a RADIUS or DIAMETER (`Pass 370.0`) `--offset` is how far past the
+    /// rim the value sits (negative puts it inside; clamped at the centre for
+    /// a radius, the far rim for a diameter) and `--text-along` is the leader
+    /// angle in degrees counter-clockwise from page +x.
     ///
     /// For a PERIMETER (`Pass 107.0`) the same two numbers displace the label
     /// from the shape's vertex centroid, in PAGE axes: `--offset` is +y and

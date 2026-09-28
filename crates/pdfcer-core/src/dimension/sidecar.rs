@@ -606,12 +606,25 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
                 d.insert(Name::from(b"TextAlong"), Object::Real(text_along));
             }
         }
-        DimensionKind::Circular { fit, show_diameter } => {
+        DimensionKind::Circular {
+            fit,
+            show_diameter,
+            leader_angle,
+            text_distance,
+        } => {
             d.insert(Name::from(b"Kind"), Object::Name(Name::from(b"circular")));
             d.insert(Name::from(b"Center"), point_array(fit.center));
             d.insert(Name::from(b"Radius"), Object::Real(fit.radius));
             d.insert(Name::from(b"Residual"), Object::Real(fit.residual));
             d.insert(Name::from(b"Diameter"), Object::Boolean(show_diameter));
+            // Optional-key discipline: an unplaced circular ce dimension adds
+            // no key, so its sidecar re-serialises byte-identically (R34).
+            if leader_angle != 0.0 {
+                d.insert(Name::from(b"LeaderAngle"), Object::Real(leader_angle));
+            }
+            if let Some(t) = text_distance {
+                d.insert(Name::from(b"TextDistance"), Object::Real(t));
+            }
         }
     }
     if let Some(annot) = dim.annot {
@@ -716,6 +729,11 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
                     .unwrap_or(0.0),
             },
             show_diameter: bool_of(d.get(b"Diameter")).unwrap_or(false),
+            leader_angle: placement_of(d.get(b"LeaderAngle")),
+            text_distance: d
+                .get(b"TextDistance")
+                .and_then(Object::as_number)
+                .filter(|v| usable_page_value(*v)),
         },
         _ => return None,
     };
@@ -1201,6 +1219,8 @@ mod tests {
                     residual: 0.3,
                 },
                 show_diameter: true,
+                leader_angle: 0.0,
+                text_distance: None,
             },
         );
         m.group_mut(fp).unwrap().ocg = Some(ObjId::new(30, 0));
@@ -1321,6 +1341,8 @@ mod angular_sidecar_tests {
                     residual: 0.0,
                 },
                 show_diameter: false,
+                leader_angle: 0.0,
+                text_distance: None,
             },
         );
         let Object::Dict(mut d) = serialize_model(&model) else {

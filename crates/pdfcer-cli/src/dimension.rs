@@ -103,6 +103,8 @@ pub(crate) fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
             DimensionKind::Circular {
                 fit,
                 show_diameter: matches!(kind, DimKindArg::Diameter),
+                leader_angle: 0.0,
+                text_distance: None,
             }
         }
         // `Pass 107.0`. Two tokens for one kind, differing by the closing
@@ -2373,7 +2375,15 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 }
                 s
             }
-            DimensionKind::Circular { .. } => String::new(),
+            // Named for what they are, not `offset=`/`text_along=`: the pair
+            // is `dimension-offset`'s, but its meaning here is polar.
+            DimensionKind::Circular { leader_angle, .. } => {
+                let mut s = format!(" leader_angle={leader_angle}");
+                if let Some(t) = d.kind.circular_text_distance() {
+                    s.push_str(&format!(" text_distance={t}"));
+                }
+                s
+            }
             // An angular ce dimension's placement is a radius and a position
             // along the arc — the same one-drag pair as a linear one, in the
             // geometry an arc has. Reported under its own names rather than

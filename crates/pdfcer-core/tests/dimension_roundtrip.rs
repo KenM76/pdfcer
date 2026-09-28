@@ -1088,6 +1088,8 @@ fn circular(show_diameter: bool) -> DimensionKind {
             residual: 0.0,
         },
         show_diameter,
+        leader_angle: 0.0,
+        text_distance: None,
     }
 }
 
@@ -1162,7 +1164,9 @@ fn a_placed_circular_ce_dimension_can_be_switched_to_diameter_after_the_fact() {
     );
 
     let model = s.dimension_model();
-    let DimensionKind::Circular { fit, show_diameter } = model.dimension(dim_id).unwrap().kind
+    let DimensionKind::Circular {
+        fit, show_diameter, ..
+    } = model.dimension(dim_id).unwrap().kind
     else {
         panic!("the ce dimension stopped being circular");
     };
@@ -1384,36 +1388,6 @@ fn placing_an_angular_ce_dimension_clamps_a_negative_arc_radius() {
         }
         other => panic!("expected Angular, got {other:?}"),
     }
-}
-
-/// A CIRCULAR ce dimension is still refused by name — the narrowing did not
-/// open the door to the kind that genuinely has nowhere to stand off to.
-#[test]
-fn placing_a_circular_ce_dimension_is_still_refused_by_name() {
-    let (_orig, mut s) = session();
-    let fit = pdfcer_core::dimension::fit_circle_taubin(&[
-        Point::new(100.0, 0.0),
-        Point::new(0.0, 100.0),
-        Point::new(-100.0, 0.0),
-    ])
-    .expect("three non-collinear points fit a circle");
-    let (_annot, dim_id) = s
-        .add_dimension(
-            0,
-            DEFAULT_GROUP_ID,
-            DimensionKind::Circular {
-                fit,
-                show_diameter: false,
-            },
-        )
-        .unwrap();
-    let err = s
-        .place_dimension(dim_id, 10.0, 0.0)
-        .expect_err("a circle has no axis to stand off from");
-    assert!(
-        matches!(err, pdfcer_core::edit::EditError::NotALinearDimension { id } if id == dim_id.0),
-        "expected NotALinearDimension, got {err:?}"
-    );
 }
 
 /// An unknown id is refused before anything is written.

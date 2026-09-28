@@ -244,6 +244,20 @@ pub enum DimensionKind {
         fit: FitCircle,
         /// `true` ⇒ display the diameter; `false` ⇒ the radius.
         show_diameter: bool,
+        /// Direction of the leader from the centre, in degrees
+        /// counter-clockwise from page +x. `0.0` is where every circular ce
+        /// dimension authored before this field existed draws its leader.
+        leader_angle: f64,
+        /// How far past the rim the text sits along the leader, in points;
+        /// negative puts it inside the circle. `None` is the midpoint of the
+        /// radius leader (`-radius / 2`). Clamped at draw time to the centre
+        /// (radius) or the opposite rim (diameter): see
+        /// [`Self::circular_text_distance`].
+        ///
+        /// Past the rim, the leader runs from the text to the rim with the
+        /// arrow pointing at the centre. Inside, a radius runs centre to rim
+        /// and a diameter crosses rim to rim through the centre.
+        text_distance: Option<f64>,
     },
     /// An ANGLE between two lines the operator picked (`Pass 68.0`).
     ///
@@ -523,6 +537,15 @@ impl DimensionKind {
             let c = self.polyline_centroid()?;
             return Some(Point::new(c.x + text_along, c.y + offset));
         }
+        if let Self::Circular {
+            ref fit,
+            leader_angle,
+            ..
+        } = *self
+        {
+            let t = self.circular_text_distance()?;
+            return Some(point_on_ray(fit.center, leader_angle, fit.radius + t));
+        }
         let Self::Linear { text_along, .. } = *self else {
             return None;
         };
@@ -556,6 +579,24 @@ impl DimensionKind {
             let c = self.polyline_centroid()?;
             return Some((p.y - c.y, p.x - c.x));
         }
+        // A circle resolves the point in polar terms about its centre: the
+        // distance past the rim, and the leader's direction in degrees. Exactly
+        // on the centre the direction is undefined, so the current one stays.
+        if let Self::Circular {
+            ref fit,
+            leader_angle,
+            ..
+        } = *self
+        {
+            let (dx, dy) = (p.x - fit.center.x, p.y - fit.center.y);
+            let dist = dx.hypot(dy);
+            let angle = if dist > 0.0 {
+                dy.atan2(dx).to_degrees().rem_euclid(360.0)
+            } else {
+                leader_angle
+            };
+            return Some((dist - fit.radius, angle));
+        }
         let Self::Linear { a, b, .. } = *self else {
             return None;
         };
@@ -567,6 +608,29 @@ impl DimensionKind {
         let t = (b.x - a.x) * u.x + (b.y - a.y) * u.y;
         let along = ((p.x - a.x) * u.x + (p.y - a.y) * u.y) - t / 2.0;
         Some((offset, along))
+    }
+
+    /// The text distance past the rim a circular ce dimension is drawn with:
+    /// the stored `text_distance` (or `-radius / 2` when `None`), clamped so
+    /// the text never passes the centre of a radius or the opposite rim of a
+    /// diameter. `None` for a non-circular kind.
+    #[must_use]
+    pub fn circular_text_distance(&self) -> Option<f64> {
+        let Self::Circular {
+            ref fit,
+            show_diameter,
+            text_distance,
+            ..
+        } = *self
+        else {
+            return None;
+        };
+        let floor = if show_diameter {
+            -2.0 * fit.radius
+        } else {
+            -fit.radius
+        };
+        Some(text_distance.unwrap_or(-fit.radius / 2.0).max(floor))
     }
 
     /// Where each extension line of a linear ce dimension is **drawn**, as
@@ -704,12 +768,19 @@ impl DimensionKind {
                 text_along,
                 extension_gap,
             },
-            Self::Circular { fit, show_diameter } => Self::Circular {
+            Self::Circular {
+                fit,
+                show_diameter,
+                leader_angle,
+                text_distance,
+            } => Self::Circular {
                 fit: FitCircle {
                     center: map(fit.center),
                     ..fit
                 },
                 show_diameter,
+                leader_angle: (leader_angle + radians.to_degrees()).rem_euclid(360.0),
+                text_distance,
             },
             Self::Angular {
                 apex,
@@ -775,12 +846,19 @@ impl DimensionKind {
                 text_along,
                 extension_gap,
             },
-            Self::Circular { fit, show_diameter } => Self::Circular {
+            Self::Circular {
+                fit,
+                show_diameter,
+                leader_angle,
+                text_distance,
+            } => Self::Circular {
                 fit: FitCircle {
                     center: Point::new(fit.center.x + dx, fit.center.y + dy),
                     ..fit
                 },
                 show_diameter,
+                leader_angle,
+                text_distance,
             },
             // Only the apex moves. The arm DIRECTIONS are unit vectors, not
             // points — translating them would rotate the dimension, which is
@@ -830,7 +908,9 @@ impl DimensionKind {
             DimensionKind::Linear {
                 a, b, constraint, ..
             } => measured_length(a, b, constraint),
-            DimensionKind::Circular { fit, show_diameter } => {
+            DimensionKind::Circular {
+                fit, show_diameter, ..
+            } => {
                 if show_diameter {
                     2.0 * fit.radius
                 } else {
@@ -1317,6 +1397,8 @@ mod tests {
                 residual: 0.0,
             },
             show_diameter: false,
+            leader_angle: 0.0,
+            text_distance: None,
         };
         assert_eq!(circ.measured_points(), 10.0);
         let dia = DimensionKind::Circular {
@@ -1326,6 +1408,8 @@ mod tests {
                 residual: 0.0,
             },
             show_diameter: true,
+            leader_angle: 0.0,
+            text_distance: None,
         };
         assert_eq!(dia.measured_points(), 20.0);
         assert_eq!(dia.caption_prefix(), "DIA ");
@@ -1511,6 +1595,13 @@ mod angular_tests {
     }
 }
 
+/// The point `dist` along the ray from `origin` at `degrees` counter-clockwise
+/// from page +x.
+pub(crate) fn point_on_ray(origin: Point, degrees: f64, dist: f64) -> Point {
+    let (s, c) = degrees.to_radians().sin_cos();
+    Point::new(c.mul_add(dist, origin.x), s.mul_add(dist, origin.y))
+}
+
 /// Transform a [`DimensionKind`]'s geometry by `m` (`Pass 120.4`).
 ///
 /// Every variant is point-based, so a transform is exact — there is no
@@ -1526,6 +1617,9 @@ mod angular_tests {
 /// dimension whose label has drifted off its own leader is worse than one
 /// whose label offset stayed put. A **measurement is re-derived from the
 /// geometry on authoring**, so the number stays correct either way.
+///
+/// A circular `leader_angle` is a direction, not a scalar, so it IS mapped
+/// through `m`; its `text_distance` stays put like `offset`.
 #[must_use]
 pub fn transform_kind(kind: &DimensionKind, m: crate::vector::Matrix) -> DimensionKind {
     let pt = |p: &Point| m.map_point(*p);
@@ -1547,16 +1641,36 @@ pub fn transform_kind(kind: &DimensionKind, m: crate::vector::Matrix) -> Dimensi
             text_along: *text_along,
             extension_gap: *extension_gap,
         },
-        DimensionKind::Circular { fit, show_diameter } => DimensionKind::Circular {
-            fit: crate::dimension::FitCircle {
-                center: pt(&fit.center),
-                // The radius scales with the geometry, unlike the placement
-                // scalars above: it IS geometry -- the circle's own size.
-                radius: fit.radius * m.determinant().abs().sqrt(),
-                ..*fit
-            },
-            show_diameter: *show_diameter,
-        },
+        DimensionKind::Circular {
+            fit,
+            show_diameter,
+            leader_angle,
+            text_distance,
+        } => {
+            // The leader DIRECTION goes through the matrix's linear part, so a
+            // rotated or mirrored drawing keeps its leader pointing at the same
+            // feature. The text distance is a placement scalar and is kept.
+            let c = pt(&fit.center);
+            let tip = pt(&point_on_ray(fit.center, *leader_angle, 1.0));
+            let (dx, dy) = (tip.x - c.x, tip.y - c.y);
+            let angle = if dx.hypot(dy) > 0.0 {
+                dy.atan2(dx).to_degrees().rem_euclid(360.0)
+            } else {
+                *leader_angle
+            };
+            DimensionKind::Circular {
+                fit: crate::dimension::FitCircle {
+                    center: c,
+                    // The radius scales with the geometry, unlike the placement
+                    // scalars above: it IS geometry -- the circle's own size.
+                    radius: fit.radius * m.determinant().abs().sqrt(),
+                    ..*fit
+                },
+                show_diameter: *show_diameter,
+                leader_angle: angle,
+                text_distance: *text_distance,
+            }
+        }
         DimensionKind::Angular {
             apex,
             dir_a,

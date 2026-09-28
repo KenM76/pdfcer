@@ -7155,42 +7155,6 @@ pub enum EditError {
         /// The newest schema version this build understands.
         supported: i64,
     },
-    /// A placement operation named a ce dimension that cannot be placed
-    /// (Pass 27.1; **scope corrected in `Pass 68.0`** — see below).
-    ///
-    /// A circular dimension has no axis to stand off from or slide along, so
-    /// there is nothing for `offset`/`text_along` to mean. Refused by name
-    /// rather than ignored, so a caller learns its assumption was wrong
-    /// instead of watching a drag do nothing.
-    ///
-    /// # This refusal silently widened, and had to be narrowed back
-    ///
-    /// It was written when [`DimensionKind`] had exactly two variants, so
-    /// "not linear" and "circular" were the same statement — the name says
-    /// one and the message says the other, and nothing distinguished them.
-    /// [`DimensionKind::Angular`] arriving in `Pass 68.0` broke that
-    /// equivalence, and this refusal began covering a kind nobody had reasoned
-    /// about: an ANGULAR ce dimension has a standoff (its arc radius) and a
-    /// text position (along that arc), which is exactly what
-    /// `place_dimension` sets. It was refused anyway, purely because it was
-    /// not `Linear`.
-    ///
-    /// The visible symptom was the one this error's own docs promise to
-    /// prevent: the GUI let an operator grab an angular ce dimension and drag
-    /// it, and the drag did nothing. A refusal keyed on "not the kind I know"
-    /// rather than on the property it actually needs will do this every time a
-    /// variant is added — the same shape as R186, one rung down.
-    ///
-    /// It now names the property: only a CIRCULAR ce dimension is refused,
-    /// because only it genuinely lacks somewhere to stand off to.
-    #[error(
-        "ce dimension {id} is circular, and only a linear or angular one has a standoff and a \
-         text position"
-    )]
-    NotALinearDimension {
-        /// The dimension id.
-        id: u32,
-    },
     /// A per-end extension gap was aimed at a ce dimension that is not
     /// linear (`Pass 369.0`). Only a linear ce dimension has the two
     /// extension lines the gap belongs to.
@@ -7216,15 +7180,14 @@ pub enum EditError {
         reach: f64,
     },
     /// A display-mode operation named a ce dimension that is not circular
-    /// (Pass 34.2) — the mirror of [`Self::NotALinearDimension`].
+    /// (Pass 34.2).
     ///
     /// Radius-versus-diameter is a property of a fitted CIRCLE: it asks
     /// whether the label reports `r` or `2r` for the same stored geometry. A
     /// linear ce dimension has no circle and no radius, so there is nothing
-    /// for the flag to select between. Refused by name rather than ignored, on
-    /// the same reasoning [`Self::NotALinearDimension`] gives: a caller that
-    /// aimed the verb at the wrong kind should learn that, not watch a control
-    /// appear to do nothing.
+    /// for the flag to select between. Refused by name rather than ignored: a
+    /// caller that aimed the verb at the wrong kind should learn that, not
+    /// watch a control appear to do nothing.
     #[error("ce dimension {id} is linear, and only a circular one has a radius/diameter display")]
     NotACircularDimension {
         /// The dimension id.
@@ -7233,8 +7196,7 @@ pub enum EditError {
     /// A vertex operation named a ce dimension that has no vertex list at all
     /// (`Pass 107.0`).
     ///
-    /// Named for the PROPERTY, not the kind, on R186's reasoning and on the
-    /// precedent [`Self::NotALinearDimension`] set when it was rewritten: a
+    /// Named for the PROPERTY, not the kind, on R186's reasoning: a
     /// refusal keyed on "not the kind I know" grows a new false negative every
     /// time a variant is added, and the operator experiences it as a control
     /// that silently does nothing.
@@ -51779,9 +51741,8 @@ impl EditSession {
     ///
     /// # Errors
     ///
-    /// [`EditError::DimensionNotFound`], [`EditError::NotALinearDimension`]
-    /// for a CIRCULAR target (which has no axis to place along), plus the
-    /// encryption and enforced-certification guards.
+    /// [`EditError::DimensionNotFound`], plus the encryption and
+    /// enforced-certification guards.
     ///
     /// # What the two arguments mean per kind (`Pass 68.0`)
     ///
@@ -51789,11 +51750,7 @@ impl EditSession {
     /// |---|---|---|
     /// | [`DimensionKind::Linear`] | standoff perpendicular to the axis, points | position along the dimension line from its midpoint, points |
     /// | [`DimensionKind::Angular`] | **arc radius** from the apex, points, clamped to [`MIN_DIMENSION_ARC_RADIUS`] | position along the arc from its midpoint, **degrees** |
-    /// | [`DimensionKind::Circular`] | refused | refused |
-    ///
-    /// Angular was refused outright until `Pass 68.0` — not by decision, but
-    /// because the guard tested "is this `Linear`" at a time when the only
-    /// other kind was circular. See [`EditError::NotALinearDimension`].
+    /// | [`DimensionKind::Circular`] | text distance past the rim, points; negative is inside, clamped at the centre (radius) or the opposite rim (diameter); non-finite resets it to the default | **leader angle**, degrees counter-clockwise from page +x, normalised to `[0, 360)`; non-finite keeps the current angle |
     pub fn place_dimension(
         &mut self,
         dimension: DimensionId,
@@ -51862,8 +51819,31 @@ impl EditSession {
                 offset,
                 text_along,
             },
-            DimensionKind::Circular { .. } => {
-                return Err(EditError::NotALinearDimension { id: dimension.0 });
+            // Polar placement: `offset` is the text distance past the rim and
+            // `text_along` the leader angle in degrees (`Pass 370.0`). The
+            // stored distance is clamped the same way the baker clamps it, so
+            // what the sidecar records is what is drawn.
+            DimensionKind::Circular {
+                fit,
+                show_diameter,
+                leader_angle,
+                ..
+            } => {
+                let floor = if show_diameter {
+                    -2.0 * fit.radius
+                } else {
+                    -fit.radius
+                };
+                DimensionKind::Circular {
+                    fit,
+                    show_diameter,
+                    leader_angle: if text_along.is_finite() {
+                        text_along.rem_euclid(360.0)
+                    } else {
+                        leader_angle
+                    },
+                    text_distance: offset.is_finite().then(|| offset.max(floor)),
+                }
             }
         };
         if let Some(d) = model.dimension_mut(dimension) {
@@ -52034,11 +52014,25 @@ impl EditSession {
         // Read the fit out BEFORE taking the mutable borrow, and refuse a
         // linear target here rather than inside the mutation — so a refusal
         // never leaves a half-written model behind.
-        let DimensionKind::Circular { fit, .. } = record.kind else {
+        let DimensionKind::Circular {
+            fit,
+            leader_angle,
+            text_distance,
+            ..
+        } = record.kind
+        else {
             return Err(EditError::NotACircularDimension { id: dimension.0 });
         };
+        // The placement survives the switch: a diameter's leader crosses the
+        // centre along the same angle, and the text stays where it was
+        // (clamped at draw time when it no longer fits a radius).
         if let Some(d) = model.dimension_mut(dimension) {
-            d.kind = DimensionKind::Circular { fit, show_diameter };
+            d.kind = DimensionKind::Circular {
+                fit,
+                show_diameter,
+                leader_angle,
+                text_distance,
+            };
         }
 
         let mut objects = self.regenerate_dimension_writes(&model, &[dimension])?;

@@ -554,8 +554,18 @@ pub fn author_dimension_with_label(
                 },
             );
         }
-        DimensionKind::Circular { fit, .. } => {
-            draw_circular(&mut b, &mut bounds, fit.center, fit.radius, l1, style);
+        DimensionKind::Circular {
+            fit, show_diameter, ..
+        } => {
+            draw_circular(
+                &mut b,
+                &mut bounds,
+                fit.center,
+                fit.radius,
+                circular_leader(kind),
+                show_diameter,
+                style,
+            );
         }
         DimensionKind::Angular {
             apex,
@@ -831,10 +841,10 @@ fn leader_endpoints(kind: &DimensionKind) -> (Point, Point) {
         DimensionKind::Linear { a, b, .. } => kind
             .linear_geometry()
             .map_or((a, b), |(dim_a, dim_b, _, _)| (dim_a, dim_b)),
-        DimensionKind::Circular { fit, .. } => (
-            fit.center,
-            Point::new(fit.center.x + fit.radius, fit.center.y),
-        ),
+        DimensionKind::Circular { .. } => {
+            let (from, to, _) = circular_leader(kind);
+            (from, to)
+        }
         // The two points where the arc meets the arms. `/L` is a two-point
         // leader and an arc has no two-point form, so these are the closest
         // honest answer: the ends of the thing actually drawn. A reader that
@@ -997,14 +1007,50 @@ fn draw_linear(b: &mut ContentBuilder, bounds: &mut BoundsAcc, d: LinearDraw) {
     arrowhead(b, bounds, c, (ux, uy), style);
 }
 
-/// Draw a circular dimension: the fitted circle outline + a radius leader from
-/// centre to rim with an arrowhead at the rim.
+/// The drawn leader of a circular ce dimension as `(from, to, outside)`.
+///
+/// `outside` ⇔ the text sits past the rim: the leader runs rim → text and its
+/// one arrow, at the rim, points at the centre. Inside, a radius runs centre →
+/// rim and a diameter runs opposite rim → rim through the centre, with the
+/// arrow (both arrows, for a diameter) at the rim pointing outward.
+fn circular_leader(kind: &DimensionKind) -> (Point, Point, bool) {
+    let DimensionKind::Circular {
+        ref fit,
+        show_diameter,
+        leader_angle,
+        ..
+    } = *kind
+    else {
+        return (Point::new(0.0, 0.0), Point::new(0.0, 0.0), false);
+    };
+    let t = kind.circular_text_distance().unwrap_or(0.0);
+    let rim = super::group::point_on_ray(fit.center, leader_angle, fit.radius);
+    if t > 0.0 {
+        (
+            rim,
+            super::group::point_on_ray(fit.center, leader_angle, fit.radius + t),
+            true,
+        )
+    } else if show_diameter {
+        (
+            super::group::point_on_ray(fit.center, leader_angle, -fit.radius),
+            rim,
+            false,
+        )
+    } else {
+        (fit.center, rim, false)
+    }
+}
+
+/// Draw a circular dimension: the fitted circle outline plus the leader from
+/// [`circular_leader`] with its arrowhead(s) on the rim.
 fn draw_circular(
     b: &mut ContentBuilder,
     bounds: &mut BoundsAcc,
     center: Point,
     radius: f64,
-    rim: Point,
+    (from, to, outside): (Point, Point, bool),
+    show_diameter: bool,
     style: DimensionStyle,
 ) {
     // The fitted circle outline (four kappa cubics), for context.
@@ -1013,15 +1059,21 @@ fn draw_circular(
         bounds.add(Point::new(center.x - radius, center.y - radius));
         bounds.add(Point::new(center.x + radius, center.y + radius));
     }
-    // The radius leader centre → rim.
-    b.move_to(center.x, center.y);
-    b.line_to(rim.x, rim.y);
+    b.move_to(from.x, from.y);
+    b.line_to(to.x, to.y);
     b.paint(Paint::Stroke);
-    bounds.add(center);
-    bounds.add(rim);
-    // Terminator at the rim pointing outward.
-    let (ux, uy) = unit_vector(center, rim);
-    arrowhead(b, bounds, rim, (ux, uy), style);
+    bounds.add(from);
+    bounds.add(to);
+    let (ux, uy) = unit_vector(from, to);
+    if outside {
+        // `from` is the rim; the arrow points back along the leader, inward.
+        arrowhead(b, bounds, from, (-ux, -uy), style);
+    } else {
+        arrowhead(b, bounds, to, (ux, uy), style);
+        if show_diameter {
+            arrowhead(b, bounds, from, (-ux, -uy), style);
+        }
+    }
 }
 
 /// Draw an ANGULAR ce dimension: two extension lines out along the arms, an
@@ -1489,6 +1541,8 @@ mod tests {
             &DimensionKind::Circular {
                 fit,
                 show_diameter: false,
+                leader_angle: 0.0,
+                text_distance: None,
             },
             DimensionStyle::new(
                 ScaleState::Calibrated { scale: 0.05 },
@@ -1501,6 +1555,8 @@ mod tests {
             &DimensionKind::Circular {
                 fit,
                 show_diameter: true,
+                leader_angle: 0.0,
+                text_distance: None,
             },
             DimensionStyle::new(
                 ScaleState::Calibrated { scale: 0.05 },

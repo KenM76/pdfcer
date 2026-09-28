@@ -530,7 +530,8 @@ derivations of a display value: the properties pane read `77.5°` while the
   generic failure.
 - **Kind-mismatch refusals.** `set_dimension_display` refuses a
   non-circular target with `EditError::NotACircularDimension`
-  (`edit.rs`); there is a matching `NotALinearDimension`. Both refuse
+  (`edit.rs`), and `set_dimension_extension_gap` refuses a non-linear one
+  with `NoExtensionLines`. Both refuse
   **before** mutating — "a refusal never leaves a half-written model behind"
   (`edit.rs`, `edit.rs`).
 - **`DimensionModel` is a snapshot.** `dimension_model()` clones out of the
