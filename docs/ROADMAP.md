@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 253.4` (`68635416`), 2026-09-28 — the annotation clipboard counts and discloses the reply links a copy breaks
+
+**Verdict: SHIPPED — disclosure only, not `/IRT` remapping** (remapping stays the separate, unscoped "lossless markup/annotation clipboard-copy fidelity" Backlog entry). Filed 2026-09-06 (460th filing) as the second, smaller ask inside `Pass 253.0`'s request; `253.0` shipping did not discharge it.
+
+**Core.** `ObjectClip::replies_unthreaded: u64` counts copied annotations that carried `/IRT` (§12.5.6.2 Table 172), which the clip strips on copy. Clip format version 5 (`CLIP_VERSION`) appends the count after the annotations, written only when non-zero — an ordinary clip with no replies keeps its existing v2/3/4 bytes and still pastes into an older build. New `pub const CLIP_VERSION_PRE_REPLY_COUNT = 4` gates the markup author-time carry (two existing version assertions re-pointed to it). `PasteOutcome::replies_unthreaded` on both `paste_objects` and `paste_preview`; disclosure text: "paste: N annotation(s) were replies; the reply link was not carried, so they arrive as separate comments" (rule 4 — a lossy transformation the operator cannot see gets an off-canvas statement, not a gate).
+
+**CLI.** Object-paste prints `replies_unthreaded=N` on both the preview and the real-paste line.
+
+**Tests.** New core test `clip_version_gating::a_copied_reply_is_counted_and_disclosed_on_paste`, sabotage-checked (fails with the counter disabled). New CLI test file `object_clip_replies.rs` (`a_pasted_reply_reports_its_unthreaded_link`). Core clip filter: 119 passed. `tools/run-gates.sh` PASS, 40 commands.
+
+**Gates.** No manifest change — `cargo tree` invariant not applicable.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` updated; `check-core-api-verbs` PASS.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` has not yet consumed this.
+
+**`docs/FEATURES.md`.** *Planned* row "Disclose the `/IRT` links the annotation clipboard breaks" ticked core `[x]`, cli `[x]`; gui stays `[ ]`, so the row stays in *Planned* rather than moving to *Implemented*.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `68635416`, not independently reproduced. Not yet released (latest release remains `v0.60.0`, tagged on `040c24d7`, which precedes this commit); backup/push state not verifiable from here.
+
 ### `Pass 371.0` (`015a43c7`), 2026-09-28 — omit named annotations from a page render — `G052`
 
 **Verdict: SHIPPED.** Answers `pdfcer-gui` request `G052`: a shortening ce-dimension drag preview was invisible, because the shorter extension line is a sub-segment of the committed one, so the preview bake painted over the committed `/AP` and added no ink. Not previously filed under *Next up*/*Backlog* — requested and shipped in the same session, ahead of `v0.60.0`'s own tag commit.
@@ -19043,7 +19063,7 @@ where closing a note persists — does). **Acceptance: dispatch
 `pdfcer-acrobat-librarian`** for Acrobat's open-state persistence. Nothing
 blocked (the pop-up honours `/Open` on load, tested both directions).
 
-### `Pass 253.4` — ★★ **COPYING A WHOLE THREAD SILENTLY TURNS A CONVERSATION INTO UNRELATED REMARKS — the annotation clipboard STRIPS `/IRT` with no count of what it broke** — filed 2026-09-06 (460th filing), **NOT STARTED** — *comment & review model completion* family
+### ~~`Pass 253.4` — ★★ **COPYING A WHOLE THREAD SILENTLY TURNS A CONVERSATION INTO UNRELATED REMARKS — the annotation clipboard STRIPS `/IRT` with no count of what it broke** — filed 2026-09-06 (460th filing), **NOT STARTED** — *comment & review model completion* family~~ — **DISCHARGED 2026-09-28 (689th filing): SHIPPED as `Pass 253.4` (`68635416`), see *Shipped* above.**
 
 **Origin: the SECOND, SMALLER ASK inside `Pass 253.0`'s request**
 (`open/request_a_reply_can_be_read_and_never_written.md`), re-filed with its

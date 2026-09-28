@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (689th filing) — `68635416`: `Pass 253.4` SHIPPED — annotation clipboard counts and discloses the reply links a copy breaks
+
+**Shipped:**
+- `Pass 253.4` — `ObjectClip::replies_unthreaded` counts copied annotations that had `/IRT` (stripped by the clip on copy); `PasteOutcome::replies_unthreaded` on `paste_objects`/`paste_preview` discloses it ("the reply link was not carried, so they arrive as separate comments"), CLI prints `replies_unthreaded=N`. Clip format version 5 (`CLIP_VERSION`) carries the count, written only when non-zero; `CLIP_VERSION_PRE_REPLY_COUNT = 4` gates the markup author-time carry. Disclosure only, not `/IRT` remapping (that stays the separate, unscoped Backlog entry). Full record at the top of `ROADMAP.md`'s *Shipped*.
+- Closes the Backlog entry filed 2026-09-06 (460th filing) as the second, smaller ask inside `Pass 253.0`'s request — `253.0` shipping had not discharged it.
+
+**Decisions made this session:**
+- None new — a disclosure counter on an existing lossy transformation, not an architectural decision. Highest decision record stays `163`.
+
+**Findings + decisions:**
+- None new this filing.
+
+**Still in flight:**
+- Same open items as the 688th filing — no named head in *Next up*.
+
+**For next session:**
+- `docs/FEATURES.md` row "Disclose the `/IRT` links the annotation clipboard breaks" ticked core `[x]`, cli `[x]`; stays in *Planned* (gui `[ ]` not yet wired).
+- No shell available this filing — `68635416` relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes this commit).
+
 ## 2026-09-28 (688th filing) — `015a43c7`: `Pass 371.0` SHIPPED — omit named annotations from a page render (`G052`)
 
 **Shipped:**
