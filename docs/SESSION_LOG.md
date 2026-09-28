@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (688th filing) — `015a43c7`: `Pass 371.0` SHIPPED — omit named annotations from a page render (`G052`)
+
+**Shipped:**
+- `Pass 371.0` — `pdfcer_render::RenderOptions::omit_annotations: Vec<ObjId>` / `with_omit_annotations(...)`; an omitted id is withheld at the same gate as an out-of-scope class (counted in `annots_out_of_scope`, no other counter moves). CLI `render-page --omit-annotation INDEX` (0-based, repeatable), refused by name past the end or on a direct-object annotation. Answers `pdfcer-gui` request `G052`. Full record at the top of `ROADMAP.md`'s *Shipped*.
+- Not previously filed under *Next up*/*Backlog* — requested and shipped in the same session, on top of `v0.60.0`.
+
+**Decisions made this session:**
+- None new — a display-only render option. Highest decision record stays `163`.
+
+**Findings + decisions:**
+- None new this filing.
+
+**Still in flight:**
+- Same open items as the 687th filing — no named head in *Next up*.
+
+**For next session:**
+- `docs/FEATURES.md` gained one row (Annotations & markup, ~line 272): core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `?`.
+- No shell available this filing — `015a43c7` relayed from the dispatching engineer's own report, not independently reproduced. Backup/push/release state not verifiable from here; latest release on record remains `v0.60.0` (tagged on `040c24d7`, which precedes this commit).
+
 ## 2026-09-28 (687th filing) — `v0.60.0` RELEASED
 
 **Shipped:**

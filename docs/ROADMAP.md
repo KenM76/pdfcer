@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 371.0` (`015a43c7`), 2026-09-28 — omit named annotations from a page render — `G052`
+
+**Verdict: SHIPPED.** Answers `pdfcer-gui` request `G052`: a shortening ce-dimension drag preview was invisible, because the shorter extension line is a sub-segment of the committed one, so the preview bake painted over the committed `/AP` and added no ink. Not previously filed under *Next up*/*Backlog* — requested and shipped in the same session, ahead of `v0.60.0`'s own tag commit.
+
+**Core.** `pdfcer_render::RenderOptions::omit_annotations: Vec<ObjId>` (default empty) + builder `with_omit_annotations(impl IntoIterator<Item = ObjId>)` (doctest). `RenderPolicy` carries it as `&[ObjId]`. An omitted annotation is withheld at the same gate as an out-of-scope class in the annotation walk: counted in `Diagnostics::annotations_out_of_scope`, every other annotation counter unaffected; an id matching nothing on the page is ignored. Display knob only — nothing written.
+
+**CLI.** `render-page --omit-annotation INDEX` (0-based `index=` from `list-annotations`, repeatable). Refused by name: an index past the end ("`--omit-annotation N` is out of range (page P has K annotation(s))") and a direct-object annotation (no identity to omit by).
+
+**Tests.** `annot::tests::an_omitted_annotation_alone_is_withheld_and_counted` (sabotage-checked: fails with the gate removed), the `with_omit_annotations` doctest, CLI `render_page::omit_annotation_withholds_one_annotation_by_index`. `pdfcer-render` tests: 799 passed. `tools/run-gates.sh` PASS, 40 commands incl. 2 filing gates.
+
+**Gates.** No manifest change — `cargo tree` invariant not applicable, no new dependency.
+
+**Decision-worthy.** None — a display-only render option, not an architectural decision. Highest decision record stays `163`.
+
+**Docs.** `docs/core-api` (engineer-owned, already committed in `015a43c7`): §7.2 new paragraph in `03-capabilities.md`; `02`'s `dimension_preview` row points at it; `index.md` counts updated.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` requested this and has not yet consumed it. Acrobat `?` — unchecked this filing.
+
+**`docs/FEATURES.md`.** New *Implemented → Annotations & markup* row (~line 272, immediately after "Render and count annotations"): core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `?`.
+
+**Next up.** No named head — unchanged from the 687th filing.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the dispatching engineer's own report of `015a43c7`, not independently reproduced. Not yet released (latest release remains `v0.60.0`, tagged on `040c24d7`, which precedes this commit); backup/push state not verifiable from here.
+
 ### `v0.60.0` — RELEASED (2026-09-28)
 
 Release filing, not a Pass — completes the engineer's in-progress release
