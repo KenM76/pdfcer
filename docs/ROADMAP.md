@@ -115,6 +115,154 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 396.0` (`bf8d0138`), 2026-09-29 — G067: a catalog-only tagged probe and a page-scoped structure read
+
+**Verdict: SHIPPED.** Answers pdfceGUI request `G067` (engine pin
+`16b938e4`): `Pass 372.0`'s `read_structure_tree` extracted every page
+before ever looking at the catalog, so a one-sheet export of a tagged
+document paid full-document cost, and an untagged document paid a
+tree-walk cost it should never have incurred at all. Not previously
+scoped in *Next up*/*Backlog* — filed directly to *Shipped*, same
+pattern as `Pass 372.1`.
+
+**What changed.** `pdfcer_text::structure_tree` (re-exported by
+`pdfcer_core`) gains two entry points: `has_structure_tree(&DocumentView)
+-> bool` reads only the catalog's `/StructTreeRoot` presence (ISO
+32000-1 §14.7.2), no page touched; `read_structure_tree_in_pages(&view,
+&indices, &ExtractOptions)` extracts only the given pages but still
+walks the whole tree, so off-selection marked content is unjoined and
+counted in a new `StructureDiagnostics::content_on_other_pages` field
+rather than folded into `named_not_declared`/`claimed_twice`/
+`declared_unclaimed`. `export-docx`/`export-xlsx`/`export-ods` now probe
+first and read only the deduplicated `--pages` selection. **Behaviour
+change:** `--structure auto` coverage is now judged over the selected
+pages, not the whole document — help text updated to say so.
+
+**Docs.** `docs/core-api/01-reading-and-model.md` §8.4.2/§8.4.5 updated;
+`check-core-api-verbs` PASS.
+
+**Tests.** `pdfcer-text` `unit_tagged_layout.rs`: 9 (+2). `pdfcer-cli`
+`export_structure.rs`: 5 (+1). Sabotage: forcing the probe to always
+return true fails the probe test; counting off-page content against the
+coverage counters fails the scoped-read test; reverting the CLI to the
+old whole-document wiring fails the CLI test (falls back to `low
+coverage 0.038`).
+
+**Invariants and packaging.** `cargo tree` unchanged — no manifest
+touched, no new dependency. No writer change, so no round-trip impact.
+No packaging change.
+
+**`docs/FEATURES.md`.** No new row — sharpens the existing
+structure-tree-export row in place (replace-the-sentence rule), which
+now also names `Pass 396.0`/`G067`; `gui [ ]` stays unticked, not yet
+consumed. Separately records `G066` (`Pass 395.0`) as `CONSUMED` per
+pdfceGUI's own channel note, but leaves that row's `gui` box unticked
+too pending a surface citation from this side (`FEATURES.md`'s ticking
+bar).
+
+**GUI channel.** Reply filed:
+`open/reply_G067_a_catalog_probe_and_a_page_scoped_structure_read_FIXED.md`;
+`pdfceGUI` `INDEX` row set to `FIXED`, awaiting consumption. `G066` is
+separately recorded `CONSUMED` there (`done_G066_CONSUMED.md`).
+
+**Unreleased.** This commit (`bf8d0138`) lands after the `v0.64.0` tag
+(`410f4170` on `11b8ec7c`, entry below) — not part of that release. Next
+release batches it.
+
+**No §12 decision.** A probe-then-scoped-read shape over an existing
+reader, same call as `Pass 372.0`/`372.1`'s own no-decision precedent.
+Highest decision record stays `166`.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and the channel-file names relayed from the dispatching
+engineer's own report, not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `395` used (`Pass 395.1`), next free family `396` | **`396` used (`Pass 396.0`), next free family `397`** |
+| Standing rules | `R257` (carried figure, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — no new architectural decision |
+| `SESSION_LOG` filings | `735` | **`736`** |
+| `docs/FEATURES.md` | — | existing structure-tree-export row updated in place (no new row) |
+
+---
+
+### `v0.64.0` — RELEASED (2026-09-29)
+
+Release filing, not a Pass — completes the engineer's in-progress
+release reported in `Pass 395.0`'s own entry (733rd filing), the 734th
+filing's chore-bump entry, and the 735th filing's `Pass 395.1` amendment.
+Version-bump commit `73065457` ("chore: v0.64.0") bumps
+`Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.63.0 → 0.64.0; filed as
+such in `3ee70f71` ("docs: file v0.64.0 bump -- release in progress").
+
+**Tag.** Annotated tag `v0.64.0`, tag object `410f4170`, points at commit
+`11b8ec7c` (the 735th filing's own docs commit for `Pass 395.1`) — not at
+`bf8d0138` (`Pass 396.0`, entry above), which lands after the tag and is
+therefore not part of this release.
+
+**Range since `v0.63.0` (`415a5b11`): batches every Pass already filed
+below** — `390.0` (text matrix carried in f64, `f4a20856`), `391.0`
+(never rewrite an appearance stream that is also page content,
+`afdc6797`), `392.0` (`e9ab98ae`), `393.0` (mesh shadings deposit spot
+colorants, `b96be7e7`), `394.0` (grey image `/OP` on/off pair pinned over
+a spot, `3d10717d`), `395.0` (structure-tree-driven export, `5c350a53`),
+`395.1` (nested block elements split, `a322a3ed`+`16b938e4`).
+
+**Build.** `tools/package-portable.py` → `D:\builds\pdfcer-20260929-0516-
+11b8ec7`, 70,982,149 bytes. The smoke run of an earlier package (built at
+`3ee70f71`, before `395.1`'s fix) is what found the nested-block defect;
+that package was discarded and rebuilt at `11b8ec7c`.
+
+**Fresh-folder smoke test.** `pdfcer --version` reports `0.64.0`,
+revision `v0.63.0-27-g11b8ec7c` (clean, no `-dirty` suffix).
+`export-docx` on the Isartor-corpus manual PDF, `--pages 1-3`:
+`structure=tree coverage=1.000 structure_blocks=18`.
+
+**GitHub release.** Published via `tools/gh-release.py`:
+`pdfcer-v0.64.0-windows-x64.zip`, 43,207,820 bytes, sha256
+`105616fe68087c08b4d50111ab2c0d99268b59844b8452c0254cf888c49e9f4e`, plus
+its `.sha256`. `gh-release.py`: PASS.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer1`; `pdfcer2`
+keeps `v0.63.0`.
+
+**GUI channel notice.** Release notice posted to the `pdfceGUI` channel.
+
+**`verify-release.py v0.64.0`.** OneDrive checks passed. CI at the
+tagged commit (`11b8ec7c`) was still in progress at filing time (run
+`36549726010`) — not yet confirmed green; re-run next session.
+Working-tree check flags only the three standing untracked scratch dirs
+`target-case/`, `target-probe/`, `target-wasm/` (left untracked, not a
+real dirty-tree signal).
+
+**`docs/FEATURES.md`: no rows changed by the release act itself** — all
+contents were already filed per-Pass; `Pass 396.0`'s own row update
+(entry above) is that Pass's filing, not this release's.
+
+**No decision-log entry** — a release carries no architectural decision.
+Highest decision record remains `166`.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above
+relayed from the dispatching engineer's own verification of the
+tag/build/release/deploy/smoke-test steps, not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.63.0` (`415a5b11`, 2026-09-29) | **`v0.64.0` (`11b8ec7c`, tag `410f4170`, 2026-09-29)** |
+| Pass families | `396` used (`Pass 396.0`, entry above — not part of this release) | unchanged — release batches `390.0`-`395.1` only |
+| Standing rules | not re-verified this filing (no shell) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — a release carries no decision |
+| `SESSION_LOG` filings | `735` | **`736`** |
+| `docs/FEATURES.md` | — | unchanged by the release act itself |
+| CI at the tagged commit | not yet confirmed pre-release | pending at `11b8ec7c` at filing time (run `36549726010`) — confirm with `verify-release.py v0.64.0` |
+
+---
+
 ### `Pass 395.1` (`a322a3ed`, `16b938e4`), 2026-09-29 — a block nested in a paragraph or heading is its own block
 
 **Verdict: SHIPPED.** Found by the v0.64.0 fresh-folder smoke test:

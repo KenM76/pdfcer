@@ -4,6 +4,57 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (736th filing) — `bf8d0138`/tag `410f4170`: `v0.64.0` RELEASED + `Pass 396.0` SHIPPED — G067 catalog probe and page-scoped structure read
+
+**Shipped:**
+- `v0.64.0` RELEASED — tag `410f4170` on `11b8ec7c`. Batches `390.0`-`395.1`
+  (text-matrix f64, appearance-stream aliasing guard, `392.0`, mesh-shading
+  spot colorants, grey-image `/OP` pinning, structure-tree export, and the
+  nested-block fix). Package `D:\builds\pdfcer-20260929-0516-11b8ec7`,
+  70,982,149 bytes; GitHub asset `pdfcer-v0.64.0-windows-x64.zip`,
+  43,207,820 bytes, sha256
+  `105616fe68087c08b4d50111ab2c0d99268b59844b8452c0254cf888c49e9f4e`;
+  OneDrive slot `pdfcer1` (`pdfcer2` keeps `v0.63.0`). Fresh-folder smoke:
+  `--version` 0.64.0 clean; `export-docx --pages 1-3` on the Isartor
+  manual -> `structure=tree coverage=1.000 structure_blocks=18`.
+- `Pass 396.0` (`bf8d0138`) — answers pdfceGUI `G067`: `has_structure_tree`
+  (catalog-only probe) and `read_structure_tree_in_pages` (page-scoped
+  extraction, whole-tree walk) so an untagged document pays no tree cost
+  and a `--pages`-limited export pays only for its own pages.
+  `export-docx`/`-xlsx`/`-ods` probe first, then read the selection only;
+  `--structure auto` coverage is now judged over the selection, not the
+  whole document.
+
+**Decisions made this session:**
+- None — both items extend existing readers/release machinery, no new
+  crate boundary or invariant. Highest decision record stays `166`.
+
+**Findings + decisions:**
+- `Pass 396.0`'s tests: `pdfcer-text` `unit_tagged_layout.rs` now 9 (+2),
+  `pdfcer-cli` `export_structure.rs` now 5 (+1). Sabotage: forcing the
+  probe true, counting off-page content against coverage, and reverting
+  the CLI wiring each fail exactly the test built to catch it.
+- `bf8d0138` lands after the `v0.64.0` tag (`11b8ec7c`) — `Pass 396.0` is
+  unreleased, first in the next batch.
+- `G066` (`Pass 395.0`) is recorded `CONSUMED` by pdfceGUI
+  (`done_G066_CONSUMED.md`); `FEATURES.md`'s existing structure-tree-export
+  row notes this but its `gui` box stays unticked — no surface citation
+  from this side yet (ticking-bar rule).
+- CI at the tagged commit (`11b8ec7c`, run `36549726010`) was still in
+  progress at filing time — pending, re-check with `verify-release.py
+  v0.64.0`.
+
+**Still in flight:**
+- `G067` reply posted (`open/reply_G067_..._FIXED.md`, `INDEX` row
+  `FIXED`) and awaiting pdfceGUI's consumption, same as `G066` was until
+  today.
+- CI green-check on `11b8ec7c` still owed.
+
+**For next session:**
+- No shell this filing (hard rule 8) — every hash, byte count and test
+  count above relayed from the dispatching engineer's own report, not
+  independently reproduced.
+
 ## 2026-09-29 (735th filing) — `a322a3ed`/`16b938e4`: `Pass 395.1` SHIPPED — a block nested in a paragraph or heading is its own block
 
 **Shipped:**
