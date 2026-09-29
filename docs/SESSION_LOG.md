@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (757th filing) — `4b7ff5bc`: gate widening — `check-reexport-closure.py` also checks `pub fn` return types
+
+**Shipped:**
+- `4b7ff5bc` — `tools/check-reexport-closure.py` widened to also check `pub
+  fn` return types in the same source module (regex over the signature,
+  `#[cfg(test)]` tail excluded), closing the `docs/NEXT_SESSION.md` owed
+  item and `R251`'s stated limit. Argument types and cross-module/`lib.rs`
+  reach remain out of scope. Not a numbered Pass — a gate/tooling change.
+
+**Decisions made this session:** None — a gate-mechanism widening, not a
+new architectural decision.
+
+**Findings + decisions:**
+- Measured before widening: exactly one live instance,
+  `pdfcer-text::text_extract::font::ExtractFont::codes() -> Vec<Code>`
+  (`Code` not re-exported; callers in `pdfcer-core` redact +
+  `vector::decompose`, and `pdfcer-render`). Fixed via
+  `pub use font::{Code, ExtractFont, ...}`.
+- Sabotage-verified: removing `Code` from the re-export trips the gate,
+  naming `codes()`; clean at 216 re-exported types checked. `cargo clippy
+  -- -D warnings` (`pdfcer-text`) and `cargo fmt --check` clean. No
+  manifest change; `cargo tree` invariant unaffected.
+- `docs/ROADMAP.md`'s `R251` entry corrected in place — its "(limit:
+  checks fields, not method return types)" clause now describes the
+  widened gate.
+- `docs/FEATURES.md`: no row touched — internal gate widening, no core/
+  cli/gui capability change.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** `tools/verify-release.py v0.66.0`'s CI check was
+still pending as of the 751st filing — still unconfirmed as of this
+filing, carried forward again.
+
+**Sourcing (hard rule 8).** No shell tool this filing — test counts, gate/
+clippy results and the sabotage-verification claim are relayed from the
+dispatching engineer's own report, not independently reproduced here.
+
 ## 2026-09-29 (756th filing) — `4f940411`: `Pass 407.0` shipped — repair a form saved with an inline `/AcroForm` `/DR` font
 
 **Shipped:**

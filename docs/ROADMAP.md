@@ -115,6 +115,33 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `4b7ff5bc`, 2026-09-29 — `check-reexport-closure.py` also checks `pub fn` return types
+
+Not a Pass — a gate widening. Closes the `docs/NEXT_SESSION.md` owed item
+"`check-reexport-closure.py` checks FIELDS, not method return types," which
+is also `R251`'s stated limit (*Standing rules*, below). The gate previously
+checked only `pub` field types of re-exported structs/enums; it now also
+checks `pub fn` return types declared in the same source module
+(`#[cfg(test)]` tail excluded), via regex over the signature. Argument
+types and cross-module/`lib.rs` reach stay out of scope.
+
+Measured before widening: exactly one live instance — `pdfcer-text`'s
+`text_extract::font::ExtractFont::codes() -> Vec<Code>`, with `Code` not
+re-exported (callers in `pdfcer-core`'s redact and `vector::decompose`, and
+in `pdfcer-render`). Fixed: `pub use font::{Code, ExtractFont, ...}`.
+
+Sabotage-verified (`R225`): removing `Code` from the re-export list makes
+the gate exit 1 naming `codes()`; restoring it is clean at 216 re-exported
+types checked. `cargo clippy -- -D warnings` (`pdfcer-text`) and `cargo fmt
+--check` clean. No manifest change; `cargo tree` invariant unaffected.
+
+`R251`'s stated limit corrected in place to describe the widened gate.
+
+**`FEATURES.md`**: no row changed — an internal gate widening, no core/cli/
+gui capability change.
+
+---
+
 ### `Pass 407.0` (`4f940411`), 2026-09-29 — `promote_inline_dr_fonts`: repair a form already saved with an inline `/AcroForm` `/DR` font
 
 pdfceGUI `G070` (operator `O262`). Follows `Pass 404.0` (`27e97d92`), which
@@ -34030,7 +34057,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R248` — A STRUCTURAL DEFECT THAT LEAVES THE OBJECT GRAPH AMBIGUOUS, NOT UNDEFINABLE, IS OPENED — pdfcer PICKS A READING UNDER A NAMED DEFAULT, DISCLOSES WHAT IT PICKED AND WHAT IT DISCARDED, AND…
 - `R249` — A DESTRUCTIVE SWEEP OBLIGED BY AN OUTCOME-SHAPED REQUIREMENT ("REMOVE ALL TRACES OF X") IS SCOPED BY THE EVIDENCE THE REQUIREMENT ITSELF NAMES, NEVER BY A COMPUTED REACHABILITY OR LIVENES…
 - `R250` — BEFORE IMPLEMENTING A DATA-FORMAT OR COMPATIBILITY DECISION SOURCED FROM A FEATURE-RAG (OR SPEC-RAG) FINDING LABELLED ANYTHING SHORT OF DIRECTLY-OBSERVED, CHECK WHETHER A PRIMARY ARTIFACT…
-- `R251` — A TYPE REACHABLE ONLY THROUGH A RE-EXPORTED ITEM'S OWN PUBLIC FIELD, BUT NOT ITSELF RE-EXPORTED, COMPILES AND CLIPPY-PASSES CLEAN INSIDE ITS DEFINING CRATE — THE ONLY OBSERVER IS A DOWNSTREAM CONSUMER, SO RE-EXPORT CLOSURE NEEDS A GATE, NOT A REVIEWER (limit: checks fields, not method return types). **[gate: check-reexport-closure.py]**
+- `R251` — A TYPE REACHABLE ONLY THROUGH A RE-EXPORTED ITEM'S OWN PUBLIC FIELD, BUT NOT ITSELF RE-EXPORTED, COMPILES AND CLIPPY-PASSES CLEAN INSIDE ITS DEFINING CRATE — THE ONLY OBSERVER IS A DOWNSTREAM CONSUMER, SO RE-EXPORT CLOSURE NEEDS A GATE, NOT A REVIEWER (limit: checks `pub` fields AND `pub fn` return types in the same module; argument types and cross-module/`lib.rs` reach still out of scope). **[gate: check-reexport-closure.py]** ★ WIDENED 2026-09-29 (757th filing, `4b7ff5bc`): the gate now also checks `pub fn` return types via regex over the signature (`#[cfg(test)]` tail excluded), closing the one live instance it found (`ExtractFont::codes() -> Vec<Code>`).
 - `R252` — A MEASURED BOUNDARY THAT DOES NOT ORDER WITH ANY INPUT DIMENSION (SIZE, AREA, EXTENT) CANNOT BE PUBLISHED AS AN EXACT CONSTANT — PUBLISH IT AS A FLOOR BELOW THE LOWEST OBSERVED FAILURE, AND MAKE THE GUARANTEE THE CAUGHT, NAMED REFUSAL RATHER THAN THE NUMBER (`Pass 296.0`, `MAX_GUARANTEED_REGION_SCALE`).
 - `R253` — AN ERROR/DIAGNOSTIC TYPE'S `Display` IS THE SAFE DEFAULT A CALLER WHO NEVER READS ITS DOC COMMENT WILL SEE; A FIELD THE TYPE'S OWN DOCUMENTATION CALLS NON-CONTRACTUAL OR WARNS AGAINST MATCHING ON DOES NOT THEREBY BECOME SAFE TO LEAVE INSIDE `Display` — THE SAFE RENDERING IS THE ONE EVERY CALLER GETS, NOT THE ONE A CALLER OPTS INTO BY READING THE SOURCE (`Pass 296.5`, `RenderError::RasterizerLimit`; arrived from the other side of `Pass 296.2`'s `Object`/`Name` `Display` reasoning, same session).
 - **NOT filed as further `R251` instances, by this role's own judgement (509th filing): `Pass 296.1`'s `remedy_faces` (data existed only as prose) and `Pass 296.2`'s missing `Display` impl are the same OBSERVATION as `R251` — invisible inside the defining crate, visible only to a downstream consumer — but not the same MECHANISM (neither is a re-export gap; `check-reexport-closure.py` would not have caught either). Recorded here as a cross-cutting note rather than mechanically counted into `R251`'s or `R151`'s instance tally: a shared moral is not a shared mechanism (see `D:\dev\rag\rust\` — pattern-naming discipline). Four consumer-invisible defects in two days (`295.0`, `295.1`, `296.1`, `296.2`) is nonetheless worth a future session's attention as a possible boundary worth naming properly, once a fix for one would plausibly have caught the others.** ★ **DISCHARGED 2026-09-11 (512th filing, decision 153): `Pass 296.8` supplied that fix (publish the computation instead of gatekeeping it behind demand), and the boundary is named below as `R254`, covering `296.1`/`296.2`/`296.8` precisely — `295.0` and `295.1` stay outside it; see decision 153 for why.**
