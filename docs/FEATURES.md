@@ -457,7 +457,7 @@ provisional; re-verify before any acceptance criterion leans on them.
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
-| — | [x] | — | **[ ]** | A first-class scriptable CLI over the capabilities above. |
+| — | [x] | — | **[ ]** | A first-class scriptable CLI over the capabilities above. **Every subcommand's output write is atomic** (temp file + `sync_all` + rename, `edit_common::write_output`, `Pass 397.0`) — `-o` naming the command's own input now edits it in place safely instead of truncating it on a failed write. |
 | [x] | [x] | [x] | — | Live-edit canvas — renders the edited revision, not a static image. |
 | — | — | [x] | — | Pan, zoom-to-cursor, marquee select. **Marquee is full-enclosure only.** |
 | — | — | [x] | — | Dockable panel shell, ribbon, fixed Quick Access Toolbar, density convention. |

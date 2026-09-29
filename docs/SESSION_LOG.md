@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (738th filing) — `ed93dd50`: `Pass 397.0` SHIPPED — every CLI output write is now a temp-file-then-rename
+
+**Shipped:**
+- `Pass 397.0` (`ed93dd50`) — new `edit_common::write_output` writes a
+  sibling temp file, `sync_all`s it, renames over the destination, removes
+  the temp on failure; all 45 non-test `std::fs::write` sites in
+  `crates/pdfcer-cli/src` now call it. Fixes `-o` naming the command's own
+  input: previously a safe-looking in-place edit (`pdfcer rotate --degrees
+  90 -o a.pdf a.pdf`) went through a truncating write, so a mid-write
+  failure (disk full, locked destination) destroyed the original.
+
+**Decisions made this session:**
+- None — a robustness fix to existing CLI output plumbing, no new
+  invariant or crate boundary.
+
+**Findings + decisions:**
+- Help text on insert-pages, place-stamp, four `Output path.` fields
+  (`cli.rs` ~776/828/870/916) and ocr's input/output claimed "never
+  modified"/"read, never modified" — false whenever `--output` named the
+  input; corrected, and `pdfcer --help`'s top-level `long_about` now states
+  the rule once.
+- `crates/pdfcer-cli/tests/output_in_place.rs` (2 new tests): an in-place
+  edit round-trips correctly; a write that cannot land (destination is a
+  non-empty directory) leaves it untouched with no `.tmp` residue. Full
+  CLI suite: 611 passed.
+
+**Still in flight:** The `--in-place`-owed Backlog item (filed 279th
+filing) is now PARTLY addressed — `-o <input>` is safe everywhere, but the
+explicit `--in-place` flag (`ocr`'s shape) is still absent from the other
+~108 `save_edited`-routed editing subcommands.
+
+**For next session:** No new Pass minted. `check-commits-filed` clean
+(checked separately from `run-gates.sh`).
+
+**Sourcing (hard rule 8).** No shell tool this filing — hashes, line/test
+counts relayed from the dispatching engineer's report, not independently
+reproduced.
+
 ## 2026-09-29 (737th filing) — `FEATURES.md`-only correction: `G066`'s gui surface citation lands, `G067` marked not-yet-consumed, structure-tree-read row ticked reached-not-driven
 
 **Shipped:** None — no Pass, no code changed. Source: `done_G066_CONSUMED.md`

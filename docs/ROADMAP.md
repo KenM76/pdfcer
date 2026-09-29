@@ -115,6 +115,38 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 397.0` (`ed93dd50`), 2026-09-29 — every CLI output write goes through a temp-file-then-rename
+
+**Verdict: SHIPPED.** CLI-only — no `pdfcer-core`/`pdfcer-render` `Cargo.toml`
+change, `cargo tree` unaffected. New `edit_common::write_output(path, bytes)`
+writes a sibling `.<name>.pdfcer-<pid>.tmp`, `sync_all`s it, renames over the
+destination, and removes the temp on failure; all 45 non-test `std::fs::write`
+sites in `crates/pdfcer-cli/src` now call it.
+
+**Why.** `-o` naming the command's own input already replaced the input via a
+truncating write — a failure part-way (disk full, locked destination)
+destroyed the original with nothing left to recover. Help text on
+insert-pages, place-stamp, four `Output path.` fields (`cli.rs` ~776/828/
+870/916) and ocr's input/output claimed "never modified"/"read, never
+modified" for exactly this case; corrected, and `pdfcer --help`'s top-level
+`long_about` now states the rule once.
+
+**Tests.** `crates/pdfcer-cli/tests/output_in_place.rs` (2, registered in
+`tests/all.rs`): an in-place edit lands correctly (incremental-save byte
+prefix intact, new revision applied, no `.tmp` left); a write that cannot
+land (destination is a non-empty directory) leaves the directory untouched
+and no temp file behind. Sabotage: removing the temp-cleanup step fails the
+second test. Full workspace CLI suite: 611 passed. `tools/run-gates.sh`
+green (fmt, clippy `-D warnings`, wasm32 check, `cargo tree` no-GUI grep,
+bypass paths, string gaps, skippable/suite-name/tests-harnessed).
+`check-commits-filed` clean, checked separately.
+
+**Caveats documented on the helper.** The rename replaces a symlink rather
+than writing through it; the new file takes the destination directory's
+default permissions, not the original's.
+
+Not previously scoped in *Next up*/*Backlog* — filed directly to *Shipped*.
+
 ### `Pass 396.0` (`bf8d0138`), 2026-09-29 — G067: a catalog-only tagged probe and a page-scoped structure read
 
 **Verdict: SHIPPED.** Answers pdfceGUI request `G067` (engine pin
@@ -11074,6 +11106,11 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★ **`Pass 397.0` SHIPPED, 2026-09-29 (738th filing),
+> `ed93dd50`** — see top of *Shipped*. Off-cycle (every CLI output write is
+> now a temp-file-then-rename), not scoped through this queue. **`Next up`
+> still has no named head.**
 
 > ★★★★★★★★★★★★ **`Pass 388.1` SHIPPED, 2026-09-28 (723rd filing),
 > `0355fb7e`** — see top of *Shipped*. Off-cycle follow-on to `Pass 388.0`
@@ -22959,7 +22996,15 @@ another experiment.**
 
 ---
 
-### `--in-place` owed on the other `pdfce-cli` editing subcommands (no Pass ID minted — filed 2026-08-27, 279th filing)
+### `--in-place` owed on the other `pdfce-cli` editing subcommands (no Pass ID minted — filed 2026-08-27, 279th filing) — PARTLY ADDRESSED 2026-09-29, `Pass 397.0`
+
+**`Pass 397.0` (`ed93dd50`) closed half of this gap.** `-o <input>` naming a
+subcommand's own input is now safe everywhere — every output write goes
+through `edit_common::write_output` (temp file + rename), so a failure
+part-way no longer destroys the original. **Still open:** an explicit
+`--in-place` flag, `ocr`'s mutually-exclusive-with-`--output` shape, is
+absent from the other ~108 editing subcommands that route through
+`save_edited`, which is where a uniform flag would hook.
 
 `Pass 135.1` gave `pdfce-cli ocr` an `--in-place` flag and, in doing so,
 found that **two other editing subcommands' `--output` help text already
