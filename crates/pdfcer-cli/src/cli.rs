@@ -1599,9 +1599,14 @@ pub(crate) enum Command {
     /// wider than DIGITS, an encrypted or certified file. A signed file is
     /// stamped, and the effect on its signatures is stated on stderr.
     ///
-    /// Prints `stamped <in> -> <out> pages= first= last= signature=` per file,
-    /// then `bates-stamp files= pages= first= last= next=`; `next` is the
-    /// --start for a following batch.
+    /// With --replace, Bates labels an earlier pdfcer bates-stamp put on the
+    /// selected pages are removed first, so a renumbered set does not sit on
+    /// top of the old one. Labels from any other producer are never touched.
+    ///
+    /// Prints `stamped <in> -> <out> pages= first= last= signature= removed=`
+    /// per file (`removed` counts labels taken off by --replace), then
+    /// `bates-stamp files= pages= first= last= next=`; `next` is the --start
+    /// for a following batch.
     BatesStamp {
         /// Input PDFs, in numbering order.
         #[arg(required = true)]
@@ -1636,6 +1641,38 @@ pub(crate) enum Command {
         /// How each output file is named.
         #[arg(long, value_enum, default_value_t = BatesNameArg::Keep)]
         name: BatesNameArg,
+        /// Remove pdfcer Bates labels already on the selected pages first.
+        #[arg(long)]
+        replace: bool,
+    },
+
+    /// Remove the Bates numbers pdfcer bates-stamp added, across a batch.
+    ///
+    /// A label is recognised only by the exact content bates-stamp writes, so
+    /// another producer's Bates numbers, and page text that merely looks like
+    /// one, are left alone. The page's own content is kept verbatim. Each
+    /// output keeps its input's file name, goes to --out-dir and never
+    /// replaces an input; each save appends a revision, so the labels remain
+    /// recoverable from the earlier revision. A file with no labels is
+    /// written unchanged.
+    ///
+    /// Every file is processed in memory before any is written, so a refusal
+    /// anywhere writes nothing. Refused (exit 9): an encrypted or certified
+    /// file. A signed file is changed, and the effect on its signatures is
+    /// stated on stderr.
+    ///
+    /// Prints `removed <in> -> <out> pages= labels= signature=` per file, then
+    /// `bates-remove files= labels=`.
+    BatesRemove {
+        /// Input PDFs.
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+        /// Folder the cleaned copies are written to.
+        #[arg(long)]
+        out_dir: PathBuf,
+        /// Pages to clean in each file, 1-based: `all`, `3`, `1-4,7`.
+        #[arg(long, default_value = "all")]
+        pages: String,
     },
 
     /// Convert a PDF to a PDF/A conformance level. [not yet implemented]

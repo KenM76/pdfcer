@@ -15,6 +15,7 @@ pub(crate) struct BatesArgs<'a> {
     pub(crate) size: f64,
     pub(crate) pages: &'a str,
     pub(crate) name: BatesNameArg,
+    pub(crate) replace: bool,
 }
 
 /// One stamped file, held in memory until every file has succeeded.
@@ -24,6 +25,7 @@ struct Stamped {
     bytes: Vec<u8>,
     outcome: BatesOutcome,
     impact: SignatureImpact,
+    removed: usize,
 }
 
 const fn position(arg: BatesPositionArg) -> BatesPosition {
@@ -83,6 +85,14 @@ pub(crate) fn cmd_bates_stamp(args: &BatesArgs<'_>) -> u8 {
                 return exit::EDIT_REFUSED;
             }
         };
+        let removed = if args.replace {
+            match session.remove_bates(stamp.pages.as_deref()) {
+                Ok(r) => r.labels.len(),
+                Err(err) => return report_edit_error(input, &err),
+            }
+        } else {
+            0
+        };
         let outcome = match session.stamp_bates(&stamp, next) {
             Ok(o) => o,
             Err(err) => return report_edit_error(input, &err),
@@ -103,10 +113,12 @@ pub(crate) fn cmd_bates_stamp(args: &BatesArgs<'_>) -> u8 {
             bytes,
             outcome,
             impact,
+            removed,
         });
     }
 
-    if let Err(code) = check_outputs(&done, args.inputs) {
+    let outputs: Vec<&Path> = done.iter().map(|f| f.output.as_path()).collect();
+    if let Err(code) = check_outputs(&outputs, args.inputs) {
         return code;
     }
     if let Err(err) = std::fs::create_dir_all(args.out_dir) {
@@ -119,13 +131,14 @@ pub(crate) fn cmd_bates_stamp(args: &BatesArgs<'_>) -> u8 {
             return exit::IO_ERROR;
         }
         println!(
-            "stamped {} -> {} pages={} first={} last={} signature={}",
+            "stamped {} -> {} pages={} first={} last={} signature={} removed={}",
             file.input.display(),
             file.output.display(),
             file.outcome.pages.len(),
             sanitize_token(&file.outcome.first_label),
             sanitize_token(&file.outcome.last_label),
             signature_token(file.impact),
+            file.removed,
         );
         report_signature(&file.input, file.impact);
     }
@@ -146,22 +159,93 @@ pub(crate) fn cmd_bates_stamp(args: &BatesArgs<'_>) -> u8 {
     exit::SUCCESS
 }
 
+/// Implement `pdfcer bates-remove`: take pdfcer's Bates labels off every
+/// input, then write them all, under their own names, to `out_dir`.
+pub(crate) fn cmd_bates_remove(inputs: &[PathBuf], out_dir: &Path, pages: &str) -> u8 {
+    use pdfcer_core::writer::SaveOptions;
+    let mut done = Vec::new();
+    for input in inputs {
+        let (_source, mut session) = match open_for_edit(input) {
+            Ok(pair) => pair,
+            Err(code) => return code,
+        };
+        let count = match session.pages() {
+            Ok(pages) => pages.len(),
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", input.display());
+                return exit::EDIT_REFUSED;
+            }
+        };
+        let selected = match sign::parse_pages(pages, count) {
+            Ok(pages) => pages,
+            Err(err) => {
+                eprintln!("pdfcer: {}: --pages: {err}", input.display());
+                return exit::EDIT_REFUSED;
+            }
+        };
+        let removal = match session.remove_bates(Some(&selected)) {
+            Ok(r) => r,
+            Err(err) => return report_edit_error(input, &err),
+        };
+        let impact = session.signature_impact_of_save(CoreSaveMode::Incremental);
+        let bytes = match session.to_incremental_bytes(&SaveOptions::identity()) {
+            Ok((bytes, _)) => bytes,
+            Err(err) => {
+                eprintln!("pdfcer: {}: save refused: {err}", input.display());
+                return exit::SAVE_REFUSED;
+            }
+        };
+        let output = out_dir.join(input.file_name().unwrap_or_default());
+        done.push((input, output, bytes, removal, impact));
+    }
+
+    let outputs: Vec<&Path> = done.iter().map(|d| d.1.as_path()).collect();
+    if let Err(code) = check_outputs(&outputs, inputs) {
+        return code;
+    }
+    if let Err(err) = std::fs::create_dir_all(out_dir) {
+        eprintln!("pdfcer: {}: {err}", out_dir.display());
+        return exit::IO_ERROR;
+    }
+    for (input, output, bytes, removal, impact) in &done {
+        if let Err(err) = std::fs::write(output, bytes) {
+            eprintln!("pdfcer: {}: {err}", output.display());
+            return exit::IO_ERROR;
+        }
+        println!(
+            "removed {} -> {} pages={} labels={} signature={}",
+            input.display(),
+            output.display(),
+            removal.pages.len(),
+            removal.labels.len(),
+            signature_token(*impact),
+        );
+        report_signature(input, *impact);
+    }
+    println!(
+        "bates-remove files={} labels={}",
+        done.len(),
+        done.iter().map(|d| d.3.labels.len()).sum::<usize>(),
+    );
+    exit::SUCCESS
+}
+
 /// Refuse an output that would replace an input, or two outputs with one
 /// path (two inputs of the same name from different folders, under `keep`).
-fn check_outputs(done: &[Stamped], inputs: &[PathBuf]) -> Result<(), u8> {
+fn check_outputs(outputs: &[&Path], inputs: &[PathBuf]) -> Result<(), u8> {
     let canonical = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
     let inputs: Vec<PathBuf> = inputs.iter().map(|p| canonical(p)).collect();
     let mut seen: Vec<PathBuf> = Vec::new();
-    for file in done {
-        let out = canonical(&file.output);
+    for &output in outputs {
+        let out = canonical(output);
         if inputs.contains(&out) {
             eprintln!(
                 "pdfcer: {}: the output would replace an input; choose another --out-dir or --name.",
-                file.output.display()
+                output.display()
             );
             return Err(exit::EDIT_REFUSED);
         }
-        let key = file.output.to_string_lossy().to_lowercase();
+        let key = output.to_string_lossy().to_lowercase();
         if seen
             .iter()
             .any(|s| s.to_string_lossy().to_lowercase() == key)
@@ -169,11 +253,11 @@ fn check_outputs(done: &[Stamped], inputs: &[PathBuf]) -> Result<(), u8> {
             eprintln!(
                 "pdfcer: {}: two inputs would be written to this one path; use --name range or \
 keep-range.",
-                file.output.display()
+                output.display()
             );
             return Err(exit::EDIT_REFUSED);
         }
-        seen.push(file.output.clone());
+        seen.push(output.to_path_buf());
     }
     Ok(())
 }

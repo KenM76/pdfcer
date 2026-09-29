@@ -748,6 +748,9 @@ pub enum CommandKind {
     /// One Bates numbering run ([`EditSession::stamp_bates`]): a shared
     /// font and `q` stream plus one label stream per stamped page.
     StampBates,
+    /// One Bates removal ([`EditSession::remove_bates`]): the stamped pages'
+    /// `/Contents` and `/Resources` restored without the labels.
+    RemoveBates,
     /// One plain-text IMPORT: `pages` blank pages were created and the text was
     /// poured into them, all as ONE undo entry
     /// ([`EditSession::place_text`]).
@@ -13983,7 +13986,7 @@ impl EditSession {
     /// [`crate::bates::label_matrix`] so it reads upright at `stamp.position`
     /// on the displayed page whatever its `/Rotate`. It is marked
     /// `/Artifact << /Type /Pagination /Subtype /Bates >>` (ISO 32000-2
-    /// §14.8.2.2.2 Table 385), so text extraction and accessibility tools
+    /// §14.8.2.2.2 Table 363), so text extraction and accessibility tools
     /// can tell it from the page's own text.
     ///
     /// The page's existing content is wrapped, not rewritten: one shared
@@ -13995,7 +13998,8 @@ impl EditSession {
     /// onto the page (§7.7.3.4).
     ///
     /// Lands as one [`CommandKind::StampBates`] undo entry. A page already
-    /// carrying a Bates label gets a second one; nothing is replaced.
+    /// carrying a Bates label gets a second one; to replace a set, call
+    /// [`Self::remove_bates`] first.
     ///
     /// # Errors
     ///
@@ -14131,6 +14135,134 @@ impl EditSession {
             first_label,
             last_label,
         })
+    }
+
+    /// **Remove Bates labels** that [`Self::stamp_bates`] wrote from the
+    /// selected pages (`None`: every page).
+    ///
+    /// A label is recognised only by the exact stream `stamp_bates` writes,
+    /// so another producer's Bates numbers, and text that merely looks like
+    /// one, are never touched. For each label removed, one leading shared
+    /// `q` stream is removed with it, which keeps the page's `q`/`Q` pairs
+    /// balanced; every other `/Contents` entry is kept in order, verbatim. The
+    /// label's font resource entry is dropped when no remaining stream on the
+    /// page names it. The removed objects become unreferenced; an incremental
+    /// save still carries them in the earlier revision.
+    ///
+    /// Lands as one [`CommandKind::RemoveBates`] undo entry, or none when no
+    /// selected page carries a label (the result is then empty).
+    ///
+    /// # Errors
+    ///
+    /// Checked before anything is written: [`EditError::DocumentEncrypted`],
+    /// a certification forbidding page changes, or
+    /// [`EditError::PageOutOfRange`] for a page past the end.
+    pub fn remove_bates(
+        &mut self,
+        pages: Option<&[usize]>,
+    ) -> Result<crate::bates::BatesRemoval, EditError> {
+        use crate::bates::{BatesRemoval, SAVE_STREAM, parse_label};
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification()?;
+        let all = self.pages()?;
+        let mut selected = pages.map_or_else(|| (0..all.len()).collect(), <[usize]>::to_vec);
+        selected.sort_unstable();
+        selected.dedup();
+        if let Some(&index) = selected.iter().find(|&&i| i >= all.len()) {
+            return Err(EditError::PageOutOfRange {
+                index,
+                count: all.len(),
+            });
+        }
+
+        let mut removal = BatesRemoval::default();
+        let mut objects = Vec::new();
+        for &index in &selected {
+            let Some(page) = all.get(index) else {
+                continue;
+            };
+            let view = self.view();
+            let Some(dict) = self.graph().resolved(page.id).as_dict().cloned() else {
+                continue;
+            };
+            let Some(Object::Array(items)) = dict.get(b"Contents").map(|c| view.resolve(c)) else {
+                continue;
+            };
+            let decoded = |item: &Object| {
+                let Object::Stream(stream) = view.resolve(item) else {
+                    return None;
+                };
+                crate::filters::decode_stream(&stream.dict, view.slice(stream.data_span)?).ok()
+            };
+            let mut labels = Vec::new();
+            let mut fonts = Vec::new();
+            let mut kept: Vec<(Object, Option<Vec<u8>>)> = Vec::new();
+            for item in items {
+                let bytes = decoded(item);
+                match bytes.as_deref().and_then(parse_label) {
+                    Some((font, text)) => {
+                        fonts.push(font);
+                        labels.push(text);
+                    }
+                    None => kept.push((item.clone(), bytes)),
+                }
+            }
+            if labels.is_empty() {
+                continue;
+            }
+            let saves = kept
+                .iter()
+                .take_while(|(_, b)| b.as_deref() == Some(SAVE_STREAM))
+                .count()
+                .min(labels.len());
+            let kept = kept.get(saves..).unwrap_or_default();
+
+            let mut updated = dict.clone();
+            if kept.is_empty() {
+                updated.remove(b"Contents");
+            } else {
+                updated.insert(
+                    Name::from(b"Contents"),
+                    Object::Array(kept.iter().map(|(o, _)| o.clone()).collect()),
+                );
+            }
+            if let Some(Object::Dict(mut resources)) = updated.get(b"Resources").cloned()
+                && let Some(Object::Dict(mut font_dict)) = resources.get(b"Font").cloned()
+            {
+                let named = |font: &[u8]| {
+                    kept.iter().any(|(_, b)| {
+                        b.as_deref()
+                            .is_some_and(|b| crate::bates::names_resource(b, font))
+                    })
+                };
+                for font in &fonts {
+                    if !named(font) {
+                        font_dict.remove(font);
+                    }
+                }
+                resources.insert(Name::from(b"Font"), Object::Dict(font_dict));
+                updated.insert(Name::from(b"Resources"), Object::Dict(resources));
+            }
+            objects.push(ObjectWrite {
+                id: page.id,
+                before: self.value(page.id).cloned(),
+                after: Some(Object::Dict(updated)),
+            });
+            removal.pages.push(index);
+            removal.labels.extend(labels);
+        }
+        if !objects.is_empty() {
+            self.commit(Command {
+                kind: CommandKind::RemoveBates,
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            });
+        }
+        Ok(removal)
     }
 
     /// **Import a plain-text document**: create as many pages as `text` needs,

@@ -188,6 +188,7 @@ pub(crate) fn run() -> ExitCode {
             size,
             pages,
             name,
+            replace,
         } => cmd_bates_stamp(&BatesArgs {
             inputs: &inputs,
             out_dir: &out_dir,
@@ -200,7 +201,13 @@ pub(crate) fn run() -> ExitCode {
             size,
             pages: &pages,
             name,
+            replace,
         }),
+        Command::BatesRemove {
+            inputs,
+            out_dir,
+            pages,
+        } => cmd_bates_remove(&inputs, &out_dir, &pages),
         Command::ToPdfa { .. } => unimplemented_stub("to-pdfa"),
         Command::ValidatePdfa { .. } => unimplemented_stub("validate-pdfa"),
         #[cfg(feature = "signing")]

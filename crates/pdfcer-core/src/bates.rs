@@ -273,10 +273,11 @@ pub(crate) fn helvetica_width(bytes: &[u8]) -> f64 {
 
 /// The content stream that draws one label: restore the state the shared
 /// leading `q` saved, then the label as a `/Pagination /Bates` artifact
-/// (ISO 32000-2 Table 385) in font resource `font` at size 1 under text
-/// matrix `m`, black, with `label` as WinAnsi bytes.
+/// (ISO 32000-2 §14.8.2.2.2, Table 363) in font resource `font` at size 1
+/// under text matrix `m`, black, with `label` as WinAnsi bytes.
 pub(crate) fn label_content(font: &[u8], m: [f64; 6], label: &[u8]) -> Vec<u8> {
-    let mut out = b"Q q /Artifact <</Type /Pagination /Subtype /Bates>> BDC\nBT /".to_vec();
+    let mut out = LABEL_HEAD.to_vec();
+    out.extend_from_slice(b"BT /");
     out.extend_from_slice(font);
     out.extend_from_slice(b" 1 Tf 0 g ");
     for v in m {
@@ -293,6 +294,75 @@ pub(crate) fn label_content(font: &[u8], m: [f64; 6], label: &[u8]) -> Vec<u8> {
     }
     out.extend_from_slice(b") Tj ET\nEMC Q\n");
     out
+}
+
+/// How every label stream [`label_content`] writes begins. Removal
+/// recognises pdfcer's own labels by it, and nothing else.
+pub(crate) const LABEL_HEAD: &[u8] = b"Q q /Artifact <</Type /Pagination /Subtype /Bates>> BDC\n";
+
+/// The shared stream a stamp puts first in `/Contents`.
+pub(crate) const SAVE_STREAM: &[u8] = b"q\n";
+
+/// The font resource name and label text of a stream [`label_content`]
+/// wrote, or `None` for any other stream.
+pub(crate) fn parse_label(content: &[u8]) -> Option<(Vec<u8>, String)> {
+    let rest = content.strip_prefix(LABEL_HEAD)?.strip_prefix(b"BT /")?;
+    let end = rest.iter().position(|&b| b == b' ')?;
+    let font = rest.get(..end)?.to_vec();
+    let open = rest.iter().position(|&b| b == b'(')?;
+    let mut label = String::new();
+    let mut bytes = rest.get(open + 1..)?.iter().copied();
+    while let Some(b) = bytes.next() {
+        let code = match b {
+            b')' => return Some((font, label)),
+            b'\\' => match bytes.next()? {
+                d @ b'0'..=b'7' => {
+                    let mut v = u32::from(d - b'0');
+                    for _ in 0..2 {
+                        v = v * 8 + u32::from(bytes.next()?.checked_sub(b'0')?);
+                    }
+                    u8::try_from(v).ok()?
+                }
+                other => other,
+            },
+            other => other,
+        };
+        label.push(winansi_char(code));
+    }
+    None
+}
+
+/// `true` when `content` has the name token `/name` (§7.3.5: a name ends
+/// at whitespace or a delimiter), so `/Bates` is not found in `/Bates2`.
+pub(crate) fn names_resource(content: &[u8], name: &[u8]) -> bool {
+    let mut token = vec![b'/'];
+    token.extend_from_slice(name);
+    content.windows(token.len()).enumerate().any(|(at, w)| {
+        w == token.as_slice()
+            && content
+                .get(at + token.len())
+                .is_none_or(|&b| b.is_ascii_whitespace() || b"()<>[]{}/%".contains(&b))
+    })
+}
+
+/// The character `WinAnsiEncoding` code `code` draws; U+FFFD for none.
+fn winansi_char(code: u8) -> char {
+    if code.is_ascii_graphic() || code == b' ' {
+        return char::from(code);
+    }
+    fontdata::encoding_glyph_name(BaseEncoding::WinAnsi, code)
+        .and_then(fontdata::glyph_name_to_unicode)
+        .unwrap_or('\u{FFFD}')
+}
+
+/// What [`crate::edit::EditSession::remove_bates`] took off.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct BatesRemoval {
+    /// 0-based pages that had a label removed, ascending.
+    pub pages: Vec<usize>,
+    /// Every removed label's text, page by page, in drawing order.
+    pub labels: Vec<String>,
 }
 
 /// A content-stream number: at most four decimals, no trailing zeros.
@@ -460,6 +530,25 @@ mod tests {
     fn helvetica_widths_come_from_the_afm() {
         // "0" is 556 units in Helvetica.
         assert!((helvetica_width(b"00") - 1.112).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_written_label_parses_back_to_its_font_and_text() {
+        let label = winansi_bytes("A(1)\\é");
+        let content = label_content(b"Bates2", [10.0, 0.0, 0.0, 10.0, 5.0, 6.0], &label);
+        let (font, text) = parse_label(&content).expect("recognised");
+        assert_eq!(font, b"Bates2");
+        assert_eq!(text, "A(1)\\é");
+        assert!(parse_label(b"q BT /F1 1 Tf (x) Tj ET Q").is_none());
+    }
+
+    #[test]
+    fn a_resource_name_is_matched_as_a_whole_token() {
+        assert!(names_resource(b"/Bates 1 Tf", b"Bates"));
+        assert!(names_resource(b"BT /Bates", b"Bates"));
+        assert!(names_resource(b"/Bates/F1", b"Bates"));
+        assert!(!names_resource(b"/Bates2 1 Tf", b"Bates"));
+        assert!(!names_resource(b"(Bates) Tj", b"Bates"));
     }
 
     #[test]

@@ -212,3 +212,87 @@ fn undo_removes_every_label() {
         assert!(runs.iter().all(|r| !r.text.starts_with("ACME-")));
     }
 }
+
+/// Every page after an incremental save and reload.
+fn saved_pages(s: &EditSession) -> Vec<page_tree::Page> {
+    let bytes = s
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("save")
+        .0;
+    page_tree::pages(&Document::from_bytes(bytes).expect("reload")).expect("page tree walks")
+}
+
+fn has_bates_font(page: &page_tree::Page) -> bool {
+    page.resources
+        .get(b"Font")
+        .and_then(|f| f.as_dict())
+        .is_some_and(|f| f.iter().any(|(k, _)| k.as_bytes().starts_with(b"Bates")))
+}
+
+#[test]
+fn removal_restores_each_page_to_its_own_content() {
+    let mut s = session();
+    s.stamp_bates(&stamp(), 1).expect("stamps");
+    let out = s.remove_bates(None).expect("removes");
+    assert_eq!(out.pages, vec![0, 1, 2]);
+    assert_eq!(out.labels, ["ACME-0001", "ACME-0002", "ACME-0003"]);
+    assert_eq!(s.undo_kind(), Some(CommandKind::RemoveBates));
+    for (i, runs) in saved_runs(&s).iter().enumerate() {
+        assert!(
+            runs.iter().all(|r| !r.text.starts_with("ACME-")),
+            "page {i}"
+        );
+        assert!(
+            runs.iter().any(|r| r.text == "Hello"),
+            "page {i} lost its text"
+        );
+    }
+    for (i, page) in saved_pages(&s).iter().enumerate() {
+        assert_eq!(page.contents.len(), 1, "page {i} kept a q or label stream");
+        assert!(!has_bates_font(page), "page {i} kept the label font");
+    }
+}
+
+#[test]
+fn a_twice_stamped_page_loses_both_sets() {
+    let mut s = session();
+    s.stamp_bates(&stamp(), 1).expect("stamps");
+    s.stamp_bates(&stamp(), 50).expect("stamps again");
+    let out = s.remove_bates(Some(&[1])).expect("removes");
+    assert_eq!(out.pages, vec![1]);
+    assert_eq!(out.labels, ["ACME-0002", "ACME-0051"]);
+    let pages = saved_pages(&s);
+    assert_eq!(pages[1].contents.len(), 1);
+    assert!(!has_bates_font(&pages[1]));
+    // Unselected pages keep both sets: two q streams, content, two labels.
+    assert_eq!(pages[0].contents.len(), 5);
+    let runs = saved_runs(&s);
+    assert!(runs[1].iter().all(|r| !r.text.starts_with("ACME-")));
+    assert_eq!(
+        runs[0]
+            .iter()
+            .filter(|r| r.text.starts_with("ACME-"))
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn nothing_to_remove_commits_nothing() {
+    let mut s = session();
+    assert_eq!(s.remove_bates(None).expect("ok"), Default::default());
+    assert_eq!(s.undo_kind(), None);
+    assert!(matches!(
+        s.remove_bates(Some(&[3])).unwrap_err(),
+        EditError::PageOutOfRange { index: 3, count: 3 }
+    ));
+}
+
+#[test]
+fn undoing_a_removal_brings_the_labels_back() {
+    let mut s = session();
+    s.stamp_bates(&stamp(), 1).expect("stamps");
+    s.remove_bates(None).expect("removes");
+    assert_eq!(s.undo(), Some(CommandKind::RemoveBates));
+    assert_eq!(label_end(&saved_runs(&s)[2]).0, "ACME-0003");
+}

@@ -191,3 +191,48 @@ fn names_and_page_selection_follow_the_flags() {
     assert!(has(&written, "(000002-C)") && !has(&written, "(000003-C)"));
     assert!(text(&o.stdout).contains("next=3"));
 }
+
+#[test]
+fn replace_and_remove_take_off_only_the_earlier_labels() {
+    let dir = TempDir::new("replace");
+    let a = dir.join("a.pdf");
+    std::fs::write(&a, blank(2)).unwrap();
+    let (one, two, three, four) = (dir.join("1"), dir.join("2"), dir.join("3"), dir.join("4"));
+    let stamp = |input: &PathBuf, out: &PathBuf, extra: &[&str]| {
+        let mut args = vec![
+            "bates-stamp",
+            input.to_str().unwrap(),
+            "--out-dir",
+            out.to_str().unwrap(),
+        ];
+        args.extend_from_slice(extra);
+        run(&args)
+    };
+    let remove = |input: &PathBuf, out: &PathBuf| {
+        run(&[
+            "bates-remove",
+            input.to_str().unwrap(),
+            "--out-dir",
+            out.to_str().unwrap(),
+        ])
+    };
+    let o = stamp(&a, &one, &[]);
+    assert!(text(&o.stdout).contains("removed=0"), "{}", text(&o.stdout));
+
+    let o = stamp(&one.join("a.pdf"), &two, &["--replace", "--start", "100"]);
+    assert_eq!(o.status.code(), Some(0), "stderr: {}", text(&o.stderr));
+    assert!(text(&o.stdout).contains("removed=2"), "{}", text(&o.stdout));
+
+    let o = remove(&two.join("a.pdf"), &three);
+    assert_eq!(o.status.code(), Some(0), "stderr: {}", text(&o.stderr));
+    let stdout = text(&o.stdout);
+    assert!(stdout.contains("pages=2 labels=2"), "{stdout}");
+    assert!(stdout.contains("bates-remove files=1 labels=2"), "{stdout}");
+
+    // The replaced set is gone too: nothing is left to remove.
+    let o = remove(&three.join("a.pdf"), &four);
+    assert!(text(&o.stdout).contains("labels=0"), "{}", text(&o.stdout));
+    // An output never replaces its input.
+    let o = remove(&four.join("a.pdf"), &four);
+    assert_eq!(o.status.code(), Some(9));
+}
