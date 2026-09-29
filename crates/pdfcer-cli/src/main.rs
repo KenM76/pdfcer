@@ -566,6 +566,7 @@ use print::*;
 mod fields;
 use fields::*;
 mod edit_common;
+mod in_place;
 use edit_common::*;
 mod page_edit;
 use page_edit::*;

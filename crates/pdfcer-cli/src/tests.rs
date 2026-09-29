@@ -398,3 +398,124 @@ fn round_trip_defaults_are_the_verification_safe_ones() {
         );
     });
 }
+
+/// Subcommands with both an `input` and an `output` argument that are NOT
+/// given `--in-place`, each because its `--output` is not the edited PDF (or
+/// its input is not a PDF). A new subcommand with both arguments fails
+/// [`in_place_covers_every_input_output_subcommand`] until it is placed on
+/// one list or the other.
+const NOT_IN_PLACE: &[&str] = &[
+    // `--output` is a new document or a non-PDF artefact, not the input edited.
+    "copy-field",
+    "export-data",
+    "export-docx",
+    "export-dxf",
+    "export-image",
+    "export-ods",
+    "export-structure",
+    "export-xlsx",
+    "extract-attachment",
+    "extract-layout",
+    "extract-pages",
+    "extract-tables",
+    "extract-tags",
+    "extract-text",
+    "render-page",
+    "round-trip",
+    "stamp-pack",
+    // The input is a text file, not a PDF.
+    "place-text",
+    // OUTPUT is positional; `--in-place` rewrites to `--output`.
+    "encrypt",
+    "remove-encryption",
+    "set-permissions",
+];
+
+#[test]
+fn in_place_covers_every_input_output_subcommand() {
+    on_large_stack(|| {
+        use clap::CommandFactory as _;
+        let root = in_place::with_in_place(Cli::command());
+        root.clone().debug_assert();
+        let mut unplaced = Vec::new();
+        for sub in root.get_subcommands() {
+            let name = sub.get_name();
+            let has = |id: &str| sub.get_arguments().any(|a| a.get_id() == id);
+            if has("input") && has("output") && name != "ocr" {
+                let listed = in_place::IN_PLACE_COMMANDS.contains(&name);
+                let excluded = NOT_IN_PLACE.contains(&name);
+                assert!(!(listed && excluded), "`{name}` is on both lists");
+                if !listed && !excluded {
+                    unplaced.push(name.to_owned());
+                }
+            }
+        }
+        for name in in_place::IN_PLACE_COMMANDS {
+            assert!(
+                root.find_subcommand(name).is_some(),
+                "`{name}` is listed but is not a subcommand"
+            );
+        }
+        assert!(unplaced.is_empty(), "decide --in-place for: {unplaced:?}");
+    });
+}
+
+fn parse_args(args: &[&str]) -> Result<Cli, clap::Error> {
+    let mut v = vec![std::ffi::OsString::from("pdfcer")];
+    v.extend(args.iter().map(std::ffi::OsString::from));
+    dispatch::parse_cli(v)
+}
+
+#[test]
+fn in_place_becomes_output_equal_to_input() {
+    on_large_stack(|| {
+        let cli = parse_args(&["delete-pages", "--in-place", "a b.pdf", "--pages", "1"]).unwrap();
+        let Command::DeletePages { input, output, .. } = cli.command else {
+            panic!("wrong subcommand");
+        };
+        assert_eq!(output, input);
+        assert_eq!(output, PathBuf::from("a b.pdf"));
+
+        // An optional `--output` (dry-run commands) takes it the same way.
+        let cli = parse_args(&["reset-form", "f.pdf", "--in-place", "--apply"]).unwrap();
+        let Command::ResetForm { output, .. } = cli.command else {
+            panic!("wrong subcommand");
+        };
+        assert_eq!(output, Some(PathBuf::from("f.pdf")));
+    });
+}
+
+#[test]
+fn in_place_refuses_output_and_requires_one_of_them() {
+    on_large_stack(|| {
+        let both = parse_args(&[
+            "delete-pages",
+            "a.pdf",
+            "--pages",
+            "1",
+            "--in-place",
+            "-o",
+            "b.pdf",
+        ]);
+        assert_eq!(
+            both.unwrap_err().kind(),
+            clap::error::ErrorKind::ArgumentConflict
+        );
+        let neither = parse_args(&["delete-pages", "a.pdf", "--pages", "1"]);
+        assert_eq!(
+            neither.unwrap_err().kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+        let plain = parse_args(&["delete-pages", "a.pdf", "--pages", "1", "-o", "b.pdf"]).unwrap();
+        let Command::DeletePages { output, .. } = plain.command else {
+            panic!("wrong subcommand");
+        };
+        assert_eq!(output, PathBuf::from("b.pdf"));
+        // Not offered where `--output` is not the edited PDF.
+        let export = parse_args(&["extract-text", "a.pdf", "--in-place"]);
+        assert_eq!(
+            export.unwrap_err().kind(),
+            clap::error::ErrorKind::UnknownArgument
+        );
+    });
+}

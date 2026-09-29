@@ -1,16 +1,22 @@
 use super::*;
 
+/// Parses `args` (program name first) into a [`Cli`], with `--in-place`
+/// resolved to `--output <INPUT>` (see `in_place`).
+pub(crate) fn parse_cli(args: Vec<std::ffi::OsString>) -> Result<Cli, clap::Error> {
+    use clap::{CommandFactory as _, FromArgMatches as _};
+    let root = in_place::with_in_place(scrub_help(Cli::command()));
+    let args = in_place::resolve_in_place(&root, args)?;
+    let matches = root.try_get_matches_from(args)?;
+    Cli::from_arg_matches(&matches)
+}
+
 /// Parse the command line and dispatch to the subcommand's `cmd_*` handler.
 pub(crate) fn run() -> ExitCode {
     // `Cli::parse()` would ship the doc comments verbatim; `scrub_help` takes
     // the Markdown and the internal Pass IDs out first. See `plain_help`.
-    let cli = {
-        use clap::{CommandFactory as _, FromArgMatches as _};
-        let matches = scrub_help(Cli::command()).get_matches();
-        match Cli::from_arg_matches(&matches) {
-            Ok(cli) => cli,
-            Err(err) => err.exit(),
-        }
+    let cli = match parse_cli(std::env::args_os().collect()) {
+        Ok(cli) => cli,
+        Err(err) => err.exit(),
     };
 
     // Resolve the password BEFORE any subcommand runs, so a bad
