@@ -25,6 +25,7 @@ mod blend_mode_preserved;
 mod block_layout;
 mod brotli_stream_is_reachable;
 mod button_action;
+mod button_action_readback;
 mod button_action_submit;
 mod button_redraw_honesty;
 mod button_rotation_bakes;

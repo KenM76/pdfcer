@@ -21862,10 +21862,12 @@ pub enum ButtonActionState {
     None,
     /// An action pdfcer models, and could write back unchanged.
     Known(ButtonAction),
-    /// A subtype pdfcer **authors** but did not model this instance of —
-    /// either a shape this reader does not decode yet (`GoTo`, `SubmitForm`),
-    /// or a malformed one. The `String` is the `/S` name, empty if `/S` was
-    /// absent.
+    /// A subtype pdfcer **authors** but not in this instance's shape — a
+    /// `GoTo` to a named destination or a view pdfcer does not write, a
+    /// `SubmitForm` to a file path or with a flag combination outside
+    /// [`SubmitSpec`], a `Hide` naming annotations by reference, a `Named`
+    /// action other than the four page moves, or a malformed dictionary.
+    /// The `String` is the `/S` name, empty if `/S` was absent.
     ///
     /// Distinct from [`Self::Foreign`] on purpose: a control may offer to
     /// REPLACE this, because pdfcer can write that subtype. It must not claim
@@ -21891,12 +21893,27 @@ pub enum ButtonActionState {
 /// here rather than a silent misclassification there.
 const AUTHORABLE_SUBTYPES: &[&str] = &["ResetForm", "SubmitForm", "GoTo", "Named", "Hide"];
 
-/// Classify and, where cheap and exact, decode one `/A` dictionary.
+/// Classify and decode one `/A` dictionary.
+///
+/// `Known` only when [`EditSession::set_button_action`] would write the
+/// same action back: every shape it cannot author is `Unmodelled`, never a
+/// nearest match. `pages` is the page order as `(object, crop box)`, which
+/// a `GoTo` needs to name its page by index and to recognise its view.
 fn read_button_action<G: ObjectGraph + ?Sized>(
     g: &G,
     action: &Dict,
     subtype: &str,
+    pages: &[(ObjId, crate::page_tree::Rect)],
 ) -> ButtonActionState {
+    let decoded = match subtype {
+        "GoTo" => read_goto(g, action, pages),
+        "SubmitForm" => read_submit(g, action).map(ButtonAction::SubmitForm),
+        "Hide" => read_hide(g, action),
+        _ => None,
+    };
+    if let Some(known) = decoded {
+        return ButtonActionState::Known(known);
+    }
     match subtype {
         "Named" => {
             let named = action
@@ -21955,6 +21972,146 @@ fn read_button_action<G: ObjectGraph + ?Sized>(
         }
         _ => ButtonActionState::Foreign(subtype.to_owned()),
     }
+}
+
+/// A text string, or `None` for any other object (§7.9.2).
+fn text_of<G: ObjectGraph + ?Sized>(g: &G, o: &Object) -> Option<String> {
+    match g.resolve(o) {
+        Object::String(s) => Some(decode_text_string(s.as_slice()).text),
+        _ => None,
+    }
+}
+
+/// A `/Fields` or `/T` array of names; `None` if any entry is not a string
+/// (an indirect reference to a field is legal but not what pdfcer writes).
+fn names_of<G: ObjectGraph + ?Sized>(g: &G, o: &Object) -> Option<Vec<String>> {
+    g.resolve(o)
+        .as_array()?
+        .iter()
+        .map(|item| text_of(g, item))
+        .collect()
+}
+
+/// `/GoTo` with an explicit destination to a page in this document, in one
+/// of the three [`PageView`] shapes (Table 151). A named destination, a
+/// page given by number, or any other view is `None`.
+fn read_goto<G: ObjectGraph + ?Sized>(
+    g: &G,
+    action: &Dict,
+    pages: &[(ObjId, crate::page_tree::Rect)],
+) -> Option<ButtonAction> {
+    let dest = g.resolve(action.get(b"D")?).as_array()?;
+    let Some(Object::Reference(target)) = dest.first() else {
+        return None;
+    };
+    let (page_index, crop) = pages
+        .iter()
+        .enumerate()
+        .find(|(_, (id, _))| id == target)
+        .map(|(i, (_, crop))| (i, *crop))?;
+    // Coordinates are compared to the crop box to a thousandth of a point,
+    // the precision a saved real keeps; pdfcer writes them from it.
+    let at = |i: usize, want: f64| {
+        dest.get(i)
+            .map(|o| g.resolve(o))
+            .and_then(Object::as_number)
+            .is_some_and(|v| (v - want).abs() < 1e-3)
+    };
+    let kind = g.resolve(dest.get(1)?).as_name()?;
+    let view = match (kind.as_bytes(), dest.len()) {
+        (b"Fit", 2) => PageView::WholePage,
+        (b"FitH", 3) if at(2, crop.ury) => PageView::FullWidth,
+        // Table 151: a zoom of 0 means the same as null.
+        (b"XYZ", 5)
+            if at(2, crop.llx)
+                && at(3, crop.ury)
+                && dest
+                    .get(4)
+                    .map(|o| g.resolve(o))
+                    .is_some_and(|z| matches!(z, Object::Null | Object::Integer(0))) =>
+        {
+            PageView::TopLeft
+        }
+        _ => return None,
+    };
+    Some(ButtonAction::GoToPage { page_index, view })
+}
+
+/// `/SubmitForm` to a URL file specification (§7.11.4, `/FS /URL`) whose
+/// `/Flags` word [`SubmitSpec`] can reproduce bit for bit (Table 237). A
+/// bare-string `/F` is a file path (`SF-A1`) and is `None`.
+fn read_submit<G: ObjectGraph + ?Sized>(g: &G, action: &Dict) -> Option<SubmitSpec> {
+    let Object::Dict(fs) = g.resolve(action.get(b"F")?) else {
+        return None;
+    };
+    if fs
+        .get(b"FS")
+        .map(|o| g.resolve(o))
+        .and_then(Object::as_name)?
+        .as_bytes()
+        != b"URL"
+    {
+        return None;
+    }
+    let Object::String(url) = g.resolve(fs.get(b"F")?) else {
+        return None;
+    };
+    let url = String::from_utf8(url.as_slice().to_vec()).ok()?;
+    let word = match action.get(b"Flags").map(|o| g.resolve(o)) {
+        None => 0,
+        Some(o) => u32::try_from(o.as_int()?).ok()?,
+    };
+    let bit = |n: u32| word & (1 << (n - 1)) != 0;
+    let format = if bit(9) {
+        SubmitFormat::WholeDocument
+    } else if bit(6) {
+        SubmitFormat::Xfdf
+    } else if bit(3) {
+        SubmitFormat::Html {
+            get: bit(4),
+            coordinates: bit(5),
+        }
+    } else {
+        SubmitFormat::Fdf(FdfOptions {
+            include_incremental_updates: bit(7),
+            include_annotations: bit(8),
+            only_current_user_annotations: bit(11),
+            exclude_document_path: bit(12),
+            embed_form: bit(14),
+        })
+    };
+    let scope = match action.get(b"Fields") {
+        None => SubmitScope::All,
+        Some(o) if bit(1) => SubmitScope::Except(names_of(g, o)?),
+        Some(o) => SubmitScope::Only(names_of(g, o)?),
+    };
+    let spec = SubmitSpec {
+        url,
+        format,
+        scope,
+        include_no_value_fields: bit(2),
+        canonical_dates: bit(10),
+    };
+    // Bits that belong to another format, reserved bits, or bit 1 with no
+    // `/Fields` all fail to survive the round trip.
+    (EditSession::submit_flag_word(&spec) == word).then_some(spec)
+}
+
+/// `/Hide` naming fields by string (Table 210). `/T` as a reference, or an
+/// array holding one, names an annotation pdfcer does not author and is
+/// `None`. `/H` defaults to true.
+fn read_hide<G: ObjectGraph + ?Sized>(g: &G, action: &Dict) -> Option<ButtonAction> {
+    let t = action.get(b"T")?;
+    let targets = match g.resolve(t) {
+        Object::Array(_) => names_of(g, t)?,
+        _ => vec![text_of(g, t)?],
+    };
+    let hidden = match action.get(b"H").map(|o| g.resolve(o)) {
+        None => true,
+        Some(Object::Boolean(h)) => *h,
+        Some(_) => return None,
+    };
+    Some(ButtonAction::SetHidden { targets, hidden })
 }
 
 /// What a push button does when clicked (`Pass 182.0`, extended `Pass 183.0`).
@@ -41255,10 +41412,12 @@ impl EditSession {
     ///
     /// # What is modelled today
     ///
-    /// `Named`, `ResetForm` and `Hide` round-trip. `GoTo` and `SubmitForm` are
-    /// authored by [`Self::set_button_action`] but not yet read back, so they
-    /// answer `Unmodelled` — accurately, and without pretending otherwise.
-    /// Widening that is additive and moves nothing else.
+    /// Every [`ButtonAction`] round-trips: what [`Self::set_button_action`]
+    /// writes, this reads back as `Known`. A `GoTo` must name a page of this
+    /// document by reference in one of the [`PageView`] shapes; a
+    /// `SubmitForm` must target a URL file specification with a `/Flags`
+    /// word [`SubmitSpec`] reproduces exactly. Anything else of an authored
+    /// subtype is `Unmodelled`.
     ///
     /// # Which widget
     ///
@@ -41310,7 +41469,12 @@ impl EditSession {
             return Ok(ButtonActionState::Unmodelled(String::new()));
         };
         let name = String::from_utf8_lossy(subtype.as_bytes()).into_owned();
-        Ok(read_button_action(&g, action, &name))
+        let pages: Vec<_> = self
+            .pages()?
+            .into_iter()
+            .map(|p| (p.id, p.crop_box))
+            .collect();
+        Ok(read_button_action(&g, action, &name, &pages))
     }
 
     /// Set or clear a field's **format** script — `/AA` `/F`, plus the paired
