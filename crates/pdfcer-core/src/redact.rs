@@ -3921,44 +3921,19 @@ fn decompose_containers(
     dirty: &mut crate::writer::DirtySet,
     report: &mut RedactionReport,
 ) {
-    // Snapshot the objects the redaction already touches.
-    let touched: BTreeSet<ObjId> = dirty.iter().collect();
-    // Which object-stream containers hold a touched object?
-    let mut containers: BTreeSet<ObjId> = BTreeSet::new();
-    for id in &touched {
-        if let Some(io) = doc.get(*id)
-            && let Some(c) = io.provenance.container()
-        {
-            containers.insert(c);
-        }
-    }
-    if containers.is_empty() {
+    let d = crate::edit::decompose_object_stream_containers(doc, dirty);
+    if d.containers == 0 {
         report.add_carrier("object_streams", false, CarrierAction::Absent);
         return;
     }
-    let mut promoted = 0u64;
-    for container in &containers {
-        for io in doc.objects() {
-            if io.provenance.container() == Some(*container) && !touched.contains(&io.id) {
-                // Promote the survivor: replacing it with its current value
-                // makes save_full write it at file level (type-1),
-                // superseding the type-2 entry.
-                dirty.replace(io.id, io.value.clone());
-                promoted += 1;
-            }
-        }
-        // Drop the now-empty container so its verbatim bytes (holding the
-        // removed object) are never emitted.
-        dirty.delete(*container);
-    }
-    report.containers_decomposed = containers.len() as u64;
-    report.objects_promoted = promoted;
+    let (containers, promoted) = (d.containers, d.objects_promoted);
+    report.containers_decomposed = containers as u64;
+    report.objects_promoted = promoted as u64;
     report.add_carrier("object_streams", true, CarrierAction::DroppedByRewrite);
     report.note(format!(
         "redaction: decomposed {} object stream(s), promoting {} survivor(s) out so no removed \
          object survives compressed (ISO 32000-1 §7.5.7)",
-        containers.len(),
-        promoted
+        containers, promoted
     ));
 }
 

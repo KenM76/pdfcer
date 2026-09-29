@@ -621,6 +621,8 @@ pub enum CommandKind {
     FillTextField,
     /// [`EditSession::reset_form`] — §12.7.5.3.
     ResetForm,
+    /// [`EditSession::purge_password_values`] — §12.7.4.3 Table 228 bit 14.
+    PurgePasswordValues,
     /// A push button's `/A` action was set, replaced or removed
     /// (`Pass 182.0`). ONE undoable command. See
     /// [`EditSession::set_button_action`].
@@ -11562,6 +11564,32 @@ impl EditSession {
         crate::writer::save_full(&self.base, &self.dirty_set(), options)
     }
 
+    /// [`Self::to_full_bytes`], also dropping every §7.5.7 object stream that
+    /// holds an edited or removed object and promoting its other objects to
+    /// file level.
+    ///
+    /// An ordinary full rewrite copies object streams verbatim, so the
+    /// previous value of an edited compressed object survives inside its old
+    /// container. Use this when that value must not survive — after
+    /// [`Self::purge_password_values`]. Objects in untouched containers are
+    /// still copied byte-identical.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::to_full_bytes`].
+    pub fn to_full_bytes_decomposing_containers(
+        &self,
+        options: &SaveOptions,
+    ) -> Result<(Vec<u8>, SaveReport, ContainerDecomposition), WriteError> {
+        if self.redaction_pending {
+            return Err(WriteError::RedactionPending);
+        }
+        let mut dirty = self.dirty_set();
+        let decomposition = decompose_object_stream_containers(&self.base, &mut dirty);
+        let (bytes, report) = crate::writer::save_full(&self.base, &dirty, options)?;
+        Ok((bytes, report, decomposition))
+    }
+
     /// Whether a redaction has been APPLIED and finalized into this session
     /// ([`apply_redactions`](Self::apply_redactions), `Pass 250.1`). This is a
     /// disclosure signal, not a save gate: an applied redaction collapses the
@@ -19451,6 +19479,48 @@ pub struct ResetOutcome {
     pub skipped_read_only: usize,
     /// What the redrawn text and choice appearances decided (rule 4).
     pub layout: LayoutDisclosure,
+}
+
+/// What [`EditSession::purge_password_values`] removed, and what it could not.
+#[derive(Debug, Clone, PartialEq, Default)]
+#[non_exhaustive]
+pub struct PasswordPurgeOutcome {
+    /// Fully qualified names of the Password fields whose own `/V` was
+    /// removed and whose appearance was redrawn empty.
+    pub fields_purged: Vec<String>,
+    /// Of [`Self::fields_purged`], the read-only ones. Purged anyway — the
+    /// read-only flag restricts the operator's typing, not a scrub — and
+    /// named so a shell can say so.
+    pub read_only_purged: Vec<String>,
+    /// Password fields whose value is INHERITED from an ancestor's `/V`
+    /// (§12.7.3.1): the ancestor may carry other fields' values too, so it is
+    /// not edited. The value stays in the file.
+    pub inherited_not_removed: Vec<String>,
+    /// Superseded appearance objects removed because nothing live referenced
+    /// them after the redraw. Left in place, a full rewrite writes them (it
+    /// keeps unreferenced objects), and their content may draw the value.
+    pub appearance_objects_removed: usize,
+    /// What the empty redraw decided (rule 4).
+    pub layout: LayoutDisclosure,
+}
+
+impl PasswordPurgeOutcome {
+    /// Whether the command changed anything.
+    #[must_use]
+    pub fn changed(&self) -> bool {
+        !self.fields_purged.is_empty()
+    }
+}
+
+/// What [`EditSession::to_full_bytes_decomposing_containers`] did to the
+/// §7.5.7 object streams beyond an ordinary full rewrite.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct ContainerDecomposition {
+    /// Object streams dropped because they held an edited or removed object.
+    pub containers: usize,
+    /// Untouched objects promoted out of those streams to file level.
+    pub objects_promoted: usize,
 }
 
 /// The `/DV` a field inherits from its nearest ancestor that sets one
@@ -42360,6 +42430,185 @@ impl EditSession {
         Ok(out)
     }
 
+    /// Remove every stored Password-field value from the document
+    /// (ISO 32000-1 §12.7.4.3 Table 228 bit 14: a reader "should never store
+    /// the value of the text field in the PDF file").
+    ///
+    /// For each Password text field whose own dictionary holds a non-empty
+    /// `/V`: removes `/V`, redraws every widget appearance empty, and removes
+    /// the superseded appearance objects when nothing live references them
+    /// (a full rewrite would otherwise keep them). Read-only fields are
+    /// purged too and named. One undoable command; a document with nothing
+    /// to purge commits nothing.
+    ///
+    /// This cleans the session only. An incremental save keeps every earlier
+    /// revision (§7.5.6), and an ordinary full rewrite copies object streams
+    /// verbatim with any stale copy inside them, so save with
+    /// [`Self::to_full_bytes_decomposing_containers`] and re-check the bytes
+    /// with [`crate::password_history::scan_stored_password_values`].
+    ///
+    /// # Errors
+    ///
+    /// The fill certification/encryption guards; an appearance failure as
+    /// [`Self::fill_text_field`].
+    pub fn purge_password_values(&mut self) -> Result<PasswordPurgeOutcome, EditError> {
+        self.fill_guards()?;
+        let mut out = PasswordPurgeOutcome::default();
+        let Some(form) = forms::parse_acroform(&self.graph()) else {
+            return Ok(out);
+        };
+        let targets: Vec<Field> = form
+            .fields
+            .iter()
+            .filter(|f| {
+                f.field_type == Some(FieldType::Text)
+                    && f.flags.has(forms::FieldFlags::PASSWORD)
+                    && matches!(&f.value, forms::FieldValue::Text(t) if !t.is_empty())
+            })
+            .cloned()
+            .collect();
+        if targets.is_empty() {
+            return Ok(out);
+        }
+        let fonts = self.resolve_dr_fonts();
+        let default_da = form
+            .default_appearance
+            .clone()
+            .unwrap_or_else(|| b"/Helv 0 Tf 0 g".to_vec());
+
+        let mut objects: Vec<ObjectWrite> = Vec::new();
+        let mut superseded: Vec<ObjId> = Vec::new();
+        for field in &targets {
+            let Some(Object::Dict(field_dict)) = self.value(field.id) else {
+                return Err(EditError::NotADictionary {
+                    id: field.id,
+                    key: "V",
+                });
+            };
+            if field_dict.get(b"V").is_none() {
+                out.inherited_not_removed
+                    .push(field.fully_qualified_name.clone());
+                continue;
+            }
+            let mut updated = field_dict.clone();
+            updated.remove(b"V");
+            for w in &field.widgets {
+                superseded.extend(self.appearance_object_ids(w.id));
+            }
+            let merged_ap = self.regen_field_appearance(
+                field,
+                "",
+                &default_da,
+                field.flags.has(forms::FieldFlags::MULTILINE),
+                &fonts,
+                &mut objects,
+                &mut out.layout.applied_autosize,
+                &mut out.layout.applied_autosize_bound,
+                &mut out.layout.da_colour_unmodelled,
+                &mut out.layout.unencodable_chars,
+                &PendingWidgetEdit::default(),
+            )?;
+            if let Some(ap_id) = merged_ap {
+                let mut ap = Dict::new();
+                ap.insert(Name::from(b"N"), Object::Reference(ap_id));
+                updated.insert(Name::from(b"AP"), Object::Dict(ap));
+            }
+            objects.push(ObjectWrite {
+                id: field.id,
+                before: self.state.get(&field.id).cloned(),
+                after: Some(Object::Dict(updated)),
+            });
+            out.fields_purged.push(field.fully_qualified_name.clone());
+            if field.flags.read_only() {
+                out.read_only_purged
+                    .push(field.fully_qualified_name.clone());
+            }
+        }
+        if out.fields_purged.is_empty() {
+            return Ok(out);
+        }
+
+        // Candidates are the superseded appearances and what they reach; a
+        // candidate still reachable from the trailer after the writes is
+        // shared and stays (the delete-pages sweep's pairing).
+        let candidates = reachable(&self.graph(), &superseded, &HashSet::new());
+        let scratch: BTreeMap<ObjId, Object> = objects
+            .iter()
+            .filter_map(|w| w.after.clone().map(|v| (w.id, v)))
+            .collect();
+        let none_removed = HashSet::new();
+        let live_after = {
+            let pending = PendingGraph {
+                session: self,
+                scratch: &scratch,
+                removed: &none_removed,
+            };
+            let mut roots: Vec<ObjId> = Vec::new();
+            roots.extend(pending.catalog_id());
+            roots.extend(
+                pending
+                    .trailer_entry(b"Info")
+                    .and_then(Object::as_reference),
+            );
+            reachable(&pending, &roots, &HashSet::new())
+        };
+        let removals: Vec<Removal> = candidates
+            .into_iter()
+            .filter(|id| {
+                !live_after.contains(id) && !self.deleted.contains(id) && self.value(*id).is_some()
+            })
+            .map(|id| Removal {
+                id,
+                was_deleted: false,
+                is_deleted: true,
+            })
+            .collect();
+        out.appearance_objects_removed = removals.len();
+
+        self.commit(Command {
+            kind: CommandKind::PurgePasswordValues,
+            objects,
+            removals,
+            trailer: None,
+        });
+        Ok(out)
+    }
+
+    /// Every object id a widget's `/AP` names: the `/AP` dict itself when
+    /// indirect, each `/N` `/R` `/D` entry, and each stream of a state
+    /// subdictionary (§12.5.5 Table 168).
+    fn appearance_object_ids(&self, widget: ObjId) -> Vec<ObjId> {
+        let mut out = Vec::new();
+        let Some(Object::Dict(d)) = self.value(widget) else {
+            return out;
+        };
+        let ap = match d.get(b"AP") {
+            Some(Object::Reference(r)) => {
+                out.push(*r);
+                self.value(*r)
+            }
+            other => other,
+        };
+        let Some(Object::Dict(ap)) = ap else {
+            return out;
+        };
+        for key in [&b"N"[..], b"R", b"D"] {
+            match ap.get(key) {
+                Some(Object::Reference(r)) => {
+                    out.push(*r);
+                    if let Some(Object::Dict(states)) = self.value(*r) {
+                        out.extend(states.iter().filter_map(|(_, v)| v.as_reference()));
+                    }
+                }
+                Some(Object::Dict(states)) => {
+                    out.extend(states.iter().filter_map(|(_, v)| v.as_reference()));
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
     /// Removals for each widget's current `/AP` `/N` stream when this session
     /// created it: a regeneration supersedes it, and left in place it is an
     /// unreferenced object still written on save. Used for `Password`
@@ -47963,6 +48212,35 @@ fn preserve_inherited(
         }
     }
     out
+}
+
+/// Drop every object stream (§7.5.7) holding an object `dirty` names,
+/// promoting that stream's other objects to file level so none is lost.
+/// `save_full` copies a container verbatim, so without this the previous
+/// value of an edited compressed object survives in the output.
+pub(crate) fn decompose_object_stream_containers(
+    doc: &Document,
+    dirty: &mut crate::writer::DirtySet,
+) -> ContainerDecomposition {
+    let touched: BTreeSet<ObjId> = dirty.iter().collect();
+    let containers: BTreeSet<ObjId> = touched
+        .iter()
+        .filter_map(|id| doc.get(*id).and_then(|io| io.provenance.container()))
+        .collect();
+    let mut objects_promoted = 0;
+    for container in &containers {
+        for io in doc.objects() {
+            if io.provenance.container() == Some(*container) && !touched.contains(&io.id) {
+                dirty.replace(io.id, io.value.clone());
+                objects_promoted += 1;
+            }
+        }
+        dirty.delete(*container);
+    }
+    ContainerDecomposition {
+        containers: containers.len(),
+        objects_promoted,
+    }
 }
 
 /// Every object reachable from `roots`, over `graph`.

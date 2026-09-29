@@ -1174,6 +1174,91 @@ pub(crate) fn cmd_password_values(input: &Path) -> u8 {
     0
 }
 
+/// `purge-password-values`: purge in the session, then always the decomposing
+/// full rewrite, because an incremental save or a verbatim container copy would
+/// keep the value. The output is re-scanned so the exit code reports what the
+/// file actually holds, not what the purge intended.
+pub(crate) fn cmd_purge_password_values(
+    input: &Path,
+    output: &Path,
+    invalidate_signatures: bool,
+) -> u8 {
+    use pdfcer_core::writer::SaveOptions;
+    let (_source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let impact = session.signature_impact_of_save(CoreSaveMode::FullRewrite);
+    if session.signature_census().any() && !invalidate_signatures {
+        eprintln!(
+            "pdfcer: {}: this document is signed. Removing the values needs a full rewrite, which \
+invalidates every signature; pass --invalidate-signatures to do it anyway.",
+            input.display()
+        );
+        return exit::EDIT_REFUSED;
+    }
+    let outcome = match session.purge_password_values() {
+        Ok(o) => o,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let (bytes, _report, decomposition) =
+        match session.to_full_bytes_decomposing_containers(&SaveOptions::default()) {
+            Ok(saved) => saved,
+            Err(err) => {
+                eprintln!("pdfcer: save refused: {err}");
+                return exit::SAVE_REFUSED;
+            }
+        };
+    if let Err(err) = std::fs::write(output, &bytes) {
+        eprintln!("pdfcer: {}: {err}", output.display());
+        return exit::IO_ERROR;
+    }
+    for name in &outcome.fields_purged {
+        println!(
+            "purged field={} read_only={}",
+            sanitize_token(name),
+            u8::from(outcome.read_only_purged.contains(name))
+        );
+    }
+    for name in &outcome.inherited_not_removed {
+        eprintln!(
+            "pdfcer: field \"{name}\": its value is inherited from a parent field, which may hold \
+other fields' values too, so it was not removed and is still in the output."
+        );
+    }
+    if !outcome.read_only_purged.is_empty() {
+        eprintln!(
+            "pdfcer: {} read-only password field(s) were purged as well.",
+            outcome.read_only_purged.len()
+        );
+    }
+    let rescan =
+        pdfcer_core::password_history::scan_stored_password_values(&bytes, open_document_bytes);
+    let remaining = rescan.stored.len();
+    println!(
+        "purge-password-values {} -> {} purged={} read_only={} inherited={} appearances_removed={} \
+containers_unpacked={} remaining={remaining} signature={}",
+        input.display(),
+        output.display(),
+        outcome.fields_purged.len(),
+        outcome.read_only_purged.len(),
+        outcome.inherited_not_removed.len(),
+        outcome.appearance_objects_removed,
+        decomposition.containers,
+        signature_token(impact),
+    );
+    report_signature(input, impact);
+    if remaining > 0 {
+        eprintln!(
+            "pdfcer: {}: {remaining} stored password value(s) remain in the output; run \
+password-values on it to see which fields.",
+            output.display()
+        );
+        return exit::EDIT_REFUSED;
+    }
+    exit::SUCCESS
+}
+
 /// After an incremental fill of a password field, state which of the filled
 /// fields still have a value in the input's revisions: the save appended, so
 /// every one of them is still in the output's bytes.

@@ -6842,6 +6842,35 @@ pub(crate) enum Command {
         input: PathBuf,
     },
 
+    /// Remove every stored password-field value and write a clean copy.
+    ///
+    /// Removes each password field's stored value, redraws its appearance
+    /// empty, and writes the whole file fresh: earlier revisions are dropped,
+    /// and any compressed object stream holding a changed object is unpacked,
+    /// so no old copy of the value survives in the output's bytes. The output
+    /// is then scanned again and the result printed.
+    ///
+    /// A value inherited from a parent field is not removed (the parent may
+    /// hold other fields' values) and is named on stderr. A full rewrite
+    /// breaks every digital signature, so a signed file is refused unless
+    /// --invalidate-signatures is given.
+    ///
+    /// Prints `purged field=<name> read_only=0|1` per field, then
+    /// `purge-password-values <in> -> <out> purged= read_only= inherited=
+    /// appearances_removed= containers_unpacked= remaining= signature=`.
+    /// Exit 0 when the output holds no stored value, 9 when one remains.
+    PurgePasswordValues {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output PDF.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Write the output even though the file is signed. The rewrite
+        /// invalidates every signature.
+        #[arg(long)]
+        invalidate_signatures: bool,
+    },
+
     /// Fill one or more interactive-form fields and save (Pass 7).
     ///
     /// Each `--set NAME=VALUE` sets a field by fully-qualified name: a text

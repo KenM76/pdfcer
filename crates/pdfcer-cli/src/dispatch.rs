@@ -1702,6 +1702,11 @@ pub(crate) fn run() -> ExitCode {
             reproducible_only,
         } => cmd_list_scripts(&input, reproducible_only),
         Command::PasswordValues { input } => cmd_password_values(&input),
+        Command::PurgePasswordValues {
+            input,
+            output,
+            invalidate_signatures,
+        } => cmd_purge_password_values(&input, &output, invalidate_signatures),
         Command::FillField {
             input,
             sets,

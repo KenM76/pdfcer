@@ -37,8 +37,15 @@ impl Drop for TempDir {
 
 /// A one-page form whose Password text field `pin` stores `/V (hunter2)`.
 fn form_storing_password() -> Vec<u8> {
-    let objs = [
-        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] >> >>".to_owned(),
+    form(false)
+}
+
+/// [`form_storing_password`]; `signed` adds a signature field whose `/V` is a
+/// signature dictionary (ISO 32000-1 Table 252).
+fn form(signed: bool) -> Vec<u8> {
+    let fields = if signed { "[4 0 R 5 0 R]" } else { "[4 0 R]" };
+    let mut objs = vec![
+        format!("<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields {fields} >> >>"),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Annots [4 0 R] >>".to_owned(),
         format!(
@@ -46,6 +53,13 @@ fn form_storing_password() -> Vec<u8> {
              /Rect [10 10 100 30] /P 3 0 R /V ({SECRET}) >>"
         ),
     ];
+    if signed {
+        objs.push(
+            "<< /FT /Sig /T (sig) /V << /Type /Sig /Filter /Adobe.PPKLite \
+             /ByteRange [0 0 0 0] /Contents <00> >> >>"
+                .to_owned(),
+        );
+    }
     let mut out = b"%PDF-1.4\n".to_vec();
     let mut offs = Vec::new();
     for (i, o) in objs.iter().enumerate() {
@@ -53,12 +67,14 @@ fn form_storing_password() -> Vec<u8> {
         out.extend_from_slice(format!("{} 0 obj\n{o}\nendobj\n", i + 1).as_bytes());
     }
     let xref_at = out.len();
-    out.extend_from_slice(b"xref\n0 5\n0000000000 65535 f \n");
+    let size = objs.len() + 1;
+    out.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
     for off in offs {
         out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
     }
     out.extend_from_slice(
-        format!("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n").as_bytes(),
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
     );
     out
 }
@@ -146,4 +162,81 @@ fn a_full_rewrite_fill_leaves_no_revision_holding_a_value_and_says_nothing() {
         "{}",
         summary(&output)
     );
+}
+
+fn purge(input: &std::path::Path, output: &std::path::Path, extra: &[&str]) -> Output {
+    let mut args = vec![
+        "purge-password-values",
+        input.to_str().unwrap(),
+        "-o",
+        output.to_str().unwrap(),
+    ];
+    args.extend_from_slice(extra);
+    let out = run(&args);
+    assert!(!text(&out.stdout).contains(SECRET), "the value was printed");
+    assert!(!text(&out.stderr).contains(SECRET), "the value was printed");
+    out
+}
+
+#[test]
+fn purging_a_file_with_history_leaves_no_value_in_any_revision() {
+    let dir = TempDir::new("purge");
+    let input = dir.join("in.pdf");
+    let filled = dir.join("filled.pdf");
+    let output = dir.join("out.pdf");
+    std::fs::write(&input, form_storing_password()).unwrap();
+    // An incremental fill leaves the old value in revision 0.
+    fill(&input, &filled, &[]);
+    let out = purge(&filled, &output, &[]);
+    assert_eq!(out.status.code(), Some(0), "stderr: {}", text(&out.stderr));
+    let stdout = text(&out.stdout);
+    // The opened revision already withholds the value; the rewrite alone
+    // drops the revision that stored it.
+    assert!(
+        stdout.contains(" purged=0 ") && stdout.contains(" remaining=0 "),
+        "{stdout}"
+    );
+    let bytes = std::fs::read(&output).unwrap();
+    assert!(!bytes.windows(SECRET.len()).any(|w| w == SECRET.as_bytes()));
+    assert!(!bytes.windows(7).any(|w| w == b"new-pin"));
+    assert!(
+        summary(&output).ends_with("revisions=1 unreadable_revisions=0 latest=0 superseded=0"),
+        "{}",
+        summary(&output)
+    );
+}
+
+#[test]
+fn a_signed_file_is_refused_unless_the_operator_accepts_invalidation() {
+    let dir = TempDir::new("signed");
+    let input = dir.join("in.pdf");
+    let output = dir.join("out.pdf");
+    std::fs::write(&input, form(true)).unwrap();
+    let out = purge(&input, &output, &[]);
+    assert_eq!(out.status.code(), Some(9), "stderr: {}", text(&out.stderr));
+    assert!(text(&out.stderr).contains("--invalidate-signatures"));
+    assert!(!output.exists(), "a refused purge wrote an output");
+
+    let out = purge(&input, &output, &["--invalidate-signatures"]);
+    assert_eq!(out.status.code(), Some(0), "stderr: {}", text(&out.stderr));
+    assert!(text(&out.stdout).contains("signature=invalidated"));
+    assert!(text(&out.stderr).contains("INVALIDATES"));
+}
+
+#[test]
+fn purging_the_opened_revision_names_the_field_and_removes_the_value() {
+    let dir = TempDir::new("purge-latest");
+    let input = dir.join("in.pdf");
+    let output = dir.join("out.pdf");
+    std::fs::write(&input, form_storing_password()).unwrap();
+    let out = purge(&input, &output, &[]);
+    assert_eq!(out.status.code(), Some(0), "stderr: {}", text(&out.stderr));
+    let stdout = text(&out.stdout);
+    assert!(stdout.contains("purged field=pin read_only=0"), "{stdout}");
+    assert!(
+        stdout.contains(" purged=1 ") && stdout.contains(" remaining=0 "),
+        "{stdout}"
+    );
+    let bytes = std::fs::read(&output).unwrap();
+    assert!(!bytes.windows(SECRET.len()).any(|w| w == SECRET.as_bytes()));
 }
