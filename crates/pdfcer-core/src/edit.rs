@@ -435,6 +435,9 @@ pub enum CommandKind {
         /// How many annotations ended up at a different index.
         count: usize,
     },
+    /// One page's `/Tabs` entry was written or removed
+    /// ([`EditSession::set_page_tabs`]).
+    SetPageTabs,
     /// Several pages were rotated in one operation (Pass 3.2).
     RotatePages {
         /// How many pages the one operation turned.
@@ -8360,6 +8363,48 @@ pub enum EditError {
     AnnotsNotAnArray {
         /// The offending page object.
         page: ObjId,
+    },
+    /// [`EditSession::set_page_tabs`] was asked for `/Tabs /A` or `/W`,
+    /// which ISO 32000-2 Table 31 added, in a document whose version is
+    /// below 2.0 (§7.2.2, header or catalog `/Version`, whichever is later).
+    #[error(
+        "/Tabs /{value} is a PDF 2.0 value (ISO 32000-2 Table 31) and this document is PDF \
+         {version}; pdfcer refuses rather than write syntax the file's version does not define"
+    )]
+    TabsNeedPdf20 {
+        /// The page whose entry was to be written.
+        page: ObjId,
+        /// `"A"` or `"W"`.
+        value: &'static str,
+        /// The document's effective version.
+        version: crate::PdfVersion,
+    },
+    /// [`EditSession::set_page_tabs`] would make a document that declares
+    /// PDF/UA conformance (XMP `pdfuaid:part`) non-conforming. PDF/UA-1
+    /// (ISO 14289-1 §7.18.3) requires `/Tabs /S` on every page with an
+    /// annotation; PDF/UA-2 (ISO 14289-2 §8.9.3.3) permits `A`, `W` or `S`.
+    /// An unreadable part number is held to `S`, the value both permit.
+    #[error(
+        "this document declares PDF/UA-{part} conformance, which permits only /Tabs {permitted} \
+         here; writing {value} would make it non-conforming, so pdfcer refuses"
+    )]
+    TabsBreakPdfUa {
+        /// The page whose entry was to be written.
+        page: ObjId,
+        /// The requested value as `/X`, or `no /Tabs entry` for a removal.
+        value: String,
+        /// The declared part, verbatim, or `?` when it could not be read.
+        part: String,
+        /// The values that part permits, e.g. `/S`.
+        permitted: &'static str,
+    },
+    /// [`EditSession::set_page_tabs`] was given [`PageTabs::Other`]. Neither
+    /// edition defines a value beyond `R`/`C`/`S`/`A`/`W`, so there is no
+    /// meaning to write.
+    #[error("/Tabs /{value} is not a value ISO 32000 defines, so pdfcer will not write it")]
+    TabsValueUndefined {
+        /// The name that was requested.
+        value: String,
     },
     /// [`EditSession::delete_redaction_mark`] was given an object that is
     /// not a `/Redact` annotation listed on some page's `/Annots`.
@@ -34511,7 +34556,7 @@ impl EditSession {
     /// same write turns a conforming document into a non-conforming one.
     /// (PDF/UA-2 §8.9.3.3 permits `A`, `W` or `S`; PDF/A says nothing.)
     /// Recording the order is therefore a separate, explicit act with its
-    /// own verb, not a side effect of a drag — which is also what the parity
+    /// own verb, [`Self::set_page_tabs`], not a side effect of a drag — which is also what the parity
     /// reference does: Acrobat's manual tab order is an `/Annots` permutation
     /// with no `/Tabs` written.
     ///
@@ -34847,6 +34892,138 @@ impl EditSession {
             annot_states_permuted,
             goto_e_targets_reindexed,
         })
+    }
+
+    /// Write (or remove) a page's `/Tabs` entry — the tab order the file
+    /// states (ISO 32000-1 §7.7.3.3 Table 30; ISO 32000-2 Table 31 adds `A`
+    /// and `W`). [`PageTabs::Absent`] removes the entry. Returns what the
+    /// page stated before; an unchanged value records nothing.
+    ///
+    /// This is the explicit act [`Self::reorder_annotations`] deliberately
+    /// does not perform: a reorder never writes `/Tabs`.
+    ///
+    /// # Refusals
+    ///
+    /// - `A`/`W` in a document below PDF 2.0: syntax the file's version does
+    ///   not define.
+    /// - A document declaring PDF/UA (XMP `pdfuaid:part`): part 1 permits
+    ///   only `S`, part 2 `A`, `W` or `S` (ISO 14289-1 §7.18.3, ISO 14289-2
+    ///   §8.9.3.3). `R`/`C` are refused on any page; removing the entry is
+    ///   refused only on a page that has annotations, which is where the
+    ///   rule applies. Detection is a byte scan of the metadata packet, as
+    ///   for PDF/A; an undecodable packet counts as no claim.
+    ///
+    /// `/W` is legal but its tail is contested inside ISO 32000-2 (Table 31
+    /// vs §12.5.1); [`PageTabs::array_order_governs`] reports `Widgets` for
+    /// it so a caller can disclose that. `/Tabs` is not inheritable
+    /// (§7.7.3.3), so only the page's own dictionary is written.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::CertificationForbidsChange`].
+    /// - [`EditError::PageOutOfRange`].
+    /// - [`EditError::NotADictionary`] — the page object is not a dictionary.
+    /// - [`EditError::TabsNeedPdf20`], [`EditError::TabsBreakPdfUa`],
+    ///   [`EditError::TabsValueUndefined`].
+    pub fn set_page_tabs(
+        &mut self,
+        page_index: usize,
+        tabs: PageTabs,
+    ) -> Result<PageTabs, EditError> {
+        self.check_certification()?;
+        let slots = self.page_slots()?;
+        let page_id = slots
+            .get(page_index)
+            .ok_or(EditError::PageOutOfRange {
+                index: page_index,
+                count: slots.len(),
+            })?
+            .id;
+        let Some(Object::Dict(page)) = self.value(page_id) else {
+            return Err(EditError::NotADictionary {
+                id: page_id,
+                key: "Tabs",
+            });
+        };
+        let page = page.clone();
+        let previous = PageTabs::from_entry(page.get(b"Tabs"));
+
+        let name: Option<&'static str> = match &tabs {
+            PageTabs::Absent => None,
+            PageTabs::Row => Some("R"),
+            PageTabs::Column => Some("C"),
+            PageTabs::Structure => Some("S"),
+            PageTabs::ArrayOrder => Some("A"),
+            PageTabs::WidgetOrder => Some("W"),
+            PageTabs::Other(v) => {
+                return Err(EditError::TabsValueUndefined { value: v.clone() });
+            }
+        };
+
+        if let Some(value @ ("A" | "W")) = name {
+            let version = self.base.version();
+            if version < (crate::PdfVersion { major: 2, minor: 0 }) {
+                return Err(EditError::TabsNeedPdf20 {
+                    page: page_id,
+                    value,
+                    version,
+                });
+            }
+        }
+
+        if let Some(part) = crate::font_unembed::declared_pdfua_part(&self.view()) {
+            let (permitted, allowed): (&'static str, &[&str]) = match part.as_deref() {
+                Some("2") => ("/A, /W or /S", &["A", "W", "S"]),
+                _ => ("/S", &["S"]),
+            };
+            let offends = match name {
+                Some(n) => !allowed.contains(&n),
+                None => self.page_has_annotations(&page),
+            };
+            if offends {
+                return Err(EditError::TabsBreakPdfUa {
+                    page: page_id,
+                    value: name.map_or_else(|| "no /Tabs entry".to_owned(), |n| format!("/{n}")),
+                    part: part.unwrap_or_else(|| "?".to_owned()),
+                    permitted,
+                });
+            }
+        }
+
+        if previous == tabs {
+            return Ok(previous);
+        }
+        let mut updated = page;
+        match name {
+            Some(n) => {
+                updated.insert(Name::from(b"Tabs"), Object::Name(Name::from(n.as_bytes())));
+            }
+            None => {
+                updated.remove(b"Tabs");
+            }
+        }
+        self.commit(Command {
+            kind: CommandKind::SetPageTabs,
+            objects: vec![ObjectWrite {
+                id: page_id,
+                before: self.state.get(&page_id).cloned(),
+                after: Some(Object::Dict(updated)),
+            }],
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(previous)
+    }
+
+    /// Whether a page dictionary's `/Annots` holds at least one entry.
+    fn page_has_annotations(&self, page: &Dict) -> bool {
+        match page.get(b"Annots") {
+            Some(Object::Array(a)) => !a.is_empty(),
+            Some(Object::Reference(id)) => {
+                matches!(self.value(*id), Some(Object::Array(a)) if !a.is_empty())
+            }
+            _ => false,
+        }
     }
 
     /// Re-index every `/GoToE` target dictionary in the document whose `/A`

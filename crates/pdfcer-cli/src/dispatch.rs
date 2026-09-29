@@ -1480,6 +1480,14 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_reorder_annotations(&input, page, &order, &output, mode, verify_undo),
+        Command::SetPageTabs {
+            input,
+            page,
+            tabs,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_set_page_tabs(&input, page, &tabs, &output, mode, verify_undo),
         Command::RotateAnnotation {
             input,
             page,

@@ -418,6 +418,28 @@ pub fn detect_pdfa(view: &DocumentView<'_>) -> PdfaClaim {
     PdfaClaim::None
 }
 
+/// Whether the document declares PDF/UA conformance: `Some(part)` when its
+/// XMP packet carries `pdfuaid:part` (the part verbatim, or `None` when it
+/// cannot be read). Same byte scan and bound as [`detect_pdfa`]; a missing
+/// or undecodable packet answers `None`, no claim.
+pub(crate) fn declared_pdfua_part(view: &DocumentView<'_>) -> Option<Option<String>> {
+    let catalog = view
+        .trailer_entry(b"Root")
+        .map(|o| view.resolve(o))
+        .and_then(Object::as_dict)?;
+    let Object::Stream(stream) = view.resolve(catalog.get(b"Metadata")?) else {
+        return None;
+    };
+    let bytes = view
+        .slice(stream.data_span)
+        .and_then(|raw| crate::filters::decode_stream(&stream.dict, raw).ok())?;
+    let window = bytes
+        .get(..bytes.len().min(MAX_METADATA_SCAN_BYTES))
+        .unwrap_or(&bytes);
+    find_bytes(window, b"pdfuaid:part")?;
+    Some(xmp_short_value(window, b"pdfuaid:part"))
+}
+
 /// Look for `pdfaid:part` in a decoded XMP packet.
 ///
 /// Returns `None` when the property is absent, so the caller can fall

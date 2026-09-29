@@ -5957,6 +5957,41 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **State a page's tab order** — write or remove its `/Tabs` entry.
+    ///
+    /// `--tabs` is `R` (row), `C` (column), `S` (structure tree), `A`
+    /// (annotation-array order) or `W` (widgets first, in array order), or
+    /// `none` to remove the entry. `A` and `W` are PDF 2.0 values and are
+    /// refused in an older file. `W`'s order after the widgets is contested
+    /// inside ISO 32000-2 itself; pdfcer reads it as array order.
+    ///
+    /// A file that declares PDF/UA is held to it: PDF/UA-1 permits only `S`
+    /// on a page with annotations, PDF/UA-2 permits `A`, `W` or `S`. A value
+    /// that would break the declared conformance is refused, exit 1.
+    ///
+    /// Only the one page's dictionary changes; `/Tabs` is not inherited. The
+    /// value the page had before is printed as `was=`. Writing the value the
+    /// page already has changes nothing and records nothing.
+    SetPageTabs {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page whose tab order is stated.
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        /// `R`, `C`, `S`, `A`, `W`, or `none` to remove the entry.
+        #[arg(long, value_parser = ["R", "C", "S", "A", "W", "none"])]
+        tabs: String,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// How to save: incremental (default) or full rewrite.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the edit reproduces the input file
+        /// byte for byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Rotate an annotation** about a point (`Pass 155.0`) — the third
     /// transform, after `move-annotation` and `resize-annotation`.
     ///

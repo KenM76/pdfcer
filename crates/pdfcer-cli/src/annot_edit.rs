@@ -1628,6 +1628,89 @@ pub(crate) fn cmd_reorder_annotations(
     finish_edit(input, &saved)
 }
 
+/// The `/Tabs` name a [`pdfcer_core::edit::PageTabs`] carries, `none` when
+/// absent.
+fn page_tabs_label(tabs: &pdfcer_core::edit::PageTabs) -> String {
+    use pdfcer_core::edit::PageTabs;
+    match tabs {
+        PageTabs::Absent => "none".to_owned(),
+        PageTabs::Row => "R".to_owned(),
+        PageTabs::Column => "C".to_owned(),
+        PageTabs::Structure => "S".to_owned(),
+        PageTabs::ArrayOrder => "A".to_owned(),
+        PageTabs::WidgetOrder => "W".to_owned(),
+        PageTabs::Other(name) => name.clone(),
+        _ => "?".to_owned(),
+    }
+}
+
+/// `set-page-tabs` — write or remove one page's `/Tabs`.
+pub(crate) fn cmd_set_page_tabs(
+    input: &Path,
+    page: usize,
+    tabs: &str,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    use pdfcer_core::edit::PageTabs;
+    if page == 0 {
+        eprintln!(
+            "pdfcer: {}: --page is 1-based; 0 is not a page",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    let requested = match tabs {
+        "R" => PageTabs::Row,
+        "C" => PageTabs::Column,
+        "S" => PageTabs::Structure,
+        "A" => PageTabs::ArrayOrder,
+        "W" => PageTabs::WidgetOrder,
+        _ => PageTabs::Absent,
+    };
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let was = match session.set_page_tabs(page - 1, requested.clone()) {
+        Ok(was) => was,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    if was == requested {
+        eprintln!(
+            "pdfcer: {}: page {page} already states /Tabs {tabs}; nothing changed and nothing was recorded.",
+            input.display()
+        );
+    }
+    if requested == PageTabs::WidgetOrder {
+        eprintln!(
+            "pdfcer: {}: /Tabs /W orders widgets by the /Annots array. What follows them is contested inside ISO 32000-2 itself (Table 31 says array order, 12.5.1 says row order); pdfcer reads Table 31.",
+            input.display()
+        );
+    }
+    let saved = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(saved) => saved,
+        Err(code) => return code,
+    };
+    println!(
+        "set-page-tabs {} page={page} tabs={tabs} was={} mode={} -> {}; {}",
+        input.display(),
+        page_tabs_label(&was),
+        mode.name(),
+        output.display(),
+        edit_metrics(&saved)
+    );
+    finish_edit(input, &saved)
+}
+
 /// `move-annotation` — translate one annotation and every geometry key it
 /// carries (`Pass 149.0`).
 ///

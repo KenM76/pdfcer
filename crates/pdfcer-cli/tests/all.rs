@@ -68,6 +68,7 @@ mod save_refusal_hints;
 mod scale_pages;
 mod set_crop_box;
 mod set_markup_style_cloud;
+mod set_page_tabs;
 mod sign_certify;
 mod sign_into_field;
 mod sign_timestamp;

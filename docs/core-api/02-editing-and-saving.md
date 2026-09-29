@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 285 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 286 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 285 public `EditSession` methods
+## 1. Verb index — all 286 public `EditSession` methods
 
-**Count: 285.** Established by brace-matched extraction of the six
+**Count: 286.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -1808,6 +1808,7 @@ always errors.
 | **Set** an annotation's rotation ABSOLUTELY | `set_annotation_rotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | **`Pass 155.2`, `pdfcer-gui` request 2026-09-07.** `degrees` is measured anticlockwise **from the annotation's authored orientation** — the same zero `Annotation::appearance_rotation_degrees` reports against, because both go through `annot::rotation_degrees`. Reads the current angle out of the file and applies the difference, so it is **idempotent**: setting 45 twice moves nothing the second time. This is what a typed properties field needs; `rotate_annotation` stays the drag-grip delta. Returns that verb's outcome unchanged, so `AnnotationRotate::degrees` is **the delta applied, not the absolute target**. ⚠️ **Refuses `AnnotationRotationUnreadable`** when the current angle cannot be read (no appearance stream — §12.5.2 requires `/Rect` upright, so there is nowhere to record one — or a `/Matrix` carrying a shear or a mirror, which is not an angle). It refuses rather than assuming zero: an operator typing 45 on an object already at 30 would silently get 75. **`rotate_annotation` still works on both**, because a delta needs no starting angle. |
 | Preview an annotation deletion | `annotation_deletion_preview(&self, annot_id) -> Result<AnnotationDeletion, EditError>` | Pure `&self` query. |
 | **Reorder** a page's annotations — the tab order | `reorder_annotations(&mut self, page_index: usize, new_order: &[ObjId]) -> Result<AnnotsReorder, EditError>` | `Pass 237.0`. Permutes the page's `/Annots` array, **moving references and nothing else** — no annotation dictionary is read or written, so every widget keeps its id, its field, its `/Parent` chain and its `/AA`. ONE undo entry. `new_order` is the page's indirect entries **by id**, each once; refuses `AnnotsNotAPermutation` (naming missing / unknown / repeated ids), `AnnotsDuplicateReference`, `TrapNetMustStayLast`, `AnnotStatesMismatch`. Honours the three `shall`s a permutation can break (TrapNet-last, `/AnnotStates`, `/GoToE` `/A`). **Reads `/Tabs`, never writes it** — see below. |
+| **State** a page's tab order — write or remove `/Tabs` | `set_page_tabs(&mut self, page_index: usize, tabs: PageTabs) -> Result<PageTabs, EditError>` | The explicit act `reorder_annotations` never performs. `PageTabs::Absent` removes the entry; returns the value the page had before. ONE undo entry (`CommandKind::SetPageTabs`); writing the value already there records **nothing**. Only the page's own dictionary changes (`/Tabs` is not inheritable, §7.7.3.3). Refuses `TabsNeedPdf20` (`A`/`W` below PDF 2.0 — header or catalog `/Version`, whichever is later), `TabsBreakPdfUa` (the file's XMP declares `pdfuaid:part`: part 1 permits only `S`, part 2 `A`/`W`/`S`, an unreadable part is held to `S`; removal offends only on a page with annotations), `TabsValueUndefined` (`PageTabs::Other`), plus `CertificationForbidsChange`, `PageOutOfRange`, `NotADictionary`. A shell offering `/W` should disclose its contested tail (`TAB-A1`). CLI: `set-page-tabs`. |
 | **Ask what order a reader tabs a page in** | `page_tab_sequence(&self, page_index: usize) -> Result<TabSequence, EditError>` | **`Pass 307.0`, `pdfcer-gui` request `G019`.** Pure `&self` query — nothing written, nothing staged, no command recorded. Answers all six `/Tabs` states: `/A` and `/W` are read off the array, `/R` and `/C` are **computed from `/Rect` geometry** with `/Rotate` applied and `/ViewerPreferences` `/Direction` honoured, `Absent` and an unknown name fall back to array order **as a disclosed convention**, and `/S` returns an **empty** sequence rather than a guess. `TabSequence::notes` is the rule-4 disclosure, ready to print verbatim. Refuses `PageOutOfRange`, `AnnotsNotAnArray`. **See the box below — the `derived` bool cannot say everything `basis` can.** |
 | Choose which reading of `/Tabs /W`'s contested tail to apply | `set_widget_tab_tail(&mut self, tail: WidgetTabTail)` / `widget_tab_tail(&self) -> WidgetTabTail` | `Pass 307.0`. Spec ambiguity `TAB-A1`: ISO 32000-2 Table 31 says the non-widget tail follows in `/Annots` order, §12.5.1 says row order, and the contradiction is unreported in the errata. Default `WidgetTabTail::ArrayOrder` (Table 31's). **Setting it never suppresses the disclosure** — a `/W` page's notes name the contradiction and the reading applied either way. Settings key `widget_tab_tail`; the shell reads the store and hands it over, as with `quad_point_order`. |
 | Set the row/column grouping tolerance | `set_tab_row_tolerance(&mut self, points: f64)` / `tab_row_tolerance(&self) -> f64` | `Pass 307.0`. In points; clamped to `MIN_TAB_ROW_TOLERANCE`..=`MAX_TAB_ROW_TOLERANCE` (0..=72), and a non-finite value is **ignored** rather than stored — a `NaN` here would make no two annotations ever share a row. Default `DEFAULT_TAB_ROW_TOLERANCE` = **1.0**. Adjustable because §12.5.1 states no tolerance at all: the number is pdfcer's, so an operator whose forms disagree with it needs somewhere to say so. Settings key `tab_row_tolerance`. |
@@ -2418,7 +2419,7 @@ rather than pushed onto every consumer as an unconstructable type.
 > permutation is fully conforming; **(4)** the parity reference agrees:
 > Acrobat's *manual* tab order is an `/Annots` permutation with **no
 > `/Tabs` written**. Recording the order is a separate, explicit act with its
-> own (future) `set_page_tabs` verb, which is where `/A`/`/W` can be offered
+> own verb, `set_page_tabs`, which is where `/A`/`/W` can be offered
 > to an operator who knows the cost. **Never rewrite `/S` → `/A` to make a
 > drag stick** — that is the shape rule 4 was narrowed twice to forbid.
 >
@@ -4468,7 +4469,7 @@ changed).
 
 ### 3.2 Undo granularity — what makes ONE entry
 
-`CommandKind` has **46 variants** (`edit.rs`) and each one's doc comment
+`CommandKind` has **110 variants** (`edit.rs`) and each one's doc comment
 states its granularity explicitly. The rule, stated once: **one operator gesture is one entry**, and
 every object the gesture must touch to leave a valid document goes in that entry.
 
@@ -5047,7 +5048,7 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**153 variants** since Bates numbering (`Bates(BatesError)` added; 152 at `Pass 375.0`, `CropBoxEmpty` added; at `Pass 370.0`, 151: `NotALinearDimension` removed: `place_dimension` now accepts every kind, and nothing else raised it), counted at depth 1 inside `pub enum EditError`.
+**156 variants**, counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
@@ -5108,12 +5109,13 @@ Grouped for a shell's error presenter:
 `DocumentEncrypted` 2765 · `CertificationForbidsChange` 2722 ·
 `SidecarWrittenByNewerBuild` 2415 · `ObjectCreationWouldExposeHiddenObjects` 2355 ·
 `FieldLockedBySignature` 3044 · `AnnotationLocked` 2917 · `AnnotationIsTrapNet` 2945 ·
-`AnnotationIsWidget` 2877 · `FieldAuthoringRefusedXfa` 2504 · `AttachmentTreeUnsupported` 2374
+`AnnotationIsWidget` 2877 · `FieldAuthoringRefusedXfa` 2504 · `AttachmentTreeUnsupported` 2374 ·
+`TabsNeedPdf20` · `TabsBreakPdfUa`
 
 **Bad argument from the shell (a bug in the shell, not the document)**
 `PageOutOfRange` 2303 · `RotationNotMultipleOf90` 2316 · `NotAPermutation` 3090 ·
 `WidgetIndexOutOfRange` 2582 · `FieldNameEmpty` 2696 · `FieldRectDegenerate` 2517 ·
-`ImageRectDegenerate` 3130 · `EmptyGeometry` 2771 ·
+`ImageRectDegenerate` 3130 · `EmptyGeometry` 2771 · `TabsValueUndefined` ·
 `NotACircularDimension` 2468 · `InvalidTolerance` 2481 · `NotARedactionMark` 2832 ·
 `ChoiceEditRequiresCombo` 2568 · `ChoiceRequiresMultiSelect` 3053 ·
 `ChoiceValueNotInOptions` 3067 · `CheckBoxOnStateInvalid` 2654 ·
