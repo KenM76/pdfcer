@@ -138,6 +138,27 @@ presence check yields 2 objects and the test fails; restored, passes.
 failure was this test's in-progress edit landing mid-run; that command
 re-run alone is green.
 
+**Also filed this session.** Chore commit `5ecfee12` ("chore: v0.66.0",
+`Cargo.toml` 0.65.0 → 0.66.0 plus `Cargo.lock`/`fuzz/Cargo.lock`) —
+recorded so `check-commits-filed.py` sees it filed. **Release in
+progress**: v0.66.0 will batch every Pass shipped since `v0.65.0`
+(`316478af`) — `401.0` (`/EmbeddedFiles` name-tree key ordering: dedicated
+test, `3b4935b9`), `402.0` (`R218` audit closed across all 34 `check-*`
+file-scanning gates, `409eb188`), `403.0` (a second incremental save of a
+hybrid-reference file no longer undoes the first, `35e77877`), `404.0`
+(fonts pdfcer adds to `/AcroForm` `/DR` are indirect objects, `27e97d92`),
+and `404.1` (this entry, `d805ba29`) — all already filed above.
+
+**Headline.** `403.0` fixes a second incremental save of a hybrid-
+reference file undoing the first; `404.0` fixes Acrobat drawing nothing
+for a filled text field once focus leaves when its font resolves to an
+inline `/DR` dictionary.
+
+OneDrive slot `pdfcer1` next (`v0.65.0` went to `pdfcer2`). Tag, GitHub
+release, OneDrive deploy, fresh-folder smoke test and `verify-release.py`
+not yet done; not yet confirmed from here — full release filing to follow
+once tag/deploy details are relayed.
+
 ### `Pass 404.0` (`27e97d92`), 2026-09-29 — fonts pdfcer adds to `/AcroForm` `/DR` are indirect objects
 
 pdfceGUI `G068` (operator `O262`). **Defect:** Acrobat Pro (and Reader) draw

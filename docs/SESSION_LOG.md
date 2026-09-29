@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (750th filing) — `5ecfee12`: chore — v0.66.0 version bump, release IN PROGRESS
+
+**Shipped:**
+- Chore commit `5ecfee12` ("chore: v0.66.0") bumps
+  `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.65.0 → 0.66.0. Recorded so
+  `check-commits-filed.py` sees it filed. Full details under `Pass
+  404.1`'s "Also filed this session" note in `ROADMAP.md`'s *Shipped*.
+
+**Still in flight:**
+- v0.66.0 release IN PROGRESS — batches `401.0`, `402.0`, `403.0`,
+  `404.0`, `404.1`, all already shipped since `v0.65.0` (`316478af`).
+  Headline: `403.0` fixes a second incremental save of a hybrid-reference
+  file undoing the first; `404.0` fixes Acrobat drawing nothing for a
+  filled text field once focus leaves when its font resolves to an
+  inline `/DR` dictionary. Tag, GitHub release, OneDrive deploy and
+  smoke test not yet done — OneDrive slot `pdfcer1` next (`v0.65.0` went
+  to `pdfcer2`).
+
+**For next session:**
+- No shell available this filing (hard rule 8). Backup/push/release state
+  not verifiable from here; latest release on record remains `v0.65.0`.
+
 ## 2026-09-29 (749th filing) — `d805ba29`: `Pass 404.1` shipped
 
 **Shipped:**
