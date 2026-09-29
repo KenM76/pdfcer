@@ -79,6 +79,10 @@ pub mod engine_ocrs;
 /// choice. The file is OCRcer's `integration/pdfcer/ocrcer_engine.rs`,
 /// applied unmodified.
 #[cfg(feature = "ocrcer")]
+// Its module doc links `OcrcerEngine::from_bytes`, which `//!` resolves from
+// this scope; the fix is OCRcer's (request_adapter_module_doc_link.md), and
+// editing the vendored copy would fail check-ocrcer-vendored.py.
+#[allow(rustdoc::broken_intra_doc_links)]
 pub mod engine_ocrcer;
 
 /// The PaddleOCR (PP-OCR) recogniser, behind the (default-on) `paddle`
