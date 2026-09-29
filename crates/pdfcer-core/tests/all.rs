@@ -16,6 +16,7 @@ mod annot_rotate_composable;
 mod annotation_clip_serialisation;
 mod annotation_open_state;
 mod annotation_rich_text_read;
+mod appearance_aliases_page_content;
 mod attachment_clipboard;
 mod attachments;
 mod bates_stamp;

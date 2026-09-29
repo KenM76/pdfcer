@@ -38014,6 +38014,11 @@ impl EditSession {
     ///   would restyle an annotation the operator never selected.
     /// * **Allocate (create)** — there is no `/AP` at all.
     ///
+    /// * **Allocate (copy)** — a page's `/Contents` or its own
+    ///   `/Resources` `/XObject` names the same stream. A crafted or
+    ///   careless file can alias page content as an appearance; rewriting
+    ///   it would replace the page's own drawing (§5 round-trip invariant).
+    ///
     /// The sharing test walks every page's `/Annots` once. That is a
     /// document-wide walk per restyle, which is affordable because a
     /// shell calls this on commit rather than per frame, and because
@@ -38042,8 +38047,13 @@ impl EditSession {
                 _ => AppearanceSlot::Allocate,
             });
         };
-        if matches!(self.value(ap_id), Some(Object::Dict(_))) {
-            return Err(EditError::AppearanceHasStates { id: annot_id });
+        match self.value(ap_id) {
+            Some(Object::Dict(_)) => {
+                return Err(EditError::AppearanceHasStates { id: annot_id });
+            }
+            Some(Object::Stream(_)) => {}
+            // A dangling or non-stream /N has nothing to rewrite in place.
+            _ => return Ok(AppearanceSlot::Allocate),
         }
 
         let slots = self.page_slots()?;
@@ -38052,6 +38062,9 @@ impl EditSession {
             let Some(Object::Dict(page)) = self.value(slot.id) else {
                 continue;
             };
+            if page_references_stream(&graph, page, ap_id) {
+                return Ok(AppearanceSlot::Allocate);
+            }
             let Some(Object::Array(annots)) = page.get(b"Annots").map(|o| graph.resolve(o)) else {
                 continue;
             };
@@ -66684,4 +66697,30 @@ fn markup_content_clip(
         annotations: Vec::new(),
         replies_unthreaded: 0,
     }
+}
+
+/// Whether `page`'s `/Contents` (a reference or an array of them) or its own
+/// `/Resources` `/XObject` dictionary names `id`. Inherited resources are not
+/// consulted: an inherited XObject is still reached through a page's content,
+/// which a stream reused as an appearance cannot be without appearing here.
+fn page_references_stream<G: ObjectGraph + ?Sized>(graph: &G, page: &Dict, id: ObjId) -> bool {
+    let names = |o: &Object| o.as_reference() == Some(id);
+    match page.get(b"Contents") {
+        Some(o) if names(o) => return true,
+        Some(o) => {
+            if let Object::Array(items) = graph.resolve(o)
+                && items.iter().any(names)
+            {
+                return true;
+            }
+        }
+        None => {}
+    }
+    let Some(Object::Dict(res)) = page.get(b"Resources").map(|o| graph.resolve(o)) else {
+        return false;
+    };
+    let Some(Object::Dict(xobjects)) = res.get(b"XObject").map(|o| graph.resolve(o)) else {
+        return false;
+    };
+    xobjects.iter().any(|(_, o)| names(o))
 }
