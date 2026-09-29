@@ -1425,9 +1425,6 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
 - **NEW — above ~1e8 scale a region render succeeds again** with an underflowed
   page-space span. Nothing panics; whether those pixels mean anything is its
   own measurement. Told the shell rather than letting them discover it.
-- **NEW — `check-reexport-closure.py` checks FIELDS, not method return types.**
-  A verb returning an un-re-exported type is the same class. Widen it against a
-  measurement, not a guess.
 - **`R221`'s recorded instance count is wrong** and a commit message made it
   worse. **Do not copy an ordinal from a commit message.**
 - ~~**`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.~~
