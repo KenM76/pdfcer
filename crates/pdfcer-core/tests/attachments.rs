@@ -620,3 +620,69 @@ fn detaching_an_unknown_name_is_refused() {
         "a refused detach must change nothing"
     );
 }
+
+/// Keys in a name tree's `/Names` array "shall be sorted lexically in
+/// ascending order", shorter before longer (ISO 32000-1 §7.9.6). Read from the
+/// saved array itself: `list_attachments` would hide an unsorted tree.
+#[test]
+fn attachments_inserted_out_of_order_are_written_in_sorted_key_order() {
+    use pdfcer_core::edit::EditSession;
+    use pdfcer_core::graph::ObjectGraph;
+    use pdfcer_core::object::Object;
+    use pdfcer_core::writer::{SaveOptions, save_full};
+
+    let doc = Document::from_bytes(
+        std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures/synthetic/minimal.pdf"),
+        )
+        .expect("read minimal.pdf"),
+    )
+    .expect("parse minimal.pdf");
+    let mut session = EditSession::new(doc);
+    for name in ["b.txt", "ab.txt", "B.txt", "a", "a.txt"] {
+        session.attach_file(name, b"x", None).expect("attach");
+    }
+    let (bytes, _) = save_full(
+        session.document(),
+        &session.dirty_set(),
+        &SaveOptions::identity(),
+    )
+    .expect("save");
+    let back = Document::from_bytes(bytes).expect("reload");
+
+    let Some(Object::Dict(catalog)) = back
+        .catalog_id()
+        .and_then(|id| back.get(id).map(|io| &io.value))
+    else {
+        panic!("no catalog")
+    };
+    let Some(Object::Dict(names)) = catalog.get(b"Names").map(|o| back.resolve(o)) else {
+        panic!("no /Names")
+    };
+    let Some(Object::Dict(tree)) = names.get(b"EmbeddedFiles").map(|o| back.resolve(o)) else {
+        panic!("no /EmbeddedFiles")
+    };
+    let Some(Object::Array(arr)) = tree.get(b"Names").map(|o| back.resolve(o)) else {
+        panic!("no /Names array in the tree root")
+    };
+    let keys: Vec<&[u8]> = arr
+        .iter()
+        .step_by(2)
+        .map(|k| match k {
+            Object::String(s) => s.as_slice(),
+            other => panic!("a name-tree key must be a string, got {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        keys,
+        [
+            &b"B.txt"[..],
+            &b"a"[..],
+            &b"a.txt"[..],
+            &b"ab.txt"[..],
+            &b"b.txt"[..]
+        ],
+        "byte order, and a prefix sorts before the key extending it"
+    );
+}
