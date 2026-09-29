@@ -115,6 +115,72 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 390.0` (`f4a20856`), 2026-09-29 — `pdfcer-render`'s text matrix carried in f64, closing `Pass 306.0`'s named remainder
+
+**Verdict: SHIPPED.** `pdfcer-render` only; `pdfcer-core` got one doc-comment
+correction. Closes the Backlog entry filed at `Pass 306.0` (554th filing,
+below) — `TextObject::tm`/`tlm` were `tiny_skia::Transform` (f32); the CTM
+already carried `gstate::Mat64` (decisions 081/151) for the same reason and
+the text matrix never got matching treatment.
+
+**What changed.** `TextObject::tm`/`tlm` are now `Mat64`; `next_line_offset`/
+`advance` take f64. `TextState::glyph_to_user` composes in f64 and returns
+`Mat64`; new `TextState::text_space_params() -> Mat64` (§9.4.4 parameter
+matrix) is shared with the Type 3 glyph CTM (§9.6.5), now built in Mat64
+end to end. Glyph-to-device transforms compose with `ctm64`, narrowing to
+f32 once, at the end. `Td`/`TD`/`Tm` operands are read via `operand_f64s`
+(as `cm` already was), not the f32 `nums` copy.
+
+**Measured** (operator's `SW41177.pdf` page 1, the 237-run label object,
+split before runs 30/60/90/118/150/180/210, rendered at 1×/2×/4× against
+the unsplit page): `v0.63.0` differed on 5 of 7 cuts, up to 812 differing
+pixels at 4× (worst channel delta 64/255); the Mat64 chain alone with f32
+operands still left up to 86 px differing. **After this fix: 0 differing
+pixels at every cut, every scale.** Unsplit-page rendering also moved
+against `v0.63.0`'s own output — 113/334/1,411 px at 1×/2×/4× (worst
+64/255) — toward the file's stated glyph position, the side effect the
+Backlog entry predicted and warned not to "fix" the other way; the split
+itself was not made less accurate.
+
+**Tests.** New unit test `text::tests::deep_relative_chain_lands_on_the_absolute_position`
+(sabotage: rounding each `Td` step through f32 fails it at 2.5e-3 pt).
+New `crates/pdfcer-render/tests/text_matrix_precision.rs`: a 240-step
+synthetic relative-`Td` chain vs. five absolute-`Tm` splits, bit-identical
+at 2× — sabotage confirms HEAD's renderer fails all five cuts, and so does
+the Mat64-chain-with-f32-operands intermediate. `pdfcer-render`: 427 lib +
+368 integration + 18 doc tests green. `tools/run-gates.sh`: 39/40 green on
+first run, one `clippy::inconsistent_digit_grouping` in the new test's
+literal, fixed before commit, workspace clippy clean after. `cargo tree`
+unchanged (no manifest touched, no new dependency). Cross-target CLI check
+clean.
+
+**Docs.** `plan_split_text_object`'s doc comment (`crates/pdfcer-core/src/vector/edit.rs`)
+and `docs/core-api/02-editing-and-saving.md` now state `split_text_object`
+renders bit-identically — the prior "sub-pixel drift" section is removed;
+`docs/core-api`'s index line count updated to match.
+
+**`docs/FEATURES.md`.** Row 220 (`split_text_object`) gets a prose note
+that its output is now bit-identical to pre-split rendering, citing this
+Pass — boxes unchanged (core `[x]`/cli `[x]`/gui `[ ]`, already correct;
+this is a render-correctness fix to an existing capability, not a new
+one). No other row touched.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, date, test
+counts and pixel measurements relayed from the dispatching engineer's own
+report; not independently reproduced by this filing.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `389.0` highest, next free family `390` | **`390` used (`Pass 390.0`), next free family `391`** |
+| Standing rules | `R257` (carried figure, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — no new architectural decision (an existing invariant, f32→f64, extended to a second field) |
+| `SESSION_LOG` filings | `726` | **`727`** |
+| `docs/FEATURES.md` | — | **row 220 prose note only, boxes unchanged** |
+
+---
+
 ### `v0.63.0` — RELEASED (2026-09-29)
 
 Release filing, not a Pass — completes the engineer's in-progress release
@@ -5024,6 +5090,8 @@ Operator-direct request (no topic key), in conversation, diagnosing "I edit line
 **`SplitGranularity::Line` groups by baseline in STREAM ORDER, not globally** — a drawing sheet has dozens of unrelated labels sharing a y-coordinate across its width; a global sort by baseline would weld unrelated labels into one object. The grouping is an inference (an untagged stream does not record line boundaries, §14.8) and is disclosed by `text_object_split_plan` at the point of guessing (rule 4); `Run` granularity infers and discloses nothing, and the surgery itself performs no inference either way. CLI prints the disclosure to stderr so stdout stays parseable; `--dry-run` shows the cuts before commit.
 
 **Measured, and it refuted the doc comment as first drafted.** The doc comment first claimed the split renders bit-identically (split, render, hash, compare) — tested, and false for a single-cut split of the 237-run object: 11/71/301 differing pixels at 1×/2×/4×, **scattered over the WHOLE sheet, not localised at the cut** (the diagnostic that rules out a structural error), worst channel delta pinned at one antialiasing step (16–64/255) regardless of scale. Cause: `pdfcer_render::text::TextObject` carries `Tm`/`Tlm` as `tiny_skia::Transform`, i.e. **f32**; a deep chain of relative `Td` steps accumulates rounding per step that the split's f64-summed absolute `Tm` does not carry, landing glyphs marginally closer to the file's stated position and crossing an antialiasing threshold on a few edge pixels. **Chain DEPTH predicts the drift, not cut count**: a 17-cut `Line` split of an 18-run object (three-step-deep chains) rendered bit-identical, 0 px differing; five of seven single-cut probes on the 237-run object were also bit-identical. `pdfcer-render` already carries the CTM in f64 (`gstate::Mat64`, decisions 081/151) for exactly this cancellation reason; the text matrix never got the same treatment. Flagged to *Backlog* below, not fixed here — the fix should make this verb's output bit-identical as a side effect and must not "fix" the drift by making the split emit a deliberately less accurate matrix. The doc comment now states both the original (wrong) claim and the measured correction, so a reader cannot mistake the corrected claim for one that was never in doubt.
+
+**★ Forward pointer, added 2026-09-29 (`Pass 390.0`, `f4a20856`):** the f32 drift described in this paragraph is RESOLVED, not still open — `pdfcer-render`'s text matrix now carries in f64. See `Pass 390.0`'s own Shipped entry near the top of this file. This paragraph is kept as written (append-only); do not read it as describing current behaviour.
 
 **Verification status, stated exactly as reported — do not read further as gate-verified.** `text_edit` unit tests green (18/18 edit module, 170/170 crate); `crates/pdfcer-core/tests/text_object_split.rs` was being re-run after a formatting pass at filing time; full `tools/run-gates.sh` NOT yet run. No commit hash was supplied to this filing and none is asserted (hard rule 8); a session with a shell should confirm via `git log` and backfill both the hash here and against `Pass 305.0`'s own precedent for doing so.
 
@@ -20048,7 +20116,7 @@ The existing field-paste path's `/CO` append (`crates/pdfcer-core/src/edit.rs` ~
 
 **Scope:** fix both call sites together — dereference an indirect `/CO` before appending, in the paste path and in `set_field_calculation`'s shared helper — plus a regression fixture with `/CO` stored indirectly.
 
-### Unscoped — Carry `pdfcer-render`'s TEXT matrix (`Tm`/`Tlm`) in f64, matching what its CTM already does — filed 2026-09-15 (554th filing, `Pass 306.0`'s named remainder), no Pass ID
+### Unscoped — Carry `pdfcer-render`'s TEXT matrix (`Tm`/`Tlm`) in f64, matching what its CTM already does — filed 2026-09-15 (554th filing, `Pass 306.0`'s named remainder), no Pass ID — **CLOSED 2026-09-29 (`Pass 390.0`, `f4a20856`)**: `TextObject::tm`/`tlm` and the shared parameter/Type-3 matrix path are now `gstate::Mat64`; `split_text_object`'s output measured bit-identical to pre-split rendering at every cut and scale tested. See `Pass 390.0`'s Shipped entry above.
 
 `pdfcer_render::text::TextObject` stores `Tm`/`Tlm` as `tiny_skia::Transform`, i.e. **f32**. `gstate::Mat64` already exists in this same crate and is already used for the CTM, for exactly this reason (decisions 081/151, `an_f32_error_is_a_magnitude_problem_not_a_precision_one.md`) — the text matrix never got the same treatment.
 

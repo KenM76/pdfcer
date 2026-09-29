@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (727th filing) — `f4a20856`: `Pass 390.0` SHIPPED — `pdfcer-render`'s text matrix carried in f64
+
+**Shipped:**
+- `Pass 390.0` (`f4a20856`) — `pdfcer_render::text::TextObject::tm`/`tlm` are now `gstate::Mat64` (were f32 `tiny_skia::Transform`); `TextState::glyph_to_user` composes in f64, new `TextState::text_space_params() -> Mat64` is shared with the Type 3 glyph CTM path; `Td`/`TD`/`Tm` operands now read via `operand_f64s`, matching what `cm` already did. `pdfcer-core` only got a doc-comment correction (`plan_split_text_object`, `docs/core-api/02-editing-and-saving.md`). Closes the Backlog entry filed at `Pass 306.0` (554th filing).
+
+**Decisions made this session:**
+- None — this extends an existing invariant (f32→f64 for a second matrix field) rather than establishing a new one; no new decision-log entry.
+
+**Findings + decisions:**
+- Measured on the operator's `SW41177.pdf` page 1 (237-run label object, 7 single-cut splits, 1×/2×/4×): `v0.63.0` differed on 5/7 cuts, up to 812 px at 4× (worst channel delta 64/255); a Mat64-chain-with-f32-operands intermediate still left up to 86 px; after this fix, 0 differing pixels at every cut and scale. Unsplit-page rendering moved 113/334/1,411 px (1×/2×/4×, worst 64/255) against `v0.63.0`'s own output, toward the file's stated glyph position — the predicted, intended side effect; the split itself was not made less accurate.
+- New tests: `text::tests::deep_relative_chain_lands_on_the_absolute_position` (sabotage-tested) and `crates/pdfcer-render/tests/text_matrix_precision.rs` (240-step synthetic relative-`Td` chain vs. five absolute-`Tm` splits, bit-identical at 2×; sabotage confirms both HEAD's renderer and the f32-operand intermediate fail all five cuts).
+
+**Still in flight:**
+- Nothing new opened by this Pass. Standing open items unchanged (see `docs/NEXT_SESSION.md`).
+
+**For next session:**
+- No shell this filing (hard rule 8) — commit hash, test counts and pixel measurements relayed from the dispatching engineer's own report, not independently reproduced.
+
 ## 2026-09-29 (726th filing) — `415a5b11`: `v0.63.0` RELEASED
 
 **Shipped:**
