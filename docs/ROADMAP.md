@@ -115,6 +115,63 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 388.1` (`0355fb7e`), 2026-09-28 — remove and replace pdfcer Bates labels
+
+**Verdict: SHIPPED.** Off-cycle follow-on to `Pass 388.0` (immediately
+below), narrowing the same *Backlog* bucket further.
+
+**Core.** `EditSession::remove_bates(&mut self, pages: Option<&[usize]>) ->
+Result<bates::BatesRemoval, EditError>`; new `BatesRemoval { pages:
+Vec<usize>, labels: Vec<String> }` (`#[non_exhaustive]`, `Default`); new
+`CommandKind::RemoveBates`. Recognises only the exact label stream
+`stamp_bates` writes (decoded through any filter) — another producer's
+Bates numbers, including Acrobat's `PieceInfo`-based sets, are never
+touched. Removes one leading shared `q` stream per label (balanced across
+stacked stamps), keeps other `/Contents` entries by reference and in
+order, drops the label `/Font` entry from the page's direct `/Resources`
+when no kept stream still names it (whole-token match, `/Bates` vs
+`/Bates2`), and removes `/Contents` itself if left empty. Only page dicts
+are written; an orphaned stream is left behind in the earlier revision.
+Nothing found is a no-op — empty result, no undo entry. Refuses
+encryption, certification and an out-of-range page the same way
+`stamp_bates` does. `EditError` variant count unchanged at 153; verb
+count 283 → 284.
+
+**CLI.** `bates-stamp` gains `--replace` (strips pdfcer's own labels on
+the selected pages first; the per-file line gains `removed=N`); new
+subcommand `bates-remove <inputs> --out-dir --pages` — batch, all inputs
+resolved in memory before any write, never overwrites an input, prints
+`removed <in> -> <out> pages= labels= signature=` per file then a
+`bates-remove files= labels=` summary. `README.md` subcommand count
+183 → 184.
+
+**Spec citation fix.** `Pass 388.0`'s own doc comment miscited the Bates
+artifact dictionary as ISO 32000-2 Table 385 (the *structure-element*
+artifact-attributes table); the correct citation, confirmed against
+`iso32000__s__14.8.md`, is **§14.8.2.2.2, Table 363** (the marked-content
+artifact-attributes table, which is what a page-content `/Artifact` BDC
+actually is). Corrected in the doc comment and in this file's `Pass
+388.0` entry, `FEATURES.md`, and `SESSION_LOG.md`'s `722nd` entry —
+dated amendments in place, history kept.
+
+**Tests.** `bates_stamp.rs` +4 core integration tests (removal restores
+per-page content, a twice-stamped page loses both sets, nothing-to-remove
+commits nothing, undo restores removed labels) → 9 in that file;
+`bates.rs` +2 unit tests (label round-trips through font+text, resource
+name matched as a whole token); CLI `bates_stamp.rs` +1 (`--replace` and
+`bates-remove` take off only the earlier labels) → 5. All sabotage-
+checked. `tools/run-gates.sh` PASS, 40/40. No manifest change —
+`cargo tree` invariant unaffected.
+
+**`docs/core-api/02-editing-and-saving.md`** §1.33 gains a `remove_bates`
+row (now "(2)"), verb count 284; `index.md` updated (5,736 lines, 225
+clauses). `check-core-api-verbs.py` PASS.
+
+**`docs/FEATURES.md`.** Same "Bates numbering across a batch of PDFs" row
+updated in place — `cli` box's covered scope now includes remove/replace;
+`gui [ ]` unchanged (not delivered). *Backlog*'s "Bates numbering /
+stamping" bucket's remaining scope narrowed further — see that entry.
+
 ### `Pass 388.0` (`5a06602a`), 2026-09-28 — Bates numbering across a batch of PDFs
 
 **Verdict: SHIPPED.** Off-cycle — dispatched directly, since *Next up* had
@@ -131,7 +188,10 @@ first_label, last_label }`, `BatesError` (`Digits`/`Overflow`/
 BatesStamp, first: u64) -> Result<BatesOutcome, EditError>`;
 `CommandKind::StampBates`; `EditError::Bates` (153rd variant —
 `EditSession` now 283 pub verbs). Each label draws as `/Artifact <<
-/Type /Pagination /Subtype /Bates>>` (ISO 32000-2 Table 385), non-embedded
+/Type /Pagination /Subtype /Bates>>` (ISO 32000-2 §14.8.2.2.2, Table 363
+— ★ CORRECTED 2026-09-28 (723rd filing): was miscited as Table 385, which
+is the structure-element artifact-attributes table, not the marked-content
+one), non-embedded
 Helvetica WinAnsi, upright under the page's own `/Rotate`, isolated from
 leftover graphics state by a prepended shared `q`/`Q`; existing streams
 re-emitted byte-verbatim. One undo entry. Every refusal — encryption,
@@ -10283,6 +10343,11 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★ **`Pass 388.1` SHIPPED, 2026-09-28 (723rd filing),
+> `0355fb7e`** — see top of *Shipped*. Off-cycle follow-on to `Pass 388.0`
+> (remove/replace pdfcer's own Bates labels). **`Next up` still has no
+> named head.**
 
 > ★★★★★★★★★★★ **`Pass 388.0` SHIPPED, 2026-09-28 (722nd filing),
 > `5a06602a`** — see top of *Shipped*. Off-cycle (Bates numbering across a
@@ -28092,14 +28157,17 @@ pdfcer's own; the composed appearance has an Acrobat analogue).
   numbering across a batch, watermarks. **Narrowed 2026-09-28 (722nd
   filing, `Pass 388.0`, `5a06602a`): sequential numbering across a batch
   is SHIPPED** — see *Shipped*, top of this file, for the full record.
-  **Remaining scope**: re-stamp/remove/replace an existing Bates set
-  (needs a `PieceInfo`-equivalent marker, per
-  `bates__underlying_mechanism_and_pieceinfo.md`); font/colour options; a
-  date token; the `pdfcer-gui` surface. Generic (non-Bates) header/footer
-  stamps and watermarks are a separate page-content-authoring capability
-  — watermark-as-annotation was already refused as the wrong subsystem
-  (`Pass 261.5`, `FEATURES.md` *Implemented → Annotations & markup*); no
-  bucket for the real (page-content) version is open yet.
+  **Further narrowed 2026-09-28 (723rd filing, `Pass 388.1`, `0355fb7e`):
+  remove/replace an existing pdfcer-authored Bates set is SHIPPED**
+  (pdfcer's own labels only, recognised by their exact stamp signature —
+  not a `PieceInfo`-equivalent marker; another producer's Bates set,
+  including Acrobat's, is untouched). **Remaining scope**: font/colour
+  options; a date token; the `pdfcer-gui` surface. Generic (non-Bates)
+  header/footer stamps and watermarks are a separate page-content-
+  authoring capability — watermark-as-annotation was already refused as
+  the wrong subsystem (`Pass 261.5`, `FEATURES.md` *Implemented →
+  Annotations & markup*); no bucket for the real (page-content) version
+  is open yet.
 - **Annotation display (read-side)** — created 2026-08-01 by decision
   008 (finding **F1**). Rendering AND counting of every §12.5
   annotation and widget from its `/AP` `/N` appearance stream, with the

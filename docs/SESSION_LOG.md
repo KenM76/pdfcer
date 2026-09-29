@@ -4,10 +4,29 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (723rd filing) — `0355fb7e`: `Pass 388.1` SHIPPED — remove and replace pdfcer Bates labels
+
+**Shipped:**
+- `Pass 388.1` (`0355fb7e`) — follow-on to `Pass 388.0` (`5a06602a`, 722nd filing). New `EditSession::remove_bates(&mut self, pages: Option<&[usize]>) -> Result<bates::BatesRemoval, EditError>`; new `BatesRemoval { pages, labels }`; new `CommandKind::RemoveBates`. Recognises only the exact label stream `stamp_bates` writes — another producer's Bates numbers, including Acrobat's `PieceInfo`-based sets, are never touched. Removes the leading shared `q`/`Q` per label, keeps other `/Contents` by reference, drops the label `/Font` entry when no kept stream still names it, drops `/Contents` if left empty; nothing found is a no-op. CLI: `bates-stamp --replace` (strips pdfcer's own labels first, per-file line gains `removed=N`); new `bates-remove <inputs> --out-dir --pages` (batch, all-or-nothing, never overwrites an input). 7 new tests (4 core integration + 2 unit + 1 CLI), all sabotage-checked. `tools/run-gates.sh` 40/40. No manifest change. Full record: `ROADMAP.md` *Shipped*, top of file.
+- Spec-citation fix: `Pass 388.0`'s Bates artifact dictionary was miscited as ISO 32000-2 Table 385 (the structure-element artifact-attributes table); corrected to **§14.8.2.2.2, Table 363** (the marked-content one) in the doc comment, this log's 722nd entry (below), `ROADMAP.md`'s `Pass 388.0` entry, and `FEATURES.md`'s Bates row — dated amendments in place.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- None beyond the `Pass 388.1` entry and the citation fix above.
+
+**Still in flight:**
+- `Next up` still has no named head — this was an off-cycle dispatch, same as `Pass 388.0`.
+- Backlog bucket "Bates numbering / stamping" narrowed further: remove/replace now shipped; remaining scope is font/colour options, a date token, and the `pdfcer-gui` surface.
+
+**For next session:**
+- No shell this filing (hard rule 8) — facts relayed from the dispatching engineer's own report at `0355fb7e`, not independently reproduced.
+
 ## 2026-09-28 (722nd filing) — `5a06602a`: `Pass 388.0` SHIPPED — Bates numbering across a batch of PDFs
 
 **Shipped:**
-- `Pass 388.0` (`5a06602a`) — new core module `pdfcer_core::bates`: `BatesNumbering`/`BatesStamp`/`BatesPosition`/`BatesOutcome`/`BatesError`; new verb `EditSession::stamp_bates(&BatesStamp, first: u64)`. Each label draws as `/Artifact <</Type /Pagination /Subtype /Bates>>` (ISO 32000-2 Table 385), non-embedded Helvetica WinAnsi, upright under `/Rotate`, isolated by a prepended shared `q`/`Q`; existing streams re-emitted byte-verbatim; every refusal fires before any write. CLI `pdfcer bates-stamp` (replaces the former not-yet-implemented stub) numbers across files in argument order, all-or-nothing, never overwrites an input. 7 core unit + 5 core integration + 4 CLI integration tests, all sabotage-checked. `tools/run-gates.sh` 40/40, 10,043 tests — one Markdown-backtick gate violation caught and fixed in the same commit. No manifest change. Full record: `ROADMAP.md` *Shipped*, top of file.
+- `Pass 388.0` (`5a06602a`) — new core module `pdfcer_core::bates`: `BatesNumbering`/`BatesStamp`/`BatesPosition`/`BatesOutcome`/`BatesError`; new verb `EditSession::stamp_bates(&BatesStamp, first: u64)`. Each label draws as `/Artifact <</Type /Pagination /Subtype /Bates>>` (ISO 32000-2 §14.8.2.2.2, Table 363 — ★ corrected 2026-09-28, 723rd filing, was miscited as Table 385), non-embedded Helvetica WinAnsi, upright under `/Rotate`, isolated by a prepended shared `q`/`Q`; existing streams re-emitted byte-verbatim; every refusal fires before any write. CLI `pdfcer bates-stamp` (replaces the former not-yet-implemented stub) numbers across files in argument order, all-or-nothing, never overwrites an input. 7 core unit + 5 core integration + 4 CLI integration tests, all sabotage-checked. `tools/run-gates.sh` 40/40, 10,043 tests — one Markdown-backtick gate violation caught and fixed in the same commit. No manifest change. Full record: `ROADMAP.md` *Shipped*, top of file.
 
 **Decisions made this session:**
 - None new — highest decision record stays `165`.
