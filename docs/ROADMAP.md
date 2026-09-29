@@ -115,6 +115,77 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 297.1` (`1315b144`), 2026-09-29 — scan-offpage stops reporting an image whose off-page part is blank
+
+`pdfcer_core::offpage::PageScan` gains `inkless_overhang: usize`. `scan_page`
+decodes each image whose geometry crosses the page edge; when every sample
+outside the page box (grown by tolerance, padded by `BAND_MARGIN`) is paper —
+the exact value `redact_image::clear_cells` writes — or fully transparent
+under its `/SMask`, the image is counted in `inkless_overhang` instead of
+`objects`. `scan_model` (no samples available) always reports 0. New
+crate-private `redact_image::region_is_inkless` reuses `covered_cells` and
+the decoder's paper value. CLI `scan-offpage`'s summary line prints
+`blank_overhang=N` between `partial=` and `unreadable_files=`.
+
+**Why.** The scan classified by geometry alone, so an image `redact-offpage`
+had already cleared still crossed the page edge and was reported `partial` —
+the scan reporting its own output, the shape `7a22c52` (2026-09-12) diagnosed
+and left for a decode measurement.
+
+**Measured**, 17 re-cleaned operator drawings: `affected_files` 17→1,
+`partial` 12→1, `blank_overhang=11`. Old v0.66.0 build on the same
+pre-`Pass 297.0` cleaned folder: `affected_files=17 affected_pages=20
+fully_off=11 partial=12`; new build, same folder: `affected_files=11
+affected_pages=12 fully_off=11 partial=1 blank_overhang=11`. 176 uncleaned
+source drawings (never redacted): `partial` 1152→1141, `affected_files`
+176→175 — those 11 images were already blank off-page in the unredacted
+originals. Scan time 22.06 s → 21.36 s over the same 341-file set (no cost
+added; only edge-crossing images decode). Side benefit: `redact-offpage` now
+generates no bands for them either, so no decode/re-encode there.
+
+**The 1 remaining residual is real**, not a classification artifact: a
+dimension text run on one drawing, page 7, whose glyph bbox reaches 792.4 pt
+on a 792 pt page — 0.4 pt past the 0.25 pt tolerance. Deliberately not
+chased — font-metric overhang, and the tolerance is the operator's call per
+file.
+
+**Tests.** New `crates/pdfcer-core/tests/offpage_blank_overhang.rs`, 4 tests:
+white overhang classifies blank; ink in one off-page sample still classifies
+`partial`; ink only on the page side does not count; ink under a zero-value
+`/SMask` classifies blank, nonzero alpha classifies `partial`.
+Sabotage-checked both directions: `region_is_inkless` forced `Some(true)`
+fails 2 tests; forced `Some(false)` fails 3. Workspace: `pdfcer-core` `all`
+2328 passed / 2 ignored, lib 1331 passed; `pdfcer-cli` 615 passed;
+fmt/clippy/doc/`--target wasm32-unknown-unknown` check all green.
+`cargo tree -p pdfcer-core` unchanged (no manifest edit, no GUI/network
+crate).
+
+**`docs/core-api/03-capabilities.md` §13** updated in the same commit:
+`PageScan`'s field list gains `inkless_overhang`; the stale "KNOWN LIMIT:
+fully-off image straddling two bands may survive" bullet (already fixed by
+`Pass 297.0`, `536ef3b`) is replaced with the current contract plus a
+blank-overhang bullet. `index.md` line count updated to match.
+
+**`FEATURES.md`**: row 367 (scan/redact off-page) updated in place, boxes
+unchanged — the "owed 12 objects… needs a decode measurement" sentence
+replaced with this Pass's outcome.
+
+**Corrects the register.** `Pass 297.0`'s and `Pass 294.2`'s entries further
+down this file each point forward to the "12 objects" figure this Pass
+supersedes — corrected in place, struck-and-visible, at both locations.
+
+**Sourcing (hard rule 8) — no shell this filing.** Verified against live
+source via `Grep`: `inkless_overhang` and `region_is_inkless` both exist in
+`crates/pdfcer-core/src/offpage.rs` / `redact_image.rs`;
+`tests/offpage_blank_overhang.rs` exists; `blank_overhang` is live in
+`crates/pdfcer-cli/src/offpage.rs`; `docs/core-api/03-capabilities.md` §13
+already carries the field and the replaced KNOWN-LIMIT bullet. **Not
+independently re-run:** the measured file-count/timing figures and the
+full test-suite pass counts — relayed from the dispatching engineer's
+report, which states `run-gates.sh` green at this tree.
+
+---
+
 ### `Pass 296.6` (`0f9d0c26`), 2026-09-29 — deep-zoom render is pre-clipped in device space instead of refused
 
 Follows `Pass 296.0` (`69d4d67`, decision 151/`R252`): the named refusal is
@@ -7645,7 +7716,7 @@ Not a silent repair: no `.`→`_`, no dropped prefix. A name the operator typed 
     17     20     11         12        (before, as shipped in Pass 294.0)
      7      9      0         12        (after)
 
-Every fully-off residual is gone; ten of the seventeen files are now clean. **The remaining twelve are all `partial`** — ~~objects crossing the page edge whose cut leaves a sliver against a 0.25 pt tolerance (`TS-0396` page 9 exceeds the box by ~1 pt) — a different sub-case, untouched, still owed~~ **★ CORRECTED 2026-09-12 (`7a22c52`, above): this read as an incomplete cut, and it is not one.** `covered_cells` snaps OUTWARD, so the off-page samples are already blank; what remains is a CLASSIFICATION gap — `scan-offpage` counts by geometry (the bounding box still crosses the edge) where the operator's question is about ink. `TS-0396` page 9 is the measured case (drawn extent exceeds the page box by ~1 pt against a 0.25 pt tolerance). **The owed figure is now 12 objects, not 23** — stated here so a reader is not comparing against `Pass 294.0`'s stale count.
+Every fully-off residual is gone; ten of the seventeen files are now clean. **The remaining twelve are all `partial`** — ~~objects crossing the page edge whose cut leaves a sliver against a 0.25 pt tolerance (`TS-0396` page 9 exceeds the box by ~1 pt) — a different sub-case, untouched, still owed~~ **★ CORRECTED 2026-09-12 (`7a22c52`, above): this read as an incomplete cut, and it is not one.** `covered_cells` snaps OUTWARD, so the off-page samples are already blank; what remains is a CLASSIFICATION gap — `scan-offpage` counts by geometry (the bounding box still crosses the edge) where the operator's question is about ink. `TS-0396` page 9 is the measured case (drawn extent exceeds the page box by ~1 pt against a 0.25 pt tolerance). ~~**The owed figure is now 12 objects, not 23** — stated here so a reader is not comparing against `Pass 294.0`'s stale count.~~ **★ CORRECTED 2026-09-29 (`Pass 297.1`, `1315b144`, above): closed.** 11 of the 12 were `inkless_overhang` (blank off-page geometry, now counted separately and no longer reported as an unresolved cut); the 1 real residual is a 0.4 pt glyph-metric overhang on one drawing's page 7, deliberately left to operator tolerance.
 
 **The test was pinning the defect.** `wholly_covered_needs_one_region_to_contain_the_placement` asserted `!wholly_covered(..)` for the union case, with a comment "two regions that together cover it do not count" — the assertion, the doc comment and the code all agreed with each other, and none agreed with what a re-scan of the OUTPUT said. Renamed to `wholly_covered_accepts_one_region_or_the_union` and inverted, plus two new assertions: a gap in the union is still not coverage, and four bands ringing a hole do not cover the hole (getting that wrong would delete on-page content).
 
@@ -7850,7 +7921,7 @@ Five inbound shell requests answered in this one Pass. (This entry filed retroac
 
 **`Pass 294.1`** (`d41be61`) — `redact-offpage` goes batch: `-o FILE` for one input, `--out-dir DIR` mirroring the input tree rather than flattening (two product folders can share a file name). An existing output is skipped and counted unless `--force`, so an interrupted batch resumes.
 
-**`Pass 294.2`** (`1230c1f`) — running the batch over 176 drawings produced one file with three pages neither pdfcer nor its renderer could read, from clean input. Cause: the residual sweep filled matched bytes across a whole `TJ` operand, and `TJ` mixes strings **and numbers** (§9.4.3) — a redacted dimension is digits, so a kerning number became `-53XXXX00221014025`. The glyph surgery was correct throughout; the belt-and-braces pass was what corrupted content, and **every one of its own counters reported success** — caught only because the regression test reads the saved page BACK rather than trusting the report. Fixed: off-page bands now carry the scan's own tolerance, the residual sweep no longer decodes image samples, the scan ignores objects that paint nothing. Result: >10 min → 0.74 s on the exposing file, 3 → 0 unreadable pages across 174 outputs. **Known limit recorded rather than hidden: 17 of 174 outputs still carried 23 off-page objects** (fully-off images straddling two bands) — closed to 12 by `Pass 297.0`, above.
+**`Pass 294.2`** (`1230c1f`) — running the batch over 176 drawings produced one file with three pages neither pdfcer nor its renderer could read, from clean input. Cause: the residual sweep filled matched bytes across a whole `TJ` operand, and `TJ` mixes strings **and numbers** (§9.4.3) — a redacted dimension is digits, so a kerning number became `-53XXXX00221014025`. The glyph surgery was correct throughout; the belt-and-braces pass was what corrupted content, and **every one of its own counters reported success** — caught only because the regression test reads the saved page BACK rather than trusting the report. Fixed: off-page bands now carry the scan's own tolerance, the residual sweep no longer decodes image samples, the scan ignores objects that paint nothing. Result: >10 min → 0.74 s on the exposing file, 3 → 0 unreadable pages across 174 outputs. ~~**Known limit recorded rather than hidden: 17 of 174 outputs still carried 23 off-page objects** (fully-off images straddling two bands) — closed to 12 by `Pass 297.0`, above.~~ **★ CORRECTED 2026-09-29 (`Pass 297.1`, `1315b144`, further above): fully closed** — 11 of the 12 were blank off-page geometry, now classified as such rather than counted as an unresolved cut; 1 real glyph-metric residual remains, left to operator tolerance.
 
 **`FEATURES.md`**: no row existed for this capability at all until this filing — added under *Redaction & security*, core/cli `[x]`, gui `[ ]`.
 

@@ -4,6 +4,57 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (760th filing) — `Pass 297.1` (`1315b144`): scan-offpage stops reporting an image whose off-page part is blank
+
+**Shipped:**
+- `Pass 297.1` (`1315b144`) — `PageScan` gains `inkless_overhang: usize`;
+  `scan_page` decodes an image crossing the page edge and, when every
+  sample outside the page box is paper (`redact_image::clear_cells`'s own
+  value) or transparent under its `/SMask`, counts it there instead of
+  `objects`. New crate-private `redact_image::region_is_inkless`. CLI
+  `scan-offpage` summary line gains `blank_overhang=N`.
+
+**Decisions made this session:** None — applies the existing rule that a
+scan must not report its own output (the shape `Pass 294.2` hit for text
+husks), not a new architectural call.
+
+**Findings + decisions:**
+- 17 re-cleaned operator drawings: `affected_files` 17→1, `partial` 12→1,
+  `blank_overhang=11`. 176 uncleaned source drawings: `partial` 1152→1141
+  — those 11 images were already blank off-page in the unredacted
+  originals. Scan time 22.06 s → 21.36 s over the 341-file set (only
+  edge-crossing images decode; no cost elsewhere).
+- The 1 remaining residual is real, not a classification artifact: a
+  dimension text run on one drawing, page 7, glyph bbox reaches 792.4 pt
+  on a 792 pt page — 0.4 pt past the 0.25 pt tolerance. Left to operator
+  tolerance, not chased.
+- New `crates/pdfcer-core/tests/offpage_blank_overhang.rs`, 4 tests,
+  sabotage-checked both directions. Workspace: `pdfcer-core` `all` 2328
+  passed / 2 ignored, lib 1331; `pdfcer-cli` 615; fmt/clippy/doc/wasm32
+  check green; `cargo tree -p pdfcer-core` unaffected (no manifest edit).
+- `docs/core-api/03-capabilities.md` §13 updated in the same commit: field
+  added, stale KNOWN-LIMIT bullet (already fixed by `Pass 297.0`) replaced.
+- `docs/ROADMAP.md`: `Pass 297.0`'s and `Pass 294.2`'s entries each carried
+  a forward pointer to the "12 objects owed" figure this Pass supersedes —
+  corrected in place, struck-and-visible, at both locations.
+- `docs/FEATURES.md` row 367 updated in place, boxes unchanged.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** `tools/verify-release.py v0.66.0`'s CI check still
+unconfirmed as of the 751st/759th filings, carried forward again.
+`Pass 296.7` remains unused.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently
+verified against live source via `Grep`: `inkless_overhang` and
+`region_is_inkless` exist in `crates/pdfcer-core/src/offpage.rs` /
+`redact_image.rs`; `tests/offpage_blank_overhang.rs` exists;
+`blank_overhang` is live in `crates/pdfcer-cli/src/offpage.rs`;
+`docs/core-api/03-capabilities.md` §13 already carries the field. **Not
+independently re-run:** the measured file-count/timing figures and full
+test-suite pass counts — relayed from the dispatching engineer's report,
+which states `run-gates.sh` green at this tree.
+
 ## 2026-09-29 (759th filing) — `Pass 296.6` (`0f9d0c26`): deep-zoom render is pre-clipped in device space instead of refused
 
 **Shipped:**
