@@ -115,6 +115,31 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `049c18e5`, 2026-09-29 — text-fixture PROVENANCE backfill, the remaining twelve
+
+Not a Pass — docs-only. `fixtures/synthetic/text/PROVENANCE.md` gained
+"The remaining twelve — two run PDFs and ten font programs": every file in
+the directory is now named (measured: a loop over `*.pdf *.ttf` finds
+none missing). The twelve: `runs-quote-show.pdf` and
+`runs-marked-content.pdf` (`gen-text-run-fixtures.py`, making
+`SplitAtLineShowOperator`/`SplitInsideMarkedContent` reachable),
+`subset-donor.ttf`, `subset-donor-bold.ttf`, `subset-cycle-donor.ttf` and
+seven `subset-fstype-*.ttf` (`gen-subset-font-fixtures.py`, one per OS/2
+`fsType` outcome per `R109`). All `LEGAL.md` §5 category (a).
+
+Closes the `docs/NEXT_SESSION.md` owed item "21 of 38 files ... are
+unrecorded." That figure was already a known miscount — the 2026-09-13
+backfill (`408c93c`, above) recorded the 12 PDFs then missing and
+corrected the count to 39 entries/29 PDFs/12 undocumented. What remained
+today was a *different* 12 entries (2 newer PDFs + 10 `.ttf`), added to
+the directory after that backfill. No live Backlog/register entry still
+carried the stale "21 of 38" figure — every remaining mention is inside
+already-discharged, append-only history (Shipped entries from the 483rd–
+484th filings onward).
+
+**`FEATURES.md`**: unchanged — a fixture-provenance backfill, no
+operator-facing capability touched.
+
 ### `4b7ff5bc`, 2026-09-29 — `check-reexport-closure.py` also checks `pub fn` return types
 
 Not a Pass — a gate widening. Closes the `docs/NEXT_SESSION.md` owed item

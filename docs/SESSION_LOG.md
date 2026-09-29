@@ -4,6 +4,47 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (758th filing) — `049c18e5`: text-fixture PROVENANCE backfill, the remaining twelve
+
+**Shipped:**
+- `049c18e5` — `fixtures/synthetic/text/PROVENANCE.md` gained "The
+  remaining twelve — two run PDFs and ten font programs": every file in
+  the directory now has a named entry (measured: a loop over
+  `*.pdf *.ttf` finds none missing). Not a numbered Pass — a docs-only
+  fixture-provenance backfill.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- The twelve: `runs-quote-show.pdf` and `runs-marked-content.pdf`
+  (`gen-text-run-fixtures.py`; make `SplitAtLineShowOperator` /
+  `SplitInsideMarkedContent` reachable), `subset-donor.ttf`,
+  `subset-donor-bold.ttf`, `subset-cycle-donor.ttf` and seven
+  `subset-fstype-*.ttf` (`gen-subset-font-fixtures.py`; embed/subset
+  donors per ISO 32000-1 §9.9, a styled-face donor, a composite-glyph
+  cycle assertion per decision 021 §3.5, one file per OS/2 `fsType`
+  outcome per `R109`). All `LEGAL.md` §5 category (a).
+- Closes the `docs/NEXT_SESSION.md` owed item "21 of 38 files ... are
+  unrecorded." That figure was already a known miscount: the 2026-09-13
+  backfill recorded the 12 PDFs then missing and corrected the count to
+  39 entries/29 PDFs/12 undocumented. What remained today was 12
+  *different* entries (2 newer PDFs + 10 `.ttf`) added since. Checked:
+  no live Backlog/register entry still carries the stale "21 of 38"
+  figure — every remaining mention is inside already-discharged,
+  append-only Shipped history.
+- `docs/FEATURES.md`: no row touched — no operator-facing capability
+  change.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** `tools/verify-release.py v0.66.0`'s CI check was
+still pending as of the 751st filing — still unconfirmed as of this
+filing, carried forward again.
+
+**Sourcing (hard rule 8).** No shell tool this filing — the "no file
+missing" measurement and the directory listing are relayed from the
+dispatching engineer's own report, not independently reproduced here.
+
 ## 2026-09-29 (757th filing) — `4b7ff5bc`: gate widening — `check-reexport-closure.py` also checks `pub fn` return types
 
 **Shipped:**
