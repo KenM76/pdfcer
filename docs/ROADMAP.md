@@ -155,6 +155,30 @@ noting the refusal; no box changed.
 **Sourcing (hard rule 8).** No shell tool this filing — hash relayed from
 the dispatching engineer's report, verified by them via `git log`.
 
+**Also filed this session.** Chore commit `343f850f` ("chore: v0.65.0",
+`Cargo.toml` 0.64.0 → 0.65.0 plus `Cargo.lock`/`fuzz/Cargo.lock`) —
+recorded so `check-commits-filed.py` sees it filed. **Release in
+progress**: v0.65.0 will batch every Pass shipped since `v0.64.0`
+(`11b8ec7c`) — `396.0` (`G067` catalog probe and page-scoped structure
+read, `bf8d0138`), `397.0` (every CLI output write goes through a
+temp-file-then-rename, `ed93dd50`), `398.0` (zero broken intra-doc links
+plus the CI gate that keeps it there, `c3daaa78`), `399.0` (`LoadReport`
+says which keys a settings file actually stated, `3fa2091e`), `399.1`
+(restore the vendored OCRcer adapter byte-identical, `8b634e7b`), `400.0`
+(disclose spot inks flattened past the plane roster, `c18dce99`), `400.1`
+(two comment-only fixes, `4a0fc54d`+`183a6781`), and `400.2` (this entry,
+`8defc1e3`) — all already filed above. `Pass 395.1` (`a322a3ed`) landed
+*before* the `v0.64.0` tag (`11b8ec7c`) and already shipped in that
+release, per its own entry above — not part of this batch.
+
+**Headline.** `400.2` corrects `THIRD_PARTY_LICENSES.md`: the OCRcer
+model notice has been missing since `v0.59.0` and is restored.
+
+OneDrive slot `pdfcer2` next (`v0.64.0` went to `pdfcer1`). Tag, GitHub
+release, OneDrive deploy, fresh-folder smoke test and `verify-release.py`
+not yet done; not yet confirmed from here — full release filing to
+follow once tag/deploy details are relayed.
+
 ### `Pass 400.1` (`4a0fc54d` + `183a6781`), 2026-09-29 — two comment-only fixes: a stale `/RI` claim and two gates' own blind-spot statements
 
 **Verdict: SHIPPED.** Both commits are documentation-only and carry no Pass

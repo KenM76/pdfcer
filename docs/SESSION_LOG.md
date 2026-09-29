@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (744th filing) — `343f850f`: chore — v0.65.0 version bump, release IN PROGRESS
+
+**Shipped:**
+- Chore commit `343f850f` ("chore: v0.65.0") bumps
+  `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.64.0 → 0.65.0. Recorded so
+  `check-commits-filed.py` sees it filed. Full details under `Pass
+  400.2`'s "Also filed this session" note in `ROADMAP.md`'s *Shipped*.
+
+**Still in flight:**
+- v0.65.0 release IN PROGRESS — batches `396.0`, `397.0`, `398.0`,
+  `399.0`, `399.1`, `400.0`, `400.1`, `400.2`, all already shipped since
+  `v0.64.0` (`11b8ec7c`). `Pass 395.1` already shipped in `v0.64.0`, not
+  this batch. Headline: `400.2` restores the OCRcer model's missing
+  licence notice to `THIRD_PARTY_LICENSES.md` (gap open since `v0.59.0`).
+  Tag, GitHub release, OneDrive deploy and smoke test not yet done —
+  OneDrive slot `pdfcer2` next (`v0.64.0` went to `pdfcer1`).
+
+**For next session:**
+- No shell available this filing (hard rule 8). Backup/push/release state
+  not verifiable from here; latest release on record remains `v0.64.0`.
+
 ## 2026-09-29 (743rd filing) — `8defc1e3`: `Pass 400.2` SHIPPED — packager refuses a staged model folder with no licence citation
 
 **Shipped:**
