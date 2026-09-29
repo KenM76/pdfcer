@@ -21488,7 +21488,7 @@ OCRcer de-links it on their side — check the feature-request channel for a
 reply first, and confirm `check-ocrcer-vendored.py` and `cargo doc` are both
 clean without the attribute before removing it.
 
-### Export to Word/Excel (Office formats) — filed 2026-09-28 (701st filing), no Pass ID
+### ~~Export to Word/Excel (Office formats)~~ — CLOSED 2026-09-29 (764th filing, `Pass 380.0` `310489bd` XLSX; `Pass 381.0` `4dc85998` DOCX) — filed 2026-09-28 (701st filing), no Pass ID
 
 **Scope.** DOCX/XLSX export, sourced from `pdfcer-acrobat-librarian`'s two
 new files:
@@ -22668,7 +22668,7 @@ operator's own instruction that the closure was wanted on principle. See
 the `Pass 243.0` *Shipped* entry, top of this file, for fixtures and gate
 results.
 
-### Unscoped — ★★ MESH SHADINGS (TYPES 4–7) STILL FLATTEN SPOT COLORANTS — THE ONE ROUTE `Pass 239.0` LEFT OPEN — filed 2026-09-02 (380th filing, `Pass 239.0`'s named remainder)
+### ~~Unscoped — ★★ MESH SHADINGS (TYPES 4–7) STILL FLATTEN SPOT COLORANTS — THE ONE ROUTE `Pass 239.0` LEFT OPEN~~ — CLOSED 2026-09-29 (764th filing, `Pass 393.0` `b96be7e7`) — filed 2026-09-02 (380th filing, `Pass 239.0`'s named remainder)
 
 **Status: NOT STARTED.** `Pass 239.0` (*Shipped*, above) gave axial/radial/
 function shadings (types 2–3) and shading patterns a spot-plane deposit,
@@ -22845,11 +22845,11 @@ not a gap, and a `[ ]` would claim otherwise.
 **★ PARTLY — verified 2026-09-29 (read-only audit), stays OPEN.** `Pass 214.0`
 added `Space::Icc` (N 4 managed to ink only, and only with an
 `/OutputIntents` output intent present; its `to_rgb` path is unmanaged).
-`Pass 240.0` added `Space::IccRgb` (N 3 fully managed, including JPX; see
-`FEATURES.md`'s `/ICCBased` row for the mechanism). **Still unmanaged**: N 1
-(Gray) images, N 4 on screen (no ink-compositing page), N 4 without an
-output intent, and JPX N 1/N 4. Note that "N 4 on screen" overlaps the
-measured `CMYK→sRGB` display-offset entry below (★★★★ "A SEPARATE, UNIFORM
+`Pass 240.0` (`f978291a`) added `Space::IccRgb` (N 3 fully managed, including
+JPX; see `FEATURES.md`'s `/ICCBased` row for the mechanism). **Still
+unmanaged**: N 1 (Gray) images, N 4 on screen (no ink-compositing page), N 4
+without an output intent, and JPX N 1/N 4. Note that "N 4 on screen" overlaps
+the measured `CMYK→sRGB` display-offset entry below (★★★★ "A SEPARATE, UNIFORM
 `CMYK`→sRGB DISPLAY OFFSET"). Also note this entry's own citations are stale:
 `pdfce-render`/`image.rs:2043` — the crate is now `pdfcer-render` and the
 line number has moved. The **class** this entry names — `image::Space`
@@ -22857,6 +22857,16 @@ structurally cannot carry a profile past construction for every case — is
 not fully closed by the two Passes above; the status below ("Status: SCOPED,
 NOT STARTED") is itself now stale and superseded by this note, not by a
 later rewrite of it.
+
+**★ NEW SURVIVOR flagged 2026-09-29 (764th filing, read-only audit; not
+edited, per this filing's own scope).** `crates/pdfcer-cli/src/main.rs:390`'s
+`icc_managed_paints` doc row still says *"An `ICCBased` IMAGE is never
+colour-managed at all -- `image::Space` collapses it to a device space by
+`/N` and discards the profile -- so an image can never appear here."* That
+has been false for N 3 (`Space::IccRgb`, RGB) since `Pass 240.0` (`f978291a`,
+2026-09-02) — an `ICCBased` RGB image can and does reach `icc_managed_paints`
+now. Still true for N 1/N 4 images and JPX. Engineer should correct the
+wording to name the N 3 exception rather than claim a blanket never.
 
 **Status: SCOPED, NOT STARTED.** `Pass 207.0` (*Shipped*, this filing) made
 the **disclosure** true; it did **not** make the **rendering** true, and the
@@ -22974,7 +22984,7 @@ as measured.
 
 ---
 
-### Unscoped — ★★★★★ **THE PER-SPOT-COLORANT PLANE — THE FULL SCOPING STUDY, PRODUCED 2026-09-01. THE DECISION IS THE OPERATOR'S; THE ENGINEERING IS NO LONGER THE UNKNOWN PART** — ★★★★ **INVASIVENESS IS IDENTICAL FOR A CAPPED AND AN UNCAPPED DESIGN, SO THE CAP IS A POLICY DIAL, NOT AN ARCHITECTURE** — ★★★ **A 300 DPI LETTER PAGE WITH 4 SPOTS IS *REFUSED* UNDER TODAY'S DEFAULT CEILING** — filed 2026-09-01 (361st filing)
+### ~~Unscoped — ★★★★★ **THE PER-SPOT-COLORANT PLANE — THE FULL SCOPING STUDY, PRODUCED 2026-09-01. THE DECISION IS THE OPERATOR'S; THE ENGINEERING IS NO LONGER THE UNKNOWN PART** — ★★★★ **INVASIVENESS IS IDENTICAL FOR A CAPPED AND AN UNCAPPED DESIGN, SO THE CAP IS A POLICY DIAL, NOT AN ARCHITECTURE** — ★★★ **A 300 DPI LETTER PAGE WITH 4 SPOTS IS *REFUSED* UNDER TODAY'S DEFAULT CEILING**~~ — CLOSED 2026-09-29 (764th filing, `Pass 238.0` `8ce05072`; `Pass 239.0` `6e9513cd`) — **the 4-spot cap remains compile-time only, still open** (see the 740th-filing remainder note below) — filed 2026-09-01 (361st filing)
 
 **Status: SCOPED IN FULL, NOT STARTED.** This entry supplies what the 360th
 filing's ten-dependent enumeration said was missing — *"the next step is a
@@ -23186,7 +23196,7 @@ symptom has not been born yet.
 
 ---
 
-### Unscoped — ★★ **`PCS 3.0` AND `PCS 4.0` ARE TWO DEFECTS SHARING A PAGE TEMPLATE, NOT ONE DEFECT APPEARING TWICE — AND ONLY TWO OF EACH PATCH'S THREE TRAPS BELONG TO THE PLANE** — filed 2026-09-01 (361st filing)
+### ~~Unscoped — ★★ **`PCS 3.0` AND `PCS 4.0` ARE TWO DEFECTS SHARING A PAGE TEMPLATE, NOT ONE DEFECT APPEARING TWICE — AND ONLY TWO OF EACH PATCH'S THREE TRAPS BELONG TO THE PLANE**~~ — CLOSED 2026-09-29 (764th filing, `Pass 238.0` `8ce05072`; `Pass 239.0` `6e9513cd`; `Pass 244.0` `e7db2805`) — filed 2026-09-01 (361st filing)
 
 **Status: CLASSIFICATION, no work owed by this entry itself.**
 
@@ -23394,7 +23404,7 @@ this entry required.
 
 ---
 
-### Unscoped — ★★★ **THE `--version` BANNER STILL SAYS `iccce: not-linked-yet` AND pdfce NOW LINKS `iccce`: A FALSE CLAIM IN SHIPPED, OPERATOR-VISIBLE OUTPUT** — filed 2026-09-01 (360th filing, `Pass 199.2`'s unswept consequence) — **`Pass 101.1`'s OWN TRIGGER HAS FIRED**
+### ~~Unscoped — ★★★ **THE `--version` BANNER STILL SAYS `iccce: not-linked-yet` AND pdfce NOW LINKS `iccce`: A FALSE CLAIM IN SHIPPED, OPERATOR-VISIBLE OUTPUT** — **`Pass 101.1`'s OWN TRIGGER HAS FIRED**~~ — CLOSED 2026-09-29 (764th filing, `Pass 223.0` `b543759c`) — filed 2026-09-01 (360th filing, `Pass 199.2`'s unswept consequence)
 
 **★★★ CLOSED by `Pass 223.0` (`b543759`, 2026-09-01, 364th filing) — see
 *Shipped*, above. The banner now reads `iccce: 0.3.0 (tag v0.3.0,
@@ -23437,7 +23447,7 @@ ticking a box** — the reporting is still not built.
 
 ---
 
-### Unscoped — **`docs/DEPENDENCIES.md` was NOT updated when `iccce` landed, and `ARCHITECTURE.md` §9 requires it** — filed 2026-09-01 (360th filing)
+### ~~Unscoped — **`docs/DEPENDENCIES.md` was NOT updated when `iccce` landed, and `ARCHITECTURE.md` §9 requires it**~~ — CLOSED 2026-09-29 (764th filing, `Pass 223.0` `b543759c`) — filed 2026-09-01 (360th filing)
 
 **★★★ CLOSED by `Pass 223.0` (`b543759`, 2026-09-01, 364th filing) — see
 *Shipped*, above. `docs/DEPENDENCIES.md` now lists `iccce-profile` and
@@ -23458,7 +23468,7 @@ same pass (rule 13).
 
 ---
 
-### Unscoped — **`tools/check-string-gaps.sh` is not in the release path, and a gap it catches SHIPPED in v0.18.0** — filed 2026-09-01 (360th filing, from `Pass 201.0`)
+### ~~Unscoped — **`tools/check-string-gaps.sh` is not in the release path, and a gap it catches SHIPPED in v0.18.0**~~ — CLOSED 2026-09-29 (764th filing; wired into `tools/check-ci-parity.py`, no single hash) — filed 2026-09-01 (360th filing, from `Pass 201.0`)
 
 **★ CLOSED — verified 2026-09-29 (read-only audit).** `tools/check-ci-parity.py:133`
 lists `check-string-gaps.sh`; `tools/run-gates.sh` takes its gate list from
@@ -23481,7 +23491,7 @@ the heredoc hazard deserves its own note in the release runbook.
 
 ---
 
-### Unscoped — **`nonseparable_composited` has no path from GROUP composites, only direct paint** — filed 2026-09-01 (358th filing, `Pass 198.0`'s deliberately-unimplemented half)
+### ~~Unscoped — **`nonseparable_composited` has no path from GROUP composites, only direct paint**~~ — CLOSED 2026-09-29 (764th filing, `Pass 392.0` `e9ab98ae`) — filed 2026-09-01 (358th filing, `Pass 198.0`'s deliberately-unimplemented half)
 
 **★ CLOSED by `Pass 392.0` (`e9ab98ae`) — verified 2026-09-29.** `run_form`'s
 layered-group branch in `crates/pdfcer-render/src/interpret.rs` now
@@ -23501,7 +23511,7 @@ this entry is the counting fix that correction did not make. Needs a
 diagnostics channel threaded into `layer_blend`, mirroring the one the
 direct-paint path already has.
 
-### Unscoped — **a committed test pins a KNOWN-WRONG value, deliberately, pending the n-channel buffer** — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
+### ~~Unscoped — **a committed test pins a KNOWN-WRONG value, deliberately, pending the n-channel buffer**~~ — CLOSED 2026-09-29 (764th filing, `Pass 238.0` `8ce05072`) — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
 
 **★ CLOSED by `Pass 238.0` — verified 2026-09-29 (read-only audit).**
 `crates/pdfcer-render/tests/grey_overprint.rs:470-483` now asserts the spot
@@ -23519,7 +23529,7 @@ per-spot-colorant (n-channel) buffer lands**, not before — until then the
 renderer has no plane to preserve a spot's ink on, so `c_b` cannot be
 honoured for an image regardless of what this test expects.
 
-### Unscoped — **a disclosure counter for "a process-space image over an already-flattened spot" does not fire where it should** — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
+### ~~Unscoped — **a disclosure counter for "a process-space image over an already-flattened spot" does not fire where it should**~~ — CLOSED (MOOT) 2026-09-29 (764th filing, after `Pass 238.0` `8ce05072`) — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
 
 **★ CLOSED — verified 2026-09-29 (read-only audit).** Moot after `Pass 238.0`
 gave images a spot plane (`c_b` now delivered; `grey_overprint.rs:472` records
@@ -23543,7 +23553,7 @@ source is process-space AND the backdrop it is painting over already
 carries flattened spot ink" — the second half is the part nothing today
 computes.
 
-### Unscoped — **`tools/overprint_image.rs`'s signature table has no row that would catch this on CI** — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
+### ~~Unscoped — **`tools/overprint_image.rs`'s signature table has no row that would catch this on CI**~~ — CLOSED 2026-09-29 (764th filing, `Pass 394.0` `3d10717d`) — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
 
 **★ CLOSED by `Pass 394.0` (`3d10717d`, 2026-09-29).** The entry's own
 heading named the wrong path (it's `crates/pdfcer-render/tests/overprint_image.rs`,
@@ -23582,7 +23592,7 @@ asks for. **What remains open, unchanged:** flipping `clean`'s default
 for every *other*, still-undiscovered criterion shape. Still needs
 operator scoping before starting, per this entry's own text above.
 
-### Unscoped — **`resize_annotation`'s `/AP` `/N` overwrite guards against structural DICTIONARIES only as a side effect, not against a page's `/Contents` STREAM** — reported, not fixed, by `Pass 191.1` — filed 2026-08-31 (356th filing)
+### ~~Unscoped — **`resize_annotation`'s `/AP` `/N` overwrite guards against structural DICTIONARIES only as a side effect, not against a page's `/Contents` STREAM**~~ — CLOSED 2026-09-29 (764th filing, `Pass 391.0` `afdc6797`) — reported, not fixed, by `Pass 191.1` — filed 2026-08-31 (356th filing)
 
 **★ CLOSED 2026-09-29 (729th filing) by `Pass 391.0` (`afdc6797`).**
 `appearance_slot` now returns `Allocate` whenever any page's `/Contents`
@@ -23699,7 +23709,7 @@ spend a day proving something already written down. The visible symptom is
 `edit-text`/`format-text` refusing on a page whose font was added by
 `add_text` earlier in the same session.
 
-### Unscoped — **`/BS` `/W` does not change a check box's or radio button's DRAWN border** — filed 2026-08-31 (351st filing, `Pass 187.0`'s deliberate omission)
+### ~~Unscoped — **`/BS` `/W` does not change a check box's or radio button's DRAWN border**~~ — CLOSED 2026-09-29 (764th filing, `Pass 340.0` `463b0008`) — filed 2026-08-31 (351st filing, `Pass 187.0`'s deliberate omission)
 
 **★ CLOSED by `Pass 340.0` (`463b0008`) — verified 2026-09-29 (read-only
 audit).** `annot_author.rs`'s `build_check_box_appearances` now calls
@@ -23726,7 +23736,7 @@ was requested and none was done. Their closing line is **adopted as the
 standing answer**: a genuine rounded-corner toggle needs a **rounded-rectangle
 primitive** first, scoped with the operator, not improvised.
 
-### Unscoped — **rustdoc-cleanliness gate** — filed 2026-08-29 (317th filing, `Pass 161.0`'s Finding 3)
+### ~~Unscoped — **rustdoc-cleanliness gate**~~ — CLOSED 2026-09-29 (764th filing, `Pass 398.0` `c3daaa78`) — filed 2026-08-29 (317th filing, `Pass 161.0`'s Finding 3)
 
 **★ CLOSED by `Pass 398.0` (`c3daaa78`) — 2026-09-29.** The 11-item
 dangerous subclass this entry's 318th-filing amendment measured is fixed
@@ -24515,9 +24525,27 @@ the part matters:
 - **(d) `cmyk_intent` governs only the no-declared-intent case, and its doc
   comment must say so — NOT DONE**, unchanged.
 
+**★ RE-VERIFIED 2026-09-29 (764th filing, read-only audit) — item (c)'s
+two-different-rules divergence is STILL LIVE, unchanged since the 360th
+filing, and STILL not a recorded decision.** `crates/pdfcer-render/src/interpret.rs:2306`
+(`output_intent_profile`, first-entry-whose-profile-stream-decodes) and
+`crates/pdfcer-render/src/interpret.rs:2326` (`output_intent_blend_space`,
+first-entry-that-yields-a-determinable-space) are confirmed live at those
+exact lines, each still applying its own different first-entry rule. Item
+(d)'s `CmykIntent` doc comment is confirmed still not updated to say it
+governs only the no-declared-intent case. Neither is fixed by this filing
+— bookkeeping only, no code shipped.
+
 ---
 
-### `LoadReport` CANNOT SAY WHICH KEYS A SETTINGS FILE ACTUALLY STATED — so a shell had to RE-IMPLEMENT A DEFAULT to tell "absent" from "chosen"
+### ~~`LoadReport` CANNOT SAY WHICH KEYS A SETTINGS FILE ACTUALLY STATED — so a shell had to RE-IMPLEMENT A DEFAULT to tell "absent" from "chosen"~~ — CLOSED 2026-09-29 (764th filing, `Pass 399.0` `3fa2091e`)
+
+**★ RESOLVED — confirmed against this file's own `Pass 399.0` *Shipped* entry
+(top of this file).** `LoadReport` gained `pub stated: BTreeSet<String>` and
+`was_stated(&self, key: &str) -> bool`, distinguishing an explicit value from
+one that fell to default — the acceptance criterion below, met. Of the two
+proposed shapes, only `stated` was built; `Settings::load_over(defaults)`
+was not, and stays available if ever needed. Core-only; no cli/gui surface.
 
 **Filed 2026-08-25 (two-hundred-and-sixty-second filing)**, reported by
 **pdfceGUI** and surfaced during `Pass 128.0` (`de2d93c`, top of *Shipped*).
@@ -24804,7 +24832,7 @@ parallelism is the one change that makes a bad constant factor look solved.*
 
 ---
 
-### `Pass 97.1k` — native colorant paths for IMAGES and SHADINGS — ★★ **RE-SCOPED 2026-08-26: the IMAGE half is DELIVERED for `DeviceCMYK` sources; the residual is MESH SHADINGS and images with NO INK to keep**
+### ~~`Pass 97.1k` — native colorant paths for IMAGES and SHADINGS~~ — CLOSED 2026-09-29 (764th filing, `Pass 137.1` `d1ce4ace`; also `130.1`/`122.6`/`137.0`) — ★★ **RE-SCOPED 2026-08-26: the IMAGE half is DELIVERED for `DeviceCMYK` sources; the residual is MESH SHADINGS and images with NO INK to keep**
 
 **Filed 2026-08-21 (two-hundred-and-twenty-fifth filing).** Both reach the
 colorant buffer as **resolved sRGB** and are bridged back per pixel — disclosed,
@@ -24908,7 +24936,7 @@ criterion for this entry to owe.
 
 ---
 
-### `Pass 122.1` — PER-SAMPLE IMAGE OVERPRINT — ★ now DIAGNOSED, not merely listed
+### ~~`Pass 122.1` — PER-SAMPLE IMAGE OVERPRINT~~ — CLOSED 2026-09-29 (764th filing, `Pass 130.2` `fafc0c21`; `Pass 238.0` `8ce05072`) — ★ now DIAGNOSED, not merely listed
 
 **Filed 2026-08-21 (two-hundred-and-twenty-fifth filing).** `overprint::composite`
 has **exactly one call site**, in the path and glyph painter, so an image under
@@ -25251,7 +25279,7 @@ is owed here — the next move is `iccce`'s, whenever they get to it.
 
 ---
 
-### `Pass 124.1` — carry `/RI` through the graphics state, per-paint
+### ~~`Pass 124.1` — carry `/RI` through the graphics state, per-paint~~ — CLOSED 2026-09-29 (764th filing, read-only audit): shipped as `Pass 199.0` (`a8213934`) + `Pass 199.1` (`9f1887eb`), decision 114 — see the ★ RESOLVED note below, unchanged
 
 **Filed 2026-08-25 (two-hundred-and-fifty-first filing), surfaced by the
 `Pass 124.0` intent census and the `iccce` reply that came with it.**

@@ -4,6 +4,61 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (764th filing) — audit-close: `docs/ROADMAP.md` Backlog headings marked CLOSED
+
+**Shipped:** No code this filing — bookkeeping only, per an explicit
+read-only-audit dispatch. `docs/ROADMAP.md` and `docs/SESSION_LOG.md` are the
+only files edited; `docs/FEATURES.md`, `crates/pdfcer-cli/src/main.rs` and
+`crates/pdfcer-render/src/interpret.rs` were read for verification only.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- 18 Backlog headings closed (strikethrough + `CLOSED <date> (<filing>,
+  \`Pass N\` \`hash\`)`), each citing a hash re-verified against the body text
+  already on record: Export to Word/Excel (`Pass 380.0` `310489bd`,
+  `Pass 381.0` `4dc85998`), mesh spot overprint (`Pass 393.0` `b96be7e7`),
+  per-spot-colorant plane scoping (`Pass 238.0` `8ce05072`, `Pass 239.0`
+  `6e9513cd` — 4-spot cap explicitly left open, compile-time only), PCS
+  3.0/4.0 (`8ce05072`/`6e9513cd`/`e7db2805`), `--version` iccce banner and
+  `DEPENDENCIES.md` (both `b543759c`), `check-string-gaps` (no single hash —
+  wired into `tools/check-ci-parity.py`), nonseparable-composited group
+  (`Pass 392.0` `e9ab98ae`), known-wrong test pin (`8ce05072`), disclosure
+  counter (moot after `8ce05072`), `overprint_image.rs` signature
+  (`Pass 394.0` `3d10717d`), `resize_annotation` guard (`Pass 391.0`
+  `afdc6797`), `/BS`/`/W` check-box border (`Pass 340.0` `463b0008`), rustdoc
+  gate (`Pass 398.0` `c3daaa78`), `LoadReport` (`Pass 399.0` `3fa2091e`, new
+  ★ RESOLVED paragraph added — `stated: BTreeSet<String>` + `was_stated()`,
+  `load_over` not built, core-only), Pass 97.1k (`Pass 137.1` `d1ce4ace`),
+  Pass 122.1 (`Pass 130.2` `fafc0c21`, `8ce05072`), Pass 124.1 rendering
+  intent (`Pass 199.0` `a8213934`, `Pass 199.1` `9f1887eb`, decision 114).
+- **Exception, not closed:** Pass 142.1's scoping-record entry — its own body
+  states twice it is a permanent stub that stays in *Backlog* by design
+  (promoted to *Next up* 2026-08-27, 296th filing); closing it would
+  contradict the file's own stated design, so it was left alone.
+- Two new flagged survivors added as Backlog sub-notes, not closures: (a) the
+  output-intent apply entry re-verified at its exact current lines
+  (`interpret.rs:2306` `output_intent_profile` vs `:2326`
+  `output_intent_blend_space`, two different first-entry rules, still an
+  unrecorded divergence); (b) `crates/pdfcer-cli/src/main.rs:390`'s
+  `icc_managed_paints` doc row still claims an `ICCBased` image is "never
+  colour-managed at all" — false for N 3 (RGB) since `Pass 240.0` (`f978291a`);
+  (c) the existing ICCBased-images ★ PARTLY paragraph gained the `f978291a`
+  hash it was missing.
+- `docs/FEATURES.md` needed **no edits**: every row touched by a closed
+  heading (Forms `/BS`/`/W`, subtractive compositing buffer, non-separable
+  blend modes, overprint simulation, `LoadReport`, Word/Excel export rows,
+  per-colorant Planned row, `/OutputIntents` CMYK conversion, `/ICCBased`,
+  rendering intent) was already ticked/annotated correctly and current —
+  verified by direct read, not assumed.
+
+**Still in flight:** None — this was a closed-scope audit dispatch.
+
+**For next session:** The two survivors above ((a) divergent output-intent
+first-entry rules, (b) stale CLI help text) are recorded in `ROADMAP.md`'s
+`ICCBased` images Backlog entry; no urgency, low-cost fixes whenever that
+entry is next picked up.
+
 ## 2026-09-29 (763rd filing) — `Pass 409.0` (`2d2c25ee`): `set_page_tabs` records a page's tab order
 
 **Shipped:**
