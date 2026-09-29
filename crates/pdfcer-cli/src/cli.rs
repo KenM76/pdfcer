@@ -129,8 +129,8 @@ pub(crate) enum OnOffArg {
 /// `export-docx/-xlsx/-ods --structure`: where blocks and tables come from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum StructureArg {
-    /// The file's structure tree when it covers at least half the text,
-    /// else inferred from the page.
+    /// The file's structure tree when it covers at least half the text
+    /// of the selected pages, else inferred from the page.
     Auto,
     /// The structure tree whenever the file has one.
     Tree,
@@ -3224,9 +3224,9 @@ pub(crate) enum Command {
     /// holds and anything dropped.
     ///
     /// A tagged PDF's own `Table` elements are used instead of detection
-    /// when its structure tree covers at least half the text
-    /// (`--structure auto`, the default); `--structure tree` uses any tree,
-    /// `--structure layout` always detects. A tree with no tables gives no
+    /// when its structure tree covers at least half the text of the
+    /// selected pages (`--structure auto`, the default); `--structure
+    /// tree` uses any tree, `--structure layout` always detects. A tree with no tables gives no
     /// tables. The result line ends with `structure=tree|layout`, the
     /// reason for falling back (`structure_fallback=none|disabled|no-tree|
     /// no-text-claimed|low-coverage`), the fraction of text the tree
@@ -3298,8 +3298,8 @@ pub(crate) enum Command {
     /// tables.
     ///
     /// On an untagged file every block kind is inferred. On a tagged file
-    /// whose structure tree covers at least half the text (`--structure
-    /// auto`, the default) headings, paragraphs, list items, captions and
+    /// whose structure tree covers at least half the selected pages' text
+    /// (`--structure auto`, the default) headings, paragraphs, list items, captions and
     /// tables come from its tags instead, in the tags' order; text the tree
     /// does not own keeps its inferred block. `--structure tree` uses any
     /// tree, `--structure layout` ignores it.

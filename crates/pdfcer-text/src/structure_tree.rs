@@ -45,6 +45,7 @@ use pdfcer_model::view::DocumentView;
 
 use crate::text_extract::{
     ContentStreamRef, ExtractError, ExtractOptions, ExtractedText, extract_document_view,
+    extract_pages_view,
 };
 
 /// The default standard structure namespace (ISO 32000-2 §14.8.6.1).
@@ -193,7 +194,8 @@ pub enum StructKid {
         runs: Vec<usize>,
         /// Whether a `BDC` on that page declares this MCID. `false` is a
         /// broken reference, counted in
-        /// [`StructureDiagnostics::named_not_declared`].
+        /// [`StructureDiagnostics::named_not_declared`], unless the page was
+        /// not extracted ([`read_structure_tree_in_pages`]).
         declared: bool,
     },
     /// An object reference (`/OBJR`, §14.7.4.3): an annotation or XObject.
@@ -296,6 +298,11 @@ pub struct StructureDiagnostics {
     pub page_inherited: usize,
     /// Content items with no resolvable page at all.
     pub page_unresolved: usize,
+    /// Marked-content items on pages outside a
+    /// [`read_structure_tree_in_pages`] selection: not joined, and not
+    /// counted by the MCID fields above. Always 0 for
+    /// [`read_structure_tree`].
+    pub content_on_other_pages: usize,
     /// Human-readable notes, one per distinct finding.
     pub notes: Vec<String>,
 }
@@ -344,6 +351,50 @@ pub fn read_structure_tree(
     options: &ExtractOptions,
 ) -> Result<StructureTree, ExtractError> {
     let text = extract_document_view(view, options)?;
+    read_over(view, text)
+}
+
+/// Whether the catalog has a `/StructTreeRoot` dictionary (ISO 32000-1
+/// §14.7.2). Reads the catalog only, so it costs nothing on an untagged
+/// file; `false` means [`read_structure_tree`] would report
+/// [`FallbackReason::NoStructureTree`](crate::tagged_layout::FallbackReason::NoStructureTree).
+#[must_use]
+pub fn has_structure_tree(view: &DocumentView<'_>) -> bool {
+    view.catalog_dict()
+        .and_then(|c| c.get(b"StructTreeRoot"))
+        .map(|o| view.resolve(o))
+        .and_then(Object::as_dict)
+        .is_some()
+}
+
+/// [`read_structure_tree`] extracting only the pages at `indices` (the
+/// view's own page list, in the order given), so its cost follows the
+/// selection rather than the document.
+///
+/// The whole tree is walked, so [`StructureTree::elements`] and each
+/// element's depth are the same as for a full read. Marked content on
+/// pages outside `indices` is left unjoined (no runs, `declared: false`)
+/// and counted in [`StructureDiagnostics::content_on_other_pages`] rather
+/// than as a broken reference; an element whose content is all elsewhere
+/// contributes no text. `tree.text.pages` follows `indices`, so pass
+/// geometry in that order to
+/// [`layout_from_structure`](crate::tagged_layout::layout_from_structure).
+///
+/// # Errors
+///
+/// [`ExtractError::NoSuchPage`] for an index past the end;
+/// [`ExtractError::PageTree`] when the page tree cannot be walked.
+pub fn read_structure_tree_in_pages(
+    view: &DocumentView<'_>,
+    indices: &[usize],
+    options: &ExtractOptions,
+) -> Result<StructureTree, ExtractError> {
+    let text = extract_pages_view(view, indices, options)?;
+    read_over(view, text)
+}
+
+/// Walks the tree and joins it to `text`, whichever pages that holds.
+fn read_over(view: &DocumentView<'_>, text: ExtractedText) -> Result<StructureTree, ExtractError> {
     let pages = page_tree::pages_in(view)?;
     let page_of: HashMap<ObjId, usize> = pages.iter().enumerate().map(|(i, p)| (p.id, i)).collect();
     let mut reader = Reader {
@@ -832,6 +883,7 @@ impl StructureTree {
         type Key = (usize, ContentStreamRef, u32);
         let mut runs_by_key: HashMap<Key, Vec<usize>> = HashMap::new();
         let mut declared: HashSet<Key> = HashSet::new();
+        let extracted: HashSet<usize> = self.text.pages.iter().map(|p| p.page_index).collect();
         for page in &self.text.pages {
             let p = page.page_index;
             for (i, run) in page.runs.iter().enumerate() {
@@ -846,6 +898,7 @@ impl StructureTree {
         let mut claimed: HashSet<Key> = HashSet::new();
         let mut named_not_declared = 0;
         let mut claimed_twice = 0;
+        let mut elsewhere = 0;
         for e in &mut self.elements {
             for kid in &mut e.kids {
                 if let StructKid::MarkedContent {
@@ -856,6 +909,10 @@ impl StructureTree {
                     declared: d,
                 } = kid
                 {
+                    if !extracted.contains(p) {
+                        elsewhere += 1;
+                        continue;
+                    }
                     let key = (*p, *stream, *mcid);
                     *d = declared.contains(&key);
                     if !*d {
@@ -871,6 +928,7 @@ impl StructureTree {
         let d = &mut self.diagnostics;
         d.named_not_declared = named_not_declared;
         d.claimed_twice = claimed_twice;
+        d.content_on_other_pages = elsewhere;
         if d.struct_tree_present {
             d.declared_unclaimed = declared.difference(&claimed).count();
         }

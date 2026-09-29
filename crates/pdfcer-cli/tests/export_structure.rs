@@ -182,3 +182,73 @@ fn export_xlsx_and_ods_take_the_trees_tables() {
         "{layout}"
     );
 }
+
+/// `--pages 2` of a file whose page 1 is long untagged text: the tree's
+/// coverage is judged on the selected page only, so the tree is used.
+#[test]
+fn a_page_selection_is_judged_on_its_own_coverage() {
+    let dir = std::env::temp_dir().join("pdfcer-export-structure-pages");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("in.pdf");
+    let page = |contents: u32| {
+        format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {contents} 0 R \
+             /Resources << /Font << /F1 5 0 R >> >> >>"
+        )
+    };
+    let (page1, page2) = (page(4), page(7));
+    let untagged: String = (0..12)
+        .map(|i| {
+            format!(
+                "BT /F1 11 Tf 72 {} Td (Untagged body text line number {i} on the cover.) Tj ET\n",
+                720 - i * 20
+            )
+        })
+        .collect();
+    let untagged = format!("STREAM:{untagged}");
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 8 0 R /MarkInfo << /Marked true >> >>",
+        "<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>",
+        &page1,
+        &untagged,
+        HEAD[4],
+        &page2,
+        "STREAM:\
+/H1 <</MCID 0>> BDC BT /F1 18 Tf 72 720 Td (Page Two) Tj ET EMC\n\
+/P <</MCID 1>> BDC BT /F1 11 Tf 72 690 Td (Second body.) Tj ET EMC",
+        "<< /Type /StructTreeRoot /K 9 0 R >>",
+        "<< /S /Document /P 8 0 R /K [10 0 R 11 0 R] >>",
+        "<< /S /H1 /P 9 0 R /Pg 6 0 R /K 0 >>",
+        "<< /S /P /P 9 0 R /Pg 6 0 R /K 1 >>",
+    ];
+    std::fs::write(&path, build_pdf(&bodies)).unwrap();
+    let out = dir.join("out.docx");
+    let export = |pages: &str| {
+        let o = Command::new(BIN)
+            .args([
+                "export-docx",
+                path.to_str().unwrap(),
+                "-o",
+                out.to_str().unwrap(),
+                "--pages",
+                pages,
+            ])
+            .output()
+            .unwrap();
+        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+        String::from_utf8_lossy(&o.stdout).into_owned()
+    };
+    let second = export("2");
+    assert!(
+        second.contains(
+            " structure=tree structure_fallback=none structure_coverage=1.000 structure_blocks=2 "
+        ),
+        "{second}"
+    );
+    assert!(second.contains(" broken_references=0"), "{second}");
+    let first = export("1");
+    assert!(
+        first.contains(" structure=layout structure_fallback=no-text-claimed "),
+        "{first}"
+    );
+}

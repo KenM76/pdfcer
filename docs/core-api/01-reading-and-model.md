@@ -1295,8 +1295,8 @@ for (i, e) in tree.elements.iter().enumerate() {   // pre-order = logical readin
   (default 1), `scope`, `headers`; `list_numbering` (inherited). Attributes
   resolve `/A` then `/C` via ClassMap, later wins (ISO 32000-2 §14.7.6).
 - `StructKid`: `Element(index)` (always a later index), `MarkedContent
-  { page_index, stream, mcid, runs, declared }` (`runs` index into
-  `tree.text.pages[page_index].runs`), `Object { page_index, object,
+  { page_index, stream, mcid, runs, declared }` (`runs` index into the
+  `runs` of the `tree.text.pages` entry with that `page_index`), `Object { page_index, object,
   subtype, rect }` (an annotation or XObject by OBJR).
 - Role mapping always applies once, even to a standard name (ISO 32000-2
   §14.7.3 NOTE 3), then follows the chain; `/NS` elements use that
@@ -1308,6 +1308,17 @@ for (i, e) in tree.elements.iter().enumerate() {   // pre-order = logical readin
 - `PageText::marked_content_ids` lists every `(ContentStreamRef, mcid)` a
   `BDC` declared on the page, including sequences with no text — the join
   needs it to tell "declared, no text" from "absent".
+- `structure_tree::has_structure_tree(&view) -> bool` reads the catalog
+  only: whether `/StructTreeRoot` is a dictionary. Use it before paying for
+  any extraction (G067).
+- `structure_tree::read_structure_tree_in_pages(&view, &indices, &opts)`
+  extracts only those pages (view page list, in the order given;
+  `NoSuchPage` past the end). The whole tree is still walked, so
+  `elements` and depths match a full read. Marked content on other pages
+  stays unjoined (`runs` empty, `declared: false`) and is counted in
+  `diagnostics.content_on_other_pages`, not in `named_not_declared`,
+  `claimed_twice` or `declared_unclaimed`. `tree.text.pages` follows
+  `indices`.
 - CLI: `pdfcer extract-tags in.pdf [--json] [-o out]`.
 
 ### 8.4.3 Untagged block layout — headings, paragraphs, lists, running text (`Pass 373.0`)
@@ -1441,6 +1452,7 @@ use pdfcer_core::tagged_layout::{self, LayoutSourceUsed, TaggedLayoutOptions, St
 use pdfcer_core::table_detect::tables_from_structure;
 
 let tree = structure_tree::read_structure_tree(&doc, &opts)?;
+// or, for a page selection: read_structure_tree_in_pages(&doc, &pages, &opts)
 // geometry[i] belongs to tree.text.pages[i], as for layout_text
 let tagged = tagged_layout::layout_from_structure(
     &tree, &geometry, &LayoutOptions::default(),
@@ -1460,6 +1472,9 @@ match tagged.report.source {
   uses any tree; `Never` returns the inferred layout. `report.fallback`:
   `Disabled | NoStructureTree | NoTextClaimed | LowCoverage`;
   `report.coverage` is the fraction owned (0 when the tree is not read).
+  Coverage is judged over the pages the tree was read for, so a
+  page-scoped read decides on the selection, not the document; that is
+  what the CLI's `--pages` does.
 - Blocks carry `BlockSource::Structure`. `H1`–`H6`/`Hn` → `Heading
   { level }` (capped at 6); `H` → level = enclosing `Sect` count; `Title`
   → level 1; `P`, `TOCI`, `BibEntry`, `FENote` → `Paragraph`; `LI` →

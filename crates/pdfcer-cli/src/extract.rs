@@ -2099,8 +2099,9 @@ enum StructureChoice {
     Layout(pdfcer_core::tagged_layout::TaggedLayoutReport),
 }
 
-/// Reads the structure tree unless `--structure layout`, and lays the
-/// document out from it when the tree qualifies.
+/// Reads the structure tree of the `--pages` selection unless
+/// `--structure layout`, and lays it out from the tree when the tree
+/// qualifies. The coverage test runs over the selected pages.
 fn choose_structure(
     view: &pdfcer_core::view::DocumentView<'_>,
     input: &Path,
@@ -2109,7 +2110,7 @@ fn choose_structure(
 ) -> Result<StructureChoice, u8> {
     use pdfcer_core::block_layout::{LayoutOptions, PageGeometry};
     use pdfcer_core::page_tree::pages_in;
-    use pdfcer_core::structure_tree::read_structure_tree;
+    use pdfcer_core::structure_tree::{has_structure_tree, read_structure_tree_in_pages};
     use pdfcer_core::tagged_layout::{
         FallbackReason, LayoutSourceUsed, StructureUse, TaggedLayoutOptions, TaggedLayoutReport,
         layout_from_structure,
@@ -2125,32 +2126,36 @@ fn choose_structure(
             return Ok(StructureChoice::Layout(report));
         }
     };
+    if !has_structure_tree(view) {
+        let mut report = TaggedLayoutReport::default();
+        report.fallback = Some(FallbackReason::NoStructureTree);
+        return Ok(StructureChoice::Layout(report));
+    }
     let fail = |err: &dyn std::fmt::Display| {
         eprintln!("pdfcer: {}: {err}", input.display());
         exit::RUNTIME_ERROR
     };
-    let tree = read_structure_tree(view, &ExtractOptions::default()).map_err(|e| fail(&e))?;
+    let mut unique: Vec<usize> = Vec::with_capacity(indices.len());
+    for &i in indices {
+        if !unique.contains(&i) {
+            unique.push(i);
+        }
+    }
+    let tree = read_structure_tree_in_pages(view, &unique, &ExtractOptions::default())
+        .map_err(|e| fail(&e))?;
     let pages = pages_in(view).map_err(|e| fail(&e))?;
-    let geometry = |index: &[usize]| -> Vec<PageGeometry> {
-        index
-            .iter()
-            .filter_map(|&i| pages.get(i))
-            .map(|p| PageGeometry::new(p.crop_box, p.rotate))
-            .collect()
-    };
-    let all: Vec<usize> = tree.text.pages.iter().map(|p| p.page_index).collect();
+    let geometry: Vec<PageGeometry> = tree
+        .text
+        .pages
+        .iter()
+        .filter_map(|p| pages.get(p.page_index))
+        .map(|p| PageGeometry::new(p.crop_box, p.rotate))
+        .collect();
     let options = TaggedLayoutOptions::default().with_use_structure(use_structure);
-    let mut tagged =
-        layout_from_structure(&tree, &geometry(&all), &LayoutOptions::default(), &options);
+    let tagged = layout_from_structure(&tree, &geometry, &LayoutOptions::default(), &options);
     if tagged.report.source != LayoutSourceUsed::StructureTree {
         return Ok(StructureChoice::Layout(tagged.report));
     }
-    tagged.retain_pages(indices);
-    let rank = |page: usize| indices.iter().position(|&i| i == page);
-    tagged.layout.pages.sort_by_key(|p| rank(p.page_index));
-    tagged.tables.sort_by_key(|t| rank(t.page_index));
-    let kept: Vec<usize> = tagged.layout.pages.iter().map(|p| p.page_index).collect();
-    let geometry = geometry(&kept);
     Ok(StructureChoice::Tree(Box::new(tagged), geometry))
 }
 

@@ -9,7 +9,9 @@
 use pdfcer_model::document::Document;
 use pdfcer_model::page_tree::pages_in;
 use pdfcer_text::block_layout::{BlockKind, BlockSource, LayoutOptions, PageGeometry};
-use pdfcer_text::structure_tree::read_structure_tree;
+use pdfcer_text::structure_tree::{
+    StructureTree, has_structure_tree, read_structure_tree, read_structure_tree_in_pages,
+};
 use pdfcer_text::tagged_layout::{
     FallbackReason, LayoutSourceUsed, StructureUse, TaggedLayout, TaggedLayoutOptions,
     layout_from_structure,
@@ -322,4 +324,122 @@ fn a_paragraph_nested_in_a_paragraph_is_its_own_block_but_a_list_items_is_not() 
         ]
     );
     assert_eq!(t.report.structure_blocks, 3);
+}
+
+/// Two pages, each a heading and a paragraph, MCIDs 0-1 on each.
+fn two_pages() -> Vec<u8> {
+    build_pdf(&[
+        "<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 8 0 R \
+         /MarkInfo << /Marked true >> >>",
+        "<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>",
+        PAGE,
+        "STREAM:\
+/H1 <</MCID 0>> BDC BT /F1 18 Tf 72 720 Td (Page One) Tj ET EMC\n\
+/P <</MCID 1>> BDC BT /F1 11 Tf 72 690 Td (First body.) Tj ET EMC",
+        FONT,
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R \
+         /Resources << /Font << /F1 5 0 R >> >> >>",
+        "STREAM:\
+/H1 <</MCID 0>> BDC BT /F1 18 Tf 72 720 Td (Page Two) Tj ET EMC\n\
+/P <</MCID 1>> BDC BT /F1 11 Tf 72 690 Td (Second body.) Tj ET EMC",
+        "<< /Type /StructTreeRoot /K 9 0 R >>",
+        "<< /S /Document /P 8 0 R /K [10 0 R 11 0 R 12 0 R 13 0 R] >>",
+        "<< /S /H1 /P 9 0 R /Pg 3 0 R /K 0 >>",
+        "<< /S /P /P 9 0 R /Pg 3 0 R /K 1 >>",
+        "<< /S /H1 /P 9 0 R /Pg 6 0 R /K 0 >>",
+        "<< /S /P /P 9 0 R /Pg 6 0 R /K 1 >>",
+    ])
+}
+
+fn page_blocks(t: &TaggedLayout, page_index: usize) -> Vec<(BlockKind, BlockSource, String)> {
+    let page = t
+        .layout
+        .pages
+        .iter()
+        .find(|p| p.page_index == page_index)
+        .unwrap();
+    page.blocks
+        .iter()
+        .map(|b| (b.kind.clone(), b.source, b.text(page)))
+        .collect()
+}
+
+#[test]
+fn the_catalog_probe_sees_a_tree_without_extracting() {
+    let tagged_doc = Document::from_bytes(two_pages()).unwrap();
+    assert!(has_structure_tree(&tagged_doc.view()));
+    let untagged = Document::from_bytes(build_pdf(&[
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        PAGE,
+        CONTENT,
+        FONT,
+    ]))
+    .unwrap();
+    assert!(!has_structure_tree(&untagged.view()));
+}
+
+#[test]
+fn a_page_scoped_read_lays_out_that_page_as_the_full_read_does() {
+    let doc = Document::from_bytes(two_pages()).unwrap();
+    let view = doc.view();
+    let pages = pages_in(&view).unwrap();
+    let geometry = |tree: &StructureTree| -> Vec<PageGeometry> {
+        tree.text
+            .pages
+            .iter()
+            .map(|p| PageGeometry::new(pages[p.page_index].crop_box, pages[p.page_index].rotate))
+            .collect()
+    };
+    let options = TaggedLayoutOptions::default();
+    let full = read_structure_tree(&view, &ExtractOptions::default()).unwrap();
+    let mut whole =
+        layout_from_structure(&full, &geometry(&full), &LayoutOptions::default(), &options);
+    whole.retain_pages(&[1]);
+
+    let scoped = read_structure_tree_in_pages(&view, &[1], &ExtractOptions::default()).unwrap();
+    assert_eq!(
+        scoped.text.pages.len(),
+        1,
+        "only the selected page is extracted"
+    );
+    assert_eq!(
+        scoped.elements.len(),
+        full.elements.len(),
+        "the whole tree is walked"
+    );
+    let d = &scoped.diagnostics;
+    assert_eq!(d.content_on_other_pages, 2, "page 1's two MCIDs");
+    assert_eq!(
+        (d.named_not_declared, d.declared_unclaimed),
+        (0, 0),
+        "another page's content is not a broken reference"
+    );
+    assert_eq!(full.diagnostics.content_on_other_pages, 0);
+
+    let part = layout_from_structure(
+        &scoped,
+        &geometry(&scoped),
+        &LayoutOptions::default(),
+        &options,
+    );
+    assert_eq!(part.report.source, LayoutSourceUsed::StructureTree);
+    assert_eq!(part.report.broken_references, 0);
+    assert_eq!(part.report.structure_blocks, 2);
+    assert_eq!(page_blocks(&part, 1), page_blocks(&whole, 1));
+    assert_eq!(
+        page_blocks(&part, 1),
+        [
+            (
+                BlockKind::Heading { level: 1 },
+                BlockSource::Structure,
+                "Page Two".to_owned()
+            ),
+            (
+                BlockKind::Paragraph,
+                BlockSource::Structure,
+                "Second body.".to_owned()
+            ),
+        ]
+    );
 }
