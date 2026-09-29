@@ -115,6 +115,29 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 404.1` (`d805ba29`), 2026-09-29 — test: no second Helvetica object is written when `/DR` reuses one
+
+Tests only. Closes the gap `Pass 404.0` left open (below): per-face reuse
+is enforced in two call paths — `dr_font_objects` (allocating) and
+`planned_dr_font_objects` (side-effect-free, for adopt preview) — but only
+one had a dedicated regression. Disabling the planner's presence check
+wrote an unreferenced second Helvetica font object that no existing test
+caught.
+
+**Test.** `crates/pdfcer-core/tests/form_field_authoring.rs`
+`a_font_pdfcer_adds_to_dr_is_one_indirect_object_per_face` extended: counts
+top-level Helvetica font objects in the incremental append after adding two
+fields (widget `/AP` streams carry inline resource copies, which are not
+objects and are not counted). Sabotage-verified: disabling the planner's
+presence check yields 2 objects and the test fails; restored, passes.
+
+**core-api.** No `pub` change. **`FEATURES.md`.** No box change.
+
+**Gates.** `cargo test -p pdfcer-core --no-default-features`: 1307 + 158 +
+2282 passed. `tools/run-gates.sh`: 40/41 on the prior tree — the one
+failure was this test's in-progress edit landing mid-run; that command
+re-run alone is green.
+
 ### `Pass 404.0` (`27e97d92`), 2026-09-29 — fonts pdfcer adds to `/AcroForm` `/DR` are indirect objects
 
 pdfceGUI `G068` (operator `O262`). **Defect:** Acrobat Pro (and Reader) draw
@@ -150,6 +173,10 @@ existing authoring, no box changed.
 **RAG.** Empirical quirk already on disk at
 `C:\personal_rag\pdf\lesson_20260929_acrobat_hides_text_field_value_when_dr_font_is_inline.md`
 (indexed; covers `Pass 403.0`'s `/XRefStm` finding too, below).
+
+**Amended 2026-09-29 (749th filing).** The per-face reuse fix above landed
+in two call paths but only one had a dedicated regression — `Pass 404.1`
+(`d805ba29`) closed the gap. See above.
 
 ### `Pass 403.0` (`35e77877`), 2026-09-29 — a second save of a hybrid-reference file no longer undoes the first
 

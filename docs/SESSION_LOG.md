@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (749th filing) — `d805ba29`: `Pass 404.1` shipped
+
+**Shipped:**
+- `Pass 404.1` (`d805ba29`) — tests only. Closes the gap in `Pass 404.0`'s
+  fix (748th filing): per-face `/DR` font reuse is enforced in two call
+  paths (`dr_font_objects`, `planned_dr_font_objects`) but only one had a
+  dedicated regression. Extended
+  `a_font_pdfcer_adds_to_dr_is_one_indirect_object_per_face` to count
+  top-level Helvetica objects after two fields; sabotage-verified against
+  the planner's presence check.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:** None new — closes a known gap, no new behavior.
+
+**Still in flight:** Nothing new opened this filing. Unreleased since
+`v0.65.0`: `401.0`, `402.0`, `403.0`, `404.0`, `404.1`.
+
+**For next session:** Same open item carried from the 748th filing —
+whether `Pass 403.0`'s `/XRefStm`-shadowing finding earns a numbered
+standing rule.
+
 ## 2026-09-29 (748th filing) — `35e77877`/`27e97d92`: `Pass 403.0` + `Pass 404.0` shipped
 
 **Shipped:**
