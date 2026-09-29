@@ -115,6 +115,73 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.66.0` — RELEASED (2026-09-29)
+
+Release filing, not a Pass — completes the engineer's in-progress release
+reported in `Pass 404.1`'s own "Also filed this session" note (750th
+filing). Version-bump commit `5ecfee12` ("chore: v0.66.0") bumps
+`Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.65.0 → 0.66.0; filed as such
+in `c1cbad50` ("docs: file v0.66.0 bump -- release in progress").
+
+**Tag.** Annotated tag `v0.66.0` points at `c1cbad50` (the 750th filing's
+own docs commit), pushed; `origin/main` = `c1cbad50`.
+
+**Range since `v0.65.0` (`316478af`): batches every Pass already filed
+above** — `401.0` (`/EmbeddedFiles` name-tree key ordering: dedicated
+test, `3b4935b9`), `402.0` (`R218` audit closed across all 34 `check-*`
+file-scanning gates, `409eb188`), `403.0` (a second incremental save of a
+hybrid-reference file no longer undoes the first, `35e77877`), `404.0`
+(fonts pdfcer adds to `/AcroForm` `/DR` are indirect objects, `27e97d92`),
+and `404.1` (no second Helvetica object is written when `/DR` reuses one,
+`d805ba29`) — all already filed above.
+
+**Gates.** `tools/run-gates.sh`: PASS, 41 commands, on the release tree.
+
+**Build.** `tools/package-portable.py` → `D:\builds\pdfcer-20260929-1132-
+c1cbad5`; 70,959,689 bytes staged.
+
+**Fresh-folder smoke test.** Copied the build to a new temp folder; added
+a text field to the synthetic `dimension/plain-base.pdf` fixture, then two
+consecutive fill-field saves. `pdfcer --version` reports `0.66.0`, revision
+`v0.66.0`. `/AcroForm /DR /Font /Helv` resolves to an indirect object
+(`7 0 R`); `list-fields` reads back the filled value `"world"`; the file
+carries 4 `%%EOF` markers.
+
+**Found during smoke, NOT YET FIXED.** Top-level `pdfcer --help` prints a
+multi-sentence history paragraph as help text, beginning "NAMED
+--open-password, not --password, because --password is already taken…" —
+a doc comment shipped verbatim as user-facing help. Recorded here as
+found, not fixed in this release; engineer fixing next.
+
+**GitHub release.** Published via `tools/gh-release.py`:
+`pdfcer-v0.66.0-windows-x64.zip`, 43,200,437 bytes, sha256
+`79cf5be8297b19891028c336c4343d126fc5150f5d38351318195277c93713d4`, plus
+its `.sha256`.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer1` (5 items,
+70,957,819 bytes), now `0.66.0`; `pdfcer2` keeps `v0.65.0`. **Next
+release writes `pdfcer2`.**
+
+**`verify-release.py v0.66.0`.** All checks OK except CI, which was still
+in progress at the tag at filing time (not failed) — to confirm on a
+later check.
+
+**Channel notice.** Written to
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-29_v0.66.0_released.md`.
+
+**Headline.** `403.0` fixes a second incremental save of a hybrid-
+reference file undoing the first; `404.0` fixes Acrobat drawing nothing
+for a filled text field once focus leaves when its font resolves to an
+inline `/DR` dictionary.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself** — all
+contents were already filed per-Pass.
+
+**Sourcing (hard rule 8).** No shell tool this filing — all figures
+(build sizes, hashes, gate/smoke-test results, the `verify-release.py`
+and channel-notice details) relayed from the dispatching engineer's own
+report; not independently reproduced here.
+
 ### `Pass 404.1` (`d805ba29`), 2026-09-29 — test: no second Helvetica object is written when `/DR` reuses one
 
 Tests only. Closes the gap `Pass 404.0` left open (below): per-face reuse

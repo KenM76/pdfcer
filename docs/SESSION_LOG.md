@@ -4,6 +4,57 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (751st filing) — `c1cbad50`/tag `v0.66.0`: `v0.66.0` RELEASED
+
+**Shipped:**
+- `v0.66.0` RELEASED — annotated tag `v0.66.0` on `c1cbad50` (the 750th
+  filing's own docs commit). Closes the release left "in progress" by the
+  749th/750th filings. Batches `401.0`-`404.1` (`/EmbeddedFiles` name-tree
+  key ordering; `R218` audit across all 34 `check-*` gates; a second
+  incremental save of a hybrid-reference file no longer undoes the first;
+  fonts pdfcer adds to `/AcroForm` `/DR` are indirect objects; the
+  matching dedicated regression test). Headline: `403.0` fixes a second
+  incremental save of a hybrid-reference file undoing the first; `404.0`
+  fixes Acrobat drawing nothing for a filled text field once focus leaves
+  when its font resolves to an inline `/DR` dictionary.
+  Package `D:\builds\pdfcer-20260929-1132-c1cbad5`, 70,959,689 bytes
+  staged. GitHub asset `pdfcer-v0.66.0-windows-x64.zip`, 43,200,437 bytes,
+  sha256 `79cf5be8297b19891028c336c4343d126fc5150f5d38351318195277c93713d4`.
+  OneDrive slot `pdfcer1` (5 items, 70,957,819 bytes), now `0.66.0`;
+  `pdfcer2` keeps `v0.65.0` — next release writes `pdfcer2`. Fresh-folder
+  smoke: `pdfcer --version` -> `0.66.0`, revision `v0.66.0`; add-text-field
+  plus two fill-field saves confirm `/DR /Helv` is indirect (`7 0 R`),
+  `list-fields` reads back `"world"`, 4 `%%EOF` markers.
+
+**Decisions made this session:** None — release-only filing, no new
+crate boundary or invariant. Highest decision record stays `166`.
+
+**Findings + decisions:**
+- `tools/run-gates.sh`: PASS, 41 commands, on the release tree
+  (`c1cbad50`).
+- `tools/verify-release.py v0.66.0`: all checks OK except CI, still in
+  progress at the tag at filing time (not failed) — to confirm on a
+  later check.
+- Found during smoke, NOT YET FIXED: top-level `pdfcer --help` prints a
+  multi-sentence history paragraph as help text ("NAMED --open-password,
+  not --password, because --password is already taken…") — a doc comment
+  shipped verbatim as user-facing help. Engineer fixing next.
+- Channel notice written:
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-29_v0.66.0_released.md`.
+
+**Still in flight:** None — the release this and the two prior filings
+tracked is now complete end to end (tag, build, smoke, GitHub, OneDrive);
+CI status at the tag still to confirm.
+
+**For next session:** Fix the `--help` history-paragraph leak found
+during smoke (not a release blocker, but user-facing). `docs/FEATURES.md`
+unchanged by this filing — no capability box crosses a release boundary.
+
+**Sourcing (hard rule 8).** No shell tool this filing — all figures
+(build sizes, hashes, gate/smoke-test results, the `verify-release.py`
+and channel-notice details) relayed from the dispatching engineer's own
+report, measured by them directly; not independently reproduced here.
+
 ## 2026-09-29 (750th filing) — `5ecfee12`: chore — v0.66.0 version bump, release IN PROGRESS
 
 **Shipped:**
