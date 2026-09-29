@@ -483,6 +483,34 @@ fn a_grey_image_is_never_upgraded_whatever_the_scope() {
     );
 }
 
+/// A grey image's `/OP` must change its result over a spot backdrop.
+///
+/// Table 149 row 2 (process source × spot colorant) gives `c_b` under
+/// `/OP true` and the source under `/OP false`, so the two renders must
+/// differ: on keeps the spot, off covers it. Without this pair a renderer
+/// that ignored `/OP` for images would pass every other test in this file.
+#[test]
+fn a_grey_image_over_a_spot_differs_with_overprint_on_and_off() {
+    let on = render(
+        "grey_image_op_over_spot.pdf",
+        OverprintZeroTintScope::DeviceCmykOnly,
+    );
+    let off = render(
+        "grey_image_noop_over_spot.pdf",
+        OverprintZeroTintScope::DeviceCmykOnly,
+    );
+    assert!(
+        is_greenish(mark(&on)),
+        "/OP true leaves the spot standing: {:?}",
+        mark(&on)
+    );
+    assert!(
+        is_neutral(mark(&off)),
+        "/OP false lets the grey image cover the spot: {:?}",
+        mark(&off)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // 4. THE SCOPES ARE DISTINGUISHABLE — without this, three names for one thing
 // ---------------------------------------------------------------------------

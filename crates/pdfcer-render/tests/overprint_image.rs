@@ -48,6 +48,7 @@
 //! | image `/OP true` vs path `/OP true`, additive | **identical** | the sRGB arm and the colorant arm disagree |
 //! | image `/OP true` vs image `/OP false` | **differ** | overprint is being ignored for images |
 //! | image `/OP true` naming all four colorants vs `/OP false` | **identical** | Table 149's inertness for a fully-specifying source is not honoured |
+//! | grey image over a spot, `/OP true` vs `/OP false` | **differ** | a process image is not leaving spot planes to the backdrop — pinned in `grey_overprint.rs` (`a_grey_image_over_a_spot_differs_with_overprint_on_and_off`) |
 //!
 //! # What the fixtures are
 //!

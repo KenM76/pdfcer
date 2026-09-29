@@ -259,6 +259,9 @@ def main() -> int:
         "grey_noop_over_spot.pdf": build(source="grey", overprint=False),
         "cmyk_k_op_over_spot.pdf": build(source="cmyk", overprint=True),
         "grey_image_op_over_spot.pdf": build(source="grey_image", overprint=True),
+        # The image's own on/off pair: with overprint off the grey image
+        # covers the spot, so it must differ from the file above.
+        "grey_image_noop_over_spot.pdf": build(source="grey_image", overprint=False),
         # ★ THE SCOPE DISCRIMINATOR. Without this file `GreyAsKOnly` and
         # `AllProcessSpaces` are indistinguishable by any test in the
         # repository -- verified by sabotage: widening `GreyAsKOnly` to match

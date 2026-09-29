@@ -139,6 +139,7 @@ These are about §8.6.7's `OPM 1` meeting a source space that is not
 | `cmyk_k_op_over_spot.pdf` | `DeviceCMYK` `0 0 0 0.5` | true | the reference the grey must MATCH exactly |
 | `grey_noop_over_spot.pdf` | `DeviceGray` 0.5 | false | control: no scope may move it |
 | `grey_image_op_over_spot.pdf` | `DeviceGray` image | true | control: a sampled image is never upgraded — and since `Pass 238.0` it leaves the spot standing like the fill beside it |
+| `grey_image_noop_over_spot.pdf` | `DeviceGray` image | false | the image's `/OP` off half: the grey covers the spot, so it must differ from `grey_image_op_over_spot.pdf` |
 | `rgb_op_over_spot.pdf` | `DeviceRGB` red | true | ~~separates `all_process_spaces` from `grey_as_k_only`~~ — since `Pass 238.0` the spot lives in its own plane and survives under every scope, so this pins preservation; the separation moved to the row below |
 | `rgb_op_over_cmyk.pdf` | `DeviceRGB` red over `0.5 0 1 0 k` | true | separates `all_process_spaces` from `grey_as_k_only` — over PROCESS ink, the only geometry that can (`OP-N3`; `Pass 238.0`) |
 
