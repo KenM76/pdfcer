@@ -192,3 +192,33 @@ fn the_meshes_are_actually_painted_and_not_bare_paper() {
         );
     }
 }
+
+/// A SPOT mesh deposits its colorant into the spot's own plane, by BOTH mesh
+/// carriers (`Pass 393.0`): a type 4 mesh with the tint per vertex and a
+/// type 6 patch whose `t` resolves through a `/Function` ramp.
+///
+/// Discriminating for the reason the analytic twin in `shading_ink.rs`
+/// gives: on white paper a deposited and a flattened spot agree by
+/// construction, so the three marks overprint a 50 % K mark under
+/// `/OP true`. The fill deposits and leaves the K standing; a mesh that
+/// flattened its spot writes it into C/M/Y/K and does not agree.
+#[test]
+fn a_spot_mesh_over_black_agrees_with_the_spot_fill_by_both_carriers() {
+    let page = render("spot-mesh-op-over-k-vs-fill.pdf");
+    let [fill, vertex, parametric] = marks(&page);
+    assert!(
+        fill.1 < 150.0,
+        "the 50% K beneath the overprinting spot fill must survive: {fill:?}"
+    );
+    for (label, mesh) in [
+        ("type 4 per-vertex", vertex),
+        ("type 6 parametric", parametric),
+    ] {
+        let d = mean_abs(fill, mesh);
+        assert!(
+            d <= 1.5,
+            "fill {fill:?} vs {label} mesh {mesh:?} over 50% K under /OP true, mean \
+             |diff| {d:.2}: the mesh must deposit its spot into the plane the fill uses"
+        );
+    }
+}

@@ -318,10 +318,48 @@ pub enum Shade {
         /// The authored colorants, for a subtractive one.
         cmyk: [f32; 4],
     },
+    /// [`Shade::Ink`] in a `Separation`/`DeviceN` space that names a spot
+    /// colorant, carrying the **authored** half too (`Pass 393.0`): the
+    /// process tints the operands named and one tint per spot, in the order
+    /// of the shading's spot colorants. `cmyk` stays the flattened tint
+    /// transform output, for a page that cannot plate the spots; `process`
+    /// and `spots` are used only when every spot has a plane, so a spot
+    /// never lands twice. Interpolated linearly like the other fields.
+    Spot {
+        /// The converted value, for an additive destination.
+        rgb: Rgb,
+        /// The flattened colorants (spots folded into process).
+        cmyk: [f32; 4],
+        /// The authored process tints; `0.0` where the space names none.
+        process: [f32; 4],
+        /// The authored spot tints; slots past the space's count are `0.0`.
+        spots: [f32; MAX_SPOTS],
+    },
     /// The parametric `t` of `MSH14`, still unevaluated. Resolved through
     /// [`ColorRamp::at`] — or [`ColorRamp::at_cmyk`] — **after**
     /// interpolation.
     Parametric(f32),
+}
+
+/// The spot-plane ceiling, local for [`Shade::Spot`]'s field type.
+const MAX_SPOTS: usize = crate::compositor::MAX_SPOTS;
+
+/// Componentwise `a + f(b - a)`.
+fn lerp_n<const N: usize>(a: [f32; N], b: [f32; N], f: f32) -> [f32; N] {
+    let mut out = a;
+    for (o, b) in out.iter_mut().zip(b) {
+        *o = f.mul_add(b - *o, *o);
+    }
+    out
+}
+
+/// Componentwise barycentric blend of three arrays.
+fn bary_n<const N: usize>(w: [f32; 3], a: [f32; N], b: [f32; N], c: [f32; N]) -> [f32; N] {
+    let mut out = a;
+    for ((o, b), c) in out.iter_mut().zip(b).zip(c) {
+        *o = w[0].mul_add(*o, w[1].mul_add(b, w[2] * c));
+    }
+    out
 }
 
 impl Shade {
@@ -347,6 +385,29 @@ impl Shade {
                     f.mul_add(cb[3] - ca[3], ca[3]),
                 ],
             },
+            (
+                Self::Spot {
+                    rgb: ra,
+                    cmyk: ca,
+                    process: pa,
+                    spots: sa,
+                },
+                Self::Spot {
+                    rgb: rb,
+                    cmyk: cb,
+                    process: pb,
+                    spots: sb,
+                },
+            ) => Self::Spot {
+                rgb: Rgb {
+                    r: f.mul_add(rb.r - ra.r, ra.r),
+                    g: f.mul_add(rb.g - ra.g, ra.g),
+                    b: f.mul_add(rb.b - ra.b, ra.b),
+                },
+                cmyk: lerp_n(ca, cb, f),
+                process: lerp_n(pa, pb, f),
+                spots: lerp_n(sa, sb, f),
+            },
             (Self::Parametric(a), Self::Parametric(b)) => Self::Parametric(f.mul_add(b - a, a)),
             // Unreachable by construction — a mesh is parametric or it is
             // not, decided once from `/Function`'s presence, and within the
@@ -370,7 +431,7 @@ impl Shade {
     #[must_use]
     fn resolve(self, ramp: Option<&ColorRamp>) -> Option<Rgb> {
         match self {
-            Self::Rgb(c) | Self::Ink { rgb: c, .. } => Some(c),
+            Self::Rgb(c) | Self::Ink { rgb: c, .. } | Self::Spot { rgb: c, .. } => Some(c),
             Self::Parametric(t) => ramp?.at(t),
         }
     }
@@ -392,9 +453,30 @@ impl Shade {
     #[must_use]
     fn resolve_cmyk(self, ramp: Option<&ColorRamp>) -> Option<[f32; 4]> {
         match self {
-            Self::Ink { cmyk, .. } => Some(cmyk),
+            Self::Ink { cmyk, .. } | Self::Spot { cmyk, .. } => Some(cmyk),
             Self::Parametric(t) => ramp?.at_cmyk(t),
             Self::Rgb(_) => None,
+        }
+    }
+
+    /// Resolve to the **authored** process and spot tints, for a paint that
+    /// deposits each spot into its own plane (`Pass 393.0`) — the twin of
+    /// [`ColorRamp::at_authored`]. `None` for a shade with no spot half, or
+    /// at a ramp hole; the no-conversion contract of [`Self::resolve_cmyk`]
+    /// applies.
+    #[must_use]
+    fn resolve_authored(self, ramp: Option<&ColorRamp>) -> Option<([f32; 4], [f32; MAX_SPOTS])> {
+        match self {
+            Self::Spot { process, spots, .. } => Some((process, spots)),
+            Self::Parametric(t) => {
+                let (process, tints) = ramp?.at_authored(t)?;
+                let mut spots = [0.0; MAX_SPOTS];
+                for (slot, tint) in spots.iter_mut().zip(tints) {
+                    *slot = *tint;
+                }
+                Some((process, spots))
+            }
+            Self::Rgb(_) | Self::Ink { .. } => None,
         }
     }
 }
@@ -651,6 +733,10 @@ struct ShadeContext<'a> {
     space: &'a ColorSpace,
     bridges: &'a crate::icc::ColorBridges,
     intent: pdfcer_core::settings::CmykIntent,
+    /// The space's source kind and spot operand indices
+    /// (`shading::spot_setup`); `None`/empty when it names no spot.
+    kind: Option<&'a crate::overprint::SourceKind>,
+    spot_components: &'a [usize],
 }
 
 impl Params {
@@ -684,6 +770,8 @@ impl Params {
             space,
             bridges,
             intent,
+            kind,
+            spot_components,
         } = cx;
         comps.clear();
         for i in 0..self.ncomp {
@@ -703,9 +791,22 @@ impl Params {
         // loop: a `/Separation` or `/DeviceN` space converts through a
         // `/tintTransform` that is allowed to be arbitrary PostScript, and
         // nothing would force two separate evaluations of it to agree.
-        match bridges.to_cmyk(space, comps, diag) {
-            Some(cmyk) => Some(Shade::Ink { rgb, cmyk }),
-            None => Some(Shade::Rgb(rgb)),
+        // The authored half comes from the same `comps` too.
+        match (bridges.to_cmyk(space, comps, diag), kind) {
+            (Some(cmyk), Some(k)) if !spot_components.is_empty() => {
+                let mut spots = [0.0; MAX_SPOTS];
+                for (slot, component) in spots.iter_mut().zip(spot_components) {
+                    *slot = comps.get(*component).copied().unwrap_or(0.0);
+                }
+                Some(Shade::Spot {
+                    rgb,
+                    cmyk,
+                    process: crate::overprint::authored_tints(k, comps).unwrap_or([0.0; 4]),
+                    spots,
+                })
+            }
+            (Some(cmyk), _) => Some(Shade::Ink { rgb, cmyk }),
+            (None, _) => Some(Shade::Rgb(rgb)),
         }
     }
 
@@ -882,10 +983,18 @@ pub fn parse(input: &ParseInput<'_>, diag: &mut ColorDiagnostics) -> Result<Mesh
     let mut truncated = false;
     let mut rows_inferred = None;
 
+    // A parametric mesh's spots live in its ramp, not its vertices.
+    let (kind, spot_components, _) = if input.parametric {
+        (None, Vec::new(), Vec::new())
+    } else {
+        crate::shading::spot_setup(input.space, input.intent)
+    };
     let cx = ShadeContext {
         space: input.space,
         bridges: input.bridges,
         intent: input.intent,
+        kind: kind.as_ref(),
+        spot_components: &spot_components,
     };
     let data = match input.shading_type {
         4 => MeshData::Triangles(parse_type4(&mut reader, &params, cx, diag, &mut truncated)?),
@@ -936,7 +1045,7 @@ pub fn parse(input: &ParseInput<'_>, diag: &mut ColorDiagnostics) -> Result<Mesh
 fn data_colorant_census(data: &MeshData) -> (usize, usize, usize) {
     let mut census = (0usize, 0usize, 0usize);
     let mut count = |s: &Shade| match s {
-        Shade::Ink { .. } => census.0 += 1,
+        Shade::Ink { .. } | Shade::Spot { .. } => census.0 += 1,
         Shade::Rgb(_) => census.1 += 1,
         Shade::Parametric(_) => census.2 += 1,
     };
@@ -1547,6 +1656,7 @@ pub(crate) fn paint(
         region,
         (pixmap.width() as i32, pixmap.height() as i32),
         false,
+        false,
     )?;
     if scratch.empty {
         return Some(0);
@@ -1601,8 +1711,12 @@ pub(crate) fn paint_cmyk(
     clip: Option<&tiny_skia::Mask>,
     alpha: f32,
     rules: [crate::overprint::ComponentRule; 4],
+    (spot_planes, spot_count): (&[usize], usize),
     buf: &mut crate::cmyk_buffer::CmykBuffer,
 ) -> Option<usize> {
+    // Deposit only when EVERY spot the shading names has a plane — the
+    // all-or-nothing rule `overprint::resolve_spot_planes` states.
+    let deposit = !spot_planes.is_empty() && spot_planes.len() == spot_count;
     match mesh.colorants {
         MeshColorants::None => return None,
         MeshColorants::Parametric => {
@@ -1621,6 +1735,7 @@ pub(crate) fn paint_cmyk(
         region,
         (buf.width() as i32, buf.height() as i32),
         true,
+        deposit,
     )?;
     if scratch.empty {
         return Some(0);
@@ -1640,12 +1755,10 @@ pub(crate) fn paint_cmyk(
     let dst_w = buf.width() as usize;
 
     // Everything `composite` does — /BBox, the clip, the alpha — is done
-    // HERE, per pixel, inside the closure `composite_overprint_varying`
-    // drives. The two composites are therefore the same three tests in the
-    // same order against the same scratch; only the arithmetic that lands
-    // the value differs, and that arithmetic is the buffer's, not this
-    // module's.
-    let changed = buf.composite_overprint_varying(region_u, rules, alpha, |x, y| {
+    // HERE, per pixel, inside the closure the buffer drives. `sample`
+    // answers the covered scratch index and its coverage; the two
+    // composites below differ only in what they read at that index.
+    let sample = |x: u32, y: u32| -> Option<(usize, f32)> {
         let (sx, sy) = ((x - ox_u) as usize, (y - oy_u) as usize);
         let idx = sy * sw + sx;
         // `rgba`'s alpha is the sole occupancy authority — see [`Scratch`].
@@ -1671,8 +1784,25 @@ pub(crate) fn paint_cmyk(
         if coverage <= 0.0 {
             return None;
         }
-        Some((*ink.get(idx)?, coverage))
-    });
+        Some((idx, coverage))
+    };
+    let changed = match scratch.spots.as_ref() {
+        Some(spots) => buf.composite_overprint_varying_spots(region_u, rules, alpha, |x, y| {
+            let (idx, coverage) = sample(x, y)?;
+            let tints = spots.get(idx)?;
+            let mut s: [Option<f32>; MAX_SPOTS] = [None; MAX_SPOTS];
+            for (plane, tint) in spot_planes.iter().zip(tints) {
+                if let Some(slot) = s.get_mut(*plane) {
+                    *slot = Some(*tint);
+                }
+            }
+            Some((*ink.get(idx)?, s, coverage))
+        }),
+        None => buf.composite_overprint_varying(region_u, rules, alpha, |x, y| {
+            let (idx, coverage) = sample(x, y)?;
+            Some((*ink.get(idx)?, coverage))
+        }),
+    };
     Some(changed as usize)
 }
 
@@ -1697,6 +1827,7 @@ fn rasterise(
     region: (i32, i32, i32, i32),
     dst: (i32, i32),
     want_ink: bool,
+    want_spots: bool,
 ) -> Option<(Scratch, i32, i32)> {
     let to_device = to_target.invert()?;
 
@@ -1717,6 +1848,7 @@ fn rasterise(
             Scratch {
                 rgba: tiny_skia::Pixmap::new(1, 1)?,
                 ink: None,
+                spots: None,
                 empty: true,
             },
             ox,
@@ -1736,6 +1868,15 @@ fn rasterise(
             // refusal the caller can disclose, not an abort.
             v.try_reserve_exact(n).ok()?;
             v.resize(n, [0.0; 4]);
+            Some(v)
+        } else {
+            None
+        },
+        spots: if want_ink && want_spots {
+            let n = (sw as usize).checked_mul(sh as usize)?;
+            let mut v: Vec<[f32; MAX_SPOTS]> = Vec::new();
+            v.try_reserve_exact(n).ok()?;
+            v.resize(n, [0.0; MAX_SPOTS]);
             Some(v)
         } else {
             None
@@ -1987,7 +2128,16 @@ fn fill_triangle(
                 // ink plane deliberately carries no occupancy of its own,
                 // because two occupancy tests are two things that can
                 // disagree.
-                if let Some(ink) = scratch.ink.as_mut()
+                if let Some(spots) = scratch.spots.as_mut() {
+                    if let Some((process, tints)) = shaded.resolve_authored(ramp)
+                        && let Some(ink) = scratch.ink.as_mut()
+                        && let Some(slot) = ink.get_mut(idx)
+                        && let Some(spot_slot) = spots.get_mut(idx)
+                    {
+                        *slot = process;
+                        *spot_slot = tints;
+                    }
+                } else if let Some(ink) = scratch.ink.as_mut()
                     && let Some(c) = shaded.resolve_cmyk(ramp)
                     && let Some(slot) = ink.get_mut(idx)
                 {
@@ -2027,6 +2177,10 @@ struct Scratch {
     /// Authored colorants at the same indices. `None` when the destination
     /// composites in sRGB and the plane would never be read.
     ink: Option<Vec<[f32; 4]>>,
+    /// Authored spot tints at the same indices, present only when the paint
+    /// deposits spots into planes (`Pass 393.0`); `ink` then holds the
+    /// authored PROCESS tints rather than the flattened colorants.
+    spots: Option<Vec<[f32; MAX_SPOTS]>>,
     /// The clipped region had no area, so `rgba` is a placeholder and must
     /// not be composited. Distinct from a failed allocation, which is
     /// `None` from [`rasterise`] — see the comment at the flag's only
@@ -2058,6 +2212,35 @@ fn interpolate(shade: [Shade; 3], w: [f32; 3]) -> Shade {
                 w[0].mul_add(ca[2], w[1].mul_add(cb[2], w[2] * cc[2])),
                 w[0].mul_add(ca[3], w[1].mul_add(cb[3], w[2] * cc[3])),
             ],
+        },
+        [
+            Shade::Spot {
+                rgb: ra,
+                cmyk: ca,
+                process: pa,
+                spots: sa,
+            },
+            Shade::Spot {
+                rgb: rb,
+                cmyk: cb,
+                process: pb,
+                spots: sb,
+            },
+            Shade::Spot {
+                rgb: rc,
+                cmyk: cc,
+                process: pc,
+                spots: sc,
+            },
+        ] => Shade::Spot {
+            rgb: Rgb {
+                r: w[0].mul_add(ra.r, w[1].mul_add(rb.r, w[2] * rc.r)),
+                g: w[0].mul_add(ra.g, w[1].mul_add(rb.g, w[2] * rc.g)),
+                b: w[0].mul_add(ra.b, w[1].mul_add(rb.b, w[2] * rc.b)),
+            },
+            cmyk: bary_n(w, ca, cb, cc),
+            process: bary_n(w, pa, pb, pc),
+            spots: bary_n(w, sa, sb, sc),
         },
         [
             Shade::Parametric(a),

@@ -5402,15 +5402,13 @@ impl Interpreter<'_> {
                 self.policy.spot_colorant_device_model,
                 pdfcer_core::settings::SpotColorantDeviceModel::SimulateSeparations
             );
-            let spot_planes: Vec<usize> = match shading.ramp.as_ref() {
-                Some(ramp) if simulate && !ramp.spot_colorants().is_empty() => {
-                    crate::overprint::resolve_spot_planes(buf, ramp.spot_colorants())
-                }
-                _ => Vec::new(),
+            let colorants = shading.spot_colorants();
+            let spot_planes: Vec<usize> = if simulate && !colorants.is_empty() {
+                crate::overprint::resolve_spot_planes(buf, colorants)
+            } else {
+                Vec::new()
             };
-            let spots_plated = shading.ramp.as_ref().is_some_and(|r| {
-                !r.spot_colorants().is_empty() && spot_planes.len() == r.spot_colorants().len()
-            });
+            let spots_plated = !colorants.is_empty() && spot_planes.len() == colorants.len();
             // ONLY a Separation/DeviceN source may take this route, and the
             // exclusion is a correctness guard rather than caution. Table
             // 149's `DeviceCmykDirect` row under `/OPM 1` is the one
@@ -7418,15 +7416,13 @@ impl Interpreter<'_> {
                 self.policy.spot_colorant_device_model,
                 pdfcer_core::settings::SpotColorantDeviceModel::SimulateSeparations
             );
-            let spot_planes: Vec<usize> = match shading.ramp.as_ref() {
-                Some(ramp) if simulate && !ramp.spot_colorants().is_empty() => {
-                    crate::overprint::resolve_spot_planes(buf, ramp.spot_colorants())
-                }
-                _ => Vec::new(),
+            let colorants = shading.spot_colorants();
+            let spot_planes: Vec<usize> = if simulate && !colorants.is_empty() {
+                crate::overprint::resolve_spot_planes(buf, colorants)
+            } else {
+                Vec::new()
             };
-            let spots_plated = shading.ramp.as_ref().is_some_and(|r| {
-                !r.spot_colorants().is_empty() && spot_planes.len() == r.spot_colorants().len()
-            });
+            let spots_plated = !colorants.is_empty() && spot_planes.len() == colorants.len();
             let kind = crate::overprint::classify(
                 &shading.color_space,
                 false,

@@ -46,6 +46,7 @@ Both are 300 × 100 pt and paint the **same colour three times**:
 |---|---|---|
 | `mesh-vs-fill-cmyk.pdf` | `/Group << /S /Transparency /CS /DeviceCMYK >>` | on a page that composites in **ink**, all three must be the same colour |
 | `mesh-vs-fill-rgb.pdf` | *(none)* | the **additive control** — they must match there too |
+| `spot-mesh-op-over-k-vs-fill.pdf` | `/Group << /S /Transparency /CS /DeviceCMYK >>` | a `/Separation /SpotGreen` fill, a per-vertex type 4 mesh and a parametric type 6 patch of one tint, all under `/OP true` over 50 % K: each mesh must deposit its spot into the fill's plane and keep the K (`Pass 393.0`) |
 
 ### ★ Why two mesh types, when one defect caused both
 

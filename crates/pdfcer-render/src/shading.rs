@@ -459,6 +459,55 @@ pub struct ColorRamp {
     domain: [f32; 2],
 }
 
+/// The spot half of a shading's colour space: its [`SourceKind`], the
+/// operand index of every spot colorant it names, and each colorant's name
+/// and tint curve, in declaration order. All three are empty/`None` for a
+/// space that names no spot.
+///
+/// Shared by [`ColorRamp::build`] and the mesh parser (`Pass 393.0`) so a
+/// ramp and a per-vertex mesh in the same space deposit into the same
+/// planes through the same curves. `classify` is asked with
+/// `in_image_sample = false` (a shading is not a sampled image, Table 149
+/// row 1) and the narrowest scope, which only decides whether a process
+/// source is upgraded to `DeviceCmykDirect`, not whether a space names a
+/// spot.
+///
+/// [`SourceKind`]: crate::overprint::SourceKind
+pub(crate) fn spot_setup(
+    space: &ColorSpace,
+    intent: CmykIntent,
+) -> (
+    Option<crate::overprint::SourceKind>,
+    Vec<usize>,
+    Vec<crate::overprint::SpotColorant>,
+) {
+    let kind = crate::overprint::classify(
+        space,
+        false,
+        pdfcer_core::settings::OverprintZeroTintScope::DeviceCmykOnly,
+    );
+    let arity = space.components();
+    let slots: Vec<(usize, std::sync::Arc<[u8]>)> = match &kind {
+        Some(k) if crate::overprint::names_a_spot_colorant(k) => {
+            crate::overprint::authored_spots(k, &vec![0.0_f32; arity])
+                .into_iter()
+                .map(|(component, name, _)| (component, std::sync::Arc::from(name)))
+                .collect()
+        }
+        _ => Vec::new(),
+    };
+    let colorants = slots
+        .iter()
+        .map(|(component, name)| {
+            (
+                std::sync::Arc::clone(name),
+                std::sync::Arc::new(crate::overprint::spot_lut(space, *component, arity, intent)),
+            )
+        })
+        .collect();
+    (kind, slots.into_iter().map(|(c, _)| c).collect(), colorants)
+}
+
 impl ColorRamp {
     /// The `t` range the samples span — the shading's `/Domain`.
     #[must_use]
@@ -489,39 +538,8 @@ impl ColorRamp {
         // that is allowed to be arbitrary PostScript, and nothing would
         // force the two passes to agree.
         let mut cmyk = Vec::with_capacity(RAMP_SAMPLES);
-        // The spot half (`Pass 239.0`): which components are spots, and
-        // their curves, resolved ONCE for the ramp. `classify` is asked with
-        // `in_image_sample = false` because a shading is not a sampled
-        // image (Table 149 row 1's qualifier), and with the narrowest scope
-        // because the scope only decides whether a process source is
-        // upgraded to `DeviceCmykDirect` — irrelevant to whether a space
-        // NAMES a spot.
-        let kind = crate::overprint::classify(
-            space,
-            false,
-            pdfcer_core::settings::OverprintZeroTintScope::DeviceCmykOnly,
-        );
-        let arity = space.components();
-        let spot_slots: Vec<(usize, std::sync::Arc<[u8]>)> = match &kind {
-            Some(k) if crate::overprint::names_a_spot_colorant(k) => {
-                crate::overprint::authored_spots(k, &vec![0.0_f32; arity])
-                    .into_iter()
-                    .map(|(component, name, _)| (component, std::sync::Arc::from(name)))
-                    .collect()
-            }
-            _ => Vec::new(),
-        };
-        let spot_colorants: Vec<crate::overprint::SpotColorant> = spot_slots
-            .iter()
-            .map(|(component, name)| {
-                (
-                    std::sync::Arc::clone(name),
-                    std::sync::Arc::new(crate::overprint::spot_lut(
-                        space, *component, arity, intent,
-                    )),
-                )
-            })
-            .collect();
+        // The spot half (`Pass 239.0`), resolved ONCE for the ramp.
+        let (kind, spot_slots, spot_colorants) = spot_setup(space, intent);
         let mut process: Vec<[f32; 4]> = Vec::with_capacity(if spot_slots.is_empty() {
             0
         } else {
@@ -562,7 +580,7 @@ impl ColorRamp {
                 spots.push(
                     spot_slots
                         .iter()
-                        .map(|(component, _)| comps.get(*component).copied().unwrap_or(0.0))
+                        .map(|component| comps.get(*component).copied().unwrap_or(0.0))
                         .collect(),
                 );
             }
@@ -830,6 +848,13 @@ pub struct Shading {
     /// can be megabytes, and a [`Shading`] is cloned per paint on some
     /// routes.
     pub mesh: Option<Arc<crate::mesh::Mesh>>,
+    /// The spot colorants a per-vertex mesh's space names, with their
+    /// curves (`Pass 393.0`) — the mesh twin of
+    /// [`ColorRamp::spot_colorants`]. Empty unless `mesh` is
+    /// [`MeshColorants::Vertex`](crate::mesh::MeshColorants::Vertex) in a
+    /// space naming a spot. Kept here rather than on the mesh because the
+    /// curves are not comparable and [`crate::mesh::Mesh`] is.
+    mesh_spot_colorants: Vec<crate::overprint::SpotColorant>,
 }
 
 impl Shading {
@@ -1096,6 +1121,15 @@ impl Shading {
 
         diag.count(&geometry);
 
+        let mesh_spot_colorants = if mesh
+            .as_ref()
+            .is_some_and(|m| m.colorants == crate::mesh::MeshColorants::Vertex)
+        {
+            spot_setup(&color_space, intent).2
+        } else {
+            Vec::new()
+        };
+
         Some(Self {
             geometry,
             color_space,
@@ -1105,6 +1139,7 @@ impl Shading {
             bbox: array_n(doc, dict, b"BBox"),
             anti_alias: boolean(doc, dict, b"AntiAlias"),
             mesh,
+            mesh_spot_colorants,
         })
     }
 
@@ -2060,6 +2095,21 @@ impl Shading {
         self.ramp.as_ref().is_some_and(ColorRamp::has_colorants)
     }
 
+    /// The spot colorants this shading paints — a per-vertex mesh's own, or
+    /// its ramp's — for `overprint::resolve_spot_planes` (`Pass 393.0`).
+    /// Empty for every space that names no spot.
+    #[must_use]
+    pub(crate) fn spot_colorants(&self) -> &[crate::overprint::SpotColorant] {
+        if self
+            .mesh
+            .as_ref()
+            .is_some_and(|m| m.colorants == crate::mesh::MeshColorants::Vertex)
+        {
+            return &self.mesh_spot_colorants;
+        }
+        self.ramp.as_ref().map_or(&[], ColorRamp::spot_colorants)
+    }
+
     /// The geometry decision is [`sample_at`], the *same* function
     /// [`Shading::paint`] uses, so the two routes cover exactly the same
     /// pixels.
@@ -2088,8 +2138,8 @@ impl Shading {
     /// case the ramp's FLATTENED ink paints exactly as before. With planes,
     /// each pixel's source is the ramp's authored process tints plus its
     /// spot tints, and every plane the ramp does not name keeps the
-    /// backdrop. A mesh ignores them (it has no ramp-shaped spot half yet)
-    /// and paints its flattened ink; that is disclosed by the caller.
+    /// backdrop. A mesh deposits them the same way, from its per-vertex
+    /// authored tints or its ramp (`Pass 393.0`).
     ///
     /// Eight parameters, allowed: the paint's geometry, its two rule sets
     /// and its destination are one call's worth of state, and a struct for
@@ -2115,6 +2165,7 @@ impl Shading {
                 clip,
                 alpha,
                 rules,
+                (spot_planes, self.spot_colorants().len()),
                 buf,
             );
         }

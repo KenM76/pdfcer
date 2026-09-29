@@ -206,11 +206,83 @@ def build(subtractive: bool) -> bytes:
     ])
 
 
+# A spot colorant for `spot_mesh_over_k`: `/SpotGreen` over DeviceCMYK, the
+# same tint transform `gen-shading-ink-fixtures.py` uses. The tint is 8-bit
+# quantised FIRST (153/255 = 0.6 exactly), so the fill and the meshes state
+# the same value.
+SPOT_TINT = b"<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0.9 0.0 0.75 0.1] /N 1 >>"
+SPOT_BYTE = 153
+SPOT_T = f"{SPOT_BYTE / 255.0:.8f}".encode()
+
+
+def spot_mesh_over_k() -> bytes:
+    """A `/Separation` fill, a per-vertex type 4 mesh and a PARAMETRIC type 6
+    patch of the same spot tint, all overprinting a `0 0 0 0.5 k` mark (`Pass
+    393.0`).
+
+    THE DISCRIMINATING GEOMETRY, for the reason `gen-shading-ink-fixtures.py`'s
+    `over_k` gives: on white paper a deposited spot and a flattened one land
+    on the same sRGB by construction. Over 50 % K under `/OP true` they
+    separate -- a spot deposited into its own plane leaves the K standing
+    (Table 149, spot source x process colorant => c_b), while a flattened one
+    is written into C/M/Y/K. The fill beside the meshes deposits, so agreement
+    means each mesh took the plane.
+
+    Both mesh carriers are exercised: type 4 carries the tint PER VERTEX (no
+    `/Function`), type 6 carries a parametric `t` resolved through a
+    `/Function` ramp -- different code on both the parse and the paint side.
+    """
+    gs = b"/GSop gs "
+    content = (
+        b"q 0 0 0 0.5 k 10 20 80 60 re f 110 20 80 60 re f 210 20 80 60 re f Q\n"
+        b"q " + gs + b"/Cs0 cs " + SPOT_T + b" scn 10 20 80 60 re f Q\n"
+        b"q " + gs + b"110 20 80 60 re W n /Sh4 sh Q\n"
+        b"q " + gs + b"210 20 80 60 re W n /Sh6 sh Q\n"
+    )
+    tris = bytearray()
+    for verts in ([(0, 0), (FULL, 0), (0, FULL)], [(FULL, 0), (FULL, FULL), (0, FULL)]):
+        for x, y in verts:
+            tris += struct.pack(">B", 0) + struct.pack(">II", x, y) + bytes([SPOT_BYTE])
+    patch = bytearray(struct.pack(">B", 0))
+    for i, j in PATCH_ORDER:
+        patch += struct.pack(">II", THIRDS[i], THIRDS[j])
+    patch += bytes(4)  # t = 0 at all four corners -> the function's C0
+
+    def mesh(shading_type: int, x0: int, x1: int, data: bytes, function: bytes) -> bytes:
+        return stream(
+            b"/ShadingType " + str(shading_type).encode()
+            + b" /ColorSpace 7 0 R" + function
+            + b" /BitsPerCoordinate 32 /BitsPerComponent 8 /BitsPerFlag 8"
+            b" /Decode [" + f"{x0} {x1} 20 80".encode() + b" 0 1]"
+            b" /Filter /FlateDecode",
+            zlib.compress(bytes(data)),
+        )
+
+    return assemble([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 100] "
+        b"/Group << /S /Transparency /CS /DeviceCMYK >> "
+        b"/Resources << /ColorSpace << /Cs0 7 0 R >> /ExtGState << /GSop 9 0 R >> "
+        b"/Shading << /Sh4 5 0 R /Sh6 6 0 R >> >> /Contents 4 0 R >>",
+        stream(b"", content),
+        mesh(4, 110, 190, tris, b""),
+        mesh(6, 210, 290, patch, b" /Function 10 0 R"),
+        b"[/Separation /SpotGreen /DeviceCMYK 8 0 R]",
+        SPOT_TINT,
+        b"<< /Type /ExtGState /OP true /op true /OPM 1 >>",
+        # The patch's ramp: t -> the one tint, at both ends.
+        b"<< /FunctionType 2 /Domain [0 1] /C0 [" + SPOT_T + b"] /C1 [" + SPOT_T
+        + b"] /N 1 >>",
+    ])
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for name, data in {
         "mesh-vs-fill-cmyk.pdf": build(subtractive=True),
         "mesh-vs-fill-rgb.pdf": build(subtractive=False),
+        "spot-mesh-op-over-k-vs-fill.pdf": spot_mesh_over_k(),
     }.items():
         (OUT / name).write_bytes(data)
         print(f"wrote {OUT / name}  ({len(data)} bytes)")
