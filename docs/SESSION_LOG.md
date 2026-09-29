@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (725th filing) — `84f0587b`: chore — v0.63.0 version bump, release IN PROGRESS
+
+**Shipped:**
+- Chore commit `84f0587b` ("chore: v0.63.0") bumps `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.62.0 → 0.63.0. Recorded so `check-commits-filed.py` sees it filed. Full details under `Pass 389.0`'s "Also filed this session" note in `ROADMAP.md`'s *Shipped*.
+
+**Still in flight:**
+- v0.63.0 release IN PROGRESS — batches `387.0`, `387.1`, `388.0`, `388.1`, `389.0`, all already shipped since `v0.62.0`. Gates (`tools/run-gates.sh`, 40 commands, 10,088 tests passed 0 failed) already green on the `389.0` code; no dependency change, `THIRD_PARTY_LICENSES.md` unaffected. Tag, GitHub release and OneDrive deploy not yet done — OneDrive slot `pdfcer2` next (`v0.62.0` went to `pdfcer1`).
+
+**For next session:**
+- No shell available this filing (hard rule 8). Backup/push/release state not verifiable from here; latest release on record remains `v0.62.0`.
+
 ## 2026-09-28 (724th filing) — `25924e74`: `Pass 389.0` SHIPPED — overlays isolated from page-leaked graphics state
 
 **Shipped:**

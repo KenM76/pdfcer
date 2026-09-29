@@ -169,6 +169,18 @@ Copy/cut/paste selection, Flatten a form, Flatten annotations.
 keeps its pre-renumbering name; `039` itself was already assigned,
 2026-08-11, to `aes`/`cbc`). Decision ceiling `165` → `166`.
 
+**Also filed this session.** Chore commit `84f0587b` ("chore: v0.63.0",
+`Cargo.toml` 0.62.0 → 0.63.0 plus `Cargo.lock`/`fuzz/Cargo.lock`) —
+recorded so `check-commits-filed.py` sees it filed. **Release in
+progress**: v0.63.0 will batch every Pass shipped since `v0.62.0`
+(`741c9cb1`) — `387.0` (find stored password-field values, `93fd97ca`),
+`387.1` (purge stored password-field values, `09dd494d`), `388.0` (Bates
+numbering, `5a06602a`), `388.1` (Bates remove/replace, `0355fb7e`), and
+`389.0` (this entry, `25924e74`) — all already filed above. OneDrive
+slot `pdfcer2` next (`v0.62.0` went to `pdfcer1`). Tag, GitHub release
+and OneDrive deploy not yet done; not yet confirmed from here — full
+release filing to follow once tag/deploy details are relayed.
+
 **Sourcing (hard rule 8).** No shell this filing — facts relayed from the
 dispatching engineer's own report at `25924e74`, not independently
 reproduced.
