@@ -4,6 +4,43 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (765th filing) — `Pass 410.0` (`5722ec8a`) + `Pass 411.0` (`a2e40249`): text clipping modes 4-7, and `button_action` reads back `/GoTo`/`/SubmitForm`/`/Hide`
+
+**Shipped:**
+- `Pass 410.0` (`5722ec8a`) — `pdfcer-render` applies §9.3.6 text clipping:
+  glyph outlines shown by `Tr` modes 4-7 accumulate in device space across a
+  text object and intersect into the clip, nonzero winding, at `ET`. No
+  outline shown means no clip; mode 7 computes outlines and paints nothing;
+  Type 3 glyphs never clip. Closes the Backlog remainder naming `Tr` 4-7 as
+  deferred (decision 007 fold-in, Pass 1.1 item 4's other half).
+- `Pass 411.0` (`a2e40249`) — `EditSession::button_action` now reads back
+  `GoTo`, `SubmitForm` and `Hide` as `Known` (previously `Unmodelled`),
+  closing the 362nd filing's named remainder and additionally covering
+  `Hide`, which that entry never asked for.
+
+**Decisions made this session:** None — both Passes built to gating already
+sourced and recorded when their Backlog entries were filed.
+
+**Findings + decisions:**
+- `Pass 410.0`: 5 new render tests, 5 sabotages each caught; the deferred-op
+  diagnostic `Tr(clip 4-7)` is removed since the operator is now handled.
+  `03-capabilities.md`'s "Render mode 7 is a future trap" bullet replaced.
+- `Pass 411.0`: 6 new integration tests, 8 sabotages each caught;
+  `pdfcer-core` suite 3833 passed (1331 + 158 + 2344), 2 ignored. The
+  Backlog entry's own named trap (a `/GoTo` destination that does not
+  resolve inside this document stays a refusal, never a wrong `Known`)
+  held. `03-capabilities.md`'s index counts corrected (4,085 lines, 114
+  clauses — drift introduced by `5722ec8a`).
+- `docs/FEATURES.md`: the `Tr` 4-7 row moved from *Planned* to *Implemented*
+  (Fonts & rendering) — core/cli ticked, gui `[ ]`. The push-button-action
+  read row (`Pass 212.0`'s) had its `Known` list widened in place; `cli`
+  stays `[ ]` (no CLI caller of `button_action` exists).
+- Neither Pass touched a manifest; `cargo tree` unaffected both times.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** No open items from either Pass.
+
 ## 2026-09-29 (764th filing) — audit-close: `docs/ROADMAP.md` Backlog headings marked CLOSED
 
 **Shipped:** No code this filing — bookkeeping only, per an explicit

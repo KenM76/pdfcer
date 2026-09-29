@@ -115,6 +115,61 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 411.0` (`a2e40249`), 2026-09-29 — `button_action` reads back `/GoTo`, `/SubmitForm` and `/Hide`
+
+Closes the Backlog item below (widen `ButtonActionState::Known` to cover
+`/GoTo` and `/SubmitForm`, `Pass 212.0`'s named remainder) — and additionally
+decodes `/Hide`, not asked for by that entry but equally cheap once the
+decoder-per-subtype shape was in place.
+
+`EditSession::button_action` now returns `ButtonActionState::Known` for
+every `ButtonAction` `set_button_action` can write: `GoTo` (an explicit
+destination to a page of this document by reference; `/Fit`, `/FitH` at
+crop top, or `/XYZ` at crop top-left with a null or 0 zoom); `SubmitForm`
+(an `/FS` `/URL` filespec whose `/Flags` word reproduces
+`submit_flag_word` exactly, Table 237); and `Hide` (a `/T` string or
+string array; absent `/H` reads as `true`). Other shapes of an authored
+subtype stay `Unmodelled`: a named destination, a page-number destination,
+another view/zoom, a bare-string `/F` file path, reserved or cross-format
+flag bits, `Exclude` with no `/Fields`, or `/T` by reference. The Backlog
+entry's own named trap held: a `/GoTo` destination that does not resolve
+inside this document stays a refusal, never a wrong `Known`.
+
+**Tests.** 6 new integration tests
+(`crates/pdfcer-core/tests/button_action_readback.rs`); 8 sabotages each
+caught. `pdfcer-core` suite: 3833 passed (1331 + 158 + 2344), 2 ignored.
+
+**core-api.** `02-editing-and-saving.md`'s `button_action` row updated;
+`03-capabilities.md`'s index counts corrected (4,085 lines, 114 clauses —
+drift introduced by `5722ec8a`). `check-core-api-verbs.py` green.
+
+No manifest change; `cargo tree` unaffected. No CLI caller exists for
+`button_action` — unchanged, the closed entry never asked for one.
+
+### `Pass 410.0` (`5722ec8a`), 2026-09-29 — text clipping modes 4–7 clip at `ET`
+
+Closes the Backlog remainder naming `Tr` 4–7 text clipping as deferred
+(decision 007 fold-in, Pass 1.1 item 4's other half — see the dated
+closures below).
+
+`pdfcer-render` now applies §9.3.6's text clipping: glyph outlines shown
+by `Tr` modes 4–7 accumulate in device space across a text object and are
+intersected into the clip, nonzero winding, at `ET`, after all of that
+text object's own paints. No outline shown (spaces only) means no clip,
+not an empty one. `Q` restores the pre-`BT` clip. Mode 7 computes outlines
+and paints nothing, unchanged. Type 3 glyphs never clip — they honour only
+mode 3. The deferred-op diagnostic `Tr(clip 4-7)` is removed, since the
+operator is now handled rather than flagged.
+
+**Tests.** 5 new render tests
+(`crates/pdfcer-render/tests/text_clipping_modes.rs`); 5 sabotages each
+caught.
+
+**core-api.** `03-capabilities.md`'s "Render mode 7 is a future trap"
+bullet replaced with "Text clipping modes 4-7 are rendered".
+
+No manifest change; `cargo tree` unaffected.
+
 ### `Pass 409.0` (`2d2c25ee`), 2026-09-29 — `set_page_tabs` records a page's tab order
 
 Closes the Backlog item below (`set_page_tabs(page, PageTabs)`, `Pass 237.0`'s
@@ -21285,6 +21340,10 @@ now priority order, set by that data:
    half-life such a flag has. **`Tr` 4–7 text-clipping remains
    unpromoted and unscoped**, unchanged again by this amendment — do not
    read the extraction close as covering it.
+   **★★★ AMENDED 2026-09-29 (765th filing) — `Tr` 4-7 text-clipping
+   SHIPPED, `Pass 410.0` (`5722ec8a`).** `pdfcer-render` now clips at `ET`
+   per §9.3.6; see *Shipped*, top. Both halves of this item are now
+   closed — Type 3 (258th filing) and `Tr` 4-7 (this amendment).
 5. **Form and Image XObjects (`Do`) + inline images — DONE
    2026-07-30.** Closed the biggest measured fidelity gap (was the
    "Fidelity note" below — now folded into this item). See
@@ -22771,7 +22830,7 @@ current state without this verb.
 
 ---
 
-### Unscoped — ★★★ **WIDEN `ButtonActionState::Known` TO COVER `/GoTo` AND `/SubmitForm`, WHICH TODAY ANSWER `Unmodelled`** — filed 2026-09-01 (362nd filing, `Pass 212.0`'s named remainder)
+### Unscoped — ★★★ **WIDEN `ButtonActionState::Known` TO COVER `/GoTo` AND `/SubmitForm`, WHICH TODAY ANSWER `Unmodelled`** — filed 2026-09-01 (362nd filing, `Pass 212.0`'s named remainder) — **CLOSED 2026-09-29 (`Pass 411.0`, `a2e40249`)**: `/GoTo` and `/SubmitForm` both decode to `Known`, and `/Hide` was widened alongside them though this entry never asked for it. See *Shipped* above.
 
 **Status: SCOPED, NOT STARTED. Purely additive — no caller breaks.**
 
@@ -28209,8 +28268,9 @@ added. See that section below.
   is already filed elsewhere, not new work: Type 3 fonts + `Tr` 4–7
   text clipping = **Pass 1.1 item 4** (LOW, near-zero corpus
   presence) [★ Type 3 half SHIPPED as `Pass 126.0`/`Pass 126.1`,
-  `1a5fc92`/`0f09780`, 2026-08-25 (258th filing) — see Pass 1.1 item 4's
-  own footer, above, and *Shipped*, top; `Tr` 4–7 remains here, unscoped];
+  `1a5fc92`/`0f09780`, 2026-08-25 (258th filing); `Tr` 4-7 half SHIPPED as
+  `Pass 410.0`, `5722ec8a`, 2026-09-29 (765th filing) — see Pass 1.1 item
+  4's own footer, above, and *Shipped*, top; both halves now closed];
   `/SMask` + `/Mask` = **Pass 1.1 item
   6.3** (blocked on a
   clause-11 spec dispatch). Only general transparency groups and
