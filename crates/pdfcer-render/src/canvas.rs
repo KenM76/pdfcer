@@ -61,6 +61,7 @@
 //! Not here: anything that knows what a PDF is. `Canvas` has no opinion
 //! about operators, resources or the standard; it is a drawing target.
 
+use crate::device_clip::FitPaint;
 use std::sync::Arc;
 
 use tiny_skia::{
@@ -765,12 +766,12 @@ impl<'a> Canvas<'a> {
         clip: ClipRef<'_>,
     ) {
         match self {
-            Self::Paint(p) => p.fill_path(path, &brush.to_paint(), rule, ctm, clip.coverage()),
+            Self::Paint(p) => p.fill_path_fit(path, &brush.to_paint(), rule, ctm, clip.coverage()),
             Self::Knockout(k) => {
                 let bounds = fill_bounds(path, ctm);
                 let (opaque, q_s) = brush.split_shape_and_opacity();
                 k.element(bounds, q_s, brush.blend, |scratch| {
-                    scratch.fill_path(path, &opaque.to_paint(), rule, ctm, clip.coverage());
+                    scratch.fill_path_fit(path, &opaque.to_paint(), rule, ctm, clip.coverage());
                 });
             }
             Self::Cmyk(b) => {
@@ -801,12 +802,14 @@ impl<'a> Canvas<'a> {
         clip: ClipRef<'_>,
     ) {
         match self {
-            Self::Paint(p) => p.stroke_path(path, &brush.to_paint(), stroke, ctm, clip.coverage()),
+            Self::Paint(p) => {
+                p.stroke_path_fit(path, &brush.to_paint(), stroke, ctm, clip.coverage())
+            }
             Self::Knockout(k) => {
                 let bounds = stroke_bounds(path, stroke, ctm);
                 let (opaque, q_s) = brush.split_shape_and_opacity();
                 k.element(bounds, q_s, brush.blend, |scratch| {
-                    scratch.stroke_path(path, &opaque.to_paint(), stroke, ctm, clip.coverage());
+                    scratch.stroke_path_fit(path, &opaque.to_paint(), stroke, ctm, clip.coverage());
                 });
             }
             Self::Cmyk(b) => {
@@ -918,7 +921,7 @@ impl<'a> Canvas<'a> {
                     anti_alias,
                     force_hq_pipeline: false,
                 };
-                p.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
+                p.fill_path_fit(path, &paint, FillRule::Winding, ctm, clip.coverage());
             }
             Self::Cmyk(b) => {
                 // THIS USED TO BE "THE ONE PAINT KIND THAT CANNOT GO
@@ -983,7 +986,13 @@ impl<'a> Canvas<'a> {
                                 anti_alias,
                                 force_hq_pipeline: false,
                             };
-                            dst.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
+                            dst.fill_path_fit(
+                                path,
+                                &paint,
+                                FillRule::Winding,
+                                ctm,
+                                clip.coverage(),
+                            );
                         };
                         draw(&src.tints.cmy, &mut cmy);
                         draw(&src.tints.k, &mut k);
@@ -1046,7 +1055,7 @@ impl<'a> Canvas<'a> {
                             anti_alias,
                             force_hq_pipeline: false,
                         };
-                        dst.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
+                        dst.fill_path_fit(path, &paint, FillRule::Winding, ctm, clip.coverage());
                     };
                     draw(&ink.cmy, &mut cmy);
                     draw(&ink.k, &mut k);
@@ -1088,7 +1097,7 @@ impl<'a> Canvas<'a> {
                         anti_alias,
                         force_hq_pipeline: false,
                     };
-                    scratch.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
+                    scratch.fill_path_fit(path, &paint, FillRule::Winding, ctm, clip.coverage());
                     let region = device_region(fill_bounds(path, ctm), 1.0, b.width(), b.height());
                     if let Some(region) = region {
                         b.composite_srgb_with(
@@ -1122,7 +1131,7 @@ impl<'a> Canvas<'a> {
                         anti_alias,
                         force_hq_pipeline: false,
                     };
-                    scratch.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
+                    scratch.fill_path_fit(path, &paint, FillRule::Winding, ctm, clip.coverage());
                 });
             }
         }
@@ -1219,7 +1228,7 @@ impl<'a> Canvas<'a> {
                     anti_alias,
                     force_hq_pipeline: false,
                 };
-                dst.fill_path(path, &paint, FillRule::Winding, ctm, clip.coverage());
+                dst.fill_path_fit(path, &paint, FillRule::Winding, ctm, clip.coverage());
             };
             draw(&tints.cmy, &mut cmy);
             draw(&tints.k, &mut k);

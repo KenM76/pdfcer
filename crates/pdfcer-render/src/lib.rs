@@ -75,6 +75,7 @@ pub(crate) mod cmyk_buffer;
 pub(crate) mod cmyk_paint;
 pub mod color;
 pub mod compositor;
+pub(crate) mod device_clip;
 pub mod display_list;
 pub mod edit_preview;
 pub mod emf;
@@ -185,57 +186,36 @@ pub use pdfcer_core::{PdfError, PdfVersion};
 /// format, and it should be re-read whenever the use changes.
 pub const MAX_PIXMAP_EDGE: u32 = 16 * 1024;
 
-/// The deepest magnification a region render is **guaranteed** to survive
-/// (`Pass 296.0`).
+/// The deepest magnification at which a region render is **measured
+/// pixel-exact** on every geometry tested (`Pass 296.0`).
 ///
-/// # This is a FLOOR, not a ceiling — the distinction is the whole point
+/// A **floor, not a ceiling**: pdfcer does not refuse above it. It is the
+/// number a caller that wants a deterministic hand-off point (stop zooming,
+/// switch strategy) can use without inventing one.
 ///
-/// `pdfcer-render` does **not** refuse above this number. A render at
-/// 2,000,000× very often succeeds and returns correct pixels; several page
-/// geometries were measured doing exactly that. What this constant says is
-/// narrower and more useful: **below it, no rasteriser failure was observed on
-/// any geometry tested**, so a caller that wants a deterministic hand-off
-/// point — switch strategy, stop zooming, warn — has a number to use that was
-/// not made up.
+/// # What the number rests on
 ///
-/// Above it, the outcome is still defined: [`RenderError::RasterizerLimit`],
-/// a refusal, never a panic. So a caller may equally ignore this constant and
-/// treat the error as the signal. Both are supported; this exists because the
-/// consuming shell asked to know the boundary *before* calling rather than
-/// discover it by crashing into it.
-///
-/// # Why it is not the real boundary, and why it must not be presented as one
-///
-/// The real boundary was measured — `examples/region_panic_ceiling.rs`
-/// bisects the first panicking scale for six page geometries — and it does not
-/// behave like a property anybody can publish:
+/// `examples/deep_zoom_pixels.rs` renders a viewport-sized region centred on
+/// an edge and checks the edge lands within one pixel of where it should.
+/// Page-wide fills, bisected:
 ///
 /// ```text
-/// E-size (3370 x 2384 pt)        284,964
-/// A3 landscape (1190 x 842 pt) 2,147,482
-/// A4 portrait  (595 x 842 pt)  2,147,482
-/// A1 landscape (2384 x 1684)   8,053,069
-/// A6 portrait  (298 x 420 pt)  8,053,069
-/// business card (144 x 252 pt) 8,053,069
+/// E-size, edge at 3301.37 pt (non-integer, far from the origin)  33,554,982
+/// E-size, A1, A4, edge at 301 pt                                116,800,703
 /// ```
 ///
-/// Three distinct values, and they order with **nothing**: not page width,
-/// not area, not `page_edge × scale`. The largest sheet is the most fragile;
-/// an A1 sheet and a business card share a boundary that A4 does not reach.
-/// The limit is a property of `tiny_skia`'s fixed-point scan conversion
-/// interacting with the particular geometry being painted, and it is
-/// therefore **content-dependent** as well.
+/// This constant sits under the lowest row with margin. Below it, geometry
+/// that would leave `tiny_skia`'s fixed-point range is pre-clipped to the
+/// target in `f64` (`device_clip`), so page size does not matter.
 ///
-/// A constant fitted to that table would be a guess wearing a
-/// measurement's clothes. This one is deliberately set **below the lowest
-/// value observed**, with margin, and claims only what that supports.
+/// # Above it
 ///
-/// # Why a caller is unlikely to meet it
-///
-/// 250,000× is 25,000,000 %. The shell's own zoom-gallery check tops out at
-/// 3,099,514 % (≈ 31,000×), an order of magnitude below this, and at that
-/// magnification one page point already spans a screen.
-pub const MAX_GUARANTEED_REGION_SCALE: f32 = 250_000.0;
+/// A render still returns pixels, and they drift from exact as scale grows —
+/// measured 2 px at 10^8 and 26 px at 10^9 (edge at 301 pt), with content
+/// lost by about 10^10. No panic was observed up to 10^9 on six geometries
+/// (`examples/region_panic_ceiling.rs`); if the rasteriser does panic, the
+/// caller gets [`RenderError::RasterizerLimit`], never an unwinding thread.
+pub const MAX_GUARANTEED_REGION_SCALE: f32 = 10_000_000.0;
 
 /// Bytes of storage each pixel of the **subtractive compositing buffer**
 /// costs: four colorant planes plus alpha.
@@ -493,40 +473,21 @@ pub enum RenderError {
         /// The scale the list was recorded at.
         recorded_scale: f32,
     },
-    /// The rasteriser's own arithmetic gave out at this magnification, and
-    /// the render was **stopped and refused** rather than allowed to panic
-    /// (`Pass 296.0`).
+    /// The rasteriser panicked, and the render was **stopped and refused**
+    /// rather than allowed to unwind the caller's thread (`Pass 296.0`).
     ///
-    /// # What this actually means
-    ///
-    /// The pixmap was fine — its size is checked before anything is
-    /// allocated, and a region render asks for a viewport-sized buffer
-    /// however deep the zoom goes. What gave out is `tiny_skia`'s
-    /// fixed-point scan conversion, which turns device coordinates into a
-    /// 26.6 integer and cannot represent the ones a page's own geometry
-    /// reaches at extreme magnification. The symptom, reported from the
-    /// consuming shell on 2026-09-11, was a blit aimed at a scanline far
-    /// outside a perfectly ordinary buffer:
+    /// A backstop. Its known cause — device coordinates past `tiny_skia`'s
+    /// fixed-point range at deep zoom, reported as
     ///
     /// ```text
     /// range start index 442613758592 out of range for slice of length 1088737
     /// ```
     ///
-    /// # Why this is an ERROR and not a guard
-    ///
-    /// Because the boundary was **measured and found not to be a function of
-    /// anything publishable.** `examples/region_panic_ceiling.rs` bisects it
-    /// across six page geometries; the first panicking scale takes three
-    /// distinct values that do **not** order with page size, page area, or
-    /// device extent — an A1 sheet and a business card share one boundary
-    /// while A3 and A4 share a lower one. A constant fitted to that is an
-    /// invented number wearing a measurement's clothes, which is precisely
-    /// what the request that prompted this asked not to receive.
-    ///
-    /// So the guarantee is the refusal, which cannot be wrong because it is
-    /// the rasteriser's own failure caught and named, and the published
-    /// number ([`MAX_GUARANTEED_REGION_SCALE`]) is a **floor** a caller can
-    /// hand over at rather than a ceiling pdfcer enforces.
+    /// — is removed by pre-clipping such geometry to the target, and
+    /// `examples/region_panic_ceiling.rs` finds no panic up to 10^9 on six
+    /// page geometries. The catch stays because a panic on a worker thread
+    /// leaves a live window over a dead renderer, which nothing outside can
+    /// see. [`MAX_GUARANTEED_REGION_SCALE`] is the measured-exact floor.
     ///
     /// # For the caller
     ///
@@ -731,10 +692,9 @@ pub fn render_page_with_view(
 /// [`RenderError::BadRasterSize`] if the region is empty or its raster exceeds
 /// [`MAX_PIXMAP_EDGE`].
 ///
-/// [`RenderError::RasterizerLimit`] if the magnification defeats `tiny_skia`'s
-/// fixed-point scan conversion — a **refusal, not a panic**, since
-/// `Pass 296.0`. See [`MAX_GUARANTEED_REGION_SCALE`] for the scale below which
-/// this cannot happen, and why that number is a floor rather than the boundary.
+/// [`RenderError::RasterizerLimit`] if the rasteriser panics — a **refusal,
+/// not an unwinding thread**. See [`MAX_GUARANTEED_REGION_SCALE`] for how deep
+/// a region render is measured pixel-exact.
 ///
 /// Otherwise as [`render_page`].
 pub fn render_page_region(

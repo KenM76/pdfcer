@@ -43,6 +43,7 @@
 //! [`device_region`], so the waste is the allocation and the clear, not the
 //! per-pixel work.
 
+use crate::device_clip::FitMask;
 use tiny_skia::{FillRule, Mask, Path, Stroke, Transform};
 
 use crate::canvas::{Brush, BrushSpec, ClipRef};
@@ -133,10 +134,10 @@ fn coverage(
         }
     }
     if let Some(r) = rule {
-        cov.fill_path(path, r, anti_alias, ctm);
+        cov.fill_path_fit(path, r, anti_alias, ctm);
     } else {
         let stroked = path.clone().stroke(stroke?, 1.0)?;
-        cov.fill_path(&stroked, FillRule::Winding, anti_alias, ctm);
+        cov.fill_path_fit(&stroked, FillRule::Winding, anti_alias, ctm);
     }
     if let Some(old) = clip.coverage() {
         // AND MULTIPLY THE CLIP ONLY OVER THE REGION, reading the clip

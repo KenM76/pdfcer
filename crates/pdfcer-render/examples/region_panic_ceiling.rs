@@ -1,5 +1,5 @@
-//! Where does a region render stop REFUSING and start PANICKING? — the
-//! experiment behind [`pdfcer_render::MAX_REGION_DEVICE_EXTENT`].
+//! Does a deep region render ever panic in the rasteriser? The probe behind
+//! [`pdfcer_render::RenderError::RasterizerLimit`].
 //!
 //! ```text
 //! cargo run --release -p pdfcer-render --example region_panic_ceiling
@@ -38,38 +38,17 @@
 //!
 //! Then bisect the first failing decade to find the boundary.
 //!
-//! # What it found, and why the answer was a refusal rather than a constant
+//! # What it finds
 //!
-//! Six geometries, bisected (2026-09-11, before the guard existed):
+//! Unguarded (tiny-skia 0.11.4), six geometries panicked from 284,964x
+//! (E-size) to 8,053,069x, in no order of page size: the boundary is where a
+//! painted path's device bounds pass tiny-skia's fixed-point range, which
+//! depends on the content. The renderer now pre-clips such paths to the
+//! target, and this probe finds no panic up to 10^9 on any of the six. A
+//! `PANIC` row reappearing means a path reaches the rasteriser unclipped.
 //!
-//! ```text
-//! E-size (3370 x 2384 pt)        284,964
-//! A3 landscape (1190 x 842 pt) 2,147,482
-//! A4 portrait  (595 x 842 pt)  2,147,482
-//! A1 landscape (2384 x 1684)   8,053,069
-//! A6 portrait  (298 x 420 pt)  8,053,069
-//! business card (144 x 252 pt) 8,053,069
-//! ```
-//!
-//! **Three distinct values, ordering with nothing.** Not page width, not area,
-//! not `page_edge × scale`. The LARGEST sheet is the most fragile; an A1 sheet
-//! and a business card share a boundary A4 never reaches. The limit belongs to
-//! `tiny_skia`'s fixed-point scan conversion interacting with the particular
-//! geometry being painted, so it is content-dependent too.
-//!
-//! That table is the argument for
-//! [`pdfcer_render::RenderError::RasterizerLimit`] over a published ceiling: a
-//! constant fitted to it would be an invented number, and the request that
-//! prompted this work asked, in as many words, not to receive one.
-//! [`pdfcer_render::MAX_GUARANTEED_REGION_SCALE`] is set below the lowest row
-//! and claims only what the lowest row supports.
-//!
-//! # Running it AFTER the guard
-//!
-//! Every `PANIC` above now prints `refused`, which is the whole change. The
-//! probe still bisects — the boundary has not moved, only its outcome — so it
-//! doubles as the measurement that would notice the boundary shifting under a
-//! `tiny_skia` upgrade.
+//! Whether the pixels are RIGHT is a separate question, answered by
+//! `examples/deep_zoom_pixels.rs`.
 
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree::{self, Rect};

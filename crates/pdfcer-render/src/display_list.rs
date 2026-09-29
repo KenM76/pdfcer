@@ -137,6 +137,7 @@
 //! detectable. There is nothing left for a caller to pass that could
 //! disagree with what was recorded.
 
+use crate::device_clip::{FitMask, FitPaint};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -1064,7 +1065,7 @@ pub(crate) fn replay_ops(
                     continue;
                 }
                 let mask = masks.mask_for(*clip);
-                pixmap.fill_path(
+                pixmap.fill_path_fit(
                     path,
                     &brush.to_paint(),
                     *rule,
@@ -1084,7 +1085,7 @@ pub(crate) fn replay_ops(
                     continue;
                 }
                 let mask = masks.mask_for(*clip);
-                pixmap.stroke_path(
+                pixmap.stroke_path_fit(
                     path,
                     &brush.to_paint(),
                     stroke,
@@ -1200,7 +1201,7 @@ impl<'a> MaskBuilder<'a> {
             // allocator change would break silently.
             return Some(Arc::new(mask));
         };
-        mask.fill_path(path, def.rule, true, self.to_region(def.ctm));
+        mask.fill_path_fit(path, def.rule, true, self.to_region(def.ctm));
         if let Some(old) = parent {
             // The painting path restricts this multiply to the new path's
             // device bounds and documents that the restriction is an

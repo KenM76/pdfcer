@@ -121,6 +121,7 @@
 //!   rendering mode 3 (the invisible OCR text layer), a `.notdef`
 //!   fallback, and a space all move `Tm` (§9.4.4).
 
+use crate::device_clip::{FitMask, FitPaint};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -6828,12 +6829,12 @@ impl<'a> Interpreter<'a> {
             return false;
         };
         if let Some(r) = rule {
-            coverage.fill_path(path, r, true, ctm);
+            coverage.fill_path_fit(path, r, true, ctm);
         } else {
             let Some(stroked) = path.clone().stroke(&self.stroke_params(), 1.0) else {
                 return false;
             };
-            coverage.fill_path(&stroked, FillRule::Winding, true, ctm);
+            coverage.fill_path_fit(&stroked, FillRule::Winding, true, ctm);
         }
         if let Some(old) = self.gs.current.clip.as_deref() {
             let old_data = old.data().to_vec();
@@ -7174,12 +7175,12 @@ impl<'a> Interpreter<'a> {
             return false;
         };
         if let Some(r) = rule {
-            coverage.fill_path(path, r, true, ctm);
+            coverage.fill_path_fit(path, r, true, ctm);
         } else {
             let Some(stroked) = path.clone().stroke(&self.stroke_params(), 1.0) else {
                 return false;
             };
-            coverage.fill_path(&stroked, FillRule::Winding, true, ctm);
+            coverage.fill_path_fit(&stroked, FillRule::Winding, true, ctm);
         }
         if let Some(old) = self.gs.current.clip.as_deref() {
             let old_data = old.data().to_vec();
@@ -7385,7 +7386,7 @@ impl<'a> Interpreter<'a> {
         let Some(mut mask) = Mask::new(canvas.width(), canvas.height()) else {
             return false;
         };
-        mask.fill_path(path, rule, true, ctm);
+        mask.fill_path_fit(path, rule, true, ctm);
         if let Some(old) = self.gs.current.clip.as_deref() {
             // Per-pixel coverage multiply, the same operation
             // `intersect_clip` performs — a clip and a path mask combine
@@ -8834,7 +8835,7 @@ impl<'a> Interpreter<'a> {
                 anti_alias: geom.anti_alias,
                 force_hq_pipeline: false,
             };
-            scratch.fill_path(
+            scratch.fill_path_fit(
                 &geom.path,
                 &paint,
                 FillRule::Winding,
@@ -9813,7 +9814,7 @@ fn intersect_clip(
         return;
     };
     let t1 = timed.then(std::time::Instant::now);
-    mask.fill_path(path, rule, true, ctm);
+    mask.fill_path_fit(path, rule, true, ctm);
     let t2 = timed.then(std::time::Instant::now);
     if let Some(old) = &state.clip {
         // Multiply ONLY inside the new path's device-space bounds.
