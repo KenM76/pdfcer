@@ -10,8 +10,8 @@
 //! ## What a tolerance IS here, and what it is not
 //!
 //! It is a **documentation property layered over an immutable measurement**,
-//! stored on [`super::group::DimensionRecord`]'s style, never on
-//! [`super::group::DimensionKind`] — which is documented in-source as *the
+//! stored on `super::group::DimensionRecord`'s style, never on
+//! `super::group::DimensionKind` — which is documented in-source as *the
 //! immutable geometry*. Setting a tolerance can never change what a ce
 //! dimension measures; it changes what the drawing **asks the shop for**. The
 //! ui-spec argued the same split independently
@@ -25,7 +25,7 @@
 //! read off the reference tool's own API surface
 //! (`D:\Dev\Rag-Specialized\SolidWorks_Dimensions\` §A) rather than off a
 //! standard. This is the same epistemic discipline
-//! [`super::group::DimStandard`] already applies to ISO 129-1.
+//! `super::group::DimStandard` already applies to ISO 129-1.
 //!
 //! ## Which of the reference's thirteen types are here, and why not the rest
 //!
@@ -45,7 +45,7 @@
 //! ## The units question, answered explicitly because it is easy to get wrong
 //!
 //! Tolerance values are in the **displayed unit** (millimetres, inches,
-//! degrees — whatever the resolved [`super::units::NumberFormat`] shows), NOT
+//! degrees — whatever the resolved `super::units::NumberFormat` shows), NOT
 //! in PDF points. A tolerance is a manufacturing quantity the operator types
 //! in the units he is thinking in; storing it in points would mean a group
 //! rescale silently changed the tolerance, which is the opposite of what a

@@ -307,10 +307,10 @@ pub enum FormAuthorError {
     /// # stop naming one of them
     ///
     /// This message opened *"a rename sets the ONE segment…"* while only
-    /// [`EditSession::rename_field`] could raise it. The consuming shell then
+    /// `EditSession::rename_field` could raise it. The consuming shell then
     /// found two more routes that write an operator-typed name straight into a
     /// top-level `/T` without splitting it —
-    /// [`EditSession::adopt_widget`] and [`EditSession::sign`] — and asked for
+    /// `EditSession::adopt_widget` and `EditSession::sign` — and asked for
     /// **this** variant rather than a new one, so its own error mapping needs
     /// no new arm.
     ///

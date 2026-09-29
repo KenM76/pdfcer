@@ -455,7 +455,7 @@ pub enum PoisonReason {
     /// to substitute for is the module's own stated nightmare: *"a display
     /// list that is subtly wrong is strictly worse than no display list"*.
     ///
-    /// **The threshold is [`Mat64::needs_precise_paths`] — the SAME one
+    /// **The threshold is `Mat64::needs_precise_paths` — the SAME one
     /// the direct path uses to decide whether it needs its precise
     /// route.** That is what makes this a boundary rather than a
     /// compromise: below it both paths do identical `f32` arithmetic and

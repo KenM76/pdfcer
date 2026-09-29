@@ -53,7 +53,7 @@
 //!
 //! ### 2. Declared order is reported, never a sorted order
 //!
-//! Table 101's `/Order` "specif[ies] the order for presentation of
+//! Table 101's `/Order` "specif\[ies\] the order for presentation of
 //! optional content groups in a conforming reader's user interface", and
 //! its elements may nest. pdfcer reports that tree ([`Layers::order`]) and
 //! flattens it, **pre-order**, into [`Layers::layers`].

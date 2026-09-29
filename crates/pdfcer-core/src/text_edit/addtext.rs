@@ -1814,7 +1814,7 @@ pub struct WrapPreviewLine {
 }
 
 /// The result of a pure, read-only boxed wrap PREVIEW (Pass 16.2 §4.2 /
-/// decision 016 §0.3) — the read-only analogue of a [`ReflowPreview`]
+/// decision 016 §0.3) — the read-only analogue of a `ReflowPreview`
 /// (crate::text_edit::ReflowPreview), but wrapping a literal, not-yet-committed
 /// STRING into a box instead of re-planning an already-recognised block.
 ///

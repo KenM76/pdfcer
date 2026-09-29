@@ -4064,7 +4064,7 @@ mod tests {
     }
 }
 /// What a placed `/Stamp` was drawn with, recovered from the annotation
-/// (`Pass 292.0`) -- see [`EditSession::stamp_label_parameters`].
+/// (`Pass 292.0`) -- see `EditSession::stamp_label_parameters`.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct StampLabelParameters {

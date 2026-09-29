@@ -17,7 +17,7 @@
 //! (text edit) are built on — the **R46 named exception, ISO 32000-1 §5.7**
 //! (`docs/ARCHITECTURE.md` §5.7): the object's operator byte range is
 //! located from the read-only Pass 9a decomposition
-//! ([`super::decompose`]), the numeric operands are rewritten (or the whole
+//! ([`mod@super::decompose`]), the numeric operands are rewritten (or the whole
 //! run removed), and ONLY the edited content stream is re-emitted; every
 //! other object in the file stays **byte-verbatim**. This module is the
 //! geometric mirror of [`crate::redact`]'s operator removal.
@@ -31,7 +31,7 @@
 //! or the undo stack. The session-integrated, one-undoable-command wrappers
 //! that stage the new bytes and re-emit exactly the edited stream live in
 //! [`crate::edit::EditSession`] (`move_object`/`delete_object`/`move_node`),
-//! mirroring how [`crate::text_edit::edit::plan_edit`] feeds
+//! mirroring how `crate::text_edit::edit::plan_edit` feeds
 //! [`crate::edit::EditSession::edit_text`]. The whole module is GUI-free
 //! (`pdfcer-core`, no egui/eframe/winit/wgpu — the load-bearing invariant),
 //! so the eventual WASM fork inherits the surgery unchanged; the GUI owns
@@ -57,7 +57,7 @@
 //! in **decomposition order** — the flattening of
 //! `obj.subpaths.flat_map(Subpath::anchors)` the snap engine and GUI node
 //! hit-test already present. This module reproduces the EXACT subpath /
-//! empty-subpath / `h`-reopen bookkeeping [`super::decompose`] uses, so the
+//! empty-subpath / `h`-reopen bookkeeping [`mod@super::decompose`] uses, so the
 //! nth anchor a caller sees and the nth anchor this surgery rewrites are the
 //! same anchor by construction (the geometry analogue of the R49/R60 "one
 //! pipeline" discipline), not by two hand-derived orderings kept in sync.
@@ -4507,7 +4507,7 @@ fn promote_to_cubic(
 /// index against, and the value [`VectorEditError::NodeOutOfRange`] reports.
 ///
 /// Equal to `obj.subpaths.iter().map(|s| s.anchors().count()).sum()` by
-/// construction (this walk mirrors [`super::decompose`]); provided so the
+/// construction (this walk mirrors [`mod@super::decompose`]); provided so the
 /// CLI/GUI need not re-derive the flattening.
 #[must_use]
 pub fn anchor_count(content: &ContentStream, obj: &PathObject) -> usize {

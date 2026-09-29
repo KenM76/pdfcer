@@ -1737,10 +1737,10 @@ pub(crate) struct EditPlan {
     pub(crate) layout: EditLayout,
 }
 
-/// A replacement laid out exactly as [`crate::EditSession::edit_text`] would
+/// A replacement laid out exactly as `crate::EditSession::edit_text` would
 /// commit it, with nothing written (`Pass 366.0`).
 ///
-/// Returned by [`crate::EditSession::edit_text_preview`]. The glyph codes,
+/// Returned by `crate::EditSession::edit_text_preview`. The glyph codes,
 /// positions and refusals come from the same plan the commit runs, so a
 /// shell drawing these glyphs while the operator types shows what Enter
 /// will produce. `pdfcer_render::edit_preview` turns it into outlines.

@@ -97,6 +97,9 @@ LOCAL = {
     "tools/check-fmt-excluded.py": "python tools/check-fmt-excluded.py",
     "tools/check-shipped-assets.py": "python tools/check-shipped-assets.py",
     "cargo clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "cargo doc --workspace": (
+        'RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps'
+    ),
     "cargo test --workspace": "cargo test --workspace --all-features",
     "cargo test -p pdfcer-core --no-default-features": (
         "cargo test -p pdfcer-core --no-default-features"

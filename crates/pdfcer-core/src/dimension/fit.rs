@@ -21,7 +21,7 @@
 //! **normalised by the gradient of the constraint** — turning the problem
 //! into a generalised eigenproblem whose closed-form solution is
 //! near-unbiased for partial arcs at nearly the same cost. The
-//! [`tests::taubin_beats_kasa_on_short_arcs`] Monte-Carlo test *proves* this
+//! `tests::taubin_beats_kasa_on_short_arcs` Monte-Carlo test *proves* this
 //! bias difference on synthetic short-arc data (decision 011 Appendix A
 //! Pass 12.M2 acceptance: "Taubin beats Kåsa — proven by test").
 //!

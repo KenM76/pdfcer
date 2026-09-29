@@ -316,7 +316,7 @@ pub enum TextStringForm {
 /// Decode a `text string` (§7.9.2.2): UTF-16BE if the bytes begin with
 /// the `FE FF` byte-order marker, PDFDocEncoding (Annex D.3) otherwise.
 ///
-/// In-band language escape sequences (U+001B `xx` [`yy`] U+001B) are
+/// In-band language escape sequences (U+001B `xx` \[`yy`\] U+001B) are
 /// stripped from the output and reported in
 /// [`DecodedText::languages`]; per §7.9.2.2 they are recognized only on
 /// the UTF-16BE branch, where `0x1B` is not an undefined code.

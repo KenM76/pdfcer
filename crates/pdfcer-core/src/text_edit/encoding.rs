@@ -496,7 +496,7 @@ impl CompositeEncoding {
     /// (`R-INV-1`), which is a fact about the PAGE and not about the font.
     /// So this returns what to *ask about*, and
     /// [`crate::edit::EditSession::run_repertoire`] asks
-    /// [`Self::encode_char`] — the accepting code — about each one.
+    /// `Self::encode_char` — the accepting code — about each one.
     ///
     /// That split is deliberate (`R221`): a repertoire that decided acceptance
     /// itself would be a second description of the refusal rules, and the two

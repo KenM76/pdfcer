@@ -36,7 +36,7 @@
 //! # What this adapter deliberately does not do
 //!
 //! - It does not choose where the model file lives, or fetch it. Model
-//!   bytes are handed to [`OcrcerEngine::from_bytes`] by the caller, exactly
+//!   bytes are handed to `OcrcerEngine::from_bytes` by the caller, exactly
 //!   as `ocrcer_core::Engine::from_bytes` requires — `pdfcer`'s own
 //!   `ocr::models::resolve_model_dir` (or `include_bytes!`, for a build that
 //!   wants to embed the model) stays the thing that decides.

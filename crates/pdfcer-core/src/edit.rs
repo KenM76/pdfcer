@@ -2410,7 +2410,7 @@ pub struct NewCheckBox {
     /// Which glyph the box draws when it is ON
     /// ([`crate::annot_author::CheckStyle`], `Pass 261.0`).
     ///
-    /// Defaults to [`CheckStyle::Check`], which is what every earlier pdfcer
+    /// Defaults to `CheckStyle::Check`, which is what every earlier pdfcer
     /// version drew, so an existing caller's output is unchanged.
     ///
     /// pdfcer draws the shape as vector artwork **and** records the choice in
@@ -2514,8 +2514,8 @@ pub struct NewRadioButton {
     /// Which glyph the button draws when it is ON
     /// ([`crate::annot_author::CheckStyle`], `Pass 261.0`).
     ///
-    /// Defaults to [`CheckStyle::Check`]. pdfcer does **not** force
-    /// [`CheckStyle::Circle`] here even though a filled circle is the
+    /// Defaults to `CheckStyle::Check`. pdfcer does **not** force
+    /// `CheckStyle::Circle` here even though a filled circle is the
     /// conventional radio glyph — Acrobat does not force it either, and
     /// silently overriding a caller's explicit choice is the substitution
     /// this project refuses elsewhere.
@@ -2536,7 +2536,7 @@ impl NewRadioButton {
     /// ([`forms::Widget::on_states`]), so a radio *field* has one export
     /// value per member while `--defaults-from <field>` names a field. A
     /// copy would either collide with
-    /// [`FormAuthorError::RadioExportValueTaken`] inside the same group or
+    /// `FormAuthorError::RadioExportValueTaken` inside the same group or
     /// be arbitrary across groups.
     ///
     /// So this always reports `type_mismatch` — including for a radio
@@ -4025,7 +4025,7 @@ pub struct InsertOutcome {
     /// they were never in the set of objects being copied. That is why this
     /// is a disclosure rather than a bug, and why carrying them needs a
     /// shell that reads the source outline and replays it through
-    /// [`Self::add_outline_item`] — which is exactly what `Pass 103.0` was
+    /// `Self::add_outline_item` — which is exactly what `Pass 103.0` was
     /// built for.
     pub source_outline_dropped: bool,
     /// Whether the SOURCE carried a `/PageLabels` number tree (§12.4.2)
@@ -4500,7 +4500,7 @@ impl InkEditKind {
 /// the shape and its new label render exactly as they will render after Save,
 /// and the *change* is stated off-canvas from these fields.
 ///
-/// [`Self::previous_label`] is carried for one reason: a status line reading
+/// `Self::previous_label` is carried for one reason: a status line reading
 /// *"12.40 m → 13.85 m"* is a disclosure, and one reading *"13.85 m"* is just
 /// the number, which the operator can already see baked into the drawing. The
 /// shell cannot reconstruct the old value after the fact — the geometry it was
@@ -6751,7 +6751,7 @@ pub enum EditError {
     /// of `PageObjects::objects` precisely so that the page-surgery verbs
     /// cannot apply a form-relative token range to the page's stream.
     ///
-    /// Named separately from [`Self::ObjectOutOfRange`] rather than reusing
+    /// Named separately from `Self::ObjectOutOfRange` rather than reusing
     /// it: the two count different lists, and a shell told "object 4 of 28" by
     /// a verb it asked about leaf 4 of 242 would look for the wrong bug.
     #[error("form-leaf index {index} is out of range (this page has {count} leaf object(s))")]
@@ -11826,10 +11826,10 @@ impl EditSession {
     /// # Fuzzy-never-sneaky (rule 4)
     ///
     /// `/P` permission bits are a REQUEST, not a lock. The caller is expected
-    /// to surface [`EncryptionSettings::permissions_disclosure`] — the CLI
+    /// to surface [`EncryptionSettings::PERMISSIONS_DISCLOSURE`] — the CLI
     /// prints it. Non-ASCII passwords go through UTF-8 + 127-byte truncation
     /// only, NOT full RFC 4013 SASLprep (W20); the gap is disclosed by
-    /// [`EncryptionSettings::saslprep_gap`].
+    /// [`EncryptionSettings::SASLPREP_GAP`].
     ///
     /// # Errors
     ///
@@ -11905,7 +11905,7 @@ impl EditSession {
     /// - [`EncryptError::NotEncrypted`] — the document is not encrypted; use
     ///   [`set_encryption`](Self::set_encryption).
     /// - [`EncryptError::NotOwner`] — the session was not opened with the owner
-    ///   password. Carries the [`AuthKind`] that DID open it, so the caller can
+    ///   password. Carries the `AuthKind` that DID open it, so the caller can
     ///   tell the operator which password is needed BEFORE the control is
     ///   pressed (the reply's ask to `pdfceGUI`).
     /// - [`EncryptError::SignedDocument`], [`EncryptError::Rng`],
@@ -11966,7 +11966,7 @@ impl EditSession {
     /// criterion 5).
     ///
     /// **Owner-only.** A user-authenticated session is refused by name with the
-    /// [`AuthKind`] that opened it, so the caller can say which password would
+    /// `AuthKind` that opened it, so the caller can say which password would
     /// have sufficed. The document's objects are already plaintext in memory
     /// (decrypted on load); this simply rewrites them with no `/Encrypt` and no
     /// `/ID`-mandate, i.e. an ordinary [`to_full_bytes`](Self::to_full_bytes)
@@ -12025,7 +12025,7 @@ impl EditSession {
     ///
     /// It reuses the EXACT locate / re-encode / relayout / font-on-edit-gate
     /// surgery (through the shared
-    /// [`plan_edit`](crate::text_edit::edit::plan_edit)) but applies the
+    /// `plan_edit`) but applies the
     /// result to THIS session's in-memory content-stream object as one
     /// command on the undo stack — returning the same
     /// [`EditReport`](crate::text_edit::EditReport) the free function
@@ -12789,16 +12789,16 @@ impl EditSession {
     ///
     /// # `options` is not optional
     ///
-    /// [`StylePolicy::Refuse`](crate::text_edit::StylePolicy) changes the
+    /// `StylePolicy::Refuse` changes the
     /// answer: under it, a ladder that reaches synthesis is a **refusal**, and
     /// this returns that refusal rather than predicting a synthesis that would
-    /// never happen. Pass the same [`FormatOptions`] the commit will use.
+    /// never happen. Pass the same `FormatOptions` the commit will use.
     ///
     /// # Errors
     ///
-    /// [`FormatError::Encrypted`], [`FormatError::PageIndex`], the anchor
+    /// `FormatError::Encrypted`, `FormatError::PageIndex`, the anchor
     /// failures of [`Self::preview_style_resolution`], and
-    /// [`FormatError::SynthesisRefusedByPosture`] — the honest preview of a
+    /// `FormatError::SynthesisRefusedByPosture` — the honest preview of a
     /// commit that would refuse.
     pub fn preview_style_ladder(
         &self,
@@ -13032,7 +13032,7 @@ impl EditSession {
     ///
     /// # The guarantee
     ///
-    /// **A character in [`RunRepertoire::accepted`] is one
+    /// **A character in `RunRepertoire::accepted` is one
     /// [`Self::edit_text`] will not refuse for this run** — by construction,
     /// not by assertion: acceptance is decided by calling the accepting code
     /// (`encode_char` / `encode_str`) plus the same subset-floor test the edit
@@ -13052,7 +13052,7 @@ impl EditSession {
     /// an ambiguous match, an unresolvable font resource.
     ///
     /// A run whose font has **no usable encoding** is *not* an error: it
-    /// returns an empty repertoire with [`RunRepertoire::reason`] set, so an
+    /// returns an empty repertoire with `RunRepertoire::reason` set, so an
     /// editor can decline to open rather than open and refuse every key. The
     /// requesting shell asked for that distinction by name.
     ///
@@ -13137,7 +13137,7 @@ impl EditSession {
     /// bad-index/width error. A refusal happens BEFORE any mutation (rule 4):
     /// the session is left untouched.
     ///
-    /// ⇒ [`ReflowApplyError::PageEditedThisSession`] is **not among them** and
+    /// ⇒ `ReflowApplyError::PageEditedThisSession` is **not among them** and
     /// is no longer produced by any path; see that variant's own
     /// documentation.
     pub fn reflow_block(
@@ -13525,7 +13525,7 @@ impl EditSession {
     ///
     /// # Errors
     ///
-    /// [`OcrLayerError`] — an encrypted document, an enforced-certified one, a
+    /// `OcrLayerError` — an encrypted document, an enforced-certified one, a
     /// `/Size`-hiding document, an out-of-range or duplicated page index, a
     /// page whose words all proved unplaceable, a non-dictionary page object,
     /// or exhausted object numbers. **Every refusal happens before any object
@@ -14295,8 +14295,8 @@ impl EditSession {
     /// than the group, which happens when an import needs more commands than
     /// [`MAX_UNDO_DEPTH`] (an import of more than 255 non-blank pages). In that
     /// case **every page was still placed** — only the grouping failed — and
-    /// [`PlaceTextReport::coalesced`] is `false` with
-    /// [`PlaceTextReport::undo_entries`] giving the real count, so a shell can
+    /// `PlaceTextReport::coalesced` is `false` with
+    /// `PlaceTextReport::undo_entries` giving the real count, so a shell can
     /// say so instead of promising one undo it does not have.
     ///
     /// # Where the pages go
@@ -16278,7 +16278,7 @@ impl EditSession {
     /// the §9.4.2 guard: a following run with no positioning operator of its
     /// own starts wherever this one ends, so removing this one would slide
     /// it. That refusal names its remedy — delete the later run first — plus
-    /// [`EditError::NotAPath`]'s text-object counterpart for a non-text
+    /// `EditError::NotAPath`'s text-object counterpart for a non-text
     /// target, [`EditError::PageOutOfRange`],
     /// [`EditError::VectorEditNoContents`], [`EditError::VectorEditContent`],
     /// [`EditError::DocumentEncrypted`],
@@ -16385,7 +16385,7 @@ impl EditSession {
     /// [`SplitAtLineShowOperator`](crate::vector::VectorEditError::SplitAtLineShowOperator)
     /// or
     /// [`SplitInsideMarkedContent`](crate::vector::VectorEditError::SplitInsideMarkedContent);
-    /// plus [`EditError::NotAPath`]'s text-object counterpart for a non-text
+    /// plus `EditError::NotAPath`'s text-object counterpart for a non-text
     /// target, [`EditError::PageOutOfRange`],
     /// [`EditError::VectorEditNoContents`], [`EditError::VectorEditContent`],
     /// [`EditError::DocumentEncrypted`],
@@ -16588,7 +16588,7 @@ impl EditSession {
     /// [`DeleteWouldMoveNextRun`](crate::vector::VectorEditError::DeleteWouldMoveNextRun)),
     /// [`DegenerateCtm`](crate::vector::VectorEditError::DegenerateCtm) or
     /// [`DegenerateTextMatrix`](crate::vector::VectorEditError::DegenerateTextMatrix);
-    /// plus [`EditError::NotAPath`]'s text-object counterpart for a non-text
+    /// plus `EditError::NotAPath`'s text-object counterpart for a non-text
     /// target, [`EditError::PageOutOfRange`],
     /// [`EditError::VectorEditNoContents`], [`EditError::VectorEditContent`],
     /// [`EditError::DocumentEncrypted`],
@@ -23343,15 +23343,15 @@ pub struct TextMatch {
 ///    could ever have matched it.
 ///
 /// Case 2 is not exotic. Its two named populations are Type 3 fonts with
-/// no `/ToUnicode` ([`TextDiagnostics::type3_fonts_without_to_unicode`] —
+/// no `/ToUnicode` (`TextDiagnostics::type3_fonts_without_to_unicode` —
 /// glyphs that are content streams named by arbitrary `/CharProcs` keys,
 /// ISO 32000-1 §9.6.5) and `Identity-H` composite fonts with no
-/// `/ToUnicode` ([`TextDiagnostics::identity_fonts_without_to_unicode`]).
+/// `/ToUnicode` (`TextDiagnostics::identity_fonts_without_to_unicode`).
 /// Both **render perfectly**, which is exactly why the failure is
 /// invisible without this: the operator can see the word on the page and
 /// the search says it is not there.
 ///
-/// [`TextDiagnostics::ladder_failures`] is the per-code total across every
+/// `TextDiagnostics::ladder_failures` is the per-code total across every
 /// cause, including causes with no named font-level counter.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[non_exhaustive]
@@ -28310,7 +28310,7 @@ impl EditSession {
     /// [`EditError::WidgetRectMissing`] when a geometry edit is asked of a
     /// widget that has no usable `/Rect` to change (§12.5.2 requires one, and
     /// inventing coordinates for a broken annotation would be fabricating
-    /// geometry the file never had); [`EditError::DegenerateFieldRect`] for a
+    /// geometry the file never had); [`EditError::FieldRectDegenerate`] for a
     /// zero-or-negative-area rectangle; plus the encryption and **strict**
     /// certification guards.
     pub fn edit_widget(
@@ -29793,7 +29793,7 @@ impl EditSession {
     /// copy.** On-states live per *widget* ([`forms::Widget::on_states`]),
     /// so a radio *field* has N export values, one per member, and
     /// `--defaults-from <field>` names a field. A copy would either collide
-    /// with [`FormAuthorError::RadioExportValueTaken`] within the same group
+    /// with `FormAuthorError::RadioExportValueTaken` within the same group
     /// or be arbitrary across groups.
     ///
     /// # The consequence worth stating
@@ -31545,7 +31545,7 @@ impl EditSession {
     /// §12.5.6.15, Table 184): an icon on page `page_index` whose `/FS`
     /// embeds `spec.bytes` as `spec.file_name`. One undo entry.
     ///
-    /// - `/Name` is [`AttachmentIcon`]'s name; the icon is pdfcer's own
+    /// - `/Name` is `AttachmentIcon`'s name; the icon is pdfcer's own
     ///   drawing (the standard names icons but defines no artwork).
     /// - `options.note` supplies `/Contents` (the description a reader shows,
     ///   used in preference to the filespec's `/Desc`), `/T` (the author,
@@ -33769,8 +33769,8 @@ impl EditSession {
     /// cannot take for it:** the widgets of one radio group are several
     /// annotations and **one** tab stop — Acrobat moves between them with
     /// the arrow keys and past the whole group with Tab. That is a grouping
-    /// of *fields*, not of annotations; [`Self::field_at`] and
-    /// [`forms::Field::widgets`] are what collapse it.
+    /// of *fields*, not of annotations; [`forms::Field::widgets`] is what
+    /// collapses it.
     ///
     /// # Errors
     ///
@@ -35831,7 +35831,7 @@ impl EditSession {
     /// - [`EditError::DocumentEncrypted`], the certification gate,
     ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`],
     ///   [`EditError::ObjectNumbersExhausted`] — as for every authoring verb.
-    /// - [`EditError::MarkupNoteEmpty`] and the note's own validation.
+    /// - [`EditError::MarkupDateMalformed`] — the note's own validation.
     pub fn add_reply(
         &mut self,
         parent_id: ObjId,
@@ -36008,7 +36008,7 @@ impl EditSession {
     ///   but a `/Text`.
     /// - [`EditError::MarkupSpec`] — the subtype is not text-bearing, or its
     ///   spec cannot be read back (`text_spec_from_dict`'s refusals).
-    /// - [`EditError::TextAnnotation`] — the amended spec cannot be laid out.
+    /// - [`EditError::VariableText`] — the amended spec cannot be laid out.
     /// - [`EditError::DocumentEncrypted`], the certification gate,
     ///   [`EditError::NotADictionary`], [`EditError::AppearanceHasStates`],
     ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`] — as for
@@ -38849,11 +38849,11 @@ impl EditSession {
     ///
     /// The populations are named, not hypothetical, and both **render
     /// perfectly** — which is what makes the failure invisible.
-    /// [`TextDiagnostics::type3_fonts_without_to_unicode`] is a Type 3 font
+    /// `TextDiagnostics::type3_fonts_without_to_unicode` is a Type 3 font
     /// whose glyphs are content streams named by arbitrary `/CharProcs` keys
     /// (§9.6.5), so without a `/ToUnicode` CMap there is no route to Unicode
-    /// at all. [`TextDiagnostics::identity_fonts_without_to_unicode`] is the
-    /// composite twin. [`TextDiagnostics::ladder_failures`] is the per-code
+    /// at all. `TextDiagnostics::identity_fonts_without_to_unicode` is the
+    /// composite twin. `TextDiagnostics::ladder_failures` is the per-code
     /// total across every cause.
     ///
     /// # What this does NOT protect against, stated so it is not over-read
@@ -39335,13 +39335,13 @@ impl EditSession {
     /// produces no `TextMatch` to carry the news.
     ///
     /// The populations where that happens are named, not hypothetical.
-    /// [`TextDiagnostics::type3_fonts_without_to_unicode`] is one — a
+    /// `TextDiagnostics::type3_fonts_without_to_unicode` is one — a
     /// Type 3 font's glyphs are content streams named by arbitrary
     /// `/CharProcs` keys (§9.6.5), so without a `/ToUnicode` CMap there is
     /// no sourced route to Unicode at all and the text renders perfectly
     /// while being unsearchable.
-    /// [`TextDiagnostics::identity_fonts_without_to_unicode`] is the
-    /// composite twin, and [`TextDiagnostics::ladder_failures`] is the
+    /// `TextDiagnostics::identity_fonts_without_to_unicode` is the
+    /// composite twin, and `TextDiagnostics::ladder_failures` is the
     /// per-code total across every cause.
     ///
     /// Project rule 4 ("fuzzy, never sneaky") makes disclosing that a
@@ -41519,7 +41519,7 @@ impl EditSession {
     ///
     /// # On an EXISTING button, deliberately
     ///
-    /// [`crate::annot_author::NewPushButton`] is untouched: creation still
+    /// `crate::annot_author::NewPushButton` is untouched: creation still
     /// authors an inert button. Giving a button behaviour is a separate,
     /// named, undoable act a shell has to go out of its way to call. A button
     /// that gained an action as a side effect of being drawn is precisely what
@@ -46857,7 +46857,7 @@ impl EditSession {
     /// resolve from ancestors. So any page whose parent changes has the
     /// attributes it *used* to resolve written onto it explicitly, raw,
     /// and only where they would otherwise change. That is the same
-    /// materialization rule [`crate::pageops::assemble`] applies, for the
+    /// materialization rule [`mod@crate::pageops::assemble`] applies, for the
     /// same reason.
     ///
     /// # Errors
@@ -47808,7 +47808,7 @@ impl EditSession {
     /// It does not merge the source's **document-level** structures:
     /// outlines, the AcroForm field tree, named destinations, page labels,
     /// optional-content configuration. [`crate::pageops::insert`] does
-    /// merge those through [`crate::pageops::assemble`]'s policies, and
+    /// merge those through [`mod@crate::pageops::assemble`]'s policies, and
     /// that difference is the honest cost of staying incremental — a
     /// document-level merge rewrites objects an incremental save exists in
     /// order not to touch.
@@ -53374,7 +53374,7 @@ impl EditSession {
     ///
     /// # Why this exists, and why it is not a shell-side filter
     ///
-    /// [`DimensionModel`] is **document-global**: a [`DimensionRecord`] names
+    /// [`DimensionModel`] is **document-global**: a `DimensionRecord` names
     /// its group and its annotation, and nothing else. Page ownership is not
     /// in the sidecar at all — it is carried by the annotation's `/P` entry
     /// (§12.5.2), which means answering *"which groups are on this page"*
@@ -53852,7 +53852,7 @@ impl EditSession {
     ///
     /// # The whole struct, not one property
     ///
-    /// The caller passes the complete [`GroupStyle`] it wants, and it replaces
+    /// The caller passes the complete `GroupStyle` it wants, and it replaces
     /// what was there. A per-property setter API (`set_group_arrow_form`, …)
     /// would grow one method per property, and — worse — would make "clear
     /// this override" a different call from "set it", so a surface would have
@@ -53922,7 +53922,7 @@ impl EditSession {
     /// one undoable command (Pass 69.0). Returns how many properties it
     /// overrides afterwards.
     ///
-    /// Passing [`StyleOverrides::default`] clears every override and returns
+    /// Passing `StyleOverrides::default` clears every override and returns
     /// the ce dimension to full inheritance — that is the "untick every box"
     /// operation, and it deliberately needs no separate method. See
     /// [`Self::set_group_style`] for why the API takes the whole struct.
@@ -54914,7 +54914,7 @@ impl EditSession {
     /// * **Keep the constraint** — the drawn line and its own stated
     ///   constraint then disagree, which is worse than either alone and
     ///   invisible until something regenerates from the constraint.
-    /// * **Relax to [`AxisConstraint::Aligned`] and SAY SO** — preserves
+    /// * **Relax to `AxisConstraint::Aligned` and SAY SO** — preserves
     ///   exactly what is on the page, and `Aligned` is precisely the honest
     ///   description of a line that follows its own picked points.
     ///
@@ -57444,14 +57444,14 @@ impl EditSession {
 impl EditSession {
     /// **Copy a form field onto the field clipboard** (`Pass 167.0`).
     ///
-    /// Returns a [`FieldClip`] holding everything the field IS — its type,
+    /// Returns a `FieldClip` holding everything the field IS — its type,
     /// flags, value, default value, appearance string, quadding, options,
     /// length limit, actions, accessibility name, every widget's rectangle,
     /// `/MK` colours, border, appearance streams, and the `/AcroForm` `/DR`
     /// font its `/DA` names — minus its identity (`/T`, `/Parent`, `/Kids`).
     ///
     /// The clip owns a **closure**, not pointers: it serialises with
-    /// [`FieldClip::to_bytes`] and can be pasted into a different document, a
+    /// `FieldClip::to_bytes` and can be pasted into a different document, a
     /// different session, or a different run of the program. That is not a
     /// nicety — the operator copies fields between drawings, so a clipboard
     /// that only worked in-process would not cover the gesture.

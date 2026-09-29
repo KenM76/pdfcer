@@ -1,8 +1,8 @@
-//! Turn an operator-supplied donor face into a [`FontEmbedPlan`] (FF-C, 21.0).
+//! Turn an operator-supplied donor face into a `FontEmbedPlan` (FF-C, 21.0).
 //!
 //! # Where this sits
 //!
-//! `pdfcer-core` defines [`FontEmbedPlan`] and emits PDF objects from it; this
+//! `pdfcer-core` defines `FontEmbedPlan` and emits PDF objects from it; this
 //! module fills one in. The split is deliberate (decision 021 §3.2):
 //! producing a subset requires *parsing* the donor — coverage, advances,
 //! descriptor metrics, embedding-permission bits — and that parser already

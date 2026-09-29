@@ -1304,7 +1304,7 @@ pub(crate) struct FormatTextArgs<'a> {
     /// `--rise` as passed, e.g. `3.25`, `3.25pt`, `280em` (Pass 19.2).
     pub(crate) rise: Option<&'a str>,
     /// The synthetic styles asked for, already folded from the two flags.
-    /// [`StyleSynthesis::None`] means none were, which is the default and
+    /// `StyleSynthesis::None` means none were, which is the default and
     /// the only state in which nothing is synthesized (R90).
     pub(crate) synthetic: pdfcer_core::text_edit::StyleSynthesis,
     /// `--bold` / `--italic`: the automatic ladder (`Pass 179.0`).
@@ -1321,7 +1321,7 @@ pub(crate) struct FormatTextArgs<'a> {
     pub(crate) font_dirs: &'a [PathBuf],
 }
 
-/// Parse a text-space metric argument into a [`MetricSpec`]
+/// Parse a text-space metric argument into a `MetricSpec`
 /// (`0.5` / `0.5pt` → absolute; `20em` → 20 thousandths of an em).
 ///
 /// `flag` is the option's own spelling (`--char-spacing`, `--word-spacing`,
@@ -1370,7 +1370,7 @@ pub(crate) fn parse_text_metric(
     })
 }
 
-/// Parse a `--set-color MODEL:C,..` argument into a [`NewFill`]
+/// Parse a `--set-color MODEL:C,..` argument into a `NewFill`
 /// (`rgb:1,0,0`, `cmyk:0,1,1,0`, `gray:0.5`). Returns a human-readable
 /// error string (surfaced on stderr) rather than panicking on bad input.
 pub(crate) fn parse_set_color(spec: &str) -> Result<pdfcer_core::text_edit::NewFill, String> {

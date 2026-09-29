@@ -812,7 +812,7 @@ pub(crate) struct ObjectMoveArgs<'a> {
 }
 
 /// `object-move` — translate a path or text object by a page-space
-/// `(dx, dy)` via content-stream surgery ([`EditSession::move_object`]).
+/// `(dx, dy)` via content-stream surgery (`EditSession::move_object`).
 /// Only the edited content stream changes (R46/§5.7).
 pub(crate) fn cmd_object_move(args: &ObjectMoveArgs<'_>) -> u8 {
     let page_index = (args.page.max(1) - 1) as usize;

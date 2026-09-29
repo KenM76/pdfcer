@@ -48,7 +48,7 @@
 //! reported, never authored**: their text comes from AcroForm calculation
 //! JavaScript, and authoring a script that computes a date at placement time
 //! is a different feature with a different risk profile
-//! ([`StampEntry::dynamic`] says which is which, so a caller is never
+//! (`StampEntry::dynamic` says which is which, so a caller is never
 //! surprised).
 
 use crate::document::Document;

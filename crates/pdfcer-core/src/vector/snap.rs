@@ -77,7 +77,7 @@
 //! the operator cycles/overrides. The one candidate that is a genuine
 //! *inference about operator intent* rather than a fact about existing
 //! geometry — [`SnapKind::DerivedCenterline`], a filled thin quad's derived
-//! midline (Pass 9a [`CenterlineCandidate`]) — is a distinct kind precisely so
+//! midline (Pass 9a `CenterlineCandidate`) — is a distinct kind precisely so
 //! the GUI can give it a visually distinct glyph and the extra two-click
 //! confirm decision 011 requires (§2.1 "fuzzy inference … never
 //! auto-committed"). Routine kinds (node/endpoint/center/…) are deterministic
@@ -183,7 +183,7 @@ pub enum SnapKind {
     /// [`SnapConfig::intersections`] is set.
     Intersection,
     /// The derived midline of a filled thin quad (a line drawn as a filled
-    /// rectangle), from Pass 9a's [`CenterlineCandidate`]. A genuine **fuzzy
+    /// rectangle), from Pass 9a's `CenterlineCandidate`. A genuine **fuzzy
     /// inference** the operator must confirm — the GUI gives it a distinct
     /// glyph and a two-click confirm (decision 011 §2.1, ui-spec §2.3.1);
     /// placed just above [`Self::SegmentCenterline`] because it is a MORE

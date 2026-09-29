@@ -1112,9 +1112,9 @@ pub struct DimensionRecord {
     /// that were merely undoable would be reversible only until the next
     /// edit, like every other command).
     ///
-    /// # Why it lives on the record and not in [`StyleOverrides`]
+    /// # Why it lives on the record and not in `StyleOverrides`
     ///
-    /// [`StyleOverrides`] is a CASCADE tier: every field there means "this ce
+    /// `StyleOverrides` is a CASCADE tier: every field there means "this ce
     /// dimension's answer, or inherit the group's". A text override has no
     /// group tier and must never acquire one — a group-wide "all these
     /// dimensions read 55 5/8" is not a thing any drafting standard has, and

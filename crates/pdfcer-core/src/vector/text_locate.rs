@@ -1,7 +1,7 @@
 //! Map an extracted glyph to the surgery run an edit verb acts on.
 //!
 //! Text is described twice: [`crate::text_extract`] (caret, selection,
-//! search) and [`super::decompose`] (every verb that rewrites bytes). They
+//! search) and [`mod@super::decompose`] (every verb that rewrites bytes). They
 //! share no index space. This module is the join, owned by the crate so a
 //! change to either side fails a test here rather than editing the wrong run
 //! in a shell.
@@ -28,7 +28,7 @@
 //! (off by default); without it glyphs carry no provenance to join on.
 //!
 //! `model` and the glyph must come from the **same revision** of the page —
-//! both from one [`crate::document::DocumentView`], e.g. an
+//! both from one `crate::document::DocumentView`, e.g. an
 //! [`crate::edit::EditSession`]'s view. Spans from different revisions are
 //! offsets into different buffers; nothing here can detect the mix.
 

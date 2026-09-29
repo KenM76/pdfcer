@@ -741,7 +741,7 @@ pub(crate) fn is_text_bearing(kind: AnnotKindArg) -> bool {
 
 /// Implement `pdfcer annotate` (Pass 6.1). Parses the per-subtype
 /// geometry flags into a [`MarkupSpec`](pdfcer_core::annot_author::MarkupSpec)
-/// and authors it through the same [`EditSession`] path the GUI uses.
+/// and authors it through the same `EditSession` path the GUI uses.
 pub(crate) fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
     let input = args.input;
     let (source, mut session) = match open_for_edit(input) {

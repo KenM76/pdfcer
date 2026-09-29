@@ -186,7 +186,7 @@ pub enum HitTarget {
     /// An index into [`PageObjects::leaves`] — an object drawn from **inside**
     /// a form XObject.
     ///
-    /// Read [`FormLeaf::stream`] before doing anything but selecting it: its
+    /// Read `FormLeaf::stream` before doing anything but selecting it: its
     /// token range indexes the form's buffer, not the page's.
     Leaf(usize),
 }
@@ -209,7 +209,7 @@ pub enum HitTarget {
 /// get is the page selected."* He was selecting a real object; it was a form.
 ///
 /// So this function answers with what is **inside** the form. The form itself
-/// is still reachable — [`FormLeaf::containment`] names every enclosing form,
+/// is still reachable — `FormLeaf::containment` names every enclosing form,
 /// so a shell can offer "select the container" as a deliberate second act,
 /// which is a different thing from having it win by default.
 ///
@@ -219,7 +219,7 @@ pub enum HitTarget {
 /// contents are painted exactly where its `Do` sits among the page's other
 /// objects. Something drawn on the page *after* a form sits on top of
 /// everything inside it. So this does not concatenate the lists — it
-/// interleaves them on [`FormLeaf::paint_order`], which is why that field
+/// interleaves them on `FormLeaf::paint_order`, which is why that field
 /// exists. Returning "all leaves first" or "all leaves last" would be wrong on
 /// any page that draws anything outside its forms.
 ///
@@ -377,7 +377,7 @@ pub enum FormMarquee {
 ///
 /// # Ordering
 ///
-/// Interleaved on [`FormLeaf::paint_order`] exactly as
+/// Interleaved on `FormLeaf::paint_order` exactly as
 /// [`hit_test_point_deep`] interleaves, so a marquee's result and a click's
 /// result order the same objects the same way. **Front-most LAST here**,
 /// which is the opposite of the point query and is deliberate: a point query

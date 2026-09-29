@@ -1007,7 +1007,7 @@ pub struct EncryptParams {
 /// (`ARCHITECTURE.md` §5) is *deliberately* waived here: no object is emitted
 /// verbatim from its source span, because a verbatim copy would leave the
 /// object's strings and streams in clear. Every object is re-serialised
-/// through the [`EncryptingEncoder`], which is the ONLY difference from a
+/// through the `EncryptingEncoder`, which is the ONLY difference from a
 /// plaintext rewrite — the serializer recomputes `/Length` from the encrypted
 /// bytes (§7.3.8.2, IV + ciphertext + PKCS#7 pad), so nothing else needs to
 /// change.

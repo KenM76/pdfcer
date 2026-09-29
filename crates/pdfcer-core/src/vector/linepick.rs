@@ -20,7 +20,7 @@
 //!
 //! # The pick point is part of the answer, not just a way of finding it
 //!
-//! [`PickedLine`] records **where on the line the operator clicked**, and that
+//! `PickedLine` records **where on the line the operator clicked**, and that
 //! is load-bearing rather than diagnostic. SolidWorks' own API documentation
 //! states it plainly for `AddDimension2`: *"creating an angular dimension
 //! between two lines gets different results based on which line endpoints are
@@ -37,7 +37,7 @@
 //!
 //! # What is deliberately NOT decided here
 //!
-//! How near parallel is parallel. See [`ParallelPolicy`].
+//! How near parallel is parallel. See `ParallelPolicy`.
 
 use super::decompose::{PageObjects, PathObject, Segment, VectorObject};
 use super::geometry::Point;
@@ -287,7 +287,7 @@ pub enum TwoLineRelation {
 /// # Which segment wins
 ///
 /// The nearest one by perpendicular distance to the click. Subpath candidates
-/// come from [`hit_test_subpaths`], which is already nearest-first, and every
+/// come from `hit_test_subpaths`, which is already nearest-first, and every
 /// straight segment inside each candidate subpath is then measured
 /// individually — a subpath is often a polyline, and "the line I clicked" is
 /// one of its segments, not all of them.
@@ -431,7 +431,7 @@ pub fn pick_line_of(
 ///
 /// A ce dimension placed against a line inside a form is a **new annotation on
 /// the page**, not a change to the form, so nothing here is gated on
-/// [`FormLeaf::is_editable`]. That was written when `is_editable` was a hard
+/// `FormLeaf::is_editable`. That was written when `is_editable` was a hard
 /// `false`; since `Pass 188.0` a leaf that is a path *is* editable, through the
 /// form-scoped geometry verbs. **This function is unaffected either way** —
 /// the ungating was never a concession to the old answer, it was the

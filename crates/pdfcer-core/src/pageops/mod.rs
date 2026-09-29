@@ -23,7 +23,7 @@
 //! document producer, and the reason is structural rather than a matter
 //! of taste:
 //!
-//! An `EditSession` overlay stores [`Object`] values whose
+//! An `EditSession` overlay stores `Object` values whose
 //! [`Stream`](crate::object::Stream) data are `ByteSpan`s into **the base
 //! document's retained buffer**. That is the mechanism §5's verbatim
 //! re-emission rests on. Pages imported from *another* file bring stream
@@ -60,7 +60,7 @@
 //! **This module's `insert` is NOT superseded.** It still owns the half
 //! the session method deliberately does not do — merging document-level
 //! structures (outlines, the AcroForm field tree, named destinations, page
-//! labels, optional-content configuration) through [`assemble`]'s
+//! labels, optional-content configuration) through [`mod@assemble`]'s
 //! policies. The two are different operations with different costs:
 //!
 //! | you want | use |
@@ -72,10 +72,10 @@
 //!
 //! ## What every operation in this module has in common
 //!
-//! All four go through [`assemble`], which owns the deep-copy closure,
+//! All four go through [`mod@assemble`], which owns the deep-copy closure,
 //! the barrier that stops it dragging in the whole source document, the
 //! attribute-materialization rule, and the carryover policy. Read
-//! [`assemble`]'s module docs before changing any of the four — the
+//! [`mod@assemble`]'s module docs before changing any of the four — the
 //! interesting decisions are all there, not here.
 //!
 //! ## Signature and permission gating
@@ -257,7 +257,7 @@ pub enum PermissionGate {
 ///
 /// # Errors
 ///
-/// [`PageOpError`] — see [`assemble`].
+/// [`PageOpError`] — see [`fn@assemble`].
 ///
 /// # Examples
 ///
@@ -454,7 +454,7 @@ pub fn extract_with(
 ///
 /// # Errors
 ///
-/// [`PageOpError`] — see [`assemble`]. In particular
+/// [`PageOpError`] — see [`fn@assemble`]. In particular
 /// [`PageOpError::NoPages`] when every source is empty.
 pub fn merge(
     sources: &[DocumentView<'_>],
@@ -559,7 +559,7 @@ impl InsertPosition {
 ///
 /// # Errors
 ///
-/// [`PageOpError`] — see [`assemble`].
+/// [`PageOpError`] — see [`fn@assemble`].
 pub fn insert(
     target: &DocumentView<'_>,
     source: &DocumentView<'_>,

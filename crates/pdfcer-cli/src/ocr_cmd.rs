@@ -491,7 +491,7 @@ pub(crate) fn load_ocr_engine(
 ///
 /// 1. **Rasterise** the page at `--dpi` (`pdfcer_render::render_page_with`).
 /// 2. **Convert RGBA to 8-bit grey**, which is the only layout
-///    [`OcrEngine::recognize`] accepts.
+///    `OcrEngine::recognize` accepts.
 /// 3. **Recognise**, producing words in IMAGE pixels, y-down.
 /// 4. **Map to page space**, y-up — the step that must undo the rasteriser's
 ///    geometry EXACTLY, including `/Rotate`.

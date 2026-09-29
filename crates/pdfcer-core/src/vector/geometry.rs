@@ -557,7 +557,7 @@ impl Rgb {
     /// It closes the gap for the **default** intent, which is the shipped
     /// behaviour and the operator-visible case. A caller who has *changed*
     /// the intent still gets a decomposition that disagrees with their own
-    /// renderer, because [`crate::vector::decompose`] takes no settings
+    /// renderer, because [`fn@crate::vector::decompose`] takes no settings
     /// parameter at all — threading one through would change three public
     /// entry points and 57 call sites, which is its own Pass rather than a
     /// drive-by. [`Self::from_cmyk_with`] is the door for callers who have an

@@ -960,17 +960,17 @@ its stored value is shown as last saved and may be stale until you recompute it.
 /// `fill-field`: set form-field values and save (Pass 7).
 ///
 /// Each `NAME=VALUE` is dispatched by the field's modelled type: text/choice
-/// through [`EditSession::fill_text_field`], check-box/radio through
-/// [`EditSession::set_button_state`]. All assignments land in one session
+/// through `EditSession::fill_text_field`, check-box/radio through
+/// `EditSession::set_button_state`. All assignments land in one session
 /// (so the save carries them as one incremental revision), then the shared
 /// [`save_edited`]/[`finish_edit`] plumbing writes and reports.
 ///
 /// # `downgrade_rich_text`, and why the CLI needed it
 ///
 /// Until this flag existed, a rich-text field was **unfillable from the
-/// CLI at all**: this function called [`EditSession::fill_text_field`],
-/// which refuses one with [`EditError::FieldIsRichText`], and never
-/// exposed [`EditSession::fill_text_field_downgrading_rich_text`]. The GUI
+/// CLI at all**: this function called `EditSession::fill_text_field`,
+/// which refuses one with `EditError::FieldIsRichText`, and never
+/// exposed `EditSession::fill_text_field_downgrading_rich_text`. The GUI
 /// had shipped the disclosed downgrade; the CLI had no route to it, and
 /// `docs/FEATURES.md` asserted the exact opposite of both facts until
 /// `aac321c`.
@@ -1711,7 +1711,7 @@ pub(crate) fn exit_code_for(err: &PdfError) -> u8 {
     }
 }
 
-/// Map a [`DocError`] (full-document load) to the CLI's exit code.
+/// Map a `DocError` (full-document load) to the CLI's exit code.
 ///
 /// Only two cases are more specific than "something went wrong": the file
 /// was unreadable ([`exit::IO_ERROR`]) and the file is not a PDF at all

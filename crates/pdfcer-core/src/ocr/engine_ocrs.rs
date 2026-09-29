@@ -24,7 +24,7 @@
 //!
 //! `ocrs`'s output type is [`ocrs::TextChar`] — a `char` and a rectangle.
 //! There is no score on a character, a word, a line, or the page. So
-//! [`OcrsEngine::reports_confidence`] returns **`false`**, and it is not a
+//! `OcrsEngine::reports_confidence` returns **`false`**, and it is not a
 //! stub awaiting improvement.
 //!
 //! This is precisely why [`OcrEngine::reports_confidence`] was defined as a

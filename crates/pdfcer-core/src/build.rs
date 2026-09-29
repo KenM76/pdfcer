@@ -26,7 +26,7 @@
 //! pdfcer depends on `iccce` as of `Pass 199.2`: `iccce-profile` and
 //! `iccce-cmm`, pinned in `crates/pdfcer-render` — to tag `v0.3.0` until
 //! 2026-09-02, and to that tag's revision `a4d9003b` since (decision 123,
-//! at iccce's own request). So [`BuildInfo::iccce`] carries a real answer —
+//! at iccce's own request). So `BuildInfo::iccce` carries a real answer —
 //! version, pin, resolved revision, and when that revision was committed:
 //!
 //! ```text

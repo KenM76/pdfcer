@@ -103,7 +103,7 @@ pub(crate) fn parse_dash_edit(
 /// [`StyleEdit`](pdfcer_core::edit::StyleEdit).
 ///
 /// `None` back means the flag was absent, i.e. leave the property alone.
-/// The literal `none` becomes [`StyleEdit::Clear`], which is a real markup
+/// The literal `none` becomes `StyleEdit::Clear`, which is a real markup
 /// style and not a way of spelling black — §12.5.6 has no transparent
 /// value in a colour array, so "no border" IS an absent `/C`.
 ///

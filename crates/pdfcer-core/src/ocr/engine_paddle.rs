@@ -6,7 +6,7 @@
 //! `ocrs` engine already uses, so this engine adds no dependency beyond
 //! `rten-tensor` and crosses into wasm32 like `ocrs` does. Pre- and
 //! post-processing (DB box finding, CTC decoding) live in
-//! [`paddle_post`](super::paddle_post), which is always compiled so the fuzz
+//! `paddle_post`, which is always compiled so the fuzz
 //! harness reaches it; their RapidOCR-default parameters and the one
 //! departure (axis-aligned boxes) are documented there.
 //!
@@ -15,8 +15,8 @@
 //! the crop, because its time steps no longer run along the page's x axis.
 //!
 //! Confidence is the mean CTC probability of a word's characters, so
-//! [`PaddleEngine::reports_confidence`] is `true`. Lines scoring below
-//! [`LINE_SCORE_MIN`](super::paddle_post::LINE_SCORE_MIN) are dropped, as
+//! `PaddleEngine::reports_confidence` is `true`. Lines scoring below
+//! `LINE_SCORE_MIN` are dropped, as
 //! RapidOCR drops them.
 //!
 //! Models are never compiled in and never downloaded; they load from disk

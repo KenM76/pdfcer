@@ -478,7 +478,7 @@ pub struct RenderOptions {
     /// # What it does
     ///
     /// A Form XObject whose transformed `/BBox` is narrower than
-    /// [`SUBPIXEL_CULL_PX`] in BOTH axes is not executed at all, and is
+    /// `SUBPIXEL_CULL_PX` in BOTH axes is not executed at all, and is
     /// counted on `Diagnostics::subpixel_culled`.
     ///
     /// # Why it is off by default, and why it exists at all
@@ -599,7 +599,7 @@ pub struct RenderOptions {
     /// # `None` is the PRINT answer, and it is the default for a reason
     ///
     /// §8.11.4.5 says the `/D`-initial state *"shall be the state used by
-    /// printing and aggregating application[s]. Such applications **shall
+    /// printing and aggregating application\[s\]. Such applications **shall
     /// not** apply the changes based on usage application dictionaries"*.
     /// Only a **viewer** examines `/AS`.
     ///
@@ -615,7 +615,7 @@ pub struct RenderOptions {
     ///
     /// A viewer must re-render when this changes — §8.11.4.5 requires the
     /// dictionaries to be reapplied "whenever there is a change to a
-    /// factor that [they] depend on (such as zoom level)". In the GUI
+    /// factor that \[they\] depend on (such as zoom level)". In the GUI
     /// that falls out of the raster cache keying on scale.
     pub view_magnification: Option<f32>,
     /// How `DeviceCMYK` is converted to sRGB for display

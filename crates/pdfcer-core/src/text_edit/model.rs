@@ -38,7 +38,7 @@
 //!
 //! The block layer is a **second clustering pass over the same runs**, not
 //! a second glyph walk. Pass 4's `layout.rs` already turned positioned
-//! glyphs into [`TextRun`]s and inserted derived line breaks from two
+//! glyphs into `TextRun`s and inserted derived line breaks from two
 //! geometry signals — a baseline move (rule 1) and a backward jump on one
 //! baseline (rule 2, the two-column signal). Those breaks are re-used here
 //! directly: a Pass-4 [`TextOrigin::DerivedLineBreak`] run is a line

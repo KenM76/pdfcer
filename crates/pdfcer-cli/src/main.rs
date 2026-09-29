@@ -692,7 +692,7 @@ mod exit {
     /// `verify-signatures`: no signature failed, but at least one could
     /// not be verified — a subfilter, algorithm or curve pdfcer does not
     /// implement, a malformed CMS, a missing certificate. Named in the
-    /// output. Distinct from [`SIGNATURE_FAILED`](Self::SIGNATURE_FAILED)
+    /// output. Distinct from `SIGNATURE_FAILED`
     /// because "pdfcer cannot say" is not "the document was tampered with".
     pub const SIGNATURE_UNVERIFIABLE: u8 = 13;
     /// The subcommand exists in the surface but is not implemented yet

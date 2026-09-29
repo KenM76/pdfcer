@@ -177,7 +177,7 @@ use pdfcer_core::settings::MinifyFilter;
 pub const MAX_XOBJECT_DEPTH: usize = 64;
 
 /// The width, in device pixels, below which
-/// [`RenderOptions::subpixel_culling`] considers a form invisible.
+/// `RenderOptions::subpixel_culling` considers a form invisible.
 ///
 /// Half a pixel, in BOTH axes, so a form has to be smaller than the
 /// sampling grid in every direction before it is dropped — a thin but
@@ -894,7 +894,7 @@ pub struct Diagnostics {
     /// allocated.
     ///
     /// A refusal, and the honest outcome of a page-size ceiling: see
-    /// [`crate::cmyk_buffer::MAX_CMYK_BUFFER_BYTES`]. Non-zero means the
+    /// `crate::cmyk_buffer::MAX_CMYK_BUFFER_BYTES`. Non-zero means the
     /// render is the pre-`Pass 97.1e` approximation and says so, rather
     /// than failing.
     pub cmyk_buffer_refused: usize,
@@ -1177,7 +1177,7 @@ pub struct Diagnostics {
     /// Soft masks BUILT and applied (§11.6.5).
     ///
     /// **"Applied" used to overstate it, and no longer does.** This doc
-    /// said, until `Pass 97.0`: *"Application is not [right]: §11.4.5
+    /// said, until `Pass 97.0`: *"Application is not \[right\]: §11.4.5
     /// applies the mask to a transparency group's RESULT, whereas pdfcer
     /// folds it into the clip, which applies it to each element inside the
     /// group."* That was true and is now false — see
@@ -1457,7 +1457,7 @@ pub struct Diagnostics {
     pub images_culled: usize,
     /// `Do` invocations skipped because the form was smaller than
     /// [`SUBPIXEL_CULL_PX`] in both axes and
-    /// [`RenderOptions::subpixel_culling`] was on.
+    /// `RenderOptions::subpixel_culling` was on.
     ///
     /// **LOSSY**, and counted separately from [`Self::forms_culled`] for
     /// exactly that reason: that one is an exact consequence of §8.10.1's

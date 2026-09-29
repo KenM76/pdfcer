@@ -1803,7 +1803,7 @@ pub struct DeviceSettings {
     /// Reaches the driver as `dmDefaultSource = DMBIN_FORMSOURCE`,
     /// which is answered by the driver's own Form-to-Tray Assignment
     /// table. A device that does not list that bin cannot honour it —
-    /// [`DeviceFeatures::supports_form_source_bin`] is what a shell
+    /// [`DeviceFeatures::form_source_bin`] is what a shell
     /// consults before offering the control (R83), because a job that
     /// silently came out of the default tray looks identical to one
     /// where the request was never made.
@@ -2254,7 +2254,7 @@ const DMBIN_FORMSOURCE_VALUE: u16 = 15;
 ///
 /// An empty `Vec` means "the driver would not say", which every caller
 /// treats as an absent capability rather than an error, for the reason
-/// [`DeviceFeatures::supports_form_source_bin`] states.
+/// [`DeviceFeatures::form_source_bin`] states.
 #[cfg(windows)]
 fn device_capability_words(
     printer_wide: &[u16],
@@ -3066,7 +3066,7 @@ pub fn spool_with_config(
 /// than of a sheet's shape, changing them mid-job is not something any
 /// caller has asked for, and a `DMDUP_SIMPLEX` asserted mid-job would
 /// silently cancel a driver's own duplex default — the defect recorded
-/// in [`job_configuration`]'s notes. They come from `settings` and apply
+/// in the notes on `devmode`'s `apply`. They come from `settings` and apply
 /// to the whole job.
 ///
 /// # Cost

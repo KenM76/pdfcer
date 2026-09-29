@@ -44,7 +44,7 @@
 //!
 //! **`FlateDecode`'s predictors apply VERBATIM**, and this is the rule that
 //! makes the work small. The extension retitles Table 8 to include Brotli, so
-//! [`super::predictor`] is reused **unchanged** — there is no Brotli variant
+//! `super::predictor` is reused **unchanged** — there is no Brotli variant
 //! of a predictor and there must not be one.
 //!
 //! # What this module deliberately does NOT do

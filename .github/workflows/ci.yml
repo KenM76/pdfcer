@@ -65,6 +65,20 @@ jobs:
           components: clippy
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+  rustdoc:
+    name: cargo doc, broken intra-doc links denied
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      # A doc link to a renamed or removed item is a contract naming
+      # something that does not exist, and rustdoc only warns. Denying the
+      # one lint keeps it at zero; the private-link and redundant-target
+      # warnings are style, not wrong claims, and are not gated.
+      - run: RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps
+
   test:
     name: cargo test (${{ matrix.os }})
     strategy:

@@ -54,7 +54,7 @@
 //! Values are returned in the returned unit's own magnitude — feet for
 //! [`Unit::DecimalFeet`]/[`Unit::FeetInches`], inches for [`Unit::Inch`] —
 //! matching [`Unit::baseline_per_point`], so a caller can hand the pair
-//! straight to [`ScaleEntry::RealLength`](super::ScaleEntry::RealLength)
+//! straight to `ScaleEntry::RealLength`
 //! without a conversion step of its own.
 
 use super::units::Unit;

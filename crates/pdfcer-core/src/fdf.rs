@@ -251,7 +251,7 @@ impl FormData {
     ///
     /// Whitespace-significant (`xml:space="preserve"`) so a value that is or
     /// contains spaces round-trips exactly. Text and attribute values are
-    /// XML-escaped ([`xml_escape`]).
+    /// XML-escaped.
     #[must_use]
     pub fn to_xfdf(&self, href: Option<&str>) -> Vec<u8> {
         let mut s = String::from(

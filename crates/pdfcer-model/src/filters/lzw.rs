@@ -67,7 +67,7 @@
 //!
 //! ## Bomb guard
 //!
-//! §7.4.4.1 NOTE 2: LZW's best case "approach[es] **1365:1** for long
+//! §7.4.4.1 NOTE 2: LZW's best case "approach\[es\] **1365:1** for long
 //! files", so it is a decompression-bomb vector comparable to Flate.
 //! Output accumulates in 64 KiB chunks and the decode aborts the moment
 //! [`MAX_DECODED_LEN`] is crossed — never decompress-then-check.

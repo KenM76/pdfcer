@@ -48,7 +48,7 @@
 //!
 //! ## The assemble path (extract / split / merge) — a Required key vanished
 //!
-//! [`crate::pageops::assemble`] deep-copies each selected page behind a
+//! [`fn@crate::pageops::assemble`] deep-copies each selected page behind a
 //! **barrier**: the set of pages that are *not* being copied. Its
 //! documented propagation rule is that an **array containing a barrier hit
 //! refuses as a whole**, and a **dictionary entry whose value hit the

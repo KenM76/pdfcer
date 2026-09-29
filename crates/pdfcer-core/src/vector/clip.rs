@@ -225,7 +225,7 @@ pub struct ClipObject {
 /// # Why a raw carrier exists beside the modelled ones
 ///
 /// [`ClipAnnotation`]'s original design copied annotations **through pdfcer's
-/// models** — a markup through [`MarkupSpec`], a ce dimension through its
+/// models** — a markup through `MarkupSpec`, a ce dimension through its
 /// [`DimensionKind`](crate::dimension::DimensionKind) — and that reasoning is
 /// still right for the two kinds that have **registration outside the page**:
 /// a ce dimension has a `/PieceInfo` sidecar record and a group, a widget has

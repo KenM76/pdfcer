@@ -4,7 +4,7 @@
 //! # What this module is
 //!
 //! [`super`] defines the engine-independent *types* — [`RecognizedWord`],
-//! [`OcrPage`], the [`OcrEngine`](super::OcrEngine) trait, and the y-flip.
+//! [`OcrPage`], the `OcrEngine` trait, and the y-flip.
 //! **This module is what those types were for**: it takes an [`OcrPage`] whose
 //! words are already in PDF user space and writes them into a document.
 //!
@@ -76,7 +76,7 @@
 //!
 //! | axis | fitted by | why |
 //! |---|---|---|
-//! | vertical | the **font size** ([`HELVETICA_ASCENT_FRAC`] + [`HELVETICA_DESCENT_FRAC`]) | size is the only vertical control; there is no vertical-scaling operator short of a full `Tm` |
+//! | vertical | the **font size** (`HELVETICA_ASCENT_FRAC` + `HELVETICA_DESCENT_FRAC`) | size is the only vertical control; there is no vertical-scaling operator short of a full `Tm` |
 //! | horizontal | **`Tz`** (horizontal scaling, §9.3.4) | the size is already spent on the vertical fit, so width must come from somewhere else |
 //!
 //! Vertical: `size = height / (HELVETICA_ASCENT_FRAC + HELVETICA_DESCENT_FRAC)` and the baseline
@@ -109,14 +109,14 @@
 //!   executed too."* There is **no** highlighting of low-confidence words baked
 //!   into the page, and there must never be: that would be a second rendering
 //!   path for the same content, which is the bug class decision 059 deletes.
-//! - **The disclosure is [`OcrLayerReport`], and it is off-canvas.** Mean
+//! - **The disclosure is `OcrLayerReport`, and it is off-canvas.** Mean
 //!   confidence, the count needing review, the words that could not be encoded,
 //!   the words that were skipped and why. A shell shows it in a panel; the CLI
 //!   prints it. What rule 4 forbids is **silence**, not visibility of the text.
 //! - **`confidence_available == false` is disclosed as its own fact**, never
 //!   flattened into "no low-confidence words found". An engine that reports
 //!   nothing must not look better than one that reports honestly — the same
-//!   principle [`OcrPage::words_needing_review`](super::OcrPage::words_needing_review)
+//!   principle `OcrPage::words_needing_review`
 //!   already encodes by counting unscored words as needing review.
 //!
 //! # Where this deliberately differs from `add_text`
@@ -133,13 +133,13 @@
 //! outside WinAnsi would make the feature unusable on exactly the documents
 //! that need it most — and would refuse on a *guess*, which is a strange thing
 //! to hold to a stricter standard than a deliberate keystroke. The substitution
-//! is counted per word and reported ([`OcrLayerReport::words_substituted`]),
+//! is counted per word and reported (`OcrLayerReport::words_substituted`),
 //! so it is disclosed rather than silent, which is what the rule actually asks.
 //!
 //! **The limit this leaves is real and is named**: a Standard-14 WinAnsi face
 //! cannot represent CJK, Cyrillic, Greek or Arabic at all. Recognising those
 //! scripts needs an embedded composite font, which is its own slice — see
-//! [`OcrLayerReport::words_substituted`] for how a caller detects that it has
+//! `OcrLayerReport::words_substituted` for how a caller detects that it has
 //! landed in that case rather than discovering it from a page of `?`.
 
 use super::marker::{LayerStrip, contents_without, page_ocr_layers, plan_strip};

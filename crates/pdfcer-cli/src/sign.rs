@@ -521,7 +521,7 @@ on it. Treat the signature as suspect.",
     }
 }
 
-/// Report an [`AssembleReport`]'s honesty counters to stderr.
+/// Report an `AssembleReport`'s honesty counters to stderr.
 ///
 /// Every one of these is something the operator **cannot see by looking
 /// at the output file**, which is the test for whether it belongs on
@@ -613,7 +613,7 @@ would leave dangling references and a file that claims to be tagged but is not."
 /// remedy, at the shell boundary.
 ///
 /// WHY this exists at all, and why it lives in the CLI rather than the core:
-/// [`WriteError::RecoveredBaseForbidsIncremental`]'s own message ends with
+/// `WriteError::RecoveredBaseForbidsIncremental`'s own message ends with
 /// "(save_full)". That is the correct name for the core's audience — a Rust
 /// caller reaching for [`pdfcer_core::writer::save_full`] — and it must stay
 /// that way, because the core is a library first and its errors are read by
@@ -634,7 +634,7 @@ would leave dangling references and a file that claims to be tagged but is not."
 /// half of project rule 4 — pdfcer steering the operator into a destructive
 /// path because it was the one that made the command succeed.
 ///
-/// Every other [`WriteError`] variant is left alone: they describe conditions
+/// Every other `WriteError` variant is left alone: they describe conditions
 /// with no single-flag remedy, and inventing a suggestion for them would be
 /// worse than silence.
 pub(crate) fn hint_recovered_base(err: &pdfcer_core::writer::WriteError) {

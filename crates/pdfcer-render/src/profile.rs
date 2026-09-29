@@ -72,7 +72,7 @@
 ///
 /// This is not a theoretical caveat. It is the single worst measurement
 /// error of 2026-08-07: `Mask::new` was reported at **10.1 s of an 18 s
-/// render** and it is **1.02 s**. The probe skipped [`Ablation::CLIP_BUILD`],
+/// render** and it is **1.02 s**. The probe set [`Ablation::clip_build`],
 /// which does not only stop the mask being built — it leaves
 /// `state.clip` at `None`, so every subsequent paint also skips mask
 /// *sampling*, and every `q` skips the `Arc` clone. Three effects, one

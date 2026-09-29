@@ -1,6 +1,6 @@
 use super::*;
 
-/// Map a CLI permission-bit name to a [`PermissionBit`].
+/// Map a CLI permission-bit name to a `PermissionBit`.
 pub(crate) fn parse_permission_bit(
     name: &str,
 ) -> Result<pdfcer_core::crypto::PermissionBit, String> {
@@ -23,7 +23,7 @@ pub(crate) fn parse_permission_bit(
     })
 }
 
-/// Resolve `--allow`/`--deny` into the granted [`PermissionBit`] set. Default
+/// Resolve `--allow`/`--deny` into the granted `PermissionBit` set. Default
 /// (no `--allow`) is ALL granted; `--deny` removes bits.
 pub(crate) fn resolve_permissions(
     allow: &[String],

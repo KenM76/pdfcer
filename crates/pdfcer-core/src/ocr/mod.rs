@@ -6,7 +6,7 @@
 //! page positions and writing them into a PDF as an invisible, selectable text
 //! layer over content that is left completely untouched.
 //!
-//! It contains **no recogniser**. [`OcrEngine`] is a trait, and the engine
+//! It contains **no recogniser**. `OcrEngine` is a trait, and the engine
 //! that implements it is a separate, feature-gated decision with real licence
 //! consequences (see `docs/ocr-engine-survey.md`). Splitting it this way is
 //! not tidiness — the text-layer authoring is identical whichever engine wins,
@@ -46,7 +46,7 @@
 //! inference is *inherently* uncertain the uncertainty is stated rather than
 //! implied.
 //!
-//! So [`RecognizedWord::confidence`] is `Option<f32>`, and the `None` case is
+//! So `RecognizedWord::confidence` is `Option<f32>`, and the `None` case is
 //! load-bearing rather than a convenience: some engines expose no confidence
 //! at all. A shell must say *"this engine reports no per-word confidence"*
 //! rather than silently presenting unscored guesses as though they had been

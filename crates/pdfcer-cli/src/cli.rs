@@ -85,7 +85,7 @@ pub(crate) struct Cli {
 /// the life of the process and that only two lines of code ever set. `clap`
 /// models exactly this shape with `global = true`; this is its storage.
 ///
-/// Written once, in [`run`], before any subcommand executes. [`OnceLock`]
+/// Written once, in [`run`], before any subcommand executes. `OnceLock`
 /// rather than a mutable static so that ordering is enforced by the type
 /// system: a read before the write yields `None`, which is the same answer as
 /// "no password supplied" and therefore cannot produce a wrong decryption —
@@ -3933,7 +3933,7 @@ pub(crate) enum Command {
         ///
         /// §8.11.4.5 NOTE 2 names this exact affordance: viewers "may
         /// also provide users with an option to view documents in this
-        /// state … [permitting] an accurate preview of the content as it
+        /// state … \[permitting\] an accurate preview of the content as it
         /// will appear when placed into an aggregating application or
         /// sent to a stand-alone printing system."
         #[arg(long)]

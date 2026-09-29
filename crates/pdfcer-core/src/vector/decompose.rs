@@ -721,7 +721,7 @@ pub struct TextObject {
     /// more than the precision is worth.
     /// **`Pass 32.0` substrate:** each entry is now a [`TextRun`] rather
     /// than a bare `Bounds`. The geometry is unchanged and reachable as
-    /// [`TextRun::bounds`] (or in bulk via [`Self::run_bounds`]); what is
+    /// [`TextRun::bounds`]; what is
     /// added is the run's own **byte span** and whether its position is
     /// **inherited** from the previous run's advance.
     ///
@@ -958,7 +958,7 @@ impl TextRun {
 /// operator had set: a **stale, silently wrong colour**, with no value meaning
 /// "I do not know".
 ///
-/// That is exactly the shape [`crate::text_edit::FillState`] already solved
+/// That is exactly the shape `crate::text_edit::FillState` already solved
 /// for TEXT — `Default` / `Device` / `Other`, with the raw operator bytes kept
 /// so an undecodable colour can be restored verbatim. One half of this crate
 /// had the honest model and the other half had a lossy one, and nothing
@@ -1409,7 +1409,7 @@ impl FormLeaf {
 /// object list plus its diagnostics.
 ///
 /// Objects are in **paint order** — the order the renderer would paint
-/// them, so the LAST object at a point is the topmost. [`page_bbox`] and
+/// them, so the LAST object at a point is the topmost. `page_bbox` and
 /// hit-testing rely on this ordering.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PageObjects {

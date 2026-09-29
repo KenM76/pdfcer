@@ -3,7 +3,7 @@
 //!
 //! # The marker
 //!
-//! [`super::layer::build_layer_content`] wraps each layer in one marked-content
+//! `super::layer::build_layer_content` wraps each layer in one marked-content
 //! sequence (ISO 32000-1 §14.6, Table 320) with an inline property list
 //! (§14.6.2: every value is direct, so inline is permitted):
 //!

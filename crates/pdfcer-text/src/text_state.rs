@@ -7,9 +7,9 @@
 //!
 //! | tracker | crate module | what it kept | who could read it |
 //! |---|---|---|---|
-//! | `TextState` | [`crate::text_extract::page`] | `Tc Tw Tz TL Ts Tr` | nobody (private) |
-//! | `Walk` + `BlockTextState` | [`crate::text_edit::edit`] / [`crate::text_edit::reflow_apply`] | `Tc Tw Tz` only | crate-private |
-//! | `GState` | [`crate::vector::decompose`] | `Tc Tw Tz TL Ts` | nobody (private) |
+//! | `TextState` | `crate::text_extract::page` | `Tc Tw Tz TL Ts Tr` | nobody (private) |
+//! | `Walk` + `BlockTextState` | `crate::text_edit::edit` / `crate::text_edit::reflow_apply` | `Tc Tw Tz` only | crate-private |
+//! | `GState` | `crate::vector::decompose` | `Tc Tw Tz TL Ts` | nobody (private) |
 //!
 //! Three copies that agree today are three copies that can disagree
 //! tomorrow — this project's recurring failure shape (decision 011 §Z2),

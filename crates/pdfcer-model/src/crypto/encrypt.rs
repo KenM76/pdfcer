@@ -85,7 +85,7 @@ pub fn assemble_permissions(granted: &[PermissionBit]) -> i32 {
 /// Build an AES-256 `/R` 6 encryption dictionary.
 ///
 /// `user_pw` / `owner_pw` are the raw password bytes (SASLprep is applied by
-/// [`super::standard::PreparedPassword`] — ASCII passes through unchanged; the
+/// `super::standard::PreparedPassword` — ASCII passes through unchanged; the
 /// W20 gap for non-ASCII is disclosed by the caller). `permissions` is the
 /// `/P` integer from [`assemble_permissions`]. `encrypt_metadata` sets byte 8
 /// of `/Perms` and the dictionary's `/EncryptMetadata`. `reading` selects the

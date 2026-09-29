@@ -627,7 +627,7 @@ impl FieldClip {
 
 /// What the accessibility name (`/TU`) of a pasted field should be (R105).
 ///
-/// # Why a fourth answer exists here and not on [`TooltipChoice`]
+/// # Why a fourth answer exists here and not on `TooltipChoice`
 ///
 /// [`TooltipChoice`](crate::edit::TooltipChoice) has three answers — supply
 /// one, decline one, or have not decided (which is refused). That is the right

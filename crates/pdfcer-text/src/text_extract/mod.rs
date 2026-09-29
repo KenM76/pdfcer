@@ -347,7 +347,7 @@ pub enum ContentStreamRef {
 impl ContentStreamRef {
     /// Whether this names the page's own `/Contents` buffer.
     ///
-    /// The primitive behind [`TextRun::is_editable`]; see that method for why
+    /// The primitive behind `TextRun::is_editable`; see that method for why
     /// a consuming shell should ask the question there rather than matching on
     /// this enum itself.
     #[must_use]
@@ -396,7 +396,7 @@ pub enum TextColor {
 /// unchanged for every existing caller. Everything in here is SOURCED from
 /// the content stream and graphics state — none of it is derived, in
 /// deliberate contrast to the entirely-derived block model in
-/// [`crate::text_edit`].
+/// `crate::text_edit`.
 ///
 /// The matrices are in PDF's 6-element `[a b c d e f]` row-vector form
 /// (§8.3.3): [`Self::text_matrix`] is `Tm` at the instant the glyph was
@@ -611,7 +611,7 @@ pub struct ExtractedGlyph {
 /// **How nearly parallel two glyphs' writing directions must be to count
 /// as the same line** — the default for
 /// [`ExtractOptions::same_direction_cos`] and
-/// [`BlockRecognitionOptions::same_direction_cos`](crate::text_edit::BlockRecognitionOptions),
+/// `BlockRecognitionOptions::same_direction_cos`,
 /// expressed as the cosine of the permitted angle. `0.99939` is about two
 /// degrees.
 ///
@@ -655,7 +655,7 @@ pub const SAME_DIRECTION_COS: f32 = 0.999_39;
 /// This expression was written out **four times** — in
 /// [`layout::Builder::push_glyph`](layout), in
 /// `page::Walk::extend_covered`, in
-/// [`crate::text_edit::model`]'s line accumulator and in the CLI — each
+/// `crate::text_edit::model`'s line accumulator and in the CLI — each
 /// time as `min(x, x + advance)` / `y − 0.25·size` .. `y + 0.75·size`,
 /// i.e. each time assuming the direction was `(1, 0)`. That is `R92`'s
 /// failure mode exactly: one question answered in four places, drifting
@@ -826,7 +826,7 @@ impl TextRun {
     ///
     /// **`Pass 119.0` closed that gap**, and this method's answer moved with
     /// it: a run inside a form XObject now reports [`Editability::Editable`],
-    /// because [`crate::text_edit::edit_text`] resolves the target stream
+    /// because `crate::text_edit::edit_text` resolves the target stream
     /// instead of assuming the page's. [`Editability::InsideForm`] is
     /// deprecated and never returned.
     ///
@@ -872,7 +872,7 @@ impl TextRun {
     /// the exact defect class this predicate exists to remove.
     ///
     /// The variants also carry the *reason*, which the shell needs anyway:
-    /// it words its own refusal from this, and [`Self::InsideForm`] names the
+    /// it words its own refusal from this, and `Self::InsideForm` names the
     /// form so a diagnostic can say which one.
     ///
     /// **There is deliberately no `is_editable() -> bool` convenience.** It
@@ -1328,7 +1328,7 @@ pub struct ExtractOptions {
     /// `true`, every `Glyphs`-origin glyph records the show-operator span,
     /// governing font resource and `Tf` size, fill colour, and text/CTM
     /// matrices (§9.4). This is the read substrate the editable text model
-    /// ([`crate::text_edit`]) and the later edit surgery (decision 014,
+    /// (`crate::text_edit`) and the later edit surgery (decision 014,
     /// Pass 14.1) build on; the flag exists so that cost is paid only by
     /// callers that need it.
     pub capture_provenance: bool,

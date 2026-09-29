@@ -121,8 +121,8 @@ pub(crate) fn cmd_inspect(file: &Path) -> u8 {
 ///
 /// # It is deliberately quiet on an ordinary interactive form
 ///
-/// The line fires on [`FormJavaScript::reaches_outside`] or on a script, not
-/// on [`FormJavaScript::any`]. A form with buttons that fill in and reset
+/// The line fires on `FormJavaScript::reaches_outside` or on a script, not
+/// on `FormJavaScript::any`. A form with buttons that fill in and reset
 /// itself reaches nothing and gets no warning, because a warning that fires on
 /// every form is one operators learn to scroll past — and then the one that
 /// matters scrolls past too.

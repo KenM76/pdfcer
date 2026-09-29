@@ -5,7 +5,7 @@
 //! [`crate::vector::linepick`] answers the *geometric* question — are these
 //! two lines parallel, collinear, or angled, and if angled, which of the four
 //! angles did the operator point at. It deliberately stops there: it knows
-//! nothing about ce dimensions, and returns a [`TwoLineRelation`] rather than
+//! nothing about ce dimensions, and returns a `TwoLineRelation` rather than
 //! anything drawable.
 //!
 //! This module is the step after: it turns that relation into the actual

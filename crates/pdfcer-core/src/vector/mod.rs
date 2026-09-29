@@ -9,7 +9,7 @@
 //! dimensioning subsystem, the snapping engine (12.M1), and the GUI
 //! selection all consume:
 //!
-//! 1. **Object decomposition** ([`decompose`], [`decompose_page`]) — the
+//! 1. **Object decomposition** ([`fn@decompose`], [`decompose_page`]) — the
 //!    page content walked into selectable [`VectorObject`]s: path objects
 //!    with user-space node lists, an effective CTM, paint style, and the
 //!    content-token index range that is the future editing handle; text and

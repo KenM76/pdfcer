@@ -24,7 +24,7 @@
 //! |---|---|---|
 //! | Shape | [`shape`] | "Is this one call with literal arguments?" |
 //! | Identity | this module | "Is that call a whitelisted helper, and with what parameters?" |
-//! | Effect | [`calc`], [`format`] | "What does that helper produce?" |
+//! | Effect | [`calc`], [`mod@format`] | "What does that helper produce?" |
 //!
 //! They are separate because they fail differently and the failures must not
 //! be confusable. A shape failure means *arbitrary code* — refuse. An
@@ -203,7 +203,7 @@ pub enum CalcHelper {
 
 /// A recognised formatting helper — display only, **never** `/V`.
 ///
-/// Parameters are captured as read; their *meaning* is [`format`]'s
+/// Parameters are captured as read; their *meaning* is [`mod@format`]'s
 /// business. Separating capture from interpretation means an unsourced
 /// parameter value can be recognised and disclosed ("this field is formatted
 /// by AFNumber_Format") while still refusing to render it, which is strictly

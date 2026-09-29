@@ -22,12 +22,12 @@
 //! > `ISO 15930-7` carries that standard's authority whether or not we
 //! > intended it to. A guessed vector would be worse than no preset."*
 //!
-//! That is exactly right, and it is why [`Evidence`] exists. A control that
+//! That is exactly right, and it is why `Evidence` exists. A control that
 //! says *ISO 15930-7* while setting four values nobody sourced is borrowing
 //! an ISO committee's credibility for a developer's opinion. Every entry here
 //! therefore states whether it is **sourced to a clause**, **implied** by one,
 //! a **best-effort** engineering judgement, or **not applicable** — and
-//! [`RenderPreset::disclosures`] says so out loud, so a shell can put the
+//! `RenderPreset::disclosures` says so out loud, so a shell can put the
 //! honest sentence next to the honest button.
 //!
 //! # THE THREE FINDINGS THAT SHAPED THIS MODULE
@@ -40,7 +40,7 @@
 //! not apply to … operational details of rendering"* (ISO 19005-3 §5.5,
 //! ISO 19005-4 §5.2, ISO 14289-1 §6.3). So a PDF/A preset is thin by right,
 //! and a PDF/UA preset is **empty by right** — see
-//! [`RenderStandard::PdfUa1`], where "no preset" is the *sourced answer*
+//! `RenderStandard::PdfUa1`, where "no preset" is the *sourced answer*
 //! rather than an omission somebody will later mistake for one and fill in.
 //!
 //! **2. PDF/X itself concedes that more than one conforming rendering
@@ -51,12 +51,12 @@
 //! embedded job ticket or metadata information to control the rendering more
 //! precisely."* A preset is a reasonable second-best; the standard's own
 //! answer is out-of-band data pdfcer does not read. That sentence belongs
-//! beside the control, and [`RenderPreset::disclosures`] puts it there.
+//! beside the control, and `RenderPreset::disclosures` puts it there.
 //!
 //! **3. `cmyk_intent` is the WRONG MECHANISM for these standards, not a
 //! mis-set value.** Every PDF/X and PDF/A level guarantees a *colorimetric*
 //! definition of device colour — `DestOutputProfile`, `/DefaultCMYK`, or
-//! PDF/A-4's blending space. [`super::CmykIntent`] selects among **fixed
+//! PDF/A-4's blending space. `super::CmykIntent` selects among **fixed
 //! built-in tables** and is none of those. No value of it is conformant, so
 //! the preset sets the least-wrong one and **discloses that the file's own
 //! output intent was not applied**. Rule 4 makes that obligatory rather than
@@ -73,7 +73,7 @@
 //! that. It would write a value for every key, and a shell reading it back
 //! would report *"ISO 15930-7 requires per-record mesh padding"* — a
 //! requirement that does not exist, asserted under the standard's name. So
-//! [`PresetAction::LeaveAlone`] is a real state: the preset touches nothing,
+//! `PresetAction::LeaveAlone` is a real state: the preset touches nothing,
 //! and says which keys it deliberately did not touch.
 //!
 //! # Scope, stated so it is not over-read

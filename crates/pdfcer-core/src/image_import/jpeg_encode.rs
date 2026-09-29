@@ -1,7 +1,7 @@
 //! # Re-encoding an imported image as `/DCTDecode` — the JPEG **writer**
 //!
 //! The implementation of
-//! [`ImageCompression::Jpeg`](super::ImageCompression::Jpeg). Everything else in
+//! `ImageCompression::Jpeg`. Everything else in
 //! [`image_import`](super) exists to *avoid* re-encoding; this
 //! module is the one place the operator can ask for it explicitly, and it is
 //! the first and only encoder in the whole project.
@@ -47,13 +47,13 @@
 //!
 //! | Source | Disclosure | What actually happened |
 //! |---|---|---|
-//! | PNG / BMP (lossless) | [`ImportNotes::recompressed`](super::ImportNotes::recompressed) = [`RecompressReason::JpegRequested`](super::RecompressReason::JpegRequested) | One lossy encode of exact pixels. The loss is real but bounded and predictable. |
-//! | JPEG (already lossy) | the above **plus** [`ImportNotes::jpeg_from_lossy`](super::ImportNotes::jpeg_from_lossy) | A *second* lossy encode over artefacts. Compounding, and invisible at editing zoom. |
+//! | PNG / BMP (lossless) | `ImportNotes::recompressed` = `RecompressReason::JpegRequested` | One lossy encode of exact pixels. The loss is real but bounded and predictable. |
+//! | JPEG (already lossy) | the above **plus** `ImportNotes::jpeg_from_lossy` | A *second* lossy encode over artefacts. Compounding, and invisible at editing zoom. |
 //!
 //! They are not the same act and the project's rule 4 posture ("fuzzy, never
 //! sneaky") does not let them share one sentence. The size change is
 //! reported unconditionally, for every policy, as
-//! [`ImportNotes::source_bytes`](super::ImportNotes::source_bytes) / [`ImportNotes::stored_bytes`](super::ImportNotes::stored_bytes) — the
+//! `ImportNotes::source_bytes` / `ImportNotes::stored_bytes` — the
 //! operator asked for a smaller file, so the answer to "did it get smaller?"
 //! must not require diffing the output.
 //!
@@ -115,7 +115,7 @@
 //!    complement, giving true-ink bytes under transform 0 with no `/Decode` —
 //!    would have been byte-correct *and* would have made pdfcer emit the exact
 //!    one shape it warns operators about
-//!    ([`ImportNotes::cmyk_polarity_unverifiable`](super::ImportNotes::cmyk_polarity_unverifiable), R30). A writer that
+//!    (`ImportNotes::cmyk_polarity_unverifiable`, R30). A writer that
 //!    manufactures its own diagnostic's trigger condition is a writer that
 //!    has misread its own rules.
 //!
@@ -128,8 +128,8 @@
 //!
 //! | Refusal | Why |
 //! |---|---|
-//! | quality outside 1–100 ([`ImageImportError::InvalidQuality`](super::ImageImportError::InvalidQuality)) | A clamp would be pdfcer choosing an encoder setting the operator did not choose, and then storing the result permanently. Rule 4 wants inferences *disclosed*; the cheaper honest answer for a plainly out-of-range number is to say so and change nothing. |
-//! | a colour-key `/Mask` ([`ImageImportError::CompressionRefused`](super::ImageImportError::CompressionRefused)) | §8.9.6.4 masks by **exact sample ranges**, and DCT quantisation moves sample values. The stated range would then miss pixels it should hide and catch pixels it should not — speckled holes in the picture and speckled opacity in the background, with no diagnostic. Not repairable after the fact, so it is refused before. |
+//! | quality outside 1–100 (`ImageImportError::InvalidQuality`) | A clamp would be pdfcer choosing an encoder setting the operator did not choose, and then storing the result permanently. Rule 4 wants inferences *disclosed*; the cheaper honest answer for a plainly out-of-range number is to say so and change nothing. |
+//! | a colour-key `/Mask` (`ImageImportError::CompressionRefused`) | §8.9.6.4 masks by **exact sample ranges**, and DCT quantisation moves sample values. The stated range would then miss pixels it should hide and catch pixels it should not — speckled holes in the picture and speckled opacity in the background, with no diagnostic. Not repairable after the fact, so it is refused before. |
 //! | a colour model with no device colour space | Same posture as `image_import`'s own `to_lossless`: a wrong `/ColorSpace` renders as the wrong colours with no error. |
 //!
 //! An **`/SMask` is not refused** — it is kept, untouched, as its own

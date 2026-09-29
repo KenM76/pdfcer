@@ -10,7 +10,7 @@
 //! A revision is the file up to and including one `%%EOF` marker (§7.5.6: each
 //! update ends with its own trailer and `%%EOF`). A prefix that does not open
 //! as a document — a linearized file's first-page section, or a marker inside
-//! a stream — is counted in [`PasswordValueScan::unreadable_revisions`] rather
+//! a stream — is counted in `PasswordValueScan::unreadable_revisions` rather
 //! than guessed at.
 
 use crate::document::{DocError, Document};

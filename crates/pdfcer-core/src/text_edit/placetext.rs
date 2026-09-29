@@ -67,7 +67,7 @@
 //!
 //! ### Why the page text is re-wrapped rather than handed over pre-broken
 //!
-//! [`plan`] decides the line breaks in order to know where the page boundaries
+//! `plan` decides the line breaks in order to know where the page boundaries
 //! fall, and then throws those breaks away: each page is handed the *words* of
 //! its share, joined back into a string, and [`crate::text_edit::add_text`]
 //! re-derives the identical breaks. That looks like doing the work twice and is
@@ -129,7 +129,7 @@
 //!
 //! ## The scaffold document, and the spec that governs it
 //!
-//! [`scaffold_bytes`] synthesizes a minimal in-memory PDF holding `N` blank
+//! `scaffold_bytes` synthesizes a minimal in-memory PDF holding `N` blank
 //! pages, which `insert_pages` then copies in. Building a document to copy
 //! *from* is cheaper and far safer than a second page-tree splice: `Pass 102`'s
 //! splice already handles `/Count` propagation up the ancestor chain, resource

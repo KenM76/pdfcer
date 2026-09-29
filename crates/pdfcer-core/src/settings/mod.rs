@@ -301,7 +301,7 @@ impl LoadReport {
 /// # THEY DID NOT ALWAYS AGREE, AND THE HISTORY IS LOAD-BEARING
 ///
 /// From 2026-08-08 to 2026-08-28 the shipped default was
-/// [`Self::NeutralBlack`], by Ken's explicit ruling ("flip it") once he saw
+/// `Self::NeutralBlack`, by Ken's explicit ruling ("flip it") once he saw
 /// what the calibrated answer does to pure-K line art. The evidence favoured
 /// `Calibrated` throughout — tier (a)/(c), the strongest in the ambiguity
 /// register — and lost to a deliberate judgement about CAD drawings.
@@ -315,7 +315,7 @@ impl LoadReport {
 /// still renders `#231F20` under the new default, and that is still not what
 /// a CAD operator expects. What changed is which of two good answers ships
 /// first. A future session finding a drawing's blacks "wrong" should reach
-/// for [`Self::NeutralBlack`], not treat it as a defect.
+/// for `Self::NeutralBlack`, not treat it as a defect.
 ///
 /// # A NOTE THAT DIED WITH ITS DIVERGENCE, AND WHY THAT MATTERED
 ///
@@ -442,7 +442,7 @@ pub use crate::color::CmykIntent;
 /// Overprint. §8.6.7 *prescribes* the additive branch — *"source colours
 /// **shall** be converted to the device's native colour space, and **all
 /// components participate in the conversion, whatever their values**"* — so
-/// [`Self::DeviceNative`] is **conforming but degenerate**, never
+/// `Self::DeviceNative` is **conforming but degenerate**, never
 /// "unspecified".
 ///
 /// And the degeneracy is **structural, not approximate**. §11.7.4.3's
@@ -455,7 +455,7 @@ pub use crate::color::CmykIntent;
 /// does. This is worth knowing before anyone attempts a cheaper fix.
 ///
 /// Measured on the print-conformance suite: **24 of its 51 patches request
-/// overprint and receive no colorant buffer** under [`Self::DeviceNative`],
+/// overprint and receive no colorant buffer** under `Self::DeviceNative`,
 /// and those 24 contain every remaining failure in the suite.
 ///
 /// # Disclosure
@@ -1474,7 +1474,7 @@ impl Default for Settings {
     /// do by default?", not two — and it shipped for about ten minutes
     /// until `every_setting_round_trips_through_the_file` caught it.
     ///
-    /// Reading the value off [`ExtractOptions::default`] rather than
+    /// Reading the value off `ExtractOptions::default` rather than
     /// copying the number means the two cannot drift at all, which is
     /// strictly better than a mirrored constant plus a test asserting the
     /// mirror still holds.

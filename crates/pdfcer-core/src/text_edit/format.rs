@@ -1135,7 +1135,7 @@ pub struct FormatOptions {
     /// (`Pass 179.0`, decision 106).
     ///
     /// Set by [`crate::edit::EditSession`] from its own
-    /// [`style_policy`](crate::edit::EditSession::style_policy), which the
+    /// `style_policy`, which the
     /// SHELL resolves from the settings store — core never reads a settings
     /// file (`wasm32`).
     ///

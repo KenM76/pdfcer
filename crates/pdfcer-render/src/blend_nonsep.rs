@@ -41,14 +41,14 @@
 //! These are transcribed from `iso32000__s__11.3.5.md`'s reading notes, and
 //! each one has a test at the bottom of this file:
 //!
-//! 1. **[`clip_color`]'s two `if`s are SEQUENTIAL, not `else if`.** A colour
-//!    can be both below 0 and above 1 after [`set_lum`], and the second
+//! 1. **`clip_color`'s two `if`s are SEQUENTIAL, not `else if`.** A colour
+//!    can be both below 0 and above 1 after `set_lum`, and the second
 //!    rescale runs on the output of the first.
 //! 2. **`l`, `n` and `x` are captured BEFORE either block.** Recomputing
 //!    them between the blocks changes the result.
 //! 3. **A per-channel `clamp(0, 1)` is NOT `ClipColor`.** It is precisely the
 //!    defect that makes the dependency wrong.
-//! 4. **[`set_sat`]'s `C_min = 0.0` is UNCONDITIONAL** — outside the
+//! 4. **`set_sat`'s `C_min = 0.0` is UNCONDITIONAL** — outside the
 //!    `if`/`else`. Putting it inside the `else` leaves `C_min` at its input
 //!    value on the common branch, wrong for every non-neutral colour.
 //! 5. **min/mid/max are POSITIONAL, resolved once on entry**, and the

@@ -13,7 +13,7 @@
 //! enters this module — it is a `memcpy` from the buffer, in
 //! `crate::writer::save`. This module serializes only:
 //!
-//! - objects with [`Provenance::ObjectStream`] provenance that a full
+//! - objects with `Provenance::ObjectStream` provenance that a full
 //!   rewrite has to promote out of their container (they have no
 //!   file-level bytes to copy — see `crate::object::Provenance`);
 //! - dictionaries pdfcer constructs itself: the trailer (§7.5.5), a

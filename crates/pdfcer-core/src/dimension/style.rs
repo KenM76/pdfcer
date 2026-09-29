@@ -73,7 +73,7 @@
 //!
 //! ## Tolerance is one of these properties, not a parallel system
 //!
-//! `Pass 69.1` added [`super::tolerance::Tolerance`] and its own precision
+//! `Pass 69.1` added `super::tolerance::Tolerance` and its own precision
 //! slot as the tenth and eleventh properties of this same cascade — which was
 //! the point of building the mechanism first. A group can carry a default
 //! tolerance and one ce dimension can override it, using the same `Option`,

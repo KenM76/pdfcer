@@ -38,7 +38,7 @@
 //! > the encoded data** and **the value of this dictionary entry shall
 //! > be ignored**. If the Adobe-defined marker code … is **not
 //! > present** then the value specified in this dictionary entry will
-//! > be used. If [neither] is present … the **default value of
+//! > be used. If \[neither\] is present … the **default value of
 //! > `ColorTransform` shall be 1 if the image has three components and
 //! > 0 otherwise**."
 //!

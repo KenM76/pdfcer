@@ -336,7 +336,7 @@ pub(crate) fn report_text_annot_inferences(input: &Path, o: &pdfcer_core::edit::
     }
 }
 
-/// The one sentence for one [`StampLabelFit`], shared by the authoring verb
+/// The one sentence for one `StampLabelFit`, shared by the authoring verb
 /// and the restyle verb (`Pass 292.0`).
 ///
 /// Shared deliberately rather than written twice: both verbs run the SAME fit

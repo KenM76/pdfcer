@@ -86,7 +86,7 @@
 //! So today:
 //!
 //! - **The `ocrs` weights are BUNDLED** and found via
-//!   [`ModelSource::BesideExecutable`] in the single-folder portable layout.
+//!   `ModelSource::BesideExecutable` in the single-folder portable layout.
 //!   OCR works out of the box.
 //! - **A shell may also fetch them**, pinned by hash, for a build that does
 //!   not carry them.
@@ -101,7 +101,7 @@
 //!
 //! # Resolution order, and why absence is reported rather than guessed at
 //!
-//! [`resolve_model_dir`] returns the FIRST location that exists, and reports
+//! `resolve_model_dir` returns the FIRST location that exists, and reports
 //! every place it looked when none does. An OCR feature that silently did
 //! nothing because a model was missing would be indistinguishable from one
 //! that ran and found no text — and those two need completely different
