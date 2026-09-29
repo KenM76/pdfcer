@@ -115,6 +115,45 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 407.0` (`4f940411`), 2026-09-29 — `promote_inline_dr_fonts`: repair a form already saved with an inline `/AcroForm` `/DR` font
+
+pdfceGUI `G070` (operator `O262`). Follows `Pass 404.0` (`27e97d92`), which
+made every font pdfcer *adds* to `/DR` indirect but deliberately left an
+author's own inline `/DR` font as found — that font still draws as hidden
+in Acrobat Pro/Reader (same defect as `Pass 404.0`, on files saved before
+the fix). This Pass gives operators a repair path for those existing files.
+
+**Core.** New `pub` verb `EditSession::promote_inline_dr_fonts() ->
+Result<usize, EditError>` (`crates/pdfcer-core/src/edit.rs`). Moves each
+inline dictionary in `/AcroForm` `/DR` `/Font` into a new indirect object
+and repoints the key; returns the count promoted. Keys, font dictionaries
+and `/DA` resolution are unchanged; already-indirect entries are untouched.
+One undoable command via new `CommandKind::PromoteInlineDrFonts` (enum is
+`non_exhaustive`). No inline entries: commits nothing, returns 0. Existing
+fill guards apply.
+
+**CLI.** New subcommand `promote-dr-fonts INPUT (-o OUT | --in-place)
+[--mode] [--verify-undo]`, prints `promote-dr-fonts <in> -> <out>
+promoted=<n>`. Added to the `--in-place` list (`Pass 406.0`/`406.1`),
+bringing it to 125 subcommands. README subcommand count 184 → 185.
+
+**core-api.** New row, verb count 285.
+
+**Tests.** Two `pdfcer-core` tests (demo-form inline→indirect with undo,
+no-op, round-trip; all-indirect holder chain where only the `/Font` object
+plus the new font are written), both sabotage-verified. One CLI
+integration test `tests/promote_dr_fonts.rs`: `promoted=1`, then
+`promoted=0` with a byte-identical file. A redundant filter was removed
+after it survived sabotage — the save-time diff already omits unchanged
+holders.
+
+**Gates.** `tools/run-gates.sh` green (after fixing `cargo fmt` and the
+README count it caught). `cargo clippy -- -D warnings` clean. No manifest
+change, `cargo tree` invariant unaffected.
+
+**Not yet measured.** Acrobat Reader against a real pre-`Pass 404.0` form —
+owed by pdfceGUI; reply sent on the `G070` channel.
+
 ### `Pass 406.0` (`385b2a71`), 2026-09-29 — `--in-place` on every CLI subcommand that edits its input PDF
 
 Closes the Backlog entry filed 2026-08-27 (279th filing), partly addressed

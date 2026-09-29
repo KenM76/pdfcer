@@ -4,6 +4,39 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (756th filing) — `4f940411`: `Pass 407.0` shipped — repair a form saved with an inline `/AcroForm` `/DR` font
+
+**Shipped:**
+- `Pass 407.0` (`4f940411`) — pdfceGUI `G070` (operator `O262`). Follows
+  `Pass 404.0`, which made every font pdfcer ADDS to `/DR` indirect but
+  deliberately left an author's own inline `/DR` font untouched — still
+  hidden in Acrobat on files saved before that fix. New `pub` verb
+  `EditSession::promote_inline_dr_fonts()` moves each inline `/DR` `/Font`
+  dictionary to an indirect object and repoints the key; CLI
+  `promote-dr-fonts` (added to the `--in-place` list, 125 subcommands now).
+  core-api verb count 285.
+
+**Decisions made this session:** None — a repair verb for a defect
+`Pass 404.0` already diagnosed and partly fixed; no new architecture.
+
+**Findings + decisions:**
+- Two core tests (demo-form inline→indirect with undo/no-op/round-trip;
+  an all-indirect holder chain where only the `/Font` object plus the new
+  font are written) and one CLI integration test, all sabotage-verified.
+  A redundant filter was removed after it survived sabotage — the
+  save-time diff already omits unchanged holders.
+- `tools/run-gates.sh` green after fixing `cargo fmt` and the README
+  subcommand count (184 → 185) it caught. Clippy clean. No manifest
+  change, `cargo tree` invariant unaffected.
+
+**Still in flight:** Acrobat Reader has not yet been measured against a
+real pre-`Pass 404.0` form — owed by pdfceGUI; reply sent on the `G070`
+channel.
+
+**For next session:** `tools/verify-release.py v0.66.0`'s CI check was
+still pending as of the 751st filing — still unconfirmed as of this
+filing, carried forward again.
+
 ## 2026-09-29 (755th filing) — `ee6bdf28`: `Pass 406.1` shipped — `--in-place` for the three positional-`OUTPUT` subcommands
 
 **Shipped:**
