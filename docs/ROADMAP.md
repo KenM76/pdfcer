@@ -115,6 +115,77 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 296.6` (`0f9d0c26`), 2026-09-29 — deep-zoom render is pre-clipped in device space instead of refused
+
+Follows `Pass 296.0` (`69d4d67`, decision 151/`R252`): the named refusal is
+replaced with correct rendering. New private
+`crates/pdfcer-render/src/device_clip.rs` — before any fill/stroke/mask
+fill reaches tiny-skia 0.11.4, a path whose device bounds exceed ±2²² is
+transformed to device space in `f64`, curves flattened adaptively (0.05px
+tolerance, depth ≤32; a control hull missing the target window collapses
+to its chord), and each contour clipped Sutherland–Hodgman against the
+target rect + 4px margin — per-contour convex clipping preserves winding,
+so nonzero and even-odd both stay exact. A stroke past range is dashed
+first, then outlined at the transform's own resolution scale (hairline
+width 0 → 1/res), then filled through the same clip. All 22 tiny-skia
+fill/stroke call sites across `canvas.rs`, `cmyk_paint.rs`,
+`display_list.rs`, `interpret.rs` route through the new `FitPaint`/
+`FitMask` traits.
+
+**The defect this replaces.** Raw tiny-skia panics on an AA fill once
+device bounds pass ~2²⁷ (134,217,692) and is SILENTLY WRONG on a non-AA
+fill past ~2³⁰ — before this fix, an ordinary A4 page render at ~900,000×
+returned `Ok` with the grey page fill gone, neither a refusal nor a panic.
+
+`MAX_GUARANTEED_REGION_SCALE` raised **250,000 → 10,000,000**. Measured
+with `examples/deep_zoom_pixels.rs --bisect --strict [--far]`: pixel-exact
+to **116,800,703×** near the origin (edge at 301pt, E-size/A1/A4) and to
+**33,554,982×** far from it (edge at 3301.37pt) — the lower figure is the
+published floor, guarded by a `const` assert that fails the build if the
+constant is raised past it. Coarse correctness holds to 8.59e9 (drift 2px
+at 1e8, 26px at 1e9, garbage ~1e10). `examples/region_panic_ceiling.rs`:
+no panic to 1e9 on all six geometries. `RenderError::RasterizerLimit`
+stays as a backstop.
+
+Test file **renamed**: `tests/deep_zoom_refuses_instead_of_panicking.rs`
+→ `tests/deep_zoom_region_renders.rs` — this file's own line ~7728 and
+`ARCHITECTURE.md` §10.7 still cite the old name inside already-filed
+prose; left as history, not corrected. 4 integration tests + 1 const
+assert; 6 unit tests in `device_clip`. Sabotage: disabling the guard
+fails 3 integration + 5 unit tests.
+
+`pdfcer-render` lib 434 passed, `all.rs` 372 passed, 18 in the third
+binary; `tools/run-gates.sh` PASS (41 commands); clippy/fmt clean. No
+manifest change (`cargo tree` unaffected); no writer change.
+
+**Decision, not a plain `R252` instance.** Decision 151's own text argued
+the refusal "cannot be wrong because it is the failure itself, caught and
+named, not a prediction of where the failure will occur." That is now
+known false: the pre-296.6 refusal was pegged to the panic boundary, and a
+silently-wrong, non-crashing zone existed below it (the ~900,000× A4
+case) that the refusal never caught. Filed as **decision 167** (§12) —
+supersedes decision 151's mechanism, not its posture; `R252`'s general
+principle (a non-ordering boundary is published as a floor, never an
+exact constant) stands unchanged, only its worked example is corrected.
+No new standing rule minted.
+
+**`FEATURES.md`**: row *"Rasterize an arbitrary page region…"* extended
+in place — boxes unchanged (`[x]`/`[x]`/`[x]`), sentence appended for
+`Pass 296.6`.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `Read`/`Grep` only.
+Independently verified against the live tree: `device_clip.rs` exists
+with `FitPaint`/`FitMask` traits defined; `MAX_GUARANTEED_REGION_SCALE =
+10_000_000.0` at `crates/pdfcer-render/src/lib.rs:218`;
+`tests/deep_zoom_region_renders.rs` exists and the old name
+(`deep_zoom_refuses_instead_of_panicking`) is gone from `crates/`, still
+cited only inside already-filed `ROADMAP.md`/`ARCHITECTURE.md` prose.
+**Not independently re-run**: the exact measured scales, drift figures,
+test counts and `run-gates.sh` result — relayed from the dispatching
+engineer's report.
+
+---
+
 ### `049c18e5`, 2026-09-29 — text-fixture PROVENANCE backfill, the remaining twelve
 
 Not a Pass — docs-only. `fixtures/synthetic/text/PROVENANCE.md` gained
@@ -34084,6 +34155,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R250` — BEFORE IMPLEMENTING A DATA-FORMAT OR COMPATIBILITY DECISION SOURCED FROM A FEATURE-RAG (OR SPEC-RAG) FINDING LABELLED ANYTHING SHORT OF DIRECTLY-OBSERVED, CHECK WHETHER A PRIMARY ARTIFACT…
 - `R251` — A TYPE REACHABLE ONLY THROUGH A RE-EXPORTED ITEM'S OWN PUBLIC FIELD, BUT NOT ITSELF RE-EXPORTED, COMPILES AND CLIPPY-PASSES CLEAN INSIDE ITS DEFINING CRATE — THE ONLY OBSERVER IS A DOWNSTREAM CONSUMER, SO RE-EXPORT CLOSURE NEEDS A GATE, NOT A REVIEWER (limit: checks `pub` fields AND `pub fn` return types in the same module; argument types and cross-module/`lib.rs` reach still out of scope). **[gate: check-reexport-closure.py]** ★ WIDENED 2026-09-29 (757th filing, `4b7ff5bc`): the gate now also checks `pub fn` return types via regex over the signature (`#[cfg(test)]` tail excluded), closing the one live instance it found (`ExtractFont::codes() -> Vec<Code>`).
 - `R252` — A MEASURED BOUNDARY THAT DOES NOT ORDER WITH ANY INPUT DIMENSION (SIZE, AREA, EXTENT) CANNOT BE PUBLISHED AS AN EXACT CONSTANT — PUBLISH IT AS A FLOOR BELOW THE LOWEST OBSERVED FAILURE, AND MAKE THE GUARANTEE THE CAUGHT, NAMED REFUSAL RATHER THAN THE NUMBER (`Pass 296.0`, `MAX_GUARANTEED_REGION_SCALE`).
+- **`R252` — CORRECTION, 2026-09-29 (759th filing, `Pass 296.6`, `0f9d0c26`, decision 167).** The rule's own worked example claimed the refusal "cannot be wrong because it is the failure itself... not a prediction of where the failure will occur" — false: the refusal was pegged to tiny-skia's panic boundary (~2²⁷ device px), and a silently-wrong, non-crashing zone existed below it (an A4 page at ~900,000× returned `Ok` with the fill gone, no refusal). The general principle — a non-ordering boundary is a published floor, never an exact constant — is unaffected and stands; only the claim that the refusal itself could not be a false negative is withdrawn. Fixed by replacing the refusal with true device-space pre-clipping (`device_clip.rs`), which raises the guaranteed floor 250,000 → 10,000,000 and removes the silent-wrong zone rather than merely re-measuring its edge. No re-mint; ceiling unchanged.
 - `R253` — AN ERROR/DIAGNOSTIC TYPE'S `Display` IS THE SAFE DEFAULT A CALLER WHO NEVER READS ITS DOC COMMENT WILL SEE; A FIELD THE TYPE'S OWN DOCUMENTATION CALLS NON-CONTRACTUAL OR WARNS AGAINST MATCHING ON DOES NOT THEREBY BECOME SAFE TO LEAVE INSIDE `Display` — THE SAFE RENDERING IS THE ONE EVERY CALLER GETS, NOT THE ONE A CALLER OPTS INTO BY READING THE SOURCE (`Pass 296.5`, `RenderError::RasterizerLimit`; arrived from the other side of `Pass 296.2`'s `Object`/`Name` `Display` reasoning, same session).
 - **NOT filed as further `R251` instances, by this role's own judgement (509th filing): `Pass 296.1`'s `remedy_faces` (data existed only as prose) and `Pass 296.2`'s missing `Display` impl are the same OBSERVATION as `R251` — invisible inside the defining crate, visible only to a downstream consumer — but not the same MECHANISM (neither is a re-export gap; `check-reexport-closure.py` would not have caught either). Recorded here as a cross-cutting note rather than mechanically counted into `R251`'s or `R151`'s instance tally: a shared moral is not a shared mechanism (see `D:\dev\rag\rust\` — pattern-naming discipline). Four consumer-invisible defects in two days (`295.0`, `295.1`, `296.1`, `296.2`) is nonetheless worth a future session's attention as a possible boundary worth naming properly, once a fix for one would plausibly have caught the others.** ★ **DISCHARGED 2026-09-11 (512th filing, decision 153): `Pass 296.8` supplied that fix (publish the computation instead of gatekeeping it behind demand), and the boundary is named below as `R254`, covering `296.1`/`296.2`/`296.8` precisely — `295.0` and `295.1` stay outside it; see decision 153 for why.**
 - **`R220` — DATED INSTANCE NOTE, 2026-09-11 (514th filing): THE SAME FAILURE ON THE OTHER AXIS — NOT "CORE HAS NO VERB," BUT "A SHELL HAS NO CALLER." `docs/core-api/03-capabilities.md`'s appendix wrote `gui [ ]` for the offpage capability from assumption (`bfa981b`); the shell's own dialog for it already existed, corrected hours later in `e0019af`. Same mechanism (a negative capability claim sent into a document, unchecked against source), different axis.**

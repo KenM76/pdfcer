@@ -4,6 +4,65 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (759th filing) — `Pass 296.6` (`0f9d0c26`): deep-zoom render is pre-clipped in device space instead of refused
+
+**Shipped:**
+- `Pass 296.6` (`0f9d0c26`) — new private `crates/pdfcer-render/src/device_clip.rs`
+  pre-clips every fill/stroke/mask fill to device space (`f64` transform,
+  adaptive curve flattening, per-contour Sutherland–Hodgman clipping
+  preserving winding) before it reaches tiny-skia 0.11.4, replacing
+  `Pass 296.0`'s refusal with correct rendering. All 22 tiny-skia
+  fill/stroke call sites route through the new `FitPaint`/`FitMask`
+  traits. `MAX_GUARANTEED_REGION_SCALE` raised 250,000 → 10,000,000.
+
+**Decisions made this session:**
+- **Decision 167** (`ARCHITECTURE.md` §10.7 amendment + §12): corrects
+  decision 151's own claim that the `Pass 296.0` refusal "cannot be
+  wrong... not a prediction of where the failure will occur" — false.
+  The refusal was pegged to tiny-skia's panic boundary (~2²⁷ device px),
+  and a silently-wrong, non-crashing zone existed below it: raw tiny-skia
+  is SILENTLY WRONG on a non-AA fill past ~2³⁰, and before this Pass an
+  ordinary A4 page at ~900,000× returned `Ok` with the page fill gone —
+  neither caught nor named. No guarantee decision 151 actually published
+  was broken (250,000 < 900,000), but its stated reasoning for safety
+  did not survive a non-crashing failure mode. `R252`'s general principle
+  (a non-ordering boundary is a floor, never an exact constant) stands;
+  only the worked-example claim is withdrawn, corrected inline under
+  `R252`'s own number in `ROADMAP.md` — no new standing rule minted.
+
+**Findings + decisions:**
+- Measured floor: pixel-exact to **116,800,703×** near the origin (edge
+  301pt, E-size/A1/A4) and **33,554,982×** far from it (edge 3301.37pt);
+  the lower figure is published, guarded by a `const` assert against
+  raising the constant past it. Coarse correctness to 8.59e9 (drift 2px
+  at 1e8, 26px at 1e9, garbage ~1e10). `RenderError::RasterizerLimit`
+  stays as a backstop.
+- Test file renamed: `tests/deep_zoom_refuses_instead_of_panicking.rs` →
+  `tests/deep_zoom_region_renders.rs`. `ROADMAP.md` and `ARCHITECTURE.md`
+  §10.7 still cite the old name inside already-filed prose from the
+  296.0 filing — left as history, not corrected.
+- `pdfcer-render` lib 434 passed, `all.rs` 372 passed, 18 in the third
+  binary; `tools/run-gates.sh` PASS (41 commands); clippy/fmt clean. No
+  manifest change, no writer change.
+- `docs/FEATURES.md`: existing "Rasterize an arbitrary page region…" row
+  extended in place — boxes unchanged (`[x]`/`[x]`/`[x]`).
+
+**Still in flight:** None reported this filing.
+
+**For next session:** `tools/verify-release.py v0.66.0`'s CI check was
+still pending as of the 751st filing — still unconfirmed as of this
+filing, carried forward again. `Pass 296.7` remains unused (per the
+547th filing's grep of both registers).
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently
+verified against the live tree via `Read`/`Grep`: `device_clip.rs` exists
+with `FitPaint`/`FitMask` traits; `MAX_GUARANTEED_REGION_SCALE =
+10_000_000.0` at `crates/pdfcer-render/src/lib.rs:218`;
+`tests/deep_zoom_region_renders.rs` exists and the old test-file name is
+gone from `crates/`. **Not independently re-run:** the exact measured
+scale/drift figures, test counts, and `run-gates.sh`'s result — relayed
+from the dispatching engineer's report.
+
 ## 2026-09-29 (758th filing) — `049c18e5`: text-fixture PROVENANCE backfill, the remaining twelve
 
 **Shipped:**

@@ -5821,6 +5821,26 @@ field. See §12's 2026-09-11 decision 152 for the general rule this produced
 rely on this" comment does not substitute for keeping unsafe content out of
 it.
 
+**Amendment 2026-09-29 (decision 167, `Pass 296.6`, `0f9d0c26`).** The
+refusal above is now correct rendering instead. Every fill/stroke/mask
+fill reaching tiny-skia is pre-clipped in device space first (new
+`crates/pdfcer-render/src/device_clip.rs`: `f64` transform, adaptive
+curve flattening, Sutherland–Hodgman per-contour clipping that preserves
+winding), so `MAX_GUARANTEED_REGION_SCALE` rises `250,000` →
+`10,000,000` and the measured-exact range now reaches `116,800,703×`
+near the origin and `33,554,982×` far from it. **This decision's own
+original text is corrected, not merely extended**: it argued the
+refusal "cannot be wrong because it is the failure itself, caught and
+named, not a prediction of where the failure will occur" — that was
+false. The refusal was in fact pegged to tiny-skia's panic boundary
+(~2²⁷ device px), and a silently-wrong, non-crashing zone existed below
+it: an untreated A4 page render at ~900,000× returned `Ok` with the
+page fill gone, neither caught nor named. §12's `R252` entry carries
+the same correction. `RenderError::RasterizerLimit` remains as a
+backstop for whatever the pre-clip doesn't reach. Full record: §12's
+2026-09-29 entry, decision 167; `ROADMAP.md` *Shipped*, `Pass 296.6`
+(759th filing).
+
 ## 11. Undo/redo architecture
 
 Identified as a real design gap 2026-07-23: the UI standing rule
@@ -11756,3 +11776,61 @@ dispatching engineer's own report at `25924e74`, not independently verified.
 **Decision ceiling: `165` → `166`** (`039` was already in use — see the
 2026-08-11 entry above; `docs/decisions/039-overlay-wrap.md` keeps that
 number as its filename regardless).
+
+### 2026-09-29 (759th filing, `Pass 296.6`, `0f9d0c26`) — decision 167: A REGION RENDER'S GUARANTEED FLOOR IS RAISED BY REMOVING THE SILENT-WRONG ZONE, NOT BY RE-MEASURING THE REFUSAL'S EDGE — CORRECTS DECISION 151'S OWN CLAIM THAT THE REFUSAL COULD NOT BE A FALSE NEGATIVE
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `Read`/`Grep` only.
+Independently verified against the live tree:
+`crates/pdfcer-render/src/device_clip.rs` exists, with `FitPaint`/
+`FitMask` traits; `MAX_GUARANTEED_REGION_SCALE = 10_000_000.0` at
+`crates/pdfcer-render/src/lib.rs:218`; `tests/deep_zoom_region_renders.rs`
+exists and the pre-296.6 test file name no longer does anywhere under
+`crates/`. **Not independently re-run:** the exact measured scale
+figures, drift figures, test counts and `run-gates.sh` result — relayed
+from the dispatching engineer's report.
+
+**What changed.** `Pass 296.0` (decision 151) caught a rasterizer panic
+by refusing before the call reached tiny-skia, at a scale pegged to the
+panic boundary measured across six geometries. `Pass 296.6` replaces the
+refusal itself: every path reaching tiny-skia is now pre-clipped to the
+render target in device space (`f64` transform, adaptive curve
+flattening, per-contour Sutherland–Hodgman clipping preserving winding)
+before rasterization, so the pathological input tiny-skia was panicking
+or silently mis-rendering on never reaches it. `MAX_GUARANTEED_REGION_SCALE`
+rises `250,000` → `10,000,000`, guarded by a `const` assert against the
+newly measured floor (`116,800,703×` near the origin, `33,554,982×` far
+from it — the lower figure published).
+
+**Why this is a correction, not only an extension.** Decision 151 stated
+the refusal "cannot be wrong because it is the failure itself, caught and
+named, not a prediction of where the failure will occur." That claim is
+now falsified by measurement: the refusal WAS a prediction (tied to the
+panic boundary tiny-skia was measured to hit), and a silently-wrong,
+non-crashing zone existed below that prediction — an untreated A4 page
+render at ~900,000× returned `Ok` with the grey page fill gone, which is
+neither the refusal nor the panic decision 151 accounted for. A caller
+trusting "refusal or correct" as the only two outcomes below
+`MAX_GUARANTEED_REGION_SCALE`'s old value of `250,000` was, in fact,
+correctly protected (`250,000 < 900,000`), so no guarantee decision 151
+actually published was broken — but the reasoning offered for *why* it
+was safe (the refusal, not the number, is the guarantee, and the refusal
+cannot itself be wrong) did not hold once the failure mode was
+non-crashing. Decision 151's entry stays on the record; this entry is the
+forward pointer required for a superseded decision.
+
+**Relation to `R252`.** `R252`'s general principle — a measured boundary
+that does not order with any input dimension is published as a floor,
+never an exact constant — is unaffected and restated as still correct.
+Only decision 151's own worked-example claim (that the refusal could not
+be a false negative) is withdrawn; `R252`'s entry in `ROADMAP.md` carries
+the same correction inline, no re-mint.
+
+**Body-section effect.** `ARCHITECTURE.md` §10.7 (decision 151) gains an
+amendment paragraph, immediately following decision 152's amendment, in
+the same style.
+
+**Decision ceiling: `166` → `167`**, next free `168`. Standing rules:
+`R252` gains an inline correction under its own existing number; no new
+rule minted. Pass ceiling: `Pass 296.6` used (family `296` still has
+`296.7` unused, per the 547th filing's note that it was not found by
+grep in either register).
