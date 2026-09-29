@@ -1471,8 +1471,6 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   doc block containing the same heading twice) and needs no denominator at
   all. It found **four live splices** and **five baseline rows that were
   misfiled text rather than missing text**.
-- **21 of 38 files in `fixtures/synthetic/text/PROVENANCE.md` are unrecorded.**
-  `LEGAL.md` §5 makes this a licensing statement.
 - **Backup bundle is well over 150 commits behind `HEAD`.**
 - **143 of 187 standing rules are unenforced** — the operator's own next piece
   of work: *"script it or bin it."*
