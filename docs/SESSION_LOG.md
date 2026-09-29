@@ -4,6 +4,49 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (737th filing) — `FEATURES.md`-only correction: `G066`'s gui surface citation lands, `G067` marked not-yet-consumed, structure-tree-read row ticked reached-not-driven
+
+**Shipped:** None — no Pass, no code changed. Source: `done_G066_CONSUMED.md`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\`), which the 736th filing had
+already found but flagged "surface unconfirmed here."
+
+**Decisions made this session:**
+- The structure-tree-export row (line ~492) ticks `gui [x]`, citing File ▸
+  Export ▸ Word document… and File ▸ Export ▸ Tables… (both follow the tree
+  via `layout_from_structure`/`StructureUse::Auto`), driven by
+  `export_word_follows_the_tags`/`export_tables_follows_the_tags` on
+  `fixtures/tagged-report.pdf`, engine pin `16b938e4`. `Pass 396.0`'s half
+  (`has_structure_tree`/`read_structure_tree_in_pages`) stays unticked in
+  substance — noted explicitly as **not yet consumed**: the GUI still reads
+  `/StructTreeRoot` itself and extracts every page.
+- The separate "Read a tagged PDF's structure tree back" row (line ~227,
+  `read_structure_tree` itself) is now ticked `gui [x]` too, worded
+  **reached, not driven** (584th-filing precedent): `layout_from_structure`
+  takes `tree: &StructureTree` as a parameter (`crates/pdfcer-text/src/
+  tagged_layout.rs:284`), so the GUI's Word/Tables export cannot reach
+  `layout_from_structure` without first calling `read_structure_tree` to
+  build that argument — confirmed against the CLI's own pre-`396.0` wiring
+  (`crates/pdfcer-cli/src/extract.rs:1750`), which follows the same
+  read-then-layout shape. `pdfcer-gui` has no standalone tags/structure
+  viewer and does not surface `extract-tags`'s own output, hence "reached"
+  rather than "driven."
+
+**Findings + decisions:**
+- `pdfcer-gui` is a separate repo not checked out here — the gui-surface
+  claims above are sourced from the consumer's own note, per protocol, not
+  independently grepped against `pdfcer-gui` source.
+
+**Still in flight:** Unchanged from the 736th filing — `G067` reply posted,
+awaiting consumption; CI green-check on `11b8ec7c` still owed.
+
+**For next session:** No new Pass. Next free Pass family remains what the
+736th filing left it at.
+
+**Sourcing (hard rule 8).** No shell tool this filing. `layout_from_structure`'s
+signature and the CLI's `read_structure_tree` call site were confirmed live via
+`Grep`/`Read` against `crates/` at HEAD, not relayed. `FEATURES.md` and this
+entry were left edited, uncommitted — no `git commit -F` run.
+
 ## 2026-09-29 (736th filing) — `bf8d0138`/tag `410f4170`: `v0.64.0` RELEASED + `Pass 396.0` SHIPPED — G067 catalog probe and page-scoped structure read
 
 **Shipped:**

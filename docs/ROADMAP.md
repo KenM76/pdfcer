@@ -160,6 +160,16 @@ pdfceGUI's own channel note, but leaves that row's `gui` box unticked
 too pending a surface citation from this side (`FEATURES.md`'s ticking
 bar).
 
+**Correction, 2026-09-29 (737th filing).** The surface citation arrived
+(`done_G066_CONSUMED.md`) — the row's `gui` box is now `[x]` for `G066`'s
+half (Word/Tables export reaches the tree). `G067`'s half (the
+catalog-probe/page-scoped read this Pass shipped) is explicitly called out
+in the row as still not consumed — `gui [ ]` for that half stands.
+Separately, the "Read a tagged PDF's structure tree back" row (`Pass
+372.0`) is now ticked `gui [x]` too, worded reached-not-driven: the export
+path cannot call `layout_from_structure` without first building the
+`StructureTree` argument via `read_structure_tree`.
+
 **GUI channel.** Reply filed:
 `open/reply_G067_a_catalog_probe_and_a_page_scoped_structure_read_FIXED.md`;
 `pdfceGUI` `INDEX` row set to `FIXED`, awaiting consumption. `G066` is
@@ -375,6 +385,13 @@ packaging change.
 drive layout from a tagged PDF's structure tree; `core [x]` `cli [x]`
 `gui [ ]` — `pdfceGUI` has not consumed it yet, a `G066` reply is pending
 on that channel; do not round the `gui` box up.
+
+**Correction, 2026-09-29 (737th filing).** `gui` is now `[x]` — `done_G066_CONSUMED.md`
+names the surfaces (File ▸ Export ▸ Word document…, File ▸ Export ▸ Tables…)
+and the driving tests (`export_word_follows_the_tags`,
+`export_tables_follows_the_tags` on `fixtures/tagged-report.pdf`, engine pin
+`16b938e4`). `Pass 396.0`'s own half (page-scoped read) is separately noted
+as still not consumed.
 
 **Also filed this session.** Chore commit `73065457` ("chore: v0.64.0",
 `Cargo.toml` 0.63.0 → 0.64.0 plus `Cargo.lock`/`fuzz/Cargo.lock`) —
