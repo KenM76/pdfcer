@@ -1328,27 +1328,16 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
 - ~~no `docs/core-api/` entry for the `offpage` module~~ — **CLOSED
   2026-09-11**, `bfa981b`, as §13 of `03-capabilities.md`. Struck rather than
   deleted so a reader who remembers it owed can see it moved.
-- **`redact-offpage` residuals: ~~17 files / 23 objects~~ → 7 files / 12
-  objects**, all of the `partial` kind. `Pass 297.0` (`536ef3b`) closed the
-  fully-off half by making `wholly_covered` test the UNION of the bands, not
-  one band — measured before and after on the operator's own 17 affected
-  drawings.
+- ~~**`redact-offpage` residuals: 7 files / 12 objects**~~ — **CLOSED
+  2026-09-29**, `1315b144` (`Pass 297.1`). The 11 images were blank past the
+  edge (true even in the uncleaned originals); `scan-offpage` now counts them
+  as `blank_overhang=`, not `partial`. Re-cleaned 17: `affected_files=1
+  partial=1 blank_overhang=11`, no scan-time cost. **The 1 left is real:**
+  one drawing, page 7: a dimension text run whose glyph bbox reaches 792.4 on a 792
+  page — 0.4 pt past the 0.25 tolerance. Not chased: a 0.4 pt ascender
+  overhang is a font-metric artefact, and raising the tolerance per file is
+  the operator's call.
 
-  **What remains is NOT a cut that leaves a sliver** — that was this file's
-  wording and it was wrong, corrected 2026-09-12 (`7a22c52`). The cut is
-  COMPLETE: `covered_cells` snaps **outward**, so an image overhanging by 1 pt
-  has its off-page sample columns cleared and the samples out there are blank.
-  What clearing cannot do is move the **placement**, so the bbox still crosses
-  the edge and `scan-offpage` — which classifies by GEOMETRY — still counts it.
-  **The scan is reporting its own output**, the same shape as the empty text
-  husk `Pass 294.2` fixed, one type over.
-
-  ⇒ The fix is to stop counting an image whose off-page cells carry no ink, and
-  it is **not** free: it needs the samples, and decoding every image during a
-  scan is what made `redact-offpage` take ten minutes on one file
-  (`Pass 294.1`). **It wants a measurement — how many placements, how much
-  decode — before any code.** Anyone hunting a cutting defect here will find
-  nothing wrong; that is the trap this paragraph exists to spring.
 - **6 tests silently SKIP and report as passed** — ~~26~~ → ~~16~~ → ~~10~~ →
   ~~8~~ → **6**, four paydowns on 2026-09-12 (`f0d1dc7`, `e41892a`, `d291a03`,
   `05b3a80`).
