@@ -5,7 +5,9 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Latest:** 2026-09-29, `Pass 391.0` (`afdc6797`, filed 729th): `appearance_slot` now copies (Allocate) instead of rewriting an `/AP` `/N` stream in place when a page's `/Contents` (ref or array) or own `/Resources` `/XObject` names it, or when `/N` is not a stream -- closes the Pass 191.1 Backlog report. 728th filing (`f1b4df85`) marked 4 stale Backlog entries CLOSED and 3 PARTLY. The GitHub bug-report reply still awaits Ken's OK (do not post, do not cite it in public artifacts). Unreleased.
+**Latest:** 2026-09-29, `Pass 392.0` (`e9ab98ae`, filed 730th): `nonseparable_composited` now also counts a transparency group composited through Hue/Saturation/Color/Luminosity (one per group, in `run_form`'s layered branch); `nonseparable_pixels` stays direct-paint only. Unreleased.
+
+**Before that:** 2026-09-29, `Pass 391.0` (`afdc6797`, filed 729th): `appearance_slot` now copies (Allocate) instead of rewriting an `/AP` `/N` stream in place when a page's `/Contents` (ref or array) or own `/Resources` `/XObject` names it, or when `/N` is not a stream -- closes the Pass 191.1 Backlog report. 728th filing (`f1b4df85`) marked 4 stale Backlog entries CLOSED and 3 PARTLY. The GitHub bug-report reply still awaits Ken's OK (do not post, do not cite it in public artifacts). Unreleased.
 
 **Before that:** 2026-09-29, `Pass 390.0` (`f4a20856`, filed 727th): pdfcer-render's text matrix Tm/Tlm AND the Td/TD/Tm operands now f64 (`Mat64`), closing Pass 306.0's Backlog remainder. split_text_object now renders bit-identical (SW41177 237-run object, 7 cuts, 0 px at 1x/2x/4x; v0.63.0 had up to 812 px). BOTH halves were needed: the Mat64 chain alone left up to 86 px -- f32 operand parsing was the other half. Unsplit CAD pages render slightly differently from v0.63.0 (113 px at 1x, glyphs moved toward stated position) -- expect render-parity/golden shifts, if any, in that direction. Unreleased; next release writes OneDrive `pdfcer1`.
 
