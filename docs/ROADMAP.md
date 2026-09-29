@@ -10066,10 +10066,46 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **No named head.** `Pass 385.0` closed the `G061`–`G064` `pdfcer-gui`
-> feature-request batch opened the 711th filing; `Pass 386.0` (below)
-> shipped off-cycle from `G065`, not scoped through this queue. Nothing is
-> currently in *Next up*.
+> ★★★★★★★★★ **TWO ITEMS ADDED 2026-09-28 (719th filing) — `Pass 387.0`/
+> `Pass 387.1`, PROMOTED from *Backlog* (below) — the incremental-save
+> stored-password-value gap `Pass 345.0` named as its own remainder (630th
+> filing, "An incremental save can still carry an earlier revision's
+> plaintext password"). Nothing has shipped for either. `Pass 387.0` is now
+> the head of *Next up*; `387.0` ships before `387.1`.**
+>
+> - **`Pass 387.0`** — find stored password-field values in every revision
+>   (detection + disclosure). Core: a read-only scan splitting the file at
+>   each `%%EOF` marker (§7.5.6 incremental updates), opening each revision
+>   prefix, and listing every text field with the Password flag (§12.7.4.3
+>   Table 228 bit 14) holding a `/V` in that revision — field and revision
+>   named, the value itself never printed; a revision that cannot be opened
+>   (e.g. a linearized file's first-page section) is counted, not guessed.
+>   CLI: a read-only report subcommand listing where password values are
+>   stored (latest revision vs superseded revisions); `fill-field` on a
+>   Password field under the default incremental save states that the
+>   value it removed — and any earlier-revision value — is still in the
+>   file, and that a full rewrite is needed to drop it. Delivers core + cli
+>   (`gui [ ]`). Acceptance: a two-revision fixture (rev 1 stores a
+>   plaintext `/V`, rev 2 fills it withheld) reports the superseded value;
+>   a single-revision clean file reports none; the value never appears in
+>   output; sabotage-checked.
+> - **`Pass 387.1`** — purge stored password values (full-rewrite path).
+>   Core: an `EditSession` verb removing `/V` from every password field
+>   whose current value is stored, redrawing its appearance masked/empty,
+>   and removing the superseded BASE appearance stream that drew the
+>   plaintext when nothing else references it (a full rewrite keeps
+>   unreferenced objects otherwise — the orphan question, spec RAG
+>   `iso32000__ref__unreferenced_objects.md`). A read-only field is
+>   reported, not skipped silently. CLI: the purge writes a full rewrite by
+>   default (an incremental save cannot remove earlier revisions); states
+>   that existing signatures are invalidated by a full rewrite (R36) and
+>   refuses a signed file unless the operator opts in. Delivers core + cli
+>   (`gui [ ]`). Acceptance: after purge, re-running `387.0`'s scan on the
+>   output reports zero stored values in any revision, and a byte search of
+>   the output does not find the plaintext.
+>
+> Both: no new dependencies; core has no network; `docs/core-api` updated
+> when the pub verbs land.
 
 > ★★★★★★★★ **`Pass 386.0` SHIPPED, 2026-09-28 (716th filing), `3ffaef8e`** —
 > see top of *Shipped*. Off-cycle defect fix answering `pdfcer-gui` request
@@ -19592,9 +19628,9 @@ suspicion this entry recorded.
 
 ★ **Twenty-third fix shipped — 2026-09-27 (661st filing, `Pass 362.0`, `b65a988d`).** Narrows D4's stated Type0/composite-font limit, above: a `/DR` font with `/Encoding /Identity-H`, a horizontal descendant CIDFont (no `/W2`/`/DW2`), and a `/ToUnicode` CMap whose unambiguous inverse (R110) names U+0020, now binds and draws its own two-byte codes, measured against the descendant's `/W`/`/DW` (default 1000). Still stand-in: predefined non-Identity CMaps, Identity-V/vertical metrics, symbolic or unreadable simple fonts.
 
-### Unscoped — An incremental save can still carry an earlier revision's plaintext password — filed 2026-09-27 (630th filing, `Pass 345.0`'s own named remainder), no Pass ID
+### An incremental save can still carry an earlier revision's plaintext password — PROMOTED to *Next up* as `Pass 387.0`/`Pass 387.1`, 2026-09-28 (719th filing)
 
-`Pass 345.0` stops a NEW plaintext password from landing in `/V`/`/AP`, but an incremental save appends rather than removes: if an earlier revision of the file already holds a plaintext `/V` (written before this Pass, or by another tool), that revision's bytes remain on disk under the new xref, inherent to incremental update (`ARCHITECTURE.md` §5). Only a full rewrite drops it. **Scope, if picked up:** either a `regenerate-appearances`-style full-rewrite path that also purges stale plaintext password revisions, or a disclosed warning when opening a file with a Password field whose superseded revisions are inspected and found to carry `/V`.
+Was filed here 2026-09-27 (630th filing, `Pass 345.0`'s own named remainder), unscoped. Now scoped and moved to *Next up* — see `Pass 387.0` (detection + disclosure) and `Pass 387.1` (full-rewrite purge) above. Nothing remains here.
 
 ### Unscoped — An INDIRECT `/CO` reference is silently replaced by a fresh array on append, losing whatever else referenced it — filed 2026-09-16 (563rd filing, `Pass 308.6`), no Pass ID
 
