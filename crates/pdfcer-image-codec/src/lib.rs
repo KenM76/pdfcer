@@ -2128,6 +2128,84 @@ mod tests {
     }
 
     #[test]
+    fn jbig2_page_association_other_than_1_still_decodes() {
+        // §7.4.7 says an embedded stream's segments SHOULD carry page
+        // association 1; the decoder does not read the field, so any other
+        // value decodes the same picture rather than a blank page. Pinned
+        // because a decoder that filtered on page 1 would pass every other
+        // test here and blank these files.
+        let dict = jbig2_dict(vec![]);
+        for page in [0u8, 2, 7] {
+            let mut data = fixtures_bilevel::JBIG2_MMR_16X4.to_vec();
+            // The one-byte page-association field of each segment header
+            // (T.88 §7.2.6): segment 0 at offset 6, segment 1 at 30 + 6.
+            assert_eq!((data[6], data[36]), (1, 1));
+            data[6] = page;
+            data[36] = page;
+            let img = decode_fixture(&data, &dict).unwrap();
+            assert_eq!(
+                img.samples,
+                fixtures_bilevel::BILEVEL_16X4_SAMPLES,
+                "page {page}"
+            );
+        }
+    }
+
+    /// `JBIG2_MMR_16X4` wrapped in a T.88 file header (D.4) with `flags`,
+    /// segments laid out as `flags` bit 0 says: sequential keeps each
+    /// header beside its data, random-access puts both headers first.
+    fn jbig2_file(flags: u8) -> Vec<u8> {
+        let seg = fixtures_bilevel::JBIG2_MMR_16X4;
+        let mut out = vec![0x97, 0x4A, 0x42, 0x32, 0x0D, 0x0A, 0x1A, 0x0A, flags];
+        if flags & 0x02 == 0 {
+            out.extend_from_slice(&1u32.to_be_bytes());
+        }
+        if flags & 0x01 != 0 {
+            out.extend_from_slice(seg);
+        } else {
+            // Segment 0: header 0..11, data 11..30; segment 1: header
+            // 30..41, data 41..80. The header list ends at an end-of-file
+            // segment (type 51, T.88 §7.4.11), the only thing marking where
+            // the data part begins.
+            for range in [0..11, 30..41] {
+                out.extend_from_slice(&seg[range]);
+            }
+            out.extend_from_slice(&[0, 0, 0, 2, 0x33, 0x00, 0x01, 0, 0, 0, 0]);
+            for range in [11..30, 41..80] {
+                out.extend_from_slice(&seg[range]);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn jbig2_with_a_file_header_decodes_in_either_organisation() {
+        let dict = jbig2_dict(vec![]);
+        for flags in [0x01, 0x03, 0x00, 0x02] {
+            let img = decode_fixture(&jbig2_file(flags), &dict).unwrap();
+            assert_eq!(
+                img.samples,
+                fixtures_bilevel::BILEVEL_16X4_SAMPLES,
+                "flags {flags:#04x}"
+            );
+        }
+    }
+
+    #[test]
+    fn jbig2_file_header_with_globals_is_refused() {
+        let doc = document_with_globals(fixtures_bilevel::JBIG2_MMR_16X4_GLOBALS);
+        let dict = jbig2_dict(vec![(
+            b"JBIG2Globals",
+            Object::Reference(pdfcer_model::object::ObjId::new(3, 0)),
+        )]);
+        let err = decode_image(&doc, &dict, &jbig2_file(0x01), false).unwrap_err();
+        assert!(
+            matches!(&err, ImageCodecError::Corrupt { detail, .. } if detail.contains("file header")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
     fn jbig2_corrupt_segments_err() {
         let dict = jbig2_dict(vec![]);
         for bad in [&b""[..], b"not jbig2 at all", &[0xFF; 40]] {

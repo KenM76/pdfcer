@@ -110,7 +110,8 @@ use pdfcer_model::view::DocumentView;
 /// Decode a `JBIG2Decode` codestream.
 ///
 /// `data` is the embedded JBIG2 stream (T.88 Annex D.3 organization)
-/// after any byte-stream filter prefix; `parms` is the codec's own
+/// after any byte-stream filter prefix, or a whole T.88 file (Annex D.1
+/// or D.2, recognised by its header) that a producer embedded instead; `parms` is the codec's own
 /// `/DecodeParms` entry, consulted for `/JBIG2Globals`; `dict` is the
 /// image dictionary, used only for geometry reconciliation; `notes`
 /// accumulates the honesty counters.
@@ -131,7 +132,22 @@ pub(super) fn decode(
 ) -> Result<CodedImage, ImageCodecError> {
     let globals = globals(doc, parms)?;
 
-    let image = Image::new_embedded(data, globals.as_deref()).map_err(corrupt)?;
+    let image = if data.starts_with(&FILE_HEADER_ID) {
+        // A whole T.88 file (Annex D.1 sequential or D.2 random-access)
+        // where §7.4.7 allows only the Annex D.3 embedded organisation. The
+        // bytes are unambiguous, so read them rather than refuse. Such a
+        // file carries every segment it needs, so a `/JBIG2Globals` beside
+        // it has no defined place in the segment order.
+        if globals.is_some() {
+            return Err(corrupt_detail(
+                "a JBIG2 file header together with /JBIG2Globals: the file organisation has no place for global segments",
+            ));
+        }
+        Image::new(data)
+    } else {
+        Image::new_embedded(data, globals.as_deref())
+    }
+    .map_err(corrupt)?;
     let (width, height) = (image.width(), image.height());
 
     // The ONE correct place for the ceiling: after the segment headers
@@ -258,6 +274,11 @@ fn corrupt(err: hayro_jbig2::DecodeError) -> ImageCodecError {
         detail: err.to_string(),
     }
 }
+
+/// The JBIG2 file-header ID string (T.88 D.4.1). An embedded stream
+/// starting with these bytes would need segment number `0x974A4232`, so the
+/// match is not ambiguous in practice.
+const FILE_HEADER_ID: [u8; 8] = [0x97, 0x4A, 0x42, 0x32, 0x0D, 0x0A, 0x1A, 0x0A];
 
 /// A corrupt-stream error raised by pdfcer's own checks.
 fn corrupt_detail(detail: &str) -> ImageCodecError {
