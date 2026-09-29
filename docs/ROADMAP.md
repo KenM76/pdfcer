@@ -115,6 +115,39 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 119.3` (`b7778479`), 2026-09-29 — `pdfcer-render`'s nested-form resource fallback now matches `text_edit::forms`
+
+Closes the Backlog entry filed 2026-08-20 (`FX-A1`, spec-ambiguity
+register). ISO 32000-1 §7.8.3 bullet 4 (and Table 112 for Type 3 fonts)
+gives a resource-less form "the page on which they are used." The
+renderer instead used the **calling stream's** resources — identical to
+the page's at depth 0, but wrong for page → A → B where only A carries
+`/Resources`. `text_edit::forms` already followed the clause; the two
+diverged only on that nested case.
+
+**Fix.** `Interpreter` now carries `page_resources` through every nested
+run. A new private `inherited_resources()` returns the page's resources,
+or the caller's when the page has none; used by form `Do`, soft-mask
+groups, and Type 3 glyph procedures (which had the same bug — Table 112
+says "PAGE" explicitly). An empty `/Resources << >>` now counts as absent
+in form `Do` and soft masks, matching `text_edit::forms`. Disclosure text
+is now "Do(form without /Resources - inherited)", still tolerated.
+
+**Docs.** `pdfcer-core/src/text_edit/forms.rs`'s "One divergence from
+pdfcer-render" section replaced with "The renderer resolves the same
+way."
+
+**Test.** `crates/pdfcer-render/src/lib.rs`
+`nested_form_without_resources_inherits_the_pages_not_the_callers` —
+sabotage-verified (returning the caller's resources fails it).
+
+**Tests.** pdfcer-render 428 + 371 + 18 green; `cargo clippy -- -D
+warnings` clean. No manifest change (`cargo tree` n/a). No `pub` API
+change. Behaviour unchanged at depth 0; render parity unaffected.
+
+**`docs/FEATURES.md`.** No row change — render correctness on an edge
+case, not a new capability.
+
 ### `Pass 405.0` (`36f3bad5`), 2026-09-29 — CLI `--help` ships no internal decision/rule/request IDs
 
 Fixes the leak found during the `v0.66.0` release smoke test (recorded in
@@ -24913,17 +24946,6 @@ appending to a form's content stream changes **every** invocation site
 that paints it, a different disclosure shape than `edit_text`'s or
 `format_text`'s single-target report — this is not merely unfinished
 work, it needs its own disclosure design before it can ship safely.
-
-### `Pass 119.3` — align `pdfce-render`'s nested-form resource fallback with `text_edit::forms`
-
-**Filed 2026-08-20 (two-hundred-and-ninth filing).** `pdfce-render`'s `Do`
-handler inherits the **caller's** resources for a resource-less *nested*
-form XObject; `text_edit::forms.rs` inherits the **page's**, per §7.8.3's
-literal reading (`FX-A1`, spec corpus, ambiguity register). Identical at
-depth 0 — every real file measured so far — divergent only for a nested
-form that both omits `/Resources` and is itself invoked from inside
-another form. Filed so the inconsistency is tracked rather than latent;
-not urgent, no known fixture exercises it.
 
 ### `Pass 120.5` — a versioned annotation payload for `ObjectClip`, so a clip's annotations survive `to_bytes`/`from_bytes` — ★★★ **CLOSED 2026-08-29: FULLY DISCHARGED BY `Pass 169.0` (`fe78023`) + `Pass 173.1` (`f07ec78`). NOTHING REMAINS IN SCOPE — DO NOT RE-SCOPE THIS. READ THE AMENDMENTS FIRST**
 

@@ -4,6 +4,55 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (753rd filing) — `b7778479`: `Pass 119.3` shipped — nested-form resource fallback aligned
+
+**Shipped:**
+- `Pass 119.3` (`b7778479`, on top of `b37cda5d`) — `pdfcer-render`'s
+  nested-form resource fallback now matches `text_edit::forms`. Closes
+  the Backlog entry filed 2026-08-20 citing `FX-A1`.
+
+**Decisions made this session:** None — bug fix aligning renderer
+behaviour with an already-decided spec reading; no new crate boundary
+or invariant.
+
+**Findings + decisions:**
+- ISO 32000-1 §7.8.3 bullet 4 (and Table 112 for Type 3 fonts) gives a
+  resource-less form "the page on which they are used." The renderer
+  used the calling stream's resources instead — identical to the
+  page's at depth 0 (every real file measured so far), divergent only
+  for page → A → B where only A carries `/Resources`.
+  `text_edit::forms` already followed the clause; the renderer now
+  does too via a new `inherited_resources()` helper, used by form
+  `Do`, soft-mask groups, and Type 3 glyph procedures (which had the
+  identical bug against Table 112's explicit "PAGE" wording). An empty
+  `/Resources << >>` now counts as absent, matching `text_edit::forms`.
+- Test `nested_form_without_resources_inherits_the_pages_not_the_callers`
+  (`crates/pdfcer-render/src/lib.rs`) is sabotage-verified.
+- pdfcer-render 428 + 371 + 18 tests green; clippy clean; no manifest
+  or `pub` API change; behaviour unchanged at depth 0.
+- `docs/FEATURES.md`: no row touched — render correctness on an edge
+  case, not a new capability.
+- Two `NEXT_SESSION.md`-carried "open" items found stale, corrected
+  there:
+  - "R218 injection tests for six gates" was already discharged by
+    `Pass 402.0` (`409eb188`), which injection-tested every
+    file-scanning gate.
+  - "`ButtonActionState` GoTo/SubmitForm" is Backlog-parked by its own
+    entry ("build it when a panel needs the destination on screen, not
+    before"; pdfceGUI accepted the unmodelled shape) — not an open
+    to-do.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** `tools/verify-release.py v0.66.0`'s CI check was
+still pending as of the 751st filing — confirm it went green (carried
+from the prior entry, still unconfirmed).
+
+**Sourcing (hard rule 8).** No shell tool this filing — test counts,
+clippy/gate results and the sabotage-verification claim are relayed
+from the dispatching engineer's own report, not independently
+reproduced here.
+
 ## 2026-09-29 (752nd filing) — `36f3bad5`: `Pass 405.0` shipped — CLI `--help` ships no internal IDs
 
 **Shipped:**
