@@ -426,6 +426,91 @@ fn clear_cells(samples: &mut [u8], width: u32, components: u32, bpc: u32, cells:
     }
 }
 
+/// Whether every sample in `cells` already has all-zero (`set == false`) or
+/// all-one (`set == true`) bits: the state [`clear_cells`] leaves behind.
+fn cells_hold(
+    samples: &[u8],
+    width: u32,
+    components: u32,
+    bpc: u32,
+    cells: Cells,
+    set: bool,
+) -> bool {
+    let stride = row_bytes(width, components, bpc);
+    let bits = u64::from(components) * u64::from(bpc);
+    (cells.row0..cells.row1).all(|row| {
+        let row_start = (row as usize).saturating_mul(stride);
+        let first_bit = u64::from(cells.col0) * bits;
+        let end_bit = u64::from(cells.col1) * bits;
+        (first_bit..end_bit).all(|bit| {
+            // Past the end reads as zero, as `decode` pads short data.
+            let byte = samples
+                .get(row_start + (bit / 8) as usize)
+                .copied()
+                .unwrap_or(0);
+            (byte & (0x80u8 >> (bit % 8)) != 0) == set
+        })
+    })
+}
+
+/// Whether the image XObject `id`, placed by `ctm`, puts **no ink** in any of
+/// `regions`: every sample cell the regions reach holds the colour space's
+/// paper value, or its `/SMask` is fully transparent there. That is the
+/// state a redaction leaves a partially covered placement in, so a scan can
+/// tell "cleared, still drawn across the edge" from "still carries content".
+///
+/// Cells are chosen exactly as [`covered_cells`] chooses them for clearing
+/// (snapped outward). `None` when the samples cannot be decoded: the caller
+/// cannot claim the region is empty.
+pub(crate) fn region_is_inkless(
+    view: &DocumentView<'_>,
+    id: ObjId,
+    ctm: Mat,
+    regions: &[RegionBox],
+    resources: &Dict,
+) -> Option<bool> {
+    let Some(Object::Stream(stream)) = view.graph().value(id) else {
+        return None;
+    };
+    let raw = view.slice(stream.data_span)?;
+    let img = decode(view, &stream.dict, raw, false, resources).ok()?;
+    let reached = |w: u32, h: u32| -> Vec<Cells> {
+        regions
+            .iter()
+            .filter_map(|r| covered_cells(ctm, *r, w, h))
+            .collect()
+    };
+    if reached(img.width, img.height).iter().all(|c| {
+        cells_hold(
+            &img.samples,
+            img.width,
+            img.components,
+            img.bpc,
+            *c,
+            img.paper,
+        )
+    }) {
+        return Some(true);
+    }
+    // Ink in the colour samples is still invisible under a zero soft mask.
+    let Some(Object::Stream(sm)) = stream.dict.get(b"SMask").map(|o| view.graph().resolve(o))
+    else {
+        return Some(false);
+    };
+    let sm_raw = view.slice(sm.data_span)?;
+    let alpha = decode(view, &sm.dict, sm_raw, false, resources).ok()?;
+    Some(reached(alpha.width, alpha.height).iter().all(|c| {
+        cells_hold(
+            &alpha.samples,
+            alpha.width,
+            alpha.components,
+            alpha.bpc,
+            *c,
+            false,
+        )
+    }))
+}
+
 /// A decoded image in the shape the re-encoder needs: raw §8.9.3 samples
 /// plus the geometry that describes them, already reconciled between the
 /// dictionary and the codestream.

@@ -71,6 +71,7 @@ pub(crate) fn cmd_scan_offpage(
     let mut unreadable_files = 0usize;
     let mut fully = 0usize;
     let mut partial = 0usize;
+    let mut blank_overhang = 0usize;
 
     for path in &files {
         let doc = match std::fs::read(path)
@@ -103,6 +104,7 @@ pub(crate) fn cmd_scan_offpage(
             );
         }
 
+        blank_overhang += scans.iter().map(|s| s.inkless_overhang).sum::<usize>();
         let hits: Vec<_> = scans.iter().filter(|s| !s.is_clean()).collect();
         if hits.is_empty() {
             continue;
@@ -162,12 +164,13 @@ pub(crate) fn cmd_scan_offpage(
     }
 
     let summary = format!(
-        "scan-offpage files={} affected_files={} affected_pages={} fully_off={} partial={} unreadable_files={} tolerance={tolerance}",
+        "scan-offpage files={} affected_files={} affected_pages={} fully_off={} partial={} blank_overhang={} unreadable_files={} tolerance={tolerance}",
         files.len(),
         affected_files,
         affected_pages,
         fully,
         partial,
+        blank_overhang,
         unreadable_files,
     );
 

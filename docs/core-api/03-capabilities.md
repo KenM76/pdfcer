@@ -3769,7 +3769,7 @@ The text flows (Acrobat's "flowing text" mode, not a positioned replica):
 `core [x] · cli [x] · gui [ ]`
 
 `pdfcer_core::offpage` — `scan_page`, `scan_model`, `scan_document`,
-`offpage_bands`. Types: `PageScan { page_index, page_box, drawn, objects }`,
+`offpage_bands`. Types: `PageScan { page_index, page_box, drawn, objects, inkless_overhang }`,
 `OffPageObject { kind, bbox, how, text }`, `OffPage::{Fully, Partial}`,
 `UnreadablePage = (usize, String)`. Constants: `DEFAULT_TOLERANCE_PT = 0.25`,
 `BAND_MARGIN = 1.0`.
@@ -3855,11 +3855,17 @@ exception to minimal-diff).
   off-page content — which reads as *"the removal did not work"* when it worked
   exactly. Objects that paint nothing are not counted, judged per run by glyph
   ink rather than by recovered text, so a font with no `/ToUnicode` still counts.
-- **KNOWN LIMIT, stated rather than left to be discovered:** a fully-off image
-  that straddles **two** bands may survive, because the covered-region test is
-  per-band and the union is what matters. Measured: 17 of 174 cleaned files
-  carried 23 such objects between them. They are **reported by `scan-offpage`**,
-  not silently left.
+- **An image cleared past the edge is not counted again.** `redact-offpage`
+  cannot move a placement, so a cleared image still *draws* across the page
+  edge. `scan_page` decodes each image whose geometry crosses the edge and,
+  when every sample outside the page box is paper (or fully transparent under
+  its `/SMask`), counts it in `PageScan::inkless_overhang` instead of
+  `objects`. The CLI prints the sum as `blank_overhang=`. A scanned sheet with
+  a white margin a hair past the edge lands there too. `scan_model` has no
+  samples and always reports 0. Measured on 17 re-cleaned drawings: 12
+  residuals became 1 real glyph overhang plus 11 blank, at no scan-time cost.
+- **A fully off-page image straddling two bands is removed**: coverage is
+  tested against the union of the bands, not per band.
 - **`scan-offpage`'s exit code is a verdict, not an early stop.** `0` when
   nothing was found, `1` when something was, delivered at the END of the run.
   Every file and every page is always scanned; a file that will not open is

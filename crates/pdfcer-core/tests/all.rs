@@ -110,6 +110,7 @@ mod object_renders_for_an_operator;
 mod ocr_layer;
 mod ocr_layer_marker;
 mod ocr_session;
+mod offpage_blank_overhang;
 mod operator_span_invariant;
 mod outline;
 mod outline_authoring;

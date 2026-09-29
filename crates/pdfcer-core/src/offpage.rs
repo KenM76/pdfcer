@@ -66,7 +66,10 @@
 //! found nothing, it has been told not to look.
 
 use crate::page_tree::{Page, Rect};
-use crate::vector::decompose::{PageObjects, VectorObject, decompose_page};
+use crate::redact::{Mat, RegionBox};
+use crate::vector::decompose::{
+    ImageObject, ImageSource, PageObjects, VectorObject, decompose_page,
+};
 use crate::vector::geometry::{Bounds, Matrix};
 use crate::view::DocumentView;
 
@@ -99,30 +102,6 @@ pub enum OffPage {
     Partial,
 }
 
-/// A `Partial` IMAGE SURVIVES A CLEAN BY DESIGN, AND THIS SCAN STILL
-/// REPORTS IT — measured 2026-09-12, recorded rather than fixed.
-///
-/// After `redact-offpage`, 12 objects across 7 of the operator's 174 drawings
-/// are still reported, all `Partial`. They are **not a removal failure.**
-///
-/// `redact_image::covered_cells` snaps **outward** (`floor`/`ceil`), so an
-/// image overhanging the page by 1 pt does have its off-page sample columns
-/// cleared. What clearing cannot do is move the placement: the image is still
-/// *drawn* extending past the page box, so its bounding box still crosses the
-/// edge and this scan — which classifies by GEOMETRY — still counts it.
-///
-/// ⇒ It is the same shape as the empty text husk `Pass 294.2` fixed, one type
-/// over: **the scan reporting its own output.** There the fix was to stop
-/// counting runs that paint nothing; the analogous rule here is to stop
-/// counting an image whose off-page cells carry no ink.
-///
-/// That fix is deliberately NOT taken here, because it needs the samples,
-/// and decoding every image during a scan is precisely what made the first
-/// `redact-offpage` take ten minutes on one file (`Pass 294.1`). It wants a
-/// measurement — how many placements, how much decode — not a guess at
-/// 4 a.m. Until then the count is honest about the geometry and misleading
-/// about the ink, and this paragraph is the disclosure.
-///
 /// One object that is not wholly on its page.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -158,6 +137,11 @@ pub struct PageScan {
     pub drawn: Bounds,
     /// The objects that are not wholly on the page, in paint order.
     pub objects: Vec<OffPageObject>,
+    /// Images that cross the page edge but whose samples outside it are all
+    /// paper (or fully transparent) -- what `redact-offpage` leaves behind.
+    /// Counted here, not in `objects`: nothing of them shows off the page.
+    /// Always 0 from [`scan_model`], which has no samples to look at.
+    pub inkless_overhang: usize,
 }
 
 impl PageScan {
@@ -204,13 +188,26 @@ pub fn scan_page(
     tolerance: f64,
 ) -> Result<PageScan, crate::content::ContentError> {
     let model = decompose_page(view, page, Matrix::IDENTITY)?;
-    Ok(scan_model(&model, page, page_index, tolerance))
+    let inkless = |img: &ImageObject, grown: &Rect| overhang_is_inkless(view, page, img, grown);
+    Ok(classify(&model, page, page_index, tolerance, &inkless))
 }
 
 /// The classification half of [`scan_page`], split out so a caller that
 /// already has a decomposition does not pay for a second one.
 #[must_use]
 pub fn scan_model(model: &PageObjects, page: &Page, page_index: usize, tolerance: f64) -> PageScan {
+    classify(model, page, page_index, tolerance, &|_, _| false)
+}
+
+/// [`scan_model`], with `inkless` asked about each image that crosses the
+/// edge: `true` drops it from `objects` into `inkless_overhang`.
+fn classify(
+    model: &PageObjects,
+    page: &Page,
+    page_index: usize,
+    tolerance: f64,
+    inkless: &dyn Fn(&ImageObject, &Rect) -> bool,
+) -> PageScan {
     let page_box = page.crop_box;
     let tol = tolerance.max(0.0);
     // The tolerant page box: an object must exceed THIS to be reported.
@@ -222,6 +219,7 @@ pub fn scan_model(model: &PageObjects, page: &Page, page_index: usize, tolerance
     };
 
     let mut objects = Vec::new();
+    let mut inkless_overhang = 0;
     for obj in &model.objects {
         let bbox = obj.page_bbox();
         if !is_finite(&bbox) {
@@ -251,6 +249,12 @@ pub fn scan_model(model: &PageObjects, page: &Page, page_index: usize, tolerance
         } else if contained(&grown, &bbox) {
             continue;
         } else {
+            if let VectorObject::Image(img) = obj
+                && inkless(img, &grown)
+            {
+                inkless_overhang += 1;
+                continue;
+            }
             OffPage::Partial
         };
         objects.push(OffPageObject {
@@ -266,7 +270,59 @@ pub fn scan_model(model: &PageObjects, page: &Page, page_index: usize, tolerance
         page_box,
         drawn: model.page_bbox(),
         objects,
+        inkless_overhang,
     }
+}
+
+/// Whether an image XObject crossing the page edge puts no ink outside
+/// `grown` (the tolerant page box) -- the state `redact-offpage` leaves a
+/// partial image in (`crate::redact_image::region_is_inkless`).
+///
+/// Decodes the image, so it runs only for placements the geometry already
+/// flagged as crossing the edge. An inline image, a form, or samples that
+/// will not decode answer `false`: the scan keeps reporting what it could
+/// not prove empty.
+fn overhang_is_inkless(
+    view: &DocumentView<'_>,
+    page: &Page,
+    img: &ImageObject,
+    grown: &Rect,
+) -> bool {
+    let (ImageSource::XObject, Some(id)) = (img.source, img.xobject) else {
+        return false;
+    };
+    let b = img.page_bbox;
+    let (x0, y0) = (
+        b.min.x.min(grown.llx) - BAND_MARGIN,
+        b.min.y.min(grown.lly) - BAND_MARGIN,
+    );
+    let (x1, y1) = (
+        b.max.x.max(grown.urx) + BAND_MARGIN,
+        b.max.y.max(grown.ury) + BAND_MARGIN,
+    );
+    let band = |min_x, min_y, max_x, max_y| RegionBox {
+        min_x,
+        min_y,
+        max_x,
+        max_y,
+    };
+    // The same four bands `offpage_bands` hands the redaction.
+    let regions = [
+        band(x0, grown.ury, x1, y1),
+        band(x0, y0, x1, grown.lly),
+        band(x0, grown.lly, grown.llx, grown.ury),
+        band(grown.urx, grown.lly, x1, grown.ury),
+    ];
+    let m = img.ctm;
+    let ctm = Mat {
+        a: m.a,
+        b: m.b,
+        c: m.c,
+        d: m.d,
+        e: m.e,
+        f: m.f,
+    };
+    crate::redact_image::region_is_inkless(view, id, ctm, &regions, &page.resources) == Some(true)
 }
 
 /// One page that could not be read, and why — the second half of
@@ -500,6 +556,7 @@ mod tests {
     fn the_four_bands_tile_the_outside_without_overlapping() {
         let scan = PageScan {
             page_index: 0,
+            inkless_overhang: 0,
             page_box: page_box(),
             drawn: bounds(-50.0, -50.0, 150.0, 150.0),
             objects: vec![OffPageObject {
@@ -536,6 +593,7 @@ mod tests {
     fn a_clean_page_produces_no_bands() {
         let scan = PageScan {
             page_index: 0,
+            inkless_overhang: 0,
             page_box: page_box(),
             drawn: bounds(10.0, 10.0, 90.0, 90.0),
             objects: Vec::new(),
