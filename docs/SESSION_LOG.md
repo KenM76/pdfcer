@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (720th filing) — `93fd97ca`: `Pass 387.0` SHIPPED — find password-field values left in earlier revisions
+
+**Shipped:**
+- `Pass 387.0` (`93fd97ca`) — new core module `pdfcer_core::password_history`: `revision_ends(bytes)` splits a file at each `%%EOF`; `scan_stored_password_values(bytes, open)` opens each revision prefix and lists every Password-flag text field holding a `/V` there (field + revision only, value never printed; an unopenable prefix is counted, not guessed). CLI `pdfcer password-values INPUT` reports stored/superseded/unreadable counts; `fill-field`'s incremental-save path now names any password field whose earlier value survives, pointing at `--mode full`. 6 new core unit tests + 3 new CLI integration tests, both sabotage-checked. `tools/run-gates.sh` PASS, 40 commands. No manifest/writer change. Full record: `ROADMAP.md` *Shipped*, top of file.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- None beyond the `Pass 387.0` entry.
+
+**Still in flight:**
+- `Pass 387.1` (full-rewrite purge of stored password values) is now the sole head of *Next up*.
+- Amended the `v0.62.0` Shipped entry's CI line: `741c9cb1` has since gone green (was recorded pending at the 718th filing) — dated amendment footer added in place, not a rewrite.
+
+**For next session:**
+- No shell this filing (hard rule 8) — facts relayed from the dispatching engineer's own report at `93fd97ca`, not independently reproduced.
+
 ## 2026-09-28 (718th filing) — `741c9cb1`: `v0.62.0` RELEASED
 
 **Shipped:**

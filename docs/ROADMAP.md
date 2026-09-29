@@ -115,6 +115,66 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 387.0` (`93fd97ca`), 2026-09-28 — find password-field values left in earlier revisions
+
+**Verdict: SHIPPED.** Head of *Next up* (promoted from *Backlog* 719th
+filing, from `Pass 345.0`'s own named remainder — "An incremental save can
+still carry an earlier revision's plaintext password"). `Pass 387.1`
+(full-rewrite purge) stays in *Next up*, now its sole head.
+
+**Core.** New module `pdfcer_core::password_history`. `revision_ends(bytes)
+-> Vec<usize>` splits a file at each `%%EOF` marker plus its EOL (§7.5.6
+incremental updates) — one end per revision, the last always
+`bytes.len()`. `scan_stored_password_values(bytes, open) ->
+PasswordValueScan` opens each revision prefix and lists every text field
+with the Password flag (§12.7.4.3 Table 228 bit 14) holding a `/V` in that
+revision — field name and revision number only; **the value itself is
+never returned**. A prefix that fails to open (e.g. a linearized file's
+first-page section) is counted in `unreadable_revisions`, not guessed at.
+`in_latest()`/`in_superseded()` split the `stored: Vec<StoredPasswordValue>`
+list; `PasswordValueScan` is `#[non_exhaustive]`.
+
+**CLI.** New subcommand `pdfcer password-values INPUT`: one `stored
+field=<sanitized> revision=N latest=0|1` line per finding, a summary line
+`password-values <in> revisions=… unreadable_revisions=… latest=…
+superseded=…`, stderr advice when `superseded>0` or `unreadable>0`; exit 0
+regardless (a report, not a refusal). `fill-field` under the default
+incremental save now names each withheld password field whose earlier
+value remains in an input revision, pointing at `--mode full`.
+
+**Tests.** 6 new core unit tests (sabotage: scanning only the last revision
+failed 2 of them); 3 new CLI integration tests,
+`crates/pdfcer-cli/tests/password_values.rs` (sabotage: disabling the
+`fill-field` note failed 1).
+
+**Gates.** `tools/run-gates.sh` PASS, 40 commands incl. 2 filing gates.
+
+**`cargo tree`.** No dependency change.
+
+**Round-trip.** Read-only scan; `fill-field`'s save path is unchanged
+apart from the new stderr note. `docs/core-api/02-editing-and-saving.md`
+gained one row (a free function, not an `EditSession` verb);
+`docs/core-api/index.md` counts and `README.md`'s subcommand count
+(180 → 181) updated.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — not wired.
+
+**`docs/FEATURES.md`.** New row, *Implemented → Forms*: core `[x]`, cli
+`[x]`, gui `[ ]`. The combined *Planned* row this and `Pass 387.1`
+previously shared is narrowed to `Pass 387.1` (purge) alone, still
+unticked in all three columns.
+
+**No §12 decision.** New read-only module, no crate boundary or invariant
+change. Highest decision record stays `165`.
+
+**Also filed this session.** `v0.62.0`'s Shipped entry below recorded CI
+at `741c9cb1` as pending; CI has since completed **green** — amended in
+place with a dated footer rather than editing the original claim.
+
+**Sourcing (hard rule 8).** No shell this filing — facts relayed from the
+dispatching engineer's own report at `93fd97ca`, not independently
+reproduced.
+
 ### `v0.62.0` — RELEASED (2026-09-28)
 
 Release filing, not a Pass — completes the engineer's in-progress release
@@ -158,6 +218,11 @@ previous. Next release writes `pdfcer2`.
 filing time — not yet confirmed green (the OneDrive check ran before
 deploy, ahead of CI). Recorded here as pending, not green.
 
+**★ AMENDED 2026-09-28 (720th filing, `Pass 387.0`'s own entry above).**
+CI at `741c9cb1` has since completed **green** — per the dispatching
+engineer's report accompanying `Pass 387.0`; not independently re-checked
+from here (no shell).
+
 **`docs/FEATURES.md`: no rows changed** — a release ships no new
 capability of its own; all contents were already filed per-Pass.
 
@@ -181,7 +246,7 @@ release/deploy/smoke-test steps, not independently reproduced.
 | Decision records | `165` | unchanged — a release carries no decision |
 | `SESSION_LOG` filings | `717` | **`718`** |
 | `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
-| CI at the tagged commit | not yet confirmed pre-release | **pending at `741c9cb1` — not yet green at filing time** |
+| CI at the tagged commit | not yet confirmed pre-release | pending at `741c9cb1` at filing time — **amended 720th filing: green** |
 
 ---
 
@@ -10066,29 +10131,13 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★★★★★ **TWO ITEMS ADDED 2026-09-28 (719th filing) — `Pass 387.0`/
-> `Pass 387.1`, PROMOTED from *Backlog* (below) — the incremental-save
-> stored-password-value gap `Pass 345.0` named as its own remainder (630th
-> filing, "An incremental save can still carry an earlier revision's
-> plaintext password"). Nothing has shipped for either. `Pass 387.0` is now
-> the head of *Next up*; `387.0` ships before `387.1`.**
+> ★★★★★★★★★ **UPDATED 2026-09-28 (720th filing) — `Pass 387.0` SHIPPED
+> (`93fd97ca`, `ROADMAP.md` *Shipped*, top of file). `Pass 387.1` is now
+> the SOLE head of *Next up*.** (Previously: both items added 719th filing,
+> promoted from *Backlog*, the incremental-save stored-password-value gap
+> `Pass 345.0` named as its own remainder — 630th filing, "An incremental
+> save can still carry an earlier revision's plaintext password.")
 >
-> - **`Pass 387.0`** — find stored password-field values in every revision
->   (detection + disclosure). Core: a read-only scan splitting the file at
->   each `%%EOF` marker (§7.5.6 incremental updates), opening each revision
->   prefix, and listing every text field with the Password flag (§12.7.4.3
->   Table 228 bit 14) holding a `/V` in that revision — field and revision
->   named, the value itself never printed; a revision that cannot be opened
->   (e.g. a linearized file's first-page section) is counted, not guessed.
->   CLI: a read-only report subcommand listing where password values are
->   stored (latest revision vs superseded revisions); `fill-field` on a
->   Password field under the default incremental save states that the
->   value it removed — and any earlier-revision value — is still in the
->   file, and that a full rewrite is needed to drop it. Delivers core + cli
->   (`gui [ ]`). Acceptance: a two-revision fixture (rev 1 stores a
->   plaintext `/V`, rev 2 fills it withheld) reports the superseded value;
->   a single-revision clean file reports none; the value never appears in
->   output; sabotage-checked.
 > - **`Pass 387.1`** — purge stored password values (full-rewrite path).
 >   Core: an `EditSession` verb removing `/V` from every password field
 >   whose current value is stored, redrawing its appearance masked/empty,
@@ -10104,8 +10153,8 @@ closes out the *prior* filing's business rather than opening this one's.
 >   output reports zero stored values in any revision, and a byte search of
 >   the output does not find the plaintext.
 >
-> Both: no new dependencies; core has no network; `docs/core-api` updated
-> when the pub verbs land.
+> No new dependencies; core has no network; `docs/core-api` updated when
+> the pub verb lands.
 
 > ★★★★★★★★ **`Pass 386.0` SHIPPED, 2026-09-28 (716th filing), `3ffaef8e`** —
 > see top of *Shipped*. Off-cycle defect fix answering `pdfcer-gui` request
