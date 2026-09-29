@@ -457,7 +457,7 @@ provisional; re-verify before any acceptance criterion leans on them.
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
-| — | [x] | — | **[ ]** | A first-class scriptable CLI over the capabilities above. **Every subcommand's output write is atomic** (temp file + `sync_all` + rename, `edit_common::write_output`, `Pass 397.0`) — `-o` naming the command's own input now edits it in place safely instead of truncating it on a failed write. |
+| — | [x] | — | **[ ]** | A first-class scriptable CLI over the capabilities above. **Every subcommand's output write is atomic** (temp file + `sync_all` + rename, `edit_common::write_output`, `Pass 397.0`) — `-o` naming the command's own input now edits it in place safely instead of truncating it on a failed write. **An explicit `--in-place` flag now exists on the 121 editing subcommands whose `--output` names the edited PDF itself** (`Pass 406.0`), mutually exclusive with `--output`; commands whose output isn't the edited PDF (`export-*`/`extract-*`, `render-page`, `round-trip`, `stamp-pack`, `copy-field`, `place-text`) don't offer it. |
 | [x] | [x] | [x] | — | Live-edit canvas — renders the edited revision, not a static image. |
 | — | — | [x] | — | Pan, zoom-to-cursor, marquee select. **Marquee is full-enclosure only.** |
 | — | — | [x] | — | Dockable panel shell, ribbon, fixed Quick Access Toolbar, density convention. |

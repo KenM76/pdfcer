@@ -115,6 +115,42 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 406.0` (`385b2a71`), 2026-09-29 — `--in-place` on every CLI subcommand that edits its input PDF
+
+Closes the Backlog entry filed 2026-08-27 (279th filing), partly addressed
+2026-09-29 by `Pass 397.0` — see that entry below for the closing note.
+
+**Shipped.** New module `crates/pdfcer-cli/src/in_place.rs`. `with_in_place()`
+adds `--in-place` at parse time to the 121 subcommands listed in
+`IN_PLACE_COMMANDS` (conflicts with `--output`; a required `--output`
+becomes required-unless-`--in-place`); `resolve_in_place()` rewrites the
+`--in-place` token to `--output <INPUT>`. No `Command` enum variant
+changed — `dispatch::parse_cli(args)` is the single parse entry. Safety
+rests on `Pass 397.0`'s `edit_common::write_output` (temp file + rename): a
+refused or failed edit leaves the input byte-identical.
+
+**Deliberately not offered** (`tests.rs` `NOT_IN_PLACE`): commands whose
+`--output` is not the edited PDF itself (`copy-field`; the `export-*`/
+`extract-*` family; `render-page`; `round-trip`; `stamp-pack`); `place-text`
+(input is a text file, not a PDF); `encrypt`/`set-permissions`/
+`remove-encryption` (`OUTPUT` is positional there — a possible follow-up,
+left unscoped).
+
+**Tests.** Unit: `in_place_covers_every_input_output_subcommand` (every
+subcommand with input+output args is on exactly one of the two lists — a
+new one forces a decision), `in_place_becomes_output_equal_to_input`,
+`in_place_refuses_output_and_requires_one_of_them` (sabotage-verified: a
+no-op rewrite fails it). Integration: `crates/pdfcer-cli/tests/in_place.rs`
+(2 tests — `set-info --in-place` appends a revision; a refused
+`delete-pages --in-place` exits 9, file byte-identical).
+
+**Tests.** pdfcer bin unit 32, CLI integration binary 614, all green.
+`tools/run-gates.sh`: PASS, 41 commands. `cargo clippy -- -D warnings`
+clean. No manifest change, `cargo tree` invariant untouched.
+
+**`docs/FEATURES.md`.** *Shell & UX* row on the scriptable-CLI capability
+reworded to name `Pass 406.0` and the not-offered list.
+
 ### `Pass 119.3` (`b7778479`), 2026-09-29 — `pdfcer-render`'s nested-form resource fallback now matches `text_edit::forms`
 
 Closes the Backlog entry filed 2026-08-20 (`FX-A1`, spec-ambiguity
@@ -23712,7 +23748,7 @@ another experiment.**
 
 ---
 
-### `--in-place` owed on the other `pdfce-cli` editing subcommands (no Pass ID minted — filed 2026-08-27, 279th filing) — PARTLY ADDRESSED 2026-09-29, `Pass 397.0`
+### ~~`--in-place` owed on the other `pdfce-cli` editing subcommands~~ — CLOSED 2026-09-29 (754th filing, `Pass 406.0`, `385b2a71`) — filed 2026-08-27 (279th filing), PARTLY ADDRESSED 2026-09-29 by `Pass 397.0`
 
 **`Pass 397.0` (`ed93dd50`) closed half of this gap.** `-o <input>` naming a
 subcommand's own input is now safe everywhere — every output write goes
@@ -23721,6 +23757,10 @@ part-way no longer destroys the original. **Still open:** an explicit
 `--in-place` flag, `ocr`'s mutually-exclusive-with-`--output` shape, is
 absent from the other ~108 editing subcommands that route through
 `save_edited`, which is where a uniform flag would hook.
+
+**Closed 2026-09-29 (754th filing) by `Pass 406.0` (`385b2a71`)** — see the
+Shipped entry above for the 121-subcommand list, the mutually-exclusive
+`--in-place`/`--output` shape, and the commands deliberately left out.
 
 `Pass 135.1` gave `pdfce-cli ocr` an `--in-place` flag and, in doing so,
 found that **two other editing subcommands' `--output` help text already

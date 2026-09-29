@@ -4,6 +4,60 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (754th filing) — `385b2a71`: `Pass 406.0` shipped — `--in-place` on every CLI editing subcommand
+
+**Shipped:**
+- `Pass 406.0` (`385b2a71`) — new `crates/pdfcer-cli/src/in_place.rs`:
+  `--in-place` added at parse time to the 121 subcommands in
+  `IN_PLACE_COMMANDS`, mutually exclusive with `--output` (a required
+  `--output` becomes required-unless-`--in-place`); `resolve_in_place()`
+  rewrites `--in-place` to `--output <INPUT>` before dispatch. No
+  `Command` enum variant changed. Safety rides on `Pass 397.0`'s
+  `edit_common::write_output` (temp file + rename) — a refused or failed
+  edit leaves the input byte-identical.
+
+**Decisions made this session:** None — a mechanical, uniform extension
+of an existing flag shape (`ocr`'s), not a new invariant or crate
+boundary.
+
+**Findings + decisions:**
+- Closes the Backlog entry filed 2026-08-27 (279th filing), partly
+  addressed 2026-09-29 by `Pass 397.0`. `tests.rs`'s `NOT_IN_PLACE` list
+  records what's deliberately excluded: commands whose `--output` isn't
+  the edited PDF itself (`copy-field`, the `export-*`/`extract-*`
+  family, `render-page`, `round-trip`, `stamp-pack`), `place-text`
+  (input is a text file), and `encrypt`/`set-permissions`/
+  `remove-encryption` (positional `OUTPUT` — a possible follow-up, left
+  unscoped).
+- New unit test `in_place_covers_every_input_output_subcommand` forces
+  every subcommand with input+output args onto exactly one of two
+  lists, so a newly-added subcommand can't silently fall through
+  uncovered. `in_place_refuses_output_and_requires_one_of_them` is
+  sabotage-verified. Integration coverage:
+  `crates/pdfcer-cli/tests/in_place.rs` (2 tests).
+- pdfcer bin unit 32, CLI integration binary 614, all green.
+  `tools/run-gates.sh`: PASS, 41 commands. `cargo clippy -- -D warnings`
+  clean. No manifest change, `cargo tree` invariant untouched.
+- `docs/FEATURES.md`'s *Shell & UX* scriptable-CLI row reworded to name
+  `Pass 406.0` and the not-offered list; no other row or gui box
+  touched.
+- Observation, not this Pass's work: a GitHub bug report about OCR text
+  landing in the wrong position was confirmed fixed in `v0.66.0` by its
+  own reporter today; Ken replied to it directly. The engineer's
+  drafted reply is moot. Closing the issue is Ken's call, not filed
+  here.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** `tools/verify-release.py v0.66.0`'s CI check was
+still pending as of the 751st filing — confirm it went green (carried
+forward again, still unconfirmed as of this filing).
+
+**Sourcing (hard rule 8).** No shell tool this filing — test counts,
+gate/clippy results and the sabotage-verification claim are relayed
+from the dispatching engineer's own report, not independently
+reproduced here.
+
 ## 2026-09-29 (753rd filing) — `b7778479`: `Pass 119.3` shipped — nested-form resource fallback aligned
 
 **Shipped:**
