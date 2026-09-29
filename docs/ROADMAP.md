@@ -115,6 +115,54 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 392.0` (`e9ab98ae`), 2026-09-29 — `nonseparable_composited` now counts GROUP composites, not only direct paint
+
+**Verdict: SHIPPED.** Closes the Backlog entry filed at 358th filing, below
+(`Pass 198.0`'s deliberately-unimplemented half) — `pdfcer_render::Diagnostics::nonseparable_composited`
+covers Table 137's four non-separable modes (Hue, Saturation, Color,
+Luminosity, §11.4.5) but was fed only by direct paints; a transparency
+group composited through one of those modes incremented nothing.
+
+**What changed.** `run_form`'s layered-group branch in
+`crates/pdfcer-render/src/interpret.rs` now increments the counter once
+whenever the outer graphics state carries a non-separable mode — the only
+`LayerPaint` construction that carries `nonseparable`. `nonseparable_pixels`
+still counts direct paints only, because the canvas layer reports no pixel
+count; the field docs and the CLI diagnostics-key rows in
+`crates/pdfcer-cli/src/main.rs` now say so explicitly rather than leaving
+the asymmetry implicit.
+
+**Tests.** New `a_group_composited_through_a_nonseparable_mode_is_counted`,
+`crates/pdfcer-render/tests/nonseparable_blend_differential.rs`: an isolated
+group with a Normal interior under `/BM /Hue` reads 1, the same page under
+`/BM /Normal` reads 0; sabotage (removing the increment) fails the test.
+`tools/run-gates.sh`: PASS, 40/40. `pdfcer-core` integration: 2318 passed, 2
+ignored. `pdfcer-render` integration: 369 passed.
+
+**No `Cargo.toml`/`pub`-signature change** — a behaviour fix to an existing
+public counter field, not a new API. `docs/core-api/` has no mention of
+this counter, so it is unaffected.
+
+**`docs/FEATURES.md`.** No row claims this counter omits groups (row 408's
+non-separable-blend-modes entry already states only that the counter
+exists) — nothing to correct, nothing ticked.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate result relayed from the dispatching engineer's own report,
+not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `391` highest, next free family `392` | **`392` used (`Pass 392.0`), next free family `393`** |
+| Standing rules | `R257` (carried figure, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — no new architectural decision (counter-feed fix, not a new invariant) |
+| `SESSION_LOG` filings | `729` | **`730`** |
+| `docs/FEATURES.md` | — | unchanged — no row claimed the gap this Pass closed |
+
+---
+
 ### `Pass 391.0` (`afdc6797`), 2026-09-29 — `resize_annotation`/restyle never overwrite an `/AP` `/N` stream that is also page content
 
 **Verdict: SHIPPED.** Closes the Backlog entry filed at `Pass 191.1` (356th
@@ -21896,6 +21944,15 @@ the heredoc hazard deserves its own note in the release runbook.
 ---
 
 ### Unscoped — **`nonseparable_composited` has no path from GROUP composites, only direct paint** — filed 2026-09-01 (358th filing, `Pass 198.0`'s deliberately-unimplemented half)
+
+**★ CLOSED by `Pass 392.0` (`e9ab98ae`) — verified 2026-09-29.** `run_form`'s
+layered-group branch in `crates/pdfcer-render/src/interpret.rs` now
+increments `nonseparable_composited` once whenever the outer graphics state
+carries a non-separable mode; it is the only `LayerPaint` construction that
+carries `nonseparable`. `nonseparable_pixels` still counts direct paints
+only (the canvas layer reports no pixel count) — documented on the field
+and in the CLI diagnostics-key rows rather than silently narrowed. Kept
+legible below, per this file's own convention for a superseded entry.
 
 `canvas.rs`'s `layer_blend` (the group-compositing blend-resolution site)
 has no diagnostics handle, so a non-separable blend applied via a

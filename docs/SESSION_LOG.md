@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (730th filing) — `e9ab98ae`: `Pass 392.0` SHIPPED — `nonseparable_composited` now counts GROUP composites
+
+**Shipped:**
+- `Pass 392.0` (`e9ab98ae`) — `run_form`'s layered-group branch in
+  `crates/pdfcer-render/src/interpret.rs` now increments
+  `nonseparable_composited` once whenever the outer graphics state carries
+  a non-separable mode (Hue/Saturation/Color/Luminosity, Table 137). It is
+  the only `LayerPaint` construction that carries `nonseparable`. Closes
+  the Backlog entry filed 2026-09-01 (358th filing, `Pass 198.0`'s
+  deliberately-unimplemented half).
+
+**Decisions made this session:**
+- None — a counter-feed fix, not a new invariant.
+
+**Findings + decisions:**
+- `nonseparable_pixels` still counts direct paints only, because the
+  canvas layer reports no pixel count — now documented on the field and
+  in the CLI diagnostics-key rows rather than left an implicit asymmetry.
+- New test `a_group_composited_through_a_nonseparable_mode_is_counted`
+  (`crates/pdfcer-render/tests/nonseparable_blend_differential.rs`):
+  isolated group, Normal interior, `/BM /Hue` reads 1, `/BM /Normal` reads
+  0; sabotage-verified. `tools/run-gates.sh` PASS 40/40; pdfcer-core
+  integration 2318 passed/2 ignored; pdfcer-render integration 369 passed.
+- No `Cargo.toml`/`pub`-signature change; `docs/core-api/` unaffected.
+  `docs/FEATURES.md` untouched — no row claimed the gap this Pass closed.
+
+**Still in flight:**
+- Nothing new opened by this Pass. Standing open items unchanged (see
+  `docs/NEXT_SESSION.md`).
+
+**For next session:**
+- No shell this filing (hard rule 8) — commit hash, test counts and gate
+  result relayed from the dispatching engineer's own report, not
+  independently reproduced.
+
 ## 2026-09-29 (729th filing) — `afdc6797`: `Pass 391.0` SHIPPED — `/AP` `/N` overwrite guard now covers page-content aliasing
 
 **Shipped:**
