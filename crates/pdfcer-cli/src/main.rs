@@ -593,6 +593,8 @@ mod pages;
 use pages::*;
 mod stamp;
 use stamp::*;
+mod bates_cmd;
+use bates_cmd::*;
 mod offpage;
 use offpage::*;
 mod structure;

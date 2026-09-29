@@ -745,6 +745,9 @@ pub enum CommandKind {
     /// provenance, tagged-untagged, inheritance-safe resources) is returned by
     /// that method, not carried on the command.
     AddText,
+    /// One Bates numbering run ([`EditSession::stamp_bates`]): a shared
+    /// font and `q` stream plus one label stream per stamped page.
+    StampBates,
     /// One plain-text IMPORT: `pages` blank pages were created and the text was
     /// poured into them, all as ONE undo entry
     /// ([`EditSession::place_text`]).
@@ -9108,6 +9111,10 @@ pub enum EditError {
         /// How many ce dimensions sit on it.
         count: usize,
     },
+    /// A Bates stamp request that cannot be written
+    /// ([`EditSession::stamp_bates`]).
+    #[error(transparent)]
+    Bates(#[from] crate::bates::BatesError),
 }
 
 /// Find every occurrence of `needle` in `hay`, returned as `(start, end)`
@@ -13967,6 +13974,163 @@ impl EditSession {
         report.content_object = content_num;
         report.font_object = font_num;
         Ok(report)
+    }
+
+    /// **Bates-number pages**: stamp `first`, `first + 1`, … on the selected
+    /// pages in document order, as page content.
+    ///
+    /// Each label is Helvetica (standard 14, not embedded) in black, placed by
+    /// [`crate::bates::label_matrix`] so it reads upright at `stamp.position`
+    /// on the displayed page whatever its `/Rotate`. It is marked
+    /// `/Artifact << /Type /Pagination /Subtype /Bates >>` (ISO 32000-2
+    /// §14.8.2.2.2 Table 385), so text extraction and accessibility tools
+    /// can tell it from the page's own text.
+    ///
+    /// The page's existing content is wrapped, not rewritten: one shared
+    /// stream holding `q` goes first in every stamped page's `/Contents`
+    /// and each label stream begins `Q q`, so a transformation the page
+    /// leaves in effect cannot move the label (§8.4.2). Existing content
+    /// streams stay byte-identical. The font is added to the page's
+    /// `/Resources` under an unused name, materialising inherited resources
+    /// onto the page (§7.7.3.4).
+    ///
+    /// Lands as one [`CommandKind::StampBates`] undo entry. A page already
+    /// carrying a Bates label gets a second one; nothing is replaced.
+    ///
+    /// # Errors
+    ///
+    /// Checked before anything is written, so a refusal leaves the session
+    /// unchanged:
+    /// - [`EditError::DocumentEncrypted`], a certification forbidding page
+    ///   changes, or [`EditError::ObjectCreationWouldExposeHiddenObjects`];
+    /// - [`EditError::Bates`] for a bad numbering, margin or size, an empty
+    ///   page selection, or a last number wider than the digit count;
+    /// - [`EditError::PageOutOfRange`] for a page past the end.
+    pub fn stamp_bates(
+        &mut self,
+        stamp: &crate::bates::BatesStamp,
+        first: u64,
+    ) -> Result<crate::bates::BatesOutcome, EditError> {
+        use crate::bates::{
+            BatesError, BatesOutcome, helvetica_width, label_content, label_matrix, winansi_bytes,
+        };
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification()?;
+        let suppressed = self.base.suppressed_object_count();
+        if suppressed > 0 {
+            return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
+        }
+        stamp.numbering.check()?;
+        let finite = stamp.margin.is_finite() && stamp.font_size.is_finite();
+        if !finite || stamp.margin < 0.0 || stamp.font_size <= 0.0 {
+            return Err(BatesError::Geometry {
+                margin: stamp.margin.to_string(),
+                size: stamp.font_size.to_string(),
+            }
+            .into());
+        }
+
+        let pages = self.pages()?;
+        let mut selected = match &stamp.pages {
+            Some(list) => list.clone(),
+            None => (0..pages.len()).collect(),
+        };
+        selected.sort_unstable();
+        selected.dedup();
+        if let Some(&index) = selected.iter().find(|&&i| i >= pages.len()) {
+            return Err(EditError::PageOutOfRange {
+                index,
+                count: pages.len(),
+            });
+        }
+        let Some(span) = u64::try_from(selected.len()).ok().filter(|&n| n > 0) else {
+            return Err(BatesError::NoPages.into());
+        };
+        let last = first.checked_add(span - 1).ok_or(BatesError::Overflow {
+            number: u64::MAX,
+            digits: stamp.numbering.digits,
+        })?;
+        let first_label = stamp.numbering.label(first)?;
+        let last_label = stamp.numbering.label(last)?;
+
+        let mut objects = Vec::new();
+        let font_id = ObjId::new(self.alloc_number()?, 0);
+        let mut font = Dict::new();
+        for (k, v) in [
+            (&b"Type"[..], &b"Font"[..]),
+            (b"Subtype", b"Type1"),
+            (b"BaseFont", b"Helvetica"),
+            (b"Encoding", b"WinAnsiEncoding"),
+        ] {
+            font.insert(Name::from(k), Object::Name(Name::from(v)));
+        }
+        objects.push(ObjectWrite {
+            id: font_id,
+            before: None,
+            after: Some(Object::Dict(font)),
+        });
+        let save_id = self.new_stream(Dict::new(), b"q\n", &mut objects)?;
+
+        for (offset, &index) in (0u64..).zip(&selected) {
+            let Some(page) = pages.get(index) else {
+                continue;
+            };
+            let label = winansi_bytes(&stamp.numbering.label(first + offset)?);
+            let width = helvetica_width(&label) * stamp.font_size;
+            let m = label_matrix(
+                page.crop_box,
+                page.rotate,
+                stamp.position,
+                stamp.margin,
+                stamp.font_size,
+                width,
+            );
+            let mut resources = page.resources.clone();
+            let font_name = self.free_name_in(&resources, b"Font", "Bates");
+            self.put_resource(
+                &mut resources,
+                b"Font",
+                &font_name,
+                Object::Reference(font_id),
+            );
+            let content = label_content(&font_name, m, &label);
+            let label_id = self.new_stream(Dict::new(), &content, &mut objects)?;
+
+            let before = self.value(page.id).cloned();
+            let mut updated = self
+                .graph()
+                .resolved(page.id)
+                .as_dict()
+                .cloned()
+                .unwrap_or_default();
+            updated.insert(Name::from(b"Resources"), Object::Dict(resources));
+            self.append_page_content(&mut updated, label_id);
+            if let Some(Object::Array(mut items)) = updated.get(b"Contents").cloned() {
+                items.insert(0, Object::Reference(save_id));
+                updated.insert(Name::from(b"Contents"), Object::Array(items));
+            }
+            objects.push(ObjectWrite {
+                id: page.id,
+                before,
+                after: Some(Object::Dict(updated)),
+            });
+        }
+        self.commit(Command {
+            kind: CommandKind::StampBates,
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(BatesOutcome {
+            first,
+            next: last.saturating_add(1),
+            pages: selected,
+            first_label,
+            last_label,
+        })
     }
 
     /// **Import a plain-text document**: create as many pages as `text` needs,

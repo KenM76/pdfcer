@@ -21,8 +21,8 @@ work today.
 It is a native desktop application — no web server, no browser runtime,
 no local network listener. It runs from a single folder, dependencies
 included, no installer. Alongside the GUI it ships **`pdfcer`**, a
-first-class scriptable command line with 182 working subcommands (plus
-three that announce themselves as not yet implemented), which is
+first-class scriptable command line with 183 working subcommands (plus
+two that announce themselves as not yet implemented), which is
 deliberately not a debug tool: Acrobat Pro has no real equivalent.
 
 ## Status: pre-1.0, under active development
@@ -57,10 +57,9 @@ empty-user-password case that opens with no prompt at all; and
 **authoring encryption** (AES-256, `/R 6`), setting the eight permission
 bits, and removing encryption from an owner-authenticated document.
 
-**Not built yet**, among other things: Bates numbering; PDF/A
-conversion and conformance validation (`bates-stamp`, `to-pdfa` and
-`validate-pdfa` exist in `pdfcer --help` and each prints *"[not yet
-implemented]"*); JavaScript, XFA, signature
+**Not built yet**, among other things: PDF/A conversion and
+conformance validation (`to-pdfa` and `validate-pdfa` exist in
+`pdfcer --help` and each prints *"[not yet implemented]"*); JavaScript, XFA, signature
 timestamps and long-term validation (PAdES B-T/B-LT/B-LTA — the
 timestamp round trip is a shell's job), Windows-certificate-store and
 PKCS#11-token digital IDs (only a `.pfx` file signs today),

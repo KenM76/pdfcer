@@ -44,6 +44,7 @@
 pub mod annot;
 pub mod annot_author;
 pub mod attachments;
+pub mod bates;
 /// Build provenance — what this binary is and when it was made
 /// (`Pass 101.0`; see the module's own docs for the `iccce` question).
 pub mod build;

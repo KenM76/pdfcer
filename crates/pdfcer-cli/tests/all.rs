@@ -10,6 +10,7 @@ mod add_text;
 mod annotate_as_content;
 mod annotate_note;
 mod attach_file_annotation;
+mod bates_stamp;
 mod bookmarks;
 mod copy_page;
 mod dimension_circular_placement;

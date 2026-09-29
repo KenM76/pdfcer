@@ -18,6 +18,7 @@ mod annotation_open_state;
 mod annotation_rich_text_read;
 mod attachment_clipboard;
 mod attachments;
+mod bates_stamp;
 mod bezier_handles;
 mod blend_mode_preserved;
 mod block_layout;

@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 282 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 283 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 282 public `EditSession` methods
+## 1. Verb index — all 283 public `EditSession` methods
 
-**Count: 282.** Established by brace-matched extraction of the six
+**Count: 283.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, and at 283 when Bates numbering added `stamp_bates`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -4281,6 +4281,12 @@ operator has to get the order of right.
 | **Put page objects on a layer, move them, or take them off every layer** | `set_objects_layer(&mut self, page_index: usize, object_indices: &[usize], layer: Option<ObjId>) -> Result<ObjectsLayerChange, EditError>` | `Pass 358.4`. `object_indices` are paint-order indices into `page_objects(page_index)`, the numbering `delete_objects` takes. Each object's byte span is wrapped in `/OC /name BDC … EMC` (§8.11.3.2); `name` is the page's existing `/Properties` binding for `layer`, or a new `OC<n>` binding added to the page's resources (`binding_added`). An enclosing `/OC` section is closed just before the object and reopened byte-verbatim just after, so neighbours keep their layer; the split may leave an empty `/OC /x BDC EMC` pair, which is harmless. Every other byte stays verbatim. Already on exactly `layer` (and no other `/OC` section) → counted in `unchanged`; all unchanged → nothing written, no undo entry. `ObjectsLayerChange { moved, unchanged, property_name, binding_added, disclosures }` (`#[non_exhaustive]`, `Default`). One undo entry, `CommandKind::SetObjectsLayer { page_index }`, covering the content stream and the resource binding. Refusals, before any write: `LayerNotFound`; `LayerContentNotRewritable` when a selected image or form XObject carries its own `/OC` (§8.11.3.3 — a section can only intersect it); `VectorEdit` wrapping `ObjectOutOfRange`, `OverlappingObjectSpans`, `LayerSectionHoldsTaggedContent` (a structure tag lies inside the `/OC` section to split — splitting it would break logical structure), `LayerSectionCrossesNesting` (the section opened at another `q` depth or `BT` state — §14.6, ISO 32000-2 erratum #302) or `LayerSpanUnbalanced` (the object's own span leaves marked content, `q` or `BT` open); `PageOutOfRange`; `VectorEditNoContents`; `DocumentEncrypted`; certification. Edits the page's first content stream. Pure planner: `vector::plan_set_layer(&ContentStream, &[&VectorObject], Option<&Name>)`. CLI: `pdfcer set-object-layer --page P --objects 0,2 (--layer NAME | --id N | --none)`; `list-objects` rows carry `oc=<id>|none` (the innermost `/OC`). |
 | **Add new content straight onto a layer** | `paste_objects_on_layer(&mut self, page_index, clip: &ObjectClip, at: Matrix, layer: Option<ObjId>) -> Result<PasteOutcome, EditError>`; the `layer: Option<ObjId>` field on `NewImage` (`NewImage::on_layer`), `MarkupOptions` and `AddTextRequest` (`AddTextRequest::on_layer`) | `Pass 358.5`. One mechanism for every add verb: `add_text`, `add_image`, `add_markup_with`, `add_markup_as_content`, `add_text_annotation_with`, `add_text_annotation_reporting` and `paste_objects_on_layer`. `None` is exactly the unlayered verb. With a layer, each content stream the add appended is wrapped whole in `/OC /name BDC … EMC` (§8.11.3.2) — no original byte changes; `name` is the page's existing `/Properties` binding for the group, or a new `OC<n>` binding. Each annotation the add created (and its `/Popup`) gets `/OC` (§12.5.2 Table 164). The add and the placement are **one undo entry**, labelled as the add. A layered image or form XObject inside a pasted clip keeps its own `/OC`, which the section intersects (§8.11.3.3). Refusals: `LayerNotFound` before any write when the group is not registered in `/OCProperties /OCGs`; otherwise those of the underlying add. If placement fails after the add, the add is undone. **`add_text` with a layer needs the session route**: the free function `text_edit::add_text` refuses such a request with `AddTextError::LayerNeedsSession`; `EditSession::add_text` wraps a layer refusal in `AddTextError::Layer(Box<EditError>)` (`RefusalKind::NotFound` for `LayerNotFound`, otherwise `Other`). CLI: `--layer NAME` or `--layer-id N` on `add-text`, `add-image`, `annotate` and `object-paste`. |
 
+### 1.33 Bates numbering (1)
+
+| I want to… | Call | Returns |
+|---|---|---|
+| **Stamp Bates numbers on pages** | `stamp_bates(&mut self, stamp: &bates::BatesStamp, first: u64) -> Result<bates::BatesOutcome, EditError>` | One label per selected page, numbered from `first` in document order (`stamp.pages` is sorted and de-duplicated; `None` = every page). Label = `BatesNumbering { prefix, digits, suffix }` → prefix + number zero-padded to `digits` (1..=`bates::MAX_DIGITS` = 15) + suffix. Drawn in non-embedded Helvetica (WinAnsi) at `font_size` (default 10 pt), `margin` (default 36 pt) from the edges, at one of six `BatesPosition`s (default `BottomRight`), upright on the page **as displayed** (`/Rotate` honoured). Each label is a new content stream marked `/Artifact <</Type /Pagination /Subtype /Bates>> BDC … EMC` (ISO 32000-2 Table 385), so text extraction reports it as `ArtifactKind::Pagination` + `ArtifactSubtype::Other("Bates")`; a shared `q` stream is prepended and each label opens with `Q q`, so a transformation the page leaves in effect cannot move it. Existing content streams stay byte-verbatim; the font is added under a free `/Font` name in a page-level copy of the (possibly inherited) resources. `BatesOutcome { first, next, pages, first_label, last_label }` — `next` is the `first` for the following file of a batch. ONE undo entry, `CommandKind::StampBates`. Refuses before any write: encrypted or certified session, suppressed objects; `EditError::Bates(BatesError::Digits / Unencodable / Geometry / NoPages / Overflow { number, digits })` — overflow is checked for the LAST number up front; `PageOutOfRange` for a bad index. **Not yet:** re-stamping, removing or replacing an existing Bates set, font/colour choice, date tokens. CLI: `bates-stamp`. Acrobat reference: `Acrobat_Features\bates__*.md` (six files: numbering scheme, batch processing, placement and appearance, underlying mechanism and PieceInfo, interaction with headers/footers and signatures, limitations). |
+
 ## 2. Construction, and the session's three read views
 
 ```rust
@@ -5042,7 +5048,7 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**152 variants** at `Pass 375.0` (`CropBoxEmpty` added; at `Pass 370.0`, 151: `NotALinearDimension` removed: `place_dimension` now accepts every kind, and nothing else raised it), counted at depth 1 inside `pub enum EditError`.
+**153 variants** since Bates numbering (`Bates(BatesError)` added; 152 at `Pass 375.0`, `CropBoxEmpty` added; at `Pass 370.0`, 151: `NotALinearDimension` removed: `place_dimension` now accepts every kind, and nothing else raised it), counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 

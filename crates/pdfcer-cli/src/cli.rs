@@ -89,6 +89,34 @@ pub(crate) struct Cli {
 /// "no password supplied" and therefore cannot produce a wrong decryption —
 /// it can only produce a `PasswordRequired` the operator will understand.
 pub(crate) static CLI_PASSWORD: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+/// `bates-stamp --position`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum BatesPositionArg {
+    /// Top edge, left.
+    TopLeft,
+    /// Top edge, centred.
+    TopCenter,
+    /// Top edge, right.
+    TopRight,
+    /// Bottom edge, left.
+    BottomLeft,
+    /// Bottom edge, centred.
+    BottomCenter,
+    /// Bottom edge, right.
+    BottomRight,
+}
+
+/// `bates-stamp --name`: how an output file is named.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum BatesNameArg {
+    /// The input's file name.
+    Keep,
+    /// The label range, e.g. ACME000001-ACME000004.pdf.
+    Range,
+    /// The input's stem, then the range, e.g. brief_ACME000001-ACME000004.pdf.
+    KeepRange,
+}
+
 /// `layer-edit --visible/--locked`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum OnOffArg {
@@ -1554,16 +1582,60 @@ pub(crate) enum Command {
         input: PathBuf,
     },
 
-    /// Stamp Bates numbers across a batch of PDFs. [not yet implemented]
+    /// Stamp Bates numbers across a batch of PDFs.
+    ///
+    /// Numbers run on from one file to the next in the order the files are
+    /// given: three 4-page files starting at 1 get 1-4, 5-8 and 9-12. Each
+    /// label is PREFIX, the number zero-padded to DIGITS, then SUFFIX, drawn
+    /// in 10 pt Helvetica as page content, upright on the page as displayed,
+    /// and marked as a Bates pagination artifact so text extraction can tell
+    /// it from the page's own text.
+    ///
+    /// Every file is stamped in memory before any is written, so a refusal
+    /// anywhere writes nothing. Outputs go to --out-dir and never replace an
+    /// input. Each save appends a revision, leaving the original bytes intact.
+    ///
+    /// Refused (exit 9): a label character Helvetica cannot draw, a number
+    /// wider than DIGITS, an encrypted or certified file. A signed file is
+    /// stamped, and the effect on its signatures is stated on stderr.
+    ///
+    /// Prints `stamped <in> -> <out> pages= first= last= signature=` per file,
+    /// then `bates-stamp files= pages= first= last= next=`; `next` is the
+    /// --start for a following batch.
     BatesStamp {
-        /// Input PDFs to stamp.
+        /// Input PDFs, in numbering order.
+        #[arg(required = true)]
         inputs: Vec<PathBuf>,
-        /// Starting number.
+        /// Folder the stamped copies are written to.
+        #[arg(long)]
+        out_dir: PathBuf,
+        /// The first number.
         #[arg(long, default_value_t = 1)]
         start: u64,
-        /// Format string, e.g. `DOC-{:06}`.
-        #[arg(long, default_value = "{:06}")]
-        format: String,
+        /// Text before the number. May begin with `-`.
+        #[arg(long, default_value = "", allow_hyphen_values = true)]
+        prefix: String,
+        /// Text after the number. May begin with `-`.
+        #[arg(long, default_value = "", allow_hyphen_values = true)]
+        suffix: String,
+        /// Zero-padded width of the number, 1 to 15.
+        #[arg(long, default_value_t = 6)]
+        digits: u8,
+        /// Where the label sits on the displayed page.
+        #[arg(long, value_enum, default_value_t = BatesPositionArg::BottomRight)]
+        position: BatesPositionArg,
+        /// Distance from the page edges, in points.
+        #[arg(long, default_value_t = 36.0)]
+        margin: f64,
+        /// Font size, in points.
+        #[arg(long, default_value_t = 10.0)]
+        size: f64,
+        /// Pages to stamp in each file, 1-based: `all`, `3`, `1-4,7`.
+        #[arg(long, default_value = "all")]
+        pages: String,
+        /// How each output file is named.
+        #[arg(long, value_enum, default_value_t = BatesNameArg::Keep)]
+        name: BatesNameArg,
     },
 
     /// Convert a PDF to a PDF/A conformance level. [not yet implemented]
