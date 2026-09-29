@@ -115,6 +115,64 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 399.1` (`8b634e7b`), 2026-09-29 — restore the vendored OCRcer adapter byte-identical
+
+**Verdict: SHIPPED.** `Pass 398.0` (`c3daaa78`) had de-linked one line in
+the vendored `crates/pdfcer-core/src/ocr/engine_ocrcer.rs`, turning
+`check-ocrcer-vendored.py` red locally — invisible to CI, which cannot see
+the sibling OCRcer repo, so CI stayed green at `c3daaa78` even though that
+filing's "all gates green" claim was not true of the full local sweep.
+
+**Fix.** Re-synced the file from OCRcer `f87a39267425`, byte-identical.
+The one link rustdoc resolves from the parent scope is silenced with
+`#[allow(rustdoc::broken_intra_doc_links)]` on the `pub mod engine_ocrcer;`
+declaration in `ocr/mod.rs`, rather than touching the vendored file again.
+
+**Upstream.** Fix requested from OCRcer:
+`D:\Dev\FeatureRequests\OCRcer_FeatureRequests\request_adapter_module_doc_link.md`.
+New Backlog item (top of *Backlog*, below): drop the `allow` at the next
+OCRcer sync, once OCRcer de-links it upstream.
+
+**`docs/FEATURES.md`.** No row — a vendoring-hygiene fix, not a capability
+change.
+
+**Sourcing (hard rule 8).** No shell tool this filing — relayed from the
+dispatching engineer's report, not independently reproduced.
+
+### `Pass 399.0` (`3fa2091e`), 2026-09-29 — `LoadReport` says which keys a settings file actually stated
+
+**Verdict: SHIPPED.** Closes the Backlog entry "`LoadReport` CANNOT SAY
+WHICH KEYS A SETTINGS FILE ACTUALLY STATED" (filed 262nd filing).
+Additive: new `pub stated: BTreeSet<String>` field on `LoadReport` plus
+`LoadReport::was_stated(&self, key: &str) -> bool`. `Settings::parse`'s
+signature is unchanged; `load_over` was not built.
+
+**Rule.** A key counts once its value took effect, including a
+`SettingNote::Clamped` one. A `BadValue` or an unknown key does not count.
+A later bad duplicate does not un-state an earlier good value. A file
+written by `save` states every key.
+
+**Tests.** 2 new (38 settings tests green):
+`a_key_stated_at_its_default_is_distinguishable_from_an_absent_one` (via
+`Settings::load` on a real file) and `only_a_value_that_took_counts_as_stated`.
+Sabotage (count every key as stated) fails the second.
+
+**Gates.** `docs/core-api` §13 updated; `check-core-api-verbs.py` PASS.
+`tools/run-gates.sh` PASS (41 commands). No `Cargo.toml` change —
+`cargo tree` invariant unaffected by construction.
+
+**Shells.** `cli`: none — a shell-integration surface, not a subcommand.
+`gui`: notified via `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`
+(`notice_2026-09-29_settings_load_report_says_which_keys_were_stated.md`);
+not yet consumed.
+
+**`docs/FEATURES.md`.** *Persisted user settings* row gained a clause:
+core only, no cli/gui surface yet.
+
+**Sourcing (hard rule 8).** No shell tool this filing — counts, hashes and
+test names relayed from the dispatching engineer's report, not
+independently reproduced.
+
 ### `Pass 398.0` (`c3daaa78`), 2026-09-29 — zero broken intra-doc links, and a CI gate that keeps it there
 
 **Verdict: SHIPPED.** Closes the Backlog entry "Unscoped — rustdoc-cleanliness
@@ -20502,6 +20560,20 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
+### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
+
+**Scope.** `Pass 399.1` (`8b634e7b`) re-synced the vendored
+`crates/pdfcer-core/src/ocr/engine_ocrcer.rs` byte-identical to OCRcer
+`f87a39267425` and silenced the one rustdoc-resolved broken intra-doc link
+with `#[allow(rustdoc::broken_intra_doc_links)]` on the module declaration in
+`ocr/mod.rs`, rather than touch the vendored file again. Fix requested
+upstream:
+`D:\Dev\FeatureRequests\OCRcer_FeatureRequests\request_adapter_module_doc_link.md`.
+**Drop the `allow`** the next time the vendored file is re-synced, once
+OCRcer de-links it on their side — check the feature-request channel for a
+reply first, and confirm `check-ocrcer-vendored.py` and `cargo doc` are both
+clean without the attribute before removing it.
+
 ### Export to Word/Excel (Office formats) — filed 2026-09-28 (701st filing), no Pass ID
 
 **Scope.** DOCX/XLSX export, sourced from `pdfcer-acrobat-librarian`'s two
@@ -20573,9 +20645,9 @@ Was filed here 2026-09-27 (642nd filing) as `G043`'s option B, unscoped. Now sco
 
 **Acceptance criteria, once scoped:** parity with `Pass 322.0`'s SVG disclosure shape — a `EmfTextOutcome` counting kept vs. fallback-to-outline runs by reason, `--emf-text keep|outlines` on `export-image --format emf`, and a decision on whether a substituted system face is disclosed as a font-trust downgrade (rule 4) if pdfcer cannot embed the original program. **All met as shipped**, except the font-trust-downgrade disclosure question, which the shipped entry answers by omission — see `Pass 322.1`'s Shipped entry for the CLI note text actually used.
 
-### ~~Unscoped — wrap bare CFF (`FontFile3`/Type1C) and Type 1 fonts as OpenType~~ — CFF HALF SHIPPED 2026-09-23 (585th filing, `Pass 323.0`, `38e385b2`); Type 1 remains open, filed 2026-09-23 (582nd filing, `Pass 322.0`'s own `fallback_not_sfnt` remainder), no Pass ID
+### ~~Unscoped — wrap bare CFF (`FontFile3`/Type1C) and Type 1 fonts as OpenType~~ — CLOSED, BOTH HALVES SHIPPED — CFF: 2026-09-23 (585th filing, `Pass 323.0`, `38e385b2`); Type 1: `Pass 324.1` (`b70eb431`) — filed 2026-09-23 (582nd filing, `Pass 322.0`'s own `fallback_not_sfnt` remainder), no Pass ID
 
-★ **NARROWED, not closed.** `Pass 323.0` shipped `wrap_cff` — bare CFF (`FontFile3 /Type1C`, `/CIDFontType0C`) and the Standard-14 substitutes (also bare CFF) are now framed as an `OTTO` sfnt and kept by SVG's `KeepText`. **Type 1 (`FontFile`) is the only remaining case** SVG's `fallback_not_sfnt` counts, and EMF keep-text still needs no wrapping at all (it never embeds a font program — see `Pass 322.1`). Original scope text kept legible below, not rewritten, per the append-only Backlog convention.
+★ **CLOSED — confirmed against both Shipped entries this filing.** `Pass 323.0` shipped `wrap_cff` — bare CFF (`FontFile3 /Type1C`, `/CIDFontType0C`) and the Standard-14 substitutes (also bare CFF) are framed as an `OTTO` sfnt and kept by SVG's `KeepText`. `Pass 324.1` (see its *Shipped* entry) shipped the Type 1 half — synthesised `glyf`/`loca` from Type 1 charstrings — closing SVG's `fallback_not_sfnt` for `FontFile` too. EMF keep-text still needs no wrapping at all (it never embeds a font program — see `Pass 322.1`). Original scope text kept legible below, not rewritten, per the append-only Backlog convention.
 
 **Scope (as originally filed; the CFF half above is now done).** `Pass 322.0`'s `webfont.rs` only accepted a donor that is already an sfnt (TrueType/OpenType `glyf`/`CFF ` wrapped in an `sfnt` container); a bare CFF (`FontFile3` with `Subtype /Type1C`) or a Type 1 program (`FontFile`) fell to `fallback_not_sfnt`, which was most of the Standard-14 substitution surface and any PDF shipping a raw Type 1/CFF program directly. Wrapping either as a minimal OpenType container (`OTTO` for CFF, a synthesised `glyf`/`loca` for Type 1) so they can be embedded the same way is a well-trodden font-tooling technique (see `D:\dev\rag\rust\` for prior OTS-sanitizer findings from `Pass 322.0`) — the CFF half shipped as `Pass 323.0`; the Type 1 half (synthesising `glyf`/`loca` from Type 1 charstrings, a different outline format) is still out of scope.
 
@@ -22116,6 +22188,14 @@ SPOT-component row* entry, above) plus **`Pass 206.0`'s
 because a compensating error currently cancels it, and which the plane is what
 makes safe to correct.
 
+★ **Remainder, noted 2026-09-29 (740th filing), not a closure — the plane
+this entry scoped shipped as `Pass 238.0`/`Pass 239.0` (see the `PCS
+3.0`/`PCS 4.0` and process-image entries above).** `MAX_SPOTS = 4` landed as a
+**compile-time constant**, not the operator-raisable cap this entry
+recommended — raising it is still owed if ever needed. Stale "Inert until
+step 3" comments remain in `crates/pdfce-render/src/cmyk_buffer.rs`,
+predating the plane; flagged, not edited (no shell tool this filing).
+
 ---
 
 ### ~~Unscoped~~ **DISCHARGED** — ★★★ **A LIVE DEFECT, FOUND WHILE SCOPING THE PLANE: `Colorant::parse` KEYS COLORANTS ON A LOSSY-DECODED `String`, SO TWO DIFFERENT COLORANTS CAN COLLIDE INTO ONE — HARMLESS TODAY, NOT HARMLESS THE MOMENT A PLANE IS KEYED ON IT** — filed 2026-09-01 (361st filing)
@@ -22219,6 +22299,14 @@ the plane's absence hide it"*). **Two patches now have that shape, which makes
 it a pattern rather than a special case:** a shared page template produces
 patches whose failures look identical and whose causes are not. **Attribute
 per trap, never per patch.**
+
+★ **RESOLVED — confirmed against `docs/history/roadmap-shipped-2026-09-01..08.md`.**
+`Pass 238.0` (`8ce0507`) and `Pass 239.0` (`6e9513c`) built the per-spot-colorant
+plane and the `OverprintZeroTintScope` row-assignment fix this entry named as
+prerequisites; `Pass 244.0` (`e7db280`, decision 124) then took the
+print-conformance sweep from 2 FAIL to **0 FAIL**, `PCS 3.0`/`PCS 4.0` included.
+The classification stands as written above — it is the reason the sweep needed
+two causes fixed, not one, to close.
 
 ---
 
@@ -22381,6 +22469,14 @@ with `Pass 196.1`'s corrected CLI text so the two stop disagreeing.
 **Do NOT close this by adding the counter alone.** The counter is the rule 4
 floor; the classification question is the correctness half, and the three
 comments are what will re-close this wrongly if only the counter is added.
+
+★ **RESOLVED — confirmed against `docs/history/roadmap-shipped-2026-09-01..08.md`.**
+`Pass 204.0` (`97b4c9d`) and `Pass 238.0` (`8ce0507`, subsection "process-space
+images under `/OP true` leave the spot backdrop alone") together close items
+(a)–(d): a process-space sampled image is composited (not silently passed
+through), `overprint_process_images_unsupported` now takes a counter, and the
+three misreading comments were corrected. Not closed by the counter alone, as
+this entry required.
 
 ---
 
@@ -22660,7 +22756,9 @@ fuzz-coverage plan, which enumerates *filter decoders* and never mentions
 rendering) and §10.4; `Pass 97.0`–`97.1g` (the compositing arithmetic this would
 fuzz); `Pass 189.0` (`baf0c29`).
 
-### Unscoped — **the text planner's resolver still reads the BASE, so a `/Font` created this session cannot be resolved** — filed 2026-08-31 (351st filing, `Pass 186.0`'s named residual)
+### ~~Unscoped — the text planner's resolver still reads the BASE~~ — CLOSED, cited SHIPPED by `Pass 257.0` (`5e95805`) — filed 2026-08-31 (351st filing, `Pass 186.0`'s named residual)
+
+★ **RESOLVED — relayed, not independently reproduced this filing (no shell tool).** `Pass 257.0` (`5e95805`) is reported to have threaded a session-aware resolver through the four remaining verbs named below. The engineer's citation of a filing hash `d182ee2b` for this Pass could not be found anywhere in `docs/` by grep and is **not** asserted here — only `5e95805` is confirmed against the Shipped section. Original scope text kept legible below, per the append-only Backlog convention.
 
 **This is a NAMED RESIDUAL, not a newly-found bug.** `Pass 186.0` moved eight
 content-editing entry points from `page_tree::pages(&self.base)` to
@@ -22914,6 +23012,14 @@ an edit.
 **Cheap, and it does not depend on `Pass 142.0`.** It is worth shipping even
 if `142.0` is declined, because it is the difference between a greyed-out
 control and a failed one. `pdfce-cli` surface per rule 11.
+
+★ **This scoping record stays here by its own design (banner above); it is
+not being closed.** Confirmed this filing: `Pass 142.1` shipped as `2e6235c`
+(*Shipped*/*Next up* discharge banner), and `Pass 147.0` (`8aa9cea`) later
+fixed a related empty-candidate defect in the query it added
+(`preview_font_resources`). Both are real, shipped Passes — recorded here so
+a grepping reader does not mistake this stub's "stays here" note for "not
+done."
 
 ### `Pass 140.0` — MOVED TO *SHIPPED* on 2026-08-27 (294th filing). Shipped in `70c5919` together with `Pass 140.1`.
 
@@ -23649,7 +23755,7 @@ entry's own citation-valid rule; see the Shipped entry for the live number.)
 
 </details>
 
-### Wire `cargo +nightly fuzz build` into CI — unscoped, no Pass ID
+### Wire a `windows-latest cargo +nightly fuzz build` sibling job into CI — unscoped, no Pass ID — heading narrowed 2026-09-29 (740th filing) to match the 255th filing's own amendment below; NOT closed, the Windows leg is still unbuilt
 
 **Filed 2026-08-25 (two-hundred-and-fifty-fourth filing)**, owed by the
 `4b22c95` Shipped entry above. `cargo fuzz build` is not one of CI's jobs; it
@@ -23978,6 +24084,15 @@ meeting it would be the regression. ★ Both criteria were written against a
 COUNTER rather than against the CLAUSE the counter reports on, which is the
 transferable half.
 
+★ **RESOLVED — confirmed against `docs/history/roadmap-shipped-2026-09-01..08.md`
+and this file's own *Shipped* section.** `Pass 130.2` (`fafc0c2`, already
+referenced above) closed the `Separation`/`DeviceN` image population this
+entry was re-scoped to. `Pass 238.0` (`8ce0507`) then delivered the
+per-spot-colorant plane's image half, and `Pass 244.0` (`e7db280`, decision
+124) took the print-conformance sweep to 0 FAIL. The replacement criterion
+this entry set — `PCS 8.2`'s check mark visible, `overprint_images_unsupported`
+unchanged on process-space image patches — is met.
+
 ---
 
 ### `Pass 122.2` — **SHIPPED 2026-08-24** (`f6457ee`) — moved to *Shipped*
@@ -24269,6 +24384,17 @@ shape and the two traps, not a committed test list.** No Pass sub-split
 performed; this may split into a graphics-state field alone (cheap,
 independently useful for disclosure) versus wiring a real consumer
 (gated on `iccce`) when it is picked up.
+
+★ **RESOLVED — confirmed against `docs/history/roadmap-shipped-2026-09-01..08.md`.**
+Shipped under different Pass IDs than this entry filed — `Pass 199.0` +
+`Pass 199.1` (`a821393` + `9f1887e`, decision 114) — rather than as `124.1`
+itself, which was never built under its own ID. Both edge cases this entry
+flagged are addressed there: `/Custom` substitutes a stated default per
+§8.6.5.8, and the `/DestOutputProfile` decode gap is the companion Pass
+`199.2` covers (see that entry's own resolution, above). **Remainder:** a
+stale comment referencing this entry's pre-fix reasoning remains at
+`crates/pdfce-render/src/cmyk_buffer.rs` ~line 2698 — flagged, not edited
+(no shell tool this filing).
 
 ---
 

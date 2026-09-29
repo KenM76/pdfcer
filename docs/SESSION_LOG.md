@@ -4,6 +4,53 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (740th filing) — `3fa2091e` + `8b634e7b`: `Pass 399.0`/`399.1` SHIPPED, plus a Backlog audit closing seven stale entries
+
+**Shipped:**
+- `Pass 399.0` (`3fa2091e`) — `LoadReport` gains `stated: BTreeSet<String>`
+  and `was_stated(&self, key) -> bool`, so a shell can tell "explicit value"
+  from "fell to default." 2 new tests, 38 settings tests green. Core-only;
+  no cli/gui surface yet (`docs/FEATURES.md` row updated).
+- `Pass 399.1` (`8b634e7b`) — re-synced the vendored
+  `crates/pdfcer-core/src/ocr/engine_ocrcer.rs` byte-identical to OCRcer
+  `f87a39267425`, silencing its one rustdoc link via
+  `#[allow(rustdoc::broken_intra_doc_links)]` on the module declaration
+  instead of touching the vendored file. **`Pass 398.0`'s "all gates green"
+  claim was not true of the full local sweep** — `check-ocrcer-vendored.py`
+  (local-only; CI cannot see the sibling OCRcer repo) had gone red when
+  398.0 de-linked one line in that file. 399.1 is the repair.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Backlog audit (no shell tool; verified via Read/Grep against `docs/`
+  Shipped rows and `docs/history/`) closed seven stale Backlog entries whose
+  work had already shipped: the text-planner base-resolver residual
+  (`Pass 257.0`, `5e95805`), CFF/Type 1-as-OpenType wrapping (`Pass 323.0`
+  `38e385b2` + `Pass 324.1` `b70eb431`), the `PCS 3.0`/`PCS 4.0`
+  classification (`Pass 238.0`/`239.0`/`244.0`), the process-image-under-
+  `/OP` silent path (`Pass 204.0`/`238.0`), per-sample image overprint
+  (`Pass 130.2`/`238.0`/`244.0`), and `/RI` per-paint (`Pass 199.0`/`199.1`,
+  decision 114, shipped under different IDs than originally filed as
+  `124.1`). One fuzz-CI entry's heading was narrowed (not closed) to the
+  still-open Windows leg. Two entries cited by the dispatch were **already
+  closed** at prior filings (731st, 287th) — declined, not re-touched; see
+  report to dispatching engineer for detail.
+- New small Backlog entry: drop the `#[allow(rustdoc::broken_intra_doc_links)]`
+  at the next OCRcer sync, once OCRcer de-links it upstream.
+
+**Still in flight:** Unchanged from the 739th filing.
+
+**For next session:** Push `main` (399.0, 399.1 and this filing are all
+local as of writing). Watch the OCRcer feature-request channel for the
+adapter doc-link fix.
+
+**Sourcing (hard rule 8).** No shell tool this filing — hashes, test counts
+and gate results for `Pass 399.0`/`399.1` relayed from the dispatching
+engineer's report; the Backlog-closure hashes were independently confirmed
+against `docs/ROADMAP.md`'s *Shipped* section and `docs/history/` by this
+role via Read/Grep.
+
 ## 2026-09-29 (739th filing) — `c3daaa78`: `Pass 398.0` SHIPPED — zero broken intra-doc links, and a CI gate that keeps it there
 
 **Shipped:**
