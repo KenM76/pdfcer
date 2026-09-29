@@ -138,16 +138,12 @@ use crate::view::DocumentView;
 /// first, on real files, not assumed from the fact that a merge is easy to
 /// write.
 ///
-/// ## One divergence from `pdfcer-render`, stated rather than hidden
+/// ## The renderer resolves the same way
 ///
-/// At depth 0 — a form invoked straight from the page — "the page's" and "the
-/// caller's" are the same dictionary, so pdfcer's three components agree
-/// exactly, and that covers essentially every real file. For a **nested**
-/// resource-less form they differ: this module follows the clause (the
-/// **page's**), the renderer follows the common implementation (the
-/// **caller's**). Which tier resolved is recorded in
-/// [`FormRef::resource_tier`] so the difference is observable rather than
-/// latent, and aligning the renderer is filed work, not a silent to-do.
+/// `pdfcer-render` also gives a resource-less form (nested or not) the
+/// **page's** resources, falling back to the caller's only when the page has
+/// none, so an edited form and its render agree. Which tier resolved here is
+/// recorded in [`FormRef::resource_tier`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum ResourceTier {

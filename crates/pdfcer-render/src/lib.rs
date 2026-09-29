@@ -3171,6 +3171,44 @@ mod tests {
     }
 
     #[test]
+    fn nested_form_without_resources_inherits_the_pages_not_the_callers() {
+        // §7.8.3 bullet 4 names "the page on which they are used", so for
+        // page -> A -> B with B resource-less, B's names resolve in the
+        // PAGE's dictionary even though A has its own. `/X3` exists only in
+        // the page's, so B paints only if the page's was used.
+        let (doc, page) = doc_with_extra_objects(
+            "/X1 Do",
+            "/Resources << /XObject << /X1 5 0 R /X3 7 0 R >> >>",
+            &[
+                (
+                    5,
+                    stream_object(
+                        &form_dict("/BBox [0 0 100 100] /Resources << /XObject << /X2 6 0 R >> >>"),
+                        b"/X2 Do",
+                    ),
+                ),
+                (
+                    6,
+                    stream_object(&form_dict("/BBox [0 0 100 100]"), b"/X3 Do"),
+                ),
+                (
+                    7,
+                    stream_object(
+                        &form_dict("/BBox [0 0 100 100] /Resources << /ProcSet [/PDF] >>"),
+                        b"0 0 50 50 re f",
+                    ),
+                ),
+            ],
+        );
+        let out = render_page(&doc, &page, 1.0).unwrap();
+        assert_eq!(out.diagnostics.forms_rendered, 3);
+        assert!(
+            ink_bbox(&out.pixmap).is_some(),
+            "B's /X3 must resolve in the page's resources"
+        );
+    }
+
+    #[test]
     fn form_text_object_does_not_leak_across_the_boundary() {
         // §9.4.1 confines Tm/Tlm to one BT…ET. A form invoked INSIDE a
         // caller's text object (ill-formed per Figure 9, common in the

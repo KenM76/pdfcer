@@ -2383,6 +2383,7 @@ pub(crate) fn run_on(
         doc,
         content,
         resources,
+        resources,
         fonts,
         initial,
         canvas,
@@ -2517,6 +2518,7 @@ pub fn trace_paths(
         hidden_depth: 0,
         oc_off: None,
         resources,
+        page_resources: resources,
         doc,
         fonts,
         text: None,
@@ -2551,6 +2553,7 @@ fn run_nested(
     doc: &DocumentView<'_>,
     content: &ContentStream,
     resources: &Dict,
+    page_resources: &Dict,
     fonts: &FontEnvironment,
     initial: GraphicsState,
     canvas: &mut Canvas<'_>,
@@ -2619,6 +2622,7 @@ fn run_nested(
         hidden_depth: usize::from(hidden),
         oc_off: None,
         resources,
+        page_resources,
         doc,
         fonts,
         text: None,
@@ -2793,6 +2797,7 @@ pub(crate) fn run_form_at_on(
         hidden_depth: 0,
         oc_off: None,
         resources: resources_fallback,
+        page_resources: resources_fallback,
         doc,
         fonts,
         text: None,
@@ -3088,6 +3093,10 @@ struct Interpreter<'a> {
     /// invocation beyond its own first use.
     oc_off: Option<std::collections::BTreeSet<ObjId>>,
     resources: &'a Dict,
+    /// The PAGE's resolved resources, unchanged down the form/glyph
+    /// recursion: what §7.8.3 and Table 112 name for a form XObject or a
+    /// Type 3 font that omits `/Resources` (see [`Self::inherited_resources`]).
+    page_resources: &'a Dict,
     /// The document, for resolving indirect resource/font entries.
     doc: &'a DocumentView<'a>,
     /// Substitute faces available to `Tf` (R19: supplied, never found).
@@ -3154,7 +3163,7 @@ struct Interpreter<'a> {
     stroke_display: StrokeDisplay,
 }
 
-impl Interpreter<'_> {
+impl<'a> Interpreter<'a> {
     /// Moves the stroke-display tally into the counter for the active mode.
     fn fold_stroke_tally(&mut self) {
         let changed = self.hairline_capped.take();
@@ -4362,12 +4371,16 @@ impl Interpreter<'_> {
         // resource dictionary of the PAGE on which the font is used."
         // Old files routinely omit it, and a reader without the fallback
         // reports "resource not found" on a well-formed document.
-        let resources: &Dict = t3.resources.as_ref().unwrap_or(self.resources);
+        let resources: &Dict = t3
+            .resources
+            .as_ref()
+            .unwrap_or_else(|| self.inherited_resources());
 
         let nested = run_nested(
             doc,
             &content,
             resources,
+            self.page_resources,
             self.fonts,
             inner,
             canvas,
@@ -5095,6 +5108,22 @@ impl Interpreter<'_> {
     /// still tighten the clip for the visible content that follows.
     /// Gating anything wider makes the page LAYOUT depend on layer
     /// state, which is the one thing toggling a layer must not do.
+    /// The resources a form XObject or Type 3 font gets when it omits its
+    /// own: the PAGE's (ISO 32000-1 §7.8.3 bullet 4, Table 112), falling
+    /// back to the calling stream's only when the page has none.
+    ///
+    /// Not the caller's first: for a nested `A -> B` where only `A` carries
+    /// `/Resources`, the clause names the page's, and `text_edit::forms`
+    /// resolves the same way, so an edit and its render agree (`FX-A1` in
+    /// the spec corpus). The two are identical at depth 0.
+    fn inherited_resources(&self) -> &'a Dict {
+        if self.page_resources.is_empty() {
+            self.resources
+        } else {
+            self.page_resources
+        }
+    }
+
     fn oc_hidden(&self) -> bool {
         self.hidden_depth > 0
     }
@@ -6158,9 +6187,10 @@ impl Interpreter<'_> {
             .get(b"Resources")
             .map(|o| doc.resolve(o))
             .and_then(Object::as_dict)
+            .filter(|d| !d.is_empty())
         {
             Some(own) => own,
-            None => self.resources,
+            None => self.inherited_resources(),
         };
 
         // §11.6.5 / Table 147: a luminosity mask group's `/CS` is
@@ -6191,6 +6221,7 @@ impl Interpreter<'_> {
             doc,
             &content,
             resources,
+            self.page_resources,
             self.fonts,
             inner,
             &mut Canvas::paint(&mut buf),
@@ -7924,23 +7955,23 @@ impl Interpreter<'_> {
         }
 
         // --- (d) paint, with the form's OWN resources ---
-        // §7.8.3 case 2. The fallback to the *calling* stream's
-        // resources is case 3 — a construct §7.8.3 calls obsolete
-        // (PDF ≤ 1.1) but does not forbid reading. Note the two
-        // dictionaries are never MERGED: §8.10's PDF 1.2+ rule
-        // explicitly forbids promoting a form's resources outward.
+        // §7.8.3 case 2. A form that omits them (or carries an empty
+        // `<< >>`) is case 3 — obsolete (PDF ≤ 1.1) but not forbidden —
+        // and gets `inherited_resources`. The dictionaries are never
+        // MERGED: §8.10's PDF 1.2+ rule forbids promoting a form's
+        // resources outward.
         let form_resources = match stream
             .dict
             .get(b"Resources")
             .map(|o| doc.resolve(o))
             .and_then(Object::as_dict)
+            .filter(|d| !d.is_empty())
         {
             Some(own) => own,
             None => {
                 self.diag.tolerated += 1;
-                self.diag
-                    .note(b"Do(form without /Resources - using caller's)");
-                self.resources
+                self.diag.note(b"Do(form without /Resources - inherited)");
+                self.inherited_resources()
             }
         };
 
@@ -8180,6 +8211,7 @@ impl Interpreter<'_> {
                         doc,
                         &content,
                         form_resources,
+                        self.page_resources,
                         fonts,
                         group_state.clone(),
                         sub,
@@ -8243,6 +8275,7 @@ impl Interpreter<'_> {
                     doc,
                     &content,
                     form_resources,
+                    self.page_resources,
                     fonts,
                     inner,
                     canvas,
