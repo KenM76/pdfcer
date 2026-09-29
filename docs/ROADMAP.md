@@ -115,6 +115,31 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 408.0` (`7e2efec0`), 2026-09-29 — CI builds the fuzz targets on `windows-latest` too
+
+Closes the Backlog item below ("Wire a `windows-latest cargo +nightly fuzz
+build` sibling job into CI"). New job `fuzz-smoke-windows` ("fuzz targets
+build (nightly, windows)") added to `.github/workflows/ci.yml`, running the
+same `cargo +nightly fuzz build` as the existing `fuzz-smoke` job
+(`ubuntu-latest`), but on `windows-latest`. **Build-only, not run** — running
+a target needs the MSVC ASan runtime DLL, a build does not. The Linux job
+links no MSVC and stayed green through the break where `rten`'s `cdylib`
+crate-type picked up libFuzzer's forced `/include:main`; this sibling is the
+gate that sees that class of break. The stale "a windows-latest sibling is
+owed" comment in `fuzz-smoke` now points at the new job.
+
+**Measurements.** Local Windows MSVC `cargo +nightly fuzz build`: 6m19s cold,
+green, before wiring. First CI run at `7e2efec0`: the new job completed with
+conclusion `success`. `check-ci-parity`, `check-ci-job-names` and
+`check-ci-crate-lists` all clean; CI job count is now 11. No Rust code, no
+manifest and no core-api change, so `cargo tree` is unaffected.
+
+**Consequence.** `ARCHITECTURE.md` §10.2's per-session Windows fuzz-build
+discipline is now enforced by CI — the Backlog entry's own words below
+("stays a per-session discipline … not a gate") no longer hold now that the
+job exists. §10.2's body does not itself claim CI lacks a Windows leg, so it
+is left unedited.
+
 ### `Pass 264.6` (`73a8ba60`), 2026-09-29 — a pasted annotation keeps its own blend mode
 
 Closes the copy-paste residue filed under `Pass 264.1` below (`/BM does not survive
@@ -24614,7 +24639,7 @@ entry's own citation-valid rule; see the Shipped entry for the live number.)
 
 </details>
 
-### Wire a `windows-latest cargo +nightly fuzz build` sibling job into CI — unscoped, no Pass ID — heading narrowed 2026-09-29 (740th filing) to match the 255th filing's own amendment below; NOT closed, the Windows leg is still unbuilt
+### Wire a `windows-latest cargo +nightly fuzz build` sibling job into CI — **CLOSED 2026-09-29 (`Pass 408.0`, `7e2efec0`)**: `fuzz-smoke-windows` job added, build-only, first CI run green. See *Shipped* above.
 
 **Filed 2026-08-25 (two-hundred-and-fifty-fourth filing)**, owed by the
 `4b22c95` Shipped entry above. `cargo fuzz build` is not one of CI's jobs; it

@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (762nd filing) — `Pass 408.0` (`7e2efec0`): CI builds the fuzz targets on `windows-latest` too
+
+**Shipped:**
+- `Pass 408.0` (`7e2efec0`) — closes the Backlog item asking for a
+  `windows-latest` sibling of the existing `fuzz-smoke` CI job. New job
+  `fuzz-smoke-windows` runs the same `cargo +nightly fuzz build`, build-only
+  (running needs the MSVC ASan runtime DLL; building doesn't), on
+  `windows-latest`. The Linux job links no MSVC and stayed green through the
+  break where `rten`'s `cdylib` crate-type picked up libFuzzer's forced
+  `/include:main`; this sibling is the gate that sees that class of break.
+
+**Decisions made this session:** None — infrastructure wiring, no
+architectural call.
+
+**Findings + decisions:**
+- Local Windows MSVC `cargo +nightly fuzz build`: 6m19s cold, green, before
+  wiring. First CI run at `7e2efec0`: job completed with conclusion
+  `success`. `check-ci-parity`, `check-ci-job-names`, `check-ci-crate-lists`
+  all clean; CI job count is now 11.
+- `ARCHITECTURE.md` §10.2's per-session Windows fuzz-build discipline is now
+  enforced by CI, not left to memory. §10.2's own body doesn't claim CI
+  lacked a Windows leg, so it wasn't edited — only the Backlog entry's
+  language ("stays a per-session discipline … not a gate") is now stale,
+  and that entry is closed in place.
+- No Rust code, no manifest, no core-api change; `cargo tree` unaffected.
+  No `FEATURES.md` row describes fuzz CI coverage, so none was touched.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** No open items from this Pass.
+
 ## 2026-09-29 (761st filing) — `Pass 264.6` (`73a8ba60`): a pasted annotation keeps its own blend mode
 
 **Shipped:**
