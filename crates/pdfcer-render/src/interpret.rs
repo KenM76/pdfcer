@@ -3718,21 +3718,32 @@ impl Interpreter<'_> {
             // "The text-positioning operators shall only appear within
             // text objects" — outside one there is no Tlm to move.
             b"Td" => {
-                if let &[tx, ty] = nums.as_slice() {
+                // Operands read at full precision, as for `cm`: the text
+                // matrix is `f64` (`TextObject`), and narrowing a page-
+                // scale offset to `f32` first reinstates the drift.
+                if nums.len() == 2
+                    && let Some([tx, ty]) = operand_f64s(op)
+                {
                     self.with_text_object(|t| t.next_line_offset(tx, ty));
                 }
             }
             b"TD" => {
                 // "the same effect as: −ty TL, then tx ty Td" — note
                 // the NEGATION (`−15 TD` sets the leading to 15).
-                if let &[tx, ty] = nums.as_slice() {
-                    self.gs.current.text.leading = -ty;
+                if nums.len() == 2
+                    && let Some([tx, ty]) = operand_f64s(op)
+                {
+                    #[allow(clippy::cast_possible_truncation)] // TL is f32 text state
+                    let leading = -ty as f32;
+                    self.gs.current.text.leading = leading;
                     self.with_text_object(|t| t.next_line_offset(tx, ty));
                 }
             }
             b"Tm" => {
-                if let &[a, b, c, d, e, f] = nums.as_slice() {
-                    let m = Transform::from_row(a, b, c, d, e, f);
+                if nums.len() == 6
+                    && let Some([a, b, c, d, e, f]) = operand_f64s(op)
+                {
+                    let m = Mat64::from_row(a, b, c, d, e, f);
                     self.with_text_object(|t| t.set_matrix(m));
                 }
             }
@@ -3934,7 +3945,7 @@ impl Interpreter<'_> {
     /// leading is negated because going to the next line DECREASES y.
     fn next_line(&mut self) {
         let leading = self.gs.current.text.leading;
-        self.with_text_object(|t| t.next_line_offset(0.0, -leading));
+        self.with_text_object(|t| t.next_line_offset(0.0, -f64::from(leading)));
     }
 
     /// `Tf` — "`font` shall be the name of a font resource in the
@@ -4065,7 +4076,7 @@ impl Interpreter<'_> {
                 other => {
                     if let Some(tj) = other.as_number() {
                         let tx = self.gs.current.text.adjustment(tj as f32);
-                        self.with_text_object(|t| t.advance(tx, 0.0));
+                        self.with_text_object(|t| t.advance(f64::from(tx), 0.0));
                     }
                 }
             }
@@ -4159,7 +4170,7 @@ impl Interpreter<'_> {
                     unicode: unicode
                         .as_ref()
                         .and_then(|u| u.unicode_for_code(code.value)),
-                    to_device: self.gs.current.ctm.pre_concat(to_user),
+                    to_device: to_user.post_concat(self.gs.current.ctm64).to_f32(),
                 });
             }
             self.paint_glyph(&font, program.as_ref(), gid, canvas);
@@ -4180,12 +4191,12 @@ impl Interpreter<'_> {
                 .current
                 .text
                 .advance_for(w0, 0.0, code.word_spacing_applies);
-            self.with_text_object(|t| t.advance(tx, 0.0));
+            self.with_text_object(|t| t.advance(f64::from(tx), 0.0));
         }
         if let Some((upem, _)) = capture {
             let end = self.text.map_or(Transform::identity(), |tobj| {
                 let to_user = self.gs.current.text.glyph_to_user(tobj.tm, upem);
-                self.gs.current.ctm.pre_concat(to_user)
+                to_user.post_concat(self.gs.current.ctm64).to_f32()
             });
             canvas.end_text_run(crate::display_list::TextRunInfo {
                 font: Arc::clone(&font),
@@ -4225,7 +4236,7 @@ impl Interpreter<'_> {
                 .current
                 .text
                 .advance_for(w0, 0.0, code.word_spacing_applies);
-            self.with_text_object(|t| t.advance(tx, 0.0));
+            self.with_text_object(|t| t.advance(f64::from(tx), 0.0));
         }
     }
 
@@ -4337,24 +4348,18 @@ impl Interpreter<'_> {
         // `1/upem` scale that stands there for a font with a program.
         let m = t3.font_matrix;
         let ts = &self.gs.current.text;
-        let param = tiny_skia::Transform::from_row(
-            ts.font_size * ts.horizontal_scale,
-            0.0,
-            0.0,
-            ts.font_size,
-            0.0,
-            ts.rise,
-        );
-        let glyph_ctm = tiny_skia::Transform::from_row(m[0], m[1], m[2], m[3], m[4], m[5])
-            .post_concat(param)
-            .post_concat(tobj.tm)
-            .post_concat(self.gs.current.ctm);
+        let glyph_ctm = Mat64::from_f32(tiny_skia::Transform::from_row(
+            m[0], m[1], m[2], m[3], m[4], m[5],
+        ))
+        .post_concat(ts.text_space_params())
+        .post_concat(tobj.tm)
+        .post_concat(self.gs.current.ctm64);
 
         // "The graphics state shall be saved before this invocation and
         // shall be restored afterward": a clone, never a mutation of
         // `self.gs`.
         let mut inner = self.gs.current.clone();
-        inner.set_ctm64(crate::gstate::Mat64::from_f32(glyph_ctm));
+        inner.set_ctm64(glyph_ctm);
 
         // Table 112's `/Resources`, WITH the fallback that is easy to
         // miss: "If any glyph descriptions refer to named resources but
@@ -4426,7 +4431,7 @@ impl Interpreter<'_> {
             // page, and `glyphs_notdef` covers selection failures.
             return;
         };
-        let Some(path) = path.transform(ts.glyph_to_user(tobj.tm, program.upem())) else {
+        let Some(path) = path.transform(ts.glyph_to_user(tobj.tm, program.upem()).to_f32()) else {
             self.diag.tolerated += 1;
             return;
         };

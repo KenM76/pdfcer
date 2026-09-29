@@ -2481,10 +2481,13 @@ pub fn text_split_refusal(
 /// * **Paint order is unchanged.** Every operator stays at its own byte offset
 ///   in its own order; the only additions are the three-operator preludes.
 ///   Nothing is relocated, so nothing can be re-stacked.
-/// * **The rendering is unchanged to within sub-pixel antialiasing, NOT
-///   always bit-identical**, and the difference is measured rather than
-///   waved at — see the section below, because the first draft of this
-///   documentation claimed bit-identity and the measurement refuted it.
+/// * **The rendering is unchanged, bit for bit.** The emitted absolute `Tm`
+///   is the relative chain summed in `f64` and written at full precision;
+///   `pdfcer-render` composes `Tm`/`Tlm` and reads their operands in `f64`
+///   too, so both land on the same position. Measured on a 237-run
+///   SolidWorks label object: seven single-cut probes, 0 pixels differing at
+///   1×, 2× and 4× (`text_matrix_precision.rs` pins the same property on a
+///   synthetic chain).
 /// * **Object indices after `object_index` shift.** A split into `n+1` pieces
 ///   leaves the original at `object_index`, puts the new pieces at
 ///   `object_index + 1 ..= object_index + n`, and renumbers every later object
@@ -2494,50 +2497,6 @@ pub fn text_split_refusal(
 ///   CAD text object it is not close to free: roughly forty bytes per cut.
 ///   Minimal-diff (rule 3) governs objects the operator did not touch; this is
 ///   one they did.
-///
-/// # The sub-pixel drift, measured — and why it is a FEATURE of the fix
-///
-/// The claim "the rendering is unchanged" was written here first and then
-/// tested, and the test said otherwise. On the operator's SolidWorks sheet
-/// (`SW41177.pdf`, page 1, the 237-run dimension-label object), splitting
-/// before **one** run and re-rendering the whole page:
-///
-/// ```text
-/// scale   differing px   worst channel delta   where
-///   1x          11              16 / 255       scattered over the whole sheet
-///   2x          71              64 / 255       scattered over the whole sheet
-///   4x         301              64 / 255       scattered over the whole sheet
-/// ```
-///
-/// **Scattered over the whole sheet is the diagnostic.** Had the cut been
-/// structurally wrong the differing pixels would sit AT the cut, and they do
-/// not — the bounding box of the difference is the bounding box of the object.
-/// Nor is it a moved glyph: the count tracks the rendered AREA (it grows with
-/// scale, ~×6 then ~×4) while the worst delta stays at one antialiasing step.
-///
-/// The cause is precision, and it runs the *right* way. `pdfcer-render` keeps
-/// `Tm`/`Tlm` as `tiny_skia::Transform`, i.e. **f32**
-/// (`pdfcer_render::text::TextObject`), so a chain of a hundred relative `Td`
-/// steps accumulates a hundred f32 roundings. The absolute `Tm` this verb
-/// emits is that chain summed in **f64** and written at full precision. The
-/// glyphs land closer to where the file says than they did before the split —
-/// by about one f32 ulp, ~3 × 10⁻⁵ pt at these coordinates, which is enough to
-/// cross a 1/256 antialiasing threshold on a few edge pixels and nothing more.
-///
-/// ⚠ Two consequences worth carrying, because neither is obvious:
-///
-/// 1. **Depth of the chain is what predicts the drift, not the size of the
-///    cut.** Splitting the 18-run notes object on this same page by
-///    [`SplitGranularity::Line`] — 17 cuts, more than the single cut above —
-///    renders **bit-identical, 0 pixels differing**, because its chains are
-///    three steps deep. Seven single-cut probes across the 237-run object:
-///    five bit-identical, two not.
-/// 2. **The f32 text matrix is a real finding about `pdfcer-render`, not about
-///    this verb.** The render crate already has `gstate::Mat64` and already
-///    uses it for the CTM, for exactly this cancellation reason; the TEXT
-///    matrix never got the same treatment. Whoever picks that up should expect
-///    this verb's output to become bit-identical as a side effect — and should
-///    NOT "fix" the drift here by emitting a deliberately less accurate matrix.
 ///
 /// # Errors
 ///

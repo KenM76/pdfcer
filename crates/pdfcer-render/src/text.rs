@@ -91,11 +91,11 @@ use std::sync::Arc;
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{Dict, Object};
 use pdfcer_core::view::DocumentView;
-use tiny_skia::Transform;
 
 use crate::font::coredata::{self, BaseEncoding, Std14};
 use crate::font::program::FontProgram;
 use crate::font::{FallbackKey, FontData, FontEnvironment, GlyphSource, select};
+use crate::gstate::Mat64;
 
 /// `/Widths` and `/W` are expressed in glyph space, where 1000 units =
 /// one text-space unit (§9.2.4; `iso32000__ref__text_pipeline.md` Stage
@@ -181,18 +181,23 @@ impl Default for TextState {
 /// conceptually, it is recomputed before each glyph is painted"
 /// (§9.4.4 NOTE 2), so it is computed on demand by
 /// [`TextState::glyph_to_user`].
+///
+/// Both matrices are [`Mat64`], like the CTM: a line of text is a chain of
+/// relative `Td` steps and per-glyph advances, and composing that chain in
+/// `f32` rounds at every step, drifting glyphs off the position an absolute
+/// `Tm` states for the same point.
 #[derive(Debug, Clone, Copy)]
 pub struct TextObject {
     /// `Tm` — the text matrix. Updated by every painted glyph's
     /// advance (§9.4.2: the showing operators "update `Tm` by altering
     /// its e and f translation components").
-    pub tm: Transform,
+    pub tm: Mat64,
     /// `Tlm` — the text line matrix, "the value of `Tm` at the
     /// beginning of a line of text". `Td`/`TD`/`T*` concatenate onto
     /// **this**, never onto `Tm` — concatenating onto `Tm` accumulates
     /// intra-line glyph advances into the line origin, which is
     /// §9.4.4's named common bug.
-    pub tlm: Transform,
+    pub tlm: Mat64,
 }
 
 impl TextObject {
@@ -201,30 +206,30 @@ impl TextObject {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            tm: Transform::identity(),
-            tlm: Transform::identity(),
+            tm: Mat64::IDENTITY,
+            tlm: Mat64::IDENTITY,
         }
     }
 
     /// `Td` — "move to the start of the next line, offset from the
     /// start of the CURRENT LINE by (tx, ty)":
     /// `Tm = Tlm = translate(tx, ty) × Tlm` (Table 108).
-    pub fn next_line_offset(&mut self, tx: f32, ty: f32) {
-        self.tlm = Transform::from_translate(tx, ty).post_concat(self.tlm);
+    pub fn next_line_offset(&mut self, tx: f64, ty: f64) {
+        self.tlm = Mat64::from_row(1.0, 0.0, 0.0, 1.0, tx, ty).post_concat(self.tlm);
         self.tm = self.tlm;
     }
 
     /// `Tm` — "shall NOT be concatenated onto the current text matrix,
     /// but shall REPLACE it" (Table 108), and replaces `Tlm` too.
-    pub fn set_matrix(&mut self, m: Transform) {
+    pub fn set_matrix(&mut self, m: Mat64) {
         self.tm = m;
         self.tlm = m;
     }
 
     /// Advance the pen after a glyph (or a `TJ` adjustment):
     /// `Tm = translate(tx, ty) × Tm` (§9.4.4).
-    pub fn advance(&mut self, tx: f32, ty: f32) {
-        self.tm = Transform::from_translate(tx, ty).post_concat(self.tm);
+    pub fn advance(&mut self, tx: f64, ty: f64) {
+        self.tm = Mat64::from_row(1.0, 0.0, 0.0, 1.0, tx, ty).post_concat(self.tm);
     }
 }
 
@@ -256,19 +261,25 @@ impl TextState {
     /// outline's font units to glyph space; a CFF or Type 1 program may
     /// carry a non-standard `FontMatrix`.
     #[must_use]
-    pub fn glyph_to_user(&self, tm: Transform, upem: f32) -> Transform {
-        let upem = if upem > 0.0 { upem } else { 1000.0 };
-        let param = Transform::from_row(
-            self.font_size * self.horizontal_scale,
+    pub fn glyph_to_user(&self, tm: Mat64, upem: f32) -> Mat64 {
+        let upem = f64::from(if upem > 0.0 { upem } else { 1000.0 });
+        let unit = Mat64::from_row(1.0 / upem, 0.0, 0.0, 1.0 / upem, 0.0, 0.0);
+        unit.post_concat(self.text_space_params()).post_concat(tm)
+    }
+
+    /// §9.4.4's text-space parameter matrix
+    /// `[Tfs·Th 0 0 Tfs 0 Trise]`, shared by [`Self::glyph_to_user`] and
+    /// the Type 3 glyph CTM (§9.6.5).
+    #[must_use]
+    pub fn text_space_params(&self) -> Mat64 {
+        Mat64::from_row(
+            f64::from(self.font_size * self.horizontal_scale),
             0.0,
             0.0,
-            self.font_size,
+            f64::from(self.font_size),
             0.0,
-            self.rise,
-        );
-        Transform::from_scale(1.0 / upem, 1.0 / upem)
-            .post_concat(param)
-            .post_concat(tm)
+            f64::from(self.rise),
+        )
     }
 
     /// The horizontal displacement after showing one glyph (§9.4.4):
@@ -1450,10 +1461,28 @@ mod tests {
     }
 
     #[test]
+    fn deep_relative_chain_lands_on_the_absolute_position() {
+        // A CAD line of text is hundreds of relative `Td` steps and glyph
+        // advances. Each step composed in `f32` rounds at page-scale
+        // magnitudes; the chain must land where one absolute `Tm` would.
+        let mut t = TextObject::new();
+        t.set_matrix(Mat64::from_row(1.0, 0.0, 0.0, 1.0, 612.3, 791.7));
+        for _ in 0..500 {
+            t.next_line_offset(0.37, -0.11);
+            t.advance(1.13, 0.0);
+        }
+        let x = 612.3 + 500.0 * 0.37 + 1.13;
+        let y = 791.7 - 500.0 * 0.11;
+        assert!((t.tm.tx - x).abs() < 1e-9, "tx {} vs {x}", t.tm.tx);
+        assert!((t.tm.ty - y).abs() < 1e-9, "ty {} vs {y}", t.tm.ty);
+        assert!((t.tlm.tx - (x - 1.13)).abs() < 1e-9, "tlm {}", t.tlm.tx);
+    }
+
+    #[test]
     fn tm_replaces_rather_than_concatenates() {
         let mut t = TextObject::new();
         t.next_line_offset(50.0, 50.0);
-        t.set_matrix(Transform::from_row(1.0, 0.0, 0.0, 1.0, 5.0, 5.0));
+        t.set_matrix(Mat64::from_row(1.0, 0.0, 0.0, 1.0, 5.0, 5.0));
         assert!((t.tm.tx - 5.0).abs() < 1e-6);
         assert!((t.tlm.tx - 5.0).abs() < 1e-6);
     }

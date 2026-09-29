@@ -1316,13 +1316,10 @@ move twice), `SplitInsideMarkedContent` (§14.6 — `BDC … ET BT … EMC` over
 rather than nests), `TextRunOutOfRange`, `EmptySplit`. One bad index refuses
 the **whole** list, not the good half of it.
 
-⚠ **The rendering is preserved to within sub-pixel antialiasing, not always
-bit-identically.** Restating a deep relative chain as an absolute matrix is
-*more* accurate than the chain (`pdfcer-render` keeps `Tm` in f32), so a few
-edge pixels can cross an antialiasing threshold. Measured on the operator's
-sheet: a `Line` split of the 18-run notes object is bit-identical; one cut into
-the 237-run label object moves 11 pixels of 1.9 M at 1×, worst delta 16/255.
-Full numbers and the diagnosis in `plan_split_text_object`'s documentation.
+**The rendering is preserved bit for bit.** The injected `Tm` is the relative
+chain summed in `f64`, and `pdfcer-render` composes `Tm`/`Tlm` and reads their
+operands in `f64`, so both land on the same position (measured: seven cuts into
+a 237-run SolidWorks label object, 0 pixels differing at 1×/2×/4×).
 
 #### ★★★ 1.10.1 Editing INSIDE a form XObject — `Pass 188.0`
 
