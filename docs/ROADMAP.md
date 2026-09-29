@@ -115,6 +115,53 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 400.0` (`c18dce99`), 2026-09-29 — disclose spot inks flattened past the plane roster
+
+**Verdict: SHIPPED.** Found and fixed on discovery this session — no prior
+Backlog/Next-up entry.
+
+**Defect (rule 4).** A spot colorant refused its own ink plane — past the
+per-page roster cap (`compositor::MAX_SPOTS` = 4) or a lowered
+`--max-cmyk-buffer-bytes` ceiling — was flattened through its tint transform
+with nothing said. `CmykBuffer` already counted the refusal; nothing read
+the counter — a silent approximation.
+
+**Fix, two defects, both in the counting, not the flattening (unchanged):**
+- The counter now counts distinct colorant NAMES, not attempts — it was
+  per-fill, and `spot_map_from` double-counted a refusal `spot_index`
+  already recorded.
+- `give_back_child` (child-buffer reuse between sibling transparency
+  groups) carried `spots_flattened` and `native_images_pixels` into the
+  next group; both now reset. Found while fixing the first defect.
+
+**New surface.** `RenderDiagnostics::cmyk_spots_flattened` (`pdfcer-render`),
+merged like its siblings. CLI `render-page`'s stable metrics line appends
+`cmyk_spots_flattened=<n>`; non-zero also prints a stderr note.
+
+**Comments corrected.** Four stale `dead_code` allows on now-live spot
+machinery removed; a comment claiming `/RI`/`ri` are never read (false
+since `Pass 124.1`) and one claiming mesh-shaded spots have no plane
+(false since `Pass 393.0`) fixed in place.
+
+**Tests.** `cmyk_buffer` unit tests: 30 pass (cap test now asserts
+one-per-ink; new `a_reused_child_does_not_carry_counters_into_the_next_group`).
+New CLI test `a_spot_ink_beyond_the_plane_roster_is_counted_once_and_disclosed`
+(5 inks each painted twice → 1 + the note; 4 inks → 0, no note).
+Sabotage-verified: removing the dedupe reads 2; removing the reset fails
+the reused-child test.
+
+**Gates.** `tools/run-gates.sh` PASS. No `Cargo.toml` change — `cargo
+tree` invariant unaffected by construction. No writer touched — no
+round-trip impact.
+
+**`docs/FEATURES.md`.** Added to the *Subtractive (colorant) compositing
+buffer* row's counter list — no box changed (core/cli already `[x]`, gui
+`[ ]`, unaffected).
+
+**Sourcing (hard rule 8).** No shell tool this filing — hashes, counts and
+gate result relayed from the dispatching engineer's report, not
+independently reproduced.
+
 ### `Pass 399.1` (`8b634e7b`), 2026-09-29 — restore the vendored OCRcer adapter byte-identical
 
 **Verdict: SHIPPED.** `Pass 398.0` (`c3daaa78`) had de-linked one line in

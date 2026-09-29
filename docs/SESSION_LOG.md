@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (741st filing) — `c18dce99`: `Pass 400.0` SHIPPED — spot inks flattened past the plane roster now disclosed
+
+**Shipped:**
+- `Pass 400.0` (`c18dce99`) — found and fixed on discovery this session, no
+  prior Backlog/Next-up entry. A spot colorant refused its own ink plane
+  (past the roster cap `compositor::MAX_SPOTS = 4`, or a lowered
+  `--max-cmyk-buffer-bytes` ceiling) was flattened through its tint
+  transform silently — `CmykBuffer` counted it but nothing read the
+  counter, a rule 4 defect. New `RenderDiagnostics::cmyk_spots_flattened`;
+  `render-page`'s metrics line appends it, with a stderr note when
+  non-zero.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Two bugs found while wiring the disclosure, both fixed: the counter was
+  counting per-fill attempts rather than distinct colorant names
+  (`spot_map_from` double-counted a refusal already recorded), and
+  `give_back_child`'s buffer reuse between sibling transparency groups
+  carried `spots_flattened`/`native_images_pixels` into the next group
+  uncleared.
+- Several stale doc comments corrected in the same pass: spot machinery
+  no longer marked `dead_code` (four allows removed), a comment claiming
+  `/RI`/`ri` are never read (false since `Pass 124.1`), and one claiming
+  mesh-shaded spots have no plane (false since `Pass 393.0`).
+
+**Still in flight:** Unchanged from the 740th filing.
+
+**For next session:** Push `main` (`c18dce99` and this filing are local as
+of writing, on top of `399.0`/`399.1` and the 740th filing, all already
+noted as local in that entry).
+
+**Sourcing (hard rule 8).** No shell tool this filing — hash, test counts
+and gate result relayed from the dispatching engineer's report, not
+independently reproduced.
+
 ## 2026-09-29 (740th filing) — `3fa2091e` + `8b634e7b`: `Pass 399.0`/`399.1` SHIPPED, plus a Backlog audit closing seven stale entries
 
 **Shipped:**
