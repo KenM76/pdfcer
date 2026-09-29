@@ -3329,10 +3329,12 @@ is expected to surface these; **they are not decoration**."*
   (`font/mod.rs`) — `view_magnification` is an `f32`, and *"claiming
   `Eq` for a type that can hold a NaN would be a lie the compiler happens to
   allow via the other fields."*
-- **Render mode 7 is a future trap** (`interpret.rs`): modes 3 and
-  7 both paint nothing, and skipping the outline lookup is safe **only**
-  because text clipping is unimplemented — when modes 4–7 land, mode 7 must
-  still compute outlines.
+- **Text clipping modes 4–7 are rendered** (`interpret.rs`, §9.3.6): glyphs
+  shown in a clipping mode accumulate and intersect the clip at `ET`, after
+  the object's paints, nonzero winding; a text object whose clip-mode glyphs
+  have no outline (spaces) does not clip. Mode 3 paints and clips nothing;
+  mode 7 paints nothing but still computes outlines. Type 3 glyphs never clip
+  (only mode 3 affects them).
 
 ### 7.7 Exporting a page as a PNG or JPEG file (`Pass 248.0`)
 

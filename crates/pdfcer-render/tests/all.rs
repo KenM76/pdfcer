@@ -57,6 +57,7 @@ mod smask_replaces_not_intersects;
 mod stroke_display_hairline;
 mod symbolic_truetype_glyphs;
 mod synthetic_style_render;
+mod text_clipping_modes;
 mod text_matrix_precision;
 mod transparency_is_disclosed;
 mod type3_fonts;

@@ -48,8 +48,7 @@
 //!
 //! Recognized-but-deferred (counted in [`Diagnostics`], never silent —
 //! "fuzzy, never sneaky"): shading (`sh`), marked content, Type 3 glyph procedures
-//! (`d0`/`d1`), and text **clipping** modes `Tr` 4–7 (their fill/stroke
-//! half is painted; the clip is not applied). Unknown operators outside
+//! (`d0`/`d1`). Unknown operators outside
 //! `BX`/`EX` are — per the RAG's tolerance note — logged and skipped
 //! rather than hard-failing the page (§7.8.2 calls them an error; a
 //! viewer that abandons a page over one is conformant but useless; the
@@ -251,9 +250,8 @@ pub struct Diagnostics {
     /// §14.11.2.1). `Unusable`: no overlap, so the media box framed the page.
     pub page_crop_box: pdfcer_core::page_tree::BoxResolution,
     /// Operators recognized but not yet implemented (XObjects,
-    /// shading, marked content, Type 3 glyph procedures, and `Tr`'s
-    /// clipping modes 4–7), with occurrence counts folded into one
-    /// number.
+    /// shading, marked content and Type 3 glyph procedures), with
+    /// occurrence counts folded into one number.
     pub deferred_ops: usize,
     /// `/OC` marked-content sections that were HIDDEN, and so not drawn
     /// (§8.11.3.2).
@@ -2513,6 +2511,7 @@ pub fn trace_paths(
         subpath_start: None,
         needs_move: false,
         pending_clip: None,
+        text_clip: None,
         type3_glyph: None,
         compat_depth: 0,
         mc_stack: Vec::new(),
@@ -2617,6 +2616,7 @@ fn run_nested(
         subpath_start: None,
         needs_move: false,
         pending_clip: None,
+        text_clip: None,
         type3_glyph,
         compat_depth: 0,
         mc_stack: Vec::new(),
@@ -2792,6 +2792,7 @@ pub(crate) fn run_form_at_on(
         subpath_start: None,
         needs_move: false,
         pending_clip: None,
+        text_clip: None,
         type3_glyph: None,
         compat_depth: 0,
         mc_stack: Vec::new(),
@@ -3116,6 +3117,11 @@ struct Interpreter<'a> {
     /// operators detect the "shall only appear within text objects"
     /// violation without a separate flag.
     text: Option<TextObject>,
+    /// Glyph outlines shown in a clipping mode (`Tr` 4–7) since the last
+    /// `ET`, in DEVICE space so a `cm` inside the text object (illegal,
+    /// but real) cannot misplace earlier glyphs. §9.3.6: applied as one
+    /// nonzero-winding clip at `ET`, after every paint of the object.
+    text_clip: Option<PathBuilder>,
     /// The caller's cancellation flag, threaded down so a form XObject
     /// nested inside the page stops with it rather than running to
     /// completion inside an abandoned render.
@@ -3669,6 +3675,7 @@ impl<'a> Interpreter<'a> {
                 if self.text.take().is_none() {
                     self.diag.tolerated += 1;
                 }
+                self.apply_text_clip(canvas);
             }
 
             // ---- text state (Table 105) ----
@@ -3704,16 +3711,6 @@ impl<'a> Interpreter<'a> {
             b"Tr" => {
                 if let &[v] = nums.as_slice() {
                     let mode = v as i32;
-                    // Modes 4–7 add glyphs to the clipping path, which
-                    // this Pass defers (decision 004 §4.3). Their
-                    // fill/stroke half IS honored — dropping that too
-                    // would hide text that a conforming reader paints —
-                    // but the clip is not applied, so the divergence is
-                    // counted the first time it is requested.
-                    if (4..=7).contains(&mode) {
-                        self.diag.deferred_ops += 1;
-                        self.diag.note(b"Tr(clip 4-7)");
-                    }
                     self.gs.current.text.render_mode = u8::try_from(mode).unwrap_or(0);
                 }
             }
@@ -4406,6 +4403,34 @@ impl<'a> Interpreter<'a> {
         self.diag.merge(nested);
     }
 
+    /// Intersect the clip with the glyphs a text object showed in a
+    /// clipping mode (§9.3.6), then forget them.
+    ///
+    /// Nonzero winding, after every paint of the object (the caller is
+    /// `ET`). No outline shown — only spaces, or no clip-mode glyph at
+    /// all — means no clipping, not an empty clip. The device-space
+    /// outlines go back to user space through the current CTM so the
+    /// clip is recorded the way `W n` records one; a singular CTM leaves
+    /// the clip unchanged, painting more rather than blanking the page.
+    fn apply_text_clip(&mut self, canvas: &mut Canvas<'_>) {
+        let Some(path) = self.text_clip.take().and_then(PathBuilder::finish) else {
+            return;
+        };
+        let ctm = self.gs.current.ctm;
+        let Some(user) = ctm.invert().and_then(|inv| path.transform(inv)) else {
+            self.diag.tolerated += 1;
+            return;
+        };
+        intersect_clip(
+            &mut self.gs.current,
+            &user,
+            FillRule::Winding,
+            ctm,
+            canvas,
+            &mut self.clip_cache,
+        );
+    }
+
     /// Paint one glyph per the current rendering mode (Table 106).
     ///
     /// The outline arrives in FONT units (rule R18: unhinted, y-up) and
@@ -4423,12 +4448,10 @@ impl<'a> Interpreter<'a> {
         canvas: &mut Canvas<'_>,
     ) {
         let ts = &self.gs.current.text;
-        // Mode 3 (invisible — the OCR text-layer mode) and mode 7
-        // (clip-only) paint nothing. Skipping the outline lookup here
-        // is safe ONLY because this Pass does not implement text
-        // clipping; when modes 4–7 land, mode 7 must still compute
-        // outlines (§9.3.6's named trap).
-        if !ts.fills() && !ts.strokes() {
+        // Mode 3 (invisible — the OCR text-layer mode) paints nothing and
+        // clips nothing. Mode 7 paints nothing but still needs the
+        // outline for the clip (§9.3.6's named trap).
+        if !ts.fills() && !ts.strokes() && !ts.clips() {
             return;
         }
         let (Some(program), Some(tobj)) = (program, self.text) else {
@@ -4455,6 +4478,16 @@ impl<'a> Interpreter<'a> {
             crate::font::GlyphSource::Embedded => {}
         }
         let ctm = self.gs.current.ctm;
+        if self.gs.current.text.clips()
+            && let Some(device) = path.clone().transform(ctm)
+        {
+            self.text_clip
+                .get_or_insert_with(PathBuilder::new)
+                .push_path(&device);
+        }
+        if !self.gs.current.text.fills() && !self.gs.current.text.strokes() {
+            return;
+        }
         // BORROWED, never cloned — see `paint_path`'s note. A glyph is
         // one more paint under the same page-sized mask.
         let clip = self.gs.current.clip_ref();

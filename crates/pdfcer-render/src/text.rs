@@ -331,6 +331,12 @@ impl TextState {
     pub fn strokes(&self) -> bool {
         matches!(self.render_mode, 1 | 2 | 5 | 6)
     }
+
+    /// Whether this rendering mode adds glyphs to the clip (`Tr` 4–7).
+    #[must_use]
+    pub fn clips(&self) -> bool {
+        matches!(self.render_mode, 4..=7)
+    }
 }
 
 /// One character code taken off a shown string (§9.4.3).
