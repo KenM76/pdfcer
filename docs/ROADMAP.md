@@ -115,6 +115,41 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 409.0` (`2d2c25ee`), 2026-09-29 — `set_page_tabs` records a page's tab order
+
+Closes the Backlog item below (`set_page_tabs(page, PageTabs)`, `Pass 237.0`'s
+named remainder). `EditSession::set_page_tabs(page_index, PageTabs) ->
+Result<PageTabs, EditError>` writes or removes a page's `/Tabs` (Table
+30/31) and returns the previous value; one undo entry, a no-op write
+records nothing; only the page's own dictionary is written (`/Tabs` is not
+inheritable). Built **ahead of** the entry's own stated trigger ("build
+when `pdfceGUI`'s tab-order panel asks") because Acrobat already has the
+capability and the entry was fully scoped — no reason to wait once the
+gating was sourced.
+
+**Gating, per the sourced answer `Pass 237.0` recorded:** three new
+`EditError` variants — `TabsNeedPdf20` (`/A`/`/W` below PDF 2.0, version =
+later of header and catalog `/Version`); `TabsBreakPdfUa` (a detected
+PDF/UA part forbids the value — UA-1 permits only `/S`, ISO 14289-1
+§7.18.3; UA-2 permits `A`/`W`/`S`, ISO 14289-2 §8.9.3.3; an unreadable part
+is held to `/S`; removing the entry offends only on a page with
+annotations); `TabsValueUndefined` (`PageTabs::Other`). PDF/UA part
+detection reuses the existing bounded XMP scan (`font_unembed::declared_pdfua_part`).
+
+**CLI:** `pdfcer set-page-tabs INPUT --page N --tabs R|C|S|A|W|none -o OUT
+[--mode] [--verify-undo] [--in-place]`; prints `was=<previous>`; a no-op
+prints a stderr note; discloses `/W`'s contested tail (`TAB-A1`).
+
+**Tests.** 7 core integration tests + 2 CLI tests, all synthetic. Sabotage:
+7 core mutations each fail exactly one test; 1 CLI mutation fails one
+test. `tools/run-gates.sh` sweep green (fmt, clippy `-D warnings`,
+workspace tests, wasm32 check, cargo doc, fuzz check, all `check-*.py`).
+No manifest change, so `cargo tree` is unaffected. `docs/core-api` updated:
+verb count 286, `EditError` 156 variants, `CommandKind` 110 (the doc had
+stood at a stale 46). `README.md` subcommand count 185 → 186.
+Round-trip: incremental save writes only the one page object;
+`--verify-undo` reproduces the input byte-for-byte in the CLI test.
+
 ### `Pass 408.0` (`7e2efec0`), 2026-09-29 — CI builds the fuzz targets on `windows-latest` too
 
 Closes the Backlog item below ("Wire a `windows-latest cargo +nightly fuzz
@@ -22689,9 +22724,11 @@ top of this file.**
 > REMAINDER — `set_page_tabs`, deliberately not built with `reorder_annotations`
 > because the operator's own question ("should a reorder also write `/Tabs`?")
 > was sourced to NO, never as a side effect.** `FEATURES.md` gains a *Planned*
-> row, unticked in all three columns.
+> row, unticked in all three columns. **★ SHIPPED 2026-09-29 (`Pass 409.0`,
+> `2d2c25ee`)** — see *Shipped* above; the `FEATURES.md` row moved to
+> *Implemented*, core and cli ticked, gui still unticked.
 
-### Unscoped — ★★★ **`set_page_tabs(page, PageTabs)` — RECORD A PAGE'S TAB ORDER, THE VERB `Pass 237.0` DELIBERATELY DID NOT BUILD** — filed 2026-09-02 (378th filing, `Pass 237.0`'s named remainder)
+### Unscoped — ★★★ **`set_page_tabs(page, PageTabs)` — RECORD A PAGE'S TAB ORDER, THE VERB `Pass 237.0` DELIBERATELY DID NOT BUILD** — filed 2026-09-02 (378th filing, `Pass 237.0`'s named remainder) — **CLOSED 2026-09-29 (`Pass 409.0`, `2d2c25ee`)**: built ahead of this entry's own stated trigger (below) because the entry was fully scoped and Acrobat already has the capability. See *Shipped* above.
 
 **Status: NOT STARTED. `reorder_annotations` (`Pass 237.0`, *Shipped*) reads
 `/Tabs` and reports `PageTabs`; it never writes one.** This is the verb that

@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (763rd filing) — `Pass 409.0` (`2d2c25ee`): `set_page_tabs` records a page's tab order
+
+**Shipped:**
+- `Pass 409.0` (`2d2c25ee`) — `EditSession::set_page_tabs(page_index, PageTabs)
+  -> Result<PageTabs, EditError>` writes or removes a page's `/Tabs` (Table
+  30/31), returning the previous value; one undo entry; only the page's own
+  dictionary is written (`/Tabs` is not inheritable). Closes the Backlog
+  item filed alongside `Pass 237.0` — built ahead of that entry's own stated
+  trigger ("when `pdfceGUI`'s tab-order panel asks") because the entry was
+  fully scoped and Acrobat already has the capability. Delivered core + cli;
+  gui is the separate `pdfcer-gui` project and is not touched.
+
+**Decisions made this session:** None — the gating (refuse `/A`/`/W` below
+PDF 2.0 or against the detected PDF/UA part; refuse `PageTabs::Other`) was
+already sourced and recorded when the Backlog item was filed under
+`Pass 237.0`; this Pass builds to that spec rather than making a new call.
+
+**Findings + decisions:**
+- Three new `EditError` variants: `TabsNeedPdf20`, `TabsBreakPdfUa` (UA-1
+  permits only `/S`, ISO 14289-1 §7.18.3; UA-2 permits `A`/`W`/`S`, ISO
+  14289-2 §8.9.3.3; an unreadable part is held to `/S`), `TabsValueUndefined`.
+  PDF/UA part detection reuses the existing bounded XMP scan
+  (`font_unembed::declared_pdfua_part`).
+- `docs/core-api` had stood at a stale verb/error/command count (`46`
+  `CommandKind` variants) — corrected in the same commit to the live figures
+  (verbs 286, `EditError` 156, `CommandKind` 110).
+- 7 core integration tests + 2 CLI tests, all synthetic; sabotage-checked
+  (7 core mutations each fail exactly one test, 1 CLI mutation fails one).
+  `tools/run-gates.sh` sweep green; no manifest change, `cargo tree`
+  unaffected. `README.md` subcommand count 185 → 186.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** No open items from this Pass.
+
 ## 2026-09-29 (762nd filing) — `Pass 408.0` (`7e2efec0`): CI builds the fuzz targets on `windows-latest` too
 
 **Shipped:**
