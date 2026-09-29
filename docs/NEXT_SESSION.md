@@ -1471,11 +1471,8 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   doc block containing the same heading twice) and needs no denominator at
   all. It found **four live splices** and **five baseline rows that were
   misfiled text rather than missing text**.
-- **Backup bundle is well over 150 commits behind `HEAD`.**
 - **143 of 187 standing rules are unenforced** — the operator's own next piece
   of work: *"script it or bin it."*
-- **`personal_rag/pdf` entry on the operator's stamp file** (black-background
-  `/DCTDecode` with no `/SMask`) — verify it landed from the 496th filing.
 
 ### The operator's own ordered plan, still the front of the queue
 
