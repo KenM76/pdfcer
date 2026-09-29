@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (755th filing) — `ee6bdf28`: `Pass 406.1` shipped — `--in-place` for the three positional-`OUTPUT` subcommands
+
+**Shipped:**
+- `Pass 406.1` (`ee6bdf28`) — extends `Pass 406.0` to `encrypt`,
+  `set-permissions` and `remove-encryption`, whose `OUTPUT` is positional
+  rather than `--output`. With `--in-place`, the flag is dropped and the
+  input path is appended as the final positional. Writes still go through
+  `Pass 397.0`'s `edit_common::write_output` (temp file + rename).
+  `IN_PLACE_COMMANDS` now holds 124 subcommands; `NOT_IN_PLACE` no longer
+  names the trio.
+
+**Decisions made this session:** None — a mechanical extension of
+`Pass 406.0`'s shape to the three commands it deliberately left unscoped.
+
+**Findings + decisions:**
+- New unit test `in_place_fills_a_positional_output`, sabotage-verified.
+  `tools/run-gates.sh` green except it hit its wall-clock cap at the last
+  filing gate; `check-commits-filed`/`check-passes-filed` run separately
+  and clean. `cargo clippy -- -D warnings` clean. No manifest change,
+  `cargo tree` invariant unaffected.
+- Smoke test: `encrypt --in-place` added `/Encrypt`; `remove-encryption
+  --in-place` removed it.
+- `docs/ROADMAP.md`'s `Pass 406.0` entry corrected in place — its
+  "left unscoped" note on the trio now points at `Pass 406.1`; the
+  matching Backlog closure note gets the same pointer.
+- `docs/FEATURES.md`'s *Shell & UX* scriptable-CLI row reworded to say
+  `--in-place` now covers all 124 editing subcommands, including the
+  trio via positional `OUTPUT`; no other row or gui box touched.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** `tools/verify-release.py v0.66.0`'s CI check was
+still pending as of the 751st filing — confirm it went green (carried
+forward again, still unconfirmed as of this filing).
+
+**Sourcing (hard rule 8).** No shell tool this filing — test counts,
+gate/clippy results and the sabotage-verification claim are relayed from
+the dispatching engineer's own report, not independently reproduced here.
+
 ## 2026-09-29 (754th filing) — `385b2a71`: `Pass 406.0` shipped — `--in-place` on every CLI editing subcommand
 
 **Shipped:**

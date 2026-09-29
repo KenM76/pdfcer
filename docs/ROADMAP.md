@@ -134,7 +134,7 @@ refused or failed edit leaves the input byte-identical.
 `extract-*` family; `render-page`; `round-trip`; `stamp-pack`); `place-text`
 (input is a text file, not a PDF); `encrypt`/`set-permissions`/
 `remove-encryption` (`OUTPUT` is positional there — a possible follow-up,
-left unscoped).
+left unscoped). **Closed same day — see `Pass 406.1` immediately below.**
 
 **Tests.** Unit: `in_place_covers_every_input_output_subcommand` (every
 subcommand with input+output args is on exactly one of the two lists — a
@@ -150,6 +150,30 @@ clean. No manifest change, `cargo tree` invariant untouched.
 
 **`docs/FEATURES.md`.** *Shell & UX* row on the scriptable-CLI capability
 reworded to name `Pass 406.0` and the not-offered list.
+
+### `Pass 406.1` (`ee6bdf28`), 2026-09-29 — `--in-place` for the three subcommands with a positional `OUTPUT`
+
+Closes the residue `Pass 406.0` (above) left unscoped: `encrypt`,
+`set-permissions` and `remove-encryption` take `OUTPUT` as a positional
+argument, not `--output`, so `with_in_place()`'s flag-conflict shape didn't
+fit them directly.
+
+**Shipped.** With `--in-place`, the trio drop the flag and append the input
+path as the final positional instead of rewriting a `--output` token.
+Writes still go through `Pass 397.0`'s `edit_common::write_output` (temp
+file + rename). `IN_PLACE_COMMANDS` now holds 124 subcommands; `NOT_IN_PLACE`
+no longer names the trio.
+
+**Tests.** New unit test `in_place_fills_a_positional_output`,
+sabotage-verified. `tools/run-gates.sh` green except it hit its wall-clock
+cap at the last filing gate; `check-commits-filed`/`check-passes-filed` run
+separately and clean. `cargo clippy -- -D warnings` clean. No manifest
+change, `cargo tree` invariant unaffected. Smoke test: `encrypt --in-place`
+added `/Encrypt`; `remove-encryption --in-place` removed it.
+
+**`docs/FEATURES.md`.** *Shell & UX* scriptable-CLI row reworded to say
+`--in-place` now covers all 124 editing subcommands, including the trio via
+positional `OUTPUT`.
 
 ### `Pass 119.3` (`b7778479`), 2026-09-29 — `pdfcer-render`'s nested-form resource fallback now matches `text_edit::forms`
 
@@ -23761,6 +23785,9 @@ absent from the other ~108 editing subcommands that route through
 **Closed 2026-09-29 (754th filing) by `Pass 406.0` (`385b2a71`)** — see the
 Shipped entry above for the 121-subcommand list, the mutually-exclusive
 `--in-place`/`--output` shape, and the commands deliberately left out.
+**The three left out (`encrypt`/`set-permissions`/`remove-encryption`,
+positional `OUTPUT`) closed the same day by `Pass 406.1` (`ee6bdf28`,
+755th filing)** — 124 subcommands covered in total.
 
 `Pass 135.1` gave `pdfce-cli ocr` an `--in-place` flag and, in doing so,
 found that **two other editing subcommands' `--output` help text already
