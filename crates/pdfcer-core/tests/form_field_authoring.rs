@@ -1559,3 +1559,82 @@ fn a_repeated_display_string_is_not_a_duplicate() {
     s.add_choice_field(&NewChoiceField::new(0, "Country", rect(), list).declining_tooltip())
         .expect("two options may share a label");
 }
+
+// -- /DR fonts are indirect (pdfceGUI G068) ---------------------------------
+
+/// `/AcroForm /DR /Font` as seen through `s`, with `/AcroForm`, `/DR` and
+/// `/Font` each resolved if indirect.
+fn dr_fonts(s: &EditSession) -> pdfcer_core::object::Dict {
+    let graph = s.graph();
+    let catalog = graph
+        .resolved(graph.catalog_id().unwrap())
+        .as_dict()
+        .unwrap()
+        .clone();
+    let resolve = |o: &Object| match o {
+        Object::Reference(r) => graph.resolved(*r).clone(),
+        other => other.clone(),
+    };
+    let af = resolve(catalog.get(b"AcroForm").expect("no /AcroForm"));
+    let dr = resolve(af.as_dict().unwrap().get(b"DR").expect("no /DR"));
+    let fonts = resolve(dr.as_dict().unwrap().get(b"Font").expect("no /Font"));
+    fonts.as_dict().expect("/Font is a dictionary").clone()
+}
+
+/// A font pdfcer ADDS to `/DR` is an indirect object: Acrobat draws nothing
+/// for a filled text field whose `/DA` font is an inline `/DR` dictionary.
+/// A second field reuses the first one's object, and a face added through
+/// `edit_field` is indirect too.
+#[test]
+fn a_font_pdfcer_adds_to_dr_is_one_indirect_object_per_face() {
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_text_field(&NewTextField::new(0, "A", rect()).declining_tooltip())
+        .unwrap();
+    let Some(Object::Reference(helv)) = dr_fonts(&s).get(b"Helv").cloned() else {
+        panic!("/DR /Font /Helv is not an indirect reference");
+    };
+    let font = s.graph().resolved(helv).as_dict().unwrap().clone();
+    assert_eq!(
+        font.get(b"BaseFont")
+            .and_then(Object::as_name)
+            .map(|n| n.0.clone()),
+        Some(b"Helvetica".to_vec())
+    );
+
+    s.add_text_field(&NewTextField::new(0, "B", rect2()).declining_tooltip())
+        .unwrap();
+    assert_eq!(
+        dr_fonts(&s).get(b"Helv"),
+        Some(&Object::Reference(helv)),
+        "a second field must reuse the first field's Helvetica object"
+    );
+
+    s.edit_field(
+        "B",
+        &FieldEdit::new().with_appearance(pdfcer_core::edit::FieldAppearance::standard(
+            pdfcer_core::fontdata::Std14::TimesRoman,
+            12.0,
+            pdfcer_core::vartext::TextColor::Gray(0.0),
+        )),
+    )
+    .unwrap();
+    assert!(
+        matches!(dr_fonts(&s).get(b"TiRo"), Some(Object::Reference(_))),
+        "a face added by edit_field is indirect too"
+    );
+}
+
+/// A font the document's own author put in `/DR` inline stays inline: pdfcer
+/// only decides the shape of what it adds.
+#[test]
+fn an_authors_inline_dr_font_is_left_as_found() {
+    let mut s = session("forms/demo-form.pdf");
+    let before = dr_fonts(&s).get(b"Helv").cloned();
+    assert!(
+        matches!(before, Some(Object::Dict(_))),
+        "setup: fixture's /Helv is inline"
+    );
+    s.add_text_field(&NewTextField::new(0, "Extra", rect()).declining_tooltip())
+        .unwrap();
+    assert_eq!(dr_fonts(&s).get(b"Helv").cloned(), before);
+}

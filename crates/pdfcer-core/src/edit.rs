@@ -1242,6 +1242,11 @@ struct Command {
     trailer: Option<(Dict, Dict)>,
 }
 
+/// Standard-14 faces to add to `/AcroForm /DR /Font`, each with its new
+/// object's id, plus the writes creating those objects
+/// ([`EditSession::dr_font_objects`]).
+type DrFonts = (Vec<(crate::fontdata::Std14, ObjId)>, Vec<ObjectWrite>);
+
 /// One object-level write inside a [`Command`].
 #[derive(Debug, Clone)]
 struct ObjectWrite {
@@ -26635,7 +26640,8 @@ impl EditSession {
         let (mut writes, parent, partial, register) =
             self.place_new_field_deferred(deepest, remaining, field_id)?;
         if let Some(root) = register {
-            let (af, held) = self.acroform_register_write(root)?;
+            let dr_fonts = self.dr_font_objects(&[])?;
+            let (af, held) = self.acroform_register_write(root, &dr_fonts)?;
             writes.push(af);
             writes.extend(held);
         }
@@ -30807,17 +30813,18 @@ impl EditSession {
     /// (`ARCHITECTURE.md` §11.1), and an object rewritten to its own bytes
     /// still lands in the saved revision.
     fn acroform_ensure_font_write(
-        &self,
+        &mut self,
         font: crate::fontdata::Std14,
     ) -> Result<Option<Vec<ObjectWrite>>, EditError> {
         let key = Self::std14_resource_key(font);
         if self.acroform_dr_font_keys().iter().any(|k| k == key) {
             return Ok(None);
         }
+        let (fonts, mut writes) = self.dr_font_objects(&[font])?;
         // Both `/AcroForm` shapes: the inline one is what pdfcer's own field
         // authoring produces on a document that had no form.
-        self.acroform_write(&mut |af| Self::ensure_default_resources(af, &[font]))
-            .map(Some)
+        writes.extend(self.acroform_write(&mut |af| Self::ensure_default_resources(af, &fonts))?);
+        Ok(Some(writes))
     }
 
     /// Register `field_id` in `/AcroForm /Fields`, creating the form if
@@ -30825,16 +30832,20 @@ impl EditSession {
     fn acroform_register_write(
         &self,
         field_id: ObjId,
+        dr_fonts: &DrFonts,
     ) -> Result<(ObjectWrite, Vec<ObjectWrite>), EditError> {
-        self.acroform_write_parts(&mut |af| {
+        let (fonts, font_writes) = dr_fonts;
+        let (main, mut held) = self.acroform_write_parts(&mut |af| {
             let mut fields = match af.get(b"Fields") {
                 Some(Object::Array(a)) => a.clone(),
                 _ => Vec::new(),
             };
             fields.push(Object::Reference(field_id));
             af.insert(Name::from(b"Fields"), Object::Array(fields));
-            Self::ensure_default_resources(af, &[]);
-        })
+            Self::ensure_default_resources(af, fonts);
+        })?;
+        held.extend(font_writes.iter().cloned());
+        Ok((main, held))
     }
 
     /// The keys in `/AcroForm` `/DR` `/Font`, for validating a
@@ -30894,12 +30905,69 @@ impl EditSession {
         }
     }
 
-    /// Ensure an `/AcroForm` carries a `/DA` and a `/DR` `/Font` `/Helv` the
-    /// authored fields' `/DA` can resolve against (§12.7.3.3).
+    /// The standard-14 faces `/AcroForm /DR /Font` lacks among Helvetica plus
+    /// `also`, each allocated as a NEW indirect font object: the ids for
+    /// [`Self::ensure_default_resources`] and the writes that create them.
+    ///
+    /// Indirect because Acrobat draws nothing for a filled text field whose
+    /// `/DA` font resolves to an inline `/DR` dictionary (pdfceGUI G068,
+    /// measured). §12.7.3 Table 224 does not require it; Acrobat relies on it.
+    /// A face already present is not re-added, so a second field reuses the
+    /// first field's object: one object per face per document.
+    fn dr_font_objects(&mut self, also: &[crate::fontdata::Std14]) -> Result<DrFonts, EditError> {
+        let planned = self.planned_dr_font_objects(also)?;
+        // Consume exactly the numbers the plan used, in order.
+        for (_, id) in &planned.0 {
+            let n = self.alloc_number()?;
+            debug_assert_eq!(n, id.num);
+        }
+        Ok(planned)
+    }
+
+    /// [`Self::dr_font_objects`] without consuming object numbers, for a
+    /// side-effect-free preview. The ids are the ones the allocating form would
+    /// hand out next; nothing may commit them.
+    fn planned_dr_font_objects(
+        &self,
+        also: &[crate::fontdata::Std14],
+    ) -> Result<DrFonts, EditError> {
+        let present = self.acroform_dr_font_keys();
+        let mut faces = vec![crate::fontdata::Std14::Helvetica];
+        for face in also {
+            if !faces.contains(face) {
+                faces.push(*face);
+            }
+        }
+        let mut ids = Vec::new();
+        let mut writes = Vec::new();
+        let mut next = self.next_number;
+        for face in faces {
+            let key = Self::std14_resource_key(face);
+            if present.iter().any(|k| k == key) {
+                continue;
+            }
+            let num = next.ok_or(EditError::ObjectNumbersExhausted)?;
+            next = num.checked_add(1);
+            let id = ObjId::new(num, 0);
+            writes.push(ObjectWrite {
+                id,
+                before: None,
+                after: Some(Object::Dict(crate::vartext::standard14_font_dict(face))),
+            });
+            ids.push((face, id));
+        }
+        Ok((ids, writes))
+    }
+
+    /// Ensure an `/AcroForm` carries a `/DA`, and a `/DR /Font` entry for each
+    /// face in `fonts` (from [`Self::dr_font_objects`]) that the authored
+    /// fields' `/DA` can resolve against (§12.7.3.3).
     ///
     /// Only ADDS what is missing — an existing `/DR` or `/DA` belongs to the
-    /// document's own author and is left exactly as found.
-    fn ensure_default_resources(af: &mut Dict, also: &[crate::fontdata::Std14]) {
+    /// document's own author and is left exactly as found. The ONE place that
+    /// decides what `/DR /Font` gains, so no two writers disagree about
+    /// whether a key was already present.
+    fn ensure_default_resources(af: &mut Dict, fonts: &[(crate::fontdata::Std14, ObjId)]) {
         if af.get(b"DA").is_none() {
             af.insert(
                 Name::from(b"DA"),
@@ -30914,33 +30982,17 @@ impl EditSession {
             Some(Object::Dict(d)) => d.clone(),
             _ => Dict::new(),
         };
-        let mut fonts = match dr.get(b"Font") {
+        let mut font_dict = match dr.get(b"Font") {
             Some(Object::Dict(d)) => d.clone(),
             _ => Dict::new(),
         };
-        if fonts.get(b"Helv").is_none() {
-            fonts.insert(
-                Name::from(b"Helv"),
-                Object::Dict(crate::vartext::standard14_font_dict(
-                    crate::fontdata::Std14::Helvetica,
-                )),
-            );
-        }
-        // Any ADDITIONAL standard-14 face a `/DA` now names. Added here
-        // rather than at the write site so there is ONE place that decides
-        // what `/DR` `/Font` contains -- two would eventually disagree about
-        // whether a key was already present, and the loser writes a `/DA`
-        // naming a resource the other one did not author.
-        for extra in also {
-            let key = Self::std14_resource_key(*extra);
-            if fonts.get(key).is_none() {
-                fonts.insert(
-                    Name::from(key),
-                    Object::Dict(crate::vartext::standard14_font_dict(*extra)),
-                );
+        for (face, id) in fonts {
+            let key = Self::std14_resource_key(*face);
+            if font_dict.get(key).is_none() {
+                font_dict.insert(Name::from(key), Object::Reference(*id));
             }
         }
-        dr.insert(Name::from(b"Font"), Object::Dict(fonts));
+        dr.insert(Name::from(b"Font"), Object::Dict(font_dict));
         af.insert(Name::from(b"DR"), Object::Dict(dr));
     }
 
@@ -49020,7 +49072,8 @@ impl EditSession {
         widget: ObjId,
         name: Option<&str>,
     ) -> Result<AdoptOutcome, EditError> {
-        let (outcome, objects) = self.adopt_plan(widget, name)?;
+        let dr_fonts = self.dr_font_objects(&[])?;
+        let (outcome, objects) = self.adopt_plan(widget, name, &dr_fonts)?;
         self.commit(Command {
             kind: CommandKind::AdoptWidget,
             objects,
@@ -49108,7 +49161,9 @@ impl EditSession {
         widget: ObjId,
         name: Option<&str>,
     ) -> Result<AdoptOutcome, EditError> {
-        self.adopt_plan(widget, name).map(|(outcome, _)| outcome)
+        let dr_fonts = self.planned_dr_font_objects(&[])?;
+        self.adopt_plan(widget, name, &dr_fonts)
+            .map(|(outcome, _)| outcome)
     }
 
     /// The shared body of [`Self::adopt_widget`] and [`Self::adopt_preview`]
@@ -49123,6 +49178,7 @@ impl EditSession {
         &self,
         widget: ObjId,
         name: Option<&str>,
+        dr_fonts: &DrFonts,
     ) -> Result<(AdoptOutcome, Vec<ObjectWrite>), EditError> {
         if self.base.trailer().contains_key(b"Encrypt") {
             return Err(EditError::DocumentEncrypted);
@@ -49235,7 +49291,7 @@ impl EditSession {
         };
 
         let had_acroform = form.is_some();
-        let (af, held) = self.acroform_register_write(widget)?;
+        let (af, held) = self.acroform_register_write(widget, dr_fonts)?;
         objects.push(af);
         objects.extend(held);
         Ok((
@@ -58329,6 +58385,8 @@ impl EditSession {
             );
         }
         let install = dr_install.clone();
+        let (dr_fonts, font_writes) = self.dr_font_objects(&[])?;
+        objects.extend(font_writes);
         objects.extend(self.acroform_write(&mut |af| {
             // SS12.7.3.1 makes `/Fields` the ROOT list, so a node with a
             // `/Parent` must NOT appear there -- the walk would reach it twice
@@ -58342,7 +58400,7 @@ impl EditSession {
                 fields.push(Object::Reference(root));
                 af.insert(Name::from(b"Fields"), Object::Array(fields));
             }
-            Self::ensure_default_resources(af, &[]);
+            Self::ensure_default_resources(af, &dr_fonts);
             if let Some((font_name, font_id)) = &install {
                 let mut dr = match af.get(b"DR") {
                     Some(Object::Dict(d)) => d.clone(),
@@ -59391,7 +59449,8 @@ impl EditSession {
         let (mut af_write, held) = if reuse.is_some() {
             (self.acroform_sigflags_write()?, Vec::new())
         } else {
-            self.acroform_register_write(field_id)?
+            let dr_fonts = self.dr_font_objects(&[])?;
+            self.acroform_register_write(field_id, &dr_fonts)?
         };
         if let Some(Object::Dict(d)) = &mut af_write.after {
             if let Some(Object::Dict(inline)) = d.get(b"AcroForm").cloned() {
