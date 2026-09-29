@@ -115,6 +115,45 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 413.0` (`14ef44f2`), 2026-09-29 — JBIG2 robustness follow-up: T.88 file-header input decodes, page association confirmed harmless
+
+Closes the Backlog entry below ("Pass 2.x remainder — JBIG2 robustness
+follow-up", filed 2026-07-31). Both open questions answered:
+
+1. **§7.4.7 rule 3a (segment page association = 1, should-only).**
+   Measured: `hayro-jbig2` 0.3.0 parses the field and never uses it, so
+   any value decodes the same picture — no blank-page risk. Pinned by
+   `jbig2_page_association_other_than_1_still_decodes` (values 0, 2, 7);
+   the test pins third-party behaviour and cannot be sabotaged in-tree,
+   stated honestly in its own doc comment.
+2. **Annex D.2 random-access (and D.1 sequential) input** — a whole T.88
+   file with the D.4.1 file-header ID string embedded in a PDF stream
+   (non-conforming: §7.4.7 permits only the D.3 embedded organisation).
+   Previously failed as Corrupt (the embedded-segment parser misread the
+   file header as a segment header). Now decoded via `hayro-jbig2`'s own
+   file parser (`Image::new`). A file header together with
+   `/JBIG2Globals` is refused as Corrupt with a named detail — the file
+   organisation has no defined place for global segments. Tests
+   `jbig2_with_a_file_header_decodes_in_either_organisation` (flags
+   0x01, 0x03, 0x00, 0x02 — both organisations, known and unknown page
+   count) and `jbig2_file_header_with_globals_is_refused`.
+
+Core only: `crate pdfcer-image-codec`, reached by every render/extract
+route. No CLI or GUI surface change. No dependency/manifest change, so
+`cargo tree` is unaffected; round-trip/minimal-diff is unaffected (a
+decode-only fix, no writer path touched).
+
+**Tests.** `pdfcer-image-codec`: 97 lib tests + 1 pass (3 new). Sabotage:
+disabling the file-header branch fails 2 tests; disabling the globals
+refusal fails 1. `cargo fmt --check` / `cargo clippy -- -D warnings`
+clean.
+
+**Owed:** an empirical `hayro-jbig2` finding (a random-access file's
+segment-header list must end with an end-of-file segment, type 51, or
+the parser reads segment data as headers and fails "invalid
+referred-to segment count") is flagged for the Rust ecosystem RAG —
+not written in this filing (docs-only dispatch scope).
+
 ### `Pass 412.0` (`2b9f0234`), 2026-09-29 — blend space and ICC destination read the same output intent
 
 Closes item (c) of the Backlog entry below (`APPLY THE OUTPUT INTENT FOR
@@ -21264,6 +21303,13 @@ explicitly so the empty RAG is not read as blocking the whole
 sequence.)
 
 ### Pass 2.x remainder — JBIG2 robustness follow-up (filed 2026-07-31)
+
+★ **CLOSED 2026-09-29 by `Pass 413.0` (`14ef44f2`) — see Shipped above.**
+Both questions answered: non-1 page association is harmless (`hayro-jbig2`
+parses but never reads the field); Annex D.2/D.1 file-header-organized
+input now decodes via `hayro-jbig2`'s file parser, refused only when
+paired with `/JBIG2Globals` (no defined slot for globals in that
+organisation).
 
 From the Table 12 spec verification (returned 2026-07-31, closing
 Pass 2.2's carried open spec item — one key, `/JBIG2Globals`, no code

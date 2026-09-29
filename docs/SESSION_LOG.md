@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (767th filing) — `Pass 413.0` (`14ef44f2`): JBIG2 robustness follow-up
+
+**Shipped:**
+- `Pass 413.0` (`14ef44f2`) — closes the "Pass 2.x remainder — JBIG2
+  robustness follow-up" Backlog entry (filed 2026-07-31). Page
+  association other than 1 (§7.4.7 rule 3a) confirmed harmless:
+  `hayro-jbig2` parses but never reads the field. A whole T.88 file
+  embedded in a PDF stream (Annex D.1/D.2 organisation, non-conforming
+  per §7.4.7) now decodes via `hayro-jbig2`'s own file parser instead of
+  failing Corrupt; paired with `/JBIG2Globals` it is still refused
+  (named detail — no defined slot for globals in that organisation).
+  Core only (`pdfcer-image-codec`); no CLI/GUI surface, no manifest
+  change.
+
+**Decisions made this session:** None — closes an open spec-verification
+question, no new architectural decision.
+
+**Findings + decisions:**
+- Empirical `hayro-jbig2` behaviour, flagged for the Rust ecosystem RAG
+  but NOT written in this filing (docs-only dispatch scope): a
+  random-access JBIG2 file's segment-header list must end with an
+  end-of-file segment (type 51) — without one, the parser reads segment
+  data as headers and fails "invalid referred-to segment count".
+- `docs/FEATURES.md`'s image-codecs row gets a brief note on the
+  file-header capability; boxes unchanged (already `core`/`—`/`cli`/`gui`
+  all ticked where applicable).
+
+**Still in flight:** None reported this filing.
+
+**For next session:** Write the `hayro-jbig2` end-of-file-segment finding
+to `D:\dev\rag\rust\` (or judge it belongs in `C:\personal_rag\pdf\` if
+reclassified as PDF-domain rather than crate-specific) — owed from this
+filing. Unreleased since v0.66.0: `Pass 296.6`, `297.1`, `264.6`, `409.0`,
+`410.0`, `411.0`, `412.0`, `413.0`.
+
 ## 2026-09-29 (766th filing) — `Pass 412.0` (`2b9f0234`): blend space and ICC destination read the same output intent
 
 **Shipped:**
