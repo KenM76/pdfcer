@@ -629,7 +629,7 @@ cmyk_buffer={} cmyk_buffer_refused={} cmyk_bridged_pixels={} \
 cmyk_groups_approximated={} cmyk_unbridged_images={} cmyk_native_image_pixels={} rendering_intents_set={} \
 icc_managed_paints={} icc_unmanaged_paints={} \
 overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={} \
-page_crop_box_clipped={} page_crop_box_unusable={}",
+page_crop_box_clipped={} page_crop_box_unusable={} cmyk_spots_flattened={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -1019,6 +1019,8 @@ page_crop_box_clipped={} page_crop_box_unusable={}",
         // with it and the media box framed the page instead (PB-A1).
         usize::from(d.page_crop_box == pdfcer_core::page_tree::BoxResolution::Clipped),
         usize::from(d.page_crop_box == pdfcer_core::page_tree::BoxResolution::Unusable),
+        // Appended under the same contract.
+        d.cmyk_spots_flattened,
     )
 }
 
@@ -2068,7 +2070,7 @@ when comparing against another renderer",
             // existed, which is exactly the kind of claim that goes stale
             // silently: nothing tests an operator-facing paragraph.
             if d.cmyk_buffer_engaged {
-                "★ WHAT IS AND IS NOT APPROXIMATE HERE: this page's blending colour space is SUBTRACTIVE, so pdfcer composited it in a four-colorant buffer plus one plane per spot colorant, and Table 149 read the backdrop's colorants DIRECTLY rather than reconstructing them from an RGB composite. That is the exact case CompatibleOverprint was written for. What remains approximate is ONE thing, and it is NARROWER again than this sentence used to say: a spot colorant painted by a PATH FILL (`Pass 228.0`/`230.0`), a STENCIL MASK or a SAMPLED IMAGE (`Pass 238.0`), an axial, radial or function SHADING or a shading PATTERN (`Pass 239.0`) has a plane of its own and is left standing the way a press leaves it, through transparency and knockout groups as well. What still has no plane is a spot painted by a MESH shading (types 4-7) — that one flattens through its tint transform. ★★ This sentence read 'a SPOT colorant still has no plane of its own' until 2026-09-02, four Passes after that stopped being true; then 'an IMAGE or a SHADING' until `Pass 238.0`; then 'a SHADING' until `Pass 239.0`: an accurate disclosure falsified three times by improvements to the very thing it describes, in operator-facing output. ★ AN OVERPRINTING IMAGE IN A PROCESS SPACE (`DeviceGray`, `DeviceRGB`, `DeviceCMYK`) now leaves every spot plane to the backdrop — Table 149's row 2 is TWO rows, not one: a process source takes `c_s` for the group's PROCESS components and `c_b` for its SPOT ones, in both overprint modes, and `Pass 238.0` gave the image path the second half. Measured on this project's own synthetic fixtures: a grey PATH and the same grey as an IMAGE, both overprinting a spot, now leave it standing identically. Read `overprint_images_unsupported` for what genuinely could not run"
+                "★ WHAT IS AND IS NOT APPROXIMATE HERE: this page's blending colour space is SUBTRACTIVE, so pdfcer composited it in a four-colorant buffer plus one plane per spot colorant, and Table 149 read the backdrop's colorants DIRECTLY rather than reconstructing them from an RGB composite. That is the exact case CompatibleOverprint was written for. What remains approximate is ONE thing, and it is NARROWER again than this sentence used to say: a spot colorant painted by a PATH FILL (`Pass 228.0`/`230.0`), a STENCIL MASK or a SAMPLED IMAGE (`Pass 238.0`), an axial, radial or function SHADING or a shading PATTERN (`Pass 239.0`) has a plane of its own and is left standing the way a press leaves it, through transparency and knockout groups as well, and so does one painted by a MESH shading (types 4-7, `Pass 393.0`). What still flattens through its tint transform is a spot beyond the page's plane roster; `cmyk_spots_flattened` counts those. ★★ This sentence read 'a SPOT colorant still has no plane of its own' until 2026-09-02, four Passes after that stopped being true; then 'an IMAGE or a SHADING' until `Pass 238.0`; then 'a SHADING' until `Pass 239.0`: an accurate disclosure falsified three times by improvements to the very thing it describes, in operator-facing output. ★ AN OVERPRINTING IMAGE IN A PROCESS SPACE (`DeviceGray`, `DeviceRGB`, `DeviceCMYK`) now leaves every spot plane to the backdrop — Table 149's row 2 is TWO rows, not one: a process source takes `c_s` for the group's PROCESS components and `c_b` for its SPOT ones, in both overprint modes, and `Pass 238.0` gave the image path the second half. Measured on this project's own synthetic fixtures: a grey PATH and the same grey as an IMAGE, both overprinting a spot, now leave it standing identically. Read `overprint_images_unsupported` for what genuinely could not run"
             } else {
                 "★ WHAT IS STILL APPROXIMATE, because a composited count is not a correct one: this page's blending colour space is ADDITIVE, so pdfcer composited in RGB with CMYK reconstructed per pixel. The four PROCESS colorants survive that reconstruction; a SPOT colorant does not — it is flattened through its tint transform and cannot be left standing the way a press leaves it"
             }
@@ -2086,6 +2088,15 @@ when comparing against another renderer",
             pdfcer_core::settings::format_byte_size(max_cmyk_buffer_bytes),
             pdfcer_render::max_cmyk_composite_pixels(max_cmyk_buffer_bytes),
             raster_pixels
+        );
+    }
+    if d.cmyk_spots_flattened > 0 {
+        eprintln!(
+            "pdfcer: note: {} SPOT COLORANT(s) got no plane of their own (at most {} per page, \
+within --max-cmyk-buffer-bytes) and were FLATTENED through their tint transform: they paint, \
+but overprint and blending treat them as process ink",
+            d.cmyk_spots_flattened,
+            pdfcer_render::compositor::MAX_SPOTS
         );
     }
     if d.cmyk_unbridged_images > 0 {

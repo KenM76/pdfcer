@@ -1102,6 +1102,7 @@ fn render_impl_rasterize(
         diagnostics.cmyk_native_image_pixels += buffer.native_image_pixels();
         diagnostics.cmyk_groups_approximated += buffer.groups_approximated();
         diagnostics.cmyk_unbridged_images += buffer.unbridged_images();
+        diagnostics.cmyk_spots_flattened += buffer.spots_flattened();
         // The one failure mode here is an allocation the page has already
         // proven possible, so falling back to the transparent pixmap would
         // be a blank page. Keeping the (empty) pixmap and flattening it is

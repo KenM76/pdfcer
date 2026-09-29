@@ -190,7 +190,8 @@
 //!               icc_managed_paints=<n> icc_unmanaged_paints=<n>
 //!               overprint_process_images_unsupported=<n> \
 //!               annots_icon_painted=<n> page_resources_defaulted=<0|1> \
-//!               page_crop_box_clipped=<0|1> page_crop_box_unusable=<0|1>
+//!               page_crop_box_clipped=<0|1> page_crop_box_unusable=<0|1> \
+//!               cmyk_spots_flattened=<n>
 //! ```
 //!
 //! **`render-page` prints a SECOND line when `--probe-ink X,Y` is
@@ -334,6 +335,7 @@
 //! | `page_resources_defaulted` | `page_resources_defaulted` | "was this page's `/Resources` on neither the page nor any ancestor, so every name on it was looked up in an empty dictionary pdfcer supplied?" (`Pass 290.0`. §7.7.3.3 Table 30 calls the entry *required; inheritable* and §7.7.3.4 says a value *shall* be supplied in an ancestor node — but Acrobat writes pages that satisfy neither, and refusing them used to cost the WHOLE document, well-formed pages included. `1` on a page WITH content is the single cause behind an otherwise unexplained pile of `unsupported=` / `cs_unresolved=` / unpainted forms; `1` on a page with no `/Contents` is usually inert — but not by construction: §7.8.3 lets a form XObject, including an annotation's `/AP` stream, inherit the page's resource dictionary, which is exactly the stamp-page shape that motivated the Pass) |
 //! | `page_crop_box_clipped` | `page_crop_box` | "did this page's `/CropBox` overhang its media box, so the render is framed by their intersection (ISO 32000-2 §14.11.2.1)?" (a divergence flag; the file is not rewritten) |
 //! | `page_crop_box_unusable` | `page_crop_box` | "did this page's `/CropBox` not overlap the media box at all, so the media box framed the page instead?" (a divergence flag; the spec leaves this case undefined; the file is not rewritten) |
+//! | `cmyk_spots_flattened` | `cmyk_spots_flattened` | "how many distinct spot colorants got no plane of their own, and so were flattened through their tint transform?" (a disclosure: at most `compositor::MAX_SPOTS` planes per page, fewer if `--max-cmyk-buffer-bytes` cannot hold another; each ink counts once however often it is painted; zero on a page with no colorant buffer) |
 //! | `annots_hidden` | `annotations_hidden` | "how many annotations did the DOCUMENT suppress?" (§12.5.3 Table 165's Hidden and NoView flags — a census of pdfcer obeying the file, not a shortfall, honoured AND counted under R50 because content the operator cannot see is still disclosed) |
 //! | `annots_state_missing` | `annotations_appearance_state_missing` | "how many annotations carry a state subdictionary whose state could not be selected?" (§12.5.5 NOTE 3 — `/AS` absent against a multi-entry subdictionary, or naming a state that is not in it. Displayed as NOTHING, never guessed: a checkbox that should read "on" reads as blank, and this is the only thing that says why) |
 //! | `annots_widget` | `annotations_widget` | "how much of this page's annotation load is FORM FIELDS?" (§12.5.6.19 — census, a subset of `annots`. Widgets are ~88 % of organic annotations, so their share is what drives forms prioritisation rather than anything about this page's correctness) |

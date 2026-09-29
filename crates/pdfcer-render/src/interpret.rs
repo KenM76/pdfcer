@@ -1004,6 +1004,11 @@ pub struct Diagnostics {
     /// decays as the code around it changes, and a counter that stays zero
     /// costs one `u64` and one line of output.
     pub cmyk_unbridged_images: u64,
+    /// Distinct spot colorants that got no plane of their own (the
+    /// `MAX_SPOTS` roster cap or the colorant-buffer byte ceiling), so
+    /// they were flattened through their tint transform instead of kept
+    /// as separate ink. A disclosure: the page still paints, approximately.
+    pub cmyk_spots_flattened: u64,
     /// Pixels whose value the overprint composites actually changed.
     ///
     /// The measurement that distinguishes "overprint ran and mattered" from
@@ -1882,6 +1887,7 @@ polarity unverifiable (decision 006 R30)",
         self.cmyk_native_image_pixels += other.cmyk_native_image_pixels;
         self.cmyk_groups_approximated += other.cmyk_groups_approximated;
         self.cmyk_unbridged_images += other.cmyk_unbridged_images;
+        self.cmyk_spots_flattened += other.cmyk_spots_flattened;
         self.blends_in_wrong_space += other.blends_in_wrong_space;
         self.overprint_pixels += other.overprint_pixels;
         self.overprint_mode1_requested += other.overprint_mode1_requested;

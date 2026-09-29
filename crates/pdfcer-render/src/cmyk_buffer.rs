@@ -356,21 +356,6 @@ pub(crate) const BYTES_PER_PIXEL: usize = 5 * core::mem::size_of::<Chan>();
 ///
 /// Lossy decoding remains correct for *showing* a name to an operator. It is
 /// never correct for deciding whether two names are the same.
-/// **INERT AS OF `Pass 225.0`, DELIBERATELY.** Nothing calls
-/// [`CmykBuffer::spot_index`] yet, so this whole chain is dead code and is
-/// marked as such rather than being wired half-way.
-///
-/// This is step 2 of ~4, landed on the same discipline as step 1
-/// (`Pass 217.0`, the `PixelCmyk::s` carrier): **each step is proved to
-/// change nothing observable before the next one gives it effect.** Step 3
-/// is the DEPOSIT -- `interpret.rs` reading a `Separation`/`DeviceN` fill's
-/// colorant names and tints and handing them to the paint call -- and it is
-/// where the first pixel moves.
-///
-/// The `allow` comes off in that step. It is here rather than at the top of
-/// the file so that the dead-code surface is exactly the spot machinery: if
-/// anything ELSE in this file goes dead, clippy still says so.
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) struct SpotPlane {
     /// The colorant name, exactly as the file spelled it after `#xx`
@@ -433,8 +418,6 @@ pub(crate) const SPOT_LUT_SIZE: usize = 256;
 /// every way a tint transform can *fail* out of the inner loop. A function
 /// that refuses to evaluate does so 256 times at setup, not 8.4 million
 /// times during collapse.
-/// Inert until step 3 -- see [`SpotPlane`].
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) struct SpotLut {
     /// sRGB in `0.0..=1.0`, indexed by tint × 255, as this colorant appears
@@ -473,7 +456,6 @@ pub(crate) enum SpotSource {
     Preserve,
 }
 
-#[allow(dead_code)]
 impl SpotLut {
     /// Build from a closure that renders this colorant at a given tint.
     ///
@@ -500,6 +482,7 @@ impl SpotLut {
     /// rectangle of ink nobody asked for, over content that is otherwise
     /// correct, which is the worse failure by a wide margin. Same argument
     /// `Colorant::None` makes for suppressing rather than painting white.
+    #[cfg(test)]
     pub(crate) fn transparent() -> Self {
         Self {
             samples: Box::new([[1.0_f32; 3]; SPOT_LUT_SIZE]),
@@ -656,10 +639,7 @@ pub(crate) struct CmykBuffer {
     /// the page is not wrong in the way a missing paint would be — it is
     /// approximate in a way the operator is entitled to know about, which
     /// is project rule 4 applied to a resource limit.
-    ///
-    /// Inert until step 3 -- see [`SpotPlane`].
-    #[allow(dead_code)]
-    spots_flattened: u64,
+    spots_flattened: Vec<Box<[u8]>>,
     /// Pixels whose colour reached this buffer through the sRGB bridge
     /// rather than as authored colorants.
     ///
@@ -906,7 +886,7 @@ impl CmykBuffer {
             // Empty, always. See `CmykBuffer::spots` for why a page's spot
             // roster is never provisioned up front.
             spots: Vec::new(),
-            spots_flattened: 0,
+            spots_flattened: Vec::new(),
             bridged: 0,
             groups_approximated: 0,
             unbridged_images: 0,
@@ -1005,7 +985,10 @@ impl CmykBuffer {
     /// would report **zero** bridging — a disclosure that is not merely
     /// incomplete but exactly backwards, since that page is the one most
     /// affected.
-    pub(crate) const fn absorb_counters(&mut self, child: &Self) {
+    pub(crate) fn absorb_counters(&mut self, child: &Self) {
+        for colorant in &child.spots_flattened {
+            self.note_flattened(colorant);
+        }
         self.bridged += child.bridged;
         self.groups_approximated += child.groups_approximated;
         self.unbridged_images += child.unbridged_images;
@@ -1159,9 +1142,8 @@ impl CmykBuffer {
     /// happened"*. Those are different questions and only the first is
     /// meaningful to an operator deciding whether to raise the ceiling.
     ///
-    /// It is deliberately incremented for a colorant that will be refused
-    /// again on the next paint, so a page that names five colorants with a
-    /// roster of four reports `1`, not `1` per fill.
+    /// A refused colorant is recorded once by name, so a page that names
+    /// five colorants with a roster of four reports `1`, not `1` per fill.
     ///
     /// # Why allocation can fail without being an error
     ///
@@ -1169,7 +1151,6 @@ impl CmykBuffer {
     /// ink flattened is a known, counted approximation pdfcer has shipped
     /// for its entire life. A failed render is a regression. So the ceiling
     /// produces a disclosure, never a refusal to draw.
-    #[allow(dead_code)]
     pub(crate) fn spot_index(
         &mut self,
         colorant: &[u8],
@@ -1184,7 +1165,7 @@ impl CmykBuffer {
             return Some(found);
         }
         if self.spots.len() >= crate::compositor::MAX_SPOTS {
-            self.spots_flattened += 1;
+            self.note_flattened(colorant);
             return None;
         }
         let n = (self.width as usize).saturating_mul(self.height as usize);
@@ -1195,15 +1176,15 @@ impl CmykBuffer {
             .checked_mul(core::mem::size_of::<Chan>())
             .and_then(|per_px| per_px.checked_mul(n));
         let Some(bytes_after) = bytes_after else {
-            self.spots_flattened += 1;
+            self.note_flattened(colorant);
             return None;
         };
         if bytes_after > self.max_bytes {
-            self.spots_flattened += 1;
+            self.note_flattened(colorant);
             return None;
         }
         let Some(tint) = Self::try_planes(n) else {
-            self.spots_flattened += 1;
+            self.note_flattened(colorant);
             return None;
         };
         // The closure runs ONLY here -- on the transition from "this page
@@ -1253,9 +1234,15 @@ impl CmykBuffer {
 
     /// How many distinct spot colorants lost their identity to the roster
     /// cap or the memory ceiling. See [`Self::spot_index`].
-    #[allow(dead_code)]
-    pub(crate) const fn spots_flattened(&self) -> u64 {
-        self.spots_flattened
+    pub(crate) fn spots_flattened(&self) -> u64 {
+        self.spots_flattened.len() as u64
+    }
+
+    /// Record `colorant` as flattened, once per distinct name.
+    fn note_flattened(&mut self, colorant: &[u8]) {
+        if !self.spots_flattened.iter().any(|c| &**c == colorant) {
+            self.spots_flattened.push(colorant.into());
+        }
     }
 
     /// The colorant name occupying plane `index`, for diagnostics.
@@ -1967,13 +1954,7 @@ impl CmykBuffer {
         child
             .spots
             .iter()
-            .map(|plane| {
-                let index = self.spot_index(&plane.colorant, || plane.lut.clone());
-                if index.is_none() {
-                    self.spots_flattened += 1;
-                }
-                index
-            })
+            .map(|plane| self.spot_index(&plane.colorant, || plane.lut.clone()))
             .collect()
     }
 
@@ -2417,6 +2398,8 @@ impl CmykBuffer {
         child.bridged = 0;
         child.groups_approximated = 0;
         child.unbridged_images = 0;
+        child.spots_flattened.clear();
+        child.native_images_pixels = 0;
         child.spare = None;
         self.spare = Some(Box::new(child));
     }
@@ -2694,10 +2677,9 @@ impl CmykBuffer {
     ///
     /// **Do not read `CmykIntent` as an ICC rendering intent.** It names a
     /// fitted lookup table (`calibrated` / `neutral_black`), not a
-    /// colorimetric mapping, and pdfcer carries **no** PDF rendering intent at
-    /// all — `/RI` in an `/ExtGState` is never read and the `ri` operator is
-    /// an explicit no-op. That gap is `docs/ROADMAP.md`'s own backlog item,
-    /// and it is the reason no table here can reach a gamut clamp: a clamp
+    /// colorimetric mapping. The PDF rendering intent (`/RI`, `ri`) selects the
+    /// ICC transform for managed sources; it does not reach this table,
+    /// and that is the reason no table here can reach a gamut clamp: a clamp
     /// is a discontinuity at the gamut boundary and an interpolated lattice
     /// smooths across it, whichever way it is fitted.
     ///
@@ -3556,12 +3538,28 @@ mod tests {
         // a new one -- the counter answers "how many inks lost their
         // identity", not "how many fills happened".
         assert_eq!(b.spot_index(b"one-too-many", || flat_lut([0.0; 3])), None);
-        assert_eq!(
-            b.spots_flattened(),
-            2,
-            "documented behaviour: refusal is counted per ATTEMPT once the \
-roster is full, because a refused colorant has no plane to be recognised by"
-        );
+        assert_eq!(b.spots_flattened(), 1, "one ink, however many fills");
+        assert_eq!(b.spot_index(b"another", || flat_lut([0.0; 3])), None);
+        assert_eq!(b.spots_flattened(), 2, "a second ink is a second fact");
+    }
+
+    /// Would catch: a reused child carrying one group's counters into the
+    /// next, so the page total counts the first group twice.
+    #[test]
+    fn a_reused_child_does_not_carry_counters_into_the_next_group() {
+        let mut page = CmykBuffer::new(4, 4, CmykIntent::Calibrated, None).unwrap();
+        let mut first = page.take_child().unwrap();
+        first.note_flattened(b"lost ink");
+        first.native_images_pixels = 7;
+        page.absorb_counters(&first);
+        page.give_back_child(first);
+
+        let second = page.take_child().unwrap();
+        assert_eq!(second.spots_flattened(), 0);
+        assert_eq!(second.native_image_pixels(), 0);
+        page.absorb_counters(&second);
+        assert_eq!(page.spots_flattened(), 1);
+        assert_eq!(page.native_image_pixels(), 7);
     }
 
     /// Would catch: a plane being allocated past the buffer's own memory

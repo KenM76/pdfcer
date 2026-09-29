@@ -584,6 +584,8 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             // intersected / had no overlap and the media box was used.
             "page_crop_box_clipped",
             "page_crop_box_unusable",
+            // Appended: spot colorants that got no plane of their own.
+            "cmyk_spots_flattened",
         ],
         "metrics key order is part of the stable contract"
     );
@@ -2148,6 +2150,79 @@ fn probe_ink_rejects_a_coordinate_it_can_judge_without_the_document() {
         assert!(
             stderr(&out).contains("--probe-ink"),
             "the message must name the flag: {}",
+            stderr(&out)
+        );
+    }
+}
+
+/// Five distinct spot inks on a page whose roster holds `MAX_SPOTS` (4): the
+/// fifth is flattened through its tint transform, and that is disclosed —
+/// once per ink, however many times it is painted — on the metrics line and
+/// as a stderr note (project rule 4). The control is a page naming four,
+/// which flattens nothing.
+#[test]
+fn a_spot_ink_beyond_the_plane_roster_is_counted_once_and_disclosed() {
+    fn spots_pdf(inks: usize) -> Vec<u8> {
+        let spaces: String = (0..inks)
+            .map(|i| {
+                format!(
+                    "/CS{i} [/Separation /Ink{i} /DeviceCMYK \
+                     << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0.5 1 0] /N 1 >>] "
+                )
+            })
+            .collect();
+        // Every ink painted twice, so a per-fill tally would read 2, not 1.
+        let content: String = (0..inks)
+            .map(|i| {
+                format!(
+                    "/CS{i} cs 1 scn {x} 10 10 10 re f {x} 30 10 10 re f\n",
+                    x = 10 + 20 * i
+                )
+            })
+            .collect();
+        build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 200 100] >>".into(),
+            ),
+            (
+                3,
+                format!(
+                    "<< /Type /Page /Parent 2 0 R /Contents 4 0 R \
+                     /Group << /S /Transparency /CS /DeviceCMYK >> \
+                     /Resources << /ColorSpace << {spaces}>> >> >>"
+                ),
+            ),
+            (
+                4,
+                format!(
+                    "<< /Length {} >>\nstream\n{content}\nendstream",
+                    content.len()
+                ),
+            ),
+        ])
+    }
+    let dir = TempDir::new("spots-flattened");
+    for (inks, expected) in [(5, "cmyk_spots_flattened=1"), (4, "cmyk_spots_flattened=0")] {
+        let pdf = dir.write(&format!("spots{inks}.pdf"), &spots_pdf(inks));
+        let png = dir.join(&format!("spots{inks}.png"));
+        let out = run(&[
+            "render-page",
+            pdf.to_str().unwrap(),
+            "-o",
+            png.to_str().unwrap(),
+        ]);
+        assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+        let line = stdout(&out);
+        assert!(
+            line.trim_end().ends_with(expected),
+            "{inks} inks: expected {expected} at the END of the metrics line: {line:?}"
+        );
+        assert_eq!(
+            stderr(&out).contains("SPOT COLORANT(s) got no plane"),
+            inks == 5,
+            "the note appears exactly when something was flattened: {}",
             stderr(&out)
         );
     }
