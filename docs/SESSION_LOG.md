@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (724th filing) — `25924e74`: `Pass 389.0` SHIPPED — overlays isolated from page-leaked graphics state
+
+**Shipped:**
+- `Pass 389.0` (`25924e74`) — fixes GitHub issue #1 (`pdftl-dev`, opened 2026-09-22): a page whose first `/Contents` stream leaves state in effect (e.g. `1.1 0 0 1.1 0 0 cm`, legal per ISO 32000-2 §8.4.2/§7.8.2) made OCR text and added text land scaled/offset, since every appended stream inherited CTM, clip, `gs`, colour and text state. New `pdfcer_model::page_tree::plan_overlay_append` (the "A+ hybrid": wrap only when the content could leak, recognise pdfcer's own `WRAP_SAVE`/`WRAP_RESTORE` pair by decoded bytes so repeated appends share one) + `OverlayAppend`, `remove_overlays`, `is_state_neutral`. Originals stay byte-identical; a small (≤64 KiB), state-neutral, unwrapped page is left alone; removal peels emptied pairs so OCR-layer strip and Bates removal restore the original list. Bates labels are now self-contained `q … Q` streams (unreleased format, no back-compat). `page_tree::append_content_stream` removed (`#[doc(hidden)]`, no public caller bypassed it). Routes fixed: add text, OCR layer (session + one-shot), add image, paste, flatten form fields, flatten annotations, Bates stamp/remove/replace. New `crates/pdfcer-core/tests/leaked_page_state.rs` (16 tests); `flatten_annotations.rs` re-baselined; CLI `add_text.rs` +1. All sabotage-checked. `tools/run-gates.sh` PASS, 40 commands, 10,088 tests, 0 failed. `cargo tree -p pdfcer-core` clean, no manifest change. Full record: `ROADMAP.md` *Shipped*, top of file.
+
+**Decisions made this session:**
+- Decision 166 (`ARCHITECTURE.md` §12) — the overlay-isolation rule stated short-form, pointing at the full text in `docs/decisions/039-overlay-wrap.md`. Number `039` was already taken (2026-08-11, `aes`/`cbc`); the decision file keeps its pre-renumbering `039` name regardless. Decision ceiling `165` → `166`.
+
+**Findings + decisions:**
+- Known limitation, disclosed in the decision record: an original with unbalanced `q`/`Q` (non-conforming) is not repaired.
+- **GitHub issues are an inbound channel checked every session** — issue #1 sat unseen for roughly six days (opened 2026-09-22, worked 2026-09-28). The reply drafted on the issue awaits Ken's own OK before posting.
+- Unreleased since `v0.62.0`: `Pass 387.0`, `387.1`, `388.0`, `388.1`, `389.0`.
+
+**Still in flight:**
+- `Next up` still has no named head — this was an off-cycle dispatch, direct from a GitHub issue.
+- The issue #1 reply is drafted but not posted — needs the operator's go-ahead.
+
+**For next session:**
+- No shell this filing (hard rule 8) — facts relayed from the dispatching engineer's own report at `25924e74`, not independently reproduced.
+- Consider a release once the operator is ready — five Passes (`387.0` through `389.0`) are unreleased since `v0.62.0`.
+
 ## 2026-09-28 (723rd filing) — `0355fb7e`: `Pass 388.1` SHIPPED — remove and replace pdfcer Bates labels
 
 **Shipped:**

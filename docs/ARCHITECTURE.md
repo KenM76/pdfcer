@@ -11721,3 +11721,38 @@ reproduced.
 → `379`** — the commit message itself reads `Pass 375.0`, already shipped
 (699th filing); see `ROADMAP.md`'s Shipped entry for the full ID-collision
 correction.
+
+### 2026-09-28 (724th filing, `Pass 389.0`, `25924e74`) — decision 166: OVERLAYS APPENDED TO A PAGE ARE ISOLATED FROM THE STATE ITS OWN CONTENT LEAVES BEHIND — WRAP ONLY WHEN THE CONTENT COULD LEAK, RECOGNISE PDFCER'S OWN WRAPPER SO REPEATS SHARE ONE PAIR
+
+**Status: DECIDED and shipped.** **Trigger:** GitHub issue #1 (`pdftl-dev`) —
+OCR text and added text landed offset/scaled on a page whose content leaves
+a `cm` (or other graphics/text state) in effect at its end, which ISO
+32000-2 §8.4.2/§7.8.2 permit; an appended stream inherits it because
+`/Contents` is one concatenated stream.
+
+**The rule, in one paragraph.**
+`pdfcer_model::page_tree::plan_overlay_append` wraps the original content in
+a `WRAP_SAVE`/`WRAP_RESTORE` pair only when it could leak state into what
+follows; pdfcer recognises its own wrapper by decoded bytes so repeated
+appends share one pair rather than nesting a new one each time; a small
+(≤64 KiB raw), state-neutral, unwrapped page is left alone; originals stay
+byte-identical; `remove_overlays` peels emptied pairs on removal so
+OCR-layer strip and Bates removal restore the original `/Contents` list.
+Full nine-clause rule, the three rejected options (always-wrap, rewrite the
+original, inverse-CTM) and the test list: `docs/decisions/039-overlay-wrap.md`
+— the file keeps its pre-renumbering name; `039` itself was already
+assigned below (2026-08-11, `aes`/`cbc`).
+
+**Limitation.** An original with unbalanced `q`/`Q` (non-conforming) is not
+repaired — a stray `Q` in it can still pop the wrapper's own `q`.
+
+**Body-section effect: none.** §5's existing byte-identical/omitted
+invariant already states the property this decision enacts for appends; no
+invariant text changes.
+
+**Sourcing (hard rule 8).** No shell this filing. Facts relayed from the
+dispatching engineer's own report at `25924e74`, not independently verified.
+
+**Decision ceiling: `165` → `166`** (`039` was already in use — see the
+2026-08-11 entry above; `docs/decisions/039-overlay-wrap.md` keeps that
+number as its filename regardless).

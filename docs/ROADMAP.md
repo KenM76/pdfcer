@@ -115,6 +115,64 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 389.0` (`25924e74`), 2026-09-28 — overlays isolated from page-leaked graphics state
+
+**Verdict: SHIPPED.** Fixes GitHub issue #1 (`pdftl-dev`, opened
+2026-09-22, sat unseen ~6 days) — a page whose first `/Contents` stream
+leaves state in effect (e.g. `1.1 0 0 1.1 0 0 cm`, legal per ISO 32000-2
+§8.4.2/§7.8.2) made OCR text and added text land scaled/offset, since every
+appended stream inherited CTM, clip, `gs`, colour and text state.
+
+**Core.** New `pdfcer_model::page_tree::plan_overlay_append` (the "A+
+hybrid": wrap only when the content could leak, recognise pdfcer's own
+`WRAP_SAVE`/`WRAP_RESTORE` pair by decoded bytes so repeated appends share
+one) plus `OverlayAppend`, `remove_overlays`, `is_state_neutral`. Originals
+stay byte-identical; an unwrapped page ≤64 KiB and state-neutral is left
+alone; one pair per command, lazily allocated; removal peels emptied pairs
+so OCR-layer strip and Bates removal restore the original `/Contents` list.
+Bates labels are now self-contained `q … Q` streams (former shared save
+stream removed — unreleased format, no back-compat).
+`page_tree::append_content_stream` removed (`#[doc(hidden)]`, not in
+`docs/core-api`, no public caller bypassed it). Full nine-clause rule, the
+options considered, and the known limitation: §12 decision 166 /
+`docs/decisions/039-overlay-wrap.md`.
+
+**Routes fixed.** Add text (session + one-shot CLI), OCR layer (session +
+one-shot `ocr --output`), add image, paste, flatten form fields, flatten
+annotations, Bates stamp/remove/replace.
+
+**Known limitation.** An original with unbalanced `q`/`Q` (non-conforming)
+is not repaired.
+
+**Tests.** New `crates/pdfcer-core/tests/leaked_page_state.rs` (16 tests);
+`flatten_annotations.rs` re-baselined; CLI `tests/add_text.rs` gains
+`embedded_face_and_overlay_wrapper_do_not_share_numbers`. All
+sabotage-checked. `tools/run-gates.sh` PASS, 40 commands (incl. 2 filing
+gates); 10,088 tests passed, 0 failed.
+
+**`cargo tree -p pdfcer-core`.** No GUI/network crates; no dependency
+change.
+
+**Round-trip.** Originals byte-identical; the wrap is additive structure
+only — two tiny streams per command, lazily allocated and shared.
+
+**Shells.** core `[x]`, cli `[x]`; gui column untouched — no
+`pdfcer-gui` caller changed, this is a correctness fix under existing
+routes.
+
+**`docs/FEATURES.md`.** Correctness fix, not a new capability — no box
+ticked that wasn't already ticked. Brief note added to the rows for: Bates
+numbering, Add new page text, OCR text layer (both rows), Insert an image,
+Copy/cut/paste selection, Flatten a form, Flatten annotations.
+
+**§12 decision 166** (`docs/decisions/039-overlay-wrap.md` — the file
+keeps its pre-renumbering name; `039` itself was already assigned,
+2026-08-11, to `aes`/`cbc`). Decision ceiling `165` → `166`.
+
+**Sourcing (hard rule 8).** No shell this filing — facts relayed from the
+dispatching engineer's own report at `25924e74`, not independently
+reproduced.
+
 ### `Pass 388.1` (`0355fb7e`), 2026-09-28 — remove and replace pdfcer Bates labels
 
 **Verdict: SHIPPED.** Off-cycle follow-on to `Pass 388.0` (immediately
