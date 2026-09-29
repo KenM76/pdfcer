@@ -364,6 +364,33 @@ def main() -> int:
             "will need --model-dir. Build OCRcer's release model in ../OCRcer to include it."
         )
 
+    # --- every staged model folder must carry its notice ---------------------
+    # `check-shipped-assets.py` scans `crates/*/assets/` only, and two of the
+    # folders above are staged from elsewhere (a build output, a sibling
+    # checkout). So the packager checks what it actually staged: each
+    # `models/<name>/` needs a PROVENANCE.md beside the files AND a citation
+    # in `about.hbs`, which is what puts a notice in THIRD_PARTY_LICENSES.md
+    # (the only licence text that reaches an end user besides LICENSE).
+    about = (REPO / "about.hbs").read_text(encoding="utf-8")
+    unnoticed = []
+    models_out = out / "models"
+    for staged in sorted(p for p in models_out.iterdir() if p.is_dir()) if models_out.is_dir() else []:
+        missing = []
+        if not (staged / "PROVENANCE.md").is_file():
+            missing.append("no PROVENANCE.md")
+        if f"models/{staged.name}/" not in about:
+            missing.append("not cited in about.hbs")
+        if missing:
+            unnoticed.append(f"  models/{staged.name}: {', '.join(missing)}")
+    if unnoticed:
+        print(
+            "package-portable: REFUSED — staged model folder(s) would ship without a "
+            "licence notice:\n" + "\n".join(unnoticed) + "\n"
+            "  Add a section to about.hbs naming `models/<name>/`, regenerate "
+            "THIRD_PARTY_LICENSES.md with cargo-about, and rebuild."
+        )
+        return 1
+
     # --- what changed since the last build ----------------------------------
     prev = previous_build_commit(args.dest)
     if prev:

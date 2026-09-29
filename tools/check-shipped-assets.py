@@ -67,9 +67,9 @@ WHAT IT CANNOT SEE
 - Anything the packager ships from OUTSIDE `crates/*/assets/`.
   `tools/package-portable.py` also stages `models/tesseract` (built into
   `target/tesseract-bundle`) and `models/ocrcer` (the sibling OCRcer
-  checkout). Their notices are in `about.hbs` by hand. No gate ties what the
-  packager copies to what this script scans, so a new staging step outside
-  `assets/` is invisible here.
+  checkout). `package-portable.py` covers those itself: it refuses to
+  build if any staged `models/<name>/` lacks a PROVENANCE.md or an
+  `about.hbs` citation. A staging step outside `models/` has neither check.
 - Whether the licence named is the RIGHT one. Check 2 matches a licence
   keyword; it cannot tell that the terms are true, or that they permit
   redistribution.

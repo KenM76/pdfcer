@@ -243,6 +243,16 @@ The language data in `models/tesseract/tessdata/` is from
 Apache-2.0, unmodified; SHA-256 hashes are in
 `models/tesseract/PROVENANCE.md`.
 
+### Bundled OCRcer recogniser model (MIT)
+
+`models/ocrcer/ocrcer.ocrw` is the release model of
+[OCRcer](https://github.com/KenM76/ocrcer) (MIT), shipped unmodified with
+its licence as `models/ocrcer/LICENSE`. Its prototype feature vectors are
+measured from glyphs rendered from OFL-1.1, Apache-2.0 and MIT font faces,
+each listed with its licence in the model's own `meta` block; no font file
+or outline data is included. The release record (SHA-256, size, build id)
+is in `models/ocrcer/PROVENANCE.md`.
+
 ### Bundled Foxit substitute faces (BSD-3-Clause, via pdfium)
 
 The 14 CFF font files in `crates/pdfcer-render/assets/fonts/`
