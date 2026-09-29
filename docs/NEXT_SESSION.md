@@ -1422,9 +1422,13 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   gate. ⇒ **Repointing a fixture is the visible half; a decline further down is
   invisible in the diff and keeps the test dead.** When you convert a test,
   grep its whole body for the skip idiom, not just its path.
-- **NEW — above ~1e8 scale a region render succeeds again** with an underflowed
-  page-space span. Nothing panics; whether those pixels mean anything is its
-  own measurement. Told the shell rather than letting them discover it.
+- ~~**Above ~1e8 scale a region render succeeds again** — do those pixels mean
+  anything?~~ **MEASURED AND FIXED (`0f9d0c26`, Pass 296.6).** Out-of-range
+  geometry is now pre-clipped in f64 device space before tiny-skia sees it;
+  the floor rose 250k -> 10M. Pixel-exact to ~3.4e7 (far non-integer edge) /
+  ~1.17e8 (near origin); 2px drift at 1e8, 26px at 1e9, garbage ~1e10. The
+  refusal is now a backstop. Probe: `examples/deep_zoom_pixels.rs --bisect
+  --strict --far`. Shell told via the request channel.
 - ~~**`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.~~
   **BUILT 2026-09-13.** Red on one state only: a request scoped in
   `ROADMAP.md` with no answer in its channel. Green at baseline (10 open,
