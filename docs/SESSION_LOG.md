@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (729th filing) — `afdc6797`: `Pass 391.0` SHIPPED — `/AP` `/N` overwrite guard now covers page-content aliasing
+
+**Shipped:**
+- `Pass 391.0` (`afdc6797`) — `appearance_slot` (private, `crates/pdfcer-core/src/edit.rs`, called from `resize_annotation`'s Rebuilt branch and `regenerate_markup_appearance`) now returns `Allocate` (copy, never rewrite-in-place) when a page's `/Contents` names the `/AP` `/N` stream (single reference or array element), when the page's own `/Resources /XObject` names it, or when `/N` resolves to anything but a stream. New `page_references_stream` runs the whole-document reference census `Pass 191.1` named as the needed fix; inherited resources are deliberately not consulted. Closes the Backlog entry filed at `Pass 191.1` (356th filing).
+
+**Decisions made this session:**
+- None — a guard widened to cover a case its own author already named, not a new invariant.
+
+**Findings + decisions:**
+- Pre-fix symptom: a file aliasing page content as an annotation appearance (directly via `/Contents`, or through a shared page XObject) had its page drawing silently overwritten on the next resize or restyle — a §5 round-trip breach the old guard's dictionary-only check happened to miss.
+- New `crates/pdfcer-core/tests/appearance_aliases_page_content.rs`, 3 tests (`/Contents` single ref, `/Contents` array element, page XObject), each hand-building an aliasing incremental revision and asserting a fresh `/AP /N` id plus byte-identical page bytes; sabotage (disabling the page check) fails all 3. `pdfcer-core` integration binary: 2318 passed, 2 ignored.
+- `tools/run-gates.sh`: 39/40 on first run, one `clippy::collapsible_if` in the new helper, fixed and reverified clean. No `Cargo.toml`/`pub`-API change, so `cargo tree` and `docs/core-api/` are unaffected. `docs/FEATURES.md` untouched — no row describes this guard's scope specifically, and annotation resize/restyle were already `[x]` core/cli.
+
+**Still in flight:**
+- Nothing new opened by this Pass. Standing open items unchanged (see `docs/NEXT_SESSION.md`).
+
+**For next session:**
+- No shell this filing (hard rule 8) — commit hash, test counts and gate result relayed from the dispatching engineer's own report, not independently reproduced.
+
 ## 2026-09-29 (728th filing) — Backlog hygiene: 4 `### Unscoped` entries CLOSED, 3 marked PARTLY
 
 **Shipped:**

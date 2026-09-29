@@ -115,6 +115,59 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 391.0` (`afdc6797`), 2026-09-29 — `resize_annotation`/restyle never overwrite an `/AP` `/N` stream that is also page content
+
+**Verdict: SHIPPED.** Closes the Backlog entry filed at `Pass 191.1` (356th
+filing, below) — `appearance_slot`'s `Reuse` path only refused a shared
+appearance when another *annotation* used it; a page's own `/Contents`
+naming the same stream (directly or via a page XObject) passed the check
+and got silently overwritten with annotation artwork on the next resize
+or restyle, breaching the §5 round-trip invariant.
+
+**What changed.** `appearance_slot` (private, `crates/pdfcer-core/src/edit.rs`;
+called from `resize_annotation`'s Rebuilt branch and `regenerate_markup_appearance`)
+now returns `Allocate` (copy, never rewrite-in-place) when any page's
+`/Contents` names the stream — single reference or array element — or the
+page's own `/Resources /XObject` names it, or `/N` resolves to anything
+other than a stream. New free function `page_references_stream` runs the
+whole-document reference census `Pass 191.1`'s own doc comment named as
+the fix this needed. Inherited resources are deliberately not consulted
+(documented on the function).
+
+**Tests.** New `crates/pdfcer-core/tests/appearance_aliases_page_content.rs`
+(3 tests: `/Contents` single reference, `/Contents` array element, page
+XObject), each hand-building an incremental revision that aliases a
+pdfcer-authored square's `/AP /N` as page content, resizing via
+`ResizedAppearance::Rebuilt`, and asserting a fresh `/AP /N` id plus
+byte-identical page bytes; sabotage (disabling the page check) fails all
+3. `pdfcer-core` integration binary: 2318 passed, 2 ignored.
+
+**Gates.** `tools/run-gates.sh`: 39/40 on first run (one
+`clippy::collapsible_if` in the new helper), fixed and reverified —
+workspace clippy clean, fmt clean. No `Cargo.toml` change (`cargo tree`
+unaffected); no `pub` API change (`docs/core-api/` unchanged).
+
+**`docs/FEATURES.md`.** No row describes this guard's scope specifically
+(annotation resize/restyle are already `[x]` core/cli, `[ ]` gui) — nothing
+ticked, nothing added, per this file's own "never tick a box you cannot
+substantiate" rule.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate result relayed from the dispatching engineer's own
+report, not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `390` highest, next free family `391` | **`391` used (`Pass 391.0`), next free family `392`** |
+| Standing rules | `R257` (carried figure, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — no new architectural decision (guard widened, not a new invariant) |
+| `SESSION_LOG` filings | `728` | **`729`** |
+| `docs/FEATURES.md` | — | unchanged — no row describes this guard specifically |
+
+---
+
 ### `Pass 390.0` (`f4a20856`), 2026-09-29 — `pdfcer-render`'s text matrix carried in f64, closing `Pass 306.0`'s named remainder
 
 **Verdict: SHIPPED.** `pdfcer-render` only; `pdfcer-core` got one doc-comment
@@ -21938,6 +21991,16 @@ for every *other*, still-undiscovered criterion shape. Still needs
 operator scoping before starting, per this entry's own text above.
 
 ### Unscoped — **`resize_annotation`'s `/AP` `/N` overwrite guards against structural DICTIONARIES only as a side effect, not against a page's `/Contents` STREAM** — reported, not fixed, by `Pass 191.1` — filed 2026-08-31 (356th filing)
+
+**★ CLOSED 2026-09-29 (729th filing) by `Pass 391.0` (`afdc6797`).**
+`appearance_slot` now returns `Allocate` whenever any page's `/Contents`
+names the stream (single reference or array element) or the page's own
+`/Resources /XObject` names it, or `/N` resolves to anything but a
+stream — the whole-document reference census this entry's own text below
+named as the needed fix, run by the new `page_references_stream`.
+Inherited resources are not consulted (documented on the function). 3
+new tests in `appearance_aliases_page_content.rs`, sabotage-verified.
+Full record in the Shipped entry above. Original report retained below.
 
 `appearance_slot`'s `Reuse` path (called from `resize_annotation`) rejects a
 `Dict` where it expects to reuse-and-rewrite an appearance stream, and that
