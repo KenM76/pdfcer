@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 394.0` (`3d10717d`), 2026-09-29 — pin a grey image's `/OP` on-vs-off pair over a spot backdrop
+
+**Verdict: SHIPPED.** Closes the Backlog entry filed 2026-08-31 (357th
+filing, `Pass 196.1`'s renderer-side residual, below) — `Pass 196.1`'s
+`/OP true` half (spot survives, `grey_overprint.rs`'s
+`a_grey_image_is_never_upgraded_whatever_the_scope`) was already pinned;
+the `/OP false` twin Table 149 row 2 also requires (process source, the
+grey covers the spot) was not.
+
+**What changed.** Tests and a fixture only, no production code.
+`fixtures/synthetic/overprint/grey_image_noop_over_spot.pdf`
+(`tools/gen-grey-overprint-fixtures.py`; the other 7 fixtures regenerate
+byte-identical; a `PROVENANCE.md` row was added). New
+`a_grey_image_over_a_spot_differs_with_overprint_on_and_off`,
+`crates/pdfcer-render/tests/grey_overprint.rs`: `/OP` on keeps the spot
+(greenish), `/OP` off has the grey cover it (neutral). `overprint_image.rs`'s
+module-doc four-way signature table gains a fifth row pointing at it.
+
+**Tests.** Sabotage (forcing the image `SpotSource` to `Preserve` regardless
+of `/OP`, in `interpret.rs`'s `spot_source`) fails the new test and only
+the new test — 11 of 12 grey tests stay green, confirming the gap was real.
+`tools/run-gates.sh`: PASS, 40/40 (2 filing gates included). No
+`Cargo.toml`/dependency change, no `pub` API change, `docs/core-api/`
+unaffected.
+
+**`docs/FEATURES.md`.** No box changes — no row names this specific missing
+CI row.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate result relayed from the dispatching engineer's own report,
+not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `393` highest, next free family `394` | **`394` used (`Pass 394.0`), next free family `395`** |
+| Standing rules | `R257` (carried figure, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — no new architectural decision |
+| `SESSION_LOG` filings | `731` | **`732`** |
+| `docs/FEATURES.md` | — | unchanged — no row claimed this gap |
+
+---
+
 ### `Pass 393.0` (`b96be7e7`), 2026-09-29 — mesh shadings (types 4–7) now deposit spot colorants
 
 **Verdict: SHIPPED.** Closes the Backlog entry filed 2026-09-02 (380th
@@ -22077,19 +22121,16 @@ computes.
 
 ### Unscoped — **`tools/overprint_image.rs`'s signature table has no row that would catch this on CI** — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
 
-**★ PARTLY — verified 2026-09-29 (read-only audit), stays OPEN.** This
-entry's own heading names the wrong path — the file is actually
-`crates/pdfcer-render/tests/overprint_image.rs`. The substance (spot survives
-with `/OP` on) is now pinned at `grey_overprint.rs:479`, but the four-way
-signature table this entry names (`overprint_image.rs:45-50`) still has no
-grey-image-over-spot `/OP` on-vs-off row.
-
-A grey image under `/OP true` vs. the same image under `/OP false` MUST
-differ (per Table 149 row 2's `c_b` column, once honoured) and today
-differs by **at most one level** with nothing asserting that they should.
-Add the row once the counter fix above exists; asserting it now would
-pin the current near-zero difference as correct, which is the exact
-mistake the *grey_overprint.rs* entry above is careful not to make.
+**★ CLOSED by `Pass 394.0` (`3d10717d`, 2026-09-29).** The entry's own
+heading named the wrong path (it's `crates/pdfcer-render/tests/overprint_image.rs`,
+confirmed at the 2026-09-29 audit above) but the substance is now pinned:
+`grey_overprint.rs`'s `a_grey_image_over_a_spot_differs_with_overprint_on_and_off`
+asserts the process-image/spot-backdrop `/OP` on-vs-off pair Table 149 row 2
+requires, against a new fixture
+(`fixtures/synthetic/overprint/grey_image_noop_over_spot.pdf`). Sabotage
+(forcing `SpotSource::Preserve` regardless of `/OP`) fails this test and only
+this test. `overprint_image.rs`'s own module-doc signature table gained a
+fifth row pointing at it. Tests/fixture only, no production code.
 
 ### Unscoped — **invert `tools/suite-check.py`'s DEFAULT so `clean` requires the patch's own text to STATE the criterion, rather than falling to `clean` whenever no detector fires** — filed 2026-08-31 (357th filing, named by `Pass 196.0`'s `CRIT?` fix)
 

@@ -4,6 +4,47 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (732nd filing) — `3d10717d`: `Pass 394.0` SHIPPED — pin a grey image's `/OP` on-vs-off pair over a spot
+
+**Shipped:**
+- `Pass 394.0` (`3d10717d`) — tests plus a fixture only, no production
+  code. Pins the `/OP false` twin of the pair Table 149 row 2 requires for
+  a process-space image over a spot backdrop (the `/OP true` half was
+  already pinned by `Pass 196.1`). Closes the Backlog entry filed
+  2026-08-31 (357th filing).
+
+**Decisions made this session:**
+- None — a test-coverage fix, not a new invariant.
+
+**Findings + decisions:**
+- New fixture `fixtures/synthetic/overprint/grey_image_noop_over_spot.pdf`
+  (`tools/gen-grey-overprint-fixtures.py`); the other 7 fixtures regenerate
+  byte-identical; `PROVENANCE.md` gained a row.
+- New test `a_grey_image_over_a_spot_differs_with_overprint_on_and_off`
+  (`crates/pdfcer-render/tests/grey_overprint.rs`): `/OP` on keeps the spot
+  (greenish), `/OP` off has the grey cover it (neutral).
+  `overprint_image.rs`'s module-doc signature table gained a fifth row
+  pointing at it.
+- Sabotage (forcing the image `SpotSource` to `Preserve` regardless of
+  `/OP` in `interpret.rs`'s `spot_source`) fails the new test and only the
+  new test (11 of 12 grey tests stay green) — the gap was real.
+- `tools/run-gates.sh`: PASS, 40/40. No `Cargo.toml`/dependency change, no
+  `pub` API change, `docs/core-api/` unaffected. `docs/FEATURES.md`: no
+  box changes — no row named this specific missing CI row.
+- This closes the Backlog entry filed 2026-08-31 (357th filing,
+  `Pass 196.1`'s renderer-side residual): its heading named the wrong path
+  (`crates/pdfcer-render/tests/overprint_image.rs`, not `tools/`), now
+  corrected in `ROADMAP.md`'s closure note.
+
+**Still in flight:**
+- Nothing new opened by this Pass. Standing open items unchanged (see
+  `docs/NEXT_SESSION.md`).
+
+**For next session:**
+- No shell this filing (hard rule 8) — commit hash, test counts and gate
+  result relayed from the dispatching engineer's own report, not
+  independently reproduced.
+
 ## 2026-09-29 (731st filing) — `b96be7e7`: `Pass 393.0` SHIPPED — mesh shadings (types 4–7) now deposit spot colorants
 
 **Shipped:**
