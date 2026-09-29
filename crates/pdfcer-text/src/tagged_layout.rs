@@ -429,6 +429,17 @@ fn block_kind(t: &str, sect_depth: usize) -> Option<BlockKind> {
     }
 }
 
+/// Whether a block element nested inside a block of type `outer` starts
+/// its own block. Producers nest body `P`s inside heading `P`s; merging
+/// them would make a whole section one paragraph. A list item, caption or
+/// TOC entry keeps its nested paragraphs, which are its body.
+fn splits_nested(outer: &str) -> bool {
+    matches!(outer, "P" | "H" | "Title")
+        || outer
+            .strip_prefix('H')
+            .is_some_and(|n| n.parse::<usize>().is_ok())
+}
+
 /// Grouping types that start fresh blocks even inside a block.
 fn is_grouping(t: &str) -> bool {
     matches!(
@@ -519,7 +530,17 @@ impl Walk {
                         }
                         _ => Ctx::Table(tb),
                     },
-                    Ctx::Block(b) if !is_grouping(t) && t != "Table" => Ctx::Block(b),
+                    Ctx::Block(b)
+                        if !is_grouping(t)
+                            && t != "Table"
+                            && !(block_kind(t, depth).is_some()
+                                && tree
+                                    .elements
+                                    .get(b)
+                                    .is_some_and(|o| splits_nested(&o.resolved_type))) =>
+                    {
+                        Ctx::Block(b)
+                    }
                     Ctx::Free | Ctx::Block(_) => {
                         if t == "Table" {
                             w.tables.push(i);

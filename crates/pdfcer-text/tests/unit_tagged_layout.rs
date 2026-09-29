@@ -277,3 +277,49 @@ fn retain_pages_recounts() {
         (0, 0, 0, 0)
     );
 }
+
+#[test]
+fn a_paragraph_nested_in_a_paragraph_is_its_own_block_but_a_list_items_is_not() {
+    const NESTED: &[&str] = &[
+        // 6, 7
+        "<< /Type /StructTreeRoot /K 7 0 R >>",
+        "<< /S /Document /P 6 0 R /K [8 0 R 10 0 R] >>",
+        // 8, 9: a producer's heading P holding its body P
+        "<< /S /P /P 7 0 R /Pg 3 0 R /K [0 9 0 R] >>",
+        "<< /S /P /P 8 0 R /Pg 3 0 R /K 1 >>",
+        // 10-14: L > LI > (Lbl, LBody > P)
+        "<< /S /L /P 7 0 R /K 11 0 R >>",
+        "<< /S /LI /P 10 0 R /K [12 0 R 13 0 R] >>",
+        "<< /S /Lbl /P 11 0 R /Pg 3 0 R /K 2 >>",
+        "<< /S /LBody /P 11 0 R /K 14 0 R >>",
+        "<< /S /P /P 13 0 R /Pg 3 0 R /K 3 >>",
+    ];
+    let t = lay_out(
+        tagged(NESTED),
+        &TaggedLayoutOptions::default().with_use_structure(StructureUse::Always),
+    );
+    let page = &t.layout.pages[0];
+    let tagged_blocks: Vec<(BlockKind, String)> = page
+        .blocks
+        .iter()
+        .filter(|b| b.source == BlockSource::Structure)
+        .map(|b| (b.kind.clone(), b.text(page)))
+        .collect();
+    assert_eq!(
+        tagged_blocks,
+        [
+            (BlockKind::Paragraph, "Quarterly Report".to_owned()),
+            (
+                BlockKind::Paragraph,
+                "Sales rose in every region.".to_owned()
+            ),
+            (
+                BlockKind::ListItem {
+                    marker: "1.".to_owned()
+                },
+                "1. First item".to_owned()
+            ),
+        ]
+    );
+    assert_eq!(t.report.structure_blocks, 3);
+}
