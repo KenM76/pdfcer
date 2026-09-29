@@ -35,15 +35,8 @@ pub(crate) struct Cli {
     /// SECURITY: a password on the command line is visible to every other
     /// process on the machine (`ps`, Task Manager) and is written to your
     /// shell's history file. Prefer --open-password-file, which is not.
-    ///
-    /// NAMED `--open-password`, not `--password`, because `--password` is
-    /// already taken: `add-text-field --password` is the Table 228 field flag
-    /// that makes a form field mask its input. Two unrelated meanings, and
-    /// `clap` refuses the collision outright (it panics at run time, which is
-    /// how this was found). Renaming the shipped field flag would break
-    /// existing scripts, so the newcomer takes the qualified name — and
-    /// "open" is the more accurate word anyway: this password opens the
-    /// document, it does not set one.
+    // Not `--password`: that is `add-text-field`'s mask flag (Table 228), and
+    // clap panics at run time on a global/subcommand name collision.
     #[arg(long, global = true, value_name = "PASSWORD")]
     pub(crate) open_password: Option<String>,
 
@@ -186,7 +179,7 @@ pub(crate) enum LayerIntentArg {
     Both,
 }
 
-/// `text-run-merge --fit`: how wide the merged run is (`G035`).
+/// `text-run-merge --fit`: how wide the merged run is.
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub(crate) enum MergeFitArg {
     /// Scale the merged run so it spans from the first run's start to the
@@ -197,7 +190,7 @@ pub(crate) enum MergeFitArg {
 }
 
 /// `set-page-size --crop`: whether a page's `/CropBox` moves with its new
-/// sheet (`G056`).
+/// sheet.
 #[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
 pub(crate) enum CropFollowArg {
     /// Leave the crop box alone. Growing a sheet then shows nothing new,
@@ -371,7 +364,7 @@ pub(crate) enum Command {
         #[arg(long)]
         json: bool,
         /// Compute and dump a READ-ONLY within-block reflow PREVIEW for one
-        /// recognised block (ISO 32000-1 §14.8; decision 015):
+        /// recognised block (ISO 32000-1 §14.8):
         /// the auto-detected alignment, the greedy re-wrap's new break
         /// points and per-line origins, the new block box, and every
         /// disclosure. Strictly READ-ONLY — nothing is written, no content
@@ -970,8 +963,8 @@ pub(crate) enum Command {
 
     /// Add a geometric-markup annotation to a page (Pass 6.1, §12.5.6).
     ///
-    /// Authors a fully-baked `/AP` appearance (R44) and patches the page's
-    /// `/Annots` **without touching the page content stream** (R47), saved
+    /// Authors a fully-baked `/AP` appearance and patches the page's
+    /// `/Annots` **without touching the page content stream**, saved
     /// incrementally by default so every prior byte (and signature) stays
     /// intact. The subtype selects which geometry flag is read:
     ///
@@ -1421,7 +1414,7 @@ pub(crate) enum Command {
 
     /// Apply redactions: TRULY REMOVE the marked content (§12.5.6.23).
     ///
-    /// The one destructive, irreversible operation in pdfcer (R35). It
+    /// The one destructive, irreversible operation in pdfcer. It
     /// removes the covered glyphs from the content stream (advance-
     /// preserving, so surviving text stays put), CUTS vector paths at the
     /// region boundary (strokes against the region widened by their stroke
@@ -3603,7 +3596,7 @@ pub(crate) enum Command {
     ///
     /// # No system fonts are discovered
     ///
-    /// The default render is deterministic (`R19`): a batch job whose output
+    /// The default render is deterministic: a batch job whose output
     /// depends on which fonts the runner happens to have installed is not one
     /// anyone can trust. `--font-dir` is the explicit, disclosed opt-in, and
     /// glyphs drawn from a supplied face are counted separately from
@@ -3613,10 +3606,9 @@ pub(crate) enum Command {
         input: PathBuf,
         /// 1-based page number to render.
         ///
-        /// A flag rather than a positional (the Pass 0 stub had it
-        /// positional): rendering page 1 is overwhelmingly the common
-        /// case, so it gets a default, and a defaulted positional in
-        /// front of `-o` reads badly at a shell prompt.
+        // A flag rather than a positional: rendering page 1 is the common
+        // case, so it gets a default, and a defaulted positional in front of
+        // `-o` reads badly at a shell prompt.
         #[arg(long, default_value_t = 1)]
         page: u32,
         /// Device pixels per PDF user-space unit. 1.0 ≈ 72 DPI; for a
@@ -3769,17 +3761,9 @@ pub(crate) enum Command {
         /// region is intersected with the page box; a region entirely
         /// outside it is an error rather than a blank image, because a
         /// blank image is indistinguishable from a page that is genuinely
-        /// blank there.
-        ///
-        /// # `allow_hyphen_values`, and it is not cosmetic
-        ///
-        /// A `/MediaBox` may legitimately have a negative origin, and a
-        /// viewer scrolled past the left or bottom edge asks for a region
-        /// with negative coordinates as a matter of course. Without this,
-        /// `clap` reads `--region -760,-437,840,562` as a flag named
-        /// `-760,...` and rejects the command with a usage message that
-        /// says nothing about coordinates — which reads as "the region
-        /// flag is broken" rather than "the minus sign was eaten".
+        /// blank there. Negative coordinates are accepted.
+        // `allow_hyphen_values`: a /MediaBox may have a negative origin, and
+        // without it `--region -760,-437,840,562` parses as an unknown flag.
         #[arg(long, value_name = "LLX,LLY,URX,URY", allow_hyphen_values = true)]
         region: Option<String>,
         /// Output PNG path.
@@ -3801,7 +3785,7 @@ pub(crate) enum Command {
         /// invisible, it contributes anti-aliased coverage, and a page
         /// carrying hundreds of them looks measurably lighter without
         /// them. pdfcer does not trade fidelity for speed on its own
-        /// account (decision 082) -- the exact `/BBox` cull is always on
+        /// account -- the exact `/BBox` cull is always on
         /// and needs no flag; this is the inexact one, so it is yours to
         /// ask for.
         ///
@@ -3878,21 +3862,21 @@ pub(crate) enum Command {
         #[arg(long, value_name = "X,Y")]
         probe_ink: Option<String>,
         /// Directory of font files to supply for the document's
-        /// NON-embedded fonts (decision 012). Repeatable. pdfcer walks each
+        /// NON-embedded fonts. Repeatable. pdfcer walks each
         /// directory, registers every readable `.ttf`/`.otf`/`.ttc`/`.cff`/
         /// `.pfb` face under its advertised name(s) AND its filename stem,
         /// and draws a non-embedded font from a supplied face whose name
         /// matches the PDF's `/BaseFont` (e.g. `Calibri.ttf` covers a
         /// document that references `Calibri` or `ABCDEF+Calibri` without
         /// embedding it). Without this flag pdfcer uses its bundled Base-14
-        /// substitutes — the deterministic default (R19).
+        /// substitutes — the deterministic default.
         ///
         /// Supplied fonts improve glyph SHAPES only: positions still come
-        /// from the PDF's own `/Widths` (decision 004 §3.6), so layout is
+        /// from the PDF's own `/Widths`, so layout is
         /// identical with or without `--font-dir`. Renders that use a
         /// supplied face are machine-dependent by definition and are
         /// disclosed separately (`supplied=` on the result line); they are
-        /// outside pdfcer's same-input-same-pixels guarantee (R63).
+        /// outside pdfcer's same-input-same-pixels guarantee.
         /// Unreadable, oversized, or unparseable files are skipped and
         /// noted on stderr, never fatal.
         #[arg(long = "font-dir", value_name = "DIR")]
@@ -4005,8 +3989,8 @@ pub(crate) enum Command {
         #[arg(long, default_value_t = 90)]
         quality: u8,
         /// Opaque background colour (`#rrggbb`) that transparency is
-        /// flattened onto. Default white. Contradicts `--transparent`, and
-        /// clap refuses the pair.
+        /// flattened onto. Default white. Cannot be combined with
+        /// `--transparent`.
         #[arg(long, value_name = "#RRGGBB", conflicts_with = "transparent")]
         background: Option<String>,
         /// Output file, single-page mode. The extension is yours; the
@@ -4048,7 +4032,7 @@ pub(crate) enum Command {
         #[arg(long, value_name = "SIZE")]
         max_cmyk_buffer_bytes: Option<String>,
         /// Directory of font files to supply for the document's NON-embedded
-        /// fonts (decision 012). Repeatable. See `render-page --font-dir`.
+        /// fonts. Repeatable. See `render-page --font-dir`.
         #[arg(long = "font-dir", value_name = "DIR")]
         font_dirs: Vec<PathBuf>,
         /// Force an optional-content layer VISIBLE, by its `/Name`
@@ -4129,7 +4113,7 @@ pub(crate) enum Command {
         /// Do not paint annotation appearances (ISO 32000-1 §12.5).
         #[arg(long)]
         no_annotations: bool,
-        /// Directory of font files for NON-embedded fonts (decision 012).
+        /// Directory of font files for NON-embedded fonts.
         /// Repeatable. See `render-page --font-dir`.
         #[arg(long = "font-dir", value_name = "DIR")]
         font_dirs: Vec<PathBuf>,
@@ -4531,7 +4515,7 @@ pub(crate) enum Command {
         /// `/TU`, the accessibility name a screen reader announces.
         #[arg(long)]
         tooltip: Option<String>,
-        /// Explicitly DECLINE an accessibility name (R105).
+        /// Explicitly DECLINE an accessibility name.
         ///
         /// Exactly one of `--tooltip` / `--no-tooltip` is required. Omitting
         /// both is an error, never a silent default: for a form field, `/TU`
@@ -4762,7 +4746,7 @@ pub(crate) enum Command {
         /// to a screen reader is invisible to a sighted operator.
         #[arg(long, conflicts_with_all = ["tooltip", "no_tooltip"])]
         carry_tooltip: bool,
-        /// Explicitly DECLINE an accessibility name (R105).
+        /// Explicitly DECLINE an accessibility name.
         ///
         /// Exactly one of `--tooltip` / `--carry-tooltip` / `--no-tooltip` is
         /// required with `--as-new`. Omitting all three is an error, never a
@@ -4946,7 +4930,7 @@ pub(crate) enum Command {
         /// `/TU`, the accessibility name a screen reader announces.
         #[arg(long)]
         tooltip: Option<String>,
-        /// Explicitly DECLINE an accessibility name (R105).
+        /// Explicitly DECLINE an accessibility name.
         ///
         /// Exactly one of `--tooltip` / `--no-tooltip` is required. Omitting
         /// both is an error, never a silent default: for a form field, `/TU`
@@ -5087,7 +5071,7 @@ pub(crate) enum Command {
         /// `/TU`, the accessibility name a screen reader announces.
         #[arg(long)]
         tooltip: Option<String>,
-        /// Explicitly DECLINE an accessibility name (R105).
+        /// Explicitly DECLINE an accessibility name.
         ///
         /// Exactly one of `--tooltip` / `--no-tooltip` is required.
         #[arg(long, conflicts_with = "tooltip")]
@@ -5647,7 +5631,7 @@ pub(crate) enum Command {
         ///
         /// OMITTING THIS PRESERVES AN EXISTING DASH — a restyle that
         /// regenerated the appearance without one would silently solidify a
-        /// dashed border, because `/AP` is what gets painted (R43).
+        /// dashed border, because `/AP` is what gets painted.
         ///
         /// Refused by name on a text markup, which has no border to dash.
         #[arg(long, value_name = "ON,OFF,...|solid")]
@@ -5820,7 +5804,7 @@ pub(crate) enum Command {
         /// Validate against a numeric range: `MIN..MAX`, `MIN..` or `..MAX`.
         ///
         /// pdfcer DISCLOSES a range and never enforces it -- its fills are
-        /// operator-reviewed (decision 009 §6). Writing one authors a
+        /// operator-reviewed. Writing one authors a
         /// constraint for other readers, which is what building a form for
         /// distribution means; it is not a promise pdfcer starts keeping.
         #[arg(long, value_name = "MIN..MAX")]
@@ -6705,7 +6689,7 @@ pub(crate) enum Command {
         /// `/TU`, the accessibility name a screen reader announces.
         #[arg(long)]
         tooltip: Option<String>,
-        /// Explicitly DECLINE an accessibility name (R105).
+        /// Explicitly DECLINE an accessibility name.
         ///
         /// Exactly one of `--tooltip` / `--no-tooltip` is required. Omitting
         /// both is an error, never a silent default. This bites harder on a
@@ -6826,7 +6810,7 @@ pub(crate) enum Command {
         /// `/TU`, the accessibility name a screen reader announces.
         #[arg(long)]
         tooltip: Option<String>,
-        /// Explicitly DECLINE an accessibility name (R105).
+        /// Explicitly DECLINE an accessibility name.
         ///
         /// Exactly one of `--tooltip` / `--no-tooltip` is required. Omitting
         /// both is an error, never a silent default: for a form field, `/TU`
@@ -6901,7 +6885,7 @@ pub(crate) enum Command {
     },
 
     /// Recompute recognised Acrobat calculation scripts natively, without
-    /// executing any JavaScript (decision 009 posture B).
+    /// executing any JavaScript.
     ///
     /// **Shows the plan and changes nothing unless `--apply` is given.** A
     /// recomputed total is something pdfcer inferred from a script it did not
@@ -6966,7 +6950,7 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
 
-    /// List every form-field script, classified (decision 009 posture B).
+    /// List every form-field script, classified.
     ///
     /// One stable line per script: which field, which `/AA` trigger, what
     /// pdfcer recognised it as, and whether pdfcer can natively reproduce its
@@ -7086,7 +7070,7 @@ pub(crate) enum Command {
     /// appearance is rebuilt from the field's stored value (§12.7.3.3), and
     /// the /NeedAppearances flag is removed so pdfcer never emits a stale
     /// "appearances need regenerating" assertion on a file it just fixed
-    /// (R51). Buttons are untouched (state selections, not generated).
+    ///. Buttons are untouched (state selections, not generated).
     RegenerateAppearances {
         /// Input PDF.
         input: PathBuf,
@@ -7105,7 +7089,7 @@ pub(crate) enum Command {
     /// the fields stop being interactive. Under the default incremental save
     /// the pre-flatten values remain recoverable in the prior revision;
     /// `--full-rewrite` writes a single revision that removes even that
-    /// (R48). Refused on a certified document (flatten is structural).
+    ///. Refused on a certified document (flatten is structural).
     Flatten {
         /// Input PDF.
         input: PathBuf,
@@ -7117,7 +7101,7 @@ pub(crate) enum Command {
         #[arg(short, long)]
         output: PathBuf,
         /// Write a single-revision full rewrite that physically removes the
-        /// pre-flatten field data (R48), instead of the default incremental
+        /// pre-flatten field data, instead of the default incremental
         /// save which leaves it recoverable in the prior revision.
         #[arg(long)]
         full_rewrite: bool,
@@ -7211,7 +7195,7 @@ pub(crate) enum Command {
     /// remove text, use `redact-apply` (a distinct, security operation). A
     /// character the run's font cannot provide is REFUSED by name (the
     /// font-on-edit gate); an embedded SUBSET refuses a glyph it does not
-    /// already carry. `--font-dir` supplies non-embedded faces (decision 012).
+    /// already carry. `--font-dir` supplies non-embedded faces.
     EditText {
         /// Input PDF.
         input: PathBuf,
@@ -7278,7 +7262,7 @@ pub(crate) enum Command {
         /// Pin survivors with a compensating TJ instead of reflowing the line.
         #[arg(long)]
         pin: bool,
-        /// Operator-supplied font folder for non-embedded runs (decision 012).
+        /// Operator-supplied font folder for non-embedded runs.
         /// Repeatable.
         #[arg(long = "font-dir", value_name = "DIR")]
         font_dirs: Vec<PathBuf>,
@@ -7322,7 +7306,7 @@ pub(crate) enum Command {
     ///   character in the run is REFUSED by name with nothing applied (never
     ///   `.notdef`, never a silent substitution). A successful change never
     ///   embeds a font. An outlined/vector run has no font to swap and is
-    ///   refused. `--font-dir` supplies non-embedded faces (decision 012).
+    ///   refused. `--font-dir` supplies non-embedded faces.
     ///
     /// Three direct text-state controls follow, each emitted for the
     /// matched run ONLY and explicitly restored to the run's ambient value
@@ -7372,7 +7356,7 @@ pub(crate) enum Command {
     ///
     /// A formatting change inside a tagged (accessible) run PRESERVES its
     /// BDC/EMC+MCID wrapper and discloses that the structure tree went stale —
-    /// pdfcer does not reproduce Acrobat's tag-corruption defect (R72).
+    /// pdfcer does not reproduce Acrobat's tag-corruption defect.
     FormatText {
         /// Input PDF.
         input: PathBuf,
@@ -7584,7 +7568,7 @@ pub(crate) enum Command {
         /// (only affects a size/font change; colour never shifts the line).
         #[arg(long)]
         pin: bool,
-        /// Operator-supplied font folder for non-embedded runs (decision 012).
+        /// Operator-supplied font folder for non-embedded runs.
         /// Repeatable.
         #[arg(long = "font-dir", value_name = "DIR")]
         font_dirs: Vec<PathBuf>,
@@ -7620,11 +7604,11 @@ pub(crate) enum Command {
     /// Preview first with `inspect --reflow-preview` (Pass 15.0, read-only).
     /// A reflow that grows the block past the page bottom EMITS the off-page
     /// content at its true position and DISCLOSES the overflow — it never
-    /// silently clips or drops content (R76). A composite (Type0/CJK) block, a
+    /// silently clips or drops content. A composite (Type0/CJK) block, a
     /// rotated/skewed block, or a block sharing a text object with other
     /// content is REFUSED by name (a clean, named non-zero exit — never a
     /// crash). A tagged block's BDC/EMC+MCID wrapper is preserved and its
-    /// stale /ActualText disclosed (R72).
+    /// stale /ActualText disclosed.
     Reflow {
         /// Input PDF.
         input: PathBuf,
@@ -7659,25 +7643,24 @@ pub(crate) enum Command {
     /// `--at`/`--box` is required. Either mode APPENDS a fresh `BT…ET` run
     /// (default user space, §9.4.4) as a new content stream in the page
     /// `/Contents` array (ISO 32000-1 §7.7.3.3) — every ORIGINAL
-    /// content stream stays byte-identical (R32/R46); only the page dict's
+    /// content stream stays byte-identical; only the page dict's
     /// `/Contents` reference, one new stream, and one new `/Font` entry change.
     /// The run defaults to a bundled Standard-14 face (`--font`, default
-    /// Helvetica), written by name+code with NO embedding (R79 / §9.6.2.2) — so
-    /// it is decision 014's most-editable font case and never hits the
-    /// embedded-subset wall. A character the chosen face cannot represent is
-    /// REFUSED by name (the F-refuse gate, R71) — a clean, named non-zero exit,
+    /// Helvetica), written by name+code with NO embedding (§9.6.2.2) — the most
+    /// editable font case, never limited by an embedded subset. A character the chosen face cannot represent is
+    /// REFUSED by name — a clean, named non-zero exit,
     /// never a crash or a faked glyph.
     ///
-    /// This is genuine page content, NOT a `/FreeText` annotation (R78): the
+    /// This is genuine page content, NOT a `/FreeText` annotation: the
     /// added run is thereafter editable with `edit-text`, formattable with
     /// `format-text`, and reflowable with `reflow`, exactly like the page's own
     /// text. The save is INCREMENTAL. On a TAGGED page the new run is untagged
-    /// and that is disclosed (R73 — no structure element is fabricated). If the
+    /// and that is disclosed (no structure element is fabricated). If the
     /// page inherited its `/Resources`, pdfcer gives it its own (referencing the
     /// same shared sub-dictionaries) rather than mutating the shared ancestor
     /// (§7.7.3.4) — also disclosed. `--font-dir` registers an operator-supplied
     /// face so the disclosed provenance is `Supplied` (shapes only; the written
-    /// dict is identical — decision 012).
+    /// dict is identical).
     AddText {
         /// Input PDF.
         input: PathBuf,
@@ -7703,7 +7686,7 @@ pub(crate) enum Command {
         /// `x,y` = lower-left corner), laid out top-anchored from the box top
         /// via the shipped 15.x greedy breaker. Multi-line, honours `--align`.
         /// Mutually exclusive with `--at`. Text taller than the box, or growing
-        /// past the page, is DISCLOSED and still emitted in full (R76).
+        /// past the page, is DISCLOSED and still emitted in full.
         #[arg(long = "box", value_name = "X,Y,W,H")]
         wrap_box: Option<String>,
         /// BOXED mode alignment: `left` (default) | `center` | `right` |
@@ -7736,26 +7719,26 @@ pub(crate) enum Command {
         /// painted, which is how a word the OCR missed joins an OCR layer.
         #[arg(long = "render-mode", value_name = "0-7", default_value_t = 0)]
         render_mode: u8,
-        /// Operator-supplied font folder (decision 012): registering a face for
+        /// Operator-supplied font folder: registering a face for
         /// the chosen `--font` name discloses provenance `Supplied`. Repeatable.
         #[arg(long = "font-dir", value_name = "DIR")]
         font_dirs: Vec<PathBuf>,
         /// SUBSET AND EMBED this font file, so the saved PDF carries its own
-        /// glyphs for the added text (FF-C, decision 021).
+        /// glyphs for the added text.
         ///
         /// Without this, `add-text` writes a Standard-14 face by name with no
-        /// embedding (R79), which means the text is limited to that face's
+        /// embedding, which means the text is limited to that face's
         /// repertoire — in practice WinAnsi, so no Greek, Cyrillic, CJK or
         /// Hebrew at all. With it, pdfcer reads the given face, keeps only the
         /// glyphs this text needs, and adds them to the document as a new
         /// `/Type0` resource. Nothing already in the file is rewritten.
         ///
         /// This is ALWAYS explicit and never inferred — not from
-        /// `--font-dir`, not from the text needing it (R108). Embedding
+        /// `--font-dir`, not from the text needing it. Embedding
         /// changes the file size and redistributes someone else's font, so
         /// pdfcer will refuse rather than decide for you.
         ///
-        /// TrueType (`.ttf`) only in this first cut; a CFF/PostScript
+        /// TrueType (`.ttf`) only; a CFF/PostScript
         /// (`.otf`) face is refused by name. `--box` is not yet supported
         /// with an embedded face.
         #[arg(long = "embed-font", value_name = "FONT-FILE")]
@@ -8623,8 +8606,7 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
-    /// **Set or clear a ce dimension's TEXT OVERRIDE** (Pass 175.0,
-    /// decision 097): make it print what you type instead of what it measured
+    /// **Set or clear a ce dimension's TEXT OVERRIDE**: make it print what you type instead of what it measured
     /// -- or clear the override and get the measurement back, exactly, with no
     /// re-measurement.
     ///
@@ -9356,15 +9338,10 @@ pub(crate) enum Command {
         #[arg(long, value_name = "INDEX")]
         enter: Option<usize>,
         /// Page-space slack, in points, a `--hit` point may miss an object's
-        /// edge by and still select it. Default 3.0 — the GUI's
-        /// `FALLBACK_SELECT_TOLERANCE`, i.e. the catch radius a click gets at
-        /// 100% zoom. Ignored without `--hit`.
-        ///
-        /// `allow_hyphen_values` matches the other numeric operands in this
-        /// CLI (`--dx`, `--dy`, `--x`, `--y`): a leading `-` must reach the
-        /// f64 parser as a value, so a negative reaches the handler's
-        /// named refusal instead of dying as a clap usage error (exit 2)
-        /// that tells the operator nothing about why it is wrong.
+        /// edge by and still select it. Default 3.0 — the catch radius a
+        /// click gets at 100% zoom. Ignored without `--hit`.
+        // `allow_hyphen_values`: a negative must reach the handler's named
+        // refusal, not die as a usage error that does not say why.
         #[arg(long, default_value_t = HIT_TOLERANCE_PT, allow_hyphen_values = true)]
         tolerance: f64,
     },
@@ -9644,9 +9621,9 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
 
-    /// **Delete** a vector object (Pass 9c-min, decision 011 §2.5): remove an
+    /// **Delete** a vector object: remove an
     /// object's construction + painting operators from the content stream via
-    /// surgery (R46/§5.7). Works on any object kind (path/text/image). NOT
+    /// surgery. Works on any object kind (path/text/image). NOT
     /// redaction — it removes a drawing object from a page, not covered
     /// content for security.
     ObjectDelete {
@@ -9837,7 +9814,7 @@ pub(crate) enum Command {
         #[arg(long)]
         object: Option<usize>,
         /// 0-based index into this page's form leaves, to delete a run inside
-        /// a form XObject (`G017`).
+        /// a form XObject.
         ///
         /// On a SolidWorks set the title block IS a form, drawn on every
         /// sheet — so this is where most of a drawing's text actually lives,
@@ -9863,7 +9840,7 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
     /// **Move a text run** — one show operator, or several as one edit —
-    /// inside a text object (`G017`, `G030`, ISO 32000-1 §9.4).
+    /// inside a text object (ISO 32000-1 §9.4).
     ///
     /// The twin `text-run-delete` has long implied this verb, and a text run
     /// was the last part kind in pdfcer to be missing one: a subpath and an
@@ -9932,8 +9909,8 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
     /// **Set a text run's width** — stretch or squeeze one show operator to
-    /// an exact width on the page by setting its horizontal scaling (`G038`,
-    /// ISO 32000-1 §9.3.4, `Tz`).
+    /// an exact width on the page by setting its horizontal scaling
+    /// (ISO 32000-1 §9.3.4, `Tz`).
     ///
     /// The case this is for: an OCR word whose recognised box is wider or
     /// narrower than the glyphs laid into it, so a selection highlight or a
@@ -9981,7 +9958,7 @@ pub(crate) enum Command {
     },
     /// **Merge consecutive text runs into one** — join the show operators an
     /// OCR engine or a producer split a word or line into, so it selects,
-    /// searches and edits as one run (`G035`, ISO 32000-1 §9.4.3).
+    /// searches and edits as one run (ISO 32000-1 §9.4.3).
     ///
     /// The first run keeps its origin, font, size and render mode (an
     /// invisible OCR word stays invisible). The text of every listed run is
@@ -10101,7 +10078,7 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
     /// **Delete one subpath** of a path object (Pass 25.2): remove a single
-    /// subpath's construction operators via surgery (R46/§5.7), leaving the
+    /// subpath's construction operators via surgery, leaving the
     /// object's other subpaths byte-verbatim.
     ///
     /// This is the operation for CAD output. A producer routinely emits a whole
@@ -10144,7 +10121,7 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
     /// **Delete a node** of a path object (Pass 36.1): remove ONE anchor via
-    /// surgery (R46/§5.7), joining its neighbours directly. `--node` is the
+    /// surgery, joining its neighbours directly. `--node` is the
     /// anchor's 0-based index in decomposition order — the same numbering
     /// `node-move` takes.
     ///
@@ -10181,8 +10158,8 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
-    /// **Drag a node** of a path object (Pass 9c-min, decision 011 §2.5):
-    /// move ONE anchor to a page-space point via surgery (R46/§5.7).
+    /// **Drag a node** of a path object:
+    /// move ONE anchor to a page-space point via surgery.
     /// `--node` is the anchor's 0-based index in decomposition order (start,
     /// then each segment endpoint, across subpaths). Every anchor is
     /// draggable, including an `re` rectangle corner and the inherited start
@@ -10431,10 +10408,7 @@ pub(crate) enum Command {
         /// than re-encoded, because lossy encoding moves the exact sample
         /// values that transparency is matched against.
         ///
-        /// Resolution capping ("downsample to N dpi") is still absent, but no
-        /// longer for want of an encoder: a resampler is a visible quality
-        /// decision (box vs. Lanczos) that deserves its own flag and its own
-        /// disclosure, not a silent choice hidden inside this one.
+        /// This flag never resamples: the image keeps its pixel dimensions.
         #[arg(long, value_enum, default_value_t = CompressionArg::Passthrough)]
         compression: CompressionArg,
         /// Encoder quality for `--compression jpeg`, 1-100. Ignored by every

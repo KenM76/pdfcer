@@ -862,7 +862,7 @@ the signature, and removing it would destroy it.",
     finish_edit(input, &outcome)
 }
 
-/// `list-scripts`: classify every form-field script (decision 009 posture B).
+/// `list-scripts`: classify every form-field script.
 ///
 /// # Why this exists as its own subcommand rather than more columns on
 /// `list-fields`

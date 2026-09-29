@@ -303,7 +303,7 @@ undo_verified={} undo_identical={}",
 }
 
 /// `--style-policy` for `format-text`: what pdfcer does when a bold/italic
-/// request may need a fallback (`Pass 179.0`, decision 106).
+/// request may need a fallback (`Pass 179.0`).
 ///
 /// A per-invocation override of the `style_policy` setting. Absent means "use
 /// whatever is stored", which is the shape every other settings-backed flag in
@@ -1238,7 +1238,7 @@ pub(crate) struct DimensionVertexArgs<'a> {
 /// # The disclosure is not optional here, and the CLI's form of it is print
 ///
 /// A vertex edit re-measures. In the GUI the operator watches the number
-/// change and Save is the commit point (decision 059); the CLI has no session,
+/// change and Save is the commit point; the CLI has no session,
 /// so the invocation is the commit and there is nothing to watch. Rule 11's
 /// answer is that the CLI PRINTS what it inferred on the way past, which is
 /// why `before=` and `after=` are on the output line rather than only the
@@ -1628,7 +1628,7 @@ pub(crate) fn cmd_dimension_extension_gap(args: &DimensionExtensionGapArgs<'_>) 
 }
 
 /// `dimension-label` -- set or clear one ce dimension's text override
-/// (Pass 175.0, decision 097).
+/// (Pass 175.0).
 ///
 /// ## Contract
 ///

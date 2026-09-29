@@ -345,7 +345,7 @@ pub(crate) fn cmd_list_signatures(input: &Path) -> u8 {
 /// (`Acrobat_Features/layers__ocg_visibility_and_defaults.md`). pdfcer has
 /// no save path for it, so there is nothing to offer — and offering a
 /// toggle that silently did not persist would be worse than not offering
-/// one (R83).
+/// one.
 pub(crate) fn cmd_list_layers(input: &Path, tree: bool) -> u8 {
     let doc = match open_document(input) {
         Ok(doc) => doc,
@@ -812,7 +812,7 @@ pub(crate) fn format_fs_type(fs: &pdfcer_core::fontinfo::FsType) -> String {
 /// # Why coverage is on the summary line
 ///
 /// A font inventory that quietly misses a surface and prints a confident list
-/// is this project's most-repeated defect (R186). The summary states which
+/// is this project's most-repeated defect. The summary states which
 /// surfaces were walked **and which were not**, so the listing carries the
 /// shape of its own evidence. Acrobat's coverage here is an unconfirmed GAP,
 /// so pdfcer states its own scope rather than assuming parity with a behaviour

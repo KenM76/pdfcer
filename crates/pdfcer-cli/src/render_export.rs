@@ -339,14 +339,14 @@ pub(crate) fn resolve_render_options(
 /// 3. **Rasterize** — [`pdfcer_render::render_page_with`] at `scale`
 ///    device pixels per user-space unit. The default face set is the
 ///    **bundled** Base-14 substitutes ([`pdfcer_render::RenderOptions::default`]);
-///    `--font-dir` layers OPERATOR-supplied faces on top (decision 012).
+///    `--font-dir` layers OPERATOR-supplied faces on top.
 ///    The CLI never *auto-discovers* system fonts — rule R19 (decision
 ///    004) makes the default render deterministic, and a batch job whose
 ///    output silently depends on which fonts the runner happens to have
 ///    installed is not one anyone can trust. `--font-dir` is the explicit,
-///    disclosed opt-in: the shell walks the folder (R61), and glyphs it
+///    disclosed opt-in: the shell walks the folder, and glyphs it
 ///    draws from a supplied face are reported via the `supplied` counter,
-///    distinct from the bundled `substituted` counter (R62). Fonts the
+///    distinct from the bundled `substituted` counter. Fonts the
 ///    document does not embed and that no supplied face matches are still
 ///    reported via `substituted`.
 /// 4. **Encode + write** — `Pixmap::encode_png` (tiny-skia's

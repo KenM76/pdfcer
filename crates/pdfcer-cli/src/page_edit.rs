@@ -321,7 +321,7 @@ crop_followed={crop_followed}",
     finish_edit(input, &outcome)
 }
 
-/// Implement `pdfcer set-crop-box` (`G056`): set or reset `/CropBox` on
+/// Implement `pdfcer set-crop-box`: set or reset `/CropBox` on
 /// the selected pages through [`pdfcer_core::edit::EditSession::set_crop_boxes`],
 /// one command for the whole selection.
 ///
@@ -947,7 +947,7 @@ pub(crate) struct RedactMarkArgs<'a> {
 }
 
 /// `redact-mark`: author reviewable `/Redact` marks (the non-destructive
-/// MARK phase). Removal is a separate `redact-apply` (R52).
+/// MARK phase). Removal is a separate `redact-apply`.
 pub(crate) fn cmd_redact_mark(args: &RedactMarkArgs<'_>) -> u8 {
     use pdfcer_core::annot_author::{Quad, RedactAppearance};
     use pdfcer_core::vartext::Quadding;

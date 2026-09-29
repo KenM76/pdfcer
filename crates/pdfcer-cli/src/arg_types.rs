@@ -160,7 +160,7 @@ impl HandleArg {
 }
 
 /// Which dimension kind [`Command::DimensionAdd`] authors. Radius and diameter
-/// share one Taubin fit and differ only in DISPLAY (decision 011 §2.3).
+/// share one Taubin fit and differ only in DISPLAY.
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub(crate) enum DimKindArg {
     /// A linear (distance) dimension between the first two points.
@@ -430,7 +430,7 @@ pub(crate) enum DxfVersionArg {
 pub(crate) enum ProducerArg {
     /// Write /Producer (pdfcer <version>) into an existing /Info.
     Set,
-    /// Leave /Info byte-untouched (R41's no-fingerprint posture).
+    /// Leave /Info byte-untouched (no fingerprint).
     Preserve,
 }
 

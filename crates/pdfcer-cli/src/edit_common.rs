@@ -501,7 +501,7 @@ pub(crate) fn open_for_edit(input: &Path) -> Result<(Vec<u8>, pdfcer_core::edit:
 /// what a document with no destinations would print — no panic, no wrong
 /// type, just a plausible number that was silently the pre-edit one. It was
 /// found only by running the command with and without the flag and comparing
-/// the two lines (R174).
+/// the two lines.
 ///
 /// Most commands are *accidentally* safe, because they report the verb's own
 /// return value and that is computed before saving. A command that queries

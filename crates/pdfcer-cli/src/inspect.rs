@@ -421,7 +421,7 @@ pub(crate) fn disclose_recovery(file: &Path, report: &pdfcer_core::recover::Reco
 pub(crate) const MAX_FONT_FILE_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Font-file extensions the `--font-dir` walk attempts to parse
-/// (decision 012). Matched case-insensitively. A file with any other
+///. Matched case-insensitively. A file with any other
 /// extension is silently ignored (a font folder routinely also holds
 /// `.txt` licences, `.json` metadata, etc.); a file WITH one of these
 /// extensions that then fails to parse or is oversized IS noted, because
@@ -437,7 +437,7 @@ pub(crate) const FONT_FILE_EXTENSIONS: [&str; 7] =
 /// For every readable font-extension file under each directory (sorted
 /// for determinism, so which face wins a duplicate name is stable), the
 /// bytes are parsed ONCE through `pdfcer-render`'s single skrifa parser
-/// (R21) to read the face's advertised name(s), then registered via
+/// to read the face's advertised name(s), then registered via
 /// [`pdfcer_render::FontEnvironment::insert_named`] under **both** every
 /// advertised name AND the filename stem — so `Calibri.ttf` matches a
 /// PDF `/BaseFont` of `Calibri` whether or not the program's internal

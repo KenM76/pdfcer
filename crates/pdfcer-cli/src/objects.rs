@@ -813,7 +813,7 @@ pub(crate) struct ObjectMoveArgs<'a> {
 
 /// `object-move` — translate a path or text object by a page-space
 /// `(dx, dy)` via content-stream surgery (`EditSession::move_object`).
-/// Only the edited content stream changes (R46/§5.7).
+/// Only the edited content stream changes.
 pub(crate) fn cmd_object_move(args: &ObjectMoveArgs<'_>) -> u8 {
     let page_index = (args.page.max(1) - 1) as usize;
     let (source, mut session) = match open_for_edit(args.input) {
@@ -2035,7 +2035,7 @@ appended={} out_bytes={} undo_verified={} undo_identical={}",
 }
 
 /// `node-move` — move one anchor to a page-space point via surgery
-/// (Pass 9c-min, decision 011 §2.5).
+///.
 ///
 /// An `re` rectangle corner and the implicit reused start of an `h`-reopened
 /// subpath have no operand of their own; both are handled by materializing one

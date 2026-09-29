@@ -676,7 +676,7 @@ mod exit {
     /// gate (ui-spec §4.4): no path where partial reads as complete.
     pub const REDACTION_RESIDUALS: u8 = 10;
     /// The document **opened**, but only via cross-reference **recovery**
-    /// (decision 013): its stored cross-reference table could not be parsed
+    ///: its stored cross-reference table could not be parsed
     /// and pdfcer rebuilt it by scanning for `N G obj` headers
     /// (rebuild-by-scan). The content is available, but a batch script
     /// needs to tell "opened clean" from "opened via recovery" — a

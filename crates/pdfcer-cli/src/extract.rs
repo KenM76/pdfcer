@@ -1728,7 +1728,7 @@ pub(crate) fn fill_color_json(color: Option<&pdfcer_core::text_extract::TextColo
     }
 }
 
-/// **Read a tagged PDF's structure tree** (`G053`): elements in logical
+/// **Read a tagged PDF's structure tree**: elements in logical
 /// order with their role-mapped type, text, page and box.
 ///
 /// Text output is one element per line, indented by depth:
@@ -1794,7 +1794,7 @@ claimed_twice={} object_refs={} malformed={} page_inherited={} page_unresolved={
     exit::SUCCESS
 }
 
-/// **Infer an untagged page's block layout** (`G054`).
+/// **Infer an untagged page's block layout**.
 ///
 /// Text output is one block per line under a `page N` header:
 /// `<kind> <source> <alignment> "<text>"`, where `<kind>` is
@@ -2009,7 +2009,7 @@ fn chosen_pages(
     })
 }
 
-/// **Find tables**, ruled or whitespace-aligned (`G055`).
+/// **Find tables**, ruled or whitespace-aligned.
 ///
 /// Text output is one table per header line,
 /// `page N table K <ruled|aligned> rows=R cols=C

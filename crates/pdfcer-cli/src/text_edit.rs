@@ -263,10 +263,10 @@ pub(crate) struct AddTextArgs<'a> {
     pub(crate) size: f64,
     /// `"r,g,b"` fill colour, or `None` for black.
     pub(crate) color: Option<&'a str>,
-    /// `--render-mode`, `0..=7` (G034).
+    /// `--render-mode`, `0..=7`.
     pub(crate) render_mode: u8,
     pub(crate) font_dirs: &'a [PathBuf],
-    /// Path to a donor font file to SUBSET AND EMBED (FF-C, decision 021).
+    /// Path to a donor font file to SUBSET AND EMBED.
     ///
     /// `None` keeps the shipped R79 behaviour: a Standard-14 face written by
     /// name with no embedding. Embedding is never inferred from anything
@@ -281,14 +281,14 @@ pub(crate) struct AddTextArgs<'a> {
 ///
 /// Synthesizes a single-line `BT…ET` run at `--at "x,y"` in the chosen
 /// Standard-14 face and APPENDS it as a new content stream (ISO 32000-1
-/// §7.7.3.3), leaving every ORIGINAL content stream byte-identical (R32/R46).
-/// No glyph embedding (R79): the run is written by `/BaseFont` name + code, so
+/// §7.7.3.3), leaving every ORIGINAL content stream byte-identical.
+/// No glyph embedding: the run is written by `/BaseFont` name + code, so
 /// a character the face cannot represent is REFUSED by name (the F-refuse gate,
 /// R71) — a clean, named non-zero exit ([`exit::EDIT_REFUSED`]), never a crash
 /// or a faked glyph. This is genuine page content, NOT a `/FreeText`
-/// annotation (R78): the result is editable/formattable/reflowable like the
+/// annotation: the result is editable/formattable/reflowable like the
 /// page's own text. The save is INCREMENTAL. Font provenance
-/// (`Bundled`/`Supplied`), the tagged-untagged disclosure (R73), and the
+/// (`Bundled`/`Supplied`), the tagged-untagged disclosure, and the
 /// inheritance-safe `/Resources` note (§7.7.3.4) are surfaced verbatim.
 pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
     use pdfcer_core::fontdata::{Std14, std14_base_font_name, std14_by_base_font};
@@ -1297,7 +1297,7 @@ pub(crate) struct FormatTextArgs<'a> {
     pub(crate) word_spacing: Option<&'a str>,
     /// `--h-scale` percentage (100 = normal).
     pub(crate) h_scale: Option<f64>,
-    /// `--render-mode`, `0..=7` (G034).
+    /// `--render-mode`, `0..=7`.
     pub(crate) render_mode: Option<u8>,
     /// The baseline toggle, already resolved from the three exclusive flags.
     pub(crate) script: Option<pdfcer_core::text_edit::ScriptPosition>,
@@ -1305,7 +1305,7 @@ pub(crate) struct FormatTextArgs<'a> {
     pub(crate) rise: Option<&'a str>,
     /// The synthetic styles asked for, already folded from the two flags.
     /// `StyleSynthesis::None` means none were, which is the default and
-    /// the only state in which nothing is synthesized (R90).
+    /// the only state in which nothing is synthesized.
     pub(crate) synthetic: pdfcer_core::text_edit::StyleSynthesis,
     /// `--bold` / `--italic`: the automatic ladder (`Pass 179.0`).
     pub(crate) style: pdfcer_core::text_edit::StyleSynthesis,
@@ -2041,7 +2041,7 @@ pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
     finish_edit(args.input, &outcome)
 }
 
-/// Grouped arguments for `text-run-move` (`G017`).
+/// Grouped arguments for `text-run-move`.
 pub(crate) struct TextRunMoveArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) page: u32,
@@ -2050,7 +2050,7 @@ pub(crate) struct TextRunMoveArgs<'a> {
     /// The index into this page's form leaves, when addressing a text object
     /// INSIDE a form XObject.
     pub(crate) leaf: Option<usize>,
-    /// One run uses `move_text_run`; several use the set verb (`G030`).
+    /// One run uses `move_text_run`; several use the set verb.
     pub(crate) run: &'a [usize],
     pub(crate) dx: f64,
     pub(crate) dy: f64,
@@ -2060,7 +2060,7 @@ pub(crate) struct TextRunMoveArgs<'a> {
 }
 
 /// `text-run-move` — translate one show operator, or a set of them as one
-/// edit, inside a text object (`G017`, `G030`).
+/// edit, inside a text object.
 ///
 /// ## Contract
 ///
@@ -2142,7 +2142,7 @@ pub(crate) fn cmd_text_run_move(args: &TextRunMoveArgs<'_>) -> u8 {
     finish_edit(args.input, &outcome)
 }
 
-/// Grouped arguments for `text-run-merge` (`G035`).
+/// Grouped arguments for `text-run-merge`.
 pub(crate) struct TextRunMergeArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) page: u32,
@@ -2155,7 +2155,7 @@ pub(crate) struct TextRunMergeArgs<'a> {
     pub(crate) verify_undo: bool,
 }
 
-/// `text-run-merge` — join consecutive show operators into one (`G035`).
+/// `text-run-merge` — join consecutive show operators into one.
 ///
 /// One `text-run-merge …` line with the merged text, the scale written and
 /// the usual save-report fields, then the exit code from [`finish_edit`].
@@ -2229,7 +2229,7 @@ pub(crate) fn cmd_text_run_merge(args: &TextRunMergeArgs<'_>) -> u8 {
     finish_edit(args.input, &outcome)
 }
 
-/// Grouped arguments for `text-run-width` (`G038`).
+/// Grouped arguments for `text-run-width`.
 pub(crate) struct TextRunWidthArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) page: u32,
@@ -2242,7 +2242,7 @@ pub(crate) struct TextRunWidthArgs<'a> {
 }
 
 /// `text-run-width` — fit one show operator to a page width through `Tz`
-/// (`G038`).
+///.
 ///
 /// One `text-run-width …` line with the usual save-report fields and the
 /// scale that was written, then the exit code from [`finish_edit`]. The

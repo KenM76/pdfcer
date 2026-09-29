@@ -71,6 +71,30 @@ fn iso_date_at(s: &str) -> Option<usize> {
     })
 }
 
+/// The byte offset of the first project-internal reference in `s`: a
+/// decision number (`decision 097`), a standing-rule ID (`R105`) or a GUI
+/// request ID (`G017`). `R12` is exempt: it is the AutoCAD DXF version
+/// `export-dxf` writes.
+fn internal_id_at(s: &str) -> Option<usize> {
+    let b = s.as_bytes();
+    let alnum = |i: usize| b.get(i).is_some_and(|c| c.is_ascii_alphanumeric());
+    (0..b.len()).find(|&i| {
+        if i > 0 && alnum(i - 1) {
+            return false;
+        }
+        if b[i..].starts_with(b"decision ") {
+            return b.get(i + 9).is_some_and(u8::is_ascii_digit);
+        }
+        let (lo, hi) = match b[i] {
+            b'R' => (2, 3),
+            b'G' => (3, 3),
+            _ => return false,
+        };
+        let digits = b[i + 1..].iter().take_while(|c| c.is_ascii_digit()).count();
+        (lo..=hi).contains(&digits) && !alnum(i + 1 + digits) && &b[i..i + 1 + digits] != b"R12"
+    })
+}
+
 /// A short, char-boundary-safe window around `at`, for a failure message
 /// that names the sentence rather than only the command.
 fn snippet(s: &str, at: usize) -> String {
@@ -132,6 +156,12 @@ fn cli_help_ships_no_internal_markup() {
                     snippet(&rendered, at)
                 ));
             }
+            if let Some(at) = internal_id_at(&rendered) {
+                offenders.push(format!(
+                    "{path}: an internal decision/rule/request ID: {}",
+                    snippet(&rendered, at)
+                ));
+            }
             if let Some(at) = pass_id_at(&rendered) {
                 offenders.push(format!(
                     "{path}: an internal Pass ID: {}",
@@ -144,7 +174,7 @@ fn cli_help_ships_no_internal_markup() {
             "`--help` ships source-only markup in {} place(s):\n  {}\n\n\
              A `///` on a clap item IS the operator-facing help text. \
              `plain_help` strips Markdown everywhere and Pass IDs from \
-             parentheticals; what reaches here is either a Pass ID written \
+             parentheticals; what reaches here is either an internal ID written \
              into prose (reword the sentence) or a `ValueEnum` variant's \
              doc comment (the scrub cannot reach a PossibleValue's help).",
             offenders.len(),
