@@ -115,6 +115,55 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 412.0` (`2b9f0234`), 2026-09-29 — blend space and ICC destination read the same output intent
+
+Closes item (c) of the Backlog entry below (`APPLY THE OUTPUT INTENT FOR
+COLOUR CONVERSION`) — the "answered twice, differently" divergence
+re-verified at the 764th filing (read-only audit) is now one rule.
+
+`interpret.rs`'s two `/OutputIntents` lookups (`output_intent_blend_space`,
+`output_intent_profile`) both now read one chooser, `chosen_output_intent`:
+the first `/OutputIntents` entry whose `/DestOutputProfile` is a stream
+with an integer `/N` that decodes. ISO 32000 gives no selector among ≥2
+intents (spec corpus `OI-A1`, "out of band"); the recovery rule kept from
+`output_intent_profile` (skip a broken intent ahead of a good one) now
+governs both call sites. Narrow behaviour change: an intent whose profile
+won't decode no longer decides blend space (previously
+`output_intent_blend_space` could still pick it via its own
+first-determinable rule); a decodable profile stream with no `/N` is no
+longer used as the ICC destination (previously `output_intent_profile`
+didn't check `/N` at all). Decision 168 (`ARCHITECTURE.md` §12) records
+this as the one recorded rule the 764th filing's audit found owed.
+
+**Also fixed on discovery:** `crates/pdfcer-cli/src/main.rs:390`'s
+`icc_managed_paints` doc row (the 764th filing's flagged survivor (b))
+claimed an `ICCBased` image is "never colour-managed at all" — false since
+`Pass 240.0` for N 3 (RGB). **Correcting the 764th filing's own
+correction, measured this session:** the true boundary is not "N 3 fixed,
+still true for N 1/N 4 and JPX" as that filing said. `image.rs` sets
+`icc_managed` for `Space::Icc` (N 4), `Space::IccRgb` (N 3), and
+`/Indexed` over a managed base; `interpret.rs` counts JPX with an embedded
+profile via `decoded.icc_managed`. The doc row now says an image counts
+as managed when the decoder managed it: direct `ICCBased`, `/Indexed`
+over one, or JPX carrying its own profile.
+
+The `output_intent_blend_space` doc block had also drifted onto
+`image_source_is_iccbased`'s rustdoc (a welded-comment defect); replaced
+with the chooser's own doc.
+
+Item (d) of the Backlog entry (`cmyk_intent`'s doc comment should say it
+governs only the no-declared-intent case) stays open — its premise is
+false at HEAD: the output-intent profile governs only `ICCBased` paints
+and images, and `DeviceCMYK` display always goes through the `CmykIntent`
+table regardless of whether an intent is declared. (d) needs `CmykIntent`
+extended to `DeviceCMYK` before its own wording would be true — not merely
+a doc edit.
+
+**Tests.** 3 new (`crates/pdfcer-render/tests/output_intent_choice.rs`), 3
+sabotages each caught. `pdfcer-render`: 832 passed (434 + 380 + 18).
+
+No manifest change; `cargo tree` unaffected.
+
 ### `Pass 411.0` (`a2e40249`), 2026-09-29 — `button_action` reads back `/GoTo`, `/SubmitForm` and `/Hide`
 
 Closes the Backlog item below (widen `ButtonActionState::Known` to cover
@@ -22927,6 +22976,18 @@ has been false for N 3 (`Space::IccRgb`, RGB) since `Pass 240.0` (`f978291a`,
 now. Still true for N 1/N 4 images and JPX. Engineer should correct the
 wording to name the N 3 exception rather than claim a blanket never.
 
+**★ FIXED 2026-09-29 (`Pass 412.0`, `2b9f0234`), and the fix ALSO corrects
+this note's own "still true for N 1/N 4 images and JPX" claim, which was
+inaccurate.** Measured against live source: `image.rs` sets `icc_managed`
+for `Space::Icc` (N 4), `Space::IccRgb` (N 3) and `/Indexed` over a
+managed base; `interpret.rs` counts JPX with an embedded profile via
+`decoded.icc_managed`. `main.rs:390`'s doc row now says an image counts as
+managed when the decoder managed it — direct `ICCBased`, `/Indexed` over
+one, or JPX carrying its own profile — rather than naming a shrinking list
+of still-unmanaged cases. This is a hard-rule-11 lesson repeating at n=2 in
+the same paragraph: the 764th filing's own correction to an earlier
+inaccuracy was itself unverified against current source.
+
 **Status: SCOPED, NOT STARTED.** `Pass 207.0` (*Shipped*, this filing) made
 the **disclosure** true; it did **not** make the **rendering** true, and the
 two must not be conflated on a later read.
@@ -24594,6 +24655,21 @@ exact lines, each still applying its own different first-entry rule. Item
 (d)'s `CmykIntent` doc comment is confirmed still not updated to say it
 governs only the no-declared-intent case. Neither is fixed by this filing
 — bookkeeping only, no code shipped.
+
+**★★ CLOSED 2026-09-29 (`Pass 412.0`, `2b9f0234`) — item (c) SETTLED, one
+recorded rule now covers both call sites.** Both `output_intent_blend_space`
+and `output_intent_profile` read one chooser, `chosen_output_intent`: the
+first `/OutputIntents` entry whose `/DestOutputProfile` decodes (a stream
+with an integer `/N`). Recorded as decision 168 (`ARCHITECTURE.md` §12) —
+the "one recorded decision covering both call sites" this item asked for,
+rather than "a recorded decision that they are deliberately different,"
+the other option this item named. **Item (d) stays OPEN, premise
+corrected**: it is not merely an un-updated doc comment — `CmykIntent`
+governs `DeviceCMYK` display unconditionally, whether or not an intent is
+declared, because the output-intent machinery only reaches `ICCBased`
+paints and images. (d) is blocked on extending management to
+`DeviceCMYK`, not on editing a doc comment. Full record: `Pass 412.0`
+*Shipped*.
 
 ---
 

@@ -4,6 +4,51 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (766th filing) — `Pass 412.0` (`2b9f0234`): blend space and ICC destination read the same output intent
+
+**Shipped:**
+- `Pass 412.0` (`2b9f0234`) — `interpret.rs`'s `output_intent_blend_space`
+  and `output_intent_profile` both now read one chooser,
+  `chosen_output_intent` (first `/OutputIntents` entry whose
+  `/DestOutputProfile` decodes). Closes item (c) of the "APPLY THE OUTPUT
+  INTENT" Backlog entry — the two-different-rules divergence re-verified
+  open at the 764th filing.
+
+**Decisions made this session:**
+- Decision 168 (`ARCHITECTURE.md` §12): one recorded rule covers both
+  call sites, rather than leaving them deliberately different — the
+  option that Backlog item (c) asked to be decided between.
+
+**Findings + decisions:**
+- Fixed on discovery: `main.rs:390`'s `icc_managed_paints` doc row (the
+  764th filing's flagged survivor (b)) still claimed an `ICCBased` image
+  is never colour-managed — false since `Pass 240.0`. Doc row now names
+  the actual managed cases (`Space::Icc`, `Space::IccRgb`, `/Indexed`
+  over a managed base, JPX with its own profile).
+- **The 764th filing's own correction was also wrong**, measured this
+  session: it said "still true for N 1/N 4 images and JPX," but N 4
+  (`Space::Icc`) has been managed since `Pass 214.0`. Corrected in
+  `ROADMAP.md`'s survivor note — hard-rule-11 repeating inside its own
+  correction.
+- Item (d) of the output-intent Backlog entry stays open, premise
+  corrected: `CmykIntent` governs `DeviceCMYK` unconditionally (declared
+  intent or not), because the output-intent machinery only reaches
+  `ICCBased` paints/images — (d) needs `DeviceCMYK` extended, not a doc
+  edit.
+- Welded doc comment fixed: `output_intent_blend_space`'s doc block had
+  drifted onto `image_source_is_iccbased`'s rustdoc.
+- `docs/FEATURES.md`: the `/OutputIntents`-aware CMYK conversion row's
+  "owed, two different rules" sentence replaced with the unification and
+  decision 168 citation. No other row affected.
+- Tests: 3 new (`crates/pdfcer-render/tests/output_intent_choice.rs`), 3
+  sabotages each caught. `pdfcer-render`: 832 passed (434 + 380 + 18). No
+  manifest change; `cargo tree` unaffected.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** No open items from this Pass beyond item (d) above,
+which is unchanged Backlog debt, not new.
+
 ## 2026-09-29 (765th filing) — `Pass 410.0` (`5722ec8a`) + `Pass 411.0` (`a2e40249`): text clipping modes 4-7, and `button_action` reads back `/GoTo`/`/SubmitForm`/`/Hide`
 
 **Shipped:**

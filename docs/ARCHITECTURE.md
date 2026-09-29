@@ -6677,6 +6677,15 @@ kinds); only `DeviceRGB` and `ICCBased /N 1` (Gray) remain refused. See
 `ROADMAP.md` `Pass 240.0` (*Shipped*) for the mechanism and the retraction
 of a separate measured-negative claim this same boundary had produced.
 
+**★ AMENDED 2026-09-29 (`Pass 412.0`, `2b9f0234`, decision 168).** Which
+`/OutputIntents` entry supplies the destination above, when a document
+carries ≥2, is now the SAME rule that picks the blend space:
+`chosen_output_intent`, the first entry whose `/DestOutputProfile` decodes.
+Before this Pass the two call sites (`output_intent_blend_space`,
+`output_intent_profile`) used different first-entry rules and could name
+different intents on the same file — see §12's 2026-09-29 entry, decision
+168, for the full record.
+
 **Also deliberately unchanged: `overprint::rgb_to_cmyk` stays on the
 round-trip path.** It is an **invertible** max-GCR formula that exists so
 `snapshot_srgb_backdrop` and `composite_srgb` return where they started.
@@ -11834,3 +11843,50 @@ the same style.
 rule minted. Pass ceiling: `Pass 296.6` used (family `296` still has
 `296.7` unused, per the 547th filing's note that it was not found by
 grep in either register).
+
+### 2026-09-29 (766th filing, `Pass 412.0`, `2b9f0234`) — decision 168: A DOCUMENT'S CHOICE AMONG `≥2 /OutputIntents` ENTRIES IS ONE RECORDED RULE, READ BY BOTH THE BLEND-SPACE LOOKUP AND THE ICC-DESTINATION LOOKUP — NOT TWO DIFFERENT FIRST-ENTRY RULES THAT CAN NAME DIFFERENT INTENTS ON THE SAME FILE
+
+**What was wrong.** `crates/pdfcer-render/src/interpret.rs`'s
+`output_intent_blend_space` and `output_intent_profile` each picked among
+multiple `/OutputIntents` entries by its own first-entry rule —
+first-that-yields-a-determinable-space for one, first-whose-profile-decodes
+for the other. A file whose first intent has a decodable `/N` but a
+corrupt profile stream could get its blend space from intent 1 and its ICC
+destination from intent 2. Flagged as an owed decision at the 360th filing
+(`Pass 199.2`'s remainder) and re-verified still open at the 764th
+(read-only audit).
+
+**The rule.** ISO 32000 names no selector among multiple `/OutputIntents`
+(spec corpus `OI-A1`: out of band). Both call sites now read one function,
+`chosen_output_intent`: the first `/OutputIntents` entry whose
+`/DestOutputProfile` is a stream with an integer `/N` that decodes. This
+keeps the existing recovery posture (a file listing a broken intent ahead
+of a good one is rendered with the good one) and applies it uniformly,
+rather than applying a cheaper, less strict rule to the blend-space
+question alone.
+
+**Narrow behaviour change, both directions.** An intent whose profile
+stream doesn't decode no longer decides blend space (it could before,
+under the old rule's looser "yields a determinable space" test). A
+decodable profile stream with no `/N` key is no longer used as the ICC
+destination (`output_intent_profile` previously didn't check for `/N` at
+all). Both changes only bite the measured-rare multi-intent case (`Pass
+124.0`: 1 of 51 suite print files).
+
+**Body-section effect.** `ARCHITECTURE.md` §12's decision 115 entry ("What
+is managed, and what is REFUSED") gains an amendment paragraph naming
+`chosen_output_intent`, in the same style as decision 151's/167's §10.7
+amendments.
+
+**Item (d) of the same `ROADMAP.md` Backlog entry is NOT resolved by this
+decision, and its premise is corrected, not merely left open.** `(d)` asks
+for `CmykIntent`'s doc comment to say it governs only the
+no-declared-intent case. At HEAD that is false regardless of documentation:
+the output-intent machinery this decision governs reaches only `ICCBased`
+paints and images; `DeviceCMYK` display always goes through the
+`CmykIntent` table, declared intent or not. `(d)` is blocked on extending
+management to `DeviceCMYK`, not on a doc edit.
+
+**Decision ceiling: `167` → `168`**, next free `169`. No standing rule
+minted (a single-occurrence unification, not a recurring pattern). Pass
+ceiling: `Pass 412.0` used.
