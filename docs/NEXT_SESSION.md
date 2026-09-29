@@ -1425,8 +1425,6 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
 - **NEW — above ~1e8 scale a region render succeeds again** with an underflowed
   page-space span. Nothing panics; whether those pixels mean anything is its
   own measurement. Told the shell rather than letting them discover it.
-- **`R221`'s recorded instance count is wrong** and a commit message made it
-  worse. **Do not copy an ordinal from a commit message.**
 - ~~**`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.~~
   **BUILT 2026-09-13.** Red on one state only: a request scoped in
   `ROADMAP.md` with no answer in its channel. Green at baseline (10 open,
