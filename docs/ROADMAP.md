@@ -115,6 +115,62 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 395.1` (`a322a3ed`, `16b938e4`), 2026-09-29 — a block nested in a paragraph or heading is its own block
+
+**Verdict: SHIPPED.** Found by the v0.64.0 fresh-folder smoke test:
+`export-docx --structure auto` on `fixtures/external/veraPDF-corpus/Isartor
+test files/doc/Isartor test suite manual.pdf` produced one 1,099-character
+paragraph for a whole section, heading run included, while the result line
+still read `coverage 1.000`/`fallback none`. Held the release for this fix.
+
+**What changed.** That file's `/RoleMap` sends three custom styles
+(`_1_heading`, `_3_heading`, `_Body`) all to `P`, and nests the body `P`
+inside the heading `P`. `Pass 395.0`'s `tagged_layout` folded every
+descendant's text into the outermost block. `a322a3ed`
+(`crates/pdfcer-text/src/tagged_layout.rs`): a block-level element (`P`,
+`H`, `H1`-`H6`, `Title`, `LI`, `Caption`, `TOCI`, `BibEntry`, `FENote`)
+nested inside a `P`/`H`/`Hn`/`Title` block now starts its own block, in
+logical order after its parent's own content. A `P` nested inside
+`LI`/`Caption`/`TOCI` still folds into that block — it genuinely is the
+container's body, not a sibling. `structure_blocks` on pages 1-3 of the
+manual: 2 before, 18 after. `16b938e4` states the rule in the module doc
+and `docs/core-api/01-reading-and-model.md` §8.4.5 (index line count now
+3,415).
+
+**Tests.** New `unit_tagged_layout.rs::a_paragraph_nested_in_a_paragraph_is_its_own_block_but_a_list_items_is_not`
+— `pdfcer-text` `tagged_layout` tests now number 7. Sabotage: disabling the
+split fails the test; splitting under `LI` too also fails it.
+
+**Invariants and packaging.** `cargo tree` unchanged — no manifest change.
+No writer change, so no round-trip impact. No packaging change.
+
+**`docs/FEATURES.md`.** No box change — `Pass 395.0`'s Export-section row
+(`core [x]` `cli [x]` `gui [ ]`) already names the capability; this is a
+correctness fix to it, not a new one.
+
+**Generalizable finding.** Written to `C:\personal_rag\pdf\`
+(`lesson_20260929_nested_block_role_mapped_paragraph_folds_into_ancestor.md`):
+a real producer role-mapping a heading style and a body style to the same
+standard type, then nesting one inside the other, is exactly the shape a
+coverage-based diagnostic can't catch — only output block granularity
+shows it.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes, test
+count and the fixture finding relayed from the dispatching engineer's own
+report, not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `395` used (`Pass 395.0`), next free family `396` | unchanged — `Pass 395.1` sub-numbers the same family |
+| Standing rules | `R257` (carried figure, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — no new architectural decision |
+| `SESSION_LOG` filings | `734` | **`735`** |
+| `docs/FEATURES.md` | — | no change this filing (existing row already correct) |
+
+---
+
 ### `Pass 395.0` (`5c350a53`), 2026-09-29 — drive docx/xlsx/ods export from a tagged PDF's structure tree (G066)
 
 **Verdict: SHIPPED.** Answers pdfceGUI request `G066`: *"Word export cannot
@@ -185,6 +241,11 @@ entry, `5c350a53`) — all already filed above. OneDrive slot `pdfcer1`
 next (`v0.63.0` went to `pdfcer2`). Tag, GitHub release, OneDrive deploy
 and smoke test not yet done; not yet confirmed from here — full release
 filing to follow once tag/deploy details are relayed.
+
+**Amended 2026-09-29 (735th filing).** The v0.64.0 smoke test found the
+nested-block fold this entry's own coverage/fallback counters could not
+show (see `Pass 395.1`, above); the release batch now also includes
+`395.1` (`a322a3ed`/`16b938e4`), filed before tag/deploy.
 
 **Sourcing (hard rule 8).** No shell this filing — commit hash, test
 counts and gate result relayed from the dispatching engineer's own report,

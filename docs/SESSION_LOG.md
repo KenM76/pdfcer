@@ -4,6 +4,54 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (735th filing) — `a322a3ed`/`16b938e4`: `Pass 395.1` SHIPPED — a block nested in a paragraph or heading is its own block
+
+**Shipped:**
+- `Pass 395.1` (`a322a3ed` fix, `16b938e4` docs) — a block-level structure
+  element (`P`/`H`/`H1`-`H6`/`Title`/`LI`/`Caption`/`TOCI`/`BibEntry`/
+  `FENote`) nested inside a `P`/`H`/`Hn`/`Title` block now starts its own
+  block instead of folding into its ancestor's text.
+  `docs/core-api/01-reading-and-model.md` §8.4.5 states the rule; index
+  line count now 3,415.
+
+**Decisions made this session:**
+- None — a correctness fix to `Pass 395.0`'s `tagged_layout`, not a new
+  invariant.
+
+**Findings + decisions:**
+- Found by the v0.64.0 fresh-folder smoke test: `export-docx --structure
+  auto` on the veraPDF Isartor-corpus manual PDF. That producer's
+  `/RoleMap` sends three custom styles (`_1_heading`/`_3_heading`/`_Body`)
+  all to `P`, and nests the body `P` inside the heading `P`. The fold
+  produced one 1,099-character paragraph for a whole section while
+  `coverage 1.000`/`fallback none` reported clean — the coverage metric
+  can't see a fold because every character is still owned; only output
+  block granularity shows it.
+- Fix: a nested block element under a `P`/`H`/`Hn`/`Title` parent becomes
+  its own block, in logical order after the parent's own content; a `P`
+  nested under `LI`/`Caption`/`TOCI` still folds in, since it genuinely is
+  that container's body. `structure_blocks` on pages 1-3 of the manual:
+  2 → 18.
+- New test `unit_tagged_layout.rs::a_paragraph_nested_in_a_paragraph_is_its_own_block_but_a_list_items_is_not`;
+  `pdfcer-text` `tagged_layout` tests now number 7. Sabotage: disabling the
+  split fails it; splitting under `LI` too also fails it.
+- The v0.64.0 release was held for this fix.
+- Generalizable finding written to `C:\personal_rag\pdf\` and its
+  `index.md` (real producers role-map a heading style and a body style to
+  the same standard type and nest one inside the other; a structure-tree
+  consumer must not fold a nested block into its ancestor block, and a
+  coverage metric alone cannot catch the fold).
+
+**Still in flight:**
+- v0.64.0 release still IN PROGRESS — batch now also includes `395.1`
+  alongside `390.0`-`395.0`. Tag, GitHub release, OneDrive deploy and
+  smoke test not yet done.
+
+**For next session:**
+- No shell this filing (hard rule 8) — commit hashes, test counts and the
+  smoke-test finding relayed from the dispatching engineer's own report,
+  not independently reproduced.
+
 ## 2026-09-29 (734th filing) — `73065457`: chore — v0.64.0 version bump, release IN PROGRESS
 
 **Shipped:**
