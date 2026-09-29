@@ -143,7 +143,7 @@ use pdfcer_model::page_tree::{self, Page, PageTreeError, Rect};
 use pdfcer_model::span::ByteSpan;
 use pdfcer_model::view::DocumentView;
 
-pub use font::{ExtractFont, FontNote, LadderRung, Rung3Gap};
+pub use font::{Code, ExtractFont, FontNote, LadderRung, Rung3Gap};
 
 /// Where a run of extracted characters came from.
 ///

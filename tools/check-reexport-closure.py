@@ -39,13 +39,17 @@ It deliberately checks only:
 Generic wrappers are seen through: `Vec<PassedOver>`, `Option<Refusal>` and
 `BTreeMap<String, FontSibling>` all mention what they are made of.
 
+It also checks `pub fn` return types in the same module (a verb returning an
+unexported type is the same seam): every `-> T` of a `pub fn` in the source
+module, `#[cfg(test)]` tail excluded, is decomposed the same way. Scanned by
+regex over the signature, not parsed — first measured at one finding
+(`ExtractFont::codes -> Vec<Code>`).
+
 WHAT IT DOES NOT CHECK
 ======================
 
-Method return types. A verb returning an unexported type is the same class of
-defect, but finding it needs real parsing rather than a field scan, and this
-gate is meant to be a second's work. If that case bites, widen it then — with a
-measurement, the way `check-string-gaps.sh` was widened.
+Argument types, and types reached across modules or through `lib.rs`
+re-exports.
 
 USAGE
 =====
@@ -76,6 +80,21 @@ IGNORE = {
 
 REEXPORT = re.compile(r"pub use (\w+)::\{([^}]*)\};", re.S)
 DEFN = re.compile(r"^pub (?:struct|enum) (\w+)", re.M)
+RETURN = re.compile(
+    r"^\s*pub fn \w+(?:<[^>]*>)?\s*\((?:[^()]|\([^()]*\))*\)\s*->\s*([^{;\n]+?)\s*(?:where[^{]*)?[{;]",
+    re.M | re.S,
+)
+
+
+def return_types(body: str) -> list[tuple[str, str]]:
+    """(fn name, identifier) for each type a `pub fn` return type mentions."""
+    body = body.split("#[cfg(test)]")[0]
+    out = []
+    for m in RETURN.finditer(body):
+        fname = re.search(r"pub fn (\w+)", m.group(0)).group(1)
+        for ident in re.findall(r"\b([A-Z]\w*)\b", m.group(1)):
+            out.append((fname, ident))
+    return out
 
 
 def field_types(body: str) -> set[str]:
@@ -131,7 +150,12 @@ def main() -> int:
                     if used in IGNORE or used in exported or used not in defined:
                         continue
                     rel = str(mod.relative_to(ROOT)).replace("\\", "/")
-                    findings.append((rel, module, name, used))
+                    findings.append((rel, module, f"`{name}` is re-exported, its field type", used))
+            rel = str(mod.relative_to(ROOT)).replace("\\", "/")
+            for fname, used in sorted(set(return_types(body))):
+                if used in IGNORE or used in exported or used not in defined:
+                    continue
+                findings.append((rel, module, f"`{fname}()` is pub, its return type", used))
 
     if "--stats" in sys.argv:
         print(f"  re-exported types checked : {checked}")
@@ -140,7 +164,7 @@ def main() -> int:
     if findings:
         print("check-reexport-closure: FINDINGS —")
         for rel, module, name, used in findings:
-            print(f"  {rel}: `{name}` is re-exported, its field type `{used}` is not")
+            print(f"  {rel}: {name} `{used}` is not re-exported")
             print(f"      add `{used}` to `pub use {module}::{{ … }}`")
         print()
         print(
@@ -150,7 +174,7 @@ def main() -> int:
         )
         return 1
 
-    print(f"check-reexport-closure: clean — {checked} re-exported type(s), every field type reachable")
+    print(f"check-reexport-closure: clean — {checked} re-exported type(s), every field and return type reachable")
     return 0
 
 
