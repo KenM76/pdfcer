@@ -3259,7 +3259,7 @@ cfg.save(&store)?;                                   // settings/mod.rs
 `resolve_store() -> StoreLocation` · `store_in(&Path)` ·
 `StoreLocation` · `StoreKind` · `Settings` ·
 `Settings::load` · `::parse` · `::write_to_string` ·
-`::save` · `LoadReport` · `SettingNote` ·
+`::save` · `LoadReport` · `LoadReport::stated` · `::was_stated` · `SettingNote` ·
 `SaveError`.
 
 **Store location** (`settings/mod.rs`, verified): portable first —
@@ -3276,6 +3276,12 @@ parsing is **fail-soft per key, not per document** (`settings/mod.rs`):
 an unrecognised or malformed line becomes a `SettingNote` in the
 `LoadReport` and the rest of the file still loads. Surface the notes; do not
 discard them.
+
+`LoadReport::stated` / `::was_stated(key)` name the keys the file actually
+set (a value that took, clamped included; not a bad value or unknown key).
+Use it to tell "absent, defaulted" from "stated at the default" -- never
+re-default or migrate a stated key, and never copy a pdfcer default into the
+shell to reconstruct the difference. A file written by `save` states every key.
 
 Several settings exist specifically because the standard is ambiguous and
 the operator's standing directive (2026-08-08, R169) is that ambiguity

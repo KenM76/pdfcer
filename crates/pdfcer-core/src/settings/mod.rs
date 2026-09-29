@@ -141,6 +141,7 @@
 /// (PDF/X, PDF/A, PDF/UA) - each value carrying its own evidence tier.
 pub mod presets;
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -272,6 +273,15 @@ pub struct LoadReport {
     pub existed: bool,
     /// Everything worth telling the operator, in file order.
     pub notes: Vec<SettingNote>,
+    /// The known keys the file actually set, by their file spelling.
+    ///
+    /// Separates "absent, so defaulted" from "stated at exactly the default
+    /// value": the second is the operator's choice and a shell must not
+    /// migrate or re-default it. A key counts once its value took effect,
+    /// including a [`SettingNote::Clamped`] one; a [`SettingNote::BadValue`]
+    /// or unknown key does not count. A file written by [`Settings::save`]
+    /// states every key.
+    pub stated: BTreeSet<String>,
 }
 
 impl LoadReport {
@@ -279,6 +289,13 @@ impl LoadReport {
     #[must_use]
     pub fn is_quiet(&self) -> bool {
         self.notes.is_empty()
+    }
+
+    /// Whether the file set `key` (its file spelling, e.g. `"cmyk_intent"`).
+    /// See [`Self::stated`].
+    #[must_use]
+    pub fn was_stated(&self, key: &str) -> bool {
+        self.stated.contains(key)
     }
 }
 
@@ -1892,6 +1909,7 @@ impl Settings {
             location,
             existed: false,
             notes: Vec::new(),
+            stated: BTreeSet::new(),
         };
         let Some(path) = report.location.path.clone() else {
             return (Self::default(), report);
@@ -1911,7 +1929,7 @@ impl Settings {
                 return (Self::default(), report);
             }
         };
-        let settings = Self::parse(&text, &mut report.notes);
+        let settings = Self::parse_stating(&text, &mut report.notes, &mut report.stated);
         (settings, report)
     }
 
@@ -1923,6 +1941,16 @@ impl Settings {
     /// in prose.
     #[must_use]
     pub fn parse(text: &str, notes: &mut Vec<SettingNote>) -> Self {
+        Self::parse_stating(text, notes, &mut BTreeSet::new())
+    }
+
+    /// [`Self::parse`], also collecting the keys that took effect into
+    /// `stated` (see [`LoadReport::stated`]).
+    fn parse_stating(
+        text: &str,
+        notes: &mut Vec<SettingNote>,
+        stated: &mut BTreeSet<String>,
+    ) -> Self {
         let mut settings = Self::default();
         let mut seen: Vec<String> = Vec::new();
 
@@ -1950,7 +1978,18 @@ impl Settings {
             } else {
                 seen.push(key.clone());
             }
+            let before = notes.len();
             settings.apply(&key, value, line, notes);
+            // `apply` either sets the field or pushes exactly one note; only
+            // a clamp both sets it and notes it. A later bad duplicate leaves
+            // an earlier good value in force, so a key is never un-stated.
+            let took = match notes.get(before) {
+                None => true,
+                Some(note) => matches!(note, SettingNote::Clamped { .. }),
+            };
+            if took {
+                stated.insert(key);
+            }
         }
         settings
     }
@@ -3502,6 +3541,57 @@ mod tests {
         assert!(report.is_quiet());
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_key_stated_at_its_default_is_distinguishable_from_an_absent_one() {
+        let dir = std::env::temp_dir().join(format!("pdfcer-stated-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let location = store_in(&dir);
+        let path = location.path.clone().expect("a path");
+        let default_token = cmyk_token(Settings::default().cmyk_intent);
+
+        std::fs::write(&path, "separations = refuse\n").expect("write");
+        let (absent, report) = Settings::load(location.clone());
+        assert!(!report.was_stated("cmyk_intent"), "absent is not stated");
+        assert!(report.was_stated("separations"));
+
+        std::fs::write(&path, format!("cmyk_intent = {default_token}\n")).expect("write");
+        let (stated, report) = Settings::load(location);
+        assert_eq!(
+            absent.cmyk_intent, stated.cmyk_intent,
+            "same value both ways"
+        );
+        assert!(report.was_stated("cmyk_intent"), "stated at the default");
+        assert!(!report.was_stated("separations"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn only_a_value_that_took_counts_as_stated() {
+        let mut notes = Vec::new();
+        let mut stated = BTreeSet::new();
+        Settings::parse_stating(
+            "cmyk_intent = purple\nword_gap_ratio = 99\nribbon_layout = wide\n\
+             separations = refuse\nseparations = nonsense\n",
+            &mut notes,
+            &mut stated,
+        );
+        assert!(!stated.contains("cmyk_intent"), "a bad value was defaulted");
+        assert!(
+            stated.contains("word_gap_ratio"),
+            "a clamped value is the operator's"
+        );
+        assert!(
+            !stated.contains("ribbon_layout"),
+            "an unknown key is not a setting"
+        );
+        assert!(
+            stated.contains("separations"),
+            "a bad duplicate leaves the earlier good value in force"
+        );
     }
 
     #[test]
