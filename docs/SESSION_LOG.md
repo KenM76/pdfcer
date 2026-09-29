@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (721st filing) — `09dd494d`: `Pass 387.1` SHIPPED — purge stored password-field values
+
+**Shipped:**
+- `Pass 387.1` (`09dd494d`) — `EditSession::purge_password_values`: for each Password-flag text field whose own dict holds a stored `/V`, removes `/V`, redraws the widget appearance empty, and removes the superseded appearance object once nothing live references it; an inherited `/V` is reported, never removed. New shared `to_full_bytes_decomposing_containers` (also adopted by redaction's own container decomposition, R92) unpacks any object stream still holding a purged value. CLI `pdfcer purge-password-values INPUT -o OUTPUT [--invalidate-signatures]`; refuses a signed file without the flag; re-scans its own output and exits 9 if any stored value remains. Closes the `387` family opened by `387.0` (720th filing). 7 new core unit tests + 3 new CLI tests, both sabotage-checked. `tools/run-gates.sh` 39/40 → fixed a missing doc comment → 40/40 green. No manifest change. Full record: `ROADMAP.md` *Shipped*.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- None beyond the `Pass 387.1` entry.
+
+**Still in flight:**
+- `Next up` has no named head — the `387` family was its sole content.
+
+**For next session:**
+- No shell this filing (hard rule 8) — facts relayed from the dispatching engineer's own report at `09dd494d`, not independently reproduced.
+
 ## 2026-09-28 (720th filing) — `93fd97ca`: `Pass 387.0` SHIPPED — find password-field values left in earlier revisions
 
 **Shipped:**

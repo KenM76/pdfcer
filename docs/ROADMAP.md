@@ -115,6 +115,82 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 387.1` (`09dd494d`), 2026-09-28 — purge stored password-field values
+
+**Verdict: SHIPPED.** Sole head of *Next up* (promoted 719th filing from
+`Pass 387.0`'s own entry above). Closes the family: `387.0` found and
+disclosed stored password values, this removes them.
+
+**Core.** `EditSession::purge_password_values(&mut self) ->
+Result<PasswordPurgeOutcome, EditError>`: for each Password-flag text field
+(§12.7.4.3 Table 228 bit 14) whose OWN dict holds a non-empty `/V`, removes
+`/V`, redraws the widget appearance EMPTY (not masked — there is no value
+left to mask), and removes any superseded appearance object nothing live
+still references (reachable/`PendingGraph` sweep, the same pairing
+redaction uses). Read-only fields are purged and named. A value inherited
+from an ancestor `/V` (§12.7.3.1) is reported in `inherited_not_removed`,
+never removed — it isn't this field's own value to take. One undoable
+command; nothing to purge commits nothing. `PasswordPurgeOutcome {
+fields_purged, read_only_purged, inherited_not_removed,
+appearance_objects_removed, layout }`, `#[non_exhaustive]`.
+
+**Core (shared).** `EditSession::to_full_bytes_decomposing_containers(&SaveOptions)
+-> Result<(Vec<u8>, SaveReport, ContainerDecomposition), WriteError>`: a
+full rewrite that also drops every §7.5.7 object stream holding an
+edited/removed object, promoting its other objects — so no stale
+compressed copy of a purged value survives inside a container. Redaction's
+own container decomposition now calls the same shared
+`decompose_object_stream_containers` helper (one path, R92) instead of a
+second implementation.
+
+**CLI.** `pdfcer purge-password-values INPUT -o OUTPUT
+[--invalidate-signatures]`. Always the decomposing full rewrite; refuses a
+signed file without the flag (exit 9, `EDIT_REFUSED`). Prints `purged
+field=<name> read_only=0|1` per field and a summary `purge-password-values
+<in> -> <out> purged= read_only= inherited= appearances_removed=
+containers_unpacked= remaining= signature=`; re-scans the output with
+`387.0`'s own scanner and exits 9 if any stored value remains.
+
+**Tests.** 7 new core unit tests (`password_history.rs`: full-save no
+plaintext; superseded value-drawing appearance removed; a value inside an
+object stream survives plain `to_full_bytes` but not the decomposing save;
+full rewrite drops an earlier revision's value; undo restores; read-only
+purged and named; nothing-to-purge commits nothing) + 3 new CLI tests
+(`crates/pdfcer-cli/tests/password_values.rs`: history file purged to 1
+revision/0 stored; an opened-revision purge names the field and removes
+the bytes; a signed file refused then allowed with
+`--invalidate-signatures`, `signature=invalidated`). Sabotage-checked:
+emptying removals, no-op decomposition, dropping the signed refusal, and
+skipping the purge call were each caught.
+
+**Gates.** `tools/run-gates.sh` — one gate failed
+(`check-public-fns-documented` on `cmd_purge_password_values`, undocumented)
+and was fixed in the same commit; re-run 40/40 green, including 2 filing
+gates. `fmt`/`clippy -D warnings` clean.
+
+**`cargo tree`.** No `Cargo.toml` change.
+
+**Round-trip.** The decomposing full rewrite is opt-in (a new method, not a
+change to `to_full_bytes`'s existing behaviour); ordinary full/incremental
+saves are unaffected. `docs/core-api/` gained the two new verbs (282
+verbs total, `check-core-api-verbs` PASS); `README.md`'s subcommand count
+181 → 182.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — no `pdfcer-gui` caller.
+
+**`docs/FEATURES.md`.** Moves the *Planned* purge row to *Implemented →
+Forms*, merged into `387.0`'s row: core `[x]`, cli `[x]`, gui `[ ]`. The
+filed *Planned* wording said appearances would be redrawn "masked" —
+corrected in the merge to "empty", since a purge leaves no value to mask.
+
+**No §12 decision.** Sharing `decompose_object_stream_containers` is an
+implementation consolidation (R92), not a new invariant or crate boundary.
+Highest decision record stays `165`.
+
+**Sourcing (hard rule 8).** No shell this filing — facts relayed from the
+dispatching engineer's own report at `09dd494d`, not independently
+reproduced.
+
 ### `Pass 387.0` (`93fd97ca`), 2026-09-28 — find password-field values left in earlier revisions
 
 **Verdict: SHIPPED.** Head of *Next up* (promoted from *Backlog* 719th
@@ -10131,30 +10207,14 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★★★★★ **UPDATED 2026-09-28 (720th filing) — `Pass 387.0` SHIPPED
-> (`93fd97ca`, `ROADMAP.md` *Shipped*, top of file). `Pass 387.1` is now
-> the SOLE head of *Next up*.** (Previously: both items added 719th filing,
-> promoted from *Backlog*, the incremental-save stored-password-value gap
-> `Pass 345.0` named as its own remainder — 630th filing, "An incremental
-> save can still carry an earlier revision's plaintext password.")
->
-> - **`Pass 387.1`** — purge stored password values (full-rewrite path).
->   Core: an `EditSession` verb removing `/V` from every password field
->   whose current value is stored, redrawing its appearance masked/empty,
->   and removing the superseded BASE appearance stream that drew the
->   plaintext when nothing else references it (a full rewrite keeps
->   unreferenced objects otherwise — the orphan question, spec RAG
->   `iso32000__ref__unreferenced_objects.md`). A read-only field is
->   reported, not skipped silently. CLI: the purge writes a full rewrite by
->   default (an incremental save cannot remove earlier revisions); states
->   that existing signatures are invalidated by a full rewrite (R36) and
->   refuses a signed file unless the operator opts in. Delivers core + cli
->   (`gui [ ]`). Acceptance: after purge, re-running `387.0`'s scan on the
->   output reports zero stored values in any revision, and a byte search of
->   the output does not find the plaintext.
->
-> No new dependencies; core has no network; `docs/core-api` updated when
-> the pub verb lands.
+> ★★★★★★★★★★ **UPDATED 2026-09-28 (721st filing) — `Pass 387.1` SHIPPED
+> (`09dd494d`, `ROADMAP.md` *Shipped*). The `387` family (find + purge
+> stored password values) is now CLOSED. `Next up` has no named head.**
+> (Previously: `Pass 387.0` shipped 720th filing, `93fd97ca`; both items
+> added 719th filing, promoted from *Backlog*, the incremental-save
+> stored-password-value gap `Pass 345.0` named as its own remainder —
+> 630th filing, "An incremental save can still carry an earlier revision's
+> plaintext password.")
 
 > ★★★★★★★★ **`Pass 386.0` SHIPPED, 2026-09-28 (716th filing), `3ffaef8e`** —
 > see top of *Shipped*. Off-cycle defect fix answering `pdfcer-gui` request
