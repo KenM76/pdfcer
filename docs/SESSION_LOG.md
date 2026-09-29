@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (728th filing) — Backlog hygiene: 4 `### Unscoped` entries CLOSED, 3 marked PARTLY
+
+**Shipped:**
+- No code — a librarian filing against an engineer-dispatched read-only audit of 7 `### Unscoped` entries in `ROADMAP.md`.
+
+**Decisions made this session:**
+- None.
+
+**Findings + decisions:**
+- CLOSED (dated banner added, text kept legible below, per this file's own convention): `tools/check-string-gaps.sh` IS in the release path (`check-ci-parity.py:133` + `run-gates.sh`); the `grey_overprint.rs` known-wrong pinned test was flipped by `Pass 238.0`; the matching disclosure-counter gap is moot for the same reason (mesh-shading spot backdrops remain the one live residual, tracked by a separate entry); `/BS` `/W` now redraws a check box's/radio button's border (`Pass 340.0`, `463b0008`) — `FEATURES.md`'s widget move/resize row corrected in the same filing.
+- Marked PARTLY (stays open, status line added, no box moved): the `ICCBased`-image colour-management entry (`Pass 214.0`/`240.0` closed the N 3/4-with-output-intent cases; N 1 and N 4-on-screen/no-output-intent remain, and the entry's own file citations were stale — `pdfce-render`→`pdfcer-render`); `overprint_image.rs`'s signature-table gap (file path in the entry's own heading was wrong; the substance is now pinned, the CI table row is not); the subtractive-page rendering fuzz target (two new SVG/EMF fuzz targets exist since `Pass 248.1` but neither rasterises — `cmyk_buffer.rs` still unreached).
+
+**Still in flight:**
+- Nothing new opened by this filing.
+
+**For next session:**
+- No shell this filing — the audit was read-only and relayed by the dispatching engineer; evidence (file paths, line numbers, commit hashes) taken as reported, per hard rule 8's boundary (asserting from documents vs. checking disk).
+
 ## 2026-09-29 (727th filing) — `f4a20856`: `Pass 390.0` SHIPPED — `pdfcer-render`'s text matrix carried in f64
 
 **Shipped:**

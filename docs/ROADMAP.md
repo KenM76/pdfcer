@@ -21227,6 +21227,22 @@ not a gap, and a `[ ]` would claim otherwise.
 
 ### Unscoped — ★★★★★ **COLOUR-MANAGE `ICCBased` IMAGES: `image::Space` DISCARDS THE PROFILE BY CONSTRUCTION, SO EVERY `ICCBased` IMAGE IN EVERY DOCUMENT IS CONVERTED WITH NO COLOUR MANAGEMENT AT ALL** — filed 2026-09-01 (361st filing, `Pass 207.0`'s scoped-not-started remainder)
 
+**★ PARTLY — verified 2026-09-29 (read-only audit), stays OPEN.** `Pass 214.0`
+added `Space::Icc` (N 4 managed to ink only, and only with an
+`/OutputIntents` output intent present; its `to_rgb` path is unmanaged).
+`Pass 240.0` added `Space::IccRgb` (N 3 fully managed, including JPX; see
+`FEATURES.md`'s `/ICCBased` row for the mechanism). **Still unmanaged**: N 1
+(Gray) images, N 4 on screen (no ink-compositing page), N 4 without an
+output intent, and JPX N 1/N 4. Note that "N 4 on screen" overlaps the
+measured `CMYK→sRGB` display-offset entry below (★★★★ "A SEPARATE, UNIFORM
+`CMYK`→sRGB DISPLAY OFFSET"). Also note this entry's own citations are stale:
+`pdfce-render`/`image.rs:2043` — the crate is now `pdfcer-render` and the
+line number has moved. The **class** this entry names — `image::Space`
+structurally cannot carry a profile past construction for every case — is
+not fully closed by the two Passes above; the status below ("Status: SCOPED,
+NOT STARTED") is itself now stale and superseded by this note, not by a
+later rewrite of it.
+
 **Status: SCOPED, NOT STARTED.** `Pass 207.0` (*Shipped*, this filing) made
 the **disclosure** true; it did **not** make the **rendering** true, and the
 two must not be conflated on a later read.
@@ -21805,6 +21821,12 @@ same pass (rule 13).
 
 ### Unscoped — **`tools/check-string-gaps.sh` is not in the release path, and a gap it catches SHIPPED in v0.18.0** — filed 2026-09-01 (360th filing, from `Pass 201.0`)
 
+**★ CLOSED — verified 2026-09-29 (read-only audit).** `tools/check-ci-parity.py:133`
+lists `check-string-gaps.sh`; `tools/run-gates.sh` takes its gate list from
+`check-ci-parity --list`; a green `run-gates.sh` precedes every release
+(`CLAUDE.md` rule 8 / decision 121). Kept legible below, per this file's own
+convention for a superseded entry.
+
 A baked-in ten-space gap inside an assertion message in
 `crates/pdfce-core/tests/form_geometry_edit.rs` — this machine's Bash tool
 eating backslash line-continuations out of a heredoc — **was in the v0.18.0
@@ -21833,6 +21855,11 @@ direct-paint path already has.
 
 ### Unscoped — **a committed test pins a KNOWN-WRONG value, deliberately, pending the n-channel buffer** — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
 
+**★ CLOSED by `Pass 238.0` — verified 2026-09-29 (read-only audit).**
+`crates/pdfcer-render/tests/grey_overprint.rs:470-483` now asserts the spot
+survives (`is_greenish = c_b`), matching Table 149 row 2's spot column. Kept
+legible below, per this file's own convention for a superseded entry.
+
 `crates/pdfce-render/tests/grey_overprint.rs`'s
 `a_grey_image_is_never_upgraded_whatever_the_scope`'s third assertion
 expects a **neutral** result where ISO 32000-1 §11.7.4.3 Table 149 row
@@ -21845,6 +21872,14 @@ renderer has no plane to preserve a spot's ink on, so `c_b` cannot be
 honoured for an image regardless of what this test expects.
 
 ### Unscoped — **a disclosure counter for "a process-space image over an already-flattened spot" does not fire where it should** — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
+
+**★ CLOSED — verified 2026-09-29 (read-only audit).** Moot after `Pass 238.0`
+gave images a spot plane (`c_b` now delivered; `grey_overprint.rs:472` records
+that the counter was added, then retired). The residual case this entry did
+NOT cover — a **mesh**-painted spot backdrop still flattens — belongs to the
+mesh-shadings entry below (★★★★★ "MESH SHADINGS (TYPES 4–7) STILL FLATTEN
+SPOT COLORANTS"), which stays OPEN. Kept legible below, per this file's own
+convention for a superseded entry.
 
 `overprint_images_unsupported` is meant to fire whenever the composite
 was never offered a paint's object class at all (see `Pass 97.1b`'s
@@ -21861,6 +21896,13 @@ carries flattened spot ink" — the second half is the part nothing today
 computes.
 
 ### Unscoped — **`tools/overprint_image.rs`'s signature table has no row that would catch this on CI** — filed 2026-08-31 (357th filing, `Pass 196.1`'s renderer-side residual)
+
+**★ PARTLY — verified 2026-09-29 (read-only audit), stays OPEN.** This
+entry's own heading names the wrong path — the file is actually
+`crates/pdfcer-render/tests/overprint_image.rs`. The substance (spot survives
+with `/OP` on) is now pinned at `grey_overprint.rs:479`, but the four-way
+signature table this entry names (`overprint_image.rs:45-50`) still has no
+grey-image-over-spot `/OP` on-vs-off row.
 
 A grey image under `/OP true` vs. the same image under `/OP false` MUST
 differ (per Table 149 row 2's `c_b` column, once honoured) and today
@@ -21914,6 +21956,13 @@ because a `/Contents` stream **is** the right kind of object (`Object::Stream`)
 and a type test alone cannot tell it apart from an appearance stream.
 
 ### Unscoped — **a rendering fuzz target over a SUBTRACTIVE page: the harness has NO rendering target at all** — filed 2026-08-31 (352nd filing, named by `Pass 189.0`'s `R236` audit)
+
+**★ PARTLY — verified 2026-09-29 (read-only audit), stays OPEN, operator-scoped
+per this entry's own text below.** `fuzz/fuzz_targets/export_svg.rs` and
+`export_emf.rs` (`Pass 248.1`) now run the full interpreter over arbitrary
+bytes, so the harness is no longer purely leaf-parser-only — but **neither
+rasterises**, and `cmyk_buffer.rs` is still unreached. The gap this entry
+describes is only partly eroded, not closed.
 
 **★ FILED HERE AND DELIBERATELY *NOT* UNDER `R236`, and that placement is the
 substance of the entry.** `Pass 189.0` audited all ten `debug_assert`s in
@@ -21994,6 +22043,14 @@ spend a day proving something already written down. The visible symptom is
 `add_text` earlier in the same session.
 
 ### Unscoped — **`/BS` `/W` does not change a check box's or radio button's DRAWN border** — filed 2026-08-31 (351st filing, `Pass 187.0`'s deliberate omission)
+
+**★ CLOSED by `Pass 340.0` (`463b0008`) — verified 2026-09-29 (read-only
+audit).** `annot_author.rs`'s `build_check_box_appearances` now calls
+`stroke_frame` with `chrome`; `build_radio_button_appearances` uses
+`chrome.border_width()` and `dash`. `FEATURES.md`'s Forms row for widget
+move/resize (which carried this as an open *Backlog* clause) is corrected in
+the same filing. Kept legible below, per this file's own convention for a
+superseded entry.
 
 pdfce authors a check box's and radio button's border at a **fixed 1.0**, and
 `Pass 187.0` deliberately did **not** change that while fixing four separate
