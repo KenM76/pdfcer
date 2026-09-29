@@ -115,6 +115,79 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 395.0` (`5c350a53`), 2026-09-29 — drive docx/xlsx/ods export from a tagged PDF's structure tree (G066)
+
+**Verdict: SHIPPED.** Answers pdfceGUI request `G066`: *"Word export cannot
+use a tagged PDF's structure tree."* Extends `Pass 372.0`'s structure-tree
+reader into export — layout for `export-docx`/`export-xlsx`/`export-ods`
+can now be driven by the tree instead of always being inferred.
+
+**What changed.** New module `pdfcer_text::tagged_layout`, re-exported as
+`pdfcer_core::tagged_layout`:
+`layout_from_structure(&StructureTree, geometry, &LayoutOptions,
+&TaggedLayoutOptions) -> TaggedLayout { layout, tables, report }`.
+Block-level structure elements become `BlockSource::Structure` blocks in
+logical order — H1-H6/`Hn`, `H` by `Sect` depth, `Title`,
+`P`/`TOCI`/`BibEntry`/`FENote`, `LI` (with its `Lbl` as the marker),
+`Caption`. Content under no block element becomes a paragraph, counted as
+`non_standard_as_paragraph` or `untyped_as_paragraph`; content the tree
+does not own keeps its inferred block, counted as `inferred_blocks_kept`.
+Table elements become `TaggedTable`s: `TR` rows, `TH`/`TD` cells gridded by
+`RowSpan`/`ColSpan` (ISO 32000-1 §14.8.5.7), header rows from `THead` or
+all-`TH` rows; nested tables are flattened and counted.
+`StructureUse::{Auto (default, tree used once it owns ≥0.5 of laid-out
+non-artifact text)/Always/Never}`. `report.fallback` names why the tree
+was not used — `Disabled`/`NoStructureTree`/`NoTextClaimed`/`LowCoverage`
+(`broken_references` is reported but is not itself a fallback trigger).
+`retain_pages` recounts the report after a `--pages` cut.
+`pdfcer-core`'s `table_detect` gains `tables_from_structure`,
+`BoundarySource::Tagged`, `HeaderEvidence::Tagged`; the docx/xlsx/ods
+writers themselves are unchanged.
+CLI: `export-docx`/`export-xlsx`/`export-ods` take `--structure
+auto|tree|layout` (default `auto`) — when the tree is used, its tables
+are the only tables and no detection runs. The result line appends
+`structure`, `structure_fallback`, `structure_coverage`,
+`structure_blocks`, `non_standard_as_paragraph`, `untyped_as_paragraph`,
+`nested_tables_flattened`, `stray_table_content`, `broken_references`;
+`export-docx` also adds `inferred_blocks_kept`.
+`docs/core-api/01-reading-and-model.md` gains §8.4.5 "Tagged layout";
+`03-capabilities` §7.13 updated; `check-core-api-verbs` passes.
+
+**Tests.** `pdfcer-text` `unit_tagged_layout.rs`: 6 tests. `pdfcer-cli`
+`export_structure.rs`: 4 tests. Every new test sabotage-checked: ignoring
+`min_coverage`, ignoring `ColSpan`, not counting non-standard types, and
+unmapping `LI` each fail exactly one test; mapping `Auto` to `Never` fails
+3 CLI tests; dropping the tree's tables fails the docx test or the
+xlsx/ods test respectively.
+
+**Gates.** `tools/run-gates.sh`: PASS, 40 commands, 10,112 tests passed / 0
+failed.
+
+**Invariants and packaging.** `cargo tree` unchanged — no manifest change,
+no new dependency. No writer change, so no round-trip impact. No
+packaging change.
+
+**`docs/FEATURES.md`.** New Export-section row: Word/Excel/ODS export can
+drive layout from a tagged PDF's structure tree; `core [x]` `cli [x]`
+`gui [ ]` — `pdfceGUI` has not consumed it yet, a `G066` reply is pending
+on that channel; do not round the `gui` box up.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate result relayed from the dispatching engineer's own report,
+not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `394` highest, next free family `395` | **`395` used (`Pass 395.0`), next free family `396`** |
+| Standing rules | `R257` (carried figure, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — no new architectural decision |
+| `SESSION_LOG` filings | `732` | **`733`** |
+| `docs/FEATURES.md` | — | **new Export-section row added (structure-tree-driven docx/xlsx/ods layout)** |
+
+---
+
 ### `Pass 394.0` (`3d10717d`), 2026-09-29 — pin a grey image's `/OP` on-vs-off pair over a spot backdrop
 
 **Verdict: SHIPPED.** Closes the Backlog entry filed 2026-08-31 (357th

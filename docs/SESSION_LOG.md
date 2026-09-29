@@ -4,6 +4,57 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (733rd filing) — `5c350a53`: `Pass 395.0` SHIPPED — drive docx/xlsx/ods export from a tagged PDF's structure tree (G066)
+
+**Shipped:**
+- `Pass 395.0` (`5c350a53`) — answers pdfceGUI request `G066`: "Word export
+  cannot use a tagged PDF's structure tree." New `pdfcer_text::tagged_layout`
+  (re-exported as `pdfcer_core::tagged_layout`) lays out headings, paragraphs,
+  list items, captions and tables straight from a `StructureTree` instead of
+  always inferring layout; `export-docx`/`export-xlsx`/`export-ods` gain
+  `--structure auto|tree|layout` (default `auto`).
+
+**Decisions made this session:**
+- None — an export-side extension of `Pass 372.0`'s structure-tree reader,
+  not a new invariant.
+
+**Findings + decisions:**
+- Block mapping: H1-H6/`Hn`, `H` by `Sect` depth, `Title`,
+  `P`/`TOCI`/`BibEntry`/`FENote`, `LI` (with its `Lbl` as marker), `Caption`.
+  Unclaimed content becomes a paragraph (`non_standard_as_paragraph`/
+  `untyped_as_paragraph`); content the tree doesn't own keeps its inferred
+  block (`inferred_blocks_kept`).
+- Tables: `TR`/`TH`/`TD` gridded by `RowSpan`/`ColSpan` (ISO 32000-1
+  §14.8.5.7), header rows from `THead` or all-`TH` rows, nested tables
+  flattened and counted. `pdfcer-core::table_detect` gains
+  `tables_from_structure`, `BoundarySource::Tagged`, `HeaderEvidence::Tagged`.
+  The docx/xlsx/ods writers themselves are unchanged.
+- `StructureUse::Auto` uses the tree once it owns ≥0.5 of laid-out
+  non-artifact text; `report.fallback` names why not otherwise
+  (`Disabled`/`NoStructureTree`/`NoTextClaimed`/`LowCoverage`).
+  `broken_references` is reported but is not itself a fallback trigger.
+  `retain_pages` recounts the report after a `--pages` cut.
+- New tests: `pdfcer-text` `unit_tagged_layout.rs` (6), `pdfcer-cli`
+  `export_structure.rs` (4). Sabotage-checked: ignoring `min_coverage`,
+  ignoring `ColSpan`, not counting non-standard types, and unmapping `LI`
+  each fail exactly one test; mapping `Auto` to `Never` fails 3 CLI tests;
+  dropping the tree's tables fails the docx test or the xlsx/ods test.
+- `tools/run-gates.sh`: PASS, 40 commands, 10,112 tests passed, 0 failed.
+  `cargo tree` unchanged (no manifest/dependency change); no writer change,
+  so no round-trip impact; no packaging change.
+- `docs/FEATURES.md` gains a new Export-section row: structure-tree-driven
+  docx/xlsx/ods layout, `core [x]` `cli [x]` `gui [ ]` — `pdfceGUI` has not
+  consumed it yet.
+
+**Still in flight:**
+- A `G066` reply is pending on the pdfceGUI channel. Standing open items
+  otherwise unchanged (see `docs/NEXT_SESSION.md`).
+
+**For next session:**
+- No shell this filing (hard rule 8) — commit hash, test counts and gate
+  result relayed from the dispatching engineer's own report, not
+  independently reproduced.
+
 ## 2026-09-29 (732nd filing) — `3d10717d`: `Pass 394.0` SHIPPED — pin a grey image's `/OP` on-vs-off pair over a spot
 
 **Shipped:**
