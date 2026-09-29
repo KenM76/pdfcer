@@ -4,6 +4,56 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (745th filing) — `316478af`/tag `v0.65.0`: `v0.65.0` RELEASED
+
+**Shipped:**
+- `v0.65.0` RELEASED — annotated tag `v0.65.0` on `316478af` (the 744th
+  filing's own docs commit). Closes the release left "in progress" by the
+  743rd/744th filings. Batches `396.0`-`400.2` (`G067` catalog probe and
+  page-scoped structure read; every CLI output write goes through a
+  temp-file-then-rename; zero broken intra-doc links plus its CI gate;
+  `LoadReport` names the settings keys a file actually stated; restore the
+  vendored OCRcer adapter byte-identical; disclose spot inks flattened
+  past the plane roster; two comment-only fixes; the packager's staged-
+  model licence-citation check). Headline: the last item restores the
+  OCRcer model's licence notice to `THIRD_PARTY_LICENSES.md`, missing
+  since `v0.59.0`.
+  Package `D:\builds\pdfcer-20260929-0944-316478a` (no `-dirty` suffix),
+  70,943,962 bytes total (`pdfcer.exe` 27,409,920 bytes;
+  `THIRD_PARTY_LICENSES.md` 287,867 bytes, citing `models/ocrcer` 3x).
+  GitHub asset `pdfcer-v0.65.0-windows-x64.zip`, 43,195,098 bytes, sha256
+  `944fdf082c141fe249945b42d4a5194a7017f13414b2037ac28cadf8bc02001d`.
+  OneDrive slot `pdfcer2` (5 items, 70,940,936 bytes); `pdfcer1` keeps
+  `v0.64.0`. Fresh-folder smoke: `pdfcer --version` -> `0.65.0`, revision
+  `v0.64.0-26-g316478af`; `iccce` -> `0.3.0`.
+
+**Decisions made this session:** None — release-only filing, no new
+crate boundary or invariant. Highest decision record stays `166`.
+
+**Findings + decisions:**
+- `tools/run-gates.sh`: PASS, 41 commands (incl. 2 filing gates), on
+  `316478af`.
+- `tools/verify-release.py v0.65.0` first run FAILED the working-tree-
+  clean check on the three standing untracked scratch dirs
+  (`target-case/`, `target-probe/`, `target-wasm/`) — not a real dirty-
+  tree signal. Fix: added them to `.git/info/exclude` (local-only,
+  uncommitted). Re-run: clean — tag, `HEAD`, `origin/main`, CI and the
+  release all agree. Gotcha worth carrying forward: `verify-release.py`
+  counts untracked dirs as uncommitted paths; standing local scratch
+  dirs belong in `.git/info/exclude`, not merely left untracked.
+
+**Still in flight:** None — the release this and the two prior filings
+tracked is now complete end to end (tag, build, smoke, GitHub, OneDrive,
+`verify-release.py` clean).
+
+**For next session:** Nothing release-specific owed. `docs/FEATURES.md`
+unchanged by this filing — no capability box crosses a release boundary.
+
+**Sourcing (hard rule 8).** No shell tool this filing — all figures
+(build sizes, hashes, gate/smoke-test results, the `verify-release.py`
+gotcha) relayed from the dispatching engineer's own report, measured by
+them directly; not independently reproduced here.
+
 ## 2026-09-29 (744th filing) — `343f850f`: chore — v0.65.0 version bump, release IN PROGRESS
 
 **Shipped:**

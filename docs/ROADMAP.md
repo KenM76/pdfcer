@@ -115,6 +115,70 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.65.0` — RELEASED (2026-09-29)
+
+Release filing, not a Pass — completes the engineer's in-progress
+release reported in `Pass 400.2`'s own "Also filed this session" note
+(743rd filing) and the 744th filing's chore-bump entry. Version-bump
+commit `343f850f` ("chore: v0.65.0") bumps
+`Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.64.0 → 0.65.0; filed as
+such in `316478af` ("docs: file v0.65.0 bump -- release in progress").
+
+**Tag.** Annotated tag `v0.65.0` points at `316478af` (the 744th
+filing's own docs commit) — tag cut after packaging, same order as
+prior releases.
+
+**Range since `v0.64.0` (`11b8ec7c`): batches every Pass already filed
+above** — `396.0` (`G067` catalog probe and page-scoped structure read,
+`bf8d0138`), `397.0` (every CLI output write goes through a
+temp-file-then-rename, `ed93dd50`), `398.0` (zero broken intra-doc links
+plus the CI gate that keeps it there, `c3daaa78`), `399.0` (`LoadReport`
+says which keys a settings file actually stated, `3fa2091e`), `399.1`
+(restore the vendored OCRcer adapter byte-identical, `8b634e7b`), `400.0`
+(disclose spot inks flattened past the plane roster, `c18dce99`), `400.1`
+(two comment-only fixes, `4a0fc54d`+`183a6781`), `400.2` (packager
+refuses a staged model folder with no licence citation, `8defc1e3`) —
+all already filed above.
+
+**Gates.** `tools/run-gates.sh`: PASS, 41 commands (incl. 2 filing
+gates), run against `316478af` (background run, rc=0).
+
+**Build.** `tools/package-portable.py` → `D:\builds\pdfcer-20260929-0944-
+316478a` (no `-dirty` suffix); 70,943,962 bytes total over 5 top-level
+items; `pdfcer.exe` 27,409,920 bytes; `THIRD_PARTY_LICENSES.md` 287,867
+bytes, citing `models/ocrcer` (3 matches) — the headline fix.
+
+**Fresh-folder smoke test.** Copied the build to a new temp folder;
+`pdfcer --version` reports `0.65.0`, revision
+`v0.64.0-26-g316478af` (clean, no `-dirty` suffix). `iccce` reports
+`0.3.0`.
+
+**GitHub release.** Published via `tools/gh-release.py`:
+`pdfcer-v0.65.0-windows-x64.zip`, 43,195,098 bytes, sha256
+`944fdf082c141fe249945b42d4a5194a7017f13414b2037ac28cadf8bc02001d`, plus
+its `.sha256`. `gh-release.py`: PASS, 2 assets matched at local sizes.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer2` (5 items,
+70,940,936 bytes); `pdfcer1` keeps `v0.64.0` (the previous version).
+
+**`verify-release.py v0.65.0`.** First run FAILED the working-tree-clean
+check solely on the three standing untracked scratch dirs
+`target-case/`, `target-probe/`, `target-wasm/` — not a real dirty-tree
+signal. Fixed by adding them to `.git/info/exclude` (local-only,
+uncommitted, not itself a filed change); re-run: clean — tag, `HEAD`,
+`origin/main`, CI and the release all agree.
+
+**Gotcha, worth carrying forward.** `verify-release.py` counts
+untracked directories as uncommitted paths; a standing local scratch
+target dir belongs in `.git/info/exclude`, not merely left untracked.
+
+**Headline.** `Pass 400.2`'s fix restores the OCRcer recogniser model's
+missing licence notice to `THIRD_PARTY_LICENSES.md` — a gap open in
+every release since `v0.59.0`.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself** — all
+contents were already filed per-Pass.
+
 ### `Pass 400.2` (`8defc1e3`), 2026-09-29 — packager refuses a staged model folder with no licence citation
 
 **Verdict: SHIPPED.** Closes the Backlog entry filed at the 742nd filing
