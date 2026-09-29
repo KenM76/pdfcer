@@ -45,6 +45,19 @@ Two categories, and the second is the one a hard-coded list would miss:
    `exclude`. It is reported by name, because "a crate nobody's tooling can
    see" is worth surfacing on its own, independent of its formatting.
 
+WHAT IT CANNOT SEE
+==================
+
+- A crate outside `tools/` and `fuzz/` that is in neither list (say a
+  non-member under `crates/`), or one nested deeper than `tools/<name>/`.
+  The unlisted-crate scan reads those two areas one level deep.
+- A `.rs` file no `mod` declaration reaches. `cargo fmt` walks the module
+  tree from each target root, here and in the workspace gate alike.
+- An `exclude` entry spelled as a glob. It is read as a literal path with
+  no `Cargo.toml`, so it is skipped. Under `tools/` or `fuzz/` the unlisted
+  scan still catches the crates it covers. Anywhere else (`vendor/*`, say)
+  they are skipped SILENTLY.
+
 EXIT CODES
 ==========
 

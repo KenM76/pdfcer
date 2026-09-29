@@ -61,6 +61,21 @@ Check 3 is deliberately loose — the goal is to catch a directory that quietly
 gained twenty model files under a provenance note describing three fonts, not
 to demand a table row per icon.
 
+WHAT IT CANNOT SEE
+==================
+
+- Anything the packager ships from OUTSIDE `crates/*/assets/`.
+  `tools/package-portable.py` also stages `models/tesseract` (built into
+  `target/tesseract-bundle`) and `models/ocrcer` (the sibling OCRcer
+  checkout). Their notices are in `about.hbs` by hand. No gate ties what the
+  packager copies to what this script scans, so a new staging step outside
+  `assets/` is invisible here.
+- Whether the licence named is the RIGHT one. Check 2 matches a licence
+  keyword; it cannot tell that the terms are true, or that they permit
+  redistribution.
+- Whether the `about.hbs` section is accurate. Check 4 wants the directory
+  cited there, not correctly described.
+
 WHY NOT JUST TRUST A REVIEWER
 =============================
 
