@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (739th filing) — `c3daaa78`: `Pass 398.0` SHIPPED — zero broken intra-doc links, and a CI gate that keeps it there
+
+**Shipped:**
+- `Pass 398.0` (`c3daaa78`) — closes the Backlog entry "rustdoc-cleanliness
+  gate" (filed 317th filing). `cargo doc --workspace --no-deps` measured
+  190 unresolved intra-doc links (up from 151 on 2026-08-29) plus 17
+  ambiguity errors at start. Eleven named the dangerous subclass — an item
+  that does not exist at all — and are reworded to current names
+  (`EncryptionSettings::PERMISSIONS_DISCLOSURE`/`SASLPREP_GAP`,
+  `DeviceFeatures::form_source_bin`, `EditError::FieldRectDegenerate`/
+  `MarkupDateMalformed`/`VariableText`, `Ablation::clip_build`, and a few
+  removed/re-pointed refs). The rest name real items out of scope for the
+  documenting crate — converted to plain code spans.
+
+**Decisions made this session:**
+- None — a hygiene sweep plus a CI gate, no new invariant or crate
+  boundary.
+
+**Findings + decisions:**
+- New `rustdoc` CI job: `RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links"
+  cargo doc --workspace --no-deps`. Added to `tools/check-ci-parity.py`'s
+  LOCAL table (parity now 37 local/12 stand-in/3 CI-only), so
+  `tools/run-gates.sh` runs it too. Sabotage-verified: planting a link to
+  a nonexistent item exits 101; reverted clean.
+- ~250 remaining rustdoc warnings (`private_intra_doc_links`, redundant
+  link targets) are deliberately not gated — style, not wrong claims.
+- 74 files touched, doc comments + `ci.yml` + parity table only; no
+  source logic changed. `cargo tree` invariant unaffected.
+
+**Still in flight:** Unrelated to this filing — no change from the 738th
+filing's note on the `--in-place` Backlog item.
+
+**For next session:** No new Pass minted beyond `398.0`. `docs/FEATURES.md`
+untouched — this closes a project gate, not a capability.
+
+**Sourcing (hard rule 8).** No shell tool this filing — counts, hashes
+and the sabotage result relayed from the dispatching engineer's report,
+not independently reproduced.
+
 ## 2026-09-29 (738th filing) — `ed93dd50`: `Pass 397.0` SHIPPED — every CLI output write is now a temp-file-then-rename
 
 **Shipped:**

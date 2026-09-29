@@ -115,6 +115,70 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 398.0` (`c3daaa78`), 2026-09-29 — zero broken intra-doc links, and a CI gate that keeps it there
+
+**Verdict: SHIPPED.** Closes the Backlog entry "Unscoped — rustdoc-cleanliness
+gate" (filed 2026-08-29, 317th filing, `Pass 161.0`'s Finding 3; amended
+318th filing). Docs-only — no code, no `Cargo.toml` touched.
+
+**Measured at start.** `cargo doc --workspace --no-deps` reported **190**
+unresolved intra-doc links (the 317th filing had measured 151 on
+2026-08-29 — the population grew, not shrank, over the intervening month)
+plus **17** ambiguity errors (`fn`/`mod`: `assemble`, `decompose`; `mod`/
+`macro`: `format`) — ambiguity falls under the same
+`rustdoc::broken_intra_doc_links` lint.
+
+**Eleven were the dangerous subclass** the 318th-filing amendment named:
+links naming an item that does not exist at all. Reworded to current
+names: `EncryptionSettings::PERMISSIONS_DISCLOSURE` and `SASLPREP_GAP`
+(cited as methods `permissions_disclosure`/`saslprep_gap`),
+`DeviceFeatures::form_source_bin` (cited as `supports_form_source_bin`, 2
+sites), `EditError::FieldRectDegenerate` (cited as `DegenerateFieldRect`),
+`EditError::MarkupDateMalformed` (cited as `MarkupNoteEmpty`, which never
+existed — `MarkupNote::validate` only checks the date),
+`EditError::VariableText` (cited as `TextAnnotation`),
+`Ablation::clip_build` (cited as `CLIP_BUILD`); refs to `Self::field_at`,
+`Self::run_bounds`, `job_configuration` (reworded to prose) and
+`xml_escape` removed or re-pointed. All `EditSession::*` verbs cited
+elsewhere were checked and exist.
+
+**The remaining ~179 named real items out of scope for the documenting
+crate** (moved to `pdfcer-text`, etc., or only reachable from
+`pdfcer-cli`) — rustdoc already rendered them as plain text; now plain
+code spans so they no longer trip the lint. Prose brackets (`[s]`, `[es]`,
+`[ies]`, `[they]`, `[neither]`, `[yy]`, `[right]`, `[permitting]`)
+escaped.
+
+**Gate.** New `rustdoc` job in `.github/workflows/ci.yml`:
+`RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace
+--no-deps`. Added to `tools/check-ci-parity.py`'s LOCAL table so
+`tools/run-gates.sh` runs it too — parity now 37 local, 12 stand-in, 3
+CI-only. Sabotage-verified: planting `//! See [\`NoSuchThing\`].` exits
+101; reverted and diffed clean.
+
+**Deliberately NOT gated.** ~250 remaining rustdoc warnings
+(`private_intra_doc_links`, redundant explicit link targets) are style,
+not wrong claims — left as the residue if the Backlog entry's "`cargo doc
+-D warnings` more broadly" option is ever wanted.
+
+**Scope.** 74 files — doc comments plus `ci.yml` plus the parity table;
+no source logic changed. `fmt`/`clippy -D warnings` clean; doc-related
+gates (`doc-block-spliced`, `cited-verbs-exist`, `core-api-verbs`,
+`control-bytes`, `public-fns-documented`, `reexport-closure`,
+`suite-name-absent`, `ci-parity`, `string-gaps`) green. Full test suite
+not re-run (no code change). `cargo tree` invariant unaffected (no
+manifest touched). Not a writer change — no round-trip impact.
+
+**`docs/FEATURES.md`.** No row — this is a project gate, not a
+capability; core/cli/gui n/a.
+
+**No §12 decision, no new standing rule.** A hygiene sweep plus a CI
+gate, same shape as prior gate-adds.
+
+**Sourcing (hard rule 8).** No shell this filing — counts, hashes and
+sabotage result relayed from the dispatching engineer's report, not
+independently reproduced.
+
 ### `Pass 397.0` (`ed93dd50`), 2026-09-29 — every CLI output write goes through a temp-file-then-rename
 
 **Verdict: SHIPPED.** CLI-only — no `pdfcer-core`/`pdfcer-render` `Cargo.toml`
@@ -22651,6 +22715,18 @@ standing answer**: a genuine rounded-corner toggle needs a **rounded-rectangle
 primitive** first, scoped with the operator, not improvised.
 
 ### Unscoped — **rustdoc-cleanliness gate** — filed 2026-08-29 (317th filing, `Pass 161.0`'s Finding 3)
+
+**★ CLOSED by `Pass 398.0` (`c3daaa78`) — 2026-09-29.** The 11-item
+dangerous subclass this entry's 318th-filing amendment measured is fixed
+(renamed to current item names); the remaining out-of-scope citations are
+now plain code spans; `cargo doc --workspace --no-deps` with
+`RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links"` is a gate in CI and in
+`tools/run-gates.sh` via `check-ci-parity.py`. See *Shipped* for the full
+count (190 links + 17 ambiguity errors measured at start, up from the 151
+measured here). The ~250 remaining style-only warnings
+(`private_intra_doc_links`, redundant link targets) are deliberately not
+gated — kept legible below per this file's convention for a superseded
+entry.
 
 **Measured, not estimated.** `cargo doc --workspace --no-deps` emits **373
 rustdoc warnings, of which 151 are unresolved intra-doc links** (131 distinct
