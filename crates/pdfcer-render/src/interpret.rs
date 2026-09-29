@@ -633,29 +633,18 @@ pub struct Diagnostics {
     /// 066). A single counter would hide which of the two paths a page
     /// actually exercised, and they can fail independently.
     ///
-    /// # WHAT IT DOES NOT COUNT, and the number this makes misleading
-    ///
-    /// **A transparency GROUP composited with one of those four modes.** That
-    /// blend is resolved in `canvas.rs`'s `layer_blend`, which has no
-    /// diagnostics handle, so only DIRECT paints reach the increment here.
-    ///
-    /// Measured, on a page whose `/ExtGState`s carry `/BM /Hue` and
-    /// `/BM /Saturation`: `blend_modes_applied = 15`, `groups_composited = 17`,
-    /// and **this counter reads 0**. Every one of that page's non-separable
-    /// blends happens at group-composite time.
-    ///
-    /// So the stated purpose above — telling a reader *which of the two paths a
-    /// page exercised* — is exactly what a 0 here fails to do. It is a count of
-    /// **paints**, and the name promises more than that. Recorded rather than
-    /// quietly narrowed, because this project has already paid for a census
-    /// counter that answered a different question than its name implied: the
-    /// wrong reading is not "a smaller number", it is "no non-separable mode
-    /// ran on this page", which is false.
-    ///
-    /// Counting the group half needs a diagnostics path into the canvas layer
-    /// and is filed rather than bodged in here.
+    /// Two routes feed it, one increment each: a **direct paint** under one
+    /// of the four modes, and a **transparency group** whose result is
+    /// composited through one (§11.4.5 — the outer mode applies to the
+    /// group's result, resolved per pixel in `canvas.rs`'s `layer_blend`).
+    /// A page whose non-separable blends all happen at group-composite time
+    /// therefore reads non-zero here, as the name promises.
     pub nonseparable_composited: usize,
     /// Pixels changed by those composites.
+    ///
+    /// Direct paints only: the group route composites inside the canvas
+    /// layer, which reports no pixel count, so a group composite adds to
+    /// [`Self::nonseparable_composited`] and nothing here.
     ///
     /// The companion to the count, for the same reason `overprint_pixels`
     /// exists: a composite that ran on zero pixels and one that repainted a
@@ -8240,6 +8229,9 @@ impl Interpreter<'_> {
                 }
                 self.diag.merge(outcome.result);
                 self.diag.transparency_groups_composited += 1;
+                if self.gs.current.nonseparable.is_some() {
+                    self.diag.nonseparable_composited += 1;
+                }
             }
             None => {
                 // Either no buffer was wanted, or one was wanted and the

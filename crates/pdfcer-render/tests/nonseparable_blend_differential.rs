@@ -424,3 +424,71 @@ fn color_mode_over_blue_is_not_what_normal_would_give() {
          this file is about a function nothing calls"
     );
 }
+
+/// A page whose only non-separable blend is a transparency GROUP composited
+/// through `/BM /Hue`: the paints inside are Normal, so only the group route
+/// can make the counter non-zero.
+fn page_with_group_blend(mode: &str) -> Vec<u8> {
+    let page = "0 0 1 rg 0 0 60 60 re f
+/GS0 gs /Fm0 Do
+"
+    .to_owned();
+    let form = "1 0 0 rg 10 10 40 40 re f
+"
+    .to_owned();
+    build(&[
+        (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+        (
+            2,
+            &format!(
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 60 60]                  /Resources << /ExtGState << /GS0 << /BM /{mode} >> >>                  /XObject << /Fm0 5 0 R >> >> >>"
+            ),
+        ),
+        (3, "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"),
+        (
+            4,
+            &format!("<< /Length {} >>
+stream
+{page}endstream", page.len()),
+        ),
+        (
+            5,
+            &format!(
+                "<< /Type /XObject /Subtype /Form /BBox [0 0 60 60]                  /Group << /S /Transparency /I true >> /Length {} >>
+stream
+{form}endstream",
+                form.len()
+            ),
+        ),
+    ])
+}
+
+fn diagnostics(bytes: Vec<u8>) -> pdfcer_render::Diagnostics {
+    let doc = pdfcer_core::document::Document::from_bytes(bytes).expect("fixture parses");
+    let page = pdfcer_core::page_tree::pages(&doc)
+        .expect("page tree")
+        .remove(0);
+    pdfcer_render::render_page(&doc, &page, 1.0)
+        .expect("renders")
+        .diagnostics
+}
+
+/// The group route is counted: a `/BM /Hue` group over a Normal interior
+/// reads 1, and the same page under `/BM /Normal` reads 0.
+#[test]
+fn a_group_composited_through_a_nonseparable_mode_is_counted() {
+    let hue = diagnostics(page_with_group_blend("Hue"));
+    assert_eq!(
+        hue.transparency_groups_composited, 1,
+        "the group composited"
+    );
+    assert_eq!(
+        hue.nonseparable_composited, 1,
+        "the group's /BM /Hue composite must be counted"
+    );
+    let normal = diagnostics(page_with_group_blend("Normal"));
+    assert_eq!(
+        normal.nonseparable_composited, 0,
+        "the control counts nothing"
+    );
+}
