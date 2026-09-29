@@ -115,6 +115,33 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 401.0` (`3b4935b9`), 2026-09-29 — `/EmbeddedFiles` name-tree key ordering: dedicated test
+
+Closes the Backlog gap flagged by `Pass 103.3`'s sabotage battery (194th
+filing, 2026-08-19): the attachments writer's name-tree sort was never
+independently exercised. Tests only, no behavior change.
+
+**Test.** `attachments_inserted_out_of_order_are_written_in_sorted_key_order`
+in `crates/pdfcer-core/tests/attachments.rs` (runs in the `all` binary).
+Attaches `b.txt`, `ab.txt`, `B.txt`, `a`, `a.txt` via `EditSession::attach_file`
+to `fixtures/synthetic/minimal.pdf`, `save_full`s, reloads, and reads the
+catalog `/Names /EmbeddedFiles /Names` array **directly** (not via
+`list_attachments`, which could hide an unsorted tree) — asserts keys come
+back `[B.txt, a, a.txt, ab.txt, b.txt]` per ISO 32000-1 §7.9.6 (name-tree
+keys sorted lexically ascending, shorter before longer at a tie).
+
+**Sabotage-verified.** Commenting out the sort
+(`entries.sort_by(|a, b| a.0.cmp(&b.0));`, `edit.rs:31435`, the
+`attach_file` copy — confirmed the unique line before trusting a green
+result, per the 194th filing's own lesson about the mis-aimed `/Dests`
+sabotage) fails the new test at `attachments.rs:677`. Restored.
+
+**Gates.** `cargo fmt --check` clean, `cargo clippy -- -D warnings` clean
+(pdfcer-core tests), `check-tests-harnessed` clean.
+
+**`FEATURES.md`: no row changed** — no capability change, core/cli/gui
+boxes for attachments unaffected.
+
 ### `v0.65.0` — RELEASED (2026-09-29)
 
 Release filing, not a Pass — completes the engineer's in-progress
@@ -30245,6 +30272,7 @@ pdfcer's own; the composed appearance has an Acrobat analogue).
   it broken. Scope: one test asserting `/EmbeddedFiles` keys come back in
   sorted order after inserting attachments out of order; cheap, no new
   verb, no acceptance-criteria research needed.
+  **Closed by `Pass 401.0` (`3b4935b9`).**
 
 ### Conformance validator — `validate <file> --standard <X>`, standards pdfce can implement and SCORE today — unscoped, no Pass ID
 

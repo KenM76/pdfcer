@@ -4,6 +4,31 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (746th filing) — `3b4935b9`: `Pass 401.0` shipped
+
+**Shipped:**
+- `Pass 401.0` — `/EmbeddedFiles` name-tree key ordering: dedicated test.
+  Closes the Backlog gap `Pass 103.3`'s sabotage battery flagged (194th
+  filing, 2026-08-19): the attachments writer's name-tree sort had never
+  been independently exercised. New test
+  `attachments_inserted_out_of_order_are_written_in_sorted_key_order`
+  (`crates/pdfcer-core/tests/attachments.rs`) attaches five files out of
+  order, saves, reloads, and reads the catalog `/Names /EmbeddedFiles
+  /Names` array directly, asserting sorted key order per ISO 32000-1
+  §7.9.6. Sabotage-verified against `edit.rs:31435` (confirmed unique
+  before trusting green, per the 194th filing's own lesson about the
+  mis-aimed `/Dests` sabotage). Tests only, no behavior change.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `cargo fmt --check` clean, `cargo clippy -- -D warnings` clean
+  (pdfcer-core tests), `check-tests-harnessed` clean.
+
+**Still in flight:** Nothing new opened this filing.
+
+**For next session:** No follow-on named.
+
 ## 2026-09-29 (745th filing) — `316478af`/tag `v0.65.0`: `v0.65.0` RELEASED
 
 **Shipped:**
