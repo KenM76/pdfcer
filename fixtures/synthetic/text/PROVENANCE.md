@@ -294,3 +294,37 @@ on 2026-09-13: the directory holds **39 entries, 29 of them PDFs, of which 12
 were undocumented** — the twelve above. The 38/21 figures appear to have
 counted every entry rather than every fixture, and were carried forward
 unverified across several filings.
+
+## The remaining twelve — two run PDFs and ten font programs
+
+`LEGAL.md` §5 category (a), wholly synthetic, like everything above. The
+`.ttf` files are font programs drawn outline by outline in
+`gen-subset-font-fixtures.py` ("no byte comes from a real font"); their names
+(`pdfceSubsetDemo`, `pdfceSubsetDemo-Bold`) are this project's own. They are
+here as **donors**: §9.9 requires embedding from a licensed font file, not a
+program lifted out of a PDF, so a subset/embed round trip needs a `.ttf` on
+disk. No attribution is owed and none is claimed.
+
+| file | generator | exists so that… |
+|---|---|---|
+| `runs-quote-show.pdf` | `gen-text-run-fixtures.py` | `SplitAtLineShowOperator` is reachable: runs shown by `'` (Table 109: `T*` then `Tj`), whose recorded text matrix is already past the move, so re-stating it would move the text twice |
+| `runs-marked-content.pdf` | `gen-text-run-fixtures.py` | `SplitInsideMarkedContent` is reachable: a `BDC` opened after run 0 in the same text object, so a split would overlap rather than nest (§14.6), and a correct guard is distinguishable from an over-broad one |
+| `subset-donor.ttf` | `gen-subset-font-fixtures.py` | the program `subset-simple-embedded.pdf` embeds, byte-identical, so a test can subset the donor and compare it with what the PDF carries |
+| `subset-donor-bold.ttf` | `gen-subset-font-fixtures.py` | the same outlines named as the Bold face (name ID 6 only differs), so `--embed-styled-face` has a donor whose advertised name claims the axis |
+| `subset-cycle-donor.ttf` | `gen-subset-font-fixtures.py` | composite glyphs that form cycles (`gSelf` → itself, `gPing` ↔ `gPong`), asserting that the `subsetter` crate's worklist closure terminates; decision 021 §3.5 adds no pdfcer-side cap, so this file fails if upstream ever walks `glyf` recursively |
+| `subset-fstype-installable.ttf` | `gen-subset-font-fixtures.py` | OS/2 `fsType` 0 — the most permissive embedding outcome (R109) |
+| `subset-fstype-restricted.ttf` | `gen-subset-font-fixtures.py` | `fsType` 2 — may not be embedded |
+| `subset-fstype-preview-print.ttf` | `gen-subset-font-fixtures.py` | `fsType` 4 — embeddable, document read-only |
+| `subset-fstype-editable.ttf` | `gen-subset-font-fixtures.py` | `fsType` 8 — embeddable and editable |
+| `subset-fstype-nosubset.ttf` | `gen-subset-font-fixtures.py` | `fsType` 0x0108 — editable but bit 8 forbids subsetting |
+| `subset-fstype-bitmaponly.ttf` | `gen-subset-font-fixtures.py` | `fsType` 0x0208 — bit 9 forbids embedding outlines |
+| `subset-fstype-nosubset-v1.ttf` | `gen-subset-font-fixtures.py` | the same bits as `nosubset` in an OS/2 **version 1** table, where bits 8 and 9 are undefined and must be ignored |
+
+The `fsType` files are named for their bits, not for the verdict pdfcer
+reaches, so renaming a refusal does not orphan a file. Every file in this
+directory now has an entry.
+
+```text
+python tools/gen-text-run-fixtures.py
+python tools/gen-subset-font-fixtures.py
+```
