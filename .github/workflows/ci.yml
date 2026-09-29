@@ -915,10 +915,8 @@ jobs:
       # — `rten` (pulled by the default `ocrs` feature) declares
       # `crate-type = ["lib", "cdylib"]`, and the cdylib link is handed
       # libFuzzer's `/include:main`, which a `.so` on Linux is never asked
-      # for. This job was GREEN throughout. A `windows-latest` sibling is
-      # owed and is filed to Backlog; until it exists, this job proves the
-      # targets compile, not that they LINK on the platform pdfcer is
-      # developed on.
+      # for. This job was GREEN throughout; `fuzz-smoke-windows` below is
+      # the sibling that links under MSVC.
       #
       # writer_roundtrip (Pass 3.0, decision 007 R40) is the first
       # WRITE-direction target: it asserts the ARCHITECTURE.md §5
@@ -938,6 +936,21 @@ jobs:
       # would go unnoticed until someone next fuzzes locally.
       # libFuzzer needs nightly (-Z sanitizer flags), hence the
       # separate toolchain from the 1.97.1 jobs above.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+      - run: cargo install cargo-fuzz --locked
+      - run: cargo +nightly fuzz build
+
+  fuzz-smoke-windows:
+    name: fuzz targets build (nightly, windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Same build as `fuzz-smoke`, linked by MSVC: the only place a
+      # cdylib crate-type or an MSVC-only link flag in the fuzz graph fails
+      # (fuzz/Cargo.toml's `default-features = false` note). Build only;
+      # running needs the ASan runtime DLL, which a build does not.
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
