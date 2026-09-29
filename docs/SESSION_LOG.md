@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (726th filing) — `415a5b11`: `v0.63.0` RELEASED
+
+**Shipped:**
+- `v0.63.0` released. Annotated tag `v0.63.0` sits on `415a5b11` ("chore(memory): GitHub issues are a third inbound channel"), not on the filing commit `ddfad589` — the first packaged build at `ddfad589` was stamped dirty by two then-uncommitted `.claude/agent-memory` files; rebuilt clean once `415a5b11` landed, and the tag follows that clean build. Version-bump commit `84f0587b` ("chore: v0.63.0") bumps `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.62.0 → 0.63.0; filing commit `ddfad589` ("docs: file v0.63.0 bump (84f0587b) -- release in progress") records it filed. Range since `v0.62.0` (`741c9cb1`): batches `Pass 387.0`, `387.1`, `388.0`, `388.1`, `389.0` (issue #1 fix, `25924e74`). Full record at the top of `ROADMAP.md`'s *Shipped*.
+- GitHub release published (`tools/gh-release.py`): 2 assets — `pdfcer-v0.63.0-windows-x64.zip`, 43,170,552 bytes, sha256 `7b46b7230f4248c66f4dcd1f266971a1344c83d9939e324979f4b576f452a2ef`, plus its `.sha256`. Release notes deliberately omit any reference to issue #1 — a bare "#1" in a public release note would post a backlink on the issue before Ken has OK'd a reply.
+- Fresh-folder smoke test on portable build `D:\builds\pdfcer-20260929-0041-415a5b1` (70,867,778 bytes): `--version` reports revision `v0.62.0-20-g415a5b11` (clean, no `-dirty` suffix); add-text against a synthetic page whose first stream leaves `1.1 0 0 1.1 0 0 cm` (the `Pass 389.0` regression case) extracts correctly with the wrap-pair marker present exactly once; `ocr` runs.
+- OneDrive: `tools/deploy-onedrive.py` wrote slot `pdfcer2` (replaced `v0.61.0`); `pdfcer1` keeps `v0.62.0`. Next release writes `pdfcer1`.
+
+**Decisions made this session:**
+- None — a release carries no architectural decision. Highest decision record remains `166`.
+
+**Findings + decisions:**
+- None beyond what's in the `v0.63.0` Shipped entry.
+
+**Still in flight:**
+- `verify-release.py v0.63.0` at publish time: tag and OneDrive checks passed; CI at the tagged commit (`415a5b11`) was still running — re-run `python tools/verify-release.py v0.63.0` next session to confirm green. Its "working tree clean" check fails only on the untracked scratch dirs `target-case/`, `target-probe/`, `target-wasm/` — standing, left untracked, not a real dirty-tree signal.
+- No GUI channel notice this release — none of the batched Passes were `pdfcer-gui` feature requests (`G0xx`); `Pass 389.0` answered GitHub issue #1 instead.
+
+**For next session:**
+- Still open with Ken: posting the drafted reply on GitHub issue #1, the PaddleOCR-VL question, and the PDF 2.0 erratum #179 upstream report.
+- No shell this filing (hard rule 8) — facts relayed from the dispatching engineer's own report at `415a5b11`, not independently reproduced.
+
 ## 2026-09-29 (725th filing) — `84f0587b`: chore — v0.63.0 version bump, release IN PROGRESS
 
 **Shipped:**

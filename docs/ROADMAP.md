@@ -115,6 +115,82 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.63.0` — RELEASED (2026-09-29)
+
+Release filing, not a Pass — completes the engineer's in-progress release
+reported in `Pass 389.0`'s own entry below (724th filing) and the 725th
+filing's chore-bump entry. Version-bump commit `84f0587b` ("chore:
+v0.63.0") bumps `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.62.0 →
+0.63.0. Filing commit `ddfad589` ("docs: file v0.63.0 bump (84f0587b) --
+release in progress") records the bump as filed.
+
+**Tag placement differs from the `v0.62.0` pattern.** The annotated tag
+`v0.63.0` sits on `415a5b11` ("chore(memory): GitHub issues are a third
+inbound channel"), an agent-memory-only commit sitting after the bump
+filing `ddfad589` — not on the filing commit itself. The first packaged
+build at `ddfad589` was stamped dirty by those two then-uncommitted
+memory files; it was rebuilt clean once `415a5b11` landed, and the tag
+follows the clean build.
+
+**Range since `v0.62.0` (`741c9cb1`): batches every Pass already filed
+below** — `Pass 387.0` (find stored password-field values, `93fd97ca`),
+`387.1` (purge stored password-field values, `09dd494d`), `388.0` (Bates
+numbering, `5a06602a`), `388.1` (Bates remove/replace, `0355fb7e`), and
+`389.0` (overlay isolation, GitHub issue #1, `25924e74`).
+
+**Build.** `tools/package-portable.py` → `D:\builds\pdfcer-20260929-0041-
+415a5b1`, 70,867,778 bytes.
+
+**Fresh-folder smoke test.** `--version` reports revision
+`v0.62.0-20-g415a5b11` (clean, no `-dirty` suffix). Add-text against a
+synthetic page whose first stream leaves `1.1 0 0 1.1 0 0 cm` (the
+`Pass 389.0` regression case): text extracted, the wrap-pair marker
+present exactly once. `ocr` runs.
+
+**GitHub release.** Published via `tools/gh-release.py`: 2 assets —
+`pdfcer-v0.63.0-windows-x64.zip`, 43,170,552 bytes, sha256
+`7b46b7230f4248c66f4dcd1f266971a1344c83d9939e324979f4b576f452a2ef`, plus
+its `.sha256`. Release notes deliberately do not reference issue #1 — a
+bare "#1" would post a backlink on the issue before Ken has OK'd a reply.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer2` (replaced
+`v0.61.0`); `pdfcer1` keeps `v0.62.0`. Next release writes `pdfcer1`.
+
+**`verify-release.py v0.63.0`.** Tag and OneDrive checks passed at
+publish time. CI at the tagged commit (`415a5b11`) was still running —
+not yet confirmed green; re-run next session. Its "working tree clean"
+check fails only on the untracked scratch dirs `target-case/`,
+`target-probe/`, `target-wasm/` (standing: left untracked, not a real
+dirty-tree signal).
+
+**`docs/FEATURES.md`: no rows changed** — a release ships no new
+capability of its own; all contents were already filed per-Pass.
+
+**No decision-log entry** — a release carries no architectural decision.
+Highest decision record remains `166`.
+
+**No GUI channel notice this release** — none of the batched Passes were
+`pdfcer-gui` feature requests (`G0xx`); `Pass 389.0` answered GitHub
+issue #1 instead.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own verification of the tag/build/
+release/deploy/smoke-test steps, not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.62.0` (`741c9cb1`, 2026-09-28) | **`v0.63.0` (`415a5b11`, 2026-09-29)** |
+| Pass families | highest shipped this filing's range: `389.0` | unchanged — no new Pass this filing, release only |
+| Standing rules | not re-verified this filing (no shell) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — a release carries no decision |
+| `SESSION_LOG` filings | `725` | **`726`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
+| CI at the tagged commit | not yet confirmed pre-release | pending at `415a5b11` at filing time — confirm with `verify-release.py v0.63.0` |
+
+---
+
 ### `Pass 389.0` (`25924e74`), 2026-09-28 — overlays isolated from page-leaked graphics state
 
 **Verdict: SHIPPED.** Fixes GitHub issue #1 (`pdftl-dev`, opened
