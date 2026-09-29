@@ -1,6 +1,6 @@
 ---
 name: feature-request-channels
-description: ls BOTH D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\ and iccce_FeatureRequests\open\ at session start — they are outside the repo, so no gate can ever contradict a stale claim about them
+description: at session start check THREE inbound channels — `gh issue list` on KenM76/pdfcer, plus ls pdfce_FeatureRequests\open\ and iccce_FeatureRequests\open\ — they are outside the repo, so no gate can ever contradict a stale claim about them
 metadata:
   type: project
 ---
@@ -43,3 +43,12 @@ handoff as hearsay until re-listed. If a request is found, parse it into Pass
 entries and dispatch the librarian the same way as an operator request — an
 inbound request from a consuming project *is* an operator request, just
 arriving through a different door.
+
+## A third channel: GitHub issues (added 2026-09-28)
+
+`gh issue list --state open` on the public repo. Issue #1 (external
+reporter, OCR text layer misplaced on a page that leaves a `cm` in effect)
+sat unanswered for six days, 2026-09-22 → 2026-09-28, while every session
+checked only the two folders above. Ken had to ask. A public repo's issue
+tracker is the channel a stranger uses; it is the one most costly to miss.
+Posting a reply there is a public side effect — ask Ken first.
