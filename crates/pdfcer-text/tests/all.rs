@@ -3,5 +3,6 @@
 //! the gate fails when a test file is missing from this list.
 
 mod unit_structure_tree;
+mod unit_tagged_layout;
 mod unit_text_extract_cmap;
 mod unit_text_state;

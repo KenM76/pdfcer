@@ -136,6 +136,9 @@ pub enum BlockSource {
     Inferred,
     /// The file's own `/Artifact /Subtype` tag.
     Tagged,
+    /// A structure element in the file's structure tree
+    /// ([`crate::tagged_layout`]).
+    Structure,
 }
 
 /// How a block's lines are aligned, measured from their extents.
@@ -252,6 +255,9 @@ pub struct LayoutDiagnostics {
     /// Header, footer or page-number blocks decided by an `/Artifact
     /// /Subtype` tag rather than inferred.
     pub tagged_artifact_blocks: usize,
+    /// Blocks taken from structure elements ([`BlockSource::Structure`]);
+    /// not inferences.
+    pub structure_blocks: usize,
     /// Pages with more than one column.
     pub multi_column_pages: usize,
     /// Lines on a multi-column page that cross a gutter.
@@ -426,19 +432,22 @@ fn from_display(rotate: u16, x: f64, y: f64) -> (f64, f64) {
 }
 
 /// `(x0, x1, bottom, top)` of a user-space rectangle, displayed.
-fn rect_to_display(rotate: u16, r: &Rect) -> (f64, f64, f64, f64) {
+pub(crate) fn rect_to_display(rotate: u16, r: &Rect) -> (f64, f64, f64, f64) {
     let (ax, ay) = to_display(rotate, r.llx, r.lly);
     let (bx, by) = to_display(rotate, r.urx, r.ury);
     (ax.min(bx), ax.max(bx), ay.min(by), ay.max(by))
 }
 
-fn display_to_rect(rotate: u16, x0: f64, x1: f64, bottom: f64, top: f64) -> Rect {
+/// The user-space rectangle displayed as `(x0, x1, bottom, top)`; the
+/// inverse of [`rect_to_display`].
+pub(crate) fn display_to_rect(rotate: u16, x0: f64, x1: f64, bottom: f64, top: f64) -> Rect {
     let (ax, ay) = from_display(rotate, x0, bottom);
     let (bx, by) = from_display(rotate, x1, top);
     Rect::from_corners(ax, ay, bx, by)
 }
 
-fn union(a: &Rect, b: &Rect) -> Rect {
+/// The smallest rectangle containing `a` and `b`.
+pub(crate) fn union(a: &Rect, b: &Rect) -> Rect {
     Rect::from_corners(
         a.llx.min(b.llx),
         a.lly.min(b.lly),

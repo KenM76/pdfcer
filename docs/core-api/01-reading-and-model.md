@@ -1325,7 +1325,8 @@ for page in &layout.pages {
     for block in &page.blocks {                 // reading order
         // block.kind: Heading{level} | Paragraph | ListItem{marker} | Caption
         //           | RunningHeader | RunningFooter | PageNumber
-        // block.source: Inferred, or Tagged (the file's /Artifact /Subtype)
+        // block.source: Inferred, Tagged (the file's /Artifact /Subtype),
+        //               or Structure (a structure element, §8.4.5)
         // block.lines: indices into page.lines; each LayoutLine.runs indexes
         //              layout.text.pages[i].runs
         let text = block.text(page);
@@ -1366,17 +1367,18 @@ A page's tables as rows, columns and cells, from drawn rules or from
 whitespace alignment. Every table,
 merged cell and header guess is an inference and is counted in
 `diagnostics`; the shell must say so (CLAUDE.md rule 4). A tagged file's own
-`/Table` structure is §8.4.2, not this.
+`/Table` elements are §8.4.5 (`source` `Tagged`), not this.
 
 ```rust
 use pdfcer_core::table_detect::{self, HeaderEvidence, TableOptions};
 
 let found = table_detect::detect_tables(&doc, &opts, &TableOptions::default())?;
 for t in &found.tables {                        // by page, then top to bottom
-    // t.page_index, t.bbox (user space), t.source: Ruled | Aligned
+    // t.page_index, t.bbox (user space), t.source: Ruled | Aligned | Tagged (§8.4.5)
     // t.rows / t.columns: Vec<Rect> bands, user space, top-to-bottom /
     //                     left-to-right as displayed
-    // t.header_rows: 0 or 1; t.header_evidence: Bold | Filled | HeavyRule | RuleBelow
+    // t.header_rows: 0 or 1 (Tagged: any); t.header_evidence: Bold | Filled | HeavyRule
+    //                  | RuleBelow | Tagged
     for c in &t.cells {                         // row-major by top-left
         // c.row, c.col, c.row_span, c.col_span (>= 1), c.bbox
         // c.glyphs: Vec<GlyphRef{run, glyph}> into found.text.pages[t.page_index]
@@ -1427,6 +1429,75 @@ let n = found.diagnostics.inferred();           // ruled + aligned tables, merge
   whose `page_index` equals it.
 - CLI: `pdfcer extract-tables in.pdf [--json] [-o out] [--pages 1-3]`; `export-xlsx`
   and `export-docx` take the same `--pages` (1-based, order honoured).
+
+### 8.4.5 Tagged layout — blocks and tables from the structure tree (`Pass 395.0`)
+
+For a tagged file: the same `DocumentLayout` §8.4.3 returns, and the
+tables, taken from the file's own structure elements instead of inferred.
+Use it to drive an export by the author's structure.
+
+```rust
+use pdfcer_core::tagged_layout::{self, LayoutSourceUsed, TaggedLayoutOptions, StructureUse};
+use pdfcer_core::table_detect::tables_from_structure;
+
+let tree = structure_tree::read_structure_tree(&doc, &opts)?;
+// geometry[i] belongs to tree.text.pages[i], as for layout_text
+let tagged = tagged_layout::layout_from_structure(
+    &tree, &geometry, &LayoutOptions::default(),
+    &TaggedLayoutOptions::default(),             // Auto, min_coverage 0.5
+);
+match tagged.report.source {
+    LayoutSourceUsed::StructureTree => {
+        let tables = tables_from_structure(&tagged.tables, &tagged.layout.text);
+        // write_docx(&tagged.layout, &geometry, &tables, ..) / write_xlsx(&tables, ..)
+    }
+    _ => { /* tagged.report.fallback says why; tagged.layout is layout_text's */ }
+}
+```
+
+- `StructureUse`: `Auto` (default) uses the tree when it exists and owns at
+  least `min_coverage` of the laid-out non-artifact characters; `Always`
+  uses any tree; `Never` returns the inferred layout. `report.fallback`:
+  `Disabled | NoStructureTree | NoTextClaimed | LowCoverage`;
+  `report.coverage` is the fraction owned (0 when the tree is not read).
+- Blocks carry `BlockSource::Structure`. `H1`–`H6`/`Hn` → `Heading
+  { level }` (capped at 6); `H` → level = enclosing `Sect` count; `Title`
+  → level 1; `P`, `TOCI`, `BibEntry`, `FENote` → `Paragraph`; `LI` →
+  `ListItem`, marker = its first `Lbl`'s text; `Caption` → `Caption`.
+  Inline elements are part of their block; a grouping element inside a
+  block starts fresh blocks.
+- Content under no block-level element becomes a `Paragraph`, counted in
+  `report.non_standard_as_paragraph` (its type never reached a standard
+  name) or `report.untyped_as_paragraph`.
+- Content the tree does not own (untagged text, artifacts) keeps its
+  inferred block (`BlockSource::Inferred`), after the structure block that
+  precedes it; `report.inferred_blocks_kept`. Table cell text is not in
+  any block — it is in `tagged.tables`.
+- A line whose runs belong to two elements is split; alignment, indent and
+  column are borrowed from the inferred block holding the element's first
+  line.
+- `TaggedTable` (one per `Table` element per page): `element`,
+  `page_index`, `bbox`, `rows`/`columns` bands (user space, as displayed),
+  `header_rows` (leading rows in `THead` or all-`TH`), `cells:
+  Vec<TaggedCell{element, row, col, row_span, col_span, bbox, runs, text,
+  header}>`. `RowSpan`/`ColSpan` place cells on the grid (ISO 32000-1
+  §14.8.5.7). A table in a cell is flattened into the cell text
+  (`nested_tables_flattened`); table content outside any cell is
+  `stray_table_content`; `broken_references` is the tree's
+  `named_not_declared`.
+- `tables_from_structure(&[TaggedTable], &ExtractedText) -> Vec<Table>`
+  converts for the spreadsheet and Word writers: `source` =
+  `BoundarySource::Tagged`, `header_evidence` = `HeaderEvidence::Tagged`,
+  glyphs = every glyph of the cell's runs.
+- `tagged.retain_pages(&[page_index, ..])` keeps those pages and their
+  tables and recounts the report; it does not reorder.
+- CLI: `export-docx`, `export-xlsx`, `export-ods` take `--structure
+  auto|tree|layout` (default `auto`) and end their result line with
+  `structure=tree|layout structure_fallback=none|disabled|no-tree|no-text-claimed|low-coverage
+  structure_coverage= structure_blocks= non_standard_as_paragraph=
+  untyped_as_paragraph= nested_tables_flattened= stray_table_content=
+  broken_references=` (`export-docx` adds `inferred_blocks_kept=`). With
+  the tree used, tables are the tree's only; none are detected.
 
 ### 8.5 ★ Search — it lives on `EditSession`
 

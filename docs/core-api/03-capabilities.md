@@ -3713,10 +3713,12 @@ because an ODF cell has no length limit. Disclose the same counts as §7.12.
 
 `core [x] · cli [x] · gui [ ]`.
 `pdfcer_core::export::docx::write_docx(&DocumentLayout, &[PageGeometry], &[Table], &DocxOptions) -> Result<DocxOutput, PackageError>`;
-CLI `pdfcer export-docx in.pdf -o out.docx [--no-page-breaks] [--no-tables]`.
+CLI `pdfcer export-docx in.pdf -o out.docx [--no-page-breaks] [--no-tables] [--structure auto|tree|layout]`.
 Inputs: `block_layout::analyze_layout` (§7 block layout), `geometry[i]` for
 `layout.pages[i]` (crop box + `/Rotate`, from `page_tree::pages_in`), and
-`table_detect::detect_tables(..).tables` (pass `&[]` for none).
+`table_detect::detect_tables(..).tables` (pass `&[]` for none). For a
+tagged file, the layout and tables from the structure tree (01 §8.4.5)
+go in the same slots.
 Output is WordprocessingML (ECMA-376 Part 1 §17) in the same private OPC
 zip as §7.12: deterministic bytes, no new dependency.
 

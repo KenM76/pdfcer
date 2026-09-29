@@ -106,6 +106,9 @@ pub enum BoundarySource {
     /// From whitespace alone: text rows whose gutters line up. Row edges
     /// fall midway between baselines, column edges midway across gutters.
     Aligned,
+    /// From the file's own `Table`/`TR`/`TH`/`TD` structure elements
+    /// ([`tables_from_structure`]); not an inference.
+    Tagged,
 }
 
 /// Why the first row was taken as a header.
@@ -120,6 +123,9 @@ pub enum HeaderEvidence {
     HeavyRule,
     /// An unruled table whose only interior rule is under its first row.
     RuleBelow,
+    /// The file tags the rows `THead` or their cells `TH`; not an
+    /// inference.
+    Tagged,
 }
 
 /// One glyph: `text.pages[page].runs[run].glyphs[glyph]`.
@@ -172,7 +178,8 @@ pub struct Table {
     pub columns: Vec<Rect>,
     /// Row-major by top-left corner.
     pub cells: Vec<TableCell>,
-    /// Header rows at the top: 0 or 1.
+    /// Header rows at the top: 0 or 1 when detected, any number when
+    /// [`BoundarySource::Tagged`].
     pub header_rows: usize,
     /// Why [`Self::header_rows`] is 1; `None` when it is 0.
     pub header_evidence: Option<HeaderEvidence>,
@@ -184,6 +191,73 @@ impl Table {
     pub fn cell(&self, row: usize, col: usize) -> Option<&TableCell> {
         self.cells.iter().find(|c| c.row == row && c.col == col)
     }
+}
+
+/// The tables a structure tree tags, as [`Table`]s for the exporters:
+/// [`BoundarySource::Tagged`], [`HeaderEvidence::Tagged`] when a header
+/// row is tagged, each cell's glyphs every glyph of its runs. `text` is
+/// the extraction the tagged layout indexes
+/// ([`TaggedLayout::layout`](crate::tagged_layout::TaggedLayout::layout)`.text`).
+///
+/// # Examples
+///
+/// ```no_run
+/// use pdfcer_core::block_layout::LayoutOptions;
+/// use pdfcer_core::structure_tree::StructureTree;
+/// use pdfcer_core::table_detect::tables_from_structure;
+/// use pdfcer_core::tagged_layout::{TaggedLayoutOptions, layout_from_structure};
+///
+/// # fn demo(tree: &StructureTree) {
+/// let tagged = layout_from_structure(tree, &[], &LayoutOptions::default(), &TaggedLayoutOptions::default());
+/// let tables = tables_from_structure(&tagged.tables, &tagged.layout.text);
+/// assert!(tables.iter().all(|t| t.source == pdfcer_core::table_detect::BoundarySource::Tagged));
+/// # }
+/// ```
+#[must_use]
+pub fn tables_from_structure(
+    tagged: &[crate::tagged_layout::TaggedTable],
+    text: &ExtractedText,
+) -> Vec<Table> {
+    tagged
+        .iter()
+        .map(|t| {
+            let runs = text
+                .pages
+                .iter()
+                .find(|p| p.page_index == t.page_index)
+                .map_or(&[][..], |p| p.runs.as_slice());
+            let cells = t
+                .cells
+                .iter()
+                .map(|c| TableCell {
+                    row: c.row,
+                    col: c.col,
+                    row_span: c.row_span,
+                    col_span: c.col_span,
+                    bbox: c.bbox,
+                    glyphs: c
+                        .runs
+                        .iter()
+                        .flat_map(|&run| {
+                            let n = runs.get(run).map_or(0, |r| r.glyphs.len());
+                            (0..n).map(move |glyph| GlyphRef { run, glyph })
+                        })
+                        .collect(),
+                    text: c.text.clone(),
+                })
+                .collect();
+            Table {
+                page_index: t.page_index,
+                bbox: t.bbox,
+                source: BoundarySource::Tagged,
+                rows: t.rows.clone(),
+                columns: t.columns.clone(),
+                cells,
+                header_rows: t.header_rows,
+                header_evidence: (t.header_rows > 0).then_some(HeaderEvidence::Tagged),
+            }
+        })
+        .collect()
 }
 
 /// What [`detect_tables`] inferred, and what it could not use.
@@ -1005,6 +1079,8 @@ fn finish(
     match t.source {
         BoundarySource::Aligned => diag.tables_aligned += 1,
         BoundarySource::Ruled => diag.tables_ruled += 1,
+        // Detection never produces a tagged table.
+        BoundarySource::Tagged => {}
     }
     diag.cells += cells.len();
     diag.merged_cells += cells

@@ -1884,6 +1884,7 @@ fn block_source_name(source: pdfcer_core::block_layout::BlockSource) -> &'static
     use pdfcer_core::block_layout::BlockSource;
     match source {
         BlockSource::Tagged => "tagged",
+        BlockSource::Structure => "structure",
         _ => "inferred",
     }
 }
@@ -2086,6 +2087,102 @@ pages_over_limit={} pages_unreadable={}",
     exit::SUCCESS
 }
 
+/// What `--structure` resolved to for one export.
+enum StructureChoice {
+    /// The structure tree was used: its layout, cut to `--pages` in
+    /// `--pages` order, and the geometry of each kept page.
+    Tree(
+        Box<pdfcer_core::tagged_layout::TaggedLayout>,
+        Vec<pdfcer_core::block_layout::PageGeometry>,
+    ),
+    /// Inferred from the page; the report says why the tree was not used.
+    Layout(pdfcer_core::tagged_layout::TaggedLayoutReport),
+}
+
+/// Reads the structure tree unless `--structure layout`, and lays the
+/// document out from it when the tree qualifies.
+fn choose_structure(
+    view: &pdfcer_core::view::DocumentView<'_>,
+    input: &Path,
+    indices: &[usize],
+    structure: StructureArg,
+) -> Result<StructureChoice, u8> {
+    use pdfcer_core::block_layout::{LayoutOptions, PageGeometry};
+    use pdfcer_core::page_tree::pages_in;
+    use pdfcer_core::structure_tree::read_structure_tree;
+    use pdfcer_core::tagged_layout::{
+        FallbackReason, LayoutSourceUsed, StructureUse, TaggedLayoutOptions, TaggedLayoutReport,
+        layout_from_structure,
+    };
+    use pdfcer_core::text_extract::ExtractOptions;
+
+    let use_structure = match structure {
+        StructureArg::Auto => StructureUse::Auto,
+        StructureArg::Tree => StructureUse::Always,
+        StructureArg::Layout => {
+            let mut report = TaggedLayoutReport::default();
+            report.fallback = Some(FallbackReason::Disabled);
+            return Ok(StructureChoice::Layout(report));
+        }
+    };
+    let fail = |err: &dyn std::fmt::Display| {
+        eprintln!("pdfcer: {}: {err}", input.display());
+        exit::RUNTIME_ERROR
+    };
+    let tree = read_structure_tree(view, &ExtractOptions::default()).map_err(|e| fail(&e))?;
+    let pages = pages_in(view).map_err(|e| fail(&e))?;
+    let geometry = |index: &[usize]| -> Vec<PageGeometry> {
+        index
+            .iter()
+            .filter_map(|&i| pages.get(i))
+            .map(|p| PageGeometry::new(p.crop_box, p.rotate))
+            .collect()
+    };
+    let all: Vec<usize> = tree.text.pages.iter().map(|p| p.page_index).collect();
+    let options = TaggedLayoutOptions::default().with_use_structure(use_structure);
+    let mut tagged =
+        layout_from_structure(&tree, &geometry(&all), &LayoutOptions::default(), &options);
+    if tagged.report.source != LayoutSourceUsed::StructureTree {
+        return Ok(StructureChoice::Layout(tagged.report));
+    }
+    tagged.retain_pages(indices);
+    let rank = |page: usize| indices.iter().position(|&i| i == page);
+    tagged.layout.pages.sort_by_key(|p| rank(p.page_index));
+    tagged.tables.sort_by_key(|t| rank(t.page_index));
+    let kept: Vec<usize> = tagged.layout.pages.iter().map(|p| p.page_index).collect();
+    let geometry = geometry(&kept);
+    Ok(StructureChoice::Tree(Box::new(tagged), geometry))
+}
+
+/// The `structure…` fields every export's result line ends with.
+fn structure_fields(report: &pdfcer_core::tagged_layout::TaggedLayoutReport) -> String {
+    use pdfcer_core::tagged_layout::{FallbackReason, LayoutSourceUsed};
+    let source = match report.source {
+        LayoutSourceUsed::StructureTree => "tree",
+        _ => "layout",
+    };
+    let fallback = match report.fallback {
+        None => "none",
+        Some(FallbackReason::Disabled) => "disabled",
+        Some(FallbackReason::NoStructureTree) => "no-tree",
+        Some(FallbackReason::NoTextClaimed) => "no-text-claimed",
+        Some(FallbackReason::LowCoverage) => "low-coverage",
+        Some(_) => "other",
+    };
+    format!(
+        "structure={source} structure_fallback={fallback} structure_coverage={:.3} \
+structure_blocks={} non_standard_as_paragraph={} untyped_as_paragraph={} \
+nested_tables_flattened={} stray_table_content={} broken_references={}",
+        report.coverage,
+        report.structure_blocks,
+        report.non_standard_as_paragraph,
+        report.untyped_as_paragraph,
+        report.nested_tables_flattened,
+        report.stray_table_content,
+        report.broken_references,
+    )
+}
+
 /// `pdfcer export-docx`: block layout (and tables) written as a Word
 /// document, every inference counted on the result line.
 pub(crate) fn cmd_export_docx(
@@ -2093,12 +2190,13 @@ pub(crate) fn cmd_export_docx(
     output: &Path,
     page_breaks: bool,
     tables: bool,
+    structure: StructureArg,
     pages: &str,
 ) -> u8 {
     use pdfcer_core::block_layout::{LayoutOptions, PageGeometry, layout_text};
     use pdfcer_core::export::docx::{DocxOptions, write_docx};
     use pdfcer_core::page_tree::pages_in;
-    use pdfcer_core::table_detect::{TableOptions, detect_tables_in_pages};
+    use pdfcer_core::table_detect::{TableOptions, detect_tables_in_pages, tables_from_structure};
     use pdfcer_core::text_extract::{ExtractOptions, extract_pages_view};
 
     let doc = match open_document(input) {
@@ -2113,41 +2211,58 @@ pub(crate) fn cmd_export_docx(
         Err(code) => return code,
     };
     let view = doc.view();
-    let found = extract_pages_view(&view, &indices, &ExtractOptions::default())
-        .and_then(|text| Ok((text, pages_in(&view)?)));
-    let (text, page_list) = match found {
-        Ok(found) => found,
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", input.display());
-            return exit::RUNTIME_ERROR;
-        }
-    };
-    let geometry: Vec<PageGeometry> = text
-        .pages
-        .iter()
-        .filter_map(|p| page_list.get(p.page_index))
-        .map(|p| PageGeometry::new(p.crop_box, p.rotate))
-        .collect();
-    let layout = layout_text(text, &geometry, &LayoutOptions::default());
-    let (detected, table_inferences) = if tables {
-        match detect_tables_in_pages(
-            &view,
-            &indices,
-            &ExtractOptions::default(),
-            &TableOptions::default(),
-        ) {
-            Ok(found) => {
-                let n = found.diagnostics.inferred();
-                (found.tables, n)
+    let (layout, geometry, detected, table_inferences, report) =
+        match choose_structure(&view, input, &indices, structure) {
+            Err(code) => return code,
+            Ok(StructureChoice::Tree(tagged, geometry)) => {
+                let detected = if tables {
+                    tables_from_structure(&tagged.tables, &tagged.layout.text)
+                } else {
+                    Vec::new()
+                };
+                let tagged = *tagged;
+                (tagged.layout, geometry, detected, 0, tagged.report)
             }
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
+            Ok(StructureChoice::Layout(mut report)) => {
+                let found = extract_pages_view(&view, &indices, &ExtractOptions::default())
+                    .and_then(|text| Ok((text, pages_in(&view)?)));
+                let (text, page_list) = match found {
+                    Ok(found) => found,
+                    Err(err) => {
+                        eprintln!("pdfcer: {}: {err}", input.display());
+                        return exit::RUNTIME_ERROR;
+                    }
+                };
+                let geometry: Vec<PageGeometry> = text
+                    .pages
+                    .iter()
+                    .filter_map(|p| page_list.get(p.page_index))
+                    .map(|p| PageGeometry::new(p.crop_box, p.rotate))
+                    .collect();
+                let layout = layout_text(text, &geometry, &LayoutOptions::default());
+                report.inferred_blocks_kept = layout.diagnostics.blocks;
+                let (detected, n) = if tables {
+                    match detect_tables_in_pages(
+                        &view,
+                        &indices,
+                        &ExtractOptions::default(),
+                        &TableOptions::default(),
+                    ) {
+                        Ok(found) => {
+                            let n = found.diagnostics.inferred();
+                            (found.tables, n)
+                        }
+                        Err(err) => {
+                            eprintln!("pdfcer: {}: {err}", input.display());
+                            return exit::RUNTIME_ERROR;
+                        }
+                    }
+                } else {
+                    (Vec::new(), 0)
+                };
+                (layout, geometry, detected, n, report)
             }
-        }
-    } else {
-        (Vec::new(), 0)
-    };
+        };
     let options = DocxOptions::default()
         .with_page_breaks(page_breaks)
         .with_tables(tables);
@@ -2165,7 +2280,7 @@ pub(crate) fn cmd_export_docx(
     let d = &layout.diagnostics;
     let r = &out.report;
     println!(
-        "export-docx {} -> {} pages={} inferred={} headings={} paragraphs={} list_items={} captions={} tables={} table_cells={} merged_cells={} blocks_in_tables={} tables_too_wide={} header={} footer={} page_number_field={} running_blocks={} running_variants_dropped={} runs_not_horizontal={} runs_watermark_skipped={} characters_dropped={}",
+        "export-docx {} -> {} pages={} inferred={} headings={} paragraphs={} list_items={} captions={} tables={} table_cells={} merged_cells={} blocks_in_tables={} tables_too_wide={} header={} footer={} page_number_field={} running_blocks={} running_variants_dropped={} runs_not_horizontal={} runs_watermark_skipped={} characters_dropped={} {} inferred_blocks_kept={}",
         input.display(),
         output.display(),
         r.pages,
@@ -2187,16 +2302,29 @@ pub(crate) fn cmd_export_docx(
         d.runs_not_horizontal,
         d.runs_watermark_skipped,
         r.characters_dropped,
+        structure_fields(&report),
+        report.inferred_blocks_kept,
     );
     exit::SUCCESS
 }
 
-/// The tables on `--pages` of `input`, for a spreadsheet export.
+/// The tables on `--pages` of `input` for a spreadsheet export: the
+/// structure tree's own when `--structure` chose it, else detected.
 fn tables_for_export(
     input: &Path,
     pages: &str,
-) -> Result<pdfcer_core::table_detect::DocumentTables, u8> {
-    use pdfcer_core::table_detect::{TableOptions, detect_tables_in_pages};
+    structure: StructureArg,
+) -> Result<
+    (
+        Vec<pdfcer_core::table_detect::Table>,
+        pdfcer_core::table_detect::TableDiagnostics,
+        pdfcer_core::tagged_layout::TaggedLayoutReport,
+    ),
+    u8,
+> {
+    use pdfcer_core::table_detect::{
+        TableDiagnostics, TableOptions, detect_tables_in_pages, tables_from_structure,
+    };
     use pdfcer_core::text_extract::ExtractOptions;
 
     let doc = open_document(input).map_err(|err| {
@@ -2204,16 +2332,26 @@ fn tables_for_export(
         exit_code_for_doc(&err)
     })?;
     let indices = chosen_pages(&doc, input, pages)?;
-    detect_tables_in_pages(
-        &doc.view(),
-        &indices,
-        &ExtractOptions::default(),
-        &TableOptions::default(),
-    )
-    .map_err(|err| {
-        eprintln!("pdfcer: {}: {err}", input.display());
-        exit::RUNTIME_ERROR
-    })
+    let view = doc.view();
+    match choose_structure(&view, input, &indices, structure)? {
+        StructureChoice::Tree(tagged, _) => {
+            let mut diagnostics = TableDiagnostics::default();
+            diagnostics.pages = tagged.layout.pages.len();
+            let tables = tables_from_structure(&tagged.tables, &tagged.layout.text);
+            Ok((tables, diagnostics, tagged.report))
+        }
+        StructureChoice::Layout(report) => detect_tables_in_pages(
+            &view,
+            &indices,
+            &ExtractOptions::default(),
+            &TableOptions::default(),
+        )
+        .map(|found| (found.tables, found.diagnostics, report))
+        .map_err(|err| {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            exit::RUNTIME_ERROR
+        }),
+    }
 }
 
 fn sheet_layout(sheets: SheetsArg) -> pdfcer_core::export::xlsx::SheetLayout {
@@ -2241,18 +2379,19 @@ pub(crate) fn cmd_export_xlsx(
     output: &Path,
     sheets: SheetsArg,
     numbers: NumbersArg,
+    structure: StructureArg,
     pages: &str,
 ) -> u8 {
     use pdfcer_core::export::xlsx::{XlsxOptions, write_xlsx};
 
-    let found = match tables_for_export(input, pages) {
+    let (tables, diagnostics, structure) = match tables_for_export(input, pages, structure) {
         Ok(found) => found,
         Err(code) => return code,
     };
     let options = XlsxOptions::default()
         .with_sheets(sheet_layout(sheets))
         .with_numbers(number_locale(numbers));
-    let out = match write_xlsx(&found.tables, &options) {
+    let out = match write_xlsx(&tables, &options) {
         Ok(out) => out,
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", output.display());
@@ -2263,12 +2402,12 @@ pub(crate) fn cmd_export_xlsx(
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
-    let d = &found.diagnostics;
+    let d = &diagnostics;
     let r = &out.report;
     println!(
         "export-xlsx {} -> {} pages={} tables={} inferred={} ruled={} aligned={} merged_cells={} \
 header_rows={} pages_unreadable={} sheets={} cells={} numbers={} ambiguous_numbers={} \
-characters_dropped={} cells_truncated={} cells_beyond_limits={}",
+characters_dropped={} cells_truncated={} cells_beyond_limits={} {}",
         input.display(),
         output.display(),
         d.pages,
@@ -2286,6 +2425,7 @@ characters_dropped={} cells_truncated={} cells_beyond_limits={}",
         r.characters_dropped,
         r.cells_truncated,
         r.cells_beyond_limits,
+        structure_fields(&structure),
     );
     exit::SUCCESS
 }
@@ -2296,18 +2436,19 @@ pub(crate) fn cmd_export_ods(
     output: &Path,
     sheets: SheetsArg,
     numbers: NumbersArg,
+    structure: StructureArg,
     pages: &str,
 ) -> u8 {
     use pdfcer_core::export::ods::{OdsOptions, write_ods};
 
-    let found = match tables_for_export(input, pages) {
+    let (tables, diagnostics, structure) = match tables_for_export(input, pages, structure) {
         Ok(found) => found,
         Err(code) => return code,
     };
     let options = OdsOptions::default()
         .with_sheets(sheet_layout(sheets))
         .with_numbers(number_locale(numbers));
-    let out = match write_ods(&found.tables, &options) {
+    let out = match write_ods(&tables, &options) {
         Ok(out) => out,
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", output.display());
@@ -2318,12 +2459,12 @@ pub(crate) fn cmd_export_ods(
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
-    let d = &found.diagnostics;
+    let d = &diagnostics;
     let r = &out.report;
     println!(
         "export-ods {} -> {} pages={} tables={} inferred={} ruled={} aligned={} merged_cells={} \
 header_rows={} pages_unreadable={} sheets={} cells={} numbers={} ambiguous_numbers={} \
-characters_dropped={} cells_beyond_limits={}",
+characters_dropped={} cells_beyond_limits={} {}",
         input.display(),
         output.display(),
         d.pages,
@@ -2340,6 +2481,7 @@ characters_dropped={} cells_beyond_limits={}",
         r.ambiguous_numbers,
         r.characters_dropped,
         r.cells_beyond_limits,
+        structure_fields(&structure),
     );
     exit::SUCCESS
 }
@@ -2352,6 +2494,7 @@ fn header_evidence_name(e: Option<pdfcer_core::table_detect::HeaderEvidence>) ->
         Some(HeaderEvidence::Filled) => "filled",
         Some(HeaderEvidence::HeavyRule) => "heavy-rule",
         Some(HeaderEvidence::RuleBelow) => "rule-below",
+        Some(HeaderEvidence::Tagged) => "tagged",
         Some(_) => "other",
     }
 }
@@ -2361,6 +2504,7 @@ fn table_source_name(s: pdfcer_core::table_detect::BoundarySource) -> &'static s
     match s {
         BoundarySource::Ruled => "ruled",
         BoundarySource::Aligned => "aligned",
+        BoundarySource::Tagged => "tagged",
         _ => "other",
     }
 }

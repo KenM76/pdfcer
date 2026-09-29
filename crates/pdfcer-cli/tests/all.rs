@@ -24,6 +24,7 @@ mod embed_font;
 mod export_docx;
 mod export_dxf;
 mod export_image;
+mod export_structure;
 mod export_xlsx;
 mod extract_layout;
 mod extract_tables;

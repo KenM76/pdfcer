@@ -126,6 +126,18 @@ pub(crate) enum OnOffArg {
     Off,
 }
 
+/// `export-docx/-xlsx/-ods --structure`: where blocks and tables come from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum StructureArg {
+    /// The file's structure tree when it covers at least half the text,
+    /// else inferred from the page.
+    Auto,
+    /// The structure tree whenever the file has one.
+    Tree,
+    /// Always inferred from the page; the structure tree is ignored.
+    Layout,
+}
+
 /// `export-xlsx --sheets`: which tables share a worksheet.
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub(crate) enum SheetsArg {
@@ -3210,6 +3222,15 @@ pub(crate) enum Command {
     /// The result line repeats `extract-tables`' counts (every table,
     /// merged cell and header row is inferred) and adds what the workbook
     /// holds and anything dropped.
+    ///
+    /// A tagged PDF's own `Table` elements are used instead of detection
+    /// when its structure tree covers at least half the text
+    /// (`--structure auto`, the default); `--structure tree` uses any tree,
+    /// `--structure layout` always detects. A tree with no tables gives no
+    /// tables. The result line ends with `structure=tree|layout`, the
+    /// reason for falling back (`structure_fallback=none|disabled|no-tree|
+    /// no-text-claimed|low-coverage`), the fraction of text the tree
+    /// covers, and what the tree could not carry.
     ExportXlsx {
         /// Input PDF.
         input: PathBuf,
@@ -3222,6 +3243,10 @@ pub(crate) enum Command {
         /// How numbers are read.
         #[arg(long, value_enum, default_value = "auto")]
         numbers: NumbersArg,
+        /// Where tables and blocks come from: the file's own tags
+        /// (structure tree) or pdfcer's inference. See the command help.
+        #[arg(long, value_enum, default_value = "auto")]
+        structure: StructureArg,
         /// 1-based pages to read: `all`, `3`, `1-4`, `5,1-2`. Order is
         /// honoured; only these pages are read, and the counts cover only
         /// them.
@@ -3235,7 +3260,8 @@ pub(crate) enum Command {
     /// The same tables, sheets and number rule as `export-xlsx`: a cell is
     /// a number here exactly when it is one there. A cell's lines, tabs and
     /// repeated spaces are kept. The result line is `export-xlsx`'s without
-    /// `cells_truncated` (an ODF cell has no length limit).
+    /// `cells_truncated` (an ODF cell has no length limit). `--structure`
+    /// and the `structure` counts are `export-xlsx`'s.
     ExportOds {
         /// Input PDF.
         input: PathBuf,
@@ -3248,6 +3274,10 @@ pub(crate) enum Command {
         /// How numbers are read.
         #[arg(long, value_enum, default_value = "auto")]
         numbers: NumbersArg,
+        /// Where tables and blocks come from: the file's own tags
+        /// (structure tree) or pdfcer's inference. See the command help.
+        #[arg(long, value_enum, default_value = "auto")]
+        structure: StructureArg,
         /// 1-based pages to read: `all`, `3`, `1-4`, `5,1-2`. Order is
         /// honoured; only these pages are read, and the counts cover only
         /// them.
@@ -3267,11 +3297,23 @@ pub(crate) enum Command {
     /// field. Tables found as `extract-tables` finds them become Word
     /// tables.
     ///
-    /// Every block kind is inferred. The result line counts what was
-    /// written, the running text moved to the header and footer, any
-    /// header or footer variant left out (alternating odd and even
-    /// headers keep the first), and text the layout could not place
-    /// (text not running left to right as displayed).
+    /// On an untagged file every block kind is inferred. On a tagged file
+    /// whose structure tree covers at least half the text (`--structure
+    /// auto`, the default) headings, paragraphs, list items, captions and
+    /// tables come from its tags instead, in the tags' order; text the tree
+    /// does not own keeps its inferred block. `--structure tree` uses any
+    /// tree, `--structure layout` ignores it.
+    ///
+    /// The result line counts what was written, the running text moved to
+    /// the header and footer, any header or footer variant left out
+    /// (alternating odd and even headers keep the first), and text the
+    /// layout could not place (text not running left to right as
+    /// displayed). It ends with the source used (`structure=tree|layout`),
+    /// why the tree was not used (`structure_fallback`), the fraction of
+    /// text it covers, and what it could not carry: elements of a
+    /// non-standard type made paragraphs, untyped content made paragraphs,
+    /// tables nested in a cell, content in a table outside any cell, and
+    /// references to content that does not exist.
     ExportDocx {
         /// Input PDF.
         input: PathBuf,
@@ -3284,6 +3326,10 @@ pub(crate) enum Command {
         /// Leave tables as paragraphs of text.
         #[arg(long)]
         no_tables: bool,
+        /// Where tables and blocks come from: the file's own tags
+        /// (structure tree) or pdfcer's inference. See the command help.
+        #[arg(long, value_enum, default_value = "auto")]
+        structure: StructureArg,
         /// 1-based pages to read: `all`, `3`, `1-4`, `5,1-2`. Order is
         /// honoured; only these pages are read, and the counts cover only
         /// them. Running headers and footers are found among these pages
