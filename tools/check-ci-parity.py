@@ -270,7 +270,8 @@ def main() -> int:
 
     unaccounted: list[str] = []
     counts = {"LOCAL": 0, "LOCAL-VIA": 0, "CI-ONLY": 0}
-    for wf in sorted(WORKFLOWS.glob("*.yml")):
+    # GitHub runs both extensions; a `.yaml` workflow is as live as a `.yml` one.
+    for wf in sorted([*WORKFLOWS.glob("*.yml"), *WORKFLOWS.glob("*.yaml")]):
         for line, cmd in commands_in(wf):
             verdict = classify(cmd)
             if verdict is None:

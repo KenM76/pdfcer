@@ -48,15 +48,15 @@ Two categories, and the second is the one a hard-coded list would miss:
 WHAT IT CANNOT SEE
 ==================
 
-- A crate outside `tools/` and `fuzz/` that is in neither list (say a
-  non-member under `crates/`), or one nested deeper than `tools/<name>/`.
-  The unlisted-crate scan reads those two areas one level deep.
+- A crate outside `tools/`, `fuzz/`, `crates/` and `vendor/` that is in
+  neither list, or one nested deeper than `<area>/<name>/`. The
+  unlisted-crate scan reads those four areas one level deep.
 - A `.rs` file no `mod` declaration reaches. `cargo fmt` walks the module
   tree from each target root, here and in the workspace gate alike.
 - An `exclude` entry spelled as a glob. It is read as a literal path with
-  no `Cargo.toml`, so it is skipped. Under `tools/` or `fuzz/` the unlisted
-  scan still catches the crates it covers. Anywhere else (`vendor/*`, say)
-  they are skipped SILENTLY.
+  no `Cargo.toml`, so it is skipped. Within the four scanned areas the
+  unlisted scan still catches the crates it covers. Anywhere else they are
+  skipped SILENTLY.
 
 EXIT CODES
 ==========
@@ -114,9 +114,13 @@ def _diff_count(crate: Path) -> tuple[int, str]:
         # check that passed, and treating the two alike is how a harness comes
         # to report success it never measured (standing rule R191).
         return -1, f"could not run cargo: {exc}"
-    if proc.returncode not in (0, 1):
+    hunks = len(re.findall(r"^Diff in ", proc.stdout, re.M))
+    # Exit 1 is ALSO cargo's code for "could not load this package" (e.g. a
+    # non-member inside the workspace root). Exit 1 with no diff is an error,
+    # not a clean result.
+    if proc.returncode not in (0, 1) or (proc.returncode == 1 and hunks == 0):
         return -1, (proc.stderr or proc.stdout).strip()[:400]
-    return len(re.findall(r"^Diff in ", proc.stdout, re.M)), ""
+    return hunks, ""
 
 
 def main() -> int:
@@ -134,7 +138,7 @@ def main() -> int:
 
     # Category 2: crates listed in neither array. Invisible to both gates.
     unlisted: list[Path] = []
-    for area in ("tools", "fuzz"):
+    for area in ("tools", "fuzz", "crates", "vendor"):
         base = ROOT / area
         if not base.is_dir():
             continue
