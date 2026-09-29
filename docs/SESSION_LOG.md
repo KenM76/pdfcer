@@ -4,6 +4,55 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (731st filing) — `b96be7e7`: `Pass 393.0` SHIPPED — mesh shadings (types 4–7) now deposit spot colorants
+
+**Shipped:**
+- `Pass 393.0` (`b96be7e7`) — mesh shadings (types 4–7) in
+  `crates/pdfcer-render/src/mesh.rs` now deposit `/Separation`/`/DeviceN`
+  spot tints onto simulated spot planes, the one route `Pass 239.0`
+  (380th filing) left open after axial/radial/function shadings and
+  shading patterns already gained the deposit. Closes the Backlog entry
+  filed 2026-09-02 (380th filing).
+
+**Decisions made this session:**
+- None — a paint-route extension mirroring an existing pattern, not a
+  new invariant.
+
+**Findings + decisions:**
+- Both mesh carriers now deposit: a new `Shade::Spot` variant carries
+  per-spot tints for per-vertex meshes; the parametric (`/Function`)
+  carrier deposits the ramp's authored tints at `t`. Both route through
+  `CmykBuffer::composite_overprint_varying_spots`. `shading::spot_setup`
+  factors the spot setup out of `ColorRamp::build`; `Shading::spot_colorants`
+  serves both interpreter paint routes (`sh` and pattern fill).
+- New test `a_spot_mesh_over_black_agrees_with_the_spot_fill_by_both_carriers`
+  (`crates/pdfcer-render/tests/mesh_ink.rs`) against a new synthetic
+  fixture (`fixtures/synthetic/mesh-ink/spot-mesh-op-over-k-vs-fill.pdf`,
+  `tools/gen-mesh-ink-fixtures.py`): a spot fill, a type 4 per-vertex mesh
+  and a type 6 parametric patch over 50% K under `/OP true /OPM 1`, each
+  mesh required within 1.5 mean abs of the fill. Sabotage-verified
+  (disabling the deposit, or depositing the parametric carrier only,
+  both fail at 60.00) — a discriminating fixture, not a suite patch that
+  happens to pass.
+- `tools/run-gates.sh`: PASS, 40/40. `cargo test -p pdfcer-render --test
+  all mesh`: 20 passed. Cross-target `cargo check` of the CLI on
+  `x86_64-unknown-linux-gnu`: clean. No `Cargo.toml`/dependency change,
+  no `pub` API change, `docs/core-api/` unaffected.
+- `docs/FEATURES.md`'s *Per-colorant (n-channel) compositing buffer* row
+  (Backlog view) gets a sixth "WORDING CORRECTED" note; no box moves and
+  the row does not move to *Implemented* — Table 149's SPOT-row
+  conformance under overprint, the row's own acceptance criterion, is
+  still unverified at the suite level.
+
+**Still in flight:**
+- Nothing new opened by this Pass. Standing open items unchanged (see
+  `docs/NEXT_SESSION.md`).
+
+**For next session:**
+- No shell this filing (hard rule 8) — commit hash, test counts and gate
+  results relayed from the dispatching engineer's own report, not
+  independently reproduced.
+
 ## 2026-09-29 (730th filing) — `e9ab98ae`: `Pass 392.0` SHIPPED — `nonseparable_composited` now counts GROUP composites
 
 **Shipped:**

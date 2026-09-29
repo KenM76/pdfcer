@@ -115,6 +115,65 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 393.0` (`b96be7e7`), 2026-09-29 — mesh shadings (types 4–7) now deposit spot colorants
+
+**Verdict: SHIPPED.** Closes the Backlog entry filed 2026-09-02 (380th
+filing, `Pass 239.0`'s named remainder, below) — axial/radial/function
+shadings and shading patterns already deposited `/Separation`/`/DeviceN`
+spot tints onto simulated spot planes (`Pass 228.0`/`Pass 238.0`/
+`Pass 239.0`); mesh shadings did not, and under overprint with separation
+simulation this was worse than flattening — a parametric (`/Function`)
+spot mesh lost its spot entirely, a per-vertex spot mesh rendered as only
+the underlying K.
+
+**What changed.** Both mesh carriers in `pdfcer-render`'s `mesh.rs` now
+deposit: a new `Shade::Spot` variant carries the authored process colour
+plus per-spot tints for per-vertex meshes; the parametric carrier deposits
+the ramp's authored tints at `t`. The deposit is all-or-nothing, like the
+other shading types, and goes through
+`CmykBuffer::composite_overprint_varying_spots`. `shading::spot_setup`
+factors the spot setup out of `ColorRamp::build`; `Shading::spot_colorants`
+serves both interpreter paint routes (`sh` and pattern fill).
+
+**Tests.** New `a_spot_mesh_over_black_agrees_with_the_spot_fill_by_both_carriers`,
+`crates/pdfcer-render/tests/mesh_ink.rs`, against a new synthetic fixture
+`fixtures/synthetic/mesh-ink/spot-mesh-op-over-k-vs-fill.pdf`
+(`tools/gen-mesh-ink-fixtures.py`): a spot fill, a type 4 per-vertex mesh
+and a type 6 parametric patch, all over 50% K under `/OP true /OPM 1`,
+each mesh required to match the fill within 1.5 mean abs. Sabotage:
+disabling the deposit fails at 60.00; depositing the parametric carrier
+only also fails at 60.00 — a discriminating fixture per `Pass 239.0`'s own
+acceptance note, not a suite patch that happens to pass.
+
+**Gates.** `tools/run-gates.sh`: PASS, 40/40 (including 2 filing gates).
+`cargo test -p pdfcer-render --test all mesh`: 20 passed. Cross-target
+`cargo check` of the CLI on `x86_64-unknown-linux-gnu`: clean. No
+`Cargo.toml`/dependency change, no `pub` API change, `docs/core-api/`
+unaffected.
+
+**`docs/FEATURES.md`.** The *Per-colorant (n-channel) compositing buffer*
+row (Backlog view) gets a sixth "WORDING CORRECTED" note recording this
+closure; no box moves and the row does not move to *Implemented* — Table
+149's SPOT-row conformance under overprint (the row's own stated
+acceptance criterion) is still unverified at the suite level, not any one
+carrier's deposit.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate results relayed from the dispatching engineer's own
+report, not independently reproduced.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `392` highest, next free family `393` | **`393` used (`Pass 393.0`), next free family `394`** |
+| Standing rules | `R257` (carried figure, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `166` | unchanged — no new architectural decision |
+| `SESSION_LOG` filings | `730` | **`731`** |
+| `docs/FEATURES.md` | — | one row's Backlog note corrected (sixth time), no box moves |
+
+---
+
 ### `Pass 392.0` (`e9ab98ae`), 2026-09-29 — `nonseparable_composited` now counts GROUP composites, not only direct paint
 
 **Verdict: SHIPPED.** Closes the Backlog entry filed at 358th filing, below
@@ -20599,7 +20658,10 @@ this should not read it as the same shape as `Pass 261.4`.
 > images, axial/radial/function shadings, shading patterns, transparency +
 > knockout groups) now deposits.** `FEATURES.md`'s *Per-colorant (n-channel)
 > compositing buffer* row narrowed a fifth time to this single remaining
-> scope; no box moves.
+> scope; no box moves. **★ CLOSED 2026-09-29 (`Pass 393.0`, `b96be7e7`,
+> 731st filing) — mesh shadings now deposit too.** The row gets a sixth
+> narrowing note, not an *Implemented* move; no box changes (see the
+> `Pass 393.0` *Shipped* entry).
 
 > ★★★ **FIVE ITEMS ADDED 2026-09-05 (429th filing) — `pdfcer-gui`'s
 > comment/review-workflow gaps, filed as FEATURES (Backlog, not scheduled)
@@ -21186,6 +21248,14 @@ under overprint, so a purpose-built fixture (mirroring
 `tools/gen-group-spot-fixtures.py`'s discriminating-construction lesson from
 `Pass 239.0` — a fixture that passes even with the feature absent proves
 nothing) is the acceptance evidence, not the conformance sweep.
+
+**★ RESOLVED 2026-09-29 (731st filing) — `Pass 393.0` (`b96be7e7`) built
+exactly this: a `Shade::Spot` variant for the per-vertex carrier and a
+spot-tint-at-`t` deposit for the parametric carrier, both through
+`CmykBuffer::composite_overprint_varying_spots`, verified by the
+purpose-built discriminating fixture this entry called for
+(`spot-mesh-op-over-k-vs-fill.pdf`). See the `Pass 393.0` *Shipped* entry,
+top of this file.**
 
 ---
 
