@@ -1023,6 +1023,7 @@ pub(crate) fn cmd_fill_field(
     };
 
     let mut applied = 0usize;
+    let mut withheld_password_fields: Vec<String> = Vec::new();
     for set in sets {
         let Some((name, value)) = set.split_once('=') else {
             eprintln!("pdfcer: --set must be NAME=VALUE, got {set:?}");
@@ -1085,9 +1086,12 @@ pub(crate) fn cmd_fill_field(
             _ if store_password_values => session
                 .fill_text_field_storing_password(name, value)
                 .map(|out| disclose_fill(name, &out)),
-            _ => session
-                .fill_text_field(name, value)
-                .map(|out| disclose_fill(name, &out)),
+            _ => session.fill_text_field(name, value).map(|out| {
+                if out.password_value_withheld {
+                    withheld_password_fields.push(name.to_owned());
+                }
+                disclose_fill(name, &out);
+            }),
         };
         if let Err(err) = result {
             return report_edit_error(input, &err);
@@ -1122,7 +1126,77 @@ reserialized={} out_bytes={} undo_verified={} undo_identical={}",
         u32::from(outcome.undo_verified),
         u32::from(outcome.undo_identical),
     );
+    if matches!(mode, SaveMode::Incremental) {
+        disclose_password_history(&source, &withheld_password_fields);
+    }
     finish_edit(input, &outcome)
+}
+
+/// `password-values`: where the file stores password-field values.
+pub(crate) fn cmd_password_values(input: &Path) -> u8 {
+    let bytes = match std::fs::read(input) {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::IO_ERROR;
+        }
+    };
+    let scan =
+        pdfcer_core::password_history::scan_stored_password_values(&bytes, open_document_bytes);
+    let last = scan.revisions.saturating_sub(1);
+    for s in &scan.stored {
+        println!(
+            "stored field={} revision={} latest={}",
+            sanitize_token(&s.field),
+            s.revision,
+            u8::from(s.revision == last)
+        );
+    }
+    let latest = scan.in_latest().count();
+    let superseded = scan.in_superseded().count();
+    println!(
+        "password-values {} revisions={} unreadable_revisions={} latest={latest} superseded={superseded}",
+        input.display(),
+        scan.revisions,
+        scan.unreadable_revisions,
+    );
+    if superseded > 0 {
+        eprintln!(
+            "pdfcer: {superseded} password value(s) are in earlier revisions: a reader does not show them, but the file's bytes still hold them. Only a full rewrite removes an earlier revision."
+        );
+    }
+    if scan.unreadable_revisions > 0 {
+        eprintln!(
+            "pdfcer: {} revision(s) could not be opened on their own, so their fields were not checked.",
+            scan.unreadable_revisions
+        );
+    }
+    0
+}
+
+/// After an incremental fill of a password field, state which of the filled
+/// fields still have a value in the input's revisions: the save appended, so
+/// every one of them is still in the output's bytes.
+fn disclose_password_history(source: &[u8], password_fields: &[String]) {
+    if password_fields.is_empty() {
+        return;
+    }
+    let scan =
+        pdfcer_core::password_history::scan_stored_password_values(source, open_document_bytes);
+    for name in password_fields {
+        let revisions: Vec<String> = scan
+            .stored
+            .iter()
+            .filter(|s| &s.field == name)
+            .map(|s| s.revision.to_string())
+            .collect();
+        if !revisions.is_empty() {
+            eprintln!(
+                "pdfcer: field {name:?}: an earlier value of this password field is still in the file (input revision {}). An incremental save keeps every earlier revision; save with --mode full to drop them.",
+                revisions.join(", ")
+            );
+        }
+    }
 }
 
 /// Print the disclosures a vector surgery owes, to stderr.

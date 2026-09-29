@@ -78,6 +78,9 @@ pub mod offpage;
 pub mod outline;
 pub mod pageops;
 pub mod paper;
+/// Password-field values stored in any of a file's revisions (ISO 32000-1
+/// §12.7.4.3 Table 228 bit 14, §7.5.6).
+pub mod password_history;
 pub mod redact;
 mod redact_image;
 mod redact_vector;

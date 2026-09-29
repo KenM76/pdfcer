@@ -1701,6 +1701,7 @@ pub(crate) fn run() -> ExitCode {
             input,
             reproducible_only,
         } => cmd_list_scripts(&input, reproducible_only),
+        Command::PasswordValues { input } => cmd_password_values(&input),
         Command::FillField {
             input,
             sets,

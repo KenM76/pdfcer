@@ -6826,6 +6826,22 @@ pub(crate) enum Command {
         reproducible_only: bool,
     },
 
+    /// List password fields whose value is stored in the file, in any revision.
+    ///
+    /// ISO 32000 §12.7.4.3 says a password field's value should never be
+    /// stored. An incremental save only appends, so a value stored by an
+    /// earlier revision stays in the file's bytes after a later revision
+    /// removes it; a reader never shows it, but anyone reading the raw file
+    /// can. Read-only: names each field and revision, never the value.
+    ///
+    /// One `stored` line per field and revision, then a summary line.
+    /// `latest=1` means a reader sees the value; `latest=0` means only the
+    /// raw bytes hold it. Exit 0 either way.
+    PasswordValues {
+        /// Input PDF.
+        input: PathBuf,
+    },
+
     /// Fill one or more interactive-form fields and save (Pass 7).
     ///
     /// Each `--set NAME=VALUE` sets a field by fully-qualified name: a text
