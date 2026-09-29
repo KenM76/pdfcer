@@ -115,6 +115,33 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 264.6` (`73a8ba60`), 2026-09-29 — a pasted annotation keeps its own blend mode
+
+Closes the copy-paste residue filed under `Pass 264.1` below (`/BM does not survive
+copy-paste`, guessed as "another `MarkupCarry` field" — the guess was right).
+`MarkupCarry` (`annot_author.rs`, `#[non_exhaustive]`) gains `pub blend_mode:
+Option<Object>` — `/BM` carried verbatim (Table 164 name or the deprecated array
+form); decode keeps only a Name or Array, an unknown key is ignored by older
+readers. Paste writes the carried `/BM` onto the new annotation, overriding
+pdfcer's authored default (`/Multiply` on a highlight) — the file's value wins,
+same rule as restyle/reshape/resize. Folded into the paste's own undo entry
+(coalesced); one paste is still one undo step. CLI reaches this through its
+existing paste caller in `crates/pdfcer-cli/src/objects.rs` — no new subcommand.
+No GUI work.
+
+**Before:** a `/Darken` square pasted with no `/BM`; a `/Darken` highlight
+pasted as `/Multiply`.
+
+**Tests.** `crates/pdfcer-core/tests/blend_mode_preserved.rs` +3
+(`a_paste_keeps_the_files_blend_mode`,
+`a_paste_does_not_retype_a_highlights_own_blend_mode`,
+`undoing_a_paste_removes_the_mark_and_its_blend_mode_together`), file now 10
+tests. Sabotage: removing the paste write fails 2; removing the undo coalesce
+fails 3. Full `tools/run-gates.sh` sweep green (suite timed out only in the
+trailing filing gates, run by hand: all clean). No manifest change, so no
+`cargo tree` change. No `docs/core-api` change (`MarkupCarry` is not documented
+there).
+
 ### `Pass 297.1` (`1315b144`), 2026-09-29 — scan-offpage stops reporting an image whose off-page part is blank
 
 `pdfcer_core::offpage::PageScan` gains `inkless_overhang: usize`. `scan_page`
@@ -21706,14 +21733,12 @@ entry records both**: it said *"all four regeneration routes"* drop `/BM`;
 **resize preserved it** (by accident), and the family is **five** routes once
 copy-paste is counted (`R245`'s shape, fourth dated instance).
 
-**RESIDUE, filed here so it is not lost and deliberately NOT given a Pass ID
-— it needs the operator's or engineer's scoping first.** `/BM` does **not**
-survive **copy-paste**: the clipboard carries `MarkupSpec` + `MarkupCarry`
-(decision `141`) and `/BM` is in neither, so a copied `/Darken` square pasted
-elsewhere gets pdfcer's default. That is the fifth route, and it is the same
-question decision `141` answered for `/CA`/`/Contents`/`/T`/dash — **the
-answer is presumably "another `MarkupCarry` field"**, which is why it is
-recorded as residue rather than re-derived later from scratch.
+**RESIDUE — CLOSED 2026-09-29 (`Pass 264.6`, `73a8ba60`), see *Shipped*.** `/BM`
+did **not** survive **copy-paste**: the clipboard carries `MarkupSpec` +
+`MarkupCarry` (decision `141`) and `/BM` was in neither, so a copied `/Darken`
+square pasted elsewhere got pdfcer's default. The guess recorded here —
+"presumably another `MarkupCarry` field" — was right: `MarkupCarry` gained
+`blend_mode`, applied in the same undo entry as the paste.
 
 ### `Pass 264.2` — ★★★ **SHIPPED 2026-09-27 (`a14e2616`/`d822a562`, 671st filing) — see *Shipped*. Both halves of this entry are now closed**
 

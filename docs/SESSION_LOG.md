@@ -4,6 +4,29 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (761st filing) — `Pass 264.6` (`73a8ba60`): a pasted annotation keeps its own blend mode
+
+**Shipped:**
+- `Pass 264.6` (`73a8ba60`) — closes the copy-paste residue filed under
+  `Pass 264.1` (`/BM does not survive copy-paste`, guessed as "another
+  `MarkupCarry` field" — right). `MarkupCarry` gains `pub blend_mode:
+  Option<Object>`, carried verbatim as `/BM`; paste writes it onto the new
+  annotation, overriding pdfcer's authored default, in the same undo entry
+  as the paste. CLI reaches it through the existing paste caller in
+  `crates/pdfcer-cli/src/objects.rs`; no GUI work.
+
+**Decisions made this session:** None — no decision-log entry for this Pass.
+
+**Findings + decisions:**
+- The 264.1 residue's own guess ("presumably another `MarkupCarry` field")
+  was confirmed correct, unchanged in shape from the four properties
+  (`/CA`, `/Contents`, `/T`, dash) decision `141` already carries the same
+  way.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** No open items from this Pass.
+
 ## 2026-09-29 (760th filing) — `Pass 297.1` (`1315b144`): scan-offpage stops reporting an image whose off-page part is blank
 
 **Shipped:**
