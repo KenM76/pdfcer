@@ -425,10 +425,6 @@ const NOT_IN_PLACE: &[&str] = &[
     "stamp-pack",
     // The input is a text file, not a PDF.
     "place-text",
-    // OUTPUT is positional; `--in-place` rewrites to `--output`.
-    "encrypt",
-    "remove-encryption",
-    "set-permissions",
 ];
 
 #[test]
@@ -516,6 +512,34 @@ fn in_place_refuses_output_and_requires_one_of_them() {
         assert_eq!(
             export.unwrap_err().kind(),
             clap::error::ErrorKind::UnknownArgument
+        );
+    });
+}
+
+#[test]
+fn in_place_fills_a_positional_output() {
+    on_large_stack(|| {
+        let cli = parse_args(&["encrypt", "--in-place", "a.pdf", "--owner-password", "o"]).unwrap();
+        let Command::Encrypt { input, output, .. } = cli.command else {
+            panic!("wrong subcommand");
+        };
+        assert_eq!(output, input);
+        let neither = parse_args(&["encrypt", "a.pdf", "--owner-password", "o"]);
+        assert_eq!(
+            neither.unwrap_err().kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+        let both = parse_args(&[
+            "encrypt",
+            "a.pdf",
+            "b.pdf",
+            "--in-place",
+            "--owner-password",
+            "o",
+        ]);
+        assert_eq!(
+            both.unwrap_err().kind(),
+            clap::error::ErrorKind::ArgumentConflict
         );
     });
 }

@@ -59,6 +59,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "edit-text",
     "edit-widget",
     "embed-font",
+    "encrypt",
     "fill-field",
     "flatten",
     "flatten-annotations",
@@ -103,6 +104,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "redact-apply",
     "redact-mark",
     "reflow",
+    "remove-encryption",
     "regenerate-appearances",
     "rename-bookmark",
     "rename-field",
@@ -127,6 +129,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "set-markup-style",
     "set-object-layer",
     "set-page-size",
+    "set-permissions",
     "set-review-state",
     "set-text-annot-style",
     "sign",
@@ -152,6 +155,9 @@ original untouched. Cannot be combined with --output.";
 ///
 /// If a listed name is not a subcommand, or lacks an `input` or `output`
 /// argument — a programming error the unit tests catch.
+///
+/// A positional `OUTPUT` (`encrypt` and its siblings) becomes optional too;
+/// clap allows that because it is the last positional.
 pub(crate) fn with_in_place(mut root: Command) -> Command {
     for &name in IN_PLACE_COMMANDS {
         root = root.mut_subcommand(name, |sub| {
@@ -185,7 +191,9 @@ pub(crate) fn with_in_place(mut root: Command) -> Command {
 
 /// Parses `args` against `root` (already passed through [`with_in_place`])
 /// and, if `--in-place` was given, returns `args` with that flag replaced by
-/// `--output <INPUT>`; otherwise returns `args` unchanged.
+/// `--output <INPUT>` — or, where `OUTPUT` is positional, drops the flag and
+/// appends `<INPUT>` as the final positional. Otherwise returns `args`
+/// unchanged.
 ///
 /// # Errors
 ///
@@ -214,6 +222,18 @@ pub(crate) fn resolve_in_place(
         .iter()
         .position(|a| a == "--in-place")
         .expect("clap set the flag, so the token is present");
-    args.splice(at..=at, [OsString::from("--output"), input]);
+    let positional = sub_is_positional_output(root, name);
+    if positional {
+        args.remove(at);
+        args.push(input);
+    } else {
+        args.splice(at..=at, [OsString::from("--output"), input]);
+    }
     Ok(args)
+}
+
+fn sub_is_positional_output(root: &Command, name: &str) -> bool {
+    root.find_subcommand(name)
+        .and_then(|sub| sub.get_arguments().find(|a| a.get_id() == "output"))
+        .is_some_and(Arg::is_positional)
 }
