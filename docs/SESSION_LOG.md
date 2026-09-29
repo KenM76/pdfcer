@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (747th filing) — `409eb188`: `Pass 402.0` shipped
+
+**Shipped:**
+- `Pass 402.0` — `R218` audit closed: injection-tested all 34
+  `tools/check-*` file-scanning gates for the founding defect
+  (committed-only input set). None recur it. Four misses found, all a
+  different bug (path scope, not commit scope), all fixed: `check-ci-
+  parity.py` and `check-ci-crate-lists.py` (`.yaml` extension + only
+  `ci.yml` scanned), `check-core-api-verbs.py` (`impl EditSession`
+  outside `edit.rs`), `check-fmt-excluded.py` (scan widened to
+  `crates/`/`vendor/`). Closes the Backlog item filed at the 254th
+  filing.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `check-fmt-excluded.py`'s fix uncovered an independent finding:
+  `cargo fmt --check` exits 1 both for "diffs found" and for "not a
+  workspace member", so a non-member crate directory was read as 0
+  diffs = clean. Written up at
+  `D:\dev\rag\rust\cargo_fmt_check_exit_code_1_is_overloaded_diffs_or_membership_error.md`.
+- Method note: injection test (write a violating file, run the gate as
+  CI does, try staged-not-committed on any miss), not review by
+  inspection — per the Backlog entry's own prescription.
+- Side incident: a Bash heredoc turned `\b` into a literal 0x08 byte
+  while patching `check-core-api-verbs.py`; `check-control-bytes.py`
+  named it, repaired via the Write tool instead.
+- Full per-gate list (11 caught on first injection, 7 exempt by design
+  or history-only) is in the commit message on `409eb188`, not
+  duplicated in the register (Size Rule).
+
+**Still in flight:** Nothing new opened this filing. Unreleased since
+`v0.65.0`: `401.0`, `402.0`.
+
+**For next session:** No follow-on named.
+
 ## 2026-09-29 (746th filing) — `3b4935b9`: `Pass 401.0` shipped
 
 **Shipped:**

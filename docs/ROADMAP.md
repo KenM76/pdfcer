@@ -115,6 +115,42 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 402.0` (`409eb188`), 2026-09-29 — `R218` audit: the other 33 `tools/check-*` scripts
+
+Closes the Backlog item "Audit the other seventeen `tools/check-*` scripts
+against `R218`" (254th filing). Method per the Backlog entry: injection
+test, not review by inspection — a subagent wrote a minimal violating
+uncommitted file for every file-scanning gate among the 34 `tools/check-*`
+scripts, ran each as `tools/run-gates.sh` does, and tried staged-not-
+committed for each miss.
+
+**Verdict: `R218`'s founding defect (committed-only input set) does not
+recur anywhere else.** Every miss found was path *scope*, a different bug
+family, fixed in this Pass:
+
+- `check-ci-parity.py` — only globbed `*.yml`; GitHub also runs `*.yaml`.
+- `check-ci-crate-lists.py` — read `ci.yml` only; now scans every workflow
+  file, both extensions.
+- `check-core-api-verbs.py` — derived verbs from `edit.rs` only; now flags
+  any `impl EditSession` found elsewhere under `crates/`.
+- `check-fmt-excluded.py` — unlisted-crate scan covered `tools/`/`fuzz/`
+  only; now also covers `crates/`/`vendor/`. Injecting there surfaced a
+  **second, independent defect**: `cargo fmt --check` exits 1 both for
+  "diffs found" and for "not a workspace member", so a non-member crate
+  directory read as 0 diffs = clean. Fixed: exit 1 with zero counted diffs
+  is now reported as an error. Full mechanic + fix:
+  `D:\dev\rag\rust\cargo_fmt_check_exit_code_1_is_overloaded_diffs_or_membership_error.md`.
+
+All four re-injected post-fix and confirmed clean on the real tree.
+Everything else caught its injected violation on the first try (11 gates
+named in the commit message) or is exempt by design/history-only (7
+gates, also named there) — full per-gate list and re-injection log in the
+commit message on `409eb188`, not duplicated here.
+
+**Gates.** `tools/run-gates.sh` PASS post-fix.
+
+**`FEATURES.md`: no row changed** — tooling-only, no product capability.
+
 ### `Pass 401.0` (`3b4935b9`), 2026-09-29 — `/EmbeddedFiles` name-tree key ordering: dedicated test
 
 Closes the Backlog gap flagged by `Pass 103.3`'s sabotage battery (194th
@@ -24020,7 +24056,7 @@ reference), and `ubuntu-latest` links no MSVC. Until the sibling exists, a
 Windows `cargo +nightly fuzz build` stays a per-session discipline
 (`ARCHITECTURE.md` §10.2), not a gate.
 
-### Audit the other seventeen `tools/check-*` scripts against `R218` — unscoped, no Pass ID
+### Audit the other seventeen `tools/check-*` scripts against `R218` — unscoped, no Pass ID — **CLOSED 2026-09-29 (`Pass 402.0`, `409eb188`)**: audited all 34, `R218`'s founding defect does not recur; 4 misses were a different bug (path scope), fixed. See *Shipped* above.
 
 **Filed 2026-08-25 (two-hundred-and-fifty-fourth filing)**, owed by the
 `525585e` Shipped entry above, which minted `R218` — *a gate whose input set
