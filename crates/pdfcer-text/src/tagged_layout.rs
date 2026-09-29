@@ -21,6 +21,8 @@
 //!   Inline elements (`Span`, `Link`, `Lbl`, `LBody`, …) inside a block
 //!   are part of it. Grouping elements (`L`, `Div`, `Sect`, `BlockQuote`,
 //!   `TOC`, …) inside a block start fresh blocks for their own content.
+//!   A block element inside a `P`, `H`, `Hn` or `Title` is a block of its
+//!   own; inside an `LI`, `Caption` or `TOCI` it is part of that block.
 //!   Content owned by an element with no block-level ancestor becomes a
 //!   `Paragraph` of its own, counted in
 //!   [`TaggedLayoutReport::non_standard_as_paragraph`] when the element's

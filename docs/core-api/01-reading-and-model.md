@@ -1465,7 +1465,9 @@ match tagged.report.source {
   → level 1; `P`, `TOCI`, `BibEntry`, `FENote` → `Paragraph`; `LI` →
   `ListItem`, marker = its first `Lbl`'s text; `Caption` → `Caption`.
   Inline elements are part of their block; a grouping element inside a
-  block starts fresh blocks.
+  block starts fresh blocks. A block element inside a `P`, `H`, `Hn` or
+  `Title` is its own block (producers nest body `P`s in heading `P`s);
+  inside an `LI`, `Caption` or `TOCI` it stays part of that block.
 - Content under no block-level element becomes a `Paragraph`, counted in
   `report.non_standard_as_paragraph` (its type never reached a standard
   name) or `report.untyped_as_paragraph`.
