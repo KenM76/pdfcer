@@ -115,6 +115,84 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 404.0` (`27e97d92`), 2026-09-29 — fonts pdfcer adds to `/AcroForm` `/DR` are indirect objects
+
+pdfceGUI `G068` (operator `O262`). **Defect:** Acrobat Pro (and Reader) draw
+nothing for a filled text field once focus leaves when the `/DA` font
+resolves to an INLINE `/DR` `/Font` dictionary — indirect shows correctly.
+§12.7.3 Table 224 does not require indirection; Acrobat relies on it anyway.
+Measured by the GUI on single-difference files (M1 inline hidden vs M20
+indirect shown; T2/T8 inline hidden).
+
+**Fix.** `crates/pdfcer-core/src/edit.rs`: `dr_font_objects` (allocating) /
+`planned_dr_font_objects` (side-effect-free, for adopt preview) now create
+each ADDED standard-14 face as a new indirect font object; `ensure_default_
+resources` inserts references. One object per face per document (a present
+face is reused). An author's own `/DR` font is left as found, inline or
+not. Routes: `add_*_field`, `adopt_widget` (+ preview), field paste,
+`edit_field`'s standard-face path.
+
+**Tests.** `crates/pdfcer-core/tests/form_field_authoring.rs`:
+`a_font_pdfcer_adds_to_dr_is_one_indirect_object_per_face` (sabotage-
+verified: fails with the inline shape restored) and
+`an_authors_inline_dr_font_is_left_as_found`.
+
+**core-api.** No `pub` surface change.
+
+**Gates.** `pdfcer-core --test all` 2322 passed / 2 ignored; `pdfcer-core`
+lib 1331; `pdfcer-model` 399+30+25; `pdfcer-cli` 612+29. `cargo fmt --check`
+and `cargo clippy -- -D warnings` clean.
+
+**`FEATURES.md`.** Row "Write a field's `/DA` — font, size and colour, at
+last" gains a sentence — correctness fix to `FieldFont::Standard`'s
+existing authoring, no box changed.
+
+**RAG.** Empirical quirk already on disk at
+`C:\personal_rag\pdf\lesson_20260929_acrobat_hides_text_field_value_when_dr_font_is_inline.md`
+(indexed; covers `Pass 403.0`'s `/XRefStm` finding too, below).
+
+### `Pass 403.0` (`35e77877`), 2026-09-29 — a second save of a hybrid-reference file no longer undoes the first
+
+pdfceGUI `G069`. **Defect:** incremental save of a hybrid-reference file
+forwards `/XRefStm` (§7.5.8.4 form A, required by §7.5.6 requirement 3).
+§7.5.8.4's search order probes a section's `/XRefStm` BEFORE its `/Prev`,
+so on a SECOND save the forwarded stream was consulted before pdfcer's
+first update section: any object the stream lists that save 1 changed and
+save 2 did not touch resolved to its original bytes. On the operator's
+Word file this dropped `/AcroForm` from the catalog or widgets from
+`/Annots`.
+
+**Fix.** `crates/pdfcer-model/src/writer/save.rs`
+`relist_shadowed_by_xref_stm` + `crates/pdfcer-model/src/xref.rs`
+`xref_stream_entries`: the new classic section re-lists, as an xref entry
+only (no object bytes), every object whose entry in the forwarded stream
+differs from the base file's current resolution. The first save of an
+unmodified hybrid stays byte-unchanged. `/XRefStm` is still forwarded.
+
+**Test.** `crates/pdfcer-core/tests/writer_roundtrip.rs`
+`a_second_hybrid_save_keeps_the_first_saves_edit_to_a_stream_listed_object`
+— two real consecutive saves on the synthetic hybrid fixture. Sabotage-
+verified: fails with the re-list call disabled.
+
+**core-api.** No `pub` change. No `Cargo.toml` touched — `cargo tree`
+invariant n/a.
+
+**Gates.** Same run as `Pass 404.0` above (both filed from the same green
+gate run): `pdfcer-core --test all` 2322 passed / 2 ignored; fmt + clippy
+clean.
+
+**Spec RAG note owed.** `iso32000__s__7.5.8.md`'s "Derived analysis" form A
+row ("Does the hidden set survive? Yes…") only considered ONE append;
+`pdfcer-spec-librarian` is correcting it in parallel.
+
+**`FEATURES.md`.** Row "Save incrementally (default) or by full rewrite"
+gains a sentence; no box changed.
+
+**Candidate standing-rule note (not minted here — engineer's call):** *"a
+forwarded `/XRefStm` outranks every older update section — form A is
+correct only if each new section re-lists what the stream would shadow."*
+Flagged for the engineer, not filed as an `R`-rule by this filing.
+
 ### `Pass 402.0` (`409eb188`), 2026-09-29 — `R218` audit: the other 33 `tools/check-*` scripts
 
 Closes the Backlog item "Audit the other seventeen `tools/check-*` scripts

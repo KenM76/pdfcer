@@ -4,6 +4,48 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (748th filing) — `35e77877`/`27e97d92`: `Pass 403.0` + `Pass 404.0` shipped
+
+**Shipped:**
+- `Pass 403.0` (`35e77877`) — a second incremental save of a hybrid-
+  reference file no longer undoes an edit the first save made.
+  §7.5.8.4 form A's forwarded `/XRefStm` is probed before `/Prev`, so on
+  a second save the stream shadowed any object save 1 changed and save 2
+  didn't touch; on the operator's Word file this dropped `/AcroForm` or
+  widgets from `/Annots`. Fixed by re-listing shadowed objects as bare
+  xref entries in the new update section. pdfceGUI `G069`.
+- `Pass 404.0` (`27e97d92`) — fonts pdfcer adds to `/AcroForm` `/DR` are
+  now indirect objects, one per face per document. Acrobat Pro/Reader
+  draw nothing for a filled text field once focus leaves when its `/DA`
+  font resolves to an inline `/DR` `/Font` dictionary; indirect shows
+  correctly. pdfceGUI `G068` (operator `O262`).
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `Pass 403.0`'s fix surfaces a correction owed to the spec RAG:
+  `iso32000__s__7.5.8.md`'s form A "derived analysis" only reasoned about
+  one append; `pdfcer-spec-librarian` is correcting it in parallel.
+- `Pass 403.0`'s pattern flagged as a possible standing-rule candidate
+  ("a forwarded `/XRefStm` outranks every older update section") — NOT
+  minted here; left for the engineer's judgment per the Update protocol
+  (standing rules are the engineer's to mint).
+- `Pass 404.0`'s Acrobat behaviour (inline `/DR` font → blank filled
+  field on focus loss) and `Pass 403.0`'s hybrid `/XRefStm` shadowing were
+  already captured in one combined lesson at
+  `C:\personal_rag\pdf\lesson_20260929_acrobat_hides_text_field_value_when_dr_font_is_inline.md`
+  (indexed in both `pdf/index.md` and the master `personal_rag/index.md`)
+  — no new write needed this filing.
+- Both Passes ship no `pub` API change and no `Cargo.toml` touch —
+  `cargo tree` invariant not applicable to either.
+
+**Still in flight:** Nothing new opened this filing. Unreleased since
+`v0.65.0`: `401.0`, `402.0`, `403.0`, `404.0`.
+
+**For next session:** Consider whether `Pass 403.0`'s finding earns a
+numbered standing rule (candidate wording above); no other follow-on
+named.
+
 ## 2026-09-29 (747th filing) — `409eb188`: `Pass 402.0` shipped
 
 **Shipped:**
