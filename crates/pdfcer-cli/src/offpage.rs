@@ -174,7 +174,7 @@ pub(crate) fn cmd_scan_offpage(
     match output {
         Some(path) => {
             let body = format!("{report}{summary}\n");
-            if let Err(err) = std::fs::write(path, body) {
+            if let Err(err) = write_output(path, body) {
                 eprintln!("pdfcer: {}: {err}", path.display());
                 return exit::IO_ERROR;
             }
@@ -462,7 +462,7 @@ pub(crate) fn cmd_redact_offpage(
                 return exit::EDIT_REFUSED;
             }
         };
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }

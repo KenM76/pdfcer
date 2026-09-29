@@ -262,7 +262,7 @@ pub(crate) fn cmd_export_structure(input: &Path, output: &Path) -> u8 {
             return exit::RUNTIME_ERROR;
         }
     };
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -367,7 +367,7 @@ pub(crate) fn cmd_import_structure(
             return exit::RUNTIME_ERROR;
         }
     };
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }

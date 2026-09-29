@@ -524,7 +524,7 @@ numbered 1..={})",
             return exit::RUNTIME_ERROR;
         }
     };
-    if let Err(err) = std::fs::write(output, &png) {
+    if let Err(err) = write_output(output, &png) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -1656,7 +1656,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                         return exit::RUNTIME_ERROR;
                     }
                 };
-            if let Err(err) = std::fs::write(&path, &export.emf) {
+            if let Err(err) = write_output(&path, &export.emf) {
                 eprintln!("pdfcer: {}: {err}", path.display());
                 return exit::IO_ERROR;
             }
@@ -1702,7 +1702,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                         return exit::RUNTIME_ERROR;
                     }
                 };
-            if let Err(err) = std::fs::write(&path, export.svg.as_bytes()) {
+            if let Err(err) = write_output(&path, export.svg.as_bytes()) {
                 eprintln!("pdfcer: {}: {err}", path.display());
                 return exit::IO_ERROR;
             }
@@ -1853,7 +1853,7 @@ shadings_as_gradients={}",
                 return exit::RUNTIME_ERROR;
             }
         };
-        if let Err(err) = std::fs::write(&path, &bytes) {
+        if let Err(err) = write_output(&path, &bytes) {
             eprintln!("pdfcer: {}: {err}", path.display());
             return exit::IO_ERROR;
         }
@@ -2935,7 +2935,7 @@ pub(crate) fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
                 None => return exit::RUNTIME_ERROR,
             },
         };
-        if let Err(err) = std::fs::write(&path, dxf.as_bytes()) {
+        if let Err(err) = write_output(&path, dxf.as_bytes()) {
             eprintln!("pdfcer: {}: {err}", path.display());
             return exit::IO_ERROR;
         }

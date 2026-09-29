@@ -2160,7 +2160,7 @@ pub(crate) fn cmd_printer_properties(
     report_configuration(&config);
     let saved = match save {
         Some(path) => {
-            if let Err(err) = std::fs::write(path, config.as_bytes()) {
+            if let Err(err) = write_output(path, config.as_bytes()) {
                 eprintln!("pdfcer: {}: {err}", path.display());
                 return exit::IO_ERROR;
             }

@@ -125,7 +125,7 @@ pub(crate) fn cmd_encrypt(args: &EncryptCliArgs<'_>) -> u8 {
         }
     };
 
-    if let Err(err) = std::fs::write(args.output, &bytes) {
+    if let Err(err) = write_output(args.output, &bytes) {
         eprintln!("pdfcer: {}: {err}", args.output.display());
         return exit::IO_ERROR;
     }
@@ -178,7 +178,7 @@ pub(crate) fn cmd_remove_encryption(input: &Path, output: &Path) -> u8 {
             };
         }
     };
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -339,7 +339,7 @@ pub(crate) fn cmd_redact_apply(
             }
         };
 
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }

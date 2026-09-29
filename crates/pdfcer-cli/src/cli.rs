@@ -16,7 +16,9 @@ engine: a scriptable shell over page operations, text and vector editing, \
 forms, annotations, signatures, encryption, redaction, OCR and rendering. \
 Every subcommand listed below works today except the few whose own \
 description says `[not yet implemented]`. Run `pdfcer <COMMAND> --help` for \
-one command's options."
+one command's options. An `--output` may name the input file to edit it in \
+place: every output is written to a temporary file and renamed over the \
+destination, so a write that fails leaves the existing file as it was."
 )]
 pub(crate) struct Cli {
     #[command(subcommand)]
@@ -500,7 +502,7 @@ pub(crate) enum Command {
 
     /// Insert pages from another PDF into a target, producing a new file.
     InsertPages {
-        /// The document being added to. Read, never modified.
+        /// The document being added to. Modified only when `--output` names it.
         input: PathBuf,
         /// The PDF to take pages from.
         #[arg(long)]
@@ -539,7 +541,7 @@ pub(crate) enum Command {
     /// AcroForm JavaScript that pdfcer does not author. `stamp-list` marks
     /// those, and this command says so when it places one.
     PlaceStamp {
-        /// The document being stamped. Read, never modified.
+        /// The document being stamped. Modified only when `--output` names it.
         input: PathBuf,
         /// The stamp collection PDF to take the artwork from.
         #[arg(long)]
@@ -773,7 +775,7 @@ pub(crate) enum Command {
         /// effective rotation rather than an absolute value.
         #[arg(long)]
         relative: bool,
-        /// Output path. The input is never modified.
+        /// Output path. Naming the input replaces it; otherwise the input is not modified.
         #[arg(short, long)]
         output: PathBuf,
         /// Which save path to use.
@@ -825,7 +827,7 @@ pub(crate) enum Command {
         /// with the new sheet.
         #[arg(long, value_enum, default_value_t = CropFollowArg::WhenMatched)]
         crop: CropFollowArg,
-        /// Output path. The input is never modified.
+        /// Output path. Naming the input replaces it; otherwise the input is not modified.
         #[arg(short, long)]
         output: PathBuf,
         /// Which save path to use.
@@ -867,7 +869,7 @@ pub(crate) enum Command {
         /// Show the whole sheet: remove the page's own crop box.
         #[arg(long)]
         reset: bool,
-        /// Output path. The input is never modified.
+        /// Output path. Naming the input replaces it; otherwise the input is not modified.
         #[arg(short, long)]
         output: PathBuf,
         /// Which save path to use.
@@ -913,7 +915,7 @@ pub(crate) enum Command {
         /// stays portrait); `exact` uses it as given.
         #[arg(long, value_enum, default_value_t = ScaleOrientationArg::Match)]
         orientation: ScaleOrientationArg,
-        /// Output path. The input is never modified.
+        /// Output path. Naming the input replaces it; otherwise the input is not modified.
         #[arg(short, long)]
         output: PathBuf,
         /// Which save path to use.
@@ -3405,12 +3407,12 @@ pub(crate) enum Command {
     /// stderr. The `ocrs` engine reports **no per-word confidence at all**,
     /// and that is stated rather than presented as a clean bill of health.
     Ocr {
-        /// The PDF to read. Never modified.
+        /// The PDF to read. Modified only by `--in-place` or an `--output` naming it.
         input: PathBuf,
         /// 1-based page number to recognise.
         #[arg(long, default_value_t = 1)]
         page: u32,
-        /// Where to write the result. The input is left untouched.
+        /// Where to write the result. The input is left untouched unless this names it.
         ///
         /// Mutually exclusive with `--in-place`, and exactly one of the two
         /// is required.

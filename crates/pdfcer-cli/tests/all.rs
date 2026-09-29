@@ -50,6 +50,7 @@ mod move_annotation;
 mod object_clip_replies;
 mod object_list;
 mod ocr_engine;
+mod output_in_place;
 mod password_values;
 mod pin_span;
 mod recovery_names_what_it_dropped;

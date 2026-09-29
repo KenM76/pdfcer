@@ -308,7 +308,7 @@ pub(crate) fn cmd_sign(args: &SignArgs<'_>) -> u8 {
             };
         }
     };
-    if let Err(err) = std::fs::write(args.output, &bytes) {
+    if let Err(err) = write_output(args.output, &bytes) {
         eprintln!("pdfcer: {}: {err}", args.output.display());
         return exit::IO_ERROR;
     }

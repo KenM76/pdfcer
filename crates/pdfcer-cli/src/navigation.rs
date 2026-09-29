@@ -1923,7 +1923,7 @@ pub(crate) fn cmd_bookmark_copy(args: &BookmarkCopyArgs<'_>) -> u8 {
         }
     };
     let bytes = clip.to_bytes();
-    if let Err(err) = std::fs::write(args.clip, &bytes) {
+    if let Err(err) = write_output(args.clip, &bytes) {
         eprintln!("pdfcer: {}: {err}", args.clip.display());
         return exit::IO_ERROR;
     }

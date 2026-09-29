@@ -645,7 +645,7 @@ pub(crate) fn cmd_ocr(
         }
         match dump.encode_png() {
             Ok(png) => {
-                if let Err(err) = std::fs::write(path, &png) {
+                if let Err(err) = write_output(path, &png) {
                     eprintln!("pdfcer: {}: {err}", path.display());
                     return exit::IO_ERROR;
                 }
@@ -749,7 +749,7 @@ pub(crate) fn cmd_ocr(
             }
         }
     };
-    if let Err(err) = std::fs::write(destination, &bytes) {
+    if let Err(err) = write_output(destination, &bytes) {
         eprintln!("pdfcer: {}: {err}", destination.display());
         return exit::IO_ERROR;
     }

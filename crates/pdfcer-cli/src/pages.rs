@@ -41,7 +41,7 @@ pub(crate) fn cmd_extract_pages(input: &Path, pages: &str, output: &Path) -> u8 
             Ok(pair) => pair,
             Err(err) => return report_page_op_error(&err),
         };
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -105,7 +105,7 @@ pub(crate) fn cmd_merge(inputs: &[PathBuf], output: &Path, bookmarks: bool) -> u
         Ok(pair) => pair,
         Err(err) => return report_page_op_error(&err),
     };
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -174,7 +174,7 @@ pub(crate) fn cmd_insert_pages(
             Ok(pair) => pair,
             Err(err) => return report_page_op_error(&err),
         };
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -272,7 +272,7 @@ pass --force to overwrite.",
     let mut bytes_written = 0usize;
     for (part, bytes, report) in &parts {
         let path = out_dir.join(&part.name);
-        if let Err(err) = std::fs::write(&path, bytes) {
+        if let Err(err) = write_output(&path, bytes) {
             eprintln!("pdfcer: {}: {err}", path.display());
             return exit::IO_ERROR;
         }
@@ -603,7 +603,7 @@ pub(crate) fn cmd_page_copy(args: &PageCopyArgs<'_>) -> u8 {
         }
     };
 
-    if let Err(err) = std::fs::write(args.clip, clip.to_bytes()) {
+    if let Err(err) = write_output(args.clip, clip.to_bytes()) {
         eprintln!("pdfcer: {}: {err}", args.clip.display());
         return exit::IO_ERROR;
     }

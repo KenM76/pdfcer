@@ -459,7 +459,7 @@ pub(crate) fn cmd_stamp_pack(
             return exit::RUNTIME_ERROR;
         }
     };
-    if let Err(err) = std::fs::write(output, bytes) {
+    if let Err(err) = write_output(output, bytes) {
         eprintln!("pdfcer: stamp-pack: {}: {err}", output.display());
         return exit::RUNTIME_ERROR;
     }

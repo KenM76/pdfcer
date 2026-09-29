@@ -1209,7 +1209,7 @@ invalidates every signature; pass --invalidate-signatures to do it anyway.",
                 return exit::SAVE_REFUSED;
             }
         };
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -1505,7 +1505,7 @@ pub(crate) fn cmd_export_data(input: &Path, output: &Path, format: DataFormat) -
             input.display()
         );
     }
-    if let Err(err) = std::fs::write(output, &bytes) {
+    if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }

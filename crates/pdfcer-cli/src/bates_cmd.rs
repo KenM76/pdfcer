@@ -126,7 +126,7 @@ pub(crate) fn cmd_bates_stamp(args: &BatesArgs<'_>) -> u8 {
         return exit::IO_ERROR;
     }
     for file in &done {
-        if let Err(err) = std::fs::write(&file.output, &file.bytes) {
+        if let Err(err) = write_output(&file.output, &file.bytes) {
             eprintln!("pdfcer: {}: {err}", file.output.display());
             return exit::IO_ERROR;
         }
@@ -208,7 +208,7 @@ pub(crate) fn cmd_bates_remove(inputs: &[PathBuf], out_dir: &Path, pages: &str) 
         return exit::IO_ERROR;
     }
     for (input, output, bytes, removal, impact) in &done {
-        if let Err(err) = std::fs::write(output, bytes) {
+        if let Err(err) = write_output(output, bytes) {
             eprintln!("pdfcer: {}: {err}", output.display());
             return exit::IO_ERROR;
         }

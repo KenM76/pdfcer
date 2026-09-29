@@ -103,7 +103,7 @@ pub(crate) fn cmd_extract_text(
     // Deliver the payload.
     match output {
         Some(path) => {
-            if let Err(err) = std::fs::write(path, payload.as_bytes()) {
+            if let Err(err) = write_output(path, payload.as_bytes()) {
                 eprintln!("pdfcer: {}: {err}", path.display());
                 return exit::IO_ERROR;
             }
@@ -1761,7 +1761,7 @@ pub(crate) fn cmd_extract_tags(input: &Path, output: Option<&Path>, json: bool) 
     };
     match output {
         Some(path) => {
-            if let Err(err) = std::fs::write(path, payload.as_bytes()) {
+            if let Err(err) = write_output(path, payload.as_bytes()) {
                 eprintln!("pdfcer: {}: {err}", path.display());
                 return exit::IO_ERROR;
             }
@@ -1830,7 +1830,7 @@ pub(crate) fn cmd_extract_layout(input: &Path, output: Option<&Path>, json: bool
     };
     match output {
         Some(path) => {
-            if let Err(err) = std::fs::write(path, payload.as_bytes()) {
+            if let Err(err) = write_output(path, payload.as_bytes()) {
                 eprintln!("pdfcer: {}: {err}", path.display());
                 return exit::IO_ERROR;
             }
@@ -2056,7 +2056,7 @@ pub(crate) fn cmd_extract_tables(
     };
     match output {
         Some(path) => {
-            if let Err(err) = std::fs::write(path, payload.as_bytes()) {
+            if let Err(err) = write_output(path, payload.as_bytes()) {
                 eprintln!("pdfcer: {}: {err}", path.display());
                 return exit::IO_ERROR;
             }
@@ -2278,7 +2278,7 @@ pub(crate) fn cmd_export_docx(
             return exit::RUNTIME_ERROR;
         }
     };
-    if let Err(err) = std::fs::write(output, &out.bytes) {
+    if let Err(err) = write_output(output, &out.bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -2403,7 +2403,7 @@ pub(crate) fn cmd_export_xlsx(
             return exit::RUNTIME_ERROR;
         }
     };
-    if let Err(err) = std::fs::write(output, &out.bytes) {
+    if let Err(err) = write_output(output, &out.bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -2460,7 +2460,7 @@ pub(crate) fn cmd_export_ods(
             return exit::RUNTIME_ERROR;
         }
     };
-    if let Err(err) = std::fs::write(output, &out.bytes) {
+    if let Err(err) = write_output(output, &out.bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }

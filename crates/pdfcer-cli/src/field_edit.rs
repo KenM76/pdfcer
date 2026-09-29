@@ -2796,7 +2796,7 @@ pub(crate) fn cmd_copy_field(args: &CopyFieldArgs<'_>) -> u8 {
     };
 
     let bytes = clip.to_bytes();
-    if let Err(err) = std::fs::write(args.output, &bytes) {
+    if let Err(err) = write_output(args.output, &bytes) {
         eprintln!("pdfcer: {}: {err}", args.output.display());
         return exit::IO_ERROR;
     }

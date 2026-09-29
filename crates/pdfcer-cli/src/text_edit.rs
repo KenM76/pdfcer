@@ -153,7 +153,7 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         }
     };
 
-    if let Err(err) = std::fs::write(args.output, &outcome.bytes) {
+    if let Err(err) = write_output(args.output, &outcome.bytes) {
         eprintln!("pdfcer: {}: {err}", args.output.display());
         return exit::IO_ERROR;
     }
@@ -542,7 +542,7 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
                 return add_text_exit(&err);
             }
         };
-        if let Err(err) = std::fs::write(args.output, &outcome.bytes) {
+        if let Err(err) = write_output(args.output, &outcome.bytes) {
             eprintln!("pdfcer: {}: {err}", args.output.display());
             return exit::IO_ERROR;
         }
@@ -1129,7 +1129,7 @@ pub(crate) fn cmd_reflow(
         }
     };
 
-    if let Err(err) = std::fs::write(output, &outcome.bytes) {
+    if let Err(err) = write_output(output, &outcome.bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
@@ -1656,7 +1656,7 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
         }
     };
 
-    if let Err(err) = std::fs::write(args.output, &outcome.bytes) {
+    if let Err(err) = write_output(args.output, &outcome.bytes) {
         eprintln!("pdfcer: {}: {err}", args.output.display());
         return exit::IO_ERROR;
     }

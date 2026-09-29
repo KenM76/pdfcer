@@ -1070,7 +1070,7 @@ pub(crate) fn cmd_extract_attachment(
     };
     match pdfcer_core::attachments::extract_attachment(&view, found) {
         Ok(extracted) => {
-            if let Err(err) = std::fs::write(output, &extracted.data) {
+            if let Err(err) = write_output(output, &extracted.data) {
                 eprintln!("pdfcer: {}: {err}", output.display());
                 return exit::IO_ERROR;
             }
@@ -1793,7 +1793,7 @@ pub(crate) fn finish_attachment_save(
             return exit::SAVE_REFUSED;
         }
     };
-    if let Err(err) = std::fs::write(out, &bytes) {
+    if let Err(err) = write_output(out, &bytes) {
         eprintln!("pdfcer: {}: {err}", out.display());
         return exit::IO_ERROR;
     }

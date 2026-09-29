@@ -1239,7 +1239,7 @@ pub(crate) fn cmd_object_copy(args: &ObjectCopyArgs<'_>) -> u8 {
         }
     };
     let payload = clip.to_bytes();
-    if let Err(err) = std::fs::write(clip_path, &payload) {
+    if let Err(err) = write_output(clip_path, &payload) {
         eprintln!("pdfcer: {}: {err}", clip_path.display());
         return exit::IO_ERROR;
     }
@@ -1255,7 +1255,7 @@ pub(crate) fn cmd_object_copy(args: &ObjectCopyArgs<'_>) -> u8 {
                 exported.size.0, exported.size.1
             );
         }
-        if let Err(err) = std::fs::write(path, &exported.bytes) {
+        if let Err(err) = write_output(path, &exported.bytes) {
             eprintln!("pdfcer: {}: {err}", path.display());
             return exit::IO_ERROR;
         }

@@ -104,7 +104,7 @@ pub(crate) fn cmd_round_trip(
     };
 
     if let Some(path) = output
-        && let Err(err) = std::fs::write(path, &bytes)
+        && let Err(err) = write_output(path, &bytes)
     {
         eprintln!("pdfcer: {}: {err}", path.display());
         return exit::IO_ERROR;
@@ -554,7 +554,7 @@ pub(crate) fn save_edited(
         exit::SAVE_REFUSED
     })?;
 
-    std::fs::write(output, &bytes).map_err(|err| {
+    write_output(output, &bytes).map_err(|err| {
         eprintln!("pdfcer: {}: {err}", output.display());
         exit::IO_ERROR
     })?;
@@ -670,4 +670,39 @@ pub(crate) fn report_edit_error(input: &Path, err: &pdfcer_core::edit::EditError
         EditError::PageTree(_) => exit::RUNTIME_ERROR,
         _ => exit::EDIT_REFUSED,
     }
+}
+
+/// Writes `bytes` to `path` through a sibling temporary file renamed over it.
+///
+/// Every file the CLI produces goes through here, so an output may name the
+/// command's own input (`pdfcer rotate --degrees 90 -o a.pdf a.pdf`): the input
+/// is read whole before anything is written, and a write that fails part-way
+/// (disk full, a locked destination) leaves the existing file as it was instead
+/// of truncated. The temporary file is removed on failure. The rename replaces
+/// a symbolic link rather than writing through it, and the new file takes the
+/// directory's default permissions.
+pub(crate) fn write_output(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) -> std::io::Result<()> {
+    use std::io::Write;
+    let path = path.as_ref();
+    let Some(name) = path.file_name() else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the output path names no file",
+        ));
+    };
+    let mut temp_name = std::ffi::OsString::from(".");
+    temp_name.push(name);
+    temp_name.push(format!(".pdfcer-{}.tmp", std::process::id()));
+    let temp = path.with_file_name(temp_name);
+    let written = (|| {
+        let mut file = std::fs::File::create(&temp)?;
+        file.write_all(bytes.as_ref())?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&temp, path)
+    })();
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    written
 }
