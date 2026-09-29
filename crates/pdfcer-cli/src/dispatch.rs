@@ -1754,6 +1754,12 @@ pub(crate) fn run() -> ExitCode {
             output,
             invalidate_signatures,
         } => cmd_purge_password_values(&input, &output, invalidate_signatures),
+        Command::PromoteDrFonts {
+            input,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_promote_dr_fonts(&input, &output, mode, verify_undo),
         Command::FillField {
             input,
             sets,

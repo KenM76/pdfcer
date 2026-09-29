@@ -99,6 +99,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "page-paste",
     "paste-field",
     "place-stamp",
+    "promote-dr-fonts",
     "purge-password-values",
     "recompute",
     "redact-apply",

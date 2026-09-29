@@ -7012,6 +7012,32 @@ pub(crate) enum Command {
         invalidate_signatures: bool,
     },
 
+    /// Make a form's shared field fonts separate objects, so Acrobat shows
+    /// the fields' values.
+    ///
+    /// Acrobat Reader draws nothing for a filled text field whose font is
+    /// stored inside the form's shared font list rather than as an object of
+    /// its own. This moves each such font out into its own object and points
+    /// the list at it. Nothing else changes: every field keeps its font, and
+    /// the text looks the same everywhere else. Forms whose fonts are already
+    /// separate objects are written unchanged.
+    ///
+    /// Prints `promote-dr-fonts <in> -> <out> promoted=<n>`.
+    PromoteDrFonts {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output PDF.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the change reproduces the input file
+        /// byte for byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+
     /// Fill one or more interactive-form fields and save (Pass 7).
     ///
     /// Each `--set NAME=VALUE` sets a field by fully-qualified name: a text

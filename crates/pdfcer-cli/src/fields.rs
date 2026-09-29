@@ -862,6 +862,40 @@ the signature, and removing it would destroy it.",
     finish_edit(input, &outcome)
 }
 
+/// `promote-dr-fonts`: `EditSession::promote_inline_dr_fonts`, then save.
+pub(crate) fn cmd_promote_dr_fonts(
+    input: &Path,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let promoted = match session.promote_inline_dr_fonts() {
+        Ok(n) => n,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    println!(
+        "promote-dr-fonts {} -> {} promoted={promoted}",
+        input.display(),
+        output.display()
+    );
+    finish_edit(input, &outcome)
+}
+
 /// `list-scripts`: classify every form-field script.
 ///
 /// # Why this exists as its own subcommand rather than more columns on

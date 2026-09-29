@@ -54,6 +54,7 @@ mod ocr_engine;
 mod output_in_place;
 mod password_values;
 mod pin_span;
+mod promote_dr_fonts;
 mod recovery_names_what_it_dropped;
 mod reflow;
 mod refusal_names_a_font;

@@ -1656,3 +1656,108 @@ fn an_authors_inline_dr_font_is_left_as_found() {
         .unwrap();
     assert_eq!(dr_fonts(&s).get(b"Helv").cloned(), before);
 }
+
+/// `promote_inline_dr_fonts` turns an inline `/DR /Font` entry into a
+/// reference to an object holding the same dictionary, is one undo step, and
+/// is a no-op once nothing inline is left.
+#[test]
+fn promote_inline_dr_fonts_makes_an_inline_font_indirect() {
+    let mut s = session("forms/demo-form.pdf");
+    let Some(Object::Dict(before)) = dr_fonts(&s).get(b"Helv").cloned() else {
+        panic!("setup: fixture's /Helv is inline");
+    };
+    let depth = s.undo_depth();
+    assert_eq!(s.promote_inline_dr_fonts().unwrap(), 1);
+    let Some(Object::Reference(id)) = dr_fonts(&s).get(b"Helv").cloned() else {
+        panic!("/Helv was not made indirect");
+    };
+    assert_eq!(s.graph().resolved(id).as_dict(), Some(&before));
+    assert_eq!(s.undo_depth(), depth + 1);
+
+    assert_eq!(s.promote_inline_dr_fonts().unwrap(), 0);
+    assert_eq!(s.undo_depth(), depth + 1, "nothing inline commits nothing");
+
+    let (saved, _) = s
+        .to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .unwrap();
+    let reopened = EditSession::new(Document::from_bytes(saved).unwrap());
+    assert!(matches!(
+        dr_fonts(&reopened).get(b"Helv"),
+        Some(Object::Reference(_))
+    ));
+
+    s.undo();
+    assert_eq!(dr_fonts(&s).get(b"Helv"), Some(&Object::Dict(before)));
+}
+
+/// With `/AcroForm`, `/DR` and `/DR /Font` all indirect, only the font
+/// dictionary object and the new font object are written; an entry that is
+/// already a reference keeps its target.
+#[test]
+fn promote_inline_dr_fonts_writes_only_the_object_holding_the_fonts() {
+    let helv = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_vec();
+    let mut font5 = b"<< /Helv ".to_vec();
+    font5.extend_from_slice(&helv);
+    font5.extend_from_slice(b" /TiRo 6 0 R >>");
+    let base = assemble_pdf(&[
+        (
+            1,
+            b"<< /Type /Catalog /Pages 2 0 R /AcroForm 3 0 R >>".to_vec(),
+        ),
+        (2, b"<< /Type /Pages /Kids [7 0 R] /Count 1 >>".to_vec()),
+        (
+            3,
+            b"<< /Fields [] /DA (/Helv 0 Tf 0 g) /DR 4 0 R >>".to_vec(),
+        ),
+        (4, b"<< /Font 5 0 R >>".to_vec()),
+        (5, font5),
+        (
+            6,
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>".to_vec(),
+        ),
+        (
+            7,
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>".to_vec(),
+        ),
+    ]);
+    let mut s = EditSession::new(Document::from_bytes(base.clone()).unwrap());
+    assert_eq!(s.promote_inline_dr_fonts().unwrap(), 1);
+    let fonts = dr_fonts(&s);
+    assert_eq!(
+        fonts.get(b"TiRo"),
+        Some(&Object::Reference(pdfcer_core::object::ObjId::new(6, 0)))
+    );
+    let Some(Object::Reference(new)) = fonts.get(b"Helv").cloned() else {
+        panic!("/Helv was not made indirect");
+    };
+
+    let (saved, _) = s
+        .to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .unwrap();
+    let appended = format!("\n{}", String::from_utf8_lossy(&saved[base.len()..]));
+    let written: Vec<u32> = (1..=new.num)
+        .filter(|n| appended.contains(&format!("\n{n} 0 obj")))
+        .collect();
+    assert_eq!(written, vec![5, new.num], "{appended}");
+}
+
+fn assemble_pdf(objs: &[(u32, Vec<u8>)]) -> Vec<u8> {
+    let mut out: Vec<u8> = b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n".to_vec();
+    let mut offsets: Vec<(u32, usize)> = Vec::new();
+    for (num, body) in objs {
+        offsets.push((*num, out.len()));
+        out.extend_from_slice(format!("{num} 0 obj\n").as_bytes());
+        out.extend_from_slice(body);
+        out.extend_from_slice(b"\nendobj\n");
+    }
+    let xref_at = out.len();
+    let top = objs.len() as u32 + 1;
+    out.extend_from_slice(format!("xref\n0 {top}\n0000000000 65535 f \n").as_bytes());
+    for (_, at) in &offsets {
+        out.extend_from_slice(format!("{at:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!("trailer\n<< /Size {top} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n").as_bytes(),
+    );
+    out
+}

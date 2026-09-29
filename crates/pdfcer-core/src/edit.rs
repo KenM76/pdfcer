@@ -623,6 +623,9 @@ pub enum CommandKind {
     ResetForm,
     /// [`EditSession::purge_password_values`] — §12.7.4.3 Table 228 bit 14.
     PurgePasswordValues,
+    /// [`EditSession::promote_inline_dr_fonts`] moved inline `/AcroForm /DR
+    /// /Font` entries into indirect objects.
+    PromoteInlineDrFonts,
     /// A push button's `/A` action was set, replaced or removed
     /// (`Pass 182.0`). ONE undoable command. See
     /// [`EditSession::set_button_action`].
@@ -42926,6 +42929,102 @@ impl EditSession {
             trailer: None,
         });
         Ok(out)
+    }
+
+    /// Move every inline font dictionary in `/AcroForm /DR /Font` into its
+    /// own indirect object and point the entry at it. Returns how many moved.
+    ///
+    /// Acrobat draws nothing for a filled text field whose `/DA` font resolves
+    /// to an inline `/DR` dictionary (pdfceGUI G068, measured), although
+    /// §12.7.3 Table 224 permits one. Fields pdfcer authors get indirect fonts
+    /// already; this repairs a form saved before that, or by another producer.
+    ///
+    /// Only the promoted entries change: each key keeps its name, and each new
+    /// object holds exactly the dictionary the entry held, so every `/DA`
+    /// resolves to the same font. Entries that are already references are left
+    /// alone. The write lands on whichever object holds `/DR /Font` (the font
+    /// dictionary itself when indirect, else `/DR`, the `/AcroForm` or the
+    /// catalog). ONE undoable command; nothing inline commits nothing and
+    /// returns 0.
+    ///
+    /// # Errors
+    ///
+    /// The fill guards: [`EditError::DocumentEncrypted`], an enforced
+    /// certification, [`EditError::ObjectCreationWouldExposeHiddenObjects`];
+    /// plus [`EditError::ObjectNumbersExhausted`] and
+    /// [`EditError::NotADictionary`] (a catalog or `/AcroForm` that is not a
+    /// dictionary).
+    pub fn promote_inline_dr_fonts(&mut self) -> Result<usize, EditError> {
+        self.fill_guards()?;
+        let inline: Vec<(Vec<u8>, Dict)> = {
+            let g = self.graph();
+            let fonts = g
+                .trailer_entry(b"Root")
+                .map(|o| g.resolve(o))
+                .and_then(Object::as_dict)
+                .and_then(|root| root.get(b"AcroForm"))
+                .map(|o| g.resolve(o))
+                .and_then(Object::as_dict)
+                .and_then(|af| af.get(b"DR"))
+                .map(|o| g.resolve(o))
+                .and_then(Object::as_dict)
+                .and_then(|dr| dr.get(b"Font"))
+                .map(|o| g.resolve(o))
+                .and_then(Object::as_dict);
+            fonts
+                .map(|f| {
+                    f.0.iter()
+                        .filter_map(|(k, v)| match v {
+                            Object::Dict(d) => Some((k.as_bytes().to_vec(), d.clone())),
+                            _ => None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        if inline.is_empty() {
+            return Ok(0);
+        }
+        // Plan the ids first, consume them only once the writes are built.
+        let mut next = self.next_number;
+        let mut promoted: Vec<(Vec<u8>, ObjId)> = Vec::new();
+        let mut objects: Vec<ObjectWrite> = Vec::new();
+        for (key, dict) in inline {
+            let num = next.ok_or(EditError::ObjectNumbersExhausted)?;
+            next = num.checked_add(1);
+            let id = ObjId::new(num, 0);
+            objects.push(ObjectWrite {
+                id,
+                before: None,
+                after: Some(Object::Dict(dict)),
+            });
+            promoted.push((key, id));
+        }
+        let holder_writes = self.acroform_write(&mut |af| {
+            let Some(Object::Dict(mut dr)) = af.get(b"DR").cloned() else {
+                return;
+            };
+            let Some(Object::Dict(mut fonts)) = dr.get(b"Font").cloned() else {
+                return;
+            };
+            for (key, id) in &promoted {
+                fonts.insert(Name::from(key.as_slice()), Object::Reference(*id));
+            }
+            dr.insert(Name::from(b"Font"), Object::Dict(fonts));
+            af.insert(Name::from(b"DR"), Object::Dict(dr));
+        })?;
+        objects.extend(holder_writes);
+        for _ in &promoted {
+            self.alloc_number()?;
+        }
+        let count = promoted.len();
+        self.commit(Command {
+            kind: CommandKind::PromoteInlineDrFonts,
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(count)
     }
 
     /// Every object id a widget's `/AP` names: the `/AP` dict itself when

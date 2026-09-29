@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 284 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 285 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 284 public `EditSession` methods
+## 1. Verb index — all 285 public `EditSession` methods
 
-**Count: 284.** Established by brace-matched extraction of the six
+**Count: 285.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -1746,6 +1746,7 @@ would alter how every pdfcer-authored check box already in the wild renders.
 | Fill a password field, storing the value | `fill_text_field_storing_password(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | As `fill_text_field`, but writes the plaintext `/V`. Appearance still masked. For forms whose saved file must carry the password. |
 | Find password values left in earlier revisions | free fn `password_history::scan_stored_password_values(bytes, open) -> PasswordValueScan` | Not on `EditSession`: reads the file's raw bytes, opening each `%%EOF`-delimited prefix with `open` (pass the same password/options as for the whole file). Returns `revisions`, `unreadable_revisions` (a prefix that does not open — e.g. a linearized first-page section — is counted, not guessed) and `stored: Vec<StoredPasswordValue { field, revision }>`; `in_latest()` / `in_superseded()` split it. An incremental save cannot remove a superseded value (§7.5.6); a shell should say so when it saves incrementally after `password_value_withheld`. Never returns the value. |
 | Remove stored password values | `purge_password_values(&mut self) -> Result<PasswordPurgeOutcome, EditError>` | §12.7.4.3 Table 228 bit 14. For each Password text field whose OWN dict holds a non-empty `/V`: removes `/V`, redraws every widget appearance empty, and removes superseded appearance objects no live object still references. ONE undoable command; nothing to purge commits nothing. `PasswordPurgeOutcome { fields_purged, read_only_purged, inherited_not_removed, appearance_objects_removed, layout }` (`#[non_exhaustive]`, `changed()`): read-only fields ARE purged and named; a value inherited from an ancestor's `/V` (§12.7.3.1) is NOT removed (the ancestor may carry other values) and is named. Cleans the session only — save with `to_full_bytes_decomposing_containers`, then re-check the bytes with `scan_stored_password_values`. Errors: the fill guards (certification/encryption). |
+| Make inline `/DR` fonts indirect | `promote_inline_dr_fonts(&mut self) -> Result<usize, EditError>` | Moves each inline dictionary in `/AcroForm /DR /Font` into a new indirect object and points the key at it; returns how many moved. Acrobat draws nothing for a filled text field whose `/DA` font is an inline `/DR` dictionary (G068); this repairs forms saved before pdfcer made its own `/DR` fonts indirect, or by another producer. Keys, font dictionaries and every `/DA` resolution are unchanged, so rendering is unchanged; the only other visible effect is the incremental revision itself (one new object per font, plus a rewrite of whichever object holds `/DR /Font`), which a signature viewer reports like any post-signing change. Entries already indirect are left alone. ONE undoable command (`CommandKind::PromoteInlineDrFonts`); nothing inline commits nothing and returns 0. Errors: the fill guards (encryption, enforced certification, hidden objects), `ObjectNumbersExhausted`. CLI: `promote-dr-fonts`. |
 | Fill a rich-text field, downgrading it | `fill_text_field_downgrading_rich_text(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | **Lossy and deliberate** — clears `/Ff` bit 26, deletes `/RV`. |
 | Select a check box / radio state | `set_button_state(&mut self, fqn, on_state) -> Result<(), EditError>` | Sets `/V` + every widget `/AS`. No regeneration. |
 | Preview a form reset | `reset_preview(&self, only: Option<&[String]>) -> Vec<ResetPreviewRow>` | Rows for **every** field in scope, including ineligible and already-at-default ones. Filtering is the shell's job. |
