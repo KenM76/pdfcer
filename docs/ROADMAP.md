@@ -172,6 +172,20 @@ drive layout from a tagged PDF's structure tree; `core [x]` `cli [x]`
 `gui [ ]` — `pdfceGUI` has not consumed it yet, a `G066` reply is pending
 on that channel; do not round the `gui` box up.
 
+**Also filed this session.** Chore commit `73065457` ("chore: v0.64.0",
+`Cargo.toml` 0.63.0 → 0.64.0 plus `Cargo.lock`/`fuzz/Cargo.lock`) —
+recorded so `check-commits-filed.py` sees it filed. **Release in
+progress**: v0.64.0 will batch every Pass shipped since `v0.63.0`
+(`415a5b11`) — `390.0` (text matrix carried in f64, `f4a20856`), `391.0`
+(`/AP` `/N` overwrite guard covers page-content aliasing, `afdc6797`),
+`392.0` (`nonseparable_composited` counts group composites, `e9ab98ae`),
+`393.0` (mesh shadings deposit spot colorants, `b96be7e7`), `394.0` (grey
+image `/OP` on/off pair pinned over a spot, `3d10717d`), and `395.0` (this
+entry, `5c350a53`) — all already filed above. OneDrive slot `pdfcer1`
+next (`v0.63.0` went to `pdfcer2`). Tag, GitHub release, OneDrive deploy
+and smoke test not yet done; not yet confirmed from here — full release
+filing to follow once tag/deploy details are relayed.
+
 **Sourcing (hard rule 8).** No shell this filing — commit hash, test
 counts and gate result relayed from the dispatching engineer's own report,
 not independently reproduced.
