@@ -15096,6 +15096,7 @@ impl EditSession {
                     opacity: annot.constant_alpha,
                     contents: annot.contents.clone(),
                     author: annot.title.clone(),
+                    blend_mode: dict.get(b"BM").map(|o| self.graph().resolve(o).clone()),
                 };
                 Ok(crate::vector::ClipAnnotation::Markup(
                     Box::new(spec),
@@ -15103,6 +15104,33 @@ impl EditSession {
                 ))
             }
             Err(_) => self.clip_raw_annotation(annot, id, &dict),
+        }
+    }
+
+    /// Write a carried `/BM` onto an annotation [`Self::add_markup_with`]
+    /// just authored, folded into that one undo entry.
+    fn carry_blend_mode(&mut self, id: ObjId, bm: &Object) {
+        let Some(Object::Dict(current)) = self.value(id) else {
+            return;
+        };
+        if current.get(b"BM") == Some(bm) {
+            return;
+        }
+        let mut updated = current.clone();
+        updated.insert(Name::from(b"BM"), bm.clone());
+        let kind = self.undo.last().map(|c| c.kind);
+        self.commit(Command {
+            kind: CommandKind::PasteObjects,
+            objects: vec![ObjectWrite {
+                id,
+                before: self.state.get(&id).cloned(),
+                after: Some(Object::Dict(updated)),
+            }],
+            removals: Vec::new(),
+            trailer: None,
+        });
+        if let Some(kind) = kind {
+            self.coalesce_last(2, kind);
         }
     }
 
@@ -15387,7 +15415,10 @@ impl EditSession {
                         note,
                         layer: None,
                     };
-                    self.add_markup_with(page_index, &moved.0, &opts)?;
+                    let id = self.add_markup_with(page_index, &moved.0, &opts)?;
+                    if let Some(bm) = &carry.blend_mode {
+                        self.carry_blend_mode(id, bm);
+                    }
                     placed += 1;
                 }
                 ClipAnnotation::Dimension {

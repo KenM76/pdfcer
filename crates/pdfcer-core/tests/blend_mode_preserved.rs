@@ -294,3 +294,55 @@ fn a_new_highlight_still_gets_multiply() {
     s.set_markup_style(id, &style).expect("restyle");
     assert_eq!(blend_mode(&s, id).as_deref(), Some("Multiply"));
 }
+
+/// Copy the fixture's one annotation and paste it offset; the pasted id.
+fn copy_paste_first(s: &mut EditSession) -> ObjId {
+    let clip = s.copy_annotations(0, &[0]).expect("copy");
+    let depth = s.undo_depth();
+    s.paste_objects(0, &clip, pdfcer_core::vector::Matrix::translate(50.0, 0.0))
+        .expect("paste");
+    assert_eq!(
+        s.undo_depth(),
+        depth + 1,
+        "carrying the blend mode must not cost the paste a second undo step"
+    );
+    page_annotations(&s.graph(), s.page_slots().expect("slots")[0].id)
+        .last()
+        .and_then(|a| a.id)
+        .expect("the pasted annotation")
+}
+
+/// **Copy-paste** keeps the file's blend mode — the fifth regeneration route.
+#[test]
+fn a_paste_keeps_the_files_blend_mode() {
+    let (mut s, src) = darken_square();
+    let pasted = copy_paste_first(&mut s);
+    assert_ne!(pasted, src);
+    assert_eq!(
+        blend_mode(&s, pasted).as_deref(),
+        Some("Darken"),
+        "a pasted square authors no /BM of its own, so losing Darken here \
+         means the clipboard never carried it"
+    );
+}
+
+/// And a pasted highlight is not retyped to pdfcer's `/Multiply` default.
+#[test]
+fn a_paste_does_not_retype_a_highlights_own_blend_mode() {
+    let mut s = EditSession::new(
+        Document::load(&fixture("annot/blend-mode-highlight.pdf")).expect("load the fixture"),
+    );
+    let pasted = copy_paste_first(&mut s);
+    assert_eq!(blend_mode(&s, pasted).as_deref(), Some("Darken"));
+}
+
+/// Undo takes the pasted mark away whole, blend mode included.
+#[test]
+fn undoing_a_paste_removes_the_mark_and_its_blend_mode_together() {
+    let (mut s, _) = darken_square();
+    let before = page_annotations(&s.graph(), s.page_slots().expect("slots")[0].id).len();
+    copy_paste_first(&mut s);
+    s.undo().expect("undo");
+    let after = page_annotations(&s.graph(), s.page_slots().expect("slots")[0].id).len();
+    assert_eq!(after, before);
+}

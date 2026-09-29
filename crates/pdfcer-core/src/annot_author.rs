@@ -1353,6 +1353,9 @@ pub fn encode_carry(carry: &MarkupCarry) -> Object {
     if let Some(t) = &carry.author {
         d.insert(Name::from(b"T"), Object::String(t.clone().into_bytes()));
     }
+    if let Some(bm) = &carry.blend_mode {
+        d.insert(Name::from(b"BM"), bm.clone());
+    }
     Object::Dict(d)
 }
 
@@ -1381,6 +1384,10 @@ pub fn decode_carry(obj: &Object) -> MarkupCarry {
         opacity: d.get(b"CA").and_then(Object::as_number),
         contents: text(b"Contents"),
         author: text(b"T"),
+        blend_mode: d
+            .get(b"BM")
+            .filter(|o| matches!(o, Object::Name(_) | Object::Array(_)))
+            .cloned(),
     }
 }
 
@@ -3747,19 +3754,17 @@ pub struct CheckBoxStateAppearance {
 /// The author-time properties that travel BESIDE a [`MarkupSpec`] — what a
 /// clipboard has to carry so a pasted mark is the one that was copied.
 ///
-/// # Why these four are not in the spec
+/// # Why these are not in the spec
 ///
 /// [`MarkupSpec`] describes the **shape**: where the points are, what colour
-/// the stroke is, how wide. These four are properties of the *annotation*
-/// rather than the geometry — the border **dash**, the **opacity**, the
-/// **note text**, and the **author** — and keeping them out of the spec is
-/// right, because the spec is also what a *reshape* and a *restyle* rebuild
-/// from and neither of those should be able to change an author's name.
+/// the stroke is, how wide. These are properties of the *annotation* rather
+/// than the geometry — the border **dash**, the **opacity**, the **note
+/// text**, the **author** and the **blend mode** — and keeping them out of
+/// the spec is right, because the spec is also what a *reshape* and a
+/// *restyle* rebuild from and neither of those should be able to change an
+/// author's name. Anything carrying a spec alone drops them.
 ///
-/// The cost was that anything carrying a spec alone dropped all four, which
-/// is what the clipboard did until 2026-09-08.
-///
-/// All four are `Option`, and `None` means **the source did not have one** —
+/// Every field is `Option`, and `None` means **the source did not have one** —
 /// not "use a default". A paste writes only what it was given.
 #[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
@@ -3772,6 +3777,12 @@ pub struct MarkupCarry {
     pub contents: Option<String>,
     /// `/T` — the author (Table 170's title).
     pub author: Option<String>,
+    /// `/BM` — the annotation's blend mode (Table 164, as amended by
+    /// the PDF Association errata #23/#34), carried verbatim: a name, or the
+    /// deprecated array form. On paste it overrides the default pdfcer
+    /// would author (`/Multiply` on a highlight): the file's value wins, as
+    /// it does on restyle.
+    pub blend_mode: Option<Object>,
 }
 
 /// Which glyph a check box or radio button draws when it is **on**
