@@ -1,13 +1,11 @@
 //! # The `DeviceCMYK` conversion knob is real, not a stored preference
 //!
-//! **`CmykIntent` is NOT an ICC rendering intent, and this file used to be
-//! titled as though it were.** It selects *which fitted lookup table* pdfcer's
-//! interim `DeviceCMYK`→sRGB conversion uses, and it is per-invocation. The
-//! PDF rendering intent — `/RI` in an `/ExtGState`, or the `ri` operator
-//! (§8.6.5.8, §11.7.5.3) — is a **different thing that pdfcer does not carry
-//! at all**: `ri` is an explicit no-op and `/RI` is never read. The two were
-//! conflated in this title until 2026-08-25, when a sibling project nearly
-//! designed an API against the confusion. See `docs/NEXT_SESSION.md` §4.
+//! **`CmykIntent` is NOT an ICC rendering intent.** It selects *which fitted
+//! lookup table* pdfcer's `DeviceCMYK`→sRGB conversion uses, and it is
+//! per-invocation. The PDF rendering intent — `/RI` in an `/ExtGState`, or
+//! the `ri` operator (§8.6.5.8, §11.7.5.3) — is a different thing: it is read
+//! and selects the ICC transform for managed (`ICCBased`) sources, and it
+//! never reaches this table.
 //!
 //! ISO 32000-1 §8.6.4.4 defines `DeviceCMYK` and specifies **no**
 //! conversion to a display's RGB — device colour spaces are
