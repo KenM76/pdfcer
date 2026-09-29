@@ -693,6 +693,16 @@ impl LoadedXref {
     }
 }
 
+/// The entries of the cross-reference stream at `offset`, or `None` when it
+/// does not parse. The writer uses this to find which objects a forwarded
+/// `/XRefStm` would shadow (§7.5.8.4 search order).
+pub(crate) fn xref_stream_entries(buf: &[u8], offset: u64) -> Option<Vec<(u32, XrefEntry)>> {
+    let offset = usize::try_from(offset).ok().filter(|o| *o < buf.len())?;
+    parse_xref_stream_section(buf, offset, 0)
+        .ok()
+        .map(|s| s.entries)
+}
+
 /// Whether the merged table still holds an entry for `num` after the
 /// `/Size` filter — the predicate that keeps a hidden object above `/Size`
 /// out of the writer's partition (`Pass 281.0`).

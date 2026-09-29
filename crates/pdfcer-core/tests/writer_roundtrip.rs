@@ -1200,3 +1200,68 @@ fn count(haystack: &[u8], needle: &[u8]) -> usize {
         .filter(|w| *w == needle)
         .count()
 }
+
+/// Replace `id`'s dictionary value with one whose `key` is `value`.
+fn replace_key(doc: &Document, dirty: &mut DirtySet, id: ObjId, key: &[u8], value: Object) {
+    let mut dict = match doc.get(id).map(|o| o.value.clone()) {
+        Some(Object::Dict(d)) => d,
+        other => panic!("expected a dictionary, got {other:?}"),
+    };
+    dict.insert(pdfcer_core::object::Name::from(key), value);
+    dirty.replace(id, Object::Dict(dict));
+}
+
+/// Two consecutive incremental saves of a hybrid file keep the first save's
+/// edit (pdfceGUI G069).
+///
+/// Form A forwards `/XRefStm`, and §7.5.8.4 probes a section's `/XRefStm`
+/// before its `/Prev`. Save 1 changes object 4, which the stream lists; save 2
+/// changes only object 1. Unless save 2's section re-lists object 4, every
+/// conforming reader resolves it through the forwarded stream to its ORIGINAL
+/// bytes, and the first save's edit silently disappears.
+#[test]
+fn a_second_hybrid_save_keeps_the_first_saves_edit_to_a_stream_listed_object() {
+    let base = build_hybrid_pdf();
+    let doc0 = Document::from_bytes(base).unwrap();
+    let mut first = DirtySet::empty();
+    replace_key(
+        &doc0,
+        &mut first,
+        ObjId::new(4, 0),
+        b"Count",
+        Object::Integer(7),
+    );
+    let (a1, _) = save_incremental(&doc0, &first, &SaveOptions::identity()).unwrap();
+
+    let doc1 = Document::from_bytes(a1.clone()).unwrap();
+    let mut second = DirtySet::empty();
+    replace_key(
+        &doc1,
+        &mut second,
+        ObjId::new(1, 0),
+        b"PageMode",
+        Object::Name(b"UseNone".into()),
+    );
+    let (a2, _) = save_incremental(&doc1, &second, &SaveOptions::identity()).unwrap();
+
+    let doc2 = Document::from_bytes(a2.clone()).unwrap();
+    assert!(
+        doc2.is_hybrid(),
+        "the hybrid property was lost on the second save"
+    );
+    let count = match doc2.get(ObjId::new(4, 0)).map(|o| &o.value) {
+        Some(Object::Dict(d)) => d.get(b"Count").cloned(),
+        other => panic!("object 4 is not a dictionary: {other:?}"),
+    };
+    assert_eq!(
+        count,
+        Some(Object::Integer(7)),
+        "the forwarded /XRefStm shadowed the first save's copy of object 4"
+    );
+    // The re-listing is an xref entry only: no second copy of object 4.
+    let appended = &a2[a1.len()..];
+    assert!(
+        !appended.windows(8).any(|w| w == b"\n4 0 obj"),
+        "save 2 re-wrote object 4's bytes instead of pointing at save 1's copy"
+    );
+}

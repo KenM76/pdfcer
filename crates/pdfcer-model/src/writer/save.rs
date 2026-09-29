@@ -461,6 +461,7 @@ pub fn save_incremental(
     // Deletions (Pass 3.2): type-0 entries, generation incremented, and
     // spliced onto the head of the base file's free list.
     let deleted = apply_free_list(&mut entries, doc, dirty);
+    relist_shadowed_by_xref_stm(&mut entries, doc, base);
 
     // Step 6 (prepared before step 5, because an xref stream carries
     // the trailer keys inside its own dictionary).
@@ -474,7 +475,8 @@ pub fn save_incremental(
     // therefore carried forward automatically here. That is §7.5.8.4
     // "form A", the only appended shape that satisfies requirement 3
     // as written — see `iso32000__s__7.5.8.md`'s hybrid write-direction
-    // analysis.
+    // analysis. `relist_shadowed_by_xref_stm` above keeps form A from
+    // hiding an earlier update section behind the forwarded stream.
     let highest = entries.keys().copied().max().unwrap_or(0);
     let mut trailer = copy_trailer_without_prev(doc.trailer());
     // The operator's trailer changes go on FIRST, so the writer's own
@@ -1563,6 +1565,46 @@ fn apply_free_list(
         },
     );
     freed.len()
+}
+
+/// Re-list every object a forwarded `/XRefStm` would otherwise shadow.
+///
+/// §7.5.8.4's search order is, per section, *classic table → that section's
+/// `/XRefStm` → `/Prev`*. Form A copies `/XRefStm` into the new section, so the
+/// stream is consulted before every older update section. An object the
+/// stream lists that a later update changed (or freed) but this save does not
+/// touch would resolve to the stream's stale entry: a second incremental save
+/// of a hybrid file would silently undo the first. The forwarded key stays
+/// (§7.5.6 requirement 3); this section additionally carries the base file's
+/// current entry for each such object. No object bytes are written — the
+/// entry points where the object already is.
+///
+/// A stream that does not parse re-lists nothing: the loader ignored it too,
+/// so nothing in pdfcer's view of the base depends on it.
+fn relist_shadowed_by_xref_stm(
+    entries: &mut BTreeMap<u32, XrefEntry>,
+    doc: &Document,
+    base: &[u8],
+) {
+    let SectionShape::Classic {
+        xref_stm: Some(offset),
+    } = doc.section_shape()
+    else {
+        return;
+    };
+    let Some(stream) = crate::xref::xref_stream_entries(base, offset) else {
+        return;
+    };
+    for (num, stale) in stream {
+        if entries.contains_key(&num) {
+            continue;
+        }
+        if let Some(current) = doc.xref().get(num)
+            && current != stale
+        {
+            entries.insert(num, current);
+        }
+    }
 }
 
 /// How an object's definition reached the output — the distinction the
