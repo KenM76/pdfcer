@@ -115,6 +115,46 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 400.2` (`8defc1e3`), 2026-09-29 — packager refuses a staged model folder with no licence citation
+
+**Verdict: SHIPPED.** Closes the Backlog entry filed at the 742nd filing
+(`Pass 400.1`'s own remainder, below): `check-shipped-assets.py` scans only
+`crates/*/assets/`, and nothing tied `package-portable.py`'s staging of
+`models/<name>/` to licence coverage.
+
+**Fix.** `tools/package-portable.py` now checks every staged
+`models/<name>/` folder after staging: each must have a `PROVENANCE.md`
+and be cited as `models/<name>/` in `about.hbs`, or the build is refused
+(exit 1), naming the offending folder.
+
+**Measured defect.** `models/ocrcer` (the OCRcer recogniser model, first
+shipped `v0.59.0`, ~674th–675th filing) was never cited in `about.hbs` —
+its notice has been missing from every release's `THIRD_PARTY_LICENSES.md`
+since. Its MIT `LICENSE` and `PROVENANCE.md` did ship beside the model, so
+the MIT notice obligation was met; the shipped licence *list* was
+incomplete. `about.hbs` gained a "Bundled OCRcer recogniser model (MIT)"
+section; `THIRD_PARTY_LICENSES.md` regenerated with cargo-about 0.9.1
+(+11 lines: the new section plus a trailing newline).
+
+**`tools/check-shipped-assets.py`.** Its "WHAT IT CANNOT SEE" note
+(`183a6781`) now points at this packager check instead. A staging step
+outside `models/` still has neither check.
+
+**Verification.** A `--no-build` package to a scratch folder staged
+`ocrcer`/`ocrs`/`paddle`/`tesseract` and passed; removing the `about.hbs`
+citation reproduced the refusal, naming `models/ocrcer`. `tools/run-
+gates.sh` PASS, 41 commands. No `Cargo.toml` change — `cargo tree`
+unchanged.
+
+**Packaging.** This is the packager's own check; no release was cut. The
+next release carries the corrected `THIRD_PARTY_LICENSES.md`.
+
+**`docs/FEATURES.md`.** Row 225 ("Choose the OCR engine") gains a sentence
+noting the refusal; no box changed.
+
+**Sourcing (hard rule 8).** No shell tool this filing — hash relayed from
+the dispatching engineer's report, verified by them via `git log`.
+
 ### `Pass 400.1` (`4a0fc54d` + `183a6781`), 2026-09-29 — two comment-only fixes: a stale `/RI` claim and two gates' own blind-spot statements
 
 **Verdict: SHIPPED.** Both commits are documentation-only and carry no Pass
@@ -143,7 +183,8 @@ shipped-assets.py` scans only `crates/*/assets/`; `tools/package-
 portable.py` also stages `models/tesseract` and `models/ocrcer` from
 outside that tree, currently covered only by hand-written `about.hbs`
 sections with no gate tying packager output to licence-gate input. See
-*Backlog*.
+*Backlog*. **Closed by `Pass 400.2` (`8defc1e3`), above** — the Backlog
+entry is removed, not left dangling.
 
 **Sourcing (hard rule 8).** No shell tool this filing — hashes relayed from
 the dispatching engineer's report (verified by them via `git log`), not
@@ -20640,20 +20681,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
-
-### `check-shipped-assets.py` doesn't see everything `package-portable.py` stages — filed 2026-09-29 (742nd filing, `Pass 400.1`'s own remainder), no Pass ID
-
-**Finding, not fixed.** `tools/check-shipped-assets.py` scans only
-`crates/*/assets/` for licence coverage. `tools/package-portable.py` also
-stages `models/tesseract` (from `target/tesseract-bundle`) and
-`models/ocrcer` (from the sibling `../OCRcer` checkout) — today both are
-covered only by hand-written `about.hbs` sections, not by the gate. Nothing
-ties what the packager stages to what the licence gate scans, so a new
-staging step outside `assets/` would ship with no licence check at all.
-
-**Suggested fix, not decided.** Either the gate derives its scan list from
-the packager's own staging sources, or the packager refuses to stage a
-directory that has no `PROVENANCE.md`.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 

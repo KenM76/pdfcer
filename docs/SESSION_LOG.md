@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (743rd filing) — `8defc1e3`: `Pass 400.2` SHIPPED — packager refuses a staged model folder with no licence citation
+
+**Shipped:**
+- `Pass 400.2` (`8defc1e3`) — closes the Backlog entry filed at the 742nd
+  filing. `tools/package-portable.py` now checks every staged
+  `models/<name>/` folder after staging: each must have a `PROVENANCE.md`
+  and be cited as `models/<name>/` in `about.hbs`, or the build is refused
+  (exit 1), naming the folder.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Measured defect: `models/ocrcer` (first shipped `v0.59.0`) was never
+  cited in `about.hbs`, so its notice has been missing from every
+  release's `THIRD_PARTY_LICENSES.md` since. The model's own MIT
+  `LICENSE` + `PROVENANCE.md` did ship beside it, so the notice
+  obligation was met; the shipped licence *list* was incomplete.
+  `about.hbs` gained a "Bundled OCRcer recogniser model (MIT)" section;
+  `THIRD_PARTY_LICENSES.md` regenerated with cargo-about 0.9.1 (+11
+  lines). `tools/check-shipped-assets.py`'s "WHAT IT CANNOT SEE" note
+  now points at this packager check instead of leaving the gap open.
+
+**`docs/FEATURES.md`:** row 225 ("Choose the OCR engine") gained a
+sentence on the packager's refusal; no box changed.
+
+**`docs/LEGAL.md` §6.3:** unchanged — it documents the cargo-about
+mechanism in general terms and does not enumerate shipped non-crate
+assets by name, so nothing there was stale.
+
+**Still in flight:** Unchanged from the 742nd filing.
+
+**For next session:** Push `main` — this filing's commit plus the
+740th/741st/742nd filings' work are all local as of writing.
+
+**Sourcing (hard rule 8).** No shell tool this filing — hash relayed
+from the dispatching engineer's report (verified by them via `git log`),
+not independently reproduced.
+
 ## 2026-09-29 (742nd filing) — `4a0fc54d` + `183a6781`: `Pass 400.1` SHIPPED — two comment-only follow-ups, cited by hash
 
 **Shipped:**
