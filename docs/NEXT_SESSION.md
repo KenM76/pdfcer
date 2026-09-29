@@ -5,7 +5,9 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Latest:** 2026-09-29, `Pass 393.0` (`b96be7e7`, filed 731st `19f0e63a`): mesh shadings (types 4-7) now deposit spot colorants on simulated spot planes by both carriers -- per-vertex (`Shade::Spot`) and parametric (ramp tints) -- closing Pass 239.0's Backlog remainder. Fixture `mesh-ink/spot-mesh-op-over-k-vs-fill.pdf`. The GitHub bug-report reply still awaits Ken's OK. Unreleased since v0.63.0: 390.0-393.0 (next release writes OneDrive `pdfcer1`). Next: next Backlog pick or a release.
+**Latest:** 2026-09-29, `Pass 394.0` (`3d10717d`, filed 732nd `8ad517a1`): tests only -- `grey_image_noop_over_spot.pdf` + `grey_overprint.rs::a_grey_image_over_a_spot_differs_with_overprint_on_and_off` pin a process image's `/OP` on/off pair over a spot (forcing image `SpotSource::Preserve` was caught by nothing else). Remaining open Unscoped Backlog entries are mostly GUI-gated (`set_page_tabs`, `ButtonActionState` GoTo/SubmitForm, `Widget::action`) or operator-gated (per-spot plane policy, `ContentToken` shrink); ICCBased image colour management belongs to iccce's boundary -- check decision 064 before touching it. Unreleased since v0.63.0: 390.0-394.0.
+
+**Before that:** 2026-09-29, `Pass 393.0` (`b96be7e7`, filed 731st `19f0e63a`): mesh shadings (types 4-7) now deposit spot colorants on simulated spot planes by both carriers -- per-vertex (`Shade::Spot`) and parametric (ramp tints) -- closing Pass 239.0's Backlog remainder. Fixture `mesh-ink/spot-mesh-op-over-k-vs-fill.pdf`. The GitHub bug-report reply still awaits Ken's OK. Unreleased since v0.63.0: 390.0-393.0 (next release writes OneDrive `pdfcer1`). Next: next Backlog pick or a release.
 
 **Before that:** 2026-09-29, `Pass 392.0` (`e9ab98ae`, filed 730th): `nonseparable_composited` now also counts a transparency group composited through Hue/Saturation/Color/Luminosity (one per group, in `run_form`'s layered branch); `nonseparable_pixels` stays direct-paint only. Unreleased.
 
