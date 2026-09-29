@@ -2200,35 +2200,6 @@ impl BlendSpaceFrom {
     }
 }
 
-/// The blending space implied by the document's `/OutputIntents`, if one can
-/// be determined at all.
-///
-/// # How the colour class is decided, and why it is `/N` rather than a name
-///
-/// The output intent's `/DestOutputProfile` is an ICC profile stream, and
-/// §8.6.5.5 / Table 66 give `/N` as the number of colour components — the
-/// same key `ICCBased` uses. Four or more components is a subtractive
-/// device class; one or three is not. Reading `/N` rather than parsing the
-/// profile header keeps this to one dictionary lookup and uses the value
-/// the writer was already obliged to make correct.
-///
-/// # What returns `None`, and why that is not a failure
-///
-/// A file may carry an output intent with **no** `/DestOutputProfile` —
-/// PDF/X permits identifying a registered printing condition by name alone.
-/// pdfcer cannot resolve a name to a colorant count without a registry it
-/// does not ship and must not fetch (`ARCHITECTURE.md` §1.1 forbids a
-/// network client in the engine, permanently). `None` therefore means *"not
-/// determinable here"*, and the caller falls back to the device's native
-/// space — the ISO 32000-1 answer, which is the safe direction.
-///
-/// # Multiple output intents
-///
-/// The first one that yields a determinable space wins. ISO 32000-2 does
-/// not say which intent governs when several are present — recorded as
-/// `PGB-A2` in the spec corpus, and deliberately NOT solved differently
-/// from the existing `SEP-A1` question of the same shape. First-wins is
-/// stated here so that the choice is visible rather than emergent.
 /// Does this image's `/ColorSpace` rest on an `ICCBased` space?
 ///
 /// # Why this asks the DICTIONARY rather than the decoded image
@@ -2284,26 +2255,24 @@ fn image_source_is_iccbased(doc: &DocumentView<'_>, dict: &Dict, resources: &Dic
         .is_some_and(|cs| walk(doc, cs, resources, 0))
 }
 
-/// The document's destination ICC profile, decoded, from `/OutputIntents`.
+/// The output intent the renderer uses: its component count and its decoded
+/// destination profile (§14.11.5, Table 365).
 ///
-/// # Why this is separate from [`output_intent_blend_space`]
+/// # Which intent, when there are several
 ///
-/// They read the same dictionary and answer different questions, and merging
-/// them would couple a cheap, always-run structural probe to an expensive
-/// stream decode. `output_intent_blend_space` needs only `/N` to decide
-/// whether the page composites in ink -- it runs for every page and must stay
-/// cheap. This one inflates a profile that is commonly 500 kB and is only
-/// wanted when something is actually going to be colour-managed.
+/// ISO 32000 gives no selector (`OI-A1` in the spec corpus: the choice is
+/// "a matter for agreement" out of band). pdfcer takes the first entry whose
+/// `/DestOutputProfile` is a stream with an integer `/N` (Table 66) that
+/// DECODES, so a broken intent listed ahead of a good one does not switch
+/// colour management off. Both consumers — [`output_intent_blend_space`] and
+/// [`output_intent_profile`] — read this one choice, so the page's blending
+/// space and the profile paints convert toward always come from the same
+/// intent.
 ///
-/// # What "first usable" means here, and why it is not "first"
-///
-/// ISO 32000-2 allows an array of output intents. pdfcer takes the first entry
-/// whose `/DestOutputProfile` is a stream that DECODES, rather than the first
-/// entry outright -- a file that lists a broken intent ahead of a good one
-/// should be rendered with the good one rather than fall back to no colour
-/// management at all. This is a recovery choice, not a spec rule, and it is
-/// recorded as such.
-fn output_intent_profile(doc: &DocumentView<'_>) -> Option<std::sync::Arc<[u8]>> {
+/// An intent naming a registered condition with no profile is skipped:
+/// resolving the name needs a registry pdfcer does not ship and the engine
+/// must not fetch (`ARCHITECTURE.md` §1.1).
+fn chosen_output_intent(doc: &DocumentView<'_>) -> Option<(i64, std::sync::Arc<[u8]>)> {
     let catalog = doc
         .catalog_id()
         .and_then(|id| doc.value(id))
@@ -2312,41 +2281,33 @@ fn output_intent_profile(doc: &DocumentView<'_>) -> Option<std::sync::Arc<[u8]>>
     let items = doc.resolve(entry).as_array().map(<[Object]>::to_vec)?;
     items.iter().find_map(|item| {
         let intent = doc.resolve(item).as_dict()?.clone();
-        let profile = intent.get(b"DestOutputProfile")?;
-        let Object::Stream(st) = doc.resolve(profile) else {
+        let Object::Stream(st) = doc.resolve(intent.get(b"DestOutputProfile")?) else {
             return None;
         };
+        let n = st.dict.get(b"N").map(|o| doc.resolve(o))?.as_int()?;
         let raw = doc.slice(st.data_span)?;
-        filters::decode_stream(&st.dict, raw)
-            .ok()
-            .map(std::sync::Arc::from)
+        let profile = filters::decode_stream(&st.dict, raw).ok()?;
+        Some((n, std::sync::Arc::from(profile)))
     })
 }
 
+/// The chosen output intent's decoded destination profile
+/// ([`chosen_output_intent`]).
+fn output_intent_profile(doc: &DocumentView<'_>) -> Option<std::sync::Arc<[u8]>> {
+    chosen_output_intent(doc).map(|(_, profile)| profile)
+}
+
+/// The blending space the chosen output intent implies
+/// ([`chosen_output_intent`]): four or more components is subtractive, fewer
+/// is additive. `None` — no usable intent — sends the caller to the device's
+/// native space, the ISO 32000-1 answer.
 fn output_intent_blend_space(doc: &DocumentView<'_>) -> Option<crate::compositor::BlendSpace> {
-    let catalog = doc
-        .catalog_id()
-        .and_then(|id| doc.value(id))
-        .and_then(Object::as_dict)?;
-    let entry = catalog.get(b"OutputIntents")?;
-    let items = doc.resolve(entry).as_array().map(<[Object]>::to_vec)?;
-    items.iter().find_map(|item| {
-        let intent = doc.resolve(item).as_dict()?.clone();
-        let profile = intent.get(b"DestOutputProfile")?;
-        // `/DestOutputProfile` is an ICC profile STREAM, so its `/N` lives on
-        // the stream's dictionary. `Object::as_dict` matches only `Dict`, by
-        // design, so the stream arm is written out rather than papered over
-        // with a helper that would blur the two.
-        let n = match doc.resolve(profile) {
-            Object::Stream(st) => st.dict.get(b"N").map(|o| doc.resolve(o)),
-            _ => None,
-        }
-        .and_then(Object::as_int)?;
-        Some(if n >= 4 {
+    chosen_output_intent(doc).map(|(n, _)| {
+        if n >= 4 {
             crate::compositor::BlendSpace::Subtractive
         } else {
             crate::compositor::BlendSpace::Additive
-        })
+        }
     })
 }
 

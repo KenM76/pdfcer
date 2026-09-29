@@ -45,6 +45,7 @@ mod nonisolated_group_sees_its_backdrop;
 mod nonseparable_blend_differential;
 mod nonstd14_widths;
 mod ocr_layer_is_invisible;
+mod output_intent_choice;
 mod overprint_image;
 mod page_blend_space_source;
 mod preview_equals_saved;
