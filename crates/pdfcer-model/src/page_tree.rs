@@ -45,6 +45,7 @@ use std::collections::HashSet;
 use crate::document::Document;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, ObjId, Object};
+use crate::view::DocumentView;
 
 /// Maximum page-tree nesting depth (pdfcer policy, ARCHITECTURE.md
 /// §10): legitimate trees are shallow (balanced fan-out ~25–50); a
@@ -329,7 +330,7 @@ pub struct Page {
     /// a side effect of reading, and an incremental save with no edits still
     /// emits nothing. The page is repaired in the file only when something
     /// else legitimately rewrites that page dictionary — at which point the
-    /// fixed [`append_content_stream`] writes the flat form.
+    /// overlay append ([`plan_overlay_append`]) writes the flat form.
     ///
     /// Non-zero therefore means: *this document was damaged by a pdfcer build
     /// older than `Pass 111.0`, and other readers may still refuse it.* That
@@ -1117,95 +1118,222 @@ fn contents_from_array<G: ObjectGraph + ?Sized>(
     Ok((ids, unresolved, flattened))
 }
 
-/// Append `new_id` to a page's `/Contents`, returning the value to write —
-/// **the one place the writer's model of `/Contents` lives** (Table 30).
+/// The first stream of pdfcer's overlay wrapper: a save (`q`) placed before a
+/// page's original content. The comment ties the stream to pdfcer, so a
+/// foreign stream that merely holds `q` is never taken for one.
+#[doc(hidden)] // workspace-internal
+pub const WRAP_SAVE: &[u8] = b"%pdfcer overlay wrap: save\nq\n";
+
+/// The restore (`Q`) that closes [`WRAP_SAVE`] after the original content.
+#[doc(hidden)] // workspace-internal
+pub const WRAP_RESTORE: &[u8] = b"%pdfcer overlay wrap: restore\nQ\n";
+
+/// Decoded content no larger than this is classified in full when a page is
+/// not yet wrapped; a larger original is wrapped without being read.
+const NEUTRAL_SCAN_LIMIT: usize = 64 * 1024;
+
+/// A raw stream longer than this cannot be a wrapper stream, so it is never
+/// decoded to ask.
+const WRAPPER_RAW_LIMIT: usize = 256;
+
+/// The object numbers of one [`WRAP_SAVE`] / [`WRAP_RESTORE`] stream pair. One
+/// pair is shared by every page a single command wraps.
+#[doc(hidden)] // workspace-internal
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WrapStreams {
+    /// The [`WRAP_SAVE`] stream.
+    pub save: ObjId,
+    /// The [`WRAP_RESTORE`] stream.
+    pub restore: ObjId,
+}
+
+/// How appending a self-contained overlay stream to one page's `/Contents`
+/// will go: made by [`plan_overlay_append`], completed by
+/// [`OverlayAppend::finish`].
 ///
-/// # Why this is in `page_tree` and not next to a verb
+/// A `/Contents` array is one content stream (ISO 32000-2 §7.8.2) and §8.4.2
+/// requires only that `q`/`Q` balance across it, so a page may leave a `cm`,
+/// clip, `gs`, colour or text-state operator in effect at its end, and a
+/// stream appended after it would inherit that state. The plan therefore puts
+/// the page's content between a [`WRAP_SAVE`]/[`WRAP_RESTORE`] pair unless it
+/// can show nothing leaks: the page is already wrapped by pdfcer and only
+/// state-neutral streams follow the restore, or the whole content is small
+/// and state-neutral. Original streams are never rewritten; only the element
+/// list changes. An original with unbalanced `q`/`Q` (non-conforming) is not
+/// repaired. Design: `docs/decisions/039-overlay-wrap.md`.
 ///
-/// It sits beside [`contents_from_array`], the READER, deliberately. The
-/// question *"what shapes can `/Contents` take?"* has exactly one answer, and
-/// on 2026-08-20 the writer and the reader held **different** ones: the reader
-/// accepted a reference-to-an-array (correctly — §7.3.10 substitutability), and
-/// the writer wrapped that reference instead of splicing into it, producing an
-/// array whose first element dereferenced to another array. Nothing in PDF
-/// permits that, so `pages()` rejected pages that `add_image` had just written
-/// and returned `Ok` for. **The two halves of this crate disagreed with each
-/// other rather than with the spec.**
-///
-/// **It was written TWICE, and both copies were wrong the same way.**
-/// `EditSession::append_page_content` served `add_image` and `flatten_fields`;
-/// `text_edit::addtext::append_contents` served `add_text` and the OCR text
-/// layer. Neither resolved. That is R92's failure mode — one question answered
-/// in two places — and the fix is not "correct both" but "have one".
-///
-/// # The four shapes, and what each becomes
-///
-/// | `/Contents` before | after |
-/// |---|---|
-/// | absent | `[new]` |
-/// | `R` → a stream | `[R, new]` — the reference is re-emitted **as written** |
-/// | `[a, b]` a direct array | `[a, b, new]` |
-/// | `R` → **an array** `[a, b]` | `[a, b, new]` — **spliced, not wrapped** |
-///
-/// The last row is the fix. `R` is left in the file, now unreferenced from this
-/// page; it is deliberately not deleted, because it may be shared with another
-/// page and because deleting it would be a second, unrelated mutation. An
-/// orphaned array object costs a few bytes and breaks nothing.
-///
-/// Splicing the ELEMENTS rather than rewriting the array object in place is
-/// also deliberate: `R` may be shared between pages (rare but legal), and
-/// appending to it would put the new content on every page that names it.
-/// Changing only this page's dictionary cannot do that.
-///
-/// # A malformed `/Contents` is preserved, not dropped
-///
-/// If the value is neither a stream, an array, nor a reference to either, the
-/// page is already one [`pages`] rejects. The old value is still carried into
-/// the array rather than discarded — a page that was unreadable stays
-/// unreadable, but nothing the operator had is silently thrown away on the way
-/// past.
-///
-/// # Examples
-///
-/// ```
-/// use pdfcer_model::document::Document;
-/// use pdfcer_model::object::ObjId;
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let doc = Document::from_bytes(
-///     b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
-///         .to_vec(),
-/// )?;
-/// // An absent `/Contents` becomes a one-element array.
-/// let appended = pdfcer_model::page_tree::append_content_stream(&doc, None, ObjId::new(9, 0));
-/// assert_eq!(appended.as_array().map(<[_]>::len), Some(1));
-/// # Ok(())
-/// # }
-/// ```
-#[must_use]
-pub fn append_content_stream<G: ObjectGraph + ?Sized>(
-    graph: &G,
-    before: Option<&Object>,
-    new_id: ObjId,
-) -> Object {
-    let Some(before) = before else {
-        return Object::Array(vec![Object::Reference(new_id)]);
-    };
-    // `resolve` follows a reference CHAIN and is depth-guarded (§7.3.10,
-    // `MAX_RESOLVE_DEPTH`), which answers the reference-to-a-reference case
-    // without this function needing to know it exists.
-    match graph.resolve(before) {
-        Object::Array(items) => {
-            let mut spliced = Vec::with_capacity(items.len() + 1);
-            spliced.extend(items.iter().cloned());
-            spliced.push(Object::Reference(new_id));
-            Object::Array(spliced)
-        }
-        // A stream, or anything else. `before` is re-emitted verbatim so an
-        // indirect reference stays an indirect reference — a stream shall be
-        // an indirect object (§7.3.8), so inlining one here would itself be
-        // malformed.
-        _ => Object::Array(vec![before.clone(), Object::Reference(new_id)]),
+/// Every append route in `pdfcer-core` goes through this type; there is no
+/// public way to append without it.
+#[doc(hidden)] // workspace-internal
+#[derive(Debug, Clone, PartialEq)]
+pub struct OverlayAppend {
+    items: Vec<Object>,
+    wrap: bool,
+}
+
+impl OverlayAppend {
+    /// Whether [`Self::finish`] needs a [`WrapStreams`] pair.
+    #[must_use]
+    pub const fn needs_wrap(&self) -> bool {
+        self.wrap
     }
+
+    /// The new `/Contents` value with `new_id` appended: `[S, …, R, new]` when
+    /// wrapping, else `[…, new]`. `None` when a wrap is needed and `wrap` is
+    /// `None`.
+    #[must_use]
+    pub fn finish(&self, new_id: ObjId, wrap: Option<WrapStreams>) -> Option<Object> {
+        let mut out = Vec::with_capacity(self.items.len() + 3);
+        if self.wrap {
+            let pair = wrap?;
+            out.push(Object::Reference(pair.save));
+            out.extend(self.items.iter().cloned());
+            out.push(Object::Reference(pair.restore));
+        } else {
+            out.extend(self.items.iter().cloned());
+        }
+        out.push(Object::Reference(new_id));
+        Some(Object::Array(out))
+    }
+}
+
+/// Plan appending an overlay to a page whose `/Contents` is `before`.
+///
+/// `before` may be absent, a stream reference, an array, or a reference to an
+/// array (resolved, depth-guarded per §7.3.10). The array's elements are
+/// spliced into a new direct array, so a shared array object is never
+/// extended onto another page. A value that is none of these is kept as the
+/// first element rather than dropped.
+#[doc(hidden)] // workspace-internal
+#[must_use]
+pub fn plan_overlay_append(view: &DocumentView<'_>, before: Option<&Object>) -> OverlayAppend {
+    let items = contents_items(view, before);
+    let wrap = !items.is_empty() && !leaves_no_state(view, &items);
+    OverlayAppend { items, wrap }
+}
+
+/// Remove every stream of `before` for which `drop` returns `true` (given its
+/// decoded bytes), then peel pdfcer wrapper pairs left with nothing after
+/// them. Returns the new `/Contents` value, `None` when nothing is left.
+/// Unchanged content returns `before` as-is, so a shared array reference stays
+/// a reference. Removed stream objects are orphaned, not deleted: they may be
+/// shared with another page.
+#[doc(hidden)] // workspace-internal
+#[must_use]
+pub fn remove_overlays(
+    view: &DocumentView<'_>,
+    before: Option<&Object>,
+    drop: impl Fn(&Object, &[u8]) -> bool,
+) -> Option<Object> {
+    let before = before?;
+    let items = contents_items(view, Some(before));
+    let mut kept: Vec<Object> = items
+        .iter()
+        .filter(|item| !decoded_item(view, item).is_some_and(|b| drop(item, &b)))
+        .cloned()
+        .collect();
+    if kept.len() == items.len() {
+        return Some(before.clone());
+    }
+    while kept.len() >= 2
+        && is_exactly(view, kept.first(), WRAP_SAVE)
+        && is_exactly(view, kept.last(), WRAP_RESTORE)
+    {
+        kept.pop();
+        kept.remove(0);
+    }
+    (!kept.is_empty()).then_some(Object::Array(kept))
+}
+
+/// `true` when `content` leaves no graphics or text state behind: at `q`-depth
+/// 0 it holds only `q`, marked-content operators, compatibility sections and
+/// comments, its depth never goes negative and ends at 0, and it parses.
+/// Conservative: anything uncertain is `false`, which costs a wrap, never a
+/// leak.
+#[doc(hidden)] // workspace-internal
+#[must_use]
+pub fn is_state_neutral(content: &[u8]) -> bool {
+    let Ok(cs) = crate::content::ContentStream::parse(content.to_vec()) else {
+        return false;
+    };
+    let buf = cs.buf.as_slice();
+    let mut depth = 0_usize;
+    for op in cs.operations() {
+        match op.operator_name(buf) {
+            Some(b"q") => depth += 1,
+            Some(b"Q") => match depth.checked_sub(1) {
+                Some(d) => depth = d,
+                None => return false,
+            },
+            Some(b"BMC" | b"BDC" | b"EMC" | b"MP" | b"DP" | b"BX" | b"EX") => {}
+            _ if depth > 0 => {}
+            _ => return false,
+        }
+    }
+    depth == 0
+}
+
+/// The elements of a `/Contents` value, as the append splices them.
+fn contents_items(view: &DocumentView<'_>, before: Option<&Object>) -> Vec<Object> {
+    let Some(before) = before else {
+        return Vec::new();
+    };
+    match view.resolve(before) {
+        Object::Array(items) => items.clone(),
+        // A stream shall be indirect (§7.3.8), so `before` is kept verbatim.
+        _ => vec![before.clone()],
+    }
+}
+
+/// The decoded bytes of one `/Contents` element, or `None`.
+fn decoded_item(view: &DocumentView<'_>, item: &Object) -> Option<Vec<u8>> {
+    let Object::Stream(stream) = view.resolve(item) else {
+        return None;
+    };
+    crate::filters::decode_stream(&stream.dict, view.slice(stream.data_span)?).ok()
+}
+
+/// Whether `item` is a stream decoding to exactly `bytes`.
+fn is_exactly(view: &DocumentView<'_>, item: Option<&Object>, bytes: &[u8]) -> bool {
+    let Some(item) = item else {
+        return false;
+    };
+    let Object::Stream(stream) = view.resolve(item) else {
+        return false;
+    };
+    stream.data_span.len <= WRAPPER_RAW_LIMIT && decoded_item(view, item).as_deref() == Some(bytes)
+}
+
+/// Whether appending after `items` needs no wrap (see [`OverlayAppend`]).
+fn leaves_no_state(view: &DocumentView<'_>, items: &[Object]) -> bool {
+    let neutral = |part: &[Object]| {
+        let mut all = Vec::new();
+        for item in part {
+            let Some(bytes) = decoded_item(view, item) else {
+                return false;
+            };
+            // Stream boundaries are token boundaries (§7.8.2).
+            all.extend_from_slice(&bytes);
+            all.push(b'\n');
+        }
+        is_state_neutral(&all)
+    };
+    if is_exactly(view, items.first(), WRAP_SAVE)
+        && let Some(r) = items
+            .iter()
+            .rposition(|item| is_exactly(view, Some(item), WRAP_RESTORE))
+        && r > 0
+    {
+        return neutral(items.get(r + 1..).unwrap_or_default());
+    }
+    let raw: usize = items
+        .iter()
+        .map(|item| match view.resolve(item) {
+            Object::Stream(s) => s.data_span.len,
+            _ => usize::MAX,
+        })
+        .fold(0, usize::saturating_add);
+    raw <= NEUTRAL_SCAN_LIMIT && neutral(items)
 }
 
 /// Parse (and resolve) a rectangle attribute: an array of four

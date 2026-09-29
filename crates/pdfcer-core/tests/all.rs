@@ -90,6 +90,7 @@ mod ink_reshape;
 mod insert_pages_preserves_undo;
 mod layer_edit;
 mod layers;
+mod leaked_page_state;
 mod locked_contents;
 mod malformed_opens;
 mod markup_as_content;

@@ -161,8 +161,10 @@ fn the_burn_is_appended_as_one_content_stream_and_the_original_is_untouched() {
     let Some(Object::Array(contents)) = page.get(b"Contents".as_slice()) else {
         panic!("contents became an array: {page:?}");
     };
-    assert_eq!(contents.len(), 2);
-    assert_eq!(contents[0], Object::Reference(id(4)));
+    // The page leaves `rg` in effect, so the original sits inside the
+    // overlay wrapper: [save, original, restore, burn].
+    assert_eq!(contents.len(), 4);
+    assert_eq!(contents[1], Object::Reference(id(4)));
     let (bytes, _) = s.to_incremental_bytes(&SaveOptions::identity()).unwrap();
     let text = String::from_utf8_lossy(&bytes);
     // Placement of 5: /BBox 10x10 onto /Rect 40x40 at (20,20).

@@ -13589,7 +13589,6 @@ impl EditSession {
         // refusal on any page still happens before anything is allocated.
         let (preps, strips) = {
             let page_list = self.pages().map_err(OlError::PageTree)?;
-            let graph = self.graph();
             let view = self.view();
             let mut preps = Vec::with_capacity(pages.len());
             let mut strips = Vec::with_capacity(pages.len());
@@ -13598,13 +13597,7 @@ impl EditSession {
                     .get(layer.page_index)
                     .ok_or(OlError::PageIndex(layer.page_index))?;
                 let strip = existing_layer_strip(&view, page, layer.page_index, opts)?;
-                preps.push(plan_ocr_layer(
-                    page,
-                    layer.recognised,
-                    opts,
-                    &strip,
-                    &graph,
-                )?);
+                preps.push(plan_ocr_layer(page, layer.recognised, opts, &strip, &view)?);
                 strips.push((layer.page_index, strip));
             }
             (preps, strips)
@@ -13614,6 +13607,7 @@ impl EditSession {
         // Now allocate and stage. Past this point nothing can fail except an
         // exhausted object-number space, which is checked per allocation.
         let mut objects = Vec::with_capacity(preps.len().saturating_mul(3));
+        let mut wrap = None;
         let mut reports = Vec::with_capacity(preps.len());
         for prep in &preps {
             let content_num = self
@@ -13625,7 +13619,10 @@ impl EditSession {
             let content_id = ObjId::new(content_num, 0);
             let font_id = ObjId::new(font_num, 0);
 
-            let new_page = prep.build_page_dict(&self.graph(), content_id, font_id);
+            let contents = self
+                .finish_overlay(&prep.append, content_id, &mut wrap, &mut objects)
+                .map_err(|_| OlError::ObjectNumbersExhausted)?;
+            let new_page = prep.build_page_dict(contents, font_id);
             let content_len = prep.content_data.len();
             let span = self.stage_bytes(&prep.content_data);
             let page_before = self.value(prep.page_id).cloned();
@@ -13734,7 +13731,7 @@ impl EditSession {
             let mut new_page = graph.resolved(page.id).as_dict().cloned().ok_or_else(|| {
                 OlError::Unsupported("the page object is not a dictionary".to_owned())
             })?;
-            match contents_without(&graph, new_page.get(b"Contents"), &strip.contents) {
+            match contents_without(&view, new_page.get(b"Contents"), &strip.contents) {
                 Some(c) => new_page.insert(crate::object::Name::from(b"Contents"), c),
                 None => {
                     new_page.remove(b"Contents");
@@ -13907,7 +13904,7 @@ impl EditSession {
             let page = pages
                 .get(req.page_index)
                 .ok_or(AtError::PageIndex(req.page_index))?;
-            plan_add_text(req, page, &self.graph())?
+            plan_add_text(req, page, &self.view())?
         };
 
         let layered = req
@@ -13927,7 +13924,6 @@ impl EditSession {
         let content_id = ObjId::new(content_num, 0);
         let font_id = ObjId::new(font_num, 0);
 
-        let new_page = prep.build_page_dict(&self.graph(), content_id, font_id);
         let content_len = prep.content_data.len();
         let span = self.stage_bytes(&prep.content_data);
         let content_stream = make_raw_stream(span, content_len);
@@ -13952,6 +13948,11 @@ impl EditSession {
             before: None,
             after: Some(content_stream),
         }];
+        // After the embed's four numbers, which must follow `font_id`.
+        let contents = self
+            .finish_overlay(&prep.append, content_id, &mut None, &mut objects)
+            .map_err(|_| AtError::ObjectNumbersExhausted)?;
+        let new_page = prep.build_page_dict(contents, font_id);
         objects.extend(font_objects.into_iter().map(|(id, obj)| ObjectWrite {
             id,
             before: None,
@@ -13989,10 +13990,10 @@ impl EditSession {
     /// §14.8.2.2.2 Table 363), so text extraction and accessibility tools
     /// can tell it from the page's own text.
     ///
-    /// The page's existing content is wrapped, not rewritten: one shared
-    /// stream holding `q` goes first in every stamped page's `/Contents`
-    /// and each label stream begins `Q q`, so a transformation the page
-    /// leaves in effect cannot move the label (§8.4.2). Existing content
+    /// The page's existing content is wrapped, not rewritten, whenever it
+    /// could leave graphics state in effect ([`page_tree::OverlayAppend`]),
+    /// so a transformation the page leaves behind cannot move the label
+    /// (§8.4.2); each label stream is its own `q … Q`. Existing content
     /// streams stay byte-identical. The font is added to the page's
     /// `/Resources` under an unused name, materialising inherited resources
     /// onto the page (§7.7.3.4).
@@ -14061,6 +14062,7 @@ impl EditSession {
         let last_label = stamp.numbering.label(last)?;
 
         let mut objects = Vec::new();
+        let mut wrap = None;
         let font_id = ObjId::new(self.alloc_number()?, 0);
         let mut font = Dict::new();
         for (k, v) in [
@@ -14076,7 +14078,6 @@ impl EditSession {
             before: None,
             after: Some(Object::Dict(font)),
         });
-        let save_id = self.new_stream(Dict::new(), b"q\n", &mut objects)?;
 
         for (offset, &index) in (0u64..).zip(&selected) {
             let Some(page) = pages.get(index) else {
@@ -14111,11 +14112,7 @@ impl EditSession {
                 .cloned()
                 .unwrap_or_default();
             updated.insert(Name::from(b"Resources"), Object::Dict(resources));
-            self.append_page_content(&mut updated, label_id);
-            if let Some(Object::Array(mut items)) = updated.get(b"Contents").cloned() {
-                items.insert(0, Object::Reference(save_id));
-                updated.insert(Name::from(b"Contents"), Object::Array(items));
-            }
+            self.append_page_content(&mut updated, label_id, &mut wrap, &mut objects)?;
             objects.push(ObjectWrite {
                 id: page.id,
                 before,
@@ -14142,9 +14139,9 @@ impl EditSession {
     ///
     /// A label is recognised only by the exact stream `stamp_bates` writes,
     /// so another producer's Bates numbers, and text that merely looks like
-    /// one, are never touched. For each label removed, one leading shared
-    /// `q` stream is removed with it, which keeps the page's `q`/`Q` pairs
-    /// balanced; every other `/Contents` entry is kept in order, verbatim. The
+    /// one, are never touched. Every other `/Contents` entry is kept in
+    /// order, verbatim, except that an overlay wrapper left with nothing
+    /// after it is removed too ([`page_tree::remove_overlays`]). The
     /// label's font resource entry is dropped when no remaining stream on the
     /// page names it. The removed objects become unreferenced; an incremental
     /// save still carries them in the earlier revision.
@@ -14161,7 +14158,7 @@ impl EditSession {
         &mut self,
         pages: Option<&[usize]>,
     ) -> Result<crate::bates::BatesRemoval, EditError> {
-        use crate::bates::{BatesRemoval, SAVE_STREAM, parse_label};
+        use crate::bates::{BatesRemoval, parse_label};
 
         if self.base.trailer().contains_key(b"Encrypt") {
             return Err(EditError::DocumentEncrypted);
@@ -14213,21 +14210,16 @@ impl EditSession {
             if labels.is_empty() {
                 continue;
             }
-            let saves = kept
-                .iter()
-                .take_while(|(_, b)| b.as_deref() == Some(SAVE_STREAM))
-                .count()
-                .min(labels.len());
-            let kept = kept.get(saves..).unwrap_or_default();
-
             let mut updated = dict.clone();
-            if kept.is_empty() {
-                updated.remove(b"Contents");
-            } else {
-                updated.insert(
-                    Name::from(b"Contents"),
-                    Object::Array(kept.iter().map(|(o, _)| o.clone()).collect()),
-                );
+            match page_tree::remove_overlays(&view, dict.get(b"Contents"), |_, b| {
+                parse_label(b).is_some()
+            }) {
+                Some(contents) => {
+                    updated.insert(Name::from(b"Contents"), contents);
+                }
+                None => {
+                    updated.remove(b"Contents");
+                }
             }
             if let Some(Object::Dict(mut resources)) = updated.get(b"Resources").cloned()
                 && let Some(Object::Dict(mut font_dict)) = resources.get(b"Font").cloned()
@@ -15606,6 +15598,7 @@ impl EditSession {
         // Import the clip's owned resource closure at fresh object numbers.
         let mut imported: BTreeMap<u32, ObjId> = BTreeMap::new();
         let mut objects: Vec<ObjectWrite> = Vec::new();
+        let mut wrap = None;
         for &clip_id in clip.objects.keys() {
             self.clip_materialize(&clip.objects, clip_id, &mut imported, &mut objects)?;
         }
@@ -15636,7 +15629,7 @@ impl EditSession {
             });
         };
         let mut updated = page_dict.clone();
-        self.append_page_content(&mut updated, content_id);
+        self.append_page_content(&mut updated, content_id, &mut wrap, &mut objects)?;
         let graph = self.graph();
         let resources = crate::vector::clip::paste_resource_dict(
             &page_resources,
@@ -18822,7 +18815,7 @@ impl EditSession {
     /// That premise was false, and `pdfcer-gui` measured it: a session can add a
     /// **whole new content stream** to a page without touching the existing
     /// one. [`Self::add_image`], `paste_objects`, `flatten_fields` and
-    /// `add_text` all append through `append_content_stream`, which writes a
+    /// `add_text` all append through `page_tree::plan_overlay_append`, which writes a
     /// NEW object and patches the page's `/Contents` array. Neither branch
     /// could see it — the base branch because the appended stream is not in
     /// the base, the staged branch because it returned the first stream only.
@@ -18866,7 +18859,7 @@ impl EditSession {
     /// `contents[0]` (`if first_edit`), on the premise that a subsequent edit
     /// would find them already empty. **`add_text`/`add_image`/`paste_objects`
     /// falsify that premise**: they APPEND a new, non-empty extra stream
-    /// (`page_tree::append_content_stream`) *after* the first rewrite, so the
+    /// (`page_tree::plan_overlay_append`) *after* the first rewrite, so the
     /// next surgery folded it into `contents[0]` and left it in place — the run
     /// rendered twice, once more per subsequent edit (pdfcer-gui bug,
     /// 2026-09-04). The predicate is now "empty every extra whose current
@@ -44901,6 +44894,7 @@ impl EditSession {
         // Phase 2 (writes): overlay content, resource + /Contents patches,
         // /Annots removals, /Fields removal, object deletions.
         let mut objects: Vec<ObjectWrite> = Vec::new();
+        let mut wrap = None;
         let mut removals: Vec<Removal> = Vec::new();
 
         for (page_id, pf) in &per_page {
@@ -44964,7 +44958,7 @@ impl EditSession {
                 });
             };
             let mut updated = page_dict.clone();
-            self.append_page_content(&mut updated, overlay_id);
+            self.append_page_content(&mut updated, overlay_id, &mut wrap, &mut objects)?;
             self.add_page_xobjects(&mut updated, *page_id, &pf.xobjects, &slots);
             // The /Annots removal composes into the SAME dict when the array
             // is inline; when `/Annots` is an indirect array shared with
@@ -45242,6 +45236,7 @@ impl EditSession {
         self.refuse_if_in_page_tree("the flattened annotation", &removing)?;
 
         let mut objects: Vec<ObjectWrite> = Vec::new();
+        let mut wrap = None;
         let mut invocations: Vec<(Vec<u8>, Option<[f64; 6]>)> = Vec::new();
         let mut xobjects: Vec<(Vec<u8>, ObjId)> = Vec::new();
         let mut taken: BTreeSet<Vec<u8>> = BTreeSet::new();
@@ -45290,7 +45285,7 @@ impl EditSession {
             };
             let mut updated = page_dict.clone();
             if slot.id == page_id {
-                self.append_page_content(&mut updated, overlay_id);
+                self.append_page_content(&mut updated, overlay_id, &mut wrap, &mut objects)?;
                 self.add_page_xobjects(&mut updated, page_id, &xobjects, &slots);
             }
             if let Some(shared) = self.remove_from_annots(&mut updated, &removing)?
@@ -45659,39 +45654,55 @@ impl EditSession {
         None
     }
 
-    /// Append a content-stream reference to a page's `/Contents` (§7.8.2),
-    /// **mutating the caller's page dictionary in place**. `/Contents`
-    /// becomes an array `[…existing, overlay]`; the existing content stream
-    /// object(s) are untouched (byte-verbatim).
+    /// Append an overlay stream to a page's `/Contents` (§7.8.2), **mutating
+    /// the caller's page dictionary in place**, behind the overlay wrapper
+    /// when the page's content could leak graphics state into it
+    /// ([`page_tree::OverlayAppend`]). `wrap` is the command's wrapper pair,
+    /// allocated on first need and shared by every page of the command; its
+    /// two streams are pushed to `objects`. Existing content streams are
+    /// untouched (byte-verbatim).
     ///
-    /// # Why this mutates rather than returning an [`ObjectWrite`]
-    ///
-    /// It used to return a complete page-dict write of its own, and so did
-    /// its two siblings ([`Self::add_page_xobjects`],
-    /// [`Self::remove_from_annots`]) — three whole-dictionary replacements
-    /// of the same object in one command, each computed from the same
-    /// pre-command state, so the last silently discarded the other two. See
-    /// the fix note at the [`Self::flatten_fields`] call site for the
-    /// resulting defect. Taking `&mut Dict` makes the three **compose** and
-    /// makes it structurally impossible to reintroduce: there is nothing
-    /// left to overwrite.
-    /// # This used to hold its own copy of the shape logic, and it was wrong
-    ///
-    /// It matched on the RAW value and wrapped an `Object::Reference` into
-    /// `[ref, overlay]` without resolving it. When the reference pointed at an
-    /// **array** — which is what Qt-based exporters and every CAD sheet emit —
-    /// that produced an array whose first element dereferenced to another
-    /// array, which [`page_tree::pages`] rejects. `add_image` returned `Ok`,
-    /// the save returned `Ok`, and the file could not be reopened by pdfcer.
-    ///
-    /// The logic now lives in [`page_tree::append_content_stream`], beside the
-    /// READER that decides the same question — see that function for the four
-    /// shapes and for why one copy rather than two corrected ones.
-    fn append_page_content(&self, updated: &mut Dict, overlay_id: ObjId) {
-        let before = updated.get(b"Contents").cloned();
-        let new_contents =
-            page_tree::append_content_stream(&self.graph(), before.as_ref(), overlay_id);
-        updated.insert(Name::from(b"Contents"), new_contents);
+    /// Mutates rather than returning a page write so the sibling page
+    /// mutations ([`Self::add_page_xobjects`], [`Self::remove_from_annots`])
+    /// compose into one write: at most one `ObjectWrite` per object per
+    /// command.
+    fn append_page_content(
+        &mut self,
+        updated: &mut Dict,
+        overlay_id: ObjId,
+        wrap: &mut Option<page_tree::WrapStreams>,
+        objects: &mut Vec<ObjectWrite>,
+    ) -> Result<(), EditError> {
+        let plan = page_tree::plan_overlay_append(&self.view(), updated.get(b"Contents"));
+        let contents = self.finish_overlay(&plan, overlay_id, wrap, objects)?;
+        updated.insert(Name::from(b"Contents"), contents);
+        Ok(())
+    }
+
+    /// The `/Contents` value `plan` yields with `overlay_id` appended,
+    /// allocating the command's wrapper pair into `wrap` and `objects` when
+    /// the plan needs one and none exists yet.
+    fn finish_overlay(
+        &mut self,
+        plan: &page_tree::OverlayAppend,
+        overlay_id: ObjId,
+        wrap: &mut Option<page_tree::WrapStreams>,
+        objects: &mut Vec<ObjectWrite>,
+    ) -> Result<Object, EditError> {
+        let pair = match (plan.needs_wrap(), *wrap) {
+            (false, _) => None,
+            (true, Some(pair)) => Some(pair),
+            (true, None) => {
+                let save = self.new_stream(Dict::new(), page_tree::WRAP_SAVE, objects)?;
+                let restore = self.new_stream(Dict::new(), page_tree::WRAP_RESTORE, objects)?;
+                let pair = page_tree::WrapStreams { save, restore };
+                *wrap = Some(pair);
+                Some(pair)
+            }
+        };
+        // `None` only when a needed pair is missing, which the match rules out.
+        plan.finish(overlay_id, pair)
+            .ok_or(EditError::ObjectNumbersExhausted)
     }
 
     /// Add form-XObject resources to a page's `/Resources` `/XObject`
@@ -57024,6 +57035,7 @@ impl EditSession {
 
         // ---- the /SMask image, if any ---------------------------------
         let mut objects: Vec<ObjectWrite> = Vec::new();
+        let mut wrap = None;
         let soft_mask_id = match img.soft_mask.as_ref() {
             None => None,
             Some(mask) => {
@@ -57125,7 +57137,7 @@ impl EditSession {
             });
         };
         let mut updated = page_dict.clone();
-        self.append_page_content(&mut updated, content_id);
+        self.append_page_content(&mut updated, content_id, &mut wrap, &mut objects)?;
         self.add_page_xobjects(&mut updated, page_id, &[(name.clone(), image_id)], &slots);
         objects.push(ObjectWrite {
             id: page_id,

@@ -276,26 +276,20 @@ fn tf_names(view: &DocumentView<'_>, id: ObjId) -> Option<Vec<Vec<u8>>> {
     Some(out)
 }
 
-/// `contents` (a page's `/Contents` value) without the streams in `drop`.
+/// `contents` (a page's `/Contents` value) without the streams in `drop`, and
+/// without an overlay wrapper left with nothing after it
+/// ([`crate::page_tree::remove_overlays`]).
 ///
 /// Unchanged input is returned as-is, so a reference to a shared array stays a
 /// reference. A changed array is written direct. `None` when nothing is left.
-pub(crate) fn contents_without<G: ObjectGraph + ?Sized>(
-    graph: &G,
+pub(crate) fn contents_without(
+    view: &DocumentView<'_>,
     contents: Option<&Object>,
     drop: &[ObjId],
 ) -> Option<Object> {
-    let contents = contents?;
-    let dropped = |o: &Object| matches!(o, Object::Reference(id) if drop.contains(id));
-    match graph.resolve(contents) {
-        Object::Array(items) => {
-            if !items.iter().any(dropped) {
-                return Some(contents.clone());
-            }
-            let kept: Vec<Object> = items.iter().filter(|o| !dropped(o)).cloned().collect();
-            (!kept.is_empty()).then_some(Object::Array(kept))
-        }
-        _ if dropped(contents) => None,
-        _ => Some(contents.clone()),
-    }
+    crate::page_tree::remove_overlays(
+        view,
+        contents,
+        |item, _| matches!(item, Object::Reference(id) if drop.contains(id)),
+    )
 }

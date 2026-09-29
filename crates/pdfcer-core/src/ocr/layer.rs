@@ -726,8 +726,8 @@ pub(crate) struct OcrLayerPrep {
     pub(crate) page_id: ObjId,
     /// The page dict as it currently stands — base, or the session overlay.
     page_dict: Dict,
-    /// The page's current `/Contents` value, the append's input.
-    contents_before: Option<Object>,
+    /// How the layer is appended to the page's current `/Contents`.
+    pub(crate) append: page_tree::OverlayAppend,
     /// The page's **effective** `/Resources` minus `/Font`, references intact.
     resources_base: Dict,
     /// The existing `/Font` entries the new font merges into.
@@ -744,29 +744,11 @@ pub(crate) struct OcrLayerPrep {
 }
 
 impl OcrLayerPrep {
-    /// The rewritten page dictionary, given the numbers the caller allocated.
-    ///
-    /// Takes the graph rather than re-deriving the append, for the reason
-    /// `AddTextPrep::build_page_dict` states at length: `/Contents` may be a
-    /// **reference to an array**, and a local helper that matched on the raw
-    /// value without resolving it produced an array nested inside an array —
-    /// on Qt output and on every CAD sheet. One answer, threaded in, not two
-    /// correct-looking ones.
-    pub(crate) fn build_page_dict<G: ObjectGraph + ?Sized>(
-        &self,
-        graph: &G,
-        content_id: ObjId,
-        font_id: ObjId,
-    ) -> Dict {
+    /// The rewritten page dictionary, given the new `/Contents` value
+    /// (from [`Self::append`]) and the font number the caller allocated.
+    pub(crate) fn build_page_dict(&self, contents: Object, font_id: ObjId) -> Dict {
         let mut new_page = self.page_dict.clone();
-        new_page.insert(
-            Name::from(b"Contents"),
-            crate::page_tree::append_content_stream(
-                graph,
-                self.contents_before.as_ref(),
-                content_id,
-            ),
-        );
+        new_page.insert(Name::from(b"Contents"), contents);
         let mut font_subdict = self.font_subdict_base.clone();
         font_subdict.insert(Name(self.font_name.clone()), Object::Reference(font_id));
         let mut resources = self.resources_base.clone();
@@ -823,12 +805,12 @@ pub(crate) fn existing_layer_strip(
 /// [`OcrLayerError::Unsupported`] if the page object is not a dictionary, and
 /// [`OcrLayerError::NothingToWrite`] if every word proved unplaceable. Both
 /// happen before the caller allocates anything.
-pub(crate) fn plan_ocr_layer<G: ObjectGraph + ?Sized>(
+pub(crate) fn plan_ocr_layer(
     page: &crate::page_tree::Page,
     ocr_page: &OcrPage,
     opts: &OcrLayerOptions,
     strip: &LayerStrip,
-    graph: &G,
+    graph: &crate::view::DocumentView<'_>,
 ) -> Result<OcrLayerPrep, OcrLayerError> {
     let page_dict = graph.resolved(page.id).as_dict().cloned().ok_or_else(|| {
         OcrLayerError::Unsupported("the page object is not a dictionary".to_owned())
@@ -838,6 +820,7 @@ pub(crate) fn plan_ocr_layer<G: ObjectGraph + ?Sized>(
     } else {
         contents_without(graph, page_dict.get(b"Contents"), &strip.contents)
     };
+    let append = page_tree::plan_overlay_append(graph, contents_before.as_ref());
 
     // The §7.7.3.4 inheritance-safe recipe, identical to add-text's: take the
     // page's EFFECTIVE resources (own-or-inherited, already resolved by the
@@ -864,7 +847,7 @@ pub(crate) fn plan_ocr_layer<G: ObjectGraph + ?Sized>(
     Ok(OcrLayerPrep {
         page_id: page.id,
         page_dict,
-        contents_before,
+        append,
         resources_base,
         font_subdict_base,
         font_name,
@@ -947,7 +930,7 @@ pub fn add_ocr_layer(
     // only where object numbers and staged bytes come from, and that fork
     // starts on the next line.
     let strip = existing_layer_strip(&doc.view(), page, page_index, opts)?;
-    let prep = plan_ocr_layer(page, ocr_page, opts, &strip, doc)?;
+    let prep = plan_ocr_layer(page, ocr_page, opts, &strip, &doc.view())?;
     let mut report = prep.report.clone();
 
     let content_num = doc
@@ -958,8 +941,6 @@ pub fn add_ocr_layer(
         .ok_or(OcrLayerError::ObjectNumbersExhausted)?;
     let content_id = ObjId::new(content_num, 0);
     let font_id = ObjId::new(font_num, 0);
-
-    let new_page = prep.build_page_dict(doc, content_id, font_id);
 
     // A SANCTIONED WRITER BYPASS — exception 7's shape exactly (see
     // `tools/check-bypass-paths.sh`): `add_ocr_layer(doc, ..) -> bytes`,
@@ -1004,17 +985,28 @@ pub fn add_ocr_layer(
     // stream's span in the `base.len() + local` combined coordinate system
     // (R45). The image and the original content stream are NOT in the dirty
     // set, so they are not re-emitted — round-trip, rule 3.
-    let mut dirty = DirtySet::empty();
     let start = doc.bytes().len();
     let span = ByteSpan::new(start, prep.content_data.len());
+    let mut staging = prep.content_data.clone();
+    let mut dirty = DirtySet::empty();
+    // bypass-exempt: see the note above this block. The gate's window is
+    // eight lines either side of each writer call, so the token sits between
+    // `DirtySet::empty` and `save_incremental`, within reach of both.
     dirty.replace(content_id, make_raw_stream(span, prep.content_data.len()));
     dirty.replace(font_id, prep.font_dict.clone());
+    let contents = crate::text_edit::addtext::one_shot_contents(
+        &prep.append,
+        content_id,
+        font_num.checked_add(1),
+        start,
+        &mut staging,
+        &mut dirty,
+    )
+    .ok_or(OcrLayerError::ObjectNumbersExhausted)?;
+    let new_page = prep.build_page_dict(contents, font_id);
     dirty.replace(prep.page_id, Object::Dict(new_page));
-    // bypass-exempt: see the note above this block. The token sits HERE, in
-    // the middle of the three writer calls, because the gate's window is
-    // eight lines either side of each hit and the calls span eight lines —
-    // above the block it covers the first two and misses `save_incremental`.
-    dirty.set_staging(prep.content_data.clone());
+    // bypass-exempt: the second token covers `save_incremental` below.
+    dirty.set_staging(staging);
 
     let (bytes, _) = save_incremental(doc, &dirty, &SaveOptions::identity())?;
 

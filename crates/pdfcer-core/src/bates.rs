@@ -298,10 +298,7 @@ pub(crate) fn label_content(font: &[u8], m: [f64; 6], label: &[u8]) -> Vec<u8> {
 
 /// How every label stream [`label_content`] writes begins. Removal
 /// recognises pdfcer's own labels by it, and nothing else.
-pub(crate) const LABEL_HEAD: &[u8] = b"Q q /Artifact <</Type /Pagination /Subtype /Bates>> BDC\n";
-
-/// The shared stream a stamp puts first in `/Contents`.
-pub(crate) const SAVE_STREAM: &[u8] = b"q\n";
+pub(crate) const LABEL_HEAD: &[u8] = b"q /Artifact <</Type /Pagination /Subtype /Bates>> BDC\n";
 
 /// The font resource name and label text of a stream [`label_content`]
 /// wrote, or `None` for any other stream.
@@ -557,7 +554,7 @@ mod tests {
         let content = label_content(b"Bates1", [10.0, 0.0, 0.0, 10.0, 1.5, -0.0], &label);
         let text = String::from_utf8(content).expect("7-bit");
         assert!(text.contains("/Bates1 1 Tf 0 g 10 0 0 10 1.5 0 Tm (\\(\\351\\)\\\\1) Tj"));
-        assert!(text.starts_with("Q q /Artifact <</Type /Pagination /Subtype /Bates>> BDC"));
+        assert!(text.starts_with("q /Artifact <</Type /Pagination /Subtype /Bates>> BDC"));
         assert!(text.ends_with("EMC Q\n"));
     }
 }

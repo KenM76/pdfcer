@@ -462,3 +462,89 @@ fn certified_document_refuses_box_add_by_name() {
     assert!(stderr(&out).contains("certification signature"));
     assert!(!out_path.exists());
 }
+
+/// The object number after the first `key` (`/FontFile2 12 0 R` -> 12; a digit
+/// suffix on the key itself is skipped).
+fn referenced_number(text: &str, key: &str) -> String {
+    let at = text.find(key).unwrap_or_else(|| panic!("{key} missing")) + key.len();
+    let rest = text[at..].trim_start_matches(|c: char| c.is_ascii_digit());
+    rest.trim_start()
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect()
+}
+
+/// An embedded face takes four numbers after the font's; the overlay wrapper
+/// on a page that leaves a `cm` in effect must be numbered after them, not on
+/// top of them. The font's descriptor and program are intact, the wrapper is
+/// present once, and the output reopens.
+#[test]
+fn embedded_face_and_overlay_wrapper_do_not_share_numbers() {
+    let stream = |s: &str| format!("<< /Length {} >>\nstream\n{s}\nendstream", s.len());
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Contents [4 0 R] /Resources << >> >>"
+            .to_owned(),
+        stream("1.1 0 0 1.1 0 0 cm"),
+    ];
+    let mut pdf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = pdf.len();
+    pdf.extend_from_slice(b"xref\n0 5\n0000000000 65535 f \n");
+    for off in &offsets {
+        pdf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n").as_bytes(),
+    );
+    let input = temp_path("zoomed_in");
+    std::fs::write(&input, &pdf).unwrap();
+    let donor = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/text/subset-donor.ttf");
+
+    let out_path = temp_path("zoomed_embed");
+    let out = run_add(&[
+        input.to_str().unwrap(),
+        "--at",
+        "100,300",
+        "--text",
+        "CAB",
+        "--embed-font",
+        donor.to_str().unwrap(),
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "exit 0: {}", stderr(&out));
+    let bytes = std::fs::read(&out_path).unwrap();
+    let appended = String::from_utf8_lossy(&bytes[pdf.len()..]).into_owned();
+    assert_eq!(appended.matches("%pdfcer overlay wrap: save").count(), 1);
+    // A number collision overwrites rather than duplicates, so check that the
+    // objects the font points at are still the font's.
+    for (key, expect) in [
+        ("/FontDescriptor", "/Type /FontDescriptor"),
+        ("/FontFile", "stream"),
+    ] {
+        let num = referenced_number(&appended, key);
+        let def = format!("\n{num} 0 obj");
+        let body = &appended[appended.find(&def).expect("defined") + def.len()..];
+        let body = &body[..body.find("endobj").expect("closed")];
+        assert!(
+            body.contains(expect) && !body.contains("overlay wrap"),
+            "{key} -> {num} is not the font's object: {body:.200}"
+        );
+    }
+
+    let info = Command::new(BIN)
+        .args(["extract-text", out_path.to_str().unwrap()])
+        .output()
+        .expect("the binary runs");
+    assert!(info.status.success(), "reopens: {}", stderr(&info));
+    assert!(stdout(&info).contains("CAB"), "{}", stdout(&info));
+    let _ = std::fs::remove_file(out_path);
+    let _ = std::fs::remove_file(input);
+}

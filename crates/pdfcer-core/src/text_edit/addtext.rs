@@ -71,8 +71,10 @@
 //! streams … the effect shall be as if all of the streams in the array were
 //! concatenated, in order"* — and *"conforming writers shall not create a
 //! `Contents` array containing no elements."* So (see
-//! [`crate::page_tree::append_content_stream`]):
-//! `R_orig` → `[R_orig R_new]`; `[R1…Rk]` → `[R1…Rk R_new]`; absent → `R_new`.
+//! [`crate::page_tree::plan_overlay_append`]):
+//! `R_orig` → `[R_orig R_new]`; `[R1…Rk]` → `[R1…Rk R_new]`; absent → `[R_new]`,
+//! with the original elements between an overlay-wrapper `q`/`Q` pair when
+//! they could leave graphics state in effect (decision 039).
 //! The new run is appended at the END so it executes last and paints ON TOP
 //! (§8.2 painter's model) — what "add text on top of the page" requires.
 //!
@@ -81,7 +83,11 @@
 //! The array concatenates into ONE logical stream and **graphics state is
 //! initialized ONCE at page start, not between array elements** (Table 52). The
 //! appended stream therefore *inherits* whatever state the prior stream(s)
-//! left. Two consequences the emitted run ([`build_content`]) honors:
+//! left — a top-level `cm` is conforming and never undone. The append wraps
+//! such content ([`crate::page_tree::OverlayAppend`]), so the run starts from
+//! the page's initial state; the run itself still honors two rules
+//! ([`build_content`]), because a wrap is skipped when the content provably
+//! leaves no state and the run must hold up either way:
 //!
 //! 1. **Wrap in `q … Q`** — §8.4.2 requires q/Q to balance *"within the
 //!    sequence of streams specified in a page dictionary's `Contents` array"*;
@@ -702,7 +708,7 @@ pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, 
 
     let retagged = with_file_unique_tag(req, &doc.view());
     let req = retagged.as_ref().unwrap_or(req);
-    let prep = plan_add_text(req, page, doc)?;
+    let prep = plan_add_text(req, page, &doc.view())?;
 
     // Two fresh object numbers: content stream then font dict. Consecutive so
     // the incremental update section stays compact and deterministic.
@@ -714,8 +720,6 @@ pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, 
         .ok_or(AddTextError::ObjectNumbersExhausted)?;
     let content_id = ObjId::new(content_num, 0);
     let font_id = ObjId::new(font_num, 0);
-
-    let new_page = prep.build_page_dict(doc, content_id, font_id);
 
     // Stage the content bytes into the dirty set's own buffer and point the
     // new stream object's span at `base.len() + local` (R45 combined source).
@@ -747,6 +751,18 @@ pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, 
         }
     }
 
+    // An embedded face uses `font_num..font_num + 5`.
+    let first_free = font_num.checked_add(if prep.embed.is_some() { 5 } else { 1 });
+    let contents = one_shot_contents(
+        &prep.append,
+        content_id,
+        first_free,
+        base_len,
+        &mut staging,
+        &mut dirty,
+    )
+    .ok_or(AddTextError::ObjectNumbersExhausted)?;
+    let new_page = prep.build_page_dict(contents, font_id);
     dirty.replace(prep.page_id, Object::Dict(new_page));
     dirty.set_staging(staging);
 
@@ -812,8 +828,8 @@ pub(crate) struct AddTextPrep {
     pub(crate) page_id: ObjId,
     /// The page dict as it currently stands (base, or session overlay).
     page_dict: Dict,
-    /// The page dict's current `/Contents` value (single→array append input).
-    contents_before: Option<Object>,
+    /// How the run is appended to the page's current `/Contents`.
+    pub(crate) append: page_tree::OverlayAppend,
     /// The page's effective `/Resources` minus `/Font` (references preserved).
     resources_base: Dict,
     /// The existing `/Font` subdict entries to merge the new font into.
@@ -842,38 +858,17 @@ pub(crate) struct AddTextPrep {
 }
 
 impl AddTextPrep {
-    /// Build the modified page dict from the two allocated object numbers.
+    /// Build the modified page dict from the new `/Contents` value (from
+    /// [`Self::append`]) and the allocated font number.
     ///
-    /// Sets `/Contents` via [`crate::page_tree::append_content_stream`] and
-    /// `/Resources` to an inline dict that references the same sub-dictionaries
-    /// as the effective resources EXCEPT for a fresh merged `/Font` subdict
-    /// carrying the new font — the inheritance-safe recipe (§7.7.3.4). The
-    /// original page dict's other keys are preserved (e.g. `/Annots` a prior
-    /// session op added).
-    pub(crate) fn build_page_dict<G: ObjectGraph + ?Sized>(
-        &self,
-        graph: &G,
-        content_id: ObjId,
-        font_id: ObjId,
-    ) -> Dict {
+    /// Sets `/Resources` to an inline dict that references the same
+    /// sub-dictionaries as the effective resources EXCEPT for a fresh merged
+    /// `/Font` subdict carrying the new font — the inheritance-safe recipe
+    /// (§7.7.3.4). The original page dict's other keys are preserved (e.g.
+    /// `/Annots` a prior session op added).
+    pub(crate) fn build_page_dict(&self, contents: Object, font_id: ObjId) -> Dict {
         let mut new_page = self.page_dict.clone();
-
-        // `page_tree::append_content_stream`, not a local helper. This used
-        // to call `append_contents`, a SECOND implementation of the same
-        // append that lived in this file -- and it was wrong the same way the
-        // first one was: it matched on the RAW `/Contents` value and wrapped a
-        // reference without resolving it, so a reference to an ARRAY (Qt, and
-        // every CAD sheet) produced an array nested inside an array. That is
-        // R92 exactly, and the graph is threaded in here rather than the logic
-        // being re-derived because ONE answer is the fix, not two correct ones.
-        new_page.insert(
-            Name::from(b"Contents"),
-            crate::page_tree::append_content_stream(
-                graph,
-                self.contents_before.as_ref(),
-                content_id,
-            ),
-        );
+        new_page.insert(Name::from(b"Contents"), contents);
 
         let mut font_subdict = self.font_subdict_base.clone();
         font_subdict.insert(Name(self.font_name.clone()), Object::Reference(font_id));
@@ -901,10 +896,10 @@ impl AddTextPrep {
 ///
 /// [`AddTextError`] — empty text, an invalid size, a named font refusal, or a
 /// non-dictionary page object.
-pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
+pub(crate) fn plan_add_text(
     req: &AddTextRequest,
     page: &Page,
-    graph: &G,
+    graph: &crate::view::DocumentView<'_>,
 ) -> Result<AddTextPrep, AddTextError> {
     if req.text.is_empty() {
         return Err(AddTextError::EmptyText);
@@ -918,7 +913,7 @@ pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
     })?;
     // Own `/Resources` vs inherited: the §7.7.3.4 trap detector.
     let has_own_resources = page_dict.get(b"Resources").is_some();
-    let contents_before = page_dict.get(b"Contents").cloned();
+    let append = page_tree::plan_overlay_append(graph, page_dict.get(b"Contents"));
 
     // Effective `/Font` subdict (resolve an indirect subdict), and the base
     // resources with `/Font` stripped (re-added merged in `build_page_dict`).
@@ -1099,7 +1094,7 @@ pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
     Ok(AddTextPrep {
         page_id: page.id,
         page_dict,
-        contents_before,
+        append,
         resources_base,
         font_subdict_base,
         font_name,
@@ -1180,6 +1175,35 @@ fn unique_subset_tag(tag: &str, taken: &BTreeSet<String>) -> String {
     candidate
 }
 
+/// For the one-shot writers: the `/Contents` value `plan` yields with
+/// `content_id` appended, staging a wrapper pair at `first_free` and the number
+/// after it when the plan needs one. `None` when the numbers run out.
+pub(crate) fn one_shot_contents(
+    plan: &page_tree::OverlayAppend,
+    content_id: ObjId,
+    first_free: Option<u32>,
+    base_len: usize,
+    staging: &mut Vec<u8>,
+    dirty: &mut DirtySet,
+) -> Option<Object> {
+    let pair = if plan.needs_wrap() {
+        let save = ObjId::new(first_free?, 0);
+        let restore = ObjId::new(save.num.checked_add(1)?, 0);
+        for (id, bytes) in [
+            (save, page_tree::WRAP_SAVE),
+            (restore, page_tree::WRAP_RESTORE),
+        ] {
+            let span = ByteSpan::new(base_len + staging.len(), bytes.len());
+            staging.extend_from_slice(bytes);
+            dirty.replace(id, make_raw_stream(span, bytes.len()));
+        }
+        Some(page_tree::WrapStreams { save, restore })
+    } else {
+        None
+    };
+    plan.finish(content_id, pair)
+}
+
 /// The five objects of an embedded subset (`/Type0` first, at `font_id`),
 /// with the program and `/ToUnicode` bytes staged through `stage`.
 ///
@@ -1222,13 +1246,6 @@ fn make_font_program_stream(span: ByteSpan, len: usize) -> Object {
         data_span: span,
     })
 }
-
-// The `/Contents` append that used to live here (`append_contents`) is GONE —
-// it was a second implementation of `page_tree::append_content_stream`, and it
-// was wrong the same way that one was: it matched on the RAW `/Contents` value
-// and wrapped a reference without resolving it, so a reference to an ARRAY
-// produced an array nested inside an array (`Pass 111.0`). One answer, in
-// `page_tree`, beside the reader that decides the same question.
 
 /// The fill colour and the text-state reset every new run starts with.
 ///
