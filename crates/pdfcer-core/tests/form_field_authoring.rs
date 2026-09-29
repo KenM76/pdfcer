@@ -1608,6 +1608,24 @@ fn a_font_pdfcer_adds_to_dr_is_one_indirect_object_per_face() {
         Some(&Object::Reference(helv)),
         "a second field must reuse the first field's Helvetica object"
     );
+    // Reuse by reference is not enough: no second, unreferenced Helvetica
+    // object may be written either.
+    let base = std::fs::read(fixture("dimension/plain-base.pdf")).unwrap();
+    let (saved, _) = s
+        .to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .unwrap();
+    let appended = &saved[base.len()..];
+    // Top-level font objects only: each widget's /AP stream also carries its
+    // own inline resource copy, which is not an object.
+    let needle: &[u8] = b"obj\n<</Type /Font/Subtype /Type1/BaseFont /Helvetica";
+    let helvetica_objects = appended
+        .windows(needle.len())
+        .filter(|w| *w == needle)
+        .count();
+    assert_eq!(
+        helvetica_objects, 1,
+        "one Helvetica font object per document"
+    );
 
     s.edit_field(
         "B",
