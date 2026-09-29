@@ -115,6 +115,41 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 405.0` (`36f3bad5`), 2026-09-29 — CLI `--help` ships no internal decision/rule/request IDs
+
+Fixes the leak found during the `v0.66.0` release smoke test (recorded in
+the entry below): a scan of all 187 subcommands' rendered help found 72
+lines carrying project-internal references — decision numbers, standing-
+rule IDs (R19, R32, R46, R73, R79, etc.), GUI request IDs (G017, G030,
+G035, G038), "the Pass 0 stub", "first cut", and two developer rationales
+about clap's `allow_hyphen_values`.
+
+**Fix.** IDs stripped from `///` doc-comment lines across 14
+`crates/pdfcer-cli/src` files; ISO 32000-1 clause citations kept.
+Developer rationale moved to non-doc `//` comments (`render-page --page`,
+`render-region --region`, `object-list --tolerance`, the global
+`--open-password` naming note). User-facing sentences reworded where the
+ID carried meaning (`export-image --background`, `add-image
+--compression`, `add-text`).
+
+**Test.** `crates/pdfcer-cli/src/tests.rs`
+`cli_help_ships_no_internal_markup` extended with `internal_id_at`: now
+also fails on `decision N`, `R` + 2–3 digits, and `G` + 3 digits appearing
+in rendered help (`R12`, the DXF version `export-dxf` writes, exempt).
+Sabotage-verified: re-inserting "(G097, R105, decision 097)" into
+`dimension-label`'s about text fails the test for two subcommand paths.
+
+**Residual scan.** 9 remaining hits, all ordinary English ("no longer
+fits the page", "Pass 0 to REMOVE the limit") or the DXF `R12` exemption
+— none are internal-ID leaks.
+
+**Tests.** pdfcer-cli 612 + 29 green; `cargo fmt --check` /
+`cargo clippy -- -D warnings` clean. No core/render manifest change
+(`cargo tree` n/a). No `pub` API change.
+
+**`docs/FEATURES.md`.** No row change — help-text hygiene on the
+existing CLI surface, not a new capability.
+
 ### `v0.66.0` — RELEASED (2026-09-29)
 
 Release filing, not a Pass — completes the engineer's in-progress release

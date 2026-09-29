@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (752nd filing) — `36f3bad5`: `Pass 405.0` shipped — CLI `--help` ships no internal IDs
+
+**Shipped:**
+- `Pass 405.0` (`36f3bad5`) — CLI `--help` no longer ships internal
+  decision/rule/request IDs. Fixes the leak found during the `v0.66.0`
+  smoke test (750th/751st filings): 72 lines across 187 subcommands'
+  rendered help carried decision numbers, standing-rule IDs (R19, R32,
+  R46, R73, R79, etc.), GUI request IDs (G017, G030, G035, G038), and
+  "first cut"/"Pass 0 stub" phrasing. IDs stripped from `///` doc
+  comments in 14 `crates/pdfcer-cli/src` files; ISO 32000-1 clause
+  citations kept; developer rationale moved to non-doc `//` comments.
+
+**Decisions made this session:** None — bug fix, no new crate boundary
+or invariant. Highest decision record stays `166`.
+
+**Findings + decisions:**
+- Test `cli_help_ships_no_internal_markup` extended with
+  `internal_id_at`: fails on `decision N`, `R` + 2–3 digits, `G` + 3
+  digits in rendered help (`R12`, the DXF version `export-dxf` writes,
+  exempt). Sabotage-verified: re-inserting "(G097, R105, decision 097)"
+  fails the test for two subcommand paths.
+- Residual scan after the fix: 9 hits, all ordinary English ("no longer
+  fits", "Pass 0 to REMOVE the limit") or the `R12` DXF exemption —
+  none are internal-ID leaks.
+- `docs/FEATURES.md`: no row changed — help-text hygiene on the
+  existing CLI surface, not a new capability.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** `tools/verify-release.py v0.66.0`'s CI check was
+still pending as of the 751st filing — confirm it went green.
+
+**Sourcing (hard rule 8).** No shell tool this filing — test counts,
+gate/lint results and the residual-scan figures are relayed from the
+dispatching engineer's own report, not independently reproduced here.
+
 ## 2026-09-29 (751st filing) — `c1cbad50`/tag `v0.66.0`: `v0.66.0` RELEASED
 
 **Shipped:**
