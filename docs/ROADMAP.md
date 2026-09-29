@@ -115,6 +115,40 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 400.1` (`4a0fc54d` + `183a6781`), 2026-09-29 — two comment-only fixes: a stale `/RI` claim and two gates' own blind-spot statements
+
+**Verdict: SHIPPED.** Both commits are documentation-only and carry no Pass
+number in their own message — cited here by hash so
+`tools/check-commits-filed.py` sees them.
+
+**`4a0fc54d`** — `crates/pdfcer-render/tests/cmyk_intent.rs`'s module doc
+said `ri`/`/RI` are a no-op and never read. False since `Pass 124.1`: both
+are read and select the ICC transform for managed sources; they never reach
+the `CmykIntent` table. Closes the "cmyk_intent doc" item carried in
+`NEXT_SESSION.md`'s small-picks list.
+
+**`183a6781`** — `tools/check-fmt-excluded.py` and
+`tools/check-shipped-assets.py` each gain a "WHAT IT CANNOT SEE" section
+(`R192`). Closes the two open rows in the *Standing rules* gate blind-spot
+table (§`R192`'s entry) that said each gate states its own purpose but not
+its own blind spot — marked done there, citing this hash. The table's other
+two rows (`check-commits-filed.py`, `check-ledger-numbers.py`) are
+unchanged, still open.
+
+**`docs/FEATURES.md`.** No row affected — neither commit changes a
+capability's core/cli/gui surface.
+
+**New finding, filed to *Backlog*, not fixed this Pass.** `tools/check-
+shipped-assets.py` scans only `crates/*/assets/`; `tools/package-
+portable.py` also stages `models/tesseract` and `models/ocrcer` from
+outside that tree, currently covered only by hand-written `about.hbs`
+sections with no gate tying packager output to licence-gate input. See
+*Backlog*.
+
+**Sourcing (hard rule 8).** No shell tool this filing — hashes relayed from
+the dispatching engineer's report (verified by them via `git log`), not
+independently reproduced.
+
 ### `Pass 400.0` (`c18dce99`), 2026-09-29 — disclose spot inks flattened past the plane roster
 
 **Verdict: SHIPPED.** Found and fixed on discovery this session — no prior
@@ -20607,6 +20641,20 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
+### `check-shipped-assets.py` doesn't see everything `package-portable.py` stages — filed 2026-09-29 (742nd filing, `Pass 400.1`'s own remainder), no Pass ID
+
+**Finding, not fixed.** `tools/check-shipped-assets.py` scans only
+`crates/*/assets/` for licence coverage. `tools/package-portable.py` also
+stages `models/tesseract` (from `target/tesseract-bundle`) and
+`models/ocrcer` (from the sibling `../OCRcer` checkout) — today both are
+covered only by hand-written `about.hbs` sections, not by the gate. Nothing
+ties what the packager stages to what the licence gate scans, so a new
+staging step outside `assets/` would ship with no licence check at all.
+
+**Suggested fix, not decided.** Either the gate derives its scan list from
+the packager's own staging sources, or the packager refuses to stage a
+directory that has no `PROVENANCE.md`.
+
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
 **Scope.** `Pass 399.1` (`8b634e7b`) re-synced the vendored
@@ -25846,8 +25894,8 @@ added. See that section below.
   | tool | state | owed |
   |---|---|---|
   | `tools/check-commits-filed.py` | **already substantially complies** — its docstring opens *"blind spot is total: a commit that claims no Pass ID is invisible to…"* | a re-read against `R192`'s "enumerate, do not gesture" clause; probably nothing |
-  | `tools/check-fmt-excluded.py` | states its **own** purpose (*"the crates `cargo fmt --all` structurally cannot see"*) but not **its own** blind spot | one statement |
-  | `tools/check-shipped-assets.py` | same shape — names what `cargo-about` cannot see, not what **it** cannot see | one statement |
+  | `tools/check-fmt-excluded.py` | **DONE** (`183a6781`, 2026-09-29, 742nd filing) — now carries its own "WHAT IT CANNOT SEE" section | — |
+  | `tools/check-shipped-assets.py` | **DONE** (`183a6781`, 2026-09-29, 742nd filing) — now carries its own "WHAT IT CANNOT SEE" section | — |
   | `tools/check-ledger-numbers.py` | has a `WHAT IT DOES NOT CHECK` block that is **the model for the others** — and **three measured blind spots are missing from it** | three statements, one of them urgent |
 
   **★ THE URGENT HALF, and it is not cosmetic: `collect_rules` matches

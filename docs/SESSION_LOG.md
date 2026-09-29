@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (742nd filing) — `4a0fc54d` + `183a6781`: `Pass 400.1` SHIPPED — two comment-only follow-ups, cited by hash
+
+**Shipped:**
+- `Pass 400.1` (`4a0fc54d` + `183a6781`) — both commits are documentation-
+  only and carry no Pass number in their own message; filed together as one
+  small entry, cited by hash so `tools/check-commits-filed.py` sees them.
+  `4a0fc54d` fixes `crates/pdfcer-render/tests/cmyk_intent.rs`'s module doc,
+  which said `ri`/`/RI` are a no-op never read — false since `Pass 124.1`
+  (both select the ICC transform for managed sources, but never reach the
+  `CmykIntent` table). `183a6781` adds a "WHAT IT CANNOT SEE" section to
+  `tools/check-fmt-excluded.py` and `tools/check-shipped-assets.py`,
+  closing the two open rows in the `R192` gate blind-spot table that said
+  each states its own purpose but not its own blind spot. The table's
+  other two rows (`check-commits-filed.py`, `check-ledger-numbers.py`) are
+  unchanged.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- New finding, filed to *Backlog*, not fixed: `tools/check-shipped-
+  assets.py` scans only `crates/*/assets/`, but `tools/package-portable.py`
+  also stages `models/tesseract` and `models/ocrcer` from outside that
+  tree (covered today only by hand-written `about.hbs` sections). No gate
+  ties packager staging to licence-gate scanning, so a new staging step
+  elsewhere would ship uncovered. Suggested fix noted in the Backlog entry,
+  not decided.
+
+**`docs/FEATURES.md`:** unchanged — neither commit affects a capability's
+core/cli/gui surface.
+
+**Still in flight:** Unchanged from the 741st filing.
+
+**For next session:** Push `main` — this filing's two commits plus the
+740th/741st filing's work are all local as of writing.
+
+**Sourcing (hard rule 8).** No shell tool this filing — hashes relayed
+from the dispatching engineer's report (verified by them via `git log`),
+not independently reproduced.
+
 ## 2026-09-29 (741st filing) — `c18dce99`: `Pass 400.0` SHIPPED — spot inks flattened past the plane roster now disclosed
 
 **Shipped:**
