@@ -115,6 +115,83 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 388.0` (`5a06602a`), 2026-09-28 — Bates numbering across a batch of PDFs
+
+**Verdict: SHIPPED.** Off-cycle — dispatched directly, since *Next up* had
+no named head (the `387` family had just closed, 721st filing). Narrows
+the Acrobat-parity *Backlog* bucket "Bates numbering / stamping" — see
+that entry, below, for the remaining scope.
+
+**Core.** New module `pdfcer_core::bates`: `BatesNumbering { prefix,
+digits, suffix }` (`MAX_DIGITS = 15`), `BatesPosition` (six placements,
+default `BottomRight`), `BatesStamp { numbering, position, margin: 36.0,
+font_size: 10.0, pages }`, `BatesOutcome { first, next, pages,
+first_label, last_label }`, `BatesError` (`Digits`/`Overflow`/
+`Unencodable`/`Geometry`/`NoPages`). New verb `EditSession::stamp_bates(&
+BatesStamp, first: u64) -> Result<BatesOutcome, EditError>`;
+`CommandKind::StampBates`; `EditError::Bates` (153rd variant —
+`EditSession` now 283 pub verbs). Each label draws as `/Artifact <<
+/Type /Pagination /Subtype /Bates>>` (ISO 32000-2 Table 385), non-embedded
+Helvetica WinAnsi, upright under the page's own `/Rotate`, isolated from
+leftover graphics state by a prepended shared `q`/`Q`; existing streams
+re-emitted byte-verbatim. One undo entry. Every refusal — encryption,
+certification, suppressed objects, digit count, an unencodable character,
+geometry, page range, empty selection, overflow of the LAST computed
+number — fires before any write.
+
+**CLI.** `pdfcer bates-stamp` replaces the former not-yet-implemented
+stub: `inputs... --out-dir --start --prefix --suffix --digits --position
+--margin --size --pages --name keep|range|keep-range`. Numbering carries
+across files in argument order; all inputs are stamped in memory before
+anything is written, so a refusal on any one file writes nothing; an
+output never replaces an input (exit 9). Incremental save keeps original
+bytes; signature impact printed. `README.md` subcommand count 182 → 183
+(2 remain not-yet-implemented: `to-pdfa`, `validate-pdfa`).
+
+**Tests.** 7 core unit (`bates.rs`) + 5 core integration
+(`crates/pdfcer-core/tests/bates_stamp.rs`) + 4 CLI integration
+(`crates/pdfcer-cli/tests/bates_stamp.rs`), all sabotage-checked.
+`tools/run-gates.sh`: 40 commands, 10,043 tests passing, 0 failed — a
+Markdown-backtick violation in a `ValueEnum --help` string was caught
+pre-commit and fixed in the same commit.
+
+**`cargo tree`.** No manifest touched.
+
+**Round-trip.** Untouched streams re-emitted byte-verbatim; the stamp is
+additive content only.
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — no `pdfcer-gui` caller.
+
+**`docs/FEATURES.md`.** *Planned* row "Bates numbering" (Document &
+pages) moved to *Implemented → Document & pages*: core `[x]`, cli `[x]`,
+gui `[ ]`.
+
+**Divergences from Acrobat** (disclosed, not silent): pdfcer allows
+1–15 digits (Acrobat 3–15); pdfcer stamps a **signed** file incrementally
+and discloses the signature impact (Acrobat refuses outright); a
+certified file is refused by both; pdfcer adds a `keep-range` naming
+mode; overflow of the last number is refused up front (Acrobat's own
+overflow behaviour is unsourced).
+
+**Follow-ups filed as Backlog, not shipped this Pass**: re-stamp/remove/
+replace an existing Bates set (needs a `PieceInfo`-equivalent marker,
+Acrobat's own mechanism — see the handoff below); font/colour options; a
+date token; the `pdfcer-gui` surface.
+
+**Acrobat RAG handoff.** Scoped against
+`D:\Dev\Rag-Specialized\Acrobat_Features\bates__numbering_scheme.md`,
+`bates__batch_processing.md`, `bates__placement_and_appearance.md`,
+`bates__underlying_mechanism_and_pieceinfo.md`,
+`bates__interaction_with_headers_footers_and_signatures.md`,
+`bates__limitations_and_known_defects.md`.
+
+**No §12 decision.** New core module + CLI verb, no crate boundary or
+invariant change. Highest decision record stays `165`.
+
+**Sourcing (hard rule 8).** No shell this filing — facts relayed from the
+dispatching engineer's own report at `5a06602a`, not independently
+reproduced.
+
 ### `Pass 387.1` (`09dd494d`), 2026-09-28 — purge stored password-field values
 
 **Verdict: SHIPPED.** Sole head of *Next up* (promoted 719th filing from
@@ -10206,6 +10283,11 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★ **`Pass 388.0` SHIPPED, 2026-09-28 (722nd filing),
+> `5a06602a`** — see top of *Shipped*. Off-cycle (Bates numbering across a
+> batch), not scoped through this queue. **`Next up` still has no named
+> head.**
 
 > ★★★★★★★★★★ **UPDATED 2026-09-28 (721st filing) — `Pass 387.1` SHIPPED
 > (`09dd494d`, `ROADMAP.md` *Shipped*). The `387` family (find + purge
@@ -28007,7 +28089,17 @@ pdfcer's own; the composed appearance has an Acrobat analogue).
   research session — re-read it, don't re-research, when Sanitize is
   scoped.
 - **Bates numbering / stamping** — header/footer stamps, sequential
-  numbering across a batch, watermarks.
+  numbering across a batch, watermarks. **Narrowed 2026-09-28 (722nd
+  filing, `Pass 388.0`, `5a06602a`): sequential numbering across a batch
+  is SHIPPED** — see *Shipped*, top of this file, for the full record.
+  **Remaining scope**: re-stamp/remove/replace an existing Bates set
+  (needs a `PieceInfo`-equivalent marker, per
+  `bates__underlying_mechanism_and_pieceinfo.md`); font/colour options; a
+  date token; the `pdfcer-gui` surface. Generic (non-Bates) header/footer
+  stamps and watermarks are a separate page-content-authoring capability
+  — watermark-as-annotation was already refused as the wrong subsystem
+  (`Pass 261.5`, `FEATURES.md` *Implemented → Annotations & markup*); no
+  bucket for the real (page-content) version is open yet.
 - **Annotation display (read-side)** — created 2026-08-01 by decision
   008 (finding **F1**). Rendering AND counting of every §12.5
   annotation and widget from its `/AP` `/N` appearance stream, with the

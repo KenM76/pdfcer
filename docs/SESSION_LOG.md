@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-28 (722nd filing) — `5a06602a`: `Pass 388.0` SHIPPED — Bates numbering across a batch of PDFs
+
+**Shipped:**
+- `Pass 388.0` (`5a06602a`) — new core module `pdfcer_core::bates`: `BatesNumbering`/`BatesStamp`/`BatesPosition`/`BatesOutcome`/`BatesError`; new verb `EditSession::stamp_bates(&BatesStamp, first: u64)`. Each label draws as `/Artifact <</Type /Pagination /Subtype /Bates>>` (ISO 32000-2 Table 385), non-embedded Helvetica WinAnsi, upright under `/Rotate`, isolated by a prepended shared `q`/`Q`; existing streams re-emitted byte-verbatim; every refusal fires before any write. CLI `pdfcer bates-stamp` (replaces the former not-yet-implemented stub) numbers across files in argument order, all-or-nothing, never overwrites an input. 7 core unit + 5 core integration + 4 CLI integration tests, all sabotage-checked. `tools/run-gates.sh` 40/40, 10,043 tests — one Markdown-backtick gate violation caught and fixed in the same commit. No manifest change. Full record: `ROADMAP.md` *Shipped*, top of file.
+
+**Decisions made this session:**
+- None new — highest decision record stays `165`.
+
+**Findings + decisions:**
+- Divergences from Acrobat recorded in `ROADMAP.md`: digit range (1–15 vs Acrobat's 3–15), pdfcer stamps a signed file incrementally with disclosed signature impact where Acrobat refuses, a `keep-range` naming mode, and an up-front overflow refusal.
+
+**Still in flight:**
+- `Next up` still has no named head — this was an off-cycle dispatch.
+- Backlog bucket "Bates numbering / stamping" narrowed to its remainder (re-stamp/remove/replace, font/colour options, date token, `pdfcer-gui` surface); generic (non-Bates) header/footer stamps and watermarks remain a separate, unopened page-content-authoring bucket.
+
+**For next session:**
+- No shell this filing (hard rule 8) — facts relayed from the dispatching engineer's own report at `5a06602a`, not independently reproduced.
+
 ## 2026-09-28 (721st filing) — `09dd494d`: `Pass 387.1` SHIPPED — purge stored password-field values
 
 **Shipped:**
