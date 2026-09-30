@@ -115,6 +115,71 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 420.0` (`043e3a22`, `2056ee4e`), 2026-09-30 — transform several objects, each by its own matrix, as one command
+
+Requested by `pdfcer-gui` (`O263`, Circular arrange with rotate; channel
+`request_transform_objects_each.md`, reply
+`reply_transform_objects_each_FIXED.md`) — the transform-verb sibling to
+`Pass 418.0`'s per-object delta move.
+
+`EditSession::transform_objects_each(page_index, &[(usize, Matrix)],
+TransformOptions) -> Result<TransformOutcome, EditError>`; planner
+`vector::plan_transform_each`. One `CommandKind::TransformObjects` undo
+entry, all-or-nothing. Matrices are page-space; each is applied as
+`CTM × M × CTM⁻¹` per object, inside its own `q <cm> … Q` wrap.
+
+Refusals: an index named twice → `DuplicateObjectInMove { index }` (page
+index, the planner's list position — reused from `Pass 418.0`, not a new
+variant); a contained/overlapping span → `OverlappingObjectSpans` (this
+verb refuses rather than collapsing, unlike `transform_objects`).
+`options.singular` is checked per matrix, its clamp disclosed once each;
+`options.mixed` covers the whole selection. An empty list is a no-op.
+
+CLI `pdfcer object-transform-each IN --page N --transform
+INDEX,A,B,C,D,E,F (repeatable) [--verify-undo] [-o OUT | --in-place]`.
+
+Also fixed on the way: a wrapped string literal in the object-move-each
+CLI test fixture had lost its line continuation (test fixture only, not
+shipped behaviour).
+
+`docs/core-api`: verb count 289 → 290 (`check-core-api-verbs` PASS);
+`README.md` 188 → 189 subcommands.
+
+**Tests.** 10 core (`crates/pdfcer-core/tests/transform_objects_each.rs`),
+4 CLI (`crates/pdfcer-cli/tests/object_transform_each.rs`). Sabotage
+caught: one shared matrix for every object, duplicate-index check
+disabled, `options.singular` clamp skipped, CLI `e`/`f` swapped.
+`indices_are_stable_across_a_transform` (`2056ee4e`) additionally pins
+that both `transform_objects` and `transform_objects_each` keep every
+index meaning the same object across the call — answers the GUI
+request's point 3.
+
+No manifest change — `cargo tree` unaffected. `cargo fmt --check` /
+`cargo clippy -- -D warnings` clean.
+
+**Gates.** Targeted tests above are green; the full `tools/run-gates.sh`
+sweep was reported running at filing time, **not yet confirmed green** —
+recorded as "run before push," not asserted complete (hard rule 8).
+
+**`docs/FEATURES.md`.** New row under *Vector objects*, immediately after
+`Pass 418.0`'s move-each row: core `[x]` / cli `[x]` / gui `[ ]` —
+`pdfcer-gui` has not consumed this yet (separate project).
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes, test
+counts and sabotage results relayed from the dispatching engineer's own
+report, not independently reproduced. Backup/push/release state not
+verifiable from here; unreleased set as of this filing includes at least
+`420.0` itself (last release `v0.68.0`, per the entries above).
+
+**Also filed this session (793rd filing).** `f9f78064` — fix(cli): rejoin
+the ocrs-missing refusal message (a wrapped string literal had lost its
+continuation, printing a run of spaces mid-sentence); no `FEATURES.md` row
+change. `6aa9d641` — docs(readme): 188 working subcommands (`add-ltv`).
+`b144946b` — docs: `NEXT_SESSION.md` handoff for `Pass 10.18`, its fixes
+and 3D scoping. `ed51dd0f` — docs: `docs/3d-survey.md`, the dependency
+survey backing the new 3D Backlog bucket — see *Backlog*, "3D content in
+PDF (`Pass 419.x`)."
+
 ### `Pass 10.18` (`3a488056`), 2026-09-30 — PAdES B-LT: write supplied validation material into `/DSS`
 
 The writer counterpart to `Pass 10.16`/`Pass 10.17`'s validators: authors
@@ -22470,6 +22535,73 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
+### 3D content in PDF (`Pass 419.x`) — operator-approved to scope ("Go ahead", 2026-09-30), filed 793rd filing, no Pass shipped yet
+
+**Scope.** Ken asked whether pdfcer should support 3D models, and whether
+to make it an optional crate excluded from a slim build; recommendation
+accepted — an optional crate behind a Cargo feature, tiered, **default ON
+in pdfcer's own builds** (his words: "we would of course include it in our
+builds"). Reopens `Pass 261.6`'s read/round-trip recommendation (above) —
+see that entry's own dated note.
+
+**Sources.** `docs/3d-survey.md` (the dependency survey); spec RAG
+`D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__s__13.6.md`,
+`__13.6.7.md`, `__12.5.6.24.md`, `__13.7.md`,
+`threed\u3d__ecma363__file_structure.md`, `u3d__ecma363__clod_mesh.md`,
+`u3d__ecma363__bit_encoding.md`, `u3d__licensing_availability.md`,
+`prc__iso14739__file_structure.md`, `prc__iso14739__tessellation_brep.md`,
+`prc__licensing_availability.md`.
+
+**Key facts (full detail in the survey — this is an index, not a copy).**
+Display needs no 3D decoding: every `/3D`/RichMedia annotation carries a
+poster `/AP` that `pdfcer-render` already paints; classification and
+edit-refusal on media annots already exist. U3D (ECMA-363) is free, "No
+Licensing is required," no patent statements on record, mesh extraction
+~4–7 engineer-weeks, a declining format (SolidWorks dropped U3D export in
+2015); its own spec sample decoder predates Ecma's 2009 code-reuse
+permission (operator call, question 3 below). PRC (ISO 14739-1, what
+SolidWorks writes) is paywalled past its first 13 pages, its compressed
+tessellation is under-specified (open PDF Association issue), mesh-only
+read is ~2–3 engineer-months and B-rep months more (out of scope); no
+patents on record, one implementer's citation of a lapsed (non-payment,
+June 2024) Adobe patent on the compression is informational only, not a
+legal conclusion (question 2 below). No Rust U3D/PRC crate exists on
+crates.io; every candidate dependency is read-only, reference-only, or
+excluded by license (LGPL/AGPL/non-commercial) — see the survey's table.
+A CPU z-buffer poster on `tiny-skia` is ~3–5 days, ~50 KB. glTF-in-
+RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
+
+**Passes.**
+- `419.0` — list/extract embedded 3D streams (`/3D` annots, `/3DD`
+  streams, RichMedia assets): core API + CLI `3d-list`/`3d-extract`; byte
+  round-trip test for untouched 3D annots; fuzz target for the stream-dict
+  walker. No 3D decoding. Reopens `261.6`'s read/round-trip half.
+- `419.1` — embed a supplied `.u3d`/`.prc` as a `/3D` annotation with a
+  supplied or generated poster; CLI `3d-embed`. Pass-through, no decoding
+  needed.
+- `419.2` — optional crate `pdfcer-3d` behind feature `3d` (default ON in
+  pdfcer's own builds, off-able for a slim build): PRC uncompressed-
+  tessellation read, mesh export (STL/OBJ), CPU poster generation. No GUI
+  deps; wasm32-clean; no threads (engine rule).
+- `419.3` — U3D CLOD mesh decode (ECMA-363) into the same mesh model.
+- `419.4` — PRC authoring (mesh → PRC tessellation) — depends on the open
+  questions below.
+
+**Open operator questions (recorded only, none decided).** (1) may an
+engineer work from the PRC-decoding pseudocode posted in the PDF
+Association issue, cross-checked against AGPL `nanoPRC`? (2) proceed on
+the lapsed-patent note above, or get counsel first? (3) is porting
+ECMA-363's 2007 sample decoder code acceptable? (4) an unofficial mirror
+of Adobe's PRC spec exists and was **not** fetched — usable? Also: check
+which compression a real SolidWorks PRC export actually uses before any
+PRC design — SolidWorks's own "lossy compression on tessellation" export
+option probably selects the harder, compressed form; this is an
+inference, not yet confirmed.
+
+**`docs/FEATURES.md`.** The old `Pass 261.6` refusal-by-scope row was
+rewritten in place to point at this bucket instead of restating the
+refusal (per that file's own "replace, never append" rule).
+
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
 **Scope.** `Pass 399.1` (`8b634e7b`) re-synced the vendored
@@ -23034,6 +23166,16 @@ this should not read it as the same shape as `Pass 261.4`.
 
 **Source.** `Acrobat_Features/markup__3d_and_projection_annotations.md`
 (new).
+
+> ★ **REOPENED 2026-09-30 (793rd filing) as the `Pass 419.x` bucket** (see
+> "3D content in PDF" below, or above depending on future filings). Ken
+> asked directly whether pdfcer should support 3D and approved scoping
+> ("Go ahead"). This entry's refusal of a full 3D-scene parser/renderer
+> under §13.6.2/§13.7 authoring still stands — no text above is retracted —
+> but the read/round-trip half this entry recommended is now `Pass 419.0`,
+> and limited pass-through authoring (embed a supplied `.u3d`/`.prc`,
+> `419.1`) and a tiered optional mesh-read crate (`419.2`–`419.4`) are now
+> scoped too, narrower than the full scene parser this entry declined.
 
 > ★★ **`Pass 259.0` SHIPPED and has left this section, 2026-09-27 (663rd
 > filing, code `45298418`).** Filed here *Backlog* 2026-09-07 (467th filing)

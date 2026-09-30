@@ -4,6 +4,48 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (793rd filing) — `Pass 420.0` (`043e3a22`/`2056ee4e`) SHIPPED; new Backlog bucket `Pass 419.x` (3D content in PDF)
+
+**Shipped:**
+- `Pass 420.0` — `transform_objects_each`: transform several selected
+  objects, each by its own matrix, as one undo (`O263`, Circular arrange
+  with rotate). CLI `object-transform-each`. Sibling to `Pass 418.0`'s
+  per-object move. `docs/core-api` verb count 290; `README.md` 189
+  subcommands.
+- Also filed: `f9f78064` (rejoin a wrapped ocrs-missing refusal string),
+  `6aa9d641` (README 188 subcommands, pre-`420.0`), `b144946b`
+  (`NEXT_SESSION.md` handoff), `ed51dd0f` (`docs/3d-survey.md`).
+
+**Decisions made this session:**
+- 3D content in PDF: an optional crate (`pdfcer-3d`, feature `3d`),
+  default ON in pdfcer's own builds, off-able for a slim build — Ken's
+  own framing, accepted as scoped in the new `Pass 419.x` Backlog bucket.
+  No decision-log entry filed — this is a Backlog scoping choice, not yet
+  an implemented architectural boundary.
+
+**Findings + decisions:**
+- `pdfcer-spec-librarian` filed 11 new 3D spec files this session (ISO
+  32000 §13.6/§13.6.7/§12.5.6.24/§13.7, U3D ECMA-363, PRC ISO 14739-1);
+  spec-RAG corpus grew 217 → 228 files.
+- U3D is free to implement, declining in the wild (SolidWorks dropped it
+  in 2015); PRC (what SolidWorks actually writes) is paywalled past its
+  first 13 pages and its compressed tessellation is under-specified. No
+  Rust U3D/PRC crate exists; every candidate dependency is read-only,
+  reference-only, or license-excluded. Display needs no 3D decoding at
+  all — the poster `/AP` already renders. Full detail: `docs/3d-survey.md`.
+- Four operator questions recorded, none decided (PRC pseudocode
+  provenance, a lapsed-patent citation, porting ECMA-363 sample code, an
+  unofficial PRC spec mirror) — see `ROADMAP.md` *Backlog*, `Pass 419.x`.
+
+**Still in flight:** `Pass 419.x` unscoped-to-code (Backlog only, no
+Pass shipped). Full `tools/run-gates.sh` sweep on `Pass 420.0` was
+reported running at filing time, not yet confirmed green.
+
+**For next session:** Confirm `run-gates.sh` green and push/release
+`Pass 420.0` once confirmed. `Pass 419.0` (list/extract embedded 3D
+streams) is the natural first cut of the new bucket, once the operator
+answers or defers the four open questions.
+
 ## 2026-09-30 (792nd filing) — `0464e825`+`c8e3c45a`: two follow-up CLI fixes to Pass 10.18, no new Pass ID
 
 **Shipped:**
