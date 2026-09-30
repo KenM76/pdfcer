@@ -4,6 +4,54 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (785th filing) — `560b8911`/tag `v0.68.0`: `v0.68.0` RELEASED
+
+**Shipped:**
+- `v0.68.0` RELEASED — annotated tag `v0.68.0` on `560b8911` (the 784th
+  filing's own docs commit). Closes the release left "in progress" by
+  the 784th filing. Batches `414.0`, `415.0`, `416.0`, `417.0`, `10.15`,
+  `418.0`, `10.16` (the shipped range since `v0.67.0` also contains gate
+  fix `0f0b8800`; this release covers it too). Headline: `10.16` checks
+  a signer's chain against CRLs from the DSS or supplied by the caller,
+  with the `/M` clock covering PAdES signatures; `418.0` moves several
+  selected objects, each by its own delta, as one undo.
+  Package `D:\builds\pdfcer-20260930-0257-560b891`, 71,264,923 bytes
+  staged. GitHub asset `pdfcer-v0.68.0-windows-x64.zip`, 43,227,395
+  bytes, sha256
+  `04dae79a75fe95c81a859fc2ca569defa4be0d103e06c9f7a6c7e8fc5852148b`.
+  OneDrive slot `pdfcer1` (0.66.0 -> 0.68.0, 71,261,435 bytes), now
+  `0.68.0`; `pdfcer2` keeps `v0.67.0`. Fresh-folder smoke:
+  `pdfcer --version` -> `0.68.0`, revision `v0.68.0`; signed
+  fixtures/synthetic/hello.pdf with fixtures/synthetic/crl/leaf.pfx,
+  then `verify-signatures --crl crl-revoked.crl` printed `revocation:
+  REVOKED … BEFORE the signing time` plus its `clock:` note, exit 0;
+  `rotate --degrees 90 --in-place` ran incrementally and `inspect`
+  afterwards read the result.
+
+**Decisions made this session:** None — release-only filing, no new
+crate boundary or invariant. Highest decision record stays `166`.
+
+**Findings + decisions:**
+- `tools/run-gates.sh`: 41 of 41 PASS on the bump tree (plain `cargo
+  test --workspace`; `--full` not used, as for `v0.67.0`).
+- `tools/verify-release.py v0.68.0`: clean — tag at HEAD, pushed, CI
+  green at the tag, OneDrive current + previous slot both present.
+- Channel notice `notice_2026-09-30_v0.68.0_released.md` written to
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+
+**Still in flight:** None — the release this and the prior filing
+tracked is now complete end to end (tag, build, smoke, GitHub,
+OneDrive, CI confirmed green).
+
+**For next session:** `docs/FEATURES.md` unchanged by this filing — no
+capability box crosses a release boundary. Next release writes OneDrive
+slot `pdfcer2`.
+
+**Sourcing (hard rule 8).** No shell tool this filing — all figures
+(build sizes, hashes, gate/smoke-test results, the `verify-release.py`
+results) relayed from the dispatching engineer's own report, measured
+by them directly; not independently reproduced here.
+
 ## 2026-09-30 (784th filing) — `3fc9b18b`: chore — v0.68.0 version bump, release IN PROGRESS
 
 **Shipped:**

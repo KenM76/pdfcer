@@ -115,6 +115,71 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.68.0` — RELEASED (2026-09-30)
+
+Release filing, not a Pass — completes the engineer's in-progress
+release reported in `Pass 418.0`'s own "Also filed this session" note
+(784th filing). Version-bump commit `3fc9b18b` ("chore: v0.68.0")
+bumps `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.67.0 → 0.68.0;
+filed as such in `560b8911` ("docs: file v0.68.0 bump -- release in
+progress").
+
+**Tag.** Annotated tag `v0.68.0` points at `560b8911` (the 784th
+filing's own docs commit), pushed.
+
+**Range since `v0.67.0` (`265ddcf5`): batches every Pass already filed
+above** — `414.0` (a rendering fuzz target through the subtractive
+colorant buffer, `9262f497`), `415.0` (cut axial/radial shadings under
+a redaction mark, `b8b3b108`), `416.0` (`merge_document` carries
+`/PageLabels`, `6b7578b0`), `417.0` (the offline merge keeps every
+source's page labels too, `d75b4d4b`), `10.15` (each signer
+certificate's CDP/AIA revocation URIs, `3872e651`), `418.0`
+(`move_objects_each`, `04599b9d`), and `10.16` (CRL revocation checking
+against `/DSS /CRLs` and supplied CRLs, `5f31a523`/`6aabaec4`) — all
+already filed above, plus gate fix `0f0b8800` (fmt + README
+subcommand-count fix).
+
+**Gates.** `tools/run-gates.sh`: 41 of 41 PASS on the bump tree (plain
+`cargo test --workspace`; `--full` not used, as for `v0.67.0`).
+
+**Build.** `tools/package-portable.py` →
+`D:\builds\pdfcer-20260930-0257-560b891`; 71,264,923 bytes staged.
+
+**Fresh-folder smoke test.** `pdfcer --version` reports `0.68.0`,
+revision `v0.68.0`. Signed `fixtures/synthetic/hello.pdf` with
+`fixtures/synthetic/crl/leaf.pfx`, then `verify-signatures --crl
+crl-revoked.crl` printed `revocation: REVOKED … BEFORE the signing
+time` plus its `clock:` note, exit 0; `rotate --degrees 90 --in-place`
+ran incrementally and `inspect` afterwards read the result.
+
+**GitHub release.** Published via `tools/gh-release.py`:
+`pdfcer-v0.68.0-windows-x64.zip`, 43,227,395 bytes, sha256
+`04dae79a75fe95c81a859fc2ca569defa4be0d103e06c9f7a6c7e8fc5852148b`,
+plus its `.sha256`; `gh-release.py` PASS (2 assets at local sizes).
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer1`
+(0.66.0 → 0.68.0, 71,261,435 bytes), now `0.68.0`; `pdfcer2` keeps
+`v0.67.0`. Next release writes `pdfcer2`.
+
+**`verify-release.py v0.68.0`.** Clean: tag at HEAD, pushed, CI green
+at the tag, OneDrive current + previous present.
+
+**Headline.** `10.16` checks a signer's chain against CRLs from the
+DSS or supplied by the caller, with the `/M` clock covering PAdES
+signatures that forbid CMS `signingTime`; `418.0` moves several
+selected objects, each by its own delta, as one undo.
+
+**Channel notice.** `notice_2026-09-30_v0.68.0_released.md` written to
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself** — all
+contents were already filed per-Pass.
+
+**Sourcing (hard rule 8).** No shell tool this filing — all figures
+(build sizes, hashes, gate/smoke-test results, the `verify-release.py`
+details) relayed from the dispatching engineer's own report; not
+independently reproduced here.
+
 ### `Pass 10.16` (`5f31a523`, `6aabaec4`), 2026-09-30 — validate CRLs from `/DSS /CRLs` and caller-supplied CRLs against the signer chain, offline, no fetch
 
 CRL half of `Pass 10.6`'s routes 1 (embedded DSS/LTV) and 2 (shell-supplied
