@@ -115,6 +115,68 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 10.17` (`3e0bc4a5`), 2026-09-30 — offline OCSP revocation checking (RFC 6960) against a signer's chain
+
+OCSP half of `Pass 10.6`'s routes 1 (embedded DSS/LTV) and 2 (shell-supplied),
+carved out the same way `Pass 10.16` carved the CRL half. CRL checking
+unaffected.
+
+`pdfcer-pkix` gains an `ocsp` module (doc-hidden): parses an RFC 6960
+`OCSPResponse` and the legacy bare `BasicOCSPResponse` (discriminated `0A`
+vs `30`). Matches a `SingleResponse` by all four `CertID` fields
+(`issuerKeyHash` with or without the unused-bits octet). Responder
+authorization per §4.2.2.2: signer is the issuing CA or a delegate
+carrying `id-kp-OCSPSigning` issued by it, valid at `producedAt`; a
+delegate needs `id-pkix-ocsp-nocheck` or a usable CRL clearing it.
+`unknown`, a non-successful `responseStatus`, or an expired `nextUpdate`
+are Unusable, never "good". A bare legacy `BasicOCSPResponse` (as some
+`/DSS` entries carry) is accepted.
+
+New public `revocation` module (the chain walk moved out of `crl`):
+`revocation::chain_status(signer, pool, stop_at, crls, ocsps, at)`,
+`Evidence::{Crl,Ocsp}`, `CertCoverage`, `ChainRevocation` — one walk over
+both evidence kinds; any usable Revoked answer wins over any usable Good
+one.
+
+`pdfcer-core`: reads `/DSS /OCSPs`; `SuppliedRevocation::with_ocsp`/
+`ocsps()`; new `RevocationKind::{Crl,Ocsp}` (`as_str` "CRL"/"OCSP") as a
+`kind` field on `RevocationCheck` and on `Revocation::Revoked`.
+`NotChecked` now only when neither a CRL nor an OCSP response is
+available anywhere.
+
+CLI: `pdfcer verify-signatures --ocsp FILE` (repeatable; unreadable file
+→ exit 3); the `revocation:` line names CRL or OCSP as the evidence
+kind. Fixed on discovery: a stray space before a semicolon in the
+`--trust-from-acrobat` disclosure line.
+
+Fixtures: `tools/gen-ocsp-fixtures.py` → `fixtures/synthetic/ocsp/`
+(synthetic, `PROVENANCE.md`). Fuzz: new `ocsp_parse` target (13 seeds);
+`crl_parse` updated for the moved chain walk. Both ran clean (~1 exec/s
+under ASan — ECDSA-bound, same as `crl_parse`).
+
+`docs/core-api/01-reading-and-model.md` §12.5c rewritten for CRL+OCSP
+together; `check-core-api-verbs` PASS.
+
+**Tests.** `pdfcer-pkix` 35 (17 new OCSP), core `signature_revocation`
+10 (4 new), CLI `verify_signatures` 4 (1 new). Sabotage: 14/14 pkix,
+5/5 core, 3/3 CLI mutations caught (all compiling).
+
+**Gates.** `cargo tree`: no manifest change in `pdfcer-core`/
+`pdfcer-render`/`pdfcer-pkix` — no new dependency, no network added.
+`tools/run-gates.sh` was running at filing time (no shell available to
+this filing); engineer to confirm the result in `docs/NEXT_SESSION.md`.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui` has not consumed
+this (separate project).
+
+`docs/FEATURES.md`: the *Implemented → Redaction & security* CRL row
+extended to cover OCSP too (core `[x]`/cli `[x]`/gui `[ ]`); `Pass
+10.6`'s *Backlog* row cut down to what remains (the `/Trust`-bitfield
+pin and the DSS VRI hash setting) — see that entry, annotated.
+
+**`Pass 10.6` stays open** for the `/Trust`-bitfield pin and the DSS VRI
+hash setting (DSS-A1/A2).
+
 ### `v0.68.0` — RELEASED (2026-09-30)
 
 Release filing, not a Pass — completes the engineer's in-progress
@@ -12956,47 +13018,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-#### `Pass 10.17` — **OFFLINE OCSP RESPONSE CHECKING (RFC 6960) against a signer's chain** — filed 2026-09-30 (786th filing), IN PROGRESS (engineer implementing now) — carved out of `Pass 10.6`'s OCSP half (routes 1–2), the same way `Pass 10.16` carved the CRL half
-
-**Scope.**
-
-1. `pdfcer-pkix` gains an OCSP reader: parses an `OCSPResponse` and the
-   legacy bare `BasicOCSPResponse` (discriminated on the first inner byte,
-   `0A` vs `30`, RFC 6960 OC-G6, spec RAG
-   `security/security__rfc6960_ocsp.md`). EXPLICIT-by-default tagging
-   (`byKey` `A2 04 14`, `revoked A1` with no inner SEQUENCE).
-2. Matches a `SingleResponse` by all four `CertID` fields (hash algorithm
-   SHA-1/256/384/512; `issuerNameHash` over the target's issuer DER;
-   `issuerKeyHash` over the issuer's `subjectPublicKey` excluding the
-   unused-bits octet — measured practice + errata 6165–6167) — never the
-   first `SingleResponse`.
-3. Responder authorization per §4.2.2.2: signed by the issuing CA itself,
-   or by a delegate cert carrying EKU `id-kp-OCSPSigning` whose signature
-   verifies with the issuing CA's key. Anything else is Unusable, never
-   "good". A non-successful `responseStatus` is unsigned and Unusable;
-   `unknown` status is Unusable; `nextUpdate` before the reference time is
-   Unusable.
-4. Sources: `/DSS /OCSPs` (ETSI EN 319 142-1 §5.4.2.2), then
-   caller-supplied (`SuppliedRevocation::with_ocsp`). Feeds the existing
-   `SignatureVerdict::revocation` verdict — covered when a usable CRL OR a
-   usable OCSP response says not revoked; any usable revoked answer wins.
-   `RevocationCheck`/`Revoked` gain a field naming which evidence kind
-   (CRL vs OCSP) answered.
-5. CLI `verify-signatures --ocsp FILE` (repeatable), same shape as `--crl`.
-6. Synthetic pyca/cryptography fixtures (generator-side only), fixture
-   tests with sabotage, a `cargo-fuzz` target, `docs/core-api` update.
-
-**Not in scope (stays in `Pass 10.6`):** fetching (network is shell-only,
-decision 135), the DSS VRI hash setting (DSS-A1/A2), the `/Trust`-bitfield
-pin, B-LT signing (writing `/DSS`).
-
-`docs/FEATURES.md`: the *Implemented → Redaction & security* CRL row
-(`Pass 10.16`) is unaffected; the *Backlog* row for OCSP/`/Trust`-bitfield
-now names `Pass 10.17` for the OCSP half, IN PROGRESS — see that row,
-edited in place.
-
-**`Pass 10.6` stays open** for the `/Trust`-bitfield pin and the DSS VRI
-hash setting (DSS-A1/A2), once `10.17` ships.
+> ★★★★★★★★★★★★★★★★ **`Pass 10.17` SHIPPED, 2026-09-30 (787th filing),
+> `3e0bc4a5`** — see top of *Shipped*. OCSP half of `Pass 10.6`'s routes
+> 1–2 (embedded DSS/LTV + shell-supplied); CRL half shipped separately as
+> `Pass 10.16`. Filed as head (786th filing), then shipped same day.
+> **`Next up` has no named head.**
 
 > ★★★★★★★★★★★★★★★ **`Pass 10.16` SHIPPED, 2026-09-30 (782nd filing),
 > `5f31a523`/`6aabaec4`** — see top of *Shipped*. CRL half of `Pass 10.6`'s
@@ -30429,9 +30455,9 @@ false `Trusted` — the `Pass 10.3` safety direction is preserved.
 #### `Pass 10.6` — **SIGNATURE REVOCATION — validate embedded DSS/LTV revocation info, and/or shell-supplied OCSP/CRL responses; surface CDP/AIA URLs for a shell to fetch** — filed 2026-09-04 (427th filing), *Backlog*, NOT STARTED — depends on `Pass 10.5`
 
 **★ Route 3 carved out and SHIPPED 2026-09-30 (777th filing) as `Pass
-10.15` (`3872e651`, see top of *Shipped*).** Routes 1 and 2 below
-remain open — this Pass stays NOT STARTED for them. Revocation itself
-is still not checked; `PathChecks::revocation_checked` stays `false`.
+10.15` (`3872e651`, see top of *Shipped*).** Routes 1 and 2 have since
+shipped too, see the two entries below — this Pass now stays NOT STARTED
+only for the DSS VRI hash setting and the `/Trust`-bitfield pin.
 
 **★ The CRL half of routes 1–2 carved out 2026-09-30 (781st filing) to
 `Pass 10.16`, and SHIPPED the same day (782nd filing, `5f31a523`/
@@ -30441,39 +30467,36 @@ and caller-supplied CRLs is done. **What stays open here, in `Pass
 DSS VRI hash setting (DSS-A1/A2), plus check (5) below.
 
 **★ The OCSP half of routes 1–2 carved out 2026-09-30 (786th filing) to
-`Pass 10.17`, IN PROGRESS — see *Next up*, head entry.** What stays open
-here, in `Pass 10.6`, once `10.17` ships: the DSS VRI hash setting
-(DSS-A1/A2) and the `/Trust`-bitfield pin, check (5) below.
+`Pass 10.17`, and SHIPPED the same day (787th filing, `3e0bc4a5`, see
+top of *Shipped*).** OCSP validation from `/DSS /OCSPs` and
+caller-supplied OCSP responses is done. **What stays open here, in
+`Pass 10.6`:** the DSS VRI hash setting (DSS-A1/A2) and the
+`/Trust`-bitfield pin, check (5) below.
 
 **Status: NOT STARTED for what remains (the DSS VRI hash setting and the
-`/Trust`-bitfield pin).** OCSP itself is tracked as `Pass 10.17`, IN
-PROGRESS, not this entry. The remaining trust slice after `Pass 10.5`
-shipped the deterministic offline checks (validity dates, CA/`keyUsage`
-constraints, RSA-PSS cert signatures) and `Pass 10.16` shipped CRL
-revocation. OCSP is the one check that **cannot live in `pdfcer-core`**
-as an active fetch: it requires the network the **no-network invariant
-forbids** the crate (decision 135, enforced by the `cargo tree`
-`reqwest`/`hyper` CI gate) — `Pass 10.17` respects that the same way
-`Pass 10.16` did for CRLs (core validates, a shell fetches).
+`/Trust`-bitfield pin).** Both revocation routes (CRL and OCSP) have now
+shipped, along with the deterministic offline checks `Pass 10.5` shipped
+earlier (validity dates, CA/`keyUsage` constraints, RSA-PSS cert
+signatures). What remains needs no network and no new invariant — it is
+just not yet built.
 
-**Scope — three routes that respect the invariant (OCSP tracked as
-`Pass 10.17`; CRL shipped in `Pass 10.16`):**
+**Scope — three routes (CRL shipped in `Pass 10.16`; OCSP shipped in
+`Pass 10.17`):**
 
 1. **Embedded DSS/LTV revocation info** — a PAdES B-LT/B-LTA document
    carries the CRLs/OCSP responses it was validated against inside the
    `/DSS` dictionary (ETSI EN 319 142). Validating **that embedded data**
-   is offline and belongs in `pdfcer-core`. **CRL half SHIPPED, `Pass
-   10.16`; OCSP half is `Pass 10.17`, IN PROGRESS.**
+   is offline and belongs in `pdfcer-core`. **SHIPPED — CRL half `Pass
+   10.16`, OCSP half `Pass 10.17`.**
 2. **Shell-supplied OCSP/CRL responses** — `pdfcer-core` accepts a
    caller-provided CRL/OCSP response (fetched by a shell that IS allowed
    the network) and validates it against the chain. Core validates; the
-   shell fetches. **CRL half SHIPPED, `Pass 10.16`; OCSP half is `Pass
-   10.17`, IN PROGRESS.**
+   shell fetches. **SHIPPED — CRL half `Pass 10.16`, OCSP half `Pass
+   10.17`.**
 3. **Surface CDP/AIA URLs** — decode each cert's DER `CRLDistributionPoints`
    / `AuthorityInfoAccess` extensions and hand the URLs to a shell so it
    can fetch (2)'s inputs. Decoding is offline; fetching is the shell's.
-   **SHIPPED as `Pass 10.15` (`3872e651`), 2026-09-30 — this route
-   alone; (1) and (2) above now have only their OCSP half remaining.**
+   **SHIPPED as `Pass 10.15` (`3872e651`), 2026-09-30.**
 
 **Spec basis for routes 1–2 (added 2026-09-30, 778th filing).**
 `pdfcer-spec-librarian` wrote four files for this scope:

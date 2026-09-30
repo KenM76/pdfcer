@@ -4,6 +4,56 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (787th filing) — `3e0bc4a5`: Pass 10.17 SHIPPED — offline OCSP revocation checking (RFC 6960)
+
+**Shipped:**
+- Pass 10.17 — offline OCSP response checking (RFC 6960) against a
+  signer's chain, the OCSP half of `Pass 10.6`'s routes 1–2 (CRL half
+  shipped earlier as `Pass 10.16`). `pdfcer-pkix` gains an `ocsp` module
+  (RFC 6960 `OCSPResponse` + legacy bare `BasicOCSPResponse`, CertID
+  matched on all four fields, responder authorization per §4.2.2.2) and
+  a public `revocation` module (`chain_status` walking CRLs and OCSP
+  together, moved out of `crl`). `pdfcer-core` reads `/DSS /OCSPs`, adds
+  `SuppliedRevocation::with_ocsp`, and a `RevocationKind::{Crl,Ocsp}`
+  field on `RevocationCheck`/`Revoked`. CLI: `verify-signatures --ocsp
+  FILE` (repeatable); the `revocation:` line names the evidence kind.
+  Fixed on discovery: a stray space before a semicolon in the
+  `--trust-from-acrobat` disclosure line. Fixtures:
+  `tools/gen-ocsp-fixtures.py`; new `ocsp_parse` fuzz target (13 seeds).
+  `pdfcer-pkix` 35 tests (17 new), core `signature_revocation` 10
+  (4 new), CLI 4 (1 new); sabotage 14/14 + 5/5 + 3/3 mutations caught.
+  `cargo tree`: no manifest change, no new dependency, no network added.
+
+**Decisions made this session:** None — no new crate boundary or
+invariant; highest decision record stays 166 (per `Pass 10.16`'s own
+filing).
+
+**Findings + decisions:**
+- (carry forward) PAdES forbids CMS signingTime — already recorded under
+  `Pass 10.16`; unaffected by this Pass.
+- `tools/run-gates.sh` was running at filing time; this filing has no
+  shell, so its result is not confirmed here — check
+  `docs/NEXT_SESSION.md`.
+
+**Still in flight:**
+- `Pass 10.6` stays open for the `/Trust`-bitfield pin and the DSS VRI
+  hash setting (DSS-A1/A2) — both routes' CRL and OCSP halves are now
+  shipped.
+- `run-gates.sh` result for `3e0bc4a5` not yet confirmed by this filing
+  (no shell available).
+
+**For next session:**
+- `docs/FEATURES.md`: the CRL row (*Implemented → Redaction & security*)
+  extended to cover OCSP too; the `Pass 10.6` *Backlog* row narrowed to
+  just the `/Trust`-bitfield pin + DSS VRI hash setting.
+- Confirm `run-gates.sh` green on `3e0bc4a5` before folding this into the
+  next release batch.
+
+**Sourcing (hard rule 8).** No shell tool this filing — all figures
+(test counts, sabotage results, fuzz seed counts, the cargo-tree/
+no-new-dependency claim) relayed from the dispatching engineer's own
+report; not independently reproduced here.
+
 ## 2026-09-30 (785th filing) — `560b8911`/tag `v0.68.0`: `v0.68.0` RELEASED
 
 **Shipped:**
