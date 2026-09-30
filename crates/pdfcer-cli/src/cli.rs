@@ -2754,6 +2754,33 @@ pub(crate) enum Command {
         output: PathBuf,
     },
 
+    /// **Export an embedded PRC model's triangles** as an STL or OBJ mesh.
+    ///
+    /// Decodes the model's tessellation (the triangles a CAD program saved
+    /// for display) and writes every triangle mesh in it. Coordinates are
+    /// the model's own, in its units; the positions of parts within an
+    /// assembly are not applied yet, so a multi-part model's parts may
+    /// overlap. Line (wire) and annotation (PMI) data are counted but not
+    /// written. A summary line reports what was found and written.
+    ///
+    /// Refuses a U3D model (not decoded yet), a model saved with PRC's
+    /// compressed tessellation, and a model with no triangles. Exit 9 when
+    /// refused, with the reason.
+    #[command(name = "3d-mesh")]
+    ThreeDMesh {
+        /// Input PDF.
+        input: PathBuf,
+        /// Which model, by the index `3d-list` prints.
+        #[arg(long)]
+        index: usize,
+        /// Where to write the mesh.
+        #[arg(long, short)]
+        output: PathBuf,
+        /// The mesh format.
+        #[arg(long, value_enum, default_value_t)]
+        format: MeshFormat,
+    },
+
     /// **Embed a 3D model** (U3D or PRC) in a region of a page, as a 3D
     /// annotation a 3D-capable reader lets you rotate and zoom.
     ///

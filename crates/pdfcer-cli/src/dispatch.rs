@@ -413,6 +413,12 @@ pub(crate) fn run() -> ExitCode {
             index,
             output,
         } => cmd_extract_3d(&input, index, &output),
+        Command::ThreeDMesh {
+            input,
+            index,
+            output,
+            format,
+        } => cmd_mesh_3d(&input, index, &output, format),
         Command::ThreeDEmbed {
             input,
             model,

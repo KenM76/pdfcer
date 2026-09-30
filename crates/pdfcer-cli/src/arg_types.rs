@@ -26,6 +26,16 @@ use super::*;
 /// separate type rather than a `ValueEnum` derive on the core enum: `clap` is a
 /// GUI-adjacent concern and `pdfcer-core` does not depend on it, which is the
 /// crate-separation invariant rather than a preference.
+/// The mesh file format `3d-mesh` writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum MeshFormat {
+    /// Binary STL: triangles with facet normals, one solid. Default.
+    #[default]
+    Stl,
+    /// Wavefront OBJ text: one object per mesh, one group per face.
+    Obj,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum StreamDump {
     /// Report each stream's dictionary and its length; omit the data. Default.

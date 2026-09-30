@@ -135,6 +135,7 @@ license = "MIT"
 pdfcer-core = { path = "crates/pdfcer-core", default-features = false }
 pdfcer-render = { path = "crates/pdfcer-render", default-features = false }
 pdfcer-print = { path = "crates/pdfcer-print" }
+pdfcer-3d = { path = "crates/pdfcer-3d" }
 # Network code for operator-initiated downloads. `default-features = false`
 # here like the others, so each shell re-enables `download` through its own
 # [features] block -- the forwarding the convention requires.

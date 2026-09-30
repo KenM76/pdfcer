@@ -1,9 +1,9 @@
-//! `pdfcer 3d-list` / `3d-extract` on a synthetic page with one U3D `/3D`
-//! annotation and one RichMedia PRC asset.
+//! `pdfcer 3d-list` / `3d-extract` / `3d-embed` / `3d-mesh` on a synthetic
+//! page with one U3D `/3D` annotation and one RichMedia PRC asset.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
@@ -260,6 +260,122 @@ fn a_step_model_is_refused_and_writes_nothing() {
     assert!(!output.exists());
     assert!(
         String::from_utf8_lossy(&out.stderr).contains("STEP"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// `three_d_pdf` with the synthetic PRC square embedded as model 2.
+#[cfg(feature = "3d")]
+fn with_prc_square(tag: &str) -> PathBuf {
+    let input = three_d_pdf(tag);
+    let prc = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fixtures/synthetic/prc/square.prc"
+    );
+    let output = input.with_extension("prc.pdf");
+    let out = run(&[
+        "3d-embed",
+        input.to_str().unwrap(),
+        "--model",
+        prc,
+        "--page",
+        "1",
+        "--rect",
+        "10,10,190,190",
+        "--apply",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    output
+}
+
+fn mesh(input: &Path, index: &str, output: &Path, format: &[&str]) -> Output {
+    let mut args = vec![
+        "3d-mesh",
+        input.to_str().unwrap(),
+        "--index",
+        index,
+        "-o",
+        output.to_str().unwrap(),
+    ];
+    args.extend_from_slice(format);
+    run(&args)
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn a_prc_model_meshes_to_stl_by_default() {
+    let input = with_prc_square("mesh_stl");
+    let output = input.with_extension("stl");
+    let out = mesh(&input, "2", &output, &[]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stl = std::fs::read(&output).unwrap();
+    assert_eq!(stl.len(), 84 + 2 * 50);
+    assert_eq!(u32::from_le_bytes(stl[80..84].try_into().unwrap()), 2);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("meshed index=2 meshes=1 triangles=2 wires_skipped=0 markup_skipped=0"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("note: part placements are not applied"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("normals"), "{stdout}");
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn a_prc_model_meshes_to_obj() {
+    let input = with_prc_square("mesh_obj");
+    let output = input.with_extension("obj");
+    let out = mesh(&input, "2", &output, &["--format", "obj"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let obj = std::fs::read_to_string(&output).unwrap();
+    assert!(obj.contains("v 1 1 0\n"), "{obj}");
+    assert!(obj.contains("f 1 2 3\nf 1 3 4\n"), "{obj}");
+}
+
+#[test]
+fn meshing_a_u3d_model_is_refused_and_writes_nothing() {
+    let input = three_d_pdf("mesh_u3d");
+    let output = input.with_extension("stl");
+    let out = mesh(&input, "0", &output, &[]);
+    assert_eq!(out.status.code(), Some(9));
+    assert!(!output.exists());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    #[cfg(feature = "3d")]
+    assert!(stderr.contains("not a PRC model"), "{stderr}");
+    #[cfg(not(feature = "3d"))]
+    assert!(stderr.contains("without the `3d` feature"), "{stderr}");
+}
+
+/// Bytes that start `PRC` but are not a container are refused with the
+/// decoder's reason.
+#[cfg(feature = "3d")]
+#[test]
+fn a_damaged_prc_model_is_refused() {
+    let input = three_d_pdf("mesh_bad");
+    let output = input.with_extension("stl");
+    let out = mesh(&input, "1", &output, &[]);
+    assert_eq!(out.status.code(), Some(9));
+    assert!(!output.exists());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("3D artwork 1:"),
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );

@@ -1,5 +1,5 @@
-//! `3d-list` / `3d-extract`: embedded 3D artwork (ISO 32000-1 §13.6,
-//! ISO 32000-2 §13.7).
+//! `3d-list` / `3d-extract` / `3d-mesh`: embedded 3D artwork (ISO 32000-1
+//! §13.6, ISO 32000-2 §13.7).
 
 use super::*;
 use pdfcer_core::threed::{ThreeDArtwork, ThreeDSource, extract_3d, list_3d_with_notes};
@@ -100,6 +100,120 @@ pub(crate) fn cmd_extract_3d(input: &Path, index: usize, output: &Path) -> u8 {
         );
     }
     exit::SUCCESS
+}
+
+/// `3d-mesh` — decode one PRC model's tessellation and write its triangle
+/// meshes as STL or OBJ.
+pub(crate) fn cmd_mesh_3d(input: &Path, index: usize, output: &Path, format: MeshFormat) -> u8 {
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let found = pdfcer_core::threed::list_3d(&doc);
+    let Some(art) = found.get(index) else {
+        eprintln!(
+            "pdfcer: {}: no 3D artwork at index {index} (the document has {}). Run \
+             `pdfcer 3d-list` to see them.",
+            input.display(),
+            found.len()
+        );
+        return exit::EDIT_REFUSED;
+    };
+    let extracted = match extract_3d(&doc.view(), art) {
+        Ok(extracted) => extracted,
+        Err(err) => {
+            eprintln!("pdfcer: {}: 3D artwork {index}: {err}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    mesh_from_bytes(input, index, &extracted.data, output, format)
+}
+
+#[cfg(feature = "3d")]
+fn mesh_from_bytes(
+    input: &Path,
+    index: usize,
+    data: &[u8],
+    output: &Path,
+    format: MeshFormat,
+) -> u8 {
+    use pdfcer_3d::{PrcFile, Tessellation};
+    let refuse = |why: String| {
+        eprintln!("pdfcer: {}: 3D artwork {index}: {why}", input.display());
+        exit::EDIT_REFUSED
+    };
+    if !data.starts_with(b"PRC") {
+        return refuse(
+            "not a PRC model; only PRC is decoded (use `3d-extract` for the bytes)".to_owned(),
+        );
+    }
+    let prc = match PrcFile::parse(data) {
+        Ok(prc) => prc,
+        Err(err) => return refuse(err.to_string()),
+    };
+    let (mut meshes, mut wires, mut markups) = (Vec::new(), 0usize, 0usize);
+    for fs in &prc.file_structures {
+        let tess = match fs.tessellations() {
+            Ok(tess) => tess,
+            Err(err) => return refuse(err.to_string()),
+        };
+        for t in tess {
+            match t {
+                Tessellation::Mesh(m) => meshes.push(m),
+                Tessellation::Wire(_) => wires += 1,
+                _ => markups += 1,
+            }
+        }
+    }
+    let triangles: usize = meshes.iter().map(|m| m.triangles.len()).sum();
+    if triangles == 0 {
+        return refuse("the model holds no triangle tessellation".to_owned());
+    }
+    let bytes = match format {
+        MeshFormat::Stl => match pdfcer_3d::to_stl(&meshes) {
+            Ok(bytes) => bytes,
+            Err(err) => return refuse(err.to_string()),
+        },
+        MeshFormat::Obj => pdfcer_3d::to_obj(&meshes).into_bytes(),
+    };
+    if let Err(err) = write_output(output, &bytes) {
+        eprintln!("pdfcer: {}: {err}", output.display());
+        return exit::IO_ERROR;
+    }
+    let recalculated = meshes.iter().filter(|m| m.normals_recalculated).count();
+    println!(
+        "meshed index={index} meshes={} triangles={triangles} wires_skipped={wires} \
+         markup_skipped={markups} -> {}",
+        meshes.len(),
+        output.display()
+    );
+    println!("note: part placements are not applied; coordinates are each mesh's own");
+    if recalculated > 0 {
+        println!(
+            "note: {recalculated} mesh(es) store no normals; facet normals are computed from \
+             the triangle winding"
+        );
+    }
+    exit::SUCCESS
+}
+
+#[cfg(not(feature = "3d"))]
+fn mesh_from_bytes(
+    input: &Path,
+    index: usize,
+    _data: &[u8],
+    _output: &Path,
+    _format: MeshFormat,
+) -> u8 {
+    eprintln!(
+        "pdfcer: {}: 3D artwork {index}: this pdfcer was built without the `3d` feature; \
+         3d-mesh is unavailable",
+        input.display()
+    );
+    exit::EDIT_REFUSED
 }
 
 /// The arguments of `3d-embed`, borrowed from the parsed command.

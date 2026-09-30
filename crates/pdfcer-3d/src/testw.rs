@@ -11,6 +11,7 @@ pub(crate) struct W {
 }
 
 impl W {
+    /// The low `n` bits of `v`, most significant first.
     pub(crate) fn put(&mut self, v: u64, n: u32) -> &mut Self {
         for i in (0..n).rev() {
             self.bits.push((v >> i) & 1 == 1);
@@ -18,20 +19,24 @@ impl W {
         self
     }
 
+    /// One bit.
     pub(crate) fn bit(&mut self, b: bool) -> &mut Self {
         self.bits.push(b);
         self
     }
 
+    /// Bits written so far.
     pub(crate) fn len(&self) -> usize {
         self.bits.len()
     }
 
+    /// Every bit of `other`, unaligned.
     pub(crate) fn append(&mut self, other: &W) -> &mut Self {
         self.bits.extend_from_slice(&other.bits);
         self
     }
 
+    /// A PRC UnsignedInteger: continuation bit, then 8 bits, per byte.
     pub(crate) fn uint(&mut self, mut v: u32) -> &mut Self {
         while v != 0 {
             self.bit(true).put(u64::from(v & 0xff), 8);
@@ -40,6 +45,7 @@ impl W {
         self.bit(false)
     }
 
+    /// A PRC Integer: sign-extended bytes, each followed by a continue bit.
     pub(crate) fn int(&mut self, v: i32) -> &mut Self {
         if v == 0 {
             return self.bit(false);
@@ -58,6 +64,7 @@ impl W {
         }
     }
 
+    /// A PRC String: presence bit, byte count, raw bytes.
     pub(crate) fn string(&mut self, s: Option<&str>) -> &mut Self {
         let Some(s) = s else {
             return self.bit(false);
@@ -88,6 +95,7 @@ impl W {
         self
     }
 
+    /// The bits packed MSB-first, the last byte zero-padded.
     pub(crate) fn bytes(&self) -> Vec<u8> {
         self.bits
             .chunks(8)

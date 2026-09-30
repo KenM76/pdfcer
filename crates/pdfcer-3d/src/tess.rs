@@ -1001,4 +1001,75 @@ mod tests {
             Err(PrcError::Malformed(_))
         ));
     }
+
+    /// A whole PRC stream: one file structure whose tessellation section
+    /// holds the unit square as two triangles, and an empty schema.
+    fn square_prc() -> Vec<u8> {
+        use std::io::Write as _;
+        let zlib = |data: &[u8]| {
+            let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+            e.write_all(data).unwrap();
+            e.finish().unwrap()
+        };
+        let le = |out: &mut Vec<u8>, vs: &[u32]| {
+            vs.iter()
+                .for_each(|v| out.extend_from_slice(&v.to_le_bytes()));
+        };
+        let mut body = W::default();
+        tess_3d(
+            &mut body,
+            8137,
+            &Mesh {
+                recalc: false,
+                indices: &[0, 0, 0, 3, 0, 6, 0, 0, 0, 6, 0, 9],
+                faces: &[(0x2, 0, &[2])],
+                textures: 0,
+            },
+        );
+        let schema = W::default().uint(0).bytes();
+        let sections = [schema, vec![0], section(1, &body).bytes(), vec![], vec![]];
+
+        const HEADER_LEN: usize = 107;
+        let mut fs = b"PRC".to_vec();
+        le(&mut fs, &[8137, 8137, 5, 6, 7, 8, 0, 0, 0, 0, 0]);
+        let mut offs = Vec::new();
+        for s in &sections {
+            offs.push((HEADER_LEN + fs.len()) as u32);
+            fs.extend(zlib(s));
+        }
+        let mf_start = (HEADER_LEN + fs.len()) as u32;
+        fs.extend(zlib(&[0]));
+        let mf_end = (HEADER_LEN + fs.len()) as u32;
+
+        let mut out = b"PRC".to_vec();
+        le(&mut out, &[8137, 8137, 1, 2, 3, 4, 0, 0, 0, 0, 1]);
+        le(&mut out, &[5, 6, 7, 8, 0, 6, HEADER_LEN as u32]);
+        le(&mut out, &offs);
+        le(&mut out, &[mf_start, mf_end, 0]);
+        assert_eq!(out.len(), HEADER_LEN);
+        out.extend(fs);
+        out
+    }
+
+    /// `fixtures/synthetic/prc/square.prc` (the CLI's `3d-mesh` fixture) is
+    /// exactly what [`square_prc`] builds and decodes to the square. Set
+    /// `PDFCER_WRITE_FIXTURES=1` to rewrite it.
+    #[test]
+    fn the_square_fixture_is_current_and_decodes() {
+        let bytes = square_prc();
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let t = f.file_structures[0].tessellations().unwrap();
+        assert_eq!(mesh(&t[0]).triangles, [[0, 1, 2], [0, 2, 3]]);
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/synthetic/prc/square.prc");
+        if std::env::var_os("PDFCER_WRITE_FIXTURES").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &bytes).unwrap();
+        }
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            bytes,
+            "rerun with PDFCER_WRITE_FIXTURES=1"
+        );
+    }
 }

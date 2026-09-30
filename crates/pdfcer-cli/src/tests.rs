@@ -409,6 +409,7 @@ const NOT_IN_PLACE: &[&str] = &[
     "copy-field",
     // The output is a 3D model file, not a PDF.
     "3d-extract",
+    "3d-mesh",
     "export-data",
     "export-docx",
     "export-dxf",

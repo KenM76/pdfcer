@@ -19,7 +19,7 @@ path = "src/main.rs"
 # Mirrors `pdfcer-core`'s strippable-capability features so a lighter CLI is
 # one flag rather than a manifest edit. Default ON: `--no-default-features`
 # is the deliberate act, never the accident.
-default = ["jpx", "ocrs", "ocrcer", "paddle", "signing"]
+default = ["jpx", "ocrs", "ocrcer", "paddle", "signing", "3d"]
 jpx = ["pdfcer-core/jpx", "pdfcer-render/jpx"]
 # The `ocrs` text-recognition engine (`Pass 71.0` slice 3).
 ocrs = ["pdfcer-core/ocrs", "pdfcer-render/ocrs"]
@@ -30,6 +30,9 @@ paddle = ["pdfcer-core/paddle", "pdfcer-render/paddle"]
 # Digital signing (`sign` subcommand) — the private-key crates live behind
 # pdfcer-core's `signing` feature; a CLI built without it has no `sign`.
 signing = ["pdfcer-core/signing"]
+# 3D model decoding (`3d-mesh`): the PRC reader in `pdfcer-3d`. Without it
+# `3d-mesh` refuses by name; `3d-list` / `3d-extract` need no decoding.
+3d = ["dep:pdfcer-3d"]
 
 # `download` — operator-initiated fetching of pinned artefacts, currently the
 # OCR model weights (`fetch-ocr-models`).
@@ -116,6 +119,9 @@ pdfcer-render.workspace = true
 # shipped complete and unwired (the R151 shape - a capability that exists
 # and no caller reaches).
 pdfcer-fetch = { workspace = true, optional = true }
+# pdfcer-3d: PRC model decoding for `3d-mesh` (feature `3d`). In-workspace,
+# MIT; no dependencies beyond thiserror and flate2.
+pdfcer-3d = { workspace = true, optional = true }
 # thiserror: `clipboard::ClipboardError` derives it on EVERY target -- the
 # error type is the same shape on Linux/macOS, where `copy-page` refuses by
 # name -- so it must NOT sit under the cfg(windows) block (that shipped
