@@ -115,6 +115,56 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 417.4` (`3970f101`), 2026-09-30 — reorder can carry page labels with the pages; closes the `417.x`/decision-072 family entirely
+
+Closes the Backlog item the 800th filing opened: `reorder_pages` left
+`/PageLabels` positional — a moved page kept the label the SLOT used to
+show, not the one it showed before the move (§12.4.2).
+
+New pub enum `pageops::ReorderedPageLabels` (`#[non_exhaustive]`):
+`Positional` (default) — the tree is untouched, numbering stays in
+sequence, Acrobat's own behaviour; `FollowPages` — the tree is rewritten
+so each page carries the label it showed before the reorder. New
+`EditSession::reorder_pages_with_labels(new_order, labels) -> Result<usize,
+EditError>` — the rewrite lands in the SAME `CommandKind::ReorderPages`
+undo entry as the reorder itself, not a second undoable step. Returns the
+number of label ranges written; `0` means the tree was left alone
+(`Positional`, or no tree to begin with — a document without one never
+gains one). `reorder_pages` delegates with `Positional`; its behaviour is
+unchanged.
+
+CLI: `reorder-pages --labels position|follow` (default `position`); the
+result line gains `labels=` and `label_ranges=`.
+
+**Extends decision 072 a fourth time, does not reverse it** — same
+reasoning as `417.1`/`417.2`: both answers are defensible, so both ship
+behind a default matching Acrobat.
+
+**docs/core-api.** 296 `EditSession` verbs (was 295).
+
+**Tests.** 3 core (`crates/pdfcer-core/tests/page_labels_set.rs`), 1 CLI
+(`edit_commands.rs`). Sabotage-checked three ways — `Positional` writing
+the tree, `FollowPages` writing nothing (caught in both core and CLI),
+and the CLI's `follow` mapping to `Positional` — all three caught.
+
+`cargo fmt --check` and `clippy -D warnings` clean; `check-core-api-verbs`,
+`check-clap-help` (197 subcommands with help) and
+`check-public-fns-documented` PASS. The full `tools/run-gates.sh` was
+still running at filing time — not claimed green here. No `Cargo.toml`
+change — `cargo tree` invariant unaffected.
+
+**`docs/FEATURES.md`.** *Document & pages* row for rotate/delete/reorder/
+extract gains the `FollowPages` note alongside insert's and delete's;
+`core [x]` / `cli [x]` unchanged, `gui` stays `◐` (unaffected — the GUI
+project hasn't picked this up). The page-labels row's own "reorder still
+positional" caveat is removed — extract/split still drop labels outright,
+unaffected by this Pass.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate results relayed from the dispatching engineer's report,
+not independently reproduced. Backup/push/release state not verifiable
+from here.
+
 ### `Pass 417.3` (`0a982db9`), 2026-09-30 — read and set page labels ("Number Pages"); closes the `417.x` family's last gap
 
 The `417.x` family (`416.0`/`417.0`–`417.2`) kept `/PageLabels` in step across
@@ -22930,12 +22980,9 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 ### `reorder_pages` leaves `/PageLabels` positional (filed 800th filing)
 
-The last gap in the `417.x`/decision-072 family: `merge`/`insert`/`delete`
-all now re-key `/PageLabels` (`416.0`–`417.2`) but `EditSession::reorder_pages`
-does not — labels do not follow a moved page, only its position. Same fix
-shape as `417.1`/`417.2`: recompute each range against the permuted page
-order in the same catalog write as the reorder, one undo. Not scoped to a
-Pass yet.
+**★ CLOSED 2026-09-30, `Pass 417.4` (`3970f101`) — see *Shipped*.** Both
+answers ship: `Positional` (default, Acrobat parity) and `FollowPages`,
+via `pageops::ReorderedPageLabels` and `reorder_pages_with_labels`.
 
 ### 3D content in PDF (`Pass 419.x`) — operator-approved to scope ("Go ahead", 2026-09-30), filed 793rd filing; `419.0`–`419.1` shipped
 

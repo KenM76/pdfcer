@@ -4,6 +4,40 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (801st filing) — `Pass 417.4` (`3970f101`) SHIPPED: reorder can carry page labels with the pages
+
+**Shipped:**
+- `Pass 417.4` — closes the Backlog item the 800th filing opened: `reorder_pages`
+  left `/PageLabels` positional. New pub enum `pageops::ReorderedPageLabels`
+  (`#[non_exhaustive]`, default `Positional` — Acrobat parity, tree untouched;
+  `FollowPages` — tree rewritten so each page keeps the label it showed before
+  the move). New `EditSession::reorder_pages_with_labels(new_order, labels)`,
+  rewrite lands in the same `CommandKind::ReorderPages` undo entry.
+  `reorder_pages` delegates with `Positional`, unchanged behaviour. CLI
+  `reorder-pages --labels position|follow`; result line gains `labels=`/
+  `label_ranges=`. `docs/core-api`: 296 verbs.
+
+**Decisions made this session:**
+- Decision 072 extended a fourth time (note owed to `ARCHITECTURE.md` §12 —
+  not made this filing, out of this filing's edit scope): same reasoning as
+  `417.1`/`417.2` — both answers are defensible, both ship, default matches
+  Acrobat. This closes the `417.x`/decision-072 family entirely.
+
+**Findings + decisions:**
+- 3 core tests (`page_labels_set.rs`) + 1 CLI (`edit_commands.rs`). Sabotage
+  3/3 caught: `Positional` writing the tree, `FollowPages` writing nothing
+  (core and CLI), CLI `follow`→`Positional` mapping.
+- `fmt`/`clippy -D warnings` clean; `check-core-api-verbs`, `check-clap-help`
+  (197 subcommands with help), `check-public-fns-documented` PASS. Full
+  `tools/run-gates.sh` was still running at filing time — not claimed green.
+  No `Cargo.toml` change.
+
+**Still in flight:** `419.2`–`419.4` (PRC reader) remain open pending the
+800th filing's OQ-1/OQ-2/OQ-3 licensing rulings.
+
+**For next session:** no change to the 800th filing's next-step note — get
+OQ-1/OQ-2/OQ-3 answered before starting `419.2`.
+
 ## 2026-09-30 (800th filing) — `Pass 417.3` (`0a982db9`) SHIPPED: read and set page labels ("Number Pages")
 
 **Shipped:**
