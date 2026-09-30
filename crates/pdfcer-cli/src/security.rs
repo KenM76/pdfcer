@@ -391,11 +391,12 @@ pub(crate) fn cmd_redact_apply(
     // for the region to be fully redacted.
     println!(
         "  vector_paths_cut={} vector_paths_dropped={} vector_clips_kept={} \
-         vector_paths_intersecting={} shadings_intersecting={}",
+         vector_paths_intersecting={} shadings_cut={} shadings_intersecting={}",
         report.vector_paths_cut,
         report.vector_paths_dropped,
         report.vector_clips_kept,
         report.vector_paths_intersecting,
+        report.shadings_cut,
         report.shadings_intersecting,
     );
     // THE RESIDUAL SWEEP'S OWN FIGURES. Computed since `Pass 284.0` and

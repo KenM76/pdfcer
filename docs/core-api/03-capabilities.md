@@ -1936,7 +1936,11 @@ internally (`redact.rs`).
 `images_removed`, `images_cloned_shared`, `images_overcovered`,
 `vector_paths_intersecting`, `marks_retained`** (all `Pass 245.0`),
 **`vector_paths_cut`, `vector_paths_dropped`, `vector_clips_kept`**
-(`Pass 246.0`), **`shadings_intersecting`** (`Pass 246.1`),
+(`Pass 246.0`), **`shadings_intersecting`** (`Pass 246.1`; since `Pass 415.0`
+only the shadings NOT cut — types 1 and 4–7, a singular CTM, an unresolvable
+name), **`shadings_cut`** (`Pass 415.0`: axial/radial `sh` wrapped in a
+region-excluding `W*` clip; the `shadings` carrier reads `Scrubbed` when every
+crossing shading was cut),
 **`residual_matches_left`** (`Pass 310.0`), **`content_streams_decoupled`**,
 `carriers: Vec<CarrierStatus>`, `redacted_text`, `notes`; plus
 `has_disclosed_residuals()` and **`has_unscrubbed_matches()`**.

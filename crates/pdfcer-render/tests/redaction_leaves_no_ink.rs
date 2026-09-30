@@ -177,3 +177,84 @@ fn the_redacted_region_renders_white_and_the_rest_still_paints() {
         "the content outside the region must survive: {outside}"
     );
 }
+
+/// A 300x200 page painted edge to edge by an unclipped axial shading under
+/// a scaled CTM, plus a radial shading under a clip that crosses `REGION`.
+fn shading_page() -> Vec<u8> {
+    let content = b"q 2 0 0 2 0 0 cm /Ax sh Q q 150 60 100 100 re W n /Ra sh Q";
+    assemble(&[
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] \
+           /Resources << /Shading << /Ax 5 0 R /Ra 6 0 R >> >> /Contents 4 0 R >>"
+            .to_vec(),
+        stream("", content),
+        b"<< /ShadingType 2 /ColorSpace /DeviceGray /Coords [0 0 150 0] \
+           /Function << /FunctionType 2 /Domain [0 1] /C0 [0] /C1 [0.6] /N 1 >> \
+           /Extend [true true] >>"
+            .to_vec(),
+        b"<< /ShadingType 3 /ColorSpace /DeviceRGB /Coords [200 110 0 200 110 60] \
+           /Function << /FunctionType 2 /Domain [0 1] /C0 [0.8 0 0] /C1 [0 0 0.8] /N 1 >> \
+           /Extend [false true] >>"
+            .to_vec(),
+    ])
+}
+
+#[test]
+fn an_axial_and_a_radial_shading_are_cut_out_of_the_region() {
+    let before = render(shading_page());
+    let [rx0, ry0, rx1, ry1] = REGION;
+    assert!(
+        ink_in(&before, rx0, ry0, rx1, ry1) > 10_000,
+        "the fixture must put ink in the region"
+    );
+
+    let doc = Document::from_bytes(shading_page()).unwrap();
+    let mut session = EditSession::new(doc);
+    session
+        .add_redaction(
+            0,
+            &RedactSpec {
+                quads: vec![Quad::from_rect(Rect::from_corners(rx0, ry0, rx1, ry1))],
+                fill: None,
+                overlay_text: None,
+                quadding: Quadding::Left,
+            },
+        )
+        .unwrap();
+    let (marked, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .unwrap();
+    let marked_doc = Document::from_bytes(marked).unwrap();
+    let (out, report) = redact::apply_redactions(&marked_doc, &SaveOptions::identity()).unwrap();
+    assert_eq!(report.shadings_cut, 2, "{report:?}");
+    assert_eq!(report.shadings_intersecting, 0, "{report:?}");
+    assert!(!report.has_disclosed_residuals(), "{:?}", report.carriers);
+
+    let after = render(out);
+    let inset = 0.5;
+    let leaked = ink_in(&after, rx0 + inset, ry0 + inset, rx1 - inset, ry1 - inset);
+    assert_eq!(
+        leaked, 0,
+        "shading ink survived inside the redaction region"
+    );
+
+    // Outside the region (one point of slack for edge anti-aliasing) every
+    // pixel is unchanged.
+    let (bp, ap) = (&before.pixmap, &after.pixmap);
+    let s = 2.0;
+    let h = f64::from(bp.height());
+    let mut changed = 0;
+    for y in 0..bp.height() {
+        for x in 0..bp.width() {
+            let (px, py) = (f64::from(x) / s, (h - f64::from(y)) / s);
+            if px > rx0 - 1.0 && px < rx1 + 1.0 && py > ry0 - 1.0 && py < ry1 + 1.0 {
+                continue;
+            }
+            if bp.pixel(x, y) != ap.pixel(x, y) {
+                changed += 1;
+            }
+        }
+    }
+    assert_eq!(changed, 0, "pixels outside the region changed");
+}

@@ -930,7 +930,7 @@ fn scale_of(m: Mat) -> f64 {
         .max((m.c * m.c + m.d * m.d).sqrt())
 }
 
-fn invert(m: Mat) -> Option<Mat> {
+pub(crate) fn invert(m: Mat) -> Option<Mat> {
     let det = m.a * m.d - m.b * m.c;
     if det.abs() < 1e-12 || !det.is_finite() {
         return None;
