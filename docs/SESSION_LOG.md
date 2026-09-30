@@ -4,6 +4,46 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (777th filing) — `Pass 10.15` (`3872e651`): name each signer certificate's revocation locations
+
+**Shipped:**
+- `Pass 10.15` (`3872e651`) — carve-out of route 3 from `Pass 10.6`'s
+  three-route revocation scope (Backlog, filed 427th filing): decodes
+  RFC 5280 §4.2.1.13 CRL Distribution Points and §4.2.2.1 Authority
+  Information Access (OCSP + CA Issuers) from each certificate in a
+  signature's chain and prints them. Nothing fetched; revocation is
+  still NOT checked — `PathChecks::revocation_checked` stays `false`.
+  `Pass 10.6` stays open for routes 1 (embedded DSS/LTV) and 2
+  (shell-supplied OCSP/CRL responses).
+
+**Decisions made this session:** None new. No §12 entry — a decode-
+and-disclose shape over existing chain-walking code, same call as
+prior no-decision precedents in this cluster.
+
+**Findings + decisions:**
+- +8 tests (4 `pdfcer-pkix` unit, 2 `pdfcer-pkix` fixture, 1 core, 1
+  CLI), sabotage-checked (OCSP/CRL swap, `fullName` tag mismatch,
+  verdict-assignment drop, CLI label change — each caught).
+- New fixture `revocation-ecp256-modern.pfx`/`.cer` via
+  `tools/gen-signing-fixtures.py --revocation`, `.invalid` hosts.
+- No manifest/dependency change — `cargo tree` unaffected.
+- `docs/FEATURES.md`: new *Implemented → Redaction & security* row
+  (core `[x]` / cli `[x]` / gui `[ ]`); `Pass 10.6`'s *Planned* row
+  edited in place to note the route-3 discharge, left unticked.
+
+**Still in flight:** `Pass 10.6` routes 1–2 (validate embedded DSS/LTV;
+validate shell-supplied OCSP/CRL) remain NOT STARTED. `run-gates.sh`
+full sweep still owed (queued since the 775th filing).
+
+**For next session:** Confirm `run-gates.sh` full sweep; `v0.67.0` was
+the last release (770th filing) — unreleased set is now `Pass 414.0`,
+`415.0`, `416.0`, `417.0`, `10.15`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, test
+counts and gate results relayed from the dispatching engineer's own
+report of `3872e651`, not independently reproduced. Backup/push/
+release state not verifiable from here — engineer should check.
+
 ## 2026-09-29 (776th filing) — `Pass 417.0` (`d75b4d4b`): the offline merge keeps every source's page labels
 
 **Shipped:**

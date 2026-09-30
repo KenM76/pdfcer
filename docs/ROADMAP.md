@@ -115,6 +115,71 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 10.15` (`3872e651`), 2026-09-30 — name each signer certificate's revocation locations (CDP/AIA URLs)
+
+Carve-out of route 3 from `Pass 10.6`'s three-route revocation scope
+(filed 427th filing, *Backlog*, still NOT STARTED for routes 1–2):
+decode each certificate's CDP/AIA URLs offline and hand them to a shell
+to fetch. Revocation itself is still not checked —
+`PathChecks::revocation_checked` stays `false`.
+
+`pdfcer-pkix`: `cms::Certificate::revocation_uris: RevocationUris {
+crl, ocsp, ca_issuers: Vec<String>, unreadable: usize }`,
+`MAX_REVOCATION_URIS = 16`. Parses RFC 5280 §4.2.1.13
+`cRLDistributionPoints` (2.5.29.31; `distributionPoint [0]` explicit →
+`fullName [0]` implicit → URI `[6]`) and §4.2.2.1
+`authorityInfoAccess` (1.3.6.1.5.5.7.1.1; `id-ad-ocsp` .48.1,
+`id-ad-caIssuers` .48.2). Only printable-ASCII URI `GeneralName`s are
+kept; `directoryName` / `nameRelativeToCRLIssuer` / `cRLIssuer`-only /
+non-ASCII / over-cap / malformed all count in `unreadable`; other AIA
+access methods are skipped uncounted.
+
+`pdfcer-core`: `SignatureVerdict::revocation_sources:
+Vec<RevocationSources>` (signer first, then others in CMS order;
+`RevocationSources` `#[non_exhaustive]` { subject, crl, ocsp,
+ca_issuers, unreadable } + `is_empty()`). CLI `verify-signatures`
+prints one `revocation-source: subject=… ocsp=… crl=… ca_issuers=…
+unreadable=N (stated by the certificate, NOT fetched)` line per entry;
+`--help` documents it.
+
+**Nothing fetched; no network added to core.** No manifest dependency
+change — `cargo tree` unaffected (`pdfcer-pkix/Cargo.toml` only gained
+`autotests = false` + an `[[test]] all` harness).
+
+**Fixture.** `fixtures/synthetic/signing/revocation-ecp256-modern.pfx` +
+`revocation-ecp256.cer`, minted by `tools/gen-signing-fixtures.py
+--revocation`, `.invalid` hosts, one `directoryName` DP;
+`PROVENANCE.md` updated.
+
+**Tests.** +8 (4 `pdfcer-pkix` unit, 2 `pdfcer-pkix` fixture, 1 core
+sign-then-verify in `sign_document.rs`, 1 CLI in
+`sign_revocation_sources.rs`). Sabotage-checked: OCSP routed to
+`ca_issuers`, `fullName` tag mismatched, verdict assignment dropped,
+CLI label changed — each caught.
+
+`docs/core-api/01-reading-and-model.md` documents the new verdict
+field and type; `check-core-api-verbs` PASS. `cargo fmt --check` /
+`cargo clippy -- -D warnings` / `check-public-fns-documented` /
+`check-string-gaps` / `check-tests-harnessed` all clean.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui` has not consumed
+this (separate project).
+
+**`docs/FEATURES.md`.** New *Implemented → Redaction & security* row,
+core `[x]` / cli `[x]` / gui `[ ]`; `Pass 10.6`'s *Planned* row
+(revocation itself) edited in place to note route 3's discharge —
+left unticked, revocation checking is still not built.
+
+**`Pass 10.6` stays open** for routes 1 (embedded DSS/LTV) and 2
+(shell-supplied OCSP/CRL responses) — see its entry below, annotated.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+count and gate results relayed from the dispatching engineer's own
+report of `3872e651`, not independently reproduced. Backup/push/release
+state not verifiable from here; unreleased set as of this filing:
+`Pass 414.0`, `415.0`, `416.0`, `417.0`, `10.15` (last release
+`v0.67.0`, `265ddcf5`, 770th filing).
+
 ### `Pass 417.0` (`d75b4d4b`), 2026-09-29 — the offline merge (`pageops::merge`) keeps every source's page labels
 
 Follow-up to `Pass 416.0` on the OTHER merge route: `pageops::merge`
@@ -12649,6 +12714,11 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★ **`Pass 10.15` SHIPPED, 2026-09-30 (777th filing),
+> `3872e651`** — see top of *Shipped*. Off-cycle carve-out of route 3 from
+> `Pass 10.6` (Backlog), not scoped through this queue. **`Next up` still
+> has no named head.**
 
 > ★★★★★★★★★★★★★ **`Pass 397.0` SHIPPED, 2026-09-29 (738th filing),
 > `ed93dd50`** — see top of *Shipped*. Off-cycle (every CLI output write is
@@ -30068,7 +30138,12 @@ false `Trusted` — the `Pass 10.3` safety direction is preserved.
 
 #### `Pass 10.6` — **SIGNATURE REVOCATION — validate embedded DSS/LTV revocation info, and/or shell-supplied OCSP/CRL responses; surface CDP/AIA URLs for a shell to fetch** — filed 2026-09-04 (427th filing), *Backlog*, NOT STARTED — depends on `Pass 10.5`
 
-**Status: NOT STARTED.** The remaining trust slice after `Pass 10.5` shipped
+**★ Route 3 carved out and SHIPPED 2026-09-30 (777th filing) as `Pass
+10.15` (`3872e651`, see top of *Shipped*).** Routes 1 and 2 below
+remain open — this Pass stays NOT STARTED for them. Revocation itself
+is still not checked; `PathChecks::revocation_checked` stays `false`.
+
+**Status: NOT STARTED (routes 1–2).** The remaining trust slice after `Pass 10.5` shipped
 the deterministic offline checks (validity dates, CA/`keyUsage` constraints,
 RSA-PSS cert signatures). Revocation is the one check a production
 eIDAS/RFC-5280 verdict still owes, and it is the one that **cannot live in
@@ -30090,6 +30165,8 @@ eIDAS/RFC-5280 verdict still owes, and it is the one that **cannot live in
 3. **Surface CDP/AIA URLs** — decode each cert's DER `CRLDistributionPoints`
    / `AuthorityInfoAccess` extensions and hand the URLs to a shell so it
    can fetch (2)'s inputs. Decoding is offline; fetching is the shell's.
+   **SHIPPED as `Pass 10.15` (`3872e651`), 2026-09-30 — this route
+   alone; (1) and (2) are unaffected and remain below.**
 
 **Also folds in `Pass 10.5` check (5):** pin the provisional `/Trust`
 bitfield decoding (provisional since `Pass 10.2`) so fine-grained usage
