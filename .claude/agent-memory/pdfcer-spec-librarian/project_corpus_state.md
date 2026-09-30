@@ -7949,3 +7949,23 @@ Key 0 is a file/writer `shall`, stated twice. The reader fallback has 0 hits in 
 
 ### 87d. Filing
 The prefix-table `iso32000__s__` cell was stale at 108 while disk held 118: both 2026-09-28 builds bumped only the Total line. It is now 119, and the Total is 213. Index changes: 1 manifest row, trigger subsection (6 rows), recipe block (RUN), 3 ambiguity rows, 2 known-gaps banners struck. The 7.9.6 dated note is LF. The qcheck script is in the session scratchpad, and it is the item-84f approach: blockquote `> ` prefixes must be stripped before matching.
+
+## 88. "Write canonical entries for a NON-PDF protocol layer (X.509/OCSP) and CORRECT my tagging premises" (2026-09-30, pdfcer-pkix revocation URIs → 3 `security__rfc*` files + `pades__ref__dss_vri.md`)
+
+### 88a. ★★ "The module is IMPLICIT" is PER MODULE, and a CHOICE overrides it
+RFC 5280 A.2 = IMPLICIT, A.1 = EXPLICIT; **RFC 6960's OCSP module is EXPLICIT** (its §4 says so in one sentence). Inside an IMPLICIT module, a tag on an untagged CHOICE is still EXPLICIT (X.680 §31.2.7 c / §31.2.9) — hence the CRLDP URI chain carries TWO `A0`s and directoryName is `A4 30`. **Check the tagging default of EVERY module a structure touches, then the CHOICE exception, then MEASURE with pyca/cryptography** (build a cert/CRL/OCSP, dump hex; scratchpad `probe.py` pattern).
+
+### 88b. ★ An erratum on the SAME construction in a DIFFERENT field does not fix yours
+RFC 6960 errata 6165–6167 (Verified) add "excluding … number of unused bits" to KeyHash (ResponderID byKey) only. CertID issuerKeyHash's §4.1.1 text still says only "excluding tag and length". Practice excludes the unused-bits octet — that is a PRODUCER fact (personal_rag/pdf), not the text. Read the erratum's "Section" field, not its wording.
+
+### 88c. ★ A remembered "updated by" list is a hand-computed value (standing caution)
+Mine missed RFC 9925. Verify via `https://www.rfc-editor.org/rfc/rfcNNNN.json` (`updated_by`). Same for obsoletes.
+
+### 88d. RFC flat-grep needs page-break stripping
+RFC `.txt` has `[Page N]` footer + form feed + `RFC NNNN ...` header mid-sentence. Strip them before whitespace-collapse; strip `|` quote bars (RFC 10007 OLD/NEW) and ASN.1 `--` comment markers (errata HTML) before calling a quotation wrong. Index lines prefixed `RFC 5280 §x:` need the prefix stripped by the checker.
+
+### 88e. DSS: ETSI is the quotable base, ISO 32000-2 the fragment delta
+ETSI V1.2.1 = OCSPResponse `shall` + BasicOCSPResponse verifier leniency (NOTE 2); ISO says only "OCSP response". ISO adds zero padding to the VRI-key hash input and a reader search order (§12.8.4.5). Both texts leave the hash INPUT ambiguous (hex text vs decoded bytes; TLV vs value) — filed as DSS-A1/A2, not guessed. pdf-issues #448: ISO 32000-2 references ETSI V1.1.1 DATED, and DSS in 1.7 files is normal.
+
+### 88f. Filing
+Pre-existing `\x07`/`\x0c` in LEGAL_NOTE.md's Adobe-TN row (item 86d's cause, a second instance) fixed 2026-09-30 — **grep every CRLF/LF file for `[\x00-\x08\x0b\x0c\x0e-\x1f]` during an index check.** Registered `_sources\ietf\` + `ITU-T_X.680_202102.pdf` in both LEGAL_NOTE and index. Count cells: `security__` 9, `pades__` 3, Total 217.
