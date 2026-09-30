@@ -21,10 +21,14 @@
 
 use std::collections::HashSet;
 
+use crate::PdfVersion;
 use crate::annot::MAX_ANNOTS_PER_PAGE;
+use crate::annot_author::Color;
 use crate::filters::{self, FilterError};
 use crate::graph::ObjectGraph;
+use crate::image_import::ImportedImage;
 use crate::object::{Dict, ObjId, Object};
+use crate::page_tree::Rect;
 use crate::textstring::decode_text_string;
 use crate::view::DocumentView;
 
@@ -483,4 +487,202 @@ pub fn extract_3d(
     let data = filters::decode_stream(&stream.dict, raw)?;
     let sniffed = sniff_3d_format(&data);
     Ok(Extracted3D { data, sniffed })
+}
+
+/// When a `/3D` annotation's artwork activates (§13.6.2 Table 299 `/A`).
+/// Until then, and whenever the page prints under [`Self::Click`], the
+/// reader shows the poster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum ThreeDActivation {
+    /// `/XA` — the reader clicks the annotation (the spec default).
+    #[default]
+    Click,
+    /// `/PO` — the page opens.
+    PageOpen,
+    /// `/PV` — the page becomes visible.
+    PageVisible,
+}
+
+impl ThreeDActivation {
+    /// The `/A` name bytes.
+    #[must_use]
+    pub fn name(self) -> &'static [u8] {
+        match self {
+            Self::Click => b"XA",
+            Self::PageOpen => b"PO",
+            Self::PageVisible => b"PV",
+        }
+    }
+}
+
+/// Why a model cannot be embedded as a `/3D` annotation.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+pub enum ThreeDEmbedError {
+    /// The data is empty.
+    #[error("the 3D model is empty")]
+    Empty,
+    /// The bytes open with neither the U3D nor the PRC signature, and no
+    /// format was stated.
+    #[error(
+        "the data is not a U3D or PRC model (no recognised signature); state the format to embed it anyway"
+    )]
+    Unrecognised,
+    /// The format may not be carried by a `/3D` annotation: only U3D and
+    /// PRC may (ISO 32000-2 §13.6.3 Table 311; STEP is prohibited by
+    /// erratum #156's Table 323a).
+    #[error("{format} cannot be embedded as a 3D annotation; only U3D and PRC can")]
+    NotEmbeddable {
+        /// The format's label.
+        format: String,
+    },
+    /// The stated format contradicts the signature the bytes carry.
+    #[error("the model was stated as {stated} but its bytes are {sniffed}")]
+    Mismatch {
+        /// The stated format's label.
+        stated: String,
+        /// The sniffed format's label.
+        sniffed: String,
+    },
+}
+
+/// A U3D or PRC model to embed as a `/3D` annotation with
+/// [`crate::edit::EditSession::add_3d_annotation`].
+///
+/// Build with [`Self::new`] (format from the bytes' signature) or
+/// [`Self::with_format`]. The model is carried as given: nothing decodes it.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct ThreeDSpec {
+    /// The annotation rectangle, in default user space.
+    pub rect: Rect,
+    /// [`ThreeDFormat::U3d`] or [`ThreeDFormat::Prc`], written as the 3D
+    /// stream's `/Subtype`.
+    pub format: ThreeDFormat,
+    /// The model bytes, stored Flate-compressed in the 3D stream.
+    pub data: Vec<u8>,
+    /// The poster image, fitted inside the rectangle preserving its aspect
+    /// ratio. `None` draws pdfcer's placeholder (a frame and a wireframe
+    /// cube in [`Self::color`]).
+    pub poster: Option<ImportedImage>,
+    /// When the artwork activates.
+    pub activation: ThreeDActivation,
+    /// The placeholder poster's colour.
+    pub color: Color,
+}
+
+impl ThreeDSpec {
+    /// A spec whose format is read from the bytes' signature.
+    ///
+    /// # Errors
+    ///
+    /// [`ThreeDEmbedError::Empty`], [`ThreeDEmbedError::Unrecognised`], or
+    /// [`ThreeDEmbedError::NotEmbeddable`] for a STEP file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::page_tree::Rect;
+    /// use pdfcer_core::threed::{ThreeDFormat, ThreeDSpec};
+    ///
+    /// let rect = Rect { llx: 72.0, lly: 400.0, urx: 372.0, ury: 700.0 };
+    /// let spec = ThreeDSpec::new(rect, b"PRC\x08\x00".to_vec())?;
+    /// assert_eq!(spec.format, ThreeDFormat::Prc);
+    /// assert!(ThreeDSpec::new(rect, b"%PDF".to_vec()).is_err());
+    /// # Ok::<(), pdfcer_core::threed::ThreeDEmbedError>(())
+    /// ```
+    pub fn new(rect: Rect, data: Vec<u8>) -> Result<Self, ThreeDEmbedError> {
+        if data.is_empty() {
+            return Err(ThreeDEmbedError::Empty);
+        }
+        let format = sniff_3d_format(&data).ok_or(ThreeDEmbedError::Unrecognised)?;
+        Self::with_format(rect, format, data)
+    }
+
+    /// A spec with a stated format. Bytes with no recognised signature are
+    /// accepted; bytes whose signature names another format are not.
+    ///
+    /// # Errors
+    ///
+    /// [`ThreeDEmbedError::Empty`], [`ThreeDEmbedError::NotEmbeddable`]
+    /// unless `format` is U3D or PRC, [`ThreeDEmbedError::Mismatch`].
+    pub fn with_format(
+        rect: Rect,
+        format: ThreeDFormat,
+        data: Vec<u8>,
+    ) -> Result<Self, ThreeDEmbedError> {
+        let spec = Self {
+            rect,
+            format,
+            data,
+            poster: None,
+            activation: ThreeDActivation::default(),
+            color: Color::Rgb(0.25, 0.25, 0.25),
+        };
+        spec.validate()?;
+        Ok(spec)
+    }
+
+    /// Check the format and data. The session calls this again, since the
+    /// fields are public.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::with_format`].
+    pub fn validate(&self) -> Result<(), ThreeDEmbedError> {
+        if self.data.is_empty() {
+            return Err(ThreeDEmbedError::Empty);
+        }
+        if !matches!(self.format, ThreeDFormat::U3d | ThreeDFormat::Prc) {
+            return Err(ThreeDEmbedError::NotEmbeddable {
+                format: self.format.label(),
+            });
+        }
+        match sniff_3d_format(&self.data) {
+            Some(sniffed) if sniffed != self.format => Err(ThreeDEmbedError::Mismatch {
+                stated: self.format.label(),
+                sniffed: sniffed.label(),
+            }),
+            _ => Ok(()),
+        }
+    }
+
+    /// The lowest PDF version whose standard defines this format in a 3D
+    /// stream: 1.6 for U3D (ISO 32000-1 §13.6), 2.0 for PRC (ISO 32000-2
+    /// Table 311; Acrobat also reads PRC in 1.7 files under Adobe
+    /// ExtensionLevel 1).
+    #[must_use]
+    pub fn required_version(&self) -> PdfVersion {
+        match self.format {
+            ThreeDFormat::Prc => PdfVersion { major: 2, minor: 0 },
+            _ => PdfVersion { major: 1, minor: 6 },
+        }
+    }
+}
+
+/// What [`crate::edit::EditSession::add_3d_annotation`] wrote.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ThreeDEmbedOutcome {
+    /// The `/3D` annotation.
+    pub annot_id: ObjId,
+    /// The 3D stream (`/Type /3D`).
+    pub stream_id: ObjId,
+    /// The poster's image XObject, when a poster image was supplied.
+    pub poster_image_id: Option<ObjId>,
+    /// [`ThreeDSpec::required_version`].
+    pub required_version: PdfVersion,
+    /// The document's version. No pdfcer verb raises it; when it is below
+    /// [`Self::required_version`] a reader may ignore the annotation and
+    /// show only its poster, and a caller should say so.
+    pub document_version: PdfVersion,
+}
+
+impl ThreeDEmbedOutcome {
+    /// `true` when the document's version predates the format.
+    #[must_use]
+    pub fn below_required_version(&self) -> bool {
+        self.document_version < self.required_version
+    }
 }

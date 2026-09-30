@@ -1220,6 +1220,8 @@ pub enum AnnotKind {
     Sound,
     /// `/Screen` with its rendition chain (Pass 261.3, §12.5.6.18).
     Screen,
+    /// `/3D` with its 3D stream (§13.6.2).
+    ThreeD,
 }
 
 /// One entry on the undo stack: the set of writes it performed, each
@@ -9207,6 +9209,10 @@ pub enum EditError {
     /// ([`EditSession::stamp_bates`]).
     #[error(transparent)]
     Bates(#[from] crate::bates::BatesError),
+    /// A 3D model that cannot be embedded
+    /// ([`EditSession::add_3d_annotation`]).
+    #[error(transparent)]
+    ThreeD(#[from] crate::threed::ThreeDEmbedError),
 }
 
 /// Find every occurrence of `needle` in `hay`, returned as `(start, end)`
@@ -32410,6 +32416,233 @@ impl EditSession {
         })
     }
 
+    /// Embed a U3D or PRC model as a **3D annotation** (ISO 32000-1
+    /// §13.6.2 Table 298) on page `page_index`. One undo entry.
+    ///
+    /// - The model goes into a 3D stream (§13.6.3 Table 300: `/Type /3D`,
+    ///   `/Subtype /U3D` or `/PRC`), Flate-compressed, referenced directly
+    ///   from `/3DD` so the annotation gets its own instance. No `/VA` or
+    ///   `/3DV` is written: the reader opens on the artwork's own default
+    ///   view.
+    /// - `/3DA` carries only `/A` from `spec.activation`; the other Table 299
+    ///   entries keep their defaults.
+    /// - The `/AP /N` poster §13.6.2 requires is `spec.poster` fitted inside
+    ///   the rectangle, or pdfcer's placeholder drawing. It is what prints
+    ///   and what a reader without 3D support shows.
+    /// - `options.note` supplies `/Contents`, `/T` and `/M`.
+    /// - The header version is not raised; the outcome reports when it is
+    ///   below the format's ([`crate::threed::ThreeDEmbedOutcome::below_required_version`]).
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::ThreeD`] when the spec fails
+    /// [`crate::threed::ThreeDSpec::validate`]; otherwise as
+    /// [`Self::add_file_attachment_annotation`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use pdfcer_core::{document::Document, edit::{EditSession, MarkupOptions}};
+    /// # use pdfcer_core::page_tree::Rect;
+    /// # use pdfcer_core::threed::ThreeDSpec;
+    /// # fn demo(doc: Document, prc: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut session = EditSession::new(doc);
+    /// let rect = Rect { llx: 72.0, lly: 400.0, urx: 372.0, ury: 700.0 };
+    /// let outcome =
+    ///     session.add_3d_annotation(0, &ThreeDSpec::new(rect, prc)?, &MarkupOptions::default())?;
+    /// assert!(outcome.poster_image_id.is_none());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn add_3d_annotation(
+        &mut self,
+        page_index: usize,
+        spec: &crate::threed::ThreeDSpec,
+        options: &MarkupOptions,
+    ) -> Result<crate::threed::ThreeDEmbedOutcome, EditError> {
+        options.validate()?;
+        spec.validate()?;
+        let document_version = self.base.version();
+        self.on_layer_if(page_index, options.layer, |s| {
+            let (slots, page_id) = s.annotation_author_target(page_index)?;
+            let mut objects = Vec::new();
+            let mut authored = annot_author::three_d_placeholder(spec.rect, spec.color);
+            let poster_image_id = match &spec.poster {
+                None => {
+                    // Read back by `three_d_poster_rebuild` to redraw the
+                    // placeholder on resize.
+                    authored
+                        .annot
+                        .insert(Name::from(b"C"), spec.color.to_array());
+                    None
+                }
+                Some(img) => {
+                    let (image_id, _) = s.stage_image_xobject(img, &mut objects)?;
+                    authored.ap_content = Self::poster_content(
+                        (img.width, img.height),
+                        img.orientation,
+                        authored.rect,
+                    );
+                    let mut xobjects = Dict::new();
+                    xobjects.insert(Name::from(b"Poster"), Object::Reference(image_id));
+                    let mut resources = Dict::new();
+                    resources.insert(Name::from(b"XObject"), Object::Dict(xobjects));
+                    authored
+                        .ap_dict
+                        .insert(Name::from(b"Resources"), Object::Dict(resources));
+                    Some(image_id)
+                }
+            };
+            let (annot_id, mut annot, ap_write) =
+                s.stage_authored_icon(authored, page_id, options)?;
+            let stream_id = ObjId::new(s.alloc_number()?, 0);
+            let encoded = crate::filters::flate::encode(&spec.data);
+            let mut dict = Dict::new();
+            dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"3D")));
+            let subtype: &[u8] = match spec.format {
+                crate::threed::ThreeDFormat::Prc => b"PRC",
+                _ => b"U3D",
+            };
+            dict.insert(Name::from(b"Subtype"), Object::Name(Name::from(subtype)));
+            dict.insert(
+                Name::from(b"Filter"),
+                Object::Name(Name::from(b"FlateDecode")),
+            );
+            dict.insert(
+                Name::from(b"Length"),
+                Object::Integer(i64::try_from(encoded.len()).unwrap_or(i64::MAX)),
+            );
+            let data_span = s.stage_bytes(&encoded);
+            annot.insert(Name::from(b"3DD"), Object::Reference(stream_id));
+            let mut activation = Dict::new();
+            activation.insert(
+                Name::from(b"A"),
+                Object::Name(Name::from(spec.activation.name())),
+            );
+            annot.insert(Name::from(b"3DA"), Object::Dict(activation));
+
+            objects.push(ap_write);
+            objects.push(ObjectWrite {
+                id: annot_id,
+                before: None,
+                after: Some(Object::Dict(annot)),
+            });
+            objects.push(ObjectWrite {
+                id: stream_id,
+                before: None,
+                after: Some(Object::Stream(Stream { dict, data_span })),
+            });
+            objects.append(&mut s.annots_append(page_id, &[annot_id], &slots)?);
+            s.commit(Command {
+                kind: CommandKind::AddAnnotation {
+                    kind: AnnotKind::ThreeD,
+                },
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            });
+            Ok(crate::threed::ThreeDEmbedOutcome {
+                annot_id,
+                stream_id,
+                poster_image_id,
+                required_version: spec.required_version(),
+                document_version,
+            })
+        })
+    }
+
+    /// A form content stream painting `/Poster` inside a `rect`-sized box,
+    /// aspect ratio kept, centred, honouring `orientation`. `stored` is the
+    /// image's `/Width` and `/Height`.
+    fn poster_content(
+        stored: (u32, u32),
+        orientation: crate::image_import::Orientation,
+        rect: page_tree::Rect,
+    ) -> Vec<u8> {
+        let (w, h) = (rect.urx - rect.llx, rect.ury - rect.lly);
+        let (dw, dh) = if orientation.transposes() {
+            (stored.1, stored.0)
+        } else {
+            stored
+        };
+        let (dw, dh) = (f64::from(dw.max(1)), f64::from(dh.max(1)));
+        let scale = (w / dw).min(h / dh);
+        let (pw, ph) = (dw * scale, dh * scale);
+        let (x0, y0) = ((w - pw) / 2.0, (h - ph) / 2.0);
+        let [oa, ob, oc, od, oe, of] = orientation.unit_square_matrix();
+        let mut cb = ContentBuilder::new();
+        cb.save_state();
+        cb.concat_matrix(
+            oa * pw,
+            ob * ph,
+            oc * pw,
+            od * ph,
+            oe * pw + x0,
+            of * ph + y0,
+        );
+        cb.invoke_xobject(b"Poster");
+        cb.restore_state();
+        cb.into_bytes()
+    }
+
+    /// The appearance `add_3d_annotation` would draw for `new_rect`, as
+    /// `(form dictionary, content)`, when the appearance on disk is
+    /// byte-identical to what it drew for `old_rect`: the placeholder in
+    /// `/C`, or a `/Poster` image fitted in one of the eight orientations.
+    /// `None` for any other appearance.
+    fn three_d_poster_rebuild(
+        &self,
+        dict: &Dict,
+        old_rect: page_tree::Rect,
+        new_rect: page_tree::Rect,
+    ) -> Option<(Dict, Vec<u8>)> {
+        let g = self.graph();
+        let Some(Object::Stream(ap)) = self.value(Self::existing_appearance_id(dict)?) else {
+            return None;
+        };
+        let resources = ap.dict.get(b"Resources").cloned();
+        let poster = match resources.as_ref().map(|o| g.resolve(o)) {
+            Some(Object::Dict(r)) => match r.get(b"XObject").map(|o| g.resolve(o)) {
+                Some(Object::Dict(x)) => x.get(b"Poster").cloned(),
+                _ => None,
+            },
+            _ => None,
+        };
+        let frame = annot_author::three_d_placeholder(new_rect, annot_author::Color::Gray(0.0));
+        match poster {
+            Some(Object::Reference(image_id)) => {
+                let Some(Object::Stream(img)) = self.value(image_id) else {
+                    return None;
+                };
+                let dim = |k: &[u8]| {
+                    img.dict
+                        .get(k)
+                        .and_then(|o| g.resolve(o).as_number())
+                        .filter(|n| *n >= 1.0 && *n <= f64::from(u32::MAX))
+                        .map(|n| n as u32)
+                };
+                let stored = (dim(b"Width")?, dim(b"Height")?);
+                let orientation = (1..=8)
+                    .map(crate::image_import::Orientation::from_exif)
+                    .find(|&o| {
+                        self.appearance_matches(dict, &Self::poster_content(stored, o, old_rect))
+                    })?;
+                let mut ap_dict = frame.ap_dict;
+                ap_dict.insert(Name::from(b"Resources"), resources?);
+                Some((ap_dict, Self::poster_content(stored, orientation, new_rect)))
+            }
+            Some(_) => None,
+            None => {
+                let color = annot_author::annotation_color(&g, dict)?;
+                let before = annot_author::three_d_placeholder(old_rect, color);
+                self.appearance_matches(dict, &before.ap_content).then(|| {
+                    let after = annot_author::three_d_placeholder(new_rect, color);
+                    (after.ap_dict, after.ap_content)
+                })
+            }
+        }
+    }
+
     /// Author a **caret annotation** (ISO 32000-1 §12.5.6.11, Table 180):
     /// a proofreading mark on page `page_index` showing where text is to be
     /// inserted. One undo entry.
@@ -33842,9 +34075,13 @@ impl EditSession {
             })
         });
 
+        let three_d_rebuildable =
+            has_ap && subtype == "3D" && self.three_d_poster_rebuild(dict, rect, rect).is_some();
+
         let ap_is_pdfces = has_ap
             && (free_text_multiline.is_some()
                 || stamp_rebuildable
+                || three_d_rebuildable
                 || annot_author::spec_from_dict(&self.graph(), dict).is_ok_and(|original| {
                     self.appearance_matches(
                         dict,
@@ -34058,6 +34295,22 @@ impl EditSession {
                 // The fit policy is `GrowToText` by default, so a box widened
                 // past the label simply holds it, and a box narrowed below it
                 // grows back rather than clipping.
+                // A pdfcer-drawn 3D poster is redrawn for the new box: the
+                // placeholder at the new size, an image re-fitted inside it.
+                None if three_d_rebuildable => {
+                    let (ap_dict, content) = self
+                        .three_d_poster_rebuild(dict, rect, scaled)
+                        .ok_or(EditError::NotADictionary {
+                            id: annot_id,
+                            key: "AP",
+                        })?;
+                    (
+                        annot_author::three_d_placeholder(scaled, annot_author::Color::Gray(0.0))
+                            .annot,
+                        ap_dict,
+                        content,
+                    )
+                }
                 None if stamp_rebuildable => {
                     let mut spec = annot_author::text_spec_from_dict(&self.graph(), &updated)?;
                     if let Some((label, size)) = &stamp_recovered {
@@ -58092,70 +58345,10 @@ impl EditSession {
         let placed = spec.placed_rect();
         let (pw, ph) = (placed.urx - placed.llx, placed.ury - placed.lly);
 
-        // ---- the /SMask image, if any ---------------------------------
+        // ---- the /SMask image, if any, and the image XObject --------
         let mut objects: Vec<ObjectWrite> = Vec::new();
         let mut wrap = None;
-        let soft_mask_id = match img.soft_mask.as_ref() {
-            None => None,
-            Some(mask) => {
-                let id = ObjId::new(self.alloc_number()?, 0);
-                // §11.6.5.3 is a RECORDED GAP in the spec RAG (clause 11 is
-                // uningested), so this dictionary is the conservative
-                // intersection of what §8.9 Table 89 does say and what every
-                // reader is known to accept: a DeviceGray image of identical
-                // dimensions, with no mask of its own, no /Matte and no
-                // /Decode. Do not relax it without dispatching
-                // `pdfcer-spec-librarian` for §11.6.5.3.
-                let mut d = Dict::new();
-                d.insert(Name::from(b"Type"), Object::Name(Name::from(b"XObject")));
-                d.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Image")));
-                d.insert(Name::from(b"Width"), Object::Integer(i64::from(mask.width)));
-                d.insert(
-                    Name::from(b"Height"),
-                    Object::Integer(i64::from(mask.height)),
-                );
-                d.insert(
-                    Name::from(b"ColorSpace"),
-                    Object::Name(Name::from(b"DeviceGray")),
-                );
-                d.insert(
-                    Name::from(b"BitsPerComponent"),
-                    Object::Integer(i64::from(mask.bits_per_component)),
-                );
-                d.insert(
-                    Name::from(b"Filter"),
-                    Object::Name(Name::from(b"FlateDecode")),
-                );
-                d.insert(
-                    Name::from(b"Length"),
-                    Object::Integer(i64::try_from(mask.data.len()).unwrap_or(i64::MAX)),
-                );
-                let span = self.stage_bytes(&mask.data);
-                objects.push(ObjectWrite {
-                    id,
-                    before: None,
-                    after: Some(Object::Stream(Stream {
-                        dict: d,
-                        data_span: span,
-                    })),
-                });
-                Some(id)
-            }
-        };
-
-        // ---- the image XObject ----------------------------------------
-        let image_id = ObjId::new(self.alloc_number()?, 0);
-        let image_dict = Self::image_xobject_dict(img, soft_mask_id);
-        let span = self.stage_bytes(&img.data);
-        objects.push(ObjectWrite {
-            id: image_id,
-            before: None,
-            after: Some(Object::Stream(Stream {
-                dict: image_dict,
-                data_span: span,
-            })),
-        });
-
+        let (image_id, soft_mask_id) = self.stage_image_xobject(img, &mut objects)?;
         // ---- the content stream that draws it -------------------------
         let name = self.free_xobject_name(page_id, &slots);
         let [oa, ob, oc, od, oe, of] = img.orientation.unit_square_matrix();
@@ -58224,6 +58417,77 @@ impl EditSession {
             placed_rect: placed,
             disclosures,
         })
+    }
+
+    /// Stage an [`ImportedImage`] as an image XObject, preceded by its
+    /// `/SMask` image when it has one. Returns the image's id and the
+    /// soft mask's.
+    fn stage_image_xobject(
+        &mut self,
+        img: &ImportedImage,
+        objects: &mut Vec<ObjectWrite>,
+    ) -> Result<(ObjId, Option<ObjId>), EditError> {
+        let soft_mask_id = match img.soft_mask.as_ref() {
+            None => None,
+            Some(mask) => {
+                let id = ObjId::new(self.alloc_number()?, 0);
+                // §11.6.5.3 is a RECORDED GAP in the spec RAG (clause 11 is
+                // uningested), so this dictionary is the conservative
+                // intersection of what §8.9 Table 89 does say and what every
+                // reader is known to accept: a DeviceGray image of identical
+                // dimensions, with no mask of its own, no /Matte and no
+                // /Decode. Do not relax it without dispatching
+                // `pdfcer-spec-librarian` for §11.6.5.3.
+                let mut d = Dict::new();
+                d.insert(Name::from(b"Type"), Object::Name(Name::from(b"XObject")));
+                d.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Image")));
+                d.insert(Name::from(b"Width"), Object::Integer(i64::from(mask.width)));
+                d.insert(
+                    Name::from(b"Height"),
+                    Object::Integer(i64::from(mask.height)),
+                );
+                d.insert(
+                    Name::from(b"ColorSpace"),
+                    Object::Name(Name::from(b"DeviceGray")),
+                );
+                d.insert(
+                    Name::from(b"BitsPerComponent"),
+                    Object::Integer(i64::from(mask.bits_per_component)),
+                );
+                d.insert(
+                    Name::from(b"Filter"),
+                    Object::Name(Name::from(b"FlateDecode")),
+                );
+                d.insert(
+                    Name::from(b"Length"),
+                    Object::Integer(i64::try_from(mask.data.len()).unwrap_or(i64::MAX)),
+                );
+                let span = self.stage_bytes(&mask.data);
+                objects.push(ObjectWrite {
+                    id,
+                    before: None,
+                    after: Some(Object::Stream(Stream {
+                        dict: d,
+                        data_span: span,
+                    })),
+                });
+                Some(id)
+            }
+        };
+
+        // ---- the image XObject ----------------------------------------
+        let image_id = ObjId::new(self.alloc_number()?, 0);
+        let image_dict = Self::image_xobject_dict(img, soft_mask_id);
+        let span = self.stage_bytes(&img.data);
+        objects.push(ObjectWrite {
+            id: image_id,
+            before: None,
+            after: Some(Object::Stream(Stream {
+                dict: image_dict,
+                data_span: span,
+            })),
+        });
+        Ok((image_id, soft_mask_id))
     }
 
     /// Build the image XObject's dictionary from an [`ImportedImage`]

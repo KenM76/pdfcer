@@ -96,7 +96,7 @@ pub enum Color {
 
 impl Color {
     /// The `/C` / `/IC` array form (§12.5.6): 1, 3 or 4 numbers.
-    fn to_array(self) -> Object {
+    pub(crate) fn to_array(self) -> Object {
         let nums = match self {
             Self::Gray(g) => vec![g],
             Self::Rgb(r, g, b) => vec![r, g, b],
@@ -5989,6 +5989,66 @@ pub(crate) fn screen(spec: &ScreenSpec) -> AuthoredTextAnnot {
 
     AuthoredTextAnnot {
         annot: base_annot(b"Screen", rect),
+        ap_dict: text_form_dict(rect, Dict::new()),
+        ap_content: b.into_bytes(),
+        rect,
+        flags: AnnotFlags::PRINT,
+        popup: None,
+        applied_autosize: None,
+        stamp_label_fit: None,
+        unencodable_chars: 0,
+    }
+}
+
+/// An annotation's `/C` colour, when it names a device space.
+pub(crate) fn annotation_color<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> Option<Color> {
+    read_color(graph, annot, b"C")
+}
+
+/// The annotation dictionary and pdfcer's placeholder poster for a `/3D`
+/// annotation (§13.6.2 Table 298), without `/P`, `/AP`, `/3DD` or `/3DA`
+/// (the session adds those). The poster is a frame around a wireframe cube;
+/// §13.6.2 requires every 3D annotation to carry an `/AP /N`, shown until
+/// the artwork activates and whenever it prints.
+pub(crate) fn three_d_placeholder(rect: Rect, color: Color) -> AuthoredTextAnnot {
+    let rect = positive_rect(rect);
+    let w = rect.width();
+    let h = rect.height();
+    let s = w.min(h);
+
+    let mut b = ContentBuilder::new();
+    color.apply_stroke(&mut b);
+    let lw = (s * 0.02).clamp(0.5, 2.0);
+    b.set_line_width(lw);
+    b.set_line_join(LineJoin::Round);
+    b.rect(lw / 2.0, lw / 2.0, w - lw, h - lw);
+    b.paint(Paint::Stroke);
+    // An isometric cube: hexagon outline plus the three edges meeting at
+    // the front corner.
+    let r = s * 0.3;
+    let (cx, cy) = (w / 2.0, h / 2.0);
+    let dx = r * 0.866;
+    let hex = [
+        (cx, cy + r),
+        (cx + dx, cy + r / 2.0),
+        (cx + dx, cy - r / 2.0),
+        (cx, cy - r),
+        (cx - dx, cy - r / 2.0),
+        (cx - dx, cy + r / 2.0),
+    ];
+    b.move_to(hex[0].0, hex[0].1);
+    for &(x, y) in &hex[1..] {
+        b.line_to(x, y);
+    }
+    b.close_subpath();
+    for &(x, y) in &[hex[1], hex[3], hex[5]] {
+        b.move_to(cx, cy);
+        b.line_to(x, y);
+    }
+    b.paint(Paint::Stroke);
+
+    AuthoredTextAnnot {
+        annot: base_annot(b"3D", rect),
         ap_dict: text_form_dict(rect, Dict::new()),
         ap_content: b.into_bytes(),
         rect,

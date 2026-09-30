@@ -2567,6 +2567,59 @@ pub(crate) enum Command {
         output: PathBuf,
     },
 
+    /// **Embed a 3D model** (U3D or PRC) in a region of a page, as a 3D
+    /// annotation a 3D-capable reader lets you rotate and zoom.
+    ///
+    /// The model is stored unchanged. Its format is read from the file's
+    /// signature unless `--format` states it; a STEP file is refused (the
+    /// standard does not allow STEP in a 3D annotation). The region shows a
+    /// poster until the model activates, and the poster is what prints and
+    /// what readers without 3D support show: `--poster` supplies an image
+    /// (PNG, JPEG, ...), otherwise pdfcer draws a frame with a cube. A `note:`
+    /// line says when the document's PDF version is older than the format;
+    /// pdfcer does not change the version. A DRY RUN unless `--apply`.
+    #[command(name = "3d-embed")]
+    ThreeDEmbed {
+        /// Input PDF.
+        input: PathBuf,
+        /// The `.u3d` or `.prc` model to embed.
+        #[arg(long)]
+        model: PathBuf,
+        /// 1-based page number.
+        #[arg(long)]
+        page: u32,
+        /// Region `x0,y0,x1,y1` in default user space.
+        #[arg(long)]
+        rect: String,
+        /// The model's format: `auto` (default, from the file's signature),
+        /// `u3d` or `prc`. A stated format the signature contradicts is
+        /// refused.
+        #[arg(long, value_enum, default_value_t = ThreeDFormatArg::Auto)]
+        format: ThreeDFormatArg,
+        /// Poster image, fitted inside the region with its aspect ratio kept.
+        #[arg(long, value_name = "IMAGE")]
+        poster: Option<PathBuf>,
+        /// When the model activates: `click` (default), `page-open` or
+        /// `page-visible`.
+        #[arg(long, value_enum, default_value_t = ThreeDActivateArg::Click)]
+        activate: ThreeDActivateArg,
+        /// Description a reader shows for the region (`/Contents`).
+        #[arg(long)]
+        desc: Option<String>,
+        /// Placeholder poster colour as `RRGGBB` hex. Default dark grey.
+        #[arg(long)]
+        color: Option<String>,
+        /// Actually write the output. Without it this is a DRY RUN.
+        #[arg(long)]
+        apply: bool,
+        /// Output path. Required with `--apply`.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// **Attach a file to a PDF** as a document-level embedded file
     /// (§7.11.4.1, `/Names /EmbeddedFiles`).
     ///

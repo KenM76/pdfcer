@@ -19,6 +19,7 @@ use clap::{Arg, ArgAction, Command};
 /// else (a clipboard file, extracted attachment bytes) must never be listed:
 /// `--in-place` would overwrite the PDF with it.
 pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
+    "3d-embed",
     "add-bookmark",
     "add-caret",
     "add-check-box",

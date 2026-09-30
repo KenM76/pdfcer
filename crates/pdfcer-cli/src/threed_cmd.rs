@@ -101,3 +101,144 @@ pub(crate) fn cmd_extract_3d(input: &Path, index: usize, output: &Path) -> u8 {
     }
     exit::SUCCESS
 }
+
+/// The arguments of `3d-embed`, borrowed from the parsed command.
+pub(crate) struct EmbedThreeDArgs<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) model: &'a Path,
+    pub(crate) page: u32,
+    pub(crate) rect: &'a str,
+    pub(crate) format: ThreeDFormatArg,
+    pub(crate) poster: Option<&'a Path>,
+    pub(crate) activate: ThreeDActivateArg,
+    pub(crate) desc: Option<&'a str>,
+    pub(crate) color: Option<&'a str>,
+    pub(crate) apply: bool,
+    pub(crate) output: Option<&'a Path>,
+    pub(crate) mode: SaveMode,
+}
+
+/// `3d-embed` — one summary line, then `note:` lines.
+pub(crate) fn cmd_embed_3d(a: &EmbedThreeDArgs<'_>) -> u8 {
+    use pdfcer_core::edit::{MarkupNote, MarkupOptions};
+    use pdfcer_core::threed::{ThreeDActivation, ThreeDFormat, ThreeDSpec};
+
+    let rect = match crate::annot_parse::rect_from(a.rect) {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!("pdfcer: --rect: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let color = match a.color.map(crate::annot_parse::parse_color).transpose() {
+        Ok(c) => c,
+        Err(err) => {
+            eprintln!("pdfcer: --color: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    let Some(page_index) = (a.page as usize).checked_sub(1) else {
+        eprintln!("pdfcer: --page is 1-based; 0 names no page");
+        return exit::EDIT_REFUSED;
+    };
+    let data = match std::fs::read(a.model) {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.model.display());
+            return exit::IO_ERROR;
+        }
+    };
+    let built = match a.format {
+        ThreeDFormatArg::Auto => ThreeDSpec::new(rect, data),
+        ThreeDFormatArg::U3d => ThreeDSpec::with_format(rect, ThreeDFormat::U3d, data),
+        ThreeDFormatArg::Prc => ThreeDSpec::with_format(rect, ThreeDFormat::Prc, data),
+    };
+    let mut spec = match built {
+        Ok(spec) => spec,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.model.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    if let Some(path) = a.poster {
+        let bytes = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", path.display());
+                return exit::IO_ERROR;
+            }
+        };
+        match pdfcer_core::image_import::import(&bytes) {
+            Ok(img) => spec.poster = Some(img),
+            Err(err) => {
+                eprintln!("pdfcer: --poster {}: {err}", path.display());
+                return exit::EDIT_REFUSED;
+            }
+        }
+    }
+    spec.activation = match a.activate {
+        ThreeDActivateArg::Click => ThreeDActivation::Click,
+        ThreeDActivateArg::PageOpen => ThreeDActivation::PageOpen,
+        ThreeDActivateArg::PageVisible => ThreeDActivation::PageVisible,
+    };
+    if let Some(c) = color {
+        spec.color = c;
+    }
+    let doc = match open_document(a.input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let options = MarkupOptions {
+        note: a.desc.map(MarkupNote::new),
+        ..Default::default()
+    };
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    let outcome = match session.add_3d_annotation(page_index, &spec, &options) {
+        Ok(o) => o,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", a.input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+    println!(
+        "3d-embed {} page={} annot={} stream={} format={} bytes={} poster={} activate={} mode={} applied={}",
+        a.input.display(),
+        a.page,
+        outcome.annot_id.num,
+        outcome.stream_id.num,
+        spec.format.label(),
+        spec.data.len(),
+        spec.poster.as_ref().map_or_else(
+            || "placeholder".to_owned(),
+            |img| {
+                let (w, h) = img.display_size_px();
+                format!("{w}x{h}")
+            }
+        ),
+        String::from_utf8_lossy(spec.activation.name()),
+        mode_token(a.mode),
+        u32::from(a.apply)
+    );
+    if a.format == ThreeDFormatArg::Auto {
+        println!(
+            "inferred: format {} from the file's signature",
+            spec.format.label()
+        );
+    }
+    if outcome.below_required_version() {
+        println!(
+            "note: the document is PDF {} and {} needs PDF {}; a reader may show only the poster",
+            outcome.document_version,
+            spec.format.label(),
+            outcome.required_version
+        );
+    }
+    if !a.apply {
+        eprintln!("pdfcer: dry run — pass --apply with --output to write the file.");
+        return exit::SUCCESS;
+    }
+    finish_attachment_save(a.input, &mut session, a.output, a.mode)
+}

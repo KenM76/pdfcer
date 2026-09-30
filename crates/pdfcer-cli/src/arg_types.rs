@@ -971,6 +971,28 @@ impl AttachIconArg {
     }
 }
 
+/// The model format `3d-embed` writes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ThreeDFormatArg {
+    /// From the file's signature (default).
+    Auto,
+    /// ECMA-363 Universal 3D.
+    U3d,
+    /// ISO 14739-1 PRC.
+    Prc,
+}
+
+/// When a `3d-embed` model activates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ThreeDActivateArg {
+    /// Clicking the region (default).
+    Click,
+    /// Opening the page.
+    PageOpen,
+    /// The page becoming visible.
+    PageVisible,
+}
+
 /// What starts an `add-screen` clip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ScreenTriggerArg {

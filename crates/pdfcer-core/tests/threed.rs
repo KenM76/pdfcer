@@ -159,3 +159,211 @@ fn an_unrelated_edit_leaves_the_3d_objects_byte_identical() {
         b"U3D\0\xAA\xBB\xCC"
     );
 }
+
+mod embed {
+    use super::{PRC_ASSET_OBJ, U3D_OBJ, load};
+    use pdfcer_core::document::Document;
+    use pdfcer_core::edit::{EditError, EditSession, MarkupOptions};
+    use pdfcer_core::object::{ObjId, Object};
+    use pdfcer_core::page_tree::Rect;
+    use pdfcer_core::threed::{
+        ThreeDActivation, ThreeDEmbedError, ThreeDFormat, ThreeDSource, ThreeDSpec, extract_3d,
+        list_3d,
+    };
+    use pdfcer_core::writer::{SaveOptions, save_full};
+
+    const RECT: Rect = Rect {
+        llx: 20.0,
+        lly: 20.0,
+        urx: 180.0,
+        ury: 120.0,
+    };
+    const PRC: &[u8] = b"PRC\x08\x00\x01\x02\x03\x04";
+
+    fn saved(session: &EditSession) -> Vec<u8> {
+        save_full(
+            session.document(),
+            &session.dirty_set(),
+            &SaveOptions::identity(),
+        )
+        .expect("full rewrite")
+        .0
+    }
+
+    fn dict(doc: &Document, id: ObjId) -> pdfcer_core::object::Dict {
+        match &doc.get(id).expect("object present").value {
+            Object::Dict(d) => d.clone(),
+            other => panic!("{id} is not a dictionary: {other:?}"),
+        }
+    }
+
+    fn tiny_image() -> pdfcer_core::image_import::ImportedImage {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/synthetic/images/rgb8.png");
+        pdfcer_core::image_import::import(&std::fs::read(path).expect("read")).expect("import")
+    }
+
+    /// Embed, save, reload: the new model lists as a direct stream with a
+    /// poster, extracts to the original bytes, and every pre-existing 3D
+    /// object is byte-identical (ARCHITECTURE §5).
+    #[test]
+    fn an_embedded_prc_lists_extracts_and_leaves_the_rest_byte_identical() {
+        let mut session = EditSession::new(load());
+        let mut spec = ThreeDSpec::new(RECT, PRC.to_vec()).expect("PRC sniffs");
+        spec.activation = ThreeDActivation::PageOpen;
+        let outcome = session
+            .add_3d_annotation(1, &spec, &MarkupOptions::default())
+            .expect("embeds");
+        assert!(outcome.poster_image_id.is_none());
+        assert!(outcome.below_required_version(), "1.7 < 2.0 for PRC");
+
+        let bytes = saved(&session);
+        let contains = |needle: &[u8]| bytes.windows(needle.len()).any(|w| w == needle);
+        assert!(contains(U3D_OBJ.as_bytes()), "U3D stream object changed");
+        assert!(contains(PRC_ASSET_OBJ.as_bytes()), "PRC asset changed");
+
+        let back = Document::from_bytes(bytes).expect("reloads");
+        let found = list_3d(&back);
+        let new = found
+            .iter()
+            .find(|a| a.annot_id == Some(outcome.annot_id))
+            .expect("new model listed");
+        assert_eq!(new.page_index, 1);
+        assert_eq!(new.source, ThreeDSource::Stream { shared: false });
+        assert_eq!(new.declared, Some(ThreeDFormat::Prc));
+        assert!(new.has_poster);
+        assert_eq!(extract_3d(&back.view(), new).expect("extracts").data, PRC);
+
+        let annot = dict(&back, outcome.annot_id);
+        let Some(Object::Dict(activation)) = annot.get(b"3DA") else {
+            panic!("no /3DA: {annot:?}");
+        };
+        assert_eq!(activation.get(b"A"), Some(&Object::Name(b"PO".into())));
+    }
+
+    #[test]
+    fn a_supplied_poster_becomes_the_appearance_image() {
+        let mut session = EditSession::new(load());
+        let mut spec = ThreeDSpec::new(RECT, b"U3D\0\x01\x02".to_vec()).expect("U3D sniffs");
+        spec.poster = Some(tiny_image());
+        let outcome = session
+            .add_3d_annotation(0, &spec, &MarkupOptions::default())
+            .expect("embeds");
+        let image_id = outcome.poster_image_id.expect("poster image written");
+        session
+            .resize_annotation(
+                outcome.annot_id,
+                (20.0, 20.0),
+                1.0,
+                2.0,
+                &pdfcer_core::edit::ResizeOptions::default(),
+            )
+            .expect("an image poster re-fits in the new box");
+        assert!(!outcome.below_required_version(), "1.7 >= 1.6 for U3D");
+
+        let back = Document::from_bytes(saved(&session)).expect("reloads");
+        let image = back.get(image_id).expect("image object");
+        let Object::Stream(s) = &image.value else {
+            panic!("poster is not a stream");
+        };
+        assert_eq!(s.dict.get(b"Subtype"), Some(&Object::Name(b"Image".into())));
+    }
+
+    #[test]
+    fn step_mismatched_and_empty_models_are_refused() {
+        assert_eq!(
+            ThreeDSpec::with_format(RECT, ThreeDFormat::U3d, PRC.to_vec()),
+            Err(ThreeDEmbedError::Mismatch {
+                stated: "U3D".into(),
+                sniffed: "PRC".into()
+            })
+        );
+        assert_eq!(
+            ThreeDSpec::new(RECT, Vec::new()),
+            Err(ThreeDEmbedError::Empty)
+        );
+        assert!(matches!(
+            ThreeDSpec::new(RECT, b"ISO-10303-21;\nHEADER;".to_vec()),
+            Err(ThreeDEmbedError::NotEmbeddable { .. })
+        ));
+        assert!(
+            ThreeDSpec::with_format(RECT, ThreeDFormat::Prc, b"opaque".to_vec()).is_ok(),
+            "a stated format accepts unsigned bytes"
+        );
+
+        // The session re-validates: a spec mutated after construction.
+        let mut spec = ThreeDSpec::new(RECT, PRC.to_vec()).expect("sniffs");
+        spec.format = ThreeDFormat::U3d;
+        let mut session = EditSession::new(load());
+        assert!(matches!(
+            session.add_3d_annotation(0, &spec, &MarkupOptions::default()),
+            Err(EditError::ThreeD(ThreeDEmbedError::Mismatch { .. }))
+        ));
+        assert!(!session.can_undo(), "a refusal records nothing");
+    }
+
+    #[test]
+    fn one_undo_removes_the_whole_embed() {
+        let mut session = EditSession::new(load());
+        let before = list_3d(&session.view()).len();
+        let spec = ThreeDSpec::new(RECT, PRC.to_vec()).expect("sniffs");
+        session
+            .add_3d_annotation(0, &spec, &MarkupOptions::default())
+            .expect("embeds");
+        assert_eq!(list_3d(&session.view()).len(), before + 1);
+        session.undo().expect("one command");
+        assert_eq!(list_3d(&session.view()).len(), before);
+        assert!(!session.can_undo());
+    }
+    /// The generic annotation verbs reach a 3D annotation: move, resize and
+    /// copy/paste each succeed and the result still lists as a 3D model.
+    #[test]
+    fn move_resize_and_copy_paste_reach_a_3d_annotation() {
+        use pdfcer_core::edit::ResizeOptions;
+        use pdfcer_core::vector::Matrix;
+        let mut session = EditSession::new(load());
+        let spec = ThreeDSpec::new(RECT, PRC.to_vec()).expect("sniffs");
+        let id = session
+            .add_3d_annotation(1, &spec, &MarkupOptions::default())
+            .expect("embeds")
+            .annot_id;
+        session.move_annotation(id, 5.0, 5.0).expect("moves");
+        // pdfcer drew the placeholder, so a resize redraws it at the new
+        // size, non-uniform included, and recognises its own redraw again.
+        session
+            .resize_annotation(id, (20.0, 20.0), 0.5, 1.5, &ResizeOptions::default())
+            .expect("resizes");
+        session
+            .resize_annotation(id, (20.0, 20.0), 2.0, 2.0, &ResizeOptions::default())
+            .expect("resizes again");
+        // Another producer's poster (the fixture's empty form) is not
+        // pdfcer's to redraw.
+        assert!(matches!(
+            session.resize_annotation(
+                ObjId::new(5, 0),
+                (0.0, 0.0),
+                2.0,
+                1.0,
+                &ResizeOptions::default()
+            ),
+            Err(EditError::ResizeAppearanceNotRebuildable { .. })
+        ));
+        let annots = pdfcer_core::annot::page_annotations(&session.view(), ObjId::new(4, 0));
+        let at = annots
+            .iter()
+            .position(|a| a.id == Some(id))
+            .expect("still on page");
+        let clip = session.copy_annotations(1, &[at]).expect("copies");
+        session
+            .paste_objects(0, &clip, Matrix::IDENTITY)
+            .expect("pastes");
+        let found = list_3d(&session.view());
+        assert_eq!(found.len(), 6, "{found:#?}");
+        assert!(
+            found.iter().any(|a| a.page_index == 0
+                && a.annot_id != Some(id)
+                && a.declared == Some(ThreeDFormat::Prc)),
+            "the pasted copy is a PRC model on page 0"
+        );
+    }
+}

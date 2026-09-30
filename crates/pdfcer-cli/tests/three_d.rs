@@ -133,3 +133,134 @@ fn an_out_of_range_index_is_refused_and_writes_nothing() {
     assert!(!output.exists());
     assert!(String::from_utf8_lossy(&out.stderr).contains("has 2"));
 }
+
+fn model(tag: &str, bytes: &[u8]) -> PathBuf {
+    let path = std::env::temp_dir().join(format!("pdfcer_3d_{tag}_{}.bin", std::process::id()));
+    std::fs::write(&path, bytes).unwrap();
+    path
+}
+
+/// Dry run: the summary, the inferred format and the version note are
+/// printed, and nothing is written.
+#[test]
+fn an_embed_dry_run_discloses_the_inferred_format_and_the_version() {
+    let input = three_d_pdf("emb_dry");
+    let prc = model("emb_dry", b"PRC\x08\x00\x01");
+    let output = input.with_extension("out.pdf");
+    let out = run(&[
+        "3d-embed",
+        input.to_str().unwrap(),
+        "--model",
+        prc.to_str().unwrap(),
+        "--page",
+        "1",
+        "--rect",
+        "10,10,190,190",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("format=PRC bytes=6 poster=placeholder activate=XA"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("applied=0"), "{stdout}");
+    assert!(
+        stdout.contains("inferred: format PRC from the file's signature\n"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("note: the document is PDF 1.7 and PRC needs PDF 2.0"),
+        "{stdout}"
+    );
+    assert!(!output.exists(), "a dry run wrote a file");
+}
+
+/// Applied with a stated format: the model lists and extracts back from
+/// the written file, and nothing is inferred or noted.
+#[test]
+fn an_applied_embed_round_trips_through_list_and_extract() {
+    let input = three_d_pdf("emb_apply");
+    let u3d = model("emb_apply", b"U3D\0\x10\x20\x30");
+    let output = input.with_extension("out.pdf");
+    let out = run(&[
+        "3d-embed",
+        input.to_str().unwrap(),
+        "--model",
+        u3d.to_str().unwrap(),
+        "--page",
+        "1",
+        "--rect",
+        "10,10,190,190",
+        "--format",
+        "u3d",
+        "--activate",
+        "page-visible",
+        "--apply",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("activate=PV"), "{stdout}");
+    assert!(!stdout.contains("inferred:"), "{stdout}");
+    assert!(!stdout.contains("note:"), "{stdout}");
+
+    let listed = run(&["3d-list", output.to_str().unwrap()]);
+    assert!(
+        String::from_utf8_lossy(&listed.stdout).contains("count=3\n"),
+        "{}",
+        String::from_utf8_lossy(&listed.stdout)
+    );
+    let extracted = input.with_extension("back.u3d");
+    let ext = run(&[
+        "3d-extract",
+        output.to_str().unwrap(),
+        "--index",
+        "2",
+        "-o",
+        extracted.to_str().unwrap(),
+    ]);
+    assert!(
+        ext.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ext.stderr)
+    );
+    assert_eq!(std::fs::read(&extracted).unwrap(), b"U3D\0\x10\x20\x30");
+}
+
+#[test]
+fn a_step_model_is_refused_and_writes_nothing() {
+    let input = three_d_pdf("emb_step");
+    let step = model("emb_step", b"ISO-10303-21;\nHEADER;");
+    let output = input.with_extension("out.pdf");
+    let out = run(&[
+        "3d-embed",
+        input.to_str().unwrap(),
+        "--model",
+        step.to_str().unwrap(),
+        "--page",
+        "1",
+        "--rect",
+        "10,10,190,190",
+        "--apply",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert_eq!(out.status.code(), Some(9));
+    assert!(!output.exists());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("STEP"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
