@@ -154,6 +154,8 @@ use crate::pageops::{self};
 use crate::settings::{
     MAX_TAB_ROW_TOLERANCE, MIN_TAB_ROW_TOLERANCE, QuadPointOrder, WidgetTabTail,
 };
+#[cfg(feature = "signing")]
+use crate::sign::ltv::{DssReport, MaterialKind, ValidationMaterial};
 use crate::signature::{SaveMode, SignatureCensus, SignatureImpact, census, impact_of};
 
 /// A pre-placed empty signature field the request asked to sign INTO
@@ -629,6 +631,9 @@ pub enum CommandKind {
     /// [`EditSession::promote_inline_dr_fonts`] moved inline `/AcroForm /DR
     /// /Font` entries into indirect objects.
     PromoteInlineDrFonts,
+    /// [`EditSession::add_validation_material`] wrote certificates, CRLs or
+    /// OCSP responses into the catalog's `/DSS` (PAdES B-LT, `Pass 10.18`).
+    AddValidationMaterial,
     /// A push button's `/A` action was set, replaced or removed
     /// (`Pass 182.0`). ONE undoable command. See
     /// [`EditSession::set_button_action`].
@@ -8410,6 +8415,33 @@ pub enum EditError {
         /// The name that was requested.
         value: String,
     },
+    /// [`EditSession::add_validation_material`] was given a blob that cannot
+    /// be stored in `/DSS`. Nothing was written.
+    #[cfg(feature = "signing")]
+    #[error("{} {} of those supplied cannot go into /DSS: {reason}", kind.as_str(), index + 1)]
+    ValidationMaterialUnreadable {
+        /// Which kind of blob.
+        kind: crate::sign::ltv::MaterialKind,
+        /// Its 0-based position among the supplied blobs of that kind.
+        index: usize,
+        /// Why, in words.
+        reason: String,
+    },
+    /// [`EditSession::add_validation_material`] on a document with no
+    /// signature: validation material validates signatures.
+    #[error(
+        "the document has no signature, so there is nothing for validation material to validate"
+    )]
+    NoSignatureToValidate,
+    /// [`EditSession::add_validation_material`] under a certification that
+    /// permits no changes (`/P 1`), without
+    /// [`crate::sign::ltv::ValidationMaterial::allow_under_no_changes_certification`].
+    #[error(
+        "the document is certified with no changes permitted (/P 1); the spec exempts a /DSS \
+         update from that (ETSI EN 319 142-1 5.4.2.3), but Acrobat is reported to treat one as a \
+         change, so pdfcer refuses unless told to proceed"
+    )]
+    DssUnderNoChangesCertification,
     /// [`EditSession::delete_redaction_mark`] was given an object that is
     /// not a `/Redact` annotation listed on some page's `/Annots`.
     ///
@@ -43509,6 +43541,283 @@ impl EditSession {
             trailer: None,
         });
         Ok(count)
+    }
+
+    /// **PAdES B-LT**: write supplied certificates, CRLs and OCSP responses
+    /// into the catalog's `/DSS` (ETSI EN 319 142-1 §5.4.2.2; ISO 32000-2
+    /// §12.8.4.3), so a verifier can check the signatures' revocation status
+    /// offline, later. ONE undoable command. pdfcer-core fetches nothing.
+    ///
+    /// - Each blob becomes one stream holding its DER, referenced from
+    ///   `/Certs`, `/CRLs` or `/OCSPs`. A bare `BasicOCSPResponse` is wrapped
+    ///   into the `OCSPResponse` encoding §5.4.2.2 requires
+    ///   ([`DssReport::ocsps_wrapped`]).
+    /// - With [`ValidationMaterial::include_signature_certificates`] (the
+    ///   default), every certificate in every signature's CMS goes into
+    ///   `/Certs` too.
+    /// - Every existing `/DSS` entry is kept and the new ones appended
+    ///   (§5.4.1); a blob byte-identical to one already present, or earlier
+    ///   in the input, is skipped and counted.
+    /// - No `/VRI` is written (§6.3 requirement v); an existing one is kept.
+    ///
+    /// Save **incrementally** so the existing signatures keep verifying; the
+    /// DocMDP carve-out (§5.4.2.3) makes the update permitted under `/P 2`
+    /// and `/P 3`. Nothing new to write commits nothing.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::ValidationMaterialUnreadable`] — a blob does not parse,
+    ///   has trailing bytes, or is an OCSP response that is not `successful`.
+    ///   Checked before anything is written.
+    /// - [`EditError::NoSignatureToValidate`].
+    /// - [`EditError::DssUnderNoChangesCertification`].
+    /// - [`EditError::DocumentEncrypted`],
+    ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`],
+    ///   [`EditError::ObjectNumbersExhausted`], [`EditError::NotADictionary`].
+    #[cfg(feature = "signing")]
+    pub fn add_validation_material(
+        &mut self,
+        material: &ValidationMaterial,
+    ) -> Result<DssReport, EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        let suppressed = self.base.suppressed_object_count();
+        if suppressed > 0 {
+            return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
+        }
+        let found = census(&self.graph());
+        if found.signatures == 0 {
+            return Err(EditError::NoSignatureToValidate);
+        }
+        if found.certifications > 0
+            && found.certification_permission == Some(1)
+            && !material.allows_under_no_changes_certification()
+        {
+            return Err(EditError::DssUnderNoChangesCertification);
+        }
+
+        let mut report = DssReport::default();
+        // (kind, bytes, from a signature's CMS)
+        let mut incoming: Vec<(MaterialKind, Vec<u8>, bool)> = Vec::new();
+        for (kind, blobs) in material.supplied() {
+            for (index, der) in blobs.iter().enumerate() {
+                let (bytes, wrapped) =
+                    crate::sign::ltv::check_blob(kind, der).map_err(|reason| {
+                        EditError::ValidationMaterialUnreadable {
+                            kind,
+                            index,
+                            reason,
+                        }
+                    })?;
+                if wrapped {
+                    report.ocsps_wrapped += 1;
+                }
+                incoming.push((kind, bytes, false));
+            }
+        }
+        if material.includes_signature_certificates() {
+            for der in self.signature_certificates() {
+                incoming.push((MaterialKind::Certificate, der, true));
+            }
+        }
+
+        // The current /DSS: where it lives, and what each array holds.
+        let graph = self.graph();
+        let catalog_id = graph.catalog_id().ok_or(EditError::NotADictionary {
+            id: ObjId::new(0, 0),
+            key: "Root",
+        })?;
+        let catalog = graph
+            .resolved(catalog_id)
+            .as_dict()
+            .ok_or(EditError::NotADictionary {
+                id: catalog_id,
+                key: "DSS",
+            })?
+            .clone();
+        let (dss_id, mut dss) = match catalog.get(b"DSS") {
+            Some(Object::Reference(id)) => match graph.resolved(*id).as_dict() {
+                Some(d) => (Some(*id), d.clone()),
+                None => (None, Dict::new()),
+            },
+            Some(Object::Dict(d)) => (None, d.clone()),
+            _ => (None, Dict::new()),
+        };
+        let source = StreamSource::Split {
+            base: self.base.bytes(),
+            staged: &self.staging,
+        };
+        let mut seen: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
+        let mut arrays: Vec<(MaterialKind, Option<ObjId>, Vec<Object>)> = Vec::new();
+        for kind in [
+            MaterialKind::Certificate,
+            MaterialKind::Crl,
+            MaterialKind::Ocsp,
+        ] {
+            let (array_id, items) = match dss.get(kind.dss_key()) {
+                Some(Object::Reference(id)) => match graph.resolved(*id) {
+                    Object::Array(a) => (Some(*id), a.clone()),
+                    _ => (None, Vec::new()),
+                },
+                Some(Object::Array(a)) => (None, a.clone()),
+                _ => (None, Vec::new()),
+            };
+            for item in items.iter().take(crate::signature_verify::MAX_DSS_ITEMS) {
+                if let Object::Stream(stream) = graph.resolve(item)
+                    && let Some(raw) = source.slice(stream.data_span)
+                    && let Ok(bytes) = crate::filters::decode_stream(&stream.dict, raw)
+                {
+                    seen.insert(bytes);
+                }
+            }
+            report.carried_forward += items.len();
+            arrays.push((kind, array_id, items));
+        }
+
+        // Plan the new streams.
+        let mut next = self.next_number;
+        let mut objects: Vec<ObjectWrite> = Vec::new();
+        let mut staged: Vec<(ObjId, Vec<u8>)> = Vec::new();
+        for (kind, bytes, from_signature) in incoming {
+            if !seen.insert(bytes.clone()) {
+                report.duplicates_skipped += 1;
+                continue;
+            }
+            let num = next.ok_or(EditError::ObjectNumbersExhausted)?;
+            next = num.checked_add(1);
+            let id = ObjId::new(num, 0);
+            if let Some((_, _, items)) = arrays.iter_mut().find(|(k, _, _)| *k == kind) {
+                items.push(Object::Reference(id));
+            }
+            match kind {
+                MaterialKind::Certificate => {
+                    report.certs_added += 1;
+                    if from_signature {
+                        report.signature_certificates_added += 1;
+                    }
+                }
+                MaterialKind::Crl => report.crls_added += 1,
+                MaterialKind::Ocsp => report.ocsps_added += 1,
+            }
+            staged.push((id, bytes));
+        }
+        if report.is_empty() {
+            return Ok(report);
+        }
+        let new_dss_id =
+            if dss_id.is_none() && !matches!(catalog.get(b"DSS"), Some(Object::Dict(_))) {
+                let num = next.ok_or(EditError::ObjectNumbersExhausted)?;
+                Some(ObjId::new(num, 0))
+            } else {
+                None
+            };
+
+        // Consume the planned numbers and stage the stream bodies.
+        for (id, bytes) in staged {
+            self.alloc_number()?;
+            let span = self.stage_bytes(&bytes);
+            let mut sdict = Dict::new();
+            sdict.insert(
+                Name::from(b"Length"),
+                Object::Integer(i64::try_from(bytes.len()).unwrap_or(i64::MAX)),
+            );
+            objects.push(ObjectWrite {
+                id,
+                before: None,
+                after: Some(Object::Stream(Stream {
+                    dict: sdict,
+                    data_span: span,
+                })),
+            });
+        }
+        for (kind, array_id, items) in arrays {
+            if items.is_empty() {
+                continue;
+            }
+            match array_id {
+                Some(id) => objects.push(ObjectWrite {
+                    id,
+                    before: self.state.get(&id).cloned(),
+                    after: Some(Object::Array(items)),
+                }),
+                None => {
+                    dss.insert(Name::from(kind.dss_key()), Object::Array(items));
+                }
+            }
+        }
+        match (dss_id, new_dss_id) {
+            (Some(id), _) => objects.push(ObjectWrite {
+                id,
+                before: self.state.get(&id).cloned(),
+                after: Some(Object::Dict(dss)),
+            }),
+            (None, Some(id)) => {
+                self.alloc_number()?;
+                objects.push(ObjectWrite {
+                    id,
+                    before: None,
+                    after: Some(Object::Dict(dss)),
+                });
+                let mut updated = catalog;
+                updated.insert(Name::from(b"DSS"), Object::Reference(id));
+                objects.push(ObjectWrite {
+                    id: catalog_id,
+                    before: self.state.get(&catalog_id).cloned(),
+                    after: Some(Object::Dict(updated)),
+                });
+            }
+            (None, None) => {
+                let mut updated = catalog;
+                updated.insert(Name::from(b"DSS"), Object::Dict(dss));
+                objects.push(ObjectWrite {
+                    id: catalog_id,
+                    before: self.state.get(&catalog_id).cloned(),
+                    after: Some(Object::Dict(updated)),
+                });
+            }
+        }
+        self.commit(Command {
+            kind: CommandKind::AddValidationMaterial,
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(report)
+    }
+
+    /// Every certificate in every signature's CMS `certificates`, raw DER,
+    /// in field order.
+    #[cfg(feature = "signing")]
+    fn signature_certificates(&self) -> Vec<Vec<u8>> {
+        let graph = self.graph();
+        let Some(form) = forms::parse_acroform(&graph) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for field in &form.fields {
+            if field.field_type != Some(FieldType::Signature) {
+                continue;
+            }
+            let Some(Object::String(contents)) = graph
+                .resolved(field.id)
+                .as_dict()
+                .and_then(|d| d.get(b"V"))
+                .map(|o| graph.resolve(o))
+                .and_then(Object::as_dict)
+                .and_then(|v| v.get(b"Contents"))
+                .map(|o| graph.resolve(o))
+            else {
+                continue;
+            };
+            let Some((outer, _)) = crate::asn1::read(contents) else {
+                continue;
+            };
+            if let Some(sd) = crate::cms::parse_signed_data(outer.raw) {
+                out.extend(sd.certificates.iter().map(|c| c.to_vec()));
+            }
+        }
+        out
     }
 
     /// Every object id a widget's `/AP` names: the `/AP` dict itself when

@@ -2282,6 +2282,55 @@ pub(crate) enum Command {
         ocsp: Vec<PathBuf>,
     },
 
+    #[cfg(feature = "signing")]
+    /// **Embed revocation evidence** so the signatures stay verifiable
+    /// offline, years later — PAdES B-LT (ETSI EN 319 142-1 §5.4.2.2;
+    /// ISO 32000-2 §12.8.4.3).
+    ///
+    /// Writes the certificates, CRLs and OCSP responses you give into the
+    /// document's Document Security Store (`/DSS`), plus every certificate
+    /// already inside each signature. pdfcer fetches nothing: get the files
+    /// from the `revocation-source:` locations `verify-signatures` prints.
+    ///
+    /// Appended as an incremental update, so existing signatures keep
+    /// verifying. Material already in `/DSS` is kept; a file byte-identical to
+    /// one already there is skipped. A bare BasicOCSPResponse is wrapped into
+    /// the OCSPResponse form the standard requires. No `/VRI` is written.
+    ///
+    /// Prints one `add-ltv` line with what was added, skipped, wrapped and
+    /// carried forward, then each signature's `revocation:` verdict read back
+    /// from the output. Exit 0 on success; 9 when refused (an unreadable or
+    /// unsuccessful file, an unsigned document, a no-changes certification
+    /// without the override, an encrypted document); 3 for a file that
+    /// cannot be read or written.
+    AddLtv {
+        /// Input PDF (must carry at least one signature).
+        input: PathBuf,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// A DER certificate revocation list. Repeatable.
+        #[arg(long = "crl", value_name = "FILE")]
+        crl: Vec<PathBuf>,
+        /// A DER OCSP response (an OCSPResponse, or a bare
+        /// BasicOCSPResponse). Must be `successful`. Repeatable.
+        #[arg(long = "ocsp", value_name = "FILE")]
+        ocsp: Vec<PathBuf>,
+        /// A DER X.509 certificate — e.g. an issuer or OCSP responder
+        /// certificate the signatures do not carry. Repeatable.
+        #[arg(long = "cert", value_name = "FILE")]
+        cert: Vec<PathBuf>,
+        /// Do not copy the signatures' own certificates into `/DSS`.
+        #[arg(long)]
+        no_signature_certs: bool,
+        /// Proceed on a document certified with no changes permitted
+        /// (`/P 1`). The standard exempts this update from that restriction,
+        /// but Acrobat is reported to treat it as a change and mark the
+        /// certification broken, so it is refused by default.
+        #[arg(long)]
+        allow_under_no_changes_certification: bool,
+    },
+
     /// **List a document's optional-content groups** — layers (§8.11).
     ///
     /// Reports each layer's name and whether a reader would DRAW it with

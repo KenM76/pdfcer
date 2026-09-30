@@ -382,7 +382,7 @@ impl SuppliedRevocation {
 }
 
 /// The most `/DSS` `/Certs`, `/CRLs` or `/OCSPs` entries read, each.
-const MAX_DSS_ITEMS: usize = 4096;
+pub(crate) const MAX_DSS_ITEMS: usize = 4096;
 
 /// The document's `/DSS` certificates, CRLs and OCSP responses, decoded.
 #[derive(Default)]

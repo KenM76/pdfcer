@@ -2598,7 +2598,7 @@ objects={} appended={} out_bytes={}",
 }
 
 /// The `verify-signatures` `revocation:` line.
-fn revocation_line(r: &pdfcer_core::signature::Revocation) -> String {
+pub(crate) fn revocation_line(r: &pdfcer_core::signature::Revocation) -> String {
     use pdfcer_core::signature::Revocation;
     match r {
         Revocation::NotChecked => {

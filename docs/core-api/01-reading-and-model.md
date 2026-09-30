@@ -3188,6 +3188,14 @@ naming `CRL` or `OCSP`, and takes `verify-signatures --crl FILE` and
 `--ocsp FILE` (each repeatable; unreadable → exit 3); the exit code stays
 integrity's.
 
+### 12.5d Writing revocation evidence — PAdES B-LT (`Pass 10.18`)
+
+The write half of §12.5c: `EditSession::add_validation_material` puts
+certificates, CRLs and OCSP responses into `/DSS` so the §12.5c verdict comes
+back `RevocationSource::Dss` with nothing supplied. Contract, errors and the
+`/P 1` override: `02-editing-and-saving.md` §1, "Embed validation material".
+Types: `pdfcer_core::sign::ltv::{ValidationMaterial, DssReport, MaterialKind}`.
+
 ### 12.6 ★ Document metadata — the honest gap
 
 **There is no `Document`-level `/Info` accessor, and no XMP reader at all.**

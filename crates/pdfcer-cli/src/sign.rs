@@ -390,6 +390,105 @@ pub(crate) fn cmd_sign(args: &SignArgs<'_>) -> u8 {
     exit::SUCCESS
 }
 
+/// `add-ltv`'s arguments.
+#[cfg(feature = "signing")]
+pub(crate) struct AddLtvArgs<'a> {
+    pub input: &'a Path,
+    pub output: &'a Path,
+    pub crls: &'a [PathBuf],
+    pub ocsps: &'a [PathBuf],
+    pub certs: &'a [PathBuf],
+    pub signature_certs: bool,
+    pub allow_under_p1: bool,
+}
+
+/// `add-ltv`: write validation material into `/DSS`, save incrementally,
+/// then read each signature's revocation verdict back from the output.
+#[cfg(feature = "signing")]
+pub(crate) fn cmd_add_ltv(args: &AddLtvArgs<'_>) -> u8 {
+    use pdfcer_core::sign::ltv::ValidationMaterial;
+    use pdfcer_core::signature::verify_all;
+
+    let mut material = ValidationMaterial::new()
+        .include_signature_certificates(args.signature_certs)
+        .allow_under_no_changes_certification(args.allow_under_p1);
+    for (paths, kind) in [(args.certs, 0), (args.crls, 1), (args.ocsps, 2)] {
+        for path in paths {
+            let der = match std::fs::read(path) {
+                Ok(d) => d,
+                Err(err) => {
+                    eprintln!("pdfcer: {}: {err}", path.display());
+                    return exit::IO_ERROR;
+                }
+            };
+            material = match kind {
+                0 => material.with_cert(der),
+                1 => material.with_crl(der),
+                _ => material.with_ocsp(der),
+            };
+        }
+    }
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let report = match session.add_validation_material(&material) {
+        Ok(r) => r,
+        Err(err) => return report_edit_error(args.input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        SaveMode::Incremental,
+        ProducerArg::Preserve,
+        false,
+    ) {
+        Ok(o) => o,
+        Err(code) => return code,
+    };
+    println!(
+        "add-ltv {} -> {}; certs_added={} (from signatures {}) crls_added={} ocsps_added={} \
+duplicates_skipped={} ocsps_wrapped={} carried_forward={} appended={}",
+        args.input.display(),
+        args.output.display(),
+        report.certs_added,
+        report.signature_certificates_added,
+        report.crls_added,
+        report.ocsps_added,
+        report.duplicates_skipped,
+        report.ocsps_wrapped,
+        report.carried_forward,
+        outcome.report.bytes_appended,
+    );
+    if report.is_empty() {
+        return finish_edit(args.input, &outcome);
+    }
+    let bytes = match std::fs::read(args.output) {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", args.output.display());
+            return exit::IO_ERROR;
+        }
+    };
+    match open_document_bytes(bytes.clone()) {
+        Ok(doc) => {
+            for v in verify_all(&doc.view(), &bytes) {
+                println!(
+                    "signature {:?}: revocation: {}",
+                    v.field_name.as_deref().unwrap_or("-"),
+                    revocation_line(&v.revocation)
+                );
+            }
+        }
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", args.output.display());
+            return exit_code_for_doc(&err);
+        }
+    }
+    finish_edit(args.input, &outcome)
+}
+
 /// Emit the standard "not implemented yet" message for a stub subcommand
 /// and return [`exit::UNIMPLEMENTED`].
 pub(crate) fn unimplemented_stub(name: &str) -> u8 {

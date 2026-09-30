@@ -549,6 +549,24 @@ pub(crate) fn run() -> ExitCode {
             crl,
             ocsp,
         } => cmd_verify_signatures(&input, trust_from_acrobat, &crl, &ocsp),
+        #[cfg(feature = "signing")]
+        Command::AddLtv {
+            input,
+            output,
+            crl,
+            ocsp,
+            cert,
+            no_signature_certs,
+            allow_under_no_changes_certification,
+        } => cmd_add_ltv(&AddLtvArgs {
+            input: &input,
+            output: &output,
+            crls: &crl,
+            ocsps: &ocsp,
+            certs: &cert,
+            signature_certs: !no_signature_certs,
+            allow_under_p1: allow_under_no_changes_certification,
+        }),
         Command::ListPrinters => cmd_list_printers(),
         Command::Print {
             input,

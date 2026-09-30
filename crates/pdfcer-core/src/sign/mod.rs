@@ -55,6 +55,7 @@
 pub mod apply;
 pub mod cms_build;
 pub(crate) mod der_out;
+pub mod ltv;
 pub mod pkcs12;
 pub mod timestamp;
 
