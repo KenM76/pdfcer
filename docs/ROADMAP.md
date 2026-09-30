@@ -12800,6 +12800,43 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+#### `Pass 10.16` — **CRL REVOCATION CHECKING — validate CRLs from the catalog `/DSS /CRLs` and caller-supplied CRLs against the signer chain; offline, no fetch** — filed 2026-09-30 (781st filing), *Next up*, IN PROGRESS — carved from `Pass 10.6` routes 1–2 (CRL half)
+
+**Status: SCOPED, no code yet.** Carve-out of the CRL half of `Pass 10.6`'s
+routes 1 (embedded DSS/LTV) and 2 (shell-supplied responses); route 3
+already shipped as `Pass 10.15` (`3872e651`, 777th filing). OCSP and the
+DSS VRI hash setting (DSS-A1/A2) stay in `Pass 10.6`, which remains open
+for them.
+
+**Scope and acceptance criteria.**
+1. `pdfcer-pkix`: parse an RFC 5280 §5 `CertificateList` (bounded entry
+   count) and check it against a certificate and its issuer — issuer
+   name match, CRL signature by the issuer key, issuer `keyUsage
+   cRLSign` (RFC 10007 §6.3.3(f)), serial lookup, `reasonCode`. A CRL
+   carrying an unknown critical extension, a delta CRL, or an
+   `issuingDistributionPoint` is Unusable, never "good" (§5.2/§5.3).
+2. `pdfcer-core`: `SignatureVerdict` gains a revocation outcome — not
+   checked / good / revoked (date + reason + whether before the
+   signing time) / undetermined (reason). Sources are the `/DSS /CRLs`
+   streams and a caller-supplied set. `PathChecks::revocation_checked`
+   becomes true only when every chain cert is covered by a usable CRL.
+   Every uncertainty resolves to undetermined, never a false good.
+3. CLI: `pdfcer verify-signatures --crl FILE` (repeatable).
+4. Disclosure (project rule 4): the source (DSS vs. supplied) and a CRL
+   past its `nextUpdate` are stated, never silently accepted.
+5. Fixtures: a new generator using pyca/cryptography — a CA, a leaf,
+   and good / revoked / revoked-after-signing / unknown-critical /
+   forged / no-cRLSign-issuer CRLs, all synthetic (`LEGAL.md` §5).
+6. A fuzz target for the CRL parser.
+
+Spec basis already on file (778th filing, on `Pass 10.6`'s entry):
+`security__rfc5280_crl.md`, `security__rfc5280_revocation_pointers.md`,
+`pades__ref__dss_vri.md`.
+
+`docs/FEATURES.md`: the signature-trust revocation row stays *Planned*,
+every pdfcer box `[ ]` — nothing has shipped. This Pass is noted there
+as the CRL half now in progress; OCSP stays under `Pass 10.6`.
+
 > ★★★★★★★★★★★★★★ **`Pass 10.15` SHIPPED, 2026-09-30 (777th filing),
 > `3872e651`** — see top of *Shipped*. Off-cycle carve-out of route 3 from
 > `Pass 10.6` (Backlog), not scoped through this queue. **`Next up` still
@@ -30227,6 +30264,11 @@ false `Trusted` — the `Pass 10.3` safety direction is preserved.
 10.15` (`3872e651`, see top of *Shipped*).** Routes 1 and 2 below
 remain open — this Pass stays NOT STARTED for them. Revocation itself
 is still not checked; `PathChecks::revocation_checked` stays `false`.
+
+**★ The CRL half of routes 1–2 carved out 2026-09-30 (781st filing) to
+`Pass 10.16` (*Next up*, IN PROGRESS — scoping only, no code yet).**
+OCSP and the DSS VRI hash setting (DSS-A1/A2) remain here, in `Pass
+10.6`.
 
 **Status: NOT STARTED (routes 1–2).** The remaining trust slice after `Pass 10.5` shipped
 the deterministic offline checks (validity dates, CA/`keyUsage` constraints,

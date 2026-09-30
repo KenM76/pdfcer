@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (781st filing) — `Pass 10.16` filed: CRL revocation checking, carved from `Pass 10.6`
+
+**Shipped:** No code — scoping filing only.
+
+**Decisions made this session:**
+- `Pass 10.16` opened in *Next up* (IN PROGRESS, no code yet): validate
+  CRLs from `/DSS /CRLs` and caller-supplied CRLs against the signer
+  chain, offline, no fetch. Carve-out of the CRL half of `Pass 10.6`'s
+  routes 1 (embedded DSS/LTV) and 2 (shell-supplied OCSP/CRL); route 3
+  already shipped as `Pass 10.15` (`3872e651`, 777th filing). OCSP and
+  the DSS VRI hash setting (DSS-A1/A2) stay in `Pass 10.6`, which
+  remains open for them in *Backlog*.
+- Scope: `pdfcer-pkix` RFC 5280 §5 `CertificateList` parse + check
+  (issuer match, CRL signature, issuer `keyUsage cRLSign` per RFC
+  10007 §6.3.3(f), serial lookup, `reasonCode`; unknown critical
+  extension/delta CRL/IDP → Unusable); `pdfcer-core` revocation outcome
+  on `SignatureVerdict` (not checked / good / revoked / undetermined);
+  CLI `verify-signatures --crl FILE` (repeatable); synthetic
+  pyca/cryptography fixtures; a CRL-parser fuzz target.
+
+**Findings + decisions:** None new this filing — the spec basis
+(`security__rfc5280_crl.md`, `security__rfc5280_revocation_pointers.md`,
+`pades__ref__dss_vri.md`) was already delivered and recorded at the
+778th filing.
+
+**Still in flight:** `Pass 10.16` is scoped, not started. `Pass 10.6`
+(OCSP + `/Trust`-bitfield pin) remains NOT STARTED, *Backlog*.
+
+**For next session:** `v0.67.0` remains the last release (770th
+filing); unreleased set unchanged: `Pass 414.0`–`417.0`, `10.15`,
+`418.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Backup/push/release
+state not verifiable from here — engineer should check
+`D:\Dev\pdfce-backups\`.
+
 ## 2026-09-30 (780th filing) — addendum to `Pass 418.0` and `Pass 10.15`: gate fixes (`0f0b8800`)
 
 **Shipped:** No new Pass. Addendum to `Pass 418.0` (779th filing,
