@@ -173,12 +173,20 @@ left unticked, revocation checking is still not built.
 **`Pass 10.6` stays open** for routes 1 (embedded DSS/LTV) and 2
 (shell-supplied OCSP/CRL responses) — see its entry below, annotated.
 
-**Sourcing (hard rule 8).** No shell this filing — commit hash, test
-count and gate results relayed from the dispatching engineer's own
-report of `3872e651`, not independently reproduced. Backup/push/release
-state not verifiable from here; unreleased set as of this filing:
-`Pass 414.0`, `415.0`, `416.0`, `417.0`, `10.15` (last release
-`v0.67.0`, `265ddcf5`, 770th filing).
+**Fuzz follow-up (`e3be67e6`), same day.** `fuzz/fuzz_targets/signature_verify.rs`
+gained a third invariant — every `revocation_sources` list stays within
+`MAX_REVOCATION_URIS` (16) — plus corpus seed
+`fuzz/corpus/signature_verify/seed_sig-ecdsa-revocation-uris.pdf`
+(`hello.pdf` signed with `revocation-ecp256-modern.pfx`). 91 s over
+13,696 runs = 6.6 ms/run, 0 crashes. `tools/run-gates.sh` full sweep
+(41 commands, 2 filing gates) PASS on the tree at `7a29628d`.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes, test
+counts and gate results (both `3872e651` and the `e3be67e6` follow-up)
+relayed from the dispatching engineer's own reports, not independently
+reproduced. Backup/push/release state not verifiable from here;
+unreleased set as of this filing: `Pass 414.0`, `415.0`, `416.0`,
+`417.0`, `10.15` (last release `v0.67.0`, `265ddcf5`, 770th filing).
 
 ### `Pass 417.0` (`d75b4d4b`), 2026-09-29 — the offline merge (`pageops::merge`) keeps every source's page labels
 
@@ -30167,6 +30175,26 @@ eIDAS/RFC-5280 verdict still owes, and it is the one that **cannot live in
    can fetch (2)'s inputs. Decoding is offline; fetching is the shell's.
    **SHIPPED as `Pass 10.15` (`3872e651`), 2026-09-30 — this route
    alone; (1) and (2) are unaffected and remain below.**
+
+**Spec basis for routes 1–2 (added 2026-09-30, 778th filing).**
+`pdfcer-spec-librarian` wrote four files for this scope:
+`D:\Dev\Rag-Specialized\PDF_Spec\security\security__rfc5280_revocation_pointers.md`,
+`security\security__rfc5280_crl.md`, `security\security__rfc6960_ocsp.md`,
+`pades\pades__ref__dss_vri.md`. Corrections recorded there that bind the
+eventual implementation:
+- RFC 6960's ASN.1 module is EXPLICIT-tagged by default, so `ResponderID
+  byKey` is `A2 16 04 14` (not `82`) and `nextUpdate` is `A0 .. 18`;
+  `CertStatus` is IMPLICIT (good `80 00`, revoked `A1`, unknown `82 00`).
+- A CRL's `version` is an untagged INTEGER.
+- DSS keys are plural (`Certs`/`OCSPs`/`CRLs`); VRI keys are singular.
+- `/OCSPs` holds the full `OCSPResponse` — distinguish from a bare
+  `BasicOCSPResponse` by the first inner byte, `0A` vs `30`.
+- The VRI key's hash input (hex text vs. decoded bytes) is ambiguous in
+  the standard; recorded as DSS-A1/A2, and per the standing rule
+  (project-specific rule 4 / spec-ambiguity-is-a-setting) it becomes a
+  setting when route 1 is built.
+- RFC 10007 adds a `keyUsage cRLSign` requirement on the CRL issuer at
+  §6.3.3(f).
 
 **Also folds in `Pass 10.5` check (5):** pin the provisional `/Trust`
 bitfield decoding (provisional since `Pass 10.2`) so fine-grained usage

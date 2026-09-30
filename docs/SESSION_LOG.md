@@ -4,6 +4,47 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (778th filing) — addendum to `Pass 10.15`: fuzz coverage, `Pass 10.6` spec basis, OCSP lesson
+
+**Shipped:** No new Pass. Addendum to `Pass 10.15` (777th filing, `3872e651`).
+
+**Findings + decisions:**
+- Fuzz follow-up `e3be67e6`: `signature_verify.rs` gained a third
+  invariant (`revocation_sources` lists stay within `MAX_REVOCATION_URIS`
+  = 16) plus corpus seed `seed_sig-ecdsa-revocation-uris.pdf`. 91 s over
+  13,696 runs = 6.6 ms/run, 0 crashes. `tools/run-gates.sh` full sweep
+  (41 commands, 2 filing gates) PASS on the tree at `7a29628d`. Recorded
+  in the `Pass 10.15` Shipped entry.
+- `pdfcer-spec-librarian` delivered the spec basis for `Pass 10.6` routes
+  1–2 (embedded DSS/LTV; shell-supplied OCSP/CRL):
+  `security__rfc5280_revocation_pointers.md`, `security__rfc5280_crl.md`,
+  `security__rfc6960_ocsp.md`, `pades__ref__dss_vri.md`. Named in the
+  `Pass 10.6` Backlog entry along with six corrections it made (RFC 6960's
+  EXPLICIT-by-default tagging on `ResponderID`/`nextUpdate`, `CertStatus`
+  IMPLICIT tagging, CRL `version` untagged, DSS-plural-vs-VRI-singular
+  keys, `/OCSPs`-vs-bare-`BasicOCSPResponse` byte discriminator, VRI hash
+  input ambiguity flagged as a future setting, RFC 10007's `cRLSign`
+  requirement on the CRL issuer).
+- New `personal_rag/pdf` lesson: OCSP `CertID.issuerKeyHash` excludes the
+  BIT STRING's unused-bits octet in real producers (pyca/cryptography;
+  RFC 6960 errata 6165–6167), while RFC 6960 §4.1.1's own text excludes
+  only the tag and length. A verifier should compute the hash both ways,
+  or follow practice.
+
+**Still in flight:** `Pass 10.6` routes 1–2 remain NOT STARTED — now with
+their spec basis on file. `run-gates.sh` full sweep confirmed this
+filing (see fuzz follow-up above), no longer owed.
+
+**For next session:** `v0.67.0` remains the last release (770th filing);
+unreleased set unchanged: `Pass 414.0`, `415.0`, `416.0`, `417.0`, `10.15`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, test
+counts and gate results for `e3be67e6` relayed from the dispatching
+engineer's own report, not independently reproduced. The spec RAG file
+list and corrections are relayed from `pdfcer-spec-librarian`'s own
+report. Backup/push/release state not verifiable from here — engineer
+should check `D:\Dev\pdfce-backups\`.
+
 ## 2026-09-30 (777th filing) — `Pass 10.15` (`3872e651`): name each signer certificate's revocation locations
 
 **Shipped:**
