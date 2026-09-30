@@ -4,6 +4,66 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (811th filing) — `Pass 419.2` IN PROGRESS, sixth increment: PRC compressed tessellation (entity 173) read to its end; first real-file confirmation
+
+**Shipped (partial — Pass 419.2 stays open):**
+- `d11e4206` — feat(3d): new `crates/pdfcer-3d/src/arrays.rs` (Huffman
+  container decode — LSB-first blob, per-leaf code length read in the
+  blob's own 8-bit-stated width, leading root bit on stored codes; plus
+  `CharacterArray`/`ShortArray`/`CompressedIntegerArray` (width
+  differences summed, cumulative deltas)/`CompressedIndiceArray`/bool
+  arrays). `tess.rs`'s `TESS_3D_Compressed` (entity 173) is now read to
+  its end instead of refused as `PrcError::Unsupported`; new
+  `Tessellation::Compressed { triangles }` (`non_exhaustive`) carries the
+  triangle count only — reconstruction into triangle geometry is not yet
+  built. Field order follows WD 7.8.9.7, with `origin` present only from
+  authoring version >= 7031.
+- CLI `3d-mesh` counts compressed meshes (`compressed_skipped=N` in the
+  summary line); a model whose meshes are all compressed is refused by
+  name (exit 9) rather than silently emptied.
+- New synthetic fixture `fixtures/synthetic/prc/compressed.prc`
+  (`square.prc` unchanged byte-for-byte), drift-checked by a
+  `pdfcer-3d` test.
+
+**Findings + decisions:**
+- **First real-file confirmation of entity 173 and the Huffman array
+  reader.** `prc-rs`'s bundled "School" sample (local-only test
+  material, unknown provenance, never committed — `LEGAL.md` §5) reads
+  348/348 `TESS_3D_Compressed` entities with zero desyncs, 39,087
+  triangles counted across authoring versions on both sides of the
+  origin-field gate. This is the first confirmation that the field order
+  and the Huffman leaf-length reading (blob-stated width, not fixed 8
+  bits) hold against a real producer, not just the WD and `prc-rs`.
+  Written up as `C:\personal_rag\pdf\lesson_20260930_prc_compressed_tessellation_field_order_and_huffman_width_confirmed_on_real_file.md`.
+  Two other real samples in the bundle (a PMI-annotated part, "Camaro")
+  were unaffected — no compressed entities present.
+- `docs/FEATURES.md` row 457 (PRC mesh export, *Reading, navigation &
+  printing*) gains a caveat noting compressed meshes are now counted but
+  not yet exported; core/cli/gui boxes unchanged (`[x]`/`[x]`/`[ ]`).
+
+**Test results:**
+- `pdfcer-3d`: 49 pass (6 new array tests; compressed-mesh read-to-end
+  over 2 variants x 2 authoring versions; edge-status mismatch decodes
+  to `Malformed`).
+- CLI `three_d`: 13 pass (new: a compressed-only model is refused by
+  name).
+- Sabotage: 9/10 caught; the one survivor is `short_array`'s allocation
+  guard, which the element read also enforces independently.
+- Fuzz `prc_tess`: 210,826 runs / 91 s, clean. Clippy clean. No
+  `cargo tree` change (no manifest edits).
+
+**Still in flight:**
+- `Pass 419.2` remains IN PROGRESS. Still owed: compressed-triangle
+  reconstruction (traversal, apex frame, components — the School
+  sample's 39,087 count is now the local oracle for this), placement/
+  assembly transforms, CPU poster generation, and GAP-4/5/6/7 from the
+  810th filing's spec-librarian gap-note pass.
+
+**For next session:**
+- Decide whether triangle reconstruction or placement/poster work comes
+  next within `419.2`; unreleased range is now `b5107225..d11e4206`
+  (next release writes OneDrive `pdfcer2`).
+
 ## 2026-09-30 (810th filing) — `Pass 419.2` IN PROGRESS, fifth increment: PRC schema `SimpleFor` count fixed to unsigned; spec RAG gap-note pass landed
 
 **Shipped (partial — Pass 419.2 stays open):**

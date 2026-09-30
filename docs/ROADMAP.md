@@ -23414,6 +23414,29 @@ refusal (per that file's own "replace, never append" rule).
 > row cites `SimpleFor`). `419.2` remains IN PROGRESS: poster/placement/
 > compressed-tessellation still owed, plus GAP-4/5/6/7 — see the entry's
 > own still-owed list, just updated.
+>
+> ★ **`419.2` gains a sixth increment, 2026-09-30 (811th filing),
+> `d11e4206` — compressed tessellation (entity 173) is now READ TO ITS
+> END, not refused.** New `crates/pdfcer-3d/src/arrays.rs` (Huffman
+> container decode + the four typed array readers it feeds); `tess.rs`
+> gains `Tessellation::Compressed { triangles }` (triangle count only,
+> not yet reconstructed into geometry). CLI `3d-mesh` counts compressed
+> meshes (`compressed_skipped=N`) and refuses by name (exit 9) a model
+> whose meshes are all compressed, rather than silently emptying it.
+> `docs/FEATURES.md` row 457 (PRC mesh export) gains a caveat — boxes
+> unchanged. **First real-file confirmation**: `prc-rs`'s bundled
+> "School" sample (local-only, unknown provenance, never committed —
+> `LEGAL.md` §5) reads 348/348 compressed entities with zero desyncs,
+> 39,087 triangles counted over 2 authoring-version variants either side
+> of the origin-field gate (WD 7.8.9.7, present only from authoring
+> version >= 7031). Written up as a `personal_rag/pdf` lesson (below).
+> `pdfcer-3d` 49 tests pass, CLI `three_d` 13 pass, sabotage 9/10 caught
+> (survivor is an existing allocation guard, also enforced at the element
+> read); fuzz `prc_tess` 210,826 runs/91 s clean; clippy clean; no
+> `cargo tree` change. `419.2` remains IN PROGRESS: triangle
+> reconstruction (traversal/apex-frame/components), placement/assembly
+> transforms and CPU poster generation still owed, plus GAP-4/5/6/7 from
+> the 810th filing.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
