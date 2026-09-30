@@ -4,10 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (809th filing) — `Pass 419.2` IN PROGRESS, fourth slice: cargo-fuzz target `prc_tess` reaches the PRC tessellation decoder directly
+
+**Shipped (partial — Pass 419.2 stays open):**
+- `febaeee5` — new cargo-fuzz target `prc_tess` wraps the fuzz input in
+  a valid PRC container (byte 0 picks authoring version 7038/7046/7047/
+  8137, either side of the 7039 and 7047 gates; bytes 1-2 split the rest
+  into globals/schema and tessellation sections; stored-block zlib with
+  an Adler-32 trailer, so no new fuzz dependency) so the fuzzer reaches
+  the tessellation decoder directly rather than only through the outer
+  file-structure walker `prc_parse` already covers. Also corrected
+  `prc_parse`'s own header comment, which wrongly claimed it ran the raw
+  input as a tessellation section — it never did. Run: 194,710 execs in
+  91 s, cov 589 / ft 1155, 0 crashes. Closes the "direct tessellation-
+  decoder fuzz target" item from `419.2`'s still-owed list.
+
+**Still in flight:**
+- `Pass 419.2` remains IN PROGRESS. Still owed: CPU poster generation,
+  placement/assembly transforms, compressed tessellation (type 173)
+  decode, and the spec RAG gap notes (spec librarian dispatched
+  separately, in flight).
+
+**Environment note:**
+- D: hit 100% free space (235 MB) and failed a fuzz build mid-session;
+  `cargo clean --target-dir target-case` freed space (now ~28 GB free).
+  `target/` is ~30 GB (16 GB of it `debug/incremental`) and
+  `.claude/worktrees` is ~28 GB — both left untouched this filing.
+
 ## 2026-09-30 (808th filing) — `Pass 419.2` IN PROGRESS: `pdfcer-3d` mesh export (STL/OBJ) + CLI `3d-mesh` (third slice); a `signing`-feature-off CLI panic fixed
 
 **Shipped (partial — Pass 419.2 stays open):**
-- `e87bb75c` — `pdfcer_3d::mesh::{to_stl, to_obj}`: binary STL (80-byte
+- `e87bb75c` — `pdfcer_3d::{to_stl, to_obj}`: binary STL (80-byte
   header, u32 count, facet normal computed from winding, f32 vertices,
   `PrcError::TooLarge` past `u32::MAX` triangles) and Wavefront OBJ (one
   `o` per mesh, one `g` per face, 1-based indices, out-of-range triangles

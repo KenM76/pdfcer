@@ -23252,9 +23252,18 @@ RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
   pdfcer's own builds, off-able for a slim build): PRC uncompressed-
   tessellation read, mesh export (STL/OBJ), CPU poster generation. No GUI
   deps; wasm32-clean; no threads (engine rule). **UNBLOCKED 2026-09-30 —
-  see decision 169 below. IN PROGRESS, third slice `a9a7cf69`/`e87bb75c`,
-  2026-09-30 (808th filing; second slice `d64f900f`, 807th filing; first
-  slice `b5107225`, 806th filing):** `pdfcer_3d::mesh::{to_stl, to_obj}`
+  see decision 169 below. IN PROGRESS, fourth slice `febaeee5`, 2026-09-30
+  (809th filing; third slice `a9a7cf69`/`e87bb75c`, 808th filing; second
+  slice `d64f900f`, 807th filing; first slice `b5107225`, 806th filing):**
+  new cargo-fuzz target `prc_tess` wraps the fuzz input in a valid PRC
+  container (authoring version 7038/7046/7047/8137; globals/schema vs.
+  tessellation split; stored-block zlib + Adler-32) to reach the
+  tessellation decoder directly rather than through the outer file-
+  structure walker `prc_parse` already covers — 194,710 execs/91 s,
+  cov 589/ft 1155, 0 crashes. No new fuzz dependency. Also corrected
+  `prc_parse`'s header comment, which wrongly claimed it ran the raw
+  input as a tessellation section. This closes the "direct tessellation-
+  decoder fuzz target" item below. `pdfcer_3d::{to_stl, to_obj}`
   write binary STL (facet normal from winding) / Wavefront OBJ from
   `&[TriangleMesh]`; CLI `3d-mesh IN --index N -o OUT [--format stl|obj]`
   decodes a model's tessellation across all file structures and writes
@@ -23264,7 +23273,7 @@ RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
   to depend on `pdfcer-3d`; `pdfcer-core` still does not. Coordinates as
   stored, no placement/assembly transform applied yet (disclosed).
   Synthetic fixture `fixtures/synthetic/prc/square.prc`, drift-checked.
-  **Also landed this slice, found on discovery:** `d4ba79e2` fixed a
+  **Also landed the third slice, found on discovery:** `d4ba79e2` fixed a
   `--no-default-features` CLI build panicking on every launch (clap
   `mut_subcommand` on a name compiled out under `signing`) — CI's
   feature-off step widened from `cargo check` to `cargo test --bin
@@ -23272,12 +23281,12 @@ RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
   have caught this). `a8832eb3` marked `*.prc`/`*.u3d` binary in
   `.gitattributes`. **Still owed:** CPU poster generation,
   placement/assembly transforms (tree section, so multi-part models
-  don't overlap), compressed tessellation (type 173) decode, a direct
-  tessellation-decoder fuzz target, and the empirical gaps (local-frame
-  sign, multi-component restart, normals, real SolidWorks compression
-  choice, schema Interval/Domain layout, SimpleFor count type, variable
-  scoping, pointer-token semantics — open questions for the spec RAG).
-  U3D decode (`419.3`) is a separate question.
+  don't overlap), compressed tessellation (type 173) decode, and the
+  empirical gaps (local-frame sign, multi-component restart, normals,
+  real SolidWorks compression choice, schema Interval/Domain layout,
+  SimpleFor count type, variable scoping, pointer-token semantics — spec
+  RAG gap notes; spec librarian dispatched separately, in flight). U3D
+  decode (`419.3`) is a separate question.
 - `419.3` — U3D CLOD mesh decode (ECMA-363) into the same mesh model.
 - `419.4` — PRC authoring (mesh → PRC tessellation) — **the licensing
   questions below are answered, decision 169**; remaining scope is
@@ -23360,6 +23369,15 @@ refusal (per that file's own "replace, never append" rule).
 > ticked core/cli row (*Reading, navigation & printing*) because a
 > user-facing capability now exists — see that row and the Planned 3D
 > row's update in the same filing.
+>
+> ★ **`419.2` gains a fourth (non-shipping) rung, 2026-09-30 (809th
+> filing), `febaeee5`** — cargo-fuzz target `prc_tess` reaches the PRC
+> tessellation decoder directly (194,710 execs/91 s, cov 589/ft 1155,
+> 0 crashes), closing the "direct tessellation-decoder fuzz target" item
+> from the 808th filing's still-owed list. No `FEATURES.md` row cites
+> fuzzing for 3D, so that file is unchanged this filing. `419.2` remains
+> IN PROGRESS: poster/placement/compressed-tessellation still owed, spec
+> RAG gap notes still in flight (dispatched separately).
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
