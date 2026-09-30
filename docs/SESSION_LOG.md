@@ -4,6 +4,97 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (814th filing) — `Pass 421.0` SHIPPED: headless camera render of a decoded PRC model; corrects the 813th filing's overstated School-sample claim, identifies two real `Pass 419.2` defects
+
+**Shipped:**
+- `ac28b15b` — feat(3d): `pdfcer-3d` gains a CPU software renderer,
+  `render(meshes, &Camera, &RenderOptions) -> Result<Image,
+  RenderError>` (feature `3d`) — z-buffer over edge functions, near-plane
+  clipping, flat eye-lit double-sided shading; no threads, no new
+  dependencies, wasm32-clean, no manifest change. New `Camera`/
+  `Projection::{Perspective, Orthographic}`/`Camera::fit`/`Bounds`/
+  `RenderOptions`/`Image`/`RenderError`/`MAX_RENDER_PIXELS`. CLI `pdfcer
+  3d-render INPUT --index N -o OUT.png [--view ...] [--up ...] [--eye
+  X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG] [--width] [--height]
+  [--transparent]`, sharing `3d-mesh`'s assembly path; prints the
+  projection used and discloses colours/materials/lights/saved views are
+  not read. README subcommand count 197 → 198.
+- `976e9402` — docs(core-api): `01-reading-and-model.md` gains "Decoding
+  and drawing a PRC model (pdfcer-3d)"; corrects the stale "no model is
+  decoded or rendered" line.
+- `afe2127d` — docs(next-session): engineer handoff for the PRC
+  placement slice (pre-dates `ac28b15b`/`976e9402` in this filing; not a
+  Pass, filed here for the hash record only — `docs/NEXT_SESSION.md`
+  itself is engineer-owned, not edited by this filing).
+
+**Decisions made this session:**
+- None — this filing records shipped work and a correction; no new
+  architectural decision.
+
+**Findings + decisions:**
+- **Correction to the 813th filing** (`aa6866aa`): "the assembled OBJ
+  renders as one coherent building" overstated what was checked — Ken
+  inspected the preview and saw a jumble. Measured now, using `421.0`'s
+  own z-buffer render as ground truth: most of the jumble was the
+  matplotlib preview tool's broken painter's-order depth sort (the
+  correct render shows walls, windows, porch, steps and the vaulted roof
+  correctly). **Two real defects remain**, both filed as `Pass 419.2`
+  remainder in `ROADMAP.md` *Backlog*: (1) the vaulted roof mesh (entity
+  #868, 727 triangles) tears — its compressed-tessellation rebuild
+  diverges partway through the traversal, the "one gross case" of
+  residual drift the 811th filing already flagged, now attributable to
+  a specific entity; (2) a block of stairs renders upside down —
+  suspected cause a prototype occurrence's own location matrix not
+  composed when an occurrence falls back to its prototype's part/sons
+  (spec RAG GAP, WD 7.3.10.1). School sample stays local-only, unknown
+  provenance, never committed (`LEGAL.md` §5).
+- `Pass 421.0` shipped ahead of `419.2`'s own completion — it only
+  needed the placement/assembly transforms `419.2` already landed
+  (`aa6866aa`), not the rest of that Pass's still-owed list.
+- `docs/ROADMAP.md`: new Shipped entry at top (`Pass 421.0`); new
+  *Next up* star banner (off-cycle); *Backlog*'s "Interactive 3D viewer"
+  (`Pass 421.x`) bucket updated — `421.0` marked shipped, next planned
+  work ordered (fix the two geometry defects, then colours/materials
+  from the PRC globals, then textures, then lights); a dated correction
+  footer added to the `419.2` narrative rather than rewritten in place.
+- `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
+  gains `core [x]` / `cli [x]`; `gui` stays `[ ]`. Stays in *Planned* —
+  the row names interactive camera controls, which still need `421.1`
+  (separate `pdfcer-gui` project); the row would move to *Implemented*
+  only once that rung lands too.
+
+**Test results:**
+- `pdfcer-3d`: 8 new render unit tests + 2 doctests. CLI: 2 new tests
+  (a PRC assembly's two placed copies land where the top-ortho view puts
+  them; a U3D model refuses, exit 9, writes nothing). 16 `three_d` CLI
+  tests pass.
+- Sabotage caught every attempt, including two that initially survived
+  and needed a fix/new test: printing the projection from the `--view`
+  flag rather than from the camera; rendering only the first mesh.
+- `tools/run-gates.sh` green after fixing 3 pre-commit failures (clippy
+  `single_range_in_vec_init` + `redundant_clone` +
+  `wrong_self_convention`; two doctests constructing a
+  `#[non_exhaustive]` `TriangleMesh`; the README subcommand count),
+  re-verified individually. `cargo tree -p pdfcer-3d` / `-p pdfcer-cli`
+  unchanged; `pdfcer-core`/`pdfcer-render` untouched. No packaging change.
+
+**Still in flight:**
+- `Pass 419.2` remains IN PROGRESS: the T-edge form, residual drift (now
+  attributed to entity #868), stored-normal decode, the prototype-
+  location-composition gap (now attributed to the stairs defect), and
+  CPU poster generation.
+- `Pass 421.x` bucket: `421.0` shipped; `421.1` (GUI orbit/pan/zoom) not
+  yet requested from `pdfcer-gui`; colours/materials/textures/lights
+  queued after the two geometry defects above are fixed.
+
+**For next session:**
+- Fix the vaulted-roof tessellation tear (entity #868) and the prototype-
+  location-composition gap (stairs orientation) — both now have a named
+  cause, not just a symptom.
+- Then: read colours/materials from the PRC globals into `421.0`'s
+  renderer (already parsed by `419.2`, just unused); then textures; then
+  lights.
+
 ## 2026-09-30 (813th filing) — `Pass 419.2` IN PROGRESS, eighth increment: PRC product-tree placement/assembly transforms now APPLIED, not just stored
 
 **Shipped (partial — Pass 419.2 stays open):**
