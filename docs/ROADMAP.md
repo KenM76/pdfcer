@@ -23252,25 +23252,32 @@ RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
   pdfcer's own builds, off-able for a slim build): PRC uncompressed-
   tessellation read, mesh export (STL/OBJ), CPU poster generation. No GUI
   deps; wasm32-clean; no threads (engine rule). **UNBLOCKED 2026-09-30 —
-  see decision 169 below. IN PROGRESS, second slice shipped `d64f900f`,
-  2026-09-30 (807th filing; first slice `b5107225`, 806th filing):** the
-  crate now also reads `FileStructureSchema` — the token interpreter
-  skipping fields newer producers append (PRC WD 8.2: data tokens 0-11,
-  Father_Type, For/SimpleFor/If/Else, blocks, version blocks, variables,
-  arithmetic/comparison, obsolete 39/40; pointer tokens 12-14 and
-  `CurveIs3D` refused as `PrcError::Unsupported`) — and every `TESS_3D`
-  tessellation entity into `Tessellation::{Mesh(TriangleMesh), Wire,
-  Markup}` (`FileStructure::schema()`, `FileStructure::tessellations()`).
-  Compressed tessellation (type 173) and optimised vertex colours are
-  refused, not guessed at. Still not depended on by `pdfcer-core`/
-  `pdfcer-cli`; the `3d` feature is not wired — **no user-facing
-  capability exists yet, so this Pass stays unshipped regardless of test/
-  fuzz volume.** **Still owed:** mesh-model STL/OBJ export, CPU poster
-  generation, CLI subcommand, feature wiring, a direct tessellation-
-  decoder fuzz target, and the empirical gaps (local-frame sign, multi-
-  component restart, normals, real SolidWorks compression choice, schema
-  Interval/Domain layout, SimpleFor count type, variable scoping, pointer-
-  token semantics — open questions for the spec RAG).
+  see decision 169 below. IN PROGRESS, third slice `a9a7cf69`/`e87bb75c`,
+  2026-09-30 (808th filing; second slice `d64f900f`, 807th filing; first
+  slice `b5107225`, 806th filing):** `pdfcer_3d::mesh::{to_stl, to_obj}`
+  write binary STL (facet normal from winding) / Wavefront OBJ from
+  `&[TriangleMesh]`; CLI `3d-mesh IN --index N -o OUT [--format stl|obj]`
+  decodes a model's tessellation across all file structures and writes
+  it — **the first user-facing capability out of this bucket**, so
+  `FEATURES.md` gains a ticked core/cli row (`gui [ ]`). New default-on
+  CLI feature `3d` (dep `pdfcer-3d`, in-workspace MIT) — the first crate
+  to depend on `pdfcer-3d`; `pdfcer-core` still does not. Coordinates as
+  stored, no placement/assembly transform applied yet (disclosed).
+  Synthetic fixture `fixtures/synthetic/prc/square.prc`, drift-checked.
+  **Also landed this slice, found on discovery:** `d4ba79e2` fixed a
+  `--no-default-features` CLI build panicking on every launch (clap
+  `mut_subcommand` on a name compiled out under `signing`) — CI's
+  feature-off step widened from `cargo check` to `cargo test --bin
+  pdfcer` (a check builds the binary but never runs it, so it could not
+  have caught this). `a8832eb3` marked `*.prc`/`*.u3d` binary in
+  `.gitattributes`. **Still owed:** CPU poster generation,
+  placement/assembly transforms (tree section, so multi-part models
+  don't overlap), compressed tessellation (type 173) decode, a direct
+  tessellation-decoder fuzz target, and the empirical gaps (local-frame
+  sign, multi-component restart, normals, real SolidWorks compression
+  choice, schema Interval/Domain layout, SimpleFor count type, variable
+  scoping, pointer-token semantics — open questions for the spec RAG).
+  U3D decode (`419.3`) is a separate question.
 - `419.3` — U3D CLOD mesh decode (ECMA-363) into the same mesh model.
 - `419.4` — PRC authoring (mesh → PRC tessellation) — **the licensing
   questions below are answered, decision 169**; remaining scope is
@@ -23345,6 +23352,14 @@ refusal (per that file's own "replace, never append" rule).
 > `ARCHITECTURE.md` §12 decision 169). `419.2` is UNBLOCKED; the empirical
 > gaps (local-frame sign, multi-component restart, normal decoding) are
 > unaffected and remain for `419.2` itself to settle.
+>
+> ★ **`419.2` gains its first shipped rung, 2026-09-30 (808th filing),
+> `a9a7cf69`/`e87bb75c` — mesh export (STL/OBJ) + CLI `3d-mesh`.** `Pass
+> 419.2` itself is NOT complete (poster/placement/compressed-tessellation
+> still owed) and stays out of *Shipped*, but `docs/FEATURES.md` gains a
+> ticked core/cli row (*Reading, navigation & printing*) because a
+> user-facing capability now exists — see that row and the Planned 3D
+> row's update in the same filing.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 

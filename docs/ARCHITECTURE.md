@@ -437,7 +437,8 @@ D:\Dev\pdfcer\
                                    invariant as every other leaf (rule 2), its
                                    own `cargo tree -p pdfcer-function` CI step,
                                    wasm32-clean.
-    pdfcer-3d\                    <- (`Pass 419.2`, second slice 2026-09-30,
+    pdfcer-3d\                    <- (`Pass 419.2`, third slice 2026-09-30,
+                                   `a9a7cf69`/`e87bb75c`; second slice
                                    `d64f900f`; first slice `b5107225`)
                                    optional 3D-model decode — PRC
                                    (ISO 14739-1) container walk
@@ -449,25 +450,29 @@ D:\Dev\pdfcer\
                                    byte-identical to the spec RAG's copy,
                                    §12 decision 169), `schema::Schema`
                                    (`FileStructureSchema` token interpreter,
-                                   PRC WD 8.2) and `tess` (`TESS_3D`
+                                   PRC WD 8.2), `tess` (`TESS_3D`
                                    tessellation-entity decode into
-                                   `Tessellation::{Mesh, Wire, Markup}`).
+                                   `Tessellation::{Mesh, Wire, Markup}`) and
+                                   `export::{to_stl, to_obj}` (binary STL /
+                                   Wavefront OBJ from `&[TriangleMesh]`, no
+                                   placement/assembly transform applied yet).
                                    New, independent leaf — NOT part of
                                    decision 162's core-decomposition list
-                                   above; no crate in the workspace depends
-                                   on it yet, and it does not depend on
-                                   `pdfcer-model`/`pdfcer-core`. Depends on
-                                   `thiserror` + `flate2` only (both already
-                                   workspace deps, so no new third-party
-                                   license); zero GUI/network/thread deps,
-                                   its own `cargo tree -p pdfcer-3d` CI step,
-                                   wasm32-clean. The `3d` Cargo feature it
-                                   will sit behind is not wired into
-                                   `pdfcer-core`/`pdfcer-cli` yet. Mesh
-                                   export (STL/OBJ), CPU poster, a CLI
-                                   subcommand and U3D decode (`419.3`) remain
-                                   unbuilt — `Pass 419.2` is IN PROGRESS, not
-                                   shipped (`ROADMAP.md`).
+                                   above; does not depend on `pdfcer-model`/
+                                   `pdfcer-core`. Depends on `thiserror` +
+                                   `flate2` only (both already workspace
+                                   deps, so no new third-party license);
+                                   zero GUI/network/thread deps, its own
+                                   `cargo tree -p pdfcer-3d` CI step,
+                                   wasm32-clean. **`pdfcer-cli` now depends
+                                   on it behind a new default-ON `3d`
+                                   feature** (CLI `3d-mesh`, third slice) —
+                                   the first crate in the workspace to pull
+                                   it in; `pdfcer-core` still does not.
+                                   CPU poster, placement/assembly
+                                   transforms and U3D decode (`419.3`)
+                                   remain unbuilt — `Pass 419.2` is IN
+                                   PROGRESS, not shipped (`ROADMAP.md`).
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital

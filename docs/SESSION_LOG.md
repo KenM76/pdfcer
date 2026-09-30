@@ -4,6 +4,72 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (808th filing) — `Pass 419.2` IN PROGRESS: `pdfcer-3d` mesh export (STL/OBJ) + CLI `3d-mesh` (third slice); a `signing`-feature-off CLI panic fixed
+
+**Shipped (partial — Pass 419.2 stays open):**
+- `e87bb75c` — `pdfcer_3d::mesh::{to_stl, to_obj}`: binary STL (80-byte
+  header, u32 count, facet normal computed from winding, f32 vertices,
+  `PrcError::TooLarge` past `u32::MAX` triangles) and Wavefront OBJ (one
+  `o` per mesh, one `g` per face, 1-based indices, out-of-range triangles
+  skipped); coordinates as stored, no placement applied. 4 unit + 2
+  doctests.
+- `a9a7cf69` — CLI `3d-mesh IN --index N -o OUT [--format stl|obj]`
+  (default stl): decodes a PRC model's tessellation across all file
+  structures and writes a mesh; prints a placement-not-applied note and
+  a normals-recalculated note where relevant; refuses by name (exit 9,
+  nothing written) on U3D, damaged/compressed PRC, or a model with no
+  triangles. New default-on CLI feature `3d` (dep `pdfcer-3d`,
+  in-workspace MIT) — feature off refuses by name. Synthetic fixture
+  `fixtures/synthetic/prc/square.prc` (274 B), drift-checked
+  (`PDFCER_WRITE_FIXTURES=1` rewrites it). CLI tests (`three_d` module,
+  now 11): embed via `3d-embed` then mesh to STL and OBJ, U3D refusal,
+  damaged-PRC refusal. Sabotage 5/5 caught. README working-subcommand
+  count 196 -> 197. `pdfcer-3d`: 42 unit + 3 integration + 3 doc tests.
+  `cargo tree` on `pdfcer-core`/`pdfcer-render` unchanged.
+- `d4ba79e2` — fix: a `--no-default-features` CLI build panicked on
+  every launch. `with_in_place` panics on an in-place-listed name
+  missing from the clap tree; `add-ltv`/`sign`/`timestamp` compile only
+  under `signing`, so a feature-off binary hit the panic before parsing
+  any args (606/628 CLI integration tests failed in that config). Fix:
+  `SIGNING_COMMANDS` skipped only when `signing` is off — any other
+  missing name still panics. CI's feature-off step widened from `cargo
+  check` to `cargo test -p pdfcer-cli --no-default-features --bin
+  pdfcer` (a check builds the binary but never runs it, so it could not
+  have caught a run-time panic); `check-ci-parity.py`'s local stand-in
+  updated to match. Feature-off: 33 unit + 628 integration pass. Found
+  on discovery while testing the `3d` feature-off path.
+- `a8832eb3` — `.gitattributes`: `*.prc`/`*.u3d` marked `binary`
+  (`text=auto`'s NUL-sniffing heuristic was the only thing preventing
+  CRLF mangling on checkout).
+
+**Decisions made this session:** none new — this slice continues to
+execute decision 169; no fresh architectural call.
+
+**Findings + decisions:** generalizable Rust/CI finding, written to
+`D:\dev\rag\rust\` (new file + index line): a `cargo check
+--no-default-features` of a feature-gated clap tree cannot catch a
+run-time panic from `mut_subcommand` on a subcommand name that compiles
+out under the missing feature — checking builds the binary but never
+runs its arg-parsing setup, so only actually running something (even
+`--help`) exercises that path.
+
+**Still in flight — `Pass 419.2` remainder:** CPU poster render of the
+tessellation; placement/assembly transforms (tree section) so
+multi-part models don't overlap; compressed tessellation
+(`TESS_3D_COMPRESSED`) decode; a direct tessellation-decoder fuzz target
+(random input rarely reaches a valid tessellation section — the
+`prc_parse` target got 1,246,536 runs / 0 crashes but shallow coverage);
+RAG gap notes to the spec librarian (schema Interval/Domain layout,
+SimpleFor count type, variable scoping, pointer tokens). U3D decode
+(`419.3`) is a separate question.
+
+**For next session:** continue `419.2` with CPU poster generation and/or
+placement transforms. Mesh export is the first user-facing capability
+out of this bucket and is now ticked in `FEATURES.md`, but `Pass 419.2`
+itself is NOT complete and must not be marked shipped until poster
+generation (or a deliberate decision to split it into its own Pass)
+lands.
+
 ## 2026-09-30 (807th filing) — `Pass 419.2` IN PROGRESS: `pdfcer-3d` schema reader + tessellation decode (second slice)
 
 **Shipped (partial — Pass 419.2 stays open):**
