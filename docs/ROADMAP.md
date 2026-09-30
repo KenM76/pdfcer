@@ -148,6 +148,31 @@ pdfcer-core 1331+2344+158, pdfcer-render 434+386+18, all green; `cargo fmt
 **Delivered.** `core [x]`; `cli [x]` (`flatten-annotations` calls the same
 verb, no CLI code change); `gui [ ]` not confirmed.
 
+**Also filed this session.** Chore commit `598e4b95` ("chore: v0.67.0",
+`Cargo.toml` 0.66.0 → 0.67.0 plus `Cargo.lock`/`fuzz/Cargo.lock`) —
+recorded so `check-commits-filed.py` sees it filed. **Release in
+progress**: v0.67.0 will batch every Pass shipped since `v0.66.0`
+(`c1cbad50`) — `296.6` (deep-zoom render pre-clipped in device space
+instead of refused, `0f9d0c26`), `297.1` (`scan-offpage` stops reporting
+an image whose off-page part is blank, `1315b144`), `264.6` (a pasted
+annotation keeps its own blend mode, `73a8ba60`), `409.0`
+(`set_page_tabs` records a page's tab order, `2d2c25ee`), `410.0` (text
+clipping modes 4–7 clip at `ET`, `5722ec8a`), `411.0` (`button_action`
+reads back `/GoTo`, `/SubmitForm` and `/Hide`, `a2e40249`), `412.0`
+(blend space and ICC destination read the same output intent,
+`2b9f0234`), `413.0` (JBIG2 robustness follow-up, `14ef44f2`), `114.0`
+(NoRotate/NoZoom annotation placement, `9b3bd614`), and `114.1` (this
+entry, `c5c21156`) — all already filed above.
+
+**Headline.** `297.1` stops `scan-offpage` reporting a blank off-page
+part as a finding; `413.0` decodes a whole T.88 JBIG2 file embedded per
+Annex D.1/D.2 instead of failing Corrupt.
+
+OneDrive slot `pdfcer2` next (`pdfcer1` keeps `v0.66.0`). Tag, GitHub
+release, OneDrive deploy, fresh-folder smoke test and `verify-release.py`
+not yet done; not yet confirmed from here — full release filing to
+follow once tag/deploy details are relayed.
+
 ### `Pass 114.0` (`9b3bd614`), 2026-09-29 — NoRotate/NoZoom annotation placement pivots on the `/Rect` upper-left corner
 
 Closes the Backlog entry below ("`Pass 114.0` — implement `NoZoom`/

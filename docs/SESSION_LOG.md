@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (770th filing) — `598e4b95`: chore — v0.67.0 version bump, release IN PROGRESS
+
+**Shipped:**
+- Chore commit `598e4b95` ("chore: v0.67.0") bumps
+  `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.66.0 → 0.67.0. Recorded so
+  `check-commits-filed.py` sees it filed. Full details under `Pass
+  114.1`'s "Also filed this session" note in `ROADMAP.md`'s *Shipped*.
+
+**Still in flight:**
+- v0.67.0 release IN PROGRESS — batches `296.6`, `297.1`, `264.6`,
+  `409.0`, `410.0`, `411.0`, `412.0`, `413.0`, `114.0`, `114.1`, all
+  already shipped since `v0.66.0` (`c1cbad50`). Headline: `297.1` stops
+  `scan-offpage` reporting a blank off-page part as a finding; `413.0`
+  decodes a whole T.88 JBIG2 file embedded per Annex D.1/D.2 instead of
+  failing Corrupt. Tag, GitHub release, OneDrive deploy and smoke test
+  not yet done — OneDrive slot `pdfcer2` next (`pdfcer1` keeps
+  `v0.66.0`).
+
 ## 2026-09-29 (769th filing) — `Pass 114.1` (`c5c21156`): flatten pivots upright too; `115.0`/`115.1`/`115.2` retired
 
 **Shipped:**
