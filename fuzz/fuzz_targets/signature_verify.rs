@@ -48,7 +48,10 @@ fuzz_target!(|data: &[u8]| {
         }
         for s in &v.revocation_sources {
             for list in [&s.crl, &s.ocsp, &s.ca_issuers] {
-                assert!(list.len() <= MAX_REVOCATION_URIS, "revocation list over the cap");
+                assert!(
+                    list.len() <= MAX_REVOCATION_URIS,
+                    "revocation list over the cap"
+                );
             }
         }
     }
