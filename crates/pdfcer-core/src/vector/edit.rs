@@ -1699,6 +1699,106 @@ pub fn plan_transform_many(
     })
 }
 
+/// Plan a transform of **several objects, each by its own page-space
+/// matrix** — one splice, one undoable command (arrange-on-a-circle turns
+/// every object to its own tangent).
+///
+/// Each object is wrapped in `q <cm> … Q` exactly as [`plan_transform_many`]
+/// wraps it, with `X = CTM × M × CTM⁻¹` computed from that object's own CTM
+/// and its own `M`. `options` applies to the whole call: `mixed` over the
+/// selection, `singular` to each matrix (a clamp discloses once).
+///
+/// # Errors
+///
+/// [`VectorEditError::DuplicateObjectInMove`] (position in `transforms`) when
+/// one object (by span) is named twice;
+/// [`VectorEditError::OverlappingObjectSpans`] when one object's span holds
+/// or straddles another's — two matrices over the same marks have no single
+/// meaning, so containment refuses here where [`plan_transform_many`] drops
+/// it; otherwise as [`plan_transform_many`]. An empty `transforms` plans an
+/// unchanged buffer.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix, TransformOptions};
+/// use pdfcer_core::vector::edit::plan_transform_each;
+///
+/// let cs = ContentStream::parse(b"0 0 m 5 5 l S 10 10 m 20 20 l S".to_vec()).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// let each = [
+///     (&model.objects[0], Matrix::translate(1.0, 0.0)),
+///     (&model.objects[1], Matrix::scale(2.0, 2.0)),
+/// ];
+/// let plan = plan_transform_each(&cs, &each, TransformOptions::default()).unwrap();
+/// assert_eq!(plan.operators_touched, 2);
+/// assert_eq!(plan.content, b"q 1 0 0 1 1 0 cm 0 0 m 5 5 l S Q q 2 0 0 2 0 0 cm 10 10 m 20 20 l S Q");
+/// ```
+pub fn plan_transform_each(
+    content: &ContentStream,
+    transforms: &[(&VectorObject, Matrix)],
+    options: TransformOptions,
+) -> Result<PlannedEdit, VectorEditError> {
+    let Some(&(head, _)) = transforms.first() else {
+        return Ok(PlannedEdit {
+            content: content.buf.clone(),
+            operators_touched: 0,
+            disclosures: Vec::new(),
+        });
+    };
+    if matches!(options.mixed, MixedSelection::RefuseHeterogeneous) {
+        let first = object_kind(head);
+        if let Some(other) = transforms
+            .iter()
+            .map(|(o, _)| object_kind(o))
+            .find(|k| *k != first)
+        {
+            return Err(VectorEditError::HeterogeneousSelection {
+                first,
+                second: other,
+            });
+        }
+    }
+
+    let mut disclosures = Vec::new();
+    let mut spans: Vec<(usize, usize, Matrix, Matrix)> = Vec::with_capacity(transforms.len());
+    for (position, &(obj, m)) in transforms.iter().enumerate() {
+        let s = obj.bytes();
+        if spans
+            .iter()
+            .any(|&(a, b, _, _)| (a, b) == (s.start, s.end()))
+        {
+            return Err(VectorEditError::DuplicateObjectInMove { index: position });
+        }
+        let mut owed = Vec::new();
+        let matrix = resolve_singular(m, options.singular, &mut owed)?;
+        if disclosures.is_empty() {
+            disclosures = owed;
+        }
+        spans.push((s.start, s.end(), object_ctm(obj), matrix));
+    }
+    spans.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+    for pair in spans.windows(2) {
+        if let [(_, prev_end, _, _), (start, end, _, _)] = *pair
+            && start < prev_end
+        {
+            return Err(VectorEditError::OverlappingObjectSpans { start, end });
+        }
+    }
+
+    let mut edits: Vec<Splice> = Vec::with_capacity(spans.len() * 2);
+    for &(start, end, ctm, matrix) in &spans {
+        edits.push((start, start, emit_q_cm(local_matrix(ctm, matrix)?)));
+        edits.push((end, end, b" Q".to_vec()));
+    }
+    Ok(PlannedEdit {
+        content: splice(&content.buf, &mut edits),
+        operators_touched: spans.len(),
+        disclosures,
+    })
+}
+
 /// The `cm` matrix to emit for an object whose captured CTM is `ctm`, so that
 /// `page_matrix` takes effect in **page** space. See
 /// [`plan_transform_many`]'s "the matrix that gets emitted is not the one that

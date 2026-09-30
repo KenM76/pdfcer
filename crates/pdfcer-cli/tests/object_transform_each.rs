@@ -1,5 +1,5 @@
-//! `pdfcer object-move-each` — several objects, each by its own offset, one
-//! edit; a path by operand rewrite and an image by a `q cm Q` wrap.
+//! `pdfcer object-transform-each` — several objects, each by its own
+//! page-space matrix, one edit.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -8,23 +8,15 @@ use std::process::{Command, Output};
 
 const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 
-/// A path under a 2x CTM and a 5x-placed image — a synthetic page.
+/// A 10x5 rectangle under a 2x CTM (page box 0,0..20,10) and a 5x-placed
+/// image (page box 40,40..45,45) — a synthetic page.
 fn mixed_pdf(tag: &str) -> PathBuf {
-    build(
-        tag,
-        "q 2 0 0 2 0 0 cm 0 0 10 10 re S Q\nq 5 0 0 5 40 40 cm /Im1 Do Q",
-    )
-}
-
-/// A synthetic page drawing `content`, with `/Im1` and a form `/Fm1` whose
-/// own content is a path and an image.
-fn build(tag: &str, content: &str) -> PathBuf {
-    let form = "0 0 10 10 re S q 4 0 0 4 20 20 cm /Im1 Do Q";
+    let content = "q 2 0 0 2 0 0 cm 0 0 10 5 re S Q\nq 5 0 0 5 40 40 cm /Im1 Do Q";
     let bodies = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
-         /Resources << /XObject << /Im1 5 0 R /Fm1 6 0 R >> >> >>"
+         /Resources << /XObject << /Im1 5 0 R >> >> >>"
             .to_owned(),
         format!(
             "<< /Length {} >>\nstream\n{content}\nendstream",
@@ -33,13 +25,6 @@ fn build(tag: &str, content: &str) -> PathBuf {
         "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray \
          /BitsPerComponent 8 /Length 1 >>\nstream\n\u{0}\nendstream"
             .to_owned(),
-        format!(
-            "<< /Type /XObject /Subtype /Form /BBox [0 0 500 500] \n             /Resources << /XObject << /Im1 5 0 R >> >> /Length {} >>
-stream
-{form}
-endstream",
-            form.len()
-        ),
     ];
     let mut buf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
@@ -57,15 +42,17 @@ endstream",
         format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
             .as_bytes(),
     );
-    let path =
-        std::env::temp_dir().join(format!("pdfcer_move_each_{tag}_{}.pdf", std::process::id()));
+    let path = std::env::temp_dir().join(format!(
+        "pdfcer_transform_each_{tag}_{}.pdf",
+        std::process::id()
+    ));
     std::fs::write(&path, buf).unwrap();
     path
 }
 
 fn run(args: &[&str], input: &Path) -> Output {
     Command::new(BIN)
-        .arg("object-move-each")
+        .arg("object-transform-each")
         .arg(input)
         .args(args)
         .output()
@@ -82,16 +69,18 @@ fn object_list(path: &Path) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
+/// The path turns a quarter about its own centre (10,5); the image moves by
+/// (-3,4). Each lands where only its own matrix could put it.
 #[test]
-fn a_path_and_an_image_each_move_by_their_own_offset() {
+fn a_path_turns_and_an_image_moves_each_by_its_own_matrix() {
     let input = mixed_pdf("ok");
     let output = input.with_extension("out.pdf");
     let out = run(
         &[
-            "--move",
-            "0,5,0",
-            "--move",
-            "1,-3,4",
+            "--transform",
+            "0,0,1,-1,0,15,-5",
+            "--transform",
+            "1,1,0,0,1,-3,4",
             "--verify-undo",
             "-o",
             output.to_str().unwrap(),
@@ -104,11 +93,11 @@ fn a_path_and_an_image_each_move_by_their_own_offset() {
         String::from_utf8_lossy(&out.stderr)
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains(" moved=2 leaf=0 "), "{stdout}");
+    assert!(stdout.contains(" transformed=2 "), "{stdout}");
     assert!(stdout.contains("undo_identical=1"), "{stdout}");
     let listing = object_list(&output);
     assert!(
-        listing.contains("index=0 kind=path bbox=5,0,25,20 "),
+        listing.contains("index=0 kind=path bbox=5,-5,15,15 "),
         "{listing}"
     );
     assert!(
@@ -118,59 +107,53 @@ fn a_path_and_an_image_each_move_by_their_own_offset() {
 }
 
 #[test]
-fn an_object_named_twice_refuses_and_writes_nothing() {
-    let input = mixed_pdf("dup");
-    let output = input.with_extension("dup-out.pdf");
+fn a_singular_matrix_refuses_and_writes_nothing() {
+    let input = mixed_pdf("sing");
+    let output = input.with_extension("sing-out.pdf");
     let out = run(
         &[
-            "--move",
-            "1,5,0",
-            "--move",
-            "1,0,5",
+            "--transform",
+            "0,1,0,0,1,5,0",
+            "--transform",
+            "1,0,0,0,1,0,0",
             "-o",
             output.to_str().unwrap(),
         ],
         &input,
     );
     assert!(!out.status.success());
-    assert!(
-        String::from_utf8_lossy(&out.stderr).contains("named more than once"),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
     assert!(!output.exists(), "a refusal must write no output");
 }
 
-/// `--leaf` addresses objects inside a placed form, through its 2x placement.
 #[test]
-fn leaf_moves_reach_objects_inside_a_form() {
-    let input = build("leaf", "q 2 0 0 2 100 100 cm /Fm1 Do Q");
-    let output = input.with_extension("leaf-out.pdf");
-    let before = object_list(&input);
-    assert!(before.contains("leaves=2"), "{before}");
+fn an_object_named_twice_refuses_and_writes_nothing() {
+    let input = mixed_pdf("dup");
+    let output = input.with_extension("dup-out.pdf");
     let out = run(
         &[
-            "--leaf",
-            "--move",
-            "0,6,0",
-            "--move",
-            "1,0,-8",
+            "--transform",
+            "1,1,0,0,1,5,0",
+            "--transform",
+            "1,1,0,0,1,0,5",
             "-o",
             output.to_str().unwrap(),
         ],
         &input,
     );
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
+    assert!(!out.status.success());
+    assert!(!output.exists(), "a refusal must write no output");
+}
+
+#[test]
+fn a_short_matrix_is_refused_naming_the_shape() {
+    let input = mixed_pdf("bad");
+    let output = input.with_extension("bad-out.pdf");
+    let out = run(
+        &["--transform", "0,1,0,0,1,5", "-o", output.to_str().unwrap()],
+        &input,
     );
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        stdout.contains(" leaf=1 invocations=1 pages=1 "),
-        "{stdout}"
-    );
-    let after = object_list(&output);
-    assert!(after.contains("bbox=106,100,126,120"), "{after}");
-    assert!(after.contains("bbox=140,132,148,140"), "{after}");
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("INDEX,A,B,C,D,E,F"), "{stderr}");
+    assert!(!output.exists());
 }

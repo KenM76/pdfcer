@@ -52,6 +52,7 @@ mod move_annotation;
 mod object_clip_replies;
 mod object_list;
 mod object_move_each;
+mod object_transform_each;
 mod ocr_engine;
 mod output_in_place;
 mod password_values;

@@ -189,6 +189,7 @@ mod text_run_set_move;
 mod text_run_width;
 mod tounicode_partial_inverse;
 mod transform_objects;
+mod transform_objects_each;
 mod trust_store;
 mod unit_dimension_units;
 mod unit_form_script;

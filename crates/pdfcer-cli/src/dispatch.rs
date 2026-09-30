@@ -2661,6 +2661,21 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         }),
+        Command::ObjectTransformEach {
+            input,
+            page,
+            transforms,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_object_transform_each(&ObjectTransformEachArgs {
+            input: &input,
+            page,
+            transforms: &transforms,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::ObjectTransform {
             input,
             page,

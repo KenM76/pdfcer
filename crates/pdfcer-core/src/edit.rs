@@ -14873,6 +14873,52 @@ impl EditSession {
         })
     }
 
+    /// Transform **several objects, each by its own page-space matrix**, as
+    /// ONE undoable command — Arrange › Circular with *Rotate objects* gives
+    /// every object its own translation and rotation.
+    ///
+    /// `transforms` holds `(object_index, matrix)`; each matrix is in page
+    /// space as in [`Self::transform_objects`] (compose a pivot with
+    /// [`Matrix::about`](crate::vector::Matrix::about)). Any object kind, by a
+    /// `q <cm> … Q` wrap. `options` applies to the whole call. All-or-nothing:
+    /// every index is resolved and every object planned before anything is
+    /// written, so a refusal leaves the page unchanged. An empty `transforms`
+    /// is a no-op command. See [`crate::vector::plan_transform_each`].
+    ///
+    /// # Errors
+    ///
+    /// `ObjectOutOfRange`; `DuplicateObjectInMove` (page index) when one
+    /// object is named twice; `OverlappingObjectSpans` when one named object
+    /// contains another; `DegenerateCtm`, `SingularTransform`,
+    /// `ClampNotExpressible`, `HeterogeneousSelection` as
+    /// [`Self::transform_objects`]; and the session-level guards every content
+    /// surgery shares.
+    pub fn transform_objects_each(
+        &mut self,
+        page_index: usize,
+        transforms: &[(usize, crate::vector::Matrix)],
+        options: crate::vector::TransformOptions,
+    ) -> Result<TransformOutcome, EditError> {
+        let planned = self.vector_surgery_planned(
+            CommandKind::TransformObjects,
+            page_index,
+            |stream, model| {
+                let resolved = Self::resolve_moves(model, transforms.iter().map(|t| t.0))?;
+                let plan: Vec<_> = resolved
+                    .into_iter()
+                    .zip(transforms)
+                    .map(|(obj, &(_, m))| (obj, m))
+                    .collect();
+                Ok(crate::vector::plan_transform_each(stream, &plan, options)?)
+            },
+        )?;
+        Ok(TransformOutcome {
+            objects_transformed: planned.operators_touched as u64,
+            clamped: planned.disclosures.iter().any(|d| d.contains("CLAMPED")),
+            disclosures: planned.disclosures,
+        })
+    }
+
     /// Ask what [`Self::transform_objects`] **would** do, without doing it
     /// (`Pass 113.1`).
     ///

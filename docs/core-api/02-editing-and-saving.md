@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 289 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 290 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 289 public `EditSession` methods
+## 1. Verb index — all 290 public `EditSession` methods
 
-**Count: 289.** Established by brace-matched extraction of the six
+**Count: 290.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -868,6 +868,35 @@ The two exceptions are `transform_objects` / `transform_preview`
 >
 > CLI equivalent: `pdfcer object-transform --objects 3,4,7 --scale 1.5
 > --rotate 15 --translate 10,0 [--pivot X,Y] [--preview]`.
+>
+> #### `transform_objects_each` — each object by its OWN matrix
+>
+> ```rust
+> session.transform_objects_each(page, &[(3, m3), (4, m4)], TransformOptions::default())
+>     -> Result<TransformOutcome, EditError>
+> ```
+>
+> For a gesture where every object gets a different matrix — arrange on a
+> circle and turn each to its tangent, per-object rotate about its own centre.
+> Same mechanism as `transform_objects` (one `q <cm> … Q` per object, the
+> emitted `cm` built from that object's own CTM, matrices in PAGE space), and
+> **one undo entry, all-or-nothing**. Where it differs:
+>
+> - **An object named twice refuses** with
+>   `VectorEditError::DuplicateObjectInMove { index }` (the page index) —
+>   two matrices for one object have no single meaning.
+> - **A contained or overlapping span refuses** with `OverlappingObjectSpans`,
+>   where `transform_objects` collapses it: under one shared matrix the outer
+>   wrap already carries the inner object, under two it would apply both.
+> - `options.singular` applies to each matrix; a clamp is disclosed once.
+>   `options.mixed` judges the whole selection.
+> - An empty list changes nothing and records no undo entry.
+> - **Indices are stable across it** (a wrap adds operators around an
+>   object, never between two objects' runs).
+>
+> The planner is `vector::plan_transform_each(content, &[(&obj, m)], options)`;
+> it names a repeat by its **list position**. CLI:
+> `pdfcer object-transform-each IN --page N --transform INDEX,A,B,C,D,E,F …`.
 
 > ### ★★ The object clipboard — and the half of it that is NOT `import_object`
 >
@@ -1206,6 +1235,7 @@ said nothing about identity across edits — this section is that gap closed.*
 | Delete one object | `delete_object(page_index, object_index)` |
 | Move a multi-object selection, ONE undo entry — paths **and text** (`G029`); an image refuses the whole call with `NotAPath { kind: "image", index }`, so grey it with `vector::object_move_refusal(obj, index)` | `move_objects(page_index, object_indices: &[usize], dx, dy)` |
 | Move a multi-object selection **each by its own delta** (align, distribute, arrange — `G071`), ONE undo entry, **any kind**: paths and text by operand rewrite, an image by a `q <cm> … Q` wrap. All-or-nothing; returns `move_objects`' disclosures. One object named twice refuses with `VectorEditError::DuplicateObjectInMove { index }` (the page index) | `move_objects_each(page_index, moves: &[(usize, f64, f64)]) -> Result<Vec<String>, EditError>` |
+| Transform a selection **each by its own page-space matrix** (arrange on a circle with rotate, per-object turn about its own centre), ONE undo entry, any kind, all-or-nothing. An object named twice refuses with `DuplicateObjectInMove { index }`; a contained/overlapping span with `OverlappingObjectSpans`. See the `transform_objects` section | `transform_objects_each(page_index, transforms: &[(usize, Matrix)], options: TransformOptions) -> Result<TransformOutcome, EditError>` |
 | Delete a multi-object selection, ONE undo entry | `delete_objects(page_index, object_indices: &[usize])` |
 | Delete one anchor node | `delete_node(page_index, object_index, node_index)` |
 | Delete one subpath | `delete_subpath(page_index, object_index, subpath_index)` |

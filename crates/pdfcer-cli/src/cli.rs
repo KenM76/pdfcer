@@ -9570,6 +9570,47 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Transform several objects, each by its own page-space matrix**, as
+    /// one edit — what arranging a selection on a circle and turning each
+    /// object to face outward needs. Any object kind: each object is wrapped
+    /// in `q <cm> ... Q` (as `object-transform`). All or nothing: a bad index,
+    /// an object named twice, a matrix that maps area to zero, or any object
+    /// that cannot be transformed refuses the whole command and writes nothing.
+    ///
+    /// Each matrix is `A,B,C,D,E,F` in page space, as a PDF `cm` operand
+    /// reads: x' = A*x + C*y + E, y' = B*x + D*y + F. To rotate or scale an
+    /// object about its own centre, include the translation to and from that
+    /// centre in the matrix (`object-list` prints each object's box).
+    ///
+    /// Example — move object 0 right 10pt, and turn object 3 a quarter turn
+    /// about the point (100,100):
+    ///
+    ///     pdfcer object-transform-each drawing.pdf --transform 0,1,0,0,1,10,0 --transform 3,0,1,-1,0,200,0 -o out.pdf
+    ObjectTransformEach {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// One object and its matrix, as `INDEX,A,B,C,D,E,F` (0-based
+        /// paint-order index; page space). Repeat for each object.
+        #[arg(
+            long = "transform",
+            value_name = "INDEX,A,B,C,D,E,F",
+            required = true,
+            allow_hyphen_values = true
+        )]
+        transforms: Vec<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Transform** a selection of vector objects (Pass 113.0): scale, rotate,
     /// shear or move them by one page-space matrix, by wrapping each object's
     /// operator run in `q <cm> ... Q`.

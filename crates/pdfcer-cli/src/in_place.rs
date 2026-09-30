@@ -98,6 +98,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "object-move-each",
     "object-paste",
     "object-transform",
+    "object-transform-each",
     "page-paste",
     "paste-field",
     "place-stamp",

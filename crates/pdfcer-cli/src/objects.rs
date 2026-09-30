@@ -940,6 +940,94 @@ pub(crate) fn cmd_object_move_each(args: &ObjectMoveEachArgs<'_>) -> u8 {
     finish_edit(args.input, &outcome)
 }
 
+/// Arguments for [`cmd_object_transform_each`].
+pub(crate) struct ObjectTransformEachArgs<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) page: u32,
+    /// `--transform` values, unparsed (`INDEX,A,B,C,D,E,F`).
+    pub(crate) transforms: &'a [String],
+    pub(crate) output: &'a Path,
+    pub(crate) mode: SaveMode,
+    pub(crate) verify_undo: bool,
+}
+
+/// Parse one `--transform INDEX,A,B,C,D,E,F`.
+fn parse_indexed_matrix(s: &str) -> Option<(usize, pdfcer_core::vector::Matrix)> {
+    let mut parts = s.split(',').map(str::trim);
+    let index = parts.next()?.parse().ok()?;
+    let v: Vec<f64> = parts.map(|p| p.parse().ok()).collect::<Option<_>>()?;
+    let [a, b, c, d, e, f] = v.as_slice() else {
+        return None;
+    };
+    v.iter().all(|x| x.is_finite()).then_some((
+        index,
+        pdfcer_core::vector::Matrix {
+            a: *a,
+            b: *b,
+            c: *c,
+            d: *d,
+            e: *e,
+            f: *f,
+        },
+    ))
+}
+
+/// `object-transform-each` — transform several objects, each by its own
+/// page-space matrix, as one edit (`EditSession::transform_objects_each`).
+pub(crate) fn cmd_object_transform_each(args: &ObjectTransformEachArgs<'_>) -> u8 {
+    let mut transforms = Vec::with_capacity(args.transforms.len());
+    for raw in args.transforms {
+        let Some(t) = parse_indexed_matrix(raw) else {
+            eprintln!(
+                "pdfcer: --transform {raw:?} is not INDEX,A,B,C,D,E,F (a 0-based index and six finite numbers)"
+            );
+            return exit::EDIT_REFUSED;
+        };
+        transforms.push(t);
+    }
+    let page_index = (args.page.max(1) - 1) as usize;
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let out = match session.transform_objects_each(
+        page_index,
+        &transforms,
+        pdfcer_core::vector::TransformOptions::default(),
+    ) {
+        Ok(out) => out,
+        Err(err) => return report_edit_error(args.input, &err),
+    };
+    report_disclosures(&out.disclosures);
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "object-transform-each {} page {} transformed={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.page,
+        out.objects_transformed,
+        args.mode.name(),
+        args.output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    finish_edit(args.input, &outcome)
+}
+
 /// Arguments for [`cmd_object_transform`], grouped so the handler stays under
 /// the clippy `too_many_arguments` bound (the `EditTextArgs` pattern).
 pub(crate) struct ObjectTransformArgs<'a> {
