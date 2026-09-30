@@ -28,6 +28,10 @@ the affected entry. Maintained by `pdfce-librarian`.
   388 (was 387, +1, zero leaked/changed pixels); `pdfcer-cli` 33 + 617
   pass. Sabotage check (drop the hole, or use the CTM instead of its
   inverse) leaks 23,364 pixels either way.
+- Amendment (`ab697c27`): `redact_vector::invert`, made `pub(crate)` by
+  `b8b3b108`, was missing the doc comment `check-public-fns-documented`
+  requires; caught by `tools/run-gates.sh` before push. Doc-only, no
+  behaviour change.
 - No manifest change — not a packaging Pass.
 
 **Still in flight:** Mesh types 4–7 and type 1 (function-based) shadings

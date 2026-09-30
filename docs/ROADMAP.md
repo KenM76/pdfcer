@@ -154,6 +154,10 @@ inverse, leaks 23,364 pixels each and the test catches it.
 `check-core-api-verbs` PASS; fmt/clippy clean. No manifest change — not
 a packaging Pass.
 
+**Amendment (`ab697c27`):** `redact_vector::invert`, made `pub(crate)`
+above, lacked the doc comment `check-public-fns-documented` requires;
+caught by `tools/run-gates.sh` before push. Doc-only, no behaviour change.
+
 ### `Pass 414.0` (`9262f497`), 2026-09-29 — a rendering fuzz target through the subtractive colorant buffer
 
 Closes the Backlog entry filed 2026-08-31 (352nd filing) naming this gap.
