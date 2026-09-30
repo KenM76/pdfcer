@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (798th filing) — `Pass 417.1` (`7ed8ec61`) SHIPPED: an insert keeps every page's label
+
+**Shipped:**
+- `Pass 417.1` — closes the Backlog item filed 2026-09-29 (776th filing):
+  both `pageops::insert` (CLI `insert-pages`) and `EditSession::insert_pages`
+  left the TARGET's `/PageLabels` tree stale after an insert. Both routes
+  now re-key the target's ranges past the inserted block. New pub enum
+  `InsertedPageLabels::{Source, ContinueRange}` (`#[non_exhaustive]`)
+  decides what the inserted pages themselves show; new pub
+  `pageops::insert_with` / `EditSession::insert_pages_with`; `insert` /
+  `insert_pages` delegate to the `Source` default. CLI `insert-pages
+  --labels source|continue`.
+
+**Decisions made this session:**
+- Decision 072 extended again (`ARCHITECTURE.md` §12): 072's objection was
+  a source range describing pages outside the subset it was computed
+  against; computing a range per inserted page answers that rather than
+  reversing 072. pdfcer still refuses Acrobat's static per-page overwrite,
+  and now also re-keys what Acrobat leaves stale.
+
+**Findings + decisions:**
+- `InsertOutcome::page_labels_stale` is now always false (kept only so
+  `pdfcer-gui` still compiles against it — `pdfcer-gui` hasn't adopted
+  `insert_pages_with` and its own insert disclosure still reads that
+  field). `source_page_labels_dropped` is now set only under
+  `ContinueRange`. Sabotage-checked: continue-range shift, no catalog
+  write, per-page `/St`, resumed `/St`, CLI `--labels` mapping — all
+  killed. `tools/run-gates.sh` PASS (42 commands); `check-core-api-verbs`
+  PASS, verb count 291 → 292. No `Cargo.toml` change.
+
+**Still in flight:** unchanged from the 797th filing — `419.2`–`419.4`
+remain open pending the operator's 3D-licensing questions.
+
+**For next session:** no change to the 797th filing's next-step note.
+Note the still-open gap: there is still no CLI verb to SET page labels.
+
 ## 2026-09-30 (797th filing) — `29da9f37`: CI builds the CLI `--no-default-features`, no Pass ID
 
 **Shipped:**

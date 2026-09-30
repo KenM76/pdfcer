@@ -6389,7 +6389,17 @@ is caught **only** there.
   DOES carry `/PageLabels` — 072's objection was to a source range
   applied to a page subset it was not computed against
   (`insert_pages`), and a whole-document merge has no such subset.
-  072's own ruling for `insert_pages` is unchanged.
+  072's own ruling for `insert_pages` is unchanged. **Extended again
+  2026-09-30 (798th filing, `7ed8ec61`, `Pass 417.1`):** both insert
+  routes (`pageops::insert`/CLI `insert-pages` and
+  `EditSession::insert_pages`) now re-key the TARGET's own
+  `/PageLabels` ranges past the inserted block, answering 072's
+  subset objection by computing a range per inserted page (each `/St`
+  the number that page showed) rather than carrying a source range
+  onto pages it wasn't computed against. New `InsertedPageLabels::
+  {Source, ContinueRange}` covers what the inserted pages themselves
+  show. pdfcer still refuses Acrobat's static per-page overwrite; it
+  now also re-keys what Acrobat leaves stale.
 - 2026-08-19 — Decision 073.
 - 2026-08-19/20 — Decision 074.
 - 2026-08-20 — no decision NUMBER minted; two rulings recorded instead,

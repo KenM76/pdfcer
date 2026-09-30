@@ -115,6 +115,72 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 417.1` (`7ed8ec61`), 2026-09-30 — an insert keeps every page's label; decision 072 extended again
+
+Closes the Backlog item filed 2026-09-29 (776th filing), `Pass 417.0`'s own
+"still open" note: `pageops::insert` (CLI `insert-pages`) and
+`EditSession::insert_pages` left the TARGET's `/PageLabels` tree stale
+after an insert.
+
+Both insert routes now rewrite the target's tree: its ranges are re-keyed
+past the inserted block, and the range covering the insertion point
+resumes after it at the number the next target page showed. New pub enum
+`pageops::InsertedPageLabels` (`#[non_exhaustive]`): `Source` (default) —
+each inserted page shows the label it showed in its source, an unlabelled
+source counting as decimal from 1; `ContinueRange` — the inserted pages
+join the covering range and number on through it, the source's labels
+dropped. Nothing is written when neither document has a tree.
+
+New pub API: `pageops::insert_with(target, source, source_pages, position,
+labels)` and `EditSession::insert_pages_with(source, source_pages,
+position, labels)` (writes the catalog in the same command — one undo
+reverts it); `insert`/`insert_pages` delegate to the `Source` default.
+
+`InsertOutcome` gains `page_label_ranges: usize`; `source_page_labels_dropped`
+is now set only under `ContinueRange`; `page_labels_stale` is now always
+false (kept only so `pdfcer-gui` still compiles). `AssembleReport` on the
+insert route follows the same three-field rule. CLI `insert-pages --labels
+source|continue` (default `source`); the result line already carried
+`label_ranges`/`labels_dropped`/`labels_stale`.
+
+**Extends decision 072 again, does not reverse it** (§12) — 072's
+objection was to a source range describing pages outside the subset it
+was computed against; computing a range per inserted page, each `/St` the
+number that page showed, answers that objection instead of overriding it.
+pdfcer still refuses Acrobat's static per-page overwrite; it now also
+re-keys what Acrobat leaves stale.
+
+**Not affected.** `paste_pages`/`place_text` go through `insert_pages` and
+get the `Source` default unchanged. **Still no CLI verb to SET page
+labels** — a gap, not claimed fixed here.
+
+**Tests.** 5 unit (`page_labels.rs`); 3 in
+`crates/pdfcer-core/tests/widget_adoption.rs` replacing the 2 that pinned
+the old stale-target behaviour (`the_page_label_facts_follow_the_policy`,
+`an_insert_keeps_every_pages_label` — includes undo,
+`continue_range_numbers_the_inserted_pages_through_the_covering_range`); 1
+CLI (`insert_pages_labels_flag_selects_the_policy`). Sabotage-checked:
+continue-range shift, no catalog write, per-page `/St`, resumed `/St`, and
+the CLI `--labels` mapping — all killed.
+
+`tools/run-gates.sh` PASS (42 commands). `check-core-api-verbs` PASS, verb
+count 291 → 292, `docs/core-api` updated in the same commit. No
+`Cargo.toml` change — `cargo tree` unaffected. Round trip: the edit route
+writes only the catalog, staged; incremental save otherwise unchanged.
+
+**`docs/FEATURES.md`.** Two rows updated under *Document & pages*: the
+insert-from-file row (`pageops::insert`) and the true in-place insertion
+row (`EditSession::insert_pages`) both now read `core [x]` / `cli [x]`
+(the session route's `cli` cell stays `—`, unaffected — no new CLI surface
+was added there). `gui` stays `[ ]` on both: `pdfcer-gui` hasn't adopted
+`insert_pages_with`, and its insert disclosure still reads
+`page_labels_stale`, which is now always false. Not rounded up.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts, gate and verb-count results relayed from the dispatching
+engineer's own report, not independently reproduced. Backup/push/release
+state not verifiable from here.
+
 ### `29da9f37` (no Pass ID), 2026-09-30 — CI now builds `pdfcer-cli` with `--no-default-features`
 
 `.github/workflows/ci.yml` and `tools/check-ci-parity.py` only. The
@@ -848,6 +914,10 @@ pages after the insertion point show shifted numbers. Re-keying the
 target's ranges is the same splice; what label the inserted subset
 should show is the policy question 072 already answered one way. Filed
 as a Backlog note below rather than left implicit.
+
+**★ CLOSED 2026-09-30, `Pass 417.1` (`7ed8ec61`) — see *Shipped*.** Both
+routes now re-key the target's ranges; `InsertedPageLabels::{Source,
+ContinueRange}` answers what the inserted subset itself shows.
 
 ### `Pass 416.0` (`6b7578b0`), 2026-09-29 — `merge_document` carries `/PageLabels`
 
@@ -27224,15 +27294,6 @@ added. See that section below.
   `/PageLabels` and `/OCProperties`; page labels shipped as `Pass 416.0`
   (`6b7578b0`, 2026-09-29, extending decision 072 — see the Shipped entry).
   Remaining scope: optional-content group configuration only.
-- **`pageops::insert` (CLI `insert-pages`) and `EditSession::insert_pages`
-  still leave the TARGET's `/PageLabels` tree stale after an insert.**
-  Filed 2026-09-29 (776th filing), `Pass 417.0`'s own "still open" note —
-  distinct from the item above, which is `merge_document`'s. Inserted
-  pages continue the covering range and target pages after the insertion
-  point show shifted numbers; decision 072 already ruled Acrobat's
-  overwrite-with-preceding-label behaviour out as the fix. Re-keying the
-  target's own ranges is the same splice `Pass 416.0`/`417.0` used; what
-  label the inserted subset itself should show is the open half.
 - **`pdfce-cli`'s `merge-document` prints four `MergeOutcome` fields and
   is silent on three more that `Pass 106.1` added.** Filed 2026-08-20
   (two-hundred-and-first filing), found by `Grep`/`Read` while filing that
