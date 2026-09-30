@@ -10060,6 +10060,28 @@ impl EditSession {
         self.redo.last().map(|c| c.kind)
     }
 
+    /// Every undoable command, newest first: the first item is what
+    /// [`EditSession::undo`] undoes next, the `n`th is reached by `n` undos.
+    /// Its length is [`EditSession::undo_depth`].
+    ///
+    /// ```
+    /// # use pdfcer_core::edit::{CommandKind, EditSession};
+    /// # fn history(session: &EditSession) {
+    /// let steps: Vec<CommandKind> = session.undo_kinds().collect();
+    /// assert_eq!(steps.first().copied(), session.undo_kind());
+    /// # }
+    /// ```
+    pub fn undo_kinds(&self) -> impl ExactSizeIterator<Item = CommandKind> + '_ {
+        self.undo.iter().rev().map(|c| c.kind)
+    }
+
+    /// Every redoable command, newest first, as [`EditSession::undo_kinds`]
+    /// is for undo. Its length is [`EditSession::redo_depth`]; any new edit
+    /// empties it.
+    pub fn redo_kinds(&self) -> impl ExactSizeIterator<Item = CommandKind> + '_ {
+        self.redo.iter().rev().map(|c| c.kind)
+    }
+
     /// Undo the most recent command, returning what was undone.
     ///
     /// Restores each write's recorded `before` value; a `None` before
@@ -10104,6 +10126,12 @@ impl EditSession {
     #[must_use]
     pub fn undo_depth(&self) -> usize {
         self.undo.len()
+    }
+
+    /// How many undone commands can be redone.
+    #[must_use]
+    pub fn redo_depth(&self) -> usize {
+        self.redo.len()
     }
 
     // -- edits ---------------------------------------------------------
@@ -62961,6 +62989,31 @@ mod tests {
         assert_eq!(s.dirty_set().len(), 2);
         s.undo();
         assert!(!s.is_modified());
+    }
+
+    #[test]
+    fn the_undo_and_redo_stacks_list_newest_first() {
+        let mut s = session(resize_fixture());
+        let crop = CommandKind::SetCropBoxes { count: 1 };
+        let resize = CommandKind::ResizePages { count: 2 };
+        s.set_crop_boxes(&[0], CropBoxEdit::Set(rect(10.0, 10.0, 50.0, 50.0)))
+            .unwrap();
+        s.resize_pages(
+            &[0, 1],
+            rect(0.0, 0.0, 600.0, 600.0),
+            CropFollow::WhenItMatched,
+        )
+        .unwrap();
+        assert_eq!(s.undo_kinds().collect::<Vec<_>>(), [resize, crop]);
+        assert_eq!(s.undo_kinds().len(), s.undo_depth());
+        assert_eq!(s.redo_kinds().count(), 0);
+        s.undo();
+        assert_eq!(s.undo_kinds().collect::<Vec<_>>(), [crop]);
+        assert_eq!(s.redo_kinds().collect::<Vec<_>>(), [resize]);
+        s.undo();
+        assert_eq!(s.redo_kinds().collect::<Vec<_>>(), [crop, resize]);
+        assert_eq!(s.redo_depth(), 2);
+        assert_eq!(s.redo_kinds().next(), s.redo_kind());
     }
 
     #[test]
