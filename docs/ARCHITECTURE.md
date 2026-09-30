@@ -6421,7 +6421,12 @@ is caught **only** there.
   it showed before the reorder. Both are defensible readings of what a
   reorder should do to labels, so both ship with a default rather than
   pdfcer picking one — the operator's standing rule for exactly this
-  shape of ambiguity.
+  shape of ambiguity. **Extended a fifth time 2026-09-30 (802nd filing,
+  `3505dc49`, `Pass 417.5`):** `extract`/`split` now default to `Keep`
+  (`pageops::ExtractedPageLabels`) — each output page carries the label
+  it showed in the source — with `Drop` available for the old
+  behaviour. This closes the `417.x` family entirely; the reorder
+  extension above closed only the reorder gap, not this one.
 - 2026-08-19 — Decision 073.
 - 2026-08-19/20 — Decision 074.
 - 2026-08-20 — no decision NUMBER minted; two rulings recorded instead,

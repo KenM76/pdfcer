@@ -4,6 +4,48 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (802nd filing) — `Pass 417.5` (`3505dc49`) SHIPPED: extract and split keep page labels; `417.x`/decision-072 family closed entirely
+
+**Shipped:**
+- `Pass 417.5` — closes the last `417.x` gap: extract/split still dropped
+  `/PageLabels` outright after `417.4` closed the reorder gap (`417.4`'s own
+  heading wrongly claimed the whole family was closed — corrected in
+  `ROADMAP.md` in passing). New pub enum `pageops::ExtractedPageLabels`
+  (`#[non_exhaustive]`, default `Keep` — each output page shows the label it
+  showed in the source, order given; `Drop` — no tree, `page_labels_dropped`
+  set when the source had one). New `pageops::extract_with_labels`/
+  `split_with_labels`; `extract`/`extract_with`/`split`/`split_with`
+  delegate with `Keep`. **Behaviour change**: the default used to be
+  drop-always. `EditSession::copy_pages` builds its clip via `extract`, so a
+  page clip now carries its label through to `paste_pages`.
+
+**Decisions made this session:**
+- Decision 072 extended a fifth time (`ARCHITECTURE.md` §12 updated this
+  filing): same reasoning as `417.1`/`417.2`/`417.4` — both answers
+  defensible, both ship, default is the more useful reading (Acrobat's own
+  extract doesn't carry labels at all — the family's one deliberate
+  non-parity default).
+
+**Findings + decisions:**
+- 4 core tests (`page_labels_set.rs`, now 14 in that file) + 1 CLI
+  (`edit_commands.rs`). Sabotage 3/3 caught.
+- `tools/run-gates.sh`: 40/42 first run — both failures traced to one cause,
+  inserting `extract_labels` ahead of `cmd_split` orphaned that function's
+  doc comment and `#[allow]` (the same recurring insert-before-anchor
+  hazard as prior filings). Fixed before commit, both re-run clean. No
+  `Cargo.toml` change.
+- `docs/core-api` §02 updated; `index.md` now 5,793 lines; `check-core-api-verbs`
+  clean at 296 (unchanged — `pageops` free functions, not `EditSession` verbs).
+- GUI notice `notice_2026-09-30_page_labels_read_and_set.md` updated with the
+  default-change bullet.
+
+**Still in flight:** `419.2`–`419.4` (PRC reader) remain open pending the
+800th filing's OQ-1/OQ-2/OQ-3 licensing rulings.
+
+**For next session:** the `417.x`/decision-072 page-labels family is now
+closed in full (insert, delete, reorder, read/set, extract/split). No
+change to the 800th filing's PRC next-step note.
+
 ## 2026-09-30 (801st filing) — `Pass 417.4` (`3970f101`) SHIPPED: reorder can carry page labels with the pages
 
 **Shipped:**

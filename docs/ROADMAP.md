@@ -115,7 +115,88 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `Pass 417.4` (`3970f101`), 2026-09-30 — reorder can carry page labels with the pages; closes the `417.x`/decision-072 family entirely
+### `Pass 417.5` (`3505dc49`), 2026-09-30 — extract and split keep page labels; the `417.x`/decision-072 family is now closed entirely
+
+Closes the last gap `417.4`'s own heading claimed was already closed —
+`417.4` closed the reorder gap only; extract/split still dropped
+`/PageLabels` outright (§12.4.2, decision 072). Closed here.
+
+New pub enum `pageops::ExtractedPageLabels` (`#[non_exhaustive]`): `Keep`
+(default) — each extracted/split page shows the label it showed in the
+source, in the order given (built via `page_labels::subset`, same
+machinery as `417.4`); `page_label_ranges` counts ranges written,
+`page_labels_dropped` false. `Drop` — no tree in the output;
+`page_labels_dropped` set when the source had one. A source with no tree
+gives none either way, under both policies. New
+`pageops::extract_with_labels(source, pages, separations, labels) ->
+Result<(Vec<u8>, AssembleReport), PageOpError>` and
+`pageops::split_with_labels(.., labels)` (re-exported). `extract`,
+`extract_with`, `split`, `split_with` delegate with `Keep`.
+
+**Behaviour change, not additive-only:** before this Pass `extract`/
+`split` always dropped the tree and set `page_labels_dropped` — that was
+the accepted, disclosed gap `417.2`'s entry above named. The default is
+now `Keep`. `Drop` remains available for a caller that wants the old
+behaviour.
+
+**Knock-on.** `EditSession::copy_pages` builds its clip via `extract`, so
+a page clip now carries its own label; `paste_pages`
+(`InsertedPageLabels::Source`) shows it on the far side — covered by a
+test rather than asserted.
+
+**Extends decision 072 a fifth time, does not reverse it** — same
+reasoning as `417.1`/`417.2`/`417.4`: both answers are defensible, so
+both ship, default matching the more useful reading rather than
+Acrobat's (Acrobat's own extract does not carry per-page labels at all —
+this is the family's one deliberate non-parity default, not an error).
+
+**CLI.** `extract-pages --labels keep|drop`, `split --labels keep|drop`
+(default `keep` on both); the metrics line already printed
+`label_ranges=`/`labels_dropped=` from `417.0`'s merge work, unchanged
+shape here.
+
+**Tests.** 4 core (`crates/pdfcer-core/tests/page_labels_set.rs`, now 14
+tests in that file), 1 CLI (`crates/pdfcer-cli/tests/edit_commands.rs`),
+plus the `copy_pages`/`paste_pages` label-carry test noted above.
+Sabotage-checked three ways, all caught.
+
+`tools/run-gates.sh`: 40/42 on the first run; both failures traced to one
+cause — inserting `extract_labels` ahead of `cmd_split` orphaned that
+function's doc comment and `#[allow]` attribute (clippy
+`too_many_arguments` plus `check-public-fns-documented`), the same
+recurring insert-before-anchor hazard noted in prior filings. Fixed
+before commit; both gates re-run clean. No `Cargo.toml` change — `cargo
+tree` invariant unaffected.
+
+**`docs/core-api`.** §02 updated (paragraph after the `insert_with`
+note); `index.md` now 5,793 lines. `check-core-api-verbs` clean at 296
+verbs, unchanged — the new `pageops` functions are free functions, not
+`EditSession` verbs.
+
+**`docs/FEATURES.md`.** *Document & pages* row for rotate/delete/
+reorder/extract gains the keep/drop note; the split row gets a one-line
+pointer to it. `core [x]` / `cli [x]` on both; `gui` unchanged — pdfcer-gui
+reaches extract only via the engine call, no label UI exists or is
+claimed.
+
+**GUI notice.** Updated
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-30_page_labels_read_and_set.md`
+with a bullet on the default change.
+
+**Correction to `417.4`'s own heading (hard rule 1 — append, don't
+delete):** `417.4`'s heading below reads "closes the
+`417.x`/decision-072 family entirely." That was wrong the day it was
+written — extract/split still dropped labels, as `417.4`'s own body
+correctly said two paragraphs down. Left as written below, since
+deleting it would be rewriting Shipped history; this entry is the
+correction, and its own heading is the accurate one.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts, line counts and gate results relayed from the dispatching
+engineer's report, not independently reproduced. Backup/push/release
+state not verifiable from here.
+
+### `Pass 417.4` (`3970f101`), 2026-09-30 — reorder can carry page labels with the pages; closed the family's reorder gap (extract/split closed by `417.5`, above)
 
 Closes the Backlog item the 800th filing opened: `reorder_pages` left
 `/PageLabels` positional — a moved page kept the label the SLOT used to
