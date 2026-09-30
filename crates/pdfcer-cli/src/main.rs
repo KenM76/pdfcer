@@ -601,6 +601,8 @@ use bates_cmd::*;
 mod offpage;
 use offpage::*;
 mod structure;
+mod threed_cmd;
+use threed_cmd::*;
 #[cfg(test)]
 mod tests;
 use structure::*;

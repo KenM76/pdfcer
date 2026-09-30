@@ -2531,6 +2531,42 @@ pub(crate) enum Command {
         mode: SaveMode,
     },
 
+    /// **List the 3D models embedded in a PDF** (U3D, PRC, STEP).
+    ///
+    /// Finds both carriers: `/3D` annotations (ISO 32000-1 §13.6) and 3D
+    /// assets inside RichMedia annotations (ISO 32000-2 §13.7). One line per
+    /// model: its index (for `3d-extract`), page, declared format, number of
+    /// saved views, whether it has a poster image, and where it lives
+    /// (`stream`, `shared-stream` when several annotations use one model, or
+    /// `richmedia` with the asset's file name as the document gives it).
+    ///
+    /// Read-only. Nothing is decoded or rendered.
+    #[command(name = "3d-list")]
+    ThreeDList {
+        /// Input PDF.
+        input: PathBuf,
+    },
+
+    /// **Extract one embedded 3D model** to a file, bytes unchanged.
+    ///
+    /// Writes the model exactly as the PDF stores it after undoing its
+    /// compression, so a U3D, PRC or STEP viewer can open it. The output
+    /// path is required: a RichMedia asset's name comes from the document and
+    /// is never used as a path. If the bytes are a different format from the
+    /// one the document declares, a `note:` line says so and the file is
+    /// still written.
+    #[command(name = "3d-extract")]
+    ThreeDExtract {
+        /// Input PDF.
+        input: PathBuf,
+        /// Which model, by the index `3d-list` prints.
+        #[arg(long)]
+        index: usize,
+        /// Where to write the model's bytes.
+        #[arg(long, short)]
+        output: PathBuf,
+    },
+
     /// **Attach a file to a PDF** as a document-level embedded file
     /// (§7.11.4.1, `/Names /EmbeddedFiles`).
     ///

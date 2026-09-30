@@ -80,6 +80,7 @@ mod span_from_pin_flag;
 mod stamp_pack;
 mod style_policy;
 mod tab_order;
+mod three_d;
 mod two_line_dimension;
 mod unembed_font;
 mod vector_edit;

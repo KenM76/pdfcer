@@ -609,3 +609,10 @@ path = "fuzz_targets/ocsp_parse.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "threed_walk"
+path = "fuzz_targets/threed_walk.rs"
+test = false
+doc = false
+bench = false

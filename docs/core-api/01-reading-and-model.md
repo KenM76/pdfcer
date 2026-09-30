@@ -142,6 +142,8 @@ builds `--no-default-features`, so both configurations compile.
 | Enumerate bookmarks as a tree, pages already resolved | `outline::read_outline(&graph)` — `outline.rs`; flat list `Outline::flatten()` — `outline.rs` | §12.1 |
 | List embedded attachments | `attachments::list_attachments_with_notes(&graph)` — `attachments.rs` | §12.2 |
 | Extract an attachment's bytes | `attachments::extract_attachment(&DocumentView, &Attachment)` — `attachments.rs` | §12.2 |
+| List embedded 3D models (U3D/PRC/STEP) | `threed::list_3d_with_notes(&graph)` — `threed.rs` | §12.2 |
+| Extract a 3D model's bytes | `threed::extract_3d(&DocumentView, &ThreeDArtwork)` — `threed.rs` | §12.2 |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |
 | Compute hidden layers, correctly for print/export | `annot::optional_content_default_off(&graph)` — `annot.rs` | §12.3 |
 | Refine layer visibility for on-screen view only | `annot::apply_view_usage(&graph, …)` — `annot.rs` **(never on a print path — T-12.8)** | §12.3 |
@@ -2721,6 +2723,39 @@ Caps: `MAX_ATTACHMENTS`, `MAX_SAFE_NAME_CHARS`,
 auto-open, never execute. The declared `mime` and the name extension are
 producer claims — `attachments.rs` says the caller *"must not treat
 it as a safety signal"*. The checksum is **reported, never verified**.
+
+#### 3D models (read-only)
+
+```rust
+use pdfcer_core::threed::{list_3d_with_notes, extract_3d, sniff_3d_format,
+                          ThreeDSource, ThreeDFormat};
+
+let (found, notes) = list_3d_with_notes(&doc);   // page order, then /Annots order
+for art in &found {
+    let _ = (art.page_index, art.annot_id, art.view_count, art.has_poster);
+    match &art.source {
+        ThreeDSource::Stream { shared } => {}       // /3D annot; shared = via /3DRef
+        ThreeDSource::RichMediaAsset { name, filespec_id } => {} // name UNTRUSTED
+        _ => {}
+    }
+    let got = extract_3d(&doc.view(), art)?;     // Result<Extracted3D, ThreeDError>
+    if got.contradicts(art.declared.as_ref()) { disclose(); }  // declared != magic
+}
+```
+
+Carriers: `/Subtype /3D` annotations (ISO 32000-1 §13.6, `/3DD` a 3D stream
+or a `/3DRef`) and `/3D` instances in RichMedia annotations (ISO 32000-2
+§13.7; each asset stream once per annotation). `ThreeDArtwork`,
+`#[non_exhaustive]`: `page_index`, `annot_id`, `source`, `stream_id`,
+`declared: Option<ThreeDFormat>` (stream `/Subtype`, else asset MIME, else
+file extension), `view_count` (`/VA` length; 0 for RichMedia), `has_poster`
+(`/AP /N`). `ThreeDFormat`: `U3d | Prc | Step | Other(Vec<u8>)`, with
+`extension()` and `label()`. `Extracted3D { data, sniffed }` — `data` is
+the filter-decoded model, untrusted and uninterpreted. `ThreeDNotes`:
+`truncated`, `page_tree_unwalkable`, `annotations_without_stream`.
+`ThreeDError`: `NoStream`, `StreamUnresolvable`, `SpanUnservable`, `Decode`.
+Caps: `MAX_3D_ARTWORKS`, `MAX_RICH_MEDIA_ENTRIES`. No model is decoded or
+rendered. CLI: `3d-list`, `3d-extract --index N -o FILE`.
 
 ### 12.3 Optional-content layers
 

@@ -187,6 +187,7 @@ mod text_run_model;
 mod text_run_move;
 mod text_run_set_move;
 mod text_run_width;
+mod threed;
 mod tounicode_partial_inverse;
 mod transform_objects;
 mod transform_objects_each;

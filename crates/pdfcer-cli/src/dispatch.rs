@@ -367,6 +367,12 @@ pub(crate) fn run() -> ExitCode {
             verify_undo,
         ),
         Command::ListAttachments { input } => cmd_list_attachments(&input),
+        Command::ThreeDList { input } => cmd_list_3d(&input),
+        Command::ThreeDExtract {
+            input,
+            index,
+            output,
+        } => cmd_extract_3d(&input, index, &output),
         Command::ExtractAttachment {
             input,
             name,
