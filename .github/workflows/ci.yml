@@ -104,6 +104,9 @@ jobs:
       # gate has to keep working for that to stay true.
       - run: cargo test -p pdfcer-core --no-default-features
       - run: cargo test -p pdfcer-image-codec --no-default-features
+      # The CLI's own strippable features (signing, OCR engines, jpx) gate
+      # subcommands and dispatch arms that the core step above never compiles.
+      - run: cargo check -p pdfcer-cli --no-default-features
       # THE FORWARDING GUARD — the other half of the gate above.
       #
       # Cargo will not let a member override an inherited `default-features`,

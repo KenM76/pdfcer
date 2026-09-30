@@ -107,6 +107,9 @@ LOCAL = {
     "cargo test -p pdfcer-image-codec --no-default-features": (
         "cargo test -p pdfcer-image-codec --no-default-features"
     ),
+    "cargo check -p pdfcer-cli --no-default-features": (
+        "cargo check -p pdfcer-cli --no-default-features"
+    ),
     "tools/check-outcome-disclosed.py": "python tools/check-outcome-disclosed.py",
     "tools/check-commits-filed.py": "python tools/check-commits-filed.py",
     "tools/check-bypass-paths.sh": "bash tools/check-bypass-paths.sh",
