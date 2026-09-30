@@ -582,6 +582,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdfcer-3d"
+version = "0.68.0"
+dependencies = [
+ "flate2",
+ "thiserror",
+]
+
+[[package]]
 name = "pdfcer-color"
 version = "0.68.0"
 
@@ -636,6 +644,7 @@ name = "pdfcer-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "pdfcer-3d",
  "pdfcer-core",
  "pdfcer-pkix",
  "pdfcer-render",

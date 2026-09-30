@@ -1,0 +1,25 @@
+[package]
+autotests = false
+name = "pdfcer-3d"
+description = "pdfcer 3D model decoding: PRC (Adobe 8137 / ISO 14739-1) container, bit primitives and tessellation read, for mesh export and poster generation. Optional: shells enable it with their `3d` feature (docs/ROADMAP.md Pass 419.2)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+# thiserror: C-GOOD-ERR error derives. MIT OR Apache-2.0.
+thiserror = "2"
+# flate2: PRC sections are zlib streams (RFC 1950/1951). Pure-Rust backend
+# only, the same choice and reason as pdfcer-model's (static binary, wasm32).
+# MIT OR Apache-2.0.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dev-dependencies]
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }

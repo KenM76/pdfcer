@@ -120,6 +120,10 @@ features = ["jpx"]
 [dependencies.pdfcer-pkix]
 path = "../crates/pdfcer-pkix"
 
+# The PRC reader (`prc_parse`): its own optional crate. No features.
+[dependencies.pdfcer-3d]
+path = "../crates/pdfcer-3d"
+
 # cargo-fuzz builds with the release profile; keep debuginfo so crash
 # backtraces point at real source lines.
 [profile.release]
@@ -613,6 +617,13 @@ bench = false
 [[bin]]
 name = "threed_walk"
 path = "fuzz_targets/threed_walk.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "prc_parse"
+path = "fuzz_targets/prc_parse.rs"
 test = false
 doc = false
 bench = false

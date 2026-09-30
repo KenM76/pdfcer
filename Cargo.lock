@@ -830,6 +830,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdfcer-3d"
+version = "0.68.0"
+dependencies = [
+ "flate2",
+ "thiserror",
+]
+
+[[package]]
 name = "pdfcer-cli"
 version = "0.68.0"
 dependencies = [

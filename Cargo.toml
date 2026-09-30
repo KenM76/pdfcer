@@ -46,6 +46,7 @@ members = [
     "crates/pdfcer-cli",
     "crates/pdfcer-print",
     "crates/pdfcer-fetch",
+    "crates/pdfcer-3d",
 ]
 # tools/difftest is the OUT-OF-TREE differential test oracle mandated by
 # docs/decisions/001-oxidize-pdf-adopt-vs-build.md §7: it pins oxidize-pdf
