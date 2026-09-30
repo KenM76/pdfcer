@@ -115,6 +115,60 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 114.0` (`9b3bd614`), 2026-09-29 — NoRotate/NoZoom annotation placement pivots on the `/Rect` upper-left corner
+
+Closes the Backlog entry below ("`Pass 114.0` — implement `NoZoom`/
+`NoRotate` annotation placement"), the exact deferral it names
+(`annot.rs:763`–`769`, "Pass-6.0 deferral"). `Pass 115.0`'s own "depends
+on" text is updated below to say this prerequisite shipped.
+
+`pdfcer-render` now honours annotation flags `NoRotate` and `NoZoom`
+(§12.5.3), and a `/Text` annotation behaves as if both are set
+(§12.5.6.4). New private `fixed_placement_ctm`
+(`crates/pdfcer-render/src/annot.rs`) keeps the appearance's `/Rect`
+upper-left corner at its device position and turns/scales about it:
+`NoRotate` replaces the page transform's linear part with a uniform
+scale `sqrt(|det|)` keeping `det`'s sign (a mirrored device stays
+mirrored); `NoZoom` divides out `RenderOptions::view_magnification`
+(`None` = 100%, the print answer, so `NoZoom` is inert then). Applies to
+both placement routes: stored `/AP` and pdfcer's own named `/Text` icon
+artwork (`Pass 289.0`). The "deferred NoZoom/NoRotate placement
+adjustment" diagnostics note is gone.
+
+`pdfcer_render::annot::appearance_placement` (public, `Pass 155.2`) is
+unchanged in behaviour — it stays in default user space, where neither
+flag has meaning; its doc and `docs/core-api/01-reading-and-model.md`
+now say a shell applies the same upper-left pivot when mapping the quad
+to a turned or zoomed screen.
+
+**Tests.** `crates/pdfcer-render/tests/annotation_fixed_placement.rs`,
+5 (rotated page with/without `NoRotate`, unrotated page unaffected,
+`/Text` on `/Rotate 270` stays upright, `NoZoom` at magnification 3
+keeps a 40×20 box anchored at upper-left, `NoZoom` with no magnification
+unchanged). Sabotage: bypassing the adjustment fails 3; dropping the
+`/Text` implication fails 1. `pdfcer-render` suites: 434 + 385 + 18
+passed. `cargo fmt --check` / `cargo clippy -- -D warnings` clean.
+
+No manifest change; `cargo tree -p pdfcer-render` unaffected. No writer
+change.
+
+**Delivered.** `cli` — implicitly, `pdfcer render` goes through the same
+painter. **`gui [ ]`** — not confirmed in `pdfcer-gui` as of this
+filing; that shell pins `pdfcer-render` to a git revision (same lag
+`Pass 289.0`'s row notes), so the fix does not reach a build until it
+runs `cargo update -p pdfcer-render`.
+
+**`Pass 115.0` note, flagged not acted on.** That entry's own scope
+(move/resize/rotate across `Square`/`Circle`/`Line`/`Ink`/`Polygon`/
+`Cloud`/`PolyLine`/`TextMarkup`/redaction marks) looks fully shipped
+already via the subtype-agnostic `move_annotation` (`Pass 149.0`),
+`resize_annotation` (`Pass 151.0`) and `rotate_annotation` (`Pass
+155.0`) — reading `edit.rs`'s guards directly, none of the three refuses
+this family by subtype, only widgets and ce dimensions are excluded, and
+`resize_annotation` scales `/RD` by default, which is `115.0`'s own
+named acceptance criterion. Not closed here — the Backlog entry is left
+standing for the engineer/operator to confirm and retire.
+
 ### `Pass 413.0` (`14ef44f2`), 2026-09-29 — JBIG2 robustness follow-up: T.88 file-header input decodes, page association confirmed harmless
 
 Closes the Backlog entry below ("Pass 2.x remainder — JBIG2 robustness
@@ -12067,13 +12121,20 @@ lower-left — which that sentence invites — moves the marker. Corrected in
 place with the old text struck through, so a reader who remembers it can
 see that it moved. **PDF-domain lesson written** — see below.
 
-**Two readers disagree, and the variant says so.** `pdfcer_render::annot`
-defers the `NoZoom`/`NoRotate` placement adjustment (a documented Pass 6.0
-deferral, reported as a render note), so in pdfcer's own raster a resized
-sticky **does** change size while Acrobat's would not. That is the
-strongest argument for refusing to write the file, not for permitting it
-— and it is documented at the variant so nobody hits pdfcer's own raster,
-concludes the resize "works", and files this again.
+**Two readers disagree, and the variant says so.** At the time of this
+filing `pdfcer_render::annot` deferred the `NoZoom`/`NoRotate` placement
+adjustment (a documented Pass 6.0 deferral, reported as a render note),
+so in pdfcer's own raster a resized sticky **did** change size while
+Acrobat's would not. That is the strongest argument for refusing to
+write the file, not for permitting it — and it is documented at the
+variant so nobody hits pdfcer's own raster, concludes the resize
+"works", and files this again. **★ CORRECTED 2026-09-29 (`Pass 114.0`,
+`9b3bd614`, 768th filing) — the deferral is gone.** `pdfcer-render` now
+honours both flags (see *Shipped*, above); a resized-but-refused `/Text`
+sticky's appearance stays fixed-size in pdfcer's own raster too. The
+refusal argued here from the render mismatch loses that premise, but the
+refusal itself stands on the earlier §12.5.3/§12.5.6.4 argument alone,
+which never depended on the renderer.
 
 **Tests.** `crates/pdfcer-core/tests/sticky_resize_refusal.rs`, 8. Two
 controls (an ordinary `/Square` and a `/FreeText` must both still resize
@@ -25766,7 +25827,7 @@ rather than deleted, per this project's in-place-correction convention.
 
 #### RENDERER PREREQUISITE
 
-- **`Pass 114.0` — implement `NoZoom`/`NoRotate` annotation placement**
+- ~~**`Pass 114.0` — implement `NoZoom`/`NoRotate` annotation placement**
   in `pdfce-render`, currently a documented deferral (`pdfce-render/src/
   annot.rs:763`–`769`, confirmed by `Grep`: `"annotation NoZoom/NoRotate
   placement adjustment deferred (base AA placement used)"`, labelled a
@@ -25774,7 +25835,10 @@ rather than deleted, per this project's in-place-correction convention.
   flags on a markup annotation (`Pass 115.0`, below) will not render
   faithfully until this lands — filed as its own Pass because it is a
   real, independently shippable `pdfce-render` defect regardless of
-  whether annotation rotate ships, not merely scaffolding for `115.0`.
+  whether annotation rotate ships, not merely scaffolding for `115.0`.~~
+  — **SHIPPED** (`9b3bd614`, filed 2026-09-29, 768th filing — see
+  *Shipped*, above, for the full record). Not re-listed as Backlog;
+  nothing further owed here.
 
 #### ANNOTATIONS
 
@@ -25794,7 +25858,8 @@ rather than deleted, per this project's in-place-correction convention.
   subtype family and would otherwise be easy to ship 115.0 without):
   `/RD` maintenance for cloudy `Square`/`Circle` — written once today and
   never updated under any transform. Depends on `Pass 112.0` (shipped,
-  unfiled) and `Pass 114.0` (render prerequisite).
+  unfiled) and `Pass 114.0` (render prerequisite, **SHIPPED** `9b3bd614`,
+  768th filing).
 - **`Pass 115.1` — text-bearing annotations: move (translate only).**
   `FreeText`, `Sticky`, `Stamp` — genuinely easier than `115.0`: their
   `/AP` `/BBox` is `[0 0 W H]` **local**, so §12.5.5's placement matrix

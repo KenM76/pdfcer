@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (768th filing) — `Pass 114.0` (`9b3bd614`): NoRotate/NoZoom annotation placement
+
+**Shipped:**
+- `Pass 114.0` (`9b3bd614`) — closes the Backlog "render prerequisite"
+  entry. `pdfcer-render` now honours annotation flags `NoRotate`/`NoZoom`
+  (§12.5.3) and the `/Text` implication (§12.5.6.4): the appearance turns
+  and scales about the `/Rect` upper-left corner instead of following the
+  page transform. New private `fixed_placement_ctm`
+  (`crates/pdfcer-render/src/annot.rs`); `NoRotate` swaps in a
+  determinant-sign-preserving uniform scale, `NoZoom` divides out
+  `RenderOptions::view_magnification`. Core/render only; `cli` reaches it
+  implicitly through `pdfcer render`; `gui [ ]` not confirmed (pinned git
+  dependency lag).
+
+**Decisions made this session:** None — a `pdfcer-render` defect fix
+against an already-scoped Backlog entry, no new architectural decision.
+
+**Findings + decisions:**
+- Reading `edit.rs`'s guards directly: `Pass 115.0`'s whole scoped family
+  (`Square`/`Circle`/`Line`/`Ink`/`Polygon`/`Cloud`/`PolyLine`/
+  `TextMarkup`/redaction marks) already resizes and rotates today via the
+  subtype-agnostic `move_annotation`/`resize_annotation`/
+  `rotate_annotation` (`Pass 149.0`/`151.0`/`155.0`) — only widgets and ce
+  dimensions are excluded, and `resize_annotation` scales `/RD` by
+  default, `115.0`'s own named acceptance criterion. Flagged in
+  `ROADMAP.md`, not closed — needs engineer/operator confirmation.
+- A stale claim in the `Pass 277.0` entry ("`pdfcer_render::annot` defers
+  the `NoZoom`/`NoRotate` placement adjustment... in pdfcer's own raster a
+  resized sticky **does** change size") corrected in place with a dated
+  footer — that render mismatch is gone as of this Pass, though the
+  refusal itself never depended on it.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** Confirm whether `Pass 115.0` (and its `115.1`/
+`115.2` siblings, already partly amended) should be retired as shipped
+rather than left open in Backlog. Same unreleased-since-v0.66.0 list as
+the 767th filing, plus `Pass 114.0`.
+
 ## 2026-09-29 (767th filing) — `Pass 413.0` (`14ef44f2`): JBIG2 robustness follow-up
 
 **Shipped:**
