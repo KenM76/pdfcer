@@ -115,6 +115,65 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 418.0` (`04599b9d`), 2026-09-30 — move several objects, each by its own delta, as one command
+
+From `pdfcer-gui`'s align/distribute (`G071`, operator request `O263`): a
+batch move where every selected object carries its own `(dx, dy)`, not a
+shared delta.
+
+`pdfcer-core::vector::plan_move_objects_each(content, &[(&VectorObject, dx,
+dy)])` — one splice. Path/text move by operand rewrite, sharing the private
+helper `plan_move_objects` already used; an image moves via a `q <cm> … Q`
+wrap with a CTM-compensated local matrix, the same mechanism as
+`plan_transform_many`. New `VectorEditError::DuplicateObjectInMove { index
+}` (additive — the enum is `#[non_exhaustive]`).
+
+`EditSession::move_objects_each(page_index, &[(usize, f64, f64)]) ->
+Result<Vec<String>, EditError>` and
+`move_objects_each_in_form(page_index, &[(leaf_index, f64, f64)]) ->
+Result<FormSurgeryOutcome, EditError>`. One `CommandKind::MoveObject`
+command per call, all-or-nothing — every index resolved and every object
+planned before anything is written; any object kind; disclosures match
+`move_objects`; a stale or repeated index refuses under the caller's own
+index.
+
+CLI: `pdfcer object-move-each INPUT --move INDEX,DX,DY [--move …] [--leaf]
+-o OUT [--mode] [--verify-undo]`; `--leaf` routes to the in-form verb and
+prints `invocations= pages=`; added to the `--in-place` list.
+
+`docs/core-api/02-editing-and-saving.md`: verb rows added to both the page
+and form tables, plus the mechanism table; verb count 286 → 288 (and
+`index.md`). `check-core-api-verbs` PASS.
+
+**Tests.** 8 core integration tests
+(`crates/pdfcer-core/tests/move_objects_each.rs`), 3 CLI tests
+(`crates/pdfcer-cli/tests/object_move_each.rs`), 1 doctest. Sabotage-checked
+(7 cases): image wrap without CTM compensation, session duplicate check
+disabled, planner duplicate check disabled, dx/dy swapped in the page zip,
+dy zeroed in the form zip, `--leaf` ignored, CLI parse swapping dx/dy —
+each caught.
+
+No manifest change — `cargo tree` unaffected. No new untrusted-input
+parser, so no fuzz target.
+
+**`docs/FEATURES.md`.** New row under *Vector objects*, core `[x]` / cli
+`[x]` / gui `[ ]` — row 245's own boxes (Move or delete a whole object) are
+unchanged. Row 251 (edit geometry inside a form XObject) gains an eleventh
+verb, `move_objects_each_in_form`, and its own CLI caller
+(`object-move-each --leaf`) — `◐` stands.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui` has not consumed this
+yet (separate project).
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and sabotage results relayed from the dispatching engineer's own
+report, not independently reproduced. `tools/run-gates.sh` was reported
+running at dispatch time, not confirmed green — recorded as "run at filing
+time" only, per the engineer's own instruction not to assert more.
+Backup/push/release state not verifiable from here; unreleased set as of
+this filing: `Pass 414.0`, `415.0`, `416.0`, `417.0`, `10.15`, `418.0` (last
+release `v0.67.0`, `265ddcf5`, 770th filing).
+
 ### `Pass 10.15` (`3872e651`), 2026-09-30 — name each signer certificate's revocation locations (CDP/AIA URLs)
 
 Carve-out of route 3 from `Pass 10.6`'s three-route revocation scope

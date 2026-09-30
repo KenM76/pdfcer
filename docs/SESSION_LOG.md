@@ -4,6 +4,46 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (779th filing) — `Pass 418.0` (`04599b9d`): move several objects, each by its own delta, as one command
+
+**Shipped:**
+- `Pass 418.0` (`04599b9d`) — `pdfcer-core::vector::plan_move_objects_each`
+  + `EditSession::move_objects_each`/`move_objects_each_in_form`, for
+  `pdfcer-gui`'s align/distribute (`G071`, `O263`). One splice, all-or-
+  nothing across mixed path/text/image objects; an image moves via a
+  CTM-compensated `q <cm> … Q` wrap. CLI `object-move-each --move
+  INDEX,DX,DY [--leaf]`.
+
+**Decisions made this session:** None new — extends the existing
+`move_objects`/`plan_transform_many` mechanisms to a per-object delta
+list, no new invariant.
+
+**Findings + decisions:**
+- 8 core tests + 3 CLI tests + 1 doctest, 7 sabotage cases each caught
+  (image CTM compensation, both duplicate-index checks, dx/dy swaps in
+  both the page and form zips, `--leaf` ignored, CLI arg-order swap).
+- `docs/core-api/02-editing-and-saving.md` verb count 286 → 288;
+  `check-core-api-verbs` PASS.
+- `docs/FEATURES.md`: new row under *Vector objects* (core `[x]` / cli
+  `[x]` / gui `[ ]`); row 251's form-XObject table now lists eleven
+  verbs, five with a CLI caller.
+
+**Still in flight:** `pdfcer-gui` has not consumed `move_objects_each` —
+gui box stays `[ ]`. `Pass 10.6` routes 1–2 (embedded DSS/LTV; shell-
+supplied OCSP/CRL) remain NOT STARTED.
+
+**For next session:** `v0.67.0` remains the last release (770th filing);
+unreleased set now `Pass 414.0`, `415.0`, `416.0`, `417.0`, `10.15`,
+`418.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, test
+counts and sabotage results relayed from the dispatching engineer's own
+report, not independently reproduced. `tools/run-gates.sh` was reported
+running at dispatch time, not confirmed green — recorded as "run at
+filing time" only, per instruction not to assert more without
+confirmation. Backup/push/release state not verifiable from here —
+engineer should check `D:\Dev\pdfce-backups\`.
+
 ## 2026-09-30 (778th filing) — addendum to `Pass 10.15`: fuzz coverage, `Pass 10.6` spec basis, OCSP lesson
 
 **Shipped:** No new Pass. Addendum to `Pass 10.15` (777th filing, `3872e651`).
