@@ -4,6 +4,38 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (784th filing) — `3fc9b18b`: chore — v0.68.0 version bump, release IN PROGRESS
+
+**Shipped:**
+- Chore commit `3fc9b18b` ("chore: v0.68.0") bumps
+  `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.67.0 → 0.68.0. Recorded so
+  `check-commits-filed.py` sees it filed. Full details under `Pass
+  418.0`'s "Also filed this session (784th filing)" note in
+  `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:** None new.
+
+**Still in flight:**
+- v0.68.0 release IN PROGRESS — batches `414.0`, `415.0`, `416.0`,
+  `417.0`, `10.15`, `418.0`, `10.16`, all already shipped since
+  `v0.67.0` (`265ddcf5`). Headline: `10.16` checks a signer's chain
+  against CRLs from the DSS or supplied by the caller; `418.0` moves
+  several selected objects, each by its own delta, as one undo. Tag,
+  GitHub release, OneDrive deploy and smoke test not yet done —
+  OneDrive slot `pdfcer1` next (`pdfcer2` keeps `v0.67.0`).
+
+**For next session:** `docs/FEATURES.md` unchanged by this filing — no
+capability box crosses a release boundary; release completion (tag,
+build, smoke, GitHub, OneDrive, CI) still owed.
+
+**Sourcing (hard rule 8).** No shell tool this filing — the version-bump
+diff (`Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` only) and the batched
+Pass list are taken from the dispatching engineer's own report, not
+independently reproduced here. Backup/push/release state not verifiable
+from here.
+
 ## 2026-09-30 (783rd filing) — `pdfcer-gui` consumed `G071` (`Pass 418.0`): Align and Distribute now one undo per press
 
 **Shipped:** No new Pass — a shell-consumption update. `pdfcer-gui`'s

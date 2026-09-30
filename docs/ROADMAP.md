@@ -253,6 +253,29 @@ here; unreleased set as of this filing: `Pass 414.0`, `415.0`, `416.0`,
 `417.0`, `10.15`, `418.0` (last release `v0.67.0`, `265ddcf5`, 770th
 filing).
 
+**Also filed this session (784th filing).** Chore commit `3fc9b18b`
+("chore: v0.68.0", `Cargo.toml` 0.67.0 → 0.68.0 plus
+`Cargo.lock`/`fuzz/Cargo.lock`) — recorded so `check-commits-filed.py`
+sees it filed. **Release in progress**: v0.68.0 will batch every Pass
+shipped since `v0.67.0` (`265ddcf5`) — `414.0` (a rendering fuzz target
+through the subtractive colorant buffer, `9262f497`), `415.0` (cut
+axial/radial shadings under a redaction mark, `b8b3b108`), `416.0`
+(`merge_document` carries `/PageLabels`, `6b7578b0`), `417.0` (the
+offline merge keeps every source's page labels too, `d75b4d4b`), `10.15`
+(each signer certificate's CDP/AIA revocation URIs, `3872e651`), `418.0`
+(this entry, `move_objects_each`, `04599b9d`), and `10.16` (CRL
+revocation checking against `/DSS /CRLs` and supplied CRLs, `5f31a523`/
+`6aabaec4`) — all already filed above.
+
+**Headline.** `10.16` checks a signer's chain against CRLs from the DSS
+or supplied by the caller; `418.0` moves several selected objects, each
+by its own delta, as one undo.
+
+OneDrive slot `pdfcer1` next (`pdfcer2` keeps `v0.67.0`). Tag, GitHub
+release, OneDrive deploy, fresh-folder smoke test and `verify-release.py`
+not yet done; not yet confirmed from here — full release filing to
+follow once tag/deploy details are relayed.
+
 ### `Pass 10.15` (`3872e651`), 2026-09-30 — name each signer certificate's revocation locations (CDP/AIA URLs)
 
 Carve-out of route 3 from `Pass 10.6`'s three-route revocation scope
