@@ -1661,7 +1661,7 @@ pub struct Diagnostics {
     /// not measure would be an invented fact.
     pub page_content_suppressed: bool,
     /// First few distinct annotation-handling reasons (degenerate box,
-    /// missing `/Rect`/`/BBox`, deferred NoZoom/NoRotate adjustment),
+    /// missing `/Rect`/`/BBox`),
     /// for the diagnostics surfaces. Kept separate from
     /// [`Diagnostics::sample_ops`] and [`Diagnostics::image_notes`]
     /// because "why was this annotation not placed?" is a distinct

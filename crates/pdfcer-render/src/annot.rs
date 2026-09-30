@@ -50,14 +50,10 @@
 //!   singular): painted as **nothing**, counted, named — never a
 //!   divide-by-zero, never a fabricated placement (risk X2). Likewise a
 //!   missing `/Rect` or `/BBox`.
-//! - **NoZoom / NoRotate** (§12.5.3): the special post-`AA` transform
-//!   about the `/Rect` upper-left corner is a **documented Pass-6.0
-//!   deferral** — the base `AA` placement is used and the deviation is
-//!   counted+named. These flags appear almost exclusively on icon
-//!   subtypes that carry no `/AP` (so are named-not-painted anyway), and
-//!   no acceptance fixture exercises them; a wrong post-transform would be
-//!   worse than a disclosed omission (fuzzy-never-sneaky). See the Pass
-//!   6.0 report / ROADMAP residuals.
+//! - **NoZoom / NoRotate** (§12.5.3; a `/Text` annotation behaves as if
+//!   both are set, §12.5.6.4): the appearance keeps the `/Rect` upper-left
+//!   corner where the page puts it and turns or scales about it — see
+//!   [`fixed_placement_ctm`].
 
 use pdfcer_core::annot::{Annotation, Appearance};
 // decision 018: read paths take a `DocumentView` (graph + byte source), so
@@ -462,7 +458,7 @@ impl AnnotationScope {
 /// interpreted, so appearances composite on top (their natural z-order).
 /// `base_ctm` is the page's device CTM (CropBox → origin, y-flip, scale,
 /// `/Rotate`) — the same transform the page content was drawn under, so an
-/// annotation rotates with the page by default (unless NoRotate, deferred).
+/// annotation rotates with the page unless `NoRotate` says otherwise.
 ///
 /// The **counting is unconditional**; only the *painting* is gated. So a
 /// `render-page --no-annotations` (or the GUI toggle off, or a "Document"
@@ -749,7 +745,12 @@ fn paint_named_icon(
     let Some(tbox) = transformed_appearance_box(bbox, matrix) else {
         return false;
     };
-    let placement = fit_matrix(tbox, rect).post_concat(base_ctm);
+    let placement = fit_matrix(tbox, rect).post_concat(fixed_placement_ctm(
+        base_ctm,
+        annot,
+        rect,
+        policy.view_magnification,
+    ));
 
     let Ok(content) = pdfcer_core::content::ContentStream::parse(authored.ap_content) else {
         return false;
@@ -850,7 +851,12 @@ fn paint_appearance(
     let a = fit_matrix(tbox, rect);
     // AA = Matrix × A applied to the page CTM: initial = A × base, and
     // `run_form_at`'s `do_form` concatenates /Matrix on top (module docs).
-    let placement = a.post_concat(base_ctm);
+    let placement = a.post_concat(fixed_placement_ctm(
+        base_ctm,
+        annot,
+        rect,
+        policy.view_magnification,
+    ));
     let initial = GraphicsState::default_with_ctm(placement);
 
     // §12.5.2 /CA -- the annotation's CONSTANT OPACITY, applied to the
@@ -929,15 +935,64 @@ fn paint_appearance(
     };
     diag.merge(sub);
     diag.annotations_painted += 1;
+}
 
-    // NoZoom/NoRotate special placement is a documented Pass-6.0 deferral
-    // (module docs): the base AA placement is used and the deviation is
-    // disclosed rather than approximated wrongly.
-    if annot.flags.no_zoom() || annot.flags.no_rotate() {
-        diag.note_annotation(
-            "annotation NoZoom/NoRotate placement adjustment deferred (base AA placement used)",
-        );
+/// The page-to-device transform an annotation's appearance is placed under,
+/// after §12.5.3's `NoZoom` and `NoRotate` adjustment.
+///
+/// Both flags keep the upper-left corner of `/Rect` where the page transform
+/// puts it — the one position §12.5.3 fixes — and change only how the
+/// appearance turns and scales about that point:
+///
+/// * `NoRotate` drops the transform's rotation, keeping its scale and its
+///   y-flip, so the appearance stays upright on the output whatever the
+///   page's `/Rotate`.
+/// * `NoZoom` divides out `magnification` ([`RenderOptions::view_magnification`]).
+///   `None` is 100 %, the print answer, and leaves the scale alone.
+///
+/// A `/Text` annotation behaves as if both flags were set (§12.5.6.4). With
+/// neither, `base_ctm` comes back unchanged.
+///
+/// [`RenderOptions::view_magnification`]: crate::RenderOptions::view_magnification
+fn fixed_placement_ctm(
+    base_ctm: Transform,
+    annot: &Annotation,
+    rect: Rect,
+    magnification: Option<f32>,
+) -> Transform {
+    let text = annot.subtype == b"Text";
+    let no_rotate = text || annot.flags.no_rotate();
+    let zoom = magnification
+        .filter(|m| m.is_finite() && *m > 0.0)
+        .filter(|_| text || annot.flags.no_zoom());
+    if !no_rotate && zoom.is_none() {
+        return base_ctm;
     }
+    let det = base_ctm.sx * base_ctm.sy - base_ctm.kx * base_ctm.ky;
+    let scale = det.abs().sqrt();
+    if !scale.is_finite() || scale <= 0.0 {
+        return base_ctm;
+    }
+    let k = zoom.map_or(1.0, |m| 1.0 / m);
+    let linear = if no_rotate {
+        Transform::from_row(scale * k, 0.0, 0.0, scale * k * det.signum(), 0.0, 0.0)
+    } else {
+        Transform::from_row(
+            base_ctm.sx * k,
+            base_ctm.ky * k,
+            base_ctm.kx * k,
+            base_ctm.sy * k,
+            0.0,
+            0.0,
+        )
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let (px, py) = (rect.llx as f32, rect.ury as f32);
+    let mut anchor = Point::from_xy(px, py);
+    base_ctm.map_point(&mut anchor);
+    Transform::from_translate(-px, -py)
+        .post_concat(linear)
+        .post_concat(Transform::from_translate(anchor.x, anchor.y))
 }
 
 /// **Where an annotation's appearance actually lands on the page** — the
@@ -994,6 +1049,13 @@ fn paint_appearance(
 /// and §12.5.5 specifies no handling. The paint path refuses to place in
 /// exactly these cases and counts them; a caller here should fall back to
 /// `/Rect` and say so.
+///
+/// # `NoRotate` and `NoZoom`
+///
+/// Not applied: they adjust the page-to-device transform (§12.5.3), which
+/// this function never sees. The painter keeps such an appearance upright
+/// and at 100% size, pivoted on the `/Rect` upper-left corner; a caller
+/// mapping the quad to a turned or zoomed screen applies the same pivot.
 #[must_use]
 pub fn appearance_placement(doc: &DocumentView<'_>, annot: &Annotation) -> Option<[(f64, f64); 4]> {
     let rect = annot.rect?;

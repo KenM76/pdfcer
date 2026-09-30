@@ -6,6 +6,7 @@ mod abutting_image_tiles_have_no_seam;
 mod ambiguity_settings_reach_the_pixels;
 mod annot_author_paint;
 mod annotation_constant_alpha;
+mod annotation_fixed_placement;
 mod appearance_placement;
 mod cancel_stops_the_work;
 mod cidfont_nocmap_render;

@@ -2838,6 +2838,12 @@ algorithm, in default user space, in `/BBox` corner order (LL, LR, UR, UL
 from `/Rect`, which §12.5.2 forces upright and is therefore wrong on every
 turned annotation. `None` for no `/Rect`, no reachable appearance stream, no
 readable `/BBox`, or a degenerate transformed box (step (b) singular).
+The quad ignores `NoRotate` / `NoZoom` (and a `/Text` annotation's implied
+both, §12.5.6.4): they act on the page-to-device transform, which this
+function never sees. The renderer keeps such an appearance upright and at
+100% size, pivoted on the `/Rect` upper-left corner (§12.5.3); a shell
+drawing an outline on a turned page, or at a zoom with `NoZoom`, applies
+that same pivot to the quad.
 
 **`/F` IS NOW WRITABLE (2026-09-08).** `AnnotFlags` carried eight read
 accessors and no writer — `EditSession::set_annotation_flags` is the other
