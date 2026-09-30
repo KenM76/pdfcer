@@ -26,6 +26,7 @@ mod acof;
 pub mod bits;
 mod container;
 mod error;
+mod export;
 mod schema;
 mod tess;
 #[cfg(test)]
@@ -36,5 +37,6 @@ pub use container::{
     SectionKind, UniqueId,
 };
 pub use error::PrcError;
+pub use export::{to_obj, to_stl};
 pub use schema::Schema;
 pub use tess::{Tessellation, TriangleMesh};
