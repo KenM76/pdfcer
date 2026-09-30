@@ -25,9 +25,11 @@ Every tracked (and untracked, non-ignored) file under ``docs/``,
 binary by suffix), the whole ``crates/`` tree and the repository-root
 Markdown files is scanned for bytes in ``0x00-0x08``,
 ``0x0B``, ``0x0E-0x1F`` and ``0x7F``. TAB (0x09), LF (0x0A), FF (0x0C) and
-CR (0x0D) are legitimate and skipped. Binary files (a NUL in the first 8 KiB,
-or a suffix in the binary list) are skipped, because a PNG legitimately
-contains every byte value.
+CR (0x0D) are legitimate and skipped. Binary files (a suffix in the binary
+list, or a NUL in the first 8 KiB of a file whose suffix is not a known text
+suffix) are skipped, because a PNG legitimately contains every byte value.
+A known text suffix is never sniffed, or a NUL early in a text file would
+make the file skip itself.
 
 WHY THESE PATHS
 ===============
@@ -61,6 +63,12 @@ BINARY_SUFFIXES = {
     ".der", ".cer", ".crl", ".pfx", ".p12", ".p7s", ".key",
 }
 
+# Never sniffed as binary: a NUL in one of these is reported, not skipped.
+TEXT_SUFFIXES = {
+    ".md", ".rs", ".py", ".toml", ".txt", ".sh", ".yml", ".yaml", ".json",
+    ".hbs", ".ps1", ".cfg", ".ini", ".csv", ".svg", ".xml", ".html",
+}
+
 TEXT_ROOTS = ("docs/", ".claude/", "tools/", "crates/", ".github/", "fuzz/fuzz_targets/", "fixtures/")
 ROOT_MARKDOWN = ("README.md", "CLAUDE.md", "LICENSE", "UI_PREFERENCES.md", "THIRD_PARTY_LICENSES.md")
 
@@ -86,9 +94,13 @@ def candidate_files() -> list[str]:
     return files
 
 
-def first_offence(data: bytes) -> tuple[int, int] | None:
-    """(1-based line, byte) of the first stray control byte, or None."""
-    if b"\0" in data[:8192]:
+def first_offence(data: bytes, known_text: bool) -> tuple[int, int] | None:
+    """(1-based line, byte) of the first stray control byte, or None.
+
+    The NUL sniff applies only to a suffix not in ``TEXT_SUFFIXES``: in a
+    known text file a NUL is the offence itself, not evidence of binary.
+    """
+    if not known_text and b"\0" in data[:8192]:
         return None  # binary by content
     line = 1
     for b in data:
@@ -111,7 +123,7 @@ def main() -> int:
             data = path.read_bytes()
         except OSError:
             continue
-        hit = first_offence(data)
+        hit = first_offence(data, Path(rel).suffix.lower() in TEXT_SUFFIXES)
         if hit:
             bad.append((rel, *hit))
     if bad:
