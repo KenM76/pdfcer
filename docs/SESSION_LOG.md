@@ -4,6 +4,51 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (799th filing) — `Pass 417.2` (`e22fac53`) SHIPPED: a delete keeps page labels in step
+
+**Shipped:**
+- `Pass 417.2` — closes the last stale-tree gap in the `417.x` family:
+  `EditSession::delete_pages` left the catalog `/PageLabels` tree
+  positional after a delete, previously only reported
+  (`dangling.page_labels_stale` + a CLI warning, Acrobat parity) rather
+  than fixed. New pub enum `DeletedPageLabels::{Renumber, KeepEach}`
+  (`#[non_exhaustive]`, default `Renumber`) rewrites the tree in the same
+  command as the delete — one undo reverts both. New pub
+  `EditSession::delete_pages_with_labels`; `delete_pages`/`delete_pages_with`
+  delegate to `Renumber`. CLI `delete-pages --labels renumber|keep`; the
+  stale-labels stderr warning is removed.
+
+**Decisions made this session:**
+- Decision 072 extended a third time (`ARCHITECTURE.md` §12): the same
+  answer to 072's subset objection that `417.1` applied to insert now
+  applies to delete — a label range is recomputed against the surviving
+  pages it actually covers, never carried onto a page count it wasn't
+  computed against. `reorder_pages` still leaves the tree positional,
+  untouched by any of the three `072` extensions so far.
+
+**Findings + decisions:**
+- `DeleteOutcome::page_label_ranges: usize` added (`0` = no tree, additive).
+  `dangling.page_labels_stale` is now always `false` on the delete route;
+  `census_dangling` itself is unchanged. `pdfcer-gui` calls
+  `delete_pages_with` and still shows a stale-labels disclosure keyed on
+  that field — it will simply never fire until the GUI project adopts
+  `delete_pages_with_labels`; `FEATURES.md` `gui` cell stays `[ ]`.
+  Sabotage-checked: renumber shift, a fully-deleted range left in the tree,
+  no catalog write, CLI `--labels` mapping — all killed.
+  `tools/run-gates.sh` PASS (42 commands). No `Cargo.toml` change.
+- The first gate run this session failed on a full `D:` drive (252 KB
+  free; `target/debug` at 104 GiB), presenting as Windows os error 1455
+  ("paging file too small") and `LNK1318` — fixed by `cargo clean
+  --profile dev` (106.5 GiB reclaimed). Amended into the existing
+  `LNK1318` finding in `D:\dev\rag\rust\` rather than a new file.
+
+**Still in flight:** unchanged from the 798th filing — `419.2`–`419.4`
+remain open pending the operator's 3D-licensing questions.
+
+**For next session:** no change to the 798th filing's next-step note.
+The still-open gap is unchanged too: there is still no CLI verb to SET
+page labels directly.
+
 ## 2026-09-30 (798th filing) — `Pass 417.1` (`7ed8ec61`) SHIPPED: an insert keeps every page's label
 
 **Shipped:**

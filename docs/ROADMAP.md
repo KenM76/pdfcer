@@ -115,6 +115,82 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 417.2` (`e22fac53`), 2026-09-30 — a delete keeps page labels in step; decision 072 extended again
+
+Closes the last stale-tree gap in the `417.x` family: `EditSession::delete_pages`
+left the catalog `/PageLabels` number tree positional after a delete, so
+every page after the deleted one showed the wrong label (§12.4.2).
+Previously this was reported, not fixed — `DeleteOutcome::dangling
+.page_labels_stale` plus a CLI stderr warning, Acrobat-parity behaviour
+(the pre-existing `edit.rs:16339` ruling cited by decision 072's original
+text). **That is reversed here: parity exceeded.**
+
+New pub enum `pageops::DeletedPageLabels` (`#[non_exhaustive]`): `Renumber`
+(default) — each label section keeps its style/prefix and numbers on from
+its own first surviving page, a section whose pages were all deleted
+dropped entirely; `KeepEach` — every surviving page keeps the exact label
+(explicit `/St`) it showed before the delete. New pub
+`EditSession::delete_pages_with_labels(indices, separations, labels)`;
+`delete_pages` and `delete_pages_with` delegate to it with `Renumber`. The
+`/PageLabels` rewrite happens in the same command as the delete, so one
+undo reverts both together — not a second, separately-undoable fix-up.
+
+`DeleteOutcome` gains `page_label_ranges: usize` (`0` = no tree, additive —
+`DeleteOutcome` is `#[non_exhaustive]`). `dangling.page_labels_stale` is
+now always `false` on the delete route (`census_dangling` itself is
+unchanged — the flag is cleared by the caller, same shape as `417.1`'s
+`InsertOutcome::page_labels_stale`).
+
+CLI: `pdfcer delete-pages --labels renumber|keep` (default `renumber`); the
+result line gains `label_ranges=`; the stale-labels stderr warning is
+removed (nothing left to warn about).
+
+**`gui`: not adopted.** `pdfcer-gui` calls `delete_pages_with` and shows a
+stale-labels disclosure keyed on `page_labels_stale`, which is now always
+`false` — the disclosure will simply never fire until the GUI project
+picks up `delete_pages_with_labels`. `FEATURES.md`'s `gui` cell stays `[ ]`.
+
+**Extends decision 072 a third time, does not reverse it** (`ARCHITECTURE.md`
+§12) — the same reasoning `417.1` applied to insert now applies to delete:
+072's objection was to a label range describing pages outside the subset
+it was computed against; recomputing each section from its own surviving
+pages (`Renumber`) or keeping each page's own explicit label (`KeepEach`)
+answers that rather than overriding it.
+
+**Not affected.** `reorder_pages` still leaves the tree positional —
+untouched by this Pass. `extract`/`split` still drop labels outright
+(disclosed, Acrobat parity) — a different, already-accepted gap.
+
+**Tests.** 3 unit (`page_labels.rs`: `a_delete_renumbers_each_section_from
+_its_own_first_page`, `keep_each_leaves_every_remaining_page_its_label`,
+`a_treeless_delete_writes_nothing_under_either_policy`); 2 core integration
+(`crates/pdfcer-core/tests/widget_adoption.rs`, same two names, the first
+including an undo round trip); 1 CLI
+(`delete_pages_labels_flag_selects_the_policy`); 1 existing CLI test
+updated (the one-ASCII-line result-contract test, to cover the new field).
+Sabotage-checked four ways — renumber shift, a fully-deleted range left in
+the tree, no catalog write, and the CLI `--labels` mapping — each caught.
+
+`tools/run-gates.sh` PASS (42 commands, including both filing gates). No
+`Cargo.toml` change — `cargo tree` unaffected. Not released yet.
+
+**`docs/FEATURES.md`.** *Document & pages* row for rotate/delete/
+reorder/extract updated: the delete half now reads the same "labels kept
+in step" note as the insert half added by `417.1`. `core [x]` / `cli [x]`
+unchanged (both were already ticked for the underlying verb); `gui` stays
+`[ ]`.
+
+**Session note.** The first gate run this session failed on a full `D:`
+drive (252 KB free; `target/debug` at 104 GiB) presenting as Windows os
+error 1455 ("paging file too small") and `LNK1318` — fixed by `cargo clean
+--profile dev` (106.5 GiB reclaimed). Already amended into the existing
+`LNK1318` finding in `D:\dev\rag\rust\`; not a new file.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate results relayed from the dispatching engineer's own
+report, not independently reproduced. Backup/push/release state not
+verifiable from here.
+
 ### `Pass 417.1` (`7ed8ec61`), 2026-09-30 — an insert keeps every page's label; decision 072 extended again
 
 Closes the Backlog item filed 2026-09-29 (776th filing), `Pass 417.0`'s own

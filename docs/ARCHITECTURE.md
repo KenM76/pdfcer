@@ -6399,7 +6399,21 @@ is caught **only** there.
   onto pages it wasn't computed against. New `InsertedPageLabels::
   {Source, ContinueRange}` covers what the inserted pages themselves
   show. pdfcer still refuses Acrobat's static per-page overwrite; it
-  now also re-keys what Acrobat leaves stale.
+  now also re-keys what Acrobat leaves stale. **Extended a third time
+  2026-09-30 (799th filing, `e22fac53`, `Pass 417.2`):** the delete
+  route (`EditSession::delete_pages`) had the same positional-tree
+  defect as insert — every page after a deleted one showed the wrong
+  label — and reported it via `dangling.page_labels_stale` plus a CLI
+  warning rather than fixing it. New `DeletedPageLabels::{Renumber,
+  KeepEach}` (default `Renumber`) rewrites the tree in the same
+  command as the delete: `Renumber` recomputes each section from its
+  own first surviving page (a fully-deleted section is dropped);
+  `KeepEach` keeps every surviving page's exact prior label. Same
+  answer to 072's subset objection as `417.1`'s insert fix — a range
+  is recomputed against the surviving pages it actually covers, never
+  carried onto a count it wasn't computed against. `reorder_pages`
+  still leaves the tree positional, untouched by any of these three
+  extensions.
 - 2026-08-19 — Decision 073.
 - 2026-08-19/20 — Decision 074.
 - 2026-08-20 — no decision NUMBER minted; two rulings recorded instead,
