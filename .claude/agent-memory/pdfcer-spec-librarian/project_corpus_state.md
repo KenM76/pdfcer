@@ -7969,3 +7969,23 @@ ETSI V1.2.1 = OCSPResponse `shall` + BasicOCSPResponse verifier leniency (NOTE 2
 
 ### 88f. Filing
 Pre-existing `\x07`/`\x0c` in LEGAL_NOTE.md's Adobe-TN row (item 86d's cause, a second instance) fixed 2026-09-30 — **grep every CRLF/LF file for `[\x00-\x08\x0b\x0c\x0e-\x1f]` during an index check.** Registered `_sources\ietf\` + `ITU-T_X.680_202102.pdf` in both LEGAL_NOTE and index. Count cells: `security__` 9, `pades__` 3, Total 217.
+
+## 89. "Scope a NON-PDF payload format embedded in PDF (3D: U3D + PRC) — structure, effort, licence, encumbrance" (2026-09-30, 3D scoping → 4 `iso32000__s__` files + new `threed\` subdir, 7 files)
+
+### 89a. Shape
+PDF-side clauses (13.6, 13.6.7, 12.5.6.24, 13.7) go in `iso32000\`; the payload formats go in their own subdir with a per-format prefix (`u3d__`, `prc__`), one file each for structure / mesh / encoding / licensing. The dispatch wanted an EFFORT ESTIMATE: put it in a table labelled "librarian estimate, NOT a spec statement", one row per decode layer with the clause that drives it.
+
+### 89b. Free routes found
+ECMA-363 all editions free from Ecma (target the 3rd-ed. feature set; the 4th adds only NURBS clause 11, unimplemented per LoC). ISO 14739-1 (PRC) paywalled; SIS serves a free preview (`sis.se/api/document/preview/918414/`, clauses 1-7.1) — extraction route 4h-equivalent. Adobe's historical free PRC spec: no official copy found; an unofficial mirror exists — NOT used, ask first. LoC FDD pages (fdd000491 U3D, fdd000496 PRC) 403 direct, work via `r.jina.ai`.
+
+### 89c. ★ Encumbrance is found in ISSUE THREADS, not in the standard
+The standard and LoC state no patents. An implementer's comment in pdf-issues #727 cited Adobe US 8,207,965; Google Patents lists it "Expired - Fee Related" (lapsed 2024-06-26). Report it AS STATED, with the source's own disclaimer, no conclusion. Same thread: the only complete open decoder (nanoPRC) is AGPL — and the thread's pseudocode is stated to be verified against it ⇒ operator question before an MIT implementation reads it.
+
+### 89d. ★ An "open copyright permission" has an EFFECTIVE DATE
+Ecma's copy-and-paste-into-implementations permission applies from 2009, not retroactively; ECMA-363 is 2007 ⇒ porting its Annex A C# is an operator question even though the PDF is a free download. Check the policy's date against the document's before saying "free ⇒ portable".
+
+### 89e. ★ A TOC page column can be shifted by extraction
+ECMA-363's TOC extracted one row out of step for 9.6.x-9.8.x. Page numbers were taken from the footer following each heading instead. Never read printed pages from an extracted TOC without spot-checking two.
+
+### 89f. Filing
+Total 217 → 228 (`iso32000__s__` 119 → 123, `u3d__` 4, `prc__` 3). Registered `_sources\ecma\` + the SIS preview in index `_sources\` and a new LEGAL_NOTE section. Pointer note appended (CRLF) to `iso32000__s__12.5.6.md`. The dispatch's own scratch items (`3d_survey.md`, `prc-rs`, `u3d-to-stl`) belong to other agents — do not touch.
