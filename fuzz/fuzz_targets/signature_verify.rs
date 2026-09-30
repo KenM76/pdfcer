@@ -17,14 +17,23 @@
 //! reached `Verified` around it would be the forgery shape the pipeline
 //! exists to refuse.
 //!
-//! Seeds: `fuzz/corpus/signature_verify/seed_*.pdf`, copies of the seven
-//! pyHanko-signed fixtures.
+//! A third: every revocation-location list a verdict carries is within
+//! `MAX_REVOCATION_URIS` (a hostile certificate cannot grow it unbounded).
+//!
+//! Seeds: `fuzz/corpus/signature_verify/seed_*.pdf` — the seven
+//! pyHanko-signed fixtures, plus `seed_sig-ecdsa-revocation-uris.pdf`
+//! (`pdfcer sign` with `revocation-ecp256-modern.pfx`, whose certificate
+//! carries cRLDistributionPoints and authorityInfoAccess).
 
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
 use pdfcer_core::document::Document;
 use pdfcer_core::signature::{self, Integrity};
+
+/// `pdfcer_pkix::cms::MAX_REVOCATION_URIS`, the documented per-list cap on
+/// `RevocationSources` (the fuzz crate does not depend on pdfcer-pkix).
+const MAX_REVOCATION_URIS: usize = 16;
 
 fuzz_target!(|data: &[u8]| {
     let Ok(doc) = Document::from_bytes(data.to_vec()) else {
@@ -36,6 +45,11 @@ fuzz_target!(|data: &[u8]| {
                 !matches!(v.integrity, Integrity::Verified { .. }),
                 "a malformed /ByteRange can never verify"
             );
+        }
+        for s in &v.revocation_sources {
+            for list in [&s.crl, &s.ocsp, &s.ca_issuers] {
+                assert!(list.len() <= MAX_REVOCATION_URIS, "revocation list over the cap");
+            }
         }
     }
 });
