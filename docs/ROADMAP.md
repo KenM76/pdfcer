@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 417.0` (`d75b4d4b`), 2026-09-29 — the offline merge (`pageops::merge`) keeps every source's page labels
+
+Follow-up to `Pass 416.0` on the OTHER merge route: `pageops::merge`
+(CLI `merge`; `pdfcer-gui`'s File ▸ Merge calls it via
+`app::actions::pages::merge_into`) previously dropped every source's
+`/PageLabels` outright — it didn't even set `page_labels_dropped`,
+since `catalog_from: None` skips the catalog carry entirely. It now
+splices each source's ranges with the same `page_labels` module
+`Pass 416.0` added: offset to where the source's pages land; a source
+with no tree counts as `<< /S /D >>`; a prefix-only range stays
+prefix-only; nothing is written when no source has a tree. Acrobat
+drops labels on Combine Files and tells the operator to renumber —
+pdfcer exceeds parity here, same as `416.0`'s extension of decision 072.
+
+New `pub(crate) AssembleOptions::page_labels` field (only `merge` sets
+it; `insert`/`extract`/`split` unchanged). New pub
+`AssembleReport::page_label_ranges: usize` (`AssembleReport` is
+`#[non_exhaustive]` — additive). Every assemble-based CLI metrics line
+(`assemble_metrics`, `crates/pdfcer-cli/src/sign.rs`, shared by
+merge/extract/split/insert-pages) gains `label_ranges=`. CLI `merge
+--help` documents the carry.
+
+**Tests.** 2 new in `crates/pdfcer-core/tests/merge_document.rs`:
+`an_offline_merge_keeps_every_sources_labels` (three sources — roman,
+unlabelled, prefix-only "Cover" — land as ranges `0 r`, `2 D`,
+`5 P(Cover)`); `an_offline_merge_of_unlabelled_files_writes_no_label_tree`.
+Sabotage-checked: disabling the carry, and offsetting every source at
+0, each fail a test. CLI smoke on synthetic files (i,ii,1,2 + A-1,A-2)
+produced `/Nums [0 <</S /r>> 2 <</S /D>> 4 <</S /D/P (A-)>>]`,
+`label_ranges=3`.
+
+`cargo clippy -- -D warnings` / `cargo fmt --check` clean;
+`check-public-fns-documented`, `check-string-gaps`,
+`check-core-api-verbs` all PASS. No `Cargo.toml` change — `cargo tree`
+unaffected. `run-gates.sh` sweep to follow.
+
+**Still open, not shipped here:** `pageops::insert` (CLI `insert-pages`)
+and `EditSession::insert_pages` still carry the *target* tree stale per
+decision 072 — inserted pages continue the covering range, and target
+pages after the insertion point show shifted numbers. Re-keying the
+target's ranges is the same splice; what label the inserted subset
+should show is the policy question 072 already answered one way. Filed
+as a Backlog note below rather than left implicit.
+
 ### `Pass 416.0` (`6b7578b0`), 2026-09-29 — `merge_document` carries `/PageLabels`
 
 Narrows the Backlog entry filed 2026-08-19/20 (hundred-and-ninety-eighth /
@@ -26356,6 +26400,15 @@ added. See that section below.
   `/PageLabels` and `/OCProperties`; page labels shipped as `Pass 416.0`
   (`6b7578b0`, 2026-09-29, extending decision 072 — see the Shipped entry).
   Remaining scope: optional-content group configuration only.
+- **`pageops::insert` (CLI `insert-pages`) and `EditSession::insert_pages`
+  still leave the TARGET's `/PageLabels` tree stale after an insert.**
+  Filed 2026-09-29 (776th filing), `Pass 417.0`'s own "still open" note —
+  distinct from the item above, which is `merge_document`'s. Inserted
+  pages continue the covering range and target pages after the insertion
+  point show shifted numbers; decision 072 already ruled Acrobat's
+  overwrite-with-preceding-label behaviour out as the fix. Re-keying the
+  target's own ranges is the same splice `Pass 416.0`/`417.0` used; what
+  label the inserted subset itself should show is the open half.
 - **`pdfce-cli`'s `merge-document` prints four `MergeOutcome` fields and
   is silent on three more that `Pass 106.1` added.** Filed 2026-08-20
   (two-hundred-and-first filing), found by `Grep`/`Read` while filing that

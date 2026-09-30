@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (776th filing) — `Pass 417.0` (`d75b4d4b`): the offline merge keeps every source's page labels
+
+**Shipped:**
+- `Pass 417.0` (`d75b4d4b`) — follow-up to `Pass 416.0` on the OTHER
+  merge route: `pageops::merge` (CLI `merge`; `pdfcer-gui`'s File ▸
+  Merge via `app::actions::pages::merge_into`) previously dropped every
+  source's `/PageLabels` outright. Now splices each source's ranges
+  with the `page_labels` module `Pass 416.0` added — same offset/`<<
+  /S /D >>`/prefix-only rules. New `AssembleReport::page_label_ranges`
+  (additive); every assemble-based CLI metrics line gains
+  `label_ranges=`. Acrobat drops labels on Combine Files — pdfcer
+  exceeds parity.
+
+**Decisions made this session:** None new — extends `416.0`'s reading
+of decision 072, same line in `ARCHITECTURE.md` §12's index.
+
+**Findings + decisions:**
+- 2 new tests in `merge_document.rs`, sabotage-checked (disabling the
+  carry, offsetting every source at 0). CLI smoke: i,ii,1,2 + A-1,A-2 →
+  `/Nums [0 <</S /r>> 2 <</S /D>> 4 <</S /D/P (A-)>>]`, `label_ranges=3`.
+  clippy/fmt/check-public-fns-documented/check-string-gaps/
+  check-core-api-verbs all clean. No `Cargo.toml` change.
+
+**Still in flight:** `pageops::insert`/`EditSession::insert_pages`
+still leave the target's `/PageLabels` tree stale after an insert
+(new Backlog note, 776th filing) — separate from `merge_document`'s
+still-open `/OCProperties` item.
+
+**For next session:** `run-gates.sh` full sweep still owed (queued
+since the 775th filing).
+
 ## 2026-09-29 (775th filing) — `Pass 416.0` (`6b7578b0`): `merge_document` carries `/PageLabels`
 
 **Shipped:**
