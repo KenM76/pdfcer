@@ -23110,7 +23110,7 @@ nothing gets forgotten, not as a commitment to build in this order.
 answers ship: `Positional` (default, Acrobat parity) and `FollowPages`,
 via `pageops::ReorderedPageLabels` and `reorder_pages_with_labels`.
 
-### 3D content in PDF (`Pass 419.x`) — operator-approved to scope ("Go ahead", 2026-09-30), filed 793rd filing; `419.0`–`419.1` shipped
+### 3D content in PDF (`Pass 419.x`) — operator-approved to scope ("Go ahead", 2026-09-30), filed 793rd filing; `419.0`–`419.1` shipped; `419.2` UNBLOCKED 2026-09-30 (decision 169 — PRC licensing ruling)
 
 **Scope.** Ken asked whether pdfcer should support 3D models, and whether
 to make it an optional crate excluded from a slim build; recommendation
@@ -23159,21 +23159,56 @@ RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
 - `419.2` — optional crate `pdfcer-3d` behind feature `3d` (default ON in
   pdfcer's own builds, off-able for a slim build): PRC uncompressed-
   tessellation read, mesh export (STL/OBJ), CPU poster generation. No GUI
-  deps; wasm32-clean; no threads (engine rule).
+  deps; wasm32-clean; no threads (engine rule). **UNBLOCKED 2026-09-30 —
+  see decision 169 below.**
 - `419.3` — U3D CLOD mesh decode (ECMA-363) into the same mesh model.
-- `419.4` — PRC authoring (mesh → PRC tessellation) — depends on the open
-  questions below.
+- `419.4` — PRC authoring (mesh → PRC tessellation) — **the licensing
+  questions below are answered, decision 169**; remaining scope is
+  ordinary engineering sequencing (`419.2` first).
 
-**Open operator questions (recorded only, none decided).** (1) may an
+**Open operator questions — RESOLVED 2026-09-30, decision 169
+(`ARCHITECTURE.md` §12).** The spec RAG's PRC source register
+(`D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__sources_provenance.md`,
+written same day) reframed this bucket's licensing questions as OQ-1
+(embed the ACOF `Double`-decode table, ISO-©-2008-derived but identical
+data already MIT in `prc-rs`), OQ-2 (pdf-issues #727/#816 pseudocode,
+nanoPRC-adjacent) and OQ-3 (`prc-rs`'s `prc.json`, MIT-labelled but
+apparently transcribed from the paywalled 2014 text), plus the lapsed
+Adobe patent question below. Ken's ruling, verbatim, after the engineer
+explained all three: *"Yes. Sounds like this is making mountains out of
+mole hills we don't tell and they won't ask. For all you know it is
+extremely likely you were probably trained on all of this anyway."*
+**OQ-1: YES, explicit** — it was the question just asked. **OQ-2, OQ-3
+and the patent question: YES by the engineer's READING** of the same
+dismissal, not individually itemised by Ken — a reading he may correct.
+**The two-agent clean-room question is moot for now, stays undecided.**
+**Unchanged:** nanoPRC (AGPL) and Asymptote/libPRC (LGPL) source code is
+still never read or copied, only file-format facts already recorded in
+the spec RAG; GPL/AGPL still cannot be a dependency (`LEGAL.md` §6.1);
+every fact keeps its spec-RAG provenance label and every doc comment
+still cites its source, per rule 1 — a recalled table is not a source.
+Full ruling: `ARCHITECTURE.md` §12 decision 169.
+
+**Not resolved by decision 169** — original question (3) below (porting
+ECMA-363's U3D sample decoder) is a U3D question, not PRC, and stays
+open; question (4) (the unofficial Adobe-mirror route) is a component of
+OQ-1/OQ-3 above and therefore now answered alongside them.
+
+**Remaining technical gaps, unaffected by the ruling — settle empirically
+during `419.2`, not by further licensing review.** Local-frame sign,
+multi-component restart, and normal decoding are all still open per the
+spec RAG reconstruction; also check which compression a real SolidWorks
+PRC export actually uses before any PRC design — SolidWorks's own "lossy
+compression on tessellation" export option probably selects the harder,
+compressed form; this is an inference, not yet confirmed.
+
+**Open operator questions as originally filed (superseded above by
+decision 169; kept legible, not deleted).** (1) may an
 engineer work from the PRC-decoding pseudocode posted in the PDF
 Association issue, cross-checked against AGPL `nanoPRC`? (2) proceed on
 the lapsed-patent note above, or get counsel first? (3) is porting
 ECMA-363's 2007 sample decoder code acceptable? (4) an unofficial mirror
-of Adobe's PRC spec exists and was **not** fetched — usable? Also: check
-which compression a real SolidWorks PRC export actually uses before any
-PRC design — SolidWorks's own "lossy compression on tessellation" export
-option probably selects the harder, compressed form; this is an
-inference, not yet confirmed.
+of Adobe's PRC spec exists and was **not** fetched — usable?
 
 **`docs/FEATURES.md`.** The old `Pass 261.6` refusal-by-scope row was
 rewritten in place to point at this bucket instead of restating the
@@ -23192,6 +23227,14 @@ refusal (per that file's own "replace, never append" rule).
 > *Implemented* row (Annotations & markup) and its *Planned* 3D row is
 > narrowed again, to `419.2`–`419.4`. The four operator licensing questions
 > below remain open and unaffected by this rung (it needed no decoding).
+>
+> ★ **RESOLVED 2026-09-30, decision 169 — the licensing questions
+> immediately above are no longer open.** Ken ruled OQ-1 explicit YES and
+> OQ-2/OQ-3/the patent question YES by the engineer's reading of the same
+> answer (see the "Open operator questions — RESOLVED" block above, and
+> `ARCHITECTURE.md` §12 decision 169). `419.2` is UNBLOCKED; the empirical
+> gaps (local-frame sign, multi-component restart, normal decoding) are
+> unaffected and remain for `419.2` itself to settle.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 

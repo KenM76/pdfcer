@@ -5136,6 +5136,25 @@ than a bare URL. Contrast with `ocrs`'s still-open CC-BY-SA-4.0 weights
 question `(bl)` — a different engine, different licence, untouched by this
 decision.
 
+**Tenth, NOT a Cargo dependency — three data/reference sources accepted
+for the future `Pass 419.2` PRC reader, no dependency added yet**
+(2026-09-30; §12 decision 169). The spec RAG's PRC source register
+(`D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__sources_provenance.md`)
+may now be built from: the ACOF `Double`-decode table extracted from the
+ISO ©-2008 PRC working draft (freely hosted by Tech Soft 3D) — identical
+data is already MIT-licensed in `ralovich/prc-rs`'s `src/double.rs`, so
+pdfcer may transcribe the table into its own MIT source, citing both;
+`ralovich/prc-rs` itself (MIT), readable under the label PERMISSIVE-CODE
+INFERENCE; and `prc-rs`'s `src/prc.json` schema, despite being apparently
+transcribed from the paywalled 2014 ISO 14739-1 text. **Unchanged:**
+Asymptote/libPRC (LGPL) and nanoPRC (AGPL) source is still never read or
+copied, even to cross-check — pdf-issues #727/#816 may still be read as
+public errata-forum text (already the practice), and any fact whose only
+witness is that nanoPRC-adjacent pseudocode stays labelled
+`ISS-NANOPRC-ADJACENT` in the spec RAG. No Cargo dependency change — this
+is a provenance/attribution ruling for hand-written code, not a new
+crate. Full ruling: §12 decision 169.
+
 ## 10. Adversarial input hardening & fuzzing
 
 `pdfcer-core` parses files from the public internet by design — every
@@ -11932,3 +11951,69 @@ management to `DeviceCMYK`, not on a doc edit.
 **Decision ceiling: `167` → `168`**, next free `169`. No standing rule
 minted (a single-occurrence unification, not a recurring pattern). Pass
 ceiling: `Pass 412.0` used.
+
+### 2026-09-30 (804th filing, no Pass ID — unblocks `Pass 419.2`, `ROADMAP.md` Backlog) — decision 169: PRC RECONSTRUCTION MAY EMBED ISO/ADOBE-DERIVED DATA AND READ MIT-LICENSED `prc-rs` CODE; NANOPRC/LIBPRC/ASYMPTOTE SOURCE STAYS OFF-LIMITS; TWO-AGENT CLEAN-ROOM STAYS UNDECIDED
+
+**The questions.** The spec RAG's PRC source register
+(`D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__sources_provenance.md`,
+written the same day) raised three licensing questions gating `Pass
+419.2` (the PRC mesh reader): **OQ-1** — may the ACOF `Double`-decode
+table (extracted from the ISO ©-2008 PRC working draft, freely hosted by
+Tech Soft 3D; every PRC `Double` — all coordinates — decodes through it)
+be embedded in pdfcer's MIT source, given identical data is already
+carried under MIT in `ralovich/prc-rs`'s `src/double.rs`? **OQ-2** — is
+pdf-issues #727/#816 decoder pseudocode, posted by a participant who
+states it derives from AGPL `nanoPRC`, an acceptable input? **OQ-3** —
+may pdfcer consume `prc-rs`'s MIT-labelled `src/prc.json` schema, whose
+README cites the paywalled 2014 ISO 14739-1 text as its own source?
+Separately noted: US Patent 8,207,965 B2 (Adobe; PRC-related
+compression), which Google Patents' legal-status panel lists as expired
+for fee non-payment, lapse effective 2024-06-26.
+
+**Ken's ruling, 2026-09-30, verbatim, given after the engineer explained
+all three questions.** *"Yes. Sounds like this is making mountains out of
+mole hills we don't tell and they won't ask. For all you know it is
+extremely likely you were probably trained on all of this anyway."*
+
+**What this decides, and on what warrant — the two are not the same
+warrant, and both are recorded as such.**
+- **OQ-1: YES, explicit.** The "Yes" directly answered the engineer's
+  immediately preceding OQ-1 question.
+- **OQ-2, OQ-3, and the patent question: YES, by the engineer's READING
+  of the same sentence**, not an itemised ruling on each — Ken's dismissal
+  was general ("mountains out of mole hills"), not a point-by-point
+  answer. Recorded here as a reading Ken may correct, not a certainty
+  equal in weight to OQ-1's explicit yes.
+- **The two-agent clean-room question is moot for now and stays
+  undecided** — no finding to date makes it relevant; not raised by the
+  engineer in this exchange, so not covered by either warrant above.
+
+**What does not change.** Asymptote/libPRC (LGPL) and nanoPRC (AGPL)
+source code is still never read or copied — only file-format facts
+already recorded in the spec RAG, per that register's own §0 "Forbidden
+sources" rule, unaffected by this ruling. GPL/AGPL still cannot be a
+pdfcer dependency (`LEGAL.md` §6.1) — this ruling is about reading
+publicly-available facts and MIT code for reference, not about linking
+copyleft code. Every fact in the spec RAG keeps its per-fact provenance
+label (`WD`/`ADOBE`/`ACOF`/`PRCRS`/`PRCJSON`/`ISS`/`PAT`), and every doc
+comment in the eventual `pdfcer-3d` crate that encodes a PRC fact still
+cites its source, per rule 1 — a table recalled from training data is not
+a citable source, and this ruling does not authorize implementing from
+memory.
+
+**Consequence.** `ROADMAP.md`'s `Pass 419.x` Backlog entry's `419.2` rung
+is UNBLOCKED (`419.4`'s licensing dependency likewise cleared; its
+remaining dependency is ordinary sequencing on `419.2`). Three technical
+gaps are unaffected by this ruling and remain for `419.2` itself to
+settle empirically against synthetic/real PRC exports, not by further
+licensing review: local-frame sign, multi-component restart, normal
+decoding.
+
+**Body-section effect.** `ARCHITECTURE.md` §9 gains a "Tenth, NOT a Cargo
+dependency" paragraph naming the three accepted PRC sources, in the same
+style as decision 163's PaddleOCR-weights entry.
+
+**Decision ceiling: `168` → `169`**, next free `170`. No standing rule
+minted — a one-off licensing ruling on a single reconstruction effort,
+not a recurring pattern this project expects to repeat. Pass ceiling
+unchanged (`Pass 417.5` highest shipped; `419.2` unblocked, not started).
