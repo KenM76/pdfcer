@@ -115,6 +115,89 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 10.19` (`5abc210b`), 2026-09-30 — PAdES B-LTA: an archive document time-stamp
+
+Closes the last rung the `Pass 10.x` signing family opened at B-B (`Pass
+10.9`): an archive timestamp over the whole file, the step B-LT (`Pass
+10.18`) needed to become B-LTA.
+
+`EditSession::add_document_timestamp(&mut self, authority: &dyn
+sign::timestamp::TimestampAuthority, request:
+&sign::timestamp::DocTimestampRequest, options: &SaveOptions) ->
+Result<(Vec<u8>, sign::timestamp::DocTimestampReport),
+sign::apply::SignApplyError>` (feature `signing`). Appends an
+incremental, invisible signature field whose `/V` is a `/Type
+/DocTimeStamp` dict (ISO 32000-2 §12.8.5 Table 255; ETSI EN 319 142-1
+§5.4.3): `/SubFilter /ETSI.RFC3161`, `/ByteRange` to EOF, `/Contents` =
+the RFC 3161 TimeStampToken over those ranges — no `/M`/`/Name`/
+`/Reason`/`/Location`/`/Reference`/`/Changes`. The TSA answer is checked
+the same way B-T (`Pass 10.11`) checks one; the output is re-verified
+before return and anything short of Verified-to-EOF is refused
+(`SelfVerificationFailed`). Allowed under DocMDP at any `/P` (§12.8.5 —
+a document timestamp is not a content change).
+
+New pub types: `DocTimestampDigest { Sha256 (default), Sha384, Sha512
+}`, `DocTimestampRequest { field_name, digest, reserve = 12288 }`,
+`DocTimestampReport { field_name, signature_id, byte_range,
+reserved_bytes, timestamp: TimestampInfo, prior_signatures, dss_present,
+pades_level: Option<&str>, self_verified, notes }`. `pades_level` reads
+`Some("B-LTA")` only when a signature AND a `/DSS` already existed
+before this call, else `None` — **DSS COMPLETENESS (req. x) is NOT
+checked**, disclosed in `notes` (rule 4).
+
+**Verifier.** `signature_verify` now implements `/SubFilter
+ETSI.RFC3161` (previously `Unverifiable`): checks the imprint against
+the `/ByteRange` digest (else `DigestMismatch`), the `eContentType
+id-ct-TSTInfo`, and reads `signing_time` as the token's `genTime`.
+TSTInfo parsing moved to a new private module `crate::tst_info`
+(ungated), so the verifier still builds without `signing`.
+
+CLI: `pdfcer timestamp IN -o OUT --tsa-url URL [--field-name NAME]
+[--digest sha256|sha384|sha512] [--reserve N]` — needs build feature
+`download`, refused by name otherwise (exit 9); exit 12 on a TSA-check
+or reserve failure. Prints the level (`B-LTA`|`none`),
+`prior_signatures`, `dss`, `self_verified`, the TSA assertion
+(`gen_time`, `tsa`, `serial`, `policy`, `digest`, `token_bytes`) and
+every note. Registered on `IN_PLACE_COMMANDS`. README 195 → 196 working
+subcommands.
+
+`docs/core-api/`: 296 → 297 verbs, new row in
+`02-editing-and-saving.md`; `01-reading-and-model.md` lists
+`ETSI.RFC3161` as implemented (was unknown). `check-core-api-verbs`
+PASS.
+
+**Tests.** 4 core (`crates/pdfcer-core/tests/sign_timestamp.rs`, 11/11 in
+file; the `sign_` filter 49/49), including `openssl ts -verify` against
+the produced token. 3 CLI (`crates/pdfcer-cli/tests/sign_timestamp.rs`;
+2 pass without `download`, 4 with). Sabotage: imprint check disabled,
+`pades_level` forced, content-type forced to `DATA`, CLI level print
+forced — each caught.
+
+No `Cargo.toml` change — `cargo tree` unaffected on both `pdfcer-core`
+and `pdfcer-render`. Incremental append only; no existing object
+rewritten (round trip unaffected).
+
+**`docs/FEATURES.md`.** New row under *Redaction & security* (digital
+signatures), after the `Pass 10.18` row: core `[x]` / cli `[x]` / gui
+`[ ]`. The verifier half (`ETSI.RFC3161` document-timestamp
+verification) ticks its own row the same way. `Pass 10.11`'s B-T row's
+"B-LTA still needs a document timestamp… unscoped" clause is corrected
+in place to point here.
+
+**Not done / follow-ups.** DSS completeness for requirement x is not
+checked (disclosed). No automatic LTV fetch for the timestamp's own TSA
+chain — the archive-renewal cycle (`add-ltv` again, then `timestamp`
+again) is expected to work by re-running both verbs, but is UNTESTED as
+a chain.
+
+**`Pass 10.6` stays open** for the `/Trust`-bitfield pin alone —
+unaffected by this Pass (see that entry, annotated).
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate results relayed from the dispatching engineer's own
+report on `5abc210b`, not independently reproduced. Backup/push/release
+state not verifiable from here.
+
 ### `Pass 416.1` (`d21ea7c5`), 2026-09-30 — `merge_document` carries `/OCProperties` (layers); closes the gap `Pass 106.0` left open
 
 Closes the Backlog item narrowed 2026-08-20 (two-hundred-and-first filing)
@@ -13720,6 +13803,15 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★★★★★ **`Pass 10.19` SHIPPED, 2026-09-30 (805th
+> filing), `5abc210b`** — see top of *Shipped*. PAdES B-LTA: an archive
+> `/DocTimeStamp` over the whole file on top of `Pass 10.18`'s `/DSS`;
+> the verifier now checks an `ETSI.RFC3161` token in full instead of
+> reporting it `Unverifiable`. Filed as the named candidate at the 791st
+> filing's note, then shipped this filing. **`Next up` has no named
+> head — the only remaining item in the `Pass 10.x` signing family is
+> `Pass 10.6`'s `/Trust`-bitfield pin remainder.**
 
 > ★★★★★★★★★★★★★★★★★★★ **`Pass 419.1` SHIPPED, 2026-09-30 (795th filing),
 > `3b67fac1`** — see top of *Shipped*. Embed a supplied U3D/PRC model as a
@@ -31412,6 +31504,13 @@ alone.
 **★★★ SHIPPED 2026-09-30 (791st filing), `3a488056`, see top of *Shipped*.**
 `Pass 10.18`'s full scope moved there; `Pass 10.6` stays open for the
 `/Trust`-bitfield pin alone (unchanged from the note above).
+
+**★★★★ B-LTA SHIPPED TOO, 2026-09-30 (805th filing), `5abc210b`, see top
+of *Shipped*, filed as `Pass 10.19`.** The archive `/DocTimeStamp` on top
+of `Pass 10.18`'s `/DSS` needed no revocation-scope work from this
+entry — B-LTA only needed `Pass 10.18` plus an archive timestamp, per
+ETSI EN 319 142-1 §6.3, exactly as the note above predicted. `Pass 10.6`
+stays open for the `/Trust`-bitfield pin alone, still unaffected.
 
 #### `Pass 10.10` — **SHELL-SIDE KEY SOURCES — a Windows-certificate-store identity (CNG `NCryptSignHash`) and a PKCS#11 token as `Signer` implementations in `pdfcer` (the CLI crate), NEVER in `pdfcer-core`; the key never leaves its custodian** — filed 2026-09-05 (436th filing), *Backlog*, NOT STARTED — depends on `Pass 10.7` (the trait) and `Pass 10.9` (the pipeline)
 

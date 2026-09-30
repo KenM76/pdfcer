@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (805th filing) — `Pass 10.19` (`5abc210b`) SHIPPED: PAdES B-LTA document time-stamp
+
+**Shipped:**
+- `Pass 10.19` — `EditSession::add_document_timestamp` appends an archive
+  `/DocTimeStamp` (`/SubFilter /ETSI.RFC3161`) over the whole file,
+  closing `Pass 10.18`'s B-LT into B-LTA. The verifier now checks an
+  `ETSI.RFC3161` token in full (imprint, content-type, `signing_time` =
+  `genTime`) instead of reporting it `Unverifiable`. CLI `pdfcer
+  timestamp` (needs feature `download`).
+
+**Decisions made this session:** none — this is the promotion `Pass
+10.18`'s own entry already predicted (B-LT + an archive timestamp = B-LTA,
+ETSI EN 319 142-1 §6.3).
+
+**Findings + decisions:**
+- 4 core tests (`sign_timestamp.rs`, 11/11 in file; `sign_` filter
+  49/49) including `openssl ts -verify` against the produced token; 3
+  CLI tests. Sabotage: imprint check disabled, `pades_level` forced,
+  content-type forced to `DATA`, CLI level print forced — all caught.
+- DSS completeness (req. x) is NOT checked — disclosed in `notes`, not
+  silently assumed.
+- No `Cargo.toml` change; incremental append only, round trip
+  unaffected.
+- Context only, no new Shipped row: decision 169 (PRC licensing ruling,
+  unblocking `419.2`) was filed the prior session (804th filing,
+  `22862498`) — recorded here for continuity, not re-filed.
+
+**Still in flight:** `Pass 10.6`'s `/Trust`-bitfield pin remainder stays
+open (unaffected by this Pass). `419.2`–`419.4` (PRC reader/authoring)
+are unblocked by decision 169 but not started.
+
+**For next session:** the archive-renewal chain (re-running `add-ltv`
+then `timestamp` on an already-B-LTA document) is untested — flagged as
+owed, not filed as a Pass.
+
 ## 2026-09-30 (803rd filing) — `Pass 416.1` (`d21ea7c5`) SHIPPED: `merge_document` carries `/OCProperties` (layers)
 
 **Shipped:**
