@@ -115,6 +115,48 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 414.0` (`9262f497`), 2026-09-29 — a rendering fuzz target through the subtractive colorant buffer
+
+Closes the Backlog entry filed 2026-08-31 (352nd filing) naming this gap.
+
+New target `fuzz/fuzz_targets/render_cmyk_page.rs` (+ `[[bin]]` in
+`fuzz/Cargo.toml`) renders a fixed 48×48pt page whose page group is
+`/S /Transparency /CS /DeviceCMYK /I true` (ISO 32000-1 §11.6.6 Table
+147) and fuzzes only the content stream via `render_page_with` at 1×
+with an ink probe. Input byte 0 selects `OverprintZeroTintScope` (mode
+% 3) and `SpotColorantDeviceModel` (bit 0x80). The page builder names,
+as resources, every construct the closed Backlog entry's acceptance
+list asked for: isolated/non-isolated/knockout group XObjects,
+overprint `/OPM 1`, Multiply + alpha, a luminosity soft mask,
+Separation, a two-colorant DeviceN, Indexed-over-CMYK, an axial
+DeviceN shading, a DeviceCMYK image and an Indexed-over-CMYK image.
+Two committed seeds under `fuzz/corpus/render_cmyk_page/` invoke every
+resource.
+
+Reachability guard: `crates/pdfcer-render/tests/fuzz_cmyk_page_reaches_the_buffer.rs`
+includes the same builder via `#[path]` and asserts the seed page
+probes as `InkProbeSource::CmykBuffer`, painting over half the page.
+Sabotage-verified: removing the page group's `/CS /DeviceCMYK` flips
+the probe to `ScreenSrgb` and the test fails. **Honest scope limit:**
+this proves the page reaches the colorant buffer, not that each of
+`take_child`/`child_from_backdrop`/`into_knockout`/`finish_knockout`
+individually fires — those are `pub(crate)` with no counter; the seed
+only names the constructs that drive them.
+
+Local fuzz run (R236 caveat — CI's `fuzz-smoke` only builds fuzz
+targets, never runs them): 1,843 runs over 61s = 33 µs/run, 0 crashes.
+Slow per-iteration (full render).
+
+Tests: `pdfcer-render` `all` binary 387 passed (was 386, +1). fmt/clippy
+clean; `cargo check --bins` in `fuzz/` clean. No dependency or manifest
+change outside `fuzz/`, so the `pdfcer-core`/`pdfcer-render` `cargo
+tree` invariant is unaffected (this Pass never touches those crates).
+
+**Scoping note:** the closed Backlog entry said "scope it with the
+operator before starting." The engineer proceeded without asking
+because the target is additive, harness-only, and outside the shipping
+workspace — recorded here so the operator can object after the fact.
+
 ### `v0.67.0` — RELEASED (2026-09-29)
 
 Release filing, not a Pass — completes the engineer's in-progress
@@ -23977,7 +24019,22 @@ overwrites anything, not merely a categorical type test at the point of use,
 because a `/Contents` stream **is** the right kind of object (`Object::Stream`)
 and a type test alone cannot tell it apart from an appearance stream.
 
-### Unscoped — **a rendering fuzz target over a SUBTRACTIVE page: the harness has NO rendering target at all** — filed 2026-08-31 (352nd filing, named by `Pass 189.0`'s `R236` audit)
+### ~~Unscoped — **a rendering fuzz target over a SUBTRACTIVE page: the harness has NO rendering target at all**~~ — CLOSED, SHIPPED by `Pass 414.0` (`9262f497`) — filed 2026-08-31 (352nd filing, named by `Pass 189.0`'s `R236` audit)
+
+**★ CLOSED 2026-09-29 (772nd filing) by `Pass 414.0` (`9262f497`).**
+`fuzz/fuzz_targets/render_cmyk_page.rs` now drives a full page render
+over a `/CS /DeviceCMYK` transparency group and names every resource
+this entry's acceptance list below asked for (isolated/non-isolated/
+knockout groups, overprint, Multiply+alpha, a luminosity soft mask,
+Separation, DeviceN, Indexed-over-CMYK, a DeviceN shading, a DeviceCMYK
+image). A reachability test proves the seed page reaches the colorant
+buffer via `InkProbeSource::CmykBuffer`, sabotage-verified. **Limit
+carried forward, not closed by this Pass:** the test proves reachability
+of the buffer, not per-path coverage of `take_child`/
+`child_from_backdrop`/`into_knockout`/`finish_knockout` individually —
+those remain `pub(crate)` with no counter to assert against. Full
+record in the Shipped entry above. Original scope text retained below
+per the append-only Backlog convention.
 
 **★ PARTLY — verified 2026-09-29 (read-only audit), stays OPEN, operator-scoped
 per this entry's own text below.** `fuzz/fuzz_targets/export_svg.rs` and

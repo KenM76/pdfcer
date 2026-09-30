@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (772nd filing) — `Pass 414.0` (`9262f497`): a rendering fuzz target through the subtractive colorant buffer
+
+**Shipped:**
+- `Pass 414.0` (`9262f497`) — new fuzz target
+  `fuzz/fuzz_targets/render_cmyk_page.rs` renders a fixed page whose
+  group is `/CS /DeviceCMYK` (ISO 32000-1 §11.6.6 Table 147) and fuzzes
+  the content stream, naming every resource (groups, overprint, blend
+  modes, soft mask, Separation/DeviceN, Indexed-over-CMYK, shading,
+  image) the closed Backlog entry's acceptance list asked for. Two
+  seeds committed. A reachability test
+  (`crates/pdfcer-render/tests/fuzz_cmyk_page_reaches_the_buffer.rs`)
+  proves the seed page reaches `InkProbeSource::CmykBuffer`,
+  sabotage-verified. Closes the 352nd-filing Backlog entry (`R236`
+  audit residual).
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Honest scope limit: the reachability test proves the page reaches
+  the colorant buffer, not that each of
+  `take_child`/`child_from_backdrop`/`into_knockout`/`finish_knockout`
+  individually fires — those stay `pub(crate)` with no counter.
+- Local fuzz run: 1,843 runs over 61s = 33 µs/run, 0 crashes; slow
+  per-iteration because each run is a full render.
+- `pdfcer-render` `all` binary: 387 passed (was 386, +1). fmt/clippy
+  clean.
+
+**Still in flight:** None.
+
+**For next session:** `docs/FEATURES.md` unchanged — this is test
+infrastructure, not a shipped capability.
+
+**Scoping note:** the closed Backlog entry asked for operator scoping
+before starting; the engineer proceeded without it because the target
+is additive, harness-only, and outside the shipping workspace.
+
 ## 2026-09-29 (771st filing) — `265ddcf5`/tag `v0.67.0`: `v0.67.0` RELEASED
 
 **Shipped:**
