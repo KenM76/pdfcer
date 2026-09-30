@@ -33,6 +33,7 @@ mod schema;
 mod tess;
 #[cfg(test)]
 mod testw;
+mod tree;
 
 pub use container::{
     FileStructure, MAX_FILE_STRUCTURES, MAX_INFLATED_BYTES, PRC_READER_VERSION, PrcFile, PrcHeader,
@@ -42,3 +43,4 @@ pub use error::PrcError;
 pub use export::{to_obj, to_stl};
 pub use schema::Schema;
 pub use tess::{Tessellation, TriangleMesh};
+pub use tree::{IDENTITY, Matrix, Placement, multiply, transform_point};

@@ -156,23 +156,57 @@ fn mesh_from_bytes(
     };
     let (mut meshes, mut wires, mut markups) = (Vec::new(), 0usize, 0usize);
     let (mut rebuilt, mut compressed) = (0usize, 0usize);
+    // Per file structure, each tessellation's triangle mesh (if it has one).
+    let mut by_index: Vec<Vec<Option<pdfcer_3d::TriangleMesh>>> = Vec::new();
     for fs in &prc.file_structures {
         let tess = match fs.tessellations() {
             Ok(tess) => tess,
             Err(err) => return refuse(err.to_string()),
         };
+        let mut row = Vec::with_capacity(tess.len());
         for t in tess {
-            match t {
-                Tessellation::Mesh(m) => meshes.push(m),
-                Tessellation::Wire(_) => wires += 1,
+            row.push(match t {
+                Tessellation::Mesh(m) => Some(m),
+                Tessellation::Wire(_) => {
+                    wires += 1;
+                    None
+                }
                 Tessellation::Compressed { mesh: Some(m), .. } => {
                     rebuilt += 1;
-                    meshes.push(m);
+                    Some(m)
                 }
-                Tessellation::Compressed { .. } => compressed += 1,
-                _ => markups += 1,
-            }
+                Tessellation::Compressed { .. } => {
+                    compressed += 1;
+                    None
+                }
+                _ => {
+                    markups += 1;
+                    None
+                }
+            });
         }
+        by_index.push(row);
+    }
+    // Place each mesh where the assembly tree draws it; a tree pdfcer cannot
+    // read yet falls back to every mesh once, in its own coordinates.
+    let unplaced = match prc.placements() {
+        Ok(placements) if !placements.is_empty() => {
+            for p in &placements {
+                let mesh = by_index
+                    .get(p.file_structure)
+                    .and_then(|row| row.get(p.tessellation))
+                    .and_then(Option::as_ref);
+                if let Some(mesh) = mesh {
+                    meshes.push(mesh.transformed(&p.matrix));
+                }
+            }
+            None
+        }
+        Ok(_) => Some("the model's tree places no tessellation".to_owned()),
+        Err(err) => Some(err.to_string()),
+    };
+    if unplaced.is_some() {
+        meshes.extend(by_index.into_iter().flatten().flatten());
     }
     let triangles: usize = meshes.iter().map(|m| m.triangles.len()).sum();
     if triangles == 0 {
@@ -204,7 +238,11 @@ fn mesh_from_bytes(
         meshes.len(),
         output.display()
     );
-    println!("note: part placements are not applied; coordinates are each mesh's own");
+    if let Some(why) = &unplaced {
+        println!(
+            "note: part placements are not applied ({why}); each mesh is written once, in its own coordinates"
+        );
+    }
     if rebuilt > 0 {
         println!(
             "note: {rebuilt} compressed mesh(es) were rebuilt by pdfcer's reconstruction of an \

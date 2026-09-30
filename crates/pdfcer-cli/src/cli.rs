@@ -2757,10 +2757,14 @@ pub(crate) enum Command {
     /// **Export an embedded PRC model's triangles** as an STL or OBJ mesh.
     ///
     /// Decodes the model's tessellation (the triangles a CAD program saved
-    /// for display) and writes every triangle mesh in it. Coordinates are
-    /// the model's own, in its units; the positions of parts within an
-    /// assembly are not applied yet, so a multi-part model's parts may
-    /// overlap. Meshes saved with PRC's compressed tessellation are rebuilt
+    /// for display) and assembles it: each part is written once per place
+    /// the model's product tree puts it, moved, rotated and mirrored into
+    /// position, so a bolt used eight times is written eight times.
+    /// Coordinates are in the model's units. When the tree cannot be read
+    /// (markups, views, scene lights or clipping planes in it, which pdfcer
+    /// does not read yet) a note says why and each mesh is written once, in
+    /// its own coordinates, so parts may overlap. Meshes saved with PRC's
+    /// compressed tessellation are rebuilt
     /// and written, and a note says so: the encoding is undocumented and
     /// pdfcer's reconstruction of it can drift slightly across a large
     /// mesh. A compressed mesh in a form pdfcer does not rebuild, and line

@@ -634,3 +634,10 @@ path = "fuzz_targets/prc_tess.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "prc_tree"
+path = "fuzz_targets/prc_tree.rs"
+test = false
+doc = false
+bench = false

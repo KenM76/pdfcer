@@ -171,3 +171,57 @@ impl W {
             .collect()
     }
 }
+
+/// A one-file-structure PRC stream holding the given section bytes and
+/// model file.
+pub(crate) fn prc_container(globals: &[u8], tree: &[u8], tess: &[u8], model: &[u8]) -> Vec<u8> {
+    use std::io::Write as _;
+    let zlib = |data: &[u8]| {
+        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        e.write_all(data).unwrap();
+        e.finish().unwrap()
+    };
+    let le = |out: &mut Vec<u8>, vs: &[u32]| {
+        vs.iter()
+            .for_each(|v| out.extend_from_slice(&v.to_le_bytes()));
+    };
+    let sections: [&[u8]; 5] = [globals, tree, tess, &[], &[]];
+
+    const HEADER_LEN: usize = 107;
+    let mut fs = b"PRC".to_vec();
+    le(&mut fs, &[8137, 8137, 5, 6, 7, 8, 0, 0, 0, 0, 0]);
+    let mut offs = Vec::new();
+    for s in sections {
+        offs.push((HEADER_LEN + fs.len()) as u32);
+        fs.extend(zlib(s));
+    }
+    let mf_start = (HEADER_LEN + fs.len()) as u32;
+    fs.extend(zlib(model));
+    let mf_end = (HEADER_LEN + fs.len()) as u32;
+
+    let mut out = b"PRC".to_vec();
+    le(&mut out, &[8137, 8137, 1, 2, 3, 4, 0, 0, 0, 0, 1]);
+    le(&mut out, &[5, 6, 7, 8, 0, 6, HEADER_LEN as u32]);
+    le(&mut out, &offs);
+    le(&mut out, &[mf_start, mf_end, 0]);
+    assert_eq!(out.len(), HEADER_LEN);
+    out.extend(fs);
+    out
+}
+
+/// Asserts `fixtures/synthetic/prc/{name}` holds `bytes`;
+/// `PDFCER_WRITE_FIXTURES=1` rewrites it.
+pub(crate) fn check_fixture(name: &str, bytes: &[u8]) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/prc")
+        .join(name);
+    if std::env::var_os("PDFCER_WRITE_FIXTURES").is_some() {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, bytes).unwrap();
+    }
+    assert_eq!(
+        std::fs::read(&path).unwrap(),
+        bytes,
+        "{name}: rerun with PDFCER_WRITE_FIXTURES=1"
+    );
+}

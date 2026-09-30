@@ -90,12 +90,14 @@ pub(crate) struct Ctx<'a, 's> {
     pub(crate) version: u32,
 }
 
-fn malformed(what: String) -> PrcError {
+/// A [`PrcError::Malformed`] naming `what`.
+pub(crate) fn malformed(what: String) -> PrcError {
     PrcError::Malformed(what)
 }
 
 impl Ctx<'_, '_> {
-    fn expect_type(&mut self, want: u32) -> Result<(), PrcError> {
+    /// Reads an entity type code; any value but `want` is malformed.
+    pub(crate) fn expect_type(&mut self, want: u32) -> Result<(), PrcError> {
         let t = self.r.unsigned_integer()?;
         if t != want {
             return Err(malformed(format!("entity type {t} where {want} belongs")));
@@ -104,7 +106,7 @@ impl Ctx<'_, '_> {
     }
 
     /// A count that must fit in the remaining data at `min_bits` per item.
-    fn count(&mut self, min_bits: usize, what: &'static str) -> Result<usize, PrcError> {
+    pub(crate) fn count(&mut self, min_bits: usize, what: &'static str) -> Result<usize, PrcError> {
         let n = self.r.unsigned_integer()? as usize;
         if n.saturating_mul(min_bits) > self.r.remaining() {
             return Err(PrcError::Truncated(what));
@@ -133,7 +135,7 @@ impl Ctx<'_, '_> {
     }
 
     /// `ContentPRCBase` [WD 7.2.3]: attributes, then the name.
-    fn content_prc_base(&mut self) -> Result<Option<String>, PrcError> {
+    pub(crate) fn content_prc_base(&mut self) -> Result<Option<String>, PrcError> {
         let n = self.count(1, "attributes")?;
         for _ in 0..n {
             self.expect_type(ATTRIBUTE)?;
@@ -171,7 +173,7 @@ impl Ctx<'_, '_> {
     }
 
     /// `UserData` [WD 8.6]: a bit count, then that many opaque bits.
-    fn user_data(&mut self) -> Result<(), PrcError> {
+    pub(crate) fn user_data(&mut self) -> Result<(), PrcError> {
         let n = self.r.unsigned_integer()? as usize;
         self.r.skip_bits(n)
     }
@@ -1262,39 +1264,8 @@ mod tests {
 
     /// A one-file-structure PRC whose tessellation section is `tess`.
     fn prc_file(tess: &W) -> Vec<u8> {
-        use std::io::Write as _;
-        let zlib = |data: &[u8]| {
-            let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-            e.write_all(data).unwrap();
-            e.finish().unwrap()
-        };
-        let le = |out: &mut Vec<u8>, vs: &[u32]| {
-            vs.iter()
-                .for_each(|v| out.extend_from_slice(&v.to_le_bytes()));
-        };
         let schema = W::default().uint(0).bytes();
-        let sections = [schema, vec![0], tess.bytes(), vec![], vec![]];
-
-        const HEADER_LEN: usize = 107;
-        let mut fs = b"PRC".to_vec();
-        le(&mut fs, &[8137, 8137, 5, 6, 7, 8, 0, 0, 0, 0, 0]);
-        let mut offs = Vec::new();
-        for s in &sections {
-            offs.push((HEADER_LEN + fs.len()) as u32);
-            fs.extend(zlib(s));
-        }
-        let mf_start = (HEADER_LEN + fs.len()) as u32;
-        fs.extend(zlib(&[0]));
-        let mf_end = (HEADER_LEN + fs.len()) as u32;
-
-        let mut out = b"PRC".to_vec();
-        le(&mut out, &[8137, 8137, 1, 2, 3, 4, 0, 0, 0, 0, 1]);
-        le(&mut out, &[5, 6, 7, 8, 0, 6, HEADER_LEN as u32]);
-        le(&mut out, &offs);
-        le(&mut out, &[mf_start, mf_end, 0]);
-        assert_eq!(out.len(), HEADER_LEN);
-        out.extend(fs);
-        out
+        crate::testw::prc_container(&schema, &[0], &tess.bytes(), &[0])
     }
 
     /// The CLI's `3d-mesh` fixtures under `fixtures/synthetic/prc/` are
@@ -1307,7 +1278,7 @@ mod tests {
         let f = crate::PrcFile::parse(&bytes).unwrap();
         let t = f.file_structures[0].tessellations().unwrap();
         assert_eq!(mesh(&t[0]).triangles, [[0, 1, 2], [0, 2, 3]]);
-        check_fixture("square.prc", &bytes);
+        crate::testw::check_fixture("square.prc", &bytes);
         let bytes = compressed_prc();
         let f = crate::PrcFile::parse(&bytes).unwrap();
         let t = f.file_structures[0].tessellations().unwrap();
@@ -1318,7 +1289,7 @@ mod tests {
                 mesh: None
             }]
         ));
-        check_fixture("compressed.prc", &bytes);
+        crate::testw::check_fixture("compressed.prc", &bytes);
         let bytes = compressed_prc_rebuilt();
         let f = crate::PrcFile::parse(&bytes).unwrap();
         let t = f.file_structures[0].tessellations().unwrap();
@@ -1329,7 +1300,7 @@ mod tests {
                 mesh: Some(_)
             }]
         ));
-        check_fixture("compressed_triangle.prc", &bytes);
+        crate::testw::check_fixture("compressed_triangle.prc", &bytes);
     }
 
     /// One compressed-tessellation mesh, in a form not rebuilt.
@@ -1344,20 +1315,5 @@ mod tests {
         let mut body = W::default();
         compressed(&mut body, 8137, false, true);
         prc_file(&section(1, &body))
-    }
-
-    fn check_fixture(name: &str, bytes: &[u8]) {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../fixtures/synthetic/prc")
-            .join(name);
-        if std::env::var_os("PDFCER_WRITE_FIXTURES").is_some() {
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(&path, bytes).unwrap();
-        }
-        assert_eq!(
-            std::fs::read(&path).unwrap(),
-            bytes,
-            "{name}: rerun with PDFCER_WRITE_FIXTURES=1"
-        );
     }
 }

@@ -359,6 +359,29 @@ fn a_prc_model_meshes_to_obj() {
     assert!(obj.contains("f 1 2 3\nf 1 3 4\n"), "{obj}");
 }
 
+/// The product tree places the square twice, the second copy mirrored in x
+/// and moved 5 along it, so its winding is flipped to keep facing out.
+#[cfg(feature = "3d")]
+#[test]
+fn a_prc_assembly_is_written_at_its_placements() {
+    let input = with_prc("mesh_assembly", "assembly.prc");
+    let output = input.with_extension("obj");
+    let out = mesh(&input, "2", &output, &["--format", "obj"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("meshes=2 triangles=4 "), "{stdout}");
+    assert!(!stdout.contains("placements are not applied"), "{stdout}");
+    let obj = std::fs::read_to_string(&output).unwrap();
+    assert!(obj.contains("v 1 1 0\n"), "{obj}");
+    assert!(obj.contains("v 4 1 0\n"), "{obj}");
+    assert!(obj.contains("f 1 2 3\nf 1 3 4\n"), "{obj}");
+    assert!(obj.contains("f 5 7 6\nf 5 8 7\n"), "{obj}");
+}
+
 #[test]
 fn meshing_a_u3d_model_is_refused_and_writes_nothing() {
     let input = three_d_pdf("mesh_u3d");

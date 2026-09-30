@@ -373,3 +373,70 @@ impl PrcFile {
         })
     }
 }
+
+impl PrcFile {
+    /// Where each drawable tessellation sits in the model: the product
+    /// occurrence tree walked from the model file's roots, each
+    /// occurrence's location composed onto its father's, and each
+    /// representation item's local coordinate system applied last
+    /// [WD 7.3.10.1, 7.6.3.2]. Suppressed occurrences and hidden entities
+    /// are left out. A tessellation drawn by several occurrences appears
+    /// once per occurrence.
+    ///
+    /// # Errors
+    /// [`PrcError::Unsupported`] for a tree carrying markups (PMI), views,
+    /// scene lights or clipping planes, or, when an item is placed by a
+    /// reference coordinate system, globals carrying fonts, pictures,
+    /// texture definitions or fill patterns; [`PrcError::Malformed`] for an index naming no
+    /// entity or a tree past the depth ceiling; read errors as
+    /// [`FileStructure::tessellations`].
+    pub fn placements(&self) -> Result<Vec<crate::Placement>, PrcError> {
+        use crate::bits::BitReader;
+        use crate::tess::Ctx;
+        let mut trees = Vec::with_capacity(self.file_structures.len());
+        for fs in &self.file_structures {
+            let schema = fs.schema()?;
+            let tree = Ctx {
+                r: BitReader::new(fs.section(SectionKind::Tree)),
+                schema: &schema,
+                version: fs.authoring_version,
+            }
+            .file_structure_tree()?;
+            let systems = if tree.parts.iter().flatten().any(|i| !i.local.is_empty()) {
+                let mut r = BitReader::new(fs.section(SectionKind::Globals));
+                crate::Schema::read(&mut r)?; // the globals section opens with it
+                Ctx {
+                    r,
+                    schema: &schema,
+                    version: fs.authoring_version,
+                }
+                .coordinate_systems()?
+            } else {
+                Vec::new()
+            };
+            trees.push((fs.id, tree, systems));
+        }
+        let mut r = BitReader::new(&self.model_file);
+        let schema = crate::Schema::read(&mut r)?;
+        let model = Ctx {
+            r,
+            schema: &schema,
+            version: self.header.authoring_version,
+        }
+        .model_file()?;
+        let mut walk =
+            crate::tree::Walk::new(trees.iter().map(|(id, t, cs)| (*id, t, &cs[..])).collect());
+        for (id, root) in model.roots {
+            let Some(fs) = trees.iter().position(|t| t.0 == id) else {
+                return Err(PrcError::Malformed(
+                    "a root names an unknown file structure".into(),
+                ));
+            };
+            if root == 0 {
+                continue;
+            }
+            walk.occurrence(fs, root as usize - 1, &crate::tree::IDENTITY, 0)?;
+        }
+        Ok(walk.out)
+    }
+}
