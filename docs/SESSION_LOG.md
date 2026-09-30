@@ -4,6 +4,58 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (771st filing) — `265ddcf5`/tag `v0.67.0`: `v0.67.0` RELEASED
+
+**Shipped:**
+- `v0.67.0` RELEASED — annotated tag `v0.67.0` on `265ddcf5` (the 770th
+  filing's own docs commit). Closes the release left "in progress" by
+  the 769th/770th filings. Batches `296.6`, `297.1`, `264.6`, `409.0`,
+  `410.0`, `411.0`, `412.0`, `413.0`, `114.0`, `114.1` (the shipped range
+  since `v0.66.0` also contains `408.0`, `407.0`, `406.0`, `406.1`,
+  `119.3`, `405.0` and gate fix `4b7ff5bc`; this release covers them
+  too). Headline: `297.1` stops `scan-offpage` reporting a blank
+  off-page part as a finding; `413.0` decodes a whole T.88 JBIG2 file
+  embedded per Annex D.1/D.2 instead of failing Corrupt.
+  Package `D:\builds\pdfcer-20260929-2103-265ddcf`, 71,075,975 bytes
+  staged. GitHub asset `pdfcer-v0.67.0-windows-x64.zip`, 43,247,567
+  bytes, sha256
+  `f61cb397813443735834c5972fe61ed80364c7e59aecb60c7a65fd3ec1736e6a`.
+  OneDrive slot `pdfcer2` (0.65.0 -> 0.67.0, 71,070,971 bytes), now
+  `0.67.0`; `pdfcer1` keeps `v0.66.0`. Fresh-folder smoke:
+  `pdfcer --version` -> `0.67.0`, revision `v0.67.0`;
+  `rotate --degrees 90 --in-place` and
+  `set-page-tabs --page 1 --tabs R --in-place` both ran incrementally on
+  a copy of fixtures/external/pdf20examples "PDF 2.0 image with BPC.pdf",
+  `inspect` afterwards read PDF 2.0.
+
+**Decisions made this session:** None — release-only filing, no new
+crate boundary or invariant. Highest decision record stays `166`.
+
+**Findings + decisions:**
+- `tools/run-gates.sh`: 40 of 41 green on the first run; the one
+  failure was `cd fuzz && cargo check --bins` with os error 112 (D:
+  drive full, 11 MB free) — not a gate defect. Deleted
+  `target/debug/incremental` (66 GB of the 148 GB `target` dir, a
+  rebuildable cache); D: then had 52 GB free; that command then passed
+  on an unchanged tree. Worth remembering: a full disk surfaces in
+  `run-gates` as a single compile failure (os error 112), not as a
+  gate message.
+- `tools/verify-release.py v0.67.0`: first run was 2 FAIL, both because
+  CI was still in progress at the tagged commit; re-run after CI
+  finished was clean, CI green at the tag.
+
+**Still in flight:** None — the release this and the two prior filings
+tracked is now complete end to end (tag, build, smoke, GitHub,
+OneDrive, CI confirmed green).
+
+**For next session:** `docs/FEATURES.md` unchanged by this filing — no
+capability box crosses a release boundary.
+
+**Sourcing (hard rule 8).** No shell tool this filing — all figures
+(build sizes, hashes, gate/smoke-test results, the `verify-release.py`
+results) relayed from the dispatching engineer's own report, measured
+by them directly; not independently reproduced here.
+
 ## 2026-09-29 (770th filing) — `598e4b95`: chore — v0.67.0 version bump, release IN PROGRESS
 
 **Shipped:**

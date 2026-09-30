@@ -115,6 +115,78 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.67.0` — RELEASED (2026-09-29)
+
+Release filing, not a Pass — completes the engineer's in-progress
+release reported in `Pass 114.1`'s own "Also filed this session" note
+(770th filing). Version-bump commit `598e4b95` ("chore: v0.67.0")
+bumps `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.66.0 → 0.67.0;
+filed as such in `265ddcf5` ("docs: file v0.67.0 bump -- release in
+progress").
+
+**Tag.** Annotated tag `v0.67.0` points at `265ddcf5` (the 770th
+filing's own docs commit), pushed; `origin/main` = `265ddcf5`.
+
+**Range since `v0.66.0` (`c1cbad50`): batches every Pass already filed
+above** — `296.6` (deep-zoom render pre-clipped in device space
+instead of refused, `0f9d0c26`), `297.1` (`scan-offpage` stops
+reporting an image whose off-page part is blank, `1315b144`), `264.6`
+(a pasted annotation keeps its own blend mode, `73a8ba60`), `409.0`
+(`set_page_tabs` records a page's tab order, `2d2c25ee`), `410.0`
+(text clipping modes 4–7 clip at `ET`, `5722ec8a`), `411.0`
+(`button_action` reads back `/GoTo`, `/SubmitForm` and `/Hide`,
+`a2e40249`), `412.0` (blend space and ICC destination read the same
+output intent, `2b9f0234`), `413.0` (JBIG2 robustness follow-up,
+`14ef44f2`), `114.0` (NoRotate/NoZoom annotation placement,
+`9b3bd614`), and `114.1` (`flatten_annotations` pivots upright too,
+`c5c21156`) — all already filed above. The shipped range since
+`v0.66.0` also contains `408.0` (`7e2efec0`), `407.0` (`4f940411`),
+`406.0` (`385b2a71`), `406.1` (`ee6bdf28`), `119.3` (`b7778479`),
+`405.0` (`36f3bad5`) and gate fix `4b7ff5bc`, filed in earlier
+sessions; this release covers them too.
+
+**Gates.** `tools/run-gates.sh`: 40 of 41 green on the first run; the
+one failure was `cd fuzz && cargo check --bins` with os error 112 (D:
+drive full, 11 MB free) — not a gate defect. Deleted
+`target/debug/incremental` (66 GB of the 148 GB `target` dir, a
+rebuildable cache), freeing D: to 52 GB; the command then passed
+unchanged. Skipped deliberately by the script: `cargo about generate`
+and `--all-features` tests (plain workspace tests ran).
+
+**Build.** `tools/package-portable.py` →
+`D:\builds\pdfcer-20260929-2103-265ddcf`; 71,075,975 bytes staged.
+
+**Fresh-folder smoke test.** `pdfcer --version` reports `0.67.0`,
+revision `v0.67.0`. `rotate --degrees 90 --in-place` and
+`set-page-tabs --page 1 --tabs R --in-place` both ran incrementally on
+a copy of fixtures/external/pdf20examples "PDF 2.0 image with
+BPC.pdf"; `inspect` afterwards read PDF 2.0.
+
+**GitHub release.** Published via `tools/gh-release.py`:
+`pdfcer-v0.67.0-windows-x64.zip`, 43,247,567 bytes, sha256
+`f61cb397813443735834c5972fe61ed80364c7e59aecb60c7a65fd3ec1736e6a`,
+plus its `.sha256`.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer2`
+(0.65.0 → 0.67.0, 71,070,971 bytes), now `0.67.0`; `pdfcer1` keeps
+`v0.66.0`.
+
+**`verify-release.py v0.67.0`.** First run: 2 FAIL, both because CI
+was still in progress at the tagged commit. Re-run after CI finished:
+clean, CI green at the tagged commit.
+
+**Headline.** `297.1` stops `scan-offpage` reporting a blank off-page
+part as a finding; `413.0` decodes a whole T.88 JBIG2 file embedded
+per Annex D.1/D.2 instead of failing Corrupt.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself** —
+all contents were already filed per-Pass.
+
+**Sourcing (hard rule 8).** No shell tool this filing — all figures
+(build sizes, hashes, gate/smoke-test results, the `verify-release.py`
+details) relayed from the dispatching engineer's own report; not
+independently reproduced here.
+
 ### `Pass 114.1` (`c5c21156`), 2026-09-29 — `flatten_annotations` burns a `NoRotate`/`/Text` annotation upright on a rotated page, pivoted on `/Rect`'s upper-left corner
 
 Corrects the entry directly below (`Pass 114.0`) and `FEATURES.md` row 319
