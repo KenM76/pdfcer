@@ -4,6 +4,32 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (796th filing) — `ccc24d9d`: `check-control-bytes` gate fix, no Pass ID
+
+**Shipped:**
+- `tools/check-control-bytes.py` no longer treats "NUL in first 8 KiB" as
+  proof a file is binary and skippable. The old heuristic meant a NUL
+  *early* in a text file hid from the one gate meant to catch it —
+  `docs/NEXT_SESSION.md`'s stray NUL at line 10 passed three green runs
+  while a NUL deeper into `docs/core-api/02-editing-and-saving.md` the
+  same day was caught. Fix: content-sniffing now applies only outside a
+  new `TEXT_SUFFIXES` set; inside it, any NUL is reported regardless of
+  position.
+
+**Decisions made this session:** none — a bug fix, not a scope decision.
+
+**Findings + decisions:**
+- Verified both ways: old gate passed with the NUL present; new gate
+  reports `docs/NEXT_SESSION.md:10 \x00` and the pre-push hook refuses.
+  The byte itself was already repaired, docs-only, in `a1dd02ad`.
+- Lesson: a "skip binary" heuristic can be tripped by the very defect the
+  gate exists to detect — such a gate shows green while under-reporting.
+
+**Still in flight:** unchanged from the 795th filing — `419.2`–`419.4`
+remain open pending the operator's 3D-licensing questions.
+
+**For next session:** no change to the 795th filing's next-step note.
+
 ## 2026-09-30 (795th filing) — `Pass 419.1` (`3b67fac1`) SHIPPED: embed U3D/PRC models as `/3D` annotations
 
 **Shipped:**

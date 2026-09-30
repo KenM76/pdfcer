@@ -115,6 +115,39 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `ccc24d9d` (no Pass ID), 2026-09-30 — `check-control-bytes` no longer skips a text file whose NUL is early
+
+`tools/check-control-bytes.py` only. The gate classified any file with a
+NUL in its first 8 KiB as binary and skipped it entirely — so the one byte
+class the gate exists to catch hid itself whenever it appeared early in a
+file. `docs/NEXT_SESSION.md` carried `U3D` followed by a stray NUL at
+line 10 (written by a Python heredoc during the `419.0` handoff) through
+three green gate runs, while a NUL deeper into
+`docs/core-api/02-editing-and-saving.md` the same day was caught
+correctly — the miss was purely a function of byte offset, not content.
+
+Fix: the binary content-sniff now applies only to suffixes outside a new
+`TEXT_SUFFIXES` set (`.md .rs .py .toml .txt .sh .yml .yaml .json .hbs
+.ps1 .cfg .ini .csv .svg .xml .html`); inside that set, a NUL is always
+reported regardless of position.
+
+**Verified both ways.** The old gate passed with the `docs/NEXT_SESSION.md`
+NUL present; the new gate reports `docs/NEXT_SESSION.md:10 \x00` and the
+pre-push hook refused the push on it. The byte itself was repaired
+separately, docs-only, in `a1dd02ad`.
+
+**Lesson.** A gate's own "skip binary" heuristic can be triggered by the
+defect the gate exists to detect — a gate that under-reports still shows
+green. Worth a line in `D:\dev\rag\rust\` if this shape recurs elsewhere;
+not written up separately yet.
+
+**`docs/FEATURES.md`.** No row affected — tooling-only change, no
+core/cli/gui capability.
+
+**Sourcing (hard rule 8).** No shell this filing — facts relayed from the
+dispatching engineer's own report on `ccc24d9d`, not independently
+reproduced. Backup/push/release state not verifiable from here.
+
 ### `Pass 419.1` (`3b67fac1`), 2026-09-30 — embed a supplied U3D/PRC model as a `/3D` annotation
 
 Second rung of the `Pass 419.x` bucket (*Backlog*; `419.0` shipped the
