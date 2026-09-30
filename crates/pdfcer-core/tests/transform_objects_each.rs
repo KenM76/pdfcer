@@ -275,3 +275,40 @@ fn the_planner_refuses_one_object_twice_by_position() {
     .unwrap_err();
     assert_eq!(err, VectorEditError::DuplicateObjectInMove { index: 1 });
 }
+
+fn kinds(s: &mut EditSession) -> Vec<&'static str> {
+    let model = s.page_objects(0).unwrap();
+    model
+        .objects
+        .iter()
+        .map(|o| match o {
+            pdfcer_core::vector::VectorObject::Path(_) => "path",
+            pdfcer_core::vector::VectorObject::Text(_) => "text",
+            _ => "other",
+        })
+        .collect()
+}
+
+/// A wrap adds operators around an object, never between two objects' runs,
+/// so every index still names the same object afterwards — through both
+/// transform verbs, which is what a per-object loop over `transform_objects`
+/// relies on.
+#[test]
+fn indices_are_stable_across_a_transform() {
+    for each in [true, false] {
+        let mut s = session(MIXED);
+        let (k0, b0) = (kinds(&mut s), boxes(&mut s));
+        let m = Matrix::translate(0.0, 9.0);
+        if each {
+            s.transform_objects_each(0, &[(1, m)], TransformOptions::default())
+                .unwrap();
+        } else {
+            s.transform_objects(0, &[1], m, TransformOptions::default())
+                .unwrap();
+        }
+        let (k1, b1) = (kinds(&mut s), boxes(&mut s));
+        assert_eq!(k1, k0, "each={each}");
+        assert_eq!((b1[0], b1[2]), (b0[0], b0[2]), "each={each}");
+        assert!(shifted(b0[1], b1[1], 0.0, 9.0), "each={each}");
+    }
+}
