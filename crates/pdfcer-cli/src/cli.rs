@@ -144,6 +144,17 @@ pub(crate) enum ReorderLabelsArg {
     Follow,
 }
 
+/// `extract-pages --labels` / `split --labels`: what page labels the new
+/// file's pages show.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ExtractLabelsArg {
+    /// Each page shows the label it showed in the input, so a chapter keeps
+    /// its printed page numbers.
+    Keep,
+    /// Drop the input's labels; pages show their physical numbers.
+    Drop,
+}
+
 /// `layer-edit --visible/--locked`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum OnOffArg {
@@ -510,6 +521,11 @@ pub(crate) enum Command {
         /// Overwrite existing files in the output directory.
         #[arg(long)]
         force: bool,
+        /// Page labels in each part. `keep` writes the ranges each part
+        /// needs (label_ranges= on the metrics line); an input without
+        /// labels gives parts without them either way.
+        #[arg(long, value_enum, default_value_t = ExtractLabelsArg::Keep)]
+        labels: ExtractLabelsArg,
     },
 
     /// Extract pages into a new standalone PDF.
@@ -527,6 +543,11 @@ pub(crate) enum Command {
         /// Output path for the extracted pages.
         #[arg(short, long)]
         output: PathBuf,
+        /// Page labels in the new file. `keep` writes the ranges it needs
+        /// (label_ranges= on the metrics line); an input without labels
+        /// gives a file without them either way.
+        #[arg(long, value_enum, default_value_t = ExtractLabelsArg::Keep)]
+        labels: ExtractLabelsArg,
     },
 
     /// Insert pages from another PDF into a target, producing a new file.

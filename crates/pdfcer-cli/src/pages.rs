@@ -9,7 +9,12 @@ pub(crate) fn stem_of(path: &Path) -> String {
 }
 
 /// Implement `pdfcer extract-pages`.
-pub(crate) fn cmd_extract_pages(input: &Path, pages: &str, output: &Path) -> u8 {
+pub(crate) fn cmd_extract_pages(
+    input: &Path,
+    pages: &str,
+    output: &Path,
+    labels: ExtractLabelsArg,
+) -> u8 {
     let doc = match open_for_read(input) {
         Ok(doc) => doc,
         Err(code) => return code,
@@ -36,11 +41,15 @@ pub(crate) fn cmd_extract_pages(input: &Path, pages: &str, output: &Path) -> u8 
     let (settings, settings_report) =
         pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
     report_settings(&settings_report);
-    let (bytes, report) =
-        match pdfcer_core::pageops::extract_with(&view, &selected, settings.separations) {
-            Ok(pair) => pair,
-            Err(err) => return report_page_op_error(&err),
-        };
+    let (bytes, report) = match pdfcer_core::pageops::extract_with_labels(
+        &view,
+        &selected,
+        settings.separations,
+        extract_labels(labels),
+    ) {
+        Ok(pair) => pair,
+        Err(err) => return report_page_op_error(&err),
+    };
     if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
@@ -199,6 +208,13 @@ pub(crate) fn cmd_insert_pages(
     exit::SUCCESS
 }
 
+fn extract_labels(arg: ExtractLabelsArg) -> pdfcer_core::pageops::ExtractedPageLabels {
+    match arg {
+        ExtractLabelsArg::Keep => pdfcer_core::pageops::ExtractedPageLabels::Keep,
+        ExtractLabelsArg::Drop => pdfcer_core::pageops::ExtractedPageLabels::Drop,
+    }
+}
+
 /// Implement `pdfcer split`.
 #[allow(clippy::too_many_arguments)] // one parameter per documented flag
 pub(crate) fn cmd_split(
@@ -209,6 +225,7 @@ pub(crate) fn cmd_split(
     bookmarks: bool,
     name_template: &str,
     force: bool,
+    labels: ExtractLabelsArg,
 ) -> u8 {
     let doc = match open_for_read(input) {
         Ok(doc) => doc,
@@ -243,12 +260,13 @@ pub(crate) fn cmd_split(
     let (settings, settings_report) =
         pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
     report_settings(&settings_report);
-    let parts = match pdfcer_core::pageops::split_with(
+    let parts = match pdfcer_core::pageops::split_with_labels(
         &view,
         &criterion,
         name_template,
         &stem,
         settings.separations,
+        extract_labels(labels),
     ) {
         Ok(parts) => parts,
         Err(err) => return report_page_op_error(&err),

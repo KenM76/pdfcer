@@ -364,11 +364,36 @@ pub fn split_with(
     stem: &str,
     separations: crate::pageops::SeparationPolicy,
 ) -> Result<Vec<(SplitPart, Vec<u8>, AssembleReport)>, PageOpError> {
+    split_with_labels(
+        source,
+        criterion,
+        template,
+        stem,
+        separations,
+        crate::pageops::ExtractedPageLabels::default(),
+    )
+}
+
+/// [`split_with`], with an explicit page-label policy for every part; see
+/// [`crate::pageops::extract_with_labels`].
+///
+/// # Errors
+///
+/// As [`split_with`].
+pub fn split_with_labels(
+    source: &DocumentView<'_>,
+    criterion: &SplitCriterion,
+    template: &str,
+    stem: &str,
+    separations: crate::pageops::SeparationPolicy,
+    labels: crate::pageops::ExtractedPageLabels,
+) -> Result<Vec<(SplitPart, Vec<u8>, AssembleReport)>, PageOpError> {
     let parts = plan_split(source, criterion, template, stem)?;
     let mut out = Vec::with_capacity(parts.len());
     for part in parts {
         let pages: Vec<usize> = part.pages().collect();
-        let (bytes, report) = crate::pageops::extract_with(source, &pages, separations)?;
+        let (bytes, report) =
+            crate::pageops::extract_with_labels(source, &pages, separations, labels)?;
         out.push((part, bytes, report));
     }
     Ok(out)

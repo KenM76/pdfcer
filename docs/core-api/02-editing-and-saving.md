@@ -3016,6 +3016,17 @@ page showed.
 `insert-pages --labels source|continue`); its `AssembleReport` carries
 `page_label_ranges` and `page_labels_dropped` with the same meanings.
 
+**Extract and split** keep labels too: `pageops::extract_with_labels(&view,
+pages, separations, pageops::ExtractedPageLabels) -> Result<(Vec<u8>,
+AssembleReport), PageOpError>` and `pageops::split_with_labels(.., labels)`.
+`Keep` (default, so `extract`, `extract_with`, `split` and `split_with`
+keep them): each page shows the label it showed in the source, in the
+order given. `Drop`: no tree; `page_labels_dropped` is set when the source
+had one. A source without a tree gives none either way. CLI:
+`extract-pages --labels keep|drop`, `split --labels keep|drop`. A page
+clip (`copy_pages`) is built by `extract`, so it now carries the page's
+label, and a paste under `InsertedPageLabels::Source` shows it.
+
 Acrobat does neither: it overwrites every inserted page with a static copy of
 the label on the page before the insertion point, and leaves the target's
 later ranges on the wrong pages

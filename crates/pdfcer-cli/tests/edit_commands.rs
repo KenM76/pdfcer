@@ -1278,3 +1278,50 @@ fn reorder_pages_labels_follow_carries_each_label() {
         }
     }
 }
+
+#[test]
+fn extract_pages_keeps_labels_and_drop_discards_them() {
+    // Pages labelled i ii iii; extracting 3,2 keeps iii ii by default and
+    // shows 1 2 with --labels drop.
+    let dir = TempDir::new("extract-labels");
+    let input = three_pages(&dir);
+    let labelled = dir.join("labelled.pdf");
+    let out = run(&[
+        "set-page-labels",
+        input.to_str().unwrap(),
+        "--pages",
+        "1-3",
+        "--style",
+        "roman-lower",
+        "-o",
+        labelled.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    for (labels, want, dropped) in [("keep", ["iii", "ii"], 0), ("drop", ["1", "2"], 1)] {
+        let part = dir.join(&format!("{labels}.pdf"));
+        let out = run(&[
+            "extract-pages",
+            labelled.to_str().unwrap(),
+            "--pages",
+            "3,2",
+            "--labels",
+            labels,
+            "-o",
+            part.to_str().unwrap(),
+        ]);
+        assert_eq!(code(&out), 0, "{}", stderr(&out));
+        assert!(
+            stdout(&out).contains(&format!("labels_dropped={dropped}")),
+            "{}",
+            stdout(&out)
+        );
+        let listing = stdout(&run(&["page-labels", part.to_str().unwrap()]));
+        for (page, label) in want.iter().enumerate() {
+            let line = format!("page {} label=\"{label}\"", page + 1);
+            assert!(
+                listing.contains(&line),
+                "{labels}: missing {line}: {listing}"
+            );
+        }
+    }
+}

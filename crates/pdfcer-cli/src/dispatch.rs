@@ -81,6 +81,7 @@ pub(crate) fn run() -> ExitCode {
             bookmarks,
             name_template,
             force,
+            labels,
         } => cmd_split(
             &input,
             &out_dir,
@@ -89,12 +90,14 @@ pub(crate) fn run() -> ExitCode {
             bookmarks,
             &name_template,
             force,
+            labels,
         ),
         Command::ExtractPages {
             input,
             pages,
             output,
-        } => cmd_extract_pages(&input, &pages, &output),
+            labels,
+        } => cmd_extract_pages(&input, &pages, &output, labels),
         Command::PlaceStamp {
             input,
             from,

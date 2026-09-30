@@ -384,7 +384,7 @@ pub struct AssembleReport {
     /// the operator's next action differs: a stale tree wants
     /// renumbering, an absent one wants creating.
     pub page_labels_stale: bool,
-    /// Ranges in the `/PageLabels` tree a merge or insert wrote so every
+    /// Ranges in the `/PageLabels` tree a merge, insert, extract or split wrote so every
     /// page keeps the label it showed in its own source; `0` when none was
     /// written.
     pub page_label_ranges: usize,

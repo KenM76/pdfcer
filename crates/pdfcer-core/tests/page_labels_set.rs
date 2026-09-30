@@ -235,3 +235,75 @@ fn a_follow_pages_reorder_without_a_tree_writes_none() {
     let reopened = Document::from_bytes(bytes).expect("reparse");
     assert!(label_ranges(&reopened).is_empty());
 }
+
+fn labels_of(bytes: Vec<u8>) -> Vec<String> {
+    page_labels(&Document::from_bytes(bytes).expect("reparse")).expect("labels read")
+}
+
+/// Would catch: extract dropping the tree by default, keying it to the
+/// source's page indices, or reporting a kept tree as dropped.
+#[test]
+fn an_extract_keeps_each_page_label_by_default() {
+    use pdfcer_core::view::DocumentView;
+    let source = doc(5, ROMAN_THEN_DECIMAL);
+    let view = DocumentView::new(&source, source.bytes(), source.version());
+    let (bytes, report) = pdfcer_core::pageops::extract(&view, &[3, 1, 2]).expect("extract");
+    assert!(!report.page_labels_dropped);
+    assert_eq!(report.page_label_ranges, 3);
+    assert_eq!(labels_of(bytes), ["2", "ii", "1"]);
+}
+
+/// Would catch: `Drop` still writing a tree, or not disclosing the drop.
+#[test]
+fn an_extract_can_drop_the_labels() {
+    use pdfcer_core::pageops::{ExtractedPageLabels, SeparationPolicy};
+    use pdfcer_core::view::DocumentView;
+    let source = doc(5, ROMAN_THEN_DECIMAL);
+    let view = DocumentView::new(&source, source.bytes(), source.version());
+    let (bytes, report) = pdfcer_core::pageops::extract_with_labels(
+        &view,
+        &[0, 1],
+        SeparationPolicy::default(),
+        ExtractedPageLabels::Drop,
+    )
+    .expect("extract");
+    assert!(report.page_labels_dropped);
+    assert_eq!(report.page_label_ranges, 0);
+    assert_eq!(labels_of(bytes), ["1", "2"]);
+}
+
+/// Would catch: a split part not keeping its folios, or an extract from a
+/// document without a tree writing one.
+#[test]
+fn a_split_part_keeps_its_folios_and_no_tree_stays_none() {
+    use pdfcer_core::pageops::SplitCriterion;
+    use pdfcer_core::view::DocumentView;
+    let source = doc(5, ROMAN_THEN_DECIMAL);
+    let view = DocumentView::new(&source, source.bytes(), source.version());
+    let parts =
+        pdfcer_core::pageops::split(&view, &SplitCriterion::EveryN(2), "{stem}_{n}.pdf", "book")
+            .expect("split");
+    let shown: Vec<Vec<String>> = parts.into_iter().map(|(_, b, _)| labels_of(b)).collect();
+    assert_eq!(shown, [vec!["i", "ii"], vec!["1", "2"], vec!["3"]]);
+
+    let plain = doc(3, "");
+    let view = DocumentView::new(&plain, plain.bytes(), plain.version());
+    let (bytes, report) = pdfcer_core::pageops::extract(&view, &[2]).expect("extract");
+    assert!(!report.page_labels_dropped);
+    assert_eq!(report.page_label_ranges, 0);
+    assert!(label_ranges(&Document::from_bytes(bytes).expect("reparse")).is_empty());
+}
+
+/// Would catch: a page clip losing its label, so a paste shows the
+/// clip's physical number instead of the label the page showed.
+#[test]
+fn a_copied_page_pastes_with_its_label() {
+    use pdfcer_core::pageops::InsertPosition;
+    let source = EditSession::new(doc(5, ROMAN_THEN_DECIMAL));
+    let clip = source.copy_pages(&[1]).expect("copy");
+    let mut target = EditSession::new(doc(2, ""));
+    target
+        .paste_pages(&clip, InsertPosition::End)
+        .expect("paste");
+    assert_eq!(saved(&target), ["1", "2", "ii"]);
+}

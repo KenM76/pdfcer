@@ -124,7 +124,10 @@ pub use separation::{
     SeparationDict, SeparationImpact, SeparationPlan, SeparationPolicy, SeparationRewrite,
     SeparationSplitRefused, any_preseparated, plan_repair, separation_of,
 };
-pub use split::{SplitCriterion, SplitPart, plan_split, render_name_template, split, split_with};
+pub use split::{
+    SplitCriterion, SplitPart, plan_split, render_name_template, split, split_with,
+    split_with_labels,
+};
 
 use crate::object::ObjId;
 use crate::page_tree::PageTreeError;
@@ -426,12 +429,57 @@ pub fn extract_with(
     pages: &[usize],
     separations: SeparationPolicy,
 ) -> Result<(Vec<u8>, AssembleReport), PageOpError> {
+    extract_with_labels(source, pages, separations, ExtractedPageLabels::default())
+}
+
+/// [`extract_with`], with an explicit page-label policy (ISO 32000-1
+/// §12.4.2).
+///
+/// Under [`ExtractedPageLabels::Keep`] the report's `page_label_ranges`
+/// counts the ranges written and `page_labels_dropped` stays clear; under
+/// [`ExtractedPageLabels::Drop`] `page_labels_dropped` is set when the
+/// source had a tree. A source without a tree yields an output without one
+/// either way.
+///
+/// # Errors
+///
+/// As [`extract_with`].
+pub fn extract_with_labels(
+    source: &DocumentView<'_>,
+    pages: &[usize],
+    separations: SeparationPolicy,
+    labels: ExtractedPageLabels,
+) -> Result<(Vec<u8>, AssembleReport), PageOpError> {
     let order: Vec<PageRef> = pages.iter().map(|index| (0, *index)).collect();
-    assemble(
-        std::slice::from_ref(source),
-        &order,
-        &AssembleOptions::default().with_separations(separations),
-    )
+    let mut options = AssembleOptions::default().with_separations(separations);
+    let tree = source
+        .graph()
+        .catalog_dict()
+        .and_then(|c| c.get(b"PageLabels"))
+        .map(|t| crate::page_labels::ranges(source.graph(), t));
+    if labels == ExtractedPageLabels::Keep
+        && let Some(tree) = tree.as_deref()
+    {
+        let count = crate::page_tree::page_slots(source.graph())?.len();
+        options.page_labels = Some(crate::page_labels::subset(tree, count, pages));
+    }
+    let (bytes, mut report) = assemble(std::slice::from_ref(source), &order, &options)?;
+    report.page_labels_dropped = labels == ExtractedPageLabels::Drop && tree.is_some();
+    Ok((bytes, report))
+}
+
+/// Which labels (ISO 32000-1 §12.4.2) the pages of an extract or split
+/// show.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum ExtractedPageLabels {
+    /// Each page shows the label it showed in the source, so extracting
+    /// pages 3 and 4 of `i ii 1 2` shows `1 2`, and a chapter split out of
+    /// a book keeps its printed folios.
+    #[default]
+    Keep,
+    /// The source's tree is dropped and pages take their physical numbers.
+    Drop,
 }
 
 /// Concatenate several documents into one, in the order given.
