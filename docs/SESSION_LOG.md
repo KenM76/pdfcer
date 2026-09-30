@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (773rd filing) — `Pass 415.0` (`b8b3b108`): cut axial/radial shadings under a redaction mark
+
+**Shipped:**
+- `Pass 415.0` (`b8b3b108`) — `apply_redactions` now cuts a type 2–3
+  (axial/radial) `sh` whose clip box meets a redaction region, wrapping
+  it in a clip intersecting the original clip with the region's
+  even-odd complement (mapped through the inverse CTM) rather than
+  leaving its paint inside the region. Types 1 and 4–7 remain the
+  disclosed residual. New `RedactionReport::shadings_cut`; CLI prints
+  `shadings_cut=`. Partly closes the 392nd-filing Backlog entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Corrects the Backlog entry's own premise: cutting types 2–3 needed
+  only the clip BOX `Pass 246.1` already tracked, not the exact clip
+  construction the entry assumed necessary (ISO 32000-1 §8.7.4.5.1 +
+  §8.5.4 — `sh` paints the whole current clip, and a new clip
+  intersects the prior one, so re-deriving the prior shape is
+  unnecessary).
+- Tests: core `--lib redact` 60 → 61 (2 new, 1 replaced); render `all`
+  388 (was 387, +1, zero leaked/changed pixels); `pdfcer-cli` 33 + 617
+  pass. Sabotage check (drop the hole, or use the CTM instead of its
+  inverse) leaks 23,364 pixels either way.
+- No manifest change — not a packaging Pass.
+
+**Still in flight:** Mesh types 4–7 and type 1 (function-based) shadings
+under a redaction mark remain uncut, per the narrowed Backlog entry.
+
+**For next session:** None flagged.
+
 ## 2026-09-29 (772nd filing) — `Pass 414.0` (`9262f497`): a rendering fuzz target through the subtractive colorant buffer
 
 **Shipped:**

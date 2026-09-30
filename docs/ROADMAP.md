@@ -115,6 +115,45 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 415.0` (`b8b3b108`), 2026-09-29 — cut axial/radial shadings under a redaction mark
+
+Partly closes the Backlog entry filed 2026-09-03 (392nd filing), "A
+SHADING (`sh`) UNDER A REDACTION MARK IS DISCLOSED BY COUNT, NOT CUT"
+(`Pass 246.1`'s named remainder).
+
+`apply_redactions`: a type 2–3 (axial/radial) `sh` whose clip box meets
+a redaction region is wrapped as `q` + one even-odd clip per region
+(outer box with the region as a hole, mapped to user space through the
+inverse CTM) + `W* n` + the original `sh` + `Q`. ISO 32000-1 §8.7.4.5.1
+(`sh` paints the whole current clip) plus §8.5.4 (a new clip
+intersects the current one) together mean the exact prior clip
+construction is NOT needed — correcting the backlog entry's premise,
+which assumed it was.
+
+New `pub shadings_cut: u64` on `RedactionReport` (`#[non_exhaustive]`).
+`shadings_intersecting` now counts only the uncut residual: types 1
+and 4–7, a singular CTM, or an unresolvable name. `shadings` carrier:
+`DisclosedNotScrubbed` if any residual, `Scrubbed` if all were cut,
+`Absent` otherwise. CLI `pdfcer redact` prints `shadings_cut=`.
+`docs/core-api/03-capabilities.md`'s `RedactionReport` list updated in
+the same commit.
+
+**Residual limit, stated honestly:** type 1 (function-based) and mesh
+types 4–7 are NOT cut — their sampled/vertex data would survive a
+clip — and stay disclosed by count. For the cut types 2–3 the shading
+dictionary itself is unchanged; only its painting inside the region is
+excluded.
+
+Tests: 2 new core unit tests (an axial shading cut, a clipped-away
+shading untouched; a type 4 mesh disclosed, not cut) replaced 1 old
+test — core `--lib redact` filter 60 → 61. 1 new render test
+(zero leaked pixels in the region, zero changed pixels outside it) —
+render `all` binary 388 (was 387). `pdfcer-cli` 33 + 617 pass. Sabotage
+check: dropping the region hole, or using the CTM instead of its
+inverse, leaks 23,364 pixels each and the test catches it.
+`check-core-api-verbs` PASS; fmt/clippy clean. No manifest change — not
+a packaging Pass.
+
 ### `Pass 414.0` (`9262f497`), 2026-09-29 — a rendering fuzz target through the subtractive colorant buffer
 
 Closes the Backlog entry filed 2026-08-31 (352nd filing) naming this gap.
@@ -22945,7 +22984,17 @@ finalizing save is a UX call. `FEATURES.md`: one *Planned* row under
 
 ### Unscoped — ★★ A SHADING (`sh`) UNDER A REDACTION MARK IS DISCLOSED BY COUNT, NOT CUT — `Pass 246.1`'s NAMED REMAINDER — filed 2026-09-03 (392nd filing)
 
-**Status: NOT STARTED.** `Pass 246.1` (*Shipped*, above) made the
+**Status: PARTLY CLOSED by `Pass 415.0` (`b8b3b108`), 2026-09-29.**
+Types 2–3 (axial/radial) are now cut, via a clip-intersection
+construction that needed only the shading's clip BOX (already tracked
+by `Pass 246.1`), not its exact construction — correcting this entry's
+own premise below, which assumed the exact clip path was required.
+`RedactionReport::shadings_cut` counts the cut population;
+`shadings_intersecting` is now only the residual: types 1 and 4–7. The
+remaining scope, unchanged from the analysis below, is those two
+mesh/function-based cases and the shading-PATTERN mesh case.
+
+**Status (pre-`Pass 415.0`): NOT STARTED.** `Pass 246.1` (*Shipped*, above) made the
 redaction interpreter track the current clipping path as a page-space
 bounding box and count every `sh` whose clip box meets a region (or
 every `sh` with no clip at all, which paints the whole page). The count
