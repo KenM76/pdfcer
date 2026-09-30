@@ -573,6 +573,9 @@ impl InsertPosition {
 /// Files' confirmed default, the one documented precedent in this
 /// cluster"*.
 ///
+/// Page labels (§12.4.2) follow [`InsertedPageLabels::Source`]; see
+/// [`insert_with`] for the other policy.
+///
 /// # Errors
 ///
 /// [`PageOpError`] — see [`fn@assemble`].
@@ -582,6 +585,55 @@ pub fn insert(
     source_pages: &[usize],
     position: InsertPosition,
 ) -> Result<(Vec<u8>, AssembleReport), PageOpError> {
+    insert_with(
+        target,
+        source,
+        source_pages,
+        position,
+        InsertedPageLabels::default(),
+    )
+}
+
+/// How an insert labels the pages it adds (ISO 32000-1 §12.4.2). The
+/// target's own pages keep the labels they showed under either policy: its
+/// `/PageLabels` ranges are re-keyed past the inserted block, and the range
+/// that covered the insertion point resumes after it at the number the
+/// next target page showed.
+///
+/// Acrobat does neither: it overwrites every inserted page with the label
+/// of the page before the insertion point and leaves the target's later
+/// ranges stale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum InsertedPageLabels {
+    /// Each inserted page shows the label it showed in its source (a source
+    /// with no tree counts as decimal from 1).
+    #[default]
+    Source,
+    /// The inserted pages join the range covering the page before them (the
+    /// first range when inserting at the start) and number on through it;
+    /// the source's labels are dropped. With no target tree nothing is
+    /// written and the inserted pages take their physical numbers.
+    ContinueRange,
+}
+
+/// [`insert`] with an explicit page-label policy.
+///
+/// The report's `page_label_ranges` counts the ranges written (`0` when
+/// neither document has a tree), `page_labels_dropped` is set when the
+/// source's tree was dropped under [`InsertedPageLabels::ContinueRange`],
+/// and `page_labels_stale` is never set.
+///
+/// # Errors
+///
+/// [`PageOpError`] — see [`fn@assemble`].
+pub fn insert_with(
+    target: &DocumentView<'_>,
+    source: &DocumentView<'_>,
+    source_pages: &[usize],
+    position: InsertPosition,
+    labels: InsertedPageLabels,
+) -> Result<(Vec<u8>, AssembleReport), PageOpError> {
     let target_count = crate::page_tree::page_slots(target.graph())?.len();
     let at = position.slot(target_count);
 
@@ -590,29 +642,51 @@ pub fn insert(
     order.extend(source_pages.iter().map(|page| (1, *page)));
     order.extend((at..target_count).map(|page| (0, page)));
 
+    let tree_of = |view: &DocumentView<'_>| {
+        view.graph()
+            .catalog_dict()
+            .and_then(|c| c.get(b"PageLabels"))
+            .map(|t| crate::page_labels::ranges(view.graph(), t))
+    };
+    let target_ranges = tree_of(target).unwrap_or_default();
+    let source_tree = tree_of(source);
+    let source_count = crate::page_tree::page_slots(source.graph())?.len();
+    let label_ranges = crate::page_labels::inserted(
+        &target_ranges,
+        target_count,
+        source_tree.as_deref().unwrap_or_default(),
+        source_count,
+        source_pages,
+        at,
+        labels,
+    );
+
     let options = AssembleOptions {
         catalog_from: Some(0),
         info_from: Some(0),
         outline: OutlinePolicy::Subset,
         source_titles: Vec::new(),
         source_files: Vec::new(),
-        // The target keeps every one of its own pages, so its label tree
-        // still describes real pages — just with the wrong numbers after
-        // the insertion point. Acrobat leaves exactly this stale; pdfcer
-        // leaves it stale and reports it.
-        carry_page_labels: true,
-        page_labels: None,
+        // The target's tree is rewritten re-keyed, never copied as is.
+        carry_page_labels: false,
+        page_labels: Some(label_ranges),
         rename_duplicate_fields: true,
         // An insert keeps every target page and takes whole pages from the
         // source, so a set is split only if the CALLER selected part of
         // one — which the repair then handles.
         separations: SeparationPolicy::Repair,
     };
-    assemble(
+    let (bytes, mut report) = assemble(
         &[target.clone_view(), source.clone_view()],
         &order,
         &options,
-    )
+    )?;
+    // `carry_page_labels: false` reports the TARGET's tree as dropped; what
+    // an insert drops is the source's, and only under `ContinueRange`.
+    report.page_labels_dropped =
+        labels == InsertedPageLabels::ContinueRange && source_tree.is_some();
+    report.page_labels_stale = false;
+    Ok((bytes, report))
 }
 
 #[cfg(test)]

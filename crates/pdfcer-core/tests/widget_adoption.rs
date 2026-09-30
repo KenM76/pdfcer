@@ -27,7 +27,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditError, EditSession};
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{ObjId, Object};
-use pdfcer_core::pageops::InsertPosition;
+use pdfcer_core::pageops::{InsertPosition, InsertedPageLabels};
 use pdfcer_core::writer::SaveOptions;
 
 const ACROFORM: &str = concat!(
@@ -657,79 +657,74 @@ fn insert(target: Vec<u8>, source: Vec<u8>) -> (EditSession, pdfcer_core::edit::
     (session, outcome)
 }
 
-/// Would catch: the two page-label facts being conflated, or either being
-/// reported when it is not true.
-///
-/// They are separate because the operator's next action differs — a stale
-/// tree wants renumbering, a dropped one wants creating — so all four
-/// combinations of "source has labels" × "target has labels" are checked
-/// rather than the one case that happens to be handy.
+/// Would catch: a label fact reported when it is not true, under either
+/// policy, over all four "target labelled" × "source labelled" cases.
 #[test]
-fn the_two_page_label_facts_are_reported_independently() {
-    let cases = [
-        // (target labelled, source labelled, expect_dropped, expect_stale)
-        (true, true, true, true),
-        (true, false, false, true),
-        (false, true, true, false),
-        (false, false, false, false),
-    ];
-    for (t, s, want_dropped, want_stale) in cases {
-        let target = if t {
-            labelled_doc(2)
-        } else {
-            unlabelled_doc(2)
-        };
-        let source = if s {
-            labelled_doc(1)
-        } else {
-            unlabelled_doc(1)
-        };
-        let (_, outcome) = insert(target, source);
-        assert_eq!(
-            outcome.source_page_labels_dropped, want_dropped,
-            "target_labelled={t} source_labelled={s}: dropped flag"
-        );
-        assert_eq!(
-            outcome.page_labels_stale, want_stale,
-            "target_labelled={t} source_labelled={s}: stale flag"
-        );
+fn the_page_label_facts_follow_the_policy() {
+    for (t, s) in [(true, true), (true, false), (false, true), (false, false)] {
+        for policy in [
+            InsertedPageLabels::Source,
+            InsertedPageLabels::ContinueRange,
+        ] {
+            let target = if t {
+                labelled_doc(2)
+            } else {
+                unlabelled_doc(2)
+            };
+            let source = if s {
+                labelled_doc(1)
+            } else {
+                unlabelled_doc(1)
+            };
+            let src = Document::from_bytes(source).expect("source must parse");
+            let mut session =
+                EditSession::new(Document::from_bytes(target).expect("target must parse"));
+            let outcome = session
+                .insert_pages_with(&src.view(), &[0], InsertPosition::End, policy)
+                .expect("insert must succeed");
+            let continuing = policy == InsertedPageLabels::ContinueRange;
+            let case = format!("target={t} source={s} {policy:?}");
+            assert_eq!(
+                outcome.source_page_labels_dropped,
+                continuing && s,
+                "{case}"
+            );
+            assert!(!outcome.page_labels_stale, "{case}");
+            let written = if continuing { t } else { t || s };
+            assert_eq!(outcome.page_label_ranges > 0, written, "{case}");
+        }
     }
 }
 
-/// Would catch: pdfcer acquiring Acrobat's behaviour — writing a label for the
-/// inserted range.
-///
-/// `Acrobat_Features/core_ops__page_labels_and_bates_interaction.md` records
-/// that Acrobat overwrites every inserted page with a static copy of the
-/// label on the target page preceding the insertion point: a twelve-page
-/// chapter labelled `10-1`…`10-12`, inserted after a page labelled `9-45`,
-/// came out with all twelve showing `9-45`. That is a wrong label on every
-/// inserted page, written silently, and the threads documenting it are
-/// complaints.
-///
-/// So this asserts the target's `/PageLabels` tree is **byte-identical**
-/// after the insert. Not "still present" — identical, because a writer that
-/// appended a new static range for the inserted pages would leave it present
-/// and changed, and that is precisely the behaviour being refused.
-#[test]
-fn an_insert_does_not_touch_the_targets_page_label_tree() {
-    let target = labelled_doc(2);
-    let before = {
-        let doc = Document::from_bytes(target.clone()).expect("parse");
-        let Some(Object::Dict(catalog)) = doc
-            .catalog_id()
-            .and_then(|id| doc.get(id).map(|io| &io.value))
-        else {
-            panic!("no catalog")
-        };
-        catalog.get(b"PageLabels").map(|o| doc.resolve(o).clone())
-    };
-    assert!(before.is_some(), "fixture premise: the target IS labelled");
+/// A `pages`-page document whose `/PageLabels` `/Nums` array is `nums`.
+fn doc_with_nums(pages: usize, nums: &str) -> Vec<u8> {
+    let kids: Vec<String> = (0..pages).map(|i| format!("{} 0 R", i + 3)).collect();
+    let mut objects: Vec<(u32, String)> = vec![
+        (
+            1,
+            format!("<< /Type /Catalog /Pages 2 0 R /PageLabels << /Nums [{nums}] >> >>"),
+        ),
+        (
+            2,
+            format!(
+                "<< /Type /Pages /Kids [{}] /Count {pages} /MediaBox [0 0 200 100] \
+/Resources << >> >>",
+                kids.join(" ")
+            ),
+        ),
+    ];
+    for i in 0..pages {
+        objects.push((
+            u32::try_from(i + 3).expect("small"),
+            "<< /Type /Page /Parent 2 0 R >>".to_owned(),
+        ));
+    }
+    let refs: Vec<(u32, &str)> = objects.iter().map(|(n, b)| (*n, b.as_str())).collect();
+    build(&refs)
+}
 
-    let (session, outcome) = insert(target, labelled_doc(1));
-    assert!(outcome.source_page_labels_dropped);
-    assert!(outcome.page_labels_stale);
-
+/// The saved catalog's `/PageLabels` `/Nums` as `(start, /S, /St)` triples.
+fn saved_nums(session: &EditSession) -> Vec<(i64, Option<Vec<u8>>, Option<i64>)> {
     let (bytes, _) = session
         .to_incremental_bytes(&SaveOptions::identity())
         .expect("save must succeed");
@@ -740,13 +735,88 @@ fn an_insert_does_not_touch_the_targets_page_label_tree() {
     else {
         panic!("no catalog")
     };
-    let after = catalog.get(b"PageLabels").map(|o| doc.resolve(o).clone());
+    let Some(Object::Dict(tree)) = catalog.get(b"PageLabels").map(|o| doc.resolve(o)) else {
+        return Vec::new();
+    };
+    let Some(Object::Array(nums)) = tree.get(b"Nums").map(|o| doc.resolve(o)) else {
+        panic!("tree without /Nums")
+    };
+    nums.chunks_exact(2)
+        .map(|pair| {
+            let Object::Integer(start) = doc.resolve(&pair[0]) else {
+                panic!("non-integer key")
+            };
+            let Object::Dict(label) = doc.resolve(&pair[1]) else {
+                panic!("non-dictionary label")
+            };
+            let style = match label.get(b"S") {
+                Some(Object::Name(n)) => Some(n.as_bytes().to_vec()),
+                _ => None,
+            };
+            let st = match label.get(b"St") {
+                Some(Object::Integer(n)) => Some(*n),
+                _ => None,
+            };
+            (*start, style, st)
+        })
+        .collect()
+}
+
+/// Would catch: an insert leaving the target's later labels on the wrong
+/// pages (what Acrobat does), or giving an inserted page any label but the
+/// one it showed in its source.
+///
+/// Target `i ii 1 2`; source page 3 of an unlabelled file (it showed `3`)
+/// inserted before the target's `2`. Every page must keep its label:
+/// `i ii 1 3 2`. One undo must restore the original tree.
+#[test]
+fn an_insert_keeps_every_pages_label() {
+    let target = doc_with_nums(4, "0 << /S /r >> 2 << /S /D >>");
+    let src = Document::from_bytes(unlabelled_doc(3)).expect("source must parse");
+    let mut session = EditSession::new(Document::from_bytes(target).expect("target must parse"));
+    let before = saved_nums(&session);
+    let outcome = session
+        .insert_pages(&src.view(), &[2], InsertPosition::Before(3))
+        .expect("insert must succeed");
+    let d = Some(b"D".to_vec());
     assert_eq!(
-        after, before,
-        "the label tree must be untouched — pdfcer does not write a label it \
-cannot justify, and specifically does not copy the anchor page's label onto \
-the inserted range the way Acrobat does"
+        saved_nums(&session),
+        vec![
+            (0, Some(b"r".to_vec()), None),
+            (2, d.clone(), None),
+            (3, d.clone(), Some(3)),
+            (4, d, Some(2)),
+        ]
     );
+    assert_eq!(outcome.page_label_ranges, 4);
+    session.undo().expect("undo must succeed");
+    assert_eq!(saved_nums(&session), before, "one undo reverts the tree");
+}
+
+/// Would catch: `ContinueRange` re-keying the covering range or keeping the
+/// source's labels. Target `i ii 1 2`; a page inserted before its `1` joins
+/// `i ii` as `iii`, and the decimal range moves past it.
+#[test]
+fn continue_range_numbers_the_inserted_pages_through_the_covering_range() {
+    let target = doc_with_nums(4, "0 << /S /r >> 2 << /S /D >>");
+    let src = Document::from_bytes(doc_with_nums(3, "0 << /S /R >>")).expect("source must parse");
+    let mut session = EditSession::new(Document::from_bytes(target).expect("target must parse"));
+    let outcome = session
+        .insert_pages_with(
+            &src.view(),
+            &[2],
+            InsertPosition::Before(2),
+            InsertedPageLabels::ContinueRange,
+        )
+        .expect("insert must succeed");
+    assert_eq!(
+        saved_nums(&session),
+        vec![
+            (0, Some(b"r".to_vec()), None),
+            (3, Some(b"D".to_vec()), None)
+        ]
+    );
+    assert!(outcome.source_page_labels_dropped);
 }
 
 // ---------------------------------------------------------------------------

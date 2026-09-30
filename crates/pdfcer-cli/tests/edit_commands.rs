@@ -40,8 +40,13 @@ const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 /// Three pages so the "only the edited page changed" assertion has
 /// something to be false about.
 fn pdf(info: bool, id: bool) -> Vec<u8> {
+    pdf_with_catalog(info, id, "")
+}
+
+/// As [`pdf`], with `extra` appended inside the catalog dictionary.
+fn pdf_with_catalog(info: bool, id: bool, extra: &str) -> Vec<u8> {
     let mut objects: Vec<(u32, String)> = vec![
-        (1, "<< /Type /Catalog /Pages 2 0 R >>".to_owned()),
+        (1, format!("<< /Type /Catalog /Pages 2 0 R{extra} >>")),
         (
             2,
             "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>".to_owned(),
@@ -1015,6 +1020,56 @@ fn insert_pages_splices_a_second_document_in() {
     ]);
     assert_eq!(code(&out), 0, "{}", stderr(&out));
     assert!(stdout(&out).contains("pages=4"), "{}", stdout(&out));
+}
+
+/// Would catch: `--labels` parsed and not passed to the engine, or the
+/// target's own labels left stale. Target `i ii iii`; unlabelled source
+/// page 1 inserted after page 1. The default writes `i`, `1`, then `ii`
+/// resumed (three ranges); `continue` lets the roman range run through
+/// (one range) and reports the source's tree dropped.
+#[test]
+fn insert_pages_labels_flag_selects_the_policy() {
+    let dir = TempDir::new("insert-labels");
+    let input = dir.write(
+        "in.pdf",
+        &pdf_with_catalog(false, true, " /PageLabels << /Nums [0 << /S /r >>] >>"),
+    );
+    let plain = dir.write("src.pdf", &pdf(false, true));
+    let labelled = dir.write(
+        "src-l.pdf",
+        &pdf_with_catalog(false, true, " /PageLabels << /Nums [0 << /S /A >>] >>"),
+    );
+    let go = |source: &PathBuf, labels: Option<&str>| {
+        let out_path = dir.join("out.pdf");
+        let mut args = vec![
+            "insert-pages",
+            input.to_str().unwrap(),
+            "--source",
+            source.to_str().unwrap(),
+            "--source-pages",
+            "1",
+            "--after",
+            "1",
+            "-o",
+            out_path.to_str().unwrap(),
+        ];
+        if let Some(l) = labels {
+            args.extend(["--labels", l]);
+        }
+        let out = run(&args);
+        assert_eq!(code(&out), 0, "{}", stderr(&out));
+        stdout(&out)
+    };
+    let line = go(&plain, None);
+    assert_eq!(metric(&line, "label_ranges"), 3, "{line}");
+    assert_eq!(metric(&line, "labels_stale"), 0, "{line}");
+    let line = go(&plain, Some("continue"));
+    assert_eq!(metric(&line, "label_ranges"), 1, "{line}");
+    let line = go(&labelled, Some("continue"));
+    assert_eq!(metric(&line, "labels_dropped"), 1, "{line}");
+    let line = go(&labelled, Some("source"));
+    assert_eq!(metric(&line, "labels_dropped"), 0, "{line}");
+    assert_eq!(metric(&line, "label_ranges"), 3, "{line}");
 }
 
 #[test]

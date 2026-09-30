@@ -138,6 +138,7 @@ pub(crate) fn cmd_insert_pages(
     source_pages: &str,
     before: Option<usize>,
     after: Option<usize>,
+    labels: crate::cli::InsertLabelsArg,
     output: &Path,
 ) -> u8 {
     let (target_doc, source_doc) = match (open_for_read(input), open_for_read(source)) {
@@ -169,11 +170,20 @@ pub(crate) fn cmd_insert_pages(
 
     let target_view = DocumentView::new(&target_doc, target_doc.bytes(), target_doc.version());
     let source_view = DocumentView::new(&source_doc, source_doc.bytes(), source_doc.version());
-    let (bytes, report) =
-        match pdfcer_core::pageops::insert(&target_view, &source_view, &selected, position) {
-            Ok(pair) => pair,
-            Err(err) => return report_page_op_error(&err),
-        };
+    let labels = match labels {
+        crate::cli::InsertLabelsArg::Source => InsertedPageLabels::Source,
+        crate::cli::InsertLabelsArg::Continue => InsertedPageLabels::ContinueRange,
+    };
+    let (bytes, report) = match pdfcer_core::pageops::insert_with(
+        &target_view,
+        &source_view,
+        &selected,
+        position,
+        labels,
+    ) {
+        Ok(pair) => pair,
+        Err(err) => return report_page_op_error(&err),
+    };
     if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;

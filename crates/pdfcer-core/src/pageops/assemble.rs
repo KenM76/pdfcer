@@ -226,25 +226,20 @@ pub struct AssembleOptions {
     /// difference is whether the output's pages are a *subset* of a
     /// source's or a *superset*:
     ///
-    /// - **Insert** adds pages to a document that keeps all of its own,
-    ///   so `true`. `core_ops__page_labels_and_bates_interaction.md`
-    ///   records Acrobat's baseline — *"Inserting pages does not renumber
-    ///   a later label section to account for the shift"* — and
-    ///   recommends pdfcer *"leave `/PageLabels` numerically stale exactly
-    ///   as Acrobat does"* for this Pass. pdfcer matches that **and emits
-    ///   a diagnostic**, which is the parity-plus half: Acrobat leaves
-    ///   them stale and silent.
+    /// - **Insert** would leave the target's tree stale (every range after
+    ///   the insertion point describing the wrong pages), which is what
+    ///   Acrobat does. [`super::insert_with`] passes `false` and writes a
+    ///   re-keyed tree through `page_labels` instead.
     /// - **Extract / split** produce a document whose pages are a subset
     ///   in a different order, so `false`. Carrying a label tree there
     ///   would not merely be stale, it would be *confidently wrong* about
     ///   pages that are not in the file — worse than absent.
     /// - **Merge** has no single source to inherit from, so `false` — it
-    ///   writes a spliced tree through `page_labels` instead.
+    ///   writes a spliced tree through `page_labels` too.
     pub carry_page_labels: bool,
     /// A label tree built for the output (§12.4.2), written into its
-    /// catalog in place of any carried one. Set by [`super::merge`], whose
-    /// output is every page of every source in order, so each source's
-    /// ranges can be offset exactly.
+    /// catalog in place of any carried one. Set by [`super::merge`] and
+    /// [`super::insert_with`], which know where every source page lands.
     pub(crate) page_labels: Option<Vec<crate::page_labels::Range>>,
     /// Whether to auto-rename AcroForm fields whose fully-qualified names
     /// collide across sources.
@@ -384,17 +379,14 @@ pub struct AssembleReport {
     /// [`AssembleOptions::carry_page_labels`] for when the other answer
     /// is right.
     pub page_labels_dropped: bool,
-    /// Whether a `/PageLabels` tree was **carried and is now stale** —
-    /// the insert case.
-    ///
-    /// Acrobat leaves it stale silently; pdfcer leaves it stale and says
-    /// so. Distinct from [`AssembleReport::page_labels_dropped`] because
+    /// Whether a `/PageLabels` tree was **carried and is now stale** — set
+    /// only by [`AssembleOptions::carry_page_labels`]. Distinct from [`AssembleReport::page_labels_dropped`] because
     /// the operator's next action differs: a stale tree wants
     /// renumbering, an absent one wants creating.
     pub page_labels_stale: bool,
-    /// Ranges in the `/PageLabels` tree a merge wrote so every page keeps
-    /// the label it showed in its own source; `0` when no source had a
-    /// tree and none was written.
+    /// Ranges in the `/PageLabels` tree a merge or insert wrote so every
+    /// page keeps the label it showed in its own source; `0` when none was
+    /// written.
     pub page_label_ranges: usize,
     /// Whether a source's `/StructTreeRoot` (§14.7, Tagged PDF) was
     /// dropped rather than carried.
@@ -691,7 +683,7 @@ pub fn assemble(
 /// | `/OCProperties` | yes | layer *definitions* stay valid; an unused OCG is inert (§8.11) |
 /// | `/Lang`, `/ViewerPreferences`, `/PageMode`, `/PageLayout` | yes | document-wide preferences, page-set independent |
 /// | `/StructTreeRoot` | **no** | would leave dangling marked-content refs — a file that claims to be tagged and is not |
-/// | `/PageLabels` | **only for insert** | see [`AssembleOptions::carry_page_labels`] |
+/// | `/PageLabels` | when `carry_page_labels` | see [`AssembleOptions::carry_page_labels`] |
 /// | `/Names`, `/Dests` | **no** | no documented merge rule (RAG **GAP**); a subset silently changes which names resolve |
 /// | `/Outlines` | **no** here | rebuilt by [`outline::build`] |
 /// | `/AcroForm` | **no** here | rebuilt by [`build_acroform`] |

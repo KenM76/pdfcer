@@ -112,6 +112,16 @@ pub(crate) enum BatesNameArg {
     KeepRange,
 }
 
+/// `insert-pages --labels`: what page labels the inserted pages get.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum InsertLabelsArg {
+    /// The label each page showed in the source document.
+    Source,
+    /// Continue the numbering of the target page before the insertion
+    /// point; the source's labels are dropped.
+    Continue,
+}
+
 /// `layer-edit --visible/--locked`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum OnOffArg {
@@ -516,6 +526,11 @@ pub(crate) enum Command {
         /// with `--before`; the default is to append at the end.
         #[arg(long, conflicts_with = "before")]
         after: Option<usize>,
+        /// Page labels for the inserted pages. The target's own pages keep
+        /// their labels either way. No label tree is written when neither
+        /// file has one.
+        #[arg(long, value_enum, default_value_t = InsertLabelsArg::Source)]
+        labels: InsertLabelsArg,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

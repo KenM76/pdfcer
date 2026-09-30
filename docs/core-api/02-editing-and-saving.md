@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 291 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 292 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 291 public `EditSession` methods
+## 1. Verb index — all 292 public `EditSession` methods
 
-**Count: 291.** Established by brace-matched extraction of the six
+**Count: 292.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -216,6 +216,7 @@ need their own policy).
 | **Set / reset pages' `/CropBox`** (`G056`) | `set_crop_boxes(&mut self, indices: &[usize], edit: CropBoxEdit) -> Result<Vec<CropBoxChange>, EditError>` | `CropBoxEdit::{Set(Rect), Reset}` (`non_exhaustive`). Written on the leaf page; an inherited `Pages` value is never edited. `Reset` removes the own entry, or writes the media box when an ancestor crop would otherwise show. `CropBoxChange { page_index, before, after, entry, overhangs_media_box }` — `before`/`after` are EFFECTIVE (∩ media, §14.11.2.1); `entry: CropBoxEntry::{BaseSpellingKept, InheritedSoOwnEntryRemoved, ExplicitWritten, Absent}`. An overhanging rect is written and flagged; zero-area, non-finite or off-sheet is `EditError::CropBoxEmpty { page_index }`, raised before anything commits. ONE undo entry, `CommandKind::SetCropBoxes { count }`; set-then-reset is net zero. CLI: `set-crop-box`, `set-page-size --crop`. |
 | **Scale pages' content onto a new sheet** | `scale_pages(&mut self, indices: &[usize], request: &pageops::ScaleRequest) -> Result<pageops::ScaleReport, EditError>` | `ScaleRequest::new(w, h)` in points, displayed orientation; `.with_mode(ScaleMode::Fit / Fill)`, `.with_orientation(OrientationPolicy::Match / Exact)`. Content streams are wrapped (`q cm clip` … `Q`), never rewritten; every page box becomes the sheet; annotations, `/Measure` factors, viewports, beads and destinations naming the page move with it. `ScaleReport { pages: Vec<PageScaled { page_index, source, placement: PagePlacement { target, scale, offset_x, offset_y, orientation_flipped }, mode, annotations, measures }>, destinations, geo_measures_unchanged }` — show the per-page scale, offset and mode (rule 4). Refuses `ScaleRefusedCeDimensions { page_index, count }` on a page with ce dimensions; `MediaBoxDegenerate` for a bad size. ONE undo entry, `CommandKind::ScalePages { count }`. |
 | **Insert pages from another document** | `insert_pages(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition) -> Result<InsertOutcome, EditError>` | `InsertOutcome { pages_inserted, orphaned_widgets }`. **Read the warning below before writing a disclosure about it.** |
+| **Insert pages, choosing their labels** | `insert_pages_with(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition, labels: pageops::InsertedPageLabels) -> Result<InsertOutcome, EditError>` | As `insert_pages`, which uses `InsertedPageLabels::Source`. See *Page labels on insert*. |
 
 > #### ★★ `insert_pages`: THE WIDGETS ARRIVE, THEIR FIELDS DO NOT — and one
 > consumer has already shipped the wrong sentence about it
@@ -2984,45 +2985,39 @@ existed, which is how an operator learns to stop reading it.
 sees it — the bookmarks are not lost in transit, they were never in the set
 being copied. Carrying them means reading the source outline and replaying it
 through `add_outline_item`, which is what `Pass 103.0` exists for.
-#### ★ Page labels on insert — `Pass 103.2`, a measured divergence from Acrobat
+#### Page labels on insert
 
-`InsertOutcome` gained two more fields (both additive, `#[non_exhaustive]`):
+`insert_pages` uses `pageops::InsertedPageLabels::Source`;
+`insert_pages_with(source, source_pages, position, labels)` takes the policy
+explicitly. Either way the target's `/PageLabels` tree is rewritten in the
+same command (one undo reverts it), so **every target page keeps the label it
+showed**: its ranges are re-keyed past the inserted block, and the range that
+covered the insertion point resumes after it at the number the next target
+page showed.
+
+| policy | inserted pages show |
+|---|---|
+| `Source` (default) | the label each showed in its source (an unlabelled source counts as decimal from 1) |
+| `ContinueRange` | the numbering of the range covering the page before them, which runs on through them; the source's labels are dropped |
+
+`InsertOutcome` fields:
 
 | field | means |
 |---|---|
-| `source_page_labels_dropped` | the source had a `/PageLabels` tree; its labels did not come across |
-| `page_labels_stale` | the target has one, and its ranges now describe different physical pages |
+| `page_label_ranges` | ranges in the tree written; `0` when none was (neither file has a tree, or `ContinueRange` with an unlabelled target) |
+| `source_page_labels_dropped` | `ContinueRange` only: the source had a tree and its labels did not come across |
+| `page_labels_stale` | always `false`; kept so existing readers compile — drop any disclosure built on it |
 
-**pdfcer writes nothing to `/PageLabels` on an insert.** That is deliberate,
-and it is not what Acrobat does.
+`pageops::insert_with` is the same for the new-file route (CLI
+`insert-pages --labels source|continue`); its `AssembleReport` carries
+`page_label_ranges` and `page_labels_dropped` with the same meanings.
 
-`Acrobat_Features/core_ops__page_labels_and_bates_interaction.md`
-(2026-08-19; three independent Adobe Community threads, 2024–2025) found a
-third behaviour neither obvious option predicts: Acrobat **actively
-overwrites** every inserted page with a static copy of the label displayed on
-the target page immediately *preceding* the insertion point — not the
-source's label, not an incrementing continuation, the same single string on
-all of them. The sourced case: a twelve-page chapter labelled `10-1`…`10-12`,
-inserted after a page labelled `9-45`, came out with all twelve showing
-`9-45`.
-
-That is a wrong label on every inserted page, written silently, and the
-threads it is sourced from are complaints about it. Matching it would be
-matching a defect. pdfcer leaves the tree alone — so inserted pages continue
-whatever range already covered that position, which is what §12.4.2's
-per-page computation gives on its own — and reports the two facts instead.
-
-The labels are not **carried** either, for the reason
-`pageops::assemble` already gives for its `page_labels_dropped`: a label tree
-describes *physical page positions*, so carrying one onto a subset inserted
-at an arbitrary offset yields labels confidently wrong about pages that are
-not in the file. `pageops::assemble` exposes `carry_page_labels` for callers
-who want the other answer with their eyes open; `EditSession::insert_pages`
-has no options parameter and takes the conservative one.
-
-The two flags are separate because **the remedies differ** — a stale tree
-wants renumbering, a dropped one wants creating. A merged "something is wrong
-with page labels" would name neither.
+Acrobat does neither: it overwrites every inserted page with a static copy of
+the label on the page before the insertion point, and leaves the target's
+later ranges on the wrong pages
+(`Acrobat_Features/core_ops__page_labels_and_bates_interaction.md`). Decision
+072 records the divergence. Labels are computed per page, so carrying them
+onto a subset cannot describe pages that are not in the file.
 ### 1.21 Named destinations (1)
 
 > #### ★ Added 2026-08-19 — `Pass 103.3`

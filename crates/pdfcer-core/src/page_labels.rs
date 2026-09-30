@@ -174,6 +174,94 @@ pub(crate) fn splice(
     out
 }
 
+/// The ranges that give the selected `pages` of a `source_count`-page
+/// document, laid out from index 0 in the order given, the labels each
+/// displayed in that document. A run of consecutive pages under one range
+/// stays one range; every other page starts a range whose `/St` is the
+/// number it showed.
+pub(crate) fn subset(source: &[Range], source_count: usize, pages: &[usize]) -> Vec<Range> {
+    let shown = as_displayed(source, source_count);
+    let mut out = Vec::new();
+    let mut prev: Option<(usize, usize)> = None;
+    for (index, &page) in pages.iter().enumerate() {
+        let Some(range) = shown.iter().rposition(|r| r.0 <= page) else {
+            continue;
+        };
+        let Some((start, label)) = shown.get(range) else {
+            continue;
+        };
+        let styled = label.get(b"S").is_some();
+        let continues = prev.is_some_and(|(r, p)| r == range && (!styled || p + 1 == page));
+        prev = Some((range, page));
+        if continues {
+            continue;
+        }
+        let mut label = label.clone();
+        if styled {
+            let first = label.get(b"St").and_then(Object::as_int).unwrap_or(1);
+            let offset = i64::try_from(page - start).unwrap_or(i64::MAX);
+            label.insert(
+                Name::from(b"St"),
+                Object::Integer(first.saturating_add(offset)),
+            );
+        }
+        out.push((index, label));
+    }
+    out
+}
+
+/// The ranges of `target` after `count` pages are inserted at index `at`,
+/// with the inserted pages joining the range that covers the page before
+/// them (the first range when `at` is 0) and numbering on through it; every
+/// later range keeps its labels. Empty when `target` has no tree.
+pub(crate) fn continue_covering(
+    target: &[Range],
+    target_count: usize,
+    count: usize,
+    at: usize,
+) -> Vec<Range> {
+    if target.is_empty() || count == 0 {
+        return target.to_vec();
+    }
+    as_displayed(target, target_count)
+        .into_iter()
+        .map(|(start, label)| {
+            if start > at || (start == at && at > 0) {
+                (start + count, label)
+            } else {
+                (start, label)
+            }
+        })
+        .collect()
+}
+
+/// The ranges after inserting `pages` of `source` into `target` at `at`,
+/// under `policy`. The target's own pages keep their labels either way;
+/// empty when neither document has a tree.
+pub(crate) fn inserted(
+    target: &[Range],
+    target_count: usize,
+    source: &[Range],
+    source_count: usize,
+    pages: &[usize],
+    at: usize,
+    policy: crate::pageops::InsertedPageLabels,
+) -> Vec<Range> {
+    let at = at.min(target_count);
+    match policy {
+        crate::pageops::InsertedPageLabels::Source => {
+            if target.is_empty() && source.is_empty() {
+                return Vec::new();
+            }
+            let own = subset(source, source_count, pages);
+            splice(target, target_count, &own, pages.len(), at)
+        }
+        crate::pageops::InsertedPageLabels::ContinueRange => {
+            continue_covering(target, target_count, pages.len(), at)
+        }
+    }
+}
+
 /// A single-node `/PageLabels` tree (§7.9.7: a root carrying `Nums` alone)
 /// holding `ranges`.
 pub(crate) fn tree(ranges: &[Range]) -> Object {
@@ -270,6 +358,71 @@ mod tests {
         assert_eq!(out[2].0, 2);
         assert_eq!(out[2].1.get(b"S"), None, "no style may be invented");
         assert_eq!(st(&out[2]), None);
+    }
+
+    #[test]
+    fn a_subset_keeps_each_page_label_and_merges_runs() {
+        // Source: i..iii, then A-1.. from page 3; 6 pages. Pick 1,2,4,0.
+        let source = vec![
+            (0, label(b"r", None, None)),
+            (3, label(b"D", Some(b"A-"), None)),
+        ];
+        let out = subset(&source, 6, &[1, 2, 4, 0]);
+        let starts: Vec<usize> = out.iter().map(|r| r.0).collect();
+        assert_eq!(starts, vec![0, 2, 3]);
+        assert_eq!(st(&out[0]), Some(2), "page 1 showed ii");
+        assert_eq!(st(&out[1]), Some(2), "page 4 showed A-2");
+        assert_eq!(out[1].1.get(b"P"), Some(&Object::String(b"A-".to_vec())));
+        assert_eq!(st(&out[2]), Some(1), "page 0 showed i");
+    }
+
+    #[test]
+    fn a_subset_of_a_treeless_source_keeps_its_physical_numbers() {
+        let out = subset(&[], 5, &[3, 4]);
+        assert_eq!(out.len(), 1);
+        assert_eq!(st(&out[0]), Some(4));
+    }
+
+    #[test]
+    fn inserting_a_subset_keeps_both_documents_labels() {
+        use crate::pageops::InsertedPageLabels;
+        let target = vec![(0, label(b"r", None, None)), (2, label(b"D", None, None))];
+        let out = inserted(&target, 6, &[], 9, &[6, 7], 4, InsertedPageLabels::Source);
+        let starts: Vec<usize> = out.iter().map(|r| r.0).collect();
+        assert_eq!(starts, vec![0, 2, 4, 6]);
+        assert_eq!(st(&out[2]), Some(7), "source page 6 showed 7");
+        assert_eq!(st(&out[3]), Some(3), "target page 4 showed 3");
+    }
+
+    #[test]
+    fn continue_range_numbers_through_and_shifts_later_ranges() {
+        use crate::pageops::InsertedPageLabels;
+        let target = vec![(0, label(b"r", None, None)), (2, label(b"D", None, None))];
+        let source = vec![(0, label(b"R", None, None))];
+        let out = inserted(
+            &target,
+            6,
+            &source,
+            3,
+            &[0, 1],
+            2,
+            InsertedPageLabels::ContinueRange,
+        );
+        let starts: Vec<usize> = out.iter().map(|r| r.0).collect();
+        // The inserted pages join i, ii as iii, iv; the decimal range moves.
+        assert_eq!(starts, vec![0, 4]);
+        assert_eq!(st(&out[1]), None);
+    }
+
+    #[test]
+    fn neither_tree_inserts_nothing_under_either_policy() {
+        use crate::pageops::InsertedPageLabels;
+        for policy in [
+            InsertedPageLabels::Source,
+            InsertedPageLabels::ContinueRange,
+        ] {
+            assert!(inserted(&[], 4, &[], 3, &[0, 2], 1, policy).is_empty());
+        }
     }
 
     #[test]

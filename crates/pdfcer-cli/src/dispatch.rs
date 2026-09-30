@@ -158,8 +158,17 @@ pub(crate) fn run() -> ExitCode {
             source_pages,
             before,
             after,
+            labels,
             output,
-        } => cmd_insert_pages(&input, &source, &source_pages, before, after, &output),
+        } => cmd_insert_pages(
+            &input,
+            &source,
+            &source_pages,
+            before,
+            after,
+            labels,
+            &output,
+        ),
         Command::DeletePages {
             input,
             pages,

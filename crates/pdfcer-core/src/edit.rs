@@ -4047,63 +4047,36 @@ pub struct InsertOutcome {
     /// built for.
     pub source_outline_dropped: bool,
     /// Whether the SOURCE carried a `/PageLabels` number tree (§12.4.2)
-    /// whose labels did **not** come across with the pages.
+    /// whose labels did **not** come across: set only under
+    /// [`crate::pageops::InsertedPageLabels::ContinueRange`]. The default
+    /// policy gives each inserted page the label it showed in its source.
     ///
     /// # pdfcer deliberately does NOT match Acrobat here
     ///
-    /// This is a measured divergence, not an omission.
     /// `Acrobat_Features/core_ops__page_labels_and_bates_interaction.md`
-    /// (2026-08-19, three independent Adobe Community threads, 2024–2025)
-    /// establishes that Acrobat does something neither obvious option would
-    /// predict: it **actively overwrites** every inserted page with a static
-    /// copy of the label already displayed on the target page immediately
-    /// *preceding* the insertion point. Not the source's label, and not an
-    /// incrementing continuation — the same single string on all of them.
-    /// The sourced example: a twelve-page chapter labelled `10-1`…`10-12`,
-    /// inserted after a page labelled `9-45`, came out with all twelve
-    /// pages displaying `9-45`.
+    /// (three independent Adobe Community threads) establishes that Acrobat
+    /// overwrites every inserted page with a static copy of the label on
+    /// the target page immediately *preceding* the insertion point, and
+    /// leaves the target's later ranges describing the wrong pages: a
+    /// twelve-page chapter `10-1`…`10-12` inserted after `9-45` came out
+    /// with all twelve pages showing `9-45`. That is a wrong label on every
+    /// inserted page, and the threads are complaints about it. Parity with
+    /// Acrobat is a floor, not a target; decision 072 records the
+    /// divergence.
     ///
-    /// That is a **wrong label on every inserted page**, written silently,
-    /// and the threads it is sourced from are complaints about it. Matching
-    /// it would be matching a defect. pdfcer writes nothing to `/PageLabels`
-    /// on an insert, so the inserted pages simply continue whatever range
-    /// already covered that position — the outcome §12.4.2's per-page
-    /// computation gives on its own — and reports the two facts an operator
-    /// needs instead (this field and [`Self::page_labels_stale`]).
-    ///
-    /// The operator's standing instruction is that parity with Acrobat is a
-    /// floor rather than a target, and that a divergence gets recorded
-    /// rather than hidden. This is the record.
-    ///
-    /// # Why the labels are not carried either
-    ///
-    /// The same reason `pageops::assemble` gives for
-    /// `AssembleReport::page_labels_dropped`: a label tree describes
-    /// *physical page positions*, so carrying one onto a subset inserted at
-    /// an arbitrary offset produces labels confidently wrong about pages
-    /// that are not in the file. `assemble` exposes
-    /// `AssembleOptions::carry_page_labels` for callers who want the other
-    /// answer with their eyes open; this verb has no options parameter and
-    /// takes the conservative one.
+    /// Carrying labels onto a subset is safe here because they are computed
+    /// per page ([`crate::page_labels`]): each inserted page gets a range
+    /// whose `/St` is the number it showed, rather than the source's ranges
+    /// re-keyed onto positions they never described.
     pub source_page_labels_dropped: bool,
-    /// Whether the TARGET has a `/PageLabels` tree whose ranges now
-    /// describe different physical pages than before (§12.4.2).
-    ///
-    /// A label range is keyed by physical page index, so inserting pages
-    /// anywhere except the very end shifts every later page out from under
-    /// its range. pdfcer does not renumber — matching the ruling already
-    /// recorded for `delete_pages`, which `Acrobat_Features` confirms is
-    /// Acrobat's behaviour for every structural operation — **and says so**,
-    /// which is the parity-plus half: Acrobat leaves them stale and silent.
-    ///
-    /// Distinct from [`Self::source_page_labels_dropped`] because the
-    /// operator's next action differs. A stale tree wants renumbering; a
-    /// dropped one wants creating. Reporting a single merged "something is
-    /// wrong with page labels" would name neither remedy.
-    ///
-    /// `false` when the target has no label tree at all — nothing can be
-    /// stale that was never stated.
+    /// Always `false`: the target's `/PageLabels` ranges are re-keyed past
+    /// the inserted pages, so every target page keeps the label it showed.
     pub page_labels_stale: bool,
+    /// Ranges in the `/PageLabels` tree this insert wrote; `0` when it
+    /// wrote none (neither document has a tree, or
+    /// [`crate::pageops::InsertedPageLabels::ContinueRange`] with no target
+    /// tree).
+    pub page_label_ranges: usize,
 }
 
 /// What [`EditSession::merge_document`] did.
@@ -49207,9 +49180,33 @@ impl EditSession {
         source_pages: &[usize],
         position: crate::pageops::InsertPosition,
     ) -> Result<InsertOutcome, EditError> {
+        self.insert_pages_with(
+            source,
+            source_pages,
+            position,
+            crate::pageops::InsertedPageLabels::default(),
+        )
+    }
+
+    /// [`Self::insert_pages`] with an explicit page-label policy
+    /// ([`crate::pageops::InsertedPageLabels`]). The target's `/PageLabels`
+    /// tree is rewritten in the same command, so one undo reverts both.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::insert_pages`].
+    pub fn insert_pages_with(
+        &mut self,
+        source: &DocumentView<'_>,
+        source_pages: &[usize],
+        position: crate::pageops::InsertPosition,
+        labels: crate::pageops::InsertedPageLabels,
+    ) -> Result<InsertOutcome, EditError> {
         self.check_certification()?;
+        let target_count = self.page_slots()?.len();
+        let at = position.slot(target_count);
         let Some(PageSplice {
-            scratch,
+            mut scratch,
             mapping,
             source_slots,
             new_page_ids,
@@ -49297,23 +49294,25 @@ impl EditSession {
             })
             .count();
 
-        // Page labels (§12.4.2). pdfcer writes NOTHING here — see the two
-        // fields' docs for why Acrobat's actual behaviour is not matched.
-        // Both are read from the catalogs rather than inferred from the
-        // page count, because "has a label tree" is the only thing that
-        // makes either statement true.
         let source_outline_dropped = source
             .graph()
             .catalog_dict()
             .is_some_and(|c| c.contains_key(b"Outlines"));
-        let source_page_labels_dropped = source
-            .graph()
-            .catalog_dict()
-            .is_some_and(|c| c.contains_key(b"PageLabels"));
-        let page_labels_stale = self
-            .graph()
-            .catalog_dict()
-            .is_some_and(|c| c.contains_key(b"PageLabels"));
+        let source_page_labels_dropped = labels
+            == crate::pageops::InsertedPageLabels::ContinueRange
+            && source
+                .graph()
+                .catalog_dict()
+                .is_some_and(|c| c.contains_key(b"PageLabels"));
+        let page_label_ranges = self.insert_page_labels(
+            source,
+            source_pages,
+            source_slots.len(),
+            target_count,
+            at,
+            labels,
+            &mut scratch,
+        );
 
         let objects: Vec<ObjectWrite> = scratch
             .into_iter()
@@ -49335,8 +49334,57 @@ impl EditSession {
             orphaned_widgets_unrecoverable,
             source_outline_dropped,
             source_page_labels_dropped,
-            page_labels_stale,
+            page_labels_stale: false,
+            page_label_ranges,
         })
+    }
+
+    /// Write the `/PageLabels` tree an insert leaves
+    /// ([`crate::page_labels::inserted`]) into the staged catalog,
+    /// returning its range count; `0`, writing nothing, when the result is
+    /// empty.
+    #[allow(clippy::too_many_arguments)] // one call site; a struct would only rename them
+    fn insert_page_labels(
+        &self,
+        source: &DocumentView<'_>,
+        source_pages: &[usize],
+        source_count: usize,
+        target_count: usize,
+        at: usize,
+        labels: crate::pageops::InsertedPageLabels,
+        scratch: &mut BTreeMap<ObjId, Object>,
+    ) -> usize {
+        let Some(catalog_id) = self.graph().catalog_id() else {
+            return 0;
+        };
+        let Some(mut catalog) = self.staged_catalog(catalog_id, scratch) else {
+            return 0;
+        };
+        let target = catalog
+            .get(b"PageLabels")
+            .map(|t| crate::page_labels::ranges(&self.graph(), t))
+            .unwrap_or_default();
+        let source_ranges = source
+            .graph()
+            .catalog_dict()
+            .and_then(|c| c.get(b"PageLabels"))
+            .map(|t| crate::page_labels::ranges(source.graph(), t))
+            .unwrap_or_default();
+        let ranges = crate::page_labels::inserted(
+            &target,
+            target_count,
+            &source_ranges,
+            source_count,
+            source_pages,
+            at,
+            labels,
+        );
+        if ranges.is_empty() {
+            return 0;
+        }
+        catalog.insert(Name::from(b"PageLabels"), crate::page_labels::tree(&ranges));
+        scratch.insert(catalog_id, Object::Dict(catalog));
+        ranges.len()
     }
 
     /// Which `/Pages` node receives the arrivals, and at which `/Kids`
