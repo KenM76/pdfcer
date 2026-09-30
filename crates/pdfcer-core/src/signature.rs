@@ -148,8 +148,8 @@ use crate::object::{Dict, Name, ObjId, Object};
 // re-exported here so `signature::verify` is the path a consumer reaches
 // for, beside the census and coverage this file already answers.
 pub use crate::signature_verify::{
-    Integrity, Revocation, RevocationCheck, RevocationKind, RevocationSource, SignatureVerdict,
-    SuppliedRevocation, Trust, verify, verify_all, verify_all_with_revocation,
+    Integrity, Revocation, RevocationCheck, RevocationKind, RevocationSource, RevocationSources,
+    SignatureVerdict, SuppliedRevocation, Trust, verify, verify_all, verify_all_with_revocation,
     verify_all_with_trust,
 };
 

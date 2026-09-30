@@ -3023,7 +3023,7 @@ Plus claims — `signer_subject`, `signer_issuer`, `cert_not_before`,
 certificate says its revocation status can be fetched (RFC 5280 §4.2.1.13
 `cRLDistributionPoints`, §4.2.2.1 `authorityInfoAccess`), signer first, then
 the others in CMS order; a certificate naming nothing is omitted.
-`RevocationSources` (`#[non_exhaustive]`, read-only) has `subject`, `crl`,
+`signature::RevocationSources` (`#[non_exhaustive]`, read-only) has `subject`, `crl`,
 `ocsp`, `ca_issuers` (URI lists, printable ASCII, ≤ 16 each) and
 `unreadable` (entries present but not kept — a directory name, a non-ASCII
 URI, one past the cap, malformed DER); `is_empty()`. **Nothing is fetched**:

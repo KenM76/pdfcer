@@ -233,7 +233,10 @@ fn a_verdict_names_the_signers_revocation_locations() {
         "{:?}",
         v.integrity
     );
-    let [source] = v.revocation_sources.as_slice() else {
+    // Named through `signature`, beside `SignatureVerdict` — the path a
+    // consumer reaches for.
+    let sources: &[pdfcer_core::signature::RevocationSources] = &v.revocation_sources;
+    let [source] = sources else {
         panic!("one certificate, one source: {:?}", v.revocation_sources);
     };
     assert!(
