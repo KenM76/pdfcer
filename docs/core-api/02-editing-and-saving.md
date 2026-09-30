@@ -2889,8 +2889,19 @@ keys, but **cannot rewrite a link it did not copy**. A `/GoToR` in a third
 file naming the old key now resolves to *this* document's destination rather
 than the source's.
 
-**Still not carried:** page labels (decision 072 governs the policy) and
-`/OCProperties`.
+**Page labels are carried** (`page_label_ranges`, the range count of the
+tree written; `0` when neither document had one and none was written). Every
+page keeps the label it displayed in its own document: the source's ranges
+are offset to where its pages landed, a document without a tree counts as
+decimal from 1, and when the merge lands inside one of this document's ranges
+the pages after the block resume at the number they showed (a continuation
+range with `/St` set). The written tree is one flat `/Nums` root in the
+catalog. This is not what `insert_pages` does, and the difference is decision
+072's own reason: a subset of pages has no source range computed against it;
+a whole document does. Acrobat relabels inserted pages with the preceding
+label; pdfcer does not.
+
+**Still not carried:** `/OCProperties`.
 #### ★ `adopt_preview` — ask before pressing (`Pass 103.4`)
 
 | I want to… | Call |

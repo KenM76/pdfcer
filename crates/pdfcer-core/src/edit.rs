@@ -4143,6 +4143,17 @@ pub struct MergeOutcome {
     /// nest them under: that heading would be a bookmark pdfcer authored,
     /// appearing beside bookmarks the documents' authors wrote.
     pub outline_items_carried: usize,
+    /// Label ranges (§12.4.2) in the `/PageLabels` tree the merge wrote;
+    /// `0` when neither document had one and none was written.
+    ///
+    /// Every page keeps the label it displayed in its own document: the
+    /// source's ranges are offset to where its pages landed, and when the
+    /// merge splits one of this document's ranges, the pages after the
+    /// inserted block resume at the number they showed before. A document
+    /// without a tree counts as decimal from 1. This deliberately differs
+    /// from relabelling the inserted pages to continue this document's
+    /// numbering — that would change labels neither author wrote.
+    pub page_label_ranges: usize,
 }
 
 /// Internal result of the named-destination half of a merge.
@@ -47592,6 +47603,8 @@ impl EditSession {
             return Ok(MergeOutcome::default());
         }
         let all: Vec<usize> = (0..source_count).collect();
+        let target_count = self.page_slots()?.len();
+        let at = position.slot(target_count);
 
         let Some(PageSplice {
             mut scratch,
@@ -47612,6 +47625,8 @@ impl EditSession {
         let dests = self.merge_named_destinations(source, &mut mapping, &mut scratch)?;
         let outline_items =
             self.merge_outline(source, &dests.renames, &mut mapping, &mut scratch)?;
+        let page_label_ranges =
+            self.merge_page_labels(source, target_count, source_count, at, &mut scratch);
 
         let objects: Vec<ObjectWrite> = scratch
             .into_iter()
@@ -47637,7 +47652,48 @@ impl EditSession {
             named_destinations_carried: dests.carried,
             named_destinations_renamed: dests.renamed,
             outline_items_carried: outline_items,
+            page_label_ranges,
         })
+    }
+
+    /// Write the spliced `/PageLabels` tree ([`crate::page_labels::splice`])
+    /// into the staged catalog, returning its range count; `0`, writing
+    /// nothing, when neither document has a tree.
+    fn merge_page_labels(
+        &self,
+        source: &DocumentView<'_>,
+        target_count: usize,
+        source_count: usize,
+        at: usize,
+        scratch: &mut BTreeMap<ObjId, Object>,
+    ) -> usize {
+        let Some(catalog_id) = self.graph().catalog_id() else {
+            return 0;
+        };
+        let Some(mut catalog) = self.staged_catalog(catalog_id, scratch) else {
+            return 0;
+        };
+        let target = catalog
+            .get(b"PageLabels")
+            .map(|t| crate::page_labels::ranges(&self.graph(), t))
+            .unwrap_or_default();
+        let source_ranges = source
+            .graph()
+            .catalog_dict()
+            .and_then(|c| c.get(b"PageLabels"))
+            .map(|t| crate::page_labels::ranges(source.graph(), t))
+            .unwrap_or_default();
+        let spliced =
+            crate::page_labels::splice(&target, target_count, &source_ranges, source_count, at);
+        if spliced.is_empty() {
+            return 0;
+        }
+        catalog.insert(
+            Name::from(b"PageLabels"),
+            crate::page_labels::tree(&spliced),
+        );
+        scratch.insert(catalog_id, Object::Dict(catalog));
+        spliced.len()
     }
 
     /// The catalog as this operation has it — **preferring `scratch`** over

@@ -1042,3 +1042,156 @@ fn undo_removes_the_carried_navigation_too() {
         "pages, fields, destinations and outline must all reverse together"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Page labels (§12.4.2)
+// ---------------------------------------------------------------------------
+
+/// A document of `count` blank pages; `catalog_extra` is spliced into the
+/// catalog and `more` appended as further objects (numbered from 20).
+fn labelled_doc(count: u32, catalog_extra: &str, more: &[(u32, &str)]) -> Document {
+    let kids: Vec<String> = (0..count).map(|i| format!("{} 0 R", 3 + i)).collect();
+    let mut objects: Vec<(u32, String)> = vec![
+        (
+            1,
+            format!("<< /Type /Catalog /Pages 2 0 R {catalog_extra} >>"),
+        ),
+        (
+            2,
+            format!(
+                "<< /Type /Pages /Kids [{}] /Count {count} >>",
+                kids.join(" ")
+            ),
+        ),
+    ];
+    for i in 0..count {
+        objects.push((
+            3 + i,
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Resources << >> >>".to_owned(),
+        ));
+    }
+    objects.extend(more.iter().map(|(n, b)| (*n, (*b).to_owned())));
+    let borrowed: Vec<(u32, &str)> = objects.iter().map(|(n, b)| (*n, b.as_str())).collect();
+    Document::from_bytes(build(&borrowed)).expect("labelled fixture parses")
+}
+
+/// `(start, /S, /P, /St)`.
+type SavedRange = (i64, String, String, Option<i64>);
+
+/// `(start, /S, /P, /St)` for each range of the SAVED `/PageLabels` tree,
+/// read by hand from a flat `/Nums` so the check is independent of the
+/// reader the merge used.
+fn saved_labels(session: &EditSession) -> Option<Vec<SavedRange>> {
+    let (bytes, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("save must succeed");
+    let doc = Document::from_bytes(bytes).expect("reparse");
+    let tree = doc.catalog_dict()?.get(b"PageLabels")?.clone();
+    let tree = doc.resolve(&tree).as_dict()?.clone();
+    let Some(Object::Array(nums)) = tree.get(b"Nums").map(|o| doc.resolve(o).clone()) else {
+        panic!("the written tree must carry a flat /Nums");
+    };
+    let text = |o: Option<&Object>| match o {
+        Some(Object::Name(n)) => String::from_utf8_lossy(n.as_bytes()).into_owned(),
+        Some(Object::String(s)) => String::from_utf8_lossy(s).into_owned(),
+        _ => String::new(),
+    };
+    Some(
+        nums.chunks_exact(2)
+            .map(|p| {
+                let d = doc.resolve(&p[1]).as_dict().expect("label dict").clone();
+                (
+                    p[0].as_int().expect("integer key"),
+                    text(d.get(b"S")),
+                    text(d.get(b"P")),
+                    d.get(b"St").and_then(Object::as_int),
+                )
+            })
+            .collect(),
+    )
+}
+
+/// Would catch: relabelling inserted pages to continue the target's numbers
+/// (what Acrobat does), dropping the source's labels, or the pages after the
+/// inserted block restarting at 1 instead of the number they showed.
+///
+/// Target: four pages labelled i, ii, 1, 2 — its tree behind a reference and
+/// a `/Kids` level, so the walk is exercised. Source: two pages A-1, A-2.
+/// Merged after target page 2, every page must keep its own label: i, ii, 1,
+/// A-1, A-2, 2.
+#[test]
+fn merged_pages_keep_the_labels_they_had() {
+    let mut session = EditSession::new(labelled_doc(
+        4,
+        "/PageLabels 20 0 R",
+        &[
+            (20, "<< /Kids [21 0 R] >>"),
+            (21, "<< /Limits [0 2] /Nums [0 << /S /r >> 2 22 0 R] >>"),
+            (22, "<< /S /D >>"),
+        ],
+    ));
+    let src = labelled_doc(2, "/PageLabels << /Nums [0 << /S /D /P (A-) >>] >>", &[]);
+
+    let out = session
+        .merge_document(&src.view(), InsertPosition::After(2))
+        .expect("merge must succeed");
+    assert_eq!(out.pages_merged, 2);
+    assert_eq!(out.page_label_ranges, 4);
+
+    let got = saved_labels(&session).expect("a /PageLabels tree must be written");
+    assert_eq!(
+        got,
+        vec![
+            (0, "r".into(), String::new(), None),
+            (2, "D".into(), String::new(), None),
+            (3, "D".into(), "A-".into(), None),
+            (5, "D".into(), String::new(), Some(2)),
+        ],
+        "target page 3 showed '2' and must still show it after the block"
+    );
+
+    session.undo().expect("undo");
+    let (bytes, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("save must succeed");
+    let doc = Document::from_bytes(bytes).expect("reparse");
+    assert_eq!(
+        doc.catalog_dict()
+            .and_then(|c| c.get(b"PageLabels"))
+            .cloned(),
+        Some(Object::Reference(ObjId::new(20, 0))),
+        "undo must restore the original, un-flattened tree"
+    );
+}
+
+/// Would catch: writing a tree when neither document has one — harmless to
+/// the display, but a structural change nobody asked for (§5 minimal diff).
+#[test]
+fn a_merge_without_labels_writes_no_label_tree() {
+    let mut session = EditSession::new(labelled_doc(2, "", &[]));
+    let src = labelled_doc(1, "", &[]);
+    let out = session
+        .merge_document(&src.view(), InsertPosition::End)
+        .expect("merge must succeed");
+    assert_eq!(out.page_label_ranges, 0);
+    assert!(saved_labels(&session).is_none());
+}
+
+/// Would catch: an unlabelled target's pages being renumbered by the
+/// source's tree — they showed 1, 2, 3 and must go on doing so.
+#[test]
+fn an_unlabelled_target_keeps_its_page_numbers() {
+    let mut session = EditSession::new(labelled_doc(3, "", &[]));
+    let src = labelled_doc(1, "/PageLabels << /Nums [0 << /S /R >>] >>", &[]);
+    session
+        .merge_document(&src.view(), InsertPosition::Start)
+        .expect("merge must succeed");
+    let got = saved_labels(&session).expect("written");
+    assert_eq!(
+        got,
+        vec![
+            (0, "R".into(), String::new(), None),
+            (1, "D".into(), String::new(), None),
+        ]
+    );
+}

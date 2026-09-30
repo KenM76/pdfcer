@@ -2170,6 +2170,10 @@ pub(crate) enum Command {
     /// counted. §12.7.3.1 makes the fully qualified name a field's identity,
     /// so leaving a duplicate would make one field with two widgets, where
     /// filling either fills both.
+    ///
+    /// Page labels (§12.4.2) are carried so every page keeps the label it
+    /// showed in its own document; `page_label_ranges` reports the ranges
+    /// written (0 = neither document had labels).
     MergeDocument {
         /// The document to merge INTO. Edited incrementally.
         input: PathBuf,
