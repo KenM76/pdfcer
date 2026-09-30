@@ -21,5 +21,7 @@
 pub mod asn1;
 #[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
 pub mod cms;
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub mod crl;
 pub mod trust_chain;
 pub mod trust_store;

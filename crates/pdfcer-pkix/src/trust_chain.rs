@@ -50,7 +50,7 @@
 use std::collections::HashMap;
 
 use crate::asn1;
-use crate::cms::{self, Certificate, PublicKey, oid};
+use crate::cms::{self, AlgId, Certificate, PublicKey, oid};
 use crate::trust_store::TrustAnchorSet;
 use pdfcer_model::crypto::bignum::Uint;
 use pdfcer_model::crypto::ecdsa::{Curve, EcPublicKey};
@@ -276,15 +276,33 @@ fn issuer_may_sign_certs(cert: &Certificate<'_>) -> Result<(), String> {
 }
 
 /// Verify that `cert` was signed by the key `issuer_key` — hash `cert.tbs_der`
-/// under the algorithm `cert.sig_alg_oid` names and check `cert.sig_value`.
+/// under the algorithm `cert.sig_alg` names and check `cert.sig_value`.
 ///
 /// Supports RSA PKCS#1 v1.5 (SHA-1/256/384/512), RSASSA-PSS (params from the
 /// certificate's `signatureAlgorithm`, RFC 4055 — `Pass 10.5`), and ECDSA
 /// (SHA-1/256/384/512). Any other algorithm is declined (returns `false`) —
 /// declining is the safe direction (it can only fail to trust, never falsely
 /// trust).
-fn verify_cert_signature(cert: &Certificate<'_>, issuer_key: &PublicKey<'_>) -> bool {
-    let Some(sig_alg) = cert.sig_alg.as_ref() else {
+pub(crate) fn verify_cert_signature(cert: &Certificate<'_>, issuer_key: &PublicKey<'_>) -> bool {
+    verify_signed(
+        cert.tbs_der,
+        cert.sig_alg.as_ref(),
+        cert.sig_value,
+        issuer_key,
+    )
+}
+
+/// Whether `sig_value` is `issuer_key`'s signature over `tbs` under
+/// `sig_alg` — the X.509 `SIGNED{}` shape shared by certificates (RFC 5280
+/// §4.1.1) and CRLs (§5.1.1). Unknown algorithms and key/algorithm
+/// mismatches are `false`.
+pub(crate) fn verify_signed(
+    tbs: &[u8],
+    sig_alg: Option<&AlgId<'_>>,
+    sig_value: &[u8],
+    issuer_key: &PublicKey<'_>,
+) -> bool {
+    let Some(sig_alg) = sig_alg else {
         return false;
     };
     let alg = sig_alg.oid.as_str();
@@ -298,12 +316,12 @@ fn verify_cert_signature(cert: &Certificate<'_>, issuer_key: &PublicKey<'_>) -> 
         let Ok((hash, mgf_hash, salt_len)) = crate::cms::pss_params(sig_alg) else {
             return false;
         };
-        let digest = hash.digest(cert.tbs_der);
+        let digest = hash.digest(tbs);
         let rsa = RsaPublicKey {
             n: Uint::from_be_bytes(n),
             e: Uint::from_be_bytes(e),
         };
-        return rsa.verify_pss(hash, mgf_hash, salt_len, &digest, cert.sig_value);
+        return rsa.verify_pss(hash, mgf_hash, salt_len, &digest, sig_value);
     }
     let hash = match alg {
         oid::SHA1_WITH_RSA | oid::ECDSA_SHA1 => Hash::Sha1,
@@ -313,7 +331,7 @@ fn verify_cert_signature(cert: &Certificate<'_>, issuer_key: &PublicKey<'_>) -> 
         // RSA-PSS (params-dependent) and unknowns: decline, conservatively.
         _ => return false,
     };
-    let digest = hash.digest(cert.tbs_der);
+    let digest = hash.digest(tbs);
     let is_rsa = matches!(
         alg,
         oid::SHA1_WITH_RSA | oid::SHA256_WITH_RSA | oid::SHA384_WITH_RSA | oid::SHA512_WITH_RSA
@@ -324,7 +342,7 @@ fn verify_cert_signature(cert: &Certificate<'_>, issuer_key: &PublicKey<'_>) -> 
                 n: Uint::from_be_bytes(n),
                 e: Uint::from_be_bytes(e),
             };
-            rsa.verify_pkcs1v15(hash, &digest, cert.sig_value)
+            rsa.verify_pkcs1v15(hash, &digest, sig_value)
         }
         PublicKey::Ec { curve_oid, point } if !is_rsa => {
             let Some(curve) = Curve::from_oid(curve_oid) else {
@@ -334,7 +352,7 @@ fn verify_cert_signature(cert: &Certificate<'_>, issuer_key: &PublicKey<'_>) -> 
                 return false;
             };
             // ECDSA-Sig-Value ::= SEQUENCE { r INTEGER, s INTEGER }.
-            let Some((seq, _)) = asn1::expect(cert.sig_value, asn1::SEQUENCE) else {
+            let Some((seq, _)) = asn1::expect(sig_value, asn1::SEQUENCE) else {
                 return false;
             };
             let parts = asn1::children(seq).unwrap_or_default();

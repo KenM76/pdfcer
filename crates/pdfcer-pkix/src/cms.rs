@@ -83,7 +83,7 @@ pub struct AlgId<'a> {
     pub params: Option<Tlv<'a>>,
 }
 
-fn alg_id(tlv: Tlv<'_>) -> Option<AlgId<'_>> {
+pub(crate) fn alg_id(tlv: Tlv<'_>) -> Option<AlgId<'_>> {
     if tlv.tag != asn1::SEQUENCE {
         return None;
     }
@@ -324,6 +324,12 @@ pub struct Certificate<'a> {
     /// `Some(false)` must not be used to sign certificates (`Pass 10.5`); `None`
     /// leaves the constraint unstated and is not, alone, disqualifying.
     pub key_usage_cert_sign: Option<bool>,
+    /// Whether `keyUsage` asserts `cRLSign` (bit 6), with the same three
+    /// states as [`key_usage_cert_sign`](Self::key_usage_cert_sign). RFC
+    /// 10007 §6.3.3(f): a v3 CRL issuer's certificate must assert it.
+    pub key_usage_crl_sign: Option<bool>,
+    /// The X.509 version: 1, 2 or 3 (the `[0]` field's value plus one).
+    pub version: u8,
     /// Where the certificate says its revocation status can be fetched:
     /// `cRLDistributionPoints` and `authorityInfoAccess` URIs. Claims —
     /// nothing here has been fetched or checked.
@@ -450,8 +456,11 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
     let tbs_kids = asn1::children(*tbs)?;
     let mut it = tbs_kids.iter().copied().peekable();
     // version [0] EXPLICIT INTEGER DEFAULT v1
-    if it.peek().is_some_and(|t| t.tag == asn1::context(0)) {
-        it.next();
+    let mut version = 1u8;
+    if let Some(v) = it.next_if(|t| t.tag == asn1::context(0)) {
+        version = asn1::expect(v.content, asn1::INTEGER)
+            .and_then(|(i, _)| i.content.first().copied())
+            .map_or(0, |n| n.saturating_add(1));
     }
     let serial = asn1::integer_bytes(it.next()?)?;
     let _sig_alg = it.next()?;
@@ -466,6 +475,7 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
     let mut subject_key_id = None;
     let mut is_ca = false;
     let mut key_usage_cert_sign = None;
+    let mut key_usage_crl_sign = None;
     let mut revocation_uris = RevocationUris::default();
     // Optional issuerUniqueID [1], subjectUniqueID [2], extensions [3].
     for t in it {
@@ -504,8 +514,9 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
                     if let Some(outer) = parts.last().filter(|t| t.tag == asn1::OCTET_STRING)
                         && let Some((bits, _)) = asn1::expect(outer.content, asn1::BIT_STRING)
                     {
-                        let cert_sign = bits.content.get(1).copied().unwrap_or(0) & 0x04 != 0;
-                        key_usage_cert_sign = Some(cert_sign);
+                        let first = bits.content.get(1).copied().unwrap_or(0);
+                        key_usage_cert_sign = Some(first & 0x04 != 0);
+                        key_usage_crl_sign = Some(first & 0x02 != 0);
                     }
                 } else if let Some(outer) = parts.last().filter(|t| t.tag == asn1::OCTET_STRING) {
                     // extnValue OCTET STRING wraps the extension's own DER.
@@ -537,6 +548,8 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
         sig_value,
         is_ca,
         key_usage_cert_sign,
+        key_usage_crl_sign,
+        version,
         revocation_uris,
     })
 }
@@ -569,7 +582,7 @@ fn parse_spki(tlv: Tlv<'_>) -> Option<PublicKey<'_>> {
 
 /// A `Name` as `CN=…, O=…, C=…` — the attributes an operator recognises,
 /// in the order the certificate lists them; unknown types are shown by OID.
-fn name_to_string(name: Tlv<'_>) -> String {
+pub(crate) fn name_to_string(name: Tlv<'_>) -> String {
     let mut parts = Vec::new();
     for rdn in asn1::children(name).unwrap_or_default() {
         for atv in asn1::children(rdn).unwrap_or_default() {
