@@ -3072,9 +3072,11 @@ NOT fetched)`. The raw per-certificate form is `cms::Certificate::revocation_uri
 (`RevocationUris`, same fields without `subject`).
 
 Implemented: `adbe.pkcs7.detached`, `ETSI.CAdES.detached`, `adbe.pkcs7.sha1`
-(the double hash — the inner SHA-1 is pinned by the subfilter); RSA PKCS#1
+(the double hash — the inner SHA-1 is pinned by the subfilter), and
+`ETSI.RFC3161` document time-stamps (the token's `messageImprint` must be
+the byte-range digest; `signing_time` is the TSA's `genTime`); RSA PKCS#1
 v1.5 and RSASSA-PSS, ECDSA P-256/P-384; SHA-1/256/384/512.
-`adbe.x509.rsa_sha1`, `ETSI.RFC3161`, P-521, Brainpool → `Unverifiable` by
+`adbe.x509.rsa_sha1`, P-521, Brainpool → `Unverifiable` by
 name. All workspace code (`asn1`, `cms` in `crates/pdfcer-pkix/src/`;
 `crypto::{bignum,rsa,ecdsa,sha1}` in `pdfcer-model`), no third-party dependency; verified against pyHanko-signed fixtures whose expected
 verdicts were recorded from pyHanko's own validator first

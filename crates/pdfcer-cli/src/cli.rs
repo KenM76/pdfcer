@@ -2402,6 +2402,58 @@ pub(crate) enum Command {
         allow_under_no_changes_certification: bool,
     },
 
+    #[cfg(feature = "signing")]
+    /// **Add a document time-stamp** — the PAdES B-LTA archive stamp (ETSI
+    /// EN 319 142-1 §5.4.3; ISO 32000-2 §12.8.5).
+    ///
+    /// Asks an RFC 3161 time-stamping authority to sign a hash of the whole
+    /// file, and appends its answer as an invisible `/DocTimeStamp`
+    /// signature. It proves the document, and everything already in it,
+    /// existed at the authority's time. No digital ID is needed; there is no
+    /// signer name, reason or location.
+    ///
+    /// For long-term archiving, run `add-ltv` first so the revocation
+    /// evidence is inside what this stamp covers; the level is printed as
+    /// `B-LTA` only when the input already has a signature and a `/DSS`,
+    /// otherwise `none`. pdfcer does not check that the `/DSS` is complete
+    /// for every signature, and says so.
+    ///
+    /// Appended as an incremental update, so existing signatures keep
+    /// verifying; allowed on a certified document at any level (§12.8.5).
+    /// The authority's answer is checked (status, imprint, nonce,
+    /// time-stamping certificate, signature) and the output is verified by
+    /// pdfcer before anything is written.
+    ///
+    /// Prints one `timestamp` line (field, byte range, level, prior
+    /// signatures, `/DSS`), the authority's time, name, serial and policy,
+    /// and every note. Exit 0 on success; 9 when refused (a taken field
+    /// name, an encrypted document, a build without network support); 12
+    /// when the authority's answer fails a check or does not fit
+    /// `--reserve`; 3 for a file that cannot be read or written.
+    Timestamp {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// RFC 3161 time-stamping authority URL (`http://` or `https://`).
+        /// Needs a build with the `download` feature; refused by name
+        /// otherwise.
+        #[arg(long, value_name = "URL")]
+        tsa_url: String,
+        /// The new signature field's name. Default: the first free
+        /// `SignatureN`. A name already in the form is refused.
+        #[arg(long, value_name = "NAME")]
+        field_name: Option<String>,
+        /// The digest the authority signs.
+        #[arg(long, value_enum, default_value_t = DocTimestampDigestArg::Sha256)]
+        digest: DocTimestampDigestArg,
+        /// Bytes reserved for the authority's token. Raise it for an
+        /// authority that returns a long certificate chain.
+        #[arg(long, default_value_t = 12288)]
+        reserve: usize,
+    },
+
     /// **List a document's optional-content groups** — layers (§8.11).
     ///
     /// Reports each layer's name and whether a reader would DRAW it with

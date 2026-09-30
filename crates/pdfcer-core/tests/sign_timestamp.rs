@@ -424,3 +424,195 @@ fn the_fuzz_seed_is_accepted_by_the_fuzz_hook() {
         &[]
     ));
 }
+
+// ---------------------------------------------------------------------
+// Document time-stamps (PAdES B-LTA; ISO 32000-2 §12.8.5)
+// ---------------------------------------------------------------------
+
+use pdfcer_core::sign::ltv::ValidationMaterial;
+use pdfcer_core::sign::timestamp::{DocTimestampReport, DocTimestampRequest};
+
+fn doc_stamp(
+    base: Vec<u8>,
+    tsa: &dyn TimestampAuthority,
+) -> Result<(Vec<u8>, DocTimestampReport), SignApplyError> {
+    let mut s = EditSession::new(Document::from_bytes(base).unwrap());
+    s.add_document_timestamp(
+        tsa,
+        &DocTimestampRequest::default(),
+        &SaveOptions::identity(),
+    )
+}
+
+fn signed_hello() -> Vec<u8> {
+    let mut s = EditSession::new(Document::load(&fixtures().join("hello.pdf")).unwrap());
+    s.sign(
+        &signer("rsa2048-modern.pfx"),
+        &SignRequest::at(T0),
+        &SaveOptions::identity(),
+    )
+    .expect("sign")
+    .0
+}
+
+/// The `/Contents` hex of the verdict named `field`, decoded and trimmed
+/// to its own DER length, plus the covered bytes.
+fn hole_and_covered(bytes: &[u8], field: &str) -> (Vec<u8>, Vec<u8>) {
+    let doc = Document::from_bytes(bytes.to_vec()).unwrap();
+    let v = verify_all(&doc.view(), bytes)
+        .into_iter()
+        .find(|v| v.field_name.as_deref() == Some(field))
+        .unwrap();
+    let (a_off, a_len) = v.coverage.ranges[0];
+    let (b_off, b_len) = v.coverage.ranges[1];
+    let hex = &bytes[(a_off + a_len) as usize + 1..b_off as usize - 1];
+    let raw: Vec<u8> = hex
+        .chunks(2)
+        .map(|p| u8::from_str_radix(std::str::from_utf8(p).unwrap(), 16).unwrap())
+        .collect();
+    let len = match raw[1] {
+        n if n < 0x80 => 2 + n as usize,
+        n => {
+            let k = (n & 0x7F) as usize;
+            2 + k
+                + raw[2..2 + k]
+                    .iter()
+                    .fold(0usize, |a, &b| (a << 8) | b as usize)
+        }
+    };
+    let mut covered = bytes[a_off as usize..(a_off + a_len) as usize].to_vec();
+    covered.extend_from_slice(&bytes[b_off as usize..(b_off + b_len) as usize]);
+    (raw[..len].to_vec(), covered)
+}
+
+#[test]
+fn a_document_timestamp_after_the_dss_is_b_lta_and_openssl_verifies_the_token() {
+    let signed = signed_hello();
+    let mut s = EditSession::new(Document::from_bytes(signed.clone()).unwrap());
+    s.add_validation_material(&ValidationMaterial::default())
+        .expect("dss");
+    let with_dss = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+
+    let tsa = OpensslTsa::new(|r| r);
+    let (bytes, report) = doc_stamp(with_dss.clone(), &tsa).expect("stamp");
+    assert_eq!(&bytes[..with_dss.len()], with_dss.as_slice(), "incremental");
+    assert_eq!(report.pades_level, Some("B-LTA"));
+    assert_eq!((report.prior_signatures, report.dss_present), (1, true));
+    assert_eq!(report.field_name, "Signature2");
+    assert_eq!(report.timestamp.digest_algorithm, "SHA-256");
+    assert_eq!(
+        report.byte_range[3] + report.byte_range[2],
+        bytes.len() as u64
+    );
+
+    // The dictionary Table 255 describes, and nothing it forbids.
+    let text = String::from_utf8_lossy(&bytes[with_dss.len()..]);
+    assert!(text.contains("/Type /DocTimeStamp"), "{text}");
+    assert!(text.contains("/SubFilter /ETSI.RFC3161"), "{text}");
+    let sig_obj = &text[text.find("/DocTimeStamp").unwrap()..];
+    let sig_obj = &sig_obj[..sig_obj.find("endobj").unwrap()];
+    for forbidden in ["/M ", "/Reference", "/Changes", "/Cert", "/Name"] {
+        assert!(!sig_obj.contains(forbidden), "{forbidden} in {sig_obj}");
+    }
+
+    // pdfcer's verifier: both verify; the stamp's time is the TSA's.
+    let doc = Document::from_bytes(bytes.clone()).unwrap();
+    let verdicts = verify_all(&doc.view(), &bytes);
+    assert_eq!(verdicts.len(), 2);
+    for v in &verdicts {
+        assert!(
+            matches!(v.integrity, Integrity::Verified { .. }),
+            "{:?}",
+            v.integrity
+        );
+    }
+    let dts = &verdicts[1];
+    assert!(dts.coverage.covers_to_eof());
+    assert_eq!(
+        dts.signing_time.as_deref(),
+        Some(report.timestamp.gen_time.as_str())
+    );
+
+    // Oracle: OpenSSL checks the token stamps exactly the covered bytes.
+    let (token, covered) = hole_and_covered(&bytes, "Signature2");
+    let dir = scratch("dts");
+    std::fs::write(dir.join("token.der"), &token).unwrap();
+    std::fs::write(dir.join("covered.bin"), &covered).unwrap();
+    let tsa_pem = tsa.dir.join("c.pem");
+    openssl(
+        &dir,
+        &[
+            "ts",
+            "-verify",
+            "-token_in",
+            "-in",
+            "token.der",
+            "-data",
+            "covered.bin",
+            "-CAfile",
+            tsa_pem.to_str().unwrap(),
+        ],
+    );
+}
+
+#[test]
+fn a_stamp_without_a_dss_or_a_signature_claims_no_pades_level() {
+    let tsa = OpensslTsa::new(|r| r);
+    let (_, report) = doc_stamp(signed_hello(), &tsa).expect("stamp");
+    assert_eq!(report.pades_level, None);
+    assert!(report.notes[0].contains("no /DSS"), "{:?}", report.notes);
+
+    let hello = std::fs::read(fixtures().join("hello.pdf")).unwrap();
+    let (bytes, report) = doc_stamp(hello, &tsa).expect("stamp");
+    assert_eq!((report.pades_level, report.prior_signatures), (None, 0));
+    assert_eq!(report.field_name, "Signature1");
+    let doc = Document::from_bytes(bytes.clone()).unwrap();
+    let v = verify_all(&doc.view(), &bytes).remove(0);
+    assert!(matches!(v.integrity, Integrity::Verified { .. }));
+}
+
+#[test]
+fn an_altered_byte_under_a_document_timestamp_is_a_digest_mismatch() {
+    let tsa = OpensslTsa::new(|r| r);
+    let hello = std::fs::read(fixtures().join("hello.pdf")).unwrap();
+    let (mut bytes, _) = doc_stamp(hello, &tsa).expect("stamp");
+    // A byte inside the original page content, covered by the stamp.
+    let at = bytes
+        .windows(5)
+        .position(|w| w == b"Hello")
+        .expect("page text");
+    bytes[at] = b'J';
+    let doc = Document::from_bytes(bytes.clone()).unwrap();
+    let v = verify_all(&doc.view(), &bytes).remove(0);
+    assert!(
+        matches!(v.integrity, Integrity::DigestMismatch),
+        "{:?}",
+        v.integrity
+    );
+}
+
+#[test]
+fn a_document_timestamp_refuses_a_rejection_and_a_replayed_token() {
+    let rejection = vec![0x30, 0x05, 0x30, 0x03, 0x02, 0x01, 0x02];
+    let hello = std::fs::read(fixtures().join("hello.pdf")).unwrap();
+    let err = doc_stamp(hello.clone(), &Canned(Ok(rejection))).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            SignApplyError::Timestamp(TimestampError::Rejected { status: 2, .. })
+        ),
+        "{err:?}"
+    );
+    // A token for another document stamps another imprint.
+    let tsa = OpensslTsa::new(|r| r);
+    doc_stamp(signed_hello(), &tsa).expect("stamp");
+    let replay = Canned(Ok(tsa.given.lock().unwrap()[0].clone()));
+    let err = doc_stamp(hello, &replay).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            SignApplyError::Timestamp(TimestampError::ImprintMismatch)
+        ),
+        "{err:?}"
+    );
+}

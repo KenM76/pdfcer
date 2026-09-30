@@ -40,11 +40,15 @@
 //! - **`adbe.pkcs7.sha1`**: the `eContent` must equal `SHA1(D)` (twenty
 //!   bytes — the inner hash is pinned to SHA-1 by the subfilter name, Table
 //!   257 footnote b), and `H(eContent)` must equal `messageDigest`.
-//! - **`adbe.x509.rsa_sha1`**, **`ETSI.RFC3161`**, anything else: reported as
+//! - **`ETSI.RFC3161`** (a `/DocTimeStamp`, ISO 32000-2 §12.8.5): `Contents`
+//!   is a `TimeStampToken`; its `TSTInfo.messageImprint` must equal `D`
+//!   hashed under the imprint's own algorithm, and `H(TSTInfo)` must equal
+//!   `messageDigest`. The TSA's `genTime` is reported as the signing time.
+//! - **`adbe.x509.rsa_sha1`**, anything else: reported as
 //!   [`Integrity::Unverifiable`] by name. Nothing is guessed.
 //!
 //! Then, for every subfilter: the `content-type` attribute must be `id-data`
-//! (RFC 5652 §5.6), and the signature value must verify over
+//! (`id-ct-TSTInfo` for `ETSI.RFC3161`; RFC 5652 §5.6), and the signature value must verify over
 //! `DER(SET OF signedAttrs)` — the `[0]` tag in the file rewritten to `0x31`
 //! (`SI-C2`) — with the signer's certificate's key. RSA PKCS#1 v1.5 (the
 //! hash is the one `digestAlgorithm` names, `SI-W13`), RSASSA-PSS (params
@@ -787,15 +791,10 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
             );
             return verdict;
         }
-        "ETSI.RFC3161" => {
-            verdict.integrity = unverifiable(
-                "a document timestamp (ETSI.RFC3161, ISO 32000-2 §12.8.5) is not verified this build",
-            );
-            return verdict;
-        }
+        "ETSI.RFC3161" => {}
         other => {
             verdict.integrity = unverifiable(&format!(
-                "the /SubFilter {other:?} is not one pdfcer verifies (adbe.pkcs7.detached, ETSI.CAdES.detached, adbe.pkcs7.sha1)"
+                "the /SubFilter {other:?} is not one pdfcer verifies (adbe.pkcs7.detached, ETSI.CAdES.detached, adbe.pkcs7.sha1, ETSI.RFC3161)"
             ));
             return verdict;
         }
@@ -907,7 +906,17 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
             sd.version, signer.version
         ));
     }
-    verdict.signing_time = signer.signing_time.clone();
+    let doc_timestamp = sf == "ETSI.RFC3161";
+    // A document time-stamp's only time is the TSA's genTime (§12.8.5).
+    let tst = if doc_timestamp {
+        sd.econtent.and_then(crate::tst_info::tst_imprint)
+    } else {
+        None
+    };
+    verdict.signing_time = signer
+        .signing_time
+        .clone()
+        .or_else(|| tst.as_ref().map(|t| t.2.clone()));
     verdict.revocation_sources = revocation_sources(&sd);
     // The reference clock for certificate validity and revocation: the CMS
     // signingTime, else `/M`. PAdES forbids signingTime (ETSI EN 319 142-1
@@ -976,7 +985,23 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
         verdict.notes = notes;
         return verdict;
     };
-    let md_actual = if sf == "adbe.pkcs7.sha1" {
+    let md_actual = if doc_timestamp {
+        // Table 255 `Contents`: the token's messageImprint SHALL be a hash
+        // of the ByteRange bytes; the SignerInfo digests the TSTInfo.
+        let (Some(inner), Some((imprint_hash, imprint, _))) = (sd.econtent, tst.as_ref()) else {
+            verdict.integrity = unverifiable(
+                "an ETSI.RFC3161 /Contents shall be a TimeStampToken carrying a TSTInfo, and this one's cannot be read",
+            );
+            verdict.notes = notes;
+            return verdict;
+        };
+        if imprint_hash.digest(&data) != *imprint {
+            verdict.integrity = Integrity::DigestMismatch;
+            verdict.notes = notes;
+            return verdict;
+        }
+        hash.digest(inner)
+    } else if sf == "adbe.pkcs7.sha1" {
         let Some(inner) = sd.econtent else {
             verdict.integrity = unverifiable(
                 "adbe.pkcs7.sha1 requires the SHA-1 of the byte range as encapsulated content, and none is present",
@@ -1005,11 +1030,18 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
         return verdict;
     }
 
-    // --- content-type must be id-data (RFC 5652 §5.6) ---
-    if signer.content_type.as_deref() != Some(oid::DATA) || sd.content_type != oid::DATA {
+    // --- content-type: id-data, or id-ct-TSTInfo for a token (RFC 5652 §5.6) ---
+    let expected_content = if doc_timestamp {
+        crate::tst_info::TST_INFO_OID
+    } else {
+        oid::DATA
+    };
+    if signer.content_type.as_deref() != Some(expected_content)
+        || sd.content_type != expected_content
+    {
         verdict.integrity = Integrity::SignatureInvalid;
         notes.push(
-            "the content-type signed attribute or eContentType is not id-data (RFC 5652 §5.6 makes that a validity failure)"
+            "the content-type signed attribute or eContentType is not id-data (id-ct-TSTInfo for a document time-stamp; RFC 5652 §5.6 makes that a validity failure)"
                 .into(),
         );
         verdict.notes = notes;

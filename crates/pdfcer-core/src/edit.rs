@@ -60771,6 +60771,243 @@ impl EditSession {
         self.sign_impl(signer, Some(authority), request, options)
     }
 
+    /// Add a **document time-stamp** — PAdES **B-LTA**'s archive stamp
+    /// (ETSI EN 319 142-1 §5.4.3 requirements w–y; ISO 32000-2 §12.8.5).
+    ///
+    /// One incremental update appends an invisible signature field whose
+    /// `/V` is `/Type /DocTimeStamp /Filter /Adobe.PPKLite /SubFilter
+    /// /ETSI.RFC3161` with a `/ByteRange` over the whole file and a
+    /// `/Contents` holding the RFC 3161 `TimeStampToken` whose
+    /// `messageImprint` is the digest of those ranges (Table 255 `Contents`).
+    /// No `/M`, `/Name`, `/Reason`, `/Location`, `/Reference` or `/Changes`
+    /// (Table 255: *shall not* / *should not* for `ETSI.RFC3161`). There is
+    /// no signer: the TSA's token is the signature.
+    ///
+    /// The request goes to `authority` with a random nonce and `certReq`
+    /// TRUE, and the answer is checked exactly as for a signature
+    /// time-stamp before anything is embedded (imprint, nonce, critical
+    /// `id-kp-timeStamping`, the TSA's signature). The result is then
+    /// re-parsed and verified by [`crate::signature_verify`]; anything but
+    /// `Verified` with coverage to end of file is a refusal.
+    ///
+    /// Allowed on a certified document at any `P` — *"When evaluating the
+    /// DocMDP restrictions the presence of a document timestamp and/or DSS
+    /// information shall be ignored"* (§12.8.5).
+    ///
+    /// For an archive stamp, run [`add_validation_material`](Self::add_validation_material)
+    /// first: requirement x puts the previous signatures' and time-stamps'
+    /// validation data in the DSS *before* the stamp that covers it. The
+    /// report says `B-LTA` only when a signature and a `/DSS` were already
+    /// present, and never checks the DSS is complete.
+    ///
+    /// As with [`sign`](Self::sign), the returned bytes are the document;
+    /// re-open them to keep editing.
+    ///
+    /// # Errors
+    ///
+    /// [`SignApplyError::RedactionPending`](crate::sign::apply::SignApplyError::RedactionPending),
+    /// `Encrypted`, `RecoveredBase`, `FieldNameTaken`, `PageOutOfRange` (a
+    /// document with no page), `ReservationTooSmall`, `Timestamp(…)` naming
+    /// what the TSA got wrong, and `SelfVerificationFailed`.
+    pub fn add_document_timestamp(
+        &mut self,
+        authority: &dyn crate::sign::timestamp::TimestampAuthority,
+        request: &crate::sign::timestamp::DocTimestampRequest,
+        options: &SaveOptions,
+    ) -> Result<
+        (Vec<u8>, crate::sign::timestamp::DocTimestampReport),
+        crate::sign::apply::SignApplyError,
+    > {
+        use crate::sign::apply::{self as apply, SignApplyError};
+        use crate::sign::timestamp::{self as ts, TimestampError};
+
+        if self.redaction_pending {
+            return Err(SignApplyError::RedactionPending);
+        }
+        if self.base.encryption().is_some() || self.base.trailer().contains_key(b"Encrypt") {
+            return Err(SignApplyError::Encrypted);
+        }
+        if self.base.loaded_via_recovery() {
+            return Err(SignApplyError::RecoveredBase);
+        }
+        let prior_signatures = census(&self.graph()).signatures;
+        let dss_present = self
+            .graph()
+            .catalog_dict()
+            .is_some_and(|c| c.contains_key(b"DSS"));
+
+        let existing: Vec<String> = forms::parse_acroform(&self.graph())
+            .map(|f| {
+                f.fields
+                    .into_iter()
+                    .map(|x| x.fully_qualified_name)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let field_name = match &request.field_name {
+            Some(n) if existing.contains(n) => {
+                return Err(SignApplyError::FieldNameTaken { name: n.clone() });
+            }
+            Some(n) => {
+                reject_dotted_partial(n).map_err(SignApplyError::Edit)?;
+                n.clone()
+            }
+            None => (1usize..)
+                .map(|i| format!("Signature{i}"))
+                .find(|c| !existing.contains(c))
+                .unwrap_or_default(),
+        };
+        let slots = self.page_slots().map_err(EditError::from)?;
+        let page_id = slots
+            .first()
+            .map(|s| s.id)
+            .ok_or(SignApplyError::PageOutOfRange { page: 0, count: 0 })?;
+
+        let reserve = request.reserve.max(1);
+        let sig_id = ObjId::new(self.alloc_number()?, 0);
+        let field_id = ObjId::new(self.alloc_number()?, 0);
+        let mut sig = Dict::new();
+        sig.insert(
+            Name::from(b"Type"),
+            Object::Name(Name::from(b"DocTimeStamp")),
+        );
+        sig.insert(
+            Name::from(b"Filter"),
+            Object::Name(Name::from(b"Adobe.PPKLite")),
+        );
+        sig.insert(
+            Name::from(b"SubFilter"),
+            Object::Name(Name::from(b"ETSI.RFC3161")),
+        );
+        sig.insert(
+            Name::from(b"ByteRange"),
+            Object::Array(vec![
+                Object::Integer(0),
+                Object::Integer(apply::BYTE_RANGE_SENTINEL),
+                Object::Integer(apply::BYTE_RANGE_SENTINEL),
+                Object::Integer(apply::BYTE_RANGE_SENTINEL),
+            ]),
+        );
+        sig.insert(Name::from(b"Contents"), Object::String(vec![0u8; reserve]));
+        let mut field = Dict::new();
+        field.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
+        field.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Widget")));
+        field.insert(Name::from(b"FT"), Object::Name(Name::from(b"Sig")));
+        field.insert(
+            Name::from(b"T"),
+            Object::String(encode_text_string(&field_name)),
+        );
+        field.insert(
+            Name::from(b"Rect"),
+            Object::Array(vec![Object::Real(0.0); 4]),
+        );
+        field.insert(Name::from(b"P"), Object::Reference(page_id));
+        // Hidden + Print, as an invisible signature (`SC-4`).
+        field.insert(Name::from(b"F"), Object::Integer(132));
+        field.insert(Name::from(b"V"), Object::Reference(sig_id));
+
+        let mut objects = vec![
+            ObjectWrite {
+                id: sig_id,
+                before: None,
+                after: Some(Object::Dict(sig)),
+            },
+            ObjectWrite {
+                id: field_id,
+                before: None,
+                after: Some(Object::Dict(field)),
+            },
+        ];
+        objects.extend(self.annots_writes(page_id, field_id, &slots)?);
+        let dr_fonts = self.dr_font_objects(&[])?;
+        let (mut af_write, held) = self.acroform_register_write(field_id, &dr_fonts)?;
+        if let Some(Object::Dict(d)) = &mut af_write.after {
+            if let Some(Object::Dict(inline)) = d.get(b"AcroForm").cloned() {
+                let mut inline = inline;
+                inline.insert(Name::from(b"SigFlags"), Object::Integer(3));
+                d.insert(Name::from(b"AcroForm"), Object::Dict(inline));
+            } else {
+                d.insert(Name::from(b"SigFlags"), Object::Integer(3));
+            }
+        }
+        objects.push(af_write);
+        objects.extend(held);
+        self.commit(Command {
+            kind: CommandKind::AddSignatureField,
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+
+        let (mut bytes, _report) = self.to_incremental_bytes(options)?;
+        let revision_start = self.base.bytes().len();
+        let hole = apply::locate_hole(&bytes, revision_start, sig_id, reserve)?;
+        let byte_range = apply::patch_byte_range(&mut bytes, hole);
+        let covered = [
+            bytes.get(..hole.start).unwrap_or(&[]),
+            bytes.get(hole.end..).unwrap_or(&[]),
+        ]
+        .concat();
+        let query = ts::build_request(request.digest.hash(), &covered)?;
+        let response = authority
+            .time_stamp(&query.der)
+            .map_err(TimestampError::Transport)?;
+        let (token, info) = ts::accept_response(&response, &query)?;
+        apply::back_patch(&mut bytes, hole, &token)?;
+
+        let reparsed = Document::from_bytes(bytes.clone()).map_err(|e| {
+            SignApplyError::SelfVerificationFailed {
+                reason: format!("the time-stamped bytes did not re-parse: {e}"),
+            }
+        })?;
+        let verdicts = crate::signature_verify::verify_all(&reparsed.view(), &bytes);
+        let ours = verdicts
+            .iter()
+            .find(|v| v.field_name.as_deref() == Some(field_name.as_str()))
+            .ok_or_else(|| SignApplyError::SelfVerificationFailed {
+                reason: format!("the verifier found no signature named {field_name:?}"),
+            })?;
+        if !matches!(
+            ours.integrity,
+            crate::signature_verify::Integrity::Verified { .. }
+        ) {
+            return Err(SignApplyError::SelfVerificationFailed {
+                reason: format!("{:?}", ours.integrity),
+            });
+        }
+        if !ours.coverage.covers_to_eof() {
+            return Err(SignApplyError::SelfVerificationFailed {
+                reason: format!(
+                    "/ByteRange leaves {} uncovered byte(s) at the end of the file",
+                    ours.coverage.uncovered_tail
+                ),
+            });
+        }
+
+        let pades_level = (prior_signatures > 0 && dss_present).then_some("B-LTA");
+        let mut notes = Vec::new();
+        notes.push(match (prior_signatures, dss_present) {
+            (0, _) => "the document had no signature, so this stamp archives none; it is a valid document time-stamp, not a PAdES level".to_owned(),
+            (_, false) => "no /DSS was present, so the earlier signatures carry no validation material under this stamp; run add-validation-material (B-LT) first for B-LTA".to_owned(),
+            (n, true) => format!("B-LTA: {n} earlier signature(s) and a /DSS are covered; pdfcer did not check the DSS holds every certificate and revocation value they need (EN 319 142-1 requirement x)"),
+        });
+        Ok((
+            bytes,
+            ts::DocTimestampReport {
+                field_name,
+                signature_id: sig_id,
+                byte_range,
+                reserved_bytes: reserve,
+                timestamp: info,
+                prior_signatures,
+                dss_present,
+                pades_level,
+                self_verified: true,
+                notes,
+            },
+        ))
+    }
+
     fn sign_impl(
         &mut self,
         signer: &dyn crate::sign::Signer,

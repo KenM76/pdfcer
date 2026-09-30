@@ -640,6 +640,22 @@ pub(crate) fn run() -> ExitCode {
             signature_certs: !no_signature_certs,
             allow_under_p1: allow_under_no_changes_certification,
         }),
+        #[cfg(feature = "signing")]
+        Command::Timestamp {
+            input,
+            output,
+            tsa_url,
+            field_name,
+            digest,
+            reserve,
+        } => cmd_timestamp(&TimestampArgs {
+            input: &input,
+            output: &output,
+            tsa_url: &tsa_url,
+            field_name: field_name.as_deref(),
+            digest,
+            reserve,
+        }),
         Command::ListPrinters => cmd_list_printers(),
         Command::Print {
             input,

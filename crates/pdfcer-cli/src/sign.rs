@@ -10,6 +10,18 @@ pub(crate) enum SignFormatArg {
     Pkcs7,
 }
 
+/// `--digest` for `timestamp`.
+#[cfg(feature = "signing")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum DocTimestampDigestArg {
+    /// SHA-256 — what every public authority accepts.
+    Sha256,
+    /// SHA-384.
+    Sha384,
+    /// SHA-512.
+    Sha512,
+}
+
 /// `--mdp-level` for `sign --certify` (`Pass 10.12`): Table 254's three
 /// values in Acrobat's own vocabulary.
 #[cfg(feature = "signing")]
@@ -487,6 +499,101 @@ duplicates_skipped={} ocsps_wrapped={} carried_forward={} appended={}",
         }
     }
     finish_edit(args.input, &outcome)
+}
+
+/// `timestamp`'s arguments.
+#[cfg(feature = "signing")]
+// Without `download` only `tsa_url` is read: the command refuses by name.
+#[cfg_attr(not(feature = "download"), allow(dead_code))]
+pub(crate) struct TimestampArgs<'a> {
+    pub input: &'a Path,
+    pub output: &'a Path,
+    pub tsa_url: &'a str,
+    pub field_name: Option<&'a str>,
+    pub digest: DocTimestampDigestArg,
+    pub reserve: usize,
+}
+
+/// `timestamp`: append a `/DocTimeStamp` (PAdES B-LTA archive stamp) and
+/// print everything the report discloses.
+#[cfg(feature = "signing")]
+pub(crate) fn cmd_timestamp(args: &TimestampArgs<'_>) -> u8 {
+    #[cfg(not(feature = "download"))]
+    {
+        eprintln!(
+            "pdfcer: --tsa-url {}: this build was compiled without network support (the `download` feature is off), so no time-stamp can be requested; nothing was written. Rebuild with `--features download`.",
+            args.tsa_url
+        );
+        exit::EDIT_REFUSED
+    }
+    #[cfg(feature = "download")]
+    {
+        use pdfcer_core::sign::apply::SignApplyError;
+        use pdfcer_core::sign::timestamp::{DocTimestampDigest, DocTimestampRequest};
+
+        let mut request = DocTimestampRequest::default();
+        request.field_name = args.field_name.map(str::to_owned);
+        request.digest = match args.digest {
+            DocTimestampDigestArg::Sha256 => DocTimestampDigest::Sha256,
+            DocTimestampDigestArg::Sha384 => DocTimestampDigest::Sha384,
+            DocTimestampDigestArg::Sha512 => DocTimestampDigest::Sha512,
+        };
+        request.reserve = args.reserve;
+        let (_source, mut session) = match open_for_edit(args.input) {
+            Ok(pair) => pair,
+            Err(code) => return code,
+        };
+        let save = pdfcer_core::writer::SaveOptions::identity();
+        let (bytes, report) =
+            match session.add_document_timestamp(&HttpTsa(args.tsa_url), &request, &save) {
+                Ok(pair) => pair,
+                Err(err) => {
+                    eprintln!("pdfcer: {}: {err}", args.input.display());
+                    return match err {
+                        SignApplyError::Timestamp(_)
+                        | SignApplyError::ReservationTooSmall { .. }
+                        | SignApplyError::SelfVerificationFailed { .. }
+                        | SignApplyError::PlaceholderNotFound { .. } => exit::SIGNATURE_FAILED,
+                        SignApplyError::Write(_) => exit::SAVE_REFUSED,
+                        _ => exit::EDIT_REFUSED,
+                    };
+                }
+            };
+        if let Err(err) = write_output(args.output, &bytes) {
+            eprintln!("pdfcer: {}: {err}", args.output.display());
+            return exit::IO_ERROR;
+        }
+        println!(
+            "timestamp {} -> {}; field={} byte_range={},{},{},{} reserved={} level={} prior_signatures={} dss={} self_verified={} out_bytes={}",
+            args.input.display(),
+            args.output.display(),
+            quoted_token(&report.field_name),
+            report.byte_range[0],
+            report.byte_range[1],
+            report.byte_range[2],
+            report.byte_range[3],
+            report.reserved_bytes,
+            report.pades_level.unwrap_or("none"),
+            report.prior_signatures,
+            u8::from(report.dss_present),
+            u8::from(report.self_verified),
+            bytes.len(),
+        );
+        let ts = &report.timestamp;
+        println!(
+            "  timestamp: gen_time={} tsa={} serial={} policy={} digest={} token_bytes={}",
+            ts.gen_time,
+            quoted_token(&ts.tsa_subject),
+            ts.serial_hex,
+            ts.policy_oid,
+            ts.digest_algorithm,
+            ts.token_bytes,
+        );
+        for n in &report.notes {
+            println!("  note: {n}");
+        }
+        exit::SUCCESS
+    }
 }
 
 /// Emit the standard "not implemented yet" message for a stub subcommand

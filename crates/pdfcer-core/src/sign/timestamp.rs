@@ -21,11 +21,12 @@ use crate::crypto::rsa::Hash;
 use crate::{asn1, asn1::Tlv};
 
 use super::der_out;
+use crate::tst_info::{parse_tst_info, small_uint};
 
 /// `id-aa-timeStampToken` (RFC 3161 Appendix A).
 pub const TIME_STAMP_TOKEN_OID: &str = "1.2.840.113549.1.9.16.2.14";
 /// `id-ct-TSTInfo` (RFC 3161 §2.4.2) — the token's `eContentType`.
-pub const TST_INFO_OID: &str = "1.2.840.113549.1.9.16.1.4";
+pub const TST_INFO_OID: &str = crate::tst_info::TST_INFO_OID;
 /// `id-kp-timeStamping` (RFC 3161 §2.3).
 const KP_TIME_STAMPING: &str = "1.3.6.1.5.5.7.3.8";
 /// `extendedKeyUsage` (RFC 5280 §4.2.1.12).
@@ -117,6 +118,88 @@ pub enum TimestampError {
     /// The TSA's signature over the `TSTInfo` did not verify.
     #[error("the time-stamp token's signature is invalid: {0}")]
     TokenSignatureInvalid(String),
+}
+
+/// The digest a document time-stamp's `messageImprint` uses. SHA-1 is not
+/// offered: ISO 32000-2 deprecates it for signatures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum DocTimestampDigest {
+    /// SHA-256 — the default, and what every public TSA accepts.
+    #[default]
+    Sha256,
+    /// SHA-384.
+    Sha384,
+    /// SHA-512.
+    Sha512,
+}
+
+impl DocTimestampDigest {
+    /// The digest implementation this choice names.
+    pub(crate) const fn hash(self) -> Hash {
+        match self {
+            Self::Sha256 => Hash::Sha256,
+            Self::Sha384 => Hash::Sha384,
+            Self::Sha512 => Hash::Sha512,
+        }
+    }
+}
+
+/// What [`EditSession::add_document_timestamp`](crate::edit::EditSession::add_document_timestamp)
+/// writes: an invisible signature field whose value is a `/Type
+/// /DocTimeStamp` dictionary (ISO 32000-2 §12.8.5, Table 255).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DocTimestampRequest {
+    /// The field's `/T`; `None` picks `Signature1`, `Signature2`, … . A
+    /// name already in the form is refused.
+    pub field_name: Option<String>,
+    /// The imprint digest. Default SHA-256.
+    pub digest: DocTimestampDigest,
+    /// Bytes reserved for the token (`TS-9`). Default 12 288; a TSA that
+    /// returns a long chain needs more.
+    pub reserve: usize,
+}
+
+impl Default for DocTimestampRequest {
+    fn default() -> Self {
+        Self {
+            field_name: None,
+            digest: DocTimestampDigest::default(),
+            reserve: 12 * 1024,
+        }
+    }
+}
+
+/// What a document time-stamp wrote — the rule-4 disclosure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DocTimestampReport {
+    /// The field's `/T`.
+    pub field_name: String,
+    /// The `/DocTimeStamp` dictionary's object id.
+    pub signature_id: crate::object::ObjId,
+    /// `/ByteRange` as written — `[0 a b c]`, reaching end of file.
+    pub byte_range: [u64; 4],
+    /// Bytes reserved in `/Contents`.
+    pub reserved_bytes: usize,
+    /// What the token asserts (`genTime` is the TSA's, verbatim).
+    pub timestamp: TimestampInfo,
+    /// Signatures (of any kind) already in the document.
+    pub prior_signatures: usize,
+    /// Whether the catalog already had a `/DSS` (§12.8.4.3).
+    pub dss_present: bool,
+    /// `Some("B-LTA")` when the document already held a signature AND a
+    /// `/DSS` — the PAdES shape this stamp completes (ETSI EN 319 142-1
+    /// §5.4.3). `None` otherwise: the stamp is valid, but there is no
+    /// B-LT signature for it to archive. pdfcer does not check that the
+    /// DSS is complete for every signature (requirement x); `notes` says so.
+    pub pades_level: Option<&'static str>,
+    /// Whether pdfcer's own verifier accepted the result (always `true` in
+    /// an `Ok`).
+    pub self_verified: bool,
+    /// Plain-language statements about what was and was not established.
+    pub notes: Vec<String>,
 }
 
 /// A built request plus what its answer must echo.
@@ -230,11 +313,6 @@ pub(crate) fn accept_response(
         .ok_or(Malformed("status granted but no TimeStampToken (TS-4)"))?;
     let info = check_token(token.raw, request)?;
     Ok((token.raw.to_vec(), info))
-}
-
-fn small_uint(t: Tlv<'_>) -> Option<u64> {
-    let b = asn1::integer_bytes(t)?;
-    (b.len() <= 8).then(|| b.iter().fold(0u64, |a, &x| (a << 8) | u64::from(x)))
 }
 
 /// `": text; failInfo: badAlg, …"` from the optional status fields.
@@ -354,46 +432,6 @@ fn check_token(token: &[u8], request: &Request) -> Result<TimestampInfo, Timesta
 fn strip_zeros(b: &[u8]) -> &[u8] {
     let i = b.iter().position(|&x| x != 0).unwrap_or(b.len());
     b.get(i..).unwrap_or(&[])
-}
-
-struct TstInfo<'a> {
-    policy: String,
-    imprint_oid: String,
-    imprint: &'a [u8],
-    serial: &'a [u8],
-    gen_time: String,
-    nonce: Option<&'a [u8]>,
-}
-
-/// `TSTInfo` (RFC 3161 §2.4.2). Returns `None` on any structural defect.
-fn parse_tst_info(der: &[u8]) -> Option<TstInfo<'_>> {
-    let (seq, _) = asn1::expect(der, asn1::SEQUENCE)?;
-    let kids = asn1::children(seq)?;
-    let mut it = kids.into_iter();
-    if small_uint(it.next()?)? != 1 {
-        return None;
-    }
-    let policy = asn1::oid_to_string(it.next().filter(|t| t.tag == asn1::OID)?.content)?;
-    let mi = asn1::children(it.next().filter(|t| t.tag == asn1::SEQUENCE)?)?;
-    let alg = asn1::children(*mi.first().filter(|t| t.tag == asn1::SEQUENCE)?)?;
-    let imprint_oid = asn1::oid_to_string(alg.first().filter(|t| t.tag == asn1::OID)?.content)?;
-    let imprint = mi.get(1).filter(|t| t.tag == asn1::OCTET_STRING)?.content;
-    let serial = asn1::integer_bytes(it.next()?)?;
-    let gen_tlv = it.next().filter(|t| t.tag == asn1::GENERALIZED_TIME)?;
-    let gen_time = asn1::time_value(gen_tlv)?;
-    // accuracy SEQUENCE, ordering BOOLEAN, nonce INTEGER, [0] tsa, [1] ext —
-    // all optional, in that order; only the nonce is read (`TS-11`).
-    let nonce = it
-        .find(|t| t.tag == asn1::INTEGER)
-        .and_then(asn1::integer_bytes);
-    Some(TstInfo {
-        policy,
-        imprint_oid,
-        imprint,
-        serial,
-        gen_time,
-        nonce,
-    })
 }
 
 /// Whether `tbs` (a `TBSCertificate`) carries an `extendedKeyUsage`

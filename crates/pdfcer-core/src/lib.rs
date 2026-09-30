@@ -100,6 +100,7 @@ pub mod structure;
 pub mod table_detect;
 pub mod text_edit;
 pub mod threed;
+mod tst_info;
 pub mod vector;
 pub mod wrapper;
 

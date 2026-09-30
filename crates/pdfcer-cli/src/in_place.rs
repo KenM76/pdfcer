@@ -141,6 +141,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "set-review-state",
     "set-text-annot-style",
     "sign",
+    "timestamp",
     "subpath-delete",
     "subpath-move",
     "text-object-split",

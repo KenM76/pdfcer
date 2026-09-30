@@ -37,6 +37,32 @@ fn sign(output: &Path, url: &str) -> Output {
         .expect("the binary runs")
 }
 
+fn timestamp(input: &Path, output: &Path, url: &str) -> Output {
+    Command::new(BIN)
+        .arg("timestamp")
+        .arg(input)
+        .args(["--tsa-url", url])
+        .arg("--output")
+        .arg(output)
+        .output()
+        .expect("the binary runs")
+}
+
+#[cfg(not(feature = "download"))]
+#[test]
+fn without_network_support_timestamp_is_refused_and_nothing_is_written() {
+    let out_path = temp_path("dts_refused").with_extension("pdf");
+    let out = timestamp(
+        &fixtures().join("hello.pdf"),
+        &out_path,
+        "http://127.0.0.1:9/tsa",
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(9), "{stderr}");
+    assert!(stderr.contains("the `download` feature is off"), "{stderr}");
+    assert!(!out_path.exists());
+}
+
 #[cfg(not(feature = "download"))]
 #[test]
 fn without_network_support_a_tsa_url_is_refused_and_nothing_is_written() {
@@ -194,5 +220,79 @@ ess_cert_id_chain = no\ness_cert_id_alg = sha256\n";
         assert_eq!(out.status.code(), Some(12), "{stderr}");
         assert!(stderr.contains("HTTP 503"), "{stderr}");
         assert!(!out_path.exists());
+    }
+
+    #[test]
+    fn timestamp_after_add_ltv_is_b_lta_and_verifies() {
+        let pfx = fixtures().join("signing/rsa2048-modern.pfx");
+        let signed = temp_path("dts_signed").with_extension("pdf");
+        let out = Command::new(BIN)
+            .arg("sign")
+            .arg(fixtures().join("hello.pdf"))
+            .args(["--cert", pfx.to_str().unwrap(), "--password", "pdfcer"])
+            .args(["--signing-time", "D:20260927000000Z", "--output"])
+            .arg(&signed)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let ltv = temp_path("dts_ltv").with_extension("pdf");
+        let out = Command::new(BIN)
+            .arg("add-ltv")
+            .arg(&signed)
+            .arg("--output")
+            .arg(&ltv)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+
+        let url = serve_once("HTTP/1.1 200 OK");
+        let stamped = temp_path("dts_blta").with_extension("pdf");
+        let out = timestamp(&ltv, &stamped, &url);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(stdout.contains("field=\"Signature2\""), "{stdout}");
+        assert!(
+            stdout.contains("level=B-LTA prior_signatures=1 dss=1 self_verified=1"),
+            "{stdout}"
+        );
+        assert!(stdout.contains("pdfcer synthetic TSA"), "{stdout}");
+        assert!(stdout.contains("  note: "), "{stdout}");
+        let v = Command::new(BIN)
+            .arg("verify-signatures")
+            .arg(&stamped)
+            .output()
+            .unwrap();
+        let vout = String::from_utf8_lossy(&v.stdout);
+        assert!(v.status.success(), "{vout}");
+        assert!(vout.contains("ETSI.RFC3161"), "{vout}");
+    }
+
+    #[test]
+    fn timestamp_on_an_unsigned_document_claims_no_level() {
+        let url = serve_once("HTTP/1.1 200 OK");
+        let stamped = temp_path("dts_plain").with_extension("pdf");
+        let out = timestamp(&fixtures().join("hello.pdf"), &stamped, &url);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(
+            stdout.contains("level=none prior_signatures=0 dss=0"),
+            "{stdout}"
+        );
     }
 }
