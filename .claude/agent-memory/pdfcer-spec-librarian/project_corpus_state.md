@@ -8015,3 +8015,15 @@ The traversal clause's example gave three neighbour/edge steps. The obvious rule
 
 ### 90g. Filing
 Total 228 → 245 (`prc__` 3 → 20). LEGAL_NOTE new PRC section (CRLF preserved), `_TEMPLATE.md` tier line, index build log / prefix row / total / threed table / `_sources\prc\` row / 9 triggers / 6 recipes (all run non-empty after one fix). Dated CORRECTION blocks inserted under the H1 of the three earlier PRC files. Flat-index check: adapt the checker's source text + glob per corpus; all 15 WD-quoting files passed.
+
+## 91. "Record the IMPLEMENTER's interim choices as open gaps" (PRC schema interpreter, 2026-09-30)
+Shape: an engineer lists N choices made where sources are silent and asks for each to be filed as a CHOICE, with a research pass.
+### 91a. Test each premise the choice list carries
+One choice said "the WD does not lay out Interval/Domain". The WD does (8.2.2/8.2.4), two clauses away from the schema clause. The choice was right and its reason was wrong. Report the wrong reason as a doc-comment fix owed in the implementer's code; do not edit their code.
+### 91b. Encoding "identical below N" claims — prove by script, and find the true boundary
+The corpus had "Integer vs UnsignedInteger identical 0..127, differ from 128 up". An exhaustive script showed they differ only when the top byte has bit 7 set (256..32767 are identical again). Cross-decoding is asymmetric: the unsigned read decodes both writers. The robustness direction was the actual finding.
+### 91c. Screenshots in issue threads carry revision text
+A TWG editor posted the revised clause as an image (#575). View `user-attachments` images — the revision's wording is often only there.
+### 91d. A spec table's one-word gloss can contradict its clause ("global" in the 9.2 table vs "local" in 9.3.22). Grep the table as well as the clause.
+### 91e. Premise "no real file on hand" — a permissive reader's testdata usually holds real extracted streams. Provenance unknown → local use only (LEGAL.md §5). Report the route; do not commit.
+### 91f. Filing: 0 new files; 4 amended + index (build log, table row, 2 triggers, 2 recipes). The flat-index check passed 8/8. The script died midway on a wrong anchor, but per-file saves had already landed — rerun ONLY the unsaved remainder.
