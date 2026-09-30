@@ -17,7 +17,7 @@
 //!   only-CA scopes are honoured.
 //! - A CRL whose `nextUpdate` is before the reference time is not used.
 //!   A missing `nextUpdate` (the standard is silent on its meaning) is
-//!   accepted and reported by [`CertCoverage::next_update`] being `None`.
+//!   accepted and reported by [`CertCoverage::next_update`](crate::revocation::CertCoverage::next_update) being `None`.
 
 use crate::asn1::{self, Tlv};
 use crate::cms::{self, AlgId, Certificate};

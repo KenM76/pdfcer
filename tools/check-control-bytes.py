@@ -58,6 +58,7 @@ BINARY_SUFFIXES = {
     ".jp2", ".jpx", ".j2k", ".ttf", ".otf", ".pfb", ".cff", ".woff", ".woff2",
     ".rten", ".bin", ".zip", ".gz", ".bundle", ".exe", ".dll", ".pdb", ".icc",
     ".icm", ".fdf", ".jb2", ".jbig2", ".dat", ".wasm", ".lock",
+    ".der", ".cer", ".crl", ".pfx", ".p12", ".p7s", ".key",
 }
 
 TEXT_ROOTS = ("docs/", ".claude/", "tools/", "crates/", ".github/", "fuzz/fuzz_targets/", "fixtures/")
