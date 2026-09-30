@@ -222,6 +222,40 @@ fn rsa_pkcs1_signs_hello_and_both_verifiers_accept_it() {
         .expect("OpenSSL accepts the CMS");
 }
 
+/// The verdict carries where the signer's certificate says revocation can be
+/// checked — read from the CMS, never fetched.
+#[test]
+fn a_verdict_names_the_signers_revocation_locations() {
+    let (bytes, _) = sign_hello(&pfx("revocation-ecp256-modern.pfx"), &SignRequest::at(T0));
+    let v = verified(&bytes, "Signature1");
+    assert!(
+        matches!(v.integrity, Integrity::Verified { .. }),
+        "{:?}",
+        v.integrity
+    );
+    let [source] = v.revocation_sources.as_slice() else {
+        panic!("one certificate, one source: {:?}", v.revocation_sources);
+    };
+    assert!(
+        source.subject.contains("pdfcer revocation signer"),
+        "{}",
+        source.subject
+    );
+    assert_eq!(source.ocsp, ["http://ocsp.example.invalid/"]);
+    assert_eq!(source.ca_issuers, ["http://ca.example.invalid/issuer.cer"]);
+    assert_eq!(
+        source.crl,
+        [
+            "http://crl.example.invalid/a.crl",
+            "ldap://ldap.example.invalid/cn=CA?certificateRevocationList",
+        ]
+    );
+    assert_eq!(source.unreadable, 1, "the directoryName distribution point");
+
+    let (bytes, _) = sign_hello(&pfx("rsa2048-modern.pfx"), &SignRequest::at(T0));
+    assert!(verified(&bytes, "Signature1").revocation_sources.is_empty());
+}
+
 #[test]
 fn rsa_pss_and_ecdsa_also_round_trip_through_both_verifiers() {
     let rsa = pfx("rsa2048-modern.pfx");

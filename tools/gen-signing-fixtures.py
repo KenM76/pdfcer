@@ -88,6 +88,9 @@ EXPECTED = [
     "ecp384-modern.pfx",
     "ecp384.cer",
     "ecp384.key.der",
+    # Revocation-location extensions (RFC 5280 §4.2.1.13, §4.2.2.1):
+    "revocation-ecp256-modern.pfx",
+    "revocation-ecp256.cer",
 ]
 
 LOCAL_KEY_ID = "local_key_id"  # asn1crypto's name for 1.2.840.113549.1.9.21
@@ -255,6 +258,46 @@ def tsa_shape(work: Path) -> None:
         print(f"wrote {OUT / f} ({(OUT / f).stat().st_size} B)")
 
 
+REVOCATION_CONFIG = """[req]
+distinguished_name = dn
+prompt = no
+[dn]
+CN = pdfcer revocation signer (test fixture, trust nothing)
+O = pdfcer fixtures
+C = CA
+[v3]
+crlDistributionPoints = dp_uris, dp_dirname
+authorityInfoAccess = OCSP;URI:http://ocsp.example.invalid/, caIssuers;URI:http://ca.example.invalid/issuer.cer
+[dp_uris]
+fullname = URI:http://crl.example.invalid/a.crl, URI:ldap://ldap.example.invalid/cn=CA?certificateRevocationList
+[dp_dirname]
+fullname = dirName:dp_dir
+[dp_dir]
+CN = pdfcer synthetic CRL issuer
+"""
+
+
+def revocation_shape(work: Path, major: int) -> None:
+    """An EC P-256 signer whose certificate names revocation locations.
+
+    Two distribution points — one with two URIs (http and ldap), one with a
+    directoryName that has no URI — plus an OCSP and a caIssuers access
+    description. Every host is under `.invalid` (RFC 6761), so nothing
+    resolves.
+    """
+    cfg = work / "revocation.cnf"
+    cfg.write_text(REVOCATION_CONFIG)
+    key = work / "revocation.key.pem"
+    cert = work / "revocation.cert.pem"
+    run("openssl", "ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", str(key))
+    run("openssl", "req", "-x509", "-new", "-key", str(key), "-out", str(cert),
+        "-days", DAYS, "-sha256", "-config", str(cfg), "-extensions", "v3")
+    export_pfx(work, key, cert, "pdfcer-revocation", OUT / "revocation-ecp256-modern.pfx", True, major)
+    run("openssl", "x509", "-in", str(cert), "-outform", "DER", "-out", str(OUT / "revocation-ecp256.cer"))
+    for f in ("revocation-ecp256-modern.pfx", "revocation-ecp256.cer"):
+        print(f"wrote {OUT / f} ({(OUT / f).stat().st_size} B)")
+
+
 def main() -> int:
     if "--check" in sys.argv:
         missing = [f for f in EXPECTED if not (OUT / f).exists()]
@@ -275,6 +318,8 @@ def main() -> int:
             run("openssl", "x509", "-inform", "DER", "-in", str(OUT / "rsa2048.cer"), "-out", str(rsa_cert))
             if "--tsa" in sys.argv or not (OUT / "tsa-rsa2048.cer").exists():
                 tsa_shape(work)
+            elif "--revocation" in sys.argv or not (OUT / "revocation-ecp256.cer").exists():
+                revocation_shape(work, major)
             else:
                 added_shapes(work, rsa_key, rsa_cert, major)
             return 0
@@ -306,6 +351,7 @@ def main() -> int:
 
         added_shapes(work, rsa_key, rsa_cert, major)
         tsa_shape(work)
+        revocation_shape(work, major)
 
     for f in EXPECTED:
         print(f"wrote {OUT / f} ({(OUT / f).stat().st_size} B)")

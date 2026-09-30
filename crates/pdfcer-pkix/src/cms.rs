@@ -55,6 +55,14 @@ pub mod oid {
     pub const RSASSA_PSS: &str = "1.2.840.113549.1.1.10";
     pub const MGF1: &str = "1.2.840.113549.1.1.8";
     pub const EC_PUBLIC_KEY: &str = "1.2.840.10045.2.1";
+    /// `cRLDistributionPoints` extension (RFC 5280 §4.2.1.13).
+    pub const CRL_DISTRIBUTION_POINTS: &str = "2.5.29.31";
+    /// `authorityInfoAccess` extension (RFC 5280 §4.2.2.1).
+    pub const AUTHORITY_INFO_ACCESS: &str = "1.3.6.1.5.5.7.1.1";
+    /// `id-ad-ocsp` access method (RFC 5280 §4.2.2.1).
+    pub const AD_OCSP: &str = "1.3.6.1.5.5.7.48.1";
+    /// `id-ad-caIssuers` access method (RFC 5280 §4.2.2.1).
+    pub const AD_CA_ISSUERS: &str = "1.3.6.1.5.5.7.48.2";
     pub const ECDSA_SHA1: &str = "1.2.840.10045.4.1";
     pub const ECDSA_SHA256: &str = "1.2.840.10045.4.3.2";
     pub const ECDSA_SHA384: &str = "1.2.840.10045.4.3.3";
@@ -316,6 +324,113 @@ pub struct Certificate<'a> {
     /// `Some(false)` must not be used to sign certificates (`Pass 10.5`); `None`
     /// leaves the constraint unstated and is not, alone, disqualifying.
     pub key_usage_cert_sign: Option<bool>,
+    /// Where the certificate says its revocation status can be fetched:
+    /// `cRLDistributionPoints` and `authorityInfoAccess` URIs. Claims —
+    /// nothing here has been fetched or checked.
+    pub revocation_uris: RevocationUris,
+}
+
+/// The URIs a certificate names for revocation checking (RFC 5280
+/// §4.2.1.13 `cRLDistributionPoints`, §4.2.2.1 `authorityInfoAccess`).
+///
+/// Only `uniformResourceIdentifier` names are kept; a directory-name
+/// distribution point or a URI that is not printable ASCII is counted in
+/// [`unreadable`](Self::unreadable) instead. Each list holds at most
+/// [`MAX_REVOCATION_URIS`] entries, the rest counted the same way.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RevocationUris {
+    /// CRL distribution point URIs (`fullName` `uniformResourceIdentifier`).
+    pub crl: Vec<String>,
+    /// OCSP responder URIs (`id-ad-ocsp`).
+    pub ocsp: Vec<String>,
+    /// Issuer-certificate URIs (`id-ad-caIssuers`).
+    pub ca_issuers: Vec<String>,
+    /// Location entries present but not kept.
+    pub unreadable: usize,
+}
+
+/// Per-list ceiling on kept revocation URIs; a hostile certificate cannot
+/// make a verdict carry an unbounded list.
+pub const MAX_REVOCATION_URIS: usize = 16;
+
+/// GeneralName `uniformResourceIdentifier [6] IMPLICIT IA5String`
+/// (RFC 5280 §4.2.1.6): context-specific, primitive, tag 6.
+const GENERAL_NAME_URI: u8 = 0x86;
+
+impl RevocationUris {
+    /// Keep `name` in `list` if it is a URI GeneralName of printable ASCII
+    /// and the list has room; otherwise count it unreadable.
+    fn keep(list: &mut Vec<String>, unreadable: &mut usize, name: Tlv<'_>) {
+        let printable =
+            !name.content.is_empty() && name.content.iter().all(|b| (0x21..=0x7E).contains(b));
+        if name.tag == GENERAL_NAME_URI && printable && list.len() < MAX_REVOCATION_URIS {
+            list.push(String::from_utf8_lossy(name.content).into_owned());
+        } else {
+            *unreadable += 1;
+        }
+    }
+
+    /// `CRLDistributionPoints ::= SEQUENCE OF DistributionPoint`;
+    /// `DistributionPoint ::= SEQUENCE { distributionPoint [0]
+    /// DistributionPointName OPTIONAL, reasons [1], cRLIssuer [2] }`.
+    /// `distributionPoint` tags a CHOICE, so it is explicit (`0xA0`
+    /// wrapping the choice); `fullName [0] GeneralNames` is implicit
+    /// (`0xA0` holding the names directly). `nameRelativeToCRLIssuer [1]`
+    /// has no URI and is counted unreadable.
+    fn read_crl_distribution_points(&mut self, value: &[u8]) {
+        let Some((seq, _)) = asn1::expect(value, asn1::SEQUENCE) else {
+            self.unreadable += 1;
+            return;
+        };
+        for point in asn1::children(seq).unwrap_or_default() {
+            let Some(fields) = asn1::children(point) else {
+                self.unreadable += 1;
+                continue;
+            };
+            let Some(name) = fields.iter().find(|f| f.tag == asn1::context(0)) else {
+                // cRLIssuer-only: the CRL's location is the issuer's own
+                // directory entry, not a URI.
+                self.unreadable += 1;
+                continue;
+            };
+            match asn1::read(name.content) {
+                Some((full, _)) if full.tag == asn1::context(0) => {
+                    for general in asn1::children(full).unwrap_or_default() {
+                        Self::keep(&mut self.crl, &mut self.unreadable, general);
+                    }
+                }
+                _ => self.unreadable += 1,
+            }
+        }
+    }
+
+    /// `AuthorityInfoAccessSyntax ::= SEQUENCE OF AccessDescription`;
+    /// `AccessDescription ::= SEQUENCE { accessMethod OID, accessLocation
+    /// GeneralName }`. Access methods other than OCSP and caIssuers are
+    /// skipped without counting — they are not revocation locations.
+    fn read_authority_info_access(&mut self, value: &[u8]) {
+        let Some((seq, _)) = asn1::expect(value, asn1::SEQUENCE) else {
+            self.unreadable += 1;
+            return;
+        };
+        for description in asn1::children(seq).unwrap_or_default() {
+            let parts = asn1::children(description).unwrap_or_default();
+            let (Some(method), Some(location)) = (parts.first(), parts.get(1)) else {
+                self.unreadable += 1;
+                continue;
+            };
+            let method = (method.tag == asn1::OID)
+                .then(|| asn1::oid_to_string(method.content))
+                .flatten();
+            match method.as_deref() {
+                Some(oid::AD_OCSP) => Self::keep(&mut self.ocsp, &mut self.unreadable, *location),
+                Some(oid::AD_CA_ISSUERS) => {
+                    Self::keep(&mut self.ca_issuers, &mut self.unreadable, *location);
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 /// Parse an X.509 v3 certificate (RFC 5280 §4.1).
@@ -351,6 +466,7 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
     let mut subject_key_id = None;
     let mut is_ca = false;
     let mut key_usage_cert_sign = None;
+    let mut revocation_uris = RevocationUris::default();
     // Optional issuerUniqueID [1], subjectUniqueID [2], extensions [3].
     for t in it {
         if t.tag == asn1::context(3) {
@@ -391,6 +507,17 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
                         let cert_sign = bits.content.get(1).copied().unwrap_or(0) & 0x04 != 0;
                         key_usage_cert_sign = Some(cert_sign);
                     }
+                } else if let Some(outer) = parts.last().filter(|t| t.tag == asn1::OCTET_STRING) {
+                    // extnValue OCTET STRING wraps the extension's own DER.
+                    match oid_s.as_deref() {
+                        Some(oid::CRL_DISTRIBUTION_POINTS) => {
+                            revocation_uris.read_crl_distribution_points(outer.content);
+                        }
+                        Some(oid::AUTHORITY_INFO_ACCESS) => {
+                            revocation_uris.read_authority_info_access(outer.content);
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
@@ -410,6 +537,7 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
         sig_value,
         is_ca,
         key_usage_cert_sign,
+        revocation_uris,
     })
 }
 
@@ -566,4 +694,107 @@ pub fn pss_params(alg: &AlgId<'_>) -> Result<(Hash, Hash, usize), String> {
         }
     }
     Ok((hash, mgf, salt))
+}
+
+#[cfg(test)]
+// Test DER is built from small literals; a panic is the failure report.
+#[allow(clippy::unwrap_used, clippy::cast_possible_truncation)]
+mod revocation_tests {
+    use super::*;
+
+    /// DER TLV, short or two-byte long-form length.
+    fn tlv(tag: u8, content: &[u8]) -> Vec<u8> {
+        let mut out = vec![tag];
+        if content.len() < 0x80 {
+            out.push(content.len() as u8);
+        } else {
+            let n = u16::try_from(content.len()).unwrap();
+            out.push(0x82);
+            out.extend(n.to_be_bytes());
+        }
+        out.extend_from_slice(content);
+        out
+    }
+
+    fn uri(s: &[u8]) -> Vec<u8> {
+        tlv(GENERAL_NAME_URI, s)
+    }
+
+    /// `DistributionPoint { distributionPoint [0] { fullName [0] names } }`.
+    fn full_name_point(names: &[Vec<u8>]) -> Vec<u8> {
+        tlv(0x30, &tlv(0xA0, &tlv(0xA0, &names.concat())))
+    }
+
+    fn cdp(points: &[Vec<u8>]) -> RevocationUris {
+        let mut r = RevocationUris::default();
+        r.read_crl_distribution_points(&tlv(0x30, &points.concat()));
+        r
+    }
+
+    #[test]
+    fn full_name_uris_are_kept_and_other_names_counted() {
+        let r = cdp(&[
+            full_name_point(&[uri(b"http://a.invalid/x.crl"), tlv(0xA4, &tlv(0x30, &[]))]),
+            // nameRelativeToCRLIssuer [1]: no URI to keep.
+            tlv(0x30, &tlv(0xA0, &tlv(0xA1, &[]))),
+            // cRLIssuer [2] only.
+            tlv(0x30, &tlv(0xA2, &[])),
+            full_name_point(&[uri("http://é.invalid".as_bytes()), uri(b"")]),
+        ]);
+        assert_eq!(r.crl, ["http://a.invalid/x.crl"]);
+        assert_eq!(r.unreadable, 5);
+    }
+
+    #[test]
+    fn each_list_is_capped() {
+        let names: Vec<_> = (0..MAX_REVOCATION_URIS + 3)
+            .map(|i| uri(format!("http://c.invalid/{i}").as_bytes()))
+            .collect();
+        let r = cdp(&[full_name_point(&names)]);
+        assert_eq!(r.crl.len(), MAX_REVOCATION_URIS);
+        assert_eq!(r.unreadable, 3);
+    }
+
+    #[test]
+    fn access_methods_route_to_their_lists_and_others_are_skipped() {
+        let oid = |dotted_tail: &[u8]| {
+            tlv(
+                asn1::OID,
+                &[&[0x2B, 6, 1, 5, 5, 7, 48][..], dotted_tail].concat(),
+            )
+        };
+        let desc = |method: Vec<u8>, name: Vec<u8>| tlv(0x30, &[method, name].concat());
+        let aia = tlv(
+            0x30,
+            &[
+                desc(oid(&[1]), uri(b"http://ocsp.invalid")),
+                desc(oid(&[2]), uri(b"http://ca.invalid/ca.cer")),
+                desc(oid(&[3]), uri(b"http://tsa.invalid")),
+                desc(oid(&[1]), tlv(0xA4, &[])),
+            ]
+            .concat(),
+        );
+        let mut r = RevocationUris::default();
+        r.read_authority_info_access(&aia);
+        assert_eq!(r.ocsp, ["http://ocsp.invalid"]);
+        assert_eq!(r.ca_issuers, ["http://ca.invalid/ca.cer"]);
+        assert_eq!(
+            r.unreadable, 1,
+            "the directoryName OCSP location; id-ad-timeStamping skipped"
+        );
+    }
+
+    #[test]
+    fn malformed_extension_values_count_once() {
+        let mut r = RevocationUris::default();
+        r.read_crl_distribution_points(&[0x04, 0x00]);
+        r.read_authority_info_access(&[0xFF]);
+        assert_eq!(
+            r,
+            RevocationUris {
+                unreadable: 2,
+                ..RevocationUris::default()
+            }
+        );
+    }
 }

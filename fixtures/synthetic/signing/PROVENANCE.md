@@ -72,3 +72,13 @@ text field `Name`:
 | `sig-field-sv-ok.pdf` | `/SV` with every evaluable constraint, satisfiable by defaults (`Reasons` recommended only, `MDP /P 0`) | the seed-value evaluator's honoured/noted branches |
 | `sig-field-sv-strict.pdf` | `/SV /Ff 72 /Reasons [(Only this reason)] /DigestMethod [/SHA1]` | a REQUIRED constraint a default request violates → refused by name |
 | `sig-field-sv-cert.pdf` | `/SV /Cert << /Ff 1 /Subject [(anyone)] >>` (Table 235) | a constraint pdfcer does not evaluate → refused by name, never skipped |
+
+## Added for signature revocation locations — a certificate that names its CRL, OCSP and issuer URIs
+
+`tools/gen-signing-fixtures.py --revocation` (also minted by `--regen`).
+Self-signed, OpenSSL-generated, every host under `.invalid` (RFC 6761) so
+nothing resolves.
+
+| File | Key | Container | Exercises |
+|---|---|---|---|
+| `revocation-ecp256-modern.pfx`, `revocation-ecp256.cer` | EC P-256, CN `pdfcer revocation signer (test fixture, trust nothing)`. `cRLDistributionPoints`: one point with two `fullName` URIs (http, ldap), one with a `directoryName` only; `authorityInfoAccess`: one `id-ad-ocsp` URI, one `id-ad-caIssuers` URI | PBES2 / AES-256-CBC, MAC SHA-256 | reading RFC 5280 §4.2.1.13 / §4.2.2.1 into `RevocationUris` and the verdict's `revocation_sources`; the directory-name point is the one counted `unreadable` |

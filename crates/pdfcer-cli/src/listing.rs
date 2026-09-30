@@ -176,6 +176,23 @@ pub(crate) fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u
                     .map_or("unknown level", |m| m.meaning())
             );
         }
+        for r in &v.revocation_sources {
+            let list = |urls: &[String]| {
+                if urls.is_empty() {
+                    "-".to_owned()
+                } else {
+                    urls.join(",")
+                }
+            };
+            println!(
+                "  revocation-source: subject={:?} ocsp={} crl={} ca_issuers={} unreadable={} (stated by the certificate, NOT fetched)",
+                r.subject,
+                list(&r.ocsp),
+                list(&r.crl),
+                list(&r.ca_issuers),
+                r.unreadable,
+            );
+        }
         for n in &v.notes {
             println!("  note: {n}");
         }

@@ -2236,6 +2236,12 @@ pub(crate) enum Command {
     /// CLAIMS the certificate makes. Exit 0 only when every signature
     /// verified; 12 when any failed integrity; 13 when none failed but one
     /// or more could not be verified.
+    ///
+    /// Each certificate that names where its revocation status lives gets a
+    /// `revocation-source:` line — its OCSP responder, CRL distribution
+    /// point and issuer-certificate URIs (RFC 5280 §4.2.1.13, §4.2.2.1),
+    /// exactly as the certificate states them. They are NOT fetched; they
+    /// are what to fetch to check revocation yourself.
     VerifySignatures {
         /// Input PDF.
         input: PathBuf,

@@ -198,6 +198,68 @@ pub struct SignatureVerdict {
     /// Disclosures: a weak digest, non-zero padding, an odd CMS version,
     /// extra signers — everything the operator cannot see from the verdict.
     pub notes: Vec<String>,
+    /// Where each embedded certificate says its revocation status can be
+    /// fetched — the signer's first, then the others in CMS order; a
+    /// certificate naming no location is omitted. Nothing here was fetched:
+    /// `pdfcer-core` has no network, so these are what a shell would fetch
+    /// to check revocation.
+    pub revocation_sources: Vec<RevocationSources>,
+}
+
+/// One certificate's revocation locations, as it states them (RFC 5280
+/// §4.2.1.13 `cRLDistributionPoints`, §4.2.2.1 `authorityInfoAccess`).
+///
+/// Every URI is a claim by the certificate, unfetched and unchecked. Only
+/// `uniformResourceIdentifier` names of printable ASCII are kept, at most
+/// 16 per list; anything else present is counted in `unreadable`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RevocationSources {
+    /// The certificate's subject (`CN=…, O=…`).
+    pub subject: String,
+    /// CRL distribution point URIs.
+    pub crl: Vec<String>,
+    /// OCSP responder URIs (`id-ad-ocsp`).
+    pub ocsp: Vec<String>,
+    /// URIs of the issuer's own certificate (`id-ad-caIssuers`) — for
+    /// completing a chain the signature did not embed.
+    pub ca_issuers: Vec<String>,
+    /// Location entries present but not kept (a directory name, a
+    /// non-ASCII URI, one past the per-list cap, or malformed DER).
+    pub unreadable: usize,
+}
+
+impl RevocationSources {
+    /// `true` when the certificate named no revocation location at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.crl.is_empty()
+            && self.ocsp.is_empty()
+            && self.ca_issuers.is_empty()
+            && self.unreadable == 0
+    }
+}
+
+/// The revocation locations of every certificate in `sd`, signer first.
+fn revocation_sources(sd: &cms::SignedData<'_>) -> Vec<RevocationSources> {
+    let signer = sd.signer_certificate_der();
+    let ordered = signer.into_iter().chain(
+        sd.certificates
+            .iter()
+            .copied()
+            .filter(|d| Some(*d) != signer),
+    );
+    ordered
+        .filter_map(cms::parse_certificate)
+        .map(|c| RevocationSources {
+            subject: c.subject,
+            crl: c.revocation_uris.crl,
+            ocsp: c.revocation_uris.ocsp,
+            ca_issuers: c.revocation_uris.ca_issuers,
+            unreadable: c.revocation_uris.unreadable,
+        })
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 /// Verify every signature field in `graph`, over the file `bytes` the
@@ -372,6 +434,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
         location: text(graph, dict, b"Location"),
         certification: docmdp_permission(graph, dict),
         notes: Vec::new(),
+        revocation_sources: Vec::new(),
     };
     let unverifiable = |reason: &str| Integrity::Unverifiable {
         reason: reason.to_string(),
@@ -520,6 +583,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
         ));
     }
     verdict.signing_time = signer.signing_time.clone();
+    verdict.revocation_sources = revocation_sources(&sd);
 
     // --- the signer's certificate (a claim) ---
     let Some(cert) = sd.signer_certificate() else {

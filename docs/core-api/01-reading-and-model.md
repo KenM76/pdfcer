@@ -3018,6 +3018,21 @@ Plus claims — `signer_subject`, `signer_issuer`, `cert_not_before`,
 `reason`/`location` — and `notes` (a SHA-1 digest, non-zero padding, extra
 `/ByteRange` gaps, an ETSI signature that does not reach EOF, extra signers).
 
+**`revocation_sources: Vec<RevocationSources>`** — where each embedded
+certificate says its revocation status can be fetched (RFC 5280 §4.2.1.13
+`cRLDistributionPoints`, §4.2.2.1 `authorityInfoAccess`), signer first, then
+the others in CMS order; a certificate naming nothing is omitted.
+`RevocationSources` (`#[non_exhaustive]`, read-only) has `subject`, `crl`,
+`ocsp`, `ca_issuers` (URI lists, printable ASCII, ≤ 16 each) and
+`unreadable` (entries present but not kept — a directory name, a non-ASCII
+URI, one past the cap, malformed DER); `is_empty()`. **Nothing is fetched**:
+core has no network, and revocation is still not checked — these are the
+URLs a shell would fetch if the operator asks. Render them as the
+certificate's statement, never as a revocation result. The CLI prints one
+`revocation-source:` line per entry, ending `(stated by the certificate,
+NOT fetched)`. The raw per-certificate form is `cms::Certificate::revocation_uris`
+(`RevocationUris`, same fields without `subject`).
+
 Implemented: `adbe.pkcs7.detached`, `ETSI.CAdES.detached`, `adbe.pkcs7.sha1`
 (the double hash — the inner SHA-1 is pinned by the subfilter); RSA PKCS#1
 v1.5 and RSASSA-PSS, ECDSA P-256/P-384; SHA-1/256/384/512.

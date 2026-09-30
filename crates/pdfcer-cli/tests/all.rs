@@ -71,6 +71,7 @@ mod set_markup_style_cloud;
 mod set_page_tabs;
 mod sign_certify;
 mod sign_into_field;
+mod sign_revocation_sources;
 mod sign_timestamp;
 mod span_from_pin_flag;
 mod stamp_pack;
