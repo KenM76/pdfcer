@@ -8027,3 +8027,8 @@ A TWG editor posted the revised clause as an image (#575). View `user-attachment
 ### 91d. A spec table's one-word gloss can contradict its clause ("global" in the 9.2 table vs "local" in 9.3.22). Grep the table as well as the clause.
 ### 91e. Premise "no real file on hand" — a permissive reader's testdata usually holds real extracted streams. Provenance unknown → local use only (LEGAL.md §5). Report the route; do not commit.
 ### 91f. Filing: 0 new files; 4 amended + index (build log, table row, 2 triggers, 2 recipes). The flat-index check passed 8/8. The script died midway on a wrong anchor, but per-file saves had already landed — rerun ONLY the unsaved remainder.
+
+## 92. "Record the rules the implementer MEASURED" (PRC 173 reconstruction, 2026-09-30)
+### 92a. An implementer's measurement can be the ONLY source — label every fact with its provenance tag (e.g. "MEASURED (pdfcer, 2026-09-30)"), state the sample, its provenance (local-only), and the validation metric + score. Put the rules in their own section (§2a) and mark the older WD-derived bullets "superseded for scope S" at their TOP — strike through UNVERIFIED/UNSETTLED lines, never delete.
+### 92b. A measured rule can CONTRADICT the free draft (WD X lower→higher; measured higher→lower). Record both, say which decodes, and tie it to any issue-thread observation it agrees with (#773 Y/Z negation).
+### 92c. Scope the claim to the form measured (3T only; the T form stayed OPEN). Read the engineer's scratch notes: they carried rejected variants + scores + leads not in the dispatch — the rejected list is durable, fold it in.
