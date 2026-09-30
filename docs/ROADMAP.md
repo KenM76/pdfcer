@@ -115,6 +115,39 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 114.1` (`c5c21156`), 2026-09-29 — `flatten_annotations` burns a `NoRotate`/`/Text` annotation upright on a rotated page, pivoted on `/Rect`'s upper-left corner
+
+Corrects the entry directly below (`Pass 114.0`) and `FEATURES.md` row 319
+(flatten_annotations), both of which said this refusal still stood because
+baked page content "cannot carry the pivot" — wrong; it now can. Fixed in
+`FEATURES.md` with a pointer here rather than a rewrite.
+
+`EditSession::flatten_annotations` (`crates/pdfcer-core/src/edit.rs`) now
+post-multiplies the §12.5.5 placement by the exact quarter-turn rotation
+about the `/Rect` upper-left corner that the page's `/Rotate` turns back
+(private `counter_rotation_about`), for `NoRotate` (§12.5.3 bit 5) and any
+`/Text` annotation (§12.5.6.4 implies `NoRotate`). Before: `NoRotate` on a
+rotated page was refused (`AnnotFlattenRefusalReason::NoRotateOnRotatedPage`)
+and a `/Text` on a rotated page baked turned WITH the page — which, after
+`Pass 114.0` taught the renderer the same pivot, no longer matched the
+render. `NoRotateOnRotatedPage` is never returned now; the variant stays in
+the enum only because `pdfcer-gui-base/src/text/flattenannot.rs` matches on
+it by name — `docs/core-api` notes it retires in a later release. Also
+corrected a stale doc on the `NoZoom` resize refusal in `edit.rs` that
+claimed pdfcer's renderer disagreed with Acrobat.
+
+**Tests.** `pdfcer-render/tests/flatten_annotations_look_the_same.rs` gains
+`an_upright_annotation_on_a_rotated_page_flattens_unchanged` (pixel equality
+across `/Rotate` 90/180/270, a `NoRotate` `/Square` with a rotated
+`/Matrix`, and a `/Text`); the core test is renamed
+`no_rotate_on_a_rotated_page_is_burned`. Sabotage: reversing the rotation or
+dropping the `/Text` rule each fails (max channel diff 255). Suites:
+pdfcer-core 1331+2344+158, pdfcer-render 434+386+18, all green; `cargo fmt
+--check` / `cargo clippy -- -D warnings` clean; no `Cargo.toml` change.
+
+**Delivered.** `core [x]`; `cli [x]` (`flatten-annotations` calls the same
+verb, no CLI code change); `gui [ ]` not confirmed.
+
 ### `Pass 114.0` (`9b3bd614`), 2026-09-29 — NoRotate/NoZoom annotation placement pivots on the `/Rect` upper-left corner
 
 Closes the Backlog entry below ("`Pass 114.0` — implement `NoZoom`/
@@ -25937,6 +25970,48 @@ rather than deleted, per this project's in-place-correction convention.
 > §12.5.5 free-carry derivation and the *"a `/Rect`-only patch produces a file
 > that LOOKS right and IS wrong"* corollary. These entries were filed
 > **2026-08-20** (`57b67c5`). Full record: `Pass 149.0`'s Shipped entry.
+
+> #### ★★★★ AMENDMENT 2026-09-29 (769th filing) — ALL THREE `115.x` ENTRIES RETIRE. `115.0`/`115.1` CONFIRMED FULLY SHIPPED; `115.2` CLOSES TOO — THE GENERAL FALLBACK IT ASKED FOR SHIPPED, JUST NOT AS ONE DEDICATED VERB
+>
+> **`115.0` and `115.1`**, confirmed rather than left flagged (the 768th
+> filing's note in `Pass 114.0`'s *Shipped* entry found this by reading
+> `edit.rs`'s guards directly): `move_annotation` (`Pass 149.0`, `e91dfad`),
+> `resize_annotation` (`Pass 151.0`, `c4425f0`) and `rotate_annotation`
+> (`Pass 155.0`, `0ce65dc`) are all subtype-agnostic — no allow-list for
+> `Square`/`Circle`/`Line`/`Ink`/`Polygon`/`Cloud`/`PolyLine`/`TextMarkup`/
+> redaction marks (`115.0`) or `FreeText`/`Sticky`/`Stamp` (`115.1`); only
+> widgets and ce dimensions are excluded, by name. `/RD` scales by default
+> (`115.0`'s own named acceptance criterion). Both retire, discharged by the
+> three Passes named.
+>
+> **`115.2` retires too — `/Link` and anything `spec_from_dict` refuses to
+> decode.** Its own text predicted the only safe general transform was an
+> "`/AP` `/Matrix` prepend." That shipped, distributed across the same three
+> verbs rather than as one dedicated fallback:
+>
+> - **Move** — untouched by construction (`Pass 149.0`): the baked `/AP` is
+>   never read or rewritten, so it needs no decode and no fallback at all.
+> - **Rotate** (`Pass 155.0`) — composes the rotation directly into the
+>   appearance's own `/Matrix`, exactly the "`/AP` `/Matrix` prepend" this
+>   entry named; its own *Shipped* entry states it in a table: *"a FOREIGN
+>   appearance... rotates correctly. pdfce composes into the existing
+>   `/Matrix`; no producer's artwork is read, replaced or re-authored."* No
+>   decode of `/Link`'s content is needed because none happens.
+> - **Resize** (`Pass 151.0`) — read directly from `edit.rs`
+>   (`crates/pdfcer-core/src/edit.rs:33665`–`33720`: `ap_is_pdfces` /
+>   `carrying_is_exact` / `ResizeOptions::allow_appearance_distortion`): a
+>   foreign or undecodable appearance is never rebuilt (`spec_from_dict`
+>   failing just makes `ap_is_pdfces` false, no error raised) — a uniform
+>   scale with `scale_stroke_width` on carries exactly, anything else is
+>   refused BY NAME unless `allow_appearance_distortion` consents to it,
+>   never silently distorted. Geometry keys (`/L`/`/Vertices`/`/QuadPoints`/
+>   `/CL`/`/InkList`) are scaled only if present — a `/Link` carrying none
+>   of them is unaffected, not refused for lacking them.
+>
+> No residue left open. The refusal-by-default on a non-uniform foreign
+> resize is a consent gate, not a missing capability — rule 4's "disclose,
+> never silently distort" applied to exactly the case `115.2` worried
+> about, with an opt-in for the caller who actually wants the distortion.
 
 - **`Pass 116.0` — rotate/scale a placed ce dimension, per-variant**
   (rotation is genuinely not uniform across kinds, unlike the other three

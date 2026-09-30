@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (769th filing) — `Pass 114.1` (`c5c21156`): flatten pivots upright too; `115.0`/`115.1`/`115.2` retired
+
+**Shipped:**
+- `Pass 114.1` (`c5c21156`) — `flatten_annotations` now burns a `NoRotate`
+  or `/Text` annotation upright on a rotated page, pivoted on the `/Rect`
+  upper-left corner, matching the render pivot `Pass 114.0` gave
+  `pdfcer-render`. Before: refused (`NoRotateOnRotatedPage`) or baked
+  turned with the page. Core-only; `cli [x]` (same verb, no code change);
+  `gui [ ]` not confirmed.
+
+**Decisions made this session:** None — a follow-on core fix completing
+the same defect `Pass 114.0` fixed on the render side.
+
+**Findings + decisions:**
+- `FEATURES.md` row 319's "this refusal still stands" clause (added the
+  768th filing) was FALSE as of this Pass — corrected in place with a
+  pointer to `Pass 114.1` rather than a rewrite.
+- `Pass 115.0`/`115.1` confirmed fully shipped (subtype-agnostic
+  `move_annotation`/`resize_annotation`/`rotate_annotation`, `Pass
+  149.0`/`151.0`/`155.0`) — retired in `ROADMAP.md` Backlog.
+- `Pass 115.2` (foreign/undecodable-annotation general fallback) also
+  retired: checked directly against `crates/pdfcer-core/src/edit.rs`
+  (`resize_annotation`'s `ap_is_pdfces`/`carrying_is_exact`/
+  `allow_appearance_distortion` logic, lines ~33665–33720) and `Pass
+  155.0`'s Shipped entry (rotate composes into a foreign `/Matrix`
+  directly). Move, resize and rotate each handle a foreign/undecodable
+  appearance safely — the "`/AP` `/Matrix` prepend" fallback `115.2`
+  predicted shipped, distributed across the three verbs rather than as
+  one dedicated verb. Full reasoning in `ROADMAP.md`'s new amendment.
+
+**Still in flight:** None reported this filing.
+
+**For next session:** Same unreleased-since-v0.66.0 list, plus `Pass
+114.1`.
+
 ## 2026-09-29 (768th filing) — `Pass 114.0` (`9b3bd614`): NoRotate/NoZoom annotation placement
 
 **Shipped:**
