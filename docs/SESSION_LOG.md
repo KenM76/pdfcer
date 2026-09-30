@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (780th filing) — addendum to `Pass 418.0` and `Pass 10.15`: gate fixes (`0f0b8800`)
+
+**Shipped:** No new Pass. Addendum to `Pass 418.0` (779th filing,
+`04599b9d`) and `Pass 10.15` (777th filing, `3872e651`).
+
+**Findings + decisions:**
+- `0f0b8800` fixed the two gate failures left over from `2728f30d`:
+  `fuzz/fuzz_targets/signature_verify.rs` had one rustfmt hunk left by
+  `Pass 10.15`'s fuzz follow-up `e3be67e6` (the fuzz crate sits outside
+  the workspace, so `cargo fmt --all` never reaches it —
+  `tools/check-fmt-excluded.py` caught it); `README.md`'s subcommand
+  count was stale at 186, not 187, after `Pass 418.0`'s
+  `object-move-each` (`tools/check-clap-help.py` caught it).
+- `tools/run-gates.sh` on the tree at `2728f30d`: 39/41 PASS, the two
+  failures exactly those two gates; both PASS after `0f0b8800`. The
+  779th filing's Pass 418.0 entry recorded gates as "running at filing
+  time" — corrected in `docs/ROADMAP.md` to this result.
+- `docs/FEATURES.md`: no rows change.
+
+**Still in flight:** Same as the 779th filing — `pdfcer-gui` has not
+consumed `move_objects_each`; `Pass 10.6` routes 1–2 remain NOT STARTED.
+
+**For next session:** Unreleased set unchanged:
+`Pass 414.0`–`417.0`, `10.15`, `418.0` (last release `v0.67.0`, 770th
+filing).
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash and gate
+counts relayed from the dispatching engineer's own report, not
+independently reproduced. Backup/push/release state not verifiable
+from here; engineer should check `D:\Dev\pdfce-backups\`.
+
 ## 2026-09-30 (779th filing) — `Pass 418.0` (`04599b9d`): move several objects, each by its own delta, as one command
 
 **Shipped:**

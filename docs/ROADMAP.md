@@ -165,14 +165,25 @@ verb, `move_objects_each_in_form`, and its own CLI caller
 **Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui` has not consumed this
 yet (separate project).
 
+**Gates, corrected (780th filing).** `tools/run-gates.sh` on the tree at
+`2728f30d` ran 39/41 PASS; the two failures were
+`check-fmt-excluded.py` (a stray rustfmt hunk left in
+`fuzz/fuzz_targets/signature_verify.rs` by `Pass 10.15`'s fuzz follow-up
+`e3be67e6` — the fuzz crate sits outside the workspace so `cargo fmt
+--all` never reaches it) and `check-clap-help.py` (`README.md`'s
+subcommand count stale at 186, not 187, after this Pass's
+`object-move-each`). Both fixed in `0f0b8800`; both gates PASS as of that
+commit. `docs/FEATURES.md` unaffected — no row changes.
+
 **Sourcing (hard rule 8).** No shell this filing — commit hash, test
 counts and sabotage results relayed from the dispatching engineer's own
 report, not independently reproduced. `tools/run-gates.sh` was reported
 running at dispatch time, not confirmed green — recorded as "run at filing
-time" only, per the engineer's own instruction not to assert more.
-Backup/push/release state not verifiable from here; unreleased set as of
-this filing: `Pass 414.0`, `415.0`, `416.0`, `417.0`, `10.15`, `418.0` (last
-release `v0.67.0`, `265ddcf5`, 770th filing).
+time" only, per the engineer's own instruction not to assert more; see
+the correction above. Backup/push/release state not verifiable from
+here; unreleased set as of this filing: `Pass 414.0`, `415.0`, `416.0`,
+`417.0`, `10.15`, `418.0` (last release `v0.67.0`, `265ddcf5`, 770th
+filing).
 
 ### `Pass 10.15` (`3872e651`), 2026-09-30 — name each signer certificate's revocation locations (CDP/AIA URLs)
 
@@ -239,6 +250,13 @@ gained a third invariant — every `revocation_sources` list stays within
 (`hello.pdf` signed with `revocation-ecp256-modern.pfx`). 91 s over
 13,696 runs = 6.6 ms/run, 0 crashes. `tools/run-gates.sh` full sweep
 (41 commands, 2 filing gates) PASS on the tree at `7a29628d`.
+
+**Fmt follow-up (`0f0b8800`), 780th filing.** `e3be67e6`'s edit to
+`fuzz/fuzz_targets/signature_verify.rs` left one rustfmt hunk unformatted
+— the fuzz crate is outside the workspace, so `cargo fmt --all` never
+reaches it. `tools/check-fmt-excluded.py` caught it; fixed in `0f0b8800`
+alongside an unrelated `README.md` subcommand-count fix for `Pass
+418.0`. See that Pass's entry for the full gate result.
 
 **Sourcing (hard rule 8).** No shell this filing — commit hashes, test
 counts and gate results (both `3872e651` and the `e3be67e6` follow-up)
