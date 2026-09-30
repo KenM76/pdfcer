@@ -39,13 +39,19 @@ fn stream(extra: &str, content: &str) -> String {
 /// the page content, and one on a hidden layer; `oc_on` picks the layer's
 /// state.
 fn fixture(rotate: u32, oc_on: bool) -> EditSession {
+    fixture_first_as(rotate, oc_on, "/Subtype /Square /F 4")
+}
+
+/// [`fixture`] with the first annotation's subtype and flags replaced by
+/// `first`.
+fn fixture_first_as(rotate: u32, oc_on: bool, first: &str) -> EditSession {
     let d = if oc_on { "/ON [9 0 R]" } else { "/OFF [9 0 R]" };
     let bytes = assemble(&[
         format!("<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [9 0 R] /D << {d} >> >> >>"),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".into(),
         format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 80] /Rotate {rotate} /Contents 4 0 R /Annots [5 0 R 6 0 R 7 0 R] >>"),
         stream("", "0 0 1 rg 0 30 100 20 re f"),
-        "<< /Type /Annot /Subtype /Square /Rect [10 10 30 30] /F 4 /AP << /N 8 0 R >> >>".into(),
+        format!("<< /Type /Annot {first} /Rect [10 10 30 30] /AP << /N 8 0 R >> >>"),
         "<< /Type /Annot /Subtype /Square /Rect [40 20 80 60] /F 4 /CA 0.5 /AP << /N 10 0 R >> >>".into(),
         "<< /Type /Annot /Subtype /Square /Rect [60 60 90 75] /F 4 /OC 9 0 R /AP << /N 10 0 R >> >>".into(),
         stream(
@@ -62,7 +68,10 @@ fn fixture(rotate: u32, oc_on: bool) -> EditSession {
 }
 
 fn max_channel_diff(rotate: u32, oc_on: bool) -> (u8, usize) {
-    let mut s = fixture(rotate, oc_on);
+    diff_after_flatten(fixture(rotate, oc_on))
+}
+
+fn diff_after_flatten(mut s: EditSession) -> (u8, usize) {
     let page = s.pages().unwrap()[0].clone();
     let before = render_page_view(&s.view(), &page, 2.0).unwrap();
     let out = s.flatten_annotations(0, None).unwrap();
@@ -85,6 +94,23 @@ fn flattening_does_not_change_the_page() {
             assert!(
                 diff <= 1,
                 "rotate {rotate}, layer on {oc_on}: max channel difference {diff}"
+            );
+        }
+    }
+}
+
+/// An annotation that stays upright on a rotated page (`NoRotate`, value 16,
+/// or any `/Text`, §12.5.6.4) is burned upright about its `/Rect`
+/// upper-left corner, matching the flag-aware render.
+#[test]
+fn an_upright_annotation_on_a_rotated_page_flattens_unchanged() {
+    for rotate in [90, 180, 270] {
+        for first in ["/Subtype /Square /F 20", "/Subtype /Text /F 4"] {
+            let (diff, painted) = diff_after_flatten(fixture_first_as(rotate, true, first));
+            assert!(painted > 1000, "the fixture paints something");
+            assert!(
+                diff <= 1,
+                "rotate {rotate}, {first}: max channel difference {diff}"
             );
         }
     }

@@ -281,31 +281,19 @@ fn an_id_not_on_the_page_is_not_found() {
 }
 
 #[test]
-fn no_rotate_on_a_rotated_page_is_refused() {
-    let s = session(90);
-    let refusals = s.annotation_flatten_refusals(0).unwrap();
-    assert!(
-        refusals
-            .iter()
-            .all(|r| r.reason != R::NoRotateOnRotatedPage)
-    );
-    // NoRotate is bit 5 (value 16).
-    let s = EditSession::new(Document::from_bytes(fixture_bytes(90, 16)).unwrap());
-    let refusals = s.annotation_flatten_refusals(0).unwrap();
-    assert!(
-        refusals
-            .iter()
-            .any(|r| r.id == Some(id(5)) && r.reason == R::NoRotateOnRotatedPage),
-        "{refusals:?}"
-    );
-    // The same flag on an unrotated page is burned.
-    let s = EditSession::new(Document::from_bytes(fixture_bytes(0, 16)).unwrap());
-    assert!(
-        s.annotation_flatten_refusals(0)
-            .unwrap()
-            .iter()
-            .all(|r| r.id != Some(id(5)))
-    );
+fn no_rotate_on_a_rotated_page_is_burned() {
+    // NoRotate is bit 5 (value 16); the pixel placement is pinned in
+    // pdfcer-render's `flatten_annotations_look_the_same`.
+    for rotate in [0, 90] {
+        let s = EditSession::new(Document::from_bytes(fixture_bytes(rotate, 16)).unwrap());
+        assert!(
+            s.annotation_flatten_refusals(0)
+                .unwrap()
+                .iter()
+                .all(|r| r.id != Some(id(5))),
+            "rotate {rotate}"
+        );
+    }
 }
 
 #[test]

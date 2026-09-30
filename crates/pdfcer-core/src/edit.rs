@@ -6561,15 +6561,8 @@ pub enum EditError {
     /// size. An option whose name describes an outcome that will not happen is
     /// worse than no option.
     ///
-    /// # pdfcer's own renderer currently disagrees, and says so
-    ///
-    /// `pdfcer_render::annot` defers the `NoZoom`/`NoRotate` placement
-    /// adjustment (a documented Pass 6.0 deferral, reported as a render note)
-    /// and places these annotations by the base §12.5.5 algorithm — so in
-    /// pdfcer's own raster a resized sticky **does** change size, while
-    /// Acrobat's would not. Two readers disagreeing about what the file means
-    /// is the strongest argument for refusing to write it, not a reason to
-    /// permit it.
+    /// `pdfcer_render` draws it the same way: the appearance keeps its own
+    /// size, pivoted on the `/Rect` upper-left corner.
     ///
     /// Position is the property this annotation does have:
     /// [`EditSession::move_annotation`] is the verb for it.
@@ -25642,8 +25635,10 @@ pub enum AnnotFlattenRefusalReason {
     StateUnresolved,
     /// `/Rect`, or the appearance box through `/Matrix`, has no area.
     DegenerateAppearance,
-    /// `NoRotate` (bit 5) on a page with `/Rotate`: the burned appearance
-    /// would turn with the page.
+    /// Never returned: an annotation that stays upright on a rotated page
+    /// (`NoRotate`, or any `/Text`) is burned upright, pivoted on its `/Rect`
+    /// upper-left corner (§12.5.3). Kept so an existing `match` arm still
+    /// compiles; it will be removed.
     NoRotateOnRotatedPage,
 }
 
@@ -25845,6 +25840,21 @@ fn fit_matrix_for(bbox: [f64; 4], matrix: [f64; 6], rect: crate::page_tree::Rect
     let tx = rect.llx - sx * minx;
     let ty = rect.lly - sy * miny;
     [sx, 0.0, 0.0, sy, tx, ty]
+}
+
+/// The user-space rotation about `(px, py)` that a page `/Rotate` of
+/// `rotate` degrees (clockwise on display, §7.7.3.3 Table 31) turns back to
+/// upright.
+fn counter_rotation_about(px: f64, py: f64, rotate: u16) -> [f64; 6] {
+    // Exact for the quarter turns `/Rotate` allows, so a burned appearance
+    // lands on the same pixels as the flag-aware render.
+    let (c, s) = match rotate % 360 {
+        90 => (0.0, 1.0),
+        180 => (-1.0, 0.0),
+        270 => (0.0, -1.0),
+        _ => (1.0, 0.0),
+    };
+    [c, s, -s, c, px - c * px + s * py, py - s * px - c * py]
 }
 
 /// A form's `/Matrix` (§8.10.1), identity when absent or malformed.
@@ -46067,10 +46077,17 @@ impl EditSession {
         {
             return Err(R::DegenerateAppearance);
         }
-        if !rotate.is_multiple_of(360) && a.flags.no_rotate() {
-            return Err(R::NoRotateOnRotatedPage);
+        let placement = fit_matrix_for(bbox, matrix, rect);
+        // §12.5.3 NoRotate (and §12.5.6.4's `/Text`, which behaves as if it
+        // were set): what a reader shows is the appearance upright about the
+        // `/Rect` upper-left corner. Page content turns with `/Rotate`, so
+        // burn it pre-turned the other way about that corner.
+        let upright = a.subtype == b"Text" || a.flags.no_rotate();
+        if upright && !rotate.is_multiple_of(360) {
+            let pivot = counter_rotation_about(rect.llx, rect.ury, rotate);
+            return Ok((ap, crate::text_edit::edit::mat_mul(placement, pivot)));
         }
-        Ok((ap, fit_matrix_for(bbox, matrix, rect)))
+        Ok((ap, placement))
     }
 
     /// Put `name -> value` in `resources`' `category` sub-dictionary,
