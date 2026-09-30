@@ -56,6 +56,8 @@
 *.p12 binary
 *.pfx binary
 *.onnx binary
+*.prc binary
+*.u3d binary
 
 # Font binaries (decision 004 §10 item 4): bundled/fixture font files
 # must never pass through EOL normalization — same rationale as the
