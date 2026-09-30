@@ -60555,7 +60555,7 @@ fn unthreaded_reply_disclosure(clip: &crate::vector::ObjectClip) -> Option<Strin
 fn unsupported_paste_reason(subtype: &str) -> String {
     let why = match subtype {
         "Widget" => {
-            "a widget carries an /AcroForm field registration and a field name, and a renamed field is a DIFFERENT field -- any script, calculation order or parent-child relationship naming the old one would break silently. Use copy-field / paste-field instead: they ask which of the two pastes you meant (a new independent field, or another view of the same one) and carry the field's appearance, value and actions with it"
+            "a widget carries an /AcroForm field registration and a field name, and a renamed field is a DIFFERENT field -- any script, calculation order or parent-child relationship naming the old one would break silently. Copy and paste it as a form field instead, which asks which of the two pastes you meant (a new independent field, or another view of the same one) and carries the field's appearance, value and actions with it"
         }
         "Link" => {
             "a link's destination names a page or a named destination in the document it came from, and pasting the rectangle without a target that resolves here would give you something that looks clickable and goes nowhere"
@@ -60988,7 +60988,7 @@ impl EditSession {
         let mut notes = Vec::new();
         notes.push(match (prior_signatures, dss_present) {
             (0, _) => "the document had no signature, so this stamp archives none; it is a valid document time-stamp, not a PAdES level".to_owned(),
-            (_, false) => "no /DSS was present, so the earlier signatures carry no validation material under this stamp; run add-validation-material (B-LT) first for B-LTA".to_owned(),
+            (_, false) => "no /DSS was present, so the earlier signatures carry no validation material under this stamp; add validation material (PAdES B-LT) before stamping for B-LTA".to_owned(),
             (n, true) => format!("B-LTA: {n} earlier signature(s) and a /DSS are covered; pdfcer did not check the DSS holds every certificate and revocation value they need (EN 319 142-1 requirement x)"),
         });
         Ok((

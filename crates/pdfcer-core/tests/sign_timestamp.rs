@@ -561,6 +561,13 @@ fn a_stamp_without_a_dss_or_a_signature_claims_no_pades_level() {
     let (_, report) = doc_stamp(signed_hello(), &tsa).expect("stamp");
     assert_eq!(report.pades_level, None);
     assert!(report.notes[0].contains("no /DSS"), "{:?}", report.notes);
+    // Notes are shown verbatim by every front end: none names a shell's verb.
+    assert!(
+        report.notes[0].contains("add validation material (PAdES B-LT)")
+            && !report.notes[0].contains("add-"),
+        "{:?}",
+        report.notes
+    );
 
     let hello = std::fs::read(fixtures().join("hello.pdf")).unwrap();
     let (bytes, report) = doc_stamp(hello, &tsa).expect("stamp");

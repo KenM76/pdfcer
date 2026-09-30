@@ -592,6 +592,9 @@ pub(crate) fn cmd_timestamp(args: &TimestampArgs<'_>) -> u8 {
         for n in &report.notes {
             println!("  note: {n}");
         }
+        if report.prior_signatures > 0 && !report.dss_present {
+            println!("  note: `pdfcer add-ltv` adds that validation material");
+        }
         exit::SUCCESS
     }
 }

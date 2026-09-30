@@ -239,6 +239,17 @@ ess_cert_id_chain = no\ness_cert_id_alg = sha256\n";
             "{}",
             String::from_utf8_lossy(&out.stderr)
         );
+        let url = serve_once("HTTP/1.1 200 OK");
+        let bare = temp_path("dts_bare").with_extension("pdf");
+        let out = timestamp(&signed, &bare, &url);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(out.status.success(), "{stdout}");
+        assert!(
+            stdout.contains("level=none prior_signatures=1 dss=0")
+                && stdout.contains("  note: `pdfcer add-ltv` adds that validation material"),
+            "{stdout}"
+        );
+
         let ltv = temp_path("dts_ltv").with_extension("pdf");
         let out = Command::new(BIN)
             .arg("add-ltv")
@@ -291,7 +302,7 @@ ess_cert_id_chain = no\ness_cert_id_alg = sha256\n";
             String::from_utf8_lossy(&out.stderr)
         );
         assert!(
-            stdout.contains("level=none prior_signatures=0 dss=0"),
+            stdout.contains("level=none prior_signatures=0 dss=0") && !stdout.contains("add-ltv"),
             "{stdout}"
         );
     }
