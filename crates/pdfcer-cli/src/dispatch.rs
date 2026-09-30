@@ -2624,6 +2624,23 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         }),
+        Command::ObjectMoveEach {
+            input,
+            page,
+            moves,
+            leaf,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_object_move_each(&ObjectMoveEachArgs {
+            input: &input,
+            page,
+            moves: &moves,
+            leaf,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::ObjectTransform {
             input,
             page,

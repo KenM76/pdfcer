@@ -103,6 +103,7 @@ mod markup_note_edit;
 mod markup_opacity;
 mod merge_document;
 mod merge_relinks_cross_file_bookmarks;
+mod move_objects_each;
 mod node_edit_materialized;
 mod node_multi_move;
 mod object_clipboard;

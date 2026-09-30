@@ -14699,6 +14699,61 @@ impl EditSession {
         })
     }
 
+    /// Move **several objects, each by its own page-space delta**, as ONE
+    /// undoable command (`G071`: align, distribute, exchange and arrange give
+    /// every selected object a different offset).
+    ///
+    /// `moves` holds `(object_index, dx, dy)`. Any object kind moves: a path
+    /// or text object by operand rewrite as in [`Self::move_objects`], an image
+    /// by a `q <cm> … Q` wrap as in [`Self::transform_objects`]. Returns the
+    /// disclosures [`Self::move_objects`] would give. All-or-nothing: every
+    /// index is resolved and every object planned before anything is written,
+    /// so a refusal leaves the page unchanged. An empty `moves` is a no-op
+    /// command. See [`crate::vector::plan_move_objects_each`].
+    ///
+    /// # Errors
+    ///
+    /// `ObjectOutOfRange`; `DuplicateObjectInMove` (page index) when one
+    /// object is named twice; `DegenerateCtm`, `MalformedOperand`,
+    /// `TransformInsideTextObject`, `OverlappingObjectSpans`; and the
+    /// session-level guards every content surgery shares.
+    pub fn move_objects_each(
+        &mut self,
+        page_index: usize,
+        moves: &[(usize, f64, f64)],
+    ) -> Result<Vec<String>, EditError> {
+        self.vector_surgery(CommandKind::MoveObject, page_index, |stream, model| {
+            let resolved = Self::resolve_moves(model, moves.iter().map(|m| m.0))?;
+            let plan: Vec<_> = resolved
+                .into_iter()
+                .zip(moves)
+                .map(|(obj, &(_, dx, dy))| (obj, dx, dy))
+                .collect();
+            Ok(crate::vector::plan_move_objects_each(stream, &plan)?)
+        })
+    }
+
+    /// Resolve per-object move indices against `model`, refusing a stale or
+    /// repeated index under the caller's own numbering.
+    fn resolve_moves(
+        model: &crate::vector::PageObjects,
+        indices: impl Iterator<Item = usize>,
+    ) -> Result<Vec<&crate::vector::VectorObject>, crate::vector::VectorEditError> {
+        let count = model.objects.len();
+        let mut seen = std::collections::HashSet::new();
+        indices
+            .map(|i| {
+                if !seen.insert(i) {
+                    return Err(crate::vector::VectorEditError::DuplicateObjectInMove { index: i });
+                }
+                model
+                    .objects
+                    .get(i)
+                    .ok_or(crate::vector::VectorEditError::ObjectOutOfRange { index: i, count })
+            })
+            .collect()
+    }
+
     /// **Transform several objects at once** — scale, rotate, shear or move a
     /// whole selection by one page-space matrix, as ONE undoable command
     /// (`Pass 113.0`).
@@ -17945,6 +18000,42 @@ impl EditSession {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(crate::vector::plan_move_objects(stream, &objs, dx, dy)?)
+            },
+        )
+    }
+
+    /// **Move objects inside a form XObject, each by its own delta** — the
+    /// form-scoped twin of [`Self::move_objects_each`] (`G071`).
+    ///
+    /// `moves` holds `(leaf_index, dx, dy)`; every leaf must live in the same
+    /// placed form, as for [`Self::move_objects_in_form`]. A leaf named twice
+    /// refuses with `DuplicateObjectInMove` carrying its in-form index.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::move_objects_in_form`] and [`Self::move_objects_each`].
+    pub fn move_objects_each_in_form(
+        &mut self,
+        page_index: usize,
+        moves: &[(usize, f64, f64)],
+    ) -> Result<FormSurgeryOutcome, EditError> {
+        let leaves: Vec<usize> = moves.iter().map(|m| m.0).collect();
+        let siblings = self.leaf_siblings(page_index, &leaves)?;
+        let Some(&first) = leaves.first() else {
+            return Err(EditError::FormLeafOutOfRange { index: 0, count: 0 });
+        };
+        self.form_surgery_inner(
+            CommandKind::MoveObject,
+            page_index,
+            first,
+            |stream, model, _| {
+                let resolved = Self::resolve_moves(model, siblings.iter().copied())?;
+                let plan: Vec<_> = resolved
+                    .into_iter()
+                    .zip(moves)
+                    .map(|(obj, &(_, dx, dy))| (obj, dx, dy))
+                    .collect();
+                Ok(crate::vector::plan_move_objects_each(stream, &plan)?)
             },
         )
     }

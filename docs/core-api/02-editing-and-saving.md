@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 286 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 288 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 286 public `EditSession` methods
+## 1. Verb index — all 288 public `EditSession` methods
 
-**Count: 286.** Established by brace-matched extraction of the six
+**Count: 288.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -1149,6 +1149,7 @@ decomposes, edits, and decomposes again — this is not read off the planners):
 | family | mechanism | renumbers? |
 |---|---|---|
 | `move_object` · `move_objects` · `move_subpath` · `move_node` · `move_nodes` · `move_handle` | rewrites operator **operands** in place | **NO** |
+| `move_objects_each` · `move_objects_each_in_form` | rewrites operands for a path or text object; wraps an image in `q <cm> … Q` | **NO** |
 | `move_text_run` | rewrites operands, and where there are none to rewrite **inserts** a `Td` | **NO** — measured in `crates/pdfcer-core/tests/text_run_move.rs` |
 | `move_text_runs` | the same, over a set; a run displaced only because an earlier run moved is put back | **NO** — measured over every subset in `crates/pdfcer-core/tests/text_run_set_move.rs` |
 | `delete_object` · `delete_objects` · `delete_subpath` · `delete_node` · `delete_text_run` | excises byte **spans** | **YES** |
@@ -1204,6 +1205,7 @@ said nothing about identity across edits — this section is that gap closed.*
 | Move one object | `move_object(page_index, object_index, dx, dy)` |
 | Delete one object | `delete_object(page_index, object_index)` |
 | Move a multi-object selection, ONE undo entry — paths **and text** (`G029`); an image refuses the whole call with `NotAPath { kind: "image", index }`, so grey it with `vector::object_move_refusal(obj, index)` | `move_objects(page_index, object_indices: &[usize], dx, dy)` |
+| Move a multi-object selection **each by its own delta** (align, distribute, arrange — `G071`), ONE undo entry, **any kind**: paths and text by operand rewrite, an image by a `q <cm> … Q` wrap. All-or-nothing; returns `move_objects`' disclosures. One object named twice refuses with `VectorEditError::DuplicateObjectInMove { index }` (the page index) | `move_objects_each(page_index, moves: &[(usize, f64, f64)]) -> Result<Vec<String>, EditError>` |
 | Delete a multi-object selection, ONE undo entry | `delete_objects(page_index, object_indices: &[usize])` |
 | Delete one anchor node | `delete_node(page_index, object_index, node_index)` |
 | Delete one subpath | `delete_subpath(page_index, object_index, subpath_index)` |
@@ -1345,6 +1347,7 @@ been reported as a defect.
 | Drag a Bézier handle | `move_handle_in_form(page_index, leaf_index, node_index, handle, to: Point)` |
 | Move one subpath | `move_subpath_in_form(page_index, leaf_index, subpath_index, dx, dy)` |
 | Move whole objects | `move_objects_in_form(page_index, leaf_indices: &[usize], dx, dy)` |
+| Move whole objects, **each by its own delta**, any kind (`G071`) | `move_objects_each_in_form(page_index, moves: &[(leaf_index, dx, dy)]) -> Result<FormSurgeryOutcome, EditError>` |
 | **Move one show operator (text run)** | `move_text_run_in_form(page_index, leaf_index, run_index, dx, dy)` |
 | **Move several show operators as one edit** | `move_text_runs_in_form(page_index, leaf_index, runs: &[usize], dx, dy)` |
 | Delete objects | `delete_objects_in_form(page_index, leaf_indices: &[usize])` |

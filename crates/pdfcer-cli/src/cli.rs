@@ -9452,6 +9452,51 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Move several objects, each by its own page-space offset**, as one
+    /// edit — what aligning or distributing a selection needs. Any object
+    /// kind: a path or text object has its position operands rewritten (as
+    /// `object-move`), an image is wrapped in `q <cm> ... Q` (as
+    /// `object-transform`). All or nothing: a bad index, an object named
+    /// twice, or any object that cannot move refuses the whole command and
+    /// writes nothing.
+    ///
+    /// With `--leaf`, each index is a form-leaf index from `object-list`
+    /// (an object inside a placed form XObject), and every leaf must sit in
+    /// the same placement of the same form. The edit changes the form, so it
+    /// shows everywhere the form is drawn; the output line says how many
+    /// placements and pages that is.
+    ///
+    /// Example — move object 0 right 10pt and object 3 up 5pt:
+    ///
+    ///     pdfcer object-move-each drawing.pdf --move 0,10,0 --move 3,0,5 -o out.pdf
+    ObjectMoveEach {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// One object and its offset, as `INDEX,DX,DY` (0-based paint-order
+        /// index; page-space points). Repeat for each object.
+        #[arg(
+            long = "move",
+            value_name = "INDEX,DX,DY",
+            required = true,
+            allow_hyphen_values = true
+        )]
+        moves: Vec<String>,
+        /// Treat each INDEX as a form-leaf index rather than a page object.
+        #[arg(long)]
+        leaf: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Transform** a selection of vector objects (Pass 113.0): scale, rotate,
     /// shear or move them by one page-space matrix, by wrapping each object's
     /// operator run in `q <cm> ... Q`.

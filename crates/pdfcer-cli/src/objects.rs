@@ -856,6 +856,90 @@ appended={} out_bytes={} undo_verified={} undo_identical={}",
     finish_edit(args.input, &outcome)
 }
 
+/// Arguments for [`cmd_object_move_each`].
+pub(crate) struct ObjectMoveEachArgs<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) page: u32,
+    /// `--move` values, unparsed (`INDEX,DX,DY`).
+    pub(crate) moves: &'a [String],
+    pub(crate) leaf: bool,
+    pub(crate) output: &'a Path,
+    pub(crate) mode: SaveMode,
+    pub(crate) verify_undo: bool,
+}
+
+/// Parse one `--move INDEX,DX,DY`.
+fn parse_move(s: &str) -> Option<(usize, f64, f64)> {
+    let mut parts = s.split(',').map(str::trim);
+    let index = parts.next()?.parse().ok()?;
+    let dx: f64 = parts.next()?.parse().ok()?;
+    let dy: f64 = parts.next()?.parse().ok()?;
+    (parts.next().is_none() && dx.is_finite() && dy.is_finite()).then_some((index, dx, dy))
+}
+
+/// `object-move-each` — move several objects, each by its own page-space
+/// offset, as one edit (`EditSession::move_objects_each`, or
+/// `move_objects_each_in_form` under `--leaf`).
+pub(crate) fn cmd_object_move_each(args: &ObjectMoveEachArgs<'_>) -> u8 {
+    let mut moves = Vec::with_capacity(args.moves.len());
+    for raw in args.moves {
+        let Some(m) = parse_move(raw) else {
+            eprintln!(
+                "pdfcer: --move {raw:?} is not INDEX,DX,DY (a 0-based index and two finite numbers)"
+            );
+            return exit::EDIT_REFUSED;
+        };
+        moves.push(m);
+    }
+    let page_index = (args.page.max(1) - 1) as usize;
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let reach = if args.leaf {
+        match session.move_objects_each_in_form(page_index, &moves) {
+            Err(err) => return report_edit_error(args.input, &err),
+            Ok(out) => format!(" invocations={} pages={}", out.invocations, out.pages),
+        }
+    } else {
+        match session.move_objects_each(page_index, &moves) {
+            Err(err) => return report_edit_error(args.input, &err),
+            Ok(disclosures) => {
+                report_disclosures(&disclosures);
+                String::new()
+            }
+        }
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "object-move-each {} page {} moved={} leaf={}{reach} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.page,
+        moves.len(),
+        u32::from(args.leaf),
+        args.mode.name(),
+        args.output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    finish_edit(args.input, &outcome)
+}
+
 /// Arguments for [`cmd_object_transform`], grouped so the handler stays under
 /// the clippy `too_many_arguments` bound (the `EditTextArgs` pattern).
 pub(crate) struct ObjectTransformArgs<'a> {

@@ -94,6 +94,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "nodes-move",
     "object-delete",
     "object-move",
+    "object-move-each",
     "object-paste",
     "object-transform",
     "page-paste",

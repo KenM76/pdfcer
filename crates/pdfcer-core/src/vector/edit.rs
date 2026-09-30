@@ -420,6 +420,15 @@ pub enum VectorEditError {
         /// The 0-based anchor index that appeared twice.
         index: usize,
     },
+    /// A per-object move named the same object twice, each time with its
+    /// own delta — refused for the reason [`Self::DuplicateNodeInMove`] is.
+    #[error("object index {index} was named more than once in one per-object move")]
+    DuplicateObjectInMove {
+        /// The object's index as the caller named it (the page or in-form
+        /// index from a session verb; the position in the list from the
+        /// planner).
+        index: usize,
+    },
     /// A per-run text edit named a run index the text object does not have.
     #[error("text run index {index} is out of range (the object has {count} run(s))")]
     TextRunOutOfRange {
@@ -1047,31 +1056,107 @@ pub fn plan_move_objects(
         if let Some(refusal) = object_move_refusal(obj, position) {
             return Err(refusal);
         }
-        match obj {
-            VectorObject::Path(path) => {
-                let inv = path.ctm.inverse().ok_or(VectorEditError::DegenerateCtm)?;
-                let d = inv.map_vector(Point::new(dx_page, dy_page));
-                edits.extend(move_edits(content, path, d.x, d.y)?);
-                for note in clip_disclosure(content, path) {
-                    if !disclosures.contains(&note) {
-                        disclosures.push(note);
-                    }
-                }
-            }
-            VectorObject::Text(text) => {
-                let inv = text.ctm.inverse().ok_or(VectorEditError::DegenerateCtm)?;
-                let d = inv.map_vector(Point::new(dx_page, dy_page));
-                if !d.is_finite() {
-                    return Err(VectorEditError::DegenerateCtm);
-                }
-                let (text_edits, inserted) = text_move_edits(content, text, d)?;
-                edits.extend(text_edits);
-                let note = inserted_object_td_disclosure();
-                if inserted && !disclosures.contains(&note) {
+        push_operand_move(content, obj, dx_page, dy_page, &mut edits, &mut disclosures)?;
+    }
+    finish_many(content, edits, disclosures)
+}
+
+/// The operand edits moving one path or text object by a page-space delta,
+/// and the disclosures they owe (deduplicated into `disclosures`). An image
+/// contributes nothing — the callers route it elsewhere.
+fn push_operand_move(
+    content: &ContentStream,
+    obj: &VectorObject,
+    dx_page: f64,
+    dy_page: f64,
+    edits: &mut Vec<Splice>,
+    disclosures: &mut Vec<String>,
+) -> Result<(), VectorEditError> {
+    match obj {
+        VectorObject::Path(path) => {
+            let inv = path.ctm.inverse().ok_or(VectorEditError::DegenerateCtm)?;
+            let d = inv.map_vector(Point::new(dx_page, dy_page));
+            edits.extend(move_edits(content, path, d.x, d.y)?);
+            for note in clip_disclosure(content, path) {
+                if !disclosures.contains(&note) {
                     disclosures.push(note);
                 }
             }
-            VectorObject::Image(_) => {}
+        }
+        VectorObject::Text(text) => {
+            let inv = text.ctm.inverse().ok_or(VectorEditError::DegenerateCtm)?;
+            let d = inv.map_vector(Point::new(dx_page, dy_page));
+            if !d.is_finite() {
+                return Err(VectorEditError::DegenerateCtm);
+            }
+            let (text_edits, inserted) = text_move_edits(content, text, d)?;
+            edits.extend(text_edits);
+            let note = inserted_object_td_disclosure();
+            if inserted && !disclosures.contains(&note) {
+                disclosures.push(note);
+            }
+        }
+        VectorObject::Image(_) => {}
+    }
+    Ok(())
+}
+
+/// Plan a move of **several objects, each by its own page-space delta** —
+/// one splice, one undoable command (`G071`: align, distribute and arrange
+/// give every object a different offset).
+///
+/// Paths and text move by operand rewrite exactly as in
+/// [`plan_move_objects`]; an image, which has no operand to rewrite, is
+/// wrapped in `q <cm> … Q` exactly as [`plan_transform_many`] wraps it for
+/// [`Matrix::translate`]. So every object kind moves and the caller need not
+/// know which route each takes. Disclosures are those [`plan_move_objects`]
+/// gives; the image wrap owes none (the drawing and its operands are
+/// unchanged, only enclosed).
+///
+/// # Errors
+///
+/// [`VectorEditError::DuplicateObjectInMove`] when one object (by span) is
+/// named twice — two deltas for one object is a request with no single
+/// meaning; otherwise as [`plan_move_objects`], and
+/// [`VectorEditError::OverlappingObjectSpans`] for a torn model. An empty
+/// `moves` plans an unchanged buffer.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix};
+/// use pdfcer_core::vector::edit::plan_move_objects_each;
+///
+/// let cs = ContentStream::parse(b"0 0 m 5 5 l S 10 10 m 20 20 l S".to_vec()).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// let moves = [(&model.objects[0], 1.0, 0.0), (&model.objects[1], 0.0, 2.0)];
+/// let plan = plan_move_objects_each(&cs, &moves).unwrap();
+/// assert_eq!(plan.content, b"1 0 m 6 5 l S 10 12 m 20 22 l S");
+/// ```
+pub fn plan_move_objects_each(
+    content: &ContentStream,
+    moves: &[(&VectorObject, f64, f64)],
+) -> Result<PlannedEdit, VectorEditError> {
+    let mut seen: Vec<(usize, usize)> = Vec::with_capacity(moves.len());
+    for (position, (obj, _, _)) in moves.iter().enumerate() {
+        let span = obj.bytes();
+        let key = (span.start, span.end());
+        if seen.contains(&key) {
+            return Err(VectorEditError::DuplicateObjectInMove { index: position });
+        }
+        seen.push(key);
+    }
+    let mut edits: Vec<Splice> = Vec::new();
+    let mut disclosures: Vec<String> = Vec::new();
+    for &(obj, dx, dy) in moves {
+        if let VectorObject::Image(_) = obj {
+            let local = local_matrix(object_ctm(obj), Matrix::translate(dx, dy))?;
+            let span = obj.bytes();
+            edits.push((span.start, span.start, emit_q_cm(local)));
+            edits.push((span.end(), span.end(), b" Q".to_vec()));
+        } else {
+            push_operand_move(content, obj, dx, dy, &mut edits, &mut disclosures)?;
         }
     }
     finish_many(content, edits, disclosures)
