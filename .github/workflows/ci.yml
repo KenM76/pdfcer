@@ -106,7 +106,9 @@ jobs:
       - run: cargo test -p pdfcer-image-codec --no-default-features
       # The CLI's own strippable features (signing, OCR engines, jpx) gate
       # subcommands and dispatch arms that the core step above never compiles.
-      - run: cargo check -p pdfcer-cli --no-default-features
+      # The unit tests build the full clap tree, which a check cannot: a
+      # listed name whose variant is compiled out panics at every launch.
+      - run: cargo test -p pdfcer-cli --no-default-features --bin pdfcer
       # THE FORWARDING GUARD — the other half of the gate above.
       #
       # Cargo will not let a member override an inherited `default-features`,

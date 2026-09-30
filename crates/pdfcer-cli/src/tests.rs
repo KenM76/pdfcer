@@ -449,6 +449,9 @@ fn in_place_covers_every_input_output_subcommand() {
             }
         }
         for name in in_place::IN_PLACE_COMMANDS {
+            if !cfg!(feature = "signing") && in_place::SIGNING_COMMANDS.contains(name) {
+                continue;
+            }
             assert!(
                 root.find_subcommand(name).is_some(),
                 "`{name}` is listed but is not a subcommand"

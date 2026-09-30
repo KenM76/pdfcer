@@ -14,6 +14,10 @@ use std::ffi::OsString;
 
 use clap::{Arg, ArgAction, Command};
 
+/// The [`IN_PLACE_COMMANDS`] compiled only with the `signing` feature. Any
+/// other listed name missing from the tree is a defect and panics.
+pub(crate) const SIGNING_COMMANDS: &[&str] = &["add-ltv", "sign", "timestamp"];
+
 /// Subcommands whose `--output` is the edited PDF and whose `input`
 /// positional is the PDF it edits. A command whose `--output` is anything
 /// else (a clipboard file, extracted attachment bytes) must never be listed:
@@ -169,6 +173,9 @@ original untouched. Cannot be combined with --output.";
 /// clap allows that because it is the last positional.
 pub(crate) fn with_in_place(mut root: Command) -> Command {
     for &name in IN_PLACE_COMMANDS {
+        if !cfg!(feature = "signing") && SIGNING_COMMANDS.contains(&name) {
+            continue;
+        }
         root = root.mut_subcommand(name, |sub| {
             let output_required = sub
                 .get_arguments()
