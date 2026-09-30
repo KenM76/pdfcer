@@ -437,6 +437,31 @@ D:\Dev\pdfcer\
                                    invariant as every other leaf (rule 2), its
                                    own `cargo tree -p pdfcer-function` CI step,
                                    wasm32-clean.
+    pdfcer-3d\                    <- (`Pass 419.2` first slice, 2026-09-30,
+                                   `b5107225`) optional 3D-model decode —
+                                   PRC (ISO 14739-1) container walk
+                                   (`PrcFile::parse`: file header, FS
+                                   descriptions, per-FS header, five zlib
+                                   sections, model file) and `bits::BitReader`
+                                   for every PRC scalar primitive incl.
+                                   `Double`; the acofdoe decode table is
+                                   embedded byte-identical to the spec RAG's
+                                   copy (§12 decision 169). New, independent
+                                   leaf — NOT part of decision 162's core-
+                                   decomposition list above; no crate in the
+                                   workspace depends on it yet, and it does
+                                   not depend on `pdfcer-model`/`pdfcer-core`.
+                                   Depends on `thiserror` + `flate2` only
+                                   (both already workspace deps, so no new
+                                   third-party license); zero GUI/network/
+                                   thread deps, its own `cargo tree -p
+                                   pdfcer-3d` CI step, wasm32-clean. The `3d`
+                                   Cargo feature it will sit behind is not
+                                   wired into `pdfcer-core`/`pdfcer-cli` yet.
+                                   Tessellation entities, mesh export
+                                   (STL/OBJ), CPU poster and U3D decode
+                                   (`419.3`) remain unbuilt — `Pass 419.2` is
+                                   IN PROGRESS, not shipped (`ROADMAP.md`).
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital

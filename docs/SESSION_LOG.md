@@ -4,6 +4,47 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (806th filing) — `Pass 419.2` IN PROGRESS: `pdfcer-3d` crate, PRC container walk + primitives (first slice)
+
+**Shipped (partial — Pass 419.2 stays open):**
+- `b5107225` — new optional workspace crate `crates/pdfcer-3d` (no GUI/
+  network/thread deps; deps `thiserror` + `flate2` rust_backend, both
+  already in the workspace, so no new third-party dependency;
+  wasm32-unknown-unknown check clean). Not yet depended on by
+  `pdfcer-core`/`pdfcer-cli`; the `3d` feature is not wired.
+- `PrcFile::parse`/`parse_with_limit` — PRC 8137 container walk (WD N570
+  §6.1–6.2, 10.2): file header, file-structure descriptions, per-FS
+  uncompressed header (id must match; picture blocks kept), five zlib
+  sections, model file; `MAX_INFLATED_BYTES` 512 MiB ceiling or caller
+  limit.
+- `bits::BitReader` — every PRC scalar primitive incl. `Double` (WD
+  11.17). Acofdoe table embedded as `crates/pdfcer-3d/data/acofdoe_8137.csv`,
+  byte-identical to the spec RAG's `_sources/prc/acofdoe_8137_from_SC2N570.csv`
+  (sha256 `df0e117e5922fd701c6aaa8e2b3bf6da3a6d12f8f171ed236b948228dae8353c`)
+  under decision 169. Distance-1 back-references accepted (pdf-issues #769).
+- Tests: 9 unit + 3 integration (`cargo test -p pdfcer-3d`), 4 sabotages
+  all caught. New fuzz target `prc_parse` (1.68M runs / 90 s clean). CI:
+  `pdfcer-3d` added to the GUI-deps cargo-tree, R24, no-network and
+  wasm32 check lists in `ci.yml`.
+
+**Decisions made this session:** none new — this slice executes decision
+169 (the licensing ruling that unblocked `419.2`, filed 804th/805th
+filings); no fresh architectural call.
+
+**Findings + decisions:** none beyond the above; the empirical gaps
+(local-frame sign, multi-component restart, normal decoding, which
+compression a real SolidWorks PRC export uses) are unaffected — no real
+PRC file is on hand yet.
+
+**Still in flight — `Pass 419.2` remainder:** `FileStructureSchema`,
+tessellation entities (uncompressed `TESS_3D` first), mesh model + STL/OBJ
+export, CPU poster, CLI subcommand, `3d` feature wiring.
+
+**For next session:** continue `419.2` with `FileStructureSchema` +
+uncompressed tessellation entities; `419.2` is NOT complete and must not
+be marked shipped or ticked in `FEATURES.md` until a user-facing
+capability (mesh export or poster) lands.
+
 ## 2026-09-30 (805th filing) — `Pass 10.19` (`5abc210b`) SHIPPED: PAdES B-LTA document time-stamp
 
 **Shipped:**

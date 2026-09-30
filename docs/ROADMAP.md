@@ -23252,7 +23252,18 @@ RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
   pdfcer's own builds, off-able for a slim build): PRC uncompressed-
   tessellation read, mesh export (STL/OBJ), CPU poster generation. No GUI
   deps; wasm32-clean; no threads (engine rule). **UNBLOCKED 2026-09-30 —
-  see decision 169 below.**
+  see decision 169 below. IN PROGRESS, first slice shipped `b5107225`,
+  2026-09-30 (806th filing):** the crate exists (`crates/pdfcer-3d`, deps
+  `thiserror`+`flate2` only, no new third-party license) with `PrcFile::parse`
+  — the 8137 container walk (file header, FS descriptions, per-FS header,
+  five zlib sections, model file) — and `bits::BitReader` for every PRC
+  scalar primitive incl. `Double`, the acofdoe table embedded byte-identical
+  to the spec RAG's copy (decision 169). Not yet depended on by
+  `pdfcer-core`/`pdfcer-cli`; the `3d` feature is not wired. **Still owed:**
+  `FileStructureSchema`, tessellation entities, mesh model + STL/OBJ export,
+  CPU poster, CLI subcommand, feature wiring, and the empirical gaps
+  (local-frame sign, multi-component restart, normals, real SolidWorks
+  compression choice).
 - `419.3` — U3D CLOD mesh decode (ECMA-363) into the same mesh model.
 - `419.4` — PRC authoring (mesh → PRC tessellation) — **the licensing
   questions below are answered, decision 169**; remaining scope is
