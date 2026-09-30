@@ -1228,3 +1228,53 @@ fn every_page_op_result_line_is_one_ascii_line_of_integer_metrics() {
         assert!(!metrics(&line).is_empty(), "{line}");
     }
 }
+
+#[test]
+fn reorder_pages_labels_follow_carries_each_label() {
+    // Pages labelled i ii iii; reversing them with --labels follow shows
+    // iii ii i, and the default keeps i ii iii.
+    let dir = TempDir::new("reorder-labels");
+    let input = three_pages(&dir);
+    let labelled = dir.join("labelled.pdf");
+    let out = run(&[
+        "set-page-labels",
+        input.to_str().unwrap(),
+        "--pages",
+        "1-3",
+        "--style",
+        "roman-lower",
+        "-o",
+        labelled.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    for (labels, want) in [
+        ("follow", ["iii", "ii", "i"]),
+        ("position", ["i", "ii", "iii"]),
+    ] {
+        let moved = dir.join(&format!("{labels}.pdf"));
+        let out = run(&[
+            "reorder-pages",
+            labelled.to_str().unwrap(),
+            "--order",
+            "3-1",
+            "--labels",
+            labels,
+            "-o",
+            moved.to_str().unwrap(),
+        ]);
+        assert_eq!(code(&out), 0, "{}", stderr(&out));
+        assert!(
+            stdout(&out).contains(&format!("labels={labels}")),
+            "{}",
+            stdout(&out)
+        );
+        let listing = stdout(&run(&["page-labels", moved.to_str().unwrap()]));
+        for (page, label) in want.iter().enumerate() {
+            let line = format!("page {} label=\"{label}\"", page + 1);
+            assert!(
+                listing.contains(&line),
+                "{labels}: missing {line}: {listing}"
+            );
+        }
+    }
+}

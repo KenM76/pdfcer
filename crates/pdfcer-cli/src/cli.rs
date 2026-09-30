@@ -133,6 +133,17 @@ pub(crate) enum DeleteLabelsArg {
     Keep,
 }
 
+/// `reorder-pages --labels`: what page labels the pages show afterwards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ReorderLabelsArg {
+    /// Labels stay with page positions, so numbering stays in sequence.
+    /// The label tree is not touched.
+    Position,
+    /// Each page carries the label it showed: moving page 3 of i ii 1 to
+    /// the front shows 1 i ii.
+    Follow,
+}
+
 /// `layer-edit --visible/--locked`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum OnOffArg {
@@ -740,6 +751,10 @@ pub(crate) enum Command {
         /// The new page order, e.g. `3,1,2` or `5-8,1-4`.
         #[arg(long)]
         order: String,
+        /// Page labels after the move. `follow` rewrites the document's
+        /// label tree; a document without one gets none.
+        #[arg(long, value_enum, default_value_t = ReorderLabelsArg::Position)]
+        labels: ReorderLabelsArg,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

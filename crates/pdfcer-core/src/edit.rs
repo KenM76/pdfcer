@@ -150,7 +150,7 @@ use crate::object::{Dict, IndirectObject, Name, ObjId, Object, Stream};
 use crate::page_tree::{self, Page, PageSlot, PageTreeError};
 use crate::pageops::references::{DanglingReport, census_dangling};
 use crate::pageops::separation::{SeparationImpact, SeparationPolicy, SeparationSplitRefused};
-use crate::pageops::{self, DeletedPageLabels};
+use crate::pageops::{self, DeletedPageLabels, ReorderedPageLabels};
 use crate::settings::{
     MAX_TAB_ROW_TOLERANCE, MIN_TAB_ROW_TOLERANCE, QuadPointOrder, WidgetTabTail,
 };
@@ -48223,6 +48223,10 @@ impl EditSession {
     /// should end up at position `i`. It must be a permutation of
     /// `0..page_count`.
     ///
+    /// Page labels stay with positions ([`ReorderedPageLabels::Positional`]);
+    /// [`EditSession::reorder_pages_with_labels`] can carry them with the
+    /// pages instead.
+    ///
     /// ## One command, however many pages moved
     ///
     /// §11.3 names this case explicitly — *"for bulk structural
@@ -48258,6 +48262,26 @@ impl EditSession {
     /// - [`EditError::NotAPermutation`] — `new_order` is not one.
     /// - [`EditError::PageTree`].
     pub fn reorder_pages(&mut self, new_order: &[usize]) -> Result<(), EditError> {
+        self.reorder_pages_with_labels(new_order, ReorderedPageLabels::default())
+            .map(|_| ())
+    }
+
+    /// [`EditSession::reorder_pages`], with an explicit answer for the
+    /// labels the pages show afterwards ([`ReorderedPageLabels`]). Under
+    /// [`ReorderedPageLabels::FollowPages`] the `/PageLabels` tree
+    /// (§12.4.2) is rewritten in the same command, so one undo restores it
+    /// with the order. Returns the range count written; `0` when the tree
+    /// was left alone (the positional policy, no tree, or an identity
+    /// order).
+    ///
+    /// # Errors
+    ///
+    /// As [`EditSession::reorder_pages`].
+    pub fn reorder_pages_with_labels(
+        &mut self,
+        new_order: &[usize],
+        labels: ReorderedPageLabels,
+    ) -> Result<usize, EditError> {
         self.check_certification()?;
 
         let slots = self.page_slots()?;
@@ -48270,7 +48294,7 @@ impl EditSession {
             });
         }
         if new_order.iter().copied().eq(0..count) {
-            return Ok(()); // identity — nothing to record
+            return Ok(0); // identity — nothing to record
         }
 
         let mut scratch: BTreeMap<ObjId, Object> = BTreeMap::new();
@@ -48336,8 +48360,14 @@ impl EditSession {
         }
 
         if scratch.is_empty() {
-            return Ok(());
+            return Ok(0);
         }
+        let ranges = match labels {
+            ReorderedPageLabels::FollowPages => {
+                self.reorder_page_labels(count, new_order, &mut scratch)
+            }
+            ReorderedPageLabels::Positional => 0,
+        };
         let objects: Vec<ObjectWrite> = scratch
             .into_iter()
             .map(|(id, value)| ObjectWrite {
@@ -48352,7 +48382,33 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
-        Ok(())
+        Ok(ranges)
+    }
+
+    /// Write the `/PageLabels` tree under which each page of a
+    /// `count`-page reorder to `new_order` keeps the label it showed
+    /// ([`crate::page_labels::subset`]) into the staged catalog, returning
+    /// its range count; `0`, writing nothing, when there is no tree.
+    fn reorder_page_labels(
+        &self,
+        count: usize,
+        new_order: &[usize],
+        scratch: &mut BTreeMap<ObjId, Object>,
+    ) -> usize {
+        let Some(catalog_id) = self.graph().catalog_id() else {
+            return 0;
+        };
+        let Some(mut catalog) = self.staged_catalog(catalog_id, scratch) else {
+            return 0;
+        };
+        let Some(tree) = catalog.get(b"PageLabels") else {
+            return 0;
+        };
+        let current = crate::page_labels::ranges(&self.graph(), tree);
+        let ranges = crate::page_labels::subset(&current, count, new_order);
+        catalog.insert(Name::from(b"PageLabels"), crate::page_labels::tree(&ranges));
+        scratch.insert(catalog_id, Object::Dict(catalog));
+        ranges.len()
     }
 
     /// Merge an entire document into this one **as one undoable command**,

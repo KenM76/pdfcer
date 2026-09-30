@@ -186,3 +186,52 @@ fn numerals_follow_the_spec() {
     assert_eq!(r.numeral(100_001), "100001", "past the ceiling: decimal");
     assert_eq!(LabelStyle::PrefixOnly.numeral(7), "");
 }
+
+const ROMAN_THEN_DECIMAL: &str = "/PageLabels << /Nums [0 << /S /r >> 2 << /S /D >>] >>";
+
+/// Would catch: a follow-pages reorder leaving the tree positional, a moved
+/// page not keeping its numeral, or the label write landing in its own undo
+/// entry.
+#[test]
+fn a_follow_pages_reorder_carries_each_label() {
+    use pdfcer_core::pageops::ReorderedPageLabels;
+    let mut session = EditSession::new(doc(5, ROMAN_THEN_DECIMAL));
+    let ranges = session
+        .reorder_pages_with_labels(&[2, 0, 1, 3, 4], ReorderedPageLabels::FollowPages)
+        .expect("reorder succeeds");
+    assert_eq!(ranges, 3);
+    assert_eq!(saved(&session), ["1", "i", "ii", "2", "3"]);
+    assert_eq!(
+        session.undo(),
+        Some(CommandKind::ReorderPages { count: 3 }),
+        "the reorder and its labels must be one undo entry"
+    );
+    assert_eq!(saved(&session), ["i", "ii", "1", "2", "3"]);
+}
+
+/// Would catch: the default reorder starting to rewrite the tree.
+#[test]
+fn a_default_reorder_keeps_labels_positional() {
+    let mut session = EditSession::new(doc(5, ROMAN_THEN_DECIMAL));
+    session
+        .reorder_pages(&[2, 0, 1, 3, 4])
+        .expect("reorder succeeds");
+    assert_eq!(saved(&session), ["i", "ii", "1", "2", "3"]);
+}
+
+/// Would catch: a follow-pages reorder writing a tree into a document that
+/// had none.
+#[test]
+fn a_follow_pages_reorder_without_a_tree_writes_none() {
+    use pdfcer_core::pageops::ReorderedPageLabels;
+    let mut session = EditSession::new(doc(3, ""));
+    let ranges = session
+        .reorder_pages_with_labels(&[2, 1, 0], ReorderedPageLabels::FollowPages)
+        .expect("reorder succeeds");
+    assert_eq!(ranges, 0);
+    let (bytes, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("save must succeed");
+    let reopened = Document::from_bytes(bytes).expect("reparse");
+    assert!(label_ranges(&reopened).is_empty());
+}

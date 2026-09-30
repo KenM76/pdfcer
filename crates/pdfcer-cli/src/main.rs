@@ -542,7 +542,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::outline::{DestView, Destination, DestinationReader, RemoteTarget};
 use pdfcer_core::pageops::{
     DeletedPageLabels, DocumentView, InsertPosition, InsertedPageLabels, PageOpError,
-    SplitCriterion,
+    ReorderedPageLabels, SplitCriterion,
 };
 use pdfcer_core::signature::{SaveMode as CoreSaveMode, SignatureImpact};
 

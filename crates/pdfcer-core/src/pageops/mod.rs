@@ -636,6 +636,21 @@ pub enum DeletedPageLabels {
     KeepEach,
 }
 
+/// Which labels (ISO 32000-1 §12.4.2) pages show after a reorder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum ReorderedPageLabels {
+    /// Labels stay with page positions and the tree is not touched, so
+    /// numbering stays in sequence: swapping pages 1 and 2 of `i ii 1`
+    /// still shows `i ii 1`. What Acrobat does.
+    #[default]
+    Positional,
+    /// Each page carries the label it showed: swapping pages 1 and 2 of
+    /// `i ii 1` shows `ii i 1`. The tree is rewritten in the same command;
+    /// a document without one is left without one.
+    FollowPages,
+}
+
 /// [`insert`] with an explicit page-label policy.
 ///
 /// The report's `page_label_ranges` counts the ranges written (`0` when

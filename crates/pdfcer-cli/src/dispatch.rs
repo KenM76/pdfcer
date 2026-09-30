@@ -180,10 +180,11 @@ pub(crate) fn run() -> ExitCode {
         Command::ReorderPages {
             input,
             order,
+            labels,
             output,
             mode,
             verify_undo,
-        } => cmd_reorder_pages(&input, &order, &output, mode, verify_undo),
+        } => cmd_reorder_pages(&input, &order, labels, &output, mode, verify_undo),
         Command::Rotate {
             input,
             degrees,

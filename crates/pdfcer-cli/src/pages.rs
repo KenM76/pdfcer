@@ -409,6 +409,7 @@ The previous revision can still contain them. This is not redaction.",
 pub(crate) fn cmd_reorder_pages(
     input: &Path,
     order: &str,
+    labels: crate::cli::ReorderLabelsArg,
     output: &Path,
     mode: SaveMode,
     verify_undo: bool,
@@ -431,9 +432,14 @@ pub(crate) fn cmd_reorder_pages(
             return exit::EDIT_REFUSED;
         }
     };
-    if let Err(err) = session.reorder_pages(&new_order) {
-        return report_edit_error(input, &err);
-    }
+    let (labels, label_name) = match labels {
+        crate::cli::ReorderLabelsArg::Position => (ReorderedPageLabels::Positional, "position"),
+        crate::cli::ReorderLabelsArg::Follow => (ReorderedPageLabels::FollowPages, "follow"),
+    };
+    let label_ranges = match session.reorder_pages_with_labels(&new_order, labels) {
+        Ok(ranges) => ranges,
+        Err(err) => return report_edit_error(input, &err),
+    };
     let impact = session.signature_impact_of_save(match mode {
         SaveMode::Incremental => CoreSaveMode::Incremental,
         SaveMode::Full => CoreSaveMode::FullRewrite,
@@ -450,7 +456,7 @@ pub(crate) fn cmd_reorder_pages(
         Err(code) => return code,
     };
     println!(
-        "reorder-pages {} mode={} signature={} -> {}; pages={} {}",
+        "reorder-pages {} labels={label_name} mode={} signature={} -> {}; pages={} label_ranges={label_ranges} {}",
         input.display(),
         mode.name(),
         signature_token(impact),
