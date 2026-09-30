@@ -2244,13 +2244,15 @@ pub(crate) enum Command {
     /// are what to fetch to check revocation yourself.
     ///
     /// A `revocation:` line gives what certificate revocation lists (RFC
-    /// 5280 §5) say about the signer's chain, checked at the signing time:
-    /// the CRLs the document carries in its `/DSS`, plus any given with
-    /// `--crl`. Each certificate up to the root must be covered by a CRL its
-    /// issuer signed; `good`, `REVOKED` (with the date, the reason, and
-    /// whether that was before or after signing), `undetermined` (why), or
-    /// `not checked` when there are no CRLs. OCSP is not read. Revocation
-    /// does not change the exit code.
+    /// 5280 §5) and OCSP responses (RFC 6960) say about the signer's chain,
+    /// checked at the signing time: those the document carries in its
+    /// `/DSS`, plus any given with `--crl` or `--ocsp`. Each certificate up
+    /// to the root must be covered by a CRL its issuer signed, or an OCSP
+    /// response from its issuer or a responder the issuer authorised;
+    /// `good`, `REVOKED` (with the date, the reason, whether that was before
+    /// or after signing, and which CRL or OCSP response said so),
+    /// `undetermined` (why), or `not checked` when there is no evidence. Any
+    /// answer saying revoked wins. Revocation does not change the exit code.
     VerifySignatures {
         /// Input PDF.
         input: PathBuf,
@@ -2271,6 +2273,13 @@ pub(crate) enum Command {
         /// fetches nothing.
         #[arg(long = "crl", value_name = "FILE")]
         crl: Vec<PathBuf>,
+        /// A DER OCSP response (an OCSPResponse, or a bare
+        /// BasicOCSPResponse) to check the signer's chain against, in
+        /// addition to any in the document. Repeatable. Fetch it yourself
+        /// from a `revocation-source:` `ocsp=` responder; pdfcer fetches
+        /// nothing.
+        #[arg(long = "ocsp", value_name = "FILE")]
+        ocsp: Vec<PathBuf>,
     },
 
     /// **List a document's optional-content groups** — layers (§8.11).

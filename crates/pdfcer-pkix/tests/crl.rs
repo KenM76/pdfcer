@@ -4,7 +4,8 @@
 use std::path::PathBuf;
 
 use pdfcer_pkix::cms::parse_certificate;
-use pdfcer_pkix::crl::{ChainRevocation, CrlReason, CrlStatus, chain_status, check_crl, parse_crl};
+use pdfcer_pkix::crl::{CrlReason, CrlStatus, check_crl, parse_crl};
+use pdfcer_pkix::revocation::{ChainRevocation, Evidence, chain_status};
 
 fn fixture(name: &str) -> Vec<u8> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/crl");
@@ -114,7 +115,7 @@ fn chain(crls: &[&str]) -> ChainRevocation {
     let (leaf, ca) = (fixture("leaf.cer"), fixture("ca.cer"));
     let owned: Vec<Vec<u8>> = crls.iter().map(|c| fixture(c)).collect();
     let crls: Vec<&[u8]> = owned.iter().map(Vec::as_slice).collect();
-    chain_status(&leaf, &[&leaf, &ca], &[], &crls, Some(SIGNED_AT))
+    chain_status(&leaf, &[&leaf, &ca], &[], &crls, &[], Some(SIGNED_AT))
 }
 
 #[test]
@@ -122,7 +123,7 @@ fn the_chain_is_covered_up_to_the_self_signed_root() {
     match chain(&["crl-forged.crl", "crl-good.crl"]) {
         ChainRevocation::NotRevoked(covered) => {
             assert_eq!(covered.len(), 1, "the root is not revocation-checked");
-            assert_eq!(covered[0].crl_index, 1);
+            assert_eq!(covered[0].evidence, Evidence::Crl(1));
             assert!(covered[0].subject.contains("test signer"));
         }
         other => panic!("{other:?}"),
@@ -137,7 +138,7 @@ fn a_revocation_before_and_after_the_reference_time_is_reported_as_such() {
             before,
             ChainRevocation::Revoked {
                 before: Some(true),
-                crl_index: 1,
+                evidence: Evidence::Crl(1),
                 ..
             }
         ),
@@ -167,7 +168,7 @@ fn only_unusable_crls_leave_the_chain_undetermined() {
     }
     match chain(&["crl-other-issuer.crl"]) {
         ChainRevocation::Undetermined { reason } => {
-            assert!(reason.contains("no CRL from"), "{reason}");
+            assert!(reason.contains("no CRL or OCSP response from"), "{reason}");
         }
         other => panic!("{other:?}"),
     }
@@ -177,7 +178,7 @@ fn only_unusable_crls_leave_the_chain_undetermined() {
 fn a_missing_issuer_leaves_the_chain_undetermined() {
     let leaf = fixture("leaf.cer");
     let crl = fixture("crl-good.crl");
-    let got = chain_status(&leaf, &[], &[], &[&crl], Some(SIGNED_AT));
+    let got = chain_status(&leaf, &[], &[], &[&crl], &[], Some(SIGNED_AT));
     assert!(
         matches!(&got, ChainRevocation::Undetermined { reason } if reason.contains("not available")),
         "{got:?}"

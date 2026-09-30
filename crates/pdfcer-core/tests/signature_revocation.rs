@@ -1,7 +1,8 @@
-//! A signature's chain checked against RFC 5280 CRLs: supplied by the caller,
-//! or carried in the document's `/DSS` (ETSI EN 319 142-1 §5.4.2). Fixtures
-//! from `tools/gen-crl-fixtures.py`; the signature claims 2026-09-30 in
-//! `/M`, between the two revocation dates the CRLs state.
+//! A signature's chain checked against RFC 5280 CRLs and RFC 6960 OCSP
+//! responses: supplied by the caller, or carried in the document's `/DSS`
+//! (ETSI EN 319 142-1 §5.4.2). Fixtures from `tools/gen-crl-fixtures.py` and
+//! `tools/gen-ocsp-fixtures.py`; the signature claims 2026-09-30 in `/M`,
+//! between the two revocation dates each corpus states.
 
 #![cfg(feature = "signing")]
 #![allow(
@@ -19,8 +20,8 @@ use pdfcer_core::sign::apply::SignRequest;
 use pdfcer_core::sign::pkcs12::Pkcs12Signer;
 use pdfcer_core::sign::{SignError, SignatureAlgorithm, Signer};
 use pdfcer_core::signature::{
-    Integrity, Revocation, RevocationSource, SignatureVerdict, SuppliedRevocation, Trust,
-    verify_all, verify_all_with_revocation,
+    Integrity, Revocation, RevocationKind, RevocationSource, SignatureVerdict, SuppliedRevocation,
+    Trust, verify_all, verify_all_with_revocation,
 };
 use pdfcer_core::trust_store::{TrustAnchor, TrustAnchorSet};
 use pdfcer_core::writer::SaveOptions;
@@ -31,6 +32,10 @@ fn synthetic() -> PathBuf {
 
 fn crl_fixture(name: &str) -> Vec<u8> {
     std::fs::read(synthetic().join("crl").join(name)).unwrap()
+}
+
+fn ocsp_fixture(name: &str) -> Vec<u8> {
+    std::fs::read(synthetic().join("ocsp").join(name)).unwrap()
 }
 
 /// The leaf's key with only the leaf in its chain, so the CA must come from
@@ -75,8 +80,16 @@ fn verdict(bytes: &[u8], anchors: Option<&TrustAnchorSet>, crls: &[&str]) -> Sig
     let supplied = crls
         .iter()
         .fold(SuppliedRevocation::new(), |s, c| s.with_crl(crl_fixture(c)));
+    verdict_supplied(bytes, anchors, &supplied)
+}
+
+fn verdict_supplied(
+    bytes: &[u8],
+    anchors: Option<&TrustAnchorSet>,
+    supplied: &SuppliedRevocation,
+) -> SignatureVerdict {
     let doc = Document::from_bytes(bytes.to_vec()).unwrap();
-    let mut all = verify_all_with_revocation(&doc.view(), bytes, anchors, &supplied);
+    let mut all = verify_all_with_revocation(&doc.view(), bytes, anchors, supplied);
     assert_eq!(all.len(), 1);
     let v = all.remove(0);
     assert!(
@@ -111,9 +124,19 @@ fn last_number_after(bytes: &[u8], key: &str) -> usize {
         .unwrap()
 }
 
+fn with_dss(bytes: Vec<u8>, certs: &[Vec<u8>], crls: &[Vec<u8>]) -> Vec<u8> {
+    with_dss_ocsps(bytes, certs, crls, &[])
+}
+
 /// Append an incremental update giving catalog object 1 a `/DSS` holding
-/// `certs` and `crls` as uncompressed streams (EN 319 142-1 §5.4.2.2).
-fn with_dss(mut bytes: Vec<u8>, certs: &[Vec<u8>], crls: &[Vec<u8>]) -> Vec<u8> {
+/// `certs`, `crls` and `ocsps` as uncompressed streams (EN 319 142-1
+/// §5.4.2.2).
+fn with_dss_ocsps(
+    mut bytes: Vec<u8>,
+    certs: &[Vec<u8>],
+    crls: &[Vec<u8>],
+    ocsps: &[Vec<u8>],
+) -> Vec<u8> {
     let catalog = last_object(&bytes, 1).trim().to_owned();
     let size = last_number_after(&bytes, "/Size");
     let prev = last_number_after(&bytes, "startxref");
@@ -136,12 +159,16 @@ fn with_dss(mut bytes: Vec<u8>, certs: &[Vec<u8>], crls: &[Vec<u8>]) -> Vec<u8> 
     };
     let cert_refs = refs(certs, &mut bytes, &mut offsets);
     let crl_refs = refs(crls, &mut bytes, &mut offsets);
+    let ocsp_refs = refs(ocsps, &mut bytes, &mut offsets);
     let catalog_at = bytes.len();
     let patched = catalog.replacen("<<", &format!("<</DSS {dss} 0 R"), 1);
     bytes.extend_from_slice(format!("1 0 obj\n{patched}\nendobj\n").as_bytes());
     let dss_at = bytes.len();
     bytes.extend_from_slice(
-        format!("{dss} 0 obj\n<</Certs [{cert_refs}]/CRLs [{crl_refs}]>>\nendobj\n").as_bytes(),
+        format!(
+            "{dss} 0 obj\n<</Certs [{cert_refs}]/CRLs [{crl_refs}]/OCSPs [{ocsp_refs}]>>\nendobj\n"
+        )
+        .as_bytes(),
     );
     let xref_at = bytes.len();
     let mut xref = format!(
@@ -211,6 +238,7 @@ fn a_revocation_is_placed_before_or_after_the_signing_time_from_m() {
             date: Some("2026-09-15T00:00:00Z".into()),
             reason: Some("keyCompromise".into()),
             before_signing: Some(true),
+            kind: RevocationKind::Crl,
             source: RevocationSource::Supplied,
         }
     );
@@ -315,6 +343,101 @@ fn a_trust_anchor_gets_the_m_clock_too() {
     assert!(
         matches!(&v.revocation, Revocation::Good { checked } if checked.len() == 1),
         "{:?}",
+        v.revocation
+    );
+}
+
+fn ocsp_signed() -> Vec<u8> {
+    sign_with(&Pkcs12Signer::from_der(&ocsp_fixture("leaf.pfx"), "pdfcer").unwrap())
+}
+
+fn ocsps(names: &[&str]) -> SuppliedRevocation {
+    names.iter().fold(SuppliedRevocation::new(), |s, n| {
+        s.with_ocsp(ocsp_fixture(n))
+    })
+}
+
+#[test]
+fn a_supplied_ocsp_response_covers_the_signer() {
+    let v = verdict_supplied(
+        &ocsp_signed(),
+        None,
+        &ocsps(&["ocsp-forged.der", "ocsp-good-delegated.der"]),
+    );
+    let Revocation::Good { checked } = &v.revocation else {
+        panic!("{:?}", v.revocation);
+    };
+    assert_eq!(checked.len(), 1, "the self-signed root is not checked");
+    assert_eq!(checked[0].kind, RevocationKind::Ocsp);
+    assert_eq!(checked[0].source, RevocationSource::Supplied);
+    assert_eq!(
+        checked[0].this_update.as_deref(),
+        Some("2026-09-20T00:00:00Z")
+    );
+}
+
+#[test]
+fn a_revoked_ocsp_answer_outranks_a_clear_crl() {
+    let supplied = ocsps(&["ocsp-revoked.der"]).with_crl(ocsp_fixture("crl-clear.crl"));
+    let v = verdict_supplied(&ocsp_signed(), None, &supplied);
+    assert!(
+        matches!(
+            &v.revocation,
+            Revocation::Revoked {
+                before_signing: Some(true),
+                kind: RevocationKind::Ocsp,
+                source: RevocationSource::Supplied,
+                reason: Some(r),
+                ..
+            } if r == "keyCompromise"
+        ),
+        "{:?}",
+        v.revocation
+    );
+}
+
+#[test]
+fn an_unusable_ocsp_response_leaves_it_undetermined_not_unchecked() {
+    let v = verdict_supplied(&ocsp_signed(), None, &ocsps(&["ocsp-unknown.der"]));
+    assert!(
+        matches!(&v.revocation, Revocation::Undetermined { reason } if reason.contains("does not know")),
+        "{:?}",
+        v.revocation
+    );
+}
+
+#[test]
+fn ocsp_responses_in_the_dss_are_used_before_supplied_ones() {
+    let dss = with_dss_ocsps(
+        ocsp_signed(),
+        &[],
+        &[],
+        &[ocsp_fixture("ocsp-basic-only.der")],
+    );
+    let v = verdict_supplied(&dss, None, &SuppliedRevocation::new());
+    assert!(
+        matches!(&v.revocation, Revocation::Good { checked }
+            if checked[0].kind == RevocationKind::Ocsp && checked[0].source == RevocationSource::Dss),
+        "a bare BasicOCSPResponse in /DSS /OCSPs: {:?}",
+        v.revocation
+    );
+    let dss = with_dss_ocsps(
+        ocsp_signed(),
+        &[],
+        &[],
+        &[ocsp_fixture("ocsp-other-serial.der")],
+    );
+    let v = verdict_supplied(&dss, None, &ocsps(&["ocsp-revoked-after.der"]));
+    assert!(
+        matches!(
+            &v.revocation,
+            Revocation::Revoked {
+                before_signing: Some(false),
+                source: RevocationSource::Supplied,
+                ..
+            }
+        ),
+        "index 1 is past the DSS's one response: {:?}",
         v.revocation
     );
 }

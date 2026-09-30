@@ -1,9 +1,9 @@
-//! Certificate revocation lists (RFC 5280 §5): read one, and decide what a
-//! set of them says about a certificate chain.
+//! Certificate revocation lists (RFC 5280 §5): read one, and decide what it
+//! says about a certificate. The chain walk is in `revocation`.
 //!
 //! Offline only: the CRLs come from the document's `/DSS` or from a caller
 //! that fetched them. Every doubt resolves to
-//! [`ChainRevocation::Undetermined`], never to a false "not revoked":
+//! [`CrlStatus::Unusable`], never to a false "not revoked":
 //!
 //! - A CRL must be signed by the certificate's issuer (same name, a key that
 //!   verifies the CRL signature) whose `keyUsage`, if a v3 certificate,
@@ -21,13 +21,10 @@
 
 use crate::asn1::{self, Tlv};
 use crate::cms::{self, AlgId, Certificate};
-use crate::trust_chain::{verify_cert_signature, verify_signed};
+use crate::trust_chain::verify_signed;
 
 /// The most entries one CRL may list before it is refused as unusable.
 pub const MAX_CRL_ENTRIES: usize = 1_000_000;
-
-/// The deepest certificate chain walked.
-const MAX_DEPTH: usize = 16;
 
 mod ext {
     pub const CRL_NUMBER: &str = "2.5.29.20";
@@ -57,7 +54,9 @@ pub enum CrlReason {
 }
 
 impl CrlReason {
-    fn from_code(code: u8) -> Option<Self> {
+    /// The reason a `CRLReason` ENUMERATED value names; `None` for 7 or
+    /// anything above 10.
+    pub(crate) fn from_code(code: u8) -> Option<Self> {
         Some(match code {
             0 => Self::Unspecified,
             1 => Self::KeyCompromise,
@@ -424,136 +423,4 @@ pub fn check_crl(
         },
         None => CrlStatus::NotRevoked,
     }
-}
-
-/// One chain certificate a CRL showed was not revoked.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CertCoverage {
-    /// The certificate's subject.
-    pub subject: String,
-    /// Which of the caller's CRLs answered (an index into its slice).
-    pub crl_index: usize,
-    /// That CRL's `thisUpdate`.
-    pub this_update: Option<String>,
-    /// That CRL's `nextUpdate`; `None` when the CRL states none.
-    pub next_update: Option<String>,
-}
-
-/// What the supplied CRLs say about a whole chain.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ChainRevocation {
-    /// Every certificate below the root was covered by a usable CRL that
-    /// does not list it; signer first.
-    NotRevoked(Vec<CertCoverage>),
-    /// A usable CRL lists a chain certificate.
-    Revoked {
-        subject: String,
-        crl_index: usize,
-        date: Option<String>,
-        reason: Option<CrlReason>,
-        /// Whether `date` is at or before `at`; `None` when either is unknown.
-        before: Option<bool>,
-    },
-    /// The chain could not be fully checked, and why.
-    Undetermined { reason: String },
-}
-
-/// Check every certificate from `signer_der` up to (not including) a
-/// self-issued root or a certificate in `stop_at`, against `crls`.
-///
-/// Issuers are found in `pool` by name and verified by signature. `at` is
-/// the reference time (for a signature, its signing time): a CRL must be
-/// current at it, and a revocation is reported as before or after it.
-#[must_use]
-pub fn chain_status(
-    signer_der: &[u8],
-    pool: &[&[u8]],
-    stop_at: &[&[u8]],
-    crls: &[&[u8]],
-    at: Option<&str>,
-) -> ChainRevocation {
-    let undetermined = |reason: String| ChainRevocation::Undetermined { reason };
-    let Some(mut current) = cms::parse_certificate(signer_der) else {
-        return undetermined("the signer's certificate could not be read".to_owned());
-    };
-    let mut current_der = signer_der;
-    let pool: Vec<(&[u8], Certificate<'_>)> = pool
-        .iter()
-        .filter_map(|d| cms::parse_certificate(d).map(|c| (*d, c)))
-        .collect();
-    let parsed: Vec<Option<Crl<'_>>> = crls.iter().map(|d| parse_crl(d)).collect();
-    let mut covered = Vec::new();
-    for _ in 0..MAX_DEPTH {
-        if stop_at.contains(&current_der)
-            || (current.subject_der == current.issuer_der
-                && verify_cert_signature(&current, &current.key))
-        {
-            return ChainRevocation::NotRevoked(covered);
-        }
-        let issuers: Vec<&(&[u8], Certificate<'_>)> = pool
-            .iter()
-            .filter(|(_, c)| {
-                c.subject_der == current.issuer_der && verify_cert_signature(&current, &c.key)
-            })
-            .collect();
-        let Some((issuer_der, issuer)) = issuers.first().map(|(d, c)| (*d, c)) else {
-            return undetermined(format!(
-                "the issuer of {} is not available, so its CRL cannot be checked",
-                current.subject
-            ));
-        };
-        let mut good: Option<CertCoverage> = None;
-        let mut why_not: Option<String> = None;
-        for (i, crl) in parsed.iter().enumerate() {
-            let Some(crl) = crl else { continue };
-            if crl.issuer_der != current.issuer_der {
-                continue;
-            }
-            for (_, candidate) in &issuers {
-                match check_crl(crl, &current, candidate, at) {
-                    CrlStatus::Revoked { date, reason } => {
-                        let before = match (date.as_deref(), at) {
-                            (Some(d), Some(a)) => Some(d <= a),
-                            _ => None,
-                        };
-                        return ChainRevocation::Revoked {
-                            subject: current.subject.clone(),
-                            crl_index: i,
-                            date,
-                            reason,
-                            before,
-                        };
-                    }
-                    CrlStatus::NotRevoked => {
-                        let newer = good
-                            .as_ref()
-                            .is_none_or(|g| crl.this_update > g.this_update);
-                        if newer {
-                            good = Some(CertCoverage {
-                                subject: current.subject.clone(),
-                                crl_index: i,
-                                this_update: crl.this_update.clone(),
-                                next_update: crl.next_update.clone(),
-                            });
-                        }
-                    }
-                    CrlStatus::Unusable { reason } => {
-                        why_not.get_or_insert(reason);
-                    }
-                }
-            }
-        }
-        match good {
-            Some(g) => covered.push(g),
-            None => {
-                return undetermined(match why_not {
-                    Some(r) => format!("the CRL for {} cannot be used: {r}", current.subject),
-                    None => format!("no CRL from {} was available", current.issuer),
-                });
-            }
-        }
-        current_der = issuer_der;
-        current = issuer.clone();
-    }
-    undetermined(format!("the chain is deeper than {MAX_DEPTH} certificates"))
 }

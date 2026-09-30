@@ -19,7 +19,8 @@
 
 use libfuzzer_sys::fuzz_target;
 use pdfcer_pkix::cms::parse_certificate;
-use pdfcer_pkix::crl::{self, ChainRevocation, CrlStatus};
+use pdfcer_pkix::crl::{self, CrlStatus};
+use pdfcer_pkix::revocation::{ChainRevocation, chain_status};
 
 const LEAF: &[u8] = include_bytes!("../../fixtures/synthetic/crl/leaf.cer");
 const CA: &[u8] = include_bytes!("../../fixtures/synthetic/crl/ca.cer");
@@ -57,7 +58,7 @@ fuzz_target!(|data: &[u8]| {
             "a CRL the CA did not sign proved something: {status:?}"
         );
     }
-    let chain = crl::chain_status(LEAF, &[LEAF, CA], &[], &[data], AT);
+    let chain = chain_status(LEAF, &[LEAF, CA], &[], &[data], &[], AT);
     assert!(
         matches!(chain, ChainRevocation::Undetermined { .. }) || genuinely_signed(data),
         "{chain:?}"

@@ -547,7 +547,8 @@ pub(crate) fn run() -> ExitCode {
             input,
             trust_from_acrobat,
             crl,
-        } => cmd_verify_signatures(&input, trust_from_acrobat, &crl),
+            ocsp,
+        } => cmd_verify_signatures(&input, trust_from_acrobat, &crl, &ocsp),
         Command::ListPrinters => cmd_list_printers(),
         Command::Print {
             input,

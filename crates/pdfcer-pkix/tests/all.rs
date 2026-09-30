@@ -3,4 +3,5 @@
 //! the gate fails when a test file is missing from this list.
 
 mod crl;
+mod ocsp;
 mod revocation_uris;

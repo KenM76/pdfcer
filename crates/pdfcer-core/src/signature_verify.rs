@@ -128,9 +128,9 @@ pub enum Integrity {
 /// signer chains, BY SIGNATURE, to one of them. A [`Trusted`](Trust::Trusted)
 /// verdict checks signature linkage, RFC 5280 CA/key-usage constraints, and —
 /// when a signing-time clock is available — certificate validity dates
-/// (`Pass 10.5`); it does NOT check revocation (CRL/OCSP), which needs the
-/// network `pdfcer-core` never touches. The verdict's own note says exactly
-/// what ran.
+/// (`Pass 10.5`); revocation is not part of it — see
+/// [`SignatureVerdict::revocation`], which uses only the CRLs and OCSP
+/// responses in hand. The verdict's own note says exactly what ran.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Trust {
@@ -204,35 +204,40 @@ pub struct SignatureVerdict {
     /// `pdfcer-core` has no network, so these are what a shell would fetch
     /// to check revocation.
     pub revocation_sources: Vec<RevocationSources>,
-    /// What the available CRLs say about the signer's chain: those in the
-    /// document's `/DSS` and any the caller supplied
+    /// What the available CRLs and OCSP responses say about the signer's
+    /// chain: those in the document's `/DSS` and any the caller supplied
     /// ([`verify_all_with_revocation`]). Independent of [`trust`](Self::trust):
-    /// each certificate is checked against a CRL its issuer signed, whether or
-    /// not that issuer is trusted.
+    /// each certificate is checked against evidence its issuer vouches for,
+    /// whether or not that issuer is trusted.
     pub revocation: Revocation,
 }
 
-/// What certificate revocation lists (RFC 5280 §5) say about a signer's chain.
+/// What certificate revocation lists (RFC 5280 §5) and OCSP responses
+/// (RFC 6960) say about a signer's chain.
 ///
 /// Every certificate from the signer up to, not including, a self-signed
 /// root (or a trust anchor, when anchors were given) is checked against the
-/// CRLs its issuer signed. A CRL is used only if its signature verifies with
-/// the issuer's key, the issuer may sign CRLs, it is a complete (not delta,
-/// not indirect) CRL covering the certificate, it carries no unrecognised
-/// critical extension, and — when the signature has a signing time — its
-/// `nextUpdate` is not before that time. Nothing is fetched.
+/// evidence for it. A CRL is used only if its signature verifies with the
+/// issuer's key, the issuer may sign CRLs, it is a complete (not delta, not
+/// indirect) CRL covering the certificate and it carries no unrecognised
+/// critical extension. An OCSP response is used only if it answers for this
+/// exact certificate and is signed by the issuer or by a responder the issuer
+/// authorised (`id-kp-OCSPSigning`, RFC 6960 §4.2.2.2) that is itself shown
+/// not revoked (`ocsp-nocheck`, or a usable CRL). Either must — when the
+/// signature has a signing time — not have expired before it. Any usable
+/// answer saying revoked wins over every good one. Nothing is fetched.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Revocation {
-    /// No CRL was available: none in `/DSS`, none supplied.
+    /// No CRL or OCSP response was available: none in `/DSS`, none supplied.
     NotChecked,
-    /// Every certificate in the chain was covered by a usable CRL not
-    /// listing it. Signer first.
+    /// Every certificate in the chain was covered by a usable CRL or OCSP
+    /// response not showing it revoked. Signer first.
     Good {
         /// One entry per certificate checked.
         checked: Vec<RevocationCheck>,
     },
-    /// A usable CRL lists a certificate in the chain.
+    /// A usable CRL or OCSP response shows a certificate in the chain revoked.
     Revoked {
         /// The revoked certificate's subject.
         subject: String,
@@ -244,37 +249,63 @@ pub enum Revocation {
         /// `signingTime`, else `/M`); `None` when either is unknown. Both are
         /// the signer's own claim.
         before_signing: Option<bool>,
-        /// Where the CRL came from.
+        /// Whether a CRL or an OCSP response said so.
+        kind: RevocationKind,
+        /// Where it came from.
         source: RevocationSource,
     },
-    /// CRLs were available but the chain could not be fully checked.
+    /// Evidence was available but the chain could not be fully checked.
     Undetermined {
         /// Why, in operator terms.
         reason: String,
     },
 }
 
-/// One certificate a CRL showed was not revoked.
+/// One certificate a CRL or OCSP response showed was not revoked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RevocationCheck {
     /// The certificate's subject.
     pub subject: String,
-    /// Where the CRL came from.
+    /// Whether a CRL or an OCSP response answered — the newest usable one.
+    pub kind: RevocationKind,
+    /// Where it came from.
     pub source: RevocationSource,
-    /// The CRL's `thisUpdate`, ISO-8601.
+    /// Its `thisUpdate`, ISO-8601.
     pub this_update: Option<String>,
-    /// The CRL's `nextUpdate`; `None` when the CRL states none (RFC 5280
-    /// §5.1.2.5 requires it; pdfcer still uses such a CRL and reports the
-    /// absence here).
+    /// Its `nextUpdate`; `None` when it states none (RFC 5280 §5.1.2.5
+    /// requires one on a CRL; on an OCSP response, RFC 6960 §4.2.2.1 makes
+    /// its absence mean newer information is always available). pdfcer still
+    /// uses such evidence and reports the absence here.
     pub next_update: Option<String>,
 }
 
-/// Where a CRL came from.
+/// Which kind of revocation evidence answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RevocationKind {
+    /// A certificate revocation list (RFC 5280 §5).
+    Crl,
+    /// An OCSP response (RFC 6960).
+    Ocsp,
+}
+
+impl RevocationKind {
+    /// `"CRL"` or `"OCSP"`.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Crl => "CRL",
+            Self::Ocsp => "OCSP",
+        }
+    }
+}
+
+/// Where a CRL or OCSP response came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RevocationSource {
-    /// The document's `/DSS` `/CRLs` (ETSI EN 319 142-1 §5.4.2.2).
+    /// The document's `/DSS` `/CRLs` or `/OCSPs` (ETSI EN 319 142-1 §5.4.2.2).
     Dss,
     /// Supplied by the caller in [`SuppliedRevocation`].
     Supplied,
@@ -296,13 +327,17 @@ impl RevocationSource {
 ///
 /// ```
 /// use pdfcer_core::signature::SuppliedRevocation;
-/// let supplied = SuppliedRevocation::new().with_crl(vec![0x30, 0x00]);
+/// let supplied = SuppliedRevocation::new()
+///     .with_crl(vec![0x30, 0x00])
+///     .with_ocsp(vec![0x30, 0x00]);
 /// assert_eq!(supplied.crls().len(), 1);
+/// assert_eq!(supplied.ocsps().len(), 1);
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SuppliedRevocation {
     crls: Vec<Vec<u8>>,
+    ocsps: Vec<Vec<u8>>,
 }
 
 impl SuppliedRevocation {
@@ -325,16 +360,42 @@ impl SuppliedRevocation {
     pub fn crls(&self) -> &[Vec<u8>] {
         &self.crls
     }
+
+    /// Add one DER-encoded OCSP response — an `OCSPResponse`, or a bare
+    /// `BasicOCSPResponse` as `/DSS` `/OCSPs` holds. Bytes that are not one
+    /// are ignored when verifying.
+    #[must_use]
+    pub fn with_ocsp(mut self, der: Vec<u8>) -> Self {
+        self.ocsps.push(der);
+        self
+    }
+
+    /// The OCSP responses added, in order.
+    #[must_use]
+    pub fn ocsps(&self) -> &[Vec<u8>] {
+        &self.ocsps
+    }
+
+    fn is_empty(&self) -> bool {
+        self.crls.is_empty() && self.ocsps.is_empty()
+    }
 }
 
-/// The most `/DSS` `/Certs` or `/CRLs` entries read, each.
+/// The most `/DSS` `/Certs`, `/CRLs` or `/OCSPs` entries read, each.
 const MAX_DSS_ITEMS: usize = 4096;
 
-/// The document's `/DSS` certificates and CRLs, decoded.
+/// The document's `/DSS` certificates, CRLs and OCSP responses, decoded.
 #[derive(Default)]
 struct DssData {
     certs: Vec<Vec<u8>>,
     crls: Vec<Vec<u8>>,
+    ocsps: Vec<Vec<u8>>,
+}
+
+impl DssData {
+    fn has_revocation(&self) -> bool {
+        !self.crls.is_empty() || !self.ocsps.is_empty()
+    }
 }
 
 fn dss_data<G: ObjectGraph + ?Sized>(graph: &G, bytes: &[u8]) -> DssData {
@@ -370,10 +431,11 @@ fn dss_data<G: ObjectGraph + ?Sized>(graph: &G, bytes: &[u8]) -> DssData {
     };
     out.certs = read(b"Certs");
     out.crls = read(b"CRLs");
+    out.ocsps = read(b"OCSPs");
     out
 }
 
-/// The chain's revocation status from `dss` and `supplied` CRLs.
+/// The chain's revocation status from `dss` and `supplied` evidence.
 fn revocation_status(
     signer_der: &[u8],
     sd: &cms::SignedData<'_>,
@@ -382,8 +444,8 @@ fn revocation_status(
     anchors: Option<&crate::trust_store::TrustAnchorSet>,
     at: Option<&str>,
 ) -> Revocation {
-    use pdfcer_pkix::crl::{ChainRevocation, chain_status};
-    if dss.crls.is_empty() && supplied.crls.is_empty() {
+    use pdfcer_pkix::revocation::{ChainRevocation, Evidence, chain_status};
+    if !dss.has_revocation() && supplied.is_empty() {
         return Revocation::NotChecked;
     }
     let anchor_ders: Vec<&[u8]> = anchors
@@ -392,44 +454,59 @@ fn revocation_status(
     let mut pool: Vec<&[u8]> = sd.certificates.clone();
     pool.extend(dss.certs.iter().map(Vec::as_slice));
     pool.extend(anchor_ders.iter().copied());
-    let crls: Vec<&[u8]> = dss
-        .crls
-        .iter()
-        .chain(&supplied.crls)
-        .map(Vec::as_slice)
-        .collect();
-    let source = |i: usize| {
-        if i < dss.crls.len() {
+    let joined = |d: &'_ [Vec<u8>], s: &'_ [Vec<u8>]| -> Vec<Vec<u8>> {
+        d.iter().chain(s).cloned().collect()
+    };
+    let crls = joined(&dss.crls, &supplied.crls);
+    let ocsps = joined(&dss.ocsps, &supplied.ocsps);
+    let crls: Vec<&[u8]> = crls.iter().map(Vec::as_slice).collect();
+    let ocsps: Vec<&[u8]> = ocsps.iter().map(Vec::as_slice).collect();
+    // Evidence indexes run DSS first, then supplied, per kind.
+    let origin = |e: Evidence| {
+        let (kind, i, in_dss) = match e {
+            Evidence::Crl(i) => (RevocationKind::Crl, i, dss.crls.len()),
+            Evidence::Ocsp(i) => (RevocationKind::Ocsp, i, dss.ocsps.len()),
+        };
+        let source = if i < in_dss {
             RevocationSource::Dss
         } else {
             RevocationSource::Supplied
-        }
+        };
+        (kind, source)
     };
-    match chain_status(signer_der, &pool, &anchor_ders, &crls, at) {
+    match chain_status(signer_der, &pool, &anchor_ders, &crls, &ocsps, at) {
         ChainRevocation::NotRevoked(covered) => Revocation::Good {
             checked: covered
                 .into_iter()
-                .map(|c| RevocationCheck {
-                    subject: c.subject,
-                    source: source(c.crl_index),
-                    this_update: c.this_update,
-                    next_update: c.next_update,
+                .map(|c| {
+                    let (kind, source) = origin(c.evidence);
+                    RevocationCheck {
+                        subject: c.subject,
+                        kind,
+                        source,
+                        this_update: c.this_update,
+                        next_update: c.next_update,
+                    }
                 })
                 .collect(),
         },
         ChainRevocation::Revoked {
             subject,
-            crl_index,
+            evidence,
             date,
             reason,
             before,
-        } => Revocation::Revoked {
-            subject,
-            date,
-            reason: reason.map(|r| r.as_str().to_owned()),
-            before_signing: before,
-            source: source(crl_index),
-        },
+        } => {
+            let (kind, source) = origin(evidence);
+            Revocation::Revoked {
+                subject,
+                date,
+                reason: reason.map(|r| r.as_str().to_owned()),
+                before_signing: before,
+                kind,
+                source,
+            }
+        }
         ChainRevocation::Undetermined { reason } => Revocation::Undetermined { reason },
     }
 }
@@ -838,7 +915,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
     // byte range covers. Both are the signer's claim.
     let reference_time = signer.signing_time.clone().or_else(|| {
         let t = verdict.date.as_deref().and_then(pdf_date_to_utc)?;
-        if anchors.is_some() || !dss.crls.is_empty() || !supplied.crls.is_empty() {
+        if anchors.is_some() || dss.has_revocation() || !supplied.is_empty() {
             notes.push(format!(
                 "clock: no CMS signingTime, so certificate validity and revocation are checked at the /M time the signature dictionary states ({t}) -- the signer's claim"
             ));
@@ -997,7 +1074,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
                             "validity dates were NOT checked (no signing-time clock)"
                         };
                         notes.push(format!(
-                            "trust: the signer chains by signature to a trusted anchor, and RFC 5280 CA/key-usage constraints held; {validity}. Revocation is reported separately, from CRLs in the document or supplied; pdfcer-core fetches nothing."
+                            "trust: the signer chains by signature to a trusted anchor, and RFC 5280 CA/key-usage constraints held; {validity}. Revocation is reported separately, from CRLs and OCSP responses in the document or supplied; pdfcer-core fetches nothing."
                         ));
                         Trust::Trusted {
                             anchor_subject,

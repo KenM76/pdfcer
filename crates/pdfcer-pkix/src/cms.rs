@@ -63,6 +63,10 @@ pub mod oid {
     pub const AD_OCSP: &str = "1.3.6.1.5.5.7.48.1";
     /// `id-ad-caIssuers` access method (RFC 5280 §4.2.2.1).
     pub const AD_CA_ISSUERS: &str = "1.3.6.1.5.5.7.48.2";
+    pub const EXT_KEY_USAGE: &str = "2.5.29.37";
+    pub const KP_OCSP_SIGNING: &str = "1.3.6.1.5.5.7.3.9";
+    pub const OCSP_BASIC: &str = "1.3.6.1.5.5.7.48.1.1";
+    pub const OCSP_NOCHECK: &str = "1.3.6.1.5.5.7.48.1.5";
     pub const ECDSA_SHA1: &str = "1.2.840.10045.4.1";
     pub const ECDSA_SHA256: &str = "1.2.840.10045.4.3.2";
     pub const ECDSA_SHA384: &str = "1.2.840.10045.4.3.3";
@@ -336,6 +340,16 @@ pub struct Certificate<'a> {
     /// `cRLDistributionPoints` and `authorityInfoAccess` URIs. Claims —
     /// nothing here has been fetched or checked.
     pub revocation_uris: RevocationUris,
+    /// The `subjectPublicKey` BIT STRING's value without its unused-bits
+    /// octet — what an OCSP `CertID.issuerKeyHash` and a `byKey` responder
+    /// id hash (RFC 6960 §4.1.1, errata 6165–6167).
+    pub spki_key_bits: &'a [u8],
+    /// `extKeyUsage` (RFC 5280 §4.2.1.12) lists `id-kp-OCSPSigning`: a CA may
+    /// delegate OCSP signing to this certificate (RFC 6960 §4.2.2.2).
+    pub ocsp_signing: bool,
+    /// The `id-pkix-ocsp-nocheck` extension is present (RFC 6960
+    /// §4.2.2.2.1): a delegated responder whose own revocation is not checked.
+    pub ocsp_nocheck: bool,
 }
 
 /// The URIs a certificate names for revocation checking (RFC 5280
@@ -474,6 +488,12 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
     let subject_tlv = it.next().filter(|t| t.tag == asn1::SEQUENCE)?;
     let spki = it.next().filter(|t| t.tag == asn1::SEQUENCE)?;
     let key = parse_spki(spki)?;
+    let spki_key_bits = asn1::children(spki)
+        .and_then(|k| k.get(1).copied())
+        .and_then(asn1::bit_string_bytes)
+        .unwrap_or(&[]);
+    let mut ocsp_signing = false;
+    let mut ocsp_nocheck = false;
     let mut subject_key_id = None;
     let mut is_ca = false;
     let mut key_usage_cert_sign = None;
@@ -529,6 +549,18 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
                         Some(oid::AUTHORITY_INFO_ACCESS) => {
                             revocation_uris.read_authority_info_access(outer.content);
                         }
+                        Some(oid::EXT_KEY_USAGE) => {
+                            ocsp_signing = asn1::expect(outer.content, asn1::SEQUENCE)
+                                .and_then(|(seq, _)| asn1::children(seq))
+                                .unwrap_or_default()
+                                .iter()
+                                .any(|k| {
+                                    k.tag == asn1::OID
+                                        && asn1::oid_to_string(k.content).as_deref()
+                                            == Some(oid::KP_OCSP_SIGNING)
+                                });
+                        }
+                        Some(oid::OCSP_NOCHECK) => ocsp_nocheck = true,
                         _ => {}
                     }
                 }
@@ -553,6 +585,9 @@ pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
         key_usage_crl_sign,
         version,
         revocation_uris,
+        spki_key_bits,
+        ocsp_signing,
+        ocsp_nocheck,
     })
 }
 

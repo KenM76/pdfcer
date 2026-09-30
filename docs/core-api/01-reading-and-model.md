@@ -3012,7 +3012,7 @@ shell must keep apart:
 | `integrity` | `Integrity` — `Verified { digest_algorithm, signature_algorithm }` / `DigestMismatch` / `SignatureInvalid` / `Unverifiable { reason }` | are the signed bytes unaltered (digest over `/ByteRange` vs the signed `messageDigest`), and is the signature over the signed attributes genuine against the signer's OWN embedded certificate? `DigestMismatch` = the document was altered; `SignatureInvalid` = the digest matches but the signature/certificate does not; `Unverifiable` names why pdfcer cannot say (a subfilter, algorithm or curve it lacks, a malformed CMS, a missing certificate) and is never either of the others |
 | `coverage` | `ByteRangeCoverage` | was anything appended after signing (`covers_to_eof()`) |
 | `trust` | `Trust` — `NotChecked` unless anchors are supplied (`Pass 10.3`), then `Trusted`/`Untrusted`/`SignerUnknown` | `verify_all_with_trust` + a trust-anchor pool; chain, constraints and validity dates at the reference clock (below); NOT revocation |
-| `revocation` | `Revocation` — `NotChecked` / `Good { checked }` / `Revoked { … }` / `Undetermined { reason }` (`Pass 10.16`) | what RFC 5280 §5 CRLs say about the signer's chain at the reference clock; see §12.5c |
+| `revocation` | `Revocation` — `NotChecked` / `Good { checked }` / `Revoked { … }` / `Undetermined { reason }` (`Pass 10.16`) | what RFC 5280 §5 CRLs and RFC 6960 OCSP responses say about the signer's chain at the reference clock (OCSP: `Pass 10.17`); see §12.5c |
 
 Plus claims — `signer_subject`, `signer_issuer`, `cert_not_before`,
 `cert_not_after`, `signing_time`, and the dictionary's `name`/`date`/
@@ -3106,7 +3106,7 @@ each link's signature**, to a trusted anchor:
   converted to UTC (ISO 32000-1 §7.9.4; a date with no UT offset gives no
   clock). PAdES forbids `signingTime` (ETSI EN 319 142-1 §6.3), so for
   `ETSI.CAdES.detached` `/M` is usually the clock; a `clock:` note says so
-  whenever anchors or CRLs were used. Both times are the signer's claim.
+  whenever anchors, CRLs or OCSP responses were used. Both times are the signer's claim.
 - `Trust::Untrusted { reason }` — a parsed signer that does NOT chain (incomplete
   chain, untrusted self-signed root, a link whose signature failed, a non-CA
   intermediate, or a certificate outside its validity window at the signing
@@ -3124,7 +3124,7 @@ issuer→subject link), **CA/key-usage constraints** on intermediates
 `constraints_checked` always `true`), and — when `now` is supplied — **validity
 dates** (`notBefore ≤ now ≤ notAfter` for every cert, RFC 5280 §4.1.2.5). It
 does **not** check **revocation**, so `revocation_checked` is always `false`;
-CRL checking is `SignatureVerdict::revocation` (§12.5c), a separate axis.
+CRL/OCSP checking is `SignatureVerdict::revocation` (§12.5c), a separate axis.
 Cert signatures verify for RSA PKCS#1 v1.5, RSASSA-PSS (params from the cert's
 `signatureAlgorithm`) and ECDSA; any other scheme is declined (safe direction).
 The verdict carries
@@ -3138,39 +3138,55 @@ Adobe's own downloaded file is a local read; whether relying on it fits the
 Adobe Reader licence is the operator's call, resolved by an explicit opt-in, not
 a pdfcer legal determination). A persistent opt-in setting exists: `settings::AcrobatTrustStore { Off, AtOwnRisk }` (`Pass 10.4`, default `Off`); the CLI reads it as the default for `--trust-from-acrobat`, and the GUI binds it for its security tab.
 
-### 12.5c Revocation from CRLs (`Pass 10.16`)
+### 12.5c Revocation from CRLs and OCSP (`Pass 10.16`, `Pass 10.17`)
 
 ```rust
 use pdfcer_core::signature::{verify_all_with_revocation, Revocation, SuppliedRevocation};
-let supplied = SuppliedRevocation::new().with_crl(crl_der);   // repeatable; may be empty
+let supplied = SuppliedRevocation::new()
+    .with_crl(crl_der)        // repeatable; DER CertificateList
+    .with_ocsp(ocsp_der);     // repeatable; DER OCSPResponse or bare BasicOCSPResponse
 let verdicts = verify_all_with_revocation(&doc.view(), &bytes, anchors, &supplied);
 ```
 
 `verify_all` and `verify_all_with_trust` are this with nothing supplied (they
 still read the document's `/DSS`). Each certificate from the signer up to the
-root — or up to a supplied anchor — must be covered by a CRL its issuer
-signed (RFC 5280 §6.3), current at the reference clock (§12.5b). CRLs are
-consulted in order: the document's `/DSS /CRLs` (ETSI EN 319 142-1 §5.4.2.2),
-then the supplied ones. Issuers are found among the CMS certificates,
-`/DSS /Certs`, then the anchors. **pdfcer-core fetches nothing**; OCSP is not
-read.
+root — or up to a supplied anchor — must be covered, at the reference clock
+(§12.5b), by either:
+- a **CRL** its issuer signed (RFC 5280 §6.3): complete, not delta or
+  indirect, no unsupported critical extension; or
+- an **OCSP response** (RFC 6960) answering for exactly this certificate
+  (all four CertID fields), signed by the issuer or by a delegated responder
+  the issuer issued with `id-kp-OCSPSigning` (§4.2.2.2). A delegate must be
+  valid at `producedAt` and either carry `id-pkix-ocsp-nocheck` or be shown
+  not revoked by a usable CRL. `unknown`, a non-`successful` status
+  (`tryLater`…) and an expired `nextUpdate` are unusable.
+
+Any usable answer saying revoked wins over every good one; otherwise the
+newest good answer is reported. Evidence is indexed per kind: the document's
+`/DSS /CRLs` and `/DSS /OCSPs` (ETSI EN 319 142-1 §5.4.2.2) first, then the
+supplied ones. Issuers are found among the CMS certificates, `/DSS /Certs`,
+then the anchors. **pdfcer-core fetches nothing.** Nonces and the DSS `/VRI`
+dictionary are not read.
 
 `Revocation` (`#[non_exhaustive]`):
-- `NotChecked` — no CRL in the document or supplied.
+- `NotChecked` — no CRL and no OCSP response in the document or supplied.
 - `Good { checked: Vec<RevocationCheck> }` — each non-root certificate:
-  `subject`, `source: RevocationSource` (`Dss`/`Supplied`, `as_str()`),
-  `this_update`, `next_update` (UTC ISO).
-- `Revoked { subject, date, reason, before_signing: Option<bool>, source }` —
-  `reason` is the RFC 5280 §5.3.1 name (`"keyCompromise"`…); `before_signing`
+  `subject`, `kind: RevocationKind` (`Crl`/`Ocsp`, `as_str()` → `"CRL"`/
+  `"OCSP"`), `source: RevocationSource` (`Dss`/`Supplied`, `as_str()`),
+  `this_update`, `next_update` (UTC ISO; `None` = none stated).
+- `Revoked { subject, date, reason, before_signing: Option<bool>, kind, source }`
+  — `reason` is the RFC 5280 §5.3.1 name (`"keyCompromise"`…); `before_signing`
   places the revocation against the reference clock (`None` = no clock).
   Revoked-after-signing is still `Revoked`; the shell says which side.
-- `Undetermined { reason }` — CRLs exist but cannot decide: no CRL covers a
-  certificate, a CRL's signature does not verify, it expired before the clock,
-  an issuer is not available, a critical extension pdfcer does not support.
+- `Undetermined { reason }` — evidence exists but cannot decide: nothing
+  covers a certificate, a signature does not verify, it expired before the
+  clock, an issuer is not available, an OCSP responder is not authorised or
+  does not know the certificate, a critical extension pdfcer does not support.
 
-Revocation never changes `integrity`. The CLI prints a `revocation:` line and
-takes `verify-signatures --crl FILE` (repeatable; unreadable → exit 3); the
-exit code stays integrity's.
+Revocation never changes `integrity`. The CLI prints a `revocation:` line
+naming `CRL` or `OCSP`, and takes `verify-signatures --crl FILE` and
+`--ocsp FILE` (each repeatable; unreadable → exit 3); the exit code stays
+integrity's.
 
 ### 12.6 ★ Document metadata — the honest gap
 

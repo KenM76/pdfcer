@@ -1,7 +1,7 @@
 //! pdfcer public-key infrastructure: DER/ASN.1 reading (`asn1`), CMS
 //! `SignedData` and X.509 certificate parsing (`cms`, RFC 5652 / RFC 5280),
-//! certificate-chain building and validation (`trust_chain`) and the trust
-//! store (`trust_store`).
+//! certificate-chain building and validation (`trust_chain`), revocation
+//! evidence (`crl`, `ocsp`, `revocation`) and the trust store (`trust_store`).
 //!
 //! Depends only on `pdfcer-model` (for its hash and public-key primitives).
 //! `pdfcer-core` re-exports `trust_chain` and `trust_store` at their old
@@ -23,5 +23,9 @@ pub mod asn1;
 pub mod cms;
 #[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
 pub mod crl;
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub mod ocsp;
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub mod revocation;
 pub mod trust_chain;
 pub mod trust_store;

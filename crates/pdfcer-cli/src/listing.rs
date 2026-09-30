@@ -6,11 +6,17 @@ pub(crate) fn cmd_verify_signatures(
     input: &Path,
     trust_from_acrobat: bool,
     crls: &[PathBuf],
+    ocsps: &[PathBuf],
 ) -> u8 {
     use pdfcer_core::signature::{self, Integrity, SuppliedRevocation, Trust};
     let mut supplied = SuppliedRevocation::new();
-    for path in crls {
+    let files = crls
+        .iter()
+        .map(|p| (p, false))
+        .chain(ocsps.iter().map(|p| (p, true)));
+    for (path, is_ocsp) in files {
         match std::fs::read(path) {
+            Ok(der) if is_ocsp => supplied = supplied.with_ocsp(der),
             Ok(der) => supplied = supplied.with_crl(der),
             Err(err) => {
                 eprintln!("pdfcer: {}: {err}", path.display());
@@ -57,7 +63,7 @@ pub(crate) fn cmd_verify_signatures(
                         c.adbe,
                     );
                     println!(
-                        "  ⚠ AT YOUR OWN RISK: read from Adobe's own downloaded file; whether relying on it fits the Adobe Reader licence is your call. A 'trusted' result checks the chain, RFC 5280 CA/key-usage constraints, and validity dates at the signing time ; revocation is the separate revocation: line."
+                        "  ⚠ AT YOUR OWN RISK: read from Adobe's own downloaded file; whether relying on it fits the Adobe Reader licence is your call. A 'trusted' result checks the chain, RFC 5280 CA/key-usage constraints, and validity dates at the signing time; revocation is the separate revocation: line."
                     );
                     Some(set)
                 }
@@ -2596,16 +2602,18 @@ fn revocation_line(r: &pdfcer_core::signature::Revocation) -> String {
     use pdfcer_core::signature::Revocation;
     match r {
         Revocation::NotChecked => {
-            "not checked (no CRL in the document or given with --crl)".to_owned()
+            "not checked (no CRL or OCSP response in the document or given with --crl/--ocsp)"
+                .to_owned()
         }
         Revocation::Good { checked } => {
             let each: Vec<String> = checked
                 .iter()
                 .map(|c| {
                     format!(
-                        "{:?} by {} CRL of {} (next update {})",
+                        "{:?} by {} {} of {} (next update {})",
                         c.subject,
                         c.source.as_str(),
+                        c.kind.as_str(),
                         c.this_update.as_deref().unwrap_or("-"),
                         c.next_update.as_deref().unwrap_or("none stated"),
                     )
@@ -2621,13 +2629,15 @@ fn revocation_line(r: &pdfcer_core::signature::Revocation) -> String {
             date,
             reason,
             before_signing,
+            kind,
             source,
         } => format!(
-            "REVOKED -- {:?} on {} (reason {}; {} CRL), {}",
+            "REVOKED -- {:?} on {} (reason {}; {} {}), {}",
             subject,
             date.as_deref().unwrap_or("-"),
             reason.as_deref().unwrap_or("unstated"),
             source.as_str(),
+            kind.as_str(),
             match before_signing {
                 Some(true) => "BEFORE the signing time",
                 Some(false) => "after the signing time",

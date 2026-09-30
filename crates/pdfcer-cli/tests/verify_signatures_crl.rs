@@ -1,6 +1,6 @@
-//! `pdfcer verify-signatures --crl` checks the signer's chain against the
-//! given CRLs and prints a `revocation:` line (RFC 5280 §5); the exit code
-//! stays integrity's.
+//! `pdfcer verify-signatures --crl`/`--ocsp` checks the signer's chain
+//! against the given CRLs (RFC 5280 §5) and OCSP responses (RFC 6960) and
+//! prints a `revocation:` line; the exit code stays integrity's.
 
 #![cfg(feature = "signing")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -14,13 +14,21 @@ fn crl_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/crl")
 }
 
+fn ocsp_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/ocsp")
+}
+
 fn signed(tag: &str) -> PathBuf {
+    signed_by(tag, &crl_dir())
+}
+
+fn signed_by(tag: &str, dir: &Path) -> PathBuf {
     let out = std::env::temp_dir().join(format!("pdfcer_crl_{tag}_{}.pdf", std::process::id()));
     let run = Command::new(BIN)
         .arg("sign")
-        .arg(crl_dir().join("../hello.pdf"))
+        .arg(dir.join("../hello.pdf"))
         .arg("--cert")
-        .arg(crl_dir().join("leaf.pfx"))
+        .arg(dir.join("leaf.pfx"))
         .args([
             "--password",
             "pdfcer",
@@ -64,7 +72,7 @@ fn verify_signatures_reports_what_the_crls_say() {
     assert_eq!(none.status.code(), Some(0));
     assert_eq!(
         revocation_line(&none),
-        "  revocation: not checked (no CRL in the document or given with --crl)"
+        "  revocation: not checked (no CRL or OCSP response in the document or given with --crl/--ocsp)"
     );
 
     let good = verify(&path, &["crl-good.crl"]);
@@ -108,5 +116,41 @@ fn an_unreadable_crl_file_is_an_io_error() {
     let out = verify(&path, &["no-such.crl"]);
     assert_eq!(out.status.code(), Some(3));
     assert!(String::from_utf8_lossy(&out.stderr).contains("no-such.crl"));
+    let _ = std::fs::remove_file(path);
+}
+
+fn verify_ocsp(path: &Path, crls: &[&str], ocsps: &[&str]) -> Output {
+    let mut cmd = Command::new(BIN);
+    cmd.arg("verify-signatures").arg(path);
+    for c in crls {
+        cmd.arg("--crl").arg(ocsp_dir().join(c));
+    }
+    for o in ocsps {
+        cmd.arg("--ocsp").arg(ocsp_dir().join(o));
+    }
+    cmd.output().unwrap()
+}
+
+#[test]
+fn verify_signatures_reports_what_the_ocsp_responses_say() {
+    let path = signed_by("ocsp", &ocsp_dir());
+    let good = verify_ocsp(&path, &[], &["ocsp-good-delegated.der"]);
+    assert_eq!(good.status.code(), Some(0));
+    assert_eq!(
+        revocation_line(&good),
+        "  revocation: good -- not revoked at the signing time: \"CN=pdfcer OCSP test signer (test fixture, trust nothing)\" by supplied OCSP of 2026-09-20T00:00:00Z (next update 2099-01-01T00:00:00Z)"
+    );
+    let revoked = verify_ocsp(&path, &["crl-clear.crl"], &["ocsp-revoked.der"]);
+    assert_eq!(revoked.status.code(), Some(0));
+    assert_eq!(
+        revocation_line(&revoked),
+        "  revocation: REVOKED -- \"CN=pdfcer OCSP test signer (test fixture, trust nothing)\" on 2026-09-15T00:00:00Z (reason keyCompromise; supplied OCSP), BEFORE the signing time"
+    );
+    assert!(
+        revocation_line(&verify_ocsp(&path, &[], &["ocsp-noeku.der"]))
+            .contains("cannot be used: its responder"),
+    );
+    let missing = verify_ocsp(&path, &[], &["no-such.der"]);
+    assert_eq!(missing.status.code(), Some(3));
     let _ = std::fs::remove_file(path);
 }
