@@ -6,14 +6,16 @@
 //! by pdf-issues #407 (`Block_Start` = 19; 39 and 40 swallow one token).
 //!
 //! Choices the sources leave open, made here:
-//! - `SimpleFor` reads its count as an `Integer` `[PRCRS schema.rs]`, not the
-//!   WD pseudocode's `UnsignedInteger` (identical below 128).
+//! - `SimpleFor` reads its count as an `UnsignedInteger` [WD 9.3.17
+//!   pseudocode; revision clause 8.3.17 per pdf-issues #575], not the
+//!   `Integer` `[PRCRS schema.rs]` reads: the unsigned read also decodes an
+//!   `Integer`-written non-negative count, the signed read does not decode an
+//!   unsigned one whose top byte is 0x80 or higher.
 //! - `Block_Version V` runs its block only when `V` is newer than
 //!   [`crate::PRC_READER_VERSION`]: an older block holds fields this reader
 //!   already reads natively [WD 9.3.20].
-//! - `Extent_1D` and `Extent_2D` read 2 and 4 `Double`s, by analogy with
-//!   `Extent_3D`'s `BoundingBox` (2 × `Vector3D`); the WD does not lay out
-//!   `Interval`/`Domain`.
+//! - `Extent_1D` and `Extent_2D` read 2 and 4 `Double`s: `Interval` and
+//!   `Domain` [WD 8.2.2, 8.2.4].
 //! - Expression values are `i64`; a `Double` read as an operand truncates.
 //! - Variables are not block-scoped: a program that reuses an index after
 //!   its block ends reads the stale value instead of an error.
@@ -258,7 +260,11 @@ impl Exec<'_, '_, '_> {
                 self.repeat(prog, pos, count, run, depth)?;
             }
             16 => {
-                let count = if run { i64::from(self.r.integer()?) } else { 0 };
+                let count = if run {
+                    i64::from(self.r.unsigned_integer()?)
+                } else {
+                    0
+                };
                 self.repeat(prog, pos, count, run, depth)?;
             }
             17 => {
@@ -462,6 +468,24 @@ mod tests {
         let (res, used) = run(&[(172, &[16, 19, 0, 3, 21])], &d);
         res.unwrap();
         assert_eq!(used, want);
+
+        // A count whose top byte is 0x80 or higher, written either way.
+        for signed in [false, true] {
+            let mut d = W::default();
+            if signed {
+                d.int(200);
+            } else {
+                d.uint(200);
+            }
+            (0..200).for_each(|_| {
+                d.bit(true);
+            });
+            let want = d.len();
+            d.uint(77);
+            let (res, used) = run(&[(172, &[16, 0])], &d);
+            res.unwrap();
+            assert_eq!(used, want, "signed={signed}");
+        }
     }
 
     #[test]
