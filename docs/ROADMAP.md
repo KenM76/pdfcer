@@ -491,6 +491,18 @@ reproduced. Backup/push/release state not verifiable from here;
 unreleased set as of this filing: `Pass 414.0`, `415.0`, `416.0`,
 `417.0`, `10.15` (last release `v0.67.0`, `265ddcf5`, 770th filing).
 
+**Re-export follow-up (`62c595fb`), 789th filing.** `RevocationSources`
+was constructible only via `SignatureVerdict::revocation_sources` — no
+`pub use` in `crates/pdfcer-core/src/signature.rs`, so
+`pdfcer_core::signature::RevocationSources` did not resolve from outside
+the crate (`request_revocation_sources_reexport.md`, `pdfcer-gui`
+channel). Added the re-export; `sign_document.rs`'s
+`a_verdict_names_the_signers_revocation_locations` now names the type
+through that path. Sabotage: removing the re-export fails with `E0425`,
+caught. `docs/core-api/01-reading-and-model.md` §12.5 names the path.
+No `FEATURES.md` change — the row was already core `[x]`/cli `[x]`/gui
+`[ ]` and stays so.
+
 ### `Pass 417.0` (`d75b4d4b`), 2026-09-29 — the offline merge (`pageops::merge`) keeps every source's page labels
 
 Follow-up to `Pass 416.0` on the OTHER merge route: `pageops::merge`

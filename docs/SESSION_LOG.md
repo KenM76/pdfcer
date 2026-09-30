@@ -4,6 +4,36 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (789th filing) — `62c595fb`: re-export `RevocationSources` beside `SignatureVerdict`
+
+**Shipped:**
+- `62c595fb` — follow-up to `Pass 10.15` (`3872e651`), no new Pass ID.
+  Added `pub use` of `RevocationSources` in
+  `crates/pdfcer-core/src/signature.rs` so
+  `pdfcer_core::signature::RevocationSources` resolves from outside the
+  crate. Answers `pdfcer-gui` channel request
+  `request_revocation_sources_reexport.md`; reply filed as
+  `reply_revocation_sources_reexport_FIXED.md` (INDEX row added) in
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `sign_document.rs`'s `a_verdict_names_the_signers_revocation_locations`
+  now names `RevocationSources` through the public path; sabotage
+  (removing the re-export) fails with `E0425`, caught.
+  `docs/core-api/01-reading-and-model.md` §12.5 names the path.
+  `FEATURES.md` unchanged — the revocation-sources row was already
+  core `[x]`/cli `[x]`/gui `[ ]` and stays so; GUI consumption is
+  `pdfcer-gui`'s to report.
+
+**Still in flight:** Same as prior entry — `run-gates.sh` re-run for
+`3978966b` not yet confirmed here.
+
+**For next session:**
+- Confirm `pdfcer-gui` can now resolve `RevocationSources` via the
+  re-exported path.
+
 ## 2026-09-30 (788th filing) — `3978966b`: Pass 10.17 follow-up fix — crl doc link + binary-fixture gate
 
 **Shipped:**
