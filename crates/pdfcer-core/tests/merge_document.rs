@@ -1085,6 +1085,11 @@ fn saved_labels(session: &EditSession) -> Option<Vec<SavedRange>> {
     let (bytes, _) = session
         .to_incremental_bytes(&SaveOptions::identity())
         .expect("save must succeed");
+    labels_in(bytes)
+}
+
+/// [`saved_labels`] over a finished file's bytes.
+fn labels_in(bytes: Vec<u8>) -> Option<Vec<SavedRange>> {
     let doc = Document::from_bytes(bytes).expect("reparse");
     let tree = doc.catalog_dict()?.get(b"PageLabels")?.clone();
     let tree = doc.resolve(&tree).as_dict()?.clone();
@@ -1194,4 +1199,37 @@ fn an_unlabelled_target_keeps_its_page_numbers() {
             (1, "D".into(), String::new(), None),
         ]
     );
+}
+
+/// Would catch: the offline merge (CLI `merge`, the GUI's File > Merge)
+/// dropping every source's labels, or offsetting a later source by the wrong
+/// page count. Three sources: i, ii | (none) 1, 2, 3 | Cover, Cover.
+#[test]
+fn an_offline_merge_keeps_every_sources_labels() {
+    let a = labelled_doc(2, "/PageLabels << /Nums [0 << /S /r >>] >>", &[]);
+    let b = labelled_doc(3, "", &[]);
+    let c = labelled_doc(2, "/PageLabels << /Nums [0 << /P (Cover) >>] >>", &[]);
+    let (bytes, report) =
+        pdfcer_core::pageops::merge(&[a.view(), b.view(), c.view()], &[], &[]).expect("merge");
+    assert_eq!(report.pages, 7);
+    assert_eq!(report.page_label_ranges, 3);
+    assert_eq!(
+        labels_in(bytes).expect("a tree must be written"),
+        vec![
+            (0, "r".into(), String::new(), None),
+            (2, "D".into(), String::new(), None),
+            (5, String::new(), "Cover".into(), None),
+        ]
+    );
+}
+
+/// Would catch: the offline merge writing a label tree nobody had.
+#[test]
+fn an_offline_merge_of_unlabelled_files_writes_no_label_tree() {
+    let a = labelled_doc(2, "", &[]);
+    let b = labelled_doc(1, "", &[]);
+    let (bytes, report) =
+        pdfcer_core::pageops::merge(&[a.view(), b.view()], &[], &[]).expect("merge");
+    assert_eq!(report.page_label_ranges, 0);
+    assert!(labels_in(bytes).is_none());
 }

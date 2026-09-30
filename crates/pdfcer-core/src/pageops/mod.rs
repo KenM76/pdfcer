@@ -447,6 +447,12 @@ pub fn extract_with(
 /// `Doc0_`/`Doc1_` prefix pattern, which prevents same-named fields
 /// across sources being treated as one logical field.
 ///
+/// Page labels (§12.4.2) are carried so every page keeps the label it
+/// showed in its own source: each source's ranges are offset to where its
+/// pages land, a source without a tree counts as decimal from 1, and no
+/// tree is written when no source has one
+/// ([`AssembleReport::page_label_ranges`]). Acrobat drops them instead.
+///
 /// **Non-PDF inputs are out of scope**, per the RAG's own explicit
 /// scope boundary for this Pass: converting Word/Excel/images to PDF as
 /// part of a merge is *"a whole document-conversion engine"* and a
@@ -462,9 +468,18 @@ pub fn merge(
     files: &[Vec<u8>],
 ) -> Result<(Vec<u8>, AssembleReport), PageOpError> {
     let mut order: Vec<PageRef> = Vec::new();
+    let mut labels: Vec<crate::page_labels::Range> = Vec::new();
     for (index, source) in sources.iter().enumerate() {
         let count = crate::page_tree::page_slots(source.graph())?.len();
+        let at = order.len();
         order.extend((0..count).map(|page| (index, page)));
+        let own = source
+            .graph()
+            .catalog_dict()
+            .and_then(|c| c.get(b"PageLabels"))
+            .map(|t| crate::page_labels::ranges(source.graph(), t))
+            .unwrap_or_default();
+        labels = crate::page_labels::splice(&labels, at, &own, count, at);
     }
     let options = AssembleOptions {
         // A merged document is a new one: taking any single source's
@@ -480,10 +495,11 @@ pub fn merge(
         },
         source_titles: titles.to_vec(),
         source_files: files.to_vec(),
-        // No single source to inherit a numbering scheme from, and
-        // Acrobat does not generate one either — it tells the operator to
-        // apply a fresh scheme (or Bates numbering) after combining.
+        // No single tree to carry: each source's ranges are spliced in at
+        // its offset so every page keeps the label it showed. Acrobat
+        // drops them and tells the operator to renumber.
         carry_page_labels: false,
+        page_labels: Some(labels),
         rename_duplicate_fields: true,
         // A merge copies every page of every source, so no preseparated
         // set can lose a member and the policy never fires. Stated rather
@@ -585,6 +601,7 @@ pub fn insert(
         // the insertion point. Acrobat leaves exactly this stale; pdfcer
         // leaves it stale and reports it.
         carry_page_labels: true,
+        page_labels: None,
         rename_duplicate_fields: true,
         // An insert keeps every target page and takes whole pages from the
         // source, so a set is split only if the CALLER selected part of

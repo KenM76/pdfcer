@@ -238,8 +238,14 @@ pub struct AssembleOptions {
     ///   in a different order, so `false`. Carrying a label tree there
     ///   would not merely be stale, it would be *confidently wrong* about
     ///   pages that are not in the file — worse than absent.
-    /// - **Merge** has no single source to inherit from, so `false`.
+    /// - **Merge** has no single source to inherit from, so `false` — it
+    ///   writes a spliced tree through `page_labels` instead.
     pub carry_page_labels: bool,
+    /// A label tree built for the output (§12.4.2), written into its
+    /// catalog in place of any carried one. Set by [`super::merge`], whose
+    /// output is every page of every source in order, so each source's
+    /// ranges can be offset exactly.
+    pub(crate) page_labels: Option<Vec<crate::page_labels::Range>>,
     /// Whether to auto-rename AcroForm fields whose fully-qualified names
     /// collide across sources.
     ///
@@ -270,6 +276,7 @@ impl Default for AssembleOptions {
             source_titles: Vec::new(),
             source_files: Vec::new(),
             carry_page_labels: false,
+            page_labels: None,
             rename_duplicate_fields: false,
             separations: SeparationPolicy::Repair,
         }
@@ -385,6 +392,10 @@ pub struct AssembleReport {
     /// the operator's next action differs: a stale tree wants
     /// renumbering, an absent one wants creating.
     pub page_labels_stale: bool,
+    /// Ranges in the `/PageLabels` tree a merge wrote so every page keeps
+    /// the label it showed in its own source; `0` when no source had a
+    /// tree and none was written.
+    pub page_label_ranges: usize,
     /// Whether a source's `/StructTreeRoot` (§14.7, Tagged PDF) was
     /// dropped rather than carried.
     ///
@@ -606,6 +617,12 @@ pub fn assemble(
             &mut catalog,
             &mut report,
         )?;
+    }
+    if let Some(ranges) = options.page_labels.as_deref()
+        && !ranges.is_empty()
+    {
+        catalog.insert(Name::from(b"PageLabels"), crate::page_labels::tree(ranges));
+        report.page_label_ranges = ranges.len();
     }
     // Named destinations are never carried; count what was dropped so the
     // omission is disclosed rather than invisible.

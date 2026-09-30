@@ -428,6 +428,10 @@ pub(crate) enum Command {
     /// (`outline_relinked=`, `outline_dropped=`) and the re-pointing is
     /// also stated in prose, because matching a filename is an INFERENCE.
     ///
+    /// Page labels (§12.4.2) are kept: every page shows the label it had in
+    /// its own file, and label_ranges= counts the ranges written (0 = no
+    /// input had labels, and none were written).
+    ///
     /// PDF inputs only. Converting Word/Excel/images to PDF as part of a
     /// merge is a separate capability, not a flag on this one.
     Merge {

@@ -794,7 +794,7 @@ pub(crate) fn assemble_metrics(
     format!(
         "pages={} objects={} dangling={} outline_kept={} outline_dropped={} \
 outline_relinked={} fields_renamed={} fields_dropped={} dests_dropped={} labels_dropped={} \
-labels_stale={} struct_tree_dropped={} ocg_carried={} {} out_bytes={out_bytes}",
+labels_stale={} label_ranges={} struct_tree_dropped={} ocg_carried={} {} out_bytes={out_bytes}",
         report.pages,
         report.objects_copied,
         report.dangling_references,
@@ -806,6 +806,7 @@ labels_stale={} struct_tree_dropped={} ocg_carried={} {} out_bytes={out_bytes}",
         report.named_destinations_dropped,
         u32::from(report.page_labels_dropped),
         u32::from(report.page_labels_stale),
+        report.page_label_ranges,
         u32::from(report.struct_tree_dropped),
         u32::from(report.optional_content_carried),
         separation_metrics(&report.separations),
