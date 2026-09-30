@@ -4,6 +4,48 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (803rd filing) — `Pass 416.1` (`d21ea7c5`) SHIPPED: `merge_document` carries `/OCProperties` (layers)
+
+**Shipped:**
+- `Pass 416.1` — closes the last gap `Pass 106.0` left open: `merge_document`
+  now registers every source optional-content group into `/OCProperties
+  /OCGs` through the page mapping (no duplicate of a page-referenced
+  group); target with no `/OCProperties` takes the source's whole `/D`,
+  otherwise source `/D` folds in (initial visibility, `/Order`/`/RBGroups`/
+  `/Locked`/`/AS` appended, target `BaseState`/`Intent`/`ListMode` stand,
+  `/Configs` dropped and counted). Same-named layers from different
+  sources stay separate (`merge_layers` is the join-by-name verb).
+  `MergeOutcome` gains `layers_merged`/`layer_configs_dropped`; CLI prints
+  both.
+
+**Decisions made this session:** none — this extends `Pass 106.0`'s
+existing merge contract, no new decision.
+
+**Findings + decisions:**
+- 3 new core tests (`merge_document.rs`, 24/24 green in that file).
+  Sabotage: skip the layer merge fails 3/3; drop the `/OFF` append fails
+  1/1. First draft dereferenced group refs in `/Order`/`/Locked` into
+  inline dicts instead of indirect references — caught by the first test
+  before commit.
+- `tools/run-gates.sh`: 41/42 then `check-core-api-verbs` (index.md clause
+  count 236→237) fixed same commit, re-run 42/42. No `Cargo.toml` change.
+- `docs/core-api/02-editing-and-saving.md`'s "Still not carried:
+  `/OCProperties`" replaced with "Layers are carried". GUI notice filed:
+  `notice_2026-09-30_merge_document_carries_layers.md`.
+- `docs/FEATURES.md`: the `/OCProperties` Planned row ticked core+cli,
+  stays in *Planned* (gui unverified, matching the `358.x` layer-family
+  convention); the "Merge several files into one" Implemented row's stale
+  "`/OCProperties` still isn't carried" note replaced with a pointer to
+  this Pass.
+
+**Still in flight:** `419.2`–`419.4` (PRC reader) remain open pending the
+800th filing's OQ-1/OQ-2/OQ-3 licensing rulings.
+
+**For next session:** `merge_document`'s document-level-structure gap
+(`Pass 106.0`'s "Still open" list: named destinations, outline, page
+labels, `/OCProperties`) is now closed in full. No change to the 800th
+filing's PRC next-step note.
+
 ## 2026-09-30 (802nd filing) — `Pass 417.5` (`3505dc49`) SHIPPED: extract and split keep page labels; `417.x`/decision-072 family closed entirely
 
 **Shipped:**

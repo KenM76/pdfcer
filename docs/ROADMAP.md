@@ -115,6 +115,51 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 416.1` (`d21ea7c5`), 2026-09-30 — `merge_document` carries `/OCProperties` (layers); closes the gap `Pass 106.0` left open
+
+Closes the Backlog item narrowed 2026-08-20 (two-hundred-and-first filing)
+to `/PageLabels` + `/OCProperties`; `416.0` shipped the label half, this
+closes the remaining one — `merge_document` now carries all four
+document-level structures it was missing at `Pass 106.0`.
+
+`EditSession::merge_document` registers every source optional-content
+group into `/OCProperties /OCGs` (ISO 32000-1 §8.11.4, Tables 100/101)
+through the page mapping — a group already reachable via a merged page is
+not duplicated. Target with no `/OCProperties` takes the source's whole
+`/D`. Otherwise: each source group keeps its initial visibility (`/OFF`,
+or `/ON` under a non-conforming target `BaseState /OFF`); `/Order`/
+`/RBGroups`/`/Locked`/`/AS` appended; target `BaseState`/`Intent`/
+`ListMode` stand; source `/Configs` (alternate configurations) are
+dropped and counted, not carried. Same-named layers from different
+sources stay separate objects (`merge_layers` is the join-by-name verb,
+unaffected). An absent source `/Order` appends nothing (Table 101: an
+unlisted group is simply not presented — its default state still
+applies).
+
+`MergeOutcome` gains `layers_merged`, `layer_configs_dropped`. CLI
+`merge-document` prints `layers=`/`layer_configs_dropped=`.
+
+**Tests.** 3 new in `crates/pdfcer-core/tests/merge_document.rs` (24/24
+green in that file). Sabotage: skip the layer merge — 3/3 fail; drop the
+`/OFF` append — 1 fails. First draft dereferenced group refs in `/Order`/
+`/Locked` into inline dicts instead of indirect references — caught by
+the first test before commit.
+
+**Gates.** `tools/run-gates.sh`: 41/42, then `check-core-api-verbs`
+(index.md clause count 236→237) — fixed same commit, re-run 42/42 clean.
+No `Cargo.toml` change, `cargo tree` unaffected.
+`docs/core-api/02-editing-and-saving.md`'s "Still not carried:
+`/OCProperties`" paragraph replaced with "Layers are carried". GUI
+notice filed: `notice_2026-09-30_merge_document_carries_layers.md`.
+
+**`docs/FEATURES.md`.** Planned row "`merge_document` carrying
+`/OCProperties`" ticked core `[x]` / cli `[x]`; stays in *Planned*
+(matching the `358.x` layer-family convention) since `gui` is
+unverified — File ▸ Merge inherits through the engine call only if that
+call reaches `merge_document`, not confirmed this filing. The "Merge
+several files into one" *Implemented* row's "`/OCProperties` still isn't
+carried" note replaced with a pointer to this Pass.
+
 ### `Pass 417.5` (`3505dc49`), 2026-09-30 — extract and split keep page labels; the `417.x`/decision-072 family is now closed entirely
 
 Closes the last gap `417.4`'s own heading claimed was already closed —
@@ -27565,7 +27610,8 @@ added. See that section below.
   "Still open" list. Narrowed 2026-08-20 (two-hundred-and-first filing) to
   `/PageLabels` and `/OCProperties`; page labels shipped as `Pass 416.0`
   (`6b7578b0`, 2026-09-29, extending decision 072 — see the Shipped entry).
-  Remaining scope: optional-content group configuration only.
+  **★ CLOSED 2026-09-30, `Pass 416.1` (`d21ea7c5`) — see *Shipped*.** All
+  four document-level structures `Pass 106.0` left open now merge.
 - **`pdfce-cli`'s `merge-document` prints four `MergeOutcome` fields and
   is silent on three more that `Pass 106.1` added.** Filed 2026-08-20
   (two-hundred-and-first filing), found by `Grep`/`Read` while filing that
