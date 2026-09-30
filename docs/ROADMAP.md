@@ -115,6 +115,57 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 10.18` (`3a488056`), 2026-09-30 — PAdES B-LT: write supplied validation material into `/DSS`
+
+The writer counterpart to `Pass 10.16`/`Pass 10.17`'s validators: authors
+the `/DSS` a PAdES B-LT signature needs, from material the shell already
+fetched or already holds.
+
+`EditSession::add_validation_material(&ValidationMaterial) ->
+Result<DssReport, EditError>` (feature `signing`), types in
+`pdfcer_core::sign::ltv`. One undoable command. Writes supplied
+certs/CRLs/OCSP responses into the catalog `/DSS` (ETSI EN 319 142-1
+§5.4.2.2; ISO 32000-2 §12.8.4.3), one stream per blob; every signature's
+own CMS certificates are included by default. Every blob is parsed
+first — an unreadable one refuses the whole call, named with its kind
+and index; a non-successful OCSP response is refused; a bare
+`BasicOCSPResponse` is wrapped. Existing `/DSS` entries are carried
+forward; byte-identical duplicates are skipped. **No `/VRI` written**
+(§6.3 req v) — a baseline B-LT/B-LTA writer omits it. Refuses an
+unsigned document, an unreadable blob, `/P 1` certification without an
+override flag, an encrypted document, and hidden objects.
+
+CLI: `pdfcer add-ltv IN -o OUT --crl FILE --ocsp FILE --cert FILE
+[--no-signature-certs] [--allow-under-no-changes-certification]`.
+Incremental save; prints a report line, then each signature's
+revocation verdict read back from the output. Exit 9 on refusal.
+
+`docs/core-api/` updated in the same commit (289 verbs, 159 `EditError`
+variants); `check-core-api-verbs` PASS.
+
+**Tests.** 6 core (`tests/sign_ltv.rs`) + 2 CLI (`tests/add_ltv.rs`).
+Sabotage: 8 core + 2 CLI mutations, all caught (the carry-forward test
+was strengthened to catch one that initially slipped through). One
+redundant OCSP-status guard removed as dead code — the parser already
+records it as a defect.
+
+**Gates.** No manifest change (`cargo tree` unchanged in
+`pdfcer-core`/`pdfcer-render`); no fuzz target added — only the
+already-fuzzed pkix parsers consume untrusted bytes here.
+`tools/run-gates.sh`: record "run before push" only (no shell available
+to this filing).
+
+**Shells.** core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` has not
+consumed this (separate project).
+
+`docs/FEATURES.md` updated in this filing (791st): row moved to
+*Implemented*, core `[x]` / cli `[x]` / gui `[ ]`; the `Pass 10.6` row and
+the `Pass 10.11` (B-T) row's forward pointer both corrected to say SHIPPED
+rather than *Planned*.
+
+**`Pass 10.6` stays open** for the `/Trust`-bitfield pin alone (the DSS
+VRI hash setting is moot — see `Pass 10.6`, *Backlog*, annotated).
+
 ### `Pass 10.17` (`3e0bc4a5`), 2026-09-30 — offline OCSP revocation checking (RFC 6960) against a signer's chain
 
 OCSP half of `Pass 10.6`'s routes 1 (embedded DSS/LTV) and 2 (shell-supplied),
@@ -13038,15 +13089,15 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★★★★★★★★★★★★★ **`Pass 10.18` FILED, 2026-09-30 (790th filing),
-> *Next up*, IN PROGRESS.** PAdES B-LT: embed supplied validation material
-> (certs/CRLs/OCSP) in `/DSS` as an incremental update — the writer
-> counterpart to `Pass 10.16`/`Pass 10.17`'s validators. Scoped below, in
-> the PAdES arc after `Pass 10.6`, whose entry also gets a dated
-> correction: this Pass does NOT depend on `Pass 10.6`'s remaining
-> VRI-hash-setting scope — ETSI EN 319 142-1 §6.3 req v) says a baseline
-> B-LT/B-LTA writer omits `/VRI` altogether. **`Pass 10.18` is now the
-> head of *Next up*.**
+> ★★★★★★★★★★★★★★★★★ **`Pass 10.18` SHIPPED, 2026-09-30 (791st filing),
+> `3a488056`** — see top of *Shipped*. PAdES B-LT: embed supplied
+> validation material (certs/CRLs/OCSP) into `/DSS` as an incremental
+> update — the writer counterpart to `Pass 10.16`/`Pass 10.17`'s
+> validators. Filed as head (790th filing), then shipped same day.
+> **`Next up` has no named head — the next candidates are the B-LTA
+> document time-stamp (needs `Pass 10.18` plus an archive
+> `/DocTimeStamp`) and `Pass 10.6`'s remainder (the `/Trust`-bitfield
+> pin; the DSS VRI hash setting is moot, §6.3 req v)).**
 
 > ★★★★★★★★★★★★★★★★ **`Pass 10.17` SHIPPED, 2026-09-30 (787th filing),
 > `3e0bc4a5`** — see top of *Shipped*. OCSP half of `Pass 10.6`'s routes
@@ -30579,50 +30630,9 @@ should NOT write `/VRI` at all, so nothing about embedding the `/DSS`
 waits on that setting. `Pass 10.6` stays open for the `/Trust`-bitfield pin
 alone.
 
-#### `Pass 10.18` — **PAdES B-LT: EMBED SUPPLIED VALIDATION MATERIAL IN `/DSS` AS AN INCREMENTAL UPDATE** — filed 2026-09-30 (790th filing), *Next up*, IN PROGRESS — depends on `Pass 10.16`/`Pass 10.17` (both shipped)
-
-The writer counterpart to `10.16`/`10.17`'s validators: authors the `/DSS`
-a PAdES B-LT signature needs, from material the shell already fetched or
-already holds.
-
-**Scope:**
-
-1. `EditSession::add_validation_material(&mut self, material:
-   &ValidationMaterial) -> Result<DssReport, EditError>`, ONE undoable
-   command. `ValidationMaterial` builder: `with_cert`/`with_crl`/`with_ocsp`
-   (DER, each repeatable), `include_signature_certificates(bool)` default
-   true — every certificate in every signature's CMS goes into `/Certs`
-   (§12.8.4.3: `/Certs` holds the whole chain).
-2. Writes catalog `/DSS` `/Certs`/`/CRLs`/`/OCSPs` as indirect-ref arrays
-   of DER streams (ETSI §5.4.2.2; spec RAG `pades__ref__dss_vri.md`
-   DSS-2/DSS-8). **No `/VRI` written** (§6.3 req v) — see the correction
-   above); an existing `/VRI` is carried forward untouched.
-3. Carries every prior `/DSS` entry forward and appends (§5.4.1);
-   byte-identical duplicates (against the existing DSS and within the
-   input) are skipped and counted.
-4. Every blob is parsed before anything is written: an unparseable
-   cert/CRL/OCSP refuses the WHOLE call, by name and index. An OCSP
-   response whose status isn't `successful` is refused (no evidence). A
-   bare `BasicOCSPResponse` is wrapped into a full `OCSPResponse` (§5.4.2.2
-   requires OCSPResponse encoding) and the wrap is disclosed in the report.
-5. Guards: encrypted document refused; no-signature document refused
-   (nothing to validate); `/DocMDP` `/P 1` refuses by default (Acrobat is
-   reported to treat a DSS increment as forbidden under it, though the
-   ETSI/ISO carve-out says it isn't a change) —
-   `ValidationMaterial::allow_under_no_changes_certification(true)`
-   overrides; P=2/3 allowed.
-6. Always incremental; existing signatures still verify after. Test: sign
-   a fixture, add material, save incremental, `verify_all` → integrity
-   Verified, revocation Good, source DSS.
-7. CLI `pdfcer add-ltv IN -o OUT --crl F --ocsp F --cert F
-   [--no-signature-certs] [--allow-under-no-changes-certification]`,
-   prints what was added/skipped/wrapped, then each signature's revocation
-   verdict read back from the saved file.
-8. core-api docs + `check-core-api-verbs`; no fuzz target needed (reuses
-   the already-fuzzed pkix parsers, no new untrusted-input decoder).
-
-`FEATURES.md`: new *Planned* row added under the `Pass 10.6` row
-(core/cli/gui all unticked).
+**★★★ SHIPPED 2026-09-30 (791st filing), `3a488056`, see top of *Shipped*.**
+`Pass 10.18`'s full scope moved there; `Pass 10.6` stays open for the
+`/Trust`-bitfield pin alone (unchanged from the note above).
 
 #### `Pass 10.10` — **SHELL-SIDE KEY SOURCES — a Windows-certificate-store identity (CNG `NCryptSignHash`) and a PKCS#11 token as `Signer` implementations in `pdfcer` (the CLI crate), NEVER in `pdfcer-core`; the key never leaves its custodian** — filed 2026-09-05 (436th filing), *Backlog*, NOT STARTED — depends on `Pass 10.7` (the trait) and `Pass 10.9` (the pipeline)
 

@@ -4,6 +4,65 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (791st filing) — `3a488056`: Pass 10.18 SHIPPED — PAdES B-LT: write validation material into /DSS
+
+**Shipped:**
+- `3a488056` adds `EditSession::add_validation_material(&ValidationMaterial)
+  -> Result<DssReport, EditError>` (feature `signing`; module
+  `pdfcer_core::sign::ltv`) as one undoable command. It writes supplied
+  certificates, CRLs and OCSP responses into the catalog's `/DSS` (ETSI
+  EN 319 142-1 §5.4.2.2), plus each signature's own CMS certificates by
+  default.
+- It parses every blob first, refuses a non-successful OCSP response,
+  and wraps a bare BasicOCSPResponse.
+- Existing entries are carried forward and deduplicated by bytes. No
+  `/VRI` is written (§6.3 req v).
+- Refusals: an unsigned document, an unreadable blob (named by kind and
+  index), `/P 1` without the override, an encrypted document, hidden
+  objects.
+- CLI `pdfcer add-ltv` saves incrementally, then prints each signature's
+  revocation verdict read back from the output. It exits 9 on refusal.
+- core-api now lists 289 verbs and 159 `EditError` variants.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Tests: 6 core + 2 CLI. 10 sabotage mutations, all caught; the
+  carry-forward test was strengthened to catch one. A redundant
+  OCSP-status guard was removed.
+- No manifest change, and no fuzz target (only already-fuzzed pkix
+  parsers are involved). `FEATURES.md`: `[x] core / [x] cli / [ ] gui`.
+- Gotcha: on Windows, Python `Path.write_text` writes CRLF. It silently
+  converted `edit.rs` and seven other files. `cargo fmt --check` did
+  not flag it; git's "CRLF will be replaced" warning did. Fix: use
+  `write_bytes`, or pass `newline="\n"`.
+
+**Still in flight:** Same as prior entries.
+
+**For next session:**
+- B-LTA document time-stamp.
+- The `Pass 10.6` remainder: the `/Trust` pin and the VRI hash setting.
+- An open operator question on 3D (U3D/PRC) support, which would reopen
+  `Pass 261.6`'s scope refusal. The engineer recommended an optional
+  crate behind a Cargo feature, built in tiers: list/extract first,
+  then a still render, then authoring. Nothing filed yet.
+
+## 2026-09-30 (790th filing) — `334fb0ae`: Pass 10.18 filed IN PROGRESS; B-LT VRI gating claim corrected
+
+**Shipped:** None — documentation-only filing.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Filed `Pass 10.18` in Next up.
+- Corrected the `FEATURES.md`/`ROADMAP.md` text that had claimed B-LT
+  requires `/VRI`. A B-LT/B-LTA writer omits `/VRI` (§6.3 req v).
+
+**Still in flight:** `Pass 10.18` implementation, filed shipped in the
+next entry above.
+
+**For next session:** None beyond the parent Pass.
+
 ## 2026-09-30 (789th filing) — `62c595fb`: re-export `RevocationSources` beside `SignatureVerdict`
 
 **Shipped:**
