@@ -448,7 +448,9 @@ pub(crate) fn load_ocr_engine(
         #[cfg(not(feature = "ocrs"))]
         OcrEngineArg::Ocrs => {
             eprintln!(
-                "pdfcer: ocr: --ocr-engine ocrs: this build was compiled without the `ocrs`                  feature, so the ocrs engine is not in it. Rebuild with                  `cargo build -p pdfcer-cli --features ocrs`, or choose another --ocr-engine."
+                "pdfcer: ocr: --ocr-engine ocrs: this build was compiled without the `ocrs` \
+                 feature, so the ocrs engine is not in it. Rebuild with \
+                 `cargo build -p pdfcer-cli --features ocrs`, or choose another --ocr-engine."
             );
             Err(exit::UNIMPLEMENTED)
         }
