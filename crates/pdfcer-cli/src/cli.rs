@@ -2244,6 +2244,11 @@ pub(crate) enum Command {
     /// Page labels (§12.4.2) are carried so every page keeps the label it
     /// showed in its own document; `page_label_ranges` reports the ranges
     /// written (0 = neither document had labels).
+    ///
+    /// Layers (§8.11) are carried with their default visibility, order,
+    /// radio groups and locks; `layers` counts them. A same-named layer
+    /// arrives as its own layer. `layer_configs_dropped` counts the source's
+    /// alternate layer configurations, which are not carried.
     MergeDocument {
         /// The document to merge INTO. Edited incrementally.
         input: PathBuf,

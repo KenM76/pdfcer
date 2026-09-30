@@ -1634,7 +1634,8 @@ pub(crate) fn cmd_merge_document(
     println!(
         "merge-document {} + {} mode={} -> {}; \
 pages={} fields={} renamed={} acroform_created={} dests={} dests_renamed={} \
-outline_items={} page_label_ranges={} changed={} objects={} \
+outline_items={} page_label_ranges={} layers={} layer_configs_dropped={} \
+changed={} objects={} \
 verbatim={} reserialized={} appended={} out_bytes={} undo_verified={} \
 undo_identical={} delinearized={}",
         input.display(),
@@ -1654,6 +1655,8 @@ undo_identical={} delinearized={}",
         outcome.named_destinations_renamed,
         outcome.outline_items_carried,
         outcome.page_label_ranges,
+        outcome.layers_merged,
+        outcome.layer_configs_dropped,
         saved.changed,
         r.objects_written,
         r.objects_verbatim,

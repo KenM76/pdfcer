@@ -1233,3 +1233,144 @@ fn an_offline_merge_of_unlabelled_files_writes_no_label_tree() {
     assert_eq!(report.page_label_ranges, 0);
     assert!(labels_in(bytes).is_none());
 }
+
+// ---------------------------------------------------------------------------
+// Optional content (§8.11.4)
+// ---------------------------------------------------------------------------
+
+/// A two-page source with layers `T` (object 20, ON, used by page 1's
+/// `/Properties` so the page copy reaches it before the layer merge does)
+/// and `B` (21, OFF, locked), a radio group over both, an `/Order` listing
+/// both, and one alternate configuration.
+fn layered_source() -> Document {
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Resources << /Properties << /oc1 20 0 R >> >> >>";
+    Document::from_bytes(build(&[
+        (
+            1,
+            "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [20 0 R 21 0 R] /D 22 0 R /Configs [<< /Name (Alt) >>] >> >>",
+        ),
+        (2, "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>"),
+        (3, page),
+        (4, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Resources << >> >>"),
+        (20, "<< /Type /OCG /Name (T) >>"),
+        (21, "<< /Type /OCG /Name (B) >>"),
+        (
+            22,
+            "<< /Order [20 0 R 21 0 R] /OFF [21 0 R] /RBGroups [[20 0 R 21 0 R]] /Locked [21 0 R] >>",
+        ),
+    ]))
+    .expect("layered fixture parses")
+}
+
+fn saved_layers(session: &EditSession) -> (Document, Vec<pdfcer_core::layers::Layer>) {
+    let (bytes, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("save must succeed");
+    let doc = Document::from_bytes(bytes).expect("reparse");
+    let layers = pdfcer_core::layers::list_layers(&doc);
+    (doc, layers)
+}
+
+/// Would catch: dropping the source's layers, losing a source layer's OFF
+/// state, folding the same-named `T` into the target's `T`, registering a
+/// SECOND copy of the group the page already references, or dropping
+/// `/Order`, `/RBGroups` or `/Locked`.
+#[test]
+fn a_merge_carries_the_sources_layers_and_their_default_state() {
+    let mut session = EditSession::new(labelled_doc(
+        1,
+        "/OCProperties << /OCGs [20 0 R] /D << /Order [20 0 R] >> >>",
+        &[(20, "<< /Type /OCG /Name (T) >>")],
+    ));
+    let source = layered_source();
+    let outcome = session
+        .merge_document(&source.view(), InsertPosition::End)
+        .expect("merge");
+    assert_eq!(outcome.layers_merged, 2);
+    assert_eq!(outcome.layer_configs_dropped, 1);
+
+    let (doc, layers) = saved_layers(&session);
+    let rows: Vec<(String, bool, bool, bool)> = layers
+        .iter()
+        .map(|l| (l.name.clone(), l.visible_by_default, l.locked, l.in_order))
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            ("T".into(), true, false, true),
+            ("T".into(), true, false, true),
+            ("B".into(), false, true, true),
+        ]
+    );
+    assert_eq!(layers[1].radio_group, layers[2].radio_group);
+    assert!(layers[1].radio_group.is_some());
+
+    // The page's /Properties must name the REGISTERED group, not a copy.
+    let pages = pdfcer_core::page_tree::page_slots(&doc).expect("pages");
+    let page = doc
+        .resolve(&Object::Reference(pages[1].id))
+        .as_dict()
+        .unwrap()
+        .clone();
+    let res = doc
+        .resolve(page.get(b"Resources").unwrap())
+        .as_dict()
+        .unwrap()
+        .clone();
+    let props = doc
+        .resolve(res.get(b"Properties").unwrap())
+        .as_dict()
+        .unwrap()
+        .clone();
+    let Some(Object::Reference(used)) = props.get(b"oc1") else {
+        panic!("page must keep its /Properties reference");
+    };
+    assert_eq!(*used, layers[1].id);
+}
+
+/// Would catch: a target with no `/OCProperties` gaining the layers but
+/// not the source's default configuration, or counting carried configs as
+/// dropped.
+#[test]
+fn a_target_without_layers_takes_the_sources_whole() {
+    let mut session = EditSession::new(labelled_doc(1, "", &[]));
+    let outcome = session
+        .merge_document(&layered_source().view(), InsertPosition::End)
+        .expect("merge");
+    assert_eq!(outcome.layers_merged, 2);
+    assert_eq!(outcome.layer_configs_dropped, 0);
+    let (_, layers) = saved_layers(&session);
+    let rows: Vec<(String, bool, bool)> = layers
+        .iter()
+        .map(|l| (l.name.clone(), l.visible_by_default, l.locked))
+        .collect();
+    assert_eq!(
+        rows,
+        vec![("T".into(), true, false), ("B".into(), false, true)]
+    );
+}
+
+/// Would catch: the layer registration escaping the merge's undo entry, or
+/// a layer-less merge writing an `/OCProperties` nobody had.
+#[test]
+fn undo_removes_the_merged_layers_and_a_plain_merge_writes_none() {
+    let mut session = EditSession::new(labelled_doc(
+        1,
+        "/OCProperties << /OCGs [20 0 R] /D << >> >>",
+        &[(20, "<< /Type /OCG /Name (T) >>")],
+    ));
+    session
+        .merge_document(&layered_source().view(), InsertPosition::End)
+        .expect("merge");
+    assert_eq!(saved_layers(&session).1.len(), 3);
+    session.undo().expect("undo");
+    assert_eq!(saved_layers(&session).1.len(), 1);
+
+    let mut plain = EditSession::new(labelled_doc(1, "", &[]));
+    let outcome = plain
+        .merge_document(&labelled_doc(1, "", &[]).view(), InsertPosition::End)
+        .expect("merge");
+    assert_eq!(outcome.layers_merged, 0);
+    let (doc, _) = saved_layers(&plain);
+    assert!(!doc.catalog_dict().unwrap().contains_key(b"OCProperties"));
+}

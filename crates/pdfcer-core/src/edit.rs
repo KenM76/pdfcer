@@ -4143,6 +4143,31 @@ pub struct MergeOutcome {
     /// from relabelling the inserted pages to continue this document's
     /// numbering — that would change labels neither author wrote.
     pub page_label_ranges: usize,
+    /// Optional content groups (layers, §8.11) carried from the source and
+    /// registered in this document's `/OCProperties /OCGs`.
+    ///
+    /// Each arrives as its own layer even when this document already has one
+    /// of the same name: a layer's identity is its object, not its `/Name`,
+    /// and folding two same-named layers together would make one toggle hide
+    /// content from both documents.
+    pub layers_merged: usize,
+    /// Alternate optional content configurations (`/OCProperties /Configs`)
+    /// in the source that were **not** carried.
+    ///
+    /// Only the source's default configuration (`/D`) is merged — its
+    /// visibility, presentation order, radio-button groups, locks and
+    /// automatic-state rules. An alternate configuration names only the
+    /// source's layers, so applying it here would leave every layer of this
+    /// document at whatever state it happened to be in. Always `0` when this
+    /// document had no `/OCProperties`: the source's is then carried whole.
+    pub layer_configs_dropped: usize,
+}
+
+/// Internal result of the optional-content half of a merge.
+#[derive(Debug, Default)]
+struct OcMerge {
+    layers: usize,
+    configs_dropped: usize,
 }
 
 /// Internal result of the named-destination half of a merge.
@@ -48524,6 +48549,7 @@ impl EditSession {
             self.merge_outline(source, &dests.renames, &mut mapping, &mut scratch)?;
         let page_label_ranges =
             self.merge_page_labels(source, target_count, source_count, at, &mut scratch);
+        let layers = self.merge_optional_content(source, &mut mapping, &mut scratch)?;
 
         let objects: Vec<ObjectWrite> = scratch
             .into_iter()
@@ -48550,6 +48576,8 @@ impl EditSession {
             named_destinations_renamed: dests.renamed,
             outline_items_carried: outline_items,
             page_label_ranges,
+            layers_merged: layers.layers,
+            layer_configs_dropped: layers.configs_dropped,
         })
     }
 
@@ -48591,6 +48619,164 @@ impl EditSession {
         );
         scratch.insert(catalog_id, Object::Dict(catalog));
         spliced.len()
+    }
+
+    /// Carry the source's optional content (§8.11.4, Tables 100 and 101).
+    ///
+    /// Every source group is registered in this document's `/OCGs` — through
+    /// the page mapping, so a group the pages already reference is not copied
+    /// twice. With no `/OCProperties` here, the source's is carried whole.
+    /// Otherwise the source's `/D` is folded into this document's `/D`: each
+    /// source group keeps its initial state (written to `/OFF`, or to `/ON`
+    /// under a non-conforming `BaseState /OFF`), and the source's `/Order`,
+    /// `/RBGroups`, `/Locked` and `/AS` entries are appended. This document's
+    /// `/BaseState`, `/Intent` and `/ListMode` stand; the source's `/Configs`
+    /// are dropped and counted.
+    ///
+    /// An absent source `/Order` appends nothing: Table 101 presents no group
+    /// a configuration's `/Order` does not list, so the source's groups stay
+    /// as absent from the layers panel as they were in the source.
+    fn merge_optional_content(
+        &mut self,
+        source: &DocumentView<'_>,
+        mapping: &mut BTreeMap<ObjId, ObjId>,
+        scratch: &mut BTreeMap<ObjId, Object>,
+    ) -> Result<OcMerge, EditError> {
+        let sg = source.graph();
+        let Some(src_ocp) = sg
+            .catalog_dict()
+            .and_then(|c| c.get(b"OCProperties"))
+            .and_then(|o| sg.resolve(o).as_dict())
+            .cloned()
+        else {
+            return Ok(OcMerge::default());
+        };
+        let Some(catalog_id) = self.graph().catalog_id() else {
+            return Ok(OcMerge::default());
+        };
+        let src_d = src_ocp
+            .get(b"D")
+            .and_then(|o| sg.resolve(o).as_dict())
+            .cloned()
+            .unwrap_or_default();
+        let items = |value: Option<&Object>| -> Vec<Object> {
+            value
+                .and_then(|o| sg.resolve(o).as_array())
+                .map(<[Object]>::to_vec)
+                .unwrap_or_default()
+        };
+        let refs = |value: Option<&Object>| -> Vec<ObjId> {
+            items(value)
+                .iter()
+                .filter_map(|o| match o {
+                    Object::Reference(r) => Some(*r),
+                    _ => None,
+                })
+                .collect()
+        };
+        let src_groups = refs(src_ocp.get(b"OCGs"));
+        let configs = items(src_ocp.get(b"Configs")).len();
+
+        let target_has_ocp = self
+            .staged_catalog(catalog_id, scratch)
+            .is_some_and(|c| c.contains_key(b"OCProperties"));
+        if !target_has_ocp {
+            let whole = self.import_value(source, &Object::Dict(src_ocp), mapping, scratch)?;
+            let Some(mut catalog) = self.staged_catalog(catalog_id, scratch) else {
+                return Ok(OcMerge::default());
+            };
+            catalog.insert(Name::from(b"OCProperties"), whole);
+            scratch.insert(catalog_id, Object::Dict(catalog));
+            return Ok(OcMerge {
+                layers: src_groups.len(),
+                configs_dropped: 0,
+            });
+        }
+
+        // Initial state per §8.11.4.3: BaseState (default ON), then /ON or
+        // /OFF overrides it.
+        let base_off = src_d
+            .get(b"BaseState")
+            .and_then(|o| sg.resolve(o).as_name())
+            .is_some_and(|n| n.as_bytes() == b"OFF");
+        let src_on: BTreeSet<ObjId> = refs(src_d.get(b"ON")).into_iter().collect();
+        let src_off: BTreeSet<ObjId> = refs(src_d.get(b"OFF")).into_iter().collect();
+        let mut groups = Vec::with_capacity(src_groups.len());
+        let mut on = Vec::new();
+        let mut off = Vec::new();
+        for g in &src_groups {
+            let id = Object::Reference(self.import_object(source, *g, mapping, scratch)?);
+            let hidden = if base_off {
+                !src_on.contains(g)
+            } else {
+                src_off.contains(g)
+            };
+            if hidden {
+                off.push(id.clone());
+            } else {
+                on.push(id.clone());
+            }
+            groups.push(id);
+        }
+        let mut carried: Vec<(&'static [u8], Vec<Object>)> = Vec::new();
+        for key in [&b"Order"[..], b"RBGroups", b"Locked", b"AS"] {
+            let mut out = Vec::new();
+            for item in items(src_d.get(key)) {
+                out.push(self.import_value(source, &item, mapping, scratch)?);
+            }
+            carried.push((key, out));
+        }
+
+        let load = |id: ObjId| self.value(id).cloned();
+        let append =
+            |staged: &mut BTreeMap<ObjId, Object>, d: &mut Dict, key: &[u8], new: Vec<Object>| {
+                if new.is_empty() {
+                    return;
+                }
+                let mut slot = d.get(key).cloned().unwrap_or(Object::Array(Vec::new()));
+                layer_node(&load, staged, &mut slot, |_, a| match a {
+                    Object::Array(a) => a.extend(new),
+                    other => *other = Object::Array(new),
+                });
+                d.insert(Name::from(key), slot);
+            };
+        let mut catalog = Object::Reference(catalog_id);
+        layer_node(&load, scratch, &mut catalog, |staged, c| {
+            let Some(c) = dict_mut(c) else { return };
+            let mut ocp = c.get(b"OCProperties").cloned().unwrap_or(Object::Null);
+            layer_node(&load, staged, &mut ocp, |staged, o| {
+                if !matches!(o, Object::Dict(_)) {
+                    *o = Object::Dict(Dict::new());
+                }
+                let Object::Dict(o) = o else { return };
+                append(staged, o, b"OCGs", groups);
+                let mut d = o.get(b"D").cloned().unwrap_or(Object::Dict(Dict::new()));
+                layer_node(&load, staged, &mut d, |staged, d| {
+                    if !matches!(d, Object::Dict(_)) {
+                        *d = Object::Dict(Dict::new());
+                    }
+                    let Object::Dict(d) = d else { return };
+                    let target_base_off = matches!(
+                        d.get(b"BaseState"),
+                        Some(Object::Name(n)) if n.as_bytes() == b"OFF"
+                    );
+                    if target_base_off {
+                        append(staged, d, b"ON", on);
+                    } else {
+                        append(staged, d, b"OFF", off);
+                    }
+                    for (key, new) in carried {
+                        append(staged, d, key, new);
+                    }
+                });
+                o.insert(Name::from(b"D"), d);
+            });
+            c.insert(Name::from(b"OCProperties"), ocp);
+        });
+        Ok(OcMerge {
+            layers: src_groups.len(),
+            configs_dropped: configs,
+        })
     }
 
     /// The catalog as this operation has it — **preferring `scratch`** over

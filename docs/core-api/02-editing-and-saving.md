@@ -2940,7 +2940,19 @@ catalog. This is not what `insert_pages` does, and the difference is decision
 a whole document does. Acrobat relabels inserted pages with the preceding
 label; pdfcer does not.
 
-**Still not carried:** `/OCProperties`.
+**Layers are carried** (§8.11.4; `layers_merged`, `layer_configs_dropped`).
+Every source optional content group is registered in `/OCProperties /OCGs`,
+through the page mapping so a group the pages reference is not copied twice.
+A target with no `/OCProperties` takes the source's whole (`layer_configs_dropped`
+is then 0). Otherwise the source's `/D` is folded into the target's: each
+source layer keeps its initial state (added to `/OFF`; to `/ON` under a
+non-conforming `BaseState /OFF`), and its `/Order`, `/RBGroups`, `/Locked`
+and `/AS` entries are appended; the target's `/BaseState`, `/Intent` and
+`/ListMode` stand. The source's `/Configs` are dropped and counted — they name
+only the source's layers. A same-named layer arrives as its own layer, never
+folded into the target's; `merge_layers` joins them if wanted. An absent
+source `/Order` appends nothing (Table 101: unlisted groups are not presented).
+CLI: `layers=` and `layer_configs_dropped=` on the `merge-document` line.
 #### ★ `adopt_preview` — ask before pressing (`Pass 103.4`)
 
 | I want to… | Call |
