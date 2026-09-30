@@ -4,6 +4,62 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (812th filing) — `Pass 419.2` IN PROGRESS, seventh increment: PRC compressed tessellation (entity 173) triangles REBUILT; new Backlog bucket `Pass 421.x` (interactive 3D viewer) filed
+
+**Shipped (partial — Pass 419.2 stays open):**
+- `37353213` — feat(3d): new private module `crates/pdfcer-3d/src/compressed.rs`
+  rebuilds triangles from the compressed tessellation entity 173 read to
+  its end by the prior filing (`d11e4206`). `Tessellation::Compressed`
+  gains `mesh: Option<TriangleMesh>` (additive, `#[non_exhaustive]`) and
+  `normals_recalculated`. `None` for the one-status-per-triangle (T) edge
+  form or leftover arrays. CLI `3d-mesh` writes rebuilt meshes, prints
+  `compressed_rebuilt=N compressed_skipped=N`, and discloses the
+  reconstruction as pdfcer's own reading of an undocumented encoding
+  that may drift slightly (rule 4).
+- `6daa54c2` — chore(agent-memory): spec librarian records the
+  reconstruction rules as MEASURED in
+  `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__tess_3d_compressed.md`
+  §2a.
+
+**Findings + decisions:**
+- **Measured on the School sample** (local-only, unknown provenance,
+  never committed — `LEGAL.md` §5): 346/348 compressed entities rebuild,
+  consuming every slot/reference/point exactly = 38,525 triangles, the
+  39,087 oracle minus the two T-form entities (280, 282). 687/708 faces
+  flagged planar rebuild flat. Rejected alternative rules: f32 storage,
+  grid snapping, other X-axis conventions.
+- New Backlog bucket **`Pass 421.x` — interactive 3D viewer**, filed on
+  the engineer's own recommendation after Ken asked whether view
+  controls had been worked on (answer: no). `421.0` = engine-side
+  headless camera render (`3d-render` CLI, PNG), sequenced after
+  `419.2`'s placement/assembly transforms; `421.1` = GUI orbit/pan/zoom,
+  delivered to `pdfcer-gui` via a feature-request hand-off, not built
+  here.
+- `docs/FEATURES.md`: PRC mesh-export row's caveat updated (boxes
+  unchanged); new *Planned* row for the `421.x` viewer bucket, all three
+  boxes unticked.
+
+**Test results:**
+- `pdfcer-3d`: 4 new unit tests; synthetic 3T fixture
+  `fixtures/synthetic/prc/compressed_triangle.prc`, drift-checked.
+- CLI: 1 new test (`a_rebuilt_compressed_mesh_is_exported_and_disclosed`).
+- Sabotage: 10/10 caught. Fuzz `prc_tess`: 181,801 runs / 91 s, clean.
+- `tools/run-gates.sh` PASS (42 commands); `pdfcer-core` 2356 passed / 2
+  ignored, plus 1324 in another suite. No manifest change, so no
+  `cargo tree` re-check needed.
+
+**Still in flight:**
+- `Pass 419.2` remains IN PROGRESS. Still owed: the T edge form (2
+  entities in the sample), residual drift (4–79 tol on some faces, one
+  gross case), stored-normal decode, outward-winding determination,
+  placement/assembly transforms, and CPU poster generation.
+- `Pass 421.x` not yet started; `421.0` blocked on `419.2`'s placement/
+  assembly transforms.
+
+**For next session:**
+- Confirm with Ken whether `421.x`'s sequencing (after placement
+  transforms) matches his intent before starting `421.0`.
+
 ## 2026-09-30 (811th filing) — `Pass 419.2` IN PROGRESS, sixth increment: PRC compressed tessellation (entity 173) read to its end; first real-file confirmation
 
 **Shipped (partial — Pass 419.2 stays open):**

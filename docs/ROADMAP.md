@@ -23437,6 +23437,59 @@ refusal (per that file's own "replace, never append" rule).
 > reconstruction (traversal/apex-frame/components), placement/assembly
 > transforms and CPU poster generation still owed, plus GAP-4/5/6/7 from
 > the 810th filing.
+>
+> ★ **`419.2` gains a seventh increment, 2026-09-30 (812th filing),
+> `37353213` — compressed tessellation (entity 173) TRIANGLES ARE NOW
+> REBUILT, not merely counted.** New private module
+> `crates/pdfcer-3d/src/compressed.rs` (traversal + apex frame, measured
+> on real PRC streams that are LOCAL ONLY and never committed — `LEGAL.md`
+> §5). `Tessellation::Compressed` gains `mesh: Option<TriangleMesh>`
+> (additive; the variant stays `#[non_exhaustive]`) plus
+> `normals_recalculated` (carries `must_recalculate_normals`). `None` for
+> the one-status-per-triangle (T) edge form, or when arrays are left
+> over. CLI `3d-mesh` writes the rebuilt meshes and prints
+> `compressed_rebuilt=N compressed_skipped=N`; a disclosure note names
+> this as pdfcer's own reconstruction of an undocumented encoding that
+> may drift slightly (rule 4). **Measured on the School sample**: 346/348
+> entities rebuild, consuming every slot/reference/point exactly —
+> 38,525 triangles = the 39,087 oracle minus the two T-form entities
+> (280, 282); 687/708 faces flagged planar rebuild flat. Rejected
+> alternative rules: f32 storage, grid snapping, other X-axis
+> conventions. 4 new unit tests; synthetic 3T fixture
+> `fixtures/synthetic/prc/compressed_triangle.prc` (drift-checked); 1 new
+> CLI test. Sabotage 10/10 caught; fuzz `prc_tess` 181,801 runs/91 s,
+> clean. `tools/run-gates.sh` PASS (42 commands; `pdfcer-core` 2356
+> passed/2 ignored, 1324 in another suite); no manifest change, so no
+> `cargo tree` re-check needed. Spec RAG
+> `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__tess_3d_compressed.md`
+> §2a now records the rebuild rules as MEASURED (`6daa54c2`).
+> `docs/FEATURES.md`'s PRC mesh-export row keeps its `[x]`/`[x]`/`[ ]`
+> boxes, caveat updated. `419.2` remains IN PROGRESS: the T edge form (2
+> entities in the sample), residual drift (4–79 tol on some faces, one
+> gross case), stored-normal decode, outward-winding determination,
+> placement/assembly transforms and CPU poster generation still owed.
+
+### Interactive 3D viewer — camera-controlled rendering of a decoded model (`Pass 421.x`), filed 2026-09-30 (812th filing), Backlog
+
+**Scope.** Ken asked 2026-09-30 whether viewing the model with view
+controls had been worked on; it had not. This bucket is the rung after
+decode (`Pass 419.x`), filed on the engineer's own recommendation, not
+yet built.
+
+- `421.0` — **Rung A, engine** (`pdfcer-render` or `pdfcer-3d`; no GUI
+  deps, no threads — engine rule, wasm32-clean): render a decoded PRC
+  mesh headlessly from camera parameters (eye/target/up, FOV or ortho
+  scale) to an RGBA image. CLI surface `3d-render` writes a PNG from
+  camera flags, plus a default view fit to the model's bounds. Depends
+  on `Pass 419.2`'s placement/assembly transforms, so sequenced after
+  that item ships.
+- `421.1` — **Rung B, GUI** (separate project, `pdfcer-gui`): orbit, pan
+  and zoom controls driving `421.0`'s camera API. Delivered by a request
+  through `D:\Dev\FeatureRequests\pdfce_FeatureRequests` /
+  the `pdfcer-gui` channel, not built in this repo.
+
+`docs/FEATURES.md` gains a *Planned* row: "View embedded 3D model with
+camera controls", `core [ ] cli [ ] gui [ ]`.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
