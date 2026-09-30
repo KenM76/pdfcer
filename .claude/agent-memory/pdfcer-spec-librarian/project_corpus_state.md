@@ -7989,3 +7989,29 @@ ECMA-363's TOC extracted one row out of step for 9.6.x-9.8.x. Page numbers were 
 
 ### 89f. Filing
 Total 217 → 228 (`iso32000__s__` 119 → 123, `u3d__` 4, `prc__` 3). Registered `_sources\ecma\` + the SIS preview in index `_sources\` and a new LEGAL_NOTE section. Pointer note appended (CRLF) to `iso32000__s__12.5.6.md`. The dispatch's own scratch items (`3d_survey.md`, `prc-rs`, `u3d-to-stl`) belong to other agents — do not touch.
+
+## 90. "The operator won't buy the paywalled standard — RECONSTRUCT it from online sources, with forbidden code sources" (2026-09-30, PRC for the pdfcer PRC reader → 17 `threed\prc__8137__*` files)
+
+### 90a. Shape
+Build a SOURCE REGISTER file first (`prc__8137__sources_provenance.md`): one ID per source (WD, ADOBE, PRCRS, ISS), its licence, a use rule, and a label legend. Every fact in every later file carries one of those labels plus DERIVED / GAP / UNVERIFIED. Split by entity family (header, bits, doubles, huffman, type IDs, schema, base prefix, tree, transforms, RIs, graphics, tess, wire/markup, compressed tess) plus an edition-diff file and an errata register. Coverage verdict per priority goes in each file's last section.
+
+### 90b. Free routes that existed although item 89b said none
+An ISO working draft of the standard (SC2 N570, PRC 8137) is freely distributed by a commercial SDK vendor's docs site, and the vendor's original HTML spec survives in Wayback (a mirror — record it as one). Item 89b's "no official copy found" was a METHOD-scoped negative (it looked for the vendor's own live URL). Lesson: before calling a paywalled format "no free route", search for (1) committee working drafts / N-documents, (2) SDK-vendor documentation downloads, (3) Wayback of the original vendor docs tree via the CDX API.
+
+### 90c. ★ Permissive CODE is a source tier of its own — new `permissive_code_inference`
+An MIT reader's machine-readable schema was the best predictor of real files, and it contradicted the WD in many places. Register it as its own tier (three registrations), record repo + commit + licence, label every fact. Its README said it was transcribed from the paywalled edition → an operator question (OQ-3), not a silent use.
+
+### 90d. ★ Label an ISSUE-THREAD fact by WHO its only witness is
+Forbidden-code exposure can arrive through a public errata forum: one participant's corrections were verified against an AGPL decoder. Label those facts ISS-NANOPRC-ADJACENT; a second, independent participant's census is the corroborating witness. **Get authorship from `gh issue list --json author`, never from memory** — this session's first draft misattributed a whole issue series to the wrong participant.
+
+### 90e. ★ A worked example in the text constrains the generalisation — test every step of it
+The traversal clause's example gave three neighbour/edge steps. The obvious rule fit step 1 and failed step 2; only "shared edge entered reversed" fit all three. Check a derived rule against EVERY step of the example before filing it.
+
+### 90f. Traps hit this session
+- A type-ID pair was swapped in the carried-over summary; re-verify against the code constant file, not the summary.
+- A census's "60/40" was a FILE split; the entity split was 82/18. Say which population a percentage is over.
+- A version-gate claim was attributed to the wrong issue number; grep the issue text for the field name before citing.
+- An issue returned by a title search may not carry the label you queried (one did not) — state the query that defines the register.
+
+### 90g. Filing
+Total 228 → 245 (`prc__` 3 → 20). LEGAL_NOTE new PRC section (CRLF preserved), `_TEMPLATE.md` tier line, index build log / prefix row / total / threed table / `_sources\prc\` row / 9 triggers / 6 recipes (all run non-empty after one fix). Dated CORRECTION blocks inserted under the H1 of the three earlier PRC files. Flat-index check: adapt the checker's source text + glob per corpus; all 15 WD-quoting files passed.
