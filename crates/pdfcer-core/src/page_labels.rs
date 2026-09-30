@@ -1,9 +1,12 @@
-//! Page-label number trees (ISO 32000-1 §12.4.2, Table 159; number trees
-//! §7.9.7, Table 37): reading a `/PageLabels` tree into ranges, and
-//! splicing two documents' ranges so every page keeps the label it
-//! displayed in its own document.
+//! Page labels (ISO 32000-1 §12.4.2, Table 159; number trees §7.9.7,
+//! Table 37): what each page displays, the ranges a document stores, and
+//! the range arithmetic that keeps labels in step through page edits.
+//!
+//! Read with [`page_labels`] and [`label_ranges`]; set with
+//! [`crate::edit::EditSession::set_page_labels`].
 
 use std::collections::HashSet;
+use std::num::NonZeroU32;
 
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, Object};
@@ -308,6 +311,305 @@ pub(crate) fn tree(ranges: &[Range]) -> Object {
     let mut root = Dict::new();
     root.insert(Name::from(b"Nums"), Object::Array(nums));
     Object::Dict(root)
+}
+
+/// The ranges of `target` after pages `first..=last` are given `label`:
+/// ranges before `first` are kept, the set range starts at `first`, page
+/// `last + 1` keeps the label it displayed (its covering range re-opened
+/// there with `/St` advanced, as in [`splice`]), and later ranges are kept.
+/// A document with no tree gains one, decimal from 1 outside the range.
+pub(crate) fn relabelled(
+    target: &[Range],
+    target_count: usize,
+    first: usize,
+    last: usize,
+    label: Dict,
+) -> Vec<Range> {
+    let shown = as_displayed(target, target_count);
+    let mut out: Vec<Range> = shown.iter().filter(|r| r.0 < first).cloned().collect();
+    out.push((first, label));
+    let next = last + 1;
+    if next < target_count {
+        if !shown.iter().any(|r| r.0 == next) {
+            out.extend(
+                subset(&shown, target_count, &[next])
+                    .into_iter()
+                    .map(|(_, d)| (next, d)),
+            );
+        }
+        out.extend(shown.iter().filter(|r| r.0 > last).cloned());
+    }
+    out
+}
+
+/// Highest number a letter label is spelled for: `ZZZ…` of this many
+/// letters is 26 × this. Above it the numeric portion is decimal, so a huge
+/// `/St` cannot demand an unbounded string.
+const MAX_LETTER_REPEAT: u64 = 100;
+/// Highest number a roman label is spelled for. §12.4.2 gives no numeral
+/// rule at all; pdfcer writes `M` repeated above 3999 (a common extension)
+/// up to this, and decimal above it, for the same bound as letters.
+const MAX_ROMAN: u64 = 100_000;
+
+/// A page label's numbering style: Table 159's `/S`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum LabelStyle {
+    /// `/S /D`: 1, 2, 3.
+    Decimal,
+    /// `/S /R`: I, II, III.
+    UpperRoman,
+    /// `/S /r`: i, ii, iii.
+    LowerRoman,
+    /// `/S /A`: A … Z, AA … ZZ, AAA … (§12.4.2).
+    UpperLetters,
+    /// `/S /a`: a … z, aa … zz, aaa ….
+    LowerLetters,
+    /// No `/S`: the label is the prefix alone, the same on every page of
+    /// the range (§12.4.2 "no numeric portion").
+    PrefixOnly,
+}
+
+impl LabelStyle {
+    /// The style a `/S` value names. A name Table 159 does not define reads
+    /// as [`LabelStyle::PrefixOnly`]: no numeric portion can be produced
+    /// for it.
+    #[must_use]
+    pub fn from_name(name: Option<&[u8]>) -> Self {
+        match name {
+            Some(b"D") => Self::Decimal,
+            Some(b"R") => Self::UpperRoman,
+            Some(b"r") => Self::LowerRoman,
+            Some(b"A") => Self::UpperLetters,
+            Some(b"a") => Self::LowerLetters,
+            _ => Self::PrefixOnly,
+        }
+    }
+
+    /// The `/S` name this style is written as; `None` for
+    /// [`LabelStyle::PrefixOnly`], which is written by omitting `/S`.
+    #[must_use]
+    pub const fn as_name(self) -> Option<&'static [u8]> {
+        match self {
+            Self::Decimal => Some(b"D"),
+            Self::UpperRoman => Some(b"R"),
+            Self::LowerRoman => Some(b"r"),
+            Self::UpperLetters => Some(b"A"),
+            Self::LowerLetters => Some(b"a"),
+            Self::PrefixOnly => None,
+        }
+    }
+
+    /// The numeric portion for page number `n` (≥ 1) in this style; empty
+    /// for [`LabelStyle::PrefixOnly`]. Roman above 100 000 and letters
+    /// above 2 600 fall back to decimal.
+    #[must_use]
+    pub fn numeral(self, n: u64) -> String {
+        let n = n.max(1);
+        match self {
+            Self::Decimal => n.to_string(),
+            Self::UpperRoman | Self::LowerRoman if n <= MAX_ROMAN => {
+                let upper = roman(n);
+                if self == Self::LowerRoman {
+                    upper.to_ascii_lowercase()
+                } else {
+                    upper
+                }
+            }
+            Self::UpperLetters | Self::LowerLetters if (n - 1) / 26 < MAX_LETTER_REPEAT => {
+                // §12.4.2 as corrected by ISO 32000-1 erratum: the letter is
+                // `(n-1) % 26`, repeated `(n-1) / 26 + 1` times (AA, BB, not AB).
+                let base = if self == Self::UpperLetters {
+                    b'A'
+                } else {
+                    b'a'
+                };
+                let letter = char::from(base + u8::try_from((n - 1) % 26).unwrap_or(0));
+                let repeat = usize::try_from((n - 1) / 26 + 1).unwrap_or(1);
+                std::iter::repeat_n(letter, repeat).collect()
+            }
+            Self::PrefixOnly => String::new(),
+            _ => n.to_string(),
+        }
+    }
+}
+
+fn roman(mut n: u64) -> String {
+    const TABLE: [(u64, &str); 13] = [
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
+    ];
+    let mut out = String::new();
+    for (value, numeral) in TABLE {
+        while n >= value {
+            out.push_str(numeral);
+            n -= value;
+        }
+    }
+    out
+}
+
+/// How one label range numbers its pages: Table 159's `/S`, `/P`, `/St`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct LabelFormat {
+    /// The numbering style.
+    pub style: LabelStyle,
+    /// Text before the numeric portion (`/P`); empty for none.
+    pub prefix: String,
+    /// The number of the range's first page (`/St`, default 1).
+    pub start: NonZeroU32,
+}
+
+impl LabelFormat {
+    /// A format in `style`, no prefix, numbering from 1.
+    #[must_use]
+    pub const fn new(style: LabelStyle) -> Self {
+        Self {
+            style,
+            prefix: String::new(),
+            start: NonZeroU32::MIN,
+        }
+    }
+
+    /// This format with `prefix` before every numeral.
+    #[must_use]
+    pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = prefix.into();
+        self
+    }
+
+    /// This format numbering its first page `start`.
+    #[must_use]
+    pub const fn with_start(mut self, start: NonZeroU32) -> Self {
+        self.start = start;
+        self
+    }
+
+    /// The label of the page `offset` pages into the range.
+    #[must_use]
+    pub fn label(&self, offset: usize) -> String {
+        let n = u64::from(self.start.get()).saturating_add(offset as u64);
+        let mut out = self.prefix.clone();
+        out.push_str(&self.style.numeral(n));
+        out
+    }
+
+    /// The format a Table 159 dictionary states. A `/St` below 1 (which
+    /// §12.4.2 forbids) reads as 1, and one above `u32::MAX` as `u32::MAX`;
+    /// a `/P` that is not exact text decodes with U+FFFD.
+    fn from_dict(label: &Dict) -> Self {
+        let style = LabelStyle::from_name(
+            label
+                .get(b"S")
+                .and_then(Object::as_name)
+                .map(Name::as_bytes),
+        );
+        let prefix = match label.get(b"P") {
+            Some(Object::String(bytes)) => crate::edit::decode_text_string(bytes).text,
+            _ => String::new(),
+        };
+        let start = label
+            .get(b"St")
+            .and_then(Object::as_int)
+            .map(|st| u32::try_from(st.max(1)).unwrap_or(u32::MAX))
+            .and_then(NonZeroU32::new)
+            .unwrap_or(NonZeroU32::MIN);
+        Self {
+            style,
+            prefix,
+            start,
+        }
+    }
+
+    /// The Table 159 dictionary for this format, stating only what differs
+    /// from the defaults.
+    pub(crate) fn to_dict(&self) -> Dict {
+        let mut d = Dict::new();
+        if let Some(name) = self.style.as_name() {
+            d.insert(Name::from(b"S"), Object::Name(Name::from(name)));
+        }
+        if !self.prefix.is_empty() {
+            d.insert(
+                Name::from(b"P"),
+                Object::String(crate::edit::encode_text_string(&self.prefix)),
+            );
+        }
+        if self.start != NonZeroU32::MIN {
+            d.insert(
+                Name::from(b"St"),
+                Object::Integer(i64::from(self.start.get())),
+            );
+        }
+        d
+    }
+}
+
+/// One range of a document's page labels: the first page it covers
+/// (0-based) and how it numbers pages from there to the next range.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct LabelRange {
+    /// Index of the range's first page.
+    pub first_page: usize,
+    /// How the range numbers its pages.
+    pub format: LabelFormat,
+}
+
+/// The document's `/PageLabels` ranges as stored, in page order; empty when
+/// it has no tree (every page is then numbered decimal from 1). A range
+/// starting past the last page is listed too: the tree says it.
+#[must_use]
+pub fn label_ranges<G: ObjectGraph + ?Sized>(graph: &G) -> Vec<LabelRange> {
+    stored(graph)
+        .into_iter()
+        .map(|(first_page, d)| LabelRange {
+            first_page,
+            format: LabelFormat::from_dict(&d),
+        })
+        .collect()
+}
+
+/// The label every page displays, in page order (§12.4.2: page `p` in a
+/// range starting at `k` shows the prefix and the numeral for
+/// `St + p − k`). Pages before the first range, or every page when there is
+/// no tree, are numbered decimal from 1.
+///
+/// # Errors
+///
+/// [`crate::page_tree::PageTreeError`] when the page tree cannot be walked.
+pub fn page_labels<G: ObjectGraph + ?Sized>(
+    graph: &G,
+) -> Result<Vec<String>, crate::page_tree::PageTreeError> {
+    let count = crate::page_tree::page_slots(graph)?.len();
+    let shown = as_displayed(&stored(graph), count);
+    let mut out = Vec::with_capacity(count);
+    for (i, (start, d)) in shown.iter().enumerate() {
+        let end = shown.get(i + 1).map_or(count, |r| r.0).min(count);
+        let format = LabelFormat::from_dict(d);
+        out.extend((*start..end).map(|p| format.label(p - start)));
+    }
+    Ok(out)
+}
+
+/// The stored ranges of `graph`'s `/PageLabels` tree.
+pub(crate) fn stored<G: ObjectGraph + ?Sized>(graph: &G) -> Vec<Range> {
+    graph
+        .catalog_dict()
+        .and_then(|c| c.get(b"PageLabels"))
+        .map(|t| ranges(graph, t))
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

@@ -135,6 +135,8 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "set-object-layer",
     "set-page-size",
     "set-page-tabs",
+    "set-page-labels",
+    "clear-page-labels",
     "set-permissions",
     "set-review-state",
     "set-text-annot-style",

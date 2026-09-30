@@ -1106,6 +1106,85 @@ fn delete_pages_labels_flag_selects_the_policy() {
 }
 
 #[test]
+fn set_page_labels_numbers_a_range_and_page_labels_reads_it() {
+    // Three pages, no labels: pages 1-2 become A-iv, A-v; page 3 keeps 3.
+    let dir = TempDir::new("set-labels");
+    let input = three_pages(&dir);
+    let out_path = dir.join("out.pdf");
+    let out = run(&[
+        "set-page-labels",
+        input.to_str().unwrap(),
+        "--pages",
+        "1-2",
+        "--style",
+        "roman-lower",
+        "--start",
+        "4",
+        "--prefix",
+        "A-",
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let line = stdout(&out);
+    assert_eq!(metric(&line, "ranges"), 2, "{line}");
+    assert!(line.contains("first_label=\"A-iv\""), "{line}");
+
+    let out = run(&["page-labels", out_path.to_str().unwrap()]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let listing = stdout(&out);
+    assert!(
+        listing.contains("range first=1 style=roman-lower prefix=\"A-\" start=4"),
+        "{listing}"
+    );
+    assert!(
+        listing.contains("range first=3 style=decimal prefix=\"\" start=3"),
+        "{listing}"
+    );
+    for want in [
+        "page 1 label=\"A-iv\"",
+        "page 2 label=\"A-v\"",
+        "page 3 label=\"3\"",
+    ] {
+        assert!(listing.contains(want), "missing {want}: {listing}");
+    }
+    assert!(listing.ends_with("ranges=2 pages=3\n"), "{listing}");
+
+    let cleared = dir.join("cleared.pdf");
+    let out = run(&[
+        "clear-page-labels",
+        out_path.to_str().unwrap(),
+        "-o",
+        cleared.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let out = run(&["page-labels", cleared.to_str().unwrap()]);
+    assert!(
+        stdout(&out).ends_with("ranges=0 pages=3\n"),
+        "{}",
+        stdout(&out)
+    );
+}
+
+#[test]
+fn set_page_labels_refuses_a_backwards_range() {
+    let dir = TempDir::new("set-labels-backwards");
+    let input = three_pages(&dir);
+    let out = run(&[
+        "set-page-labels",
+        input.to_str().unwrap(),
+        "--pages",
+        "3-1",
+        "--style",
+        "decimal",
+        "-o",
+        dir.join("out.pdf").to_str().unwrap(),
+    ]);
+    assert_ne!(code(&out), 0);
+    assert!(stderr(&out).contains("runs backwards"), "{}", stderr(&out));
+}
+
+#[test]
 fn every_page_op_result_line_is_one_ascii_line_of_integer_metrics() {
     // The stdout contract, applied to the new subcommands: one
     // LF-terminated pure-ASCII line, and every metrics-half pair is

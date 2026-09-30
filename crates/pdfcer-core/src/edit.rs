@@ -427,6 +427,15 @@ pub enum CommandKind {
         /// How many pages ended up somewhere different.
         count: usize,
     },
+    /// A page range's labels were set
+    /// ([`EditSession::set_page_labels`]).
+    SetPageLabels {
+        /// How many ranges the document's label tree holds afterwards.
+        ranges: usize,
+    },
+    /// The document's page labels were removed
+    /// ([`EditSession::clear_page_labels`]).
+    ClearPageLabels,
     /// One page's `/Annots` array was put in a new order
     /// ([`EditSession::reorder_annotations`]).
     ///
@@ -8828,6 +8837,14 @@ pub enum EditError {
     /// An FDF/XFDF data file could not be parsed on import.
     #[error("the form-data file could not be parsed: {0}")]
     FormData(#[from] crate::fdf::FdfError),
+    /// A page range was given with its first page after its last.
+    #[error("page range {first}..={last} is inverted")]
+    InvertedPageRange {
+        /// The 0-based first page asked for.
+        first: usize,
+        /// The 0-based last page asked for.
+        last: usize,
+    },
     /// A reorder was given something that is not a permutation of the
     /// document's pages.
     ///
@@ -48096,6 +48113,108 @@ impl EditSession {
         catalog.insert(Name::from(b"PageLabels"), crate::page_labels::tree(&ranges));
         scratch.insert(catalog_id, Object::Dict(catalog));
         ranges.len()
+    }
+
+    /// Give pages `first..=last` (0-based) the labels `format` numbers
+    /// them with (Acrobat's Number Pages; ISO 32000-1 §12.4.2), as one
+    /// undoable command, returning how many ranges the label tree then
+    /// holds.
+    ///
+    /// Every page outside the range keeps the label it displayed: the
+    /// range that covered page `last + 1` is re-opened there with its
+    /// `/St` advanced. A document without a tree gains one, decimal from 1
+    /// outside the range. Setting a range to what it already shows still
+    /// writes the tree.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::CertificationForbidsChange`].
+    /// - [`EditError::InvertedPageRange`] — `first > last`.
+    /// - [`EditError::PageOutOfRange`] — `last` is not a page.
+    /// - [`EditError::PageTree`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::edit::EditSession;
+    /// use pdfcer_core::page_labels::{LabelFormat, LabelStyle};
+    /// # fn run(session: &mut EditSession) -> Result<(), pdfcer_core::edit::EditError> {
+    /// // Front matter i–iv, then the body from 1.
+    /// session.set_page_labels(0, 3, &LabelFormat::new(LabelStyle::LowerRoman))?;
+    /// session.set_page_labels(4, 4, &LabelFormat::new(LabelStyle::Decimal))?;
+    /// # Ok(()) }
+    /// ```
+    pub fn set_page_labels(
+        &mut self,
+        first: usize,
+        last: usize,
+        format: &crate::page_labels::LabelFormat,
+    ) -> Result<usize, EditError> {
+        self.check_certification()?;
+        if first > last {
+            return Err(EditError::InvertedPageRange { first, last });
+        }
+        let count = self.page_slots()?.len();
+        if last >= count {
+            return Err(EditError::PageOutOfRange { index: last, count });
+        }
+        let Some(catalog_id) = self.graph().catalog_id() else {
+            return Err(EditError::PageTree(PageTreeError::NoPageTreeRoot));
+        };
+        let scratch = BTreeMap::new();
+        let Some(mut catalog) = self.staged_catalog(catalog_id, &scratch) else {
+            return Err(EditError::PageTree(PageTreeError::NoPageTreeRoot));
+        };
+        let target = catalog
+            .get(b"PageLabels")
+            .map(|t| crate::page_labels::ranges(&self.graph(), t))
+            .unwrap_or_default();
+        let ranges = crate::page_labels::relabelled(&target, count, first, last, format.to_dict());
+        catalog.insert(Name::from(b"PageLabels"), crate::page_labels::tree(&ranges));
+        self.commit(Command {
+            kind: CommandKind::SetPageLabels {
+                ranges: ranges.len(),
+            },
+            objects: vec![ObjectWrite {
+                id: catalog_id,
+                before: self.state.get(&catalog_id).cloned(),
+                after: Some(Object::Dict(catalog)),
+            }],
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(ranges.len())
+    }
+
+    /// Remove the document's page labels, so every page is numbered
+    /// decimal from 1, as one undoable command. Returns `false`, committing
+    /// nothing, when the document has none.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::CertificationForbidsChange`].
+    pub fn clear_page_labels(&mut self) -> Result<bool, EditError> {
+        self.check_certification()?;
+        let Some(catalog_id) = self.graph().catalog_id() else {
+            return Ok(false);
+        };
+        let Some(mut catalog) = self.staged_catalog(catalog_id, &BTreeMap::new()) else {
+            return Ok(false);
+        };
+        if catalog.remove(b"PageLabels").is_none() {
+            return Ok(false);
+        }
+        self.commit(Command {
+            kind: CommandKind::ClearPageLabels,
+            objects: vec![ObjectWrite {
+                id: catalog_id,
+                before: self.state.get(&catalog_id).cloned(),
+                after: Some(Object::Dict(catalog)),
+            }],
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(true)
     }
 
     /// Put the document's pages in a new order.

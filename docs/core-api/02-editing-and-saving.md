@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 293 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 295 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 293 public `EditSession` methods
+## 1. Verb index — all 295 public `EditSession` methods
 
-**Count: 293.** Established by brace-matched extraction of the six
+**Count: 295.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -209,6 +209,8 @@ need their own policy).
 | Delete pages | `delete_pages(&mut self, indices: &[usize]) -> Result<DeleteOutcome, EditError>` | See `DeleteOutcome`, §1.25. |
 | Delete pages, answering the pre-separation question | `delete_pages_with(&mut self, indices, separations: SeparationPolicy) -> Result<DeleteOutcome, EditError>` | |
 | Delete pages, choosing how `/PageLabels` follows | `delete_pages_with_labels(&mut self, indices, separations: SeparationPolicy, labels: DeletedPageLabels) -> Result<DeleteOutcome, EditError>` | `/PageLabels` is rewritten in the same undo step, never left stale. `DeletedPageLabels::Renumber` (default, used by the two verbs above): each section keeps its style/prefix and numbers on from its own first surviving page; a section whose pages were all deleted is dropped. `KeepEach`: every surviving page keeps the exact label it had. `DeleteOutcome::page_label_ranges` = ranges written (0 = no tree). `dangling.page_labels_stale` is now always `false` for delete. §12.4.2. |
+| Number pages: set a page range's labels | `set_page_labels(&mut self, first: usize, last: usize, format: &page_labels::LabelFormat) -> Result<usize, EditError>` | 0-based inclusive. Returns the range count the `/PageLabels` tree then holds. Every page outside the range keeps the label it showed: the range covering `last + 1` re-opens there with `/St` advanced; keys inside the range are removed. A document without a tree gains one (decimal from 1 outside). `InvertedPageRange` if `first > last`, `PageOutOfRange` for `last`. ONE undo entry, `CommandKind::SetPageLabels { ranges }`. Writes the catalog only. §12.4.2. |
+| Remove page labels | `clear_page_labels(&mut self) -> Result<bool, EditError>` | `false`, committing nothing, when there is no tree. `CommandKind::ClearPageLabels`. |
 | Reorder pages | `reorder_pages(&mut self, new_order: &[usize]) -> Result<(), EditError>` | `NotAPermutation` if `new_order` is not one. ONE undo entry. |
 | Rotate several pages | `rotate_pages(&mut self, indices: &[usize], delta: i32) -> Result<usize, EditError>` | Count of pages turned. ONE undo entry. |
 | Set one page's `/MediaBox` | `set_media_box(&mut self, page_index: usize, rect: page_tree::Rect) -> Result<MediaBoxChange, EditError>` | |
@@ -5090,7 +5092,7 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**160 variants**, counted at depth 1 inside `pub enum EditError`.
+**161 variants**, counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
@@ -5155,7 +5157,7 @@ Grouped for a shell's error presenter:
 `TabsNeedPdf20` · `TabsBreakPdfUa` · `NoSignatureToValidate` · `DssUnderNoChangesCertification`
 
 **Bad argument from the shell (a bug in the shell, not the document)**
-`PageOutOfRange` 2303 · `RotationNotMultipleOf90` 2316 · `NotAPermutation` 3090 ·
+`PageOutOfRange` 2303 · `InvertedPageRange` · `RotationNotMultipleOf90` 2316 · `NotAPermutation` 3090 ·
 `WidgetIndexOutOfRange` 2582 · `FieldNameEmpty` 2696 · `FieldRectDegenerate` 2517 ·
 `ImageRectDegenerate` 3130 · `EmptyGeometry` 2771 · `TabsValueUndefined` ·
 `NotACircularDimension` 2468 · `InvalidTolerance` 2481 · `NotARedactionMark` 2832 ·

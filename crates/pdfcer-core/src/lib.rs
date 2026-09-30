@@ -77,7 +77,7 @@ pub mod layers;
 pub mod ocr;
 pub mod offpage;
 pub mod outline;
-mod page_labels;
+pub mod page_labels;
 pub mod pageops;
 pub mod paper;
 /// Password-field values stored in any of a file's revisions (ISO 32000-1

@@ -121,6 +121,7 @@ mod outline_edit;
 mod outline_launch_targets;
 mod outline_move;
 mod page_clipboard;
+mod page_labels_set;
 mod page_objects_cache;
 mod page_ops;
 mod page_tree_nested_count;

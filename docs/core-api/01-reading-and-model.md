@@ -142,6 +142,8 @@ builds `--no-default-features`, so both configurations compile.
 | Enumerate bookmarks as a tree, pages already resolved | `outline::read_outline(&graph)` — `outline.rs`; flat list `Outline::flatten()` — `outline.rs` | §12.1 |
 | List embedded attachments | `attachments::list_attachments_with_notes(&graph)` — `attachments.rs` | §12.2 |
 | Extract an attachment's bytes | `attachments::extract_attachment(&DocumentView, &Attachment)` — `attachments.rs` | §12.2 |
+| Page labels each page shows (i, ii, 1, A-1) | `page_labels::page_labels(&graph) -> Result<Vec<String>, PageTreeError>` — `page_labels.rs`. Decimal from 1 before the first range or with no tree. Roman spelled with repeated `M` above 3999 and letters to 100 repeats; decimal past either. | §12.4.2 |
+| Page-label ranges as stored | `page_labels::label_ranges(&graph) -> Vec<LabelRange>` (`first_page`, `format: LabelFormat { style: LabelStyle, prefix, start: NonZeroU32 }`). Empty with no tree. A `/St` below 1 reads as 1; an unknown `/S` as `LabelStyle::PrefixOnly`. `LabelFormat::label(offset)` formats one page. Set with `EditSession::set_page_labels`. | §12.4.2 |
 | List embedded 3D models (U3D/PRC/STEP) | `threed::list_3d_with_notes(&graph)` — `threed.rs` | §12.2 |
 | Extract a 3D model's bytes | `threed::extract_3d(&DocumentView, &ThreeDArtwork)` — `threed.rs` | §12.2 |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |

@@ -603,7 +603,9 @@ mod bates_cmd;
 use bates_cmd::*;
 mod offpage;
 use offpage::*;
+mod page_labels_cmd;
 mod structure;
+use page_labels_cmd::*;
 mod threed_cmd;
 use threed_cmd::*;
 #[cfg(test)]

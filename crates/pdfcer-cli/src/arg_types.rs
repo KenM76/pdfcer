@@ -971,6 +971,51 @@ impl AttachIconArg {
     }
 }
 
+/// A page-label numbering style (ISO 32000-1 Table 159 `/S`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum LabelStyleArg {
+    /// 1, 2, 3.
+    Decimal,
+    /// I, II, III.
+    RomanUpper,
+    /// i, ii, iii.
+    RomanLower,
+    /// A to Z, then AA to ZZ, then AAA.
+    LettersUpper,
+    /// a to z, then aa to zz, then aaa.
+    LettersLower,
+    /// No number: every page shows the prefix alone.
+    None,
+}
+
+impl LabelStyleArg {
+    /// The engine style this flag value names.
+    pub(crate) const fn to_core(self) -> pdfcer_core::page_labels::LabelStyle {
+        use pdfcer_core::page_labels::LabelStyle;
+        match self {
+            Self::Decimal => LabelStyle::Decimal,
+            Self::RomanUpper => LabelStyle::UpperRoman,
+            Self::RomanLower => LabelStyle::LowerRoman,
+            Self::LettersUpper => LabelStyle::UpperLetters,
+            Self::LettersLower => LabelStyle::LowerLetters,
+            Self::None => LabelStyle::PrefixOnly,
+        }
+    }
+
+    /// The `--style` spelling of `style`.
+    pub(crate) const fn name(style: pdfcer_core::page_labels::LabelStyle) -> &'static str {
+        use pdfcer_core::page_labels::LabelStyle;
+        match style {
+            LabelStyle::Decimal => "decimal",
+            LabelStyle::UpperRoman => "roman-upper",
+            LabelStyle::LowerRoman => "roman-lower",
+            LabelStyle::UpperLetters => "letters-upper",
+            LabelStyle::LowerLetters => "letters-lower",
+            _ => "none",
+        }
+    }
+}
+
 /// The model format `3d-embed` writes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ThreeDFormatArg {

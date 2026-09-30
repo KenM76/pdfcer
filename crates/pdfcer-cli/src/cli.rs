@@ -2561,6 +2561,70 @@ pub(crate) enum Command {
         mode: SaveMode,
     },
 
+    /// **List a PDF's page labels**: the number or name each page shows in a
+    /// viewer's page box (i, ii, 1, 2, A-1), as opposed to its position.
+    ///
+    /// Prints one `range` line per range the document stores (`first=` its
+    /// 1-based first page, `style=`, `prefix=`, `start=` the number that page
+    /// shows), then one `page` line per page with its label, then
+    /// `ranges=N pages=M`. A document with no labels has no `range` lines
+    /// and its pages show 1, 2, 3.
+    ///
+    /// Read-only.
+    PageLabels {
+        /// Input PDF.
+        input: PathBuf,
+    },
+    /// **Number pages**: set the labels a range of pages shows (i, ii, iii
+    /// for front matter; A-1, A-2 for an appendix).
+    ///
+    /// Pages outside `--pages` keep the labels they show now; the page after
+    /// the range carries on with the number it had. A document with no
+    /// labels gains them, its other pages numbered 1, 2, 3 by position. The
+    /// number of ranges the document then stores is printed as `ranges=`.
+    SetPageLabels {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page or range, e.g. `3` or `1-4`.
+        #[arg(long)]
+        pages: String,
+        /// Numbering style.
+        #[arg(long, value_enum)]
+        style: LabelStyleArg,
+        /// The number the range's first page shows (1 or more).
+        #[arg(long, default_value_t = 1)]
+        start: u32,
+        /// Text shown before every number, e.g. `A-`.
+        #[arg(long, default_value = "")]
+        prefix: String,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// How to save: incremental (default) or full rewrite.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the edit reproduces the input file
+        /// byte for byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// **Remove a PDF's page labels**, so every page shows its position
+    /// (1, 2, 3). A document with none is left unchanged, and says so.
+    ClearPageLabels {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// How to save: incremental (default) or full rewrite.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the edit reproduces the input file
+        /// byte for byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+
     /// **List the 3D models embedded in a PDF** (U3D, PRC, STEP).
     ///
     /// Finds both carriers: `/3D` annotations (ISO 32000-1 §13.6) and 3D
