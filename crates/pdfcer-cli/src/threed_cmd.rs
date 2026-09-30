@@ -154,7 +154,7 @@ fn mesh_from_bytes(
         Ok(prc) => prc,
         Err(err) => return refuse(err.to_string()),
     };
-    let (mut meshes, mut wires, mut markups) = (Vec::new(), 0usize, 0usize);
+    let (mut meshes, mut wires, mut markups, mut compressed) = (Vec::new(), 0usize, 0usize, 0usize);
     for fs in &prc.file_structures {
         let tess = match fs.tessellations() {
             Ok(tess) => tess,
@@ -164,13 +164,21 @@ fn mesh_from_bytes(
             match t {
                 Tessellation::Mesh(m) => meshes.push(m),
                 Tessellation::Wire(_) => wires += 1,
+                Tessellation::Compressed { .. } => compressed += 1,
                 _ => markups += 1,
             }
         }
     }
     let triangles: usize = meshes.iter().map(|m| m.triangles.len()).sum();
     if triangles == 0 {
-        return refuse("the model holds no triangle tessellation".to_owned());
+        return refuse(if compressed > 0 {
+            format!(
+                "the model's {compressed} mesh(es) use compressed tessellation, which is read \
+                 but not yet decoded to triangles"
+            )
+        } else {
+            "the model holds no triangle tessellation".to_owned()
+        });
     }
     let bytes = match format {
         MeshFormat::Stl => match pdfcer_3d::to_stl(&meshes) {
@@ -186,7 +194,7 @@ fn mesh_from_bytes(
     let recalculated = meshes.iter().filter(|m| m.normals_recalculated).count();
     println!(
         "meshed index={index} meshes={} triangles={triangles} wires_skipped={wires} \
-         markup_skipped={markups} -> {}",
+         markup_skipped={markups} compressed_skipped={compressed} -> {}",
         meshes.len(),
         output.display()
     );

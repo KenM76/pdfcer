@@ -95,6 +95,70 @@ impl W {
         self
     }
 
+    /// A Huffman container: `leaves` are `(symbol, stored code, length)`,
+    /// each value is emitted as its leaf's code.
+    pub(crate) fn huffman(
+        &mut self,
+        nbits: u32,
+        len_width: u32,
+        leaves: &[(u32, u32, u32)],
+        values: &[i32],
+    ) -> &mut Self {
+        let mask = (1u32 << nbits) - 1;
+        let codes: Vec<(u32, u32)> = values
+            .iter()
+            .map(|&v| {
+                let l = leaves
+                    .iter()
+                    .find(|l| l.0 & mask == v as u32 & mask)
+                    .expect("a leaf per value");
+                (l.1, l.2)
+            })
+            .collect();
+        self.huffman_raw(nbits, len_width, leaves, &codes)
+    }
+
+    /// As [`Self::huffman`] with each element's `(code, length)` given.
+    pub(crate) fn huffman_raw(
+        &mut self,
+        nbits: u32,
+        len_width: u32,
+        leaves: &[(u32, u32, u32)],
+        codes: &[(u32, u32)],
+    ) -> &mut Self {
+        let mut blob = Vec::new();
+        let lsb = |blob: &mut Vec<bool>, v: u32, n: u32| {
+            for i in 0..n {
+                blob.push((v >> i) & 1 == 1);
+            }
+        };
+        lsb(&mut blob, leaves.len() as u32, nbits + 1);
+        lsb(&mut blob, len_width, 8);
+        for &(s, c, l) in leaves {
+            lsb(&mut blob, s, nbits);
+            lsb(&mut blob, l, len_width);
+            lsb(&mut blob, c, l);
+        }
+        lsb(&mut blob, codes.len() as u32, 32);
+        for &(c, l) in codes {
+            for i in (0..l).rev() {
+                blob.push((c >> i) & 1 == 1);
+            }
+        }
+        let bits = blob.len();
+        let words = bits.div_ceil(32);
+        blob.resize(words * 32, false);
+        self.uint(words as u32);
+        for byte in blob.chunks(8) {
+            let b = byte
+                .iter()
+                .enumerate()
+                .fold(0u32, |a, (i, &x)| a | (u32::from(x) << i));
+            self.put(u64::from(b), 8);
+        }
+        self.uint((bits - (words - 1) * 32) as u32)
+    }
+
     /// The bits packed MSB-first, the last byte zero-padded.
     pub(crate) fn bytes(&self) -> Vec<u8> {
         self.bits

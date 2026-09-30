@@ -23,6 +23,7 @@
 )]
 
 mod acof;
+mod arrays;
 pub mod bits;
 mod container;
 mod error;

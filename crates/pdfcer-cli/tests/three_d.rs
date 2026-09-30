@@ -268,17 +268,23 @@ fn a_step_model_is_refused_and_writes_nothing() {
 /// `three_d_pdf` with the synthetic PRC square embedded as model 2.
 #[cfg(feature = "3d")]
 fn with_prc_square(tag: &str) -> PathBuf {
+    with_prc(tag, "square.prc")
+}
+
+/// `three_d_pdf` with `fixtures/synthetic/prc/<name>` embedded as model 2.
+#[cfg(feature = "3d")]
+fn with_prc(tag: &str, name: &str) -> PathBuf {
     let input = three_d_pdf(tag);
-    let prc = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../fixtures/synthetic/prc/square.prc"
+    let prc = format!(
+        "{}/../../fixtures/synthetic/prc/{name}",
+        env!("CARGO_MANIFEST_DIR")
     );
     let output = input.with_extension("prc.pdf");
     let out = run(&[
         "3d-embed",
         input.to_str().unwrap(),
         "--model",
-        prc,
+        &prc,
         "--page",
         "1",
         "--rect",
@@ -324,7 +330,10 @@ fn a_prc_model_meshes_to_stl_by_default() {
     assert_eq!(u32::from_le_bytes(stl[80..84].try_into().unwrap()), 2);
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.contains("meshed index=2 meshes=1 triangles=2 wires_skipped=0 markup_skipped=0"),
+        stdout.contains(
+            "meshed index=2 meshes=1 triangles=2 wires_skipped=0 markup_skipped=0 \
+             compressed_skipped=0"
+        ),
         "{stdout}"
     );
     assert!(
@@ -378,5 +387,22 @@ fn a_damaged_prc_model_is_refused() {
         String::from_utf8_lossy(&out.stderr).contains("3D artwork 1:"),
         "{}",
         String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// A model holding only compressed tessellation is refused by name, not as
+/// an empty model.
+#[cfg(feature = "3d")]
+#[test]
+fn a_compressed_only_prc_model_is_refused_by_name() {
+    let input = with_prc("mesh_compressed", "compressed.prc");
+    let output = input.with_extension("stl");
+    let out = mesh(&input, "2", &output, &[]);
+    assert_eq!(out.status.code(), Some(9));
+    assert!(!output.exists());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("1 mesh(es) use compressed tessellation"),
+        "{stderr}"
     );
 }

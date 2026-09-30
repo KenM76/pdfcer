@@ -2,14 +2,15 @@
 //! uncompressed entities, `TESS_3D` (172) with its `TESS_Face`s (174),
 //! `TESS_3D_Wire` (175) and `TESS_Markup` (176) [WD 7.3.7, 7.8].
 //!
-//! `TESS_3D_Compressed` (173) is refused: nothing records an entity's length,
-//! so the array cannot be read past one.
+//! `TESS_3D_Compressed` (173) is read to its end [WD 7.8.9.7] so the
+//! entities after it decode; its triangles are not reconstructed.
 //!
 //! The schema runs after the fields of each concrete type read here (201,
 //! 172, 174, 175, 176, 305). It does not run for the abstract levels
 //! (`PRCBase`, `TESS`): the sources name no producer extending them.
 
 use crate::PrcError;
+use crate::arrays;
 use crate::bits::BitReader;
 use crate::schema::Schema;
 
@@ -20,6 +21,9 @@ const TESS_3D_COMPRESSED: u32 = 173;
 const TESS_FACE: u32 = 174;
 const TESS_3D_WIRE: u32 = 175;
 const TESS_MARKUP: u32 = 176;
+
+/// `origin_array` exists from this version [PRCRS; pdf-issues #705].
+const ORIGIN_FROM: u32 = 7031;
 
 /// `has_loops` exists from this file-structure authoring version [PRCRS].
 const HAS_LOOPS_FROM: u32 = 7039;
@@ -47,6 +51,12 @@ pub enum Tessellation {
     Wire(Vec<Vec<[f64; 3]>>),
     /// A `TESS_Markup` (PMI drawing), read past but not decoded.
     Markup,
+    /// A `TESS_3D_Compressed` mesh, read past; its geometry is not decoded.
+    #[non_exhaustive]
+    Compressed {
+        /// The entity's triangle count.
+        triangles: usize,
+    },
 }
 
 /// A `TESS_3D` decoded to indexed triangles, in the entity's own frame (the
@@ -197,9 +207,9 @@ impl Ctx<'_, '_> {
                     self.markup()?;
                     Tessellation::Markup
                 }
-                TESS_3D_COMPRESSED => {
-                    return Err(PrcError::Unsupported("compressed tessellation"));
-                }
+                TESS_3D_COMPRESSED => Tessellation::Compressed {
+                    triangles: self.tess_3d_compressed()?,
+                },
                 t => {
                     return Err(malformed(format!(
                         "entity type {t} in the tessellation array"
@@ -217,6 +227,97 @@ impl Ctx<'_, '_> {
     fn base_tess_data(&mut self) -> Result<Vec<f64>, PrcError> {
         self.r.bit()?;
         self.doubles("tessellation coordinates")
+    }
+
+    /// `TESS_3D_Compressed` (173) after its type code, field by field
+    /// [WD 7.8.9.7; PRCRS prc.json]; returns the triangle count. Array
+    /// sizes the WD leaves unstated follow `prc__8137__tess_3d_compressed.md`
+    /// §1: `face_number` = largest face index + 1, `normal_is_reversed` is
+    /// one bit per triangle, and `point_reference_array`'s compressed flag
+    /// is implicit (more than three references).
+    fn tess_3d_compressed(&mut self) -> Result<usize, PrcError> {
+        let r = &mut self.r;
+        r.bit()?; // is_calculated
+        r.bit()?; // has_faces
+        r.double()?; // tolerance
+        if self.version >= ORIGIN_FROM {
+            for _ in 0..3 {
+                r.float_as_bytes()?;
+            }
+        }
+        arrays::compressed_integer_array(r)?; // point_array
+        let edge_status = arrays::character_array(r, 2, None, false)?;
+        let face_of = arrays::compressed_indice_array(r, None)?;
+        let t = face_of.len();
+        if edge_status.len() != t && edge_status.len() != t.saturating_mul(3) {
+            return Err(malformed(format!(
+                "{} edge statuses for {t} triangles",
+                edge_status.len()
+            )));
+        }
+        let faces = face_of.iter().max().map_or(0, |&m| m as usize + 1);
+        let n = r.unsigned_integer()? as usize;
+        let references = arrays::bool_array(r, n)?.iter().filter(|&&b| b).count();
+        let refs = arrays::compressed_indice_array(r, Some(references > 3))?;
+        if refs.len() != references {
+            return Err(malformed(format!(
+                "{} point references for {references} flagged points",
+                refs.len()
+            )));
+        }
+        if r.bit()? {
+            // must_recalculate_normals
+            arrays::bool_array(r, t)?; // normal_is_reversed
+            r.double()?; // crease_angle
+            r.character()?; // normal_recalculation_flags
+        } else {
+            let angle_bits = u32::from(r.character()?);
+            if angle_bits > 16 {
+                return Err(malformed(format!("{angle_bits}-bit normal angles")));
+            }
+            let n = r.unsigned_integer()? as usize;
+            arrays::bool_array(r, n)?; // normal_binary_data
+            arrays::short_array(r, angle_bits)?; // normal_angle_array
+            arrays::bool_array(r, faces)?; // is_face_planar
+        }
+        if r.bit()? {
+            arrays::bool_array(r, faces)?; // is_point_color_on_face
+            arrays::character_array(r, 8, None, false)?; // point_color_array
+        }
+        if r.bit()? {
+            arrays::bool_array(r, faces)?; // is_multiple_line_attribute_on_face
+        }
+        arrays::short_array(r, 16)?; // line_attribute_array
+        if !r.bit()? {
+            self.compressed_texture_parameter()?;
+            if !self.r.bit()? {
+                arrays::bool_array(&mut self.r, faces)?; // face_has_texture
+            }
+        }
+        if self.r.bit()? {
+            arrays::character_array(&mut self.r, 8, None, false)?; // behaviors_array
+        }
+        self.schema
+            .skip_added_fields(TESS_3D_COMPRESSED, &mut self.r)?;
+        Ok(t)
+    }
+
+    /// `CompressedTextureParameter` [WD 7.8.9.8-7.8.9.9; pdf-issues #729,
+    /// #749].
+    fn compressed_texture_parameter(&mut self) -> Result<(), PrcError> {
+        let words = self.count(32, "texture data")?;
+        self.r.skip_bits(words * 32)?;
+        self.r.unsigned_integer()?; // last_integer_used_bit_number
+        let n = self.count(5, "texture references")?;
+        for _ in 0..n {
+            self.r.nbits_then_unsigned()?;
+        }
+        self.r.double()?; // tolerance
+        let n = self.count(32, "texture parameters")?;
+        for _ in 0..n {
+            self.r.float_as_bytes()?;
+        }
+        Ok(())
     }
 
     /// `TESS_3D` (172) after its type code [WD 7.8.5].
@@ -939,13 +1040,112 @@ mod tests {
         assert_eq!(ctx.r.position(), w.len());
     }
 
+    /// A one-triangle TESS_3D_Compressed. `full` takes every optional
+    /// branch: stored normals, colours, line attributes, texture, behaviours.
+    fn compressed(w: &mut W, v: u32, full: bool) {
+        w.uint(173).bit(false).bit(true).double(0.001);
+        if v >= ORIGIN_FROM {
+            w.put(0, 32).put(0, 32).put(0, 32);
+        }
+        // point_array: nine 2-bit values.
+        w.bit(false).uint(9);
+        for _ in 0..9 {
+            w.put(2, 8);
+        }
+        for _ in 0..9 {
+            w.bit(false).bit(true);
+        }
+        // edge_status_array: the 3T form (Huffman) or the T form.
+        if full {
+            w.bit(true).huffman(2, 2, &[(0, 0b10, 2)], &[0, 0, 0]);
+        } else {
+            w.bit(false).uint(1).put(0, 8);
+        }
+        // triangle_face_array [0]. `full`: four references, so the
+        // flagless reference array is Huffman; else none.
+        w.bit(false).uint(1).put(1, 8).bit(false);
+        if full {
+            w.uint(4).put(0b1111, 4);
+            w.huffman(6, 2, &[(1, 0b10, 2), (0, 0b11, 2)], &[1, 0, 0, 0]);
+            w.put(0, 4);
+        } else {
+            w.uint(3).put(0, 3).uint(0);
+        }
+        if full {
+            w.bit(false).put(10, 8).uint(3).put(0b101, 3);
+            w.bit(true).huffman(10, 2, &[(5, 0b10, 2)], &[5, 5]);
+            w.bit(true); // is_face_planar
+            w.bit(true).bit(true).bit(false).uint(5);
+            for c in [1, 255, 0, 0, 128] {
+                w.put(c, 8);
+            }
+            w.bit(true).bit(false);
+        } else {
+            w.bit(true).bit(false).double(0.5).put(0, 8);
+            w.bit(false).bit(false);
+        }
+        w.bit(false).uint(1).put(1, 8).put(0, 8); // line_attribute_array
+        if full {
+            w.bit(false).uint(1).put(0, 32).uint(32);
+            w.uint(1).put(1, 5).bit(true).double(0.5).uint(2);
+            w.put(0, 32).put(0, 32).bit(false).bit(true);
+            w.bit(true).bit(false).uint(1).put(1, 8);
+        } else {
+            w.bit(true).bit(false);
+        }
+    }
+
+    #[test]
+    fn a_compressed_mesh_is_read_to_its_end() {
+        for full in [false, true] {
+            for v in [ORIGIN_FROM - 1, 8137] {
+                let mut b = W::default();
+                compressed(&mut b, v, full);
+                tess_3d(
+                    &mut b,
+                    v,
+                    &Mesh {
+                        recalc: false,
+                        indices: &[0, 0, 0, 3, 0, 6, 0, 0, 0, 3, 0, 6, 0, 9],
+                        faces: &[(0x2 | 0x4, 0, &[1, 1, 4])],
+                        textures: 0,
+                    },
+                );
+                let w = section(2, &b);
+                let bytes = w.bytes();
+                let schema = Schema::default();
+                let mut ctx = Ctx {
+                    r: BitReader::new(&bytes),
+                    schema: &schema,
+                    version: v,
+                };
+                let t = ctx.file_structure_tessellation().unwrap();
+                assert!(
+                    matches!(
+                        t[..],
+                        [
+                            Tessellation::Compressed { triangles: 1 },
+                            Tessellation::Mesh(_)
+                        ]
+                    ),
+                    "full={full} v={v}: {t:?}"
+                );
+                assert_eq!(ctx.r.position(), w.len(), "full={full} v={v}");
+            }
+        }
+    }
+
     #[test]
     fn refusals_and_damage_are_errors() {
+        // Edge statuses neither T nor 3T long.
         let mut c = W::default();
-        c.uint(173);
+        c.uint(173).bit(false).bit(true).double(0.001);
+        c.put(0, 32).put(0, 32).put(0, 32);
+        c.bit(false).uint(0).bit(false).uint(2).put(0, 16);
+        c.bit(false).uint(1).put(1, 8).bit(false);
         assert!(matches!(
             decode(&section(1, &c), &Schema::default(), 8137),
-            Err(PrcError::Unsupported(_))
+            Err(PrcError::Malformed(_))
         ));
         // Optimised vertex colours.
         let mut o = W::default();
@@ -1005,16 +1205,6 @@ mod tests {
     /// A whole PRC stream: one file structure whose tessellation section
     /// holds the unit square as two triangles, and an empty schema.
     fn square_prc() -> Vec<u8> {
-        use std::io::Write as _;
-        let zlib = |data: &[u8]| {
-            let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-            e.write_all(data).unwrap();
-            e.finish().unwrap()
-        };
-        let le = |out: &mut Vec<u8>, vs: &[u32]| {
-            vs.iter()
-                .for_each(|v| out.extend_from_slice(&v.to_le_bytes()));
-        };
         let mut body = W::default();
         tess_3d(
             &mut body,
@@ -1026,8 +1216,23 @@ mod tests {
                 textures: 0,
             },
         );
+        prc_file(&section(1, &body))
+    }
+
+    /// A one-file-structure PRC whose tessellation section is `tess`.
+    fn prc_file(tess: &W) -> Vec<u8> {
+        use std::io::Write as _;
+        let zlib = |data: &[u8]| {
+            let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+            e.write_all(data).unwrap();
+            e.finish().unwrap()
+        };
+        let le = |out: &mut Vec<u8>, vs: &[u32]| {
+            vs.iter()
+                .for_each(|v| out.extend_from_slice(&v.to_le_bytes()));
+        };
         let schema = W::default().uint(0).bytes();
-        let sections = [schema, vec![0], section(1, &body).bytes(), vec![], vec![]];
+        let sections = [schema, vec![0], tess.bytes(), vec![], vec![]];
 
         const HEADER_LEN: usize = 107;
         let mut fs = b"PRC".to_vec();
@@ -1051,25 +1256,42 @@ mod tests {
         out
     }
 
-    /// `fixtures/synthetic/prc/square.prc` (the CLI's `3d-mesh` fixture) is
-    /// exactly what [`square_prc`] builds and decodes to the square. Set
-    /// `PDFCER_WRITE_FIXTURES=1` to rewrite it.
+    /// The CLI's `3d-mesh` fixtures under `fixtures/synthetic/prc/` are
+    /// exactly what [`square_prc`] and [`compressed_prc`] build. Set
+    /// `PDFCER_WRITE_FIXTURES=1` to rewrite them.
     #[test]
-    fn the_square_fixture_is_current_and_decodes() {
+    fn the_prc_fixtures_are_current_and_decode() {
         let bytes = square_prc();
         let f = crate::PrcFile::parse(&bytes).unwrap();
         let t = f.file_structures[0].tessellations().unwrap();
         assert_eq!(mesh(&t[0]).triangles, [[0, 1, 2], [0, 2, 3]]);
+        check_fixture("square.prc", &bytes);
+        let bytes = compressed_prc();
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let t = f.file_structures[0].tessellations().unwrap();
+        assert!(matches!(t[..], [Tessellation::Compressed { triangles: 1 }]));
+        check_fixture("compressed.prc", &bytes);
+    }
+
+    /// One compressed-tessellation mesh and nothing else.
+    fn compressed_prc() -> Vec<u8> {
+        let mut body = W::default();
+        compressed(&mut body, 8137, true);
+        prc_file(&section(1, &body))
+    }
+
+    fn check_fixture(name: &str, bytes: &[u8]) {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../fixtures/synthetic/prc/square.prc");
+            .join("../../fixtures/synthetic/prc")
+            .join(name);
         if std::env::var_os("PDFCER_WRITE_FIXTURES").is_some() {
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(&path, &bytes).unwrap();
+            std::fs::write(&path, bytes).unwrap();
         }
         assert_eq!(
             std::fs::read(&path).unwrap(),
             bytes,
-            "rerun with PDFCER_WRITE_FIXTURES=1"
+            "{name}: rerun with PDFCER_WRITE_FIXTURES=1"
         );
     }
 }

@@ -2760,12 +2760,13 @@ pub(crate) enum Command {
     /// for display) and writes every triangle mesh in it. Coordinates are
     /// the model's own, in its units; the positions of parts within an
     /// assembly are not applied yet, so a multi-part model's parts may
-    /// overlap. Line (wire) and annotation (PMI) data are counted but not
-    /// written. A summary line reports what was found and written.
+    /// overlap. Line (wire) and annotation (PMI) data, and meshes saved with
+    /// PRC's compressed tessellation (read, not yet decoded to triangles),
+    /// are counted but not written. A summary line reports what was found
+    /// and written.
     ///
-    /// Refuses a U3D model (not decoded yet), a model saved with PRC's
-    /// compressed tessellation, and a model with no triangles. Exit 9 when
-    /// refused, with the reason.
+    /// Refuses a U3D model (not decoded yet) and a model with no plain
+    /// triangle meshes. Exit 9 when refused, with the reason.
     #[command(name = "3d-mesh")]
     ThreeDMesh {
         /// Input PDF.
