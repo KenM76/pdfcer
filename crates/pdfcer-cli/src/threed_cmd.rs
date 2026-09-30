@@ -154,7 +154,8 @@ fn mesh_from_bytes(
         Ok(prc) => prc,
         Err(err) => return refuse(err.to_string()),
     };
-    let (mut meshes, mut wires, mut markups, mut compressed) = (Vec::new(), 0usize, 0usize, 0usize);
+    let (mut meshes, mut wires, mut markups) = (Vec::new(), 0usize, 0usize);
+    let (mut rebuilt, mut compressed) = (0usize, 0usize);
     for fs in &prc.file_structures {
         let tess = match fs.tessellations() {
             Ok(tess) => tess,
@@ -164,6 +165,10 @@ fn mesh_from_bytes(
             match t {
                 Tessellation::Mesh(m) => meshes.push(m),
                 Tessellation::Wire(_) => wires += 1,
+                Tessellation::Compressed { mesh: Some(m), .. } => {
+                    rebuilt += 1;
+                    meshes.push(m);
+                }
                 Tessellation::Compressed { .. } => compressed += 1,
                 _ => markups += 1,
             }
@@ -173,8 +178,8 @@ fn mesh_from_bytes(
     if triangles == 0 {
         return refuse(if compressed > 0 {
             format!(
-                "the model's {compressed} mesh(es) use compressed tessellation, which is read \
-                 but not yet decoded to triangles"
+                "the model's {compressed} mesh(es) use compressed tessellation in a form \
+                 pdfcer does not yet rebuild into triangles"
             )
         } else {
             "the model holds no triangle tessellation".to_owned()
@@ -194,11 +199,19 @@ fn mesh_from_bytes(
     let recalculated = meshes.iter().filter(|m| m.normals_recalculated).count();
     println!(
         "meshed index={index} meshes={} triangles={triangles} wires_skipped={wires} \
-         markup_skipped={markups} compressed_skipped={compressed} -> {}",
+         markup_skipped={markups} compressed_rebuilt={rebuilt} compressed_skipped={compressed} \
+         -> {}",
         meshes.len(),
         output.display()
     );
     println!("note: part placements are not applied; coordinates are each mesh's own");
+    if rebuilt > 0 {
+        println!(
+            "note: {rebuilt} compressed mesh(es) were rebuilt by pdfcer's reconstruction of an \
+             undocumented encoding; each step is exact to the model's stated tolerance, and \
+             small drift can accumulate across a mesh"
+        );
+    }
     if recalculated > 0 {
         println!(
             "note: {recalculated} mesh(es) store no normals; facet normals are computed from \

@@ -25,6 +25,7 @@
 mod acof;
 mod arrays;
 pub mod bits;
+mod compressed;
 mod container;
 mod error;
 mod export;

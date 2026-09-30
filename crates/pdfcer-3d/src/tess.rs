@@ -3,7 +3,8 @@
 //! `TESS_3D_Wire` (175) and `TESS_Markup` (176) [WD 7.3.7, 7.8].
 //!
 //! `TESS_3D_Compressed` (173) is read to its end [WD 7.8.9.7] so the
-//! entities after it decode; its triangles are not reconstructed.
+//! entities after it decode, and its triangles are rebuilt where the
+//! traversal in `compressed` fits the arrays exactly.
 //!
 //! The schema runs after the fields of each concrete type read here (201,
 //! 172, 174, 175, 176, 305). It does not run for the abstract levels
@@ -51,11 +52,17 @@ pub enum Tessellation {
     Wire(Vec<Vec<[f64; 3]>>),
     /// A `TESS_Markup` (PMI drawing), read past but not decoded.
     Markup,
-    /// A `TESS_3D_Compressed` mesh, read past; its geometry is not decoded.
+    /// A `TESS_3D_Compressed` mesh.
     #[non_exhaustive]
     Compressed {
         /// The entity's triangle count.
         triangles: usize,
+        /// The rebuilt triangles, or `None` where the arrays do not fit
+        /// the reconstruction (the one-status-per-triangle edge form, or
+        /// arrays left over). The positions are rebuilt to within the
+        /// entity's tolerance per step, so they carry the producer's
+        /// quantisation drift; faces are not separated.
+        mesh: Option<TriangleMesh>,
     },
 }
 
@@ -207,9 +214,10 @@ impl Ctx<'_, '_> {
                     self.markup()?;
                     Tessellation::Markup
                 }
-                TESS_3D_COMPRESSED => Tessellation::Compressed {
-                    triangles: self.tess_3d_compressed()?,
-                },
+                TESS_3D_COMPRESSED => {
+                    let (triangles, mesh) = self.tess_3d_compressed()?;
+                    Tessellation::Compressed { triangles, mesh }
+                }
                 t => {
                     return Err(malformed(format!(
                         "entity type {t} in the tessellation array"
@@ -230,22 +238,24 @@ impl Ctx<'_, '_> {
     }
 
     /// `TESS_3D_Compressed` (173) after its type code, field by field
-    /// [WD 7.8.9.7; PRCRS prc.json]; returns the triangle count. Array
+    /// [WD 7.8.9.7; PRCRS prc.json]; returns the triangle count and the
+    /// rebuilt mesh, if it rebuilds. Array
     /// sizes the WD leaves unstated follow `prc__8137__tess_3d_compressed.md`
     /// §1: `face_number` = largest face index + 1, `normal_is_reversed` is
     /// one bit per triangle, and `point_reference_array`'s compressed flag
     /// is implicit (more than three references).
-    fn tess_3d_compressed(&mut self) -> Result<usize, PrcError> {
+    fn tess_3d_compressed(&mut self) -> Result<(usize, Option<TriangleMesh>), PrcError> {
         let r = &mut self.r;
         r.bit()?; // is_calculated
         r.bit()?; // has_faces
-        r.double()?; // tolerance
+        let tol = r.double()?; // tolerance
+        let mut origin = [0.0f64; 3];
         if self.version >= ORIGIN_FROM {
-            for _ in 0..3 {
-                r.float_as_bytes()?;
+            for o in &mut origin {
+                *o = f64::from(r.float_as_bytes()?);
             }
         }
-        arrays::compressed_integer_array(r)?; // point_array
+        let point_array = arrays::compressed_integer_array(r)?; // point_array
         let edge_status = arrays::character_array(r, 2, None, false)?;
         let face_of = arrays::compressed_indice_array(r, None)?;
         let t = face_of.len();
@@ -257,7 +267,8 @@ impl Ctx<'_, '_> {
         }
         let faces = face_of.iter().max().map_or(0, |&m| m as usize + 1);
         let n = r.unsigned_integer()? as usize;
-        let references = arrays::bool_array(r, n)?.iter().filter(|&&b| b).count();
+        let is_ref = arrays::bool_array(r, n)?;
+        let references = is_ref.iter().filter(|&&b| b).count();
         let refs = arrays::compressed_indice_array(r, Some(references > 3))?;
         if refs.len() != references {
             return Err(malformed(format!(
@@ -265,8 +276,8 @@ impl Ctx<'_, '_> {
                 refs.len()
             )));
         }
-        if r.bit()? {
-            // must_recalculate_normals
+        let recalc = r.bit()?; // must_recalculate_normals
+        if recalc {
             arrays::bool_array(r, t)?; // normal_is_reversed
             r.double()?; // crease_angle
             r.character()?; // normal_recalculation_flags
@@ -299,7 +310,21 @@ impl Ctx<'_, '_> {
         }
         self.schema
             .skip_added_fields(TESS_3D_COMPRESSED, &mut self.r)?;
-        Ok(t)
+        let mesh = crate::compressed::reconstruct(&crate::compressed::Arrays {
+            tolerance: tol,
+            origin,
+            points: &point_array,
+            edge_status: &edge_status,
+            triangles: t,
+            is_reference: &is_ref,
+            references: &refs,
+        })
+        .ok()
+        .map(|m| TriangleMesh {
+            normals_recalculated: recalc,
+            ..m
+        });
+        Ok((t, mesh))
     }
 
     /// `CompressedTextureParameter` [WD 7.8.9.8-7.8.9.9; pdf-issues #729,
@@ -1042,7 +1067,8 @@ mod tests {
 
     /// A one-triangle TESS_3D_Compressed. `full` takes every optional
     /// branch: stored normals, colours, line attributes, texture, behaviours.
-    fn compressed(w: &mut W, v: u32, full: bool) {
+    /// Otherwise `three_t` picks the 3T edge form, and the triangle rebuilds.
+    fn compressed(w: &mut W, v: u32, full: bool, three_t: bool) {
         w.uint(173).bit(false).bit(true).double(0.001);
         if v >= ORIGIN_FROM {
             w.put(0, 32).put(0, 32).put(0, 32);
@@ -1058,6 +1084,8 @@ mod tests {
         // edge_status_array: the 3T form (Huffman) or the T form.
         if full {
             w.bit(true).huffman(2, 2, &[(0, 0b10, 2)], &[0, 0, 0]);
+        } else if three_t {
+            w.bit(false).uint(3).put(0, 8).put(0, 8).put(0, 8);
         } else {
             w.bit(false).uint(1).put(0, 8);
         }
@@ -1097,10 +1125,10 @@ mod tests {
 
     #[test]
     fn a_compressed_mesh_is_read_to_its_end() {
-        for full in [false, true] {
+        for (full, three_t) in [(false, false), (false, true), (true, true)] {
             for v in [ORIGIN_FROM - 1, 8137] {
                 let mut b = W::default();
-                compressed(&mut b, v, full);
+                compressed(&mut b, v, full, three_t);
                 tess_3d(
                     &mut b,
                     v,
@@ -1124,11 +1152,24 @@ mod tests {
                     matches!(
                         t[..],
                         [
-                            Tessellation::Compressed { triangles: 1 },
+                            Tessellation::Compressed { triangles: 1, .. },
                             Tessellation::Mesh(_)
                         ]
                     ),
                     "full={full} v={v}: {t:?}"
+                );
+                let Tessellation::Compressed { mesh, .. } = &t[0] else {
+                    unreachable!()
+                };
+                assert_eq!(
+                    mesh.as_ref().map(|m| (
+                        m.positions.len(),
+                        m.triangles.clone(),
+                        m.normals_recalculated
+                    )),
+                    // This branch sets must_recalculate_normals.
+                    (!full && three_t).then(|| (3, vec![[0, 1, 2]], true)),
+                    "full={full} three_t={three_t} v={v}"
                 );
                 assert_eq!(ctx.r.position(), w.len(), "full={full} v={v}");
             }
@@ -1257,7 +1298,8 @@ mod tests {
     }
 
     /// The CLI's `3d-mesh` fixtures under `fixtures/synthetic/prc/` are
-    /// exactly what [`square_prc`] and [`compressed_prc`] build. Set
+    /// exactly what [`square_prc`], [`compressed_prc`] and
+    /// [`compressed_prc_rebuilt`] build. Set
     /// `PDFCER_WRITE_FIXTURES=1` to rewrite them.
     #[test]
     fn the_prc_fixtures_are_current_and_decode() {
@@ -1269,14 +1311,38 @@ mod tests {
         let bytes = compressed_prc();
         let f = crate::PrcFile::parse(&bytes).unwrap();
         let t = f.file_structures[0].tessellations().unwrap();
-        assert!(matches!(t[..], [Tessellation::Compressed { triangles: 1 }]));
+        assert!(matches!(
+            t[..],
+            [Tessellation::Compressed {
+                triangles: 1,
+                mesh: None
+            }]
+        ));
         check_fixture("compressed.prc", &bytes);
+        let bytes = compressed_prc_rebuilt();
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let t = f.file_structures[0].tessellations().unwrap();
+        assert!(matches!(
+            t[..],
+            [Tessellation::Compressed {
+                triangles: 1,
+                mesh: Some(_)
+            }]
+        ));
+        check_fixture("compressed_triangle.prc", &bytes);
     }
 
-    /// One compressed-tessellation mesh and nothing else.
+    /// One compressed-tessellation mesh, in a form not rebuilt.
     fn compressed_prc() -> Vec<u8> {
         let mut body = W::default();
-        compressed(&mut body, 8137, true);
+        compressed(&mut body, 8137, true, true);
+        prc_file(&section(1, &body))
+    }
+
+    /// One compressed-tessellation triangle that rebuilds.
+    fn compressed_prc_rebuilt() -> Vec<u8> {
+        let mut body = W::default();
+        compressed(&mut body, 8137, false, true);
         prc_file(&section(1, &body))
     }
 

@@ -332,7 +332,7 @@ fn a_prc_model_meshes_to_stl_by_default() {
     assert!(
         stdout.contains(
             "meshed index=2 meshes=1 triangles=2 wires_skipped=0 markup_skipped=0 \
-             compressed_skipped=0"
+             compressed_rebuilt=0 compressed_skipped=0"
         ),
         "{stdout}"
     );
@@ -402,7 +402,34 @@ fn a_compressed_only_prc_model_is_refused_by_name() {
     assert!(!output.exists());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        stderr.contains("1 mesh(es) use compressed tessellation"),
+        stderr.contains("1 mesh(es) use compressed tessellation in a form"),
         "{stderr}"
+    );
+}
+
+/// A compressed mesh that rebuilds is exported, and the reconstruction is
+/// disclosed.
+#[cfg(feature = "3d")]
+#[test]
+fn a_rebuilt_compressed_mesh_is_exported_and_disclosed() {
+    let input = with_prc("mesh_compressed_rebuilt", "compressed_triangle.prc");
+    let output = input.with_extension("obj");
+    let out = mesh(&input, "2", &output, &["--format", "obj"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let obj = std::fs::read_to_string(&output).unwrap();
+    assert!(obj.contains("f 1 2 3\n"), "{obj}");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("meshes=1 triangles=1")
+            && stdout.contains("compressed_rebuilt=1 compressed_skipped=0"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("note: 1 compressed mesh(es) were rebuilt"),
+        "{stdout}"
     );
 }
