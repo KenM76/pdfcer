@@ -115,6 +115,65 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 417.3` (`0a982db9`), 2026-09-30 — read and set page labels ("Number Pages"); closes the `417.x` family's last gap
+
+The `417.x` family (`416.0`/`417.0`–`417.2`) kept `/PageLabels` in step across
+merge/insert/delete but never gave a shell a way to read or write a range
+directly — `417.1`'s own note said so ("still no CLI verb to SET page
+labels"). Closed here (ISO 32000-1 §12.4.2, number trees §7.9.7).
+
+**Core.** `page_labels` module now public: `page_labels(&graph) ->
+Result<Vec<String>, PageTreeError>` (every page's displayed label);
+`label_ranges(&graph) -> Vec<LabelRange>` (`LabelRange { first_page,
+format: LabelFormat { style: LabelStyle, prefix, start: NonZeroU32 } }`).
+`LabelStyle` (`#[non_exhaustive]`): `Decimal`, `UpperRoman`, `LowerRoman`,
+`UpperLetters`, `LowerLetters`, `PrefixOnly`. Letters follow the corrected
+erratum rule (`AA`, `BB`, not `AB`); roman above 3999 repeats `M` up to
+100,000 then falls back to decimal; letters past 100 repeats likewise
+bounded. `/St` < 1 reads as 1; an unrecognised `/S` reads as `PrefixOnly`.
+
+`EditSession::set_page_labels(first, last, &format) -> Result<usize,
+EditError>` — one undo entry (`CommandKind::SetPageLabels { ranges }`),
+catalog-only write. Pages outside `[first, last]` keep the label they
+already showed: the range that covered `last + 1` re-opens there with its
+`/St` advanced to what it would have shown anyway. New
+`EditError::InvertedPageRange { first, last }` (161 variants now).
+`EditSession::clear_page_labels() -> Result<bool, EditError>`
+(`CommandKind::ClearPageLabels`) — `false` and nothing committed when the
+document has no tree.
+
+**CLI.** `page-labels` (read); `set-page-labels --pages N[-M] --style
+{decimal,roman-upper,roman-lower,letters-upper,letters-lower,none} --start
+--prefix`; `clear-page-labels`. Both writers take `--in-place`. README now
+documents 195 working subcommands.
+
+**docs/core-api.** 295 `EditSession` verbs (was 292), 161 `EditError`
+variants; `check-core-api-verbs` PASS.
+
+**Tests.** 7 core (`crates/pdfcer-core/tests/page_labels_set.rs`) + 2 CLI
+(`edit_commands.rs`). Sabotage: 8 mutations, 7 caught; the 8th (clamping
+`/St` via `max(1)` weakened to `max(0)`) is a **null mutation** — `0` also
+maps to `1` through `NonZeroU32`, so the weakened clamp is unobservable;
+removing the clamp entirely is caught.
+
+`tools/run-gates.sh`: 41/42 green on the first run — the one failure
+(`in_place_covers_every_input_output_subcommand`: `set-page-labels`/
+`clear-page-labels` not yet classified) was fixed before commit; the CLI
+bin tests were re-run green after (33 passed). `cargo fmt --check` clean.
+No `Cargo.toml` change — `cargo tree` invariant unaffected.
+
+**Not closed here.** `reorder_pages` still leaves `/PageLabels` positional
+— the last `072`-family gap, filed as a fresh Backlog item below rather
+than left only in prose.
+
+**Filing.** This entry also covers `d64d290d` (agent-memory commit,
+spec-librarian's PRC-reconstruction-dispatch record) — no separate filing.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes, test
+counts and gate results relayed from the dispatching engineer's report,
+not independently reproduced. Backup/push/release state not verifiable
+from here.
+
 ### `Pass 417.2` (`e22fac53`), 2026-09-30 — a delete keeps page labels in step; decision 072 extended again
 
 Closes the last stale-tree gap in the `417.x` family: `EditSession::delete_pages`
@@ -22868,6 +22927,15 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `reorder_pages` leaves `/PageLabels` positional (filed 800th filing)
+
+The last gap in the `417.x`/decision-072 family: `merge`/`insert`/`delete`
+all now re-key `/PageLabels` (`416.0`–`417.2`) but `EditSession::reorder_pages`
+does not — labels do not follow a moved page, only its position. Same fix
+shape as `417.1`/`417.2`: recompute each range against the permuted page
+order in the same catalog write as the reorder, one undo. Not scoped to a
+Pass yet.
 
 ### 3D content in PDF (`Pass 419.x`) — operator-approved to scope ("Go ahead", 2026-09-30), filed 793rd filing; `419.0`–`419.1` shipped
 

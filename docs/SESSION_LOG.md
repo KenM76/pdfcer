@@ -4,6 +4,56 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (800th filing) — `Pass 417.3` (`0a982db9`) SHIPPED: read and set page labels ("Number Pages")
+
+**Shipped:**
+- `Pass 417.3` — closes the last `417.x` gap (`417.1`'s own note: "still no
+  CLI verb to SET page labels"). Core: `page_labels` module now public —
+  `page_labels(&graph)` (every page's displayed label), `label_ranges(&graph)`
+  (stored ranges), `LabelStyle` (`#[non_exhaustive]`: Decimal/UpperRoman/
+  LowerRoman/UpperLetters/LowerLetters/PrefixOnly), corrected-erratum letters
+  (`AA`/`BB`), bounded roman/letters overflow to decimal. New
+  `EditSession::set_page_labels(first, last, &format)` (one undo, catalog-only,
+  pages outside the range keep their prior label, the next range re-opens
+  with `/St` advanced) and `clear_page_labels()`. New
+  `EditError::InvertedPageRange` (161 variants). CLI `page-labels` /
+  `set-page-labels --pages N[-M] --style ... --start --prefix` /
+  `clear-page-labels`, both writers taking `--in-place`. `docs/core-api`: 295
+  verbs. This filing also covers `d64d290d` (agent-memory commit, no
+  separate filing needed).
+
+**Decisions made this session:** none new — no architectural decision, just
+closing a disclosed gap in the existing `417.x`/decision-072 family.
+
+**Findings + decisions:**
+- 7 core tests (`page_labels_set.rs`) + 2 CLI (`edit_commands.rs`). Sabotage:
+  8 mutations, 7 caught; the 8th (weakening the `/St` clamp from `max(1)` to
+  `max(0)`) is a **null mutation** — `NonZeroU32` already maps `0` to `1`, so
+  the weakened clamp is unobservable; removing the clamp outright is caught.
+- `run-gates.sh`: 41/42 green first run — the one failure
+  (`in_place_covers_every_input_output_subcommand`, the two new subcommands
+  not yet classified) fixed before commit; CLI bin tests re-run green (33
+  passed). `fmt` clean. No `Cargo.toml` change.
+- **PRC (ISO 14739-1) 3D reconstruction research landed in the spec RAG**
+  at `D:\Dev\Rag-Specialized\PDF_Spec\threed\` (entry point
+  `prc__8137__sources_provenance.md`) — the input for `Pass 419.2` (PRC
+  reader). **Three operator rulings are owed from Ken before compressed-
+  tessellation decoding starts:** **OQ-1** — may the ACOF table be embedded
+  in MIT code; **OQ-2** — may pdfcer use the pdf-issues #727/#816
+  corrections, which derive from nanoPRC (AGPL); **OQ-3** — may pdfcer use
+  prc-rs's `prc.json` (MIT-licensed itself, but transcribed from the paid
+  2014 ISO text). Patent US 8,207,965 is listed **expired** (fee-related
+  lapse, 2024-06-26) — the patent call itself remains Ken's, this only
+  removes one input to it.
+
+**Still in flight:** `reorder_pages` still leaves `/PageLabels` positional —
+filed as a fresh Backlog item this session (the last `417.x`/decision-072
+gap). `419.2`–`419.4` remain open pending the operator's 3D-licensing
+rulings above.
+
+**For next session:** get OQ-1/OQ-2/OQ-3 answered before starting `419.2`
+(PRC reader). No other change to the 799th filing's next-step note.
+
 ## 2026-09-30 (799th filing) — `Pass 417.2` (`e22fac53`) SHIPPED: a delete keeps page labels in step
 
 **Shipped:**
