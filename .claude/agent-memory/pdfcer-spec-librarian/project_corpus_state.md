@@ -8032,3 +8032,8 @@ A TWG editor posted the revised clause as an image (#575). View `user-attachment
 ### 92a. An implementer's measurement can be the ONLY source — label every fact with its provenance tag (e.g. "MEASURED (pdfcer, 2026-09-30)"), state the sample, its provenance (local-only), and the validation metric + score. Put the rules in their own section (§2a) and mark the older WD-derived bullets "superseded for scope S" at their TOP — strike through UNVERIFIED/UNSETTLED lines, never delete.
 ### 92b. A measured rule can CONTRADICT the free draft (WD X lower→higher; measured higher→lower). Record both, say which decodes, and tie it to any issue-thread observation it agrees with (#773 Y/Z negation).
 ### 92c. Scope the claim to the form measured (3T only; the T form stayed OPEN). Read the engineer's scratch notes: they carried rejected variants + scores + leads not in the dispatch — the rejected list is durable, fold it in.
+
+## 93. "Record measured tree-walk facts into EXISTING files" (PRC model tree + graphics, 2026-09-30)
+### 93a. When measured facts mostly CONFIRM existing WD/PRCRS rows, do not rewrite rows: add a dated "§10 Measured" section per target file, one `###` per fact with its provenance tag in the heading, and one-line pointers from the older DERIVED rows ("upgraded 2026-09-30 → §10.x"). Facts that belong to a third file (schema(2) → base_content_graphics §3 + schema_versioning §3) go there too — the dispatch's "chiefly" list is not exhaustive.
+### 93b. Don't sharpen an ambiguous dispatch phrase ("part/sons empty") into a rule the sample did not separate — record it as dispatched and point at the standing GAP.
+### 93c. Filing: 0 new files, 5 amended + index (build log, 2 table rows, 2 triggers). Patch script asserted per file; all landed.

@@ -1,7 +1,7 @@
 # Memory index — pdfcer-spec-librarian
 
 - [Spec source extraction toolchain](reference_spec_source_extraction.md) — how to GET a spec and get text out of it: 21 routes (4a–4u), verified free URLs, paywall workarounds, errata recipes.
-- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 92 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
+- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 93 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
 - [Font + spec-data licensing patterns](project_embeddable_data_licensing.md) — what may cross into pdfcer's MIT tree; data-vs-document, availability ≠ redistribution licence.
 
 ## Routing — find your dispatch's shape, then READ THE NAMED ITEM (the detail is there, not here)
