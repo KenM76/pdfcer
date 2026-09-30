@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (782nd filing) — `Pass 10.16` SHIPPED: CRL revocation checking against `/DSS /CRLs` and caller-supplied CRLs
+
+**Shipped:** `Pass 10.16` (`5f31a523`, `6aabaec4`) — the CRL half of
+`Pass 10.6`'s remaining routes 1–2. `pdfcer-pkix::crl` parses an RFC
+5280 §5 `CertificateList` and checks it against a signer's chain
+(issuer match, CRL signature, issuer `keyUsage cRLSign`, serial
+lookup, `reasonCode`); `SignatureVerdict::revocation` gains `NotChecked`
+/ `Good` / `Revoked { date, reason, before_signing }` /
+`Undetermined { reason }`. CLI `verify-signatures --crl FILE`
+(repeatable) plus a `revocation:` line.
+
+**Decisions made this session:** None new — implementation only, on
+the scope filed at the 781st filing.
+
+**Findings + decisions:**
+- PAdES forbids CMS signingTime (EN 319 142-1 §6.3 Table 1), so every
+  `ETSI.CAdES.detached` signature previously had NO clock and
+  `--trust-from-acrobat` never checked validity dates for it. The
+  revocation clock's `/M` fallback (ISO 32000-1 §7.9.4) is now shared
+  by the trust axis, disclosed via a `clock:` note.
+- Sources checked in order: catalog `/DSS /CRLs` (ETSI EN 319 142-1
+  §5.4.2.2), then caller-supplied; `/DSS /Certs` join the issuer pool
+  after the CMS certs and before anchors.
+
+**Still in flight:** `Pass 10.6` remains open, *Backlog*, NOT STARTED,
+for OCSP validation and the `/Trust`-bitfield pin.
+
+**For next session:** `v0.67.0` remains the last release (770th
+filing); unreleased set now: `Pass 414.0`–`417.0`, `10.15`, `418.0`,
+`10.16`.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes, gate
+results and test counts relayed from the dispatching engineer's own
+report, not independently reproduced. Backup/push/release state not
+verifiable from here — engineer should check `D:\Dev\pdfce-backups\`.
+
 ## 2026-09-30 (781st filing) — `Pass 10.16` filed: CRL revocation checking, carved from `Pass 10.6`
 
 **Shipped:** No code — scoping filing only.

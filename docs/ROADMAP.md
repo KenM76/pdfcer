@@ -115,6 +115,71 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 10.16` (`5f31a523`, `6aabaec4`), 2026-09-30 — validate CRLs from `/DSS /CRLs` and caller-supplied CRLs against the signer chain, offline, no fetch
+
+CRL half of `Pass 10.6`'s routes 1 (embedded DSS/LTV) and 2 (shell-supplied
+responses); route 3 (CDP/AIA URL naming) already shipped as `Pass 10.15`.
+OCSP and the DSS VRI hash setting (DSS-A1/A2) stay in `Pass 10.6`, still
+open.
+
+`pdfcer-pkix` `crl` module (`5f31a523`): `parse_crl` reads an RFC 5280 §5
+`CertificateList` (bounded entry count); `check_crl`/`chain_status` verify
+issuer-name match, CRL signature by the issuer key, issuer `keyUsage
+cRLSign` (RFC 10007 §6.3.3(f)), serial lookup, `reasonCode`. A CRL with an
+unknown critical extension, a delta CRL, or an `issuingDistributionPoint`
+is Unusable, never "good" (§5.2/§5.3).
+
+`pdfcer-core` (`6aabaec4`): `SignatureVerdict::revocation: Revocation` —
+`NotChecked` / `Good { checked: Vec<RevocationCheck> }` / `Revoked {
+subject, date, reason, before_signing: Option<bool>, source }` /
+`Undetermined { reason }`, all `#[non_exhaustive]`. `RevocationSource {
+Dss, Supplied }`; `SuppliedRevocation::new().with_crl(der)`. New
+`signature::verify_all_with_revocation(graph, bytes, anchors, &supplied)`;
+`verify_all`/`verify_all_with_trust` delegate with nothing supplied (still
+read the document's own `/DSS`). Sources checked in order: catalog `/DSS
+/CRLs` (ETSI EN 319 142-1 §5.4.2.2), then supplied; `/DSS /Certs` join the
+issuer pool (after CMS certs, before anchors). Reference clock: CMS
+signingTime, else `/M` (ISO 32000-1 §7.9.4; no UT offset means no clock).
+
+**Finding worth recording.** PAdES forbids CMS signingTime (EN 319 142-1
+§6.3 Table 1), so before this Pass every `ETSI.CAdES.detached` signature
+had NO clock and `--trust-from-acrobat` never checked validity dates for
+them (`validity_checked: false`). The trust axis now shares the same `/M`
+fallback, disclosed by a `clock:` note whenever anchors or CRLs were used.
+
+CLI `pdfcer verify-signatures --crl FILE` (repeatable; unreadable file →
+exit 3) plus a `revocation:` line per signature (good / REVOKED with
+date+reason+before-or-after-signing / undetermined — why / not checked).
+Exit code unchanged — integrity only. A flag, not a new subcommand
+(README count stays 187).
+
+`docs/core-api/01-reading-and-model.md` gains §12.5c + corrects §12.5/
+§12.5b (`6aabaec4`).
+
+**Tests.** 6 core integration (`tests/signature_revocation.rs`: not-
+checked, good, revoked before/after from `/M`, expired CRL →
+undetermined, DSS CRLs + DSS certs used with DSS-before-supplied order,
+trust anchor gets the `/M` clock), pdf-date unit tests, 2 CLI
+(`tests/verify_signatures_crl.rs`). Sabotage: 9/9 core mutations caught,
+2/2 CLI. Full `pdfcer-core` suite green: 1,340 lib + 2,364 integration
+tests. New `cargo-fuzz` target `crl_parse` (10 seeds), 120 s clean but
+~1 exec/s under ASan (ECDSA verifies) — a known-slow target.
+
+**Gates.** `tools/run-gates.sh` 40/41 green on `5f31a523`; the one
+failure (`check-public-fns-documented`: `cms::alg_id` made `pub(crate)`
+without a doc comment) fixed in `6aabaec4`, gate re-run clean. `cargo
+tree`: no core/render manifest change. `cargo fmt --check` / `cargo
+clippy -- -D warnings` clean.
+
+**Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui` has not consumed
+this (separate project).
+
+`docs/FEATURES.md`: new *Implemented → Redaction & security* row (core
+`[x]` / cli `[x]` / gui `[ ]`); `Pass 10.6`'s *Backlog* row cut down to
+what remains (OCSP, `/Trust`-bitfield pin) — see that entry, annotated.
+
+**`Pass 10.6` stays open** for OCSP and the `/Trust`-bitfield pin.
+
 ### `Pass 418.0` (`04599b9d`), 2026-09-30 — move several objects, each by its own delta, as one command
 
 From `pdfcer-gui`'s align/distribute (`G071`, operator request `O263`): a
@@ -12800,42 +12865,12 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-#### `Pass 10.16` — **CRL REVOCATION CHECKING — validate CRLs from the catalog `/DSS /CRLs` and caller-supplied CRLs against the signer chain; offline, no fetch** — filed 2026-09-30 (781st filing), *Next up*, IN PROGRESS — carved from `Pass 10.6` routes 1–2 (CRL half)
-
-**Status: SCOPED, no code yet.** Carve-out of the CRL half of `Pass 10.6`'s
-routes 1 (embedded DSS/LTV) and 2 (shell-supplied responses); route 3
-already shipped as `Pass 10.15` (`3872e651`, 777th filing). OCSP and the
-DSS VRI hash setting (DSS-A1/A2) stay in `Pass 10.6`, which remains open
-for them.
-
-**Scope and acceptance criteria.**
-1. `pdfcer-pkix`: parse an RFC 5280 §5 `CertificateList` (bounded entry
-   count) and check it against a certificate and its issuer — issuer
-   name match, CRL signature by the issuer key, issuer `keyUsage
-   cRLSign` (RFC 10007 §6.3.3(f)), serial lookup, `reasonCode`. A CRL
-   carrying an unknown critical extension, a delta CRL, or an
-   `issuingDistributionPoint` is Unusable, never "good" (§5.2/§5.3).
-2. `pdfcer-core`: `SignatureVerdict` gains a revocation outcome — not
-   checked / good / revoked (date + reason + whether before the
-   signing time) / undetermined (reason). Sources are the `/DSS /CRLs`
-   streams and a caller-supplied set. `PathChecks::revocation_checked`
-   becomes true only when every chain cert is covered by a usable CRL.
-   Every uncertainty resolves to undetermined, never a false good.
-3. CLI: `pdfcer verify-signatures --crl FILE` (repeatable).
-4. Disclosure (project rule 4): the source (DSS vs. supplied) and a CRL
-   past its `nextUpdate` are stated, never silently accepted.
-5. Fixtures: a new generator using pyca/cryptography — a CA, a leaf,
-   and good / revoked / revoked-after-signing / unknown-critical /
-   forged / no-cRLSign-issuer CRLs, all synthetic (`LEGAL.md` §5).
-6. A fuzz target for the CRL parser.
-
-Spec basis already on file (778th filing, on `Pass 10.6`'s entry):
-`security__rfc5280_crl.md`, `security__rfc5280_revocation_pointers.md`,
-`pades__ref__dss_vri.md`.
-
-`docs/FEATURES.md`: the signature-trust revocation row stays *Planned*,
-every pdfcer box `[ ]` — nothing has shipped. This Pass is noted there
-as the CRL half now in progress; OCSP stays under `Pass 10.6`.
+> ★★★★★★★★★★★★★★★ **`Pass 10.16` SHIPPED, 2026-09-30 (782nd filing),
+> `5f31a523`/`6aabaec4`** — see top of *Shipped*. CRL half of `Pass 10.6`'s
+> routes 1–2 (embedded DSS/LTV + shell-supplied); route 3 shipped
+> separately as `Pass 10.15`, below. Scoped through this queue (filed as
+> head, 781st filing), then shipped same day. **`Next up` has no named
+> head.**
 
 > ★★★★★★★★★★★★★★ **`Pass 10.15` SHIPPED, 2026-09-30 (777th filing),
 > `3872e651`** — see top of *Shipped*. Off-cycle carve-out of route 3 from
@@ -30266,34 +30301,38 @@ remain open — this Pass stays NOT STARTED for them. Revocation itself
 is still not checked; `PathChecks::revocation_checked` stays `false`.
 
 **★ The CRL half of routes 1–2 carved out 2026-09-30 (781st filing) to
-`Pass 10.16` (*Next up*, IN PROGRESS — scoping only, no code yet).**
-OCSP and the DSS VRI hash setting (DSS-A1/A2) remain here, in `Pass
-10.6`.
+`Pass 10.16`, and SHIPPED the same day (782nd filing, `5f31a523`/
+`6aabaec4`, see top of *Shipped*).** CRL validation from `/DSS /CRLs`
+and caller-supplied CRLs is done. **What stays open here, in `Pass
+10.6`:** OCSP validation (both routes 1 and 2, for OCSP only) and the
+DSS VRI hash setting (DSS-A1/A2), plus check (5) below.
 
-**Status: NOT STARTED (routes 1–2).** The remaining trust slice after `Pass 10.5` shipped
-the deterministic offline checks (validity dates, CA/`keyUsage` constraints,
-RSA-PSS cert signatures). Revocation is the one check a production
+**Status: NOT STARTED (OCSP half of routes 1–2).** The remaining trust
+slice after `Pass 10.5` shipped the deterministic offline checks
+(validity dates, CA/`keyUsage` constraints, RSA-PSS cert signatures) and
+`Pass 10.16` shipped CRL revocation. OCSP is the one check a production
 eIDAS/RFC-5280 verdict still owes, and it is the one that **cannot live in
-`pdfcer-core`** as an active fetch: CRL and OCSP require the network the
+`pdfcer-core`** as an active fetch: OCSP requires the network the
 **no-network invariant forbids** the crate (decision 135, enforced by the
-`cargo tree` `reqwest`/`hyper` CI gate). `Pass 10.5` set
-`PathChecks.revocation_checked = false` unconditionally and disclosed it.
+`cargo tree` `reqwest`/`hyper` CI gate).
 
-**Scope — three routes that respect the invariant:**
+**Scope — three routes that respect the invariant (OCSP only now; CRL
+shipped in `Pass 10.16`):**
 
 1. **Embedded DSS/LTV revocation info** — a PAdES B-LT/B-LTA document
    carries the CRLs/OCSP responses it was validated against inside the
    `/DSS` dictionary (ETSI EN 319 142). Validating **that embedded data**
-   is offline and belongs in `pdfcer-core`.
+   is offline and belongs in `pdfcer-core`. **CRL half SHIPPED, `Pass
+   10.16`; OCSP half remains.**
 2. **Shell-supplied OCSP/CRL responses** — `pdfcer-core` accepts a
    caller-provided CRL/OCSP response (fetched by a shell that IS allowed
    the network) and validates it against the chain. Core validates; the
-   shell fetches.
+   shell fetches. **CRL half SHIPPED, `Pass 10.16`; OCSP half remains.**
 3. **Surface CDP/AIA URLs** — decode each cert's DER `CRLDistributionPoints`
    / `AuthorityInfoAccess` extensions and hand the URLs to a shell so it
    can fetch (2)'s inputs. Decoding is offline; fetching is the shell's.
    **SHIPPED as `Pass 10.15` (`3872e651`), 2026-09-30 — this route
-   alone; (1) and (2) are unaffected and remain below.**
+   alone; (1) and (2) above now have only their OCSP half remaining.**
 
 **Spec basis for routes 1–2 (added 2026-09-30, 778th filing).**
 `pdfcer-spec-librarian` wrote four files for this scope:
@@ -30323,8 +30362,9 @@ mapping says *trusted / not*, not *for what*.
 
 Every uncertainty must still resolve to `Untrusted`/`Unverifiable`, never a
 false `Trusted` — the `Pass 10.3`/`10.5` safety direction is preserved.
-`FEATURES.md`: one *Planned* row under the signature-trust cluster
-(revocation), all pdfcer columns `[ ]`, `Acrobat [x]`. **Not scheduled.**
+`FEATURES.md`: the CRL half now has its own *Implemented* row (`Pass
+10.16`); this entry's own *Planned* row is cut down to what remains
+(OCSP, the `/Trust`-bitfield pin), `Acrobat [x]`. **Not scheduled.**
 
 **★ Also the gate for PAdES B-LT / B-LTA SIGNING (added 2026-09-05, 436th
 filing).** `pades__ref__creation_by_level.md` `PC-8`/`PC-10`: B-LT needs
