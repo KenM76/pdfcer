@@ -4,6 +4,34 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (788th filing) — `3978966b`: Pass 10.17 follow-up fix — crl doc link + binary-fixture gate
+
+**Shipped:**
+- `3978966b` — follow-up to `Pass 10.17` (`3e0bc4a5`), no new Pass ID.
+  Fixed `crates/pdfcer-pkix/src/crl.rs`'s module doc, which still linked
+  `CertCoverage::next_update` after this Pass moved it to
+  `pdfcer_pkix::revocation` (`rustdoc broken_intra_doc_links` failure in
+  `run-gates.sh`). Also fixed `tools/check-control-bytes.py`: it read
+  `fixtures/synthetic/ocsp/ocsp-trylater.der` (5 bytes, no NUL in its
+  first 8 KiB) as text; `.der`/`.cer`/`.crl`/`.pfx`/`.p12`/`.p7s`/`.key`
+  added to `BINARY_SUFFIXES`. No `FEATURES.md` rows change.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Gate gotcha for the record: `check-control-bytes.py` classifies a tiny
+  binary fixture with no NUL byte in its sampled window as text unless
+  its suffix is on the binary list — suffix-list coverage, not content
+  sniffing alone, decides the call for small DER/PKI fixtures.
+
+**Still in flight:**
+- `run-gates.sh` re-run for `3978966b` in progress at filing time; not
+  yet confirmed here (no shell available to this filing).
+
+**For next session:**
+- Confirm `run-gates.sh` green on `3978966b` before folding `Pass 10.17`
+  into the next release batch.
+
 ## 2026-09-30 (787th filing) — `3e0bc4a5`: Pass 10.17 SHIPPED — offline OCSP revocation checking (RFC 6960)
 
 **Shipped:**

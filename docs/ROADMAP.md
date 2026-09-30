@@ -177,6 +177,14 @@ pin and the DSS VRI hash setting) — see that entry, annotated.
 **`Pass 10.6` stays open** for the `/Trust`-bitfield pin and the DSS VRI
 hash setting (DSS-A1/A2).
 
+**Addendum (788th filing, `3978966b`, 2026-09-30).** Follow-up fix, not a
+new Pass: `crl.rs`'s module doc still linked `CertCoverage::next_update`
+after this Pass moved it to `revocation` (`rustdoc broken_intra_doc_links`
+failure in `run-gates.sh`); and `tools/check-control-bytes.py` misread
+`fixtures/synthetic/ocsp/ocsp-trylater.der` (5 bytes, no NUL) as text —
+`.der`/`.cer`/`.crl`/`.pfx`/`.p12`/`.p7s`/`.key` added to
+`BINARY_SUFFIXES`. `run-gates.sh` re-run in progress at filing time.
+
 ### `v0.68.0` — RELEASED (2026-09-30)
 
 Release filing, not a Pass — completes the engineer's in-progress
