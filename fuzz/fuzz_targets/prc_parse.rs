@@ -3,7 +3,9 @@
 //!
 //! Parses arbitrary bytes as a PRC stream under a small inflation ceiling,
 //! then, both over the raw input and over every inflated section, decodes
-//! `Double`s and `UnsignedInteger`s until the data runs out.
+//! `Double`s and `UnsignedInteger`s until the data runs out; then runs the
+//! schema interpreter and tessellation decoder over every file structure and
+//! over the raw input as a tessellation section.
 //! Invariant: never panics, never loops; every read either consumes at least
 //! one bit or errors.
 
@@ -31,11 +33,13 @@ fn drain(data: &[u8]) {
 
 fuzz_target!(|data: &[u8]| {
     drain(data);
+    let _ = pdfcer_3d::Schema::read(&mut BitReader::new(data));
     if let Ok(f) = PrcFile::parse_with_limit(data, 1 << 20) {
         for fs in &f.file_structures {
             for kind in SectionKind::ALL {
                 drain(fs.section(kind));
             }
+            let _ = fs.tessellations();
         }
         drain(&f.model_file);
     }

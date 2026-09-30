@@ -105,6 +105,39 @@ impl FileStructure {
             .unwrap_or(0);
         self.sections.get(i).map_or(&[], Vec::as_slice)
     }
+
+    /// The globals section's leading schema: the fields producers newer than
+    /// this reader added to each entity type [WD 8.2].
+    ///
+    /// # Errors
+    /// As [`Schema::read`](crate::Schema::read).
+    pub fn schema(&self) -> Result<crate::Schema, PrcError> {
+        crate::Schema::read(&mut crate::bits::BitReader::new(
+            self.section(SectionKind::Globals),
+        ))
+    }
+
+    /// The tessellation section decoded [WD 7.3.7]: one entry per
+    /// tessellation, in the order representation items index them. An empty
+    /// section gives an empty list.
+    ///
+    /// # Errors
+    /// [`PrcError::Unsupported`] for compressed tessellation or optimised
+    /// vertex colours, which cannot be read past; [`PrcError::Truncated`] or
+    /// [`PrcError::Malformed`] for damaged data; errors from [`Self::schema`].
+    pub fn tessellations(&self) -> Result<Vec<crate::Tessellation>, PrcError> {
+        let data = self.section(SectionKind::Tessellation);
+        if data.is_empty() {
+            return Ok(Vec::new());
+        }
+        let schema = self.schema()?;
+        crate::tess::Ctx {
+            r: crate::bits::BitReader::new(data),
+            schema: &schema,
+            version: self.authoring_version,
+        }
+        .file_structure_tessellation()
+    }
 }
 
 /// A parsed PRC stream: header, file structures and model-file section.

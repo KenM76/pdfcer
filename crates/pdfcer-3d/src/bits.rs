@@ -31,6 +31,19 @@ impl<'a> BitReader<'a> {
         (self.data.len() * 8).saturating_sub(self.pos)
     }
 
+    /// Step over `n` bits of opaque data (`UserData` [WD 8.6]).
+    ///
+    /// # Errors
+    /// [`PrcError::Truncated`] when fewer than `n` bits remain; the cursor
+    /// does not move.
+    pub fn skip_bits(&mut self, n: usize) -> Result<(), PrcError> {
+        if n > self.remaining() {
+            return Err(PrcError::Truncated("user data"));
+        }
+        self.pos += n;
+        Ok(())
+    }
+
     /// One bit; a PRC `Boolean` [WD 10.3.3].
     ///
     /// # Errors

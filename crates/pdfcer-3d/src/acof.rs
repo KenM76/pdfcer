@@ -68,6 +68,15 @@ pub(crate) fn lookup(nbits: u32, code: u32) -> Option<Entry> {
     table()?.get(&key(nbits, code)).copied()
 }
 
+/// The `(nbits, code)` of IEEE exponent `e`'s row, for test encoders.
+#[cfg(test)]
+pub(crate) fn exponent_code(e: u32) -> Option<(u32, u32)> {
+    table()?
+        .iter()
+        .find(|(_, v)| **v == Entry::Exponent(e << 20))
+        .map(|(k, _)| (k >> 24, k & 0xff_ffff))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {

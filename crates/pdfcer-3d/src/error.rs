@@ -30,4 +30,8 @@ pub enum PrcError {
         /// The ceiling that was hit.
         limit: usize,
     },
+    /// A construct this reader does not decode yet; the named part of the
+    /// file cannot be read past, so the caller gets nothing from it.
+    #[error("PRC {0} is not supported yet")]
+    Unsupported(&'static str),
 }

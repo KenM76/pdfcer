@@ -1,0 +1,1004 @@
+//! The tessellation section: `FileStructureTessellation` (305) and its
+//! uncompressed entities, `TESS_3D` (172) with its `TESS_Face`s (174),
+//! `TESS_3D_Wire` (175) and `TESS_Markup` (176) [WD 7.3.7, 7.8].
+//!
+//! `TESS_3D_Compressed` (173) is refused: nothing records an entity's length,
+//! so the array cannot be read past one.
+//!
+//! The schema runs after the fields of each concrete type read here (201,
+//! 172, 174, 175, 176, 305). It does not run for the abstract levels
+//! (`PRCBase`, `TESS`): the sources name no producer extending them.
+
+use crate::PrcError;
+use crate::bits::BitReader;
+use crate::schema::Schema;
+
+const ATTRIBUTE: u32 = 201;
+const FILE_STRUCTURE_TESSELLATION: u32 = 305;
+const TESS_3D: u32 = 172;
+const TESS_3D_COMPRESSED: u32 = 173;
+const TESS_FACE: u32 = 174;
+const TESS_3D_WIRE: u32 = 175;
+const TESS_MARKUP: u32 = 176;
+
+/// `has_loops` exists from this file-structure authoring version [PRCRS].
+const HAS_LOOPS_FROM: u32 = 7039;
+/// `must_recalculate_normals` exists from this version [PRCRS].
+const RECALCULATE_FROM: u32 = 7047;
+
+/// A fan/strip count's point-count bits; bit 30 is `NORMAL_Single`
+/// [WD 7.8.6.2].
+const COUNT_MASK: u32 = 0x3FFF_FFFF;
+const NORMAL_SINGLE: u32 = 0x4000_0000;
+
+/// A wire header's count bits; the top four are flags [WD 7.8.7.5].
+const WIRE_COUNT_MASK: u32 = 0x0FFF_FFFF;
+const WIRE_IS_CLOSING: u32 = 0x1000_0000;
+const WIRE_IS_CONTINUOUS: u32 = 0x2000_0000;
+
+/// One entry of the tessellation array; a representation item's
+/// `index_tessellation` selects one by position.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum Tessellation {
+    /// A `TESS_3D` triangle mesh.
+    Mesh(TriangleMesh),
+    /// A `TESS_3D_Wire`: polylines.
+    Wire(Vec<Vec<[f64; 3]>>),
+    /// A `TESS_Markup` (PMI drawing), read past but not decoded.
+    Markup,
+}
+
+/// A `TESS_3D` decoded to indexed triangles, in the entity's own frame (the
+/// representation item's placement is not applied).
+#[derive(Debug, Clone, Default, PartialEq)]
+#[non_exhaustive]
+pub struct TriangleMesh {
+    /// The coordinate array as points.
+    pub positions: Vec<[f64; 3]>,
+    /// Counter-clockwise triangles seen from the outside, as indices into
+    /// [`Self::positions`] [WD 7.8.5.2].
+    pub triangles: Vec<[u32; 3]>,
+    /// `triangles` split by `TESS_Face`: face `i` is
+    /// `triangles[faces[i].clone()]`.
+    pub faces: Vec<std::ops::Range<usize>>,
+    /// The producer asks the reader to compute normals (none are stored).
+    pub normals_recalculated: bool,
+}
+
+pub(crate) struct Ctx<'a, 's> {
+    pub(crate) r: BitReader<'a>,
+    pub(crate) schema: &'s Schema,
+    /// The file structure's authoring version; gates version-added fields.
+    pub(crate) version: u32,
+}
+
+fn malformed(what: String) -> PrcError {
+    PrcError::Malformed(what)
+}
+
+impl Ctx<'_, '_> {
+    fn expect_type(&mut self, want: u32) -> Result<(), PrcError> {
+        let t = self.r.unsigned_integer()?;
+        if t != want {
+            return Err(malformed(format!("entity type {t} where {want} belongs")));
+        }
+        Ok(())
+    }
+
+    /// A count that must fit in the remaining data at `min_bits` per item.
+    fn count(&mut self, min_bits: usize, what: &'static str) -> Result<usize, PrcError> {
+        let n = self.r.unsigned_integer()? as usize;
+        if n.saturating_mul(min_bits) > self.r.remaining() {
+            return Err(PrcError::Truncated(what));
+        }
+        Ok(n)
+    }
+
+    fn uints(&mut self, what: &'static str) -> Result<Vec<u32>, PrcError> {
+        let n = self.count(1, what)?;
+        (0..n).map(|_| self.r.unsigned_integer()).collect()
+    }
+
+    fn doubles(&mut self, what: &'static str) -> Result<Vec<f64>, PrcError> {
+        let n = self.count(2, what)?;
+        (0..n).map(|_| self.r.double()).collect()
+    }
+
+    /// `AttributeEntry` [WD 7.4.3]: a predefined title code or a string.
+    fn attribute_entry(&mut self) -> Result<(), PrcError> {
+        if self.r.bit()? {
+            self.r.unsigned_integer()?;
+        } else {
+            self.r.string()?;
+        }
+        Ok(())
+    }
+
+    /// `ContentPRCBase` [WD 7.2.3]: attributes, then the name.
+    fn content_prc_base(&mut self) -> Result<Option<String>, PrcError> {
+        let n = self.count(1, "attributes")?;
+        for _ in 0..n {
+            self.expect_type(ATTRIBUTE)?;
+            self.attribute_entry()?;
+            let pairs = self.count(2, "attribute pairs")?;
+            for _ in 0..pairs {
+                self.attribute_entry()?;
+                match self.r.unsigned_integer()? {
+                    0 => {}
+                    1 | 3 => {
+                        self.r.integer()?;
+                    }
+                    2 => {
+                        self.r.double()?;
+                    }
+                    4 => {
+                        self.r.string()?;
+                    }
+                    // A 64-bit integer: high part, then low [PRCRS].
+                    5 => {
+                        self.r.integer()?;
+                        self.r.unsigned_integer()?;
+                    }
+                    k => return Err(malformed(format!("attribute value kind {k}"))),
+                }
+            }
+            self.schema.skip_added_fields(ATTRIBUTE, &mut self.r)?;
+        }
+        // Name: `same_name` TRUE reuses the current name [WD 7.2.3.4].
+        if self.r.bit()? {
+            Ok(None)
+        } else {
+            self.r.string()
+        }
+    }
+
+    /// `UserData` [WD 8.6]: a bit count, then that many opaque bits.
+    fn user_data(&mut self) -> Result<(), PrcError> {
+        let n = self.r.unsigned_integer()? as usize;
+        self.r.skip_bits(n)
+    }
+
+    /// `VertexColors` [WD 7.8.7.2], for `count` points; `is_segment_color`
+    /// exists only inside a wire [PRCRS].
+    fn vertex_colors(&mut self, count: usize, in_wire: bool) -> Result<(), PrcError> {
+        let rgba = self.r.bit()?;
+        let per_segment = in_wire && self.r.bit()?;
+        if self.r.bit()? {
+            return Err(PrcError::Unsupported("optimised vertex colours"));
+        }
+        let count = if per_segment { count / 2 } else { count };
+        let bytes = if rgba { 4 } else { 3 };
+        if count.saturating_mul(1 + 8 * bytes) > self.r.remaining().saturating_add(8 * bytes) {
+            return Err(PrcError::Truncated("vertex colours"));
+        }
+        for i in 0..count {
+            if i == 0 || !self.r.bit()? {
+                for _ in 0..bytes {
+                    self.r.character()?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// `FileStructureTessellation` (305) [WD 7.3.7].
+    pub(crate) fn file_structure_tessellation(&mut self) -> Result<Vec<Tessellation>, PrcError> {
+        self.expect_type(FILE_STRUCTURE_TESSELLATION)?;
+        self.content_prc_base()?;
+        let n = self.count(1, "tessellations")?;
+        let mut out = Vec::with_capacity(n.min(1024));
+        for _ in 0..n {
+            let t = self.r.unsigned_integer()?;
+            out.push(match t {
+                TESS_3D => Tessellation::Mesh(self.tess_3d()?),
+                TESS_3D_WIRE => Tessellation::Wire(self.wire()?),
+                TESS_MARKUP => {
+                    self.markup()?;
+                    Tessellation::Markup
+                }
+                TESS_3D_COMPRESSED => {
+                    return Err(PrcError::Unsupported("compressed tessellation"));
+                }
+                t => {
+                    return Err(malformed(format!(
+                        "entity type {t} in the tessellation array"
+                    )));
+                }
+            });
+        }
+        self.schema
+            .skip_added_fields(FILE_STRUCTURE_TESSELLATION, &mut self.r)?;
+        self.user_data()?;
+        Ok(out)
+    }
+
+    /// `ContentBaseTessData` [WD 7.8.4]: `is_calculated`, then coordinates.
+    fn base_tess_data(&mut self) -> Result<Vec<f64>, PrcError> {
+        self.r.bit()?;
+        self.doubles("tessellation coordinates")
+    }
+
+    /// `TESS_3D` (172) after its type code [WD 7.8.5].
+    fn tess_3d(&mut self) -> Result<TriangleMesh, PrcError> {
+        let coords = self.base_tess_data()?;
+        let _has_faces = self.r.bit()?;
+        if self.version >= HAS_LOOPS_FROM {
+            let _has_loops = self.r.bit()?;
+        }
+        let recalc = self.version >= RECALCULATE_FROM && self.r.bit()?;
+        if recalc {
+            let _flags = self.r.character()?;
+            let _crease_angle = self.r.double()?;
+        }
+        let _normals = self.doubles("normal coordinates")?;
+        let _wire_indices = self.uints("wire indices")?;
+        let indices = self.uints("triangulated indices")?;
+        let n_faces = self.count(1, "faces")?;
+        let mut faces = Vec::with_capacity(n_faces.min(1024));
+        for _ in 0..n_faces {
+            self.expect_type(TESS_FACE)?;
+            faces.push(self.face()?);
+        }
+        let _texture = self.doubles("texture coordinates")?;
+        self.schema.skip_added_fields(TESS_3D, &mut self.r)?;
+
+        let positions = points(&coords);
+        let mut mesh = TriangleMesh {
+            positions,
+            normals_recalculated: recalc,
+            ..TriangleMesh::default()
+        };
+        for f in &faces {
+            let start = mesh.triangles.len();
+            triangulate(
+                f,
+                &indices,
+                !recalc,
+                mesh.positions.len(),
+                &mut mesh.triangles,
+            )?;
+            mesh.faces.push(start..mesh.triangles.len());
+        }
+        Ok(mesh)
+    }
+
+    /// `TESS_Face` (174) after its type code [WD 7.8.6].
+    fn face(&mut self) -> Result<Face, PrcError> {
+        let line_attributes = self.uints("face line attributes")?;
+        let _start_of_wire = self.r.unsigned_integer()?;
+        let _sizes_wire = self.uints("face wire sizes")?;
+        let flags = self.r.unsigned_integer()?;
+        let start = self.r.unsigned_integer()? as usize;
+        let data = self.uints("triangulated data")?;
+        let textures = self.r.unsigned_integer()? as usize;
+        let face = Face {
+            flags,
+            start,
+            data,
+            textures,
+        };
+        if self.r.bit()? {
+            let n = face.point_count()?;
+            self.vertex_colors(n, false)?;
+        }
+        if !line_attributes.is_empty() {
+            let _behaviour = self.r.unsigned_integer()?;
+        }
+        self.schema.skip_added_fields(TESS_FACE, &mut self.r)?;
+        Ok(face)
+    }
+
+    /// `TESS_3D_Wire` (175) after its type code [WD 7.8.7].
+    fn wire(&mut self) -> Result<Vec<Vec<[f64; 3]>>, PrcError> {
+        let pts = points(&self.base_tess_data()?);
+        let words = self.uints("wire indices")?;
+        let mut wires: Vec<Vec<[f64; 3]>> = Vec::new();
+        let mut colours = 0usize;
+        if words.is_empty() {
+            colours = pts.len();
+            if !pts.is_empty() {
+                wires.push(pts.clone());
+            }
+        }
+        let mut it = words.iter().copied();
+        while let Some(header) = it.next() {
+            let n = (header & WIRE_COUNT_MASK) as usize;
+            let mut wire = Vec::with_capacity(n.min(words.len()));
+            for _ in 0..n {
+                let idx = it
+                    .next()
+                    .ok_or_else(|| malformed("wire runs past its indices".into()))?;
+                wire.push(point_at(&pts, idx)?);
+            }
+            colours += n;
+            if header & WIRE_IS_CLOSING != 0 {
+                colours += 1;
+                if let Some(&first) = wire.first() {
+                    wire.push(first);
+                }
+            }
+            match wires.last_mut() {
+                Some(prev) if header & WIRE_IS_CONTINUOUS != 0 => prev.extend(wire),
+                _ => wires.push(wire),
+            }
+        }
+        if self.r.bit()? {
+            self.vertex_colors(colours, true)?;
+        }
+        self.schema.skip_added_fields(TESS_3D_WIRE, &mut self.r)?;
+        Ok(wires)
+    }
+
+    /// `TESS_Markup` (176) after its type code [WD 7.8.8], read past.
+    fn markup(&mut self) -> Result<(), PrcError> {
+        self.base_tess_data()?;
+        self.uints("markup codes")?;
+        let n = self.count(1, "markup strings")?;
+        for _ in 0..n {
+            self.r.string()?;
+        }
+        self.r.string()?;
+        self.r.character()?;
+        self.schema.skip_added_fields(TESS_MARKUP, &mut self.r)
+    }
+}
+
+fn points(coords: &[f64]) -> Vec<[f64; 3]> {
+    coords
+        .chunks_exact(3)
+        .map(|c| match c {
+            [x, y, z] => [*x, *y, *z],
+            _ => [0.0; 3],
+        })
+        .collect()
+}
+
+/// The point a Double-offset index names [WD 7.8.5.2: multiples of 3].
+fn point_at(pts: &[[f64; 3]], idx: u32) -> Result<[f64; 3], PrcError> {
+    if !idx.is_multiple_of(3) {
+        return Err(malformed(format!(
+            "point index {idx} is not a multiple of 3"
+        )));
+    }
+    pts.get(idx as usize / 3)
+        .copied()
+        .ok_or_else(|| malformed(format!("point index {idx} past the coordinates")))
+}
+
+struct Face {
+    flags: u32,
+    start: usize,
+    data: Vec<u32>,
+    textures: usize,
+}
+
+/// A `used_entities_flag` block's shape [WD 7.8.5.5].
+#[derive(Clone, Copy)]
+enum Shape {
+    Triangles,
+    Fan,
+    Strip,
+}
+
+/// Per block: `(bit, shape, one normal per entity, textured)`, low bit first.
+const BLOCKS: [(u32, Shape, bool, bool); 12] = [
+    (0x0002, Shape::Triangles, false, false),
+    (0x0004, Shape::Fan, false, false),
+    (0x0008, Shape::Strip, false, false),
+    (0x0020, Shape::Triangles, true, false),
+    (0x0040, Shape::Fan, true, false),
+    (0x0080, Shape::Strip, true, false),
+    (0x0200, Shape::Triangles, false, true),
+    (0x0400, Shape::Fan, false, true),
+    (0x0800, Shape::Strip, false, true),
+    (0x2000, Shape::Triangles, true, true),
+    (0x4000, Shape::Fan, true, true),
+    (0x8000, Shape::Strip, true, true),
+];
+
+impl Face {
+    /// Entity sizes per set block: `(block, [points per entity])`, from
+    /// `TriangulatedData` [WD 7.8.6]. A triangle block is one entity of
+    /// `3 × count` points; fans and strips list a vertex count each.
+    fn entities(&self) -> Result<Vec<(usize, Vec<u32>)>, PrcError> {
+        let mut d = self.data.iter().copied();
+        let mut next = || {
+            d.next()
+                .ok_or_else(|| malformed("triangulated data ends early".into()))
+        };
+        let mut out = Vec::new();
+        for (i, (bit, shape, ..)) in BLOCKS.iter().enumerate() {
+            if self.flags & bit == 0 {
+                continue;
+            }
+            let sizes = match shape {
+                Shape::Triangles => vec![next()?],
+                Shape::Fan | Shape::Strip => {
+                    let n = next()? as usize;
+                    if n > self.data.len() {
+                        return Err(malformed("triangulated data ends early".into()));
+                    }
+                    (0..n).map(|_| next()).collect::<Result<_, _>>()?
+                }
+            };
+            out.push((i, sizes));
+        }
+        Ok(out)
+    }
+
+    /// Points the face's index slots name: the vertex-colour count
+    /// [ISS #820].
+    fn point_count(&self) -> Result<usize, PrcError> {
+        let mut n = 0usize;
+        for (i, sizes) in self.entities()? {
+            let tri = matches!(BLOCKS.get(i), Some((_, Shape::Triangles, ..)));
+            for s in sizes {
+                let s = (s & COUNT_MASK) as usize;
+                n = n.saturating_add(if tri { s.saturating_mul(3) } else { s });
+            }
+        }
+        Ok(n)
+    }
+}
+
+/// Emit a face's triangles; `normals` = the index array stores normal slots.
+fn triangulate(
+    face: &Face,
+    indices: &[u32],
+    normals: bool,
+    n_points: usize,
+    out: &mut Vec<[u32; 3]>,
+) -> Result<(), PrcError> {
+    let mut slots = indices.get(face.start..).unwrap_or(&[]).iter().copied();
+    let mut take = || {
+        slots
+            .next()
+            .ok_or_else(|| malformed("face runs past the triangulated index array".into()))
+    };
+    for (i, sizes) in face.entities()? {
+        let Some(&(_, shape, one_normal, textured)) = BLOCKS.get(i) else {
+            continue;
+        };
+        let t = if textured { face.textures } else { 0 };
+        for word in sizes {
+            let count = (word & COUNT_MASK) as usize;
+            // Points in this entity, and whether each point carries its own
+            // normal slot.
+            let (points, per_point_normal) = match shape {
+                Shape::Triangles => (count.saturating_mul(3), !one_normal),
+                Shape::Fan | Shape::Strip => (count, !one_normal || word & NORMAL_SINGLE == 0),
+            };
+            if points > indices.len() {
+                return Err(malformed(
+                    "face runs past the triangulated index array".into(),
+                ));
+            }
+            let mut verts = Vec::with_capacity(points);
+            for k in 0..points {
+                let new_entity = match shape {
+                    Shape::Triangles => k % 3 == 0,
+                    _ => k == 0,
+                };
+                let normal_here = normals && if per_point_normal { true } else { new_entity };
+                if normal_here {
+                    take()?;
+                }
+                for _ in 0..t {
+                    take()?;
+                }
+                let p = take()?;
+                if p % 3 != 0 || p as usize / 3 >= n_points {
+                    return Err(malformed(format!("point index {p} is not a point")));
+                }
+                verts.push(p / 3);
+            }
+            match shape {
+                Shape::Triangles => out.extend(verts.chunks_exact(3).filter_map(|c| match c {
+                    [a, b, c] => Some([*a, *b, *c]),
+                    _ => None,
+                })),
+                Shape::Fan => {
+                    if let Some((&c, rim)) = verts.split_first() {
+                        out.extend(rim.windows(2).filter_map(|w| match w {
+                            [a, b] => Some([c, *a, *b]),
+                            _ => None,
+                        }));
+                    }
+                }
+                Shape::Strip => {
+                    out.extend(verts.windows(3).enumerate().filter_map(|(k, w)| match w {
+                        [a, b, c] if k % 2 == 0 => Some([*a, *b, *c]),
+                        [a, b, c] => Some([*b, *a, *c]),
+                        _ => None,
+                    }))
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic
+)]
+mod tests {
+    use super::*;
+    use crate::testw::W;
+
+    const SQUARE: [f64; 12] = [0., 0., 0., 1., 0., 0., 1., 1., 0., 0., 1., 0.];
+
+    /// A 305 section holding `body` (already-written entities, `n` of them).
+    fn section(n: u32, body: &W) -> W {
+        let mut w = W::default();
+        w.uint(305).uint(0).bit(true).uint(n).append(body).uint(0);
+        w
+    }
+
+    fn uints(w: &mut W, v: &[u32]) {
+        w.uint(v.len() as u32);
+        for &x in v {
+            w.uint(x);
+        }
+    }
+
+    fn square(w: &mut W, entity: u32) {
+        w.uint(entity).bit(false).uint(12);
+        for c in SQUARE {
+            w.double(c);
+        }
+    }
+
+    struct Mesh<'a> {
+        recalc: bool,
+        indices: &'a [u32],
+        faces: &'a [(u32, u32, &'a [u32])],
+        textures: u32,
+    }
+
+    /// A TESS_3D over [`SQUARE`] at authoring version `v`.
+    fn tess_3d(w: &mut W, v: u32, m: &Mesh<'_>) {
+        square(w, 172);
+        w.bit(true);
+        if v >= HAS_LOOPS_FROM {
+            w.bit(false);
+        }
+        if v >= RECALCULATE_FROM {
+            w.bit(m.recalc);
+            if m.recalc {
+                w.put(0, 8).double(0.5);
+            }
+        }
+        if m.recalc {
+            w.uint(0);
+        } else {
+            w.uint(3).double(0.).double(0.).double(1.);
+        }
+        w.uint(0);
+        uints(w, m.indices);
+        w.uint(m.faces.len() as u32);
+        for &(flags, start, data) in m.faces {
+            w.uint(174).uint(0).uint(0).uint(0).uint(flags).uint(start);
+            uints(w, data);
+            w.uint(m.textures).bit(false);
+        }
+        w.uint(0);
+    }
+
+    fn decode(w: &W, schema: &Schema, version: u32) -> Result<Vec<Tessellation>, PrcError> {
+        let bytes = w.bytes();
+        Ctx {
+            r: BitReader::new(&bytes),
+            schema,
+            version,
+        }
+        .file_structure_tessellation()
+    }
+
+    fn mesh(t: &Tessellation) -> &TriangleMesh {
+        match t {
+            Tessellation::Mesh(m) => m,
+            other => panic!("not a mesh: {other:?}"),
+        }
+    }
+
+    fn one(indices: &[u32], faces: &[(u32, u32, &[u32])], textures: u32) -> TriangleMesh {
+        let mut b = W::default();
+        tess_3d(
+            &mut b,
+            8137,
+            &Mesh {
+                recalc: false,
+                indices,
+                faces,
+                textures,
+            },
+        );
+        mesh(&decode(&section(1, &b), &Schema::default(), 8137).unwrap()[0]).clone()
+    }
+
+    #[test]
+    fn triangle_and_fan_with_normals() {
+        // One triangle (n,p x3), then a fan of 4 vertices (n,p each).
+        let m = one(
+            &[0, 0, 0, 3, 0, 6, 0, 0, 0, 3, 0, 6, 0, 9],
+            &[(0x2 | 0x4, 0, &[1, 1, 4])],
+            0,
+        );
+        assert_eq!(m.positions.len(), 4);
+        assert_eq!(m.positions[2], [1., 1., 0.]);
+        assert_eq!(m.triangles, [[0, 1, 2], [0, 1, 2], [0, 2, 3]]);
+        assert_eq!(m.faces, vec![std::ops::Range { start: 0, end: 3 }]);
+        assert!(!m.normals_recalculated);
+    }
+
+    #[test]
+    fn recalculated_normals_drop_the_normal_slots_and_strips_alternate() {
+        let mut b = W::default();
+        tess_3d(
+            &mut b,
+            8137,
+            &Mesh {
+                recalc: true,
+                indices: &[0, 3, 6, 9],
+                faces: &[(0x8, 0, &[1, 4])],
+                textures: 0,
+            },
+        );
+        let t = decode(&section(1, &b), &Schema::default(), 8137).unwrap();
+        let m = mesh(&t[0]);
+        assert!(m.normals_recalculated);
+        assert_eq!(m.triangles, [[0, 1, 2], [2, 1, 3]]);
+    }
+
+    #[test]
+    fn version_gates_the_loop_and_recalculation_flags() {
+        for v in [7000, 7040, 8137] {
+            let mut b = W::default();
+            tess_3d(
+                &mut b,
+                v,
+                &Mesh {
+                    recalc: false,
+                    indices: &[0, 0, 0, 3, 0, 6],
+                    faces: &[(0x2, 0, &[1])],
+                    textures: 0,
+                },
+            );
+            // A trailing wire: a misread flag desyncs it.
+            wire(&mut b, false);
+            let t = decode(&section(2, &b), &Schema::default(), v).unwrap();
+            assert_eq!(mesh(&t[0]).triangles, [[0, 1, 2]], "version {v}");
+            assert!(matches!(t[1], Tessellation::Wire(_)), "version {v}");
+        }
+    }
+
+    #[test]
+    fn one_normal_blocks_and_textures() {
+        // 0x20: n,p,p,p. 0x40 with NORMAL_Single: n then p per vertex.
+        // 0x2000 with one texture set: n,t,p,t,p,t,p.
+        let idx = [
+            0, 0, 3, 6, // 0x20
+            0, 0, 6, 9, // 0x40 single, 3 vertices
+            0, 0, 9, 2, 0, 4, 3, // 0x2000
+        ];
+        let m = one(
+            &idx,
+            &[(0x20 | 0x40 | 0x2000, 0, &[1, 1, 3 | NORMAL_SINGLE, 1])],
+            1,
+        );
+        assert_eq!(m.triangles, [[0, 1, 2], [0, 2, 3], [3, 0, 1]]);
+    }
+
+    #[test]
+    fn one_normal_fan_without_single_keeps_a_normal_per_vertex() {
+        let m = one(&[0, 0, 0, 3, 0, 6, 0, 9], &[(0x40, 0, &[1, 4])], 0);
+        assert_eq!(m.triangles, [[0, 1, 2], [0, 2, 3]]);
+    }
+
+    #[test]
+    fn textured_fan_and_strip_carry_texture_slots_per_vertex() {
+        // 0x400 then 0x800, two texture sets: n,t,t,p per vertex.
+        let mut idx = Vec::new();
+        for p in [0, 3, 6, 0, 3, 6, 9] {
+            idx.extend([0, 0, 2, p]);
+        }
+        let m = one(&idx, &[(0x400 | 0x800, 0, &[1, 3, 1, 4])], 2);
+        assert_eq!(m.triangles, [[0, 1, 2], [0, 1, 2], [2, 1, 3]]);
+    }
+
+    #[test]
+    fn two_faces_partition_the_triangles() {
+        let m = one(
+            &[0, 0, 0, 3, 0, 6, 0, 0, 0, 6, 0, 9],
+            &[(0x2, 0, &[1]), (0x2, 6, &[1])],
+            0,
+        );
+        assert_eq!(m.triangles, [[0, 1, 2], [0, 2, 3]]);
+        assert_eq!(m.faces, [0..1, 1..2]);
+    }
+
+    /// A wire over [`SQUARE`]: an open two-point wire continued by a closing
+    /// two-point wire, then optionally per-segment RGB colours.
+    fn wire(w: &mut W, colours: bool) {
+        square(w, 175);
+        uints(
+            w,
+            &[2, 0, 3, WIRE_IS_CONTINUOUS | WIRE_IS_CLOSING | 2, 6, 9],
+        );
+        w.bit(colours);
+        if colours {
+            // 5 points (4 + the implicit closing one) -> 2 segment colours.
+            w.bit(false).bit(true).bit(false).put(0xff0000, 24);
+            w.bit(true);
+        }
+    }
+
+    #[test]
+    fn wires_close_and_continue_and_colours_are_counted() {
+        for colours in [false, true] {
+            let mut b = W::default();
+            wire(&mut b, colours);
+            // A second entity: a wrong colour count would desync it.
+            wire(&mut b, false);
+            let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
+            for e in &t {
+                let Tessellation::Wire(w) = e else {
+                    panic!("not a wire")
+                };
+                assert_eq!(
+                    w,
+                    &[vec![
+                        [0., 0., 0.],
+                        [1., 0., 0.],
+                        [1., 1., 0.],
+                        [0., 1., 0.],
+                        [1., 1., 0.]
+                    ]]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_closing_wire_colours_its_implicit_point() {
+        // Per-point RGB: 4 indexed points + 1 implicit = 5 colours.
+        let mut b = W::default();
+        square(&mut b, 175);
+        uints(
+            &mut b,
+            &[2, 0, 3, WIRE_IS_CONTINUOUS | WIRE_IS_CLOSING | 2, 6, 9],
+        );
+        b.bit(true).bit(false).bit(false).bit(false).put(1, 24);
+        for _ in 1..5 {
+            b.bit(true);
+        }
+        wire(&mut b, false);
+        let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
+        assert!(matches!(t[1], Tessellation::Wire(_)));
+        assert_eq!(t[0], t[1]);
+    }
+
+    #[test]
+    fn a_wire_index_must_name_a_point() {
+        let mut b = W::default();
+        square(&mut b, 175);
+        uints(&mut b, &[2, 0, 4]);
+        b.bit(false);
+        assert!(matches!(
+            decode(&section(1, &b), &Schema::default(), 8137),
+            Err(PrcError::Malformed(_))
+        ));
+    }
+
+    #[test]
+    fn a_wire_without_indices_is_the_coordinate_polyline() {
+        let mut b = W::default();
+        square(&mut b, 175);
+        b.uint(0).bit(true);
+        // 4 implicit points -> 4 RGB colours, all "same" after the first.
+        b.bit(false).bit(false).bit(false).put(1, 24);
+        for _ in 1..4 {
+            b.bit(true);
+        }
+        wire(&mut b, false);
+        let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
+        let Tessellation::Wire(w) = &t[0] else {
+            panic!("not a wire")
+        };
+        assert_eq!(w.len(), 1);
+        assert_eq!(w[0].len(), 4);
+        assert!(matches!(t[1], Tessellation::Wire(_)));
+    }
+
+    #[test]
+    fn face_vertex_colours_count_points_not_data() {
+        // A triangle plus a fan of 4 vertices = 7 points -> 7 colours.
+        let mut b = W::default();
+        square(&mut b, 172);
+        b.bit(true).bit(false).bit(false).uint(0).uint(0);
+        uints(&mut b, &[0, 0, 0, 3, 0, 6, 0, 0, 0, 3, 0, 6, 0, 9]);
+        b.uint(1)
+            .uint(174)
+            .uint(0)
+            .uint(0)
+            .uint(0)
+            .uint(0x2 | 0x4)
+            .uint(0);
+        uints(&mut b, &[1, 1, 4]);
+        b.uint(0).bit(true);
+        b.bit(false).bit(false).put(0x10_2030, 24);
+        for _ in 1..7 {
+            b.bit(true);
+        }
+        b.uint(0);
+        wire(&mut b, false);
+        let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
+        assert_eq!(mesh(&t[0]).triangles.len(), 3);
+        assert!(matches!(t[1], Tessellation::Wire(_)));
+    }
+
+    #[test]
+    fn face_behaviour_follows_line_attributes() {
+        let mut b = W::default();
+        square(&mut b, 172);
+        b.bit(true).bit(false).bit(false).uint(0).uint(0);
+        uints(&mut b, &[0, 0, 0, 3, 0, 6]);
+        b.uint(1).uint(174);
+        uints(&mut b, &[5]);
+        b.uint(0).uint(0).uint(0x2).uint(0);
+        uints(&mut b, &[1]);
+        b.uint(0).bit(false).uint(1).uint(0);
+        wire(&mut b, false);
+        let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
+        assert!(matches!(t[1], Tessellation::Wire(_)));
+    }
+
+    #[test]
+    fn markup_is_read_past() {
+        let mut b = W::default();
+        b.uint(176).bit(false).uint(3);
+        for c in [1., 2., 3.] {
+            b.double(c);
+        }
+        uints(&mut b, &[6, 0]);
+        b.uint(1).string(Some("R1")).string(Some("label")).put(7, 8);
+        wire(&mut b, false);
+        let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
+        assert_eq!(t[0], Tessellation::Markup);
+        assert!(matches!(t[1], Tessellation::Wire(_)));
+    }
+
+    #[test]
+    fn schema_fields_are_skipped_after_each_entity() {
+        // A newer producer added one UInt to TESS_3D and one to TESS_Face.
+        let mut s = W::default();
+        s.uint(2)
+            .uint(172)
+            .uint(1)
+            .uint(3)
+            .uint(174)
+            .uint(1)
+            .uint(3);
+        let sb = s.bytes();
+        let schema = Schema::read(&mut BitReader::new(&sb)).unwrap();
+
+        let mut b = W::default();
+        square(&mut b, 172);
+        b.bit(true).bit(false).bit(false).uint(0).uint(0);
+        uints(&mut b, &[0, 0, 0, 3, 0, 6]);
+        b.uint(1)
+            .uint(174)
+            .uint(0)
+            .uint(0)
+            .uint(0)
+            .uint(0x2)
+            .uint(0);
+        uints(&mut b, &[1]);
+        b.uint(0).bit(false).uint(99); // the face's added field
+        b.uint(0).uint(77); // texture count, then TESS_3D's added field
+        wire(&mut b, false);
+        let t = decode(&section(2, &b), &schema, 8137).unwrap();
+        assert_eq!(mesh(&t[0]).triangles, [[0, 1, 2]]);
+        assert!(matches!(t[1], Tessellation::Wire(_)));
+        // Without the schema the same bytes do not decode to the same thing.
+        assert_ne!(
+            decode(&section(2, &b), &Schema::default(), 8137).ok(),
+            Some(t)
+        );
+    }
+
+    #[test]
+    fn attributes_names_and_user_data_are_read_past() {
+        let mut w = W::default();
+        w.uint(305).uint(1).uint(201);
+        w.bit(true).uint(2); // predefined title
+        w.uint(2);
+        w.bit(false).string(Some("k")).uint(4).string(Some("v"));
+        w.bit(true).uint(1).uint(5).int(-1).uint(9);
+        w.uint(42); // the attribute's schema-added field
+        w.bit(false).string(Some("tess")).uint(1);
+        wire(&mut w, false);
+        w.uint(5).put(0b10110, 5);
+        let mut sw = W::default();
+        sw.uint(1).uint(ATTRIBUTE).uint(1).uint(3);
+        let sb = sw.bytes();
+        let schema = Schema::read(&mut BitReader::new(&sb)).unwrap();
+        let bytes = w.bytes();
+        let mut ctx = Ctx {
+            r: BitReader::new(&bytes),
+            schema: &schema,
+            version: 8137,
+        };
+        let t = ctx.file_structure_tessellation().unwrap();
+        assert!(matches!(t[..], [Tessellation::Wire(_)]));
+        assert_eq!(ctx.r.position(), w.len());
+    }
+
+    #[test]
+    fn refusals_and_damage_are_errors() {
+        let mut c = W::default();
+        c.uint(173);
+        assert!(matches!(
+            decode(&section(1, &c), &Schema::default(), 8137),
+            Err(PrcError::Unsupported(_))
+        ));
+        // Optimised vertex colours.
+        let mut o = W::default();
+        square(&mut o, 175);
+        o.uint(0).bit(true).bit(false).bit(false).bit(true);
+        assert!(matches!(
+            decode(&section(1, &o), &Schema::default(), 8137),
+            Err(PrcError::Unsupported(_))
+        ));
+        // A point index that is not a multiple of 3, and one past the end.
+        for bad in [4, 12] {
+            let mut b = W::default();
+            tess_3d(
+                &mut b,
+                8137,
+                &Mesh {
+                    recalc: false,
+                    indices: &[0, 0, 0, bad, 0, 6],
+                    faces: &[(0x2, 0, &[1])],
+                    textures: 0,
+                },
+            );
+            assert!(matches!(
+                decode(&section(1, &b), &Schema::default(), 8137),
+                Err(PrcError::Malformed(_))
+            ));
+        }
+        // A fan whose count claims a billion points.
+        let mut b = W::default();
+        tess_3d(
+            &mut b,
+            8137,
+            &Mesh {
+                recalc: false,
+                indices: &[0, 0],
+                faces: &[(0x4, 0, &[1, 0x3FFF_FFFF])],
+                textures: 0,
+            },
+        );
+        assert!(decode(&section(1, &b), &Schema::default(), 8137).is_err());
+        // A tessellation count far past the data.
+        let mut w = W::default();
+        w.uint(305).uint(0).bit(true).uint(u32::MAX);
+        assert!(matches!(
+            decode(&w, &Schema::default(), 8137),
+            Err(PrcError::Truncated(_))
+        ));
+        // A wrong entity type where the section's own belongs.
+        let mut w = W::default();
+        w.uint(306);
+        assert!(matches!(
+            decode(&w, &Schema::default(), 8137),
+            Err(PrcError::Malformed(_))
+        ));
+    }
+}
