@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (783rd filing) — `pdfcer-gui` consumed `G071` (`Pass 418.0`): Align and Distribute now one undo per press
+
+**Shipped:** No new Pass — a shell-consumption update. `pdfcer-gui`'s
+Align and Distribute panel now commits every press with one
+`EditSession::move_objects_each(page, &[(index, dx, dy)])` call,
+engine pin `ee9254eb`; its per-object loop and `coalesce_last` fold
+are deleted. Driven by `align_left_moves_every_box_in_one_undo` (one
+Ctrl+Z, `undo_depth=1`). `move_objects_each_in_form` stays unconsumed
+— the panel acts on page objects only; recorded as `wanted` in the
+shell's `ENGINE_BACKLOG.md`.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:** None new.
+
+**Still in flight:** `move_objects_each_in_form` (leaf variant) has no
+consumer in either shell yet.
+
+**For next session:** `docs/FEATURES.md` row 246 and `ROADMAP.md`'s
+`Pass 418.0` Shipped entry both updated in this filing to reflect the
+page-object gui box ticked; the in-form variant stays unticked.
+
 ## 2026-09-30 (782nd filing) — `Pass 10.16` SHIPPED: CRL revocation checking against `/DSS /CRLs` and caller-supplied CRLs
 
 **Shipped:** `Pass 10.16` (`5f31a523`, `6aabaec4`) — the CRL half of

@@ -228,7 +228,10 @@ verb, `move_objects_each_in_form`, and its own CLI caller
 (`object-move-each --leaf`) — `◐` stands.
 
 **Shells.** core `[x]`, cli `[x]`, gui — `pdfcer-gui` has not consumed this
-yet (separate project).
+yet (separate project). **Consumed 2026-09-30**: the Align and Distribute
+panel now calls `move_objects_each` for the page-object case (engine pin
+`ee9254eb`); the `--leaf`/`move_objects_each_in_form` path stays unconsumed
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\done_G071_CONSUMED.md`).
 
 **Gates, corrected (780th filing).** `tools/run-gates.sh` on the tree at
 `2728f30d` ran 39/41 PASS; the two failures were
