@@ -542,6 +542,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "render_cmyk_page"
+path = "fuzz_targets/render_cmyk_page.rs"
+test = false
+doc = false
+bench = false
+
 # Pass 248.4: EMF export over untrusted bytes, asserting the output is a
 # well-formed record chain whatever the input was.
 [[bin]]

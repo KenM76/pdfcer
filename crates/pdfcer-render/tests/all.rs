@@ -30,6 +30,7 @@ mod external_tools;
 mod flatten_annotations_look_the_same;
 mod format_embed_font;
 mod format_style_donor;
+mod fuzz_cmyk_page_reaches_the_buffer;
 mod grey_overprint;
 mod group_spot_planes;
 mod hairline_minimum;
