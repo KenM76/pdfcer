@@ -627,3 +627,10 @@ path = "fuzz_targets/prc_parse.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "prc_tess"
+path = "fuzz_targets/prc_tess.rs"
+test = false
+doc = false
+bench = false

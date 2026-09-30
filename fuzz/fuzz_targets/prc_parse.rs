@@ -4,8 +4,8 @@
 //! Parses arbitrary bytes as a PRC stream under a small inflation ceiling,
 //! then, both over the raw input and over every inflated section, decodes
 //! `Double`s and `UnsignedInteger`s until the data runs out; then runs the
-//! schema interpreter and tessellation decoder over every file structure and
-//! over the raw input as a tessellation section.
+//! schema interpreter over the raw input and the tessellation decoder over
+//! every file structure. `prc_tess` reaches the decoder directly.
 //! Invariant: never panics, never loops; every read either consumes at least
 //! one bit or errors.
 
