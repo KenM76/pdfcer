@@ -115,6 +115,101 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.2` (`21bd10be`, `c0815bd7`, `5c5be0d9`, `86cadd4d`), 2026-09-30 — 3D render draws each PRC part in its model-tree colour
+
+Continues the `Pass 421.x` bucket past `421.0`'s uniform-grey render, using
+the colour `Pass 419.2` already parses from the PRC globals but `421.0`
+left unread.
+
+`pdfcer-3d` gains `Placement::colour: Option<[f64;4]>` (straight RGBA,
+0.0–1.0), resolved from the GraphicsContent chain — root occurrence →
+occurrence → part → sets → representation item. Style index `0` inherits
+from the parent context. `FatherHeritColor` (bit `0x10`) forces a colour
+down the tree; when more than one father forces one, the OLDEST forcing
+father wins. `SonHeritColor` (bit `0x08`) on the son overrides a father's
+forced colour. A `same_graphics` entity reuses the last `GraphicsContent`
+read in its own section, never a parent's. Colour indices are
+double-scaled: a stored value of `i+1` names `colours[i/3]`; an index not a
+multiple of 3 resolves to `None` rather than a wrong triple. Materials
+contribute diffuse colour and alpha; a textured material falls back to its
+base material's colour; a style's transparency multiplies alpha by `t/255`.
+
+New `render_coloured(meshes, colours, camera, options)`: an opaque pass
+first (depth write + test), then a translucent pass (depth-tested, blended
+"over", no depth write), alpha-0 placements skipped. `render` now delegates
+to it with every placement forced opaque, so a caller that never touches
+colour sees unchanged output. No new dependency, no manifest change —
+`cargo tree -p pdfcer-3d` / `-p pdfcer-cli` unchanged.
+
+CLI `3d-render` now draws the resolved colours and premultiplies the PNG;
+prints the translucent and uncoloured placement counts, and names what
+still isn't read (per-face colours, textures, lights, saved views — rule 4).
+
+`docs/core-api/01-reading-and-model.md` updated in the same commit.
+
+**Tests.** `pdfcer-3d`: 72 unit tests plus 3+7 doctests, all green. CLI
+`three_d`: 16 tests, all green. New: `a_son_style_wins_unless_a_father_
+forces_his`, `colour_indices_are_double_scaled`,
+`placements_carry_the_resolved_colour`,
+`meshes_draw_in_their_own_colours_and_glass_blends`, plus the updated CLI
+test `a_prc_assembly_renders_both_placed_copies`. Sabotage caught the
+tree-resolution mutations 5/5; on the renderer, the pass-order and
+depth-write mutations were caught, and the alpha-0 skip survived as a
+null mutation (an equivalent optimisation) — accepted, not a gap.
+`tools/run-gates.sh` 41/42 on first run; the one failure
+(`check-public-fns-documented` on an undocumented `pub(crate) Ctx::new`)
+was fixed before commit and the gate re-run clean. No manifest change.
+
+**Measured** on a local-only sample (unknown provenance, never committed,
+file not named — `LEGAL.md` §5): all 1,173 placements coloured; 268
+translucent glass panels at alpha 0.10; the rest wood tones and greys; 0
+placements left uncoloured.
+
+`docs/FEATURES.md`: "View an embedded 3D model with camera controls" row
+(row 533, *Planned*) gains this shipped increment in its own text; `core
+[x]` / `cli [x]` were already set by `421.0` and are unchanged; `gui`
+stays `[ ]`.
+
+**Correction to the 814th filing's own correction.** Two findings on
+re-inspection with colour now drawn:
+1. **The "stairs upside down" report is not a defect.** The model
+   contains stepped "Glazed" panels, which now render as translucent
+   glass and read, at a glance, like an inverted staircase. The
+   prototype-occurrence-location hypothesis the 814th filing proposed is
+   **refuted**: 454 occurrences fall back to a prototype, and none of
+   them carries a location.
+2. **The roof tear persists.** It is conditioning drift in the rebuilt
+   compressed meshes, not a colour or placement defect. Comparison
+   against Acrobat Reader's own render of the same model is still
+   pending.
+
+**Commit-message correction (hard rule 2 — Pass IDs never get reused).**
+`21bd10be`'s own message reads "Pass 421.1" — a mistake, not a rename.
+`421.1` is the separate GUI orbit/pan/zoom rung (own bucket entry, Rung
+B, `pdfcer-gui`); this work is `421.2`, the true next-free ID at the
+time. The commit message is not rewritten — history doesn't get
+rewritten — but every register reference to this work uses `421.2`, as
+above.
+
+**Correction from `pdfcer-spec-librarian`.** The School sample has **no
+materials at all** — its glass alpha 0.10 comes entirely from the style
+transparency path (`t/255`), never exercised against the material path
+described above (`materials[i-1]`, textured → base, diffuse + alpha).
+That path is implemented and unit-tested (`meshes_draw_in_their_own_
+colours_and_glass_blends` et al.) but **not verified on a real file** —
+a sample with materials is still needed. The spec RAG was updated
+accordingly: `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__graphics_
+materials.md` §11 and `prc__8137__base_content_graphics.md` §3.1. Nothing
+in this entry's "Measured" paragraph above claims otherwise — the alpha
+0.10 figure there is the style-transparency path, not the material path
+— but it is recorded here so no future reader infers the material path
+was exercised on School.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes, test
+counts and gate results relayed from the dispatching engineer's own
+report on `21bd10be`/`c0815bd7`/`5c5be0d9`/`86cadd4d`, not independently
+reproduced. Backup/push/release state not verifiable from here.
+
 ### `Pass 421.0` (`ac28b15b`), 2026-09-30 — headless camera render of a decoded PRC model (Rung A, engine)
 
 Rung A of the `Pass 421.x` interactive-3D-viewer bucket (*Backlog*, filed
@@ -13873,6 +13968,23 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★★★★★★★ **`Pass 421.2` SHIPPED, 2026-09-30 (815th
+> filing), `21bd10be`/`c0815bd7`/`5c5be0d9`/`86cadd4d`** — see top of
+> *Shipped*. Each PRC part now draws in its own model-tree colour
+> (`Placement::colour`, resolved from the GraphicsContent chain) instead
+> of `421.0`'s uniform grey; an opaque pass then a depth-tested
+> translucent pass for glass. `21bd10be`'s own commit message says
+> "Pass 421.1" by mistake — the ID is `421.2` (`421.1` is the separate
+> GUI orbit rung). Also refutes the 814th filing's "stairs upside down"
+> hypothesis (it's stepped "Glazed" panels rendering as glass) and
+> confirms the roof tear persists. **Correction from
+> `pdfcer-spec-librarian`: the School sample has no materials — its
+> alpha 0.10 is the style-transparency path only; the material path
+> (`materials[i-1]`, textured → base, diffuse + alpha) is implemented
+> and unit-tested but unverified on a real file.** Off-cycle (scoped in
+> *Backlog*, not through this queue). **`Next up` still has no named
+> head.**
+
 > ★★★★★★★★★★★★★★★★★★★★★ **`Pass 421.0` SHIPPED, 2026-09-30 (814th
 > filing), `ac28b15b`** — see top of *Shipped*. Headless CPU render of a
 > decoded/placed PRC model from a chosen camera to an RGBA/PNG image
@@ -23599,6 +23711,15 @@ refusal (per that file's own "replace, never append" rule).
 > 7.3.10.1, prototype-location composition — already on `419.2`'s owed
 > list above, previously without a concrete symptom).
 
+> ★ **CORRECTED AGAIN 2026-09-30 (815th filing, `21bd10be`).** With
+> `Pass 421.2`'s colour now drawn, (2) above is **refuted, not merely
+> reattributed**: the "stairs upside down" report is stepped "Glazed"
+> panels rendering as translucent glass, not a geometry defect at all.
+> The prototype-occurrence-location hypothesis this entry proposed is
+> wrong — 454 occurrences fall back to a prototype and none of them
+> carries a location. (1), the vaulted-roof tear, is unchanged and still
+> owed; comparison against Acrobat Reader's own render is still pending.
+
 ### Interactive 3D viewer — camera-controlled rendering of a decoded model (`Pass 421.x`), filed 2026-09-30 (812th filing), Backlog
 
 **Scope.** Ken asked 2026-09-30 whether viewing the model with view
@@ -23622,16 +23743,26 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   and zoom controls driving `421.0`'s camera API. Delivered by a request
   through `D:\Dev\FeatureRequests\pdfce_FeatureRequests` /
   the `pdfcer-gui` channel, not built in this repo. Not yet requested.
+- `421.2` — **SHIPPED, `21bd10be`/`c0815bd7`/`5c5be0d9`/`86cadd4d`,
+  2026-09-30 (815th filing)**, full entry in *Shipped* above (note:
+  `21bd10be`'s own commit message says "Pass 421.1" by mistake — the
+  true ID is `421.2`; `421.1` is the GUI orbit rung below). `pdfcer-3d`
+  reads the colour `419.2` already
+  parses (GraphicsContent chain, Herit bits, material diffuse+alpha,
+  style transparency) and `render_coloured` draws each placement in its
+  own colour — opaque pass then a depth-tested translucent pass for
+  glass. **Did NOT wait on `419.2`'s two geometry defects** — see the
+  correction appended to the `419.2` narrative above: the stairs defect
+  is refuted outright (stepped glass panels, not a geometry bug), and
+  the roof tear is confirmed unrelated to colour and still owed.
 
-**Next planned, in order**, once `419.2`'s two geometry defects above
-(roof tear, stairs orientation) are fixed: read colours and materials
-from the PRC globals into `421.0`'s renderer (the data is already
-parsed and stored by `419.2`, just unused); then textures; then lights.
+**Next planned, in order**: fix the vaulted-roof tessellation tear
+(entity #868, `419.2`'s own remainder); then textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
-gains `core [x]` / `cli [x]` (`421.0`); `gui` stays `[ ]` pending
-`421.1`. Stays in *Planned* — the row names the interactive-controls
-capability, and that still needs Rung B.
+gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`);
+`gui` stays `[ ]` pending `421.1`. Stays in *Planned* — the row names
+the interactive-controls capability, and that still needs Rung B.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 

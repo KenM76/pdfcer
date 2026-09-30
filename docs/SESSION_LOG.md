@@ -4,6 +4,113 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (815th filing) — `Pass 421.2` SHIPPED: 3D render draws each PRC part in its model-tree colour; refutes the "stairs upside down" hypothesis, confirms the roof tear is unrelated and persists
+
+**Shipped:**
+- `21bd10be`, `c0815bd7`, `5c5be0d9`, `86cadd4d` — feat(3d): `pdfcer-3d` gains `Placement::colour:
+  Option<[f64;4]>` (straight RGBA, 0.0–1.0), resolved from the
+  GraphicsContent chain (root occurrence → occurrence → part → sets →
+  representation item); style `0` inherits; `FatherHeritColor` (0x10)
+  forces down the tree with the OLDEST forcing father winning;
+  `SonHeritColor` (0x08) overrides on the son; a `same_graphics` entity
+  reuses the last `GraphicsContent` read in its own section. Colour
+  indices are double-scaled (`i+1` names `colours[i/3]`; non-multiple-of-3
+  gives `None`). Materials contribute diffuse colour + alpha; textured
+  materials fall back to their base material; style transparency
+  multiplies alpha by `t/255`. New `render_coloured(meshes, colours,
+  camera, options)` — opaque pass first (depth write+test), then a
+  depth-tested translucent "over"-blended pass with no depth write,
+  alpha-0 skipped; `render` now delegates to it, forcing every placement
+  opaque. No new dependency, no manifest change. CLI `3d-render` draws
+  the colours, premultiplies the PNG, and prints the translucent/
+  uncoloured placement counts plus what's still unread (per-face colours,
+  textures, lights, saved views — rule 4).
+- `c0815bd7` — docs(next-session): hand off PRC colour slice.
+- `5c5be0d9` — chore(agent-memory): spec librarian notes PRC colour
+  confirmations.
+- `86cadd4d` — docs(next-session): name the colour Pass 421.2.
+
+**Decisions made this session:**
+- None — this filing records shipped work and three corrections; no new
+  architectural decision.
+
+**Findings + decisions:**
+- **The "stairs upside down" report is REFUTED, not a defect.** The
+  model contains stepped "Glazed" panels that now render as translucent
+  glass and read, at a glance, like an inverted staircase. The
+  814th filing's prototype-occurrence-location hypothesis is wrong: 454
+  occurrences fall back to a prototype, and none of them carries a
+  location.
+- **The roof tear persists**, confirmed unrelated to colour — it is
+  conditioning drift in the rebuilt compressed meshes (entity #868).
+  Comparison against Acrobat Reader's own render of the same model is
+  still pending.
+- **Commit-message ID mistake (hard rule 2).** `21bd10be`'s own message
+  says "Pass 421.1" — wrong; `421.1` is the separate GUI orbit/pan/zoom
+  rung. This work is `421.2`, the true next-free ID. History isn't
+  rewritten; every register reference uses `421.2`.
+- **Correction from `pdfcer-spec-librarian`.** The School sample has no
+  materials at all — its glass alpha 0.10 comes from the style-
+  transparency path (`t/255`) only. The material path (`materials[i-1]`,
+  textured → base, diffuse + alpha) is implemented and unit-tested but
+  **not verified on a real file** — needs a sample that has materials.
+  Spec RAG updated: `threed/prc__8137__graphics_materials.md` §11 and
+  `prc__8137__base_content_graphics.md` §3.1.
+- `Pass 421.2` shipped ahead of fixing either `419.2` geometry item —
+  the stairs item turned out not to need fixing at all, and the roof
+  tear is independent of the colour work.
+- `docs/ROADMAP.md`: new Shipped entry (`Pass 421.2`) above `421.0`; new
+  *Next up* star banner; *Backlog*'s `419.2` correction block gets a
+  dated "CORRECTED AGAIN" append (stairs refuted); the `421.x` bucket's
+  Passes list and "Next planned" text updated to drop the now-false
+  fixed-before-colour gating and point at the roof tear, then textures,
+  then lights; commit-ID and materials corrections added to the Shipped
+  entry and the *Next up* banner.
+- `docs/FEATURES.md`: "View an embedded 3D model with camera controls"
+  row's text updated in place to name `421.2`'s colour work; `core [x]`/
+  `cli [x]` unchanged (already set by `421.0`); `gui` stays `[ ]`.
+
+**Test results:**
+- `pdfcer-3d`: 72 unit tests plus 3+7 doctests, all green. CLI
+  `three_d`: 16 tests, all green. New:
+  `a_son_style_wins_unless_a_father_forces_his`,
+  `colour_indices_are_double_scaled`,
+  `placements_carry_the_resolved_colour`,
+  `meshes_draw_in_their_own_colours_and_glass_blends`, plus the updated
+  CLI test `a_prc_assembly_renders_both_placed_copies`.
+- Sabotage: tree-resolution mutations caught 5/5; on the renderer, the
+  pass-order and depth-write mutations were caught, and the alpha-0 skip
+  survived as a null mutation (an equivalent optimisation) — accepted.
+- `tools/run-gates.sh` 41/42 first run; the one failure
+  (`check-public-fns-documented` on an undocumented `pub(crate)
+  Ctx::new`) was fixed before commit and the gate re-run clean. No
+  manifest change, so `cargo tree` unchanged.
+- **Measured** on a local-only sample (unknown provenance, never
+  committed, file not named — `LEGAL.md` §5): all 1,173 placements
+  coloured; 268 translucent glass panels at alpha 0.10; the rest wood
+  tones and greys; 0 left uncoloured.
+
+**Still in flight:**
+- `Pass 419.2` remains IN PROGRESS: the T-edge form, the vaulted-roof
+  tessellation tear (entity #868, confirmed unrelated to colour),
+  stored-normal decode, and CPU poster generation. The
+  prototype-location-composition item is CLOSED — refuted, not a real
+  gap.
+- `Pass 421.x` bucket: `421.0`/`421.2` shipped; `421.1` (GUI orbit/pan/
+  zoom) not yet requested from `pdfcer-gui`; textures and lights queued
+  next, after the roof tear.
+
+**For next session:**
+- Fix the vaulted-roof tessellation tear (entity #868) — still the one
+  real `419.2` geometry defect; compare against Acrobat Reader's own
+  render once fixed.
+- Then: textures, then lights, into `421.0`'s renderer.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes, test
+counts and gate results relayed from the dispatching engineer's own
+report on `21bd10be`/`c0815bd7`/`5c5be0d9`/`86cadd4d`, not independently
+reproduced. Backup/push/release state not verifiable from here.
+
 ## 2026-09-30 (814th filing) — `Pass 421.0` SHIPPED: headless camera render of a decoded PRC model; corrects the 813th filing's overstated School-sample claim, identifies two real `Pass 419.2` defects
 
 **Shipped:**
