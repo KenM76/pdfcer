@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (794th filing) — `Pass 419.0` (`cc71aad0`) SHIPPED: list/extract embedded 3D models
+
+**Shipped:**
+- `Pass 419.0` — first rung of the `Pass 419.x` 3D bucket (Backlog, filed
+  793rd filing). New `pdfcer_core::threed` module: `list_3d`/
+  `list_3d_with_notes`/`extract_3d`/`sniff_3d_format`, covering both `/3D`
+  annotation streams (`/3DD`, shared `/3DRef`) and RichMedia 3D assets. CLI
+  `3d-list`/`3d-extract --index N -o FILE`; declared-vs-sniffed format
+  mismatch discloses via a `note:` line rather than refusing. No model
+  decoding — display already renders from the poster `/AP`. `README.md`
+  189 → 191 subcommands.
+
+**Decisions made this session:** none new — executes the scoping already
+decided in the 793rd filing's `Pass 419.x` bucket.
+
+**Findings + decisions:**
+- Tests: 4 core (`threed.rs`, incl. a round-trip test pinning the U3D/PRC
+  streams byte-identical across an unrelated edit + full rewrite), 4 CLI
+  (`three_d.rs`). Sabotage caught: dedup removed, `/3DRef` shared flag
+  forced false, CLI mismatch note suppressed.
+- Fuzz target `threed_walk` added: 65,706 runs over 61 s = 928 µs/run, 0
+  crashes.
+- First gates sweep failed only on the CLI in-place coverage test
+  (`3d-extract` unclassified); fixed before commit.
+
+**Still in flight:** `Pass 419.1`–`419.4` (embed, optional `pdfcer-3d`
+crate, U3D decode, PRC authoring) remain open in the bucket, the last two
+gated on the four unanswered operator questions recorded in `ROADMAP.md`
+*Backlog*. Full `tools/run-gates.sh` re-sweep on `cc71aad0` reported
+running at filing time, not yet confirmed green.
+
+**For next session:** Confirm the re-sweep green and push/release
+`Pass 419.0` (and `420.0` if not already released) once confirmed. Next
+natural rung is `419.1` (embed a supplied `.u3d`/`.prc`) unless the
+operator answers/defers the four open 3D licensing questions first.
+
 ## 2026-09-30 (793rd filing) — `Pass 420.0` (`043e3a22`/`2056ee4e`) SHIPPED; new Backlog bucket `Pass 419.x` (3D content in PDF)
 
 **Shipped:**

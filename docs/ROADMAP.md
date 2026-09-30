@@ -115,6 +115,58 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 419.0` (`cc71aad0`), 2026-09-30 — list and extract embedded 3D models (U3D/PRC), no decoding
+
+First rung of the `Pass 419.x` 3D bucket (*Backlog*, filed 793rd filing). New
+`pdfcer_core::threed` module: `list_3d` / `list_3d_with_notes(&graph) ->
+(Vec<ThreeDArtwork>, ThreeDNotes)`, `extract_3d(&DocumentView, &ThreeDArtwork)
+-> Result<Extracted3D, ThreeDError>`, `sniff_3d_format(bytes)`. Two carriers:
+a `/Subtype /3D` annotation's `/3DD` stream or shared `/3DRef` (ISO 32000-1
+§13.6.2 Table 298, §13.6.3 Table 300, §13.6.3.3 Table 303) and a RichMedia
+annotation's 3D asset (ISO 32000-2 §13.7 Tables 341–343, one listing per
+annotation). `ThreeDFormat::{U3d, Prc, Step, Other}`; declared format is the
+stream `/Subtype`, else asset MIME, else file extension — `Extracted3D::
+contradicts(declared)` flags a sniffed mismatch against it. Bounds:
+`MAX_ANNOTS_PER_PAGE`, `MAX_RICH_MEDIA_ENTRIES` (1024), `MAX_3D_ARTWORKS`
+(65536), decode under filters capped by `MAX_DECODED_LEN`. No model decoding
+or rendering — the poster `/AP` these annotations already carry is what
+`pdfcer-render` paints.
+
+CLI `pdfcer 3d-list INPUT` and `pdfcer 3d-extract INPUT --index N -o FILE`
+(explicit output only — the document's own asset name is never used as a
+path). A declared-vs-sniffed mismatch prints a `note:` line and still writes
+the bytes (fuzzy-never-sneaky disclosure, rule 4). `3d-extract` registered
+not-in-place. README subcommand count 189 → 191.
+
+**Tests.** 4 core (`crates/pdfcer-core/tests/threed.rs`), including a
+round-trip test: an unrelated edit (set `/Title`) plus full rewrite leaves
+the U3D and PRC stream objects byte-identical (`ARCHITECTURE.md` §5). 4 CLI
+(`crates/pdfcer-cli/tests/three_d.rs`). Sabotage caught: dedup removed,
+`/3DRef` shared flag forced false, CLI mismatch note suppressed.
+
+**Fuzz.** New target `fuzz/fuzz_targets/threed_walk.rs`, seed
+`corpus/threed_walk/seed_3d.pdf` — 65,706 runs over 61 s = 928 µs/run, 0
+crashes.
+
+`docs/core-api/01-reading-and-model.md` §12.2 gains a "3D models (read-only)"
+subsection plus two table rows; `check-core-api-verbs` PASS. No manifest
+change — `cargo tree` unaffected on both `pdfcer-core` and `pdfcer-render`.
+
+**Gates.** A first sweep failed only on the CLI in-place coverage test
+(`3d-extract` unclassified); fixed before commit. Full `tools/run-gates.sh`
+re-sweep reported running at filing time, **not yet confirmed green** (hard
+rule 8).
+
+**`docs/FEATURES.md`.** New row under *Reading, navigation & printing*,
+after the embedded-attachments rows: core `[x]` / cli `[x]` / gui `[ ]`.
+The existing *Planned* 3D row is narrowed to the remaining rungs (`419.1`–
+`419.4`) — see there.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test counts,
+fuzz figures and sabotage results relayed from the dispatching engineer's
+own report, not independently reproduced. Backup/push/release state not
+verifiable from here.
+
 ### `Pass 420.0` (`043e3a22`, `2056ee4e`), 2026-09-30 — transform several objects, each by its own matrix, as one command
 
 Requested by `pdfcer-gui` (`O263`, Circular arrange with rotate; channel
@@ -13165,6 +13217,12 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★★★ **`Pass 419.0` SHIPPED, 2026-09-30 (794th filing),
+> `cc71aad0`** — see top of *Shipped*. List/extract embedded 3D models
+> (U3D/PRC), first rung of the `Pass 419.x` Backlog bucket. Off-cycle
+> (scoped in *Backlog*, not through this queue). **`Next up` still has no
+> named head.**
+
 > ★★★★★★★★★★★★★★★★★ **`Pass 10.18` SHIPPED, 2026-09-30 (791st filing),
 > `3a488056`** — see top of *Shipped*. PAdES B-LT: embed supplied
 > validation material (certs/CRLs/OCSP) into `/DSS` as an incremental
@@ -22572,10 +22630,11 @@ A CPU z-buffer poster on `tiny-skia` is ~3–5 days, ~50 KB. glTF-in-
 RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
 
 **Passes.**
-- `419.0` — list/extract embedded 3D streams (`/3D` annots, `/3DD`
-  streams, RichMedia assets): core API + CLI `3d-list`/`3d-extract`; byte
-  round-trip test for untouched 3D annots; fuzz target for the stream-dict
-  walker. No 3D decoding. Reopens `261.6`'s read/round-trip half.
+- `419.0` — **SHIPPED** `cc71aad0`, 2026-09-30 (794th filing, see *Shipped*)
+  — list/extract embedded 3D streams (`/3D` annots, `/3DD` streams,
+  RichMedia assets): core API + CLI `3d-list`/`3d-extract`; byte round-trip
+  test for untouched 3D annots; fuzz target for the stream-dict walker. No
+  3D decoding. Reopened `261.6`'s read/round-trip half.
 - `419.1` — embed a supplied `.u3d`/`.prc` as a `/3D` annotation with a
   supplied or generated poster; CLI `3d-embed`. Pass-through, no decoding
   needed.
@@ -22601,6 +22660,12 @@ inference, not yet confirmed.
 **`docs/FEATURES.md`.** The old `Pass 261.6` refusal-by-scope row was
 rewritten in place to point at this bucket instead of restating the
 refusal (per that file's own "replace, never append" rule).
+
+> ★ **`Pass 419.0` SHIPPED, 2026-09-30 (794th filing), `cc71aad0`** — see
+> top of *Shipped*. List/extract embedded 3D models (U3D/PRC), no decoding
+> — the read/round-trip half `261.6` recommended. `419.1`–`419.4` remain
+> open in this bucket; `docs/FEATURES.md`'s *Planned* row for this bucket
+> was narrowed to just those rungs in the same filing.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
