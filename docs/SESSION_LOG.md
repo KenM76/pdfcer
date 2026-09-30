@@ -4,6 +4,39 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (792nd filing) — `0464e825`+`c8e3c45a`: two follow-up CLI fixes to Pass 10.18, no new Pass ID
+
+**Shipped:**
+- `0464e825` — fix(cli): `add-ltv` was omitted from both
+  `IN_PLACE_COMMANDS` and the exclusion list, so
+  `in_place_covers_every_input_output_subcommand` failed in the
+  run-gates sweep on `3a488056`. `pdfcer add-ltv --in-place` now works
+  like `sign`.
+- `c8e3c45a` — fix(cli): `cargo check -p pdfcer-cli
+  --no-default-features` had failed since `0fe973a2` (2026-09-25): the
+  `ocrs` engine variant/arms were unconditional, and
+  `verify-signatures` used `MdpPermission`, which only exists under
+  `signing`. Feature-gated both, added a named refusal for
+  `--ocr-engine ocrs` in builds without it, and a cfg-paired
+  `mdp_meaning` helper. Clippy clean with no features, signing only,
+  and ocrs only.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Lesson: a new input→output subcommand must be placed on
+  `IN_PLACE_COMMANDS` or `NOT_IN_PLACE`; only the full CLI unit-test
+  run catches the omission, not the new command's own integration
+  tests.
+- The `--no-default-features` build broke silently for 5 days because
+  no gate exercises it. Open item: add a `--no-default-features` CLI
+  build to run-gates/CI.
+
+**Still in flight:** Same as prior entries.
+
+**For next session:** Same as the 791st entry, plus the new
+run-gates/CI open item above.
+
 ## 2026-09-30 (791st filing) — `3a488056`: Pass 10.18 SHIPPED — PAdES B-LT: write validation material into /DSS
 
 **Shipped:**

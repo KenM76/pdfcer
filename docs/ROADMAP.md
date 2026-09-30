@@ -155,6 +155,17 @@ already-fuzzed pkix parsers consume untrusted bytes here.
 `tools/run-gates.sh`: record "run before push" only (no shell available
 to this filing).
 
+**Follow-up fixes (792nd filing).**
+- `0464e825` — `add-ltv` was on neither `IN_PLACE_COMMANDS` nor the
+  exclusion list; `in_place_covers_every_input_output_subcommand` failed
+  in the run-gates sweep. Added it; `--in-place` now works like `sign`.
+- `c8e3c45a` — `cargo check -p pdfcer-cli --no-default-features` had been
+  broken since `0fe973a2` (2026-09-25): the `ocrs` engine variant was
+  unconditional, and `verify-signatures` used `MdpPermission` (behind
+  `signing`). Feature-gated both, added a named refusal for
+  `--ocr-engine ocrs` without the feature. No gate builds the CLI without
+  default features — open item, add one to run-gates/CI.
+
 **Shells.** core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` has not
 consumed this (separate project).
 
