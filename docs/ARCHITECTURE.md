@@ -6411,9 +6411,17 @@ is caught **only** there.
   `KeepEach` keeps every surviving page's exact prior label. Same
   answer to 072's subset objection as `417.1`'s insert fix — a range
   is recomputed against the surviving pages it actually covers, never
-  carried onto a count it wasn't computed against. `reorder_pages`
-  still leaves the tree positional, untouched by any of these three
-  extensions.
+  carried onto a count it wasn't computed against. **Extended a fourth
+  time 2026-09-30 (801st filing, `3970f101`, `Pass 417.4`):** reorder
+  now offers `pageops::ReorderedPageLabels::{Positional, FollowPages}`
+  via `EditSession::reorder_pages_with_labels`, closing the gap the
+  third extension left open. `Positional` (default) matches Acrobat
+  and keeps the numbering in sequence; `FollowPages` rewrites
+  `/PageLabels` in the same undo entry so each page carries the label
+  it showed before the reorder. Both are defensible readings of what a
+  reorder should do to labels, so both ship with a default rather than
+  pdfcer picking one — the operator's standing rule for exactly this
+  shape of ambiguity.
 - 2026-08-19 — Decision 073.
 - 2026-08-19/20 — Decision 074.
 - 2026-08-20 — no decision NUMBER minted; two rulings recorded instead,
