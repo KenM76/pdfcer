@@ -6384,7 +6384,12 @@ is caught **only** there.
 - 2026-08-18 (hundred-and-sixty-sixth filing) — decision 069: OVERPRINT IS SIMULATED PER-PAINT, BY RECONSTRUCTING CMYK FROM THE RGB BUFFER THROUGH AN EXACT-INVERSE ROUND…
 - 2026-08-18 (hundred-and-sixty-seventh filing) — decision 070: A SOFT MASK IS MULTIPLIED INTO THE CLIP, NOT THREADED AS A SECOND MASK THROUGH EVERY PAINT SITE — AND THE…
 - 2026-08-18 (hundred-and-eighty-second filing) — decision 071: A DISPLAY LIST IS KEYED ON `(page, epoch, SCALE)` AND REFUSES A MISMATCH BY NAME; A PAGE IT CANNOT RECORD…
-- 2026-08-19 — Decision 072.
+- 2026-08-19 — Decision 072. **Extended 2026-09-29 (775th filing,
+  `6b7578b0`, `Pass 416.0`):** `merge_document`'s whole-document merge
+  DOES carry `/PageLabels` — 072's objection was to a source range
+  applied to a page subset it was not computed against
+  (`insert_pages`), and a whole-document merge has no such subset.
+  072's own ruling for `insert_pages` is unchanged.
 - 2026-08-19 — Decision 073.
 - 2026-08-19/20 — Decision 074.
 - 2026-08-20 — no decision NUMBER minted; two rulings recorded instead,

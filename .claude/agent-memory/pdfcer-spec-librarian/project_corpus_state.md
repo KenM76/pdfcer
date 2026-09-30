@@ -7935,3 +7935,17 @@ P2 §4.16.10 says media-type "should", the manifest RNG makes it required; P3 §
 P2 §3.3 mimetype = should; P3 §2.2.4 B = shall for a spreadsheet package. Grep the per-document-type conformance clause.
 ### 86d. ★ Backslash paths in a Python patch string become control chars
 PDF_Spec index had `D:\dev<CR>ag\emf<TAB>ext_records.md` (three rows, from the G033 filing). Fixed 2026-09-28. Write paths with forward slashes in patch scripts.
+
+## 87. "Ingest clause C for a writer Pass, and state two answers explicitly" (2026-09-29, §12.4.2 page labels → `iso32000__s__12.4.2.md`)
+
+### 87a. ★ The EC3 PDF's erratum markup can be REVERSED later
+#432 (AA to ZZ → AA to AZ) was TWG-agreed, then reopened and closed as `duplicate`. #593 restored the repeated-letter reading. The current errata HTML has 0 `data-issue="432"`. The staged EC3 PDF (sold 2026-08-12) still carries #432's StrikeOut/Caret. **An EC3 annotation is a snapshot: confirm every erratum against the CURRENT `clauseNN.html` before treating it as live.**
+
+### 87b. "Is the spec silent on the reader case?" — split it by who the `shall` binds (74a)
+Key 0 is a file/writer `shall`, stated twice. The reader fallback has 0 hits in either edition. Answer the writer question (always emit key 0) as determinate, and the reader question as PL-A1 (settings candidate).
+
+### 87c. The dispatch's feature already existed in pdfcer, untracked
+`page_labels.rs` was being edited concurrently: a Read showed `.skip(1)`, and a re-read minutes later did not. **Do not report a code defect from a file that `git status` shows as `??`.** Record it as a dated measurement only.
+
+### 87d. Filing
+The prefix-table `iso32000__s__` cell was stale at 108 while disk held 118: both 2026-09-28 builds bumped only the Total line. It is now 119, and the Total is 213. Index changes: 1 manifest row, trigger subsection (6 rows), recipe block (RUN), 3 ambiguity rows, 2 known-gaps banners struck. The 7.9.6 dated note is LF. The qcheck script is in the session scratchpad, and it is the item-84f approach: blockquote `> ` prefixes must be stripped before matching.

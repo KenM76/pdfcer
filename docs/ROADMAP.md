@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 416.0` (`6b7578b0`), 2026-09-29 — `merge_document` carries `/PageLabels`
+
+Narrows the Backlog entry filed 2026-08-19/20 (hundred-and-ninety-eighth /
+two-hundred-and-first filings) to `/OCProperties` only.
+
+`EditSession::merge_document` now carries `/PageLabels` (ISO 32000-1
+§12.4.2; number tree §7.9.7): every page keeps the label it displayed in
+its own source document. Source ranges are offset to where its pages
+land; target ranges at/after the insertion point shift by the source page
+count; a target range the merge splits gets a continuation range with its
+own `/St` resuming after the inserted block. A document with no
+`/PageLabels` tree counts as `<< /S /D >>` for this purpose (the standard
+gives no reader rule for an uncovered page — spec RAG entry PL-A2); a
+prefix-only range (no `/S`) resumes unchanged and gains no style. Nothing
+is written when neither document has a tree (minimal diff). New
+`pub(crate)` module `crates/pdfcer-core/src/page_labels.rs` (tree walk
+with depth/node ceilings and a cycle guard, per `ARCHITECTURE.md` §10;
+splice; flat-tree writer). New `MergeOutcome::page_label_ranges: usize`
+(additive — `MergeOutcome` is `#[non_exhaustive]`). CLI `merge-document`
+prints `page_label_ranges=` and documents the carry in `--help`.
+
+**Diverges from Acrobat's measured overwrite-with-preceding-label
+behaviour at this junction (decision 072)** — noted on 072's own line in
+`ARCHITECTURE.md` §12's index, no new decision number. 072's objection was
+to a source range applied to a page *subset* it was not computed against
+(`insert_pages`); a whole-document merge has no such subset, so this is an
+extension of 072's reasoning, not a reversal of it. Another instance of
+"parity is a floor, not a target."
+
+**Tests.** 7 unit tests in `page_labels.rs`; 3 end-to-end tests on saved
+bytes in `crates/pdfcer-core/tests/merge_document.rs`
+(`merged_pages_keep_the_labels_they_had` — target tree behind a reference
+and a `/Kids` level, plus undo restoring the original tree reference;
+`a_merge_without_labels_writes_no_label_tree`;
+`an_unlabelled_target_keeps_its_page_numbers`). Sabotage-checked: dropping
+the `/St` offset, dropping the source's first range, and setting `/St` on
+a prefix-only range each fail.
+
+`cargo fmt --check` / `cargo clippy -- -D warnings` clean;
+`check-core-api-verbs`, `check-public-fns-documented`, `check-string-gaps`
+all PASS. No `Cargo.toml` change — `cargo tree` unaffected.
+`docs/core-api/02-editing-and-saving.md` updated (merge now carries page
+labels; `/OCProperties` is the remaining uncarried entry).
+
 ### `Pass 415.0` (`b8b3b108`), 2026-09-29 — cut axial/radial shadings under a redaction mark
 
 Partly closes the Backlog entry filed 2026-09-03 (392nd filing), "A
@@ -26306,20 +26350,12 @@ added. See that section below.
   are enough for the operator's work today" — so this is filed for
   capability-inventory completeness, not urgency; the four are real
   Table-192 controls, not GUI wiring gaps.
-- **`merge_document` still doesn't carry page labels or `/OCProperties`.**
-  Filed 2026-08-19 (hundred-and-ninety-eighth filing), `Pass 106.0`'s own
-  "Still open" list. **Narrowed 2026-08-20 (two-hundred-and-first
-  filing):** the entry originally read "carries pages + `/AcroForm` only
-  — outlines, named destinations, page labels and `/OCProperties` are not
-  merged." Two of those four shipped as `Pass 106.1` (`af12b31`) —
-  `EditSession::merge_document` now also carries named destinations
-  (`merge_named_destinations`) and the outline/bookmark tree
-  (`merge_outline`), destinations first so a bookmark pointing at a
-  renamed key is rewritten before the outline copy runs. Remaining scope:
-  `/PageLabels` and optional-content group configuration only. Page
-  labels have a documented precedent to reuse or diverge from
-  deliberately (`Pass 103.2`'s Acrobat-measured-and-not-matched ruling,
-  decision 072).
+- **`merge_document` still doesn't carry `/OCProperties`.** Filed
+  2026-08-19 (hundred-and-ninety-eighth filing), `Pass 106.0`'s own
+  "Still open" list. Narrowed 2026-08-20 (two-hundred-and-first filing) to
+  `/PageLabels` and `/OCProperties`; page labels shipped as `Pass 416.0`
+  (`6b7578b0`, 2026-09-29, extending decision 072 — see the Shipped entry).
+  Remaining scope: optional-content group configuration only.
 - **`pdfce-cli`'s `merge-document` prints four `MergeOutcome` fields and
   is silent on three more that `Pass 106.1` added.** Filed 2026-08-20
   (two-hundred-and-first filing), found by `Grep`/`Read` while filing that

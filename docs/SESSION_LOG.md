@@ -4,6 +4,40 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-29 (775th filing) — `Pass 416.0` (`6b7578b0`): `merge_document` carries `/PageLabels`
+
+**Shipped:**
+- `Pass 416.0` (`6b7578b0`) — `EditSession::merge_document` now carries
+  `/PageLabels` (ISO 32000-1 §12.4.2/§7.9.7): every page keeps the label
+  it showed in its own source document, source ranges offset to their
+  landing position, target ranges at/after the insertion point shifted by
+  the source page count, a split target range resumes via a continuation
+  range with its own `/St`. New `MergeOutcome::page_label_ranges`
+  (additive); CLI `merge-document` prints `page_label_ranges=`. Narrows
+  the 198th/201st-filing Backlog entry to `/OCProperties` only.
+
+**Decisions made this session:**
+- Extension of decision 072, no new number: 072's ruling was against
+  carrying a source label range onto a page *subset* it wasn't computed
+  for (`insert_pages`); a whole-document merge has no such subset, so
+  this carry doesn't reopen that ruling. Note added on 072's own line in
+  `ARCHITECTURE.md` §12's index.
+
+**Findings + decisions:**
+- A document with no `/PageLabels` tree is treated as `<< /S /D >>` for
+  this carry — the standard gives no reader rule for an uncovered page
+  (spec RAG entry PL-A2; decimal-from-1 is universal practice).
+- Tests: 7 unit (`page_labels.rs`) + 3 end-to-end on saved bytes
+  (`merge_document.rs`), sabotage-checked. fmt/clippy clean;
+  `check-core-api-verbs`/`check-public-fns-documented`/`check-string-gaps`
+  PASS. No `Cargo.toml` change.
+
+**Still in flight:** `/OCProperties` remains uncarried by `merge_document`
+(narrowed Backlog entry).
+
+**For next session:** Full `run-gates.sh` sweep was running after this
+filing — check its result before starting new work.
+
 ## 2026-09-29 (773rd filing) — `Pass 415.0` (`b8b3b108`): cut axial/radial shadings under a redaction mark
 
 **Shipped:**
