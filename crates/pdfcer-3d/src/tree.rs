@@ -52,6 +52,8 @@ const MAX_VISITS: usize = 1 << 20;
 /// `GraphicsContent` behaviour bits [WD 7.2.4.2].
 const SHOW: u16 = 0x0001;
 const REMOVED: u16 = 0x2000;
+const SON_HERIT_COLOR: u16 = 0x0008;
+const FATHER_HERIT_COLOR: u16 = 0x0010;
 /// `product_behavior` SUPPRESSED [WD 7.3.10].
 const SUPPRESSED: u8 = 0x01;
 
@@ -142,6 +144,101 @@ pub struct Placement {
     pub tessellation: usize,
     /// Occurrence path × representation-item placement.
     pub matrix: Matrix,
+    /// Straight RGBA, each 0–1, alpha the opacity, from the style the
+    /// tree resolves for this item; `None` when no style reaches it or the
+    /// style names no colour this reader resolves (a textured material).
+    /// Colours of individual faces are not read.
+    pub colour: Option<[f64; 4]>,
+}
+
+/// One entity's `GraphicsContent`: `style` is `line_style_index + 1`
+/// (0 = none), `bits` the behaviour bits [WD 7.2.4].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct Graphics {
+    pub(crate) style: u32,
+    pub(crate) bits: u16,
+}
+
+/// A `Style` (701) as far as colour: `index` is `colour_or_material + 1`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Style {
+    pub(crate) is_material: bool,
+    pub(crate) index: u32,
+    pub(crate) transparency: Option<u8>,
+}
+
+/// A `materials` entry as far as colour.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Material {
+    /// `Material` (702): `diffuse + 1` (a double-scaled colour index) and
+    /// the diffuse alpha.
+    Plain { diffuse: u32, alpha: f64 },
+    /// `TextureApplication` (711): `material_generic_index + 1`.
+    Textured { base: u32 },
+}
+
+/// What `FileStructureGlobals` contributes to placing and colouring.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct Globals {
+    /// Entry `i` places an item with biased local-CS index `i + 1`.
+    pub(crate) systems: Vec<Matrix>,
+    pub(crate) colours: Vec<[f64; 3]>,
+    pub(crate) materials: Vec<Material>,
+    pub(crate) styles: Vec<Style>,
+}
+
+impl Globals {
+    /// Colour index `i + 1` of a style or material. Indices are
+    /// double-scaled: stored `i + 1` names `colours[i / 3]`
+    /// (`prc__8137__graphics_materials.md` §2, ISS #816); one that is not a
+    /// multiple of three names nothing.
+    fn colour(&self, biased: u32) -> Option<[f64; 3]> {
+        let i = biased.checked_sub(1)?;
+        if i % 3 != 0 {
+            return None;
+        }
+        self.colours.get(i as usize / 3).copied()
+    }
+
+    /// The RGBA of style `biased` (`line_style_index + 1`).
+    pub(crate) fn style_colour(&self, biased: u32) -> Option<[f64; 4]> {
+        let style = self.styles.get(biased.checked_sub(1)? as usize)?;
+        let (rgb, mut alpha) = if style.is_material {
+            let mut m = self.materials.get(style.index.checked_sub(1)? as usize)?;
+            if let Material::Textured { base } = *m {
+                m = self.materials.get(base.checked_sub(1)? as usize)?;
+            }
+            match *m {
+                Material::Plain { diffuse, alpha } => (self.colour(diffuse)?, alpha),
+                Material::Textured { .. } => return None,
+            }
+        } else {
+            (self.colour(style.index)?, 1.0)
+        };
+        if let Some(t) = style.transparency {
+            alpha *= f64::from(t) / 255.0;
+        }
+        let [r, g, b] = rgb;
+        Some([r, g, b, alpha.clamp(0.0, 1.0)])
+    }
+}
+
+/// The style a chain of graphics resolves to, outermost first: a son's own
+/// style is used unless an ancestor set `FatherHeritColor` (the oldest such
+/// wins), and a son setting `SonHeritColor` overrides that
+/// [WD 7.2.4.2]. Entities with no style inherit.
+pub(crate) fn resolve_style(chain: &[Graphics]) -> u32 {
+    let (mut style, mut forced) = (0, false);
+    for g in chain {
+        if g.style == 0 {
+            continue;
+        }
+        if !forced || g.bits & SON_HERIT_COLOR != 0 {
+            style = g.style;
+            forced = g.bits & FATHER_HERIT_COLOR != 0;
+        }
+    }
+    style
 }
 
 /// A representation item that can be drawn, flattened out of any `RI_Set`.
@@ -152,6 +249,8 @@ pub(crate) struct Item {
     pub(crate) local: Vec<u32>,
     /// `index_tessellation + 1`; never 0 here.
     pub(crate) tessellation: u32,
+    /// The part's graphics, each enclosing set's, then the item's own.
+    pub(crate) graphics: Vec<Graphics>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -163,6 +262,7 @@ pub(crate) struct Product {
     pub(crate) external_fs: Option<UniqueId>,
     pub(crate) sons: Vec<u32>,
     pub(crate) hidden: bool,
+    pub(crate) graphics: Graphics,
     pub(crate) location: Option<Matrix>,
 }
 
@@ -207,24 +307,26 @@ impl Ctx<'_, '_> {
     }
 
     /// `PRCBaseWithGraphics` [WD 7.2.4; ISS #405]; returns whether the
-    /// entity's own graphics hide it (Show clear or Removed set). Inherited
-    /// graphics (`same_graphics`) never hide.
-    fn base_with_graphics(&mut self) -> Result<bool, PrcError> {
+    /// entity's own graphics hide it (Show clear or Removed set), and its
+    /// graphics. Reused graphics (`same_graphics`) are the current graphics
+    /// [WD 5.4] and never hide.
+    fn base_with_graphics(&mut self) -> Result<(bool, Graphics), PrcError> {
         self.content_prc_ref_base()?;
         let hidden = if self.r.bit()? {
             false
         } else {
             self.r.unsigned_integer()?; // layer + 1
-            self.r.unsigned_integer()?; // line style + 1
+            let style = self.r.unsigned_integer()?;
             let lo = u16::from(self.r.character()?);
             let hi = u16::from(self.r.character()?);
             let bits = lo | hi << 8;
+            self.graphics = Graphics { style, bits };
             bits & SHOW == 0 || bits & REMOVED != 0
         };
         // Schema additions to the base itself, after the graphics [PRCRS].
         self.schema
             .skip_added_fields(BASE_WITH_GRAPHICS, &mut self.r)?;
-        Ok(hidden)
+        Ok((hidden, self.graphics))
     }
 
     /// `CartesianTransformation` (202) or `GeneralTransformation` (207),
@@ -318,6 +420,7 @@ impl Ctx<'_, '_> {
     fn representation_item(
         &mut self,
         local: &[u32],
+        graphics: &[Graphics],
         out: &mut Vec<Item>,
         depth: usize,
     ) -> Result<(), PrcError> {
@@ -325,13 +428,15 @@ impl Ctx<'_, '_> {
             return Err(malformed("representation sets nest too deep".into()));
         }
         let t = self.r.unsigned_integer()?;
-        let hidden = self.base_with_graphics()?;
+        let (hidden, own) = self.base_with_graphics()?;
         let cs = self.r.unsigned_integer()?;
         let tess = self.r.unsigned_integer()?;
         let mut path = local.to_vec();
         if cs != 0 {
             path.push(cs);
         }
+        let mut chain = graphics.to_vec();
+        chain.push(own);
         let exact = |c: &mut Self| -> Result<(), PrcError> {
             if c.r.bit()? {
                 c.r.unsigned_integer()?;
@@ -367,7 +472,7 @@ impl Ctx<'_, '_> {
                 let n = self.count(1, "representation set")?;
                 let mut members = Vec::new();
                 for _ in 0..n {
-                    self.representation_item(&path, &mut members, depth + 1)?;
+                    self.representation_item(&path, &chain, &mut members, depth + 1)?;
                 }
                 if !hidden {
                     out.extend(members);
@@ -390,6 +495,7 @@ impl Ctx<'_, '_> {
             out.push(Item {
                 local: path,
                 tessellation: tess,
+                graphics: chain,
             });
         }
         Ok(())
@@ -514,13 +620,13 @@ impl Ctx<'_, '_> {
 
     fn part_definition(&mut self) -> Result<Vec<Item>, PrcError> {
         self.expect_type(PART_DEFINITION)?;
-        let hidden = self.base_with_graphics()?;
+        let (hidden, own) = self.base_with_graphics()?;
         self.vector3()?; // bounding box
         self.vector3()?;
         let n = self.count(1, "representation items")?;
         let mut items = Vec::new();
         for _ in 0..n {
-            self.representation_item(&[], &mut items, 0)?;
+            self.representation_item(&[], &[own], &mut items, 0)?;
         }
         self.markup_data()?;
         self.views()?;
@@ -544,8 +650,10 @@ impl Ctx<'_, '_> {
 
     fn product_occurrence(&mut self) -> Result<Product, PrcError> {
         self.expect_type(PRODUCT_OCCURRENCE)?;
+        let (hidden, graphics) = self.base_with_graphics()?;
         let mut p = Product {
-            hidden: self.base_with_graphics()?,
+            hidden,
+            graphics,
             part: self.r.unsigned_integer()?,
             ..Product::default()
         };
@@ -594,13 +702,13 @@ impl Ctx<'_, '_> {
     }
 
     /// `FileStructureGlobals` (303) read as far as its reference coordinate
-    /// systems [WD 7.3.5, 7.3.5.2; PRCRS]; entry `i` is the matrix an item
-    /// with biased local-CS index `i + 1` is placed by.
+    /// systems [WD 7.3.5, 7.3.5.2; PRCRS]: colours, materials, styles and
+    /// the systems.
     ///
     /// Fonts, pictures, texture definitions and fill patterns are
-    /// [`PrcError::Unsupported`]; colours, materials, texture applications,
-    /// line patterns and styles are read past.
-    pub(crate) fn coordinate_systems(&mut self) -> Result<Vec<Matrix>, PrcError> {
+    /// [`PrcError::Unsupported`]; line patterns are read past.
+    pub(crate) fn globals(&mut self) -> Result<Globals, PrcError> {
+        let mut g = Globals::default();
         self.expect_type(FILE_STRUCTURE_GLOBALS)?;
         self.content_prc_base()?;
         let n = self.count(4, "referenced file structures")?;
@@ -615,7 +723,8 @@ impl Ctx<'_, '_> {
         }
         let n = self.count(3, "colours")?;
         for _ in 0..n {
-            self.vector3()?;
+            let c = self.vector3()?;
+            g.colours.push(c);
         }
         if self.r.unsigned_integer()? != 0 {
             return Err(PrcError::Unsupported("PRC global pictures"));
@@ -625,7 +734,8 @@ impl Ctx<'_, '_> {
         }
         let n = self.count(1, "materials")?;
         for _ in 0..n {
-            self.material()?;
+            let m = self.material()?;
+            g.materials.push(m);
         }
         let n = self.count(1, "line patterns")?;
         for _ in 0..n {
@@ -641,19 +751,20 @@ impl Ctx<'_, '_> {
         }
         let n = self.count(1, "styles")?;
         for _ in 0..n {
-            self.style()?;
+            let st = self.style()?;
+            g.styles.push(st);
         }
         if self.r.unsigned_integer()? != 0 {
             return Err(PrcError::Unsupported("PRC fill patterns"));
         }
         let n = self.count(1, "reference coordinate systems")?;
-        let mut systems = Vec::with_capacity(n);
         for _ in 0..n {
             self.expect_type(RI_COORDINATE_SYSTEM)?;
             self.base_with_graphics()?;
             self.r.unsigned_integer()?; // local CS + 1
             self.r.unsigned_integer()?; // tessellation + 1
-            systems.push(self.transformation()?);
+            let m = self.transformation()?;
+            g.systems.push(m);
             self.schema
                 .skip_added_fields(RI_COORDINATE_SYSTEM, &mut self.r)?;
             self.user_data()?;
@@ -661,49 +772,66 @@ impl Ctx<'_, '_> {
         self.schema
             .skip_added_fields(FILE_STRUCTURE_GLOBALS, &mut self.r)?;
         self.user_data()?;
-        Ok(systems)
+        Ok(g)
     }
 
     /// One `materials` entry: `Material` (702) or `TextureApplication` (711),
     /// type-tagged [WD 7.5.4, 7.5.6; PRCRS].
-    fn material(&mut self) -> Result<(), PrcError> {
+    fn material(&mut self) -> Result<Material, PrcError> {
         let t = self.r.unsigned_integer()?;
         self.content_prc_ref_base()?;
-        match t {
+        let m = match t {
             MATERIAL => {
-                for _ in 0..4 {
-                    self.r.unsigned_integer()?; // ambient/diffuse/emissive/specular + 1
-                }
-                for _ in 0..5 {
-                    self.r.double()?; // shininess, then the four alphas
-                }
+                self.r.unsigned_integer()?; // ambient + 1
+                let diffuse = self.r.unsigned_integer()?;
+                self.r.unsigned_integer()?; // emissive + 1
+                self.r.unsigned_integer()?; // specular + 1
+                self.r.double()?; // shininess
+                self.r.double()?; // ambient alpha
+                let alpha = self.r.double()?;
+                self.r.double()?; // emissive alpha
+                self.r.double()?; // specular alpha
+                Material::Plain { diffuse, alpha }
             }
             TEXTURE_APPLICATION => {
-                for _ in 0..4 {
-                    self.r.unsigned_integer()?;
+                let base = self.r.unsigned_integer()?;
+                for _ in 0..3 {
+                    self.r.unsigned_integer()?; // texture, next, UV set + 1
                 }
+                Material::Textured { base }
             }
             t => return Err(malformed(format!("entity type {t} as a material"))),
-        }
-        self.schema.skip_added_fields(t, &mut self.r)
+        };
+        self.schema.skip_added_fields(t, &mut self.r)?;
+        Ok(m)
     }
 
     /// `Style` (701) [WD 7.5.3; PRCRS].
-    fn style(&mut self) -> Result<(), PrcError> {
+    fn style(&mut self) -> Result<Style, PrcError> {
         self.expect_type(STYLE)?;
         self.content_prc_ref_base()?;
         self.r.double()?; // line width
         self.r.bit()?; // is_vpicture
         self.r.unsigned_integer()?; // pattern + 1
-        self.r.bit()?; // is_material
-        self.r.unsigned_integer()?; // colour or material + 1
-        for _ in 0..4 {
-            // transparency, then rendering parameters 1-3
+        let is_material = self.r.bit()?;
+        let index = self.r.unsigned_integer()?;
+        let transparency = if self.r.bit()? {
+            Some(self.r.character()?)
+        } else {
+            None
+        };
+        for _ in 0..3 {
+            // rendering parameters 1-3
             if self.r.bit()? {
                 self.r.character()?;
             }
         }
-        self.schema.skip_added_fields(STYLE, &mut self.r)
+        self.schema.skip_added_fields(STYLE, &mut self.r)?;
+        Ok(Style {
+            is_material,
+            index,
+            transparency,
+        })
     }
 
     /// `FileStructureTree` (304) [WD 7.3.6].
@@ -760,15 +888,15 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 /// The occurrence walk over every file structure's tree [WD 7.3.10.1,
 /// 7.6.3.2; `prc__8137__model_tree_asm.md` §9].
 pub(crate) struct Walk<'t> {
-    /// Per file structure: its id, tree and reference coordinate systems.
-    pub(crate) trees: Vec<(UniqueId, &'t Tree, &'t [Matrix])>,
+    /// Per file structure: its id, tree and globals.
+    pub(crate) trees: Vec<(UniqueId, &'t Tree, &'t Globals)>,
     pub(crate) out: Vec<Placement>,
     visits: usize,
 }
 
 impl<'t> Walk<'t> {
     /// A walk over `trees`, with no placements yet.
-    pub(crate) fn new(trees: Vec<(UniqueId, &'t Tree, &'t [Matrix])>) -> Self {
+    pub(crate) fn new(trees: Vec<(UniqueId, &'t Tree, &'t Globals)>) -> Self {
         Walk {
             trees,
             out: Vec::new(),
@@ -790,12 +918,14 @@ impl<'t> Walk<'t> {
             .ok_or_else(|| malformed(format!("product occurrence {index} does not exist")))
     }
 
-    /// Draws occurrence `index` of structure `fs` under `father`.
+    /// Draws occurrence `index` of structure `fs` under `father`, whose
+    /// occurrences' graphics are `graphics`, root first.
     pub(crate) fn occurrence(
         &mut self,
         fs: usize,
         index: usize,
         father: &Matrix,
+        graphics: &[Graphics],
         depth: usize,
     ) -> Result<(), PrcError> {
         self.visits += 1;
@@ -812,6 +942,8 @@ impl<'t> Walk<'t> {
             Some(l) => multiply(father, l),
             None => *father,
         };
+        let mut chain = graphics.to_vec();
+        chain.push(p.graphics);
         // The part and sons, falling back to the prototype chain's for
         // whichever this occurrence leaves empty [WD 7.3.10.1].
         let (mut part, mut sons) = ((fs, p.part), (fs, &p.sons));
@@ -836,23 +968,29 @@ impl<'t> Walk<'t> {
             proto = (pfs, q.prototype, q.prototype_fs);
         }
         if part.1 != 0 {
-            self.part(part.0, part.1 as usize - 1, &m)?;
+            self.part(part.0, part.1 as usize - 1, &m, &chain)?;
         }
         for &s in sons.1 {
-            self.occurrence(sons.0, s as usize, &m, depth + 1)?;
+            self.occurrence(sons.0, s as usize, &m, &chain, depth + 1)?;
         }
         if p.external != 0 {
             let efs = match p.external_fs {
                 Some(id) => self.fs(id)?,
                 None => fs,
             };
-            self.occurrence(efs, p.external as usize - 1, &m, depth + 1)?;
+            self.occurrence(efs, p.external as usize - 1, &m, &chain, depth + 1)?;
         }
         Ok(())
     }
 
-    fn part(&mut self, fs: usize, index: usize, m: &Matrix) -> Result<(), PrcError> {
-        let (_, tree, systems) = self
+    fn part(
+        &mut self,
+        fs: usize,
+        index: usize,
+        m: &Matrix,
+        graphics: &[Graphics],
+    ) -> Result<(), PrcError> {
+        let (_, tree, globals) = self
             .trees
             .get(fs)
             .copied()
@@ -864,15 +1002,18 @@ impl<'t> Walk<'t> {
         for item in items {
             let mut placed = *m;
             for &cs in &item.local {
-                let l = systems
+                let l = globals
+                    .systems
                     .get(cs as usize - 1)
                     .ok_or_else(|| malformed(format!("coordinate system {cs} does not exist")))?;
                 placed = multiply(&placed, l);
             }
+            let chain: Vec<Graphics> = graphics.iter().chain(&item.graphics).copied().collect();
             self.out.push(Placement {
                 file_structure: fs,
                 tessellation: item.tessellation as usize - 1,
                 matrix: placed,
+                colour: globals.style_colour(resolve_style(&chain)),
             });
         }
         Ok(())
@@ -894,19 +1035,20 @@ mod tests {
         w.uint(0).bit(true);
     }
 
-    /// `PRCBaseWithGraphics`; `behaviour` `None` inherits the father's.
-    /// `extra` writes the UInt a schema adds to type 2.
-    fn graphics(w: &mut W, behaviour: Option<u16>, extra: bool) {
+    /// `PRCBaseWithGraphics`; `g` is `(line style + 1, behaviour)`, `None`
+    /// reusing the current graphics. `extra` writes the UInt a schema adds
+    /// to type 2.
+    fn graphics(w: &mut W, g: Option<(u32, u16)>, extra: bool) {
         base(w);
         w.uint(0).uint(0).uint(7);
-        match behaviour {
+        match g {
             None => {
                 w.bit(true);
             }
-            Some(b) => {
+            Some((style, b)) => {
                 w.bit(false)
                     .uint(0)
-                    .uint(0)
+                    .uint(style)
                     .put(u64::from(b & 0xff), 8)
                     .put(u64::from(b >> 8), 8);
             }
@@ -951,7 +1093,7 @@ mod tests {
     struct Occ<'a> {
         part: u32,
         sons: &'a [u32],
-        behaviour: Option<u16>,
+        behaviour: Option<(u32, u16)>,
         suppressed: bool,
         location: Option<[f64; 3]>,
         mirror: bool,
@@ -1058,19 +1200,20 @@ mod tests {
     }
 
     fn ctx<'a, 's>(bytes: &'a [u8], schema: &'s Schema) -> Ctx<'a, 's> {
-        Ctx {
-            r: BitReader::new(bytes),
-            schema,
-            version: 8137,
-        }
+        Ctx::new(BitReader::new(bytes), schema, 8137)
     }
 
-    fn place(occs: &[Occ<'_>], cs: u32, systems: &[Matrix]) -> Result<Vec<Placement>, PrcError> {
+    fn place(occs: &[Occ<'_>], cs: u32, globals: &Globals) -> Result<Vec<Placement>, PrcError> {
         let bytes = tree(occs, cs, false).bytes();
         let t = ctx(&bytes, &Schema::default()).file_structure_tree()?;
-        let mut walk = Walk::new(vec![(FS, &t, systems)]);
-        walk.occurrence(0, 0, &IDENTITY, 0)?;
+        let mut walk = Walk::new(vec![(FS, &t, globals)]);
+        walk.occurrence(0, 0, &IDENTITY, &[], 0)?;
         Ok(walk.out)
+    }
+
+    fn fixture_globals() -> Globals {
+        let bytes = globals([0.0, 5.0, 0.0]).bytes();
+        ctx(&bytes, &Schema::default()).globals().unwrap()
     }
 
     fn translate(t: [f64; 3]) -> Matrix {
@@ -1083,11 +1226,8 @@ mod tests {
 
     #[test]
     fn sons_compose_locations_and_reference_systems() {
-        let bytes = globals([0.0, 5.0, 0.0]).bytes();
-        let systems = ctx(&bytes, &Schema::default())
-            .coordinate_systems()
-            .unwrap();
-        assert_eq!(systems, [translate([0.0, 5.0, 0.0])]);
+        let systems = fixture_globals();
+        assert_eq!(systems.systems, [translate([0.0, 5.0, 0.0])]);
         let occs = [
             Occ {
                 sons: &[1],
@@ -1111,11 +1251,11 @@ mod tests {
         let shown = Occ { part: 1, ..OCC };
         for hide in [
             Occ {
-                behaviour: Some(0),
+                behaviour: Some((0, 0)),
                 ..shown
             },
             Occ {
-                behaviour: Some(SHOW | REMOVED),
+                behaviour: Some((0, SHOW | REMOVED)),
                 ..shown
             },
             Occ {
@@ -1129,12 +1269,12 @@ mod tests {
                     ..OCC
                 },
                 Occ {
-                    behaviour: Some(SHOW),
+                    behaviour: Some((0, SHOW)),
                     ..shown
                 },
                 hide,
             ];
-            assert_eq!(place(&occs, 0, &[]).unwrap().len(), 1);
+            assert_eq!(place(&occs, 0, &Globals::default()).unwrap().len(), 1);
         }
     }
 
@@ -1145,7 +1285,7 @@ mod tests {
             camera: true,
             ..OCC
         }];
-        assert_eq!(place(&occs, 0, &[]).unwrap().len(), 1);
+        assert_eq!(place(&occs, 0, &Globals::default()).unwrap().len(), 1);
     }
 
     #[test]
@@ -1156,13 +1296,7 @@ mod tests {
         let bytes = w.bytes();
         let mut r = BitReader::new(&bytes);
         let schema = Schema::read(&mut r).unwrap();
-        let t = Ctx {
-            r,
-            schema: &schema,
-            version: 8137,
-        }
-        .file_structure_tree()
-        .unwrap();
+        let t = Ctx::new(r, &schema, 8137).file_structure_tree().unwrap();
         assert_eq!(t.parts[0][0].tessellation, 1);
         assert_eq!(t.root, 1);
     }
@@ -1170,13 +1304,19 @@ mod tests {
     #[test]
     fn a_cycle_is_refused() {
         let occs = [Occ { sons: &[0], ..OCC }];
-        assert!(matches!(place(&occs, 0, &[]), Err(PrcError::Malformed(_))));
+        assert!(matches!(
+            place(&occs, 0, &Globals::default()),
+            Err(PrcError::Malformed(_))
+        ));
     }
 
     #[test]
     fn a_missing_reference_system_is_refused() {
         let occs = [Occ { part: 1, ..OCC }];
-        assert!(matches!(place(&occs, 1, &[]), Err(PrcError::Malformed(_))));
+        assert!(matches!(
+            place(&occs, 1, &Globals::default()),
+            Err(PrcError::Malformed(_))
+        ));
     }
 
     /// A two-occurrence assembly of the unit square: once in place, once
@@ -1233,5 +1373,103 @@ mod tests {
         assert_eq!((p[0].tessellation, p[0].matrix), (0, IDENTITY));
         assert_eq!((p[1].tessellation, p[1].matrix), (0, mirror));
         crate::testw::check_fixture("assembly.prc", &bytes);
+    }
+
+    const RED: [f64; 3] = [1.0, 0.0, 0.0];
+    const GREEN: [f64; 3] = [0.0, 1.0, 0.0];
+
+    fn g(style: u32, bits: u16) -> Graphics {
+        Graphics { style, bits }
+    }
+
+    #[test]
+    fn a_son_style_wins_unless_a_father_forces_his() {
+        let father = FATHER_HERIT_COLOR;
+        assert_eq!(resolve_style(&[g(1, 0), g(2, 0)]), 2, "own wins");
+        assert_eq!(resolve_style(&[g(1, 0), g(0, 0)]), 1, "none inherits");
+        assert_eq!(resolve_style(&[g(1, father), g(2, 0)]), 1, "father forces");
+        assert_eq!(
+            resolve_style(&[g(1, father), g(3, father), g(2, 0)]),
+            1,
+            "the oldest father wins"
+        );
+        assert_eq!(
+            resolve_style(&[g(1, father), g(2, SON_HERIT_COLOR)]),
+            2,
+            "a son's heritage beats the father's"
+        );
+        assert_eq!(resolve_style(&[]), 0);
+    }
+
+    #[test]
+    fn colour_indices_are_double_scaled() {
+        let style = |is_material, index, transparency| Style {
+            is_material,
+            index,
+            transparency,
+        };
+        let gl = Globals {
+            colours: vec![RED, GREEN],
+            materials: vec![
+                Material::Plain {
+                    diffuse: 4,
+                    alpha: 0.5,
+                },
+                Material::Textured { base: 1 },
+            ],
+            styles: vec![
+                style(false, 4, None),
+                style(false, 2, None),
+                style(true, 1, Some(51)),
+                style(true, 2, None),
+            ],
+            ..Globals::default()
+        };
+        assert_eq!(
+            gl.style_colour(1),
+            Some([0.0, 1.0, 0.0, 1.0]),
+            "4 names entry 1"
+        );
+        assert_eq!(gl.style_colour(2), None, "2 is not double-scaled");
+        assert_eq!(
+            gl.style_colour(3),
+            Some([0.0, 1.0, 0.0, 0.1]),
+            "diffuse alpha x transparency"
+        );
+        assert_eq!(
+            gl.style_colour(4),
+            Some([0.0, 1.0, 0.0, 0.5]),
+            "a texture's base material"
+        );
+        assert_eq!(gl.style_colour(0), None);
+        assert_eq!(gl.style_colour(9), None);
+    }
+
+    /// The globals fixture's style 1 is colour 0 at transparency 128;
+    /// an occurrence reusing the current graphics takes the one read last.
+    #[test]
+    fn placements_carry_the_resolved_colour() {
+        let gl = fixture_globals();
+        let want = Some([1.0, 0.5, 0.0, 128.0 / 255.0]);
+        let occs = [
+            Occ {
+                sons: &[1, 2, 3],
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                behaviour: Some((1, SHOW)),
+                ..OCC
+            },
+            Occ { part: 1, ..OCC },
+            Occ {
+                part: 1,
+                behaviour: Some((0, SHOW)),
+                ..OCC
+            },
+        ];
+        let out = place(&occs, 0, &gl).unwrap();
+        let colours: Vec<_> = out.iter().map(|p| p.colour).collect();
+        assert_eq!(colours, [want, want, None]);
     }
 }

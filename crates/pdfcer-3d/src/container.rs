@@ -131,11 +131,11 @@ impl FileStructure {
             return Ok(Vec::new());
         }
         let schema = self.schema()?;
-        crate::tess::Ctx {
-            r: crate::bits::BitReader::new(data),
-            schema: &schema,
-            version: self.authoring_version,
-        }
+        crate::tess::Ctx::new(
+            crate::bits::BitReader::new(data),
+            &schema,
+            self.authoring_version,
+        )
         .file_structure_tessellation()
     }
 }
@@ -396,36 +396,32 @@ impl PrcFile {
         let mut trees = Vec::with_capacity(self.file_structures.len());
         for fs in &self.file_structures {
             let schema = fs.schema()?;
-            let tree = Ctx {
-                r: BitReader::new(fs.section(SectionKind::Tree)),
-                schema: &schema,
-                version: fs.authoring_version,
-            }
+            let tree = Ctx::new(
+                BitReader::new(fs.section(SectionKind::Tree)),
+                &schema,
+                fs.authoring_version,
+            )
             .file_structure_tree()?;
-            let systems = if tree.parts.iter().flatten().any(|i| !i.local.is_empty()) {
+            // Globals carry the reference systems and the colours. Colours
+            // alone are not worth refusing the placements over.
+            let globals = (|| {
                 let mut r = BitReader::new(fs.section(SectionKind::Globals));
                 crate::Schema::read(&mut r)?; // the globals section opens with it
-                Ctx {
-                    r,
-                    schema: &schema,
-                    version: fs.authoring_version,
+                Ctx::new(r, &schema, fs.authoring_version).globals()
+            })();
+            let globals = match globals {
+                Ok(g) => g,
+                Err(e) if tree.parts.iter().flatten().any(|i| !i.local.is_empty()) => {
+                    return Err(e);
                 }
-                .coordinate_systems()?
-            } else {
-                Vec::new()
+                Err(_) => crate::tree::Globals::default(),
             };
-            trees.push((fs.id, tree, systems));
+            trees.push((fs.id, tree, globals));
         }
         let mut r = BitReader::new(&self.model_file);
         let schema = crate::Schema::read(&mut r)?;
-        let model = Ctx {
-            r,
-            schema: &schema,
-            version: self.header.authoring_version,
-        }
-        .model_file()?;
-        let mut walk =
-            crate::tree::Walk::new(trees.iter().map(|(id, t, cs)| (*id, t, &cs[..])).collect());
+        let model = Ctx::new(r, &schema, self.header.authoring_version).model_file()?;
+        let mut walk = crate::tree::Walk::new(trees.iter().map(|(id, t, g)| (*id, t, g)).collect());
         for (id, root) in model.roots {
             let Some(fs) = trees.iter().position(|t| t.0 == id) else {
                 return Err(PrcError::Malformed(
@@ -435,7 +431,7 @@ impl PrcFile {
             if root == 0 {
                 continue;
             }
-            walk.occurrence(fs, root as usize - 1, &crate::tree::IDENTITY, 0)?;
+            walk.occurrence(fs, root as usize - 1, &crate::tree::IDENTITY, &[], 0)?;
         }
         Ok(walk.out)
     }

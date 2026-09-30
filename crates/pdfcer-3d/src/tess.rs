@@ -88,6 +88,21 @@ pub(crate) struct Ctx<'a, 's> {
     pub(crate) schema: &'s Schema,
     /// The file structure's authoring version; gates version-added fields.
     pub(crate) version: u32,
+    /// The current graphics: what a `same_graphics` entity reuses [WD 5.4].
+    /// A fresh `Ctx` starts with none, as each section does.
+    pub(crate) graphics: crate::tree::Graphics,
+}
+
+impl<'a, 's> Ctx<'a, 's> {
+    /// A reader at `r` with no current graphics: each section starts afresh.
+    pub(crate) fn new(r: BitReader<'a>, schema: &'s Schema, version: u32) -> Self {
+        Ctx {
+            r,
+            schema,
+            version,
+            graphics: crate::tree::Graphics::default(),
+        }
+    }
 }
 
 /// A [`PrcError::Malformed`] naming `what`.
@@ -719,12 +734,7 @@ mod tests {
 
     fn decode(w: &W, schema: &Schema, version: u32) -> Result<Vec<Tessellation>, PrcError> {
         let bytes = w.bytes();
-        Ctx {
-            r: BitReader::new(&bytes),
-            schema,
-            version,
-        }
-        .file_structure_tessellation()
+        Ctx::new(BitReader::new(&bytes), schema, version).file_structure_tessellation()
     }
 
     fn mesh(t: &Tessellation) -> &TriangleMesh {
@@ -1057,11 +1067,7 @@ mod tests {
         let sb = sw.bytes();
         let schema = Schema::read(&mut BitReader::new(&sb)).unwrap();
         let bytes = w.bytes();
-        let mut ctx = Ctx {
-            r: BitReader::new(&bytes),
-            schema: &schema,
-            version: 8137,
-        };
+        let mut ctx = Ctx::new(BitReader::new(&bytes), &schema, 8137);
         let t = ctx.file_structure_tessellation().unwrap();
         assert!(matches!(t[..], [Tessellation::Wire(_)]));
         assert_eq!(ctx.r.position(), w.len());
@@ -1144,11 +1150,7 @@ mod tests {
                 let w = section(2, &b);
                 let bytes = w.bytes();
                 let schema = Schema::default();
-                let mut ctx = Ctx {
-                    r: BitReader::new(&bytes),
-                    schema: &schema,
-                    version: v,
-                };
+                let mut ctx = Ctx::new(BitReader::new(&bytes), &schema, v);
                 let t = ctx.file_structure_tessellation().unwrap();
                 assert!(
                     matches!(

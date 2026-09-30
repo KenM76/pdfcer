@@ -236,6 +236,40 @@ pub fn render(
     camera: &Camera,
     options: &RenderOptions,
 ) -> Result<Image, RenderError> {
+    render_coloured(meshes, &[], camera, options)
+}
+
+/// Draw `meshes` as [`render`] does, mesh `i` in `colours[i]`: straight
+/// RGBA, the alpha its opacity. A mesh with no entry, or `None`, is drawn
+/// in [`RenderOptions::colour`], opaque.
+///
+/// Opaque meshes are drawn first. Translucent ones are then blended over
+/// them, hidden by nearer opaque surfaces but not by each other, in mesh
+/// order; fully transparent ones are not drawn.
+///
+/// # Errors
+///
+/// As [`render`].
+///
+/// ```
+/// use pdfcer_3d::{Bounds, Camera, RenderOptions, TriangleMesh, render_coloured};
+/// let mut mesh = TriangleMesh::default();
+/// mesh.positions = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+/// mesh.triangles = vec![[0, 1, 2]];
+/// let meshes = [mesh];
+/// let bounds = Bounds::of(&meshes).unwrap();
+/// let camera = Camera::fit(&bounds, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0], false, 1.0)?;
+/// let options = RenderOptions { width: 64, height: 64, ..RenderOptions::default() };
+/// let image = render_coloured(&meshes, &[Some([200, 0, 0, 255])], &camera, &options)?;
+/// assert_eq!(image.rgba.len(), 64 * 64 * 4);
+/// # Ok::<(), pdfcer_3d::RenderError>(())
+/// ```
+pub fn render_coloured(
+    meshes: &[TriangleMesh],
+    colours: &[Option<[u8; 4]>],
+    camera: &Camera,
+    options: &RenderOptions,
+) -> Result<Image, RenderError> {
     let (width, height) = (options.width, options.height);
     let pixels = u64::from(width) * u64::from(height);
     if pixels == 0 || pixels > MAX_RENDER_PIXELS {
@@ -254,33 +288,44 @@ pub fn render(
         let d = sub(p, camera.eye);
         [dot(d, right), dot(d, up), dot(d, forward)]
     };
-    for mesh in meshes {
-        for tri in &mesh.triangles {
-            let Some(world) = corners(mesh, tri) else {
+    let [r, g, b] = options.colour;
+    let colour_of = |i: usize| colours.get(i).copied().flatten().unwrap_or([r, g, b, 255]);
+    for opaque_pass in [true, false] {
+        for (i, mesh) in meshes.iter().enumerate() {
+            let colour = colour_of(i);
+            let alpha = colour[3];
+            if alpha == 0 || (alpha == 255) != opaque_pass {
                 continue;
-            };
-            let Some(normal) = normalize(cross(
-                sub(at3(&world, 1), at3(&world, 0)),
-                sub(at3(&world, 2), at3(&world, 0)),
-            )) else {
-                continue;
-            };
-            let towards = match view {
-                View::Perspective { .. } => normalize(sub(camera.eye, at3(&world, 0))),
-                View::Orthographic { .. } => Some(scale(forward, -1.0)),
-            };
-            let lit = towards.map_or(0.0, |l| dot(normal, l).abs());
-            let shade = 0.3 + 0.7 * lit;
-            let rgb = options.colour.map(|c| (f64::from(c) * shade).round() as u8);
-            let polygon = view.clip(world.map(to_view));
-            let screen: Vec<[f64; 3]> = polygon
-                .iter()
-                .map(|&p| view.project(p, width, height))
-                .collect();
-            if let Some((&a, rest)) = screen.split_first() {
-                for pair in rest.windows(2) {
-                    if let [b, c] = pair {
-                        target.fill(a, *b, *c, rgb);
+            }
+            for tri in &mesh.triangles {
+                let Some(world) = corners(mesh, tri) else {
+                    continue;
+                };
+                let Some(normal) = normalize(cross(
+                    sub(at3(&world, 1), at3(&world, 0)),
+                    sub(at3(&world, 2), at3(&world, 0)),
+                )) else {
+                    continue;
+                };
+                let towards = match view {
+                    View::Perspective { .. } => normalize(sub(camera.eye, at3(&world, 0))),
+                    View::Orthographic { .. } => Some(scale(forward, -1.0)),
+                };
+                let lit = towards.map_or(0.0, |l| dot(normal, l).abs());
+                let shade = 0.3 + 0.7 * lit;
+                let [cr, cg, cb, _] = colour;
+                let [sr, sg, sb] = [cr, cg, cb].map(|c| (f64::from(c) * shade).round() as u8);
+                let rgba = [sr, sg, sb, alpha];
+                let polygon = view.clip(world.map(to_view));
+                let screen: Vec<[f64; 3]> = polygon
+                    .iter()
+                    .map(|&p| view.project(p, width, height))
+                    .collect();
+                if let Some((&a, rest)) = screen.split_first() {
+                    for pair in rest.windows(2) {
+                        if let [b, c] = pair {
+                            target.fill(a, *b, *c, rgba);
+                        }
                     }
                 }
             }
@@ -409,7 +454,9 @@ struct Target {
 
 impl Target {
     /// Fill one screen-space triangle, depth-tested, sampling pixel centres.
-    fn fill(&mut self, a: [f64; 3], b: [f64; 3], c: [f64; 3], rgb: [u8; 3]) {
+    /// An opaque colour replaces the pixel and its depth; a translucent one
+    /// is blended over it, leaving the depth.
+    fn fill(&mut self, a: [f64; 3], b: [f64; 3], c: [f64; 3], rgba: [u8; 4]) {
         let area = edge(a, b, c);
         if !area.is_finite() || area.abs() < 1e-12 {
             return;
@@ -446,10 +493,23 @@ impl Target {
                 if key <= *d {
                     continue;
                 }
-                *d = key;
+                let opaque = rgba[3] == 255;
+                if opaque {
+                    *d = key;
+                }
                 if let Some(px) = self.rgba.get_mut(i * 4..i * 4 + 4) {
-                    let [r, g, b] = rgb;
-                    px.copy_from_slice(&[r, g, b, 255]);
+                    if opaque {
+                        px.copy_from_slice(&rgba);
+                    } else if let [pr, pg, pb, pa] = px {
+                        let [sr, sg, sb, sa] = rgba;
+                        let src = f64::from(sa) / 255.0;
+                        let dst = f64::from(*pa) / 255.0 * (1.0 - src);
+                        let out = src + dst;
+                        for (p, s) in [pr, pg, pb].into_iter().zip([sr, sg, sb]) {
+                            *p = ((f64::from(s) * src + f64::from(*p) * dst) / out).round() as u8;
+                        }
+                        *pa = (out * 255.0).round() as u8;
+                    }
                 }
             }
         }
@@ -566,6 +626,47 @@ mod tests {
                 "the tilted far square is darker"
             );
         }
+    }
+
+    const RED: Option<[u8; 4]> = Some([255, 0, 0, 255]);
+    const GLASS: Option<[u8; 4]> = Some([0, 0, 255, 102]);
+
+    /// Glass (40% blue) in front of red blends whichever is listed first,
+    /// glass behind red is hidden, a clear mesh draws nothing, and a mesh
+    /// with no colour takes the options' colour.
+    #[test]
+    fn meshes_draw_in_their_own_colours_and_glass_blends() {
+        let (near, far) = (quad(1.0, 1.0, 0.0), quad(-1.0, 1.0, 0.0));
+        let at_middle = |meshes: &[TriangleMesh], colours: &[Option<[u8; 4]>]| {
+            let image = render_coloured(meshes, colours, &ortho(4.0), &small()).unwrap();
+            pixel(&image, 20, 20)
+        };
+        let two = [near.clone(), far.clone()];
+        assert_eq!(at_middle(&two, &[GLASS, RED]), [153, 0, 102, 255]);
+        let flipped = [far.clone(), near.clone()];
+        assert_eq!(at_middle(&flipped, &[RED, GLASS]), [153, 0, 102, 255]);
+        assert_eq!(at_middle(&flipped, &[GLASS, RED]), [255, 0, 0, 255]);
+        assert_eq!(
+            at_middle(&two, &[Some([0, 0, 255, 0]), RED]),
+            [255, 0, 0, 255]
+        );
+        assert_eq!(at_middle(&two, &[None]), [190, 192, 200, 255]);
+        let panes = [quad(2.0, 1.0, 0.0), near.clone(), far.clone()];
+        assert_eq!(
+            at_middle(&panes, &[GLASS, GLASS, RED]),
+            [92, 0, 163, 255],
+            "glass does not hide glass"
+        );
+        let clear = RenderOptions {
+            background: [0, 0, 0, 0],
+            ..small()
+        };
+        let image = render_coloured(&[near], &[GLASS], &ortho(4.0), &clear).unwrap();
+        assert_eq!(
+            pixel(&image, 20, 20),
+            [0, 0, 255, 102],
+            "glass over nothing"
+        );
     }
 
     #[test]

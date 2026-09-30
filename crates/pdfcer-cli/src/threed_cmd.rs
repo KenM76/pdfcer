@@ -146,6 +146,8 @@ fn artwork_bytes(input: &Path, index: usize) -> Result<Vec<u8>, u8> {
 #[cfg(feature = "3d")]
 struct Assembled {
     meshes: Vec<pdfcer_3d::TriangleMesh>,
+    /// Each mesh's colour from the model's tree, straight RGBA.
+    colours: Vec<Option<[u8; 4]>>,
     triangles: usize,
     wires: usize,
     markups: usize,
@@ -166,6 +168,7 @@ fn assemble(data: &[u8]) -> Result<Assembled, String> {
     }
     let prc = PrcFile::parse(data).map_err(|err| err.to_string())?;
     let (mut meshes, mut wires, mut markups) = (Vec::new(), 0usize, 0usize);
+    let mut colours = Vec::new();
     let (mut rebuilt, mut compressed) = (0usize, 0usize);
     // Per file structure, each tessellation's triangle mesh (if it has one).
     let mut by_index: Vec<Vec<Option<pdfcer_3d::TriangleMesh>>> = Vec::new();
@@ -206,6 +209,10 @@ fn assemble(data: &[u8]) -> Result<Assembled, String> {
                     .and_then(Option::as_ref);
                 if let Some(mesh) = mesh {
                     meshes.push(mesh.transformed(&p.matrix));
+                    colours.push(
+                        p.colour
+                            .map(|c| c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)),
+                    );
                 }
             }
             None
@@ -215,6 +222,7 @@ fn assemble(data: &[u8]) -> Result<Assembled, String> {
     };
     if unplaced.is_some() {
         meshes.extend(by_index.into_iter().flatten().flatten());
+        colours.clear();
     }
     let triangles: usize = meshes.iter().map(|m| m.triangles.len()).sum();
     if triangles == 0 {
@@ -229,6 +237,7 @@ fn assemble(data: &[u8]) -> Result<Assembled, String> {
     }
     Ok(Assembled {
         meshes,
+        colours,
         triangles,
         wires,
         markups,
@@ -353,7 +362,7 @@ pub(crate) fn cmd_render_3d(a: &RenderThreeDArgs<'_>) -> u8 {
 
 #[cfg(feature = "3d")]
 fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
-    use pdfcer_3d::{Bounds, Camera, Projection, RenderOptions, render};
+    use pdfcer_3d::{Bounds, Camera, Projection, RenderOptions, render_coloured};
     let refuse = |why: String| {
         eprintln!(
             "pdfcer: {}: 3D artwork {}: {why}",
@@ -399,14 +408,22 @@ fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
         },
         ..RenderOptions::default()
     };
-    let image = match render(&model.meshes, &camera, &options) {
+    let image = match render_coloured(&model.meshes, &model.colours, &camera, &options) {
         Ok(image) => image,
         Err(err) => return refuse(err.to_string()),
     };
-    // Every pixel is either the background or opaque, so straight and
-    // premultiplied alpha coincide.
+    // The pixmap holds premultiplied alpha; glass over a transparent
+    // background leaves partly transparent pixels.
+    let mut rgba = image.rgba;
+    for px in rgba.chunks_exact_mut(4) {
+        if let [r, g, b, alpha] = px {
+            for c in [r, g, b] {
+                *c = (u16::from(*c) * u16::from(*alpha)).div_ceil(255) as u8;
+            }
+        }
+    }
     let png = pdfcer_render::tiny_skia::IntSize::from_wh(image.width, image.height)
-        .and_then(|size| pdfcer_render::tiny_skia::Pixmap::from_vec(image.rgba, size))
+        .and_then(|size| pdfcer_render::tiny_skia::Pixmap::from_vec(rgba, size))
         .ok_or_else(|| "the rendered image has an invalid size".to_owned())
         .and_then(|pixmap| {
             pdfcer_render::export::encode_png(&pixmap, None).map_err(|err| err.to_string())
@@ -440,9 +457,17 @@ fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
         a.output.display()
     );
     print_assembly_notes(&model, "drawn");
+    let uncoloured = model.meshes.len() - model.colours.iter().flatten().count();
+    let translucent = model
+        .colours
+        .iter()
+        .flatten()
+        .filter(|c| c[3] < 255)
+        .count();
     println!(
-        "note: drawn in one uniform colour lit from the camera; the model's own colours, \
-         materials, lights and views are not read yet"
+        "note: each part is drawn in the colour its model tree gives it ({translucent} \
+         translucent), lit from the camera; {uncoloured} mesh(es) had none and are drawn grey; \
+         colours of individual faces, textures, lights and views are not read yet"
     );
     exit::SUCCESS
 }

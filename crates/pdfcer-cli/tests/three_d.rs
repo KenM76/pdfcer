@@ -486,7 +486,9 @@ fn a_prc_assembly_renders_both_placed_copies() {
     assert!(stdout.contains("meshes=2 triangles=4 "), "{stdout}");
     assert!(stdout.contains("projection=orthographic"), "{stdout}");
     assert!(
-        stdout.contains("note: drawn in one uniform colour"),
+        stdout.contains(
+            "note: each part is drawn in the colour its model tree gives it (0 translucent)"
+        ) && stdout.contains("2 mesh(es) had none and are drawn grey"),
         "{stdout}"
     );
     let decoder = png::Decoder::new(std::fs::File::open(&output).unwrap());

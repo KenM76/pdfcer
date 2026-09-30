@@ -2765,22 +2765,30 @@ A separate crate, no GUI or network dependency, wasm-clean. Feed it
 `Extracted3D::data` when `sniffed` is PRC.
 
 ```rust
-use pdfcer_3d::{PrcFile, Tessellation, Bounds, Camera, RenderOptions, render};
+use pdfcer_3d::{PrcFile, Tessellation, Bounds, Camera, RenderOptions, render_coloured};
 
 let prc = PrcFile::parse(&got.data)?;                 // Result<_, PrcError>
 let tess = prc.file_structures[0].tessellations()?;   // Vec<Tessellation>, per file structure
-let placements = prc.placements()?;                   // Vec<Placement { file_structure, tessellation, matrix }>
+let placements = prc.placements()?;                   // Vec<Placement { file_structure, tessellation, matrix, colour }>
 // meshes = each placement's Tessellation::Mesh (or rebuilt Compressed { mesh: Some(..) })
 //          .transformed(&placement.matrix)
 let bounds = Bounds::of(&meshes).ok_or(nothing_to_draw)?;
 let camera = Camera::fit(&bounds, view_dir, up, /*perspective*/ true, w as f64 / h as f64)?;
-let image = render(&meshes, &camera, &RenderOptions { width: w, height: h, ..Default::default() })?;
-// image.rgba: w*h*4, row-major from the top; every pixel is the background or opaque
+// colours[i]: placement.colour as straight RGBA bytes, None = RenderOptions::colour
+let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: w, height: h, ..Default::default() })?;
+// image.rgba: w*h*4 straight RGBA, row-major from the top
 ```
 
-- `render` is a CPU z-buffer: flat, double-sided shading lit from the eye,
-  one uniform `RenderOptions::colour`. The model's own colours, materials,
-  textures, lights and saved views are **not read**. Say so in the shell.
+- `render_coloured` is a CPU z-buffer: flat, double-sided shading lit from
+  the eye. Opaque meshes first; translucent ones blend over them (hidden by
+  nearer opaque surfaces, not by each other); alpha 0 is not drawn.
+  `render(meshes, camera, options)` draws everything in the one
+  `RenderOptions::colour`.
+- `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
+  (style inheritance and father/son heritage resolved, material diffuse and
+  transparency applied), straight RGBA 0–1. `None`: no style reaches it or it
+  names a textured material. Per-face colours, textures, lights and saved
+  views are **not read**. Say so in the shell.
 - `Camera { eye, target, up, projection }`; `Projection::Perspective { fov_y }`
   (degrees) or `Orthographic { height }` (model units). `Camera::fit` frames
   the bounding sphere along `direction`; move `eye` afterwards to orbit.
