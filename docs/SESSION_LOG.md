@@ -4,6 +4,31 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (797th filing) — `29da9f37`: CI builds the CLI `--no-default-features`, no Pass ID
+
+**Shipped:**
+- CI (`.github/workflows/ci.yml`) and `tools/check-ci-parity.py` gain a
+  `cargo check -p pdfcer-cli --no-default-features` step. Previously the
+  strippable-capability gate built `pdfcer-core` and `pdfcer-image-codec`
+  lite but never the CLI, so a feature-gated subcommand/dispatch-arm edit
+  could break the lite CLI build unseen — it did once, fixed by `c8e3c45a`
+  (`Pass 10.18`'s 792nd-filing follow-up). Discharges the owed item that
+  had sat in `docs/NEXT_SESSION.md` since then; closed in-place in
+  `ROADMAP.md`'s `Pass 10.18` entry too.
+
+**Decisions made this session:** none — a CI gap fix, not a scope decision.
+
+**Findings + decisions:**
+- Sabotage-verified: removing `#[cfg(feature = "signing")]` from the
+  `Sign` dispatch arm in `crates/pdfcer-cli/src/dispatch.rs` fails the new
+  step (E0422/E0599/E0425); restored. New step is `LOCAL`-mapped by
+  `check-ci-parity.py`, so `tools/run-gates.sh` runs it too.
+
+**Still in flight:** unchanged from the 796th filing — `419.2`–`419.4`
+remain open pending the operator's 3D-licensing questions.
+
+**For next session:** no change to the 796th filing's next-step note.
+
 ## 2026-09-30 (796th filing) — `ccc24d9d`: `check-control-bytes` gate fix, no Pass ID
 
 **Shipped:**

@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `29da9f37` (no Pass ID), 2026-09-30 — CI now builds `pdfcer-cli` with `--no-default-features`
+
+`.github/workflows/ci.yml` and `tools/check-ci-parity.py` only. The
+strippable-capability gate built `pdfcer-core` and `pdfcer-image-codec`
+with `--no-default-features` but never the CLI itself, so an edit inside a
+feature-gated subcommand or dispatch arm could break the lite CLI build
+unseen — it did once, fixed by `c8e3c45a` (`Pass 10.18`'s follow-up fixes,
+792nd filing). `docs/NEXT_SESSION.md` had carried "no gate builds that
+config, add one to run-gates/CI" as an owed item since that filing; this
+discharges it (closed below, in `Pass 10.18`'s entry).
+
+Fix: new CI step `cargo check -p pdfcer-cli --no-default-features`.
+`check-ci-parity.py` maps it `LOCAL`, so `tools/run-gates.sh` (which
+derives its own step list from CI) now runs it too. Builds clean at HEAD.
+
+**Sabotage.** Removing `#[cfg(feature = "signing")]` from the `Sign`
+dispatch arm in `crates/pdfcer-cli/src/dispatch.rs` fails the new step
+(E0422/E0599/E0425 — the arm reaches feature-gated types unconditionally);
+restored.
+
+**`docs/FEATURES.md`.** No row — tooling-only, no core/cli/gui capability.
+
+**Sourcing (hard rule 8).** No shell this filing — facts relayed from the
+dispatching engineer's own report on `29da9f37`, not independently
+reproduced. Backup/push/release state not verifiable from here.
+
 ### `ccc24d9d` (no Pass ID), 2026-09-30 — `check-control-bytes` no longer skips a text file whose NUL is early
 
 `tools/check-control-bytes.py` only. The gate classified any file with a
@@ -376,8 +402,9 @@ to this filing).
   broken since `0fe973a2` (2026-09-25): the `ocrs` engine variant was
   unconditional, and `verify-signatures` used `MdpPermission` (behind
   `signing`). Feature-gated both, added a named refusal for
-  `--ocr-engine ocrs` without the feature. No gate builds the CLI without
-  default features — open item, add one to run-gates/CI.
+  `--ocr-engine ocrs` without the feature. **Closed** — see `29da9f37`
+  (797th filing): CI + `run-gates.sh` now carry a
+  `cargo check -p pdfcer-cli --no-default-features` step.
 
 **Shells.** core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` has not
 consumed this (separate project).
