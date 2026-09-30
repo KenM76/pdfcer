@@ -1073,6 +1073,39 @@ fn insert_pages_labels_flag_selects_the_policy() {
 }
 
 #[test]
+fn delete_pages_labels_flag_selects_the_policy() {
+    // One decimal range over 3 pages; deleting page 2 leaves pages
+    // labelled 1,2 under renumber (one range) and 1,3 under keep (two).
+    let dir = TempDir::new("delete-labels");
+    let input = dir.write(
+        "in.pdf",
+        &pdf_with_catalog(false, true, " /PageLabels << /Nums [0 << /S /D >>] >>"),
+    );
+    let go = |labels: Option<&str>| {
+        let out_path = dir.join("out.pdf");
+        let mut args = vec![
+            "delete-pages",
+            input.to_str().unwrap(),
+            "--pages",
+            "2",
+            "-o",
+            out_path.to_str().unwrap(),
+        ];
+        if let Some(l) = labels {
+            args.extend(["--labels", l]);
+        }
+        let out = run(&args);
+        assert_eq!(code(&out), 0, "{}", stderr(&out));
+        stdout(&out)
+    };
+    let line = go(None);
+    assert_eq!(metric(&line, "label_ranges"), 1, "{line}");
+    assert_eq!(metric(&line, "page_labels_stale"), 0, "{line}");
+    let line = go(Some("keep"));
+    assert_eq!(metric(&line, "label_ranges"), 2, "{line}");
+}
+
+#[test]
 fn every_page_op_result_line_is_one_ascii_line_of_integer_metrics() {
     // The stdout contract, applied to the new subcommands: one
     // LF-terminated pure-ASCII line, and every metrics-half pair is

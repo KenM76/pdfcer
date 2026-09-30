@@ -619,9 +619,10 @@ fn delete_reports_the_bookmarks_and_links_it_orphans() {
     assert_eq!(outcome.dangling.outline_items, 1);
     assert_eq!(outcome.dangling.links, 1);
     assert!(
-        outcome.dangling.page_labels_stale,
-        "Acrobat leaves labels stale AND silent; pdfcer leaves them stale and says so"
+        !outcome.dangling.page_labels_stale,
+        "the delete rewrites the label tree, so nothing is left stale"
     );
+    assert_eq!(outcome.page_label_ranges, 1);
     assert!(!outcome.dangling.is_empty());
 }
 

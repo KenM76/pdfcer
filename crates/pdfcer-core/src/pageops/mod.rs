@@ -617,6 +617,25 @@ pub enum InsertedPageLabels {
     ContinueRange,
 }
 
+/// Which labels (ISO 32000-1 §12.4.2) the pages left behind by a delete
+/// show.
+///
+/// Either way the `/PageLabels` tree is rewritten in the same command, so a
+/// section never starts on the wrong page; Acrobat leaves the tree keyed to
+/// the old page indices. A document without a tree is left without one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum DeletedPageLabels {
+    /// Each section keeps its first page and numbers on through the pages
+    /// that remain, so deleting page `2` of `1 2 3 4` leaves `1 2 3`. A
+    /// section whose every page is deleted disappears.
+    #[default]
+    Renumber,
+    /// Each remaining page shows the label it showed before, so deleting
+    /// page `2` of `1 2 3 4` leaves `1 3 4`.
+    KeepEach,
+}
+
 /// [`insert`] with an explicit page-label policy.
 ///
 /// The report's `page_label_ranges` counts the ranges written (`0` when

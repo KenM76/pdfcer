@@ -27,7 +27,10 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditError, EditSession};
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{ObjId, Object};
-use pdfcer_core::pageops::{InsertPosition, InsertedPageLabels};
+
+use pdfcer_core::pageops::{
+    DeletedPageLabels, InsertPosition, InsertedPageLabels, SeparationPolicy,
+};
 use pdfcer_core::writer::SaveOptions;
 
 const ACROFORM: &str = concat!(
@@ -817,6 +820,53 @@ fn continue_range_numbers_the_inserted_pages_through_the_covering_range() {
         ]
     );
     assert!(outcome.source_page_labels_dropped);
+}
+
+/// Would catch: a delete leaving a later section keyed to its old first
+/// page (what Acrobat does), or the tree write escaping the undo.
+///
+/// Target `i ii 1 2 3 4`; deleting `ii` and `2` must leave `i 1 2 3`.
+#[test]
+fn a_delete_renumbers_each_section_from_its_own_first_page() {
+    let target = doc_with_nums(6, "0 << /S /r >> 2 << /S /D >>");
+    let mut session = EditSession::new(Document::from_bytes(target).expect("target must parse"));
+    let before = saved_nums(&session);
+    let outcome = session.delete_pages(&[1, 3]).expect("delete must succeed");
+    assert_eq!(
+        saved_nums(&session),
+        vec![
+            (0, Some(b"r".to_vec()), None),
+            (1, Some(b"D".to_vec()), None)
+        ]
+    );
+    assert_eq!(outcome.page_label_ranges, 2);
+    assert!(!outcome.dangling.page_labels_stale);
+    session.undo().expect("undo must succeed");
+    assert_eq!(saved_nums(&session), before, "one undo reverts the tree");
+}
+
+/// Would catch: `KeepEach` renumbering. Deleting `2` of `i ii 1 2 3 4`
+/// leaves `i ii 1 3 4`.
+#[test]
+fn keep_each_leaves_every_remaining_page_its_label() {
+    let target = doc_with_nums(6, "0 << /S /r >> 2 << /S /D >>");
+    let mut session = EditSession::new(Document::from_bytes(target).expect("target must parse"));
+    session
+        .delete_pages_with_labels(
+            &[3],
+            SeparationPolicy::default(),
+            DeletedPageLabels::KeepEach,
+        )
+        .expect("delete must succeed");
+    let d = Some(b"D".to_vec());
+    assert_eq!(
+        saved_nums(&session),
+        vec![
+            (0, Some(b"r".to_vec()), Some(1)),
+            (2, d.clone(), Some(1)),
+            (3, d, Some(3))
+        ]
+    );
 }
 
 // ---------------------------------------------------------------------------

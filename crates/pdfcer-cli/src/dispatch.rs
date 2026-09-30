@@ -172,10 +172,11 @@ pub(crate) fn run() -> ExitCode {
         Command::DeletePages {
             input,
             pages,
+            labels,
             output,
             mode,
             verify_undo,
-        } => cmd_delete_pages(&input, &pages, &output, mode, verify_undo),
+        } => cmd_delete_pages(&input, &pages, labels, &output, mode, verify_undo),
         Command::ReorderPages {
             input,
             order,

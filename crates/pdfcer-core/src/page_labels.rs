@@ -262,6 +262,41 @@ pub(crate) fn inserted(
     }
 }
 
+/// The ranges of `target` after the pages at `deleted` (sorted, distinct)
+/// are removed from its `target_count`, under `policy`. Empty when `target`
+/// is: a document without a tree is numbered from 1 before and after.
+pub(crate) fn removed(
+    target: &[Range],
+    target_count: usize,
+    deleted: &[usize],
+    policy: crate::pageops::DeletedPageLabels,
+) -> Vec<Range> {
+    if target.is_empty() {
+        return Vec::new();
+    }
+    match policy {
+        crate::pageops::DeletedPageLabels::Renumber => {
+            let shown = as_displayed(target, target_count);
+            let mut out = Vec::with_capacity(shown.len());
+            for (i, (start, label)) in shown.iter().enumerate() {
+                let end = shown.get(i + 1).map_or(target_count, |r| r.0);
+                let gone_before = deleted.partition_point(|d| d < start);
+                let gone_within = deleted.partition_point(|d| *d < end) - gone_before;
+                if gone_within < end.saturating_sub(*start) {
+                    out.push((start - gone_before, label.clone()));
+                }
+            }
+            out
+        }
+        crate::pageops::DeletedPageLabels::KeepEach => {
+            let kept: Vec<usize> = (0..target_count)
+                .filter(|p| deleted.binary_search(p).is_err())
+                .collect();
+            subset(target, target_count, &kept)
+        }
+    }
+}
+
 /// A single-node `/PageLabels` tree (§7.9.7: a root carrying `Nums` alone)
 /// holding `ranges`.
 pub(crate) fn tree(ranges: &[Range]) -> Object {
@@ -432,5 +467,46 @@ mod tests {
         let out = splice(&target, 3, &source, 2, 3);
         let starts: Vec<usize> = out.iter().map(|r| r.0).collect();
         assert_eq!(starts, vec![0, 3]);
+    }
+
+    #[test]
+    fn a_delete_renumbers_each_section_from_its_own_first_page() {
+        use crate::pageops::DeletedPageLabels;
+        // i ii | 1 2 3 4 | A-1 A-2 ; 8 pages.
+        let target = vec![
+            (0, label(b"r", None, None)),
+            (2, label(b"D", None, None)),
+            (6, label(b"D", Some(b"A-"), None)),
+        ];
+        // Delete "ii" and "2": the decimal section moves back one and runs
+        // 1 2 3; the appendix moves back two.
+        let out = removed(&target, 8, &[1, 3], DeletedPageLabels::Renumber);
+        let starts: Vec<usize> = out.iter().map(|r| r.0).collect();
+        assert_eq!(starts, vec![0, 1, 4]);
+        assert!(out.iter().all(|r| st(r).is_none()));
+        // Delete the whole roman section: the decimal one starts the document.
+        let out = removed(&target, 8, &[0, 1], DeletedPageLabels::Renumber);
+        let starts: Vec<usize> = out.iter().map(|r| r.0).collect();
+        assert_eq!(starts, vec![0, 4]);
+        assert_eq!(out[0].1.get(b"S"), Some(&Object::Name(Name::from(b"D"))));
+    }
+
+    #[test]
+    fn keep_each_leaves_every_remaining_page_its_label() {
+        use crate::pageops::DeletedPageLabels;
+        let target = vec![(0, label(b"r", None, None)), (2, label(b"D", None, None))];
+        // i ii 1 2 3 4, delete "2": i ii 1 | 3 4.
+        let out = removed(&target, 6, &[3], DeletedPageLabels::KeepEach);
+        let starts: Vec<usize> = out.iter().map(|r| r.0).collect();
+        assert_eq!(starts, vec![0, 2, 3]);
+        assert_eq!(st(&out[2]), Some(3));
+    }
+
+    #[test]
+    fn a_treeless_delete_writes_nothing_under_either_policy() {
+        use crate::pageops::DeletedPageLabels;
+        for policy in [DeletedPageLabels::Renumber, DeletedPageLabels::KeepEach] {
+            assert!(removed(&[], 4, &[1], policy).is_empty());
+        }
     }
 }

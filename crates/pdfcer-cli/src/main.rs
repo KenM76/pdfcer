@@ -541,7 +541,8 @@ use pdfcer_core::PdfError;
 use pdfcer_core::document::Document;
 use pdfcer_core::outline::{DestView, Destination, DestinationReader, RemoteTarget};
 use pdfcer_core::pageops::{
-    DocumentView, InsertPosition, InsertedPageLabels, PageOpError, SplitCriterion,
+    DeletedPageLabels, DocumentView, InsertPosition, InsertedPageLabels, PageOpError,
+    SplitCriterion,
 };
 use pdfcer_core::signature::{SaveMode as CoreSaveMode, SignatureImpact};
 

@@ -150,7 +150,7 @@ use crate::object::{Dict, IndirectObject, Name, ObjId, Object, Stream};
 use crate::page_tree::{self, Page, PageSlot, PageTreeError};
 use crate::pageops::references::{DanglingReport, census_dangling};
 use crate::pageops::separation::{SeparationImpact, SeparationPolicy, SeparationSplitRefused};
-use crate::pageops::{self};
+use crate::pageops::{self, DeletedPageLabels};
 use crate::settings::{
     MAX_TAB_ROW_TOLERANCE, MIN_TAB_ROW_TOLERANCE, QuadPointOrder, WidgetTabTail,
 };
@@ -19920,6 +19920,9 @@ pub struct DeleteOutcome {
     pub separations: SeparationImpact,
     /// What saving this edit will do to the document's signatures.
     pub signature: SignatureImpact,
+    /// Ranges in the `/PageLabels` tree (§12.4.2) the delete rewrote; `0`
+    /// when the document has none.
+    pub page_label_ranges: usize,
 }
 
 /// What a text/choice form fill actually did (Pass 7).
@@ -47714,16 +47717,13 @@ impl EditSession {
     /// in an object stream. Front ends must say so; pdfce-gui's delete
     /// tooltip does, at length.
     ///
-    /// ## `/PageLabels` is left stale, and reported
+    /// ## `/PageLabels` is rewritten
     ///
-    /// `core_ops__page_labels_and_bates_interaction.md` records that
-    /// Acrobat does not adjust an existing label tree for any structural
-    /// operation, and recommends pdfcer match that baseline for this Pass
-    /// (*"leave `/PageLabels` numerically stale exactly as Acrobat
-    /// does … recommended baseline for Pass 3.2 acceptance criteria"*).
-    /// pdfcer matches it **and says so** —
-    /// [`DanglingReport::page_labels_stale`] — which is the parity-plus
-    /// half: Acrobat leaves them stale *and silent*.
+    /// Acrobat leaves the label tree keyed to the old page indices, so a
+    /// section after the deletion starts on the wrong page. pdfcer rewrites
+    /// it in the same command under [`DeletedPageLabels::Renumber`]: each
+    /// section keeps its first page and numbers on through what remains.
+    /// [`EditSession::delete_pages_with_labels`] takes the alternative.
     ///
     /// ## Preseparated page sets are repaired, not just reported
     ///
@@ -47766,6 +47766,24 @@ impl EditSession {
         indices: &[usize],
         separations: SeparationPolicy,
     ) -> Result<DeleteOutcome, EditError> {
+        self.delete_pages_with_labels(indices, separations, DeletedPageLabels::default())
+    }
+
+    /// [`EditSession::delete_pages_with`], with an explicit answer for the
+    /// labels the remaining pages show ([`DeletedPageLabels`]). The
+    /// `/PageLabels` tree (§12.4.2) is rewritten in the same command, so
+    /// one undo restores it with the pages; a document without a tree is
+    /// left without one.
+    ///
+    /// # Errors
+    ///
+    /// As [`EditSession::delete_pages_with`].
+    pub fn delete_pages_with_labels(
+        &mut self,
+        indices: &[usize],
+        separations: SeparationPolicy,
+        labels: DeletedPageLabels,
+    ) -> Result<DeleteOutcome, EditError> {
         self.check_certification()?;
 
         let slots = self.page_slots()?;
@@ -47786,6 +47804,7 @@ impl EditSession {
                 dangling: DanglingReport::default(),
                 separations: SeparationImpact::default(),
                 signature: self.signature_impact_of_save(SaveMode::Incremental),
+                page_label_ranges: 0,
             });
         }
         if targets.len() >= total {
@@ -47808,7 +47827,8 @@ impl EditSession {
 
         // Census BEFORE the splice: afterwards the removed pages are
         // gone and nothing can be found to have pointed at them.
-        let dangling = census_dangling(&self.graph(), &removed_pages, &surviving);
+        let mut dangling = census_dangling(&self.graph(), &removed_pages, &surviving);
+        dangling.page_labels_stale = false;
 
         // Same reason, second census: §14.11.4's repair reads the
         // DEPARTING pages' `/DeviceColorant` to report which plates left,
@@ -48010,6 +48030,8 @@ impl EditSession {
             }
         }
 
+        let page_label_ranges = self.delete_page_labels(total, &targets, labels, &mut scratch);
+
         // --- build the one command ------------------------------------
         let objects: Vec<ObjectWrite> = scratch
             .into_iter()
@@ -48045,7 +48067,35 @@ impl EditSession {
             dangling,
             separations: separation_plan.impact,
             signature: self.signature_impact_of_save(SaveMode::Incremental),
+            page_label_ranges,
         })
+    }
+
+    /// Write the `/PageLabels` tree a delete of `deleted` (sorted,
+    /// distinct) from `total` pages leaves ([`crate::page_labels::removed`])
+    /// into the staged catalog, returning its range count; `0`, writing
+    /// nothing, when the document has no tree.
+    fn delete_page_labels(
+        &self,
+        total: usize,
+        deleted: &[usize],
+        labels: DeletedPageLabels,
+        scratch: &mut BTreeMap<ObjId, Object>,
+    ) -> usize {
+        let Some(catalog_id) = self.graph().catalog_id() else {
+            return 0;
+        };
+        let Some(mut catalog) = self.staged_catalog(catalog_id, scratch) else {
+            return 0;
+        };
+        let Some(tree) = catalog.get(b"PageLabels") else {
+            return 0;
+        };
+        let target = crate::page_labels::ranges(&self.graph(), tree);
+        let ranges = crate::page_labels::removed(&target, total, deleted, labels);
+        catalog.insert(Name::from(b"PageLabels"), crate::page_labels::tree(&ranges));
+        scratch.insert(catalog_id, Object::Dict(catalog));
+        ranges.len()
     }
 
     /// Put the document's pages in a new order.

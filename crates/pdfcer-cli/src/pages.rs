@@ -308,6 +308,7 @@ pass --force to overwrite.",
 pub(crate) fn cmd_delete_pages(
     input: &Path,
     pages: &str,
+    labels: crate::cli::DeleteLabelsArg,
     output: &Path,
     mode: SaveMode,
     verify_undo: bool,
@@ -336,7 +337,11 @@ pub(crate) fn cmd_delete_pages(
     let (settings, settings_report) =
         pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
     report_settings(&settings_report);
-    let outcome = match session.delete_pages_with(&selected, settings.separations) {
+    let labels = match labels {
+        crate::cli::DeleteLabelsArg::Renumber => DeletedPageLabels::Renumber,
+        crate::cli::DeleteLabelsArg::Keep => DeletedPageLabels::KeepEach,
+    };
+    let outcome = match session.delete_pages_with_labels(&selected, settings.separations, labels) {
         Ok(outcome) => outcome,
         Err(err) => return report_edit_error(input, &err),
     };
@@ -355,7 +360,7 @@ pub(crate) fn cmd_delete_pages(
     println!(
         "delete-pages {} mode={} signature={} -> {}; pages_removed={} objects_freed={} \
 dangling_bookmarks={} dangling_links={} dangling_annot_actions={} dangling_dests={} \
-page_labels_stale={} {} {}",
+page_labels_stale={} label_ranges={} {} {}",
         input.display(),
         mode.name(),
         signature_token(outcome.signature),
@@ -367,6 +372,7 @@ page_labels_stale={} {} {}",
         outcome.dangling.non_link_annotations,
         outcome.dangling.named_destinations,
         u32::from(outcome.dangling.page_labels_stale),
+        outcome.page_label_ranges,
         separation_metrics(&outcome.separations),
         edit_metrics(&saved)
     );
@@ -384,13 +390,6 @@ what the author meant.",
             outcome.dangling.links,
             outcome.dangling.non_link_annotations,
             outcome.dangling.named_destinations
-        );
-    }
-    if outcome.dangling.page_labels_stale {
-        eprintln!(
-            "pdfcer: {}: this document has a page-label tree (/PageLabels). Deleting pages \
-does not adjust it, so its numbering is now stale.",
-            input.display()
         );
     }
     // The one class above that pdfcer repairs rather than reports — see

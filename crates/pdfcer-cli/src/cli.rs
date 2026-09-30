@@ -122,6 +122,17 @@ pub(crate) enum InsertLabelsArg {
     Continue,
 }
 
+/// `delete-pages --labels`: what page labels the remaining pages show.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum DeleteLabelsArg {
+    /// Each section keeps its first page and numbers on through the pages
+    /// that remain: deleting page 2 of 1 2 3 4 leaves 1 2 3.
+    Renumber,
+    /// Each remaining page keeps the label it showed: deleting page 2 of
+    /// 1 2 3 4 leaves 1 3 4.
+    Keep,
+}
+
 /// `layer-edit --visible/--locked`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum OnOffArg {
@@ -701,6 +712,10 @@ pub(crate) enum Command {
         /// Pages to remove, 1-based and inclusive, e.g. `2,5-7`.
         #[arg(long)]
         pages: String,
+        /// Page labels for the pages that remain. The document's label tree
+        /// is rewritten either way; a document without one gets none.
+        #[arg(long, value_enum, default_value_t = DeleteLabelsArg::Renumber)]
+        labels: DeleteLabelsArg,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
