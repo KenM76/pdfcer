@@ -4,6 +4,53 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (807th filing) — `Pass 419.2` IN PROGRESS: `pdfcer-3d` schema reader + tessellation decode (second slice)
+
+**Shipped (partial — Pass 419.2 stays open):**
+- `d64f900f` — `schema::Schema`: `FileStructureSchema` token interpreter
+  (PRC WD 8.2) skipping fields newer producers append — data tokens 0-11,
+  Father_Type, For/SimpleFor/If/Else, blocks, version blocks (run only
+  above 8137), variables, arithmetic/comparison, obsolete 39/40. Pointer
+  tokens 12-14 and `CurveIs3D` refused as `PrcError::Unsupported`. Step
+  ceiling 4M, nesting 64.
+- `FileStructure::schema()`, `FileStructure::tessellations() ->
+  Vec<Tessellation>`; `Tessellation::{Mesh(TriangleMesh), Wire(polylines),
+  Markup}`; `TriangleMesh { positions, triangles (CCW), faces (per-face
+  ranges), normals_recalculated }`. All `TESS_Face` used_entities_flag
+  blocks (triangle/fan/strip, OneNormal with NORMAL_Single, textured).
+  Version gates 7039/7047 on FS authoring version. Wire IsClosing/
+  IsContinuous. Markup read past. VertexColors count per ISS #820;
+  is_segment_color wire-only. Compressed tessellation (type 173) and
+  optimised vertex colours refused (`PrcError::Unsupported`, new variant).
+- `BitReader::skip_bits` (pub).
+- Tests: pdfcer-3d unit tests 18 -> 37; test-only PRC bit writer; all new
+  branches sabotage-checked — sabotage found and fixed a real defect
+  (texture index slots consumed in untextured blocks).
+- Fuzz: `prc_parse` target extended to `Schema::read` + `tessellations()`:
+  1,246,536 runs / 91 s = 73 µs/run, 0 crashes.
+- Gates: clippy `-D warnings`, fmt, wasm32-unknown-unknown check clean.
+  `cargo tree` unchanged (no manifest change).
+
+**Decisions made this session:** none new — this slice continues to
+execute decision 169 (the licensing ruling that unblocked `419.2`); no
+fresh architectural call.
+
+**Findings + decisions:** none beyond the above; the empirical gaps
+(local-frame sign, multi-component restart, normal decoding, which
+compression a real SolidWorks PRC export uses, schema Interval/Domain
+layout, SimpleFor count type, variable scoping, pointer-token semantics)
+are unaffected — no real PRC file is on hand yet; these are open questions
+for the spec RAG, not yet dispatched.
+
+**Still in flight — `Pass 419.2` remainder:** mesh model + STL/OBJ export,
+CPU poster, CLI subcommand, `3d` feature wiring, a direct tessellation-
+decoder fuzz target (random bytes rarely reach a valid zlib section).
+
+**For next session:** continue `419.2` with mesh export and/or CPU
+poster generation — `419.2` is NOT complete and must not be marked
+shipped or ticked in `FEATURES.md` until a user-facing capability (mesh
+export or poster) lands.
+
 ## 2026-09-30 (806th filing) — `Pass 419.2` IN PROGRESS: `pdfcer-3d` crate, PRC container walk + primitives (first slice)
 
 **Shipped (partial — Pass 419.2 stays open):**
