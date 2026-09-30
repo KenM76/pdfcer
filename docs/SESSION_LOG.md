@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (795th filing) — `Pass 419.1` (`3b67fac1`) SHIPPED: embed U3D/PRC models as `/3D` annotations
+
+**Shipped:**
+- `Pass 419.1` — second rung of the `Pass 419.x` 3D bucket (Backlog).
+  `EditSession::add_3d_annotation` writes a `/3D` annotation: its own
+  Flate-compressed U3D/PRC stream (`/3DD`), `/3DA` activation, and an
+  `/AP /N` poster (a supplied image, contain-fitted and EXIF-aware, or a
+  placeholder wireframe cube). Refuses empty data, STEP, and a
+  stated/sniffed format mismatch; discloses rather than silently raising
+  the document version when U3D/PRC needs a higher one. CLI `3d-embed`,
+  dry-run by default. README 191 → 192 subcommands.
+- Also fixed on the way: `resize_annotation` refused resizing any
+  pdfcer-embedded 3D annotation by default — found while measuring the
+  answer to Ken's own question (below), fixed in the same commit. It now
+  redraws the poster on resize; a foreign 3D appearance still refuses.
+
+**Decisions made this session:** none new — executes the next rung of the
+bucket scoped at the 793rd filing.
+
+**Findings + decisions:**
+- Tests: 5 core (`threed.rs`, 9 in file), 3 CLI (`three_d.rs`, 7 in file),
+  sabotage-checked. `docs/core-api` at 291 verbs, 160 `EditError` variants.
+- `tools/run-gates.sh` green on this tree: core 2393 passed, cli 637
+  passed; one control-bytes failure (a NUL in the core-api doc) repaired
+  before commit. No manifest change; round trip pins the untouched 3D
+  stream objects byte-identical across an unrelated edit + full rewrite.
+- **Ken's question, answered by measurement:** whether 3D is fully
+  supported for copy/paste, move and resize "with all the same
+  functionality Acrobat has." Move and copy/paste already worked; resize
+  now works (fix above). **Not done, and scope rather than a bug:** no
+  interactive 3D viewer (no rotate/orbit, view switching, cross-sections,
+  3D measurement or model tree — poster only, while the file stays fully
+  interactive in Acrobat), no CAD→U3D/PRC conversion, and the GUI has not
+  adopted any of `Pass 419.x` yet.
+
+**Still in flight:** `419.2`–`419.4` (optional `pdfcer-3d` crate, U3D
+decode, PRC authoring) remain open, the last two gated on the four
+unanswered operator licensing questions in `ROADMAP.md` *Backlog*.
+
+**For next session:** Confirm push/release of `Pass 419.1` (and `419.0`
+if not already released). Next natural rung is `419.2` (optional
+`pdfcer-3d` crate) unless the operator answers/defers the licensing
+questions first.
+
 ## 2026-09-30 (794th filing) — `Pass 419.0` (`cc71aad0`) SHIPPED: list/extract embedded 3D models
 
 **Shipped:**

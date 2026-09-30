@@ -115,6 +115,69 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 419.1` (`3b67fac1`), 2026-09-30 — embed a supplied U3D/PRC model as a `/3D` annotation
+
+Second rung of the `Pass 419.x` bucket (*Backlog*; `419.0` shipped the
+previous filing). `EditSession::add_3d_annotation(page_index, &ThreeDSpec,
+&MarkupOptions) -> Result<ThreeDEmbedOutcome, EditError>` writes a `/3D`
+annotation (ISO 32000-1 §13.6.2 Table 298): `/3DD` references its own
+Flate-compressed 3D stream (Table 300, `/Type /3D`, `/Subtype /U3D` or
+`/PRC`); `/3DA /A = XA | PO | PV` (`ThreeDActivation`); `/AP /N` poster is
+either a supplied image contain-fitted honouring EXIF orientation, or a
+placeholder frame + wireframe cube (colour stored in `/C`). One undo
+entry, `AnnotKind::ThreeD`.
+
+`ThreeDSpec` (`with_format`, `validate`, `required_version`) sniffs or
+takes a stated format; refuses empty data, STEP (not a legal `/3D`-stream
+subtype), and a stated/sniffed mismatch via new
+`EditError::ThreeD(ThreeDEmbedError::{Empty, Unrecognised, NotEmbeddable,
+Mismatch})` (`EditError` now 160 variants). The document header version is
+never raised; `ThreeDEmbedOutcome::below_required_version` discloses U3D <
+PDF 1.6 / PRC < PDF 2.0 rather than silently under-declaring (rule 4).
+
+**Also fixed in this Pass.** `resize_annotation` used to refuse resizing
+any pdfcer-embedded 3D annotation by default
+(`ResizeAppearanceNotRebuildable`) — found while measuring the answer to
+Ken's own question about 3D functional parity, and fixed in the same
+commit rather than filed for later (fix-bugs-on-discovery). It now redraws
+the poster on resize (placeholder or image, all 8 EXIF orientations,
+non-uniform factors included); a *foreign* 3D appearance still refuses,
+unchanged.
+
+CLI `pdfcer 3d-embed IN --model F --page N --rect .. [--format u3d|prc]
+[--poster IMG] [--activate ...] [--apply -o OUT]`; dry-run by default,
+prints `inferred:` for a sniffed format and `note:` when the document
+version is below the format's requirement. README 191 → 192 subcommands.
+
+**Tests.** 5 core (`crates/pdfcer-core/tests/threed.rs`, 9 in file), 3 CLI
+(`crates/pdfcer-cli/tests/three_d.rs`, 7 in file), each sabotage-checked.
+`docs/core-api` updated (291 verbs, 160 `EditError` variants);
+`check-core-api-verbs` PASS.
+
+**Gates.** `tools/run-gates.sh` green on this tree: core 2393 passed, cli
+637 passed; one control-bytes failure (a NUL written into the core-api
+doc) was repaired before commit. No manifest change — `cargo tree`
+unaffected on both `pdfcer-core` and `pdfcer-render`. Round trip: full
+rewrite leaves the untouched 3D stream objects byte-identical (tested).
+
+**Operator question, answered by measurement.** Ken asked whether 3D is
+fully supported for copy/paste, move and resize "with all the same
+functionality Acrobat has." Measured: move and copy/paste already worked;
+resize now works (fix above). **Not done, and scope rather than a bug:**
+pdfcer has no interactive 3D viewer — no rotate/orbit, no view switching,
+no cross-sections, no 3D measurement, no model tree; it shows the poster
+only, while the file stays fully interactive in Acrobat. No CAD→U3D/PRC
+conversion either, and the GUI has not adopted any of `Pass 419.x` yet.
+
+**`docs/FEATURES.md`.** New row under *Annotations & markup*, after the
+`/Screen` row (`Pass 261.3`): core `[x]` / cli `[x]` / gui `[ ]`. The
+*Planned* 3D row (`Pass 419.x` remainder) is narrowed to `419.2`–`419.4`.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate results relayed from the dispatching engineer's own
+report, not independently reproduced. Backup/push/release state not
+verifiable from here.
+
 ### `Pass 419.0` (`cc71aad0`), 2026-09-30 — list and extract embedded 3D models (U3D/PRC), no decoding
 
 First rung of the `Pass 419.x` 3D bucket (*Backlog*, filed 793rd filing). New
@@ -13217,6 +13280,13 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★★★★ **`Pass 419.1` SHIPPED, 2026-09-30 (795th filing),
+> `3b67fac1`** — see top of *Shipped*. Embed a supplied U3D/PRC model as a
+> `/3D` annotation with a poster; second rung of the `Pass 419.x` Backlog
+> bucket. Also fixed resizing a pdfcer-embedded 3D annotation, previously
+> refused by default. Off-cycle (scoped in *Backlog*, not through this
+> queue). **`Next up` still has no named head.**
+
 > ★★★★★★★★★★★★★★★★★★ **`Pass 419.0` SHIPPED, 2026-09-30 (794th filing),
 > `cc71aad0`** — see top of *Shipped*. List/extract embedded 3D models
 > (U3D/PRC), first rung of the `Pass 419.x` Backlog bucket. Off-cycle
@@ -22593,7 +22663,7 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
-### 3D content in PDF (`Pass 419.x`) — operator-approved to scope ("Go ahead", 2026-09-30), filed 793rd filing, no Pass shipped yet
+### 3D content in PDF (`Pass 419.x`) — operator-approved to scope ("Go ahead", 2026-09-30), filed 793rd filing; `419.0`–`419.1` shipped
 
 **Scope.** Ken asked whether pdfcer should support 3D models, and whether
 to make it an optional crate excluded from a slim build; recommendation
@@ -22635,9 +22705,10 @@ RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
   RichMedia assets): core API + CLI `3d-list`/`3d-extract`; byte round-trip
   test for untouched 3D annots; fuzz target for the stream-dict walker. No
   3D decoding. Reopened `261.6`'s read/round-trip half.
-- `419.1` — embed a supplied `.u3d`/`.prc` as a `/3D` annotation with a
-  supplied or generated poster; CLI `3d-embed`. Pass-through, no decoding
-  needed.
+- `419.1` — **SHIPPED** `3b67fac1`, 2026-09-30 (795th filing, see *Shipped*)
+  — embed a supplied `.u3d`/`.prc` as a `/3D` annotation with a supplied or
+  generated poster; CLI `3d-embed`. Also fixed on the way: resizing a
+  pdfcer-embedded 3D annotation, previously refused by default.
 - `419.2` — optional crate `pdfcer-3d` behind feature `3d` (default ON in
   pdfcer's own builds, off-able for a slim build): PRC uncompressed-
   tessellation read, mesh export (STL/OBJ), CPU poster generation. No GUI
@@ -22666,6 +22737,14 @@ refusal (per that file's own "replace, never append" rule).
 > — the read/round-trip half `261.6` recommended. `419.1`–`419.4` remain
 > open in this bucket; `docs/FEATURES.md`'s *Planned* row for this bucket
 > was narrowed to just those rungs in the same filing.
+>
+> ★ **`Pass 419.1` SHIPPED, 2026-09-30 (795th filing), `3b67fac1`** — see
+> *Shipped*. Embed a supplied U3D/PRC model as a `/3D` annotation with a
+> poster (CLI `3d-embed`); also fixed resizing a pdfcer-embedded 3D
+> annotation, previously refused by default. `docs/FEATURES.md` gains an
+> *Implemented* row (Annotations & markup) and its *Planned* 3D row is
+> narrowed again, to `419.2`–`419.4`. The four operator licensing questions
+> below remain open and unaffected by this rung (it needed no decoding).
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
