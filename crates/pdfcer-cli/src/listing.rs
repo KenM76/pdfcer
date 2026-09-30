@@ -190,11 +190,7 @@ pub(crate) fn cmd_verify_signatures(
             v.reason.as_deref().unwrap_or("-"),
         );
         if let Some(p) = v.certification {
-            println!(
-                "  certification: DocMDP P={p} ({})",
-                pdfcer_core::sign::apply::MdpPermission::from_p(p)
-                    .map_or("unknown level", |m| m.meaning())
-            );
+            println!("  certification: DocMDP P={p} ({})", mdp_meaning(p));
         }
         for r in &v.revocation_sources {
             let list = |urls: &[String]| {
@@ -605,6 +601,24 @@ fn print_order_tree(read: &pdfcer_core::layers::Layers) {
 }
 
 /// A layer-panel position as `layer-*` commands take it: `1.0.2` or `root`.
+/// The DocMDP `/P` level in words (ISO 32000-2 Table 257).
+#[cfg(feature = "signing")]
+fn mdp_meaning(p: u8) -> &'static str {
+    pdfcer_core::sign::apply::MdpPermission::from_p(p).map_or("unknown level", |m| m.meaning())
+}
+
+/// The DocMDP `/P` level in words (ISO 32000-2 Table 257). Mirrors
+/// `MdpPermission::meaning`, which a build without `signing` does not have.
+#[cfg(not(feature = "signing"))]
+fn mdp_meaning(p: u8) -> &'static str {
+    match p {
+        1 => "no changes",
+        2 => "form fill-in and signing",
+        3 => "form fill-in, signing and annotations",
+        _ => "unknown level",
+    }
+}
+
 fn dotted(path: &[usize]) -> String {
     if path.is_empty() {
         return "root".to_owned();

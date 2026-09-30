@@ -229,6 +229,7 @@ pub(crate) fn report_unsearchable_redaction(
 /// type differs per engine; errors are flattened to their message here, the
 /// only place the CLI needs them.
 pub(crate) enum LoadedOcrEngine {
+    #[cfg(feature = "ocrs")]
     Ocrs(pdfcer_core::ocr::engine_ocrs::OcrsEngine),
     #[cfg(feature = "ocrcer")]
     Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
@@ -245,8 +246,10 @@ impl LoadedOcrEngine {
         height: u32,
         pixels: &[u8],
     ) -> Result<Vec<pdfcer_core::ocr::RecognizedWord>, String> {
+        #[cfg(any(feature = "ocrs", feature = "ocrcer", feature = "paddle"))]
         use pdfcer_core::ocr::OcrEngine;
         match self {
+            #[cfg(feature = "ocrs")]
             Self::Ocrs(e) => e
                 .recognize(width, height, pixels)
                 .map_err(|e| e.to_string()),
@@ -264,8 +267,10 @@ impl LoadedOcrEngine {
 
     /// Whether this engine reports a per-word confidence.
     pub(crate) fn reports_confidence(&self) -> bool {
+        #[cfg(any(feature = "ocrs", feature = "ocrcer", feature = "paddle"))]
         use pdfcer_core::ocr::OcrEngine;
         match self {
+            #[cfg(feature = "ocrs")]
             Self::Ocrs(e) => e.reports_confidence(),
             #[cfg(feature = "ocrcer")]
             Self::Ocrcer(e) => e.reports_confidence(),
@@ -320,6 +325,7 @@ pub(crate) fn load_ocr_engine(
         .and_then(|p| p.parent().map(std::path::Path::to_path_buf));
 
     match choice {
+        #[cfg(feature = "ocrs")]
         OcrEngineArg::Ocrs => {
             use pdfcer_core::ocr::engine_ocrs::{
                 DETECTION_MODEL, MODEL_DIR, OcrsEngine, RECOGNITION_MODEL,
@@ -436,6 +442,13 @@ pub(crate) fn load_ocr_engine(
                 "pdfcer: ocr: --ocr-engine paddle: this build was compiled without the `paddle` \
                  feature, so the PaddleOCR engine is not in it. Rebuild with \
                  `cargo build -p pdfcer-cli --features paddle`, or use --ocr-engine ocrs."
+            );
+            Err(exit::UNIMPLEMENTED)
+        }
+        #[cfg(not(feature = "ocrs"))]
+        OcrEngineArg::Ocrs => {
+            eprintln!(
+                "pdfcer: ocr: --ocr-engine ocrs: this build was compiled without the `ocrs`                  feature, so the ocrs engine is not in it. Rebuild with                  `cargo build -p pdfcer-cli --features ocrs`, or choose another --ocr-engine."
             );
             Err(exit::UNIMPLEMENTED)
         }
