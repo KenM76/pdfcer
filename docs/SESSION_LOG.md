@@ -4,6 +4,57 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (810th filing) — `Pass 419.2` IN PROGRESS, fifth increment: PRC schema `SimpleFor` count fixed to unsigned; spec RAG gap-note pass landed
+
+**Shipped (partial — Pass 419.2 stays open):**
+- `d0a9641b` — fix(3d): the PRC schema `SimpleFor` token's count now
+  reads as `UnsignedInteger` (was signed `Integer`, following `prc-rs`).
+  Source: WD 9.3.17 pseudocode + the revised clause 8.3.17 posted in
+  pdf-issues #575 (closed). The unsigned read decodes either writer's
+  non-negative count; the signed read turned a count with its top byte
+  ≥ 0x80 (e.g. 200) negative, ran the loop zero times, and desynced the
+  token stream. Found by the spec librarian's gap-note pass. Also
+  corrected `schema.rs`'s header note, which wrongly claimed the WD
+  leaves `Interval`/`Domain` undefined — it defines both (8.2.2, 8.2.4);
+  those reads were already right. Test added (count 200, both writer
+  conventions); sabotage CAUGHT. `pdfcer-3d` 48 tests pass; clippy clean.
+- `b807f044` — chore(agent-memory): the spec librarian's own memory note
+  for the same pass.
+
+**Findings + decisions:**
+- The spec librarian's gap-note pass
+  (`D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__schema_versioning.md`
+  §6/§7, plus `prc__8137__tess_3d.md`, `prc__8137__tess_face_wire_markup.md`,
+  `prc__8137__tess_3d_compressed.md`) resolved three of the seven
+  schema/tessellation gaps and found a new one. GAP-1 (SimpleFor count
+  sign) resolved by `d0a9641b`. GAP-2 (Block_Version direction) SETTLED,
+  pdfcer already right. GAP-3 (Extent layout) SETTLED. GAP-4 (expression
+  operand width, i64 vs i32) stays OPEN. GAP-5 (variable scoping) stays
+  OPEN — the WD contradicts itself. GAP-6 (pointer tokens 12-14 /
+  `CurveIs3D`) stays OPEN, low exposure (refused as `Unsupported` today).
+  NEW GAP-7: real files use `Father_Type` on built-in types (205, 320),
+  for which pdfcer's schema reader runs nothing — a desync risk, but
+  confined to version blocks an 8137-declared reader already skips.
+- Tessellation is implemented per the WD's own documentation but has
+  never been checked against a real producer file — no real PRC stream
+  is on hand yet.
+- `prc-rs`'s test data holds three real PRC streams of unknown
+  provenance — usable for LOCAL testing only (`LEGAL.md` §5), never
+  committed as fixtures. It also carries eight real schema programs
+  (MIT-licensed, attribution required) that are candidate test vectors
+  for the OPEN gaps above — not yet adopted.
+
+**Still in flight:**
+- `Pass 419.2` remains IN PROGRESS. Still owed: CPU poster generation,
+  placement/assembly transforms, compressed tessellation (type 173)
+  decode, and GAP-4/5/6/7 above.
+
+**For next session:**
+- Decide whether to pull in any of `prc-rs`'s eight real schema programs
+  or three real PRC streams as local-only test material before tackling
+  GAP-4/5/6, and continue `419.2` with poster generation and/or placement
+  transforms.
+
 ## 2026-09-30 (809th filing) — `Pass 419.2` IN PROGRESS, fourth slice: cargo-fuzz target `prc_tess` reaches the PRC tessellation decoder directly
 
 **Shipped (partial — Pass 419.2 stays open):**

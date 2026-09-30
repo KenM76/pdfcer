@@ -23252,10 +23252,11 @@ RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
   pdfcer's own builds, off-able for a slim build): PRC uncompressed-
   tessellation read, mesh export (STL/OBJ), CPU poster generation. No GUI
   deps; wasm32-clean; no threads (engine rule). **UNBLOCKED 2026-09-30 —
-  see decision 169 below. IN PROGRESS, fourth slice `febaeee5`, 2026-09-30
-  (809th filing; third slice `a9a7cf69`/`e87bb75c`, 808th filing; second
-  slice `d64f900f`, 807th filing; first slice `b5107225`, 806th filing):**
-  new cargo-fuzz target `prc_tess` wraps the fuzz input in a valid PRC
+  see decision 169 below. IN PROGRESS, fifth increment `d0a9641b`,
+  2026-09-30 (810th filing; fourth slice `febaeee5`, 809th filing; third
+  slice `a9a7cf69`/`e87bb75c`, 808th filing; second slice `d64f900f`, 807th
+  filing; first slice `b5107225`, 806th filing):** new cargo-fuzz target
+  `prc_tess` wraps the fuzz input in a valid PRC
   container (authoring version 7038/7046/7047/8137; globals/schema vs.
   tessellation split; stored-block zlib + Adler-32) to reach the
   tessellation decoder directly rather than through the outer file-
@@ -23279,14 +23280,37 @@ RichMedia (ISO/TS 32007:2024) is out of scope — no viewer renders it today.
   feature-off step widened from `cargo check` to `cargo test --bin
   pdfcer` (a check builds the binary but never runs it, so it could not
   have caught this). `a8832eb3` marked `*.prc`/`*.u3d` binary in
-  `.gitattributes`. **Still owed:** CPU poster generation,
-  placement/assembly transforms (tree section, so multi-part models
-  don't overlap), compressed tessellation (type 173) decode, and the
-  empirical gaps (local-frame sign, multi-component restart, normals,
-  real SolidWorks compression choice, schema Interval/Domain layout,
-  SimpleFor count type, variable scoping, pointer-token semantics — spec
-  RAG gap notes; spec librarian dispatched separately, in flight). U3D
-  decode (`419.3`) is a separate question.
+  `.gitattributes`. **Also landed the fifth increment, a bug found by the
+  spec librarian's gap-note pass:** `d0a9641b` — the schema `SimpleFor`
+  token's count now reads as `UnsignedInteger` (was signed `Integer`,
+  following `prc-rs`); a count written non-negative with its top byte
+  ≥ 0x80 (e.g. 200) decoded negative, ran the loop zero times, and
+  desynced the token stream. Source: WD 9.3.17 pseudocode + the revised
+  clause 8.3.17 posted in pdf-issues #575 (closed). Also corrected
+  `schema.rs`'s header note, which wrongly claimed the WD leaves
+  `Interval`/`Domain` undefined — it defines both (8.2.2, 8.2.4); those
+  reads were already right. Test added (count 200, both writer
+  conventions); sabotage CAUGHT. `pdfcer-3d` 48 tests pass; clippy clean.
+  **Still owed:** CPU poster generation, placement/assembly transforms
+  (tree section, so multi-part models don't overlap), compressed
+  tessellation (type 173) decode, and the schema/tessellation gaps
+  named in `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__schema_versioning.md`
+  §6 — GAP-4 (expression operand width, i64 vs i32, OPEN), GAP-5
+  (variable scoping, OPEN — the WD contradicts itself), GAP-6 (pointer
+  tokens 12–14 / `CurveIs3D`, OPEN, low exposure — refused as
+  `Unsupported` today), GAP-7 (NEW — real files use `Father_Type` on
+  built-in types 205/320, which pdfcer's schema reader runs nothing for;
+  a desync risk, but confined to version blocks an 8137-declared reader
+  already skips). GAP-1 (SimpleFor sign) is resolved by `d0a9641b` above;
+  GAP-2 (Block_Version direction) and GAP-3 (Extent layout) are SETTLED,
+  pdfcer already right on both. Tessellation is implemented per the WD's
+  documentation but has never been checked against a real producer file.
+  Separately noted, not yet owed as a build item: `prc-rs`'s test data
+  holds three real PRC streams of unknown provenance — usable for LOCAL
+  testing only (`LEGAL.md` §5), never committed as fixtures — and eight
+  real schema programs from `prc-rs`'s own tests (MIT, attribution
+  needed) that are candidate test vectors for the OPEN gaps above, not
+  yet adopted. U3D decode (`419.3`) is a separate question.
 - `419.3` — U3D CLOD mesh decode (ECMA-363) into the same mesh model.
 - `419.4` — PRC authoring (mesh → PRC tessellation) — **the licensing
   questions below are answered, decision 169**; remaining scope is
@@ -23378,6 +23402,18 @@ refusal (per that file's own "replace, never append" rule).
 > fuzzing for 3D, so that file is unchanged this filing. `419.2` remains
 > IN PROGRESS: poster/placement/compressed-tessellation still owed, spec
 > RAG gap notes still in flight (dispatched separately).
+>
+> ★ **`419.2` gains a fifth (bugfix) increment, 2026-09-30 (810th filing),
+> `d0a9641b`** — the schema `SimpleFor` token's count now reads as
+> `UnsignedInteger`, not signed `Integer`; the spec librarian's gap-note
+> pass landed the same day
+> (`D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__schema_versioning.md`
+> §6/§7, plus `prc__8137__tess_3d.md`, `prc__8137__tess_face_wire_markup.md`,
+> `prc__8137__tess_3d_compressed.md`), resolving GAP-1 (this bug), GAP-2
+> and GAP-3, and finding a new GAP-7. `docs/FEATURES.md` is unaffected (no
+> row cites `SimpleFor`). `419.2` remains IN PROGRESS: poster/placement/
+> compressed-tessellation still owed, plus GAP-4/5/6/7 — see the entry's
+> own still-owed list, just updated.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
