@@ -2,8 +2,22 @@ use super::*;
 
 /// `verify-signatures`: the integrity + coverage verdicts, one block per
 /// signature field, with trust named as not checked on every one.
-pub(crate) fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u8 {
-    use pdfcer_core::signature::{self, Integrity, Trust};
+pub(crate) fn cmd_verify_signatures(
+    input: &Path,
+    trust_from_acrobat: bool,
+    crls: &[PathBuf],
+) -> u8 {
+    use pdfcer_core::signature::{self, Integrity, SuppliedRevocation, Trust};
+    let mut supplied = SuppliedRevocation::new();
+    for path in crls {
+        match std::fs::read(path) {
+            Ok(der) => supplied = supplied.with_crl(der),
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", path.display());
+                return exit::IO_ERROR;
+            }
+        }
+    }
     let bytes = match std::fs::read(input) {
         Ok(b) => b,
         Err(err) => {
@@ -43,7 +57,7 @@ pub(crate) fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u
                         c.adbe,
                     );
                     println!(
-                        "  ⚠ AT YOUR OWN RISK: read from Adobe's own downloaded file; whether relying on it fits the Adobe Reader licence is your call. A 'trusted' result checks the chain, RFC 5280 CA/key-usage constraints, and validity dates at the signing time -- but NOT revocation (CRL/OCSP), which needs the network pdfcer-core never uses."
+                        "  ⚠ AT YOUR OWN RISK: read from Adobe's own downloaded file; whether relying on it fits the Adobe Reader licence is your call. A 'trusted' result checks the chain, RFC 5280 CA/key-usage constraints, and validity dates at the signing time ; revocation is the separate revocation: line."
                     );
                     Some(set)
                 }
@@ -65,7 +79,8 @@ pub(crate) fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u
     } else {
         None
     };
-    let verdicts = signature::verify_all_with_trust(&doc.view(), &bytes, anchors.as_ref());
+    let verdicts =
+        signature::verify_all_with_revocation(&doc.view(), &bytes, anchors.as_ref(), &supplied);
     if verdicts.is_empty() {
         println!(
             "verify-signatures {}: 0 signature field(s)",
@@ -123,15 +138,13 @@ pub(crate) fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u
             )
         };
         let trust = match &v.trust {
-            Trust::NotChecked => {
-                "NOT CHECKED (no trust store, no chain, no revocation, no clock)".to_owned()
-            }
+            Trust::NotChecked => "NOT CHECKED (no trust store given)".to_owned(),
             Trust::Trusted {
                 anchor_subject,
                 source,
                 validity_checked,
             } => format!(
-                "TRUSTED via {} [{}] (chain + CA/key-usage constraints{}; revocation NOT checked)",
+                "TRUSTED via {} [{}] (chain + CA/key-usage constraints{})",
                 anchor_subject,
                 source.join(","),
                 if *validity_checked {
@@ -158,6 +171,7 @@ pub(crate) fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u
         println!("  integrity: {integrity} -- {detail}");
         println!("  coverage: {coverage}");
         println!("  trust: {trust}");
+        println!("  revocation: {}", revocation_line(&v.revocation));
         println!(
             "  claims: signer={:?} issuer={:?} valid={}..{} signing_time={} name={:?} date={:?} reason={:?}",
             v.signer_subject.as_deref().unwrap_or("-"),
@@ -2575,4 +2589,54 @@ objects={} appended={} out_bytes={}",
         r.bytes_written,
     );
     finish_edit(input, &outcome)
+}
+
+/// The `verify-signatures` `revocation:` line.
+fn revocation_line(r: &pdfcer_core::signature::Revocation) -> String {
+    use pdfcer_core::signature::Revocation;
+    match r {
+        Revocation::NotChecked => {
+            "not checked (no CRL in the document or given with --crl)".to_owned()
+        }
+        Revocation::Good { checked } => {
+            let each: Vec<String> = checked
+                .iter()
+                .map(|c| {
+                    format!(
+                        "{:?} by {} CRL of {} (next update {})",
+                        c.subject,
+                        c.source.as_str(),
+                        c.this_update.as_deref().unwrap_or("-"),
+                        c.next_update.as_deref().unwrap_or("none stated"),
+                    )
+                })
+                .collect();
+            format!(
+                "good -- not revoked at the signing time: {}",
+                each.join("; ")
+            )
+        }
+        Revocation::Revoked {
+            subject,
+            date,
+            reason,
+            before_signing,
+            source,
+        } => format!(
+            "REVOKED -- {:?} on {} (reason {}; {} CRL), {}",
+            subject,
+            date.as_deref().unwrap_or("-"),
+            reason.as_deref().unwrap_or("unstated"),
+            source.as_str(),
+            match before_signing {
+                Some(true) => "BEFORE the signing time",
+                Some(false) => "after the signing time",
+                None => "before or after signing is unknown (no signing time)",
+            },
+        ),
+        Revocation::Undetermined { reason } => format!("undetermined -- {reason}"),
+        other => {
+            format!("undetermined -- a verdict this build of the CLI does not know: {other:?}")
+        }
+    }
 }

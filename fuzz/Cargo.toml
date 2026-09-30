@@ -115,6 +115,11 @@ path = "../crates/pdfcer-render"
 default-features = false
 features = ["jpx"]
 
+# The CRL reader (`crl_parse`) is `pdfcer-pkix`'s own module, reached
+# directly rather than through a `pdfcer-core` re-export. No features.
+[dependencies.pdfcer-pkix]
+path = "../crates/pdfcer-pkix"
+
 # cargo-fuzz builds with the release profile; keep debuginfo so crash
 # backtraces point at real source lines.
 [profile.release]
@@ -587,6 +592,13 @@ bench = false
 [[bin]]
 name = "wav_import"
 path = "fuzz_targets/wav_import.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "crl_parse"
+path = "fuzz_targets/crl_parse.rs"
 test = false
 doc = false
 bench = false

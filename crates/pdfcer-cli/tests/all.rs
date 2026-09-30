@@ -81,4 +81,5 @@ mod tab_order;
 mod two_line_dimension;
 mod unembed_font;
 mod vector_edit;
+mod verify_signatures_crl;
 mod widget_properties;

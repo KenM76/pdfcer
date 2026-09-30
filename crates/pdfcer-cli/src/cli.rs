@@ -2242,6 +2242,15 @@ pub(crate) enum Command {
     /// point and issuer-certificate URIs (RFC 5280 §4.2.1.13, §4.2.2.1),
     /// exactly as the certificate states them. They are NOT fetched; they
     /// are what to fetch to check revocation yourself.
+    ///
+    /// A `revocation:` line gives what certificate revocation lists (RFC
+    /// 5280 §5) say about the signer's chain, checked at the signing time:
+    /// the CRLs the document carries in its `/DSS`, plus any given with
+    /// `--crl`. Each certificate up to the root must be covered by a CRL its
+    /// issuer signed; `good`, `REVOKED` (with the date, the reason, and
+    /// whether that was before or after signing), `undetermined` (why), or
+    /// `not checked` when there are no CRLs. OCSP is not read. Revocation
+    /// does not change the exit code.
     VerifySignatures {
         /// Input PDF.
         input: PathBuf,
@@ -2252,10 +2261,16 @@ pub(crate) enum Command {
         /// own downloaded file (a local read), and whether relying on it fits
         /// the Adobe Reader licence is your call. A trusted result checks the
         /// signature chain, RFC 5280 CA/key-usage constraints, and certificate
-        /// validity dates at the signing time — but NOT revocation (CRL/OCSP),
-        /// which needs the network pdfcer-core never uses.
+        /// validity dates at the signing time; revocation is the separate
+        /// `revocation:` line.
         #[arg(long = "trust-from-acrobat")]
         trust_from_acrobat: bool,
+        /// A DER certificate revocation list to check the signer's chain
+        /// against, in addition to any in the document. Repeatable. Fetch it
+        /// yourself from a `revocation-source:` `crl=` location; pdfcer
+        /// fetches nothing.
+        #[arg(long = "crl", value_name = "FILE")]
+        crl: Vec<PathBuf>,
     },
 
     /// **List a document's optional-content groups** — layers (§8.11).

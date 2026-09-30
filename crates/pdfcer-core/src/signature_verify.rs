@@ -204,6 +204,234 @@ pub struct SignatureVerdict {
     /// `pdfcer-core` has no network, so these are what a shell would fetch
     /// to check revocation.
     pub revocation_sources: Vec<RevocationSources>,
+    /// What the available CRLs say about the signer's chain: those in the
+    /// document's `/DSS` and any the caller supplied
+    /// ([`verify_all_with_revocation`]). Independent of [`trust`](Self::trust):
+    /// each certificate is checked against a CRL its issuer signed, whether or
+    /// not that issuer is trusted.
+    pub revocation: Revocation,
+}
+
+/// What certificate revocation lists (RFC 5280 §5) say about a signer's chain.
+///
+/// Every certificate from the signer up to, not including, a self-signed
+/// root (or a trust anchor, when anchors were given) is checked against the
+/// CRLs its issuer signed. A CRL is used only if its signature verifies with
+/// the issuer's key, the issuer may sign CRLs, it is a complete (not delta,
+/// not indirect) CRL covering the certificate, it carries no unrecognised
+/// critical extension, and — when the signature has a signing time — its
+/// `nextUpdate` is not before that time. Nothing is fetched.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Revocation {
+    /// No CRL was available: none in `/DSS`, none supplied.
+    NotChecked,
+    /// Every certificate in the chain was covered by a usable CRL not
+    /// listing it. Signer first.
+    Good {
+        /// One entry per certificate checked.
+        checked: Vec<RevocationCheck>,
+    },
+    /// A usable CRL lists a certificate in the chain.
+    Revoked {
+        /// The revoked certificate's subject.
+        subject: String,
+        /// The `revocationDate`, ISO-8601.
+        date: Option<String>,
+        /// The `reasonCode` as RFC 5280 names it (`keyCompromise`, …).
+        reason: Option<String>,
+        /// Whether `date` is at or before the signing time (the CMS
+        /// `signingTime`, else `/M`); `None` when either is unknown. Both are
+        /// the signer's own claim.
+        before_signing: Option<bool>,
+        /// Where the CRL came from.
+        source: RevocationSource,
+    },
+    /// CRLs were available but the chain could not be fully checked.
+    Undetermined {
+        /// Why, in operator terms.
+        reason: String,
+    },
+}
+
+/// One certificate a CRL showed was not revoked.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RevocationCheck {
+    /// The certificate's subject.
+    pub subject: String,
+    /// Where the CRL came from.
+    pub source: RevocationSource,
+    /// The CRL's `thisUpdate`, ISO-8601.
+    pub this_update: Option<String>,
+    /// The CRL's `nextUpdate`; `None` when the CRL states none (RFC 5280
+    /// §5.1.2.5 requires it; pdfcer still uses such a CRL and reports the
+    /// absence here).
+    pub next_update: Option<String>,
+}
+
+/// Where a CRL came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RevocationSource {
+    /// The document's `/DSS` `/CRLs` (ETSI EN 319 142-1 §5.4.2.2).
+    Dss,
+    /// Supplied by the caller in [`SuppliedRevocation`].
+    Supplied,
+}
+
+impl RevocationSource {
+    /// `"DSS"` or `"supplied"`.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Dss => "DSS",
+            Self::Supplied => "supplied",
+        }
+    }
+}
+
+/// Revocation evidence the caller brings — typically fetched by a shell
+/// from the locations in [`SignatureVerdict::revocation_sources`].
+///
+/// ```
+/// use pdfcer_core::signature::SuppliedRevocation;
+/// let supplied = SuppliedRevocation::new().with_crl(vec![0x30, 0x00]);
+/// assert_eq!(supplied.crls().len(), 1);
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SuppliedRevocation {
+    crls: Vec<Vec<u8>>,
+}
+
+impl SuppliedRevocation {
+    /// No evidence.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add one DER-encoded CRL (`CertificateList`). Bytes that are not a
+    /// CRL are ignored when verifying.
+    #[must_use]
+    pub fn with_crl(mut self, der: Vec<u8>) -> Self {
+        self.crls.push(der);
+        self
+    }
+
+    /// The CRLs added, in order.
+    #[must_use]
+    pub fn crls(&self) -> &[Vec<u8>] {
+        &self.crls
+    }
+}
+
+/// The most `/DSS` `/Certs` or `/CRLs` entries read, each.
+const MAX_DSS_ITEMS: usize = 4096;
+
+/// The document's `/DSS` certificates and CRLs, decoded.
+#[derive(Default)]
+struct DssData {
+    certs: Vec<Vec<u8>>,
+    crls: Vec<Vec<u8>>,
+}
+
+fn dss_data<G: ObjectGraph + ?Sized>(graph: &G, bytes: &[u8]) -> DssData {
+    let mut out = DssData::default();
+    let Some(dss) = graph
+        .catalog_dict()
+        .and_then(|c| c.get(b"DSS"))
+        .map(|o| graph.resolve(o))
+        .and_then(Object::as_dict)
+    else {
+        return out;
+    };
+    let source = crate::view::StreamSource::Contiguous(bytes);
+    let read = |key: &[u8]| -> Vec<Vec<u8>> {
+        let Some(items) = dss
+            .get(key)
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_array)
+        else {
+            return Vec::new();
+        };
+        items
+            .iter()
+            .take(MAX_DSS_ITEMS)
+            .filter_map(|item| {
+                let Object::Stream(stream) = graph.resolve(item) else {
+                    return None;
+                };
+                let raw = source.slice(stream.data_span)?;
+                crate::filters::decode_stream(&stream.dict, raw).ok()
+            })
+            .collect()
+    };
+    out.certs = read(b"Certs");
+    out.crls = read(b"CRLs");
+    out
+}
+
+/// The chain's revocation status from `dss` and `supplied` CRLs.
+fn revocation_status(
+    signer_der: &[u8],
+    sd: &cms::SignedData<'_>,
+    dss: &DssData,
+    supplied: &SuppliedRevocation,
+    anchors: Option<&crate::trust_store::TrustAnchorSet>,
+    at: Option<&str>,
+) -> Revocation {
+    use pdfcer_pkix::crl::{ChainRevocation, chain_status};
+    if dss.crls.is_empty() && supplied.crls.is_empty() {
+        return Revocation::NotChecked;
+    }
+    let anchor_ders: Vec<&[u8]> = anchors
+        .map(|a| a.anchors.iter().map(|t| t.der.as_slice()).collect())
+        .unwrap_or_default();
+    let mut pool: Vec<&[u8]> = sd.certificates.clone();
+    pool.extend(dss.certs.iter().map(Vec::as_slice));
+    pool.extend(anchor_ders.iter().copied());
+    let crls: Vec<&[u8]> = dss
+        .crls
+        .iter()
+        .chain(&supplied.crls)
+        .map(Vec::as_slice)
+        .collect();
+    let source = |i: usize| {
+        if i < dss.crls.len() {
+            RevocationSource::Dss
+        } else {
+            RevocationSource::Supplied
+        }
+    };
+    match chain_status(signer_der, &pool, &anchor_ders, &crls, at) {
+        ChainRevocation::NotRevoked(covered) => Revocation::Good {
+            checked: covered
+                .into_iter()
+                .map(|c| RevocationCheck {
+                    subject: c.subject,
+                    source: source(c.crl_index),
+                    this_update: c.this_update,
+                    next_update: c.next_update,
+                })
+                .collect(),
+        },
+        ChainRevocation::Revoked {
+            subject,
+            crl_index,
+            date,
+            reason,
+            before,
+        } => Revocation::Revoked {
+            subject,
+            date,
+            reason: reason.map(|r| r.as_str().to_owned()),
+            before_signing: before,
+            source: source(crl_index),
+        },
+        ChainRevocation::Undetermined { reason } => Revocation::Undetermined { reason },
+    }
 }
 
 /// One certificate's revocation locations, as it states them (RFC 5280
@@ -285,7 +513,24 @@ pub fn verify_all_with_trust<G: ObjectGraph + ?Sized>(
     bytes: &[u8],
     anchors: Option<&crate::trust_store::TrustAnchorSet>,
 ) -> Vec<SignatureVerdict> {
+    verify_all_with_revocation(graph, bytes, anchors, &SuppliedRevocation::new())
+}
+
+/// [`verify_all_with_trust`] plus caller-supplied revocation evidence.
+///
+/// Each verdict's [`SignatureVerdict::revocation`] checks the signer's chain
+/// against the document's `/DSS` CRLs and `supplied`'s, at the signing time.
+/// Every other verdict field is as [`verify_all_with_trust`] gives it. With
+/// `anchors`, a trust anchor ends the chain walk and is itself not checked.
+#[must_use]
+pub fn verify_all_with_revocation<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    bytes: &[u8],
+    anchors: Option<&crate::trust_store::TrustAnchorSet>,
+    supplied: &SuppliedRevocation,
+) -> Vec<SignatureVerdict> {
     let mut out = Vec::new();
+    let dss = dss_data(graph, bytes);
     let Some(form) = crate::forms::parse_acroform(graph) else {
         return out;
     };
@@ -302,7 +547,7 @@ pub fn verify_all_with_trust<G: ObjectGraph + ?Sized>(
         else {
             continue;
         };
-        let mut verdict = verify_dict(graph, bytes, dict, anchors);
+        let mut verdict = verify_dict(graph, bytes, dict, anchors, &dss, supplied);
         verdict.field_name = Some(field.fully_qualified_name.clone());
         out.push(verdict);
     }
@@ -364,6 +609,8 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
     bytes: &[u8],
     dict: &crate::object::Dict,
     anchors: Option<&crate::trust_store::TrustAnchorSet>,
+    dss: &DssData,
+    supplied: &SuppliedRevocation,
 ) -> SignatureVerdict {
     let sub_filter = text(graph, dict, b"SubFilter");
     let mut notes = Vec::new();
@@ -435,6 +682,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
         certification: docmdp_permission(graph, dict),
         notes: Vec::new(),
         revocation_sources: Vec::new(),
+        revocation: Revocation::NotChecked,
     };
     let unverifiable = |reason: &str| Integrity::Unverifiable {
         reason: reason.to_string(),
@@ -584,6 +832,29 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
     }
     verdict.signing_time = signer.signing_time.clone();
     verdict.revocation_sources = revocation_sources(&sd);
+    // The reference clock for certificate validity and revocation: the CMS
+    // signingTime, else `/M`. PAdES forbids signingTime (ETSI EN 319 142-1
+    // §6.3 Table 1), so a CAdES signature's only stated time is `/M`, which the
+    // byte range covers. Both are the signer's claim.
+    let reference_time = signer.signing_time.clone().or_else(|| {
+        let t = verdict.date.as_deref().and_then(pdf_date_to_utc)?;
+        if anchors.is_some() || !dss.crls.is_empty() || !supplied.crls.is_empty() {
+            notes.push(format!(
+                "clock: no CMS signingTime, so certificate validity and revocation are checked at the /M time the signature dictionary states ({t}) -- the signer's claim"
+            ));
+        }
+        Some(t)
+    });
+    if let Some(signer_der) = sd.signer_certificate_der() {
+        verdict.revocation = revocation_status(
+            signer_der,
+            &sd,
+            dss,
+            supplied,
+            anchors,
+            reference_time.as_deref(),
+        );
+    }
 
     // --- the signer's certificate (a claim) ---
     let Some(cert) = sd.signer_certificate() else {
@@ -713,7 +984,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
             Some(signer_der) => {
                 // The signing time is the RFC 5280 reference clock: was the
                 // chain valid WHEN the document was signed (Pass 10.5)?
-                let now = signer.signing_time.as_deref();
+                let now = reference_time.as_deref();
                 match crate::trust_chain::evaluate(signer_der, &sd.certificates, anchors, now) {
                     crate::trust_chain::ChainVerdict::Trusted {
                         anchor_subject,
@@ -726,7 +997,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
                             "validity dates were NOT checked (no signing-time clock)"
                         };
                         notes.push(format!(
-                            "trust: the signer chains by signature to a trusted anchor, and RFC 5280 CA/key-usage constraints held; {validity}. Certificate revocation (CRL/OCSP) is NOT checked -- pdfcer-core never touches the network (Pass 10.5)."
+                            "trust: the signer chains by signature to a trusted anchor, and RFC 5280 CA/key-usage constraints held; {validity}. Revocation is reported separately, from CRLs in the document or supplied; pdfcer-core fetches nothing."
                         ));
                         Trust::Trusted {
                             anchor_subject,
@@ -860,5 +1131,112 @@ pub(crate) fn check_signature(
         (_, other) => Err(format!(
             "the signature algorithm {other} is not one pdfcer verifies"
         )),
+    }
+}
+
+/// A PDF date (ISO 32000-1 §7.9.4, `D:YYYYMMDDHHmmSSOHH'mm`) as UTC
+/// `YYYY-MM-DDTHH:MM:SSZ`, the form RFC 5280 times are compared in. `None`
+/// when malformed, or when it states no UT relationship (§7.9.4: then
+/// unknown), since a clock off by hours can flip a revocation's side.
+fn pdf_date_to_utc(date: &str) -> Option<String> {
+    const DEFAULTS: &str = "0101000000";
+    let s = date.strip_prefix("D:").unwrap_or(date);
+    let digits = s.bytes().take_while(u8::is_ascii_digit).count();
+    if !(4..=14).contains(&digits) || digits % 2 != 0 {
+        return None;
+    }
+    let full = format!("{}{}", &s[..digits], &DEFAULTS[digits - 4..]);
+    let n = |r: std::ops::Range<usize>| full[r].parse::<i64>().ok();
+    let (y, mo, d) = (n(0..4)?, n(4..6)?, n(6..8)?);
+    let (h, mi, se) = (n(8..10)?, n(10..12)?, n(12..14)?);
+    if !(1..=12).contains(&mo) || !(1..=31).contains(&d) || h > 23 || mi > 59 || se > 59 {
+        return None;
+    }
+    let rest = &s[digits..];
+    let offset_minutes = match rest.as_bytes().first()? {
+        b'Z' => 0,
+        sign @ (b'+' | b'-') => {
+            let tz: String = rest[1..].chars().filter(char::is_ascii_digit).collect();
+            let oh = tz.get(0..2)?.parse::<i64>().ok()?;
+            let om = tz.get(2..4).map_or(Some(0), |m| m.parse::<i64>().ok())?;
+            if oh > 23 || om > 59 {
+                return None;
+            }
+            if *sign == b'+' {
+                oh * 60 + om
+            } else {
+                -(oh * 60 + om)
+            }
+        }
+        _ => return None,
+    };
+    let secs = days_from_civil(y, mo, d) * 86_400 + h * 3600 + mi * 60 + se - offset_minutes * 60;
+    let (days, sod) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    let (y, mo, d) = civil_from_days(days);
+    Some(format!(
+        "{y:04}-{mo:02}-{d:02}T{:02}:{:02}:{:02}Z",
+        sod / 3600,
+        sod % 3600 / 60,
+        sod % 60
+    ))
+}
+
+/// Days since 1970-01-01 of a proleptic Gregorian date (H. Hinnant's
+/// algorithm).
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * (m + if m > 2 { -3 } else { 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+/// The inverse of [`days_from_civil`].
+fn civil_from_days(z: i64) -> (i64, i64, i64) {
+    let z = z + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    (
+        if m <= 2 {
+            yoe + era * 400 + 1
+        } else {
+            yoe + era * 400
+        },
+        m,
+        d,
+    )
+}
+
+#[cfg(test)]
+mod pdf_date_tests {
+    use super::pdf_date_to_utc;
+
+    #[test]
+    fn a_pdf_date_converts_to_utc() {
+        let c = |s| pdf_date_to_utc(s);
+        assert_eq!(
+            c("D:20260930000000Z").as_deref(),
+            Some("2026-09-30T00:00:00Z")
+        );
+        assert_eq!(
+            c("D:20260930013000+02'00'").as_deref(),
+            Some("2026-09-29T23:30:00Z")
+        );
+        assert_eq!(
+            c("D:20261231220000-05'30").as_deref(),
+            Some("2027-01-01T03:30:00Z")
+        );
+        assert_eq!(c("D:20240229Z").as_deref(), Some("2024-02-29T00:00:00Z"));
+        assert_eq!(c("D:2026Z").as_deref(), Some("2026-01-01T00:00:00Z"));
+        assert_eq!(c("D:20260930000000"), None, "no UT relationship");
+        assert_eq!(c("D:20261330000000Z"), None);
+        assert_eq!(c("D:202Z"), None);
+        assert_eq!(c("garbage"), None);
     }
 }

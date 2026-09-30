@@ -83,6 +83,8 @@ pub struct AlgId<'a> {
     pub params: Option<Tlv<'a>>,
 }
 
+/// Decode an `AlgorithmIdentifier` SEQUENCE (RFC 5280 §4.1.1.2); shared with
+/// the CRL reader. `None` when it is not a SEQUENCE starting with an OID.
 pub(crate) fn alg_id(tlv: Tlv<'_>) -> Option<AlgId<'_>> {
     if tlv.tag != asn1::SEQUENCE {
         return None;
