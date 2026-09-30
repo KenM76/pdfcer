@@ -4,6 +4,59 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (813th filing) — `Pass 419.2` IN PROGRESS, eighth increment: PRC product-tree placement/assembly transforms now APPLIED, not just stored
+
+**Shipped (partial — Pass 419.2 stays open):**
+- `aa6866aa` — feat(3d): `pdfcer-3d` reads the PRC product tree
+  (FileStructureTree 304: parts, product occurrences, filters, scene
+  display parameters, cameras) and the globals' reference coordinate
+  systems (303, read up to its `RI_CoordinateSystem` list), then walks
+  occurrences from the model-file roots. New public API:
+  `PrcFile::placements() -> Vec<Placement>`, `TriangleMesh::transformed`,
+  `Matrix`/`IDENTITY`/`multiply`/`transform_point`. Hidden/suppressed
+  occurrences skipped; prototype chains fill empty part/son lists; depth
+  and visit ceilings refuse cycles. CLI `3d-mesh` writes each mesh once
+  per placement, falling back to one mesh per tessellation in stored
+  coordinates (disclosed) when the tree can't be read.
+- `eb4bc89d` — chore(agent-memory): spec librarian records the PRC
+  product tree and globals read.
+
+**Findings + decisions:**
+- Spec-found: the type-2 (PRCBaseWithGraphics) schema evaluates at the
+  end of every graphics base, and the globals section opens with it
+  (both `[PRCRS]`, measured on the School sample). Recorded in
+  `D:\Dev\Rag-Specialized\PDF_Spec\threed\` (`prc__8137__model_tree_asm.md`,
+  `graphics_materials`, `base_content_graphics`, `schema_versioning`).
+- **Measured on the School sample** (local-only, unknown provenance,
+  never committed — `LEGAL.md` §5): 1,173 placements of 346 distinct
+  tessellations; 1,171 meshes / 69,634 triangles written; the assembled
+  OBJ renders as one coherent building.
+- `docs/FEATURES.md` row 457's caveat rewritten in place — boxes
+  unchanged (`core [x] cli [x] gui [ ]`), per that file's "replace, never
+  append" rule.
+
+**Test results:**
+- `pdfcer-3d`: 6 new tree unit tests; synthetic fixture
+  `fixtures/synthetic/prc/assembly.prc` (unit square placed twice, once
+  mirrored), drift-checked; shared PRC container test builder moved to
+  `testw`. CLI: 1 new test (`a_prc_assembly_is_written_at_its_placements`).
+- Sabotage 9/10 caught; survivor is the depth guard, also enforced by the
+  visit ceiling. New fuzz target `prc_tree` reaching `placements()`:
+  165,061 runs / 91 s, clean.
+- `tools/run-gates.sh` 40/42 first run; both failures (a string gap in
+  the new CLI note, 3 undocumented `pub(crate)` fns) fixed before commit,
+  both gates re-run clean. Clippy/fmt clean. No manifest or `cargo tree`
+  change; `docs/core-api` doesn't cover `pdfcer-3d`, no update needed.
+
+**Still in flight:**
+- `Pass 419.2` remains IN PROGRESS. Still owed: the T-edge form, residual
+  drift, stored-normal decode, a prototype's own location composition,
+  and CPU poster generation — then `Pass 421.x` unblocks.
+
+**For next session:**
+- Next `419.2` slice: pick from the still-owed list above (T-edge form
+  or residual drift are the most contained).
+
 ## 2026-09-30 (812th filing) — `Pass 419.2` IN PROGRESS, seventh increment: PRC compressed tessellation (entity 173) triangles REBUILT; new Backlog bucket `Pass 421.x` (interactive 3D viewer) filed
 
 **Shipped (partial — Pass 419.2 stays open):**

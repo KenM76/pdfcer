@@ -23469,6 +23469,40 @@ refusal (per that file's own "replace, never append" rule).
 > gross case), stored-normal decode, outward-winding determination,
 > placement/assembly transforms and CPU poster generation still owed.
 
+> ★ **`419.2` gains an eighth increment, 2026-09-30 (813th filing),
+> `aa6866aa` — placement/assembly transforms ARE NOW APPLIED, not just
+> stored.** `pdfcer-3d` now reads the PRC product tree (FileStructureTree
+> entity 304: parts, product occurrences, filters, scene display
+> parameters, cameras) and the globals' reference coordinate systems
+> (entity 303, read up to its `RI_CoordinateSystem` list; colours,
+> materials, texture applications, line patterns and styles read past but
+> not yet used), then walks occurrences from the model-file roots. New
+> public API: `PrcFile::placements() -> Vec<Placement>` (file structure,
+> tessellation index, 4x4 matrix per drawn instance); `TriangleMesh::transformed`
+> (applies a matrix, flips winding when it mirrors); `Matrix`, `IDENTITY`,
+> `multiply`, `transform_point`. Hidden/suppressed occurrences are skipped;
+> prototype chains fill empty part/son lists; depth and visit ceilings
+> refuse cycles. CLI `3d-mesh` now writes each mesh once per placement;
+> when the tree cannot be read (markups/PMI, views, scene lights, clipping
+> planes — still owed) it prints the reason and falls back to one mesh per
+> tessellation in stored coordinates. **Measured on the School sample**
+> (local-only, unknown provenance, never committed — `LEGAL.md` §5): 1,173
+> placements of 346 distinct tessellations; 1,171 meshes / 69,634 triangles
+> written; the assembled OBJ renders as one coherent building. 6 new tree
+> unit tests; synthetic fixture `fixtures/synthetic/prc/assembly.prc` (unit
+> square placed twice, once mirrored), drift-checked by `pdfcer-3d` plus a
+> new CLI test (`a_prc_assembly_is_written_at_its_placements`). Sabotage
+> 9/10 caught, survivor is the depth guard (also enforced by the visit
+> ceiling). New fuzz target `prc_tree` reaching `placements()`: 165,061
+> runs/91 s, clean. `tools/run-gates.sh` 40/42 first run, both failures (a
+> string gap in the new CLI note, 3 undocumented `pub(crate)` fns) fixed
+> before commit, both gates re-run clean; clippy/fmt clean; no manifest or
+> `cargo tree` change. `docs/FEATURES.md` row 457's caveat rewritten in
+> place (boxes unchanged — `gui` stays `[ ]`). `419.2` remains IN
+> PROGRESS: the T edge form, residual drift, stored-normal decode, a
+> prototype's own location composition, and CPU poster generation still
+> owed, then `Pass 421.x` unblocks.
+
 ### Interactive 3D viewer — camera-controlled rendering of a decoded model (`Pass 421.x`), filed 2026-09-30 (812th filing), Backlog
 
 **Scope.** Ken asked 2026-09-30 whether viewing the model with view
