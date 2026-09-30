@@ -26,6 +26,93 @@ use super::*;
 /// separate type rather than a `ValueEnum` derive on the core enum: `clap` is a
 /// GUI-adjacent concern and `pdfcer-core` does not depend on it, which is the
 /// crate-separation invariant rather than a preference.
+/// A named direction `3d-render` looks from, fitted to the model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ThreeDView {
+    /// From above the front-right corner. Default.
+    #[default]
+    Iso,
+    /// From the front, looking toward the back.
+    Front,
+    /// From the back.
+    Back,
+    /// From the left side.
+    Left,
+    /// From the right side.
+    Right,
+    /// From above, looking down.
+    Top,
+    /// From below, looking up.
+    Bottom,
+}
+
+impl ThreeDView {
+    /// The view direction and the image's up direction, for a model whose
+    /// vertical axis is `up`.
+    pub(crate) fn direction(self, up: Axis3) -> ([f64; 3], [f64; 3]) {
+        // In a z-up frame: front looks along +y, right along -x.
+        let (dir, image_up) = match self {
+            ThreeDView::Iso => ([-1.0, 1.0, -1.0], [0.0, 0.0, 1.0]),
+            ThreeDView::Front => ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+            ThreeDView::Back => ([0.0, -1.0, 0.0], [0.0, 0.0, 1.0]),
+            ThreeDView::Left => ([1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            ThreeDView::Right => ([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            ThreeDView::Top => ([0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+            ThreeDView::Bottom => ([0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+        };
+        (up.orient(dir), up.orient(image_up))
+    }
+}
+
+/// The model axis that points up in `3d-render`'s named views.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum Axis3 {
+    /// X up.
+    X,
+    /// Y up (common in mechanical CAD).
+    Y,
+    /// Z up (common in architecture and PRC exports). Default.
+    #[default]
+    Z,
+}
+
+impl Axis3 {
+    /// The unit vector along this axis.
+    pub(crate) fn vector(self) -> [f64; 3] {
+        self.orient([0.0, 0.0, 1.0])
+    }
+
+    /// Rotate a z-up direction so z maps onto this axis (a proper
+    /// rotation, so handedness is kept).
+    fn orient(self, [a, b, c]: [f64; 3]) -> [f64; 3] {
+        match self {
+            Axis3::Z => [a, b, c],
+            Axis3::Y => [a, c, -b],
+            Axis3::X => [c, a, b],
+        }
+    }
+}
+
+/// Clap parser for a point: three comma-separated finite numbers.
+pub(crate) fn parse_point3(s: &str) -> Result<[f64; 3], String> {
+    let parts: Vec<f64> = s
+        .split(',')
+        .map(|t| t.trim().parse::<f64>().ok().filter(|v| v.is_finite()))
+        .collect::<Option<_>>()
+        .ok_or_else(|| format!("`{s}` is not three numbers like 1,2.5,-3"))?;
+    <[f64; 3]>::try_from(parts).map_err(|_| format!("`{s}` is not three numbers like 1,2.5,-3"))
+}
+
+/// Clap parser for `--fov`: degrees, above 0 and below 180.
+pub(crate) fn parse_fov(s: &str) -> Result<f64, String> {
+    match s.parse::<f64>() {
+        Ok(v) if v > 0.0 && v < 180.0 => Ok(v),
+        _ => Err(format!(
+            "a field of view is degrees above 0 and below 180, not {s}"
+        )),
+    }
+}
+
 /// The mesh file format `3d-mesh` writes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum MeshFormat {

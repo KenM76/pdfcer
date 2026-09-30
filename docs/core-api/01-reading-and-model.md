@@ -2756,8 +2756,43 @@ file extension), `view_count` (`/VA` length; 0 for RichMedia), `has_poster`
 the filter-decoded model, untrusted and uninterpreted. `ThreeDNotes`:
 `truncated`, `page_tree_unwalkable`, `annotations_without_stream`.
 `ThreeDError`: `NoStream`, `StreamUnresolvable`, `SpanUnservable`, `Decode`.
-Caps: `MAX_3D_ARTWORKS`, `MAX_RICH_MEDIA_ENTRIES`. No model is decoded or
-rendered. CLI: `3d-list`, `3d-extract --index N -o FILE`.
+Caps: `MAX_3D_ARTWORKS`, `MAX_RICH_MEDIA_ENTRIES`. `pdfcer-core` decodes no
+model. CLI: `3d-list`, `3d-extract --index N -o FILE`.
+
+#### Decoding and drawing a PRC model (`pdfcer-3d`, feature `3d`)
+
+A separate crate, no GUI or network dependency, wasm-clean. Feed it
+`Extracted3D::data` when `sniffed` is PRC.
+
+```rust
+use pdfcer_3d::{PrcFile, Tessellation, Bounds, Camera, RenderOptions, render};
+
+let prc = PrcFile::parse(&got.data)?;                 // Result<_, PrcError>
+let tess = prc.file_structures[0].tessellations()?;   // Vec<Tessellation>, per file structure
+let placements = prc.placements()?;                   // Vec<Placement { file_structure, tessellation, matrix }>
+// meshes = each placement's Tessellation::Mesh (or rebuilt Compressed { mesh: Some(..) })
+//          .transformed(&placement.matrix)
+let bounds = Bounds::of(&meshes).ok_or(nothing_to_draw)?;
+let camera = Camera::fit(&bounds, view_dir, up, /*perspective*/ true, w as f64 / h as f64)?;
+let image = render(&meshes, &camera, &RenderOptions { width: w, height: h, ..Default::default() })?;
+// image.rgba: w*h*4, row-major from the top; every pixel is the background or opaque
+```
+
+- `render` is a CPU z-buffer: flat, double-sided shading lit from the eye,
+  one uniform `RenderOptions::colour`. The model's own colours, materials,
+  textures, lights and saved views are **not read**. Say so in the shell.
+- `Camera { eye, target, up, projection }`; `Projection::Perspective { fov_y }`
+  (degrees) or `Orthographic { height }` (model units). `Camera::fit` frames
+  the bounding sphere along `direction`; move `eye` afterwards to orbit.
+- `RenderError::Size` past `MAX_RENDER_PIXELS` (64M) or a zero side;
+  `RenderError::Camera` for a degenerate or non-finite camera. Non-finite
+  vertices and out-of-range indices are skipped, not errors.
+- Inferred content a shell must disclose: a `Compressed { mesh: Some(..) }`
+  was rebuilt by pdfcer's reconstruction of an undocumented encoding, and
+  `placements()` failing means meshes are drawn unplaced. `pdfcer 3d-render`
+  and `3d-mesh` print both notes; copy their wording.
+- CLI: `3d-mesh -o FILE.stl|.obj`, `3d-render -o FILE.png [--view iso|front|..]
+  [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]`.
 
 ### 12.3 Optional-content layers
 

@@ -105,11 +105,21 @@ pub(crate) fn cmd_extract_3d(input: &Path, index: usize, output: &Path) -> u8 {
 /// `3d-mesh` — decode one PRC model's tessellation and write its triangle
 /// meshes as STL or OBJ.
 pub(crate) fn cmd_mesh_3d(input: &Path, index: usize, output: &Path, format: MeshFormat) -> u8 {
+    let data = match artwork_bytes(input, index) {
+        Ok(data) => data,
+        Err(code) => return code,
+    };
+    mesh_from_bytes(input, index, &data, output, format)
+}
+
+/// The decoded bytes of the 3D artwork at `index`, or the exit code after
+/// the reason is printed.
+fn artwork_bytes(input: &Path, index: usize) -> Result<Vec<u8>, u8> {
     let doc = match open_document(input) {
         Ok(doc) => doc,
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", input.display());
-            return exit_code_for_doc(&err);
+            return Err(exit_code_for_doc(&err));
         }
     };
     let found = pdfcer_core::threed::list_3d(&doc);
@@ -120,49 +130,47 @@ pub(crate) fn cmd_mesh_3d(input: &Path, index: usize, output: &Path, format: Mes
             input.display(),
             found.len()
         );
-        return exit::EDIT_REFUSED;
+        return Err(exit::EDIT_REFUSED);
     };
-    let extracted = match extract_3d(&doc.view(), art) {
-        Ok(extracted) => extracted,
+    match extract_3d(&doc.view(), art) {
+        Ok(extracted) => Ok(extracted.data),
         Err(err) => {
             eprintln!("pdfcer: {}: 3D artwork {index}: {err}", input.display());
-            return exit::EDIT_REFUSED;
+            Err(exit::EDIT_REFUSED)
         }
-    };
-    mesh_from_bytes(input, index, &extracted.data, output, format)
+    }
 }
 
+/// A PRC model's triangle meshes, placed where its tree draws them, and
+/// counts of what was not drawn.
 #[cfg(feature = "3d")]
-fn mesh_from_bytes(
-    input: &Path,
-    index: usize,
-    data: &[u8],
-    output: &Path,
-    format: MeshFormat,
-) -> u8 {
+struct Assembled {
+    meshes: Vec<pdfcer_3d::TriangleMesh>,
+    triangles: usize,
+    wires: usize,
+    markups: usize,
+    rebuilt: usize,
+    compressed: usize,
+    /// Why placements were not applied, when they were not.
+    unplaced: Option<String>,
+}
+
+/// Decode and assemble a PRC model, or say why it has nothing to draw.
+#[cfg(feature = "3d")]
+fn assemble(data: &[u8]) -> Result<Assembled, String> {
     use pdfcer_3d::{PrcFile, Tessellation};
-    let refuse = |why: String| {
-        eprintln!("pdfcer: {}: 3D artwork {index}: {why}", input.display());
-        exit::EDIT_REFUSED
-    };
     if !data.starts_with(b"PRC") {
-        return refuse(
+        return Err(
             "not a PRC model; only PRC is decoded (use `3d-extract` for the bytes)".to_owned(),
         );
     }
-    let prc = match PrcFile::parse(data) {
-        Ok(prc) => prc,
-        Err(err) => return refuse(err.to_string()),
-    };
+    let prc = PrcFile::parse(data).map_err(|err| err.to_string())?;
     let (mut meshes, mut wires, mut markups) = (Vec::new(), 0usize, 0usize);
     let (mut rebuilt, mut compressed) = (0usize, 0usize);
     // Per file structure, each tessellation's triangle mesh (if it has one).
     let mut by_index: Vec<Vec<Option<pdfcer_3d::TriangleMesh>>> = Vec::new();
     for fs in &prc.file_structures {
-        let tess = match fs.tessellations() {
-            Ok(tess) => tess,
-            Err(err) => return refuse(err.to_string()),
-        };
+        let tess = fs.tessellations().map_err(|err| err.to_string())?;
         let mut row = Vec::with_capacity(tess.len());
         for t in tess {
             row.push(match t {
@@ -210,7 +218,7 @@ fn mesh_from_bytes(
     }
     let triangles: usize = meshes.iter().map(|m| m.triangles.len()).sum();
     if triangles == 0 {
-        return refuse(if compressed > 0 {
+        return Err(if compressed > 0 {
             format!(
                 "the model's {compressed} mesh(es) use compressed tessellation in a form \
                  pdfcer does not yet rebuild into triangles"
@@ -219,37 +227,75 @@ fn mesh_from_bytes(
             "the model holds no triangle tessellation".to_owned()
         });
     }
+    Ok(Assembled {
+        meshes,
+        triangles,
+        wires,
+        markups,
+        rebuilt,
+        compressed,
+        unplaced,
+    })
+}
+
+/// The notes both `3d-mesh` and `3d-render` print about what was inferred.
+#[cfg(feature = "3d")]
+fn print_assembly_notes(a: &Assembled, drawn: &str) {
+    if let Some(why) = &a.unplaced {
+        println!(
+            "note: part placements are not applied ({why}); each mesh is {drawn} once, in its own coordinates"
+        );
+    }
+    if a.rebuilt > 0 {
+        println!(
+            "note: {} compressed mesh(es) were rebuilt by pdfcer's reconstruction of an \
+             undocumented encoding; each step is exact to the model's stated tolerance, and \
+             small drift can accumulate across a mesh",
+            a.rebuilt
+        );
+    }
+}
+
+#[cfg(feature = "3d")]
+fn mesh_from_bytes(
+    input: &Path,
+    index: usize,
+    data: &[u8],
+    output: &Path,
+    format: MeshFormat,
+) -> u8 {
+    let refuse = |why: String| {
+        eprintln!("pdfcer: {}: 3D artwork {index}: {why}", input.display());
+        exit::EDIT_REFUSED
+    };
+    let a = match assemble(data) {
+        Ok(a) => a,
+        Err(why) => return refuse(why),
+    };
     let bytes = match format {
-        MeshFormat::Stl => match pdfcer_3d::to_stl(&meshes) {
+        MeshFormat::Stl => match pdfcer_3d::to_stl(&a.meshes) {
             Ok(bytes) => bytes,
             Err(err) => return refuse(err.to_string()),
         },
-        MeshFormat::Obj => pdfcer_3d::to_obj(&meshes).into_bytes(),
+        MeshFormat::Obj => pdfcer_3d::to_obj(&a.meshes).into_bytes(),
     };
     if let Err(err) = write_output(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
     }
-    let recalculated = meshes.iter().filter(|m| m.normals_recalculated).count();
     println!(
-        "meshed index={index} meshes={} triangles={triangles} wires_skipped={wires} \
-         markup_skipped={markups} compressed_rebuilt={rebuilt} compressed_skipped={compressed} \
-         -> {}",
-        meshes.len(),
+        "meshed index={index} meshes={} triangles={} wires_skipped={} \
+         markup_skipped={} compressed_rebuilt={} compressed_skipped={} -> {}",
+        a.meshes.len(),
+        a.triangles,
+        a.wires,
+        a.markups,
+        a.rebuilt,
+        a.compressed,
         output.display()
     );
-    if let Some(why) = &unplaced {
-        println!(
-            "note: part placements are not applied ({why}); each mesh is written once, in its own coordinates"
-        );
-    }
-    if rebuilt > 0 {
-        println!(
-            "note: {rebuilt} compressed mesh(es) were rebuilt by pdfcer's reconstruction of an \
-             undocumented encoding; each step is exact to the model's stated tolerance, and \
-             small drift can accumulate across a mesh"
-        );
-    }
+    print_assembly_notes(&a, "written");
+    let recalculated = a.meshes.iter().filter(|m| m.normals_recalculated).count();
     if recalculated > 0 {
         println!(
             "note: {recalculated} mesh(es) store no normals; facet normals are computed from \
@@ -267,12 +313,143 @@ fn mesh_from_bytes(
     _output: &Path,
     _format: MeshFormat,
 ) -> u8 {
+    no_3d_feature(input, index, "3d-mesh")
+}
+
+#[cfg(not(feature = "3d"))]
+fn no_3d_feature(input: &Path, index: usize, command: &str) -> u8 {
     eprintln!(
         "pdfcer: {}: 3D artwork {index}: this pdfcer was built without the `3d` feature; \
-         3d-mesh is unavailable",
+         {command} is unavailable",
         input.display()
     );
     exit::EDIT_REFUSED
+}
+
+/// The arguments of `3d-render`, borrowed from the parsed command.
+pub(crate) struct RenderThreeDArgs<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) index: usize,
+    pub(crate) output: &'a Path,
+    pub(crate) view: ThreeDView,
+    pub(crate) up: Axis3,
+    pub(crate) eye: Option<[f64; 3]>,
+    pub(crate) target: Option<[f64; 3]>,
+    pub(crate) ortho: bool,
+    pub(crate) fov: f64,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) transparent: bool,
+}
+
+/// `3d-render` — draw one PRC model to a PNG from a camera.
+pub(crate) fn cmd_render_3d(a: &RenderThreeDArgs<'_>) -> u8 {
+    let data = match artwork_bytes(a.input, a.index) {
+        Ok(data) => data,
+        Err(code) => return code,
+    };
+    render_from_bytes(a, &data)
+}
+
+#[cfg(feature = "3d")]
+fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
+    use pdfcer_3d::{Bounds, Camera, Projection, RenderOptions, render};
+    let refuse = |why: String| {
+        eprintln!(
+            "pdfcer: {}: 3D artwork {}: {why}",
+            a.input.display(),
+            a.index
+        );
+        exit::EDIT_REFUSED
+    };
+    let model = match assemble(data) {
+        Ok(model) => model,
+        Err(why) => return refuse(why),
+    };
+    let Some(bounds) = Bounds::of(&model.meshes) else {
+        return refuse("the model has no finite vertex to draw".to_owned());
+    };
+    let target = a.target.unwrap_or_else(|| bounds.centre());
+    let (direction, up) = match a.eye {
+        Some([ex, ey, ez]) => {
+            let [tx, ty, tz] = target;
+            ([tx - ex, ty - ey, tz - ez], a.up.vector())
+        }
+        None => a.view.direction(a.up),
+    };
+    let aspect = f64::from(a.width) / f64::from(a.height.max(1));
+    let mut camera = match Camera::fit(&bounds, direction, up, !a.ortho, aspect) {
+        Ok(camera) => camera,
+        Err(err) => return refuse(err.to_string()),
+    };
+    if let Some(eye) = a.eye {
+        camera.eye = eye;
+        camera.target = target;
+    }
+    if let Projection::Perspective { fov_y } = &mut camera.projection {
+        *fov_y = a.fov;
+    }
+    let options = RenderOptions {
+        width: a.width,
+        height: a.height,
+        background: if a.transparent {
+            [0, 0, 0, 0]
+        } else {
+            [255, 255, 255, 255]
+        },
+        ..RenderOptions::default()
+    };
+    let image = match render(&model.meshes, &camera, &options) {
+        Ok(image) => image,
+        Err(err) => return refuse(err.to_string()),
+    };
+    // Every pixel is either the background or opaque, so straight and
+    // premultiplied alpha coincide.
+    let png = pdfcer_render::tiny_skia::IntSize::from_wh(image.width, image.height)
+        .and_then(|size| pdfcer_render::tiny_skia::Pixmap::from_vec(image.rgba, size))
+        .ok_or_else(|| "the rendered image has an invalid size".to_owned())
+        .and_then(|pixmap| {
+            pdfcer_render::export::encode_png(&pixmap, None).map_err(|err| err.to_string())
+        });
+    let png = match png {
+        Ok(png) => png,
+        Err(why) => return refuse(why),
+    };
+    if let Err(err) = write_output(a.output, &png) {
+        eprintln!("pdfcer: {}: {err}", a.output.display());
+        return exit::IO_ERROR;
+    }
+    let fmt3 = |p: [f64; 3]| p.map(|c| format!("{c:.6}")).join(",");
+    println!(
+        "rendered index={} meshes={} triangles={} wires_skipped={} markup_skipped={} \
+         compressed_skipped={} width={} height={} projection={} eye={} target={} -> {}",
+        a.index,
+        model.meshes.len(),
+        model.triangles,
+        model.wires,
+        model.markups,
+        model.compressed,
+        a.width,
+        a.height,
+        match camera.projection {
+            Projection::Perspective { .. } => "perspective",
+            _ => "orthographic",
+        },
+        fmt3(camera.eye),
+        fmt3(camera.target),
+        a.output.display()
+    );
+    print_assembly_notes(&model, "drawn");
+    println!(
+        "note: drawn in one uniform colour lit from the camera; the model's own colours, \
+         materials, lights and views are not read yet"
+    );
+    exit::SUCCESS
+}
+
+#[cfg(not(feature = "3d"))]
+fn render_from_bytes(a: &RenderThreeDArgs<'_>, _data: &[u8]) -> u8 {
+    no_3d_feature(a.input, a.index, "3d-render")
 }
 
 /// The arguments of `3d-embed`, borrowed from the parsed command.

@@ -2788,6 +2788,59 @@ pub(crate) enum Command {
         format: MeshFormat,
     },
 
+    /// **Render a 3D model to a PNG** from a camera, without a 3D viewer.
+    ///
+    /// Decodes and assembles the PRC model the way `3d-mesh` does, then
+    /// draws it: every surface in one light grey, shaded by its angle to
+    /// the camera, nearer surfaces hiding farther ones. The model's own
+    /// colours, materials, lights and saved views are not read yet (a note
+    /// says so). `--view` picks a named direction, fitted so the whole model
+    /// is in frame; `--up` says which model axis is vertical for those
+    /// views. `--eye` places the camera at a point instead, looking at
+    /// `--target` (default: the model's centre). A summary line reports the
+    /// camera used, so a view can be reproduced or adjusted.
+    ///
+    /// Refuses a U3D model, a model with no triangles, and an image larger
+    /// than 64 megapixels. Exit 9 when refused, with the reason.
+    #[command(name = "3d-render")]
+    ThreeDRender {
+        /// Input PDF.
+        input: PathBuf,
+        /// Which model, by the index `3d-list` prints.
+        #[arg(long)]
+        index: usize,
+        /// Where to write the PNG.
+        #[arg(long, short)]
+        output: PathBuf,
+        /// The named direction to look from.
+        #[arg(long, value_enum, default_value_t)]
+        view: ThreeDView,
+        /// The model axis that points up in the named views.
+        #[arg(long, value_enum, default_value_t)]
+        up: Axis3,
+        /// Place the camera at X,Y,Z (model units) instead of a named view.
+        #[arg(long, value_name = "X,Y,Z", value_parser = parse_point3, allow_hyphen_values = true)]
+        eye: Option<[f64; 3]>,
+        /// The point the camera looks at, X,Y,Z. Default: the model's centre.
+        #[arg(long, value_name = "X,Y,Z", value_parser = parse_point3, allow_hyphen_values = true)]
+        target: Option<[f64; 3]>,
+        /// Parallel (orthographic) projection instead of perspective.
+        #[arg(long)]
+        ortho: bool,
+        /// Perspective vertical field of view, degrees.
+        #[arg(long, default_value_t = 30.0, value_parser = parse_fov)]
+        fov: f64,
+        /// Image width, pixels.
+        #[arg(long, default_value_t = 1024)]
+        width: u32,
+        /// Image height, pixels.
+        #[arg(long, default_value_t = 768)]
+        height: u32,
+        /// Leave the background transparent instead of white.
+        #[arg(long)]
+        transparent: bool,
+    },
+
     /// **Embed a 3D model** (U3D or PRC) in a region of a page, as a 3D
     /// annotation a 3D-capable reader lets you rotate and zoom.
     ///

@@ -29,6 +29,7 @@ mod compressed;
 mod container;
 mod error;
 mod export;
+mod render;
 mod schema;
 mod tess;
 #[cfg(test)]
@@ -41,6 +42,9 @@ pub use container::{
 };
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};
+pub use render::{
+    Bounds, Camera, Image, MAX_RENDER_PIXELS, Projection, RenderError, RenderOptions, render,
+};
 pub use schema::Schema;
 pub use tess::{Tessellation, TriangleMesh};
 pub use tree::{IDENTITY, Matrix, Placement, multiply, transform_point};

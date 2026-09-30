@@ -410,6 +410,7 @@ const NOT_IN_PLACE: &[&str] = &[
     // The output is a 3D model file, not a PDF.
     "3d-extract",
     "3d-mesh",
+    "3d-render",
     "export-data",
     "export-docx",
     "export-dxf",

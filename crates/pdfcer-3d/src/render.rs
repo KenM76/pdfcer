@@ -1,0 +1,695 @@
+//! Headless rendering of triangle meshes to an RGBA image from a camera.
+//!
+//! A z-buffered scanline-free rasterizer: one sample per pixel centre, flat
+//! shading from a light at the camera, no antialiasing. Faces are lit on
+//! both sides because a producer's winding is not trusted to face outward.
+//! No threads and no GUI dependency, so it runs unchanged on wasm32.
+
+use crate::TriangleMesh;
+
+/// The largest image [`render`] draws, in pixels (width × height).
+pub const MAX_RENDER_PIXELS: u64 = 64 * 1024 * 1024;
+
+/// How the camera projects the scene onto the image.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Projection {
+    /// A pinhole camera with this vertical field of view, in degrees
+    /// (exclusive range 0–180).
+    Perspective {
+        /// Vertical field of view, degrees.
+        fov_y: f64,
+    },
+    /// A parallel projection showing this much of the scene vertically, in
+    /// model units.
+    Orthographic {
+        /// Visible height, model units.
+        height: f64,
+    },
+}
+
+/// Where the camera is and where it looks, in model coordinates.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Camera {
+    /// The camera position.
+    pub eye: [f64; 3],
+    /// The point at the image centre.
+    pub target: [f64; 3],
+    /// The direction that appears upward; must not be parallel to the view
+    /// direction.
+    pub up: [f64; 3],
+    /// The projection.
+    pub projection: Projection,
+}
+
+/// An axis-aligned box around every point a set of meshes draws.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Bounds {
+    /// The smallest x, y and z.
+    pub min: [f64; 3],
+    /// The largest x, y and z.
+    pub max: [f64; 3],
+}
+
+impl Bounds {
+    /// The box around every finite vertex the meshes' triangles use, or
+    /// `None` when there is none.
+    ///
+    /// ```
+    /// use pdfcer_3d::{Bounds, TriangleMesh};
+    /// let mut mesh = TriangleMesh::default();
+    /// mesh.positions = vec![[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 3.0, 1.0]];
+    /// mesh.triangles = vec![[0, 1, 2]];
+    /// let b = Bounds::of(&[mesh]).unwrap();
+    /// assert_eq!(b.max, [2.0, 3.0, 1.0]);
+    /// ```
+    pub fn of(meshes: &[TriangleMesh]) -> Option<Bounds> {
+        let mut out: Option<Bounds> = None;
+        for mesh in meshes {
+            for tri in &mesh.triangles {
+                for &i in tri {
+                    let Some(&p) = mesh.positions.get(i as usize) else {
+                        continue;
+                    };
+                    if !p.iter().all(|c| c.is_finite()) {
+                        continue;
+                    }
+                    let b = out.get_or_insert(Bounds { min: p, max: p });
+                    for ((lo, hi), c) in b.min.iter_mut().zip(b.max.iter_mut()).zip(p) {
+                        *lo = lo.min(c);
+                        *hi = hi.max(c);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// The box's centre.
+    pub fn centre(&self) -> [f64; 3] {
+        [0, 1, 2].map(|i| (at(self.min, i) + at(self.max, i)) / 2.0)
+    }
+
+    /// Half the box's diagonal: the radius of a sphere holding it.
+    pub fn radius(&self) -> f64 {
+        length(sub(self.max, self.min)) / 2.0
+    }
+}
+
+impl Camera {
+    /// A camera looking along `direction` that fits `bounds` in an image of
+    /// the given aspect ratio (width / height), with a 30° perspective or an
+    /// orthographic projection.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::Camera`] when `direction` is zero or parallel to
+    /// `up`, or `aspect` is not positive.
+    pub fn fit(
+        bounds: &Bounds,
+        direction: [f64; 3],
+        up: [f64; 3],
+        perspective: bool,
+        aspect: f64,
+    ) -> Result<Camera, RenderError> {
+        if !(aspect.is_finite() && aspect > 0.0) {
+            return Err(RenderError::Camera("the aspect ratio is not positive"));
+        }
+        let dir = normalize(direction).ok_or(RenderError::Camera("the view direction is zero"))?;
+        let centre = bounds.centre();
+        let radius = match bounds.radius() {
+            r if r.is_finite() && r > 0.0 => r,
+            _ => 1.0,
+        };
+        let (projection, distance) = if perspective {
+            let fov_y: f64 = 30.0;
+            let half_y = (fov_y.to_radians() / 2.0).tan();
+            let half = half_y.min(half_y * aspect).atan();
+            (Projection::Perspective { fov_y }, radius / half.sin())
+        } else {
+            let height = 2.0 * radius * (1.0 / aspect).max(1.0);
+            (Projection::Orthographic { height }, 2.0 * radius)
+        };
+        let camera = Camera {
+            eye: sub(centre, scale(dir, distance)),
+            target: centre,
+            up,
+            projection,
+        };
+        camera.basis()?;
+        Ok(camera)
+    }
+
+    /// Right, up and forward unit vectors.
+    fn basis(&self) -> Result<[[f64; 3]; 3], RenderError> {
+        let forward = normalize(sub(self.target, self.eye))
+            .ok_or(RenderError::Camera("the eye and the target coincide"))?;
+        let right = normalize(cross(forward, self.up)).ok_or(RenderError::Camera(
+            "the up direction is zero or parallel to the view direction",
+        ))?;
+        Ok([right, cross(right, forward), forward])
+    }
+}
+
+/// What [`render`] draws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RenderOptions {
+    /// Image width, pixels.
+    pub width: u32,
+    /// Image height, pixels.
+    pub height: u32,
+    /// Background colour, straight RGBA.
+    pub background: [u8; 4],
+    /// The surface colour, lit by a light at the camera.
+    pub colour: [u8; 3],
+}
+
+impl Default for RenderOptions {
+    /// 1024 × 768, opaque white background, light grey surface.
+    fn default() -> Self {
+        RenderOptions {
+            width: 1024,
+            height: 768,
+            background: [255, 255, 255, 255],
+            colour: [190, 192, 200],
+        }
+    }
+}
+
+/// A rendered image: `rgba` holds `width * height` straight-alpha pixels,
+/// row by row from the top.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Image {
+    /// Width, pixels.
+    pub width: u32,
+    /// Height, pixels.
+    pub height: u32,
+    /// The pixels.
+    pub rgba: Vec<u8>,
+}
+
+/// Why [`render`] or [`Camera::fit`] refused.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+pub enum RenderError {
+    /// The image is empty or larger than [`MAX_RENDER_PIXELS`].
+    #[error("a {width}x{height} image is empty or larger than the render ceiling")]
+    Size {
+        /// Requested width.
+        width: u32,
+        /// Requested height.
+        height: u32,
+    },
+    /// The camera cannot form a view.
+    #[error("invalid camera: {0}")]
+    Camera(&'static str),
+}
+
+/// Draw `meshes` as seen by `camera`.
+///
+/// Every triangle is filled in [`RenderOptions::colour`], shaded by the
+/// angle between its face and the direction to the camera; nearer surfaces
+/// hide farther ones. Triangles with a non-finite or out-of-range vertex are
+/// skipped. A perspective camera clips what lies behind it.
+///
+/// # Errors
+///
+/// [`RenderError::Size`] for an empty or over-ceiling image;
+/// [`RenderError::Camera`] for a camera that cannot form a view (eye on the
+/// target, `up` parallel to the view, a field of view outside 0–180°, a
+/// non-positive orthographic height).
+///
+/// ```
+/// use pdfcer_3d::{Bounds, Camera, RenderOptions, TriangleMesh, render};
+/// let mut mesh = TriangleMesh::default();
+/// mesh.positions = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+/// mesh.triangles = vec![[0, 1, 2]];
+/// let meshes = [mesh];
+/// let bounds = Bounds::of(&meshes).unwrap();
+/// let camera = Camera::fit(&bounds, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0], false, 1.0)?;
+/// let options = RenderOptions { width: 64, height: 64, ..RenderOptions::default() };
+/// let image = render(&meshes, &camera, &options)?;
+/// assert_eq!(image.rgba.len(), 64 * 64 * 4);
+/// # Ok::<(), pdfcer_3d::RenderError>(())
+/// ```
+pub fn render(
+    meshes: &[TriangleMesh],
+    camera: &Camera,
+    options: &RenderOptions,
+) -> Result<Image, RenderError> {
+    let (width, height) = (options.width, options.height);
+    let pixels = u64::from(width) * u64::from(height);
+    if pixels == 0 || pixels > MAX_RENDER_PIXELS {
+        return Err(RenderError::Size { width, height });
+    }
+    let [right, up, forward] = camera.basis()?;
+    let aspect = f64::from(width) / f64::from(height);
+    let view = View::new(camera, aspect)?;
+    let mut target = Target {
+        width,
+        height,
+        rgba: options.background.repeat(pixels as usize),
+        depth: vec![f64::NEG_INFINITY; pixels as usize],
+    };
+    let to_view = |p: [f64; 3]| {
+        let d = sub(p, camera.eye);
+        [dot(d, right), dot(d, up), dot(d, forward)]
+    };
+    for mesh in meshes {
+        for tri in &mesh.triangles {
+            let Some(world) = corners(mesh, tri) else {
+                continue;
+            };
+            let Some(normal) = normalize(cross(
+                sub(at3(&world, 1), at3(&world, 0)),
+                sub(at3(&world, 2), at3(&world, 0)),
+            )) else {
+                continue;
+            };
+            let towards = match view {
+                View::Perspective { .. } => normalize(sub(camera.eye, at3(&world, 0))),
+                View::Orthographic { .. } => Some(scale(forward, -1.0)),
+            };
+            let lit = towards.map_or(0.0, |l| dot(normal, l).abs());
+            let shade = 0.3 + 0.7 * lit;
+            let rgb = options.colour.map(|c| (f64::from(c) * shade).round() as u8);
+            let polygon = view.clip(world.map(to_view));
+            let screen: Vec<[f64; 3]> = polygon
+                .iter()
+                .map(|&p| view.project(p, width, height))
+                .collect();
+            if let Some((&a, rest)) = screen.split_first() {
+                for pair in rest.windows(2) {
+                    if let [b, c] = pair {
+                        target.fill(a, *b, *c, rgb);
+                    }
+                }
+            }
+        }
+    }
+    Ok(Image {
+        width,
+        height,
+        rgba: target.rgba,
+    })
+}
+
+/// The three corners of a triangle, or `None` when one is missing or not
+/// finite.
+fn corners(mesh: &TriangleMesh, tri: &[u32; 3]) -> Option<[[f64; 3]; 3]> {
+    let mut out = [[0.0; 3]; 3];
+    for (slot, &i) in out.iter_mut().zip(tri) {
+        let p = *mesh.positions.get(i as usize)?;
+        if !p.iter().all(|c| c.is_finite()) {
+            return None;
+        }
+        *slot = p;
+    }
+    Some(out)
+}
+
+enum View {
+    /// `focal` = 1 / tan(fov_y / 2); `near` = the clip distance.
+    Perspective {
+        focal: f64,
+        aspect: f64,
+        near: f64,
+    },
+    Orthographic {
+        half_height: f64,
+        aspect: f64,
+    },
+}
+
+impl View {
+    fn new(camera: &Camera, aspect: f64) -> Result<View, RenderError> {
+        match camera.projection {
+            Projection::Perspective { fov_y } => {
+                if !(fov_y > 0.0 && fov_y < 180.0) {
+                    return Err(RenderError::Camera(
+                        "the field of view is not between 0 and 180 degrees",
+                    ));
+                }
+                let distance = length(sub(camera.target, camera.eye));
+                Ok(View::Perspective {
+                    focal: 1.0 / (fov_y.to_radians() / 2.0).tan(),
+                    aspect,
+                    near: (distance * 1e-4).max(f64::MIN_POSITIVE),
+                })
+            }
+            Projection::Orthographic { height } => {
+                if !(height.is_finite() && height > 0.0) {
+                    return Err(RenderError::Camera(
+                        "the orthographic height is not positive",
+                    ));
+                }
+                Ok(View::Orthographic {
+                    half_height: height / 2.0,
+                    aspect,
+                })
+            }
+        }
+    }
+
+    /// The part of a view-space triangle in front of the near plane
+    /// (Sutherland–Hodgman against one plane): 0, 3 or 4 points.
+    fn clip(&self, tri: [[f64; 3]; 3]) -> Vec<[f64; 3]> {
+        let View::Perspective { near, .. } = *self else {
+            return tri.to_vec();
+        };
+        let mut out = Vec::with_capacity(4);
+        for (k, &p) in tri.iter().enumerate() {
+            let q = at3(&tri, (k + 1) % 3);
+            let (p_in, q_in) = (at(p, 2) >= near, at(q, 2) >= near);
+            if p_in {
+                out.push(p);
+            }
+            if p_in != q_in {
+                let t = (near - at(p, 2)) / (at(q, 2) - at(p, 2));
+                out.push([0, 1, 2].map(|i| at(p, i) + t * (at(q, i) - at(p, i))));
+            }
+        }
+        out
+    }
+
+    /// Pixel x, pixel y and a depth key that is linear in screen space and
+    /// larger for nearer points.
+    fn project(&self, p: [f64; 3], width: u32, height: u32) -> [f64; 3] {
+        let (nx, ny, key) = match *self {
+            View::Perspective { focal, aspect, .. } => {
+                let z = at(p, 2);
+                (
+                    at(p, 0) * focal / (z * aspect),
+                    at(p, 1) * focal / z,
+                    1.0 / z,
+                )
+            }
+            View::Orthographic {
+                half_height,
+                aspect,
+            } => (
+                at(p, 0) / (half_height * aspect),
+                at(p, 1) / half_height,
+                -at(p, 2),
+            ),
+        };
+        [
+            (nx + 1.0) / 2.0 * f64::from(width),
+            (1.0 - ny) / 2.0 * f64::from(height),
+            key,
+        ]
+    }
+}
+
+struct Target {
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+    depth: Vec<f64>,
+}
+
+impl Target {
+    /// Fill one screen-space triangle, depth-tested, sampling pixel centres.
+    fn fill(&mut self, a: [f64; 3], b: [f64; 3], c: [f64; 3], rgb: [u8; 3]) {
+        let area = edge(a, b, c);
+        if !area.is_finite() || area.abs() < 1e-12 {
+            return;
+        }
+        let lo = |i: usize| at(a, i).min(at(b, i)).min(at(c, i)).floor().max(0.0);
+        let hi = |i: usize, limit: u32| {
+            at(a, i)
+                .max(at(b, i))
+                .max(at(c, i))
+                .ceil()
+                .min(f64::from(limit) - 1.0)
+        };
+        let (x0, x1, y0, y1) = (lo(0), hi(0, self.width), lo(1), hi(1, self.height));
+        if x0 > x1 || y0 > y1 {
+            return;
+        }
+        let (x0, x1, y0, y1) = (x0 as u32, x1 as u32, y0 as u32, y1 as u32);
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                let p = [f64::from(x) + 0.5, f64::from(y) + 0.5, 0.0];
+                let (w0, w1, w2) = (
+                    edge(b, c, p) / area,
+                    edge(c, a, p) / area,
+                    edge(a, b, p) / area,
+                );
+                if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
+                    continue;
+                }
+                let key = w0 * at(a, 2) + w1 * at(b, 2) + w2 * at(c, 2);
+                let i = y as usize * self.width as usize + x as usize;
+                let Some(d) = self.depth.get_mut(i) else {
+                    continue;
+                };
+                if key <= *d {
+                    continue;
+                }
+                *d = key;
+                if let Some(px) = self.rgba.get_mut(i * 4..i * 4 + 4) {
+                    let [r, g, b] = rgb;
+                    px.copy_from_slice(&[r, g, b, 255]);
+                }
+            }
+        }
+    }
+}
+
+/// Twice the signed area of (a, b, p) in the xy plane.
+fn edge(a: [f64; 3], b: [f64; 3], p: [f64; 3]) -> f64 {
+    (at(b, 0) - at(a, 0)) * (at(p, 1) - at(a, 1)) - (at(b, 1) - at(a, 1)) * (at(p, 0) - at(a, 0))
+}
+
+fn at(v: [f64; 3], i: usize) -> f64 {
+    v.get(i).copied().unwrap_or(0.0)
+}
+
+fn at3(v: &[[f64; 3]; 3], i: usize) -> [f64; 3] {
+    v.get(i).copied().unwrap_or([0.0; 3])
+}
+
+fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [
+        at(a, 0) - at(b, 0),
+        at(a, 1) - at(b, 1),
+        at(a, 2) - at(b, 2),
+    ]
+}
+
+fn scale(a: [f64; 3], s: f64) -> [f64; 3] {
+    a.map(|c| c * s)
+}
+
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    at(a, 0) * at(b, 0) + at(a, 1) * at(b, 1) + at(a, 2) * at(b, 2)
+}
+
+fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [
+        at(a, 1) * at(b, 2) - at(a, 2) * at(b, 1),
+        at(a, 2) * at(b, 0) - at(a, 0) * at(b, 2),
+        at(a, 0) * at(b, 1) - at(a, 1) * at(b, 0),
+    ]
+}
+
+fn length(a: [f64; 3]) -> f64 {
+    dot(a, a).sqrt()
+}
+
+fn normalize(a: [f64; 3]) -> Option<[f64; 3]> {
+    let l = length(a);
+    (l.is_finite() && l > 0.0).then(|| scale(a, 1.0 / l))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)] // Tests fail loudly by design.
+#[allow(clippy::single_range_in_vec_init)] // One face spanning every triangle is intended.
+mod tests {
+    use super::*;
+
+    fn quad(z: f64, half: f64, tilt: f64) -> TriangleMesh {
+        TriangleMesh {
+            positions: vec![
+                [-half, -half, z - tilt],
+                [half, -half, z + tilt],
+                [half, half, z + tilt],
+                [-half, half, z - tilt],
+            ],
+            triangles: vec![[0, 1, 2], [0, 2, 3]],
+            faces: vec![0..2],
+            normals_recalculated: true,
+        }
+    }
+
+    fn ortho(height: f64) -> Camera {
+        Camera {
+            eye: [0.0, 0.0, 10.0],
+            target: [0.0, 0.0, 0.0],
+            up: [0.0, 1.0, 0.0],
+            projection: Projection::Orthographic { height },
+        }
+    }
+
+    fn small() -> RenderOptions {
+        RenderOptions {
+            width: 40,
+            height: 40,
+            ..RenderOptions::default()
+        }
+    }
+
+    fn pixel(image: &Image, x: u32, y: u32) -> [u8; 4] {
+        let i = (y * image.width + x) as usize * 4;
+        image.rgba[i..i + 4].try_into().unwrap()
+    }
+
+    #[test]
+    fn a_facing_square_fills_the_middle_and_leaves_the_corners() {
+        let image = render(&[quad(0.0, 1.0, 0.0)], &ortho(4.0), &small()).unwrap();
+        assert_eq!(pixel(&image, 20, 20), [190, 192, 200, 255]);
+        assert_eq!(pixel(&image, 1, 1), [255, 255, 255, 255]);
+        // Half the view height is covered: pixels 10..30.
+        assert_eq!(pixel(&image, 10, 20)[0], 190);
+        assert_eq!(pixel(&image, 9, 20)[0], 255);
+    }
+
+    #[test]
+    fn the_nearer_surface_hides_the_farther_whatever_the_order() {
+        let far = quad(-1.0, 2.0, 1.0);
+        let near = quad(1.0, 0.5, 0.0);
+        for meshes in [[far.clone(), near.clone()], [near, far]] {
+            let image = render(&meshes, &ortho(8.0), &small()).unwrap();
+            assert_eq!(pixel(&image, 20, 20), [190, 192, 200, 255]);
+            assert!(
+                pixel(&image, 20, 12)[0] < 190,
+                "the tilted far square is darker"
+            );
+        }
+    }
+
+    #[test]
+    fn each_edge_bounds_a_triangle() {
+        let tri = TriangleMesh {
+            positions: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]],
+            triangles: vec![[0, 1, 2]],
+            faces: vec![0..1],
+            normals_recalculated: true,
+        };
+        let image = render(&[tri], &ortho(4.0), &small()).unwrap();
+        assert_ne!(pixel(&image, 20, 25)[0], 255);
+        // Just past each edge: below the base, left and right of the apex.
+        for (x, y) in [(20, 31), (13, 15), (27, 15)] {
+            assert_eq!(pixel(&image, x, y)[0], 255, "({x},{y})");
+        }
+    }
+
+    #[test]
+    fn a_face_turned_away_is_still_drawn() {
+        let mut back = quad(0.0, 1.0, 0.0);
+        for t in &mut back.triangles {
+            t.swap(1, 2);
+        }
+        let image = render(&[back], &ortho(4.0), &small()).unwrap();
+        assert_eq!(pixel(&image, 20, 20), [190, 192, 200, 255]);
+    }
+
+    #[test]
+    fn perspective_clips_what_is_behind_the_camera() {
+        let camera = Camera {
+            projection: Projection::Perspective { fov_y: 60.0 },
+            ..ortho(1.0)
+        };
+        let behind = quad(20.0, 1.0, 0.0);
+        let image = render(&[behind], &camera, &small()).unwrap();
+        assert!(image.rgba.chunks(4).all(|p| p == [255, 255, 255, 255]));
+        // A floor running from behind the camera to beyond the target.
+        let floor = TriangleMesh {
+            positions: vec![[-5.0, -1.0, 20.0], [5.0, -1.0, 20.0], [0.0, -1.0, -20.0]],
+            triangles: vec![[0, 1, 2]],
+            faces: vec![0..1],
+            normals_recalculated: true,
+        };
+        let image = render(&[floor], &camera, &small()).unwrap();
+        assert_ne!(pixel(&image, 20, 38), [255, 255, 255, 255]);
+        assert_eq!(pixel(&image, 20, 2), [255, 255, 255, 255]);
+    }
+
+    #[test]
+    fn a_fitted_camera_frames_the_model() {
+        let meshes = [quad(0.0, 3.0, 0.0)];
+        let bounds = Bounds::of(&meshes).unwrap();
+        for perspective in [true, false] {
+            let camera =
+                Camera::fit(&bounds, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0], perspective, 2.0).unwrap();
+            let options = RenderOptions {
+                width: 80,
+                height: 40,
+                ..RenderOptions::default()
+            };
+            let image = render(&meshes, &camera, &options).unwrap();
+            assert_ne!(pixel(&image, 40, 20)[0], 255);
+            // Nothing drawn touches the image border.
+            for x in 0..80 {
+                assert_eq!(pixel(&image, x, 0)[0], 255);
+                assert_eq!(pixel(&image, x, 39)[0], 255);
+            }
+        }
+    }
+
+    #[test]
+    fn bad_sizes_and_cameras_are_refused() {
+        let m = [quad(0.0, 1.0, 0.0)];
+        let size = |width, height| RenderOptions {
+            width,
+            height,
+            ..RenderOptions::default()
+        };
+        assert!(matches!(
+            render(&m, &ortho(1.0), &size(0, 10)),
+            Err(RenderError::Size { .. })
+        ));
+        assert!(matches!(
+            render(&m, &ortho(1.0), &size(10_000, 10_000)),
+            Err(RenderError::Size { .. })
+        ));
+        let bad = [
+            Camera {
+                eye: [0.0; 3],
+                target: [0.0; 3],
+                ..ortho(1.0)
+            },
+            Camera {
+                up: [0.0, 0.0, 1.0],
+                ..ortho(1.0)
+            },
+            Camera {
+                projection: Projection::Perspective { fov_y: 180.0 },
+                ..ortho(1.0)
+            },
+            ortho(0.0),
+        ];
+        for camera in bad {
+            assert!(matches!(
+                render(&m, &camera, &small()),
+                Err(RenderError::Camera(_))
+            ));
+        }
+        let b = Bounds::of(&m).unwrap();
+        assert!(Camera::fit(&b, [0.0; 3], [0.0, 1.0, 0.0], true, 1.0).is_err());
+        assert!(Camera::fit(&b, [0.0, 0.0, 1.0], [0.0, 1.0, 0.0], true, 0.0).is_err());
+    }
+
+    #[test]
+    fn non_finite_and_missing_vertices_are_skipped() {
+        let mesh = TriangleMesh {
+            positions: vec![[0.0, 0.0, 0.0], [f64::NAN, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            triangles: vec![[0, 1, 2], [0, 2, 9]],
+            faces: vec![0..2],
+            normals_recalculated: true,
+        };
+        let image = render(std::slice::from_ref(&mesh), &ortho(4.0), &small()).unwrap();
+        assert!(image.rgba.chunks(4).all(|p| p == [255, 255, 255, 255]));
+        assert_eq!(Bounds::of(&[mesh]).unwrap().max, [0.0, 1.0, 0.0]);
+    }
+}

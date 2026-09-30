@@ -456,3 +456,64 @@ fn a_rebuilt_compressed_mesh_is_exported_and_disclosed() {
         "{stdout}"
     );
 }
+
+#[cfg(feature = "3d")]
+#[test]
+fn a_prc_assembly_renders_both_placed_copies() {
+    let input = with_prc("render_assembly", "assembly.prc");
+    let output = input.with_extension("png");
+    let out = run(&[
+        "3d-render",
+        input.to_str().unwrap(),
+        "--index",
+        "2",
+        "--view",
+        "top",
+        "--ortho",
+        "--width",
+        "200",
+        "--height",
+        "100",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("meshes=2 triangles=4 "), "{stdout}");
+    assert!(stdout.contains("projection=orthographic"), "{stdout}");
+    assert!(
+        stdout.contains("note: drawn in one uniform colour"),
+        "{stdout}"
+    );
+    let decoder = png::Decoder::new(std::fs::File::open(&output).unwrap());
+    let mut reader = decoder.read_info().unwrap();
+    let mut buf = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).unwrap();
+    assert_eq!((info.width, info.height), (200, 100));
+    let px = |x: usize, y: usize| buf[(y * 200 + x) * 4];
+    // The squares sit at x 0..1 and 4..5 of a 0..5 model: pixels ~41-80 and
+    // ~120-159; the gap between them stays white.
+    assert!(px(61, 50) < 255, "the first copy is drawn");
+    assert!(px(139, 50) < 255, "the mirrored copy is drawn");
+    assert_eq!(px(100, 50), 255, "nothing between the copies");
+}
+
+#[test]
+fn rendering_a_u3d_model_is_refused_and_writes_nothing() {
+    let input = three_d_pdf("render_u3d");
+    let output = input.with_extension("png");
+    let out = run(&[
+        "3d-render",
+        input.to_str().unwrap(),
+        "--index",
+        "0",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert_eq!(out.status.code(), Some(9));
+    assert!(!output.exists());
+}
