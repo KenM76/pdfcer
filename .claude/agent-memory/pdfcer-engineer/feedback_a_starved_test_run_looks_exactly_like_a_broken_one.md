@@ -57,3 +57,5 @@ Related: [[feedback_a_rising_failure_count_can_mean_a_false_pass_was_removed]]
 and [[feedback_a_rising_failure_count_measure_the_oracle]] — same discipline,
 different subject: a failure count is a measurement of the *harness* until you
 have shown otherwise.
+
+**2026-09-30: `os error 1455` can be a FULL DISK, not RAM.** A gate sweep failed with E0786 "failed to mmap rlib ... paging file too small (1455)"; I reran at `-j 2` as starvation and it failed "no space on device". D: had 252 KB free (target/debug 104 GiB). **How to apply:** `df -h /d` before any rerun; fix is `cargo clean --profile dev`. Rust RAG LNK1318 file amended.
