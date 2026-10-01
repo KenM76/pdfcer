@@ -115,6 +115,41 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.71.0` — version bump, RELEASE IN PROGRESS (2026-10-01)
+
+Not a Pass. Version-bump commit `31c12685` ("chore: v0.71.0") bumps
+`Cargo.toml`'s workspace version 0.70.0 → 0.71.0, `Cargo.lock` and
+`fuzz/Cargo.lock`; no dependency change. Filed in the 834th filing.
+
+**Range since `v0.70.0`** (tag `96f10e3c3c69e09f93a73dc8fb2c8e63481b97d3` on
+build commit `c8ef7753`) — batches every Pass already filed above:
+`421.9` (compressed meshes' per-face line attributes, `4747c366`, 830th
+filing), `421.10` (stored PRC normals shade smoothly + export to OBJ,
+`2dbbed6e`, 831st filing) plus its test fix (`74692826`, 832nd filing),
+`421.11` (compressed stored normals decode, `2b5a1c71`, 832nd filing),
+and the reference-width-formula amendment (`ca9356c4`, 833rd filing
+`ab73b0f5`).
+
+**Headline.** 3D models shade smoothly from their stored normals; all
+348 compressed School meshes now decode them (was 0 — this release
+introduces stored-normal decoding entirely).
+
+**OneDrive target.** This release writes slot `pdfcer2` (`pdfcer1`
+keeps `v0.70.0`).
+
+Tag, GitHub release, OneDrive deploy, fresh-folder smoke test and
+`verify-release.py` not yet done; full release filing to follow once
+those details are relayed.
+
+`docs/FEATURES.md`: no rows changed — no capability beyond what
+`421.9`–`421.11` already recorded.
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hash
+`31c12685` matches this session's git-status snapshot at conversation
+start; the range list is reconstructed from prior filings' own records,
+not independently reproduced. Tag/build/deploy state not verifiable
+from here.
+
 ### `Pass 421.11` (`2b5a1c71`), 2026-10-01 — compressed PRC meshes decode their stored normals
 
 Continues the `Pass 421.x` bucket, closing part of `421.10`'s open gap for `TESS_3D_Compressed` (PRC type 173) meshes whose `must_recalculate_normals` is FALSE: `normal_binary_data` + `normal_angle_array` [PRC WD §7.8.9.3–7.8.9.4] now decode into the same `TriangleMesh::normals`/`triangle_normals` fields `421.10` added for uncompressed `TESS_3D`, so these meshes shade smoothly (`3d-render`) and export `vn` (`3d-mesh` OBJ) too.

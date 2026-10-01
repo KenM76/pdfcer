@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (834th filing) — `v0.71.0` version bump (`31c12685`), release in progress
+
+**Shipped:**
+- Version-bump commit `31c12685` ("chore: v0.71.0") — `Cargo.toml`
+  workspace version 0.70.0 → 0.71.0, `Cargo.lock`, `fuzz/Cargo.lock`;
+  no dependency change. Full entry under `v0.71.0`'s own row in
+  `docs/ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Batches `421.9` (`4747c366`, 830th filing), `421.10` (`2dbbed6e`,
+  831st filing) plus its test fix (`74692826`, 832nd filing), `421.11`
+  (`2b5a1c71`, 832nd filing), and the reference-width-formula amendment
+  (`ca9356c4`, 833rd filing `ab73b0f5`) — all already filed. Headline:
+  3D models shade smoothly from their stored normals; all 348
+  compressed School meshes decode them.
+- This release deploys to OneDrive slot `pdfcer2` (`pdfcer1` keeps
+  `v0.70.0`).
+- `docs/FEATURES.md`: no rows changed — no new capability beyond what
+  `421.9`–`421.11` already recorded.
+
+**Still in flight:** Tag, GitHub release, OneDrive deploy, fresh-folder
+smoke test and `verify-release.py` — not yet done; a later filing will
+record them.
+
+**For next session:** Finish the `v0.71.0` release, then confirm it
+against `tools/verify-release.py v0.71.0`.
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hash
+`31c12685` matches this session's git-status snapshot at conversation
+start; the range list is reconstructed from prior filings' own
+records, not independently reproduced. Tag/build/deploy state not
+verifiable from here.
+
 ## 2026-10-01 (833rd filing) — `Pass 421.11` amendment (`ca9356c4`): compressed normal references use a measured width formula
 
 **Shipped:**
