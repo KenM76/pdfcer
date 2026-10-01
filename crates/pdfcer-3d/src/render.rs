@@ -869,7 +869,7 @@ mod tests {
         // Narrow (width limits) and wide (height limits).
         for aspect in [0.5, 3.0] {
             let c = Camera::fit_meshes(
-                &[tri.clone()],
+                std::slice::from_ref(&tri),
                 [0.0, 0.3, -1.0],
                 [1.0, 1.0, 0.0],
                 true,
