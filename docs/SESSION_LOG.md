@@ -62,6 +62,10 @@ correction, not a crate-boundary or library choice — no `ARCHITECTURE.md`
 - `docs/FEATURES.md` rows 458 and 534 updated this filing — both
   described the same defect family (hard rule 11 sweep); CLI disclosure
   text is unchanged and still accurate, no box changes on either row.
+- A second real CAD sample (local-only, a steel deck frame; never named)
+  now renders as a recognisable assembly under this fix, where the
+  v0.71.0 build rendered a ball of spikes; 36 of its compressed meshes
+  are still skipped by the decoder (open).
 - Sourcing (hard rule 8): no shell tool this filing — commit hashes
   `4fc9de7b`/`39ff43aa` confirmed against this session's git-status
   snapshot at conversation start (HEAD `4fc9de7b`, clean tree). Measured
