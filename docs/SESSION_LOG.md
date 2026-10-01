@@ -4,6 +4,60 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (832nd filing) — `Pass 421.10` fix + `Pass 421.11` (`74692826`, `2b5a1c71`): compressed PRC meshes decode their stored normals
+
+**Shipped:**
+- `Pass 421.10` fix (`74692826`) — `2dbbed6e` (831st filing) shipped with
+  the CLI integration suite red: three `pdfcer-cli` OBJ-format tests
+  still asserted bare `f` faces after normal indices landed. Tests
+  fixed; `to_obj` now normalises negative zero in `vn` lines (a
+  sabotage this fix caught).
+- `Pass 421.11` (`2b5a1c71`) — `TESS_3D_Compressed` (PRC type 173)
+  meshes with `must_recalculate_normals` FALSE now decode their stored
+  `normal_binary_data`/`normal_angle_array` [PRC WD §7.8.9.3–.4] the
+  same way `421.10` decoded uncompressed `TESS_3D` normals, so they
+  shade smoothly and export OBJ `vn` too.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `2dbbed6e` went to `main` with the CLI test suite red — CI run
+  `36839915230` failed. Recorded honestly rather than folded silently
+  into this fix.
+- Measured on a local-only real sample (never committed, not named):
+  both compressed-normal arrays consumed exactly on 347 of 348 meshes.
+  Corner order is min,max of the entering edge then the apex; a
+  non-multi vertex reuses its prior normal without reading one (the
+  WD's prose wins over its pseudocode here); references count back
+  from the most recently stored normal, empirical width table
+  {1,1,2,3,3,4} for stored counts 1..6, n≥7 refused; a planar face is
+  one normal at the first corner of the first triangle; angles decode
+  as (cosφcosθ, cosφsinθ, sinφ) in the frame triangle's own local
+  frame. A mesh that doesn't fit this shape drops its normals
+  (geometry fallback) rather than guessing — the one unresolved mesh
+  takes that path.
+- Open: which data discriminates the frame's X-axis branch is still
+  unmeasured; crease-angle recalculation (`must_recalculate_normals`
+  TRUE) is not implemented.
+- Tests: `pdfcer-3d::compressed` 3 new unit tests, 7 sabotages all
+  CAUGHT. Fuzz `prc_tess` 235,079 runs / 91 s clean. No manifest change.
+
+**Still in flight:** Crease-angle smoothing for `must_recalculate_normals`
+meshes (all of School still flat-faceted); the 1 unresolved
+compressed-normal mesh; door-panel conditioning-amplification drift;
+vaulted-roof tessellation tear; textures, lights, saved views; T-edge
+form; `pdfcer-gui` orbit/pan/zoom request.
+
+**For next session:** `tools/run-gates.sh` was re-run after the test
+fix; not yet confirmed green from here. Unreleased since `v0.70.0`;
+next release writes OneDrive slot `pdfcer2`.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Commit hashes
+`74692826`/`2b5a1c71` match this session's git-status snapshot at
+conversation start; measured counts, test names, sabotage results and
+the CI-run-failed claim are relayed from the dispatching engineer's own
+report, not independently reproduced.
+
 ## 2026-10-01 (831st filing) — `Pass 421.10` (`2dbbed6e`): stored PRC normals shade smoothly and export to OBJ
 
 **Shipped:**

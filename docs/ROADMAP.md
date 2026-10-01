@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.11` (`2b5a1c71`), 2026-10-01 — compressed PRC meshes decode their stored normals
+
+Continues the `Pass 421.x` bucket, closing part of `421.10`'s open gap for `TESS_3D_Compressed` (PRC type 173) meshes whose `must_recalculate_normals` is FALSE: `normal_binary_data` + `normal_angle_array` [PRC WD §7.8.9.3–7.8.9.4] now decode into the same `TriangleMesh::normals`/`triangle_normals` fields `421.10` added for uncompressed `TESS_3D`, so these meshes shade smoothly (`3d-render`) and export `vn` (`3d-mesh` OBJ) too.
+
+**Measured** on a local-only real sample (never committed, not named): both arrays consumed exactly on 347 of 348 meshes. Corner order is min,max of the entering edge then the apex; a non-multi vertex reuses its prior normal without reading one — the WD's prose wins over its pseudocode here. References count back from the most recently stored normal, against an empirical width table {1,1,2,3,3,4} for stored counts 1..6 (n≥7 refused outright). A planar face is one normal at the first corner of the first triangle. Angles decode as (cosφcosθ, cosφsinθ, sinφ) in the frame triangle's own local frame. Any mesh that does not fit this shape drops its normals — geometry fallback, never a guess — and the one unresolved mesh of 348 takes that path.
+
+**Open.** Which data discriminates the frame's X-axis branch is still unmeasured; crease-angle recalculation (`must_recalculate_normals` TRUE) is not implemented; the 1 unresolved mesh of 348 stays unresolved. Render check on the real sample: flat walls lose their diagonal shading smear, the curved roof stays smooth.
+
+**Tests.** `pdfcer-3d::compressed`: 3 new unit tests. 7 sabotages, all CAUGHT. Fuzz `prc_tess`: 235,079 runs / 91 s, clean. No manifest change, `cargo tree` unaffected.
+
+Spec RAG `prc__8137__tess_3d_compressed.md` §5a updated with this measurement (MEASURED pdfcer engineer, 2026-10-01).
+
+`docs/FEATURES.md` row 534 ("View an embedded 3D model with camera controls"): text extended — compressed meshes now decode stored normals too, consumed by both `3d-render` and `3d-mesh`; boxes unchanged (`core [x]`/`cli [x]` already set, `gui [ ]` pending `421.1`).
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hash confirmed against this session's git-status snapshot; measured counts, test names and sabotage results relayed from the dispatching engineer's own report on `2b5a1c71`, not independently reproduced. `tools/run-gates.sh` was re-run after the companion test fix (`74692826`); not yet confirmed green from here.
+
 ### `Pass 421.10` (`2dbbed6e`), 2026-10-01 — stored PRC normals shade smoothly and export to OBJ
 
 Continues the `Pass 421.x` bucket. `TriangleMesh` gains public
@@ -157,6 +173,16 @@ No manifest change, `cargo tree` unaffected.
 controls"): boxes unchanged (`core [x]`/`cli [x]` already set, `gui [ ]`
 pending `421.1`) — text gains a clause on stored-normal shading;
 crease-angle smoothing noted still open.
+
+**Amendment, 2026-10-01 (832nd filing).** `2dbbed6e` shipped with the CLI
+integration suite red — three `crates/pdfcer-cli/tests/three_d.rs` tests
+(`a_mesh_format_follows_the_output_extension`, `a_prc_model_meshes_to_obj`,
+`a_prc_assembly_is_written_at_its_placements`) still asserted bare `f`
+faces after this Pass gave OBJ faces normal indices; CI run `36839915230`
+failed on `main`. Fixed by `74692826`: tests updated to expect `f v//vn`,
+and `to_obj` now normalises negative zero in `vn` lines (a sabotage this
+fix caught). See `Pass 421.11` above for the follow-on compressed-mesh
+capability.
 
 ### `Pass 421.9` (`4747c366`), 2026-10-01 — compressed meshes take their per-face line attributes
 
