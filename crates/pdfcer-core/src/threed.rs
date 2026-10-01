@@ -32,6 +32,9 @@ use crate::page_tree::Rect;
 use crate::textstring::decode_text_string;
 use crate::view::DocumentView;
 
+mod view;
+pub use view::{ThreeDSavedView, default_3d_view};
+
 /// Ceiling on how many artworks one listing reports (a pdfcer guard; the
 /// spec sets none).
 pub const MAX_3D_ARTWORKS: usize = 65_536;

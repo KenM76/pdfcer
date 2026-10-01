@@ -106,15 +106,18 @@ pub(crate) fn cmd_extract_3d(input: &Path, index: usize, output: &Path) -> u8 {
 /// meshes as STL or OBJ.
 pub(crate) fn cmd_mesh_3d(input: &Path, index: usize, output: &Path, format: MeshFormat) -> u8 {
     let data = match artwork_bytes(input, index) {
-        Ok(data) => data,
+        Ok((data, _)) => data,
         Err(code) => return code,
     };
     mesh_from_bytes(input, index, &data, output, format)
 }
 
-/// The decoded bytes of the 3D artwork at `index`, or the exit code after
-/// the reason is printed.
-fn artwork_bytes(input: &Path, index: usize) -> Result<Vec<u8>, u8> {
+/// The decoded bytes of the 3D artwork at `index` and the view it opens
+/// on, or the exit code after the reason is printed.
+fn artwork_bytes(
+    input: &Path,
+    index: usize,
+) -> Result<(Vec<u8>, Option<pdfcer_core::threed::ThreeDSavedView>), u8> {
     let doc = match open_document(input) {
         Ok(doc) => doc,
         Err(err) => {
@@ -133,7 +136,10 @@ fn artwork_bytes(input: &Path, index: usize) -> Result<Vec<u8>, u8> {
         return Err(exit::EDIT_REFUSED);
     };
     match extract_3d(&doc.view(), art) {
-        Ok(extracted) => Ok(extracted.data),
+        Ok(extracted) => Ok((
+            extracted.data,
+            pdfcer_core::threed::default_3d_view(&doc, art),
+        )),
         Err(err) => {
             eprintln!("pdfcer: {}: 3D artwork {index}: {err}", input.display());
             Err(exit::EDIT_REFUSED)
@@ -396,13 +402,79 @@ fn no_3d_feature(input: &Path, index: usize, command: &str) -> u8 {
     exit::EDIT_REFUSED
 }
 
+/// Where `3d-render` looks from, and a sentence saying why.
+#[cfg(feature = "3d")]
+struct Aim {
+    direction: [f64; 3],
+    up: [f64; 3],
+    ortho: bool,
+    source: String,
+}
+
+/// `--eye`, else `--view`/`--up`, else the file's opening view when it
+/// carries a camera matrix (its z column is the look direction and its y
+/// column the image's up, ISO 32000-1 §13.6.5), else the default named
+/// view. The saved camera's orientation and projection are used; its
+/// position and scale are not, so the model is fitted to the image.
+#[cfg(feature = "3d")]
+fn aim_camera(
+    a: &RenderThreeDArgs<'_>,
+    target: [f64; 3],
+    saved: Option<&pdfcer_core::threed::ThreeDSavedView>,
+) -> Aim {
+    let named = |source: String| {
+        let (direction, up) = a
+            .view
+            .unwrap_or_default()
+            .direction(a.up.unwrap_or_default());
+        Aim {
+            direction,
+            up,
+            ortho: a.ortho,
+            source,
+        }
+    };
+    if let Some([ex, ey, ez]) = a.eye {
+        let [tx, ty, tz] = target;
+        return Aim {
+            direction: [tx - ex, ty - ey, tz - ez],
+            up: a.up.unwrap_or_default().vector(),
+            ortho: a.ortho,
+            source: "placed by --eye".to_owned(),
+        };
+    }
+    if a.view.is_some() || a.up.is_some() {
+        return named("the named view asked for".to_owned());
+    }
+    let Some(view) = saved else {
+        return named("the file names no opening view; iso, z up".to_owned());
+    };
+    let Some(m) = view.camera_to_world else {
+        return named(format!(
+            "the file's opening view \"{}\" leaves the camera to the model, which is not \
+             read yet; iso, z up",
+            view.name
+        ));
+    };
+    Aim {
+        direction: [m[6], m[7], m[8]],
+        up: [m[3], m[4], m[5]],
+        ortho: a.ortho || view.orthographic,
+        source: format!(
+            "the file's opening view \"{}\" (its direction and projection; zoomed to fit the \
+             model)",
+            view.name
+        ),
+    }
+}
+
 /// The arguments of `3d-render`, borrowed from the parsed command.
 pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) index: usize,
     pub(crate) output: &'a Path,
-    pub(crate) view: ThreeDView,
-    pub(crate) up: Axis3,
+    pub(crate) view: Option<ThreeDView>,
+    pub(crate) up: Option<Axis3>,
     pub(crate) eye: Option<[f64; 3]>,
     pub(crate) target: Option<[f64; 3]>,
     pub(crate) ortho: bool,
@@ -414,15 +486,19 @@ pub(crate) struct RenderThreeDArgs<'a> {
 
 /// `3d-render` — draw one PRC model to a PNG from a camera.
 pub(crate) fn cmd_render_3d(a: &RenderThreeDArgs<'_>) -> u8 {
-    let data = match artwork_bytes(a.input, a.index) {
-        Ok(data) => data,
+    let (data, saved) = match artwork_bytes(a.input, a.index) {
+        Ok(found) => found,
         Err(code) => return code,
     };
-    render_from_bytes(a, &data)
+    render_from_bytes(a, &data, saved.as_ref())
 }
 
 #[cfg(feature = "3d")]
-fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
+fn render_from_bytes(
+    a: &RenderThreeDArgs<'_>,
+    data: &[u8],
+    saved: Option<&pdfcer_core::threed::ThreeDSavedView>,
+) -> u8 {
     use pdfcer_3d::{Bounds, Camera, Projection, RenderOptions, render_coloured};
     let refuse = |why: String| {
         eprintln!(
@@ -440,15 +516,10 @@ fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
         return refuse("the model has no finite vertex to draw".to_owned());
     };
     let target = a.target.unwrap_or_else(|| bounds.centre());
-    let (direction, up) = match a.eye {
-        Some([ex, ey, ez]) => {
-            let [tx, ty, tz] = target;
-            ([tx - ex, ty - ey, tz - ez], a.up.vector())
-        }
-        None => a.view.direction(a.up),
-    };
+    let aim = aim_camera(a, target, saved);
+    let (direction, up) = (aim.direction, aim.up);
     let aspect = f64::from(a.width) / f64::from(a.height.max(1));
-    let mut camera = match Camera::fit_meshes(&model.meshes, direction, up, !a.ortho, aspect) {
+    let mut camera = match Camera::fit_meshes(&model.meshes, direction, up, !aim.ortho, aspect) {
         Ok(camera) => camera,
         Err(err) => return refuse(err.to_string()),
     };
@@ -518,6 +589,7 @@ fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
         a.output.display()
     );
     print_assembly_notes(&model, "drawn");
+    println!("note: camera: {}", aim.source);
     let uncoloured = model.meshes.len() - model.colours.iter().flatten().count();
     let translucent = model
         .colours
@@ -528,13 +600,17 @@ fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
     println!(
         "note: each part, and each face styled on its own, is drawn in the colour its model \
          tree gives it ({translucent} translucent), lit from the camera; {uncoloured} mesh(es) \
-         had none and are drawn grey; textures, lights and views are not read yet"
+         had none and are drawn grey; textures and lights are not read yet"
     );
     exit::SUCCESS
 }
 
 #[cfg(not(feature = "3d"))]
-fn render_from_bytes(a: &RenderThreeDArgs<'_>, _data: &[u8]) -> u8 {
+fn render_from_bytes(
+    a: &RenderThreeDArgs<'_>,
+    _data: &[u8],
+    _saved: Option<&pdfcer_core::threed::ThreeDSavedView>,
+) -> u8 {
     no_3d_feature(a.input, a.index, "3d-render")
 }
 

@@ -146,6 +146,7 @@ builds `--no-default-features`, so both configurations compile.
 | Page-label ranges as stored | `page_labels::label_ranges(&graph) -> Vec<LabelRange>` (`first_page`, `format: LabelFormat { style: LabelStyle, prefix, start: NonZeroU32 }`). Empty with no tree. A `/St` below 1 reads as 1; an unknown `/S` as `LabelStyle::PrefixOnly`. `LabelFormat::label(offset)` formats one page. Set with `EditSession::set_page_labels`. | §12.4.2 |
 | List embedded 3D models (U3D/PRC/STEP) | `threed::list_3d_with_notes(&graph)` — `threed.rs` | §12.2 |
 | Extract a 3D model's bytes | `threed::extract_3d(&DocumentView, &ThreeDArtwork)` — `threed.rs` | §12.2 |
+| Read the view a 3D model opens on (camera, projection) | `threed::default_3d_view(&graph, &ThreeDArtwork)` — `threed/view.rs` | §12.2 |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |
 | Compute hidden layers, correctly for print/export | `annot::optional_content_default_off(&graph)` — `annot.rs` | §12.3 |
 | Refine layer visibility for on-screen view only | `annot::apply_view_usage(&graph, …)` — `annot.rs` **(never on a print path — T-12.8)** | §12.3 |
@@ -2758,6 +2759,20 @@ the filter-decoded model, untrusted and uninterpreted. `ThreeDNotes`:
 `ThreeDError`: `NoStream`, `StreamUnresolvable`, `SpanUnservable`, `Decode`.
 Caps: `MAX_3D_ARTWORKS`, `MAX_RICH_MEDIA_ENTRIES`. `pdfcer-core` decodes no
 model. CLI: `3d-list`, `3d-extract --index N -o FILE`.
+
+**The opening view.** `threed::default_3d_view(&graph, &art) ->
+Option<ThreeDSavedView>` — the view a reader opens on: the annotation's
+`/3DV` (view dict, `/VA` index, `/IN`-or-`/XN` name, `/F` `/L` `/D`), else
+the stream's `/DV`, else `/VA[0]` (§13.6.2 Table 298, Table 300). `None`
+when nothing names one (the artwork's own camera applies), for a RichMedia
+asset, or when `/3DV` is malformed. `ThreeDSavedView`, `#[non_exhaustive]`:
+`name` (`/XN`), `camera_to_world: Option<[f64; 12]>` (`/C2W` when `/MS
+/M`; columns 0-2, 3-5, 6-8 are the camera's x, y, z axes in world space,
+9-11 its position; it looks along +z, and **its y column is the image's up**
+— measured against an operator-confirmed CAD export, §13.6.5 does not say),
+`orbit_distance` (`/CO`), `orthographic` (`/P /Subtype /O`). CLI:
+`3d-render` uses its direction and projection when given no camera option,
+and prints `note: camera:` saying which view was used.
 
 #### Decoding and drawing a PRC model (`pdfcer-3d`, feature `3d`)
 

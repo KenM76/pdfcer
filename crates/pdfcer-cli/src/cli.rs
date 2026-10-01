@@ -2862,10 +2862,12 @@ pub(crate) enum Command {
     /// draws it: each part, and each face styled on its own, in the colour
     /// its model tree gives it (grey when it has none, see-through parts
     /// blended), shaded by its angle to the camera, nearer surfaces hiding
-    /// farther ones. Textures, lights and saved views are not read yet (a
-    /// note says so). `--view` picks a named direction, fitted so the whole model fills
-    /// the image; `--up` says which model axis is vertical for those
-    /// views. `--eye` places the camera at a point instead, looking at
+    /// farther ones. Textures and lights are not read yet (a note says
+    /// so). With no camera option, the model is seen from the direction and
+    /// with the projection of the view the file opens on, fitted so the
+    /// whole model fills the image; a `note: camera:` line says which view
+    /// was used, or why none could be. `--view` picks a named direction
+    /// instead; `--up` says which model axis is vertical for those views. `--eye` places the camera at a point instead, looking at
     /// `--target` (default: the model's centre). A summary line reports the
     /// camera used, so a view can be reproduced or adjusted.
     ///
@@ -2881,12 +2883,13 @@ pub(crate) enum Command {
         /// Where to write the PNG.
         #[arg(long, short)]
         output: PathBuf,
-        /// The named direction to look from.
-        #[arg(long, value_enum, default_value_t)]
-        view: ThreeDView,
-        /// The model axis that points up in the named views.
-        #[arg(long, value_enum, default_value_t)]
-        up: Axis3,
+        /// The named direction to look from. Default: the file's opening
+        /// view, else iso.
+        #[arg(long, value_enum)]
+        view: Option<ThreeDView>,
+        /// The model axis that points up in the named views. Default: z.
+        #[arg(long, value_enum)]
+        up: Option<Axis3>,
         /// Place the camera at X,Y,Z (model units) instead of a named view.
         #[arg(long, value_name = "X,Y,Z", value_parser = parse_point3, allow_hyphen_values = true)]
         eye: Option<[f64; 3]>,

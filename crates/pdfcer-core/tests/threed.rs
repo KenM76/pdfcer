@@ -3,7 +3,8 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::threed::{
-    ThreeDError, ThreeDFormat, ThreeDSource, extract_3d, list_3d, list_3d_with_notes,
+    ThreeDError, ThreeDFormat, ThreeDSource, default_3d_view, extract_3d, list_3d,
+    list_3d_with_notes,
 };
 
 /// The U3D stream body (object 7), kept verbatim so the round-trip test can
@@ -366,4 +367,97 @@ mod embed {
             "the pasted copy is a PRC model on page 0"
         );
     }
+}
+
+/// One page, one `/3D` annotation with `/3DV` set to `choice` (omitted when
+/// empty), over a stream whose `/VA` holds "Front" (perspective, no
+/// matrix) and "Iso" (orthographic, `/IN (iso)`, a C2W), plus `stream_extra`.
+fn view_doc(choice: &str, stream_extra: &str) -> Document {
+    let dv = if choice.is_empty() {
+        String::new()
+    } else {
+        format!("/3DV {choice}")
+    };
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Annots [4 0 R] >>".to_owned(),
+        format!("<< /Type /Annot /Subtype /3D /Rect [0 0 100 100] /3DD 5 0 R {dv} >>"),
+        format!(
+            "<< /Type /3D /Subtype /PRC {stream_extra} /VA [\
+             << /Type /3DView /XN (Front) /MS /M /C2W [1 0 0] >> \
+             << /Type /3DView /XN (Iso) /IN (iso) /MS /M /CO 50 /P << /Subtype /O >> \
+             /C2W [1 0 0 0 1 0 0 0 1 10 20 30] >>] /Length 3 >>\nstream\nPRC\nendstream"
+        ),
+    ];
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    Document::from_bytes(buf).expect("synthetic 3D view document parses")
+}
+
+fn opening_view(choice: &str, stream_extra: &str) -> Option<String> {
+    let doc = view_doc(choice, stream_extra);
+    let art = &list_3d(&doc)[0];
+    default_3d_view(&doc, art).map(|v| v.name)
+}
+
+#[test]
+fn the_opening_view_follows_every_selector_form() {
+    let iso = Some("Iso".to_owned());
+    let front = Some("Front".to_owned());
+    assert_eq!(opening_view("", ""), front, "no selector: /VA[0]");
+    assert_eq!(opening_view("", "/DV 1"), iso, "stream /DV index");
+    assert_eq!(opening_view("", "/DV /L"), iso, "stream /DV /L");
+    assert_eq!(opening_view("1", ""), iso, "annotation index");
+    assert_eq!(opening_view("(iso)", ""), iso, "annotation /IN name");
+    assert_eq!(opening_view("(Front)", ""), front, "/IN defaults to /XN");
+    assert_eq!(opening_view("/L", ""), iso);
+    assert_eq!(opening_view("/F", "/DV 1"), front);
+    assert_eq!(opening_view("/D", "/DV 1"), iso, "/D defers to the stream");
+    assert_eq!(
+        opening_view("<< /Type /3DView /XN (Own) >>", ""),
+        Some("Own".to_owned())
+    );
+    assert_eq!(
+        opening_view("7", ""),
+        None,
+        "an index past /VA names nothing"
+    );
+    assert_eq!(opening_view("(nope)", ""), None);
+}
+
+#[test]
+fn the_opening_view_carries_its_camera() {
+    let doc = view_doc("1", "");
+    let view = default_3d_view(&doc, &list_3d(&doc)[0]).expect("a view");
+    assert_eq!(
+        view.camera_to_world,
+        Some([
+            1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.0, 20.0, 30.0
+        ])
+    );
+    assert_eq!(view.orbit_distance, Some(50.0));
+    assert!(view.orthographic);
+
+    let doc = view_doc("0", "");
+    let front = default_3d_view(&doc, &list_3d(&doc)[0]).expect("a view");
+    assert_eq!(
+        front.camera_to_world, None,
+        "a 3-number C2W is not a matrix"
+    );
+    assert!(!front.orthographic, "absent /P is perspective");
 }

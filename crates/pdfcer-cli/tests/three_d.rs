@@ -554,3 +554,121 @@ fn rendering_a_u3d_model_is_refused_and_writes_nothing() {
     assert_eq!(out.status.code(), Some(9));
     assert!(!output.exists());
 }
+
+/// A page whose `/3D` annotation holds `fixtures/synthetic/prc/assembly.prc`
+/// raw, with one view dictionary `view` as the stream's `/VA`.
+#[cfg(feature = "3d")]
+fn assembly_with_view(tag: &str, view: &str) -> PathBuf {
+    let prc = std::fs::read(format!(
+        "{}/../../fixtures/synthetic/prc/assembly.prc",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap();
+    let mut stream = format!(
+        "<< /Type /3D /Subtype /PRC /VA [{view}] /Length {} >>\nstream\n",
+        prc.len()
+    )
+    .into_bytes();
+    stream.extend_from_slice(&prc);
+    stream.extend_from_slice(b"\nendstream");
+    let bodies: [Vec<u8>; 5] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Annots [4 0 R] >>".to_vec(),
+        b"<< /Type /Annot /Subtype /3D /Rect [0 0 100 100] /3DD 5 0 R >>".to_vec(),
+        stream,
+    ];
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+        buf.extend_from_slice(body);
+        buf.extend_from_slice(b"\nendobj\n");
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    let path = std::env::temp_dir().join(format!("pdfcer_3d_{tag}_{}.pdf", std::process::id()));
+    std::fs::write(&path, buf).unwrap();
+    path
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn a_render_with_no_camera_option_opens_on_the_files_saved_view() {
+    // Looking down -z with +x up the image: the two copies, at x 0..1 and
+    // 4..5, are stacked vertically. Every default named view puts them side
+    // by side.
+    let input = assembly_with_view(
+        "render_saved_view",
+        "<< /Type /3DView /XN (Plan) /MS /M /P << /Subtype /O >> \
+         /C2W [0 1 0 1 0 0 0 0 -1 2.5 0.5 50] >>",
+    );
+    let output = input.with_extension("png");
+    let out = run(&[
+        "3d-render",
+        input.to_str().unwrap(),
+        "--index",
+        "0",
+        "--width",
+        "100",
+        "--height",
+        "200",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("projection=orthographic"), "{stdout}");
+    assert!(
+        stdout.contains("note: camera: the file's opening view \"Plan\""),
+        "{stdout}"
+    );
+    let decoder = png::Decoder::new(std::fs::File::open(&output).unwrap());
+    let mut reader = decoder.read_info().unwrap();
+    let mut buf = vec![0; reader.output_buffer_size()];
+    reader.next_frame(&mut buf).unwrap();
+    let px = |x: usize, y: usize| buf[(y * 100 + x) * 4];
+    assert!(px(50, 27) < 255, "the x 4..5 copy is drawn at the top");
+    assert!(px(50, 173) < 255, "the x 0..1 copy is drawn at the bottom");
+    assert_eq!(px(50, 100), 255, "nothing between the copies");
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn a_named_view_overrides_the_files_saved_view() {
+    let input = assembly_with_view(
+        "render_saved_view_overridden",
+        "<< /Type /3DView /XN (Plan) /MS /M /C2W [0 1 0 1 0 0 0 0 -1 0 0 50] >>",
+    );
+    let output = input.with_extension("png");
+    let out = run(&[
+        "3d-render",
+        input.to_str().unwrap(),
+        "--index",
+        "0",
+        "--view",
+        "top",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("note: camera: the named view asked for")
+            && stdout.contains("projection=perspective"),
+        "{stdout}"
+    );
+}
