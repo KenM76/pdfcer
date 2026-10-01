@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (830th filing) — `Pass 421.9` (`4747c366`): compressed meshes read their own per-face line attributes
+
+**Shipped:**
+- `Pass 421.9` — PRC `TESS_3D_Compressed` tessellations now decode their
+  own `line_attribute_array`/`behaviours` into per-triangle graphics
+  (`compressed_graphics`), feeding `Placement::triangle_colours` and CLI
+  `3d-render` the same way `421.6`'s uncompressed path already did. A
+  face flagged `is_multiple_line_attribute_on_face`, or a tessellation
+  whose attributes are all `0` or not one-per-face, keeps the owner's
+  graphics instead.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Measured on the local-only 3D-PDF-Sample-School sample: all 348
+  compressed tessellations carry exactly one attribute per face, every
+  value `0` — so `3d-render` output is byte-identical to `v0.70.0`'s on
+  that file; the capability is real but unexercised by the one corpus
+  available.
+- Tests: `pdfcer-3d` lib 80 pass (new
+  `compressed_line_attributes_style_each_face`;
+  `a_compressed_mesh_is_read_to_its_end` now asserts the graphics).
+  Three sabotages, all CAUGHT. `clippy -D warnings` clean, `fmt`
+  applied. No manifest change.
+
+**Still in flight:** Door-panel conditioning-amplification drift
+(comparison against Acrobat Reader still awaits Ken's go-ahead); vaulted-
+roof tessellation tear; textures, lights, saved views; T-edge form;
+stored normals; `pdfcer-gui` orbit/pan/zoom request.
+
+**For next session:** Unreleased since `v0.70.0`; next release writes
+OneDrive slot `pdfcer2`.
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hash,
+measured counts, test names and sabotage results relayed from the
+dispatching engineer's own report on `4747c366`; not independently
+reproduced.
+
 ## 2026-10-01 (829th filing) — `v0.70.0` RELEASED
 
 **Shipped:**

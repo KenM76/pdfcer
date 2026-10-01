@@ -115,6 +115,46 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.9` (`4747c366`), 2026-10-01 — compressed meshes take their per-face line attributes
+
+Continues the `421.x` compressed-tessellation thread, unreleased since
+`v0.70.0`. `tess.rs`'s PRC `TESS_3D_Compressed` `line_attribute_array`
+(one style index plus one per face, `0` = inherit) and its `behaviours`
+array (one byte per face) now produce per-triangle graphics via a new
+`compressed_graphics` function, feeding `Placement::triangle_colours`
+and CLI `3d-render` the same way `421.6`'s uncompressed `TESS_Face` path
+already does. A face flagged `is_multiple_line_attribute_on_face` keeps
+the tessellation owner's graphics instead — a one-per-triangle layout
+the array format doesn't establish — as does any tessellation whose
+attributes are all `0` or whose count isn't exactly one per face.
+
+Measured on the local-only 3D-PDF-Sample-School sample (prc-rs testdata,
+unknown provenance, never committed): all 348 compressed tessellations
+carry exactly one line attribute per face, every value `0`; `3d-render`
+output is byte-identical to `v0.70.0`'s.
+
+No public API change; no manifest change, `cargo tree` not applicable.
+
+**Tests.** `pdfcer-3d` lib: 80 pass (new
+`compressed_line_attributes_style_each_face`;
+`a_compressed_mesh_is_read_to_its_end` now asserts the graphics). Three
+sabotages, all CAUGHT. `clippy -D warnings` clean, `fmt` applied.
+
+**Still open.** Door-panel conditioning-amplification drift (comparison
+against Acrobat Reader still awaits Ken's go-ahead to enable 3D
+playback there); vaulted-roof tessellation tear; textures; lights;
+saved views; T-edge form; stored normals; `pdfcer-gui` orbit/pan/zoom
+request.
+
+`docs/FEATURES.md` row 534 ("View an embedded 3D model with camera
+controls"): boxes unchanged (core/cli already `[x]`, gui stays `[ ]`);
+note updated to record compressed meshes now carry per-face colour too.
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hash,
+measured counts, test names and sabotage results relayed from the
+dispatching engineer's own report on `4747c366`, not independently
+reproduced.
+
 ### `Pass 421.8` (`31a319fd`), 2026-10-01 — a component that does not fit is retried with its fold inverted
 
 Continues the `Pass 421.x` bucket's compressed-tessellation thread,
