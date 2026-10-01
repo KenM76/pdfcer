@@ -33,6 +33,15 @@ behind them, unstarted.
 
 **For next session:** work `Pass 429.0` next.
 
+> **Amendment, 2026-10-01 (846th filing):** `b8826f21` ships the
+> `plan_edit_with_records` split this entry listed as owed —
+> `locate`/`anchor_font`/`match_anchor`/`encode_replacement`/
+> `encode_composite`/`ambiguity_note`/`subset_floor`/
+> `general_disclosures`/`target_disclosures`/`edit_report`, all under 80
+> lines, behaviour-preserving. Baseline 631 → 630. Filed under `Pass
+> 428.0`'s `ROADMAP.md` entry (commit list now `f23dc873, b8826f21`). No
+> `FEATURES.md` change — no capability changed.
+
 ## 2026-10-01 (844th filing) — `Pass 427.0` SHIPPED (`515e7d48`); four new Passes filed from an operator request on text-edit workarounds (`Pass 436.0`–`436.3`)
 
 **Shipped:**

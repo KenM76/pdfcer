@@ -115,7 +115,7 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `Pass 428.0` (`f23dc873`), 2026-10-01 — a pinned spanning edit crosses text objects on one line (G074)
+### `Pass 428.0` (`f23dc873`, `b8826f21` — planner split), 2026-10-01 — a pinned spanning edit crosses text objects on one line (G074)
 
 Continues the `Pass 427.0`–`436.3` family (845th filing).
 
@@ -156,6 +156,14 @@ on a synthetic Word-shaped fixture only
 shrank by 1); planner layout split into `lay_in_object`/`lay_across` plus
 `span_shifts`/`in_object_span_note`. `plan_edit_with_records` is STILL
 baselined (~450 lines) — owed: split under 80 lines in a follow-up.
+
+**Follow-up (`b8826f21`).** `plan_edit_with_records` split by
+responsibility into `locate`/`anchor_font`/`match_anchor`/
+`encode_replacement`/`encode_composite`/`ambiguity_note`/`subset_floor`/
+`general_disclosures`/`target_disclosures`/`edit_report`, each under 80
+lines; refusal order, disclosure order and report fields unchanged.
+Baseline entry removed (631 → 630). No test/dependency change; `cargo
+fmt`/`clippy -D warnings`/`check-code-structure` clean.
 
 **Tests.** 9 new in `crates/pdfcer-core/tests/cross_object_edit.rs`; 5
 sabotages, all CAUGHT (font-name check removed; tail number dropped;
