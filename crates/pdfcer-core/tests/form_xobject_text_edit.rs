@@ -401,7 +401,7 @@ fn targeting_the_page_contents_does_not_reach_into_a_form() {
     let err = edit_text(&doc, &req, &EditOptions::default())
         .expect_err("the text is in the form, and the caller excluded forms");
     assert!(
-        matches!(err, pdfcer_core::text_edit::EditError::NoMatch(_)),
+        matches!(err, pdfcer_core::text_edit::EditError::NoMatch { .. }),
         "not finding text where the caller said to look is a plain no-match: {err}"
     );
 }
@@ -616,7 +616,7 @@ fn a_form_with_a_partial_font_dictionary_is_refused_rather_than_guessed_at() {
     )
     .expect_err("a font the form did not declare must not be guessed at");
     assert!(
-        matches!(err, pdfcer_core::text_edit::EditError::NoMatch(_)),
+        matches!(err, pdfcer_core::text_edit::EditError::NoMatch { .. }),
         "with no resolvable font there is no editable run to find: {err}"
     );
 }

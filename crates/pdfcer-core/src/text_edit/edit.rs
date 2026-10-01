@@ -98,6 +98,7 @@
 //! was parsed from. See [`crate::text_edit::forms`] for the discovery half and
 //! for the shared-invocation problem it exists to disclose.
 
+use crate::text_edit::cause::{NotFoundReason, UnsupportedCause};
 use std::collections::{BTreeSet, HashMap};
 
 use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
@@ -752,9 +753,15 @@ pub enum EditError {
     /// No page at the requested index.
     #[error("no page at index {0}")]
     PageIndex(usize),
-    /// The find text was not present in any editable run.
-    #[error("text to edit ({0:?}) was not found in an editable run on the page")]
-    NoMatch(String),
+    /// The find text was not present in any editable run; `reason` says
+    /// whether it is absent or only reachable by joining text objects.
+    #[error("text to edit ({find:?}) was not found in an editable run on the page{reason}")]
+    NoMatch {
+        /// The text searched for.
+        find: String,
+        /// Why nothing matched.
+        reason: NotFoundReason,
+    },
     /// A **pinned** request named a byte span that matches no show operator in
     /// the buffer being edited (`Pass 118.0`).
     ///
@@ -795,8 +802,8 @@ pub enum EditError {
     },
     /// The run is real but this cut cannot edit it (composite font, a
     /// `'`/`"` anchor, a cross-element `TJ` match, …).
-    #[error("this run cannot be edited in the first cut: {0}")]
-    Unsupported(String),
+    #[error("this run cannot be edited: {0}")]
+    Unsupported(UnsupportedCause),
     /// The document is encrypted (out of scope for text editing).
     #[error("the document is encrypted; in-place text editing of encrypted files is out of scope")]
     Encrypted,
@@ -809,6 +816,16 @@ pub enum EditError {
     /// The incremental save failed.
     #[error("save failed: {0}")]
     Write(#[from] WriteError),
+}
+
+impl EditError {
+    /// A [`Self::NoMatch`] whose text is simply absent.
+    pub(crate) fn no_match(find: impl Into<String>) -> Self {
+        Self::NoMatch {
+            find: find.into(),
+            reason: NotFoundReason::NoSuchText,
+        }
+    }
 }
 
 // ===================================================================
@@ -1956,9 +1973,10 @@ impl EditPlanTarget {
     /// Checked here rather than at save time so the refusal precedes any
     /// mutation, matching `write_incremental`'s own first check.
     pub(crate) fn page(page: &Page) -> Result<Self, EditError> {
-        let content_id = *page.contents.first().ok_or_else(|| {
-            EditError::Unsupported("the page has no /Contents to edit".to_owned())
-        })?;
+        let content_id = *page
+            .contents
+            .first()
+            .ok_or(EditError::Unsupported(UnsupportedCause::NoContents))?;
         Ok(Self {
             content_id,
             extra_emptied: page.contents.len().saturating_sub(1) as u64,
@@ -2072,9 +2090,9 @@ pub(crate) fn plan_edit_with_records(
         rec: Rec::Show(anchor),
     } = recs
         .get(anchor_index)
-        .ok_or(EditError::NoMatch(req.find.clone()))?
+        .ok_or(EditError::no_match(req.find.clone()))?
     else {
-        return Err(EditError::NoMatch(req.find.clone()));
+        return Err(EditError::no_match(req.find.clone()));
     };
     // The operators BEFORE the last one in a span, each with the character
     // range of the match that falls inside it (in its own text coordinates).
@@ -2110,10 +2128,7 @@ pub(crate) fn plan_edit_with_records(
         })
         .sum();
     if matches!(anchor.op, ShowOp::Quote | ShowOp::DoubleQuote) {
-        return Err(EditError::Unsupported(
-            "editing a run shown with the ' or \" operator is deferred (first cut edits Tj/TJ)"
-                .to_owned(),
-        ));
+        return Err(EditError::Unsupported(UnsupportedCause::QuoteOperator));
     }
 
     // --- resolve the anchor font + classify it (R-INV-2/3/4) ---
@@ -2137,13 +2152,8 @@ pub(crate) fn plan_edit_with_records(
     // form run's `Tf` against the page's dictionary would silently measure the
     // wrong widths, and the advance arithmetic would be wrong in a way that
     // renders as text drifting out of place rather than as an error.
-    let font_dict =
-        resolve_font_dict(doc, &target.resources, &anchor.font_name).ok_or_else(|| {
-            EditError::Unsupported(
-                "the run's font resource is unresolvable in the target stream's resources"
-                    .to_owned(),
-            )
-        })?;
+    let font_dict = resolve_font_dict(doc, &target.resources, &anchor.font_name)
+        .ok_or(EditError::Unsupported(UnsupportedCause::FontUnresolvable))?;
     // `doc` is whatever graph the CALLER plans against (`Pass 257.0`): the
     // session passes its overlay view, so a `/Font` object created earlier
     // in the same session (a `format_text` face swap) resolves here; the
@@ -2167,7 +2177,7 @@ pub(crate) fn plan_edit_with_records(
         if find.is_empty() {
             // Same refusal `match_run` gives: an empty find with no pin is
             // a caller error, not "not found" (route_enumeration pins it).
-            return Err(EditError::Unsupported("empty find text".to_owned()));
+            return Err(EditError::Unsupported(UnsupportedCause::EmptyFind));
         }
         // `span.pos`, not a fresh `find`: a narrowed span names ONE
         // occurrence, and the first occurrence in the operator may be another.
@@ -2176,7 +2186,7 @@ pub(crate) fn plan_edit_with_records(
             .get(span.pos..)
             .is_some_and(|t| t.starts_with(find))
         {
-            return Err(EditError::NoMatch(find.to_owned()));
+            return Err(EditError::no_match(find.to_owned()));
         }
         match_range(anchor, span.pos, span.pos + find.len(), find)?
     } else {
@@ -2190,9 +2200,9 @@ pub(crate) fn plan_edit_with_records(
         .collect::<Result<_, _>>()?;
 
     let encoded = if font.is_simple() {
-        let glyph_names = font.glyph_names().ok_or_else(|| {
-            EditError::Unsupported("the run's font has no invertible encoding".to_owned())
-        })?;
+        let glyph_names = font.glyph_names().ok_or(EditError::Unsupported(
+            UnsupportedCause::EncodingNotInvertible,
+        ))?;
         let inverse = InverseEncoding::build(&font.base_font, glyph_names);
         // The R-INV-5 tie-break seed: codes already used in this run. Narrowed
         // to `u8` because that is what the single-byte encoder means by a
@@ -2214,11 +2224,13 @@ pub(crate) fn plan_edit_with_records(
         // Reaching here means `classify_font` already established the map is
         // invertible — it refuses by name when it is not — so `build` is
         // re-deriving a known-good inversion rather than gambling.
-        let cmap = font.to_unicode_cmap().ok_or_else(|| {
-            EditError::Unsupported("the run's composite font has no /ToUnicode".to_owned())
-        })?;
+        let cmap = font.to_unicode_cmap().ok_or(EditError::Unsupported(
+            UnsupportedCause::CompositeWithoutToUnicode,
+        ))?;
         let composite = CompositeEncoding::build(&font.base_font, cmap).map_err(|e| {
-            EditError::Unsupported(format!("the run's font map cannot be inverted: {e}"))
+            EditError::Unsupported(UnsupportedCause::FontMapNotInvertible {
+                detail: e.to_string(),
+            })
         })?;
         let e = composite
             .encode_str(&req.replace)
@@ -2606,9 +2618,7 @@ pub(crate) fn edit_candidates(
                 Err(e) => return Err(EditError::Content(e)),
             }
         } else if matches!(req.target, EditTarget::PageContents) {
-            return Err(EditError::Unsupported(
-                "the page has no /Contents to edit".to_owned(),
-            ));
+            return Err(EditError::Unsupported(UnsupportedCause::NoContents));
         }
     }
     if matches!(req.target, EditTarget::PageContents) {
@@ -2618,9 +2628,9 @@ pub(crate) fn edit_candidates(
     let scan = forms::scan_page_forms(doc, page);
     if scan.forms.is_empty() {
         if let EditTarget::Form { object } = req.target {
-            return Err(EditError::Unsupported(format!(
-                "form XObject {object} is not painted by this page, so there is nothing to edit inside it here"
-            )));
+            return Err(EditError::Unsupported(UnsupportedCause::FormNotOnPage {
+                object,
+            }));
         }
         return Ok(out);
     }
@@ -2651,9 +2661,9 @@ pub(crate) fn edit_candidates(
     if out.is_empty()
         && let EditTarget::Form { object } = req.target
     {
-        return Err(EditError::Unsupported(format!(
-            "form XObject {object} is painted by this page but its content stream could not be decoded"
-        )));
+        return Err(EditError::Unsupported(UnsupportedCause::FormUndecodable {
+            object,
+        }));
     }
     Ok(out)
 }
@@ -2689,7 +2699,7 @@ pub(crate) fn plan_edit_anywhere(
 ) -> Result<(EditPlan, EditPlanTarget), EditError> {
     let candidates = edit_candidates(doc, page, req)?;
     if candidates.is_empty() {
-        return Err(EditError::NoMatch(req.find.clone()));
+        return Err(EditError::no_match(req.find.clone()));
     }
     let mut first_locational: Option<EditError> = None;
     for (target, stream) in candidates {
@@ -2703,7 +2713,7 @@ pub(crate) fn plan_edit_anywhere(
             Err(e) => return Err(e),
         }
     }
-    Err(first_locational.unwrap_or_else(|| EditError::NoMatch(req.find.clone())))
+    Err(first_locational.unwrap_or_else(|| EditError::no_match(req.find.clone())))
 }
 
 /// How far left of the anchor's own origin a same-baseline re-anchor may sit
@@ -3159,7 +3169,7 @@ fn same_line(anchor: &ShowData, follower: &[f64; 6]) -> bool {
 pub(crate) const fn is_locational_error(e: &EditError) -> bool {
     matches!(
         e,
-        EditError::NoMatch(_) | EditError::PinnedSpanNotFound { .. }
+        EditError::NoMatch { .. } | EditError::PinnedSpanNotFound { .. }
     )
 }
 
@@ -3193,14 +3203,10 @@ pub(crate) fn refuse_unsuitable_form(
     form: &crate::text_edit::forms::FormRef,
 ) -> Result<(), EditError> {
     if form.dict.contains_key(b"Ref") {
-        return Err(EditError::Unsupported(
-            "this form XObject is a REFERENCE XObject (/Ref, ISO 32000-1 8.10.4) -- its visible content is a proxy for content in another file, which a conforming reader may substitute wholesale, so an edit here could silently fail to reach what is actually printed".to_owned(),
-        ));
+        return Err(EditError::Unsupported(UnsupportedCause::ReferenceXObject));
     }
     if form.dict.contains_key(b"OPI") {
-        return Err(EditError::Unsupported(
-            "this form XObject is an OPI proxy (/OPI, ISO 32000-1 14.11.7) -- a prepress system substitutes the real high-resolution artwork at print time, so an edit here could silently fail to reach what is actually printed".to_owned(),
-        ));
+        return Err(EditError::Unsupported(UnsupportedCause::OpiProxy));
     }
     Ok(())
 }
@@ -3379,7 +3385,7 @@ pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anch
                 rec: Rec::Show(s), ..
             }) = recs.get(i)
             else {
-                return Err(EditError::NoMatch(req.find.clone()));
+                return Err(EditError::no_match(req.find.clone()));
             };
             let find = effective_find(s, &req.find, req.pinned_span);
             // THIS USED TO BE `.unwrap_or(0)`, AND THAT WAS A SILENT WRONG
@@ -3414,7 +3420,7 @@ pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anch
                 // restarts here; without it the request is refused, by name,
                 // instead of resolving to a position it invented.
                 None if req.span_from_pin => span_from = Some(i),
-                None => return Err(EditError::NoMatch(req.find.clone())),
+                None => return Err(EditError::no_match(req.find.clone())),
             }
         }
         Err(e) if req.pinned_span.is_some() || req.find.is_empty() => return Err(e),
@@ -3485,7 +3491,40 @@ pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anch
             });
         }
     }
-    Err(EditError::NoMatch(req.find.clone()))
+    Err(not_found(recs, &req.find))
+}
+
+/// The `NoMatch` for a find no single text object contains: when the show
+/// operators' text, joined across `ET` in content order, does contain it,
+/// the reason names how many text objects the match touches.
+fn not_found(recs: &[OpRec], find: &str) -> EditError {
+    let mut joined = String::new();
+    let mut object_of: Vec<usize> = Vec::new();
+    let mut object = 0usize;
+    for r in recs {
+        match &r.rec {
+            Rec::Show(s) => {
+                joined.push_str(&s.text);
+                object_of.resize(joined.len(), object);
+            }
+            Rec::EndText => object += 1,
+            _ => {}
+        }
+    }
+    let span = joined
+        .find(find)
+        .filter(|_| !find.is_empty())
+        .and_then(|pos| Some((*object_of.get(pos)?, *object_of.get(pos + find.len() - 1)?)));
+    let reason = match span {
+        Some((first, last)) if last > first => NotFoundReason::SpansTextObjects {
+            objects: last - first + 1,
+        },
+        _ => NotFoundReason::NoSuchText,
+    };
+    EditError::NoMatch {
+        find: find.to_owned(),
+        reason,
+    }
 }
 
 /// Find the anchor operator: the pinned span if given, else the first show
@@ -3516,7 +3555,7 @@ pub(crate) fn find_anchor(recs: &[OpRec], req: &EditRequest) -> Result<usize, Ed
             end: pin.start.saturating_add(pin.len),
         });
     }
-    Err(EditError::NoMatch(req.find.clone()))
+    Err(EditError::no_match(req.find.clone()))
 }
 
 /// Whether `pin` names the operation `r` — under **either** of the two byte-
@@ -3682,21 +3721,18 @@ pub(crate) fn effective_find<'a>(
 /// code range within a single string element.
 pub(crate) fn match_run(anchor: &ShowData, find: &str) -> Result<MatchRun, EditError> {
     if find.is_empty() {
-        return Err(EditError::Unsupported("empty find text".to_owned()));
+        return Err(EditError::Unsupported(UnsupportedCause::EmptyFind));
     }
     let pos = anchor
         .text
         .find(find)
-        .ok_or_else(|| EditError::NoMatch(find.to_owned()))?;
+        .ok_or_else(|| EditError::no_match(find.to_owned()))?;
     let m = match_range(anchor, pos, pos + find.len(), find)?;
     if m.elem_hi != m.elem {
         // The single-operator, single-element contract `format_text` and
         // every pre-256.0 caller rely on. The cross-element form is reached
         // only through `match_range` by the span path in `plan_edit_target`.
-        return Err(EditError::Unsupported(
-            "the match spans more than one TJ string element (cross-element edit deferred)"
-                .to_owned(),
-        ));
+        return Err(EditError::Unsupported(UnsupportedCause::CrossElementTj));
     }
     Ok(m)
 }
@@ -3724,7 +3760,7 @@ pub(crate) fn match_range(
         .collect();
     let first = matched
         .first()
-        .ok_or_else(|| EditError::NoMatch(find.to_owned()))?;
+        .ok_or_else(|| EditError::no_match(find.to_owned()))?;
     let elem = first.elem;
     let elem_hi = matched.iter().map(|s| s.elem).max().unwrap_or(elem);
     let b_lo = matched
@@ -3804,8 +3840,26 @@ pub(crate) struct FontClass {
     pub(crate) subset: bool,
 }
 
+/// Whether a Type 0 font writes vertically: its `/Encoding` CMap is a stream
+/// whose dictionary has `/WMode 1`, or a predefined CMap whose name ends in
+/// `V` (ISO 32000-2 §9.7.5.2, Table 120).
+pub(crate) fn writes_vertically(doc: &DocumentView<'_>, font_dict: &Dict) -> bool {
+    match font_dict.get(b"Encoding").map(|o| doc.resolve(o)) {
+        Some(Object::Name(n)) => n.as_bytes().ends_with(b"V"),
+        Some(Object::Stream(s)) => {
+            s.dict
+                .get(b"WMode")
+                .map(|o| doc.resolve(o))
+                .and_then(Object::as_int)
+                == Some(1)
+        }
+        _ => false,
+    }
+}
+
 /// Classify the anchor font and apply the font-level refuse triggers
-/// R-INV-2/3/4 (the per-character triggers are the inverse map's job).
+/// R-INV-2/3/4 (the per-character triggers are the inverse map's job), and
+/// refuse vertical writing, whose advances run down rather than across.
 pub(crate) fn classify_font(
     doc: &DocumentView<'_>,
     font_dict: &Dict,
@@ -3850,6 +3904,9 @@ pub(crate) fn classify_font(
     // function). Those are properties of the FONT and no amount of pdfcer work
     // fixes them — standing rule R110's distinction, now load-bearing rather
     // than descriptive.
+    if subtype.as_slice() == b"Type0" && writes_vertically(doc, font_dict) {
+        return Err(EditError::Unsupported(UnsupportedCause::VerticalWriting));
+    }
     if subtype.as_slice() == b"Type0" || !font.is_simple() {
         let refuse = |why: String| {
             EditError::Refused(Refusal {
@@ -4227,7 +4284,7 @@ pub(crate) fn write_incremental_with(
     let first = *page
         .contents
         .first()
-        .ok_or_else(|| EditError::Unsupported("the page has no /Contents to edit".to_owned()))?;
+        .ok_or(EditError::Unsupported(UnsupportedCause::NoContents))?;
     let mine: BTreeSet<ObjId> = page.contents.iter().copied().collect();
     let mut shared: BTreeSet<ObjId> = BTreeSet::new();
     for other in page_tree::pages(doc)?.iter().filter(|p| p.id != page.id) {
@@ -4245,7 +4302,7 @@ pub(crate) fn write_incremental_with(
             .max()
             .unwrap_or(0);
         let next = doc.next_object_number().ok_or(EditError::Unsupported(
-            "no object number is left to allocate".to_owned(),
+            UnsupportedCause::ObjectNumbersExhausted,
         ))?;
         ObjId::new(next.max(taken.saturating_add(1)), 0)
     } else {
@@ -4275,9 +4332,7 @@ pub(crate) fn write_incremental_with(
     if !shared.is_empty() {
         let page_dict = page_dict.or_else(|| doc.get(page.id).map(|o| o.value.clone()));
         let Some(Object::Dict(mut dict)) = page_dict else {
-            return Err(EditError::Unsupported(
-                "the page object is not a dictionary".to_owned(),
-            ));
+            return Err(EditError::Unsupported(UnsupportedCause::PageNotDictionary));
         };
         dict.insert(Name::from(b"Contents"), Object::Reference(content_id));
         dirty.replace(page.id, Object::Dict(dict));

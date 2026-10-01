@@ -66,7 +66,9 @@ fn simple_variants() -> Vec<ReflowApplyError> {
         ReflowApplyError::Encrypted,
         ReflowApplyError::NoProvenance,
         ReflowApplyError::PageIndex(7),
-        ReflowApplyError::Unsupported("rotated text refused by name".to_owned()),
+        ReflowApplyError::Unsupported(pdfcer_core::text_edit::UnsupportedCause::RotatedOrSkewed {
+            matrix: "CTM",
+        }),
     ]
 }
 
@@ -181,7 +183,10 @@ fn the_non_recoverable_variants_are_classified_as_documented() {
         "extracting without provenance is the caller not asking for what it needs"
     );
     assert_eq!(
-        ReflowApplyError::Unsupported("rotated text".to_owned()).decline(),
+        ReflowApplyError::Unsupported(pdfcer_core::text_edit::UnsupportedCause::RotatedOrSkewed {
+            matrix: "CTM"
+        })
+        .decline(),
         ReflowDecline::NotReflowable,
         "the nine merged conditions are permanent for the document as drawn"
     );

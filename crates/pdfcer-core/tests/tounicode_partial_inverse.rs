@@ -121,7 +121,7 @@ fn a_map_with_nothing_invertible_still_refuses_the_whole_font() {
         )
         .expect_err("nothing decodes");
     assert!(
-        matches!(err, EditError::NoMatch(_) | EditError::Refused(_)),
+        matches!(err, EditError::NoMatch { .. } | EditError::Refused(_)),
         "{err:?}"
     );
 }

@@ -61,6 +61,7 @@
 //! command share exactly one recognizer (`ARCHITECTURE.md` §3).
 
 pub mod addtext;
+pub mod cause;
 pub mod edit;
 pub mod encoding;
 pub mod format;
@@ -80,6 +81,7 @@ pub use addtext::{
     AddTextError, AddTextOutcome, AddTextReport, AddTextRequest, AddTextWrapPreview,
     FontProvenance, NewTextColor, NewTextFace, WrapPreviewLine, add_text, preview_wrap,
 };
+pub use cause::{NotFoundReason, UnsupportedCause};
 pub use edit::{
     EditError, EditGlyphSource, EditOptions, EditOutcome, EditReport, EditRequest, EditTarget,
     FollowerDisposition, PreviewColour, PreviewGlyph, TextEditPreview, edit_text,

@@ -255,7 +255,7 @@ fn a_plain_pin_still_confines_the_match_to_one_operator() {
 
     let err = run(&req).expect_err("the find does not lie inside the pinned operator");
     assert!(
-        matches!(err, EditError::NoMatch(ref s) if s == "ABCD"),
+        matches!(err, EditError::NoMatch { ref find, .. } if find == "ABCD"),
         "refused by name, naming the text that was not found there: {err:?}"
     );
 }

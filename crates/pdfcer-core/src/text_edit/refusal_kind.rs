@@ -101,7 +101,7 @@ impl RefusalClass for EditError {
             EditError::Encrypted => RefusalKind::StructureFrozen,
             // The edit named something absent.
             EditError::PageIndex(_)
-            | EditError::NoMatch(_)
+            | EditError::NoMatch { .. }
             | EditError::PinnedSpanNotFound { .. } => RefusalKind::NotFound,
             // Capability gaps, parse failures, save failures.
             EditError::Unsupported(_)
@@ -195,7 +195,7 @@ mod tests {
             RefusalKind::NotFound
         );
         assert_eq!(
-            EditError::NoMatch("x".to_owned()).refusal_kind(),
+            EditError::no_match("x".to_owned()).refusal_kind(),
             RefusalKind::NotFound
         );
         assert_eq!(

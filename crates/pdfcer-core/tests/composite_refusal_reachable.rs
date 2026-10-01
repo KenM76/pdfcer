@@ -154,3 +154,77 @@ fn a_simple_font_run_still_edits() {
     assert!(!out.bytes.is_empty());
     Document::from_bytes(out.bytes).expect("the edited document must re-parse");
 }
+
+/// A vertical-writing composite run is refused as vertical on every route,
+/// not edited with horizontal advances. The fixture is the editable one with
+/// its predefined CMap renamed `Identity-V` — a same-length byte swap, so the
+/// font differs from the editable control in writing mode alone.
+#[test]
+fn a_vertical_composite_run_is_refused_as_vertical_on_every_route() {
+    use pdfcer_core::edit::EditSession;
+    use pdfcer_core::text_edit::UnsupportedCause;
+
+    let path = fixture("composite-editable.pdf");
+    let bytes = std::fs::read(&path).expect("fixture");
+    let at = bytes
+        .windows(10)
+        .position(|w| w == b"Identity-H")
+        .expect("the fixture names Identity-H");
+    let mut vertical = bytes.clone();
+    vertical[at + 9] = b'V';
+    let doc = Document::from_bytes(vertical).expect("fixture parses");
+    let req = EditRequest::find_replace(0, "ABC", "CBA");
+
+    let err = edit_text(&doc, &req, &EditOptions::default()).expect_err("vertical must refuse");
+    assert!(
+        matches!(
+            err,
+            EditError::Unsupported(UnsupportedCause::VerticalWriting)
+        ),
+        "{err:?}"
+    );
+
+    let s = EditSession::new(doc);
+    let err = s
+        .edit_text_preview(&req, &EditOptions::default())
+        .expect_err("the preview must refuse too");
+    assert!(
+        matches!(
+            err,
+            EditError::Unsupported(UnsupportedCause::VerticalWriting)
+        ),
+        "{err:?}"
+    );
+
+    let rep = s
+        .run_repertoire(0, "ABC", None)
+        .expect("an answer, not an error");
+    assert!(rep.accepted.is_empty(), "a vertical run accepts nothing");
+    assert_eq!(rep.cause, Some(UnsupportedCause::VerticalWriting));
+}
+
+/// Reflow names vertical writing too, rather than the generic composite
+/// refusal, so the shell gives one reason on every route.
+#[test]
+fn reflow_of_a_vertical_composite_block_is_refused_as_vertical() {
+    use pdfcer_core::edit::EditSession;
+    use pdfcer_core::text_edit::{ReflowApplyError, ReflowRequest, UnsupportedCause};
+
+    let mut bytes = std::fs::read(fixture("composite-editable.pdf")).expect("fixture");
+    let at = bytes
+        .windows(10)
+        .position(|w| w == b"Identity-H")
+        .expect("the fixture names Identity-H");
+    bytes[at + 9] = b'V';
+    let mut s = EditSession::new(Document::from_bytes(bytes).expect("fixture parses"));
+    let err = s
+        .reflow_block(0, 0, &ReflowRequest::default())
+        .expect_err("vertical must refuse");
+    assert!(
+        matches!(
+            err,
+            ReflowApplyError::Unsupported(UnsupportedCause::VerticalWriting)
+        ),
+        "{err:?}"
+    );
+}

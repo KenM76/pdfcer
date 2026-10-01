@@ -166,6 +166,7 @@
 //! report but writes an identical named non-embedded dict either way
 //! (`ARCHITECTURE.md` §3).
 
+use crate::text_edit::cause::UnsupportedCause;
 use std::collections::BTreeSet;
 
 use crate::document::Document;
@@ -641,7 +642,7 @@ pub enum AddTextError {
     /// The page/target is structurally unusable for an add (e.g. the page
     /// object is not a dictionary).
     #[error("this run cannot be added: {0}")]
-    Unsupported(String),
+    Unsupported(UnsupportedCause),
     /// The page tree could not be walked.
     #[error("page tree error: {0}")]
     PageTree(#[from] PageTreeError),
@@ -908,9 +909,13 @@ pub(crate) fn plan_add_text(
         return Err(AddTextError::InvalidSize(req.size));
     }
 
-    let page_dict = graph.resolved(page.id).as_dict().cloned().ok_or_else(|| {
-        AddTextError::Unsupported("the page object is not a dictionary".to_owned())
-    })?;
+    let page_dict = graph
+        .resolved(page.id)
+        .as_dict()
+        .cloned()
+        .ok_or(AddTextError::Unsupported(
+            UnsupportedCause::PageNotDictionary,
+        ))?;
     // Own `/Resources` vs inherited: the §7.7.3.4 trap detector.
     let has_own_resources = page_dict.get(b"Resources").is_some();
     let append = page_tree::plan_overlay_append(graph, page_dict.get(b"Contents"));

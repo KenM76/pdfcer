@@ -12324,7 +12324,13 @@ impl EditSession {
                                     Vec::new(),
                                     &mut plan.report.disclosures,
                                 )
-                                .map_err(|e| TeError::Unsupported(e.to_string()))?;
+                                .map_err(|e| {
+                                    TeError::Unsupported(
+                                        crate::text_edit::UnsupportedCause::CommitFailed {
+                                            detail: e.to_string(),
+                                        },
+                                    )
+                                })?;
                             if let Some(d) = decoupled {
                                 plan.report.content_object = d.content_object;
                                 plan.report.extra_objects_emptied = d.emptied;
@@ -12354,8 +12360,9 @@ impl EditSession {
             }
         }
         if matches!(req.target, EditTarget::PageContents) {
-            return Err(page_attempt
-                .unwrap_or_else(|| TeError::Unsupported("the page has no /Contents".to_owned())));
+            return Err(page_attempt.unwrap_or({
+                TeError::Unsupported(crate::text_edit::UnsupportedCause::NoContents)
+            }));
         }
 
         self.edit_text_in_form(&page, req, opts, page_attempt)
@@ -12425,8 +12432,7 @@ impl EditSession {
         }
         if matches!(req.target, crate::text_edit::EditTarget::Form { .. }) {
             return Err(TeError::Unsupported(
-                "the typing preview covers page content; text in a form XObject is not previewed"
-                    .to_owned(),
+                crate::text_edit::UnsupportedCause::InsideFormXObject { object: None },
             ));
         }
         let pages = self.pages()?;
@@ -12450,6 +12456,51 @@ impl EditSession {
             plan.layout,
             plan.report.disclosures,
         ))
+    }
+
+    /// Whether the run whose show operator `span` names can be edited at all
+    /// — asked at caret placement, before the operator types anything.
+    ///
+    /// Plans a deletion of the whole operator through the same path as
+    /// [`Self::edit_text_preview`] and discards the plan, so every run-level
+    /// refusal [`Self::edit_text`] would give (vertical writing, an
+    /// unreadable font map, a rotated run, an encrypted file, …) arrives here
+    /// first, with the same value. Per-character refusals are not run-level
+    /// and are answered by [`Self::run_repertoire`].
+    ///
+    /// # Errors
+    ///
+    /// The [`crate::text_edit::EditError`] an edit of this run would raise;
+    /// [`crate::text_edit::EditError::PinnedSpanNotFound`] when `span` names
+    /// no show operator on the page.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use pdfcer_core::{document::Document, edit::EditSession, span::ByteSpan};
+    /// use pdfcer_core::text_edit::{EditError, UnsupportedCause};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let session = EditSession::new(Document::load(std::path::Path::new("drawing.pdf"))?);
+    /// let span = ByteSpan { start: 120, len: 14 };
+    /// match session.edit_capability(0, span) {
+    ///     Ok(()) => println!("editable"),
+    ///     Err(EditError::Unsupported(UnsupportedCause::VerticalWriting)) => {
+    ///         println!("vertical text cannot be edited yet")
+    ///     }
+    ///     Err(e) => println!("{e}"),
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn edit_capability(
+        &self,
+        page_index: usize,
+        span: crate::span::ByteSpan,
+    ) -> Result<(), crate::text_edit::EditError> {
+        let req = crate::text_edit::EditRequest::whole_operator(page_index, span, "");
+        self.edit_text_preview(&req, &crate::text_edit::EditOptions::default())
+            .map(|_| ())
     }
 
     /// The form-XObject half of [`Self::edit_text`] (`Pass 119.0`): try each
@@ -12527,7 +12578,7 @@ impl EditSession {
             }
         }
         let Some((form_id, form_dict, new_content, report)) = found else {
-            return Err(first_locational.unwrap_or_else(|| TeError::NoMatch(req.find.clone())));
+            return Err(first_locational.unwrap_or_else(|| TeError::no_match(req.find.clone())));
         };
         let command = self.form_edit_command(form_id, &form_dict, new_content);
         self.commit(command);
@@ -13362,10 +13413,9 @@ impl EditSession {
         }
         let pages = self.pages()?;
         let page = pages.get(page_index).ok_or(RErr::PageIndex(page_index))?;
-        let content_id = *page
-            .contents
-            .first()
-            .ok_or_else(|| RErr::Unsupported("the page has no /Contents to reflow".to_owned()))?;
+        let content_id = *page.contents.first().ok_or(RErr::Unsupported(
+            crate::text_edit::UnsupportedCause::NoContents,
+        ))?;
 
         // `Pass 257.0`: the planner reads the SESSION VIEW — the same graph
         // every other read in this method uses — so an overlay page index,
@@ -13429,7 +13479,13 @@ impl EditSession {
                 Vec::new(),
                 &mut plan.report.disclosures,
             )
-            .map_err(|e| crate::text_edit::ReflowApplyError::Unsupported(e.to_string()))?;
+            .map_err(|e| {
+                crate::text_edit::ReflowApplyError::Unsupported(
+                    crate::text_edit::UnsupportedCause::CommitFailed {
+                        detail: e.to_string(),
+                    },
+                )
+            })?;
         if let Some(d) = decoupled {
             plan.report.content_object = d.content_object;
             plan.report.extra_objects_emptied = d.emptied;

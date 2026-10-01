@@ -177,7 +177,7 @@ fn a_font_resource_change_mid_word_is_not_spanned() {
     let err = s
         .edit_text(&req, &EditOptions::default())
         .expect_err("Tf change breaks the span");
-    assert!(matches!(err, EditError::NoMatch(_)), "{err:?}");
+    assert!(matches!(err, EditError::NoMatch { .. }), "{err:?}");
     // But the part inside one resource still edits.
     let req = EditRequest::find_replace(0, "BC", "CB");
     let r = s

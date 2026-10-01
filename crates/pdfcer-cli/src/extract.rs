@@ -556,7 +556,7 @@ pub(crate) fn cmd_run_repertoire(
         String::new()
     };
     println!(
-        "run-repertoire {} page={} run={} font={} resource={} accepted={} tested={} refused={} subset={} editable={}{}",
+        "run-repertoire {} page={} run={} font={} resource={} accepted={} tested={} refused={} subset={} editable={} cause={}{}",
         input.display(),
         page,
         // The RESOLVED run text, not what was typed: an empty --find with a
@@ -570,6 +570,18 @@ pub(crate) fn cmd_run_repertoire(
         rep.candidates_tested.saturating_sub(rep.accepted.len()),
         u8::from(rep.embedded_subset),
         u8::from(rep.is_editable()),
+        // The refusal's variant name, so a script can branch on WHY without
+        // parsing the English on stderr; `none` when the run is answerable.
+        rep.cause.as_ref().map_or_else(
+            || "none".to_owned(),
+            |c| {
+                let name = format!("{c:?}");
+                name.split(|ch: char| !ch.is_ascii_alphanumeric())
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned()
+            }
+        ),
         chars,
     );
     exit::SUCCESS

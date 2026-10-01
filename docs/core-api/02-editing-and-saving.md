@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 300 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 301 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 300 public `EditSession` methods
+## 1. Verb index — all 301 public `EditSession` methods
 
-**Count: 300.** Established by brace-matched extraction of the six
+**Count: 301.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -437,6 +437,7 @@ need their own policy).
 | Ask which fonts can hold the text ABOUT TO BE TYPED | `preview_font_resources_for(&self, page_index, find, pinned_span, candidate: &str) -> Result<FontPreflight, FormatError>` | **`Pass 142.2`**, pdfcer-gui request 2026-09-05. `find`/`pinned_span` locate the run; every `FontAcceptance` — page faces AND the standard 14 — is computed against `candidate` through the same gate `set_font` applies (embedded-subset floor included), so `Refused { character }` names the first character a face cannot hold. `candidate == ""` behaves exactly as `preview_font_resources`. CLI: `font-preflight --candidate TEXT`. |
 | **Ask which characters this run will accept, before the first keystroke** | `run_repertoire(&self, page_index, find, pinned_span) -> Result<RunRepertoire, FormatError>` | **`Pass 280.0`**, pdfcer-gui request 2026-09-09. A character in `accepted` is one `edit_text` will not refuse for that run — decided by calling the accepting code, not by describing it (`R221`). Strict: an embedded subset is narrowed to the codes this page carries. A run with no usable encoding is an EMPTY answer with a `reason`, not an `Err`, so an editor can decline to open. **Not** `preview_font_resources_for` per keystroke — that walks the whole page content stream per call. CLI: `run-repertoire [--list]`. See below. |
 | **Draw typed text in the run's own font before Enter** | `edit_text_preview(&self, req: &EditRequest, opts: &EditOptions) -> Result<TextEditPreview, text_edit::EditError>` | **`Pass 366.0`**, pdfcer-gui request G046. Runs `edit_text`'s own plan without the splice, so codes, positions, refusals and disclosures are what the commit produces; writes nothing, no undo entry. Returns the font resource key and dict, per-glyph `PreviewGlyph { ch, code, matrix }` (matrix: glyph space in text-space units → page user space, §9.4.4 `Trm` including the CTM), the advance-by-ascent/descent `bbox` (page space), `fill`/`stroke` as `PreviewColour`, `render_mode`, `disclosures`. **Cost:** first call on a page decodes and walks its content (~350 ms on a large CAD page); later calls ~10 ms, cached in the session and invalidated by any change to the page's content, resources or reachable font objects. **`&self`** (request G048): the cache sits behind a `Mutex` inside the session, so a shell can preview through a shared `Arc<EditSession>` while a render worker holds another clone, and the session stays `Send + Sync`. **Scope:** page content; `EditTarget::Form` → `Unsupported`, and `Auto` does not fall through to form XObjects. Outlines: `pdfcer_render::edit_preview::preview_outlines(&view, &preview, &env) -> PreviewOutlines { glyphs: Vec<Option<Path>>, source: Option<GlyphSource>, skipped: Option<OutlineSkip> }` — page-space paths through the renderer's font loading (~0.2 ms); a `Bundled`/`Supplied` source is disclosed off-canvas; Type 3 → `skipped`. No CLI (interactive only). |
+| **Ask whether a run can be edited at all, at caret placement** | `edit_capability(&self, page_index, span: ByteSpan) -> Result<(), text_edit::EditError>` | **`Pass 427.0`**, pdfcer-gui request G081. Plans a deletion of the pinned operator through `edit_text_preview`'s path and discards it, so every run-level refusal `edit_text` would give arrives first, as the same value (vertical writing, unreadable font map, rotated run, encrypted file, stale pin → `PinnedSpanNotFound`). Per-character refusals are `run_repertoire`'s answer, not this one. A test holds the two in agreement across the text-edit fixture corpus. No CLI (interactive only). See *Refusal causes as data* below. |
 | Re-wrap a recognised paragraph | `reflow_block(&mut self, page_index, block_index, &ReflowRequest) -> Result<ReflowApplyReport, ReflowApplyError>` | One undo entry. **Planned against the SESSION VIEW** since `Pass 257.0` — composes with an earlier `edit_text`/`format_text` on the same page and with structural page edits (T-14 records the refusals that stood before). Still refuses (not silently deletes) a page carrying a run appended this session (`Pass 251.0`): the plan re-emits the first content object only and the sweep would drop the extra. |
 | Add a new text run at coordinates | `add_text(&mut self, &AddTextRequest) -> Result<AddTextReport, AddTextError>` | Appends a new content stream; originals stay byte-verbatim. |
 | Add an invisible OCR text layer to one or more pages | `add_ocr_layer(&mut self, &[OcrPageLayer<'_>], &OcrLayerOptions) -> Result<Vec<OcrLayerReport>, OcrLayerError>` | **ONE undo entry for the whole run**, however many pages. Reads the SESSION graph, not the base. A page already carrying a pdfcer layer is handled per `OcrLayerOptions::existing` (default `Replace`; the replaced layer comes off in the same undo entry). |
@@ -461,7 +462,7 @@ together because the whole class of defect below was *"one of them didn't"*:
 - **empty `find` + `pinned_span` ⇒ the whole pinned operator.** Resolved by
   one shared function, so a preview and the commit it previews cannot describe
   different characters.
-- **empty `find`, no pin ⇒ refused**, `Unsupported("empty find text")`. It is
+- **empty `find`, no pin ⇒ refused**, `Unsupported(UnsupportedCause::EmptyFind)`. It is
   *not* a wildcard and *not* a no-op: every string contains the empty string,
   so an unpinned empty `find` would otherwise silently name the page's **first
   show operator** — an answer about something the caller never asked about.
@@ -769,6 +770,43 @@ options, pick a default") on the premise that **both had shipped**. This one had
 not — it was filed the same day and built a week later. A decision can certify
 its compliance with a standing rule using a fact that is not true, and nothing
 downstream checks it.
+
+
+### Refusal causes as data (`Pass 427.0`, request G081)
+
+`EditError::Unsupported`, `ReflowApplyError::Unsupported` and
+`AddTextError::Unsupported` carry `text_edit::UnsupportedCause`, a
+`#[non_exhaustive]` enum (`Debug, Clone, PartialEq, Eq, Hash`) whose `Display`
+is the CLI's sentence. Switch on the variant, never on the text. Variants:
+`NoContents`, `EmptyFind`, `QuoteOperator`, `CrossElementTj` (format path),
+`FontUnresolvable`, `EncodingNotInvertible`, `CompositeWithoutToUnicode`,
+`FontMapNotInvertible { detail }`, `VerticalWriting`, `FormNotOnPage { object }`,
+`FormUndecodable { object }`, `InsideFormXObject { object }`, `ReferenceXObject`,
+`OpiProxy`, `ObjectNumbersExhausted`, `PageNotDictionary`, and the reflow set
+`JustifyWithSpacing`, `MixedFonts`, `ShowWithoutFont`, `NoFont`,
+`NoShowOperators`, `RotatedOrSkewed { matrix }`, `MixedScale { matrix }`,
+`DegenerateCtm`, `ShowOutsideTextObject`, `SharedTextObject`,
+`NonContiguousTextObjects`, `ShowOperatorsNotFound`,
+`StateNotRestorable { detail }`, `CommitFailed { detail }`.
+
+- **Vertical writing is refused** with `VerticalWriting` on `edit_text`, its
+  preview, `edit_capability`, `run_repertoire` (an empty answer with
+  `cause: Some(VerticalWriting)`) and `reflow_block`: a Type 0 font whose
+  `/Encoding` is a predefined CMap named `…-V` or a CMap stream with
+  `/WMode 1` (ISO 32000-2 §9.7.5.2, Table 120). Lifted when vertical layout is
+  supported.
+- **`EditError::NoMatch { find, reason: NotFoundReason }`** (was
+  `NoMatch(String)`). `NoSuchText`, or `SpansTextObjects { objects }` when the
+  find appears only by joining show operators across `ET` (the Word line whose
+  trailing space is its own text object). A stale pin is
+  `PinnedSpanNotFound`, not `NoMatch`.
+- **`RunRepertoire::cause: Option<UnsupportedCause>`** — the structured twin of
+  `reason` when the empty answer is a cause `edit_text` would also name.
+- **Type 3 / custom glyph names** need no separate cause: they arrive as
+  `EditError::Refused(r)` with the structured `r.trigger: RInvTrigger`.
+- `FormatError::Unsupported` is still a `String` (the format verbs' own
+  refusals); it carries `UnsupportedCause`'s `Display` when the cause came
+  from the shared edit path.
 
 ### 1.10 Vector geometry (25) — detail in part 3
 

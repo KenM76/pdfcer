@@ -239,6 +239,7 @@ use crate::page_tree::{self, PageTreeError};
 use crate::settings::StylePolicy;
 use crate::span::ByteSpan;
 use crate::text_edit::EditGlyphSource;
+use crate::text_edit::cause::UnsupportedCause;
 use crate::text_edit::edit::{
     EditError, EditPlanTarget, EditRequest, EditTarget, FillState, FollowerDisposition, FontClass,
     MatchRun, OpRec, Rec, ShowData, ShowElem, ShowOp, Walk, carried_codes, classify_font,
@@ -1645,9 +1646,9 @@ impl FormatError {
         match err {
             EditError::Refused(r) => Self::Refused(r),
             EditError::PageIndex(i) => Self::PageIndex(i),
-            EditError::NoMatch(s) => Self::NoMatch(s),
+            EditError::NoMatch { find, .. } => Self::NoMatch(find),
             EditError::PinnedSpanNotFound { start, end } => Self::PinnedSpanNotFound { start, end },
-            EditError::Unsupported(s) => Self::Unsupported(s),
+            EditError::Unsupported(s) => Self::Unsupported(s.to_string()),
             EditError::Encrypted => Self::Encrypted,
             EditError::Content(e) => Self::Content(e),
             EditError::PageTree(e) => Self::PageTree(e),
@@ -4129,7 +4130,7 @@ pub(crate) fn preview_style_ladder(
     let find = effective_find(anchor, find, pinned_span);
     if find.is_empty() {
         return Err(FormatError::from_edit(EditError::Unsupported(
-            "empty find text".to_owned(),
+            crate::text_edit::UnsupportedCause::EmptyFind,
         )));
     }
 
@@ -4290,7 +4291,7 @@ pub(crate) fn preview_style_resolution(
         // operator rather than nothing. A routing decision about an operator
         // the caller never named is worse than an error.
         return Err(FormatError::from_edit(EditError::Unsupported(
-            "empty find text".to_owned(),
+            crate::text_edit::UnsupportedCause::EmptyFind,
         )));
     }
 
@@ -4754,6 +4755,11 @@ pub struct RunRepertoire {
     /// which is the behaviour the requesting shell asked for by name. `None`
     /// with an empty set would mean the font genuinely addresses nothing.
     pub reason: Option<String>,
+    /// The structured form of [`Self::reason`] when the run is refused for a
+    /// cause `edit_text` would also name — the value a shell switches on.
+    /// `None` when the repertoire is non-empty, or empty only because no
+    /// candidate character survived the per-character checks.
+    pub cause: Option<UnsupportedCause>,
 }
 
 impl RunRepertoire {
@@ -5091,7 +5097,7 @@ pub(crate) fn preview_font_resources_for(
     // same sentence rather than a second spelling of it.
     if find.is_empty() {
         return Err(FormatError::from_edit(EditError::Unsupported(
-            "empty find text".to_owned(),
+            crate::text_edit::UnsupportedCause::EmptyFind,
         )));
     }
 
@@ -6411,15 +6417,17 @@ pub(crate) fn run_repertoire(
     // one within an hour of it being written.
     let text = crate::text_edit::edit::effective_find(anchor, find, pinned_span).to_owned();
 
-    let empty = |reason: &str| RunRepertoire {
+    let empty = |reason: String, cause: Option<UnsupportedCause>| RunRepertoire {
         base_font: base_font.clone(),
         resource: resource.clone(),
         text: text.clone(),
         accepted: BTreeSet::new(),
         embedded_subset: false,
         candidates_tested: 0,
-        reason: Some(reason.to_owned()),
+        reason: Some(reason),
+        cause,
     };
+    let unsupported = |cause: UnsupportedCause| empty(cause.to_string(), Some(cause));
 
     // The subset floor is a fact about the PAGE, not about the face: a code
     // the subset does not already carry cannot be shown here whatever the
@@ -6430,7 +6438,8 @@ pub(crate) fn run_repertoire(
         // /Encoding, /ToUnicode-only) are exactly the "this editor should not
         // open" cases, and the requester asked for them as an empty answer
         // rather than an error.
-        Err(e) => return Ok(empty(&e.to_string())),
+        Err(EditError::Unsupported(cause)) => return Ok(unsupported(cause)),
+        Err(e) => return Ok(empty(e.to_string(), None)),
     };
     let embedded_subset = class.embedded && class.subset;
     let carried = if embedded_subset {
@@ -6444,7 +6453,7 @@ pub(crate) fn run_repertoire(
 
     if font.is_simple() {
         let Some(glyph_names) = font.glyph_names() else {
-            return Ok(empty("the run's font has no invertible encoding"));
+            return Ok(unsupported(UnsupportedCause::EncodingNotInvertible));
         };
         let inverse = InverseEncoding::build(&font.base_font, glyph_names);
         // THE SAME SEED THE EDIT PATH USES. `prefer` is the R-INV-5
@@ -6490,10 +6499,12 @@ pub(crate) fn run_repertoire(
         }
     } else {
         let Some(cmap) = font.to_unicode_cmap() else {
-            return Ok(empty("the run's composite font has no /ToUnicode"));
+            return Ok(unsupported(UnsupportedCause::CompositeWithoutToUnicode));
         };
         let Ok(composite) = CompositeEncoding::build(&font.base_font, cmap) else {
-            return Ok(empty("the run's composite font map cannot be inverted"));
+            return Ok(unsupported(UnsupportedCause::FontMapNotInvertible {
+                detail: "the composite font's map".to_owned(),
+            }));
         };
         for ch in composite.candidate_chars() {
             candidates_tested += 1;
@@ -6550,6 +6561,7 @@ pub(crate) fn run_repertoire(
         embedded_subset,
         candidates_tested,
         reason,
+        cause: None,
     })
 }
 

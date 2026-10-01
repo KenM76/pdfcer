@@ -197,3 +197,28 @@ fn an_unpinned_empty_find_is_told_about_the_flag() {
         "name both routes to a located run: {msg}"
     );
 }
+
+/// The refusal's cause is a token on the line, so a script can branch on WHY
+/// without parsing stderr: `cause=VerticalWriting` for a vertical font, and
+/// `cause=none` for the answerable horizontal control it differs from by one
+/// byte.
+#[test]
+fn the_line_names_the_refusal_cause() {
+    let control = fixture("text/composite-editable.pdf");
+    let bytes = std::fs::read(&control).unwrap();
+    let at = bytes
+        .windows(10)
+        .position(|w| w == b"Identity-H")
+        .expect("the fixture names Identity-H");
+    let mut vertical = bytes.clone();
+    vertical[at + 9] = b'V';
+    let path = temp_path("vertical");
+    std::fs::write(&path, &vertical).unwrap();
+
+    for (file, want) in [(&control, "none"), (&path, "VerticalWriting")] {
+        let out = run(&["run-repertoire", file.to_str().unwrap(), "--find", "ABC"]);
+        assert!(out.status.success(), "{}", stderr(&out));
+        assert_eq!(field(&stdout(&out), "cause="), want, "{}", stdout(&out));
+    }
+    let _ = std::fs::remove_file(&path);
+}

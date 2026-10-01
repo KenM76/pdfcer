@@ -233,7 +233,10 @@ fn an_empty_find_with_no_pin_is_still_refused() {
         &EditOptions::default(),
     )
     .expect_err("same on the replace verb");
-    assert!(matches!(err, EditError::Unsupported(ref m) if m.contains("empty find text")));
+    assert!(matches!(
+        err,
+        EditError::Unsupported(pdfcer_core::text_edit::UnsupportedCause::EmptyFind)
+    ));
 }
 
 #[test]

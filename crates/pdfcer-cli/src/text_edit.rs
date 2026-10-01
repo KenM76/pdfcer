@@ -142,7 +142,7 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
             eprintln!("pdfcer: edit-text refused: {err}");
             return match err {
                 EditError::Refused(_)
-                | EditError::NoMatch(_)
+                | EditError::NoMatch { .. }
                 | EditError::Unsupported(_)
                 | EditError::PageIndex(_)
                 | EditError::Encrypted => exit::EDIT_REFUSED,

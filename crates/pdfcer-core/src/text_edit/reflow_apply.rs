@@ -129,6 +129,7 @@ use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
 use crate::page_tree::{self, Page, PageTreeError};
 use crate::span::ByteSpan;
+use crate::text_edit::cause::UnsupportedCause;
 use crate::text_extract::font::ExtractFont;
 use crate::text_extract::{self, ContentStreamRef, ExtractError, ExtractOptions, GlyphProvenance};
 use crate::text_state::{AmbientRestoreError, AmbientTextState, TextStateParam};
@@ -226,8 +227,8 @@ pub enum ReflowApplyError {
     /// **Every one of these is permanent for this document as it stands** —
     /// see [`Self::PageEditedThisSession`], which was carved out of this
     /// variant precisely because it is *not*.
-    #[error("this block cannot be reflow-applied in this cut: {0}")]
-    Unsupported(String),
+    #[error("this block cannot be reflow-applied: {0}")]
+    Unsupported(UnsupportedCause),
     /// Text was added to this page **in this session**, in a new content
     /// stream, and reflow re-emits the page's first content stream only —
     /// so committing would drop the added run (`Pass 251.0`'s guard).
@@ -553,9 +554,10 @@ pub(crate) fn plan_reflow(
     block_index: usize,
     preview: &ReflowPreview,
 ) -> Result<ReflowPlan, ReflowApplyError> {
-    let content_id = *page.contents.first().ok_or_else(|| {
-        ReflowApplyError::Unsupported("the page has no /Contents to reflow".to_owned())
-    })?;
+    let content_id = *page
+        .contents
+        .first()
+        .ok_or(ReflowApplyError::Unsupported(UnsupportedCause::NoContents))?;
     let extra_emptied = page.contents.len().saturating_sub(1) as u64;
 
     let block = model
@@ -570,10 +572,9 @@ pub(crate) fn plan_reflow(
     let prov = block_provenance(model, block)?;
 
     // --- resolve + classify the font (composite ⇒ R-INV-4 refusal) ---
-    let font_dict =
-        resolve_font_dict(doc, &page.resources, &prov.font_resource).ok_or_else(|| {
-            ReflowApplyError::Unsupported("the block's font resource is unresolvable".to_owned())
-        })?;
+    let font_dict = resolve_font_dict(doc, &page.resources, &prov.font_resource).ok_or(
+        ReflowApplyError::Unsupported(UnsupportedCause::FontUnresolvable),
+    )?;
     // `doc` is the caller's graph — the session overlay or the loaded
     // file (`Pass 257.0`); see `plan_edit_target` in `edit.rs`.
     let font = ExtractFont::resolve(doc, font_dict);
@@ -591,9 +592,7 @@ pub(crate) fn plan_reflow(
     let uses_justify_tj = justified && preview.lines.iter().any(|l| l.justified_slack.is_some());
     if uses_justify_tj && (ts.tc().abs() > MTX_EPS || ts.tw().abs() > MTX_EPS) {
         return Err(ReflowApplyError::Unsupported(
-            "justify of a block with non-zero Tc/Tw is deferred (the slack arithmetic assumes the \
-             kept spaces carry only their own w0); reflow with left/right/centre instead"
-                .to_owned(),
+            UnsupportedCause::JustifyWithSpacing,
         ));
     }
 
@@ -660,8 +659,11 @@ pub(crate) fn plan_reflow(
     // text object: `q`/`Q` are not admitted in a `BT … ET` (§8.2 Table 51 /
     // Figure 9), and splitting the object to use them would discard `Tm`
     // (§9.4.1).
-    let restore = restore_ops(&emitted, &region.entry_state, &region.exit_state)
-        .map_err(|e| ReflowApplyError::Unsupported(e.to_string()))?;
+    let restore = restore_ops(&emitted, &region.entry_state, &region.exit_state).map_err(|e| {
+        ReflowApplyError::Unsupported(UnsupportedCause::StateNotRestorable {
+            detail: e.to_string(),
+        })
+    })?;
     let leak_closed = !restore.is_empty();
     body.extend_from_slice(&restore);
     body.extend_from_slice(b"ET");
@@ -847,10 +849,11 @@ fn block_provenance(
             match p.content_stream {
                 ContentStreamRef::Page => {}
                 ContentStreamRef::Form { object } => {
-                    return Err(ReflowApplyError::Unsupported(format!(
-                        "the block draws text through a form XObject (object {object}); \
-                         reflow-apply of form-XObject text is deferred"
-                    )));
+                    return Err(ReflowApplyError::Unsupported(
+                        UnsupportedCause::InsideFormXObject {
+                            object: Some(object),
+                        },
+                    ));
                 }
             }
             // Font resource must be uniform across the block.
@@ -858,16 +861,11 @@ fn block_provenance(
                 (None, Some(name)) => font_resource = Some(name.clone()),
                 (Some(seen), Some(name)) if seen == name => {}
                 (Some(_), Some(_)) => {
-                    return Err(ReflowApplyError::Unsupported(
-                        "the block mixes more than one font resource; reflow-apply of a \
-                         multi-font block is deferred"
-                            .to_owned(),
-                    ));
+                    return Err(ReflowApplyError::Unsupported(UnsupportedCause::MixedFonts));
                 }
                 (_, None) => {
                     return Err(ReflowApplyError::Unsupported(
-                        "a block glyph was shown with no font selected (malformed); refusing"
-                            .to_owned(),
+                        UnsupportedCause::ShowWithoutFont,
                     ));
                 }
             }
@@ -881,14 +879,13 @@ fn block_provenance(
     if !saw_glyph {
         return Err(ReflowApplyError::Preview(super::ReflowError::EmptyBlock(0)));
     }
-    let font_resource = font_resource.ok_or_else(|| {
-        ReflowApplyError::Unsupported("the block carries no font resource".to_owned())
-    })?;
+    let font_resource =
+        font_resource.ok_or(ReflowApplyError::Unsupported(UnsupportedCause::NoFont))?;
     let tm = tm.unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
     let ctm = ctm.unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
     if op_spans.is_empty() {
         return Err(ReflowApplyError::Unsupported(
-            "the block has no locatable show operators".to_owned(),
+            UnsupportedCause::NoShowOperators,
         ));
     }
     Ok(BlockProvenance {
@@ -935,7 +932,7 @@ fn record_prov(
 fn check_uniform_axis_aligned(
     seen: &mut Option<[f64; 6]>,
     m: [f32; 6],
-    label: &str,
+    label: &'static str,
 ) -> Result<(), ReflowApplyError> {
     let m = [
         f64::from(m[0]),
@@ -946,10 +943,9 @@ fn check_uniform_axis_aligned(
         f64::from(m[5]),
     ];
     if m[1].abs() > MTX_EPS || m[2].abs() > MTX_EPS {
-        return Err(ReflowApplyError::Unsupported(format!(
-            "the block's {label} is rotated or skewed (off-diagonal terms non-zero); \
-             reflow-apply of rotated/skewed text is deferred"
-        )));
+        return Err(ReflowApplyError::Unsupported(
+            UnsupportedCause::RotatedOrSkewed { matrix: label },
+        ));
     }
     match seen {
         None => *seen = Some(m),
@@ -957,10 +953,9 @@ fn check_uniform_axis_aligned(
         // legitimately differs per glyph/line.
         Some(prev) => {
             if (prev[0] - m[0]).abs() > MTX_EPS || (prev[3] - m[3]).abs() > MTX_EPS {
-                return Err(ReflowApplyError::Unsupported(format!(
-                    "the block spans more than one {label} scale; reflow-apply of a \
-                     multi-transform block is deferred"
-                )));
+                return Err(ReflowApplyError::Unsupported(
+                    UnsupportedCause::MixedScale { matrix: label },
+                ));
             }
         }
     }
@@ -973,7 +968,7 @@ fn check_uniform_axis_aligned(
 fn origin_to_tm(x: f64, y: f64, prov: &BlockProvenance) -> Result<(f64, f64), ReflowApplyError> {
     if prov.ctm_a.abs() < MTX_EPS || prov.ctm_d.abs() < MTX_EPS {
         return Err(ReflowApplyError::Unsupported(
-            "the block's CTM has a degenerate (zero) scale; refusing".to_owned(),
+            UnsupportedCause::DegenerateCtm,
         ));
     }
     Ok(((x - prov.ctm_e) / prov.ctm_a, (y - prov.ctm_f) / prov.ctm_d))
@@ -1000,6 +995,11 @@ fn refuse_if_composite(
         .and_then(Object::as_name)
         .map(|n| n.as_bytes().to_vec())
         .unwrap_or_default();
+    if subtype.as_slice() == b"Type0" && crate::text_edit::edit::writes_vertically(doc, font_dict) {
+        return Err(ReflowApplyError::Unsupported(
+            UnsupportedCause::VerticalWriting,
+        ));
+    }
     if subtype.as_slice() == b"Type0" || !font.is_simple() {
         return Err(ReflowApplyError::Refused(Refusal {
             trigger: RInvTrigger::Composite,
@@ -1224,9 +1224,7 @@ fn locate_block_region(
                         // block operator, we cannot re-emit it safely.
                         if is_block(span) {
                             return Err(ReflowApplyError::Unsupported(
-                                "a block show operator appears outside a BT … ET text object \
-                                 (malformed); refusing"
-                                    .to_owned(),
+                                UnsupportedCause::ShowOutsideTextObject,
                             ));
                         }
                     }
@@ -1248,9 +1246,7 @@ fn locate_block_region(
         }
         if obj.show_spans.iter().any(|&s| !is_block(s)) {
             return Err(ReflowApplyError::Unsupported(
-                "the block shares a BT … ET text object with other content; reflow-apply of an \
-                 interleaved block is deferred"
-                    .to_owned(),
+                UnsupportedCause::SharedTextObject,
             ));
         }
         if first_obj.is_none() {
@@ -1260,9 +1256,7 @@ fn locate_block_region(
             && i != last + 1
         {
             return Err(ReflowApplyError::Unsupported(
-                "the block's text objects are not contiguous in the content stream; \
-                 reflow-apply of a split block is deferred"
-                    .to_owned(),
+                UnsupportedCause::NonContiguousTextObjects,
             ));
         }
         last_obj = Some(i);
@@ -1272,8 +1266,7 @@ fn locate_block_region(
         (Some(fi), Some(la)) => (fi, la),
         _ => {
             return Err(ReflowApplyError::Unsupported(
-                "the block's show operators were not found in the content stream; refusing"
-                    .to_owned(),
+                UnsupportedCause::ShowOperatorsNotFound,
             ));
         }
     };
@@ -1892,7 +1885,10 @@ mod tests {
         let doc = load(&src);
         let err = apply_reflow(&doc, 0, 0, &ReflowRequest::new()).unwrap_err();
         assert!(
-            matches!(err, ReflowApplyError::Unsupported(m) if m.contains("rotated")),
+            matches!(
+                err,
+                ReflowApplyError::Unsupported(UnsupportedCause::RotatedOrSkewed { .. })
+            ),
             "rotated text refused by name"
         );
     }

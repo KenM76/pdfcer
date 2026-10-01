@@ -497,7 +497,6 @@ fn pdfcer-core/src/text_edit/model.rs::segment_blocks
 fn pdfcer-core/src/text_edit/placetext.rs::build_disclosures
 fn pdfcer-core/src/text_edit/placetext.rs::plan
 fn pdfcer-core/src/text_edit/reflow.rs::preview
-fn pdfcer-core/src/text_edit/reflow_apply.rs::block_provenance
 fn pdfcer-core/src/text_edit/reflow_apply.rs::locate_block_region
 fn pdfcer-core/src/text_edit/reflow_apply.rs::plan_reflow
 fn pdfcer-core/src/vector/clip.rs::from_bytes
