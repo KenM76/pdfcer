@@ -457,7 +457,8 @@ fn a_compressed_only_prc_model_is_refused_by_name() {
     assert!(!output.exists());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        stderr.contains("1 mesh(es) use compressed tessellation in a form"),
+        stderr.contains("1 mesh(es) use compressed tessellation in a form")
+            && stderr.contains("(a triangle refers to a vertex not yet decoded)"),
         "{stderr}"
     );
 }

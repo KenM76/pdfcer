@@ -224,7 +224,7 @@ impl Walk {
         self.pos
             .get(v as usize)
             .copied()
-            .ok_or_else(|| format!("reference to vertex {v} before it exists"))
+            .ok_or_else(|| "a triangle refers to a vertex not yet decoded".to_owned())
     }
 
     /// Adds one triangle; `flip` inverts the fold decision.
@@ -278,7 +278,7 @@ impl Walk {
             let n = *n;
             self.log.push(key(x, y));
             if n > 2 {
-                return Err(format!("edge {x}-{y} shared by more than two triangles"));
+                return Err("an edge is shared by more than two triangles".into());
             }
         }
         self.tris.push(tri);
@@ -352,12 +352,7 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
         ..
     } = w;
     if slot != a.is_reference.len() || ri != a.references.len() || pi != a.points.len() {
-        return Err(format!(
-            "arrays left over: slots {slot}/{}, references {ri}/{}, point values {pi}/{}",
-            a.is_reference.len(),
-            a.references.len(),
-            a.points.len()
-        ));
+        return Err("the decoded triangles do not use up the stored arrays".into());
     }
     let (normals, triangle_normals) = a
         .normals

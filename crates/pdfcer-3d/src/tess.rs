@@ -63,6 +63,9 @@ pub enum Tessellation {
         /// entity's tolerance per step, so they carry the producer's
         /// quantisation drift; faces are not separated.
         mesh: Option<TriangleMesh>,
+        /// Why `mesh` is `None`, in a sentence a shell can print; `None`
+        /// when the mesh was rebuilt.
+        not_rebuilt: Option<String>,
     },
 }
 
@@ -244,8 +247,16 @@ impl Ctx<'_, '_> {
                     Tessellation::Markup
                 }
                 TESS_3D_COMPRESSED => {
-                    let (triangles, mesh) = self.tess_3d_compressed()?;
-                    Tessellation::Compressed { triangles, mesh }
+                    let (triangles, rebuilt) = self.tess_3d_compressed()?;
+                    let (mesh, not_rebuilt) = match rebuilt {
+                        Ok(m) => (Some(m), None),
+                        Err(why) => (None, Some(why)),
+                    };
+                    Tessellation::Compressed {
+                        triangles,
+                        mesh,
+                        not_rebuilt,
+                    }
                 }
                 t => {
                     return Err(malformed(format!(
@@ -273,7 +284,7 @@ impl Ctx<'_, '_> {
     /// §1: `face_number` = largest face index + 1, `normal_is_reversed` is
     /// one bit per triangle, and `point_reference_array`'s compressed flag
     /// is implicit (more than three references).
-    fn tess_3d_compressed(&mut self) -> Result<(usize, Option<TriangleMesh>), PrcError> {
+    fn tess_3d_compressed(&mut self) -> Result<(usize, Result<TriangleMesh, String>), PrcError> {
         let r = &mut self.r;
         r.bit()?; // is_calculated
         r.bit()?; // has_faces
@@ -361,7 +372,6 @@ impl Ctx<'_, '_> {
                 }
             }),
         })
-        .ok()
         .map(|m| {
             let graphics =
                 compressed_graphics(&face_of, &multi, &line_attributes, &behaviours, faces);
@@ -1534,7 +1544,8 @@ mod tests {
             t[..],
             [Tessellation::Compressed {
                 triangles: 1,
-                mesh: None
+                mesh: None,
+                not_rebuilt: Some(_),
             }]
         ));
         crate::testw::check_fixture("compressed.prc", &bytes);
@@ -1545,7 +1556,8 @@ mod tests {
             t[..],
             [Tessellation::Compressed {
                 triangles: 1,
-                mesh: Some(_)
+                mesh: Some(_),
+                not_rebuilt: None,
             }]
         ));
         crate::testw::check_fixture("compressed_triangle.prc", &bytes);

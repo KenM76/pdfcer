@@ -153,6 +153,8 @@ struct Assembled {
     markups: usize,
     rebuilt: usize,
     compressed: usize,
+    /// Each distinct reason a compressed mesh was left out, with its count.
+    skipped_why: Vec<(String, usize)>,
     /// Why placements were not applied, when they were not.
     unplaced: Option<String>,
 }
@@ -208,6 +210,7 @@ fn assemble(data: &[u8]) -> Result<Assembled, String> {
     let (mut meshes, mut wires, mut markups) = (Vec::new(), 0usize, 0usize);
     let mut colours = Vec::new();
     let (mut rebuilt, mut compressed) = (0usize, 0usize);
+    let mut skipped_why: Vec<(String, usize)> = Vec::new();
     // Per file structure, each tessellation's triangle mesh (if it has one).
     let mut by_index: Vec<Vec<Option<pdfcer_3d::TriangleMesh>>> = Vec::new();
     for fs in &prc.file_structures {
@@ -224,8 +227,13 @@ fn assemble(data: &[u8]) -> Result<Assembled, String> {
                     rebuilt += 1;
                     Some(m)
                 }
-                Tessellation::Compressed { .. } => {
+                Tessellation::Compressed { not_rebuilt, .. } => {
                     compressed += 1;
+                    let why = not_rebuilt.unwrap_or_default();
+                    match skipped_why.iter_mut().find(|(w, _)| *w == why) {
+                        Some((_, n)) => *n += 1,
+                        None => skipped_why.push((why, 1)),
+                    }
                     None
                 }
                 _ => {
@@ -274,9 +282,11 @@ fn assemble(data: &[u8]) -> Result<Assembled, String> {
     let triangles: usize = meshes.iter().map(|m| m.triangles.len()).sum();
     if triangles == 0 {
         return Err(if compressed > 0 {
+            let why: Vec<&str> = skipped_why.iter().map(|(w, _)| w.as_str()).collect();
             format!(
                 "the model's {compressed} mesh(es) use compressed tessellation in a form \
-                 pdfcer does not yet rebuild into triangles"
+                 pdfcer does not yet rebuild into triangles ({})",
+                why.join("; ")
             )
         } else {
             "the model holds no triangle tessellation".to_owned()
@@ -290,6 +300,7 @@ fn assemble(data: &[u8]) -> Result<Assembled, String> {
         markups,
         rebuilt,
         compressed,
+        skipped_why,
         unplaced,
     })
 }
@@ -309,6 +320,9 @@ fn print_assembly_notes(a: &Assembled, drawn: &str) {
              small drift can accumulate across a mesh",
             a.rebuilt
         );
+    }
+    for (why, n) in &a.skipped_why {
+        println!("note: {n} compressed mesh(es) left out: {why}");
     }
 }
 

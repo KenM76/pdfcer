@@ -2808,6 +2808,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   was rebuilt by pdfcer's reconstruction of an undocumented encoding, and
   `placements()` failing means meshes are drawn unplaced. `pdfcer 3d-render`
   and `3d-mesh` print both notes; copy their wording.
+- A `Compressed { mesh: None, not_rebuilt: Some(why), .. }` is left out;
+  `why` is a sentence fit to show. The CLI prints one
+  `note: N compressed mesh(es) left out: <why>` per distinct reason.
 - CLI: `3d-mesh -o FILE.stl|.obj`, `3d-render -o FILE.png [--view iso|front|..]
   [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]`.
 
