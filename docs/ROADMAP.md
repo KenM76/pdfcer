@@ -115,6 +115,57 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.7` (`6204ea81`), 2026-10-01 — a panel folding back over itself swaps its continuation
+
+Continues the `Pass 421.x` bucket's compressed-tessellation thread — PRC
+entity 173 (`TESS_3D_Compressed`) reconstruction, `419.2`'s remainder,
+tracked in the spec RAG at
+`D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__tess_3d_compressed.md`
+§2a. `compressed.rs` (`crates/pdfcer-3d`, private) gains rule R6: a
+non-seed triangle whose new apex's raw `d` has `d.z == 0 ∧ d.y > 0` — a
+zero-thickness double-sided panel folding back over its own parent plane,
+on the parent's side — now swaps its two continuation edges for its own
+continuation only, instead of the standard two-child walk.
+
+Measured on the local-only 3D-PDF-Sample-School sample (prc-rs testdata,
+unknown provenance, never committed): with R6, 100 of 101 compressed
+entities now consume every slot/reference/point array exactly (was 99);
+the 99 that already decoded give identical triangle lists (R6 inert on
+them — additive, not corrective). Entity `e280` (T=280, stair
+stringers/slabs) newly decodes. `e282` (T=282) still FAILS, at triangle
+239 — its last panel's fold triangle has a REFERENCE apex, which carries
+no integer `d`, so R6's signal never fires; a separate open gap, not a
+regression from this fix. CLI `pdfcer 3d-mesh` on School: 347 of 348
+compressed meshes rebuilt (was 346).
+
+No public API change — `compressed.rs` is crate-private, so
+`docs/core-api/` is unaffected. No manifest change, `cargo tree` not
+applicable.
+
+**Tests.** New `a_folded_apex_swaps_its_continuation`, sabotage-checked:
+CAUGHT.
+
+`tools/run-gates.sh`: PASS, 42 commands including 2 filing gates.
+
+Spec RAG `prc__8137__tess_3d_compressed.md` updated with rule R6 (§2a,
+§8) by `pdfcer-spec-librarian` this session.
+
+`docs/FEATURES.md` row 534 ("View an embedded 3D model with camera
+controls"): boxes unchanged; note refined to record the fold rule and
+the narrower set of compressed entities still unread (`e282`'s
+reference-apex case).
+
+**Still open.** `e282`'s reference-apex fold (no integer signal to
+drive R6); residual apex drift (conditioning amplification, Reader
+comparison pending); textures, lights, saved views; stored-normal
+decode.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+name and sabotage result relayed from the dispatching engineer's own
+report on `6204ea81`, not independently reproduced. `tools/run-gates.sh`
+reported PASS by the engineer, not independently reproduced.
+Backup/push/release state not verifiable from here.
+
 ### `Pass 421.6` (`6a016719`), 2026-10-01 — faces carrying their own style draw in its colour
 
 Continues the `Pass 421.x` bucket past `421.2`'s per-part colour.
@@ -24282,9 +24333,18 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   colour-inheritance walk still able to override. New public
   `Placement::triangle_colours`. Compressed (entity 173) line-attribute
   arrays still skipped; no real sample exercises face styles.
+- `421.7` — **SHIPPED, `6204ea81`, 2026-10-01 (826th filing)**, full entry
+  in *Shipped* above. `419.2`'s compressed-tessellation (entity 173)
+  reconstruction gains fold rule R6: a non-seed triangle folding back
+  over its own parent plane (raw apex `d.z == 0 ∧ d.y > 0`) swaps its two
+  continuation edges for its own continuation. School sample: 100/101
+  compressed entities now consume every array exactly (was 99); one
+  entity (`e282`) still fails on a reference-apex fold with no integer
+  signal.
 
-**Next planned, in order**: fix the vaulted-roof tessellation tear
-(entity #868, `419.2`'s own remainder); then textures; then lights.
+**Next planned, in order**: `e282`'s reference-apex fold (compressed-173
+remainder, no signal yet); the vaulted-roof tessellation tear (entity
+#868, `419.2`'s own remainder); then textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
 gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`,

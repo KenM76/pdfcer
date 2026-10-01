@@ -4,6 +4,43 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (826th filing) — `Pass 421.7` (`6204ea81`): a panel folding back over itself swaps its continuation
+
+**Shipped:**
+- `Pass 421.7` — compressed-tessellation (PRC entity 173) reconstruction
+  in `pdfcer-3d`'s private `compressed.rs` gains fold rule R6: a
+  non-seed triangle whose new apex's raw `d` has `d.z == 0 ∧ d.y > 0` —
+  a zero-thickness double-sided panel folding back over its own parent
+  plane — swaps its two continuation edges for its own continuation
+  only. School sample: 100/101 compressed entities now consume every
+  array exactly (was 99); `e280` newly decodes; `e282` still fails, at
+  triangle 239, on a reference-apex fold with no integer signal. CLI
+  `3d-mesh` on School: 347/348 compressed meshes rebuilt (was 346). Full
+  entry in `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `e282`'s fold triangle has a REFERENCE apex (not a new vertex), which
+  carries no integer `d`, so R6's signal never fires — a separate open
+  gap from the one this Pass closed, not a regression. Recorded in the
+  spec RAG, `prc__8137__tess_3d_compressed.md` §2a/§8 (R6 row), updated
+  by `pdfcer-spec-librarian` this session.
+
+**Still in flight:** Next-owed order for the `421.x`/`419.x` compressed-
+tessellation thread: `e282`'s reference-apex fold, then the vaulted-roof
+tessellation tear (entity #868, `419.2`'s own remainder), then textures,
+then lights. Rung B (GUI orbit/pan/zoom, `421.1`) still not requested.
+
+**For next session:** Nothing new opened by this filing.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+name and sabotage result relayed from the dispatching engineer's own
+report on `6204ea81`, not independently reproduced. `tools/run-gates.sh`
+reported PASS (42 commands, 2 filing gates) by the engineer, not
+independently reproduced. Backup/push/release state not verifiable from
+here.
+
 ## 2026-10-01 (825th filing) — `Pass 421.6` (`6a016719`): faces carrying their own style draw in its colour
 
 **Shipped:**
