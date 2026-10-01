@@ -4,6 +4,52 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (820th filing) — `v0.69.0` RELEASED
+
+**Shipped:**
+- `v0.69.0` released — completes the 819th filing's "release in progress"
+  note. Tag `v0.69.0` (annotated, object `ea304b7b`) at `29350107`,
+  pushed, CI green. GitHub release `pdfcer-v0.69.0-windows-x64.zip`
+  (43,689,574 bytes, sha256 `237b1a8b80e3c5faee881f3bc991cbe8596bd02fee792db39d6c6019cbb8ca9d`)
+  via `tools/gh-release.py`. Portable build
+  `D:\builds\pdfcer-20260930-2225-2935010` (72,599,816 bytes) deployed to
+  OneDrive slot `pdfcer2` (`pdfcer1` keeps `v0.68.0`; next release writes
+  `pdfcer1`). Full details under `v0.69.0`'s own entry in `ROADMAP.md`'s
+  *Shipped*.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `tools/run-gates.sh`: 42 of 42 PASS at `25c57d00`.
+  `tools/verify-release.py v0.69.0` clean. Fresh-folder smoke test:
+  `--version` reports `0.69.0`/`v0.69.0`; `create-digital-id --key p256`
+  → `sign --cert` → `verify-signatures` reported integrity verified, 1
+  signature.
+- Release notes disclose a known limitation: the portable build is
+  compiled without the `download` feature, so `timestamp` (B-LTA archive
+  timestamp) refuses with exit 9 in the shipped CLI. Filed as a new
+  Backlog entry, "Portable release build ships without the `download`
+  feature" — open operator question, not decided.
+- Channel notice `notice_2026-09-30_v0.69.0_released.md` written to
+  `pdfcer-gui`'s channel.
+
+**Process slip, worth recording.** A fresh-folder smoke-test glob used an
+8-character hash where the build folder's own name carries 7; the empty
+match let `cp -r "$B"/.` fall through and copy the Git install root (~8 GB)
+into the session scratchpad instead, until killed. Deleted; nothing
+outside the scratchpad was touched. Lesson: `test -d` the resolved path
+before copying it.
+
+**Still in flight:** None new — `v0.69.0` release is complete.
+
+**For next session:** The `download`-feature Backlog question above is
+open; otherwise nothing release-blocking outstanding.
+
+**Sourcing (hard rule 8).** No shell tool this filing — the tag object,
+build size, hashes, gate/smoke-test results and GitHub/OneDrive details
+are relayed from the dispatching engineer's own report, not independently
+reproduced here.
+
 ## 2026-09-30 (819th filing) — `512d0c27`: chore — v0.69.0 version bump, release IN PROGRESS
 
 **Shipped:**

@@ -235,6 +235,87 @@ and the `tools/run-gates.sh` 42/42 result are taken from the dispatching
 engineer's own report, not independently reproduced here. Backup/push/
 release state not verifiable from here.
 
+### `v0.69.0` — RELEASED (2026-09-30)
+
+Release filing, not a Pass — completes the engineer's in-progress release
+reported in `Pass 425.0`'s own "Also filed this session" note (819th
+filing). Version-bump commit `512d0c27` ("chore: v0.69.0") bumps
+`Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.68.0 → 0.69.0; filed as such
+in `29350107` ("docs: file v0.69.0 bump -- release in progress").
+
+**Tag.** Annotated tag `v0.69.0`, object `ea304b7b`, points at `29350107`
+(the 819th filing's own docs commit), pushed. CI green at the tag.
+
+**Range since `v0.68.0` (`560b8911`): batches every Pass already filed
+above** — `10.17` (offline OCSP revocation checking, `3e0bc4a5`), `10.18`
+(PAdES B-LT writes validation material into `/DSS`, `3a488056`), `420.0`
+(transform several objects each by its own matrix, `043e3a22`/`2056ee4e`),
+`419.0` (list/extract embedded 3D models, `cc71aad0`), `419.1` (embed a
+supplied U3D/PRC model as a `/3D` annotation, `3b67fac1`), `417.1` (insert
+keeps page labels, `7ed8ec61`), `417.2` (delete keeps page labels,
+`e22fac53`), `417.3` (read/set page labels, `0a982db9`), `417.4` (reorder
+carries page labels, `3970f101`), `417.5` (extract/split keep page labels,
+closing the `417.x`/decision-072 family entirely, `3505dc49`), `416.1`
+(`merge_document` carries `/OCProperties`, closing `Pass 106.0`'s last
+gap, `d21ea7c5`), `10.19` (PAdES B-LTA archive timestamp, `5abc210b`),
+`421.0` (headless camera render of a decoded PRC model, `ac28b15b`),
+`421.2` (3D render draws each PRC part in its model-tree colour,
+`21bd10be`/`c0815bd7`/`5c5be0d9`/`86cadd4d`), `422.0` (engine-facing notes
+stop naming a shell's own verb, `c9dfd4e6`), `423.0` (list the whole undo
+and redo stacks, `2804e522`), `424.0` (re-compress an edited stream the
+source had Flate-compressed, `483f405a`), and `425.0` (create a
+self-signed digital ID, `5d2a70d0`) — all already filed above, plus
+decision 169 (PRC licensing ruling, `22862498`) and gate-fix/follow-up
+commits `3978966b`, `62c595fb`, `334fb0ae`, `0464e825`, `c8e3c45a`,
+`f9f78064`, `6aa9d641`, `b144946b`, `ed51dd0f`, `ccc24d9d`, `29da9f37`,
+`6d77aa9c`. **Not in this batch** (per the 819th filing's own
+correction, carried forward): `Pass 419.2` (optional `pdfcer-3d` crate,
+PRC reader) — still IN PROGRESS, no completed Shipped banner; `421.1`
+(camera orbit/pan/zoom) is `pdfcer-gui` territory and was never built
+in this repo.
+
+**Gates.** `tools/run-gates.sh`: 42 of 42 PASS on `25c57d00` (the tree
+immediately before the bump).
+
+**Build.** `tools/package-portable.py` →
+`D:\builds\pdfcer-20260930-2225-2935010`; 72,599,816 bytes staged.
+
+**Fresh-folder smoke test.** `pdfcer --version` reports `0.69.0`,
+revision `v0.69.0`, clean. `create-digital-id --key p256` → `sign --cert`
+→ `verify-signatures`: integrity verified, 1 signature.
+
+**Known limitation, stated in the release notes.** The portable build is
+compiled without the `download` feature, so `timestamp` (B-LTA document
+time-stamp) refuses with exit 9 in the shipped CLI. Whether the release
+build should enable `download` is an open Backlog question — see
+*Backlog*, "Portable release build ships without the `download`
+feature" below; not decided here.
+
+**GitHub release.** Published via `tools/gh-release.py`:
+`pdfcer-v0.69.0-windows-x64.zip`, 43,689,574 bytes, sha256
+`237b1a8b80e3c5faee881f3bc991cbe8596bd02fee792db39d6c6019cbb8ca9d`, plus
+its `.sha256`.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer2` (now
+`0.69.0`); `pdfcer1` keeps `v0.68.0`. Next release writes `pdfcer1`.
+
+**`verify-release.py v0.69.0`.** Clean.
+
+**Headline.** `10.19` closes B-LT into B-LTA with an archive timestamp;
+`425.0` mints a self-signed signing identity where only loading one
+existed before.
+
+**Channel notice.** `notice_2026-09-30_v0.69.0_released.md` written to
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself** — all
+contents were already filed per-Pass.
+
+**Sourcing (hard rule 8).** No shell tool this filing — all figures
+(tag object, build size, hashes, gate/smoke-test results, the
+`verify-release.py` and GitHub/OneDrive details) relayed from the
+dispatching engineer's own report; not independently reproduced here.
+
 ### `Pass 424.0` (`483f405a`), 2026-09-30 — re-compress an edited stream the source had Flate-compressed
 
 `pdfcer-gui` request (`request_cli_full_mode_size.md`): full-mode save output
@@ -23627,6 +23708,17 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Portable release build ships without the `download` feature (filed 820th filing, v0.69.0 release notes)
+
+The shipped `pdfcer-v0.69.0-windows-x64.zip` is compiled without the
+`download` Cargo feature, so `timestamp` (the B-LTA archive-timestamp
+subcommand, `Pass 10.19`) refuses with exit 9 in the release build — only
+a from-source build with `--features download` can fetch a TSA response.
+Decision 061 permits operator-requested network fetches from a shell; the
+open question is whether the *release* build specifically should enable
+`download` by default, trading a dependency-free portable zip for a
+working `timestamp` out of the box. Not decided — operator call.
 
 ### `reorder_pages` leaves `/PageLabels` positional (filed 800th filing)
 
