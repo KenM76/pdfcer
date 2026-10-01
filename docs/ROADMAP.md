@@ -115,6 +115,66 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 423.0` (`2804e522`), 2026-09-30 — list the whole undo and redo stacks
+
+`pdfcer-gui` request (`request_undo_history_listing.md`): only `undo_depth`/
+`undo_top`/`redo_top` were readable, so a caller wanting to undo back to a
+specific edit had to guess the step count and re-probe one step at a time.
+
+New `EditSession::undo_kinds()` / `redo_kinds()` — `impl
+ExactSizeIterator<Item = CommandKind>`, newest first — plus `redo_depth()`
+beside the existing `undo_depth()`. The page a command touched is not
+carried; that widening was not asked for.
+
+Test `the_undo_and_redo_stacks_list_newest_first`; reversing either order
+is caught.
+
+`docs/core-api/` §1.4 updated, verb count 297 → 300,
+`tools/check-core-api-verbs.py` clean.
+
+**No CLI caller** — the CLI's undo stack lives for one invocation only, so
+there is nothing to list once the process exits (`cli` stays `—`, not a
+gap). `gui` not yet wired.
+
+`docs/FEATURES.md`: the Undo/redo command log row updated in place to name
+the new listing accessors; `core [x]`/`cli —`/`gui [x]` unchanged — the
+existing tick covers ordinary undo/redo only, never rounded up to cover
+the new query.
+
+No §12 decision.
+
+### `Pass 422.0` (`c9dfd4e6`), 2026-09-30 — engine-facing notes and messages must not name a shell's own verb
+
+`pdfcer-gui` request (`request_doc_timestamp_notes_name_cli_verbs.md`):
+`DocTimestampReport`'s no-`/DSS` note told the operator to "run
+add-validation-material (B-LT) first for B-LTA" — `pdfcer`'s own CLI
+subcommand name, useless to a GUI whose equivalent act is File ▸
+Security ▸ *Add validation evidence…*.
+
+Fix, option 1 of the two offered: the note now reads "add validation
+material (PAdES B-LT) before stamping for B-LTA" — no verb of any kind.
+`pdfcer timestamp` appends its own line naming `pdfcer add-ltv` when that
+condition holds, so the CLI keeps the convenience the neutral wording
+dropped.
+
+A sweep of the engine's string literals against all 187 hyphenated CLI
+verbs found one more instance: `paste_objects`'s refusal for a form widget
+said "Use copy-field / paste-field" (two of `pdfcer`'s own verb names); now
+"Copy and paste it as a form field instead."
+
+Tests: `a_stamp_without_a_dss_or_a_signature_claims_no_pades_level` pins
+the neutral wording; CLI `timestamp_after_add_ltv_is_b_lta_and_verifies`
+(now also stamps a signed no-DSS file and asserts the `add-ltv` line) and
+`timestamp_on_an_unsigned_document_claims_no_level` (asserts the line is
+absent). Both sabotaged and caught.
+
+`docs/FEATURES.md`: the PAdES B-LTA row (`Pass 10.19`) updated in place to
+name the wording fix and the CLI's new printed line; no box change.
+
+New standing rule `R258` — see *Standing rules*.
+
+No §12 decision — a wording fix, not a crate boundary or invariant change.
+
 ### `Pass 421.2` (`21bd10be`, `c0815bd7`, `5c5be0d9`, `86cadd4d`), 2026-09-30 — 3D render draws each PRC part in its model-tree colour
 
 Continues the `Pass 421.x` bucket past `421.0`'s uniform-grey render, using
@@ -13967,6 +14027,20 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★★★★★★★★★ **`Pass 423.0` SHIPPED, 2026-09-30 (816th
+> filing), `2804e522`** — see top of *Shipped*. `EditSession` gains
+> `undo_kinds()`/`redo_kinds()` (newest-first `CommandKind` iterators) and
+> `redo_depth()`, so a caller can read the whole undo/redo stack instead of
+> only its top (`pdfcer-gui` request). Core-only; no CLI or GUI caller yet.
+> **`Next up` still has no named head.**
+
+> ★★★★★★★★★★★★★★★★★★★★★★★ **`Pass 422.0` SHIPPED, 2026-09-30 (816th
+> filing), `c9dfd4e6`** — see top of *Shipped*. `DocTimestampReport`'s
+> no-`/DSS` note and `paste_objects`'s widget-refusal message no longer
+> name `pdfcer`'s own CLI verb (`pdfcer-gui` request); `pdfcer timestamp`
+> now prints its own `pdfcer add-ltv` line instead. New standing rule
+> `R258`. **`Next up` still has no named head.**
 
 > ★★★★★★★★★★★★★★★★★★★★★★ **`Pass 421.2` SHIPPED, 2026-09-30 (815th
 > filing), `21bd10be`/`c0815bd7`/`5c5be0d9`/`86cadd4d`** — see top of
@@ -36810,6 +36884,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R197` — DATED INSTANCE NOTE, 2026-09-15 (557th filing, `729cf6db`).** `docs/core-api/index.md` restated `03-capabilities.md`'s line-count and clause-count citations, and they went stale the moment `0b48b3e2`/`2c199faa` (555th filing, `G018`) grew that file — `main` read red on `check-core-api-verbs.py` from that push until this filing's fix re-derived both figures. Not a new failure mode: the gate caught the drift on the first push after it happened, which is the control working as designed, not a gap in it.
 - **`R257` — DATED INSTANCE NOTE, THIRD DIRECTION, CREDITED TO `pdfcer-gui` (547th filing).** Not a multi-repo collision: a resume/hand-off document's own correction cited a captured-trace file inside a `.gitignore`d directory to support a claim about a ribbon region name — the citation resolved on exactly the one machine holding that untracked file and nowhere else. Re-pointed at tracked source. In the crediting project's own words: *"Same failure, third direction. Yours: the right filename in the wrong repository. Ours: the right filename in no repository. The common shape is a path that resolves somewhere being mistaken for a path that resolves anywhere."* The RAG file's own text is widened accordingly (repository-collision is now framed as one case of "resolves somewhere vs. resolves anywhere," not the whole rule) — three dated instances within roughly a day of the mint, from two projects, in three directions, is recorded there as evidence the boundary was drawn about right.
 - **`R230` — DATED INSTANCE NOTE, 2026-09-27 (662nd filing, `Pass 363.0`, `f1a708b8`), FIRST DATED INSTANCE.** Four subcommands' `--help` carried dated project history inside the `///` doc comment `clap` renders as help: `set-page-size`/`rotate-page --output` narrated a 2026-08-27 correction to their own wording; `ocr --dpi` carried a ~60-line measurement essay about the old 300 dpi default; `set-button-action` quoted the operator's 2026-08-30 ruling verbatim. Found by the engineer reading `set-page-size`'s definition on an unrelated loop tick, not from a request. Fixed by rewriting all four to current-behaviour-only text (the `--dpi` essay's operative fact survives in 4 lines; the full measurement stays in `docs/history`) and widening the existing `cli_help_ships_no_internal_markup` test with an `iso_date_at` check refusing any `YYYY-MM-DD` in rendered `--help`. No re-mint; ceiling unchanged.
+- `R258` — AN ENGINE-FACING STRING (A NOTE, A DISCLOSURE, AN ERROR MESSAGE) MUST NOT NAME A SHELL'S OWN VERB — THE SHELL APPENDS ITS OWN. `DocTimestampReport`'s no-`/DSS` note told every caller to "run add-validation-material (B-LT) first," `pdfcer`'s own CLI subcommand name, meaningless to `pdfcer-gui`, whose equivalent act is a menu item with no shell verb at all; a same-session sweep of the 187 hyphenated CLI verbs against the engine's string literals found a second instance, `paste_objects`'s widget-refusal message naming `copy-field`/`paste-field`. Fixed by wording the CONDITION, never the remedy's command name, in core; a shell that wants to name its own remedy appends it itself (`pdfcer timestamp` now prints `pdfcer add-ltv` as a trailing line). (`Pass 422.0`, `c9dfd4e6`, 2026-09-30, 816th filing.)
 
 ## Update protocol
 

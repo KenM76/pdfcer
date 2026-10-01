@@ -4,6 +4,83 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (816th filing) — `Pass 422.0`/`Pass 423.0` SHIPPED: two `pdfcer-gui` channel requests — engine notes stop naming the CLI's own verbs, and the undo/redo stacks are now fully readable
+
+**Shipped:**
+- `c9dfd4e6` — fix(sign): `Pass 422.0`. `DocTimestampReport`'s no-`/DSS`
+  note told the operator to "run add-validation-material (B-LT) first" —
+  `pdfcer`'s own CLI subcommand name, not a GUI action. Reworded to "add
+  validation material (PAdES B-LT) before stamping for B-LTA," naming no
+  shell's verb; `pdfcer timestamp` now prints its own trailing line naming
+  `pdfcer add-ltv`. A sweep of all 187 hyphenated CLI verbs against the
+  engine's string literals found one more hit: `paste_objects`'s
+  form-widget refusal said "Use copy-field / paste-field," now "Copy and
+  paste it as a form field instead."
+- `2804e522` — feat(edit): `Pass 423.0`. `EditSession` gains
+  `undo_kinds()`/`redo_kinds()` (newest-first `CommandKind` iterators) and
+  `redo_depth()`, so a caller can read the whole undo and redo stacks
+  instead of only depth + top kind. The page a command touched is not
+  carried.
+
+**Decisions made this session:**
+- New standing rule `R258` (from `Pass 422.0`): an engine-facing string —
+  note, disclosure, or error message — must not name a shell's own verb;
+  the shell appends its own remedy. No §12 decision for either Pass
+  (wording fix + additive API, no crate boundary or invariant change).
+
+**Findings + decisions:**
+- Both requests came from the `pdfcer-gui` channel
+  (`request_doc_timestamp_notes_name_cli_verbs.md`,
+  `request_undo_history_listing.md`); both replies are filed as
+  `open/reply_*_FIXED.md`.
+- `Pass 422.0`'s sweep is the generalizable finding: a core-layer string
+  that names one particular shell's verb spelling is wrong for every
+  *other* shell, and silently stale the moment that shell renames the
+  verb. Caught here by grepping the engine's literals against the CLI's
+  own verb list rather than by a GUI bug report arriving first.
+- `Pass 423.0` has no CLI caller — a one-shot `pdfcer` invocation has no
+  persisting undo stack to list, so `cli` is `—`, not a gap. `gui` has not
+  wired either `Pass 422.0`'s add-ltv line or `Pass 423.0`'s new
+  accessors as of this filing.
+- `docs/core-api/` §1.4 updated for `Pass 423.0` (verb count 297 → 300),
+  `tools/check-core-api-verbs.py` clean.
+- `docs/FEATURES.md`: Undo/redo command log row (Document & pages)
+  updated in place for `Pass 423.0`; PAdES B-LTA row (`Pass 10.19`,
+  Redaction & security) updated in place for `Pass 422.0`. No box changes
+  on either row — both ticks already covered the general capability;
+  neither new accessor/wording fix is rounded up into a GUI tick.
+
+**Test results:**
+- `Pass 422.0`: `a_stamp_without_a_dss_or_a_signature_claims_no_pades_level`
+  (pins the neutral wording); CLI
+  `timestamp_after_add_ltv_is_b_lta_and_verifies` (extended to also stamp
+  a signed no-DSS file and assert the `add-ltv` line) and
+  `timestamp_on_an_unsigned_document_claims_no_level` (asserts the line's
+  absence). Both sabotaged: CAUGHT.
+- `Pass 423.0`: `the_undo_and_redo_stacks_list_newest_first`; reversing
+  either order is CAUGHT.
+- Gates: `cargo fmt`, `cargo clippy -D warnings`,
+  `check-core-api-verbs.py` and `check-string-gaps` all clean for both
+  Passes. **`tools/run-gates.sh` (the full suite) has not been run yet
+  this session.**
+
+**Still in flight:**
+- `tools/run-gates.sh` full run still owed before this filing's two
+  Passes are considered release-ready.
+- `Pass 421.x` (interactive 3D viewer) unaffected by this filing — see
+  the 815th filing above for its own state.
+
+**For next session:**
+- Run `tools/run-gates.sh` and confirm green before any push.
+- `pdfcer-gui` has not yet wired `Pass 422.0`'s add-ltv disclosure line or
+  `Pass 423.0`'s `undo_kinds`/`redo_kinds`/`redo_depth` accessors — watch
+  for a follow-on request once it does.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes, test
+names and gate results relayed from the dispatching engineer's own report
+on `c9dfd4e6`/`2804e522`, not independently reproduced. Backup/push/
+release state not verifiable from here.
+
 ## 2026-09-30 (815th filing) — `Pass 421.2` SHIPPED: 3D render draws each PRC part in its model-tree colour; refutes the "stairs upside down" hypothesis, confirms the roof tear is unrelated and persists
 
 **Shipped:**
