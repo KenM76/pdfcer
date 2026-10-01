@@ -115,6 +115,87 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.8` (`31a319fd`), 2026-10-01 — a component that does not fit is retried with its fold inverted
+
+Continues the `Pass 421.x` bucket's compressed-tessellation thread,
+closing `421.7`'s own open gap (`e282`'s reference-apex fold). `compressed.rs`
+(`crates/pdfcer-3d`, private) moves its traversal state into a `Walk`
+struct that logs every edge-count increment. A component (a run begun
+from an empty stack) that fails to fit — consumes the wrong slot/
+reference/point count — is now rewound and retried ONCE with the fold
+decision inverted at its second triangle, the exact position every
+measured reference-apex fold occupied: a fold whose apex is a REFERENCE
+carries no integer `d`, so R6's `d.z == 0 ∧ d.y > 0` signal never fires
+on it, and the retry catches what the signal structurally can't see. A
+second failure after the retry is reported as before, not guessed at
+further.
+
+Also in this commit: `pdfcer 3d-render --help` no longer claims per-face
+colours are unread — they shipped in `421.6`; the help text hadn't been
+updated.
+
+Measured on the local-only 3D-PDF-Sample-School sample (prc-rs testdata,
+unknown provenance, never committed): CLI `pdfcer 3d-mesh` compressed
+meshes rebuilt 347 of 348 (`421.7`'s figure) -> 348 of 348,
+`compressed_skipped` 0, 70,196 triangles across 1,173 meshes. This closes
+the entity-level gap too — `compressed_skipped=0` means no compressed
+entity is left unreconstructed, so `e282` is resolved along with it.
+
+No public API change — `compressed.rs` is crate-private, `docs/core-api/`
+unaffected. No manifest change, `cargo tree` not applicable.
+
+**Tests.** `pdfcer-3d` compressed module: 9 tests pass. New:
+`a_reference_fold_is_found_by_retrying_the_component`,
+`a_fold_past_the_retry_point_is_detected`; existing
+`a_folded_apex_swaps_its_continuation` changed — its unfolded twin now
+decodes via the retry instead of erroring. Sabotage: retry-flip forced
+false — CAUGHT; fold detection forced false — CAUGHT, but only on the
+second attempt: it first SURVIVED because the retry masked a
+second-triangle fold, closed by adding the third-triangle test.
+
+`docs/FEATURES.md` row 534 ("View an embedded 3D model with camera
+controls"): boxes unchanged; note updated — School now reconstructs all
+348 of 348 compressed entities (was 347 of 348, `421.7`).
+
+**Still open.** Residual apex drift / conditioning amplification — a new
+worst-measured case on the front double-door panels, dated note added to
+the `Pass 421.x` Backlog bucket this filing; vaulted-roof tessellation
+tear (`419.2` remainder); textures, lights, saved views; stored-normal
+decode.
+
+**Also filed this session (827th filing).** Chore commit `f22fbec9`
+("chore: v0.70.0", `Cargo.toml` 0.69.0 → 0.70.0 plus both lockfiles) —
+recorded so `check-commits-filed.py` sees it filed.
+
+**Release in progress**: v0.70.0 will batch every Pass shipped since
+`v0.69.0` (tag object `ea304b7b` on `29350107`) — `421.3` (`Camera::fit`
+frames the projected bounding box, `046ec96f`, 821st filing), `421.4`
+(`Camera::fit_meshes` frames every vertex, `78f966c2`, 822nd filing;
+test-only clippy follow-up `d49224cd`, 824th filing), `421.5` (CLI fixes:
+stale assembly-test probes + `3d-mesh --format`-from-extension,
+`d8514cce`/`3ea9a5d8`, 823rd filing), `421.6` (per-face colour via
+`TESS_Face` line attributes, `6a016719`, 825th filing), `421.7` (fold
+rule R6, `6204ea81`, 826th filing), and `421.8` (fold-inversion retry,
+`31a319fd`, this entry) — all already filed above.
+
+**Known open defect at release time.** The front double-door panels show
+the same residual apex-drift/conditioning-amplification pattern this
+bucket has flagged since `419.2`, at its worst measured case — see the
+dated note in the `Pass 421.x` Backlog bucket. The operator asked to
+release regardless if an attempt to close it failed before the cut; it
+did, so v0.70.0 ships with the door drift still present.
+
+Tag, GitHub release, OneDrive deploy (slot `pdfcer1` next — `pdfcer2`
+keeps `v0.69.0`), fresh-folder smoke test and `verify-release.py` not yet
+done; not yet confirmed from here — full release filing to follow once
+tag/deploy details are relayed.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes,
+measured counts, test names and sabotage results relayed from the
+dispatching engineer's own report on `31a319fd`/`f22fbec9`, not
+independently reproduced. `tools/run-gates.sh` result not stated this
+session. Backup/push/release state not verifiable from here.
+
 ### `Pass 421.7` (`6204ea81`), 2026-10-01 — a panel folding back over itself swaps its continuation
 
 Continues the `Pass 421.x` bucket's compressed-tessellation thread — PRC
@@ -24341,18 +24422,45 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   compressed entities now consume every array exactly (was 99); one
   entity (`e282`) still fails on a reference-apex fold with no integer
   signal.
+- `421.8` — **SHIPPED, `31a319fd`, 2026-10-01 (827th filing)**, full entry
+  in *Shipped* above. Closes `421.7`'s `e282` gap: a component that fails
+  to fit is rewound and retried once with its fold decision inverted at
+  the second triangle — the position every measured reference-apex fold
+  occupied, which carries no integer `d` for R6's signal to see. School
+  sample: all 348 of 348 compressed meshes now rebuild, `compressed_skipped`
+  0 (was 347 of 348). Also fixed `3d-render --help`'s stale claim that
+  per-face colours (`421.6`) are unread.
 
-**Next planned, in order**: `e282`'s reference-apex fold (compressed-173
-remainder, no signal yet); the vaulted-roof tessellation tear (entity
-#868, `419.2`'s own remainder); then textures; then lights.
+**Dated note, 2026-10-01 (827th filing) — a separate open defect, NOT
+closed by `421.8`.** Ken reported the School render's front double door
+is "also messed up." Measured: its four carved panels (~1,500 vertices /
+~2,995 triangles each) spread ~0.8 m deep instead of their real 16 mm
+thickness. Each panel decodes clean for its first ~345 vertices, then
+breaks; the first bad vertex (349, one panel) has an IN-PLANE raw local
+offset (`d.z` = 45 units at tol 1e-5) — the error is in the accumulated
+FRAME, not the per-vertex data — following two ill-conditioned steps back
+to back: a 13 mm entry edge with its apex 926 mm away, then a 17 mm entry
+edge with its apex 698 mm away. This is the existing "residual apex
+drift / conditioning amplification" item (open since `419.2`) at its
+worst measured case, not a new rule — `421.8`'s retry is a different
+failure mode (reference-apex fold, not frame conditioning) and does not
+reach it. Still open; the decisive test remains comparing the same file
+against Acrobat Reader's own render. Ken asked to release anyway if an
+attempt to close it failed before the cut — it did, so v0.70.0 ships with
+the door drift present.
+
+**Next planned, in order**: the vaulted-roof tessellation tear (entity
+#868, `419.2`'s own remainder); the door-panel conditioning-amplification
+case above (same item, worst instance yet); then textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
 gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`,
 framing fix noted by `421.3`, vertex-fit noted by `421.4`, per-face colour
-noted by `421.6`); `gui` stays `[ ]` pending `421.1`. Stays in *Planned* —
-the row names the interactive-controls capability, and that still needs
-Rung B. `421.5`'s `3d-mesh` format-from-extension fix is noted on the
-separate mesh-export row (`419.2`, *Implemented*), not this one.
+noted by `421.6`, compressed-decode gap closed by `421.8`); `gui` stays
+`[ ]` pending `421.1`. Stays in *Planned* — the row names the
+interactive-controls capability, and that still needs Rung B. `421.5`'s
+`3d-mesh` format-from-extension fix is noted on the separate mesh-export
+row (`419.2`, *Implemented*), not this one.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 

@@ -4,6 +4,59 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (827th filing) — `Pass 421.8` (`31a319fd`) + `v0.70.0` version bump (`f22fbec9`): fold-inversion retry, and an open door-panel finding
+
+**Shipped:**
+- `Pass 421.8` — closes `421.7`'s `e282` gap: `compressed.rs`
+  (`pdfcer-3d`, private) moves traversal state into a `Walk` struct; a
+  component that fails to fit is rewound and retried once with its fold
+  decision inverted at the second triangle — the spot every measured
+  reference-apex fold sat, where R6's integer-`d` signal can't fire.
+  School sample: 348 of 348 compressed meshes now rebuild,
+  `compressed_skipped` 0 (was 347 of 348). Also fixed `3d-render --help`'s
+  stale claim that per-face colours (`421.6`) are unread. Full entry in
+  `ROADMAP.md`'s *Shipped*.
+- Chore `f22fbec9` ("chore: v0.70.0") bumps `Cargo.toml`/both lockfiles
+  0.69.0 → 0.70.0. **v0.70.0 release IN PROGRESS**, not yet tagged/
+  deployed/smoke-tested — batches `421.3` through `421.8` (all shipped
+  since `v0.69.0`'s `820th` filing); full batch list in `ROADMAP.md`'s
+  `Pass 421.8` entry. OneDrive slot `pdfcer1` next.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- New, NOT closed by `421.8`: Ken reported the School render's front
+  double door is "also messed up." Its four carved panels spread ~0.8 m
+  deep instead of their real 16 mm thickness; each decodes clean for its
+  first ~345 vertices, then breaks on an in-plane raw offset (frame
+  error, not per-vertex data) following two ill-conditioned steps in a
+  row (a 13 mm edge with its apex 926 mm away, then a 17 mm edge with its
+  apex 698 mm away). This is the existing "residual apex drift /
+  conditioning amplification" item (open since `419.2`) at its worst
+  measured case, not a new rule — a different failure mode from the
+  reference-apex fold `421.8` fixed. Dated note added to the `Pass
+  421.x` Backlog bucket in `ROADMAP.md`. Decisive test still pending:
+  comparing the same file against Acrobat Reader's own render.
+- Ken asked to release v0.70.0 regardless if an attempt to close the
+  door-panel drift failed before the cut. It did; the release proceeds
+  with that defect disclosed and open.
+
+**Still in flight:** `421.x` bucket's next-owed order, updated: the
+vaulted-roof tessellation tear (entity #868, `419.2`'s own remainder);
+the door-panel conditioning-amplification case above (same item, worst
+instance yet); then textures; then lights. Rung B (GUI orbit/pan/zoom,
+`421.1`) still not requested. v0.70.0 release still owes tag, GitHub
+asset, OneDrive deploy, fresh-folder smoke test and `verify-release.py`.
+
+**For next session:** Finish the v0.70.0 release (tag/deploy/smoke-test/
+`verify-release.py`), then pick up the next-owed order above.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes,
+measured counts, test names and sabotage results relayed from the
+dispatching engineer's own report on `31a319fd`/`f22fbec9`, not
+independently reproduced. `tools/run-gates.sh` result not stated this
+session. Backup/push/release state not verifiable from here.
+
 ## 2026-10-01 (826th filing) — `Pass 421.7` (`6204ea81`): a panel folding back over itself swaps its continuation
 
 **Shipped:**
