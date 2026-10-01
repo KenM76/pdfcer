@@ -111,6 +111,7 @@ use crate::page_tree::{self, Page, PageTreeError};
 use crate::settings::UnmappableCode;
 use crate::span::ByteSpan;
 use crate::text_edit::encoding::{CompositeEncoding, InverseEncoding, RInvTrigger, Refusal};
+use crate::text_edit::font_extend::Blocked;
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
 use crate::text_extract::font::ExtractFont;
 use crate::text_state::{AmbientTextState, TextStateParam};
@@ -2431,11 +2432,19 @@ fn extend_subset(
             missing.push((u, code));
         }
     }
-    let Some(&(u, code)) = missing.first() else {
+    if missing.is_empty() {
         return Ok(None);
-    };
+    }
     let Some(glyphs) = opts.embedded_glyphs else {
-        return Err(subset_floor(doc, target, recs, font, u, code, None));
+        let unread: Vec<Blocked> = missing
+            .iter()
+            .map(|&(ch, code)| Blocked {
+                ch,
+                code,
+                reason: String::new(),
+            })
+            .collect();
+        return Err(subset_floor(doc, target, recs, font, &unread));
     };
     crate::text_edit::font_extend::plan(
         doc,
@@ -2446,7 +2455,7 @@ fn extend_subset(
         glyphs,
     )
     .map(Some)
-    .map_err(|b| subset_floor(doc, target, recs, font, b.ch, b.code, Some(&b.reason)))
+    .map_err(|b| subset_floor(doc, target, recs, font, &b))
 }
 
 /// The embedded-subset floor: a code the subset does not already carry on
@@ -2459,17 +2468,17 @@ fn extend_subset(
 /// same remedy the absent-glyph refusal names, because an operator
 /// experiences the two as one thing.
 ///
-/// Returns [`EditError::Refused`] with [`RInvTrigger::TargetAbsent`]; `why`
-/// says why route A could not add the character.
+/// Returns [`EditError::Refused`] with [`RInvTrigger::TargetAbsent`] naming
+/// the first of `blocked`; the message lists every one, each with the reason
+/// route A could not add it (empty when no program reader was supplied).
 fn subset_floor(
     doc: &DocumentView<'_>,
     target: &EditPlanTarget,
     recs: &[OpRec],
     font: &ExtractFont,
-    u: char,
-    code: u32,
-    why: Option<&str>,
+    blocked: &[Blocked],
 ) -> EditError {
+    let (u, code) = blocked.first().map_or((char::MIN, 0), |b| (b.ch, b.code));
     let reachable =
         crate::text_edit::format::std14_faces_reachable(doc, &target.resources, recs, u);
     let remedy = match crate::text_edit::encoding::faces_clause(&reachable).as_str() {
@@ -2478,9 +2487,7 @@ fn subset_floor(
             " To make this edit now, switch the run to a font that carries '{u}' -- `format_text` with `set_font` will add one, and {clause}"
         ),
     };
-    let why = why.map_or(String::new(), |w| {
-        format!(" It could not be added to the font: {w}.")
-    });
+    let why = refusal_reasons(blocked);
     EditError::Refused(Refusal {
         trigger: RInvTrigger::TargetAbsent,
         character: Some(u),
@@ -2494,6 +2501,27 @@ fn subset_floor(
             u as u32, u, code, font.base_font, why, remedy
         ),
     })
+}
+
+/// The per-character tail of the subset-floor message: the first character's
+/// reason, then every other refused character with its own.
+fn refusal_reasons(blocked: &[Blocked]) -> String {
+    let mut out = String::new();
+    if let Some(r) = blocked.first().map(|b| &b.reason).filter(|r| !r.is_empty()) {
+        out.push_str(&format!(" It could not be added to the font: {r}."));
+    }
+    let rest: Vec<String> = blocked
+        .iter()
+        .skip(1)
+        .map(|b| match b.reason.as_str() {
+            "" => format!("U+{:04X} '{}' (code {})", b.ch as u32, b.ch, b.code),
+            r => format!("U+{:04X} '{}' (code {}): {r}", b.ch as u32, b.ch, b.code),
+        })
+        .collect();
+    if !rest.is_empty() {
+        out.push_str(&format!(" Also refused: {}.", rest.join("; ")));
+    }
+    out
 }
 
 /// The disclosures every edit carries, whatever it was written into.

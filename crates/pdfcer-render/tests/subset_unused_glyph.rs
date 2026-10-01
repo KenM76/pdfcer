@@ -199,3 +199,32 @@ fn the_repertoire_with_a_reader_accepts_exactly_what_the_edit_adds() {
         "without a reader the floor is unchanged"
     );
 }
+
+/// G075 (c): every refused character is named with its own reason, not only
+/// the first. Page 2 is patched to show `D`, so `D` fails on width and `E`
+/// on its empty slot.
+#[test]
+fn every_refused_character_is_named_with_its_reason() {
+    let base = fixture_bytes();
+    let at = base
+        .windows(6)
+        .position(|w| w == b"(A) Tj")
+        .expect("page 2 run");
+    let mut bytes = base.clone();
+    bytes[at + 1] = b'D';
+    let doc = Document::from_bytes(bytes).unwrap();
+    let err = edit(&doc, "ADE", &opts()).unwrap_err();
+    assert!(err.contains("'D' maps to code 68"), "{err}");
+    assert!(err.contains("code 68 is already shown elsewhere"), "{err}");
+    assert!(
+        err.contains("Also refused: U+0045 'E' (code 69): the embedded program has no outline"),
+        "{err}"
+    );
+}
+
+#[test]
+fn without_a_reader_every_refused_character_is_still_named() {
+    let doc = Document::from_bytes(fixture_bytes()).unwrap();
+    let err = edit(&doc, "ADE", &EditOptions::default()).unwrap_err();
+    assert!(err.contains("Also refused: U+0045 'E' (code 69)."), "{err}");
+}

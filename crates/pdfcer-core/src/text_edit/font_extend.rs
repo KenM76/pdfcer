@@ -149,7 +149,8 @@ fn shown_elsewhere(code: u32) -> String {
 ///
 /// # Errors
 ///
-/// [`Blocked`] naming the first character that cannot be added and why.
+/// Every character that cannot be added, each with its reason; a reason that
+/// belongs to the font as a whole is reported once, against the first.
 pub(crate) fn plan(
     doc: &DocumentView<'_>,
     resources: &Dict,
@@ -157,32 +158,43 @@ pub(crate) fn plan(
     font_dict: &Dict,
     missing: &[(char, u32)],
     glyphs: &dyn EmbeddedGlyphs,
-) -> Result<FontExtension, Blocked> {
+) -> Result<FontExtension, Vec<Blocked>> {
     let first = missing.first().copied().unwrap_or((char::MIN, 0));
-    let whole = |reason: String| Blocked {
-        ch: first.0,
-        code: first.1,
-        reason,
+    let whole = |reason: String| {
+        vec![Blocked {
+            ch: first.0,
+            code: first.1,
+            reason,
+        }]
     };
     let t = Target::read(doc, resources, font_name, font_dict).map_err(whole)?;
-    let added = missing
-        .iter()
-        .map(|&(ch, code)| {
-            t.assess(ch, code, glyphs)
-                .map_err(|reason| Blocked { ch, code, reason })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let (mut added, mut blocked) = (Vec::new(), Vec::new());
+    for &(ch, code) in missing {
+        match t.assess(ch, code, glyphs) {
+            Ok(a) => added.push(a),
+            Err(reason) => blocked.push(Blocked { ch, code, reason }),
+        }
+    }
 
     let mut dict = font_dict.clone();
     if added.iter().any(|a| a.widened) {
         let shown = codes_shown(doc, t.font_id).map_err(whole)?;
-        if let Some(a) = added.iter().find(|a| a.widened && shown.contains(&a.code)) {
-            return Err(Blocked {
-                ch: a.ch,
-                code: a.code,
-                reason: shown_elsewhere(a.code),
-            });
-        }
+        blocked.extend(
+            added
+                .iter()
+                .filter(|a| a.widened && shown.contains(&a.code))
+                .map(|a| Blocked {
+                    ch: a.ch,
+                    code: a.code,
+                    reason: shown_elsewhere(a.code),
+                }),
+        );
+    }
+    if !blocked.is_empty() {
+        blocked.sort_by_key(|b| missing.iter().position(|&(_, c)| c == b.code));
+        return Err(blocked);
+    }
+    if added.iter().any(|a| a.widened) {
         let (mut widths, mut first_char) = (t.shape.widths.clone(), t.shape.first_char);
         for a in added.iter().filter(|a| a.widened) {
             set_width(
