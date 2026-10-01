@@ -15639,6 +15639,21 @@ closes out the *prior* filing's business rather than opening this one's.
 >   `EditOptions` flag; refuses on metric mismatch. **Unlike `430.0`/
 >   `430.2`/`430.3`, this one changes font PROGRAM bytes — needs its own
 >   decision record before code (decision 172 §7).**
+>   **★ UNBLOCKED 2026-10-01 (853rd filing, decision 173, `03d68447`).**
+>   Acceptance criteria, from the record: opt-in
+>   `EditOptions::with_subset_augment(SubsetAugment)` (default `None`);
+>   all seven identity checks pass (I1–I7 — name/tag match, `glyf`
+>   flavour, `R109` on both carriers, `unitsPerEm` equal, flattened
+>   outline+`hmtx` equal per shared glyph, at least one non-empty outline
+>   compared, face maps the character) before a new `FontFile2` +
+>   `FontDescriptor` + tag is written and the old stream/descriptor left
+>   untouched; any failed check refuses by name (not a weaker match) and
+>   falls through to `431.0`; one `EditReport`/CLI disclosure entry per
+>   augmented font naming the source face, glyph count and hinting
+>   disposition; the augmented program is re-parsed and verified a strict
+>   superset (`R260`) before commit, never skipped. Two open items for
+>   Ken, default-answered until then — see *Open operator questions*
+>   `(cg)` (new) and the existing `(r)`.
 > - **`Pass 430.2`** (new, split from `430.0`) — route A, rest (decision
 >   172): code allocation via `/Differences` (keeping `/BaseEncoding`),
 >   composite Identity-H (`/W`, `/ToUnicode`), post-name glyph lookup
@@ -35722,6 +35737,19 @@ shape, not the schedule.** No Pass ID assigned.
 
 ## Open operator questions (as of 2026-08-02 — answer any, all default to the stated fallback if not answered)
 
+**★ NEW 2026-10-01 (853rd filing) — ONE QUESTION, SURFACED BY DECISION 173
+(`03d68447`, `ARCHITECTURE.md` §12). Operator-question ceiling moves
+`(cf)` → `(cg)`, next free `(ch)`:**
+
+- **(cg) PDF/A §6.2.11.4.1 ("legally embeddable for unlimited, universal
+  rendering"): does an installed face's `OS/2.fsType` usage value 4 or 8
+  qualify, for `Pass 430.1`'s subset-augment feature?** *Default if
+  unanswered:* in a file claiming PDF/A (XMP `pdfaid`), augment only from
+  a face with `fsType` usage value 0; otherwise refuse with
+  `PdfaEmbeddingUnconfirmed`. Not a new question for value 4 with an
+  absent `OS/2` — that case stays under the existing question `(r)`,
+  which `Pass 430.1` inherits unchanged (decision 173 §9).
+
 **★ NEW 2026-09-25 (593rd filing) — ONE QUESTION, SURFACED BY `Pass 329.0`
 (*Shipped*, above). Operator-question ceiling moves `(ce)` → `(cf)`, next
 free `(cg)`:**
@@ -38774,6 +38802,9 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R230` — DATED INSTANCE NOTE, 2026-09-27 (662nd filing, `Pass 363.0`, `f1a708b8`), FIRST DATED INSTANCE.** Four subcommands' `--help` carried dated project history inside the `///` doc comment `clap` renders as help: `set-page-size`/`rotate-page --output` narrated a 2026-08-27 correction to their own wording; `ocr --dpi` carried a ~60-line measurement essay about the old 300 dpi default; `set-button-action` quoted the operator's 2026-08-30 ruling verbatim. Found by the engineer reading `set-page-size`'s definition on an unrelated loop tick, not from a request. Fixed by rewriting all four to current-behaviour-only text (the `--dpi` essay's operative fact survives in 4 lines; the full measurement stays in `docs/history`) and widening the existing `cli_help_ships_no_internal_markup` test with an `iso_date_at` check refusing any `YYYY-MM-DD` in rendered `--help`. No re-mint; ceiling unchanged.
 - `R258` — AN ENGINE-FACING STRING (A NOTE, A DISCLOSURE, AN ERROR MESSAGE) MUST NOT NAME A SHELL'S OWN VERB — THE SHELL APPENDS ITS OWN. `DocTimestampReport`'s no-`/DSS` note told every caller to "run add-validation-material (B-LT) first," `pdfcer`'s own CLI subcommand name, meaningless to `pdfcer-gui`, whose equivalent act is a menu item with no shell verb at all; a same-session sweep of the 187 hyphenated CLI verbs against the engine's string literals found a second instance, `paste_objects`'s widget-refusal message naming `copy-field`/`paste-field`. Fixed by wording the CONDITION, never the remedy's command name, in core; a shell that wants to name its own remedy appends it itself (`pdfcer timestamp` now prints `pdfcer add-ltv` as a trailing line). (`Pass 422.0`, `c9dfd4e6`, 2026-09-30, 816th filing.)
 - `R259` — AN EXISTING FONT DICTIONARY MAY GAIN A NEW REVISION ONLY BY ADDITION: codes/CIDs with no user anywhere the dictionary is reached may be assigned; no existing code-to-glyph, width or Unicode mapping changes; font program streams are never modified; `/Encoding`, `/Widths`, `/ToUnicode` and `/CIDToGIDMap` are written as new objects (copy-on-write), so a sub-object shared with another font can never carry the change to it (decision 172, 2026-10-01; librarian-assigned number — the record was committed citing "decision 040," a collision with the existing 2026-08-11 `print_render_options` decision 040; renumbered here per `docs/decisions/README.md`'s "one number space" rule, see `ARCHITECTURE.md` §12).
+- **`R259` — AMENDED 2026-10-01 (853rd filing, decision 173, `03d68447`).** "Font program streams are never modified" now reads: *an existing program stream is never modified. Under decision 173 only, a font dictionary revision may reference a new descriptor and a new program that is a strict superset of the old one — in it, every existing GID keeps its `glyf` record byte-identical and keeps its `hmtx` entry and every cmap mapping; glyphs are appended only; the program carries a new tag.* Every other clause of `R259` is unchanged; other users of the old stream or descriptor keep them.
+- `R260` — AN AUGMENTED FONT PROGRAM (DECISION 173) IS RE-PARSED WITH THE EXISTING PARSER (`R21`) AND VERIFIED BEFORE COMMIT: `numGlyphs` = old + added; old GIDs byte-equal and old cmap mappings equal; new mappings reach outlines equal to the donor face's; checksums and `checkSumAdjustment` valid. A failure refuses as an internal error; the check is never skipped for speed (decision 173, 2026-10-01; librarian-assigned number).
+- **`R109` — DATED INSTANCE NOTE, 2026-10-01 (853rd filing, decision 173).** Now runs on TWO carriers: the shell-supplied installed face, and the embedded subset's own `OS/2` when present (so OpenType C2 holds on the copied-byte-identical `OS/2`). Either failing refuses; `Pass 430.1`, unstarted.
 
 ## Update protocol
 

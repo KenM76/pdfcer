@@ -4,6 +4,49 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (853rd filing) — decision 173 filed (subset augment from an installed face); `Pass 430.1` unblocked; `R259` amended, `R260` minted
+
+**Shipped:** nothing — docs-only filing, no code.
+
+**Decisions made this session:**
+- Decision 173 (KenAgent, committed `03d68447`): with opt-in
+  `EditOptions::subset_augment` set, a character missing from a simple
+  nonsymbolic TrueType subset's program can be made showable by writing a
+  **new** `FontFile2` (old program copied byte-identical, new glyphs
+  appended) + new `FontDescriptor` + new tag, gated on a seven-point
+  identity check (I1–I7) against a shell-supplied installed face. The old
+  stream/descriptor are never modified. Any failed check refuses by name,
+  falling through to `Pass 431.0`. Amends decision 172/`R259`; extends
+  `R109` to a second carrier. Answers `pdfcer-gui` request `G075(b)`.
+
+**Findings + decisions:**
+- `R259` amended (not re-minted): its "font program streams are never
+  modified" clause now carves out decision 173's one exception — a *new*
+  program that is a strict superset of the old one, old GIDs/hmtx/cmap
+  byte-identical, glyphs appended only, new tag.
+- `R260` minted: an augmented program must be re-parsed with the existing
+  parser (`R21`) and verified a strict superset before commit; never
+  skipped.
+- `R109` dated instance: now runs on two carriers (the installed face and
+  the subset's own `OS/2`).
+- Two items surfaced for Ken, both default-answered until he rules:
+  whether PDF/A's "legally embeddable for unlimited, universal rendering"
+  (ISO 19005-2 §6.2.11.4.1) covers `fsType` usage value 4 or 8 — new
+  question `(cg)`; and `fsType` value 4 with an absent `OS/2`, which is
+  NOT new — it stays under the existing question `(r)`, inherited
+  unchanged by `Pass 430.1`.
+
+**Still in flight:**
+- `Pass 430.1` (*Next up*) is now unblocked by decision 173 but unstarted;
+  no `EditOptions`/identity-check/program-surgery code exists yet.
+  `docs/FEATURES.md`'s subset-augment row stays all-`[ ]`, annotated
+  "decided (173), not built."
+
+**For next session:**
+- `Pass 430.1` is implementation-ready against decision 173's acceptance
+  criteria (recorded in `ROADMAP.md`'s *Next up* entry); `430.2`/`430.3`
+  remain separately unstarted, unaffected by this filing.
+
 ## 2026-10-01 (852nd filing) — `Pass 430.0` SLICE 3 SHIPPED (`e3726990`) — extend a subset's `/ToUnicode` when typing an unshown glyph; `Pass 430.0` now COMPLETE; ledger-gate fix
 
 **Shipped:**

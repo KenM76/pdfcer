@@ -12226,3 +12226,30 @@ into the program — changes program bytes and needs its own decision
 (`Pass 430.1`, not yet started).
 
 **Decision ceiling: `171` → `172`**, next free `173`.
+
+### 2026-10-01 (853rd filing, `03d68447`, KenAgent) — decision 173: an embedded TrueType subset may gain glyphs from its installed face, as a NEW program
+
+**What this decides.** With `EditOptions::subset_augment` set (opt-in,
+default `None`), a character missing from a simple-TrueType subset's
+program is made showable in the same font: a shell-supplied installed
+face is checked against the subset by a seven-point identity test (§3,
+decision 173 record), and on a pass a **new** `FontFile2` (old program
+copied byte-identical, new glyphs appended after the last GID), a new
+`FontDescriptor` and a new subset tag are written — the old stream and
+descriptor are never touched, so other dictionaries sharing them are
+unaffected. Any failed check refuses by name, falling through to `Pass
+431.0`. Amends decision 172/`R259` (an existing *program stream* is
+still never modified; `R259` now permits a font-dictionary revision to
+reference a *new* program that is a strict superset of the old one) and
+extends `R109` to a second carrier (the installed face, alongside the
+subset's own `OS/2`). New standing rule `R260` requires the augmented
+program be re-parsed with the existing parser (`R21`) and verified a
+strict superset before commit — never skipped. Trigger: `pdfcer-gui`
+request `G075(b)`. Full record:
+`docs/decisions/173-subset-augment-from-installed-face.md`.
+
+**Body-section effect: none yet.** `Pass 430.1` is unstarted; §4's
+`font_embed.rs`/FF-C entry gains its decision-173 amendment when 430.1
+ships, not before.
+
+**Decision ceiling: `172` → `173`**, next free `174`.
