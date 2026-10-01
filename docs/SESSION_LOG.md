@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (844th filing) — `Pass 427.0` SHIPPED (`515e7d48`); four new Passes filed from an operator request on text-edit workarounds (`Pass 436.0`–`436.3`)
+
+**Shipped:**
+- `515e7d48` — `Pass 427.0`. Replaces `Unsupported(String)` with
+  `text_edit::UnsupportedCause` (~33 variants, `#[non_exhaustive]`) across
+  `EditError`/`ReflowApplyError`/`AddTextError`; adds a `/WMode 1`/
+  Identity-V vertical-writing guard on every text-edit route; adds
+  `EditError::NoMatch { reason: NotFoundReason }`; new
+  `EditSession::edit_capability`. `run-repertoire` prints a `cause=` token.
+  6 new tests + 2 vertical + 1 CLI test, all 6 sabotage checks CAUGHT;
+  gates clean; no `Cargo.toml` change. Full detail in the `ROADMAP.md`
+  Shipped entry.
+
+**Decisions made this session:**
+- None minted. `Pass 436.1`'s opt-in OS-font-folder discovery is recorded
+  as an **application** of the existing core-stays-filesystem-free
+  boundary (the same shape as decision 135's shell/core revocation-fetch
+  split), not a new decision — noted in the `Pass 436.1` entry itself.
+
+**Findings + decisions:**
+- Filed `Pass 436.0`–`436.3` from the operator's 2026-10-01 direct request
+  ("ways to edit text in all cases even if it involves workarounds the
+  user accepts" + "a default setting to always enable workarounds and
+  access the OS's font folders and add folders to search"). Builds on
+  `430.x`/`431.0` (the already-queued character-level fallback): `436.0`
+  is the structural workaround, `436.1` the opt-in settings file + font
+  folders, `436.2` the matching ladder, `436.3` a GUI request deferred to
+  the FeatureRequests channel until `436.0`/`436.1` land.
+- `FEATURES.md`: `Pass 427.0`'s row ticked core/cli (gui stays `[ ]` —
+  `edit_capability` has no CLI verb of its own, stated rather than rounded
+  up); four new Planned rows added for `436.0`–`436.3`, `—` used where the
+  other shell owns that row's surface.
+
+**Still in flight:** `Pass 428.0` is now the head of *Next up* (eight
+items remain in the `G073`–`G081` family); `436.0`–`436.3` queued behind
+it, unstarted.
+
+**For next session:** work `Pass 428.0` next.
+
 ## 2026-10-01 (843rd filing) — nine new Passes filed from `pdfcer-gui` requests `G073`–`G081`
 
 **Shipped:** none — this filing only adds `ROADMAP.md`/`FEATURES.md` rows.

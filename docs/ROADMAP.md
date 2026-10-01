@@ -115,6 +115,60 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 427.0` (`515e7d48`), 2026-10-01 — refusal causes as data, a vertical-writing guard, NoMatch reasons and edit_capability (G081)
+
+Foundation for the `Pass 428.0`–`435.0` family (843rd filing). Replaces the
+`String` payload of `EditError::Unsupported`/`ReflowApplyError::Unsupported`/
+`AddTextError::Unsupported` with `text_edit::UnsupportedCause`
+(`#[non_exhaustive]`, ~33 variants incl. `CompositeWithoutToUnicode`,
+`EncodingNotInvertible`, `NoContents`, `EmptyFind`, `CrossElementTj`,
+`QuoteOperator`, `VerticalWriting`, `FontMapNotInvertible { detail }`,
+`InsideFormXObject { object }`, `ReferenceXObject`, `OpiProxy`, plus the
+reflow causes); `Display` keeps the existing CLI sentences.
+
+**Vertical-writing guard.** `edit_text` (free fn + session), its preview,
+`run_repertoire` and `reflow_block` now refuse by name on a `/WMode 1` CMap
+or a predefined CMap name ending `V` (ISO 32000-2 §9.7.5.2, Table 120;
+Type0 fonts only) — previously silent wrong output.
+
+**NoMatch reasons.** `EditError::NoMatch { find, reason: NotFoundReason }`,
+`NotFoundReason { NoSuchText, SpansTextObjects { objects } }`
+(`#[non_exhaustive]`); the session's find now joins show text across `ET`
+to detect a span crossing text objects.
+
+**New verb.** `EditSession::edit_capability(page_index, ByteSpan) ->
+Result<(), EditError>` — the preview's own verdict, callable at caret
+placement.
+
+**CLI.** `run-repertoire` prints a `cause=<Variant>|none` token on its
+stdout line (`RunRepertoire::cause: Option<UnsupportedCause>`).
+
+**Not covered from `G081`'s ask** (stated, not silently dropped):
+`StalePin` already exists as `EditError::PinnedSpanNotFound`;
+`InsideAnnotationAppearance` is not implemented; `InsideFormXObject` exists
+as an `Unsupported` cause only, not yet a `NoMatch` reason;
+`Type3CustomNames` has no separate cause — Type 3 custom-name refusals
+already arrive structured via `EditError::Refused { trigger }`;
+`CrossElementTj` is reached via the format path, whose
+`FormatError::Unsupported` stays a `String`.
+
+**Tests.** New `tests/refusal_causes.rs` (6: 2 × `SpansTextObjects`,
+`NoSuchText`, `edit_capability` agrees with `edit_text` across the text
+corpus — 34 checked, 2 refused, empty find, quote operator, no contents);
+2 vertical-writing tests in `composite_refusal_reachable.rs`; CLI
+`the_line_names_the_refusal_cause`. Sabotage (V-suffix check, `EndText`
+counter, `edit_capability`-always-`Ok`, `QuoteOperator` cause, reflow
+vertical guard, CLI cause token) — all 6 CAUGHT.
+
+**Gates.** `tools/run-gates.sh` PASS, 44 commands incl. both filing gates.
+No `Cargo.toml` change — `cargo tree -p pdfcer-core` / `-p pdfcer-render`
+unchanged, GUI-core separation holds. `docs/core-api/` updated to 301
+verbs; `check-core-api-verbs` PASS.
+
+**Same commit, no separate Pass ID.** Repointed a stale `NEXT_SESSION.md`
+citation (`99499b07` → `c3298873`); removed a fixed `check-code-structure.py`
+baseline line (`reflow_apply.rs::block_provenance`).
+
 ### `Pass 421.16` (`7d1a129f`), 2026-10-01 — open an orthographic saved view at its own centre and scale
 
 Continues the `Pass 421.x` bucket. `421.14` made `3d-render` open on a file's
@@ -15227,6 +15281,56 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **FOUR ITEMS ADDED 2026-10-01 (844th
+> filing) — `Pass 436.0`–`Pass 436.3`, operator direct request (verbatim:
+> *"are we able to make it so there are ways to edit text in all cases even
+> if it involves work arounds the user accepts?"* and *"a default user
+> setting to always enable workarounds and access the OSes default fonts
+> folders and add folders to also search for appropriate replacement
+> fonts."*). Builds on `430.x`/`431.0` below — those already cover
+> character-level fallback (`G075`/`G078`); these add the structural
+> workaround, the opt-in policy + font folders, and the matching ladder.**
+>
+> - **`Pass 436.0` (core)** — opt-in workaround for a refused text edit.
+>   `EditOptions` gains a workaround policy (default: refuse, naming the
+>   workaround on offer per `UnsupportedCause`, per `Pass 427.0`). Exact fix
+>   where one exists (cross-text-object join = `428.0`; rewrite `'`/`"` as
+>   `T*`+`Tj`); otherwise "retype": redaction-grade removal of the run's
+>   show operators, replacement reset at the run's origin/size/colour/
+>   spacing, in the run's own font if it can encode the text, else a
+>   fallback face (`431.0`). One undo entry, disclosed (rule 4). No
+>   workaround for `ReferenceXObject`/`OpiProxy`/`ObjectNumbersExhausted`/
+>   `CommitFailed`/`StateNotRestorable` — nothing an edit would reach.
+> - **`Pass 436.1` (cli)** — a portable settings file + OS font-folder
+>   discovery, opt-in. Settings file beside the executable, `--settings
+>   PATH`/`--no-settings`; keys `workarounds always|offer`, `system_fonts
+>   on|off`, extra font folders. One stderr line names an active settings
+>   file and what it enabled (batch determinism — a forgotten file must not
+>   silently change output). Per-OS default folders (Windows/macOS/Linux),
+>   recursive, depth-guarded; the CLI reads the bytes and hands them to
+>   core — core stays filesystem-free, the existing boundary (same shape as
+>   decision 135's shell/core fetch split), not a new one. Amends the
+>   documented "no system fonts are discovered" default by opt-in only; the
+>   no-settings-file default is unchanged.
+> - **`Pass 436.2` (core)** — replacement-font matching ladder, shared by
+>   `430.1`/`431.0`/`436.0`. Exact PostScript name (subset tag stripped) →
+>   same family + `FontDescriptor` class (serif/fixed/italic,
+>   weight/stem/stretch) → coverage of the characters actually needed →
+>   bundled Standard-14 substitute. Pick and source file disclosed. A face
+>   whose `OS/2 fsType` forbids embedding is skipped and the skip
+>   disclosed; no override offered (a licensing call, recorded as such —
+>   not an open question).
+> - **`Pass 436.3` (gui)** — settings screen for the same three settings
+>   plus a "use workaround" action on a refusal. Request to `pdfcer-gui`'s
+>   FeatureRequests channel once `436.0`/`436.1` land — not filed yet.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 427.0` SHIPPED, 2026-10-01 (844th filing),
+> `515e7d48`** — see top of *Shipped*. `UnsupportedCause` replaces the
+> `String` payload on `EditError`/`ReflowApplyError`/`AddTextError`; adds
+> the `/WMode 1`/Identity-V vertical-writing guard, `EditError::NoMatch`
+> reasons and `edit_capability`. **`Pass 428.0` is now the head of *Next
+> up* — eight items remain in the `G073`–`G081` family.**
 
 > ★★★★★★★★★★★★★★★★★★★★★★★★★★ **NINE ITEMS ADDED 2026-10-01 (843rd
 > filing) — `Pass 427.0`–`Pass 435.0`, from `pdfcer-gui` feature requests
