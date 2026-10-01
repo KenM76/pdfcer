@@ -31,12 +31,15 @@ mod compressed;
 mod container;
 mod error;
 mod export;
+#[cfg(feature = "render")]
 mod render;
 mod schema;
 mod tess;
 #[cfg(test)]
 mod testw;
 mod tree;
+// Some helpers serve only the rasterizer.
+#[cfg_attr(not(feature = "render"), allow(dead_code))]
 mod vec3;
 
 pub use container::{
@@ -45,6 +48,7 @@ pub use container::{
 };
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};
+#[cfg(feature = "render")]
 pub use render::{
     Bounds, Camera, Image, MAX_RENDER_PIXELS, Projection, RenderError, RenderOptions, render,
     render_coloured,

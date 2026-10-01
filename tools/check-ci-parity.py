@@ -104,6 +104,9 @@ LOCAL = {
     "cargo test -p pdfcer-core --no-default-features": (
         "cargo test -p pdfcer-core --no-default-features"
     ),
+    "cargo test -p pdfcer-3d --no-default-features": (
+        "cargo test -p pdfcer-3d --no-default-features"
+    ),
     "cargo test -p pdfcer-image-codec --no-default-features": (
         "cargo test -p pdfcer-image-codec --no-default-features"
     ),

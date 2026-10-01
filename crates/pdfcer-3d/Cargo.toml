@@ -9,6 +9,13 @@ authors.workspace = true
 publish.workspace = true
 license.workspace = true
 
+[features]
+default = ["render"]
+# The headless mesh rasterizer (`render`, `render_coloured`). A layer over
+# the reader that uses only its public mesh types; reader-only consumers
+# (mesh export, fuzzing) build without it.
+render = []
+
 [dependencies]
 # thiserror: C-GOOD-ERR error derives. MIT OR Apache-2.0.
 thiserror = "2"

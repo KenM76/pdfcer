@@ -104,6 +104,8 @@ jobs:
       # gate has to keep working for that to stay true.
       - run: cargo test -p pdfcer-core --no-default-features
       - run: cargo test -p pdfcer-image-codec --no-default-features
+      # pdfcer-3d without its rasterizer: the reader must stand alone.
+      - run: cargo test -p pdfcer-3d --no-default-features
       # The CLI's own strippable features (signing, OCR engines, jpx) gate
       # subcommands and dispatch arms that the core step above never compiles.
       # The unit tests build the full clap tree, which a check cannot: a
