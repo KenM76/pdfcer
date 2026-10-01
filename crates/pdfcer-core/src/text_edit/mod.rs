@@ -62,6 +62,7 @@
 
 pub mod addtext;
 pub mod cause;
+pub(crate) mod cross_object;
 pub mod edit;
 pub mod encoding;
 pub mod format;

@@ -99,6 +99,7 @@
 //! for the shared-invocation problem it exists to disclose.
 
 use crate::text_edit::cause::{NotFoundReason, UnsupportedCause};
+use crate::text_edit::cross_object;
 use std::collections::{BTreeSet, HashMap};
 
 use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
@@ -2083,7 +2084,10 @@ pub(crate) fn plan_edit_with_records(
         }
         None => (span, req, false),
     };
-    let anchor_index = span.last;
+    let crossed = cross_object::crosses(recs, span.first, span.last);
+    // A match crossing text objects is written into its FIRST operator
+    // (`cross_object`); any other span into its last.
+    let anchor_index = if crossed { span.first } else { span.last };
     let OpRec {
         start: a_start,
         end: a_end,
@@ -2094,16 +2098,16 @@ pub(crate) fn plan_edit_with_records(
     else {
         return Err(EditError::no_match(req.find.clone()));
     };
-    // The operators BEFORE the last one in a span, each with the character
+    // The span's operators other than the anchor, each with the character
     // range of the match that falls inside it (in its own text coordinates).
-    // Empty for a single-operator match. `plan_edit_target`'s font, encoding
-    // and floor logic runs on the LAST operator (the one that receives the
-    // replacement); every operator in a span shares the resource by the
-    // grouping rule, so the classification is the same for all of them.
+    // Empty for a single-operator match. The font, encoding and floor logic
+    // runs on the anchor (the operator that receives the replacement); every
+    // operator in a span shares the resource by the grouping rule, so the
+    // classification is the same for all of them.
     let mut leading_ops: Vec<(usize, &ShowData, usize, usize)> = Vec::new();
     if span.first != span.last {
         let mut offset = 0usize;
-        for k in span.first..span.last {
+        for k in span.first..=span.last {
             let Some(OpRec {
                 rec: Rec::Show(s), ..
             }) = recs.get(k)
@@ -2112,14 +2116,14 @@ pub(crate) fn plan_edit_with_records(
             };
             let lo = span.pos.saturating_sub(offset).min(s.text.len());
             let hi = span.end.saturating_sub(offset).min(s.text.len());
-            if hi > lo {
+            if k != anchor_index && hi > lo {
                 leading_ops.push((k, s, lo, hi));
             }
             offset += s.text.len();
         }
     }
-    // The character range of the match inside the LAST operator.
-    let last_offset: usize = (span.first..span.last)
+    // Where the anchor's text starts within the span's joined text.
+    let last_offset: usize = (span.first..anchor_index)
         .filter_map(|k| match recs.get(k) {
             Some(OpRec {
                 rec: Rec::Show(s), ..
@@ -2189,6 +2193,9 @@ pub(crate) fn plan_edit_with_records(
             return Err(EditError::no_match(find.to_owned()));
         }
         match_range(anchor, span.pos, span.pos + find.len(), find)?
+    } else if crossed {
+        // The match runs from `span.pos` to the end of the first operator.
+        match_range(anchor, span.pos, anchor.text.len(), find)?
     } else {
         // In the last operator the match starts at character 0 (it began
         // in an earlier operator) and ends where the span says.
@@ -2362,91 +2369,33 @@ pub(crate) fn plan_edit_with_records(
         .iter()
         .map(|&c| glyph_advance(&font, c, anchor))
         .sum();
-    // Per-operator shifts, in record order, in text-space units along the
-    // line. Each operator after the first is moved so its match starts where
-    // the WHOLE match started (`p0`) — measured from the operators' real
-    // origins, so the producer's inter-operator gaps are removed along with
-    // the glyphs, not left behind as a hole before the replacement.
-    let reference = anchor.text_matrix;
-    let mut lead_shift = 0.0f64; // how far the operator after the last leading one moves
-    let mut op_deltas: Vec<(usize, f64)> = Vec::with_capacity(leading_matches.len() + 1);
-    if let Some((_, s0, mr0)) = leading_matches.first() {
-        let p0 =
-            line_x(&reference, &s0.text_matrix) + advance_before(&font, s0, mr0.elem, mr0.b_lo);
-        let next_shifts = leading_matches
-            .iter()
-            .skip(1)
-            .map(|(_, s, mr)| (*s, mr.elem, mr.b_lo))
-            .chain(std::iter::once((&**anchor, m.elem, m.b_lo)))
-            // Snapped to the writer's 4-decimal precision: re-measuring the
-            // producer's own geometry leaves ~1e-6 of float noise where the
-            // true shift is zero, and a nonzero shift walks every follower.
-            .map(|(s, elem, byte)| {
-                round4(
-                    p0 - advance_before(&font, s, elem, byte) - line_x(&reference, &s.text_matrix),
-                )
-            });
-        for ((k, _, _), shift) in leading_matches.iter().zip(next_shifts) {
-            op_deltas.push((*k, shift - lead_shift));
-            lead_shift = shift;
-        }
-    }
-    let delta: f64 = round4(lead_shift + a_new - a_old_last);
-
-    // Where the replacement lands: at the match's start, along the anchor's
-    // line. For a span the replacement is moved back to where the match
-    // began in the first operator (`p0`); inside one operator it replaces
-    // the matched codes in place.
-    let origin_x = match leading_matches.first() {
-        Some((_, s0, mr0)) => {
-            line_x(&reference, &s0.text_matrix) + advance_before(&font, s0, mr0.elem, mr0.b_lo)
-        }
-        None => advance_before(&font, anchor, m.elem, m.b_lo),
-    };
-    let layout = EditLayout::new(
-        anchor,
+    let laying = Laying {
+        recs,
+        font: &font,
         font_dict,
-        &font,
-        &req.replace,
-        &encoded.codes,
-        origin_x,
-    );
-    // Reflow: everything after the anchor moves by the net change. Pin: the
-    // compensating number absorbs it inside the anchor, and the anchor's own
-    // move is undone for the operators after it.
-    let (anchor_walk, pin_num) = match opts.disposition {
-        FollowerDisposition::Pin => (
-            -lead_shift,
-            compensating_tj(delta, anchor.tf_size, anchor.th()),
-        ),
-        FollowerDisposition::Reflow => (a_new - a_old_last, None),
+        anchor,
+        anchor_index,
+        anchor_bytes: (*a_start, *a_end),
+        m: &m,
+        others: &leading_matches,
+        replace: &req.replace,
+        encoded: &encoded,
+        disposition: opts.disposition,
+        a_new,
+        a_old_last,
     };
-    op_deltas.push((anchor_index, anchor_walk));
-    let new_op_bytes = emit_edited_operator(anchor, &m, &encoded.bytes, pin_num);
-    let mut edits: Vec<(usize, usize, Vec<u8>)> = vec![(*a_start, *a_end, new_op_bytes)];
-    let mut emptied = 0u64;
-    for (k, s, mr) in &leading_matches {
-        let bytes = emit_edited_operator(s, mr, &[], None);
-        if bytes.starts_with(b"() Tj") || bytes == b"[()] TJ" {
-            emptied += 1;
-        }
-        if let Some(r) = recs.get(*k) {
-            edits.push((r.start, r.end, bytes));
-        }
-    }
-
-    let walk_needed = match opts.disposition {
-        FollowerDisposition::Reflow => delta != 0.0 || lead_shift != 0.0,
-        FollowerDisposition::Pin => lead_shift != 0.0,
-    };
-    let mut reflowed = if walk_needed {
-        reposition_followers(recs, anchor, &op_deltas)
+    let Laid {
+        layout,
+        mut edits,
+        delta,
+        followers,
+        span_note,
+        td_note,
+    } = if crossed {
+        lay_across(&laying, &leading_ops)
     } else {
-        Reflowed::default()
+        lay_in_object(&laying)
     };
-    let followers = reflowed.followers;
-    let td_note = reflowed.note.take();
-    edits.append(&mut reflowed.edits);
 
     // --- splice the edits into the decoded buffer ---
     let new_content = match mode {
@@ -2462,21 +2411,7 @@ pub(crate) fn plan_edit_with_records(
     // Show operators only — the records between them (the producer's `Td`
     // steps) are not operators the text was written across.
     let operators_spanned = leading_matches.len() as u64 + 1;
-    if operators_spanned > 1 {
-        disclosures.push(format!(
-            "span: the text was written across {operators_spanned} consecutive show operators (one glyph per operator is a common producer shape) and was edited as ONE run — the replacement went into the operator holding the match's end and was moved back to where the match began, the matched glyphs were removed from the {} earlier one(s){}, and {}.",
-            operators_spanned - 1,
-            if emptied > 0 {
-                format!(" ({emptied} left as an empty `() Tj` so the producer's own positioning chain stays intact)")
-            } else {
-                String::new()
-            },
-            match opts.disposition {
-                FollowerDisposition::Reflow => format!("the text after it on the line moved by the net change ({delta:.3} text-space units)"),
-                FollowerDisposition::Pin => "the text after it on the line kept its position".to_owned(),
-            }
-        ));
-    }
+    disclosures.extend(span_note);
     if narrowed {
         disclosures.push(
             "span: the start and end of the find text matched the replacement, so only the part that differs was rewritten — the unchanged glyphs keep the producer's own spacing."
@@ -2572,6 +2507,224 @@ pub(crate) fn plan_edit_with_records(
         report,
         layout,
     })
+}
+
+/// What the planner hands to the code that lays out the replacement.
+struct Laying<'a> {
+    recs: &'a [OpRec],
+    font: &'a ExtractFont,
+    font_dict: &'a Dict,
+    anchor: &'a ShowData,
+    anchor_index: usize,
+    /// The anchor operator's byte range in the content buffer.
+    anchor_bytes: (usize, usize),
+    m: &'a MatchRun,
+    /// The span's other operators with their matched parts.
+    others: &'a [(usize, &'a ShowData, MatchRun)],
+    replace: &'a str,
+    encoded: &'a EncodedReplacement,
+    disposition: FollowerDisposition,
+    /// The replacement's advance (§9.4.4).
+    a_new: f64,
+    /// The advance of the anchor's matched part, kerns included.
+    a_old_last: f64,
+}
+
+/// The laid-out replacement: where its glyphs land, the byte rewrites, the
+/// advance change, followers moved and the span disclosures.
+struct Laid {
+    layout: EditLayout,
+    edits: Vec<(usize, usize, Vec<u8>)>,
+    delta: f64,
+    followers: u64,
+    span_note: Option<String>,
+    td_note: Option<String>,
+}
+
+/// Lay out a match inside one text object: the replacement goes into the
+/// last operator and is moved back to where the match began.
+fn lay_in_object(c: &Laying<'_>) -> Laid {
+    let Laying {
+        recs,
+        font,
+        font_dict,
+        anchor,
+        anchor_index,
+        anchor_bytes: (a_start, a_end),
+        m,
+        others: leading_matches,
+        replace,
+        encoded,
+        disposition,
+        a_new,
+        a_old_last,
+    } = *c;
+    let (lead_shift, mut op_deltas, origin_x) = span_shifts(font, anchor, m, leading_matches);
+    let delta: f64 = round4(lead_shift + a_new - a_old_last);
+    let layout = EditLayout::new(anchor, font_dict, font, replace, &encoded.codes, origin_x);
+    // Reflow: everything after the anchor moves by the net change. Pin: the
+    // compensating number absorbs it inside the anchor, and the anchor's own
+    // move is undone for the operators after it.
+    let (anchor_walk, pin_num) = match disposition {
+        FollowerDisposition::Pin => (
+            -lead_shift,
+            compensating_tj(delta, anchor.tf_size, anchor.th()),
+        ),
+        FollowerDisposition::Reflow => (a_new - a_old_last, None),
+    };
+    op_deltas.push((anchor_index, anchor_walk));
+    let new_op_bytes = emit_edited_operator(anchor, m, &encoded.bytes, pin_num);
+    let mut edits: Vec<(usize, usize, Vec<u8>)> = vec![(a_start, a_end, new_op_bytes)];
+    let mut emptied = 0u64;
+    for (k, s, mr) in leading_matches {
+        let bytes = emit_edited_operator(s, mr, &[], None);
+        if bytes.starts_with(b"() Tj") || bytes == b"[()] TJ" {
+            emptied += 1;
+        }
+        if let Some(r) = recs.get(*k) {
+            edits.push((r.start, r.end, bytes));
+        }
+    }
+
+    let walk_needed = match disposition {
+        FollowerDisposition::Reflow => delta != 0.0 || lead_shift != 0.0,
+        FollowerDisposition::Pin => lead_shift != 0.0,
+    };
+    let mut reflowed = if walk_needed {
+        reposition_followers(recs, anchor, &op_deltas)
+    } else {
+        Reflowed::default()
+    };
+    let followers = reflowed.followers;
+    let td_note = reflowed.note.take();
+    edits.append(&mut reflowed.edits);
+    let span_note = in_object_span_note(
+        leading_matches.len() as u64 + 1,
+        emptied,
+        disposition,
+        delta,
+    );
+    Laid {
+        layout,
+        edits,
+        delta,
+        followers,
+        span_note,
+        td_note,
+    }
+}
+
+/// Per-operator shifts for a match spanning show operators inside one text
+/// object, in record order and text-space units along the line, plus the
+/// last leading operator's shift and where the replacement lands.
+///
+/// Each operator after the first is moved so its match starts where the
+/// WHOLE match started (`p0`), measured from the operators' real origins, so
+/// the producer's inter-operator gaps are removed with the glyphs rather than
+/// left as a hole before the replacement. Shifts snap to the writer's
+/// 4-decimal precision: re-measured geometry leaves ~1e-6 of float noise
+/// where the true shift is zero, and a nonzero shift walks every follower.
+fn span_shifts(
+    font: &ExtractFont,
+    anchor: &ShowData,
+    m: &MatchRun,
+    leading: &[(usize, &ShowData, MatchRun)],
+) -> (f64, Vec<(usize, f64)>, f64) {
+    let reference = anchor.text_matrix;
+    let mut lead_shift = 0.0f64;
+    let mut op_deltas: Vec<(usize, f64)> = Vec::with_capacity(leading.len() + 1);
+    let Some((_, s0, mr0)) = leading.first() else {
+        return (0.0, op_deltas, advance_before(font, anchor, m.elem, m.b_lo));
+    };
+    let p0 = line_x(&reference, &s0.text_matrix) + advance_before(font, s0, mr0.elem, mr0.b_lo);
+    let next_shifts = leading
+        .iter()
+        .skip(1)
+        .map(|(_, s, mr)| (*s, mr.elem, mr.b_lo))
+        .chain(std::iter::once((anchor, m.elem, m.b_lo)))
+        .map(|(s, elem, byte)| {
+            round4(p0 - advance_before(font, s, elem, byte) - line_x(&reference, &s.text_matrix))
+        });
+    for ((k, _, _), shift) in leading.iter().zip(next_shifts) {
+        op_deltas.push((*k, shift - lead_shift));
+        lead_shift = shift;
+    }
+    (lead_shift, op_deltas, p0)
+}
+
+/// The disclosure for a match spanning `operators_spanned` show operators in
+/// one text object; `None` for a single operator.
+fn in_object_span_note(
+    operators_spanned: u64,
+    emptied: u64,
+    disposition: FollowerDisposition,
+    delta: f64,
+) -> Option<String> {
+    (operators_spanned > 1).then(|| {
+        format!(
+            "span: the text was written across {operators_spanned} consecutive show operators (one glyph per operator is a common producer shape) and was edited as ONE run — the replacement went into the operator holding the match's end and was moved back to where the match began, the matched glyphs were removed from the {} earlier one(s){}, and {}.",
+            operators_spanned - 1,
+            if emptied > 0 {
+                format!(" ({emptied} left as an empty `() Tj` so the producer's own positioning chain stays intact)")
+            } else {
+                String::new()
+            },
+            match disposition {
+                FollowerDisposition::Reflow => format!("the text after it on the line moved by the net change ({delta:.3} text-space units)"),
+                FollowerDisposition::Pin => "the text after it on the line kept its position".to_owned(),
+            }
+        )
+    })
+}
+
+/// Lay out a match that crosses text objects ([`cross_object`]): the
+/// replacement goes into the first operator in place, and the later ones
+/// lose their matched glyphs.
+fn lay_across(c: &Laying<'_>, others: &[(usize, &ShowData, usize, usize)]) -> Laid {
+    let later: Vec<cross_object::Later<'_>> = c
+        .others
+        .iter()
+        .zip(others)
+        .map(
+            |((index, show, matched), (_, _, _, hi))| cross_object::Later {
+                index: *index,
+                show,
+                matched,
+                has_tail: *hi < show.text.len(),
+            },
+        )
+        .collect();
+    let origin_x = advance_before(c.font, c.anchor, c.m.elem, c.m.b_lo);
+    let layout = EditLayout::new(
+        c.anchor,
+        c.font_dict,
+        c.font,
+        c.replace,
+        &c.encoded.codes,
+        origin_x,
+    );
+    let mut emptied = cross_object::empty_later(
+        c.recs,
+        c.font,
+        (c.anchor_index, c.anchor),
+        &later,
+        origin_x + c.a_new,
+        c.disposition,
+    );
+    let mut edits = vec![(
+        c.anchor_bytes.0,
+        c.anchor_bytes.1,
+        emit_edited_operator(c.anchor, c.m, &c.encoded.bytes, None),
+    )];
+    edits.append(&mut emptied.edits);
+    Laid {
+        layout,
+        edits,
+        delta: emptied.delta,
+        followers: 0,
+        span_note: Some(cross_object::disclosure(&emptied, c.disposition)),
+        td_note: None,
+    }
 }
 
 /// Build the ordered list of candidate targets an [`EditRequest`] may be
@@ -2725,7 +2878,7 @@ pub(crate) fn plan_edit_anywhere(
 /// leftward re-anchor (the SolidWorks note bullet below jumps `-5.66931`).
 /// It exists only so a producer that re-states the *same* origin with f32
 /// round-trip noise is not read as jumping backwards.
-const FOLLOWER_ORIGIN_EPSILON: f64 = 0.1;
+pub(crate) const FOLLOWER_ORIGIN_EPSILON: f64 = 0.1;
 
 /// Whether the positioning operator at `index` lands the pen **before**
 /// `left_bound` on the line — in which case it is not this line's tail, and
@@ -2952,14 +3105,14 @@ struct Reflowed {
 }
 
 /// Round to 1/10 000 pt — see `reposition_followers`.
-fn round4(v: f64) -> f64 {
+pub(crate) fn round4(v: f64) -> f64 {
     let r = (v * 10_000.0).round() / 10_000.0;
     if r == 0.0 { 0.0 } else { r }
 }
 
 /// Where `m`'s origin sits along `reference`'s text line, in text-space units
 /// — the unit `Td` operands and glyph advances share (§9.4.2, §9.4.4).
-fn line_x(reference: &[f64; 6], m: &[f64; 6]) -> f64 {
+pub(crate) fn line_x(reference: &[f64; 6], m: &[f64; 6]) -> f64 {
     let (a, b) = (reference[0], reference[1]);
     let norm = a * a + b * b;
     if norm < f64::EPSILON {
@@ -3088,7 +3241,7 @@ fn narrow_span(recs: &[OpRec], span: Anchor, req: &EditRequest) -> Option<(Ancho
 /// should not move silently relocates content the operator was not editing.
 /// So an unknown matrix shifts nothing, and `FollowerDisposition::Pin`
 /// remains available for a caller that wants the tail explicitly held.
-fn same_line(anchor: &ShowData, follower: &[f64; 6]) -> bool {
+pub(crate) fn same_line(anchor: &ShowData, follower: &[f64; 6]) -> bool {
     if !anchor.matrix_known {
         return false;
     }
@@ -3323,7 +3476,7 @@ pub(crate) struct Anchor {
 ///
 /// `0.001` sits two orders above the observed wobble and two below the
 /// smallest deliberate change anyone writes.
-const SPAN_H_SCALE_TOLERANCE: f64 = 0.001;
+pub(crate) const SPAN_H_SCALE_TOLERANCE: f64 = 0.001;
 
 /// How far a `Td`'s vertical displacement may be from zero and still count as
 /// staying on the same line, in unscaled text-space units.
@@ -3377,8 +3530,36 @@ fn spannable(a: &ShowData, b: &ShowData) -> bool {
 pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anchor, EditError> {
     // Where the span search starts. `None` means "scan the page", which is
     // what an unpinned request has always done.
-    let mut span_from: Option<usize> = None;
+    let span_from = match pinned_start(recs, req)? {
+        Start::Found(anchor) => return Ok(anchor),
+        Start::From(i) => Some(i),
+        Start::Scan => None,
+    };
+    for i in 0..recs.len() {
+        // A pinned spanning search considers exactly one starting operator:
+        // the one the caller pointed at. Only it may cross text objects
+        // (`cross_object`); an unpinned span stays inside one.
+        if span_from.is_some_and(|from| from != i) {
+            continue;
+        }
+        if let Some(anchor) = span_at(recs, i, &req.find, span_from.is_some()) {
+            return Ok(anchor);
+        }
+    }
+    Err(not_found(recs, &req.find))
+}
 
+/// What the single-operator locator decided before any span search.
+enum Start {
+    /// The match lies inside one operator.
+    Found(Anchor),
+    /// A pinned spanning request: search from this operator only.
+    From(usize),
+    /// Unpinned and not inside one operator: scan the page.
+    Scan,
+}
+
+fn pinned_start(recs: &[OpRec], req: &EditRequest) -> Result<Start, EditError> {
     match find_anchor(recs, req) {
         Ok(i) => {
             let Some(OpRec {
@@ -3388,110 +3569,105 @@ pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anch
                 return Err(EditError::no_match(req.find.clone()));
             };
             let find = effective_find(s, &req.find, req.pinned_span);
-            // THIS USED TO BE `.unwrap_or(0)`, AND THAT WAS A SILENT WRONG
-            // ANSWER (`Pass 272.0`).
-            //
-            // `find_anchor` returns `Ok(i)` for a resolvable pin WITHOUT ever
-            // consulting `find` -- read it: the pinned arm returns as soon as
-            // the span names the operator. So a pinned request whose `find`
-            // spans several operators arrives here with `find` absent from
-            // this operator's own text, `find()` returns `None`, and the old
-            // fallback silently claimed the match began at byte 0.
-            //
-            // That is an anchor pointing at bytes nobody asked about. It
-            // failed downstream with a `NoMatch` that blamed the TEXT, which
-            // is how the reporting shell came to locate the defect one guard
-            // too late: the `Err(e) if pinned_span.is_some()` arm below is
-            // only reached when the pin does NOT resolve, and theirs always
-            // did. Measured, three ways -- a resolving pin with an in-operator
-            // find succeeds, a bogus pin gives `PinnedSpanNotFound`, and the
-            // spanning case gives `NoMatch`.
+            // `find_anchor` returns `Ok(i)` for a resolvable pin WITHOUT
+            // consulting `find`, so a pinned `find` that spans operators is
+            // absent from this operator's text. Without `spanning_from` that
+            // is refused by name rather than resolved to an invented position.
             match s.text.find(find) {
-                Some(pos) => {
-                    return Ok(Anchor {
-                        first: i,
-                        last: i,
-                        pos,
-                        end: pos + find.len(),
-                    });
-                }
-                // The match is not inside the pinned operator. With
-                // `spanning_from` that is the interesting case and the search
-                // restarts here; without it the request is refused, by name,
-                // instead of resolving to a position it invented.
-                None if req.span_from_pin => span_from = Some(i),
-                None => return Err(EditError::no_match(req.find.clone())),
+                Some(pos) => Ok(Start::Found(Anchor {
+                    first: i,
+                    last: i,
+                    pos,
+                    end: pos + find.len(),
+                })),
+                None if req.span_from_pin => Ok(Start::From(i)),
+                None => Err(EditError::no_match(req.find.clone())),
             }
         }
-        Err(e) if req.pinned_span.is_some() || req.find.is_empty() => return Err(e),
-        Err(_) => {}
+        Err(e) if req.pinned_span.is_some() || req.find.is_empty() => Err(e),
+        Err(_) => Ok(Start::Scan),
     }
-    for (i, r) in recs.iter().enumerate() {
-        // A pinned spanning search considers exactly one starting operator:
-        // the one the caller pointed at. Every other guard in this loop is
-        // unchanged, which is the whole safety argument -- the span is still
-        // trimmed to the operators the match touches, still confined to one
-        // text object, and must still BEGIN inside the anchor.
-        if span_from.is_some_and(|from| from != i) {
-            continue;
+}
+
+/// The span of consecutive operators from `i` whose joined text contains
+/// `find` with the match starting inside operator `i`, trimmed to the
+/// operators the match touches. With `cross`, the span may continue past
+/// `ET` into a later text object that [`cross_object::continues_line`].
+fn span_at(recs: &[OpRec], i: usize, find: &str, cross: bool) -> Option<Anchor> {
+    let Some(OpRec {
+        rec: Rec::Show(head),
+        ..
+    }) = recs.get(i)
+    else {
+        return None;
+    };
+    if !matches!(head.op, ShowOp::Tj | ShowOp::TJ) {
+        return None;
+    }
+    let (text, last) = grow_span(recs, i, head, cross);
+    if last == i {
+        return None;
+    }
+    let pos = text.find(find).filter(|&pos| pos < head.text.len())?;
+    let end = pos + find.len();
+    // Trim the span to the operators the match actually touches.
+    let mut acc = head.text.len();
+    let mut last_used = i;
+    for k in (i + 1)..=last {
+        if acc >= end {
+            break;
         }
-        let Rec::Show(head) = &r.rec else { continue };
-        if !matches!(head.op, ShowOp::Tj | ShowOp::TJ) {
-            continue;
-        }
-        let mut text = head.text.clone();
-        let mut last = i;
-        let mut j = i + 1;
-        while let Some(next) = recs.get(j) {
-            match &next.rec {
-                Rec::Ignore => {}
-                // `|ty|` within tolerance rather than exactly zero — see
-                // `SPAN_LINE_DRIFT_TOLERANCE`. A producer that meant a new
-                // line writes a leading three orders of magnitude larger.
-                Rec::Td { ty, .. } if ty.abs() <= SPAN_LINE_DRIFT_TOLERANCE => {}
-                Rec::Tm(m) if same_line(head, m) => {}
-                Rec::Show(s) if spannable(head, s) => {
-                    text.push_str(&s.text);
-                    last = j;
-                }
-                _ => break,
-            }
-            j += 1;
-        }
-        if last == i {
-            continue;
-        }
-        if let Some(pos) = text.find(&req.find)
-            && pos < head.text.len()
+        if let Some(OpRec {
+            rec: Rec::Show(s), ..
+        }) = recs.get(k)
         {
-            let end = pos + req.find.len();
-            // Trim the span to the operators the match actually touches.
-            let mut acc = head.text.len();
-            let mut last_used = i;
-            for k in (i + 1)..=last {
-                if acc >= end {
-                    break;
-                }
-                if let Some(OpRec {
-                    rec: Rec::Show(s), ..
-                }) = recs.get(k)
-                {
-                    acc += s.text.len();
-                    last_used = k;
-                }
-            }
-            if last_used == i {
-                continue; // fits in one operator after all; `find_anchor` would have said so
-            }
-            return Ok(Anchor {
-                first: i,
-                last: last_used,
-                pos,
-                end,
-            });
+            acc += s.text.len();
+            last_used = k;
         }
     }
-    Err(not_found(recs, &req.find))
+    // Fits in one operator after all; `find_anchor` would have said so.
+    (last_used != i).then_some(Anchor {
+        first: i,
+        last: last_used,
+        pos,
+        end,
+    })
+}
+
+/// Join show operators after `head` while they continue its run: the joined
+/// text and the index of the last operator joined.
+fn grow_span<'a>(recs: &'a [OpRec], i: usize, head: &'a ShowData, cross: bool) -> (String, usize) {
+    let mut text = head.text.clone();
+    let mut last = i;
+    let mut prev = head;
+    // Between `ET` and the next show operator: positioning is re-established
+    // absolutely, and the next show operator is judged on its own geometry.
+    let mut gap = false;
+    for (j, next) in recs.iter().enumerate().skip(i + 1) {
+        match &next.rec {
+            Rec::EndText if cross => gap = true,
+            Rec::Ignore => {}
+            Rec::Tm(_) | Rec::Td { .. } if gap => {}
+            // `|ty|` within tolerance rather than exactly zero — see
+            // `SPAN_LINE_DRIFT_TOLERANCE`.
+            Rec::Td { ty, .. } if ty.abs() <= SPAN_LINE_DRIFT_TOLERANCE => {}
+            Rec::Tm(m) if same_line(prev, m) => {}
+            Rec::Show(s) if gap && cross_object::continues_line(prev, s) => {
+                gap = false;
+                text.push_str(&s.text);
+                (last, prev) = (j, s);
+            }
+            // Inside the first text object the run is judged against its
+            // head, as it always was; after a crossing, against the
+            // operator before it, whose MCID is the later object's own.
+            Rec::Show(s) if !gap && spannable(if last == i { head } else { prev }, s) => {
+                text.push_str(&s.text);
+                (last, prev) = (j, s);
+            }
+            _ => break,
+        }
+    }
+    (text, last)
 }
 
 /// The `NoMatch` for a find no single text object contains: when the show
@@ -4040,7 +4216,7 @@ pub(crate) fn classify_font(
 /// under the run's text state. `Tw` applies only to the single byte `0x20`
 /// (§9.3.3). Width `w0` comes from the SAME `/Widths`/AFM the render path
 /// uses ([`ExtractFont::width`] already scales it to text space).
-fn glyph_advance(font: &ExtractFont, code: u32, s: &ShowData) -> f64 {
+pub(crate) fn glyph_advance(font: &ExtractFont, code: u32, s: &ShowData) -> f64 {
     glyph_advance_with(
         font,
         code,
@@ -4091,7 +4267,7 @@ pub(crate) fn compensating_tj(delta: f64, tfs: f64, th: f64) -> Option<f64> {
 
 /// Re-emit the anchor operator with the matched codes replaced by
 /// `new_codes` and, for PIN, a trailing compensating number.
-fn emit_edited_operator(
+pub(crate) fn emit_edited_operator(
     anchor: &ShowData,
     m: &MatchRun,
     new_codes: &[u8],

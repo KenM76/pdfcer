@@ -268,6 +268,7 @@ reachable.
 | `nonsymbolic-truetype-not-embedded.pdf` | `gen-symbolic-truetype-fixtures.py` | the non-symbolic TrueType lookup order (§9.6.6.4) is exercised without an embedded program |
 | `symbolic-truetype-not-embedded.pdf` | `gen-symbolic-truetype-fixtures.py` | the SYMBOLIC branch of that same clause is exercised separately — the two take different lookup paths and a single fixture would test one and claim both |
 | `span-from-pin.pdf` | `gen-span-from-pin-fixtures.py` | `--span-from-pin` has a document where the same text appears more than once, so pin disambiguation is testable rather than incidental |
+| `cross-object-word.pdf` | `gen-cross-object-fixtures.py` | Word's line shape: every fragment its own `BDC q BT ... ET Q EMC` with an absolute `Tm`, a trailing space-only object, a repeated label, a mid-object tail and a font-resource seam, so a pinned edit across text objects is testable |
 
 ★ `subset-simple-embedded.pdf`'s entry is the one worth reading twice. Its
 generator records that the corpus previously had three files and **none could
@@ -282,6 +283,7 @@ python tools/gen-subset-font-fixtures.py
 python tools/gen-cidfont-nocmap-fixtures.py
 python tools/gen-symbolic-truetype-fixtures.py
 python tools/gen-span-from-pin-fixtures.py
+python tools/gen-cross-object-fixtures.py
 ```
 
 Same determinism guarantee as the originals: no timestamps, no `/ID`, no

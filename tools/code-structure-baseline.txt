@@ -473,7 +473,6 @@ fn pdfcer-core/src/text_edit/addtext.rs::bind_resource
 fn pdfcer-core/src/text_edit/addtext.rs::layout_boxed
 fn pdfcer-core/src/text_edit/addtext.rs::plan_add_text
 fn pdfcer-core/src/text_edit/edit.rs::classify_font
-fn pdfcer-core/src/text_edit/edit.rs::find_anchor_span
 fn pdfcer-core/src/text_edit/edit.rs::operation
 fn pdfcer-core/src/text_edit/edit.rs::plan_edit_with_records
 fn pdfcer-core/src/text_edit/edit.rs::record_show

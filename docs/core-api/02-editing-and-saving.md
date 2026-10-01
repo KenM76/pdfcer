@@ -620,6 +620,32 @@ only thing that differs is where the search starts.
 > existing caller's refusal means. Hence a separate constructor and an
 > explicit `EditRequest::span_from_pin` flag.
 
+##### Across text objects (Word's line shape)
+
+A `spanning_from` request — and only that form — may also continue **past
+`ET`** into the next text object, when that object's first show operator
+continues the same line: same font resource and size, `Tc`/`Tw`/`Tz`/`Ts`/`Tr`,
+fill colour (and stroke colour when the mode strokes), CTM, text-space row, and
+not starting left of the previous one. The marked-content sequence may differ.
+This reaches Word's per-fragment objects (`"Driver-Side"` written as three
+`BDC q BT … ET Q EMC` objects) and its space-only object at the end of a line.
+
+- The replacement goes into the **first** operator at the match start; later
+  operators lose their matched glyphs, and every `BT`/`ET`, `q`/`Q`,
+  `BDC`/`EMC` stays in place, so MCIDs still resolve.
+- Text left in the **last** operator after the match follows the replacement
+  under `Reflow`, keeps its position under `Pin`. Later text objects are not
+  moved.
+- The report's `disclosures` carries one `span: … across N text objects …`
+  line, and an MCID sentence when the later fragments were in other marked
+  content.
+- **Not crossed:** a different font resource (a font seam, e.g. a curly
+  apostrophe in a `Type0` face) or any other mismatch. The request then gets
+  `NoMatch { reason: SpansTextObjects { objects } }`, as an unpinned request
+  always does.
+- `run_repertoire(page, find, Some(pin))` answers for the pinned (first) run.
+- The edit is one undo entry; the preview equals the commit.
+
 **Errors:** `EditError::PinnedSpanNotFound` if the span names no operator —
 distinct from `NoMatch`, and the distinction matters: the first means the pin
 is wrong, the second means the pin is fine and the text does not begin there.
