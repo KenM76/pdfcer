@@ -4,6 +4,39 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (850th filing) — `Pass 430.0` SLICE 1 PARTIALLY SHIPPED (`f63293c6`) — type a glyph an embedded TrueType subset outlines but never showed
+
+**Shipped:**
+- `f63293c6` — `Pass 430.0` SLICE 1 (`G075` a+c, decision 172 route A).
+  Simple nonsymbolic `/TrueType`, named WinAnsi/MacRoman, no `/ToUnicode`:
+  widens `/Widths` from the program's own `hmtx`, gated on a document-wide
+  unused-code scan; refuses by name otherwise. New
+  `EditOptions::with_embedded_glyphs` (per-edit, not a session setter) and
+  `EditSession::run_repertoire_with`. `Pass 430.0` STAYS OPEN — `/ToUnicode`
+  extension and the remaining per-character refusal-reason surface
+  (`G075` c) are still owed; `430.1`–`430.3` unchanged.
+
+**Decisions made this session:** none new — this slice executes decision
+172, filed the 849th filing.
+
+**Findings + decisions:**
+- The 849th filing's own `Pass 430.0` *Next up* wording ("a core trait the
+  shell installs on the session") did not match what shipped — the reader
+  is supplied per `EditOptions`, with no session-wide setter. Corrected in
+  place in `ROADMAP.md`'s *Next up* bullet and noted in the *Shipped*
+  entry (hard rule 11 sweep: `docs/core-api` and `FEATURES.md` were both
+  written fresh this filing, so neither carried the stale description).
+
+**Still in flight:**
+- `Pass 430.0`: `/ToUnicode` extension when present, per-character
+  refusal-reason surface (`G075` c).
+- `Pass 430.1`–`430.3` unbuilt, as filed the 849th filing.
+
+**For next session:**
+- `Pass 430.0` is still the head of *Next up*.
+- The stray `docs/decisions/040-additive-font-dict-extension.md` stub
+  flagged the 849th filing is still unremoved (librarian has no shell).
+
 ## 2026-10-01 (849th filing) — decision 172 filed (additive font-dict extension); `Pass 430.0` split; renumbering catch
 
 **Shipped:** nothing — docs-only filing, no code.

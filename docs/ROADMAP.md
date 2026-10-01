@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 430.0` SLICE 1 (`f63293c6`), 2026-10-01 — type a glyph an embedded TrueType subset outlines but never showed (G075 a+c, decision 172 route A)
+
+Continues the `Pass 427.0`–`436.3` family (850th filing). **`Pass 430.0` STAYS OPEN** — this slice covers only the simple-TrueType case; `/ToUnicode` extension and the remaining per-character refusal-reason surface (`G075` c) are still owed, and `430.1`–`430.3` are unchanged. *Next up*'s head is unaffected.
+
+**Core.** New `text_edit::program_glyphs::EmbeddedGlyphs` trait + `ProgramGlyph`; `EditOptions::with_embedded_glyphs(&'static dyn EmbeddedGlyphs)` (field `embedded_glyphs`; `EditOptions` stays `Copy`) supplies the reader per edit — **not** a session-wide setter as the original `Pass 430.0` *Next up* wording described; corrected there in the same filing. Scope: simple nonsymbolic `/TrueType`, named WinAnsi/MacRoman encoding, no `/ToUnicode` (refused for now), indirect font dict only. Width sourced from `hmtx`; when it disagrees with the code's current width, a document-wide reachability scan (pages, form XObjects, annotation appearances, budgeted through `Pattern`/`ExtGState`/`Type3` resources) must prove the code unused everywhere, else refuse by name. Copy-on-write font dict, widened `/FirstChar`/`/LastChar`/`/Widths`; program bytes untouched; each addition disclosed (`EditReport`/CLI); a refusal appends its reason ("no outline" / "code N is already shown elsewhere with a different width") to the `R-INV-1` subset-floor message.
+
+New `pub` verb `EditSession::run_repertoire_with(page_index, find, pinned_span, &EditOptions)`; plain `run_repertoire` is now the reader-less form. Same per-character rule (`font_extend::addable`) the edit itself runs, so query and edit agree by construction, not by parallel description.
+
+Session path: the font-dict write rides inside the text edit's single undo command — no second undo entry.
+
+**pdfcer-render.** `font::embedded_glyphs::EmbeddedProgramGlyphs` (skrifa), the concrete reader.
+
+**CLI.** `edit-text`/`run-repertoire` reach the reader; help text updated.
+
+**Fixture.** `fixtures/synthetic/text/word-shaped-subset.pdf` + `tools/gen-word-subset-fixture.py`; `PROVENANCE.md` row added. `docs/core-api` verb count 301→302.
+
+**Tests.** 8 new in `crates/pdfcer-render/tests/subset_unused_glyph.rs`; 4 sabotages, all CAUGHT. `tools/run-gates.sh` PASS (44 commands).
+
+**Invariants.** No `Cargo.toml` change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected, no new dependency. Round-trip: page 2 sharing the extended font renders byte-identical; undo nets to base bytes.
+
+**Still owed in `Pass 430.0`:** `/ToUnicode` extension when present, and the remaining per-character refusal-reason surface (`G075` c). `430.1`/`430.2`/`430.3` unchanged, still *Next up*.
+
 ### `Pass 429.0` (`42b0a25b` model half, `49cb9dd4` core half), 2026-10-01 — edit and sign an encrypted document under its own key, permission-gated (G077)
 
 Continues the `Pass 427.0`–`436.3` family (848th filing). **`Pass 429.0` is now FULLY SHIPPED** — closes the `G077` family item; `Pass 430.0` is the new head of *Next up*.
@@ -15380,6 +15402,21 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 430.0` SLICE 1 PARTIALLY SHIPPED, 2026-10-01
+> (850th filing), `f63293c6`** — see top of *Shipped*. Simple nonsymbolic
+> `/TrueType`, named WinAnsi/MacRoman encoding, no `/ToUnicode`: a
+> character the font program outlines but the resolved encoding never
+> routed to a shown code is added via `/Widths` extension from `hmtx`,
+> gated on a document-wide unused-code scan that must prove the code
+> unused everywhere the dict is reached; refuses by name otherwise. New
+> `EditOptions::with_embedded_glyphs` supplies the `pdfcer-render` reader
+> PER EDIT, not a session-wide setter as this Pass's own bullet below
+> originally described (corrected in place there). New verb
+> `run_repertoire_with`. **`Pass 430.0` STAYS OPEN and remains the head of
+> *Next up*** — `/ToUnicode` extension and the remaining per-character
+> refusal-reason surface (`G075` c) are still owed; `430.1`–`430.3` below
+> unchanged.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 429.0` FULLY SHIPPED, 2026-10-01 (848th
 > filing), `49cb9dd4`** — see top of *Shipped*. Closes the core half:
 > permission-gated edit guards per ISO 32000-2 Table 22, signing an
@@ -15521,6 +15558,14 @@ closes out the *prior* filing's business rather than opening this one's.
 >   CLI disclosure per added character. Program reading done in
 >   `pdfcer-render` (skrifa) behind a core trait the shell installs on the
 >   session (`R21`).
+>   **★ SLICE 1 SHIPPED 2026-10-01 (850th filing), `f63293c6`** — the
+>   route-A first slice above: `EditOptions::with_embedded_glyphs`
+>   supplies the reader PER EDIT, not a session-wide setter as the
+>   paragraph above describes (that wording stands as history of the
+>   original plan, corrected here). `/ToUnicode` extension and the
+>   per-character refusal-reason surface are **not** in this slice — both
+>   still owed, keeping `Pass 430.0` open and the head of *Next up*. See
+>   *Shipped*, above, for the full accounting.
 > - **`Pass 430.1`** — augment the subset from a same-PostScript-name face
 >   the shell supplies as bytes (`G075` b) — core never discovers system
 >   fonts itself (`font_embed_missing.rs` policy); disclosed, opt-in
