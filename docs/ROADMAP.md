@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 429.0` (`42b0a25b`) — PARTIAL, model half only, 2026-10-01 — incremental save of an AES-encrypted document appends under its own key (G077)
+
+Continues the `Pass 427.0`–`436.3` family (847th filing). **`Pass 429.0` stays OPEN in *Next up* for the core half** — see the dated note there.
+
+**Shipped.** `pdfcer-model`'s incremental save of a decrypted AES-128 (`/V 4`/`/CFM /AESV2`) or AES-256 (`/R 6`/`/CFM /AESV3`) document now appends new object bytes as ciphertext under the document's own file key, instead of refusing. Fresh random IV per payload, PKCS#7 padding, encrypt-after-filter (ISO 32000-2 §7.6.2). `/Encrypt` and `/ID[0]` carried unchanged (§7.6.3); `/ID[1]` refreshes. Objects the read side never decrypts stay in clear, unchanged: the `/Encrypt` dict itself, xref streams (§7.5.8.2), external `/F` streams, clear `Metadata` (`/EncryptMetadata false`), `/Identity` crypt-filter streams.
+
+**New `WriteError` variants.** `Rc4AppendRefused` — RC4 is never written, incremental or full (standing rule W14; see the open question on the `Pass 429.0` *Next up* entry). `EntropyUnavailable` — a CSPRNG preflight runs before any ciphertext byte is produced. A full rewrite of a decrypted document is still refused (`EncryptedSaveUnsupported`, unchanged by this Pass).
+
+**Code.** `save_incremental` moved to `writer/incremental.rs` and split under the 80-line limit; its code-structure baseline entry removed.
+
+**Tests.** New `crates/pdfcer-model/tests/encrypted_append.rs` — 4 tests: AES-128 and AES-256 R6 round trips (append, reopen with the password, byte-compare decrypted objects against the pre-append source), RC4 append refusal, empty-edit byte-identical append. `pdfcer-core`'s existing refusal test renamed to `a_decrypted_rewrite_and_an_rc4_append_are_refused` (scope now split between the two crates). `pdfcer-model`: 1352 tests pass. `pdfcer-core`: 2445 pass. `pdfcer-cli`: 36+659 pass. Workspace `cargo clippy -- -D warnings` clean; `tools/check-code-structure.py` clean. 5 sabotages planted, all 5 CAUGHT.
+
+**Invariants.** No `Cargo.toml` change — `cargo tree -p pdfcer-core` / `-p pdfcer-model` unaffected, GUI-core separation holds. No new parsing added, so no new fuzz target owed. Round trip: empty-edit append is byte-identical; encrypted round trip proven by decrypt-reopen-byte-compare. Packaging smoke test not applicable — no packaging-affecting change this Pass.
+
+**Not in this slice — remains owed, keeping `Pass 429.0` open** (see *Next up*): `EditSession` edit guards made permission-gated (owner always; user per named `/P` bit) with a `PermissionDenied` error and a permissions query; signing an encrypted document (the `sign::apply` `Encrypted` error message is now stale and belongs to this half); `docs/core-api`; CLI exposure; the `G077` reply.
+
 ### `Pass 428.0` (`f23dc873`, `b8826f21` — planner split), 2026-10-01 — a pinned spanning edit crosses text objects on one line (G074)
 
 Continues the `Pass 427.0`–`436.3` family (845th filing).
@@ -15356,6 +15372,14 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 429.0` PARTIALLY SHIPPED (model half),
+> 2026-10-01 (847th filing), `42b0a25b`** — see top of *Shipped*
+> (`Pass 429.0`, PARTIAL). **`Pass 429.0` stays OPEN and remains the
+> head of *Next up*** — the core half (permission-gated edit guards,
+> the sign-on-an-encrypted-document interaction, `docs/core-api`,
+> CLI/GUI exposure, the `G077` reply) is still owed. The family item
+> count below is unchanged.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 428.0` SHIPPED, 2026-10-01 (845th filing),
 > `f23dc873`** — see top of *Shipped*. **`Pass 429.0` is now the head of
 > *Next up* — seven items remain in the `G073`–`G081` family.**
@@ -15441,6 +15465,17 @@ closes out the *prior* filing's business rather than opening this one's.
 >   refusing by named `/P` bit (owner, or user with bit 4), plus a
 >   permissions query. ~99 guard sites today test only "is this encrypted at
 >   all". Large — may split.
+>   **★ PARTIALLY SHIPPED 2026-10-01 (847th filing), `42b0a25b`** — the
+>   incremental-encrypting-writer half, for AES-128/256 only (RC4 append
+>   refused by name, `WriteError::Rc4AppendRefused`); see *Shipped*,
+>   above. **Still owed, keeping this Pass open:** the permission-gated
+>   edit guards + permissions query, the sign-on-an-encrypted-document
+>   interaction, `docs/core-api`, CLI/GUI exposure, the `G077` reply.
+>   **Open question for the operator:** standing rule W14 reads as
+>   forbidding an RC4 *append* too, same as it forbids RC4 authoring on
+>   a fresh encrypt — not yet confirmed either way. A possible resolution
+>   is a `SaveOptions` knob that preserves RC4 on append, defaulting to
+>   `Refuse`.
 > - **`Pass 430.0`** — accept a character whose glyph exists only in the
 >   embedded font program (`G075` a+c): assign an unused code/CID, extend
 >   `/Widths`/`/W` from `hmtx`, extend `/ToUnicode`, program bytes untouched;

@@ -4,6 +4,39 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (847th filing) — `Pass 429.0` PARTIALLY SHIPPED (`42b0a25b`) — encrypted incremental save, model half
+
+**Shipped:**
+- `42b0a25b` — `Pass 429.0` (`G077`), model half only. `pdfcer-model`'s
+  incremental save of a decrypted AES-128 (V4/AESV2) or AES-256
+  (R6/AESV3) document now appends to the stored ciphertext under the
+  document's own file key instead of refusing. Fresh random IV per
+  payload, PKCS#7, encrypt-after-filter (ISO 32000-2 §7.6.2). `/Encrypt`
+  and `/ID[0]` carried unchanged; `/ID[1]` refreshes. New `WriteError`
+  variants `Rc4AppendRefused` (RC4 never written, per W14) and
+  `EntropyUnavailable` (CSPRNG preflight). `save_incremental` moved to
+  `writer/incremental.rs`, split under the 80-line limit. 4 new tests in
+  `crates/pdfcer-model/tests/encrypted_append.rs`; `pdfcer-model` 1352
+  pass, `pdfcer-core` 2445 pass, `pdfcer-cli` 36+659 pass; clippy and
+  code-structure clean; 5/5 sabotages caught. No `Cargo.toml` change.
+  **`Pass 429.0` stays OPEN** — core half (permission-gated edit guards,
+  the sign-on-encrypted interaction, docs, CLI/GUI exposure, the `G077`
+  reply) still owed.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- `FEATURES.md`'s encryption-edit row updated in place: `◐` core
+  (partial, not rounded up to `[x]`), `cli`/`gui` stay `[ ]`; row stays
+  in *Planned* — the whole `G077` capability has not landed.
+
+**Still in flight:** `Pass 429.0`'s core half (permission guards, sign
+interaction, `docs/core-api`, CLI/GUI exposure, `G077` reply); open
+operator question on whether W14 forbids an RC4 *append* too, or
+whether a `SaveOptions` knob should preserve it (default `Refuse`).
+
+**For next session:** work the `Pass 429.0` core half next.
+
 ## 2026-10-01 (845th filing) — `Pass 428.0` SHIPPED (`f23dc873`) — a pinned spanning edit crosses text objects
 
 **Shipped:**
