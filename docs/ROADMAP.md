@@ -196,6 +196,82 @@ dispatching engineer's own report on `31a319fd`/`f22fbec9`, not
 independently reproduced. `tools/run-gates.sh` result not stated this
 session. Backup/push/release state not verifiable from here.
 
+### `v0.70.0` — RELEASED (2026-10-01)
+
+Release filing, not a Pass — completes `Pass 421.8`'s own "full release
+filing to follow" note (827th filing). Version-bump commit `f22fbec9`
+("chore: v0.70.0") bumps `Cargo.toml`/both lockfiles 0.69.0 → 0.70.0;
+filed in `c8ef7753` (827th filing), with a follow-up FEATURES trim in
+`96f10e3c` (828th filing).
+
+**Tag.** Annotated tag `v0.70.0`, object `96f10e3c3c69e09f93a73dc8fb2c8e63481b97d3`
+(the 828th filing's docs-only commit), pushed. The shipped binary is
+stamped from `c8ef7753` instead — one commit earlier, the build commit —
+reporting revision `v0.69.0-18-gc8ef7753`, not dirty; the tag moved one
+docs-only commit past the build on the same day, same pattern as
+`v0.69.0`'s tag landing on its own docs commit rather than the build
+commit.
+
+**Range since `v0.69.0` (`ea304b7b` on `29350107`): batches every Pass
+already filed above** — `421.3` (`Camera::fit` frames the projected
+bounding box, `046ec96f`, 821st filing), `421.4` (`Camera::fit_meshes`
+frames every vertex, `78f966c2`, 822nd filing; test-only clippy follow-up
+`d49224cd`, 824th filing), `421.5` (CLI fixes: stale assembly-test probes
++ `3d-mesh --format`-from-extension, `d8514cce`/`3ea9a5d8`, 823rd
+filing), `421.6` (per-face colour via `TESS_Face` line attributes,
+`6a016719`, 825th filing), `421.7` (fold rule R6, `6204ea81`, 826th
+filing), and `421.8` (fold-inversion retry, `31a319fd`, 827th filing) —
+all already filed above.
+
+**Gates.** `tools/run-gates.sh`: 42 of 42 PASS (41 in the run plus a
+separate `check-register-entry-size` rerun, clean, after the 828th
+filing trimmed the FEATURES 3D row under cap).
+
+**Build.** `tools/package-portable.py` →
+`D:\builds\pdfcer-20261001-0314-c8ef775` (72,561,638 bytes staged); the
+folder name's `c8ef775` confirms the build was taken at the build
+commit, as noted under *Tag* above.
+
+**Fresh-folder smoke test.** `pdfcer --version` reports `0.70.0`. On the
+local-only 3D-PDF-Sample-School sample (never committed): `3d-render`
+and `3d-mesh` report 1,173 meshes, 70,196 triangles, 348 of 348
+compressed meshes rebuilt, 0 skipped.
+
+**Known open defect, disclosed in the release notes.** The front
+double-door panels' carved detail still shows the residual apex-drift /
+conditioning-amplification pattern flagged since `419.2`, at its worst
+measured case (see `Pass 421.x`'s Backlog note). Released anyway at the
+operator's explicit request — an attempt to close it before the cut did
+not land. Release notes state it as "fine detail in some compressed
+meshes distorts." Decisive test (comparison against Acrobat Reader's own
+render of the same file) still pending.
+
+**GitHub release.** Published via `tools/gh-release.py`:
+`pdfcer-v0.70.0-windows-x64.zip`, 43,691,397 bytes, sha256
+`5cfc0f157da91c3fd99fdcc607b0b2ce1ffd61ca47659f36c24cfd943962fb1e`, plus
+its `.sha256`. PASS.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer1` (now
+`0.70.0`); `pdfcer2` keeps `v0.69.0`. Next release writes `pdfcer2`.
+
+**`verify-release.py v0.70.0`.** All checks ok except CI was still in
+progress at release time — re-confirm with `python
+tools/verify-release.py v0.70.0` once CI settles; not re-run from here.
+
+**Headline.** `421.8` closes the last known compressed-tessellation
+reconstruction gap measured on the School sample (348/348, was 347/348);
+the door-panel conditioning-amplification case is flagged open and
+disclosed rather than hidden.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself** — the
+release adds no capability beyond `Pass 421.8`, already recorded by the
+827th/828th filings.
+
+**Sourcing (hard rule 8).** No shell tool this filing — the tag object,
+build size, hashes, gate/smoke-test results and GitHub/OneDrive details
+are relayed from the dispatching engineer's own report; not independently
+reproduced here.
+
 ### `Pass 421.7` (`6204ea81`), 2026-10-01 — a panel folding back over itself swaps its continuation
 
 Continues the `Pass 421.x` bucket's compressed-tessellation thread — PRC

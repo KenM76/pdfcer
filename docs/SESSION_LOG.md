@@ -4,6 +4,57 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (829th filing) — `v0.70.0` RELEASED
+
+**Shipped:**
+- `v0.70.0` released — completes the 827th filing's "release in
+  progress" note. Tag `v0.70.0` (annotated) at `96f10e3c` (828th
+  filing's docs commit); shipped binary built one commit earlier at
+  `c8ef7753`, stamped revision `v0.69.0-18-gc8ef7753`, not dirty.
+  GitHub release `pdfcer-v0.70.0-windows-x64.zip` (43,691,397 bytes,
+  sha256 `5cfc0f157da91c3fd99fdcc607b0b2ce1ffd61ca47659f36c24cfd943962fb1e`)
+  via `tools/gh-release.py`, PASS. Portable build
+  `D:\builds\pdfcer-20261001-0314-c8ef775` (72,561,638 bytes) deployed
+  to OneDrive slot `pdfcer1` (`pdfcer2` keeps `v0.69.0`; next release
+  writes `pdfcer2`). Full details under `v0.70.0`'s own entry in
+  `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `tools/run-gates.sh`: 42 of 42 PASS (41 in the run plus a separate
+  `check-register-entry-size` rerun, clean, after the 828th filing
+  trimmed the FEATURES 3D row under cap). Fresh-folder smoke test:
+  `--version` reports `0.70.0`; `3d-render`/`3d-mesh` on the local-only
+  3D-PDF-Sample-School sample report 1,173 meshes, 70,196 triangles,
+  348 of 348 compressed meshes rebuilt, 0 skipped.
+- `tools/verify-release.py v0.70.0`: all checks ok except CI was still
+  in progress at release time — re-confirm once CI settles, not re-run
+  from here.
+- Released with a known, disclosed defect: the front double-door
+  panels' carved detail still shows the residual apex-drift /
+  conditioning-amplification pattern (open since `419.2`), at its
+  worst measured case. Ken asked for the release regardless if a fix
+  attempt failed before the cut; it did. Release notes state it as
+  "fine detail in some compressed meshes distorts." Decisive test
+  (Acrobat Reader comparison on the same file) still pending.
+- No `docs/FEATURES.md` changes — the release adds no capability beyond
+  `Pass 421.8`, already recorded by the 827th/828th filings.
+
+**Still in flight:** None new — `v0.70.0` release is complete. The
+door-panel conditioning-amplification case remains open, next-owed
+after the vaulted-roof tessellation tear (entity #868, `419.2`'s
+remainder).
+
+**For next session:** Confirm `tools/verify-release.py v0.70.0` once CI
+settles; otherwise pick up the `421.x` next-owed order per the 827th
+filing's "Still in flight" note.
+
+**Sourcing (hard rule 8).** No shell tool this filing — the tag object,
+build size, hashes, gate/smoke-test results and GitHub/OneDrive details
+are relayed from the dispatching engineer's own report; not
+independently reproduced here.
+
 ## 2026-10-01 (827th filing) — `Pass 421.8` (`31a319fd`) + `v0.70.0` version bump (`f22fbec9`): fold-inversion retry, and an open door-panel finding
 
 **Shipped:**
