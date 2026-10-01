@@ -100,7 +100,7 @@
 
 use crate::text_edit::cause::{NotFoundReason, UnsupportedCause};
 use crate::text_edit::cross_object;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
 use crate::document::Document;
@@ -2063,57 +2063,152 @@ pub(crate) fn plan_edit_with_records(
     opts: &EditOptions,
     mode: PlanMode,
 ) -> Result<EditPlan, EditError> {
-    let content_id = target.content_id;
-    let extra_emptied = target.extra_emptied;
-
-    // Form-specific HARD refusals, applied before any surgery so a refused
-    // edit costs nothing and mutates nothing (rule 4).
+    // Form refusals come before any surgery, so a refused edit costs nothing.
     if let Some(form) = target.form.as_ref() {
         refuse_unsuitable_form(form)?;
     }
-
-    // --- locate the anchor show operator ---
     let span = find_anchor_span(recs, req)?;
     // A span edit touches only the part of the match that actually changes,
     // so the producer's own positioning of the unchanged glyphs survives.
-    let narrowed_req;
-    let (span, req, narrowed) = match narrow_span(recs, span, req) {
-        Some((s, r)) => {
-            narrowed_req = r;
-            (s, &narrowed_req, true)
-        }
-        None => (span, req, false),
+    let narrow = narrow_span(recs, span, req);
+    let (span, req) = narrow.as_ref().map_or((span, req), |(s, r)| (*s, r));
+    let narrowed = narrow.is_some();
+    let at = locate(recs, span, &req.find)?;
+    let anchor = at.anchor;
+    let (font_dict, font, class) = anchor_font(doc, target, anchor)?;
+    // An empty `find` on a PINNED request means the whole operator.
+    let find = effective_find(anchor, &req.find, req.pinned_span);
+    let (m, leading_matches) = match_anchor(&at, span, find)?;
+    let encoded = encode_replacement(&font, anchor, &req.replace)?;
+    if class.embedded && class.subset {
+        subset_floor(doc, target, recs, &font, anchor, &req.replace, &encoded)?;
+    }
+
+    // Advance delta (§9.4.4): the anchor's matched glyphs plus any TJ kerns
+    // the match swallowed, against the whole replacement, which lands there.
+    let advance =
+        |codes: &[u32]| -> f64 { codes.iter().map(|&c| glyph_advance(&font, c, anchor)).sum() };
+    let laying = Laying {
+        recs,
+        font: &font,
+        font_dict,
+        anchor,
+        anchor_index: at.anchor_index,
+        anchor_bytes: at.anchor_bytes,
+        m: &m,
+        others: &leading_matches,
+        replace: &req.replace,
+        encoded: &encoded,
+        disposition: opts.disposition,
+        a_new: advance(&encoded.codes),
+        a_old_last: advance(&m.old_codes) + m.kern_advance,
     };
+    let mut laid = if at.crossed {
+        lay_across(&laying, &at.leading_ops)
+    } else {
+        lay_in_object(&laying)
+    };
+    let new_content = match mode {
+        PlanMode::Commit => splice(&stream.buf, &mut laid.edits),
+        PlanMode::Preview => Vec::new(),
+    };
+
+    // The report only; the caller performs its own write step.
+    let mut disclosures = encoded.disclosures;
+    disclosures.extend(laid.span_note);
+    disclosures.extend(narrowed.then(|| NARROWED_NOTE.to_owned()));
+    disclosures.extend(laid.td_note);
+    disclosures.extend(general_disclosures(req, opts, anchor, find, &font, &class));
+    target_disclosures(doc, target, anchor, &mut disclosures);
+    // Show operators only: the `Td` steps between them are not operators the
+    // text was written across.
+    let moved = (laid.delta, laid.followers, leading_matches.len() as u64 + 1);
+    Ok(EditPlan {
+        new_content,
+        report: edit_report(target, &font, &class, opts, moved, anchor, disclosures),
+        layout: laid.layout,
+    })
+}
+
+/// Resolve and classify the anchor's font.
+///
+/// Classification comes BEFORE matching: a font-level refusal (R-INV-2/3/4)
+/// is a property of the run, and reporting `NoMatch` for text present in a
+/// refused font would tell the operator it is absent. The font resolves
+/// against `target.resources`: inside a form XObject `/F1` can name a
+/// different font dictionary (§8.10.1).
+///
+/// # Errors
+///
+/// [`UnsupportedCause::FontUnresolvable`], or a [`classify_font`] refusal.
+fn anchor_font<'a>(
+    doc: &'a DocumentView<'a>,
+    target: &'a EditPlanTarget,
+    anchor: &ShowData,
+) -> Result<(&'a Dict, ExtractFont, FontClass), EditError> {
+    let font_dict = resolve_font_dict(doc, &target.resources, &anchor.font_name)
+        .ok_or(EditError::Unsupported(UnsupportedCause::FontUnresolvable))?;
+    let font = ExtractFont::resolve(doc, font_dict);
+    let class = classify_font(doc, font_dict, &font)?;
+    Ok((font_dict, font, class))
+}
+
+/// The disclosure for an edit narrowed to the part of the find text that
+/// differs from the replacement.
+const NARROWED_NOTE: &str = "span: the start and end of the find text matched the replacement, so only the part that differs was rewritten — the unchanged glyphs keep the producer's own spacing.";
+
+/// The anchor's match and the span's other operators' matches.
+type Matched<'a> = (MatchRun, Vec<(usize, &'a ShowData, MatchRun)>);
+
+/// The anchor operator of a match and the span's other operators.
+struct Located<'a> {
+    /// Record index of the operator that receives the replacement: the FIRST
+    /// of a match crossing text objects (`cross_object`), otherwise the last.
+    anchor_index: usize,
+    /// The anchor's byte range in the content buffer.
+    anchor_bytes: (usize, usize),
+    anchor: &'a ShowData,
+    /// Whether the span was joined across `ET`.
+    crossed: bool,
+    /// The span's operators other than the anchor, each with the character
+    /// range of the match inside it (in its own text). Empty for a
+    /// single-operator match. Every operator of a span shares the font
+    /// resource by the grouping rule, so the anchor's classification holds
+    /// for all of them.
+    leading_ops: Vec<(usize, &'a ShowData, usize, usize)>,
+    /// Where the anchor's text starts within the span's joined text.
+    last_offset: usize,
+}
+
+/// Find the anchor operator of `span` and split the match across its
+/// operators.
+///
+/// # Errors
+///
+/// [`EditError::NoMatch`] when the anchor record is not a show operator;
+/// [`UnsupportedCause::QuoteOperator`] for a `'`/`"` anchor.
+fn locate<'a>(recs: &'a [OpRec], span: Anchor, find: &str) -> Result<Located<'a>, EditError> {
     let crossed = cross_object::crosses(recs, span.first, span.last);
-    // A match crossing text objects is written into its FIRST operator
-    // (`cross_object`); any other span into its last.
     let anchor_index = if crossed { span.first } else { span.last };
-    let OpRec {
-        start: a_start,
-        end: a_end,
+    let Some(OpRec {
+        start,
+        end,
         rec: Rec::Show(anchor),
-    } = recs
-        .get(anchor_index)
-        .ok_or(EditError::no_match(req.find.clone()))?
+    }) = recs.get(anchor_index)
     else {
-        return Err(EditError::no_match(req.find.clone()));
+        return Err(EditError::no_match(find.to_owned()));
     };
-    // The span's operators other than the anchor, each with the character
-    // range of the match that falls inside it (in its own text coordinates).
-    // Empty for a single-operator match. The font, encoding and floor logic
-    // runs on the anchor (the operator that receives the replacement); every
-    // operator in a span shares the resource by the grouping rule, so the
-    // classification is the same for all of them.
-    let mut leading_ops: Vec<(usize, &ShowData, usize, usize)> = Vec::new();
+    let show = |k: usize| match recs.get(k) {
+        Some(OpRec {
+            rec: Rec::Show(s), ..
+        }) => Some(&**s),
+        _ => None,
+    };
+    let mut leading_ops = Vec::new();
     if span.first != span.last {
         let mut offset = 0usize;
         for k in span.first..=span.last {
-            let Some(OpRec {
-                rec: Rec::Show(s), ..
-            }) = recs.get(k)
-            else {
-                continue;
-            };
+            let Some(s) = show(k) else { continue };
             let lo = span.pos.saturating_sub(offset).min(s.text.len());
             let hi = span.end.saturating_sub(offset).min(s.text.len());
             if k != anchor_index && hi > lo {
@@ -2122,69 +2217,41 @@ pub(crate) fn plan_edit_with_records(
             offset += s.text.len();
         }
     }
-    // Where the anchor's text starts within the span's joined text.
-    let last_offset: usize = (span.first..anchor_index)
-        .filter_map(|k| match recs.get(k) {
-            Some(OpRec {
-                rec: Rec::Show(s), ..
-            }) => Some(s.text.len()),
-            _ => None,
-        })
+    let last_offset = (span.first..anchor_index)
+        .filter_map(show)
+        .map(|s| s.text.len())
         .sum();
     if matches!(anchor.op, ShowOp::Quote | ShowOp::DoubleQuote) {
         return Err(EditError::Unsupported(UnsupportedCause::QuoteOperator));
     }
+    Ok(Located {
+        anchor_index,
+        anchor_bytes: (*start, *end),
+        anchor,
+        crossed,
+        leading_ops,
+        last_offset,
+    })
+}
 
-    // --- resolve the anchor font + classify it (R-INV-2/3/4) ---
-    //
-    // ORDER MATTERS, and it was wrong. This block used to sit AFTER
-    // `match_run`, which meant a composite run reported `NoMatch` — "text to
-    // edit was not found in an editable run on the page" — instead of the
-    // composite refusal, because `match_run` needs per-code slots and
-    // composite runs have none. The operator was told their text was absent
-    // when it was present in a font pdfcer declines to edit.
-    //
-    // Classifying first fixes it without touching `match_run`: a font-level
-    // refusal (R-INV-2/3/4) is a property of the RUN, not of whether the
-    // sought text happens to be inside it, so there was never a reason to
-    // establish the match before applying it. For a simple font nothing
-    // changes — the same call, the same inputs, a few lines earlier.
-    //
-    // `target.resources`, not the page's (`Pass 119.0`). Inside a form
-    // XObject the SAME NAME `/F1` can mean a different font dictionary
-    // (§8.10.1: the form executes with its own `/Resources`), so resolving a
-    // form run's `Tf` against the page's dictionary would silently measure the
-    // wrong widths, and the advance arithmetic would be wrong in a way that
-    // renders as text drifting out of place rather than as an error.
-    let font_dict = resolve_font_dict(doc, &target.resources, &anchor.font_name)
-        .ok_or(EditError::Unsupported(UnsupportedCause::FontUnresolvable))?;
-    // `doc` is whatever graph the CALLER plans against (`Pass 257.0`): the
-    // session passes its overlay view, so a `/Font` object created earlier
-    // in the same session (a `format_text` face swap) resolves here; the
-    // one-shot `edit_text` passes the loaded file's view. Before 257.0 this
-    // was `&Document` — base-relative by contract — and a swapped-in face
-    // was "unresolvable" until the operator saved and reopened.
-    let font = ExtractFont::resolve(doc, font_dict);
-    let class = classify_font(doc, font_dict, &font)?;
-
-    // --- map the find text to a contiguous code range in one element ---
-    //
-    // `Pass 145.0`: an empty `find` on a PINNED request means the whole
-    // operator, so a caller that already located it need not describe it.
-    // Unpinned, an empty `find` is still refused by `match_run`.
-    let find = effective_find(anchor, &req.find, req.pinned_span);
+/// Map `find` to a contiguous code range in the anchor, and in each of the
+/// span's other operators.
+///
+/// `match_range` rather than `match_run`: inside one operator a match may
+/// cross TJ elements (`[(cli) -20 (en)] TJ`).
+///
+/// # Errors
+///
+/// [`UnsupportedCause::EmptyFind`] for an empty single-operator find;
+/// [`EditError::NoMatch`] when the text is not at the span's position.
+fn match_anchor<'a>(at: &Located<'a>, span: Anchor, find: &str) -> Result<Matched<'a>, EditError> {
+    let anchor = at.anchor;
     let m = if span.first == span.last {
-        // `match_range` rather than `match_run`: inside one operator the
-        // match may cross TJ ELEMENTS (`[(cli) -20 (en)] TJ`), which the
-        // edit path handles since `Pass 256.0`; `match_run` keeps refusing
-        // that for `format_text`, whose emitter has not learnt it.
         if find.is_empty() {
-            // Same refusal `match_run` gives: an empty find with no pin is
-            // a caller error, not "not found" (route_enumeration pins it).
             return Err(EditError::Unsupported(UnsupportedCause::EmptyFind));
         }
-        // `span.pos`, not a fresh `find`: a narrowed span names ONE
-        // occurrence, and the first occurrence in the operator may be another.
+        // `span.pos`, not a fresh search: a narrowed span names ONE
+        // occurrence, and the first one in the operator may be another.
         if !anchor
             .text
             .get(span.pos..)
@@ -2193,240 +2260,167 @@ pub(crate) fn plan_edit_with_records(
             return Err(EditError::no_match(find.to_owned()));
         }
         match_range(anchor, span.pos, span.pos + find.len(), find)?
-    } else if crossed {
+    } else if at.crossed {
         // The match runs from `span.pos` to the end of the first operator.
         match_range(anchor, span.pos, anchor.text.len(), find)?
     } else {
-        // In the last operator the match starts at character 0 (it began
-        // in an earlier operator) and ends where the span says.
-        match_range(anchor, 0, span.end.saturating_sub(last_offset), find)?
+        // In the last operator the match starts at character 0 and ends
+        // where the span says.
+        match_range(anchor, 0, span.end.saturating_sub(at.last_offset), find)?
     };
-    let leading_matches: Vec<(usize, &ShowData, MatchRun)> = leading_ops
+    let leading = at
+        .leading_ops
         .iter()
         .map(|(k, s, lo, hi)| match_range(s, *lo, *hi, find).map(|mr| (*k, *s, mr)))
         .collect::<Result<_, _>>()?;
+    Ok((m, leading))
+}
 
-    let encoded = if font.is_simple() {
-        let glyph_names = font.glyph_names().ok_or(EditError::Unsupported(
-            UnsupportedCause::EncodingNotInvertible,
-        ))?;
-        let inverse = InverseEncoding::build(&font.base_font, glyph_names);
-        // The R-INV-5 tie-break seed: codes already used in this run. Narrowed
-        // to `u8` because that is what the single-byte encoder means by a
-        // code; a composite run does not take this path at all.
-        let prefer: BTreeSet<u8> = anchor
-            .slots
-            .iter()
-            .filter_map(|s| u8::try_from(s.code).ok())
-            .collect();
-        let e = inverse
-            .encode_str(&req.replace, &prefer)
-            .map_err(EditError::Refused)?;
-        EncodedReplacement {
-            codes: e.codes.iter().map(|&c| u32::from(c)).collect(),
-            bytes: e.codes,
-            disclosures: e.disclosures,
-        }
-    } else {
-        // Reaching here means `classify_font` already established the map is
-        // invertible — it refuses by name when it is not — so `build` is
-        // re-deriving a known-good inversion rather than gambling.
-        let cmap = font.to_unicode_cmap().ok_or(EditError::Unsupported(
-            UnsupportedCause::CompositeWithoutToUnicode,
-        ))?;
-        let composite = CompositeEncoding::build(&font.base_font, cmap).map_err(|e| {
-            EditError::Unsupported(UnsupportedCause::FontMapNotInvertible {
-                detail: e.to_string(),
-            })
-        })?;
-        let e = composite
-            .encode_str(&req.replace)
-            .map_err(EditError::Refused)?;
-        // `Pass 256.1` disclosure: the replacement avoided every ambiguous
-        // character, but the font HAS some, and an operator typing the next
-        // edit deserves to know which ones will be refused.
-        let mut disclosures = Vec::new();
-        let ambiguous = composite.ambiguous_chars();
-        if !ambiguous.is_empty() {
-            let list: Vec<String> = ambiguous
-                .iter()
-                .take(8)
-                .map(|(ch, codes)| {
-                    format!(
-                        "{ch:?} (codes {})",
-                        codes
-                            .iter()
-                            .map(u32::to_string)
-                            .collect::<Vec<_>>()
-                            .join("/")
-                    )
-                })
-                .collect();
-            disclosures.push(format!(
-                "font map: {} character(s) of this font are produced by more than one code and are REFUSED if a replacement needs them — {}{}; this replacement used none of them.",
-                ambiguous.len(),
-                list.join(", "),
-                if ambiguous.len() > 8 { ", …" } else { "" }
-            ));
-        }
-        EncodedReplacement {
-            codes: e.cids.iter().map(|&c| u32::from(c)).collect(),
-            bytes: e.to_bytes(),
-            disclosures,
-        }
-    };
-
-    // --- embedded-subset floor: a new code the subset does not already
-    //     carry is REFUSED by name (the one refusal in the four-case table).
-    if class.embedded && class.subset {
-        let carried = carried_codes(recs, &anchor.font_name);
-        for (u, &code) in req.replace.chars().zip(encoded.codes.iter()) {
-            if !carried.contains(&code) {
-                // COMPUTED ONCE, spent TWICE (`Pass 296.1`). It used to be
-                // computed here and spent only on the sentence, which is how a
-                // page-aware remedy ended up reachable only by parsing prose.
-                // The structured field and the clause are now two renderings of
-                // this one value -- `R221`'s rule applied to an answer rather
-                // than to a producer: one computation, asked, never two kept in
-                // step by hand.
-                let reachable = crate::text_edit::format::std14_faces_reachable(
-                    doc,
-                    &target.resources,
-                    recs,
-                    u,
-                );
-                return Err(EditError::Refused(Refusal {
-                    trigger: RInvTrigger::TargetAbsent,
-                    character: Some(u),
-                    base_font: font.base_font.clone(),
-                    remedy_faces: reachable.iter().map(|&f| f.to_owned()).collect(),
-                    // THE SAME REMEDY THE SIBLING REFUSAL NAMES, because an
-                    // operator experiences these two as one thing.
-                    //
-                    // This is the embedded-SUBSET floor; `InverseEncoding`'s
-                    // `TargetAbsent` fires when the font has no glyph at all.
-                    // Different causes, identical symptom — *"I typed a
-                    // character and it would not take"* — so a remedy offered
-                    // by one and withheld by the other is a coin toss from
-                    // outside. Improving one and not the other is `R245`'s
-                    // shape, and it was found by a test that happened to pick
-                    // a fixture reaching this branch instead of that one.
-                    //
-                    // Pointing only at FF-C was accurate and useless: it names
-                    // an unshipped subsystem rather than the route that works
-                    // today.
-                    message: format!(
-                        "R-INV-1 (embedded-subset floor): character U+{:04X} '{}' maps to code {} \
-                         which font '{}' (an embedded SUBSET) does not already carry on this page; \
-                         embedding a new glyph into that subset is deferred to FF-C (font \
-                         subsetting). This is exactly Acrobat's 'embedded-but-not-local' floor.{}",
-                        u as u32,
-                        u,
-                        code,
-                        font.base_font,
-                        // PAGE-AWARE SINCE `Pass 279.0`, and the naive
-                        // list was WRONG IN ITS FIRST POSITION on the very
-                        // fixture this refusal exists for.
-                        //
-                        // `set_font` resolves a selector against the page
-                        // FIRST (`resolve_target_resource`), matching a
-                        // subset-stemmed `/BaseFont` — so on a page whose font
-                        // is `ABCDEF+Helvetica`, asking for "Helvetica" re-uses
-                        // that very subset and the edit fails again,
-                        // identically. Measured on `subset_missing.pdf`:
-                        // `--set-font Helvetica` reported
-                        // `ABCDEF+Helvetica->ABCDEF+Helvetica` and the
-                        // follow-up edit refused word for word, while
-                        // `Times-Roman` worked.
-                        //
-                        // So each candidate is now asked of the ACCEPTING code
-                        // on THIS page (`R221`), not of the standard-14
-                        // encoding tables in isolation.
-                        match crate::text_edit::encoding::faces_clause(&reachable).as_str() {
-                            "" => String::new(),
-                            clause => format!(
-                                " To make this edit now, switch the run to a font that carries '{u}' -- `format_text` with `set_font` will add one, and {clause}"
-                            ),
-                        }
-                    ),
-                }));
-            }
-        }
+/// Encode the replacement in the anchor's font.
+///
+/// # Errors
+///
+/// [`EditError::Refused`] for a character the font cannot produce;
+/// [`EditError::Unsupported`] when the font's encoding cannot be inverted.
+fn encode_replacement(
+    font: &ExtractFont,
+    anchor: &ShowData,
+    replace: &str,
+) -> Result<EncodedReplacement, EditError> {
+    if !font.is_simple() {
+        return encode_composite(font, replace);
     }
-
-    // --- advance delta (§9.4.4) ---
-    // The old advance of the LAST operator's part of the match (its glyphs
-    // plus any TJ kerns the match swallowed); the new advance is the whole
-    // replacement, which lands there.
-    let a_old_last: f64 = m
-        .old_codes
+    let glyph_names = font.glyph_names().ok_or(EditError::Unsupported(
+        UnsupportedCause::EncodingNotInvertible,
+    ))?;
+    let inverse = InverseEncoding::build(&font.base_font, glyph_names);
+    // The R-INV-5 tie-break seed: codes already used in this run.
+    let prefer: BTreeSet<u8> = anchor
+        .slots
         .iter()
-        .map(|&c| glyph_advance(&font, c, anchor))
-        .sum::<f64>()
-        + m.kern_advance;
-    let a_new: f64 = encoded
-        .codes
+        .filter_map(|s| u8::try_from(s.code).ok())
+        .collect();
+    let e = inverse
+        .encode_str(replace, &prefer)
+        .map_err(EditError::Refused)?;
+    Ok(EncodedReplacement {
+        codes: e.codes.iter().map(|&c| u32::from(c)).collect(),
+        bytes: e.codes,
+        disclosures: e.disclosures,
+    })
+}
+
+/// [`encode_replacement`] for a composite font. `classify_font` has already
+/// refused a map that is not invertible, so `build` re-derives a known-good
+/// inversion.
+fn encode_composite(font: &ExtractFont, replace: &str) -> Result<EncodedReplacement, EditError> {
+    let cmap = font.to_unicode_cmap().ok_or(EditError::Unsupported(
+        UnsupportedCause::CompositeWithoutToUnicode,
+    ))?;
+    let composite = CompositeEncoding::build(&font.base_font, cmap).map_err(|e| {
+        EditError::Unsupported(UnsupportedCause::FontMapNotInvertible {
+            detail: e.to_string(),
+        })
+    })?;
+    let e = composite.encode_str(replace).map_err(EditError::Refused)?;
+    Ok(EncodedReplacement {
+        codes: e.cids.iter().map(|&c| u32::from(c)).collect(),
+        bytes: e.to_bytes(),
+        disclosures: ambiguity_note(composite.ambiguous_chars())
+            .into_iter()
+            .collect(),
+    })
+}
+
+/// The replacement avoided every ambiguous character, but the font has some,
+/// and the operator's next edit deserves to know which will be refused.
+fn ambiguity_note(ambiguous: &BTreeMap<char, Vec<u32>>) -> Option<String> {
+    if ambiguous.is_empty() {
+        return None;
+    }
+    let list: Vec<String> = ambiguous
         .iter()
-        .map(|&c| glyph_advance(&font, c, anchor))
-        .sum();
-    let laying = Laying {
-        recs,
-        font: &font,
-        font_dict,
-        anchor,
-        anchor_index,
-        anchor_bytes: (*a_start, *a_end),
-        m: &m,
-        others: &leading_matches,
-        replace: &req.replace,
-        encoded: &encoded,
-        disposition: opts.disposition,
-        a_new,
-        a_old_last,
-    };
-    let Laid {
-        layout,
-        mut edits,
-        delta,
-        followers,
-        span_note,
-        td_note,
-    } = if crossed {
-        lay_across(&laying, &leading_ops)
-    } else {
-        lay_in_object(&laying)
-    };
+        .take(8)
+        .map(|(ch, codes)| {
+            let codes: Vec<String> = codes.iter().map(u32::to_string).collect();
+            format!("{ch:?} (codes {})", codes.join("/"))
+        })
+        .collect();
+    Some(format!(
+        "font map: {} character(s) of this font are produced by more than one code and are REFUSED if a replacement needs them — {}{}; this replacement used none of them.",
+        ambiguous.len(),
+        list.join(", "),
+        if ambiguous.len() > 8 { ", …" } else { "" }
+    ))
+}
 
-    // --- splice the edits into the decoded buffer ---
-    let new_content = match mode {
-        PlanMode::Commit => splice(&stream.buf, &mut edits),
-        PlanMode::Preview => Vec::new(),
+/// The embedded-subset floor: a code the subset does not already carry on
+/// this page is refused by name.
+///
+/// The remedy names the standard-14 faces `set_font` would actually reach on
+/// THIS page (`std14_faces_reachable`): asking for "Helvetica" on a page whose
+/// font is `ABCDEF+Helvetica` re-selects that very subset. It is computed
+/// once and spent on both the structured field and the sentence, and is the
+/// same remedy the absent-glyph refusal names, because an operator
+/// experiences the two as one thing.
+///
+/// # Errors
+///
+/// [`EditError::Refused`] with [`RInvTrigger::TargetAbsent`].
+fn subset_floor(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    recs: &[OpRec],
+    font: &ExtractFont,
+    anchor: &ShowData,
+    replace: &str,
+    encoded: &EncodedReplacement,
+) -> Result<(), EditError> {
+    let carried = carried_codes(recs, &anchor.font_name);
+    let Some((u, code)) = replace
+        .chars()
+        .zip(encoded.codes.iter().copied())
+        .find(|(_, code)| !carried.contains(code))
+    else {
+        return Ok(());
     };
+    let reachable =
+        crate::text_edit::format::std14_faces_reachable(doc, &target.resources, recs, u);
+    let remedy = match crate::text_edit::encoding::faces_clause(&reachable).as_str() {
+        "" => String::new(),
+        clause => format!(
+            " To make this edit now, switch the run to a font that carries '{u}' -- `format_text` with `set_font` will add one, and {clause}"
+        ),
+    };
+    Err(EditError::Refused(Refusal {
+        trigger: RInvTrigger::TargetAbsent,
+        character: Some(u),
+        base_font: font.base_font.clone(),
+        remedy_faces: reachable.iter().map(|&f| f.to_owned()).collect(),
+        message: format!(
+            "R-INV-1 (embedded-subset floor): character U+{:04X} '{}' maps to code {} \
+             which font '{}' (an embedded SUBSET) does not already carry on this page; \
+             embedding a new glyph into that subset is deferred to FF-C (font \
+             subsetting). This is exactly Acrobat's 'embedded-but-not-local' floor.{}",
+            u as u32, u, code, font.base_font, remedy
+        ),
+    }))
+}
 
-    // --- assemble the report + disclosures (NO save happens here; the
-    //     caller — the free function or the session — performs its own
-    //     write step, Pass 14.3 §0.2) ---
-    let mut disclosures = Vec::new();
-    disclosures.extend(encoded.disclosures);
-    // Show operators only — the records between them (the producer's `Td`
-    // steps) are not operators the text was written across.
-    let operators_spanned = leading_matches.len() as u64 + 1;
-    disclosures.extend(span_note);
-    if narrowed {
-        disclosures.push(
-            "span: the start and end of the find text matched the replacement, so only the part that differs was rewritten — the unchanged glyphs keep the producer's own spacing."
-                .to_owned(),
-        );
-    }
-    if let Some(note) = td_note {
-        disclosures.push(note);
-    }
+/// The disclosures every edit carries, whatever it was written into.
+fn general_disclosures(
+    req: &EditRequest,
+    opts: &EditOptions,
+    anchor: &ShowData,
+    find: &str,
+    font: &ExtractFont,
+    class: &FontClass,
+) -> Vec<String> {
+    let mut out = Vec::new();
     if req.find.is_empty() {
-        // Reached only on a pinned request — `match_run` refuses an empty
-        // find without a pin — so this cannot fire for a caller who simply
-        // passed no text. See `format::disclosure_whole_operator` for why the
-        // multi-operator sentence is in it.
-        disclosures.push(format!(
+        // Reached only on a pinned request. See
+        // `format::disclosure_whole_operator` for the multi-operator sentence.
+        out.push(format!(
             "whole operator: no find text was given and a byte span was pinned, so the ENTIRE \
              pinned show operator was replaced — {} character(s). One text run in pdfcer's \
              extraction model can carry glyphs from several show operators (13% of runs over \
@@ -2435,15 +2429,15 @@ pub(crate) fn plan_edit_with_records(
             find.chars().count()
         ));
     }
-    disclosures.push(trust_disclosure(class.embedded, &font.base_font));
-    disclosures.push(
+    out.push(trust_disclosure(class.embedded, &font.base_font));
+    out.push(
         "save: this edit was written INCREMENTALLY (R34/R70); the prior text survives in the \
          document's revision history by design. To truly remove text, use redaction (Pass 8) — a \
          distinct, security operation."
             .to_owned(),
     );
     if matches!(opts.disposition, FollowerDisposition::Reflow) {
-        disclosures.push(
+        out.push(
             "relayout: the edited line was shifted by the advance delta and MAY now overflow the \
              original right margin; block re-wrap (reflow) is deferred (FF-A) — enable reflow to \
              re-wrap."
@@ -2451,7 +2445,7 @@ pub(crate) fn plan_edit_with_records(
         );
     }
     if let Some(mcid) = anchor.mcid {
-        disclosures.push(format!(
+        out.push(format!(
             "tagged PDF: the edit is inside a marked-content sequence (/MCID {mcid}); its \
              BDC/EMC+MCID wrapper was PRESERVED (structure references stay valid), but the \
              structure tree's /ActualText and reading order were NOT updated and are now STALE \
@@ -2459,23 +2453,42 @@ pub(crate) fn plan_edit_with_records(
              silently corrupting the accessibility tree (R72)."
         ));
     }
+    out
+}
+
+/// The disclosures owed to where the edit was written: a collapsed
+/// multi-stream page, or a form XObject.
+fn target_disclosures(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    anchor: &ShowData,
+    out: &mut Vec<String>,
+) {
+    let extra_emptied = target.extra_emptied;
     if extra_emptied > 0 {
-        disclosures.push(format!(
+        out.push(format!(
             "multi-stream page: {extra_emptied} additional /Contents stream(s) were collapsed \
              into the first and emptied so the edit's byte offsets stay coherent."
         ));
     }
     if let Some(form) = target.form.as_ref() {
-        disclose_form_edit(
-            doc,
-            form,
-            target.invocations.as_ref(),
-            anchor,
-            &mut disclosures,
-        );
+        disclose_form_edit(doc, form, target.invocations.as_ref(), anchor, out);
     }
+}
 
-    let report = EditReport {
+/// Assemble the [`EditReport`]. `moved` is (advance delta, followers
+/// repositioned, show operators spanned).
+fn edit_report(
+    target: &EditPlanTarget,
+    font: &ExtractFont,
+    class: &FontClass,
+    opts: &EditOptions,
+    (advance_delta, followers_repositioned, operators_spanned): (f64, u64, u64),
+    anchor: &ShowData,
+    disclosures: Vec<String>,
+) -> EditReport {
+    let invocations = target.invocations.as_ref();
+    EditReport {
         base_font: font.base_font.clone(),
         glyph_source: if class.embedded {
             EditGlyphSource::Embedded
@@ -2483,30 +2496,20 @@ pub(crate) fn plan_edit_with_records(
             EditGlyphSource::NonEmbedded
         },
         subset: class.subset,
-        advance_delta: delta,
+        advance_delta,
         disposition: opts.disposition,
-        followers_repositioned: followers,
+        followers_repositioned,
         operators_spanned,
         tagged_mcid: anchor.mcid,
-        content_object: content_id.num,
-        extra_objects_emptied: extra_emptied,
+        content_object: target.content_id.num,
+        extra_objects_emptied: target.extra_emptied,
         form_object: target.form.as_ref().map(|f| f.id.num),
-        form_invocations: target
-            .invocations
-            .as_ref()
-            .map_or(0, |set| set.count() as u64),
-        form_pages: target
-            .invocations
-            .as_ref()
+        form_invocations: invocations.map_or(0, |set| set.count() as u64),
+        form_pages: invocations
             .map(|set| set.pages.iter().copied().collect())
             .unwrap_or_default(),
         disclosures,
-    };
-    Ok(EditPlan {
-        new_content,
-        report,
-        layout,
-    })
+    }
 }
 
 /// What the planner hands to the code that lays out the replacement.
