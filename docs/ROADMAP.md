@@ -115,6 +115,90 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.15` (`c3298873`), 2026-10-01 — orient compressed-mesh folds by the stored triangle normals
+
+Continues the `Pass 421.x` bucket, closing `421.13`'s own open question: the
+door assembly sample's 36 compressed meshes refused with "an edge is shared
+by more than two triangles" were suspected non-manifold; they are not — the
+walker was taking wrong left/right turns.
+
+**Root cause.** WD 7.8.9.1 defines a fold's left/right turn from the
+triangle's own normal; the old rule (`421.7`'s R6 plus `421.8`'s
+per-component retry) was only a proxy for that normal, never a reading of
+it. Evidence: flipping a single fold decision makes 8 of the failing meshes
+consume every stored array exactly.
+
+**Fix.** The walk now reads stored normals as it goes. A normal record read
+AT a triangle orients it exactly — reversed iff `(A > B)` disagrees with the
+record framed on `(max-min)×(R-min)` per WD 7.8.9.4. A planar face whose
+normal was already read is checked geometrically unless it is a sliver
+(sine at the apex ≤ `1e-6`). No signal available → falls back to the old
+rule plus its per-component retry, unchanged. If the oriented walk still
+doesn't fit, the mesh is re-walked on the old rule alone — nothing that
+rebuilt before this Pass can regress. New module
+`crates/pdfcer-3d/src/compressed/normals.rs`.
+
+**Measured** on the door assembly sample: 120 meshes rebuilt / 36 skipped →
+125 / 31 (a corner base plate and bolt brackets now appear correctly, no new
+spikes); the 16 stray vertices across 4 meshes are unchanged; normal/winding
+agreement 99.96% → 99.94%. School sample: 348/348 both before and after,
+exported OBJ byte-identical.
+
+**Tests.** `pdfcer-3d` 97 lib + 3 + 8 pass (3 new synthetic-array tests on
+`normals.rs`); CLI `three_d` 19 pass. `check-code-structure.py` clean
+(baseline 633, none new); `check-public-fns-documented.py` clean. Sabotage —
+inverting the exact-orientation test, inverting the planar sign, removing
+the old-rule fallback — all three CAUGHT.
+
+**Still open.** 31 door-assembly meshes remain skipped: degenerate/collinear
+turns carry no orientation signal either way. An unbounded search over
+no-signal turns reaches 131/156 but can accept a wrong fit that happens to
+consume every stored array exactly — "consumes exactly" is necessary, not
+sufficient — so it was not shipped. Shared-vertex geometry is named as an
+unused possible tie-breaker for a future attempt.
+
+`docs/FEATURES.md` rows for mesh export and 3D view each gain a one-sentence
+mention; boxes unchanged (`core [x]` / `cli [x]` / `gui [ ]`).
+
+**Provenance.** Cherry-picked from worktree commit `99499b07`, with
+"steel-deck" corrected to "door assembly" in the commit message (the 840th
+filing's own correction, carried forward).
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit `c3298873`
+confirmed against this session's git-status snapshot at conversation start
+(`HEAD` `c3298873`, parent `488ae6b2`, subject matching verbatim). Measured
+counts, test names and sabotage results are relayed from the dispatching
+engineer's own report, not independently reproduced.
+
+### `488ae6b2` (no Pass ID), 2026-10-01 — the `audits` job's declared check count was stale since `Pass 426.0`; `main` red on every push since `2bb66c73`
+
+Not a Pass. `Pass 426.0` (`2bb66c73`) registered `check-code-structure.py`
+as a 30th check in CI's `audits` job without bumping its `name:` label past
+`"repository audits (29 checks)"`, so `check-ci-job-names.py`'s own
+declared-count-must-equal-actual-count rule failed on every run from
+`2bb66c73` onward. The only failing job in GitHub Actions run `36879988768`
+was this one. Fixed by relabeling to `"(30 checks)"`.
+
+**Also found locally — config only, no commit.** `git config core.hooksPath`
+had drifted to the absolute path `D:\Dev\pdfcer\tools\hooks` instead of the
+relative `tools/hooks` the activation step sets, failing `run-gates.sh`'s
+"pre-push hook not active" diagnostic even though the hook itself still
+fires either way (git resolves both forms). Reset to `tools/hooks`. Finding
+written to `C:\personal_rag\claude_code\`.
+
+**`R217` gains a ninth amendment note** (*Standing rules*, below): `main`
+was red for at least four filings (`2bb66c73` through the 840th) because
+nobody read CI's colour from GitHub after pushing — CLAUDE.md hard rule 8 —
+the same gate-agnostic mechanism firing through a third gate.
+
+No `docs/FEATURES.md` row affected (tooling only).
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit `488ae6b2`
+confirmed against this session's git-status snapshot at conversation start
+(shown as the 2nd-most-recent commit, parent `8a6ed22f`). The CI run number,
+failing-job identification and the hooksPath finding are relayed from the
+dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 421.14` (`b8985616`), 2026-10-01 — render from the view the file opens on
 
 Continues the `Pass 421.x` bucket, closing the gap the 840th filing's own
@@ -25046,6 +25130,13 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   its own projection) instead of guessing iso z-up, and names the view
   used (or why none could be) in a `note:`. Closes the gap the note
   below names.
+- `421.15` — **SHIPPED, `c3298873`, 2026-10-01 (841st filing)**, full
+  entry in *Shipped* above. Closes `421.13`'s open question below: the
+  door assembly's 36 skipped compressed meshes were not non-manifold —
+  the decoder's fold rule was only a proxy for WD 7.8.9.1's normal-based
+  left/right turn. Reading stored normals as the walk proceeds fixes 5 of
+  the 36 (120/36 → 125/31 rebuilt/skipped); 31 remain, failing on
+  degenerate/collinear turns that carry no orientation signal either way.
 
 **Dated note, 2026-10-01 (827th filing) — a separate open defect, NOT
 closed by `421.8`.** Ken reported the School render's front double door
@@ -25103,9 +25194,20 @@ own saved `/3DV`/`/DV`/`/VA[0]` view instead of guessing; the up-axis
 convention (camera +y, confirmed against the door assembly) is recorded
 as a finding in `C:\personal_rag\pdf\`.
 
-**Next planned, in order**: settle the non-manifold-vs-traversal-bug
-question above; re-measure the door-panel case against `421.12`'s fix;
-the 2 stray meshes `421.12` left unresolved; crease-angle normal
+**Closing note, 2026-10-01 (841st filing, `c3298873`, `Pass 421.15`) —
+the `421.13` open question is ANSWERED.** Not non-manifold; a traversal
+bug. The decoder's fold-direction rule was a proxy for the triangle's own
+normal (WD 7.8.9.1), and sometimes guessed wrong. Reading stored normals
+as the walk proceeds fixes 5 of the door assembly's 36 skipped meshes
+(120/36 → 125/31 rebuilt/skipped). 31 remain skipped — degenerate/
+collinear turns with no orientation signal either way; an unbounded
+search over no-signal turns reaches 131/156 but can accept a wrong fit
+that happens to consume every array exactly, so it was not shipped.
+
+**Next planned, in order**: the 31 still-skipped door-assembly meshes
+(no orientation signal; shared-vertex geometry named as an unused
+possible tie-breaker); re-measure the door-panel case against `421.12`'s
+fix; the 2 stray meshes `421.12` left unresolved; crease-angle normal
 smoothing for compressed meshes (`421.10`'s own remainder —
 `must_recalculate_normals` meshes still render flat-faceted); then
 textures; then lights.
@@ -25117,12 +25219,13 @@ noted by `421.6`, compressed-decode gap closed by `421.8`, per-face line
 attributes noted by `421.9`, stored-normal shading noted by `421.10`,
 apex-frame reconstruction-accuracy fix noted by `421.12`, 838th filing;
 left-out-mesh reason disclosure noted by `421.13`, 839th filing;
-saved-view render orientation noted by `421.14`, 840th filing); `gui`
+saved-view render orientation noted by `421.14`, 840th filing;
+normals-based fold orientation noted by `421.15`, 841st filing); `gui`
 stays `[ ]` pending `421.1`. Stays in *Planned* — the row names the
 interactive-controls capability, and that still needs Rung B. `421.5`'s
 `3d-mesh` format-from-extension fix is noted on the separate mesh-export
-row (`419.2`, *Implemented*), not this one; `421.12`'s through `421.14`'s
-own improvements are noted there too (838th/839th/840th filings).
+row (`419.2`, *Implemented*), not this one; `421.12`'s through `421.15`'s
+own improvements are noted there too (838th/839th/840th/841st filings).
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
@@ -38106,6 +38209,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R216` — PRESERVED WRONG WORDING AND EDIT HISTORY BELONG IN THE APPEND-ONLY RECORD.
 - `R217` — A GATE THAT REQUIRES A COMMIT TO CITE SOMETHING ONLY A *LATER* COMMIT CAN CREATE IS UNSATISFIABLE BY CONSTRUCTION FOR THAT COMMIT, NOT MERELY STRICT.  **[gate: check-commits-filed.py, check-passes-filed.py]**
 - **`R217` — EIGHTH AMENDMENT NOTE, 2026-09-15 (553rd filing, `96958657`): PUSHING WITHOUT READING CI'S COLOUR RECURRED THROUGH A DIFFERENT GATE (`check-register-entry-size.py`, NOT THE FILING GATE THIS RULE WAS MINTED FOR) AND ON A DOCUMENTATION-ONLY EDIT WITH NO CODE IN IT — EXACTLY THE CLASS OF CHANGE A SESSION IS LEAST LIKELY TO RE-SWEEP AFTER.** `main` was red 2026-09-14 18:36Z–2026-09-15 04:14Z on one over-cap `docs/FEATURES.md` row (1,223 chars against the 1,200-char cap); `Pass 304.0`'s push landed on that red without checking CI first, inheriting it rather than causing it. Fixed by `96958657`, a TRIM of the over-cap rows, not a baseline bump. No new rule number — this rule's mechanism ("read CI's colour from GitHub, don't infer it") is gate-agnostic, and this is the first instance firing through a gate other than the one `R217` was minted for. Full account: `docs/NEXT_SESSION.md`'s own "`main` WAS RED FOR TEN HOURS" section.
+- **`R217` — NINTH AMENDMENT NOTE, 2026-10-01 (841st filing, `488ae6b2`): PUSHING WITHOUT READING CI'S COLOUR RECURRED THROUGH A THIRD GATE (`check-ci-job-names.py`) AFTER A COMMIT CHANGED WHAT A JOB RUNS WITHOUT CHANGING WHAT ITS NAME DECLARES.** `Pass 426.0` (`2bb66c73`) added `check-code-structure.py` as the 30th check in CI's `audits` job without bumping its `name:` label past `"repository audits (29 checks)"`, so `check-ci-job-names.py`'s own declared-count-must-equal-actual-count check failed on every run from `2bb66c73` onward; the only failing job in run `36879988768` was this one. Fixed by `488ae6b2`, relabeling to `"(30 checks)"`. No new rule number — same gate-agnostic mechanism, firing through yet another gate. Full account: this filing's `SESSION_LOG.md` entry; the general shape (a gate's own declared count going stale the moment a check is added) is recorded in `D:\dev\rag\rust\a_ci_job_name_describes_its_first_step_not_the_gate_that_failed.md` (not edited this filing — flagged for a 4th amendment there).
 - `R218` — A GATE WHOSE INPUT SET IS "WHAT IS ALREADY COMMITTED" CANNOT SEE THE COMMIT YOU ARE ABOUT TO MAKE.  **[gate: check-suite-name-absent.py]**
 - `R219` — WHEN A PASS FIXES ONE OF SEVERAL ROUTES TO THE SAME BEHAVIOUR, ENUMERATE THE OTHER ROUTES IN THE SAME PASS AND SAY EXPLICITLY WHICH ARE LEFT.
 - `R220` — A CAPABILITY IS DOCUMENTED WHERE THE READER'S *QUESTION* LIVES, NOT ONLY WHERE ITS *MECHANISM* LIVES; AND A CLAIM THAT PDFCE HAS NO VERB FOR SOMETHING IS CHECKED AGAINST SOURCE BEFORE IT…  **[gate: check-core-api-verbs.py, check-ledger-numbers.py]**

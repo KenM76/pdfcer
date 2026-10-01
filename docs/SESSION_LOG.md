@@ -4,6 +4,62 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (841st filing) — `Pass 421.15`: orient compressed-mesh folds by stored normals (`c3298873`); CI job-name count fixed (`488ae6b2`)
+
+**Shipped:**
+- `c3298873` — `Pass 421.15`. Cherry-picked from worktree `99499b07`
+  ("steel-deck" corrected to "door assembly" in the message). The
+  door-assembly sample's 36 compressed meshes refused with "an edge is
+  shared by more than two triangles" were not non-manifold — the walker
+  took wrong left/right turns. The walk now reads stored normals as it
+  goes (WD 7.8.9.1/7.8.9.4): a normal record read at a triangle orients
+  it exactly (`reversed != (A > B)`); a planar face already read is
+  checked geometrically unless it is a sliver; no signal falls back to
+  the old R6/R6r rule unchanged; a mesh that still doesn't fit is
+  re-walked on the old rule alone, so nothing that rebuilt before this
+  Pass regresses. New module `crates/pdfcer-3d/src/compressed/normals.rs`.
+  Door assembly: 120/36 → 125/31 rebuilt/skipped; School: 348/348
+  unchanged, OBJ byte-identical.
+- `488ae6b2` — no Pass ID. `check-ci-job-names.py` had failed on every
+  push since `2bb66c73` (`Pass 426.0` added a 30th `audits` check without
+  bumping its `"(29 checks)"` label); the only failing job in GitHub
+  Actions run `36879988768`. Fixed by relabeling to `"(30 checks)"`.
+
+**Decisions made this session:** none — both are bugfixes, no
+`ARCHITECTURE.md` §12 entry opened.
+
+**Findings + decisions:**
+- `main` was red from `2bb66c73` through at least the 840th filing
+  because nobody read CI's colour from GitHub after pushing (CLAUDE.md
+  hard rule 8). `R217` gains a ninth amendment note (*Standing rules*).
+- Locally, `git config core.hooksPath` had drifted to the absolute path
+  `D:\Dev\pdfcer\tools\hooks` instead of the relative `tools/hooks`,
+  failing `run-gates.sh`'s "pre-push hook not active" check even though
+  the hook still fires either way (git resolves both forms). Config-only
+  fix, no commit. Written up as a new lesson in
+  `C:\personal_rag\claude_code\`.
+- Tests: `pdfcer-3d` 97 lib + 3 + 8 pass (3 new synthetic-array tests);
+  CLI `three_d` 19 pass. `check-code-structure.py` clean (baseline 633,
+  none new); `check-public-fns-documented.py` clean. Sabotage (inverting
+  the exact-orientation test, inverting the planar sign, removing the
+  old-rule fallback) all three CAUGHT.
+
+**Still in flight:**
+- 31 door-assembly meshes remain skipped — degenerate/collinear turns
+  with no orientation signal either way. An unbounded search over
+  no-signal turns reaches 131/156 but can accept a fit that merely
+  consumes every stored array exactly without being the right one
+  (necessary, not sufficient) — not shipped. Shared-vertex geometry named
+  as an unused possible tie-breaker.
+- The job-name-count finding is a strong candidate for a 4th dated
+  amendment to `D:\dev\rag\rust\a_ci_job_name_describes_its_first_step_not_the_gate_that_failed.md`
+  — not written this filing (scope narrowed to `ROADMAP.md`/`FEATURES.md`/
+  `SESSION_LOG.md`/personal_rag only).
+
+**For next session:** the 2 stray meshes `421.12` left unresolved; the
+door-panel case re-measurement against `421.12`; crease-angle normal
+smoothing (`421.10`'s own remainder); then textures; then lights.
+
 ## 2026-10-01 (840th filing) — `Pass 421.14`: render from the view the file opens on (`b8985616`); door-assembly sample correction
 
 **Shipped:**
