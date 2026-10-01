@@ -26,8 +26,10 @@
 //! Fold. A triangle whose new apex lies exactly in its parent's plane on
 //! the parent's side (`d.z == 0`, `d.y > 0`: a double-sided panel folding
 //! back over itself) swaps bit 1 and bit 0 for its own continuation. This
-//! is measured on zero-thickness panels; a fold whose apex is a reference
-//! carries no such signal and is not detected.
+//! is measured on zero-thickness panels. A fold whose apex is a reference
+//! carries no such signal: a component (a run started from an empty stack)
+//! that fails to fit is rewound and retried once with the fold inverted at
+//! its second triangle, which is where every measured reference fold sat.
 //!
 //! Only the per-triangle `edge_status` form (three entries per triangle,
 //! the first `T` read) is reconstructed; the one-entry-per-triangle form
@@ -77,56 +79,94 @@ pub(crate) struct Arrays<'a> {
     pub(crate) references: &'a [u32],
 }
 
-/// Rebuilds the mesh, or says why the arrays do not fit the traversal.
-/// Every slot, reference and point must be consumed exactly.
-pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
-    let t = a.triangles;
-    if a.edge_status.len() != t.saturating_mul(3) {
-        return Err("the one-status-per-triangle edge form is not reconstructed".into());
+/// Mutable traversal state; `log` records every edge-count increment so a
+/// component can be rolled back and retried.
+struct Walk {
+    pos: Vec<V>,
+    tris: Vec<[u32; 3]>,
+    edges: HashMap<(u32, u32), u8>,
+    log: Vec<(u32, u32)>,
+    stack: Vec<(u32, u32, u32)>,
+    next: Option<(u32, u32, u32)>,
+    slot: usize,
+    ri: usize,
+    pi: usize,
+}
+
+/// Where a component starts, to roll back to.
+#[derive(Clone, Copy)]
+struct Mark {
+    tri: usize,
+    pos: usize,
+    log: usize,
+    slot: usize,
+    ri: usize,
+    pi: usize,
+}
+
+impl Walk {
+    fn mark(&self, tri: usize) -> Mark {
+        Mark {
+            tri,
+            pos: self.pos.len(),
+            log: self.log.len(),
+            slot: self.slot,
+            ri: self.ri,
+            pi: self.pi,
+        }
     }
-    let tol = a.tolerance;
-    let mut pos: Vec<V> = Vec::new();
-    let mut tris: Vec<[u32; 3]> = Vec::with_capacity(t.min(1 << 20));
-    let mut edges: HashMap<(u32, u32), u8> = HashMap::new();
-    let mut stack: Vec<(u32, u32, u32)> = Vec::new();
-    let mut next: Option<(u32, u32, u32)> = None;
-    let (mut slot, mut ri, mut pi) = (0usize, 0usize, 0usize);
+
+    fn rewind(&mut self, m: Mark) {
+        for k in self.log.drain(m.log..) {
+            if let Some(n) = self.edges.get_mut(&k) {
+                *n = n.saturating_sub(1);
+            }
+        }
+        self.pos.truncate(m.pos);
+        self.tris.truncate(m.tri);
+        self.stack.clear();
+        self.next = None;
+        (self.slot, self.ri, self.pi) = (m.slot, m.ri, m.pi);
+    }
 
     // One slot: `Ok(Some(v))` a reference, `Ok(None)` a new point `d`.
-    let take = |slot: &mut usize, ri: &mut usize| -> Result<Option<u32>, String> {
-        let flagged = *a.is_reference.get(*slot).ok_or("slots run out")?;
-        *slot += 1;
+    fn take(&mut self, a: &Arrays<'_>) -> Result<Option<u32>, String> {
+        let flagged = *a.is_reference.get(self.slot).ok_or("slots run out")?;
+        self.slot += 1;
         if !flagged {
             return Ok(None);
         }
-        let v = *a.references.get(*ri).ok_or("references run out")?;
-        *ri += 1;
+        let v = *a.references.get(self.ri).ok_or("references run out")?;
+        self.ri += 1;
+        self.get(v)?;
         Ok(Some(v))
-    };
-    let point = |pi: &mut usize| -> Result<V, String> {
-        let Some(&[x, y, z]) = a.points.get(*pi..pi.saturating_add(3)) else {
+    }
+
+    fn point(&mut self, a: &Arrays<'_>) -> Result<V, String> {
+        let Some(&[x, y, z]) = a.points.get(self.pi..self.pi.saturating_add(3)) else {
             return Err("points run out".into());
         };
-        *pi += 3;
+        self.pi += 3;
+        let tol = a.tolerance;
         Ok([x as f64 * tol, y as f64 * tol, z as f64 * tol])
-    };
-    let get = |pos: &[V], v: u32| -> Result<V, String> {
-        pos.get(v as usize)
+    }
+
+    fn get(&self, v: u32) -> Result<V, String> {
+        self.pos
+            .get(v as usize)
             .copied()
             .ok_or_else(|| format!("reference to vertex {v} before it exists"))
-    };
+    }
 
-    for &status in a.edge_status.iter().take(t) {
+    /// Adds one triangle; `flip` inverts the fold decision.
+    fn step(&mut self, a: &Arrays<'_>, status: i32, flip: bool) -> Result<(), String> {
         let mut fold = false;
-        let tri = match next.take() {
+        let tri = match self.next.take() {
             Some((p, q, w)) => {
-                let r = match take(&mut slot, &mut ri)? {
-                    Some(r) => {
-                        get(&pos, r)?;
-                        r
-                    }
+                let r = match self.take(a)? {
+                    Some(r) => r,
                     None => {
-                        let (pp, qq, ww) = (get(&pos, p)?, get(&pos, q)?, get(&pos, w)?);
+                        let (pp, qq, ww) = (self.get(p)?, self.get(q)?, self.get(w)?);
                         let o = mul(add(pp, qq), 0.5);
                         let x = if p > q {
                             unit(sub(qq, pp))
@@ -135,12 +175,14 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
                         };
                         let z = unit(cross(sub(ww, o), x));
                         let y = cross(z, x);
-                        if let Some(&[_, dy, dz]) = a.points.get(pi..pi.saturating_add(3)) {
+                        if let Some(&[_, dy, dz]) = a.points.get(self.pi..self.pi.saturating_add(3))
+                        {
                             fold = dz == 0 && dy > 0;
                         }
-                        let d = point(&mut pi)?;
-                        pos.push(add(o, sub(sub(mul(x, d[0]), mul(y, d[1])), mul(z, d[2]))));
-                        (pos.len() - 1) as u32
+                        let d = self.point(a)?;
+                        self.pos
+                            .push(add(o, sub(sub(mul(x, d[0]), mul(y, d[1])), mul(z, d[2]))));
+                        (self.pos.len() - 1) as u32
                     }
                 };
                 [p, q, r]
@@ -148,20 +190,17 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
             None => {
                 let mut v = [0u32; 3];
                 for k in 0..3 {
-                    let id = match take(&mut slot, &mut ri)? {
-                        Some(r) => {
-                            get(&pos, r)?;
-                            r
-                        }
+                    let id = match self.take(a)? {
+                        Some(r) => r,
                         None => {
-                            let d = point(&mut pi)?;
+                            let d = self.point(a)?;
                             let p = match k {
                                 0 => add(a.origin, d),
-                                1 => add(get(&pos, v[0])?, d),
-                                _ => add(mul(add(get(&pos, v[0])?, get(&pos, v[1])?), 0.5), d),
+                                1 => add(self.get(v[0])?, d),
+                                _ => add(mul(add(self.get(v[0])?, self.get(v[1])?), 0.5), d),
                             };
-                            pos.push(p);
-                            (pos.len() - 1) as u32
+                            self.pos.push(p);
+                            (self.pos.len() - 1) as u32
                         }
                     };
                     if let Some(s) = v.get_mut(k) {
@@ -173,33 +212,84 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
         };
         let [ta, tb, tc] = tri;
         for (x, y) in [(ta, tb), (tb, tc), (tc, ta)] {
-            let n = edges.entry(key(x, y)).or_insert(0);
+            let n = self.edges.entry(key(x, y)).or_insert(0);
             *n = n.saturating_add(1);
-            if *n > 2 {
+            let n = *n;
+            self.log.push(key(x, y));
+            if n > 2 {
                 return Err(format!("edge {x}-{y} shared by more than two triangles"));
             }
         }
-        tris.push(tri);
+        self.tris.push(tri);
         let (mut left, mut right) = ((tc, tb, ta), (ta, tc, tb));
-        if fold {
+        if fold != flip {
             std::mem::swap(&mut left, &mut right);
         }
         match (status & 2 != 0, status & 1 != 0) {
             (true, true) => {
-                next = Some(left);
-                stack.push(right);
+                self.next = Some(left);
+                self.stack.push(right);
             }
-            (true, false) => next = Some(left),
-            (false, true) => next = Some(right),
+            (true, false) => self.next = Some(left),
+            (false, true) => self.next = Some(right),
             (false, false) => {}
         }
-        while next.is_none() {
-            let Some(e) = stack.pop() else { break };
-            if edges.get(&key(e.0, e.1)).copied().unwrap_or(0) < 2 {
-                next = Some(e);
+        while self.next.is_none() {
+            let Some(e) = self.stack.pop() else { break };
+            if self.edges.get(&key(e.0, e.1)).copied().unwrap_or(0) < 2 {
+                self.next = Some(e);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Rebuilds the mesh, or says why the arrays do not fit the traversal.
+/// Every slot, reference and point must be consumed exactly.
+pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
+    let t = a.triangles;
+    if a.edge_status.len() != t.saturating_mul(3) {
+        return Err("the one-status-per-triangle edge form is not reconstructed".into());
+    }
+    let mut w = Walk {
+        pos: Vec::new(),
+        tris: Vec::with_capacity(t.min(1 << 20)),
+        edges: HashMap::new(),
+        log: Vec::new(),
+        stack: Vec::new(),
+        next: None,
+        slot: 0,
+        ri: 0,
+        pi: 0,
+    };
+    let mut start = w.mark(0);
+    let mut retried = false;
+    let mut i = 0;
+    while i < t {
+        if w.next.is_none() && !(retried && i == start.tri) {
+            start = w.mark(i);
+            retried = false;
+        }
+        let status = a.edge_status.get(i).copied().unwrap_or(0);
+        let flip = retried && i == start.tri + 1;
+        match w.step(a, status, flip) {
+            Ok(()) => i += 1,
+            Err(e) if retried || i == start.tri => return Err(e),
+            Err(_) => {
+                w.rewind(start);
+                retried = true;
+                i = start.tri;
             }
         }
     }
+    let Walk {
+        pos,
+        tris,
+        slot,
+        ri,
+        pi,
+        ..
+    } = w;
     if slot != a.is_reference.len() || ri != a.references.len() || pi != a.points.len() {
         return Err(format!(
             "arrays left over: slots {slot}/{}, references {ri}/{}, point values {pi}/{}",
@@ -299,16 +389,48 @@ mod tests {
         )
         .unwrap();
         assert_eq!(m.triangles, [[0, 1, 2], [2, 1, 3], [2, 3, 0], [0, 3, 1]]);
+        // The same panel unfolded is rescued by the component retry.
         let unfolded = [0, 0, 0, 4, 0, 0, -2, 4, 0, 1, -3, 0];
-        assert!(
-            run(
-                &unfolded,
-                &[3, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                4,
-                &is_ref,
-                &[0, 1]
-            )
-            .is_err()
+        let m = run(
+            &unfolded,
+            &[3, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            4,
+            &is_ref,
+            &[0, 1],
+        )
+        .unwrap();
+        assert_eq!(m.triangles, [[0, 1, 2], [2, 1, 3], [2, 3, 0], [0, 3, 1]]);
+    }
+
+    #[test]
+    fn a_fold_past_the_retry_point_is_detected() {
+        let pts = [0, 0, 0, 4, 0, 0, -2, 4, 0, 0, -3, 1, 1, 3, 0];
+        let is_ref = [false, false, false, false, false, true];
+        let m = run(
+            &pts,
+            &[3, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            4,
+            &is_ref,
+            &[0],
+        )
+        .unwrap();
+        assert_eq!(m.triangles[3], [3, 4, 0]);
+    }
+
+    /// A panel whose fold apex is a reference carries no fold signal: the
+    /// unfolded walk closes an edge it still needs, so the component is
+    /// rolled back and retried folded at its second triangle.
+    #[test]
+    fn a_reference_fold_is_found_by_retrying_the_component() {
+        let pts: Vec<i64> = (1..=30).collect();
+        let mut is_ref = vec![false; 9];
+        is_ref.extend([true, true, false, true, true, true]);
+        let mut status = vec![0; 21];
+        status[3..7].copy_from_slice(&[3, 3, 2, 0]);
+        let m = run(&pts, &status, 7, &is_ref, &[0, 3, 6, 0, 3]).unwrap();
+        assert_eq!(
+            m.triangles[3..],
+            [[0, 3, 9], [9, 3, 6], [9, 6, 0], [0, 6, 3]]
         );
     }
 
