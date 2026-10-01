@@ -332,9 +332,13 @@ pub(crate) struct NormalArrays<'a> {
 }
 
 /// Width in bits of a normal reference on a vertex that already stores `n`
-/// normals, for `n` in `1..=6`. Measured on a real file (the spec RAG
-/// records it as an empirical fit); a larger `n` has no measured width.
-const REFERENCE_BITS: [u32; 6] = [1, 1, 2, 3, 3, 4];
+/// normals: one more than the bit length of `n - 2`, and 1 for `n <= 2`.
+/// The WD's width rule is ambiguous; this formula is measured on a real
+/// file (every count from 1 to 6, plus 8, 12 and 14) — spec RAG
+/// `prc__8137__tess_3d_compressed.md` §5a N5.
+fn reference_bits(n: usize) -> u32 {
+    1 + (usize::BITS - n.saturating_sub(2).leading_zeros())
+}
 
 /// One stored normal record: `triangle_normal_reversed`, `x_is_reversed`,
 /// `y_is_reversed`, theta, phi, and the triangle whose frame it is in.
@@ -393,7 +397,7 @@ fn stored_normals(
             } else if !*multi {
                 *stored.first()?
             } else if bits.next()? {
-                let w = *REFERENCE_BITS.get(stored.len() - 1)?;
+                let w = reference_bits(stored.len());
                 let mut idx = 0usize;
                 for i in 0..w {
                     idx |= usize::from(bits.next()?) << i;
@@ -691,6 +695,25 @@ mod tests {
         assert_eq!(c[2], [4, 3, 0]);
         bits.push(0);
         assert!(normals(&QUAD, &tris, &bits, &angles, false).is_none());
+    }
+
+    /// The reference width at every measured stored count.
+    #[test]
+    fn reference_width_matches_the_measured_counts() {
+        let measured = [
+            (1, 1),
+            (2, 1),
+            (3, 2),
+            (4, 3),
+            (5, 3),
+            (6, 4),
+            (8, 4),
+            (12, 5),
+            (14, 5),
+        ];
+        for (n, w) in measured {
+            assert_eq!(reference_bits(n), w, "n = {n}");
+        }
     }
 
     /// A planar face reads one record, at the first corner of its first
