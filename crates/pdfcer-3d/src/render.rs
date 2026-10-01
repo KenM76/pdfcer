@@ -118,6 +118,66 @@ impl Camera {
         perspective: bool,
         aspect: f64,
     ) -> Result<Camera, RenderError> {
+        let corners = (0..8).map(|k| {
+            [0, 1, 2].map(|i| {
+                if k >> i & 1 == 0 {
+                    at(bounds.min, i)
+                } else {
+                    at(bounds.max, i)
+                }
+            })
+        });
+        Camera::frame(bounds, corners, direction, up, perspective, aspect)
+    }
+
+    /// A camera looking along `direction` that fits every vertex the meshes'
+    /// triangles use: like [`Camera::fit`], but framing the model itself
+    /// rather than its box, so an oblique view is not padded by empty box
+    /// corners. Aimed at the middle of the projected model.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::Camera`] as for [`Camera::fit`], and when the meshes
+    /// have no finite vertex.
+    ///
+    /// ```
+    /// use pdfcer_3d::{Camera, TriangleMesh};
+    /// let mut mesh = TriangleMesh::default();
+    /// mesh.positions = vec![[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0]];
+    /// mesh.triangles = vec![[0, 1, 2]];
+    /// // Seen with x + y upward, the triangle sits low in its box.
+    /// let camera = Camera::fit_meshes(&[mesh], [0.0, 0.0, -1.0], [1.0, 1.0, 0.0], false, 1.0)?;
+    /// assert!(camera.target.iter().zip([0.5, 0.5, 0.0]).all(|(a, b)| (a - b).abs() < 1e-9));
+    /// # Ok::<(), pdfcer_3d::RenderError>(())
+    /// ```
+    pub fn fit_meshes(
+        meshes: &[TriangleMesh],
+        direction: [f64; 3],
+        up: [f64; 3],
+        perspective: bool,
+        aspect: f64,
+    ) -> Result<Camera, RenderError> {
+        let bounds = Bounds::of(meshes).ok_or(RenderError::Camera("the model has no vertex"))?;
+        let vertices = meshes.iter().flat_map(|m| {
+            m.triangles
+                .iter()
+                .flatten()
+                .filter_map(|&i| m.positions.get(i as usize).copied())
+                .filter(|p| p.iter().all(|c| c.is_finite()))
+        });
+        Camera::frame(&bounds, vertices, direction, up, perspective, aspect)
+    }
+
+    /// Frames `points` (which `bounds` holds) from `direction`, aimed at the
+    /// middle of their projection.
+    fn frame(
+        bounds: &Bounds,
+        points: impl Iterator<Item = [f64; 3]> + Clone,
+        direction: [f64; 3],
+        up: [f64; 3],
+        perspective: bool,
+        aspect: f64,
+    ) -> Result<Camera, RenderError> {
         if !(aspect.is_finite() && aspect > 0.0) {
             return Err(RenderError::Camera("the aspect ratio is not positive"));
         }
@@ -134,39 +194,32 @@ impl Camera {
             projection: Projection::Orthographic { height: 1.0 },
         }
         .basis()?;
-        // The box's eight corners in the view basis, relative to its centre.
-        let corners: Vec<[f64; 3]> = (0..8)
-            .map(|k| {
-                let p = [0, 1, 2].map(|i| {
-                    if k >> i & 1 == 0 {
-                        at(bounds.min, i)
-                    } else {
-                        at(bounds.max, i)
-                    }
-                });
-                let r = sub(p, centre);
-                [dot(r, right), dot(r, upward), dot(r, forward)]
-            })
-            .collect();
-        let span = |i: usize| {
-            corners
-                .iter()
-                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
-                    (lo.min(at(*c, i)), hi.max(at(*c, i)))
-                })
+        let view = |p: [f64; 3]| {
+            let r = sub(p, centre);
+            [dot(r, right), dot(r, upward), dot(r, forward)]
         };
-        // Corners pair up through the centre, so the spans are symmetric.
-        let ((x0, x1), (y0, y1)) = (span(0), span(1));
+        let ((x0, x1), (y0, y1)) = points.clone().map(view).fold(
+            (
+                (f64::INFINITY, f64::NEG_INFINITY),
+                (f64::INFINITY, f64::NEG_INFINITY),
+            ),
+            |((a0, a1), (b0, b1)), [x, y, _]| ((a0.min(x), a1.max(x)), (b0.min(y), b1.max(y))),
+        );
+        if !(x0 <= x1 && y0 <= y1) {
+            return Err(RenderError::Camera("the model has no vertex"));
+        }
+        let (mx, my) = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
+        let target = [0, 1, 2].map(|i| at(centre, i) + mx * at(right, i) + my * at(upward, i));
         let floor = radius * 1e-3;
         let (projection, distance) = if perspective {
             let fov_y: f64 = 30.0;
             let ty = (fov_y.to_radians() / 2.0).tan() / FIT_MARGIN;
             let tx = ty * aspect;
-            // A corner at lateral (x, y) and depth f past the target is in
-            // view when |x| <= (d + f)·tx and |y| <= (d + f)·ty.
-            let d = corners.iter().fold(floor, |d, c| {
-                let need = (at(*c, 0).abs() / tx).max(at(*c, 1).abs() / ty);
-                d.max(need - at(*c, 2)).max(floor - at(*c, 2))
+            // A point at lateral (x, y) from the target and depth f past it
+            // is in view when |x| <= (d + f)·tx and |y| <= (d + f)·ty.
+            let d = points.map(view).fold(floor, |d, [x, y, f]| {
+                let need = ((x - mx).abs() / tx).max((y - my).abs() / ty);
+                d.max(need - f).max(floor - f)
             });
             (Projection::Perspective { fov_y }, d)
         } else {
@@ -174,8 +227,8 @@ impl Camera {
             (Projection::Orthographic { height }, 2.0 * radius)
         };
         let camera = Camera {
-            eye: sub(centre, scale(dir, distance)),
-            target: centre,
+            eye: sub(target, scale(dir, distance)),
+            target,
             up,
             projection,
         };
@@ -780,6 +833,61 @@ mod tests {
                 assert_eq!(pixel(&image, x, 0)[0], 255);
                 assert_eq!(pixel(&image, x, 39)[0], 255);
             }
+        }
+    }
+
+    #[test]
+    fn a_mesh_fit_ignores_empty_box_corners() {
+        // A thin strip along the box's diagonal: seen across the diagonal,
+        // the box is as tall as it is wide, the strip is not.
+        let strip = TriangleMesh {
+            positions: vec![[0.0, 0.0, 0.0], [10.0, 10.0, 0.0], [10.0, 10.01, 0.0]],
+            triangles: vec![[0, 1, 2]],
+            ..TriangleMesh::default()
+        };
+        let meshes = [strip];
+        let (dir, up) = ([0.0, 0.0, -1.0], [1.0, -1.0, 0.0]);
+        let height = |c: Camera| match c.projection {
+            Projection::Orthographic { height } => height,
+            Projection::Perspective { .. } => unreachable!(),
+        };
+        let boxed =
+            height(Camera::fit(&Bounds::of(&meshes).unwrap(), dir, up, false, 2.0).unwrap());
+        let tight = height(Camera::fit_meshes(&meshes, dir, up, false, 2.0).unwrap());
+        assert!((boxed / tight - 2.0).abs() < 0.01, "{boxed} vs {tight}");
+        let near = Camera::fit_meshes(&meshes, dir, up, true, 2.0).unwrap();
+        let far = Camera::fit(&Bounds::of(&meshes).unwrap(), dir, up, true, 2.0).unwrap();
+        assert!(length(sub(near.eye, near.target)) < 0.6 * length(sub(far.eye, far.target)));
+
+        // Lopsided in its box: the limiting vertex sits exactly on the
+        // margin, measured from the re-centred target.
+        let tri = TriangleMesh {
+            positions: vec![[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [1.0, 2.0, 1.0]],
+            triangles: vec![[0, 1, 2]],
+            ..TriangleMesh::default()
+        };
+        // Narrow (width limits) and wide (height limits).
+        for aspect in [0.5, 3.0] {
+            let c = Camera::fit_meshes(
+                &[tri.clone()],
+                [0.0, 0.3, -1.0],
+                [1.0, 1.0, 0.0],
+                true,
+                aspect,
+            )
+            .unwrap();
+            let [right, upward, forward] = c.basis().unwrap();
+            let ty = 15f64.to_radians().tan() / FIT_MARGIN;
+            let fill = tri
+                .positions
+                .iter()
+                .map(|&p| {
+                    let r = sub(p, c.eye);
+                    let z = dot(r, forward);
+                    (dot(r, right).abs() / (ty * aspect)).max(dot(r, upward).abs() / ty) / z
+                })
+                .fold(0.0, f64::max);
+            assert!((fill - 1.0).abs() < 1e-6, "aspect {aspect}: {fill}");
         }
     }
 

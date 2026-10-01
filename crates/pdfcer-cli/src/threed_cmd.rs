@@ -387,7 +387,7 @@ fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
         None => a.view.direction(a.up),
     };
     let aspect = f64::from(a.width) / f64::from(a.height.max(1));
-    let mut camera = match Camera::fit(&bounds, direction, up, !a.ortho, aspect) {
+    let mut camera = match Camera::fit_meshes(&model.meshes, direction, up, !a.ortho, aspect) {
         Ok(camera) => camera,
         Err(err) => return refuse(err.to_string()),
     };

@@ -2858,11 +2858,12 @@ pub(crate) enum Command {
     /// **Render a 3D model to a PNG** from a camera, without a 3D viewer.
     ///
     /// Decodes and assembles the PRC model the way `3d-mesh` does, then
-    /// draws it: every surface in one light grey, shaded by its angle to
-    /// the camera, nearer surfaces hiding farther ones. The model's own
-    /// colours, materials, lights and saved views are not read yet (a note
-    /// says so). `--view` picks a named direction, fitted so the whole model
-    /// is in frame; `--up` says which model axis is vertical for those
+    /// draws it: each part in the colour its model tree gives it (grey when
+    /// it has none, see-through parts blended), shaded by its angle to the
+    /// camera, nearer surfaces hiding farther ones. Colours of individual
+    /// faces, textures, lights and saved views are not read yet (a note says
+    /// so). `--view` picks a named direction, fitted so the whole model fills
+    /// the image; `--up` says which model axis is vertical for those
     /// views. `--eye` places the camera at a point instead, looking at
     /// `--target` (default: the model's centre). A summary line reports the
     /// camera used, so a view can be reproduced or adjusted.

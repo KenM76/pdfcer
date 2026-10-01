@@ -2765,15 +2765,14 @@ A separate crate, no GUI or network dependency, wasm-clean. Feed it
 `Extracted3D::data` when `sniffed` is PRC.
 
 ```rust
-use pdfcer_3d::{PrcFile, Tessellation, Bounds, Camera, RenderOptions, render_coloured};
+use pdfcer_3d::{PrcFile, Tessellation, Camera, RenderOptions, render_coloured};
 
 let prc = PrcFile::parse(&got.data)?;                 // Result<_, PrcError>
 let tess = prc.file_structures[0].tessellations()?;   // Vec<Tessellation>, per file structure
 let placements = prc.placements()?;                   // Vec<Placement { file_structure, tessellation, matrix, colour }>
 // meshes = each placement's Tessellation::Mesh (or rebuilt Compressed { mesh: Some(..) })
 //          .transformed(&placement.matrix)
-let bounds = Bounds::of(&meshes).ok_or(nothing_to_draw)?;
-let camera = Camera::fit(&bounds, view_dir, up, /*perspective*/ true, w as f64 / h as f64)?;
+let camera = Camera::fit_meshes(&meshes, view_dir, up, /*perspective*/ true, w as f64 / h as f64)?;
 // colours[i]: placement.colour as straight RGBA bytes, None = RenderOptions::colour
 let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: w, height: h, ..Default::default() })?;
 // image.rgba: w*h*4 straight RGBA, row-major from the top
@@ -2790,8 +2789,12 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   names a textured material. Per-face colours, textures, lights and saved
   views are **not read**. Say so in the shell.
 - `Camera { eye, target, up, projection }`; `Projection::Perspective { fov_y }`
-  (degrees) or `Orthographic { height }` (model units). `Camera::fit` frames
-  the bounding sphere along `direction`; move `eye` afterwards to orbit.
+  (degrees) or `Orthographic { height }` (model units). `Camera::fit_meshes`
+  frames every vertex as seen along `direction` (about 5% clear on each side
+  of the limiting axis), aimed at the middle of the projected model; it errs
+  `Camera` when there is no vertex. `Camera::fit(&Bounds, ..)` frames the
+  box's eight corners instead (looser in oblique views; cheap for a huge
+  model). Move `eye` afterwards to orbit.
 - `RenderError::Size` past `MAX_RENDER_PIXELS` (64M) or a zero side;
   `RenderError::Camera` for a degenerate or non-finite camera. Non-finite
   vertices and out-of-range indices are skipped, not errors.
