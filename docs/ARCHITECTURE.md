@@ -4857,6 +4857,34 @@ construction through a builder. Permitted and expected: adding new fields
 to `Page` and to `with_boxes`'s resolved-default behaviour together, same
 as any other field addition.
 
+### 8.4 Code structure is gated: no fn over 80 lines, no file over 800 production lines, no duplicated private helper
+
+*(Added 2026-10-01, 836th filing, `Pass 426.0` / `2bb66c73`. Created by
+**decision 170**, §12.)*
+
+**The gate.** `tools/check-code-structure.py`, run by `tools/run-gates.sh`
+and CI, measures each crate's *production* Rust — code before a file's
+first `#[cfg(test)]`, skipping `tests/`/`benches/`/`fuzz/`/`examples/`/
+`target/` — and fails on: a single `fn` over 80 lines; a file over 800
+production lines; a private free function duplicated (same name, same
+whitespace-stripped body) in 2+ files of one crate.
+
+**Debt baseline, shrink-only.** `tools/code-structure-baseline.txt` holds
+every violation that already existed when the gate was written (640, as of
+the audit below). A NEW violation not in the baseline is a hard failure; a
+baseline line whose violation has since been fixed is ALSO a hard failure
+(stale); the baseline is never regenerated to admit a new violation — the
+same shrink-only shape as `tools/register-entry-size-baseline.txt`.
+
+**Why this exists.** `pdfcer-3d` (~4,700 production lines) was audited on
+Ken's question and found carrying four structural shortcuts — duplicated
+vector math across four files with no shared `Vec3` type, a renderer
+living inside the PRC-reader crate, oversized functions/files, and an
+over-exposed `pub mod` — none of which any existing gate (`fmt`, `clippy`,
+rustdoc, fuzz) could have caught. The scope widened past that one crate
+immediately: this is a workspace-wide discipline, not a `pdfcer-3d`-only
+fix.
+
 ## 9. Open-source dependencies & attribution
 
 pdfcer builds on the existing Rust/OSS ecosystem rather than
@@ -12053,3 +12081,36 @@ style as decision 163's PaddleOCR-weights entry.
 minted — a one-off licensing ruling on a single reconstruction effort,
 not a recurring pattern this project expects to repeat. Pass ceiling
 unchanged (`Pass 417.5` highest shipped; `419.2` unblocked, not started).
+
+### 2026-10-01 (836th filing, `Pass 426.0`, `2bb66c73`) — decision 170: CODE STRUCTURE (FN LENGTH, FILE LENGTH, DUPLICATED PRIVATE HELPERS) IS A STANDING GATE WITH A SHRINK-ONLY DEBT BASELINE, PROJECT-WIDE — AND THE SAME DISCIPLINE EXTENDS TO ALL OF KEN'S PROJECTS
+
+**The question.** Ken asked whether `pdfcer-3d` was "split up properly or
+falling into the same lazy programming traps." The audit answered yes on
+both counts for that one crate, then found the same shortcuts recurring
+640 times across the whole workspace — which turned the real question
+from "is this one crate okay" into "how do we stop this recurring, here
+and in every future project."
+
+**Ken's ruling, verbatim.** *"Go ahead and fix, but how do we stop this
+from happening to this and all of our current and future projects?"*
+
+**What this decides.** Three structure limits — a `fn` over 80 production
+lines, a file over 800 production lines, a private free function
+duplicated (name + whitespace-stripped body) across 2+ files of one
+crate — are now enforced by `tools/check-code-structure.py`, wired into
+CI and `tools/run-gates.sh`. The 640 violations that pre-date the gate are
+baselined as DEBT in `tools/code-structure-baseline.txt`: the baseline
+only shrinks, never grows, and is never regenerated to admit a new
+violation.
+
+**Scope beyond pdfcer.** Ken's own question named "this and all of our
+current and future projects." `C:\Users\Ken\.claude\CLAUDE.md` (the
+user's global config, outside this project) gained a matching "Code
+structure — enforced by a gate" rule, citing `tools/check-code-structure.py`
+as the reference implementation other projects can adapt.
+
+**Body-section effect.** `ARCHITECTURE.md` §8 gains §8.4.
+
+**Decision ceiling: `169` → `170`**, next free `171`. No new standing
+rule (`R`-number) minted — this is a gate plus a decision, the same shape
+§8.1–8.3's gates already use, not a distinct process-discipline pattern.

@@ -115,6 +115,57 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 426.0` (`2bb66c73`), 2026-10-01 — code-structure gate (fn > 80 lines, file > 800 production lines, duplicated private helpers)
+
+New `tools/check-code-structure.py`, wired into `.github/workflows/ci.yml`
+and registered in `tools/check-ci-parity.py` (so `tools/run-gates.sh` runs
+it too). It measures *production* Rust per file — code before the file's
+first `#[cfg(test)]`, skipping `tests/`/`benches/`/`fuzz/`/`examples/`/
+`target/` — and fails on: a single `fn` over 80 lines; a file over 800
+production lines; a private free function duplicated (same name, same
+whitespace-stripped body) across 2+ files of one crate.
+
+**Trigger.** Ken asked whether `pdfcer-3d` (~4,700 production lines) was
+"split up properly or falling into the same lazy programming traps."
+Audit found 4 shortcuts there (vector math duplicated across
+`compressed`/`export`/`render`/`tree`, no `Vec3` type, `render.rs` living
+inside the reader crate, oversized fns/files, `pub mod bits` exposed) and
+640 violations workspace-wide (517 fn, 108 file, 15 duplicate-helper).
+
+**Debt baseline.** `tools/code-structure-baseline.txt` carries all 640 as
+DEBT, the same shape as `tools/register-entry-size-baseline.txt`: a NEW
+violation is a hard FAIL, a STALE baseline line whose violation is already
+fixed is also a hard FAIL, and the baseline is never regenerated to pass a
+new violation — the list only shrinks.
+
+**Sabotage.** A 92-line fn injected into `pdfcer-3d` → NEW FAIL. A phantom
+baseline line (names a violation no longer present) → STALE FAIL. Both
+caught.
+
+**No Rust code changed** — tooling only. No `cargo tree` or round-trip
+impact.
+
+**Decision 170** (§12): the three structure limits are now a standing
+gate with a shrink-only debt baseline, project-wide; Ken's global
+`C:\Users\Ken\.claude\CLAUDE.md` gained a matching "Code structure —
+enforced by a gate" rule for all his projects, citing this script as the
+reference implementation. `ARCHITECTURE.md` §8 gains §8.4.
+
+**Follow-on filed** (*Backlog*): the `pdfcer-3d` structure refactor itself
+(shared `Vec3`/vector module, `render.rs` moved out of the reader crate,
+the oversized fns/files the audit named, split) — waiting on an in-flight
+roof-fix agent that is also touching `compressed.rs`/`tess.rs`. Workspace
+debt paydown is a standing, ongoing Backlog item; the baseline only
+shrinks.
+
+**Not yet pushed** (per the dispatching note).
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hash
+`2bb66c73` matches this session's git-status snapshot at `HEAD` ("gates:
+code-structure gate"); violation counts, sabotage results and the CI/
+`check-ci-parity.py` wiring are relayed from the dispatching engineer's
+own report, not independently reproduced.
+
 ### `v0.71.0` — RELEASED (2026-10-01)
 
 Release filing, not a Pass — completes the 834th filing's own
@@ -24298,6 +24349,28 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `pdfcer-3d` structure refactor — named by the code-structure audit (`Pass 426.0`, 836th filing, 2026-10-01)
+
+Four shortcuts the audit found, not yet fixed: vector math (dot/cross/
+normalize/length) duplicated across `compressed.rs`/`export.rs`/
+`render.rs`/`tree.rs` with no shared `Vec3` type; `render.rs` living
+inside the PRC-reader crate rather than a render-specific one; oversized
+functions/files named by `tools/check-code-structure.py`'s own run —
+`compressed.rs::step`, `container.rs::parse_with_limit`, `schema.rs::stmt`,
+`tess.rs::tess_3d_compressed`, `tree.rs::representation_item`, plus
+`tess.rs`/`tree.rs` as whole files; and `pub mod bits` exposed when it
+should be `pub(crate)`. **Waiting** on the in-flight roof-fix agent that is
+also touching `compressed.rs`/`tess.rs`, so as not to collide with its own
+edits.
+
+### Workspace structure-debt paydown — standing, ongoing (opened `Pass 426.0`, 836th filing, 2026-10-01)
+
+`tools/code-structure-baseline.txt` carries 640 pre-existing violations
+(517 oversized fns, 108 oversized files, 15 duplicated private helpers) as
+DEBT under the new `tools/check-code-structure.py` gate. The baseline only
+shrinks — pay it down opportunistically whenever a Pass already touches a
+flagged file; no dedicated sweep Pass is scoped.
 
 ### Portable release build ships without the `download` feature (filed 820th filing, v0.69.0 release notes)
 

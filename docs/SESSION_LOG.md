@@ -4,6 +4,56 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (836th filing) — `Pass 426.0` (`2bb66c73`): code-structure gate
+
+**Shipped:**
+- `Pass 426.0` — new `tools/check-code-structure.py`: fails on a `fn` over
+  80 production lines, a file over 800 production lines, or a private
+  free function duplicated (name + whitespace-stripped body) across 2+
+  files of one crate. Production = code before a file's first
+  `#[cfg(test)]`; tests/benches/fuzz/examples/target skipped. Wired into
+  `.github/workflows/ci.yml` and `tools/check-ci-parity.py`, so
+  `tools/run-gates.sh` runs it.
+
+**Decisions made this session:**
+- Decision 170 (`ARCHITECTURE.md` §12, §8.4): the three structure limits
+  are now a standing, project-wide gate with a shrink-only debt baseline.
+  Ken: the same discipline should apply to all his projects, not just
+  pdfcer — his global `CLAUDE.md` gained a matching rule, citing this
+  script as the reference implementation.
+
+**Findings + decisions:**
+- Trigger: Ken asked whether `pdfcer-3d` (~4,700 production lines) was
+  "split up properly," not "falling into the same lazy programming
+  traps." Audit found 4 shortcuts specific to that crate (duplicated
+  vector math, no `Vec3` type, `render.rs` inside the reader crate,
+  oversized fns/files, an over-exposed `pub mod bits`) plus 640
+  violations workspace-wide (517 fn, 108 file, 15 duplicate-helper), now
+  baselined in `tools/code-structure-baseline.txt` as DEBT — a NEW
+  violation is a hard CI failure, a STALE baseline line (its violation
+  already fixed) is also a hard failure, and the baseline is never
+  regenerated to admit a new violation.
+- Sabotage: a 92-line fn injected into `pdfcer-3d` produced a NEW FAIL; a
+  phantom baseline line produced a STALE FAIL. Both caught.
+- No Rust code changed this filing — tooling only. No `cargo tree` or
+  round-trip impact; `docs/FEATURES.md` gets no row (no end-user
+  capability changed).
+
+**Still in flight:**
+- The named `pdfcer-3d` structure refactor (shared `Vec3`/vector module,
+  `render.rs` moved out of the reader crate, the five named oversized
+  fns/files split, `bits` made non-public) — filed to *Backlog*, waiting
+  on an in-flight roof-fix agent also touching
+  `compressed.rs`/`tess.rs`.
+- Workspace-wide debt paydown (640 baselined violations) — filed to
+  *Backlog* as a standing, ongoing item; pay down opportunistically, no
+  dedicated sweep Pass.
+- Not yet pushed (per the dispatching note).
+
+**For next session:** Confirm `2bb66c73` is pushed; otherwise resume the
+`421.x` 3D thread (vaulted-roof tessellation tear, then the door-panel
+case) per the 835th filing's own "for next session" note.
+
 ## 2026-10-01 (835th filing) — `v0.71.0` RELEASED
 
 **Shipped:**
