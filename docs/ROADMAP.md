@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 424.0` (`483f405a`), 2026-09-30 — re-compress an edited stream the source had Flate-compressed
+
+`pdfcer-gui` request (`request_cli_full_mode_size.md`): full-mode save output
+ran ~3x the source size on a 16-edit chain.
+
+Cause: edit verbs stage **decoded** stream bytes and drop `/Filter`, so an
+edited content stream was re-emitted uncompressed in both save modes — each
+further incremental edit appended the whole decoded page again.
+
+Fix: every `EditSession` save path (incremental, full, full-decomposing,
+encrypted, decrypted, redaction serialise) now Flate-encodes a replaced
+stream whose BASE had `/FlateDecode` (bare or a 1-element array) and whose
+new value carries no `/Filter`/`/DecodeParms`. Knob
+`SaveOptions::edited_stream_compression` /
+`EditedStreamCompression::{KeepSourceFilter (default, also under
+identity()), AsAuthored}` (`pdfcer-model`, closed enum); settings key
+`edited_stream_compression` (`keep_source_filter` \| `as_authored`), read by
+the CLI's `save_edited` for every editing subcommand.
+
+Measured on a 5.7 MB CAD drawing (object-delete, object 0): full rewrite
+18,316,446 → 5,733,206 bytes (source 5,724,699); incremental append
+1,604,433 bytes (was ~14 MB uncompressed). A second sample (banana test
+fixture), full rewrite 740,944 → 695,151 bytes.
+
+Test `an_edited_compressed_content_stream_is_saved_compressed`
+(`crates/pdfcer-core/tests/vector_edit.rs`) replaces the old test that
+pinned raw re-emission; sabotage (disabling the pass) and a settings
+round-trip sabotage both CAUGHT.
+
+`docs/core-api/` §2 documents the knob. `cargo tree` unaffected — `flate2`
+was already a core dependency.
+
+Delivered: `core [x]`, `cli [x]` (every editing command, via the settings
+key), `gui [ ]` — not yet consumed.
+
+`docs/FEATURES.md`: the Save row (Document & pages) updated in place.
+
+No §12 decision — an additive save-time fix behind a closed-enum knob, no
+crate boundary or invariant change.
+
+**Gates:** `tools/run-gates.sh` was mid-run at filing time; result to
+follow in a separate filing. Targeted tests above are the only ones
+confirmed green here.
+
 ### `Pass 423.0` (`2804e522`), 2026-09-30 — list the whole undo and redo stacks
 
 `pdfcer-gui` request (`request_undo_history_listing.md`): only `undo_depth`/
@@ -174,6 +218,11 @@ name the wording fix and the CLI's new printed line; no box change.
 New standing rule `R258` — see *Standing rules*.
 
 No §12 decision — a wording fix, not a crate boundary or invariant change.
+
+**Follow-up (`6d77aa9c`, same filing):** the `cut_verbs` test
+`a_copied_widget_is_pointed_at_the_field_clipboard` still asserted the old
+"copy-field" wording and was red at `c9dfd4e6` — only targeted tests had
+been run then. Fixed same session; no new Pass ID.
 
 ### `Pass 421.2` (`21bd10be`, `c0815bd7`, `5c5be0d9`, `86cadd4d`), 2026-09-30 — 3D render draws each PRC part in its model-tree colour
 

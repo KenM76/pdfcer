@@ -4,6 +4,68 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (817th filing) — `Pass 424.0` SHIPPED: edited streams are re-compressed on save; `Pass 422.0`'s own test gate owed a follow-up fix
+
+**Shipped:**
+- `483f405a` — fix(save): `Pass 424.0`. Edit verbs stage decoded stream
+  bytes and drop `/Filter`, so an edited content stream was saved
+  uncompressed in every save mode — a `pdfcer-gui` 16-edit chain hit
+  3x the source size in full mode (`request_cli_full_mode_size.md`).
+  Every `EditSession` save path now Flate-encodes a replaced stream
+  whose base was `/FlateDecode` and whose new value carries no
+  `/Filter`, behind `SaveOptions::edited_stream_compression`
+  (`KeepSourceFilter` default / `AsAuthored`) and settings key
+  `edited_stream_compression`.
+- `6d77aa9c` — test(edit): follow-up to `Pass 422.0` (`c9dfd4e6`, filed
+  in the 816th session). The `cut_verbs` test
+  `a_copied_widget_is_pointed_at_the_field_clipboard` still asserted the
+  old "copy-field" wording and was red at `c9dfd4e6` — only targeted
+  tests had been run then. No new Pass ID.
+
+**Decisions made this session:**
+- None — `Pass 424.0` is an additive save-time fix behind a closed enum,
+  no crate boundary or invariant change; the follow-up is a test fix.
+
+**Findings + decisions:**
+- Measured on a 5.7 MB CAD drawing (object-delete, object 0): full
+  rewrite 18,316,446 → 5,733,206 bytes against a 5,724,699-byte source;
+  incremental append 1,604,433 bytes (was ~14 MB uncompressed). A second
+  sample (banana fixture), full rewrite 740,944 → 695,151 bytes.
+- Test `an_edited_compressed_content_stream_is_saved_compressed`
+  (`crates/pdfcer-core/tests/vector_edit.rs`) replaces the old test that
+  pinned raw re-emission; sabotage (disabling the pass) and a settings
+  round-trip sabotage both CAUGHT.
+- Generalizable finding written to `C:\personal_rag\pdf\`: an edit
+  pipeline that stages decoded stream bytes silently decompresses the
+  file on save, and a byte-level test with a tiny fixture cannot see it
+  — only a size comparison against a real-sized source file surfaces it.
+- `docs/core-api/` §2 documents the new knob. `cargo tree` unaffected —
+  `flate2` was already a core dependency.
+- `docs/FEATURES.md`: Save row (Document & pages) updated in place, no
+  box change (`core`/`cli` already `[x]`; `gui [ ]` not yet consuming
+  the knob).
+
+**Test results:**
+- Both tests above: sabotage CAUGHT.
+- Gates: `tools/run-gates.sh` (the full suite) was mid-run at filing
+  time; result not yet known. Only the targeted tests above are
+  confirmed green here.
+
+**Still in flight:**
+- `tools/run-gates.sh` full run still owed before `Pass 424.0` (and the
+  816th session's `Pass 422.0`/`Pass 423.0`) are release-ready.
+
+**For next session:**
+- Confirm `tools/run-gates.sh` green, then push.
+- `pdfcer-gui` has not yet wired `edited_stream_compression` — watch for
+  a follow-on request once it does.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hashes and
+test/measurement facts relayed from the dispatching engineer's own
+report on `483f405a`/`6d77aa9c`, not independently reproduced. The
+gate-sweep result is explicitly unknown, not asserted either way.
+Backup/push/release state not verifiable from here.
+
 ## 2026-09-30 (816th filing) — `Pass 422.0`/`Pass 423.0` SHIPPED: two `pdfcer-gui` channel requests — engine notes stop naming the CLI's own verbs, and the undo/redo stacks are now fully readable
 
 **Shipped:**
