@@ -4,6 +4,54 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (833rd filing) — `Pass 421.11` amendment (`ca9356c4`): compressed normal references use a measured width formula
+
+**Shipped:**
+- `Pass 421.11` amendment (`ca9356c4`) — the reference-index width for a
+  vertex storing `n` normals is now `w = 1 + bitlength(n-2)` (`w = 1` for
+  `n ≤ 2`), replacing the per-count table `{1,1,2,3,3,4}` that stopped at
+  `n = 6` and refused any mesh beyond it.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- The formula reproduces every measured count (`n = 1..6`, per-n search
+  across 347 School meshes) plus `n = 8 → 4`, `12 → 5`, `14 → 5`, found as
+  the unique exact-consumption fit by depth-first search over per-n widths
+  `1..8` on the last unresolved School mesh (`T 100`, `nv 52`, one
+  non-planar face; a fan vertex storing 14 normals).
+- 348/348 compressed School meshes now decode their stored normals (was
+  347/348); the recovered mesh's 300 corners are 299 with `|dot| > 0.999`
+  vs. own face, 1 with `> 0.95`.
+- **Correction to the record:** the 832nd filing's `Pass 421.11` entry
+  described this mesh as "under-consumes, cause unknown." That reading
+  came from the instrument, not the file — the real cause was the width
+  table ending at `n = 6`. Amendment note added to the `Pass 421.11`
+  Shipped row in `docs/ROADMAP.md` rather than rewriting it silently.
+- Still empirical (fit on one producer's file, not spec-sourced). Frame
+  X-branch discrimination still unmeasured; crease-angle recalculation
+  still unbuilt.
+- Tests: new unit test `reference_width_matches_the_measured_counts`;
+  `pdfcer-3d` lib 89 passed; 2 sabotages CAUGHT (`saturating_sub(2)→(1)`;
+  `1+`→`2+`). Clippy clean. No dependency change, `cargo tree` n/a.
+- Spec RAG `D:/Dev/Rag-Specialized/PDF_Spec/threed/prc__8137__tess_3d_compressed.md`
+  §5a N5/N10 updated by the engineer; N10 marked RESOLVED.
+
+**Still in flight:** `tools/run-gates.sh` full run in progress at filing
+time, result not yet reported here; crease-angle smoothing for
+`must_recalculate_normals` meshes; frame X-branch discrimination;
+door-panel conditioning-amplification drift; vaulted-roof tessellation
+tear; textures, lights, saved views; T-edge form; `pdfcer-gui`
+orbit/pan/zoom request.
+
+**For next session:** Confirm `run-gates.sh` came back green. Unreleased
+since `v0.70.0`; next release writes OneDrive slot `pdfcer2`.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Commit hash
+`ca9356c4` matches this session's git-status snapshot at conversation
+start; measured counts, test names and sabotage results are relayed from
+the dispatching engineer's own report, not independently reproduced.
+
 ## 2026-10-01 (832nd filing) — `Pass 421.10` fix + `Pass 421.11` (`74692826`, `2b5a1c71`): compressed PRC meshes decode their stored normals
 
 **Shipped:**
