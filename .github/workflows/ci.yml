@@ -532,6 +532,12 @@ jobs:
       - name: check the licensed suite is not named anywhere
         run: python tools/check-suite-name-absent.py
 
+      # Long functions, long production files and copy-pasted private helpers.
+      # Existing violations are baselined DEBT: a new one fails, a fixed one
+      # must be deleted from the baseline, so the list only shrinks.
+      - name: check code structure (fn/file length, duplicated helpers)
+        run: python tools/check-code-structure.py
+
       # A backslash escape routed through a Bash-tool heredoc loses one level
       # and lands in the file as the CONTROL BYTE it named: `\b` becomes a
       # backspace, `\n` a bare newline inside a literal. The 392nd filing
