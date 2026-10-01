@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (831st filing) — `Pass 421.10` (`2dbbed6e`): stored PRC normals shade smoothly and export to OBJ
+
+**Shipped:**
+- `Pass 421.10` — `TriangleMesh` gains stored PRC normals
+  (`normals`/`triangle_normals`, read from `TESS_3D`'s `normal_coordinates`,
+  per-point or single `OneNormal`/`NORMAL_Single` slot). `render_coloured`
+  shades per-corner from them (interpolated, clip-safe); meshes with no
+  stored normals render byte-identical to before. `to_obj` writes `vn`/
+  `f v//vn`. `TriangleMesh::transformed` maps normals by the inverse
+  transpose, renormalised, mirroring corner order with the triangle.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- No local real PRC stream (School, pmi, Camaro) carries an uncompressed
+  `TESS_3D` with normals — the slot-layout decode is verified on synthetic
+  fixtures only, not a real sample.
+- Tests: `pdfcer-3d` lib 85 pass (five new, three extended). Five
+  sabotages, all CAUGHT. Fuzz `prc_tess` 264,540 runs / 91 s clean. No
+  manifest change.
+
+**Still in flight:** Crease-angle smoothing for compressed
+(`must_recalculate_normals`) meshes — all of School still renders
+flat-faceted; door-panel conditioning-amplification drift; vaulted-roof
+tessellation tear; textures, lights, saved views; T-edge form; `pdfcer-gui`
+orbit/pan/zoom request.
+
+**For next session:** Unreleased since `v0.70.0`; next release writes
+OneDrive slot `pdfcer2`.
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hash,
+measured counts, test names and sabotage results relayed from the
+dispatching engineer's own report on `2dbbed6e`; not independently
+reproduced.
+
 ## 2026-10-01 (830th filing) — `Pass 421.9` (`4747c366`): compressed meshes read their own per-face line attributes
 
 **Shipped:**

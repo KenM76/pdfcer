@@ -115,6 +115,49 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.10` (`2dbbed6e`), 2026-10-01 — stored PRC normals shade smoothly and export to OBJ
+
+Continues the `Pass 421.x` bucket. `TriangleMesh` gains public
+`normals: Vec<[f64;3]>` and `triangle_normals: Vec<[u32;3]>` (per-triangle
+corner indices into `normals`, empty exactly when `normals` is), read from
+PRC `TESS_3D`'s `normal_coordinates` — per-point slot, or the entity's
+single `OneNormal`/`NORMAL_Single` slot [PRC WD 7.8.5]. A slot count not a
+multiple of 3 drops every normal for that mesh, never a single triangle.
+`TriangleMesh::transformed` maps normals by the inverse transpose,
+renormalised; a mirror swaps corner order with the triangle it belongs to.
+
+`render_coloured` now shades per-corner from stored normals, interpolated
+across the triangle and carried through near-plane clipping; a mesh with
+no stored normals keeps the exact flat path — the School sample's own
+render is byte-identical to `v0.70.0`'s (front/iso/top). `to_obj` writes
+`vn` lines and `f v//vn` faces.
+
+**Tests.** `pdfcer-3d` lib: 85 pass (new
+`strip_normals_follow_the_alternating_winding`,
+`a_normal_index_past_the_array_drops_every_normal_but_no_triangle`,
+`normals_take_the_inverse_transpose_and_mirror_with_their_triangle`,
+`stored_normals_shade_smoothly_across_a_flat_square`,
+`obj_writes_stored_normals_and_offsets_them_per_mesh`; extended
+`triangle_and_fan_with_normals`, `one_normal_blocks_and_textures`, the
+recalculated-normals test; CLI
+`a_mesh_splits_by_triangle_colour_in_first_seen_order` extended). Five
+sabotages, all CAUGHT. Fuzz `prc_tess`: 264,540 runs / 91 s, clean.
+Synthetic fixtures `square.prc`/`assembly.prc` regenerated (now carry
+normals).
+
+**Measured.** No local real PRC stream has an uncompressed `TESS_3D` with
+normals (School 0, pmi 0, Camaro 0 occurrences) — the slot-layout decode is
+verified on synthetic data only. **Not done**: crease-angle smoothing for
+`must_recalculate_normals` meshes — every compressed-tessellation mesh
+(all of School) still renders flat-faceted.
+
+No manifest change, `cargo tree` unaffected.
+
+`docs/FEATURES.md` row 534 ("View an embedded 3D model with camera
+controls"): boxes unchanged (`core [x]`/`cli [x]` already set, `gui [ ]`
+pending `421.1`) — text gains a clause on stored-normal shading;
+crease-angle smoothing noted still open.
+
 ### `Pass 421.9` (`4747c366`), 2026-10-01 — compressed meshes take their per-face line attributes
 
 Continues the `421.x` compressed-tessellation thread, unreleased since
@@ -24546,6 +24589,21 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   sample: all 348 of 348 compressed meshes now rebuild, `compressed_skipped`
   0 (was 347 of 348). Also fixed `3d-render --help`'s stale claim that
   per-face colours (`421.6`) are unread.
+- `421.9` — **SHIPPED, `4747c366`, 2026-10-01 (830th filing)**, full entry
+  in *Shipped* above. PRC `TESS_3D_Compressed` tessellations now decode
+  their own `line_attribute_array`/`behaviours` into per-triangle
+  graphics, feeding `Placement::triangle_colours` and `3d-render` the same
+  way `421.6`'s uncompressed path already did. Measured on School: all
+  348 compressed tessellations carry one attribute per face, value `0` —
+  render output byte-identical to `v0.70.0`'s.
+- `421.10` — **SHIPPED, `2dbbed6e`, 2026-10-01 (831st filing)**, full
+  entry in *Shipped* above. `TriangleMesh` gains stored PRC normals
+  (`TESS_3D`'s `normal_coordinates`); `render_coloured` shades per-corner
+  from them (interpolated, clip-safe) and `to_obj` writes `vn`/`f v//vn`.
+  Meshes without stored normals render byte-identical to before. No real
+  sample carries normals yet (synthetic-only verification); compressed
+  meshes (all of School) still render flat-faceted pending crease-angle
+  smoothing.
 
 **Dated note, 2026-10-01 (827th filing) — a separate open defect, NOT
 closed by `421.8`.** Ken reported the School render's front double door
@@ -24567,13 +24625,16 @@ the door drift present.
 
 **Next planned, in order**: the vaulted-roof tessellation tear (entity
 #868, `419.2`'s own remainder); the door-panel conditioning-amplification
-case above (same item, worst instance yet); then textures; then lights.
+case above (same item, worst instance yet); crease-angle normal smoothing
+for compressed meshes (`421.10`'s own remainder — `must_recalculate_normals`
+meshes still render flat-faceted); then textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
 gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`,
 framing fix noted by `421.3`, vertex-fit noted by `421.4`, per-face colour
-noted by `421.6`, compressed-decode gap closed by `421.8`); `gui` stays
-`[ ]` pending `421.1`. Stays in *Planned* — the row names the
+noted by `421.6`, compressed-decode gap closed by `421.8`, per-face line
+attributes noted by `421.9`, stored-normal shading noted by `421.10`);
+`gui` stays `[ ]` pending `421.1`. Stays in *Planned* — the row names the
 interactive-controls capability, and that still needs Rung B. `421.5`'s
 `3d-mesh` format-from-extension fix is noted on the separate mesh-export
 row (`419.2`, *Implemented*), not this one.
