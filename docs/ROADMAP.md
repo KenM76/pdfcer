@@ -115,6 +115,20 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 430.0` SLICE 2 (`fc94ab61`), 2026-10-01 — name every refused character with its own reason (G075 c)
+
+Continues the `Pass 427.0`–`436.3` family (851st filing). **`Pass 430.0` STAYS OPEN** — only the `/ToUnicode` extension is left owed; `430.1`–`430.3` are unchanged. *Next up*'s head is unaffected.
+
+**Core + pdfcer-render.** The `R-INV-1` subset-floor refusal now names EVERY character route A could not add, each with its own reason, in typed order: "Also refused: U+XXXX 'c' (code N): reason" — "the embedded program has no outline for it" or "code N is already shown elsewhere in the document with a different width". A reason that applies to the whole font (no reader supplied, program unreadable) is reported once rather than once per character. Without a program reader the remaining characters still list, just without reasons.
+
+**CLI.** `edit-text`/`run-repertoire` surface the same message (no new flag).
+
+**Tests.** 2 new in `crates/pdfcer-render/tests/subset_unused_glyph.rs` (10 total). 2 sabotages planted, both CAUGHT. `tools/run-gates.sh` PASS (44 commands).
+
+**Invariants.** No `Cargo.toml`/manifest change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected. No `pub` API change — `docs/core-api` unaffected.
+
+**Still owed in `Pass 430.0`:** `/ToUnicode` extension when present. `430.1`/`430.2`/`430.3` unchanged, still *Next up*.
+
 ### `Pass 430.0` SLICE 1 (`f63293c6`), 2026-10-01 — type a glyph an embedded TrueType subset outlines but never showed (G075 a+c, decision 172 route A)
 
 Continues the `Pass 427.0`–`436.3` family (850th filing). **`Pass 430.0` STAYS OPEN** — this slice covers only the simple-TrueType case; `/ToUnicode` extension and the remaining per-character refusal-reason surface (`G075` c) are still owed, and `430.1`–`430.3` are unchanged. *Next up*'s head is unaffected.
@@ -15402,6 +15416,14 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 430.0` SLICE 2 PARTIALLY SHIPPED, 2026-10-01
+> (851st filing), `fc94ab61`** — see top of *Shipped*. The `R-INV-1`
+> subset-floor refusal now names EVERY character route A could not add,
+> each with its own reason, in typed order ("Also refused: U+XXXX 'c'
+> (code N): reason"); a font-wide reason is reported once. **`Pass 430.0`
+> STAYS OPEN and remains the head of *Next up*** — only the `/ToUnicode`
+> extension is left owed; `430.1`–`430.3` below unchanged.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 430.0` SLICE 1 PARTIALLY SHIPPED, 2026-10-01
 > (850th filing), `f63293c6`** — see top of *Shipped*. Simple nonsymbolic
 > `/TrueType`, named WinAnsi/MacRoman encoding, no `/ToUnicode`: a
@@ -15566,6 +15588,12 @@ closes out the *prior* filing's business rather than opening this one's.
 >   per-character refusal-reason surface are **not** in this slice — both
 >   still owed, keeping `Pass 430.0` open and the head of *Next up*. See
 >   *Shipped*, above, for the full accounting.
+>   **★ SLICE 2 SHIPPED 2026-10-01 (851st filing), `fc94ab61`** — the
+>   per-character refusal-reason surface (`G075` c): every character route
+>   A could not add is named with its own reason, typed order, font-wide
+>   reasons reported once. **Only `/ToUnicode` extension is left owed,**
+>   keeping `Pass 430.0` open and the head of *Next up*. See *Shipped*,
+>   above, for the full accounting.
 > - **`Pass 430.1`** — augment the subset from a same-PostScript-name face
 >   the shell supplies as bytes (`G075` b) — core never discovers system
 >   fonts itself (`font_embed_missing.rs` policy); disclosed, opt-in

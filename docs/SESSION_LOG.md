@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (851st filing) — `Pass 430.0` SLICE 2 PARTIALLY SHIPPED (`fc94ab61`) — name every refused character with its own reason
+
+**Shipped:**
+- `fc94ab61` — `Pass 430.0` SLICE 2 (`G075` c). The `R-INV-1` subset-floor
+  refusal now names every character route A could not add, each with its
+  own reason, in typed order ("Also refused: U+XXXX 'c' (code N): reason");
+  a font-wide reason (no reader, unreadable program) is reported once.
+  Without a reader the remaining characters still list, without reasons.
+  `Pass 430.0` STAYS OPEN — only the `/ToUnicode` extension is left owed.
+
+**Decisions made this session:** none new — this slice executes decision
+172 route A, same as the 850th filing.
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 430.0`: `/ToUnicode` extension when present.
+- `Pass 430.1`–`430.3` unbuilt, as filed the 849th filing.
+
+**For next session:**
+- `Pass 430.0` is still the head of *Next up*.
+- The stray `docs/decisions/040-additive-font-dict-extension.md` stub
+  flagged the 849th filing is still unremoved (librarian has no shell).
+
 ## 2026-10-01 (850th filing) — `Pass 430.0` SLICE 1 PARTIALLY SHIPPED (`f63293c6`) — type a glyph an embedded TrueType subset outlines but never showed
 
 **Shipped:**
