@@ -115,6 +115,66 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 425.0` (`5d2a70d0`), 2026-09-30 — create a self-signed digital ID
+
+`pdfcer-gui` request `G072`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\
+request_G072_create_a_self_signed_digital_id.md`): no path existed to
+MINT a signing identity, only to load one (`Pass 10.7`).
+
+Core: `sign::digital_id::create_self_signed_id(&DigitalIdSpec, password) ->
+Result<DigitalId, IdError>` (feature `signing`). Key: RSA-2048 (default,
+Acrobat's own), RSA-3072, or ECDSA P-256. X.509 v3, SHA-256, critical
+`basicConstraints` `cA FALSE`, critical `keyUsage`
+`digitalSignature`+`nonRepudiation` (+`keyEncipherment` for RSA
+sign-and-encrypt; EC+encryption refused per RFC 8813), SKI/AKI, `rfc822Name`
+SAN, EKU `emailProtection` + Adobe Authentic Documents
+(`1.2.840.113583.1.1.5`). Validity: caller's `not_before` + 1..=100 whole
+years (default 5 = Acrobat's fixed term; configurable is parity-plus).
+PKCS#12: PBES2 PBKDF2-HMAC-SHA256 + AES-256-CBC (600,000 iterations
+default, the Windows ceiling) + HMAC-SHA256 MAC. Self-verified before
+writing. Typed refusals (`IdError`): `EmptyCommonName`, `EmptyPassword`,
+`PasswordCharacter` (non-BMP), `BadCountry`, `BadEmail`, `FieldTooLong`,
+`ValidityOutOfRange`, `IterationsOutOfRange`, `EncryptionNeedsRsa`,
+`RandomUnavailable`, `KeyOperation`.
+
+CLI: `pdfcer create-digital-id --name --password -o [--organization
+--org-unit --email --country --key rsa2048|rsa3072|p256 --encryption
+--years --iterations --cert-out]`; prints the SHA-256 fingerprint; exit 9
+on refusal, nothing written. README subcommand count now 199.
+
+`gui [ ]` — `pdfcer-gui` is the separate requesting project and has not
+consumed this yet.
+
+Divergences from Acrobat (parity-plus, not a gap): ECDSA P-256 option,
+configurable validity, configurable PBKDF2 iterations, AES-256 PBES2
+instead of Acrobat's own choice of cipher. Acrobat's 6-character password
+floor was NOT adopted — any non-empty password is accepted.
+
+Spec sources: `D:\Dev\Rag-Specialized\PDF_Spec\security\
+security__x509_self_signed_authoring.md` and `security__pkcs12_export.md`;
+`Acrobat_Features\signatures__self_signed_digital_id_creation.md`.
+
+**Tests.** 9 core integration (`crates/pdfcer-core/tests/digital_id_create.rs`)
++ 2 CLI (`crates/pdfcer-cli/tests/create_digital_id.rs`). Sabotage: 4
+mutations (keyUsage bits, MAC KDF id, 2050 time cutover, EC-encryption
+guard), all CAUGHT. Cross-checked locally, not in CI: OpenSSL 1.1.1s and
+Windows `certutil` both open the RSA and EC files, including one with a
+non-ASCII password; `openssl verify -purpose smimesign` accepts the cert.
+
+**Gates:** `tools/run-gates.sh` 41/42 green; the one failure
+(`check-public-fns-documented`, two widened PKCS#12 helpers lacked doc
+comments) was fixed before commit; `fmt`/`clippy` clean. No `Cargo.toml`
+change — `cargo tree` unaffected, no new dependency.
+
+`docs/core-api/02-editing-and-saving.md` §1.31 documents it (already in
+the commit).
+
+No §12 decision — additive, no crate boundary or invariant change.
+
+`docs/FEATURES.md`: new row, Redaction & security — `core [x]` / `cli [x]`
+/ `gui [ ]`.
+
 ### `Pass 424.0` (`483f405a`), 2026-09-30 — re-compress an edited stream the source had Flate-compressed
 
 `pdfcer-gui` request (`request_cli_full_mode_size.md`): full-mode save output

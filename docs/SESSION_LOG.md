@@ -4,6 +4,53 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (818th filing) — `Pass 425.0` SHIPPED: create a self-signed digital ID
+
+**Shipped:**
+- `5d2a70d0` — feat(sign): `Pass 425.0`. Answers `pdfcer-gui` request `G072`
+  (`request_G072_create_a_self_signed_digital_id.md`) — no path existed to
+  MINT a signing identity, only to load one. New
+  `sign::digital_id::create_self_signed_id(&DigitalIdSpec, password)`
+  (feature `signing`): RSA-2048 (default)/RSA-3072/ECDSA P-256, X.509 v3,
+  critical `basicConstraints`/`keyUsage`, EKU `emailProtection` + Adobe
+  Authentic Documents OID, 1–100 yr validity (default 5), PKCS#12 export
+  (PBES2 PBKDF2-SHA256/AES-256-CBC + HMAC-SHA256 MAC). CLI
+  `pdfcer create-digital-id`. `gui [ ]` — separate requesting project, not
+  yet consumed.
+
+**Decisions made this session:**
+- None — additive, behind a new typed `IdError` enum, no crate boundary or
+  invariant change.
+
+**Findings + decisions:**
+- Cross-checked locally (not in CI): OpenSSL 1.1.1s and Windows `certutil`
+  both open the produced RSA and EC files, including one with a non-ASCII
+  password; `openssl verify -purpose smimesign` accepts the cert.
+- `docs/FEATURES.md`: new row under *Redaction & security* —
+  `core [x]` / `cli [x]` / `gui [ ]`.
+- `docs/core-api/02-editing-and-saving.md` §1.31 documents the new surface
+  (already in the commit).
+
+**Test results:**
+- 9 core integration tests + 2 CLI tests, all green. Sabotage: 4 mutations
+  (keyUsage bits, MAC KDF id, 2050 time cutover, EC-encryption guard), all
+  CAUGHT.
+- `tools/run-gates.sh` 41/42 green; the one failure
+  (`check-public-fns-documented` on two widened PKCS#12 helpers) was fixed
+  before commit; `fmt`/`clippy` clean. No `Cargo.toml` change.
+
+**Still in flight:**
+- `pdfcer-gui` has not yet wired `create-digital-id` — watch for a
+  follow-on request once it does.
+
+**For next session:**
+- Nothing blocking; push when ready.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+counts and gate result relayed from the dispatching engineer's own report
+on `5d2a70d0`, not independently reproduced. Backup/push/release state not
+verifiable from here.
+
 ## 2026-09-30 (817th filing) — `Pass 424.0` SHIPPED: edited streams are re-compressed on save; `Pass 422.0`'s own test gate owed a follow-up fix
 
 **Shipped:**
