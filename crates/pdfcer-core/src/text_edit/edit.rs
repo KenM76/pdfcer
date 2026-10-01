@@ -111,6 +111,7 @@ use crate::page_tree::{self, Page, PageTreeError};
 use crate::settings::UnmappableCode;
 use crate::span::ByteSpan;
 use crate::text_edit::encoding::{CompositeEncoding, InverseEncoding, RInvTrigger, Refusal};
+use crate::text_edit::program_glyphs::EmbeddedGlyphs;
 use crate::text_extract::font::ExtractFont;
 use crate::text_state::{AmbientTextState, TextStateParam};
 use crate::view::DocumentView;
@@ -642,6 +643,10 @@ pub enum EditTarget {
 pub struct EditOptions {
     /// How the rest of the line is disposed (default [`FollowerDisposition::Reflow`]).
     pub disposition: FollowerDisposition,
+    /// Reads embedded font programs so a character an embedded subset
+    /// outlines but the page never shows can be typed (decision 172). `None`
+    /// keeps the embedded-subset floor as it was: such characters refuse.
+    pub embedded_glyphs: Option<&'static dyn EmbeddedGlyphs>,
 }
 
 impl EditOptions {
@@ -651,6 +656,29 @@ impl EditOptions {
     #[must_use]
     pub fn with_disposition(mut self, disposition: FollowerDisposition) -> Self {
         self.disposition = disposition;
+        self
+    }
+
+    /// Install the embedded-program reader, returning `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::{EditOptions, EmbeddedGlyphs, ProgramGlyph};
+    ///
+    /// #[derive(Debug)]
+    /// struct NoGlyphs;
+    /// impl EmbeddedGlyphs for NoGlyphs {
+    ///     fn unicode_glyph(&self, _: &[u8], _: char) -> Option<ProgramGlyph> {
+    ///         None
+    ///     }
+    /// }
+    /// let opts = EditOptions::default().with_embedded_glyphs(&NoGlyphs);
+    /// assert!(opts.embedded_glyphs.is_some());
+    /// ```
+    #[must_use]
+    pub fn with_embedded_glyphs(mut self, glyphs: &'static dyn EmbeddedGlyphs) -> Self {
+        self.embedded_glyphs = Some(glyphs);
         self
     }
 }
@@ -1713,12 +1741,24 @@ pub fn edit_text(
     // object, or the form XObject's own stream. Both are one-object rewrites
     // and both leave every other byte of the file verbatim.
     let bytes = match target.form.as_ref() {
-        Some(form) => write_incremental_form(doc, form.id, &form.dict, &plan.new_content)?,
+        Some(form) => write_incremental_form_with(
+            doc,
+            form.id,
+            &form.dict,
+            &plan.new_content,
+            &plan.font_writes,
+            Vec::new(),
+        )?,
         // The plan derives content_object / extra_objects_emptied from
         // `page.contents`; a decoupled write went elsewhere, so it overrides.
         None => {
-            let (bytes, content_object, emptied, decoupled) =
-                write_incremental(doc, page, &plan.new_content)?;
+            let (bytes, content_object, emptied, decoupled) = write_incremental_with(
+                doc,
+                page,
+                &plan.new_content,
+                &plan.font_writes,
+                Vec::new(),
+            )?;
             if decoupled {
                 plan.report.content_object = content_object;
                 plan.report.extra_objects_emptied = emptied;
@@ -1755,6 +1795,9 @@ pub(crate) struct EditPlan {
     pub(crate) report: EditReport,
     /// Where the replacement's glyphs land.
     pub(crate) layout: EditLayout,
+    /// Objects the edit adds or revises besides the content stream (a font
+    /// dictionary extended under decision 172), written in the same revision.
+    pub(crate) font_writes: Vec<(ObjId, Object)>,
 }
 
 /// A replacement laid out exactly as `crate::EditSession::edit_text` would
@@ -2077,14 +2120,19 @@ pub(crate) fn plan_edit_with_records(
     let narrowed = narrow.is_some();
     let at = locate(recs, span, &req.find)?;
     let anchor = at.anchor;
-    let (font_dict, font, class) = anchor_font(doc, target, anchor)?;
+    let (font_dict, mut font, class) = anchor_font(doc, target, anchor)?;
     // An empty `find` on a PINNED request means the whole operator.
     let find = effective_find(anchor, &req.find, req.pinned_span);
     let (m, leading_matches) = match_anchor(&at, span, find)?;
-    let encoded = encode_replacement(&font, anchor, &req.replace)?;
-    if class.embedded && class.subset {
-        subset_floor(doc, target, recs, &font, anchor, &req.replace, &encoded)?;
+    let mut encoded = encode_replacement(&font, anchor, &req.replace)?;
+    let extension = extend_subset(
+        doc, target, recs, &font, &class, font_dict, anchor, req, &encoded, opts,
+    )?;
+    if let Some(ext) = &extension {
+        font = ExtractFont::resolve(doc, &ext.dict);
+        encoded.disclosures.extend(ext.disclosures(&font.base_font));
     }
+    let font_dict = extension.as_ref().map_or(font_dict, |e| &e.dict);
 
     // Advance delta (§9.4.4): the anchor's matched glyphs plus any TJ kerns
     // the match swallowed, against the whole replacement, which lands there.
@@ -2122,13 +2170,13 @@ pub(crate) fn plan_edit_with_records(
     disclosures.extend(laid.td_note);
     disclosures.extend(general_disclosures(req, opts, anchor, find, &font, &class));
     target_disclosures(doc, target, anchor, &mut disclosures);
-    // Show operators only: the `Td` steps between them are not operators the
-    // text was written across.
+    // Show operators only; the `Td` steps between them were not written across.
     let moved = (laid.delta, laid.followers, leading_matches.len() as u64 + 1);
     Ok(EditPlan {
         new_content,
         report: edit_report(target, &font, &class, opts, moved, anchor, disclosures),
         layout: laid.layout,
+        font_writes: extension.and_then(|e| e.write()).into_iter().collect(),
     })
 }
 
@@ -2356,6 +2404,51 @@ fn ambiguity_note(ambiguous: &BTreeMap<char, Vec<u32>>) -> Option<String> {
     ))
 }
 
+/// The embedded-subset floor (`R-INV-1`), with decision 172's route A in
+/// front of it: a character whose code no show of this font on the page uses
+/// is added to the font dictionary when [`EditOptions::embedded_glyphs`] finds
+/// its outline in the program, and refused otherwise.
+#[allow(clippy::too_many_arguments)] // the planner's own locals, passed through once
+fn extend_subset(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    recs: &[OpRec],
+    font: &ExtractFont,
+    class: &FontClass,
+    font_dict: &Dict,
+    anchor: &ShowData,
+    req: &EditRequest,
+    encoded: &EncodedReplacement,
+    opts: &EditOptions,
+) -> Result<Option<crate::text_edit::font_extend::FontExtension>, EditError> {
+    if !(class.embedded && class.subset) {
+        return Ok(None);
+    }
+    let carried = carried_codes(recs, &anchor.font_name);
+    let mut missing: Vec<(char, u32)> = Vec::new();
+    for (u, code) in req.replace.chars().zip(encoded.codes.iter().copied()) {
+        if !carried.contains(&code) && !missing.iter().any(|&(_, c)| c == code) {
+            missing.push((u, code));
+        }
+    }
+    let Some(&(u, code)) = missing.first() else {
+        return Ok(None);
+    };
+    let Some(glyphs) = opts.embedded_glyphs else {
+        return Err(subset_floor(doc, target, recs, font, u, code, None));
+    };
+    crate::text_edit::font_extend::plan(
+        doc,
+        &target.resources,
+        &anchor.font_name,
+        font_dict,
+        &missing,
+        glyphs,
+    )
+    .map(Some)
+    .map_err(|b| subset_floor(doc, target, recs, font, b.ch, b.code, Some(&b.reason)))
+}
+
 /// The embedded-subset floor: a code the subset does not already carry on
 /// this page is refused by name.
 ///
@@ -2366,26 +2459,17 @@ fn ambiguity_note(ambiguous: &BTreeMap<char, Vec<u32>>) -> Option<String> {
 /// same remedy the absent-glyph refusal names, because an operator
 /// experiences the two as one thing.
 ///
-/// # Errors
-///
-/// [`EditError::Refused`] with [`RInvTrigger::TargetAbsent`].
+/// Returns [`EditError::Refused`] with [`RInvTrigger::TargetAbsent`]; `why`
+/// says why route A could not add the character.
 fn subset_floor(
     doc: &DocumentView<'_>,
     target: &EditPlanTarget,
     recs: &[OpRec],
     font: &ExtractFont,
-    anchor: &ShowData,
-    replace: &str,
-    encoded: &EncodedReplacement,
-) -> Result<(), EditError> {
-    let carried = carried_codes(recs, &anchor.font_name);
-    let Some((u, code)) = replace
-        .chars()
-        .zip(encoded.codes.iter().copied())
-        .find(|(_, code)| !carried.contains(code))
-    else {
-        return Ok(());
-    };
+    u: char,
+    code: u32,
+    why: Option<&str>,
+) -> EditError {
     let reachable =
         crate::text_edit::format::std14_faces_reachable(doc, &target.resources, recs, u);
     let remedy = match crate::text_edit::encoding::faces_clause(&reachable).as_str() {
@@ -2394,7 +2478,10 @@ fn subset_floor(
             " To make this edit now, switch the run to a font that carries '{u}' -- `format_text` with `set_font` will add one, and {clause}"
         ),
     };
-    Err(EditError::Refused(Refusal {
+    let why = why.map_or(String::new(), |w| {
+        format!(" It could not be added to the font: {w}.")
+    });
+    EditError::Refused(Refusal {
         trigger: RInvTrigger::TargetAbsent,
         character: Some(u),
         base_font: font.base_font.clone(),
@@ -2403,10 +2490,10 @@ fn subset_floor(
             "R-INV-1 (embedded-subset floor): character U+{:04X} '{}' maps to code {} \
              which font '{}' (an embedded SUBSET) does not already carry on this page; \
              embedding a new glyph into that subset is deferred to FF-C (font \
-             subsetting). This is exactly Acrobat's 'embedded-but-not-local' floor.{}",
-            u as u32, u, code, font.base_font, remedy
+             subsetting). This is exactly Acrobat's 'embedded-but-not-local' floor.{}{}",
+            u as u32, u, code, font.base_font, why, remedy
         ),
-    }))
+    })
 }
 
 /// The disclosures every edit carries, whatever it was written into.
@@ -4550,22 +4637,14 @@ pub(crate) fn write_incremental_with(
 /// - `/LastModified` is bumped when the form carries `/PieceInfo`. See
 ///   [`bump_last_modified`] for why that is conditional.
 ///
+/// Also writes `extra`, objects the plan requires to exist — the
+/// form twin of [`write_incremental_with`] (`Pass 162.0`). See that function
+/// for why `extra` must land in the same revision.
+///
 /// # Errors
 ///
 /// [`EditError::Unsupported`] when the object is not a stream, or a write
 /// failure from the incremental save.
-pub(crate) fn write_incremental_form(
-    doc: &Document,
-    form_id: ObjId,
-    form_dict: &Dict,
-    new_content: &[u8],
-) -> Result<Vec<u8>, EditError> {
-    write_incremental_form_with(doc, form_id, form_dict, new_content, &[], Vec::new())
-}
-
-/// [`write_incremental_form`] plus objects the plan requires to exist — the
-/// form twin of [`write_incremental_with`] (`Pass 162.0`). See that function
-/// for why `extra` must land in the same revision.
 ///
 /// `extra` must NOT contain `form_id`: the form is a stream rebuilt here from
 /// `form_dict`, and a second write for the same id in one revision means the
@@ -4601,7 +4680,7 @@ pub(crate) fn write_incremental_form_with(
 
 /// Build the replacement [`Object::Stream`] for an edited form XObject: the
 /// original dictionary, `/Length` corrected, filtering dropped, timestamp
-/// bumped. See [`write_incremental_form`] for why each of those is required.
+/// bumped. See [`write_incremental_form_with`] for why each of those is required.
 ///
 /// `pub(crate)` so the session-integrated path builds the identical object the
 /// one-shot path builds — one definition, no drift, the same reason

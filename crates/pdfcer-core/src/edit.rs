@@ -12334,13 +12334,14 @@ impl EditSession {
                     });
                     match planned {
                         Ok(mut plan) => {
+                            let prior = self.revisions(std::mem::take(&mut plan.font_writes));
                             let (command, decoupled) = self
                                 .text_edit_command(
                                     CommandKind::EditText,
                                     content_id,
                                     &page,
                                     plan.new_content,
-                                    Vec::new(),
+                                    prior,
                                     &mut plan.report.disclosures,
                                 )
                                 .map_err(|e| {
@@ -12561,7 +12562,15 @@ impl EditSession {
         // exactly the shape `import_form_data` shipped. The gate that names
         // this is `tools/check-one-commit-per-command.py`, and it found this
         // function on the day it was written.
-        let mut found: Option<(ObjId, Dict, Vec<u8>, crate::text_edit::EditReport)> = None;
+        // (form id, form dict, new content, report, font writes)
+        type Found = (
+            ObjId,
+            Dict,
+            Vec<u8>,
+            crate::text_edit::EditReport,
+            Vec<ObjectWrite>,
+        );
+        let mut found: Option<Found> = None;
         for form in scan.forms {
             if let crate::text_edit::EditTarget::Form { object } = req.target
                 && form.id.num != object
@@ -12585,7 +12594,8 @@ impl EditSession {
             let target = crate::text_edit::edit::EditPlanTarget::form(form, invocations);
             match plan_edit_target(&self.view(), &target, &stream, req, opts) {
                 Ok(plan) => {
-                    found = Some((form_id, form_dict, plan.new_content, plan.report));
+                    let writes = self.revisions(plan.font_writes);
+                    found = Some((form_id, form_dict, plan.new_content, plan.report, writes));
                     break;
                 }
                 Err(e) if is_locational_error(&e) => {
@@ -12596,12 +12606,26 @@ impl EditSession {
                 Err(e) => return Err(e),
             }
         }
-        let Some((form_id, form_dict, new_content, report)) = found else {
+        let Some((form_id, form_dict, new_content, report, writes)) = found else {
             return Err(first_locational.unwrap_or_else(|| TeError::no_match(req.find.clone())));
         };
-        let command = self.form_edit_command(form_id, &form_dict, new_content);
+        let mut command = self.form_edit_command(form_id, &form_dict, new_content);
+        command.objects.extend(writes);
         self.commit(command);
         Ok(report)
+    }
+
+    /// `writes` as revisions of the session's current objects, so undo
+    /// restores whatever each held before.
+    fn revisions(&self, writes: Vec<(ObjId, Object)>) -> Vec<ObjectWrite> {
+        writes
+            .into_iter()
+            .map(|(id, after)| ObjectWrite {
+                id,
+                before: self.state.get(&id).cloned(),
+                after: Some(after),
+            })
+            .collect()
     }
 
     /// The one [`Command`] that replaces an edited **form XObject's** content
@@ -13355,6 +13379,34 @@ impl EditSession {
         find: &str,
         pinned_span: Option<crate::span::ByteSpan>,
     ) -> Result<crate::text_edit::RunRepertoire, crate::text_edit::FormatError> {
+        self.run_repertoire_with(
+            page_index,
+            find,
+            pinned_span,
+            &crate::text_edit::EditOptions::default(),
+        )
+    }
+
+    /// [`run_repertoire`](Self::run_repertoire), answered for an edit made
+    /// with `opts`.
+    ///
+    /// Only [`EditOptions::embedded_glyphs`](crate::text_edit::EditOptions::embedded_glyphs)
+    /// changes the answer: with a reader, an embedded TrueType subset also
+    /// accepts a character its program outlines but the page never shows,
+    /// when [`edit_text`](Self::edit_text) with the same `opts` would add it
+    /// to the font dictionary (decision 172). Pass the options the edit will
+    /// use, so the query and the edit agree.
+    ///
+    /// # Errors
+    ///
+    /// As [`run_repertoire`](Self::run_repertoire).
+    pub fn run_repertoire_with(
+        &self,
+        page_index: usize,
+        find: &str,
+        pinned_span: Option<crate::span::ByteSpan>,
+        opts: &crate::text_edit::EditOptions,
+    ) -> Result<crate::text_edit::RunRepertoire, crate::text_edit::FormatError> {
         use crate::text_edit::FormatError as FmtError;
 
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
@@ -13370,7 +13422,14 @@ impl EditSession {
             ));
         }
         let stream = self.current_page_content(page).map_err(FmtError::Content)?;
-        crate::text_edit::format::run_repertoire(&self.view(), page, &stream, find, pinned_span)
+        crate::text_edit::format::run_repertoire(
+            &self.view(),
+            page,
+            &stream,
+            find,
+            pinned_span,
+            opts.embedded_glyphs,
+        )
     }
 
     /// Apply one within-block reflow (Pass 15.1) as a single undo-able

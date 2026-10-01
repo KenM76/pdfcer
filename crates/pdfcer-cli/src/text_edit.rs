@@ -130,11 +130,13 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         // set a flag the resolver would then ignore.
         req.span_from_pin = args.span_from_pin;
     }
-    let opts = EditOptions::default().with_disposition(if args.pin {
-        FollowerDisposition::Pin
-    } else {
-        FollowerDisposition::Reflow
-    });
+    let opts = EditOptions::default()
+        .with_disposition(if args.pin {
+            FollowerDisposition::Pin
+        } else {
+            FollowerDisposition::Reflow
+        })
+        .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs);
 
     let outcome = match pdfcer_core::text_edit::edit_text(&doc, &req, &opts) {
         Ok(o) => o,

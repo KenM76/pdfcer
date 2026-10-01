@@ -7777,8 +7777,11 @@ pub(crate) enum Command {
     /// in the document's revision history by design (disclosed) -- to truly
     /// remove text, use `redact-apply` (a distinct, security operation). A
     /// character the run's font cannot provide is REFUSED by name (the
-    /// font-on-edit gate); an embedded SUBSET refuses a glyph it does not
-    /// already carry. `--font-dir` supplies non-embedded faces.
+    /// font-on-edit gate). An embedded TrueType SUBSET takes a character its
+    /// program outlines but the document never showed by adding that code's
+    /// width to the font dictionary (printed; the program is unchanged), and
+    /// refuses one the program does not outline. `--font-dir` supplies
+    /// non-embedded faces.
     EditText {
         /// Input PDF.
         input: PathBuf,

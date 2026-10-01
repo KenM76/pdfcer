@@ -516,7 +516,10 @@ pub(crate) fn cmd_run_repertoire(
         }
     };
     let session = pdfcer_core::edit::EditSession::new(doc);
-    let rep = match session.run_repertoire(page - 1, find, pin) {
+    // The same reader `edit-text` uses, so the two agree (decision 172).
+    let opts = pdfcer_core::text_edit::EditOptions::default()
+        .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs);
+    let rep = match session.run_repertoire_with(page - 1, find, pin, &opts) {
         Ok(rep) => rep,
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", input.display());
@@ -535,7 +538,7 @@ pub(crate) fn cmd_run_repertoire(
     }
     if rep.embedded_subset {
         eprintln!(
-            "pdfcer: {}: its font is an embedded SUBSET, so the answer is what this FILE carries, not what the face could draw. `format-text --set-font` is the remedy for a character it lacks.",
+            "pdfcer: {}: its font is an embedded SUBSET, so the answer is what this FILE can draw — the codes it shows, plus any glyph its program outlines that edit-text can add — not what the full face could draw. `format-text --set-font` is the remedy for a character it lacks.",
             input.display()
         );
     }

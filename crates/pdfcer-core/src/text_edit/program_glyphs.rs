@@ -1,0 +1,43 @@
+//! The seam through which an edit learns what an embedded font program can
+//! draw (decision 172).
+//!
+//! `pdfcer-core` has no font parser (`R21`), so the shell installs an
+//! [`EmbeddedGlyphs`] implementation on the session — `pdfcer-render`'s
+//! `EmbeddedProgramGlyphs` — and the embedded-subset floor asks it whether a
+//! character the page never shows is nevertheless outlined in the program.
+
+/// One glyph an embedded font program draws for a character.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct ProgramGlyph {
+    /// The glyph id in the program.
+    pub gid: u32,
+    /// The glyph's advance width in PDF glyph space (1000 units per em),
+    /// from the program's `hmtx`.
+    pub advance: f64,
+}
+
+impl ProgramGlyph {
+    /// A glyph `gid` advancing `advance` thousandths of an em.
+    #[must_use]
+    pub fn new(gid: u32, advance: f64) -> Self {
+        Self { gid, advance }
+    }
+}
+
+/// Reads embedded font programs on `pdfcer-core`'s behalf.
+///
+/// Supplied per edit through
+/// [`EditOptions::with_embedded_glyphs`](crate::text_edit::EditOptions::with_embedded_glyphs).
+/// Implementations must be pure functions of their arguments, so a preview
+/// and the commit of the same edit agree.
+pub trait EmbeddedGlyphs: Send + Sync + std::fmt::Debug {
+    /// The glyph that ISO 32000-2 §9.6.6.4's nonsymbolic TrueType chain
+    /// reaches for `ch` — Unicode through the program's `(3,1)` (or `(3,10)`)
+    /// `cmap` subtable — in the decoded sfnt `program`.
+    ///
+    /// `None` when the program is not sfnt, has no such subtable, maps `ch`
+    /// to no glyph or to glyph 0, or the glyph has no outline (a subset keeps
+    /// empty slots for glyphs it dropped).
+    fn unicode_glyph(&self, program: &[u8], ch: char) -> Option<ProgramGlyph>;
+}

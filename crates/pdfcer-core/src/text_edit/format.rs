@@ -1752,7 +1752,7 @@ pub fn set_format(
     let bytes = match target.form.as_ref() {
         Some(form) => {
             // The binder may have patched the form's OWN dictionary (when its
-            // `/Resources` is direct). That must reach `write_incremental_form`
+            // `/Resources` is direct). That must reach `write_incremental_form_with`
             // as the dictionary it rebuilds the STREAM from -- writing it as a
             // bare dict beside the stream would replace the form with an
             // object that has no content.
@@ -6357,9 +6357,10 @@ fn disclosure_tagged(mcid: i64) -> String {
 ///
 /// The repertoire is computed from **the run's own font resource**, so an
 /// embedded subset inherits the `R-INV-1` floor — a code the subset does not
-/// already carry on this page is not in the repertoire, even though the face
-/// has the glyph. Consulting a standard-14 table by `/BaseFont` name instead is
-/// exactly the mistake `Pass 279.0` fixed one level up.
+/// already carry on this page is not in the repertoire unless `glyphs` reads
+/// the embedded program and the font-dict extension the edit would make
+/// (decision 172) can add it. Consulting a standard-14 table by `/BaseFont`
+/// name instead is exactly the mistake `Pass 279.0` fixed one level up.
 ///
 /// # A run with no usable encoding answers NOTHING, and is not an error
 ///
@@ -6374,6 +6375,7 @@ pub(crate) fn run_repertoire(
     stream: &ContentStream,
     find: &str,
     pinned_span: Option<ByteSpan>,
+    glyphs: Option<&dyn crate::text_edit::EmbeddedGlyphs>,
 ) -> Result<RunRepertoire, FormatError> {
     use crate::text_edit::encoding::{CharEncoding, CompositeEncoding};
 
@@ -6486,6 +6488,7 @@ pub(crate) fn run_repertoire(
         // The composite branch below is different: its floor IS discriminating
         // and `cidfonttype2-subset-floor.pdf` measures it (3 addressed, 2
         // carried).
+        let mut uncarried: Vec<(char, u32)> = Vec::new();
         for ch in inverse.candidate_chars() {
             candidates_tested += 1;
             let code = match inverse.encode_char(ch, &prefer) {
@@ -6493,9 +6496,20 @@ pub(crate) fn run_repertoire(
                 CharEncoding::Refuse(_) => continue,
             };
             if embedded_subset && !carried.contains(&u32::from(code)) {
+                uncarried.push((ch, u32::from(code)));
                 continue;
             }
             accepted.insert(ch);
+        }
+        if let Some(g) = glyphs.filter(|_| !uncarried.is_empty()) {
+            accepted.extend(crate::text_edit::font_extend::addable(
+                doc,
+                &page.resources,
+                &anchor.font_name,
+                orig_dict,
+                &uncarried,
+                g,
+            ));
         }
     } else {
         let Some(cmap) = font.to_unicode_cmap() else {

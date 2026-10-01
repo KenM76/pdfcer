@@ -58,6 +58,7 @@ mod shading_ink;
 mod shading_pattern_anchoring;
 mod smask_replaces_not_intersects;
 mod stroke_display_hairline;
+mod subset_unused_glyph;
 mod symbolic_truetype_glyphs;
 mod synthetic_style_render;
 mod text_clipping_modes;

@@ -65,6 +65,7 @@ pub mod cause;
 pub(crate) mod cross_object;
 pub mod edit;
 pub mod encoding;
+pub(crate) mod font_extend;
 pub mod format;
 pub mod forms;
 pub mod merge;
@@ -73,6 +74,7 @@ pub mod model;
 /// half of `export_text`. Paginates around the shipped 16.1 boxed
 /// [`add_text`] rather than adding a second wrapper or a second emitter.
 pub mod placetext;
+pub mod program_glyphs;
 pub mod reflow;
 pub mod reflow_apply;
 pub mod refusal_kind;
@@ -87,6 +89,7 @@ pub use edit::{
     EditError, EditGlyphSource, EditOptions, EditOutcome, EditReport, EditRequest, EditTarget,
     FollowerDisposition, PreviewColour, PreviewGlyph, TextEditPreview, edit_text,
 };
+pub use program_glyphs::{EmbeddedGlyphs, ProgramGlyph};
 pub use refusal_kind::{RefusalClass, RefusalKind};
 // `CompositeEncoding` sits beside `InverseEncoding` deliberately: they are the
 // two halves of ONE seam (`plan_edit` picks between them on `font.is_simple()`

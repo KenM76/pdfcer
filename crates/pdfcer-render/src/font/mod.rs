@@ -18,6 +18,7 @@
 
 pub mod bundled;
 pub mod coredata;
+pub mod embedded_glyphs;
 pub mod program;
 pub mod select;
 /// Donor-face subsetting for FF-C (Pass 21.x, decision 021). Produces the
