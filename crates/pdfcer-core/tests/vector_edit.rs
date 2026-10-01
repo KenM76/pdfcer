@@ -41,13 +41,13 @@ use std::path::{Path, PathBuf};
 
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{CommandKind, EditError, EditSession, PaintRefusalReason};
-use pdfcer_core::object::{ObjId, Object, Provenance};
+use pdfcer_core::object::{Name, ObjId, Object, Provenance};
 use pdfcer_core::page_tree;
 use pdfcer_core::vector::{
     Matrix, PageObjects, PathObject, Point, Rgb, Segment, VectorEditError, VectorObject,
     decompose_page,
 };
-use pdfcer_core::writer::SaveOptions;
+use pdfcer_core::writer::{EditedStreamCompression, SaveOptions};
 
 // ---------------------------------------------------------------------------
 // Fixtures + helpers
@@ -583,9 +583,8 @@ fn zlib(data: &[u8]) -> Vec<u8> {
 }
 
 /// A classic PDF whose single page content stream is **FlateDecode**
-/// compressed (§7.4.4). Editing it forces the decode → surgery → raw
-/// re-emit path: the output content stream must decode to the moved
-/// geometry AND carry no `/Filter` (no stale compressed copy, §5.7).
+/// compressed (§7.4.4). Editing it forces the decode → surgery → re-emit
+/// path.
 fn flate_content_pdf(raw_content: &[u8]) -> Vec<u8> {
     let data = zlib(raw_content);
     let bodies: Vec<(u32, Vec<u8>)> = vec![
@@ -629,30 +628,64 @@ fn flate_content_pdf(raw_content: &[u8]) -> Vec<u8> {
     buf
 }
 
-#[test]
-fn editing_a_compressed_content_stream_decodes_edits_and_reemits_raw() {
-    let base = flate_content_pdf(b"1 w 0 0 0 RG\n50 50 m 150 150 l S\n");
-    let mut s = session(&base);
-
-    // The content stream decodes to the line; move it +10,+10.
-    s.move_object(0, 0, 10.0, 10.0).unwrap();
-    let out = save(&s);
-
+/// The edited content stream of `out` (a stream object), and its decoded bytes.
+fn edited_content(out: Vec<u8>) -> (Option<Object>, Vec<u8>) {
     let back = Document::from_bytes(out).unwrap();
-    // The edit took — the decoded, re-decomposed geometry moved.
     let model = decompose0(&back);
     let (_, line) = first_path(&model);
     assert_eq!(first_start(line), Point::new(60.0, 60.0));
-
-    // No stale copy: the edited content stream carries no /Filter (it was
-    // re-emitted raw), so the OLD compressed bytes are not what a reader sees.
     let cid = content_id(&back);
     let Some(Object::Stream(stream)) = back.get(cid).map(|io| &io.value) else {
         panic!("content object is not a stream after the edit");
     };
-    assert!(
-        stream.dict.get(b"Filter").is_none(),
-        "the edited content stream must be re-emitted raw (no /Filter)"
+    let decoded = pdfcer_core::filters::decode_stream(
+        &stream.dict,
+        stream.data_span.slice(back.bytes()).unwrap(),
+    )
+    .unwrap();
+    (stream.dict.get(b"Filter").cloned(), decoded)
+}
+
+#[test]
+fn an_edited_compressed_content_stream_is_saved_compressed() {
+    // Large enough that writing it unfiltered is visibly bigger.
+    let mut raw = b"1 w 0 0 0 RG\n50 50 m 150 150 l S\n".to_vec();
+    for _ in 0..2000 {
+        raw.extend_from_slice(b"% padding padding padding padding\n");
+    }
+    let base = flate_content_pdf(&raw);
+    let mut s = session(&base);
+    s.move_object(0, 0, 10.0, 10.0).unwrap();
+
+    for full in [false, true] {
+        let opts = SaveOptions::identity();
+        let (out, _) = if full {
+            s.to_full_bytes(&opts).unwrap()
+        } else {
+            s.to_incremental_bytes(&opts).unwrap()
+        };
+        let grew = out.len() as i64 - if full { 0 } else { base.len() as i64 };
+        let (filter, decoded) = edited_content(out);
+        assert_eq!(
+            filter,
+            Some(Object::Name(Name::from(b"FlateDecode"))),
+            "full={full}"
+        );
+        assert!(decoded.starts_with(b"1 w"), "full={full}");
+        assert!(
+            grew < raw.len() as i64 / 4,
+            "full={full}: {grew} bytes for {} raw",
+            raw.len()
+        );
+    }
+
+    let opts =
+        SaveOptions::identity().with_edited_stream_compression(EditedStreamCompression::AsAuthored);
+    let (out, _) = s.to_incremental_bytes(&opts).unwrap();
+    let (filter, _) = edited_content(out);
+    assert_eq!(
+        filter, None,
+        "AsAuthored writes the edited bytes unfiltered"
     );
 }
 

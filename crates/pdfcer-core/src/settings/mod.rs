@@ -1276,7 +1276,7 @@ pub enum WidgetTabTail {
     RowOrder,
 }
 
-pub use crate::writer::{TrailingEol, XrefEntryEol};
+pub use crate::writer::{EditedStreamCompression, TrailingEol, XrefEntryEol};
 
 /// The operator's persisted choices.
 ///
@@ -1478,6 +1478,9 @@ pub struct Settings {
     /// Whether a byte follows the final `%%EOF` (`EOL-A2`, §7.5.5).
     /// **BYTES radius** — one byte.
     pub trailing_eol: TrailingEol,
+    /// Whether an edited stream that was `/FlateDecode` is compressed again
+    /// on save. Key `edited_stream_compression`.
+    pub edited_stream_compression: EditedStreamCompression,
 }
 
 impl Default for Settings {
@@ -1545,6 +1548,8 @@ impl Default for Settings {
             tab_row_tolerance: DEFAULT_TAB_ROW_TOLERANCE,
             xref_entry_eol: crate::writer::SaveOptions::default().xref_entry_eol,
             trailing_eol: crate::writer::SaveOptions::default().trailing_eol,
+            edited_stream_compression: crate::writer::SaveOptions::default()
+                .edited_stream_compression,
         }
     }
 }
@@ -1894,6 +1899,15 @@ const fn trailing_eol_token(eol: TrailingEol) -> &'static str {
     match eol {
         TrailingEol::Lf => "lf",
         TrailingEol::None => "none",
+    }
+}
+
+/// The settings-file token for edited-stream compression. See
+/// [`separation_token`].
+const fn edited_stream_compression_token(c: EditedStreamCompression) -> &'static str {
+    match c {
+        EditedStreamCompression::KeepSourceFilter => "keep_source_filter",
+        EditedStreamCompression::AsAuthored => "as_authored",
     }
 }
 
@@ -2282,6 +2296,23 @@ impl Settings {
                     value: value.to_owned(),
                     line,
                     using: trailing_eol_token(Self::default().trailing_eol).to_owned(),
+                }),
+            },
+            "edited_stream_compression" => match value {
+                "keep_source_filter" => {
+                    self.edited_stream_compression = EditedStreamCompression::KeepSourceFilter;
+                }
+                "as_authored" => {
+                    self.edited_stream_compression = EditedStreamCompression::AsAuthored;
+                }
+                _ => notes.push(SettingNote::BadValue {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                    line,
+                    using: edited_stream_compression_token(
+                        Self::default().edited_stream_compression,
+                    )
+                    .to_owned(),
                 }),
             },
             _ => notes.push(SettingNote::UnknownKey {
@@ -2762,8 +2793,18 @@ impl Settings {
         );
         let _ = writeln!(
             out,
-            "trailing_eol = {}",
+            "trailing_eol = {}\n",
             trailing_eol_token(self.trailing_eol)
+        );
+        out.push_str(
+            "# How an edited stream that the source file compressed is saved.\n\
+             #   keep_source_filter = compress it again (default). Keeps the file small.\n\
+             #   as_authored        = write it uncompressed, readable in a text editor.\n",
+        );
+        let _ = writeln!(
+            out,
+            "edited_stream_compression = {}",
+            edited_stream_compression_token(self.edited_stream_compression)
         );
 
         out
@@ -3137,6 +3178,10 @@ mod tests {
         let writer = crate::writer::SaveOptions::default();
         assert_eq!(Settings::default().xref_entry_eol, writer.xref_entry_eol);
         assert_eq!(Settings::default().trailing_eol, writer.trailing_eol);
+        assert_eq!(
+            Settings::default().edited_stream_compression,
+            writer.edited_stream_compression
+        );
 
         // And the ones whose only home is the enum itself.
         assert_eq!(Settings::default().mask_resample, MaskResample::default());
@@ -3318,6 +3363,7 @@ mod tests {
             tab_row_tolerance: 2.5,
             xref_entry_eol: XrefEntryEol::CrLf,
             trailing_eol: TrailingEol::None,
+            edited_stream_compression: EditedStreamCompression::AsAuthored,
             // NOT the default (`None`), and deliberately a value that is a
             // whole number of GiB so the friendly writer's suffix branch is
             // the one exercised — a round trip that only ever went through

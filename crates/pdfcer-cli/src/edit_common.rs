@@ -536,6 +536,7 @@ pub(crate) fn save_edited(
         options
             .with_xref_entry_eol(settings.xref_entry_eol)
             .with_trailing_eol(settings.trailing_eol)
+            .with_edited_stream_compression(settings.edited_stream_compression)
     };
 
     let options = eol(SaveOptions::default().with_producer(match producer {

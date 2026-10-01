@@ -174,7 +174,7 @@ use crate::vartext::FontResource;
 use crate::vector::Point;
 use crate::view::{DocumentView, StreamSource};
 use crate::writer::content::ContentBuilder;
-use crate::writer::{DirtySet, SaveOptions, SaveReport, WriteError};
+use crate::writer::{DirtySet, EditedStreamCompression, SaveOptions, SaveReport, WriteError};
 
 /// How many commands the undo stack keeps before the oldest is dropped.
 ///
@@ -9982,6 +9982,63 @@ impl EditSession {
         dirty
     }
 
+    /// [`EditSession::dirty_set`] as a save writes it: under
+    /// [`EditedStreamCompression::KeepSourceFilter`], every replaced stream
+    /// whose base value was `/FlateDecode` and whose new value carries no
+    /// `/Filter` is Flate-encoded into the staging buffer. Kept out of
+    /// `dirty_set` because that runs per frame (`is_modified`).
+    fn save_dirty_set(&self, options: &SaveOptions) -> DirtySet {
+        let mut dirty = self.dirty_set();
+        if options.edited_stream_compression != EditedStreamCompression::KeepSourceFilter {
+            return dirty;
+        }
+        let base = self.base.bytes();
+        let mut staging: Option<Vec<u8>> = None;
+        let ids: Vec<ObjId> = dirty.iter().collect();
+        for id in ids {
+            let Some(Object::Stream(new)) = dirty.replacement(id) else {
+                continue;
+            };
+            if new.dict.contains_key(b"Filter") || new.dict.contains_key(b"DecodeParms") {
+                continue;
+            }
+            let was_flate = self.base.get(id).is_some_and(|io| match &io.value {
+                Object::Stream(old) => is_single_flate(old.dict.get(b"Filter")),
+                _ => false,
+            });
+            if !was_flate {
+                continue;
+            }
+            let span = new.data_span;
+            let raw = if span.start >= base.len() {
+                self.staging
+                    .get(span.start - base.len()..span.start - base.len() + span.len)
+            } else {
+                base.get(span.start..span.start + span.len)
+            };
+            let Some(raw) = raw.filter(|r| !r.is_empty()) else {
+                continue;
+            };
+            let Some(encoded) = flate_encode_for_save(raw) else {
+                continue;
+            };
+            let buf = staging.get_or_insert_with(|| self.staging.clone());
+            let start = base.len() + buf.len();
+            buf.extend_from_slice(&encoded);
+            let mut stream = new.clone();
+            stream.data_span = ByteSpan::new(start, encoded.len());
+            stream.dict.insert(
+                Name::from(b"Filter"),
+                Object::Name(Name::from(b"FlateDecode")),
+            );
+            dirty.replace(id, Object::Stream(stream));
+        }
+        if let Some(buf) = staging {
+            dirty.set_staging(buf);
+        }
+        dirty
+    }
+
     /// The buffer this session's stream spans index into (R45): the base
     /// file alone when nothing has been authored, or `base ++ staging`
     /// when the session carries authored appearance streams.
@@ -11682,7 +11739,7 @@ impl EditSession {
         if self.redaction_pending {
             return Err(WriteError::RedactionPending);
         }
-        crate::writer::save_incremental(&self.base, &self.dirty_set(), options)
+        crate::writer::save_incremental(&self.base, &self.save_dirty_set(options), options)
     }
 
     /// Rewrite the whole document as one revision, applying the current
@@ -11709,7 +11766,7 @@ impl EditSession {
         if self.redaction_pending {
             return Err(WriteError::RedactionPending);
         }
-        crate::writer::save_full(&self.base, &self.dirty_set(), options)
+        crate::writer::save_full(&self.base, &self.save_dirty_set(options), options)
     }
 
     /// [`Self::to_full_bytes`], also dropping every §7.5.7 object stream that
@@ -11732,7 +11789,7 @@ impl EditSession {
         if self.redaction_pending {
             return Err(WriteError::RedactionPending);
         }
-        let mut dirty = self.dirty_set();
+        let mut dirty = self.save_dirty_set(options);
         let decomposition = decompose_object_stream_containers(&self.base, &mut dirty);
         let (bytes, report) = crate::writer::save_full(&self.base, &dirty, options)?;
         Ok((bytes, report, decomposition))
@@ -11828,9 +11885,12 @@ impl EditSession {
         //    /Redact marks (they live in the session's edits) and every other
         //    pending edit into a document the redactor can scan. Bypasses the
         //    pending-redaction save guard on purpose (see the doc comment).
-        let (full, _) =
-            crate::writer::save_full(&self.base, &self.dirty_set(), &SaveOptions::identity())
-                .map_err(RedactError::Write)?;
+        let (full, _) = crate::writer::save_full(
+            &self.base,
+            &self.save_dirty_set(&SaveOptions::identity()),
+            &SaveOptions::identity(),
+        )
+        .map_err(RedactError::Write)?;
         // 2. Reload so the marks are document state.
         let doc = Document::from_bytes(full).map_err(RedactError::Reload)?;
         // 3. Remove the marked content (a full rewrite internally).
@@ -12021,8 +12081,13 @@ impl EditSession {
             file_id: [id0.to_vec(), id1.to_vec()],
             encrypt_metadata: settings.encrypt_metadata,
         };
-        crate::writer::save_full_encrypted(&self.base, &self.dirty_set(), options, &params)
-            .map_err(EncryptError::Write)
+        crate::writer::save_full_encrypted(
+            &self.base,
+            &self.save_dirty_set(options),
+            options,
+            &params,
+        )
+        .map_err(EncryptError::Write)
     }
 
     /// Rewrite the currently-encrypted document with a NEW `/P` permission set
@@ -12096,8 +12161,13 @@ impl EditSession {
         // base a genuine plaintext document, so save_full_encrypted's
         // "already encrypted, refuse" guard is correct to pass.
         self.base.clear_encryption();
-        crate::writer::save_full_encrypted(&self.base, &self.dirty_set(), options, &params)
-            .map_err(EncryptError::Write)
+        crate::writer::save_full_encrypted(
+            &self.base,
+            &self.save_dirty_set(options),
+            options,
+            &params,
+        )
+        .map_err(EncryptError::Write)
     }
 
     /// Remove encryption, writing a plaintext full rewrite (`Pass 5.4`,
@@ -12142,7 +12212,7 @@ impl EditSession {
         // computes against the base to avoid.
         self.base.clear_encryption();
         self.trailer.remove(b"Encrypt");
-        crate::writer::save_full_decrypted(&self.base, &self.dirty_set(), options)
+        crate::writer::save_full_decrypted(&self.base, &self.save_dirty_set(options), options)
             .map_err(EncryptError::Write)
     }
 
@@ -68615,6 +68685,31 @@ fn scale_flat(items: &[Object], anchor: (f64, f64), sx: f64, sy: f64) -> Vec<Obj
 /// array's length under a caller that counts.
 ///
 /// A non-numeric element is copied through for the same reason.
+/// Whether a `/Filter` value is exactly `/FlateDecode`, bare or as a
+/// one-element array.
+fn is_single_flate(filter: Option<&Object>) -> bool {
+    match filter {
+        Some(Object::Name(n)) => n.as_bytes() == b"FlateDecode",
+        Some(Object::Array(a)) => {
+            matches!(a.as_slice(), [Object::Name(n)] if n.as_bytes() == b"FlateDecode")
+        }
+        _ => false,
+    }
+}
+
+/// Zlib-encode (§7.4.4, RFC 1950) at the default level: this runs at every
+/// save, on streams that can be tens of megabytes. `None` only if the
+/// in-memory encoder fails, in which case the stream is written unfiltered.
+fn flate_encode_for_save(data: &[u8]) -> Option<Vec<u8>> {
+    use std::io::Write as _;
+    let mut e = flate2::write::ZlibEncoder::new(
+        Vec::with_capacity(data.len() / 4),
+        flate2::Compression::default(),
+    );
+    e.write_all(data).ok()?;
+    e.finish().ok()
+}
+
 fn translate_flat(items: &[Object], dx: f64, dy: f64) -> Vec<Object> {
     items
         .iter()

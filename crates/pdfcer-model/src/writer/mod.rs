@@ -591,6 +591,31 @@ pub struct SaveOptions {
     /// path anyway, and a trailing EOL never breaks a backward `%%EOF`
     /// scan.
     pub trailing_eol: TrailingEol,
+    /// How an **edited** stream whose source was `/FlateDecode` is written.
+    ///
+    /// Default [`EditedStreamCompression::KeepSourceFilter`]: edit routes
+    /// stage decoded bytes, so without this a 1.6 MB compressed content
+    /// stream is saved as 14 MB of plain text.
+    pub edited_stream_compression: EditedStreamCompression,
+}
+
+/// How a save writes an edited stream whose base-revision value was
+/// compressed with `/FlateDecode` (§7.4.4) and whose edited value carries
+/// no filter.
+///
+/// Applies only to that case: untouched streams are copied as they were,
+/// an edited stream that still declares a filter is written as it is, and
+/// a stream with no base value (created by the session) is written as
+/// authored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EditedStreamCompression {
+    /// Re-apply `/FlateDecode` (no predictor), keeping the producer's
+    /// choice to compress. **The default.**
+    #[default]
+    KeepSourceFilter,
+    /// Write the edited bytes unfiltered — larger, but readable in a text
+    /// editor.
+    AsAuthored,
 }
 
 impl SaveOptions {
@@ -611,7 +636,16 @@ impl SaveOptions {
             producer: ProducerPolicy::Preserve,
             xref_entry_eol: XrefEntryEol::default(),
             trailing_eol: TrailingEol::default(),
+            edited_stream_compression: EditedStreamCompression::default(),
         }
+    }
+
+    /// Set how an edited, formerly Flate-compressed stream is written,
+    /// consuming and returning `self`.
+    #[must_use]
+    pub const fn with_edited_stream_compression(mut self, c: EditedStreamCompression) -> Self {
+        self.edited_stream_compression = c;
+        self
     }
 
     /// Set the classic cross-reference entry terminator (`EOL-A1`),

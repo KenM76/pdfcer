@@ -4711,6 +4711,18 @@ An append that quietly wrote pdfcer's identity into a file the operator only
 annotated would be a fingerprint they did not ask for. A new shell should keep
 this split rather than pass one `SaveOptions` to both.
 
+**Edited streams are re-compressed.** Edit verbs stage a stream's decoded
+bytes, so its `/Filter` is dropped in the session. At save, every edited
+stream whose base value was `/FlateDecode` (bare or a one-element array) and
+whose new value has no `/Filter` or `/DecodeParms` is Flate-encoded again, in
+both modes and the encrypted ones. A stream the session created, or one that
+was never compressed, is written as authored. Knob:
+`SaveOptions::with_edited_stream_compression(EditedStreamCompression)`
+(`pdfcer_core::writer`, a closed set; settings key `edited_stream_compression`): `KeepSourceFilter` (default,
+also under `identity()`) or `AsAuthored` (write the decoded bytes
+unfiltered). Without it, deleting one object from a 5.7 MB CAD drawing saved
+an 18 MB file.
+
 ### 5.2 What each mode guarantees
 
 | | `to_incremental_bytes` (default) | `to_full_bytes` |
