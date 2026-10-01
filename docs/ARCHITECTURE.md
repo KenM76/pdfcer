@@ -2885,6 +2885,15 @@ ALLOCATES fresh object ids, never rewrites an existing `/FontFile*`/
 `/FontDescriptor`/`/Font` dict**, so FF-C needs no new §5 exception;
 incremental save stays the default.
 
+> **★ NARROWED 2026-10-01 (849th filing, decision 172).** The claim above
+> — R107 "never rewrites an existing ... `/Font` dict" — no longer holds
+> unqualified: decision 172 permits an ADDITIVE extension of an existing
+> font dictionary (new, previously-unused codes/CIDs only; `/Encoding`,
+> `/Widths`, `/ToUnicode`, `/CIDToGIDMap` written as new, copy-on-write
+> objects; program bytes still never touched). This is `Pass 430.0`/
+> `430.2`/`430.3` (`ROADMAP.md`, Next up) — not yet built; this paragraph
+> records the contract, not a shipped capability.
+
 `pdfcer-render` gains `font::subset` — `plan_subset(donor_bytes, ...)
 -> Result<FontEmbedPlan, SubsetError>`, parsing the donor via the
 existing skrifa parser (no second font-program parser added anywhere
@@ -12158,3 +12167,62 @@ append-only.
 
 **Decision ceiling: `170` → `171`**, next free `172`. No new standing rule
 minted.
+
+### 2026-10-01 (849th filing, `3e4d1a7d`, KenAgent) — decision 172: AN EXISTING EMBEDDED-SUBSET FONT DICTIONARY MAY BE EXTENDED BY ADDITION ONLY
+
+**Renumbering note, filed as part of the same entry (librarian catch,
+not a separate amendment).** KenAgent's decision record was committed as
+`docs/decisions/040-additive-font-dict-extension.md` — "decision 040,"
+read off the highest filename in `docs/decisions/` (`039-overlay-
+wrap.md`). That directory's own `README.md` names exactly this mistake:
+*"the next free number is therefore whatever §12 says, never `ls
+docs/decisions | tail -1` plus one"* — and §12 already has a decision
+040, filed 2026-08-11 (`print_render_options` print-policy builder, see
+above in this section). Renumbered to **172**, this section's own next
+free slot. The record now lives at `docs/decisions/172-additive-font-
+dict-extension.md`; the stray `040-*.md` is stubbed with a pointer here
+rather than deleted (`pdfcer-librarian` has no shell). Nothing else cites
+the wrong number — caught before any code shipped under it.
+
+**Trigger.** `pdfcer-gui` request `G075(a)`: a character whose glyph
+outline is present in an embedded subset program is refused by the
+embedded-subset floor (`R-INV-1`) because the page never shows its code.
+
+**What this decides.** Route A (default): make the character showable
+through the EXISTING font dictionary — assign a code unused everywhere
+that dictionary is reached, extend `/Widths`/`/W` from the program's
+`hmtx`, extend `/ToUnicode` — and never touch the font program. Route B
+(automatic fallback when any route-A guard fails): a sibling `/Type0` +
+`/CIDFontType2` dictionary reusing the same `FontFile2` by GID via
+`/CIDToGIDMap`; an `EditOptions` override may force B or refuse. Refuse
+only when the glyph has no outline in the embedded program.
+
+**Amends decision 021 / `R107`.** Decision 021's reasoning — a subset
+cannot gain an outline without changing program bytes — is unchanged.
+What narrows is R107's claim that FF-C "never modifies ... font
+dictionary": it may now, by addition only, never altering an existing
+code→glyph/width/Unicode mapping and never touching program bytes.
+`/Encoding`, `/Widths`, `/ToUnicode`, `/CIDToGIDMap` are written as new,
+copy-on-write objects, so a sub-object shared with another font can never
+carry the change to it.
+
+**Guards that route A to B** (full list in the record's §4): the font is
+symbolic or a simple TrueType font has no `/Encoding`; no unused code
+remains, or the glyph is reachable only by GID; a content stream reaching
+the dictionary cannot be parsed, so "unused" cannot be proven; a remap
+is needed and the font is in AcroForm `/DR`; no `/ToUnicode`, and adding
+one would change extraction of codes in use; a CID already shown
+elsewhere would need a different `/W`.
+
+**Body-section effect.** `ARCHITECTURE.md` §4's `font_embed.rs`/FF-C entry
+(2026-08-03, decision 021) gains a short dated amendment, above, narrowing
+its R107 round-trip claim.
+
+**New standing rule:** `R259` (`ROADMAP.md` Standing rules) — an existing
+font dictionary gains a new revision only by addition; full wording there.
+
+**Not covered.** `G075(b)` — copying an outline from an installed face
+into the program — changes program bytes and needs its own decision
+(`Pass 430.1`, not yet started).
+
+**Decision ceiling: `171` → `172`**, next free `173`.

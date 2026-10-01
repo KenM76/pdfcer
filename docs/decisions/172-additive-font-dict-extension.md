@@ -1,8 +1,20 @@
-# Decision 040 — An existing embedded-subset font dictionary may be extended by addition only
+# Decision 172 — An existing embedded-subset font dictionary may be extended by addition only
+
+> **Renumbered 2026-10-01 by `pdfcer-librarian`.** This record was first
+> committed as `docs/decisions/040-additive-font-dict-extension.md`
+> ("decision 040"), minted by reading the highest filename in
+> `docs/decisions/` (039) rather than `ARCHITECTURE.md` §12's own ceiling
+> — exactly the mistake this directory's `README.md` names and warns
+> against. §12 already has a decision 040 (2026-08-11,
+> `print_render_options`). Renumbered to **172**, §12's real next-free
+> slot at filing time. Content below is otherwise unchanged from the
+> original record. See `ARCHITECTURE.md` §12's decision 172 entry for the
+> full renumbering note.
 
 - **Date:** 2026-10-01
 - **Status:** DECIDED; implementation in `Pass 430.0` (route A, simple
-  TrueType, existing code) with the remaining routes split into later Passes.
+  TrueType, existing code) with the remaining routes split into later Passes
+  (`430.2`, `430.3`; `430.1` separately, needs its own decision — §7 below).
 - **Authored by:** `autonomous-builder` / KenAgent.
 - **Trigger:** pdfcer-gui request G075(a) — characters whose glyph outline is
   present in an embedded subset program are refused by the embedded-subset
@@ -34,9 +46,9 @@ with a reason per character.
   resources and never modifies an existing font **program**. Decision 021's
   reason — a subset cannot gain an outline without changing program bytes —
   is unchanged.
-- **New rule (additive font-dict extension):** an existing font dictionary
-  may gain a new revision only by addition. Only codes/CIDs with no user
-  anywhere the dictionary is reached are assigned; no existing
+- **New rule (`R259`):** an existing font dictionary may gain a new
+  revision only by addition. Only codes/CIDs with no user anywhere the
+  dictionary is reached are assigned; no existing
   code→glyph, width or Unicode mapping changes; program streams are never
   modified; `/Encoding`, `/Widths`, `/ToUnicode` and `/CIDToGIDMap` are written
   as new objects (copy-on-write) so a sub-object shared with another font can

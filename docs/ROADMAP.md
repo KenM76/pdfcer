@@ -15504,18 +15504,38 @@ closes out the *prior* filing's business rather than opening this one's.
 >   `--open-password` flag. Nothing remains owed in this item — the W14
 >   question above stays open as a separate operator decision, not a
 >   gap in this Pass.
-> - **`Pass 430.0`** — accept a character whose glyph exists only in the
->   embedded font program (`G075` a+c): assign an unused code/CID, extend
->   `/Widths`/`/W` from `hmtx`, extend `/ToUnicode`, program bytes untouched;
->   per-character accept/refuse reasons in `run_repertoire`/`edit_text`.
->   `pdfcer-core` has no font parser (`R21`) — program reading belongs in
->   `pdfcer-render` (skrifa), handed to core as data, like
->   `FontEmbedPlan`; modifying an existing font dict needs reconciling with
->   `R107`.
+> - **`Pass 430.0`** — SPLIT 2026-10-01 (849th filing, decision 172) into
+>   `430.0`/`430.2`/`430.3` below, `430.0` kept as the head. Decision 172
+>   ("an existing embedded-subset font dictionary may be extended by
+>   addition only," amending decision 021/`R107`, new standing rule `R259`)
+>   resolves the `R107` conflict the original wording flagged as needing
+>   reconciliation. Route A, first slice (decision 172): a simple
+>   nonsymbolic TrueType font whose resolved encoding already has a code
+>   for the character and whose program `(3,1)` cmap maps it to a glyph
+>   with an outline; the code must be unused everywhere the font dict is
+>   reached (document-wide scan over every surface that reaches it;
+>   unprovable → refuse with reason, for now); copy-on-write `/Widths`
+>   extension (`/FirstChar`/`/LastChar` gap filled with `/MissingWidth`)
+>   and `/ToUnicode` extension when present; per-character accept/refuse
+>   reasons in `run_repertoire` and `edit_text` (`G075` c); `EditReport` +
+>   CLI disclosure per added character. Program reading done in
+>   `pdfcer-render` (skrifa) behind a core trait the shell installs on the
+>   session (`R21`).
 > - **`Pass 430.1`** — augment the subset from a same-PostScript-name face
 >   the shell supplies as bytes (`G075` b) — core never discovers system
 >   fonts itself (`font_embed_missing.rs` policy); disclosed, opt-in
->   `EditOptions` flag; refuses on metric mismatch.
+>   `EditOptions` flag; refuses on metric mismatch. **Unlike `430.0`/
+>   `430.2`/`430.3`, this one changes font PROGRAM bytes — needs its own
+>   decision record before code (decision 172 §7).**
+> - **`Pass 430.2`** (new, split from `430.0`) — route A, rest (decision
+>   172): code allocation via `/Differences` (keeping `/BaseEncoding`),
+>   composite Identity-H (`/W`, `/ToUnicode`), post-name glyph lookup
+>   labelled as inference.
+> - **`Pass 430.3`** (new, split from `430.0`) — route B fallback
+>   (decision 172): sibling `/Type0` + `/CIDFontType2` dictionary reusing
+>   the same `FontFile2` by GID via `/CIDToGIDMap`, for every guard
+>   decision 172 §4 lists, plus an `EditOptions` override (force B /
+>   refuse); Acrobat Reader render check; PDF/A-1 `/CIDSet`.
 > - **`Pass 431.0`** — `EditOptions::fallback` (`G078`): a character the run
 >   cannot encode is set in a fallback face (split show op, `Tf` switch at
 >   the run's size/baseline), preview agrees glyph-for-glyph, report names
@@ -38449,7 +38469,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R104` — `/Tabs` is a mode, not a snapshot (decision 020 §3.4.1/§5, filed as R101 in the decision document; 2026-08-03, Pass 20.x family, not yet built).
 - `R105` — Every field pdfce authors carries `/TU`, or an explicitly recorded operator declination (decision 020 §3.5.3/§5, filed as R102 in the decision document; 2026-08-03, Pass 20.x family, not…
 - `R106` — Every one of this project's numbered/lettered ledgers (Pass IDs, standing-rule `R`-numbers, decision numbers, Open-operator- question letters) has its NEXT free slot determined by reading…  **[gate: check-ledger-numbers.py]**
-- `R107` — FF-C only ever ADDS font resources; it never modifies an existing font program or font dictionary (decision 021, 2026-08-03; numbering corrected by the engineer before filing, confirmed b…
+- `R107` — FF-C only ever ADDS font resources; it never modifies an existing font PROGRAM (decision 021, 2026-08-03; numbering corrected by the engineer before filing). **NARROWED 2026-10-01 by decision 172** — an existing font DICTIONARY may now be extended, additively only (see `R259`); the program-bytes guarantee this rule names is unchanged. (Fixed a pre-existing truncated tail on this line, found while editing it for the narrowing — the line previously ended mid-word at "confirmed b…" with no closing parenthesis; librarian catch, 849th filing.)
 - `R108` — Embedding is an explicit, per-action operator choice whose real outcome is computed before confirmation (decision 021, 2026-08-03; librarian-assigned number).
 - `R109` — Font-embedding permission is read from the donor face and disclosed; never assumed, never guessed (decision 021, 2026-08-03; librarian-assigned number).
 - `R110` — A composite run is editable only where its `/ToUnicode` is VERIFIED injective, per font, per session (decision 021, 2026-08-03; librarian-assigned number).
@@ -38641,6 +38661,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R257` — DATED INSTANCE NOTE, THIRD DIRECTION, CREDITED TO `pdfcer-gui` (547th filing).** Not a multi-repo collision: a resume/hand-off document's own correction cited a captured-trace file inside a `.gitignore`d directory to support a claim about a ribbon region name — the citation resolved on exactly the one machine holding that untracked file and nowhere else. Re-pointed at tracked source. In the crediting project's own words: *"Same failure, third direction. Yours: the right filename in the wrong repository. Ours: the right filename in no repository. The common shape is a path that resolves somewhere being mistaken for a path that resolves anywhere."* The RAG file's own text is widened accordingly (repository-collision is now framed as one case of "resolves somewhere vs. resolves anywhere," not the whole rule) — three dated instances within roughly a day of the mint, from two projects, in three directions, is recorded there as evidence the boundary was drawn about right.
 - **`R230` — DATED INSTANCE NOTE, 2026-09-27 (662nd filing, `Pass 363.0`, `f1a708b8`), FIRST DATED INSTANCE.** Four subcommands' `--help` carried dated project history inside the `///` doc comment `clap` renders as help: `set-page-size`/`rotate-page --output` narrated a 2026-08-27 correction to their own wording; `ocr --dpi` carried a ~60-line measurement essay about the old 300 dpi default; `set-button-action` quoted the operator's 2026-08-30 ruling verbatim. Found by the engineer reading `set-page-size`'s definition on an unrelated loop tick, not from a request. Fixed by rewriting all four to current-behaviour-only text (the `--dpi` essay's operative fact survives in 4 lines; the full measurement stays in `docs/history`) and widening the existing `cli_help_ships_no_internal_markup` test with an `iso_date_at` check refusing any `YYYY-MM-DD` in rendered `--help`. No re-mint; ceiling unchanged.
 - `R258` — AN ENGINE-FACING STRING (A NOTE, A DISCLOSURE, AN ERROR MESSAGE) MUST NOT NAME A SHELL'S OWN VERB — THE SHELL APPENDS ITS OWN. `DocTimestampReport`'s no-`/DSS` note told every caller to "run add-validation-material (B-LT) first," `pdfcer`'s own CLI subcommand name, meaningless to `pdfcer-gui`, whose equivalent act is a menu item with no shell verb at all; a same-session sweep of the 187 hyphenated CLI verbs against the engine's string literals found a second instance, `paste_objects`'s widget-refusal message naming `copy-field`/`paste-field`. Fixed by wording the CONDITION, never the remedy's command name, in core; a shell that wants to name its own remedy appends it itself (`pdfcer timestamp` now prints `pdfcer add-ltv` as a trailing line). (`Pass 422.0`, `c9dfd4e6`, 2026-09-30, 816th filing.)
+- `R259` — AN EXISTING FONT DICTIONARY MAY GAIN A NEW REVISION ONLY BY ADDITION: codes/CIDs with no user anywhere the dictionary is reached may be assigned; no existing code-to-glyph, width or Unicode mapping changes; font program streams are never modified; `/Encoding`, `/Widths`, `/ToUnicode` and `/CIDToGIDMap` are written as new objects (copy-on-write), so a sub-object shared with another font can never carry the change to it (decision 172, 2026-10-01; librarian-assigned number — the record was committed citing "decision 040," a collision with the existing 2026-08-11 `print_render_options` decision 040; renumbered here per `docs/decisions/README.md`'s "one number space" rule, see `ARCHITECTURE.md` §12).
 
 ## Update protocol
 

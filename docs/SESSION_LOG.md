@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (849th filing) — decision 172 filed (additive font-dict extension); `Pass 430.0` split; renumbering catch
+
+**Shipped:** nothing — docs-only filing, no code.
+
+**Decisions made this session:**
+- Decision 172 (KenAgent, committed `3e4d1a7d`): an existing embedded-subset
+  font dictionary may be extended by addition only — route A default (reuse
+  the existing dict, unused codes, `/Widths`/`/W` from `hmtx`, `/ToUnicode`
+  extended, copy-on-write sub-objects, program bytes untouched), route B
+  fallback (sibling `/Type0`+`/CIDFontType2` by GID), refuse only when the
+  glyph has no outline. Amends decision 021/`R107`; new standing rule
+  `R259`. Answers `pdfcer-gui` request `G075(a)`.
+
+**Findings + decisions:**
+- **Renumbering catch.** KenAgent's record was committed as
+  `docs/decisions/040-additive-font-dict-extension.md`, minted from the
+  highest filename in that directory (039) rather than `ARCHITECTURE.md`
+  §12's own ceiling — the exact mistake that directory's `README.md` warns
+  against. §12 already has a decision 040 (2026-08-11,
+  `print_render_options`). Renumbered to **172** (§12's real next-free slot);
+  new file `docs/decisions/172-additive-font-dict-extension.md`, the stray
+  `040-*.md` stubbed with a pointer (librarian has no shell to remove it —
+  flagged to the engineer below).
+- `ROADMAP.md`'s R107 standing-rule line was independently found truncated
+  mid-word ("confirmed b…", no closing parenthesis) — a pre-existing defect,
+  fixed in the same edit since the line needed rewording anyway.
+
+**Still in flight:**
+- `Pass 430.0` (Next up) split into `430.0` (route A first slice)/`430.2`
+  (route A rest)/`430.3` (route B fallback), all decision 172, all unbuilt.
+  `430.1` (augment from a supplied donor face) unchanged but now flagged as
+  needing its own decision before code (program bytes change).
+
+**For next session:**
+- Engineer: `git mv`/delete the stray `docs/decisions/040-additive-font-dict-extension.md`
+  (now a stub) — librarian cannot delete files.
+- `Pass 430.0` is still the head of *Next up*.
+
 ## 2026-10-01 (848th filing) — `Pass 429.0` FULLY SHIPPED (`49cb9dd4`) — permission-gated edits + signing on an encrypted document
 
 **Shipped:**
