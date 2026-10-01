@@ -115,6 +115,55 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.16` (`7d1a129f`), 2026-10-01 — open an orthographic saved view at its own centre and scale
+
+Continues the `Pass 421.x` bucket. `421.14` made `3d-render` open on a file's
+own saved default 3D view instead of guessing; it still fit the model to the
+viewport rather than honouring the view's own framing. This closes that for
+orthographic views.
+
+**Core.** `ThreeDSavedView` gains `ortho_scale: f64` (`/OS`, default `1`;
+non-positive/non-finite reads as `1`), `ortho_binding: OrthoBinding` (new
+`#[non_exhaustive]` enum `Absolute` (default)/`Width`/`Height`/`Min`/`Max`,
+from `/OB`), and `view_box: Option<[f64; 2]>` (the annotation's `/3DB`, else
+`/Rect` width/height) — ISO 32000-1 Table 305 / ISO 32000-2 Table 316.
+Re-exported from `pdfcer_core::threed`.
+
+**CLI.** `pdfcer 3d-render` with no camera option and an orthographic saved
+view now keeps the view's own camera axis (its `/C2W` position) and its own
+scale instead of zooming to fit the model; aim logic moved to
+`crates/pdfcer-cli/src/threed_cmd/aim.rs`. Perspective views still fit the
+model — `/PS`/`/FOV` are not read yet.
+
+**Interpretation, disclosed in the CLI's camera note — NOT yet checked
+against Acrobat Reader (needs Ken).** The standard gives `/OS` no unit.
+pdfcer reads it as: the bound side (`Width`/`Height`/`Min`/`Max`) spans
+`1/OS` camera units; `Absolute` = `/3DB`-or-`/Rect` height ÷ `OS`; camera
+units convert to model units by the length of the `/C2W` y column. See
+decision 171.
+
+**Tests.** `aim` unit tests `each_binding_fits_its_side_to_one_over_the_scale`
+and `a_scaled_camera_matrix_scales_the_span`; CLI integration
+`a_render_with_no_camera_option_opens_on_the_files_saved_view` (`/OS 0.2`
+`/OB /Min`, asserts 10.000000 model units high and pixel framing); core
+`the_opening_view_carries_its_camera` (defaults + `/OS 0.25` `/OB /Max`).
+Runs: 97 (`pdfcer-3d` lib) + 3 + 8 + 19 (`pdfcer-cli` `three_d`) passed.
+Sabotage 3/3 CAUGHT. `fmt`, `clippy`, code-structure, public-fns,
+core-api-verbs gates clean. No `Cargo.toml` change, so `cargo tree`
+unaffected. `docs/core-api/01-reading-and-model.md` §12.2 updated.
+
+`docs/FEATURES.md` row 534 (3D view) updated in place — `core [x]` / `cli
+[x]` / `gui [ ]` unchanged, sentence replaced to name the new framing.
+
+**Still in flight.** A verification render against the door-assembly
+sample's own saved orthographic view has not yet been confirmed.
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit `7d1a129f`
+confirmed against this session's git-status snapshot at conversation start
+(`HEAD` `7d1a129f`, parent `ed84a185`, subject matching verbatim). Measured
+counts, test names and sabotage results are relayed from the dispatching
+engineer's own report, not independently reproduced.
+
 ### `Pass 421.15` (`c3298873`), 2026-10-01 — orient compressed-mesh folds by the stored triangle normals
 
 Continues the `Pass 421.x` bucket, closing `421.13`'s own open question: the
@@ -15178,6 +15227,78 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★★★★★★★★★★★ **NINE ITEMS ADDED 2026-10-01 (843rd
+> filing) — `Pass 427.0`–`Pass 435.0`, from `pdfcer-gui` feature requests
+> `G073`–`G081` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`).
+> Nothing has shipped for any of the nine. `Pass 427.0` is now the head of
+> *Next up*; order below is ship order (`427` is the foundation the other
+> eight build on).**
+>
+> - **`Pass 427.0`** — text-edit refusals as data (`G081`). Replaces
+>   `Unsupported(String)` on `EditError`/`ReflowApplyError`/`AddTextError`
+>   with a `#[non_exhaustive]` cause enum (`NoSuchText`/`SpansTextObjects`/
+>   `StalePin`/`InsideAnnotationAppearance`/`InsideFormXObject`, `Display`
+>   kept for the CLI); refuses `/WMode 1`/Identity-V vertical runs by name in
+>   `edit_text`, its preview, `run_repertoire` and `reflow_block` (today
+>   nothing in `text_edit` reads `/WMode` — silently wrong output); adds
+>   `edit_capability(page, pinned_span)`. Foundation for `428`–`434`.
+> - **`Pass 428.0`** — a pinned `edit_text` match continues across text-
+>   object boundaries on the same baseline/font/size (`G074`), only `q`/`Q`/
+>   `BDC`/`BMC`/`EMC` and appearance-neutral `gs` ops allowed between `ET`
+>   and the next `BT`; replacement lands in the first run, the rest emptied,
+>   every `BT`/`ET`/`q`/`Q`/`BDC`/`EMC` kept balanced, emptied objects
+>   disclosed; optional font-seam crossing (Type0 Identity-H beside a simple
+>   TrueType sharing a `/BaseFont` stem); one undo entry. Today `ET` ends the
+>   join — measured 22/22 real Word lines refused.
+> - **`Pass 429.0`** — edit an encrypted document the supplied password
+>   permits (`G077`). Keeps the file key after open (today dropped at the
+>   end of `decrypt_in_place`); an incremental encrypting writer for the
+>   existing handler (RC4/AES-128 per-object keys, AES-256 R5/R6 file key)
+>   leaving `/Encrypt` and `/ID[0]` unchanged; permission-gated edit guards
+>   refusing by named `/P` bit (owner, or user with bit 4), plus a
+>   permissions query. ~99 guard sites today test only "is this encrypted at
+>   all". Large — may split.
+> - **`Pass 430.0`** — accept a character whose glyph exists only in the
+>   embedded font program (`G075` a+c): assign an unused code/CID, extend
+>   `/Widths`/`/W` from `hmtx`, extend `/ToUnicode`, program bytes untouched;
+>   per-character accept/refuse reasons in `run_repertoire`/`edit_text`.
+>   `pdfcer-core` has no font parser (`R21`) — program reading belongs in
+>   `pdfcer-render` (skrifa), handed to core as data, like
+>   `FontEmbedPlan`; modifying an existing font dict needs reconciling with
+>   `R107`.
+> - **`Pass 430.1`** — augment the subset from a same-PostScript-name face
+>   the shell supplies as bytes (`G075` b) — core never discovers system
+>   fonts itself (`font_embed_missing.rs` policy); disclosed, opt-in
+>   `EditOptions` flag; refuses on metric mismatch.
+> - **`Pass 431.0`** — `EditOptions::fallback` (`G078`): a character the run
+>   cannot encode is set in a fallback face (split show op, `Tf` switch at
+>   the run's size/baseline), preview agrees glyph-for-glyph, report names
+>   each fallback character, one undo entry.
+> - **`Pass 432.0`** — reflow fidelity (`G079`): multi-resource and
+>   composite (Chrome Identity-H) blocks, per-word state carried, `TJ`
+>   kerning kept, list items (`BlockKind::ListItem` with hanging indent),
+>   justified (`Tw`/`Tc`) blocks re-justify; anything not preserved refuses
+>   by name rather than reflowing wrong.
+> - **`Pass 433.0`** — `edit_block_text` + `edit_block_text_preview`
+>   (`G076`): replace a block's text and re-wrap it as one all-or-nothing
+>   edit, one undo entry, reports lines before/after and overflow. Depends
+>   on `428`/`430`/`432`.
+> - **`Pass 434.0`** — cell-aware block model (`G080`): `BlockKind::TableCell`
+>   from `table_detect`'s own cells; lines never join across cells;
+>   `caret_up`/`caret_down` and reflow respect cells; confirm the column-
+>   gutter rule against it.
+> - **`Pass 435.0`** — hand-signature content tag (`G073`): an option on
+>   `add_markup_as_content`/`add_text`/`add_image` wraps output in private
+>   marked content (`` /pdfcerHandSig <</Field (name)>> BDC … EMC ``,
+>   §14.6), plus a reader `hand_signatures(page)` reporting only marks still
+>   present in `/Contents`. Never touches `/Sig`, `/V` or a signature
+>   dictionary. Generalises the existing `on_layer_if`/OCR-marker mechanism.
+
+> ★★★★★★★★★★★★★★★ **`Pass 421.16` SHIPPED, 2026-10-01 (842nd filing),
+> `7d1a129f`** — see top of *Shipped*. Off-cycle (3D camera family, scoped
+> in *Backlog*, not through this queue). **`Next up` still has no named
+> head** (now superseded by the nine-item banner above).
 
 > ★★★★★★★★★★★★★★★★★★★★★★★★ **`Pass 423.0` SHIPPED, 2026-09-30 (816th
 > filing), `2804e522`** — see top of *Shipped*. `EditSession` gains

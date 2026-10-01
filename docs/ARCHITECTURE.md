@@ -2935,6 +2935,14 @@ read this §4 entry as FF-C being complete; see `ROADMAP.md`'s Pass
 
 ---
 
+**`ThreeDSavedView`'s orthographic fields** (added `Pass 421.16`,
+`7d1a129f`): `ortho_scale: f64` (`/OS`), `ortho_binding: OrthoBinding`
+(`#[non_exhaustive]`, `/OB`), `view_box: Option<[f64; 2]>` (`/3DB` else the
+annotation `/Rect`). Together they let a shell open a saved orthographic
+view at its own centre and scale instead of fitting the model to the
+viewport. Unit interpretation: decision 171, §12 — flagged there as
+unverified against Acrobat Reader.
+
 ## 4.2 Published model guarantees — properties consumers may rely on
 
 *(Added 2026-08-27, 297th filing, `Pass 145.0` / `0c48bbf`. Created by
@@ -12114,3 +12122,39 @@ as the reference implementation other projects can adapt.
 **Decision ceiling: `169` → `170`**, next free `171`. No new standing
 rule (`R`-number) minted — this is a gate plus a decision, the same shape
 §8.1–8.3's gates already use, not a distinct process-discipline pattern.
+
+### 2026-10-01 (842nd filing, `Pass 421.16`, `7d1a129f`) — decision 171: AN ORTHOGRAPHIC SAVED VIEW'S `/OS` IS READ AS CAMERA-UNIT SCALE, BOUND TO ONE SIDE BY `/OB` — UNVERIFIED AGAINST ACROBAT READER
+
+**What this decides.** `ThreeDSavedView::ortho_scale` (`/OS`, default `1`;
+non-positive or non-finite reads as `1`) and `ortho_binding`
+(`#[non_exhaustive] OrthoBinding` — `Absolute`/`Width`/`Height`/`Min`/`Max`,
+from `/OB`, default `Absolute`) are interpreted per ISO 32000-1 Table 305 /
+ISO 32000-2 Table 316 as: the bound side (width, height, or whichever of
+width/height is smaller or larger) spans `1 / ortho_scale` camera units;
+`Absolute` instead scales the annotation's own box (`view_box` — `/3DB`,
+else the annotation `/Rect`'s width/height) by `1 / ortho_scale`. Camera
+units convert to model units via the saved view's `/C2W` matrix's y-column
+length, not a separate stored factor.
+
+**Why this needed a decision rather than shipping silently as an
+implementation detail.** The clause gives the geometric relationship but
+not a worked unit-conversion example, and no second PDF producer or viewer
+was available this session to cross-check the reading. **This is a
+disclosed-not-silent case under CLAUDE.md rule 4**, not a confident
+spec citation: `pdfcer 3d-render`'s camera note states the bound side and
+the formula used, every time an orthographic saved view with no explicit
+`--camera` is rendered.
+
+**Status: UNVERIFIED against Acrobat Reader.** Ken has Reader, not Pro
+(per `MEMORY.md` — rendering can be checked against it for parity
+tiebreaks). This decision should be re-confirmed by opening the same
+saved view in Reader and comparing apparent scale before any consumer
+treats the reading as settled. If Reader disagrees, this entry gets a
+forward-pointer superseding entry, not a silent edit — decision log is
+append-only.
+
+**Body-section effect.** `ARCHITECTURE.md` §4 gains a short paragraph
+(below) naming the three new `ThreeDSavedView` fields and pointing here.
+
+**Decision ceiling: `170` → `171`**, next free `172`. No new standing rule
+minted.

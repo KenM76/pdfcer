@@ -4,6 +4,64 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (843rd filing) — nine new Passes filed from `pdfcer-gui` requests `G073`–`G081`
+
+**Shipped:** none — this filing only adds `ROADMAP.md`/`FEATURES.md` rows.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- Filed `Pass 427.0`–`Pass 435.0` (text-edit refusals as data; cross-object
+  join; edit encrypted documents the password permits; accept a
+  font-program-only glyph; augment a subset from a shell-supplied face;
+  `EditOptions::fallback`; reflow fidelity; `edit_block_text`; cell-aware
+  block model; hand-signature content tag) into `ROADMAP.md` *Next up*, in
+  ship order, with a 10-bullet "ITEMS ADDED" banner; `Pass 427.0` is now
+  the named head. Added matching `FEATURES.md` Planned rows, all boxes
+  unticked.
+- The GitHub OCR text-layer issue's reporter confirmed it fixed in
+  `0.66.0`; closing the issue awaits Ken (issue number deliberately not
+  written here, per dispatch instruction).
+- `request_cli_full_mode_size` was already answered —
+  `reply_cli_full_mode_size_FIXED.md` exists in the feature-request
+  outbox. No new Pass needed.
+
+**Still in flight:** all nine new Passes, unstarted. `Pass 427.0` is the
+foundation `428`–`434` build on.
+
+**For next session:** work `Pass 427.0` first.
+
+## 2026-10-01 (842nd filing) — `Pass 421.16`: open an orthographic saved view at its own centre and scale (`7d1a129f`); decision 171
+
+**Shipped:**
+- `7d1a129f` — `Pass 421.16`. `ThreeDSavedView` gains `ortho_scale`
+  (`/OS`), `ortho_binding` (`#[non_exhaustive] OrthoBinding`, `/OB`), and
+  `view_box` (`/3DB` else `/Rect`). `pdfcer 3d-render` with no `--camera`
+  option and an orthographic saved view now keeps the view's own camera
+  axis and scale instead of zooming to fit the model; perspective views
+  still fit (unchanged). Camera note discloses the bound side and formula
+  used. Tests: core 97+3+8+19 pass; sabotage 3/3 caught; fmt/clippy/
+  code-structure/public-fns/core-api-verbs gates clean; no manifest
+  change. `docs/core-api/01-reading-and-model.md` §12.2 updated.
+
+**Decisions made this session:**
+- `ARCHITECTURE.md` §12 decision 171: the `/OS`-unit interpretation
+  (bound side spans `1/ortho_scale` camera units; `Absolute` scales
+  `view_box`; camera units convert via `/C2W`'s y-column length) —
+  **flagged UNVERIFIED against Acrobat Reader**, re-confirm before
+  treating it as settled. §4 gained a matching short paragraph.
+
+**Findings + decisions:**
+- Door-assembly sample verification render was still in progress as of
+  this filing; not yet confirmed against the rendered output.
+
+**Still in flight:** Acrobat Reader cross-check of decision 171 (needs
+Ken — he has Reader, not Pro).
+
+**For next session:** open the door-assembly sample's orthographic saved
+view in Acrobat Reader and compare apparent scale against `3d-render`'s
+output before relying on decision 171 further.
+
 ## 2026-10-01 (841st filing) — `Pass 421.15`: orient compressed-mesh folds by stored normals (`c3298873`); CI job-name count fixed (`488ae6b2`)
 
 **Shipped:**
