@@ -4,6 +4,35 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (845th filing) — `Pass 428.0` SHIPPED (`f23dc873`) — a pinned spanning edit crosses text objects
+
+**Shipped:**
+- `f23dc873` — `Pass 428.0` (`G074`). `EditRequest::spanning_from`, pinned
+  only, now continues past `ET` into the next text object when its first
+  show operator matches font/size/`Tc`/`Tw`/`Tz`/`Ts`/`Tr`/colour/CTM/row
+  and does not start left of the previous match. Replacement lands in the
+  first matched operator; later ones emptied; unmatched tail gets a
+  leading `TJ` number. Font-seam crossing (different font resource) is
+  NOT covered — refused by name, deferred to `Pass 436.0`. Reached via the
+  existing `edit-text --pin-span --span-from-pin` flags, no new flag.
+  9 new tests, 5 sabotages all CAUGHT; gates clean except one stale
+  core-api line count, fixed same commit. No `Cargo.toml` change. Full
+  detail in the `ROADMAP.md` Shipped entry.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- `FEATURES.md`: the text-edit-across-text-objects row ticked core/cli
+  (cli reached through the pre-existing `Pass 272.0` flag, not a new
+  one), gui stays `[ ]`; moved from *Planned* to *Implemented*. Font-seam
+  crossing stated as NOT covered rather than rounded up.
+
+**Still in flight:** `Pass 429.0` is now the head of *Next up* (seven
+items remain in the `G073`–`G081` family); `436.0`–`436.3` still queued
+behind them, unstarted.
+
+**For next session:** work `Pass 429.0` next.
+
 ## 2026-10-01 (844th filing) — `Pass 427.0` SHIPPED (`515e7d48`); four new Passes filed from an operator request on text-edit workarounds (`Pass 436.0`–`436.3`)
 
 **Shipped:**

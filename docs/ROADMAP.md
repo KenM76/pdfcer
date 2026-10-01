@@ -115,6 +115,72 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 428.0` (`f23dc873`), 2026-10-01 — a pinned spanning edit crosses text objects on one line (G074)
+
+Continues the `Pass 427.0`–`436.3` family (845th filing).
+
+**Core.** `EditRequest::spanning_from` (pinned spanning requests ONLY) may
+continue past `ET` into the next text object when that object's first show
+operator continues the line: same font resource and size, `Tc`/`Tw`/`Tz`/
+`Ts`/`Tr`, fill colour (and stroke colour when the render mode strokes),
+CTM, text-space row, and not starting left of the previous one. The MCID
+may differ. Unpinned requests never cross; they still return
+`EditError::NoMatch { reason: NotFoundReason::SpansTextObjects { objects } }`.
+
+Replacement goes into the FIRST operator at the match start; later
+operators lose their matched glyphs; every `BT`/`ET`, `q`/`Q`, `BDC`/`EMC`
+is kept. The last operator's unmatched tail gets a leading `TJ` number:
+follows the replacement under Reflow, keeps position under Pin. Later
+text objects are not moved. One disclosure line ("span: ... across N text
+objects ...") plus an MCID sentence when fragments sat in other
+marked-content sequences.
+
+The trailing space-only object Word writes is matchable;
+`run_repertoire(page, find, Some(pin))` reports the pinned first run.
+Preview equals commit; one undo entry.
+
+**Not covered** (deferred to `Pass 436.0`'s retype workaround): crossing a
+FONT SEAM (a fragment in a different font resource, e.g. a Type0
+Identity-H curly apostrophe) — refused as `NoMatch`/`SpansTextObjects`.
+`G074`'s ask 3 is therefore partially met: refuses with a named reason,
+does not cross. The request's "22 of 22 lines on the page" criterion is
+on the GUI operator's real file and was NOT measured by pdfcer — measured
+on a synthetic Word-shaped fixture only
+(`fixtures/synthetic/text/cross-object-word.pdf`, from
+`tools/gen-cross-object-fixtures.py`; non-embedded Helvetica;
+`PROVENANCE.md` row added).
+
+**Code.** New `crates/pdfcer-core/src/text_edit/cross_object.rs`;
+`edit.rs`'s `find_anchor_span` split into `pinned_start`/`span_at`/
+`grow_span` (its code-structure baseline entry removed — the baseline
+shrank by 1); planner layout split into `lay_in_object`/`lay_across` plus
+`span_shifts`/`in_object_span_note`. `plan_edit_with_records` is STILL
+baselined (~450 lines) — owed: split under 80 lines in a follow-up.
+
+**Tests.** 9 new in `crates/pdfcer-core/tests/cross_object_edit.rs`; 5
+sabotages, all CAUGHT (font-name check removed; tail number dropped;
+anchor forced to last op; crossing allowed unpinned; Pin placement
+swapped to Reflow). `pdfcer-core` suite: 1352 lib + 2447 integration
+(2445 pass, 2 ignored) + 172 doctests, all green. Workspace clippy
+`-D warnings` clean, fmt clean. `tools/run-gates.sh` green except
+`check-core-api-verbs`, which failed only on a stale line count in
+`docs/core-api/index.md` (5,890 → 5,916), fixed in the same commit and
+re-run PASS.
+
+**Invariants.** No dependency change; no `Cargo.toml` touched, so
+`cargo tree -p pdfcer-core` / `-p pdfcer-render` is unaffected,
+GUI-core separation holds. Round-trip: the edit is incremental and only
+rewrites the page content stream. No packaging change — smoke test not
+applicable.
+
+**CLI.** Reached through the existing `edit-text --pin-span START:LEN
+--span-from-pin --find TEXT --replace TEXT` surface (`Pass 272.0`) — no
+new flag; the spanning search itself now crosses text objects when
+pinned.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gains an "Across text
+objects" subsection under `spanning_from`.
+
 ### `Pass 427.0` (`515e7d48`), 2026-10-01 — refusal causes as data, a vertical-writing guard, NoMatch reasons and edit_capability (G081)
 
 Foundation for the `Pass 428.0`–`435.0` family (843rd filing). Replaces the
@@ -15281,6 +15347,10 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 428.0` SHIPPED, 2026-10-01 (845th filing),
+> `f23dc873`** — see top of *Shipped*. **`Pass 429.0` is now the head of
+> *Next up* — seven items remain in the `G073`–`G081` family.**
 
 > ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **FOUR ITEMS ADDED 2026-10-01 (844th
 > filing) — `Pass 436.0`–`Pass 436.3`, operator direct request (verbatim:
