@@ -609,7 +609,7 @@ fn a_render_with_no_camera_option_opens_on_the_files_saved_view() {
     // by side.
     let input = assembly_with_view(
         "render_saved_view",
-        "<< /Type /3DView /XN (Plan) /MS /M /P << /Subtype /O >> \
+        "<< /Type /3DView /XN (Plan) /MS /M /P << /Subtype /O /OS 0.2 /OB /Min >> \
          /C2W [0 1 0 1 0 0 0 0 -1 2.5 0.5 50] >>",
     );
     let output = input.with_extension("png");
@@ -640,10 +640,14 @@ fn a_render_with_no_camera_option_opens_on_the_files_saved_view() {
     let mut reader = decoder.read_info().unwrap();
     let mut buf = vec![0; reader.output_buffer_size()];
     reader.next_frame(&mut buf).unwrap();
+    // /OS 0.2 /OB /Min: the 100-pixel width spans 5 units, so 20 pixels a
+    // unit, centred on the camera axis at x 2.5.
     let px = |x: usize, y: usize| buf[(y * 100 + x) * 4];
-    assert!(px(50, 27) < 255, "the x 4..5 copy is drawn at the top");
-    assert!(px(50, 173) < 255, "the x 0..1 copy is drawn at the bottom");
+    assert!(px(50, 60) < 255, "the x 4..5 copy is drawn at y 50..70");
+    assert!(px(50, 140) < 255, "the x 0..1 copy is drawn at y 130..150");
     assert_eq!(px(50, 100), 255, "nothing between the copies");
+    assert_eq!(px(50, 27), 255, "the saved scale, not a fit to the model");
+    assert!(stdout.contains("10.000000 model units high"), "{stdout}");
 }
 
 #[cfg(feature = "3d")]

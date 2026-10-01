@@ -30,6 +30,35 @@ pub struct ThreeDSavedView {
     /// `/P /Subtype /O` (Table 305). `false` when perspective or absent
     /// (absent means perspective).
     pub orthographic: bool,
+    /// `/P /OS` (Table 305): the factor scaling the near plane's x and y
+    /// onto the annotation's target coordinate system. Default 1; a
+    /// non-positive or non-finite value reads as 1.
+    pub ortho_scale: f64,
+    /// `/P /OB` (Table 305, PDF 1.7): how the near plane is additionally
+    /// scaled to fit the annotation. Default [`OrthoBinding::Absolute`].
+    pub ortho_binding: OrthoBinding,
+    /// Width and height, in default user space units, of the annotation's
+    /// 3D view box (`/3DB`, else its `/Rect`; Table 298), which the
+    /// projection's target coordinate system is centred on. `None` without
+    /// an annotation or a well-formed rectangle.
+    pub view_box: Option<[f64; 2]>,
+}
+
+/// `/OB`, the orthographic binding (ISO 32000-1 Table 305).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum OrthoBinding {
+    /// `/Absolute`: no scaling due to binding.
+    #[default]
+    Absolute,
+    /// `/W`: scale to fit the annotation's width.
+    Width,
+    /// `/H`: scale to fit its height.
+    Height,
+    /// `/Min`: scale to fit the lesser of width and height.
+    Min,
+    /// `/Max`: scale to fit the greater of width and height.
+    Max,
 }
 
 /// The view `artwork` opens on: the annotation's `/3DV`, else the 3D
@@ -68,17 +97,33 @@ pub fn default_3d_view<G: ObjectGraph + ?Sized>(
             .and_then(Object::as_array)
             .unwrap_or_default()
     });
-    let annot_choice = artwork
-        .annot_id
-        .and_then(|id| graph.resolved(id).as_dict())
-        .and_then(|a| a.get(b"3DV"));
+    let annot = artwork.annot_id.and_then(|id| graph.resolved(id).as_dict());
+    let annot_choice = annot.and_then(|a| a.get(b"3DV"));
     let dict = match annot_choice {
         Some(choice) if graph.resolve(choice).as_name().map(|n| n.as_bytes()) != Some(b"D") => {
             pick(graph, choice, views)?
         }
         _ => stream_default(graph, stream?, views)?,
     };
-    Some(read_view(graph, dict))
+    let mut view = read_view(graph, dict);
+    view.view_box = annot.and_then(|a| view_box(graph, a));
+    Some(view)
+}
+
+/// Table 298 `/3DB`, else the annotation's `/Rect`: width and height.
+fn view_box<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> Option<[f64; 2]> {
+    [b"3DB".as_slice(), b"Rect"].iter().find_map(|k| {
+        let r = graph.resolve(annot.get(k)?).as_array()?;
+        let n: Vec<f64> = r
+            .iter()
+            .filter_map(|o| graph.resolve(o).as_number())
+            .collect();
+        let [x0, y0, x1, y1] = <[f64; 4]>::try_from(n).ok()?;
+        let size = [(x1 - x0).abs(), (y1 - y0).abs()];
+        size.iter()
+            .all(|v| v.is_finite() && *v > 0.0)
+            .then_some(size)
+    })
 }
 
 /// Table 300 `/DV`, else `/VA[0]`.
@@ -144,15 +189,28 @@ fn read_view<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> ThreeDSavedView
         .get(b"CO")
         .and_then(|o| graph.resolve(o).as_number())
         .filter(|d| d.is_finite());
-    let orthographic = view
-        .get(b"P")
-        .and_then(|o| graph.resolve(o).as_dict())
-        .is_some_and(|p| name_of(graph, p, b"Subtype") == Some(b"O"));
+    let projection = view.get(b"P").and_then(|o| graph.resolve(o).as_dict());
+    let orthographic = projection.is_some_and(|p| name_of(graph, p, b"Subtype") == Some(b"O"));
+    let ortho_scale = projection
+        .and_then(|p| p.get(b"OS"))
+        .and_then(|o| graph.resolve(o).as_number())
+        .filter(|s| s.is_finite() && *s > 0.0)
+        .unwrap_or(1.0);
+    let ortho_binding = match projection.and_then(|p| name_of(graph, p, b"OB")) {
+        Some(b"W") => OrthoBinding::Width,
+        Some(b"H") => OrthoBinding::Height,
+        Some(b"Min") => OrthoBinding::Min,
+        Some(b"Max") => OrthoBinding::Max,
+        _ => OrthoBinding::Absolute,
+    };
     ThreeDSavedView {
         name,
         camera_to_world,
         orbit_distance,
         orthographic,
+        ortho_scale,
+        ortho_binding,
+        view_box: None,
     }
 }
 

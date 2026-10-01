@@ -2770,9 +2770,18 @@ asset, or when `/3DV` is malformed. `ThreeDSavedView`, `#[non_exhaustive]`:
 /M`; columns 0-2, 3-5, 6-8 are the camera's x, y, z axes in world space,
 9-11 its position; it looks along +z, and **its y column is the image's up**
 — measured against an operator-confirmed CAD export, §13.6.5 does not say),
-`orbit_distance` (`/CO`), `orthographic` (`/P /Subtype /O`). CLI:
-`3d-render` uses its direction and projection when given no camera option,
-and prints `note: camera:` saying which view was used.
+`orbit_distance` (`/CO`), `orthographic` (`/P /Subtype /O`),
+`ortho_scale` (`/P /OS`, default 1), `ortho_binding: OrthoBinding`
+(`/P /OB`: `Absolute` default, `Width`, `Height`, `Min`, `Max`;
+`#[non_exhaustive]`), `view_box: Option<[f64; 2]>` (width and height of the
+annotation's `/3DB`, else `/Rect`, in user space units; Table 305 scales
+onto a target system centred on it). The standard gives `OS` no unit;
+pdfcer reads a binding as the bound side spanning `1/OS` camera units, and
+`Absolute` as one camera unit per `OS` user space units — an
+interpretation, disclosed. CLI: `3d-render` with no camera option uses the
+view's direction and projection, and for an orthographic view also its
+centre (the camera axis) and that scale; perspective views are fitted to
+the model. It prints `note: camera:` saying which view and scale were used.
 
 #### Decoding and drawing a PRC model (`pdfcer-3d`, feature `3d`)
 

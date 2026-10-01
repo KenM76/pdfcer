@@ -3,7 +3,7 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::threed::{
-    ThreeDError, ThreeDFormat, ThreeDSource, default_3d_view, extract_3d, list_3d,
+    OrthoBinding, ThreeDError, ThreeDFormat, ThreeDSource, default_3d_view, extract_3d, list_3d,
     list_3d_with_notes,
 };
 
@@ -452,6 +452,14 @@ fn the_opening_view_carries_its_camera() {
     );
     assert_eq!(view.orbit_distance, Some(50.0));
     assert!(view.orthographic);
+    assert_eq!(view.ortho_scale, 1.0, "/OS defaults to 1");
+    assert_eq!(view.ortho_binding, OrthoBinding::Absolute, "/OB defaults");
+    assert_eq!(view.view_box, Some([100.0, 100.0]), "no /3DB: the /Rect");
+
+    let doc = view_doc("<< /XN (Own) /P << /Subtype /O /OS 0.25 /OB /Max >> >>", "");
+    let own = default_3d_view(&doc, &list_3d(&doc)[0]).expect("a view");
+    assert_eq!(own.ortho_scale, 0.25);
+    assert_eq!(own.ortho_binding, OrthoBinding::Max);
 
     let doc = view_doc("0", "");
     let front = default_3d_view(&doc, &list_3d(&doc)[0]).expect("a view");
