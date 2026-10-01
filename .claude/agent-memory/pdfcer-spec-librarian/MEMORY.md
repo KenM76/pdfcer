@@ -1,7 +1,7 @@
 # Memory index — pdfcer-spec-librarian
 
 - [Spec source extraction toolchain](reference_spec_source_extraction.md) — how to GET a spec and get text out of it: 21 routes (4a–4u), verified free URLs, paywall workarounds, errata recipes.
-- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 95 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
+- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 96 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
 - [Font + spec-data licensing patterns](project_embeddable_data_licensing.md) — what may cross into pdfcer's MIT tree; data-vs-document, availability ≠ redistribution licence.
 
 ## Routing — find your dispatch's shape, then READ THE NAMED ITEM (the detail is there, not here)
@@ -31,6 +31,7 @@
 | **"ingest clause C for a WRITER Pass; state answers A and B" / an EC3 erratum markup that may be stale** | corpus **87** |
 | **"X.509/CRL/OCSP ASN.1 — confirm my TAG BYTES"** / "the module is IMPLICIT" / DSS stream contents | corpus **88** |
 | **"author a self-signed cert / write a .pfx — byte-exact, pick defaults"** / RFC silent on a WRITER axis → build-and-measure an import matrix | corpus **95** |
+| **"source table T VERBATIM so the renderer honours value V" + a numeric question** / a scale factor with no unit | corpus **96** (+ **79**) |
 | **"scope a payload format embedded in PDF (3D U3D/PRC): effort + licence + encumbrance"** / a patent cited in an issue thread / a free doc whose copy permission is post-dated | corpus **89** |
 | **"record the rules the engineer MEASURED on real files"** / empirical-only source | corpus **92** |
 | **"we won't buy standard S — RECONSTRUCT it from online sources" / forbidden code sources / a permissive code reader as witness** | corpus **90** (+ **89**) |
