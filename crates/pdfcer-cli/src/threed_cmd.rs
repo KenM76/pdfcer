@@ -170,20 +170,26 @@ fn split_by_colour(
     mesh: &pdfcer_3d::TriangleMesh,
     per: &[Option<[u8; 4]>],
 ) -> Vec<(pdfcer_3d::TriangleMesh, Option<[u8; 4]>)> {
-    type Group = (Option<[u8; 4]>, Vec<[u32; 3]>);
+    type Group = (Option<[u8; 4]>, Vec<usize>);
     let mut groups: Vec<Group> = Vec::new();
-    for (tri, colour) in mesh.triangles.iter().zip(per) {
+    for (k, colour) in per.iter().enumerate().take(mesh.triangles.len()) {
         match groups.iter_mut().find(|g| g.0 == *colour) {
-            Some(g) => g.1.push(*tri),
-            None => groups.push((*colour, vec![*tri])),
+            Some(g) => g.1.push(k),
+            None => groups.push((*colour, vec![k])),
         }
     }
+    let pick = |from: &[[u32; 3]], keep: &[usize]| -> Vec<[u32; 3]> {
+        keep.iter().filter_map(|&k| from.get(k).copied()).collect()
+    };
     groups
         .into_iter()
-        .map(|(colour, triangles)| {
+        .map(|(colour, keep)| {
             let mut part = mesh.clone();
-            part.faces = std::iter::once(0..triangles.len()).collect();
-            part.triangles = triangles;
+            part.triangles = pick(&mesh.triangles, &keep);
+            if !mesh.triangle_normals.is_empty() {
+                part.triangle_normals = pick(&mesh.triangle_normals, &keep);
+            }
+            part.faces = std::iter::once(0..part.triangles.len()).collect();
             (part, colour)
         })
         .collect()
@@ -669,6 +675,8 @@ mod tests {
         let mut mesh = pdfcer_3d::TriangleMesh::default();
         mesh.positions = vec![[0.0; 3]; 4];
         mesh.triangles = vec![[0, 1, 2], [0, 2, 3], [1, 2, 3]];
+        mesh.normals = vec![[0.0, 0.0, 1.0]; 3];
+        mesh.triangle_normals = vec![[0, 0, 0], [1, 1, 1], [2, 2, 2]];
         let red = Some([255, 0, 0, 255]);
         let parts = split_by_colour(&mesh, &[red, None, red]);
         assert_eq!(parts.len(), 2);
@@ -679,5 +687,7 @@ mod tests {
         assert_eq!(parts[1].1, None);
         assert_eq!(parts[1].0.triangles, [[0, 2, 3]]);
         assert_eq!(parts[1].0.positions.len(), 4);
+        assert_eq!(parts[0].0.triangle_normals, [[0, 0, 0], [2, 2, 2]]);
+        assert_eq!(parts[1].0.triangle_normals, [[1, 1, 1]]);
     }
 }

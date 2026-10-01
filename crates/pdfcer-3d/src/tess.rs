@@ -81,6 +81,14 @@ pub struct TriangleMesh {
     pub faces: Vec<std::ops::Range<usize>>,
     /// The producer asks the reader to compute normals (none are stored).
     pub normals_recalculated: bool,
+    /// The stored vertex normals [WD 7.8.5.1], as the producer wrote them
+    /// (not renormalised); empty when the mesh stores none or any of its
+    /// normal indices is unusable.
+    pub normals: Vec<[f64; 3]>,
+    /// Per triangle, the index into [`Self::normals`] of each corner's
+    /// normal, in the corner order of [`Self::triangles`]; empty exactly
+    /// when [`Self::normals`] is.
+    pub triangle_normals: Vec<[u32; 3]>,
     /// Per triangle, the graphics its face's line attributes give it
     /// [WD 7.8.6]; empty when no face carries any. Read through
     /// [`crate::Placement::triangle_colours`].
@@ -389,7 +397,7 @@ impl Ctx<'_, '_> {
             let _flags = self.r.character()?;
             let _crease_angle = self.r.double()?;
         }
-        let _normals = self.doubles("normal coordinates")?;
+        let normal_coords = self.doubles("normal coordinates")?;
         let _wire_indices = self.uints("wire indices")?;
         let indices = self.uints("triangulated indices")?;
         let n_faces = self.count(1, "faces")?;
@@ -408,6 +416,7 @@ impl Ctx<'_, '_> {
             ..TriangleMesh::default()
         };
         let styled = faces.iter().any(|f| !f.styles.is_empty());
+        let mut corner_slots = Vec::new();
         for f in &faces {
             let start = mesh.triangles.len();
             let entities = triangulate(
@@ -416,12 +425,15 @@ impl Ctx<'_, '_> {
                 !recalc,
                 mesh.positions.len(),
                 &mut mesh.triangles,
+                &mut corner_slots,
             )?;
             mesh.faces.push(start..mesh.triangles.len());
             if styled {
                 face_graphics(f, &entities, &mut mesh.triangle_graphics);
             }
         }
+        (mesh.normals, mesh.triangle_normals) =
+            stored_normals(&normal_coords, &corner_slots, mesh.triangles.len());
         Ok(mesh)
     }
 
@@ -506,6 +518,24 @@ impl Ctx<'_, '_> {
         self.r.character()?;
         self.schema.skip_added_fields(TESS_MARKUP, &mut self.r)
     }
+}
+
+/// The normal array and each triangle's corner normals, or both empty when
+/// any slot fails to name a normal: a mesh shades from its stored normals
+/// wholly or not at all.
+fn stored_normals(
+    coords: &[f64],
+    slots: &[[u32; 3]],
+    triangles: usize,
+) -> (Vec<[f64; 3]>, Vec<[u32; 3]>) {
+    let normals = points(coords);
+    let named = |k: u32| k.is_multiple_of(3) && (k as usize / 3) < normals.len();
+    if normals.is_empty() || slots.len() != triangles || !slots.iter().flatten().all(|&k| named(k))
+    {
+        return (Vec::new(), Vec::new());
+    }
+    let corners = slots.iter().map(|t| t.map(|k| k / 3)).collect();
+    (normals, corners)
 }
 
 fn points(coords: &[f64]) -> Vec<[f64; 3]> {
@@ -675,7 +705,8 @@ impl Face {
     }
 }
 
-/// Emit a face's triangles; `normals` = the index array stores normal slots.
+/// Emit a face's triangles; `normals` = the index array stores normal slots,
+/// in which case each triangle's corner normal slots go to `corner_normals`.
 /// Returns the triangles each triangulation entity emitted, in order: one
 /// entity per triangle of a triangle block, per fan, per strip [WD 7.8.6].
 fn triangulate(
@@ -684,6 +715,7 @@ fn triangulate(
     normals: bool,
     n_points: usize,
     out: &mut Vec<[u32; 3]>,
+    corner_normals: &mut Vec<[u32; 3]>,
 ) -> Result<Vec<usize>, PrcError> {
     let mut entities = Vec::new();
     let mut slots = indices.get(face.start..).unwrap_or(&[]).iter().copied();
@@ -711,6 +743,8 @@ fn triangulate(
                 ));
             }
             let mut verts = Vec::with_capacity(points);
+            let mut vnormals = Vec::with_capacity(if normals { points } else { 0 });
+            let mut current = 0;
             for k in 0..points {
                 let new_entity = match shape {
                     Shape::Triangles => k % 3 == 0,
@@ -718,7 +752,10 @@ fn triangulate(
                 };
                 let normal_here = normals && if per_point_normal { true } else { new_entity };
                 if normal_here {
-                    take()?;
+                    current = take()?;
+                }
+                if normals {
+                    vnormals.push(current);
                 }
                 for _ in 0..t {
                     take()?;
@@ -730,27 +767,8 @@ fn triangulate(
                 verts.push(p / 3);
             }
             let before = out.len();
-            match shape {
-                Shape::Triangles => out.extend(verts.chunks_exact(3).filter_map(|c| match c {
-                    [a, b, c] => Some([*a, *b, *c]),
-                    _ => None,
-                })),
-                Shape::Fan => {
-                    if let Some((&c, rim)) = verts.split_first() {
-                        out.extend(rim.windows(2).filter_map(|w| match w {
-                            [a, b] => Some([c, *a, *b]),
-                            _ => None,
-                        }));
-                    }
-                }
-                Shape::Strip => {
-                    out.extend(verts.windows(3).enumerate().filter_map(|(k, w)| match w {
-                        [a, b, c] if k % 2 == 0 => Some([*a, *b, *c]),
-                        [a, b, c] => Some([*b, *a, *c]),
-                        _ => None,
-                    }))
-                }
-            }
+            assemble(shape, &verts, out);
+            assemble(shape, &vnormals, corner_normals);
             let made = out.len() - before;
             match shape {
                 Shape::Triangles => entities.extend(std::iter::repeat_n(1, made)),
@@ -759,6 +777,29 @@ fn triangulate(
         }
     }
     Ok(entities)
+}
+
+/// Append the triangles `shape` makes of `verts`.
+fn assemble(shape: Shape, verts: &[u32], out: &mut Vec<[u32; 3]>) {
+    match shape {
+        Shape::Triangles => out.extend(verts.chunks_exact(3).filter_map(|c| match c {
+            [a, b, c] => Some([*a, *b, *c]),
+            _ => None,
+        })),
+        Shape::Fan => {
+            if let Some((&c, rim)) = verts.split_first() {
+                out.extend(rim.windows(2).filter_map(|w| match w {
+                    [a, b] => Some([c, *a, *b]),
+                    _ => None,
+                }));
+            }
+        }
+        Shape::Strip => out.extend(verts.windows(3).enumerate().filter_map(|(k, w)| match w {
+            [a, b, c] if k % 2 == 0 => Some([*a, *b, *c]),
+            [a, b, c] => Some([*b, *a, *c]),
+            _ => None,
+        })),
+    }
 }
 
 #[cfg(test)]
@@ -818,7 +859,11 @@ mod tests {
         if m.recalc {
             w.uint(0);
         } else {
-            w.uint(3).double(0.).double(0.).double(1.);
+            // Two normals: slot 0 is +z, slot 3 is -z.
+            w.uint(6);
+            for c in [0., 0., 1., 0., 0., -1.] {
+                w.double(c);
+            }
         }
         w.uint(0);
         uints(w, m.indices);
@@ -862,7 +907,7 @@ mod tests {
     fn triangle_and_fan_with_normals() {
         // One triangle (n,p x3), then a fan of 4 vertices (n,p each).
         let m = one(
-            &[0, 0, 0, 3, 0, 6, 0, 0, 0, 3, 0, 6, 0, 9],
+            &[3, 0, 0, 3, 3, 6, 0, 0, 3, 3, 0, 6, 3, 9],
             &[(0x2 | 0x4, 0, &[1, 1, 4])],
             0,
         );
@@ -871,6 +916,24 @@ mod tests {
         assert_eq!(m.triangles, [[0, 1, 2], [0, 1, 2], [0, 2, 3]]);
         assert_eq!(m.faces, vec![std::ops::Range { start: 0, end: 3 }]);
         assert!(!m.normals_recalculated);
+        assert_eq!(m.normals, [[0., 0., 1.], [0., 0., -1.]]);
+        // Each corner keeps the normal stored beside its point.
+        assert_eq!(m.triangle_normals, [[1, 0, 1], [0, 1, 0], [0, 0, 1]]);
+    }
+
+    #[test]
+    fn strip_normals_follow_the_alternating_winding() {
+        let m = one(&[3, 0, 0, 3, 3, 6, 0, 9], &[(0x8, 0, &[1, 4])], 0);
+        assert_eq!(m.triangles, [[0, 1, 2], [2, 1, 3]]);
+        assert_eq!(m.triangle_normals, [[1, 0, 1], [1, 0, 0]]);
+    }
+
+    #[test]
+    fn a_normal_index_past_the_array_drops_every_normal_but_no_triangle() {
+        let m = one(&[0, 0, 6, 3, 0, 6], &[(0x2, 0, &[1])], 0);
+        assert_eq!(m.triangles, [[0, 1, 2]]);
+        assert!(m.normals.is_empty());
+        assert!(m.triangle_normals.is_empty());
     }
 
     #[test]
@@ -890,6 +953,7 @@ mod tests {
         let m = mesh(&t[0]);
         assert!(m.normals_recalculated);
         assert_eq!(m.triangles, [[0, 1, 2], [2, 1, 3]]);
+        assert!(m.normals.is_empty() && m.triangle_normals.is_empty());
     }
 
     #[test]
@@ -920,7 +984,7 @@ mod tests {
         // 0x2000 with one texture set: n,t,p,t,p,t,p.
         let idx = [
             0, 0, 3, 6, // 0x20
-            0, 0, 6, 9, // 0x40 single, 3 vertices
+            3, 0, 6, 9, // 0x40 single, 3 vertices
             0, 0, 9, 2, 0, 4, 3, // 0x2000
         ];
         let m = one(
@@ -929,6 +993,8 @@ mod tests {
             1,
         );
         assert_eq!(m.triangles, [[0, 1, 2], [0, 2, 3], [3, 0, 1]]);
+        // A one-normal entity gives every corner its single normal.
+        assert_eq!(m.triangle_normals, [[0, 0, 0], [1, 1, 1], [0, 0, 0]]);
     }
 
     #[test]

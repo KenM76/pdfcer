@@ -394,34 +394,44 @@ pub fn render_coloured(
             if alpha == 0 || (alpha == 255) != opaque_pass {
                 continue;
             }
-            for tri in &mesh.triangles {
+            for (t, tri) in mesh.triangles.iter().enumerate() {
                 let Some(world) = corners(mesh, tri) else {
                     continue;
                 };
-                let Some(normal) = normalize(cross(
+                let Some(face) = normalize(cross(
                     sub(at3(&world, 1), at3(&world, 0)),
                     sub(at3(&world, 2), at3(&world, 0)),
                 )) else {
                     continue;
                 };
-                let towards = match view {
-                    View::Perspective { .. } => normalize(sub(camera.eye, at3(&world, 0))),
-                    View::Orthographic { .. } => Some(scale(forward, -1.0)),
+                let stored = stored_normals(mesh, t);
+                let shade = |k: usize| {
+                    let p = at3(&world, k);
+                    let towards = match view {
+                        View::Perspective { .. } => normalize(sub(camera.eye, p)),
+                        View::Orthographic { .. } => Some(scale(forward, -1.0)),
+                    };
+                    let normal = stored
+                        .and_then(|n| n.get(k).copied().flatten())
+                        .unwrap_or(face);
+                    0.3 + 0.7 * towards.map_or(0.0, |l| dot(normal, l).abs())
                 };
-                let lit = towards.map_or(0.0, |l| dot(normal, l).abs());
-                let shade = 0.3 + 0.7 * lit;
-                let [cr, cg, cb, _] = colour;
-                let [sr, sg, sb] = [cr, cg, cb].map(|c| (f64::from(c) * shade).round() as u8);
-                let rgba = [sr, sg, sb, alpha];
-                let polygon = view.clip(world.map(to_view));
-                let screen: Vec<[f64; 3]> = polygon
+                // Without stored normals the triangle is flat: one shade,
+                // lit along the view ray to its first corner.
+                let flat = stored.is_none().then(|| shade(0));
+                let shaded = [0, 1, 2].map(|k| {
+                    let [x, y, z] = to_view(at3(&world, k));
+                    [x, y, z, flat.unwrap_or_else(|| shade(k))]
+                });
+                let screen: Vec<([f64; 3], f64)> = view
+                    .clip(shaded)
                     .iter()
-                    .map(|&p| view.project(p, width, height))
+                    .map(|&[x, y, z, s]| (view.project([x, y, z], width, height), s))
                     .collect();
                 if let Some((&a, rest)) = screen.split_first() {
                     for pair in rest.windows(2) {
                         if let [b, c] = pair {
-                            target.fill(a, *b, *c, rgba);
+                            target.fill([a, *b, *c], colour);
                         }
                     }
                 }
@@ -433,6 +443,14 @@ pub fn render_coloured(
         height,
         rgba: target.rgba,
     })
+}
+
+/// Triangle `t`'s stored corner normals, unit length; a corner whose normal
+/// is zero or not finite is `None`, and so is the whole when the mesh
+/// stores none.
+fn stored_normals(mesh: &TriangleMesh, t: usize) -> Option<[Option<[f64; 3]>; 3]> {
+    let slots = mesh.triangle_normals.get(t)?;
+    Some(slots.map(|i| mesh.normals.get(i as usize).copied().and_then(normalize)))
 }
 
 /// The three corners of a triangle, or `None` when one is missing or not
@@ -494,20 +512,27 @@ impl View {
 
     /// The part of a view-space triangle in front of the near plane
     /// (Sutherland–Hodgman against one plane): 0, 3 or 4 points.
-    fn clip(&self, tri: [[f64; 3]; 3]) -> Vec<[f64; 3]> {
+    /// The part of `tri` (view x, y, z and a shade) in front of the near
+    /// plane, the shade interpolated along each cut edge.
+    fn clip(&self, tri: [[f64; 4]; 3]) -> Vec<[f64; 4]> {
         let View::Perspective { near, .. } = *self else {
             return tri.to_vec();
         };
         let mut out = Vec::with_capacity(4);
         for (k, &p) in tri.iter().enumerate() {
-            let q = at3(&tri, (k + 1) % 3);
-            let (p_in, q_in) = (at(p, 2) >= near, at(q, 2) >= near);
+            let q = tri.get((k + 1) % 3).copied().unwrap_or(p);
+            let z = |v: [f64; 4]| v.get(2).copied().unwrap_or(0.0);
+            let (p_in, q_in) = (z(p) >= near, z(q) >= near);
             if p_in {
                 out.push(p);
             }
             if p_in != q_in {
-                let t = (near - at(p, 2)) / (at(q, 2) - at(p, 2));
-                out.push([0, 1, 2].map(|i| at(p, i) + t * (at(q, i) - at(p, i))));
+                let t = (near - z(p)) / (z(q) - z(p));
+                let mut cut = p;
+                for (c, d) in cut.iter_mut().zip(q) {
+                    *c += t * (d - *c);
+                }
+                out.push(cut);
             }
         }
         out
@@ -553,7 +578,10 @@ impl Target {
     /// Fill one screen-space triangle, depth-tested, sampling pixel centres.
     /// An opaque colour replaces the pixel and its depth; a translucent one
     /// is blended over it, leaving the depth.
-    fn fill(&mut self, a: [f64; 3], b: [f64; 3], c: [f64; 3], rgba: [u8; 4]) {
+    /// Fill the screen triangle of `corners` (pixel x, y, depth key; and
+    /// a shade), the shade interpolated across it and applied to `colour`.
+    fn fill(&mut self, corners: [([f64; 3], f64); 3], colour: [u8; 4]) {
+        let [(a, sa), (b, sb), (c, sc)] = corners;
         let area = edge(a, b, c);
         if !area.is_finite() || area.abs() < 1e-12 {
             return;
@@ -590,7 +618,15 @@ impl Target {
                 if key <= *d {
                     continue;
                 }
-                let opaque = rgba[3] == 255;
+                let shade = if sa == sb && sb == sc {
+                    sa
+                } else {
+                    w0 * sa + w1 * sb + w2 * sc
+                };
+                let [cr, cg, cb, alpha] = colour;
+                let [r, g, b] = [cr, cg, cb].map(|v| (f64::from(v) * shade).round() as u8);
+                let rgba = [r, g, b, alpha];
+                let opaque = alpha == 255;
                 if opaque {
                     *d = key;
                 }
@@ -676,6 +712,8 @@ mod tests {
             triangles: vec![[0, 1, 2], [0, 2, 3]],
             faces: vec![0..2],
             normals_recalculated: true,
+            normals: Vec::new(),
+            triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
         }
     }
@@ -710,6 +748,31 @@ mod tests {
         // Half the view height is covered: pixels 10..30.
         assert_eq!(pixel(&image, 10, 20)[0], 190);
         assert_eq!(pixel(&image, 9, 20)[0], 255);
+    }
+
+    #[test]
+    fn stored_normals_shade_smoothly_across_a_flat_square() {
+        let mut mesh = quad(0.0, 1.0, 0.0);
+        let s = 3f64.sqrt() / 2.0;
+        // The left corners lean 60° away from the viewer; the right face it.
+        mesh.normals = vec![[s, 0.0, 0.5], [0.0, 0.0, 2.0]];
+        mesh.triangle_normals = vec![[0, 1, 1], [0, 1, 0]];
+        let image = render(&[mesh.clone()], &ortho(4.0), &small()).unwrap();
+        let red = |x| pixel(&image, x, 20)[0];
+        assert!(
+            red(11) < red(20) && red(20) < red(29),
+            "{} {} {}",
+            red(11),
+            red(20),
+            red(29)
+        );
+        // Shade 0.3 + 0.7 cos θ at the edges: 0.65 left, 1.0 right.
+        assert!((i32::from(red(10)) - 128).abs() <= 4, "{}", red(10));
+        assert!(red(29) >= 186);
+        mesh.normals.clear();
+        mesh.triangle_normals.clear();
+        let flat = render(&[mesh], &ortho(4.0), &small()).unwrap();
+        assert_eq!(pixel(&flat, 11, 20), pixel(&flat, 29, 20));
     }
 
     #[test]
@@ -774,6 +837,8 @@ mod tests {
             triangles: vec![[0, 1, 2]],
             faces: vec![0..1],
             normals_recalculated: true,
+            normals: Vec::new(),
+            triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
         };
         let image = render(&[tri], &ortho(4.0), &small()).unwrap();
@@ -809,6 +874,8 @@ mod tests {
             triangles: vec![[0, 1, 2]],
             faces: vec![0..1],
             normals_recalculated: true,
+            normals: Vec::new(),
+            triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
         };
         let image = render(&[floor], &camera, &small()).unwrap();
@@ -922,6 +989,8 @@ mod tests {
             triangles: vec![[0, 1, 2], [0, 2, 3]],
             faces: vec![0..2],
             normals_recalculated: true,
+            normals: Vec::new(),
+            triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
         }];
         for perspective in [true, false] {
@@ -1015,6 +1084,8 @@ mod tests {
             triangles: vec![[0, 1, 2], [0, 2, 9]],
             faces: vec![0..2],
             normals_recalculated: true,
+            normals: Vec::new(),
+            triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
         };
         let image = render(std::slice::from_ref(&mesh), &ortho(4.0), &small()).unwrap();

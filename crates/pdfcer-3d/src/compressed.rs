@@ -303,6 +303,8 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
         triangles: tris,
         faces: Vec::new(),
         normals_recalculated: false,
+        normals: Vec::new(),
+        triangle_normals: Vec::new(),
         triangle_graphics: Vec::new(),
     })
 }

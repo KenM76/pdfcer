@@ -98,7 +98,8 @@ pub fn transform_point(m: &Matrix, p: [f64; 3]) -> [f64; 3] {
 }
 
 impl crate::TriangleMesh {
-    /// This mesh with every position mapped through `m`; a mirroring `m`
+    /// This mesh with every position mapped through `m` and every stored
+    /// normal through its inverse transpose (renormalised); a mirroring `m`
     /// (negative determinant) reverses each triangle so the outside stays
     /// counter-clockwise.
     ///
@@ -123,8 +124,34 @@ impl crate::TriangleMesh {
         let det = a(0, 0) * (a(1, 1) * a(2, 2) - a(1, 2) * a(2, 1))
             - a(0, 1) * (a(1, 0) * a(2, 2) - a(1, 2) * a(2, 0))
             + a(0, 2) * (a(1, 0) * a(2, 1) - a(1, 1) * a(2, 0));
+        // Normals take the inverse transpose; the cofactor matrix is det
+        // times it, so its sign is corrected and the result renormalised.
+        let cof = |i: usize, j: usize| {
+            let (r0, r1) = ((i + 1) % 3, (i + 2) % 3);
+            let (c0, c1) = ((j + 1) % 3, (j + 2) % 3);
+            a(r0, c0) * a(r1, c1) - a(r0, c1) * a(r1, c0)
+        };
+        let sign = if det < 0.0 { -1.0 } else { 1.0 };
+        for n in &mut out.normals {
+            let v = [0, 1, 2].map(|i| {
+                sign * n
+                    .iter()
+                    .enumerate()
+                    .map(|(j, c)| cof(i, j) * c)
+                    .sum::<f64>()
+            });
+            let len = v.iter().map(|c| c * c).sum::<f64>().sqrt();
+            *n = if len > 0.0 && len.is_finite() {
+                v.map(|c| c / len)
+            } else {
+                v
+            };
+        }
         if det < 0.0 {
             for t in &mut out.triangles {
+                t.swap(1, 2);
+            }
+            for t in &mut out.triangle_normals {
                 t.swap(1, 2);
             }
         }
@@ -1415,6 +1442,33 @@ mod tests {
         assert_eq!((p[0].tessellation, p[0].matrix), (0, IDENTITY));
         assert_eq!((p[1].tessellation, p[1].matrix), (0, mirror));
         crate::testw::check_fixture("assembly.prc", &bytes);
+    }
+
+    #[test]
+    fn normals_take_the_inverse_transpose_and_mirror_with_their_triangle() {
+        let r = std::f64::consts::FRAC_1_SQRT_2;
+        let mesh = crate::TriangleMesh {
+            positions: vec![[0.0; 3]; 3],
+            triangles: vec![[0, 1, 2]],
+            normals: vec![[r, r, 0.0], [0.0, 0.0, 3.0]],
+            triangle_normals: vec![[0, 0, 1]],
+            ..Default::default()
+        };
+        // Stretching x by 2 turns the plane x + y = 0 into x + 2y = 0.
+        let mut stretch = IDENTITY;
+        stretch[0][0] = 2.0;
+        let s = mesh.transformed(&stretch);
+        let k = 1.0 / 5f64.sqrt();
+        for (got, want) in s.normals[0].iter().zip([k, 2.0 * k, 0.0]) {
+            assert!((got - want).abs() < 1e-12, "{:?}", s.normals[0]);
+        }
+        assert_eq!(s.normals[1], [0.0, 0.0, 1.0]);
+        let mut mirror = IDENTITY;
+        mirror[0][0] = -1.0;
+        let m = mesh.transformed(&mirror);
+        assert!((m.normals[0][0] + r).abs() < 1e-12 && (m.normals[0][1] - r).abs() < 1e-12);
+        assert_eq!(m.triangle_normals, [[0, 1, 0]]);
+        assert_eq!(m.triangles, [[0, 2, 1]]);
     }
 
     const RED: [f64; 3] = [1.0, 0.0, 0.0];
