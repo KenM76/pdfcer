@@ -130,6 +130,7 @@ mod tests {
             triangles: vec![[0, 1, 2], [0, 2, 3], [0, 9, 1]],
             faces: vec![0..1, 1..3],
             normals_recalculated: false,
+            triangle_graphics: Vec::new(),
         }
     }
 

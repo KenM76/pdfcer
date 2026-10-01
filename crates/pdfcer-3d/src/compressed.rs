@@ -201,6 +201,7 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
         triangles: tris,
         faces: Vec::new(),
         normals_recalculated: false,
+        triangle_graphics: Vec::new(),
     })
 }
 

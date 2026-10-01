@@ -676,6 +676,7 @@ mod tests {
             triangles: vec![[0, 1, 2], [0, 2, 3]],
             faces: vec![0..2],
             normals_recalculated: true,
+            triangle_graphics: Vec::new(),
         }
     }
 
@@ -773,6 +774,7 @@ mod tests {
             triangles: vec![[0, 1, 2]],
             faces: vec![0..1],
             normals_recalculated: true,
+            triangle_graphics: Vec::new(),
         };
         let image = render(&[tri], &ortho(4.0), &small()).unwrap();
         assert_ne!(pixel(&image, 20, 25)[0], 255);
@@ -807,6 +809,7 @@ mod tests {
             triangles: vec![[0, 1, 2]],
             faces: vec![0..1],
             normals_recalculated: true,
+            triangle_graphics: Vec::new(),
         };
         let image = render(&[floor], &camera, &small()).unwrap();
         assert_ne!(pixel(&image, 20, 38), [255, 255, 255, 255]);
@@ -919,6 +922,7 @@ mod tests {
             triangles: vec![[0, 1, 2], [0, 2, 3]],
             faces: vec![0..2],
             normals_recalculated: true,
+            triangle_graphics: Vec::new(),
         }];
         for perspective in [true, false] {
             let fit = |meshes: &[TriangleMesh], aspect| {
@@ -1011,6 +1015,7 @@ mod tests {
             triangles: vec![[0, 1, 2], [0, 2, 9]],
             faces: vec![0..2],
             normals_recalculated: true,
+            triangle_graphics: Vec::new(),
         };
         let image = render(std::slice::from_ref(&mesh), &ortho(4.0), &small()).unwrap();
         assert!(image.rgba.chunks(4).all(|p| p == [255, 255, 255, 255]));

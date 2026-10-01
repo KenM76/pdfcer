@@ -2786,8 +2786,14 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it
-  names a textured material. Per-face colours, textures, lights and saved
-  views are **not read**. Say so in the shell.
+  names a textured material. Textures, lights and saved views are **not
+  read**. Say so in the shell.
+- `Placement::triangle_colours(&mesh) -> Option<Vec<Option<[f64; 4]>>>`: per
+  triangle of that placement's (untransformed) mesh, the colour when faces
+  carry their own style (`TESS_Face` line attributes, taking part in the same
+  inheritance); `None` = every triangle is `colour`. Draw by splitting the
+  mesh into one mesh per distinct colour, as `3d-render` does. Not read yet
+  for compressed (`Compressed { mesh: Some(..) }`) meshes.
 - `Camera { eye, target, up, projection }`; `Projection::Perspective { fov_y }`
   (degrees) or `Orthographic { height }` (model units). `Camera::fit_meshes`
   frames every vertex as seen along `direction` (about 5% clear on each side

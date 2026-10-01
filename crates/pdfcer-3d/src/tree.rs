@@ -147,8 +147,40 @@ pub struct Placement {
     /// Straight RGBA, each 0–1, alpha the opacity, from the style the
     /// tree resolves for this item; `None` when no style reaches it or the
     /// style names no colour this reader resolves (a textured material).
-    /// Colours of individual faces are not read.
+    /// Faces that carry their own style are coloured by
+    /// [`Self::triangle_colours`].
     pub colour: Option<[f64; 4]>,
+    /// The graphics from the root to this item, outermost first.
+    pub(crate) chain: Vec<Graphics>,
+    /// Entry `b` is the colour of biased style index `b`.
+    pub(crate) palette: std::sync::Arc<[Option<[f64; 4]>]>,
+}
+
+impl Placement {
+    /// Per triangle of `mesh` (this placement's tessellation), its colour
+    /// as [`Self::colour`] describes, with each face's own style taking
+    /// part in the inheritance [WD 7.2.4, 7.8.6]; `None` when no face of
+    /// `mesh` carries a style, so every triangle is [`Self::colour`].
+    #[must_use]
+    pub fn triangle_colours(&self, mesh: &crate::TriangleMesh) -> Option<Vec<Option<[f64; 4]>>> {
+        if mesh.triangle_graphics.is_empty() {
+            return None;
+        }
+        let mut chain = self.chain.clone();
+        chain.push(Graphics::default());
+        Some(
+            mesh.triangle_graphics
+                .iter()
+                .map(|g| {
+                    if let Some(last) = chain.last_mut() {
+                        *last = *g;
+                    }
+                    let style = resolve_style(&chain) as usize;
+                    self.palette.get(style).copied().flatten()
+                })
+                .collect(),
+        )
+    }
 }
 
 /// One entity's `GraphicsContent`: `style` is `line_style_index + 1`
@@ -892,6 +924,8 @@ pub(crate) struct Walk<'t> {
     pub(crate) trees: Vec<(UniqueId, &'t Tree, &'t Globals)>,
     pub(crate) out: Vec<Placement>,
     visits: usize,
+    /// Per file structure, the style colours placements share.
+    palettes: std::collections::HashMap<usize, std::sync::Arc<[Option<[f64; 4]>]>>,
 }
 
 impl<'t> Walk<'t> {
@@ -901,6 +935,7 @@ impl<'t> Walk<'t> {
             trees,
             out: Vec::new(),
             visits: 0,
+            palettes: std::collections::HashMap::new(),
         }
     }
 
@@ -1009,11 +1044,18 @@ impl<'t> Walk<'t> {
                 placed = multiply(&placed, l);
             }
             let chain: Vec<Graphics> = graphics.iter().chain(&item.graphics).copied().collect();
+            let palette = self.palettes.entry(fs).or_insert_with(|| {
+                (0..=globals.styles.len() as u32)
+                    .map(|b| globals.style_colour(b))
+                    .collect()
+            });
             self.out.push(Placement {
                 file_structure: fs,
                 tessellation: item.tessellation as usize - 1,
                 matrix: placed,
                 colour: globals.style_colour(resolve_style(&chain)),
+                palette: palette.clone(),
+                chain,
             });
         }
         Ok(())
@@ -1399,6 +1441,30 @@ mod tests {
             "a son's heritage beats the father's"
         );
         assert_eq!(resolve_style(&[]), 0);
+    }
+
+    #[test]
+    fn face_styles_take_part_in_inheritance() {
+        let red = Some([1.0, 0.0, 0.0, 1.0]);
+        let green = Some([0.0, 1.0, 0.0, 1.0]);
+        let placement = |chain| Placement {
+            file_structure: 0,
+            tessellation: 0,
+            matrix: IDENTITY,
+            colour: red,
+            chain,
+            palette: std::sync::Arc::from(vec![None, red, green]),
+        };
+        let mut mesh = crate::TriangleMesh::default();
+        let item = placement(vec![g(1, 0)]);
+        assert_eq!(item.triangle_colours(&mesh), None);
+        mesh.triangle_graphics = vec![g(0, 0), g(2, 0)];
+        assert_eq!(item.triangle_colours(&mesh), Some(vec![red, green]));
+        // A parent that forces its colour wins unless the face claims it.
+        let forced = placement(vec![g(1, FATHER_HERIT_COLOR)]);
+        assert_eq!(forced.triangle_colours(&mesh), Some(vec![red, red]));
+        mesh.triangle_graphics = vec![g(2, SON_HERIT_COLOR)];
+        assert_eq!(forced.triangle_colours(&mesh), Some(vec![green]));
     }
 
     #[test]

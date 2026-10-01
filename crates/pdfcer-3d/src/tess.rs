@@ -81,6 +81,10 @@ pub struct TriangleMesh {
     pub faces: Vec<std::ops::Range<usize>>,
     /// The producer asks the reader to compute normals (none are stored).
     pub normals_recalculated: bool,
+    /// Per triangle, the graphics its face's line attributes give it
+    /// [WD 7.8.6]; empty when no face carries any. Read through
+    /// [`crate::Placement::triangle_colours`].
+    pub(crate) triangle_graphics: Vec<crate::tree::Graphics>,
 }
 
 pub(crate) struct Ctx<'a, 's> {
@@ -392,9 +396,10 @@ impl Ctx<'_, '_> {
             normals_recalculated: recalc,
             ..TriangleMesh::default()
         };
+        let styled = faces.iter().any(|f| !f.styles.is_empty());
         for f in &faces {
             let start = mesh.triangles.len();
-            triangulate(
+            let entities = triangulate(
                 f,
                 &indices,
                 !recalc,
@@ -402,6 +407,9 @@ impl Ctx<'_, '_> {
                 &mut mesh.triangles,
             )?;
             mesh.faces.push(start..mesh.triangles.len());
+            if styled {
+                face_graphics(f, &entities, &mut mesh.triangle_graphics);
+            }
         }
         Ok(mesh)
     }
@@ -415,18 +423,20 @@ impl Ctx<'_, '_> {
         let start = self.r.unsigned_integer()? as usize;
         let data = self.uints("triangulated data")?;
         let textures = self.r.unsigned_integer()? as usize;
-        let face = Face {
+        let mut face = Face {
             flags,
             start,
             data,
             textures,
+            styles: line_attributes,
+            behaviour: 0,
         };
         if self.r.bit()? {
             let n = face.point_count()?;
             self.vertex_colors(n, false)?;
         }
-        if !line_attributes.is_empty() {
-            let _behaviour = self.r.unsigned_integer()?;
+        if !face.styles.is_empty() {
+            face.behaviour = u16::try_from(self.r.unsigned_integer()?).unwrap_or(0);
         }
         self.schema.skip_added_fields(TESS_FACE, &mut self.r)?;
         Ok(face)
@@ -514,6 +524,31 @@ struct Face {
     start: usize,
     data: Vec<u32>,
     textures: usize,
+    /// `line_attributes`, each a style index + 1: none = the owner's
+    /// graphics, one = the whole face's, more = one per triangulation
+    /// entity [WD 7.8.6].
+    styles: Vec<u32>,
+    /// The behaviour bits read when `styles` is not empty.
+    behaviour: u16,
+}
+
+/// Append one [`Graphics`](crate::tree::Graphics) per triangle of `face`,
+/// whose entities emitted `entities[i]` triangles each. Entities past the
+/// face's styles inherit (style 0).
+fn face_graphics(face: &Face, entities: &[usize], out: &mut Vec<crate::tree::Graphics>) {
+    let g = |style: u32| crate::tree::Graphics {
+        style,
+        bits: face.behaviour,
+    };
+    let whole = match face.styles.as_slice() {
+        [] => Some(0),
+        [one] => Some(*one),
+        _ => None,
+    };
+    for (i, &n) in entities.iter().enumerate() {
+        let style = whole.unwrap_or_else(|| face.styles.get(i).copied().unwrap_or(0));
+        out.extend(std::iter::repeat_n(g(style), n));
+    }
 }
 
 /// A `used_entities_flag` block's shape [WD 7.8.5.5].
@@ -586,13 +621,16 @@ impl Face {
 }
 
 /// Emit a face's triangles; `normals` = the index array stores normal slots.
+/// Returns the triangles each triangulation entity emitted, in order: one
+/// entity per triangle of a triangle block, per fan, per strip [WD 7.8.6].
 fn triangulate(
     face: &Face,
     indices: &[u32],
     normals: bool,
     n_points: usize,
     out: &mut Vec<[u32; 3]>,
-) -> Result<(), PrcError> {
+) -> Result<Vec<usize>, PrcError> {
+    let mut entities = Vec::new();
     let mut slots = indices.get(face.start..).unwrap_or(&[]).iter().copied();
     let mut take = || {
         slots
@@ -636,6 +674,7 @@ fn triangulate(
                 }
                 verts.push(p / 3);
             }
+            let before = out.len();
             match shape {
                 Shape::Triangles => out.extend(verts.chunks_exact(3).filter_map(|c| match c {
                     [a, b, c] => Some([*a, *b, *c]),
@@ -657,9 +696,14 @@ fn triangulate(
                     }))
                 }
             }
+            let made = out.len() - before;
+            match shape {
+                Shape::Triangles => entities.extend(std::iter::repeat_n(1, made)),
+                Shape::Fan | Shape::Strip => entities.push(made),
+            }
         }
     }
-    Ok(())
+    Ok(entities)
 }
 
 #[cfg(test)]
@@ -994,6 +1038,49 @@ mod tests {
         wire(&mut b, false);
         let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
         assert!(matches!(t[1], Tessellation::Wire(_)));
+    }
+
+    /// A square as one triangle plus one 4-vertex fan (two entities, three
+    /// triangles), the face carrying `attrs`; behaviour bits 0x30.
+    fn styled_face(attrs: &[u32]) -> TriangleMesh {
+        let mut b = W::default();
+        square(&mut b, 172);
+        b.bit(true).bit(false).bit(false).uint(0).uint(0);
+        uints(&mut b, &[0, 0, 0, 3, 0, 6, 0, 0, 0, 3, 0, 6, 0, 9]);
+        b.uint(1).uint(174);
+        uints(&mut b, attrs);
+        b.uint(0).uint(0).uint(0x2 | 0x4).uint(0);
+        uints(&mut b, &[1, 1, 4]);
+        b.uint(0).bit(false);
+        if !attrs.is_empty() {
+            b.uint(0x30);
+        }
+        b.uint(0);
+        wire(&mut b, false);
+        let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
+        assert!(matches!(t[1], Tessellation::Wire(_)));
+        mesh(&t[0]).clone()
+    }
+
+    fn styles(m: &TriangleMesh) -> Vec<(u32, u16)> {
+        m.triangle_graphics
+            .iter()
+            .map(|g| (g.style, g.bits))
+            .collect()
+    }
+
+    #[test]
+    fn face_line_attributes_style_its_triangles() {
+        assert!(styled_face(&[]).triangle_graphics.is_empty());
+        let whole = styled_face(&[5]);
+        assert_eq!(whole.triangles.len(), 3);
+        assert_eq!(styles(&whole), [(5, 0x30); 3]);
+        // One per entity: the triangle, then both triangles of the fan.
+        let each = styled_face(&[4, 7]);
+        assert_eq!(styles(&each), [(4, 0x30), (7, 0x30), (7, 0x30)]);
+        // An entity styled 0 inherits.
+        let short = styled_face(&[4, 0, 9]);
+        assert_eq!(styles(&short), [(4, 0x30), (0, 0x30), (0, 0x30)]);
     }
 
     #[test]

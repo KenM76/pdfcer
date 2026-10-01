@@ -157,6 +157,38 @@ struct Assembled {
     unplaced: Option<String>,
 }
 
+/// A 0-1 colour as 8-bit straight RGBA.
+#[cfg(feature = "3d")]
+fn to_rgba8(c: [f64; 4]) -> [u8; 4] {
+    c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
+}
+
+/// `mesh` split into one mesh per distinct entry of `per` (one per
+/// triangle), in order of first appearance, so each draws in its own colour.
+#[cfg(feature = "3d")]
+fn split_by_colour(
+    mesh: &pdfcer_3d::TriangleMesh,
+    per: &[Option<[u8; 4]>],
+) -> Vec<(pdfcer_3d::TriangleMesh, Option<[u8; 4]>)> {
+    type Group = (Option<[u8; 4]>, Vec<[u32; 3]>);
+    let mut groups: Vec<Group> = Vec::new();
+    for (tri, colour) in mesh.triangles.iter().zip(per) {
+        match groups.iter_mut().find(|g| g.0 == *colour) {
+            Some(g) => g.1.push(*tri),
+            None => groups.push((*colour, vec![*tri])),
+        }
+    }
+    groups
+        .into_iter()
+        .map(|(colour, triangles)| {
+            let mut part = mesh.clone();
+            part.faces = std::iter::once(0..triangles.len()).collect();
+            part.triangles = triangles;
+            (part, colour)
+        })
+        .collect()
+}
+
 /// Decode and assemble a PRC model, or say why it has nothing to draw.
 #[cfg(feature = "3d")]
 fn assemble(data: &[u8]) -> Result<Assembled, String> {
@@ -208,11 +240,20 @@ fn assemble(data: &[u8]) -> Result<Assembled, String> {
                     .and_then(|row| row.get(p.tessellation))
                     .and_then(Option::as_ref);
                 if let Some(mesh) = mesh {
-                    meshes.push(mesh.transformed(&p.matrix));
-                    colours.push(
-                        p.colour
-                            .map(|c| c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)),
-                    );
+                    let placed = mesh.transformed(&p.matrix);
+                    match p.triangle_colours(mesh) {
+                        Some(per) => {
+                            let per: Vec<_> = per.into_iter().map(|c| c.map(to_rgba8)).collect();
+                            for (part, colour) in split_by_colour(&placed, &per) {
+                                meshes.push(part);
+                                colours.push(colour);
+                            }
+                        }
+                        None => {
+                            meshes.push(placed);
+                            colours.push(p.colour.map(to_rgba8));
+                        }
+                    }
                 }
             }
             None
@@ -465,9 +506,9 @@ fn render_from_bytes(a: &RenderThreeDArgs<'_>, data: &[u8]) -> u8 {
         .filter(|c| c[3] < 255)
         .count();
     println!(
-        "note: each part is drawn in the colour its model tree gives it ({translucent} \
-         translucent), lit from the camera; {uncoloured} mesh(es) had none and are drawn grey; \
-         colours of individual faces, textures, lights and views are not read yet"
+        "note: each part, and each face styled on its own, is drawn in the colour its model \
+         tree gives it ({translucent} translucent), lit from the camera; {uncoloured} mesh(es) \
+         had none and are drawn grey; textures, lights and views are not read yet"
     );
     exit::SUCCESS
 }
@@ -616,4 +657,27 @@ pub(crate) fn cmd_embed_3d(a: &EmbedThreeDArgs<'_>) -> u8 {
         return exit::SUCCESS;
     }
     finish_attachment_save(a.input, &mut session, a.output, a.mode)
+}
+
+#[cfg(all(test, feature = "3d"))]
+#[allow(clippy::indexing_slicing)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_mesh_splits_by_triangle_colour_in_first_seen_order() {
+        let mut mesh = pdfcer_3d::TriangleMesh::default();
+        mesh.positions = vec![[0.0; 3]; 4];
+        mesh.triangles = vec![[0, 1, 2], [0, 2, 3], [1, 2, 3]];
+        let red = Some([255, 0, 0, 255]);
+        let parts = split_by_colour(&mesh, &[red, None, red]);
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].1, red);
+        assert_eq!(parts[0].0.triangles, [[0, 1, 2], [1, 2, 3]]);
+        assert_eq!(parts[0].0.faces.len(), 1);
+        assert_eq!(parts[0].0.faces[0], 0..2);
+        assert_eq!(parts[1].1, None);
+        assert_eq!(parts[1].0.triangles, [[0, 2, 3]]);
+        assert_eq!(parts[1].0.positions.len(), 4);
+    }
 }
