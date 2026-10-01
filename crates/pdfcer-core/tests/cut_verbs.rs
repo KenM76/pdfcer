@@ -432,8 +432,8 @@ fn the_paste_refusal_explains_the_subtype_that_was_actually_copied() {
     );
 }
 
-/// A widget still gets the widget reason — and it now points at the verb that
-/// exists for it.
+/// A widget still gets the widget reason, pointing at the field clipboard
+/// without naming any shell's verb for it.
 #[test]
 fn a_copied_widget_is_pointed_at_the_field_clipboard() {
     let mut s = session("forms/rich-field-form.pdf");
@@ -442,9 +442,8 @@ fn a_copied_widget_is_pointed_at_the_field_clipboard() {
     let said = outcome.disclosures.join(" ");
     assert!(said.contains("/Widget"), "{said:?}");
     assert!(
-        said.contains("copy-field"),
-        "the refusal points at the verb that CAN do this, which has existed \
-         since Pass 167.0: {said:?}",
+        said.contains("Copy and paste it as a form field") && !said.contains("copy-field"),
+        "the refusal points at the field clipboard in shell-neutral words: {said:?}",
     );
 }
 
