@@ -191,6 +191,15 @@ names and sabotage results relayed from the dispatching engineer's own
 report on `78f966c2`, not independently reproduced. Backup/push/release
 state not verifiable from here.
 
+**Follow-up (824th filing, `d49224cd`).** `tools/run-gates.sh`'s workspace
+`clippy --all-targets --all-features` caught `cloned_ref_to_slice_refs` on
+this entry's own test, `a_mesh_fit_ignores_empty_box_corners`
+(`crates/pdfcer-3d/src/render.rs`): `&[tri.clone()]` →
+`std::slice::from_ref(&tri)`. Made locally before `78f966c2` but never
+reached that commit — a lib-scoped local `clippy` run on `pdfcer-3d` alone
+missed it; the workspace `--all-targets` run catches test targets too.
+Test-only, no behaviour change.
+
 ### `Pass 421.3` (`046ec96f`), 2026-09-30 — `Camera::fit` frames the projected bounding box, not the bounding sphere
 
 Continues the `Pass 421.x` bucket's Rung A (`421.0`'s renderer). `Camera::fit`

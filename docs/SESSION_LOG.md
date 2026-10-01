@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (824th filing) — `Pass 421.4` follow-up (`d49224cd`): `fit_meshes` test borrows the mesh as a slice
+
+**Shipped:**
+- `d49224cd` — test-only clippy fix on `Pass 421.4`'s
+  `a_mesh_fit_ignores_empty_box_corners`
+  (`crates/pdfcer-3d/src/render.rs`): `&[tri.clone()]` →
+  `std::slice::from_ref(&tri)`, the `cloned_ref_to_slice_refs` lint. Made
+  locally before `78f966c2` but never reached that commit. No behaviour
+  change. Full entry appended to `Pass 421.4` in `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `tools/run-gates.sh` caught this where a narrower local clippy pass
+  didn't: workspace `clippy --all-targets --all-features` lints test
+  targets too, and a lib-scoped (or crate-filtered) local run can miss a
+  test-target-only lint and report clean. Lesson: run-gates, or an
+  explicit `--all-targets`, before trusting a narrower local clippy pass.
+
+**Still in flight:** Unchanged from the 823rd filing — the `421.x`
+bucket's next owed items: the vaulted-roof tessellation tear (`419.2`
+remainder), then textures, then lights; Rung B (GUI orbit/pan/zoom,
+`421.1`) still not requested.
+
+**For next session:** Nothing new opened by this filing.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash and gate
+result relayed from the dispatching engineer's own report, not
+independently reproduced. Backup/push/release state not verifiable from
+here.
+
 ## 2026-10-01 (823rd filing) — `Pass 421.5` (`d8514cce`, `3ea9a5d8`): CLI 3D fixes — stale assembly-test probes + `3d-mesh` format-from-extension
 
 **Shipped:**
