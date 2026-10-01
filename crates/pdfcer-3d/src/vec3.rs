@@ -4,18 +4,22 @@
 /// A point or direction in model space, `[x, y, z]`.
 pub(crate) type Vec3 = [f64; 3];
 
+/// `a - b`.
 pub(crate) fn sub(a: Vec3, b: Vec3) -> Vec3 {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
 
+/// `a` times `s`.
 pub(crate) fn scale(a: Vec3, s: f64) -> Vec3 {
     a.map(|c| c * s)
 }
 
+/// The dot product `a · b`.
 pub(crate) fn dot(a: Vec3, b: Vec3) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
+/// The right-handed cross product `a × b`.
 pub(crate) fn cross(a: Vec3, b: Vec3) -> Vec3 {
     [
         a[1] * b[2] - a[2] * b[1],
@@ -24,6 +28,7 @@ pub(crate) fn cross(a: Vec3, b: Vec3) -> Vec3 {
     ]
 }
 
+/// The Euclidean length of `a`.
 pub(crate) fn length(a: Vec3) -> f64 {
     dot(a, a).sqrt()
 }
