@@ -4,6 +4,56 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (835th filing) — `v0.71.0` RELEASED
+
+**Shipped:**
+- `v0.71.0` released — completes the 834th filing's "release in
+  progress" note. Lightweight tag `v0.71.0` at `d8ea9f39` (834th
+  filing's docs commit); shipped binary built one commit earlier at
+  `31c12685`, stamped revision `v0.70.0-15-g31c12685`, not dirty.
+  GitHub release `pdfcer-v0.71.0-windows-x64.zip` (43,627,443 bytes,
+  sha256 `83f3a77bc3e8d2efa389513d23980f8985e8ddf6ce7d4173c3e867936dad906c`)
+  via `tools/gh-release.py`, PASS. Portable build
+  `D:\builds\pdfcer-20261001-0650-31c1268` (72,577,832 bytes) deployed
+  to OneDrive slot `pdfcer2` (`pdfcer1` keeps `v0.70.0`; next release
+  writes `pdfcer1`). Full details under `v0.71.0`'s own entry in
+  `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `tools/run-gates.sh`: 42 of 42 PASS on `ca9356c4` (code identical to
+  the bump). Fuzz `prc_tess`: 273,660 runs over 91 s = ~333 µs/run,
+  clean. Fresh-folder smoke test: `--version` reports `0.71.0`;
+  `3d-render` on the local-only 3D-PDF-Sample-School sample reports
+  1,173 meshes, 70,196 triangles, 348 of 348 compressed meshes
+  rebuilt, walls now shade smoothly; `rotate --degrees 90` on a
+  synthetic fixture OK.
+- `tools/verify-release.py v0.71.0`: clean — CI green at the tagged
+  commit, run `36853465197`.
+- Released with the vaulted-roof tessellation tear (`419.2`'s
+  remainder) still visible on the School sample — a separate
+  max-effort agent is investigating it; not closed by this release.
+- No `docs/FEATURES.md` changes — the release adds no capability
+  beyond `421.9`–`421.11`, already recorded by the 830th–833rd filings.
+- Process note: the release zip is built by zipping the portable
+  folder flat (no top-level directory), DEFLATE, with a
+  `"<sha>  <name>"` `.sha256` sidecar; `tools/gh-release.py` takes
+  positional `tag assets...`.
+
+**Still in flight:** None new — `v0.71.0` release is complete. The
+vaulted-roof tessellation tear remains open, next-owed per the 827th
+filing's order (ahead of the door-panel conditioning-amplification
+case).
+
+**For next session:** Pick up the `421.x` next-owed order: vaulted-roof
+tessellation tear, then the door-panel case, then textures/lights.
+
+**Sourcing (hard rule 8).** No shell tool this filing — the tag, build
+size, hash, gate/fuzz counts, smoke-test results and GitHub/OneDrive/
+verify-release details are relayed from the dispatching engineer's own
+report; not independently reproduced here.
+
 ## 2026-10-01 (834th filing) — `v0.71.0` version bump (`31c12685`), release in progress
 
 **Shipped:**

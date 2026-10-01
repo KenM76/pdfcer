@@ -115,6 +115,74 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.71.0` — RELEASED (2026-10-01)
+
+Release filing, not a Pass — completes the 834th filing's own
+"RELEASE IN PROGRESS" entry immediately below. Version-bump commit
+`31c12685` ("chore: v0.71.0") bumps `Cargo.toml`'s workspace version
+0.70.0 → 0.71.0, `Cargo.lock` and `fuzz/Cargo.lock`; filed in `d8ea9f39`
+(834th filing, docs-only).
+
+**Tag.** Lightweight tag `v0.71.0` at `d8ea9f39` (the 834th filing's
+docs commit), pushed. The shipped binary is stamped from the build
+commit one step earlier, `31c12685`, reporting revision
+`v0.70.0-15-g31c12685`, not dirty — the tag lands one docs-only commit
+past the build, the same pattern as `v0.70.0`'s and `v0.69.0`'s tags.
+
+**Range since `v0.70.0`: batches every Pass already filed above** —
+`421.9` (compressed meshes' per-face line attributes, `4747c366`, 830th
+filing), `421.10` (stored PRC normals shade smoothly + export to OBJ,
+`2dbbed6e`, 831st filing) plus its test fix (`74692826`, 832nd filing),
+`421.11` (compressed stored normals decode, `2b5a1c71`, 832nd filing),
+and the reference-width-formula amendment (`ca9356c4`, 833rd filing
+`ab73b0f5`) — all already filed above.
+
+**Gates.** `tools/run-gates.sh`: 42 of 42 PASS on `ca9356c4` (code
+identical to the bump). Fuzz `prc_tess`: 273,660 runs over 91 s =
+~333 µs/run, clean.
+
+**Build.** `tools/package-portable.py` →
+`D:\builds\pdfcer-20261001-0650-31c1268` (72,577,832 bytes staged).
+
+**Fresh-folder smoke test.** `pdfcer --version` reports `0.71.0`. On
+the local-only 3D-PDF-Sample-School sample (never committed):
+`3d-render` iso view reports 1,173 meshes, 70,196 triangles, 348 of 348
+compressed meshes rebuilt, walls now shade smoothly (`421.10`/`421.11`'s
+stored normals). `rotate --degrees 90` on a synthetic fixture: OK. The
+vaulted-roof tessellation tear (`419.2`'s remainder) is still visible —
+a separate max-effort agent is investigating it; not closed by this
+release.
+
+**GitHub release.** Published via `tools/gh-release.py`:
+`pdfcer-v0.71.0-windows-x64.zip`, 43,627,443 bytes, sha256
+`83f3a77bc3e8d2efa389513d23980f8985e8ddf6ce7d4173c3e867936dad906c`, plus
+its `.sha256`. PASS.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer2` (now
+`0.71.0`); `pdfcer1` keeps `v0.70.0`. Next release writes `pdfcer1`.
+
+**`verify-release.py v0.71.0`.** Clean — CI green at the tagged commit,
+run `36853465197`.
+
+**Process note.** The release zip is built by zipping the portable
+folder flat (no top-level directory), DEFLATE, with a `"<sha>  <name>"`
+`.sha256` sidecar; `tools/gh-release.py` takes positional `tag
+assets...`.
+
+**Headline.** Closes `421.9`–`421.11`: compressed PRC meshes now carry
+both per-face colour and stored-normal smooth shading, 348/348 on the
+School sample. The vaulted-roof tessellation tear remains open and
+disclosed, not hidden.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself** — the
+release adds no capability beyond `421.9`–`421.11`, already recorded by
+the 830th–833rd filings.
+
+**Sourcing (hard rule 8).** No shell tool this filing — the tag, build
+size, hash, gate/fuzz counts, smoke-test results and GitHub/OneDrive/
+verify-release details are relayed from the dispatching engineer's own
+report; not independently reproduced here.
+
 ### `v0.71.0` — version bump, RELEASE IN PROGRESS (2026-10-01)
 
 Not a Pass. Version-bump commit `31c12685` ("chore: v0.71.0") bumps
