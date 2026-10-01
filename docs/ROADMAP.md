@@ -115,6 +115,77 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.12` (`4fc9de7b`), 2026-10-01 — compressed-mesh apex frames reproduce the PRC encoder's own Length/Unitize arithmetic
+
+Continues the `Pass 421.x` bucket, closing most of the vaulted-roof
+tessellation tear flagged since `419.2`'s own remainder (entity #868,
+"torn roof" on the local-only School sample — never committed, no
+operator drawing numbers named).
+
+**Root cause: decoder/encoder arithmetic drift, not a traversal rule.**
+The PRC encoder is closed-loop (WD 7.8.9/7.8.9.2): each apex frame is
+built on already-decoded positions via `PrcPt::Unitize` (WD 12.3), whose
+`Length` sums the squared length in `f64`, rounds to `f32`, seeds a
+Newton iteration from that `f32`'s halved-exponent bit pattern, then
+iterates in `f64` until two iterates agree — up to 3e-8 relative error
+and ±1 ulp off a correct `sqrt` in ~25% of calls. pdfcer instead used
+exact normalisation, never re-unitized `Y = Z × X`, and summed
+`O + ((xX − yY) − zZ)` in a different operand order; on thin-triangle
+fans the divergence amplified ~25×/generation (past 1 tolerance unit by
+vertex 30 of the roof mesh, ~10^5.7 by vertex 310).
+
+**Spec erratum found, recorded for `pdfcer-spec-librarian`'s parallel
+update to `prc__8137__tess_3d_compressed.md` §2b (cited, not authored
+here).** The WD's own printed Newton loop, taken literally, never
+advances and returns −1; pdfcer's doc comment had already read it as
+"iterate until two values agree" — the correct behaviour, not the
+literal pseudocode.
+
+**Implementation.** New crate-private `wd_length`/`unitize`/
+`make_ortho_rep`/`apex` in `compressed.rs` replace the ad hoc
+normalisation `Walk::step` used; `Walk::step` is now under 80 production
+lines (the code-structure gate's own limit, `Pass 426.0`).
+
+**Measured** on the local-only School sample (never committed): stray
+vertices 118 across 13 meshes → 8 across 2 meshes (the 2 remaining are
+identical under every arithmetic variant tried — OPEN); reused stored
+normals agreeing `|dot| > 0.999` with their own face 88.6% → 99.6%
+(anti-parallel reuses 939 → 20); planar-flagged faces 689/710 → 693/710;
+least-squares planar fit 214/218 → 218/218 meshes; the roof's own max
+cap-plane deviation 4,121.9 → 0.5 tolerance units; the former
+worst-outlier mesh 116.55 → 0.49. Rendered before/after: the vaulted roof
+is now a continuous double vault, and the window/door-shaped shards are
+gone.
+
+**Tests.** 3 new unit tests (`wd_length`/`unitize` against the WD's own
+pseudocode; `make_ortho_rep`'s fallback; a closed-loop strip encoder
+transcribed from the WD — self-consistency, not evidence about the real
+writer's own code). Sabotage: 5 mutations by the implementing agent plus
+1 on merge, all CAUGHT. `pdfcer-3d` 94 lib + 3 + 8 tests, CLI `three_d`
+17/17, clippy clean on both feature sets, fmt clean. Found by one
+max-effort, worktree-isolated agent at the operator's own request.
+
+**Still open.** The 2 remaining stray meshes; 20 anti-parallel reused
+normals; outward winding; the "3T tail"; the reference-apex fold signal
+(`421.7`'s R6 rule is still a heuristic, not a derived one). **The
+door-panel conditioning-amplification case (`419.2`'s OTHER named
+remainder, 827th filing) shares the same family of apex-frame arithmetic
+this fix corrects but has NOT been independently re-measured against
+it** — see the amendment on that entry, *Backlog*; do not assume it is
+closed by inheritance.
+
+`docs/FEATURES.md`: row 458 ("Export an embedded PRC 3D model's
+tessellation as a mesh (STL/OBJ)") and row 534 ("View an embedded 3D
+model with camera controls") both get their reconstruction-accuracy text
+updated this filing — CLI disclosure text is unchanged and still
+accurate, no box changes on either row.
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hashes
+`4fc9de7b` (HEAD) and `39ff43aa` (its immediate parent) confirmed against
+this session's git-status snapshot at conversation start, tree clean.
+Measured counts, test names and sabotage results are relayed from the
+dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 426.0` (`2bb66c73`), 2026-10-01 — code-structure gate (fn > 80 lines, file > 800 production lines, duplicated private helpers)
 
 New `tools/check-code-structure.py`, wired into `.github/workflows/ci.yml`
@@ -24371,12 +24442,20 @@ Four shortcuts the audit found. Progress this filing (`063b9c25`,
 - **`pub mod bits` — still open**, deferred with the above.
 
 Baseline (`tools/code-structure-baseline.txt`) **640 → 634** over the three
-commits. **Still waiting** on the in-flight roof-fix agent, which is also
-editing `compressed.rs`/`tess.rs` — the remaining work (compressed.rs's own
-vector helpers → `vec3`, `compressed.rs::step`, `tess.rs::tess_3d_compressed`,
-`tess.rs` file size, `bits` visibility) stays queued behind it to avoid
-collision. Gates green on both commits: clippy `-D warnings` on both
+commits. Gates green on both commits: clippy `-D warnings` on both
 feature sets, fmt, the `prc_parse` fuzz target build.
+
+**Amendment, 2026-10-01 (838th filing).** `39ff43aa` added doc comments to
+the new `vec3` helpers — the public-fns-documented pre-push gate had
+blocked the push on this entry's own work until they were added. **The
+in-flight roof-fix agent this entry was waiting on has now shipped**
+(`4fc9de7b`, `Pass 421.12`, see *Shipped*) — its own new private helpers
+(`wd_length`/`unitize`/`make_ortho_rep`/`apex`) replaced `compressed.rs`'s
+ad hoc normalisation and brought `Walk::step` itself under 80 lines, so
+**that item is now closed** (baseline 634 → 633). **Still open, now
+unblocked and not yet picked up**: `compressed.rs`'s own remaining vector
+helpers → `vec3`, `tess.rs::tess_3d_compressed`, `tess.rs` whole-file
+size, `pub mod bits` visibility.
 
 ### Workspace structure-debt paydown — standing, ongoing (opened `Pass 426.0`, 836th filing, 2026-10-01)
 
@@ -24388,6 +24467,10 @@ flagged file; no dedicated sweep Pass is scoped.
 
 **837th filing, 2026-10-01**: 640 → 634, paid down by the `pdfcer-3d`
 structure refactor above (`063b9c25`/`6826614b`/`484be18f`).
+
+**838th filing, 2026-10-01**: 634 → 633, paid down by `Pass 421.12`'s
+(`4fc9de7b`) new apex-frame helpers replacing `compressed.rs`'s old
+`Walk::step`.
 
 ### Portable release build ships without the `download` feature (filed 820th filing, v0.69.0 release notes)
 
@@ -24825,6 +24908,23 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   sample carries normals yet (synthetic-only verification); compressed
   meshes (all of School) still render flat-faceted pending crease-angle
   smoothing.
+- `421.11` — **SHIPPED, `2b5a1c71`, 2026-10-01 (832nd filing)**, full
+  entry in *Shipped* above. `TESS_3D_Compressed` meshes decode their own
+  stored normals (`normal_binary_data`/`normal_angle_array`), shading and
+  OBJ-`vn` export the same way `421.10` added for uncompressed meshes.
+  Reference-width formula amended `ca9356c4` (833rd filing): 348/348
+  School compressed meshes now decode (was 347/348).
+- `421.12` — **SHIPPED, `4fc9de7b`, 2026-10-01 (838th filing)**, full
+  entry in *Shipped* above. Compressed-mesh apex frames rebuilt with new
+  `wd_length`/`unitize`/`make_ortho_rep`/`apex`, matching the PRC
+  encoder's own closed-loop Length/Unitize arithmetic (WD 7.8.9/12.3)
+  instead of exact normalisation — closes most of the vaulted-roof
+  tessellation tear (entity #868). School sample: stray vertices
+  118/13 meshes → 8/2 meshes (2 OPEN); roof max cap-plane deviation
+  4,121.9 → 0.5 tolerance units. 2 stray meshes, anti-parallel reused
+  normals, outward winding and the reference-apex fold heuristic remain
+  open; the door-panel case (below) has NOT been independently
+  re-measured against this fix.
 
 **Dated note, 2026-10-01 (827th filing) — a separate open defect, NOT
 closed by `421.8`.** Ken reported the School render's front double door
@@ -24844,21 +24944,31 @@ against Acrobat Reader's own render. Ken asked to release anyway if an
 attempt to close it failed before the cut — it did, so v0.70.0 ships with
 the door drift present.
 
-**Next planned, in order**: the vaulted-roof tessellation tear (entity
-#868, `419.2`'s own remainder); the door-panel conditioning-amplification
-case above (same item, worst instance yet); crease-angle normal smoothing
-for compressed meshes (`421.10`'s own remainder — `must_recalculate_normals`
+**Amendment, 2026-10-01 (838th filing, `4fc9de7b`, `Pass 421.12`).** The
+roof tear this note calls "the existing item... at its worst measured
+case" has since been largely closed by the SAME family of apex-frame fix
+(encoder-matching `Length`/`Unitize` arithmetic) — see `421.12` above.
+**The door panel itself has NOT been independently re-measured against
+that fix** — the two defects share a root-cause category but were not
+shown to be the same conditioning failure, so this entry stays open until
+re-checked, not assumed closed by inheritance.
+
+**Next planned, in order**: re-measure the door-panel case above against
+`421.12`'s fix; the 2 stray meshes `421.12` left unresolved; crease-angle
+normal smoothing for compressed meshes (`421.10`'s own remainder — `must_recalculate_normals`
 meshes still render flat-faceted); then textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
 gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`,
 framing fix noted by `421.3`, vertex-fit noted by `421.4`, per-face colour
 noted by `421.6`, compressed-decode gap closed by `421.8`, per-face line
-attributes noted by `421.9`, stored-normal shading noted by `421.10`);
+attributes noted by `421.9`, stored-normal shading noted by `421.10`,
+apex-frame reconstruction-accuracy fix noted by `421.12`, 838th filing);
 `gui` stays `[ ]` pending `421.1`. Stays in *Planned* — the row names the
 interactive-controls capability, and that still needs Rung B. `421.5`'s
 `3d-mesh` format-from-extension fix is noted on the separate mesh-export
-row (`419.2`, *Implemented*), not this one.
+row (`419.2`, *Implemented*), not this one; `421.12`'s own
+reconstruction-accuracy improvement is noted there too (838th filing).
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 

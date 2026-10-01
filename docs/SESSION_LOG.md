@@ -4,6 +4,78 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (838th filing) — `Pass 421.12`: compressed-mesh apex frames match the PRC encoder's own arithmetic (`4fc9de7b`), doc-comment gate closed (`39ff43aa`)
+
+**Shipped:**
+- `39ff43aa` — doc comments on the new `vec3` helpers; closed the
+  public-fns-documented pre-push gate that had blocked the push since
+  `063b9c25`.
+- `4fc9de7b` — `Pass 421.12`. Root cause of the vaulted-roof tessellation
+  tear (`419.2`'s own remainder, local-only School sample, never
+  committed): decoder/encoder arithmetic drift, not a traversal rule. The
+  PRC encoder is closed-loop (WD 7.8.9/7.8.9.2) — each apex frame is built
+  with `PrcPt::Unitize` (WD 12.3), whose `Length` rounds an `f64` sum to
+  `f32`, seeds Newton from that bit pattern, and iterates in `f64` to
+  convergence (up to 3e-8 relative error, ±1 ulp off a correct `sqrt` in
+  ~25% of calls). pdfcer used exact normalisation and a different operand
+  order instead, amplifying ~25×/generation on thin-triangle fans. New
+  crate-private `wd_length`/`unitize`/`make_ortho_rep`/`apex`;
+  `Walk::step` now under the 80-line gate limit; structure baseline
+  634 → 633.
+
+**Decisions made this session:** none new (bug fix / numerical
+correction, not a crate-boundary or library choice — no `ARCHITECTURE.md`
+§12 entry opened).
+
+**Findings + decisions:**
+- Measured on the local sample: stray vertices 118 across 13 meshes → 8
+  across 2 meshes (the 2 remaining identical under every arithmetic
+  variant tried, OPEN); reused normals agreeing with their own face
+  88.6% → 99.6% (anti-parallel 939 → 20); planar-flagged faces
+  689/710 → 693/710; least-squares planar fit 214/218 → 218/218 meshes;
+  roof max cap-plane deviation 4,121.9 → 0.5 tolerance units; former
+  worst-outlier mesh 116.55 → 0.49. Rendered before/after: the roof is
+  now a continuous double vault, window/door shards gone.
+- Spec erratum for `pdfcer-spec-librarian`'s parallel update to
+  `prc__8137__tess_3d_compressed.md` §2b (cited here, authored there):
+  the WD's own printed Newton loop never advances if read literally;
+  pdfcer's doc comment already read it correctly as "iterate until two
+  values agree."
+- The code-structure gate flagged a *moved* function as a NEW violation
+  — moving code does not launder debt, it has to be fixed at its new
+  location too (same finding as the 837th filing's `representation_item`,
+  now corroborated a second time on a different function).
+- The public-fns-documented gate blocked the push over 5 new
+  crate-private helpers with no doc comments — closed by `39ff43aa`.
+- Tests: 3 new (`wd_length`/`unitize` vs the WD's own pseudocode;
+  `make_ortho_rep` fallback; a closed-loop strip encoder transcribed from
+  the WD — self-consistency, not evidence about the real writer's code).
+  Sabotage: 5 mutations by the implementing agent plus 1 on merge, all
+  CAUGHT. `pdfcer-3d` 94 lib + 3 + 8 tests, CLI `three_d` 17/17, clippy
+  clean both feature sets, fmt clean. Found by one max-effort,
+  worktree-isolated agent at the operator's own request.
+- Still open: the 2 remaining stray meshes, 20 anti-parallel reused
+  normals, outward winding, the "3T tail", the reference-apex fold signal
+  (R6 still a heuristic). The door-panel conditioning case (`419.2`'s
+  OTHER named remainder) has NOT been independently re-measured against
+  this fix — do not assume it is closed by inheritance.
+- `docs/FEATURES.md` rows 458 and 534 updated this filing — both
+  described the same defect family (hard rule 11 sweep); CLI disclosure
+  text is unchanged and still accurate, no box changes on either row.
+- Sourcing (hard rule 8): no shell tool this filing — commit hashes
+  `4fc9de7b`/`39ff43aa` confirmed against this session's git-status
+  snapshot at conversation start (HEAD `4fc9de7b`, clean tree). Measured
+  counts, test names and sabotage results are relayed from the
+  dispatching engineer's own report, not independently reproduced.
+
+**Still in flight:** the 2 remaining stray meshes and the door-panel
+re-measurement, both under the `421.x` Backlog bucket.
+
+**For next session:** re-measure the door-panel case against this fix
+before assuming it shares the roof's outcome; the 2 remaining stray
+meshes need a different lead (identical under every arithmetic variant
+tried so far).
+
 ## 2026-10-01 (837th filing) — `pdfcer-3d` structure refactor, progress (`063b9c25`/`6826614b`/`484be18f`)
 
 **Shipped:**
