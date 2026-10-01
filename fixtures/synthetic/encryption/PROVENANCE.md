@@ -21,6 +21,7 @@ open everywhere with no dialog.
 | `enc-aes-256-r6.pdf` | 5 | 6 | 256 | `/AESV3` | refused as **unsourced** |
 | `enc-emptyuser.pdf` | 4 | 4 | 128 | `/AESV2` | **yes**, with no password |
 | `enc-emptyuser-aes-256-r5.pdf` | 5 | 5 | 256 | `/AESV3` | **yes**, with no password |
+| `enc-emptyuser-print-only.pdf` | 5 | 6 | 256 | `/AESV3` | **yes**, with no password; grants only Print |
 
 Note `enc-aes-256-r5.pdf`'s `/Length 256`. `/AESV3` fixes the key at 256 bits,
 so the entry carries no information and pdfcer does not read it — ISO 32000-2's
@@ -146,3 +147,9 @@ now true rather than aspirational.
 
 Kept because a fixture whose construction nobody can repeat is a fixture
 nobody can extend.
+
+`enc-emptyuser-print-only.pdf` is written by pdfcer itself: `pdfcer
+remove-encryption --open-password ownerpw enc-emptyuser.pdf plain.pdf`, then
+`pdfcer encrypt --owner-password ownerpw --allow print plain.pdf
+enc-emptyuser-print-only.pdf`. It opens with no password and grants no edit
+permission, so it is the fixture for the edit-permission refusals.

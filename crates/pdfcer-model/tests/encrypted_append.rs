@@ -125,3 +125,42 @@ fn an_empty_edit_returns_the_stored_ciphertext_unchanged() {
     assert_eq!(out, original);
     assert!(report.byte_identical);
 }
+
+/// A signature dictionary's `/Contents` is never encrypted (ISO 32000-2
+/// §7.6.2); its other strings are.
+#[test]
+fn a_signature_dictionarys_contents_is_written_in_clear() {
+    let original = fixture("enc-aes-128.pdf");
+    let doc = open(&original, b"userpw");
+    let mut sig = pdfcer_model::object::Dict::new();
+    sig.insert(Name::from(b"Type"), Object::Name(Name::from(b"Sig")));
+    sig.insert(
+        Name::from(b"Contents"),
+        Object::String(b"CLEARSIG".to_vec()),
+    );
+    sig.insert(Name::from(b"Name"), Object::String(b"SECRETNAME".to_vec()));
+    let id = ObjId::new(doc.next_object_number().unwrap(), 0);
+    let mut dirty = DirtySet::empty();
+    dirty.replace(id, Object::Dict(sig));
+    let (out, _) = save_incremental(&doc, &dirty, &SaveOptions::default()).unwrap();
+    let appended = &out[original.len()..];
+    let hex: Vec<u8> = b"CLEARSIG"
+        .iter()
+        .flat_map(|b| format!("{b:02X}").into_bytes())
+        .collect();
+    let has = |n: &[u8]| appended.windows(n.len()).any(|w| w.eq_ignore_ascii_case(n));
+    assert!(has(b"CLEARSIG") || has(&hex), "/Contents in clear");
+    assert!(!has(b"SECRETNAME"), "/Name is encrypted");
+    let reopened = open(&out, b"userpw");
+    let Object::Dict(d) = &reopened.get(id).unwrap().value else {
+        panic!()
+    };
+    assert_eq!(
+        d.get(b"Contents"),
+        Some(&Object::String(b"CLEARSIG".to_vec()))
+    );
+    assert_eq!(
+        d.get(b"Name"),
+        Some(&Object::String(b"SECRETNAME".to_vec()))
+    );
+}

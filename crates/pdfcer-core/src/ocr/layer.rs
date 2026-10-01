@@ -143,6 +143,7 @@
 //! landed in that case rather than discovering it from a page of `?`.
 
 use super::marker::{LayerStrip, contents_without, page_ocr_layers, plan_strip};
+use crate::crypto::PermissionBit;
 use crate::document::Document;
 use crate::fontdata::{self, BaseEncoding, Std14};
 use crate::graph::ObjectGraph;
@@ -417,8 +418,9 @@ pub enum OcrLayerError {
     /// The page index is past the end of the document.
     #[error("page index {0} is out of range")]
     PageIndex(usize),
-    /// The document is encrypted; this path does not re-encrypt what it writes.
-    #[error("the document is encrypted — decrypt it before adding an OCR layer")]
+    /// The document is encrypted and this edit is not permitted: see
+    /// [`EditError::DocumentEncrypted`](crate::edit::EditError::DocumentEncrypted).
+    #[error("{}", crate::edit::ENCRYPTED_EDIT_REFUSED)]
     Encrypted,
     /// The recognised page contained no word that could be written.
     ///
@@ -901,7 +903,7 @@ pub fn add_ocr_layer(
     ocr_page: &OcrPage,
     opts: &OcrLayerOptions,
 ) -> Result<OcrLayerOutcome, OcrLayerError> {
-    if doc.trailer().contains_key(b"Encrypt") {
+    if crate::encryption_gate::forbids(doc, &[PermissionBit::ModifyContents]) {
         return Err(OcrLayerError::Encrypted);
     }
 

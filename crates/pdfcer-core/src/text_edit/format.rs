@@ -232,6 +232,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{ContentError, ContentStream};
+use crate::crypto::PermissionBit;
 use crate::document::Document;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
@@ -1551,10 +1552,9 @@ pub enum FormatError {
     /// resource — including outlined/vectorized text).
     #[error("this run cannot be formatted in the first cut: {0}")]
     Unsupported(String),
-    /// The document is encrypted (out of scope for text editing).
-    #[error(
-        "the document is encrypted; in-place text formatting of encrypted files is out of scope"
-    )]
+    /// The document is encrypted and this edit is not permitted: see
+    /// [`EditError::DocumentEncrypted`](crate::edit::EditError::DocumentEncrypted).
+    #[error("{}", crate::edit::ENCRYPTED_EDIT_REFUSED)]
     Encrypted,
     /// A target width that is zero, negative or not a number (`G038`).
     #[error("a text run's width must be a finite number of points greater than 0 (got {0})")]
@@ -1679,7 +1679,7 @@ pub fn set_format(
     if req.is_empty() {
         return Err(FormatError::NoOp);
     }
-    if doc.trailer().contains_key(b"Encrypt") {
+    if crate::encryption_gate::forbids(doc, &[PermissionBit::ModifyContents]) {
         return Err(FormatError::Encrypted);
     }
     let pages = page_tree::pages(doc)?;

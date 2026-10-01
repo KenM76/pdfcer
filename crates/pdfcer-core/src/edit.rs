@@ -128,6 +128,7 @@ use crate::annot::AnnotFlags;
 use crate::annot_author::{
     self, CaretSpec, FileAttachmentSpec, MarkupSpec, ScreenSpec, SoundSpec, TextAnnotSpec,
 };
+use crate::crypto::PermissionBit;
 // `Pass 292.0`: the stamp-parameter types live in `annot`, where the parse
 // they describe lives, and are re-exported here because `EditSession` is where
 // a caller meets them.
@@ -6462,6 +6463,9 @@ pub enum EncryptError {
     RedactionPending,
 }
 
+/// The message every encrypted-document edit refusal carries.
+pub const ENCRYPTED_EDIT_REFUSED: &str = "the document is encrypted and the password that opened it does not permit this edit (or it uses RC4, which pdfcer does not write); open it with the owner password";
+
 /// Why an edit could not be performed.
 ///
 /// Every variant names a condition the operator (or the calling front
@@ -8111,22 +8115,13 @@ pub enum EditError {
     /// surviving members instead and cannot raise this.
     #[error(transparent)]
     SeparationSplit(#[from] SeparationSplitRefused),
-    /// Annotation authoring was attempted on an **encrypted** document
-    /// (§7.6). Refused **by name** (X10, R27 posture): an annotation's
-    /// `/Contents`/`/T`/`/Subj` strings are encrypted per object, and
-    /// writing them plaintext into an encrypted file would produce a
-    /// document that opens and shows mojibake — a plausible, working,
-    /// wrong file.
-    ///
-    /// Encryption support is Pass 5. The [`crate::writer::encoder`]
-    /// object-encoder seam (R37) already exists, so the eventual fix is a
-    /// plug-in, not a retrofit. Until then, authoring is declined rather
-    /// than attempted.
-    #[error(
-        "this document is encrypted (/Encrypt); pdfcer cannot yet author annotations into an \
-         encrypted file (encryption is Pass 5) — authoring is refused rather than corrupting \
-         the file's per-object string encryption"
-    )]
+    /// The document is encrypted, and either the password that opened it
+    /// does not grant the permission this edit needs (ISO 32000-2 Table 22:
+    /// bit 4 content, 6 annotations, 9 form filling, 11 page assembly; the
+    /// owner password grants all), or it uses RC4, which pdfcer never writes
+    /// (W14). A permitted edit on an AES document saves incrementally under
+    /// the document's own key.
+    #[error("{}", ENCRYPTED_EDIT_REFUSED)]
     DocumentEncrypted,
     /// A [`MarkupNote::modified`] date string is not a PDF date (§7.9.4)
     /// (`Pass 150.0`).
@@ -9667,6 +9662,17 @@ type FormatFormHit = (
     Option<crate::text_edit::format::CreatedFont>,
 );
 
+/// Whether a page's own `/CropBox` moves with a resize under `follow`.
+fn crop_follows_resize(page: &Page, follow: CropFollow) -> bool {
+    page.crop_box_resolution != page_tree::BoxResolution::Defaulted
+        && match follow {
+            CropFollow::Keep => false,
+            CropFollow::Always => true,
+            // `WhenItMatched` and any future default.
+            _ => page.crop_box == page.media_box,
+        }
+}
+
 impl EditSession {
     /// Open an editing session over `doc`.
     ///
@@ -10218,7 +10224,7 @@ impl EditSession {
     /// dictionary wholesale would silently delete the document-level
     /// JavaScript that makes its dynamic stamps work.
     pub fn set_named_pages(&mut self, names: Vec<Object>) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
 
@@ -10304,6 +10310,9 @@ impl EditSession {
         field: InfoField,
         value: Option<&str>,
     ) -> Result<(), EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let kind = match value {
             Some(_) => CommandKind::SetInfoField(field),
             None => CommandKind::ClearInfoField(field),
@@ -10459,6 +10468,9 @@ impl EditSession {
     /// [`EditError::RotationNotMultipleOf90`], [`EditError::PageOutOfRange`],
     /// [`EditError::PageTree`], or [`EditError::NotADictionary`].
     pub fn set_page_rotation(&mut self, page_index: usize, degrees: i32) -> Result<(), EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let write = self.rotation_write(page_index, degrees)?;
         let Some((write, normalized)) = write else {
             return Ok(()); // no-op
@@ -10592,6 +10604,9 @@ impl EditSession {
     ///
     /// As [`EditSession::set_page_rotation`].
     pub fn rotate_page_by(&mut self, page_index: usize, delta: i32) -> Result<(), EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         if delta % 90 != 0 {
             return Err(EditError::RotationNotMultipleOf90 { degrees: delta });
         }
@@ -10792,6 +10807,9 @@ impl EditSession {
         page_index: usize,
         rect: page_tree::Rect,
     ) -> Result<MediaBoxChange, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         // A page-attribute change is a document modification, so it takes
         // the same certification gate `rotate_pages` takes.
         self.check_certification()?;
@@ -10840,6 +10858,9 @@ impl EditSession {
         indices: &[usize],
         rect: page_tree::Rect,
     ) -> Result<Vec<MediaBoxChange>, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
         let target = normalize_media_box(rect)?;
 
@@ -11442,6 +11463,9 @@ impl EditSession {
         indices: &[usize],
         edit: CropBoxEdit,
     ) -> Result<Vec<CropBoxChange>, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
         let mut targets: Vec<usize> = indices.to_vec();
         targets.sort_unstable();
@@ -11516,6 +11540,9 @@ impl EditSession {
         rect: page_tree::Rect,
         follow: CropFollow,
     ) -> Result<Vec<PageResize>, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
         let target = normalize_media_box(rect)?;
         let mut targets: Vec<usize> = indices.to_vec();
@@ -11544,15 +11571,7 @@ impl EditSession {
                 Some(Object::Dict(d)) => d,
                 _ => current.clone(),
             };
-            let carries_crop = page.crop_box_resolution != page_tree::BoxResolution::Defaulted;
-            let follows = carries_crop
-                && match follow {
-                    CropFollow::Keep => false,
-                    CropFollow::Always => true,
-                    // `WhenItMatched` and any future default.
-                    _ => page.crop_box == page.media_box,
-                };
-            let crop = if follows {
+            let crop = if crop_follows_resize(page, follow) {
                 let change = self.crop_box_update(
                     index,
                     slot,
@@ -12282,7 +12301,7 @@ impl EditSession {
         use crate::text_edit::EditTarget;
         use crate::text_edit::edit::{EditPlanTarget, PlanMode, plan_edit_with_records};
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(TeError::Encrypted);
         }
         let pages = self.pages()?;
@@ -12427,7 +12446,7 @@ impl EditSession {
         use crate::text_edit::EditError as TeError;
         use crate::text_edit::edit::{EditPlanTarget, PlanMode, plan_edit_with_records};
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(TeError::Encrypted);
         }
         if matches!(req.target, crate::text_edit::EditTarget::Form { .. }) {
@@ -12727,7 +12746,7 @@ impl EditSession {
         if req.is_empty() {
             return Err(FmtError::NoOp);
         }
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(FmtError::Encrypted);
         }
         let pages = self.pages()?;
@@ -13002,7 +13021,7 @@ impl EditSession {
         use crate::text_edit::FormatError as FmtError;
         use crate::text_edit::format::preview_style_resolution;
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(FmtError::Encrypted);
         }
         let pages = self.pages()?;
@@ -13070,7 +13089,7 @@ impl EditSession {
         use crate::text_edit::FormatError as FmtError;
         use crate::text_edit::format::preview_style_ladder;
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(FmtError::Encrypted);
         }
         let pages = self.pages()?;
@@ -13117,7 +13136,7 @@ impl EditSession {
         use crate::text_edit::FormatError as FmtError;
         use crate::text_edit::format::preview_style_ladder;
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(FmtError::Encrypted);
         }
         let pages = self.pages()?;
@@ -13195,7 +13214,7 @@ impl EditSession {
         use crate::text_edit::FormatError as FmtError;
         use crate::text_edit::format::preview_font_resources;
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(FmtError::Encrypted);
         }
         let pages = self.pages()?;
@@ -13246,7 +13265,7 @@ impl EditSession {
         use crate::text_edit::FormatError as FmtError;
         use crate::text_edit::format::preview_font_resources_for;
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(FmtError::Encrypted);
         }
         let pages = self.pages()?;
@@ -13338,7 +13357,7 @@ impl EditSession {
     ) -> Result<crate::text_edit::RunRepertoire, crate::text_edit::FormatError> {
         use crate::text_edit::FormatError as FmtError;
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(FmtError::Encrypted);
         }
         let pages = self.pages()?;
@@ -13408,7 +13427,7 @@ impl EditSession {
         use crate::text_edit::ReflowApplyError as RErr;
         use crate::text_edit::reflow_apply::plan_reflow_from_doc;
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(RErr::Encrypted);
         }
         let pages = self.pages()?;
@@ -13573,7 +13592,7 @@ impl EditSession {
         page_index: usize,
         form: ObjId,
     ) -> Result<UnshareFormReport, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -13820,7 +13839,7 @@ impl EditSession {
         // before any work, and keeping the order identical across the three
         // entry points is what stops one of them growing a different answer to
         // the same document.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(OlError::Encrypted);
         }
         let census = crate::signature::census(&self.base);
@@ -13963,7 +13982,7 @@ impl EditSession {
         use crate::ocr::layer::OcrLayerError as OlError;
         use crate::ocr::marker::{contents_without, page_ocr_layers, plan_strip};
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(OlError::Encrypted);
         }
         let census = crate::signature::census(&self.base);
@@ -14141,7 +14160,7 @@ impl EditSession {
         // Guards mirror the free function and `add_markup`, in the SAME order
         // (encryption → certification → /Size-hides-objects): each is a named
         // refusal made before any work.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(AtError::Encrypted);
         }
         // An enforced-DocMDP certification forbids adding page content
@@ -14284,7 +14303,7 @@ impl EditSession {
             BatesError, BatesOutcome, helvetica_width, label_content, label_matrix, winansi_bytes,
         };
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -14424,7 +14443,7 @@ impl EditSession {
     ) -> Result<crate::bates::BatesRemoval, EditError> {
         use crate::bates::{BatesRemoval, parse_label};
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -17070,6 +17089,9 @@ impl EditSession {
         run_index: usize,
         width_pts: f64,
     ) -> Result<crate::text_edit::FormatReport, crate::text_edit::FormatError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(crate::text_edit::FormatError::Encrypted);
+        }
         use crate::text_edit::FormatError as FmtError;
         if !(width_pts.is_finite() && width_pts > 0.0) {
             return Err(FmtError::BadTargetWidth(width_pts));
@@ -17155,7 +17177,7 @@ impl EditSession {
         opts: &crate::text_edit::MergeOptions,
     ) -> Result<crate::text_edit::MergeReport, crate::text_edit::FormatError> {
         use crate::text_edit::FormatError as FmtError;
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(FmtError::Encrypted);
         }
         let model = self.page_objects(page_index).map_err(|e| match e {
@@ -17477,7 +17499,7 @@ impl EditSession {
         clip: &crate::vector::ObjectClip,
         at: crate::vector::Matrix,
     ) -> Result<(crate::vector::PastePlan, ObjId, Dict), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -17861,7 +17883,7 @@ impl EditSession {
         // answer for a document the verb does not see -- so any change to the
         // guard set below belongs in `vector_surgery_inner` too, and both
         // carry this note.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -18524,7 +18546,7 @@ impl EditSession {
         // The same guard set the page path runs, in the same order. Any change
         // to one belongs in the other; `vector_surgery_inner` carries the twin
         // of this note.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -19153,7 +19175,7 @@ impl EditSession {
             &crate::vector::PageObjects,
         ) -> Result<crate::vector::PlannedEdit, EditError>,
     ) -> Result<crate::vector::PlannedEdit, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         // An enforced-DocMDP certification forbids editing page content
@@ -26733,7 +26755,7 @@ impl EditSession {
         if w <= 0.0 || h <= 0.0 {
             return Err(EditError::FieldRectDegenerate { w, h });
         }
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -28253,7 +28275,7 @@ impl EditSession {
         &mut self,
         fqn: &str,
     ) -> Result<(Vec<forms::Field>, FieldGroupDeletion), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         // STRICT, matching `deletion_preflight`: removing a subtree is a
@@ -30066,7 +30088,7 @@ impl EditSession {
     /// structural change to the form and that is precisely what a
     /// certification signature freezes.
     pub fn rename_field(&mut self, fqn: &str, new_partial: &str) -> Result<FieldRename, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -30303,7 +30325,7 @@ impl EditSession {
     }
 
     fn deletion_preflight(&mut self, fqn: &str) -> Result<(forms::Field, ()), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         // STRICT, not the `/P`-aware fill gate: removing a field changes the
@@ -31815,7 +31837,7 @@ impl EditSession {
         // Guard 1 (X10): encryption. Checked against the base trailer —
         // pdfcer does not yet load most encrypted files, but a defensive
         // named refusal here is the R37 seam the Pass-5 fix plugs into.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         // Guard 2 (X11): enforced certification — the ANNOTATION-aware gate
@@ -32022,7 +32044,7 @@ impl EditSession {
         bytes: &[u8],
         description: Option<&str>,
     ) -> Result<ObjId, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -32302,7 +32324,7 @@ impl EditSession {
         &mut self,
         page_index: usize,
     ) -> Result<(Vec<page_tree::PageSlot>, ObjId), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -33024,7 +33046,7 @@ impl EditSession {
     /// those live on a page's `/Annots` and are removed with
     /// [`EditSession::delete_annotation`] instead.
     pub fn detach_file(&mut self, key: &[u8]) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -33181,7 +33203,7 @@ impl EditSession {
         page_index: usize,
         spec: &annot_author::RedactSpec,
     ) -> Result<ObjId, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         // The ANNOTATION-aware gate (`Pass 38.5`), and the distinction it
@@ -33314,7 +33336,7 @@ impl EditSession {
     /// [`EditError::CertificationForbidsChange`];
     /// [`EditError::PageTree`]. Every refusal happens before any mutation.
     pub fn delete_redaction_mark(&mut self, annot_id: ObjId) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         // The ANNOTATION-aware gate (`Pass 38.5`) — removing a mark is
@@ -33526,7 +33548,7 @@ impl EditSession {
         // code path could produce it. An audit found the same hole in five
         // verbs at once, so this is a class fix. Spelled inline to match the
         // 64 other sites rather than introduce a second idiom for five.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         // §12.5.3 Table 165 bit 8, and this verb is squarely inside the
@@ -33921,7 +33943,7 @@ impl EditSession {
         // code path could produce it. An audit found the same hole in five
         // verbs at once, so this is a class fix. Spelled inline to match the
         // 64 other sites rather than introduce a second idiom for five.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
 
@@ -34044,7 +34066,7 @@ impl EditSession {
         // code path could produce it. An audit found the same hole in five
         // verbs at once, so this is a class fix. Spelled inline to match the
         // 64 other sites rather than introduce a second idiom for five.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         // §12.5.3 Table 165 bit 8, and this verb is squarely inside the
@@ -35370,6 +35392,9 @@ impl EditSession {
         page_index: usize,
         new_order: &[ObjId],
     ) -> Result<AnnotsReorder, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
 
         let slots = self.page_slots()?;
@@ -35702,6 +35727,9 @@ impl EditSession {
         page_index: usize,
         tabs: PageTabs,
     ) -> Result<PageTabs, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
         let slots = self.page_slots()?;
         let page_id = slots
@@ -36040,7 +36068,7 @@ impl EditSession {
         // code path could produce it. An audit found the same hole in five
         // verbs at once, so this is a class fix. Spelled inline to match the
         // 64 other sites rather than introduce a second idiom for five.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         // §12.5.3 Table 165 bit 8, and this verb is squarely inside the
@@ -37053,7 +37081,7 @@ impl EditSession {
         annot_id: ObjId,
         style: &TextAnnotStyle,
     ) -> Result<TextAnnotStyleChange, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -37239,7 +37267,7 @@ impl EditSession {
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         if target.subtype == b"Widget" {
@@ -37332,7 +37360,7 @@ impl EditSession {
         annot_id: ObjId,
         open: bool,
     ) -> Result<AnnotationOpenChange, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -37450,7 +37478,7 @@ impl EditSession {
         // code path could produce it. An audit found the same hole in five
         // verbs at once, so this is a class fix. Spelled inline to match the
         // 64 other sites rather than introduce a second idiom for five.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
 
@@ -37747,7 +37775,7 @@ impl EditSession {
         // ones that are about the DOCUMENT before the ones about this
         // annotation, so an operator working on an encrypted file is told
         // about the encryption rather than about a subtype.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         // §12.8.2.2 Table 254 `P = 3`: "annotation creation, deletion, and
@@ -38393,7 +38421,7 @@ impl EditSession {
     fn ink_plan(&self, annot_id: ObjId, edit: &InkEdit) -> Result<InkPlan, EditError> {
         // Document gates before annotation gates — same order and same
         // reasoning as `reshape_plan`.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -38519,7 +38547,7 @@ impl EditSession {
     fn reshape_plan(&self, annot_id: ObjId, edit: VertexEdit) -> Result<ReshapePlan, EditError> {
         // Document gates before annotation gates — same order and same
         // reasoning as `set_markup_style`.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         // §12.8.2.2 Table 254 `P = 3` names annotation "modification".
@@ -39268,7 +39296,7 @@ impl EditSession {
                 .unwrap_or_else(|| "(unresolved)".to_owned());
             return Err(EditError::AnnotationIsWidget { id: annot_id, name });
         }
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()
@@ -39748,7 +39776,7 @@ impl EditSession {
     /// ```
     #[must_use]
     pub fn annotation_deletion_refusal(&self) -> Option<EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Some(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation().err()
@@ -40162,7 +40190,7 @@ impl EditSession {
         //    extracts and scans every page, then throws all of it away at
         //    the first `add_redaction`. On a large document that is a long
         //    stall with no output — the worst shape of "no" there is.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -40819,7 +40847,7 @@ impl EditSession {
         page_index: usize,
         rect: crate::page_tree::Rect,
     ) -> Result<PlacedArtwork, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -41028,7 +41056,7 @@ impl EditSession {
         // Table 254 `P = 3` permits. "Identical to add_markup" is load
         // bearing here; the two verbs author the same kind of object and a
         // divergence between their gates would be arbitrary.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -41329,7 +41357,7 @@ impl EditSession {
     /// be the same expression rather than a second transcription of it — the
     /// defect that made `fill_refusal` wrong for two of its three paths.
     fn flatten_guards(&self) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         // STRICT gate: flatten removes structure, so it uses the same
@@ -41422,7 +41450,7 @@ impl EditSession {
     /// which is a genuinely different computation and not a variant of this
     /// one.
     fn structural_form_refusal(&self) -> Option<EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Some(EditError::DocumentEncrypted);
         }
         self.check_certification().err()
@@ -41444,7 +41472,10 @@ impl EditSession {
     /// `/P`-aware fill certification gate, and the `/Size`-suppression guard
     /// (a fill creates appearance-stream objects for text/choice fields).
     fn fill_guards(&self) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(
+            &self.base,
+            &[PermissionBit::FillForms, PermissionBit::Annotate],
+        ) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_fill()?;
@@ -41759,7 +41790,10 @@ impl EditSession {
     pub fn set_button_state(&mut self, fqn: &str, on_state: &str) -> Result<(), EditError> {
         // Buttons author no new objects, so the /Size guard is not needed;
         // the encryption + certification guards still are.
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(
+            &self.base,
+            &[PermissionBit::FillForms, PermissionBit::Annotate],
+        ) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_fill()?;
@@ -42130,6 +42164,9 @@ impl EditSession {
         fqn: &str,
         helper: Option<crate::form_script::FormatHelper>,
     ) -> Result<FieldScriptChange, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.set_field_script(
             fqn,
             crate::form_script::Trigger::Format,
@@ -42164,6 +42201,9 @@ impl EditSession {
         fqn: &str,
         helper: Option<crate::form_script::AdvisoryHelper>,
     ) -> Result<FieldScriptChange, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.set_field_script(
             fqn,
             crate::form_script::Trigger::Validate,
@@ -42196,6 +42236,9 @@ impl EditSession {
         fqn: &str,
         helper: Option<crate::form_script::CalcHelper>,
     ) -> Result<FieldScriptChange, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.set_field_script(
             fqn,
             crate::form_script::Trigger::Calculate,
@@ -42219,7 +42262,7 @@ impl EditSession {
     ) -> Result<FieldScriptChange, EditError> {
         use crate::form_script::{ScriptClass, Trigger, emit};
 
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -42602,7 +42645,7 @@ impl EditSession {
         fqn: &str,
         action: Option<ButtonAction>,
     ) -> Result<ButtonActionChange, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -44050,7 +44093,7 @@ impl EditSession {
         &mut self,
         material: &ValidationMaterial,
     ) -> Result<DssReport, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         let suppressed = self.base.suppressed_object_count();
@@ -45999,7 +46042,10 @@ impl EditSession {
         if let Some(err) = self.fill_refusal() {
             return Err(err);
         }
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(
+            &self.base,
+            &[PermissionBit::FillForms, PermissionBit::Annotate],
+        ) {
             return Err(EditError::DocumentEncrypted);
         }
 
@@ -47939,6 +47985,9 @@ impl EditSession {
     ///   one page.
     /// - [`EditError::PageOutOfRange`], [`EditError::PageTree`].
     pub fn delete_pages(&mut self, indices: &[usize]) -> Result<DeleteOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.delete_pages_with(indices, SeparationPolicy::default())
     }
 
@@ -47962,6 +48011,9 @@ impl EditSession {
         indices: &[usize],
         separations: SeparationPolicy,
     ) -> Result<DeleteOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.delete_pages_with_labels(indices, separations, DeletedPageLabels::default())
     }
 
@@ -48329,6 +48381,9 @@ impl EditSession {
         last: usize,
         format: &crate::page_labels::LabelFormat,
     ) -> Result<usize, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
         if first > last {
             return Err(EditError::InvertedPageRange { first, last });
@@ -48373,6 +48428,9 @@ impl EditSession {
     ///
     /// [`EditError::CertificationForbidsChange`].
     pub fn clear_page_labels(&mut self) -> Result<bool, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
         let Some(catalog_id) = self.graph().catalog_id() else {
             return Ok(false);
@@ -48441,6 +48499,9 @@ impl EditSession {
     /// - [`EditError::NotAPermutation`] — `new_order` is not one.
     /// - [`EditError::PageTree`].
     pub fn reorder_pages(&mut self, new_order: &[usize]) -> Result<(), EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.reorder_pages_with_labels(new_order, ReorderedPageLabels::default())
             .map(|_| ())
     }
@@ -48461,6 +48522,9 @@ impl EditSession {
         new_order: &[usize],
         labels: ReorderedPageLabels,
     ) -> Result<usize, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
 
         let slots = self.page_slots()?;
@@ -48667,7 +48731,7 @@ impl EditSession {
         source: &DocumentView<'_>,
         position: crate::pageops::InsertPosition,
     ) -> Result<MergeOutcome, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -49745,6 +49809,9 @@ impl EditSession {
         source_pages: &[usize],
         position: crate::pageops::InsertPosition,
     ) -> Result<InsertOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.insert_pages_with(
             source,
             source_pages,
@@ -49767,6 +49834,9 @@ impl EditSession {
         position: crate::pageops::InsertPosition,
         labels: crate::pageops::InsertedPageLabels,
     ) -> Result<InsertOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
         let target_count = self.page_slots()?.len();
         let at = position.slot(target_count);
@@ -50168,6 +50238,9 @@ impl EditSession {
     /// - [`EditError::RotationNotMultipleOf90`] (Table 30),
     ///   [`EditError::PageOutOfRange`], [`EditError::PageTree`].
     pub fn rotate_pages(&mut self, indices: &[usize], delta: i32) -> Result<usize, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.check_certification()?;
         if delta % 90 != 0 {
             return Err(EditError::RotationNotMultipleOf90 { degrees: delta });
@@ -50665,7 +50738,7 @@ impl EditSession {
         group: GroupId,
         kind: DimensionKind,
     ) -> Result<(ObjId, DimensionId), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -50839,7 +50912,7 @@ impl EditSession {
     /// Encryption / enforced-certification guards, as the other dimension
     /// operations.
     pub fn add_dimension_group(&mut self, name: &str, unit: Unit) -> Result<GroupId, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -51036,7 +51109,7 @@ impl EditSession {
         name: Option<&str>,
         dr_fonts: &DrFonts,
     ) -> Result<(AdoptOutcome, Vec<ObjectWrite>), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -51242,7 +51315,7 @@ impl EditSession {
         name: &[u8],
         destination: crate::outline::Destination,
     ) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -51373,7 +51446,7 @@ impl EditSession {
     /// [`EditError::DocumentEncrypted`], the certification gate, and
     /// [`EditError::NotADictionary`] if the id is not an outline item.
     pub fn set_outline_title(&mut self, item_id: ObjId, title: &str) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -51431,7 +51504,7 @@ impl EditSession {
     /// outline ROOT: the root is not an item, has no `/Parent`, and deleting
     /// it means deleting the outline — a different act with a different verb.
     pub fn delete_outline_item(&mut self, item_id: ObjId) -> Result<usize, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -51744,7 +51817,7 @@ impl EditSession {
         title: &str,
         destination: Option<crate::outline::Destination>,
     ) -> Result<ObjId, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -52137,7 +52210,7 @@ impl EditSession {
     /// other quantity (it counts visible items at every level and *"cannot be
     /// negative"*), so it has no open/closed state to set.
     pub fn set_outline_open(&mut self, item_id: ObjId, open: bool) -> Result<bool, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -52334,7 +52407,7 @@ impl EditSession {
         item_id: ObjId,
         to: OutlinePlacement,
     ) -> Result<OutlineMove, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -52690,7 +52763,7 @@ impl EditSession {
         group: crate::dimension::GroupId,
         name: &str,
     ) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -52755,7 +52828,7 @@ impl EditSession {
         group: crate::dimension::GroupId,
         policy: GroupDeletion,
     ) -> Result<usize, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -52870,7 +52943,7 @@ impl EditSession {
         dimension: crate::dimension::DimensionId,
         group: crate::dimension::GroupId,
     ) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -52916,7 +52989,7 @@ impl EditSession {
         scale: ScaleState,
         format: NumberFormat,
     ) -> Result<usize, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -53005,7 +53078,7 @@ impl EditSession {
         group: GroupId,
         visible: bool,
     ) -> Result<bool, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -53102,7 +53175,7 @@ impl EditSession {
         layer: ObjId,
         edit: &LayerEdit,
     ) -> Result<LayerEditOutcome, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -53287,7 +53360,7 @@ impl EditSession {
     /// # Ok(()) }
     /// ```
     pub fn add_layer(&mut self, name: &str, edit: &LayerEdit) -> Result<ObjId, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -53582,6 +53655,9 @@ impl EditSession {
         &mut self,
         hidden: HiddenLayerPolicy,
     ) -> Result<LayerFlattenOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let read = crate::layers::read_layers(&self.graph());
         let label = |l: &crate::layers::Layer| {
             if l.name_declared {
@@ -54003,6 +54079,9 @@ impl EditSession {
         index: usize,
         label: &str,
     ) -> Result<LayerOrderOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         if label.is_empty() {
             return Err(EditError::EmptyLayerName);
         }
@@ -54067,6 +54146,9 @@ impl EditSession {
         at: &[usize],
         label: &str,
     ) -> Result<LayerOrderOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         if label.is_empty() {
             return Err(EditError::EmptyLayerName);
         }
@@ -54131,6 +54213,9 @@ impl EditSession {
     /// # Ok(()) }
     /// ```
     pub fn delete_layer_folder(&mut self, at: &[usize]) -> Result<LayerOrderOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let (catalog_id, mut root) = self.load_order()?;
         let tree = self.pending_order(&BTreeMap::new());
         let node = self.order_label_node(&tree, at)?;
@@ -54208,6 +54293,9 @@ impl EditSession {
         parent: &[usize],
         index: usize,
     ) -> Result<LayerOrderOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let from_missing = || EditError::LayerOrderPathNotFound {
             path: from.to_vec(),
         };
@@ -54263,7 +54351,7 @@ impl EditSession {
     /// The catalog and the raw `/D /Order` of an editable document with
     /// `/OCProperties`; an absent `/Order` loads as an empty array.
     fn load_order(&self) -> Result<(ObjId, RawOrder), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -54449,7 +54537,7 @@ impl EditSession {
         layer: Option<ObjId>,
     ) -> Result<AnnotationLayerChange, EditError> {
         let (target, _all) = self.locate_annotation(annot_id)?;
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
@@ -54898,7 +54986,7 @@ impl EditSession {
     /// The catalog id, when `layer` is a dictionary listed in
     /// `/OCProperties /OCGs` of an unencrypted, editable document.
     fn require_layer(&self, layer: ObjId) -> Result<ObjId, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -55404,7 +55492,7 @@ impl EditSession {
         offset: f64,
         text_along: f64,
     ) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -55539,7 +55627,7 @@ impl EditSession {
         end: crate::dimension::DimensionEnd,
         gap: Option<f64>,
     ) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -55648,7 +55736,7 @@ impl EditSession {
         dimension: DimensionId,
         show_diameter: bool,
     ) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -55724,7 +55812,7 @@ impl EditSession {
         group: GroupId,
         standard: DimStandard,
     ) -> Result<usize, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -55793,7 +55881,7 @@ impl EditSession {
         group: GroupId,
         style: crate::dimension::GroupStyle,
     ) -> Result<usize, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -55856,7 +55944,7 @@ impl EditSession {
         dimension: DimensionId,
         style: crate::dimension::StyleOverrides,
     ) -> Result<usize, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -55997,7 +56085,7 @@ impl EditSession {
         dimension: DimensionId,
         label: Option<&str>,
     ) -> Result<DimensionLabelChange, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -56130,7 +56218,7 @@ impl EditSession {
     /// into a document, plus the encryption and enforced-certification guards.
     /// Every refusal happens before any mutation (rule 4).
     pub fn delete_dimension(&mut self, dimension: DimensionId) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -56271,7 +56359,7 @@ impl EditSession {
     /// disclosed and confirmed.
     #[must_use]
     pub fn unembed_refusal(&self) -> Option<EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Some(EditError::DocumentEncrypted);
         }
         self.check_certification().err()
@@ -56535,7 +56623,7 @@ impl EditSession {
     /// the claim for context and pdfcer validates none of it.
     #[must_use]
     pub fn embed_refusal(&self) -> Option<EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Some(EditError::DocumentEncrypted);
         }
         self.check_certification().err()
@@ -56766,7 +56854,7 @@ impl EditSession {
         dx: f64,
         dy: f64,
     ) -> Result<(), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -56844,7 +56932,7 @@ impl EditSession {
         pivot: (f64, f64),
         degrees: f64,
     ) -> Result<DimensionRotate, EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -57119,7 +57207,7 @@ impl EditSession {
         dimension: DimensionId,
         edit: VertexEdit,
     ) -> Result<(VertexOutcome, DimensionKind), EditError> {
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -58931,7 +59019,7 @@ impl EditSession {
         if rw <= 0.0 || rh <= 0.0 || rw.is_nan() || rh.is_nan() {
             return Err(EditError::ImageRectDegenerate { w: rw, h: rh });
         }
-        if self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
@@ -59598,6 +59686,9 @@ impl EditSession {
         &mut self,
         item_id: ObjId,
     ) -> Result<crate::outline::OutlineClip, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let clip = self.copy_outline_item(item_id)?;
         self.delete_outline_item(item_id)?;
         let _ = self.coalesce_last(1, CommandKind::CutSelection);
@@ -59843,6 +59934,9 @@ impl EditSession {
         &mut self,
         key: &[u8],
     ) -> Result<crate::attachments::AttachmentClip, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let clip = self.copy_attachment(key)?;
         self.detach_file(key)?;
         let _ = self.coalesce_last(1, CommandKind::CutSelection);
@@ -59861,6 +59955,9 @@ impl EditSession {
         &mut self,
         clip: &crate::attachments::AttachmentClip,
     ) -> Result<ObjId, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         self.attach_file(&clip.name, &clip.bytes, clip.description.as_deref())
     }
 
@@ -59934,6 +60031,9 @@ impl EditSession {
     /// is not a document, so cutting all of them is refused rather than
     /// producing one.
     pub fn cut_pages(&mut self, indices: &[usize]) -> Result<crate::pageops::PageClip, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let clip = self.copy_pages(indices)?;
         self.delete_pages(indices)?;
         // One command; the relabel is why a count of 1 is passed rather than
@@ -59969,6 +60069,9 @@ impl EditSession {
         clip: &crate::pageops::PageClip,
         position: crate::pageops::InsertPosition,
     ) -> Result<InsertOutcome, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let doc = crate::document::Document::from_bytes(clip.bytes.clone())
             .map_err(|e| EditError::Clip(crate::vector::ClipError::Content(e.to_string())))?;
         let view = DocumentView::new(&doc, doc.bytes(), doc.version());
@@ -60015,6 +60118,9 @@ impl EditSession {
     /// **strict** certification guards. **The copy runs first**, so a field
     /// that cannot be carried is refused with nothing deleted.
     pub fn cut_field(&mut self, fqn: &str) -> Result<crate::formclip::FieldCut, EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
         let clip = self.copy_field(fqn)?;
         let deletion = self.delete_field(fqn)?;
         // One command; the relabel is the whole point of passing a count of 1.
@@ -60978,7 +61084,7 @@ impl EditSession {
         if self.redaction_pending {
             return Err(SignApplyError::RedactionPending);
         }
-        if self.base.encryption().is_some() || self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(SignApplyError::Encrypted);
         }
         if self.base.loaded_via_recovery() {
@@ -61109,7 +61215,7 @@ impl EditSession {
         let (token, info) = ts::accept_response(&response, &query)?;
         apply::back_patch(&mut bytes, hole, &token)?;
 
-        let reparsed = Document::from_bytes(bytes.clone()).map_err(|e| {
+        let reparsed = self.base.reopen_appended(bytes.clone()).map_err(|e| {
             SignApplyError::SelfVerificationFailed {
                 reason: format!("the time-stamped bytes did not re-parse: {e}"),
             }
@@ -61180,7 +61286,7 @@ impl EditSession {
         if self.redaction_pending {
             return Err(SignApplyError::RedactionPending);
         }
-        if self.base.encryption().is_some() || self.base.trailer().contains_key(b"Encrypt") {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(SignApplyError::Encrypted);
         }
         if self.base.loaded_via_recovery() {
@@ -61641,7 +61747,7 @@ impl EditSession {
         apply::back_patch(&mut bytes, hole, &cms.der)?;
 
         // --- 5. self-verify ----------------------------------------------------
-        let reparsed = Document::from_bytes(bytes.clone()).map_err(|e| {
+        let reparsed = self.base.reopen_appended(bytes.clone()).map_err(|e| {
             SignApplyError::SelfVerificationFailed {
                 reason: format!("the signed bytes did not re-parse: {e}"),
             }

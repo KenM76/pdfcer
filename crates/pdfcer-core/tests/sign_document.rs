@@ -452,3 +452,54 @@ fn a_visible_signature_gets_a_widget_with_a_rect_and_an_appearance() {
     );
     assert_eq!(report.field_name, "Signature1");
 }
+
+/// An AES-encrypted document opened with the owner password signs by an
+/// incremental append under its own key; the signature's `/Contents` is
+/// written in clear (ISO 32000-2 §7.6.2) and verifies after a user reopen.
+#[test]
+fn an_owner_opened_aes_document_signs_and_verifies() {
+    for name in ["enc-aes-128.pdf", "enc-aes-256-r6.pdf"] {
+        let original = std::fs::read(fixtures().join("encryption").join(name)).unwrap();
+        let doc = Document::from_bytes_with_password(original.clone(), Some(b"ownerpw")).unwrap();
+        let signer = pfx("rsa2048-modern.pfx");
+        let (bytes, report) = EditSession::new(doc)
+            .sign(&signer, &SignRequest::at(T0), &SaveOptions::identity())
+            .expect("signs");
+        assert!(report.self_verified, "{name}");
+        assert_eq!(&bytes[..original.len()], &original[..], "{name}: appends");
+        let reopened = Document::from_bytes_with_password(bytes.clone(), Some(b"userpw")).unwrap();
+        assert!(reopened.encryption().is_some(), "{name}: still encrypted");
+        let v = verify_all(&reopened.view(), &bytes)
+            .into_iter()
+            .find(|v| v.field_name.as_deref() == Some("Signature1"))
+            .expect("verdict");
+        assert!(
+            matches!(v.integrity, Integrity::Verified { .. }),
+            "{name}: {:?}",
+            v.integrity
+        );
+        assert!(v.coverage.covers_to_eof(), "{name}");
+
+        // A later user-password edit appends; the signed revision stays intact.
+        let mut s = EditSession::new(reopened);
+        s.add_text(&pdfcer_core::text_edit::AddTextRequest::new(
+            0,
+            (72.0, 72.0),
+            "later",
+        ))
+        .expect("the user password grants modification");
+        let (edited, _) = s.to_incremental_bytes(&SaveOptions::default()).unwrap();
+        assert_eq!(&edited[..bytes.len()], &bytes[..], "{name}: appends");
+        let doc = Document::from_bytes_with_password(edited.clone(), Some(b"userpw")).unwrap();
+        let v = verify_all(&doc.view(), &edited)
+            .into_iter()
+            .find(|v| v.field_name.as_deref() == Some("Signature1"))
+            .expect("verdict after the edit");
+        assert!(
+            matches!(v.integrity, Integrity::Verified { .. }),
+            "{name}: {:?}",
+            v.integrity
+        );
+        assert!(!v.coverage.covers_to_eof(), "{name}: a later revision");
+    }
+}

@@ -240,7 +240,7 @@ pub struct SaveReport {
     /// and each is counted rather than rounded away (R20-style).
     pub objects_reserialized: usize,
     /// Whether the output is byte-identical to the input. Only ever
-    /// true for an empty-dirty-set [`save_incremental`].
+    /// true for an empty-dirty-set [`save_incremental`](super::save_incremental).
     pub byte_identical: bool,
     /// Whether this save spent the input's live Fast Web View property
     /// (Annex F.1; R36). Reported, never repaired.

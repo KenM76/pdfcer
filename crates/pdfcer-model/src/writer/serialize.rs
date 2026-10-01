@@ -197,6 +197,7 @@ fn write_dict(
     encoder: &dyn ObjectEncoder,
 ) {
     out.extend_from_slice(b"<<");
+    let signature = crate::crypto::apply::is_signature_dict(dict);
     for (key, value) in dict.iter() {
         write_name(out, key);
         // A SPACE between key and value is required only where the
@@ -206,7 +207,12 @@ fn write_dict(
         // space unconditionally costs one byte and removes an entire
         // class of "works until the value happens to be a number" bug.
         out.push(b' ');
-        write_object(out, value, owner, source, encoder);
+        if signature && key.as_bytes() == b"Contents" {
+            // Never encrypted: see `is_signature_dict`.
+            write_object(out, value, owner, source, &super::encoder::IdentityEncoder);
+        } else {
+            write_object(out, value, owner, source, encoder);
+        }
     }
     out.extend_from_slice(b">>");
 }

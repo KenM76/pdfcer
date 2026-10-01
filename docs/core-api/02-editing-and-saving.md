@@ -4830,8 +4830,38 @@ an 18 MB file.
 | Empty dirty set | **byte-identical to the input**; `SaveReport::byte_identical == true` | not byte-identical |
 | Refused when | base was loaded via xref recovery (`WriteError::RecoveredBaseForbidsIncremental`, `writer/save.rs`) | hybrid-reference input (`WriteError::HybridFullRewrite`, `save.rs`) |
 
-Both refuse an encrypted document (`WriteError::EncryptedSaveUnsupported`,
-`save.rs`).
+**Encrypted documents.** `to_full_bytes` refuses (`WriteError::EncryptedSaveUnsupported`).
+`to_incremental_bytes` of an AES-128 (`/V 4`) or AES-256 (`/V 5`) document
+appends under the document's own key: every new string and stream is
+encrypted with a fresh IV (§7.6.2), `/Encrypt` and `/ID[0]` are carried
+unchanged (§7.6.3), and the prior bytes stay the stored ciphertext. A
+signature dictionary's `/Contents` is written in clear (§7.6.2; ETSI EN 319
+142-1 §5.5), and read back without decryption. An RC4 document is refused
+(`WriteError::Rc4AppendRefused` — pdfcer never writes RC4); no OS entropy is
+`WriteError::EntropyUnavailable`. To re-read the saved bytes without the
+password, use `Document::reopen_appended(&self, bytes) -> Result<Document,
+DocError>`, which decrypts under the same key and access.
+
+#### 5.2a Which edits an encrypted document allows
+
+Every `EditSession` verb that changes the document is gated by the password
+that opened it, against `/P` (ISO 32000-2 Table 22):
+
+| Opened with | Allowed |
+|---|---|
+| owner password | every edit |
+| user / empty user password | edits whose bit `/P` grants: **Annotate** (bit 4 — annotation verbs), **FillForms or Annotate** (bit 9/4 — fills, button state, form-data import), **Assemble** (bit 11 — page insert/delete/rotate/reorder/labels, merge, outline items), **ModifyContents** (bit 4 — everything else, including signing and time-stamping) |
+| any password, RC4 document | nothing (the save could not append) |
+
+A refused verb returns its type's encryption variant
+(`EditError::DocumentEncrypted`, `text_edit::EditError::Encrypted`,
+`AddTextError::Encrypted`, `FormatError::Encrypted`, `SignApplyError::Encrypted`,
+…) whose message is `edit::ENCRYPTED_EDIT_REFUSED`, before anything changes.
+A shell answers *"may I"* with `DocumentEncryption::grants(PermissionBit) -> bool`
+(owner ⇒ always `true`) and `DocumentEncryption::appendable() -> bool`
+(`false` for RC4). Redaction still refuses every encrypted document: it
+requires a full rewrite. pdfcer applying `/P` is its own choice — §7.6.3.1
+says nothing in PDF encryption enforces it.
 
 ### 5.3 ★ Why an absence assertion over incrementally-saved bytes is vacuous
 
@@ -5036,7 +5066,7 @@ three `EditSession` verbs above and should not touch those directly.
 
 | Guard | Error variant | Check | Meaning |
 |---|---|---|---|
-| **Encryption** | `EditError::DocumentEncrypted` `edit.rs` | inlined `if self.base.trailer().contains_key(b"Encrypt")` — **no named helper** (`NOT FOUND — searched `refuse_if_encrypted`, `is_encrypted`, `encryption_refusal` across `crates/`); 38 occurrences in `edit.rs` | Today pdfcer refuses to *load* an encrypted file at all, so this is a forward-compatible R37 seam, not a path a loadable file currently reaches. |
+| **Encryption** | `EditError::DocumentEncrypted` `edit.rs` | `encryption_gate::forbids(&doc, &[PermissionBit, …])` — refuses when the document is RC4, or when the opening password grants none of the listed bits (§5.2a) | The owner password grants everything; a user open is held to `/P`. |
 | **Enforced certification** | `EditError::CertificationForbidsChange { permission: u8 }` `edit.rs` | three functions, §6.2 | The catalog carries `/Perms → /DocMDP` **and** at least one signature exists (`signature.rs`). |
 | **Sidecar version** | `EditError::SidecarWrittenByNewerBuild { found, supported }` `edit.rs` | `check_dimension_sidecar` `edit.rs` | The ce-dimension `/PieceInfo` sidecar declares a version above `SIDECAR_VERSION` — **read the constant, do not quote a number here** (`grep 'pub const SIDECAR_VERSION' crates/pdfcer-core/src/dimension/sidecar.rs`). Note it is emitted **per document**: a file using no post-`3` feature is still written at `3`. No sidecar ⇒ `Ok`. |
 | **`/Size` suppression** | `EditError::ObjectCreationWouldExposeHiddenObjects { count }` `edit.rs` | `self.base.suppressed_object_count() > 0` | §7.5.5: objects at or above `/Size` *"shall be ignored and defined to be missing"*. Creating an object raises `/Size` and would resurrect objects nobody touched. **Only creation is refused; editing an existing object is unaffected.** |

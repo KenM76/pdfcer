@@ -1115,30 +1115,36 @@ fn set_permissions_rekeys_owner_only() {
     );
 }
 
-/// Criterion 11 regression: an EditSession over an ENCRYPTED document still
-/// refuses a page-content edit by name. The `DocumentEncrypted`/`Encrypted`
-/// guards are load-bearing the moment an encrypted document can carry a
-/// session (which it now can — set_permissions/remove_encryption operate on
-/// one), so this pins that a representative content edit is refused before any
-/// work, rather than silently editing ciphertext-derived plaintext and saving
-/// it back unprotected.
+/// An edit the opening password does not permit is refused before any work;
+/// the owner password permits it, and the result saves under the document's
+/// own key.
 #[test]
-fn an_encrypted_session_still_refuses_a_content_edit() {
+fn an_encrypted_session_gates_a_content_edit_on_its_permissions() {
     use pdfcer_core::text_edit::{AddTextError, AddTextRequest};
-    // demo-form.pdf encrypted by pdfcer, reopened as owner.
+    let mut settings = EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec());
+    settings.permissions = vec![PermissionBit::Print];
     let (encrypted, _) = EditSession::new(plain_source())
-        .set_encryption(
-            &EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec()),
-            &SaveOptions::default(),
-        )
+        .set_encryption(&settings, &SaveOptions::default())
         .expect("encrypt");
-    let doc = Document::from_bytes_with_password(encrypted, Some(b"ownerpw")).expect("owner opens");
-    let mut session = EditSession::new(doc);
-    let req = AddTextRequest::new(0, (72.0, 72.0), "should be refused");
+    let req = AddTextRequest::new(0, (72.0, 72.0), "permitted");
+
+    let user = Document::from_bytes_with_password(encrypted.clone(), Some(b"userpw")).unwrap();
+    let mut session = EditSession::new(user);
     assert!(
         matches!(session.add_text(&req), Err(AddTextError::Encrypted)),
-        "adding page content to an encrypted document is refused by name"
+        "a print-only user open may not add page content"
     );
+    assert!(!session.is_modified());
+
+    let owner = Document::from_bytes_with_password(encrypted.clone(), Some(b"ownerpw")).unwrap();
+    let mut session = EditSession::new(owner);
+    session.add_text(&req).expect("the owner may edit");
+    let (saved, _) = session
+        .to_incremental_bytes(&SaveOptions::default())
+        .expect("appends under the document's key");
+    assert_eq!(&saved[..encrypted.len()], &encrypted[..]);
+    let reopened = Document::from_bytes_with_password(saved, Some(b"userpw")).unwrap();
+    assert!(reopened.encryption().is_some());
 }
 
 /// Criterion 3: a WRONG password at `/R` 6 names ambiguity A13 in the

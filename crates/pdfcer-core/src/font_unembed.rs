@@ -1863,16 +1863,25 @@ mod tests {
         );
     }
 
-    /// The encryption refusal fires BEFORE any mutation (rule 4). Reading is
-    /// not the refused act, so the report still works.
+    /// The encryption refusal fires BEFORE any mutation (rule 4) when the
+    /// opening password does not grant modification. Reading is not the
+    /// refused act, so the report still works.
     #[test]
     fn an_encrypted_document_is_refused_before_anything_changes() {
-        let doc = Document::from_bytes_with_password(
-            include_bytes!("../../../fixtures/synthetic/fontinfo/enc-aes-128-embedded-font.pdf")
-                .to_vec(),
-            Some(b"userpw"),
-        )
-        .expect("fixture opens with the corpus password");
+        let source =
+            include_bytes!("../../../fixtures/synthetic/fontinfo/enc-aes-128-embedded-font.pdf");
+        let owner = Document::from_bytes_with_password(source.to_vec(), Some(b"ownerpw"))
+            .expect("fixture opens with the corpus owner password");
+        let (plain, _) = EditSession::new(owner)
+            .remove_encryption(&crate::writer::SaveOptions::default())
+            .expect("decrypts");
+        let mut settings =
+            crate::edit::EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec());
+        settings.permissions = vec![crate::crypto::PermissionBit::Print];
+        let (restricted, _) = EditSession::new(Document::from_bytes(plain).expect("plain"))
+            .set_encryption(&settings, &crate::writer::SaveOptions::default())
+            .expect("re-encrypts print-only");
+        let doc = Document::from_bytes_with_password(restricted, Some(b"userpw")).expect("opens");
         let mut s = EditSession::new(doc);
         assert!(
             !s.unembed_preview(&UnembedRequest::all_removable())

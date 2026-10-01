@@ -200,6 +200,7 @@ pub(crate) struct KeyEncoder<'k> {
 }
 
 impl<'k> KeyEncoder<'k> {
+    /// Encrypt under `key`, leaving the object numbers in `clear` unencrypted.
     pub(crate) fn new(
         key: &'k crate::crypto::FileKey,
         clear: std::collections::HashSet<u32>,

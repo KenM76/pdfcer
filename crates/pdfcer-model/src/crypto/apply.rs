@@ -194,6 +194,18 @@ fn has_identity_crypt_filter(dict: &Dict) -> bool {
     }
 }
 
+/// Whether `dict` is a signature dictionary (§12.8.1) — `/Type /Sig` or
+/// `/DocTimeStamp`, or carrying a `/ByteRange` — whose `/Contents` string is
+/// never encrypted (ISO 32000-2 §7.6.2's fourth exception; ETSI EN 319 142-1
+/// §5.5 states it for the ISO 32000-1 baseline). The digest covers the file
+/// as stored, so encrypting the signature value would make it unverifiable.
+#[must_use]
+pub fn is_signature_dict(dict: &Dict) -> bool {
+    dict.get(b"ByteRange").is_some()
+        || matches!(dict.get(b"Type"), Some(Object::Name(n))
+            if n.as_bytes() == b"Sig" || n.as_bytes() == b"DocTimeStamp")
+}
+
 /// Decrypt every string in `value`, keyed on the containing object `id`.
 ///
 /// **T3** — a string is keyed on the *containing indirect object's* identity
@@ -214,8 +226,11 @@ pub fn decrypt_strings(value: &mut Object, id: ObjId, key: &FileKey) {
             }
         }
         Object::Dict(dict) => {
-            for (_, v) in &mut dict.0 {
-                decrypt_strings(v, id, key);
+            let signature = is_signature_dict(dict);
+            for (k, v) in &mut dict.0 {
+                if !(signature && k.as_bytes() == b"Contents") {
+                    decrypt_strings(v, id, key);
+                }
             }
         }
         Object::Stream(stream) => {

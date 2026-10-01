@@ -276,14 +276,9 @@ pub enum SignApplyError {
         /// What was given.
         given: String,
     },
-    /// The document is encrypted. pdfcer's incremental writer refuses an
-    /// encrypted base (`WriteError::EncryptedSaveUnsupported`), and signing
-    /// must be incremental — so today an encrypted document cannot be
-    /// signed at all. Acrobat gates this on the document's permission bits;
-    /// pdfcer's refusal is broader and says so.
-    #[error(
-        "the document is encrypted; pdfcer cannot yet append an incremental update to an encrypted file, and a signature must be an incremental update"
-    )]
+    /// The document is encrypted and signing is not permitted: see
+    /// [`EditError::DocumentEncrypted`](crate::edit::EditError::DocumentEncrypted).
+    #[error("{}", crate::edit::ENCRYPTED_EDIT_REFUSED)]
     Encrypted,
     /// A certification signature's `/DocMDP` `/P` forbids adding a
     /// signature (`P = 1`, no changes) — or the certifying tier does not

@@ -219,7 +219,7 @@ fn locked_contents_does_not_stop_a_transform() {
 /// prose.
 #[test]
 fn every_verb_that_documents_an_encryption_refusal_performs_it() {
-    let doc = Document::load(&fixture("encryption/enc-emptyuser.pdf"));
+    let doc = Document::load(&fixture("encryption/enc-emptyuser-print-only.pdf"));
     let Ok(doc) = doc else {
         // Named, not silently skipped: a test that quietly does nothing is
         // worse than one that is absent, because it reports as coverage.

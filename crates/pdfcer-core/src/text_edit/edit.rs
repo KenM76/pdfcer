@@ -98,6 +98,7 @@
 //! was parsed from. See [`crate::text_edit::forms`] for the discovery half and
 //! for the shared-invocation problem it exists to disclose.
 
+use crate::crypto::PermissionBit;
 use crate::text_edit::cause::{NotFoundReason, UnsupportedCause};
 use crate::text_edit::cross_object;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -805,8 +806,9 @@ pub enum EditError {
     /// `'`/`"` anchor, a cross-element `TJ` match, …).
     #[error("this run cannot be edited: {0}")]
     Unsupported(UnsupportedCause),
-    /// The document is encrypted (out of scope for text editing).
-    #[error("the document is encrypted; in-place text editing of encrypted files is out of scope")]
+    /// The document is encrypted and this edit is not permitted: see
+    /// [`EditError::DocumentEncrypted`](crate::edit::EditError::DocumentEncrypted).
+    #[error("{}", crate::edit::ENCRYPTED_EDIT_REFUSED)]
     Encrypted,
     /// The page's content stream could not be parsed.
     #[error("content stream parse failed: {0}")]
@@ -1693,7 +1695,7 @@ pub fn edit_text(
     req: &EditRequest,
     opts: &EditOptions,
 ) -> Result<EditOutcome, EditError> {
-    if doc.trailer().contains_key(b"Encrypt") {
+    if crate::encryption_gate::forbids(doc, &[PermissionBit::ModifyContents]) {
         return Err(EditError::Encrypted);
     }
     let pages = page_tree::pages(doc)?;

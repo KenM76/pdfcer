@@ -166,6 +166,7 @@
 //! report but writes an identical named non-embedded dict either way
 //! (`ARCHITECTURE.md` §3).
 
+use crate::crypto::PermissionBit;
 use crate::text_edit::cause::UnsupportedCause;
 use std::collections::BTreeSet;
 
@@ -597,8 +598,9 @@ pub enum AddTextError {
     /// whitespace) — there is nothing to wrap into the box.
     #[error("the boxed text has no non-whitespace words to wrap")]
     NoWordsToWrap,
-    /// The document is encrypted (out of scope for add-text).
-    #[error("the document is encrypted; adding text to encrypted files is out of scope")]
+    /// The document is encrypted and this edit is not permitted: see
+    /// [`EditError::DocumentEncrypted`](crate::edit::EditError::DocumentEncrypted).
+    #[error("{}", crate::edit::ENCRYPTED_EDIT_REFUSED)]
     Encrypted,
     /// A **certification signature** with an enforced permissions entry
     /// forbids adding page content (§12.8.4 Table 258) — the add-text mirror
@@ -692,7 +694,7 @@ pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, 
     // Guards mirror `EditSession::add_markup`, in the SAME order (encryption →
     // certification → suppressed-objects): each is a named refusal made BEFORE
     // any allocation.
-    if doc.trailer().contains_key(b"Encrypt") {
+    if crate::encryption_gate::forbids(doc, &[PermissionBit::ModifyContents]) {
         return Err(AddTextError::Encrypted);
     }
     // An enforced-DocMDP certification forbids adding page content (§12.8.4).

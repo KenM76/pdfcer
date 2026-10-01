@@ -300,8 +300,9 @@ pub enum ReflowApplyError {
     /// this gone for its own reasons, they will delete the arm in the same
     /// commit that moves the pin.
     PageEditedThisSession,
-    /// The document is encrypted (out of scope for text editing).
-    #[error("the document is encrypted; reflow of encrypted files is out of scope")]
+    /// The document is encrypted and this edit is not permitted: see
+    /// [`EditError::DocumentEncrypted`](crate::edit::EditError::DocumentEncrypted).
+    #[error("{}", crate::edit::ENCRYPTED_EDIT_REFUSED)]
     Encrypted,
     /// Extracting the page failed.
     #[error("page extraction failed: {0}")]
@@ -465,6 +466,9 @@ pub fn apply_reflow(
     block_index: usize,
     req: &ReflowRequest,
 ) -> Result<ReflowOutcome, ReflowApplyError> {
+    if crate::encryption_gate::forbids(doc, &[crate::crypto::PermissionBit::ModifyContents]) {
+        return Err(ReflowApplyError::Encrypted);
+    }
     let mut plan = plan_reflow_from_doc(&doc.view(), page_index, block_index, req)?;
     let pages = page_tree::pages(doc)?;
     let page = pages
@@ -501,9 +505,6 @@ pub(crate) fn plan_reflow_from_doc(
     block_index: usize,
     req: &ReflowRequest,
 ) -> Result<ReflowPlan, ReflowApplyError> {
-    if doc.trailer_entry(b"Encrypt").is_some() {
-        return Err(ReflowApplyError::Encrypted);
-    }
     let pages = page_tree::pages_in(doc)?;
     let page = pages
         .get(page_index)

@@ -330,6 +330,14 @@ pub struct Document {
 /// **disclosure**, not a gate: §7.6.3.1 states plainly that "there is nothing
 /// inherent in PDF encryption that enforces the document permissions", so
 /// anywhere pdfcer chooses to act on a permission bit it must say so (rule 4).
+/// What decrypts a document on load: a password to authenticate, or an
+/// already-recovered key carried from the document a save descends from.
+#[derive(Clone, Copy)]
+enum Credential<'a> {
+    Password(Option<&'a [u8]>),
+    Reuse(&'a DocumentEncryption),
+}
+
 #[derive(Debug, Clone)]
 pub struct DocumentEncryption {
     /// The parsed `/Encrypt` dictionary.
@@ -383,10 +391,12 @@ pub struct DocumentEncryption {
 }
 
 impl DocumentEncryption {
+    /// The recovered file key an append encrypts under.
     pub(crate) fn file_key(&self) -> &crate::crypto::FileKey {
         &self.key
     }
 
+    /// An indirect `/Encrypt` dictionary's object number; an append leaves it in clear.
     pub(crate) fn encrypt_dict_id(&self) -> Option<u32> {
         self.encrypt_dict_id
     }
@@ -395,6 +405,26 @@ impl DocumentEncryption {
     /// encrypted something.
     pub(crate) fn ciphertext(&self) -> &[u8] {
         &self.ciphertext
+    }
+
+    /// Whether an incremental save can append under this document's key.
+    /// `false` for an RC4 document: pdfcer never writes RC4 (W14), so
+    /// [`crate::writer::save_incremental`] refuses it with
+    /// [`crate::writer::WriteError::Rc4AppendRefused`].
+    #[must_use]
+    pub fn appendable(&self) -> bool {
+        use crate::crypto::Cipher;
+        ![self.key.string_cipher(), self.key.stream_cipher()].contains(&Cipher::Rc4)
+    }
+
+    /// Whether `bit` lets the operator who opened the document do what it
+    /// governs (ISO 32000-2 Table 22). The owner password grants everything;
+    /// a user (or empty-user) open is held to the declared `/P`. A bit the
+    /// document's revision does not define is not granted.
+    #[must_use]
+    pub fn grants(&self, bit: crate::crypto::PermissionBit) -> bool {
+        self.auth == crate::crypto::AuthKind::Owner
+            || self.config.permissions().granted(bit) == Some(true)
     }
 }
 
@@ -532,7 +562,7 @@ impl Document {
             loaded.suppressed_by_size,
             hybrid,
             None,
-            None,
+            Credential::Password(None),
             LoadOptions::default(),
         )
     }
@@ -569,6 +599,34 @@ impl Document {
         password: Option<&[u8]>,
         options: LoadOptions,
     ) -> Result<Self, DocError> {
+        Self::from_bytes_inner(buf, Credential::Password(password), options)
+    }
+
+    /// Load `buf` — bytes produced by saving this document incrementally —
+    /// decrypting under this document's file key and access, with no
+    /// password. An unencrypted document loads `buf` like
+    /// [`Document::from_bytes`].
+    ///
+    /// The contract is that `buf` keeps this document's `/Encrypt` and
+    /// `/ID[0]` (an incremental save carries both, ISO 32000-2 §7.6.3); bytes
+    /// from anywhere else decrypt to noise.
+    ///
+    /// # Errors
+    ///
+    /// [`DocError`] — see [`Document::load`].
+    pub fn reopen_appended(&self, buf: Vec<u8>) -> Result<Self, DocError> {
+        let credential = match &self.encryption {
+            Some(e) => Credential::Reuse(e),
+            None => Credential::Password(None),
+        };
+        Self::from_bytes_inner(buf, credential, LoadOptions::default())
+    }
+
+    fn from_bytes_inner(
+        buf: Vec<u8>,
+        credential: Credential<'_>,
+        options: LoadOptions,
+    ) -> Result<Self, DocError> {
         // 1. Header (§7.5.2 via the Pass 0 probe).
         match crate::probe_header(&buf) {
             // Header OK: try the strict §7.5.5 cross-reference load.
@@ -586,7 +644,7 @@ impl Document {
                         loaded.suppressed_by_size,
                         hybrid,
                         None,
-                        password,
+                        credential,
                         options,
                     )
                 }
@@ -645,7 +703,7 @@ impl Document {
         suppressed_by_size: usize,
         hybrid: crate::xref::HybridPartition,
         recovery: Option<RecoveryReport>,
-        password: Option<&[u8]>,
+        credential: Credential<'_>,
         options: LoadOptions,
     ) -> Result<Self, DocError> {
         // Phase 1. Eagerly parse every file-level in-use object. Strict on
@@ -792,7 +850,7 @@ impl Document {
         // stream are NOT separately encrypted (TRAP T4). Moving this after
         // phase 2 would re-apply Algorithm 1 per contained object and corrupt
         // every string in every modern file.
-        let encryption = Self::decrypt_in_place(&mut buf, &trailer, &mut objects, password)?;
+        let encryption = Self::decrypt_in_place(&mut buf, &trailer, &mut objects, credential)?;
 
         // Phase 2. Resolve compressed objects through their containers,
         // decoding each container at most once. Deterministic order so
@@ -867,7 +925,7 @@ impl Document {
         buf: &mut [u8],
         trailer: &Dict,
         objects: &mut HashMap<ObjId, IndirectObject>,
-        password: Option<&[u8]>,
+        credential: Credential<'_>,
     ) -> Result<Option<DocumentEncryption>, DocError> {
         use crate::crypto::{EncryptionConfig, EncryptionUnsupported, apply};
 
@@ -921,15 +979,19 @@ impl Document {
             _ => Vec::new(),
         };
 
-        let Some((key, auth)) = config.authenticate(password, &id0) else {
+        let authenticated = match credential {
+            Credential::Password(password) => config.authenticate(password, &id0),
+            Credential::Reuse(e) => Some((e.key.clone(), e.auth)),
+        };
+        let Some((key, auth)) = authenticated else {
             // A failed authentication is normally just a wrong password. At
             // `/R` 5 with a non-ASCII password it is ambiguous, because the
             // SASLprep step pdfcer does not implement may have been the thing
             // that mattered -- and telling the operator "wrong password" for a
             // password that was right sends them to re-check the one thing
             // that is not the problem.
-            return Err(match password {
-                Some(pw) if config.password_may_need_normalisation(pw) => {
+            return Err(match credential {
+                Credential::Password(Some(pw)) if config.password_may_need_normalisation(pw) => {
                     DocError::PasswordRequiresNormalisation
                 }
                 // At /R 6 a failure is not unambiguously "wrong password": the
@@ -1085,7 +1147,7 @@ impl Document {
             // be ciphertext. So a recovered document is never encrypted, and
             // threading a password here would be dead weight that read as
             // support.
-            None,
+            Credential::Password(None),
             LoadOptions::default(),
         )
     }

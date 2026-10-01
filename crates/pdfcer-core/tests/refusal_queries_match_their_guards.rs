@@ -55,7 +55,8 @@ fn fixture(rel: &str) -> PathBuf {
 /// prompt, which is also why this defect was reachable by a real shell.
 #[test]
 fn fill_refusal_reports_encryption_rather_than_letting_the_fill_discover_it() {
-    let doc = Document::load(&fixture("encryption/enc-emptyuser.pdf")).expect("fixture loads");
+    let doc =
+        Document::load(&fixture("encryption/enc-emptyuser-print-only.pdf")).expect("fixture loads");
     let session = EditSession::new(doc);
 
     let refusal = session.fill_refusal();
@@ -75,7 +76,7 @@ fn fill_refusal_reports_encryption_rather_than_letting_the_fill_discover_it() {
 #[test]
 fn fill_refusal_and_the_fill_itself_agree_on_every_fixture() {
     for rel in [
-        "encryption/enc-emptyuser.pdf",
+        "encryption/enc-emptyuser-print-only.pdf",
         "forms/demo-form.pdf",
         "forms/certified-p2-form.pdf",
     ] {
@@ -126,7 +127,8 @@ fn fill_refusal_and_the_fill_itself_agree_on_every_fixture() {
 /// near-miss, since it works until it does not.
 #[test]
 fn flatten_refusal_reports_encryption_and_is_not_deletion_refusal() {
-    let doc = Document::load(&fixture("encryption/enc-emptyuser.pdf")).expect("fixture loads");
+    let doc =
+        Document::load(&fixture("encryption/enc-emptyuser-print-only.pdf")).expect("fixture loads");
     let session = EditSession::new(doc);
     assert!(
         matches!(
@@ -140,7 +142,10 @@ fn flatten_refusal_reports_encryption_and_is_not_deletion_refusal() {
 /// `flatten_refusal` and `flatten_fields` agree.
 #[test]
 fn flatten_refusal_and_flatten_itself_agree() {
-    for rel in ["encryption/enc-emptyuser.pdf", "forms/demo-form.pdf"] {
+    for rel in [
+        "encryption/enc-emptyuser-print-only.pdf",
+        "forms/demo-form.pdf",
+    ] {
         let doc = Document::load(&fixture(rel)).expect("fixture loads");
         let mut session = EditSession::new(doc);
         let predicted = session.flatten_refusal();

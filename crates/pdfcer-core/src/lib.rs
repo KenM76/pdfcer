@@ -60,6 +60,7 @@ mod civil_time;
 pub mod dimension;
 pub mod edit;
 pub mod editable;
+mod encryption_gate;
 pub mod export;
 pub mod fdf;
 pub mod font_embed_missing;
