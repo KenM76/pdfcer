@@ -175,6 +175,66 @@ No §12 decision — additive, no crate boundary or invariant change.
 `docs/FEATURES.md`: new row, Redaction & security — `core [x]` / `cli [x]`
 / `gui [ ]`.
 
+**Also filed this session (819th filing).** Chore commit `512d0c27`
+("chore: v0.69.0", `Cargo.toml` 0.68.0 → 0.69.0 plus
+`Cargo.lock`/`fuzz/Cargo.lock`) — recorded so `check-commits-filed.py` sees
+it filed. Preceded by agent-memory chore `9ee3f72d` (spec-librarian corpus
+state, no code) and hand-off commit `7f60427f`
+(`docs/NEXT_SESSION.md`).
+
+**Release in progress**: v0.69.0 will batch every Pass shipped since
+`v0.68.0` (`560b8911`) — `10.17` (offline OCSP revocation checking,
+`3e0bc4a5`), `10.18` (PAdES B-LT writes validation material into `/DSS`,
+`3a488056`), `420.0` (transform several objects each by its own matrix,
+`043e3a22`/`2056ee4e`), `419.0` (list/extract embedded 3D models,
+`cc71aad0`), `419.1` (embed a supplied U3D/PRC model as a `/3D`
+annotation, `3b67fac1`), `417.1` (insert keeps page labels, `7ed8ec61`),
+`417.2` (delete keeps page labels, `e22fac53`), `417.3` (read/set page
+labels, `0a982db9`), `417.4` (reorder carries page labels, `3970f101`),
+`417.5` (extract/split keep page labels, closing the `417.x`/decision-072
+family entirely, `3505dc49`), `416.1` (`merge_document` carries
+`/OCProperties`, closing `Pass 106.0`'s last gap, `d21ea7c5`), `10.19`
+(PAdES B-LTA archive timestamp, `5abc210b`), `421.0` (headless camera
+render of a decoded PRC model, `ac28b15b`), `421.2` (3D render draws each
+PRC part in its model-tree colour, `21bd10be`/`c0815bd7`/`5c5be0d9`/
+`86cadd4d`), `422.0` (engine-facing notes stop naming a shell's own verb,
+`c9dfd4e6`), `423.0` (list the whole undo and redo stacks, `2804e522`),
+`424.0` (re-compress an edited stream the source had Flate-compressed,
+`483f405a`), and `425.0` (create a self-signed digital ID, this entry,
+`5d2a70d0`) — all already filed above. Also in range: decision 169 (PRC
+licensing ruling, `22862498`, unblocking `419.2`) and gate-fix/follow-up
+commits `3978966b`, `62c595fb`, `334fb0ae`, `0464e825`, `c8e3c45a`,
+`f9f78064`, `6aa9d641`, `b144946b`, `ed51dd0f`, `ccc24d9d`, `29da9f37`,
+`6d77aa9c`.
+
+**Not in this batch — correcting the list as relayed for filing.** `Pass
+419.2` (optional `pdfcer-3d` crate, PRC reader) landed eight increments in
+this same commit range (`b5107225`, `d64f900f`, `a9a7cf69`/`e87bb75c`,
+`d4ba79e2`, `a8832eb3`, `febaeee5`, `d0a9641b`, `d11e4206`, `37353213`,
+`aa6866aa`) but is still **IN PROGRESS** — no completed Shipped banner, so
+it is not part of this release's batch; see *Backlog*, "3D content in
+PDF". `421.1` (camera orbit/pan/zoom) is `pdfcer-gui` territory, a
+separate project, and was not built in this repo at all — only `421.0`/
+`421.2` shipped here.
+
+**Gates.** `tools/run-gates.sh`: 42 of 42 PASS (including 2 filing gates)
+on `25c57d00` (the tree immediately before the bump), 2026-09-30.
+
+**Headline.** `10.19` closes B-LT into B-LTA with an archive timestamp;
+`425.0` mints a self-signed signing identity where only loading one
+existed before.
+
+OneDrive slot `pdfcer2` next (`pdfcer1` keeps `v0.68.0`). Tag, GitHub
+release, OneDrive deploy, fresh-folder smoke test and `verify-release.py`
+not yet done; not yet confirmed from here — full release filing to follow
+once tag/deploy details are relayed.
+
+**Sourcing (hard rule 8).** No shell this filing — the version-bump diff
+(`Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` only), the batched Pass list
+and the `tools/run-gates.sh` 42/42 result are taken from the dispatching
+engineer's own report, not independently reproduced here. Backup/push/
+release state not verifiable from here.
+
 ### `Pass 424.0` (`483f405a`), 2026-09-30 — re-compress an edited stream the source had Flate-compressed
 
 `pdfcer-gui` request (`request_cli_full_mode_size.md`): full-mode save output

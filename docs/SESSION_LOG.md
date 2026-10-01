@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (819th filing) — `512d0c27`: chore — v0.69.0 version bump, release IN PROGRESS
+
+**Shipped:**
+- Chore commit `512d0c27` ("chore: v0.69.0") bumps
+  `Cargo.toml`/`Cargo.lock`/`fuzz/Cargo.lock` 0.68.0 → 0.69.0. Recorded so
+  `check-commits-filed.py` sees it filed. Full details under `Pass
+  425.0`'s "Also filed this session (819th filing)" note in
+  `ROADMAP.md`'s *Shipped*. Preceded by agent-memory chore `9ee3f72d`
+  (spec-librarian corpus state, no code) and hand-off commit `7f60427f`
+  (`docs/NEXT_SESSION.md`).
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Corrected the batch list as relayed for filing: `Pass 419.2` (optional
+  `pdfcer-3d` crate, PRC reader) landed eight increments in this same
+  commit range but is still IN PROGRESS — no completed Shipped banner —
+  so it is **not** part of this release's batch. `Pass 421.1` (camera
+  orbit/pan/zoom) is `pdfcer-gui` territory, a separate project, and was
+  never built in this repo; only `421.0`/`421.2` shipped here.
+- `tools/run-gates.sh`: 42 of 42 PASS (including 2 filing gates) on
+  `25c57d00` (the tree immediately before the bump).
+
+**Still in flight:**
+- v0.69.0 release IN PROGRESS — batches `10.17`, `10.18`, `420.0`,
+  `419.0`, `419.1`, `417.1`, `417.2`, `417.3`, `417.4`, `417.5`, `416.1`,
+  `10.19`, `421.0`, `421.2`, `422.0`, `423.0`, `424.0`, `425.0`, all
+  already shipped since `v0.68.0` (`560b8911`). Headline: `10.19` closes
+  B-LT into B-LTA with an archive timestamp; `425.0` mints a self-signed
+  signing identity where only loading one existed before. Tag, GitHub
+  release, OneDrive deploy and smoke test not yet done — OneDrive slot
+  `pdfcer2` next (`pdfcer1` keeps `v0.68.0`).
+
+**For next session:** `docs/FEATURES.md` unchanged by this filing — it
+carries no version number, so a version-bump filing never touches it, and
+no capability box crosses a release boundary either; release completion
+(tag, build, smoke, GitHub, OneDrive, CI) still owed.
+
+**Sourcing (hard rule 8).** No shell tool this filing — the version-bump
+diff, the batched Pass list and the `tools/run-gates.sh` 42/42 result on
+`25c57d00` are taken from the dispatching engineer's own report, not
+independently reproduced here. Backup/push/release state not verifiable
+from here.
+
 ## 2026-09-30 (818th filing) — `Pass 425.0` SHIPPED: create a self-signed digital ID
 
 **Shipped:**
