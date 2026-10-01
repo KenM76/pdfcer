@@ -4,6 +4,51 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (823rd filing) — `Pass 421.5` (`d8514cce`, `3ea9a5d8`): CLI 3D fixes — stale assembly-test probes + `3d-mesh` format-from-extension
+
+**Shipped:**
+- `Pass 421.5` — two unrelated CLI-only fixes, bundled. `d8514cce` moves
+  the `a_prc_assembly_renders_both_placed_copies` integration test's
+  pixel probes to the squares' new centres (`421.3`'s tighter margin had
+  been pushed after only a `3d`-name-filtered test run, so CI on
+  `61ded9d5` went red), and adds a left-margin white-pixel probe.
+  `3ea9a5d8` makes `pdfcer 3d-mesh --format` optional: it now follows a
+  `.obj`/other `--output` extension (`MeshFormat::for_path`) instead of
+  silently writing STL when omitted; an explicit `--format` still wins.
+  Full entry in `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None — two CLI bugfixes inside an
+already-shipped bucket, no crate boundary or invariant change.
+
+**Findings + decisions:**
+- `three_d` CLI integration tests: 17 pass. Sabotage on the format fix:
+  `eq_ignore_ascii_case` → `==` CAUGHT; `unwrap_or_default()` CAUGHT.
+- Lesson: before pushing, run the whole `three_d` set
+  (`cargo test -p pdfcer-cli --test all three_d`) or run-gates — a
+  name-filtered run missed the render test that `421.3` broke. The CLI
+  integration tests are one target, `--test all` (`autotests = false`);
+  there is no `--test three_d`, so a sabotage run against that
+  nonexistent target fails to compile and reports a false CAUGHT.
+- `docs/FEATURES.md` row 458 ("Export an embedded PRC 3D model's
+  tessellation as a mesh") note updated to say `--format` now follows
+  the output extension; `core`/`cli`/`gui` boxes unchanged (`cli` was
+  already `[x]`) — never round a box up for a bugfix. `docs/ROADMAP.md`'s
+  `Pass 421.x` Backlog bucket also gained the `421.4` bullet it had been
+  missing since the 822nd filing, plus `421.5`'s.
+
+**Still in flight:** The `421.x` bucket's next owed items, unchanged: the
+vaulted-roof tessellation tear (`419.2` remainder), then textures, then
+lights; Rung B (GUI orbit/pan/zoom, `421.1`) still not requested.
+
+**For next session:** Nothing new opened by this filing.
+
+**Sourcing (hard rule 8).** No shell this filing — both commit hashes,
+test names and sabotage results relayed from the dispatching engineer's
+own report, not independently reproduced. Backup/push/release state not
+verifiable from here. Both commits are on `main`, unpushed, pending a
+green `tools/run-gates.sh` per the operator's own note — not verified
+from here.
+
 ## 2026-10-01 (822nd filing) — `Pass 421.4` (`78f966c2`): `Camera::fit_meshes` frames the model's vertices
 
 **Shipped:**

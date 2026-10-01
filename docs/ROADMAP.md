@@ -115,6 +115,38 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.5` (`d8514cce`, `3ea9a5d8`), 2026-10-01 — CLI 3D fixes: stale assembly-test probes + `3d-mesh` format-from-extension
+
+Two small, unrelated CLI-only fixes in the `Pass 421.x` bucket, bundled as
+one Pass.
+
+**`d8514cce`** — `421.3` (`046ec96f`, `Camera::fit`'s tighter 1.1 margin)
+was pushed after only a `3d`-name-filtered CLI test run. The integration
+test `a_prc_assembly_renders_both_placed_copies`
+(`crates/pdfcer-cli/tests/three_d.rs`) still probed the old pixel
+positions, so CI on `61ded9d5` went red. Probes now target the squares'
+new centres — px 27 and px 173, now spanning roughly 9–45 and 155–191 of
+200 px — plus a new left-margin probe requiring px 4 white.
+
+**`3ea9a5d8`** — `pdfcer 3d-mesh -o model.obj` silently wrote STL.
+`--format` (`stl`|`obj`) is now optional: `MeshFormat::for_path`
+(`crates/pdfcer-cli/src/arg_types.rs`) picks OBJ when `--output` ends in
+`.obj` (case-insensitive), otherwise STL; an explicit `--format` still
+wins (`dispatch.rs`:
+`format.unwrap_or_else(|| MeshFormat::for_path(&output))`). New test
+`a_mesh_format_follows_the_output_extension`. CLI only — `pdfcer-core`/
+`pdfcer-3d` untouched; no manifest change, `cargo tree` not applicable.
+
+**Tests.** `three_d` CLI integration tests: 17 pass. Sabotage (format fix):
+`eq_ignore_ascii_case` → `==` CAUGHT; `unwrap_or_default()` CAUGHT.
+
+**Lesson.** Before pushing, run the whole `three_d` set
+(`cargo test -p pdfcer-cli --test all three_d`) or run-gates — a
+name-filtered run missed the render test. The CLI integration tests are
+one target, `--test all` (`autotests = false`); there is no `--test
+three_d`. A sabotage run against a nonexistent target fails to compile
+and so reports a false CAUGHT.
+
 ### `Pass 421.4` (`78f966c2`), 2026-10-01 — `Camera::fit_meshes` frames the model's vertices directly
 
 Continues the `Pass 421.x` bucket's Rung A. `Camera::fit` (`421.3`) frames
@@ -24174,15 +24206,29 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   bounding BOX (eight corners onto the camera basis) instead of its
   bounding sphere, which had over-framed any non-cube-ish model — the
   "small island" look in the School preview. No API or manifest change.
+- `421.4` — **SHIPPED, `78f966c2`, 2026-10-01 (822nd filing)**, full entry
+  in *Shipped* above. New `Camera::fit_meshes` projects every mesh vertex
+  (not just the box's eight corners) to frame the model — tighter than
+  `421.3`'s box-corner fit in oblique views, where the box's own empty
+  corners still padded the frame. `Camera::fit` itself is unchanged; CLI
+  `3d-render` now calls `fit_meshes`.
+- `421.5` — **SHIPPED, `d8514cce`/`3ea9a5d8`, 2026-10-01 (823rd filing)**,
+  full entry in *Shipped* above. CLI-only, two unrelated fixes: the
+  assembly-render integration test's probes, stale since `421.3`'s margin
+  change (a name-filtered test run had missed it before push); and
+  `3d-mesh --format` is now optional, picked from a `.obj` `--output`
+  extension when omitted. No change to the camera/render API.
 
 **Next planned, in order**: fix the vaulted-roof tessellation tear
 (entity #868, `419.2`'s own remainder); then textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
 gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`,
-framing fix noted by `421.3`); `gui` stays `[ ]` pending `421.1`. Stays
-in *Planned* — the row names the interactive-controls capability, and
-that still needs Rung B.
+framing fix noted by `421.3`, vertex-fit noted by `421.4`); `gui` stays
+`[ ]` pending `421.1`. Stays in *Planned* — the row names the
+interactive-controls capability, and that still needs Rung B.
+`421.5`'s `3d-mesh` format-from-extension fix is noted on the separate
+mesh-export row (`419.2`, *Implemented*), not this one.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
