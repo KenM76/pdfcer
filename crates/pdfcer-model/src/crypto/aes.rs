@@ -599,6 +599,24 @@ pub fn encrypt_ecb_256_block(key: &[u8; KEY_LEN_256], block: &[u8; BLOCK_LEN]) -
     b.into()
 }
 
+/// AES-128 in CBC mode for a document string or stream — the `/AESV2` write
+/// path, used when appending to a file already encrypted that way: a
+/// caller-supplied fresh IV prefixed to the ciphertext, PKCS#7 always added
+/// (§7.6.2). The exact inverse of [`decrypt_cbc_128`].
+///
+/// Output = `iv ‖ AES-128-CBC(key, iv, plaintext ‖ PKCS#7)`.
+#[must_use]
+pub fn encrypt_cbc_128(key: &[u8; BLOCK_LEN], iv: &[u8; IV_LEN], plaintext: &[u8]) -> Vec<u8> {
+    let padded = pkcs7_pad(plaintext);
+    let blocks = blocks_of(&padded);
+    let mut out = vec![AesBlock::default(); blocks.len()];
+    let mut enc = Aes128CbcEnc::new(&(*key).into(), &(*iv).into());
+    if enc.encrypt_blocks_b2b(&blocks, &mut out).is_err() {
+        return Vec::new();
+    }
+    prefix_iv(iv, out)
+}
+
 /// AES-256 in CBC mode for a document string or stream — Algorithm 1.A:
 /// a **fresh random 16-byte IV prefixed to the ciphertext**, PKCS#7 padding
 /// always added. The exact inverse of [`decrypt_cbc_256`], IV convention and
@@ -609,24 +627,33 @@ pub fn encrypt_ecb_256_block(key: &[u8; KEY_LEN_256], block: &[u8; BLOCK_LEN]) -
 /// Output = `iv ‖ AES-256-CBC(key, iv, plaintext ‖ PKCS#7)`.
 #[must_use]
 pub fn encrypt_cbc_256(key: &[u8; KEY_LEN_256], iv: &[u8; IV_LEN], plaintext: &[u8]) -> Vec<u8> {
-    // PKCS#7 to the next block boundary, ALWAYS present: a full 0x10 block when
-    // already aligned. `pad` is 1..=16, so the cast never truncates.
-    let pad = BLOCK_LEN - (plaintext.len() % BLOCK_LEN);
-    #[allow(clippy::cast_possible_truncation)]
-    let pad_byte = pad as u8;
-    let mut padded = Vec::with_capacity(plaintext.len() + pad);
-    padded.extend_from_slice(plaintext);
-    padded.extend(std::iter::repeat_n(pad_byte, pad));
-
+    let padded = pkcs7_pad(plaintext);
     let blocks = blocks_of(&padded);
     let mut out = vec![AesBlock::default(); blocks.len()];
     let mut enc = Aes256CbcEnc::new(&(*key).into(), &(*iv).into());
     if enc.encrypt_blocks_b2b(&blocks, &mut out).is_err() {
         return Vec::new();
     }
-    let mut result = Vec::with_capacity(IV_LEN + padded.len());
+    prefix_iv(iv, out)
+}
+
+/// PKCS#7 to the next block boundary, ALWAYS present: a full `0x10` block when
+/// already aligned (§7.6.2).
+fn pkcs7_pad(plaintext: &[u8]) -> Vec<u8> {
+    let pad = BLOCK_LEN - (plaintext.len() % BLOCK_LEN);
+    // `pad` is 1..=16, so the cast never truncates.
+    #[allow(clippy::cast_possible_truncation)]
+    let pad_byte = pad as u8;
+    let mut padded = Vec::with_capacity(plaintext.len() + pad);
+    padded.extend_from_slice(plaintext);
+    padded.extend(std::iter::repeat_n(pad_byte, pad));
+    padded
+}
+
+fn prefix_iv(iv: &[u8; IV_LEN], blocks: Vec<AesBlock>) -> Vec<u8> {
+    let mut result = Vec::with_capacity(IV_LEN + blocks.len() * BLOCK_LEN);
     result.extend_from_slice(iv);
-    result.extend(flatten(out));
+    result.extend(flatten(blocks));
     result
 }
 

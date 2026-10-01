@@ -317,12 +317,9 @@ pub struct Document {
     /// `Some` when this document was loaded from an **encrypted** file and
     /// successfully decrypted (§7.6, [`crate::crypto`]).
     ///
-    /// Holds the configuration and which password opened it — deliberately
-    /// **not** the file encryption key. Nothing after load needs the key
-    /// (every object is already plaintext in memory), and keeping key
-    /// material alive for the document's lifetime buys nothing. The
-    /// re-encrypt-on-save path, when it exists, will re-derive it from a
-    /// password the operator supplies at that moment.
+    /// Holds the configuration, which password opened it, and — privately —
+    /// what an incremental save needs to append under the same handler: the
+    /// file key and the source bytes as they were before decryption.
     encryption: Option<DocumentEncryption>,
 }
 
@@ -373,6 +370,32 @@ pub struct DocumentEncryption {
     /// [`PermsCheck::NotApplicable`]: crate::crypto::PermsCheck::NotApplicable
     /// [`EncryptionConfig::permissions`]: crate::crypto::EncryptionConfig::permissions
     pub perms: crate::crypto::PermsCheck,
+    /// The recovered file key. Private: [`crate::writer::save_incremental`]
+    /// encrypts appended objects with it (§7.6.2), so a save needs no second
+    /// password prompt. Its `Debug` never prints the key.
+    key: crate::crypto::FileKey,
+    /// The object number of an indirect `/Encrypt` dictionary (`None` when it
+    /// is direct in the trailer).
+    encrypt_dict_id: Option<u32>,
+    /// The file's bytes before decryption. Decryption rewrites stream data in
+    /// the document's buffer, so an append must start from these instead.
+    ciphertext: std::sync::Arc<[u8]>,
+}
+
+impl DocumentEncryption {
+    pub(crate) fn file_key(&self) -> &crate::crypto::FileKey {
+        &self.key
+    }
+
+    pub(crate) fn encrypt_dict_id(&self) -> Option<u32> {
+        self.encrypt_dict_id
+    }
+
+    /// The source bytes as stored on disk — ciphertext wherever the file
+    /// encrypted something.
+    pub(crate) fn ciphertext(&self) -> &[u8] {
+        &self.ciphertext
+    }
 }
 
 impl Document {
@@ -831,12 +854,10 @@ impl Document {
     ///
     /// So after this runs, the buffer and the parsed objects **disagree**:
     /// streams are plaintext in both, strings are plaintext only in the
-    /// objects. That is precisely why [`Document::save_full`] and
-    /// [`Document::save_incremental`] refuse a decrypted document -- the
-    /// writer re-emits untouched objects verbatim from their source span, and
-    /// doing that here would produce a file whose `/Encrypt` claims
-    /// encryption while half its content is plaintext. A file like that is
-    /// not "partly saved"; it is unreadable by everything, including pdfcer.
+    /// objects. That is why a full rewrite refuses a decrypted document (its
+    /// verbatim copies would put plaintext under `/Encrypt`), and why the
+    /// pre-decryption bytes are kept: an incremental save appends to them,
+    /// encrypting only what it writes.
     ///
     /// # Errors
     ///
@@ -925,6 +946,7 @@ impl Document {
         // shells for the whole life of the document rather than being
         // recomputed on demand from state they would have to keep.
         let perms = config.check_perms(&key);
+        let ciphertext: std::sync::Arc<[u8]> = std::sync::Arc::from(&*buf);
 
         // Decrypt every file-level object. Order within the map does not
         // matter: each object's key depends only on its own identity
@@ -988,6 +1010,9 @@ impl Document {
             config,
             auth,
             perms,
+            key,
+            encrypt_dict_id,
+            ciphertext,
         }))
     }
 

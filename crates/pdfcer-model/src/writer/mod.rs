@@ -156,6 +156,7 @@
 pub mod content;
 pub mod encoder;
 pub mod fileid;
+mod incremental;
 mod save;
 pub mod serialize;
 pub mod xref_out;
@@ -163,10 +164,8 @@ pub mod xref_out;
 use std::collections::BTreeMap;
 
 pub use encoder::{EncryptingEncoder, IdentityEncoder, ObjectEncoder};
-pub use save::{
-    EncryptParams, SaveReport, save_full, save_full_decrypted, save_full_encrypted,
-    save_incremental,
-};
+pub use incremental::save_incremental;
+pub use save::{EncryptParams, SaveReport, save_full, save_full_decrypted, save_full_encrypted};
 pub use xref_out::XrefOutError;
 
 use crate::object::{Dict, Name, ObjId, Object};
@@ -847,40 +846,37 @@ pub enum WriteError {
          was invalid, so its save must be a full rewrite (save_full)"
     )]
     RecoveredBaseForbidsIncremental,
-    /// A save was requested for a document loaded from an **encrypted** file
-    /// (7.6). pdfcer can decrypt such a file but cannot yet write one.
+
+    /// A **full rewrite** was asked of a document loaded from an encrypted
+    /// file (§7.6).
     ///
-    /// # Why this is a refusal and not a best effort
-    ///
-    /// After [`Document`](crate::document::Document) decrypts a file, its two
-    /// halves deliberately disagree. Stream data was decrypted **in the
-    /// retained buffer** (RC4 preserves length, so the plaintext fits exactly
-    /// where the ciphertext was and every span stays true); strings were
-    /// decrypted **in the parsed objects**, because a decrypted string cannot
-    /// generally be re-escaped into the same number of source bytes.
-    ///
-    /// Both save modes re-emit untouched objects verbatim from their source
-    /// span (R32). Doing that here would produce a file whose `/Encrypt`
-    /// dictionary still claims the document is encrypted, whose streams are
-    /// plaintext, and whose strings are ciphertext. That is not a partly-saved
-    /// document — it is one that **no reader can open, including pdfcer**, and
-    /// it would look like a successful save.
-    ///
-    /// The alternatives were considered and rejected for this increment.
-    /// Re-encrypting on save needs the file key, which the document
-    /// deliberately does not retain, and would emit RC4 — which pdfcer never
-    /// writes (**W14**). Stripping `/Encrypt` and saving plaintext would
-    /// silently remove protection the author applied, which is precisely the
-    /// kind of decision rule 4 forbids taking on the operator's behalf.
-    ///
-    /// So: reading encrypted documents works, and writing them is named,
-    /// scoped, unfinished work rather than a surprise at save time.
+    /// Load decrypts stream data in the retained buffer and strings in the
+    /// parsed objects, so a full rewrite's verbatim copies would emit a file
+    /// whose `/Encrypt` claims encryption its content no longer has — one no
+    /// reader can open. Save incrementally (which appends under the existing
+    /// handler), or re-encrypt / remove encryption, which re-serialise every
+    /// object.
     #[error(
-        "this document was loaded from an encrypted file; pdfcer can read encrypted \
-         documents but cannot yet write them, so saving is refused rather than \
-         producing a file that claims encryption it does not have"
+        "this document was loaded from an encrypted file, and a full rewrite would copy \
+         decrypted bytes under its encryption dictionary; save incrementally instead, or \
+         change or remove the encryption"
     )]
     EncryptedSaveUnsupported,
+
+    /// An incremental save of an **RC4**-encrypted document: appending would
+    /// write RC4, which pdfcer never writes (standing rule W14). Re-encrypting
+    /// the document (AES-256) or removing its encryption are the routes.
+    #[error(
+        "this document is encrypted with RC4, which pdfcer does not write; re-encrypt it \
+         with AES-256 or remove its encryption before saving an edit"
+    )]
+    Rc4AppendRefused,
+
+    /// The operating system's random-number source was unreachable, so no
+    /// fresh AES initialisation vector (§7.6.2) could be made. Nothing was
+    /// written.
+    #[error("no secure random source is available to encrypt the saved objects")]
+    EntropyUnavailable,
 }
 
 #[cfg(test)]

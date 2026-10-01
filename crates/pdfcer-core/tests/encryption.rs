@@ -590,51 +590,38 @@ fn a_failed_non_ascii_password_discloses_the_missing_normalisation() {
     );
 }
 
-/// Saving a decrypted document is **refused**, in both modes.
+/// A full rewrite of a decrypted document is refused, and so is an
+/// incremental save of an RC4 one.
 ///
-/// This is the sharp edge of a read-only increment, and it has to be a
-/// refusal rather than a best effort. After decryption the buffer and the
-/// parsed objects deliberately disagree — stream data was decrypted in the
-/// retained buffer (RC4 preserves length, so it fits exactly), strings were
-/// decrypted in the parsed objects (a decrypted string cannot generally be
-/// re-escaped into the same byte count). Both save modes re-emit untouched
-/// objects verbatim from their source span, so a save here would write a file
-/// whose `/Encrypt` claims encryption, whose streams are plaintext and whose
-/// strings are ciphertext.
-///
-/// That file is not "partly saved". Nothing can open it, pdfcer included, and
-/// the save would have reported success.
-///
-/// The two alternatives were rejected deliberately: re-encrypting needs a key
-/// the document does not retain and would emit RC4, which pdfcer never writes
-/// (**W14**); stripping `/Encrypt` would silently discard protection the
-/// author applied, which is the operator's decision and not pdfcer's (rule 4).
+/// A full rewrite re-emits untouched objects verbatim from the decrypted
+/// buffer, which would put plaintext under `/Encrypt`. An incremental save
+/// appends under the document's own key, except that pdfcer never writes RC4
+/// (**W14**). Stripping `/Encrypt` instead would silently discard protection
+/// the author applied (rule 4).
 #[test]
-fn saving_a_decrypted_document_is_refused_in_both_modes() {
+fn a_decrypted_rewrite_and_an_rc4_append_are_refused() {
     let doc =
         Document::load_with_password(&fixture("enc-rc4-128.pdf"), Some(b"userpw")).expect("opens");
     let out = std::env::temp_dir().join("pdfcer-encrypted-save-refusal.pdf");
-    let dirty = DirtySet::empty();
     let options = SaveOptions::default();
+    let mut edit = DirtySet::empty();
+    let field = pdfcer_core::object::ObjId::new(4, 0);
+    edit.replace(field, doc.get(field).expect("field").value.clone());
 
     let _ = std::fs::remove_file(&out);
 
-    for (mode, result) in [
-        ("incremental", doc.save_incremental(&out, &dirty, &options)),
-        ("full", doc.save_full(&out, &dirty, &options)),
-    ] {
-        let e = result.err().unwrap_or_else(|| {
-            panic!("{mode} save of a decrypted document must be refused, not attempted")
-        });
-        assert!(
-            matches!(e, WriteError::EncryptedSaveUnsupported),
-            "{mode}: expected EncryptedSaveUnsupported, got {e:?}"
-        );
-    }
+    let full = doc.save_full(&out, &DirtySet::empty(), &options);
+    assert!(
+        matches!(full, Err(WriteError::EncryptedSaveUnsupported)),
+        "full: got {full:?}"
+    );
+    let append = doc.save_incremental(&out, &edit, &options);
+    assert!(
+        matches!(append, Err(WriteError::Rc4AppendRefused)),
+        "incremental: got {append:?}"
+    );
 
-    // The refusal must happen BEFORE any bytes are written. A refusal that
-    // leaves a truncated or half-written file behind has replaced one broken
-    // output with another, and the operator has no way to tell which.
+    // The refusal must happen BEFORE any bytes are written.
     assert!(
         !out.exists(),
         "a refused save must not leave a file behind at {}",

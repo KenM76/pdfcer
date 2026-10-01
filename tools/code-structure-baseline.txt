@@ -536,7 +536,6 @@ fn pdfcer-model/src/parser.rs::parse_indirect_object
 fn pdfcer-model/src/recover.rs::confirm_candidates
 fn pdfcer-model/src/writer/save.rs::full_reencode
 fn pdfcer-model/src/writer/save.rs::save_full
-fn pdfcer-model/src/writer/save.rs::save_incremental
 fn pdfcer-model/src/writer/xref_out.rs::build_xref_stream
 fn pdfcer-model/src/xref.rs::load_xref_chain
 fn pdfcer-model/src/xref.rs::parse_section_at

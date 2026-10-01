@@ -173,7 +173,7 @@ use crate::document::Document;
 use crate::object::{Dict, IndirectObject, Name, ObjId, Object, Provenance};
 use crate::xref::{SectionShape, XrefEntry};
 
-use super::encoder::IdentityEncoder;
+use super::encoder::{IdentityEncoder, ObjectEncoder};
 use super::{DirtySet, ProducerPolicy, SaveOptions, WriteError, serialize, xref_out};
 
 /// Largest object number [`save_full`] will build a cross-reference
@@ -270,280 +270,21 @@ pub struct SaveReport {
     pub objects_deleted: usize,
 }
 
-/// Append a revision to `doc` and return the complete new file bytes
-/// (§7.5.6).
-///
-/// With an empty `dirty` set the output is **byte-identical to the
-/// input** — see [`super`]'s contract table.
-///
-/// # Errors
-///
-/// [`WriteError`] — a broken provenance span, a dirty object that is
-/// not in the document, or a cross-reference form that cannot express
-/// an entry it was handed.
-///
-/// # Examples
-///
-/// ```
-/// use pdfcer_model::document::Document;
-/// use pdfcer_model::writer::{DirtySet, SaveOptions, save_incremental};
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// // Embedded at compile time so the example does not depend on the
-/// // working directory a doctest happens to run in.
-/// let bytes: Vec<u8> =
-///     include_bytes!("../../../../fixtures/synthetic/hello.pdf").to_vec();
-/// let doc = Document::from_bytes(bytes.clone())?;
-///
-/// // Zero edits means zero bytes: the output IS the input.
-/// let (out, report) =
-///     save_incremental(&doc, &DirtySet::empty(), &SaveOptions::identity())?;
-/// assert_eq!(out, bytes);
-/// assert!(report.byte_identical);
-/// assert_eq!(report.bytes_appended, 0);
-/// # Ok(())
-/// # }
-/// ```
-pub fn save_incremental(
-    doc: &Document,
-    dirty: &DirtySet,
-    // Was `_options` until R169 gave `SaveOptions` two knobs an
-    // incremental save DOES honour: the §7.5.4 entry terminator and the
-    // §7.5.5 trailing EOL both describe bytes this path writes into the
-    // appended revision. `producer` is still ignored here — that one is
-    // about `/Info`, which an append must never touch.
-    options: &SaveOptions,
-) -> Result<(Vec<u8>, SaveReport), WriteError> {
-    // Decision 013 (the recovered-base rule): a document loaded via
-    // cross-reference recovery had an INVALID base xref, so an incremental
-    // append onto it would write a section whose `/Prev` points at a
-    // cross-reference section that does not correctly exist. Refuse by name
-    // — even an empty dirty set — and force the caller onto `save_full`,
-    // which emits a fresh valid classic cross-reference. Sibling of R35 /
-    // R58. Checked FIRST so no later path can append to a broken base.
-    if doc.loaded_via_recovery() {
-        return Err(WriteError::RecoveredBaseForbidsIncremental);
-    }
-
-    // 7.6: a decrypted document's buffer and parsed objects deliberately
-    // disagree (streams plaintext in both, strings plaintext only in the
-    // objects), so re-emitting either verbatim produces a file that claims
-    // encryption it does not have. See `WriteError::EncryptedSaveUnsupported`
-    // for why this is a refusal rather than a best effort.
-    if doc.encryption().is_some() {
-        return Err(WriteError::EncryptedSaveUnsupported);
-    }
-
-    let base = doc.bytes();
-    // Resolve `EOL-A1` against the FILE BEING SAVED, once, here.
-    //
-    // This is the only layer that has both the operator's setting and the
-    // base file's bytes, which is exactly why the default can now be
-    // "match the source" at all. Resolving once rather than at each
-    // `write_classic_table` call keeps an incremental save and a full
-    // rewrite of the same document from ever disagreeing about its form.
-    let entry_eol = options.xref_entry_eol.resolve(base);
-
-    let mut out = base.to_vec();
-    // R45: replacement values may carry authored appearance streams whose
-    // spans point past the base file into the session's staging buffer.
-    // `combined` is `base` alone when nothing was authored (zero-copy, the
-    // unchanged pre-6.1 path) and `base ++ staging` otherwise, so a base
-    // span resolves in the prefix and an authored span in the suffix. The
-    // verbatim path below still reads `base` (its spans are always
-    // file-level, i.e. in the prefix).
-    let combined = dirty.combined_source(base);
-
-    // Step 2. Zero edits means zero bytes. This is the whole contract,
-    // and it is deliberately checked before anything else so that no
-    // later code path can accidentally append to an unchanged document.
-    if dirty.is_empty() {
-        return Ok((
-            out,
-            SaveReport {
-                bytes_written: base.len(),
-                bytes_appended: 0,
-                objects_written: 0,
-                objects_verbatim: 0,
-                objects_reserialized: 0,
-                byte_identical: true,
-                // A save that wrote nothing cannot have de-linearized
-                // anything.
-                delinearized: false,
-                promoted: Vec::new(),
-                objects_deleted: 0,
-            },
-        ));
-    }
-
-    // Step 3. Separate the appended region from an unterminated final
-    // line (module docs — §7.2.3's comment-to-end-of-line rule).
-    if !matches!(out.last(), Some(b'\n' | b'\r')) {
-        out.push(b'\n');
-    }
-
-    // Step 4. Object definitions, in ascending order.
-    //
-    // `body_start` is remembered because §14.4's changing identifier is
-    // digested over exactly this region — the appended object
-    // definitions, and nothing after them. Digesting the finished file
-    // would be circular: `/ID` lives in the trailer, which is part of
-    // the file (see `super::fileid`).
-    let body_start = out.len();
-    let mut entries: BTreeMap<u32, XrefEntry> = BTreeMap::new();
-    let mut verbatim = 0usize;
-    let mut reserialized = 0usize;
-    let mut promoted: Vec<ObjId> = Vec::new();
-    for id in dirty.iter() {
-        // A deletion writes no body at all — its whole expression is a
-        // type-0 entry, and those are built together after the loop so
-        // the linked list can be chained in one place (see
-        // `apply_free_list`).
-        if dirty.is_deleted(id) {
-            continue;
+impl SaveReport {
+    /// The report of a save that wrote nothing: `len` bytes, byte-identical.
+    pub(super) fn unchanged(len: usize) -> Self {
+        Self {
+            bytes_written: len,
+            bytes_appended: 0,
+            objects_written: 0,
+            objects_verbatim: 0,
+            objects_reserialized: 0,
+            byte_identical: true,
+            delinearized: false,
+            promoted: Vec::new(),
+            objects_deleted: 0,
         }
-        let offset = out.len() as u64;
-        match dirty.replacement(id) {
-            // A real edit: serialize the new value. There are no
-            // verbatim bytes to preserve for an object whose value
-            // changed — §5 promises byte identity only for what was NOT
-            // touched.
-            Some(value) => {
-                if doc
-                    .get(id)
-                    .is_some_and(|io| io.provenance.container().is_some())
-                {
-                    promoted.push(id);
-                }
-                serialize::write_indirect(&mut out, id, value, &combined, &IdentityEncoder);
-                reserialized += 1;
-            }
-            // An identity re-emission. `UnknownDirtyObject` stays a
-            // named refusal here (and only here): a *replacement* for an
-            // unknown id is a legitimate created object, but a request
-            // to re-emit an object that does not exist has no value to
-            // write and cannot be guessed at.
-            None => {
-                let io = doc.get(id).ok_or(WriteError::UnknownDirtyObject { id })?;
-                match emit_object(&mut out, io, base)? {
-                    Emission::Verbatim => verbatim += 1,
-                    // Re-serialized because its recovered extent
-                    // contradicts its source bytes. NOT a promotion —
-                    // the object was and stays file-level.
-                    Emission::RecoveredReserialized => reserialized += 1,
-                    Emission::Promoted => {
-                        reserialized += 1;
-                        promoted.push(id);
-                    }
-                }
-            }
-        }
-        entries.insert(
-            id.num,
-            XrefEntry::InUse {
-                offset,
-                generation: id.generation,
-            },
-        );
     }
-    let body_end = out.len();
-
-    // The object-0 free-list head, per Annex H.7's own convention
-    // (module docs). Re-use whatever the base file recorded so the
-    // free list is carried forward unchanged; fall back to the §7.5.4
-    // canonical head when the base had no entry for 0 at all.
-    entries.entry(0).or_insert_with(|| {
-        doc.xref().get(0).unwrap_or(XrefEntry::Free {
-            next_free: 0,
-            generation: 65_535,
-        })
-    });
-    // Deletions (Pass 3.2): type-0 entries, generation incremented, and
-    // spliced onto the head of the base file's free list.
-    let deleted = apply_free_list(&mut entries, doc, dirty);
-    relist_shadowed_by_xref_stm(&mut entries, doc, base);
-
-    // Step 6 (prepared before step 5, because an xref stream carries
-    // the trailer keys inside its own dictionary).
-    //
-    // §7.5.6 requirement 3: "all the entries except the Prev entry
-    // (if present) from the previous trailer, whether modified or
-    // not" — and then a NEW Prev. Copying the old one as well would be
-    // a duplicate key (§7.3.7 prohibits those).
-    //
-    // NOTE: a hybrid file's `/XRefStm` IS such an entry, and is
-    // therefore carried forward automatically here. That is §7.5.8.4
-    // "form A", the only appended shape that satisfies requirement 3
-    // as written — see `iso32000__s__7.5.8.md`'s hybrid write-direction
-    // analysis. `relist_shadowed_by_xref_stm` above keeps form A from
-    // hiding an earlier update section behind the forwarded stream.
-    let highest = entries.keys().copied().max().unwrap_or(0);
-    let mut trailer = copy_trailer_without_prev(doc.trailer());
-    // The operator's trailer changes go on FIRST, so the writer's own
-    // `/Prev` and `/Size` below can never be displaced by a patch — a
-    // patched `/Prev` would silently drop a whole revision, and a
-    // patched `/Size` would make objects vanish from every reader's view
-    // (§7.5.5). Those two keys belong to the writer, not to the edit.
-    for (key, value) in dirty.trailer_patch().iter() {
-        trailer.insert(key.clone(), value.clone());
-    }
-    trailer.insert(
-        Name::from(b"Prev"),
-        Object::Integer(i64::try_from(doc.base_startxref()).unwrap_or(0)),
-    );
-    bump_size(&mut trailer, highest);
-    // §14.4 / R39: `ID[1]` refreshes exactly when the save writes a
-    // changed object. An identity re-emission is not a change, so this
-    // is precisely the line that keeps the Pass 3.0 `append-identity`
-    // corpus mode byte-stable while a real edit updates the identifier.
-    if dirty.changes_content() {
-        refresh_changing_identifier(
-            &mut trailer,
-            base.len(),
-            out.get(body_start..body_end).unwrap_or(&[]),
-        );
-    }
-
-    // Step 5 + 7. The section, in the base file's own form (R33).
-    let section_offset = out.len() as u64;
-    match doc.section_shape() {
-        SectionShape::Classic { .. } => {
-            xref_out::write_classic_table(&mut out, &entries, entry_eol)?;
-            xref_out::write_classic_tail(&mut out, &trailer, section_offset, options.trailing_eol);
-        }
-        SectionShape::Stream { id, widths } => {
-            // §7.5.8.3: the xref stream is a top-level indirect object
-            // and its own entry is type 1, pointing at itself.
-            entries.insert(
-                id.num,
-                XrefEntry::InUse {
-                    offset: section_offset,
-                    generation: id.generation,
-                },
-            );
-            bump_size(&mut trailer, entries.keys().copied().max().unwrap_or(0));
-            let widths = xref_out::Widths::fit(&entries, widths);
-            let stream = xref_out::build_xref_stream(id, &entries, widths, &trailer)?;
-            out.extend_from_slice(&stream.bytes);
-            xref_out::write_stream_tail(&mut out, section_offset, options.trailing_eol);
-        } // NO WILDCARD ARM. A third cross-reference form would have to
-          // be emitted, not guessed at — R33 forbids substituting one
-          // form for another — so a new `SectionShape` variant must break
-          // this match.
-    }
-
-    let report = SaveReport {
-        bytes_written: out.len(),
-        bytes_appended: out.len().saturating_sub(base.len()),
-        objects_written: verbatim + reserialized,
-        objects_verbatim: verbatim,
-        objects_reserialized: reserialized,
-        byte_identical: false,
-        delinearized: doc.linearization().save_invalidates_fast_web_view(),
-        promoted,
-        objects_deleted: deleted,
-    };
-    Ok((out, report))
 }
 
 /// Rewrite `doc` as a single-revision file, applying `dirty`, and return
@@ -809,7 +550,7 @@ pub fn save_full(
                     }
                     (None, false) => {
                         let io = doc.get(id).ok_or(WriteError::MissingObject { num })?;
-                        match emit_object(&mut out, io, base)? {
+                        match emit_object(&mut out, io, (base, base), &IdentityEncoder)? {
                             Emission::Verbatim => verbatim += 1,
                             // See the matching arm in `save_incremental`.
                             Emission::RecoveredReserialized => reserialized += 1,
@@ -1507,7 +1248,7 @@ fn write_hybrid_tail(out: &mut Vec<u8>, plan: &HybridTail<'_>) -> Result<(), Wri
 /// tidy chain across them would be pdfcer inventing structure nobody
 /// asked for, which R33 forbids for the same reason it forbids
 /// normalizing anything else.
-fn apply_free_list(
+pub(super) fn apply_free_list(
     entries: &mut BTreeMap<u32, XrefEntry>,
     doc: &Document,
     dirty: &DirtySet,
@@ -1581,7 +1322,7 @@ fn apply_free_list(
 ///
 /// A stream that does not parse re-lists nothing: the loader ignored it too,
 /// so nothing in pdfcer's view of the base depends on it.
-fn relist_shadowed_by_xref_stm(
+pub(super) fn relist_shadowed_by_xref_stm(
     entries: &mut BTreeMap<u32, XrefEntry>,
     doc: &Document,
     base: &[u8],
@@ -1609,7 +1350,7 @@ fn relist_shadowed_by_xref_stm(
 
 /// How an object's definition reached the output — the distinction the
 /// §5 invariant is measured on.
-enum Emission {
+pub(super) enum Emission {
     /// Copied byte-for-byte from the retained source buffer.
     Verbatim,
     /// Rebuilt from the value tree because there were no file-level
@@ -1649,7 +1390,7 @@ enum Emission {
 /// file is incrementally updated"*, and §7.6.3.3 Algorithm 2 step (e)
 /// feeds it into the encryption key, so a change here would surface in
 /// Pass 5 as a decryption failure that looks like a crypto bug.
-fn refresh_changing_identifier(trailer: &mut Dict, base_len: usize, appended: &[u8]) {
+pub(super) fn refresh_changing_identifier(trailer: &mut Dict, base_len: usize, appended: &[u8]) {
     let Some(Object::Array(items)) = trailer.get(b"ID") else {
         return;
     };
@@ -1672,10 +1413,11 @@ fn refresh_changing_identifier(trailer: &mut Dict, base_len: usize, appended: &[
 /// `File` has bytes, `ObjectStream` does not, and there is no third
 /// "might have bytes" state to guess about (see
 /// `crate::object::Provenance`'s type docs).
-fn emit_object(
+pub(super) fn emit_object(
     out: &mut Vec<u8>,
     io: &IndirectObject,
-    source: &[u8],
+    (source, values): (&[u8], &[u8]),
+    encoder: &dyn ObjectEncoder,
 ) -> Result<Emission, WriteError> {
     match io.provenance {
         Provenance::File(span) => {
@@ -1697,7 +1439,7 @@ fn emit_object(
         // is the only way a recovered document's full rewrite can be a
         // valid PDF.
         Provenance::RecoveredFile(_) => {
-            serialize::write_indirect(out, io.id, &io.value, source, &IdentityEncoder);
+            serialize::write_indirect(out, io.id, &io.value, values, encoder);
             Ok(Emission::RecoveredReserialized)
         }
         // R38: promote-to-uncompressed. Reached in Pass 3.0 only via
@@ -1705,7 +1447,7 @@ fn emit_object(
         // full rewrite never takes this branch, because it carries
         // object streams through intact (module docs).
         Provenance::ObjectStream { .. } => {
-            serialize::write_indirect(out, io.id, &io.value, source, &IdentityEncoder);
+            serialize::write_indirect(out, io.id, &io.value, values, encoder);
             Ok(Emission::Promoted)
         }
     }
@@ -1748,7 +1490,7 @@ fn write_with_producer(out: &mut Vec<u8>, id: ObjId, value: &Object, source: &[u
 /// dictionary IS the trailer, and forwarding those keys would emit a
 /// dictionary that contradicts the bytes beneath it.
 /// [`xref_out::build_xref_stream`] also drops them, belt and braces.
-fn copy_trailer_without_prev(trailer: &Dict) -> Dict {
+pub(super) fn copy_trailer_without_prev(trailer: &Dict) -> Dict {
     let mut out = Dict::new();
     for (key, value) in trailer.iter() {
         if matches!(
@@ -1771,7 +1513,7 @@ fn copy_trailer_without_prev(trailer: &Dict) -> Dict {
 /// and defined to be missing"*), so under-reporting it silently deletes
 /// objects from every reader's view. Never lowering it is what keeps a
 /// small update section on a large file correct.
-fn bump_size(trailer: &mut Dict, highest: u32) {
+pub(super) fn bump_size(trailer: &mut Dict, highest: u32) {
     let needed = i64::from(highest) + 1;
     let current = trailer.get(b"Size").and_then(Object::as_int).unwrap_or(0);
     trailer.insert(Name::from(b"Size"), Object::Integer(current.max(needed)));
@@ -1872,6 +1614,7 @@ fn skip_eol(buf: &[u8], pos: usize) -> usize {
 mod tests {
     use super::*;
     use crate::writer::SaveOptions;
+    use crate::writer::save_incremental;
 
     /// A small, offset-consistent classic PDF.
     fn classic_pdf() -> Vec<u8> {

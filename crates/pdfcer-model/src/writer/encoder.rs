@@ -187,6 +187,49 @@ impl ObjectEncoder for EncryptingEncoder {
     }
 }
 
+/// Encrypts appended objects under a document's **existing** handler and file
+/// key — the encoder an incremental save of an encrypted document uses.
+///
+/// Every cipher the read side decrypts is written back the same way
+/// (Algorithm 1 per-object keys below `/V` 5, a fresh IV per AES payload).
+/// Objects in `clear` — those [`crate::crypto::apply::skip_value`] exempts —
+/// are written in clear, strings and stream alike, mirroring the read side.
+pub(crate) struct KeyEncoder<'k> {
+    key: &'k crate::crypto::FileKey,
+    clear: std::collections::HashSet<u32>,
+}
+
+impl<'k> KeyEncoder<'k> {
+    pub(crate) fn new(
+        key: &'k crate::crypto::FileKey,
+        clear: std::collections::HashSet<u32>,
+    ) -> Self {
+        Self { key, clear }
+    }
+
+    fn iv() -> [u8; 16] {
+        // The save preflights the CSPRNG before writing anything, so this
+        // fallback is unreachable; an all-zero IV still decrypts correctly.
+        crate::crypto::rng::array::<16>().unwrap_or([0; 16])
+    }
+}
+
+impl ObjectEncoder for KeyEncoder<'_> {
+    fn encode_string<'a>(&self, owner: ObjId, data: &'a [u8]) -> Cow<'a, [u8]> {
+        if self.clear.contains(&owner.num) || !self.key.strings_encrypted() {
+            return Cow::Borrowed(data);
+        }
+        Cow::Owned(self.key.encrypt_string(owner, data, &Self::iv()))
+    }
+
+    fn encode_stream<'a>(&self, owner: ObjId, data: &'a [u8]) -> Cow<'a, [u8]> {
+        if self.clear.contains(&owner.num) || !self.key.streams_encrypted() {
+            return Cow::Borrowed(data);
+        }
+        Cow::Owned(self.key.encrypt_stream(owner, data, &Self::iv()))
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

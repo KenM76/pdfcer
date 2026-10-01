@@ -112,11 +112,24 @@ pub fn skip(
     encrypt_dict_id: Option<u32>,
     encrypt_metadata: bool,
 ) -> Option<Skip> {
-    if Some(obj.id.num) == encrypt_dict_id {
+    skip_value(obj.id.num, &obj.value, encrypt_dict_id, encrypt_metadata)
+}
+
+/// [`skip`] for a value not (yet) held as an [`IndirectObject`] — the write
+/// side asks it of a replacement value, so a write exempts exactly what a
+/// read would not decrypt.
+#[must_use]
+pub fn skip_value(
+    num: u32,
+    value: &Object,
+    encrypt_dict_id: Option<u32>,
+    encrypt_metadata: bool,
+) -> Option<Skip> {
+    if Some(num) == encrypt_dict_id {
         return Some(Skip::EncryptDict);
     }
 
-    let Object::Stream(stream) = &obj.value else {
+    let Object::Stream(stream) = value else {
         // Non-stream objects can only carry strings, and the only string-level
         // exemptions are the trailer `/ID` (not an object) and `/Encrypt`
         // (handled above).

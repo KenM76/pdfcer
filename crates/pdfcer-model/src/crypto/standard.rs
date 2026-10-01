@@ -91,7 +91,9 @@
 //! gates is a product decision that belongs in the shells, disclosed under
 //! rule 4, not buried here.
 
-use crate::crypto::aes::{KEY_LEN_256, decrypt_cbc_128, decrypt_cbc_256};
+use crate::crypto::aes::{
+    KEY_LEN_256, decrypt_cbc_128, decrypt_cbc_256, encrypt_cbc_128, encrypt_cbc_256,
+};
 use crate::crypto::md5::{Md5, md5};
 use crate::crypto::r5::{self, OE_UE_LEN, OU_LEN, PERMS_LEN, PermsCheck, PreparedPassword};
 use crate::crypto::rc4::rc4;
@@ -1320,6 +1322,53 @@ impl FileKey {
             Cipher::Rc4 => rc4(&self.object_key(id, Cipher::Rc4), data),
             Cipher::Aes128 => decrypt_cbc_128(&self.object_key(id, Cipher::Aes128), data),
             Cipher::Aes256 => decrypt_cbc_256(&self.object_key(id, Cipher::Aes256), data),
+        }
+    }
+
+    /// Encrypt a **string** belonging to object `id` under this key's string
+    /// cipher — the inverse of [`FileKey::decrypt_string`], used when appending
+    /// to a file already encrypted this way.
+    ///
+    /// `iv` must be fresh per call (§7.6.2); it is ignored under RC4 and
+    /// [`Cipher::None`]. Returns the bytes to write: under AES, `iv` followed by
+    /// the padded ciphertext.
+    #[must_use]
+    pub fn encrypt_string(&self, id: ObjId, data: &[u8], iv: &[u8; 16]) -> Vec<u8> {
+        self.encrypt_with(self.string_cipher, id, data, iv)
+    }
+
+    /// Encrypt a **stream's** already-filter-encoded data belonging to object
+    /// `id` — the inverse of [`FileKey::decrypt_stream`]. §7.6.2 W1: this runs
+    /// after the filter chain, and `/Length` is the length of the result.
+    #[must_use]
+    pub fn encrypt_stream(&self, id: ObjId, data: &[u8], iv: &[u8; 16]) -> Vec<u8> {
+        self.encrypt_with(self.stream_cipher, id, data, iv)
+    }
+
+    /// The cipher strings are written under.
+    #[must_use]
+    pub fn string_cipher(&self) -> Cipher {
+        self.string_cipher
+    }
+
+    /// The cipher stream data is written under.
+    #[must_use]
+    pub fn stream_cipher(&self) -> Cipher {
+        self.stream_cipher
+    }
+
+    fn encrypt_with(&self, cipher: Cipher, id: ObjId, data: &[u8], iv: &[u8; 16]) -> Vec<u8> {
+        let key = self.object_key(id, cipher);
+        match cipher {
+            Cipher::None => data.to_vec(),
+            Cipher::Rc4 => rc4(&key, data),
+            // Algorithm 1 yields 16 bytes for `/AESV2` and 32 at `/V` 5, so a
+            // failed conversion is unreachable from a parsed document; it
+            // writes nothing rather than a wrong key's ciphertext.
+            Cipher::Aes128 => <[u8; 16]>::try_from(key.as_slice())
+                .map_or_else(|_| Vec::new(), |k| encrypt_cbc_128(&k, iv, data)),
+            Cipher::Aes256 => <[u8; 32]>::try_from(key.as_slice())
+                .map_or_else(|_| Vec::new(), |k| encrypt_cbc_256(&k, iv, data)),
         }
     }
 
