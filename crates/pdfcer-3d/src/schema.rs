@@ -234,16 +234,7 @@ impl Exec<'_, '_, '_> {
                     self.read(t)?;
                 }
             }
-            6 => {
-                let parent = next(prog, pos)?;
-                if run && let Some(p) = self.schema.programs.get(&parent) {
-                    self.tick(depth + 1)?;
-                    let mut q = 0;
-                    while q < p.len() {
-                        self.stmt(p, &mut q, true, depth + 1)?;
-                    }
-                }
-            }
+            6 => self.parent_program(prog, pos, run, depth)?,
             12 => {
                 next(prog, pos)?;
                 if run {
@@ -267,14 +258,7 @@ impl Exec<'_, '_, '_> {
                 };
                 self.repeat(prog, pos, count, run, depth)?;
             }
-            17 => {
-                let cond = self.expr(prog, pos, run, depth + 1)? != 0;
-                self.stmt(prog, pos, run && cond, depth + 1)?;
-                if prog.get(*pos) == Some(&18) {
-                    *pos += 1;
-                    self.stmt(prog, pos, run && !cond, depth + 1)?;
-                }
-            }
+            17 => self.conditional(prog, pos, run, depth)?,
             19 => self.block(prog, pos, run, depth)?,
             20 => {
                 let version = next(prog, pos)?;
@@ -298,6 +282,42 @@ impl Exec<'_, '_, '_> {
                 next(prog, pos)?;
             }
             t => return Err(malformed(&format!("token {t} where a statement belongs"))),
+        }
+        Ok(())
+    }
+
+    /// Token 6: run the named type's own program, the fields it inherits.
+    fn parent_program(
+        &mut self,
+        prog: &[u32],
+        pos: &mut usize,
+        run: bool,
+        depth: u32,
+    ) -> Result<(), PrcError> {
+        let parent = next(prog, pos)?;
+        if run && let Some(p) = self.schema.programs.get(&parent) {
+            self.tick(depth + 1)?;
+            let mut q = 0;
+            while q < p.len() {
+                self.stmt(p, &mut q, true, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Token 17: `if` with an optional token-18 `else`.
+    fn conditional(
+        &mut self,
+        prog: &[u32],
+        pos: &mut usize,
+        run: bool,
+        depth: u32,
+    ) -> Result<(), PrcError> {
+        let cond = self.expr(prog, pos, run, depth + 1)? != 0;
+        self.stmt(prog, pos, run && cond, depth + 1)?;
+        if prog.get(*pos) == Some(&18) {
+            *pos += 1;
+            self.stmt(prog, pos, run && !cond, depth + 1)?;
         }
         Ok(())
     }

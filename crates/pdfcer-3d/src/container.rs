@@ -210,6 +210,76 @@ impl<'a> Bytes<'a> {
     }
 }
 
+/// One file structure description of the file header [WD 6.2]: its id and
+/// the offsets of its sections.
+fn file_structure_description(r: &mut Bytes) -> Result<(UniqueId, Vec<usize>), PrcError> {
+    let id = r.id("file structure description")?;
+    if r.u32("file structure description")? != 0 {
+        return Err(PrcError::Malformed(
+            "file structure reserved field is not 0".into(),
+        ));
+    }
+    let count = r.u32("file structure description")? as usize;
+    if count < SECTIONS {
+        return Err(PrcError::Malformed(format!(
+            "{count} sections in a file structure"
+        )));
+    }
+    let mut offs = Vec::with_capacity(SECTIONS);
+    for i in 0..count {
+        let o = r.u32("section offset")?;
+        if i < SECTIONS {
+            offs.push(offset(o));
+        }
+    }
+    Ok((id, offs))
+}
+
+/// The file structure `id` whose sections start at `offs` and end by
+/// `last`: its header and its inflated sections, charged to `budget`.
+fn file_structure(
+    data: &[u8],
+    id: UniqueId,
+    offs: &[usize],
+    last: usize,
+    budget: &mut usize,
+    limit: usize,
+) -> Result<FileStructure, PrcError> {
+    let bound = |i: usize| offs.get(i).copied().unwrap_or(last);
+    if offs.windows(2).any(|w| w.first() > w.get(1)) || bound(SECTIONS - 1) > last {
+        return Err(PrcError::Malformed(
+            "file structure section offsets are not ascending".into(),
+        ));
+    }
+    let mut h = Bytes {
+        data: data.get(..bound(1)).unwrap_or(&[]),
+        pos: bound(0),
+    };
+    h.magic()?;
+    let min_version_for_read = h.u32("file structure header")?;
+    let authoring_version = h.u32("file structure header")?;
+    let fs_id = h.id("file structure header")?;
+    if fs_id != id {
+        return Err(PrcError::Malformed(
+            "file structure id differs from its description".into(),
+        ));
+    }
+    let _application = h.id("file structure header")?;
+    let pictures = h.blocks("file structure pictures")?;
+    let mut sections: [Vec<u8>; 5] = Default::default();
+    for (i, (slot, kind)) in sections.iter_mut().zip(SectionKind::ALL).enumerate() {
+        let end = if i + 2 < SECTIONS { bound(i + 2) } else { last };
+        *slot = inflate(data, (bound(i + 1), end), kind.name(), budget, limit)?;
+    }
+    Ok(FileStructure {
+        id,
+        min_version_for_read,
+        authoring_version,
+        pictures,
+        sections,
+    })
+}
+
 fn offset(v: u32) -> usize {
     v as usize
 }
@@ -288,29 +358,9 @@ impl PrcFile {
         if n_fs == 0 || n_fs > MAX_FILE_STRUCTURES {
             return Err(PrcError::Malformed(format!("{n_fs} file structures")));
         }
-        let mut descriptions = Vec::new();
-        for _ in 0..n_fs {
-            let id = r.id("file structure description")?;
-            if r.u32("file structure description")? != 0 {
-                return Err(PrcError::Malformed(
-                    "file structure reserved field is not 0".into(),
-                ));
-            }
-            let count = r.u32("file structure description")? as usize;
-            if count < SECTIONS {
-                return Err(PrcError::Malformed(format!(
-                    "{count} sections in a file structure"
-                )));
-            }
-            let mut offs = Vec::with_capacity(SECTIONS);
-            for i in 0..count {
-                let o = r.u32("section offset")?;
-                if i < SECTIONS {
-                    offs.push(offset(o));
-                }
-            }
-            descriptions.push((id, offs));
-        }
+        let descriptions = (0..n_fs)
+            .map(|_| file_structure_description(&mut r))
+            .collect::<Result<Vec<_>, _>>()?;
         let mf_start = offset(r.u32("model file offsets")?);
         let mf_end = offset(r.u32("model file offsets")?);
         let uncompressed_files = r.blocks("uncompressed files")?.len();
@@ -319,39 +369,7 @@ impl PrcFile {
         let mut file_structures = Vec::with_capacity(n_fs);
         for (id, offs) in descriptions {
             let last = mf_start.min(data.len());
-            let bound = |i: usize| offs.get(i).copied().unwrap_or(last);
-            if offs.windows(2).any(|w| w.first() > w.get(1)) || bound(SECTIONS - 1) > last {
-                return Err(PrcError::Malformed(
-                    "file structure section offsets are not ascending".into(),
-                ));
-            }
-            let mut h = Bytes {
-                data: data.get(..bound(1)).unwrap_or(&[]),
-                pos: bound(0),
-            };
-            h.magic()?;
-            let min_version_for_read = h.u32("file structure header")?;
-            let authoring_version = h.u32("file structure header")?;
-            let fs_id = h.id("file structure header")?;
-            if fs_id != id {
-                return Err(PrcError::Malformed(
-                    "file structure id differs from its description".into(),
-                ));
-            }
-            let _application = h.id("file structure header")?;
-            let pictures = h.blocks("file structure pictures")?;
-            let mut sections: [Vec<u8>; 5] = Default::default();
-            for (i, (slot, kind)) in sections.iter_mut().zip(SectionKind::ALL).enumerate() {
-                let end = if i + 2 < SECTIONS { bound(i + 2) } else { last };
-                *slot = inflate(data, (bound(i + 1), end), kind.name(), &mut budget, limit)?;
-            }
-            file_structures.push(FileStructure {
-                id,
-                min_version_for_read,
-                authoring_version,
-                pictures,
-                sections,
-            });
+            file_structures.push(file_structure(data, id, &offs, last, &mut budget, limit)?);
         }
         if mf_end < mf_start {
             return Err(PrcError::Malformed(
