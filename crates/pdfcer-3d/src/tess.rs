@@ -316,18 +316,20 @@ impl Ctx<'_, '_> {
             arrays::bool_array(r, faces)?; // is_point_color_on_face
             arrays::character_array(r, 8, None, false)?; // point_color_array
         }
+        let mut multi = Vec::new();
         if r.bit()? {
-            arrays::bool_array(r, faces)?; // is_multiple_line_attribute_on_face
+            multi = arrays::bool_array(r, faces)?; // is_multiple_line_attribute_on_face
         }
-        arrays::short_array(r, 16)?; // line_attribute_array
+        let line_attributes = arrays::short_array(r, 16)?;
         if !r.bit()? {
             self.compressed_texture_parameter()?;
             if !self.r.bit()? {
                 arrays::bool_array(&mut self.r, faces)?; // face_has_texture
             }
         }
+        let mut behaviours = Vec::new();
         if self.r.bit()? {
-            arrays::character_array(&mut self.r, 8, None, false)?; // behaviors_array
+            behaviours = arrays::character_array(&mut self.r, 8, None, false)?;
         }
         self.schema
             .skip_added_fields(TESS_3D_COMPRESSED, &mut self.r)?;
@@ -341,9 +343,18 @@ impl Ctx<'_, '_> {
             references: &refs,
         })
         .ok()
-        .map(|m| TriangleMesh {
-            normals_recalculated: recalc,
-            ..m
+        .map(|m| {
+            let graphics =
+                compressed_graphics(&face_of, &multi, &line_attributes, &behaviours, faces);
+            TriangleMesh {
+                normals_recalculated: recalc,
+                triangle_graphics: if graphics.len() == m.triangles.len() {
+                    graphics
+                } else {
+                    Vec::new()
+                },
+                ..m
+            }
         });
         Ok((t, mesh))
     }
@@ -549,6 +560,50 @@ fn face_graphics(face: &Face, entities: &[usize], out: &mut Vec<crate::tree::Gra
         let style = whole.unwrap_or_else(|| face.styles.get(i).copied().unwrap_or(0));
         out.extend(std::iter::repeat_n(g(style), n));
     }
+}
+
+/// Per-triangle graphics of a compressed tessellation [WD 7.8.9.5]: with no
+/// face flagged `is_multiple_line_attribute_on_face`, `line_attributes` holds
+/// one style index + 1 per face (0 = the owner's graphics) and `behaviours`
+/// one behaviour byte per face. The one-per-triangle layout of a flagged face
+/// is not established, so such a tessellation keeps its owner's graphics, as
+/// does one whose attributes are all 0.
+fn compressed_graphics(
+    face_of: &[u32],
+    multi: &[bool],
+    line_attributes: &[i32],
+    behaviours: &[i32],
+    faces: usize,
+) -> Vec<crate::tree::Graphics> {
+    if multi.iter().any(|&b| b)
+        || line_attributes.len() != faces
+        || line_attributes.iter().all(|&a| a == 0)
+    {
+        return Vec::new();
+    }
+    let bits = |f: usize| {
+        if behaviours.len() == faces {
+            behaviours
+                .get(f)
+                .and_then(|&b| u16::try_from(b).ok())
+                .unwrap_or(0)
+        } else {
+            0
+        }
+    };
+    face_of
+        .iter()
+        .map(|&f| {
+            let f = f as usize;
+            crate::tree::Graphics {
+                style: line_attributes
+                    .get(f)
+                    .and_then(|&a| u32::try_from(a).ok())
+                    .unwrap_or(0),
+                bits: bits(f),
+            }
+        })
+        .collect()
 }
 
 /// A `used_entities_flag` block's shape [WD 7.8.5.5].
@@ -1262,9 +1317,36 @@ mod tests {
                     (!full && three_t).then(|| (3, vec![[0, 1, 2]], true)),
                     "full={full} three_t={three_t} v={v}"
                 );
+                if let Some(m) = mesh {
+                    // One face, line attribute 1; `full` adds behaviour 1.
+                    let bits = u16::from(full);
+                    assert_eq!(
+                        m.triangle_graphics,
+                        vec![crate::tree::Graphics { style: 1, bits }],
+                        "full={full} v={v}"
+                    );
+                }
                 assert_eq!(ctx.r.position(), w.len(), "full={full} v={v}");
             }
         }
+    }
+
+    #[test]
+    fn compressed_line_attributes_style_each_face() {
+        let g = |style, bits| crate::tree::Graphics { style, bits };
+        let face_of = [0, 1, 1, 0];
+        assert_eq!(
+            compressed_graphics(&face_of, &[], &[2, 0], &[], 2),
+            vec![g(2, 0), g(0, 0), g(0, 0), g(2, 0)]
+        );
+        assert_eq!(
+            compressed_graphics(&face_of, &[false, false], &[2, 3], &[16, 8], 2),
+            vec![g(2, 16), g(3, 8), g(3, 8), g(2, 16)]
+        );
+        // All inherit, a flagged face, or a count that is not one per face.
+        assert!(compressed_graphics(&face_of, &[], &[0, 0], &[], 2).is_empty());
+        assert!(compressed_graphics(&face_of, &[false, true], &[2, 3], &[], 2).is_empty());
+        assert!(compressed_graphics(&face_of, &[], &[2], &[], 2).is_empty());
     }
 
     #[test]
