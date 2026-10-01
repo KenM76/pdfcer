@@ -115,21 +115,29 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `Pass 429.0` (`42b0a25b`) — PARTIAL, model half only, 2026-10-01 — incremental save of an AES-encrypted document appends under its own key (G077)
+### `Pass 429.0` (`42b0a25b` model half, `49cb9dd4` core half), 2026-10-01 — edit and sign an encrypted document under its own key, permission-gated (G077)
 
-Continues the `Pass 427.0`–`436.3` family (847th filing). **`Pass 429.0` stays OPEN in *Next up* for the core half** — see the dated note there.
+Continues the `Pass 427.0`–`436.3` family (848th filing). **`Pass 429.0` is now FULLY SHIPPED** — closes the `G077` family item; `Pass 430.0` is the new head of *Next up*.
 
-**Shipped.** `pdfcer-model`'s incremental save of a decrypted AES-128 (`/V 4`/`/CFM /AESV2`) or AES-256 (`/R 6`/`/CFM /AESV3`) document now appends new object bytes as ciphertext under the document's own file key, instead of refusing. Fresh random IV per payload, PKCS#7 padding, encrypt-after-filter (ISO 32000-2 §7.6.2). `/Encrypt` and `/ID[0]` carried unchanged (§7.6.3); `/ID[1]` refreshes. Objects the read side never decrypts stay in clear, unchanged: the `/Encrypt` dict itself, xref streams (§7.5.8.2), external `/F` streams, clear `Metadata` (`/EncryptMetadata false`), `/Identity` crypt-filter streams.
+**Model half (`42b0a25b`).** `pdfcer-model`'s incremental save of a decrypted AES-128 (`/V 4`/`/CFM /AESV2`) or AES-256 (`/R 6`/`/CFM /AESV3`) document now appends new object bytes as ciphertext under the document's own file key, instead of refusing. Fresh random IV per payload, PKCS#7 padding, encrypt-after-filter (ISO 32000-2 §7.6.2). `/Encrypt` and `/ID[0]` carried unchanged (§7.6.3); `/ID[1]` refreshes. Objects the read side never decrypts stay in clear, unchanged: the `/Encrypt` dict itself, xref streams (§7.5.8.2), external `/F` streams, clear `Metadata` (`/EncryptMetadata false`), `/Identity` crypt-filter streams. New `WriteError` variants: `Rc4AppendRefused` (RC4 never written, incremental or full, standing rule W14) and `EntropyUnavailable` (CSPRNG preflight before any ciphertext byte). A full rewrite of a decrypted document is still refused (`EncryptedSaveUnsupported`, unchanged). `save_incremental` moved to `writer/incremental.rs`, split under the 80-line limit. 4 new tests in `crates/pdfcer-model/tests/encrypted_append.rs`; `pdfcer-model` 1352 pass, `pdfcer-core` 2445 pass, `pdfcer-cli` 36+659 pass; 5/5 sabotages caught.
 
-**New `WriteError` variants.** `Rc4AppendRefused` — RC4 is never written, incremental or full (standing rule W14; see the open question on the `Pass 429.0` *Next up* entry). `EntropyUnavailable` — a CSPRNG preflight runs before any ciphertext byte is produced. A full rewrite of a decrypted document is still refused (`EncryptedSaveUnsupported`, unchanged by this Pass).
+**Core half (`49cb9dd4`).** Every `EditSession` mutating verb now calls `encryption_gate::forbids(doc, bits)` instead of refusing outright on a trailer `/Encrypt`. Owner password grants every edit; a user/empty-user password is checked per ISO 32000-2 Table 22 bit: `Annotate` for annotation verbs, `FillForms`-or-`Annotate` for fills/button-state/form-data import, `Assemble` for page insert/delete/rotate/reorder/labels/merge/outline items, `ModifyContents` for everything else (text edits, signing, time-stamping). RC4 is refused regardless of password. Redaction still refuses every encrypted document — it needs a full rewrite, unsupported. 33 previously-unguarded verbs gained the check. New `pub` surface: `DocumentEncryption::appendable()`, `DocumentEncryption::grants(PermissionBit)`, `Document::reopen_appended(&self, bytes)`, `const edit::ENCRYPTED_EDIT_REFUSED` (one shared message across every encryption-refusal variant).
 
-**Code.** `save_incremental` moved to `writer/incremental.rs` and split under the 80-line limit; its code-structure baseline entry removed.
+**Spec fix.** A signature dictionary's `/Contents` is no longer encrypted on write nor decrypted on read (ISO 32000-2 §7.6.2's fourth exception; ETSI EN 319 142-1 §5.5) — neither side exempted it before. Signing an AES-encrypted document now works; the sign/timestamp self-verify step reparses via `reopen_appended`.
 
-**Tests.** New `crates/pdfcer-model/tests/encrypted_append.rs` — 4 tests: AES-128 and AES-256 R6 round trips (append, reopen with the password, byte-compare decrypted objects against the pre-append source), RC4 append refusal, empty-edit byte-identical append. `pdfcer-core`'s existing refusal test renamed to `a_decrypted_rewrite_and_an_rc4_append_are_refused` (scope now split between the two crates). `pdfcer-model`: 1352 tests pass. `pdfcer-core`: 2445 pass. `pdfcer-cli`: 36+659 pass. Workspace `cargo clippy -- -D warnings` clean; `tools/check-code-structure.py` clean. 5 sabotages planted, all 5 CAUGHT.
+**Fixture.** `fixtures/synthetic/encryption/enc-emptyuser-print-only.pdf` (AES-256 R6, empty user password, `Print` only); `PROVENANCE.md` row added.
 
-**Invariants.** No `Cargo.toml` change — `cargo tree -p pdfcer-core` / `-p pdfcer-model` unaffected, GUI-core separation holds. No new parsing added, so no new fuzz target owed. Round trip: empty-edit append is byte-identical; encrypted round trip proven by decrypt-reopen-byte-compare. Packaging smoke test not applicable — no packaging-affecting change this Pass.
+**Tests (core half).** `pdfcer-core` lib 1352 passed; integration 2446 passed (2 ignored). New: `sign_document::an_owner_opened_aes_document_signs_and_verifies` (AES-128 + AES-256: sign, user-password reopen verifies to EOF, a later user-password `add_text` appends and the signature still verifies), `encryption::an_encrypted_session_gates_a_content_edit_on_its_permissions`, `encrypted_append::a_signature_dictionarys_contents_is_written_in_clear`. 4 sabotages planted (gate; `grants`' owner arm and `/P` arm; `appendable`; the `/Contents` write-exemption) — all CAUGHT; the read-side `/Contents` exemption is caught only by the model-crate test (the core signing test survives it because the verifier reads `/Contents` from raw bytes, not the decrypted stream). Workspace `cargo clippy --workspace --all-targets -D warnings` clean; `tools/check-code-structure.py` clean (`resize_pages` split via `crop_follows_resize`).
 
-**Not in this slice — remains owed, keeping `Pass 429.0` open** (see *Next up*): `EditSession` edit guards made permission-gated (owner always; user per named `/P` bit) with a `PermissionDenied` error and a permissions query; signing an encrypted document (the `sign::apply` `Encrypted` error message is now stale and belongs to this half); `docs/core-api`; CLI exposure; the `G077` reply.
+**Docs.** `docs/core-api/02-editing-and-saving.md` §5.2 updated, new §5.2a (the permission table), §6.1 updated; `check-core-api-verbs` PASS. A broken rustdoc intra-doc link and three undocumented `pub(crate)` fns left by `42b0a25b` (not yet pushed) were fixed in the same commit, caught by `cargo doc` and `check-public-fns-documented`.
+
+**CLI.** No code change — the existing global `--open-password` now reaches editing subcommands on an AES document. Smoke, debug build: `pdfcer --open-password ownerpw rotate --degrees 90 enc-aes-128.pdf` → `mode=incremental appended=317`, exit 0; a print-only empty-user password and an RC4 input both refuse, exit 9, with `ENCRYPTED_EDIT_REFUSED`.
+
+**Invariants.** No `Cargo.toml` change in either commit — `cargo tree -p pdfcer-core` unaffected, GUI-core separation holds. Round trip: empty-edit append is byte-identical; encrypted round trip proven by decrypt-reopen-byte-compare. Packaging smoke test not applicable.
+
+**Open, not owed:** (1) whether standing rule W14 forbids an RC4 *append* the same way it forbids fresh RC4 authoring — pdfcer refuses either way today; a `SaveOptions` knob to preserve RC4 on append (default `Refuse`) is one resolution, operator question. (2) the RC4 refusal message's closing clause ("open it with the owner password") doesn't help an RC4 file — wording follow-up. (3) `pdfcer-spec-librarian` is correcting the spec RAG's signature-`/Contents` encryption entries (`iso32000__s__7.6.1.md`, `iso32000__ref__encryption_impl.md`) in parallel — not this role's file to edit.
+
+`G077` reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G077_encrypted_documents_edit_under_their_own_key_FIXED.md` — declines the ask for a `PermissionDenied{bit}` error variant (the GUI can query `grants(bit)` against the documented mapping) and offers to add it on request.
 
 ### `Pass 428.0` (`f23dc873`, `b8826f21` — planner split), 2026-10-01 — a pinned spanning edit crosses text objects on one line (G074)
 
@@ -15372,6 +15380,18 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 429.0` FULLY SHIPPED, 2026-10-01 (848th
+> filing), `49cb9dd4`** — see top of *Shipped*. Closes the core half:
+> permission-gated edit guards per ISO 32000-2 Table 22, signing an
+> AES-encrypted document, `docs/core-api`, the `--open-password` CLI
+> exposure, the `G077` reply. The model half shipped PARTIAL at the
+> 847th filing (`42b0a25b`). **`Pass 430.0` is now the head of *Next
+> up* — six items remain in the `G073`–`G081` family.** Open, not
+> owed: whether W14 forbids an RC4 *append* (undecided); the RC4
+> refusal message's stale "open with the owner password" clause; a
+> spec-RAG correction to the signature-`/Contents` exemption, in
+> progress by `pdfcer-spec-librarian`.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 429.0` PARTIALLY SHIPPED (model half),
 > 2026-10-01 (847th filing), `42b0a25b`** — see top of *Shipped*
 > (`Pass 429.0`, PARTIAL). **`Pass 429.0` stays OPEN and remains the
@@ -15476,6 +15496,14 @@ closes out the *prior* filing's business rather than opening this one's.
 >   a fresh encrypt — not yet confirmed either way. A possible resolution
 >   is a `SaveOptions` knob that preserves RC4 on append, defaulting to
 >   `Refuse`.
+>   **★ FULLY SHIPPED 2026-10-01 (848th filing), `49cb9dd4`** — the core
+>   half: every `EditSession` edit verb gated via
+>   `encryption_gate::forbids`/`DocumentEncryption::grants(bit)` (owner
+>   always; user per Table 22 bit), signing an AES-encrypted document
+>   works, `docs/core-api` updated, reached via the existing
+>   `--open-password` flag. Nothing remains owed in this item — the W14
+>   question above stays open as a separate operator decision, not a
+>   gap in this Pass.
 > - **`Pass 430.0`** — accept a character whose glyph exists only in the
 >   embedded font program (`G075` a+c): assign an unused code/CID, extend
 >   `/Widths`/`/W` from `hmtx`, extend `/ToUnicode`, program bytes untouched;

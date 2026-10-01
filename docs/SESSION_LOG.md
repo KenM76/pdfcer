@@ -4,6 +4,52 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (848th filing) — `Pass 429.0` FULLY SHIPPED (`49cb9dd4`) — permission-gated edits + signing on an encrypted document
+
+**Shipped:**
+- `49cb9dd4` — `Pass 429.0` (`G077`), core half, completing the 847th
+  filing's model half (`42b0a25b`). Every `EditSession` mutating verb now
+  calls `encryption_gate::forbids(doc, bits)` instead of refusing on a
+  trailer `/Encrypt`: owner password grants every edit; a user/empty-user
+  password is checked per ISO 32000-2 Table 22 bit (`Annotate`,
+  `FillForms`-or-`Annotate`, `Assemble`, `ModifyContents`). RC4 still
+  refused regardless of password; redaction still refuses every encrypted
+  document (needs a full rewrite). 33 previously-unguarded verbs gained
+  the check. New `pub` surface: `DocumentEncryption::appendable()`,
+  `DocumentEncryption::grants(PermissionBit)`, `Document::reopen_appended`,
+  `const edit::ENCRYPTED_EDIT_REFUSED`. Spec fix: a signature's `/Contents`
+  is no longer encrypted on write nor decrypted on read (ISO 32000-2
+  §7.6.2's fourth exception; ETSI EN 319 142-1 §5.5) — signing an
+  AES-encrypted document now works. New fixture
+  `fixtures/synthetic/encryption/enc-emptyuser-print-only.pdf`. `pdfcer-core`
+  lib 1352 + integration 2446 (2 ignored) pass; clippy and code-structure
+  clean; 4/4 sabotages caught. No `Cargo.toml` change. Reached via the
+  existing global `--open-password` flag — no new CLI surface. Full detail
+  in the `ROADMAP.md` Shipped entry (now merged with the model half under
+  one `Pass 429.0` header).
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- `FEATURES.md`'s encryption-edit row ticked `[x]` core, `[x]` cli (gui
+  stays `[ ]`); row stays in *Planned* (gui not reached) per the
+  maintenance contract.
+- `ROADMAP.md` *Next up*: new top banner recording `Pass 429.0` FULLY
+  SHIPPED; `Pass 430.0` is now the head of *Next up*, six items remain in
+  the `G073`–`G081` family. The 847th filing's nested family-list note
+  got a dated `★ FULLY SHIPPED` addendum rather than being rewritten.
+
+**Still in flight:** `Pass 430.0`–`Pass 435.0` (the rest of the `G073`–
+`G081` family) plus `Pass 436.0`–`436.3` (the operator's workaround/
+font-folder request). Open operator question: whether W14 forbids an RC4
+*append*, or a `SaveOptions` knob should preserve it (default `Refuse`).
+Also open, smaller: the RC4 refusal message's stale "open with the owner
+password" clause needs rewording. `pdfcer-spec-librarian` is correcting
+the spec RAG's signature-`/Contents` encryption entries in parallel.
+
+**For next session:** work `Pass 430.0` next (accept a character whose
+glyph exists only in the embedded font program, `G075` a+c).
+
 ## 2026-10-01 (847th filing) — `Pass 429.0` PARTIALLY SHIPPED (`42b0a25b`) — encrypted incremental save, model half
 
 **Shipped:**
