@@ -115,6 +115,54 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.6` (`6a016719`), 2026-10-01 — faces carrying their own style draw in its colour
+
+Continues the `Pass 421.x` bucket past `421.2`'s per-part colour.
+`TESS_Face`'s line attributes (each a style index + 1; PRC WD 7.8.6) are
+now kept per triangle in `pdfcer-3d`: one attribute styles the whole face,
+two or more style one triangulation entity each (each triangle of a
+triangle block, each fan, each strip). A face's behaviour bits take part
+in the tree's father/son colour-inheritance walk, so a parent that forces
+its colour still wins unless the face claims it.
+
+New public `Placement::triangle_colours(&mesh) -> Option<Vec<Option<[f64;
+4]>>>` — `None` means every triangle uses `Placement::colour`. Per-triangle
+data on `TriangleMesh` is crate-private. CLI `3d-render` splits a
+multi-coloured mesh into one mesh per distinct colour before rasterizing;
+its printed note now reads "each part, and each face styled on its own, is
+drawn in the colour its model tree gives it ...; textures, lights and
+views are not read yet" (previously claimed face colours were unread).
+
+**Not done.** The compressed (entity 173) `line_attribute_array` is still
+skipped — its bias is unverified and no sample exercises it. No real
+sample exercises face styles either: the School sample has line-attribute
+count 0 on every face, and its render is byte-identical before and after
+this change.
+
+**Tests.** New: `tess::tests::face_line_attributes_style_its_triangles`
+(0/1/2/3 attributes over a triangle + fan), `tree::tests::
+face_styles_take_part_in_inheritance`, CLI `threed_cmd::tests::
+a_mesh_splits_by_triangle_colour_in_first_seen_order` — all three
+sabotage-checked, CAUGHT. `pdfcer-3d`: 76 lib tests pass. CLI `three_d`
+integration tests: 17 pass (one existing assertion updated for the new
+note wording).
+
+`docs/core-api/01-reading-and-model.md` documents `triangle_colours`;
+`check-core-api-verbs` PASS. No manifest changed — `cargo tree` not
+applicable.
+
+`docs/FEATURES.md` row 534 ("View an embedded 3D model with camera
+controls"): boxes unchanged (`core [x]`/`cli [x]` from `421.0`, `gui [ ]`
+pending `421.1`) — text gains a clause on per-face colours; it does not
+add a new capability.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+names and sabotage results relayed from the dispatching engineer's own
+report on `6a016719`, not independently reproduced. `tools/run-gates.sh`
+was reported running, not reported complete — recorded as "gates run
+pre-push," no result claimed. Backup/push/release state not verifiable
+from here.
+
 ### `Pass 421.5` (`d8514cce`, `3ea9a5d8`), 2026-10-01 — CLI 3D fixes: stale assembly-test probes + `3d-mesh` format-from-extension
 
 Two small, unrelated CLI-only fixes in the `Pass 421.x` bucket, bundled as
@@ -24227,17 +24275,24 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   change (a name-filtered test run had missed it before push); and
   `3d-mesh --format` is now optional, picked from a `.obj` `--output`
   extension when omitted. No change to the camera/render API.
+- `421.6` — **SHIPPED, `6a016719`, 2026-10-01 (825th filing)**, full entry
+  in *Shipped* above. `TESS_Face` line attributes (PRC WD 7.8.6) now kept
+  per triangle, so a face styled per-triangle (rather than once for the
+  whole face) draws each triangle in its own colour, with the father/son
+  colour-inheritance walk still able to override. New public
+  `Placement::triangle_colours`. Compressed (entity 173) line-attribute
+  arrays still skipped; no real sample exercises face styles.
 
 **Next planned, in order**: fix the vaulted-roof tessellation tear
 (entity #868, `419.2`'s own remainder); then textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
 gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`,
-framing fix noted by `421.3`, vertex-fit noted by `421.4`); `gui` stays
-`[ ]` pending `421.1`. Stays in *Planned* — the row names the
-interactive-controls capability, and that still needs Rung B.
-`421.5`'s `3d-mesh` format-from-extension fix is noted on the separate
-mesh-export row (`419.2`, *Implemented*), not this one.
+framing fix noted by `421.3`, vertex-fit noted by `421.4`, per-face colour
+noted by `421.6`); `gui` stays `[ ]` pending `421.1`. Stays in *Planned* —
+the row names the interactive-controls capability, and that still needs
+Rung B. `421.5`'s `3d-mesh` format-from-extension fix is noted on the
+separate mesh-export row (`419.2`, *Implemented*), not this one.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 

@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (825th filing) — `Pass 421.6` (`6a016719`): faces carrying their own style draw in its colour
+
+**Shipped:**
+- `Pass 421.6` — `TESS_Face` line attributes (PRC WD 7.8.6) now kept per
+  triangle in `pdfcer-3d`: one attribute styles the whole face, two or
+  more style one triangulation entity each. A face's behaviour bits take
+  part in the tree's father/son colour-inheritance walk. New public
+  `Placement::triangle_colours(&mesh) -> Option<Vec<Option<[f64;4]>>>`.
+  CLI `3d-render` splits a multi-coloured mesh into one mesh per distinct
+  colour; its printed note now says per-face colours ARE read. Full entry
+  in `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- The compressed (entity 173) `line_attribute_array` is still skipped —
+  bias unverified, no sample exercises it. The roof-tear (compressed 173
+  apex drift) investigation from earlier in the `419.x`/`421.x` work is
+  parked; its findings now live outside this repo, in the spec RAG at
+  `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__tess_3d_compressed.md`
+  §2b.
+- Gotcha, recurred twice this session: a Python heredoc patch of a Rust
+  string literal wrapped with a trailing backslash lost the backslash on
+  the second use, leaving a 14-space gap in a test literal. Fixed with
+  the `Edit` tool instead.
+
+**Still in flight:** Unchanged next-owed order for the `421.x` bucket —
+the vaulted-roof tessellation tear (`419.2` remainder), then textures,
+then lights; Rung B (GUI orbit/pan/zoom, `421.1`) still not requested.
+`tools/run-gates.sh` was reported running at filing time, not reported
+complete.
+
+**For next session:** Nothing new opened by this filing.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+names and sabotage results relayed from the dispatching engineer's own
+report on `6a016719`, not independently reproduced. Backup/push/release
+state not verifiable from here.
+
 ## 2026-10-01 (824th filing) — `Pass 421.4` follow-up (`d49224cd`): `fit_meshes` test borrows the mesh as a slice
 
 **Shipped:**
