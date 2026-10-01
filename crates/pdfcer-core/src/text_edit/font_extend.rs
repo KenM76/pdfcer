@@ -17,6 +17,7 @@ use crate::object::{Dict, Name, ObjId, Object};
 use crate::text_edit::edit::{carried_codes, walk_records};
 use crate::text_edit::forms::scan_page_forms;
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
+use crate::text_extract::cmap::ToUnicodeCMap;
 use crate::view::DocumentView;
 
 /// Upper bound on objects visited proving a resource graph does not reach the font.
@@ -32,6 +33,8 @@ pub(crate) struct AddedGlyph {
     pub(crate) width: f64,
     /// Whether `/Widths` had to change for it.
     pub(crate) widened: bool,
+    /// Whether `/ToUnicode` gains an entry for it.
+    pub(crate) mapped: bool,
 }
 
 /// The new revision of the font dictionary.
@@ -40,6 +43,8 @@ pub(crate) struct FontExtension {
     pub(crate) font_id: ObjId,
     pub(crate) dict: Dict,
     pub(crate) added: Vec<AddedGlyph>,
+    /// The rewritten `/ToUnicode` stream: id, dictionary, unfiltered bytes.
+    pub(crate) to_unicode: Option<(ObjId, Dict, Vec<u8>)>,
 }
 
 impl FontExtension {
@@ -130,13 +135,66 @@ impl Target {
             .ok_or_else(|| "the embedded program has no outline for it".to_owned())?;
         let width = glyph.advance.round();
         let current = width_at(&s.widths, s.first_char, code).unwrap_or(s.missing_width);
+        let mapped = match &s.to_unicode {
+            Some(map) => map.needs_entry(ch, code)?,
+            None => false,
+        };
         Ok(AddedGlyph {
             ch,
             code,
             gid: glyph.gid,
             width,
             widened: (current - width).abs() > 0.5,
+            mapped,
         })
+    }
+
+    /// Writes `/FirstChar`, `/LastChar` and `/Widths` covering every widened
+    /// code into `dict`.
+    fn widen(&self, dict: &mut Dict, added: &[AddedGlyph]) {
+        let s = &self.shape;
+        let (mut widths, mut first_char) = (s.widths.clone(), s.first_char);
+        for a in added.iter().filter(|a| a.widened) {
+            set_width(
+                &mut widths,
+                &mut first_char,
+                a.code,
+                a.width,
+                s.missing_width,
+            );
+        }
+        let last = first_char + widths.len() as u32 - 1;
+        dict.insert(
+            Name(b"FirstChar".to_vec()),
+            Object::Integer(first_char.into()),
+        );
+        dict.insert(Name(b"LastChar".to_vec()), Object::Integer(last.into()));
+        dict.insert(
+            Name(b"Widths".to_vec()),
+            Object::Array(widths.iter().map(|&w| number(w)).collect()),
+        );
+    }
+
+    /// The rewritten `/ToUnicode` stream, when any added code needs an entry.
+    fn extended_map(
+        &self,
+        doc: &DocumentView<'_>,
+        added: &[AddedGlyph],
+    ) -> Result<Option<(ObjId, Dict, Vec<u8>)>, String> {
+        let Some(map) = &self.shape.to_unicode else {
+            return Ok(None);
+        };
+        let entries: Vec<(u32, char)> = added
+            .iter()
+            .filter(|a| a.mapped)
+            .map(|a| (a.code, a.ch))
+            .collect();
+        if entries.is_empty() {
+            return Ok(None);
+        }
+        map_private(doc, self.font_id, map.id)?;
+        let (d, bytes) = map.extended(&entries);
+        Ok(Some((map.id, d, bytes)))
     }
 }
 
@@ -195,31 +253,14 @@ pub(crate) fn plan(
         return Err(blocked);
     }
     if added.iter().any(|a| a.widened) {
-        let (mut widths, mut first_char) = (t.shape.widths.clone(), t.shape.first_char);
-        for a in added.iter().filter(|a| a.widened) {
-            set_width(
-                &mut widths,
-                &mut first_char,
-                a.code,
-                a.width,
-                t.shape.missing_width,
-            );
-        }
-        let last = first_char + widths.len() as u32 - 1;
-        dict.insert(
-            Name(b"FirstChar".to_vec()),
-            Object::Integer(first_char.into()),
-        );
-        dict.insert(Name(b"LastChar".to_vec()), Object::Integer(last.into()));
-        dict.insert(
-            Name(b"Widths".to_vec()),
-            Object::Array(widths.iter().map(|&w| number(w)).collect()),
-        );
+        t.widen(&mut dict, &added);
     }
+    let to_unicode = t.extended_map(doc, &added).map_err(whole)?;
     Ok(FontExtension {
         font_id: t.font_id,
         dict,
         added,
+        to_unicode,
     })
 }
 
@@ -240,6 +281,13 @@ pub(crate) fn addable(
         .iter()
         .filter_map(|&(ch, code)| t.assess(ch, code, glyphs).ok())
         .collect();
+    let mut added = added;
+    if let Some(map) = &t.shape.to_unicode
+        && added.iter().any(|a| a.mapped)
+        && map_private(doc, t.font_id, map.id).is_err()
+    {
+        added.retain(|a| !a.mapped);
+    }
     let shown = if added.iter().any(|a| a.widened) {
         match codes_shown(doc, t.font_id) {
             Ok(s) => Some(s),
@@ -289,12 +337,91 @@ fn set_width(widths: &mut Vec<f64>, first_char: &mut u32, code: u32, w: f64, mis
     }
 }
 
+/// The font's `/ToUnicode` stream. An added code either already reads back as
+/// its character there or gains a `bfchar` entry (§9.10.3); the stream is
+/// rewritten in place, unfiltered.
+struct UnicodeMap {
+    id: ObjId,
+    dict: Dict,
+    decoded: Vec<u8>,
+    cmap: ToUnicodeCMap,
+}
+
+impl UnicodeMap {
+    fn read(doc: &DocumentView<'_>, font: &Dict) -> Result<Option<Self>, &'static str> {
+        let Some(entry) = font.get(b"ToUnicode") else {
+            return Ok(None);
+        };
+        let id = entry
+            .as_reference()
+            .ok_or("the /ToUnicode map is not a separate stream")?;
+        let Some(Object::Stream(s)) = doc.graph().value(id) else {
+            return Err("the /ToUnicode map is not a stream");
+        };
+        let decoded = doc
+            .slice(s.data_span)
+            .and_then(|raw| crate::filters::decode_stream(&s.dict, raw).ok())
+            .ok_or("the /ToUnicode map could not be read")?;
+        let cmap = ToUnicodeCMap::parse(&decoded);
+        if cmap.codespace_widths() != [1] || endcmap_at(&decoded).is_none() {
+            return Err("the /ToUnicode map is not a single-byte CMap pdfcer can extend");
+        }
+        Ok(Some(Self {
+            id,
+            dict: s.dict.clone(),
+            decoded,
+            cmap,
+        }))
+    }
+
+    /// Whether `code` needs a new entry to read back as `ch`.
+    fn needs_entry(&self, ch: char, code: u32) -> Result<bool, String> {
+        match self.cmap.lookup(code) {
+            None => Ok(true),
+            Some(s) if s.chars().eq(std::iter::once(ch)) => Ok(false),
+            Some(s) => Err(format!(
+                "code {code} already reads as {s:?} in the font's /ToUnicode map"
+            )),
+        }
+    }
+
+    /// The stream's new dictionary and bytes: one `bfchar` block before
+    /// `endcmap`, the rest verbatim.
+    fn extended(&self, entries: &[(u32, char)]) -> (Dict, Vec<u8>) {
+        let at = endcmap_at(&self.decoded).unwrap_or(self.decoded.len());
+        let mut block = format!("{} beginbfchar\n", entries.len());
+        for &(code, ch) in entries {
+            let mut units = [0u16; 2];
+            let hex: String = ch
+                .encode_utf16(&mut units)
+                .iter()
+                .map(|u| format!("{u:04X}"))
+                .collect();
+            block.push_str(&format!("<{code:02X}> <{hex}>\n"));
+        }
+        block.push_str("endbfchar\n");
+        let (head, tail) = self.decoded.split_at(at);
+        let bytes = [head, block.as_bytes(), tail].concat();
+        let mut dict = self.dict.clone();
+        dict.remove(b"Filter");
+        dict.remove(b"DecodeParms");
+        dict.insert(Name(b"Length".to_vec()), number(bytes.len() as f64));
+        (dict, bytes)
+    }
+}
+
+/// Offset of the last `endcmap` keyword.
+fn endcmap_at(cmap: &[u8]) -> Option<usize> {
+    cmap.windows(7).rposition(|w| w == b"endcmap")
+}
+
 /// What slice 1 needs from the font dictionary.
 struct Shape {
     first_char: u32,
     widths: Vec<f64>,
     missing_width: f64,
     program: Vec<u8>,
+    to_unicode: Option<UnicodeMap>,
 }
 
 impl Shape {
@@ -314,9 +441,7 @@ impl Shape {
         ) {
             return Err("only a WinAnsi or MacRoman encoded font can be extended so far");
         }
-        if font.contains_key(b"ToUnicode") {
-            return Err("extending a font that carries /ToUnicode is not supported yet");
-        }
+        let to_unicode = UnicodeMap::read(doc, font)?;
         let descriptor = doc
             .resolve(font.get(b"FontDescriptor").unwrap_or(&Object::Null))
             .as_dict()
@@ -351,6 +476,7 @@ impl Shape {
             widths,
             missing_width: num(descriptor, b"MissingWidth").unwrap_or(0.0),
             program,
+            to_unicode,
         })
     }
 }
@@ -386,6 +512,42 @@ pub(crate) fn codes_shown(doc: &DocumentView<'_>, font: ObjId) -> Result<BTreeSe
         appearances(doc, page.id, font, &mut shown).map_err(&unproven)?;
     }
     Ok(shown)
+}
+
+/// `Ok` when no surface reaches `/ToUnicode` stream `map` except through font
+/// `font`: page resources (forms included, transitively), annotation
+/// appearances and the interactive form's `/DR`. Rewriting a shared map would
+/// change another font's text.
+fn map_private(doc: &DocumentView<'_>, font: ObjId, map: ObjId) -> Result<(), String> {
+    let shared = || "the /ToUnicode map may be shared with another font".to_owned();
+    let pages = crate::page_tree::pages_in(doc).map_err(|_| shared())?;
+    let reached = |o: &Object| reaches_avoiding(doc, o, map, Some(font));
+    for page in &pages {
+        if reached(&Object::Dict(page.resources.clone())) {
+            return Err(shared());
+        }
+        let annots = doc
+            .resolved(page.id)
+            .as_dict()
+            .and_then(|p| p.get(b"Annots"))
+            .map(|a| doc.resolve(a))
+            .and_then(Object::as_array)
+            .unwrap_or(&[]);
+        let ap = |a: &Object| doc.resolve(a).as_dict().and_then(|d| d.get(b"AP")).cloned();
+        if annots.iter().filter_map(ap).any(|a| reached(&a)) {
+            return Err(shared());
+        }
+    }
+    let dr = doc
+        .catalog_dict()
+        .and_then(|c| c.get(b"AcroForm"))
+        .map(|a| doc.resolve(a))
+        .and_then(Object::as_dict)
+        .and_then(|a| a.get(b"DR"));
+    match dr {
+        Some(dr) if reached(dr) => Err(shared()),
+        _ => Ok(()),
+    }
 }
 
 fn collect(
@@ -517,7 +679,17 @@ fn decode_form(doc: &DocumentView<'_>, id: ObjId) -> Option<ContentStream> {
 /// Whether the object graph under `start` references `font`. Exhausting the
 /// budget answers `true`: an unproven "no" is a "maybe".
 fn reaches(doc: &DocumentView<'_>, start: &Object, font: ObjId) -> bool {
-    let mut seen: BTreeSet<ObjId> = BTreeSet::new();
+    reaches_avoiding(doc, start, font, None)
+}
+
+/// [`reaches`], not looking through object `skip`.
+fn reaches_avoiding(
+    doc: &DocumentView<'_>,
+    start: &Object,
+    font: ObjId,
+    skip: Option<ObjId>,
+) -> bool {
+    let mut seen: BTreeSet<ObjId> = skip.into_iter().collect();
     let mut stack: Vec<&Object> = vec![start];
     let mut budget = REACH_BUDGET;
     while let Some(o) = stack.pop() {

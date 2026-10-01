@@ -1,4 +1,5 @@
-"""Generate fixtures/synthetic/text/word-shaped-subset.pdf (Pass 430.0).
+"""Generate fixtures/synthetic/text/word-shaped-subset.pdf and its
+`-tounicode` twin (Pass 430.0).
 
 The shape Microsoft Word gives an embedded TrueType subset: `/TrueType`,
 `/WinAnsiEncoding`, nonsymbolic (`/Flags 32`), no `/ToUnicode`, and a program
@@ -11,6 +12,10 @@ Program coverage (all reachable through the `(3,1)` cmap):
   D, endash  outlined but never shown            -> typeable by route A
   E          mapped to an EMPTY slot (a dropped glyph) -> refused
   space      empty outline, positive advance     -> typeable (blank glyph)
+
+The `-tounicode` twin adds a `/ToUnicode` CMap covering only the shown codes
+0x41..0x43; `-shared-tounicode` also draws page 2 through a second font dict
+sharing that CMap, so it cannot be rewritten.
 
 Advances differ per glyph so a test can tell an hmtx-derived width from a
 guessed one. Synthetic, generated with fontTools; no real font bytes.
@@ -42,6 +47,9 @@ GLYPHS = {
 }
 
 
+HEAD_TIMESTAMP = 3873733256
+
+
 def build_program() -> bytes:
     from fontTools.fontBuilder import FontBuilder
     from fontTools.pens.ttGlyphPen import TTGlyphPen
@@ -69,6 +77,8 @@ def build_program() -> bytes:
     fb.setupCharacterMap({u: n for n, (u, _, _) in GLYPHS.items()})
     fb.setupOS2(sTypoAscender=1491, sTypoDescender=-431)
     fb.setupPost(keepGlyphNames=False)
+    # Pinned so regeneration is byte-identical (fontTools stamps "now").
+    fb.font["head"].created = fb.font["head"].modified = HEAD_TIMESTAMP
     buf = io.BytesIO()
     fb.font.save(buf)
     return buf.getvalue()
@@ -78,7 +88,16 @@ def widths(codes: str) -> str:
     return " ".join(str(round(GLYPHS[c][1] * 1000 / UPEM)) for c in codes)
 
 
-def build_pdf() -> bytes:
+TO_UNICODE = (
+    b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n"
+    b"/CMapName /Adobe-Identity-UCS def /CMapType 2 def\n"
+    b"1 begincodespacerange <00> <FF> endcodespacerange\n"
+    b"1 beginbfrange <41> <43> <0041> endbfrange\n"
+    b"endcmap CMapName currentdict /CMap defineresource pop end end\n"
+)
+
+
+def build_pdf(to_unicode: bool = False, shared: bool = False) -> bytes:
     ttf = build_program()
     page1 = b"BT\n/F0 24 Tf\n72 600 Td\n(ABC) Tj\nET\n"
     page2 = b"BT\n/F0 24 Tf\n72 600 Td\n(A) Tj\nET\n"
@@ -94,7 +113,8 @@ def build_pdf() -> bytes:
         5: (
             f"<< /Type /Font /Subtype /TrueType /BaseFont /{BASE_FONT} "
             f"/FirstChar 65 /LastChar 67 /Widths [{widths('ABC')}] "
-            f"/Encoding /WinAnsiEncoding /FontDescriptor 6 0 R >>"
+            f"/Encoding /WinAnsiEncoding /FontDescriptor 6 0 R"
+            f"{' /ToUnicode 10 0 R' if to_unicode else ''} >>"
         ).encode("ascii"),
         6: (
             f"<< /Type /FontDescriptor /FontName /{BASE_FONT} "
@@ -106,14 +126,31 @@ def build_pdf() -> bytes:
         8: b"<< /Type /Page /Parent 2 0 R /Contents 9 0 R >>",
         9: gen.raw_stream(page2, ""),
     }
+    if to_unicode:
+        objects[10] = gen.raw_stream(TO_UNICODE, "")
+    if shared:
+        # Page 2 draws through a second font dict sharing the same /ToUnicode.
+        objects[8] = (
+            b"<< /Type /Page /Parent 2 0 R /Contents 9 0 R "
+            b"/Resources << /Font << /F0 11 0 R >> >> >>"
+        )
+        objects[11] = objects[5].replace(f"/BaseFont /{BASE_FONT}".encode(), b"/BaseFont /Twin")
     return gen.serialize(objects)
+
+
+VARIANTS = (
+    ("word-shaped-subset.pdf", False, False),
+    ("word-shaped-subset-tounicode.pdf", True, False),
+    ("word-shaped-subset-shared-tounicode.pdf", True, True),
+)
 
 
 def main() -> int:
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else gen.OUT
-    path = out_dir / "word-shaped-subset.pdf"
-    path.write_bytes(build_pdf())
-    print(f"wrote {path} ({path.stat().st_size} bytes)")
+    for name, tu, shared in VARIANTS:
+        path = out_dir / name
+        path.write_bytes(build_pdf(tu, shared))
+        print(f"wrote {path} ({path.stat().st_size} bytes)")
     return 0
 
 

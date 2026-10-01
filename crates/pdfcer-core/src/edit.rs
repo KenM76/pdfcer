@@ -12617,8 +12617,13 @@ impl EditSession {
 
     /// `writes` as revisions of the session's current objects, so undo
     /// restores whatever each held before.
-    fn revisions(&self, writes: Vec<(ObjId, Object)>) -> Vec<ObjectWrite> {
-        writes
+    fn revisions(&mut self, writes: crate::text_edit::edit::FontWrites) -> Vec<ObjectWrite> {
+        let mut objects = writes.objects;
+        for (id, dict, bytes) in writes.streams {
+            let data_span = self.stage_bytes(&bytes);
+            objects.push((id, Object::Stream(Stream { dict, data_span })));
+        }
+        objects
             .into_iter()
             .map(|(id, after)| ObjectWrite {
                 id,

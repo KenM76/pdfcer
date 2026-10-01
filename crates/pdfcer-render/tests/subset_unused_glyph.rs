@@ -228,3 +228,84 @@ fn without_a_reader_every_refused_character_is_still_named() {
     let err = edit(&doc, "ADE", &EditOptions::default()).unwrap_err();
     assert!(err.contains("Also refused: U+0045 'E' (code 69)."), "{err}");
 }
+
+fn variant(name: &str) -> Document {
+    let path = format!(
+        "{}/../../fixtures/synthetic/text/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    Document::from_bytes(std::fs::read(path).expect("run tools/gen-word-subset-fixture.py"))
+        .unwrap()
+}
+
+/// The newest `10 0 obj` (the `/ToUnicode` stream), parsed by the extractor's
+/// own CMap reader. The extension writes it unfiltered.
+fn saved_map(bytes: &[u8]) -> pdfcer_core::text_extract::cmap::ToUnicodeCMap {
+    let at = bytes
+        .windows(8)
+        .rposition(|w| w == b"10 0 obj")
+        .expect("map object");
+    let body = &bytes[at..];
+    let start = body.windows(6).position(|w| w == b"stream").unwrap() + 6;
+    let end = body.windows(9).position(|w| w == b"endstream").unwrap();
+    pdfcer_core::text_extract::cmap::ToUnicodeCMap::parse(&body[start..end])
+}
+
+#[test]
+fn a_tounicode_map_gains_an_entry_for_each_added_code() {
+    let doc = variant("word-shaped-subset-tounicode.pdf");
+    let saved = edit(&doc, "AB\u{2013}D", &opts()).expect("map extended");
+    let map = saved_map(&saved);
+    assert_eq!(map.lookup(0x44).as_deref(), Some("D"));
+    assert_eq!(map.lookup(0x96).as_deref(), Some("\u{2013}"));
+    assert_eq!(map.lookup(0x41).as_deref(), Some("A"), "old ranges kept");
+    assert_eq!(saved_width(&saved, 68), 656);
+    assert!(page_text(&saved, 0).contains("AB\u{2013}D"));
+}
+
+#[test]
+fn a_code_the_map_gives_another_character_is_refused() {
+    let doc = variant("word-shaped-subset-tounicode.pdf");
+    let mut bytes = doc.bytes().to_vec();
+    let at = bytes
+        .windows(16)
+        .position(|w| w == b"<41> <43> <0041>")
+        .expect("range");
+    bytes[at..at + 16].copy_from_slice(b"<44> <44> <0058>");
+    let doc = Document::from_bytes(bytes).unwrap();
+    let err = edit(&doc, "ABD", &opts()).unwrap_err();
+    assert!(err.contains("already reads as \"X\""), "{err}");
+}
+
+#[test]
+fn a_map_another_font_shares_is_not_rewritten() {
+    let doc = variant("word-shaped-subset-shared-tounicode.pdf");
+    let err = edit(&doc, "ABD", &opts()).unwrap_err();
+    assert!(err.contains("may be shared with another font"), "{err}");
+    let session = EditSession::new(doc);
+    let rep = session
+        .run_repertoire_with(0, "ABC", None, &opts())
+        .unwrap();
+    assert!(!rep.accepts('D'), "the query agrees with the edit");
+}
+
+#[test]
+fn a_session_edit_extends_the_map_and_undo_removes_it() {
+    let doc = variant("word-shaped-subset-tounicode.pdf");
+    let before = doc.bytes().to_vec();
+    let mut session = EditSession::new(doc);
+    session
+        .edit_text(&EditRequest::find_replace(0, "ABC", "ABD"), &opts())
+        .unwrap();
+    let saved = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .unwrap()
+        .0;
+    assert_eq!(saved_map(&saved).lookup(0x44).as_deref(), Some("D"));
+    session.undo().expect("one undoable command");
+    let reverted = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .unwrap()
+        .0;
+    assert_eq!(reverted, before, "undo nets to nothing");
+}

@@ -1741,25 +1741,21 @@ pub fn edit_text(
     // where the text was found (`Pass 119.0`): the page's first content
     // object, or the form XObject's own stream. Both are one-object rewrites
     // and both leave every other byte of the file verbatim.
+    let (font_objects, staged) = plan.font_writes.staged(doc);
     let bytes = match target.form.as_ref() {
         Some(form) => write_incremental_form_with(
             doc,
             form.id,
             &form.dict,
             &plan.new_content,
-            &plan.font_writes,
-            Vec::new(),
+            &font_objects,
+            staged,
         )?,
         // The plan derives content_object / extra_objects_emptied from
         // `page.contents`; a decoupled write went elsewhere, so it overrides.
         None => {
-            let (bytes, content_object, emptied, decoupled) = write_incremental_with(
-                doc,
-                page,
-                &plan.new_content,
-                &plan.font_writes,
-                Vec::new(),
-            )?;
+            let (bytes, content_object, emptied, decoupled) =
+                write_incremental_with(doc, page, &plan.new_content, &font_objects, staged)?;
             if decoupled {
                 plan.report.content_object = content_object;
                 plan.report.extra_objects_emptied = emptied;
@@ -1798,7 +1794,46 @@ pub(crate) struct EditPlan {
     pub(crate) layout: EditLayout,
     /// Objects the edit adds or revises besides the content stream (a font
     /// dictionary extended under decision 172), written in the same revision.
-    pub(crate) font_writes: Vec<(ObjId, Object)>,
+    pub(crate) font_writes: FontWrites,
+}
+
+/// A decision 172 extension's writes: replaced objects, and streams rewritten
+/// in place as `(id, dictionary, unfiltered bytes)`.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct FontWrites {
+    pub(crate) objects: Vec<(ObjId, Object)>,
+    pub(crate) streams: Vec<(ObjId, Dict, Vec<u8>)>,
+}
+
+impl FontWrites {
+    fn of(extension: Option<crate::text_edit::font_extend::FontExtension>) -> Self {
+        let Some(e) = extension else {
+            return Self::default();
+        };
+        Self {
+            objects: e.write().into_iter().collect(),
+            streams: e.to_unicode.into_iter().collect(),
+        }
+    }
+
+    /// The objects with every stream staged after the base file, and the
+    /// staging buffer to hand [`write_incremental_with`].
+    fn staged(&self, doc: &Document) -> (Vec<(ObjId, Object)>, Vec<u8>) {
+        let (base_len, mut staging) = (doc.bytes().len(), Vec::new());
+        let mut objects = self.objects.clone();
+        for (id, dict, bytes) in &self.streams {
+            let span = stage(&mut staging, base_len, bytes);
+            let dict = dict.clone();
+            objects.push((
+                *id,
+                Object::Stream(Stream {
+                    dict,
+                    data_span: span,
+                }),
+            ));
+        }
+        (objects, staging)
+    }
 }
 
 /// A replacement laid out exactly as `crate::EditSession::edit_text` would
@@ -2177,7 +2212,7 @@ pub(crate) fn plan_edit_with_records(
         new_content,
         report: edit_report(target, &font, &class, opts, moved, anchor, disclosures),
         layout: laid.layout,
-        font_writes: extension.and_then(|e| e.write()).into_iter().collect(),
+        font_writes: FontWrites::of(extension),
     })
 }
 
