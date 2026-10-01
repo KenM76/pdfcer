@@ -2403,6 +2403,73 @@ pub(crate) enum Command {
     },
 
     #[cfg(feature = "signing")]
+    /// **Create a self-signed digital ID** — a new key pair and certificate
+    /// in a password-protected `.pfx` file that `sign --cert` accepts.
+    ///
+    /// The certificate is X.509 v3, signed with SHA-256, valid from now for
+    /// `--years`. Its key usage is digital signature and non-repudiation
+    /// (plus key encipherment with `--encryption`, RSA only); its extended
+    /// key usage is e-mail protection and Adobe Authentic Documents, so
+    /// Acrobat offers it for signing. The `.pfx` is protected with
+    /// PBKDF2-SHA-256 and AES-256 and an HMAC-SHA-256 integrity check, the
+    /// format current Windows, macOS and OpenSSL open.
+    ///
+    /// A self-signed ID proves only that the holder of this file signed:
+    /// anyone can make one with any name. Others trust it only once they
+    /// have checked its fingerprint with you — the printed `sha256` value.
+    ///
+    /// Prints one `create-digital-id` line (key, name, validity, usage,
+    /// fingerprint, sizes) and a note. Exit 0 on success; 9 when a field or
+    /// the password is refused (each by name); 3 when a file cannot be
+    /// written; 1 when there is no random source or key generation fails.
+    CreateDigitalId {
+        /// The holder's name, as signatures will show it (`CN`). At most 64
+        /// bytes.
+        #[arg(long, value_name = "NAME")]
+        name: String,
+        /// Output path for the `.pfx` file.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// The password protecting the file. Required, not empty; characters
+        /// beyond the Basic Multilingual Plane (emoji) are refused because
+        /// the format cannot encode them.
+        #[arg(long)]
+        password: String,
+        /// Organisation (`O`).
+        #[arg(long, value_name = "TEXT")]
+        organization: Option<String>,
+        /// Organisational unit (`OU`).
+        #[arg(long, value_name = "TEXT")]
+        org_unit: Option<String>,
+        /// E-mail address, written as the certificate's subject alternative
+        /// name.
+        #[arg(long, value_name = "ADDRESS")]
+        email: Option<String>,
+        /// Two-letter ISO 3166 country code (`C`), e.g. `CA`.
+        #[arg(long, value_name = "CC")]
+        country: Option<String>,
+        /// Key type: `rsa2048` (what Acrobat creates; the default),
+        /// `rsa3072`, or `p256` (ECDSA; smaller and faster, signing only).
+        #[arg(long, value_enum, default_value_t = IdKeyArg::Rsa2048)]
+        key: IdKeyArg,
+        /// Also allow the key to decrypt documents encrypted to this
+        /// certificate (adds key encipherment). RSA keys only.
+        #[arg(long)]
+        encryption: bool,
+        /// Years of validity, 1 to 100.
+        #[arg(long, default_value_t = 5)]
+        years: u16,
+        /// PBKDF2 iterations protecting the file, 1 to 600000 (Windows
+        /// refuses more).
+        #[arg(long, default_value_t = 600_000)]
+        iterations: u32,
+        /// Also write the certificate alone (DER `.cer`) here, for others
+        /// to import as trusted.
+        #[arg(long, value_name = "PATH")]
+        cert_out: Option<PathBuf>,
+    },
+
+    #[cfg(feature = "signing")]
     /// **Add a document time-stamp** — the PAdES B-LTA archive stamp (ETSI
     /// EN 319 142-1 §5.4.3; ISO 32000-2 §12.8.5).
     ///

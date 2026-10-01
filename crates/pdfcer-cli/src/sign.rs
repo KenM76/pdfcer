@@ -501,6 +501,109 @@ duplicates_skipped={} ocsps_wrapped={} carried_forward={} appended={}",
     finish_edit(args.input, &outcome)
 }
 
+/// `--key` for `create-digital-id`.
+#[cfg(feature = "signing")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum IdKeyArg {
+    /// RSA, 2048-bit.
+    Rsa2048,
+    /// RSA, 3072-bit.
+    Rsa3072,
+    /// ECDSA over NIST P-256.
+    P256,
+}
+
+/// `create-digital-id`'s arguments.
+#[cfg(feature = "signing")]
+pub(crate) struct CreateIdArgs<'a> {
+    pub name: &'a str,
+    pub output: &'a Path,
+    pub password: &'a str,
+    pub organization: Option<&'a str>,
+    pub org_unit: Option<&'a str>,
+    pub email: Option<&'a str>,
+    pub country: Option<&'a str>,
+    pub key: IdKeyArg,
+    pub encryption: bool,
+    pub years: u16,
+    pub iterations: u32,
+    pub cert_out: Option<&'a Path>,
+}
+
+/// `create-digital-id`: generate a self-signed ID, write the `.pfx` (and
+/// optionally the `.cer`), print its fingerprint.
+#[cfg(feature = "signing")]
+pub(crate) fn cmd_create_digital_id(args: &CreateIdArgs<'_>) -> u8 {
+    use pdfcer_core::sign::digital_id::{
+        DigitalIdSpec, IdError, IdKeyAlgorithm, IdUsage, create_self_signed_id,
+    };
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let mut spec = DigitalIdSpec::new(args.name, now);
+    spec.organization = args.organization.unwrap_or_default().to_owned();
+    spec.org_unit = args.org_unit.unwrap_or_default().to_owned();
+    spec.email = args.email.unwrap_or_default().to_owned();
+    spec.country = args.country.unwrap_or_default().to_owned();
+    spec.key = match args.key {
+        IdKeyArg::Rsa2048 => IdKeyAlgorithm::Rsa2048,
+        IdKeyArg::Rsa3072 => IdKeyAlgorithm::Rsa3072,
+        IdKeyArg::P256 => IdKeyAlgorithm::EcdsaP256,
+    };
+    if args.encryption {
+        spec.usage = IdUsage::SigningAndEncryption;
+    }
+    spec.valid_years = args.years;
+    spec.pbes2_iterations = args.iterations;
+
+    let id = match create_self_signed_id(&spec, args.password) {
+        Ok(id) => id,
+        Err(err) => {
+            eprintln!("pdfcer: create-digital-id: {err}; nothing was written");
+            return match err {
+                IdError::RandomUnavailable(_) | IdError::KeyOperation(_) => exit::RUNTIME_ERROR,
+                _ => exit::EDIT_REFUSED,
+            };
+        }
+    };
+    if let Err(err) = write_output(args.output, &id.pfx) {
+        eprintln!("pdfcer: {}: {err}", args.output.display());
+        return exit::IO_ERROR;
+    }
+    if let Some(path) = args.cert_out
+        && let Err(err) = write_output(path, &id.certificate)
+    {
+        eprintln!("pdfcer: {}: {err}", path.display());
+        return exit::IO_ERROR;
+    }
+    let fingerprint = id
+        .sha256_fingerprint
+        .iter()
+        .map(|b| format!("{b:02X}"))
+        .collect::<Vec<_>>()
+        .join(":");
+    println!(
+        "create-digital-id -> {}; key={} name={} valid_until={} usage={} sha256={} pfx_bytes={} cert_bytes={}",
+        args.output.display(),
+        id.key_label,
+        quoted_token(spec.common_name.trim()),
+        quoted_token(&id.valid_until),
+        if args.encryption {
+            "sign+encrypt"
+        } else {
+            "sign"
+        },
+        fingerprint,
+        id.pfx.len(),
+        id.certificate.len(),
+    );
+    println!(
+        "  note: validity starts at this machine's clock; a self-signed ID is trusted only by those who have checked its sha256 fingerprint with you"
+    );
+    exit::SUCCESS
+}
+
 /// `timestamp`'s arguments.
 #[cfg(feature = "signing")]
 // Without `download` only `tsa_url` is read: the command refuses by name.

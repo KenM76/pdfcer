@@ -669,7 +669,7 @@ fn verify_mac(
 /// default and the only one every old `.pfx` uses; SHA-2 is what OpenSSL 3
 /// writes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MacHash {
+pub(super) enum MacHash {
     Sha1,
     Sha256,
     Sha384,
@@ -715,7 +715,8 @@ impl MacHash {
         }
     }
 
-    fn hash(self, data: &[u8]) -> Vec<u8> {
+    /// The digest of `data` under this hash.
+    pub(super) fn hash(self, data: &[u8]) -> Vec<u8> {
         use sha2::Digest as _;
         match self {
             Self::Sha1 => sha1::Sha1::digest(data).to_vec(),
@@ -725,7 +726,8 @@ impl MacHash {
         }
     }
 
-    fn hmac(self, key: &[u8], data: &[u8]) -> Vec<u8> {
+    /// HMAC of `data` under `key` with this hash (RFC 2104).
+    pub(super) fn hmac(self, key: &[u8], data: &[u8]) -> Vec<u8> {
         use hmac::{KeyInit as _, Mac as _};
         macro_rules! run {
             ($d:ty) => {{
@@ -748,7 +750,14 @@ impl MacHash {
     ///
     /// `id`: 1 = encryption key, 2 = IV, 3 = MAC key. `n`: bytes wanted.
     /// The password enters as BMPString + NUL (`P12-11`, module docs).
-    fn kdf(self, password: &str, salt: &[u8], iterations: u64, id: u8, n: usize) -> Vec<u8> {
+    pub(super) fn kdf(
+        self,
+        password: &str,
+        salt: &[u8],
+        iterations: u64,
+        id: u8,
+        n: usize,
+    ) -> Vec<u8> {
         let u = self.len();
         let v = self.block();
         // D: `id` repeated v times.

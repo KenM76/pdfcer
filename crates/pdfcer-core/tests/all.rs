@@ -40,6 +40,7 @@ mod content_edit_no_duplication;
 mod contents_append_shapes;
 mod cut_verbs;
 mod deletion_collateral_structural;
+mod digital_id_create;
 mod dimension_circular_placement;
 mod dimension_extension_gap;
 mod dimension_label_override;

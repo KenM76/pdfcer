@@ -4310,6 +4310,36 @@ operator has to get the order of right.
 > enters the engine. `sign::verify_raw_signature` lets a shell prove its
 > custodian plumbing with pdfcer's own verifier before signing a document.
 >
+> **Creating a self-signed ID — `Pass 425.0`** (feature `signing`; not a
+> session verb, no document involved).
+> `sign::digital_id::create_self_signed_id(&DigitalIdSpec, password: &str) -> Result<DigitalId, IdError>`.
+> `DigitalIdSpec::new(common_name, not_before_unix)` (`#[non_exhaustive]`;
+> pdfcer reads no clock, the shell passes "now"), then set the pub fields:
+> `org_unit`, `organization`, `email`, `country` (empty = omitted),
+> `key: IdKeyAlgorithm` (`Rsa2048` default — Acrobat's own; `Rsa3072`;
+> `EcdsaP256`), `usage: IdUsage` (`Signing` default = digitalSignature +
+> nonRepudiation; `SigningAndEncryption` adds keyEncipherment, RSA only),
+> `valid_years` (default 5, `1..=100`), `pbes2_iterations` (default
+> `DEFAULT_PBES2_ITERATIONS` = 600 000, the Windows ceiling; `1..=600_000`).
+> `DigitalId` (`#[non_exhaustive]`): `pfx` (write it to disk; it opens in
+> `Pkcs12Signer::from_der` and in Windows/OpenSSL), `certificate` (DER, for
+> a `.cer` export), `sha256_fingerprint: [u8; 32]` (**show it** — it is how
+> anyone else decides to trust a self-signed ID), `valid_until`
+> (`"YYYY-MM-DD HH:MM:SS UTC"`), `key_label`. The certificate carries a
+> critical basicConstraints cA FALSE, a critical keyUsage, SKI/AKI, an
+> rfc822Name SAN when `email` is set, and the extended key usages
+> emailProtection + Adobe Authentic Documents; it is self-verified before
+> the file is written. `IdError` (`#[non_exhaustive]`, every input checked
+> before any key is generated): `EmptyCommonName`, `EmptyPassword`,
+> `PasswordCharacter { character }` (outside the BMP — the PKCS#12 MAC
+> cannot encode it), `BadCountry { value }`, `BadEmail { value }`,
+> `FieldTooLong { field, len, max }` (64 bytes for CN/O/OU),
+> `ValidityOutOfRange { years }`, `IterationsOutOfRange { value }`,
+> `EncryptionNeedsRsa`, `RandomUnavailable(String)` (wasm32 with no
+> entropy), `KeyOperation(String)`. RSA-2048 generation takes about a
+> second in a release build — run it off the UI thread. CLI:
+> `pdfcer create-digital-id`.
+>
 > **What is authored vs derived.** `SignRequest::signing_time` is REQUIRED
 > and written to `/M` verbatim; pdfcer reads no clock. `name`/`reason`/
 > `location`/`contact_info` are the operator's words. RSA signs only through

@@ -30,6 +30,7 @@
 //! | Module | Does | Spec |
 //! |---|---|---|
 //! | [`pkcs12`] | opens a `.pfx`/`.p12`: verifies the MAC (the password check), decrypts the shrouded key bag and the cert bags under both encryption eras, pairs key with leaf, orders the chain | RFC 7292 |
+//! | [`digital_id`] | creates a self-signed digital ID: key pair, X.509 v3 certificate, PBES2/AES-256 `.pfx` that [`pkcs12`] opens | RFC 5280, RFC 7292, RFC 8018 |
 //! | [`der_out`] | the DER encoder the CMS is written with; `SET OF` ordering per X.690 §11.6 | X.690 |
 //! | [`cms_build`] | the detached `SignedData` with CAdES signed attributes, the RFC 5652 §5.4 `0x31` retag, the key operation via [`Signer`] | RFC 5652, RFC 5035 |
 //! | [`apply`] | the PDF half: signature field + dictionary, the two-pass `/Contents` hole, `/ByteRange` to EOF, incremental-only, self-verified | ISO 32000-1 §12.8, ETSI EN 319 142-1 |
@@ -55,6 +56,7 @@
 pub mod apply;
 pub mod cms_build;
 pub(crate) mod der_out;
+pub mod digital_id;
 pub mod ltv;
 pub mod pkcs12;
 pub mod timestamp;
