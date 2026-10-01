@@ -24,6 +24,8 @@
 
 mod acof;
 mod arrays;
+// Public only so the fuzz target can drive the bit reader directly.
+#[doc(hidden)]
 pub mod bits;
 mod compressed;
 mod container;
@@ -35,6 +37,7 @@ mod tess;
 #[cfg(test)]
 mod testw;
 mod tree;
+mod vec3;
 
 pub use container::{
     FileStructure, MAX_FILE_STRUCTURES, MAX_INFLATED_BYTES, PRC_READER_VERSION, PrcFile, PrcHeader,

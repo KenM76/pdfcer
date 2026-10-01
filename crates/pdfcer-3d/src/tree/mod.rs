@@ -11,6 +11,15 @@ use crate::PrcError;
 use crate::container::UniqueId;
 use crate::tess::{Ctx, malformed};
 
+mod geometry;
+mod style;
+mod walk;
+
+use crate::vec3::cross;
+pub use geometry::{IDENTITY, Matrix, multiply, transform_point};
+pub(crate) use style::{Globals, Graphics, resolve_style};
+pub(crate) use walk::Walk;
+
 const BASE_WITH_GRAPHICS: u32 = 2;
 const MODEL_FILE: u32 = 301;
 const SCENE_DISPLAY_PARAMETERS: u32 = 741;
@@ -56,108 +65,6 @@ const SON_HERIT_COLOR: u16 = 0x0008;
 const FATHER_HERIT_COLOR: u16 = 0x0010;
 /// `product_behavior` SUPPRESSED [WD 7.3.10].
 const SUPPRESSED: u8 = 0x01;
-
-/// A 4×4 matrix, `m[row][col]`, acting on column vectors.
-pub type Matrix = [[f64; 4]; 4];
-
-/// The identity matrix.
-pub const IDENTITY: Matrix = [
-    [1.0, 0.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0, 0.0],
-    [0.0, 0.0, 1.0, 0.0],
-    [0.0, 0.0, 0.0, 1.0],
-];
-
-/// `a × b`.
-pub fn multiply(a: &Matrix, b: &Matrix) -> Matrix {
-    let mut m = [[0.0; 4]; 4];
-    for (i, row) in m.iter_mut().enumerate() {
-        for (j, cell) in row.iter_mut().enumerate() {
-            *cell = (0..4)
-                .map(|k| {
-                    a.get(i).and_then(|r| r.get(k)).copied().unwrap_or(0.0)
-                        * b.get(k).and_then(|r| r.get(j)).copied().unwrap_or(0.0)
-                })
-                .sum();
-        }
-    }
-    m
-}
-
-/// `m × (p, 1)`, divided by the homogeneous coordinate when it is neither
-/// 0 nor 1.
-pub fn transform_point(m: &Matrix, p: [f64; 3]) -> [f64; 3] {
-    let v = [p[0], p[1], p[2], 1.0];
-    let row = |i: usize| -> f64 {
-        m.get(i)
-            .map_or(0.0, |r| r.iter().zip(v).map(|(a, b)| a * b).sum())
-    };
-    let w = row(3);
-    let s = if w == 0.0 || w == 1.0 { 1.0 } else { 1.0 / w };
-    [row(0) * s, row(1) * s, row(2) * s]
-}
-
-impl crate::TriangleMesh {
-    /// This mesh with every position mapped through `m` and every stored
-    /// normal through its inverse transpose (renormalised); a mirroring `m`
-    /// (negative determinant) reverses each triangle so the outside stays
-    /// counter-clockwise.
-    ///
-    /// ```
-    /// # use pdfcer_3d::{IDENTITY, TriangleMesh};
-    /// let mut mirror = IDENTITY;
-    /// mirror[0][0] = -1.0;
-    /// let mut mesh = TriangleMesh::default();
-    /// mesh.positions = vec![[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
-    /// mesh.triangles = vec![[0, 1, 2]];
-    /// let placed = mesh.transformed(&mirror);
-    /// assert_eq!(placed.positions[0], [-1.0, 0.0, 0.0]);
-    /// assert_eq!(placed.triangles[0], [0, 2, 1]);
-    /// ```
-    #[must_use]
-    pub fn transformed(&self, m: &Matrix) -> Self {
-        let mut out = self.clone();
-        for p in &mut out.positions {
-            *p = transform_point(m, *p);
-        }
-        let a = |i: usize, j: usize| m.get(i).and_then(|r| r.get(j)).copied().unwrap_or(0.0);
-        let det = a(0, 0) * (a(1, 1) * a(2, 2) - a(1, 2) * a(2, 1))
-            - a(0, 1) * (a(1, 0) * a(2, 2) - a(1, 2) * a(2, 0))
-            + a(0, 2) * (a(1, 0) * a(2, 1) - a(1, 1) * a(2, 0));
-        // Normals take the inverse transpose; the cofactor matrix is det
-        // times it, so its sign is corrected and the result renormalised.
-        let cof = |i: usize, j: usize| {
-            let (r0, r1) = ((i + 1) % 3, (i + 2) % 3);
-            let (c0, c1) = ((j + 1) % 3, (j + 2) % 3);
-            a(r0, c0) * a(r1, c1) - a(r0, c1) * a(r1, c0)
-        };
-        let sign = if det < 0.0 { -1.0 } else { 1.0 };
-        for n in &mut out.normals {
-            let v = [0, 1, 2].map(|i| {
-                sign * n
-                    .iter()
-                    .enumerate()
-                    .map(|(j, c)| cof(i, j) * c)
-                    .sum::<f64>()
-            });
-            let len = v.iter().map(|c| c * c).sum::<f64>().sqrt();
-            *n = if len > 0.0 && len.is_finite() {
-                v.map(|c| c / len)
-            } else {
-                v
-            };
-        }
-        if det < 0.0 {
-            for t in &mut out.triangles {
-                t.swap(1, 2);
-            }
-            for t in &mut out.triangle_normals {
-                t.swap(1, 2);
-            }
-        }
-        out
-    }
-}
 
 /// A tessellation drawn at a place in the model: world = `matrix` ×
 /// the tessellation's own coordinates.
@@ -208,96 +115,6 @@ impl Placement {
                 .collect(),
         )
     }
-}
-
-/// One entity's `GraphicsContent`: `style` is `line_style_index + 1`
-/// (0 = none), `bits` the behaviour bits [WD 7.2.4].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) struct Graphics {
-    pub(crate) style: u32,
-    pub(crate) bits: u16,
-}
-
-/// A `Style` (701) as far as colour: `index` is `colour_or_material + 1`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Style {
-    pub(crate) is_material: bool,
-    pub(crate) index: u32,
-    pub(crate) transparency: Option<u8>,
-}
-
-/// A `materials` entry as far as colour.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum Material {
-    /// `Material` (702): `diffuse + 1` (a double-scaled colour index) and
-    /// the diffuse alpha.
-    Plain { diffuse: u32, alpha: f64 },
-    /// `TextureApplication` (711): `material_generic_index + 1`.
-    Textured { base: u32 },
-}
-
-/// What `FileStructureGlobals` contributes to placing and colouring.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub(crate) struct Globals {
-    /// Entry `i` places an item with biased local-CS index `i + 1`.
-    pub(crate) systems: Vec<Matrix>,
-    pub(crate) colours: Vec<[f64; 3]>,
-    pub(crate) materials: Vec<Material>,
-    pub(crate) styles: Vec<Style>,
-}
-
-impl Globals {
-    /// Colour index `i + 1` of a style or material. Indices are
-    /// double-scaled: stored `i + 1` names `colours[i / 3]`
-    /// (`prc__8137__graphics_materials.md` §2, ISS #816); one that is not a
-    /// multiple of three names nothing.
-    fn colour(&self, biased: u32) -> Option<[f64; 3]> {
-        let i = biased.checked_sub(1)?;
-        if i % 3 != 0 {
-            return None;
-        }
-        self.colours.get(i as usize / 3).copied()
-    }
-
-    /// The RGBA of style `biased` (`line_style_index + 1`).
-    pub(crate) fn style_colour(&self, biased: u32) -> Option<[f64; 4]> {
-        let style = self.styles.get(biased.checked_sub(1)? as usize)?;
-        let (rgb, mut alpha) = if style.is_material {
-            let mut m = self.materials.get(style.index.checked_sub(1)? as usize)?;
-            if let Material::Textured { base } = *m {
-                m = self.materials.get(base.checked_sub(1)? as usize)?;
-            }
-            match *m {
-                Material::Plain { diffuse, alpha } => (self.colour(diffuse)?, alpha),
-                Material::Textured { .. } => return None,
-            }
-        } else {
-            (self.colour(style.index)?, 1.0)
-        };
-        if let Some(t) = style.transparency {
-            alpha *= f64::from(t) / 255.0;
-        }
-        let [r, g, b] = rgb;
-        Some([r, g, b, alpha.clamp(0.0, 1.0)])
-    }
-}
-
-/// The style a chain of graphics resolves to, outermost first: a son's own
-/// style is used unless an ancestor set `FatherHeritColor` (the oldest such
-/// wins), and a son setting `SonHeritColor` overrides that
-/// [WD 7.2.4.2]. Entities with no style inherit.
-pub(crate) fn resolve_style(chain: &[Graphics]) -> u32 {
-    let (mut style, mut forced) = (0, false);
-    for g in chain {
-        if g.style == 0 {
-            continue;
-        }
-        if !forced || g.bits & SON_HERIT_COLOR != 0 {
-            style = g.style;
-            forced = g.bits & FATHER_HERIT_COLOR != 0;
-        }
-    }
-    style
 }
 
 /// A representation item that can be drawn, flattened out of any `RI_Set`.
@@ -496,26 +313,46 @@ impl Ctx<'_, '_> {
         }
         let mut chain = graphics.to_vec();
         chain.push(own);
-        let exact = |c: &mut Self| -> Result<(), PrcError> {
-            if c.r.bit()? {
-                c.r.unsigned_integer()?;
-                c.r.unsigned_integer()?;
+        let drawable = if t == RI_SET {
+            let n = self.count(1, "representation set")?;
+            let mut members = Vec::new();
+            for _ in 0..n {
+                self.representation_item(&path, &chain, &mut members, depth + 1)?;
             }
-            Ok(())
+            if !hidden {
+                out.extend(members);
+            }
+            false
+        } else {
+            self.leaf_item_fields(t)?
         };
-        let mut drawable = true;
+        self.schema.skip_added_fields(t, &mut self.r)?;
+        self.user_data()?;
+        if drawable && !hidden && tess != 0 {
+            out.push(Item {
+                local: path,
+                tessellation: tess,
+                graphics: chain,
+            });
+        }
+        Ok(())
+    }
+
+    /// The type-specific fields of a representation item other than
+    /// `RI_Set` [WD 7.6]; returns whether the item can be drawn.
+    fn leaf_item_fields(&mut self, t: u32) -> Result<bool, PrcError> {
         match t {
             RI_BREP_MODEL => {
-                exact(self)?;
+                self.exact_tolerance()?;
                 self.r.bit()?; // is_closed
             }
-            RI_CURVE | RI_PLANE => exact(self)?,
+            RI_CURVE | RI_PLANE => self.exact_tolerance()?,
             RI_DIRECTION => {
                 if self.r.bit()? {
                     self.vector3()?;
                 }
                 self.vector3()?;
-                drawable = false;
+                return Ok(false);
             }
             RI_POINT_SET => {
                 let n = self.count(6, "point set")?;
@@ -527,20 +364,9 @@ impl Ctx<'_, '_> {
                 self.r.bit()?;
             }
             RI_POLY_WIRE => {}
-            RI_SET => {
-                let n = self.count(1, "representation set")?;
-                let mut members = Vec::new();
-                for _ in 0..n {
-                    self.representation_item(&path, &chain, &mut members, depth + 1)?;
-                }
-                if !hidden {
-                    out.extend(members);
-                }
-                drawable = false;
-            }
             RI_COORDINATE_SYSTEM => {
                 self.transformation()?;
-                drawable = false;
+                return Ok(false);
             }
             t => {
                 return Err(malformed(format!(
@@ -548,14 +374,15 @@ impl Ctx<'_, '_> {
                 )));
             }
         }
-        self.schema.skip_added_fields(t, &mut self.r)?;
-        self.user_data()?;
-        if drawable && !hidden && tess != 0 {
-            out.push(Item {
-                local: path,
-                tessellation: tess,
-                graphics: chain,
-            });
+        Ok(true)
+    }
+
+    /// The optional exact-geometry tolerance pair of a B-rep, curve or plane
+    /// item.
+    fn exact_tolerance(&mut self) -> Result<(), PrcError> {
+        if self.r.bit()? {
+            self.r.unsigned_integer()?;
+            self.r.unsigned_integer()?;
         }
         Ok(())
     }
@@ -760,139 +587,6 @@ impl Ctx<'_, '_> {
         Ok(p)
     }
 
-    /// `FileStructureGlobals` (303) read as far as its reference coordinate
-    /// systems [WD 7.3.5, 7.3.5.2; PRCRS]: colours, materials, styles and
-    /// the systems.
-    ///
-    /// Fonts, pictures, texture definitions and fill patterns are
-    /// [`PrcError::Unsupported`]; line patterns are read past.
-    pub(crate) fn globals(&mut self) -> Result<Globals, PrcError> {
-        let mut g = Globals::default();
-        self.expect_type(FILE_STRUCTURE_GLOBALS)?;
-        self.content_prc_base()?;
-        let n = self.count(4, "referenced file structures")?;
-        for _ in 0..n {
-            self.unique_id()?;
-        }
-        self.r.double()?; // tessellation chord-height ratio
-        self.r.double()?; // tessellation angle
-        self.r.string()?; // default font family
-        if self.r.unsigned_integer()? != 0 {
-            return Err(PrcError::Unsupported("PRC global fonts"));
-        }
-        let n = self.count(3, "colours")?;
-        for _ in 0..n {
-            let c = self.vector3()?;
-            g.colours.push(c);
-        }
-        if self.r.unsigned_integer()? != 0 {
-            return Err(PrcError::Unsupported("PRC global pictures"));
-        }
-        if self.r.unsigned_integer()? != 0 {
-            return Err(PrcError::Unsupported("PRC texture definitions"));
-        }
-        let n = self.count(1, "materials")?;
-        for _ in 0..n {
-            let m = self.material()?;
-            g.materials.push(m);
-        }
-        let n = self.count(1, "line patterns")?;
-        for _ in 0..n {
-            self.expect_type(LINE_PATTERN)?;
-            self.content_prc_ref_base()?;
-            let k = self.count(1, "line pattern lengths")?;
-            for _ in 0..k {
-                self.r.double()?;
-            }
-            self.r.double()?; // start offset
-            self.r.bit()?; // scale
-            self.schema.skip_added_fields(LINE_PATTERN, &mut self.r)?;
-        }
-        let n = self.count(1, "styles")?;
-        for _ in 0..n {
-            let st = self.style()?;
-            g.styles.push(st);
-        }
-        if self.r.unsigned_integer()? != 0 {
-            return Err(PrcError::Unsupported("PRC fill patterns"));
-        }
-        let n = self.count(1, "reference coordinate systems")?;
-        for _ in 0..n {
-            self.expect_type(RI_COORDINATE_SYSTEM)?;
-            self.base_with_graphics()?;
-            self.r.unsigned_integer()?; // local CS + 1
-            self.r.unsigned_integer()?; // tessellation + 1
-            let m = self.transformation()?;
-            g.systems.push(m);
-            self.schema
-                .skip_added_fields(RI_COORDINATE_SYSTEM, &mut self.r)?;
-            self.user_data()?;
-        }
-        self.schema
-            .skip_added_fields(FILE_STRUCTURE_GLOBALS, &mut self.r)?;
-        self.user_data()?;
-        Ok(g)
-    }
-
-    /// One `materials` entry: `Material` (702) or `TextureApplication` (711),
-    /// type-tagged [WD 7.5.4, 7.5.6; PRCRS].
-    fn material(&mut self) -> Result<Material, PrcError> {
-        let t = self.r.unsigned_integer()?;
-        self.content_prc_ref_base()?;
-        let m = match t {
-            MATERIAL => {
-                self.r.unsigned_integer()?; // ambient + 1
-                let diffuse = self.r.unsigned_integer()?;
-                self.r.unsigned_integer()?; // emissive + 1
-                self.r.unsigned_integer()?; // specular + 1
-                self.r.double()?; // shininess
-                self.r.double()?; // ambient alpha
-                let alpha = self.r.double()?;
-                self.r.double()?; // emissive alpha
-                self.r.double()?; // specular alpha
-                Material::Plain { diffuse, alpha }
-            }
-            TEXTURE_APPLICATION => {
-                let base = self.r.unsigned_integer()?;
-                for _ in 0..3 {
-                    self.r.unsigned_integer()?; // texture, next, UV set + 1
-                }
-                Material::Textured { base }
-            }
-            t => return Err(malformed(format!("entity type {t} as a material"))),
-        };
-        self.schema.skip_added_fields(t, &mut self.r)?;
-        Ok(m)
-    }
-
-    /// `Style` (701) [WD 7.5.3; PRCRS].
-    fn style(&mut self) -> Result<Style, PrcError> {
-        self.expect_type(STYLE)?;
-        self.content_prc_ref_base()?;
-        self.r.double()?; // line width
-        self.r.bit()?; // is_vpicture
-        self.r.unsigned_integer()?; // pattern + 1
-        let is_material = self.r.bit()?;
-        let index = self.r.unsigned_integer()?;
-        let transparency = if self.r.bit()? {
-            Some(self.r.character()?)
-        } else {
-            None
-        };
-        for _ in 0..3 {
-            // rendering parameters 1-3
-            if self.r.bit()? {
-                self.r.character()?;
-            }
-        }
-        self.schema.skip_added_fields(STYLE, &mut self.r)?;
-        Ok(Style {
-            is_material,
-            index,
-            transparency,
-        })
-    }
-
     /// `FileStructureTree` (304) [WD 7.3.6].
     pub(crate) fn file_structure_tree(&mut self) -> Result<Tree, PrcError> {
         self.expect_type(FILE_STRUCTURE_TREE)?;
@@ -936,162 +630,10 @@ impl Ctx<'_, '_> {
     }
 }
 
-fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-/// The occurrence walk over every file structure's tree [WD 7.3.10.1,
-/// 7.6.3.2; `prc__8137__model_tree_asm.md` §9].
-pub(crate) struct Walk<'t> {
-    /// Per file structure: its id, tree and globals.
-    pub(crate) trees: Vec<(UniqueId, &'t Tree, &'t Globals)>,
-    pub(crate) out: Vec<Placement>,
-    visits: usize,
-    /// Per file structure, the style colours placements share.
-    palettes: std::collections::HashMap<usize, std::sync::Arc<[Option<[f64; 4]>]>>,
-}
-
-impl<'t> Walk<'t> {
-    /// A walk over `trees`, with no placements yet.
-    pub(crate) fn new(trees: Vec<(UniqueId, &'t Tree, &'t Globals)>) -> Self {
-        Walk {
-            trees,
-            out: Vec::new(),
-            visits: 0,
-            palettes: std::collections::HashMap::new(),
-        }
-    }
-
-    fn fs(&self, id: UniqueId) -> Result<usize, PrcError> {
-        self.trees
-            .iter()
-            .position(|t| t.0 == id)
-            .ok_or_else(|| malformed("reference to an unknown file structure".into()))
-    }
-
-    fn product(&self, fs: usize, index: usize) -> Result<&'t Product, PrcError> {
-        self.trees
-            .get(fs)
-            .and_then(|t| t.1.products.get(index))
-            .ok_or_else(|| malformed(format!("product occurrence {index} does not exist")))
-    }
-
-    /// Draws occurrence `index` of structure `fs` under `father`, whose
-    /// occurrences' graphics are `graphics`, root first.
-    pub(crate) fn occurrence(
-        &mut self,
-        fs: usize,
-        index: usize,
-        father: &Matrix,
-        graphics: &[Graphics],
-        depth: usize,
-    ) -> Result<(), PrcError> {
-        self.visits += 1;
-        if depth > MAX_DEPTH || self.visits > MAX_VISITS {
-            return Err(malformed(
-                "the occurrence tree is too deep or too large".into(),
-            ));
-        }
-        let p = self.product(fs, index)?;
-        if p.hidden {
-            return Ok(());
-        }
-        let m = match &p.location {
-            Some(l) => multiply(father, l),
-            None => *father,
-        };
-        let mut chain = graphics.to_vec();
-        chain.push(p.graphics);
-        // The part and sons, falling back to the prototype chain's for
-        // whichever this occurrence leaves empty [WD 7.3.10.1].
-        let (mut part, mut sons) = ((fs, p.part), (fs, &p.sons));
-        let mut proto = (fs, p.prototype, p.prototype_fs);
-        let mut hops = 0;
-        while proto.1 != 0 && (part.1 == 0 || sons.1.is_empty()) {
-            hops += 1;
-            if hops > MAX_DEPTH {
-                return Err(malformed("prototype chain too long".into()));
-            }
-            let pfs = match proto.2 {
-                Some(id) => self.fs(id)?,
-                None => proto.0,
-            };
-            let q = self.product(pfs, proto.1 as usize - 1)?;
-            if part.1 == 0 {
-                part = (pfs, q.part);
-            }
-            if sons.1.is_empty() {
-                sons = (pfs, &q.sons);
-            }
-            proto = (pfs, q.prototype, q.prototype_fs);
-        }
-        if part.1 != 0 {
-            self.part(part.0, part.1 as usize - 1, &m, &chain)?;
-        }
-        for &s in sons.1 {
-            self.occurrence(sons.0, s as usize, &m, &chain, depth + 1)?;
-        }
-        if p.external != 0 {
-            let efs = match p.external_fs {
-                Some(id) => self.fs(id)?,
-                None => fs,
-            };
-            self.occurrence(efs, p.external as usize - 1, &m, &chain, depth + 1)?;
-        }
-        Ok(())
-    }
-
-    fn part(
-        &mut self,
-        fs: usize,
-        index: usize,
-        m: &Matrix,
-        graphics: &[Graphics],
-    ) -> Result<(), PrcError> {
-        let (_, tree, globals) = self
-            .trees
-            .get(fs)
-            .copied()
-            .ok_or_else(|| malformed("file structure out of range".into()))?;
-        let items = tree
-            .parts
-            .get(index)
-            .ok_or_else(|| malformed(format!("part definition {index} does not exist")))?;
-        for item in items {
-            let mut placed = *m;
-            for &cs in &item.local {
-                let l = globals
-                    .systems
-                    .get(cs as usize - 1)
-                    .ok_or_else(|| malformed(format!("coordinate system {cs} does not exist")))?;
-                placed = multiply(&placed, l);
-            }
-            let chain: Vec<Graphics> = graphics.iter().chain(&item.graphics).copied().collect();
-            let palette = self.palettes.entry(fs).or_insert_with(|| {
-                (0..=globals.styles.len() as u32)
-                    .map(|b| globals.style_colour(b))
-                    .collect()
-            });
-            self.out.push(Placement {
-                file_structure: fs,
-                tessellation: item.tessellation as usize - 1,
-                matrix: placed,
-                colour: globals.style_colour(resolve_style(&chain)),
-                palette: palette.clone(),
-                chain,
-            });
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
+    use super::style::{Material, Style};
     use super::*;
     use crate::Schema;
     use crate::bits::BitReader;
@@ -1391,9 +933,10 @@ mod tests {
     /// A two-occurrence assembly of the unit square: once in place, once
     /// mirrored in x and moved 5 along it. The CLI's placement fixture.
     fn assembly_prc() -> Vec<u8> {
-        let square =
-            crate::PrcFile::parse(include_bytes!("../../../fixtures/synthetic/prc/square.prc"))
-                .unwrap();
+        let square = crate::PrcFile::parse(include_bytes!(
+            "../../../../fixtures/synthetic/prc/square.prc"
+        ))
+        .unwrap();
         let tess = square.file_structures[0].section(crate::SectionKind::Tessellation);
         let occs = [
             Occ {

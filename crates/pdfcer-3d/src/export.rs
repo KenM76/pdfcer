@@ -6,6 +6,7 @@
 
 use std::fmt::Write as _;
 
+use crate::vec3::sub;
 use crate::{PrcError, TriangleMesh};
 
 fn corners(m: &TriangleMesh) -> impl Iterator<Item = [[f64; 3]; 3]> + '_ {
@@ -16,10 +17,6 @@ fn corners(m: &TriangleMesh) -> impl Iterator<Item = [[f64; 3]; 3]> + '_ {
             *m.positions.get(t[2] as usize)?,
         ])
     })
-}
-
-fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
-    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
 
 /// The unit normal of a counter-clockwise triangle; zero when degenerate.

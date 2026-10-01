@@ -1,5 +1,3 @@
-dup pdfcer-3d::cross in pdfcer-3d/src/compressed.rs, pdfcer-3d/src/tree.rs
-dup pdfcer-3d::sub in pdfcer-3d/src/compressed.rs, pdfcer-3d/src/export.rs
 dup pdfcer-core::cubic_at in pdfcer-core/src/vector/hit.rs, pdfcer-core/src/vector/snap.rs
 dup pdfcer-core::descendant_dict in pdfcer-core/src/font_embed_missing.rs, pdfcer-core/src/font_unembed.rs
 dup pdfcer-core::matches_name in pdfcer-core/src/font_embed_missing.rs, pdfcer-core/src/font_unembed.rs
@@ -14,7 +12,6 @@ dup pdfcer-core::stage in pdfcer-core/src/redact.rs, pdfcer-core/src/text_edit/e
 dup pdfcer-image-codec::geometry_disagrees in pdfcer-image-codec/src/ccitt.rs, pdfcer-image-codec/src/jbig2.rs
 dup pdfcer-render::_types in pdfcer-render/src/emf.rs, pdfcer-render/src/svg.rs
 file pdfcer-3d/src/tess.rs
-file pdfcer-3d/src/tree.rs
 file pdfcer-cli/src/annot_edit.rs
 file pdfcer-cli/src/arg_types.rs
 file pdfcer-cli/src/cli.rs
@@ -125,7 +122,6 @@ fn pdfcer-3d/src/compressed.rs::step
 fn pdfcer-3d/src/container.rs::parse_with_limit
 fn pdfcer-3d/src/schema.rs::stmt
 fn pdfcer-3d/src/tess.rs::tess_3d_compressed
-fn pdfcer-3d/src/tree.rs::representation_item
 fn pdfcer-cli/src/annot_edit.rs::cmd_delete_annotation
 fn pdfcer-cli/src/annot_edit.rs::cmd_move_annotation
 fn pdfcer-cli/src/annot_edit.rs::cmd_reorder_annotations

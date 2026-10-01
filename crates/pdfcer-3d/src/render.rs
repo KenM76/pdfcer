@@ -6,6 +6,7 @@
 //! No threads and no GUI dependency, so it runs unchanged on wasm32.
 
 use crate::TriangleMesh;
+use crate::vec3::{cross, dot, length, normalize, scale, sub};
 
 /// The largest image [`render`] draws, in pixels (width × height).
 pub const MAX_RENDER_PIXELS: u64 = 64 * 1024 * 1024;
@@ -660,39 +661,6 @@ fn at(v: [f64; 3], i: usize) -> f64 {
 
 fn at3(v: &[[f64; 3]; 3], i: usize) -> [f64; 3] {
     v.get(i).copied().unwrap_or([0.0; 3])
-}
-
-fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
-    [
-        at(a, 0) - at(b, 0),
-        at(a, 1) - at(b, 1),
-        at(a, 2) - at(b, 2),
-    ]
-}
-
-fn scale(a: [f64; 3], s: f64) -> [f64; 3] {
-    a.map(|c| c * s)
-}
-
-fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
-    at(a, 0) * at(b, 0) + at(a, 1) * at(b, 1) + at(a, 2) * at(b, 2)
-}
-
-fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
-    [
-        at(a, 1) * at(b, 2) - at(a, 2) * at(b, 1),
-        at(a, 2) * at(b, 0) - at(a, 0) * at(b, 2),
-        at(a, 0) * at(b, 1) - at(a, 1) * at(b, 0),
-    ]
-}
-
-fn length(a: [f64; 3]) -> f64 {
-    dot(a, a).sqrt()
-}
-
-fn normalize(a: [f64; 3]) -> Option<[f64; 3]> {
-    let l = length(a);
-    (l.is_finite() && l > 0.0).then(|| scale(a, 1.0 / l))
 }
 
 #[cfg(test)]
