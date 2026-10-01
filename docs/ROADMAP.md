@@ -115,6 +115,63 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.14` (`b8985616`), 2026-10-01 — render from the view the file opens on
+
+Continues the `Pass 421.x` bucket, closing the gap the 840th filing's own
+dated note named on the *Interactive 3D viewer* Backlog entry: `3d-render`
+had no way to know a model's intended orientation and guessed iso z-up —
+which is what misread `421.13`'s door-assembly sample as a steel frame.
+
+**Core.** New `pdfcer_core::threed::default_3d_view(&graph, &ThreeDArtwork)
+-> Option<ThreeDSavedView>` (`crates/pdfcer-core/src/threed/view.rs`)
+resolves the opening view in spec order: the `/3D` annotation's own `/3DV`
+(view dict, `/VA` index, `/IN` name defaulting to `/XN`, `/F`/`/L`/`/D`),
+else the stream's `/DV`, else `/VA[0]` (ISO 32000-1 §13.6.2 Table 298,
+§13.6.3 Table 300). Reads `/XN`, `/C2W` (only when `/MS /M`, 12 finite
+numbers), `/CO`, `/P /Subtype /O` (Table 304/305). String-name search
+capped at 4,096 `/VA` entries.
+
+**CLI.** `3d-render` with no `--eye`/`--view`/`--up` given now looks along
+the saved camera's z column, using its y column as image-up, with its own
+projection (ortho on `/P /O` or `--ortho`); zoom still fits the model (the
+saved position/ortho scale are not used). Prints `note: camera: ...`
+naming the view used, or why none could be (no opening view; the view
+defers to the artwork's own camera, not read yet → iso z-up fallback).
+`--view`/`--up` stay optional overrides. The CLI's "textures, lights and
+views are not read yet" note now reads "textures and lights" only.
+
+`docs/core-api/01-reading-and-model.md` §12.2 + capability-index row;
+`index.md` counts updated; `check-core-api-verbs` PASS.
+
+**Tests.** Core `--test all threed` 11 pass (2 new:
+`the_opening_view_follows_every_selector_form`,
+`the_opening_view_carries_its_camera`); CLI `--test all three_d` 19 pass
+(2 new: `a_render_with_no_camera_option_opens_on_the_files_saved_view`,
+`a_named_view_overrides_the_files_saved_view`). Sabotage: swapping the up
+column to the x column → CAUGHT; `/L` resolving to first → CAUGHT. fmt,
+clippy `-D warnings`, code-structure clean (baseline 633, none new). No
+`Cargo.toml` change, no `cargo tree` impact.
+
+**Finding, written to `C:\personal_rag\pdf\`.** ISO 32000-1 §13.6.5 says
+the camera looks along +z of `/C2W` but is silent on which axis is
+image-up. Measured on the door-assembly sample (never named): its saved
+view's `/C2W` y column carries +world-y, and the operator confirmed y-up
+is the door's true orientation — so camera +y = image-up, and (being
+right-handed, +z forward) camera +x points image-left. Also recorded: the
+earlier wrong identification of that sample came from reading a
+default-orientation render, not the file's own saved view — don't name an
+object from a render whose orientation wasn't sourced from the file.
+
+`docs/FEATURES.md` row "View an embedded 3D model with camera controls":
+text updated this filing, boxes unchanged (`core [x]` / `cli [x]` /
+`gui [ ]`).
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit `b8985616`
+confirmed against this session's git-status snapshot at conversation start
+(HEAD `b8985616`, clean tree, parent `6acf3afb`). Measured counts, test
+names and the door-assembly confirmation are relayed from the dispatching
+engineer's own report, not independently reproduced.
+
 ### `Pass 421.13` (`88a70174`), 2026-10-01 — a compressed mesh left out of the rebuild says why
 
 Continues the `Pass 421.x` bucket. `421.12`'s reconstruction already
@@ -24981,6 +25038,14 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   local-only CAD sample's 36 skipped compressed meshes ALL fail on "an
   edge is shared by more than two triangles" — genuine non-manifold
   source geometry, or a pdfcer traversal bug? Under investigation.
+- `421.14` — **SHIPPED, `b8985616`, 2026-10-01 (840th filing)**, full
+  entry in *Shipped* above. New `pdfcer_core::threed::default_3d_view`
+  resolves a model's opening view (`/3DV`, else `/DV`, else `/VA[0]`,
+  ISO 32000-1 §13.6.2/§13.6.3); `3d-render` with no camera option now
+  renders from it (saved camera's z as view direction, y as image-up,
+  its own projection) instead of guessing iso z-up, and names the view
+  used (or why none could be) in a `note:`. Closes the gap the note
+  below names.
 
 **Dated note, 2026-10-01 (827th filing) — a separate open defect, NOT
 closed by `421.8`.** Ken reported the School render's front double door
@@ -25031,13 +25096,18 @@ the generic "views are not read yet" CLI disclosure (`421.6`); named
 here as its own item — **honour the model's saved default 3D view for
 render orientation** — rather than leaving it implicit.
 
+**Closing note, 2026-10-01 (840th filing, `b8985616`, `Pass 421.14`).**
+The gap this note names is now SHIPPED, same filing — see `421.14` above.
+`3d-render` with no `--eye`/`--view`/`--up` given renders from the file's
+own saved `/3DV`/`/DV`/`/VA[0]` view instead of guessing; the up-axis
+convention (camera +y, confirmed against the door assembly) is recorded
+as a finding in `C:\personal_rag\pdf\`.
+
 **Next planned, in order**: settle the non-manifold-vs-traversal-bug
 question above; re-measure the door-panel case against `421.12`'s fix;
 the 2 stray meshes `421.12` left unresolved; crease-angle normal
 smoothing for compressed meshes (`421.10`'s own remainder —
-`must_recalculate_normals` meshes still render flat-faceted); honour the
-model's saved default 3D view (`/3DV` default view / PRC view) for
-render orientation instead of guessing; then
+`must_recalculate_normals` meshes still render flat-faceted); then
 textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
@@ -25046,12 +25116,13 @@ framing fix noted by `421.3`, vertex-fit noted by `421.4`, per-face colour
 noted by `421.6`, compressed-decode gap closed by `421.8`, per-face line
 attributes noted by `421.9`, stored-normal shading noted by `421.10`,
 apex-frame reconstruction-accuracy fix noted by `421.12`, 838th filing;
-left-out-mesh reason disclosure noted by `421.13`, 839th filing);
-`gui` stays `[ ]` pending `421.1`. Stays in *Planned* — the row names the
+left-out-mesh reason disclosure noted by `421.13`, 839th filing;
+saved-view render orientation noted by `421.14`, 840th filing); `gui`
+stays `[ ]` pending `421.1`. Stays in *Planned* — the row names the
 interactive-controls capability, and that still needs Rung B. `421.5`'s
 `3d-mesh` format-from-extension fix is noted on the separate mesh-export
-row (`419.2`, *Implemented*), not this one; `421.12`'s and `421.13`'s own
-improvements are noted there too (838th/839th filings).
+row (`419.2`, *Implemented*), not this one; `421.12`'s through `421.14`'s
+own improvements are noted there too (838th/839th/840th filings).
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 

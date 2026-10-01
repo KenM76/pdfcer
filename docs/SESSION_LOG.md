@@ -4,6 +4,62 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (840th filing) — `Pass 421.14`: render from the view the file opens on (`b8985616`); door-assembly sample correction
+
+**Shipped:**
+- `b8985616` — `Pass 421.14`. New `pdfcer_core::threed::default_3d_view`
+  resolves a 3D artwork's opening view (`/3DV`, else `/DV`, else `/VA[0]`,
+  ISO 32000-1 §13.6.2/§13.6.3), reading `/XN`, `/C2W`, `/CO`, `/P /Subtype
+  /O`. `3d-render` with no `--eye`/`--view`/`--up` given now renders from
+  it (saved camera's z as look direction, y as image-up) instead of
+  guessing iso z-up, and prints `note: camera: ...` naming the view used
+  or why none could be. Closes the gap named by this session's own
+  840th-filing correction note below. `docs/core-api/01-reading-and-model.md`
+  §12.2 updated.
+
+**Decisions made this session:** none (additive core function + CLI
+default-path change behind an existing optional-override flag set — no
+`ARCHITECTURE.md` §12 entry opened).
+
+**Findings + decisions:**
+- **Correction to the record:** the second local-only CAD sample named in
+  the 838th/839th filings' notes (misidentified there as a steel
+  structural frame) is in fact a door assembly (still never named, per
+  the test-corpus rule). The misreading came from rendering it with a
+  guessed iso z-up camera instead of the file's own saved view.
+- **Finding, written to `C:\personal_rag\pdf\`:** ISO 32000-1 §13.6.5
+  names the camera's look direction (`/C2W`'s +z) but is silent on which
+  remaining axis is image-up. On the door-assembly sample, `/C2W`'s y
+  column carries +world-y and the operator confirmed y-up is the door's
+  true orientation — so camera +y is image-up, and (right-handed, +z
+  forward) camera +x points image-left. Also recorded as a methodology
+  point: don't name/classify a 3D object from a render whose orientation
+  wasn't sourced from the file's own saved view.
+- Tests: core `--test all threed` 11 pass (2 new), CLI `--test all
+  three_d` 19 pass (2 new). Sabotage (up column swapped to x column;
+  `/L` resolving to first `/VA` entry) CAUGHT. fmt, clippy `-D warnings`,
+  code-structure (baseline 633, none new), `check-core-api-verbs` all
+  clean. No `Cargo.toml`/`cargo tree` change.
+- `docs/FEATURES.md` "View an embedded 3D model with camera controls"
+  row text updated this filing; boxes unchanged (`core [x]` / `cli [x]` /
+  `gui [ ]`).
+- Sourcing (hard rule 8): no shell tool this filing — commit `b8985616`
+  confirmed against this session's git-status snapshot at conversation
+  start (HEAD `b8985616`, clean tree, parent `6acf3afb`). Measured
+  counts, test names and the door-assembly confirmation are relayed from
+  the dispatching engineer's own report, not independently reproduced.
+
+**Still in flight:** the non-manifold-vs-traversal-bug question
+(`421.13`); the door-panel re-measurement against `421.12`'s fix; the 2
+stray meshes `421.12` left unresolved; crease-angle normal smoothing for
+compressed meshes — all under the `421.x` Backlog bucket. The artwork's
+own embedded default camera (distinct from the PDF-level `/3DV`/`/DV`/
+`/VA` views) is still unread; falls back to iso z-up when no PDF-level
+view resolves.
+
+**For next session:** then textures; then lights (the bucket's own
+"next planned" order, per `ROADMAP.md`).
+
 ## 2026-10-01 (839th filing) — `Pass 421.13`: a left-out compressed mesh now says why (`88a70174`)
 
 **Shipped:**

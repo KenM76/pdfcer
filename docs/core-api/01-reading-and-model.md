@@ -2801,8 +2801,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it
-  names a textured material. Textures, lights and saved views are **not
-  read**. Say so in the shell.
+  names a textured material. Textures and lights are **not read** (the
+  opening view IS read — see above). Say so in the shell.
 - `Placement::triangle_colours(&mesh) -> Option<Vec<Option<[f64; 4]>>>`: per
   triangle of that placement's (untransformed) mesh, the colour when faces
   carry their own style (`TESS_Face` line attributes, taking part in the same
