@@ -116,11 +116,22 @@ pub(crate) fn parse_fov(s: &str) -> Result<f64, String> {
 /// The mesh file format `3d-mesh` writes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum MeshFormat {
-    /// Binary STL: triangles with facet normals, one solid. Default.
+    /// Binary STL: triangles with facet normals, one solid.
     #[default]
     Stl,
     /// Wavefront OBJ text: one object per mesh, one group per face.
     Obj,
+}
+
+impl MeshFormat {
+    /// The format `path`'s extension names: OBJ for `.obj` in any case,
+    /// otherwise STL.
+    pub(crate) fn for_path(path: &std::path::Path) -> MeshFormat {
+        match path.extension().and_then(|e| e.to_str()) {
+            Some(e) if e.eq_ignore_ascii_case("obj") => MeshFormat::Obj,
+            _ => MeshFormat::Stl,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]

@@ -418,7 +418,10 @@ pub(crate) fn run() -> ExitCode {
             index,
             output,
             format,
-        } => cmd_mesh_3d(&input, index, &output, format),
+        } => {
+            let format = format.unwrap_or_else(|| MeshFormat::for_path(&output));
+            cmd_mesh_3d(&input, index, &output, format)
+        }
         Command::ThreeDRender {
             input,
             index,

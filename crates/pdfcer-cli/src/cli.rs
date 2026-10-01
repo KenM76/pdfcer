@@ -2850,9 +2850,10 @@ pub(crate) enum Command {
         /// Where to write the mesh.
         #[arg(long, short)]
         output: PathBuf,
-        /// The mesh format.
-        #[arg(long, value_enum, default_value_t)]
-        format: MeshFormat,
+        /// The mesh format. Default: OBJ when `--output` ends in `.obj`
+        /// (any case), otherwise STL.
+        #[arg(long, value_enum)]
+        format: Option<MeshFormat>,
     },
 
     /// **Render a 3D model to a PNG** from a camera, without a 3D viewer.

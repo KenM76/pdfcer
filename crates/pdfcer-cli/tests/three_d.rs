@@ -343,6 +343,26 @@ fn a_prc_model_meshes_to_stl_by_default() {
     assert!(!stdout.contains("normals"), "{stdout}");
 }
 
+/// The format follows the output's extension unless `--format` says otherwise.
+#[cfg(feature = "3d")]
+#[test]
+fn a_mesh_format_follows_the_output_extension() {
+    let input = with_prc_square("mesh_ext");
+    let obj = input.with_extension("OBJ");
+    assert!(mesh(&input, "2", &obj, &[]).status.success());
+    assert!(std::fs::read_to_string(&obj).unwrap().contains(
+        "f 1 2 3
+"
+    ));
+    let forced = input.with_extension("obj");
+    assert!(
+        mesh(&input, "2", &forced, &["--format", "stl"])
+            .status
+            .success()
+    );
+    assert_eq!(std::fs::read(&forced).unwrap().len(), 84 + 2 * 50);
+}
+
 #[cfg(feature = "3d")]
 #[test]
 fn a_prc_model_meshes_to_obj() {
