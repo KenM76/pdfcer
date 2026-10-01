@@ -34,13 +34,22 @@
 //! higher), `Y`'s unitize and the summation order are measured; the spec
 //! RAG's `prc__8137__tess_3d_compressed.md` §2b M9 records the fit.
 //!
-//! Fold. A triangle whose new apex lies exactly in its parent's plane on
-//! the parent's side (`d.z == 0`, `d.y > 0`: a double-sided panel folding
-//! back over itself) swaps bit 1 and bit 0 for its own continuation. This
-//! is measured on zero-thickness panels. A fold whose apex is a reference
-//! carries no such signal: a component (a run started from an empty stack)
-//! that fails to fit is rewound and retried once with the fold inverted at
-//! its second triangle, which is where every measured reference fold sat.
+//! Fold. Left and right are taken relative to the triangle normal, the
+//! cross product of its vertices oriented by one of its stored normals
+//! [WD 7.8.9, 7.8.9.1]. A triangle whose walk-order winding
+//! `(B - A) x (C - A)` points against that normal is folded: bit 1 and
+//! bit 0 swap for its own continuation. Its normal comes from, in order:
+//! a record read at this triangle, whose `triangle_normal_reversed` bit
+//! gives the orientation exactly (`reversed != (A > B)`, the record being
+//! framed on `(max - min) x (R - min)` [WD 7.8.9.4]); the stored normal
+//! of its planar face, compared geometrically unless the triangle is a
+//! sliver; otherwise none. Without a normal the measured default holds: a
+//! new apex lying exactly in its parent's plane on the parent's side
+//! (`d.z == 0`, `d.y > 0`, a double-sided panel folding back over itself)
+//! is folded. A component (a run started from an empty stack) that fails
+//! to fit is rewound and retried once with the fold inverted at its second
+//! triangle, where every measured unsignalled fold sat. A mesh whose
+//! oriented walk does not fit is walked again on the default alone.
 //!
 //! Only the per-triangle `edge_status` form (three entries per triangle,
 //! the first `T` read) is reconstructed; the one-entry-per-triangle form
@@ -50,7 +59,16 @@ use std::collections::HashMap;
 
 use crate::TriangleMesh;
 
+mod normals;
+
+pub(crate) use normals::NormalArrays;
+use normals::{NormalMark, NormalReader, Orientation, stored_normals};
+
 type V = [f64; 3];
+
+/// Below this sine of its angle at `A` a triangle is a sliver whose
+/// winding no normal can orient: the WD assumes none [WD 7.8.9].
+const MIN_SINE: f64 = 1e-6;
 
 fn sub(a: V, b: V) -> V {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
@@ -149,8 +167,9 @@ pub(crate) struct Arrays<'a> {
 }
 
 /// Mutable traversal state; `log` records every edge-count increment so a
-/// component can be rolled back and retried.
-struct Walk {
+/// component can be rolled back and retried. `normals` is present when
+/// the stored normals orient the walk.
+struct Walk<'a> {
     pos: Vec<V>,
     tris: Vec<[u32; 3]>,
     edges: HashMap<(u32, u32), u8>,
@@ -160,6 +179,7 @@ struct Walk {
     slot: usize,
     ri: usize,
     pi: usize,
+    normals: Option<NormalReader<'a>>,
 }
 
 /// Where a component starts, to roll back to.
@@ -171,9 +191,25 @@ struct Mark {
     slot: usize,
     ri: usize,
     pi: usize,
+    normals: Option<NormalMark>,
 }
 
-impl Walk {
+impl<'a> Walk<'a> {
+    fn new(t: usize, normals: Option<NormalReader<'a>>) -> Self {
+        Walk {
+            pos: Vec::new(),
+            tris: Vec::with_capacity(t.min(1 << 20)),
+            edges: HashMap::new(),
+            log: Vec::new(),
+            stack: Vec::new(),
+            next: None,
+            slot: 0,
+            ri: 0,
+            pi: 0,
+            normals,
+        }
+    }
+
     fn mark(&self, tri: usize) -> Mark {
         Mark {
             tri,
@@ -182,6 +218,7 @@ impl Walk {
             slot: self.slot,
             ri: self.ri,
             pi: self.pi,
+            normals: self.normals.as_ref().map(NormalReader::mark),
         }
     }
 
@@ -196,6 +233,9 @@ impl Walk {
         self.stack.clear();
         self.next = None;
         (self.slot, self.ri, self.pi) = (m.slot, m.ri, m.pi);
+        if let (Some(r), Some(n)) = (self.normals.as_mut(), m.normals) {
+            r.rewind(n);
+        }
     }
 
     // One slot: `Ok(Some(v))` a reference, `Ok(None)` a new point `d`.
@@ -227,50 +267,79 @@ impl Walk {
             .ok_or_else(|| "a triangle refers to a vertex not yet decoded".to_owned())
     }
 
+    /// The next triangle and its default fold: the seed, or the apex
+    /// across the edge to continue from. A new apex lying in its parent's
+    /// plane on the parent's side (`d.z == 0`, `d.y > 0`) defaults to
+    /// folded.
+    fn triangle(&mut self, a: &Arrays<'_>) -> Result<([u32; 3], bool), String> {
+        if let Some((p, q, w)) = self.next.take() {
+            if let Some(r) = self.take(a)? {
+                return Ok(([p, q, r], false));
+            }
+            let (pp, qq, ww) = (self.get(p)?, self.get(q)?, self.get(w)?);
+            let (lo, hi) = if p < q { (pp, qq) } else { (qq, pp) };
+            let fold = matches!(
+                a.points.get(self.pi..self.pi.saturating_add(3)),
+                Some(&[_, dy, 0]) if dy > 0
+            );
+            let d = self.point(a)?;
+            self.pos.push(apex(lo, hi, ww, d));
+            return Ok(([p, q, (self.pos.len() - 1) as u32], fold));
+        }
+        let mut v = [0u32; 3];
+        for k in 0..3 {
+            let id = match self.take(a)? {
+                Some(r) => r,
+                None => {
+                    let d = self.point(a)?;
+                    let p = match k {
+                        0 => add(a.origin, d),
+                        1 => add(self.get(v[0])?, d),
+                        _ => add(mul(add(self.get(v[0])?, self.get(v[1])?), 0.5), d),
+                    };
+                    self.pos.push(p);
+                    (self.pos.len() - 1) as u32
+                }
+            };
+            if let Some(s) = v.get_mut(k) {
+                *s = id;
+            }
+        }
+        Ok((v, false))
+    }
+
+    /// Whether `t` folds: its winding `(B - A) x (C - A)` points against
+    /// its stored normal [WD 7.8.9, 7.8.9.1]. Without a usable normal the
+    /// default `fold` stands.
+    fn fold(&mut self, t: [u32; 3], fold: bool) -> Result<bool, String> {
+        let ti = self.tris.len();
+        let Some(r) = self.normals.as_mut() else {
+            return Ok(fold);
+        };
+        let o = r
+            .read(ti, t, &self.pos)
+            .ok_or("the stored normals run out")?;
+        Ok(match o {
+            Orientation::Reversed(rev) => rev != (t[0] > t[1]),
+            Orientation::Normal(n) => {
+                let (a, b, c) = (self.get(t[0])?, self.get(t[1])?, self.get(t[2])?);
+                let (ab, ac) = (sub(b, a), sub(c, a));
+                let w = cross(ab, ac);
+                let sine = (dot(w, w) / (dot(ab, ab) * dot(ac, ac))).sqrt();
+                let s = dot(w, n);
+                if sine > MIN_SINE && s != 0.0 {
+                    s < 0.0
+                } else {
+                    fold
+                }
+            }
+            Orientation::Unknown => fold,
+        })
+    }
+
     /// Adds one triangle; `flip` inverts the fold decision.
     fn step(&mut self, a: &Arrays<'_>, status: i32, flip: bool) -> Result<(), String> {
-        let mut fold = false;
-        let tri = match self.next.take() {
-            Some((p, q, w)) => {
-                let r = match self.take(a)? {
-                    Some(r) => r,
-                    None => {
-                        let (pp, qq, ww) = (self.get(p)?, self.get(q)?, self.get(w)?);
-                        let (lo, hi) = if p < q { (pp, qq) } else { (qq, pp) };
-                        if let Some(&[_, dy, dz]) = a.points.get(self.pi..self.pi.saturating_add(3))
-                        {
-                            fold = dz == 0 && dy > 0;
-                        }
-                        let d = self.point(a)?;
-                        self.pos.push(apex(lo, hi, ww, d));
-                        (self.pos.len() - 1) as u32
-                    }
-                };
-                [p, q, r]
-            }
-            None => {
-                let mut v = [0u32; 3];
-                for k in 0..3 {
-                    let id = match self.take(a)? {
-                        Some(r) => r,
-                        None => {
-                            let d = self.point(a)?;
-                            let p = match k {
-                                0 => add(a.origin, d),
-                                1 => add(self.get(v[0])?, d),
-                                _ => add(mul(add(self.get(v[0])?, self.get(v[1])?), 0.5), d),
-                            };
-                            self.pos.push(p);
-                            (self.pos.len() - 1) as u32
-                        }
-                    };
-                    if let Some(s) = v.get_mut(k) {
-                        *s = id;
-                    }
-                }
-                v
-            }
-        };
+        let (tri, fold) = self.triangle(a)?;
         let [ta, tb, tc] = tri;
         for (x, y) in [(ta, tb), (tb, tc), (tc, ta)] {
             let n = self.edges.entry(key(x, y)).or_insert(0);
@@ -281,6 +350,7 @@ impl Walk {
                 return Err("an edge is shared by more than two triangles".into());
             }
         }
+        let fold = self.fold(tri, fold)?;
         self.tris.push(tri);
         let (mut left, mut right) = ((tc, tb, ta), (ta, tc, tb));
         if fold != flip {
@@ -307,22 +377,57 @@ impl Walk {
 
 /// Rebuilds the mesh, or says why the arrays do not fit the traversal.
 /// Every slot, reference and point must be consumed exactly.
+///
+/// A mesh with stored normals is walked oriented by them, which must then
+/// be consumed exactly too; failing that, it is walked again on the
+/// default fold alone and its normals read afterwards, kept only if they
+/// fit.
 pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
-    let t = a.triangles;
-    if a.edge_status.len() != t.saturating_mul(3) {
+    if a.edge_status.len() != a.triangles.saturating_mul(3) {
         return Err("the one-status-per-triangle edge form is not reconstructed".into());
     }
-    let mut w = Walk {
-        pos: Vec::new(),
-        tris: Vec::with_capacity(t.min(1 << 20)),
-        edges: HashMap::new(),
-        log: Vec::new(),
-        stack: Vec::new(),
-        next: None,
-        slot: 0,
-        ri: 0,
-        pi: 0,
-    };
+    if let Some(n) = a.normals.as_ref()
+        && let Ok(w) = walk(a, Some(NormalReader::new(n)))
+    {
+        let Walk {
+            pos, tris, normals, ..
+        } = w;
+        if let Some(stored) = normals.and_then(|r| r.finish(&pos)) {
+            return Ok(mesh(pos, tris, stored));
+        }
+    }
+    let Walk { pos, tris, .. } = walk(a, None)?;
+    let stored = a
+        .normals
+        .as_ref()
+        .and_then(|n| stored_normals(&pos, &tris, n))
+        .unwrap_or_default();
+    Ok(mesh(pos, tris, stored))
+}
+
+fn mesh(
+    positions: Vec<V>,
+    triangles: Vec<[u32; 3]>,
+    stored: (Vec<V>, Vec<[u32; 3]>),
+) -> TriangleMesh {
+    TriangleMesh {
+        positions,
+        triangles,
+        faces: Vec::new(),
+        normals_recalculated: false,
+        normals: stored.0,
+        triangle_normals: stored.1,
+        triangle_graphics: Vec::new(),
+    }
+}
+
+/// Walks every component. One that fails to fit is rewound and retried
+/// once with the fold inverted at its second triangle: a fold whose apex
+/// is a reference, or whose triangle carries no normal signal, has no
+/// other trace in the arrays.
+fn walk<'a>(a: &Arrays<'_>, normals: Option<NormalReader<'a>>) -> Result<Walk<'a>, String> {
+    let t = a.triangles;
+    let mut w = Walk::new(t, normals);
     let mut start = w.mark(0);
     let mut retried = false;
     let mut i = 0;
@@ -343,180 +448,10 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
             }
         }
     }
-    let Walk {
-        pos,
-        tris,
-        slot,
-        ri,
-        pi,
-        ..
-    } = w;
-    if slot != a.is_reference.len() || ri != a.references.len() || pi != a.points.len() {
+    if w.slot != a.is_reference.len() || w.ri != a.references.len() || w.pi != a.points.len() {
         return Err("the decoded triangles do not use up the stored arrays".into());
     }
-    let (normals, triangle_normals) = a
-        .normals
-        .as_ref()
-        .and_then(|n| stored_normals(&pos, &tris, n))
-        .unwrap_or_default();
-    Ok(TriangleMesh {
-        positions: pos,
-        triangles: tris,
-        faces: Vec::new(),
-        normals_recalculated: false,
-        normals,
-        triangle_normals,
-        triangle_graphics: Vec::new(),
-    })
-}
-
-/// The stored-normal arrays of a mesh that does not ask for recalculation
-/// [WD 7.8.9.3].
-pub(crate) struct NormalArrays<'a> {
-    /// `normal_angle_number_of_bits`.
-    pub(crate) bits: u32,
-    /// `normal_binary_data`.
-    pub(crate) binary: &'a [bool],
-    /// `normal_angle_array`: theta then phi per stored normal.
-    pub(crate) angles: &'a [i32],
-    /// `is_face_planar`, per face.
-    pub(crate) planar: &'a [bool],
-    /// The face of each triangle.
-    pub(crate) face_of: &'a [u32],
-}
-
-/// Width in bits of a normal reference on a vertex that already stores `n`
-/// normals: one more than the bit length of `n - 2`, and 1 for `n <= 2`.
-/// The WD's width rule is ambiguous; this formula is measured on a real
-/// file (every count from 1 to 6, plus 8, 12 and 14) — spec RAG
-/// `prc__8137__tess_3d_compressed.md` §5a N5.
-fn reference_bits(n: usize) -> u32 {
-    1 + (usize::BITS - n.saturating_sub(2).leading_zeros())
-}
-
-/// One stored normal record: `triangle_normal_reversed`, `x_is_reversed`,
-/// `y_is_reversed`, theta, phi, and the triangle whose frame it is in.
-type Record = (bool, bool, bool, i32, i32, [u32; 3]);
-
-/// Decodes the stored vertex normals [WD 7.8.9.3-7.8.9.4], returning
-/// `(normals, triangle_normals)` in [`TriangleMesh`]'s shape, or `None`
-/// when the arrays do not fit (the mesh then has no stored normals).
-///
-/// Each triangle `[P Q R]`, entered across `[P Q]`, visits its corners as
-/// `min(P, Q)`, `max(P, Q)`, `R`. A vertex met for the first time reads
-/// `has_multiple_normal` and a record. Met again, a vertex without
-/// multiple normals reads nothing and reuses its normal (the WD's prose,
-/// not its pseudocode); one with multiple normals reads `is_a_reference`
-/// and then either a record or a reference, an index counted back from
-/// the vertex's most recently stored normal. On a planar face only the
-/// first corner of its first triangle is visited, and every corner of the
-/// face takes that normal. A record is three bits (reversed, x reversed,
-/// y reversed) and two angles. These rules are measured on a real file:
-/// they consume both arrays exactly on 347 of its 348 meshes.
-fn stored_normals(
-    pos: &[V],
-    tris: &[[u32; 3]],
-    a: &NormalArrays<'_>,
-) -> Option<(Vec<V>, Vec<[u32; 3]>)> {
-    let mut bits = a.binary.iter().copied();
-    let mut angles = a.angles.iter().copied();
-    let mut records: Vec<Record> = Vec::new();
-    let mut by_vertex: Vec<(bool, Vec<u32>)> = vec![(false, Vec::new()); pos.len()];
-    let mut by_face: Vec<Option<u32>> = vec![None; a.planar.len()];
-    let mut corners = Vec::with_capacity(tris.len());
-    for (ti, t) in tris.iter().enumerate() {
-        let face = *a.face_of.get(ti)? as usize;
-        let planar = a.planar.get(face).copied().unwrap_or(false);
-        if planar && let Some(n) = by_face.get(face).copied().flatten() {
-            corners.push([n; 3]);
-            continue;
-        }
-        let lo = usize::from(t[0] > t[1]);
-        let (p, q) = if lo == 0 { (t[0], t[1]) } else { (t[1], t[0]) };
-        let order = [(lo, p), (1 - lo, q), (2, t[2])];
-        let mut out = [0u32; 3];
-        for (slot, v) in order {
-            let (multi, stored) = by_vertex.get_mut(v as usize)?;
-            let mut record = |bits: &mut dyn Iterator<Item = bool>| -> Option<u32> {
-                let r = (bits.next()?, bits.next()?, bits.next()?);
-                let (th, ph) = (angles.next()?, angles.next()?);
-                records.push((r.0, r.1, r.2, th, ph, *t));
-                u32::try_from(records.len() - 1).ok()
-            };
-            let n = if stored.is_empty() {
-                *multi = bits.next()?;
-                let n = record(&mut bits)?;
-                stored.push(n);
-                n
-            } else if !*multi {
-                *stored.first()?
-            } else if bits.next()? {
-                let w = reference_bits(stored.len());
-                let mut idx = 0usize;
-                for i in 0..w {
-                    idx |= usize::from(bits.next()?) << i;
-                }
-                *stored.get(stored.len().checked_sub(1 + idx)?)?
-            } else {
-                let n = record(&mut bits)?;
-                stored.push(n);
-                n
-            };
-            if planar {
-                *by_face.get_mut(face)? = Some(n);
-                out = [n; 3];
-                break;
-            }
-            *out.get_mut(slot)? = n;
-        }
-        corners.push(out);
-    }
-    if bits.next().is_some() || angles.next().is_some() {
-        return None;
-    }
-    let step = std::f64::consts::FRAC_PI_2 / f64::from((1u32 << a.bits).saturating_sub(1).max(1));
-    let normals = records
-        .iter()
-        .map(|&(rev, xr, yr, th, ph, t)| decode(pos, t, rev, xr, yr, th, ph, step))
-        .collect();
-    Some((normals, corners))
-}
-
-/// One record's normal in model space: the local frame of the triangle it
-/// was read in [WD 7.8.9.4], `Z` its normal (reversed when flagged), and
-/// the spherical angles `(cos phi cos theta, cos phi sin theta, sin phi)`
-/// with the flagged axes negated. A degenerate triangle gives the zero
-/// vector, which the renderer treats as no normal.
-#[allow(clippy::too_many_arguments)] // One record's fields, decoded together.
-fn decode(pos: &[V], t: [u32; 3], rev: bool, xr: bool, yr: bool, th: i32, ph: i32, step: f64) -> V {
-    let (lo, hi) = (t[0].min(t[1]), t[0].max(t[1]));
-    let p = |i: u32| pos.get(i as usize).copied().unwrap_or([0.0; 3]);
-    let (p0, p1, p2) = (p(lo), p(hi), p(t[2]));
-    let (v1, v2, v3) = (unit(sub(p1, p0)), unit(sub(p2, p0)), unit(sub(p2, p1)));
-    let half = std::f64::consts::FRAC_PI_2;
-    let angle = |a: V, b: V| dot(a, b).clamp(-1.0, 1.0).acos() - half;
-    let (t1, t2, t3) = (
-        angle(v1, v2),
-        angle(v3, mul(v1, -1.0)),
-        angle(mul(v2, -1.0), mul(v3, -1.0)),
-    );
-    let (x, z) = if t1 < t2 && t1 < t3 {
-        (v1, cross(v1, v2))
-    } else if t2 < t3 {
-        (v3, mul(cross(v3, v1), -1.0))
-    } else {
-        (mul(v2, -1.0), cross(v2, v3))
-    };
-    let z = unit(z);
-    if dot(z, z) < 0.5 {
-        return [0.0; 3];
-    }
-    let z = if rev { mul(z, -1.0) } else { z };
-    let y = cross(z, x);
-    let (th, ph) = (f64::from(th) * step, f64::from(ph) * step);
-    let lx = ph.cos() * th.cos() * if xr { -1.0 } else { 1.0 };
-    let ly = ph.cos() * th.sin() * if yr { -1.0 } else { 1.0 };
-    add(add(mul(x, lx), mul(y, ly)), mul(z, ph.sin()))
+    Ok(w)
 }
 
 #[cfg(test)]
@@ -645,6 +580,95 @@ mod tests {
             m.triangles[3..],
             [[0, 3, 9], [9, 3, 6], [9, 6, 0], [0, 6, 3]]
         );
+    }
+
+    /// Four triangles, the third's apex `(1, 3, 1)` off its parent's plane
+    /// so the default rule sees no fold; `bits`/`angles` are the stored
+    /// normals, `planar` the one face's flag.
+    fn oriented(bits: &[u8], angles: &[i32], planar: bool) -> TriangleMesh {
+        let binary: Vec<bool> = bits.iter().map(|&b| b == 1).collect();
+        let pts = [
+            0,
+            0,
+            0,
+            4,
+            0,
+            0,
+            -2,
+            4,
+            0,
+            0,
+            -3,
+            i64::from(!planar),
+            1,
+            3,
+            1,
+        ];
+        let mut is_ref = [false; 6];
+        is_ref[5] = true;
+        reconstruct(&Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &[3, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            triangles: 4,
+            is_reference: &is_ref,
+            references: &[0],
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &binary,
+                angles,
+                planar: &[planar],
+                face_of: &[0; 4],
+            }),
+        })
+        .unwrap()
+    }
+
+    const FOLDED: [[u32; 3]; 4] = [[0, 1, 2], [2, 1, 3], [3, 1, 4], [3, 4, 0]];
+
+    /// A record read at a triangle orients it exactly: the third
+    /// triangle's fresh record at vertex 4 has `reversed` clear while its
+    /// winding runs `max` to `min`, so it folds [WD 7.8.9.1]; vertex 3's
+    /// set bit, read at `[2 1 3]`, keeps the second unfolded.
+    #[test]
+    fn a_reversed_bit_orients_the_walk() {
+        let mut bits = Vec::new();
+        for rev in [0, 0, 0, 1, 0] {
+            bits.extend([0, rev, 0, 0]);
+        }
+        let angles: Vec<i32> = [0, 1023].repeat(5);
+        let m = oriented(&bits, &angles, false);
+        assert_eq!(m.triangles, FOLDED);
+        assert_eq!(m.normals.len(), 5);
+        // Without the normals the default rule leaves it unfolded.
+        let plain = run(
+            &[0, 0, 0, 4, 0, 0, -2, 4, 0, 0, -3, 1, 1, 3, 1],
+            &[3, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            4,
+            &[false, false, false, false, false, true],
+            &[0],
+        )
+        .unwrap();
+        assert_eq!(plain.triangles[3], [4, 1, 0]);
+    }
+
+    /// On a planar face only the seed reads a record; the third triangle
+    /// winds against that face normal, so it folds [WD 7.8.9].
+    #[test]
+    fn a_planar_face_normal_orients_the_walk() {
+        let m = oriented(&[0, 0, 0, 0], &[0, 1023], true);
+        assert_eq!(m.triangles, FOLDED);
+        assert_eq!(m.triangle_normals, [[0; 3]; 4]);
+    }
+
+    /// Normals the oriented walk cannot use up send the mesh back to the
+    /// default rule, which keeps its triangles and drops the normals.
+    #[test]
+    fn normals_that_do_not_fit_fall_back_to_the_default_fold() {
+        let m = oriented(&[0, 0, 0, 0, 1], &[0, 1023], true);
+        assert_eq!(m.triangles[3], [4, 1, 0]);
+        assert!(m.normals.is_empty());
     }
 
     #[test]
@@ -795,113 +819,5 @@ mod tests {
             let off = dot(sub(*p, *s), sub(*p, *s)).sqrt() / tol;
             assert!(off < 0.87, "{off} tolerances off");
         }
-    }
-
-    fn normals(
-        pos: &[V],
-        tris: &[[u32; 3]],
-        binary: &[u8],
-        angles: &[i32],
-        planar: bool,
-    ) -> Option<(Vec<V>, Vec<[u32; 3]>)> {
-        let binary: Vec<bool> = binary.iter().map(|&b| b == 1).collect();
-        stored_normals(
-            pos,
-            tris,
-            &NormalArrays {
-                bits: 10,
-                binary: &binary,
-                angles,
-                planar: &[planar],
-                face_of: &vec![0; tris.len()],
-            },
-        )
-    }
-
-    const QUAD: [V; 4] = [
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [1.0, 1.0, 0.0],
-    ];
-
-    /// Corners are read `min`, `max`, apex but returned in the triangle's
-    /// own order. Each record lands in the frame `X = -V2`, `Z` the face
-    /// normal: phi 0 points along `X`, phi at full scale along `Z`, and
-    /// the reversed flag flips `Z`.
-    #[test]
-    fn records_decode_in_the_triangle_frame() {
-        let (n, c) = normals(
-            &QUAD,
-            &[[1, 0, 2]],
-            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
-            &[0, 0, 0, 1023, 0, 1023],
-            false,
-        )
-        .unwrap();
-        assert_eq!(c, [[1, 0, 2]]);
-        assert!(close(n[0], [0.0, -1.0, 0.0]), "{:?}", n[0]);
-        assert!(close(n[1], [0.0, 0.0, 1.0]), "{:?}", n[1]);
-        assert!(close(n[2], [0.0, 0.0, -1.0]), "{:?}", n[2]);
-    }
-
-    /// A vertex with multiple normals references one by index from its
-    /// most recent, or stores another; a vertex with one normal reuses it
-    /// without reading; leftover bits refuse the whole mesh.
-    #[test]
-    fn references_reuse_and_new_records() {
-        let tris = [[0, 1, 2], [2, 1, 3]];
-        let first = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
-        let a = [0, 1023];
-        let angles: Vec<i32> = a.iter().cycle().take(8).copied().collect();
-        let mut bits = first.to_vec();
-        bits.extend([1, 0, 0, 0, 0, 0]);
-        let (n, c) = normals(&QUAD, &tris, &bits, &angles, false).unwrap();
-        assert_eq!(c, [[0, 1, 2], [2, 1, 3]]);
-        assert_eq!(n.len(), 4);
-        let mut bits = first.to_vec();
-        bits.extend([0, 0, 0, 0, 0, 0, 0, 0]);
-        let angles: Vec<i32> = a.iter().cycle().take(10).copied().collect();
-        let (n, c) = normals(&QUAD, &tris, &bits, &angles, false).unwrap();
-        assert_eq!(c, [[0, 1, 2], [2, 3, 4]]);
-        assert_eq!(n.len(), 5);
-        // Index 0 is vertex 1's most recent normal, 3, not its first.
-        let mut more = tris.to_vec();
-        more.push([3, 1, 0]);
-        let mut three = bits.clone();
-        three.extend([1, 0]);
-        let (_, c) = normals(&QUAD, &more, &three, &angles, false).unwrap();
-        assert_eq!(c[2], [4, 3, 0]);
-        bits.push(0);
-        assert!(normals(&QUAD, &tris, &bits, &angles, false).is_none());
-    }
-
-    /// The reference width at every measured stored count.
-    #[test]
-    fn reference_width_matches_the_measured_counts() {
-        let measured = [
-            (1, 1),
-            (2, 1),
-            (3, 2),
-            (4, 3),
-            (5, 3),
-            (6, 4),
-            (8, 4),
-            (12, 5),
-            (14, 5),
-        ];
-        for (n, w) in measured {
-            assert_eq!(reference_bits(n), w, "n = {n}");
-        }
-    }
-
-    /// A planar face reads one record, at the first corner of its first
-    /// triangle, and every corner takes it.
-    #[test]
-    fn a_planar_face_stores_one_normal() {
-        let tris = [[0, 1, 2], [2, 1, 3]];
-        let (n, c) = normals(&QUAD, &tris, &[0, 0, 0, 0], &[0, 1023], true).unwrap();
-        assert_eq!(c, [[0; 3]; 2]);
-        assert!(close(n[0], [0.0, 0.0, 1.0]), "{:?}", n[0]);
     }
 }
