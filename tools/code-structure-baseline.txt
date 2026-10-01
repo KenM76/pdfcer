@@ -118,7 +118,6 @@ file pdfcer-text/src/text_extract/font.rs
 file pdfcer-text/src/text_extract/mod.rs
 file pdfcer-text/src/text_extract/page.rs
 file pdfcer-text/src/text_state.rs
-fn pdfcer-3d/src/compressed.rs::step
 fn pdfcer-3d/src/tess.rs::tess_3d_compressed
 fn pdfcer-cli/src/annot_edit.rs::cmd_delete_annotation
 fn pdfcer-cli/src/annot_edit.rs::cmd_move_annotation

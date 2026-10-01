@@ -18,10 +18,21 @@
 //!
 //! Geometry, in units of `tolerance`:
 //! - seed: `V0 = origin + d`, `V1 = V0 + d`, `V2 = mid(V0, V1) + d`;
-//! - apex across `[P Q]` with the triangle's third vertex `W`: with
-//!   `O = mid(P, Q)`, `X` the unit vector from the higher-numbered to the
-//!   lower-numbered of `P`, `Q`, `Z = unit((W - O) x X)` and `Y = Z x X`,
-//!   the apex is `O + d.x X - d.y Y - d.z Z`.
+//! - apex across `[P Q]` with the triangle's third vertex `W`
+//!   [WD 7.8.9.2]: with `O = (P + Q) * 0.5`, `L` and `H` the lower- and
+//!   higher-numbered of `P`, `Q`, `X = unitize(L - H)`,
+//!   `Z = unitize((W - O) x X)` and `Y = unitize(Z x X)`, the apex is
+//!   `((O + d.x X) - d.y Y) - d.z Z`.
+//!
+//! Arithmetic. The encoder reinjects every approximated point into its
+//! working mesh and frames the next apex on it [WD 7.8.9], so the decoder
+//! must repeat its floating point bit for bit: a last-bit difference
+//! compounds from apex to apex, and along a chain of thin triangles an
+//! exactly normalising decoder drifts thousands of tolerances off.
+//! `unitize` is therefore the WD's `PrcPt::Unitize` [WD 12.3], whose length
+//! is not exact. `X`'s direction (the WD prints `V1 - V0`, lower to
+//! higher), `Y`'s unitize and the summation order are measured; the spec
+//! RAG's `prc__8137__tess_3d_compressed.md` §2b M9 records the fit.
 //!
 //! Fold. A triangle whose new apex lies exactly in its parent's plane on
 //! the parent's side (`d.z == 0`, `d.y > 0`: a double-sided panel folding
@@ -66,6 +77,62 @@ fn unit(a: V) -> V {
 }
 fn key(a: u32, b: u32) -> (u32, u32) {
     if a < b { (a, b) } else { (b, a) }
+}
+
+/// `PrcPt::Length` [WD 12.3]: the squared length summed in `f64` and
+/// rounded to `f32`, then Newton's square root in `f64`, seeded with that
+/// `f32` with its exponent halved. The printed loop never advances its
+/// iterate; it is read as iterating until two successive values are equal,
+/// `None` (the WD's -1) when 100 steps do not settle.
+fn wd_length(a: V) -> Option<f64> {
+    let squared = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) as f32;
+    let bits = squared.to_bits();
+    let exponent = (bits >> 23) & 0xff;
+    let seed = if exponent > 127 {
+        f32::from_bits((bits & !(0xff << 23)) | (((exponent - 127) / 2 + 127) << 23))
+    } else {
+        squared
+    };
+    let squared = f64::from(squared);
+    let mut x = f64::from(seed);
+    for _ in 0..100 {
+        let next = 0.5 * (x + squared / x);
+        if next == x {
+            return Some(next);
+        }
+        x = next;
+    }
+    None
+}
+
+/// `PrcPt::Unitize` [WD 12.3]: each component divided by [`wd_length`];
+/// `None` below `FLT_EPSILON`.
+fn unitize(a: V) -> Option<V> {
+    let l = wd_length(a).filter(|&l| l >= f64::from(f32::EPSILON))?;
+    Some([a[0] / l, a[1] / l, a[2] / l])
+}
+
+/// `PrcPt::MakeOrthoRep` [WD 12.3] on `X`: `(Y, Z)` with
+/// `Z = unitize(X x (0, 1, 0))`, or `X x (1, 0, 0)` when that is null.
+fn make_ortho_rep(x: V) -> Option<(V, V)> {
+    let x = unitize(x)?;
+    let z = unitize(cross(x, [0.0, 1.0, 0.0])).or_else(|| unitize(cross(x, [1.0, 0.0, 0.0])))?;
+    Some((unitize(cross(z, x))?, z))
+}
+
+/// The apex across `[lo hi]` (`lo` the lower-numbered vertex) opposite `w`,
+/// `d` already scaled by the tolerance [WD 7.8.9.2]. A null `Z` or `Y`
+/// comes from `MakeOrthoRep(X)` as the WD prescribes; a null `X`, an edge
+/// the WD's non-degeneracy rule excludes, is used as it is.
+fn apex(lo: V, hi: V, w: V, d: V) -> V {
+    let o = mul(add(lo, hi), 0.5);
+    let x = sub(lo, hi);
+    let x = unitize(x).unwrap_or(x);
+    let (y, z) = unitize(cross(sub(w, o), x))
+        .and_then(|z| Some((unitize(cross(z, x))?, z)))
+        .or_else(|| make_ortho_rep(x))
+        .unwrap_or_default();
+    sub(sub(add(o, mul(x, d[0])), mul(y, d[1])), mul(z, d[2]))
 }
 
 /// The decoded arrays of one `TESS_3D_Compressed`.
@@ -169,21 +236,13 @@ impl Walk {
                     Some(r) => r,
                     None => {
                         let (pp, qq, ww) = (self.get(p)?, self.get(q)?, self.get(w)?);
-                        let o = mul(add(pp, qq), 0.5);
-                        let x = if p > q {
-                            unit(sub(qq, pp))
-                        } else {
-                            unit(sub(pp, qq))
-                        };
-                        let z = unit(cross(sub(ww, o), x));
-                        let y = cross(z, x);
+                        let (lo, hi) = if p < q { (pp, qq) } else { (qq, pp) };
                         if let Some(&[_, dy, dz]) = a.points.get(self.pi..self.pi.saturating_add(3))
                         {
                             fold = dz == 0 && dy > 0;
                         }
                         let d = self.point(a)?;
-                        self.pos
-                            .push(add(o, sub(sub(mul(x, d[0]), mul(y, d[1])), mul(z, d[2]))));
+                        self.pos.push(apex(lo, hi, ww, d));
                         (self.pos.len() - 1) as u32
                     }
                 };
@@ -616,6 +675,131 @@ mod tests {
             run(&[0; 6], &[0, 0, 0], 1, &fwd, &[7]).is_err(),
             "forward ref"
         );
+    }
+
+    /// `PrcPt::Length` rounds the squared length to `f32` and takes
+    /// Newton's root from a halved exponent, which can settle an ulp off
+    /// the correctly rounded root; `Unitize` refuses lengths below
+    /// `FLT_EPSILON` [WD 12.3].
+    #[test]
+    fn length_and_unitize_follow_the_wd_pseudocode() {
+        assert_eq!(wd_length([3.0, 4.0, 0.0]), Some(5.0));
+        let newton = f64::from_bits(S.to_bits() - 1);
+        assert_eq!(wd_length([1.0, 1.0, 0.0]), Some(newton));
+        let long = 1.0 + 2f64.powi(-30);
+        assert_eq!(wd_length([long, 0.0, 0.0]), Some(1.0));
+        assert_eq!(unitize([0.0, long, 0.0]), Some([0.0, long, 0.0]));
+        assert_eq!(unitize([1e-8, 0.0, 0.0]), None);
+        assert_eq!(unitize([0.0; 3]), None);
+    }
+
+    /// A `W` on the edge's line leaves `Z` null, so the frame comes from
+    /// `MakeOrthoRep(X)`: `Z` from `X x (0, 1, 0)`, or from `X x (1, 0, 0)`
+    /// when `X` is along `Y` [WD 7.8.9.2, 12.3].
+    #[test]
+    fn a_null_z_takes_the_ortho_rep_of_x() {
+        let d = [1.0, 2.0, 3.0];
+        let p = apex([0.0; 3], [-2.0, 0.0, 0.0], [5.0, 0.0, 0.0], d);
+        assert_eq!(p, [0.0, -2.0, -3.0]);
+        let p = apex([0.0; 3], [0.0, -2.0, 0.0], [0.0, 5.0, 0.0], d);
+        assert_eq!(p, [-2.0, 0.0, 3.0]);
+    }
+
+    /// A strip of thin, non-planar triangles compressed by an encoder
+    /// written out from the WD: each point is expressed in the frame of the
+    /// working mesh, rounded to the tolerance and reinjected [WD 7.8.9,
+    /// 7.8.9.2], with `PrcPt::Length` and `Unitize` transcribed from the
+    /// pseudocode [WD 12.3]. The decoder must land on that working mesh bit
+    /// for bit, which keeps every vertex within the rounding bound of its
+    /// source.
+    #[test]
+    fn a_strip_decodes_onto_the_encoders_working_mesh() {
+        fn length(v: V) -> f64 {
+            let f = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) as f32;
+            let mut bits = f.to_bits();
+            let exponent = (bits >> 23) & 0xff;
+            if exponent > 127 {
+                bits = (bits & 0x807f_ffff) | (((exponent - 127) / 2 + 127) << 23);
+            }
+            let (squared, mut x0) = (f64::from(f), f64::from(f32::from_bits(bits)));
+            for _ in 0..100 {
+                let xi = 0.5 * (x0 + squared / x0);
+                if xi == x0 {
+                    return xi;
+                }
+                x0 = xi;
+            }
+            -1.0
+        }
+        fn unitized(v: V) -> V {
+            let l = length(v);
+            assert!(l >= f64::from(f32::EPSILON), "null axis");
+            [v[0] / l, v[1] / l, v[2] / l]
+        }
+        let (tol, n) = (1e-4, 48);
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut jitter = |scale: f64| {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((state >> 11) as f64 / (1u64 << 53) as f64 - 0.5) * scale
+        };
+        // Two rails 4 apart, 0.05 between a rail's points, 0.02 of relief.
+        let source: Vec<V> = (0..n)
+            .map(|i| {
+                let (along, rail) = (i as f64 * 0.025, (i % 2) as f64 * 4.0);
+                [along + jitter(0.01), rail + jitter(0.01), jitter(0.02)]
+            })
+            .collect();
+        let round = |v: f64| (v / tol).round() as i64;
+        let (mut points, mut work) = (Vec::new(), Vec::<V>::new());
+        for (i, target) in source.iter().take(3).enumerate() {
+            let base = match i {
+                0 => [0.0; 3],
+                1 => work[0],
+                _ => mul(add(work[0], work[1]), 0.5),
+            };
+            let d = [0, 1, 2].map(|c| round(target[c] - base[c]));
+            points.extend(d);
+            work.push(add(base, d.map(|c| c as f64 * tol)));
+        }
+        // Triangle k enters across vertices k and k + 1, opposite k - 1,
+        // and continues right on odd k, left on even k, unless it folds.
+        let mut status = vec![0; 3 * (n - 2)];
+        status[0] = 2;
+        for k in 1..n - 2 {
+            let (lo, hi, w) = (work[k], work[k + 1], work[k - 1]);
+            let o = mul(add(hi, lo), 0.5);
+            let x = unitized(sub(lo, hi));
+            let z = unitized(cross(sub(w, o), x));
+            let y = unitized(cross(z, x));
+            let r = sub(source[k + 2], o);
+            let d = [round(dot(r, x)), round(-dot(r, y)), round(-dot(r, z))];
+            points.extend(d);
+            let [dx, dy, dz] = d.map(|c| c as f64 * tol);
+            work.push(sub(sub(add(o, mul(x, dx)), mul(y, dy)), mul(z, dz)));
+            if k < n - 3 {
+                let fold = d[2] == 0 && d[1] > 0;
+                status[k] = if (k % 2 == 1) != fold { 1 } else { 2 };
+            }
+        }
+        let m = reconstruct(&Arrays {
+            tolerance: tol,
+            origin: [0.0; 3],
+            points: &points,
+            edge_status: &status,
+            triangles: n - 2,
+            is_reference: &vec![false; n],
+            references: &[],
+            normals: None,
+        })
+        .unwrap();
+        assert_eq!(m.triangles[1..4], [[2, 1, 3], [2, 3, 4], [4, 3, 5]]);
+        assert_eq!(m.positions, work);
+        for (p, s) in m.positions.iter().zip(&source) {
+            let off = dot(sub(*p, *s), sub(*p, *s)).sqrt() / tol;
+            assert!(off < 0.87, "{off} tolerances off");
+        }
     }
 
     fn normals(
