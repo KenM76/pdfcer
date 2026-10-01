@@ -23,6 +23,12 @@
 //!   lower-numbered of `P`, `Q`, `Z = unit((W - O) x X)` and `Y = Z x X`,
 //!   the apex is `O + d.x X - d.y Y - d.z Z`.
 //!
+//! Fold. A triangle whose new apex lies exactly in its parent's plane on
+//! the parent's side (`d.z == 0`, `d.y > 0`: a double-sided panel folding
+//! back over itself) swaps bit 1 and bit 0 for its own continuation. This
+//! is measured on zero-thickness panels; a fold whose apex is a reference
+//! carries no such signal and is not detected.
+//!
 //! Only the per-triangle `edge_status` form (three entries per triangle,
 //! the first `T` read) is reconstructed; the one-entry-per-triangle form
 //! walks differently and is not.
@@ -111,6 +117,7 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
     };
 
     for &status in a.edge_status.iter().take(t) {
+        let mut fold = false;
         let tri = match next.take() {
             Some((p, q, w)) => {
                 let r = match take(&mut slot, &mut ri)? {
@@ -128,6 +135,9 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
                         };
                         let z = unit(cross(sub(ww, o), x));
                         let y = cross(z, x);
+                        if let Some(&[_, dy, dz]) = a.points.get(pi..pi.saturating_add(3)) {
+                            fold = dz == 0 && dy > 0;
+                        }
                         let d = point(&mut pi)?;
                         pos.push(add(o, sub(sub(mul(x, d[0]), mul(y, d[1])), mul(z, d[2]))));
                         (pos.len() - 1) as u32
@@ -170,8 +180,10 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
             }
         }
         tris.push(tri);
-        let left = (tc, tb, ta);
-        let right = (ta, tc, tb);
+        let (mut left, mut right) = ((tc, tb, ta), (ta, tc, tb));
+        if fold {
+            std::mem::swap(&mut left, &mut right);
+        }
         match (status & 2 != 0, status & 1 != 0) {
             (true, true) => {
                 next = Some(left);
@@ -268,6 +280,36 @@ mod tests {
         let is_ref = [false, false, false, true, false, false, false];
         let m = run(&pts, &[3, 0, 0, 0, 0, 0, 0, 0, 0], 3, &is_ref, &[0]).unwrap();
         assert_eq!(m.triangles, [[0, 1, 2], [2, 1, 0], [3, 4, 5]]);
+    }
+
+    /// A double-sided panel: four coplanar vertices, four triangles. The
+    /// second triangle's apex folds back onto the seed's side, so its own
+    /// continuation takes `[A C]` first; the last two apexes are the seed's
+    /// first two vertices.
+    #[test]
+    fn a_folded_apex_swaps_its_continuation() {
+        let pts = [0, 0, 0, 4, 0, 0, -2, 4, 0, 1, 3, 0];
+        let is_ref = [false, false, false, false, true, true];
+        let m = run(
+            &pts,
+            &[3, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            4,
+            &is_ref,
+            &[0, 1],
+        )
+        .unwrap();
+        assert_eq!(m.triangles, [[0, 1, 2], [2, 1, 3], [2, 3, 0], [0, 3, 1]]);
+        let unfolded = [0, 0, 0, 4, 0, 0, -2, 4, 0, 1, -3, 0];
+        assert!(
+            run(
+                &unfolded,
+                &[3, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                4,
+                &is_ref,
+                &[0, 1]
+            )
+            .is_err()
+        );
     }
 
     #[test]
