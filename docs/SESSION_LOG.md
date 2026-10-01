@@ -4,6 +4,67 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (839th filing) — `Pass 421.13`: a left-out compressed mesh now says why (`88a70174`)
+
+**Shipped:**
+- `88a70174` — `Pass 421.13`. `Tessellation::Compressed` gains
+  `not_rebuilt: Option<String>` (additive; variant stays
+  `#[non_exhaustive]`) carrying the reconstruction's refusal reason,
+  previously computed then discarded. CLI `3d-mesh`/`3d-render` each
+  print one `note: N compressed mesh(es) left out: <why>` per distinct
+  reason; a model with no rebuildable compressed triangles names the
+  reasons in its refusal (exit 9). Reconstruction messages made
+  number-free so identical causes group ("an edge is shared by more
+  than two triangles", "a triangle refers to a vertex not yet decoded",
+  "the decoded triangles do not use up the stored arrays").
+  `docs/core-api/01-reading-and-model.md` §12 updated.
+
+**Decisions made this session:** none (additive field + message
+wording, not a crate-boundary or library choice — no `ARCHITECTURE.md`
+§12 entry opened).
+
+**Findings + decisions:**
+- On a second local-only CAD sample (never named — a door assembly, an
+  industrial door with many small parts and sub-assemblies, per the
+  test-corpus rule), all 36 skipped compressed meshes fail on the SAME
+  reason: "an edge is shared by more than two triangles." A worktree
+  agent is investigating whether that is genuine non-manifold geometry
+  in the source model or a traversal bug in pdfcer's decoder — **open**,
+  filed in *Backlog*, "Interactive 3D viewer."
+- The sample was first misread as something else (a steel structural
+  frame) because it was rendered with the wrong up axis — pdfcer's
+  3d-render does not yet read the PDF's saved default 3D view (the 3D
+  annotation's `/3DV` default view, or the PRC view), so it had no way
+  to know the model's intended orientation. The up-axis misreading is
+  itself a finding: honouring the saved default view for render
+  orientation is a known Backlog gap, previously folded into the
+  generic "views are not read yet" disclosure; *Interactive 3D
+  viewer*'s Backlog entry now names default-view orientation
+  explicitly rather than leaving it implicit in that phrase.
+- Tests: a CLI refusal test asserts the reason text; sabotage (drop the
+  reason text, leave the skip silent) was injected and CAUGHT.
+  `pdfcer-3d` 94 lib + 3 + 8 tests, CLI `three_d` 17/17, clippy clean,
+  fmt clean, `core-api-verbs` and `check-code-structure.py` clean.
+- No dependency change; `cargo tree` unaffected.
+- `docs/FEATURES.md` rows 458 (mesh export) and 534 (3D view) each gain
+  a one-sentence mention of the per-reason disclosure, confirmed under
+  the 1,200-character register-entry cap by direct measurement (no
+  `check-register-entry-size.py` run — no shell tool this filing).
+- Sourcing (hard rule 8): no shell tool this filing — commit `88a70174`
+  confirmed against this session's git-status snapshot at conversation
+  start (HEAD `88a70174`, clean tree, parent `0a724300`). Measured
+  counts, test names and the door-assembly finding are relayed from
+  the dispatching engineer's own report, not independently reproduced.
+
+**Still in flight:** the non-manifold-vs-traversal-bug question above;
+the 2 stray meshes `421.12` left unresolved; the door-panel
+re-measurement against `421.12`'s fix; crease-angle normal smoothing
+for compressed meshes — all under the `421.x` Backlog bucket.
+
+**For next session:** settle whether the door-assembly sample's 36
+all-same-reason skips are genuine non-manifold input or a decoder bug
+before trusting the refusal rate on any third sample.
+
 ## 2026-10-01 (838th filing) — `Pass 421.12`: compressed-mesh apex frames match the PRC encoder's own arithmetic (`4fc9de7b`), doc-comment gate closed (`39ff43aa`)
 
 **Shipped:**
@@ -62,7 +123,7 @@ correction, not a crate-boundary or library choice — no `ARCHITECTURE.md`
 - `docs/FEATURES.md` rows 458 and 534 updated this filing — both
   described the same defect family (hard rule 11 sweep); CLI disclosure
   text is unchanged and still accurate, no box changes on either row.
-- A second real CAD sample (local-only, a steel deck frame; never named)
+- A second real CAD sample (local-only, a door assembly; never named)
   now renders as a recognisable assembly under this fix, where the
   v0.71.0 build rendered a ball of spikes; 36 of its compressed meshes
   are still skipped by the decoder (open).

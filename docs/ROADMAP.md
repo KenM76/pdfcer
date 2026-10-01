@@ -115,6 +115,54 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.13` (`88a70174`), 2026-10-01 — a compressed mesh left out of the rebuild says why
+
+Continues the `Pass 421.x` bucket. `421.12`'s reconstruction already
+refused unrebuildable compressed meshes; the refusal REASON was computed
+and then discarded. `Tessellation::Compressed` gains
+`not_rebuilt: Option<String>` (additive; the variant is `#[non_exhaustive]`,
+so this is not a breaking change) carrying that reason.
+
+**CLI.** `3d-mesh` and `3d-render` each print one
+`note: N compressed mesh(es) left out: <why>` per DISTINCT reason seen
+across the model, instead of a bare skip count. A model with no
+rebuildable compressed triangles names the reasons in its refusal text
+(exit 9).
+
+**Grouping required a wording change.** The reconstruction's refusal
+messages used to embed numbers (vertex/triangle indices), so two meshes
+failing for the same structural cause never produced the same string and
+never grouped. Messages are now number-free: "an edge is shared by more
+than two triangles", "a triangle refers to a vertex not yet decoded", "the
+decoded triangles do not use up the stored arrays".
+
+`docs/core-api/01-reading-and-model.md` §12 (3D models) documents the new
+field and the CLI's one-line-per-reason disclosure.
+
+**Finding, not yet explained.** On a second local-only CAD sample (a
+door assembly; never named per the test-corpus rule) all 36 skipped
+compressed meshes fail on the SAME reason — "an edge is shared by more
+than two triangles." A worktree agent is investigating whether that is
+genuine non-manifold geometry in the source model or a traversal bug in
+pdfcer's decoder; open, see *Backlog*, "Interactive 3D viewer."
+
+**Tests.** A CLI refusal test asserts the reason text appears; sabotage
+(drop the reason, leave the skip silent) was injected and CAUGHT.
+`pdfcer-3d` 94 lib + 3 + 8 tests, CLI `three_d` 17/17, clippy clean, fmt
+clean, `core-api-verbs` and `check-code-structure.py` clean.
+
+**No dependency or `cargo tree` impact.**
+
+`docs/FEATURES.md` rows 458 (mesh export) and 534 (3D view) each gain a
+one-sentence mention of the per-reason disclosure, citing this Pass;
+boxes unchanged (`core [x]` / `cli [x]` / `gui [ ]`).
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit `88a70174`
+confirmed against this session's git-status snapshot at conversation
+start (HEAD `88a70174`, clean tree, parent `0a724300`). Test names,
+counts and the door-assembly finding are relayed from the dispatching
+engineer's own report, not independently reproduced.
+
 ### `Pass 421.12` (`4fc9de7b`), 2026-10-01 — compressed-mesh apex frames reproduce the PRC encoder's own Length/Unitize arithmetic
 
 Continues the `Pass 421.x` bucket, closing most of the vaulted-roof
@@ -24925,6 +24973,14 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   normals, outward winding and the reference-apex fold heuristic remain
   open; the door-panel case (below) has NOT been independently
   re-measured against this fix.
+- `421.13` — **SHIPPED, `88a70174`, 2026-10-01 (839th filing)**, full
+  entry in *Shipped* above. `Tessellation::Compressed::not_rebuilt`
+  carries the reconstruction's refusal reason; `3d-mesh`/`3d-render`
+  print one grouped `note:` per distinct reason; refusal messages made
+  number-free so identical causes group. **NEW OPEN QUESTION**: a second
+  local-only CAD sample's 36 skipped compressed meshes ALL fail on "an
+  edge is shared by more than two triangles" — genuine non-manifold
+  source geometry, or a pdfcer traversal bug? Under investigation.
 
 **Dated note, 2026-10-01 (827th filing) — a separate open defect, NOT
 closed by `421.8`.** Ken reported the School render's front double door
@@ -24953,22 +25009,49 @@ that fix** — the two defects share a root-cause category but were not
 shown to be the same conditioning failure, so this entry stays open until
 re-checked, not assumed closed by inheritance.
 
-**Next planned, in order**: re-measure the door-panel case above against
-`421.12`'s fix; the 2 stray meshes `421.12` left unresolved; crease-angle
-normal smoothing for compressed meshes (`421.10`'s own remainder — `must_recalculate_normals`
-meshes still render flat-faceted); then textures; then lights.
+**Dated note, 2026-10-01 (839th filing, `88a70174`, `Pass 421.13`).**
+`Tessellation::Compressed::not_rebuilt` now carries the reconstruction's
+refusal reason, and `3d-mesh`/`3d-render` print one grouped `note:` per
+distinct cause instead of a bare skip count. A second local-only CAD
+sample (never named) has ALL 36 of its skipped compressed meshes failing
+on one cause — "an edge is shared by more than two triangles" — and
+whether that is genuine non-manifold source geometry or a traversal bug
+in pdfcer's decoder is **open**, under investigation by a worktree agent.
+
+**Dated note, 2026-10-01 (840th filing) — correction, and a gap named
+explicitly.** The second CAD sample in the `421.12`/`421.13` notes above
+was misidentified as a steel structural frame; it is in fact a door
+assembly (an industrial door with many small parts and sub-assemblies —
+still never named, per the test-corpus rule). The misreading came from
+rendering it with the wrong up axis: pdfcer's 3d-render does not yet
+read a PDF's saved default 3D view (the 3D annotation's own `/3DV`
+default view, or the PRC view), so it had no way to know the model's
+intended orientation and guessed. That gap previously sat folded into
+the generic "views are not read yet" CLI disclosure (`421.6`); named
+here as its own item — **honour the model's saved default 3D view for
+render orientation** — rather than leaving it implicit.
+
+**Next planned, in order**: settle the non-manifold-vs-traversal-bug
+question above; re-measure the door-panel case against `421.12`'s fix;
+the 2 stray meshes `421.12` left unresolved; crease-angle normal
+smoothing for compressed meshes (`421.10`'s own remainder —
+`must_recalculate_normals` meshes still render flat-faceted); honour the
+model's saved default 3D view (`/3DV` default view / PRC view) for
+render orientation instead of guessing; then
+textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
 gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`,
 framing fix noted by `421.3`, vertex-fit noted by `421.4`, per-face colour
 noted by `421.6`, compressed-decode gap closed by `421.8`, per-face line
 attributes noted by `421.9`, stored-normal shading noted by `421.10`,
-apex-frame reconstruction-accuracy fix noted by `421.12`, 838th filing);
+apex-frame reconstruction-accuracy fix noted by `421.12`, 838th filing;
+left-out-mesh reason disclosure noted by `421.13`, 839th filing);
 `gui` stays `[ ]` pending `421.1`. Stays in *Planned* — the row names the
 interactive-controls capability, and that still needs Rung B. `421.5`'s
 `3d-mesh` format-from-extension fix is noted on the separate mesh-export
-row (`419.2`, *Implemented*), not this one; `421.12`'s own
-reconstruction-accuracy improvement is noted there too (838th filing).
+row (`419.2`, *Implemented*), not this one; `421.12`'s and `421.13`'s own
+improvements are noted there too (838th/839th filings).
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
