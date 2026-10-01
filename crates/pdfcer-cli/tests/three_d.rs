@@ -497,10 +497,11 @@ fn a_prc_assembly_renders_both_placed_copies() {
     let info = reader.next_frame(&mut buf).unwrap();
     assert_eq!((info.width, info.height), (200, 100));
     let px = |x: usize, y: usize| buf[(y * 200 + x) * 4];
-    // The squares sit at x 0..1 and 4..5 of a 0..5 model: pixels ~41-80 and
-    // ~120-159; the gap between them stays white.
-    assert!(px(61, 50) < 255, "the first copy is drawn");
-    assert!(px(139, 50) < 255, "the mirrored copy is drawn");
+    // The squares sit at x 0..1 and 4..5 of a 0..5 model framed 5.5 wide:
+    // pixels ~9-45 and ~155-191; the gap between them stays white.
+    assert!(px(27, 50) < 255, "the first copy is drawn");
+    assert!(px(173, 50) < 255, "the mirrored copy is drawn");
+    assert_eq!(px(4, 50), 255, "a margin on the left");
     assert_eq!(px(100, 50), 255, "nothing between the copies");
 }
 
