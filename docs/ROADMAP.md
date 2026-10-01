@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.4` (`78f966c2`), 2026-10-01 — `Camera::fit_meshes` frames the model's vertices directly
+
+Continues the `Pass 421.x` bucket's Rung A. `Camera::fit` (`421.3`) frames
+the model's bounding-box corners, which stays looser than necessary in
+oblique views — the box's own empty corners still pad the frame once the
+corners (rather than the sphere) are what's being fitted.
+
+New `Camera::fit_meshes(&[TriangleMesh], direction, up, perspective,
+aspect)` in `pdfcer-3d` (`crates/pdfcer-3d/src/render.rs`): projects every
+vertex of every mesh — not just the bounding box — onto the camera basis,
+aims at the middle of the projected model, and shares `421.3`'s private
+framing routine (margin, projection math) with `fit`. Same `FIT_MARGIN`
+1.1 (~5% clear space on the limiting axis). Errs `RenderError::Camera`
+when there is no vertex. `Camera::fit(&Bounds, ..)` is unchanged in
+behaviour (box corners; looser in oblique views) — the two now share one
+private helper. No public signature change beyond the new method; no
+manifest change — `pdfcer-core`/`pdfcer-render` untouched, `cargo tree`
+unaffected.
+
+CLI `3d-render` now calls `fit_meshes`. Measured: the School sample's iso
+view went from filling about half the image to filling it — the bounding
+box's empty corners had been padding the oblique view even after `421.3`.
+`3d-render --help` also corrected: it still said model colours weren't
+read, stale since `421.2` shipped per-part colour; now states what it
+draws (per-face colours) and what it doesn't (textures, lights, saved
+views).
+
+**Tests.** New `a_mesh_fit_ignores_empty_box_corners`; doc example on
+`fit_meshes` asserts the re-centred target. `pdfcer-3d` 74+3+8 tests
+green; `cargo fmt`/`clippy -D warnings` clean. Sabotage: re-centring
+removed CAUGHT; vertices replaced by box corners CAUGHT; x and y
+re-centring in the perspective term each removed CAUGHT; depth term
+removed CAUGHT.
+
+`docs/FEATURES.md` row 534 ("View an embedded 3D model with camera
+controls"): boxes unchanged (`core [x]`/`cli [x]` from `421.0`, `gui [ ]`
+pending `421.1`) — text gains a clause on `fit_meshes`; it does not add a
+new capability.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+names and sabotage results relayed from the dispatching engineer's own
+report on `78f966c2`, not independently reproduced. Backup/push/release
+state not verifiable from here.
+
 ### `Pass 421.3` (`046ec96f`), 2026-09-30 — `Camera::fit` frames the projected bounding box, not the bounding sphere
 
 Continues the `Pass 421.x` bucket's Rung A (`421.0`'s renderer). `Camera::fit`

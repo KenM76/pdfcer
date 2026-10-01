@@ -4,6 +4,43 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (822nd filing) — `Pass 421.4` (`78f966c2`): `Camera::fit_meshes` frames the model's vertices
+
+**Shipped:**
+- `Pass 421.4` — new `Camera::fit_meshes(&[TriangleMesh], direction, up,
+  perspective, aspect)` in `pdfcer-3d` frames every vertex directly
+  instead of the bounding box's corners (`421.3`), which still padded
+  oblique views with the box's own empty corners. CLI `3d-render` now
+  calls it. Full entry in `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None — a follow-on tightening inside
+an already-shipped bucket, no crate boundary or invariant change.
+
+**Findings + decisions:**
+- Measured: the School sample's iso view went from filling about half
+  the image to filling it. New test `a_mesh_fit_ignores_empty_box_corners`;
+  doc example on `fit_meshes` asserts the re-centred target. `pdfcer-3d`
+  74+3+8 tests green. Sabotage: re-centring removed, vertices replaced by
+  box corners, x/y re-centring in the perspective term each removed, and
+  the depth term removed — all CAUGHT.
+- `3d-render --help` corrected: it still claimed model colours weren't
+  read, stale since `421.2` shipped per-part colour.
+- `docs/FEATURES.md` row 534 ("View an embedded 3D model with camera
+  controls") text updated to note `fit_meshes`; `core`/`cli`/`gui` boxes
+  unchanged — corrects an already-shipped capability's framing, not a
+  new one.
+
+**Still in flight:** The `421.x` bucket's next owed items, unchanged: the
+vaulted-roof tessellation tear (`419.2` remainder), then textures, then
+lights; Rung B (GUI orbit/pan/zoom, `421.1`) still not requested.
+
+**For next session:** Nothing new opened by this filing.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+names and sabotage results relayed from the dispatching engineer's own
+report on `78f966c2`, not independently reproduced. Backup/push/release
+state not verifiable from here.
+
 ## 2026-09-30 (821st filing) — `Pass 421.3` (`046ec96f`): `Camera::fit` frames the bounding box, not the sphere
 
 **Shipped:**
