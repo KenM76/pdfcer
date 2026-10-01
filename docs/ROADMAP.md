@@ -24350,19 +24350,33 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
-### `pdfcer-3d` structure refactor — named by the code-structure audit (`Pass 426.0`, 836th filing, 2026-10-01)
+### `pdfcer-3d` structure refactor — named by the code-structure audit (`Pass 426.0`, 836th filing, 2026-10-01); IN PROGRESS, 3 of 4 shortcuts partly or fully closed as of the 837th filing
 
-Four shortcuts the audit found, not yet fixed: vector math (dot/cross/
-normalize/length) duplicated across `compressed.rs`/`export.rs`/
-`render.rs`/`tree.rs` with no shared `Vec3` type; `render.rs` living
-inside the PRC-reader crate rather than a render-specific one; oversized
-functions/files named by `tools/check-code-structure.py`'s own run —
-`compressed.rs::step`, `container.rs::parse_with_limit`, `schema.rs::stmt`,
-`tess.rs::tess_3d_compressed`, `tree.rs::representation_item`, plus
-`tess.rs`/`tree.rs` as whole files; and `pub mod bits` exposed when it
-should be `pub(crate)`. **Waiting** on the in-flight roof-fix agent that is
-also touching `compressed.rs`/`tess.rs`, so as not to collide with its own
-edits.
+Four shortcuts the audit found. Progress this filing (`063b9c25`,
+`6826614b`, `484be18f`, all on `main`, not yet pushed):
+- **Shared `Vec3` DONE** — crate-private `vec3` module (`sub`/`scale`/`dot`/
+  `cross`/`length`/`normalize`); `render.rs` and `export.rs` dropped their
+  private copies. `compressed.rs` still has its own (deferred, below).
+- **`render.rs`-in-the-reader-crate PARTLY addressed, not closed** — the
+  rasterizer is now behind a default-on `render` feature
+  (`cargo test -p pdfcer-3d --no-default-features` builds/tests the reader
+  alone, wired into CI); it has not moved to a separate crate, which is
+  what the audit named.
+- **Two of five named oversized items split**: `tree.rs` (1,092 lines) into
+  `tree/{mod,geometry,style,walk}.rs`; `representation_item` (86 lines) into
+  `leaf_item_fields` + `exact_tolerance`; `PrcFile::parse_with_limit` and the
+  schema `stmt` dispatcher also split. `compressed.rs::step` and
+  `tess.rs::tess_3d_compressed`/whole-file size are **still open**,
+  deferred behind the in-flight roof-fix agent.
+- **`pub mod bits` — still open**, deferred with the above.
+
+Baseline (`tools/code-structure-baseline.txt`) **640 → 634** over the three
+commits. **Still waiting** on the in-flight roof-fix agent, which is also
+editing `compressed.rs`/`tess.rs` — the remaining work (compressed.rs's own
+vector helpers → `vec3`, `compressed.rs::step`, `tess.rs::tess_3d_compressed`,
+`tess.rs` file size, `bits` visibility) stays queued behind it to avoid
+collision. Gates green on both commits: clippy `-D warnings` on both
+feature sets, fmt, the `prc_parse` fuzz target build.
 
 ### Workspace structure-debt paydown — standing, ongoing (opened `Pass 426.0`, 836th filing, 2026-10-01)
 
@@ -24371,6 +24385,9 @@ edits.
 DEBT under the new `tools/check-code-structure.py` gate. The baseline only
 shrinks — pay it down opportunistically whenever a Pass already touches a
 flagged file; no dedicated sweep Pass is scoped.
+
+**837th filing, 2026-10-01**: 640 → 634, paid down by the `pdfcer-3d`
+structure refactor above (`063b9c25`/`6826614b`/`484be18f`).
 
 ### Portable release build ships without the `download` feature (filed 820th filing, v0.69.0 release notes)
 

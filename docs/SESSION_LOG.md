@@ -4,6 +4,55 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (837th filing) — `pdfcer-3d` structure refactor, progress (`063b9c25`/`6826614b`/`484be18f`)
+
+**Shipped:**
+- `063b9c25` — crate-private `vec3` module; `render.rs`/`export.rs` dropped
+  their private vector-math copies. `tree.rs` (1,092 lines) split into
+  `tree/{mod,geometry,style,walk}.rs`, public re-exports unchanged.
+  `representation_item` (86 lines) split into `leaf_item_fields` +
+  `exact_tolerance`. `bits` stays `pub` (the `prc_parse` fuzz target drives
+  `BitReader`) but is now `#[doc(hidden)]` with the reason stated.
+- `6826614b` — the rasterizer moved behind a default-on `render` Cargo
+  feature; the reader builds and tests alone.
+  `cargo test -p pdfcer-3d --no-default-features` wired into CI
+  (`tools/check-ci-parity.py`, registered LOCAL).
+- `484be18f` — `PrcFile::parse_with_limit` split
+  (`file_structure_description`/`file_structure`); schema `stmt` dispatcher
+  split (`parent_program`/`conditional`).
+
+**Decisions made this session:** none new — work under decision 170
+(836th filing).
+
+**Findings + decisions:**
+- The code-structure gate flagged the moved `representation_item` as a NEW
+  violation before it was split — moving code does not launder debt; it
+  has to be fixed at its new location too.
+- Sabotage checks held: a reader module importing `crate::render` under
+  `--no-default-features` was CAUGHT.
+- `tools/code-structure-baseline.txt`: 640 → 634.
+- Behaviour check: `3d-mesh` on the local real-file sample still writes an
+  OBJ byte-identical to `v0.71.0`'s (1,173 meshes, 70,196 triangles, 348
+  compressed rebuilt) — the refactor changed no decode behaviour.
+- No `pub` surface, round-trip or GUI-core-separation impact; `FEATURES.md`
+  gets no row (internal refactor, no capability change — the new `render`
+  feature is CI/test-only, not exposed to any shell; `3d` stays the only
+  user-facing Cargo feature gating `pdfcer-3d`).
+
+**Still in flight:**
+- Deferred, waiting on the in-flight roof-fix agent (also editing
+  `compressed.rs`/`tess.rs`): `compressed.rs`'s own vector helpers →
+  `vec3`; `compressed.rs::step`; `tess.rs::tess_3d_compressed`; `tess.rs`
+  file size; `pub mod bits` → `pub(crate)`.
+- `render.rs` living inside the PRC-reader crate is only partly addressed
+  (feature-gated, not crate-split) — the audit's own framing wanted a
+  separate render crate; not done.
+- Not yet pushed (per the dispatching note).
+
+**For next session:** confirm `063b9c25`/`6826614b`/`484be18f` are pushed;
+resume the `pdfcer-3d` structure refactor once the roof-fix agent clears
+`compressed.rs`/`tess.rs`.
+
 ## 2026-10-01 (836th filing) — `Pass 426.0` (`2bb66c73`): code-structure gate
 
 **Shipped:**
