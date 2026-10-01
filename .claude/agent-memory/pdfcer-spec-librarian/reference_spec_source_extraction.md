@@ -1306,3 +1306,8 @@ pdftotext -layout x690.pdf x690.txt
 - **Same pattern applies to the rest of the ASN.1 stack** if ever needed: X.680
   (`T-REC-X.680-…`) is the notation, X.681/682/683 the extensions, X.691 PER,
   X.696 OER — all on the same free endpoint, all ISO/IEC 8824/8825 twins.
+
+## 4x. ★★ ISO 32000-2 EC3 sponsored PDF: ERRATA ARE `/Text` ANNOTATIONS, NOT BODY TEXT — `pdftotext` CANNOT SEE THEM (2026-10-01)
+- The EC3 front matter says most errata resolutions "are provided as PDF annotations with respective comments". So an `[INS]` erratum from pdf-issues (e.g. #211, the NOTE after §7.6.2's 4th bullet) is ABSENT from a `pdftotext` dump — that absence is NOT evidence the erratum is missing from EC3.
+- Recipe: `pypdf.PdfReader(...).pages[i].get('/Annots')` → each `.get_object().get('/Contents')`; scan all pages for a phrase from the erratum. #211 = `/Text` annotation on PDF page 86 = printed p. 71 (PDF page = printed + 15 in this region).
+- Pair with 4v/4w: pdf-issues raw HTML `data-issue` + `data-iso` for number/status; the EC3 annotation for "is it in the copy we hold".

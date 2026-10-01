@@ -1,7 +1,7 @@
 # Memory index — pdfcer-spec-librarian
 
-- [Spec source extraction toolchain](reference_spec_source_extraction.md) — how to GET a spec and get text out of it: 21 routes (4a–4u), verified free URLs, paywall workarounds, errata recipes.
-- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 96 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
+- [Spec source extraction toolchain](reference_spec_source_extraction.md) — how to GET a spec and get text out of it: 22 routes (4a–4x), verified free URLs, paywall workarounds, errata recipes.
+- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 97 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
 - [Font + spec-data licensing patterns](project_embeddable_data_licensing.md) — what may cross into pdfcer's MIT tree; data-vs-document, availability ≠ redistribution licence.
 
 ## Routing — find your dispatch's shape, then READ THE NAMED ITEM (the detail is there, not here)
@@ -27,6 +27,7 @@
 | **"is key K constrained to a VOCABULARY?" / "I am about to write a literal token into files"** | corpus **78** |
 | **"this ONE value is wrong — now check the whole column"** | corpus **73** |
 | **"is clause C advisory or mandatory?"** | corpus **65** |
+| **"correct entries X/Y to state rule R" — R is already filed elsewhere** / a "correction owed, report only" row / an EC3 erratum missing from `pdftotext` | corpus **97** + extraction **4x** |
 | **"verify a SHIPPED CITATION — a third party couldn't source our cited claim"** / an erratum's real number, text, status, date | corpus **80** + extraction **4v**/**4w** |
 | **"ingest clause C for a WRITER Pass; state answers A and B" / an EC3 erratum markup that may be stale** | corpus **87** |
 | **"X.509/CRL/OCSP ASN.1 — confirm my TAG BYTES"** / "the module is IMPLICIT" / DSS stream contents | corpus **88** |
