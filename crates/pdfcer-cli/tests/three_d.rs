@@ -350,10 +350,11 @@ fn a_mesh_format_follows_the_output_extension() {
     let input = with_prc_square("mesh_ext");
     let obj = input.with_extension("OBJ");
     assert!(mesh(&input, "2", &obj, &[]).status.success());
-    assert!(std::fs::read_to_string(&obj).unwrap().contains(
-        "f 1 2 3
-"
-    ));
+    assert!(
+        std::fs::read_to_string(&obj)
+            .unwrap()
+            .contains("f 1//1 2//1 3//1\n")
+    );
     let forced = input.with_extension("obj");
     assert!(
         mesh(&input, "2", &forced, &["--format", "stl"])
@@ -376,7 +377,11 @@ fn a_prc_model_meshes_to_obj() {
     );
     let obj = std::fs::read_to_string(&output).unwrap();
     assert!(obj.contains("v 1 1 0\n"), "{obj}");
-    assert!(obj.contains("f 1 2 3\nf 1 3 4\n"), "{obj}");
+    assert!(obj.contains("vn 0 0 1\n"), "{obj}");
+    assert!(
+        obj.contains("f 1//1 2//1 3//1\nf 1//1 3//1 4//1\n"),
+        "{obj}"
+    );
 }
 
 /// The product tree places the square twice, the second copy mirrored in x
@@ -398,8 +403,15 @@ fn a_prc_assembly_is_written_at_its_placements() {
     let obj = std::fs::read_to_string(&output).unwrap();
     assert!(obj.contains("v 1 1 0\n"), "{obj}");
     assert!(obj.contains("v 4 1 0\n"), "{obj}");
-    assert!(obj.contains("f 1 2 3\nf 1 3 4\n"), "{obj}");
-    assert!(obj.contains("f 5 7 6\nf 5 8 7\n"), "{obj}");
+    assert!(
+        obj.contains("f 1//1 2//1 3//1\nf 1//1 3//1 4//1\n"),
+        "{obj}"
+    );
+    assert!(
+        obj.contains("f 5//3 7//3 6//3\nf 5//3 8//3 7//3\n"),
+        "{obj}"
+    );
+    assert!(!obj.contains("-0"), "{obj}");
 }
 
 #[test]

@@ -93,7 +93,8 @@ pub fn to_obj(meshes: &[TriangleMesh]) -> String {
         let with_normals = m.triangle_normals.len() == m.triangles.len();
         if with_normals {
             for [x, y, z] in &m.normals {
-                let _ = writeln!(s, "vn {x} {y} {z}");
+                // `+ 0.0` prints a negative zero as `0`.
+                let _ = writeln!(s, "vn {} {} {}", x + 0.0, y + 0.0, z + 0.0);
             }
         }
         let in_range = |t: &[u32; 3]| t.iter().all(|&k| (k as usize) < m.positions.len());
