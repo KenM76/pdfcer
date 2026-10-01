@@ -305,6 +305,7 @@ impl Ctx<'_, '_> {
                 refs.len()
             )));
         }
+        let mut stored = None;
         let recalc = r.bit()?; // must_recalculate_normals
         if recalc {
             arrays::bool_array(r, t)?; // normal_is_reversed
@@ -316,9 +317,10 @@ impl Ctx<'_, '_> {
                 return Err(malformed(format!("{angle_bits}-bit normal angles")));
             }
             let n = r.unsigned_integer()? as usize;
-            arrays::bool_array(r, n)?; // normal_binary_data
-            arrays::short_array(r, angle_bits)?; // normal_angle_array
-            arrays::bool_array(r, faces)?; // is_face_planar
+            let binary = arrays::bool_array(r, n)?;
+            let angles = arrays::short_array(r, angle_bits)?;
+            let planar = arrays::bool_array(r, faces)?;
+            stored = Some((angle_bits, binary, angles, planar));
         }
         if r.bit()? {
             arrays::bool_array(r, faces)?; // is_point_color_on_face
@@ -349,6 +351,15 @@ impl Ctx<'_, '_> {
             triangles: t,
             is_reference: &is_ref,
             references: &refs,
+            normals: stored.as_ref().map(|(bits, binary, angles, planar)| {
+                crate::compressed::NormalArrays {
+                    bits: *bits,
+                    binary,
+                    angles,
+                    planar,
+                    face_of: &face_of,
+                }
+            }),
         })
         .ok()
         .map(|m| {

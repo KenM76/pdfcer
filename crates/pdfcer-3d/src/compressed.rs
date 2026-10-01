@@ -77,6 +77,8 @@ pub(crate) struct Arrays<'a> {
     pub(crate) triangles: usize,
     pub(crate) is_reference: &'a [bool],
     pub(crate) references: &'a [u32],
+    /// The stored normals, when the mesh has them.
+    pub(crate) normals: Option<NormalArrays<'a>>,
 }
 
 /// Mutable traversal state; `log` records every edge-count increment so a
@@ -298,15 +300,165 @@ pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
             a.points.len()
         ));
     }
+    let (normals, triangle_normals) = a
+        .normals
+        .as_ref()
+        .and_then(|n| stored_normals(&pos, &tris, n))
+        .unwrap_or_default();
     Ok(TriangleMesh {
         positions: pos,
         triangles: tris,
         faces: Vec::new(),
         normals_recalculated: false,
-        normals: Vec::new(),
-        triangle_normals: Vec::new(),
+        normals,
+        triangle_normals,
         triangle_graphics: Vec::new(),
     })
+}
+
+/// The stored-normal arrays of a mesh that does not ask for recalculation
+/// [WD 7.8.9.3].
+pub(crate) struct NormalArrays<'a> {
+    /// `normal_angle_number_of_bits`.
+    pub(crate) bits: u32,
+    /// `normal_binary_data`.
+    pub(crate) binary: &'a [bool],
+    /// `normal_angle_array`: theta then phi per stored normal.
+    pub(crate) angles: &'a [i32],
+    /// `is_face_planar`, per face.
+    pub(crate) planar: &'a [bool],
+    /// The face of each triangle.
+    pub(crate) face_of: &'a [u32],
+}
+
+/// Width in bits of a normal reference on a vertex that already stores `n`
+/// normals, for `n` in `1..=6`. Measured on a real file (the spec RAG
+/// records it as an empirical fit); a larger `n` has no measured width.
+const REFERENCE_BITS: [u32; 6] = [1, 1, 2, 3, 3, 4];
+
+/// One stored normal record: `triangle_normal_reversed`, `x_is_reversed`,
+/// `y_is_reversed`, theta, phi, and the triangle whose frame it is in.
+type Record = (bool, bool, bool, i32, i32, [u32; 3]);
+
+/// Decodes the stored vertex normals [WD 7.8.9.3-7.8.9.4], returning
+/// `(normals, triangle_normals)` in [`TriangleMesh`]'s shape, or `None`
+/// when the arrays do not fit (the mesh then has no stored normals).
+///
+/// Each triangle `[P Q R]`, entered across `[P Q]`, visits its corners as
+/// `min(P, Q)`, `max(P, Q)`, `R`. A vertex met for the first time reads
+/// `has_multiple_normal` and a record. Met again, a vertex without
+/// multiple normals reads nothing and reuses its normal (the WD's prose,
+/// not its pseudocode); one with multiple normals reads `is_a_reference`
+/// and then either a record or a reference, an index counted back from
+/// the vertex's most recently stored normal. On a planar face only the
+/// first corner of its first triangle is visited, and every corner of the
+/// face takes that normal. A record is three bits (reversed, x reversed,
+/// y reversed) and two angles. These rules are measured on a real file:
+/// they consume both arrays exactly on 347 of its 348 meshes.
+fn stored_normals(
+    pos: &[V],
+    tris: &[[u32; 3]],
+    a: &NormalArrays<'_>,
+) -> Option<(Vec<V>, Vec<[u32; 3]>)> {
+    let mut bits = a.binary.iter().copied();
+    let mut angles = a.angles.iter().copied();
+    let mut records: Vec<Record> = Vec::new();
+    let mut by_vertex: Vec<(bool, Vec<u32>)> = vec![(false, Vec::new()); pos.len()];
+    let mut by_face: Vec<Option<u32>> = vec![None; a.planar.len()];
+    let mut corners = Vec::with_capacity(tris.len());
+    for (ti, t) in tris.iter().enumerate() {
+        let face = *a.face_of.get(ti)? as usize;
+        let planar = a.planar.get(face).copied().unwrap_or(false);
+        if planar && let Some(n) = by_face.get(face).copied().flatten() {
+            corners.push([n; 3]);
+            continue;
+        }
+        let lo = usize::from(t[0] > t[1]);
+        let (p, q) = if lo == 0 { (t[0], t[1]) } else { (t[1], t[0]) };
+        let order = [(lo, p), (1 - lo, q), (2, t[2])];
+        let mut out = [0u32; 3];
+        for (slot, v) in order {
+            let (multi, stored) = by_vertex.get_mut(v as usize)?;
+            let mut record = |bits: &mut dyn Iterator<Item = bool>| -> Option<u32> {
+                let r = (bits.next()?, bits.next()?, bits.next()?);
+                let (th, ph) = (angles.next()?, angles.next()?);
+                records.push((r.0, r.1, r.2, th, ph, *t));
+                u32::try_from(records.len() - 1).ok()
+            };
+            let n = if stored.is_empty() {
+                *multi = bits.next()?;
+                let n = record(&mut bits)?;
+                stored.push(n);
+                n
+            } else if !*multi {
+                *stored.first()?
+            } else if bits.next()? {
+                let w = *REFERENCE_BITS.get(stored.len() - 1)?;
+                let mut idx = 0usize;
+                for i in 0..w {
+                    idx |= usize::from(bits.next()?) << i;
+                }
+                *stored.get(stored.len().checked_sub(1 + idx)?)?
+            } else {
+                let n = record(&mut bits)?;
+                stored.push(n);
+                n
+            };
+            if planar {
+                *by_face.get_mut(face)? = Some(n);
+                out = [n; 3];
+                break;
+            }
+            *out.get_mut(slot)? = n;
+        }
+        corners.push(out);
+    }
+    if bits.next().is_some() || angles.next().is_some() {
+        return None;
+    }
+    let step = std::f64::consts::FRAC_PI_2 / f64::from((1u32 << a.bits).saturating_sub(1).max(1));
+    let normals = records
+        .iter()
+        .map(|&(rev, xr, yr, th, ph, t)| decode(pos, t, rev, xr, yr, th, ph, step))
+        .collect();
+    Some((normals, corners))
+}
+
+/// One record's normal in model space: the local frame of the triangle it
+/// was read in [WD 7.8.9.4], `Z` its normal (reversed when flagged), and
+/// the spherical angles `(cos phi cos theta, cos phi sin theta, sin phi)`
+/// with the flagged axes negated. A degenerate triangle gives the zero
+/// vector, which the renderer treats as no normal.
+#[allow(clippy::too_many_arguments)] // One record's fields, decoded together.
+fn decode(pos: &[V], t: [u32; 3], rev: bool, xr: bool, yr: bool, th: i32, ph: i32, step: f64) -> V {
+    let (lo, hi) = (t[0].min(t[1]), t[0].max(t[1]));
+    let p = |i: u32| pos.get(i as usize).copied().unwrap_or([0.0; 3]);
+    let (p0, p1, p2) = (p(lo), p(hi), p(t[2]));
+    let (v1, v2, v3) = (unit(sub(p1, p0)), unit(sub(p2, p0)), unit(sub(p2, p1)));
+    let half = std::f64::consts::FRAC_PI_2;
+    let angle = |a: V, b: V| dot(a, b).clamp(-1.0, 1.0).acos() - half;
+    let (t1, t2, t3) = (
+        angle(v1, v2),
+        angle(v3, mul(v1, -1.0)),
+        angle(mul(v2, -1.0), mul(v3, -1.0)),
+    );
+    let (x, z) = if t1 < t2 && t1 < t3 {
+        (v1, cross(v1, v2))
+    } else if t2 < t3 {
+        (v3, mul(cross(v3, v1), -1.0))
+    } else {
+        (mul(v2, -1.0), cross(v2, v3))
+    };
+    let z = unit(z);
+    if dot(z, z) < 0.5 {
+        return [0.0; 3];
+    }
+    let z = if rev { mul(z, -1.0) } else { z };
+    let y = cross(z, x);
+    let (th, ph) = (f64::from(th) * step, f64::from(ph) * step);
+    let lx = ph.cos() * th.cos() * if xr { -1.0 } else { 1.0 };
+    let ly = ph.cos() * th.sin() * if yr { -1.0 } else { 1.0 };
+    add(add(mul(x, lx), mul(y, ly)), mul(z, ph.sin()))
 }
 
 #[cfg(test)]
@@ -331,6 +483,7 @@ mod tests {
             triangles: t,
             is_reference: is_ref,
             references: refs,
+            normals: None,
         })
     }
 
@@ -459,5 +612,94 @@ mod tests {
             run(&[0; 6], &[0, 0, 0], 1, &fwd, &[7]).is_err(),
             "forward ref"
         );
+    }
+
+    fn normals(
+        pos: &[V],
+        tris: &[[u32; 3]],
+        binary: &[u8],
+        angles: &[i32],
+        planar: bool,
+    ) -> Option<(Vec<V>, Vec<[u32; 3]>)> {
+        let binary: Vec<bool> = binary.iter().map(|&b| b == 1).collect();
+        stored_normals(
+            pos,
+            tris,
+            &NormalArrays {
+                bits: 10,
+                binary: &binary,
+                angles,
+                planar: &[planar],
+                face_of: &vec![0; tris.len()],
+            },
+        )
+    }
+
+    const QUAD: [V; 4] = [
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+    ];
+
+    /// Corners are read `min`, `max`, apex but returned in the triangle's
+    /// own order. Each record lands in the frame `X = -V2`, `Z` the face
+    /// normal: phi 0 points along `X`, phi at full scale along `Z`, and
+    /// the reversed flag flips `Z`.
+    #[test]
+    fn records_decode_in_the_triangle_frame() {
+        let (n, c) = normals(
+            &QUAD,
+            &[[1, 0, 2]],
+            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            &[0, 0, 0, 1023, 0, 1023],
+            false,
+        )
+        .unwrap();
+        assert_eq!(c, [[1, 0, 2]]);
+        assert!(close(n[0], [0.0, -1.0, 0.0]), "{:?}", n[0]);
+        assert!(close(n[1], [0.0, 0.0, 1.0]), "{:?}", n[1]);
+        assert!(close(n[2], [0.0, 0.0, -1.0]), "{:?}", n[2]);
+    }
+
+    /// A vertex with multiple normals references one by index from its
+    /// most recent, or stores another; a vertex with one normal reuses it
+    /// without reading; leftover bits refuse the whole mesh.
+    #[test]
+    fn references_reuse_and_new_records() {
+        let tris = [[0, 1, 2], [2, 1, 3]];
+        let first = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
+        let a = [0, 1023];
+        let angles: Vec<i32> = a.iter().cycle().take(8).copied().collect();
+        let mut bits = first.to_vec();
+        bits.extend([1, 0, 0, 0, 0, 0]);
+        let (n, c) = normals(&QUAD, &tris, &bits, &angles, false).unwrap();
+        assert_eq!(c, [[0, 1, 2], [2, 1, 3]]);
+        assert_eq!(n.len(), 4);
+        let mut bits = first.to_vec();
+        bits.extend([0, 0, 0, 0, 0, 0, 0, 0]);
+        let angles: Vec<i32> = a.iter().cycle().take(10).copied().collect();
+        let (n, c) = normals(&QUAD, &tris, &bits, &angles, false).unwrap();
+        assert_eq!(c, [[0, 1, 2], [2, 3, 4]]);
+        assert_eq!(n.len(), 5);
+        // Index 0 is vertex 1's most recent normal, 3, not its first.
+        let mut more = tris.to_vec();
+        more.push([3, 1, 0]);
+        let mut three = bits.clone();
+        three.extend([1, 0]);
+        let (_, c) = normals(&QUAD, &more, &three, &angles, false).unwrap();
+        assert_eq!(c[2], [4, 3, 0]);
+        bits.push(0);
+        assert!(normals(&QUAD, &tris, &bits, &angles, false).is_none());
+    }
+
+    /// A planar face reads one record, at the first corner of its first
+    /// triangle, and every corner takes it.
+    #[test]
+    fn a_planar_face_stores_one_normal() {
+        let tris = [[0, 1, 2], [2, 1, 3]];
+        let (n, c) = normals(&QUAD, &tris, &[0, 0, 0, 0], &[0, 1023], true).unwrap();
+        assert_eq!(c, [[0; 3]; 2]);
+        assert!(close(n[0], [0.0, 0.0, 1.0]), "{:?}", n[0]);
     }
 }
