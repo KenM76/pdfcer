@@ -115,7 +115,31 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `Pass 430.0` SLICE 2 (`fc94ab61`), 2026-10-01 — name every refused character with its own reason (G075 c)
+### `Pass 430.0` (slice 3, `e3726990`), 2026-10-01 — extend a subset's `/ToUnicode` when typing an unshown glyph — `Pass 430.0` now COMPLETE
+
+Continues the `Pass 427.0`–`436.3` family (852nd filing).
+
+**Verdict: SHIPPED IN FULL. `Pass 430.0` (slice 1 `f63293c6` + slice 2 `fc94ab61` + slice 3 `e3726990`) is now COMPLETE — route A's first slice closes; `430.1`–`430.3` remain, unstarted.**
+
+**Core.** Decision 172 route A now covers an embedded simple-TrueType subset that carries a single-byte `/ToUnicode` CMap (ISO 32000 §9.10 — a partial map has no stated fallback, so adding an entry is the safe choice): each added code without a CMap entry gains a `bfchar` entry before the map's last `endcmap`, the stream rewritten in place in the same object, unfiltered. A code already mapped to the same character needs nothing. Refused by name when the code already reads as a different character ("code N already reads as \"X\" in the font's /ToUnicode map") or when the map stream may be shared with another font — reachable from page resources, an annotation `/AP`, or AcroForm `/DR`; a budget-exhausted reachability walk counts as shared. `run_repertoire_with` agrees with both refusals by construction. Both write paths (standalone `edit_text`, `EditSession`) stage the stream bytes; `EditSession` undo nets to base bytes.
+
+**Fixtures.** `fixtures/synthetic/text/word-shaped-subset-tounicode.pdf` + `word-shaped-subset-shared-tounicode.pdf`, both from `tools/gen-word-subset-fixture.py`, which now pins the fontTools head timestamp — `word-shaped-subset.pdf` regenerates byte-identical. `PROVENANCE.md` updated.
+
+**Tests.** 6 new in `crates/pdfcer-render/tests/subset_unused_glyph.rs` (14 total): the `map_private` guard in both the plan and the repertoire, the conflict branch, the no-entry branch, session staging, and the guard re-checked after its helper extraction — 6 sabotages, all CAUGHT.
+
+**Gates.** `tools/run-gates.sh` green apart from a function-length violation (fixed before commit) and this filing's own ledger-duplicate fix (immediately below). No `Cargo.toml` change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected, no new dependency.
+
+**Shells.** core `[x]`. `cli [x]` already — slices 1–2 wired the reader through `edit-text`/`run-repertoire`, confirmed against the existing `docs/FEATURES.md` row rather than re-ticked on assumption. `gui [ ]` — separate project, no caller yet.
+
+**`docs/FEATURES.md`.** "Accept a character whose glyph exists only in the embedded font program" row updated to cover `/ToUnicode`-bearing fonts and the two new named refusal reasons; "Not yet covered" narrowed to `/Differences` code allocation + composite Identity-H (`430.2`/`430.3`).
+
+**Still open, NOT part of `Pass 430.0`:** `430.1` (augment from an installed face — needs its own decision first), `430.2` (`/Differences` allocation, composite Identity-H, post-name glyph lookup), `430.3` (sibling `/Type0` fallback).
+
+**Gate fix (this filing).** `tools/check-ledger-numbers.py` reported `Pass 430.0` declared 2x, unqualified, in `[Shipped]` — the slice-1/slice-2 headings below put their stage name (`SLICE 1`/`SLICE 2`) *before* the parenthetical hash, which the gate's qualifier regex requires to sit immediately after the ID. Re-headed both to `` `Pass 430.0` (slice N, `hash`) ``, matching the accepted shape at `Pass 358.4`'s two halves; this entry uses the same shape.
+
+**Sourcing (hard rule 8).** No shell this filing. Hashes (`e3726990`, `fc94ab61`, `f63293c6`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
+### `Pass 430.0` (slice 2, `fc94ab61`), 2026-10-01 — name every refused character with its own reason (G075 c)
 
 Continues the `Pass 427.0`–`436.3` family (851st filing). **`Pass 430.0` STAYS OPEN** — only the `/ToUnicode` extension is left owed; `430.1`–`430.3` are unchanged. *Next up*'s head is unaffected.
 
@@ -129,7 +153,7 @@ Continues the `Pass 427.0`–`436.3` family (851st filing). **`Pass 430.0` STAYS
 
 **Still owed in `Pass 430.0`:** `/ToUnicode` extension when present. `430.1`/`430.2`/`430.3` unchanged, still *Next up*.
 
-### `Pass 430.0` SLICE 1 (`f63293c6`), 2026-10-01 — type a glyph an embedded TrueType subset outlines but never showed (G075 a+c, decision 172 route A)
+### `Pass 430.0` (slice 1, `f63293c6`), 2026-10-01 — type a glyph an embedded TrueType subset outlines but never showed (G075 a+c, decision 172 route A)
 
 Continues the `Pass 427.0`–`436.3` family (850th filing). **`Pass 430.0` STAYS OPEN** — this slice covers only the simple-TrueType case; `/ToUnicode` extension and the remaining per-character refusal-reason surface (`G075` c) are still owed, and `430.1`–`430.3` are unchanged. *Next up*'s head is unaffected.
 
@@ -15416,6 +15440,15 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 430.0` SLICE 3 SHIPPED, 2026-10-01 (852nd
+> filing), `e3726990`** — see top of *Shipped*. Decision 172 route A now
+> extends a subset's `/ToUnicode` CMap too (a `bfchar` entry per added
+> code), refusing by name on a conflicting or possibly-shared map.
+> **`Pass 430.0` is now FULLY SHIPPED — route A's first slice is
+> COMPLETE.** `430.1`–`430.3` remain in the `G073`–`G081` family; the
+> family item count is unchanged (430 stays open, now carried entirely
+> by its three remaining sub-IDs).
+
 > ★★★★★★★★★★★★★★★★ **`Pass 430.0` SLICE 2 PARTIALLY SHIPPED, 2026-10-01
 > (851st filing), `fc94ab61`** — see top of *Shipped*. The `R-INV-1`
 > subset-floor refusal now names EVERY character route A could not add,
@@ -15594,6 +15627,12 @@ closes out the *prior* filing's business rather than opening this one's.
 >   reasons reported once. **Only `/ToUnicode` extension is left owed,**
 >   keeping `Pass 430.0` open and the head of *Next up*. See *Shipped*,
 >   above, for the full accounting.
+>   **★ SLICE 3 SHIPPED 2026-10-01 (852nd filing), `e3726990`** — extends
+>   decision 172 route A to a subset carrying a single-byte `/ToUnicode`
+>   CMap: a `bfchar` entry per added code, refused by name on conflict or
+>   a possibly-shared map. **`Pass 430.0` is now FULLY SHIPPED; nothing
+>   remains owed under this sub-ID.** `430.1`–`430.3` stay unstarted. See
+>   *Shipped*, above, for the full accounting.
 > - **`Pass 430.1`** — augment the subset from a same-PostScript-name face
 >   the shell supplies as bytes (`G075` b) — core never discovers system
 >   fonts itself (`font_embed_missing.rs` policy); disclosed, opt-in

@@ -4,6 +4,51 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (852nd filing) — `Pass 430.0` SLICE 3 SHIPPED (`e3726990`) — extend a subset's `/ToUnicode` when typing an unshown glyph; `Pass 430.0` now COMPLETE; ledger-gate fix
+
+**Shipped:**
+- `e3726990` — `Pass 430.0` slice 3 (decision 172 route A, `/ToUnicode`
+  extension). An embedded simple-TrueType subset carrying a single-byte
+  `/ToUnicode` CMap now gains a `bfchar` entry per added code instead of
+  being refused outright; stream rewritten in place. Refused by name on a
+  conflicting code or a map that may be shared with another font. 6 new
+  tests, 6 sabotages caught. **`Pass 430.0` is now FULLY SHIPPED** — route
+  A's first slice (widths + ToUnicode + per-character refusal naming)
+  closes. `430.1`–`430.3` remain, unstarted.
+
+**Decisions made this session:** none new — executes decision 172 route A,
+same as the 849th–851st filings.
+
+**Findings + decisions:** none.
+
+**Gate fix (this filing):** `tools/check-ledger-numbers.py` was RED on
+`docs/ROADMAP.md`: the 850th/851st filings' own `Pass 430.0` headings wrote
+their stage label (`SLICE 1`/`SLICE 2`) *before* the parenthetical hash,
+which the gate's qualifier regex requires to sit immediately after the
+Pass ID — so both read as unqualified and collided. Re-headed both to
+`` `Pass 430.0` (slice N, `hash`) ``, matching the accepted shape at
+`Pass 358.4`'s two halves; this filing's own slice-3 entry uses the same
+shape. Gate now reads three distinct staged-ship qualifiers, not a
+duplicate.
+
+**Correction to the 851st filing's "For next session" note:** the stray
+`docs/decisions/040-additive-font-dict-extension.md` stub flagged there
+is **already deleted** — this entry corrects the record; the 851st
+filing's own text is left as written, per the append-only rule.
+
+**Still in flight:**
+- `Pass 430.1` (augment from an installed face — needs its own decision
+  first), `430.2` (`/Differences` allocation, composite Identity-H,
+  post-name lookup), `430.3` (sibling `/Type0` fallback) — all unstarted,
+  all *Next up*.
+
+**For next session:**
+- `Pass 430.0` is CLOSED. `430.1`–`430.3` are the new head of *Next up*.
+- `docs/FEATURES.md`'s "Accept a character whose glyph exists only in the
+  embedded font program" row now reflects `/ToUnicode` coverage; its
+  remaining "Not yet covered" clause is `/Differences` allocation +
+  composite Identity-H only.
+
 ## 2026-10-01 (851st filing) — `Pass 430.0` SLICE 2 PARTIALLY SHIPPED (`fc94ab61`) — name every refused character with its own reason
 
 **Shipped:**
