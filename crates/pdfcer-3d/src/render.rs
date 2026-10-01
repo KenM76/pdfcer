@@ -10,6 +10,9 @@ use crate::TriangleMesh;
 /// The largest image [`render`] draws, in pixels (width × height).
 pub const MAX_RENDER_PIXELS: u64 = 64 * 1024 * 1024;
 
+/// [`Camera::fit`]'s framed extent over the model's: 5% clear on each side.
+const FIT_MARGIN: f64 = 1.1;
+
 /// How the camera projects the scene onto the image.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Projection {
@@ -100,6 +103,10 @@ impl Camera {
     /// the given aspect ratio (width / height), with a 30° perspective or an
     /// orthographic projection.
     ///
+    /// The box's eight corners are framed as they project from this
+    /// direction, aimed at the box's centre, with about 5% clear on each
+    /// side of the tighter axis (perspective: of the corner that limits it).
+    ///
     /// # Errors
     ///
     /// [`RenderError::Camera`] when `direction` is zero or parallel to
@@ -120,13 +127,50 @@ impl Camera {
             r if r.is_finite() && r > 0.0 => r,
             _ => 1.0,
         };
+        let [right, upward, forward] = Camera {
+            eye: sub(centre, dir),
+            target: centre,
+            up,
+            projection: Projection::Orthographic { height: 1.0 },
+        }
+        .basis()?;
+        // The box's eight corners in the view basis, relative to its centre.
+        let corners: Vec<[f64; 3]> = (0..8)
+            .map(|k| {
+                let p = [0, 1, 2].map(|i| {
+                    if k >> i & 1 == 0 {
+                        at(bounds.min, i)
+                    } else {
+                        at(bounds.max, i)
+                    }
+                });
+                let r = sub(p, centre);
+                [dot(r, right), dot(r, upward), dot(r, forward)]
+            })
+            .collect();
+        let span = |i: usize| {
+            corners
+                .iter()
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
+                    (lo.min(at(*c, i)), hi.max(at(*c, i)))
+                })
+        };
+        // Corners pair up through the centre, so the spans are symmetric.
+        let ((x0, x1), (y0, y1)) = (span(0), span(1));
+        let floor = radius * 1e-3;
         let (projection, distance) = if perspective {
             let fov_y: f64 = 30.0;
-            let half_y = (fov_y.to_radians() / 2.0).tan();
-            let half = half_y.min(half_y * aspect).atan();
-            (Projection::Perspective { fov_y }, radius / half.sin())
+            let ty = (fov_y.to_radians() / 2.0).tan() / FIT_MARGIN;
+            let tx = ty * aspect;
+            // A corner at lateral (x, y) and depth f past the target is in
+            // view when |x| <= (d + f)·tx and |y| <= (d + f)·ty.
+            let d = corners.iter().fold(floor, |d, c| {
+                let need = (at(*c, 0).abs() / tx).max(at(*c, 1).abs() / ty);
+                d.max(need - at(*c, 2)).max(floor - at(*c, 2))
+            });
+            (Projection::Perspective { fov_y }, d)
         } else {
-            let height = 2.0 * radius * (1.0 / aspect).max(1.0);
+            let height = ((y1 - y0).max((x1 - x0) / aspect) * FIT_MARGIN).max(floor);
             (Projection::Orthographic { height }, 2.0 * radius)
         };
         let camera = Camera {
@@ -718,7 +762,8 @@ mod tests {
 
     #[test]
     fn a_fitted_camera_frames_the_model() {
-        let meshes = [quad(0.0, 3.0, 0.0)];
+        // Depth matters in perspective: the nearer square looks larger.
+        let meshes = [quad(3.0, 3.0, 0.0), quad(-3.0, 3.0, 0.0)];
         let bounds = Bounds::of(&meshes).unwrap();
         for perspective in [true, false] {
             let camera =
@@ -735,6 +780,76 @@ mod tests {
                 assert_eq!(pixel(&image, x, 0)[0], 255);
                 assert_eq!(pixel(&image, x, 39)[0], 255);
             }
+        }
+    }
+
+    #[test]
+    fn a_fitted_camera_fills_the_tighter_axis() {
+        let drawn = |image: &Image, horizontal: bool, line: u32| {
+            let n = if horizontal {
+                image.width
+            } else {
+                image.height
+            };
+            (0..n)
+                .filter(|&i| {
+                    let (x, y) = if horizontal { (i, line) } else { (line, i) };
+                    pixel(image, x, y)[0] != 255
+                })
+                .count()
+        };
+        // Height-limited: a 6 x 6 square in an 80 x 40 image.
+        let square = [quad(0.0, 3.0, 0.0)];
+        // Width-limited and off-origin: a 10 x 1 strip in a 40 x 40 image.
+        let strip = [TriangleMesh {
+            positions: vec![
+                [0.0, 0.0, 0.0],
+                [10.0, 0.0, 0.0],
+                [10.0, 1.0, 0.0],
+                [0.0, 1.0, 0.0],
+            ],
+            triangles: vec![[0, 1, 2], [0, 2, 3]],
+            faces: vec![0..2],
+            normals_recalculated: true,
+        }];
+        for perspective in [true, false] {
+            let fit = |meshes: &[TriangleMesh], aspect| {
+                let bounds = Bounds::of(meshes).unwrap();
+                Camera::fit(
+                    &bounds,
+                    [0.0, 0.0, -1.0],
+                    [0.0, 1.0, 0.0],
+                    perspective,
+                    aspect,
+                )
+                .unwrap()
+            };
+            let wide = RenderOptions {
+                width: 80,
+                height: 40,
+                ..RenderOptions::default()
+            };
+            let image = render(&square, &fit(&square, 2.0), &wide).unwrap();
+            let rows = drawn(&image, false, 40);
+            assert!(
+                (34..=37).contains(&rows),
+                "{perspective}: {rows} of 40 rows"
+            );
+
+            let image = render(&strip, &fit(&strip, 1.0), &small()).unwrap();
+            let cols = drawn(&image, true, 20);
+            assert!(
+                (34..=37).contains(&cols),
+                "{perspective}: {cols} of 40 columns"
+            );
+            // Centred: the margins differ by at most a pixel.
+            let left = (0..40)
+                .take_while(|&x| pixel(&image, x, 20)[0] == 255)
+                .count();
+            assert!(
+                left.abs_diff(40 - cols - left) <= 1,
+                "{perspective}: left {left}"
+            );
         }
     }
 
