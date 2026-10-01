@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-30 (821st filing) — `Pass 421.3` (`046ec96f`): `Camera::fit` frames the bounding box, not the sphere
+
+**Shipped:**
+- `Pass 421.3` — `Camera::fit` (`crates/pdfcer-3d/src/render.rs`) now
+  projects the model's bounding box's eight corners onto the camera basis
+  instead of fitting its bounding sphere, which over-framed any
+  non-cube-ish model (the "small island" look in the School preview).
+  Orthographic height and perspective distance both derive from the
+  projected corners with a 1.1 `FIT_MARGIN`. No public signature or
+  manifest change. Full entry in `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None — a quality fix inside an already-
+shipped Pass, no crate boundary or invariant change.
+
+**Findings + decisions:**
+- New test `a_fitted_camera_fills_the_tighter_axis` (both projections);
+  `a_fitted_camera_frames_the_model` gained depth. `pdfcer-3d` and CLI
+  `three_d` tests green. Sabotage: `FIT_MARGIN` 1.1→1.6 caught; dropping
+  the perspective depth term caught; a lateral-centring shift was a null
+  mutation on symmetric test corners and was removed from the code.
+- `docs/FEATURES.md` row 534 ("View an embedded 3D model with camera
+  controls") text updated to note the fix; `core`/`cli`/`gui` boxes
+  unchanged — this corrects an already-shipped capability, not a new one.
+
+**Still in flight:** The `421.x` bucket's next owed items, unchanged: the
+vaulted-roof tessellation tear (`419.2` remainder), then textures, then
+lights; Rung B (GUI orbit/pan/zoom, `421.1`) still not requested.
+
+**For next session:** Nothing new opened by this filing.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test
+names and sabotage results relayed from the dispatching engineer's own
+report on `046ec96f`, not independently reproduced. Backup/push/release
+state not verifiable from here.
+
 ## 2026-09-30 (820th filing) — `v0.69.0` RELEASED
 
 **Shipped:**

@@ -115,6 +115,41 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 421.3` (`046ec96f`), 2026-09-30 — `Camera::fit` frames the projected bounding box, not the bounding sphere
+
+Continues the `Pass 421.x` bucket's Rung A (`421.0`'s renderer). `Camera::fit`
+had projected the model's bounding SPHERE onto the view plane, which
+over-frames any non-cube-ish model — the "small island" look Ken flagged
+when the 812th filing opened this bucket.
+
+`Camera::fit` (`crates/pdfcer-3d/src/render.rs`) now projects the bounding
+box's eight corners onto the camera's own basis instead. Orthographic:
+height = max(y-span, x-span / aspect) × `FIT_MARGIN` (1.1 — ~5% clear space
+on the tighter axis). Perspective: distance = the least value keeping every
+corner inside a `tan(15°)/FIT_MARGIN` half-angle frustum, counting each
+corner's own depth. No public signature change (doc comment updated); no
+manifest change — `pdfcer-3d` is an optional crate and `pdfcer-core`/
+`pdfcer-render` are untouched, so `cargo tree` is unaffected.
+
+**Tests.** New `a_fitted_camera_fills_the_tighter_axis` (both projections): a
+6×6 square framed in an 80×40 image and a 10×1 off-origin strip framed in
+40×40 each fill pixels 34..=37 of 40 on the limiting axis, margins balanced
+within 1 px. `a_fitted_camera_frames_the_model` gains depth (near and far
+squares). `pdfcer-3d` tests and CLI `three_d` tests (2) green. Sabotage:
+`FIT_MARGIN` 1.1→1.6 CAUGHT; dropping the perspective depth term CAUGHT; an
+earlier lateral-centring shift was a null mutation on symmetric test corners
+and was removed from the code rather than kept unreachable.
+
+`docs/FEATURES.md` row 534 ("View an embedded 3D model with camera
+controls"): boxes unchanged (`core [x]`/`cli [x]` from `421.0`, `gui [ ]`
+pending `421.1`) — this corrects an already-shipped capability's framing,
+it doesn't add one. Row text gains a clause noting the fix.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test names
+and sabotage results relayed from the dispatching engineer's own report on
+`046ec96f`, not independently reproduced. Backup/push/release state not
+verifiable from here.
+
 ### `Pass 425.0` (`5d2a70d0`), 2026-09-30 — create a self-signed digital ID
 
 `pdfcer-gui` request `G072`
@@ -24090,14 +24125,20 @@ decode (`Pass 419.x`), filed on the engineer's own recommendation.
   correction appended to the `419.2` narrative above: the stairs defect
   is refuted outright (stepped glass panels, not a geometry bug), and
   the roof tear is confirmed unrelated to colour and still owed.
+- `421.3` — **SHIPPED, `046ec96f`, 2026-09-30 (821st filing)**, full entry
+  in *Shipped* above. `Camera::fit` now frames the model's projected
+  bounding BOX (eight corners onto the camera basis) instead of its
+  bounding sphere, which had over-framed any non-cube-ish model — the
+  "small island" look in the School preview. No API or manifest change.
 
 **Next planned, in order**: fix the vaulted-roof tessellation tear
 (entity #868, `419.2`'s own remainder); then textures; then lights.
 
 `docs/FEATURES.md`: "View embedded 3D model with camera controls" row
-gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`);
-`gui` stays `[ ]` pending `421.1`. Stays in *Planned* — the row names
-the interactive-controls capability, and that still needs Rung B.
+gains `core [x]` / `cli [x]` (`421.0`, colour text updated by `421.2`,
+framing fix noted by `421.3`); `gui` stays `[ ]` pending `421.1`. Stays
+in *Planned* — the row names the interactive-controls capability, and
+that still needs Rung B.
 
 ### Drop the `#[allow(rustdoc::broken_intra_doc_links)]` on `pub mod engine_ocrcer;` — filed 2026-09-29 (740th filing, `Pass 399.1`'s own remainder), no Pass ID
 
