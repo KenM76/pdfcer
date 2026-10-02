@@ -832,6 +832,13 @@ is the CLI's sentence. Switch on the variant, never on the text. Variants:
   needs a space and neither the block shows one nor the font is single-byte;
   `MixedScale` for more than one text-matrix or CTM scale. A gap the block
   never showed is written as code 32 and disclosed.
+- **Justification spacing is re-done, not carried.** A `Tw` or `Tc` that
+  differs between the block's source lines is taken as the old lines'
+  stretch: it is set to the last source line's value, the new lines are
+  re-justified by `TJ` gap displacement, and the new last line is ragged at
+  that natural spacing. A `Tw`/`Tc` equal on every line is kept as style.
+  Disclosed in the preview's and the report's disclosures (the line starts
+  `reflow: the source lines were stretched to the margin by per-line`).
 
 - **Vertical writing is refused** with `VerticalWriting` on `edit_text`, its
   preview, `edit_capability`, `run_repertoire` (an empty answer with

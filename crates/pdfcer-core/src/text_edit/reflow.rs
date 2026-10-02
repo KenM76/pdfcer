@@ -94,6 +94,7 @@ use crate::text_extract::{ExtractedGlyph, PageText};
 
 use super::model::{Block, BlockRecognitionOptions, EditableTextModel, GlyphRef};
 use super::reflow_fit::{CellOverflow, cell_overflow, cell_wrap_width, page_overflow};
+use super::reflow_spacing::JustifySpacing;
 
 /// Ascent as a fraction of the effective size, matching the block model's
 /// own line box (`ury = baseline + 0.75·size`).
@@ -655,7 +656,9 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
         let block = self.block(block_index)?;
         let old_bbox = block.bbox;
         let size = self.block_size(block);
-        let (words, space_samples) = tokenise_block(self.model, self.model.sourced_view(), block);
+        let spacing = JustifySpacing::detect(self.model, block);
+        let (words, space_samples) =
+            tokenise_block(self.model, self.model.sourced_view(), block, &spacing);
         if words.is_empty() {
             return Err(ReflowError::EmptyBlock(block_index));
         }
@@ -699,6 +702,9 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
         let lines = place_lines(&words, &widths, ranges, &frame, &mut diagnostics);
         let new_bbox = frame.block_box(lines.len(), size);
         diagnostics.disclose_layout(&alignment, wrap_width, cell_width.is_some());
+        if let Some(note) = spacing.disclosure() {
+            diagnostics.disclose(note);
+        }
 
         let descent = DESCENT_FRAC * size;
         let overflow = req
@@ -1022,7 +1028,8 @@ fn join_word_text(words: &[WordTok], range: Range<usize>) -> String {
 
 /// Tokenise a block's glyphs into words (split at U+0020 space glyphs and at
 /// line boundaries), returning the words and the block's space-glyph
-/// advances (for the representative space width).
+/// advances (for the representative space width). Advances are measured at
+/// `spacing`'s base values.
 ///
 /// `pub(crate)` so [`super::reflow_apply`] tokenises identically to the
 /// preview and lines up [`ReflowLine::words`] ranges with what it emits.
@@ -1030,6 +1037,7 @@ pub(crate) fn tokenise_block(
     model: &EditableTextModel<'_>,
     page: &PageText,
     block: &Block,
+    spacing: &JustifySpacing,
 ) -> (Vec<WordTok>, Vec<f64>) {
     let mut words: Vec<WordTok> = Vec::new();
     let mut spaces: Vec<f64> = Vec::new();
@@ -1048,7 +1056,7 @@ pub(crate) fn tokenise_block(
                     w.space_after = Some(gref);
                     words.push(w);
                 }
-                spaces.push(f64::from(g.advance));
+                spaces.push(spacing.advance(model, gref));
                 prev = None;
                 continue;
             }
@@ -1063,7 +1071,7 @@ pub(crate) fn tokenise_block(
                 space_after: None,
             });
             let kern = if w.glyphs.is_empty() { 0.0 } else { kern };
-            w.width += kern + f64::from(g.advance);
+            w.width += kern + spacing.advance(model, gref);
             w.text.push_str(text);
             w.glyphs.push(gref);
             w.kerns.push(kern);

@@ -1,5 +1,6 @@
 //! A re-wrapped paragraph keeps each glyph's own font, size, kerning and
-//! colour, and refuses by name what it cannot carry (Pass 432.0).
+//! colour, re-justifies a justified one, and refuses by name what it cannot
+//! carry (Pass 432.0).
 //!
 //! Every test re-wraps one page of `fixtures/synthetic/reflow/fidelity.pdf`
 //! (generator `tools/gen-reflow-fidelity-fixtures.py`, provenance beside
@@ -14,6 +15,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
 use pdfcer_core::text_edit::{ReflowApplyError, ReflowRequest, UnsupportedCause, apply_reflow};
 use pdfcer_core::text_extract::{self, ExtractOptions, PageText, TextColor};
+use pdfcer_core::text_state::TextStateParam;
 
 /// Page indices of the fixture.
 const COMPOSITE: usize = 0;
@@ -23,6 +25,8 @@ const SIZES: usize = 3;
 const COLOUR: usize = 4;
 const PATH: usize = 5;
 const SCALE: usize = 6;
+const WORD_JUSTIFIED: usize = 7;
+const LETTER_JUSTIFIED: usize = 8;
 
 /// What a visible glyph looks like: its text, font resource, `Tf` size and
 /// fill colour.
@@ -181,6 +185,62 @@ fn a_path_inside_the_block_is_refused_by_name() {
         ),
         "{err:?}"
     );
+}
+
+/// Per visual line, top down: its baseline, the left edge and the right
+/// edge of its last visible glyph's advance.
+fn line_edges(page: &PageText) -> Vec<(f32, f32, f32)> {
+    let mut lines: Vec<(f32, f32, f32)> = Vec::new();
+    for run in &page.runs {
+        for g in &run.glyphs {
+            let start = g.text_start as usize;
+            if run.text[start..start + g.text_len as usize]
+                .trim()
+                .is_empty()
+            {
+                continue;
+            }
+            match lines.iter_mut().find(|l| (l.0 - g.y).abs() < 0.5) {
+                Some(l) => {
+                    l.1 = l.1.min(g.x);
+                    l.2 = l.2.max(g.x + g.advance);
+                }
+                None => lines.push((g.y, g.x, g.x + g.advance)),
+            }
+        }
+    }
+    lines.sort_by(|a, b| b.0.total_cmp(&a.0));
+    lines
+}
+
+/// Re-wraps a justified page at 200 pt and asserts every line but the last
+/// is flush to 72..272, the last is ragged, and no glyph carries `param`.
+fn rejustifies(page: usize, param: TextStateParam) {
+    let (_, after) = rewrap_keeps_looks(page, 200.0);
+    let lines = line_edges(&after);
+    let (last, full) = lines.split_last().unwrap();
+    assert!(full.len() >= 2);
+    for l in full {
+        assert!(
+            (l.1 - 72.0).abs() < 0.05 && (l.2 - 272.0).abs() < 0.05,
+            "{l:?}"
+        );
+    }
+    assert!(last.2 < 262.0, "last line stretched: {last:?}");
+    for g in after.runs.iter().flat_map(|r| &r.glyphs) {
+        let v = g.provenance.as_ref().unwrap().text_state.get(param).value;
+        assert!(v == 0.0, "{param:?} {v} survived");
+    }
+}
+
+#[test]
+fn a_word_spaced_justified_paragraph_rejustifies_with_a_ragged_last_line() {
+    rejustifies(WORD_JUSTIFIED, TextStateParam::WordSpacing);
+}
+
+#[test]
+fn a_letter_spaced_justified_paragraph_rejustifies_with_a_ragged_last_line() {
+    rejustifies(LETTER_JUSTIFIED, TextStateParam::CharSpacing);
 }
 
 #[test]

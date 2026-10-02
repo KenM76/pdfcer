@@ -4,7 +4,7 @@
 << /Type /Catalog /Pages 2 0 R >>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R 9 0 R 11 0 R 13 0 R 15 0 R] /Count 7 /Resources << /Font << /F1 17 0 R /F2 18 0 R /F3 19 0 R /F4 20 0 R >> >> >>
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R 9 0 R 11 0 R 13 0 R 15 0 R 17 0 R 19 0 R] /Count 9 /Resources << /Font << /F1 21 0 R /F2 22 0 R /F3 23 0 R /F5 24 0 R /F4 25 0 R >> >> >>
 endobj
 3 0 obj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>
@@ -90,24 +90,52 @@ BT /F1 5 Tf 2 0 0 2 72 726 Tm (another on this one) Tj ET
 endstream
 endobj
 17 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 18 0 R >>
 endobj
 18 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+<< /Length 280 >>
+stream
+BT /F5 10 Tf 3.0000 Tw 72 740 Td (Each full line here is stretched by) Tj ET
+BT /F5 10 Tf 4.0000 Tw 72 727 Td (its own word spacing so both edges) Tj ET
+BT /F5 10 Tf 3.0000 Tw 72 714 Td (meet the margins while the last one) Tj ET
+BT /F5 10 Tf 0 Tw 72 701 Td (stays ragged.) Tj ET
+
+endstream
 endobj
 19 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 20 0 R >>
 endobj
 20 0 obj
-<< /Type /Font /Subtype /Type0 /BaseFont /SYNTHA+Helvetica /Encoding /Identity-H /DescendantFonts [21 0 R] /ToUnicode 23 0 R >>
+<< /Length 212 >>
+stream
+BT /F5 10 Tf 1.1250 Tc 72 740 Td (Letter spacing widens every line) Tj ET
+BT /F5 10 Tf 1.6000 Tc 72 727 Td (so its glyphs reach the margin) Tj ET
+BT /F5 10 Tf 0 Tc 72 714 Td (but the last one stays tight.) Tj ET
+
+endstream
 endobj
 21 0 obj
-<< /Type /Font /Subtype /CIDFontType2 /BaseFont /SYNTHA+Helvetica /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 22 0 R /DW 500 /W [3 [278] 4 [278] 5 [500] 6 [500] 7 [500] 8 [500] 9 [500] 10 [500] 11 [500] 12 [500] 13 [500] 14 [500] 15 [500] 16 [500] 17 [500] 18 [500] 19 [500] 20 [500] 21 [500] 22 [500] 23 [500] 24 [500]] /CIDToGIDMap /Identity >>
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
 endobj
 22 0 obj
-<< /Type /FontDescriptor /FontName /SYNTHA+Helvetica /Flags 32 /FontBBox [0 -200 1000 900] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 23 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>
+endobj
+24 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+25 0 obj
+<< /Type /Font /Subtype /Type0 /BaseFont /SYNTHA+Helvetica /Encoding /Identity-H /DescendantFonts [26 0 R] /ToUnicode 28 0 R >>
+endobj
+26 0 obj
+<< /Type /Font /Subtype /CIDFontType2 /BaseFont /SYNTHA+Helvetica /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 27 0 R /DW 500 /W [3 [278] 4 [278] 5 [500] 6 [500] 7 [500] 8 [500] 9 [500] 10 [500] 11 [500] 12 [500] 13 [500] 14 [500] 15 [500] 16 [500] 17 [500] 18 [500] 19 [500] 20 [500] 21 [500] 22 [500] 23 [500] 24 [500]] /CIDToGIDMap /Identity >>
+endobj
+27 0 obj
+<< /Type /FontDescriptor /FontName /SYNTHA+Helvetica /Flags 32 /FontBBox [0 -200 1000 900] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>
+endobj
+28 0 obj
 << /Length 632 >>
 stream
 /CIDInit /ProcSet findresource begin 12 dict begin begincmap
@@ -142,33 +170,38 @@ endcmap CMapName currentdict /CMap defineresource pop end end
 endstream
 endobj
 xref
-0 24
+0 29
 0000000000 65535 f 
 0000000015 00000 n 
 0000000064 00000 n 
-0000000233 00000 n 
-0000000320 00000 n 
-0000000887 00000 n 
-0000000974 00000 n 
-0000001341 00000 n 
-0000001428 00000 n 
-0000001638 00000 n 
-0000001726 00000 n 
-0000001938 00000 n 
-0000002027 00000 n 
-0000002281 00000 n 
-0000002370 00000 n 
-0000002541 00000 n 
-0000002630 00000 n 
-0000002794 00000 n 
-0000002892 00000 n 
-0000002995 00000 n 
-0000003101 00000 n 
-0000003245 00000 n 
-0000003654 00000 n 
-0000003830 00000 n 
+0000000258 00000 n 
+0000000345 00000 n 
+0000000912 00000 n 
+0000000999 00000 n 
+0000001366 00000 n 
+0000001453 00000 n 
+0000001663 00000 n 
+0000001751 00000 n 
+0000001963 00000 n 
+0000002052 00000 n 
+0000002306 00000 n 
+0000002395 00000 n 
+0000002566 00000 n 
+0000002655 00000 n 
+0000002819 00000 n 
+0000002908 00000 n 
+0000003240 00000 n 
+0000003329 00000 n 
+0000003593 00000 n 
+0000003691 00000 n 
+0000003794 00000 n 
+0000003900 00000 n 
+0000003996 00000 n 
+0000004140 00000 n 
+0000004549 00000 n 
+0000004725 00000 n 
 trailer
-<< /Size 24 /Root 1 0 R >>
+<< /Size 29 /Root 1 0 R >>
 startxref
-4514
+5409
 %%EOF

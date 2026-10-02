@@ -139,6 +139,7 @@ use super::reflow::{
     BlockAlignment, PageOverflow, ReflowEngine, ReflowPreview, ReflowRequest, tokenise_block,
 };
 use super::reflow_fit::CellOverflow;
+use super::reflow_spacing::JustifySpacing;
 use super::reflow_style::{BlockFonts, EmitCtx, Emitted, emit_block, resolve_fonts};
 use super::reflow_walk::locate_block_region;
 
@@ -579,14 +580,17 @@ pub(crate) fn plan_reflow(
             super::ReflowError::BlockIndexOutOfRange(block_index, model.blocks().len()),
         ))?;
     let prov = block_provenance(model, block)?;
-    let region = locate_block_region(stream, &prov.op_spans)?;
-    let (words, _) = tokenise_block(model, model.sourced_view(), block);
+    let mut region = locate_block_region(stream, &prov.op_spans)?;
+    let spacing = JustifySpacing::detect(model, block);
+    spacing.apply_to(&mut region);
+    let (words, _) = tokenise_block(model, model.sourced_view(), block, &spacing);
     let fonts = resolve_fonts(doc, &page.resources, model, &region, &words)?;
     let ctx = EmitCtx {
         model,
         region: &region,
         fonts: &fonts,
         prov: &prov,
+        spacing,
         spaces: words.iter().filter_map(|w| w.space_after).collect(),
         synthetic_space: preview.diagnostics.space_width_pt,
     };

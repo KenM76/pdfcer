@@ -95,7 +95,8 @@ classic-xref writer; wholly synthetic (§5 category (a)), deterministic,
 placeholder English, no font program embedded. The composite font is a
 non-embedded Identity-H Type0 (`SYNTHA+Helvetica`) whose `/W` widths and
 `/ToUnicode` are written by the script; the others are standard-14
-Helvetica, Helvetica-Bold and Helvetica-Oblique. One paragraph per page:
+Helvetica, Helvetica-Bold, Helvetica-Oblique and Courier. One paragraph per
+page:
 
 | Page | What it pins |
 |---|---|
@@ -106,6 +107,8 @@ Helvetica, Helvetica-Bold and Helvetica-Oblique. One paragraph per page:
 | 5 | Red words, the block ending on one with `0 g` only after the last show; the paragraph after the block stays black. |
 | 6 | `re f` between two lines: refused, `OperatorInBlock { operator: "re" }`. |
 | 7 | Two text-matrix scales: refused, `MixedScale`. |
+| 8 | Courier lines flush to x=72..300 by a per-line `Tw`, last line `0 Tw`: re-justified at the new width, last line ragged, no `Tw` left. |
+| 9 | The same by a per-line `Tc`. |
 
 Uses: `crates/pdfcer-core/tests/reflow_fidelity.rs`,
 `crates/pdfcer-render/tests/reflow_kerned_word_pixels.rs`.

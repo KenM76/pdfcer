@@ -21,6 +21,7 @@ use super::edit::{emit_tm, resolve_font_dict, writes_vertically};
 use super::model::{EditableTextModel, GlyphRef};
 use super::reflow::{BlockAlignment, ReflowLine, ReflowPreview, WordTok};
 use super::reflow_apply::{BlockProvenance, ReflowApplyError, origin_to_tm, restore_ops};
+use super::reflow_spacing::JustifySpacing;
 use super::reflow_walk::{BlockRegion, Paint, SpanStyle};
 
 /// Below this, in points, a displacement is not written as a `TJ` number.
@@ -132,6 +133,8 @@ pub(super) struct EmitCtx<'r, 'm> {
     pub(super) region: &'r BlockRegion,
     pub(super) fonts: &'r BlockFonts,
     pub(super) prov: &'r BlockProvenance,
+    /// The justification spacing the block's styles were set to the base of.
+    pub(super) spacing: JustifySpacing,
     /// The block's space glyphs, in content order.
     pub(super) spaces: Vec<GlyphRef>,
     /// The advance assumed for a code-32 space the block never showed.
@@ -307,7 +310,7 @@ fn gap_item<'r>(
             code: code_bytes(g.map_or(32, |g| g.code), bytes_per_code(ctx, style)),
             after: 0.0,
         };
-        return Ok((item, g.map_or(0.0, |g| f64::from(g.advance))));
+        return Ok((item, ctx.spacing.advance(ctx.model, gref)));
     }
     let info = ctx.fonts.info.get(&last_style.font);
     if info.is_some_and(|f| f.simple) {

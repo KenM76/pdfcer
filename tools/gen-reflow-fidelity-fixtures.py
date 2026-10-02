@@ -19,6 +19,9 @@ One paragraph per page, so the recognised block index is 0. Pages:
    last show, then a black paragraph after the block.
 6. path: an `re f` between two lines of the block (refused by name).
 7. scale: two lines under different text-matrix scales (refused by name).
+8. word-justified: Courier lines flush to x=72..300 by a per-line `Tw`, the
+   last line at `0 Tw`.
+9. letter-justified: the same by a per-line `Tc`.
 
     python tools/gen-reflow-fidelity-fixtures.py
 """
@@ -137,14 +140,51 @@ SCALE = (
 )
 
 
+# Courier at 10 pt advances 6 pt per code, so a line of L codes and k spaces
+# reaches the 228 pt measure with Tw = (228 - 6L) / k or Tc = (228 - 6L) / L.
+MEASURE = 228.0
+WORD_JUSTIFIED = [
+    "Each full line here is stretched by",
+    "its own word spacing so both edges",
+    "meet the margins while the last one",
+]
+LETTER_JUSTIFIED = [
+    "Letter spacing widens every line",
+    "so its glyphs reach the margin",
+]
+
+
+def justified(lines: list[str], last: str, op: str) -> bytes:
+    out = bytearray()
+    y = 740
+    for t in lines:
+        room = MEASURE - 6 * len(t)
+        value = room / t.count(" ") if op == "Tw" else room / len(t)
+        out += f"BT /F5 10 Tf {value:.4f} {op} 72 {y} Td ({t}) Tj ET\n".encode("ascii")
+        y -= 13
+    out += f"BT /F5 10 Tf 0 {op} 72 {y} Td ({last}) Tj ET\n".encode("ascii")
+    return bytes(out)
+
+
 def build() -> bytes:
     table = cid_table()
-    contents = [composite_page(table), STYLES, KERNING, SIZES, COLOUR, PATH, SCALE]
+    contents = [
+        composite_page(table),
+        STYLES,
+        KERNING,
+        SIZES,
+        COLOUR,
+        PATH,
+        SCALE,
+        justified(WORD_JUSTIFIED, "stays ragged.", "Tw"),
+        justified(LETTER_JUSTIFIED, "but the last one stays tight.", "Tc"),
+    ]
     font_first = 3 + 2 * len(contents)
     fonts = {
         "F1": b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
         "F2": b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
         "F3": b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>",
+        "F5": b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
     }
     objects: dict[int, bytes] = {1: b"<< /Type /Catalog /Pages 2 0 R >>"}
     font_refs = []
