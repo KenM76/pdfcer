@@ -4,6 +4,34 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (859th filing) — `Pass 437.0` filed — `TextEditPreview` names the part it rewrote
+
+**Shipped:** none — filing only.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 437.0` filed to *Next up* (`docs/ROADMAP.md`) and `docs/FEATURES.md`,
+  from `pdfcer-gui` request `G082`: `edit_text_preview` on a multi-operator
+  match doesn't say which byte range of `find` `narrow_span` trimmed, so the
+  GUI re-derives the trim privately. Adds `TextEditPreview::rewritten:
+  Option<(Range<usize>, String)>`, pinned against `narrow_span` by test.
+  Core only; no CLI verb (the GUI is the sole consumer).
+- Noted, no Pass ID: `pdfcer-gui`'s
+  `note_G075_rental_form_commits_32_of_32_at_dd5747d1.md` confirms
+  `Pass 430.2` closed the composite-subset refusal on the operator's
+  Word-form test (32 of 32 edits commit). `G075(b)` (`Pass 430.1`) is still
+  wanted.
+- `Pass 430.1` (remainder), `430.3`, `431.0`–`436.3` unchanged, still open.
+
+**For next session:**
+- Scope and build `Pass 437.0`.
+
+**Sourcing (hard rule 8):** no shell this filing — docs-only edit, no git
+state asserted.
+
 ## 2026-10-01 (858th filing) — `Pass 430.1` SLICE 1 EXTENDED (`194afb45`) — identity checks I1–I7 for subset augmentation
 
 **Shipped:**

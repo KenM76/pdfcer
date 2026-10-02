@@ -15536,6 +15536,28 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **ONE ITEM ADDED 2026-10-01 (859th filing) —
+> `Pass 437.0`, from `pdfcer-gui` request `G082`
+> (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G082_a_preview_of_a_multi_operator_match_lays_out_a_part_it_does_not_name.md`).
+> Separate from the `G073`–`G081` family above; builds on the `narrow_span`
+> trim `430.x` already relies on.**
+>
+> - **`Pass 437.0` (core)** — `edit_text_preview` on a multi-operator
+>   match returns glyphs only for the trimmed replacement `narrow_span`
+>   produces, but `TextEditPreview` doesn't say which byte range of
+>   `find` was rewritten, so the GUI re-derives the trim itself (drift
+>   risk). Adds `rewritten: Option<(Range<usize>, String)>` — the byte
+>   range of `find` actually replaced and its replacement text, `None`
+>   when the whole request was laid out. A test pins it against
+>   `narrow_span` so the two cannot drift. `docs/core-api` updated.
+>   Core only; no CLI verb (the GUI is this preview's sole consumer).
+>
+> **Note, same filing, no Pass ID** — `pdfcer-gui`'s
+> `note_G075_rental_form_commits_32_of_32_at_dd5747d1.md` confirms
+> `Pass 430.2` closed the composite-subset refusal on the operator's
+> Word-form test (32 of 32 edits now commit). `G075(b)` (`Pass 430.1`)
+> is still wanted.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 430.1` SLICE 1 PARTIALLY SHIPPED, 2026-10-01
 > (857th filing), `dd5747d1`+`9990e435`** — see *Shipped*, above.
 > `pdfcer-render` gained `font::augment::append_glyphs`: program surgery
