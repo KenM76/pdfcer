@@ -2424,6 +2424,13 @@ D:\Dev\pdfcer\
                                    moves bytes to disk and stops, and says so in its
                                    module docs), plus mirror fallback and "latest
                                    version": a pinned artifact has one source.
+                                   ★ NARROWED 2026-10-02 (decision 184, §12, `R262`):
+                                   R13 clause 5 now permits ONE shape of execution —
+                                   a program-type OCR add-on's own named executable,
+                                   sha256-verified, run with no shell — and that
+                                   narrowing lives in the add-on discovery path, not
+                                   here. This crate itself still fetches and verifies
+                                   only; it executes nothing, unchanged.
     pdfce-gui\                  <- ★★ REMOVED 2026-09-03, `Pass 247.0` (`da3b2f8`,
                                    399th filing; decision 128, extended by decision
                                    130). Dropped from `[workspace] members`; its
@@ -4772,7 +4779,12 @@ debug afterthought. Design points:
   (2026-10-02, `c31e502c`; §12 decision 182):** the same file grammar
   gains a repeatable `ocr_folder = PATH` key, one of three discovery
   roots (alongside `models/` beside the exe and repeatable
-  `--ocr-folder`) for OCR model add-on folders.
+  `--ocr-folder`) for OCR model add-on folders. **Decision 184 (§12)**
+  narrows `R13` clause 5 (decision 061) for this surface only: an
+  add-on manifest may declare `kind = program` and name one
+  sha256-verified executable, which `pdfcer` runs with no shell;
+  `ocr_program_addons = refuse` opts back into data-only add-ons.
+  `R13` clause 5 is otherwise unchanged for every non-OCR add-in shape.
 
 ## 8. Code style & public API design
 
@@ -12717,6 +12729,14 @@ operator narrowed exactly the OCR case he was asked about; a neighbouring
 clause does not get widened by silence (same discipline as decision 061's
 own clause-2 note, §1.1 above).
 
+**★ AMENDED 2026-10-02 (880th filing).** Open question `(cj)` is answered:
+Ken, verbatim, *"tesseract will be our own build"* — the `Pass 442.1`
+add-on zip carries pdfcer's own curl-free static build
+(`tools/tesseract/build-tesseract.py`), not a stock one, so the LGPL DLLs
+a stock build would carry (via `libcurl`/`libarchive`/ScrollView/training
+tools, none used by pdfcer) never enter the zip; the packaging question
+`(cj)` raised does not arise.
+
 **Full record:** none — recorded here only; no separate `docs/decisions/`
 file for this decision.
 
@@ -12727,6 +12747,14 @@ only). **Owed:** §1.1's Clause 3 network/`pdfcer-fetch` note (line ~2422,
 5, unresolved...)") and §7's `R13`/decision-061 cross-references should
 gain a pointer to this decision once an engineer session has edit scope
 for those sections — flagged, not actioned, here.
+
+**★ DISCHARGED 2026-10-02 (880th filing).** Both owed pointers are in.
+§1.1's Clause 3 note (line ~2427) now reads "★ NARROWED 2026-10-02
+(decision 184, §12, `R262`)" immediately under the "DELIBERATELY ABSENT"
+sentence, naming the one shape R13 clause 5 now permits and stating that
+`pdfcer-fetch` itself still executes nothing. §7's `ocr_folder`/decision-182
+bullet gains a trailing sentence naming decision 184, `R13` clause 5
+(decision 061) and `ocr_program_addons = refuse`.
 
 **Decision ceiling.** Fills the reserved `183`'s neighbour; `183` stays
 reserved for the `Pass 442.2` PaddleOCR-VL engine (unaffected by this

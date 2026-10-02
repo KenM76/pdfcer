@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (880th filing) — open question `(cj)` answered: Tesseract will be pdfcer's own build; decision 184 amended; two owed `ARCHITECTURE.md` body pointers discharged
+
+**Shipped:** nothing this filing — an operator ruling + roadmap/decision-log
+filing, no code.
+
+**Decisions made this session:**
+- Decision 184 amended: open question `(cj)` (which Tesseract Windows
+  build the `Pass 442.1` add-on zip carries, and whether its LGPL
+  components are acceptable) is answered. Ken, verbatim: *"tesseract
+  will be our own build."* The stock Windows Tesseract builds carry LGPL
+  DLLs only because of `libcurl`, `libarchive`, ScrollView and the
+  training tools — none used by pdfcer, which hands Tesseract the page
+  on stdin. pdfcer's own build (`tools/tesseract/build-tesseract.py`,
+  `tools/tesseract/README.md`: tesseract 5.5.2, Leptonica 1.87.0,
+  curl/archive/graphics disabled, static, imports only `KERNEL32.dll`,
+  every linked library permissive) carries the same engine and tessdata,
+  so the LGPL question does not arise. No decision-ceiling move — an
+  amendment to an existing entry, not a new decision.
+- `(cj)` closed, not retired — operator-question ceiling stays `(cj)`,
+  next free `(ck)`.
+
+**Findings + decisions:**
+- None new beyond the amendment above — this filing records an operator
+  ruling, not an engineering finding.
+
+**Still in flight:**
+- `Pass 442.1` (packaging split) — no longer waiting on `(cj)`; the
+  Tesseract add-on zip now waits only on `Pass 442.3` shipping (IN
+  PROGRESS). `ocrs`/`ocrcer` zips were already unblocked (879th filing).
+- `Pass 442.3`, `Pass 442.4`, `Pass 442.2` unaffected — see the 879th
+  filing's entry below for their status.
+
+**For next session:**
+- The two owed `ARCHITECTURE.md` body pointers from the 879th filing are
+  now discharged: §1.1's Clause 3/`pdfcer-fetch` note (line ~2427) and
+  §7's `ocr_folder`/decision-182 bullet each gain a pointer to decision
+  184. Nothing further owed on that front.
+
 ## 2026-10-02 (879th filing) — operator ruling on program-type OCR add-ons: decision 184/`R262`; `Pass 442.1` partly unblocked; `Pass 442.3`/`Pass 442.4` filed
 
 **Shipped:** nothing this filing — a ruling + roadmap filing, no code.

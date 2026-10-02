@@ -217,9 +217,12 @@ caught by the full `run-gates.sh` run on merged HEAD `716e616f`.
 202 after `ocr-models` was added. Fix: drop the two outer `///` lines;
 README → 203 subcommands.
 
-**Remaining.** `Pass 442.1` (packaging split) still blocked on `(ch)`/
-`(ci)`. `Pass 442.2` (PaddleOCR-VL engine): feasibility spike passed
-(877th filing); the engine Pass itself has not started.
+**Remaining.** `Pass 442.1` (packaging split) — **superseded by the 879th
+and 880th filings**: `(ch)`/`(ci)`/`(cj)` are all now answered (decision
+184); `ocrs`/`ocrcer` zips are unblocked, the Tesseract zip waits only on
+`Pass 442.3` (IN PROGRESS). `Pass 442.2` (PaddleOCR-VL engine):
+feasibility spike passed (877th filing); the engine Pass itself has not
+started.
 
 ### `Pass 441.0` (`adcf9ff5`), 2026-10-02 — take bold/italic OFF; detect synthetic style from glyph provenance (G086/G087) — `Pass 441.0` SHIPPED
 
@@ -16291,6 +16294,22 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **OPERATOR RULING, 2026-10-02 (880th
+> filing) — QUESTION `(cj)` ANSWERED: TESSERACT WILL BE PDFCER'S OWN
+> BUILD.** Ken, verbatim: *"tesseract will be our own build."* The stock
+> Windows Tesseract builds carry LGPL DLLs only because of `libcurl`,
+> `libarchive`, ScrollView and the training tools — none used by pdfcer,
+> which feeds Tesseract the page on stdin. pdfcer's own build
+> (`tools/tesseract/build-tesseract.py`: tesseract 5.5.2, Leptonica
+> 1.87.0, curl/archive/graphics disabled, static, imports only
+> `KERNEL32.dll`, every linked library permissive) carries the same
+> engine and tessdata, so the LGPL question does not arise. See *Open
+> operator questions*, below, for the full ruling.
+>
+> - **`Pass 442.1`** (packaging split) — no longer waiting on `(cj)`;
+>   the Tesseract add-on zip now waits only on `Pass 442.3` shipping
+>   (IN PROGRESS). `ocrs`/`ocrcer` were already unblocked (879th filing).
 
 > ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **OPERATOR RULING, 2026-10-02 (879th
 > filing) — PROGRAM-TYPE OCR ADD-ONS RULED IN; `Pass 442.1` PARTLY
@@ -37024,6 +37043,22 @@ RULING THAT ANSWERED `(ch)`/`(ci)` BELOW. Operator-question ceiling moves
   question independent of the execution ruling. *Default if unanswered:*
   do not publish a Tesseract add-on zip; `Pass 442.1` ships `ocrs`/
   `ocrcer` zips only until this is answered.
+
+  > **★ ANSWERED 2026-10-02 (880th filing) — Tesseract will be pdfcer's
+  > OWN BUILD**, Ken, verbatim: *"tesseract will be our own build."* The
+  > stock Windows Tesseract builds (UB-Mannheim/MSYS2) carry LGPL DLLs only
+  > because of `libcurl` (URL input), `libarchive` (reading images from
+  > archives), plus the ScrollView debug viewer and training tools — none
+  > of which pdfcer uses; pdfcer hands Tesseract the page on stdin.
+  > pdfcer's own build (`tools/tesseract/build-tesseract.py`,
+  > `tools/tesseract/README.md`: tesseract 5.5.2, Leptonica 1.87.0,
+  > `DISABLE_CURL`, `DISABLE_ARCHIVE`, `GRAPHICS_DISABLED`, static, imports
+  > only `KERNEL32.dll`, every linked library permissive) has the same
+  > engine and tessdata, so the LGPL question does not arise for the zip
+  > `Pass 442.1` publishes. The Tesseract add-on zip now waits only on
+  > `Pass 442.3` shipping (program-kind add-ons, IN PROGRESS). **Operator-
+  > question ceiling stays `(cj)`** — closed, not retired; next free is
+  > `(ck)`.
 
 **★ NEW 2026-10-02 (876th filing) — TWO QUESTIONS, SURFACED BY `Pass
 442.1` (*Next up*, queued) BEFORE ANY ADD-ON ZIP IS BUILT. Operator-
