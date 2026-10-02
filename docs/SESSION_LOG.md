@@ -4,6 +4,61 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (857th filing) — `Pass 430.1` SLICE 1 PARTIALLY SHIPPED (`dd5747d1`+`9990e435`) — augment an embedded TrueType subset with glyphs from an installed face
+
+**Shipped:**
+- `dd5747d1` — prep: shares the sfnt directory/checksum/assembly helpers
+  `pdfcer-render`'s writers already had, ahead of the slice below.
+- `9990e435` — `Pass 430.1` slice 1 (decision 173 §4). New
+  `pdfcer-render` routine `font::augment::append_glyphs` (`pub(crate)`):
+  appends an installed face's glyphs (composite components get fresh
+  GIDs) into a NEW TrueType program, rewriting `glyf`/`loca`
+  (short→long past `0x1FFFE`)/`hmtx`/`hhea`/`maxp`/`cmap` (formats 0, 4,
+  6, 12)/`post` (2.0 appends, 3.0 kept, other versions refused)/`head`;
+  12 other tables copied raw; `hdmx`/`LTSH`/`vhea`/`vmtx`/`DSIG` dropped;
+  any other named table refuses. Hinting copied only if `fpgm`/`prep`/
+  `cvt` are byte-equal, else `Strip` (default) or `Refuse`. Empty-slot
+  rule: a char the subset maps to an empty glyph is remapped to the new
+  GID. Colliding `post` names become `uniXXXX`/`uXXXXX`/`glyphN` (+ `.N`).
+  Every result re-verified before return (`R260`): `numGlyphs`, old
+  `glyf` records/metrics/`(3,1)` mappings unchanged except added chars,
+  each added outline equal to the donor face's, checksums valid. Also
+  fixed a misplaced module doc comment `dd5747d1` left behind. Five
+  synthetic fixtures under `fixtures/synthetic/text/augment/` from
+  `tools/gen-augment-face-fixtures.py`, `PROVENANCE.md` rows added. 20
+  new augment tests, 6/6 sabotages caught. `tools/run-gates.sh` PASS (44
+  commands, 2 filing gates) on the tree committed as `9990e435`. No
+  `Cargo.toml` change — `cargo tree -p pdfcer-core`/`-p pdfcer-render`
+  unaffected, no new dependency. `core [ ]` / `cli [ ]` / `gui [ ]` — this
+  slice is `pdfcer-render`-internal with no caller yet;
+  `docs/FEATURES.md`'s augment row stays unticked, noted as render-only.
+
+**Decisions made this session:** none new — executes decision 173 §4,
+unblocked at the 853rd filing. Spec RAG hand-off closed: decision 173 §4
+now names the spec librarian's new files (`font__opentype_
+numglyphs_dependents.md`'s 12-step append checklist, `_glyf`, `_loca`,
+`_head`, `_hhea_hmtx`, `_maxp`, `_post`, plus amended `_cmap` and
+`sfnt_table_directory`).
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 430.1` STAYS OPEN — identity checks I1–I7, core
+  `EditOptions`/`SubsetAugmenter` wiring, descriptor/stream rewrite +
+  subset tag, disclosure, CLI and `docs/core-api` are still owed. No
+  core caller exists yet for this slice's routine.
+- `Pass 430.3` (route B, symbolic-font fallback) unstarted.
+- `Pass 431.0`–`436.3` unstarted.
+
+**For next session:**
+- Wire `Pass 430.1` slice 2: core `EditOptions::with_subset_augment`,
+  the seven identity checks (I1–I7), descriptor/stream rewrite + subset
+  tag, disclosure, CLI exposure, `docs/core-api`.
+
+**Sourcing (hard rule 8):** no shell this filing. Hashes (`dd5747d1`,
+`9990e435`) and every fact above are relayed from the dispatching
+engineer's own report, not independently reproduced.
+
 ## 2026-10-01 (856th filing) — `Pass 430.2` SLICE 3 SHIPPED (`6024dd31`) — `Pass 430.2` now COMPLETE — reach a subset glyph by its post name, disclosed as an inference
 
 **Shipped:**
