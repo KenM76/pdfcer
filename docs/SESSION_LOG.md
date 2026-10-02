@@ -4,6 +4,52 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (887th filing) — `Pass 446.0` SHIPPED (EMF import as vector content, closes the `O279` family)
+
+**Shipped:**
+- `Pass 446.0` (`ea8ea9cd`, cherry-picked from worktree `4fb2dbc2`, on
+  `main`, not yet pushed) — `G094`: an EMF from the Office clipboard can
+  now be placed on a page. New `emf_import` module (11 named error
+  variants, six named ceilings); `EditSession::add_emf`/`add_emf_stamp`
+  (2 new verbs, `EditSession` now 315 public); CLI `add-emf` (contain
+  default, `--stretch`, `--natural`, `--stamp`). Drawn exactly: paths,
+  pens, brushes, clips, world transforms, `SRCCOPY`/`ALPHABLEND`
+  bitmaps, `Dx`-advanced text in a Standard-14 face. Approximated or
+  skipped and disclosed by name: hatches, mix modes, dash styles,
+  arcs/chords/pies, gradients, pattern brushes, glyph-index text,
+  OR/XOR clips; EMF+-only files refused; a dual file draws EMF and
+  discloses the ignored EMF+ half. **`Pass 446.0` is now SHIPPED — the
+  `O279` family (`443.0`/`444.0`/`445.0`/`446.0`) is COMPLETE.**
+
+**Decisions made this session:**
+- None — decision ceiling stays `186`.
+
+**Findings + decisions:**
+- Defect found and fixed in the same commit: `export-emf`'s own header
+  was internally inconsistent by up to ~1.4%, so every reader (GDI+,
+  LibreOffice, Inkscape, pdfcer's own new importer) shrank the picture.
+  The export test now asserts the exact ratio.
+- 58 unchecked-indexing clippy errors fixed with checked accessors (no
+  `#[allow]`) to get `cargo clippy -D warnings` clean on the new module.
+
+**Still in flight:**
+- No `pdfcer-gui` wiring for EMF import (that project's territory).
+- EMF+ records are never drawn; arcs/chords/pies, gradients, pattern/
+  hatch fills, non-copy ROPs, glyph-index text and embedded fonts are
+  all skipped, by design for this cut.
+
+**For next session:**
+- `ea8ea9cd` is not yet pushed — confirm push before relying on it being
+  on `origin/main`.
+
+**Sourcing note (hard rule 8):** no shell this filing. `ea8ea9cd` is
+relayed as present at `HEAD` by the dispatching engineer — the
+conversation's git-status snapshot predates this commit and cannot
+corroborate it. Every test figure (20 new tests, 4 round-trip render
+tests pixel-identical, 7 sabotage mutations/6 caught, ~241,000 fuzz
+inputs over 2 runs/no crash, clippy clean) is likewise relayed, not
+independently reproduced.
+
 ## 2026-10-02 (886th filing) — `Pass 442.1` SHIPPED (OCR packaging split: only PaddleOCR bundled, the rest ship as add-on zips)
 
 **Shipped:**

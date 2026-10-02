@@ -115,6 +115,77 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 446.0` (`ea8ea9cd`), 2026-10-02 — EMF import as vector content (`G094`) — `Pass 446.0` SHIPPED
+
+Cite `ea8ea9cd` (on `main`, cherry-picked from worktree `4fb2dbc2`; not yet
+pushed). Answers `pdfcer-gui` request `G094` (operator-reported, `O279`):
+an EMF from the Office clipboard could not be placed on a page. **Closes
+the `O279` family** — `443.0`/`444.0`/`445.0`/`446.0` are now all SHIPPED.
+
+**Core.** New module `emf_import` (`import`, `ImportedEmf`,
+`EmfImportNotes`, `EmfImportError` — 11 variants, each refused by name)
+with six named ceilings: 64 MiB input, 1,000,000 records, 8,000,000
+points, 64 Mi pixels per bitmap, `SAVEDC` depth 1024, 128 MiB generated
+content. `EditSession::add_emf`/`add_emf_stamp` (2 new verbs, `EditSession`
+now 315 public); placement reuses `add_image`'s errors, `EditError` stays
+165 variants. New `PlacedEmf`, `CommandKind::AddEmf`. `docs/core-api` 02
+gains §1.24b.
+
+**Drawn exactly.** Lines, polylines, polygons, polypolygons, 32- and
+16-bit Béziers, rectangles, ellipses, round rects; path brackets with
+fill/stroke/clip; pens (width, caps, joins, miter, `PS_USERSTYLE` dashes),
+solid brushes, stock objects; `SAVEDC`/`RESTOREDC`, world transforms,
+every map mode, polyfill mode; intersect/exclude/path/region clips;
+`SRCCOPY` bitmaps (`STRETCHDIBITS`/`BITBLT`/`STRETCHBLT`) and `ALPHABLEND`
+per-pixel alpha as a soft mask; `EXTTEXTOUTW` placed by `Dx` advances as
+real text in a Standard-14 face.
+
+**Approximated/skipped, disclosed by name.** Hatched pens/brushes drawn
+solid, `SETROP2` mix modes drawn as copy, stock dashes, `WIDENPATH` as a
+stroke, text without `Dx`/alignment/cell-height fonts, constant alpha
+drawn opaque. Skipped and counted by `EMR_` name: arcs/chords/pies,
+gradient/flood fill, non-`SRCCOPY` ROPs, pattern brushes, glyph-index
+text, OR/XOR clips, escape records. Out-of-WinAnsi characters become `?`,
+counted. EMF+-only files refused; a dual file draws from the EMF records
+and discloses the ignored EMF+ half.
+
+**Defect fixed, same commit.** `export-emf`'s own header was internally
+inconsistent by up to ~1.4%, so every reader (GDI+, LibreOffice,
+Inkscape, pdfcer's own new importer) shrank the picture. The export test
+now asserts the exact ratio.
+
+**CLI.** `add-emf` (contain by default, `--stretch`, `--natural`,
+`--stamp`); README now 207 working subcommands. No new dependency, no
+feature gate.
+
+**Tests.** 20 new (13 core, 4 render, 3 CLI); the 4 render tests round-trip
+export → import → place → render and come back pixel-identical. 7
+sabotage mutations, 6 caught; the 7th (a 0.01 mm frame shift, below a
+render pixel) is caught by the core test instead. Fuzz target
+`emf_import`, ~241,000 inputs over 2 runs, no crash. `cargo clippy -D
+warnings` clean (58 unchecked-indexing sites fixed with checked
+accessors, no `#[allow]`). No `Cargo.toml` change in `pdfcer-core`/
+`pdfcer-render`, so the GUI-core-separation `cargo tree` check doesn't
+apply this Pass.
+
+**Not done.** EMF+ records never drawn; arcs/chords/pies not
+curve-converted; no gradient/pattern/hatch fills, no non-copy ROPs;
+glyph-index text skipped; no embedded fonts; no GUI wiring
+(`pdfcer-gui`'s territory).
+
+**No new decision.** Decision ceiling stays `186`.
+
+**`FEATURES.md`.** New *Export* row added directly after the EMF-export
+row: core `[x]` / cli `[x]` / gui `[ ]`. The matching *Planned* row
+removed. The EMF-export row's own sentence gained a short correction
+noting the header-scale defect and fix (same commit).
+
+**Sourcing (hard rule 8).** No shell this filing. `ea8ea9cd` is relayed
+as present at `HEAD` by the dispatching engineer — the conversation's
+git-status snapshot predates this commit and cannot corroborate it;
+every test/fuzz/clippy figure above is likewise relayed, not
+independently reproduced.
+
 ### `Pass 442.1` (`be16b008`), 2026-10-02 — OCR packaging split: only PaddleOCR bundled, the rest ship as add-on zips — `Pass 442.1` SHIPPED
 
 Cite `be16b008` (on `main`, confirmed at `HEAD` per the git-status snapshot
@@ -16746,6 +16817,18 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 446.0` SHIPPED, 2026-10-02 (887th filing),
+> `ea8ea9cd`** — see *Shipped*, above (cherry-picked from worktree
+> `4fb2dbc2`; not yet pushed). `G094`: EMF import as vector content —
+> `emf_import::import` → a Form XObject of real paths/text/images;
+> `EditSession::add_emf`/`add_emf_stamp`, CLI `add-emf`. Skipped records,
+> approximations, font substitutions and ignored EMF+ disclosed by name;
+> EMF+-only files refused. Defect fixed same commit: `export-emf`'s
+> header was off by up to ~1.4%, shrinking every reader's picture; the
+> export test now asserts the exact ratio. **`Pass 446.0` is now SHIPPED
+> — the `O279` family (`443.0`/`444.0`/`445.0`/`446.0`) is now
+> COMPLETE.** `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 442.1` SHIPPED, 2026-10-02 (886th filing),
 > `be16b008`** — see *Shipped*, above. OCR packaging split: only `paddle`
