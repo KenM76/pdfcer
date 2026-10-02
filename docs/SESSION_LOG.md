@@ -4,6 +4,87 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (878th filing) — `Pass 440.0` + `Pass 441.0` + `Pass 442.0` SHIPPED, decisions 180/181/182 filed, `G086`–`G092` family complete
+
+**Shipped:**
+- `Pass 440.0` (`716e616f`) — default 3D annotation poster rendered from
+  the PRC model (`G091`); `EditSession::set_3d_poster` (`G092`).
+  `pdfcer-core` gains an optional, default-on dependency on `pdfcer-3d`.
+  Decision 180.
+- `Pass 442.0` (`c31e502c`) — OCR models as drop-in add-on folders:
+  manifest `pdfcer-ocr-model.txt`, discovery (bundled → settings
+  `ocr_folder` → `--ocr-folder`), `--ocr-model`, `pdfcer ocr-models
+  [--verify]`. Decision 182 (amends decision 176).
+- `79773ee8` — follow-up fix for `Pass 442.0`: dropped the outer `///`
+  doc lines on `pub mod addons`/`pub mod addon_manifest` (they made
+  rustdoc resolve those modules' inner `//!` intra-doc links in the
+  PARENT scope, breaking 3 links under `-D rustdoc::broken_intra_doc_links`,
+  caught by the full `run-gates.sh` run on merged HEAD `716e616f`); also
+  fixed README's stale subcommand count (202 → 203) after `ocr-models`
+  was added.
+- `Pass 441.0` (`adcf9ff5`) — `StyleTarget` takes bold/italic OFF within
+  the run's own family (`G086`); `GlyphProvenance` line width/render
+  mode + `text_edit::synth::detect_at` for provenance-driven synthetic-
+  style detection (`G087`); also fixed a hairline-misread-as-bold
+  threshold and a rotated-text slant divide-by-zero. Decision 181.
+  **Closes the `G086`–`G092` family filed 876th filing.**
+
+Tests/invariants per dispatch (no shell this filing, see Sourcing
+below): fmt/clippy clean; structure gate 613 debt entries, none new;
+full workspace tests green (core lib 1393, core integration 2528/2
+ignored, CLI 699, render 464+478) on the `adcf9ff5`+`c31e502c`
+merged tree; `716e616f`'s own full `run-gates.sh` run was reported
+in progress by the dispatcher, result not yet relayed.
+
+**Decisions made this session:**
+- Decision 180 (`docs/decisions/180-default-3d-poster.md`) — default
+  poster rendered from the model; `pdfcer-core`→`pdfcer-3d` dependency.
+  Ceiling `178` → `180`.
+- Decision 182 (`docs/decisions/182-ocr-model-addons.md`) — OCR add-on
+  folder manifest/discovery/selection; amends decision 176. Ceiling
+  `180` → `182`.
+- Decision 181 — axis removal stays in-family; synthetic-style detection
+  is provenance- (measured stroke width/render mode), not font-name-
+  pattern-driven. No separate decision doc, recorded in `ARCHITECTURE.md`
+  §12 only, per dispatch instruction. Fills `181` beneath the
+  already-advanced ceiling `182`; does not move it further. Next free
+  decision `183`.
+
+**Findings + decisions:**
+- `ARCHITECTURE.md` §2's `pdfcer-3d` crate-stack row was stale — stated
+  only `pdfcer-cli` depended on it; corrected alongside decision 180's
+  entry (body-section-effect discipline).
+- `FEATURES.md`'s `3d-embed` row and the two G091/G092 rows were updated
+  together (poster is supplied-OR-rendered-OR-placeholder, not just
+  supplied-or-placeholder); the `419.x` remaining-rungs *Planned* row's
+  "CPU poster generation" line was pointed at this Pass instead of left
+  implying `419.2` still owed it.
+
+**Still in flight:**
+- `Pass 442.1` (packaging split) blocked on `(ch)`/`(ci)`.
+- `Pass 442.2` (PaddleOCR-VL engine) — feasibility spike passed 877th
+  filing; the engine Pass itself has not started.
+- `Pass 436.3` (gui settings screen) and `430.3` (route B, symbolic
+  fonts) remain the heads of their families, unchanged by this filing.
+- G086/G087 reply written to the `pdfcer-gui` channel this session;
+  G091/G092 reply reported as being written; G089/G090 already consumed
+  by `pdfcer-gui` (per dispatch, not independently checked).
+
+**For next session:**
+- Confirm `716e616f`'s own `run-gates.sh` result once relayed — it was
+  still running at dispatch time.
+- `docs/NEXT_SESSION.md` not re-read this filing (out of scope — engineer-
+  owned, not touched); check it's current before trusting it.
+
+**Sourcing (hard rule 8).** No shell this filing. Every commit hash,
+test figure and gate result above is asserted by the dispatching
+engineer's report, not independently verified against `HEAD`, `git log`
+or a live test run — no shell tool was available. The three decision
+texts for 180/182 were read directly off disk
+(`docs/decisions/180-default-3d-poster.md`,
+`docs/decisions/182-ocr-model-addons.md`); decision 181 has no such file
+and is sourced from the dispatch text alone, as instructed.
+
 ## 2026-10-02 (877th filing) — `Pass 436.2` + `Pass 439.0` SHIPPED, decision 178 filed, PaddleOCR-VL spike PASSED, 5 new `D:\dev\rag\rust\` lessons
 
 **Shipped:**

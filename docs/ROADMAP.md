@@ -115,7 +115,153 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `Pass 439.0` (`4d8ea504`), 2026-10-02 — unsigned `/Sig` widget redraw (G089) + opt-in foreign check-box/radio rebuild (G090) — `Pass 439.0` SHIPPED
+### `Pass 440.0` (`716e616f`), 2026-10-02 — default 3D poster rendered from the model + `set_3d_poster` (G091/G092) — `Pass 440.0` SHIPPED
+
+Answers `pdfcer-gui` requests `G091`/`G092`.
+
+**G091.** `add_3d_annotation`'s poster, when no image is supplied, is now
+rasterised from the PRC model (`ThreeDPoster::Rendered`) instead of always
+drawing the placeholder wireframe cube: `pdfcer-3d`'s `iso` view
+(direction `(−1,1,−1)`, 30° perspective, per-mesh colour from the model
+tree, opaque white background), 2 px/pt capped at 2048 px long side. Falls
+back to the placeholder with a named `PlaceholderReason`
+(`Requested`/`NotDecoded{format}` for U3D/`NoDecoder`/`Undecodable{why}`)
+when the model doesn't mesh. Rendering is an inference (rule 4): the CLI
+prints `inferred:`, pdfcer-gui discloses off-canvas, the saved poster is
+exactly what was drawn. A rendered poster carries no `/C` and is re-fitted
+(not re-rendered) on resize.
+
+**G092.** New `EditSession::set_3d_poster(page_index, annot_id,
+&ImportedImage)` replaces an existing 3D annotation's poster in one undo
+entry: new image XObject, new appearance stream (fitted like a supplied
+poster), and the annotation with only `/AP`/`/N` repointed — `/3DD`,
+`/3DA`, views and `/C` untouched, old appearance stream left unreferenced
+rather than deleted (minimal-diff rule). Refuses a RichMedia annotation as
+`NotA3dAnnotation`.
+
+**Decision 180** (`docs/decisions/180-default-3d-poster.md`) records why
+`pdfcer-core` now depends on `pdfcer-3d` behind its own default-on `3d`
+feature (enabling `pdfcer-3d/render`) — the dependency used to run only
+through `pdfcer-cli`. `pdfcer-3d` is in-workspace MIT, pure Rust
+(`thiserror` + `flate2`, both already in core), no GUI/network/thread
+dependency, wasm32-clean — both core invariants hold. A
+`default-features = false` consumer must enable `pdfcer-core/3d` itself,
+as the CLI does. `pdfcer_3d::assemble`/`render_default_view` moved out of
+the CLI's `3d-mesh` path into `pdfcer-3d` itself, so `3d-mesh`,
+`3d-render` and the poster all assemble a model the same way. Fills the
+reserved `180`; decision ceiling `178` → `180` (`179` stays released,
+unused).
+
+**Tests/invariants:** `cargo tree -p pdfcer-core` / `-p pdfcer-render`
+clean (merged-tree check, per dispatch). fmt/clippy clean; structure gate
+613 debt entries, none new; full workspace tests green (core lib 1393,
+core integration 2528/2 ignored, CLI 699, render 464+478) — per dispatch,
+no shell this filing (hard rule 8).
+
+**`FEATURES.md`:** *Annotations & markup* — the `3d-embed` row's prose
+corrected (poster is supplied image, OR rendered, OR placeholder); the two
+previously-unticked G091/G092 rows ticked `[x] core / [x] cli` and marked
+SHIPPED. *Planned* — the `419.x` remaining-rungs row's "CPU poster
+generation" line pointed at this Pass instead of `419.2`.
+
+### `Pass 442.0` (`c31e502c`), 2026-10-02 — OCR models as drop-in add-on folders — `Pass 442.0` SHIPPED
+
+Operator request 2026-10-02: *"make it so that new OCR models are simple
+to install by just dropping a new folder … We should be able to set up
+multiple locations to look for OCR files like we can with fonts. To
+uninstall a user should just have to delete the folder."*
+
+New manifest `pdfcer-ocr-model.txt` (same grammar as the settings file,
+decision 176): `name`/`engine` required, `label`/`languages`/`version`/
+`licence`/repeatable `sha256 RELPATH HEX` optional. An unknown key is kept
+and disclosed rather than refused (a manifest may be newer than the
+pdfcer build reading it; a settings-file typo is the operator's own
+error, a manifest is not). Discovery
+(`pdfcer_core::ocr::addons::discover_ocr_models`, not compiled for
+wasm32) walks, in priority order: `models/` beside the exe, each
+settings-file `ocr_folder =` line, each `--ocr-folder`; bundled models win
+priority so a bare `--ocr-engine` never changes meaning once an add-on is
+installed — naming a specific add-on is `--ocr-model NAME`. A name found
+twice keeps the first and prints the shadow. Every `sha256` line is
+checked before the engine sees a byte; a mismatch is refused, naming the
+file and the remedy. `pdfcer ocr-models [--verify]` lists every model, no
+network call. Uninstall = delete the folder; no state kept elsewhere.
+Shipped paddle folder: `crates/pdfcer-core/assets/models/paddle/pdfcer-ocr-model.txt`.
+
+Data only — targets an engine already compiled in; nothing in an add-on
+folder executes as code (R13).
+
+**Decision 182** (`docs/decisions/182-ocr-model-addons.md`) amends
+decision 176 (adds the `ocr_folder` settings key). Out of scope: packaging
+split (`Pass 442.1`), Tesseract's execution mechanism (unchanged). Fills
+the reserved `182`; decision ceiling `180` → `182` (`181` is
+`Pass 441.0`, below, filed the same session — see that entry for the
+ledger's final position).
+
+**Tests/invariants:** per dispatch, no shell this filing (hard rule 8):
+fmt/clippy clean; structure gate 613 debt entries, none new; full
+workspace tests green (same figures as `Pass 440.0`, above, merged-tree
+check covers both commits).
+
+**`FEATURES.md`:** *Text* section — the OCR-model row split: a new SHIPPED
+row for discovery/selection/`ocr-models`, and a new still-Planned
+`Pass 442.1` row for the packaging split (blocked on open questions
+`(ch)`/`(ci)`).
+
+**Follow-up fix** (`79773ee8`, same day): the outer `///` doc line on
+`pub mod addons` / `pub mod addon_manifest` in `ocr/mod.rs` made rustdoc
+resolve those modules' own inner `//!` intra-doc links in the PARENT
+scope, breaking 3 links under `-D rustdoc::broken_intra_doc_links` —
+caught by the full `run-gates.sh` run on merged HEAD `716e616f`.
+`check-clap-help` separately caught README's subcommand count stale at
+202 after `ocr-models` was added. Fix: drop the two outer `///` lines;
+README → 203 subcommands.
+
+**Remaining.** `Pass 442.1` (packaging split) still blocked on `(ch)`/
+`(ci)`. `Pass 442.2` (PaddleOCR-VL engine): feasibility spike passed
+(877th filing); the engine Pass itself has not started.
+
+### `Pass 441.0` (`adcf9ff5`), 2026-10-02 — take bold/italic OFF; detect synthetic style from glyph provenance (G086/G087) — `Pass 441.0` SHIPPED
+
+Answers `pdfcer-gui` requests `G086`/`G087`.
+
+**G086.** `FormatRequest::style` gained `StyleTarget`, a per-axis
+`Some(true)`/`Some(false)`/`None` (bold, italic), so a format-text request
+can turn an axis OFF, not just on. Removing an axis stays inside the
+run's own font family: `Helvetica-Bold` with bold off → `Helvetica`;
+`Helvetica-BoldOblique` with bold off → `Helvetica-Oblique`. The ladder
+tries the page's own face first, then the standard-14 sibling, then the
+supplied face. Turning synthetic bold off reverts to a plain fill;
+turning synthetic slant off removes the shear pdfcer had added to `Tm`.
+CLI: `format-text --no-bold`/`--no-italic`.
+
+**G087.** `GlyphProvenance` now carries `line_width` (user space) and
+`render_mode()`. `text_edit::synth::detect_at(base_font, &provenance)`
+tells a stroke-widened/`Tr` mode-2 synthetic bold apart from a genuinely
+outlined face by the actual stroke width recorded at detection time,
+rather than guessing from the font's name. Also fixed in the same pass:
+the minimum stroke width recognised as synthetic bold is now `0.011`
+(a hairline/`0 w` stroke no longer misread as bold), and a divide-by-zero
+on rotated-text slant detection.
+
+**Decision 181** — not a separate doc; recorded here and in
+`ARCHITECTURE.md` §12. Decides that axis removal stays within the run's
+own family (never substitutes an unrelated face to shed a style), and
+that synthetic-style detection is provenance-driven (measured stroke
+width/render mode) rather than name-pattern-driven, because a name
+pattern breaks on any font whose PostScript name doesn't follow the
+Bold/Oblique/Italic convention. Fills the reserved `181`; sits beneath
+the already-advanced ceiling (`182`, from `Pass 442.0` above) and does
+not move it further — next free decision `183`.
+
+**Tests/invariants:** per dispatch, no shell this filing (hard rule 8);
+same merged-tree figures as the two entries above.
+
+**`FEATURES.md`:** *Text* section — the two previously-unticked G086/G087
+rows ticked (`[x] core / [x] cli` for G086; `[x] core` only for G087, no
+CLI surface of its own) and marked SHIPPED.
+
+
 
 Answers `pdfcer-gui` requests `G089`/`G090` (876th filing); cherry-picked from
 agent commit `07d88be2`.
@@ -16145,6 +16291,44 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 440.0` SHIPPED, 2026-10-02 (878th filing),
+> `716e616f`** — see *Shipped*, above. `G091`: the default 3D annotation
+> poster is now rendered from the PRC model (`pdfcer-3d`'s `iso` view)
+> when it meshes, else the named-reason placeholder. `G092`:
+> `EditSession::set_3d_poster` replaces an existing 3D annotation's
+> poster in one undo entry, `/AP /N` only. `pdfcer-core` now depends on
+> `pdfcer-3d` behind its own default-on `3d` feature (decision 180,
+> ceiling `178` → `180`; `179` stays released, unused). **`Pass 440.0` is
+> now SHIPPED** — one item remains in the `G086`–`G092` family: `441.0`,
+> below. `gui [ ]` not wired.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 442.0` SHIPPED, 2026-10-02 (878th filing),
+> `c31e502c`** — see *Shipped*, above. OCR models install as drop-in
+> add-on folders: manifest `pdfcer-ocr-model.txt`, discovery over
+> `models/` beside the exe then `ocr_folder =` settings lines then
+> `--ocr-folder`, `--ocr-model NAME` selection, per-file `sha256`
+> verification, `pdfcer ocr-models [--verify]`. Data only — targets an
+> engine already compiled in (R13). Decision 182, ceiling `180` → `182`
+> (see `Pass 441.0`, below, for the ledger's final position this
+> session). **`Pass 442.0` is now SHIPPED** — `Pass 442.1` (packaging
+> split, blocked on `(ch)`/`(ci)`) and `Pass 442.2` (PaddleOCR-VL engine,
+> feasibility spike passed 877th filing, engine Pass not started) remain.
+> `gui [ ]` not wired.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 441.0` SHIPPED, 2026-10-02 (878th filing),
+> `adcf9ff5`** — see *Shipped*, above. `G086`: `FormatRequest::style`
+> gains a per-axis `StyleTarget` that takes bold/italic OFF within the
+> run's own font family. `G087`: `GlyphProvenance` carries line width and
+> render mode so `text_edit::synth::detect_at` tells synthetic bold from
+> a genuinely outlined face by measurement, not by font-name pattern;
+> also fixed a hairline-misread-as-bold threshold and a rotated-text
+> slant divide-by-zero. Decision 181 (axis removal stays in-family;
+> provenance-driven detection) recorded in `ARCHITECTURE.md` §12 only, no
+> separate decision doc; fills `181` beneath the already-advanced ceiling
+> `182` without moving it further — next free decision `183`. **`Pass
+> 441.0` is now SHIPPED — the `G086`–`G092` family (876th filing) is now
+> fully shipped.** `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 439.0` SHIPPED, 2026-10-02 (877th filing),
 > `4d8ea504`** — see *Shipped*, above (cherry-pick of agent commit

@@ -464,12 +464,19 @@ D:\Dev\pdfcer\
                                    deps, so no new third-party license);
                                    zero GUI/network/thread deps, its own
                                    `cargo tree -p pdfcer-3d` CI step,
-                                   wasm32-clean. **`pdfcer-cli` now depends
-                                   on it behind a new default-ON `3d`
-                                   feature** (CLI `3d-mesh`, third slice) —
-                                   the first crate in the workspace to pull
-                                   it in; `pdfcer-core` still does not.
-                                   CPU poster, placement/assembly
+                                   wasm32-clean. `pdfcer-cli` depends on it
+                                   behind a default-ON `3d` feature (CLI
+                                   `3d-mesh`, third slice). **`pdfcer-core`
+                                   now ALSO depends on it, behind its own
+                                   default-ON `3d` feature** (§12 decision
+                                   180, `Pass 440.0`, 2026-10-02): the
+                                   default poster for a `/3D` annotation is
+                                   rendered from the model
+                                   (`render_default_view`, moved here from
+                                   the CLI's `3d-mesh` path) rather than
+                                   always drawn as a placeholder; feature
+                                   off falls back to the placeholder and
+                                   reports `NoDecoder`. Placement/assembly
                                    transforms and U3D decode (`419.3`)
                                    remain unbuilt — `Pass 419.2` is IN
                                    PROGRESS, not shipped (`ROADMAP.md`).
@@ -4761,7 +4768,11 @@ debug afterthought. Design points:
   `build_font_environment`; `pdfcer-core`/`pdfcer-render` stay
   filesystem-free (same shell/core split as decision 135, not a new
   one). `workarounds` is parsed and exposed but not yet consumed —
-  that's `Pass 436.0`, in progress in parallel.
+  that's `Pass 436.0`, in progress in parallel. **Amended by `Pass 442.0`
+  (2026-10-02, `c31e502c`; §12 decision 182):** the same file grammar
+  gains a repeatable `ocr_folder = PATH` key, one of three discovery
+  roots (alongside `models/` beside the exe and repeatable
+  `--ocr-folder`) for OCR model add-on folders.
 
 ## 8. Code style & public API design
 
@@ -12507,3 +12518,149 @@ pointer); ceiling `177` → `178`. (`179` was reserved the same day for
 `Pass 439.0`'s family; that Pass shipped no architectural decision, so
 `179`'s reservation is released, unfilled — next free stays `183`, since
 `180`–`182` remain reserved for `440.0`/`441.0`/`442.0`.)
+
+### 2026-10-02 (878th filing, `716e616f`, KenAgent) — decision 180: a default 3D annotation poster is rendered from the model, not always the placeholder; `pdfcer-core` gains an optional dependency on `pdfcer-3d`
+
+**Trigger.** `pdfcer-gui` requests `G091` (render a default poster when
+none is supplied) and `G092` (`EditSession::set_3d_poster`). ISO 32000-1
+§13.6.2 Table 298: `/AP` is required on a 3D annotation — it is what
+prints and what a reader without 3D support shows.
+
+**What this decides.** `add_3d_annotation`'s poster, absent a supplied
+image, is rasterised from the PRC model (`ThreeDPoster::Rendered`) via a
+fixed default view — direction `(−1,1,−1)` ("iso"), 30° perspective,
+per-mesh colour from the model tree (grey if none), opaque white
+background, 2 px/pt capped at 2048 px long side — falling back to the
+placeholder wireframe cube, with a named `PlaceholderReason`
+(`Requested`/`NotDecoded{format}`/`NoDecoder`/`Undecodable{why}`), when
+the model is U3D, doesn't parse, or has no triangles. None of these is an
+error. The file's own views/lights/textures are not read, so this is an
+inference under rule 4: the CLI prints `inferred:`, pdfcer-gui discloses
+off-canvas, the poster renders exactly as saved. To make this possible,
+`pdfcer-core` now depends on `pdfcer-3d` behind its own default-on `3d`
+feature (enabling `pdfcer-3d/render`) — previously only `pdfcer-cli`
+pulled it in. `pdfcer-3d` is in-workspace MIT, pure Rust
+(`thiserror`+`flate2`, both already core deps), no GUI/network/thread
+dependency, wasm32-clean; both core invariants hold
+(`cargo tree -p pdfcer-core`). With the feature off, the verb still
+works and reports `PlaceholderReason::NoDecoder`. A
+`default-features = false` consumer must enable `pdfcer-core/3d` itself,
+as the CLI does. `pdfcer_3d::assemble`/`render_default_view` moved out of
+the CLI's `3d-mesh` path into `pdfcer-3d` itself, so `3d-mesh`,
+`3d-render` and the poster all assemble a model the same way.
+`set_3d_poster` takes one image, one undo entry: a new image XObject, a
+new appearance stream (fitted like a supplied poster), and the
+annotation with only `/AP`/`/N` replaced — `/3DD`, `/3DA`, views and
+`/C` untouched, the previous appearance stream left unreferenced rather
+than deleted (minimal-diff rule). A rendered poster carries no `/C` and
+is re-fitted, not re-rendered, on resize. Refuses a RichMedia annotation
+as `NotA3dAnnotation`.
+
+**Amends.** Nothing — `add_3d_annotation` (decision from `Pass 419.1`)
+keeps its placeholder-poster path as a fallback; this decision only adds
+a preferred path ahead of it.
+
+**Rejected.** Reading the file's own `/VA`/PRC views, lights or textures
+for the default view (adds a second renderer's worth of scope for a
+poster that is already disclosed as inferred; the fixed `iso` view is
+sufficient and consistent across files).
+
+**Full record:** `docs/decisions/180-default-3d-poster.md`.
+
+**Body-section effect.** §2's crate-stack table, `pdfcer-3d` row:
+corrected to state that `pdfcer-core` now depends on it (behind the
+default-on `3d` feature), not only `pdfcer-cli`. See that table, below,
+for the edit.
+
+**Decision ceiling.** Fills the reserved `180`; ceiling `178` → `180`
+(`179` stays released, unused).
+
+### 2026-10-02 (878th filing, `adcf9ff5`, KenAgent) — decision 181: taking a style axis OFF stays inside the run's own font family; synthetic-style detection is provenance-driven, not font-name-pattern-driven
+
+**Trigger.** `pdfcer-gui` requests `G086` (take bold/italic off) and
+`G087` (tell synthetic bold from a genuinely outlined face).
+
+**What this decides.** `FormatRequest::style` gains a per-axis
+`StyleTarget` (`Some(true)`/`Some(false)`/`None`). Removing an axis never
+substitutes an unrelated family to shed a style — it stays inside the
+run's own family (`Helvetica-Bold` bold-off → `Helvetica`;
+`Helvetica-BoldOblique` bold-off → `Helvetica-Oblique`), tried as page
+face, then Standard-14 sibling, then supplied face, in that order.
+Turning synthetic bold off reverts to a plain fill; turning synthetic
+slant off removes the shear pdfcer had added to `Tm`. Separately,
+`GlyphProvenance` now carries `line_width` (user space) and
+`render_mode()`, and `text_edit::synth::detect_at(base_font, &provenance)`
+classifies synthetic bold from the *measured* stroke width/render mode
+recorded at detection time, not from a pattern match on the font's
+PostScript name — a name pattern breaks on any font whose name doesn't
+follow the Bold/Oblique/Italic convention. Also fixed as part of the same
+change: the minimum stroke width read as synthetic bold is `0.011` (a
+hairline/`0 w` stroke no longer misread as bold), and a divide-by-zero on
+rotated-text slant detection.
+
+**Amends.** Nothing architectural — extends the style-ladder/provenance
+types introduced for `edit-text`/`format-text`, adding a direction (off)
+and a measurement (line width) they didn't carry before.
+
+**Rejected.** Detecting synthetic style by font-name pattern alone (the
+rejected alternative to the provenance approach above) — kept as a
+fallback only when no provenance is recorded (e.g. a font with no
+`GlyphProvenance` at all), never as the primary signal.
+
+**Full record:** none — recorded here only; no separate `docs/decisions/`
+file for this decision.
+
+**Body-section effect.** None — no body section describes the style
+ladder or provenance mechanism at a level this decision changes.
+
+**Decision ceiling.** Fills the reserved `181`, beneath the
+already-advanced ceiling (`182`, decision below, filed the same
+session) — does not move the ceiling further. Next free decision `183`.
+
+### 2026-10-02 (878th filing, `c31e502c`, KenAgent) — decision 182: OCR models install as drop-in add-on folders, discovered like font folders
+
+**Trigger.** Operator, verbatim: *"make it so that new OCR models are
+simple to install by just dropping a new folder with the configured
+model files under our existing OCR folder … We should be able to set up
+multiple locations to look for OCR files like we can with fonts. To
+uninstall a user should just have to delete the folder."*
+
+**What this decides.** A per-folder manifest, `pdfcer-ocr-model.txt`
+(same grammar as the settings file: UTF-8, ≤16 KiB, `key = value` lines,
+`#`/`;` comments, quoted values) — `name`/`engine` required,
+`label`/`languages`/`version`/`licence`/repeatable
+`sha256 RELPATH HEX64` optional. An unknown key is kept and disclosed
+rather than refused — a manifest may be newer than the pdfcer build
+reading it, unlike a settings-file typo, which is the operator's own
+error. Discovery (`pdfcer_core::ocr::addons::discover_ocr_models`, core,
+not compiled for wasm32; takes roots as arguments, never reads settings
+itself) walks, in priority order: `models/` beside the executable, each
+settings-file `ocr_folder =` line, each `--ocr-folder`. Bundled models
+rank first so a bare `--ocr-engine` never silently changes meaning once
+an add-on is installed; naming a specific add-on requires
+`--ocr-model NAME`. A name found twice keeps the first and prints the
+shadow. Every `sha256` line is verified before the engine sees a byte; a
+mismatch is refused, naming the file, both digests and the remedy.
+`pdfcer ocr-models [--verify]` lists every model, making no network
+call. Uninstalling is deleting the folder — no state is kept elsewhere.
+Nothing in an add-on folder executes as code; it supplies data only to
+an engine already compiled into pdfcer (R13).
+
+**Amends.** Decision 176 — adds the `ocr_folder` settings key to the
+settings-file grammar it defined.
+
+**Rejected.** Ranking settings-named/`--ocr-folder` roots ahead of the
+bundled `models/` root (would let dropping a folder into a configured
+location silently change the output of an existing batch script — an
+unchosen model is an inference, and rule 4 forbids a silent one).
+
+**Full record:** `docs/decisions/182-ocr-model-addons.md`.
+
+**Body-section effect.** §7's decision-176 settings-file bullet gains a
+one-line pointer to this decision's `ocr_folder` key. See that section,
+below, for the edit. Out of scope for this decision: what the portable
+package ships (`Pass 442.1`), how Tesseract is executed (unchanged).
+
+**Decision ceiling.** Fills the reserved `182`; ceiling `180` → `182`
+(decision 181, above, fills the gap beneath this ceiling without moving
+it further). Next free decision `183`.
