@@ -69,6 +69,7 @@ pub(super) fn emit_lines(input: &EmitInput<'_>) -> Result<Emitted, ReflowApplyEr
         fill: input.enc.anchor.fill_color.clone(),
         stroke: input.enc.anchor.stroke_color.clone(),
         render_mode: style.ambient.get(TextStateParam::RenderMode).value,
+        fallback: None,
     };
     Ok(Emitted {
         body,
