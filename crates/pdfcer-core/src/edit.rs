@@ -122,7 +122,11 @@
 //!   bytes is §7.9.2, which is a **recorded gap** in the spec RAG; see
 //!   [`encode_text_string`])
 
+mod checkpoint;
 mod content_mark;
+
+use checkpoint::Entry;
+pub use checkpoint::{Checkpoint, CheckpointError, Rollback};
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -9501,8 +9505,14 @@ pub struct EditSession {
     /// first annotation is authored, so a session that only performs
     /// pre-6.1 edits carries no staging and its save path is unchanged.
     staging: Vec<u8>,
-    undo: Vec<Command>,
-    redo: Vec<Command>,
+    undo: Vec<Entry>,
+    redo: Vec<Entry>,
+    /// Identifies this session to a [`Checkpoint`].
+    session_serial: u64,
+    /// Commands the depth bound has dropped, ever.
+    evictions: u64,
+    /// The most recent of them, for [`Self::rollback`] to put back.
+    evicted_tail: std::collections::VecDeque<Entry>,
     /// Whether the BASE document's page tree walked at construction — the
     /// gate on [`Self::debug_assert_page_tree_still_walks`] (`Pass 111.0`).
     ///
@@ -9722,6 +9732,9 @@ impl EditSession {
             staging: Vec::new(),
             undo: Vec::new(),
             redo: Vec::new(),
+            session_serial: checkpoint::next_serial(),
+            evictions: 0,
+            evicted_tail: std::collections::VecDeque::new(),
             quad_point_order: QuadPointOrder::default(),
             redact_options: crate::redact::RedactOptions::default(),
             widget_tab_tail: WidgetTabTail::default(),
@@ -10176,6 +10189,15 @@ impl EditSession {
     /// restores read-through to the base or — for a created object —
     /// makes it not exist again.
     pub fn undo(&mut self) -> Option<CommandKind> {
+        let entry = self.revert_last()?;
+        let kind = entry.kind;
+        self.redo.push(entry);
+        Some(kind)
+    }
+
+    /// Pop the newest undo entry and restore its `before` state, without
+    /// offering it to Redo.
+    fn revert_last(&mut self) -> Option<Entry> {
         let command = self.undo.pop()?;
         for write in &command.objects {
             Self::write_state(&mut self.state, write.id, write.before.clone());
@@ -10186,9 +10208,7 @@ impl EditSession {
         if let Some((before, _)) = &command.trailer {
             self.trailer = before.clone();
         }
-        let kind = command.kind;
-        self.redo.push(command);
-        Some(kind)
+        Some(command)
     }
 
     /// Redo the most recently undone command, returning what was redone.
@@ -19733,7 +19753,7 @@ impl EditSession {
             return true;
         }
         let at = self.undo.len() - count;
-        let group: Vec<Command> = self.undo.split_off(at);
+        let group: Vec<Entry> = self.undo.split_off(at);
 
         let mut objects: Vec<ObjectWrite> = Vec::new();
         let mut object_at: BTreeMap<ObjId, usize> = BTreeMap::new();
@@ -19741,7 +19761,7 @@ impl EditSession {
         let mut removal_at: BTreeMap<ObjId, usize> = BTreeMap::new();
         let mut trailer: Option<(Dict, Dict)> = None;
 
-        for command in group {
+        for Entry { command, .. } in group {
             for write in command.objects {
                 match object_at.get(&write.id) {
                     // Seen before: keep the EARLIEST `before` (the state the
@@ -19778,12 +19798,12 @@ impl EditSession {
             }
         }
 
-        self.undo.push(Command {
+        self.undo.push(Entry::new(Command {
             kind,
             objects,
             removals,
             trailer,
-        });
+        }));
         true
     }
 
@@ -19804,12 +19824,13 @@ impl EditSession {
             self.trailer = after.clone();
         }
         self.redo.clear();
-        self.undo.push(command);
+        self.undo.push(Entry::new(command));
         // Bound the history (§11.1). Safe to drop the oldest ONLY
         // because the dirty set is a diff, never a replay — see the
         // module docs.
         if self.undo.len() > MAX_UNDO_DEPTH {
-            self.undo.remove(0);
+            let oldest = self.undo.remove(0);
+            self.note_eviction(oldest);
         }
         self.debug_assert_page_tree_still_walks();
     }
@@ -28031,12 +28052,8 @@ impl EditSession {
             // it (R92: one path decides what "selected" looks like).
             //
             // The pair is ONE command, atomically: a refused selection rolls
-            // the merge back (restoring the redo stack and any entry the
-            // depth bound evicted), and a successful one folds into it.
-            let redo = self.redo.clone();
-            let evicted = (self.undo.len() >= MAX_UNDO_DEPTH)
-                .then(|| self.undo.first().cloned())
-                .flatten();
+            // the merge back, and a successful one folds into it.
+            let before = self.checkpoint();
             self.commit(Command {
                 kind: CommandKind::AddFormField,
                 objects,
@@ -28045,11 +28062,7 @@ impl EditSession {
             });
             if spec.selected {
                 if let Err(e) = self.set_button_state(&spec.name, &spec.export_value) {
-                    self.undo();
-                    self.redo = redo;
-                    if let Some(oldest) = evicted {
-                        self.undo.insert(0, oldest);
-                    }
+                    self.abandon(before);
                     return Err(e);
                 }
                 self.coalesce_last(2, CommandKind::AddFormField);
@@ -53811,8 +53824,7 @@ impl EditSession {
         };
         steps.extend(hidden_layers.iter().map(|l| (l.id, hidden_content)));
 
-        let depth = self.undo.len();
-        let redo = self.redo.clone();
+        let before = self.checkpoint();
         let mut outcome = LayerFlattenOutcome::default();
         for (layer, policy) in steps {
             match self.delete_layer(layer, policy) {
@@ -53824,15 +53836,12 @@ impl EditSession {
                     outcome.paints += d.paints + d.xobject_calls;
                 }
                 Err(err) => {
-                    while self.undo.len() > depth {
-                        self.undo();
-                    }
-                    self.redo = redo;
+                    self.abandon(before);
                     return Err(err);
                 }
             }
         }
-        let pushed = self.undo.len() - depth;
+        let pushed = self.pushed_since(&before);
         outcome.changed = pushed > 0;
         let names = |ls: &[&crate::layers::Layer]| {
             ls.iter().map(|l| label(l)).collect::<Vec<_>>().join(", ")

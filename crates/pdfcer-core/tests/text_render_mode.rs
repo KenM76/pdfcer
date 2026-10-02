@@ -44,7 +44,7 @@ fn pdf(objects: &[(u32, String)]) -> Vec<u8> {
 }
 
 /// A page whose content stream is `content`, with Helvetica as `/F1`.
-fn page(content: &str) -> Document {
+pub(crate) fn page(content: &str) -> Document {
     let widths = (0..95).map(|_| "500").collect::<Vec<_>>().join(" ");
     let bytes = pdf(&[
         (1, "<< /Type /Catalog /Pages 2 0 R >>".to_owned()),

@@ -1527,3 +1527,23 @@ fn unnameable_and_indirect_usage() {
     assert_eq!(b.export, Some(LayerOutputState::WhenVisible));
     assert_eq!(b.intent_kind, Some(LayerIntent::Design));
 }
+
+/// At full undo depth, a flatten still folds into one entry: counting what
+/// it pushed by stack length saw nothing, as every push evicted one.
+#[test]
+fn flatten_layers_at_full_undo_depth_is_one_entry() {
+    let mut s = fixture("painted-layers.pdf");
+    let id = read_layers(&s.graph()).layers[0].id;
+    for i in 0..pdfcer_core::edit::MAX_UNDO_DEPTH {
+        let name = if i % 2 == 0 { "A" } else { "B" };
+        s.set_layer_properties(id, &LayerEdit::new().name(name))
+            .unwrap();
+    }
+    let original = saved_stream(&s, 8);
+    s.flatten_layers(HiddenLayerPolicy::Remove)
+        .expect("flattens");
+    assert_eq!(s.undo_kind(), Some(CommandKind::FlattenLayers));
+    s.undo();
+    assert_eq!(saved_stream(&s, 8), original);
+    assert_eq!(read_layers(&s.graph()).layers.len(), 4);
+}

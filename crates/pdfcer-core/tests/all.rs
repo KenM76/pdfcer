@@ -51,6 +51,7 @@ mod dimension_rotate;
 mod dimension_roundtrip;
 mod dxf_export;
 mod dxf_scale;
+mod edit_checkpoint;
 mod edit_latency;
 mod edit_text_preview;
 mod edit_undo;

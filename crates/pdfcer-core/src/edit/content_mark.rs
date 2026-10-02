@@ -7,7 +7,7 @@
 //! is touched. The overlay save/restore pair a verb may add around the
 //! page's original content is not the verb's output and is never wrapped.
 
-use super::{Command, EditError, EditSession, ObjectWrite};
+use super::{Checkpoint, Command, EditError, EditSession, ObjectWrite};
 use crate::hand_sig::HandSignatureError;
 use crate::object::{Name, ObjId, Object, Stream};
 use crate::view::StreamSource;
@@ -29,11 +29,11 @@ impl ContentMarks<'_> {
 }
 
 /// What a page held before an add verb ran, so its additions can be found.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(super) struct AddedContentSnapshot {
     contents: Vec<ObjId>,
     annots: Vec<ObjId>,
-    depth: usize,
+    history: Checkpoint,
 }
 
 impl EditSession {
@@ -148,7 +148,7 @@ impl EditSession {
         Ok(AddedContentSnapshot {
             contents,
             annots,
-            depth: self.undo.len(),
+            history: self.checkpoint(),
         })
     }
 
@@ -182,9 +182,7 @@ impl EditSession {
     ) -> Result<(), EditError> {
         let result = self.wrap_added_content(page_index, before, marks);
         if result.is_err() {
-            while self.undo.len() > before.depth && self.undo().is_some() {
-                self.redo.pop();
-            }
+            self.abandon(before.history.clone());
         }
         result
     }
@@ -195,10 +193,11 @@ impl EditSession {
         before: &AddedContentSnapshot,
         marks: ContentMarks<'_>,
     ) -> Result<(), EditError> {
-        let added = self.undo.len().saturating_sub(before.depth);
+        let added = self.pushed_since(&before.history);
         // The gesture is labelled by its first command: a paste's own entry,
         // not the last annotation it placed.
-        let Some(kind) = self.undo.get(before.depth).map(|c| c.kind) else {
+        let first = self.undo.len() - added;
+        let Some(kind) = self.undo.get(first).filter(|_| added > 0).map(|c| c.kind) else {
             return Ok(());
         };
         let pages = self.pages()?;
