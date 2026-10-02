@@ -115,6 +115,72 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 448.0` (`4de50b47`), 2026-10-02 — paint `PatternType 1` tiling patterns (ISO 32000-1 §8.7.3 Table 75) — `Pass 448.0` SHIPPED
+
+Cite `4de50b47` (cherry-picked from worktree `0010b821`). Closes the known
+gap `Pass 445.0` filed when its SVG `<pattern>` import rendered blank in
+pdfcer's own canvas (883rd filing).
+
+**Paints.** Fills, strokes and text, in both fill and stroke modes;
+PaintType 1 and 2 (uncoloured patterns paint in the `scn` colour of the
+underlying space, the cell's own colour operators ignored); TilingType
+1–3; negative steps; steps larger than `/BBox` (gaps) and smaller
+(overlap, folded); `/Matrix` is anchored to the parent stream's default
+space, so a `cm` issued after `scn` does not move the tiles.
+
+**Method.** The cell is rendered once, at about device resolution, into
+one periodic cell. A Repeat shader replicates it, so cost does not grow
+with the tile count.
+
+**Side fixes.** Pattern-coloured strokes and text now paint for SHADING
+patterns too — they drew nothing before. `B` with a solid stroke over a
+pattern fill now paints the stroke after the fill (Table 60).
+
+**Ceilings.** 4 Mpx per raster: resolution is reduced, never refused.
+4096 `/BBox` copies per period: refused. Nesting depth 6, plus a
+self-reference guard: refused. The shared 64-level depth limit still
+applies. Every refusal is counted in the `patterns_unpainted` diagnostic
+with a reason note; a new counter, `tiling_patterns_painted`, counts the
+successes. CLI render/export explanation text updated accordingly.
+
+**Measured.** Before, every tiling area was blank. After, an SVG
+`<pattern>` import renders within 0.01 of resvg, and a checkerboard
+looks visually identical. No pdfium corpus sweep was run.
+
+**Tests.** 13 integration tests (`tests/tiling_pattern.rs`) and 7 unit
+tests. Sabotaged 12 ways, all 12 caught — one survived at first and was
+fixed by asserting the refusal reason. Render-only, so there are no new
+`pub` items; `docs/core-api` 02 lost its "SVG pattern fills render
+blank" trap.
+
+**Known limits (recorded here, not filed as new Passes).** Inherited
+graphics state other than transparency resets to defaults inside the
+pattern cell; skipped colour operators in uncoloured patterns are
+counted under `type3_colors_ignored`; Type 3 glyphs painted in a pattern
+colour; an overprint or non-separable-blend stroke over a pattern fill
+may still paint before the fill; zero-width pattern strokes.
+
+**Gates.** `tools/run-gates.sh` passed all 45 commands on `4de50b47`. No
+`pub` surface change, so no `cargo tree` invariant to re-check.
+
+**`FEATURES.md`.** New *Implemented* row added (*Fonts & rendering*) —
+`core [x]` / `cli [x]` / `gui [ ]`. The shading-patterns row's "tiling
+patterns still paint nothing" pointer updated to point at the new row;
+the SVG-import row's known-gap note marked CLOSED; the two stale
+*Planned* duplicates ("Render `PatternType 1` tiling patterns" and the
+older "Paint tiling patterns…") removed.
+
+**GUI channel.** `pdfcer-gui` request `G093`'s reply (SVG placement,
+`O279`) was updated to say its known gap — tiling-pattern fills
+rendering blank in pdfcer's own canvas — is closed by this Pass.
+
+**Sourcing (hard rule 8).** No shell this filing. `4de50b47` confirmed
+present at `HEAD`, and CI green on `ceef5e92` (the 884th filing's push),
+per the git-status snapshot at the start of this conversation;
+`tools/run-gates.sh`'s 45-command pass and every measured/test figure
+above is relayed from the dispatching engineer's own report, not
+independently reproduced.
+
 ### `Pass 447.0` (`142fdda5`), 2026-10-02 — Area ce dimension: `area` flag on a closed Perimeter (G098) — `Pass 447.0` SHIPPED
 
 Cite `142fdda5` (cherry-picked from worktree `9b01e432`). Answers `pdfcer-gui`
@@ -209,6 +275,11 @@ and fixed a line box ending 1 px below the image, now a regression test.
 line says "N word(s) written" for an engine that writes lines, not
 words — flagged for the engineer to fix next session as a one-line
 wording change, not filed as its own Pass.
+
+**★ FIXED 2026-10-02 (`c094550a`, 885th filing).** The shared OCR report
+line now says "N text box(es) written (a word or a line each, as the
+engine reports them)" instead of "N word(s) written". No API change;
+the test asserts the new wording and the absence of the old.
 
 **`FEATURES.md`.** PaddleOCR-VL engine row (already *Implemented*)
 ticked `core [x]` / `cli [x]` / `gui [ ]`; text replaced to describe the
@@ -16614,6 +16685,31 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 448.0` SHIPPED, 2026-10-02 (885th filing),
+> `4de50b47`** — see *Shipped*, above. Paints `PatternType 1` tiling
+> patterns (ISO 32000-1 §8.7.3 Table 75): fills/strokes/text, PaintType 1
+> and 2, TilingType 1–3, negative/oversized/undersized steps, `/Matrix`
+> anchored to the parent stream's default space; the cell renders once
+> and is repeated with a Repeat shader. Ceilings: 4 Mpx/raster (reduced),
+> 4096 `/BBox` copies + nesting 6 (refused); new counters
+> `patterns_unpainted`/`tiling_patterns_painted`. **Closes the known gap
+> `Pass 445.0` filed** (`G093`'s SVG `<pattern>` import rendering blank
+> in pdfcer's own canvas) — the GUI channel reply for `G093` was updated
+> to say so. Gates green on `4de50b47` (all 45 `tools/run-gates.sh`
+> commands); CI green on `ceef5e92`. `gui [ ]` not wired. **`Pass 448.0`
+> is now SHIPPED** — only `Pass 446.0` (EMF import, queued) remains open
+> in the `O279` family.
+
+> ★★★★★★★★★★★★★★★★ **OCR WORDING FIX, 2026-10-02 (885th filing),
+> `c094550a`.** Closes the 884th filing's known wording defect on
+> `Pass 442.2` (PaddleOCR-VL, first rung): the shared OCR layer
+> disclosure said "N word(s) written" for an engine that writes one
+> `RecognizedWord` per *line*, not per word. It now says "N text
+> box(es) written (a word or a line each, as the engine reports
+> them)". No API change; the test asserts the new wording and the
+> absence of the old; sabotage restoring the old wording was caught.
+> See the `★ FIXED` footer on `Pass 442.2`'s own *Shipped* entry.
 
 > ★★★★★★★★★★★★★★★★ **GUI CHANNEL, 2026-10-02 (884th filing).** Confirmed
 > on disk in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`: reply files

@@ -4,6 +4,72 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (885th filing) — `Pass 448.0` SHIPPED (paint `PatternType 1` tiling patterns, ISO 32000-1 §8.7.3 Table 75); closes the known gap `Pass 445.0` filed; GUI channel reply for `G093` updated; OCR layer-report wording fixed (`c094550a`)
+
+**Shipped:**
+- `c094550a` — fix(ocr): the shared OCR layer report now says "N text
+  box(es) written (a word or a line each, as the engine reports
+  them)" instead of "N word(s) written". Closes the known wording
+  defect the 884th filing recorded on `Pass 442.2` (PaddleOCR-VL,
+  first rung, a line-level engine). No API change; test asserts the
+  new wording and the absence of the old; sabotage restoring the old
+  wording was caught. `Pass 442.2`'s *Shipped* entry in `ROADMAP.md`
+  carries the `★ FIXED` footer.
+- `Pass 448.0` (`4de50b47`, cherry-picked from worktree `0010b821`) —
+  `pdfcer-render` paints `PatternType 1` tiling patterns: fills, strokes
+  and text in both fill and stroke modes; PaintType 1 and 2 (uncoloured
+  patterns paint in the `scn` colour of the underlying space); TilingType
+  1–3; negative steps; steps larger/smaller than `/BBox`; `/Matrix`
+  anchored to the parent stream's default space. The cell renders once,
+  then a Repeat shader replicates it, so cost does not grow with tile
+  count. Side fixes: pattern-coloured strokes/text now paint for SHADING
+  patterns too (drew nothing before); `B` now paints the stroke after the
+  fill over a pattern (Table 60). Ceilings: 4 Mpx/raster (reduced), 4096
+  `/BBox` copies + nesting 6 (refused); new counters
+  `patterns_unpainted`/`tiling_patterns_painted`. 13 integration + 7 unit
+  tests, 12/12 sabotage mutations caught. No new `pub` items.
+  `tools/run-gates.sh` passed all 45 commands on `4de50b47`.
+
+**Decisions made this session:**
+- None — this closes a known gap `Pass 445.0` already filed; no new
+  architectural call.
+
+**Findings + decisions:**
+- `FEATURES.md` sweep (hard rule 11): one new *Implemented* row added
+  (*Fonts & rendering*); the shading-patterns row's "tiling patterns
+  still paint nothing" pointer corrected; the SVG-import row's known-gap
+  note marked CLOSED; two stale *Planned* duplicates removed (one was a
+  leftover from before the 884th filing's more detailed row was added —
+  the two had never been reconciled into one row).
+- GUI channel: `pdfcer-gui` request `G093`'s reply (SVG placement,
+  `O279`) updated to say its known gap — tiling-pattern fills rendering
+  blank in pdfcer's own canvas — is now closed by this Pass. Reply-file
+  edit happened outside this repo's `docs/`; recorded here, not verified
+  by this filing (no shell).
+
+**Still in flight:**
+- `Pass 446.0` (EMF import, `G094`) remains the only unstarted item in
+  the `O279` family.
+- The PaddleOCR-VL layout-model rung (PP-DocLayoutV2) is still not filed
+  as a Pass.
+- Known limits recorded, not filed as new Passes: inherited graphics
+  state (other than transparency) resets to defaults inside a pattern
+  cell; Type 3 glyphs painted in a pattern colour; an overprint or
+  non-separable-blend stroke over a pattern fill may still paint before
+  the fill; zero-width pattern strokes.
+
+**For next session:**
+- Consider whether a pdfium corpus sweep for tiling patterns is worth
+  running — none was done this filing.
+
+**Sourcing note (hard rule 8):** no shell this filing. `4de50b47`
+confirmed present at `HEAD` per the git-status snapshot at the start of
+this conversation (origin/main at `ceef5e92`, the 884th filing); CI
+green on `ceef5e92` and `tools/run-gates.sh`'s 45-command pass on
+`4de50b47` are both relayed from the premises handed to this filing, not
+independently reproduced. The GUI-channel reply-file update is recorded
+as told, not confirmed on disk this filing.
+
 ## 2026-10-02 (884th filing) — `Pass 442.2` SHIPPED (PaddleOCR-VL engine, first rung, decision 183); `Pass 447.0` SHIPPED (Area ce dimension, `G098`); `Pass 448.0` now IN PROGRESS; GUI channel replies confirmed for `G093`/`G095`/`G097`/`G098`
 
 **Shipped:**
