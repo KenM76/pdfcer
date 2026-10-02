@@ -95,6 +95,7 @@ pub mod shading;
 pub mod svg;
 mod svg_text;
 pub mod text;
+pub(crate) mod tiling;
 pub mod type3;
 
 use pdfcer_core::content::ContentStream;

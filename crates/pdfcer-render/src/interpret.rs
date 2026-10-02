@@ -121,6 +121,8 @@
 //!   fallback, and a space all move `Tm` (§9.4.4).
 
 use crate::device_clip::{FitMask, FitPaint};
+
+mod tiling;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -4530,6 +4532,13 @@ impl<'a> Interpreter<'a> {
             );
             canvas.stroke(&path, &paint, &self.stroke_params(), ctm, clip);
         }
+        // §9.3.6: text painted with a pattern colour, fill then stroke.
+        if !skip_paint && self.gs.current.text.fills() && !self.color.paints(false) {
+            self.paint_with_pattern(&path, FillRule::Winding, ctm, false, canvas);
+        }
+        if !skip_paint && self.gs.current.text.strokes() && !self.color.paints(true) {
+            self.paint_pattern_stroke(&path, ctm, canvas);
+        }
 
         if let Some(mode) = ns_glyph {
             let mut done = false;
@@ -5779,34 +5788,6 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    /// Paint `path` with the `/Pattern` the current colour selects
-    /// (§8.7.2, §8.7.4.3). Returns `true` if pixels were laid down.
-    ///
-    /// # The anchoring rule, which is the whole difficulty
-    ///
-    /// A pattern's coordinates are **pattern space**, mapped to the
-    /// *default* coordinate space of the content stream by the pattern's
-    /// own `/Matrix` — NOT by the CTM in effect at the fill. §8.7.2 NOTE 1
-    /// states it plainly, and PM5's `shall` is the binding form: "the
-    /// pattern matrix maps pattern space to the default coordinate system
-    /// of the pattern's parent content stream". So the transform is
-    /// `base_ctm x /Matrix`, and a `cm` between selecting the pattern and
-    /// filling with it must not move the gradient.
-    ///
-    /// That is the exact opposite of the `sh` operator, which paints in
-    /// CURRENT user space (Table 77). The two routes share this crate's
-    /// painter and differ only in the matrix handed to it and in the area
-    /// painted — `sh` fills the clip region, a pattern fills the path.
-    /// Getting the two confused produces a gradient that is in the right
-    /// place until the page is scaled, which is why the routes are carried
-    /// explicitly as [`crate::shading::PaintRoute`] rather than inferred.
-    ///
-    /// # What is not done here
-    ///
-    /// `PatternType 1` (tiling) is counted and not painted. It needs the
-    /// pattern's own content stream run into a tile and replicated on
-    /// `/XStep`/`/YStep`, which is a different job from evaluating an
-    /// analytic function per pixel.
     /// Would honouring overprint have changed this paint?
     ///
     /// Implements the §11.7.4.3 selection rule as a PREDICATE rather than
@@ -7264,10 +7245,38 @@ impl<'a> Interpreter<'a> {
         true
     }
 
+    /// Paint `path` with the `/Pattern` the current colour selects
+    /// (§8.7.2, §8.7.4.3). Returns `true` if pixels were laid down.
+    ///
+    /// # The anchoring rule, which is the whole difficulty
+    ///
+    /// A pattern's coordinates are **pattern space**, mapped to the
+    /// *default* coordinate space of the content stream by the pattern's
+    /// own `/Matrix` — NOT by the CTM in effect at the fill. §8.7.2 NOTE 1
+    /// states it plainly, and PM5's `shall` is the binding form: "the
+    /// pattern matrix maps pattern space to the default coordinate system
+    /// of the pattern's parent content stream". So the transform is
+    /// `base_ctm x /Matrix`, and a `cm` between selecting the pattern and
+    /// filling with it must not move the gradient.
+    ///
+    /// That is the exact opposite of the `sh` operator, which paints in
+    /// CURRENT user space (Table 77). The two routes share this crate's
+    /// painter and differ only in the matrix handed to it and in the area
+    /// painted — `sh` fills the clip region, a pattern fills the path.
+    /// Getting the two confused produces a gradient that is in the right
+    /// place until the page is scaled, which is why the routes are carried
+    /// explicitly as [`crate::shading::PaintRoute`] rather than inferred.
+    ///
+    /// `PatternType 1` (tiling) is dispatched to `paint_tiling_pattern`,
+    /// which anchors the same way; `PatternType 2` is painted here.
+    ///
+    /// `ctm` is the transform the path is painted through, which is not
+    /// always `gs.current.ctm` (a precise path is origin-relative).
     fn paint_with_pattern(
         &mut self,
         path: &Path,
         rule: FillRule,
+        ctm: Transform,
         stroking: bool,
         canvas: &mut Canvas<'_>,
     ) -> bool {
@@ -7311,11 +7320,24 @@ impl<'a> Interpreter<'a> {
             .and_then(Object::as_number)
             .unwrap_or(0.0);
         #[allow(clippy::float_cmp)]
+        if pattern_type == 1.0
+            && let Object::Stream(stream) = resolved
+        {
+            let area = tiling::PatternArea {
+                path,
+                rule,
+                ctm,
+                stroking,
+            };
+            return self.paint_tiling_pattern(entry.as_reference(), stream, &name, &area, canvas);
+        }
+        #[allow(clippy::float_cmp)]
         if pattern_type != 2.0 {
-            // Tiling (1), or a value the standard does not define.
+            // A tiling pattern that is not a stream, or a value the
+            // standard does not define.
             self.diag.color.patterns_unpainted += 1;
             self.diag.color.note(&format!(
-                "scn /{}: PatternType {} not painted (only shading patterns are drawn this build)",
+                "scn /{}: PatternType {} not painted",
                 String::from_utf8_lossy(&name),
                 pattern_type as i64
             ));
@@ -7373,43 +7395,17 @@ impl<'a> Interpreter<'a> {
             return false;
         };
 
-        // The paint AREA is the path, so the path becomes a mask —
-        // intersected with any clip already in force, because a pattern
-        // fill is still subject to the clip like any other paint.
-        let ctm = self.gs.current.ctm;
-        let Some(mut mask) = Mask::new(canvas.width(), canvas.height()) else {
+        // The paint AREA is the path × the clip; the region is its device
+        // bounds, outside which evaluating the shading is wasted work.
+        let area = tiling::PatternArea {
+            path,
+            rule,
+            ctm,
+            stroking,
+        };
+        let Some((mask, region)) = self.pattern_area_mask(&area, canvas) else {
             return false;
         };
-        mask.fill_path_fit(path, rule, true, ctm);
-        if let Some(old) = self.gs.current.clip.as_deref() {
-            // Per-pixel coverage multiply, the same operation
-            // `intersect_clip` performs — a clip and a path mask combine
-            // by multiplication, never by a path boolean, because §8.5.4
-            // NOTE 2 guarantees a clip only ever shrinks.
-            //
-            // Done over the whole buffer rather than over the path's
-            // bounds as `intersect_clip` does: the saving there is worth
-            // the extra bookkeeping because clips run tens of thousands of
-            // times on a real sheet, whereas a pattern fill is rare.
-            let old_data = old.data().to_vec();
-            for (n, o) in mask.data_mut().iter_mut().zip(old_data.iter()) {
-                *n = ((u16::from(*n) * u16::from(*o)) / 255) as u8;
-            }
-        }
-        // The region is the path's DEVICE-space bounds: outside them the
-        // mask is zero, so evaluating the shading there is wasted work on
-        // a per-pixel analytic function.
-        let Some(device_path) = path.clone().transform(ctm) else {
-            return false;
-        };
-        let b = device_path.bounds();
-        #[allow(clippy::cast_possible_truncation)]
-        let region = (
-            b.left().floor().max(0.0) as i32,
-            b.top().floor().max(0.0) as i32,
-            b.right().ceil().min(canvas.width() as f32) as i32,
-            b.bottom().ceil().min(canvas.height() as f32) as i32,
-        );
         let alpha = if stroking {
             self.gs.current.stroke_alpha
         } else {
@@ -9512,11 +9508,16 @@ impl<'a> Interpreter<'a> {
                 pattern_fill = Some(rule);
             }
         }
+        // A solid stroke over a pattern fill waits for the deferred fill
+        // (Table 60: `B` fills, then strokes).
+        let mut solid_stroke_after_pattern = false;
         if !skip_paint && stroke && self.color.paints(true) {
             if overprint_stroke {
                 overprint_stroke_pending = true;
             } else if nonsep.is_some() {
                 // Deferred below with the other composites.
+            } else if pattern_fill.is_some() {
+                solid_stroke_after_pattern = true;
             } else {
                 let paint = self.solid_authored(
                     true,
@@ -9568,11 +9569,22 @@ impl<'a> Interpreter<'a> {
         // because it needs `&mut self` (it resolves resources and records
         // diagnostics) while `clip` above is an immutable borrow of the
         // same graphics state. It reads that clip itself, so nothing is
-        // lost by the move; the ordering against the stroke is unchanged
-        // in every case that can arise, since a path filled with a pattern
-        // and stroked in a solid colour paints fill-then-stroke either way.
+        // lost by the move; a solid stroke waits for it (Table 60: `B`
+        // fills, then strokes).
         if let Some(rule) = pattern_fill {
-            self.paint_with_pattern(&path, rule, false, canvas);
+            self.paint_with_pattern(&path, rule, ctm, false, canvas);
+        }
+        if solid_stroke_after_pattern {
+            let paint = self.solid_authored(
+                true,
+                self.gs.current.stroke_alpha,
+                self.gs.current.blend_mode,
+            );
+            let clip = self.gs.current.clip_ref();
+            canvas.stroke(&path, &paint, &self.stroke_params(), ctm, clip);
+        }
+        if !skip_paint && stroke && !self.color.paints(true) {
+            self.paint_pattern_stroke(&path, ctm, canvas);
         }
 
         // The overprint composites run here, after the `clip` borrow ends,
@@ -9664,7 +9676,7 @@ fn paint_is_cullable(path: &Path, ctm: Transform, bbox: Option<(f32, f32, f32, f
 /// short array falls back to the identity rather than refusing: the entry
 /// is optional, its default IS the identity, and a pattern drawn unmoved
 /// is far more recoverable than one not drawn at all.
-fn pattern_matrix(doc: &DocumentView<'_>, dict: &Dict) -> Transform {
+pub(crate) fn pattern_matrix(doc: &DocumentView<'_>, dict: &Dict) -> Transform {
     let Some(arr) = dict
         .get(b"Matrix")
         .map(|o| doc.resolve(o))

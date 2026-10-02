@@ -188,9 +188,8 @@ fn transforms_and_dashes_render_like_resvg() {
 }
 
 /// An SVG pattern becomes a tiling pattern (ISO 32000-1 §8.7.3) whose
-/// matrix carries the pattern transform into form space. Checked
-/// structurally: pdfcer-render does not paint `PatternType 1` yet, so it
-/// cannot be the oracle here (pdfium renders this output like resvg).
+/// matrix carries the pattern transform into form space, and renders like
+/// resvg.
 #[test]
 fn a_pattern_fill_becomes_a_tiling_pattern() {
     let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
@@ -212,6 +211,7 @@ fn a_pattern_fill_becomes_a_tiling_pattern() {
     ] {
         assert!(text.contains(needle), "the tiling pattern carries {needle}");
     }
+    assert_parity("pattern", svg, 0.01);
 }
 
 /// The placement is vector: a Form XObject of path and shading operators,

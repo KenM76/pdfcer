@@ -2560,10 +2560,10 @@ so those marks are painted in a stale colour",
     if c.patterns_unpainted > 0 {
         eprintln!(
             "pdfcer: note: {} fill/stroke(s) named a PATTERN and NOTHING was painted for \
-them (ISO 32000-1 §8.7). SHADING patterns (PatternType 2) ARE painted now — see \
-shadings_painted — so this number is the remainder: TILING patterns, a name with no matching \
-/Pattern resource, a degenerate pattern matrix, or a shading pdfcer models but cannot draw (a \
-mesh). An invented solid colour would be worse than a gap, so a page that looks blank where a \
+them (ISO 32000-1 §8.7). Shading and tiling patterns are painted, so this number is \
+the remainder: a name with no matching /Pattern resource, a degenerate pattern matrix, a \
+shading pdfcer models but cannot draw (a mesh), or a tiling pattern refused by a ceiling or \
+because it paints itself (the per-pattern reason is in the colour notes). An invented solid colour would be worse than a gap, so a page that looks blank where a \
 hatch belongs is explained by this number",
             c.patterns_unpainted
         );

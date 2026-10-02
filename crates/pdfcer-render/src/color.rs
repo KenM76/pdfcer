@@ -44,7 +44,7 @@
 //! | `ICCBased` | **The spec's own fallback**, not an approximation pdfcer invented — see [`ColorSpace::IccBased`]. |
 //! | `Indexed` | Full §8.6.6.3, string *and* stream lookups, normative index clamp. |
 //! | `Separation`, `DeviceN` | Parsed in full, **tint transform evaluated** via [`pdfcer_core::function`] — [`ColorDiagnostics::tint_transforms_applied`] counts the successes, [`ColorDiagnostics::tint_transform_not_applied`] the residue (a missing or unusable `/tintTransform`). |
-//! | `Pattern` | Recognised. `PatternType 2` (shading) is **painted**; tiling patterns and unresolvable names are not, and the residue is counted. See [`ColorDiagnostics::patterns_unpainted`]. |
+//! | `Pattern` | `PatternType 2` (shading) and `PatternType 1` (tiling, `crate::tiling`) are **painted**; unresolvable names and refused patterns are counted in [`ColorDiagnostics::patterns_unpainted`]. |
 //!
 //! ### Why `Separation`/`DeviceN` stop short of the transform
 //!
@@ -1029,25 +1029,15 @@ pub struct ColorDiagnostics {
     pub separation_none_suppressed: usize,
     /// `cs`/`CS` selections of a `Pattern` colour space.
     pub pattern_spaces_selected: usize,
-    /// `scn`/`SCN` operations that named a **pattern pdfcer did not
-    /// paint** — the REMAINDER after shading patterns are painted.
-    ///
-    /// This read "which pdfcer does not paint (tiling and shading
-    /// patterns, §8.7, are later work)" long after `PatternType 2` shading
-    /// patterns started painting. A comment ~300 lines below in this same
-    /// file exists **specifically to refute that sentence** ("NOT 'pdfcer
-    /// does not paint patterns' — it does, for `PatternType 2`"), and the
-    /// CLI's own stderr note already described this counter correctly. So
-    /// three copies of the fact existed, two right and one wrong, and the
-    /// wrong one was the field's own doc — the copy every consumer reads
-    /// first. `R212`.
-    ///
-    /// What it now counts: TILING patterns, a `/Pattern` name with no
-    /// matching entry, and any shading pattern refused for its own reason.
-    /// Nothing is drawn in their place — deliberately, since Table 74's
-    /// initial `Pattern` colour "causes nothing to be painted" and an
-    /// invented solid fill would be worse than a gap.
+    /// Pattern paints pdfcer could not draw: an unresolvable `/Pattern`
+    /// name, a malformed pattern, a mesh or type 1 function shading, or a
+    /// tiling pattern refused by a ceiling (`crate::tiling`). Nothing is
+    /// drawn in their place: Table 74's initial `Pattern` colour "causes
+    /// nothing to be painted", and an invented solid fill would be worse.
     pub patterns_unpainted: usize,
+    /// `PatternType 1` tiling-pattern paints drawn (§8.7.3), fills,
+    /// strokes and text alike.
+    pub tiling_patterns_painted: usize,
     /// `Indexed` lookups whose index was outside `0..=hival` and was
     /// clamped. The clamp is **normative** (§8.6.6.3: "if it is outside the
     /// range 0 to `hival`, it shall be adjusted to the nearest value within
@@ -1092,6 +1082,7 @@ impl ColorDiagnostics {
         self.separation_none_suppressed += other.separation_none_suppressed;
         self.pattern_spaces_selected += other.pattern_spaces_selected;
         self.patterns_unpainted += other.patterns_unpainted;
+        self.tiling_patterns_painted += other.tiling_patterns_painted;
         self.indexed_index_clamped += other.indexed_index_clamped;
         self.indexed_lookup_short += other.indexed_lookup_short;
         for note in other.notes {
@@ -1400,29 +1391,30 @@ impl ColorState {
         intent: CmykIntent,
         diag: &mut ColorDiagnostics,
     ) -> Option<Rgb> {
-        // A pattern name wins outright: whatever numbers precede it belong
-        // to an uncoloured tiling pattern's underlying space, and pdfcer
-        // paints neither kind.
+        // A pattern name wins outright. Numbers before it are an uncoloured
+        // tiling pattern's colour in the underlying space (§8.7.3.3); that
+        // colour is returned so the caller installs it as the current
+        // colour the pattern's shape is painted in.
         if let Some(name) = pattern {
+            let underlying = {
+                let half = if stroking { &self.stroke } else { &self.fill };
+                match half.space.as_deref() {
+                    Some(ColorSpace::Pattern {
+                        underlying: Some(u),
+                    }) if !comps.is_empty() && comps.len() == u.components() => Some(Arc::clone(u)),
+                    _ => None,
+                }
+            };
             let half = if stroking {
                 &mut self.stroke
             } else {
                 &mut self.fill
             };
-            // `paints` stays FALSE. It gates the SOLID-colour paint, and a
-            // pattern has no solid colour to paint — letting it stay true
-            // would fill the path with whatever RGB happened to be current,
-            // which is the one outcome worse than painting nothing.
-            //
-            // The `patterns_unpainted` counter used to be incremented right
-            // here, which meant it counted patterns SELECTED rather than
-            // patterns that failed to paint. Now that a shading pattern can
-            // actually be drawn, those are different numbers and only the
-            // second one is a shortfall, so the count moved to the paint
-            // site (`Interpreter::fill_with_pattern`).
+            // `paints` stays FALSE: it gates the SOLID-colour paint, and a
+            // pattern is painted by the pattern route instead.
             half.paints = false;
             half.pattern = Some(std::sync::Arc::from(name));
-            return None;
+            return underlying.and_then(|u| u.to_rgb(comps, intent, diag));
         }
 
         let half = if stroking { &self.stroke } else { &self.fill };

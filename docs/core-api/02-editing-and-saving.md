@@ -4086,15 +4086,11 @@ drawn WITHOUT the filter, not omitted.
 
 **Traps.**
 
-1. **pdfcer-render paints no tiling patterns** (`PatternType 1`). An SVG
-   `<pattern>` fill is written correctly (pdfium renders it like resvg) but
-   pdfcer's own canvas shows it blank until the renderer gains tiling
-   patterns.
-2. Errors are those of `add_image` (`ImageRectDegenerate` for a zero, negative
+1. Errors are those of `add_image` (`ImageRectDegenerate` for a zero, negative
    or NaN rectangle; `DocumentEncrypted`; certification;
    `ObjectCreationWouldExposeHiddenObjects`; `PageOutOfRange`;
    `ObjectNumbersExhausted`).
-3. Without the `svg-import` feature neither `svg_import` nor these verbs
+2. Without the `svg-import` feature neither `svg_import` nor these verbs
    exist; the CLI's `add-svg` then refuses by name (exit 9).
 
 ### 1.25 Outcome structs — field reference

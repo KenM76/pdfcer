@@ -189,9 +189,8 @@ fn the_pattern_matrix_is_applied() {
     );
 }
 
-/// A tiling pattern is not painted this build. The requirement is that it
-/// is COUNTED rather than silently skipped — a page that renders blank
-/// where a hatch belongs must say why.
+/// A tiling pattern takes the tiling route (`tests/tiling_pattern.rs`),
+/// not the shading painter, and is counted as painted there.
 ///
 /// The pattern is an INDIRECT object here, and that is forced rather than
 /// stylistic: a tiling pattern is a stream (Table 75), and §7.3.8.1 says
@@ -200,7 +199,7 @@ fn the_pattern_matrix_is_applied() {
 /// pdfcer correctly refuses to parse, and the test then measures the
 /// refusal instead of the pattern.
 #[test]
-fn a_tiling_pattern_is_counted_not_silently_skipped() {
+fn a_tiling_pattern_takes_the_tiling_route() {
     let tile_content = "1 0 0 rg 0 0 5 5 re f";
     let bytes = build(&[
         (1, "<< /Type /Catalog /Pages 2 0 R >>"),
@@ -234,10 +233,8 @@ fn a_tiling_pattern_is_counted_not_silently_skipped() {
         ),
     ]);
     let r = render(bytes);
-    assert_eq!(
-        r.diagnostics.color.patterns_unpainted, 1,
-        "an unpainted tiling pattern must be counted"
-    );
+    assert_eq!(r.diagnostics.color.tiling_patterns_painted, 1);
+    assert_eq!(r.diagnostics.color.patterns_unpainted, 0);
     assert_eq!(r.diagnostics.shading.painted, 0);
 }
 
