@@ -86,6 +86,7 @@ mod form_xobject_text_edit;
 mod forms_richtext;
 mod free_text_note_rebake;
 mod freetext_newline;
+mod hand_signature;
 mod image_placement;
 mod image_tiff;
 mod indirect_acroform_entries;

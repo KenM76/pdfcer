@@ -70,6 +70,7 @@ pub mod formclip;
 pub mod formcsv;
 pub mod forms;
 pub mod forms_author;
+pub mod hand_sig;
 pub mod image_import;
 pub mod layers;
 /// OCR text layers — turning recognised words into an invisible, selectable

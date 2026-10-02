@@ -564,6 +564,7 @@ mod navigation;
 use navigation::*;
 mod listing;
 use listing::*;
+mod hand_sig_cmd;
 mod print;
 use print::*;
 mod fields;

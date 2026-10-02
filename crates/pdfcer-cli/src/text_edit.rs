@@ -260,6 +260,9 @@ pub(crate) struct AddTextArgs<'a> {
     /// `--layer` / `--layer-id` (`Pass 358.5`): the layer what is added
     /// goes on, or `None` for none.
     pub(crate) layer: Option<LayerPick>,
+    /// `--hand-signature`: the signature field what is added is the hand
+    /// signature for, or `None`.
+    pub(crate) hand_signature: Option<&'a str>,
     pub(crate) output: &'a Path,
     /// 1-based page number.
     pub(crate) page: usize,
@@ -517,35 +520,12 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
     }
 
     req = req.with_render_mode(args.render_mode);
-    // `--layer` needs the session route: the section around the new stream
-    // and the page's `/Properties` binding are undoable session writes, which
-    // the one-shot `add_text` does not have.
-    let (owned_report, layer_outcome) = if let Some(pick) = &args.layer {
-        let (source, mut session) = match open_for_edit(args.input) {
-            Ok(pair) => pair,
-            Err(code) => return code,
-        };
-        let layer = match resolve_add_layer(args.input, &session, Some(pick)) {
-            Ok(Some(layer)) => layer,
-            Ok(None) => return exit::EDIT_REFUSED,
-            Err(code) => return code,
-        };
-        let report = match session.add_text(&req.on_layer(layer)) {
-            Ok(report) => report,
-            Err(err) => {
-                eprintln!("pdfcer: add-text refused: {err}");
-                return add_text_exit(&err);
-            }
-        };
-        match save_edited(
-            &mut session,
-            &source,
-            args.output,
-            SaveMode::Incremental,
-            ProducerArg::Preserve,
-            false,
-        ) {
-            Ok(outcome) => (report, Some(outcome)),
+    // A layer or hand signature needs the session route: the marking writes
+    // are undoable session writes, which the one-shot `add_text` does not
+    // have.
+    let (owned_report, layer_outcome) = if args.layer.is_some() || args.hand_signature.is_some() {
+        match add_text_in_session(args, req) {
+            Ok((report, outcome)) => (report, Some(outcome)),
             Err(code) => return code,
         }
     } else {
@@ -615,6 +595,9 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
             (None, None) => {}
         }
     }
+    if let Some(field) = args.hand_signature {
+        println!("  hand_signature={field:?}");
+    }
     println!("  disclosures:");
     for d in &report.disclosures {
         println!("    - {d}");
@@ -623,6 +606,34 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
         Some(outcome) => finish_edit(args.input, outcome),
         None => exit::SUCCESS,
     }
+}
+
+/// `add-text` through an edit session, for the marks only a session can
+/// write (`--layer`, `--hand-signature`); saved incrementally.
+fn add_text_in_session(
+    args: &AddTextArgs<'_>,
+    mut req: pdfcer_core::text_edit::AddTextRequest,
+) -> Result<(pdfcer_core::text_edit::AddTextReport, EditOutcome), u8> {
+    let (source, mut session) = open_for_edit(args.input)?;
+    if let Some(layer) = resolve_add_layer(args.input, &session, args.layer.as_ref())? {
+        req = req.on_layer(layer);
+    }
+    if let Some(field) = args.hand_signature {
+        req = req.with_hand_signature(field);
+    }
+    let report = session.add_text(&req).map_err(|err| {
+        eprintln!("pdfcer: add-text refused: {err}");
+        add_text_exit(&err)
+    })?;
+    let outcome = save_edited(
+        &mut session,
+        &source,
+        args.output,
+        SaveMode::Incremental,
+        ProducerArg::Preserve,
+        false,
+    )?;
+    Ok((report, outcome))
 }
 
 /// The exit code for an `add-text` refusal.
@@ -647,7 +658,9 @@ fn add_text_exit(err: &pdfcer_core::text_edit::AddTextError) -> u8 {
         | AddTextError::EmbeddedPlanIncomplete { .. }
         | AddTextError::Embed(_)
         | AddTextError::LayerNeedsSession
+        | AddTextError::HandSignatureNeedsSession
         | AddTextError::Layer(_)
+        | AddTextError::HandSignature(_)
         | AddTextError::Unsupported(_) => exit::EDIT_REFUSED,
         AddTextError::Write(_) => exit::SAVE_REFUSED,
         _ => exit::RUNTIME_ERROR,

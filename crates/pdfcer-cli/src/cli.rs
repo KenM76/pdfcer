@@ -1062,6 +1062,13 @@ pub(crate) enum Command {
         /// `id=` `list-layers` prints.
         #[arg(long)]
         layer_id: Option<u32>,
+        /// Mark what is added as the hand signature for this signature
+        /// field (its fully qualified name). The mark is ordinary page
+        /// content, findable again with `list-hand-signatures`; no signature
+        /// field or certificate signature is touched. Needs `--as-content`:
+        /// a comment cannot carry the mark.
+        #[arg(long, value_name = "FIELD", requires = "as_content")]
+        hand_signature: Option<String>,
         /// The markup subtype to author.
         #[arg(long = "type", value_enum)]
         kind: AnnotKindArg,
@@ -2519,6 +2526,25 @@ pub(crate) enum Command {
         /// authority that returns a long certificate chain.
         #[arg(long, default_value_t = 12288)]
         reserve: usize,
+    },
+
+    /// **List the hand signatures on a document's pages** — content marked
+    /// for a signature field with `--hand-signature`.
+    ///
+    /// One line per mark still painting on the page: `page=` (1-based),
+    /// `field=` (the signature field's name, quoted) and `bounds=` (the
+    /// page-space extent, `llx,lly,urx,ury`). A mark whose content was
+    /// deleted is not listed. A field marked more than once is listed once
+    /// per mark. Ends with a `total=` line.
+    ///
+    /// Read-only. Signature fields and certificate signatures are not read:
+    /// a hand signature is page content, not a signature.
+    ListHandSignatures {
+        /// Input PDF.
+        input: PathBuf,
+        /// List only this 1-based page.
+        #[arg(long)]
+        page: Option<usize>,
     },
 
     /// **List a document's optional-content groups** — layers (§8.11).
@@ -8294,6 +8320,12 @@ pub(crate) enum Command {
         /// `id=` `list-layers` prints.
         #[arg(long)]
         layer_id: Option<u32>,
+        /// Mark what is added as the hand signature for this signature
+        /// field (its fully qualified name). The mark is ordinary page
+        /// content, findable again with `list-hand-signatures`; no signature
+        /// field or certificate signature is touched.
+        #[arg(long, value_name = "FIELD")]
+        hand_signature: Option<String>,
         /// 1-based page number to add text to.
         #[arg(long, default_value_t = 1)]
         page: usize,
@@ -11048,6 +11080,12 @@ pub(crate) enum Command {
         /// `id=` `list-layers` prints.
         #[arg(long)]
         layer_id: Option<u32>,
+        /// Mark what is added as the hand signature for this signature
+        /// field (its fully qualified name). The mark is ordinary page
+        /// content, findable again with `list-hand-signatures`; no signature
+        /// field or certificate signature is touched.
+        #[arg(long, value_name = "FIELD")]
+        hand_signature: Option<String>,
         /// The image file to place: PNG, JPEG or BMP.
         #[arg(long, value_name = "FILE")]
         image: PathBuf,

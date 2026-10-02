@@ -40,6 +40,7 @@ mod flatten_annotations;
 mod font_licence_notice;
 mod font_preflight;
 mod format_text;
+mod hand_signature;
 mod import_structure_certified;
 mod in_place;
 mod ink_edit;

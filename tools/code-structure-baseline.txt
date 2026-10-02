@@ -394,7 +394,6 @@ fn pdfcer-core/src/edit.rs::unembed_fonts
 fn pdfcer-core/src/edit.rs::unshare_form
 fn pdfcer-core/src/edit.rs::vector_surgery_inner
 fn pdfcer-core/src/edit.rs::vertex_edited_kind
-fn pdfcer-core/src/edit.rs::wrap_added_content
 fn pdfcer-core/src/edit.rs::write_markup_note
 fn pdfcer-core/src/editable.rs::export
 fn pdfcer-core/src/editable.rs::import

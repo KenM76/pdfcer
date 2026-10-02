@@ -135,6 +135,8 @@ impl RefusalClass for AddTextError {
             // save failures.
             AddTextError::EmbeddedBoxedUnsupported
             | AddTextError::LayerNeedsSession
+            | AddTextError::HandSignatureNeedsSession
+            | AddTextError::HandSignature(_)
             | AddTextError::EmptyText
             | AddTextError::InvalidSize(_)
             | AddTextError::InvalidRenderMode { .. }

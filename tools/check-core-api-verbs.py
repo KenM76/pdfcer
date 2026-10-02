@@ -145,6 +145,9 @@ if hasattr(sys.stdout, "reconfigure"):
 
 ROOT = Path(__file__).resolve().parent.parent
 EDIT_RS = ROOT / "crates" / "pdfcer-core" / "src" / "edit.rs"
+# `edit.rs`'s child modules (`mod x;` inside it resolves to `edit/x.rs`), where
+# verbs go once edit.rs is over the structure gate's file limit.
+EDIT_DIR = EDIT_RS.parent / "edit"
 DOC_DIR = ROOT / "docs" / "core-api"
 # The verb index lives here; the other files may still state a COUNT, and a
 # stale count in the directory's front door is what this gate missed first
@@ -289,30 +292,35 @@ def main() -> int:
     lines = EDIT_RS.read_text(encoding="utf-8").split("\n")
     names, blocks = derive_methods(lines)
     error_variants = derive_error_variants(lines)
+    edit_files = [EDIT_RS, *sorted(EDIT_DIR.rglob("*.rs"))] if EDIT_DIR.is_dir() else [EDIT_RS]
+    for child in edit_files[1:]:
+        child_names, child_blocks = derive_methods(child.read_text(encoding="utf-8").split(chr(10)))
+        names += child_names
+        blocks += [(f"{child.relative_to(EDIT_RS.parent)}:{a}", b, n) for a, b, n in child_blocks]
     doc = VERB_INDEX.read_text(encoding="utf-8")
     others = sorted(f for f in DOC_DIR.glob("*.md") if f != VERB_INDEX)
 
-    print(f"check-core-api-verbs: {len(names)} public EditSession method(s) in edit.rs")
+    print(f"check-core-api-verbs: {len(names)} public EditSession method(s) in edit.rs and edit/")
     for start, end, n in blocks:
-        print(f"    impl {start:>6}..{end:<6} {n:>3} method(s)")
+        print(f"    impl {start!s:>6}..{end:<6} {n:>3} method(s)")
 
     failed = False
 
-    # The derivation reads edit.rs only. An `impl EditSession` anywhere else
-    # would add verbs this gate never sees, so its existence is itself a
-    # failure: move the block into edit.rs or teach this gate the new file.
+    # The derivation reads edit.rs and edit/ only. An `impl EditSession`
+    # anywhere else would add verbs this gate never sees, so its existence is
+    # itself a failure: move the block there or teach this gate the new file.
     impl_re = re.compile(r"^\s*impl(<[^>]*>)?\s+(\w+::)*EditSession\b", re.M)
     stray = [
         f"{f.relative_to(ROOT)}:{s.count(chr(10), 0, m.start()) + 1}"
         for f in sorted((ROOT / "crates").rglob("*.rs"))
-        if f != EDIT_RS and "target" not in f.relative_to(ROOT).parts
+        if f not in edit_files and "target" not in f.relative_to(ROOT).parts
         for s in [f.read_text(encoding="utf-8", errors="replace")]
         for m in impl_re.finditer(s)
     ]
     if stray:
         failed = True
         print()
-        print(f"  {len(stray)} `impl EditSession` block(s) outside edit.rs, whose")
+        print(f"  {len(stray)} `impl EditSession` block(s) outside edit.rs and edit/, whose")
         print("  verbs this gate cannot count:")
         for loc in stray:
             print(f"      {loc}")
@@ -324,7 +332,7 @@ def main() -> int:
     if missing:
         failed = True
         print()
-        print(f"  {len(missing)} verb(s) exist in edit.rs and are absent from")
+        print(f"  {len(missing)} verb(s) exist in edit.rs or edit/ and are absent from")
         print(f"  {VERB_INDEX.relative_to(ROOT)}:")
         for n in missing:
             print(f"      {n}")

@@ -692,6 +692,9 @@ pub(crate) struct AnnotateArgs<'a> {
     /// `--layer` / `--layer-id` (`Pass 358.5`): the layer what is added
     /// goes on, or `None` for none.
     pub(crate) layer: Option<LayerPick>,
+    /// `--hand-signature`: the signature field what is added is the hand
+    /// signature for, or `None`.
+    pub(crate) hand_signature: Option<&'a str>,
     /// `--note` / `--note-author` / `--note-date` (`Pass 150.0`). Owned
     /// rather than borrowed because they are assembled into a `MarkupNote`
     /// the session keeps.
@@ -826,6 +829,7 @@ pub(crate) fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
         note,
         dash,
         layer,
+        hand_signature: args.hand_signature.map(str::to_owned),
     };
     // `Pass 291.0`: the reporting route, because the CLI's whole disclosure
     // mechanism is PRINTING (rule 11 -- the invocation is the commit, there is

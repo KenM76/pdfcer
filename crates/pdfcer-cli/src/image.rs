@@ -8,6 +8,9 @@ pub(crate) struct AddImageArgs<'a> {
     /// `--layer` / `--layer-id` (`Pass 358.5`): the layer what is added
     /// goes on, or `None` for none.
     pub(crate) layer: Option<LayerPick>,
+    /// `--hand-signature`: the signature field what is added is the hand
+    /// signature for, or `None`.
+    pub(crate) hand_signature: Option<&'a str>,
     pub(crate) image: &'a Path,
     pub(crate) page: usize,
     pub(crate) rect: &'a str,
@@ -107,6 +110,9 @@ pub(crate) fn cmd_add_image(args: &AddImageArgs<'_>) -> u8 {
     let mut spec = NewImage::new(page_index, rect, &img);
     if let Some(layer) = layer {
         spec = spec.on_layer(layer);
+    }
+    if let Some(field) = args.hand_signature {
+        spec = spec.as_hand_signature(field);
     }
     if args.stretch || args.natural {
         // `--natural` implies an exact fit: the rectangle WAS computed from

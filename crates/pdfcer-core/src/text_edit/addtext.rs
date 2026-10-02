@@ -338,6 +338,12 @@ pub struct AddTextRequest {
     /// the free [`add_text`] refuses it with
     /// [`AddTextError::LayerNeedsSession`].
     pub layer: Option<ObjId>,
+    /// The signature field the new text is the hand signature for, or `None`
+    /// (`Pass 435.0`, [`crate::hand_sig`]). Honoured by
+    /// [`EditSession::add_text`](crate::edit::EditSession::add_text) only;
+    /// the free [`add_text`] refuses it with
+    /// [`AddTextError::HandSignatureNeedsSession`].
+    pub hand_signature: Option<String>,
 }
 
 impl AddTextRequest {
@@ -358,7 +364,17 @@ impl AddTextRequest {
             leading: None,
             render_mode: 0,
             layer: None,
+            hand_signature: None,
         }
+    }
+
+    /// Mark the new text as the hand signature for the signature field
+    /// `field` (fully qualified name), findable again with
+    /// [`EditSession::hand_signatures`](crate::edit::EditSession::hand_signatures).
+    #[must_use]
+    pub fn with_hand_signature(mut self, field: impl Into<String>) -> Self {
+        self.hand_signature = Some(field.into());
+        self
     }
 
     /// Place the new text on `layer`, an optional-content group registered
@@ -542,6 +558,18 @@ pub enum AddTextError {
     /// or the added stream could not be wrapped. Nothing was added.
     #[error("the new text could not be placed on the layer: {0}")]
     Layer(#[source] Box<crate::edit::EditError>),
+    /// [`AddTextRequest::hand_signature`] was set on the free [`add_text`],
+    /// which writes no undoable session state; use
+    /// [`EditSession::add_text`](crate::edit::EditSession::add_text).
+    #[error(
+        "marking new text as a hand signature needs an edit session; the one-shot add-text route has none"
+    )]
+    HandSignatureNeedsSession,
+    /// [`AddTextRequest::hand_signature`] could not be honoured
+    /// ([`EditError::HandSignature`](crate::edit::EditError::HandSignature)).
+    /// Nothing was added.
+    #[error("the new text could not be marked as a hand signature: {0}")]
+    HandSignature(#[source] Box<crate::edit::EditError>),
     /// A text rendering mode outside `0..=7` (§9.3.6 Table 106).
     #[error(
         "text rendering mode {mode} does not exist: §9.3.6 Table 106 defines modes 0 to 7 \
@@ -653,6 +681,19 @@ pub enum AddTextError {
     Write(#[from] WriteError),
 }
 
+impl AddTextError {
+    /// The add-text error for a failure to mark the new text: a
+    /// hand-signature refusal as [`Self::HandSignature`], anything else as
+    /// [`Self::Layer`].
+    pub(crate) fn from_marking(e: crate::edit::EditError) -> Self {
+        if matches!(e, crate::edit::EditError::HandSignature(_)) {
+            Self::HandSignature(Box::new(e))
+        } else {
+            Self::Layer(Box::new(e))
+        }
+    }
+}
+
 /// Add a new single-line text run to `doc` and return the incrementally-saved
 /// bytes plus the disclosure report — the free-function engine used by the CLI
 /// and the round-trip tests.
@@ -690,6 +731,9 @@ pub enum AddTextError {
 pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, AddTextError> {
     if req.layer.is_some() {
         return Err(AddTextError::LayerNeedsSession);
+    }
+    if req.hand_signature.is_some() {
+        return Err(AddTextError::HandSignatureNeedsSession);
     }
     // Guards mirror `EditSession::add_markup`, in the SAME order (encryption →
     // certification → suppressed-objects): each is a named refusal made BEFORE

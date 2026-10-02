@@ -105,6 +105,7 @@ fn clip_of_squares(n: usize, rich: bool) -> ObjectClip {
         opacity: Some(0.5),
         note: Some(MarkupNote::new("a note").by("Ken")),
         layer: None,
+        hand_signature: None,
     };
     let mut ids = Vec::new();
     for i in 0..n {

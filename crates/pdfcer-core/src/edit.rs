@@ -122,6 +122,8 @@
 //!   bytes is §7.9.2, which is a **recorded gap** in the spec RAG; see
 //!   [`encode_text_string`])
 
+mod content_mark;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::annot::AnnotFlags;
@@ -5938,6 +5940,12 @@ pub struct MarkupOptions {
     /// spec's variants, and see [`EditError::StylePropertyNotApplicable`]
     /// for what a *restyle* does with the same mistake.
     pub dash: Option<annot_author::BorderDash>,
+    /// The signature field the drawn content is the hand signature for
+    /// (`Pass 435.0`, [`crate::hand_sig`]). Honoured by
+    /// [`EditSession::add_markup_as_content`] only: a hand signature is page
+    /// content, so the annotation routes refuse it with
+    /// [`crate::hand_sig::HandSignatureError::NotPageContent`].
+    pub hand_signature: Option<String>,
 }
 
 impl MarkupOptions {
@@ -5963,8 +5971,20 @@ impl MarkupOptions {
     /// # Errors
     ///
     /// [`EditError::MarkupOpacityOutOfRange`] when [`Self::opacity`] is
-    /// outside `0.0..=1.0`, `NaN`, or infinite.
+    /// outside `0.0..=1.0`, `NaN`, or infinite;
+    /// [`EditError::HandSignature`] when [`Self::hand_signature`] is set,
+    /// since these are the annotation routes' options.
     pub fn validate(&self) -> Result<(), EditError> {
+        if self.hand_signature.is_some() {
+            return Err(crate::hand_sig::HandSignatureError::NotPageContent.into());
+        }
+        self.validate_values()
+    }
+
+    /// [`Self::validate`] less the hand-signature refusal, for
+    /// [`EditSession::add_markup_as_content`], whose marking step checks the
+    /// field name.
+    fn validate_values(&self) -> Result<(), EditError> {
         if let Some(alpha) = self.opacity
             && (!alpha.is_finite() || !(0.0..=1.0).contains(&alpha))
         {
@@ -7982,6 +8002,10 @@ pub enum EditError {
         /// The key, lossily decoded for display; the real key is bytes.
         name: String,
     },
+    /// A hand-signature mark ([`crate::hand_sig`]) could not be written.
+    /// Nothing was added.
+    #[error(transparent)]
+    HandSignature(#[from] crate::hand_sig::HandSignatureError),
     /// A layer verb named an object that is not an optional content group
     /// listed in the catalog's `/OCProperties /OCGs` (§8.11.4.2 Table 100).
     #[error("object {id} is not a layer listed in /OCProperties /OCGs")]
@@ -14230,7 +14254,11 @@ impl EditSession {
     /// The same [`AddTextError`](crate::text_edit::AddTextError) the free
     /// function raises — a named font refusal (R71), an out-of-range page,
     /// empty text, an invalid size, encryption, or an object-creation/`/Size`
-    /// conflict. A refusal happens BEFORE any mutation (rule 4): the session is
+    /// conflict; [`AddTextError::Layer`](crate::text_edit::AddTextError::Layer)
+    /// or [`AddTextError::HandSignature`](crate::text_edit::AddTextError::HandSignature)
+    /// when [`AddTextRequest::layer`](crate::text_edit::AddTextRequest::layer)
+    /// or [`AddTextRequest::hand_signature`](crate::text_edit::AddTextRequest::hand_signature)
+    /// cannot be honoured. A refusal happens BEFORE any mutation (rule 4): the session is
     /// left untouched, because [`plan_add_text`](crate::text_edit::addtext::plan_add_text)
     /// returns `Err` before any `commit`.
     pub fn add_text(
@@ -14274,14 +14302,18 @@ impl EditSession {
             plan_add_text(req, page, &self.view())?
         };
 
-        let layered = req
-            .layer
-            .map(|layer| {
-                self.layer_add_snapshot(req.page_index, layer)
-                    .map(|snapshot| (layer, snapshot))
-            })
-            .transpose()
-            .map_err(|e| AtError::Layer(Box::new(e)))?;
+        let marks = content_mark::ContentMarks {
+            layer: req.layer,
+            hand_signature: req.hand_signature.as_deref(),
+        };
+        let marked = if marks.is_empty() {
+            None
+        } else {
+            Some(
+                self.added_content_snapshot(req.page_index, marks)
+                    .map_err(AtError::from_marking)?,
+            )
+        };
         let content_num = self
             .alloc_number()
             .map_err(|_| AtError::ObjectNumbersExhausted)?;
@@ -14336,9 +14368,9 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
-        if let Some((layer, snapshot)) = &layered {
-            self.place_added_content_on_layer(req.page_index, snapshot, *layer)
-                .map_err(|e| AtError::Layer(Box::new(e)))?;
+        if let Some(snapshot) = &marked {
+            self.mark_added_content(req.page_index, snapshot, marks)
+                .map_err(AtError::from_marking)?;
         }
 
         let mut report = prep.report;
@@ -15874,6 +15906,7 @@ impl EditSession {
                         opacity: carry.opacity,
                         note,
                         layer: None,
+                        hand_signature: None,
                     };
                     let id = self.add_markup_with(page_index, &moved.0, &opts)?;
                     if let Some(bm) = &carry.blend_mode {
@@ -31842,6 +31875,9 @@ impl EditSession {
     /// has no annotation to carry `/CA`. [`MarkupOptions::dash`] draws as it
     /// does on the annotation. [`MarkupOptions::note`] has nowhere to go in
     /// page content; it is not written, and the outcome discloses that.
+    /// [`MarkupOptions::hand_signature`] wraps the drawn content in a
+    /// hand-signature sequence ([`crate::hand_sig`]), inside the layer's
+    /// section when both are set.
     ///
     /// ```
     /// use pdfcer_core::annot_author::{Color, MarkupSpec};
@@ -31868,7 +31904,8 @@ impl EditSession {
     ///
     /// # Errors
     ///
-    /// [`EditError::MarkupOpacityOutOfRange`] and the geometry refusals of
+    /// [`EditError::MarkupOpacityOutOfRange`], [`EditError::HandSignature`]
+    /// for an empty field name, and the geometry refusals of
     /// [`Self::add_markup_with`], before anything is written; then
     /// [`Self::paste_objects`]'s: encryption, certification (this modifies
     /// page content, so the strict gate applies, not the annotation one),
@@ -31879,7 +31916,7 @@ impl EditSession {
         spec: &MarkupSpec,
         options: &MarkupOptions,
     ) -> Result<MarkupContentOutcome, EditError> {
-        options.validate()?;
+        options.validate_values()?;
         validate_geometry(spec)?;
         let authored = annot_author::build_appearance_opts(
             spec,
@@ -31894,12 +31931,13 @@ impl EditSession {
             Err(EditError::VectorEditNoContents { .. }) => 0,
             Err(e) => return Err(e),
         };
-        let mut paste = self.paste_objects_on_layer(
-            page_index,
-            &clip,
-            crate::vector::Matrix::IDENTITY,
-            options.layer,
-        )?;
+        let marks = content_mark::ContentMarks {
+            layer: options.layer,
+            hand_signature: options.hand_signature.as_deref(),
+        };
+        let mut paste = self.marked_if(page_index, marks, |s| {
+            s.paste_objects_unlayered(page_index, &clip, crate::vector::Matrix::IDENTITY)
+        })?;
         if options.note.is_some() {
             paste
                 .disclosures
@@ -54871,183 +54909,6 @@ impl EditSession {
             .collect()
     }
 
-    /// Run the add verb `add`, then put what it added to page `page_index`
-    /// on `layer` when there is one (`Pass 358.5`).
-    fn on_layer_if<T>(
-        &mut self,
-        page_index: usize,
-        layer: Option<ObjId>,
-        add: impl FnOnce(&mut Self) -> Result<T, EditError>,
-    ) -> Result<T, EditError> {
-        let Some(layer) = layer else {
-            return add(self);
-        };
-        let snapshot = self.layer_add_snapshot(page_index, layer)?;
-        let out = add(self)?;
-        self.place_added_content_on_layer(page_index, &snapshot, layer)?;
-        Ok(out)
-    }
-
-    /// Refuse an unregistered `layer`, then record what page `page_index`
-    /// holds before an add verb runs (`Pass 358.5`).
-    fn layer_add_snapshot(
-        &mut self,
-        page_index: usize,
-        layer: ObjId,
-    ) -> Result<LayerAddSnapshot, EditError> {
-        if !self.is_registered_layer(layer) {
-            return Err(EditError::LayerNotFound { id: layer });
-        }
-        let pages = self.pages()?;
-        let (contents, annots) = pages.get(page_index).map_or_else(Default::default, |page| {
-            (page.contents.clone(), self.page_annot_refs(page.id))
-        });
-        Ok(LayerAddSnapshot {
-            contents,
-            annots,
-            depth: self.undo.len(),
-        })
-    }
-
-    /// The indirect annotations in page `page_id`'s `/Annots`.
-    fn page_annot_refs(&self, page_id: ObjId) -> Vec<ObjId> {
-        let annots = self
-            .value(page_id)
-            .and_then(Object::as_dict)
-            .and_then(|d| self.deref_value(d.get(b"Annots")));
-        match annots {
-            Some(Object::Array(items)) => items.iter().filter_map(Object::as_reference).collect(),
-            _ => Vec::new(),
-        }
-    }
-
-    /// Put what an add verb just added to page `page_index` on `layer`
-    /// (`Pass 358.5`), relative to `before`.
-    ///
-    /// Every content stream in the page's `/Contents` that is not in
-    /// `before` is new, unfiltered and self-contained (the add verbs write it
-    /// that way), so it is wrapped whole in `/OC /name BDC … EMC` (§8.11.3.2)
-    /// and no pre-existing byte is touched. Every new `/Annots` entry gets
-    /// `/OC` (§12.5.2 Table 164). All of it, with any new `/Properties`
-    /// binding, is folded with the add's own undo entries into one, labelled
-    /// as the add. On a failure the add is undone, so the verb either lands
-    /// on the layer or not at all.
-    fn place_added_content_on_layer(
-        &mut self,
-        page_index: usize,
-        before: &LayerAddSnapshot,
-        layer: ObjId,
-    ) -> Result<(), EditError> {
-        let result = self.wrap_added_content(page_index, before, layer);
-        if result.is_err() {
-            while self.undo.len() > before.depth && self.undo().is_some() {
-                self.redo.pop();
-            }
-        }
-        result
-    }
-
-    fn wrap_added_content(
-        &mut self,
-        page_index: usize,
-        before: &LayerAddSnapshot,
-        layer: ObjId,
-    ) -> Result<(), EditError> {
-        let added = self.undo.len().saturating_sub(before.depth);
-        // The gesture is labelled by its first command: a paste's own entry,
-        // not the last annotation it placed.
-        let Some(kind) = self.undo.get(before.depth).map(|c| c.kind) else {
-            return Ok(());
-        };
-        let pages = self.pages()?;
-        let count = pages.len();
-        let page = pages
-            .get(page_index)
-            .ok_or(EditError::PageOutOfRange {
-                index: page_index,
-                count,
-            })?
-            .clone();
-        let (name, bind) = self.layer_property_binding(&page, layer);
-        let mut open = b"/OC ".to_vec();
-        crate::writer::serialize::write_object(
-            &mut open,
-            &Object::Name(name.clone()),
-            ObjId::new(0, 0),
-            &[],
-            &crate::writer::IdentityEncoder,
-        );
-        open.extend_from_slice(b" BDC\n");
-
-        let mut objects = Vec::new();
-        let mut wrapped_any = false;
-        for &id in page
-            .contents
-            .iter()
-            .filter(|id| !before.contents.contains(id))
-        {
-            let Some(Object::Stream(stream)) = self.value(id).cloned() else {
-                continue;
-            };
-            let data = StreamSource::Split {
-                base: self.base.bytes(),
-                staged: &self.staging,
-            }
-            .slice(stream.data_span)
-            .map(<[u8]>::to_vec);
-            let (None, Some(data)) = (stream.dict.get(b"Filter"), data) else {
-                return Err(EditError::LayerContentNotRewritable {
-                    stream: id,
-                    reason: "the added content stream is filtered or unreadable",
-                });
-            };
-            let mut wrapped = open.clone();
-            wrapped.extend_from_slice(&data);
-            wrapped.extend_from_slice(b"\nEMC\n");
-            let mut dict = stream.dict.clone();
-            dict.insert(
-                Name::from(b"Length"),
-                Object::Integer(i64::try_from(wrapped.len()).unwrap_or(i64::MAX)),
-            );
-            let data_span = self.stage_bytes(&wrapped);
-            objects.push(ObjectWrite {
-                id,
-                before: Some(Object::Stream(stream)),
-                after: Some(Object::Stream(Stream { dict, data_span })),
-            });
-            wrapped_any = true;
-        }
-        for id in self.page_annot_refs(page.id) {
-            if before.annots.contains(&id) {
-                continue;
-            }
-            let Some(Object::Dict(annot)) = self.value(id).cloned() else {
-                continue;
-            };
-            let mut updated = annot.clone();
-            updated.insert(Name::from(b"OC"), Object::Reference(layer));
-            objects.push(ObjectWrite {
-                id,
-                before: Some(Object::Dict(annot)),
-                after: Some(Object::Dict(updated)),
-            });
-        }
-        if objects.is_empty() {
-            return Ok(());
-        }
-        if bind && wrapped_any {
-            objects.extend(self.layer_binding_writes(page.id, &name, layer));
-        }
-        self.commit(Command {
-            kind,
-            objects,
-            removals: Vec::new(),
-            trailer: None,
-        });
-        self.coalesce_last(added + 1, kind);
-        Ok(())
-    }
-
     /// Whether `layer` is a dictionary listed in `/OCProperties /OCGs`.
     fn is_registered_layer(&self, layer: ObjId) -> bool {
         let ocp = self
@@ -57965,15 +57826,6 @@ pub struct ObjectsLayerChange {
     pub disclosures: Vec<String>,
 }
 
-/// What a page held before an add verb ran, so the additions can be put on a
-/// layer (`Pass 358.5`).
-#[derive(Debug, Clone, Default)]
-struct LayerAddSnapshot {
-    contents: Vec<ObjId>,
-    annots: Vec<ObjId>,
-    depth: usize,
-}
-
 /// A layer-panel position as the CLI prints it: `1.0.2`, or `root`.
 fn dotted_path(path: &[usize]) -> String {
     if path.is_empty() {
@@ -58675,6 +58527,9 @@ pub struct NewImage<'a> {
     /// The optional-content group (layer) the image is placed on, or `None`
     /// for no layer (`Pass 358.5`).
     pub layer: Option<ObjId>,
+    /// The signature field this image is the hand signature for, or `None`
+    /// for an ordinary image. See [`crate::hand_sig`].
+    pub hand_signature: Option<String>,
 }
 
 impl<'a> NewImage<'a> {
@@ -58687,7 +58542,18 @@ impl<'a> NewImage<'a> {
             fit: ImageFit::Contain,
             image,
             layer: None,
+            hand_signature: None,
         }
+    }
+
+    /// Mark the image as the hand signature for signature field `field`
+    /// ([`crate::hand_sig`]): it is written inside a `/pdfc_HandSig`
+    /// marked-content sequence that [`EditSession::hand_signatures`] finds
+    /// again after save and reopen. The field itself is not touched.
+    #[must_use]
+    pub fn as_hand_signature(mut self, field: impl Into<String>) -> Self {
+        self.hand_signature = Some(field.into());
+        self
     }
 
     /// Place the image on `layer`, an optional-content group registered in
@@ -59093,6 +58959,9 @@ impl EditSession {
     /// - [`EditError::ObjectCreationWouldExposeHiddenObjects`],
     ///   [`EditError::ObjectNumbersExhausted`], [`EditError::PageTree`],
     ///   [`EditError::NotADictionary`].
+    /// - [`EditError::LayerNotFound`] — [`NewImage::layer`] is not registered.
+    /// - [`EditError::HandSignature`] — [`NewImage::hand_signature`] names no
+    ///   field.
     pub fn add_image(&mut self, spec: &NewImage<'_>) -> Result<ImageAuthorOutcome, EditError> {
         let img = spec.image;
         let (rw, rh) = (spec.rect.urx - spec.rect.llx, spec.rect.ury - spec.rect.lly);
@@ -59111,13 +58980,15 @@ impl EditSession {
         if suppressed > 0 {
             return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
         }
-        let layered = spec
-            .layer
-            .map(|layer| {
-                self.layer_add_snapshot(spec.page_index, layer)
-                    .map(|snapshot| (layer, snapshot))
-            })
-            .transpose()?;
+        let marks = content_mark::ContentMarks {
+            layer: spec.layer,
+            hand_signature: spec.hand_signature.as_deref(),
+        };
+        let marked = if marks.is_empty() {
+            None
+        } else {
+            Some(self.added_content_snapshot(spec.page_index, marks)?)
+        };
         let slots = self.page_slots()?;
         let page_id = slots
             .get(spec.page_index)
@@ -59190,8 +59061,8 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
-        if let Some((layer, snapshot)) = &layered {
-            self.place_added_content_on_layer(spec.page_index, snapshot, *layer)?;
+        if let Some(snapshot) = &marked {
+            self.mark_added_content(spec.page_index, snapshot, marks)?;
         }
 
         Ok(ImageAuthorOutcome {

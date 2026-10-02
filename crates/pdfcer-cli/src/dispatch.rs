@@ -624,6 +624,9 @@ pub(crate) fn run() -> ExitCode {
             mode,
         } => cmd_detach_file(&input, &name, apply, output.as_deref(), mode),
         Command::ListLayers { input, tree } => cmd_list_layers(&input, tree),
+        Command::ListHandSignatures { input, page } => {
+            hand_sig_cmd::cmd_list_hand_signatures(&input, page)
+        }
         Command::ListFonts {
             input,
             reasons,
@@ -1128,6 +1131,7 @@ pub(crate) fn run() -> ExitCode {
             input,
             layer,
             layer_id,
+            hand_signature,
             image,
             page,
             rect,
@@ -1141,6 +1145,7 @@ pub(crate) fn run() -> ExitCode {
         } => cmd_add_image(&AddImageArgs {
             input: &input,
             layer: layer_pick(layer, layer_id),
+            hand_signature: hand_signature.as_deref(),
             image: &image,
             page,
             rect: &rect,
@@ -2102,6 +2107,7 @@ pub(crate) fn run() -> ExitCode {
             input,
             layer,
             layer_id,
+            hand_signature,
             page,
             at,
             wrap_box,
@@ -2118,6 +2124,7 @@ pub(crate) fn run() -> ExitCode {
         } => cmd_add_text(&AddTextArgs {
             input: &input,
             layer: layer_pick(layer, layer_id),
+            hand_signature: hand_signature.as_deref(),
             output: &output,
             page,
             at: at.as_deref(),
@@ -3262,6 +3269,7 @@ pub(crate) fn run() -> ExitCode {
             input,
             layer,
             layer_id,
+            hand_signature,
             kind,
             page,
             rect,
@@ -3294,6 +3302,7 @@ pub(crate) fn run() -> ExitCode {
         } => cmd_annotate(&AnnotateArgs {
             input: &input,
             layer: layer_pick(layer, layer_id),
+            hand_signature: hand_signature.as_deref(),
             kind,
             page,
             rect: rect.as_deref(),
