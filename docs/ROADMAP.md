@@ -137,6 +137,8 @@ Answers `pdfcer-gui` request `G079`; same `G073`–`G081` family as the `427.0`�
 
 **Sourcing (hard rule 8).** No shell this filing. Hashes (`91e6b04a`/`87eb5bb5`/`223884c4`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
 
+**Follow-on, `426316a2`, 2026-10-02 (866th filing).** `docs(reflow): resolve the ReflowLine::justified_slack intra-doc link` — the module doc in `crates/pdfcer-core/src/text_edit/reflow_apply.rs` named the field without a path; `RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps` failed the `tools/run-gates.sh` sweep on `7206a9d0` (865th filing) — 1 of 44 commands failed, all else green (core lib 1362, core doc 179, core all 2493 (2 ignored), cli 448, render 671). Fixed with the explicit path `super::reflow::ReflowLine::justified_slack`; the line was introduced by `d8b3903a`. No behaviour change.
+
 ### `Pass 438.0` (`ff2ac527`), 2026-10-02 — abandon a failed multi-verb gesture: `EditSession` checkpoint/rollback (G083) — `Pass 438.0` SHIPPED
 
 Answers `pdfcer-gui` request `G083`.

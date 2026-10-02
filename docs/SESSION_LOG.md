@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (866th filing) — `Pass 432.0` doc-link follow-on (`426316a2`)
+
+**Shipped:**
+- `426316a2` — `docs(reflow): resolve the ReflowLine::justified_slack intra-doc
+  link`. The module doc in
+  `crates/pdfcer-core/src/text_edit/reflow_apply.rs` named the field without
+  a path; `RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc
+  --workspace --no-deps` failed the `tools/run-gates.sh` sweep on `7206a9d0`
+  (865th filing) — 1 of 44 commands failed, everything else green (core lib
+  1362, core doc 179, core all 2493 (2 ignored), cli 448, render 671). Fixed
+  with the explicit path `super::reflow::ReflowLine::justified_slack`; the
+  line was introduced by `d8b3903a`. Follow-on to `Pass 432.0`; recorded as
+  a dated footer on that Shipped entry.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:** none beyond the gate failure itself (a bare field
+name in an intra-doc link needs the full path when the field isn't in
+scope at the doc-comment's module).
+
+**Still in flight:** unchanged from the 865th filing — see that entry.
+
+**For next session:** none specific to this follow-on.
+
 ## 2026-10-02 (865th filing) — `Pass 432.0` SHIPPED (`91e6b04a`+`87eb5bb5`+`223884c4`) — reflow fidelity (G079); `Pass 438.0` doc-comment follow-on (`62d35104`) + `core.hooksPath` reset filed alongside
 
 **Shipped:**
