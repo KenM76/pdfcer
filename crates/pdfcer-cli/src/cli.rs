@@ -8272,6 +8272,22 @@ pub(crate) enum Command {
         /// while Italic is synthesised in the same operation.
         #[arg(long, conflicts_with_all = ["set_font", "italic_synthetic"])]
         italic: bool,
+        /// Take BOLD off the run. A face that is bold by name
+        /// (`Helvetica-Bold`) is swapped for the face of the SAME family
+        /// without bold: one already on the page, else the standard-14
+        /// sibling, else — with `--embed-styled-face` — one from
+        /// `--font-dir`. A bold pdfcer (or another producer) synthesised
+        /// with a `2 Tr` stroke is removed instead, back to `0 Tr`. Refused
+        /// when no plain face of the family can show the run. The step taken
+        /// is printed. Combines with `--italic` / `--no-italic`.
+        #[arg(long = "no-bold", conflicts_with_all = ["set_font", "bold_synthetic", "bold"])]
+        no_bold: bool,
+        /// Take ITALIC off the run, the same way as `--no-bold`; a synthetic
+        /// oblique shear is removed from the text matrix (refused, like
+        /// `--italic-synthetic`, when a Td/TD/T* follows in the same text
+        /// object, or with `--pin`).
+        #[arg(long = "no-italic", conflicts_with_all = ["set_font", "italic_synthetic", "italic"])]
+        no_italic: bool,
         /// Let `--bold`/`--italic` EMBED a matching face from `--font-dir`
         /// before falling back to the synthetic style.
         ///
@@ -8281,7 +8297,8 @@ pub(crate) enum Command {
         /// adds it to the document; the report names the face and its size.
         /// A face of another family is never taken. Embedding is never
         /// inferred from `--font-dir` alone, so this flag is the request.
-        /// Needs `--find`, `--font-dir`, and `--bold` or `--italic`.
+        /// Needs `--find`, `--font-dir`, and a `--bold`, `--italic`,
+        /// `--no-bold` or `--no-italic`.
         /// TrueType (`.ttf`) faces only.
         #[arg(long = "embed-styled-face", requires = "font_dirs")]
         embed_styled_face: bool,

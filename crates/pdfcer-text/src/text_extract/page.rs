@@ -287,6 +287,9 @@ struct TextState {
     /// Set only by the device operators `g`/`rg`/`k`; a colour set in a
     /// named space is recorded as [`TextColor::Other`] (see [`TextColor`]).
     fill_color: Option<TextColor>,
+    /// The line width `w` in user space (§8.4.3.2), from `w` or an
+    /// `/ExtGState` `/LW`; Table 52's initial value is 1.0.
+    line_width: f32,
 }
 
 impl TextState {
@@ -341,6 +344,7 @@ impl Default for TextState {
             size: 0.0,
             ambient: Arc::new(AmbientTextState::initial()),
             fill_color: None,
+            line_width: 1.0,
         }
     }
 }
@@ -633,6 +637,14 @@ impl Walk<'_> {
                 self.cur_op_span = op.operator.span;
                 self.show_array(op);
             }
+
+            // --- line width (§8.4.3.2), provenance only ---
+            b"w" => {
+                if let [lw] = nums(1)[..] {
+                    self.ts.line_width = lw;
+                }
+            }
+            b"gs" => self.ext_gstate_line_width(op, resources),
 
             // --- fill colour (§8.6.8), provenance only ---
             // Only the lowercase (fill) device operators are read; the
@@ -1095,6 +1107,7 @@ impl Walk<'_> {
                 font_resource: self.cur_font_resource.clone(),
                 tf_size: self.ts.size,
                 fill_color: self.ts.fill_color,
+                line_width: self.ts.line_width,
                 text_matrix: text_matrix_at_show.to_array(),
                 ctm: self.ctm.to_array(),
                 // Pass 19.0: the ambient §9.3 state used to be tracked
@@ -1391,6 +1404,24 @@ impl Walk<'_> {
     /// follows §8.10.1's five-step procedure in the parts that matter
     /// here: save state, concatenate `/Matrix`, execute with the form's
     /// resource dictionary, restore state.
+    /// `gs` (§8.4.5): only `/LW` is read, for [`GlyphProvenance::line_width`].
+    fn ext_gstate_line_width(&mut self, op: &Operation<'_>, resources: &Dict) {
+        let doc = self.doc;
+        let lw = operand_name(op, 0)
+            .and_then(|name| {
+                doc.resolve(resources.get(b"ExtGState").unwrap_or(&Object::Null))
+                    .as_dict()
+                    .and_then(|d| d.get(&name))
+                    .map(|e| doc.resolve(e))
+            })
+            .and_then(Object::as_dict)
+            .and_then(|gs| gs.get(b"LW"))
+            .and_then(|o| doc.resolve(o).as_number());
+        if let Some(lw) = lw {
+            self.ts.line_width = lw as f32;
+        }
+    }
+
     fn do_xobject(&mut self, op: &Operation<'_>, _buf: &[u8], resources: &Dict) {
         let Some(name) = operand_name(op, 0) else {
             return;

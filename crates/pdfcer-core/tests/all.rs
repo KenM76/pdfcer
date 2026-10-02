@@ -180,6 +180,7 @@ mod stamp_text_size;
 mod sticky_resize_refusal;
 mod structure_inspect;
 mod style_ladder;
+mod style_off;
 mod subpath_delete;
 mod subpath_hit;
 mod synthesis_gate;

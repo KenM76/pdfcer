@@ -745,3 +745,50 @@ fn embed_styled_face_without_a_font_dir_is_a_usage_error() {
     assert!(stderr(&out).contains("--font-dir"), "{}", stderr(&out));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn no_bold_takes_a_bound_bold_face_back_to_the_plain_one() {
+    let bold_path = temp_path("no_bold_on");
+    let on = run(&[
+        fixture("format_other.pdf").to_str().unwrap(),
+        "--find",
+        "hello",
+        "--bold",
+        "-o",
+        bold_path.to_str().unwrap(),
+    ]);
+    assert!(on.status.success(), "{}", stderr(&on));
+    let off_path = temp_path("no_bold_off");
+    let off = run(&[
+        bold_path.to_str().unwrap(),
+        "--find",
+        "hello",
+        "--no-bold",
+        "-o",
+        off_path.to_str().unwrap(),
+    ]);
+    assert!(off.status.success(), "{}", stderr(&off));
+    let text = stdout(&off);
+    assert!(
+        text.contains("rung=RealFaceOnPage bound=\"Helvetica\""),
+        "{text}"
+    );
+    assert!(
+        text.contains("removed=bold unsynthesised=nothing"),
+        "{text}"
+    );
+    assert!(text.contains("style: bold off via rung 1"), "{text}");
+
+    let clash = run(&[
+        bold_path.to_str().unwrap(),
+        "--find",
+        "hello",
+        "--bold",
+        "--no-bold",
+        "-o",
+        off_path.to_str().unwrap(),
+    ]);
+    assert_eq!(clash.status.code(), Some(2), "a usage error");
+    let _ = std::fs::remove_file(&bold_path);
+    let _ = std::fs::remove_file(&off_path);
+}

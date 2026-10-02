@@ -2061,6 +2061,8 @@ pub(crate) fn run() -> ExitCode {
             italic_synthetic,
             bold,
             italic,
+            no_bold,
+            no_italic,
             embed_styled_face,
             style_policy,
             output,
@@ -2087,7 +2089,10 @@ pub(crate) fn run() -> ExitCode {
                 bold_synthetic,
                 italic_synthetic,
             ),
-            style: pdfcer_core::text_edit::StyleSynthesis::new(bold, italic),
+            style: pdfcer_core::text_edit::StyleTarget::new(
+                crate::text_edit::axis_target(bold, no_bold),
+                crate::text_edit::axis_target(italic, no_italic),
+            ),
             embed_styled_face,
             style_policy,
             // clap's `conflicts_with` guarantees at most one is set, so this

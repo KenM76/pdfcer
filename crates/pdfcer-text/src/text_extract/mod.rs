@@ -428,6 +428,15 @@ pub struct GlyphProvenance {
     /// the §8.6.8 default (black `DeviceGray 0`) applies. See [`TextColor`]
     /// for why it is deliberately partial in this Pass.
     pub fill_color: Option<TextColor>,
+    /// The line width `w` in force (§8.4.3.2), from `w` or an `/ExtGState`
+    /// `/LW`; 1.0 (Table 52) when neither ran.
+    ///
+    /// **User space** — the operand as written. It strokes text only in a
+    /// stroking render mode ([`Self::render_mode`]), and the comparable glyph
+    /// size is [`Self::tf_size`] scaled by [`Self::text_matrix`], which is in
+    /// user space too; multiply both by the scale of [`Self::ctm`] for page
+    /// units. `pdfcer_core::text_edit::synth::detect_at` reads the pair.
+    pub line_width: f32,
     /// `Tm` at the instant this glyph was shown, `[a b c d e f]` (§9.4.2).
     pub text_matrix: [f32; 6],
     /// The CTM in effect when this glyph was shown, `[a b c d e f]`
@@ -478,6 +487,17 @@ pub struct GlyphProvenance {
     ///   caller could only discover that by attempting the edit and
     ///   reading the error.
     pub composite: bool,
+}
+
+impl GlyphProvenance {
+    /// The text rendering mode `Tr` in force (§9.3.6 Table 106), `0..=7`.
+    ///
+    /// The same value as `text_state.params().render_mode`, spelled where a
+    /// caller looking for it next to [`Self::line_width`] will find it.
+    #[must_use]
+    pub fn render_mode(&self) -> i64 {
+        self.text_state.params().render_mode
+    }
 }
 
 /// One glyph's contribution to a [`TextRun`], with its provenance and

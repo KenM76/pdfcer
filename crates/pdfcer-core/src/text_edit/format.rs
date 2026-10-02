@@ -259,6 +259,10 @@ use crate::text_state::{AmbientRestoreError, AmbientTextState, TextStateParam};
 use crate::view::DocumentView;
 use crate::writer::content::emit_number;
 
+mod style_target;
+pub use style_target::StyleTarget;
+use style_target::{LadderCtx, bind_style_face};
+
 /// How close two text-state operands must be before pdfcer treats a
 /// requested value as "already in force" and emits nothing.
 ///
@@ -721,7 +725,14 @@ pub struct FormatRequest {
     /// disclosures. Cannot be combined with [`Self::set_font`] (name the
     /// styled face directly instead) or with an overlapping
     /// [`Self::set_synthetic`] axis.
-    pub set_style: Option<StyleSynthesis>,
+    ///
+    /// An axis asked OFF (`G086`) walks the same three real-face rungs to a
+    /// face of the run's OWN family whose name lacks that axis; where the
+    /// axis was synthesised instead (`Tr 2` stroke, `Tm` shear, re-detected
+    /// from the bytes) the synthesis is removed. A face that carries the
+    /// axis with no plain sibling reachable is
+    /// [`FormatError::NoFaceWithoutStyle`].
+    pub set_style: Option<StyleTarget>,
     /// New text rendering mode `Tr` (§9.3.6 Table 106), `0..=7`, for the
     /// matched run only (`G034`). `3` is invisible — what an OCR layer uses —
     /// so a correction written through this path can stay invisible over the
@@ -951,8 +962,11 @@ impl FormatRequest {
     /// Ask for bold and/or italic and let pdfcer choose the source
     /// (`Pass 179.0`; see [`Self::set_style`]).
     #[must_use]
-    pub fn style(mut self, style: StyleSynthesis) -> Self {
-        self.set_style = Some(style);
+    ///
+    /// Takes a [`StyleTarget`] (per axis on/off/keep) or a
+    /// [`StyleSynthesis`] (its axes on, the rest kept).
+    pub fn style(mut self, style: impl Into<StyleTarget>) -> Self {
+        self.set_style = Some(style.into());
         self
     }
 
@@ -1006,7 +1020,7 @@ impl FormatRequest {
             }
             && match self.set_style {
                 None => true,
-                Some(s) => s.is_none(),
+                Some(t) => t.is_keep(),
             }
     }
 }
@@ -1027,6 +1041,9 @@ pub enum StyleRung {
     Synthetic,
     /// The run already had the requested style; nothing to change.
     AlreadyStyled,
+    /// An axis asked off was synthetic; the stroke or shear was removed and
+    /// the face kept (`G086`).
+    SynthesisRemoved,
 }
 
 impl std::fmt::Display for StyleRung {
@@ -1037,6 +1054,7 @@ impl std::fmt::Display for StyleRung {
             Self::SuppliedFaceEmbedded => "rung 3: a supplied face, embedded",
             Self::Synthetic => "rung 4: synthetic",
             Self::AlreadyStyled => "already styled",
+            Self::SynthesisRemoved => "synthesis removed",
         })
     }
 }
@@ -1045,8 +1063,13 @@ impl std::fmt::Display for StyleRung {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct StyleLadder {
-    /// What was asked for.
+    /// The axes asked ON.
     pub requested: StyleSynthesis,
+    /// The axes asked OFF (`G086`).
+    pub removed: StyleSynthesis,
+    /// The axes asked off that were synthetic, so their `Tr 2` stroke or
+    /// `Tm` shear was removed rather than a face changed.
+    pub unsynthesised: StyleSynthesis,
     /// The face bound, when a rung bound one (`/BaseFont`).
     pub bound: Option<String>,
     /// The rung that bound a face — or `Synthetic`/`AlreadyStyled`.
@@ -1394,6 +1417,20 @@ pub enum FormatError {
          itself rendering mode 2 (fill then stroke, §9.3.6). Ask for one of them"
     )]
     ConflictingRenderMode,
+    /// An axis was asked off, the run's face carries it in its name, and no
+    /// face of the same family without it could show the run (`G086`).
+    /// Nothing was applied.
+    #[error(
+        "'{run_font}' is {style} by its face, and no face of its family without {style} (a page \
+         face, its standard-14 sibling, or a supplied font) can show the run. Supply the plain \
+         face, or name another with --set-font. Nothing was applied"
+    )]
+    NoFaceWithoutStyle {
+        /// The run's `/BaseFont`.
+        run_font: String,
+        /// The axes the face carries that were asked off.
+        style: &'static str,
+    },
     /// The automatic style ladder (`Pass 179.0`) found no real face to bind
     /// and the posture is `refuse`, which forbids synthesising on its own
     /// authority. Nothing was applied. `--bold-synthetic` /
@@ -2408,6 +2445,19 @@ pub(crate) fn plan_format_target(
             &mut emitted_state,
         )?;
     }
+    let unsynth = ladder
+        .as_ref()
+        .map_or(StyleSynthesis::None, |l| l.unsynthesised);
+    if unsynth.bold() {
+        style_target::plan_unbold(
+            &mut set_ops,
+            &mut restore_ops,
+            anchor,
+            req,
+            &mut restore_narrowed,
+            &mut emitted_state,
+        )?;
+    }
 
     // --- Pass 19.2: synthetic bold / italic (R90, decision 019 §3.6) ---
     //
@@ -2600,8 +2650,24 @@ pub(crate) fn plan_format_target(
             orig_size,
             a_new,
             new_rise,
+            shear_into,
         )?;
         synthetic_italic = Some((tan, rise_offset));
+    } else if unsynth.italic() {
+        plan_synthetic_italic(
+            &mut set_ops,
+            &mut restore_ops,
+            anchor,
+            &recs,
+            anchor_index,
+            opts.disposition,
+            &pre,
+            &orig_font,
+            orig_size,
+            a_new,
+            new_rise,
+            crate::text_edit::synth::unshear,
+        )?;
     }
 
     // Back to bytes for emission: one byte per code, or a big-endian pair per
@@ -3151,7 +3217,7 @@ fn plan_style_ladder(
     anchor: &ShowData,
     orig_font: &ExtractFont,
 ) -> Result<(Option<FontPlan>, Option<StyleLadder>, StyleSynthesis), FormatError> {
-    let Some(style) = req.set_style.filter(|s| !s.is_none()) else {
+    let Some(target) = req.set_style.filter(|t| !t.is_keep()) else {
         return Ok((None, None, StyleSynthesis::None));
     };
     if req.set_font.is_some() {
@@ -3162,7 +3228,8 @@ fn plan_style_ladder(
         ));
     }
     if let Some(explicit) = req.set_synthetic
-        && ((explicit.bold() && style.bold()) || (explicit.italic() && style.italic()))
+        && ((explicit.bold() && target.bold.is_some())
+            || (explicit.italic() && target.italic.is_some()))
     {
         return Err(FormatError::Unsupported(
             "--bold and --bold-synthetic (or --italic and --italic-synthetic) ask for the same \
@@ -3171,33 +3238,22 @@ fn plan_style_ladder(
         ));
     }
 
+    let ctx = LadderCtx {
+        doc,
+        resources,
+        recs,
+        req,
+        find,
+    };
+    if !target.removes().is_none() {
+        return style_target::plan_style_off(&ctx, anchor, orig_font, target);
+    }
+    let style = target.adds();
     let mut passed_over: Vec<PassedOver> = Vec::new();
-    // Bind `selector` through the ONE gate; a coverage refusal is a rung
-    // miss, not an error.
     let try_bind = |selector: &str,
                     embed: Option<&crate::font_embed::FontEmbedPlan>,
-                    passed_over: &mut Vec<PassedOver>|
-     -> Result<Option<FontPlan>, FormatError> {
-        let mut probe = req.clone();
-        probe.set_font = Some(FontSelector::new(selector));
-        probe.style_donors = Vec::new();
-        probe.embed_font = embed.map(|p| Box::new(p.clone()));
-        match plan_font(doc, resources, recs, &probe, find) {
-            Ok(plan) => Ok(plan),
-            Err(FormatError::CoverageFailure(r)) => {
-                // The refusal travels WHOLE (`Pass 295.0`): its message is
-                // the reason, and the structured form goes with it so a
-                // caller can name the character rather than re-read the
-                // sentence.
-                passed_over.push(PassedOver {
-                    base_font: r.base_font.clone(),
-                    reason: r.message.clone(),
-                    refusal: Some(r.clone()),
-                });
-                Ok(None)
-            }
-            Err(e) => Err(e),
-        }
+                    passed_over: &mut Vec<PassedOver>| {
+        bind_style_face(&ctx, selector, embed, passed_over)
     };
 
     // Already there? (asking for bold on Times-Bold, or on a run whose face
@@ -3210,6 +3266,8 @@ fn plan_style_ladder(
             None,
             Some(StyleLadder {
                 requested: style,
+                removed: StyleSynthesis::None,
+                unsynthesised: StyleSynthesis::None,
                 bound: None,
                 // Nothing was bound, so there is nothing to compare — and
                 // `None` says that rather than claiming a different family.
@@ -3271,6 +3329,8 @@ fn plan_style_ladder(
             Some(plan),
             Some(StyleLadder {
                 requested: style,
+                removed: StyleSynthesis::None,
+                unsynthesised: StyleSynthesis::None,
                 same_family: Some(family_stem(&bound) == family_stem(&orig_font.base_font)),
                 bound: Some(bound),
                 rung: StyleRung::RealFaceOnPage,
@@ -3300,6 +3360,8 @@ fn plan_style_ladder(
                 Some(plan),
                 Some(StyleLadder {
                     requested: style,
+                    removed: StyleSynthesis::None,
+                    unsynthesised: StyleSynthesis::None,
                     // Rung 2 binds the standard-14 SIBLING of the run's own
                     // family by construction, so this is `true` whenever it
                     // fires -- computed rather than asserted, so a future rung
@@ -3332,6 +3394,8 @@ fn plan_style_ladder(
                     Some(plan),
                     Some(StyleLadder {
                         requested: style,
+                        removed: StyleSynthesis::None,
+                        unsynthesised: StyleSynthesis::None,
                         same_family: Some(family_stem(&bound) == family_stem(&orig_font.base_font)),
                         bound: Some(bound),
                         rung: StyleRung::SuppliedFaceEmbedded,
@@ -3357,6 +3421,8 @@ fn plan_style_ladder(
                     Some(plan),
                     Some(StyleLadder {
                         requested: style,
+                        removed: StyleSynthesis::None,
+                        unsynthesised: StyleSynthesis::None,
                         same_family: Some(family_stem(&bound) == family_stem(&orig_font.base_font)),
                         bound: Some(bound),
                         rung: StyleRung::RealFaceOnPage,
@@ -3374,6 +3440,8 @@ fn plan_style_ladder(
         None,
         Some(StyleLadder {
             requested: style,
+            removed: StyleSynthesis::None,
+            unsynthesised: StyleSynthesis::None,
             // Synthesis binds no face, so there is no family to compare.
             same_family: None,
             bound: None,
@@ -3399,7 +3467,15 @@ const fn axes_label(s: StyleSynthesis) -> &'static str {
 
 /// The rule-4 sentence for the ladder's outcome.
 fn disclosure_style_ladder(l: &StyleLadder) -> String {
-    let passed = if l.passed_over.is_empty() {
+    let passed = passed_over_sentence(l);
+    if !l.removed.is_none() {
+        return style_target::disclosure(l, &passed);
+    }
+    disclosure_style_on(l, &passed)
+}
+
+fn passed_over_sentence(l: &StyleLadder) -> String {
+    if l.passed_over.is_empty() {
         String::new()
     } else {
         // The engine's own sentence still reads the way it always did --
@@ -3415,7 +3491,11 @@ fn disclosure_style_ladder(l: &StyleLadder) -> String {
                 .collect::<Vec<_>>()
                 .join("; ")
         )
-    };
+    }
+}
+
+/// The rule-4 sentence for a ladder that only put axes on.
+fn disclosure_style_on(l: &StyleLadder, passed: &str) -> String {
     match (l.rung, &l.bound) {
         (StyleRung::AlreadyStyled, _) => format!(
             "style: the run is already {}; nothing to change.",
@@ -4101,7 +4181,7 @@ pub(crate) fn preview_style_ladder(
     stream: &ContentStream,
     find: &str,
     pinned_span: Option<ByteSpan>,
-    want: StyleSynthesis,
+    want: StyleTarget,
     opts: &FormatOptions,
     donors: &[crate::font_embed::FontEmbedPlan],
 ) -> Result<StyleLadder, FormatError> {
@@ -5422,7 +5502,39 @@ fn plan_synthetic_italic(
     orig_size: f64,
     mid_advance: f64,
     rise: Option<f64>,
+    shear: fn([f64; 6]) -> [f64; 6],
 ) -> Result<(f64, f64), FormatError> {
+    refuse_unshearable(anchor, recs, anchor_index, disposition)?;
+    let pre_advance = pre_advance(pre, orig_font, orig_size, anchor);
+    let tm_mid = mat_mul([1.0, 0.0, 0.0, 1.0, pre_advance, 0.0], anchor.text_matrix);
+    let tm_post = mat_mul(
+        [1.0, 0.0, 0.0, 1.0, pre_advance + mid_advance, 0.0],
+        anchor.text_matrix,
+    );
+
+    // Both injected matrices are pdfcer's OWN arithmetic — a shear product
+    // and an accumulated advance — so every operand goes through
+    // `derived_operand`: Annex C's ~5 significant digits, and a minimal
+    // diff. A producer's own six-decimal terms survive unchanged.
+    let round6 = |m: [f64; 6]| m.map(derived_operand);
+    push_space(set_ops);
+    set_ops.extend_from_slice(&emit_tm(round6(shear(tm_mid))));
+    push_space(restore_ops);
+    restore_ops.extend_from_slice(&emit_tm(round6(tm_post)));
+
+    let tan = shear_into([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])[2];
+    let rise_offset = rise.unwrap_or(anchor.text_state.rise.value) * tan;
+    Ok((tan, derived_operand(rise_offset)))
+}
+
+/// The three conditions under which a run's matrix cannot be re-stated
+/// (see [`plan_synthetic_italic`]).
+fn refuse_unshearable(
+    anchor: &ShowData,
+    recs: &[OpRec],
+    anchor_index: usize,
+    disposition: FollowerDisposition,
+) -> Result<(), FormatError> {
     if !anchor.matrix_known {
         return Err(FormatError::ShearUnsupported(
             "pdfcer could not track this run's text matrix through the content stream (an \
@@ -5450,7 +5562,7 @@ fn plan_synthetic_italic(
             Rec::Boundary | Rec::Td { .. } => {
                 return Err(FormatError::ShearUnsupported(
                     "a Td/TD/T* next-line operator follows this run inside the same text object. \
-                     Synthetic italic must inject an absolute `Tm`, and a `Tm` sets the text LINE \
+                     Adding or removing a synthetic italic must inject an absolute `Tm`, and a `Tm` sets the text LINE \
                      matrix as well (§9.4.2 Table 108) — so that operator would derive its line \
                      from pdfcer's matrix instead of the producer's line origin, and the following \
                      line would land shifted by this run's advance. pdfcer refuses rather than \
@@ -5462,10 +5574,18 @@ fn plan_synthetic_italic(
         }
     }
 
-    // Where `mid` starts: the anchor's matrix advanced along the baseline by
-    // everything `pre` shows. `pre` runs at the AMBIENT state (it is outside
-    // the set/restore wrap), so it is measured at the ambient Tc/Tw/Th and
-    // the run's original size and face.
+    Ok(())
+}
+
+/// Where `mid` starts: the anchor's matrix advanced along the baseline by
+/// everything `pre` shows, measured at the AMBIENT state (`pre` is outside
+/// the set/restore wrap).
+fn pre_advance(
+    pre: &[ShowElem],
+    orig_font: &ExtractFont,
+    orig_size: f64,
+    anchor: &ShowData,
+) -> f64 {
     let mut pre_advance = 0.0;
     for e in pre {
         match e {
@@ -5487,31 +5607,7 @@ fn plan_synthetic_italic(
             ShowElem::Num(v) => pre_advance += (-v / 1000.0) * orig_size * anchor.th(),
         }
     }
-
-    let tm_mid = mat_mul([1.0, 0.0, 0.0, 1.0, pre_advance, 0.0], anchor.text_matrix);
-    let tm_post = mat_mul(
-        [1.0, 0.0, 0.0, 1.0, pre_advance + mid_advance, 0.0],
-        anchor.text_matrix,
-    );
-
-    // Both injected matrices are pdfcer's OWN arithmetic — a shear product
-    // and an accumulated advance — so every operand goes through
-    // `derived_operand`. Without it a `tan θ × a` term or a summed advance
-    // arrives as sixteen significant digits of `f64` noise, which bloats a
-    // stream this project is trying to keep minimal, makes the diff
-    // unreadable, and exceeds the ~5 significant digits Annex C records as
-    // PDF's traditional real precision. Nothing the operator typed is
-    // rounded here; the producer's own matrix terms survive because
-    // rounding a value already at six decimal places is the identity.
-    let round6 = |m: [f64; 6]| m.map(derived_operand);
-    push_space(set_ops);
-    set_ops.extend_from_slice(&emit_tm(round6(shear_into(tm_mid))));
-    push_space(restore_ops);
-    restore_ops.extend_from_slice(&emit_tm(round6(tm_post)));
-
-    let tan = shear_into([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])[2];
-    let rise_offset = rise.unwrap_or(anchor.text_state.rise.value) * tan;
-    Ok((tan, derived_operand(rise_offset)))
+    pre_advance
 }
 
 /// Locate a family-change target resource by resource key first, then by

@@ -1631,6 +1631,25 @@ what was bound, what was synthesised and which page faces were passed over
 (and why); the same sentence is in `disclosures` and on `pdfcer format-text`'s
 stdout (`style_ladder: requested=… rung=… bound=… synthesised=…`).
 
+#### 3.6.0a Taking bold or italic OFF (`G086`)
+
+`.style(StyleTarget::new(Some(false), None))` / CLI `--no-bold`, `--no-italic`.
+Each axis is on, off or kept.
+
+- **The face is bold or italic by name**: rungs 1–3 look for a face of the
+  run's **own** family without that axis. A page face comes first, then the
+  standard-14 sibling (`Helvetica-BoldOblique` → `Helvetica-Oblique`), then a
+  donor. Taking bold off never changes the typeface family.
+- **The axis was synthesised** (a `Tr 2` stroke, or a `Tm` shear that
+  `synth::detect` re-reads from the bytes): the stroke goes back to `0 Tr`,
+  or the shear is removed from the matrix. The face is kept, and the rung is
+  `SynthesisRemoved`.
+- **No plain face of the family can show the run**: `NoFaceWithoutStyle`;
+  nothing is applied.
+
+**★ What the UI must disclose:** the `style: bold off …` sentence. It names
+the face bound, or says the synthetic stroke or shear was removed.
+
 #### ★★ 3.6.1 But bold and italic ARE reachable — `set_synthetic` (the explicit override since `Pass 179.0`)
 
 **This paragraph replaces a wrong one. The first draft of §3.6 said bold and

@@ -1267,9 +1267,23 @@ fn donor_plan(
     })
 }
 
+/// One `--X` / `--no-X` flag pair as a [`StyleTarget`] axis; clap's
+/// `conflicts_with` keeps both from being set.
+///
+/// [`StyleTarget`]: pdfcer_core::text_edit::StyleTarget
+pub(crate) const fn axis_target(on: bool, off: bool) -> Option<bool> {
+    if on {
+        Some(true)
+    } else if off {
+        Some(false)
+    } else {
+        None
+    }
+}
+
 /// Rung-3 candidates for `format-text --embed-styled-face` (`Pass 142.3`):
-/// every TrueType face in `font_dirs` whose PostScript name claims a
-/// requested axis, subset for the characters of `find`.
+/// every TrueType face in `font_dirs` whose PostScript name claims every
+/// axis asked on and none asked off, subset for the characters of `find`.
 ///
 /// Only the axis claim is checked here, to avoid subsetting a whole system
 /// font folder; which candidate is of the run's family and carries exactly
@@ -1279,13 +1293,16 @@ fn donor_plan(
 fn style_donor_plans(
     font_dirs: &[PathBuf],
     find: &str,
-    style: pdfcer_core::text_edit::StyleSynthesis,
+    style: pdfcer_core::text_edit::StyleTarget,
 ) -> Result<Vec<pdfcer_core::font_embed::FontEmbedPlan>, u8> {
     use pdfcer_core::text_edit::synth::{name_claims_bold, name_claims_italic};
     use pdfcer_render::font::program::FontProgram;
 
-    if style.is_none() {
-        eprintln!("pdfcer: format-text refused: --embed-styled-face needs --bold or --italic");
+    if style.is_keep() {
+        eprintln!(
+            "pdfcer: format-text refused: --embed-styled-face needs --bold, --italic, --no-bold \
+             or --no-italic"
+        );
         return Err(exit::EDIT_REFUSED);
     }
     if find.is_empty() {
@@ -1322,8 +1339,9 @@ fn style_donor_plans(
             else {
                 continue;
             };
-            if !((style.bold() && name_claims_bold(&name))
-                || (style.italic() && name_claims_italic(&name)))
+            let fits = |want: Option<bool>, claims: bool| want.is_none_or(|w| w == claims);
+            if !(fits(style.bold, name_claims_bold(&name))
+                && fits(style.italic, name_claims_italic(&name)))
             {
                 continue;
             }
@@ -1374,8 +1392,9 @@ pub(crate) struct FormatTextArgs<'a> {
     /// `StyleSynthesis::None` means none were, which is the default and
     /// the only state in which nothing is synthesized.
     pub(crate) synthetic: pdfcer_core::text_edit::StyleSynthesis,
-    /// `--bold` / `--italic`: the automatic ladder (`Pass 179.0`).
-    pub(crate) style: pdfcer_core::text_edit::StyleSynthesis,
+    /// `--bold` / `--italic` / `--no-bold` / `--no-italic`: the automatic
+    /// ladder (`Pass 179.0`, `G086`).
+    pub(crate) style: pdfcer_core::text_edit::StyleTarget,
     /// `--embed-styled-face`: offer `--font-dir`'s faces to rung 3
     /// (`Pass 142.3`).
     pub(crate) embed_styled_face: bool,
@@ -1656,7 +1675,7 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     if !args.synthetic.is_none() {
         req = req.synthetic(args.synthetic);
     }
-    if !args.style.is_none() {
+    if !args.style.is_keep() {
         req = req.style(args.style);
     }
     if args.embed_styled_face {
@@ -1714,6 +1733,7 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
                 | FormatError::ConflictingRenderMode
                 | FormatError::RealFaceAvailable { .. }
                 | FormatError::SynthesisRefusedByPosture { .. }
+                | FormatError::NoFaceWithoutStyle { .. }
                 | FormatError::ShearUnsupported(_)
                 | FormatError::Encrypted => exit::EDIT_REFUSED,
                 FormatError::Write(_) => exit::SAVE_REFUSED,
@@ -1832,14 +1852,17 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     // summary a script keys on.
     if let Some(l) = &report.style_ladder {
         println!(
-            "  style_ladder: requested={} rung={:?} bound={} synthesised={} passed_over={}",
+            "  style_ladder: requested={} rung={:?} bound={} synthesised={} passed_over={} \
+             removed={} unsynthesised={}",
             l.requested.axes(),
             l.rung,
             l.bound
                 .as_deref()
                 .map_or_else(|| "-".to_owned(), quoted_token),
             l.synthesised.axes(),
-            l.passed_over.len()
+            l.passed_over.len(),
+            l.removed.axes(),
+            l.unsynthesised.axes()
         );
     }
     if let Some(passed_over) = &report.real_face_passed_over {

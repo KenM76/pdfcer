@@ -442,6 +442,42 @@ pub fn shear_into(tm: [f64; 6]) -> [f64; 6] {
     ]
 }
 
+/// The text-space shear a matrix carries: the `tan θ` that [`shear_into`]
+/// premultiplies, recovered as the projection of the second row on the
+/// first, `(a·c + b·d) / (a² + b²)`. Zero for an upright run at any rotation
+/// or scale; `0` for a degenerate first row.
+#[must_use]
+pub fn shear_of(tm: [f64; 6]) -> f64 {
+    let norm = tm[0].mul_add(tm[0], tm[1] * tm[1]);
+    if norm <= f64::EPSILON {
+        return 0.0;
+    }
+    tm[0].mul_add(tm[2], tm[1] * tm[3]) / norm
+}
+
+/// Remove the shear [`shear_of`] measures — the exact inverse of
+/// [`shear_into`] for any shear, not only pdfcer's [`OBLIQUE_TAN`].
+///
+/// ```
+/// use pdfcer_core::text_edit::synth::{shear_into, unshear};
+///
+/// let upright = [0.0, 2.0, -2.0, 0.0, 72.0, 700.0];
+/// let back = unshear(shear_into(upright));
+/// assert!(back.iter().zip(upright).all(|(a, b)| (a - b).abs() < 1e-12));
+/// ```
+#[must_use]
+pub fn unshear(tm: [f64; 6]) -> [f64; 6] {
+    let k = shear_of(tm);
+    [
+        tm[0],
+        tm[1],
+        (-k).mul_add(tm[0], tm[2]),
+        (-k).mul_add(tm[1], tm[3]),
+        tm[4],
+        tm[5],
+    ]
+}
+
 /// Whether a `/BaseFont` name claims a Bold face.
 ///
 /// Name-based, because that is the only evidence available without parsing
@@ -522,8 +558,11 @@ pub fn name_claims_italic(base_font: &str) -> bool {
 ///   outlined-display-type effect: an outline heading is stroked at a width
 ///   the designer chose to be visible as an outline, typically a good deal
 ///   more than 2.2% of the size. [`MAX_DETECT_STROKE_RATIO`] is the cut.
-/// - **Faux italic** — the text matrix has a non-zero shear term `c`,
-///   normalized against `a` so the test is scale-independent, while the
+///   A stroke under [`MIN_DETECT_STROKE_RATIO`] is a hairline outline, not
+///   a weight, and `0 w` (§8.4.3.2: the thinnest line the device can draw)
+///   is one.
+/// - **Faux italic** — the text matrix carries a shear ([`shear_of`]),
+///   which is scale- and rotation-independent, while the
 ///   font's own name does **not** claim Italic. A font that already says
 ///   Italic and *also* carries a shear is a deliberate extra lean, not a
 ///   synthesis, and is reported as not-synthesized.
@@ -572,18 +611,15 @@ pub fn detect(
     // specifically mode 2 (fill AND stroke) — a pure stroke (mode 1) is an
     // outline effect, not a weight.
     let strokes_and_fills = render_mode == 2 || render_mode == 6;
-    let thin = rendered_size.abs() > f64::EPSILON
-        && (stroke_width / rendered_size).abs() <= MAX_DETECT_STROKE_RATIO;
-    let bold = strokes_and_fills && thin && !name_claims_bold(base_font);
-
-    // Normalize the shear against the matrix's own horizontal scale so the
-    // test does not depend on the run's size: `c/a` IS tan θ for an
-    // unrotated run, whatever `a` is.
-    let sheared = if tm[0].abs() > f64::EPSILON {
-        (tm[2] / tm[0]).abs() >= MIN_DETECT_SHEAR
+    let ratio = if rendered_size.abs() > f64::EPSILON {
+        (stroke_width / rendered_size).abs()
     } else {
-        false
+        f64::NAN
     };
+    let in_band = (MIN_DETECT_STROKE_RATIO..=MAX_DETECT_STROKE_RATIO).contains(&ratio);
+    let bold = strokes_and_fills && in_band && !name_claims_bold(base_font);
+
+    let sheared = shear_of(tm).abs() >= MIN_DETECT_SHEAR;
     let italic = sheared && !name_claims_italic(base_font);
 
     StyleSynthesis::new(bold, italic)
@@ -597,6 +633,31 @@ pub fn detect(
 /// display type that motivates the distinction — a visible outline is
 /// typically 5–10% of the size, not 4.4%.
 pub const MAX_DETECT_STROKE_RATIO: f64 = BOLD_STROKE_RATIO * 2.0;
+
+/// The smallest stroke-to-size ratio [`detect`] will read as a synthesized
+/// weight: half [`BOLD_STROKE_RATIO`]. Below it the stroke is a hairline
+/// outline that adds no visible weight (`2 Tr 0.1 w` at 12 pt is 0.8%).
+pub const MIN_DETECT_STROKE_RATIO: f64 = BOLD_STROKE_RATIO / 2.0;
+
+/// [`detect`] over one glyph's extraction provenance.
+///
+/// `base_font` is the run's `/BaseFont` — provenance carries the resource
+/// key, not the name. The rendered size is `tf_size` scaled by the text
+/// matrix, in user space like [`GlyphProvenance::line_width`], so the ratio
+/// does not depend on the CTM.
+///
+/// [`GlyphProvenance::line_width`]: crate::text_extract::GlyphProvenance::line_width
+#[must_use]
+pub fn detect_at(base_font: &str, prov: &crate::text_extract::GlyphProvenance) -> StyleSynthesis {
+    let tm = prov.text_matrix.map(f64::from);
+    detect(
+        base_font,
+        prov.render_mode(),
+        f64::from(prov.line_width),
+        f64::from(prov.tf_size) * matrix_scale(tm),
+        tm,
+    )
+}
 
 /// The smallest normalized `Tm` shear [`detect`] will read as an oblique.
 ///

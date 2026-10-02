@@ -13250,7 +13250,7 @@ impl EditSession {
         page_index: usize,
         find: &str,
         pinned_span: Option<crate::span::ByteSpan>,
-        want: crate::text_edit::StyleSynthesis,
+        want: impl Into<crate::text_edit::StyleTarget>,
         options: &crate::text_edit::FormatOptions,
     ) -> Result<crate::text_edit::StyleLadder, crate::text_edit::FormatError> {
         use crate::text_edit::FormatError as FmtError;
@@ -13275,7 +13275,7 @@ impl EditSession {
             &stream,
             find,
             pinned_span,
-            want,
+            want.into(),
             options,
             &[],
         )
@@ -13296,7 +13296,7 @@ impl EditSession {
         page_index: usize,
         find: &str,
         pinned_span: Option<crate::span::ByteSpan>,
-        want: crate::text_edit::StyleSynthesis,
+        want: impl Into<crate::text_edit::StyleTarget>,
         options: &crate::text_edit::FormatOptions,
         donors: &[crate::font_embed::FontEmbedPlan],
     ) -> Result<crate::text_edit::StyleLadder, crate::text_edit::FormatError> {
@@ -13322,7 +13322,7 @@ impl EditSession {
             &stream,
             find,
             pinned_span,
-            want,
+            want.into(),
             options,
             donors,
         )

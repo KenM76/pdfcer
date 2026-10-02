@@ -1137,8 +1137,21 @@ chosen in this order:
 
 `/ForceBold` and `/StemV` are ignored, per Table 332.
 `GlyphProvenance`: `operator_span`, `text_matrix`, `ctm`,
-`tf_size`, `composite`, … — `None` for every glyph unless
+`tf_size`, `line_width`, `composite`, … — `None` for every glyph unless
 `capture_provenance` was set.
+
+**Is this run synthetic bold or italic? (`G087`)** Call
+`text_edit::synth::detect_at(base_font, &prov) -> StyleSynthesis`; you
+supply the `/BaseFont` (provenance does not carry it). Synthetic bold is
+`Tr` 2 or 6 with a stroke between 0.5× and 2× `BOLD_STROKE_RATIO` of the
+font size in text space (`line_width / (tf_size × matrix_scale(text_matrix))`),
+on a face whose name does not claim bold. So a `2 Tr 0.1 w` outline at 12 pt,
+or a `0 w` hairline, is NOT bold. Synthetic italic is a shear in
+`text_matrix` (`synth::shear_of`, which also handles rotated matrices) on a
+face whose name does not claim italic. `prov.render_mode()` is the `Tr`
+in force. `prov.line_width` is the `w` in force, set by `w` or an
+`/ExtGState /LW`, in **user space**; multiply by the `ctm` scale to get
+page units.
 
 #### ★★★ 8.4.0 A run's `text` is not one character per glyph, and a run is not one show operator (`Pass 145.0`)
 
@@ -1272,6 +1285,7 @@ Coordinate summary for this section:
 | `GlyphProvenance::tf_size` | **text space** — the raw `Tf` operand | unscaled | `f32` |
 | `GlyphProvenance::{text_matrix, ctm}` | §8.3.3 row-vector `[a b c d e f]` | — | `[f32; 6]` |
 | `GlyphProvenance::operator_span` | decoded-content byte offsets | bytes | `ByteSpan` |
+| `GlyphProvenance::line_width` | **user space**, the `w` operand (§8.4.3.2) | unscaled by the CTM | `f32` |
 
 Note the pairing: `ExtractedGlyph::size` is the **effective** size (the
 y-scale of the text rendering matrix); `GlyphProvenance::tf_size` is the
