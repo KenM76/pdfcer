@@ -625,7 +625,11 @@ pdfcer_core::forms::parse_acroform<G: ObjectGraph + ?Sized>(graph: &G) -> Option
 `Widget` (`forms.rs`) → `id`, `rect`, `appearance_state`, `on_states`,
 `has_off_appearance`, `page`, `caption` (`/MK /CA`), **`background`** (`/MK /BG`,
 `MkColor`), `rotation` (`/MK /R`), **`border`**, **`visibility`**,
-**`annot_flags`**, `has_normal_appearance`, `merged`.
+**`annot_flags`**, `has_normal_appearance`, `merged`, **`icon`** (`/MK /I`,
+`Option<ObjId>` — the push button's icon form), **`caption_position`**
+(`/MK /TP`, `Option<annot_author::CaptionPosition>`; `None` = absent, which
+Table 189 reads as caption only). Both written by `edit_widget`
+(`02-editing-and-saving.md`, "Push-button icons").
 
 **`background: Option<MkColor>` (`/MK /BG`).** For an on-page field editor that
 tints its live text box the field's own colour. `None` = the key is ABSENT;

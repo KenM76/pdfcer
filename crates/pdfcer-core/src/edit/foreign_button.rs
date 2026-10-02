@@ -1,5 +1,5 @@
-//! Replacing a check box's or radio button's foreign appearance whole, under
-//! `WidgetEdit::replace_foreign_appearance` (§12.7.4.2.3).
+//! Replacing a button's foreign appearance whole, under
+//! `WidgetEdit::replace_foreign_appearance` (§12.7.4.2.2, §12.7.4.2.3).
 //!
 //! The ownership test in `regen_button_appearance` refuses to redraw artwork
 //! pdfcer did not draw. This is the opt-in past it: the widget gets pdfcer's
@@ -7,7 +7,8 @@
 //! name the foreign artwork already used, so `/AS`, `/V` and every sibling
 //! widget's state names stay valid. The foreign streams are left unreferenced
 //! rather than overwritten, and `/D` and `/R` are dropped with them: a down
-//! or rollover state drawn in the old style would contradict the new one.
+//! or rollover state drawn in the old style would contradict the new one. A
+//! push button, which has no states, gets one new `/N` stream.
 
 use super::{ButtonApPlan, EditError, EditSession, ObjectWrite};
 use crate::annot_author::CheckBoxStateAppearance;
@@ -19,8 +20,8 @@ pub(super) enum ButtonSlot {
     /// pdfcer's own artwork: rewrite these streams in place.
     Own(ButtonApPlan),
     /// Foreign artwork the operator opted to replace: new `Off` and this
-    /// on-state.
-    Foreign(Vec<u8>),
+    /// on-state, or for a push button (`None`) one new stream.
+    Foreign(Option<Vec<u8>>),
 }
 
 impl EditSession {
@@ -44,8 +45,9 @@ impl EditSession {
         }
     }
 
-    /// Stage `redrawn` (`[off, on]`) as new streams and point `widget_id`'s
-    /// `/AP` at them, replacing the whole `/AP`.
+    /// Stage `redrawn` (`[off, on]`, or a push button's `[plate]` when `on`
+    /// is `None`) as new streams and point `widget_id`'s `/AP` at them,
+    /// replacing the whole `/AP`.
     ///
     /// Patches the widget write this command has already staged, if any:
     /// a second whole-dictionary write to the same object would discard the
@@ -53,12 +55,14 @@ impl EditSession {
     pub(super) fn replace_foreign_button(
         &mut self,
         widget_id: ObjId,
-        on: &[u8],
+        on: Option<&[u8]>,
         redrawn: Vec<CheckBoxStateAppearance>,
         objects: &mut Vec<ObjectWrite>,
     ) -> Result<(), EditError> {
         let mut states = Dict::default();
-        for (name, content) in [b"Off".as_slice(), on].into_iter().zip(redrawn) {
+        let mut single = None;
+        let names: Vec<&[u8]> = on.map_or_else(Vec::new, |on| vec![b"Off".as_slice(), on]);
+        for (i, content) in redrawn.into_iter().enumerate() {
             let id = ObjId::new(self.alloc_number()?, 0);
             let mut dict = content.ap_dict;
             self.bind_dr_fonts(&mut dict);
@@ -75,10 +79,13 @@ impl EditSession {
                     data_span: span,
                 })),
             });
-            states.insert(Name(name.to_vec()), Object::Reference(id));
+            match names.get(i) {
+                Some(name) => states.insert(Name(name.to_vec()), Object::Reference(id)),
+                None => single = Some(Object::Reference(id)),
+            }
         }
         let mut ap = Dict::default();
-        ap.insert(Name::from(b"N"), Object::Dict(states));
+        ap.insert(Name::from(b"N"), single.unwrap_or(Object::Dict(states)));
         if let Some(Object::Dict(existing)) = objects
             .iter_mut()
             .find(|w| w.id == widget_id)

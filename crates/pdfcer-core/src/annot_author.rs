@@ -3002,6 +3002,10 @@ use crate::annot::AnnotFlags;
 use crate::fontdata::Std14;
 use crate::vartext::{self, FontResource, Quadding, TextColor, VarTextError};
 
+mod button_icon;
+pub(crate) use button_icon::{ButtonIcon, push_button_with_icon};
+pub use button_icon::{CaptionPosition, IconFit, IconScaleWhen, IconScaling};
+
 /// The resource name pdfcer authors its standard-14 font under, inside a
 /// text appearance's own `/Resources` `/Font` (FreeText has no `/DR`, so
 /// the font lives in the appearance itself — `iso32000__s__12.5.6.md`
@@ -4633,17 +4637,61 @@ pub fn build_push_button_appearance(
     // `Some(MkColor::None)` — Table 189's empty array, *"no colour"* — gets
     // no plate at all. That is a real thing to ask for (a transparent button
     // over artwork) and an absent key cannot express it.
+    let mut content = push_button_plate(&chrome, w, h);
+    let caption = push_button_caption(h, bbox, caption, da, resources)?;
+    content.extend_from_slice(&caption.content);
+    Ok(caption.into_appearance(bbox, content))
+}
+
+/// A push button's plate (its `/MK /BG` fill, else [`PUSH_BUTTON_PLATE_GRAY`])
+/// and `/BS` frame, `w` x `h`.
+fn push_button_plate(chrome: &WidgetChrome, w: f64, h: f64) -> Vec<u8> {
     let mut plate = ContentBuilder::new();
     if let Some(bg) = chrome.fill(Some(MkColor::Gray(PUSH_BUTTON_PLATE_GRAY as f32))) {
         set_fill(&mut plate, bg);
         plate.rect(0.0, 0.0, w, h);
         plate.paint(Paint::Fill);
     }
-    stroke_frame(&mut plate, &chrome, w, h);
-    let mut content = plate.into_bytes();
+    stroke_frame(&mut plate, chrome, w, h);
+    plate.into_bytes()
+}
 
-    // THE CAPTION. Resolved size first (see the auto-size trap above), then a
-    // one-line band, then the translate.
+/// A push-button caption laid out in `area`, and what its appearance owes.
+struct PushButtonCaption {
+    /// The caption's content bytes.
+    content: Vec<u8>,
+    /// The generator's result: its `/Resources` and disclosures.
+    va: vartext::VarTextAppearance,
+    /// The size chosen for an auto-size `/DA`, which is disclosed.
+    auto_size: Option<f64>,
+}
+
+impl PushButtonCaption {
+    /// The finished appearance: `content` in a `bbox` form with the caption's
+    /// resources.
+    fn into_appearance(self, bbox: Rect, content: Vec<u8>) -> FieldAppearance {
+        FieldAppearance {
+            ap_dict: form_dict(bbox, self.va.resources),
+            content,
+            // The generator saw an explicit size (the caller resolved it), so
+            // it reports no auto-size of its own; the disclosure is still owed
+            // when the `/DA` asked for one.
+            applied_autosize: self.va.applied_autosize.or(self.auto_size),
+            applied_autosize_bound: self.va.applied_autosize_bound,
+            da_colour_unmodelled: self.va.da_colour_unmodelled,
+            unencodable_chars: self.va.unencodable_chars,
+        }
+    }
+}
+
+/// The face and size a push-button caption is drawn at in a widget `h`
+/// points high: the `/DA` size, or auto-size against `h` resolved here, and
+/// the parsed `/DA`.
+fn push_button_caption_font(
+    h: f64,
+    da: &[u8],
+    resources: &[FontResource],
+) -> Result<(Std14, f64, vartext::DefaultAppearance), VarTextError> {
     let parsed = vartext::parse_default_appearance(da)?;
     let size = if parsed.font_size > 0.0 {
         parsed.font_size
@@ -4654,17 +4702,35 @@ pub fn build_push_button_appearance(
         .iter()
         .find(|r| r.name == parsed.font_name)
         .map_or(Std14::Helvetica, |r| r.font);
+    Ok((font, size, parsed))
+}
+
+/// Lay `caption` out as one centred line in `area`, sized against the
+/// widget height `h`.
+///
+/// The size is resolved before the band is measured (see the auto-size trap
+/// on [`build_push_button_appearance`]); the band is one line high and is
+/// translated to `area`'s vertical centre. `dy` may put the band partly
+/// outside a too-small `area`: an oversized line overflows equally top and
+/// bottom and the `/BBox` clips both, rather than reading as missing.
+fn push_button_caption(
+    h: f64,
+    area: Rect,
+    caption: &str,
+    da: &[u8],
+    resources: &[FontResource],
+) -> Result<PushButtonCaption, VarTextError> {
+    let (font, size, parsed) = push_button_caption_font(h, da, resources)?;
     let resolved_da = vartext::default_appearance_string(
         &parsed.font_name,
         size,
         parsed.color.unwrap_or(TextColor::Gray(0.0)),
     );
-
     let band_h = vartext::text_band_height(font, size);
     let band = Rect {
         llx: 0.0,
         lly: 0.0,
-        urx: w,
+        urx: area.width(),
         ury: band_h,
     };
     let va = vartext::build_variable_text(
@@ -4675,42 +4741,19 @@ pub fn build_push_button_appearance(
         false,
         resources,
     )?;
-
-    // `dy` may be negative when the caption's band is taller than the widget
-    // — a two-point-high button with an eight-point caption. The band is
-    // translated anyway rather than clamped to zero: centring an oversized
-    // line means it overflows equally top and bottom, and the form XObject's
-    // BBox clips both. Clamping would push the whole overflow out of the
-    // bottom, which reads as a caption that is missing rather than one that
-    // does not fit.
-    let dy = (h - band_h) / 2.0;
+    let dy = area.lly + (area.height() - band_h) / 2.0;
     let mut open = ContentBuilder::new();
     open.save_state();
-    open.concat_matrix(1.0, 0.0, 0.0, 1.0, 0.0, dy);
-    content.extend_from_slice(&open.into_bytes());
+    open.concat_matrix(1.0, 0.0, 0.0, 1.0, area.llx, dy);
+    let mut content = open.into_bytes();
     content.extend_from_slice(&va.content);
     let mut close = ContentBuilder::new();
     close.restore_state();
     content.extend_from_slice(&close.into_bytes());
-
-    Ok(FieldAppearance {
-        ap_dict: form_dict(bbox, va.resources),
+    Ok(PushButtonCaption {
         content,
-        applied_autosize: va.applied_autosize.or({
-            // The generator saw an explicit size (this function resolved it),
-            // so it reports no auto-size of its own. The DISCLOSURE is still
-            // owed when the caller's /DA asked for one — VT1 is about the
-            // operator learning that a size was chosen for them, and who did
-            // the choosing is not the part they need told.
-            if parsed.font_size > 0.0 {
-                None
-            } else {
-                Some(size)
-            }
-        }),
-        applied_autosize_bound: va.applied_autosize_bound,
-        da_colour_unmodelled: va.da_colour_unmodelled,
-        unencodable_chars: va.unencodable_chars,
+        va,
+        auto_size: (parsed.font_size <= 0.0).then_some(size),
     })
 }
 
@@ -6051,6 +6094,23 @@ pub(crate) fn three_d_placeholder(rect: Rect, color: Color) -> AuthoredTextAnnot
         annot: base_annot(b"3D", rect),
         ap_dict: text_form_dict(rect, Dict::new()),
         ap_content: b.into_bytes(),
+        rect,
+        flags: AnnotFlags::PRINT,
+        popup: None,
+        applied_autosize: None,
+        stamp_label_fit: None,
+        unencodable_chars: 0,
+    }
+}
+
+/// The frame of an image stamp (§12.5.6.12): a `/Stamp` with `/Rect`
+/// `rect` and an empty `[0 0 W H]` appearance for the caller to fill.
+pub(crate) fn image_stamp_frame(rect: Rect) -> AuthoredTextAnnot {
+    let rect = positive_rect(rect);
+    AuthoredTextAnnot {
+        annot: base_annot(b"Stamp", rect),
+        ap_dict: text_form_dict(rect, Dict::new()),
+        ap_content: Vec::new(),
         rect,
         flags: AnnotFlags::PRINT,
         popup: None,

@@ -599,6 +599,8 @@ mod annot_edit;
 use annot_edit::*;
 mod image;
 use image::*;
+mod image_stamp_cmd;
+use image_stamp_cmd::*;
 mod objects;
 use objects::*;
 mod pages;

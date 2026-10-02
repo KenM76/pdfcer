@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 309 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 310 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 309 public `EditSession` methods
+## 1. Verb index — all 310 public `EditSession` methods
 
-**Count: 309.** Established by brace-matched extraction of the
+**Count: 310.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -1663,7 +1663,7 @@ only creation verb whose successful result is a control that does not work"*
 | **Rotate one widget** | `rotate_widget(&mut self, fqn, index, degrees: i64) -> Result<WidgetRotation, EditError>` | ✅ **`/MK /R` + a REDRAWN appearance** (`Pass 177.0`). ⚠️ **COUNTERCLOCKWISE** — the page's `/Rotate` is the clockwise one. Multiples of 90 only, reduced into `[0, 360)` and the reduction reported. **`/Rect` does not move**; the appearance is redrawn into a `w`/`h`-swapped `/BBox` and stood upright by `/Matrix`. Rotating to `0` **removes** the key. Refuses a non-multiple of 90 with `WidgetRotationNotQuarterTurn`. |
 | Read an existing field's copyable properties | `field_defaults(&self, source: &str) -> Result<FieldDefaults, EditError>` | For `--defaults-from` / "copy style from". |
 | **Change a field's field-scope properties** | `edit_field(&mut self, fqn, edit: &FieldEdit) -> Result<FieldEditOutcome, EditError>` | `Pass 134.0`. Flags, `/MaxLen`, `/TU`, `/Opt`. **Shared by every widget the field owns.** Setting `password` on a text field removes its own `/V` (`password_value_removed`) and redraws it masked. `appearance_stale: Option<String>` is `Some` when a property was written and nothing was drawn (a `/DA` edit on a check box or radio, whose artwork is shapes, not text) — **show it**. A button redraw that reproduces its artwork exactly writes nothing and reports `appearance_regenerated: false`, on this verb, `edit_widget` and `rotate_widget`. A `/MK /CA` caption edit on a radio, text or choice widget is `AppearanceOutcome::RecordedNotPainted`. |
-| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. An **unsigned** signature widget (no `/V`) is redrawn as its empty box after a border/colour edit (`Regenerated`); a signed one keeps its bytes (`RecordedNotPainted`). `WidgetEdit::with_replace_foreign_appearance(true)` lets a check box or radio whose `/AP` another producer drew be replaced with pdfcer's own (`WidgetEditOutcome::foreign_appearance_replaced`) — see "Foreign button artwork" below. |
+| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. An **unsigned** signature widget (no `/V`) is redrawn as its empty box after a border/colour edit (`Regenerated`); a signed one keeps its bytes (`RecordedNotPainted`). `WidgetEdit::with_replace_foreign_appearance(true)` lets a check box or radio whose `/AP` another producer drew be replaced with pdfcer's own (`WidgetEditOutcome::foreign_appearance_replaced`) — see "Foreign button artwork" below. **Push-button icon** (`Pass 443.0`, G097): `with_button_icon(&ImportedImage)` / `without_button_icon()` / `with_caption_position(CaptionPosition)` — see "Push-button icons" below; on any other field type they are `EditError::NotAPushButton { name }`. |
 
 #### ★ 1.12b Button actions (`Pass 183.0`/`Pass 183.1`) — and the one disclosure a shell MUST surface
 
@@ -1937,7 +1937,7 @@ always errors.
 | Why a flatten would refuse, before attempting it | `flatten_refusal(&self) -> Option<EditError>` | `None` when a flatten would proceed. |
 | Where a page's widgets are | `widget_rects(&self, page_index: usize) -> Vec<(ObjId, [f64; 4])>` | Annotation id and `/Rect`. A **query**, not an edit — useful for hit-testing and for reporting orphans (see `insert_pages`). |
 
-### 1.15 Annotations (25) — detail in part 3
+### 1.15 Annotations (26) — detail in part 3
 
 | I want to… | Call | Returns |
 |---|---|---|
@@ -1951,6 +1951,7 @@ always errors.
 | Author a **3D** annotation — an embedded U3D or PRC model | `add_3d_annotation(&mut self, page_index, spec: &ThreeDSpec, options: &MarkupOptions) -> Result<ThreeDEmbedOutcome, EditError>` | `Pass 419.1`, §13.6.2 Table 298 + §13.6.3 Table 300. ONE undo entry: the `/3D` annotation (`/3DD` → a direct reference to its own Flate 3D stream `/Type /3D /Subtype /U3D|/PRC`, `/3DA << /A XA|PO|PV >>`), its `/AP /N` poster, and the poster image XObject when one is supplied. No `/VA`/`/3DV`: the reader opens on the model's default view. `pdfcer_core::threed::ThreeDSpec::new(rect, bytes)` sniffs the format (`U3D\0` / `PRC`); `with_format(rect, format, bytes)` states it and accepts unsigned bytes; both refuse empty data, STEP (not legal in a `/3D` stream) and a stated/sniffed mismatch — `EditError::ThreeD(ThreeDEmbedError::{Empty, Unrecognised, NotEmbeddable, Mismatch})`, re-checked by the verb. Then set `poster: Option<ImportedImage>` (contain-fitted, EXIF orientation honoured), `render_poster: bool` (default `true`), `activation: ThreeDActivation::{Click (default), PageOpen, PageVisible}`. **Poster when `poster` is `None`** (`Pass 440.0`, decision 180): a PRC model that meshes is rendered from pdfcer's default view (`pdfcer_3d::DEFAULT_VIEW_DIRECTION` = from above the front-right corner, z up, 30° perspective, tree colours, white background, 2 px/pt capped at 2048 px) — needs `pdfcer-core`'s `3d` feature (default on; a `default-features = false` consumer must enable it); otherwise the placeholder frame and wireframe cube in `color`, with `/C` written. `ThreeDEmbedOutcome::poster: ThreeDPoster::{Supplied, Rendered(RenderedPoster), Placeholder(PlaceholderReason)}` says which; `PlaceholderReason::{Requested, NotDecoded { format }, NoDecoder, Undecodable { why }}` (Display) says why. **★ Disclose a `Rendered` poster as inferred**: it is pdfcer's view, not the file's — `RenderedPoster` carries `width`, `height`, `meshes`, `triangles`, `wires_skipped`, `markups_skipped`, `compressed_rebuilt`, `compressed_skipped`, `uncoloured_meshes`, `unplaced`. **★ Disclose:** the header version is never raised — `ThreeDEmbedOutcome::below_required_version()` is `true` when the document predates the format (U3D 1.6, PRC 2.0), and a reader may then show only the poster. pdfcer shows the poster only; it has no 3D viewer. `resize_annotation` redraws a pdfcer-drawn poster at the new size (any factors); `move_annotation` and copy/paste work as for any annotation. `AnnotKind::ThreeD` (new variant). CLI: `pdfcer 3d-embed IN --model FILE --page N --rect x0,y0,x1,y1 [--format auto|u3d|prc] [--poster IMAGE | --placeholder-poster] [--activate click|page-open|page-visible] [--apply -o OUT]`. |
 | Replace a **3D** annotation's poster | `set_3d_poster(&mut self, page_index, annot_id: ObjId, image: &ImportedImage) -> Result<ThreeDPosterOutcome, EditError>` | `Pass 440.0`, §13.6.2 Table 298 `/AP`. ONE undo entry (`CommandKind::SetThreeDPoster`): a new image XObject, a new appearance stream drawing it contain-fitted in `/Rect` exactly as `add_3d_annotation` fits a supplied poster, and the annotation with only `/AP /N` replaced (other `/AP` entries kept). The 3D stream, `/3DD`, `/3DA`, views and `/C` are untouched, so `extract_3d` returns the same bytes; the old appearance stream stays in the file, unreferenced by this annotation. Afterwards `list_3d_with_notes` reports `has_poster`. `ThreeDPosterOutcome { annot_id, appearance_id, poster_image_id }`. Refusals in order: `DocumentEncrypted`, the certification gate, `PageOutOfRange`, `ObjectCreationWouldExposeHiddenObjects`, `AnnotationNotFound` (not in the page's `/Annots`), `ThreeD(ThreeDEmbedError::NotA3dAnnotation { subtype })` (RichMedia included), `AnnotationLocked` (Table 165 bit 8), `AnnotationRectMissing`. CLI: `pdfcer 3d-poster IN --index N --image IMAGE [--apply -o OUT]` (`N` as `3d-list` numbers it). |
 | Author a **caret** — where text goes | `add_caret_annotation(&mut self, page_index, spec: &CaretSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 261.1`, §12.5.6.11. Returns the `/Caret` id; ONE undo entry. `options.note` is the text to insert (`/Contents`) plus `/T`/`/M`; `opacity` and `layer` apply. `CaretSpec::new(rect)` (mid-blue), then set `color` and `symbol: CaretSymbol` (`None` default — `/Sy` omitted; `Paragraph` writes `/Sy /P` and draws ¶). `/RD` is never written. The artwork is pdfcer's own. Advisory: page content is untouched. `AnnotKind::Caret` (new variant). Guards as `add_file_attachment_annotation`. |
+| Author an **image stamp** — a picture as a comment | `add_image_stamp(&mut self, page_index, rect: Rect, image: &ImportedImage, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 443.0` (G095), §12.5.6.12. ONE undo entry: an image XObject (same writer as `add_image`, so alpha becomes an `/SMask` and the stamp is transparent there), a form drawing it contain-fitted and centred in `rect` (EXIF orientation honoured), and a `/Stamp` with `/Rect = rect`, `/F` Print and **no `/Name`**. `options` supplies `/CA`, the note and the layer. Page content is untouched. `resize_annotation` re-fits the image in the new box. Refusals: the `MarkupOptions` ones, then `DocumentEncrypted`, the annotation certification gate, `PageOutOfRange`, `ObjectCreationWouldExposeHiddenObjects`. CLI: `pdfcer add-image-stamp IN --image FILE --page N --rect llx,lly,urx,ury [--opacity A] [--note T [--author A]] [--layer NAME \| --layer-id N] -o OUT`; the result line carries `stamp=`, `pixels=WxH` and `smask=0\|1`. |
 | Author a **Replace Text** edit (caret + strikeout, grouped) | `add_replace_text(&mut self, page_index, caret: &CaretSpec, struck: &[Quad], options: &MarkupOptions) -> Result<ReplaceTextAdded, EditError>` | `Pass 261.1`. ONE undo entry, both appended to `/Annots` caret-first. The **caret is the group primary**: `/IT /Replace`, carries `options.note` (the replacement text). The **strikeout** (over `struck`, in `caret.color`) has `/IRT` → caret, `/RT /Group`, `/IT /StrikeOutTextEdit` and no note of its own. The standard is silent on this pairing; the shape is the empirical Acrobat convention, so Acrobat regroups it as one comment. `ReplaceTextAdded { caret_id, strike_out_id }` (`#[non_exhaustive]`, `Copy`). `EmptyGeometry` for empty `struck`, then the usual guards. `AnnotKind::ReplaceText` (new variant). |
 | Place one page's artwork on a page | `place_page_artwork(&mut self, source: &DocumentView<'_>, source_page: usize, page_index: usize, rect: Rect) -> Result<PlacedArtwork, EditError>` | `Pass 293.0`. The artwork becomes a **form XObject** behind a `/Stamp` annotation's `/AP` `/N` — vector, selectable, and the target page's content stream is **never touched** (R47). One undo entry for the form, the annotation, the imported resource closure and the `/Annots` patch. Reports scaling (§12.5.5 stretches anisotropically — normative), what was left behind on the source page (annotations, **widgets — the dynamic-stamp number**), and how much the file grew. Refuses with `SourcePageOutOfRange` for the SOURCE's index, distinct from `PageOutOfRange`. |
 | Preview which style RUNG a run would take | `preview_style_ladder(&self, page_index, find, pinned_span, want: impl Into<StyleTarget>, options: &FormatOptions) -> Result<StyleLadder, FormatError>`; with donors, `preview_style_ladder_with_donors(.., options, donors: &[FontEmbedPlan])` (`Pass 142.3`) — pass the SAME donors the commit will offer, or the preview cannot see rung 3 | `Pass 295.0`. Read-only, cheap enough for a hover: runs the SAME planner `format_text` runs, stages nothing. **Not `preview_style_resolution`**, which previews the R90 gate — that answers *"no real face on this page claims the style"* and is blind to rung 2 (the standard-14 sibling needs no font file and is not on the page), so a tooltip built on it predicted synthesis while the commit bound a real `Helvetica-Bold`. Pass the options the commit will use: under `StylePolicy::Refuse` this returns `SynthesisRefusedByPosture`, which is the honest preview of a commit that would refuse. |
@@ -3553,10 +3554,44 @@ leaves the key present, `unset` takes the key away. The creation verbs have no
   `/D` (down) and `/R` (rollover) are dropped. Reported as
   `WidgetEditOutcome::foreign_appearance_replaced = true` with
   `appearance: Regenerated`. Artwork pdfcer drew is an ordinary rebuild
-  (`foreign_appearance_replaced = false`). Push buttons and several on states
-  are not replaced; the outcome stays `RecordedNotPainted`, and its string
-  says the opt-in did not cover this button.
+  (`foreign_appearance_replaced = false`). Several on states are not
+  replaced; the outcome stays `RecordedNotPainted`, and its string says the
+  opt-in did not cover this button.
+- **Foreign push button** (`Pass 443.0`): the same opt-in replaces its `/AP`
+  with pdfcer's caption/icon layout, drawing the `/MK /I` icon already
+  stored (another producer's icon form is kept and drawn, not rewritten).
 - Without the opt-in, behaviour and the disclosure are exactly as before.
+
+### Push-button icons (`Pass 443.0`, request `G097`, decision 185)
+
+ISO 32000-1 Table 189 (`/MK /I`, `/TP`, `/IF`).
+
+- `WidgetEdit::with_button_icon(&ImportedImage)` sets field
+  `button_icon: Some(ButtonIconEdit::Set(Box<ImportedImage>))`: the image becomes an
+  image XObject inside a form at **one point per pixel**, written as
+  `/MK /I`. `/IF` is written as `<< /SW /A /S /P /A [0.5 0.5] >>` (scale always,
+  proportionally, centred) when absent; an existing `/IF` is kept.
+- `without_button_icon()` sets `ButtonIconEdit::Clear`: removes `/I` and
+  `/TP`; `/IF`, `/RI` and `/IX` stay. The caption is drawn alone.
+- `with_caption_position(CaptionPosition)` sets `caption_position`:
+  `/TP` 0–6 = `CaptionOnly`, `IconOnly`, `CaptionBelow`, `CaptionAbove`,
+  `CaptionRight`, `CaptionLeft`, `Overlaid`.
+- **Default position** when an icon is set with no position: the stored
+  `/TP` if it already shows an icon, else `IconOnly` with no caption, else
+  `CaptionBelow`.
+- A `/TP` that shows an icon with no `/I` draws the caption alone.
+- An edit that sets no icon patches `/MK` and keeps another producer's `/I`.
+- Every icon or position edit regenerates `/AP /N` (one undo entry,
+  `Regenerated`); the icon is scaled into the box inside the border per `/IF`.
+- On a field that is not a push button: `EditError::NotAPushButton { name }`,
+  nothing changes.
+- Readable: `forms::Widget::icon: Option<ObjId>` and
+  `caption_position: Option<CaptionPosition>` (`03-capabilities.md`).
+- `annot_author::{CaptionPosition, IconFit, IconScaleWhen, IconScaling}`
+  are the vocabulary types (`IconFit` = `/IF`).
+
+**CLI:** `edit-widget --button-icon FILE | --clear-button-icon`,
+`--caption-position caption-only|icon-only|below|above|right|left|overlaid`.
 
 **CLI:** `edit-widget --replace-foreign-appearance`. The result line carries
 `foreign_replaced=0|1` after `regenerated=`, and a replacement prints a
@@ -5365,7 +5400,7 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**162 variants**, counted at depth 1 inside `pub enum EditError`.
+**163 variants**, counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
@@ -5449,7 +5484,7 @@ Grouped for a shell's error presenter:
 `PageTree` 2311 (from `PageTreeError`) · `NotADictionary` 2327 ·
 `ObjectNumbersExhausted` 2336 · `AnnotsNotAnArray` 2819 · `WidgetRectMissing` 2600 ·
 `RadioGroupUsesPositionalOpt` 2644 · `FieldNotFillable` 3014 · `FieldIsRichText` 3007 ·
-`FieldStateUnknown` 3023 · `TextExtraction` 3099 · `VectorEditNoContents` 3114 ·
+`FieldStateUnknown` 3023 · `NotAPushButton` · `TextExtraction` 3099 · `VectorEditNoContents` 3114 ·
 the three **structural-carrier** refusals — `FieldObjectIsInPageTree`,
 `AnnotationObjectIsStructural`, `CarrierIsNotAStream` (§6.8, cited by name)
 

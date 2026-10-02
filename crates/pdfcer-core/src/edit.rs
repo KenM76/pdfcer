@@ -123,11 +123,14 @@
 //!   [`encode_text_string`])
 
 mod block_text;
+mod button_icon;
 mod checkpoint;
 mod content_mark;
 mod foreign_button;
+mod image_stamp;
 mod threed_poster;
 
+pub use button_icon::ButtonIconEdit;
 use checkpoint::Entry;
 pub use checkpoint::{Checkpoint, CheckpointError, Rollback};
 use foreign_button::ButtonSlot;
@@ -8844,6 +8847,16 @@ pub enum EditError {
     /// `ReadOnly` field, a pushbutton, or a signature field.
     #[error("field {name:?} is not fillable (it is read-only, a pushbutton, or a signature field)")]
     FieldNotFillable {
+        /// The field's fully-qualified name.
+        name: String,
+    },
+    /// A widget edit set an icon or a caption position on a field that is
+    /// not a push button. `/MK /I` and `/TP` are push-button entries (ISO
+    /// 32000-1 §12.5.6.19 Table 189).
+    #[error(
+        "field {name:?} is not a push button, so it has no icon or caption position (ISO 32000-1 Table 189)"
+    )]
+    NotAPushButton {
         /// The field's fully-qualified name.
         name: String,
     },
@@ -21765,6 +21778,9 @@ struct PendingWidgetEdit {
     /// `WidgetEdit::replace_foreign_appearance`: a foreign check box or radio
     /// button's artwork may be replaced with pdfcer's.
     replace_foreign: bool,
+    /// A push button's icon as this command leaves it; `Some(None)` = no
+    /// icon. `None` = not touched, and the redraw reads the widget's own.
+    icon: Option<Option<(annot_author::ButtonIcon, ObjId)>>,
 }
 
 impl PendingWidgetEdit {
@@ -21791,6 +21807,11 @@ impl PendingWidgetEdit {
     /// Whether foreign button artwork on `id` may be replaced.
     fn replace_foreign_for(&self, id: ObjId) -> bool {
         self.replace_foreign && self.id == Some(id)
+    }
+
+    /// The staged icon for `id`; `None` = not staged.
+    fn icon_for(&self, id: ObjId) -> Option<Option<(annot_author::ButtonIcon, ObjId)>> {
+        self.id.filter(|p| *p == id).and(self.icon)
     }
 
     /// The staged caption for `id`.
@@ -21894,6 +21915,8 @@ struct ButtonLook<'a> {
     da: Option<Vec<u8>>,
     /// The `/DR` fonts a push-button `/DA` may name.
     fonts: &'a [FontResource],
+    /// A push button's icon (`/MK /I`, `/TP`, `/IF`) and its form's id.
+    icon: Option<(annot_author::ButtonIcon, ObjId)>,
 }
 
 /// One button widget's appearance-rebuild plan (`Pass 187.0`).
@@ -25445,9 +25468,18 @@ pub struct WidgetEdit {
     /// on and off states drawn from its `/MK` and `/BS`. Its `/AP` is
     /// replaced whole, so foreign `/D` (down) and `/R` (rollover) states go
     /// with it. [`WidgetEditOutcome::foreign_appearance_replaced`] reports
-    /// that it happened. A push button and a check box whose `/AP` `/N`
-    /// names more than one on state are still not redrawn.
+    /// that it happened. A push button's single `/AP /N` is replaced the same
+    /// way. A check box whose `/AP` `/N` names more than one on state is
+    /// still not redrawn.
     pub replace_foreign_appearance: bool,
+    /// A push button's icon, `/MK /I` (ISO 32000-1 §12.5.6.19 Table 189):
+    /// set from an image, or cleared. `None` leaves whatever icon the
+    /// widget has, including another producer's. See
+    /// [`Self::with_button_icon`].
+    pub button_icon: Option<ButtonIconEdit>,
+    /// A push button's caption position, `/MK /TP` (Table 189). See
+    /// [`Self::with_caption_position`].
+    pub caption_position: Option<annot_author::CaptionPosition>,
 }
 
 impl FieldEdit {
@@ -29401,7 +29433,13 @@ impl EditSession {
             Some(dash) => chrome_after.with_border_dash(dash),
             None => chrome_after,
         };
-        if edit.caption.is_some() || edit.background.is_some() || edit.border_color.is_some() {
+        let mut icon_objects = Vec::new();
+        let mut staged_icon = None;
+        if edit.caption.is_some()
+            || edit.background.is_some()
+            || edit.border_color.is_some()
+            || edit.touches_button_icon()
+        {
             let mut mk = self.deref_dict(updated.get(b"MK")).unwrap_or_default();
             if let Some(caption) = &edit.caption {
                 if caption.is_empty() {
@@ -29431,6 +29469,22 @@ impl EditSession {
             };
             apply(&mut mk, b"BG", edit.background);
             apply(&mut mk, b"BC", edit.border_color);
+            if edit.touches_button_icon() {
+                let caption_after = edit.caption.clone().unwrap_or_else(|| {
+                    widget
+                        .caption
+                        .as_deref()
+                        .map(|b| decode_text_string(b).text)
+                        .unwrap_or_default()
+                });
+                staged_icon = Some(self.apply_button_icon_edit(
+                    &field,
+                    &mut mk,
+                    edit,
+                    &caption_after,
+                    &mut icon_objects,
+                )?);
+            }
             if mk.is_empty() {
                 updated.remove(b"MK");
             } else {
@@ -29443,6 +29497,7 @@ impl EditSession {
             before: self.state.get(&widget.id).cloned(),
             after: Some(Object::Dict(updated)),
         }];
+        objects.append(&mut icon_objects);
 
         // What this command has staged for this widget, so the one shared
         // regenerator draws at the NEW geometry rather than at the snapshot's.
@@ -29454,6 +29509,7 @@ impl EditSession {
             caption: edit.caption.clone(),
             chrome: Some(chrome_after),
             replace_foreign: edit.replace_foreign_appearance,
+            icon: staged_icon,
         };
 
         // THREE THINGS INVALIDATE THE BAKED APPEARANCE, and the third was
@@ -29493,7 +29549,8 @@ impl EditSession {
             || edit.border.is_some()
             || (edit.caption.is_some() && caption_drawn)
             || edit.background.is_some()
-            || edit.border_color.is_some();
+            || edit.border_color.is_some()
+            || edit.touches_button_icon();
         let caption_not_drawn = || {
             edit.caption.as_ref().filter(|_| !caption_drawn).map(|_| {
                 "pdfcer wrote this widget's /MK /CA caption but did NOT redraw its appearance -- \
@@ -32910,10 +32967,11 @@ impl EditSession {
         cb.into_bytes()
     }
 
-    /// The appearance `add_3d_annotation` would draw for `new_rect`, as
-    /// `(form dictionary, content)`, when the appearance on disk is
-    /// byte-identical to what it drew for `old_rect`: the placeholder in
-    /// `/C`, or a `/Poster` image fitted in one of the eight orientations.
+    /// The appearance `add_3d_annotation` or `add_image_stamp` would draw for
+    /// `new_rect`, as `(form dictionary, content)`, when the appearance on
+    /// disk is byte-identical to what it drew for `old_rect`: a 3D
+    /// placeholder in `/C`, or a `/Poster` image fitted in one of the eight
+    /// orientations.
     /// `None` for any other appearance.
     fn three_d_poster_rebuild(
         &self,
@@ -32957,6 +33015,14 @@ impl EditSession {
                 Some((ap_dict, Self::poster_content(stored, orientation, new_rect)))
             }
             Some(_) => None,
+            None if dict
+                .get(b"Subtype")
+                .and_then(Object::as_name)
+                .map(|n| n.0.as_slice())
+                != Some(b"3D".as_slice()) =>
+            {
+                None
+            }
             None => {
                 let color = annot_author::annotation_color(&g, dict)?;
                 let before = annot_author::three_d_placeholder(old_rect, color);
@@ -34400,8 +34466,9 @@ impl EditSession {
             })
         });
 
-        let three_d_rebuildable =
-            has_ap && subtype == "3D" && self.three_d_poster_rebuild(dict, rect, rect).is_some();
+        let three_d_rebuildable = has_ap
+            && (subtype == "3D" || (subtype == "Stamp" && !stamp_rebuildable))
+            && self.three_d_poster_rebuild(dict, rect, rect).is_some();
 
         let ap_is_pdfces = has_ap
             && (free_text_multiline.is_some()
@@ -34629,12 +34696,12 @@ impl EditSession {
                             id: annot_id,
                             key: "AP",
                         })?;
-                    (
+                    let frame = if subtype == "Stamp" {
+                        annot_author::image_stamp_frame(scaled)
+                    } else {
                         annot_author::three_d_placeholder(scaled, annot_author::Color::Gray(0.0))
-                            .annot,
-                        ap_dict,
-                        content,
-                    )
+                    };
+                    (frame.annot, ap_dict, content)
                 }
                 None if stamp_rebuildable => {
                     let mut spec = annot_author::text_spec_from_dict(&self.graph(), &updated)?;
@@ -44816,8 +44883,8 @@ impl EditSession {
             }
             Some(forms::FieldType::Button) if edit.replace_foreign_appearance => {
                 "this button's artwork, which pdfcer did not draw and could not replace \
-                 (replace_foreign_appearance covers a check box or radio button whose /AP /N \
-                 names exactly one on state)"
+                 (replace_foreign_appearance covers a push button, and a check box or radio \
+                 button whose /AP /N names exactly one on state)"
             }
             Some(forms::FieldType::Button) => {
                 "this button's artwork, which pdfcer did not draw (its /AP does not match what \
@@ -44903,8 +44970,8 @@ impl EditSession {
     ///
     /// # The opt-in past the ownership test
     ///
-    /// With `pending.replace_foreign_for(widget)`, a foreign check box or
-    /// radio widget is not a refusal: its `/AP` is replaced whole with
+    /// With `pending.replace_foreign_for(widget)`, a foreign push button,
+    /// check box or radio widget is not a refusal: its `/AP` is replaced whole with
     /// pdfcer's artwork ([`foreign_button`]) and the result is
     /// [`Redraw::Replaced`]. Only the edited widget can carry the opt-in, so
     /// a field with other foreign widgets still refuses all-or-nothing.
@@ -44964,7 +45031,7 @@ impl EditSession {
                     changed |= self.rewrite_button_slots(&plan.slots, redrawn, objects);
                 }
                 ButtonSlot::Foreign(on) => {
-                    self.replace_foreign_button(widget.id, &on, redrawn, objects)?;
+                    self.replace_foreign_button(widget.id, on.as_deref(), redrawn, objects)?;
                     replaced = true;
                 }
             }
@@ -45044,7 +45111,8 @@ impl EditSession {
                 Some(plan) => ButtonSlot::Own(plan),
                 None if pending.replace_foreign_for(widget.id) => {
                     match Self::foreign_on_state(widget, kind) {
-                        Some(on) => ButtonSlot::Foreign(on),
+                        Some(on) => ButtonSlot::Foreign(Some(on)),
+                        None if kind == forms::ButtonKind::Push => ButtonSlot::Foreign(None),
                         None => return Ok(None),
                     }
                 }
@@ -45076,6 +45144,9 @@ impl EditSession {
             .chrome_for(widget.id)
             .unwrap_or_else(|| self.widget_chrome(widget));
         let quarter = Self::quarter_of(pending.rotation_for(widget.id).or(widget.rotation));
+        let icon = pending
+            .icon_for(widget.id)
+            .unwrap_or_else(|| self.stored_button_icon(widget.id));
         self.build_button_states(
             kind,
             &ButtonLook {
@@ -45086,6 +45157,7 @@ impl EditSession {
                 quarter,
                 da,
                 fonts,
+                icon,
             },
         )
     }
@@ -45161,6 +45233,7 @@ impl EditSession {
             quarter: EditSession::quarter_of(widget.rotation),
             da: da.clone(),
             fonts,
+            icon: self.stored_button_icon(widget.id),
         };
         let Some(Object::Dict(dict)) = self.value(widget.id) else {
             return Err(EditError::NotADictionary {
@@ -45272,6 +45345,7 @@ impl EditSession {
             quarter,
             ref da,
             fonts,
+            icon,
         } = look;
         // DRAWN IN THE ROTATED FRAME AND TURNED UPRIGHT BY `/Matrix`,
         // which is the same construction `regen_field_appearance` uses for a
@@ -45336,14 +45410,25 @@ impl EditSession {
                         crate::vartext::TextColor::Gray(0.0),
                     )
                 });
-                let built = annot_author::build_push_button_appearance(
-                    w,
-                    h,
-                    caption,
-                    &da,
-                    fonts,
-                    chrome.clone(),
-                )?;
+                let built = match icon {
+                    Some((icon, form)) => annot_author::push_button_with_icon(
+                        (w, h),
+                        caption,
+                        &da,
+                        fonts,
+                        chrome,
+                        &icon,
+                        form,
+                    )?,
+                    None => annot_author::build_push_button_appearance(
+                        w,
+                        h,
+                        caption,
+                        &da,
+                        fonts,
+                        chrome.clone(),
+                    )?,
+                };
                 vec![annot_author::CheckBoxStateAppearance {
                     ap_dict: built.ap_dict,
                     content: built.content,

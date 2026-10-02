@@ -606,6 +606,13 @@ pub struct Widget {
     /// is non-conforming, and silently rounding it here would be pdfcer
     /// inventing a rotation the file does not state.
     pub rotation: Option<i64>,
+    /// `/MK /I` — a push button's normal icon, the form XObject it draws
+    /// (Table 189). `None` when absent or not an indirect reference.
+    pub icon: Option<ObjId>,
+    /// `/MK /TP` — a push button's caption position (Table 189), as the file
+    /// states it; `None` when absent or outside `0..=6` (the reader default
+    /// is then caption only).
+    pub caption_position: Option<crate::annot_author::CaptionPosition>,
     /// `/BS` (Table 166) or the older `/Border` array (Table 164) — the
     /// widget's border **as the file states it**, or `None` when the file
     /// states none (`Pass 146.0`).
@@ -1688,6 +1695,15 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         .as_ref()
         .and_then(|mk| mk.get(b"R").map(|o| graph.resolve(o)))
         .and_then(|o| o.as_int());
+    let icon = mk
+        .as_ref()
+        .and_then(|mk| mk.get(b"I"))
+        .and_then(Object::as_reference);
+    let caption_position = mk
+        .as_ref()
+        .and_then(|mk| mk.get(b"TP").map(|o| graph.resolve(o)))
+        .and_then(Object::as_int)
+        .and_then(crate::annot_author::CaptionPosition::from_tp);
     let (has_normal_appearance, on_states, has_off_appearance) = appearance_of(graph, dict);
     let border = read_widget_border(graph, dict);
     let annot_flags = AnnotFlags(
@@ -1708,6 +1724,8 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         background,
         border_color,
         rotation,
+        icon,
+        caption_position,
         border,
         visibility: visibility_of(annot_flags),
         annot_flags,

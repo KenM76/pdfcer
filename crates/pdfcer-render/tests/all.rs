@@ -38,6 +38,7 @@ mod grey_overprint;
 mod group_spot_planes;
 mod hairline_minimum;
 mod icc_rgb;
+mod image_stamp_transparency;
 mod image_transparency;
 mod ink_answered_before_rendering;
 mod ink_probe;

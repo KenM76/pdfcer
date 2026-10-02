@@ -170,7 +170,7 @@ impl EditSession {
         };
         let mut objects = Vec::new();
         let mut authored = annot_author::three_d_placeholder(rect, Color::Gray(0.0));
-        let poster_image_id = self.attach_three_d_poster(&mut authored, image, &mut objects)?;
+        let poster_image_id = self.attach_fitted_image(&mut authored, image, &mut objects)?;
         let appearance_id = ObjId::new(self.alloc_number()?, 0);
         let mut ap_dict = authored.ap_dict;
         ap_dict.insert(
@@ -221,12 +221,12 @@ impl EditSession {
         objects: &mut Vec<ObjectWrite>,
     ) -> Result<(Option<ObjId>, ThreeDPoster), EditError> {
         if let Some(img) = &spec.poster {
-            let id = self.attach_three_d_poster(authored, img, objects)?;
+            let id = self.attach_fitted_image(authored, img, objects)?;
             return Ok((Some(id), ThreeDPoster::Supplied));
         }
         match crate::threed::default_poster(spec) {
             Ok((img, rendered)) => {
-                let id = self.attach_three_d_poster(authored, &img, objects)?;
+                let id = self.attach_fitted_image(authored, &img, objects)?;
                 Ok((Some(id), ThreeDPoster::Rendered(rendered)))
             }
             Err(reason) => {
@@ -240,7 +240,7 @@ impl EditSession {
 
     /// Stage `img` as an image XObject and make `authored`'s appearance draw
     /// it as `/Poster`, fitted inside `authored.rect`. Returns the image id.
-    fn attach_three_d_poster(
+    pub(super) fn attach_fitted_image(
         &mut self,
         authored: &mut AuthoredTextAnnot,
         img: &ImportedImage,

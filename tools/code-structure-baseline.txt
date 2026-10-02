@@ -237,7 +237,6 @@ fn pdfcer-core/src/annot.rs::apply_view_usage
 fn pdfcer-core/src/annot.rs::model_annotation
 fn pdfcer-core/src/annot_author.rs::build_appearance_inner
 fn pdfcer-core/src/annot_author.rs::build_check_box_appearances
-fn pdfcer-core/src/annot_author.rs::build_push_button_appearance
 fn pdfcer-core/src/annot_author.rs::build_radio_button_appearances
 fn pdfcer-core/src/annot_author.rs::cloud_path
 fn pdfcer-core/src/annot_author.rs::decode_spec

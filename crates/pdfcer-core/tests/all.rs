@@ -92,6 +92,7 @@ mod freetext_newline;
 mod hand_signature;
 mod image_gif;
 mod image_placement;
+mod image_stamp_and_button_icon;
 mod image_tiff;
 mod indirect_acroform_entries;
 mod indirect_entry_edits;

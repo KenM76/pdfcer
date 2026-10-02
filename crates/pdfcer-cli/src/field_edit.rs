@@ -1023,8 +1023,14 @@ pub(crate) struct EditWidgetArgs<'a> {
     /// cannot rebuild (`Pass 187.0`) — the same three answers
     /// `resize-annotation` takes.
     pub(crate) resize: pdfcer_core::edit::ResizeOptions,
-    /// Replace a foreign check-box or radio `/AP` with pdfcer's own.
+    /// Replace a foreign button `/AP` with pdfcer's own.
     pub(crate) replace_foreign_appearance: bool,
+    /// `--button-icon`: the image file for a push button's `/MK /I`.
+    pub(crate) button_icon: Option<&'a Path>,
+    /// `--clear-button-icon`.
+    pub(crate) clear_button_icon: bool,
+    /// `--caption-position`: `/MK /TP`.
+    pub(crate) caption_position: Option<CaptionPositionArg>,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
 }
@@ -1129,6 +1135,12 @@ fn widget_edit_from_args(args: &EditWidgetArgs<'_>) -> Result<pdfcer_core::edit:
         edit = edit.with_caption(c);
     }
     edit = with_mk_colour_args(edit, args)?;
+    edit = with_button_icon_args(
+        edit,
+        args.button_icon,
+        args.clear_button_icon,
+        args.caption_position,
+    )?;
     Ok(edit
         .with_resize(args.resize)
         .with_replace_foreign_appearance(args.replace_foreign_appearance))

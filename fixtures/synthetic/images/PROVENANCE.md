@@ -77,6 +77,8 @@ orientation) and a non-square aspect ratio of 3:2 (which is what makes the
 | `rgba8.png` | Colour type 6 → `/DeviceRGB` base + 8-bit `/SMask`. Mixed filter tags, so the un-prediction is exercised on all four non-trivial filters. |
 | `graya8.png` | Colour type 4 → `/DeviceGray` base + 8-bit `/SMask`. |
 | `rgba16.png` | Colour type 6 at 16 bits → a **16-bit** base and a **16-bit** soft mask. Pins that the mask keeps the source's precision rather than being quantised to 8 bits. |
+| `rgba-half-clear.png` | 64×32 colour type 6: left half opaque red, right half alpha 0. Image stamps (`EditSession::add_image_stamp`): the stamp must be transparent where the PNG was. |
+| `icon32.png` | 32×32 colour type 2, opaque blue. Push-button icons (`WidgetEdit::with_button_icon`). |
 
 ### PNG — refusal
 

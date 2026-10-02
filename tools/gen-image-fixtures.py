@@ -59,6 +59,9 @@ so the samples must be split into base + soft mask):
     rgba8.png           colour type 6 → /DeviceRGB base + 8-bit /SMask.
     graya8.png          colour type 4 → /DeviceGray base + 8-bit /SMask.
     rgba16.png          colour type 6, 16-bit → 16-bit base + 16-bit /SMask.
+    rgba-half-clear.png 64x32 colour type 6: left half opaque red, right
+                        half alpha 0 (image stamps).
+    icon32.png          32x32 colour type 2, opaque blue (button icons).
 
 PNG — refusals:
     interlaced.png      Adam7. Refused BY NAME (pdfcer has no de-interlacer;
@@ -271,6 +274,16 @@ def graya_rows() -> list[bytes]:
             row += bytes([(255 * (x + y)) // (W + H - 2), alpha_at(x, y)])
         rows.append(bytes(row))
     return rows
+
+
+def half_clear_rows() -> list[bytes]:
+    """64x32 RGBA: left half opaque red, right half fully transparent."""
+    return [bytes([255, 0, 0, 255]) * 32 + bytes(4 * 32) for _ in range(32)]
+
+
+def icon_rows() -> list[bytes]:
+    """32x32 RGB: opaque blue."""
+    return [bytes([0, 0, 255]) * 32 for _ in range(32)]
 
 
 PALETTE = bytes(
@@ -853,6 +866,9 @@ def main() -> None:
     files["rgba8.png"] = png(W, H, 6, 8, rgba_rows(), filter_types=[0, 1, 2, 4])
     files["graya8.png"] = png(W, H, 4, 8, graya_rows())
     files["rgba16.png"] = png(W, H, 6, 16, rgba_rows(16))
+    # Image stamps and push-button icons (Pass 443.0).
+    files["rgba-half-clear.png"] = png(64, 32, 6, 8, half_clear_rows())
+    files["icon32.png"] = png(32, 32, 2, 8, icon_rows())
 
     # --- PNG, refusal ---------------------------------------------------
     # Adam7. Only pass 1 of 7 carries data at this size, which is legal and

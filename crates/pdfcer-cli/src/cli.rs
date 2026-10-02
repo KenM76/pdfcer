@@ -7367,16 +7367,35 @@ pub(crate) enum Command {
         /// REDRAWN at the new size and need none of this.
         #[arg(long)]
         allow_appearance_distortion: bool,
-        /// Replace a check box's or radio button's artwork that pdfcer did not
-        /// draw with pdfcer's own, so the edit shows.
+        /// Replace a check box's, radio button's or push button's artwork
+        /// that pdfcer did not draw with pdfcer's own, so the edit shows.
         ///
         /// Without it, such a widget keeps its old look and the edit is
         /// reported as recorded but not painted. With it, the widget's whole
         /// `/AP` is redrawn in pdfcer's style -- its down and rollover looks
-        /// are dropped -- and the run says so. Push buttons, and widgets
-        /// with more than one on state, are never replaced.
+        /// are dropped -- and the run says so. A push button keeps its `/MK`
+        /// icon, which pdfcer redraws. Widgets with more than one on state
+        /// are never replaced.
         #[arg(long)]
         replace_foreign_appearance: bool,
+        /// Give a PUSH BUTTON this image as its icon: PNG, JPEG or BMP.
+        ///
+        /// Written as `/MK /I`, a form drawing the image at one point per
+        /// pixel, which the button's appearance scales into its box keeping
+        /// the image's shape (the `/IF` default, written when absent). With
+        /// no `--caption-position` the icon goes BELOW a caption, or alone
+        /// when there is none; a button already laid out with an icon keeps
+        /// its layout. Refused on any other kind of field.
+        #[arg(long, value_name = "FILE", conflicts_with = "clear_button_icon")]
+        button_icon: Option<PathBuf>,
+        /// Remove a push button's icon (`/MK /I`) and its caption position,
+        /// so the caption is drawn alone.
+        #[arg(long)]
+        clear_button_icon: bool,
+        /// Where a push button's caption sits relative to its icon
+        /// (`/MK /TP`). Refused on any other kind of field.
+        #[arg(long, value_enum)]
+        caption_position: Option<CaptionPositionArg>,
 
         /// Output path.
         #[arg(short, long)]
@@ -11468,6 +11487,53 @@ pub(crate) enum Command {
         mode: SaveMode,
         /// Also verify that undoing the placement reproduces the input byte
         /// for byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+
+    /// Place an image as a STAMP comment (ISO 32000-1 §12.5.6.12) rather
+    /// than as page content: it can be moved, resized, hidden or deleted
+    /// like any other comment, and the page itself is not changed.
+    ///
+    /// Use `add-image` instead to put the picture into the page.
+    AddImageStamp {
+        /// Input PDF.
+        input: PathBuf,
+        /// The image file: PNG, JPEG or BMP. A PNG's alpha channel becomes
+        /// an `/SMask`, so the stamp is transparent where the image was.
+        #[arg(long, value_name = "FILE")]
+        image: PathBuf,
+        /// 1-based page number.
+        #[arg(long)]
+        page: usize,
+        /// The stamp's rectangle, `llx,lly,urx,ury`, in points with the
+        /// origin at the page's lower-left. The image keeps its shape and is
+        /// centred inside it.
+        #[arg(long, value_name = "LLX,LLY,URX,URY", allow_hyphen_values = true)]
+        rect: String,
+        /// Constant opacity `/CA`, 0-1.
+        #[arg(long)]
+        opacity: Option<f64>,
+        /// A note (`/Contents`) shown in the comment's pop-up.
+        #[arg(long)]
+        note: Option<String>,
+        /// The note's author (`/T`). Needs `--note`.
+        #[arg(long, requires = "note")]
+        author: Option<String>,
+        /// Put the stamp on this layer, named as `list-layers` prints it.
+        #[arg(long, conflicts_with = "layer_id")]
+        layer: Option<String>,
+        /// Put the stamp on the layer with this object number.
+        #[arg(long)]
+        layer_id: Option<u32>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the stamp reproduces the input byte for
+        /// byte.
         #[arg(long)]
         verify_undo: bool,
     },

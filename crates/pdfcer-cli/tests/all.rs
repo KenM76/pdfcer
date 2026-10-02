@@ -46,6 +46,7 @@ mod font_licence_notice;
 mod font_preflight;
 mod format_text;
 mod hand_signature;
+mod image_stamp_and_button_icon;
 mod import_structure_certified;
 mod in_place;
 mod ink_edit;
