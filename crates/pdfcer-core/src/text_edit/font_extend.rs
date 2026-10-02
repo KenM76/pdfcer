@@ -1,13 +1,14 @@
 //! Decision 172 route A: make a character the page never shows typeable
 //! through an embedded subset's existing font dictionary, by addition only.
 //!
-//! Slice 1 covers a simple, nonsymbolic `/TrueType` font with a named
-//! `/WinAnsiEncoding` or `/MacRomanEncoding` and no `/ToUnicode`. The code is
-//! the one the encoding already assigns the character (ISO 32000-2 §9.6.6.4:
-//! code → glyph name → Unicode → the program's `(3,1)` cmap), so no existing
-//! code changes meaning; the only write is `/FirstChar`, `/LastChar` and
-//! `/Widths` (§9.6.2), with any gap filled by `/MissingWidth` (Table 122),
-//! the value readers already used there. The program bytes are never touched.
+//! This module covers a simple, nonsymbolic `/TrueType` font with a
+//! WinAnsi or MacRoman base encoding; `cid_extend` covers the composite
+//! shape. The code is the one the encoding assigns the character (ISO
+//! 32000-2 §9.6.6.4: code → glyph name → Unicode → the program's `(3,1)`
+//! cmap), or an unused one `code_alloc` names in `/Differences`. The writes
+//! are `/FirstChar`, `/LastChar` and `/Widths` (§9.6.2), any gap filled by
+//! `/MissingWidth` (Table 122), and `/ToUnicode` entries. The program bytes
+//! are never touched.
 
 use std::collections::BTreeSet;
 
@@ -17,7 +18,7 @@ use crate::object::{Dict, Name, ObjId, Object};
 use crate::text_edit::edit::{carried_codes, walk_records};
 use crate::text_edit::forms::scan_page_forms;
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
-use crate::text_extract::cmap::ToUnicodeCMap;
+pub(crate) use crate::text_edit::unicode_map::UnicodeMap;
 use crate::view::DocumentView;
 use pdfcer_fonts::fontdata::BaseEncoding;
 
@@ -48,9 +49,17 @@ pub(crate) struct FontExtension {
     pub(crate) to_unicode: Option<(ObjId, Dict, Vec<u8>)>,
     /// Whether `dict` carries codes newly named in `/Differences`.
     pub(crate) reencoded: bool,
+    /// The font dictionary the edit resolves when `dict` is not it: a Type0
+    /// font with its rewritten descendant inline.
+    pub(crate) view: Option<Dict>,
 }
 
 impl FontExtension {
+    /// The font dictionary as the edit sees it.
+    pub(crate) fn view(&self) -> &Dict {
+        self.view.as_ref().unwrap_or(&self.dict)
+    }
+
     /// The object write, or nothing when the dictionary is unchanged.
     pub(crate) fn write(&self) -> Option<(ObjId, Object)> {
         (self.reencoded || self.added.iter().any(|a| a.widened))
@@ -71,6 +80,19 @@ impl FontExtension {
                 } else {
                     "the font dictionary already gave it a width".to_owned()
                 };
+                if self.view.is_some() {
+                    let found = if a.mapped {
+                        "found through the program's cmap; /ToUnicode gained an entry for it"
+                    } else {
+                        "the CID /ToUnicode already gave it"
+                    };
+                    return format!(
+                        "font: '{}' was typed as CID {}, glyph {} that the embedded subset '{}' \
+                         already contains but the document never showed ({found}); {how}. The \
+                         font program is unchanged.",
+                        a.ch, a.code, a.gid, base_font
+                    );
+                }
                 format!(
                     "font: '{}' was typed with glyph {} that the embedded subset '{}' already \
                      contains but the document never showed, as code {}; {how}. The font \
@@ -113,12 +135,7 @@ impl Target {
         font_name: &[u8],
         font_dict: &Dict,
     ) -> Result<Self, String> {
-        let font_id = doc
-            .resolve(resources.get(b"Font").unwrap_or(&Object::Null))
-            .as_dict()
-            .and_then(|f| f.get(font_name))
-            .and_then(Object::as_reference)
-            .ok_or_else(|| "the font dictionary is not a separate object".to_owned())?;
+        let font_id = font_object(doc, resources, font_name)?;
         let shape = Shape::read(doc, font_dict)?;
         Ok(Self { font_id, shape })
     }
@@ -201,7 +218,8 @@ impl Target {
     }
 }
 
-fn shown_elsewhere(code: u32) -> String {
+/// The refusal for a code whose new width would restyle text drawn elsewhere.
+pub(crate) fn shown_elsewhere(code: u32) -> String {
     format!("code {code} is already shown elsewhere in the document with a different width")
 }
 
@@ -228,6 +246,11 @@ pub(crate) fn plan(
             reason,
         }]
     };
+    if crate::text_edit::cid_extend::is_composite(doc, font_dict) {
+        return crate::text_edit::cid_extend::plan(
+            doc, resources, font_name, font_dict, missing, glyphs,
+        );
+    }
     let t = Target::read(doc, resources, font_name, font_dict).map_err(whole)?;
     let (mut added, mut blocked) = (Vec::new(), Vec::new());
     for &(ch, code) in missing {
@@ -265,6 +288,7 @@ pub(crate) fn plan(
         added,
         to_unicode,
         reencoded: false,
+        view: None,
     })
 }
 
@@ -278,6 +302,11 @@ pub(crate) fn addable(
     candidates: &[(char, u32)],
     glyphs: &dyn EmbeddedGlyphs,
 ) -> BTreeSet<char> {
+    if crate::text_edit::cid_extend::is_composite(doc, font_dict) {
+        return crate::text_edit::cid_extend::addable(
+            doc, resources, font_name, font_dict, candidates, glyphs,
+        );
+    }
     let Ok(t) = Target::read(doc, resources, font_name, font_dict) else {
         return BTreeSet::new();
     };
@@ -307,7 +336,8 @@ pub(crate) fn addable(
         .collect()
 }
 
-fn number(w: f64) -> Object {
+/// A width as an integer when whole, so `/Widths` and `/W` stay compact.
+pub(crate) fn number(w: f64) -> Object {
     if w.fract() == 0.0 && w.abs() < 1e15 {
         Object::Integer(w as i64)
     } else {
@@ -339,84 +369,6 @@ fn set_width(widths: &mut Vec<f64>, first_char: &mut u32, code: u32, w: f64, mis
     if let Some(slot) = widths.get_mut(i) {
         *slot = w;
     }
-}
-
-/// The font's `/ToUnicode` stream. An added code either already reads back as
-/// its character there or gains a `bfchar` entry (§9.10.3); the stream is
-/// rewritten in place, unfiltered.
-pub(crate) struct UnicodeMap {
-    pub(crate) id: ObjId,
-    dict: Dict,
-    decoded: Vec<u8>,
-    pub(crate) cmap: ToUnicodeCMap,
-}
-
-impl UnicodeMap {
-    fn read(doc: &DocumentView<'_>, font: &Dict) -> Result<Option<Self>, &'static str> {
-        let Some(entry) = font.get(b"ToUnicode") else {
-            return Ok(None);
-        };
-        let id = entry
-            .as_reference()
-            .ok_or("the /ToUnicode map is not a separate stream")?;
-        let Some(Object::Stream(s)) = doc.graph().value(id) else {
-            return Err("the /ToUnicode map is not a stream");
-        };
-        let decoded = doc
-            .slice(s.data_span)
-            .and_then(|raw| crate::filters::decode_stream(&s.dict, raw).ok())
-            .ok_or("the /ToUnicode map could not be read")?;
-        let cmap = ToUnicodeCMap::parse(&decoded);
-        if cmap.codespace_widths() != [1] || endcmap_at(&decoded).is_none() {
-            return Err("the /ToUnicode map is not a single-byte CMap pdfcer can extend");
-        }
-        Ok(Some(Self {
-            id,
-            dict: s.dict.clone(),
-            decoded,
-            cmap,
-        }))
-    }
-
-    /// Whether `code` needs a new entry to read back as `ch`.
-    fn needs_entry(&self, ch: char, code: u32) -> Result<bool, String> {
-        match self.cmap.lookup(code) {
-            None => Ok(true),
-            Some(s) if s.chars().eq(std::iter::once(ch)) => Ok(false),
-            Some(s) => Err(format!(
-                "code {code} already reads as {s:?} in the font's /ToUnicode map"
-            )),
-        }
-    }
-
-    /// The stream's new dictionary and bytes: one `bfchar` block before
-    /// `endcmap`, the rest verbatim.
-    fn extended(&self, entries: &[(u32, char)]) -> (Dict, Vec<u8>) {
-        let at = endcmap_at(&self.decoded).unwrap_or(self.decoded.len());
-        let mut block = format!("{} beginbfchar\n", entries.len());
-        for &(code, ch) in entries {
-            let mut units = [0u16; 2];
-            let hex: String = ch
-                .encode_utf16(&mut units)
-                .iter()
-                .map(|u| format!("{u:04X}"))
-                .collect();
-            block.push_str(&format!("<{code:02X}> <{hex}>\n"));
-        }
-        block.push_str("endbfchar\n");
-        let (head, tail) = self.decoded.split_at(at);
-        let bytes = [head, block.as_bytes(), tail].concat();
-        let mut dict = self.dict.clone();
-        dict.remove(b"Filter");
-        dict.remove(b"DecodeParms");
-        dict.insert(Name(b"Length".to_vec()), number(bytes.len() as f64));
-        (dict, bytes)
-    }
-}
-
-/// Offset of the last `endcmap` keyword.
-fn endcmap_at(cmap: &[u8]) -> Option<usize> {
-    cmap.windows(7).rposition(|w| w == b"endcmap")
 }
 
 /// The font's `/Encoding`: a WinAnsi or MacRoman base, named or as a
@@ -503,7 +455,7 @@ impl Shape {
             return Err("only a simple TrueType font can be extended so far");
         }
         let encoding = Encoding::read(doc, font)?;
-        let to_unicode = UnicodeMap::read(doc, font)?;
+        let to_unicode = UnicodeMap::read(doc, font, 1)?;
         let descriptor = doc
             .resolve(font.get(b"FontDescriptor").unwrap_or(&Object::Null))
             .as_dict()
@@ -515,13 +467,7 @@ impl Shape {
         if flags & 4 != 0 || flags & 32 == 0 {
             return Err("the font is symbolic, so its codes do not name characters");
         }
-        let program = match doc.resolve(descriptor.get(b"FontFile2").unwrap_or(&Object::Null)) {
-            Object::Stream(s) => doc
-                .slice(s.data_span)
-                .and_then(|raw| crate::filters::decode_stream(&s.dict, raw).ok()),
-            _ => None,
-        }
-        .ok_or("the embedded program could not be read")?;
+        let program = font_file2(doc, descriptor)?;
         let num = |d: &Dict, k: &[u8]| doc.resolve(d.get(k).unwrap_or(&Object::Null)).as_number();
         let widths: Vec<f64> = doc
             .resolve(font.get(b"Widths").unwrap_or(&Object::Null))
@@ -542,6 +488,34 @@ impl Shape {
             encoding,
         })
     }
+}
+
+/// The object id of the font `font_name` selects in `resources`; the
+/// copy-on-write rewrite needs one to replace.
+pub(crate) fn font_object(
+    doc: &DocumentView<'_>,
+    resources: &Dict,
+    font_name: &[u8],
+) -> Result<ObjId, String> {
+    doc.resolve(resources.get(b"Font").unwrap_or(&Object::Null))
+        .as_dict()
+        .and_then(|f| f.get(font_name))
+        .and_then(Object::as_reference)
+        .ok_or_else(|| "the font dictionary is not a separate object".to_owned())
+}
+
+/// The decoded `/FontFile2` program `descriptor` embeds.
+pub(crate) fn font_file2(
+    doc: &DocumentView<'_>,
+    descriptor: &Dict,
+) -> Result<Vec<u8>, &'static str> {
+    match doc.resolve(descriptor.get(b"FontFile2").unwrap_or(&Object::Null)) {
+        Object::Stream(s) => doc
+            .slice(s.data_span)
+            .and_then(|raw| crate::filters::decode_stream(&s.dict, raw).ok()),
+        _ => None,
+    }
+    .ok_or("the embedded program could not be read")
 }
 
 /// Every code shown by font object `font` on any page, any form a page

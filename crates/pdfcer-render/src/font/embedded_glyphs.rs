@@ -28,13 +28,23 @@ impl EmbeddedGlyphs for EmbeddedProgramGlyphs {
             .filter(|&ch| glyph_in(&parsed, ch).is_some())
             .collect()
     }
+
+    fn glyph_by_id(&self, program: &[u8], gid: u32, ch: char) -> Option<ProgramGlyph> {
+        let parsed = FontProgram::parse(program).ok()?;
+        (gid != 0).then(|| outlined(&parsed, gid, ch)).flatten()
+    }
 }
 
 fn glyph_in(parsed: &FontProgram<'_>, ch: char) -> Option<ProgramGlyph> {
+    let gid = parsed.glyph_for_char(ch).filter(|&g| g != 0)?;
+    outlined(parsed, gid, ch)
+}
+
+/// Glyph `gid` when it is drawn, or blank by design for whitespace `ch`.
+fn outlined(parsed: &FontProgram<'_>, gid: u32, ch: char) -> Option<ProgramGlyph> {
     let FontProgram::Sfnt(font) = parsed else {
         return None;
     };
-    let gid = parsed.glyph_for_char(ch).filter(|&g| g != 0)?;
     let advance = {
         use skrifa::MetadataProvider;
         font.glyph_metrics(

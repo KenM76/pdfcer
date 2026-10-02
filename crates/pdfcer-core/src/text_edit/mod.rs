@@ -62,6 +62,7 @@
 
 pub mod addtext;
 pub mod cause;
+pub(crate) mod cid_extend;
 pub(crate) mod code_alloc;
 pub(crate) mod cross_object;
 pub mod edit;
@@ -80,6 +81,7 @@ pub mod reflow;
 pub mod reflow_apply;
 pub mod refusal_kind;
 pub mod synth;
+pub(crate) mod unicode_map;
 
 pub use addtext::{
     AddTextError, AddTextOutcome, AddTextReport, AddTextRequest, AddTextWrapPreview,

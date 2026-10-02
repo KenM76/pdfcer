@@ -114,6 +114,7 @@ use crate::text_edit::code_alloc::{Allocation, allocate};
 use crate::text_edit::encoding::{CompositeEncoding, InverseEncoding, RInvTrigger, Refusal};
 use crate::text_edit::font_extend::{Blocked, FontExtension};
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
+use crate::text_extract::cmap::ToUnicodeCMap;
 use crate::text_extract::font::ExtractFont;
 use crate::text_state::{AmbientTextState, TextStateParam};
 use crate::view::DocumentView;
@@ -2164,7 +2165,7 @@ pub(crate) fn plan_edit_with_records(
     let (encoded, font, extension) = encode_and_extend(
         doc, target, recs, font, &class, font_dict, anchor, req, opts,
     )?;
-    let font_dict = extension.as_ref().map_or(font_dict, |e| &e.dict);
+    let font_dict = extension.as_ref().map_or(font_dict, FontExtension::view);
 
     // Advance delta (§9.4.4): the anchor's matched glyphs plus any TJ kerns
     // the match swallowed, against the whole replacement, which lands there.
@@ -2410,6 +2411,15 @@ fn encode_and_extend(
 ) -> Result<(EncodedReplacement, ExtractFont, Option<FontExtension>), EditError> {
     let (mut encoded, font, alloc) = match encode_replacement(&font, anchor, &req.replace) {
         Ok(e) => (e, font, None),
+        Err(refused) if !font.is_simple() => {
+            let cmap = allocate_cids(doc, target, &font, class, font_dict, anchor, req, opts)
+                .map_err(|blocked| with_allocation_reasons(refused, &blocked))?;
+            (
+                encode_composite_with(&font, &cmap, &req.replace)?,
+                font,
+                None,
+            )
+        }
         Err(refused) => {
             let alloc = allocate_codes(doc, target, &font, class, font_dict, anchor, req, opts)
                 .map_err(|blocked| with_allocation_reasons(refused, &blocked))?;
@@ -2432,7 +2442,7 @@ fn encode_and_extend(
         return Ok((encoded, font, None));
     };
     ext.reencoded = alloc.is_some();
-    let font = ExtractFont::resolve(doc, &ext.dict);
+    let font = ExtractFont::resolve(doc, ext.view());
     encoded.disclosures.extend(ext.disclosures(&font.base_font));
     Ok((encoded, font, extension))
 }
@@ -2477,6 +2487,48 @@ fn allocate_codes(
     )
 }
 
+/// The composite twin of [`allocate_codes`]: the font's `/ToUnicode` as it
+/// reads once each replacement character it lacks is given a CID.
+/// `Err(vec![])` when allocation does not apply.
+#[allow(clippy::too_many_arguments)] // the planner's own locals, passed through once
+fn allocate_cids(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    font: &ExtractFont,
+    class: &FontClass,
+    font_dict: &Dict,
+    anchor: &ShowData,
+    req: &EditRequest,
+    opts: &EditOptions,
+) -> Result<ToUnicodeCMap, Vec<Blocked>> {
+    let (Some(glyphs), Some(cmap), true) = (
+        opts.embedded_glyphs,
+        font.to_unicode_cmap(),
+        class.embedded && class.subset,
+    ) else {
+        return Err(Vec::new());
+    };
+    let composite = CompositeEncoding::build(&font.base_font, cmap).map_err(|_| Vec::new())?;
+    let mut absent: Vec<char> = Vec::new();
+    for ch in req.replace.chars() {
+        let ambiguous = composite.ambiguous_chars().contains_key(&ch);
+        if !composite.covers(ch) && !ambiguous && !absent.contains(&ch) {
+            absent.push(ch);
+        }
+    }
+    if absent.is_empty() {
+        return Err(Vec::new());
+    }
+    crate::text_edit::cid_extend::allocate(
+        doc,
+        &target.resources,
+        &anchor.font_name,
+        font_dict,
+        &absent,
+        glyphs,
+    )
+}
+
 /// `refused` with why each character could not be given a code.
 fn with_allocation_reasons(refused: EditError, blocked: &[Blocked]) -> EditError {
     let EditError::Refused(mut r) = refused else {
@@ -2503,6 +2555,15 @@ fn encode_composite(font: &ExtractFont, replace: &str) -> Result<EncodedReplacem
     let cmap = font.to_unicode_cmap().ok_or(EditError::Unsupported(
         UnsupportedCause::CompositeWithoutToUnicode,
     ))?;
+    encode_composite_with(font, cmap, replace)
+}
+
+/// [`encode_composite`] through `cmap` rather than the font's own map.
+fn encode_composite_with(
+    font: &ExtractFont,
+    cmap: &ToUnicodeCMap,
+    replace: &str,
+) -> Result<EncodedReplacement, EditError> {
     let composite = CompositeEncoding::build(&font.base_font, cmap).map_err(|e| {
         EditError::Unsupported(UnsupportedCause::FontMapNotInvertible {
             detail: e.to_string(),

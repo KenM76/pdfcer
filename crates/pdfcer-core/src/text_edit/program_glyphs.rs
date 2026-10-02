@@ -48,4 +48,13 @@ pub trait EmbeddedGlyphs: Send + Sync + std::fmt::Debug {
         let _ = program;
         Vec::new()
     }
+
+    /// Glyph `gid` of `program` — the glyph a composite font's CID selects
+    /// through `/CIDToGIDMap` (§9.7.4.2) — when it has an outline, or is
+    /// blank by design because `ch`, the character it will be typed as, is
+    /// whitespace. The default reads nothing, which only narrows an edit.
+    fn glyph_by_id(&self, program: &[u8], gid: u32, ch: char) -> Option<ProgramGlyph> {
+        let _ = (program, gid, ch);
+        None
+    }
 }

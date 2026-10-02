@@ -9,6 +9,7 @@ mod annotation_constant_alpha;
 mod annotation_fixed_placement;
 mod appearance_placement;
 mod cancel_stops_the_work;
+mod cid_subset_extend;
 mod cidfont_nocmap_render;
 mod cmyk_intent;
 mod cmyk_variants;

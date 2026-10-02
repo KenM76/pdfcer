@@ -6530,6 +6530,7 @@ pub(crate) fn run_repertoire(
                 detail: "the composite font's map".to_owned(),
             }));
         };
+        let mut uncarried: Vec<(char, u32)> = Vec::new();
         for ch in composite.candidate_chars() {
             candidates_tested += 1;
             let mut one = String::new();
@@ -6538,15 +6539,26 @@ pub(crate) fn run_repertoire(
                 continue;
             };
             // A composite run's floor is the same question asked of CIDs.
-            if embedded_subset
-                && enc
-                    .cids
-                    .iter()
-                    .any(|&cid| !carried.contains(&u32::from(cid)))
-            {
+            let first = enc.cids.first().map(|&c| u32::from(c));
+            if embedded_subset && first.is_some_and(|cid| !carried.contains(&cid)) {
+                uncarried.extend(first.map(|cid| (ch, cid)));
                 continue;
             }
             accepted.insert(ch);
+        }
+        if let Some(g) = glyphs.filter(|_| embedded_subset) {
+            let (resources, name) = (&page.resources, &anchor.font_name);
+            if !uncarried.is_empty() {
+                accepted.extend(crate::text_edit::font_extend::addable(
+                    doc, resources, name, orig_dict, &uncarried, g,
+                ));
+            }
+            accepted.extend(
+                crate::text_edit::cid_extend::allocatable(doc, resources, name, orig_dict, g)
+                    .into_iter()
+                    .filter(|ch| !composite.covers(*ch))
+                    .filter(|ch| !composite.ambiguous_chars().contains_key(ch)),
+            );
         }
     }
 
