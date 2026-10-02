@@ -995,6 +995,71 @@ code-structure gate"); violation counts, sabotage results and the CI/
 `check-ci-parity.py` wiring are relayed from the dispatching engineer's
 own report, not independently reproduced.
 
+### `v0.72.0` — RELEASED (2026-10-02)
+
+Release filing, not a Pass — completes the 870th filing's own "RELEASE
+IN PROGRESS" entry immediately below. Version-bump commit `9c54c487`
+("chore: v0.72.0") bumps `Cargo.toml`'s workspace version 0.71.0 →
+0.72.0, `Cargo.lock` and `fuzz/Cargo.lock`; filed in `790dd2ff` (870th
+filing, docs-only).
+
+**Dirty-build correction.** A first portable build,
+`D:\builds\pdfcer-20261002-0449-9c54c48`, was stamped `-dirty` —
+uncommitted `pdfcer-spec-librarian` agent-memory files were in the
+tree — and was NOT shipped. Those files were committed as `35769c3b`
+("chore(agent-memory): spec-librarian notes on sfnt table byte
+layouts"), then the portable was rebuilt clean. **Process lesson: an
+uncommitted agent-memory file stamps the release binary dirty — commit
+it before packaging.**
+
+**Tag.** Lightweight tag `v0.72.0` at `35769c3b` (the agent-memory
+commit, which also became the build commit after the rebuild), pushed.
+The shipped binary reports revision `v0.71.0-89-g35769c3b`, not dirty;
+`pdfcer --version` reports `0.72.0`.
+
+**Range since `v0.71.0`: batches every Pass already filed above** — see
+this entry's own range list immediately below (unchanged from the
+870th filing's "RELEASE IN PROGRESS" entry).
+
+**Gates.** `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates) on
+`e4df51e8` (code identical to the tag). Pushed `e4df51e8` to
+`origin/main`.
+
+**Build.** `tools/package-portable.py` →
+`D:\builds\pdfcer-20261002-0505-35769c3` (73,513,642 bytes staged).
+
+**Fresh-folder smoke test.** `pdfcer --version` reports `0.72.0`.
+`edit-block-text --at 100,701 --text ...` on
+`fixtures/synthetic/reflow/block_text.pdf` replaced block 0 and
+wrapped 3→3 lines at 203.0 pt in Helvetica, the second paragraph
+unmoved (confirmed via `extract-text`); tagged-block `/ActualText`
+disclosure printed. `rotate --degrees 90` OK.
+
+**GitHub release.** Published via `tools/gh-release.py`:
+`pdfcer-v0.72.0-windows-x64.zip`, 44,041,753 bytes, sha256
+`ac5d1cdcfcb0b58a2f79aa7e635909cd47925e8942243913fd08c08a76a4e6fb`, plus
+its `.sha256`. PASS, 2 assets.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer1` (now
+`0.72.0`, 73,512,712 bytes); `pdfcer2` keeps `v0.71.0`. Next release
+writes `pdfcer2`.
+
+**`verify-release.py v0.72.0`.** Clean — CI green at the tagged commit,
+run `36989187566`.
+
+**Headline.** No single new capability of its own — batches six shipped
+Passes (subset-font augmentation, fallback-face embedding, reflow
+fidelity, paragraph/table/signature editing, checkpoint/rollback,
+encrypted incremental save) plus two gates and a round of 3D view
+fixes.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself.**
+
+**Sourcing (hard rule 8).** This filing's facts are relayed from the
+dispatching engineer's own report, measured there with a shell; not
+independently reproduced here. Commit hashes `9c54c487`/`790dd2ff`/
+`35769c3b`/`e4df51e8` match this session's git-log snapshot.
+
 ### `v0.72.0` — version bump, RELEASE IN PROGRESS (2026-10-02)
 
 Not a Pass. Version-bump commit `9c54c487` ("chore: v0.72.0") bumps

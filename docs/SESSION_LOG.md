@@ -4,6 +4,52 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (871st filing) — `v0.72.0` RELEASED
+
+**Shipped:**
+- `v0.72.0` released — completes the 870th filing's "release in
+  progress" note. A first portable build
+  (`D:\builds\pdfcer-20261002-0449-9c54c48`) was stamped `-dirty` from
+  uncommitted `pdfcer-spec-librarian` agent-memory files; those files
+  were committed as `35769c3b` ("chore(agent-memory): spec-librarian
+  notes on sfnt table byte layouts"), then rebuilt clean. Lightweight
+  tag `v0.72.0` at `35769c3b`, pushed; shipped binary reports revision
+  `v0.71.0-89-g35769c3b`, not dirty; `pdfcer --version` reports
+  `0.72.0`. GitHub release `pdfcer-v0.72.0-windows-x64.zip`
+  (44,041,753 bytes, sha256
+  `ac5d1cdcfcb0b58a2f79aa7e635909cd47925e8942243913fd08c08a76a4e6fb`)
+  via `tools/gh-release.py`, PASS, 2 assets. Portable build
+  `D:\builds\pdfcer-20261002-0505-35769c3` (73,513,642 bytes) deployed
+  to OneDrive slot `pdfcer1` (now 0.72.0, 73,512,712 bytes; `pdfcer2`
+  keeps `v0.71.0`; next release writes `pdfcer2`). Full details under
+  `v0.72.0`'s own entry in `ROADMAP.md`'s *Shipped*.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates) on
+  `e4df51e8` (code identical to the tag); pushed to `origin/main`.
+  Fresh-folder smoke test: `--version` reports `0.72.0`;
+  `edit-block-text --at 100,701 --text ...` on
+  `fixtures/synthetic/reflow/block_text.pdf` replaced block 0 and
+  wrapped 3→3 lines at 203.0 pt in Helvetica, second paragraph unmoved
+  (confirmed via `extract-text`), tagged-block `/ActualText`
+  disclosure printed; `rotate --degrees 90` OK.
+- `tools/verify-release.py v0.72.0`: clean — CI green at the tagged
+  commit, run `36989187566`.
+- Lesson: an uncommitted agent-memory file stamps the release binary
+  dirty — commit it before packaging.
+- No `docs/FEATURES.md` changes — the release adds no capability of
+  its own; it batches six already-recorded Passes plus two gates and
+  a round of 3D view fixes.
+
+**Still in flight:** None new — `v0.72.0` release is complete. The
+vaulted-roof tessellation tear (`419.2`'s remainder) remains open and
+unrelated to this release.
+
+**For next session:** Pick up the `421.x` next-owed order: vaulted-roof
+tessellation tear, then the door-panel case, then textures/lights.
+
 ## 2026-10-02 (870th filing) — `v0.72.0` version bump, RELEASE IN PROGRESS (`9c54c487`)
 
 **Shipped:**
