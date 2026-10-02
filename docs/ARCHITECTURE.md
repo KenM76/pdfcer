@@ -12664,3 +12664,76 @@ package ships (`Pass 442.1`), how Tesseract is executed (unchanged).
 **Decision ceiling.** Fills the reserved `182`; ceiling `180` → `182`
 (decision 181, above, fills the gap beneath this ceiling without moving
 it further). Next free decision `183`.
+
+### 2026-10-02 (879th filing, KenAgent) — decision 184: an OCR add-on folder may carry an executable engine, run as a subprocess under a mandatory-hash, named-executable-only contract
+
+**Trigger.** Operator, verbatim: *"why does tesseract end up needing to
+be installed by hand? Can we make it work by it being in a single folder
+like the others? ... It should still be able to be set up where if an ocr
+model exists in the ocr folder then it shows in our drop down options of
+models we can run in pdfcer-gui. ocrs can also ship as a separate add-on
+zip."* Answers open question `(ch)` — the `R13` clause-5 collision
+(decision 061 §7) that `Pass 442.1`'s packaging split surfaced: splitting
+Tesseract into an add-on means pdfcer executes a binary it did not
+compile in, which clause 5 ("never executes anything it fetched") forbids
+outright.
+
+**What this decides.** Program-type OCR add-ons are RULED IN, **scoped to
+OCR engine add-ons only** — this is not a general relaxation of `R13`
+clause 5. An add-on manifest may declare `kind = program` and name exactly
+one executable; pdfcer runs only that named executable, never anything
+else the folder contains, with no shell interposed. A program add-on MUST
+carry a `sha256` for that executable and for every other file the
+manifest lists; every hash is verified before each run, and a mismatch is
+refused by name rather than run anyway. A new settings key (working name
+`ocr_program_addons = refuse`) gives a stricter mode that refuses all
+program add-ons outright, for an operator who wants the data-only
+guarantee back. A model add-on's listing discloses that it runs a
+program, not merely that it supplies data. Tesseract becomes the first
+program add-on: it already lives in one folder (`models/tesseract`,
+`tesseract.exe` + `tessdata/`) — the change is that it is *discovered*
+like any other add-on instead of being special-cased, via `Pass 442.3`.
+`R13` clause 5 stays unresolved for every other add-in shape (general
+plugins, scripting, anything not an OCR engine); this ruling does not
+touch that.
+
+**Also decided, same ruling:** `(ci)` — a separate add-on zip for the
+CC-BY-SA-4.0 `ocrs` weights, outside the MIT portable folder, is
+acceptable. This does **not** resolve the separate open question `(bl)`
+(whether a CC-BY-SA-4.0 file may ship *inside* the portable folder) — the
+add-on zip sidesteps that question rather than answering it.
+
+**New open question, same ruling:** `(cj)` — which Tesseract Windows
+build the add-on zip carries (pdfcer's own curl-free static build per
+`tools/tesseract/README.md`, vs. a stock build) and whether that build's
+LGPL-licensed components are acceptable in a zip pdfcer publishes.
+Running the exe as a subprocess is not *linking*, but distributing its
+DLLs in a published zip carries LGPL's own distribution obligations
+regardless — a packaging question independent of this decision's
+execution ruling.
+
+**Rejected.** Treating this as a general `R13` clause-5 amendment — the
+operator narrowed exactly the OCR case he was asked about; a neighbouring
+clause does not get widened by silence (same discipline as decision 061's
+own clause-2 note, §1.1 above).
+
+**Full record:** none — recorded here only; no separate `docs/decisions/`
+file for this decision.
+
+**Body-section effect.** None edited by this filing (librarian scope this
+session is `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/this decision log
+only). **Owed:** §1.1's Clause 3 network/`pdfcer-fetch` note (line ~2422,
+"DELIBERATELY ABSENT: anything that EXECUTES what it fetched (R13 clause
+5, unresolved...)") and §7's `R13`/decision-061 cross-references should
+gain a pointer to this decision once an engineer session has edit scope
+for those sections — flagged, not actioned, here.
+
+**Decision ceiling.** Fills the reserved `183`'s neighbour; `183` stays
+reserved for the `Pass 442.2` PaddleOCR-VL engine (unaffected by this
+ruling). This decision takes `184`; ceiling `182` → `184`. Next free
+decision `185`.
+
+**New standing rule `R262`** (*Standing rules*, below) — "a manifest
+`kind = program` add-on executes only its own named executable, verified
+by `sha256` before every run, never through a shell; a settings key may
+refuse all program add-ons."

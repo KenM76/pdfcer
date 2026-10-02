@@ -16292,6 +16292,41 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **OPERATOR RULING, 2026-10-02 (879th
+> filing) — PROGRAM-TYPE OCR ADD-ONS RULED IN; `Pass 442.1` PARTLY
+> UNBLOCKED; TWO NEW PASSES FILED.** Ken, verbatim: *"why does tesseract
+> end up needing to be installed by hand? Can we make it work by it being
+> in a single folder like the others? ... It should still be able to be
+> set up where if an ocr model exists in the ocr folder then it shows in
+> our drop down options of models we can run in pdfcer-gui. ocrs can also
+> ship as a separate add-on zip."* Answers open questions `(ch)` (program
+> add-ons ruled in, scoped to OCR engines — decision 184, `R262`) and
+> `(ci)` (a separate add-on zip for CC-BY-SA-4.0 weights is acceptable;
+> does not resolve the separate `(bl)`) — see *Open operator questions*
+> for both rulings in full. New question `(cj)`: which Tesseract build,
+> and are its LGPL DLLs acceptable in a published zip.
+>
+> - **`Pass 442.1`** (packaging split) — **UNBLOCKED for `ocrs`/`ocrcer`**;
+>   Tesseract's zip still waits on `Pass 442.3` shipping (the program-kind
+>   mechanism) and on `(cj)` (which build).
+> - **`Pass 442.3`** (NEW, IN PROGRESS) — program-type OCR add-ons: manifest
+>   `kind = program`, one named executable, mandatory `sha256` over the
+>   executable and every manifest-listed file, pdfcer runs only the
+>   named executable; settings key `ocr_program_addons = refuse` for a
+>   stricter mode that refuses all program add-ons; converts Tesseract
+>   (`models/tesseract`, already one folder) from special-cased to
+>   discovered; moves the subprocess runner out of `pdfcer-cli` into a
+>   library `pdfcer-gui` can call (core itself still can't spawn
+>   processes — wasm). Decision 184, `R262`.
+> - **`Pass 442.4`** (NEW, queued after `442.3`) — `pdfcer-gui`'s model
+>   drop-down lists every discovered OCR add-on (data and program kinds)
+>   via `OcrModelDiscovery` (decision 182) plus `442.3`'s runner library.
+>   GUI-side work; engine side is a channel notice to `pdfcer-gui`
+>   describing the contract once `442.3` lands.
+>
+> `Pass 442.2` (PaddleOCR-VL) is unaffected, still the feasibility-spike
+> engine Pass, decision 183 still reserved for it.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 440.0` SHIPPED, 2026-10-02 (878th filing),
 > `716e616f`** — see *Shipped*, above. `G091`: the default 3D annotation
 > poster is now rendered from the PRC model (`pdfcer-3d`'s `iso` view)
@@ -36975,6 +37010,21 @@ shape, not the schedule.** No Pass ID assigned.
 
 ## Open operator questions (as of 2026-08-02 — answer any, all default to the stated fallback if not answered)
 
+**★ NEW 2026-10-02 (879th filing) — ONE QUESTION, SURFACED BY THE SAME
+RULING THAT ANSWERED `(ch)`/`(ci)` BELOW. Operator-question ceiling moves
+`(ci)` → `(cj)`, next free `(ck)`:**
+
+- **(cj) Which Tesseract Windows build does the `Pass 442.1` add-on zip
+  carry — pdfcer's own curl-free static build (`tools/tesseract/README.md`)
+  or a stock build — and are that build's LGPL-licensed DLLs acceptable
+  in a zip pdfcer publishes?** The common Tesseract Windows builds bundle
+  LGPL components; running the exe as a subprocess (decision 184) is not
+  *linking*, but distributing the DLLs in a published zip still carries
+  LGPL's own source-offer/notice obligations, which is a packaging
+  question independent of the execution ruling. *Default if unanswered:*
+  do not publish a Tesseract add-on zip; `Pass 442.1` ships `ocrs`/
+  `ocrcer` zips only until this is answered.
+
 **★ NEW 2026-10-02 (876th filing) — TWO QUESTIONS, SURFACED BY `Pass
 442.1` (*Next up*, queued) BEFORE ANY ADD-ON ZIP IS BUILT. Operator-
 question ceiling moves `(cg)` → `(ci)`, next free `(cj)`:**
@@ -36986,12 +37036,39 @@ question ceiling moves `(cg)` → `(ci)`, next free `(cj)`:**
   bundled (no add-on split for this one engine); make it an add-on under
   an explicit new ruling; or drop it. *Default if unanswered:* keep
   Tesseract bundled as today; do not split it into an add-on zip.
+
+  > **★ ANSWERED 2026-10-02 (879th filing) — program-type OCR add-ons are
+  > RULED IN, scoped to OCR engines only.** An add-on folder may carry an
+  > executable engine that pdfcer runs as a subprocess (manifest
+  > `kind = program`, one named executable, mandatory `sha256` over the
+  > executable and every manifest-listed file, verified before each run;
+  > pdfcer runs only the manifest-named executable, nothing else in the
+  > folder, no shell). A settings key (working name
+  > `ocr_program_addons = refuse`) gives a stricter mode that refuses all
+  > program add-ons. Recorded as decision 184 and standing rule `R262`.
+  > This resolves the R13-clause-5 collision `(ch)` raised, **for OCR
+  > engine add-ons only** — `R13` clause 5 stays unresolved for every
+  > other add-in shape (general plugins, etc.). Tesseract becomes the
+  > first program add-on under `Pass 442.3` (*Next up*, below); its
+  > build/licence content is the new, separate question `(cj)`, above.
+  > **Operator-question ceiling stays `(ci)`** — closed, not retired;
+  > next free is `(cj)` per the banner above this one.
+
 - **(ci) The `ocrs` engine's weights are CC-BY-SA-4.0 (open question
   `(bl)`). Is a separate add-on zip, outside the MIT portable folder,
   acceptable — and does that resolve `(bl)`?** *Default if unanswered:*
   ship `ocrs` as an add-on zip exactly like `ocrcer`/`tesseract`, licence
   disclosed in its `PROVENANCE.md`/`LICENSE`, but do not treat `(bl)`
   itself as resolved until Ken confirms.
+
+  > **★ ANSWERED 2026-10-02 (879th filing) — YES, a separate add-on zip is
+  > acceptable.** The CC-BY-SA-4.0 `ocrs` weights may ship as a separate
+  > add-on zip release asset, outside the MIT portable folder. **This
+  > does NOT resolve `(bl)`** — `(bl)` asks whether a CC-BY-SA-4.0 file
+  > may ship *inside* the MIT portable folder, a different question the
+  > add-on zip sidesteps rather than answers; `(bl)` stays open at its own
+  > entry, below. **Operator-question ceiling stays `(ci)`** — closed,
+  > not retired; next free is `(cj)` per the banner above this one.
 
 **★ NEW 2026-10-01 (853rd filing) — ONE QUESTION, SURFACED BY DECISION 173
 (`03d68447`, `ARCHITECTURE.md` §12). Operator-question ceiling moves
@@ -40062,6 +40139,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R259` — AMENDED 2026-10-01 (853rd filing, decision 173, `03d68447`).** "Font program streams are never modified" now reads: *an existing program stream is never modified. Under decision 173 only, a font dictionary revision may reference a new descriptor and a new program that is a strict superset of the old one — in it, every existing GID keeps its `glyf` record byte-identical and keeps its `hmtx` entry and every cmap mapping; glyphs are appended only; the program carries a new tag.* Every other clause of `R259` is unchanged; other users of the old stream or descriptor keep them.
 - `R260` — AN AUGMENTED FONT PROGRAM (DECISION 173) IS RE-PARSED WITH THE EXISTING PARSER (`R21`) AND VERIFIED BEFORE COMMIT: `numGlyphs` = old + added; old GIDs byte-equal and old cmap mappings equal; new mappings reach outlines equal to the donor face's; checksums and `checkSumAdjustment` valid. A failure refuses as an internal error; the check is never skipped for speed (decision 173, 2026-10-01; librarian-assigned number).
 - `R261` — AN INTEGRATION TEST'S SCRATCH PATH BUILT FROM `std::env::temp_dir()` WITH A FIXED NAME IS A CROSS-PROCESS RACE, NOT A THREAD RACE: SAFE INSIDE ONE `cargo test` RUN, UNSAFE BETWEEN TWO (A `tools/run-gates.sh` SWEEP RUNNING ALONGSIDE A WORKTREE AGENT'S OWN SUITE) — THE SYMPTOM IS A DIFFERENT, UNRELATED ASSERTION FAILING DOWNSTREAM ("FILE NOT FOUND"), NOT A COLLISION MESSAGE, AND IT PASSES ON RE-RUN ALONE. EVERY SCRATCH PATH CARRIES `std::process::id()`. **[gate: check-test-temp-unique.py]** First flagged as a non-blocking hygiene item 2026-08-01 (two builders observed it, no fix landed); actually broke 31 CLI/core tests 2026-10-02 (867th filing) before the gate existed, fixed in `da6a24ab`. Same mechanism independently found and fixed in the sibling `pdfcer-gui` project; full derivation: `D:\dev\rag\rust\a_fixed_temp_dir_path_is_a_cross_process_race_that_one_cargo_test_run_can_never_reveal.md`.
+- `R262` — A `kind = program` OCR ADD-ON EXECUTES ONLY ITS OWN MANIFEST-NAMED EXECUTABLE, NEVER THROUGH A SHELL, AND NEVER UNTIL A `sha256` CHECK PASSES FOR THAT EXECUTABLE AND EVERY OTHER MANIFEST-LISTED FILE; A SETTINGS KEY (`ocr_program_addons = refuse`) MAY REFUSE ALL PROGRAM ADD-ONS FOR A STRICTER POSTURE. Scoped to OCR engine add-ons only — resolves open question `(ch)`'s `R13` clause-5 collision for this one add-in shape; `R13` clause 5 stays unresolved for every other kind of add-in (decision 184, 2026-10-02, operator ruling; `Pass 442.3`).
 - **`R109` — DATED INSTANCE NOTE, 2026-10-01 (853rd filing, decision 173).** Now runs on TWO carriers: the shell-supplied installed face, and the embedded subset's own `OS/2` when present (so OpenType C2 holds on the copied-byte-identical `OS/2`). Either failing refuses; `Pass 430.1` slice 1 (`pdfcer-render`'s program-surgery routine, no core caller yet) shipped 2026-10-01 (857th filing, `dd5747d1`+`9990e435`); core wiring, where this check actually gets exercised, remains owed.
 
 ## Update protocol

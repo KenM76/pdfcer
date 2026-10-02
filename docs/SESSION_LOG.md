@@ -4,6 +4,74 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (879th filing) — operator ruling on program-type OCR add-ons: decision 184/`R262`; `Pass 442.1` partly unblocked; `Pass 442.3`/`Pass 442.4` filed
+
+**Shipped:** nothing this filing — a ruling + roadmap filing, no code.
+
+**Decisions made this session:**
+- Decision 184 — program-type OCR add-ons are RULED IN, scoped to OCR
+  engines only: manifest `kind = program` names one executable; that
+  executable and every other manifest-listed file carry a mandatory
+  `sha256`, verified before each run; pdfcer executes only the named
+  executable, never through a shell; settings key `ocr_program_addons =
+  refuse` gives a stricter mode refusing all program add-ons. Answers
+  open question `(ch)` — the `R13` clause-5 collision `Pass 442.1`
+  surfaced — without widening clause 5 for any other add-in shape.
+  Tesseract becomes the first program add-on (`Pass 442.3`). No separate
+  `docs/decisions/` file. Ceiling `182` → `184` (`183` stays reserved for
+  `Pass 442.2`, unaffected). Next free decision `185`.
+- Same ruling answers `(ci)`: a separate add-on zip for the CC-BY-SA-4.0
+  `ocrs` weights, outside the MIT portable folder, is acceptable — does
+  **not** resolve the separate `(bl)` (shipping *inside* the portable
+  folder), which stays open.
+- New standing rule `R262` records decision 184's mechanism in one line.
+- New open question `(cj)`: which Tesseract Windows build the add-on zip
+  carries, and whether that build's LGPL-licensed components are
+  acceptable in a zip pdfcer publishes — a packaging/licensing question
+  independent of the execution ruling. Ceiling `(ci)` → `(cj)`, next free
+  `(ck)`.
+
+**Findings + decisions:**
+- The common Tesseract Windows builds bundle LGPL-licensed DLLs; running
+  the exe as a subprocess is not *linking*, but distributing those DLLs
+  in a zip pdfcer publishes still carries LGPL's own distribution
+  obligations — flagged to Ken as `(cj)`, not decided here.
+
+**Still in flight:**
+- `Pass 442.1` (packaging split) — unblocked for `ocrs`/`ocrcer` zips;
+  Tesseract's zip waits on `Pass 442.3` shipping and on `(cj)`.
+- `Pass 442.3` (NEW, *Next up*, IN PROGRESS) — program-type OCR add-ons:
+  the manifest `kind`, mandatory hashes, run-only-the-named-exe,
+  `ocr_program_addons` settings key, Tesseract converted to the first
+  program add-on, and the subprocess runner moved out of `pdfcer-cli`
+  into a library `pdfcer-gui` can call (core itself stays
+  process-spawn-free for wasm). Engineer dispatching a worker now.
+- `Pass 442.4` (NEW, *Next up*, queued after `442.3`) — `pdfcer-gui`'s
+  OCR model drop-down, listing every discovered add-on (data and program
+  kinds) via `OcrModelDiscovery` (decision 182) plus `442.3`'s runner
+  library. GUI-side; engine side is a channel notice to `pdfcer-gui` once
+  `442.3` lands.
+- `Pass 442.2` (PaddleOCR-VL engine) unaffected — feasibility spike
+  already passed (877th filing), engine Pass not started, decision `183`
+  still reserved for it.
+
+**For next session:**
+- `ARCHITECTURE.md` §1.1's Clause-3/`pdfcer-fetch` note (the "R13 clause
+  5, unresolved" line) and §7's decision-061/`R13` cross-references
+  should gain a pointer to decision 184 once a session has edit scope
+  for those body sections — this filing's scope was restricted to
+  `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/the §12 decision log only,
+  so the body-section half of the maintenance contract is owed, not done.
+- *Standing rules*' own "44 of 187 rules name a script" count is now
+  stale by one rule (`R262`, ungated — a judgment call, not a script);
+  `tools/annotate-rule-gates.py` should be re-run (no shell this filing).
+
+**Sourcing note (hard rule 8):** no shell this filing. Every git-state
+claim above (`182`/`183`/`184` ceiling, `R261` as the last-minted rule,
+Pass-ID availability for `442.3`/`442.4`) was checked by reading
+`ROADMAP.md`/`ARCHITECTURE.md` directly, not inferred from this session's
+own prior turns.
+
 ## 2026-10-02 (878th filing) — `Pass 440.0` + `Pass 441.0` + `Pass 442.0` SHIPPED, decisions 180/181/182 filed, `G086`–`G092` family complete
 
 **Shipped:**
