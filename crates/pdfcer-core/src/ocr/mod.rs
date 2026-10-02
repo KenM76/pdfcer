@@ -100,6 +100,22 @@ pub mod paddle_post;
 #[doc(hidden)]
 pub mod onnx_upgrade;
 
+/// The PaddleOCR-VL vision-language recogniser, behind the (default-on)
+/// `ocr-vl` feature: model files from a decision-182 add-on, run through
+/// `rten`.
+#[cfg(feature = "ocr-vl")]
+pub mod engine_paddle_vl;
+
+// Workspace-internal: pub only so the fuzz crate can drive the PaddleOCR-VL
+// tokenizer and its JSON reader. Not API.
+#[doc(hidden)]
+pub mod json_lite;
+#[doc(hidden)]
+pub mod vl_tokenizer;
+
+pub mod vl_decode;
+pub mod vl_pre;
+
 /// Reader for Tesseract's TSV output. Parsing only: the shell runs
 /// `tesseract.exe`, so this crate never spawns a process.
 pub mod tesseract_tsv;

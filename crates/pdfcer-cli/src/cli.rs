@@ -4133,7 +4133,7 @@ pub(crate) enum Command {
         #[arg(long, default_value_t = 150.0)]
         dpi: f32,
         /// Which recogniser reads the page: `ocrs` (the default), `ocrcer`,
-        /// `paddle` or `tesseract`.
+        /// `paddle`, `paddle-vl` or `tesseract`.
         ///
         /// `ocrcer` is the OCRcer engine (MIT, pure Rust), in every standard
         /// build; one compiled with `--no-default-features` and without the
@@ -4153,6 +4153,15 @@ pub(crate) enum Command {
         /// as downloaded, including the older-format (opset 7) PP-OCRv5
         /// recognisers. Which dictionary was used is printed. Boxes are upright rectangles, so a steeply skewed scan
         /// reads better deskewed first.
+        ///
+        /// `paddle-vl` runs PaddleOCR-VL, a vision-language model
+        /// (Apache-2.0), in every standard build. Nothing ships: build its
+        /// add-on folder with `tools/build-paddle-vl-addon.py` from a local
+        /// copy of the onnx-community/PaddleOCR-VL-1.5-ONNX export (about
+        /// 1.2 GB). It reads the page's ink as one region and writes one box
+        /// per line, placed from the ink rather than reported by the model.
+        /// The report says how the lines were placed and warns when the
+        /// token ceiling cut the text short. Expect seconds per page.
         ///
         /// `tesseract` runs the Tesseract program (Apache-2.0) from a
         /// program add-on: the portable package ships one in

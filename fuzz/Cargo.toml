@@ -668,3 +668,10 @@ path = "fuzz_targets/prc_tree.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "vl_tokenizer"
+path = "fuzz_targets/vl_tokenizer.rs"
+test = false
+doc = false
+bench = false

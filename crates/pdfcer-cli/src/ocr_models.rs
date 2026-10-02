@@ -18,6 +18,12 @@ pub(crate) enum LoadedOcrEngine {
     Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
     #[cfg(feature = "paddle")]
     Paddle(Box<pdfcer_core::ocr::engine_paddle::PaddleEngine>),
+    /// The engine and the last page's reading, kept for the disclosure.
+    #[cfg(feature = "ocr-vl")]
+    PaddleVl(
+        Box<pdfcer_core::ocr::engine_paddle_vl::PaddleVlEngine>,
+        std::cell::RefCell<Option<pdfcer_core::ocr::engine_paddle_vl::RegionReading>>,
+    ),
     Tesseract(pdfcer_ocr_host::ProgramEngine),
 }
 
@@ -44,6 +50,15 @@ impl LoadedOcrEngine {
             Self::Paddle(e) => e
                 .recognize(width, height, pixels)
                 .map_err(|e| e.to_string()),
+            #[cfg(feature = "ocr-vl")]
+            Self::PaddleVl(e, last) => {
+                let reading = e
+                    .read_region(width, height, pixels)
+                    .map_err(|e| e.to_string())?;
+                let lines = reading.lines.clone();
+                *last.borrow_mut() = Some(reading);
+                Ok(lines)
+            }
             Self::Tesseract(e) => e
                 .recognize(width, height, pixels)
                 .map_err(|e| e.to_string()),
@@ -61,6 +76,9 @@ impl LoadedOcrEngine {
             Self::Ocrcer(e) => e.reports_confidence(),
             #[cfg(feature = "paddle")]
             Self::Paddle(e) => e.reports_confidence(),
+            // The region's mean token probability, on every line.
+            #[cfg(feature = "ocr-vl")]
+            Self::PaddleVl(..) => true,
             // Tesseract's TSV carries a `conf` column on every word row.
             Self::Tesseract(_) => true,
         }
@@ -86,9 +104,47 @@ impl LoadedOcrEngine {
                     ),
                 })
             }
+            #[cfg(feature = "ocr-vl")]
+            Self::PaddleVl(_, last) => Some(paddle_vl_disclosure(last.borrow().as_ref())),
             _ => None,
         }
     }
+}
+
+/// Rule 4 for PaddleOCR-VL: its text is per region, and the line boxes are
+/// inferred from the ink, not reported by the model.
+#[cfg(feature = "ocr-vl")]
+fn paddle_vl_disclosure(
+    reading: Option<&pdfcer_core::ocr::engine_paddle_vl::RegionReading>,
+) -> String {
+    use pdfcer_core::ocr::vl_decode::StopReason;
+    use pdfcer_core::ocr::vl_pre::LinePlacement;
+    let lead = "PaddleOCR-VL reads the page's ink as ONE region: the text layer is \
+                region-aligned, one box per LINE and never per word, and those boxes are \
+                INFERRED from the ink, not reported by the model";
+    let Some(r) = reading else {
+        return format!("{lead}.");
+    };
+    let placement = match r.placement {
+        LinePlacement::Bands => "each line placed on its own band of inked rows",
+        LinePlacement::Even => {
+            "the line count did not match the inked bands, so the lines divide the ink box \
+             evenly and may sit off their text"
+        }
+        _ => "the page had no ink, so the model was not run",
+    };
+    let stop = match r.stop {
+        Some(StopReason::TokenLimit) => format!(
+            "; WARNING: decoding hit the {}-token ceiling, so the text may be cut short",
+            r.tokens
+        ),
+        Some(_) => format!(
+            "; {} token(s) from {} image token(s)",
+            r.tokens, r.image_tokens
+        ),
+        None => String::new(),
+    };
+    format!("{lead}. Last page: {placement}{stop}.")
 }
 
 /// What `ocr` was asked to use.
@@ -120,10 +176,11 @@ pub(crate) fn load_ocr_engine(
     Ok((loaded, engine, resolved))
 }
 
-const ALL_ENGINES: [OcrEngineArg; 4] = [
+const ALL_ENGINES: [OcrEngineArg; 5] = [
     OcrEngineArg::Ocrs,
     OcrEngineArg::Ocrcer,
     OcrEngineArg::Paddle,
+    OcrEngineArg::PaddleVl,
     OcrEngineArg::Tesseract,
 ];
 
@@ -137,6 +194,7 @@ fn engine_compiled(engine: OcrEngineArg) -> bool {
         OcrEngineArg::Ocrs => cfg!(feature = "ocrs"),
         OcrEngineArg::Ocrcer => cfg!(feature = "ocrcer"),
         OcrEngineArg::Paddle => cfg!(feature = "paddle"),
+        OcrEngineArg::PaddleVl => cfg!(feature = "ocr-vl"),
         OcrEngineArg::Tesseract => true,
     }
 }
@@ -144,6 +202,7 @@ fn engine_compiled(engine: OcrEngineArg) -> bool {
 fn not_compiled(engine: OcrEngineArg) -> u8 {
     let (label, alternative) = match engine {
         OcrEngineArg::Paddle => ("PaddleOCR", "use --ocr-engine ocrs"),
+        OcrEngineArg::PaddleVl => ("PaddleOCR-VL", "use --ocr-engine ocrs"),
         OcrEngineArg::Ocrcer => (
             "OCRcer",
             "use --ocr-engine ocrs (the model file it would need is `ocrcer.ocrw`)",
@@ -153,10 +212,19 @@ fn not_compiled(engine: OcrEngineArg) -> u8 {
     eprintln!(
         "pdfcer: ocr: --ocr-engine {name}: this build was compiled without the `{name}` \
          feature, so the {label} engine is not in it. Rebuild with \
-         `cargo build -p pdfcer-cli --features {name}`, or {alternative}.",
-        name = engine.name()
+         `cargo build -p pdfcer-cli --features {feature}`, or {alternative}.",
+        name = engine.name(),
+        feature = engine_feature(engine)
     );
     exit::UNIMPLEMENTED
+}
+
+/// The Cargo feature that compiles `engine` in.
+fn engine_feature(engine: OcrEngineArg) -> &'static str {
+    match engine {
+        OcrEngineArg::PaddleVl => "ocr-vl",
+        other => other.name(),
+    }
 }
 
 /// The files a folder must hold to count as `engine`'s models.
@@ -174,6 +242,8 @@ fn required_files(engine: OcrEngineArg) -> Vec<&'static str> {
             use pdfcer_core::ocr::engine_paddle::{DETECTION_MODEL, RECOGNITION_MODEL};
             vec![DETECTION_MODEL, RECOGNITION_MODEL]
         }
+        #[cfg(feature = "ocr-vl")]
+        OcrEngineArg::PaddleVl => pdfcer_core::ocr::engine_paddle_vl::REQUIRED_FILES.to_vec(),
         // A program add-on's files are its manifest's to name (decision 184).
         OcrEngineArg::Tesseract => Vec::new(),
         // Only an engine compiled out of this build lands here; `resolve`
@@ -198,6 +268,12 @@ fn missing_hint(engine: OcrEngineArg) -> String {
         OcrEngineArg::Paddle => "the PaddleOCR models are two files, `det.onnx` and \
              `rec.onnx`, in a `models/paddle` folder, which the portable package ships (plus \
              `dict.txt` if the recognition model does not embed one)"
+            .to_owned(),
+        OcrEngineArg::PaddleVl => "the PaddleOCR-VL models are an add-on folder of five files \
+             (`vision_encoder.onnx`, `decoder.onnx`, `embedding.onnx`, `embedding.onnx.data`, \
+             `tokenizer.json`) plus a `pdfcer-ocr-model.txt` manifest, which \
+             `tools/build-paddle-vl-addon.py` builds from a local copy of the Apache-2.0 \
+             onnx-community/PaddleOCR-VL-1.5-ONNX export; pdfcer never downloads it"
             .to_owned(),
         OcrEngineArg::Tesseract => format!(
             "Tesseract is a program add-on: a folder holding `{}`, a `{}` folder of language \
@@ -304,7 +380,7 @@ fn resolve_named(
     let Some(engine) = engine_arg(&model.engine) else {
         eprintln!(
             "pdfcer: ocr: OCR model `{name}` is for the `{}` engine, which this pdfcer does \
-             not have (it has ocrs, ocrcer, paddle and tesseract)",
+             not have (it has ocrs, ocrcer, paddle, paddle-vl and tesseract)",
             model.engine
         );
         return Err(exit::UNIMPLEMENTED);
@@ -445,6 +521,12 @@ fn load_from(
         OcrEngineArg::Paddle => pdfcer_core::ocr::engine_paddle::PaddleEngine::from_model_dir(dir)
             .map(|e| LoadedOcrEngine::Paddle(Box::new(e)))
             .map_err(|e| failed(&e)),
+        #[cfg(feature = "ocr-vl")]
+        OcrEngineArg::PaddleVl => {
+            pdfcer_core::ocr::engine_paddle_vl::PaddleVlEngine::from_model_dir(dir)
+                .map(|e| LoadedOcrEngine::PaddleVl(Box::new(e), Default::default()))
+                .map_err(|e| failed(&e))
+        }
         OcrEngineArg::Tesseract => {
             ocr_program::load(dir, lang, dpi).map(LoadedOcrEngine::Tesseract)
         }

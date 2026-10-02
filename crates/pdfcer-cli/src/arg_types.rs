@@ -187,6 +187,9 @@ pub(crate) enum OcrEngineArg {
     Ocrcer,
     /// PaddleOCR PP-OCRv4 (Chinese and English), shipped in models/paddle.
     Paddle,
+    /// PaddleOCR-VL, a vision-language model that reads the page as one region. Its models
+    /// are an add-on folder built by tools/build-paddle-vl-addon.py.
+    PaddleVl,
     /// The Tesseract program in models/tesseract. Choose languages with --ocr-lang.
     Tesseract,
 }
@@ -198,6 +201,7 @@ impl OcrEngineArg {
             Self::Ocrs => "ocrs",
             Self::Ocrcer => "ocrcer",
             Self::Paddle => "paddle",
+            Self::PaddleVl => "paddle-vl",
             Self::Tesseract => tesseract::ENGINE,
         }
     }

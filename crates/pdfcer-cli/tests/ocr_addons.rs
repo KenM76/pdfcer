@@ -216,3 +216,81 @@ fn the_shipped_paddle_manifest_verifies_and_is_used() {
     );
     assert!(err.contains("(add-on `ppocrv4-ch-en` under"), "{err}");
 }
+
+/// A `paddle-vl` manifest routes `--ocr-model` to the PaddleOCR-VL engine:
+/// listed as in the build, refused by name when a model file is missing, and
+/// handed to that engine's loader when all five files are present.
+#[cfg(feature = "ocr-vl")]
+#[test]
+fn a_paddle_vl_manifest_routes_to_the_vl_engine() {
+    let root = scratch("paddle-vl");
+    let dir = addon(&root, "vl", "paddle-vl");
+    let (code, out, err) = list(&[&root]);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(
+        out.contains("ocr-model vl engine=paddle-vl in-build=yes"),
+        "{out}"
+    );
+
+    let (code, _, err) = ocr_with(&root, &["--ocr-model", "vl"]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(
+        err.contains("lacks one of vision_encoder.onnx, decoder.onnx"),
+        "{err}"
+    );
+
+    for f in [
+        "vision_encoder.onnx",
+        "decoder.onnx",
+        "embedding.onnx",
+        "embedding.onnx.data",
+    ] {
+        std::fs::write(dir.join(f), b"not a model").unwrap();
+    }
+    std::fs::write(dir.join("tokenizer.json"), b"{\"model\": 1}").unwrap();
+    let (code, _, err) = ocr_with(&root, &["--ocr-model", "vl"]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(err.contains("engine paddle-vl"), "{err}");
+    assert!(err.contains("tokenizer.json"), "the VL loader ran: {err}");
+}
+
+/// End to end with a real add-on folder built by
+/// `tools/build-paddle-vl-addon.py`, named by `PDFCER_PADDLE_VL_DIR`.
+#[cfg(feature = "ocr-vl")]
+#[test]
+#[ignore = "needs a PaddleOCR-VL add-on folder in PDFCER_PADDLE_VL_DIR"]
+fn paddle_vl_reads_the_clean_scan() {
+    let model = PathBuf::from(std::env::var_os("PDFCER_PADDLE_VL_DIR").unwrap());
+    let input =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/ocr/scan_clean.pdf");
+    let out_dir = scratch("paddle-vl-e2e");
+    let out = out_dir.join("out.pdf");
+    let (code, _, err) = run(&[
+        "--no-settings".as_ref(),
+        "ocr".as_ref(),
+        input.as_os_str(),
+        "-o".as_ref(),
+        out.as_os_str(),
+        "--ocr-engine".as_ref(),
+        "paddle-vl".as_ref(),
+        "--model-dir".as_ref(),
+        model.as_os_str(),
+    ]);
+    eprintln!("{err}");
+    assert_eq!(code, Some(0), "{err}");
+    assert!(err.contains("region-aligned"), "{err}");
+    assert!(err.contains("INFERRED"), "{err}");
+    assert!(
+        err.contains("Last page: "),
+        "the reading reached the report: {err}"
+    );
+    assert!(err.contains(" image token(s)"), "{err}");
+    let (code, found, err) = run(&[
+        "find-text".as_ref(),
+        out.as_os_str(),
+        "--needle".as_ref(),
+        "sleeping".as_ref(),
+    ]);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(found.contains("sleeping"), "{found}");
+}

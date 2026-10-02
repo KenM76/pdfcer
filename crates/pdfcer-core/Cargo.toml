@@ -39,7 +39,7 @@ autotests = false
 # 4. CI builds `--no-default-features` (see .github/workflows/ci.yml), which
 #    is what stops a `cfg` from rotting into something that no longer
 #    compiles when switched off.
-default = ["jpx", "ocrs", "ocrcer", "paddle", "signing", "3d", "svg-import"]
+default = ["jpx", "ocrs", "ocrcer", "paddle", "ocr-vl", "signing", "3d", "svg-import"]
 
 # Digital SIGNING — the private-key side (PAdES B-B first; `sign` module).
 #
@@ -138,6 +138,12 @@ ocrcer = ["dep:ocrcer-core"]
 # already in the graph. No weights ship; no network. The pure pre/post-
 # processing (`ocr/paddle_post.rs`) is ungated so the fuzz crate reaches it.
 paddle = ["dep:rten", "dep:rten-tensor"]
+# The PaddleOCR-VL engine, `ocr/engine_paddle_vl.rs` (decision 183). Default
+# ON (rule 1); off, the CLI refuses `--ocr-engine paddle-vl` by name (rule 2).
+# Same `rten` runtime as `paddle`, so no new crate; its tokenizer and JSON
+# reader are in-crate (`ocr/vl_tokenizer.rs`, `ocr/json_lite.rs`) and ungated
+# so the fuzz crate reaches them. No weights ship; no network.
+ocr-vl = ["dep:rten", "dep:rten-tensor"]
 # PRC model decoding for the default 3D poster (`threed::poster`): an
 # `add_3d_annotation` with no supplied poster draws the model's iso view.
 # Off, the poster falls back to the placeholder and says so

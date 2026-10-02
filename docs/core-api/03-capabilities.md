@@ -2494,6 +2494,34 @@ fails, and the `ModelLoad` reason then names the model's opset and says to
 convert it to 13. The rewriter (`ocr::onnx_upgrade`) is `#[doc(hidden)]`,
 public only for the fuzz crate.
 
+**Piece 3e — PaddleOCR-VL** (`crates/pdfcer-core/src/ocr/engine_paddle_vl.rs`, feature `ocr-vl`, **on by default**; decision 183)
+
+A vision-language model on `rten`; wasm32-clean, no threads, no new crates.
+**Nothing ships.** The operator builds the add-on folder with
+`tools/build-paddle-vl-addon.py` from a local copy of the Apache-2.0
+`onnx-community/PaddleOCR-VL-1.5-ONNX` export. Find it with piece 4b
+(manifest `engine = paddle-vl`).
+
+The engine reads the page's ink box as **one region** and returns **one
+`RecognizedWord` per line**. The model gives no coordinates, so the line boxes
+are inferred from the ink, and **you must disclose that** (rule 4). Confidence
+is the region's mean token probability, the same on every line.
+
+| item |
+|---|
+| `PaddleVlEngine::from_model_dir(&Path)` — loads the five `REQUIRED_FILES` and checks every graph's interface |
+| `read_region(w, h, &grey) -> Result<RegionReading, PaddleVlError>` — the call to use, because it returns what to disclose; `OcrEngine::recognize` returns `read_region(..).lines` |
+| `RegionReading { text, lines, placement, stop, tokens, image_tokens, ink_box }` — disclose `placement` (`vl_pre::LinePlacement::{Bands, Even, None}`) and warn on `stop == Some(vl_decode::StopReason::TokenLimit)` (the text may be cut short) |
+| `with_max_new_tokens(n)` / `max_new_tokens()` — default `vl_decode::DEFAULT_MAX_NEW_TOKENS` (2,048), clamped to `MAX_NEW_TOKENS_CAP` (8,192) |
+| `MODEL_DIR` `"paddle-vl"` · `REQUIRED_FILES` (`vision_encoder.onnx`, `decoder.onnx`, `embedding.onnx`, `embedding.onnx.data`, `tokenizer.json`) |
+| `PaddleVlError` (`ModelMissing`, `ModelLoad`, `Interface { model, reason }`, `Tokenizer { path, source }`, `Prepare(vl_pre::PrepError)`, `Recognition`), `#[non_exhaustive]` |
+
+Expect about 2.5 s of vision encoding per region and 70–85 ms per generated
+token on a desktop CPU. `vl_pre` and `vl_decode` are public and runtime-free:
+preprocessing, prompt assembly, line placement, and greedy decoding over a
+step closure. `ocr::vl_tokenizer` and `ocr::json_lite` are `#[doc(hidden)]`
+and public only for the fuzz crate.
+
 **Piece 3c — Tesseract, parse only** (`crates/pdfcer-core/src/ocr/tesseract_tsv.rs`, always compiled)
 
 Tesseract is a separate program, and core never spawns processes (wasm32), so
@@ -2513,7 +2541,7 @@ checks decision 184 requires. The portable package ships
 
 Tesseract reports confidence, so pass `confidence_available: true`.
 
-To offer an engine choice: pass `"ocrs"`, `"ocrcer"`, `"paddle"` or `"tesseract"` to
+To offer an engine choice: pass `"ocrs"`, `"ocrcer"`, `"paddle"`, `"paddle-vl"` or `"tesseract"` to
 `OcrLayerOptions::with_engine` so the text-layer marker names what recognised
 it (the CLI does this). The CLI's `pdfcer ocr --ocr-engine ocrcer` is the
 reference caller.
