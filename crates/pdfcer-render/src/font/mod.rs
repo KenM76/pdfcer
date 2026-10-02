@@ -21,10 +21,12 @@ pub mod coredata;
 pub mod embedded_glyphs;
 pub mod program;
 pub mod select;
+/// Type 1 → bare CFF, so SVG export can keep Type 1 text (G033).
+/// The sfnt container: table directory, checksums, assembly.
+pub(crate) mod sfnt;
 /// Donor-face subsetting for FF-C (Pass 21.x, decision 021). Produces the
 /// plain-data `FontEmbedPlan` that `pdfcer-core::font_embed` emits from.
 pub mod subset;
-/// Type 1 → bare CFF, so SVG export can keep Type 1 text (G033).
 pub(crate) mod type1_cff;
 /// Web-loadable sfnt subsets for SVG `<text>` export (G033).
 pub(crate) mod webfont;
