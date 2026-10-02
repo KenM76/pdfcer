@@ -68,6 +68,7 @@ pub(crate) mod code_alloc;
 pub(crate) mod cross_object;
 pub mod edit;
 pub mod encoding;
+pub mod fallback;
 pub(crate) mod font_extend;
 mod font_usage;
 pub mod format;
@@ -102,6 +103,7 @@ pub use edit::{
     EditError, EditGlyphSource, EditOptions, EditOutcome, EditReport, EditRequest, EditTarget,
     FollowerDisposition, PreviewColour, PreviewGlyph, TextEditPreview, edit_text,
 };
+pub use fallback::{FallbackFace, FallbackSource, FallbackUse, PreviewFallback};
 pub use program_glyphs::{EmbeddedGlyphs, ProgramGlyph};
 pub use refusal_kind::{RefusalClass, RefusalKind};
 pub use subset_augment::{

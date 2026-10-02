@@ -321,6 +321,10 @@ disk. No attribution is owed and none is claimed.
 | `word-shaped-subset-differences.pdf` | `gen-word-subset-fixture.py` | as the base, but `/Encoding` is a dictionary whose `/Differences` already names code 127, so an allocation for a character WinAnsi cannot address must skip it |
 | `sibling-font.pdf` | `gen-sibling-font-fixture.py` | decision 174 is reachable: `/F0` (`/Type0` `SIBAAA+pdfceSib`, a program whose `cmap` maps only `A`) shows "AA" and cannot carry `B` by any route that keeps it, while `/F1` (simple TrueType `SIBBBB+pdfceSib`, the full program) shows "ABC" on the same page; the outlines are this project's own rectangles |
 | `sibling-font-other-face.pdf` | `gen-sibling-font-fixture.py` | as `sibling-font.pdf`, but `/F1` is named `SIBBBB+pdfceOther`, so it is not a sibling and the edit refuses |
+| `fallback-font.pdf` | `gen-fallback-font-fixture.py` | `EditOptions::fallback`: `/F0` (WinAnsi TrueType subset `FBKAAA+pdfcerFbRun`, `/FirstChar 53`..`/LastChar 117`) shows "Qu5" and carries nothing else, so a space, the euro sign and U+2265 are refused by every route that keeps it; `/F1` (Helvetica) shows "Hi" on another line; the outlines are this project's own rectangles |
+| `fallback-font-form.pdf` | `gen-fallback-font-fixture.py` | as `fallback-font.pdf`, with both lines drawn from a form XObject whose `/Resources` hold the fonts |
+| `fallback-font-inherited.pdf` | `gen-fallback-font-fixture.py` | as `fallback-font.pdf`, with the page's `/Resources` inherited from the page-tree node |
+| `fallback-donor.ttf` | `gen-fallback-font-fixture.py` | a face a fallback embeds a subset of: space, `Q`, `u`, `5`, the euro sign and U+2265, each a rectangle of its own height |
 | `subset-donor.ttf` | `gen-subset-font-fixtures.py` | the program `subset-simple-embedded.pdf` embeds, byte-identical, so a test can subset the donor and compare it with what the PDF carries |
 | `subset-donor-bold.ttf` | `gen-subset-font-fixtures.py` | the same outlines named as the Bold face (name ID 6 only differs), so `--embed-styled-face` has a donor whose advertised name claims the axis |
 | `subset-cycle-donor.ttf` | `gen-subset-font-fixtures.py` | composite glyphs that form cycles (`gSelf` → itself, `gPing` ↔ `gPong`), asserting that the `subsetter` crate's worklist closure terminates; decision 021 §3.5 adds no pdfcer-side cap, so this file fails if upstream ever walks `glyf` recursively |
@@ -345,4 +349,5 @@ directory now has an entry.
 ```text
 python tools/gen-text-run-fixtures.py
 python tools/gen-subset-font-fixtures.py
+python tools/gen-fallback-font-fixture.py
 ```

@@ -1276,6 +1276,16 @@ struct Command {
 /// ([`EditSession::dr_font_objects`]).
 type DrFonts = (Vec<(crate::fontdata::Std14, ObjId)>, Vec<ObjectWrite>);
 
+/// A form text edit ready to commit: form id, patched form dictionary, new
+/// content, report, and the font writes.
+type FormEditParts = (
+    ObjId,
+    Dict,
+    Vec<u8>,
+    crate::text_edit::EditReport,
+    Vec<ObjectWrite>,
+);
+
 /// One object-level write inside a [`Command`].
 #[derive(Debug, Clone)]
 struct ObjectWrite {
@@ -12377,31 +12387,7 @@ impl EditSession {
                         )
                     });
                     match planned {
-                        Ok(mut plan) => {
-                            let prior = self.revisions(std::mem::take(&mut plan.font_writes))?;
-                            let (command, decoupled) = self
-                                .text_edit_command(
-                                    CommandKind::EditText,
-                                    content_id,
-                                    &page,
-                                    plan.new_content,
-                                    prior,
-                                    &mut plan.report.disclosures,
-                                )
-                                .map_err(|e| {
-                                    TeError::Unsupported(
-                                        crate::text_edit::UnsupportedCause::CommitFailed {
-                                            detail: e.to_string(),
-                                        },
-                                    )
-                                })?;
-                            if let Some(d) = decoupled {
-                                plan.report.content_object = d.content_object;
-                                plan.report.extra_objects_emptied = d.emptied;
-                            }
-                            self.commit(command);
-                            return Ok(plan.report);
-                        }
+                        Ok(plan) => return self.commit_page_text_edit(content_id, &page, plan),
                         Err(e) => Some(e),
                     }
                 }
@@ -12430,6 +12416,48 @@ impl EditSession {
         }
 
         self.edit_text_in_form(&page, req, opts, page_attempt)
+    }
+
+    /// Commit a planned page-content edit as one command: the new content,
+    /// any font program writes and any fallback resource the plan creates.
+    fn commit_page_text_edit(
+        &mut self,
+        content_id: ObjId,
+        page: &Page,
+        mut plan: crate::text_edit::edit::EditPlan,
+    ) -> Result<crate::text_edit::EditReport, crate::text_edit::EditError> {
+        let commit_failed = |detail: String| {
+            crate::text_edit::EditError::Unsupported(
+                crate::text_edit::UnsupportedCause::CommitFailed { detail },
+            )
+        };
+        let mut prior = self.revisions(std::mem::take(&mut plan.font_writes))?;
+        if let Some(created) = plan.created_font.take() {
+            let (writes, shared) = self
+                .font_resource_writes(page.id, true, &created)
+                .map_err(commit_failed)?;
+            prior.extend(writes);
+            if shared {
+                let note = crate::text_edit::fallback::SHARED_RESOURCES_NOTE.to_owned();
+                plan.report.disclosures.push(note);
+            }
+        }
+        let (command, decoupled) = self
+            .text_edit_command(
+                CommandKind::EditText,
+                content_id,
+                page,
+                plan.new_content,
+                prior,
+                &mut plan.report.disclosures,
+            )
+            .map_err(|e| commit_failed(e.to_string()))?;
+        if let Some(d) = decoupled {
+            plan.report.content_object = d.content_object;
+            plan.report.extra_objects_emptied = d.emptied;
+        }
+        self.commit(command);
+        Ok(plan.report)
     }
 
     /// Lay out `req`'s replacement exactly as [`Self::edit_text`] would
@@ -12608,15 +12636,7 @@ impl EditSession {
         // exactly the shape `import_form_data` shipped. The gate that names
         // this is `tools/check-one-commit-per-command.py`, and it found this
         // function on the day it was written.
-        // (form id, form dict, new content, report, font writes)
-        type Found = (
-            ObjId,
-            Dict,
-            Vec<u8>,
-            crate::text_edit::EditReport,
-            Vec<ObjectWrite>,
-        );
-        let mut found: Option<Found> = None;
+        let mut found: Option<FormEditParts> = None;
         for form in scan.forms {
             if let crate::text_edit::EditTarget::Form { object } = req.target
                 && form.id.num != object
@@ -12640,8 +12660,7 @@ impl EditSession {
             let target = crate::text_edit::edit::EditPlanTarget::form(form, invocations);
             match plan_edit_target(&self.view(), &target, &stream, req, opts) {
                 Ok(plan) => {
-                    let writes = self.revisions(plan.font_writes)?;
-                    found = Some((form_id, form_dict, plan.new_content, plan.report, writes));
+                    found = Some(self.form_plan_parts(form_id, form_dict, plan)?);
                     break;
                 }
                 Err(e) if is_locational_error(&e) => {
@@ -12659,6 +12678,52 @@ impl EditSession {
         command.objects.extend(writes);
         self.commit(command);
         Ok(report)
+    }
+
+    /// A successful form plan's commit parts: its font writes, plus any
+    /// fallback resource bound into the form's own dictionary.
+    fn form_plan_parts(
+        &mut self,
+        form_id: ObjId,
+        mut form_dict: Dict,
+        mut plan: crate::text_edit::edit::EditPlan,
+    ) -> Result<FormEditParts, crate::text_edit::EditError> {
+        let mut writes = self.revisions(std::mem::take(&mut plan.font_writes))?;
+        if let Some(created) = plan.created_font.take() {
+            let notes = &mut plan.report.disclosures;
+            writes.extend(self.form_fallback_writes(form_id, &mut form_dict, &created, notes)?);
+        }
+        Ok((form_id, form_dict, plan.new_content, plan.report, writes))
+    }
+
+    /// The writes binding a fallback face's new resource into a form's own
+    /// `/Resources` (no inheritance, §8.10.1). A patched form dictionary goes
+    /// into `form_dict`, never into a second write for the form's id.
+    fn form_fallback_writes(
+        &mut self,
+        form_id: ObjId,
+        form_dict: &mut Dict,
+        created: &crate::text_edit::format::CreatedFont,
+        disclosures: &mut Vec<String>,
+    ) -> Result<Vec<ObjectWrite>, crate::text_edit::EditError> {
+        let (writes, shared) =
+            self.font_resource_writes(form_id, false, created)
+                .map_err(|detail| {
+                    crate::text_edit::EditError::Unsupported(
+                        crate::text_edit::UnsupportedCause::CommitFailed { detail },
+                    )
+                })?;
+        if shared {
+            disclosures.push(crate::text_edit::fallback::SHARED_RESOURCES_NOTE.to_owned());
+        }
+        let mut out = Vec::new();
+        for w in writes {
+            match (w.id == form_id, w.after) {
+                (true, Some(Object::Dict(d))) => *form_dict = d,
+                (_, after) => out.push(ObjectWrite { after, ..w }),
+            }
+        }
+        Ok(out)
     }
 
     /// `writes` as revisions of the session's current objects, so undo

@@ -7914,6 +7914,22 @@ pub(crate) enum Command {
         /// it. Only for a match inside one `Tj`/`TJ`; prints the font used.
         #[arg(long = "sibling-fonts")]
         sibling_fonts: bool,
+        /// When the run's font cannot encode some typed characters, set just
+        /// those characters in this font and keep the rest in the run's font.
+        /// NAME is a font already on the page, by resource name (F1) or font
+        /// name (Helvetica), or else a standard 14 font name, which is added
+        /// as a new resource. Tried only after every route that keeps the run's font
+        /// refuses. Prints which characters went to which font.
+        #[arg(
+            long = "fallback-font",
+            value_name = "NAME",
+            conflicts_with = "fallback_font_file"
+        )]
+        fallback_font: Option<String>,
+        /// Like --fallback-font, but embeds a subset of this TrueType file
+        /// (.ttf) for the characters the run's font cannot encode.
+        #[arg(long = "fallback-font-file", value_name = "PATH")]
+        fallback_font_file: Option<PathBuf>,
         /// Which content stream to edit (Pass 119.0): `auto` (default -- the
         /// page's own content first, then each form XObject it paints, in
         /// paint order), `page` (the page's own content ONLY), or `form:N`
@@ -9150,6 +9166,13 @@ pub(crate) enum Command {
         /// Print every accepted character rather than a summary count.
         #[arg(long)]
         list: bool,
+        /// Also count the characters edit-text --fallback-font NAME would
+        /// set in that face (a page font resource name such as F2, a
+        /// family or BaseFont name, or a standard 14 name such as
+        /// Helvetica). They are added to accepted and reported as
+        /// fallback=N; with --list, as fallback_chars=.
+        #[arg(long = "fallback-font", value_name = "NAME")]
+        fallback_font: Option<String>,
     },
     /// **Place a ce dimension** (Pass 27.1): set how far its dimension line
     /// stands off the geometry and where its value sits along that line.

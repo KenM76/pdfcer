@@ -708,7 +708,7 @@ pub fn load(
 
     match subtype.as_slice() {
         b"Type1" | b"MMType1" | b"TrueType" => load_simple(doc, font_dict, env, base_font, None),
-        b"Type0" => load_composite(doc, font_dict, base_font),
+        b"Type0" => load_composite(doc, font_dict, base_font, None),
         b"Type3" => crate::type3::Type3Font::load(doc, font_dict)
             .map(|t3| LoadedFont {
                 base_font,
@@ -732,8 +732,9 @@ pub fn load(
     }
 }
 
-/// [`load`] for a simple font whose glyphs come from `program` rather than
-/// its descriptor: a program an edit will embed but has not written yet.
+/// [`load`] for a simple or `Type0` font whose glyphs come from `program`
+/// rather than its descriptor: a program an edit will embed but has not
+/// written yet.
 pub(crate) fn load_with_program(
     doc: &DocumentView<'_>,
     font_dict: &Dict,
@@ -741,6 +742,9 @@ pub(crate) fn load_with_program(
     program: Vec<u8>,
 ) -> Result<LoadedFont, UnsupportedFont> {
     let base_font = name_of(doc, font_dict, b"BaseFont").unwrap_or_default();
+    if name_of(doc, font_dict, b"Subtype").as_deref() == Some("Type0") {
+        return load_composite(doc, font_dict, base_font, Some(program));
+    }
     load_simple(doc, font_dict, env, base_font, Some(program))
 }
 
@@ -837,6 +841,7 @@ fn load_composite(
     doc: &DocumentView<'_>,
     font_dict: &Dict,
     base_font: String,
+    program: Option<Vec<u8>>,
 ) -> Result<LoadedFont, UnsupportedFont> {
     // Table 121: `/Encoding` is required and is either a predefined
     // CMap name or a CMap stream. Only the two Identity names are in
@@ -862,8 +867,8 @@ fn load_composite(
     // §9.7.5.2 forbids Identity-H with a non-embedded font, and there
     // is no defined CID → substitute-face mapping, so this is a hard
     // stop rather than a substitution.
-    let bytes = descriptor
-        .and_then(|d| embedded_program(doc, d))
+    let bytes = program
+        .or_else(|| descriptor.and_then(|d| embedded_program(doc, d)))
         .ok_or(UnsupportedFont::CompositeNotEmbedded)?;
     let data = FontData::new(bytes);
     let program = FontProgram::parse(data.bytes()).map_err(|_| UnsupportedFont::UnusableProgram)?;

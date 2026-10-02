@@ -35,7 +35,9 @@ use crate::view::DocumentView;
 /// With `opts.sibling_fonts`, characters a same-face sibling resource accepts
 /// are added (decision 174); the edit sets a replacement in one font, so a
 /// replacement mixing characters only the run's font carries with characters
-/// only a sibling carries still refuses.
+/// only a sibling carries still refuses. With `opts.fallback`, the characters
+/// its face would set are added too, and also listed in
+/// [`RunRepertoire::via_fallback`] (Pass 431.0).
 ///
 /// A run with no usable encoding answers an empty [`RunRepertoire`] with
 /// [`RunRepertoire::reason`] set, not an error; a run that cannot be located
@@ -107,14 +109,42 @@ pub(crate) fn run_repertoire(
     out.accepted = own.accepted;
     out.embedded_subset = own.embedded_subset;
     out.candidates_tested = own.candidates_tested;
-    if opts.sibling_fonts && sibling::splittable(anchor, true) {
-        out.accepted
-            .extend(sibling_accepts(&query, &font.base_font));
-    }
+    add_other_fonts(&mut out, &query, anchor, &font.base_font, opts);
     if out.accepted.is_empty() {
         out.reason = Some(empty_reason(out.candidates_tested));
     }
     Ok(out)
+}
+
+/// What `opts.sibling_fonts` and `opts.fallback` add: characters set in a
+/// font other than the run's, only for a match inside one show operator.
+fn add_other_fonts(
+    out: &mut RunRepertoire,
+    query: &FontQuery<'_>,
+    anchor: &crate::text_edit::edit::ShowData,
+    base_font: &str,
+    opts: &EditOptions,
+) {
+    if !sibling::splittable(anchor, true) {
+        return;
+    }
+    if opts.sibling_fonts {
+        out.accepted.extend(sibling_accepts(query, base_font));
+    }
+    if let Some(face) = opts.fallback {
+        let at = crate::text_edit::fallback::RunAt {
+            doc: query.doc,
+            resources: query.resources,
+            recs: query.recs,
+            own_dict: query.dict,
+            anchor,
+        };
+        out.via_fallback = crate::text_edit::fallback::face_accepts(&at, face)
+            .into_iter()
+            .filter(|ch| !out.accepted.contains(ch))
+            .collect();
+        out.accepted.extend(out.via_fallback.iter().copied());
+    }
 }
 
 /// The run's identity, with nothing accepted yet.
@@ -130,6 +160,7 @@ fn empty_repertoire(
         // Resolved: an empty pinned `find` means the whole operator.
         text: crate::text_edit::edit::effective_find(anchor, find, pinned_span).to_owned(),
         accepted: BTreeSet::new(),
+        via_fallback: BTreeSet::new(),
         embedded_subset: false,
         candidates_tested: 0,
         reason: None,

@@ -3610,40 +3610,7 @@ fn plan_embedded_font(
         codes.push(u32::from(glyph.cid));
     }
 
-    // Resolve the wrapper as a reader will. Its descendant and descriptor do
-    // not exist yet, so they are inlined. The probe numbers sit far above the
-    // §C.2 object-number limit (8,388,607), so a reference left over resolves
-    // to null rather than to an unrelated object.
-    let first = u32::MAX - 8;
-    let built = crate::font_embed::build_objects(&plan, first, Object::Null, Object::Null)
-        .map_err(|e| FormatError::Unsupported(e.to_string()))?;
-    let lookup = |id: &Object| {
-        id.as_reference()
-            .and_then(|r| built.objects.iter().find(|(oid, _)| *oid == r))
-            .and_then(|(_, o)| o.as_dict().cloned())
-    };
-    let wrapper = built
-        .objects
-        .iter()
-        .find(|(id, _)| *id == built.font_dict_id)
-        .and_then(|(_, o)| o.as_dict().cloned())
-        .ok_or_else(|| FormatError::Unsupported("the donor face built no font".to_owned()))?;
-    let mut probe = wrapper.clone();
-    if let Some(Object::Array(kids)) = wrapper.get(b"DescendantFonts")
-        && let Some(mut cid) = kids.first().and_then(lookup)
-    {
-        if let Some(desc) = cid.get(b"FontDescriptor").and_then(lookup) {
-            cid.insert(
-                crate::object::Name::from(b"FontDescriptor"),
-                Object::Dict(desc),
-            );
-        }
-        probe.insert(
-            crate::object::Name::from(b"DescendantFonts"),
-            Object::Array(vec![Object::Dict(cid)]),
-        );
-    }
-    let font = ExtractFont::resolve(doc, &probe);
+    let (_, font) = embedded_probe(doc, &plan).map_err(FormatError::Unsupported)?;
 
     let existing_fonts = resources
         .get(b"Font")
@@ -3675,6 +3642,54 @@ fn plan_embedded_font(
             face: CreatedFace::Embedded(Box::new(plan)),
         }),
     })
+}
+
+/// `plan`'s `/Type0` wrapper with its descendant and descriptor inlined, and
+/// the font a reader resolves from it: the advances and codes an edit measures
+/// before the objects exist.
+///
+/// # Errors
+///
+/// The plan does not build.
+pub(crate) fn embedded_probe(
+    doc: &DocumentView<'_>,
+    plan: &crate::font_embed::FontEmbedPlan,
+) -> Result<(Dict, ExtractFont), String> {
+    // Resolve the wrapper as a reader will. Its descendant and descriptor do
+    // not exist yet, so they are inlined. The probe numbers sit far above the
+    // §C.2 object-number limit (8,388,607), so a reference left over resolves
+    // to null rather than to an unrelated object.
+    let first = u32::MAX - 8;
+    let built = crate::font_embed::build_objects(plan, first, Object::Null, Object::Null)
+        .map_err(|e| e.to_string())?;
+    let lookup = |id: &Object| {
+        id.as_reference()
+            .and_then(|r| built.objects.iter().find(|(oid, _)| *oid == r))
+            .and_then(|(_, o)| o.as_dict().cloned())
+    };
+    let wrapper = built
+        .objects
+        .iter()
+        .find(|(id, _)| *id == built.font_dict_id)
+        .and_then(|(_, o)| o.as_dict().cloned())
+        .ok_or_else(|| "the donor face built no font".to_owned())?;
+    let mut probe = wrapper.clone();
+    if let Some(Object::Array(kids)) = wrapper.get(b"DescendantFonts")
+        && let Some(mut cid) = kids.first().and_then(lookup)
+    {
+        if let Some(desc) = cid.get(b"FontDescriptor").and_then(lookup) {
+            cid.insert(
+                crate::object::Name::from(b"FontDescriptor"),
+                Object::Dict(desc),
+            );
+        }
+        probe.insert(
+            crate::object::Name::from(b"DescendantFonts"),
+            Object::Array(vec![Object::Dict(cid)]),
+        );
+    }
+    let font = ExtractFont::resolve(doc, &probe);
+    Ok((probe, font))
 }
 
 // ===================================================================
@@ -4731,6 +4746,11 @@ pub struct RunRepertoire {
     /// option — *"a materialised set is fine too"* — because a set can be
     /// printed, diffed and used to grey a keyboard, and a predicate cannot.
     pub accepted: BTreeSet<char>,
+    /// The characters of [`Self::accepted`] only
+    /// [`EditOptions::fallback`](crate::text_edit::EditOptions::fallback)'s
+    /// face would set: accepted with a fallback, not in the run's font. Empty
+    /// without that option.
+    pub via_fallback: BTreeSet<char>,
     /// Whether the run's font is an embedded **subset**, and so whether
     /// [`Self::accepted`] is narrowed by the `R-INV-1` floor (the codes this
     /// page already carries) rather than by the font program alone.
@@ -5495,7 +5515,7 @@ fn plan_synthetic_italic(
 
 /// Locate a family-change target resource by resource key first, then by
 /// `/BaseFont` (exact, or with the §9.6.4 subset tag stripped).
-fn resolve_target_resource<'a>(
+pub(crate) fn resolve_target_resource<'a>(
     doc: &'a DocumentView<'a>,
     resources: &'a Dict,
     selector: &str,

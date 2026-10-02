@@ -76,13 +76,46 @@ pub(crate) fn emit_switched_operator(
     pin_num: Option<f64>,
     sibling: &[u8],
 ) -> Vec<u8> {
-    let (pre, post) = split_around(anchor, m);
-    let mut post = post;
+    emit_segmented_operator(anchor, m, &[(true, new_codes.to_vec())], pin_num, sibling)
+}
+
+/// The anchor operator with its match replaced by `segments`, each
+/// `(in_other, bytes)`: a run of segments in `other` is preceded by
+/// `/<other> Tf` and the run's own font is restored with `/<own> Tf` before
+/// the next own segment and after the last. Own segments at either end join
+/// the text around the match. Every `Tf` carries the run's own size, so the
+/// baseline, `Tc`, `Tw`, `Tz` and `Ts` are untouched (§9.3.1).
+pub(crate) fn emit_segmented_operator(
+    anchor: &ShowData,
+    m: &MatchRun,
+    segments: &[(bool, Vec<u8>)],
+    pin_num: Option<f64>,
+    other: &[u8],
+) -> Vec<u8> {
+    let (mut pre, mut post) = split_around(anchor, m);
+    let mut mid = segments;
+    if let [(false, head), rest @ ..] = mid {
+        match pre.last_mut() {
+            Some(ShowElem::Str(s)) => s.extend_from_slice(head),
+            _ => pre.push(ShowElem::Str(head.clone())),
+        }
+        mid = rest;
+    }
+    if let [rest @ .., (false, tail)] = mid {
+        match post.first_mut() {
+            Some(ShowElem::Str(s)) => s.splice(0..0, tail.iter().copied()).for_each(drop),
+            _ => post.insert(0, ShowElem::Str(tail.clone())),
+        }
+        mid = rest;
+    }
     post.extend(pin_num.map(ShowElem::Num));
     let mut out = emit_show(&pre);
-    push_tf(&mut out, sibling, anchor.tf_size);
-    out.push(b' ');
-    out.extend(emit_show(&[ShowElem::Str(new_codes.to_vec())]));
+    for (in_other, bytes) in mid {
+        let font = if *in_other { other } else { &anchor.font_name };
+        push_tf(&mut out, font, anchor.tf_size);
+        out.push(b' ');
+        out.extend(emit_show(&[ShowElem::Str(bytes.clone())]));
+    }
     push_tf(&mut out, &anchor.font_name, anchor.tf_size);
     let rest = emit_show(&post);
     if !rest.is_empty() {

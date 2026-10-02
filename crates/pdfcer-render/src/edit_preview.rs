@@ -50,7 +50,12 @@ pub struct PreviewOutlines {
 /// `Th`, `Trise`, `Tm` and the CTM). Fill with `preview.fill` and stroke
 /// with `preview.stroke` per `preview.render_mode` (§9.3.6).
 ///
-/// Loads and parses the font on every call; the cost is the font's, not
+/// A glyph with [`PreviewGlyph::fallback`](pdfcer_core::text_edit::PreviewGlyph::fallback)
+/// set is drawn from `preview.fallback`'s face; a fallback face that does
+/// not load leaves those glyphs `None` and the rest drawn. `source` and
+/// `skipped` describe the run's own font.
+///
+/// Loads and parses the fonts on every call; the cost is the fonts', not
 /// the page's.
 #[must_use]
 pub fn preview_outlines(
@@ -63,43 +68,83 @@ pub fn preview_outlines(
         source: None,
         skipped: Some(skip),
     };
-    let loaded = match &preview.font_program {
-        Some(p) => text::load_with_program(doc, &preview.font, env, p.clone()),
-        None => text::load(doc, &preview.font, env),
+    let own = match load_face(doc, &preview.font, preview.font_program.as_ref(), env) {
+        Ok(loaded) => loaded,
+        Err(skip) => return none(skip),
     };
-    let loaded = match loaded {
-        Ok(l) => l,
-        Err(e) => return none(OutlineSkip::Unsupported(e)),
+    let source = Some(own.source);
+    let own = match Face::parse(&own) {
+        Ok(face) => face,
+        Err(skip) => {
+            return PreviewOutlines {
+                source,
+                ..none(skip)
+            };
+        }
     };
-    if loaded.is_type3() {
-        return PreviewOutlines {
-            source: Some(loaded.source),
-            ..none(OutlineSkip::Type3)
-        };
-    }
-    let Ok(program) = FontProgram::parse(loaded.data.bytes()) else {
-        return PreviewOutlines {
-            source: Some(loaded.source),
-            ..none(OutlineSkip::ProgramUnreadable)
-        };
-    };
-    let upem = match program.upem() {
-        u if u > 0.0 => u,
-        _ => 1000.0,
-    };
+    let fallback = preview
+        .fallback
+        .as_ref()
+        .and_then(|f| load_face(doc, &f.font, f.font_program.as_ref(), env).ok());
+    let fallback = fallback.as_ref().and_then(|l| Face::parse(l).ok());
     let glyphs = preview
         .glyphs
         .iter()
         .map(|g| {
-            let gid = loaded.gid(g.code, Some(&program))?;
-            let path = program.outline(gid).ok()??;
-            path.transform(to_transform(g.matrix).pre_scale(1.0 / upem, 1.0 / upem))
+            let face = if g.fallback { fallback.as_ref()? } else { &own };
+            face.outline(g.code, g.matrix)
         })
         .collect();
     PreviewOutlines {
         glyphs,
-        source: Some(loaded.source),
+        source,
         skipped: None,
+    }
+}
+
+/// A preview face, from `program` when the edit has not embedded it yet.
+fn load_face(
+    doc: &DocumentView<'_>,
+    font: &pdfcer_core::object::Dict,
+    program: Option<&Vec<u8>>,
+    env: &FontEnvironment,
+) -> Result<text::LoadedFont, OutlineSkip> {
+    match program {
+        Some(p) => text::load_with_program(doc, font, env, p.clone()),
+        None => text::load(doc, font, env),
+    }
+    .map_err(OutlineSkip::Unsupported)
+}
+
+/// One loaded, parsed face of a preview.
+struct Face<'a> {
+    loaded: &'a text::LoadedFont,
+    program: FontProgram<'a>,
+    upem: f32,
+}
+
+impl<'a> Face<'a> {
+    fn parse(loaded: &'a text::LoadedFont) -> Result<Self, OutlineSkip> {
+        if loaded.is_type3() {
+            return Err(OutlineSkip::Type3);
+        }
+        let program =
+            FontProgram::parse(loaded.data.bytes()).map_err(|_| OutlineSkip::ProgramUnreadable)?;
+        let upem = match program.upem() {
+            u if u > 0.0 => u,
+            _ => 1000.0,
+        };
+        Ok(Self {
+            loaded,
+            program,
+            upem,
+        })
+    }
+
+    fn outline(&self, code: u32, matrix: [f64; 6]) -> Option<Path> {
+        let gid = self.loaded.gid(code, Some(&self.program))?;
+        let path = self.program.outline(gid).ok()??;
+        path.transform(to_transform(matrix).pre_scale(1.0 / self.upem, 1.0 / self.upem))
     }
 }
 

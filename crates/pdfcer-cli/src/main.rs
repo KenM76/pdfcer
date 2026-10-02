@@ -576,6 +576,7 @@ mod page_edit;
 use page_edit::*;
 mod text_edit;
 use text_edit::*;
+mod fallback_font;
 mod fonts;
 use fonts::*;
 mod security;

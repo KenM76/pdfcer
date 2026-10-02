@@ -653,7 +653,15 @@ pub(crate) fn run() -> ExitCode {
             find,
             pin_span,
             list,
-        } => cmd_run_repertoire(&input, page, &find, pin_span.as_deref(), list),
+            fallback_font,
+        } => cmd_run_repertoire(
+            &input,
+            page,
+            &find,
+            pin_span.as_deref(),
+            list,
+            fallback_font.as_deref(),
+        ),
         Command::ListSignatures { input } => cmd_list_signatures(&input),
         Command::VerifySignatures {
             input,
@@ -2007,6 +2015,8 @@ pub(crate) fn run() -> ExitCode {
             augment_check,
             augment_hinting,
             sibling_fonts,
+            fallback_font,
+            fallback_font_file,
             target,
         } => cmd_edit_text(&EditTextArgs {
             input: &input,
@@ -2020,6 +2030,8 @@ pub(crate) fn run() -> ExitCode {
             font_dirs: &font_dirs,
             augment: augment_subset.then_some((augment_check.as_str(), augment_hinting.as_str())),
             sibling_fonts,
+            fallback_font: fallback_font.as_deref(),
+            fallback_font_file: fallback_font_file.as_deref(),
             target: &target,
         }),
         Command::FormatText {

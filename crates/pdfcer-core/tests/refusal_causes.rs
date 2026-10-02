@@ -84,10 +84,13 @@ fn edit_capability_agrees_with_edit_text_across_the_text_corpus() {
         let Ok(text) = extract_page(&doc, first, 0, &opts) else {
             continue;
         };
+        // `edit_capability` addresses the page's own content; a form
+        // XObject's span indexes a different buffer.
         let Some((span, run_text)) = text.runs.iter().find_map(|r| {
             r.glyphs.iter().find_map(|g| {
                 g.provenance
                     .as_ref()
+                    .filter(|p| p.content_stream.is_page())
                     .map(|p| (p.operator_span, r.text.clone()))
             })
         }) else {

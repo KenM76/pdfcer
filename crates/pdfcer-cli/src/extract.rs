@@ -482,11 +482,15 @@ pub(crate) fn cmd_run_repertoire(
     find: &str,
     pin_span: Option<&str>,
     list: bool,
+    fallback_font: Option<&str>,
 ) -> u8 {
     if page == 0 {
         eprintln!("pdfcer: --page is 1-based; 0 is not a valid page number");
         return exit::EDIT_REFUSED;
     }
+    let fallback = crate::fallback_font::fallback_face(fallback_font, None, "")
+        .ok()
+        .flatten();
     let pin = match pin_span {
         Some(spec) => match parse_pin_span(spec) {
             Ok(span) => Some(span),
@@ -517,8 +521,11 @@ pub(crate) fn cmd_run_repertoire(
     };
     let session = pdfcer_core::edit::EditSession::new(doc);
     // The same reader `edit-text` uses, so the two agree (decision 172).
-    let opts = pdfcer_core::text_edit::EditOptions::default()
+    let mut opts = pdfcer_core::text_edit::EditOptions::default()
         .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs);
+    if let Some(face) = fallback {
+        opts = opts.with_fallback(face);
+    }
     let rep = match session.run_repertoire_with(page - 1, find, pin, &opts) {
         Ok(rep) => rep,
         Err(err) => {
@@ -558,6 +565,7 @@ pub(crate) fn cmd_run_repertoire(
     } else {
         String::new()
     };
+    let chars = chars + &crate::fallback_font::repertoire_fallback(&rep, fallback.is_some(), list);
     println!(
         "run-repertoire {} page={} run={} font={} resource={} accepted={} tested={} refused={} subset={} editable={} cause={}{}",
         input.display(),

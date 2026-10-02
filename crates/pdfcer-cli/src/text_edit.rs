@@ -49,6 +49,10 @@ pub(crate) struct EditTextArgs<'a> {
     pub(crate) augment: Option<(&'a str, &'a str)>,
     /// `--sibling-fonts`.
     pub(crate) sibling_fonts: bool,
+    /// `--fallback-font NAME`.
+    pub(crate) fallback_font: Option<&'a str>,
+    /// `--fallback-font-file PATH`.
+    pub(crate) fallback_font_file: Option<&'a Path>,
     /// The `--target` selector, unparsed. Parsed inside the handler so a
     /// malformed value is a named refusal with the accepted spellings printed,
     /// rather than a clap error that only says "invalid value".
@@ -149,6 +153,15 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         }
         None => opts,
     };
+    let opts = match crate::fallback_font::fallback_face(
+        args.fallback_font,
+        args.fallback_font_file,
+        args.replace,
+    ) {
+        Ok(Some(face)) => opts.with_fallback(face),
+        Ok(None) => opts,
+        Err(code) => return code,
+    };
 
     let outcome = match pdfcer_core::text_edit::edit_text(&doc, &req, &opts) {
         Ok(o) => o,
@@ -246,6 +259,7 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
     if let Some(mcid) = report.tagged_mcid {
         println!("  tagged_mcid={mcid}");
     }
+    crate::fallback_font::print_fallback(report);
     println!("  disclosures:");
     for d in &report.disclosures {
         println!("    - {d}");
