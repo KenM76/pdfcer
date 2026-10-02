@@ -7990,7 +7990,8 @@ pub(crate) enum Command {
         /// encode the text, else in --fallback-font (default Helvetica).
         /// Prints which workaround it used. A retype loses the run's kerning,
         /// and an incremental save keeps the removed text in the prior
-        /// revision.
+        /// revision. A settings file line `workarounds = always` turns this
+        /// on for every run.
         #[arg(long = "workaround")]
         workaround: bool,
         /// Which content stream to edit (Pass 119.0): `auto` (default -- the

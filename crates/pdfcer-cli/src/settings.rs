@@ -96,9 +96,6 @@ pub(crate) fn active() -> &'static Settings {
 }
 
 /// The `workarounds` value the edit-text path reads.
-// `allow`, not `expect`: the consumer (edit-text's workaround policy) lands
-// in a parallel change, and an unfulfilled `expect` would then fail clippy.
-#[allow(dead_code)]
 pub(crate) fn workarounds() -> Workarounds {
     active().workarounds
 }

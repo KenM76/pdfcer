@@ -53,3 +53,31 @@ fn with_the_flag_the_run_is_retyped_and_the_disclosure_printed() {
     assert!(saved.windows(7).any(|w| w == b"(Howdy)"), "the new run");
     let _ = std::fs::remove_file(out);
 }
+
+/// `workarounds = always` in a settings file applies the workaround without
+/// the flag, and the settings line on stderr names it.
+#[test]
+fn a_settings_file_with_workarounds_always_applies_it() {
+    let settings =
+        std::env::temp_dir().join(format!("pdfcer_wa_settings_{}.txt", std::process::id()));
+    std::fs::write(&settings, "workarounds = always\n").unwrap();
+    let out = std::env::temp_dir().join(format!("pdfcer_wa_set_{}.pdf", std::process::id()));
+    let o = Command::new(BIN)
+        .arg("--settings")
+        .arg(&settings)
+        .arg("edit-text")
+        .arg(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures/synthetic/text/workaround-seam.pdf"),
+        )
+        .args(["--page", "1", "--find", "Hello", "--replace", "Howdy", "-o"])
+        .arg(&out)
+        .output()
+        .unwrap();
+    let all = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{all}");
+    assert!(all.contains("workarounds=always"), "{all}");
+    assert!(all.contains("  workaround=retype"), "{all}");
+    let _ = std::fs::remove_file(out);
+    let _ = std::fs::remove_file(settings);
+}

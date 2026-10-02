@@ -53,7 +53,8 @@ pub(crate) struct EditTextArgs<'a> {
     pub(crate) fallback_font: Option<&'a str>,
     /// `--fallback-font-file PATH`.
     pub(crate) fallback_font_file: Option<&'a Path>,
-    /// `--workaround`: apply the workaround a refusal offers.
+    /// `--workaround`: apply the workaround a refusal offers (also on when
+    /// the settings file says `workarounds = always`).
     pub(crate) workaround: bool,
     /// The `--target` selector, unparsed. Parsed inside the handler so a
     /// malformed value is a named refusal with the accepted spellings printed,
@@ -141,6 +142,8 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         // set a flag the resolver would then ignore.
         req.span_from_pin = args.span_from_pin;
     }
+    let apply_workaround =
+        args.workaround || crate::settings::workarounds() == crate::settings::Workarounds::Always;
     let opts = EditOptions::default()
         .with_disposition(if args.pin {
             FollowerDisposition::Pin
@@ -149,7 +152,7 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         })
         .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs)
         .with_sibling_fonts(args.sibling_fonts)
-        .with_workarounds(if args.workaround {
+        .with_workarounds(if apply_workaround {
             WorkaroundPolicy::Apply
         } else {
             WorkaroundPolicy::Refuse
@@ -174,7 +177,7 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         Ok(o) => o,
         Err(err) => {
             eprintln!("pdfcer: edit-text refused: {err}");
-            if !args.workaround && err.workaround().is_some() {
+            if !apply_workaround && err.workaround().is_some() {
                 eprintln!("pdfcer: re-run with --workaround to apply it");
             }
             return match err {
