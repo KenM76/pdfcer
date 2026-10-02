@@ -38,6 +38,7 @@ pub(super) struct Entry {
 }
 
 impl Entry {
+    /// Wrap `command` with a fresh serial, as it goes onto the undo stack.
     pub(super) fn new(command: Command) -> Self {
         Self {
             serial: next_serial(),
