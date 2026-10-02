@@ -488,6 +488,12 @@ pub(crate) fn cmd_run_repertoire(
         eprintln!("pdfcer: --page is 1-based; 0 is not a valid page number");
         return exit::EDIT_REFUSED;
     }
+    if fallback_font == Some(crate::fallback_font::AUTO) {
+        eprintln!(
+            "pdfcer: run-repertoire --fallback-font names one face; `auto` is an edit-text value"
+        );
+        return exit::EDIT_REFUSED;
+    }
     let fallback = crate::fallback_font::fallback_face(fallback_font, None, "")
         .ok()
         .flatten();

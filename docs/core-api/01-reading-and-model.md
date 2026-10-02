@@ -1875,7 +1875,11 @@ let bits = fontinfo::read_fs_type(program_bytes)?;   // fontinfo.rs -> FsTypeBit
 ```
 
 `FsType`, `FsTypeBits`, `EmbeddingPermission`,
-`FsTypeError`.
+`FsTypeError`. For a face another parser already holds (a collection
+member), `FsTypeBits::decode(raw_fs_type, os2_version)` applies the same
+version rule: bits 8–9 (no subsetting, bitmap only) are ignored below `OS/2`
+version 2. `text_edit::embedding_refusal(&FsTypeBits)` says whether an edit
+may embed a subset of the face, and why not (decision 178 §3).
 
 Subset tags: `split_subset_tag`; standard-14 test `is_standard_14`
 .

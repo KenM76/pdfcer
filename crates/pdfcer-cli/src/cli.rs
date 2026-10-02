@@ -7972,9 +7972,18 @@ pub(crate) enum Command {
         /// name (Helvetica), or else a standard 14 font name, which is added
         /// as a new resource. Tried only after every route that keeps the run's font
         /// refuses. Prints which characters went to which font.
+        ///
+        /// `auto` picks an installed face from the settings file's font
+        /// folders and each --font-dir: first one whose PostScript name is
+        /// the run's font's, then one of the same family and style (serif or
+        /// sans, fixed pitch, italic, weight, width), then any face holding
+        /// every character needed, else the closest standard 14 font. A face
+        /// whose own licence bits forbid embedding or editing it is skipped
+        /// and named; there is no way to override that. Prints the face, how
+        /// it was matched and its file as face_match= rung= source=.
         #[arg(
             long = "fallback-font",
-            value_name = "NAME",
+            value_name = "NAME|auto",
             conflicts_with = "fallback_font_file"
         )]
         fallback_font: Option<String>,
@@ -7987,7 +7996,9 @@ pub(crate) enum Command {
         /// objects, rewrite a ' or " operator as T* and Tj, or else retype --
         /// remove the run's show operators and set the new text at the run's
         /// position, size, colour and spacing, in the run's font when it can
-        /// encode the text, else in --fallback-font (default Helvetica).
+        /// encode the text, else in --fallback-font (default: the standard
+        /// 14 font closest to the run's font in style -- Times, Helvetica
+        /// or Courier, bold and italic as the run's font is).
         /// Prints which workaround it used. A retype loses the run's kerning,
         /// and an incremental save keeps the removed text in the prior
         /// revision. A settings file line `workarounds = always` turns this

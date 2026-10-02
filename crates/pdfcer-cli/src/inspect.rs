@@ -493,21 +493,13 @@ fn register_font_dir(
     registered: &mut usize,
     notes: &mut Vec<String>,
 ) -> usize {
-    let entries = match std::fs::read_dir(dir) {
-        Ok(rd) => rd,
-        Err(err) => {
-            notes.push(format!("font dir {}: {err}", dir.display()));
+    let files = match font_files_in(dir) {
+        Ok(files) => files,
+        Err(note) => {
+            notes.push(note);
             return 0;
         }
     };
-    // Collect + sort so registration order (and therefore duplicate-name
-    // precedence: last wins) is deterministic rather than dependent on the
-    // OS directory-iteration order (R19 spirit).
-    let mut files: Vec<PathBuf> = entries
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| p.is_file() && has_font_extension(p))
-        .collect();
-    files.sort();
     for path in &files {
         match font_file_names(path) {
             Ok((names, data)) => {
@@ -527,10 +519,26 @@ fn register_font_dir(
     files.len()
 }
 
+/// The font-extension files directly in `dir`, sorted so registration
+/// order (and so duplicate-name precedence: last wins) does not depend on
+/// the OS's directory order. The error is the note for an unreadable folder.
+pub(crate) fn font_files_in(dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let entries =
+        std::fs::read_dir(dir).map_err(|err| format!("font dir {}: {err}", dir.display()))?;
+    let mut files: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.is_file() && has_font_extension(p))
+        .collect();
+    files.sort();
+    Ok(files)
+}
+
 /// Read and parse one font file: the names to register it under (every
 /// advertised name, plus the filename stem) and its bytes. The error is the
 /// skip note.
-fn font_file_names(path: &Path) -> Result<(Vec<String>, pdfcer_render::FontData), String> {
+pub(crate) fn font_file_names(
+    path: &Path,
+) -> Result<(Vec<String>, pdfcer_render::FontData), String> {
     use pdfcer_render::font::program::FontProgram;
 
     if let Ok(m) = std::fs::metadata(path)

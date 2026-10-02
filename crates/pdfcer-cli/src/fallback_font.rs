@@ -1,14 +1,38 @@
 //! `edit-text --fallback-font` / `--fallback-font-file`: the face characters
-//! the run's font cannot encode are set in (`EditOptions::fallback`).
+//! the run's font cannot encode are set in (`EditOptions::fallback`), or
+//! `--fallback-font auto`: the installed faces the ladder picks from
+//! (`EditOptions::replacement_faces`, decision 178).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use pdfcer_core::text_edit::{EditReport, FallbackFace, FallbackSource, RunRepertoire};
+use pdfcer_render::font::InstalledFaces;
 use pdfcer_render::font::subset::{SubsetError, plan_subset, subset_tag_for};
 
 use crate::exit;
 
-/// The fallback face the flags name, or `None` without either flag.
+/// The `--fallback-font` value that asks for the replacement-face ladder
+/// (decision 178) instead of naming a face.
+pub(crate) const AUTO: &str = "auto";
+
+/// Every face in the settings file's font folders and each `--font-dir`,
+/// labelled with its file path, for `--fallback-font auto`. A file the font
+/// environment already skipped is skipped here too, silently: its note was
+/// printed then. Leaked, as [`fallback_face`] is.
+pub(crate) fn installed_faces(font_dirs: &[PathBuf]) -> &'static InstalledFaces {
+    let mut faces = InstalledFaces::new();
+    for dir in crate::settings::font_dirs().iter().chain(font_dirs) {
+        for path in crate::inspect::font_files_in(dir).unwrap_or_default() {
+            if let Ok((_, data)) = crate::inspect::font_file_names(&path) {
+                faces.insert(&path.display().to_string(), data);
+            }
+        }
+    }
+    Box::leak(Box::new(faces))
+}
+
+/// The fallback face the flags name, or `None` without either flag or with
+/// `--fallback-font auto` (see [`installed_faces`]).
 ///
 /// A font file is subset for the characters of `replace` it covers; the
 /// characters the run's font keeps are decided later, in core, so a few
@@ -24,6 +48,7 @@ pub(crate) fn fallback_face(
     replace: &str,
 ) -> Result<Option<&'static FallbackFace>, u8> {
     let face = match (name, file) {
+        (Some(AUTO), _) => return Ok(None),
         (Some(name), _) => FallbackFace::Named(name.to_owned()),
         (None, Some(path)) => FallbackFace::Embedded(Box::new(file_plan(path, replace)?)),
         (None, None) => return Ok(None),
@@ -82,6 +107,17 @@ pub(crate) fn print_fallback(report: &EditReport) {
         used.base_font,
         String::from_utf8_lossy(&used.font_resource)
     );
+    if let Some(m) = &used.chosen_by {
+        println!(
+            // `source` last: a path may hold spaces.
+            "  face_match={} rung={} skipped={} failed={} source={}",
+            m.face,
+            m.rung.label(),
+            m.skipped.len(),
+            m.failed.len(),
+            m.source.as_deref().unwrap_or("standard-14"),
+        );
+    }
 }
 
 /// The `run-repertoire` suffix for `--fallback-font`: ` fallback=N`, plus
