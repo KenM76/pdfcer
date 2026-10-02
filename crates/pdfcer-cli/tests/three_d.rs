@@ -182,7 +182,8 @@ fn an_embed_dry_run_discloses_the_inferred_format_and_the_version() {
 }
 
 /// Applied with a stated format: the model lists and extracts back from
-/// the written file, and nothing is inferred or noted.
+/// the written file, nothing is inferred, and the only note says why a U3D
+/// model gets the placeholder poster.
 #[test]
 fn an_applied_embed_round_trips_through_list_and_extract() {
     let input = three_d_pdf("emb_apply");
@@ -212,8 +213,16 @@ fn an_applied_embed_round_trips_through_list_and_extract() {
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("activate=PV"), "{stdout}");
+    assert!(stdout.contains("poster=placeholder"), "{stdout}");
     assert!(!stdout.contains("inferred:"), "{stdout}");
-    assert!(!stdout.contains("note:"), "{stdout}");
+    let notes: Vec<&str> = stdout.lines().filter(|l| l.starts_with("note:")).collect();
+    assert_eq!(
+        notes,
+        [
+            "note: the poster is pdfcer's placeholder drawing: pdfcer decodes only PRC models; this one is U3D"
+        ],
+        "{stdout}"
+    );
 
     let listed = run(&["3d-list", output.to_str().unwrap()]);
     assert!(
@@ -674,5 +683,142 @@ fn a_named_view_overrides_the_files_saved_view() {
         stdout.contains("note: camera: the named view asked for")
             && stdout.contains("projection=perspective"),
         "{stdout}"
+    );
+}
+
+fn embed_square(tag: &str, extra: &[&str]) -> Output {
+    let input = three_d_pdf(tag);
+    let prc = format!(
+        "{}/../../fixtures/synthetic/prc/square.prc",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let mut args = vec![
+        "3d-embed",
+        input.to_str().unwrap(),
+        "--model",
+        &prc,
+        "--page",
+        "1",
+        "--rect",
+        "10,10,190,100",
+    ];
+    args.extend_from_slice(extra);
+    let out = run(&args);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    out
+}
+
+/// A PRC model with no `--poster` gets a poster rendered from it, and the
+/// summary and an `inferred:` line say so.
+#[cfg(feature = "3d")]
+#[test]
+fn an_embedded_prc_model_gets_a_rendered_poster_disclosed() {
+    let out = embed_square("emb_rendered", &[]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains(" poster=rendered:360x180 "), "{stdout}");
+    assert!(
+        stdout.contains("inferred: poster rendered by pdfcer from the model"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("placeholder"), "{stdout}");
+}
+
+/// `--placeholder-poster` draws the placeholder and infers nothing about it.
+#[test]
+fn placeholder_poster_skips_the_rendering() {
+    let out = embed_square("emb_placeholder", &["--placeholder-poster"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains(" poster=placeholder "), "{stdout}");
+    assert!(!stdout.contains("poster rendered"), "{stdout}");
+    assert!(!stdout.contains("placeholder drawing"), "{stdout}");
+}
+
+fn poster_png() -> String {
+    format!(
+        "{}/../../fixtures/synthetic/images/rgb8.png",
+        env!("CARGO_MANIFEST_DIR")
+    )
+}
+
+/// `3d-poster` replaces the poster: the written file lists the model with a
+/// poster and extracts the same model bytes.
+#[test]
+fn a_replaced_poster_keeps_the_model() {
+    let input = three_d_pdf("poster_apply");
+    let output = input.with_extension("out.pdf");
+    let png = poster_png();
+    let out = run(&[
+        "3d-poster",
+        input.to_str().unwrap(),
+        "--index",
+        "0",
+        "--image",
+        &png,
+        "--apply",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.starts_with("3d-poster ") && stdout.contains(" index=0 page=1 annot=4 "),
+        "{stdout}"
+    );
+    assert!(stdout.contains("applied=1"), "{stdout}");
+
+    let listed = run(&["3d-list", output.to_str().unwrap()]);
+    let listed = String::from_utf8_lossy(&listed.stdout);
+    assert!(
+        listed.contains("3d index=0 page=1 format=U3D views=1 poster=yes source=stream\n"),
+        "{listed}"
+    );
+    let extracted = input.with_extension("poster.u3d");
+    let ext = run(&[
+        "3d-extract",
+        output.to_str().unwrap(),
+        "--index",
+        "0",
+        "-o",
+        extracted.to_str().unwrap(),
+    ]);
+    assert!(ext.status.success());
+    assert_eq!(
+        std::fs::read(&extracted).unwrap(),
+        b"U3D\0\xC0\xFF\xEE",
+        "the model bytes are unchanged"
+    );
+}
+
+/// A RichMedia model has no 3D poster: refused, nothing written.
+#[test]
+fn a_richmedia_poster_is_refused_and_writes_nothing() {
+    let input = three_d_pdf("poster_rich");
+    let output = input.with_extension("out.pdf");
+    let png = poster_png();
+    let out = run(&[
+        "3d-poster",
+        input.to_str().unwrap(),
+        "--index",
+        "1",
+        "--image",
+        &png,
+        "--apply",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert_eq!(out.status.code(), Some(9));
+    assert!(!output.exists());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("is not a 3D annotation"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
     );
 }

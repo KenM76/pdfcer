@@ -32,7 +32,7 @@ paddle = ["pdfcer-core/paddle", "pdfcer-render/paddle"]
 signing = ["pdfcer-core/signing"]
 # 3D model decoding (`3d-mesh`): the PRC reader in `pdfcer-3d`. Without it
 # `3d-mesh` refuses by name; `3d-list` / `3d-extract` need no decoding.
-3d = ["dep:pdfcer-3d"]
+3d = ["dep:pdfcer-3d", "pdfcer-core/3d"]
 
 # `download` — operator-initiated fetching of pinned artefacts, currently the
 # OCR model weights (`fetch-ocr-models`).

@@ -31,6 +31,7 @@ mod compressed;
 mod container;
 mod error;
 mod export;
+mod model;
 #[cfg(feature = "render")]
 mod render;
 mod schema;
@@ -48,6 +49,9 @@ pub use container::{
 };
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};
+#[cfg(feature = "render")]
+pub use model::render_default_view;
+pub use model::{AssembleError, AssembledModel, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP, assemble};
 #[cfg(feature = "render")]
 pub use render::{
     Bounds, Camera, Image, MAX_RENDER_PIXELS, Projection, RenderError, RenderOptions, render,

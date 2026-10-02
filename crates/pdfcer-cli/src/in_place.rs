@@ -24,6 +24,7 @@ pub(crate) const SIGNING_COMMANDS: &[&str] = &["add-ltv", "sign", "timestamp"];
 /// `--in-place` would overwrite the PDF with it.
 pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "3d-embed",
+    "3d-poster",
     "add-bookmark",
     "add-caret",
     "add-check-box",

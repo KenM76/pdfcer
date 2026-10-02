@@ -39,7 +39,7 @@ autotests = false
 # 4. CI builds `--no-default-features` (see .github/workflows/ci.yml), which
 #    is what stops a `cfg` from rotting into something that no longer
 #    compiles when switched off.
-default = ["jpx", "ocrs", "ocrcer", "paddle", "signing"]
+default = ["jpx", "ocrs", "ocrcer", "paddle", "signing", "3d"]
 
 # Digital SIGNING — the private-key side (PAdES B-B first; `sign` module).
 #
@@ -138,6 +138,13 @@ ocrcer = ["dep:ocrcer-core"]
 # already in the graph. No weights ship; no network. The pure pre/post-
 # processing (`ocr/paddle_post.rs`) is ungated so the fuzz crate reaches it.
 paddle = ["dep:rten", "dep:rten-tensor"]
+# PRC model decoding for the default 3D poster (`threed::poster`): an
+# `add_3d_annotation` with no supplied poster draws the model's iso view.
+# Off, the poster falls back to the placeholder and says so
+# (`PlaceholderReason::NoDecoder`). `pdfcer-3d` is MIT, pure Rust,
+# no GUI/network/thread dependency, wasm32-clean; its own deps are
+# `thiserror` and `flate2`, already here. Decision 180.
+3d = ["dep:pdfcer-3d", "pdfcer-3d/render"]
 # NOTE: there is deliberately no `rten` feature. `cargo add --optional` writes
 # one automatically, and it was removed: `rten` alone compiles the inference
 # runtime and nothing that uses it, so it would be a public feature that adds
@@ -386,6 +393,10 @@ ocrs = { version = "0.12.2", optional = true }
 # use here. License: MIT OR Apache-2.0.
 rten = { version = "0.24", optional = true }
 rten-tensor = { version = "0.24", optional = true }
+# pdfcer-3d: PRC decoding and rendering for the default 3D poster (`3d`
+# feature). MIT, in-workspace.
+pdfcer-3d = { workspace = true, optional = true }
+
 # ocrcer-core: the OCRcer recogniser (`ocrcer` feature). MIT, zero
 # dependencies. VENDORED at `vendor/ocrcer-core`, copied from the newest local
 # OCRcer commit by `tools/sync-ocrcer.py` (operator rule: always the newest

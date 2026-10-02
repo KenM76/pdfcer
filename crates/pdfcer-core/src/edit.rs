@@ -126,6 +126,7 @@ mod block_text;
 mod checkpoint;
 mod content_mark;
 mod foreign_button;
+mod threed_poster;
 
 use checkpoint::Entry;
 pub use checkpoint::{Checkpoint, CheckpointError, Rollback};
@@ -607,6 +608,9 @@ pub enum CommandKind {
     /// restores VISIBILITY, and a shell labelling its undo stack must not
     /// call that "note" or "window state".
     SetAnnotationFlags,
+    /// [`EditSession::set_3d_poster`] replaced a `/3D` annotation's
+    /// `/AP /N` poster.
+    SetThreeDPoster,
     /// [`EditSession::set_text_annot_style`] changed a text-bearing
     /// annotation's icon or colour and re-baked its appearance.
     SetTextAnnotStyle,
@@ -32869,141 +32873,6 @@ impl EditSession {
                 trailer: None,
             });
             Ok(annot_id)
-        })
-    }
-
-    /// Embed a U3D or PRC model as a **3D annotation** (ISO 32000-1
-    /// §13.6.2 Table 298) on page `page_index`. One undo entry.
-    ///
-    /// - The model goes into a 3D stream (§13.6.3 Table 300: `/Type /3D`,
-    ///   `/Subtype /U3D` or `/PRC`), Flate-compressed, referenced directly
-    ///   from `/3DD` so the annotation gets its own instance. No `/VA` or
-    ///   `/3DV` is written: the reader opens on the artwork's own default
-    ///   view.
-    /// - `/3DA` carries only `/A` from `spec.activation`; the other Table 299
-    ///   entries keep their defaults.
-    /// - The `/AP /N` poster §13.6.2 requires is `spec.poster` fitted inside
-    ///   the rectangle, or pdfcer's placeholder drawing. It is what prints
-    ///   and what a reader without 3D support shows.
-    /// - `options.note` supplies `/Contents`, `/T` and `/M`.
-    /// - The header version is not raised; the outcome reports when it is
-    ///   below the format's ([`crate::threed::ThreeDEmbedOutcome::below_required_version`]).
-    ///
-    /// # Errors
-    ///
-    /// [`EditError::ThreeD`] when the spec fails
-    /// [`crate::threed::ThreeDSpec::validate`]; otherwise as
-    /// [`Self::add_file_attachment_annotation`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use pdfcer_core::{document::Document, edit::{EditSession, MarkupOptions}};
-    /// # use pdfcer_core::page_tree::Rect;
-    /// # use pdfcer_core::threed::ThreeDSpec;
-    /// # fn demo(doc: Document, prc: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut session = EditSession::new(doc);
-    /// let rect = Rect { llx: 72.0, lly: 400.0, urx: 372.0, ury: 700.0 };
-    /// let outcome =
-    ///     session.add_3d_annotation(0, &ThreeDSpec::new(rect, prc)?, &MarkupOptions::default())?;
-    /// assert!(outcome.poster_image_id.is_none());
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn add_3d_annotation(
-        &mut self,
-        page_index: usize,
-        spec: &crate::threed::ThreeDSpec,
-        options: &MarkupOptions,
-    ) -> Result<crate::threed::ThreeDEmbedOutcome, EditError> {
-        options.validate()?;
-        spec.validate()?;
-        let document_version = self.base.version();
-        self.on_layer_if(page_index, options.layer, |s| {
-            let (slots, page_id) = s.annotation_author_target(page_index)?;
-            let mut objects = Vec::new();
-            let mut authored = annot_author::three_d_placeholder(spec.rect, spec.color);
-            let poster_image_id = match &spec.poster {
-                None => {
-                    // Read back by `three_d_poster_rebuild` to redraw the
-                    // placeholder on resize.
-                    authored
-                        .annot
-                        .insert(Name::from(b"C"), spec.color.to_array());
-                    None
-                }
-                Some(img) => {
-                    let (image_id, _) = s.stage_image_xobject(img, &mut objects)?;
-                    authored.ap_content = Self::poster_content(
-                        (img.width, img.height),
-                        img.orientation,
-                        authored.rect,
-                    );
-                    let mut xobjects = Dict::new();
-                    xobjects.insert(Name::from(b"Poster"), Object::Reference(image_id));
-                    let mut resources = Dict::new();
-                    resources.insert(Name::from(b"XObject"), Object::Dict(xobjects));
-                    authored
-                        .ap_dict
-                        .insert(Name::from(b"Resources"), Object::Dict(resources));
-                    Some(image_id)
-                }
-            };
-            let (annot_id, mut annot, ap_write) =
-                s.stage_authored_icon(authored, page_id, options)?;
-            let stream_id = ObjId::new(s.alloc_number()?, 0);
-            let encoded = crate::filters::flate::encode(&spec.data);
-            let mut dict = Dict::new();
-            dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"3D")));
-            let subtype: &[u8] = match spec.format {
-                crate::threed::ThreeDFormat::Prc => b"PRC",
-                _ => b"U3D",
-            };
-            dict.insert(Name::from(b"Subtype"), Object::Name(Name::from(subtype)));
-            dict.insert(
-                Name::from(b"Filter"),
-                Object::Name(Name::from(b"FlateDecode")),
-            );
-            dict.insert(
-                Name::from(b"Length"),
-                Object::Integer(i64::try_from(encoded.len()).unwrap_or(i64::MAX)),
-            );
-            let data_span = s.stage_bytes(&encoded);
-            annot.insert(Name::from(b"3DD"), Object::Reference(stream_id));
-            let mut activation = Dict::new();
-            activation.insert(
-                Name::from(b"A"),
-                Object::Name(Name::from(spec.activation.name())),
-            );
-            annot.insert(Name::from(b"3DA"), Object::Dict(activation));
-
-            objects.push(ap_write);
-            objects.push(ObjectWrite {
-                id: annot_id,
-                before: None,
-                after: Some(Object::Dict(annot)),
-            });
-            objects.push(ObjectWrite {
-                id: stream_id,
-                before: None,
-                after: Some(Object::Stream(Stream { dict, data_span })),
-            });
-            objects.append(&mut s.annots_append(page_id, &[annot_id], &slots)?);
-            s.commit(Command {
-                kind: CommandKind::AddAnnotation {
-                    kind: AnnotKind::ThreeD,
-                },
-                objects,
-                removals: Vec::new(),
-                trailer: None,
-            });
-            Ok(crate::threed::ThreeDEmbedOutcome {
-                annot_id,
-                stream_id,
-                poster_image_id,
-                required_version: spec.required_version(),
-                document_version,
-            })
         })
     }
 

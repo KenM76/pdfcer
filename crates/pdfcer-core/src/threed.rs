@@ -32,7 +32,10 @@ use crate::page_tree::Rect;
 use crate::textstring::decode_text_string;
 use crate::view::DocumentView;
 
+mod poster;
 mod view;
+pub(crate) use poster::default_poster;
+pub use poster::{PlaceholderReason, RenderedPoster, ThreeDPoster, ThreeDPosterOutcome};
 pub use view::{OrthoBinding, ThreeDSavedView, default_3d_view};
 
 /// Ceiling on how many artworks one listing reports (a pdfcer guard; the
@@ -548,6 +551,13 @@ pub enum ThreeDEmbedError {
         /// The sniffed format's label.
         sniffed: String,
     },
+    /// [`crate::edit::EditSession::set_3d_poster`] was pointed at an
+    /// annotation that is not `/Subtype /3D`.
+    #[error("the {subtype} annotation is not a 3D annotation; only a 3D annotation has a poster")]
+    NotA3dAnnotation {
+        /// The annotation's `/Subtype`.
+        subtype: String,
+    },
 }
 
 /// A U3D or PRC model to embed as a `/3D` annotation with
@@ -566,9 +576,14 @@ pub struct ThreeDSpec {
     /// The model bytes, stored Flate-compressed in the 3D stream.
     pub data: Vec<u8>,
     /// The poster image, fitted inside the rectangle preserving its aspect
-    /// ratio. `None` draws pdfcer's placeholder (a frame and a wireframe
-    /// cube in [`Self::color`]).
+    /// ratio. `None` renders the model from its default view when it is a
+    /// PRC model that meshes and [`Self::render_poster`] is set, else draws
+    /// pdfcer's placeholder (a frame and a wireframe cube in
+    /// [`Self::color`]); [`ThreeDEmbedOutcome::poster`] says which.
     pub poster: Option<ImportedImage>,
+    /// With no [`Self::poster`], render one from the model (default `true`);
+    /// `false` draws the placeholder.
+    pub render_poster: bool,
     /// When the artwork activates.
     pub activation: ThreeDActivation,
     /// The placeholder poster's colour.
@@ -620,6 +635,7 @@ impl ThreeDSpec {
             format,
             data,
             poster: None,
+            render_poster: true,
             activation: ThreeDActivation::default(),
             color: Color::Rgb(0.25, 0.25, 0.25),
         };
@@ -672,8 +688,11 @@ pub struct ThreeDEmbedOutcome {
     pub annot_id: ObjId,
     /// The 3D stream (`/Type /3D`).
     pub stream_id: ObjId,
-    /// The poster's image XObject, when a poster image was supplied.
+    /// The poster's image XObject, supplied or rendered; `None` for the
+    /// placeholder.
     pub poster_image_id: Option<ObjId>,
+    /// Which poster was drawn, and why when it is the placeholder.
+    pub poster: ThreeDPoster,
     /// [`ThreeDSpec::required_version`].
     pub required_version: PdfVersion,
     /// The document's version. No pdfcer verb raises it; when it is below

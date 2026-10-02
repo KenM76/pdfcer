@@ -2998,9 +2998,14 @@ pub(crate) enum Command {
     /// standard does not allow STEP in a 3D annotation). The region shows a
     /// poster until the model activates, and the poster is what prints and
     /// what readers without 3D support show: `--poster` supplies an image
-    /// (PNG, JPEG, ...), otherwise pdfcer draws a frame with a cube. A `note:`
-    /// line says when the document's PDF version is older than the format;
-    /// pdfcer does not change the version. A DRY RUN unless `--apply`.
+    /// (PNG, JPEG, ...); otherwise pdfcer draws a PRC model from above its
+    /// front-right corner (z up, perspective, white background) and prints an
+    /// `inferred:` line saying so. A U3D model, a PRC model pdfcer cannot
+    /// mesh, or `--placeholder-poster` gets a frame with a cube instead, and a
+    /// `note:` line says why. The summary's `poster=` is `supplied:WxH`,
+    /// `rendered:WxH` or `placeholder`. A `note:` line says when the
+    /// document's PDF version is older than the format; pdfcer does not change
+    /// the version. A DRY RUN unless `--apply`.
     #[command(name = "3d-embed")]
     ThreeDEmbed {
         /// Input PDF.
@@ -3022,6 +3027,10 @@ pub(crate) enum Command {
         /// Poster image, fitted inside the region with its aspect ratio kept.
         #[arg(long, value_name = "IMAGE")]
         poster: Option<PathBuf>,
+        /// Draw the frame-and-cube placeholder instead of rendering a poster
+        /// from the model. Ignored with `--poster`.
+        #[arg(long)]
+        placeholder_poster: bool,
         /// When the model activates: `click` (default), `page-open` or
         /// `page-visible`.
         #[arg(long, value_enum, default_value_t = ThreeDActivateArg::Click)]
@@ -3032,6 +3041,35 @@ pub(crate) enum Command {
         /// Placeholder poster colour as `RRGGBB` hex. Default dark grey.
         #[arg(long)]
         color: Option<String>,
+        /// Actually write the output. Without it this is a DRY RUN.
+        #[arg(long)]
+        apply: bool,
+        /// Output path. Required with `--apply`.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
+    /// **Replace a 3D annotation's poster** with an image (PNG, JPEG, ...).
+    ///
+    /// The poster is what the region shows until the model activates, what
+    /// prints, and what readers without 3D support show. `--index` is the
+    /// number `3d-list` prints; a RichMedia model has no 3D poster and is
+    /// refused. The image is fitted inside the region with its aspect ratio
+    /// kept; the model, its views and every other key are left as they are.
+    /// A DRY RUN unless `--apply`.
+    #[command(name = "3d-poster")]
+    ThreeDPoster {
+        /// Input PDF.
+        input: PathBuf,
+        /// Which 3D artwork, as numbered by `3d-list`.
+        #[arg(long)]
+        index: usize,
+        /// The poster image.
+        #[arg(long, value_name = "IMAGE")]
+        image: PathBuf,
         /// Actually write the output. Without it this is a DRY RUN.
         #[arg(long)]
         apply: bool,

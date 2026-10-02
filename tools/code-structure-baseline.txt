@@ -232,8 +232,6 @@ fn pdfcer-cli/src/text_edit.rs::cmd_edit_text
 fn pdfcer-cli/src/text_edit.rs::cmd_format_text
 fn pdfcer-cli/src/text_edit.rs::cmd_place_text
 fn pdfcer-cli/src/text_edit.rs::cmd_reflow
-fn pdfcer-cli/src/threed_cmd.rs::assemble
-fn pdfcer-cli/src/threed_cmd.rs::cmd_embed_3d
 fn pdfcer-cli/src/threed_cmd.rs::render_from_bytes
 fn pdfcer-core/src/annot.rs::apply_view_usage
 fn pdfcer-core/src/annot.rs::model_annotation
@@ -263,7 +261,6 @@ fn pdfcer-core/src/dimension/length_parse.rs::parse_length
 fn pdfcer-core/src/dimension/sidecar.rs::deserialize_dimension
 fn pdfcer-core/src/dimension/sidecar.rs::serialize_dimension
 fn pdfcer-core/src/edit.rs::acroform_write_parts
-fn pdfcer-core/src/edit.rs::add_3d_annotation
 fn pdfcer-core/src/edit.rs::add_check_box
 fn pdfcer-core/src/edit.rs::add_choice_field
 fn pdfcer-core/src/edit.rs::add_dimension

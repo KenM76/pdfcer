@@ -872,6 +872,7 @@ dependencies = [
  "p256",
  "p384",
  "pbkdf2",
+ "pdfcer-3d",
  "pdfcer-color",
  "pdfcer-fonts",
  "pdfcer-function",
