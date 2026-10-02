@@ -1859,6 +1859,8 @@ program parser** (rule R21; that lives in `pdfcer-render`).
 `Std14Descriptor` · `std14_descriptor` ·
 `BaseEncoding` · `encoding_glyph_name` ·
 `glyph_name_to_unicode` · `glyph_name_to_unicode_string` ·
+`unicode_to_glyph_name` (the inverse, for a `/Differences` entry: an
+encoding-table name, else `uniXXXX`/`uXXXXX`; always reads back) ·
 `is_standard_latin_or_symbol_name` · `std14_builtin_encoding`.
 
 `fontdata::tables` is **private**; its contents are `pub(crate)`.

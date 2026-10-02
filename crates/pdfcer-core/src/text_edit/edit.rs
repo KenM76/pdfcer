@@ -110,8 +110,9 @@ use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::page_tree::{self, Page, PageTreeError};
 use crate::settings::UnmappableCode;
 use crate::span::ByteSpan;
+use crate::text_edit::code_alloc::{Allocation, allocate};
 use crate::text_edit::encoding::{CompositeEncoding, InverseEncoding, RInvTrigger, Refusal};
-use crate::text_edit::font_extend::Blocked;
+use crate::text_edit::font_extend::{Blocked, FontExtension};
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
 use crate::text_extract::font::ExtractFont;
 use crate::text_state::{AmbientTextState, TextStateParam};
@@ -2156,18 +2157,13 @@ pub(crate) fn plan_edit_with_records(
     let narrowed = narrow.is_some();
     let at = locate(recs, span, &req.find)?;
     let anchor = at.anchor;
-    let (font_dict, mut font, class) = anchor_font(doc, target, anchor)?;
+    let (font_dict, font, class) = anchor_font(doc, target, anchor)?;
     // An empty `find` on a PINNED request means the whole operator.
     let find = effective_find(anchor, &req.find, req.pinned_span);
     let (m, leading_matches) = match_anchor(&at, span, find)?;
-    let mut encoded = encode_replacement(&font, anchor, &req.replace)?;
-    let extension = extend_subset(
-        doc, target, recs, &font, &class, font_dict, anchor, req, &encoded, opts,
+    let (encoded, font, extension) = encode_and_extend(
+        doc, target, recs, font, &class, font_dict, anchor, req, opts,
     )?;
-    if let Some(ext) = &extension {
-        font = ExtractFont::resolve(doc, &ext.dict);
-        encoded.disclosures.extend(ext.disclosures(&font.base_font));
-    }
     let font_dict = extension.as_ref().map_or(font_dict, |e| &e.dict);
 
     // Advance delta (§9.4.4): the anchor's matched glyphs plus any TJ kerns
@@ -2394,6 +2390,110 @@ fn encode_replacement(
         bytes: e.codes,
         disclosures: e.disclosures,
     })
+}
+
+/// The replacement's codes and the font extension that makes them showable:
+/// a character the encoding cannot address gets an unused code
+/// (`code_alloc`), and an uncarried code gets its width and `/ToUnicode`
+/// entry (`font_extend`).
+#[allow(clippy::too_many_arguments)] // the planner's own locals, passed through once
+fn encode_and_extend(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    recs: &[OpRec],
+    font: ExtractFont,
+    class: &FontClass,
+    font_dict: &Dict,
+    anchor: &ShowData,
+    req: &EditRequest,
+    opts: &EditOptions,
+) -> Result<(EncodedReplacement, ExtractFont, Option<FontExtension>), EditError> {
+    let (mut encoded, font, alloc) = match encode_replacement(&font, anchor, &req.replace) {
+        Ok(e) => (e, font, None),
+        Err(refused) => {
+            let alloc = allocate_codes(doc, target, &font, class, font_dict, anchor, req, opts)
+                .map_err(|blocked| with_allocation_reasons(refused, &blocked))?;
+            let font = ExtractFont::resolve(doc, &alloc.dict);
+            (
+                encode_replacement(&font, anchor, &req.replace)?,
+                font,
+                Some(alloc),
+            )
+        }
+    };
+    let dict = alloc.as_ref().map_or(font_dict, |a| &a.dict);
+    let mut extension = extend_subset(
+        doc, target, recs, &font, class, dict, anchor, req, &encoded, opts,
+    )?;
+    if let Some(a) = &alloc {
+        encoded.disclosures.extend(a.disclosures(&font.base_font));
+    }
+    let Some(ext) = extension.as_mut() else {
+        return Ok((encoded, font, None));
+    };
+    ext.reencoded = alloc.is_some();
+    let font = ExtractFont::resolve(doc, &ext.dict);
+    encoded.disclosures.extend(ext.disclosures(&font.base_font));
+    Ok((encoded, font, extension))
+}
+
+/// Unused codes for the replacement's characters the encoding cannot
+/// address. `Err(vec![])` when allocation does not apply here, so the
+/// encoder's own refusal stands unchanged.
+#[allow(clippy::too_many_arguments)] // the planner's own locals, passed through once
+fn allocate_codes(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    font: &ExtractFont,
+    class: &FontClass,
+    font_dict: &Dict,
+    anchor: &ShowData,
+    req: &EditRequest,
+    opts: &EditOptions,
+) -> Result<Allocation, Vec<Blocked>> {
+    let applies = class.embedded && class.subset && font.is_simple();
+    let (Some(glyphs), Some(names), true) = (opts.embedded_glyphs, font.glyph_names(), applies)
+    else {
+        return Err(Vec::new());
+    };
+    let inverse = InverseEncoding::build(&font.base_font, names);
+    let mut absent: Vec<char> = Vec::new();
+    for ch in req.replace.chars() {
+        // A single-byte code cannot carry a character beyond the BMP (R-INV-8).
+        if !inverse.has_char(ch) && u32::from(ch) <= 0xFFFF && !absent.contains(&ch) {
+            absent.push(ch);
+        }
+    }
+    if absent.is_empty() {
+        return Err(Vec::new());
+    }
+    allocate(
+        doc,
+        &target.resources,
+        &anchor.font_name,
+        font_dict,
+        &absent,
+        glyphs,
+    )
+}
+
+/// `refused` with why each character could not be given a code.
+fn with_allocation_reasons(refused: EditError, blocked: &[Blocked]) -> EditError {
+    let EditError::Refused(mut r) = refused else {
+        return refused;
+    };
+    if blocked.is_empty() {
+        return EditError::Refused(r);
+    }
+    let why: Vec<String> = blocked
+        .iter()
+        .map(|b| format!("U+{:04X} '{}': {}", u32::from(b.ch), b.ch, b.reason))
+        .collect();
+    r.message.push_str(&format!(
+        " It could not be given an unused code: {}.",
+        why.join("; ")
+    ));
+    EditError::Refused(r)
 }
 
 /// [`encode_replacement`] for a composite font. `classify_font` has already

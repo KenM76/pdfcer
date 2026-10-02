@@ -62,6 +62,7 @@
 
 pub mod addtext;
 pub mod cause;
+pub(crate) mod code_alloc;
 pub(crate) mod cross_object;
 pub mod edit;
 pub mod encoding;

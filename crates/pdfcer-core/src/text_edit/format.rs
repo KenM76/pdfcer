@@ -6511,6 +6511,16 @@ pub(crate) fn run_repertoire(
                 g,
             ));
         }
+        if let Some(g) = glyphs.filter(|_| embedded_subset) {
+            accepted.extend(crate::text_edit::code_alloc::allocatable(
+                doc,
+                &page.resources,
+                &anchor.font_name,
+                orig_dict,
+                |ch| inverse.has_char(ch),
+                g,
+            ));
+        }
     } else {
         let Some(cmap) = font.to_unicode_cmap() else {
             return Ok(unsupported(UnsupportedCause::CompositeWithoutToUnicode));

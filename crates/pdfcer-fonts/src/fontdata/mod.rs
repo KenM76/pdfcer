@@ -166,7 +166,10 @@
 //! from the RAG width table, so `std14_width(Std14::Symbol, "apple")` is
 //! `None` and it has no Unicode entry (AGL maps it to PUA U+F8FF).
 
+mod glyph_names;
 mod tables;
+
+pub use glyph_names::unicode_to_glyph_name;
 
 /// The 14 standard Type 1 fonts of ISO 32000-1 §9.6.2.2.
 ///

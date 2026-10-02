@@ -12,6 +12,11 @@ Program coverage (all reachable through the `(3,1)` cmap):
   D, endash  outlined but never shown            -> typeable by route A
   E          mapped to an EMPTY slot (a dropped glyph) -> refused
   space      empty outline, positive advance     -> typeable (blank glyph)
+  Delta, Zhe outlined, no WinAnsi code           -> typeable by an allocated code
+
+The `-differences` twin names its encoding as a dictionary whose
+`/Differences` already claims code 127 (for a glyph the program lacks), so
+allocation must skip it.
 
 The `-tounicode` twin adds a `/ToUnicode` CMap covering only the shown codes
 0x41..0x43; `-shared-tounicode` also draws page 2 through a second font dict
@@ -44,6 +49,8 @@ GLYPHS = {
     "D": (0x44, 1343, True),
     "E": (0x45, 1100, False),
     "endash": (0x2013, 1024, True),
+    "Delta": (0x0394, 1253, True),
+    "Zhe": (0x0416, 1700, True),
 }
 
 
@@ -97,7 +104,10 @@ TO_UNICODE = (
 )
 
 
-def build_pdf(to_unicode: bool = False, shared: bool = False) -> bytes:
+DIFFERENCES = "<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [127 /uni2126] >>"
+
+
+def build_pdf(to_unicode: bool = False, shared: bool = False, differences: bool = False) -> bytes:
     ttf = build_program()
     page1 = b"BT\n/F0 24 Tf\n72 600 Td\n(ABC) Tj\nET\n"
     page2 = b"BT\n/F0 24 Tf\n72 600 Td\n(A) Tj\nET\n"
@@ -113,7 +123,7 @@ def build_pdf(to_unicode: bool = False, shared: bool = False) -> bytes:
         5: (
             f"<< /Type /Font /Subtype /TrueType /BaseFont /{BASE_FONT} "
             f"/FirstChar 65 /LastChar 67 /Widths [{widths('ABC')}] "
-            f"/Encoding /WinAnsiEncoding /FontDescriptor 6 0 R"
+            f"/Encoding {DIFFERENCES if differences else '/WinAnsiEncoding'} /FontDescriptor 6 0 R"
             f"{' /ToUnicode 10 0 R' if to_unicode else ''} >>"
         ).encode("ascii"),
         6: (
@@ -139,17 +149,18 @@ def build_pdf(to_unicode: bool = False, shared: bool = False) -> bytes:
 
 
 VARIANTS = (
-    ("word-shaped-subset.pdf", False, False),
-    ("word-shaped-subset-tounicode.pdf", True, False),
-    ("word-shaped-subset-shared-tounicode.pdf", True, True),
+    ("word-shaped-subset.pdf", False, False, False),
+    ("word-shaped-subset-tounicode.pdf", True, False, False),
+    ("word-shaped-subset-shared-tounicode.pdf", True, True, False),
+    ("word-shaped-subset-differences.pdf", False, False, True),
 )
 
 
 def main() -> int:
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else gen.OUT
-    for name, tu, shared in VARIANTS:
+    for name, tu, shared, differences in VARIANTS:
         path = out_dir / name
-        path.write_bytes(build_pdf(tu, shared))
+        path.write_bytes(build_pdf(tu, shared, differences))
         print(f"wrote {path} ({path.stat().st_size} bytes)")
     return 0
 

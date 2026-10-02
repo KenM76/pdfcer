@@ -19,6 +19,7 @@ use crate::text_edit::forms::scan_page_forms;
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
 use crate::text_extract::cmap::ToUnicodeCMap;
 use crate::view::DocumentView;
+use pdfcer_fonts::fontdata::BaseEncoding;
 
 /// Upper bound on objects visited proving a resource graph does not reach the font.
 const REACH_BUDGET: usize = 20_000;
@@ -45,14 +46,14 @@ pub(crate) struct FontExtension {
     pub(crate) added: Vec<AddedGlyph>,
     /// The rewritten `/ToUnicode` stream: id, dictionary, unfiltered bytes.
     pub(crate) to_unicode: Option<(ObjId, Dict, Vec<u8>)>,
+    /// Whether `dict` carries codes newly named in `/Differences`.
+    pub(crate) reencoded: bool,
 }
 
 impl FontExtension {
-    /// The object write, or nothing when `/Widths` already covered every code.
+    /// The object write, or nothing when the dictionary is unchanged.
     pub(crate) fn write(&self) -> Option<(ObjId, Object)> {
-        self.added
-            .iter()
-            .any(|a| a.widened)
+        (self.reencoded || self.added.iter().any(|a| a.widened))
             .then(|| (self.font_id, Object::Dict(self.dict.clone())))
     }
 
@@ -98,13 +99,15 @@ fn fmt_width(w: f64) -> String {
 }
 
 /// The font a plan extends, read once.
-struct Target {
-    font_id: ObjId,
-    shape: Shape,
+pub(crate) struct Target {
+    pub(crate) font_id: ObjId,
+    pub(crate) shape: Shape,
 }
 
 impl Target {
-    fn read(
+    /// The font `font_name` selects in `resources`, which must be an indirect
+    /// object so the copy-on-write rewrite has an id to replace.
+    pub(crate) fn read(
         doc: &DocumentView<'_>,
         resources: &Dict,
         font_name: &[u8],
@@ -261,6 +264,7 @@ pub(crate) fn plan(
         dict,
         added,
         to_unicode,
+        reencoded: false,
     })
 }
 
@@ -340,11 +344,11 @@ fn set_width(widths: &mut Vec<f64>, first_char: &mut u32, code: u32, w: f64, mis
 /// The font's `/ToUnicode` stream. An added code either already reads back as
 /// its character there or gains a `bfchar` entry (§9.10.3); the stream is
 /// rewritten in place, unfiltered.
-struct UnicodeMap {
-    id: ObjId,
+pub(crate) struct UnicodeMap {
+    pub(crate) id: ObjId,
     dict: Dict,
     decoded: Vec<u8>,
-    cmap: ToUnicodeCMap,
+    pub(crate) cmap: ToUnicodeCMap,
 }
 
 impl UnicodeMap {
@@ -415,13 +419,77 @@ fn endcmap_at(cmap: &[u8]) -> Option<usize> {
     cmap.windows(7).rposition(|w| w == b"endcmap")
 }
 
-/// What slice 1 needs from the font dictionary.
-struct Shape {
+/// The font's `/Encoding`: a WinAnsi or MacRoman base, named or as a
+/// dictionary's `/BaseEncoding`, plus any `/Differences` (§9.6.5.1).
+pub(crate) struct Encoding {
+    pub(crate) base: BaseEncoding,
+    /// The `/Differences` array, references resolved.
+    pub(crate) differences: Vec<Object>,
+    /// The encoding dictionary's own entries, when it is one.
+    pub(crate) dict: Option<Dict>,
+}
+
+impl Encoding {
+    fn read(doc: &DocumentView<'_>, font: &Dict) -> Result<Self, &'static str> {
+        const UNSUPPORTED: &str =
+            "only a WinAnsi or MacRoman based encoding can be extended so far";
+        let base = |n: Option<&Name>| match n.map(Name::as_bytes) {
+            Some(b"WinAnsiEncoding") => Ok(BaseEncoding::WinAnsi),
+            Some(b"MacRomanEncoding") => Ok(BaseEncoding::MacRoman),
+            _ => Err(UNSUPPORTED),
+        };
+        match doc.resolve(font.get(b"Encoding").unwrap_or(&Object::Null)) {
+            Object::Name(n) => Ok(Self {
+                base: base(Some(n))?,
+                differences: Vec::new(),
+                dict: None,
+            }),
+            Object::Dict(d) => Ok(Self {
+                base: base(
+                    doc.resolve(d.get(b"BaseEncoding").unwrap_or(&Object::Null))
+                        .as_name(),
+                )?,
+                differences: doc
+                    .resolve(d.get(b"Differences").unwrap_or(&Object::Null))
+                    .as_array()
+                    .unwrap_or(&[])
+                    .iter()
+                    .map(|o| doc.resolve(o).clone())
+                    .collect(),
+                dict: Some(d.clone()),
+            }),
+            _ => Err(UNSUPPORTED),
+        }
+    }
+
+    /// Codes `/Differences` assigns.
+    pub(crate) fn differed(&self) -> BTreeSet<u32> {
+        let mut out = BTreeSet::new();
+        let mut code: Option<i64> = None;
+        for o in &self.differences {
+            match o {
+                Object::Integer(n) => code = Some(*n),
+                Object::Name(_) => {
+                    if let Some(c) = code.and_then(|c| u32::try_from(c).ok()) {
+                        out.insert(c);
+                    }
+                    code = code.map(|c| c + 1);
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+}
+
+/// What route A needs from the font dictionary.
+pub(crate) struct Shape {
     first_char: u32,
     widths: Vec<f64>,
     missing_width: f64,
-    program: Vec<u8>,
-    to_unicode: Option<UnicodeMap>,
+    pub(crate) program: Vec<u8>,
+    pub(crate) to_unicode: Option<UnicodeMap>,
+    pub(crate) encoding: Encoding,
 }
 
 impl Shape {
@@ -434,13 +502,7 @@ impl Shape {
         if name(font, b"Subtype").as_deref() != Some(b"TrueType".as_slice()) {
             return Err("only a simple TrueType font can be extended so far");
         }
-        let encoding = name(font, b"Encoding");
-        if !matches!(
-            encoding.as_deref(),
-            Some(b"WinAnsiEncoding" | b"MacRomanEncoding")
-        ) {
-            return Err("only a WinAnsi or MacRoman encoded font can be extended so far");
-        }
+        let encoding = Encoding::read(doc, font)?;
         let to_unicode = UnicodeMap::read(doc, font)?;
         let descriptor = doc
             .resolve(font.get(b"FontDescriptor").unwrap_or(&Object::Null))
@@ -477,6 +539,7 @@ impl Shape {
             missing_width: num(descriptor, b"MissingWidth").unwrap_or(0.0),
             program,
             to_unicode,
+            encoding,
         })
     }
 }
@@ -518,7 +581,7 @@ pub(crate) fn codes_shown(doc: &DocumentView<'_>, font: ObjId) -> Result<BTreeSe
 /// `font`: page resources (forms included, transitively), annotation
 /// appearances and the interactive form's `/DR`. Rewriting a shared map would
 /// change another font's text.
-fn map_private(doc: &DocumentView<'_>, font: ObjId, map: ObjId) -> Result<(), String> {
+pub(crate) fn map_private(doc: &DocumentView<'_>, font: ObjId, map: ObjId) -> Result<(), String> {
     let shared = || "the /ToUnicode map may be shared with another font".to_owned();
     let pages = crate::page_tree::pages_in(doc).map_err(|_| shared())?;
     let reached = |o: &Object| reaches_avoiding(doc, o, map, Some(font));

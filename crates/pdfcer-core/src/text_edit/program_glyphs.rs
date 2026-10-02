@@ -40,4 +40,12 @@ pub trait EmbeddedGlyphs: Send + Sync + std::fmt::Debug {
     /// to no glyph or to glyph 0, or the glyph has no outline (a subset keeps
     /// empty slots for glyphs it dropped).
     fn unicode_glyph(&self, program: &[u8], ch: char) -> Option<ProgramGlyph>;
+
+    /// Every character for which [`Self::unicode_glyph`] answers `Some` —
+    /// what a repertoire query can offer beyond the font's encoding. The
+    /// default offers none, which only narrows that query.
+    fn unicode_chars(&self, program: &[u8]) -> Vec<char> {
+        let _ = program;
+        Vec::new()
+    }
 }
