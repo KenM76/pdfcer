@@ -4,6 +4,53 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (876th filing) — filed six new Pass entries (`439.0`–`442.2`), two new open questions
+
+**Shipped:** None — this filing only files new work; nothing below has
+landed yet.
+
+**Decisions made this session:** None enacted. Decisions `179`–`182`
+RESERVED, one per new Pass family (`439.0`/`440.0`/`441.0`/`442.0`);
+decision ceiling unchanged at `177`, next free `183`.
+
+**Findings + decisions:**
+- Three new `pdfcer-gui` feature-request pairs (`G086`/`G087`,
+  `G089`/`G090`, `G091`/`G092`) filed as `Pass 441.0`/`439.0`/`440.0`.
+- New operator request (verbatim, 2026-10-02): OCR models should install
+  as drop-in folders under an `models/<name>/` tree, mirroring the
+  existing font-folder search-path pattern, so add-on engines can ship
+  as separate zip releases instead of being compiled-in-and-bundled.
+  Parsed into `Pass 442.0` (add-on folder discovery, IN PROGRESS),
+  `Pass 442.1` (packaging split, QUEUED after `442.0`), and `Pass 442.2`
+  (PaddleOCR-VL engine, FEASIBILITY SPIKE IN PROGRESS — supersedes the
+  prior "nothing filed until Ken says so" note).
+- Two new open operator questions added: `(ch)` (Tesseract add-on
+  executes a user-installed binary — touches R13/decision 061) and
+  `(ci)` (ocrs weights are CC-BY-SA-4.0 — does an add-on zip resolve open
+  question `(bl)`?). Ceiling moves `(cg)`→`(ci)`, next free `(cj)`.
+- `docs/FEATURES.md` given 7 new *Planned* rows, all boxes unticked:
+  `G086`/`G087` (Text section, after the style-ladder row), the OCR
+  add-on-folder capability + PaddleOCR-VL spike (Text section, after the
+  "Choose the OCR engine" row), `G091`/`G092` (Annotations & markup,
+  after the `/3D` annotation row), `G089`/`G090` (Forms (AcroForm),
+  after the inline-`/DR`-font repair row). One row (`OCR model add-on
+  folders`) initially exceeded the 1200-char cap and was trimmed in
+  place.
+- No shell this filing (librarian role, no code edits) — Pass-ID,
+  decision-ceiling, R-number and open-question-letter freedom all
+  verified by Grep/Read against the live files, not relayed.
+
+**Still in flight:** Six background agents reported running
+concurrently by the dispatching engineer for `Pass 436.2` (font matching
+ladder), `439.0`, `440.0`, `441.0`, `442.0`, and the PaddleOCR-VL spike —
+unverified by this filing (no shell); their completions will need their
+own Shipped-moving filing. `Pass 430.3` (route B, symbolic fonts) remains
+the head of the `G073`–`G081` family per the 875th filing.
+
+**For next session:** Pick up whichever of `436.2`/`439.0`/`440.0`/
+`441.0`/`442.0`/PaddleOCR-VL-spike reports done first; move it to
+*Shipped* and tick its `FEATURES.md` boxes in the same filing.
+
 ## 2026-10-02 (875th filing) — merge-reconciliation fix: retype plan vs the composite `cid_to_gid` field
 
 **Shipped:**

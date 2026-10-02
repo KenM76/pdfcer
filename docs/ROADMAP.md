@@ -16030,6 +16030,61 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **SIX ITEMS ADDED 2026-10-02 (876th
+> filing) — `Pass 439.0`–`Pass 442.2`. Three from `pdfcer-gui` feature
+> requests `G086`–`G092` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`);
+> three from an operator direct request, verbatim: *"Can we also make it
+> so that new OCR models are simple to install by just dropping a new
+> folder with the configured model files under our existing OCR folder?
+> ... we could just do this with all of the OCR models except the
+> ordinary paddlepdf model which is the one we will include ... I want to
+> try out the paddlepdf vision model."* Nothing has shipped for any of
+> the six. Decisions `179`–`182` reserved, one per family below (decision
+> ceiling unchanged at `177`; `178` was already next-free per the 875th
+> filing's pointer and is not reassigned here); next free decision `183`.
+> Two new open operator questions, `(ch)`/`(ci)`, added below (see *Open
+> operator questions*); next free `(cj)`.**
+>
+> - **`Pass 439.0`** — `G089`: an unsigned `/Sig` widget's `/AP` `/N` is
+>   rebuilt after a border/colour edit, like any other widget's; a signed
+>   field stays untouched (signing freezes the appearance). `G090`: an
+>   opt-in `WidgetEdit::with_replace_foreign_appearance` rebuilds another
+>   producer's check-box/radio artwork, disclosed; default unchanged.
+>   Decision `179` reserved if needed.
+> - **`Pass 440.0`** — `G091`: the default 3D annotation poster is
+>   rendered from the model when it meshes (PRC), else the placeholder;
+>   the outcome names which. `G092`: `EditSession::set_3d_poster` replaces
+>   an existing 3D annotation's poster, one undo entry. Decision `180`
+>   reserved if needed.
+> - **`Pass 441.0`** — `G086`: the style ladder gains a per-axis target
+>   that takes bold/italic OFF, not only on. `G087`: `GlyphProvenance`
+>   carries line width and render mode, so synthetic bold is
+>   distinguishable from a genuinely outlined face. Decision `181`
+>   reserved if needed.
+> - **`Pass 442.0`** (IN PROGRESS) — OCR model add-on folders: a
+>   per-folder manifest (name, engine, label, languages, version, licence,
+>   optional per-file sha256); discovery over `models/*/` beside the exe,
+>   plus repeatable `ocr_folder = PATH` settings lines, plus a repeatable
+>   `--ocr-folder`; `--ocr-model <name>` and a new `ocr-models` listing
+>   subcommand; a core discovery API for the GUI. Uninstall = delete the
+>   folder. A folder supplies DATA only, targeting an engine already
+>   compiled into pdfcer. Decision `182` reserved if needed.
+> - **`Pass 442.1`** (QUEUED, after `442.0`) — packaging: the portable
+>   folder ships ONLY the ordinary PaddleOCR (PP-OCR) model; `ocrcer`,
+>   `ocrs` and `tesseract` each become a separate add-on zip release
+>   asset (one folder per zip, manifest + `PROVENANCE.md` + `LICENSE`),
+>   built by tooling and attached by `gh-release`. Two new open questions
+>   below: `(ch)` (Tesseract executes a user-installed binary — touches
+>   R13/decision 061) and `(ci)` (ocrs weights are CC-BY-SA-4.0 — does a
+>   separate add-on zip resolve open question `(bl)`?). Model files
+>   themselves are data and not R13-gated (line ~26620 below).
+> - **`Pass 442.2`** (FEASIBILITY SPIKE IN PROGRESS) — PaddleOCR-VL
+>   engine: compiled into pdfcer, weights as an add-on folder, never in
+>   the portable package. Weights licence must be verified before any
+>   work beyond the spike. Feasibility on `rten` is unproven: a VLM with
+>   an autoregressive decoder at 0.9B scale. Supersedes the earlier note
+>   that nothing would be filed until Ken said so — he has now said so.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 430.1` FULLY SHIPPED, 2026-10-02 (874th
 > filing), `cb1c7263`** — see *Shipped*, above. Composite `/Type0`/
 > `CIDFontType2` subset augmentation, same route as the already-shipped
@@ -36565,6 +36620,24 @@ name and say NOT BUILT YET) must be updated in the same Pass —
 shape, not the schedule.** No Pass ID assigned.
 
 ## Open operator questions (as of 2026-08-02 — answer any, all default to the stated fallback if not answered)
+
+**★ NEW 2026-10-02 (876th filing) — TWO QUESTIONS, SURFACED BY `Pass
+442.1` (*Next up*, queued) BEFORE ANY ADD-ON ZIP IS BUILT. Operator-
+question ceiling moves `(cg)` → `(ci)`, next free `(cj)`:**
+
+- **(ch) `Pass 442.1` makes the Tesseract OCR add-on a separately
+  downloaded folder containing `tesseract.exe`, which pdfcer EXECUTES —
+  today it ships inside the package. Does this touch the R13
+  add-in-execution ruling (decision 061)?** Options: keep Tesseract
+  bundled (no add-on split for this one engine); make it an add-on under
+  an explicit new ruling; or drop it. *Default if unanswered:* keep
+  Tesseract bundled as today; do not split it into an add-on zip.
+- **(ci) The `ocrs` engine's weights are CC-BY-SA-4.0 (open question
+  `(bl)`). Is a separate add-on zip, outside the MIT portable folder,
+  acceptable — and does that resolve `(bl)`?** *Default if unanswered:*
+  ship `ocrs` as an add-on zip exactly like `ocrcer`/`tesseract`, licence
+  disclosed in its `PROVENANCE.md`/`LICENSE`, but do not treat `(bl)`
+  itself as resolved until Ken confirms.
 
 **★ NEW 2026-10-01 (853rd filing) — ONE QUESTION, SURFACED BY DECISION 173
 (`03d68447`, `ARCHITECTURE.md` §12). Operator-question ceiling moves
