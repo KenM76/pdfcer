@@ -27,6 +27,7 @@ mod edit_text_augment;
 mod edit_text_fallback;
 mod edit_text_sibling;
 mod edit_text_workaround;
+mod edit_widget_foreign;
 mod embed_font;
 mod export_docx;
 mod export_dxf;

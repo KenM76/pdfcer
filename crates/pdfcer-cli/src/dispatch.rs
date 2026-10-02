@@ -1806,6 +1806,7 @@ pub(crate) fn run() -> ExitCode {
             scale_stroke_width,
             keep_rect_differences,
             allow_appearance_distortion,
+            replace_foreign_appearance,
             output,
             mode,
         } => cmd_edit_widget(&EditWidgetArgs {
@@ -1823,6 +1824,7 @@ pub(crate) fn run() -> ExitCode {
                 .with_scale_stroke_width(scale_stroke_width)
                 .with_keep_rect_differences(keep_rect_differences)
                 .with_allow_appearance_distortion(allow_appearance_distortion),
+            replace_foreign_appearance,
             output: &output,
             mode,
         }),

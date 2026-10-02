@@ -1663,7 +1663,7 @@ only creation verb whose successful result is a control that does not work"*
 | **Rotate one widget** | `rotate_widget(&mut self, fqn, index, degrees: i64) -> Result<WidgetRotation, EditError>` | ✅ **`/MK /R` + a REDRAWN appearance** (`Pass 177.0`). ⚠️ **COUNTERCLOCKWISE** — the page's `/Rotate` is the clockwise one. Multiples of 90 only, reduced into `[0, 360)` and the reduction reported. **`/Rect` does not move**; the appearance is redrawn into a `w`/`h`-swapped `/BBox` and stood upright by `/Matrix`. Rotating to `0` **removes** the key. Refuses a non-multiple of 90 with `WidgetRotationNotQuarterTurn`. |
 | Read an existing field's copyable properties | `field_defaults(&self, source: &str) -> Result<FieldDefaults, EditError>` | For `--defaults-from` / "copy style from". |
 | **Change a field's field-scope properties** | `edit_field(&mut self, fqn, edit: &FieldEdit) -> Result<FieldEditOutcome, EditError>` | `Pass 134.0`. Flags, `/MaxLen`, `/TU`, `/Opt`. **Shared by every widget the field owns.** Setting `password` on a text field removes its own `/V` (`password_value_removed`) and redraws it masked. `appearance_stale: Option<String>` is `Some` when a property was written and nothing was drawn (a `/DA` edit on a check box or radio, whose artwork is shapes, not text) — **show it**. A button redraw that reproduces its artwork exactly writes nothing and reports `appearance_regenerated: false`, on this verb, `edit_widget` and `rotate_widget`. A `/MK /CA` caption edit on a radio, text or choice widget is `AppearanceOutcome::RecordedNotPainted`. |
-| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. |
+| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. An **unsigned** signature widget (no `/V`) is redrawn as its empty box after a border/colour edit (`Regenerated`); a signed one keeps its bytes (`RecordedNotPainted`). `WidgetEdit::with_replace_foreign_appearance(true)` lets a check box or radio whose `/AP` another producer drew be replaced with pdfcer's own (`WidgetEditOutcome::foreign_appearance_replaced`) — see "Foreign button artwork" below. |
 
 #### ★ 1.12b Button actions (`Pass 183.0`/`Pass 183.1`) — and the one disclosure a shell MUST surface
 
@@ -1881,7 +1881,8 @@ not derive it.
 
 The refusal is **narrow by construction** and will not fire on the ordinary
 case. It requires all of: a real change of extent, artwork pdfcer did not draw
-(a foreign `/AP` on a button, or a signature field), *and* neither escape —
+(a foreign `/AP` on a button not opted into replacement, or a **signed**
+signature field — an unsigned one is redrawn), *and* neither escape —
 because a uniform scale with `scale_stroke_width` on is satisfied exactly by
 §12.5.5's matrix and refusing it would refuse a resize that comes out right.
 A border or caption change on an unrebuildable field still proceeds with a
@@ -3445,7 +3446,7 @@ kept and unchanged:
 |---|---|---|
 | `NotNeeded` | nothing about the edit could change what is drawn (a pure move, a flag) | **no** |
 | `Regenerated` | the stream was rebuilt and reflects the edit | no |
-| `RecordedNotPainted(String)` | the edit changed something the artwork depends on and pdfcer could not redraw it — a signature field, artwork another producer drew, a field type pdfcer cannot author | **yes** — print the string |
+| `RecordedNotPainted(String)` | the edit changed something the artwork depends on and pdfcer could not redraw it — a signed signature field, artwork another producer drew, a field type pdfcer cannot author | **yes** — print the string |
 
 `appearance_regenerated: false` + `appearance_stale: None` used to mean *two*
 things: nothing needed doing, and something did and pdfcer could not. That
@@ -3533,6 +3534,32 @@ survives a `without_background()`.
 `unset` are deliberately two words: `none` writes Table 189's empty array and
 leaves the key present, `unset` takes the key away. The creation verbs have no
 `unset`, because there is nothing yet to remove.
+
+### Foreign button artwork and unsigned signature fields (`Pass 439.0`, requests `G089`/`G090`)
+
+- **Unsigned signature widget** (field has no `/V`): a border or colour edit
+  through `edit_widget` redraws `/AP /N` as pdfcer's empty box — the
+  text-field chrome, no text. `/BS /W 0` plus `/MK /BC` removed gives no
+  stroke; the outcome is `Regenerated`. A resize redraws too, so it never
+  meets `ResizeAppearanceNotRebuildable`.
+- **Signed signature widget**: unchanged — the bytes are kept and the outcome
+  is `RecordedNotPainted`, naming the signer's appearance.
+- **Foreign check box / radio**: `WidgetEdit::with_replace_foreign_appearance(true)`
+  (field `replace_foreign_appearance`, default `false`) lets pdfcer replace
+  artwork it did not draw. It applies only when `/AP /N` names exactly one
+  on state (or, with none, a non-`Off` `/AS`); pdfcer writes new `Off` and
+  on-state streams under that same name and replaces the whole `/AP`, so
+  `/D` (down) and `/R` (rollover) are dropped. Reported as
+  `WidgetEditOutcome::foreign_appearance_replaced = true` with
+  `appearance: Regenerated`. Artwork pdfcer drew is an ordinary rebuild
+  (`foreign_appearance_replaced = false`). Push buttons and several on states
+  are not replaced; the outcome stays `RecordedNotPainted`, and its string
+  says the opt-in did not cover this button.
+- Without the opt-in, behaviour and the disclosure are exactly as before.
+
+**CLI:** `edit-widget --replace-foreign-appearance`. The result line carries
+`foreign_replaced=0|1` after `regenerated=`, and a replacement prints a
+disclosure line on stderr.
 
 ### ★ `/Q` now REDRAWS, and clearing it means INHERIT (`Pass 308.4`, request `G022`)
 

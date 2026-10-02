@@ -154,7 +154,6 @@ fn pdfcer-cli/src/field_edit.rs::cmd_copy_field
 fn pdfcer-cli/src/field_edit.rs::cmd_delete_field_group
 fn pdfcer-cli/src/field_edit.rs::cmd_delete_form_field
 fn pdfcer-cli/src/field_edit.rs::cmd_edit_field
-fn pdfcer-cli/src/field_edit.rs::cmd_edit_widget
 fn pdfcer-cli/src/field_edit.rs::cmd_paste_field
 fn pdfcer-cli/src/field_edit.rs::cmd_set_button_action
 fn pdfcer-cli/src/field_edit.rs::cmd_set_field_script
@@ -352,7 +351,6 @@ fn pdfcer-core/src/edit.rs::plan_layer_merge
 fn pdfcer-core/src/edit.rs::purge_password_values
 fn pdfcer-core/src/edit.rs::reflow_block
 fn pdfcer-core/src/edit.rs::regen_after_property_change
-fn pdfcer-core/src/edit.rs::regen_button_appearance
 fn pdfcer-core/src/edit.rs::regen_field_appearance
 fn pdfcer-core/src/edit.rs::regenerate_appearances
 fn pdfcer-core/src/edit.rs::regenerate_dimension_writes

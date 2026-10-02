@@ -214,6 +214,7 @@ mod vector_model;
 mod vector_multi_target;
 mod whole_operator_pin;
 mod widget_adoption;
+mod widget_appearance_replace;
 mod widget_colour_appearance;
 mod widget_colour_at_creation;
 mod widget_resize_appearance;

@@ -1023,6 +1023,8 @@ pub(crate) struct EditWidgetArgs<'a> {
     /// cannot rebuild (`Pass 187.0`) — the same three answers
     /// `resize-annotation` takes.
     pub(crate) resize: pdfcer_core::edit::ResizeOptions,
+    /// Replace a foreign check-box or radio `/AP` with pdfcer's own.
+    pub(crate) replace_foreign_appearance: bool,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
 }
@@ -1034,130 +1036,15 @@ pub(crate) fn cmd_edit_widget(args: &EditWidgetArgs<'_>) -> u8 {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-
-    let mut edit = pdfcer_core::edit::WidgetEdit::new();
-    if let Some(spec) = args.rect {
-        let parts: Vec<f64> = spec
-            .split(',')
-            .map(|p| p.trim().parse::<f64>())
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap_or_default();
-        let [llx, lly, urx, ury] = parts.as_slice() else {
-            eprintln!(
-                "pdfcer: --rect {spec:?} is not four comma-separated numbers (llx,lly,urx,ury in points, origin BOTTOM-left)"
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        edit = edit.with_rect(pdfcer_core::page_tree::Rect {
-            llx: *llx,
-            lly: *lly,
-            urx: *urx,
-            ury: *ury,
-        });
-    }
-    // Border style and width are ONE dictionary in the file (`/BS`), so
-    // supplying either means writing both — the other half is taken from the
-    // Table 166 default rather than from the file, which is stated here
-    // because it is the one place this command is lossy.
-    if args.border_style.is_some() || args.border_width.is_some() {
-        let style = match args.border_style.unwrap_or("solid") {
-            "solid" => pdfcer_core::edit::BorderStyle::Solid,
-            "dashed" => pdfcer_core::edit::BorderStyle::Dashed,
-            "beveled" => pdfcer_core::edit::BorderStyle::Beveled,
-            "inset" => pdfcer_core::edit::BorderStyle::Inset,
-            "underline" => pdfcer_core::edit::BorderStyle::Underline,
-            other => {
-                eprintln!(
-                    "pdfcer: --border-style {other:?} — known: solid, dashed, beveled, inset, underline"
-                );
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        edit = edit.with_border(pdfcer_core::edit::BorderSpec {
-            style,
-            width: args.border_width.unwrap_or(1.0),
-        });
-    }
-    if let Some(v) = args.visibility {
-        let visibility = match v {
-            "screen-and-print" => pdfcer_core::edit::Visibility::VisibleAndPrints,
-            "screen-only" => pdfcer_core::edit::Visibility::ScreenOnly,
-            "print-only" => pdfcer_core::edit::Visibility::PrintOnly,
-            "hidden" => pdfcer_core::edit::Visibility::Hidden,
-            other => {
-                eprintln!(
-                    "pdfcer: --visibility {other:?} — known: screen-and-print, screen-only, print-only, hidden"
-                );
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        edit = edit.with_visibility(visibility);
-    }
-    if let Some(c) = args.caption {
-        edit = edit.with_caption(c);
-    }
-    for (raw, which) in [
-        (args.background, "--background"),
-        (args.border_color, "--border-color"),
-    ] {
-        let Some(raw) = raw else { continue };
-        let Some(colour) = parse_mk_colour_edit(raw) else {
-            eprintln!(
-                "pdfcer: {which} {raw:?} -- expected `none` (Table 189's empty array, which STATES no colour), `unset` (REMOVE the key, so the builder's own default stands), or 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        // `Pass 308.3`: the enum carries the removal, so the CLI does not need
-        // a second flag and the two spellings stay one argument.
-        edit = match (which, colour) {
-            ("--background", pdfcer_core::edit::MkColorEdit::Set(c)) => edit.with_background(c),
-            ("--background", _) => edit.without_background(),
-            (_, pdfcer_core::edit::MkColorEdit::Set(c)) => edit.with_border_color(c),
-            (_, _) => edit.without_border_color(),
-        };
-    }
-    edit = edit.with_resize(args.resize);
-
+    let edit = match widget_edit_from_args(args) {
+        Ok(edit) => edit,
+        Err(code) => return code,
+    };
     let outcome = match session.edit_widget(args.name, args.index, &edit) {
         Ok(o) => o,
         Err(err) => return report_edit_error(args.input, &err),
     };
-
-    if let Some(stale) = &outcome.appearance_stale {
-        eprintln!(
-            "pdfcer: field {:?} widget {}: ★ {stale}",
-            args.name, args.index
-        );
-    }
-    crate::fields::print_layout(
-        &format!("field {:?} widget {}", args.name, args.index),
-        &outcome.layout,
-    );
-    // Rule 4 in the shell that has no session: the invocation IS the commit,
-    // so anything pdfcer decided on the way past is printed on the way past.
-    match outcome.stroke_width {
-        Some((before, after)) => eprintln!(
-            "pdfcer: field {:?} widget {}: border width scaled with the box, {before} -> {after} pt.",
-            args.name, args.index
-        ),
-        None if outcome.resized => eprintln!(
-            "pdfcer: field {:?} widget {}: its border width was NOT scaled — a line weight is a drafting convention rather than a length in the scaled space, which is why the default leaves it alone. Pass --scale-stroke-width if you wanted it to follow.",
-            args.name, args.index
-        ),
-        None => {}
-    }
-    if outcome.rect_differences_scaled == Some(false) {
-        eprintln!(
-            "pdfcer: field {:?} widget {}: this widget has /RD (rect differences) and they were left UNSCALED, so its inner margins are now a different proportion of the box.",
-            args.name, args.index
-        );
-    }
-    if outcome.siblings_untouched > 0 {
-        eprintln!(
-            "pdfcer: field {:?}: {} OTHER widget(s) of this field are unchanged and stand where they were. Position, border, visibility and caption are per-placement, so this is correct — but a field that looks like one thing to an operator now has two appearances.",
-            args.name, outcome.siblings_untouched
-        );
-    }
+    disclose_widget_edit(args, &outcome);
 
     let saved = match save_edited(
         &mut session,
@@ -1177,7 +1064,7 @@ pub(crate) fn cmd_edit_widget(args: &EditWidgetArgs<'_>) -> u8 {
         )
     };
     println!(
-        "edit-widget {} name={:?} index={} -> {} rect={}->{} resized={} regenerated={} siblings_untouched={} changed_objects={}",
+        "edit-widget {} name={:?} index={} -> {} rect={}->{} resized={} regenerated={} foreign_replaced={} siblings_untouched={} changed_objects={}",
         args.input.display(),
         args.name,
         args.index,
@@ -1186,10 +1073,149 @@ pub(crate) fn cmd_edit_widget(args: &EditWidgetArgs<'_>) -> u8 {
         rect_token(outcome.rect_after),
         u32::from(outcome.resized),
         u32::from(outcome.appearance_regenerated),
+        u32::from(outcome.foreign_appearance_replaced),
         outcome.siblings_untouched,
         saved.changed,
     );
     finish_edit(args.input, &saved)
+}
+
+/// The [`WidgetEdit`](pdfcer_core::edit::WidgetEdit) `args` describe, or the
+/// exit code for an argument that does not parse (already reported).
+fn widget_edit_from_args(args: &EditWidgetArgs<'_>) -> Result<pdfcer_core::edit::WidgetEdit, u8> {
+    let mut edit = pdfcer_core::edit::WidgetEdit::new();
+    if let Some(spec) = args.rect {
+        edit = edit.with_rect(parse_widget_rect(spec)?);
+    }
+    // Border style and width are ONE dictionary in the file (`/BS`), so
+    // supplying either means writing both — the other half is taken from the
+    // Table 166 default rather than from the file, which is stated here
+    // because it is the one place this command is lossy.
+    if args.border_style.is_some() || args.border_width.is_some() {
+        let style = match args.border_style.unwrap_or("solid") {
+            "solid" => pdfcer_core::edit::BorderStyle::Solid,
+            "dashed" => pdfcer_core::edit::BorderStyle::Dashed,
+            "beveled" => pdfcer_core::edit::BorderStyle::Beveled,
+            "inset" => pdfcer_core::edit::BorderStyle::Inset,
+            "underline" => pdfcer_core::edit::BorderStyle::Underline,
+            other => {
+                eprintln!(
+                    "pdfcer: --border-style {other:?} — known: solid, dashed, beveled, inset, underline"
+                );
+                return Err(exit::RUNTIME_ERROR);
+            }
+        };
+        edit = edit.with_border(pdfcer_core::edit::BorderSpec {
+            style,
+            width: args.border_width.unwrap_or(1.0),
+        });
+    }
+    if let Some(v) = args.visibility {
+        let visibility = match v {
+            "screen-and-print" => pdfcer_core::edit::Visibility::VisibleAndPrints,
+            "screen-only" => pdfcer_core::edit::Visibility::ScreenOnly,
+            "print-only" => pdfcer_core::edit::Visibility::PrintOnly,
+            "hidden" => pdfcer_core::edit::Visibility::Hidden,
+            other => {
+                eprintln!(
+                    "pdfcer: --visibility {other:?} — known: screen-and-print, screen-only, print-only, hidden"
+                );
+                return Err(exit::RUNTIME_ERROR);
+            }
+        };
+        edit = edit.with_visibility(visibility);
+    }
+    if let Some(c) = args.caption {
+        edit = edit.with_caption(c);
+    }
+    edit = with_mk_colour_args(edit, args)?;
+    Ok(edit
+        .with_resize(args.resize)
+        .with_replace_foreign_appearance(args.replace_foreign_appearance))
+}
+
+/// `--rect llx,lly,urx,ury`.
+fn parse_widget_rect(spec: &str) -> Result<pdfcer_core::page_tree::Rect, u8> {
+    let parts: Vec<f64> = spec
+        .split(',')
+        .map(|p| p.trim().parse::<f64>())
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_default();
+    let [llx, lly, urx, ury] = parts.as_slice() else {
+        eprintln!(
+            "pdfcer: --rect {spec:?} is not four comma-separated numbers (llx,lly,urx,ury in points, origin BOTTOM-left)"
+        );
+        return Err(exit::RUNTIME_ERROR);
+    };
+    Ok(pdfcer_core::page_tree::Rect {
+        llx: *llx,
+        lly: *lly,
+        urx: *urx,
+        ury: *ury,
+    })
+}
+
+/// Apply `--background` and `--border-color`.
+fn with_mk_colour_args(
+    mut edit: pdfcer_core::edit::WidgetEdit,
+    args: &EditWidgetArgs<'_>,
+) -> Result<pdfcer_core::edit::WidgetEdit, u8> {
+    for (raw, which) in [
+        (args.background, "--background"),
+        (args.border_color, "--border-color"),
+    ] {
+        let Some(raw) = raw else { continue };
+        let Some(colour) = parse_mk_colour_edit(raw) else {
+            eprintln!(
+                "pdfcer: {which} {raw:?} -- expected `none` (Table 189's empty array, which STATES no colour), `unset` (REMOVE the key, so the builder's own default stands), or 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
+            );
+            return Err(exit::RUNTIME_ERROR);
+        };
+        // The enum carries the removal, so the CLI does not need a second
+        // flag and the two spellings stay one argument.
+        edit = match (which, colour) {
+            ("--background", pdfcer_core::edit::MkColorEdit::Set(c)) => edit.with_background(c),
+            ("--background", _) => edit.without_background(),
+            (_, pdfcer_core::edit::MkColorEdit::Set(c)) => edit.with_border_color(c),
+            (_, _) => edit.without_border_color(),
+        };
+    }
+    Ok(edit)
+}
+
+/// Rule 4 in the shell that has no session: the invocation IS the commit, so
+/// anything pdfcer decided on the way past is printed on the way past.
+fn disclose_widget_edit(args: &EditWidgetArgs<'_>, outcome: &pdfcer_core::edit::WidgetEditOutcome) {
+    let who = format!("field {:?} widget {}", args.name, args.index);
+    if let Some(stale) = &outcome.appearance_stale {
+        eprintln!("pdfcer: {who}: ★ {stale}");
+    }
+    if outcome.foreign_appearance_replaced {
+        eprintln!(
+            "pdfcer: {who}: its artwork, which pdfcer did not draw, was REPLACED with pdfcer's own (--replace-foreign-appearance); its down and rollover looks were dropped."
+        );
+    }
+    crate::fields::print_layout(&who, &outcome.layout);
+    match outcome.stroke_width {
+        Some((before, after)) => {
+            eprintln!("pdfcer: {who}: border width scaled with the box, {before} -> {after} pt.");
+        }
+        None if outcome.resized => eprintln!(
+            "pdfcer: {who}: its border width was NOT scaled — a line weight is a drafting convention rather than a length in the scaled space, which is why the default leaves it alone. Pass --scale-stroke-width if you wanted it to follow."
+        ),
+        None => {}
+    }
+    if outcome.rect_differences_scaled == Some(false) {
+        eprintln!(
+            "pdfcer: {who}: this widget has /RD (rect differences) and they were left UNSCALED, so its inner margins are now a different proportion of the box."
+        );
+    }
+    if outcome.siblings_untouched > 0 {
+        eprintln!(
+            "pdfcer: field {:?}: {} OTHER widget(s) of this field are unchanged and stand where they were. Position, border, visibility and caption are per-placement, so this is correct — but a field that looks like one thing to an operator now has two appearances.",
+            args.name, outcome.siblings_untouched
+        );
+    }
 }
 
 /// `rename-field` — change a field's partial name `/T` (decision 020's F6).

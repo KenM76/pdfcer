@@ -7253,11 +7253,21 @@ pub(crate) enum Command {
         /// viewer will stretch it.
         ///
         /// Needed only for artwork pdfcer did not draw -- a foreign `/AP` on a
-        /// button, or a signature field. A check box, radio button or push
-        /// button pdfcer authored is REDRAWN at the new size and needs none of
-        /// this.
+        /// button, or a signed signature field. A check box, radio button or
+        /// push button pdfcer authored, and an unsigned signature field, are
+        /// REDRAWN at the new size and need none of this.
         #[arg(long)]
         allow_appearance_distortion: bool,
+        /// Replace a check box's or radio button's artwork that pdfcer did not
+        /// draw with pdfcer's own, so the edit shows.
+        ///
+        /// Without it, such a widget keeps its old look and the edit is
+        /// reported as recorded but not painted. With it, the widget's whole
+        /// `/AP` is redrawn in pdfcer's style -- its down and rollover looks
+        /// are dropped -- and the run says so. Push buttons, and widgets
+        /// with more than one on state, are never replaced.
+        #[arg(long)]
+        replace_foreign_appearance: bool,
 
         /// Output path.
         #[arg(short, long)]

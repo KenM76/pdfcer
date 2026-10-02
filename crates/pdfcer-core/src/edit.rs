@@ -125,9 +125,11 @@
 mod block_text;
 mod checkpoint;
 mod content_mark;
+mod foreign_button;
 
 use checkpoint::Entry;
 pub use checkpoint::{Checkpoint, CheckpointError, Rollback};
+use foreign_button::ButtonSlot;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -20736,6 +20738,9 @@ pub struct LayoutDisclosure {
 enum Redraw {
     /// New appearance streams were written.
     Rebuilt,
+    /// New appearance streams were written in place of artwork another
+    /// producer drew (`WidgetEdit::replace_foreign_appearance`).
+    Replaced,
     /// A button's redraw matched its existing artwork byte for byte, so
     /// nothing was written.
     Unchanged,
@@ -21753,6 +21758,9 @@ struct PendingWidgetEdit {
     /// `None` = this command is not touching either colour, and the redraw
     /// reads the widget's own. `Pass 308.0`.
     chrome: Option<annot_author::WidgetChrome>,
+    /// `WidgetEdit::replace_foreign_appearance`: a foreign check box or radio
+    /// button's artwork may be replaced with pdfcer's.
+    replace_foreign: bool,
 }
 
 impl PendingWidgetEdit {
@@ -21774,6 +21782,11 @@ impl PendingWidgetEdit {
     /// other field here — a radio group's other buttons keep their own.
     fn chrome_for(&self, id: ObjId) -> Option<annot_author::WidgetChrome> {
         self.id.filter(|p| *p == id).and(self.chrome.clone())
+    }
+
+    /// Whether foreign button artwork on `id` may be replaced.
+    fn replace_foreign_for(&self, id: ObjId) -> bool {
+        self.replace_foreign && self.id == Some(id)
     }
 
     /// The staged caption for `id`.
@@ -25419,6 +25432,18 @@ pub struct WidgetEdit {
     ///   behaviour change**: this verb used to proceed and disclose. See
     ///   [`EditSession::edit_widget`]'s own documentation for the argument.
     pub resize: ResizeOptions,
+    /// Replace a check box's or radio button's appearance that another
+    /// producer drew, when this edit needs it redrawn. Default `false`.
+    ///
+    /// By default pdfcer redraws only button artwork it drew itself, and
+    /// keeps foreign artwork with [`AppearanceOutcome::RecordedNotPainted`].
+    /// With this set, a foreign check box or radio button gets pdfcer's own
+    /// on and off states drawn from its `/MK` and `/BS`. Its `/AP` is
+    /// replaced whole, so foreign `/D` (down) and `/R` (rollover) states go
+    /// with it. [`WidgetEditOutcome::foreign_appearance_replaced`] reports
+    /// that it happened. A push button and a check box whose `/AP` `/N`
+    /// names more than one on state are still not redrawn.
+    pub replace_foreign_appearance: bool,
 }
 
 impl FieldEdit {
@@ -25818,6 +25843,21 @@ impl WidgetEdit {
         self.resize = resize;
         self
     }
+
+    /// Allow a redraw to replace a check box's or radio button's foreign
+    /// artwork. See [`Self::replace_foreign_appearance`].
+    ///
+    /// ```
+    /// use pdfcer_core::edit::WidgetEdit;
+    /// let edit = WidgetEdit::new().with_replace_foreign_appearance(true);
+    /// assert!(edit.replace_foreign_appearance);
+    /// assert!(!WidgetEdit::new().replace_foreign_appearance, "off by default");
+    /// ```
+    #[must_use]
+    pub const fn with_replace_foreign_appearance(mut self, replace: bool) -> Self {
+        self.replace_foreign_appearance = replace;
+        self
+    }
 }
 
 /// What [`EditSession::edit_field`] changed, and everything about it the
@@ -26096,6 +26136,11 @@ pub struct WidgetEditOutcome {
     pub appearance_stale: Option<String>,
     /// What the redrawn appearance decided (rule 4).
     pub layout: LayoutDisclosure,
+    /// The redraw **replaced artwork another producer drew** with pdfcer's
+    /// own, under [`WidgetEdit::replace_foreign_appearance`]. Only ever true
+    /// alongside [`AppearanceOutcome::Regenerated`]; owed a disclosure,
+    /// because the widget no longer looks the way its producer drew it.
+    pub foreign_appearance_replaced: bool,
 }
 
 /// What a [`EditSession::rename_field`] changed.
@@ -28756,9 +28801,9 @@ impl EditSession {
     /// field whose flags were edited and a field that was filled cannot
     /// disagree about how the same value is drawn.
     ///
-    /// Returns whether anything was rebuilt: a button or signature field has
-    /// no text appearance for this engine to make, and saying so is more
-    /// useful than silently doing nothing.
+    /// Returns whether anything was rebuilt: a signed signature field's
+    /// appearance belongs to the signer, and saying so is more useful than
+    /// silently doing nothing. An unsigned one is drawn as an empty box.
     fn regen_after_property_change(
         &mut self,
         field: &forms::Field,
@@ -28809,6 +28854,12 @@ impl EditSession {
             // this is the half that was wrong.
             Some(forms::FieldType::Button) => {
                 return self.regen_button_appearance(field, objects, pending, appearance);
+            }
+            // An UNSIGNED signature field's appearance is chrome only — a
+            // background and a border — so it is drawn as an empty text box.
+            // Once `/V` holds a signature the appearance is the signer's.
+            Some(forms::FieldType::Signature) if !field.value.is_present() => {
+                (String::new(), false)
             }
             _ => return Ok(Redraw::NotRebuilt),
         };
@@ -29398,6 +29449,7 @@ impl EditSession {
             rect: rect_after,
             caption: edit.caption.clone(),
             chrome: Some(chrome_after),
+            replace_foreign: edit.replace_foreign_appearance,
         };
 
         // THREE THINGS INVALIDATE THE BAKED APPEARANCE, and the third was
@@ -29448,6 +29500,7 @@ impl EditSession {
             })
         };
         let mut layout = LayoutDisclosure::default();
+        let mut foreign_appearance_replaced = false;
         let appearance_regenerated = if needs_regen {
             let redraw = self.regen_after_property_change(
                 &Self::only_widget(&field, widget.id),
@@ -29460,7 +29513,8 @@ impl EditSession {
             if redraw == Redraw::Unchanged {
                 appearance_stale = caption_not_drawn();
             }
-            let done = redraw == Redraw::Rebuilt;
+            foreign_appearance_replaced = redraw == Redraw::Replaced;
+            let done = matches!(redraw, Redraw::Rebuilt | Redraw::Replaced);
             if redraw == Redraw::NotRebuilt {
                 // Nothing here is pdfcer's to rebuild: a signature field, or a
                 // button carrying another producer's artwork. Whether that is
@@ -29503,6 +29557,7 @@ impl EditSession {
             siblings_untouched,
             layout,
             appearance_stale,
+            foreign_appearance_replaced,
         })
     }
 
@@ -44887,7 +44942,13 @@ impl EditSession {
     ) -> Result<Option<String>, EditError> {
         let what = match field.field_type {
             Some(forms::FieldType::Signature) => {
-                "a signature field's appearance, which pdfcer does not author"
+                "a signed signature field's appearance, which belongs to its signer and which \
+                 pdfcer does not redraw"
+            }
+            Some(forms::FieldType::Button) if edit.replace_foreign_appearance => {
+                "this button's artwork, which pdfcer did not draw and could not replace \
+                 (replace_foreign_appearance covers a check box or radio button whose /AP /N \
+                 names exactly one on state)"
             }
             Some(forms::FieldType::Button) => {
                 "this button's artwork, which pdfcer did not draw (its /AP does not match what \
@@ -44971,15 +45032,13 @@ impl EditSession {
     /// each other, from a gesture that named one of them. If any widget's
     /// appearance is foreign, none is rebuilt and the caller says so.
     ///
-    /// # What is deliberately NOT consulted
+    /// # The opt-in past the ownership test
     ///
-    /// `/BS` `/W`. pdfcer's check-box and radio artwork draws a **1.0-wide**
-    /// border unconditionally (`annot_author::build_check_box_appearances`),
-    /// so a widget whose `/BS` says 2.0 still carries a 1.0-wide stroke and
-    /// a rebuild reproduces it. That is not this Pass papering over a gap: it
-    /// is the artwork's actual contract, and making the border width follow
-    /// `/BS` would change how every existing pdfcer-authored check box renders.
-    /// Filed as its own question rather than smuggled in under a resize.
+    /// With `pending.replace_foreign_for(widget)`, a foreign check box or
+    /// radio widget is not a refusal: its `/AP` is replaced whole with
+    /// pdfcer's artwork ([`foreign_button`]) and the result is
+    /// [`Redraw::Replaced`]. Only the edited widget can carry the opt-in, so
+    /// a field with other foreign widgets still refuses all-or-nothing.
     ///
     /// # Errors
     ///
@@ -45001,6 +45060,62 @@ impl EditSession {
             // `/FT /Btn` with no resolvable kind. Not pdfcer's to guess at.
             return Ok(Redraw::NotRebuilt);
         };
+        let (stored_da, staged_da, fonts) = self.button_das(field, appearance);
+        let Some(slots) = self.button_slots(field, kind, pending, (stored_da, &fonts))? else {
+            return Ok(Redraw::NotRebuilt);
+        };
+
+        // ---- pass 2: redraw each at its EFFECTIVE size.
+        //
+        // pdfcer's own streams are rewritten IN PLACE, under their existing
+        // object ids, and the widget dictionary is not touched: `edit_widget`
+        // has already staged a whole-dictionary write for this widget, and a
+        // second one to the same object does not compose (its `after` is
+        // built from the PRE-command dictionary and would discard the first).
+        let mut changed = false;
+        let mut replaced = false;
+        for (widget, slot) in slots {
+            let fallback = match &slot {
+                ButtonSlot::Own(plan) => plan.caption.clone(),
+                ButtonSlot::Foreign(_) => widget
+                    .caption
+                    .as_deref()
+                    .map(|b| decode_text_string(b).text)
+                    .unwrap_or_default(),
+            };
+            let redrawn = self.redraw_button(
+                widget,
+                kind,
+                pending,
+                &fallback,
+                (staged_da.clone(), &fonts),
+            )?;
+            match slot {
+                ButtonSlot::Own(plan) => {
+                    changed |= self.rewrite_button_slots(&plan.slots, redrawn, objects);
+                }
+                ButtonSlot::Foreign(on) => {
+                    self.replace_foreign_button(widget.id, &on, redrawn, objects)?;
+                    replaced = true;
+                }
+            }
+        }
+        Ok(if replaced {
+            Redraw::Replaced
+        } else if changed {
+            Redraw::Rebuilt
+        } else {
+            Redraw::Unchanged
+        })
+    }
+
+    /// The field's `/DA` as stored and as this command stages it, plus the
+    /// `/DR` fonts with any staged standard font added.
+    fn button_das(
+        &self,
+        field: &forms::Field,
+        appearance: Option<&FieldAppearance>,
+    ) -> (Option<Vec<u8>>, Option<Vec<u8>>, Vec<FontResource>) {
         let stored_da = forms::parse_acroform(&self.graph())
             .and_then(|f| f.fields.into_iter().find(|f| f.id == field.id))
             .and_then(|f| f.default_appearance);
@@ -45030,113 +45145,118 @@ impl EditSession {
             }
             None => stored_da.clone(),
         };
+        (stored_da, staged_da, fonts)
+    }
 
-        // ---- pass 1: is EVERY widget's artwork pdfcer's own? Writes nothing.
-        //
-        // Two passes rather than one, so a field whose third widget turns out
-        // to be foreign does not leave the first two already rebuilt in a
-        // command the caller then commits.
-        let mut plans = Vec::with_capacity(field.widgets.len());
+    /// Pass 1 of [`Self::regen_button_appearance`]: what to do with EVERY
+    /// widget, decided before anything is written, so a field whose third
+    /// widget is foreign does not leave the first two rebuilt. `None` means
+    /// at least one widget is neither pdfcer's nor replaceable.
+    fn button_slots<'f>(
+        &self,
+        field: &'f forms::Field,
+        kind: forms::ButtonKind,
+        pending: &PendingWidgetEdit,
+        (stored_da, fonts): (Option<Vec<u8>>, &[FontResource]),
+    ) -> Result<Option<Vec<(&'f forms::Widget, ButtonSlot)>>, EditError> {
+        let mut slots = Vec::with_capacity(field.widgets.len());
         for widget in &field.widgets {
             let Some(old) = widget.rect else {
-                return Ok(Redraw::NotRebuilt);
+                return Ok(None);
             };
-            let Some(plan) = self.button_ap_plan(
+            let plan = self.button_ap_plan(
                 widget,
                 kind,
                 old.width(),
                 old.height(),
-                (stored_da.clone(), &fonts),
-            )?
-            else {
-                return Ok(Redraw::NotRebuilt);
-            };
-            plans.push((widget, plan));
-        }
-
-        // ---- pass 2: redraw each at its EFFECTIVE size.
-        //
-        // The streams are rewritten IN PLACE, under their existing object ids,
-        // and the widget dictionary is not touched at all. That is not merely
-        // tidy — `edit_widget` has already staged a whole-dictionary write for
-        // this widget carrying the new `/Rect`, and a second whole-dictionary
-        // write to one object in one command does not compose (the second
-        // one's `after` is built from the PRE-command dictionary, so it would
-        // silently discard the resize it was triggered by). Reusing the ids
-        // means there is no second write to compose.
-        let mut changed = false;
-        for (widget, plan) in plans {
-            let (w, h) = pending
-                .rect_for(widget.id)
-                .or(widget.rect)
-                .map_or((0.0, 0.0), |r| (r.width(), r.height()));
-            let caption = pending
-                .caption_for(widget.id)
-                .map(str::to_owned)
-                .unwrap_or_else(|| plan.caption.clone());
-            // The staged colours if this command is writing any, else the
-            // widget's own — the same precedence the rect and the caption
-            // above follow.
-            let chrome = pending
-                .chrome_for(widget.id)
-                .unwrap_or_else(|| self.widget_chrome(widget));
-            // AND THE STAGED ROTATION, WHICH WAS THE WHOLE OF `G023`
-            // (`Pass 308.5`). `rotate_widget` stages `/MK /R` and regenerates
-            // inside one command, and this function never read it — so it
-            // redrew the button from unchanged inputs, rewrote the streams
-            // BYTE-IDENTICAL, and returned `Ok(true)`. `rotate_widget` gates
-            // its disclosure on that boolean, so the operator was told the
-            // button had turned and nothing had.
-            //
-            // Same precedence as the three above, and for the same reason:
-            // the `field.widgets` snapshot was read before this command's
-            // `/MK` write, so it still carries the OLD angle.
-            let quarter = Self::quarter_of(pending.rotation_for(widget.id).or(widget.rotation));
-            let redrawn = self.build_button_states(
-                kind,
-                &ButtonLook {
-                    w,
-                    h,
-                    caption: &caption,
-                    chrome,
-                    quarter,
-                    da: staged_da.clone(),
-                    fonts: &fonts,
-                },
+                (stored_da.clone(), fonts),
             )?;
-            for (id, content) in plan.slots.iter().zip(redrawn) {
-                let before = self.state.get(id).cloned();
-                let mut dict = content.ap_dict;
-                self.bind_dr_fonts(&mut dict);
-                dict.insert(
-                    Name::from(b"Length"),
-                    Object::Integer(i64::try_from(content.content.len()).unwrap_or(i64::MAX)),
-                );
-                // A state this redraw reproduces exactly is not rewritten:
-                // the property being edited is one the artwork does not draw
-                // from, and a rewrite would be churn reported as a change.
-                if matches!(self.value(*id), Some(Object::Stream(old)) if old.dict == dict)
-                    && self.stream_bytes_match(*id, &content.content)
-                {
-                    continue;
+            let slot = match plan {
+                Some(plan) => ButtonSlot::Own(plan),
+                None if pending.replace_foreign_for(widget.id) => {
+                    match Self::foreign_on_state(widget, kind) {
+                        Some(on) => ButtonSlot::Foreign(on),
+                        None => return Ok(None),
+                    }
                 }
-                changed = true;
-                let span = self.stage_bytes(&content.content);
-                objects.push(ObjectWrite {
-                    id: *id,
-                    before,
-                    after: Some(Object::Stream(Stream {
-                        dict,
-                        data_span: span,
-                    })),
-                });
-            }
+                None => return Ok(None),
+            };
+            slots.push((widget, slot));
         }
-        Ok(if changed {
-            Redraw::Rebuilt
-        } else {
-            Redraw::Unchanged
-        })
+        Ok(Some(slots))
+    }
+
+    /// Draw one button widget's states with what this command stages: its
+    /// rect, caption, colours and rotation, each falling back to the
+    /// widget's own. The `field.widgets` snapshot predates this command's
+    /// writes, so reading only it would redraw the OLD look (`G023`).
+    fn redraw_button(
+        &self,
+        widget: &forms::Widget,
+        kind: forms::ButtonKind,
+        pending: &PendingWidgetEdit,
+        caption_fallback: &str,
+        (da, fonts): (Option<Vec<u8>>, &[FontResource]),
+    ) -> Result<Vec<annot_author::CheckBoxStateAppearance>, EditError> {
+        let (w, h) = pending
+            .rect_for(widget.id)
+            .or(widget.rect)
+            .map_or((0.0, 0.0), |r| (r.width(), r.height()));
+        let caption = pending.caption_for(widget.id).unwrap_or(caption_fallback);
+        let chrome = pending
+            .chrome_for(widget.id)
+            .unwrap_or_else(|| self.widget_chrome(widget));
+        let quarter = Self::quarter_of(pending.rotation_for(widget.id).or(widget.rotation));
+        self.build_button_states(
+            kind,
+            &ButtonLook {
+                w,
+                h,
+                caption,
+                chrome,
+                quarter,
+                da,
+                fonts,
+            },
+        )
+    }
+
+    /// Overwrite pdfcer's own appearance streams `slots` with `redrawn`, in
+    /// place. A state the redraw reproduces exactly is not rewritten — the
+    /// edited property is one the artwork does not draw from. Returns
+    /// whether anything was written.
+    fn rewrite_button_slots(
+        &mut self,
+        slots: &[ObjId],
+        redrawn: Vec<annot_author::CheckBoxStateAppearance>,
+        objects: &mut Vec<ObjectWrite>,
+    ) -> bool {
+        let mut changed = false;
+        for (id, content) in slots.iter().zip(redrawn) {
+            let before = self.state.get(id).cloned();
+            let mut dict = content.ap_dict;
+            self.bind_dr_fonts(&mut dict);
+            dict.insert(
+                Name::from(b"Length"),
+                Object::Integer(i64::try_from(content.content.len()).unwrap_or(i64::MAX)),
+            );
+            if matches!(self.value(*id), Some(Object::Stream(old)) if old.dict == dict)
+                && self.stream_bytes_match(*id, &content.content)
+            {
+                continue;
+            }
+            changed = true;
+            let span = self.stage_bytes(&content.content);
+            objects.push(ObjectWrite {
+                id: *id,
+                before,
+                after: Some(Object::Stream(Stream {
+                    dict,
+                    data_span: span,
+                })),
+            });
+        }
+        changed
     }
 
     /// One widget's rebuild plan: the appearance objects to overwrite, in the
