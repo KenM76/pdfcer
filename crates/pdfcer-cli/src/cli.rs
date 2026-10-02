@@ -3960,6 +3960,32 @@ pub(crate) enum Command {
         #[arg(long)]
         dir: Option<PathBuf>,
     },
+    /// **List the OCR models this pdfcer can find**, one line each.
+    ///
+    /// Searches `models/` beside this executable, then each `ocr_folder`
+    /// line of the settings file, then each `--ocr-folder`. An add-on is a
+    /// folder holding its model files and a `pdfcer-ocr-model.txt` manifest;
+    /// a plain folder named `ocrs`, `ocrcer`, `paddle` or `tesseract` counts
+    /// too. Install an add-on by dropping its folder in; uninstall it by
+    /// deleting the folder.
+    ///
+    /// stdout, one line per model:
+    /// `ocr-model NAME engine=E in-build=yes|no|unknown-engine label="…"
+    /// languages=a,b licence=L version=V folder="…"`. `in-build=no` means
+    /// this build was compiled without that engine. Skipped folders, bad
+    /// manifests and a name found twice are reported on stderr.
+    ///
+    /// Reads folder listings and manifests only. No network.
+    OcrModels {
+        /// Another folder to search. Repeatable; searched last.
+        #[arg(long)]
+        ocr_folder: Vec<PathBuf>,
+        /// Also hash every file a manifest lists and compare it with the
+        /// manifest's SHA-256; adds `verified=N` (files checked) or
+        /// `verified=FAILED`, and exits 1 on any mismatch.
+        #[arg(long)]
+        verify: bool,
+    },
     /// **List the rendering presets** pdfcer holds for the PDF subset
     /// standards (PDF/X, PDF/A, PDF/UA), and what each one would set.
     ///
@@ -4084,11 +4110,35 @@ pub(crate) enum Command {
         /// `--ocr-lang`) and reports a per-word confidence. A stock
         /// Tesseract install has the same layout, so `--model-dir` can name
         /// its folder directly.
-        #[arg(long, value_enum, default_value_t = OcrEngineArg::Ocrs)]
-        ocr_engine: OcrEngineArg,
+        ///
+        /// The first model found for the engine is used (see `--ocr-folder`
+        /// for the search order); `--ocr-model` picks a specific one.
+        #[arg(long, value_enum)]
+        ocr_engine: Option<OcrEngineArg>,
+        /// Use the installed OCR model with this name.
+        ///
+        /// Names come from each add-on folder's `pdfcer-ocr-model.txt`, or
+        /// are the engine's name for a plain `ocrs`/`ocrcer`/`paddle`/
+        /// `tesseract` folder; `pdfcer ocr-models` lists them. The model's
+        /// manifest says which engine runs it, so `--ocr-engine` may be
+        /// omitted; given, it must agree.
+        #[arg(long, conflicts_with = "model_dir")]
+        ocr_model: Option<String>,
+        /// Another folder to search for OCR model add-ons. Repeatable.
+        ///
+        /// Searched in this order, first match winning: `models/` beside
+        /// this executable, each `ocr_folder` line of the settings file, then
+        /// each `--ocr-folder` in the order given. Each add-on is a
+        /// sub-folder holding its model files and a `pdfcer-ocr-model.txt`
+        /// manifest; deleting the sub-folder uninstalls it. A name found
+        /// twice keeps the first and says so.
+        #[arg(long)]
+        ocr_folder: Vec<PathBuf>,
         /// Directory holding the selected engine's model files.
         ///
-        /// When omitted, `models/<engine>` beside this executable is used —
+        /// When omitted, the add-on folders are searched (see
+        /// `--ocr-folder`); a plain folder named after the engine works, as
+        /// `models/<engine>` beside this executable always has —
         /// `models/ocrs` (two `.rten` files, shipped in the portable
         /// package), `models/ocrcer` (`ocrcer.ocrw`, shipped),
         /// `models/paddle` (`det.onnx`, `rec.onnx`, shipped) or

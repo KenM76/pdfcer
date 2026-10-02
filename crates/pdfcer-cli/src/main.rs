@@ -558,6 +558,8 @@ mod inspect;
 use inspect::*;
 mod ocr_cmd;
 use ocr_cmd::*;
+mod ocr_models;
+use ocr_models::*;
 mod render_export;
 use render_export::*;
 mod navigation;

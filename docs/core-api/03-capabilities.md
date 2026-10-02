@@ -2522,6 +2522,33 @@ reference caller.
 | `ModelSource` (`OperatorSupplied` / `BesideExecutable` / `UserData`), `.path()` | `models.rs` |
 | `ModelsNotFound { engine, searched }` — **carries every path tried** | `models.rs` |
 
+**Piece 4b — model add-on folders** (`crates/pdfcer-core/src/ocr/addons.rs`, not on wasm32; `addon_manifest.rs`, everywhere; decision 182)
+
+| I want to… | call this |
+|---|---|
+| list every installed model under my search roots | `addons::discover_ocr_models(&roots) -> OcrModelDiscovery { models, notes }` |
+| pick one by `--ocr-model` name | `OcrModelDiscovery::by_name(name) -> Option<&OcrModel>` |
+| pick the first usable one for an engine | `OcrModelDiscovery::for_engine(engine, &required_files) -> EngineMatch { chosen, incomplete }` |
+| check a model's files against its manifest | `OcrModel::verify() -> Result<usize, VerifyError>` (files hashed) |
+| show what it is | `OcrModel { name, engine, folder, root, manifest }`, `.label()`, `.languages()`, `.licence()`, `.has_files(&[..])` |
+| parse a manifest myself | `addon_manifest::parse_manifest(&str)` / `parse_manifest_bytes(&[u8]) -> Result<OcrModelManifest, ManifestError>`; file name `MANIFEST_FILE` |
+
+- **Roots are yours.** Core never reads settings. The CLI passes `models/`
+  beside the executable, then the settings file's `ocr_folder` lines, then
+  `--ocr-folder`. A GUI should pass the same roots in the same order, or the
+  two shells will pick different models for the same engine.
+- **First root wins** on a duplicate name; the loser is a
+  `DiscoveryNote::Shadowed`. Bundled models come first, so an add-on never
+  changes what a bare engine choice selects.
+- **★ What the UI must disclose:** every `DiscoveryNote` (a skipped folder, a
+  bad manifest, unknown keys, shadowing, a ceiling hit), the chosen model's
+  name, label and licence, and `verify()`'s result. **Call `verify()` before
+  loading**; a `VerifyError::Mismatch` must refuse, not warn.
+- A folder directly under a root named `ocrs`/`ocrcer`/`paddle`/`tesseract`
+  with no manifest is a model named after its engine (`manifest: None`).
+- Bounded: depth 3 (`MAX_ADDON_DEPTH`), 2,000 folders, 256 models, a
+  canonical-path cycle guard, and a 16 KiB manifest limit.
+
 ### 5.3 Worked sequence, end to end
 
 ```rust

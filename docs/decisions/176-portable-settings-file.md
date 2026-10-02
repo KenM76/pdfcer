@@ -37,6 +37,7 @@ UTF-8, at most 64 KiB, an optional BOM, one `key = value` per line. `#` and
 | `system_fonts` | `on` / `off` | `off` |
 | `font_folder` | a folder; repeatable; relative resolves beside the settings file; `~/` expands | none |
 | `font_file_limit` | 1 … 1,000,000 | 10,000 |
+| `ocr_folder` | a folder of OCR model add-ons; repeatable; resolved like `font_folder`; searched after `models/` beside the executable (decision 182) | none |
 
 These are fatal and exit 1, naming the line: an unknown key, a bad value, an
 empty value, a repeated scalar key, or a line with no `=`. The reason is that
@@ -44,13 +45,13 @@ a silently ignored typo (`workaround = always`) would be a forgotten setting
 that changes nothing while the operator believes it does.
 
 There is no new dependency. The format is a hand-written parser, which is
-easier to audit than a TOML crate for four keys.
+easier to audit than a TOML crate for five keys.
 
 ## 3. Disclosure (batch determinism)
 
 Whenever a file is read, one stderr line names it and every value:
 `pdfcer: settings: using PATH: workarounds=… system_fonts=… font_folders=N
-font_file_limit=N (pass --no-settings to ignore it)`. A forgotten file can
+font_file_limit=N ocr_folders=N (pass --no-settings to ignore it)`. A forgotten file can
 therefore never change output silently (rule 4, fuzzy-never-sneaky). The
 font walk adds its own `pdfcer: settings:` lines when it runs:
 

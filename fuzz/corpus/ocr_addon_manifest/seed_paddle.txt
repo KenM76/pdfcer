@@ -1,0 +1,9 @@
+# pdfcer OCR model add-on manifest (decision 182). See PROVENANCE.md.
+name = ppocrv4-ch-en
+engine = paddle
+label = PP-OCRv4 Chinese + English
+languages = zh, en
+version = 4
+licence = Apache-2.0
+sha256 = det.onnx d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9
+sha256 = rec.onnx 48fc40f24f6d2a207a2b1091d3437eb3cc3eb6b676dc3ef9c37384005483683b

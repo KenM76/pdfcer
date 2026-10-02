@@ -587,6 +587,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "ocr_addon_manifest"
+path = "fuzz_targets/ocr_addon_manifest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "paddle_post"
 path = "fuzz_targets/paddle_post.rs"
 test = false

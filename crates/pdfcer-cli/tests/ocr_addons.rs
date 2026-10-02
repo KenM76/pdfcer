@@ -1,0 +1,219 @@
+//! OCR model add-on folders (decision 182): `ocr-models`, `--ocr-folder`,
+//! the settings file's `ocr_folder`, `--ocr-model` and manifest SHA-256.
+
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+
+const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
+
+/// SHA-256 of the three bytes `abc` (FIPS 180-2 appendix B.1).
+const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+fn scan() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/ocr/scan.pdf")
+}
+
+fn scratch(tag: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("pdfcer-ocr-addons-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// An add-on folder `root/name` with a manifest and a `det.onnx` of `abc`.
+fn addon(root: &Path, name: &str, engine: &str) -> PathBuf {
+    let dir = root.join(name);
+    std::fs::create_dir_all(&dir).unwrap();
+    let manifest = format!(
+        "name = {name}\nengine = {engine}\nlabel = \"Test {name}\"\nlanguages = de, fr\n\
+         licence = MIT\nversion = 1.2\nsha256 = det.onnx {ABC_SHA256}\n"
+    );
+    std::fs::write(dir.join("pdfcer-ocr-model.txt"), manifest).unwrap();
+    std::fs::write(dir.join("det.onnx"), b"abc").unwrap();
+    dir
+}
+
+fn run(args: &[&std::ffi::OsStr]) -> (Option<i32>, String, String) {
+    let o: Output = Command::new(BIN).args(args).output().unwrap();
+    (
+        o.status.code(),
+        String::from_utf8_lossy(&o.stdout).into_owned(),
+        String::from_utf8_lossy(&o.stderr).into_owned(),
+    )
+}
+
+fn list(extra: &[&Path]) -> (Option<i32>, String, String) {
+    let mut args: Vec<&std::ffi::OsStr> = vec!["--no-settings".as_ref(), "ocr-models".as_ref()];
+    for root in extra {
+        args.push("--ocr-folder".as_ref());
+        args.push(root.as_os_str());
+    }
+    args.push("--verify".as_ref());
+    run(&args)
+}
+
+fn ocr_with(root: &Path, extra: &[&str]) -> (Option<i32>, String, String) {
+    let out = root.join("out.pdf");
+    let input = scan();
+    let mut args: Vec<&std::ffi::OsStr> = vec![
+        "--no-settings".as_ref(),
+        "ocr".as_ref(),
+        input.as_os_str(),
+        "-o".as_ref(),
+        out.as_os_str(),
+        "--ocr-folder".as_ref(),
+        root.as_os_str(),
+    ];
+    args.extend(extra.iter().map(|s| std::ffi::OsStr::new(*s)));
+    run(&args)
+}
+
+/// Dropping a folder in installs it, every manifest field is listed, a
+/// second root's same-named add-on is shadowed and said to be, and deleting
+/// the folder uninstalls it.
+#[test]
+fn a_dropped_folder_is_listed_and_deleting_it_uninstalls() {
+    let a = scratch("list-a");
+    let b = scratch("list-b");
+    let kept = addon(&a, "mine", "paddle");
+    addon(&b, "mine", "ocrs");
+    std::fs::create_dir_all(a.join("tesseract")).unwrap();
+    let (code, out, err) = list(&[&a, &b]);
+    assert_eq!(code, Some(0), "{err}");
+    let line = out
+        .lines()
+        .find(|l| l.starts_with("ocr-model mine "))
+        .unwrap();
+    for field in [
+        "engine=paddle",
+        "label=\"Test mine\"",
+        "languages=de,fr",
+        "licence=MIT",
+        "version=1.2",
+        "verified=1",
+    ] {
+        assert!(line.contains(field), "{field} missing: {line}");
+    }
+    assert!(
+        line.contains(&format!("{:?}", kept.display().to_string())),
+        "{line}"
+    );
+    assert!(
+        out.contains("ocr-model tesseract engine=tesseract in-build=yes"),
+        "{out}"
+    );
+    assert_eq!(out.lines().count(), 2, "{out}");
+    assert!(err.contains("is shadowed by the one in"), "{err}");
+    assert!(err.contains("2 model(s) found"), "{err}");
+
+    std::fs::remove_dir_all(&kept).unwrap();
+    let (_, out, _) = list(&[&a, &b]);
+    assert!(
+        out.contains("engine=ocrs"),
+        "the shadowed one surfaces: {out}"
+    );
+}
+
+/// `ocr_folder` in a settings file is searched like `--ocr-folder`.
+#[test]
+fn the_settings_file_ocr_folder_is_searched() {
+    let root = scratch("settings");
+    addon(&root.join("addons"), "from-settings", "paddle");
+    let settings = root.join("pdfcer-settings.txt");
+    std::fs::write(&settings, "ocr_folder = addons\n").unwrap();
+    let (code, out, err) = run(&[
+        "--settings".as_ref(),
+        settings.as_os_str(),
+        "ocr-models".as_ref(),
+    ]);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(
+        out.contains("ocr-model from-settings engine=paddle"),
+        "{out}"
+    );
+    assert!(err.contains("ocr_folders=1"), "{err}");
+}
+
+/// A changed file fails `--verify` and is refused by `ocr --ocr-model`.
+#[test]
+fn a_hash_mismatch_is_refused() {
+    let root = scratch("mismatch");
+    let dir = addon(&root, "tampered", "paddle");
+    std::fs::write(dir.join("det.onnx"), b"abd").unwrap();
+    std::fs::write(dir.join("rec.onnx"), b"unlisted, so not hashed").unwrap();
+    let (code, out, err) = list(&[&root]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(out.contains("verified=FAILED"), "{out}");
+    assert!(err.contains(ABC_SHA256), "{err}");
+
+    let (code, _, err) = ocr_with(&root, &["--ocr-model", "tampered"]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(err.contains("OCR model `tampered` refused"), "{err}");
+    assert!(err.contains("the manifest says"), "{err}");
+}
+
+/// An unknown name, an engine pdfcer lacks and a contradicting
+/// `--ocr-engine` are each refused by name.
+#[test]
+fn ocr_model_refusals_name_the_problem() {
+    let root = scratch("refusals");
+    addon(&root, "future", "quantum");
+    addon(&root, "mine", "paddle");
+
+    let (code, _, err) = ocr_with(&root, &["--ocr-model", "absent"]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(err.contains("no OCR model named `absent`"), "{err}");
+
+    let (code, _, err) = ocr_with(&root, &["--ocr-model", "future"]);
+    assert_eq!(code, Some(64), "{err}");
+    assert!(err.contains("the `quantum` engine"), "{err}");
+
+    let (code, _, err) = ocr_with(&root, &["--ocr-model", "mine", "--ocr-engine", "tesseract"]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(
+        err.contains("is a `paddle` model, but --ocr-engine says `tesseract`"),
+        "{err}"
+    );
+
+    let (_, out, _) = list(&[&root]);
+    assert!(
+        out.contains("ocr-model future engine=quantum in-build=unknown-engine"),
+        "{out}"
+    );
+}
+
+/// The shipped PaddleOCR folder carries a manifest whose hashes match, and
+/// `--ocr-engine paddle` finds it through `--ocr-folder` and names it.
+#[cfg(feature = "paddle")]
+#[test]
+fn the_shipped_paddle_manifest_verifies_and_is_used() {
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../pdfcer-core/assets/models");
+    let (code, out, err) = list(&[&assets]);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(
+        out.contains("ocr-model ppocrv4-ch-en engine=paddle in-build=yes"),
+        "{out}"
+    );
+    assert!(out.contains("licence=Apache-2.0"), "{out}");
+    assert!(out.contains("verified=2"), "{out}");
+
+    let out_dir = scratch("paddle-run");
+    let (code, _, err) = run(&[
+        "--no-settings".as_ref(),
+        "ocr".as_ref(),
+        scan().as_os_str(),
+        "-o".as_ref(),
+        out_dir.join("out.pdf").as_os_str(),
+        "--ocr-engine".as_ref(),
+        "paddle".as_ref(),
+        "--ocr-folder".as_ref(),
+        assets.as_os_str(),
+    ]);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(err.contains("using OCR model `ppocrv4-ch-en`"), "{err}");
+    assert!(
+        err.contains("2 file(s) match the manifest's SHA-256"),
+        "{err}"
+    );
+    assert!(err.contains("(add-on `ppocrv4-ch-en` under"), "{err}");
+}

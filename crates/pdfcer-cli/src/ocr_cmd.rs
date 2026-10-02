@@ -223,283 +223,6 @@ pub(crate) fn report_unsearchable_redaction(
     );
 }
 
-/// A loaded recogniser, whichever `--ocr-engine` chose.
-///
-/// An enum rather than `dyn OcrEngine` because the trait's associated error
-/// type differs per engine; errors are flattened to their message here, the
-/// only place the CLI needs them.
-pub(crate) enum LoadedOcrEngine {
-    #[cfg(feature = "ocrs")]
-    Ocrs(pdfcer_core::ocr::engine_ocrs::OcrsEngine),
-    #[cfg(feature = "ocrcer")]
-    Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
-    #[cfg(feature = "paddle")]
-    Paddle(Box<pdfcer_core::ocr::engine_paddle::PaddleEngine>),
-    Tesseract(tesseract::TesseractEngine),
-}
-
-impl LoadedOcrEngine {
-    /// Recognise one page image with whichever engine was loaded.
-    pub(crate) fn recognize(
-        &self,
-        width: u32,
-        height: u32,
-        pixels: &[u8],
-    ) -> Result<Vec<pdfcer_core::ocr::RecognizedWord>, String> {
-        #[cfg(any(feature = "ocrs", feature = "ocrcer", feature = "paddle"))]
-        use pdfcer_core::ocr::OcrEngine;
-        match self {
-            #[cfg(feature = "ocrs")]
-            Self::Ocrs(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| e.to_string()),
-            #[cfg(feature = "ocrcer")]
-            Self::Ocrcer(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| e.to_string()),
-            #[cfg(feature = "paddle")]
-            Self::Paddle(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| e.to_string()),
-            Self::Tesseract(e) => e.recognize(width, height, pixels),
-        }
-    }
-
-    /// Whether this engine reports a per-word confidence.
-    pub(crate) fn reports_confidence(&self) -> bool {
-        #[cfg(any(feature = "ocrs", feature = "ocrcer", feature = "paddle"))]
-        use pdfcer_core::ocr::OcrEngine;
-        match self {
-            #[cfg(feature = "ocrs")]
-            Self::Ocrs(e) => e.reports_confidence(),
-            #[cfg(feature = "ocrcer")]
-            Self::Ocrcer(e) => e.reports_confidence(),
-            #[cfg(feature = "paddle")]
-            Self::Paddle(e) => e.reports_confidence(),
-            // Tesseract's TSV carries a `conf` column on every word row.
-            Self::Tesseract(_) => true,
-        }
-    }
-
-    /// A line naming anything the engine chose on the operator's behalf, for
-    /// the rule-4 report.
-    pub(crate) fn disclosure(&self) -> Option<String> {
-        match self {
-            #[cfg(feature = "paddle")]
-            Self::Paddle(e) => {
-                use pdfcer_core::ocr::engine_paddle::{DICTIONARY, DictionarySource};
-                Some(match e.dictionary_source() {
-                    DictionarySource::File(p) => format!(
-                        "PaddleOCR dictionary: {} ({} entries)",
-                        p.display(),
-                        e.dictionary_len()
-                    ),
-                    _ => format!(
-                        "PaddleOCR dictionary: no {DICTIONARY}, so the list embedded in \
-                         rec.onnx was used ({} entries)",
-                        e.dictionary_len()
-                    ),
-                })
-            }
-            _ => None,
-        }
-    }
-}
-
-/// Resolve the selected engine's models and load it, printing any failure.
-///
-/// Resolution names the engine's files, so a directory that exists but is
-/// empty does not resolve and shadow a good one further down the search
-/// order; on failure every path tried is reported — the difference between
-/// "OCR is broken" and "put the models here".
-pub(crate) fn load_ocr_engine(
-    choice: OcrEngineArg,
-    model_dir: Option<&Path>,
-    ocr_lang: &str,
-    dpi: f32,
-) -> Result<(LoadedOcrEngine, pdfcer_core::ocr::models::ModelSource), u8> {
-    use pdfcer_core::ocr::models;
-
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(std::path::Path::to_path_buf));
-
-    match choice {
-        #[cfg(feature = "ocrs")]
-        OcrEngineArg::Ocrs => {
-            use pdfcer_core::ocr::engine_ocrs::{
-                DETECTION_MODEL, MODEL_DIR, OcrsEngine, RECOGNITION_MODEL,
-            };
-            let source = match models::resolve_model_dir_with(
-                MODEL_DIR,
-                model_dir,
-                exe_dir.as_deref(),
-                None,
-                &[DETECTION_MODEL, RECOGNITION_MODEL],
-            ) {
-                Ok(src) => src,
-                Err(err) => {
-                    eprintln!("pdfcer: ocr: {err}");
-                    eprintln!(
-                        "pdfcer: ocr: the model files are not bundled inside the executable — \
-                         they are two files (`text-detection.rten`, `text-rec-checkpoint.rten`) \
-                         that live in a `models/ocrs` folder, which the portable package ships. \
-                         Pass --model-dir to point at them, or, in a build compiled with the \
-                         `download` feature, run `pdfcer fetch-ocr-models` to fetch the pinned \
-                         copies."
-                    );
-                    return Err(exit::RUNTIME_ERROR);
-                }
-            };
-            match OcrsEngine::from_model_dir(source.path()) {
-                Ok(e) => Ok((LoadedOcrEngine::Ocrs(e), source)),
-                Err(err) => {
-                    eprintln!("pdfcer: ocr: {err}");
-                    Err(exit::RUNTIME_ERROR)
-                }
-            }
-        }
-        #[cfg(feature = "ocrcer")]
-        OcrEngineArg::Ocrcer => {
-            use pdfcer_core::ocr::engine_ocrcer::{
-                MODEL_DIR, MODEL_FILE as OCRCER_MODEL_FILE, OcrcerEngine,
-            };
-            let source = match models::resolve_model_dir_with(
-                MODEL_DIR,
-                model_dir,
-                exe_dir.as_deref(),
-                None,
-                &[OCRCER_MODEL_FILE],
-            ) {
-                Ok(src) => src,
-                Err(err) => {
-                    eprintln!("pdfcer: ocr: {err}");
-                    eprintln!(
-                        "pdfcer: ocr: the OCRcer model is one file, `{OCRCER_MODEL_FILE}`, which \
-                         the portable package ships in `models/ocrcer` and pdfcer never \
-                         downloads. Copy that folder, or the OCRcer project's \
-                         `model/out/{OCRCER_MODEL_FILE}`, into a `models/ocrcer` folder beside \
-                         this executable, or pass --model-dir <its folder>."
-                    );
-                    return Err(exit::RUNTIME_ERROR);
-                }
-            };
-            let path = source.path().join(OCRCER_MODEL_FILE);
-            let bytes = match std::fs::read(&path) {
-                Ok(b) => b,
-                Err(err) => {
-                    eprintln!("pdfcer: {}: {err}", path.display());
-                    return Err(exit::IO_ERROR);
-                }
-            };
-            match OcrcerEngine::from_bytes(&bytes) {
-                Ok(e) => Ok((LoadedOcrEngine::Ocrcer(Box::new(e)), source)),
-                Err(err) => {
-                    eprintln!(
-                        "pdfcer: ocr: {}: not a usable OCRcer model: {err}",
-                        path.display()
-                    );
-                    Err(exit::RUNTIME_ERROR)
-                }
-            }
-        }
-        #[cfg(feature = "paddle")]
-        OcrEngineArg::Paddle => {
-            use pdfcer_core::ocr::engine_paddle::{
-                DETECTION_MODEL, MODEL_DIR, PaddleEngine, RECOGNITION_MODEL,
-            };
-            let source = match models::resolve_model_dir_with(
-                MODEL_DIR,
-                model_dir,
-                exe_dir.as_deref(),
-                None,
-                &[DETECTION_MODEL, RECOGNITION_MODEL],
-            ) {
-                Ok(src) => src,
-                Err(err) => {
-                    eprintln!("pdfcer: ocr: {err}");
-                    eprintln!(
-                        "pdfcer: ocr: the PaddleOCR models are two files, `{DETECTION_MODEL}` \
-                         and `{RECOGNITION_MODEL}`, in a `models/paddle` folder, which the \
-                         portable package ships. Copy that folder beside this executable, or \
-                         pass --model-dir <a folder holding PP-OCR ONNX models with those \
-                         names, plus `dict.txt` if the recognition model does not embed one>."
-                    );
-                    return Err(exit::RUNTIME_ERROR);
-                }
-            };
-            match PaddleEngine::from_model_dir(source.path()) {
-                Ok(e) => Ok((LoadedOcrEngine::Paddle(Box::new(e)), source)),
-                Err(err) => {
-                    eprintln!("pdfcer: ocr: {err}");
-                    Err(exit::RUNTIME_ERROR)
-                }
-            }
-        }
-        #[cfg(not(feature = "paddle"))]
-        OcrEngineArg::Paddle => {
-            eprintln!(
-                "pdfcer: ocr: --ocr-engine paddle: this build was compiled without the `paddle` \
-                 feature, so the PaddleOCR engine is not in it. Rebuild with \
-                 `cargo build -p pdfcer-cli --features paddle`, or use --ocr-engine ocrs."
-            );
-            Err(exit::UNIMPLEMENTED)
-        }
-        #[cfg(not(feature = "ocrs"))]
-        OcrEngineArg::Ocrs => {
-            eprintln!(
-                "pdfcer: ocr: --ocr-engine ocrs: this build was compiled without the `ocrs` \
-                 feature, so the ocrs engine is not in it. Rebuild with \
-                 `cargo build -p pdfcer-cli --features ocrs`, or choose another --ocr-engine."
-            );
-            Err(exit::UNIMPLEMENTED)
-        }
-        #[cfg(not(feature = "ocrcer"))]
-        OcrEngineArg::Ocrcer => {
-            eprintln!(
-                "pdfcer: ocr: --ocr-engine ocrcer: this build was compiled without the `ocrcer` \
-                 feature, so the OCRcer engine is not in it. Rebuild with \
-                 `cargo build -p pdfcer-cli --features ocrcer`, or use --ocr-engine ocrs \
-                 (the model file it would need is `ocrcer.ocrw`)."
-            );
-            Err(exit::UNIMPLEMENTED)
-        }
-        OcrEngineArg::Tesseract => {
-            let source = match models::resolve_model_dir_with(
-                tesseract::MODEL_DIR,
-                model_dir,
-                exe_dir.as_deref(),
-                None,
-                &[tesseract::EXE_FILE],
-            ) {
-                Ok(src) => src,
-                Err(err) => {
-                    eprintln!("pdfcer: ocr: {err}");
-                    eprintln!(
-                        "pdfcer: ocr: Tesseract is a folder holding `{}` and a `{}` folder of \
-                         language files. The portable package ships it as `models/tesseract`; \
-                         otherwise pass --model-dir <folder>, which may be a stock Tesseract \
-                         install.",
-                        tesseract::EXE_FILE,
-                        tesseract::TESSDATA_DIR
-                    );
-                    return Err(exit::RUNTIME_ERROR);
-                }
-            };
-            match tesseract::TesseractEngine::from_dir(source.path(), ocr_lang, dpi) {
-                Ok(e) => {
-                    eprintln!("pdfcer: ocr: running {} (-l {ocr_lang})", e.exe().display());
-                    Ok((LoadedOcrEngine::Tesseract(e), source))
-                }
-                Err(err) => {
-                    eprintln!("pdfcer: ocr: {err}");
-                    Err(exit::RUNTIME_ERROR)
-                }
-            }
-        }
-    }
-}
-
 /// `ocr` — recognise a scanned page and add an invisible text layer.
 ///
 /// # The pipeline, and where each step can go wrong
@@ -531,14 +254,13 @@ pub(crate) fn cmd_ocr(
     output: Option<&Path>,
     in_place: bool,
     dpi: f32,
-    engine_choice: OcrEngineArg,
-    model_dir: Option<&Path>,
+    model_choice: &OcrModelChoice<'_>,
     ocr_lang: &str,
     show_words: bool,
     dump_image: Option<&Path>,
     existing: ExistingOcrArg,
 ) -> u8 {
-    use pdfcer_core::ocr::{OcrPage, PagePlacement, layer, models, words_to_page_space_on};
+    use pdfcer_core::ocr::{OcrPage, PagePlacement, layer, words_to_page_space_on};
 
     // Exactly one destination. `conflicts_with` already refuses BOTH, so the
     // only case left is NEITHER -- and that has to be a refusal rather than a
@@ -595,7 +317,7 @@ pub(crate) fn cmd_ocr(
     };
     let page = &pages[index];
 
-    let (engine, source) = match load_ocr_engine(engine_choice, model_dir, ocr_lang, dpi) {
+    let (engine, engine_choice, source) = match load_ocr_engine(model_choice, ocr_lang, dpi) {
         Ok(loaded) => loaded,
         Err(code) => return code,
     };
@@ -795,12 +517,8 @@ recognised={} written={} replaced={} confidence={}",
     }
     eprintln!(
         "pdfcer: ocr: models loaded from {} ({})",
-        source.path().display(),
-        match source {
-            models::ModelSource::OperatorSupplied(_) => "--model-dir",
-            models::ModelSource::BesideExecutable(_) => "beside the executable",
-            models::ModelSource::UserData(_) => "user data",
-        }
+        source.dir.display(),
+        source.how
     );
     if let Some(line) = engine.disclosure() {
         eprintln!("pdfcer: ocr: {line}");

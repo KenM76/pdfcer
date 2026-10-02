@@ -104,6 +104,13 @@ pub mod onnx_upgrade;
 /// `tesseract.exe`, so this crate never spawns a process.
 pub mod tesseract_tsv;
 
+/// The OCR model add-on manifest (`pdfcer-ocr-model.txt`); pure parsing.
+pub mod addon_manifest;
+
+/// Finding and verifying OCR model add-on folders under caller-given roots.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod addons;
+
 use crate::page_tree::Rect;
 
 /// One recognised word, positioned in PDF default user space.

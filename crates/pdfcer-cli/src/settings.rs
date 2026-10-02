@@ -67,6 +67,10 @@ pub(crate) struct Settings {
     pub(crate) font_folders: Vec<PathBuf>,
     /// `font_file_limit = N`.
     pub(crate) max_font_files: usize,
+    /// `ocr_folder = PATH` lines, in file order, resolved like `font_folder`:
+    /// OCR model add-on roots searched after `models/` beside the executable
+    /// (decision 182).
+    pub(crate) ocr_folders: Vec<PathBuf>,
 }
 
 impl Settings {
@@ -77,6 +81,7 @@ impl Settings {
         system_fonts: false,
         font_folders: Vec::new(),
         max_font_files: DEFAULT_MAX_FONT_FILES,
+        ocr_folders: Vec::new(),
     };
 
     /// Whether any font folder will be searched.
@@ -165,13 +170,14 @@ fn load(path: &Path) -> Result<Settings, u8> {
     Ok(settings)
 }
 
-/// Parse settings text. Relative `font_folder` paths resolve against `base`.
+/// Parse settings text. Relative `font_folder`/`ocr_folder` paths resolve
+/// against `base`.
 ///
 /// Format: one `key = value` per line; blank lines and lines starting `#`
 /// or `;` are ignored; a value may be wrapped in double quotes. Keys:
 /// `workarounds` (`always`|`offer`), `system_fonts` (`on`|`off`),
 /// `font_folder` (a path; repeatable), `font_file_limit` (1 to
-/// [`MAX_FONT_FILE_LIMIT`]). An unknown key, a repeated single-valued key or
+/// [`MAX_FONT_FILE_LIMIT`]), `ocr_folder` (a path; repeatable). An unknown key, a repeated single-valued key or
 /// a bad value is an error naming the line: a typo must not be ignored.
 ///
 /// # Errors
@@ -194,7 +200,8 @@ pub(crate) fn parse(text: &str, base: &Path) -> Result<Settings, String> {
         if value.is_empty() {
             return Err(at(format!("{key} has no value")));
         }
-        if key != "font_folder" && !seen.insert(key) {
+        let repeatable = matches!(key, "font_folder" | "ocr_folder");
+        if !repeatable && !seen.insert(key) {
             return Err(at(format!("{key} is set twice")));
         }
         apply(&mut out, key, value, base).map_err(at)?;
@@ -226,6 +233,7 @@ fn apply(out: &mut Settings, key: &str, value: &str, base: &Path) -> Result<(), 
             };
         }
         "font_folder" => out.font_folders.push(resolve_folder(value, base)),
+        "ocr_folder" => out.ocr_folders.push(resolve_folder(value, base)),
         "font_file_limit" => {
             out.max_font_files = value
                 .parse::<usize>()
@@ -237,7 +245,7 @@ fn apply(out: &mut Settings, key: &str, value: &str, base: &Path) -> Result<(), 
         }
         _ => {
             return Err(format!(
-                "unknown key {key:?}; the keys are workarounds, system_fonts, font_folder and font_file_limit"
+                "unknown key {key:?}; the keys are workarounds, system_fonts, font_folder, font_file_limit and ocr_folder"
             ));
         }
     }
@@ -275,11 +283,12 @@ pub(crate) fn summary_line(s: &Settings) -> String {
         .map_or_else(|| "(built-in)".to_owned(), |p| p.display().to_string());
     format!(
         "settings: using {source}: workarounds={} system_fonts={} font_folders={} \
-         font_file_limit={} (pass --no-settings to ignore it)",
+         font_file_limit={} ocr_folders={} (pass --no-settings to ignore it)",
         s.workarounds.as_str(),
         if s.system_fonts { "on" } else { "off" },
         s.font_folders.len(),
         s.max_font_files,
+        s.ocr_folders.len(),
     )
 }
 
@@ -500,6 +509,17 @@ mod tests {
     }
 
     #[test]
+    fn ocr_folder_repeats_and_resolves_beside_the_file() {
+        let s = parse("ocr_folder = ocr\nocr_folder = \"more ocr\"\n", &base()).unwrap();
+        assert_eq!(
+            s.ocr_folders,
+            vec![base().join("ocr"), base().join("more ocr")]
+        );
+        assert!(s.font_folders.is_empty());
+        assert!(summary_line(&s).contains("ocr_folders=2"));
+    }
+
+    #[test]
     fn an_empty_file_is_the_default() {
         let s = parse("", &base()).unwrap();
         assert_eq!(s, Settings::DEFAULT);
@@ -518,6 +538,7 @@ mod tests {
             ),
             ("font_file_limit = 0", "font_file_limit is"),
             ("font_folder =", "font_folder has no value"),
+            ("ocr_folder =", "ocr_folder has no value"),
             ("just words", "is not `key = value`"),
         ] {
             let err = parse(text, &base()).unwrap_err();
