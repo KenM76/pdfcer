@@ -10,9 +10,9 @@ use std::collections::BTreeSet;
 use crate::object::Dict;
 use crate::text_edit::edit::{
     EditLayout, EditPlan, EditRequest, EncodedReplacement, FollowerDisposition, FontClass,
-    FontWrites, OpRec, PlanMode, Rec, ShowData, ShowElem, ShowOp, advance_before, carried_codes,
+    FontWrites, OpRec, Rec, ShowData, ShowElem, ShowOp, advance_before, carried_codes,
     classify_font, compensating_tj, edit_report, emit_show, encode_in, find_anchor, glyph_advance,
-    is_subset_tag, resolve_font_dict, same_line, splice, target_disclosures, trust_disclosure,
+    is_subset_tag, resolve_font_dict, same_line, target_disclosures, trust_disclosure,
     writes_vertically,
 };
 use crate::text_edit::fallback::{self, Fallback, FallbackFace, RunAt};
@@ -449,15 +449,13 @@ pub(crate) fn plan(p: &Planning<'_>, req: &EditRequest) -> Result<EditPlan, Stri
     };
     report.fallback = fallback_use;
     Ok(EditPlan {
-        new_content: match p.mode {
-            PlanMode::Commit => splice(&p.stream.buf, &mut emitted.edits),
-            PlanMode::Preview => Vec::new(),
-        },
+        new_content: p.mode.content(&p.stream.buf, &mut emitted.edits),
         report,
         layout,
         font_writes: FontWrites::default(),
         rewritten: None,
         font_program: None,
+        cid_to_gid: None,
         created_font,
     })
 }

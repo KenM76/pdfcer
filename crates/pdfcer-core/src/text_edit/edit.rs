@@ -2386,6 +2386,16 @@ pub(crate) enum PlanMode {
     Preview,
 }
 
+impl PlanMode {
+    /// The spliced content under `Commit`, empty under `Preview`.
+    pub(crate) fn content(self, buf: &[u8], edits: &mut [(usize, usize, Vec<u8>)]) -> Vec<u8> {
+        match self {
+            PlanMode::Commit => splice(buf, edits),
+            PlanMode::Preview => Vec::new(),
+        }
+    }
+}
+
 /// [`plan_edit_target`] over already-walked `recs` (from [`walk_records`]
 /// over the same `stream` and `target.resources`), with the decision 175
 /// workaround when `opts` applies it.
@@ -2473,10 +2483,7 @@ pub(crate) fn plan_exact(
         a_old_last: codes_advance(run_font, &m.old_codes, anchor) + m.kern_advance,
     };
     let mut laid = lay(&laying, &at);
-    let new_content = match mode {
-        PlanMode::Commit => splice(&stream.buf, &mut laid.edits),
-        PlanMode::Preview => Vec::new(),
-    };
+    let new_content = mode.content(&stream.buf, &mut laid.edits);
     // The report only; the caller performs its own write step.
     let mut disclosures = laid_notes(enc.encoded.disclosures, &mut laid, rewritten.is_some());
     disclosures.extend(general_disclosures(
