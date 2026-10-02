@@ -4,6 +4,66 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (874th filing) — `Pass 430.1` FULLY SHIPPED (composite subset augmentation) + incidental `post`-table crash fix
+
+**Shipped:**
+- `Pass 430.1` composite slice (`cb1c7263`) — a `/Type0`/`CIDFontType2`
+  composite subset can now be augmented too, same route decision 173
+  already shipped for simple TrueType: typing a character the subset
+  lacks appends that glyph from the installed face the subset was cut
+  from, CIDs assigned, `/CIDSet` bit set, subset re-tagged, disclosed as
+  an inference. **`Pass 430.1` is now FULLY SHIPPED** — `430.3` (route B,
+  symbolic fonts) is the only item left in the `G073`–`G081` family.
+- `6d903feb` (incidental, found by the new `font_augment` fuzz target
+  within a minute) — a `post`-table name-index panic fixed. read-fonts
+  0.39 unwraps `None` when a version-2.0 `post` table's name index runs
+  past absent string data; two callers took untrusted embedded fonts —
+  `glyph_for_name` (plain rendering of any simple TrueType font with
+  `/Differences`, so this was a pre-existing crash on RENDERING, not only
+  editing) and `EmbeddedProgramGlyphs::glyph_names`. Shared guard
+  `post_glyph_name` now treats such an index as unnamed.
+
+**Decisions made this session:**
+- Decision 177 (`docs/decisions/177-composite-subset-augment.md`) —
+  amends decision 173 §6, which deferred `/Type0`+`CIDFontType2` to a
+  later Pass; this is that Pass. CID assignment off `/CIDToGIDMap`
+  (`/Identity` → CID=GID; a map stream gets zero-extended to the first
+  free, unshown, unmapped CID); `/W`/`/ToUnicode`/`/CIDSet` copy-on-write;
+  a `FontFile2` shared with another font is **copied**, not refused (same
+  as the simple route). Decision ceiling `176` → `177`, next free `178`.
+
+**Findings + decisions:**
+- The program carries no `cmap` under `/Type0`/`/Identity-H` (ISO 32000-2
+  §9.9 forbids one on a `CIDFontType2`), so coverage and the identity
+  check run entirely on the `(glyph, character)` pairs the PDF itself
+  gives — never on a `cmap` the program happens to carry, to avoid two
+  sources of truth that can disagree.
+- Known gaps disclosed, not hidden (decision 177 §5): an embedded-CMap
+  stream is refused earlier by the font classifier, naming that
+  classifier's cause rather than this route's; under a `/CIDToGIDMap`
+  stream the typing repertoire doesn't offer characters the program
+  already holds at an unmapped GID; the disclosure lists every character
+  the run's font was missing, not only those that needed a glyph
+  appended.
+- Windows aborted before libFuzzer could write a crash artifact for the
+  `post`-table panic, so the regression unit test is the only replay —
+  worth a cross-project RAG note (read-fonts `post` v2.0 hostile-index
+  panic; Windows libFuzzer abort leaves no artifact) if not already
+  present.
+- No shell this filing. Hashes (`cb1c7263`, `6d903feb`) and every test
+  count/sabotage result above relayed from the dispatching engineer's own
+  report, not independently reproduced.
+
+**Still in flight:** `Pass 430.3` (route B, symbolic fonts) is now the
+head of the `G073`–`G081` family; `436.2` (matching ladder) and `436.3`
+(gui settings screen) remain in the `436.x` family, unaffected by this
+filing.
+
+**For next session:** Pick up `430.3` per `ROADMAP.md`'s *Next up*
+ordering; check whether a `C:\personal_rag\pdf\` or `D:\dev\rag\rust\`
+finding already covers the read-fonts `post`-table panic before writing
+a new one.
+
 ## 2026-10-02 (873rd filing) — `Pass 436.0` SHIPPED (opt-in disclosed workarounds for refused text edits)
 
 **Shipped:**

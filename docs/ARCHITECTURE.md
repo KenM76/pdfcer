@@ -2894,6 +2894,20 @@ incremental save stays the default.
 > `430.2`/`430.3` (`ROADMAP.md`, Next up) — not yet built; this paragraph
 > records the contract, not a shipped capability.
 
+> **★ FURTHER NARROWED 2026-10-02 (874th filing, decisions 173/177,
+> `Pass 430.1` now fully SHIPPED).** A second, independent exception to
+> R107's "never rewrites an existing `/FontFile*`/`/FontDescriptor`" claim:
+> a **wholesale replacement** of an existing `FontFile2`/`FontDescriptor`
+> pair with a new, strict-superset program (old bytes copied unchanged,
+> new glyphs appended), for a character no additive encoding/`/CIDToGIDMap`
+> trick (decision 172) can reach. Covers both simple TrueType (decision
+> 173) and composite `/Type0`/`CIDFontType2` under `/Identity-H` (decision
+> 177) subsets alike. The old stream/descriptor are left byte-identical for
+> any other font dictionary sharing them — including a `FontFile2` another
+> font resource shares, which is **copied** rather than refused. Still
+> never an in-place program edit; `R260` requires the new program be
+> re-parsed and verified a strict superset before commit.
+
 `pdfcer-render` gains `font::subset` — `plan_subset(donor_bytes, ...)
 -> Result<FontEmbedPlan, SubsetError>`, parsing the donor via the
 existing skrifa parser (no second font-program parser added anywhere
@@ -12382,3 +12396,63 @@ touched; the mechanism is a content-stream rewrite inside the existing
 
 **Decision ceiling.** Fills the gap decision 176 reserved; ceiling stays at
 `176`, next free `177`.
+
+### 2026-10-02 (874th filing, `cb1c7263`, KenAgent) — decision 177: a `/Type0`/`CIDFontType2` subset may also be augmented from an installed face, same route as the simple-font case
+
+**Trigger.** `pdfcer-gui` request `G075(b)`, the decision 173 route for
+the composite fonts Word and Chrome emit (`/Type0`, `/Identity-H`,
+`CIDFontType2`, subset `FontFile2`). Amends decision 173 §6, which
+deferred `/Type0`+`CIDFontType2` to a later Pass — this decision is that
+Pass; every decision-173 rule not restated here (I1–I5 identity check,
+hinting, tag derivation, `fsType`, settings, disclosure, one undo entry)
+applies unchanged.
+
+**What this decides.** A `CIDFontType2` under `/Identity-H` carries no
+`cmap` (ISO 32000-2 §9.9: "shall not be present"), so coverage and the
+identity check run on the `(glyph, character)` pairs the document itself
+gives — each `/ToUnicode`-mapped CID through `/CIDToGIDMap` to its glyph
+— never on a `cmap` the program happens to carry, to avoid two sources of
+truth that can disagree. CID assignment: `/CIDToGIDMap /Identity` → CID =
+GID, no choice; a map stream → the first CID at or above the new GID
+(then from 1) the map leaves at GID 0, unshown, unmapped, zero-extended
+to reach it (bounded `MAX_MAP_BYTES`). `/W` and `/ToUnicode` gain a
+copy-on-write entry per new CID; `/CIDSet`, when present, gets a new
+stream with the new CIDs' bits set (Table 124), referenced by the new
+descriptor, old stream untouched. The `/Type0`/descendant `/BaseFont` and
+descriptor `/FontName` are re-tagged together, a `-Identity-H` suffix
+preserved. **A `FontFile2` shared with another font is copied, not
+refused** — the edited font's new descriptor points at a new program,
+every other font keeps the old object byte-identical; this is the simple
+route's behaviour already, since decision 173 never rewrites a program in
+place, and a refusal would block an edit that harms no other font.
+Refused by name: a CFF `CIDFontType0` descendant (only a TrueType program
+can have glyphs appended); a CMap other than `/Identity-H` (`/Identity-V`
+refused earlier, as vertical); an embedded CMap stream (refused earlier by
+font classification, with that classifier's own message — a known
+imprecision).
+
+**Known gaps, disclosed not hidden.** An embedded-CMap refusal names the
+classifier's cause, not this route's. Under a map stream, the typing
+repertoire does not offer characters the program already holds at an
+unmapped GID — the edit refuses when nothing needs appending. The
+disclosure lists every character the run's font was missing, not only
+those that needed a glyph appended.
+
+**Amends.** Decision 173 §6 (composite fonts deferred). Nothing else —
+runs the same route, same identity check, same refusal order as the
+simple-font case.
+
+**Rejected.** Refusing a shared `FontFile2` by name (blocks a harmless
+edit; see above).
+
+**Full record:** `docs/decisions/177-composite-subset-augment.md`.
+
+**Body-section effect.** §4's `font_embed.rs`/FF-C entry gains the
+decision-173 narrowing it deferred (§2888's "NARROWED 2026-10-01" block
+covered only decision 172's additive extension) — decision 173/177
+together permit a **new**, strict-superset `FontFile2` replacing an
+existing one wholesale, for both simple TrueType and composite
+`CIDFontType2` subsets, never an in-place program rewrite. Filed as a
+dated note immediately after that block, this entry.
+
+**Decision ceiling: `176` → `177`**, next free `178`.
