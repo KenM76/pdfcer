@@ -115,6 +115,115 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 447.0` (`142fdda5`), 2026-10-02 — Area ce dimension: `area` flag on a closed Perimeter (G098) — `Pass 447.0` SHIPPED
+
+Cite `142fdda5` (cherry-picked from worktree `9b01e432`). Answers `pdfcer-gui`
+request `G098` (operator-reported, `O280` — **not** the `O279` family
+`443.0`–`446.0` belong to). Complements the existing Perimeter ce
+dimension (`Pass 107.0`).
+
+**Area as a flag, not a new kind.** `DimensionKind::Perimeter` gains
+`area: bool` — a closed outline flagged to report enclosed area instead
+of path length, not a separate `DimensionKind`. `vector::polygon_area`
+(shoelace, either winding) computes it; module `dimension::area`
+(`format_area_measurement`, `area_unit_label`, `area_places`) formats
+it. New verb `EditSession::set_dimension_area` (`EditSession` now 313
+public verbs) toggles the flag on an existing closed ce dimension in one
+undo entry. New `EditError::AreaNeedsThreeVertices { vertices }` and
+`AreaNeedsClosedOutline` (`EditError` now 165 variants) refuse an open
+outline or too few vertices by name.
+
+**Encoding.** `/Measure /A` carries an m² factor of 1 (ISO 32000-1 Table
+262). Sidecar writes `/Area true` and bumps to schema version 5 only for
+a document that holds one. **Defect fixed on discovery, same commit:** a
+ce dimension's `/Contents` is now written as a PDF text string (§7.9.2)
+instead of raw UTF-8 bytes — pre-existing, not introduced by this Pass;
+also fixes a garbled `°` in angular ce-dimension labels.
+
+**CLI.** `dimension-add --kind area`; new `dimension-area --show
+perimeter|area [--verify-undo]`; `dimension-list` prints `kind=area`.
+README now 206 working subcommands.
+
+**Tests.** 13 core + 4 CLI tests; 14 sabotage mutations all caught;
+incremental save keeps every original byte untouched.
+
+**No §12 decision.** The area flag extends `Pass 107.0`'s existing
+design without a new architectural call; decision ceiling stays `186`.
+
+**`FEATURES.md`.** *ce dimensions*: the Perimeter row's stale "not an
+area tool, never square units" claim corrected (hard rule 11) — it is
+no longer true for a closed outline. Two new rows added (Author an Area
+ce dimension; Switch a closed ce dimension between Perimeter and Area
+display), both `core [x]` / `cli [x]` / `gui [ ]`; the matching *Planned*
+row removed.
+
+**GUI channel.** Reply filed:
+`open/reply_request_G098_a_ce_dimension_cannot_measure_an_area_FIXED.md`
+(confirmed on disk); `pdfce_FeatureRequests/INDEX.md` already carries
+the `FIXED` row. Unreleased — no tag covers `142fdda5` yet.
+
+**Sourcing (hard rule 8).** No shell this filing. `142fdda5` confirmed
+present at `HEAD` per the git-status snapshot at the start of this
+conversation; the dispatching engineer reports gates green on
+`142fdda5`, relayed not reproduced; every test figure above is likewise
+relayed.
+
+### `Pass 442.2` (`b53200e8`), 2026-10-02 — PaddleOCR-VL engine, first rung (decision 183) — `Pass 442.2` SHIPPED
+
+Cite `b53200e8` (cherry-picked from worktree `5f7b5fb2`). First engine
+rung after the 877th filing's feasibility spike; implements decision
+183, §12.
+
+**Engine.** New module `ocr::engine_paddle_vl` (`PaddleVlEngine`,
+`read_region` → `RegionReading`) behind a new default-on Cargo feature
+`ocr-vl`, running through the existing `rten` runtime. No new crates: a
+small in-crate byte-fallback BPE tokenizer and JSON reader
+(`vl_tokenizer`, `json_lite`, `#[doc(hidden)]`, fuzzable) replace the
+`tokenizers` crate, whose `default-features = false` build still pulls
+`rayon`/`rayon-cond`/`getrandom`/`rand` — threading forbidden in the
+engine. `cargo tree -p pdfcer-core`/`-p pdfcer-render`: no GUI or
+network crate. wasm32 check clean.
+
+**Reading model, this rung.** One region per page — the page's ink
+bounding box plus a 16 px margin, no layout stage yet (PP-DocLayoutV2
+layout is the next rung, not filed). One `RecognizedWord` per *line*,
+not per word; line boxes inferred (`LinePlacement::Bands`/`Even`).
+Confidence is the region's mean token softmax, same for every line.
+
+**Disclosure (rule 4).** The text layer discloses it is region-aligned,
+one box per line, inferred, not reported by the model; which placement
+mode was used; a warning when the token ceiling truncated decoding.
+
+**CLI.** `pdfcer ocr --ocr-model paddle-vl` / `--ocr-engine paddle-vl`;
+`ocr-models` lists the add-on with hash verification. Models are
+Apache-2.0, never shipped; `tools/build-paddle-vl-addon.py` builds the
+add-on folder from a local copy of the ONNX export (~1.2 GB), never
+downloads.
+
+**Measured.** A synthetic invoice page read at 94.9% confidence;
+find-text positions close to truth. 22,706 fuzz inputs, no crash — found
+and fixed a line box ending 1 px below the image, now a regression test.
+22 sabotage mutations all caught.
+
+**Known wording defect, NOT fixed this Pass.** The shared OCR report
+line says "N word(s) written" for an engine that writes lines, not
+words — flagged for the engineer to fix next session as a one-line
+wording change, not filed as its own Pass.
+
+**`FEATURES.md`.** PaddleOCR-VL engine row (already *Implemented*)
+ticked `core [x]` / `cli [x]` / `gui [ ]`; text replaced to describe the
+shipped first rung in place of the feasibility-spike wording.
+
+**Decision ceiling.** Fills the reservation held since the 877th
+filing; `183` was already below ceiling `186`, so the ceiling is
+unmoved; next free decision stays `187`.
+
+**Sourcing (hard rule 8).** No shell this filing. `b53200e8` confirmed
+present at `HEAD`~1 per the git-status snapshot at the start of this
+conversation; the dispatching engineer reports gates green on
+`142fdda5` (the branch tip, covering this commit), relayed not
+reproduced; every measured/fuzz figure above is likewise relayed.
+
 ### `Pass 445.0` (`4e514b29`), 2026-10-02 — SVG import as vector content via `usvg`, `add-svg` (G093) — `Pass 445.0` SHIPPED
 
 Cite `4e514b29`. Answers `pdfcer-gui` request `G093` (operator-reported,
@@ -16505,6 +16614,36 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **GUI CHANNEL, 2026-10-02 (884th filing).** Confirmed
+> on disk in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`: reply files
+> exist and `INDEX.md` carries a `FIXED` row for `G093`, `G095`, `G097`
+> (shipped `Pass 445.0`/`443.0`, 883rd filing — not recorded here at the
+> time) and `G098` (`Pass 447.0`, this filing). **Correction:** `G098` is
+> request family `O280`, not `O279` — `O279` is still exactly
+> `443.0`–`446.0`. Unreleased — no tag covers `4e514b29`/`d2ff7403`/
+> `51f299ed`/`142fdda5` yet.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 447.0` SHIPPED, 2026-10-02 (884th filing),
+> `142fdda5`** — see *Shipped*, above. `G098`: Area ce dimension —
+> `DimensionKind::Perimeter` gains an `area: bool` flag (not a new kind);
+> `EditSession::set_dimension_area`; CLI `dimension-add --kind area` /
+> `dimension-area --show perimeter|area`. Defect fixed on discovery:
+> ce-dimension `/Contents` now a PDF text string, fixing a garbled `°` in
+> angular labels. **`Pass 447.0` is now SHIPPED.** `Pass 448.0` (tiling-
+> pattern render gap, filed 883rd filing) moves from QUEUED to **IN
+> PROGRESS** — a worker is now assigned. `gui [ ]` not wired.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 442.2` SHIPPED (first rung), 2026-10-02 (884th
+> filing), `b53200e8`** — see *Shipped*, above. PaddleOCR-VL engine behind
+> `ocr-vl`: one ink-bbox region per page (no layout stage yet), one
+> `RecognizedWord` per line; in-house BPE tokenizer, zero new crates.
+> Decision 183, §12 — fills the reservation held since the 877th filing;
+> ceiling stays `186` (183 was below it), next free decision stays `187`.
+> **`Pass 442.2`'s first rung is now SHIPPED** — the layout-model rung
+> (PP-DocLayoutV2) is not filed. Known wording defect (shared OCR report
+> says "word(s) written" for this line-level engine) flagged, not fixed
+> this filing. `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **NEW PASS FILED 2026-10-02 (883rd
 > filing) — `Pass 447.0`, `G098`, the Area ce dimension.** A `/Polygon` +

@@ -4,6 +4,86 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (884th filing) — `Pass 442.2` SHIPPED (PaddleOCR-VL engine, first rung, decision 183); `Pass 447.0` SHIPPED (Area ce dimension, `G098`); `Pass 448.0` now IN PROGRESS; GUI channel replies confirmed for `G093`/`G095`/`G097`/`G098`
+
+**Shipped:**
+- `Pass 442.2` (`b53200e8`, cherry-picked from worktree `5f7b5fb2`) —
+  PaddleOCR-VL engine, first rung. New `ocr::engine_paddle_vl` behind
+  default-on feature `ocr-vl`, through the existing `rten` runtime; zero
+  new crates — an in-crate byte-fallback BPE tokenizer/JSON reader
+  replace `tokenizers`, whose `default-features = false` build still
+  pulls `rayon`/`getrandom`/`rand`. One ink-bounding-box region per page,
+  one `RecognizedWord` per line (no layout stage yet); disclosed as
+  inferred/region-aligned/line-level, rule 4. CLI `pdfcer ocr --ocr-model
+  paddle-vl`; `tools/build-paddle-vl-addon.py` builds the add-on locally,
+  never downloads — models stay Apache-2.0, never shipped. Measured 94.9%
+  confidence on a synthetic invoice page; 22,706 fuzz inputs, no crash
+  (one line-box-off-by-1px bug found and fixed, now a regression test);
+  22/22 sabotage mutations caught. Decision 183 recorded.
+- `Pass 447.0` (`142fdda5`, cherry-picked from worktree `9b01e432`) —
+  Area ce dimension (`G098`). `DimensionKind::Perimeter` gains `area:
+  bool` — a closed perimeter flagged for enclosed area, not a new kind;
+  `vector::polygon_area` (shoelace); new verb
+  `EditSession::set_dimension_area` (`EditSession` now 313 verbs); two
+  new `EditError` variants (now 165). `/Measure /A` m² factor 1; sidecar
+  `/Area true`, schema version 5 only when used. Defect fixed on
+  discovery: ce-dimension `/Contents` now a PDF text string, not raw
+  UTF-8 — also fixes a garbled `°` in angular labels. CLI `dimension-add
+  --kind area`, new `dimension-area --show`; README now 206 subcommands.
+  13 core + 4 CLI tests, 14/14 sabotage mutations caught.
+
+**Decisions made this session:**
+- Decision 183 (PaddleOCR-VL engine, first rung) added to
+  `ARCHITECTURE.md` §12 — fills the reservation held since the 877th
+  filing; ceiling stays `186` (`183` was below it), next free decision
+  stays `187`.
+- No decision reserved or used for `Pass 447.0` — the `area` flag
+  extends `Pass 107.0`'s existing design, not a new architectural call.
+
+**Findings + decisions:**
+- `FEATURES.md` sweep (hard rule 11): the *ce dimensions* Perimeter
+  row's "not an area tool... never square units" claim is now false for
+  a closed outline — corrected in the same filing as the meaning change
+  (`Pass 447.0`). Two new rows added (Author an Area ce dimension; Switch
+  a closed ce dimension between Perimeter and Area display); the
+  matching *Planned* row removed.
+- Known wording defect, NOT fixed this filing: the shared OCR report
+  line says "N word(s) written" even for `Pass 442.2`'s line-level
+  engine. Flagged for the engineer to fix next session as a one-line
+  wording change, not filed as a new Pass.
+- GUI channel: confirmed on disk (`D:\Dev\FeatureRequests\
+  pdfce_FeatureRequests\`) that reply files exist and `INDEX.md` carries
+  a `FIXED` row for `G093`/`G095`/`G097` (shipped `Pass 445.0`/`443.0` at
+  the 883rd filing, not recorded there at the time) and `G098` (`Pass
+  447.0`, this filing). **Correction surfaced by this check:** `G098` is
+  request family `O280`, not `O279` — `O279` stays exactly
+  `443.0`–`446.0`. All four unreleased (no tag covers any of the four
+  commits yet).
+
+**Still in flight:**
+- `Pass 448.0` (render `PatternType 1` tiling patterns, core-render-only)
+  moves from QUEUED to **IN PROGRESS** — a worker is now assigned.
+- The PaddleOCR-VL layout-model rung (PP-DocLayoutV2) is not filed as a
+  Pass yet.
+- `Pass 446.0` (EMF import, `G094`) remains the only unstarted item in
+  the `O279` family.
+
+**For next session:**
+- Fix the "word(s) written" OCR-report wording for line-level engines
+  (PaddleOCR-VL; check whether any other line-level engine shares it).
+- Check `Pass 448.0`'s progress.
+- Confirm gates green on `142fdda5` independently once a shell is
+  available (relayed only, this filing).
+
+**Sourcing note (hard rule 8):** no shell this filing. Commits
+`b53200e8` and `142fdda5` confirmed present at `HEAD`~1/`HEAD` per the
+git-status snapshot at the start of this conversation; the dispatching
+engineer reports gates green on `142fdda5` (covering both commits) —
+relayed, not independently reproduced. Every test/fuzz/measurement
+figure above is likewise relayed from the engineer's own report. The
+GUI-channel file paths above WERE independently checked via `Glob`/
+`Grep` on `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`, not relayed.
+
 ## 2026-10-02 (883rd filing) — `Pass 443.0` + `Pass 445.0` SHIPPED (image stamp/button icon `G095`/`G097`, decision 185; SVG import via `usvg` `G093`, decision 186); `Pass 447.0` (Area ce dimension, `G098`) filed IN PROGRESS; `Pass 448.0` filed (render `PatternType 1` tiling patterns)
 
 **Shipped:**

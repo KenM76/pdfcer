@@ -12918,3 +12918,68 @@ Next free decision `187`.
 Form XObject, never a raster, ceilings refused by name) is already
 covered by the existing image-import precedent; no new project-wide
 rule needed.
+
+### 2026-10-02 (884th filing, KenAgent) — decision 183: PaddleOCR-VL ships compiled-in behind `ocr-vl`, with its own byte-fallback BPE tokenizer instead of the `tokenizers` crate, reading one ink-bounding-box region per page for this first rung
+
+**Trigger.** `Pass 442.2`'s feasibility spike (877th filing) passed; this
+is the engine Pass it cleared the way for. Reservation held since the
+876th filing.
+
+**What this decides.**
+1. **Engine shape.** `PaddleVlEngine` (`ocr::engine_paddle_vl`) is
+   compiled into pdfcer behind a new default-on feature `ocr-vl`, running
+   on the existing `rten` runtime — not a second inference backend.
+   Weights are an add-on folder only (decision 182's mechanism), never in
+   the portable package; the operator builds it locally from
+   `onnx-community/PaddleOCR-VL-1.5-ONNX` (Apache-2.0), nothing fetched.
+2. **No `tokenizers` crate.** Its `default-features = false` build still
+   pulls `rayon`/`rayon-cond`/`esaxx-rs`/`getrandom`/`rand` — the
+   no-threads-in-core rule and the wasm32 build both forbid that. The
+   model's tokenizer is a plain byte-fallback BPE with a `Replace`
+   normaliser and no pre-tokenizer; `vl_tokenizer` implements exactly
+   that subset and refuses anything outside it (pre-tokenizer, dropout,
+   regex patterns, non-BPE models) as a load-time error, never a silent
+   mis-tokenisation. Net new crates: zero.
+3. **First rung has no layout stage.** The page's ink bounding box (plus
+   a 16 px margin) is read as one region; the model returns text without
+   coordinates, so line boxes are inferred (`LinePlacement::Bands` when
+   line count matches inked row-band count, else `Even`). One
+   `RecognizedWord` per line, not per word. Confidence is the region's
+   mean token softmax, same value for every line in it. Rule 4: the CLI
+   discloses region-alignment, inference, placement mode, token count
+   and a token-ceiling-truncation warning.
+4. **Matching the reference processor exactly.** `smart_resize` rounds
+   ties-to-even as Python's `round` does; resampling is PIL bicubic
+   (a = −0.5) with support widened on downsampling, horizontal pass then
+   vertical, each clamped to u8; patches flatten in `(gh, gw, c, py, px)`
+   order. Unit-test values are computed with Python/PIL, not hand-derived.
+5. **Graph trust.** The vision encoder is rewritten offline by the
+   add-on builder (three rewrites, feasibility doc); the decoder and
+   embedding graph ship as exported. At load, the engine checks node
+   names, requires fixed cache dimensions and pairs every `present.*`
+   output with its `past_key_values.*` input — a differently-shaped
+   export is refused (`PaddleVlError::Interface`), never guessed at.
+
+**Known wording defect, not fixed by this decision.** The shared OCR
+report line says "N word(s) written" for an engine whose unit is the
+line, not the word. Flagged for the engineer, not filed as a Pass.
+
+**Rejected.** The `tokenizers` crate (point 2 — threading/wasm32
+violation). A layout stage in this rung (point 3 — PP-DocLayoutV2 is a
+separate, unfiled rung; one region per page is the honest scope of what
+shipped).
+
+**Full record:** `docs/decisions/183-paddle-vl-engine.md`.
+
+**Body-section effect.** None edited by this filing (librarian scope
+this session is `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/this
+decision log only). **Owed:** §2's OCR-engine list should gain
+`paddle-vl`; §10's ceiling table should gain this rung's seven bounds
+(`vl_pre`/`vl_decode`/`vl_tokenizer`/`json_lite`) — flagged, not
+actioned, here.
+
+**Decision ceiling.** Fills the reserved `183`, already below ceiling
+`186` — ceiling unmoved. Next free decision stays `187`.
+
+**New standing rule.** None — scoped to this one engine's tokenizer and
+first-rung reading model, not a project-wide-reusable rule.
