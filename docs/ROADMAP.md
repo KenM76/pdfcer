@@ -137,6 +137,8 @@ Answers `pdfcer-gui` request `G076`; same `G073`–`G081` family as the `427.0`�
 
 **Sourcing (hard rule 8).** No shell this filing. Hashes (`50c34f42`/`ff0f93a9`, cherry-pick of agent commits `a03adc2e`/`6a93d2d6`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
 
+**Follow-on, `8806a484`, 2026-10-02 (869th filing).** `fix(text-edit): block text sets no fallback face` — `Pass 431.0` (`a74f6147`) added a `pub(crate)` field `fallback` to `EditLayout`; this Pass's `edit_block_text` was built in a parallel worktree without it, so the merged main did not compile until this commit set `fallback: None` in the block-text layout initialiser. Paragraph replacement still uses only the block's own font, so an unencodable character still refuses the whole edit, matching the `G076` reply. No behaviour change beyond restoring compilation.
+
 ### `Pass 431.0` (`a74f6147`), 2026-10-02 — fallback face for unencodable characters (G078) — `Pass 431.0` SHIPPED
 
 Answers `pdfcer-gui` request `G078`; same `G073`–`G081` family as the `427.0`–`436.3` items. Cherry-picked from agent commit `adf332bc`.

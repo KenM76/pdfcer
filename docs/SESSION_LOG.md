@@ -4,6 +4,32 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (869th filing) — `Pass 433.0` merge follow-on (`8806a484`) — block text sets no fallback face
+
+**Shipped:**
+- `8806a484` — `fix(text-edit): block text sets no fallback face`. `Pass
+  431.0` (`a74f6147`) added a `pub(crate)` field `fallback` to
+  `EditLayout`; `Pass 433.0`'s `edit_block_text` (`50c34f42`) was built
+  in a parallel worktree without that field, so main did not compile
+  after both cherry-picks landed until this commit set `fallback: None`
+  in the block-text layout initialiser. Behaviour: paragraph
+  replacement still uses only the block's own font, so an unencodable
+  character still refuses the whole edit (matches the `G076` reply).
+  No `FEATURES.md` change, no decision, no new standing rule.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- Two parallel worktrees, each green alone, can break compilation only
+  when both land — one added a struct field, the other built a
+  struct-literal initialiser against the pre-field shape. Verify the
+  merged tip compiles, not each branch in isolation.
+
+**Still in flight:** none beyond what `Pass 433.0`'s own entry already
+lists.
+
+**For next session:** nothing new from this filing.
+
 ## 2026-10-02 (868th filing) — `Pass 433.0` SHIPPED (`50c34f42`+`ff0f93a9`) — replace a block's text and re-wrap it (G076); doc follow-on (`90f0c59e`); CI-wiring follow-on (`27d4aebb`), `R217` tenth amendment note
 
 **Shipped:**
