@@ -29,6 +29,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "add-caret",
     "add-check-box",
     "add-choice-field",
+    "add-emf",
     "add-image",
     "add-image-stamp",
     "add-ltv",

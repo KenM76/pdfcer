@@ -413,6 +413,15 @@ test = false
 doc = false
 bench = false
 
+# Pass 446.0 EMF import: record framing, the DC stack, poly/path/clip
+# records, DIB headers and text offsets are all pdfcer's own parsing.
+[[bin]]
+name = "emf_import"
+path = "fuzz_targets/emf_import.rs"
+test = false
+doc = false
+bench = false
+
 # Pass 5 increment 2: AES-128-CBC decryption. The FIRST cipher in this crate
 # whose control flow is decided by its own input bytes -- an IV split, a
 # block-count truncation, and a PKCS#7 pad length that is READ FROM DECRYPTED

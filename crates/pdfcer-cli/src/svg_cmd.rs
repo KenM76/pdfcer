@@ -2,15 +2,15 @@
 
 use super::*;
 
-/// How `add-svg` fits the drawing into `--rect`.
+/// How `add-svg` and `add-emf` fit the drawing into `--rect`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SvgFit {
     /// Keep the aspect ratio, centred in the rectangle (the default).
     Contain,
     /// Fill the rectangle exactly.
     Stretch,
-    /// The drawing's own size at 96 px per inch, lower-left at the
-    /// rectangle's.
+    /// The drawing's own size (an SVG at 96 px per inch, an EMF's picture
+    /// frame), lower-left at the rectangle's.
     Natural,
 }
 
@@ -188,7 +188,6 @@ fn place_svg(
 /// The rectangle the drawing fills: `requested` itself (stretch), the
 /// largest `natural`-shaped rectangle centred in it (contain), or the
 /// natural size at its lower-left corner.
-#[cfg_attr(not(feature = "svg-import"), allow(dead_code))]
 pub(crate) fn fit_rect(
     requested: pdfcer_core::page_tree::Rect,
     natural: (f64, f64),

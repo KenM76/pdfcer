@@ -603,6 +603,8 @@ mod image;
 use image::*;
 mod image_stamp_cmd;
 use image_stamp_cmd::*;
+mod emf_cmd;
+use emf_cmd::*;
 mod svg_cmd;
 use svg_cmd::*;
 mod objects;

@@ -11636,4 +11636,66 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Place an EMF (Windows enhanced metafile) picture on a page as VECTOR
+    /// content: a Form XObject of path, text and image operators, never a
+    /// raster of the whole picture.
+    ///
+    /// Lines, polygons, Bézier curves, rectangles, ellipses, rounded
+    /// rectangles, paths, pens (width, caps, joins, dashes), solid brushes,
+    /// clipping, world transforms and map modes are drawn exactly. Bitmaps
+    /// become images. Text becomes real, searchable text in a standard PDF
+    /// face; every substituted font is NAMED in `fonts=` and on stderr.
+    /// Records PDF cannot express (raster operations that combine with
+    /// the page, hatched or bitmap brushes, gradients, arcs) are skipped and
+    /// counted BY NAME in `skipped=`; near matches are named in
+    /// `approximated=`.
+    ///
+    /// A file holding both EMF and EMF+ records is drawn from its EMF
+    /// records and says so (`emf_plus_ignored=1`); an EMF+-only file is
+    /// refused, as is a damaged file or one over a size ceiling (exit 9,
+    /// nothing written).
+    ///
+    /// Without `--stamp` the picture is appended to the page content; with
+    /// it, the picture becomes a `/Stamp` annotation's appearance, movable
+    /// and deletable as a comment. Either way it is one undoable edit.
+    AddEmf {
+        /// Input PDF.
+        input: PathBuf,
+        /// The EMF file to place.
+        #[arg(long, value_name = "FILE")]
+        emf: PathBuf,
+        /// 1-based page number to place the picture on.
+        #[arg(long)]
+        page: usize,
+        /// The rectangle to place the picture in, `llx,lly,urx,ury`, in PDF
+        /// user space (points, origin at the page's lower-left).
+        ///
+        /// By default the picture keeps its shape and is centred inside the
+        /// rectangle; `--stretch` fills it exactly; `--natural` uses the
+        /// picture's own size.
+        #[arg(long, value_name = "LLX,LLY,URX,URY", allow_hyphen_values = true)]
+        rect: String,
+        /// Fill `--rect` exactly, distorting the picture if the shapes
+        /// differ (reported as `distorted=1`).
+        #[arg(long)]
+        stretch: bool,
+        /// Replace `--rect`'s size with the picture's own (its EMF picture
+        /// frame), keeping the lower-left corner.
+        #[arg(long, conflicts_with = "stretch")]
+        natural: bool,
+        /// Place the picture as a `/Stamp` annotation instead of page
+        /// content.
+        #[arg(long)]
+        stamp: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the placement reproduces the input byte
+        /// for byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
 }

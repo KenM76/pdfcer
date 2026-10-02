@@ -58,6 +58,7 @@ mod edit_latency;
 mod edit_text_preview;
 mod edit_undo;
 mod editable_roundtrip;
+mod emf_import;
 mod encryption;
 mod facade_paths;
 mod field_appearance;

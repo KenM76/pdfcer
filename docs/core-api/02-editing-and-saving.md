@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 313 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 315 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 313 public `EditSession` methods
+## 1. Verb index — all 315 public `EditSession` methods
 
-**Count: 313.** Established by brace-matched extraction of the
+**Count: 315.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -4092,6 +4092,65 @@ drawn WITHOUT the filter, not omitted.
    `ObjectNumbersExhausted`).
 2. Without the `svg-import` feature neither `svg_import` nor these verbs
    exist; the CLI's `add-svg` then refuses by name (exit 9).
+
+### 1.24b EMF pictures (2 session verbs)
+
+`Pass 446.0`. Import first with the free function
+`emf_import::import(&[u8]) -> Result<ImportedEmf, EmfImportError>` ([MS-EMF];
+no dependency, no feature), then place. Ceilings, refused by name before any
+work: `MAX_INPUT_BYTES` 64 MiB, `MAX_RECORDS` 1,000,000, `MAX_POINTS`
+8,000,000 summed over poly records, `MAX_BITMAP_PIXELS` 64 Mi per bitmap,
+`MAX_SAVE_DEPTH` 1024 nested `EMR_SAVEDC`, `MAX_CONTENT_BYTES` 128 MiB.
+`ImportedEmf::natural_size_pt()` is the header's picture frame (0.01 mm,
+inclusive) in points; `record_count()`, `image_count()`, `notes()`.
+
+Refusals (`EmfImportError`): `NotEmf`, `Corrupt { detail }` (record framing),
+`EmfPlusOnly` (an EMF+ header without the dual flag — nothing is placed),
+`EmptyFrame`, and one variant per ceiling (`TooLarge`, `TooManyRecords`,
+`TooManyPoints`, `BitmapTooLarge`, `SaveDepth`, `TooComplex`, each carrying
+`limit`). A **dual** EMF+/EMF file imports
+from its EMF records with `notes.emf_plus_ignored = true`.
+
+| I want to… | Call | Returns |
+|---|---|---|
+| Draw an EMF as page content | `add_emf(&mut self, page_index: usize, rect: Rect, emf: &ImportedEmf) -> Result<PlacedEmf, EditError>` | Form XObject (`/BBox [0 0 w h]` in points) of path, text and image operators, Flate-compressed; bitmaps as image XObjects, text in inline standard-14 `/WinAnsiEncoding` fonts; a `q sx 0 0 sy llx lly cm /Name Do Q` stream appended to the page. ONE undo entry, `CommandKind::AddEmf`. Additive. |
+| Place an EMF as a stamp | `add_emf_stamp(&mut self, page_index: usize, rect: Rect, emf: &ImportedEmf) -> Result<PlacedEmf, EditError>` | `/Stamp` annotation, `/AP /N` = the picture's form, `/F 4` (Print). ONE undo entry, `CommandKind::AddAnnotation { kind: Stamp }`. |
+
+`PlacedEmf` (`#[non_exhaustive]`): `form_id`, `content_id` (page route) or
+`annot_id` (stamp route), `rect` (normalised), `scale_x`/`scale_y` (`rect`
+size over the natural size), `distorted` (the two differ), `objects_written`,
+`notes`; `summary()` is one line.
+
+**Both verbs STRETCH the picture to `rect`.** `pdfcer add-emf` defaults to
+contain, with `--stretch` and `--natural`, exactly as `add-svg`.
+
+What is drawn exactly: lines, polylines, polygons, poly-polygons, Béziers
+(32- and 16-bit forms), rectangles, ellipses, rounded rectangles, path
+brackets (fill, stroke, both, clip), cosmetic and geometric pens (width,
+caps, joins, miter limit, `PS_USERSTYLE` dashes), solid brushes, stock
+objects, `SAVEDC`/`RESTOREDC`, world transforms, every map mode with window
+and viewport, polyfill mode, intersect/exclude/path/region clips, SRCCOPY
+bitmaps (`STRETCHDIBITS`, `BITBLT`, `STRETCHBLT`, `ALPHABLEND` with
+per-pixel alpha as a soft mask), and `EXTTEXTOUTW` as real text placed by its
+`Dx` advances.
+
+★ **What the UI must disclose** is `PlacedEmf::notes` (`EmfImportNotes`):
+`skipped` — every record or feature not drawn, counted by name (`EMR_ARC`,
+`EMR_GRADIENTFILL`, a blit with a ROP other than SRCCOPY, pattern brushes,
+glyph-index text, `RGN_OR`/`RGN_XOR` clips…); `approximated` — drawn, but
+not as GDI would (hatched pens and brushes drawn solid, `EMR_SETROP2` mix
+modes drawn as copy, stock dash styles, `EMR_WIDENPATH`, text without `Dx`,
+top/bottom text alignment, cell-height fonts, constant alpha drawn opaque); `fonts_substituted` — each EMF face and the standard-14 face
+drawn instead; `characters_replaced` — characters outside WinAnsi;
+`emf_plus_ignored`.
+
+**Traps.**
+
+1. Errors are those of `add_image` (`ImageRectDegenerate`,
+   `DocumentEncrypted`, certification, `ObjectCreationWouldExposeHiddenObjects`,
+   `PageOutOfRange`, `ObjectNumbersExhausted`).
+2. Text is never embedded-font text: the EMF names a face it does not carry,
+   so the substitute is always disclosed, never silent.
 
 ### 1.25 Outcome structs — field reference
 

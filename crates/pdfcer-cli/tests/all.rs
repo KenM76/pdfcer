@@ -3,6 +3,7 @@
 //! the gate fails when a test file is missing from this list.
 
 mod add_caret;
+mod add_emf;
 mod add_fields;
 mod add_image_gif;
 mod add_ltv;

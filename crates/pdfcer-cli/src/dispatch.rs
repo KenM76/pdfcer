@@ -1256,6 +1256,34 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         }),
+        Command::AddEmf {
+            input,
+            emf,
+            page,
+            rect,
+            stretch,
+            natural,
+            stamp,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_add_emf(&AddEmfArgs {
+            input: &input,
+            emf: &emf,
+            page,
+            rect: &rect,
+            fit: if natural {
+                SvgFit::Natural
+            } else if stretch {
+                SvgFit::Stretch
+            } else {
+                SvgFit::Contain
+            },
+            stamp,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::BookmarkCopy {
             input,
             item,

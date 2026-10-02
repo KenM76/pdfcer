@@ -235,14 +235,6 @@ impl EditSession {
         ))
     }
 
-    fn forbid_hidden_objects(&self) -> Result<(), EditError> {
-        let suppressed = self.base.suppressed_object_count();
-        if suppressed > 0 {
-            return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
-        }
-        Ok(())
-    }
-
     /// Number the import's objects into this document and stage them;
     /// returns the root form's id.
     fn stage_svg_objects(

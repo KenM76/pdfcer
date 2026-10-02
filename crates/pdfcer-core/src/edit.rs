@@ -126,6 +126,7 @@ mod block_text;
 mod button_icon;
 mod checkpoint;
 mod content_mark;
+mod emf;
 mod foreign_button;
 mod image_stamp;
 #[cfg(feature = "svg-import")]
@@ -135,6 +136,7 @@ mod threed_poster;
 pub use button_icon::ButtonIconEdit;
 use checkpoint::Entry;
 pub use checkpoint::{Checkpoint, CheckpointError, Rollback};
+pub use emf::PlacedEmf;
 use foreign_button::ButtonSlot;
 #[cfg(feature = "svg-import")]
 pub use svg::PlacedSvg;
@@ -1185,6 +1187,11 @@ pub enum CommandKind {
     /// stream appended to `/Contents`, and the page's `/Resources`, as one
     /// entry. Additive like [`Self::AddImage`].
     AddSvg,
+    /// An EMF picture was placed in a page's content as a Form XObject
+    /// ([`EditSession::add_emf`]): the form, its images, a new content
+    /// stream appended to `/Contents`, and the page's `/Resources`, as one
+    /// entry. Additive like [`Self::AddImage`].
+    AddEmf,
     /// Embedded font programs were REMOVED (`Pass 67.0` phase B): the
     /// `/FontFile*` entry struck from each descriptor, `/CIDSet` and
     /// `/CharSet` struck with it, the §9.6.4 subset tag dropped from

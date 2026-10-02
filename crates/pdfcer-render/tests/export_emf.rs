@@ -128,17 +128,11 @@ fn assert_well_formed(emf: &[u8]) {
         max_index + 1,
         "Handles = highest index + 1"
     );
-    // Device/Millimeters ratio ≈ 100 (0.01 mm units) on both axes.
+    // Device = Millimeters × 100 exactly: readers scale by that ratio, so
+    // 1 logical unit is 0.01 mm on both axes.
     let (dx, dy) = (u32_at(emf, 72), u32_at(emf, 76));
     let (mx, my) = (u32_at(emf, 80), u32_at(emf, 84));
-    assert!(
-        (dx as f64 / mx as f64 - 100.0).abs() < 1.0,
-        "x ratio {dx}/{mx}"
-    );
-    assert!(
-        (dy as f64 / my as f64 - 100.0).abs() < 1.0,
-        "y ratio {dy}/{my}"
-    );
+    assert_eq!((dx, dy), (mx * 100, my * 100), "Device / Millimeters");
 }
 
 fn record_offsets(records: &[(u32, u32)]) -> Vec<usize> {

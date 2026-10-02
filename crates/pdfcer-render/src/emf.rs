@@ -344,7 +344,10 @@ pub fn export_emf_view(
     // Header.
     #[allow(clippy::cast_possible_truncation)]
     let (wu, hu) = (w_u as i32, h_u as i32);
-    let mm = |u: i32| (f64::from(u) / 100.0).round() as i32;
+    // Readers scale logical units by Millimeters / Device, and Millimeters
+    // is whole millimetres; so Device is Millimeters × 100, keeping the
+    // ratio exactly 0.01 mm per unit whatever the page size.
+    let mm = |u: i32| ((f64::from(u) / 100.0).round() as i32).max(1);
     let mut hdr = Vec::with_capacity(108);
     hdr.extend_from_slice(&u32le(1));
     hdr.extend_from_slice(&u32le(108));
@@ -361,8 +364,8 @@ pub fn export_emf_view(
     hdr.extend_from_slice(&u32le(0)); // nDescription
     hdr.extend_from_slice(&u32le(0)); // offDescription
     hdr.extend_from_slice(&u32le(0)); // nPalEntries
-    hdr.extend_from_slice(&i32le(wu)); // Device cx (px of the virtual 2540 dpi device)
-    hdr.extend_from_slice(&i32le(hu)); // Device cy
+    hdr.extend_from_slice(&i32le(mm(wu) * 100)); // Device cx (a virtual 2540 dpi device)
+    hdr.extend_from_slice(&i32le(mm(hu) * 100)); // Device cy
     hdr.extend_from_slice(&i32le(mm(wu))); // Millimeters cx
     hdr.extend_from_slice(&i32le(mm(hu))); // Millimeters cy
     hdr.extend_from_slice(&u32le(0)); // cbPixelFormat
