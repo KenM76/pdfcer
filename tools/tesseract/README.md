@@ -4,6 +4,28 @@
 pdfcer does not link it: the page goes in on stdin as a PGM image, and TSV
 comes back on stdout. The portable package ships a build made here.
 
+## A program add-on
+
+The folder is an OCR add-on of `kind = program` (decision 184). Its
+`pdfcer-ocr-model.txt` names `tesseract.exe` as the program and carries the
+SHA-256 of the program and of each `tessdata/*.traineddata`. pdfcer runs the
+program only when that hash is present and matching, re-checks every listed
+file before each page, and starts only that file, with no shell. Install it by
+dropping the folder into `models/`; uninstall it by deleting the folder.
+`ocr_program_addons = refuse` in the settings file, or `--refuse-ocr-programs`,
+lists it but never runs it.
+
+`write-ocr-manifest.py <folder>` writes the manifest. The build runs it on
+`target/tesseract-bundle`, and `package-portable.py` runs it again on the
+staged copy, so the shipped hashes describe the shipped files. No binary
+or hash is committed. After adding a language file, run it again; a
+`.traineddata` file the manifest does not list is used but not verified.
+
+A stock Tesseract install has no manifest and is not found by the add-on
+search. `--model-dir "C:\Program Files\Tesseract-OCR"` still runs it: the
+operator named that folder, so its program runs as named, unhashed, and the
+run says so.
+
 ## Build
 
 ```

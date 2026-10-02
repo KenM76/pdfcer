@@ -64,6 +64,7 @@ mod object_move_each;
 mod object_transform_each;
 mod ocr_addons;
 mod ocr_engine;
+mod ocr_program_addons;
 mod output_in_place;
 mod password_values;
 mod pin_span;

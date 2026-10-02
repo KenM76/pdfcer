@@ -548,8 +548,9 @@ use pdfcer_core::signature::{SaveMode as CoreSaveMode, SignatureImpact};
 
 mod cli;
 mod clipboard;
-mod tesseract;
+mod ocr_program;
 use cli::*;
+use pdfcer_ocr_host::tesseract;
 mod arg_types;
 use arg_types::*;
 mod dispatch;

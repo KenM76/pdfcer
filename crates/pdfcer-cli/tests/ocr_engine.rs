@@ -217,10 +217,10 @@ fn tesseract_folder_without_the_program_is_reported() {
     let (code, err) = run_tesseract(&d, "eng", "tess-noexe.pdf");
     assert_eq!(code, Some(1), "stderr: {err}");
     assert!(
-        err.contains("no OCR models for `tesseract`"),
+        err.contains("no Tesseract executable here"),
         "stderr: {err}"
     );
-    assert!(err.contains("--model-dir"), "stderr: {err}");
+    assert!(err.contains(&d.display().to_string()), "stderr: {err}");
 }
 
 /// Every language in `--ocr-lang` must have its `.traineddata`; the missing

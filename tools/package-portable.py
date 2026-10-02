@@ -317,12 +317,20 @@ def main() -> int:
 
     # Tesseract is built, not committed: `tools/tesseract/build-tesseract.py`
     # leaves a self-contained folder (exe, tessdata, LICENSES, PROVENANCE.md)
-    # that ships whole as `models/tesseract`.
+    # that ships whole as `models/tesseract`. The manifest making it a
+    # program add-on (decision 184) is rewritten over the staged copy, so
+    # its hashes are of exactly the files that ship.
     tess_src = REPO / "target" / "tesseract-bundle"
     if (tess_src / "tesseract.exe").is_file() and (tess_src / "PROVENANCE.md").is_file():
-        shutil.copytree(tess_src, out / "models" / "tesseract")
-        n = sum(1 for f in tess_src.rglob("*") if f.is_file())
-        print(f"package-portable: staged models/tesseract ({n} files)")
+        tess_out = out / "models" / "tesseract"
+        shutil.copytree(tess_src, tess_out)
+        subprocess.run(
+            [sys.executable, str(REPO / "tools" / "tesseract" / "write-ocr-manifest.py"),
+             str(tess_out)],
+            check=True,
+        )
+        n = sum(1 for f in tess_out.rglob("*") if f.is_file())
+        print(f"package-portable: staged models/tesseract ({n} files, program add-on)")
     else:
         print(
             "package-portable: WARNING — no Tesseract bundle at target/tesseract-bundle; "

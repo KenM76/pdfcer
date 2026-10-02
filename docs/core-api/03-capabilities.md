@@ -2496,10 +2496,11 @@ Tesseract is a separate program, and core never spawns processes (wasm32), so
 core only **parses its output**. The shell runs `tesseract <img> stdout -l
 <langs> --dpi <n> -c tessedit_create_tsv=1 -c tessedit_create_txt=0` and hands
 stdout to the parser. Use the `-c` switches, not the `tsv` config name: that
-name needs a `tessdata/configs` file the bundle does not ship. The CLI's
-`pdfcer-cli/src/tesseract.rs` is the reference caller. The portable package
-ships `models/tesseract/{tesseract.exe, tessdata/}`; a stock install has the
-same layout.
+name needs a `tessdata/configs` file the bundle does not ship. Do not write
+this spawn yourself: `pdfcer-ocr-host` (Piece 4c) does it, with the hash
+checks decision 184 requires. The portable package ships
+`models/tesseract/{tesseract.exe, tessdata/, pdfcer-ocr-model.txt}` as a
+`kind = program` add-on.
 
 | item |
 |---|
@@ -2531,6 +2532,8 @@ reference caller.
 | pick the first usable one for an engine | `OcrModelDiscovery::for_engine(engine, &required_files) -> EngineMatch { chosen, incomplete }` |
 | check a model's files against its manifest | `OcrModel::verify() -> Result<usize, VerifyError>` (files hashed) |
 | show what it is | `OcrModel { name, engine, folder, root, manifest }`, `.label()`, `.languages()`, `.licence()`, `.has_files(&[..])` |
+| is it data or a program? | `OcrModel::kind() -> AddonKind` (`Data` / `Program`), `.program() -> Option<&str>` (the bare file name), `OcrModelManifest::program_digest()` |
+| hash one file against a digest | `addons::check_digest(path, reader, &FileDigest) -> Result<(), VerifyError>` |
 | parse a manifest myself | `addon_manifest::parse_manifest(&str)` / `parse_manifest_bytes(&[u8]) -> Result<OcrModelManifest, ManifestError>`; file name `MANIFEST_FILE` |
 
 - **Roots are yours.** Core never reads settings. The CLI passes `models/`
@@ -2544,10 +2547,46 @@ reference caller.
   bad manifest, unknown keys, shadowing, a ceiling hit), the chosen model's
   name, label and licence, and `verify()`'s result. **Call `verify()` before
   loading**; a `VerifyError::Mismatch` must refuse, not warn.
-- A folder directly under a root named `ocrs`/`ocrcer`/`paddle`/`tesseract`
-  with no manifest is a model named after its engine (`manifest: None`).
+- A folder directly under a root named `ocrs`/`ocrcer`/`paddle` with no
+  manifest is a model named after its engine (`manifest: None`). A bare
+  `tesseract` folder is **not** a model: a program needs a manifest with its
+  hash (decision 184).
+- Manifest keys `kind = data|program`, `program = <bare file name>` and
+  `data = <relative folder>` (decision 184). Discovery lists a program
+  add-on even without a program hash; Piece 4c refuses to run it.
 - Bounded: depth 3 (`MAX_ADDON_DEPTH`), 2,000 folders, 256 models, a
   canonical-path cycle guard, and a 16 KiB manifest limit.
+
+**Piece 4c — running any model, data or program** (crate `pdfcer-ocr-host`; decision 184)
+
+Core never spawns, and the CLI is a binary, so the runner lives in its own
+library crate. Depend on it with the same `ocrs`/`ocrcer`/`paddle` features
+you give `pdfcer-core`. It is native-only (it starts processes).
+
+| I want to… | call this |
+|---|---|
+| grey out a drop-down entry, with the reason | `check_runnable(&model, policy) -> Result<(), RunnerError>`: loads and hashes nothing |
+| run any listed model | `OcrRunner::load(&model, &RunOptions::new(langs, dpi)) -> Result<OcrRunner, RunnerError>`, then `.recognize(w, h, &grey) -> Result<Vec<RecognizedWord>, RunnerError>` |
+| set the confidence flag for the text layer | `OcrRunner::reports_confidence()` |
+| show which program will start | `OcrRunner::as_program() -> Option<&ProgramEngine>`; `.program()` (full path), `.source()` (`ProgramSource::Addon { name, hashed_files }` / `OperatorFolder(path)`), `.languages()` |
+| why a program will not run | `program_status(&model, policy) -> Result<PathBuf, ProgramRefusal>` |
+| honour the operator's setting | `ProgramPolicy::{Allow, Refuse}` (default `Allow`), `.as_str()`, `.and(other)` (the stricter wins); assign `options.policy` (`RunOptions` is `#[non_exhaustive]`: build it with `RunOptions::new`) |
+| run a stock Tesseract folder the operator named | `ProgramEngine::from_operator_folder(dir, &opts)` then `OcrRunner::from_program`: unhashed, so disclose that |
+| check a `-l` value | `tesseract::check_languages(&str)` |
+
+- **Settings key `ocr_program_addons = allow|refuse`** belongs to the shells.
+  The CLI reads it and adds `--refuse-ocr-programs`; a GUI should read the
+  same key and pass it as `RunOptions::policy`.
+- **Every page re-checks every hashed file** before the program starts. On
+  Windows the files stay open, share-locked against writers, until the
+  program exits, so nothing can be swapped in between the check and the
+  start. On other platforms that window is open (decision 184 §3).
+- **★ What the UI must disclose:** each model's kind and program file name,
+  why a model will not run (`check_runnable`'s message, verbatim), and, for a
+  run, the program's path and which add-on it came from (or that it came
+  from an operator-named folder and was not hashed).
+- `RunnerError` and `ProgramError` are `#[non_exhaustive]`; a
+  `ProgramError::Verify` names the changed file and both digests.
 
 ### 5.3 Worked sequence, end to end
 

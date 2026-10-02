@@ -4003,21 +4003,33 @@ pub(crate) enum Command {
     /// Searches `models/` beside this executable, then each `ocr_folder`
     /// line of the settings file, then each `--ocr-folder`. An add-on is a
     /// folder holding its model files and a `pdfcer-ocr-model.txt` manifest;
-    /// a plain folder named `ocrs`, `ocrcer`, `paddle` or `tesseract` counts
-    /// too. Install an add-on by dropping its folder in; uninstall it by
-    /// deleting the folder.
+    /// a plain folder named `ocrs`, `ocrcer` or `paddle` counts too. Install
+    /// an add-on by dropping its folder in; uninstall it by deleting the
+    /// folder.
+    ///
+    /// An add-on is `kind=data` (model files an engine inside pdfcer reads)
+    /// or `kind=program` (it carries an engine program, such as Tesseract,
+    /// that pdfcer runs). A program add-on runs only when its manifest gives
+    /// the program's SHA-256; every hashed file is re-checked before each
+    /// run, and only the named program file is started.
     ///
     /// stdout, one line per model:
-    /// `ocr-model NAME engine=E in-build=yes|no|unknown-engine label="…"
+    /// `ocr-model NAME engine=E in-build=yes|no|unknown-engine
+    /// kind=data|program [program="FILE"] runnable=yes|no label="…"
     /// languages=a,b licence=L version=V folder="…"`. `in-build=no` means
-    /// this build was compiled without that engine. Skipped folders, bad
-    /// manifests and a name found twice are reported on stderr.
+    /// this build was compiled without that engine; `runnable=no` gives its
+    /// reason on stderr. Skipped folders, bad manifests and a name found
+    /// twice are reported on stderr.
     ///
-    /// Reads folder listings and manifests only. No network.
+    /// Reads folder listings and manifests only; runs nothing. No network.
     OcrModels {
         /// Another folder to search. Repeatable; searched last.
         #[arg(long)]
         ocr_folder: Vec<PathBuf>,
+        /// Report program add-ons as not runnable, as the settings key
+        /// `ocr_program_addons = refuse` does.
+        #[arg(long)]
+        refuse_ocr_programs: bool,
         /// Also hash every file a manifest lists and compare it with the
         /// manifest's SHA-256; adds `verified=N` (files checked) or
         /// `verified=FAILED`, and exits 1 on any mismatch.
@@ -4142,12 +4154,15 @@ pub(crate) enum Command {
         /// recognisers. Which dictionary was used is printed. Boxes are upright rectangles, so a steeply skewed scan
         /// reads better deskewed first.
         ///
-        /// `tesseract` runs the Tesseract program (Apache-2.0) in
-        /// `models/tesseract`, which holds `tesseract.exe` and a `tessdata`
-        /// folder of language files. It reads 100+ languages (see
-        /// `--ocr-lang`) and reports a per-word confidence. A stock
-        /// Tesseract install has the same layout, so `--model-dir` can name
-        /// its folder directly.
+        /// `tesseract` runs the Tesseract program (Apache-2.0) from a
+        /// program add-on: the portable package ships one in
+        /// `models/tesseract`, holding `tesseract.exe`, a `tessdata` folder
+        /// of language files and a manifest with their SHA-256. Every hashed
+        /// file is re-checked before each page and a changed one is refused
+        /// by name; which program ran is printed. It reads 100+ languages
+        /// (see `--ocr-lang`) and reports a per-word confidence. A stock
+        /// Tesseract install has no manifest: `--model-dir` can still name
+        /// its folder, and the program there runs as named, unhashed.
         ///
         /// The first model found for the engine is used (see `--ocr-folder`
         /// for the search order); `--ocr-model` picks a specific one.
@@ -4156,8 +4171,8 @@ pub(crate) enum Command {
         /// Use the installed OCR model with this name.
         ///
         /// Names come from each add-on folder's `pdfcer-ocr-model.txt`, or
-        /// are the engine's name for a plain `ocrs`/`ocrcer`/`paddle`/
-        /// `tesseract` folder; `pdfcer ocr-models` lists them. The model's
+        /// are the engine's name for a plain `ocrs`/`ocrcer`/`paddle`
+        /// folder; `pdfcer ocr-models` lists them. The model's
         /// manifest says which engine runs it, so `--ocr-engine` may be
         /// omitted; given, it must agree.
         #[arg(long, conflicts_with = "model_dir")]
@@ -4180,7 +4195,8 @@ pub(crate) enum Command {
         /// `models/ocrs` (two `.rten` files, shipped in the portable
         /// package), `models/ocrcer` (`ocrcer.ocrw`, shipped),
         /// `models/paddle` (`det.onnx`, `rec.onnx`, shipped) or
-        /// `models/tesseract` (`tesseract.exe` plus `tessdata`). A
+        /// `models/tesseract` (`tesseract.exe`, `tessdata` and a manifest),
+        /// or a stock Tesseract install's folder, which runs unhashed. A
         /// path given here that lacks the engine's files is REPORTED,
         /// never quietly replaced by the bundled copy — running a different
         /// model from the one you named is the sneaky half of rule 4.
@@ -4194,6 +4210,11 @@ pub(crate) enum Command {
         /// which have no language choice.
         #[arg(long, default_value = "eng")]
         ocr_lang: String,
+        /// Never run an OCR program (Tesseract): refuse instead, as the
+        /// settings key `ocr_program_addons = refuse` does. Engines inside
+        /// pdfcer are unaffected.
+        #[arg(long)]
+        refuse_ocr_programs: bool,
         /// Print each recognised word and its page-space rectangle.
         ///
         /// The way to check POSITION rather than content: a layer can be

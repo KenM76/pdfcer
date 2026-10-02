@@ -846,6 +846,7 @@ dependencies = [
  "pdfcer-3d",
  "pdfcer-core",
  "pdfcer-fetch",
+ "pdfcer-ocr-host",
  "pdfcer-print",
  "pdfcer-render",
  "png",
@@ -941,6 +942,14 @@ dependencies = [
  "sha2",
  "thiserror",
  "weezl",
+]
+
+[[package]]
+name = "pdfcer-ocr-host"
+version = "0.72.0"
+dependencies = [
+ "pdfcer-core",
+ "thiserror",
 ]
 
 [[package]]

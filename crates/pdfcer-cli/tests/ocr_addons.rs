@@ -98,13 +98,12 @@ fn a_dropped_folder_is_listed_and_deleting_it_uninstalls() {
         line.contains(&format!("{:?}", kept.display().to_string())),
         "{line}"
     );
-    assert!(
-        out.contains("ocr-model tesseract engine=tesseract in-build=yes"),
-        "{out}"
-    );
-    assert_eq!(out.lines().count(), 2, "{out}");
+    // A program is never bare: a `tesseract` folder without a manifest is
+    // not a model (decision 184).
+    assert!(!out.contains("ocr-model tesseract"), "{out}");
+    assert_eq!(out.lines().count(), 1, "{out}");
     assert!(err.contains("is shadowed by the one in"), "{err}");
-    assert!(err.contains("2 model(s) found"), "{err}");
+    assert!(err.contains("1 model(s) found"), "{err}");
 
     std::fs::remove_dir_all(&kept).unwrap();
     let (_, out, _) = list(&[&a, &b]);

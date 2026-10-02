@@ -1,0 +1,4 @@
+name = x
+engine = tesseract
+kind = data
+program = ../a.exe

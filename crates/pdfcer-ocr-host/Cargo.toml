@@ -1,0 +1,36 @@
+[package]
+name = "pdfcer-ocr-host"
+description = "pdfcer OCR hosting for the shells: runs a discovered OCR model of any kind, including program add-ons run as a separate process (decision 184). Not in pdfcer-core, which never spawns processes."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+license.workspace = true
+# One integration-test binary per crate (tests/all.rs); see
+# tools/check-tests-harnessed.py.
+autotests = false
+
+[features]
+default = []
+ocrs = ["pdfcer-core/ocrs"]
+ocrcer = ["pdfcer-core/ocrcer"]
+paddle = ["pdfcer-core/paddle"]
+
+[dependencies]
+pdfcer-core.workspace = true
+# Already in the graph through pdfcer-core; MIT OR Apache-2.0.
+thiserror = "2"
+
+# A stand-in OCR program for this crate's tests: it speaks the Tesseract
+# protocol and reports its own name. Never packaged
+# (tools/package-portable.py ships `pdfcer.exe` only).
+[[bin]]
+name = "pdfcer-ocr-test-engine"
+path = "src/bin/pdfcer-ocr-test-engine.rs"
+test = false
+doc = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"

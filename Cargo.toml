@@ -47,6 +47,7 @@ members = [
     "crates/pdfcer-print",
     "crates/pdfcer-fetch",
     "crates/pdfcer-3d",
+    "crates/pdfcer-ocr-host",
 ]
 # tools/difftest is the OUT-OF-TREE differential test oracle mandated by
 # docs/decisions/001-oxidize-pdf-adopt-vs-build.md §7: it pins oxidize-pdf
@@ -136,6 +137,8 @@ pdfcer-core = { path = "crates/pdfcer-core", default-features = false }
 pdfcer-render = { path = "crates/pdfcer-render", default-features = false }
 pdfcer-print = { path = "crates/pdfcer-print" }
 pdfcer-3d = { path = "crates/pdfcer-3d" }
+# OCR hosting for the shells, including program add-ons (decision 184).
+pdfcer-ocr-host = { path = "crates/pdfcer-ocr-host", default-features = false }
 # Network code for operator-initiated downloads. `default-features = false`
 # here like the others, so each shell re-enables `download` through its own
 # [features] block -- the forwarding the convention requires.

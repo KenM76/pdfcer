@@ -71,6 +71,9 @@ pub(crate) struct Settings {
     /// OCR model add-on roots searched after `models/` beside the executable
     /// (decision 182).
     pub(crate) ocr_folders: Vec<PathBuf>,
+    /// `ocr_program_addons = allow|refuse`: whether OCR add-ons that carry
+    /// an engine program may run (decision 184).
+    pub(crate) ocr_program_addons: pdfcer_ocr_host::ProgramPolicy,
 }
 
 impl Settings {
@@ -82,6 +85,7 @@ impl Settings {
         font_folders: Vec::new(),
         max_font_files: DEFAULT_MAX_FONT_FILES,
         ocr_folders: Vec::new(),
+        ocr_program_addons: pdfcer_ocr_host::ProgramPolicy::Allow,
     };
 
     /// Whether any font folder will be searched.
@@ -177,8 +181,9 @@ fn load(path: &Path) -> Result<Settings, u8> {
 /// or `;` are ignored; a value may be wrapped in double quotes. Keys:
 /// `workarounds` (`always`|`offer`), `system_fonts` (`on`|`off`),
 /// `font_folder` (a path; repeatable), `font_file_limit` (1 to
-/// [`MAX_FONT_FILE_LIMIT`]), `ocr_folder` (a path; repeatable). An unknown key, a repeated single-valued key or
-/// a bad value is an error naming the line: a typo must not be ignored.
+/// [`MAX_FONT_FILE_LIMIT`]), `ocr_folder` (a path; repeatable),
+/// `ocr_program_addons` (`allow`|`refuse`). An unknown key, a repeated
+/// single-valued key or a bad value is an error naming the line: a typo must not be ignored.
 ///
 /// # Errors
 ///
@@ -234,6 +239,17 @@ fn apply(out: &mut Settings, key: &str, value: &str, base: &Path) -> Result<(), 
         }
         "font_folder" => out.font_folders.push(resolve_folder(value, base)),
         "ocr_folder" => out.ocr_folders.push(resolve_folder(value, base)),
+        "ocr_program_addons" => {
+            out.ocr_program_addons = match value {
+                "allow" => pdfcer_ocr_host::ProgramPolicy::Allow,
+                "refuse" => pdfcer_ocr_host::ProgramPolicy::Refuse,
+                _ => {
+                    return Err(format!(
+                        "ocr_program_addons is {value:?}; use allow or refuse"
+                    ));
+                }
+            };
+        }
         "font_file_limit" => {
             out.max_font_files = value
                 .parse::<usize>()
@@ -245,7 +261,7 @@ fn apply(out: &mut Settings, key: &str, value: &str, base: &Path) -> Result<(), 
         }
         _ => {
             return Err(format!(
-                "unknown key {key:?}; the keys are workarounds, system_fonts, font_folder, font_file_limit and ocr_folder"
+                "unknown key {key:?}; the keys are workarounds, system_fonts, font_folder, font_file_limit, ocr_folder and ocr_program_addons"
             ));
         }
     }
@@ -283,12 +299,14 @@ pub(crate) fn summary_line(s: &Settings) -> String {
         .map_or_else(|| "(built-in)".to_owned(), |p| p.display().to_string());
     format!(
         "settings: using {source}: workarounds={} system_fonts={} font_folders={} \
-         font_file_limit={} ocr_folders={} (pass --no-settings to ignore it)",
+         font_file_limit={} ocr_folders={} ocr_program_addons={} \
+         (pass --no-settings to ignore it)",
         s.workarounds.as_str(),
         if s.system_fonts { "on" } else { "off" },
         s.font_folders.len(),
         s.max_font_files,
         s.ocr_folders.len(),
+        s.ocr_program_addons.as_str(),
     )
 }
 
@@ -517,6 +535,17 @@ mod tests {
         );
         assert!(s.font_folders.is_empty());
         assert!(summary_line(&s).contains("ocr_folders=2"));
+    }
+
+    #[test]
+    fn ocr_program_addons_defaults_to_allow_and_parses_refuse() {
+        use pdfcer_ocr_host::ProgramPolicy;
+        assert_eq!(Settings::DEFAULT.ocr_program_addons, ProgramPolicy::Allow);
+        let s = parse("ocr_program_addons = refuse\n", &base()).unwrap();
+        assert_eq!(s.ocr_program_addons, ProgramPolicy::Refuse);
+        assert!(summary_line(&s).contains("ocr_program_addons=refuse"));
+        let err = parse("ocr_program_addons = maybe", &base()).unwrap_err();
+        assert!(err.contains("use allow or refuse"), "{err}");
     }
 
     #[test]

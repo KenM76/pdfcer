@@ -18,7 +18,7 @@ pub(crate) enum LoadedOcrEngine {
     Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
     #[cfg(feature = "paddle")]
     Paddle(Box<pdfcer_core::ocr::engine_paddle::PaddleEngine>),
-    Tesseract(tesseract::TesseractEngine),
+    Tesseract(pdfcer_ocr_host::ProgramEngine),
 }
 
 impl LoadedOcrEngine {
@@ -44,7 +44,9 @@ impl LoadedOcrEngine {
             Self::Paddle(e) => e
                 .recognize(width, height, pixels)
                 .map_err(|e| e.to_string()),
-            Self::Tesseract(e) => e.recognize(width, height, pixels),
+            Self::Tesseract(e) => e
+                .recognize(width, height, pixels)
+                .map_err(|e| e.to_string()),
         }
     }
 
@@ -172,7 +174,8 @@ fn required_files(engine: OcrEngineArg) -> Vec<&'static str> {
             use pdfcer_core::ocr::engine_paddle::{DETECTION_MODEL, RECOGNITION_MODEL};
             vec![DETECTION_MODEL, RECOGNITION_MODEL]
         }
-        OcrEngineArg::Tesseract => vec![tesseract::EXE_FILE],
+        // A program add-on's files are its manifest's to name (decision 184).
+        OcrEngineArg::Tesseract => Vec::new(),
         // Only an engine compiled out of this build lands here; `resolve`
         // refuses those before asking.
         #[allow(unreachable_patterns)]
@@ -197,11 +200,12 @@ fn missing_hint(engine: OcrEngineArg) -> String {
              `dict.txt` if the recognition model does not embed one)"
             .to_owned(),
         OcrEngineArg::Tesseract => format!(
-            "Tesseract is a folder holding `{}` and a `{}` folder of language files; the \
-             portable package ships it as `models/tesseract`, and a stock Tesseract install \
-             has the same layout",
-            tesseract::EXE_FILE,
-            tesseract::TESSDATA_DIR
+            "Tesseract is a program add-on: a folder holding `{}`, a `{}` folder of language \
+             files and a `{MANIFEST_FILE}` with `kind = program` and the program's SHA-256; \
+             the portable package ships it as `models/tesseract`. A stock Tesseract install \
+             has no manifest, so it is found only when --model-dir names it",
+            pdfcer_ocr_host::tesseract::EXE_FILE,
+            pdfcer_ocr_host::tesseract::TESSDATA_DIR
         ),
     };
     format!(
@@ -442,9 +446,7 @@ fn load_from(
             .map(|e| LoadedOcrEngine::Paddle(Box::new(e)))
             .map_err(|e| failed(&e)),
         OcrEngineArg::Tesseract => {
-            let e = tesseract::TesseractEngine::from_dir(dir, lang, dpi).map_err(|e| failed(&e))?;
-            eprintln!("pdfcer: ocr: running {} (-l {lang})", e.exe().display());
-            Ok(LoadedOcrEngine::Tesseract(e))
+            ocr_program::load(dir, lang, dpi).map(LoadedOcrEngine::Tesseract)
         }
         // Compiled-out engines are refused in `resolve`.
         #[allow(unreachable_patterns)]
@@ -489,6 +491,9 @@ pub(crate) fn cmd_ocr_models(extra: &[PathBuf], verify: bool) -> u8 {
     let mut failed = false;
     for model in &found.models {
         let mut line = model_line(model);
+        if let Err(why) = runnable(model) {
+            eprintln!("pdfcer: ocr-models: `{}` will not run: {why}", model.name);
+        }
         if verify {
             match model.verify() {
                 Ok(n) => line.push_str(&format!(" verified={n}")),
@@ -509,6 +514,26 @@ pub(crate) fn cmd_ocr_models(extra: &[PathBuf], verify: bool) -> u8 {
     }
 }
 
+/// Whether `model` can run in this build under the program policy.
+fn runnable(model: &OcrModel) -> Result<(), String> {
+    use pdfcer_core::ocr::addon_manifest::AddonKind;
+    if model.kind() == AddonKind::Program {
+        return ocr_program::status(model);
+    }
+    let engine = engine_arg(&model.engine)
+        .filter(|e| engine_compiled(*e))
+        .ok_or_else(|| format!("this build has no `{}` engine", model.engine))?;
+    if engine == OcrEngineArg::Tesseract {
+        return Err("a `tesseract` add-on needs `kind = program`".to_owned());
+    }
+    let required = required_files(engine);
+    if model.has_files(&required) {
+        Ok(())
+    } else {
+        Err(format!("it lacks one of {}", required.join(", ")))
+    }
+}
+
 fn model_line(model: &OcrModel) -> String {
     let in_build = match engine_arg(&model.engine) {
         Some(e) if engine_compiled(e) => "yes",
@@ -516,11 +541,16 @@ fn model_line(model: &OcrModel) -> String {
         None => "unknown-engine",
     };
     let version = model.manifest.as_ref().and_then(|m| m.version.as_deref());
+    let program = model
+        .program()
+        .map_or_else(String::new, |p| format!(" program={p:?}"));
     format!(
-        "ocr-model {} engine={} in-build={in_build} label={:?} languages={} licence={} \
-         version={} folder={:?}",
+        "ocr-model {} engine={} in-build={in_build} kind={}{program} runnable={} label={:?} \
+         languages={} licence={} version={} folder={:?}",
         model.name,
         model.engine,
+        model.kind().as_str(),
+        if runnable(model).is_ok() { "yes" } else { "no" },
         model.label().unwrap_or(""),
         or_text(&model.languages().join(","), "-"),
         model.licence().unwrap_or("-"),

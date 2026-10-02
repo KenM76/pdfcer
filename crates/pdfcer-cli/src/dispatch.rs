@@ -918,7 +918,14 @@ pub(crate) fn run() -> ExitCode {
             &pages,
         ),
         Command::FetchOcrModels { dir } => cmd_fetch_ocr_models(dir.as_deref()),
-        Command::OcrModels { ocr_folder, verify } => cmd_ocr_models(&ocr_folder, verify),
+        Command::OcrModels {
+            ocr_folder,
+            verify,
+            refuse_ocr_programs,
+        } => {
+            ocr_program::set_refuse_flag(refuse_ocr_programs);
+            cmd_ocr_models(&ocr_folder, verify)
+        }
         Command::ListStandards { standard } => cmd_list_standards(standard.as_deref()),
         Command::Ocr {
             input,
@@ -931,26 +938,30 @@ pub(crate) fn run() -> ExitCode {
             ocr_folder,
             model_dir,
             ocr_lang,
+            refuse_ocr_programs,
             words,
             dump_image,
             existing,
-        } => cmd_ocr(
-            &input,
-            page,
-            output.as_deref(),
-            in_place,
-            dpi,
-            &OcrModelChoice {
-                engine: ocr_engine,
-                model_dir: model_dir.as_deref(),
-                model: ocr_model.as_deref(),
-                folders: &ocr_folder,
-            },
-            &ocr_lang,
-            words,
-            dump_image.as_deref(),
-            existing,
-        ),
+        } => {
+            ocr_program::set_refuse_flag(refuse_ocr_programs);
+            cmd_ocr(
+                &input,
+                page,
+                output.as_deref(),
+                in_place,
+                dpi,
+                &OcrModelChoice {
+                    engine: ocr_engine,
+                    model_dir: model_dir.as_deref(),
+                    model: ocr_model.as_deref(),
+                    folders: &ocr_folder,
+                },
+                &ocr_lang,
+                words,
+                dump_image.as_deref(),
+                existing,
+            )
+        }
         Command::StampList { input } => cmd_stamp_list(&input),
         Command::StampPack {
             input,

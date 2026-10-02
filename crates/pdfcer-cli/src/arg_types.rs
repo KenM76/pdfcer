@@ -198,7 +198,7 @@ impl OcrEngineArg {
             Self::Ocrs => "ocrs",
             Self::Ocrcer => "ocrcer",
             Self::Paddle => "paddle",
-            Self::Tesseract => tesseract::MODEL_DIR,
+            Self::Tesseract => tesseract::ENGINE,
         }
     }
 }

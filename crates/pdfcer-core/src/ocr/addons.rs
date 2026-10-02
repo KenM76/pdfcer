@@ -1,7 +1,7 @@
 //! OCR model add-ons: discovery and verification (decision 182).
 //!
-//! An add-on is a folder holding one engine's data files plus a
-//! [`MANIFEST_FILE`]. Installing is dropping the folder under a search root;
+//! An add-on is a folder holding one engine's data files, or an engine
+//! program (decision 184), plus a [`MANIFEST_FILE`]. Installing is dropping the folder under a search root;
 //! uninstalling is deleting it. There is no registry and no other state.
 //!
 //! The caller supplies the search roots in priority order; this module never
@@ -9,10 +9,10 @@
 //! listings and manifests; model bytes are read only by
 //! [`OcrModel::verify`].
 //!
-//! A folder named after a built-in engine (`ocrs`, `ocrcer`, `paddle`,
-//! `tesseract`) directly under a root, with no manifest, is a *bare* model of
-//! that engine named after it: the layout every pdfcer before decision 182
-//! used.
+//! A folder named after an in-process engine (`ocrs`, `ocrcer`, `paddle`)
+//! directly under a root, with no manifest, is a *bare* model of that engine
+//! named after it. A program is never bare: running one needs a manifest with
+//! its hash.
 
 use std::collections::HashSet;
 use std::io::Read as _;
@@ -21,10 +21,10 @@ use std::path::{Path, PathBuf};
 use sha2::Digest as _;
 
 pub use super::addon_manifest::MANIFEST_FILE;
-use super::addon_manifest::{FileDigest, ManifestError, OcrModelManifest, parse_manifest_bytes};
+use super::addon_manifest::{AddonKind, ManifestError, OcrModelManifest, parse_manifest_bytes};
 
 /// Folder names that are a bare model of the engine of the same name.
-pub const BARE_ENGINE_FOLDERS: [&str; 4] = ["ocrs", "ocrcer", "paddle", "tesseract"];
+pub const BARE_ENGINE_FOLDERS: [&str; 3] = ["ocrs", "ocrcer", "paddle"];
 
 /// Folder levels below a root searched for add-ons (`ARCHITECTURE.md` §10).
 pub const MAX_ADDON_DEPTH: usize = 3;
@@ -69,6 +69,25 @@ impl OcrModel {
         self.manifest.as_ref().and_then(|m| m.licence.as_deref())
     }
 
+    /// `data`, or `program` for an add-on carrying an engine executable.
+    /// A bare folder is `data`.
+    #[must_use]
+    pub fn kind(&self) -> AddonKind {
+        self.manifest.as_ref().map_or(AddonKind::Data, |m| m.kind)
+    }
+
+    /// The program's file name, for a `program` add-on.
+    #[must_use]
+    pub fn program(&self) -> Option<&str> {
+        self.manifest.as_ref().and_then(|m| m.program.as_deref())
+    }
+
+    /// `rel` (a manifest path, `/`-separated) under the model folder.
+    #[must_use]
+    pub fn file_path(&self, rel: &str) -> PathBuf {
+        rel.split('/').fold(self.folder.clone(), |p, c| p.join(c))
+    }
+
     /// Whether every file in `required` (relative to the folder) exists.
     #[must_use]
     pub fn has_files(&self, required: &[&str]) -> bool {
@@ -88,7 +107,9 @@ impl OcrModel {
             return Ok(0);
         };
         for digest in &manifest.files {
-            verify_file(&self.folder, digest)?;
+            let path = self.file_path(&digest.file);
+            let mut file = std::fs::File::open(&path).map_err(|e| unreadable(&path, &e))?;
+            check_digest(&path, &mut file, &digest.sha256)?;
         }
         Ok(manifest.files.len())
     }
@@ -118,32 +139,42 @@ pub enum VerifyError {
     },
 }
 
-fn verify_file(folder: &Path, digest: &FileDigest) -> Result<(), VerifyError> {
-    let path = digest
-        .file
-        .split('/')
-        .fold(folder.to_path_buf(), |p, c| p.join(c));
-    let unreadable = |e: std::io::Error| VerifyError::Unreadable {
-        path: path.clone(),
+fn unreadable(path: &Path, e: &std::io::Error) -> VerifyError {
+    VerifyError::Unreadable {
+        path: path.to_path_buf(),
         reason: e.to_string(),
-    };
-    let mut file = std::fs::File::open(&path).map_err(unreadable)?;
+    }
+}
+
+/// Hash everything `reader` yields and compare it with `expected`. `path`
+/// only names the file in the error. A shell that must keep the file open
+/// while it is used (decision 184) opens it itself and passes the handle.
+///
+/// # Errors
+///
+/// [`VerifyError::Unreadable`] on a read error, [`VerifyError::Mismatch`]
+/// when the digest differs.
+pub fn check_digest(
+    path: &Path,
+    reader: &mut impl std::io::Read,
+    expected: &[u8; 32],
+) -> Result<(), VerifyError> {
     let mut hasher = sha2::Sha256::new();
     let mut buf = vec![0u8; 1 << 16];
     loop {
-        let n = file.read(&mut buf).map_err(unreadable)?;
+        let n = reader.read(&mut buf).map_err(|e| unreadable(path, &e))?;
         if n == 0 {
             break;
         }
         hasher.update(buf.get(..n).unwrap_or_default());
     }
     let actual: [u8; 32] = hasher.finalize().into();
-    if actual == digest.sha256 {
+    if actual == *expected {
         return Ok(());
     }
     Err(VerifyError::Mismatch {
-        path,
-        expected: super::addon_manifest::to_hex(&digest.sha256),
+        path: path.to_path_buf(),
+        expected: super::addon_manifest::to_hex(expected),
         actual: super::addon_manifest::to_hex(&actual),
     })
 }
@@ -449,6 +480,27 @@ mod tests {
         let r = scratch("bare-depth");
         std::fs::create_dir_all(r.join("group").join("paddle")).unwrap();
         assert!(discover_ocr_models(&[r]).models.is_empty());
+    }
+
+    #[test]
+    fn a_program_is_never_bare_and_its_kind_is_reported() {
+        let r = scratch("program");
+        std::fs::create_dir_all(r.join("tesseract")).unwrap();
+        addon(
+            &r.join("tess"),
+            "name = tess\nengine = tesseract\nkind = program\nprogram = t.exe\n",
+        );
+        std::fs::create_dir_all(r.join("ocrs")).unwrap();
+        let found = discover_ocr_models(std::slice::from_ref(&r));
+        let names: Vec<&str> = found.models.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, ["ocrs", "tess"]);
+        assert_eq!(found.models[0].kind(), AddonKind::Data);
+        assert_eq!(found.models[1].kind(), AddonKind::Program);
+        assert_eq!(found.models[1].program(), Some("t.exe"));
+        assert_eq!(
+            found.models[1].file_path("a/b"),
+            r.join("tess").join("a").join("b")
+        );
     }
 
     #[test]

@@ -193,9 +193,11 @@ Language data: `tessdata/` from tesseract-ocr/tessdata_fast tag
 {chr(10).join(f"- {lang}.traineddata  sha256 {TESSDATA_SHA256[lang]}" for lang in langs)}
 
 More languages: copy `<code>.traineddata` from tessdata_fast, tessdata or
-tessdata_best into `tessdata/` and pass `--ocr-lang`.
+tessdata_best into `tessdata/`, re-run tools/tesseract/write-ocr-manifest.py
+on this folder so the new file is hashed, and pass `--ocr-lang`.
 """
     (OUT / "PROVENANCE.md").write_text(provenance, encoding="utf-8")
+    run([sys.executable, str(HERE / "write-ocr-manifest.py"), str(OUT)])
     total = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file())
     print(f"build-tesseract: bundle at {OUT} ({total / 1e6:.1f} MB), imports {imports}")
     return 0

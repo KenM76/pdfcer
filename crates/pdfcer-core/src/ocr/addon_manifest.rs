@@ -16,6 +16,14 @@
 //! | `version` | free text ≤ 64 chars | optional |
 //! | `licence` (alias `license`) | free text ≤ 64 chars, e.g. an SPDX id | optional |
 //! | `sha256` | `<relative file> <64 hex digits>`; repeatable | optional |
+//! | `kind` | `data` or `program` | optional, default `data` |
+//! | `program` | a bare file name in the folder | required when `kind = program`, else refused |
+//! | `data` | relative folder passed to the program | optional, `kind = program` only |
+//!
+//! A `program` add-on carries an engine executable that a shell runs
+//! (decision 184). Parsing does not require a `sha256` line for the program:
+//! that is a runnability question the shell answers and discloses, so the
+//! add-on still lists.
 //!
 //! A repeated single-valued key, a bad value or a line without `=` is an
 //! error naming the line. An unknown key is kept in
@@ -57,6 +65,44 @@ pub struct OcrModelManifest {
     pub files: Vec<FileDigest>,
     /// Keys this build does not know, in file order.
     pub unknown_keys: Vec<String>,
+    /// Whether the folder holds data for an in-process engine or a program
+    /// to run.
+    pub kind: AddonKind,
+    /// The executable's file name, directly in the folder; `Some` exactly
+    /// when `kind` is [`AddonKind::Program`].
+    pub program: Option<String>,
+    /// The data folder handed to the program, relative and `/`-separated.
+    pub data: Option<String>,
+}
+
+/// The `kind` key.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum AddonKind {
+    /// Model files an engine compiled into pdfcer loads in-process.
+    #[default]
+    Data,
+    /// An engine executable the shell runs as a separate process.
+    Program,
+}
+
+impl AddonKind {
+    /// The manifest spelling, `data` or `program`.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Data => "data",
+            Self::Program => "program",
+        }
+    }
+}
+
+impl OcrModelManifest {
+    /// The `sha256` line covering the program file, if there is one.
+    #[must_use]
+    pub fn program_digest(&self) -> Option<&FileDigest> {
+        let program = self.program.as_deref()?;
+        self.files.iter().find(|f| f.file == program)
+    }
 }
 
 /// One `sha256 = FILE HEX` line.
@@ -93,6 +139,9 @@ pub enum ManifestError {
     /// A required key is absent.
     #[error("the manifest has no `{0}` line")]
     Missing(&'static str),
+    /// `program` or `data` without `kind = program`.
+    #[error("`program` and `data` need `kind = program`")]
+    DataKindWithProgram,
 }
 
 /// Parse manifest bytes (size check, UTF-8, then [`parse_manifest`]).
@@ -158,6 +207,9 @@ struct Builder {
     files: Vec<FileDigest>,
     file_names: HashSet<String>,
     unknown_keys: Vec<String>,
+    kind: Option<AddonKind>,
+    program: Option<String>,
+    data: Option<String>,
 }
 
 impl Builder {
@@ -174,6 +226,9 @@ impl Builder {
             ),
             "languages" => set(&mut self.languages, key, languages(value)?),
             "sha256" => self.add_digest(value),
+            "kind" => set(&mut self.kind, key, checked_kind(value)?),
+            "program" => set(&mut self.program, key, checked_program(value)?),
+            "data" => set(&mut self.data, key, checked_path(key, value)?),
             _ => {
                 self.unknown_keys.push(key.to_owned());
                 Ok(())
@@ -185,7 +240,7 @@ impl Builder {
         let (file, hex) = value
             .rsplit_once(char::is_whitespace)
             .ok_or_else(|| format!("sha256 is {value:?}; use `FILE HEX`"))?;
-        let file = checked_file(file.trim())?;
+        let file = checked_path("sha256 file", file.trim())?;
         let sha256 = parse_hex32(hex)
             .ok_or_else(|| format!("sha256 for {file:?}: {hex:?} is not 64 hex digits"))?;
         if !self.file_names.insert(file.clone()) {
@@ -196,6 +251,13 @@ impl Builder {
     }
 
     fn finish(self) -> Result<OcrModelManifest, ManifestError> {
+        let kind = self.kind.unwrap_or_default();
+        if kind == AddonKind::Program && self.program.is_none() {
+            return Err(ManifestError::Missing("program"));
+        }
+        if kind == AddonKind::Data && (self.program.is_some() || self.data.is_some()) {
+            return Err(ManifestError::DataKindWithProgram);
+        }
         Ok(OcrModelManifest {
             name: self.name.ok_or(ManifestError::Missing("name"))?,
             engine: self.engine.ok_or(ManifestError::Missing("engine"))?,
@@ -205,6 +267,9 @@ impl Builder {
             licence: self.licence,
             files: self.files,
             unknown_keys: self.unknown_keys,
+            kind,
+            program: self.program,
+            data: self.data,
         })
     }
 }
@@ -282,7 +347,7 @@ fn languages(value: &str) -> Result<Vec<String>, String> {
 /// A relative, `/`-separated path with no `..`, no `.`, no empty component,
 /// no drive or backslash. `\` would be a separator on Windows only, so it is
 /// refused everywhere to keep one manifest meaning one file on every OS.
-fn checked_file(file: &str) -> Result<String, String> {
+fn checked_path(key: &str, file: &str) -> Result<String, String> {
     let bad = file.is_empty()
         || file.len() > MAX_FILE_PATH
         || file.starts_with('/')
@@ -293,10 +358,34 @@ fn checked_file(file: &str) -> Result<String, String> {
             .any(|c| c.is_empty() || c == "." || c == "..");
     if bad {
         return Err(format!(
-            "sha256 file {file:?} must be a relative path inside the add-on folder, `/`-separated"
+            "{key} {file:?} must be a relative path inside the add-on folder, `/`-separated"
         ));
     }
     Ok(file.to_owned())
+}
+
+fn checked_kind(value: &str) -> Result<AddonKind, String> {
+    match value {
+        "data" => Ok(AddonKind::Data),
+        "program" => Ok(AddonKind::Program),
+        _ => Err(format!("kind is {value:?}; use `data` or `program`")),
+    }
+}
+
+/// A bare file name directly in the add-on folder: no separator, drive,
+/// `.`/`..` or control character, so the program cannot be outside it.
+fn checked_program(value: &str) -> Result<String, String> {
+    let bad = value.len() > MAX_SHORT
+        || value.contains(['/', '\\', ':'])
+        || value == "."
+        || value == ".."
+        || value.chars().any(char::is_control);
+    if bad {
+        return Err(format!(
+            "program is {value:?}; use a bare file name in the add-on folder, at most {MAX_SHORT} characters"
+        ));
+    }
+    Ok(value.to_owned())
 }
 
 fn parse_hex32(hex: &str) -> Option<[u8; 32]> {
@@ -388,6 +477,54 @@ mod tests {
             ),
         ] {
             let err = parse_manifest(text).unwrap_err().to_string();
+            assert!(err.contains(needle), "{text:?} -> {err}");
+        }
+    }
+
+    #[test]
+    fn program_kind_keys_parse() {
+        let m = parse_manifest(&format!(
+            "name = t\nengine = tesseract\nkind = program\nprogram = tesseract.exe\n\
+             data = share/tessdata\nsha256 = tesseract.exe {HEX}\n"
+        ))
+        .unwrap();
+        assert_eq!(m.kind, AddonKind::Program);
+        assert_eq!(m.program.as_deref(), Some("tesseract.exe"));
+        assert_eq!(m.data.as_deref(), Some("share/tessdata"));
+        assert_eq!(
+            m.program_digest().map(|d| d.file.as_str()),
+            Some("tesseract.exe")
+        );
+        let plain = parse_manifest("name = d\nengine = ocrs\n").unwrap();
+        assert_eq!(plain.kind, AddonKind::Data);
+        assert!(plain.program.is_none() && plain.program_digest().is_none());
+        let unhashed = parse_manifest("name = u\nengine = x\nkind = program\nprogram = p\n");
+        assert!(unhashed.unwrap().program_digest().is_none());
+    }
+
+    #[test]
+    fn program_kind_mistakes_are_refused() {
+        for (text, needle) in [
+            ("kind = program", "no `program` line"),
+            ("program = p", "need `kind = program`"),
+            ("kind = data\ndata = d", "need `kind = program`"),
+            ("kind = exe", "use `data` or `program`"),
+            ("kind = program\nprogram = bin/p", "bare file name"),
+            ("kind = program\nprogram = ..\\p", "bare file name"),
+            ("kind = program\nprogram = C:p", "bare file name"),
+            ("kind = program\nprogram = ..", "bare file name"),
+            (
+                "kind = program\nprogram = p\ndata = ../d",
+                "data \"../d\" must be",
+            ),
+            (
+                "kind = program\nprogram = p\nprogram = q",
+                "program is set twice",
+            ),
+        ] {
+            let err = parse_manifest(&format!("name = n\nengine = e\n{text}"))
+                .unwrap_err()
+                .to_string();
             assert!(err.contains(needle), "{text:?} -> {err}");
         }
     }
