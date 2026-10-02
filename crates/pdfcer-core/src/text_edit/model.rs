@@ -101,10 +101,12 @@
 
 mod cells;
 mod gutter;
+mod lists;
 mod navigate;
 mod stages;
 
 pub use cells::{CellRegion, detect_cell_regions};
+pub(crate) use lists::{Hanging, glyph_text, hanging};
 
 use crate::page_tree::Rect;
 use crate::text_extract::{ExtractedGlyph, GlyphProvenance, PageText};
@@ -247,6 +249,11 @@ pub enum BlockKind {
         /// The cell's first column, 0 at the left.
         column: usize,
     },
+    /// One list item: a first line opening with a bullet or enumerator, and
+    /// the lines after it that start at its hanging indent (where the text
+    /// after the marker starts). Reflow keeps the marker where it is and
+    /// wraps the text at the indent.
+    ListItem,
 }
 
 /// A recognized block (paragraph): the reviewable unit a future UI will
@@ -307,6 +314,8 @@ pub struct BlockDiagnostics {
     pub lines_split_by_gutter: u64,
     /// Blocks made from table cells ([`BlockKind::TableCell`]).
     pub table_cell_blocks: u64,
+    /// Blocks recognised as list items ([`BlockKind::ListItem`]). DERIVED.
+    pub list_item_blocks: u64,
     /// `/ActualText` runs left ATOMIC — counted, not split. §14.9.4 N4
     /// makes per-character mapping to glyph positions impossible, so an
     /// `/ActualText` run has no glyphs to cluster; it is reported, not
@@ -492,7 +501,8 @@ impl<'a> EditableTextModel<'a> {
         let raw_lines = Self::cluster_lines(page, options, cells, &mut diagnostics);
         let raw_lines = gutter::split_gutters(page, raw_lines, options, &mut diagnostics);
         let (mut lines, columns) = Self::cluster_columns(raw_lines, options);
-        let blocks = Self::segment_blocks(&mut lines, columns, cells, options, &mut diagnostics);
+        let blocks =
+            Self::segment_blocks(page, &mut lines, columns, cells, options, &mut diagnostics);
 
         diagnostics.lines_recognized = lines.len() as u64;
         diagnostics.columns_recognized = columns as u64;
@@ -518,6 +528,13 @@ impl<'a> EditableTextModel<'a> {
                 "text-blocks: {} table cell(s) became blocks; cell boundaries come from table \
                  detection, and no line joins text across them",
                 diagnostics.table_cell_blocks
+            ));
+        }
+        if diagnostics.list_item_blocks > 0 {
+            diagnostics.note(format!(
+                "text-blocks: {} list item(s) recognised from a leading bullet or enumerator \
+                 and a hanging indent (DERIVED)",
+                diagnostics.list_item_blocks
             ));
         }
         if diagnostics.lines_split_by_gutter > 0 {

@@ -839,6 +839,16 @@ is the CLI's sentence. Switch on the variant, never on the text. Variants:
   that natural spacing. A `Tw`/`Tc` equal on every line is kept as style.
   Disclosed in the preview's and the report's disclosures (the line starts
   `reflow: the source lines were stretched to the margin by per-line`).
+- **A list item keeps its marker and hanging indent.** For a
+  `BlockKind::ListItem` block the marker (bullet or enumerator) is word 0
+  even with no space glyph after it; `ReflowPreview::lines[0]` is the marker
+  alone at its source x on the first baseline, and the text lines from
+  `lines[1]` wrap starting at the hanging indent (the x of the first glyph
+  after the marker), the text width shrunk by the indent. `lines_after`
+  counts text lines only, so it compares with `lines_before`. The marker's
+  trailing space glyph is not re-shown — the gap is made by positioning —
+  and that is disclosed (`reflow: list item — the marker ...`). An indent
+  that leaves no positive width is `ReflowError::BadWidth`.
 
 - **Vertical writing is refused** with `VerticalWriting` on `edit_text`, its
   preview, `edit_capability`, `run_repertoire` (an empty answer with

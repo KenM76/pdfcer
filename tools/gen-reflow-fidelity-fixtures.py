@@ -6,7 +6,8 @@ Every byte is constructed here (LEGAL.md §5 category (a)); the classic-xref
 writer is the one in gen-reflow-fixtures.py. No font program is embedded.
 Deterministic: two runs produce identical bytes.
 
-One paragraph per page, so the recognised block index is 0. Pages:
+The block under test is the page's first, so its recognised index is 0.
+Pages:
 
 1. composite: an Identity-H Type0 font with /W and /ToUnicode, a flipped
    0.75 CTM and a `1 0 0 -1 x y Tm` per line, each line its own BT ... ET
@@ -22,6 +23,11 @@ One paragraph per page, so the recognised block index is 0. Pages:
 8. word-justified: Courier lines flush to x=72..300 by a per-line `Tw`, the
    last line at `0 Tw`.
 9. letter-justified: the same by a per-line `Tc`.
+10. bullets: a WinAnsi bullet at x=72, its text moved to the x=84 hanging
+    indent by `Td`, a continuation line at 84, a second item and a closing
+    paragraph.
+11. numbered: `1.` and its text in one string with a space glyph, the
+    continuation at the 83.12 indent that string reaches, then a `2.` item.
 
     python tools/gen-reflow-fidelity-fixtures.py
 """
@@ -154,6 +160,21 @@ LETTER_JUSTIFIED = [
 ]
 
 
+BULLETS = (
+    b"BT /F1 10 Tf 72 740 Td (\x95) Tj 12 0 Td (First item text that runs long enough to) Tj ET\n"
+    b"BT /F1 10 Tf 84 727 Td (wrap onto a second line at the indent.) Tj ET\n"
+    b"BT /F1 10 Tf 72 660 Td (\x95) Tj 12 0 Td (Second item.) Tj ET\n"
+    b"BT /F1 10 Tf 72 647 Td (A closing paragraph after the list.) Tj ET\n"
+)
+
+# Helvetica "1. " advances 556 + 278 + 278 units: 11.12 pt at 10 pt.
+NUMBERED = (
+    b"BT /F1 10 Tf 72 740 Td (1. Numbered item text that runs long enough) Tj ET\n"
+    b"BT /F1 10 Tf 83.12 727 Td (to wrap at its hanging indent.) Tj ET\n"
+    b"BT /F1 10 Tf 72 660 Td (2. Next item.) Tj ET\n"
+)
+
+
 def justified(lines: list[str], last: str, op: str) -> bytes:
     out = bytearray()
     y = 740
@@ -178,6 +199,8 @@ def build() -> bytes:
         SCALE,
         justified(WORD_JUSTIFIED, "stays ragged.", "Tw"),
         justified(LETTER_JUSTIFIED, "but the last one stays tight.", "Tc"),
+        BULLETS,
+        NUMBERED,
     ]
     font_first = 3 + 2 * len(contents)
     fonts = {

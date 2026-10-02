@@ -95,8 +95,8 @@ classic-xref writer; wholly synthetic (§5 category (a)), deterministic,
 placeholder English, no font program embedded. The composite font is a
 non-embedded Identity-H Type0 (`SYNTHA+Helvetica`) whose `/W` widths and
 `/ToUnicode` are written by the script; the others are standard-14
-Helvetica, Helvetica-Bold, Helvetica-Oblique and Courier. One paragraph per
-page:
+Helvetica, Helvetica-Bold, Helvetica-Oblique and Courier. The block under
+test is each page's first, so its recognised index is 0:
 
 | Page | What it pins |
 |---|---|
@@ -109,6 +109,8 @@ page:
 | 7 | Two text-matrix scales: refused, `MixedScale`. |
 | 8 | Courier lines flush to x=72..300 by a per-line `Tw`, last line `0 Tw`: re-justified at the new width, last line ragged, no `Tw` left. |
 | 9 | The same by a per-line `Tc`. |
+| 10 | Two bulleted items (WinAnsi `\x95` at x=72, text placed at x=84 by `12 0 Td` with no space glyph) and a closing paragraph: recognised `list-item, list-item, paragraph`; item 1 re-wraps at x=84 and the bullet does not move. |
+| 11 | Two numbered items (`1. ` with a real space glyph; continuation at x=83.12, the `1. ` advance): recognised as list items; re-wraps at x=83.12 and the number does not move. |
 
 Uses: `crates/pdfcer-core/tests/reflow_fidelity.rs`,
 `crates/pdfcer-render/tests/reflow_kerned_word_pixels.rs`.

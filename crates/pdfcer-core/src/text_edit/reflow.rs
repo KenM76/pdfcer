@@ -92,9 +92,13 @@ use core::ops::Range;
 use crate::page_tree::Rect;
 use crate::text_extract::{ExtractedGlyph, PageText};
 
-use super::model::{Block, BlockRecognitionOptions, EditableTextModel, GlyphRef};
+use super::model::{
+    Block, BlockKind, BlockRecognitionOptions, EditableTextModel, GlyphRef, glyph_text, hanging,
+};
 use super::reflow_fit::{CellOverflow, cell_overflow, cell_wrap_width, page_overflow};
 use super::reflow_spacing::JustifySpacing;
+
+mod list;
 
 /// Ascent as a fraction of the effective size, matching the block model's
 /// own line box (`ury = baseline + 0.75·size`).
@@ -259,6 +263,11 @@ pub struct DetectedAlignment {
 }
 
 /// One line of a [`ReflowPreview`]: which words it holds and where they go.
+///
+/// For a [`BlockKind::ListItem`](super::BlockKind::ListItem) block,
+/// `lines[0]` holds the marker alone at its source position and baseline,
+/// and the text lines follow at the hanging indent, the first of them on the
+/// same baseline.
 ///
 /// The origin is the **left edge of the shown text** in default user space
 /// — the x a `Tm`/`TD` would set (§9.4.2) — and [`Self::baseline_y`] its
@@ -445,7 +454,8 @@ pub struct ReflowPreview {
     pub old_bbox: Rect,
     /// Line count before the re-wrap.
     pub lines_before: usize,
-    /// Line count after the re-wrap.
+    /// Text line count after the re-wrap; a list item's marker line is not
+    /// counted.
     pub lines_after: usize,
     /// A disclosed page-overflow condition, if a cropbox was supplied and
     /// the new box exceeds it (§3.5). `None` otherwise.
@@ -686,11 +696,6 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
         diagnostics.leading_estimated = leading_estimated;
         let alignment = self.alignment(block, req.alignment);
 
-        // Greedy re-break through the ONE shared breaker (decision 015 §3.2).
-        let widths: Vec<f64> = words.iter().map(|w| w.width).collect();
-        let ranges = crate::linebreak::greedy_pack(widths.len(), wrap_width, |s, e| {
-            line_natural_width(&widths, space_width, s, e)
-        });
         let frame = LineFrame {
             llx: old_bbox.llx,
             wrap_width,
@@ -699,8 +704,8 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
             space_width,
             alignment: alignment.alignment,
         };
-        let lines = place_lines(&words, &widths, ranges, &frame, &mut diagnostics);
-        let new_bbox = frame.block_box(lines.len(), size);
+        let hanging = list::item_hanging(self.model, block);
+        let (lines, new_bbox) = list::wrap(&words, &frame, hanging, size, &mut diagnostics)?;
         diagnostics.disclose_layout(&alignment, wrap_width, cell_width.is_some());
         if let Some(note) = spacing.disclosure() {
             diagnostics.disclose(note);
@@ -718,7 +723,7 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
             wrap_width,
             leading,
             lines_before: block.line_indices.len(),
-            lines_after: lines.len(),
+            lines_after: diagnostics.lines_after,
             lines,
             new_bbox,
             old_bbox,
@@ -811,16 +816,24 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
             .collect()
     }
 
-    /// Infer the block's alignment from its lines' x-geometry (§3.6).
-    fn infer_alignment(&self, block: &Block) -> DetectedAlignment {
-        // Per-line (left, right) edges, in block order (top-to-bottom).
-        let edges: Vec<(f64, f64)> = block
+    /// Per-line (left, right) text edges, top to bottom; a list item's first
+    /// line starts at its hanging indent, not at its marker.
+    fn line_edges(&self, block: &Block) -> Vec<(f64, f64)> {
+        let mut edges: Vec<(f64, f64)> = block
             .line_indices
             .iter()
             .filter_map(|&li| self.model.lines().get(li))
             .map(|l| (l.bbox.llx, l.bbox.urx))
             .collect();
+        if let (Some(h), Some(e)) = (list::item_hanging(self.model, block), edges.first_mut()) {
+            e.0 = h.indent_x;
+        }
+        edges
+    }
 
+    /// Infer the block's alignment from its lines' x-geometry (§3.6).
+    fn infer_alignment(&self, block: &Block) -> DetectedAlignment {
+        let edges = self.line_edges(block);
         let size = block
             .line_indices
             .iter()
@@ -839,16 +852,17 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
         let right_ragged = range_of(&rights);
         let mid_ragged = range_of(&mids);
 
+        let detected = |alignment, source| DetectedAlignment {
+            alignment,
+            source,
+            left_ragged_pt: left_ragged,
+            right_ragged_pt: right_ragged,
+            mid_ragged_pt: mid_ragged,
+            tolerance_pt: tol,
+        };
         // A single line cannot be classified — default Left, disclosed.
         if n <= 1 {
-            return DetectedAlignment {
-                alignment: BlockAlignment::Left,
-                source: AlignmentSource::SingleLineDefault,
-                left_ragged_pt: left_ragged,
-                right_ragged_pt: right_ragged,
-                mid_ragged_pt: mid_ragged,
-                tolerance_pt: tol,
-            };
+            return detected(BlockAlignment::Left, AlignmentSource::SingleLineDefault);
         }
 
         let block_urx = rights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
@@ -872,24 +886,9 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
             BlockAlignment::Center
         } else {
             // No clear signal (e.g. a 2-line block flush both margins).
-            return DetectedAlignment {
-                alignment: BlockAlignment::Left,
-                source: AlignmentSource::AmbiguousDefault,
-                left_ragged_pt: left_ragged,
-                right_ragged_pt: right_ragged,
-                mid_ragged_pt: mid_ragged,
-                tolerance_pt: tol,
-            };
+            return detected(BlockAlignment::Left, AlignmentSource::AmbiguousDefault);
         };
-
-        DetectedAlignment {
-            alignment,
-            source: AlignmentSource::Detected,
-            left_ragged_pt: left_ragged,
-            right_ragged_pt: right_ragged,
-            mid_ragged_pt: mid_ragged,
-            tolerance_pt: tol,
-        }
+        detected(alignment, AlignmentSource::Detected)
     }
 }
 
@@ -1026,8 +1025,9 @@ fn join_word_text(words: &[WordTok], range: Range<usize>) -> String {
     out
 }
 
-/// Tokenise a block's glyphs into words (split at U+0020 space glyphs and at
-/// line boundaries), returning the words and the block's space-glyph
+/// Tokenise a block's glyphs into words (split at U+0020 space glyphs, at
+/// line boundaries and, in a list item, after the marker, so word 0 is the
+/// marker alone), returning the words and the block's space-glyph
 /// advances (for the representative space width). Advances are measured at
 /// `spacing`'s base values.
 ///
@@ -1042,13 +1042,14 @@ pub(crate) fn tokenise_block(
     let mut words: Vec<WordTok> = Vec::new();
     let mut spaces: Vec<f64> = Vec::new();
     let mut current: Option<WordTok> = None;
+    let mut marker_last = list_marker_last(model, page, block);
 
     for &li in &block.line_indices {
         let Some(line) = model.lines().get(li) else {
             continue;
         };
         let mut prev: Option<GlyphRef> = None;
-        for &gref in &line.glyphs {
+        for (gi, &gref) in line.glyphs.iter().enumerate() {
             let Some(g) = model.glyph(gref) else { continue };
             let text = glyph_text(page, gref);
             if text == " " {
@@ -1076,13 +1077,32 @@ pub(crate) fn tokenise_block(
             w.glyphs.push(gref);
             w.kerns.push(kern);
             prev = Some(gref);
+            if marker_last == Some(gi) {
+                words.extend(current.take());
+                prev = None;
+            }
         }
+        marker_last = None;
         // A line boundary is a word break (the old wrapping is discarded).
         if let Some(w) = current.take() {
             words.push(w);
         }
     }
     (words, spaces)
+}
+
+/// The index into a list item's first line of its marker's last glyph;
+/// `None` for any other block.
+fn list_marker_last(
+    model: &EditableTextModel<'_>,
+    page: &PageText,
+    block: &Block,
+) -> Option<usize> {
+    if block.kind != BlockKind::ListItem {
+        return None;
+    }
+    let line = model.lines().get(*block.line_indices.first()?)?;
+    hanging(page, line).map(|h| h.marker_last)
 }
 
 /// The displacement from `prev`'s advance end to `g`'s origin, along
@@ -1092,21 +1112,6 @@ fn source_kern(prev: &ExtractedGlyph, g: &ExtractedGlyph) -> f64 {
     let (ux, uy) = (f64::from(prev.direction.0), f64::from(prev.direction.1));
     let d = dx * ux + dy * uy - f64::from(prev.advance);
     if d.abs() < KERN_EPS { 0.0 } else { d }
-}
-
-/// The decoded text of one glyph — its slice of its run's text — or `""` if
-/// the reference is stale. The returned slice borrows `page`.
-fn glyph_text(page: &PageText, gref: GlyphRef) -> &str {
-    page.runs
-        .get(gref.run)
-        .and_then(|run| {
-            run.glyphs.get(gref.glyph).and_then(|g| {
-                let start = g.text_start as usize;
-                let end = start + g.text_len as usize;
-                run.text.get(start..end)
-            })
-        })
-        .unwrap_or("")
 }
 
 /// A human-readable disclosure describing how the alignment was chosen.

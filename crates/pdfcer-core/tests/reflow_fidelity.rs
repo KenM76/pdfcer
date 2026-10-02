@@ -13,7 +13,10 @@ use std::path::Path;
 
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
-use pdfcer_core::text_edit::{ReflowApplyError, ReflowRequest, UnsupportedCause, apply_reflow};
+use pdfcer_core::text_edit::{
+    BlockKind, EditableTextModel, ReflowApplyError, ReflowEngine, ReflowRequest, UnsupportedCause,
+    apply_reflow, reflow_recognition_options,
+};
 use pdfcer_core::text_extract::{self, ExtractOptions, PageText, TextColor};
 use pdfcer_core::text_state::TextStateParam;
 
@@ -27,6 +30,8 @@ const PATH: usize = 5;
 const SCALE: usize = 6;
 const WORD_JUSTIFIED: usize = 7;
 const LETTER_JUSTIFIED: usize = 8;
+const BULLETS: usize = 9;
+const NUMBERED: usize = 10;
 
 /// What a visible glyph looks like: its text, font resource, `Tf` size and
 /// fill colour.
@@ -253,4 +258,99 @@ fn two_text_matrix_scales_are_refused_by_name() {
         ),
         "{err:?}"
     );
+}
+
+#[test]
+fn bulleted_and_numbered_lines_are_recognised_as_list_items() {
+    let src = fixture();
+    for (page, expected) in [
+        (
+            BULLETS,
+            vec![
+                BlockKind::ListItem,
+                BlockKind::ListItem,
+                BlockKind::Paragraph,
+            ],
+        ),
+        (NUMBERED, vec![BlockKind::ListItem, BlockKind::ListItem]),
+    ] {
+        let text = extract(&src, page);
+        let model = EditableTextModel::recognize(&text, &reflow_recognition_options());
+        let kinds: Vec<BlockKind> = model.blocks().iter().map(|b| b.kind).collect();
+        assert_eq!(kinds, expected, "page {page}");
+        assert_eq!(model.blocks()[0].line_indices.len(), 2, "page {page}");
+    }
+}
+
+/// The preview splits the marker from the item's first word even with no
+/// space glyph between them (the bullet page positions the text by `Td`).
+#[test]
+fn the_preview_puts_the_marker_alone_on_line_zero() {
+    let src = fixture();
+    for (page, marker, first) in [(BULLETS, "\u{2022}", "First"), (NUMBERED, "1.", "Numbered")] {
+        let text = extract(&src, page);
+        let model = EditableTextModel::recognize(&text, &reflow_recognition_options());
+        let pv = ReflowEngine::new(&model)
+            .preview(0, &ReflowRequest::new().with_wrap_width(150.0))
+            .expect("preview");
+        assert_eq!(pv.lines[0].text, marker, "page {page}");
+        assert!(
+            pv.lines[1].text.starts_with(first),
+            "page {page}: {:?}",
+            pv.lines[1]
+        );
+        assert_eq!(pv.lines_after, pv.lines.len() - 1, "page {page}");
+    }
+}
+
+/// Every visible glyph as `(text, x, y)`, in content order.
+fn placed(page: &PageText) -> Vec<(String, f32, f32)> {
+    let mut out = Vec::new();
+    for run in &page.runs {
+        for g in &run.glyphs {
+            let start = g.text_start as usize;
+            let text = &run.text[start..start + g.text_len as usize];
+            if !text.trim().is_empty() {
+                out.push((text.to_owned(), g.x, g.y));
+            }
+        }
+    }
+    out
+}
+
+/// Re-wraps list `page` narrower and asserts the first `marker_len` glyphs
+/// (the marker) keep their position while every text line of the item
+/// starts at the hanging `indent`.
+fn rewraps_at_the_hanging_indent(page: usize, marker_len: usize, indent: f32) {
+    let (before, after) = rewrap_keeps_looks(page, 150.0);
+    let (before, after) = (placed(&before), placed(&after));
+    assert_eq!(after[..marker_len], before[..marker_len]);
+    let text_start = &after[marker_len];
+    assert!((text_start.1 - indent).abs() < 0.05, "{text_start:?}");
+    assert!((text_start.2 - after[0].2).abs() < 0.05, "{text_start:?}");
+    let item = |p: &[(String, f32, f32)]| -> Vec<(f32, f32)> {
+        let mut lines: Vec<(f32, f32)> = Vec::new();
+        for (_, x, y) in p.iter().skip(marker_len).filter(|g| g.2 > 690.0) {
+            match lines.iter_mut().find(|l| (l.0 - y).abs() < 0.5) {
+                Some(l) => l.1 = l.1.min(*x),
+                None => lines.push((*y, *x)),
+            }
+        }
+        lines
+    };
+    let lines = item(&after);
+    assert!(lines.len() > item(&before).len(), "{lines:?}");
+    for l in &lines {
+        assert!((l.1 - indent).abs() < 0.05, "{l:?}");
+    }
+}
+
+#[test]
+fn a_bulleted_item_rewraps_at_its_indent_and_the_bullet_stays() {
+    rewraps_at_the_hanging_indent(BULLETS, 1, 84.0);
+}
+
+#[test]
+fn a_numbered_item_rewraps_at_its_indent_and_the_number_stays() {
+    rewraps_at_the_hanging_indent(NUMBERED, 2, 83.12);
 }

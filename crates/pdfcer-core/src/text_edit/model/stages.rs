@@ -1,6 +1,7 @@
 //! The three recognition stages: lines, column bands, blocks.
 
 use super::cells::{CellRegion, cell_index_at};
+use super::lists;
 use super::{
     Block, BlockDiagnostics, BlockKind, BlockRecognitionOptions, EditableTextModel, GlyphRef, Line,
 };
@@ -203,6 +204,7 @@ impl EditableTextModel<'_> {
     /// gap and first-line indent, then make one block per table cell, and
     /// stamp every line's `block`.
     pub(super) fn segment_blocks(
+        page: &PageText,
         lines: &mut [Line],
         columns: usize,
         cells: &[CellRegion],
@@ -211,9 +213,13 @@ impl EditableTextModel<'_> {
     ) -> Vec<Block> {
         let mut blocks: Vec<Block> = Vec::new();
         for column in 0..columns {
-            for paragraph in paragraphs_in_column(lines, column, options, diagnostics) {
+            for (paragraph, kind) in paragraphs_in_column(page, lines, column, options, diagnostics)
+            {
+                if kind == BlockKind::ListItem {
+                    diagnostics.list_item_blocks += 1;
+                }
                 blocks.push(Block {
-                    kind: BlockKind::Paragraph,
+                    kind,
                     column,
                     bbox: union_bbox(lines, &paragraph),
                     line_indices: paragraph,
@@ -268,62 +274,126 @@ fn left_to_right(columns: &[ColumnAgg]) -> Vec<usize> {
     column_of
 }
 
-/// One column's body lines (not in a cell), top to bottom, split into
-/// paragraphs at a leading gap or a first-line indent.
-fn paragraphs_in_column(
-    lines: &[Line],
-    column: usize,
-    options: &BlockRecognitionOptions,
-    diagnostics: &mut BlockDiagnostics,
-) -> Vec<Vec<usize>> {
-    let mut col_lines: Vec<(usize, f32, f64, f32)> = lines
+/// A continuation line joins a list item when its left edge is within this
+/// many ems of the item's hanging indent.
+const LIST_INDENT_TOLERANCE_EM: f64 = 0.25;
+
+/// One body line of a column: its index, baseline y, left edge and size.
+#[derive(Clone, Copy)]
+struct ColLine {
+    index: usize,
+    baseline_y: f32,
+    llx: f64,
+    size: f32,
+}
+
+/// A column's body lines, top to bottom, with the column's left margin and
+/// median leading.
+fn column_metrics(lines: &[Line], column: usize) -> (Vec<ColLine>, f64, f32) {
+    let mut col_lines: Vec<ColLine> = lines
         .iter()
         .enumerate()
         .filter(|(_, l)| l.column == column && l.cell.is_none())
-        .map(|(i, l)| (i, l.baseline_y, l.bbox.llx, l.size))
+        .map(|(index, l)| ColLine {
+            index,
+            baseline_y: l.baseline_y,
+            llx: l.bbox.llx,
+            size: l.size,
+        })
         .collect();
-    col_lines.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let margin = col_lines
-        .iter()
-        .map(|&(_, _, llx, _)| llx)
-        .fold(f64::MAX, f64::min);
+    col_lines.sort_by(|a, b| b.baseline_y.total_cmp(&a.baseline_y));
+    let margin = col_lines.iter().map(|c| c.llx).fold(f64::MAX, f64::min);
     // The median leading is robust to one outsized paragraph gap.
     let mut gaps: Vec<f32> = col_lines
         .windows(2)
         .filter_map(|w| match w {
-            [a, b] => Some(a.1 - b.1),
+            [a, b] => Some(a.baseline_y - b.baseline_y),
             _ => None,
         })
         .collect();
     let typical = median(&mut gaps);
+    (col_lines, margin, typical)
+}
 
-    let mut paragraphs: Vec<Vec<usize>> = Vec::new();
+/// Whether a line with left edge `llx` and size `size` sits at `indent_x`.
+fn at_indent(llx: f64, size: f32, indent_x: f64) -> bool {
+    (llx - indent_x).abs() <= LIST_INDENT_TOLERANCE_EM * f64::from(size)
+}
+
+/// One column's body lines (not in a cell), top to bottom, split into
+/// blocks at a leading gap or a first-line indent, and into list items.
+///
+/// A line opening with a bullet or enumerator ([`lists::hanging`]) starts a
+/// [`BlockKind::ListItem`] when it would start a block anyway, follows
+/// another item, or the next line sits at its hanging indent; later lines
+/// stay in the item while they sit at that indent with no leading break.
+fn paragraphs_in_column(
+    page: &PageText,
+    lines: &[Line],
+    column: usize,
+    options: &BlockRecognitionOptions,
+    diagnostics: &mut BlockDiagnostics,
+) -> Vec<(Vec<usize>, BlockKind)> {
+    let (col_lines, margin, typical) = column_metrics(lines, column);
+    let mut blocks: Vec<(Vec<usize>, BlockKind)> = Vec::new();
     let mut current: Vec<usize> = Vec::new();
+    let mut kind = BlockKind::Paragraph;
+    let mut item_indent: Option<f64> = None;
     let mut prev_baseline: Option<f32> = None;
-    for &(i, baseline_y, llx, size) in &col_lines {
-        if let Some(prev_y) = prev_baseline {
-            let gap = prev_y - baseline_y;
-            let leading_break =
-                typical > 0.0 && gap > (1.0 + options.paragraph_leading_ratio) * typical;
-            let indent_break = llx - margin > f64::from(options.indent_ratio * size);
+    for (k, c) in col_lines.iter().enumerate() {
+        let ColLine {
+            index: i,
+            baseline_y,
+            llx,
+            size,
+        } = *c;
+        let leading_break = prev_baseline.is_some_and(|prev_y| {
+            typical > 0.0 && prev_y - baseline_y > (1.0 + options.paragraph_leading_ratio) * typical
+        });
+        let indent_break =
+            prev_baseline.is_some() && llx - margin > f64::from(options.indent_ratio * size);
+        let opens_item = lines
+            .get(i)
+            .and_then(|l| lists::hanging(page, l))
+            .filter(|h| {
+                current.is_empty()
+                    || leading_break
+                    || indent_break
+                    || item_indent.is_some()
+                    || col_lines
+                        .get(k + 1)
+                        .is_some_and(|n| at_indent(n.llx, n.size, h.indent_x))
+            });
+        let break_here = opens_item.is_some()
+            || match item_indent {
+                Some(x) => leading_break || !at_indent(llx, size, x),
+                None => leading_break || indent_break,
+            };
+        if break_here && !current.is_empty() {
+            // Counted only when it is the reason, so the counters partition
+            // the block starts.
             if leading_break {
                 diagnostics.paragraph_breaks_by_leading += 1;
-            } else if indent_break {
-                // Counted only when it is the reason, so the two counters
-                // partition the paragraph starts.
+            } else if indent_break && opens_item.is_none() && item_indent.is_none() {
                 diagnostics.paragraph_breaks_by_indent += 1;
             }
-            if (leading_break || indent_break) && !current.is_empty() {
-                paragraphs.push(std::mem::take(&mut current));
-            }
+            blocks.push((std::mem::take(&mut current), kind));
+        }
+        if current.is_empty() {
+            item_indent = opens_item.map(|h| h.indent_x);
+            kind = if item_indent.is_some() {
+                BlockKind::ListItem
+            } else {
+                BlockKind::Paragraph
+            };
         }
         current.push(i);
         prev_baseline = Some(baseline_y);
     }
     if !current.is_empty() {
-        paragraphs.push(current);
+        blocks.push((current, kind));
     }
-    paragraphs
+    blocks
 }
 
 /// The union of the boxes of `lines[indices]`; a zero rect when empty.

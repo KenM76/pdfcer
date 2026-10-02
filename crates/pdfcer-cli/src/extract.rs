@@ -1748,6 +1748,7 @@ pub(crate) fn block_kind_str(kind: pdfcer_core::text_edit::BlockKind) -> &'stati
     match kind {
         BlockKind::Paragraph => "paragraph",
         BlockKind::TableCell { .. } => "table-cell",
+        BlockKind::ListItem => "list-item",
         _ => "other",
     }
 }

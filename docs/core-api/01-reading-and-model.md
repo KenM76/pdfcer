@@ -1495,6 +1495,18 @@ less `max(0, min(left inset, right inset))`). Text that no longer fits is
 past_right_pt, lines_outside }>`, plus a `does not fit its table cell` line in
 the disclosures. The cell, its rules and the rows below are not moved.
 
+**List items (`Pass 432.0`).** `BlockKind::ListItem` is a horizontal
+left-to-right block whose first line opens with a bullet or enumerator
+(`•`, `-`, `1.`, `a)`, `(iv)`, …) ended by a space glyph or a positioned gap
+of at least 0.15 em. Such a line starts an item when it would start a block
+anyway, follows another item, or the next line sits at its hanging indent
+(the x of the first glyph after the marker). Following lines stay in the
+item while they sit at that indent (± 0.25 em) with no paragraph break; a
+nested deeper item is a separate item. Counted in
+`BlockDiagnostics::list_item_blocks` and disclosed. CLI kind string:
+`list-item`. Reflow: see `02-editing-and-saving.md`, "A list item keeps its
+marker".
+
 CLI: `inspect --text-blocks [--json]` prints `kind=table-cell cell=t0r1c0` /
 `"cell": {"table", "row", "column", "rect"}` and the three counters;
 `inspect --reflow-preview` and `reflow` print `cell_overflow`.

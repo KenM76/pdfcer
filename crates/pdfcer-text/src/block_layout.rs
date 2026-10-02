@@ -1305,7 +1305,11 @@ fn rest_min(rest: &[&Frag]) -> f64 {
 
 /// `(marker, rest)` when `text` opens with a bullet or an enumerator
 /// followed by whitespace (or is only the marker).
-fn list_marker(text: &str) -> Option<(&str, &str)> {
+///
+/// Shared with `pdfcer-core`'s editable text model so both recognisers
+/// agree on what a list marker is; not a stable API.
+#[doc(hidden)]
+pub fn list_marker(text: &str) -> Option<(&str, &str)> {
     let text = text.trim_start();
     let first = text.chars().next()?;
     let end = if "•◦▪▫‣⁃–—-*·●○■□►▶✓✔➢➤".contains(first) {
