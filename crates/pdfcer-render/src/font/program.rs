@@ -306,7 +306,7 @@ impl<'a> FontProgram<'a> {
             Self::Sfnt(font) => {
                 let post = font.post().ok()?;
                 (0..u16::try_from(post.num_names()).unwrap_or(u16::MAX))
-                    .find(|&gid| post.glyph_name(GlyphId16::new(gid)) == Some(name))
+                    .find(|&gid| post_glyph_name(&post, gid) == Some(name))
                     .map(u32::from)
             }
             Self::Cff(cff) => {
@@ -528,6 +528,31 @@ impl OutlinePen for SkiaPen {
     }
 }
 
+/// `post`'s name for `gid`, `None` where it has none.
+///
+/// `read-fonts` 0.39 unwraps a version 2.0 table's string data when a name
+/// index is past the 258 standard names, so a `post` whose name index
+/// outruns its (absent or unreadable) strings panics there. Such an index
+/// names nothing (OpenType `post`, version 2.0), so it is answered here.
+pub(crate) fn post_glyph_name<'a>(
+    post: &'a skrifa::raw::tables::post::Post<'a>,
+    gid: u16,
+) -> Option<&'a str> {
+    if post.version() == skrifa::raw::types::Version16Dot16::VERSION_2_0
+        && post.string_data().is_none()
+    {
+        let index = post.glyph_name_index()?.get(usize::from(gid))?.get();
+        if usize::from(index) >= STANDARD_POST_NAMES {
+            return None;
+        }
+    }
+    post.glyph_name(GlyphId16::new(gid))
+}
+
+/// The Macintosh standard glyph names a `post` version 2.0 index below this
+/// refers to.
+const STANDARD_POST_NAMES: usize = 258;
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -538,6 +563,20 @@ impl OutlinePen for SkiaPen {
 mod tests {
     use super::*;
     use crate::font::{FallbackKey, bundled};
+
+    /// A version 2.0 `post` whose glyph 0 names index 258 with no string
+    /// data after the index: `read-fonts` panics on it unguarded.
+    #[test]
+    fn a_post_name_index_past_its_strings_names_nothing() {
+        let mut table = vec![0, 2, 0, 0];
+        table.extend_from_slice(&[0; 28]);
+        table.extend_from_slice(&[0, 2, 1, 2, 0, 3]);
+        let post: skrifa::raw::tables::post::Post<'_> =
+            skrifa::raw::FontRead::read(RawFontData::new(&table)).unwrap();
+        assert!(post.string_data().is_none(), "the panicking shape");
+        assert_eq!(post_glyph_name(&post, 0), None);
+        assert_eq!(post_glyph_name(&post, 1), Some("space"));
+    }
 
     #[test]
     fn every_bundled_face_parses_and_yields_outlines() {

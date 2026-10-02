@@ -54,7 +54,7 @@ impl EmbeddedGlyphs for EmbeddedProgramGlyphs {
         let count = u16::try_from(parsed.num_glyphs()).unwrap_or(u16::MAX);
         (1..count)
             .filter(|&gid| matches!(parsed.outline(u32::from(gid)), Ok(Some(_))))
-            .filter_map(|gid| post.glyph_name(skrifa::raw::types::GlyphId16::new(gid)))
+            .filter_map(|gid| crate::font::program::post_glyph_name(&post, gid))
             .map(str::to_owned)
             .collect()
     }
