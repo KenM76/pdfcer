@@ -63,3 +63,10 @@ before every commit and stage explicit paths — **not because an agent is
 running, but always.** If `docs/` appears in the list of a code commit and
 you did not edit `docs/`, a librarian left it there: commit that
 separately, first, with a `librarian:` subject.
+
+**Third spelling, 2026-10-02: `git add $(git diff --name-only)`.** It
+looks explicit, but it expands to every modified tracked file, so it swept
+the spec librarian's two uncommitted `.claude/agent-memory/` files into a
+render commit. I caught it with `git show --stat HEAD` and fixed it with
+`git reset HEAD~1 -- <paths>` plus `--amend` before pushing. Any
+command-substituted path list is `-A` in disguise. Type the paths.
