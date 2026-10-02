@@ -4,6 +4,46 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (861st filing) — `Pass 430.1` slice 2c SHIPPED (`3a431c49`) — preview and repertoire see a glyph appended from the installed face
+
+**Shipped:**
+- `3a431c49` — `Pass 430.1` slice 2c (decision 173, `G075` b). Core/render:
+  `TextEditPreview.font_program: Option<Vec<u8>>` (new `pub` field) carries
+  the decoded program the commit would embed, `/FontDescriptor` inline;
+  `pdfcer_render::edit_preview::preview_outlines` draws from it so a typed
+  appended glyph previews in the subset's own face.
+  `EditSession::run_repertoire_with` now honours
+  `EditOptions::with_subset_augment`: uncarried characters are offered to a
+  new default trait method `SubsetAugmenter::addable` (default: all-or-
+  nothing via `augment`; `InstalledFaceAugmenter` overrides it per
+  character), confirmed by planning the augmented edit, so repertoire and
+  commit agree. Tests: 2 new render integration tests (`subset_augment`
+  module now 7); render integration suite 439 passed; core repertoire
+  tests 13 passed; 3 sabotages, all caught. Gates: fmt, clippy -D warnings
+  (core/render/cli), structure gate (clean, 629 baseline), core-api-verbs,
+  public-fns-documented all clean; no manifest change, `cargo tree`
+  unaffected. `docs/core-api/02` updated. `core [x]` / `cli` n/a (no batch
+  verb; preview/repertoire are core-only query surfaces) / `gui [ ]` not
+  wired. **`Pass 430.1` STAYS OPEN** — composite (`Type0`/`CIDFontType2`)
+  subsets still not augmented.
+
+**Decisions made this session:** none new — this commit executes decision
+173 §4, already on record.
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 430.1` remainder (composite fonts), `Pass 430.3`, `431.0`–`436.3`
+  unchanged, still open.
+
+**For next session:**
+- Continue `Pass 430.1`'s remaining scope (composite fonts), or pick up
+  `430.3`/`431.0` per `docs/NEXT_SESSION.md`.
+
+**Sourcing (hard rule 8):** no shell this filing. Hash (`3a431c49`) and
+every fact above relayed from the dispatching engineer's own report, not
+independently reproduced.
+
 ## 2026-10-01 (860th filing) — `Pass 437.0` SHIPPED (`3affd3db`) + `Pass 430.1` slice 2b SHIPPED (`f54c8957`) — core wiring/CLI for subset augmentation; preview names its rewritten part
 
 **Shipped:**

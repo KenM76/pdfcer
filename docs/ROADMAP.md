@@ -127,6 +127,24 @@ Answers `pdfcer-gui` request `G082`; same family as the `430.x` augmentation wor
 
 **Sourcing (hard rule 8).** No shell this filing. Hash (`3affd3db`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
 
+### `Pass 430.1` (slice 2c, `3a431c49`), 2026-10-01 — preview and repertoire see a glyph appended from the installed face (G075 b, decision 173 §4)
+
+Continues the `Pass 427.0`–`436.3` family. **`Pass 430.1` STAYS OPEN** — composite (`Type0`/`CIDFontType2`) subsets are still not augmented.
+
+**Core/render.** `TextEditPreview.font_program: Option<Vec<u8>>` (new `pub` field): the decoded program the commit would embed; `font`'s `/FontDescriptor` is then inline. `pdfcer_render::edit_preview::preview_outlines` draws from it, so a typed appended glyph previews in the subset's own face. `EditSession::run_repertoire_with` now honours `EditOptions::with_subset_augment`: uncarried characters are offered to a new default trait method `SubsetAugmenter::addable` (default: all-or-nothing via `augment`; `InstalledFaceAugmenter` overrides it per character), then confirmed by planning the augmented edit, so the repertoire and the commit agree.
+
+**Tests.** 2 new render integration tests (`subset_augment` module now 7); render integration suite 439 passed; core repertoire tests 13 passed; 3 planted sabotages, all caught.
+
+**Gates.** fmt, `cargo clippy -- -D warnings` (core/render/cli, all targets), the structure gate (clean, 629 baseline, none new), `check-core-api-verbs` PASS, `check-public-fns-documented` clean. No manifest change — `cargo tree` unaffected. `docs/core-api/02-editing-and-saving.md` updated (the augment row's "Preview: not yet" replaced).
+
+**Shells.** `core [x]` / `cli` n/a — no CLI change; preview and repertoire are core-only query surfaces, not a batch verb — / `gui [ ]` not wired.
+
+**`docs/FEATURES.md`.** Row stays in *Planned* (composite fonts still owed); row text updated to name preview/repertoire coverage.
+
+**Still open in `Pass 430.1`.** Composite (`Type0`/`CIDFontType2`) subsets. Then `Pass 430.3`, `431.0`–`436.3`.
+
+**Sourcing (hard rule 8).** No shell this filing. Hash (`3a431c49`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 430.1` (slice 2b, `f54c8957`), 2026-10-01 — core wiring + CLI for augmenting an embedded TrueType subset from an installed face (G075 b, decision 173 §4)
 
 Continues the `Pass 427.0`–`436.3` family. **`Pass 430.1` STAYS OPEN** — this slice reaches core and the CLI; `edit_text_preview`/`run_repertoire_with` awareness of augmentation and composite fonts remain owed.
