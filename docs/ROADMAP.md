@@ -115,6 +115,85 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 436.0` (`a032534b`+`f346a2ff`), 2026-10-02 — opt-in disclosed workarounds for refused text edits — `Pass 436.0` SHIPPED
+
+Operator direct request (verbatim, quoted in the 844th filing): *"are we
+able to make it so there are ways to edit text in all cases even if it
+involves work arounds the user accepts?"* One of the `Pass 436.0`–`436.3`
+family (844th filing); builds on `427.0` (`UnsupportedCause`), `428.0`
+(cross-text-object span) and `431.0` (fallback face, decision 174's sibling
+route).
+
+**Core, `a032534b`.** `EditOptions::workarounds: WorkaroundPolicy`
+(`Refuse` default / `Apply`), `with_workarounds`; `EditReport.workaround:
+Option<WorkaroundUse>`; `EditError::workaround()` names the offer on a
+refusal; new `EditError::WorkaroundRefused { refused, workaround, why }`.
+Under `Apply`, a refusal with an offer tries, in order: **join** (re-plan as
+a pinned cross-object span, `428.0`'s mechanism), **quote rewrite** (`'`→
+`T* … Tj`, `"`→`aw Tw ac Tc T* … Tj`, §9.4.3), else **retype** — the
+touched show operators' string bytes removed (redaction-grade), one `Tj`
+set at the first operator's position/size/colour/spacing, in the run's own
+font where it can encode the new text, else the fallback face (`431.0`),
+else non-embedded Helvetica; a following `Tj`/`TJ` is held in place by a
+compensating `TJ` number. One undo entry regardless of route. No
+workaround for `ReferenceXObject`/`OpiProxy`/`ObjectNumbersExhausted`/
+`CommitFailed`/`StateNotRestorable`/`InsideFormXObject`/a one-character
+coverage refusal (left to `with_fallback`, which keeps the rest of the run
+intact). Disclosed per rule 4 (`workaround (<label>, exact|approximate):
+…`); retype is labelled **approximate**, names what it removed/set, the
+fallback face, and that an incremental save keeps the removed bytes in the
+prior revision. New `EditError::NoMatch { SplitRun }` cause (one text
+object, one line, the match crosses operators the matcher does not join).
+
+**Defect fixed on the way, same commit.** `narrow_span` re-spaced a
+narrowed cross-object match but left the next text object's own `Td`
+unmoved, overlapping text ("Right" over "-Hand Door"); now declines to
+narrow when an `ET` falls between the narrowed part's last operator and the
+match's end, using the whole-span plan instead. Reachable without a
+workaround, by any `spanning_from` crossing text objects.
+
+**CLI, `f346a2ff`.** `edit-text --workaround`; a refusal offering one exits
+9 and prints "re-run with --workaround to apply it"; also wires `Pass
+436.1`'s `workarounds = always` settings key into `edit-text`, so a
+settings file turns the policy on for every invocation with no flag
+(real-binary test using `--settings`, sabotage-checked).
+
+**Decision 175** (`docs/decisions/175-text-edit-workarounds.md`) records
+the offer table, route order, default-refuse posture and the excluded-cause
+list. Fills the gap `decision 176` reserved (872nd filing); ceiling stays
+at `176`, next free `177`.
+
+**Fixture.** `fixtures/synthetic/text/workaround-seam.pdf`.
+
+**Tests.** Workspace core/render/cli suites reported green by the
+dispatching engineer; 3 `edit_text_workaround` real-binary CLI tests (exact
+counts not independently reproduced — no shell this filing).
+
+**Gates.** No `Cargo.toml` change in `pdfcer-core`/`pdfcer-render` —
+`cargo tree` invariant unaffected by construction; not independently
+re-verified this filing (no shell).
+
+**Shells.** `core [x]` / `cli [x]` / `gui [ ]` (`Pass 436.3`, not filed
+yet).
+
+**`docs/FEATURES.md`.** Row moved from *Planned* to *Implemented*: "Opt-in
+workaround for a refused text edit" — core/cli ticked, gui unticked.
+
+**Known gaps, disclosed not hidden.** No typed `TextEditPreview.workaround`
+field (§6 of decision 175 — the preview's disclosures already agree with
+the commit's, a field can follow when a shell asks); retype loses the run's
+kerning (deliberate, §6); `edit_capability` takes no options, so it cannot
+report workaround availability under a policy; the fallback disclosure
+wording says "the rest stays in own font" even when nothing does; the
+narrowing fix has no direct `spanning_from` unit test; no `gui` caller yet
+(`Pass 436.3`).
+
+**Sourcing (hard rule 8).** No shell this filing. Commits `a032534b`/
+`f346a2ff` confirmed present at `HEAD` per the git-status snapshot at the
+start of this conversation; every other fact above (test counts, sabotage
+results) is relayed from the dispatching engineer's own report, not
+independently reproduced.
+
 ### `Pass 436.1` (`132f4523`), 2026-10-02 — portable settings file + opt-in OS font folders (cli) — `Pass 436.1` SHIPPED
 
 Operator direct request (verbatim, quoted in the 844th filing): *"a default
@@ -15924,6 +16003,16 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 436.0` SHIPPED, 2026-10-02 (873rd filing),
+> `a032534b`+`f346a2ff`** — see *Shipped*, above. Opt-in disclosed
+> workaround (`WorkaroundPolicy::Apply`) for a refused text edit — join,
+> quote rewrite, else retype in the run's own font or a fallback face;
+> CLI `edit-text --workaround`, also wired to `436.1`'s `workarounds =
+> always` settings key; decision 175. **`Pass 436.0` is now SHIPPED** —
+> two items remain in the `Pass 436.0`–`436.3` family (844th filing):
+> `436.2` (matching ladder), `436.3` (gui settings screen, not filed
+> yet). `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 436.1` SHIPPED, 2026-10-02 (872nd filing),
 > `132f4523`** — see *Shipped*, above (cherry-pick of agent commit

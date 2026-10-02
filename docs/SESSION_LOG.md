@@ -4,6 +4,56 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (873rd filing) — `Pass 436.0` SHIPPED (opt-in disclosed workarounds for refused text edits)
+
+**Shipped:**
+- `Pass 436.0` (`a032534b`+`f346a2ff`) — `EditOptions::workarounds:
+  WorkaroundPolicy` (`Refuse` default / `Apply`); a refusal that offers one
+  tries cross-text-object join, then quote-operator rewrite, then "retype"
+  (redaction-grade removal of the run's show operators, reset at the run's
+  own position/size/colour/spacing, in its own font or a fallback face);
+  one undo entry, disclosed off-canvas (rule 4), retype labelled
+  approximate. CLI `edit-text --workaround` (a refusal needing one exits 9);
+  also wires `Pass 436.1`'s `workarounds = always` settings key into
+  `edit-text`.
+
+**Decisions made this session:**
+- Decision 175 (`docs/decisions/175-text-edit-workarounds.md`) — the offer
+  table (which refusal causes get a workaround, which don't), route order,
+  default-refuse posture. Filed after decision 176 in this document even
+  though numbered lower — `176` (872nd filing) reserved `175` for this
+  parallel `Pass 436.0` session; ceiling stays at `176`, next free `177`.
+
+**Findings + decisions:**
+- Last of the `Pass 436.0`–`436.3` family (844th filing) to close for now;
+  `436.2` (matching ladder) and `436.3` (gui settings screen) remain.
+- A defect fixed on the way, same commit: `narrow_span` re-spaced a
+  narrowed cross-object match but left the next text object's own `Td`
+  unmoved, overlapping text; now declines to narrow when an `ET` falls
+  between the narrowed part's last operator and the match's end, using the
+  whole-span plan instead. Reachable without a workaround, by any
+  `spanning_from` crossing text objects — not workaround-specific.
+- Honest gaps disclosed, not hidden: no typed `TextEditPreview.workaround`
+  field; retype loses the run's kerning (deliberate); `edit_capability`
+  takes no options, so it can't report workaround availability under a
+  policy; the fallback disclosure wording says "the rest stays in own font"
+  even when nothing does; the narrowing fix has no direct `spanning_from`
+  unit test.
+- No shell this filing — commits `a032534b`/`f346a2ff` confirmed at `HEAD`
+  via the git-status snapshot at conversation start; test counts and
+  sabotage results relayed from the dispatching engineer's own report, not
+  independently reproduced.
+
+**Still in flight:** `436.2` (replacement-font matching ladder, shared by
+`430.1`/`431.0`/`436.0`) and `436.3` (gui settings screen + "use
+workaround" action, not filed yet) — the family isn't fully landed.
+`docs/FEATURES.md`'s workaround row is now in *Implemented* with `gui`
+unticked.
+
+**For next session:** Pick up `436.2` (matching ladder) next, per the
+family order in `ROADMAP.md`'s *Next up*; `436.3` is a `pdfcer-gui`
+FeatureRequests item once `436.0`/`436.1` land, which they now have.
+
 ## 2026-10-02 (872nd filing) — `Pass 436.1` SHIPPED (portable settings file + opt-in OS font folders)
 
 **Shipped:**

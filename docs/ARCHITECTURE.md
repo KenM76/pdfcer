@@ -12330,3 +12330,55 @@ settings file and font-folder discovery, this filing.
 
 **Decision ceiling: `174` → `176`** (**`175` is reserved but not yet
 filed**, by the parallel `Pass 436.0` session); next free `177`.
+
+### 2026-10-02 (873rd filing, `a032534b`+`f346a2ff`, KenAgent) — decision 175: a refused text edit may apply a disclosed workaround, retype as the last resort, never silently
+
+**Trigger.** Operator direct request (844th filing, verbatim: *"are we able
+to make it so there are ways to edit text in all cases even if it involves
+work arounds the user accepts?"*), same family as decisions 172–174/176.
+Fills the gap `176` reserved as `175`, filed here out of numeric order
+because `Pass 436.0` committed after `Pass 436.1`.
+
+**What this decides.** `EditOptions::workarounds: WorkaroundPolicy`
+(`Refuse` default / `Apply`), `with_workarounds`. Under `Apply`, a refusal
+that offers a workaround tries, in order: **join** (re-plan as a pinned
+cross-text-object span, `Pass 428.0`'s mechanism), **quote rewrite** (`'`→
+`T* … Tj`, `"`→`aw Tw ac Tc T* … Tj`, §9.4.3), else **retype** — the
+touched show operators' string bytes removed (redaction-grade), one `Tj`
+set at the first operator's own position/size/colour/spacing, in the run's
+own font when it can encode the new text, else the fallback face (decision
+underlying `Pass 431.0`), else non-embedded Helvetica; a following
+`Tj`/`TJ` is held in place by a compensating `TJ` number. One undo entry
+regardless of which route fired. No workaround is offered for
+`ReferenceXObject`/`OpiProxy`/`ObjectNumbersExhausted`/`CommitFailed`/
+`StateNotRestorable`/`InsideFormXObject`, or a one-character coverage
+refusal (left to `with_fallback`, which keeps the rest of the run intact —
+a retype would throw away that precision). Default stays `Refuse`: byte
+output is unchanged for every existing caller unless it opts in — opt-in
+because a retype changes text the operator did not ask to change (the
+operators around the match are reset) and may substitute a face, so a
+silent default would break rule 4's spirit even with a disclosure.
+Disclosed per rule 4: `workaround (<label>, exact|approximate): the exact
+edit was refused (<reason>), so pdfcer applied: <what>`; retype is labelled
+**approximate**, names the fallback face when used, and notes that an
+incremental save keeps the removed bytes in the prior revision.
+
+**Amends.** Nothing — runs strictly after the routes decisions 172–174
+define, trying them in the order already established, and only reaches
+retype when all of them refuse.
+
+**Rejected.** Workarounds on by default (see above). Retyping a
+one-character coverage refusal (precision loss with no exact-fix benefit).
+Keeping kerning on retype (the removed operators' `TJ` numbers are not
+carried, and the disclosure already says the text was retyped). A typed
+`workaround` field on `TextEditPreview` (the preview's own disclosures
+already agree with the commit's; a field can follow when a shell asks).
+
+**Full record:** `docs/decisions/175-text-edit-workarounds.md`.
+
+**Body-section effect.** None — no font dictionary, program or §4 entry is
+touched; the mechanism is a content-stream rewrite inside the existing
+`edit_text` route, the same shape as decision 174's.
+
+**Decision ceiling.** Fills the gap decision 176 reserved; ceiling stays at
+`176`, next free `177`.
