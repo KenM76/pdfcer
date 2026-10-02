@@ -13,6 +13,7 @@ use std::collections::BTreeSet;
 
 use crate::object::{Dict, Name, Object};
 use crate::text_edit::font_extend::{Blocked, Target, codes_shown, map_private};
+use crate::text_edit::glyph_find;
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
 use crate::view::DocumentView;
 use pdfcer_fonts::fontdata::{BaseEncoding, encoding_glyph_name, unicode_to_glyph_name};
@@ -86,13 +87,17 @@ impl Slots {
         Ok(Self { target, free })
     }
 
-    /// The glyph name `ch` would get, or why it cannot be shown.
+    /// The glyph name `ch` would get, or why it cannot be shown: an AGL name
+    /// when the `cmap` reaches the glyph, else the program's own `post` name
+    /// for it, the one name a viewer's §9.6.6.4 lookup will find.
     fn name_for(&self, ch: char, glyphs: &dyn EmbeddedGlyphs) -> Result<String, &'static str> {
-        let name = unicode_to_glyph_name(ch).ok_or("no glyph name reads back as it")?;
-        glyphs
-            .unicode_glyph(&self.target.shape.program, ch)
-            .ok_or("the embedded program has no outline for it")?;
-        Ok(name)
+        let program = &self.target.shape.program;
+        if glyphs.unicode_glyph(program, ch).is_some() {
+            return unicode_to_glyph_name(ch).ok_or("no glyph name reads back as it");
+        }
+        glyph_find::find(glyphs, program, ch, None)
+            .and_then(|f| f.post_name)
+            .ok_or("the embedded program has no outline for it")
     }
 
     /// The font dictionary with `codes` added to its `/Differences`.
@@ -181,10 +186,16 @@ pub(crate) fn allocatable(
     if slots.free.is_empty() || shared {
         return BTreeSet::new();
     }
-    glyphs
-        .unicode_chars(&slots.target.shape.program)
+    let program = &slots.target.shape.program;
+    let by_cmap = glyphs
+        .unicode_chars(program)
         .into_iter()
+        .filter(|&ch| unicode_to_glyph_name(ch).is_some());
+    let by_name = glyph_find::named_chars(glyphs, program)
+        .into_iter()
+        .filter(|&ch| glyph_find::find(glyphs, program, ch, None).is_some());
+    by_cmap
+        .chain(by_name)
         .filter(|&ch| !addressable(ch) && u32::from(ch) <= 0xFFFF)
-        .filter(|&ch| unicode_to_glyph_name(ch).is_some())
         .collect()
 }

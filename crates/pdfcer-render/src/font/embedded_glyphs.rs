@@ -33,6 +33,31 @@ impl EmbeddedGlyphs for EmbeddedProgramGlyphs {
         let parsed = FontProgram::parse(program).ok()?;
         (gid != 0).then(|| outlined(&parsed, gid, ch)).flatten()
     }
+
+    fn glyph_named(&self, program: &[u8], name: &str, ch: char) -> Option<ProgramGlyph> {
+        let parsed = FontProgram::parse(program).ok()?;
+        let gid = parsed.glyph_for_name(name).filter(|&g| g != 0)?;
+        outlined(&parsed, gid, ch)
+    }
+
+    fn glyph_names(&self, program: &[u8]) -> Vec<String> {
+        use skrifa::raw::TableProvider as _;
+        let Ok(parsed) = FontProgram::parse(program) else {
+            return Vec::new();
+        };
+        let FontProgram::Sfnt(font) = &parsed else {
+            return Vec::new();
+        };
+        let Ok(post) = font.post() else {
+            return Vec::new();
+        };
+        let count = u16::try_from(parsed.num_glyphs()).unwrap_or(u16::MAX);
+        (1..count)
+            .filter(|&gid| matches!(parsed.outline(u32::from(gid)), Ok(Some(_))))
+            .filter_map(|gid| post.glyph_name(skrifa::raw::types::GlyphId16::new(gid)))
+            .map(str::to_owned)
+            .collect()
+    }
 }
 
 fn glyph_in(parsed: &FontProgram<'_>, ch: char) -> Option<ProgramGlyph> {

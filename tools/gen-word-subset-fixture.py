@@ -14,6 +14,10 @@ Program coverage (all reachable through the `(3,1)` cmap):
   space      empty outline, positive advance     -> typeable (blank glyph)
   Delta, Zhe outlined, no WinAnsi code           -> typeable by an allocated code
 
+The `-post-names` twin's program drops the `(3,1)` cmap entries for D and
+Delta but keeps their outlines and names them in `post` (`D`, `uni0394`):
+only §9.6.6.4's `post` lookup reaches them, which pdfcer labels an inference.
+
 The `-differences` twin names its encoding as a dictionary whose
 `/Differences` already claims code 127 (for a glyph the program lacks), so
 allocation must skip it.
@@ -57,15 +61,22 @@ GLYPHS = {
 HEAD_TIMESTAMP = 3873733256
 
 
-def build_program() -> bytes:
+# The `-post-names` program: these glyphs keep an outline and a `post` name
+# but lose their `(3,1)` cmap entry, so only a name reaches them.
+POST_ONLY = {"D": "D", "Delta": "uni0394"}
+
+
+def build_program(post_names: bool = False) -> bytes:
     from fontTools.fontBuilder import FontBuilder
     from fontTools.pens.ttGlyphPen import TTGlyphPen
 
-    order = [".notdef"] + list(GLYPHS)
+    rename = POST_ONLY if post_names else {}
+    order = [".notdef"] + [rename.get(n, n) for n in GLYPHS]
     fb = FontBuilder(UPEM, isTTF=True)
     fb.setupGlyphOrder(order)
     glyphs = {".notdef": TTGlyphPen(None).glyph()}
     for i, (name, (_, adv, outlined)) in enumerate(GLYPHS.items()):
+        name = rename.get(name, name)
         pen = TTGlyphPen(None)
         if outlined:
             top = 600 + 100 * i
@@ -77,13 +88,13 @@ def build_program() -> bytes:
         glyphs[name] = pen.glyph()
     fb.setupGlyf(glyphs)
     metrics = {".notdef": (1024, 0)}
-    metrics.update({n: (adv, 100) for n, (_, adv, _) in GLYPHS.items()})
+    metrics.update({rename.get(n, n): (adv, 100) for n, (_, adv, _) in GLYPHS.items()})
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=1854, descent=-434)
     fb.setupNameTable({"familyName": "pdfceWordShape", "styleName": "Regular"})
-    fb.setupCharacterMap({u: n for n, (u, _, _) in GLYPHS.items()})
+    fb.setupCharacterMap({u: n for n, (u, _, _) in GLYPHS.items() if n not in rename})
     fb.setupOS2(sTypoAscender=1491, sTypoDescender=-431)
-    fb.setupPost(keepGlyphNames=False)
+    fb.setupPost(keepGlyphNames=post_names)
     # Pinned so regeneration is byte-identical (fontTools stamps "now").
     fb.font["head"].created = fb.font["head"].modified = HEAD_TIMESTAMP
     buf = io.BytesIO()
@@ -107,8 +118,13 @@ TO_UNICODE = (
 DIFFERENCES = "<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [127 /uni2126] >>"
 
 
-def build_pdf(to_unicode: bool = False, shared: bool = False, differences: bool = False) -> bytes:
-    ttf = build_program()
+def build_pdf(
+    to_unicode: bool = False,
+    shared: bool = False,
+    differences: bool = False,
+    post_names: bool = False,
+) -> bytes:
+    ttf = build_program(post_names)
     page1 = b"BT\n/F0 24 Tf\n72 600 Td\n(ABC) Tj\nET\n"
     page2 = b"BT\n/F0 24 Tf\n72 600 Td\n(A) Tj\nET\n"
     objects = {
@@ -149,18 +165,19 @@ def build_pdf(to_unicode: bool = False, shared: bool = False, differences: bool 
 
 
 VARIANTS = (
-    ("word-shaped-subset.pdf", False, False, False),
-    ("word-shaped-subset-tounicode.pdf", True, False, False),
-    ("word-shaped-subset-shared-tounicode.pdf", True, True, False),
-    ("word-shaped-subset-differences.pdf", False, False, True),
+    ("word-shaped-subset.pdf", False, False, False, False),
+    ("word-shaped-subset-tounicode.pdf", True, False, False, False),
+    ("word-shaped-subset-shared-tounicode.pdf", True, True, False, False),
+    ("word-shaped-subset-differences.pdf", False, False, True, False),
+    ("word-shaped-subset-post-names.pdf", False, False, False, True),
 )
 
 
 def main() -> int:
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else gen.OUT
-    for name, tu, shared, differences in VARIANTS:
+    for name, *flags in VARIANTS:
         path = out_dir / name
-        path.write_bytes(build_pdf(tu, shared, differences))
+        path.write_bytes(build_pdf(*flags))
         print(f"wrote {path} ({path.stat().st_size} bytes)")
     return 0
 

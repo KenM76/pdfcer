@@ -70,6 +70,7 @@ pub mod encoding;
 pub(crate) mod font_extend;
 pub mod format;
 pub mod forms;
+pub(crate) mod glyph_find;
 pub mod merge;
 pub mod model;
 /// Pouring a plain-text file into as many NEW pages as it needs — the import

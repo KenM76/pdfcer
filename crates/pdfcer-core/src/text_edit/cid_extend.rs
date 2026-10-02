@@ -17,6 +17,7 @@ use crate::text_edit::font_extend::{
     AddedGlyph, Blocked, FontExtension, UnicodeMap, codes_shown, font_file2, font_object,
     map_private, number, shown_elsewhere,
 };
+use crate::text_edit::glyph_find;
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
 use crate::text_extract::cmap::ToUnicodeCMap;
 use crate::view::DocumentView;
@@ -126,13 +127,19 @@ impl CidTarget {
             Some(_) => false,
             None => (self.default_width - width).abs() > 0.5,
         };
+        let mapped = self.to_unicode.needs_entry(ch, cid)?;
+        let by_cmap = glyphs.unicode_glyph(&self.program, ch).map(|g| g.gid);
+        let post_name = (mapped && by_cmap != Some(cid))
+            .then(|| glyph_find::post_name_for(glyphs, &self.program, ch))
+            .flatten();
         Ok(AddedGlyph {
             ch,
             code: cid,
             gid: cid,
             width,
             widened,
-            mapped: self.to_unicode.needs_entry(ch, cid)?,
+            mapped,
+            post_name,
         })
     }
 
@@ -377,10 +384,13 @@ pub(crate) fn allocate(
     let t = CidTarget::read(doc, resources, font_name, type0).map_err(whole)?;
     let (mut cids, mut blocked) = (Vec::new(), Vec::new());
     for &ch in absent {
-        let found = glyphs
-            .unicode_glyph(&t.program, ch)
+        let found = glyph_find::find(glyphs, &t.program, ch, None)
             .ok_or_else(|| "the embedded program has no outline for it".to_owned())
-            .and_then(|g| t.to_unicode.needs_entry(ch, g.gid).map(|_| g.gid));
+            .and_then(|f| {
+                t.to_unicode
+                    .needs_entry(ch, f.glyph.gid)
+                    .map(|_| f.glyph.gid)
+            });
         match found {
             Ok(cid) => cids.push((ch, cid)),
             Err(reason) => blocked.push(Blocked {
@@ -423,10 +433,18 @@ pub(crate) fn allocatable(
     let Ok(t) = CidTarget::read(doc, resources, font_name, type0) else {
         return BTreeSet::new();
     };
-    let candidates: Vec<(char, u32)> = glyphs
-        .unicode_chars(&t.program)
+    let mut chars = glyphs.unicode_chars(&t.program);
+    chars.extend(glyph_find::named_chars(glyphs, &t.program));
+    chars.sort_unstable();
+    chars.dedup();
+    let candidates: Vec<(char, u32)> = chars
         .into_iter()
-        .filter_map(|ch| Some((ch, glyphs.unicode_glyph(&t.program, ch)?.gid)))
+        .filter_map(|ch| {
+            Some((
+                ch,
+                glyph_find::find(glyphs, &t.program, ch, None)?.glyph.gid,
+            ))
+        })
         .filter(|&(ch, cid)| t.to_unicode.needs_entry(ch, cid) == Ok(true))
         .collect();
     addable(doc, resources, font_name, type0, &candidates, glyphs)

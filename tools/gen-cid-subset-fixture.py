@@ -12,7 +12,8 @@ is `gen-word-subset-fixture.py`'s, so its glyph ids are:
   8 Delta, 9 Zhe  outlined, not in /ToUnicode           -> typeable, map grows
 
 `-shared-descendant` draws page 2 through a second Type0 font sharing the
-descendant, so its `/W` cannot be rewritten. Synthetic; no real font bytes.
+descendant, so its `/W` cannot be rewritten. `-post-names` uses the program
+whose cmap omits D and Delta (named `D` and `uni0394` in `post` only). Synthetic; no real font bytes.
 """
 
 from __future__ import annotations
@@ -46,8 +47,8 @@ def type0(base_font: str) -> bytes:
     ).encode("ascii")
 
 
-def build_pdf(shared: bool = False) -> bytes:
-    ttf = word.build_program()
+def build_pdf(shared: bool = False, post_names: bool = False) -> bytes:
+    ttf = word.build_program(post_names)
     page1 = b"BT\n/F0 24 Tf\n72 600 Td\n<000200030004> Tj\nET\n"
     page2 = b"BT\n/F0 24 Tf\n72 600 Td\n<0002> Tj\nET\n"
     objects = {
@@ -87,16 +88,17 @@ def build_pdf(shared: bool = False) -> bytes:
 
 
 VARIANTS = (
-    ("cid-shaped-subset.pdf", False),
-    ("cid-shaped-subset-shared-descendant.pdf", True),
+    ("cid-shaped-subset.pdf", False, False),
+    ("cid-shaped-subset-shared-descendant.pdf", True, False),
+    ("cid-shaped-subset-post-names.pdf", False, True),
 )
 
 
 def main() -> int:
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else gen.OUT
-    for name, shared in VARIANTS:
+    for name, *flags in VARIANTS:
         path = out_dir / name
-        path.write_bytes(build_pdf(shared))
+        path.write_bytes(build_pdf(*flags))
         print(f"wrote {path} ({path.stat().st_size} bytes)")
     return 0
 

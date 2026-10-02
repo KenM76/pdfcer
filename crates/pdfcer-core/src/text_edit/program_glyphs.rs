@@ -57,4 +57,21 @@ pub trait EmbeddedGlyphs: Send + Sync + std::fmt::Debug {
         let _ = (program, gid, ch);
         None
     }
+
+    /// The glyph the program's `post` table names `name` — §9.6.6.4's last
+    /// resort when a glyph name does not reach a glyph through the `cmap` —
+    /// under the same outline rule as [`Self::glyph_by_id`]. The default
+    /// reads nothing, which only narrows an edit.
+    fn glyph_named(&self, program: &[u8], name: &str, ch: char) -> Option<ProgramGlyph> {
+        let _ = (program, name, ch);
+        None
+    }
+
+    /// Every name the program's `post` table gives a glyph with an outline.
+    /// `pdfcer-core` reads each through the Adobe Glyph List to offer the
+    /// characters [`Self::unicode_chars`] misses. The default offers none.
+    fn glyph_names(&self, program: &[u8]) -> Vec<String> {
+        let _ = program;
+        Vec::new()
+    }
 }

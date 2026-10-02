@@ -17,6 +17,7 @@ use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object};
 use crate::text_edit::edit::{carried_codes, walk_records};
 use crate::text_edit::forms::scan_page_forms;
+use crate::text_edit::glyph_find;
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
 pub(crate) use crate::text_edit::unicode_map::UnicodeMap;
 use crate::view::DocumentView;
@@ -37,6 +38,8 @@ pub(crate) struct AddedGlyph {
     pub(crate) widened: bool,
     /// Whether `/ToUnicode` gains an entry for it.
     pub(crate) mapped: bool,
+    /// The `post` name the glyph was found by, when the `cmap` missed it.
+    pub(crate) post_name: Option<String>,
 }
 
 /// The new revision of the font dictionary.
@@ -80,11 +83,17 @@ impl FontExtension {
                 } else {
                     "the font dictionary already gave it a width".to_owned()
                 };
+                let how = match &a.post_name {
+                    Some(n) => format!("{}; {how}", glyph_find::inferred_clause(a.ch, n)),
+                    None => how,
+                };
                 if self.view.is_some() {
-                    let found = if a.mapped {
-                        "found through the program's cmap; /ToUnicode gained an entry for it"
-                    } else {
-                        "the CID /ToUnicode already gave it"
+                    let found = match (a.mapped, a.post_name.is_some()) {
+                        (true, true) => "/ToUnicode gained an entry for it",
+                        (true, false) => {
+                            "found through the program's cmap; /ToUnicode gained an entry for it"
+                        }
+                        _ => "the CID /ToUnicode already gave it",
                     };
                     return format!(
                         "font: '{}' was typed as CID {}, glyph {} that the embedded subset '{}' \
@@ -150,9 +159,10 @@ impl Target {
         glyphs: &dyn EmbeddedGlyphs,
     ) -> Result<AddedGlyph, String> {
         let s = &self.shape;
-        let glyph = glyphs
-            .unicode_glyph(&s.program, ch)
+        let encoded = glyph_find::encoded_name(&s.encoding, code);
+        let found = glyph_find::find(glyphs, &s.program, ch, encoded.as_deref())
             .ok_or_else(|| "the embedded program has no outline for it".to_owned())?;
+        let glyph = found.glyph;
         let width = glyph.advance.round();
         let current = width_at(&s.widths, s.first_char, code).unwrap_or(s.missing_width);
         let mapped = match &s.to_unicode {
@@ -166,6 +176,7 @@ impl Target {
             width,
             widened: (current - width).abs() > 0.5,
             mapped,
+            post_name: found.post_name,
         })
     }
 
