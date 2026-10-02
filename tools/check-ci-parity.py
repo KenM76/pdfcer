@@ -141,6 +141,7 @@ LOCAL = {
     "tools/check-engine-lint-policy.py": "python tools/check-engine-lint-policy.py",
     "tools/check-ci-crate-lists.py": "python tools/check-ci-crate-lists.py",
     "tools/check-string-gaps.sh": "bash tools/check-string-gaps.sh",
+    "tools/check-test-temp-unique.py": "python tools/check-test-temp-unique.py",
     "tools/check-public-fns-documented.py": "python tools/check-public-fns-documented.py",
     "tools/check-cited-commits-exist.py": "python tools/check-cited-commits-exist.py",
     "tools/check-ci-parity.py": "python tools/check-ci-parity.py",
