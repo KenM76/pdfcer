@@ -4,6 +4,79 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (883rd filing) — `Pass 443.0` + `Pass 445.0` SHIPPED (image stamp/button icon `G095`/`G097`, decision 185; SVG import via `usvg` `G093`, decision 186); `Pass 447.0` (Area ce dimension, `G098`) filed IN PROGRESS; `Pass 448.0` filed (render `PatternType 1` tiling patterns)
+
+**Shipped:**
+- `Pass 443.0` (`d2ff7403`/`51f299ed`) — image stamp annotation
+  (`EditSession::add_image_stamp`, a `/Stamp` whose `/AP /N` draws an
+  `ImportedImage` with an SMask, no `/Name`) and push-button icon/
+  caption position (`WidgetEdit::with_button_icon`/
+  `with_caption_position`, `/MK /I`/`/TP`, rebuilding `/AP /N` via the
+  `/IF` fit; new `EditError::NotAPushButton`, `EditError` now 163
+  variants). CLI verbs for both. Bug fixed on discovery in the same
+  Pass: `/IF` indirect values now resolved; `/SW` bigger/smaller now
+  judges the whole icon in both scaling modes, not per-axis. Decision
+  185 recorded.
+- `Pass 445.0` (`4e514b29`) — SVG import as vector content. New module
+  `svg_import` (feature `svg-import`, default on) via `usvg` 0.45.1,
+  one Form XObject output (paths, fills, strokes, gradients as
+  shadings, `<pattern>` as a `PaintType 1` tiling pattern, clips,
+  opacity, embedded rasters); filters/text/external images skipped and
+  named, nothing fetched. `EditSession::add_svg`/`add_svg_stamp`
+  (`EditSession` now 312 verbs), CLI `add-svg`. New dependency `usvg`,
+  licence-classified, `THIRD_PARTY_LICENSES.md` regenerated same
+  commit. Decision 186 recorded.
+
+**Decisions made this session:**
+- Decision 185 (image stamp + push-button icon design) and decision
+  186 (SVG import via `usvg`, Form XObject output, never a raster)
+  added to `ARCHITECTURE.md` §12, filling the two numbers reserved by
+  the 881st filing. Decision ceiling `184` → `186`; next free decision
+  `187` (matches the premise handed to this filing).
+- Both decisions' full records already existed as
+  `docs/decisions/185-image-stamp-and-button-icon.md` and
+  `docs/decisions/186-svg-import.md`, written by the engineer; this
+  filing added their §12 index entries, which were missing.
+
+**Findings + decisions:**
+- `Pass 445.0` surfaced a render gap: `pdfcer-render` does not paint
+  `PatternType 1` tiling patterns (ISO 32000-1 §8.7.3), so an SVG
+  `<pattern>` fill renders blank in pdfcer's own canvas though the
+  written file is correct (pdfium/`resvg` agree). Filed as a new
+  *Next up* Pass, `448.0`, core-render-only — not fixed in this filing.
+- `FEATURES.md` sweep (hard rule 11): two stale claims found and
+  corrected in the same filing as the meaning change. The *Forms
+  (AcroForm)* `/MK`-keys row said `/I`/`/TP` were still unread; they are
+  now read AND written by `Pass 443.0`. A *Planned* row for "a push
+  button that looks pressed while held" said pdfcer draws neither the
+  `/D` down appearance nor `/MK` icon/label layout; the icon/caption
+  layout half is now drawn (`Pass 443.0`) — only the `/D` down
+  appearance remains unbuilt. Both rows edited to say so.
+
+**Still in flight:**
+- `Pass 446.0` (`G094`, EMF import) is the only remaining open item in
+  the `O279` `pdfcer-gui`-request family (`443.0`–`446.0`); not started.
+- `Pass 447.0` (`G098`, Area ce dimension — `/Polygon` +
+  `/IT /PolygonDimension` with `/Measure`, reporting enclosed area,
+  complementing the existing Perimeter ce dimension) is IN PROGRESS,
+  filed to *Next up* this session; no decision reserved for it yet.
+- `Pass 448.0` (render `PatternType 1` tiling patterns) is QUEUED, not
+  started, core-render-only.
+
+**For next session:**
+- `Pass 446.0` (EMF import) is the last `O279` item outstanding.
+- `Pass 447.0` (Area ce dimension) is the active IN PROGRESS Pass.
+- `Pass 448.0`'s tiling-pattern render gap has no owner yet — flag for
+  scoping once `447.0`/`446.0` clear.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commits
+`d2ff7403`, `51f299ed` and `4e514b29` confirmed present at `HEAD` per
+the git-status snapshot at the start of this conversation; the
+dispatching engineer reported gates green on `4e514b29` (the branch
+tip, covering all three commits) — relayed, not independently
+reproduced. Every test/fuzz figure above is likewise relayed from the
+engineer's own report.
+
 ## 2026-10-02 (882nd filing) — `Pass 444.0` SHIPPED (GIF 87a/89a decode on image import, `pdfcer-gui` `G096`); TIFF import-disclosure silence fixed on discovery; two owed `ARCHITECTURE.md` body edits from the 881st filing discharged
 
 **Shipped:**

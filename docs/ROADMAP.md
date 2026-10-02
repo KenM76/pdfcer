@@ -115,6 +115,95 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 445.0` (`4e514b29`), 2026-10-02 — SVG import as vector content via `usvg`, `add-svg` (G093) — `Pass 445.0` SHIPPED
+
+Cite `4e514b29`. Answers `pdfcer-gui` request `G093` (operator-reported,
+`O279`). Implements decision 186, §12.
+
+**Import.** New module `svg_import` (behind default Cargo feature
+`svg-import`) parses via `usvg` 0.45.1 — nothing fetched — and builds
+one Form XObject: paths/fills/strokes, gradients as shading patterns,
+`<pattern>` as a `PaintType 1` tiling pattern, clip/mask/group-opacity
+as clip operators/soft masks/transparency groups, an embedded raster
+via the `add_image` staging path. Filters, text and external images are
+skipped and named in `SvgImportNotes`. Ceilings: 32 MiB input, 64 MiB
+decompressed/generated, nesting depth 256 — each refused by name.
+
+**Verbs/CLI.** `EditSession::add_svg`/`add_svg_stamp` (`EditSession` now
+312 public verbs); result `PlacedSvg` carries the disclosure. CLI
+`add-svg` (`--stretch`/`--natural`/`--stamp`/`--verify-undo`); README
+now 205 working subcommands.
+
+**Dependency.** New dependency `usvg` (and its transitive tree) —
+classified under `LEGAL.md` §6.1 (all permissive) and
+`THIRD_PARTY_LICENSES.md` regenerated via `cargo-about` in this same
+commit (rules 8/13).
+
+**Fuzz.** New target `svg_import`, 5 seeds.
+
+**Gates.** `cargo tree -p pdfcer-core`/`-p pdfcer-render`: no GUI or
+network crate pulled in by `usvg`. Gates green on `4e514b29`.
+
+**Known gap, filed separately.** `pdfcer-render` does not paint
+`PatternType 1` tiling patterns, so a placed SVG `<pattern>` fill
+renders blank in pdfcer's own canvas (pdfium renders the written file
+correctly). Filed as `Pass 448.0`, *Next up*, core-render-only, ISO
+32000-1 §8.7.3.
+
+**`FEATURES.md`.** One row moved from *Planned* to *Implemented*
+(*Fonts & rendering*): SVG import as page content/stamp — `core [x]` /
+`cli [x]` / `gui [ ]`. New *Planned* row added for `Pass 448.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit `4e514b29`
+confirmed present at `HEAD` per the git-status snapshot at the start of
+this conversation; gates green on `4e514b29` per the engineer's
+dispatch; every dependency/fuzz figure above is relayed from the
+dispatching engineer's own report, not independently reproduced.
+
+### `Pass 443.0` (`d2ff7403`/`51f299ed`), 2026-10-02 — image stamp annotation + push-button icon, `/IF` indirect-value and whole-icon-fit fixes (G095/G097) — `Pass 443.0` SHIPPED
+
+Cite `d2ff7403` (feature) and `51f299ed` (fix), both at `HEAD`. Answers
+`pdfcer-gui` requests `G095` and `G097` (operator-reported, `O279`).
+Implements decision 185, §12.
+
+**Image stamp.** `EditSession::add_image_stamp` writes a `/Stamp` whose
+`/AP /N` draws a supplied `ImportedImage`, contain-fitted and centred in
+`/Rect`, through `add_image`'s own writer (PNG alpha → `/SMask`, no
+second image path). No `/Name` is written. `resize_annotation` re-fits
+rather than stretching. CLI `add-image-stamp`.
+
+**Push-button icon.** `WidgetEdit::with_button_icon`/
+`without_button_icon`/`with_caption_position` write `/MK /I`, `/TP` and
+rebuild `/AP /N` via the `/IF` fit (ISO 32000-1 §12.5.6.19 Table 189,
+§12.7.7.3.2 Table 247). Default `/IF` when absent: scale always,
+proportionally, centred. Default caption position when an icon is
+newly set: the stored `/TP` if already showing one, else `IconOnly`,
+else `CaptionBelow`. Clear removes `/I`/`/TP` only. New
+`EditError::NotAPushButton` (`EditError` now 163 variants) refuses any
+other field before staging. CLI flags on the existing field-edit route.
+
+**Bug fixed on discovery.** `/IF` values may be indirect references
+(Table 247) and were read without resolving them; `/SW` bigger/smaller
+judged per-axis rather than the whole icon in both proportional and
+anamorphic `/S` modes. Both fixed. Tests:
+`an_indirect_icon_fit_value_is_honoured`,
+`anamorphic_scale_when_judges_the_whole_icon`, both sabotage-checked.
+
+**Gates.** No dependency change — `cargo tree -p pdfcer-core`/`-p
+pdfcer-render` unaffected (decision 185, §12). Gates green on
+`4e514b29` (branch tip, covers both commits).
+
+**`FEATURES.md`.** Two rows moved from *Planned* to *Implemented*:
+image stamp annotation (*Annotations & markup*) and push-button
+icon/caption position (*Forms (AcroForm)*) — each `core [x]` / `cli
+[x]` / `gui [ ]`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commits
+`d2ff7403`/`51f299ed` confirmed present at `HEAD` per the git-status
+snapshot at the start of this conversation; gates green on `4e514b29`
+per the engineer's dispatch; every test figure above is relayed from
+the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 444.0` (`bb65e630`), 2026-10-02 — decode GIF (87a/89a) in `image_import`; TIFF disclosure silence fixed (G096) — `Pass 444.0` SHIPPED
 
 Cherry-picked from worktree commit `b21ce5d3`; cite `bb65e630`. Answers
@@ -16416,6 +16505,42 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **NEW PASS FILED 2026-10-02 (883rd
+> filing) — `Pass 447.0`, `G098`, the Area ce dimension.** A `/Polygon` +
+> `/IT /PolygonDimension` ce dimension reporting the enclosed area
+> through the same `/Measure` scale/group/style cascade as every other
+> kind — the complement the existing Perimeter ce dimension (`Pass
+> 107.0`, *Implemented → ce dimensions*) explicitly excludes ("not an
+> area tool"). **`Pass 447.0` IN PROGRESS.** No decision reserved yet;
+> ceiling stays `186`, next free decision `187`.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 445.0` SHIPPED, 2026-10-02 (883rd filing),
+> `4e514b29`** — see *Shipped*, above. `G093`: SVG import as vector
+> content via `usvg` (paths, fills, strokes, gradients as shadings,
+> clips, opacity, embedded rasters; filters/text/external images
+> skipped and named); `EditSession::add_svg`/`add_svg_stamp`, CLI
+> `add-svg`. Decision 186, §12; new dependency `usvg`, licence-
+> classified, `THIRD_PARTY_LICENSES.md` regenerated. **`Pass 445.0` is
+> now SHIPPED** — only `Pass 446.0` (EMF import, queued) remains open in
+> the `O279` family. **New `Pass 448.0` filed, queued, not started** —
+> `pdfcer-render` does not paint `PatternType 1` tiling patterns (ISO
+> 32000-1 §8.7.3), found when this Pass's SVG `<pattern>` support
+> rendered blank in pdfcer's own canvas though the written file is
+> correct (pdfium/`resvg` confirm); core-render-only. `gui [ ]` not
+> wired.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 443.0` SHIPPED, 2026-10-02 (883rd filing),
+> `d2ff7403`/`51f299ed`** — see *Shipped*, above. `G095`+`G097`: image
+> stamp annotation (`EditSession::add_image_stamp`, a `/Stamp` whose
+> `/AP /N` draws an `ImportedImage` with an SMask) and push-button
+> icon/caption position (`WidgetEdit::with_button_icon`/
+> `with_caption_position`, writing `/MK /I`/`/TP`, rebuilding `/AP /N`
+> via the `/IF` fit); new `EditError::NotAPushButton`. Also fixed on
+> discovery: `/IF`'s indirect values now resolved; `/SW` bigger/smaller
+> now judges the whole icon in both scaling modes. Decision 185, §12.
+> **`Pass 443.0` is now SHIPPED** — only `Pass 446.0` (EMF import,
+> queued) remains open in the `O279` family. `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 444.0` SHIPPED, 2026-10-02 (882nd filing),
 > `bb65e630`** — see *Shipped*, above (cherry-picked from worktree commit

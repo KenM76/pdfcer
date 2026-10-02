@@ -12785,3 +12785,136 @@ decision `185`.
 `kind = program` add-on executes only its own named executable, verified
 by `sha256` before every run, never through a shell; a settings key may
 refuse all program add-ons."
+
+### 2026-10-02 (883rd filing, KenAgent) — decision 185: an image stamp draws through `add_image`'s own writer with no `/Name`; a push-button icon's `/IF` default is scale-always/proportional/centred, and caption position is inferred from current state
+
+**Trigger.** `pdfcer-gui` requests `G095` (an image as a stamp comment)
+and `G097` (a push-button icon), filed as `Pass 443.0` (881st filing,
+operator-reported, `O279`).
+
+**What this decides.**
+1. **Image stamp.** A `/Stamp` whose `/AP /N` is a form drawing the
+   image contain-fitted and centred in `/Rect`, through `add_image`'s
+   own writer (alpha → `/SMask`, no second image path). No `/Name` is
+   written — Table 181's names describe standard faces, and this face
+   IS the image; a reader ignoring `/AP` has nothing correct to draw
+   from a name anyway. Resize re-fits the image rather than stretching
+   the old form.
+2. **Push-button icon.** The icon form XObject is drawn at one point
+   per pixel (natural size = image pixel size); `/IF` decides the scale
+   into the button, defaulting to `<< /SW /A /S /P /A [0.5 0.5] >>`
+   (scale always, proportionally, centred) when absent — an existing
+   `/IF` is the producer's choice and is kept. Default caption position
+   when an icon is newly set, absent an explicit position: the stored
+   `/TP` if it already shows an icon, else `IconOnly` with no caption,
+   else `CaptionBelow` — a caption-only button gaining an icon must show
+   it, and below is the conventional toolbar layout. Clear removes
+   `/I`/`/TP` only (`/IF`/`/RI`/`/IX` stay, harmless without `/I`, and a
+   later icon set reuses the fit). A stored `/TP` with an icon but no
+   `/I` draws the caption alone. An edit that sets no icon patches `/MK`
+   in place, so another producer's `/I` survives a colour/position edit.
+   Icon/position edits on a non-push-button field refuse with
+   `EditError::NotAPushButton` before anything stages. A foreign
+   push-button `/AP` is replaced only under the existing
+   `replace_foreign_appearance` opt-in.
+3. **Bug fixed on discovery, same Pass.** `/IF` values may be indirect
+   references (Table 247) and were read without resolving them; `/SW`
+   "bigger"/"smaller" was judging per-axis rather than the whole icon in
+   both proportional and anamorphic `/S` modes. Both fixed, both
+   sabotage-checked.
+
+**Rejected.** A `/Name`d stamp face for the image stamp — no standard
+name describes an arbitrary image (point 1 above).
+
+**RAG gap flagged.** ISO 32000-1 Table 247 (the `/IF` icon-fit
+dictionary) is not in the spec RAG; Table 189 only points to it, so the
+`/IF` keys read here (`SW` A/B/S/N, `S` A/P, `A`, `FB`) are unverified
+against the canonical RAG. `pdfcer-spec-librarian` should file Table 247.
+
+**Full record:** `docs/decisions/185-image-stamp-and-button-icon.md`.
+
+**Body-section effect.** None edited by this filing (librarian scope
+this session is `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/this
+decision log only). **Owed:** §7's CLI surface should list
+`add-image-stamp` and the button-icon flags; the `EditError` variant
+count (now 163) is stale wherever §4 or elsewhere cites it — flagged,
+not actioned, here.
+
+**Decision ceiling.** Fills the reserved `185`; ceiling `184` → `185`.
+Next free decision `186`.
+
+**New standing rule.** None — this is feature-specific (icon-fit
+arithmetic, caption-position inference), not a project-wide-reusable
+rule.
+
+### 2026-10-02 (883rd filing, KenAgent) — decision 186: SVG import places vector content via `usvg`, never a hand-rolled parser, and never a raster
+
+**Trigger.** `pdfcer-gui` request `G093` (an SVG file cannot be placed
+on a page), filed as `Pass 445.0` (881st filing, operator-reported,
+`O279`).
+
+**What this decides.**
+1. **Parser: `usvg` 0.45.1** (Apache-2.0 OR MIT), `default-features =
+   false`, behind a new core feature `svg-import` (on by default,
+   forwarded by the CLI). `usvg` resolves CSS, expands `use`, converts
+   shapes to paths and units to absolute user space — the importer
+   translates one simplified tree, not the SVG grammar. Without the
+   `text` feature, no font stack is pulled in; `usvg` is wasm32-clean
+   and makes no network call. `resvg` renders the same tree and is used
+   as an exact parity oracle (render dev-dependency only, never shipped).
+2. **Output is always one Form XObject, never a raster** (ISO 32000-1
+   §8.10): `/BBox [0 0 w h]` in SVG px, y-flip base matrix; gradients
+   become shading patterns (axial/radial, §8.7.4.5.3–4); `spreadMethod`
+   repeat/reflect unrolls to at most 64 periods then pads, disclosed;
+   varying stop-opacity becomes a luminosity soft mask (§11.6.5.2);
+   `<pattern>` becomes a `PaintType 1` tiling pattern (§8.7.3, recursion
+   depth 4); clip-path/mask/group-opacity become clip
+   operators/soft masks/transparency groups; an embedded raster goes
+   through the `add_image` staging path. Filters, text and external
+   images are skipped and named in `SvgImportNotes` — nothing is
+   fetched, and a filtered element draws unfiltered rather than
+   refusing the whole import.
+3. **Placement.** `EditSession::add_svg` appends a
+   `q sx 0 0 sy llx lly cm /Name Do Q` stream; `add_svg_stamp` makes the
+   form a `/Stamp`'s `/AP /N`. Each is one undo entry; both stretch to
+   the rectangle, with the fit (contain by default, `--stretch`,
+   `--natural` at 96 px/in) left to the calling shell, matching
+   `add-image`'s own convention.
+4. **Ceilings (§10).** 32 MiB input, SVGZ inflated to 64 MiB, element
+   nesting 256 (counting `use`/clip/mask/pattern references, pre-scanned
+   before `usvg`, which itself recurses), generated content 64 MiB —
+   each refused by name. Fuzzed by `fuzz/fuzz_targets/svg_import.rs`.
+
+**Known gap, surfaced by this Pass, filed separately.** `pdfcer-render`
+does not paint `PatternType 1` tiling patterns — a placed SVG
+`<pattern>` fill is correct in the written file (pdfium and `resvg`
+both render it) but shows blank in pdfcer's own canvas. Filed as
+`Pass 448.0` (*Next up*, this filing), core-render-only.
+
+**Rejected.** A hand-written SVG parser (point 1 — `usvg` already
+solves CSS/`use`/unit resolution correctly and is permissively
+licensed). Rasterizing the SVG at import time (point 2 — a placed SVG
+would then not scale/re-render like real vector content, and the
+operator's standing instruction is to exceed the parity reference where
+possible).
+
+**Dependency licensing.** `usvg` and its transitive tree classified
+under `LEGAL.md` §6.1 (all permissive); `THIRD_PARTY_LICENSES.md`
+regenerated via `cargo-about` in this same commit (`4e514b29`), per
+rules 8/13.
+
+**Full record:** `docs/decisions/186-svg-import.md`.
+
+**Body-section effect.** None edited by this filing (librarian scope
+this session is `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/this
+decision log only). **Owed:** §2's dependency/stack table should gain
+`usvg`; §7's CLI surface should list `add-svg`; §10's ceiling table
+should gain the four SVG ceilings — flagged, not actioned, here.
+
+**Decision ceiling.** Fills the reserved `186`; ceiling `185` → `186`.
+Next free decision `187`.
+
+**New standing rule.** None — the pattern (external-format import as a
+Form XObject, never a raster, ceilings refused by name) is already
+covered by the existing image-import precedent; no new project-wide
+rule needed.
