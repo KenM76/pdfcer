@@ -12,6 +12,8 @@ be tested without real font bytes:
   face-b-differs.ttf       as face.ttf, but glyph B has another outline
   subset-empty-slot.ttf    .notdef A B C D, D mapped but with no outline
                            (how Word subsets an unshown character)
+  subset-in.pdf            one page showing ABC in a WinAnsi TrueType that
+                           embeds subset.ttf as ABCDEF+pdfcerAugFace
 
 Deterministic: fixed head timestamps, no fontTools-version-dependent tables.
 """
@@ -138,12 +140,49 @@ VARIANTS = {
 }
 
 
+def pdf(program: bytes) -> bytes:
+    content = b"BT /F0 24 Tf 10 40 Td (ABC) Tj ET"
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] "
+        b"/Resources << /Font << /F0 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length %d >>\nstream\n%s\nendstream" % (len(content) + 1, content),
+        b"<< /Type /Font /Subtype /TrueType /BaseFont /ABCDEF+pdfcerAugFace "
+        b"/FirstChar 65 /LastChar 67 /Widths [600 600 600] "
+        b"/Encoding /WinAnsiEncoding /FontDescriptor 6 0 R >>",
+        b"<< /Type /FontDescriptor /FontName /ABCDEF+pdfcerAugFace /Flags 32 "
+        b"/FontBBox [0 0 600 700] /ItalicAngle 0 /Ascent 700 /Descent 0 "
+        b"/CapHeight 700 /StemV 80 /MaxWidth 600 /FontFile2 7 0 R >>",
+        b"<< /Length %d /Length1 %d >>\nstream\n" % (len(program), len(program))
+        + program
+        + b"\nendstream",
+    ]
+    out = bytearray(b"%PDF-1.7\n")
+    offsets = []
+    for i, body in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % i + body + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+    for o in offsets:
+        out += b"%010d 00000 n \n" % o
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
+        len(objs) + 1,
+        xref,
+    )
+    return bytes(out)
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for name, (names, kw) in VARIANTS.items():
         data = build(names, **kw)
         (OUT / name).write_bytes(data)
         print(f"wrote {name} ({len(data)} bytes)")
+    data = pdf((OUT / "subset.ttf").read_bytes())
+    (OUT / "subset-in.pdf").write_bytes(data)
+    print(f"wrote subset-in.pdf ({len(data)} bytes)")
 
 
 if __name__ == "__main__":

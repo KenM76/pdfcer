@@ -1156,7 +1156,7 @@ pub(crate) fn with_file_unique_plan_tag(
 }
 
 /// The first of FNV-1a(`tag`, n) for n = 1, 2, ... not in `taken`.
-fn unique_subset_tag(tag: &str, taken: &BTreeSet<String>) -> String {
+pub(crate) fn unique_subset_tag(tag: &str, taken: &BTreeSet<String>) -> String {
     let mut candidate = tag.to_owned();
     // `taken` is finite, so a free tag turns up long before this bound.
     for n in 1u32..=1 << 20 {

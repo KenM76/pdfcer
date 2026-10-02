@@ -12334,7 +12334,7 @@ impl EditSession {
                     });
                     match planned {
                         Ok(mut plan) => {
-                            let prior = self.revisions(std::mem::take(&mut plan.font_writes));
+                            let prior = self.revisions(std::mem::take(&mut plan.font_writes))?;
                             let (command, decoupled) = self
                                 .text_edit_command(
                                     CommandKind::EditText,
@@ -12594,7 +12594,7 @@ impl EditSession {
             let target = crate::text_edit::edit::EditPlanTarget::form(form, invocations);
             match plan_edit_target(&self.view(), &target, &stream, req, opts) {
                 Ok(plan) => {
-                    let writes = self.revisions(plan.font_writes);
+                    let writes = self.revisions(plan.font_writes)?;
                     found = Some((form_id, form_dict, plan.new_content, plan.report, writes));
                     break;
                 }
@@ -12617,20 +12617,38 @@ impl EditSession {
 
     /// `writes` as revisions of the session's current objects, so undo
     /// restores whatever each held before.
-    fn revisions(&mut self, writes: crate::text_edit::edit::FontWrites) -> Vec<ObjectWrite> {
+    fn revisions(
+        &mut self,
+        mut writes: crate::text_edit::edit::FontWrites,
+    ) -> Result<Vec<ObjectWrite>, crate::text_edit::edit::EditError> {
+        // A program this session minted is replaced in place, never stacked
+        // (decision 173 §6): its numbers are reused.
+        let mut reuse: Vec<ObjId> = writes
+            .superseded
+            .filter(|(d, p)| self.base.get(*d).is_none() && self.base.get(*p).is_none())
+            .map(|(d, p)| vec![p, d])
+            .unwrap_or_default();
+        writes.assign(|| match reuse.pop() {
+            Some(id) => Ok(id),
+            None => self.alloc_number().map(|n| ObjId::new(n, 0)).map_err(|_| {
+                crate::text_edit::edit::EditError::Unsupported(
+                    crate::text_edit::cause::UnsupportedCause::ObjectNumbersExhausted,
+                )
+            }),
+        })?;
         let mut objects = writes.objects;
         for (id, dict, bytes) in writes.streams {
             let data_span = self.stage_bytes(&bytes);
             objects.push((id, Object::Stream(Stream { dict, data_span })));
         }
-        objects
+        Ok(objects
             .into_iter()
             .map(|(id, after)| ObjectWrite {
                 id,
                 before: self.state.get(&id).cloned(),
                 after: Some(after),
             })
-            .collect()
+            .collect())
     }
 
     /// The one [`Command`] that replaces an edited **form XObject's** content

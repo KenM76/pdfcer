@@ -6,6 +6,7 @@
 mod cmap;
 mod glyf;
 mod identity;
+mod installed;
 mod metrics;
 mod post;
 mod verify;
@@ -16,6 +17,8 @@ use crate::font::sfnt::{Directory, assemble, read_u16};
 
 use self::metrics::{GlyphLimits, HMetric};
 use self::post::PostName;
+
+pub use self::installed::InstalledFaceAugmenter;
 
 /// Why a subset could not be augmented (decision 173 §4–§5).
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

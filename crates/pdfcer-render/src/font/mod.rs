@@ -17,9 +17,9 @@
 //! appears anywhere in this crate (decision 003 R10).
 
 /// Appending installed-face glyphs to an embedded TrueType subset
-/// (decision 173). Wired to core's `SubsetAugmenter` in a later slice.
-#[allow(dead_code)] // reached only by its own tests until the core wiring lands
+/// (decision 173).
 pub(crate) mod augment;
+pub use augment::InstalledFaceAugmenter;
 pub mod bundled;
 pub mod coredata;
 pub mod embedded_glyphs;

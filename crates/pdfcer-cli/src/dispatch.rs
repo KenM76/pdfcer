@@ -1998,6 +1998,9 @@ pub(crate) fn run() -> ExitCode {
             pin_span,
             span_from_pin,
             font_dirs,
+            augment_subset,
+            augment_check,
+            augment_hinting,
             target,
         } => cmd_edit_text(&EditTextArgs {
             input: &input,
@@ -2009,6 +2012,7 @@ pub(crate) fn run() -> ExitCode {
             replace: &replace,
             pin,
             font_dirs: &font_dirs,
+            augment: augment_subset.then_some((augment_check.as_str(), augment_hinting.as_str())),
             target: &target,
         }),
         Command::FormatText {

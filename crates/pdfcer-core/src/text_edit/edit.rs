@@ -114,6 +114,7 @@ use crate::text_edit::code_alloc::{Allocation, allocate};
 use crate::text_edit::encoding::{CompositeEncoding, InverseEncoding, RInvTrigger, Refusal};
 use crate::text_edit::font_extend::{Blocked, FontExtension};
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
+use crate::text_edit::subset_augment::SubsetAugment;
 use crate::text_extract::cmap::ToUnicodeCMap;
 use crate::text_extract::font::ExtractFont;
 use crate::text_state::{AmbientTextState, TextStateParam};
@@ -650,6 +651,10 @@ pub struct EditOptions {
     /// outlines but the page never shows can be typed (decision 172). `None`
     /// keeps the embedded-subset floor as it was: such characters refuse.
     pub embedded_glyphs: Option<&'static dyn EmbeddedGlyphs>,
+    /// Extends an embedded TrueType subset from its installed face when the
+    /// program has no outline for a character (decision 173). `None` keeps
+    /// such characters refused.
+    pub subset_augment: Option<SubsetAugment>,
 }
 
 impl EditOptions {
@@ -682,6 +687,15 @@ impl EditOptions {
     #[must_use]
     pub fn with_embedded_glyphs(mut self, glyphs: &'static dyn EmbeddedGlyphs) -> Self {
         self.embedded_glyphs = Some(glyphs);
+        self
+    }
+
+    /// Install the decision 173 subset augmenter, returning `self`. It acts
+    /// only alongside [`Self::with_embedded_glyphs`], after route A finds no
+    /// outline in the embedded program.
+    #[must_use]
+    pub fn with_subset_augment(mut self, augment: SubsetAugment) -> Self {
+        self.subset_augment = Some(augment);
         self
     }
 }
@@ -1743,6 +1757,14 @@ pub fn edit_text(
     // where the text was found (`Pass 119.0`): the page's first content
     // object, or the form XObject's own stream. Both are one-object rewrites
     // and both leave every other byte of the file verbatim.
+    let mut next = doc.next_object_number();
+    plan.font_writes.assign(|| {
+        let n = next.ok_or(EditError::Unsupported(
+            UnsupportedCause::ObjectNumbersExhausted,
+        ))?;
+        next = n.checked_add(1);
+        Ok(ObjId::new(n, 0))
+    })?;
     let (font_objects, staged) = plan.font_writes.staged(doc);
     let bytes = match target.form.as_ref() {
         Some(form) => write_incremental_form_with(
@@ -1805,6 +1827,10 @@ pub(crate) struct EditPlan {
 pub(crate) struct FontWrites {
     pub(crate) objects: Vec<(ObjId, Object)>,
     pub(crate) streams: Vec<(ObjId, Dict, Vec<u8>)>,
+    /// Decision 173: the writes use placeholder ids until [`Self::assign`].
+    fresh: bool,
+    /// The descriptor and program the augmented font used before.
+    pub(crate) superseded: Option<(ObjId, ObjId)>,
 }
 
 impl FontWrites {
@@ -1812,10 +1838,44 @@ impl FontWrites {
         let Some(e) = extension else {
             return Self::default();
         };
-        Self {
+        let mut w = Self {
             objects: e.write().into_iter().collect(),
-            streams: e.to_unicode.into_iter().collect(),
+            streams: e.to_unicode.clone().into_iter().collect(),
+            ..Self::default()
+        };
+        if let Some(a) = e.augmented {
+            use crate::text_edit::augment_route::{FRESH_DESCRIPTOR, FRESH_PROGRAM};
+            w.objects
+                .push((FRESH_DESCRIPTOR, Object::Dict(a.descriptor)));
+            w.streams.push((FRESH_PROGRAM, a.stream_dict, a.encoded));
+            w.fresh = true;
+            w.superseded = a.superseded;
         }
+        w
+    }
+
+    /// Give decision 173's new descriptor and program real numbers, the
+    /// descriptor's first.
+    ///
+    /// # Errors
+    ///
+    /// `alloc`'s error when it has no number left.
+    pub(crate) fn assign(
+        &mut self,
+        mut alloc: impl FnMut() -> Result<ObjId, EditError>,
+    ) -> Result<(), EditError> {
+        use crate::text_edit::augment_route::{FRESH_DESCRIPTOR, FRESH_PROGRAM, renumber};
+        if !std::mem::take(&mut self.fresh) {
+            return Ok(());
+        }
+        let map = [(FRESH_DESCRIPTOR, alloc()?), (FRESH_PROGRAM, alloc()?)];
+        renumber(&mut self.objects, &map);
+        for (id, _, _) in &mut self.streams {
+            if let Some(&(_, n)) = map.iter().find(|(p, _)| p == id) {
+                *id = n;
+            }
+        }
+        Ok(())
     }
 
     /// The objects with every stream staged after the base file, and the
@@ -2642,16 +2702,28 @@ fn extend_subset(
             .collect();
         return Err(subset_floor(doc, target, recs, font, &unread));
     };
-    crate::text_edit::font_extend::plan(
+    let planned = crate::text_edit::font_extend::plan(
         doc,
         &target.resources,
         &anchor.font_name,
         font_dict,
         &missing,
         glyphs,
-    )
-    .map(Some)
-    .map_err(|b| subset_floor(doc, target, recs, font, &b))
+    );
+    let planned = match (planned, &opts.subset_augment) {
+        (Err(blocked), Some(settings)) => {
+            let at = crate::text_edit::augment_route::FontAt {
+                resources: &target.resources,
+                font_name: &anchor.font_name,
+                font_dict,
+            };
+            crate::text_edit::augment_route::plan(doc, &at, &missing, glyphs, settings, blocked)
+        }
+        (planned, _) => planned,
+    };
+    planned
+        .map(Some)
+        .map_err(|b| subset_floor(doc, target, recs, font, &b))
 }
 
 /// The embedded-subset floor: a code the subset does not already carry on

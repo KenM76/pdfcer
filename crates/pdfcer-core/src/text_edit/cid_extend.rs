@@ -319,6 +319,7 @@ pub(crate) fn plan(
         added,
         to_unicode,
         reencoded: false,
+        augmented: None,
     })
 }
 

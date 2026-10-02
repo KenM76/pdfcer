@@ -61,6 +61,7 @@
 //! command share exactly one recognizer (`ARCHITECTURE.md` §3).
 
 pub mod addtext;
+pub(crate) mod augment_route;
 pub mod cause;
 pub(crate) mod cid_extend;
 pub(crate) mod code_alloc;
@@ -68,6 +69,7 @@ pub(crate) mod cross_object;
 pub mod edit;
 pub mod encoding;
 pub(crate) mod font_extend;
+mod font_usage;
 pub mod format;
 pub mod forms;
 pub(crate) mod glyph_find;
@@ -81,6 +83,7 @@ pub mod program_glyphs;
 pub mod reflow;
 pub mod reflow_apply;
 pub mod refusal_kind;
+pub mod subset_augment;
 pub mod synth;
 pub(crate) mod unicode_map;
 
@@ -95,6 +98,10 @@ pub use edit::{
 };
 pub use program_glyphs::{EmbeddedGlyphs, ProgramGlyph};
 pub use refusal_kind::{RefusalClass, RefusalKind};
+pub use subset_augment::{
+    AugmentRefusal, AugmentRequest, AugmentedProgram, HintingMismatch, OutlineCheck, SubsetAugment,
+    SubsetAugmenter,
+};
 // `CompositeEncoding` sits beside `InverseEncoding` deliberately: they are the
 // two halves of ONE seam (`plan_edit` picks between them on `font.is_simple()`
 // and both answer the same two questions — per-code values for the §9.4.4

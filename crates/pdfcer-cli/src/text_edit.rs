@@ -44,6 +44,9 @@ pub(crate) struct EditTextArgs<'a> {
     pub(crate) replace: &'a str,
     pub(crate) pin: bool,
     pub(crate) font_dirs: &'a [PathBuf],
+    /// `--augment-subset`'s `(--augment-check, --augment-hinting)`, or `None`
+    /// without the flag.
+    pub(crate) augment: Option<(&'a str, &'a str)>,
     /// The `--target` selector, unparsed. Parsed inside the handler so a
     /// malformed value is a named refusal with the accepted spellings printed,
     /// rather than a clap error that only says "invalid value".
@@ -137,6 +140,12 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
             FollowerDisposition::Reflow
         })
         .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs);
+    let opts = match args.augment {
+        Some((check, hinting)) => {
+            opts.with_subset_augment(subset_augment(&font_env, check, hinting))
+        }
+        None => opts,
+    };
 
     let outcome = match pdfcer_core::text_edit::edit_text(&doc, &req, &opts) {
         Ok(o) => o,
@@ -2304,4 +2313,26 @@ pub(crate) fn cmd_text_run_width(args: &TextRunWidthArgs<'_>) -> u8 {
         u32::from(outcome.undo_identical),
     );
     finish_edit(args.input, &outcome)
+}
+
+/// `--augment-subset`'s settings over the `--font-dir` faces. The augmenter
+/// is leaked because core holds it as `&'static`; the process runs one edit.
+fn subset_augment(
+    env: &pdfcer_render::FontEnvironment,
+    check: &str,
+    hinting: &str,
+) -> pdfcer_core::text_edit::SubsetAugment {
+    use pdfcer_core::text_edit::{HintingMismatch, OutlineCheck, SubsetAugment};
+    let faces = pdfcer_render::font::InstalledFaceAugmenter::from_environment(env);
+    SubsetAugment::new(Box::leak(Box::new(faces)))
+        .with_outline_check(if check == "shown-only" {
+            OutlineCheck::ShownOnly
+        } else {
+            OutlineCheck::AllShared
+        })
+        .with_hinting_mismatch(if hinting == "refuse" {
+            HintingMismatch::Refuse
+        } else {
+            HintingMismatch::Strip
+        })
 }

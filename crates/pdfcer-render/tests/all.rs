@@ -60,6 +60,7 @@ mod shading_pattern_anchoring;
 mod smask_replaces_not_intersects;
 mod stroke_display_hairline;
 mod subset_allocated_code;
+mod subset_augment;
 mod subset_post_names;
 mod subset_unused_glyph;
 mod symbolic_truetype_glyphs;

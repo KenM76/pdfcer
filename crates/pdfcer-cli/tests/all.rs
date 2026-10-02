@@ -22,6 +22,7 @@ mod dimension_style;
 mod edit_commands;
 mod edit_field;
 mod edit_text;
+mod edit_text_augment;
 mod embed_font;
 mod export_docx;
 mod export_dxf;

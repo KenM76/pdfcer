@@ -54,7 +54,7 @@ pub(crate) fn check(
     face_index: u32,
     chars: &[char],
     scope: OutlineCheck<'_>,
-) -> Result<(), AugmentError> {
+) -> Result<usize, AugmentError> {
     let dir =
         Directory::parse_face(face, face_index).ok_or(AugmentError::FaceNotTrueTypeOutlines)?;
     if dir.flavor != 0x0001_0000 || dir.table(*b"fvar").is_some() {
@@ -76,7 +76,7 @@ pub(crate) fn check(
     if compared == 0 {
         return Err(AugmentError::IdentityUnproven);
     }
-    Ok(())
+    Ok(compared)
 }
 
 /// R109 on one carrier; a program without `OS/2` proceeds, as R109 does.

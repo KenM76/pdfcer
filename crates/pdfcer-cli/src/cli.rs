@@ -7848,10 +7848,39 @@ pub(crate) enum Command {
         /// Pin survivors with a compensating TJ instead of reflowing the line.
         #[arg(long)]
         pin: bool,
-        /// Operator-supplied font folder for non-embedded runs.
-        /// Repeatable.
+        /// Operator-supplied font folder for non-embedded runs, and the faces
+        /// `--augment-subset` may extend from. Repeatable.
         #[arg(long = "font-dir", value_name = "DIR")]
         font_dirs: Vec<PathBuf>,
+        /// When the run's embedded TrueType subset has no glyph for a typed
+        /// character, append it from the `--font-dir` face the subset was
+        /// cut from. That face must carry the same PostScript name, the same
+        /// design grid and identical outlines for the glyphs both share; the
+        /// edit writes a new font program under a new subset tag and prints
+        /// what it matched.
+        #[arg(long = "augment-subset")]
+        augment_subset: bool,
+        /// Which shared glyphs `--augment-subset` compares: `all-shared`
+        /// (every glyph both fonts map) or `shown-only` (only characters the
+        /// document shows in that font, tolerating a revised installed face).
+        #[arg(
+            long = "augment-check",
+            value_name = "all-shared|shown-only",
+            default_value = "all-shared",
+            value_parser = ["all-shared", "shown-only"],
+            requires = "augment_subset"
+        )]
+        augment_check: String,
+        /// When the installed face's hinting programs differ from the
+        /// subset's: `strip` the appended glyphs' hinting, or `refuse`.
+        #[arg(
+            long = "augment-hinting",
+            value_name = "strip|refuse",
+            default_value = "strip",
+            value_parser = ["strip", "refuse"],
+            requires = "augment_subset"
+        )]
+        augment_hinting: String,
         /// Which content stream to edit (Pass 119.0): `auto` (default -- the
         /// page's own content first, then each form XObject it paints, in
         /// paint order), `page` (the page's own content ONLY), or `form:N`
