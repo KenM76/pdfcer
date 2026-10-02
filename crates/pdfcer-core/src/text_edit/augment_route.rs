@@ -36,6 +36,8 @@ pub(crate) struct Augmented {
     pub(crate) stream_dict: Dict,
     /// The Flate-encoded program.
     pub(crate) encoded: Vec<u8>,
+    /// The program, decoded, for a preview to draw from.
+    pub(crate) program: Vec<u8>,
     /// The descriptor and stream this one replaces for the edited font.
     pub(crate) superseded: Option<(ObjId, ObjId)>,
     /// The rule 4 disclosure.
@@ -123,8 +125,81 @@ pub(crate) fn plan(
         Name(b"FontDescriptor".to_vec()),
         Object::Reference(FRESH_DESCRIPTOR),
     );
+    let mut view = ext.dict.clone();
+    view.insert(
+        Name(b"FontDescriptor".to_vec()),
+        Object::Dict(augmented.descriptor.clone()),
+    );
+    ext.view = Some(view);
     ext.augmented = Some(Box::new(augmented));
     Ok(ext)
+}
+
+/// The characters of `candidates` (route A's uncarried `(char, code)`s) an
+/// edit could add by augmentation: those the augmenter offers, confirmed by
+/// planning the augmented edit, so a typing repertoire and the commit agree.
+pub(crate) fn augmentable(
+    doc: &DocumentView<'_>,
+    font: &FontAt<'_>,
+    candidates: &[(char, u32)],
+    glyphs: &dyn EmbeddedGlyphs,
+    settings: &SubsetAugment,
+) -> BTreeSet<char> {
+    let offered = offered(doc, font, candidates, settings);
+    let missing: Vec<(char, u32)> = candidates
+        .iter()
+        .copied()
+        .filter(|(ch, _)| offered.contains(ch))
+        .collect();
+    let blocked = missing
+        .iter()
+        .map(|&(ch, code)| Blocked {
+            ch,
+            code,
+            reason: NO_OUTLINE.to_owned(),
+        })
+        .collect();
+    match plan(doc, font, &missing, glyphs, settings, blocked) {
+        Ok(_) => offered,
+        Err(_) => BTreeSet::new(),
+    }
+}
+
+/// What the augmenter says it can append, excluding characters the font
+/// already shows (as missing glyphs) elsewhere, which [`plan`] refuses.
+fn offered(
+    doc: &DocumentView<'_>,
+    font: &FontAt<'_>,
+    candidates: &[(char, u32)],
+    settings: &SubsetAugment,
+) -> BTreeSet<char> {
+    let Ok(t) = Target::read(doc, font.resources, font.font_name, font.font_dict) else {
+        return BTreeSet::new();
+    };
+    let (Ok(shown), Some(base_font)) = (
+        shown_chars(doc, &t),
+        name_of(doc, font.font_dict, b"BaseFont"),
+    ) else {
+        return BTreeSet::new();
+    };
+    let shown_list: Vec<char> = shown.iter().map(|&(_, ch)| ch).collect();
+    let chars: Vec<char> = candidates
+        .iter()
+        .map(|&(ch, _)| ch)
+        .filter(|ch| !shown_list.contains(ch))
+        .collect();
+    if chars.is_empty() {
+        return BTreeSet::new();
+    }
+    let request = AugmentRequest {
+        program: &t.shape.program,
+        base_font: &base_font,
+        chars: &chars,
+        shown: &shown_list,
+        outline_check: settings.outline_check,
+        hinting_mismatch: settings.hinting_mismatch,
+    };
+    settings.source.addable(&request).into_iter().collect()
 }
 
 /// Every `(code, character)` the document shows in the target font.
@@ -210,6 +285,7 @@ fn written(
     stream_dict.insert(Name(b"Length".to_vec()), int(encoded.len()));
     stream_dict.insert(Name(b"Length1".to_vec()), int(program.program.len()));
     Ok(Augmented {
+        program: program.program.clone(),
         descriptor,
         stream_dict,
         encoded,

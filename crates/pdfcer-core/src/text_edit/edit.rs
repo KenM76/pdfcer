@@ -1822,6 +1822,8 @@ pub(crate) struct EditPlan {
     /// [`narrow_span`]'s trim: the byte range of the request's `find`
     /// replaced and its replacement text; `None` when not narrowed.
     pub(crate) rewritten: Option<(std::ops::Range<usize>, String)>,
+    /// Decision 173's new program, decoded, when the edit replaces the font's.
+    pub(crate) font_program: Option<Vec<u8>>,
 }
 
 /// A decision 172 extension's writes: replaced objects, and streams rewritten
@@ -1943,6 +1945,13 @@ pub struct TextEditPreview {
     /// producer placed them, keeping at least one `find` character (the
     /// `span:` disclosure). Appending `_` to `"ab "` gives `Some((2..3, " _"))`.
     pub rewritten: Option<(std::ops::Range<usize>, String)>,
+    /// The decoded font program the commit would embed in place of the
+    /// document's, when the edit augments a subset from an installed face
+    /// (decision 173, [`EditOptions::with_subset_augment`]). `font`'s
+    /// `/FontDescriptor` is then the new descriptor, inline, whose
+    /// `/FontFile2` does not resolve until the commit; draw from these bytes.
+    /// `None` when the document's own program is used.
+    pub font_program: Option<Vec<u8>>,
 }
 
 /// One glyph of a [`TextEditPreview`].
@@ -1996,6 +2005,7 @@ impl TextEditPreview {
         layout: EditLayout,
         disclosures: Vec<String>,
         rewritten: Option<(std::ops::Range<usize>, String)>,
+        font_program: Option<Vec<u8>>,
     ) -> Self {
         Self {
             page_index,
@@ -2015,6 +2025,7 @@ impl TextEditPreview {
             render_mode: layout.render_mode as i64,
             disclosures,
             rewritten,
+            font_program,
         }
     }
 }
@@ -2290,6 +2301,7 @@ pub(crate) fn plan_edit_with_records(
         new_content,
         report: edit_report(target, &font, &class, opts, moved, anchor, disclosures),
         layout: laid.layout,
+        font_program: FontExtension::program_of(extension.as_ref()),
         font_writes: FontWrites::of(extension),
         rewritten,
     })

@@ -6376,6 +6376,7 @@ pub(crate) fn run_repertoire(
     find: &str,
     pinned_span: Option<ByteSpan>,
     glyphs: Option<&dyn crate::text_edit::EmbeddedGlyphs>,
+    augment: Option<&crate::text_edit::SubsetAugment>,
 ) -> Result<RunRepertoire, FormatError> {
     use crate::text_edit::encoding::{CharEncoding, CompositeEncoding};
 
@@ -6510,6 +6511,17 @@ pub(crate) fn run_repertoire(
                 &uncarried,
                 g,
             ));
+            if let Some(settings) = augment {
+                uncarried.retain(|(ch, _)| !accepted.contains(ch));
+                let at = crate::text_edit::augment_route::FontAt {
+                    resources: &page.resources,
+                    font_name: &anchor.font_name,
+                    font_dict: orig_dict,
+                };
+                accepted.extend(crate::text_edit::augment_route::augmentable(
+                    doc, &at, &uncarried, g, settings,
+                ));
+            }
         }
         if let Some(g) = glyphs.filter(|_| embedded_subset) {
             accepted.extend(crate::text_edit::code_alloc::allocatable(

@@ -215,3 +215,52 @@ fn a_second_session_edit_replaces_the_program_it_minted() {
         .0;
     assert_eq!(reverted, before, "undo nets to nothing");
 }
+
+#[test]
+fn the_preview_draws_the_appended_glyph_from_the_new_program() {
+    use pdfcer_render::edit_preview::preview_outlines;
+    use pdfcer_render::font::GlyphSource;
+    let doc = doc_with("BT /F0 24 Tf 10 40 Td (ABC) Tj ET");
+    let session = EditSession::new(doc);
+    let preview = session
+        .edit_text_preview(
+            &EditRequest::find_replace(0, "ABC", "ABD"),
+            &opts("face.ttf"),
+        )
+        .unwrap();
+    assert!(preview.font_program.is_some());
+    let descriptor = preview
+        .font
+        .get(b"FontDescriptor")
+        .and_then(|o| o.as_dict());
+    let name = descriptor
+        .and_then(|d| d.get(b"FontName"))
+        .and_then(|o| o.as_name())
+        .map(|n| String::from_utf8_lossy(n.as_bytes()).into_owned());
+    assert_eq!(Some(preview.base_font.clone()), name, "inline descriptor");
+    let out = preview_outlines(
+        &session.view(),
+        &preview,
+        &pdfcer_render::FontEnvironment::bundled(),
+    );
+    assert_eq!(out.source, Some(GlyphSource::Embedded));
+    assert!(out.glyphs.iter().all(Option::is_some), "D has an outline");
+}
+
+#[test]
+fn the_repertoire_offers_what_augmentation_can_add_and_nothing_else() {
+    let doc = doc_with("BT /F0 24 Tf 10 40 Td (ABC) Tj ET");
+    let session = EditSession::new(doc);
+    let on = session
+        .run_repertoire_with(0, "ABC", None, &opts("face.ttf"))
+        .unwrap()
+        .accepted;
+    assert!(on.contains(&'D') && on.contains(&'E'), "{on:?}");
+    assert!(!on.contains(&'Z'), "the face has no Z: {on:?}");
+    let plain = EditOptions::default().with_embedded_glyphs(&EmbeddedProgramGlyphs);
+    let off = session
+        .run_repertoire_with(0, "ABC", None, &plain)
+        .unwrap()
+        .accepted;
+    assert!(!off.contains(&'D'), "{off:?}");
+}

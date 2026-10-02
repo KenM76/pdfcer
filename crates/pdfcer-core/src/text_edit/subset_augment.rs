@@ -121,6 +121,18 @@ pub trait SubsetAugmenter: Send + Sync + std::fmt::Debug {
     /// [`AugmentRefusal`] naming why no face qualified or the surgery
     /// refused.
     fn augment(&self, request: &AugmentRequest<'_>) -> Result<AugmentedProgram, AugmentRefusal>;
+
+    /// The characters of `request.chars` this augmenter could append, for a
+    /// typing repertoire. The edit itself still calls [`Self::augment`], so
+    /// an over-answer here is refused at commit, never written.
+    ///
+    /// The default runs [`Self::augment`] and answers all or nothing; an
+    /// implementation that can tell per character should override it.
+    fn addable(&self, request: &AugmentRequest<'_>) -> Vec<char> {
+        self.augment(request)
+            .map(|_| request.chars.to_vec())
+            .unwrap_or_default()
+    }
 }
 
 /// The decision 173 settings an edit carries.

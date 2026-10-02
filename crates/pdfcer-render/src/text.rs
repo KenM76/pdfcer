@@ -707,7 +707,7 @@ pub fn load(
     let base_font = name_of(doc, font_dict, b"BaseFont").unwrap_or_default();
 
     match subtype.as_slice() {
-        b"Type1" | b"MMType1" | b"TrueType" => load_simple(doc, font_dict, env, base_font),
+        b"Type1" | b"MMType1" | b"TrueType" => load_simple(doc, font_dict, env, base_font, None),
         b"Type0" => load_composite(doc, font_dict, base_font),
         b"Type3" => crate::type3::Type3Font::load(doc, font_dict)
             .map(|t3| LoadedFont {
@@ -732,6 +732,18 @@ pub fn load(
     }
 }
 
+/// [`load`] for a simple font whose glyphs come from `program` rather than
+/// its descriptor: a program an edit will embed but has not written yet.
+pub(crate) fn load_with_program(
+    doc: &DocumentView<'_>,
+    font_dict: &Dict,
+    env: &FontEnvironment,
+    program: Vec<u8>,
+) -> Result<LoadedFont, UnsupportedFont> {
+    let base_font = name_of(doc, font_dict, b"BaseFont").unwrap_or_default();
+    load_simple(doc, font_dict, env, base_font, Some(program))
+}
+
 /// §9.6 simple font: pick a program, resolve all 256 codes, tabulate
 /// all 256 widths.
 fn load_simple(
@@ -739,6 +751,7 @@ fn load_simple(
     font_dict: &Dict,
     env: &FontEnvironment,
     base_font: String,
+    program: Option<Vec<u8>>,
 ) -> Result<LoadedFont, UnsupportedFont> {
     let descriptor = dict_of(doc, font_dict, b"FontDescriptor");
     let flags = descriptor
@@ -753,7 +766,7 @@ fn load_simple(
         .unwrap_or(0.0) as f32;
     let std14 = coredata::std14_by_base_font(select::strip_subset_tag(&base_font));
 
-    let embedded = descriptor.and_then(|d| embedded_program(doc, d));
+    let embedded = program.or_else(|| descriptor.and_then(|d| embedded_program(doc, d)));
     let (data, source) = match embedded {
         Some(bytes) => (FontData::new(bytes), GlyphSource::Embedded),
         None => substitute_face(env, &base_font, flags, italic_angle, descriptor, doc)?,

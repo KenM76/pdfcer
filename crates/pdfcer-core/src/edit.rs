@@ -12476,6 +12476,7 @@ impl EditSession {
             plan.layout,
             plan.report.disclosures,
             plan.rewritten,
+            plan.font_program,
         ))
     }
 
@@ -13453,6 +13454,7 @@ impl EditSession {
             find,
             pinned_span,
             opts.embedded_glyphs,
+            opts.subset_augment.as_ref(),
         )
     }
 

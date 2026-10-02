@@ -63,7 +63,11 @@ pub fn preview_outlines(
         source: None,
         skipped: Some(skip),
     };
-    let loaded = match text::load(doc, &preview.font, env) {
+    let loaded = match &preview.font_program {
+        Some(p) => text::load_with_program(doc, &preview.font, env, p.clone()),
+        None => text::load(doc, &preview.font, env),
+    };
+    let loaded = match loaded {
         Ok(l) => l,
         Err(e) => return none(OutlineSkip::Unsupported(e)),
     };

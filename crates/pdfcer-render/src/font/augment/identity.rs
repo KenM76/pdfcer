@@ -39,6 +39,18 @@ pub(crate) fn candidate_index(face: &[u8], font_name: &str) -> Option<u32> {
     })
 }
 
+/// The members of `chars` face member `face_index`'s cmap maps.
+pub(crate) fn face_chars(face: &[u8], face_index: u32, chars: &[char]) -> Vec<char> {
+    let Ok(f) = Parts::read(face, face_index, "installed font") else {
+        return Vec::new();
+    };
+    chars
+        .iter()
+        .copied()
+        .filter(|&ch| cmap::unicode_glyph(f.get(b"cmap"), ch).is_some())
+        .collect()
+}
+
 fn strip_tag(name: &str) -> &str {
     match name.split_once('+') {
         Some((tag, rest)) if tag.len() == 6 && tag.bytes().all(|b| b.is_ascii_uppercase()) => rest,

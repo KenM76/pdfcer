@@ -119,6 +119,27 @@ impl SubsetAugmenter for InstalledFaceAugmenter {
             }),
         })
     }
+
+    /// The characters the first face that passes the identity check maps.
+    fn addable(&self, request: &AugmentRequest<'_>) -> Vec<char> {
+        let scope = match request.outline_check {
+            OutlineCheck::ShownOnly => identity::OutlineCheck::ShownOnly(request.shown),
+            _ => identity::OutlineCheck::AllShared,
+        };
+        for (_, data) in &self.faces {
+            let face = data.bytes();
+            let Some(index) = identity::candidate_index(face, request.base_font) else {
+                continue;
+            };
+            let held = identity::face_chars(face, index, request.chars);
+            if !held.is_empty()
+                && identity::check(request.program, face, index, &held, scope).is_ok()
+            {
+                return held;
+            }
+        }
+        Vec::new()
+    }
 }
 
 fn evidence(compared: usize, scope: OutlineCheck) -> String {

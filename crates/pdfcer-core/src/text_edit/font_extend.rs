@@ -64,6 +64,11 @@ impl FontExtension {
         self.view.as_ref().unwrap_or(&self.dict)
     }
 
+    /// Decision 173's new program, decoded, when the edit replaces the font's.
+    pub(crate) fn program_of(extension: Option<&Self>) -> Option<Vec<u8>> {
+        Some(extension?.augmented.as_ref()?.program.clone())
+    }
+
     /// The object write, or nothing when the dictionary is unchanged.
     pub(crate) fn write(&self) -> Option<(ObjId, Object)> {
         (self.reencoded || self.augmented.is_some() || self.added.iter().any(|a| a.widened))
