@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 433.0` (`50c34f42`+`ff0f93a9`), 2026-10-02 — `edit_block_text` + `edit_block_text_preview` (G076) — `Pass 433.0` SHIPPED
+
+Answers `pdfcer-gui` request `G076`; same `G073`–`G081` family as the `427.0`–`436.3` items. Cherry-picked from agent commits `a03adc2e`+`6a93d2d6`.
+
+**Core.** New `EditSession::edit_block_text`/`edit_block_text_preview` and `block_at_point(page, x, y) -> Result<Option<BlockHit>, BlockEditError>`; verb count 305 → 308. `BlockHit { block_index, text, bbox }` chains `recognize_with_cells` → `hit_test` → `block_at` → `block_text`, numbered to match `reflow_block`. Preview and commit share the existing reflow emitter rather than a copy; a test pins they agree. All-or-nothing, one undo entry under new `CommandKind::EditBlockText`; `\n` kept as a paragraph break. `EditReport` gives lines before/after, overflow against the original height, objects emptied, glyphs added, font substitution, `marked_content_removed`. Every unencodable character is named (first in the main message, rest under "Also refused: …") — fixed a bug found on the way: the encoder repeated a per-character note once per occurrence (23× on one run); notes are now de-duplicated, pinned by test.
+
+**CLI.** New `edit-block-text` subcommand, `--at X,Y` to pick a block by point; prints the report.
+
+**Limits.** New text takes only the first run's font/size/colour — a mixed block becomes uniform, disclosed. Inner marked content inside the block is removed and counted, not kept per line; an unbalanced sequence refuses the edit. On a tagged block, `/ActualText` keeps describing the old text (disclosed, not updated). A failure in the session commit step surfaces as `Block(Unsupported(CommitFailed { detail }))` — the original error survives only as text.
+
+**Fixture.** `fixtures/synthetic/reflow/block_text.pdf`, `tools/gen-block-text-fixtures.py`, `PROVENANCE.md` row added.
+
+**Tests.** 7 new core integration tests + 2 CLI tests running the real binary. Core lib 1362, core doc 180, core all 2500, cli bin 36, cli all 673. 12 of 12 sabotages caught.
+
+**Gates.** fmt, `cargo clippy -- -D warnings` clean per the dispatching report. No manifest change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected.
+
+**Shells.** `core [x]` / `cli [x]` / `gui [ ]` — not wired. `block_at_point` is core-only with only an indirect CLI caller via `--at`; not rounded up in `FEATURES.md`.
+
+**`docs/FEATURES.md`.** Row moved from *Planned* to *Implemented*: "Replace a block's text and re-wrap it" — core/cli ticked, gui unticked.
+
+**Sourcing (hard rule 8).** No shell this filing. Hashes (`50c34f42`/`ff0f93a9`, cherry-pick of agent commits `a03adc2e`/`6a93d2d6`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 431.0` (`a74f6147`), 2026-10-02 — fallback face for unencodable characters (G078) — `Pass 431.0` SHIPPED
 
 Answers `pdfcer-gui` request `G078`; same `G073`–`G081` family as the `427.0`–`436.3` items. Cherry-picked from agent commit `adf332bc`.
@@ -134,6 +156,8 @@ Answers `pdfcer-gui` request `G078`; same `G073`–`G081` family as the `427.0`�
 **`docs/FEATURES.md`.** Row moved from *Planned* to *Implemented*: "Fallback face for an unencodable character" — core/cli ticked, gui unticked.
 
 **Sourcing (hard rule 8).** No shell this filing. `a74f6147` and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
+**Follow-on, `90f0c59e`, 2026-10-02 (868th filing).** `docs(text-edit): say how to hold a FallbackFace across edits` — `with_fallback` takes `&'static FallbackFace` because `EditOptions` is `Copy`; the doc comment now tells a caller to leak each distinct face once and reuse it, rather than leak on every call. No behaviour change.
 
 ### `Pass 432.0` (`91e6b04a`+`87eb5bb5`+`223884c4`), 2026-10-02 — reflow fidelity (G079) — `Pass 432.0` SHIPPED
 
@@ -15722,6 +15746,18 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 433.0` SHIPPED, 2026-10-02 (868th filing),
+> `50c34f42`+`ff0f93a9`** — see *Shipped*, above (cherry-pick of agent
+> commits `a03adc2e`+`6a93d2d6`). `edit_block_text`/`edit_block_text_preview`
+> (`G076`): replace a block's whole text and re-wrap it as one all-or-nothing
+> edit, one undo entry; new `block_at_point(page, x, y)` locates a block by
+> point. Report gives lines before/after, overflow, objects emptied, glyphs
+> added, font substitution, `marked_content_removed`; every unencodable
+> character named. CLI `edit-block-text [--at X,Y]`. **`Pass 433.0` is now
+> SHIPPED** — two items remain in the `G073`–`G081` family: `430.1`
+> (composite subset augmentation, decision 173), `430.3` (route B).
+> `gui [ ]` not wired.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 431.0` SHIPPED, 2026-10-02 (867th filing),
 > `a74f6147`** — see *Shipped*, above (cherry-pick of agent commit
 > `adf332bc`). Fallback face for unencodable characters (`G078`): a
@@ -16116,6 +16152,11 @@ closes out the *prior* filing's business rather than opening this one's.
 >   (`G076`): replace a block's text and re-wrap it as one all-or-nothing
 >   edit, one undo entry, reports lines before/after and overflow. Depends
 >   on `428`/`430`/`432`.
+>   **★ SHIPPED 2026-10-02 (868th filing), `50c34f42`+`ff0f93a9`** (cherry-
+>   pick of agent commits `a03adc2e`+`6a93d2d6`) — ships as scoped above,
+>   plus a new `block_at_point(page, x, y)` locator not originally named.
+>   **`Pass 433.0` is now SHIPPED.** See *Shipped*, above, for the full
+>   accounting.
 > - **`Pass 434.0`** — cell-aware block model (`G080`): `BlockKind::TableCell`
 >   from `table_detect`'s own cells; lines never join across cells;
 >   `caret_up`/`caret_down` and reflow respect cells; confirm the column-
@@ -32804,6 +32845,14 @@ added. See that section below.
   project — see
   `D:\dev\rag\rust\a_fixed_temp_dir_path_is_a_cross_process_race_that_one_cargo_test_run_can_never_reveal.md`'s
   2026-10-02 corroboration note. **This item is now CLOSED.**
+  **Follow-on, 2026-10-02 (868th filing), `27d4aebb`.** Wiring
+  `check-test-temp-unique.py` into CI had missed two of the three edits a
+  new CI step needs: the `audits` job's declared count said 30 checks and
+  ran 31, and `check-ci-parity.py` had no LOCAL classification for the new
+  step — so `tools/run-gates.sh`'s sweep on `90f0c59e` failed
+  `check-ci-job-names`/`check-ci-parity`, and the new gate itself never ran
+  locally. Both fixed by `27d4aebb`. See `R217`'s tenth amendment note
+  (*Standing rules*, below).
 
 - **★ NEXT MAJOR FOCUS — Acrobat text-handling parity (Edit PDF: in-place
   text edit, paragraphs, reflow, formatting, font-on-edit)** — filed by
@@ -39202,6 +39251,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R217` — A GATE THAT REQUIRES A COMMIT TO CITE SOMETHING ONLY A *LATER* COMMIT CAN CREATE IS UNSATISFIABLE BY CONSTRUCTION FOR THAT COMMIT, NOT MERELY STRICT.  **[gate: check-commits-filed.py, check-passes-filed.py]**
 - **`R217` — EIGHTH AMENDMENT NOTE, 2026-09-15 (553rd filing, `96958657`): PUSHING WITHOUT READING CI'S COLOUR RECURRED THROUGH A DIFFERENT GATE (`check-register-entry-size.py`, NOT THE FILING GATE THIS RULE WAS MINTED FOR) AND ON A DOCUMENTATION-ONLY EDIT WITH NO CODE IN IT — EXACTLY THE CLASS OF CHANGE A SESSION IS LEAST LIKELY TO RE-SWEEP AFTER.** `main` was red 2026-09-14 18:36Z–2026-09-15 04:14Z on one over-cap `docs/FEATURES.md` row (1,223 chars against the 1,200-char cap); `Pass 304.0`'s push landed on that red without checking CI first, inheriting it rather than causing it. Fixed by `96958657`, a TRIM of the over-cap rows, not a baseline bump. No new rule number — this rule's mechanism ("read CI's colour from GitHub, don't infer it") is gate-agnostic, and this is the first instance firing through a gate other than the one `R217` was minted for. Full account: `docs/NEXT_SESSION.md`'s own "`main` WAS RED FOR TEN HOURS" section.
 - **`R217` — NINTH AMENDMENT NOTE, 2026-10-01 (841st filing, `488ae6b2`): PUSHING WITHOUT READING CI'S COLOUR RECURRED THROUGH A THIRD GATE (`check-ci-job-names.py`) AFTER A COMMIT CHANGED WHAT A JOB RUNS WITHOUT CHANGING WHAT ITS NAME DECLARES.** `Pass 426.0` (`2bb66c73`) added `check-code-structure.py` as the 30th check in CI's `audits` job without bumping its `name:` label past `"repository audits (29 checks)"`, so `check-ci-job-names.py`'s own declared-count-must-equal-actual-count check failed on every run from `2bb66c73` onward; the only failing job in run `36879988768` was this one. Fixed by `488ae6b2`, relabeling to `"(30 checks)"`. No new rule number — same gate-agnostic mechanism, firing through yet another gate. Full account: this filing's `SESSION_LOG.md` entry; the general shape (a gate's own declared count going stale the moment a check is added) is recorded in `D:\dev\rag\rust\a_ci_job_name_describes_its_first_step_not_the_gate_that_failed.md` (not edited this filing — flagged for a 4th amendment there).
+- **`R217` — TENTH AMENDMENT NOTE, 2026-10-02 (868th filing, `27d4aebb`): THE STALE-DECLARED-COUNT MECHANISM RECURRED A FOURTH TIME, PLUS A SIBLING FAILURE — A NEW CI STEP NEEDS THREE SYNCHRONISED EDITS, NOT ONE: THE STEP ITSELF, THE JOB'S DECLARED COUNT, AND `check-ci-parity.py`'S LOCAL/REMOTE CLASSIFICATION.** `R261`'s own `check-test-temp-unique.py` gate (`da6a24ab`, 867th filing) was added to the `audits` job without bumping its `name:` label (said 30 checks, ran 31) and without a `check-ci-parity.py` entry, so `tools/run-gates.sh`'s sweep on `90f0c59e` failed `check-ci-job-names`/`check-ci-parity` and never ran the new gate locally at all. Fixed by `27d4aebb`. No new rule number — same gate-agnostic mechanism as the eighth/ninth notes, now missing the parity half too. The flagged RAG file's 4th amendment, owed since the ninth note, is added in the same filing: `D:\dev\rag\rust\a_ci_job_name_describes_its_first_step_not_the_gate_that_failed.md`.
 - `R218` — A GATE WHOSE INPUT SET IS "WHAT IS ALREADY COMMITTED" CANNOT SEE THE COMMIT YOU ARE ABOUT TO MAKE.  **[gate: check-suite-name-absent.py]**
 - `R219` — WHEN A PASS FIXES ONE OF SEVERAL ROUTES TO THE SAME BEHAVIOUR, ENUMERATE THE OTHER ROUTES IN THE SAME PASS AND SAY EXPLICITLY WHICH ARE LEFT.
 - `R220` — A CAPABILITY IS DOCUMENTED WHERE THE READER'S *QUESTION* LIVES, NOT ONLY WHERE ITS *MECHANISM* LIVES; AND A CLAIM THAT PDFCE HAS NO VERB FOR SOMETHING IS CHECKED AGAINST SOURCE BEFORE IT…  **[gate: check-core-api-verbs.py, check-ledger-numbers.py]**

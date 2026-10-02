@@ -4,6 +4,59 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (868th filing) — `Pass 433.0` SHIPPED (`50c34f42`+`ff0f93a9`) — replace a block's text and re-wrap it (G076); doc follow-on (`90f0c59e`); CI-wiring follow-on (`27d4aebb`), `R217` tenth amendment note
+
+**Shipped:**
+- `50c34f42`+`ff0f93a9` (cherry-pick of agent commits `a03adc2e`+`6a93d2d6`)
+  — `Pass 433.0` SHIPPED (`G076`). New `EditSession::edit_block_text`/
+  `edit_block_text_preview` + `block_at_point(page, x, y)` (verb count
+  305 → 308); all-or-nothing, one undo entry; report gives lines
+  before/after, overflow, objects emptied, glyphs added, font
+  substitution, `marked_content_removed`, every unencodable character
+  named. New text takes only the first run's font/size/colour; inner
+  marked content removed and counted, refusing on an unbalanced
+  sequence; tagged `/ActualText` stays stale (disclosed). CLI
+  `edit-block-text [--at X,Y]`. 7 core + 2 CLI tests, 12/12 sabotages
+  caught — including a de-dup fix for a per-character note the encoder
+  had been repeating once per occurrence (23× on one run). `core [x]` /
+  `cli [x]` / `gui [ ]`. See `ROADMAP.md`'s `Pass 433.0` Shipped entry
+  for the full accounting.
+- `90f0c59e` — doc comment follow-on to `Pass 431.0`: `with_fallback`
+  takes `&'static FallbackFace` because `EditOptions` is `Copy`; now
+  says to leak each distinct face once and reuse it. Not a Pass.
+- `27d4aebb` — CI wiring follow-on to `R261`'s `da6a24ab`: the `audits`
+  job's declared count said 30 checks and ran 31, and
+  `check-ci-parity.py` had no LOCAL entry for the new
+  `check-test-temp-unique.py` step — so `tools/run-gates.sh` on
+  `90f0c59e` failed `check-ci-job-names`/`check-ci-parity` and never
+  ran the new gate locally at all. Both fixed. Not a Pass.
+
+**Decisions made this session:** none — no new architectural decision;
+`R217` gains a tenth amendment note (no new rule number), the same
+gate-agnostic mechanism as its eighth/ninth notes.
+
+**Findings + decisions:**
+- **Lesson worth naming plainly: a new CI step is three edits, not
+  one** — the step itself, the job's declared count
+  (`check-ci-job-names.py`), and `check-ci-parity.py`'s LOCAL/REMOTE
+  classification. `27d4aebb` missed the second and third when adding
+  the first. This is the fourth time the declared-count half of this
+  has gone stale (`R217`'s eighth/ninth notes were the second and
+  third); the parity-classification half going stale alongside it is
+  new. Corroboration added to
+  `D:\dev\rag\rust\a_ci_job_name_describes_its_first_step_not_the_gate_that_failed.md`
+  (dated section, not a new file — hard rule 4), flagged there since
+  the ninth note as an owed 4th amendment.
+- `Pass 433.0` leaves two items in the `G073`–`G081` family: `430.1`
+  (composite subset augmentation, decision 173) and `430.3` (route B).
+
+**Still in flight:** `430.1` and `430.3`, per `docs/NEXT_SESSION.md` —
+that file is stale (last written 2026-10-01, still lists `433.0` as
+queued work rather than shipped); flagged to the engineer, not edited
+(engineer-owned per `CLAUDE.md`).
+
+**For next session:** pick up `430.1` or `430.3`.
+
 ## 2026-10-02 (867th filing) — `Pass 431.0` SHIPPED (`a74f6147`) — fallback face for unencodable characters (G078); test-temp-path uniqueness fix + gate (`da6a24ab`), closes the 2026-08-01 hygiene backlog item, `R261` minted
 
 **Shipped:**
