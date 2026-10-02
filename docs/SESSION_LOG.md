@@ -4,6 +4,72 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (863rd filing) — `Pass 434.0` SHIPPED (`c8abb4e4`) + `Pass 430.1` sibling-slice test follow-on (`20892f99`) — cell-aware block model
+
+**Shipped:**
+- `c8abb4e4` — `Pass 434.0` SHIPPED (`G080`, cherry-pick of agent commit
+  `91915cd1`). Each cell of a ruled table is now its own block:
+  `BlockKind::TableCell { table, row, column }`, cell rectangle on
+  `Block::cell_rect` (`Rect` isn't `Eq`/`Hash`). New `pub` surface:
+  `CellRegion` (`new`, `with_span`, `from_tables`; `#[non_exhaustive]`),
+  `detect_cell_regions(view, page_index)`,
+  `EditableTextModel::recognize_with_cells(page, options, cells)` +
+  `cells()`, `CellOverflow`; new fields `Line::cell`,
+  `BlockDiagnostics::{lines_split_by_cell, lines_split_by_gutter,
+  table_cell_blocks}`, `BlockRecognitionOptions::{gutter_min_em,
+  gutter_min_lines}` (default 1.5 em on ≥3 rows; cell text exempt),
+  `ReflowPreview::cell_overflow`, `ReflowApplyReport::cell_overflow`.
+  Re-wrap inside a cell defaults to the cell's inner width; overflow past
+  the cell bottom is written and reported, never moves the cell or rows
+  below; Up/Down navigation stays in the column, skipping empty rows; a
+  two-column page now recognizes one block per column paragraph.
+  **Behaviour change for consumers**: reflow now numbers blocks with the
+  cell-aware model, so block indices on a page with a ruled table differ
+  from plain `recognize()` (`docs/core-api` 01 §8.4.4a updated). Limits:
+  ruled tables only (alignment-found tables via `CellRegion::from_tables`);
+  the gutter rule can split a tab-aligned ≥3-row list with a wide gap;
+  cell padding is inferred, disclosed as such; `Pass 433.0` (block text
+  editing) not yet shipped. CLI: `inspect --text-blocks [--json]` prints
+  `kind=table-cell cell=tNrNcN` and counters; `inspect --reflow-preview`
+  and `reflow` print `cell_overflow`. `model.rs` split into
+  `model/{cells,gutter,navigate,stages}.rs` plus `reflow_fit.rs`; four
+  structure-gate baseline lines removed. New fixture
+  `fixtures/synthetic/textblocks/ruled-table.pdf`
+  (`tools/gen-textblocks-fixtures.py`, `PROVENANCE.md` row added);
+  `multi-column.pdf` regenerates byte-identical. Tests: `cell_block_model.rs`
+  17 core integration, `inspect_table_cells.rs` 4 CLI; full workspace in
+  the agent's tree: core 1354 unit + 2463 integration + 175 doctests, all
+  green; 18 planted sabotages caught, one dead branch removed after its
+  own sabotage survived. No manifest change. `core [x]` / `cli [x]` /
+  `gui [ ]` not wired. GUI reply written (`G080` FIXED). Shipped out of
+  order, ahead of `431.0`–`433.0` — **five items now remain in the
+  `G073`–`G081` family**: `430.1` (composite subset augmentation, decision
+  173), `430.3` (route B), `431.0`, `432.0`, `433.0`.
+- `20892f99` — test-only follow-on to the `Pass 430.1` sibling slice
+  (`6f07ed6e`, filed in the 862nd filing). Asserts the caret's pinned
+  repertoire query — empty `find` + a pinned operator span, the shape
+  `pdfcer-gui` calls `run_repertoire_with` in — also sees a same-face
+  sibling font under `with_sibling_fonts`. Sabotage caught. Render
+  integration test count unchanged at 8 (the new assertion lands inside
+  the existing suite). Hash added to the `Pass 430.1` sibling-slice
+  `ROADMAP.md` entry.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 430.1` remainder (composite fonts, decision 173), `Pass 430.3`
+  (route B), `431.0`–`433.0` unchanged, still open.
+
+**For next session:**
+- Continue `Pass 430.1`'s remaining scope (composite fonts), or pick up
+  `430.3`/`431.0`–`433.0` per `docs/NEXT_SESSION.md`.
+
+**Sourcing (hard rule 8):** no shell this filing. Both hashes (`c8abb4e4`,
+`20892f99`) and every fact above relayed from the dispatching engineer's
+own report, not independently reproduced.
+
 ## 2026-10-02 (862nd filing) — `Pass 435.0` SHIPPED (`eceff33b`) + `Pass 430.1` sibling slice SHIPPED (`6f07ed6e`, decision 174) — hand-signature content tag; a refused replacement reaches a same-face sibling font
 
 **Shipped:**

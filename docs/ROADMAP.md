@@ -115,6 +115,34 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 434.0` (`c8abb4e4`), 2026-10-02 — cell-aware block model (G080) — `Pass 434.0` SHIPPED
+
+Answers `pdfcer-gui` request `G080` (cherry-pick of agent commit `91915cd1`); same `G073`–`G081` family as the `427.0`–`436.3` items, shipped out of order.
+
+**Core.** Each cell of a ruled table is now its own block: new `BlockKind::TableCell { table, row, column }`; the cell rectangle lives on `Block::cell_rect` (not in the variant — `Rect` isn't `Eq`/`Hash`). New `pub` surface: `CellRegion` (`new`, `with_span`, `from_tables`; `#[non_exhaustive]`), `detect_cell_regions(view, page_index)`, `EditableTextModel::recognize_with_cells(page, options, cells)` + `cells()`, `CellOverflow`; new fields `Line::cell`, `BlockDiagnostics::{lines_split_by_cell, lines_split_by_gutter, table_cell_blocks}`, `BlockRecognitionOptions::{gutter_min_em, gutter_min_lines}` (default 1.5 em on ≥3 rows; cell text exempt), `ReflowPreview::cell_overflow`, `ReflowApplyReport::cell_overflow`.
+
+**Behaviour.** Re-wrap inside a cell defaults to the cell's inner width; overflow past the cell bottom is still written and reported, never moves the cell or the rows below it. Up/Down navigation stays in the column, skipping empty rows. A two-column page now recognizes one block per column paragraph.
+
+**BEHAVIOUR CHANGE for consumers.** Reflow now numbers blocks with the cell-aware model, so on a page containing a ruled table, block indices differ from plain `recognize()` — `docs/core-api` 01 §8.4.4a updated.
+
+**Limits.** Ruled tables only (alignment-found tables reach it via `CellRegion::from_tables`); the gutter rule can split a tab-aligned list of ≥3 rows with a wide gap; cell padding is inferred (min of left/right insets), disclosed as an inference. `Pass 433.0` (block text editing) not yet shipped, so a cell block can be read and reflowed but not yet replaced as a unit.
+
+**CLI.** `inspect --text-blocks [--json]` prints `kind=table-cell cell=tNrNcN` plus counters; `inspect --reflow-preview` and `reflow` print `cell_overflow`; help text names the cell default width.
+
+**Structure.** `model.rs` split into `model/{cells,gutter,navigate,stages}.rs` plus a new `reflow_fit.rs`; four structure-gate baseline lines removed.
+
+**Fixtures.** `fixtures/synthetic/textblocks/ruled-table.pdf` (`tools/gen-textblocks-fixtures.py`; `PROVENANCE.md` row added); `multi-column.pdf` regenerates byte-identical.
+
+**Tests.** `tests/cell_block_model.rs` 17 core integration; `tests/inspect_table_cells.rs` 4 CLI; full workspace in the agent's tree: core 1354 unit + 2463 integration + 175 doctests, all green. 18 planted sabotages, all caught; one dead branch removed after its own sabotage survived.
+
+**Gates.** No manifest change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected.
+
+**Shells.** `core [x]` / `cli [x]` / `gui [ ]` — not yet wired. GUI reply written (`G080` FIXED).
+
+**`docs/FEATURES.md`.** Row moved from *Planned* to *Implemented*: "Cell-aware block model" — core/cli ticked, gui unticked.
+
+**Sourcing (hard rule 8).** No shell this filing. Hash (`c8abb4e4`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 435.0` (`eceff33b`), 2026-10-02 — hand-signature content tag (G073) — `Pass 435.0` COMPLETE
 
 Answers `pdfcer-gui` request `G073` (cherry-pick of agent commit `6e8605c0`); same `G073`–`G081` family as the `427.0`–`436.3` items, shipped out of order.
@@ -133,7 +161,7 @@ Answers `pdfcer-gui` request `G073` (cherry-pick of agent commit `6e8605c0`); sa
 
 **Sourcing (hard rule 8).** No shell this filing. Hash and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
 
-### `Pass 430.1` (sibling slice, `6f07ed6e`), 2026-10-02 — a refused replacement may be set in a same-face sibling font resource (G075 follow-on, decision 174) — `Pass 430.1` STAYS OPEN
+### `Pass 430.1` (sibling slice, `6f07ed6e`+`20892f99`), 2026-10-02 — a refused replacement may be set in a same-face sibling font resource (G075 follow-on, decision 174) — `Pass 430.1` STAYS OPEN
 
 Continues the `Pass 427.0`–`436.3` family.
 
@@ -144,6 +172,8 @@ Continues the `Pass 427.0`–`436.3` family.
 **Decision 174** (`docs/decisions/174-sibling-font-fallback.md`): a replacement the run's font refuses may be set in a same-face sibling resource. Rejected: outline comparison for same-face matching; adding a new font resource (that is `Pass 430.3`, route B). See `ARCHITECTURE.md` §12.
 
 **Tests.** 8 render integration (`crates/pdfcer-render/tests/sibling_font.rs`), 2 CLI (`crates/pdfcer-cli/tests/edit_text_sibling.rs`); new fixtures `fixtures/synthetic/text/sibling-font.pdf` and `sibling-font-other-face.pdf` from `tools/gen-sibling-font-fixture.py` (`PROVENANCE.md` rows added). 6/6 planted sabotages caught. Honest gap: the writing-mode (vertical) refusal branch has no test — no vertical fixture.
+
+**Follow-on, `20892f99`, same date (863rd filing), test-only.** Asserts the caret's pinned repertoire query — empty `find` + a pinned operator span, the shape `pdfcer-gui` calls `run_repertoire_with` in — also sees a same-face sibling font under `with_sibling_fonts`. Sabotage caught; render integration test count unchanged at 8 (the new assertion lands inside the existing suite, not as a new file).
 
 **Gates.** No manifest change — `cargo tree` unaffected. `docs/core-api/02-editing-and-saving.md` updated (row + index line count).
 
@@ -15628,14 +15658,30 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 434.0` SHIPPED, 2026-10-02 (863rd filing),
+> `c8abb4e4`** — see *Shipped*, above (cherry-pick of agent commit
+> `91915cd1`). Cell-aware block model: `BlockKind::TableCell`, `CellRegion`,
+> `detect_cell_regions`, `recognize_with_cells`; reflow/navigation respect
+> cells; CLI `inspect --text-blocks`/`--reflow-preview`/`reflow`. **`Pass
+> 434.0` is now SHIPPED, out of order — five items remain in the
+> `G073`–`G081` family: `430.1` (composite subset augmentation, decision
+> 173), `430.3` (route B), `431.0`, `432.0` (reported in progress by the
+> dispatching engineer, not independently verified — no shell this
+> filing), `433.0`.** `gui [ ]` not wired.
+>
+> ★★★★★★★★★★★★★★★★ **`Pass 430.1` TEST FOLLOW-ON, 2026-10-02 (863rd
+> filing), `20892f99`** — see *Shipped*, above (appended to the sibling-
+> slice entry). Test-only: pins that the caret's pinned repertoire query
+> (empty `find`, pinned span) also sees a sibling font under
+> `with_sibling_fonts`. **`Pass 430.1` STAYS OPEN** — composite subset
+> augmentation unchanged.
+>
 > ★★★★★★★★★★★★★★★★ **`Pass 435.0` SHIPPED, 2026-10-02 (862nd filing),
 > `eceff33b`** — see *Shipped*, above (cherry-pick of agent commit
 > `6e8605c0`). Hand-signature content tag: `/pdfc_HandSig` marked content,
 > `hand_signatures(page)` reader, `--hand-signature` on `annotate`/
 > `add-text`/`add-image` plus `list-hand-signatures`. **`Pass 435.0` is now
-> COMPLETE, shipped out of order — five items remain in the `G073`–`G081`
-> family** (430 stays open on `430.1`; 431–434 unstarted). `gui [ ]` not
-> wired.
+> COMPLETE, shipped out of order.** `gui [ ]` not wired.
 >
 > ★★★★★★★★★★★★★★★★ **`Pass 430.1` SIBLING SLICE SHIPPED, 2026-10-02
 > (862nd filing), `6f07ed6e`** — see *Shipped*, above. Decision 174: a
@@ -15974,6 +16020,12 @@ closes out the *prior* filing's business rather than opening this one's.
 >   from `table_detect`'s own cells; lines never join across cells;
 >   `caret_up`/`caret_down` and reflow respect cells; confirm the column-
 >   gutter rule against it.
+>   **★ SHIPPED 2026-10-02 (863rd filing), `c8abb4e4`** (cherry-pick of
+>   agent commit `91915cd1`) — `CellRegion`/`detect_cell_regions`/
+>   `recognize_with_cells` ship as scoped; CLI via `inspect --text-blocks`/
+>   `--reflow-preview`/`reflow`. **`Pass 434.0` is now SHIPPED**, out of
+>   order ahead of `431.0`–`433.0`. See *Shipped*, above, for the full
+>   accounting.
 > - **`Pass 435.0`** — hand-signature content tag (`G073`): an option on
 >   `add_markup_as_content`/`add_text`/`add_image` wraps output in private
 >   marked content (`` /pdfcerHandSig <</Field (name)>> BDC … EMC ``,
