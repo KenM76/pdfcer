@@ -4,6 +4,61 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (860th filing) — `Pass 437.0` SHIPPED (`3affd3db`) + `Pass 430.1` slice 2b SHIPPED (`f54c8957`) — core wiring/CLI for subset augmentation; preview names its rewritten part
+
+**Shipped:**
+- `3affd3db` — `Pass 437.0` COMPLETE. `TextEditPreview::rewritten:
+  Option<(Range<usize>, String)>` names the byte range of `find` a
+  `narrow_span`-trimmed multi-operator match actually rewrote and its
+  replacement text, `None` when the whole match was used. Sourced from
+  the same `narrow_span` call the commit uses; test
+  `a_narrowed_preview_names_the_rewritten_part` pins preview and commit
+  together. `docs/core-api/02` updated. `core [x]` / `cli n/a` (no
+  batch verb by design) / `gui [ ]` not yet consumed. Reply
+  `reply_G082_preview_names_the_part_it_laid_out_FIXED.md` written to
+  the FeatureRequests channel.
+- `f54c8957` — `Pass 430.1` slice 2b (decision 173 §4, `G075` b). Core:
+  `EditOptions::with_subset_augment(SubsetAugment)`; `SubsetAugmenter`
+  trait, `AugmentRequest`, `AugmentedProgram`, `AugmentRefusal`,
+  `OutlineCheck {AllShared (default), ShownOnly}`,
+  `HintingMismatch {Strip (default), Refuse}`; tried only when every
+  route-A refusal is "no outline"; writes a new Flate `/FontFile2` with
+  `/Length1`, copy-on-write descriptor (`/FontBBox`/`/MaxWidth`
+  widened), `/FontName`+`/BaseFont` retagged together; a later session's
+  augmentation replaces an earlier one's program; undo nets to original
+  bytes; refuses when a shown code elsewhere would change meaning;
+  disclosed as an inference naming the face and identity evidence.
+  `font_usage.rs` split out of `font_extend.rs` (structure limit).
+  Render: `pdfcer_render::font::InstalledFaceAugmenter` wraps the
+  slice-1 program surgery; identity check now reports the glyph count
+  compared. CLI: `pdfcer edit-text --augment-subset [--augment-check
+  all-shared|shown-only] [--augment-hinting strip|refuse]` over
+  `--font-dir` faces. Tests: 5 render integration + 3 CLI, 6/6
+  sabotages caught; new fixture
+  `fixtures/synthetic/text/augment/subset-in.pdf`. Gates: core
+  1355+2446+173, render and cli (662) tests green; clippy/fmt/structure/
+  core-api-verbs/public-fns-documented all clean; no `Cargo.toml`
+  change. `core [x]` / `cli [x]` / `gui [ ]`. **`Pass 430.1` STAYS
+  OPEN** — `edit_text_preview`/`run_repertoire_with` awareness of
+  augmentation and composite fonts still owed.
+
+**Decisions made this session:** none new — both commits execute
+decisions already on record (173 §4, and `G082`'s narrow fix).
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 430.1` remainder (preview/keystroke-query awareness, composite
+  fonts), `Pass 430.3`, `431.0`–`436.3` unchanged, still open.
+
+**For next session:**
+- Continue `Pass 430.1`'s remaining scope, or pick up `430.3`/`431.0`
+  per `docs/NEXT_SESSION.md`.
+
+**Sourcing (hard rule 8):** no shell this filing. Both hashes
+(`3affd3db`, `f54c8957`) and every fact above relayed from the
+dispatching engineer's own report, not independently reproduced.
+
 ## 2026-10-01 (859th filing) — `Pass 437.0` filed — `TextEditPreview` names the part it rewrote
 
 **Shipped:** none — filing only.
