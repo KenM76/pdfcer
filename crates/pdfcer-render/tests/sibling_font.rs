@@ -59,6 +59,18 @@ fn content(bytes: &[u8]) -> String {
     s[at..end].split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// The first show operator's byte span, the way a shell obtains one.
+fn first_operator_span(doc: &Document) -> pdfcer_core::span::ByteSpan {
+    let pages = page_tree::pages(doc).unwrap();
+    let opts = pdfcer_core::text_extract::ExtractOptions::default().with_provenance(true);
+    let page = pdfcer_core::text_extract::extract_page(doc, &pages[0], 0, &opts).unwrap();
+    page.runs
+        .iter()
+        .flat_map(|r| r.glyphs.iter())
+        .find_map(|g| g.provenance.as_ref().map(|p| p.operator_span))
+        .unwrap()
+}
+
 #[test]
 fn without_the_option_the_run_refuses() {
     assert!(edit(&variant("sibling-font.pdf"), "AB", &EditOptions::default()).is_err());
@@ -153,6 +165,19 @@ fn the_repertoire_adds_what_a_sibling_carries() {
     assert_eq!(
         wide.base_font, "SIBAAA+pdfceSib",
         "the run's own font is reported"
+    );
+    let pinned = session
+        .run_repertoire_with(
+            0,
+            "",
+            Some(first_operator_span(&variant("sibling-font.pdf"))),
+            &on(),
+        )
+        .unwrap();
+    assert_eq!(
+        pinned.accepted.iter().collect::<String>(),
+        "ABC",
+        "the caret's query (empty find, pinned operator) sees the sibling too"
     );
     let other = EditSession::new(variant("sibling-font-other-face.pdf"));
     let none = other.run_repertoire_with(0, "AA", None, &on()).unwrap();
