@@ -4,6 +4,46 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (872nd filing) — `Pass 436.1` SHIPPED (portable settings file + opt-in OS font folders)
+
+**Shipped:**
+- `Pass 436.1` (`132f4523`, cherry-pick of agent commit `7c925f44`) — a
+  `pdfcer-settings.txt` file beside the executable (`--settings PATH`/
+  `--no-settings`), keys `workarounds`/`system_fonts`/`font_folder`/
+  `font_file_limit`, one stderr disclosure line naming the file and every
+  value it set, and lazy per-OS default font-folder discovery
+  (Windows/macOS/Linux, recursive, depth/count-guarded). CLI-only;
+  `pdfcer-core`/`pdfcer-render` untouched. No settings file + no flags =
+  byte-identical output, pinned by test.
+
+**Decisions made this session:**
+- Decision 176 (`docs/decisions/176-portable-settings-file.md`) — the
+  settings file's precedence, format, exit codes, limits and defaults;
+  amends the documented "no system fonts discovered" default by opt-in
+  only, keeps the shell/core filesystem boundary (decision 012/135).
+
+**Findings + decisions:**
+- One of the `Pass 436.0`–`436.3` family (844th filing, operator direct
+  request on workarounds + font folders). `436.0` (retype workaround) is
+  reported in progress in parallel; `436.2` (matching ladder) and `436.3`
+  (gui settings screen) are not filed yet.
+- Honest gaps disclosed, not hidden: `--fallback-font` still can't name a
+  settings-discovered face; `format-text --embed-styled-face` still only
+  searches `--font-dir`; `embed-font` mislabels a settings face's source;
+  the file-count limit skips a whole folder rather than partially reading it.
+- No shell this filing — commit `132f4523` confirmed at `HEAD` via the
+  git-status snapshot at conversation start; test counts and sabotage
+  results relayed from the dispatching engineer's own report, not
+  independently reproduced.
+
+**Still in flight:** `436.0`/`436.2`/`436.3` — the family isn't fully
+landed, so `docs/FEATURES.md`'s row stays in *Planned* with only `cli`
+ticked.
+
+**For next session:** Pick up `436.0` (retype workaround) or `436.2`
+(replacement-font matching ladder) next, per the family order in
+`ROADMAP.md`'s *Next up*.
+
 ## 2026-10-02 (871st filing) — `v0.72.0` RELEASED
 
 **Shipped:**

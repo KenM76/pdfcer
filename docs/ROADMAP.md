@@ -115,6 +115,74 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 436.1` (`132f4523`), 2026-10-02 — portable settings file + opt-in OS font folders (cli) — `Pass 436.1` SHIPPED
+
+Operator direct request (verbatim, quoted in the 844th filing): *"a default
+user setting to always enable workarounds and access the OSes default fonts
+folders and add folders to also search for appropriate replacement fonts."*
+One of the `Pass 436.0`–`436.3` family (844th filing); builds on `430.x`/
+`431.0`. Cherry-picked from agent commit `7c925f44`.
+
+**CLI only — `pdfcer-core`/`pdfcer-render` untouched.** `pdfcer-settings.txt`
+beside the executable; global `--settings PATH` / `--no-settings` (both flags
+together is a usage error, exit 2; a missing/unreadable named file exits 3).
+Format: `key = value`, `#`/`;` comments. Keys: `workarounds = always|offer`
+(default `offer`), `system_fonts = on|off` (default `off`), `font_folder =
+PATH` (repeatable), `font_file_limit = N` (default 10,000, range
+1..1,000,000). An unknown key or a bad value exits 1, naming the line.
+
+One stderr line names the active settings file and every value it set (batch
+determinism — a forgotten file cannot silently change output); the font walk
+adds its own count/skip/limit-stop lines.
+
+Per-OS default font folders (Windows/macOS/Linux), scanned lazily (only when
+a command needs fonts), recursive, depth 8, per-folder file-count ceiling,
+20,000-folder cap; faces feed the existing name/filename-stem lookup
+(`build_font_environment`) rather than a second one. Precedence on a
+same-name face: `--font-dir` > `font_folder` > OS folder. No settings file
+and no flags => byte-identical output, pinned by test.
+
+`workarounds` is parsed, validated, disclosed and exposed as
+`settings::workarounds()`; its consumer (`Pass 436.0`'s retype workaround) is
+in progress in parallel and does not yet act on it.
+
+**Decision 176** (`docs/decisions/176-portable-settings-file.md`) records
+precedence, format, exit codes, limits, search order and defaults. `175` is
+reserved (not yet filed) by the parallel `Pass 436.0` agent; `177` likewise
+reserved.
+
+**Limits, disclosed not hidden.** `--fallback-font NAME` still resolves only
+a page resource or a Standard-14 name — a settings-discovered face cannot be
+named there (belongs to `Pass 436.2`'s matching ladder). `format-text
+--embed-styled-face` still searches only `--font-dir`. `embed-font` labels a
+settings face as `source: --font-dir face` (the label predates settings). The
+file-count limit skips the whole folder that would cross it, and reports the
+skip.
+
+**Tests.** 5 real-binary CLI tests (`crates/pdfcer-cli/tests/settings_file.rs`)
++ 5 unit tests in `settings.rs`; full suites reported green in the agent
+worktree (not independently re-run — no shell this filing); Linux + macOS
+`cargo check` reported clean; 6 of 6 hand sabotages caught. Code-structure
+baseline shrank by one (`build_font_environment` brought under the line cap).
+
+**Gates / invariant.** No new dependency. `pdfcer-core`/`pdfcer-render`
+untouched — the GUI-core-separation invariant holds by construction
+(settings parsing lives entirely in `pdfcer-cli`); not independently
+re-verified via `cargo tree` this filing (no shell).
+
+**Shells.** `core` — not applicable by design (the settings file and OS font
+folders are a shell-level concern; core stays filesystem-free) / `cli [x]` /
+`gui [ ]` (`Pass 436.3`, not filed yet). `docs/FEATURES.md` row updated this
+filing — `cli` ticked only; stays in *Planned*, since `436.0`/`436.2`/`436.3`
+remain open.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit `132f4523` is
+confirmed present at `HEAD` per the git-status snapshot at the start of this
+conversation ("feat(cli): portable settings file and opt-in OS font folders
+(Pass 436.1)", cherry-picked from agent commit `7c925f44`); every other fact
+above (test counts, sabotage results, cargo-check platforms) is relayed from
+the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 433.0` (`50c34f42`+`ff0f93a9`), 2026-10-02 — `edit_block_text` + `edit_block_text_preview` (G076) — `Pass 433.0` SHIPPED
 
 Answers `pdfcer-gui` request `G076`; same `G073`–`G081` family as the `427.0`–`436.3` items. Cherry-picked from agent commits `a03adc2e`+`6a93d2d6`.
@@ -15856,6 +15924,16 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 436.1` SHIPPED, 2026-10-02 (872nd filing),
+> `132f4523`** — see *Shipped*, above (cherry-pick of agent commit
+> `7c925f44`). Portable settings file (`pdfcer-settings.txt`) + opt-in OS
+> font-folder discovery, CLI only; decision 176. **`Pass 436.1` is now
+> SHIPPED** — three items remain in the `Pass 436.0`–`436.3` family (844th
+> filing): `436.0` (retype workaround, reported in progress in parallel —
+> not independently verified, no shell this filing), `436.2` (matching
+> ladder), `436.3` (gui settings screen, not filed yet). `gui [ ]` not
+> wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 433.0` SHIPPED, 2026-10-02 (868th filing),
 > `50c34f42`+`ff0f93a9`** — see *Shipped*, above (cherry-pick of agent

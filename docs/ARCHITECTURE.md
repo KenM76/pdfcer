@@ -4736,6 +4736,18 @@ debug afterthought. Design points:
   Kept struck-through, not deleted, because decision 054 is real
   history; whether `pdfcer-gui` needs an equivalent boundary is that
   project's own call, not inherited automatically.
+- **A portable settings file beside the executable, opt-in OS
+  font-folder discovery (`Pass 436.1`, 2026-10-02, `132f4523`; §12
+  decision 176).** `pdfcer-settings.txt` (or `--settings PATH`, or none
+  via `--no-settings`) sets `workarounds`, `system_fonts`,
+  repeatable `font_folder`, and `font_file_limit`; every value a file
+  sets is disclosed on stderr unconditionally, and no file + no flags
+  gives byte-identical output to a build without settings support. The
+  CLI reads bytes and registers faces through the existing
+  `build_font_environment`; `pdfcer-core`/`pdfcer-render` stay
+  filesystem-free (same shell/core split as decision 135, not a new
+  one). `workarounds` is parsed and exposed but not yet consumed —
+  that's `Pass 436.0`, in progress in parallel.
 
 ## 8. Code style & public API design
 
@@ -12295,3 +12307,26 @@ rewrite inside the existing `edit_text` route; no font dictionary,
 program or §4 FF-C entry is touched.
 
 **Decision ceiling: `173` → `174`**, next free `175`.
+
+### 2026-10-02 (872nd filing, `132f4523`, KenAgent) — decision 176: a settings file beside the CLI may enable OS font-folder discovery and a workaround policy, opt-in only
+
+**What this decides.** `pdfcer-cli` may read a `pdfcer-settings.txt` beside
+the executable (or a path given by `--settings`, or none via
+`--no-settings`) naming: `workarounds` (`always`/`offer`, default `offer`),
+`system_fonts` (`on`/`off`, default `off`), repeatable `font_folder`
+entries, and `font_file_limit`. With no settings file and no flags, output
+is byte-identical to a build without settings support — the amendment to
+the documented "no system fonts are discovered" default (decision 004/R19)
+is opt-in only. `pdfcer-core`/`pdfcer-render` stay filesystem-free; the CLI
+reads bytes and hands faces to the existing `build_font_environment`
+registration (decision 012/135's shell/core split, not a new boundary).
+Every value a file set is disclosed on stderr unconditionally (rule 4), so
+a forgotten settings file can never silently change batch output. Trigger:
+operator direct request (844th filing), part of the `Pass 436.0`–`436.3`
+family. Full record: `docs/decisions/176-portable-settings-file.md`.
+
+**Body-section effect.** §7 (CLI capabilities) gains a bullet for the
+settings file and font-folder discovery, this filing.
+
+**Decision ceiling: `174` → `176`** (**`175` is reserved but not yet
+filed**, by the parallel `Pass 436.0` session); next free `177`.
