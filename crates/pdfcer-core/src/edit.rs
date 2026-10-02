@@ -12475,6 +12475,7 @@ impl EditSession {
             req.page_index,
             plan.layout,
             plan.report.disclosures,
+            plan.rewritten,
         ))
     }
 

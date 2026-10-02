@@ -51,6 +51,10 @@ fn parity(rel: &str, find: &str, replace: &str) {
     let mut s = session(rel);
     let before = preview(&mut s, find, replace).expect("previewable");
     assert_eq!(before.glyphs.len(), replace.chars().count());
+    assert_eq!(
+        before.rewritten, None,
+        "nothing trims: the whole replace is laid out"
+    );
     assert!(!s.can_undo(), "a preview records no command");
     s.edit_text(
         &EditRequest::find_replace(0, find, replace),

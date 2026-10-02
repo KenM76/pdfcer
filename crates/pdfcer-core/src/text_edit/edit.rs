@@ -1819,6 +1819,9 @@ pub(crate) struct EditPlan {
     /// Objects the edit adds or revises besides the content stream (a font
     /// dictionary extended under decision 172), written in the same revision.
     pub(crate) font_writes: FontWrites,
+    /// [`narrow_span`]'s trim: the byte range of the request's `find`
+    /// replaced and its replacement text; `None` when not narrowed.
+    pub(crate) rewritten: Option<(std::ops::Range<usize>, String)>,
 }
 
 /// A decision 172 extension's writes: replaced objects, and streams rewritten
@@ -1930,6 +1933,16 @@ pub struct TextEditPreview {
     pub render_mode: i64,
     /// What the commit's [`EditReport::disclosures`] would say.
     pub disclosures: Vec<String>,
+    /// The part of the request laid out, when the edit was narrowed to it:
+    /// the byte range of the request's `find` that is replaced and the
+    /// replacement text for it. `glyphs` and `bbox` cover that text only.
+    /// `None` when the whole `replace` was laid out.
+    ///
+    /// A match spanning several show operators is trimmed to what differs:
+    /// the common prefix and suffix of `find` and `replace` are left as the
+    /// producer placed them, keeping at least one `find` character (the
+    /// `span:` disclosure). Appending `_` to `"ab "` gives `Some((2..3, " _"))`.
+    pub rewritten: Option<(std::ops::Range<usize>, String)>,
 }
 
 /// One glyph of a [`TextEditPreview`].
@@ -1978,7 +1991,12 @@ impl PreviewColour {
 }
 
 impl TextEditPreview {
-    pub(crate) fn new(page_index: usize, layout: EditLayout, disclosures: Vec<String>) -> Self {
+    pub(crate) fn new(
+        page_index: usize,
+        layout: EditLayout,
+        disclosures: Vec<String>,
+        rewritten: Option<(std::ops::Range<usize>, String)>,
+    ) -> Self {
         Self {
             page_index,
             font_resource: layout.font_name,
@@ -1996,6 +2014,7 @@ impl TextEditPreview {
             #[allow(clippy::cast_possible_truncation)] // 0..=7 by §9.3.6
             render_mode: layout.render_mode as i64,
             disclosures,
+            rewritten,
         }
     }
 }
@@ -2214,8 +2233,10 @@ pub(crate) fn plan_edit_with_records(
     // A span edit touches only the part of the match that actually changes,
     // so the producer's own positioning of the unchanged glyphs survives.
     let narrow = narrow_span(recs, span, req);
-    let (span, req) = narrow.as_ref().map_or((span, req), |(s, r)| (*s, r));
-    let narrowed = narrow.is_some();
+    let (span, req) = narrow.as_ref().map_or((span, req), |(s, r, _)| (*s, r));
+    let rewritten = narrow
+        .as_ref()
+        .map(|(_, r, range)| (range.clone(), r.replace.clone()));
     let at = locate(recs, span, &req.find)?;
     let anchor = at.anchor;
     let (font_dict, font, class) = anchor_font(doc, target, anchor)?;
@@ -2259,7 +2280,7 @@ pub(crate) fn plan_edit_with_records(
     // The report only; the caller performs its own write step.
     let mut disclosures = encoded.disclosures;
     disclosures.extend(laid.span_note);
-    disclosures.extend(narrowed.then(|| NARROWED_NOTE.to_owned()));
+    disclosures.extend(rewritten.is_some().then(|| NARROWED_NOTE.to_owned()));
     disclosures.extend(laid.td_note);
     disclosures.extend(general_disclosures(req, opts, anchor, find, &font, &class));
     target_disclosures(doc, target, anchor, &mut disclosures);
@@ -2270,6 +2291,7 @@ pub(crate) fn plan_edit_with_records(
         report: edit_report(target, &font, &class, opts, moved, anchor, disclosures),
         layout: laid.layout,
         font_writes: FontWrites::of(extension),
+        rewritten,
     })
 }
 
@@ -3539,8 +3561,14 @@ fn advance_before(font: &ExtractFont, s: &ShowData, elem: usize, byte: usize) ->
 /// character is kept, because an empty find is the whole-operator pin.
 ///
 /// `None` when nothing trims or the match is in one operator — single
-/// operators are left exactly as they were edited before.
-fn narrow_span(recs: &[OpRec], span: Anchor, req: &EditRequest) -> Option<(Anchor, EditRequest)> {
+/// operators are left exactly as they were edited before. Otherwise the
+/// narrowed anchor and request, and the byte range of `req.find` the
+/// narrowed find covers.
+fn narrow_span(
+    recs: &[OpRec],
+    span: Anchor,
+    req: &EditRequest,
+) -> Option<(Anchor, EditRequest, std::ops::Range<usize>)> {
     if span.first == span.last || req.find.is_empty() {
         return None;
     }
@@ -3602,6 +3630,7 @@ fn narrow_span(recs: &[OpRec], span: Anchor, req: &EditRequest) -> Option<(Ancho
             end: hi - first_offset,
         },
         narrowed,
+        pre..f.len() - suf,
     ))
 }
 
@@ -5950,5 +5979,35 @@ mod tests {
         // The gap from the edited word's end to `World` is the producer's.
         let gap = nth(&before, 'W', 0).0 - (x_o + adv_o);
         assert_near(nth(&after, 'W', 0).0 - (x_i + adv_i), gap, "gap to World");
+    }
+
+    /// G082: a preview of a narrowed match names the part it laid out, and
+    /// that part is exactly [`narrow_span`]'s trim. One font, one line, two
+    /// text objects, one character appended.
+    #[test]
+    fn a_narrowed_preview_names_the_rewritten_part() {
+        let src = helvetica_pdf(concat!(
+            "BT /F1 12 Tf 72 700 Td (Date Premises ) Tj ET\n",
+            "BT /F1 12 Tf 160 700 Td (Required____ ) Tj ET\n",
+        ));
+        let find = "Date Premises Required____ ";
+        // `(Date Premises ) Tj`: a pinned request may cross `ET`.
+        let first = crate::span::ByteSpan { start: 23, len: 19 };
+        let req = EditRequest::spanning_from(0, first, find, &format!("{find}_"));
+        let doc = Document::from_bytes(src).unwrap();
+        let narrowed = {
+            let pages = crate::page_tree::pages(&doc).unwrap();
+            let view = doc.view();
+            let stream = ContentStream::from_page(&view, &pages[0]).unwrap();
+            let recs = walk_records(&view, &pages[0].resources, &stream);
+            let span = find_anchor_span(&recs, &req).unwrap();
+            assert_ne!(span.first, span.last, "the match must span operators");
+            narrow_span(&recs, span, &req).map(|(_, r, range)| (range, r.replace))
+        };
+        let s = crate::edit::EditSession::new(doc);
+        let preview = s.edit_text_preview(&req, &EditOptions::default()).unwrap();
+        assert_eq!(preview.rewritten, narrowed);
+        assert_eq!(preview.rewritten, Some((26..27, " _".to_owned())));
+        assert_eq!(preview.glyphs.len(), 2);
     }
 }
