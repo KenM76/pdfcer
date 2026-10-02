@@ -3995,6 +3995,28 @@ number beside it. A 12 dpi placement is a legitimate deliberate act; the
 requester asked for the number *before* commit, not for something that stops
 them.
 
+#### Source formats and what they leave behind
+
+`image_import::import` accepts **PNG, JPEG, BMP, TIFF and GIF**
+(`image_import::SUPPORTED_FORMATS`; `ImageFormat::Gif` is the new variant).
+A GIF imports its **first frame** composited onto the logical screen, as
+`/Indexed` 8-bit Flate; a Graphic Control Extension transparent index becomes
+an `/SMask` clear at that index. Everything else refuses by name.
+
+Each import note a shell must disclose (rule 4) is carried onto
+`ImageAuthorDisclosures`, so read the outcome, not the `ImportedImage`:
+
+| Field | Meaning |
+|---|---|
+| `gif_frames_ignored: u32` | Later frames of an animated GIF, counted (a lower bound) and not placed. |
+| `tiff_pages_ignored: u32` | Later pages of a multi-page TIFF, not placed. |
+| `tiff_associated_alpha_unpremultiplied: bool` | Premultiplied colour was divided back to straight colour. |
+| `tiff_white_is_zero_inverted: bool` | WhiteIsZero samples were inverted to DeviceGray. |
+| `tiff_extra_samples_dropped: u32` | Extra channels of undeclared meaning were discarded. |
+| `tiff_palette_assumed_8bit: bool` | A ColorMap stored 8-bit values in 16-bit fields and was read as such. |
+
+All six count toward `ImageAuthorDisclosures::any()`.
+
 ### 1.25 Outcome structs — field reference
 
 Grep target for "what does this return actually contain".

@@ -195,7 +195,8 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # /EarlyChange maps to the constructor and nothing else:
 #   EarlyChange 1 (DEFAULT) -> Decoder::with_tiff_size_switch(Msb, 8)
 #   EarlyChange 0           -> Decoder::new(Msb, 8)
-# BitOrder::Msb is mandatory — GIF's Lsb packing is a different codec.
+# BitOrder::Msb is mandatory for PDF and TIFF; image_import/gif.rs uses
+# Lsb, which is GIF's own LZW packing (GIF89a Appendix F).
 # decode_bytes(inp, out) is what makes MAX_DECODED_LEN enforceable
 # INCREMENTALLY, as filters/mod.rs already promises for Flate.
 #

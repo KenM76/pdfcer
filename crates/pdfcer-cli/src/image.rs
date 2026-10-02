@@ -151,7 +151,9 @@ pub(crate) fn cmd_add_image(args: &AddImageArgs<'_>) -> u8 {
          letterboxed={} distorted={} low_res={} recompressed={} smask_written={} \
          transparency_not_previewed={} colour_key={} profile_dropped={} \
          cmyk_polarity_unverifiable={} progressive={} exif_orientation={} \
-         bmp_padding_ignored={} version_needed={} tagged={} mode={} -> {}; \
+         bmp_padding_ignored={} tiff_pages_ignored={} gif_frames_ignored={} \
+         tiff_unpremultiplied={} tiff_white_is_zero={} tiff_extra_dropped={} \
+         tiff_palette_8bit={} version_needed={} tagged={} mode={} -> {}; \
          changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.image.display(),
@@ -209,6 +211,12 @@ pub(crate) fn cmd_add_image(args: &AddImageArgs<'_>) -> u8 {
         d.exif_orientation_applied
             .map_or_else(|| "-".to_owned(), |v| v.to_string()),
         u32::from(d.bmp_fourth_byte_ignored),
+        d.tiff_pages_ignored,
+        d.gif_frames_ignored,
+        u32::from(d.tiff_associated_alpha_unpremultiplied),
+        u32::from(d.tiff_white_is_zero_inverted),
+        d.tiff_extra_samples_dropped,
+        u32::from(d.tiff_palette_assumed_8bit),
         d.version_ahead_of_document.map_or_else(
             || "-".to_owned(),
             |(f, doc)| {
@@ -295,6 +303,7 @@ pub(crate) fn dpi_source_key(s: pdfcer_core::image_import::DpiSource) -> &'stati
         DpiSource::ExifResolution => "exif",
         DpiSource::PngPhys => "png-phys",
         DpiSource::BmpPelsPerMeter => "bmp-ppm",
+        DpiSource::TiffResolution => "tiff-resolution",
         // See `colorspace_name` for why the wildcard reports "?".
         _ => "?",
     }
@@ -368,6 +377,9 @@ pub(crate) fn report_image_disclosures(
         Some(pdfcer_core::image_import::RecompressReason::NoCompressedSource) => eprintln!(
             "pdfcer: {name}: a BMP is uncompressed, so pdfcer compressed it on the way in. The pixels are unchanged and the result is far smaller, but the embedded bytes are no longer the file's own."
         ),
+        Some(pdfcer_core::image_import::RecompressReason::SourceCodecNotReusable) => eprintln!(
+            "pdfcer: {name}: this file's own compression cannot be stored in a PDF as it is, so pdfcer decoded it and re-compressed it losslessly. The pixels are unchanged, but the embedded bytes are no longer the file's own."
+        ),
         // Deliberately silent: the operator ASKED for this one, and the
         // `lossless_from_lossy` disclosure above already says what it cost.
         // A second sentence restating the same fact is how a disclosure set
@@ -384,6 +396,17 @@ pub(crate) fn report_image_disclosures(
             other.key()
         ),
     }
+    report_source_disclosures(&name.to_string(), d);
+    if d.tagged_document {
+        eprintln!(
+            "pdfcer: {name}: this document is tagged (/StructTreeRoot) and the new image is NOT in its structure tree, so it has no alternate text and assistive technology cannot describe it. pdfcer does not write structure elements."
+        );
+    }
+}
+
+/// The [`report_image_disclosures`] lines that describe what the source file
+/// carried and how it was converted, rather than how it was placed.
+fn report_source_disclosures(name: &str, d: &pdfcer_core::edit::ImageAuthorDisclosures) {
     if d.soft_mask_written {
         eprintln!(
             "pdfcer: {name}: the transparency was written as a soft mask (/SMask), not flattened against white — the page shows through, as it should."
@@ -432,9 +455,42 @@ pub(crate) fn report_image_disclosures(
             feature.name()
         );
     }
-    if d.tagged_document {
+    if d.tiff_pages_ignored > 0 {
         eprintln!(
-            "pdfcer: {name}: this document is tagged (/StructTreeRoot) and the new image is NOT in its structure tree, so it has no alternate text and assistive technology cannot describe it. pdfcer does not write structure elements."
+            "pdfcer: {name}: this TIFF has {} further page(s); pdfcer placed the first only.",
+            d.tiff_pages_ignored
+        );
+    }
+    if d.gif_frames_ignored > 0 {
+        eprintln!(
+            "pdfcer: {name}: this animated GIF has {} further frame(s); pdfcer placed the first only, because a PDF image has no timeline.",
+            d.gif_frames_ignored
+        );
+    }
+    report_tiff_conversions(name, d);
+}
+
+/// The TIFF sample conversions, each of which changed the stored bytes.
+fn report_tiff_conversions(name: &str, d: &pdfcer_core::edit::ImageAuthorDisclosures) {
+    if d.tiff_associated_alpha_unpremultiplied {
+        eprintln!(
+            "pdfcer: {name}: this TIFF stored its colour premultiplied by alpha; pdfcer un-premultiplied it for the soft mask. Colour in nearly-transparent pixels is approximate."
+        );
+    }
+    if d.tiff_white_is_zero_inverted {
+        eprintln!(
+            "pdfcer: {name}: this TIFF declares white as zero; pdfcer inverted its samples so they mean the same in a PDF. The picture is unchanged."
+        );
+    }
+    if d.tiff_extra_samples_dropped > 0 {
+        eprintln!(
+            "pdfcer: {name}: this TIFF has {} extra channel(s) of undeclared meaning; pdfcer dropped them rather than guess they are transparency.",
+            d.tiff_extra_samples_dropped
+        );
+    }
+    if d.tiff_palette_assumed_8bit {
+        eprintln!(
+            "pdfcer: {name}: this TIFF's palette values all fit 0-255, so pdfcer read them as 8-bit, as libtiff does. If the colours look nearly black, the palette really was 16-bit and very dark."
         );
     }
 }

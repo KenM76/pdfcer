@@ -849,21 +849,10 @@ fn an_inherited_resource_dictionary_is_materialised_onto_the_page() {
 /// would both be worse.
 #[test]
 fn an_unsupported_format_refuses_by_name() {
-    // TIFF WAS in this list and has been removed, because TIFF is now
-    // imported rather than refused. The stub bytes it used —
-    // `II\x2a\x00\x08\x00\x00\x00` — are a valid little-endian TIFF
-    // header whose first directory offset points past the end, so they now
-    // reach the decoder and come back as `Corrupt`, which is the right
-    // answer to a truncated TIFF and the wrong one for this test.
-    //
-    // Noted rather than silently deleted: a refusal test shrinking is
-    // normally a red flag (it is how coverage quietly erodes), and the
-    // distinction between "we stopped refusing this because we support it"
-    // and "we stopped refusing this because something broke" is exactly
-    // what a future reader needs. The support is pinned in
-    // `tests/image_tiff.rs`.
+    // TIFF and GIF are imported, so they are pinned in `tests/image_tiff.rs`
+    // and `tests/image_gif.rs` instead.
     for (bytes, format) in [
-        (b"GIF89a\x01\x00\x01\x00".to_vec(), "GIF"),
+        (b"\x00\x00\x00\x20ftypheic\x00\x00\x00\x00".to_vec(), "HEIC"),
         (b"RIFF\x00\x00\x00\x00WEBPVP8 ".to_vec(), "WebP"),
     ] {
         let err = image_import::import(&bytes).unwrap_err();

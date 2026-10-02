@@ -11343,7 +11343,9 @@ pub(crate) enum Command {
 
     /// Place a raster image on a page as an image XObject (ISO 32000-1 §8.9.5).
     ///
-    /// PNG, JPEG and BMP are placed. Anything else is refused BY NAME, with a
+    /// PNG, JPEG, BMP, TIFF and GIF are placed. A multi-page TIFF places its
+    /// first page and an animated GIF its first frame; the count left behind
+    /// is reported. Anything else is refused BY NAME, with a
     /// message saying which formats do work — never a silent failure and
     /// never a wrong-looking placement.
     ///
@@ -11353,8 +11355,9 @@ pub(crate) enum Command {
     /// data is reused verbatim behind `/FlateDecode` with `/Predictor 15`.
     /// pdfcer decodes and re-compresses only where PDF cannot express the
     /// source's layout — a PNG with an interleaved alpha channel (which
-    /// becomes a base image plus a separate `/SMask`), or a BMP (which has no
-    /// compressed form at all). Every such case is reported.
+    /// becomes a base image plus a separate `/SMask`), a BMP (which has no
+    /// compressed form at all), a TIFF or a GIF (whose LZW is not PDF's).
+    /// Every such case is reported.
     ///
     /// `--compression jpeg` is the one way to ask for a re-encode anyway. It
     /// is lossy by definition and is never chosen for you.
@@ -11376,7 +11379,7 @@ pub(crate) enum Command {
         /// field or certificate signature is touched.
         #[arg(long, value_name = "FIELD")]
         hand_signature: Option<String>,
-        /// The image file to place: PNG, JPEG or BMP.
+        /// The image file to place: PNG, JPEG, BMP, TIFF or GIF.
         #[arg(long, value_name = "FILE")]
         image: PathBuf,
         /// 1-based page number to place the image on.

@@ -152,13 +152,13 @@
 //! failed.'"*), and every operator-facing message names the formats that
 //! **do** work. A drag-and-drop gesture that fails silently, or that places
 //! something wrong-looking, is worse than one that says *"pdfcer places PNG,
-//! JPEG, BMP and TIFF; that file is a WebP."*
+//! JPEG, BMP, TIFF and GIF; that file is a WebP."*
 //!
 //! | Refusal | Key | Why not supported |
 //! |---|---|---|
 //! | BigTIFF | `BigTIFF` | 8-byte offsets and a different directory layout — a different parser, not a superset of classic TIFF. Declined under its OWN name so the message ("pdfcer places … TIFF") is advice rather than a contradiction. |
 //! | TIFF sub-features | `TIFF/tiled`, `TIFF/ccitt-g4`, … | Classic TIFF **is** placed ([`tiff`]); the sub-features it declines carry their own keys. The largest gap is CCITT G3/G4, which is what fax-lineage scanners emit — pdfcer has a fuzzed CCITT decoder, but it is reachable only through a PDF image dictionary. |
-//! | GIF | `GIF` | LZW with GIF's own LSB bit packing and sub-block framing, plus animation frames and a per-frame transparent index. A real surface, not a cheap one. |
+//! | GIF sub-features | `GIF/no-colour-table` | GIF **is** placed ([`gif`]): the first frame, with its transparent index as an `/SMask`. Later animation frames are counted and disclosed, not refused. |
 //! | WebP / AVIF / HEIC / JPEG 2000 files | `WEBP` etc. | Need a decoder dependency. Project rule 13 makes adding one a licence-classified, `PRIOR_ART.md`-recorded decision, not something a feature Pass does in passing. |
 //! | Arithmetic / lossless / differential / 12-bit JPEG | `JPEG/arithmetic` … | These are different codecs wearing JPEG's marker syntax. `/DCTDecode` is defined against *"the JPEG baseline format"* (§7.4.8) plus the PDF 1.3 progressive extension; nothing else is in scope. |
 //! | Adam7 PNG | `PNG/interlaced` | See above. |
@@ -215,6 +215,7 @@
 //! before anything here is relaxed.
 
 pub mod bmp;
+pub mod gif;
 pub mod jpeg;
 /// The `/DCTDecode` **writer** behind [`ImageCompression::Jpeg`].
 ///
@@ -237,7 +238,7 @@ use crate::image_codec::{MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS, MAX_IMAGE_SAMPLE
 /// The raster container formats pdfcer can place on a page.
 ///
 /// Deliberately small, and deliberately not a superset of what
-/// [`sniff`] can *recognise*: recognising GIF, WebP, HEIC and BigTIFF is how
+/// [`sniff`] can *recognise*: recognising WebP, HEIC and BigTIFF is how
 /// pdfcer refuses them by name instead of saying "unknown file".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
@@ -255,6 +256,9 @@ pub enum ImageFormat {
     /// with a stable feature key rather than mis-decoded. See that module's
     /// docs for the accepted/refused tables.
     Tiff,
+    /// Graphics Interchange Format (`GIF87a` and `GIF89a`): the first frame,
+    /// composited onto its logical screen. See [`gif`].
+    Gif,
 }
 
 impl ImageFormat {
@@ -266,6 +270,7 @@ impl ImageFormat {
             Self::Jpeg => "JPEG",
             Self::Bmp => "BMP",
             Self::Tiff => "TIFF",
+            Self::Gif => "GIF",
         }
     }
 }
@@ -277,7 +282,7 @@ impl ImageFormat {
 /// day a format is added is the day the third copy of that sentence starts
 /// lying — and a stale "PNG, JPEG or BMP" in one error path is exactly the
 /// kind of drift nothing tests.
-pub const SUPPORTED_FORMATS: &str = "PNG, JPEG, BMP and TIFF";
+pub const SUPPORTED_FORMATS: &str = "PNG, JPEG, BMP, TIFF and GIF";
 
 /// Why an image file could not be turned into a PDF image XObject.
 ///
@@ -525,7 +530,7 @@ pub enum RecompressReason {
     /// uncompressed BMP.
     NoCompressedSource,
     /// The source **is** compressed, but its compressed bytes could not be
-    /// reused as a PDF stream payload — the ordinary TIFF case.
+    /// reused as a PDF stream payload — the ordinary TIFF case, and every GIF.
     ///
     /// Distinct from [`Self::NoCompressedSource`] because the two are
     /// different facts about the operator's file, and a front end that
@@ -540,7 +545,9 @@ pub enum RecompressReason {
     /// - the samples needed a transform before they meant what the PDF
     ///   dictionary would say they mean (a 16-bit little-endian byte swap, a
     ///   `WhiteIsZero` complement, `Predictor 2` un-differencing);
-    /// - an extra sample had to be de-interleaved.
+    /// - an extra sample had to be de-interleaved;
+    /// - the codec is GIF's LZW, whose least-significant-bit-first codes in
+    ///   length-prefixed sub-blocks are not `LZWDecode`'s MSB-first stream.
     ///
     /// Lossless in every case: the pixels are exactly the source's.
     SourceCodecNotReusable,
@@ -888,7 +895,8 @@ pub struct ImportNotes {
     /// through, for this reason. `None` means verbatim passthrough.
     pub recompressed: Option<RecompressReason>,
     /// The source had an alpha channel, written as a separate `/SMask`
-    /// image (§8.9.5 Table 89).
+    /// image (§8.9.5 Table 89). For a GIF: the transparent colour index, or
+    /// screen area the first frame does not cover.
     pub alpha_to_soft_mask: bool,
     /// A single fully-transparent colour (PNG `tRNS` on a truecolour or
     /// greyscale image) became a colour-key `/Mask` array (§8.9.6.4) —
@@ -1018,6 +1026,14 @@ pub struct ImportNotes {
     /// rather than failing, because the first page is already complete and
     /// placeable.
     pub tiff_pages_ignored: u32,
+    /// How many animation frames **after the first** a GIF carried that
+    /// pdfcer did not place.
+    ///
+    /// `0` for a still GIF and for every other format. pdfcer places frame 1
+    /// on its logical screen; a PDF image has no timeline. A lower bound when
+    /// the file is damaged after frame 1, which is already complete. See
+    /// [`gif`]'s module docs.
+    pub gif_frames_ignored: u32,
     /// A TIFF's colour samples were stored **premultiplied by alpha**
     /// (`ExtraSamples 1`, "associated alpha" — TIFF 6.0 §18) and pdfcer
     /// un-premultiplied them so they could be carried by a straight-alpha
@@ -1265,11 +1281,11 @@ pub fn sniff(data: &[u8]) -> Result<ImageFormat, ImageImportError> {
     if data.starts_with(b"II\x2a\x00") || data.starts_with(b"MM\x00\x2a") {
         return Ok(ImageFormat::Tiff);
     }
+    if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        return Ok(ImageFormat::Gif);
+    }
 
     let declined = |format| Err(ImageImportError::UnsupportedFormat { format });
-    if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
-        return declined("GIF");
-    }
     // BigTIFF's magic is 43, and it is a DIFFERENT parse — 8-byte offsets, a
     // different directory layout, a 16-byte header. Declined under its own
     // name rather than as "TIFF", so the message reads "pdfcer does not place
@@ -1334,8 +1350,8 @@ pub fn sniff(data: &[u8]) -> Result<ImageFormat, ImageImportError> {
 /// use pdfcer_core::image_import::{self, ImageImportError, SUPPORTED_FORMATS};
 ///
 /// // Refusals name the format rather than failing generically.
-/// let err = image_import::import(b"GIF89a\0\0\0\0").unwrap_err();
-/// assert!(matches!(err, ImageImportError::UnsupportedFormat { format: "GIF" }));
+/// let err = image_import::import(b"RIFF\0\0\0\0WEBPVP8 ").unwrap_err();
+/// assert!(matches!(err, ImageImportError::UnsupportedFormat { format: "WebP" }));
 ///
 /// // Asserted against the constant, not a copy of it. This line said
 /// // "PNG, JPEG and BMP" until TIFF support landed and turned it into a
@@ -1413,6 +1429,7 @@ pub fn import_with(
         ImageFormat::Jpeg => jpeg::import(data)?,
         ImageFormat::Bmp => bmp::import(data)?,
         ImageFormat::Tiff => tiff::import(data)?,
+        ImageFormat::Gif => gif::import(data)?,
     };
 
     // The two cases where a policy changes the bytes the importers produced.
@@ -1642,6 +1659,14 @@ pub(crate) fn raise_version(slot: &mut Option<PdfFeature>, feature: PdfFeature) 
     *slot = Some(slot.map_or(feature, |cur| cur.max(feature)));
 }
 
+/// [`ImageImportError::Corrupt`] carrying `detail`, shared by the container
+/// readers.
+pub(crate) fn corrupt(detail: &str) -> ImageImportError {
+    ImageImportError::Corrupt {
+        detail: detail.to_owned(),
+    }
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -1653,7 +1678,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sniff_recognises_the_four_supported_formats() {
+    fn sniff_recognises_the_supported_formats() {
+        assert_eq!(sniff(b"GIF87a\0\0").unwrap(), ImageFormat::Gif);
+        assert_eq!(sniff(b"GIF89a\0\0").unwrap(), ImageFormat::Gif);
         assert_eq!(sniff(b"\x89PNG\r\n\x1a\nrest").unwrap(), ImageFormat::Png);
         assert_eq!(sniff(&[0xFF, 0xD8, 0xFF, 0xE0]).unwrap(), ImageFormat::Jpeg);
         assert_eq!(sniff(b"BM\0\0\0\0").unwrap(), ImageFormat::Bmp);
@@ -1667,7 +1694,6 @@ mod tests {
     #[test]
     fn declined_formats_are_refused_by_name() {
         for (bytes, name) in [
-            (b"GIF89a\0\0\0\0".to_vec(), "GIF"),
             // BigTIFF (magic 43) is a DIFFERENT parser, refused under its own
             // name — classic TIFF (magic 42) is placed, so refusing BigTIFF
             // as "TIFF" would produce a message that contradicts itself.

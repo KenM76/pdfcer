@@ -400,6 +400,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "image_import_gif"
+path = "fuzz_targets/image_import_gif.rs"
+test = false
+doc = false
+bench = false
+
 # Pass 5 increment 2: AES-128-CBC decryption. The FIRST cipher in this crate
 # whose control flow is decided by its own input bytes -- an IV split, a
 # block-count truncation, and a PKCS#7 pad length that is READ FROM DECRYPTED

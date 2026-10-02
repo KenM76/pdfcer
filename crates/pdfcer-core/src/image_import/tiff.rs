@@ -230,7 +230,7 @@
 
 use super::{
     DpiSource, ImageFormat, ImageImportError, ImportColorSpace, ImportFilter, ImportNotes,
-    ImportedImage, Orientation, PdfFeature, RecompressReason, SoftMask, check_dimensions,
+    ImportedImage, Orientation, PdfFeature, RecompressReason, SoftMask, check_dimensions, corrupt,
     flate_encode, raise_version, row_bytes,
 };
 use crate::filters::{FilterNotes, flate, lzw, predictor};
@@ -569,12 +569,6 @@ fn scalar(tiff: &Tiff<'_>, entries: &[Entry], tag: u16, default: u64) -> u64 {
         .and_then(|e| tiff.values(e))
         .and_then(|v| v.first().copied())
         .unwrap_or(default)
-}
-
-fn corrupt(detail: &str) -> ImageImportError {
-    ImageImportError::Corrupt {
-        detail: detail.to_owned(),
-    }
 }
 
 // ---------------------------------------------------------------------------

@@ -586,6 +586,27 @@ fn a_multi_page_tiff_places_the_first_page_and_discloses_the_rest() {
     );
 }
 
+/// Each TIFF import note reaches the placement outcome, where the shells
+/// read it.
+#[test]
+fn placing_a_tiff_carries_its_import_notes_into_the_disclosures() {
+    let mut s = session();
+    let mut place = |name: &str| {
+        let img = imported(name);
+        s.add_image(&NewImage::new(0, rect(0.0, 0.0, 120.0, 80.0), &img))
+            .unwrap_or_else(|e| panic!("place {name}: {e}"))
+            .disclosures
+    };
+    assert_eq!(place("multipage.tif").tiff_pages_ignored, 2);
+    assert!(place("rgba8-associated.tif").tiff_associated_alpha_unpremultiplied);
+    assert!(place("bilevel-whiteiszero.tif").tiff_white_is_zero_inverted);
+    assert_eq!(place("rgba8-unspecified.tif").tiff_extra_samples_dropped, 1);
+    assert!(place("pal8-8bit-colormap.tif").tiff_palette_assumed_8bit);
+    let plain = place("gray8-be.tif");
+    assert_eq!(plain.tiff_pages_ignored, 0);
+    assert!(!plain.tiff_white_is_zero_inverted);
+}
+
 #[test]
 fn a_single_page_tiff_discloses_no_ignored_pages() {
     assert_eq!(imported("gray8-be.tif").notes.tiff_pages_ignored, 0);

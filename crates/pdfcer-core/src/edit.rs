@@ -58917,6 +58917,28 @@ pub struct ImageAuthorDisclosures {
     /// canonical accessibility failure — so it is stated rather than
     /// implied.
     pub tagged_document: bool,
+    /// Pages after the first that a multi-page TIFF carried and pdfcer did
+    /// not place. See
+    /// [`ImportNotes::tiff_pages_ignored`](crate::image_import::ImportNotes::tiff_pages_ignored).
+    pub tiff_pages_ignored: u32,
+    /// Animation frames after the first that a GIF carried and pdfcer did
+    /// not place. See
+    /// [`ImportNotes::gif_frames_ignored`](crate::image_import::ImportNotes::gif_frames_ignored).
+    pub gif_frames_ignored: u32,
+    /// A TIFF's premultiplied colour was un-premultiplied for the `/SMask`,
+    /// lossy in the low-alpha tail. See
+    /// [`ImportNotes::tiff_associated_alpha_unpremultiplied`](crate::image_import::ImportNotes::tiff_associated_alpha_unpremultiplied).
+    pub tiff_associated_alpha_unpremultiplied: bool,
+    /// A `WhiteIsZero` TIFF was complemented into `/DeviceGray` polarity. See
+    /// [`ImportNotes::tiff_white_is_zero_inverted`](crate::image_import::ImportNotes::tiff_white_is_zero_inverted).
+    pub tiff_white_is_zero_inverted: bool,
+    /// Unspecified TIFF extra samples dropped rather than read as opacity.
+    /// See
+    /// [`ImportNotes::tiff_extra_samples_dropped`](crate::image_import::ImportNotes::tiff_extra_samples_dropped).
+    pub tiff_extra_samples_dropped: u32,
+    /// A TIFF palette whose values all fit 0–255 was read as 8-bit. See
+    /// [`ImportNotes::tiff_palette_assumed_8bit`](crate::image_import::ImportNotes::tiff_palette_assumed_8bit).
+    pub tiff_palette_assumed_8bit: bool,
 }
 
 impl ImageAuthorDisclosures {
@@ -58944,6 +58966,12 @@ impl ImageAuthorDisclosures {
             || self.bmp_fourth_byte_ignored
             || self.version_ahead_of_document.is_some()
             || self.tagged_document
+            || self.tiff_pages_ignored > 0
+            || self.gif_frames_ignored > 0
+            || self.tiff_associated_alpha_unpremultiplied
+            || self.tiff_white_is_zero_inverted
+            || self.tiff_extra_samples_dropped > 0
+            || self.tiff_palette_assumed_8bit
     }
 }
 
@@ -59473,6 +59501,12 @@ impl EditSession {
             bmp_fourth_byte_ignored: notes.bmp_fourth_byte_ignored,
             version_ahead_of_document,
             tagged_document: self.document_is_tagged(),
+            tiff_pages_ignored: notes.tiff_pages_ignored,
+            gif_frames_ignored: notes.gif_frames_ignored,
+            tiff_associated_alpha_unpremultiplied: notes.tiff_associated_alpha_unpremultiplied,
+            tiff_white_is_zero_inverted: notes.tiff_white_is_zero_inverted,
+            tiff_extra_samples_dropped: notes.tiff_extra_samples_dropped,
+            tiff_palette_assumed_8bit: notes.tiff_palette_assumed_8bit,
         }
     }
 }
