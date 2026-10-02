@@ -62,6 +62,7 @@
 
 pub mod addtext;
 pub(crate) mod augment_route;
+pub mod block_text;
 pub mod cause;
 pub(crate) mod cid_extend;
 pub(crate) mod code_alloc;
@@ -117,6 +118,9 @@ pub use subset_augment::{
 // editable but left its types out of this list, so the simple-font half was
 // public API and the composite half was reachable only by module path — an
 // asymmetry with no reason behind it.
+pub use block_text::{
+    BlockEditError, BlockEditLine, BlockEditOptions, BlockEditPreview, BlockEditReport, BlockHit,
+};
 pub use encoding::{
     CharEncoding, CompositeEncodeResult, CompositeEncoding, EncodeResult, InverseEncoding,
     RInvTrigger, Refusal, faces_clause, std14_faces_covering,

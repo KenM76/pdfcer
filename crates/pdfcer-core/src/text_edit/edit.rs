@@ -124,6 +124,8 @@ use crate::view::DocumentView;
 use crate::writer::content::{emit_literal_string, emit_number};
 use crate::writer::{DirtySet, SaveOptions, WriteError, save_incremental};
 
+pub(crate) mod block_encode;
+
 // ===================================================================
 // Fill-colour graphics state (§8.6.8) — recorded by the walk for Pass
 // 14.2's formatting surgery (`crate::text_edit::format`)

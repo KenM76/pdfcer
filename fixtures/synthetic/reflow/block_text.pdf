@@ -1,0 +1,67 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 /Resources << /Font << /F1 7 0 R >> >> >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 474 >>
+stream
+q
+/P <</MCID 0>> BDC
+BT /F1 11 Tf 1 0 0 1 72 700 Tm 0 g [(Synthetic placeholder words make up this)] TJ ET
+BT /F1 11 Tf 1 0 0 1 72 686 Tm 0 g [(first paragraph so that the edit has three)] TJ ET
+BT /F1 11 Tf 1 0 0 1 72 672 Tm 0 g [(lines that wrap at one width.)] TJ ET
+EMC
+/P <</MCID 1>> BDC
+BT /F1 11 Tf 1 0 0 1 72 560 Tm 0 g [(A second paragraph follows the first one)] TJ ET
+BT /F1 11 Tf 1 0 0 1 72 546 Tm 0 g [(and must not move when the first is edited.)] TJ ET
+EMC
+Q
+
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 420 >>
+stream
+q
+/Span <</MCID 0>> BDC
+BT /F1 11 Tf 1 0 0 1 72 700 Tm 0 g [(Synthetic placeholder words make up this)] TJ ET
+EMC
+/Span <</MCID 1>> BDC
+BT /F1 11 Tf 1 0 0 1 72 686 Tm 0 g [(first paragraph so that the edit has three)] TJ ET
+EMC
+/Span <</MCID 2>> BDC
+BT /F1 11 Tf 1 0 0 1 72 672 Tm 0 g [(lines that wrap at one width.)] TJ ET
+EMC
+BT /F1 11 Tf 1 0 0 1 72 630 Tm 0 g [(and must not move when the first is edited.)] TJ ET
+Q
+
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000166 00000 n 
+0000000253 00000 n 
+0000000778 00000 n 
+0000000865 00000 n 
+0000001336 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+1433
+%%EOF

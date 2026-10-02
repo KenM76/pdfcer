@@ -122,6 +122,7 @@
 //!   bytes is §7.9.2, which is a **recorded gap** in the spec RAG; see
 //!   [`encode_text_string`])
 
+mod block_text;
 mod checkpoint;
 mod content_mark;
 
@@ -757,6 +758,15 @@ pub enum CommandKind {
         /// Line count before the re-wrap.
         lines_before: usize,
         /// Line count after the re-wrap.
+        lines_after: usize,
+    },
+    /// One block-text replacement ([`EditSession::edit_block_text`]): a
+    /// block's text objects replaced by the new text, re-wrapped. Undo
+    /// restores the byte-identical content stream and font objects.
+    EditBlockText {
+        /// Line count before the edit.
+        lines_before: usize,
+        /// Line count after the edit.
         lines_after: usize,
     },
     /// One add-new-text operation (Pass 16.0 / FF-D): a fresh `BT…ET` run was

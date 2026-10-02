@@ -372,13 +372,17 @@ impl Walk<'_> {
 }
 
 /// Refuse a region holding an operator outside [`CARRIED`] (an inline image
-/// included), or `q`/`Q` that do not balance within it.
+/// included), or `q`/`Q` or marked-content operators that do not net to zero
+/// within it: the region is replaced whole, so an unmatched `BDC`/`BMC` or
+/// `EMC` inside it would unbalance the stream (ISO 32000-2 §14.6, which
+/// requires sequences to nest).
 fn check_region_operators(
     stream: &ContentStream,
     start: usize,
     end: usize,
 ) -> Result<(), ReflowApplyError> {
     let mut depth = 0_i64;
+    let mut marked = 0_i64;
     for op in stream.operations() {
         let at = op.operator.span.start;
         if at < start || at >= end {
@@ -388,6 +392,8 @@ fn check_region_operators(
         match name {
             b"q" => depth += 1,
             b"Q" => depth -= 1,
+            b"BDC" | b"BMC" => marked += 1,
+            b"EMC" => marked -= 1,
             n if CARRIED.contains(&n) => {}
             other => {
                 return Err(ReflowApplyError::Unsupported(
@@ -402,6 +408,13 @@ fn check_region_operators(
         return Err(ReflowApplyError::Unsupported(
             UnsupportedCause::OperatorInBlock {
                 operator: "q/Q (unbalanced)".to_owned(),
+            },
+        ));
+    }
+    if marked != 0 {
+        return Err(ReflowApplyError::Unsupported(
+            UnsupportedCause::OperatorInBlock {
+                operator: "BDC/EMC (unbalanced)".to_owned(),
             },
         ));
     }

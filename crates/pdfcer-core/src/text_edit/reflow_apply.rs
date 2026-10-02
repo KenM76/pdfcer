@@ -537,7 +537,8 @@ pub(crate) fn plan_reflow_from_doc(
     plan_reflow(doc, page, &stream, &model, block_index, &preview)
 }
 
-fn table_error(e: crate::table_detect::TableError) -> ReflowApplyError {
+/// A cell-detection failure as the extraction or page-tree error it wraps.
+pub(crate) fn table_error(e: crate::table_detect::TableError) -> ReflowApplyError {
     use crate::table_detect::TableError;
     match e {
         TableError::Extract(e) => ReflowApplyError::Extract(e),
@@ -756,7 +757,7 @@ fn carried_disclosures(
 /// linear part, one `/MCID`, and the ordered set of show-operator byte spans
 /// (in the page content buffer) that produced the block's glyphs.
 pub(super) struct BlockProvenance {
-    mcid: Option<i64>,
+    pub(super) mcid: Option<i64>,
     /// Text-matrix linear part (must be uniform + axis-aligned).
     pub(super) tm_a: f64,
     pub(super) tm_b: f64,
@@ -765,17 +766,17 @@ pub(super) struct BlockProvenance {
     /// CTM linear + translation (axis-aligned; translation used to map an
     /// origin back to `Tm` operands).
     pub(super) ctm_a: f64,
-    ctm_d: f64,
-    ctm_e: f64,
-    ctm_f: f64,
+    pub(super) ctm_d: f64,
+    pub(super) ctm_e: f64,
+    pub(super) ctm_f: f64,
     /// The distinct show-operator keyword spans of the block, in first-seen
     /// order (matches [`GlyphProvenance::operator_span`]).
-    op_spans: Vec<ByteSpan>,
+    pub(super) op_spans: Vec<ByteSpan>,
 }
 
 /// Collect the block's provenance, refusing (by name) a block that carries no
 /// provenance, spans a form XObject, or is not uniform + axis-aligned.
-fn block_provenance(
+pub(super) fn block_provenance(
     model: &EditableTextModel<'_>,
     block: &Block,
 ) -> Result<BlockProvenance, ReflowApplyError> {

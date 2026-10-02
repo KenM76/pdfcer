@@ -153,19 +153,33 @@ pub(super) struct Emitted {
 
 /// One glyph to show, and the displacement (points, along the line) to add
 /// after it.
-struct Item<'r> {
-    style: &'r SpanStyle,
-    code: Vec<u8>,
-    after: f64,
+pub(super) struct Item<'r> {
+    pub(super) style: &'r SpanStyle,
+    pub(super) code: Vec<u8>,
+    pub(super) after: f64,
 }
 
 /// The state the new body has put in force so far.
-struct Current {
+pub(super) struct Current {
     font: Option<(Vec<u8>, f64)>,
     vals: [f64; 6],
     set: [bool; 6],
     fill: Paint,
     stroke: Paint,
+}
+
+impl Current {
+    /// The state in force where the region's first `BT` stood.
+    pub(super) fn at_entry(region: &BlockRegion) -> Self {
+        let entry = &region.entry;
+        Self {
+            font: entry.font.clone(),
+            vals: TextStateParam::ALL.map(|p| entry.ambient.get(p).value),
+            set: [false; 6],
+            fill: entry.fill.clone(),
+            stroke: entry.stroke.clone(),
+        }
+    }
 }
 
 /// Emit the block's lines per the preview.
@@ -179,14 +193,7 @@ pub(super) fn emit_block(
     words: &[WordTok],
     preview: &ReflowPreview,
 ) -> Result<Emitted, ReflowApplyError> {
-    let entry = &ctx.region.entry;
-    let mut cur = Current {
-        font: entry.font.clone(),
-        vals: TextStateParam::ALL.map(|p| entry.ambient.get(p).value),
-        set: [false; 6],
-        fill: entry.fill.clone(),
-        stroke: entry.stroke.clone(),
-    };
+    let mut cur = Current::at_entry(ctx.region);
     let mut out = Emitted {
         body: b"BT\n".to_vec(),
         justified_lines: 0,
@@ -219,7 +226,7 @@ pub(super) fn emit_block(
         out.body
             .extend_from_slice(&emit_tm([p.tm_a, p.tm_b, p.tm_c, p.tm_d, e, f]));
         out.body.push(b'\n');
-        emit_items(ctx, &items, &mut cur, &mut out.body);
+        emit_items(ctx.prov, &items, &mut cur, &mut out.body);
     }
     let restore = restore_bytes(ctx.region, &cur)?;
     out.leak_closed = !restore.is_empty();
@@ -273,7 +280,7 @@ fn bytes_per_code(ctx: &EmitCtx<'_, '_>, style: &SpanStyle) -> usize {
 }
 
 /// A character code as show-string bytes, big-endian (§9.4.3, §9.7.6.2).
-fn code_bytes(code: u32, bytes: usize) -> Vec<u8> {
+pub(super) fn code_bytes(code: u32, bytes: usize) -> Vec<u8> {
     let be = code.to_be_bytes();
     be.get(4 - bytes.clamp(1, 4)..).unwrap_or(&be).to_vec()
 }
@@ -331,7 +338,12 @@ fn gap_item<'r>(
 
 /// Write a line's items as show operators, one per run of identically
 /// styled glyphs, with the state changes each run needs before it.
-fn emit_items(ctx: &EmitCtx<'_, '_>, items: &[Item<'_>], cur: &mut Current, body: &mut Vec<u8>) {
+pub(super) fn emit_items(
+    prov: &BlockProvenance,
+    items: &[Item<'_>],
+    cur: &mut Current,
+    body: &mut Vec<u8>,
+) {
     let mut start = 0;
     while start < items.len() {
         let Some(first) = items.get(start) else { break };
@@ -343,7 +355,7 @@ fn emit_items(ctx: &EmitCtx<'_, '_>, items: &[Item<'_>], cur: &mut Current, body
             .count()
             .max(1);
         set_style(first.style, cur, body);
-        show(ctx, items.get(start..start + len).unwrap_or(&[]), body);
+        show(prov, items.get(start..start + len).unwrap_or(&[]), body);
         start += len;
     }
 }
@@ -390,11 +402,11 @@ fn set_style(style: &SpanStyle, cur: &mut Current, body: &mut Vec<u8>) {
 /// Show one run as `(…) Tj`, or as `[(…) N (…)] TJ` when it carries
 /// displacements. `N = −d·1000 / (Tfs·Th·a·ca)` converts a user-space
 /// displacement `d` to a `TJ` number (§9.4.3, §9.4.4); negative opens.
-fn show(ctx: &EmitCtx<'_, '_>, run: &[Item<'_>], body: &mut Vec<u8>) {
+fn show(prov: &BlockProvenance, run: &[Item<'_>], body: &mut Vec<u8>) {
     let Some(first) = run.first() else { return };
     let s = first.style;
     let th = s.ambient.get(TextStateParam::HorizScale).value / 100.0;
-    let scale = s.size * th * ctx.prov.tm_a * ctx.prov.ctm_a;
+    let scale = s.size * th * prov.tm_a * prov.ctm_a;
     let mut arr = vec![b'['];
     let mut buf = Vec::new();
     let mut numbered = false;
@@ -426,7 +438,10 @@ fn show(ctx: &EmitCtx<'_, '_>, run: &[Item<'_>], body: &mut Vec<u8>) {
 
 /// The bytes that put the state after the old region back: text state by
 /// the R88 ladder, then the colours and the font the new body changed.
-fn restore_bytes(region: &BlockRegion, cur: &Current) -> Result<Vec<u8>, ReflowApplyError> {
+pub(super) fn restore_bytes(
+    region: &BlockRegion,
+    cur: &Current,
+) -> Result<Vec<u8>, ReflowApplyError> {
     let emitted: Vec<(TextStateParam, f64)> = TextStateParam::ALL
         .into_iter()
         .zip(cur.vals)
