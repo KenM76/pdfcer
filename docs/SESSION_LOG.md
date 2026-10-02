@@ -4,6 +4,72 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (881st filing) — `Pass 442.3` SHIPPED (program-type OCR add-ons, `pdfcer-ocr-host`); four new Passes filed (`443.0`–`446.0`) from `pdfcer-gui` requests; decisions `185`/`186` reserved
+
+**Shipped:**
+- `Pass 442.3` (`47c875f8`, cherry-picked from worktree commit `ff06558c`)
+  — program-type OCR add-ons, Tesseract first. Manifest `kind = program`
+  names one executable; every listed file, including it, carries a
+  mandatory `sha256` re-verified before EACH page, naming the file and
+  refusing on a mismatch; pdfcer runs only the named file, no shell. A
+  bare `tesseract` folder with no manifest is no longer a model. Settings
+  key `ocr_program_addons = allow\|refuse` (default `allow`) plus CLI
+  `--refuse-ocr-programs`. New crate `pdfcer-ocr-host` (`pdfcer-core` +
+  `thiserror` only) holds the runner; `pdfcer-cli/src/tesseract.rs`
+  deleted. Implements decision 184/`R262` — no new decision this filing.
+  Tests: host crate 8 passed + 1 ignored real-Tesseract test; CLI OCR
+  19/19; core add-on 16/16; settings 1/1; sabotage 10/10. Fuzz:
+  `ocr_addon_manifest`, 1,202,081 runs in 91 s = 75.7 µs/run, 0 crashes.
+  `cargo tree` clean on core/render; `tools/run-gates.sh` 45/45.
+
+**Decisions made this session:**
+- None new. Decision 184/`R262` (already filed) covers `Pass 442.3`'s
+  mechanism; the new crate is an implementation detail decision 184
+  already anticipated ("moves the subprocess runner … into a library
+  `pdfcer-gui` can call").
+- Decisions `185` and `186` reserved — one each for `Pass 443.0`/
+  `Pass 445.0`, only if a non-obvious choice turns out to be needed.
+  Ceiling stays `184` (`183` stays reserved for `Pass 442.2`, unaffected
+  by this filing); next free decision `187`.
+- No rule or question ledger move: `R263` stays next free rule, `(ck)`
+  stays next free question.
+
+**Findings + decisions:**
+- None new beyond the above — this filing is a Pass-shipped + four-Pass
+  filing, not an engineering finding.
+
+**Still in flight:**
+- `Pass 442.1` (packaging split) — now fully unblocked on all three
+  add-on zips (`ocrs`/`ocrcer` since the 879th filing; Tesseract by
+  `Pass 442.3` shipping this session). Not yet built.
+- `Pass 442.4` (`pdfcer-gui` OCR model drop-down) — queued after
+  `442.3`; notice sent to `pdfcer-gui`'s channel as
+  `open/notice_2026-10-02_program_ocr_addons_and_ocr_host_crate.md`.
+- `Pass 442.2` (PaddleOCR-VL engine) — unaffected, feasibility spike
+  passed (877th filing), engine Pass not started, decision `183` still
+  reserved.
+- Four new Passes filed from `pdfcer-gui` requests (operator-reported,
+  `O279`): `Pass 443.0` (`G095`+`G097` — image stamp annotation +
+  push-button icon, IN PROGRESS); `Pass 444.0` (`G096` — GIF 87a/89a
+  decode on image import, IN PROGRESS); `Pass 445.0` (`G093` — SVG
+  import as vector content via a new `usvg` dependency, IN PROGRESS);
+  `Pass 446.0` (`G094` — EMF import as vector content, QUEUED, not
+  started).
+
+**For next session:**
+- `ARCHITECTURE.md` §2's stack table (new crate `pdfcer-ocr-host`) and
+  §7 (CLI surface, `--refuse-ocr-programs`) are owed — this filing's
+  scope is `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/the §12 decision
+  log only.
+- `Pass 445.0`'s `usvg` dependency needs a licence classification
+  (`LEGAL.md` §6.1) before it lands, per rule 13.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit `47c875f8`
+confirmed present at `HEAD` per the git-status snapshot at the start of
+this conversation; every other fact above (test counts, fuzz figures,
+gate results) is relayed from the dispatching engineer's own report, not
+independently reproduced.
+
 ## 2026-10-02 (880th filing) — open question `(cj)` answered: Tesseract will be pdfcer's own build; decision 184 amended; two owed `ARCHITECTURE.md` body pointers discharged
 
 **Shipped:** nothing this filing — an operator ruling + roadmap/decision-log

@@ -115,6 +115,75 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 442.3` (`47c875f8`), 2026-10-02 — program-type OCR add-ons, Tesseract first; runner moves to `pdfcer-ocr-host` — `Pass 442.3` SHIPPED
+
+Cherry-picked from worktree commit `ff06558c`; cite `47c875f8`. Implements
+decision 184/`R262` (879th/880th filings) — no new architectural decision
+this filing.
+
+**Manifest.** Every OCR model folder carries `pdfcer-ocr-model.txt`; for
+`kind = program`, `program = <file>` names the executable, with `sha256`
+lines for every file including tessdata. pdfcer re-verifies every hashed
+file before EACH page, not once at discovery, and refuses on a mismatch,
+naming the file; it runs only the named file, with no shell. A program
+add-on with no hash lines is listed but never runs, the listing saying
+why. A bare `tesseract` folder with no manifest is no longer a model —
+removed from `BARE_ENGINE_FOLDERS`. A stock install via `--model-dir`
+still runs, unhashed, disclosed as such; `ocr_program_addons = refuse`
+blocks it too.
+
+**Policy.** Settings key `ocr_program_addons = allow\|refuse` (default
+`allow`) plus CLI flag `--refuse-ocr-programs`; the stricter one wins.
+
+**Listing/disclosure.** `ocr-models` shows each model's kind, program and
+whether it is runnable. An `ocr` run prints the program it started.
+
+**Check-to-run gap.** On Windows the files are opened deny-write until the
+process exits, verified against the real Tesseract binary. On
+Linux/macOS the gap remains open, as recorded in decision 184.
+
+**New crate `pdfcer-ocr-host`.** Holds the runner: `OcrRunner`,
+`RunOptions`, `ProgramPolicy`, `check_runnable`, `RunnerError`, and
+`as_program().program()/.source()`. Moved out of the CLI binary;
+`crates/pdfcer-cli/src/tesseract.rs` deleted. Depends only on
+`pdfcer-core` and `thiserror` — no new external crates. Core itself
+still never spawns a process.
+
+**Tooling/docs.** `tools/tesseract/write-ocr-manifest.py` writes the
+hashes at packaging time; no binaries or hashes are committed.
+`docs/decisions/184-program-ocr-addons.md` written.
+`docs/core-api/03-capabilities.md` Piece 4c contract updated.
+
+**Tests.** `pdfcer-ocr-host`: 8 passed, plus 1 ignored real-Tesseract
+test that passes against the real bundle. CLI OCR tests 19/19; core
+add-on tests 16/16; settings test 1/1. Sabotage 10/10 caught.
+
+**Fuzz.** `ocr_addon_manifest`, 1,202,081 runs in 91 s = 75.7 µs/run — 0
+crashes.
+
+**Gates.** `cargo tree -p pdfcer-core`/`-p pdfcer-render` clean.
+`tools/run-gates.sh` 45/45 on `47c875f8`.
+
+**Round-trip.** Manifest format is data-only and add-only; no change to
+any existing document write path.
+
+**`FEATURES.md`.** "OCR model add-ons / Tesseract as a program add-on"
+row: core `[x]`/cli `[x]`/gui `[ ]`, marked SHIPPED. `Pass 442.1` row: no
+box change — its Tesseract zip is now unblocked. `Pass 442.4` row: GUI
+notice sent, `open/notice_2026-10-02_program_ocr_addons_and_ocr_host_crate.md`.
+
+**Owed.** `ARCHITECTURE.md` §2's stack table (new crate
+`pdfcer-ocr-host`) and §7 (CLI surface, `--refuse-ocr-programs`) are not
+updated this filing — librarian scope this session is
+`ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/the §12 decision log only.
+Flagged for the next session with body-section edit scope.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit `47c875f8`
+confirmed present at `HEAD` per the git-status snapshot at the start of
+this conversation; every other fact above (test counts, fuzz figures,
+gate results) is relayed from the dispatching engineer's own report, not
+independently reproduced.
+
 ### `Pass 440.0` (`716e616f`), 2026-10-02 — default 3D poster rendered from the model + `set_3d_poster` (G091/G092) — `Pass 440.0` SHIPPED
 
 Answers `pdfcer-gui` requests `G091`/`G092`.
@@ -16294,6 +16363,51 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 442.3` SHIPPED, 2026-10-02 (881st filing),
+> `47c875f8`** — see *Shipped*, above (cherry-picked from worktree commit
+> `ff06558c`). Program-type OCR add-ons: manifest `kind = program`,
+> mandatory per-file `sha256` re-verified before EACH page, run-only-the-
+> named-executable, no shell; `ocr_program_addons = allow\|refuse`
+> settings key plus `--refuse-ocr-programs`. Tesseract converted to the
+> first program add-on; the runner moved into new crate
+> `pdfcer-ocr-host` (`pdfcer-core` + `thiserror` only). Implements
+> decision 184/`R262` (879th/880th filings) — no new decision this
+> filing. **`Pass 442.3` is now SHIPPED** — `Pass 442.1`'s Tesseract zip
+> is unblocked (all three add-on zips now clear); `Pass 442.4` (GUI
+> drop-down) remains, notice sent to `pdfcer-gui`
+> (`open/notice_2026-10-02_program_ocr_addons_and_ocr_host_crate.md`).
+> `gui [ ]` not wired.
+
+> ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **FOUR NEW PASSES FILED 2026-10-02 (881st
+> filing) — `Pass 443.0`–`Pass 446.0`, from `pdfcer-gui` feature requests
+> (operator-reported, `O279`).** Decisions `185`/`186` reserved — one
+> each for `443.0`/`445.0`, only if a non-obvious choice turns out to be
+> needed — ceiling stays `184` (`183` stays reserved for `Pass 442.2`,
+> unaffected); next free decision `187`. No rule or question ledger
+> move: `R263` stays next free rule, `(ck)` stays next free question.
+>
+> - **`Pass 443.0`** (IN PROGRESS) — `G095`+`G097`:
+>   `EditSession::add_image_stamp`, a `/Stamp` whose `/AP /N` draws an
+>   `ImportedImage` with an SMask; `WidgetEdit::with_button_icon` /
+>   caption position (`/TP`) / clear icon, writing `/MK /I` and
+>   rebuilding `/AP /N` via the `/IF` fit. CLI verbs for both. Decision
+>   `185` reserved if needed.
+> - **`Pass 444.0`** (IN PROGRESS) — `G096`: decode GIF (87a/89a) in
+>   `image_import` — first frame, transparency index → SMask, dropped
+>   animation frames disclosed; in-house LSB-first LZW with an output
+>   ceiling, fuzz target.
+> - **`Pass 445.0`** (IN PROGRESS) — `G093`: SVG import as vector
+>   content — `svg_import::import` → a Form XObject (paths, fills,
+>   strokes, gradients as shadings, clips, opacity, embedded rasters),
+>   unsupported features counted by name; `EditSession::add_svg`, CLI
+>   `add-svg`. Expected dependency `usvg` (Apache-2.0 OR MIT), to be
+>   licence-classified per dependency. Decision `186` reserved if needed.
+> - **`Pass 446.0`** (QUEUED, not started) — `G094`: EMF import as
+>   vector content — EMF records → Form XObject (paths, pens, brushes,
+>   world transform, clips, `STRETCHDIBITS`, text as outlines or a
+>   substituted face), skipped records counted by name; EMF+ may be
+>   refused by name in a first cut.
 
 > ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **OPERATOR RULING, 2026-10-02 (880th
 > filing) — QUESTION `(cj)` ANSWERED: TESSERACT WILL BE PDFCER'S OWN
