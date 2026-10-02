@@ -99,3 +99,4 @@
 - [Batch releases — build all first, EXCEPT when the GUI is waiting](feedback_batch_releases_build_all_first.md) — batch by default; when Ken names an hour he wants to test by, cadence outranks batching
 - [Python write_text writes CRLF](feedback_python_write_text_writes_crlf.md) — use write_bytes; it flipped edit.rs to CRLF and fmt --check stayed green
 - [Agent "completed" can precede its writes](feedback_agent_completion_can_precede_its_writes.md) — recheck in minutes before re-dispatching; two writers clobbered SESSION_LOG
+- [Scratchpad is shared between workers](feedback_scratchpad_is_shared_between_workers.md) — parallel workers clobber generic scratch names; prefix with the Pass ID
