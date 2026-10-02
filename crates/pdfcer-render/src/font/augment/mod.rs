@@ -5,6 +5,7 @@
 
 mod cmap;
 mod glyf;
+mod identity;
 mod metrics;
 mod post;
 mod verify;
@@ -56,6 +57,37 @@ pub enum AugmentError {
     /// The result would exceed 65,535 glyphs.
     #[error("the extended font would exceed 65,535 glyphs")]
     ProgramTooLarge,
+    /// The face is not a static TrueType-outline font (I2).
+    #[error("the installed font is not a static TrueType-outline font")]
+    FaceNotTrueTypeOutlines,
+    /// The face's or the subset's `fsType` forbids the embed (I3, R109).
+    #[error("the font's licence does not permit this: {reason}")]
+    EmbeddingNotPermitted {
+        /// The R109 refusal.
+        reason: String,
+    },
+    /// `head.unitsPerEm` differs (I4).
+    #[error("the installed font has a different design grid from the embedded font")]
+    UnitsPerEmMismatch,
+    /// A shared glyph's outline differs (I5).
+    #[error("the installed font draws U+{:04X} differently from the embedded font (glyph {gid})", u32::from(*ch))]
+    OutlineMismatch {
+        /// The character compared.
+        ch: char,
+        /// The subset's glyph id.
+        gid: u16,
+    },
+    /// A shared glyph's advance differs (I5).
+    #[error("the installed font spaces U+{:04X} differently from the embedded font (glyph {gid})", u32::from(*ch))]
+    AdvanceMismatch {
+        /// The character compared.
+        ch: char,
+        /// The subset's glyph id.
+        gid: u16,
+    },
+    /// No non-empty outline could be compared (I6).
+    #[error("no glyph the two fonts share could be compared, so they cannot be shown to match")]
+    IdentityUnproven,
     /// The re-parsed result failed R260; a defect in pdfcer, never skipped.
     #[error("the extended font failed verification: {detail}")]
     VerificationFailed {

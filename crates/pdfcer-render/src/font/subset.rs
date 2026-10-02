@@ -393,7 +393,7 @@ pub fn plan_subset(
 /// specification says they **must be ignored** on versions 0 and 1, where
 /// they had no assigned meaning. Reading them there would refuse fonts on
 /// the strength of bytes that never meant anything.
-fn check_embedding_permission(font: &FontRef<'_>) -> Result<(), SubsetError> {
+pub(crate) fn check_embedding_permission(font: &FontRef<'_>) -> Result<(), SubsetError> {
     let Ok(os2) = font.os2() else {
         // No OS/2: proceed. See the doc comment — NOT treated as 0.
         return Ok(());

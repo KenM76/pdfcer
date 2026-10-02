@@ -1,3 +1,4 @@
+use super::identity::OutlineCheck;
 use super::*;
 use crate::font::program::FontProgram;
 
@@ -120,4 +121,104 @@ fn verification_catches_a_same_shape_wrong_outline() {
         matches!(&err, AugmentError::VerificationFailed { detail } if detail.contains("outline")),
         "{err}"
     );
+}
+
+const FACE_B_DIFFERS: &[u8] =
+    include_bytes!("../../../../../fixtures/synthetic/text/augment/face-b-differs.ttf");
+
+#[test]
+fn the_cut_from_face_passes_the_identity_check() {
+    identity::check(SUBSET, FACE, 0, &['D', '\u{C9}'], OutlineCheck::AllShared).unwrap();
+}
+
+#[test]
+fn a_differing_shared_outline_refuses_unless_it_is_out_of_scope() {
+    assert_eq!(
+        identity::check(SUBSET, FACE_B_DIFFERS, 0, &['D'], OutlineCheck::AllShared),
+        Err(AugmentError::OutlineMismatch { ch: 'B', gid: 2 })
+    );
+    identity::check(
+        SUBSET,
+        FACE_B_DIFFERS,
+        0,
+        &['D'],
+        OutlineCheck::ShownOnly(&['A']),
+    )
+    .unwrap();
+    assert_eq!(
+        identity::check(
+            SUBSET,
+            FACE_B_DIFFERS,
+            0,
+            &['D'],
+            OutlineCheck::ShownOnly(&[' '])
+        ),
+        Err(AugmentError::IdentityUnproven)
+    );
+}
+
+#[test]
+fn a_character_the_face_lacks_refuses_before_any_surgery() {
+    assert_eq!(
+        identity::check(SUBSET, FACE, 0, &['Z'], OutlineCheck::AllShared),
+        Err(AugmentError::FaceLacksCharacter { ch: 'Z' })
+    );
+}
+
+#[test]
+fn a_face_is_a_candidate_only_under_the_untagged_name() {
+    assert_eq!(
+        identity::candidate_index(FACE, "ABCDEF+pdfcerAugFace"),
+        Some(0)
+    );
+    assert_eq!(identity::candidate_index(FACE, "pdfcerAugFace"), Some(0));
+    assert_eq!(identity::candidate_index(FACE, "ABCDEF+Other"), None);
+    assert_eq!(
+        identity::candidate_index(FACE, "abcdef+pdfcerAugFace"),
+        None
+    );
+}
+
+#[test]
+fn an_empty_slot_is_no_evidence_either_way() {
+    identity::check(EMPTY_SLOT, FACE, 0, &['D'], OutlineCheck::AllShared).unwrap();
+}
+
+#[test]
+fn a_tag_must_be_six_capitals() {
+    assert_eq!(identity::candidate_index(FACE, "ABC+pdfcerAugFace"), None);
+}
+
+#[test]
+fn a_differing_shared_advance_refuses() {
+    let dir = Directory::parse(FACE).unwrap();
+    let hmtx = dir.table(*b"hmtx").unwrap();
+    let at = hmtx.as_ptr() as usize - FACE.as_ptr() as usize + 2 * 4;
+    let mut face = FACE.to_vec();
+    face[at] ^= 0x01;
+    assert_eq!(
+        identity::check(SUBSET, &face, 0, &['D'], OutlineCheck::AllShared),
+        Err(AugmentError::AdvanceMismatch { ch: 'B', gid: 2 })
+    );
+}
+
+#[test]
+fn a_restricted_face_or_subset_refuses_under_r109() {
+    for restricted in [true, false] {
+        let base = if restricted { FACE } else { SUBSET };
+        let dir = Directory::parse(base).unwrap();
+        let os2 = dir.table(*b"OS/2").unwrap();
+        let at = os2.as_ptr() as usize - base.as_ptr() as usize + 8;
+        let mut bytes = base.to_vec();
+        bytes[at..at + 2].copy_from_slice(&2u16.to_be_bytes());
+        let (subset, face) = if restricted {
+            (SUBSET, &bytes[..])
+        } else {
+            (&bytes[..], FACE)
+        };
+        assert!(matches!(
+            identity::check(subset, face, 0, &['D'], OutlineCheck::AllShared),
+            Err(AugmentError::EmbeddingNotPermitted { .. })
+        ));
+    }
 }
