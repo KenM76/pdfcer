@@ -610,6 +610,8 @@ mod structure;
 use page_labels_cmd::*;
 mod threed_cmd;
 use threed_cmd::*;
+mod block_text_cmd;
+use block_text_cmd::*;
 #[cfg(test)]
 mod tests;
 use structure::*;

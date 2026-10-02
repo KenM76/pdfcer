@@ -61,6 +61,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "dimension-rotate",
     "dimension-style",
     "dimension-vertex",
+    "edit-block-text",
     "edit-field",
     "edit-text",
     "edit-widget",

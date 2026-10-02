@@ -8301,6 +8301,58 @@ pub(crate) enum Command {
         output: PathBuf,
     },
 
+    /// Replace a recognized paragraph's whole text and re-wrap it.
+    ///
+    /// The block (`--block`, numbered as `reflow` numbers them, or the one
+    /// under `--at x,y`) loses its text and gets `--text` instead, set in the
+    /// font, size and colour of its FIRST run and greedily wrapped at the
+    /// block's width (or `--width`) under its detected alignment and leading.
+    /// The first line keeps its origin; a `\n` in the text starts a new
+    /// paragraph. Characters the font cannot encode refuse the whole edit,
+    /// each one named; nothing is written. Every line break, the overflow
+    /// past the block's old bottom, any font substitution, glyphs added and
+    /// removed marked content are printed. The save is INCREMENTAL by
+    /// default, so the old text stays in the revision history; use
+    /// `redact-apply` to remove text for good.
+    EditBlockText {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number holding the block.
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        /// 0-based index of the recognized block (paragraph) to replace.
+        #[arg(long, conflicts_with = "at", required_unless_present = "at")]
+        block: Option<usize>,
+        /// Pick the block under this page point instead of `--block`, in
+        /// points from the page's lower-left corner. Its index and current
+        /// text are printed first.
+        #[arg(long, value_name = "X,Y")]
+        at: Option<String>,
+        /// The new text. A newline is a paragraph break.
+        #[arg(
+            long,
+            conflicts_with = "text_file",
+            required_unless_present = "text_file"
+        )]
+        text: Option<String>,
+        /// Read the new text from this UTF-8 file instead of `--text`.
+        #[arg(long, value_name = "PATH")]
+        text_file: Option<PathBuf>,
+        /// Wrap width in points (default: the block's own width).
+        #[arg(long)]
+        width: Option<f64>,
+        /// When the first run's font cannot carry the text, use another font
+        /// on the page whose name says it is the same face. Printed.
+        #[arg(long = "sibling-fonts")]
+        sibling_fonts: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// Add NEW text as real page content (FF-D).
     ///
     /// Two modes: **point** (`--at "x,y"`) shows the whole `--text` as one
