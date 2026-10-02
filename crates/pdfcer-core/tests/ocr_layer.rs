@@ -346,5 +346,11 @@ fn the_disclosure_report_is_populated() {
         joined.contains("confidence"),
         "the disclosure must state the confidence: {joined}"
     );
+    // A line-level engine writes one box per line, so the count must not
+    // claim words.
+    assert!(
+        joined.contains("text box(es) written") && !joined.contains("word(s) written"),
+        "the count must name a unit true for word- and line-level engines: {joined}"
+    );
     assert!(out.report.content_object > 0 && out.report.font_object > 0);
 }

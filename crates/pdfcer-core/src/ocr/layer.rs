@@ -359,8 +359,9 @@ impl OcrLayerReport {
     pub fn disclosures(&self) -> Vec<String> {
         let mut out = Vec::new();
         out.push(format!(
-            "OCR text layer: {} word(s) written, invisible (text rendering \
-             mode 3) — the page renders exactly as it did before.",
+            "OCR text layer: {} text box(es) written (a word or a line each, \
+             as the engine reports them), invisible (text rendering mode 3) — \
+             the page renders exactly as it did before.",
             self.words_written
         ));
         if self.confidence_available {
