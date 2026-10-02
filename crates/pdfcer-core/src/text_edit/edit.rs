@@ -730,6 +730,9 @@ impl EditOptions {
     /// Install a [`FallbackFace`] for characters the run's font cannot
     /// encode, returning `self`.
     ///
+    /// `EditOptions` is `Copy`, so the face is borrowed for `'static`: leak
+    /// each distinct face once and reuse the reference across edits.
+    ///
     /// # Examples
     ///
     /// ```
