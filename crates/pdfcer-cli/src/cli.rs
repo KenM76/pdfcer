@@ -4132,14 +4132,19 @@ pub(crate) enum Command {
         /// cheap to try — the flag exists because no single value is right.
         #[arg(long, default_value_t = 150.0)]
         dpi: f32,
-        /// Which recogniser reads the page: `ocrs` (the default), `ocrcer`,
-        /// `paddle`, `paddle-vl` or `tesseract`.
+        /// Which recogniser reads the page: `paddle` (the default), `ocrs`,
+        /// `ocrcer`, `paddle-vl` or `tesseract`.
+        ///
+        /// Only `paddle`'s models ship in the portable folder. `ocrs`,
+        /// `ocrcer` and `tesseract` each come as an add-on zip published
+        /// beside it (`...-ocr-addon-<name>.zip`): unzip it into `models/`
+        /// to install, delete the folder to uninstall.
         ///
         /// `ocrcer` is the OCRcer engine (MIT, pure Rust), in every standard
         /// build; one compiled with `--no-default-features` and without the
         /// `ocrcer` feature refuses it by name. It reports a per-word confidence;
         /// `ocrs` reports none. Its model is one file, `ocrcer.ocrw`, which
-        /// the portable package ships in `models/ocrcer`; elsewhere, copy it
+        /// its add-on zip installs as `models/ocrcer`; elsewhere, copy it
         /// from the OCRcer project (`model/out/ocrcer.ocrw`) into
         /// `models/ocrcer` beside this executable, or name its folder with
         /// `--model-dir`.
@@ -4164,7 +4169,7 @@ pub(crate) enum Command {
         /// token ceiling cut the text short. Expect seconds per page.
         ///
         /// `tesseract` runs the Tesseract program (Apache-2.0) from a
-        /// program add-on: the portable package ships one in
+        /// program add-on: its add-on zip installs as
         /// `models/tesseract`, holding `tesseract.exe`, a `tessdata` folder
         /// of language files and a manifest with their SHA-256. Every hashed
         /// file is re-checked before each page and a changed one is refused

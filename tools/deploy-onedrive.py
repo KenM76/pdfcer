@@ -48,10 +48,11 @@ doing it by accident is not, which is why it is not the default.
 WHAT SHIPS
 ==========
 
-`pdfcer.exe`, the `models/ocrs` folder, `LICENSE`,
-`THIRD_PARTY_LICENSES.md`, `README.md`, and a generated `VERSION.txt`.
+`pdfcer.exe`, the `models` folder (PaddleOCR only), `LICENSE`,
+`THIRD_PARTY_LICENSES.md`, `README.md`, and a generated `VERSION.txt`, plus
+the build's `*-ocr-addon-*.zip` files in `ocr-addons/`.
 
-The models are ~12 MB and are included deliberately. Without them the CLI
+The bundled models are included deliberately. Without them the CLI
 refuses OCR by name and explains itself -- it does not crash -- but "just the
 CLI tool" means *not the GUI*, not a CLI that cannot do a job it advertises.
 
@@ -327,6 +328,13 @@ def main() -> int:
             shutil.copy2(src, dst)
         copied.append(name)
 
+    addons = sorted(build.parent.glob(f"{build.name}-ocr-addon-*.zip"))
+    if addons:
+        (target / "ocr-addons").mkdir(exist_ok=True)
+        for z in addons:
+            shutil.copy2(z, target / "ocr-addons" / z.name)
+        copied.append(f"ocr-addons ({len(addons)} zip(s))")
+
     stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     (target / "VERSION.txt").write_text(
         "\n".join([
@@ -339,8 +347,9 @@ def main() -> int:
             "The pdfcer command-line tool. The GUI is deliberately not here --",
             "see this folder's sibling for the previous version.",
             "",
-            "OCR needs the models folder beside the exe (ocrs, and OCRcer when",
-            "its release model was verified at packaging); it is included.",
+            "OCR needs the models folder beside the exe; PaddleOCR is included.",
+            "Other engines are add-ons in ocr-addons/: unzip one into models/",
+            "to install it, delete its folder to uninstall.",
             "",
         ]),
         encoding="utf-8",

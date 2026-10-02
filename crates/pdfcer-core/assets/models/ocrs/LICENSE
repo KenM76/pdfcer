@@ -1,0 +1,12 @@
+The two model files in this folder (text-detection.rten and
+text-rec-checkpoint.rten) are by Robert Knight, from the ocrs project
+(https://github.com/robertknight/ocrs), and are licensed under the
+Creative Commons Attribution-ShareAlike 4.0 International licence
+(CC-BY-SA-4.0):
+
+    https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+They are redistributed unmodified (only their file names were shortened).
+See PROVENANCE.md for sources, retrieval dates and SHA-256 digests.
+
+This licence covers the model files only. pdfcer itself is MIT-licensed.

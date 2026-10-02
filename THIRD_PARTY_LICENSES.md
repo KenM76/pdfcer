@@ -4874,12 +4874,12 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### Bundled `ocrs` OCR model weights (CC-BY-SA-4.0)
+### `ocrs` OCR model weights add-on (CC-BY-SA-4.0)
 
 The two neural-network weight files in
 `crates/pdfcer-core/assets/models/ocrs/` (`text-detection.rten`,
-`text-rec-checkpoint.rten`), shipped in the portable folder as
-`models/ocrs/`, are the pre-trained models of the
+`text-rec-checkpoint.rten`), shipped as a separate add-on zip that
+installs as `models/ocrs/`, are the pre-trained models of the
 [ocrs](https://github.com/robertknight/ocrs) OCR engine by **Robert
 Knight**, obtained from <https://huggingface.co/robertknight/ocrs> on
 2026-08-13.
@@ -4922,7 +4922,9 @@ as `models/paddle/LICENSE`. Neither project publishes a NOTICE file.
 Per-file SHA-256 hashes are recorded in
 `crates/pdfcer-core/assets/models/paddle/PROVENANCE.md`.
 
-### Bundled Tesseract OCR program (Apache-2.0)
+### Tesseract OCR program add-on (Apache-2.0)
+
+Shipped as a separate add-on zip that installs as `models/tesseract/`.
 
 `models/tesseract/tesseract.exe` is [Tesseract](https://github.com/tesseract-ocr/tesseract)
 (Apache-2.0), built unmodified by `tools/tesseract/build-tesseract.py` as
@@ -4938,7 +4940,9 @@ The language data in `models/tesseract/tessdata/` is from
 Apache-2.0, unmodified; SHA-256 hashes are in
 `models/tesseract/PROVENANCE.md`.
 
-### Bundled OCRcer recogniser model (MIT)
+### OCRcer recogniser model add-on (MIT)
+
+Shipped as a separate add-on zip that installs as `models/ocrcer/`.
 
 `models/ocrcer/ocrcer.ocrw` is the release model of
 [OCRcer](https://github.com/KenM76/ocrcer) (MIT), shipped unmodified with

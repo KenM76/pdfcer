@@ -181,11 +181,11 @@ impl From<ExistingOcrArg> for pdfcer_core::ocr::layer::ExistingLayers {
 /// instead of rejecting an unknown value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum OcrEngineArg {
-    /// The ocrs engine. The default; its models ship in the portable package.
+    /// The ocrs engine. Its models are an add-on zip beside the portable package.
     Ocrs,
     /// The OCRcer engine. Needs a build with the ocrcer feature and the model file ocrcer.ocrw.
     Ocrcer,
-    /// PaddleOCR PP-OCRv4 (Chinese and English), shipped in models/paddle.
+    /// PaddleOCR PP-OCRv4 (Chinese and English), shipped in models/paddle. The default.
     Paddle,
     /// PaddleOCR-VL, a vision-language model that reads the page as one region. Its models
     /// are an add-on folder built by tools/build-paddle-vl-addon.py.

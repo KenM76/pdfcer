@@ -78,6 +78,7 @@ something else is writing there.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import shutil
 import subprocess
@@ -152,6 +153,50 @@ def previous_build_commit(dest: Path) -> str | None:
             if line.startswith("Commit:"):
                 return line.split(":", 1)[1].strip().split()[0]
     return None
+
+
+BUNDLED_MODELS = frozenset({"paddle"})
+"""Model folders that stay in the portable folder; every other staged one
+becomes an add-on zip (Pass 442.1)."""
+
+
+def split_ocr_addons(out: Path, dest: Path, build_name: str) -> list[Path]:
+    """Move each staged non-bundled ``models/<name>/`` into its own zip.
+
+    The zip is ``<build_name>-ocr-addon-<name>.zip`` beside the build folder,
+    with ``<name>/`` at its root, so unzipping it into ``models/`` installs
+    it and deleting the folder uninstalls it. Each must carry a manifest,
+    PROVENANCE.md and LICENSE; a folder lacking one is refused, not zipped.
+    """
+    import zipfile
+
+    models = out / "models"
+    zips: list[Path] = []
+    if not models.is_dir():
+        return zips
+    addons = sorted(p for p in models.iterdir() if p.is_dir() and p.name not in BUNDLED_MODELS)
+    for folder in addons:
+        lacking = [
+            f for f in ("pdfcer-ocr-model.txt", "PROVENANCE.md")
+            if not (folder / f).is_file()
+        ]
+        if not ((folder / "LICENSE").is_file() or (folder / "LICENSES").is_dir()):
+            lacking.append("LICENSE")
+        if lacking:
+            raise SystemExit(
+                f"package-portable: REFUSED — add-on models/{folder.name} lacks "
+                f"{', '.join(lacking)}"
+            )
+    for folder in addons:
+        zip_path = dest / f"{build_name}-ocr-addon-{folder.name}.zip"
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+            for f in sorted(folder.rglob("*")):
+                if f.is_file():
+                    z.write(f, f"{folder.name}/{f.relative_to(folder).as_posix()}")
+        shutil.rmtree(folder)
+        zips.append(zip_path)
+        print(f"package-portable: add-on {zip_path.name} ({zip_path.stat().st_size:,} bytes)")
+    return zips
 
 
 def main() -> int:
@@ -365,6 +410,15 @@ def main() -> int:
             encoding="utf-8",
             newline="\n",
         )
+        digest = hashlib.sha256((dest / "ocrcer.ocrw").read_bytes()).hexdigest()
+        (dest / "pdfcer-ocr-model.txt").write_text(
+            "# pdfcer OCR model add-on manifest (decision 182). See PROVENANCE.md.\n"
+            "name = ocrcer\nengine = ocrcer\nlabel = OCRcer (Latin script)\n"
+            "languages = en\nlicence = MIT\n"
+            f"sha256 = ocrcer.ocrw {digest}\n",
+            encoding="utf-8",
+            newline="\n",
+        )
         print("package-portable: staged models/ocrcer (model verified against VENDORED)")
     else:
         print(
@@ -398,6 +452,8 @@ def main() -> int:
             "THIRD_PARTY_LICENSES.md with cargo-about, and rebuild."
         )
         return 1
+
+    addon_zips = split_ocr_addons(out, args.dest, name)
 
     # --- what changed since the last build ----------------------------------
     prev = previous_build_commit(args.dest)
@@ -467,6 +523,7 @@ which one it used, because the two behave differently on update.
 {changes}
 
 Files in this build: {", ".join(BINARIES + copied_docs)}
+OCR add-ons beside this folder (unzip into models/ to install): {", ".join(z.name for z in addon_zips) or "none"}
 """,
         encoding="utf-8",
     )

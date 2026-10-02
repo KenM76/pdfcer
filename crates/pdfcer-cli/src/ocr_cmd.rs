@@ -103,8 +103,9 @@ pub(crate) fn cmd_fetch_ocr_models(dir: Option<&Path>) -> u8 {
 pub(crate) fn cmd_fetch_ocr_models(_dir: Option<&Path>) -> u8 {
     eprintln!(
         "pdfcer: fetch-ocr-models: this build was compiled without the `download` feature, \
-         so it contains no network code at all and cannot fetch anything. The OCR weights \
-         normally ship in `models/ocrs` beside the executable; copy that folder, or point \
+         so it contains no network code at all and cannot fetch anything. The ocrs weights \
+         come as an add-on zip that installs as `models/ocrs` beside the executable; \
+         unzip it there, or point \
          `ocr --model-dir` at one"
     );
     exit::UNIMPLEMENTED

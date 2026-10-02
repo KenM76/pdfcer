@@ -188,6 +188,16 @@ fn engine_arg(name: &str) -> Option<OcrEngineArg> {
     ALL_ENGINES.into_iter().find(|e| e.name() == name)
 }
 
+/// The engine used when none is named: `paddle`, the one model the portable
+/// package bundles, or `ocrs` in a build compiled without `paddle`.
+fn default_engine() -> OcrEngineArg {
+    if engine_compiled(OcrEngineArg::Paddle) || !engine_compiled(OcrEngineArg::Ocrs) {
+        OcrEngineArg::Paddle
+    } else {
+        OcrEngineArg::Ocrs
+    }
+}
+
 /// Whether this build can run `engine`.
 fn engine_compiled(engine: OcrEngineArg) -> bool {
     match engine {
@@ -257,12 +267,12 @@ fn required_files(engine: OcrEngineArg) -> Vec<&'static str> {
 fn missing_hint(engine: OcrEngineArg) -> String {
     let what = match engine {
         OcrEngineArg::Ocrs => "the ocrs models are two files (`text-detection.rten`, \
-             `text-rec-checkpoint.rten`) in a `models/ocrs` folder, which the portable package \
-             ships; in a build compiled with the `download` feature, `pdfcer fetch-ocr-models` \
+             `text-rec-checkpoint.rten`) in a `models/ocrs` folder, which the ocrs add-on zip \
+             installs; in a build compiled with the `download` feature, `pdfcer fetch-ocr-models` \
              fetches the pinned copies"
             .to_owned(),
         OcrEngineArg::Ocrcer => "the OCRcer model is one file, `ocrcer.ocrw`, which the \
-             portable package ships in `models/ocrcer` and pdfcer never downloads; the OCRcer \
+             OCRcer add-on zip installs as `models/ocrcer` and pdfcer never downloads; the OCRcer \
              project has it as `model/out/ocrcer.ocrw`"
             .to_owned(),
         OcrEngineArg::Paddle => "the PaddleOCR models are two files, `det.onnx` and \
@@ -278,7 +288,7 @@ fn missing_hint(engine: OcrEngineArg) -> String {
         OcrEngineArg::Tesseract => format!(
             "Tesseract is a program add-on: a folder holding `{}`, a `{}` folder of language \
              files and a `{MANIFEST_FILE}` with `kind = program` and the program's SHA-256; \
-             the portable package ships it as `models/tesseract`. A stock Tesseract install \
+             its add-on zip installs as `models/tesseract`. A stock Tesseract install \
              has no manifest, so it is found only when --model-dir names it",
             pdfcer_ocr_host::tesseract::EXE_FILE,
             pdfcer_ocr_host::tesseract::TESSDATA_DIR
@@ -333,7 +343,7 @@ fn resolve(choice: &OcrModelChoice<'_>) -> Result<(OcrEngineArg, ResolvedModel),
     if let Some(name) = choice.model {
         return resolve_named(name, choice);
     }
-    let engine = choice.engine.unwrap_or(OcrEngineArg::Ocrs);
+    let engine = choice.engine.unwrap_or_else(default_engine);
     if !engine_compiled(engine) {
         return Err(not_compiled(engine));
     }
@@ -639,4 +649,15 @@ fn model_line(model: &OcrModel) -> String {
         version.unwrap_or("-"),
         model.folder.display().to_string()
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "paddle")]
+    fn the_default_engine_is_the_bundled_one() {
+        assert_eq!(default_engine(), OcrEngineArg::Paddle);
+    }
 }

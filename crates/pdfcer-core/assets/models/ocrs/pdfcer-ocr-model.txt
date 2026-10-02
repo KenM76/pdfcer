@@ -1,0 +1,9 @@
+# pdfcer OCR model add-on manifest (decision 182). See PROVENANCE.md.
+name = ocrs
+engine = ocrs
+label = ocrs (Latin script)
+languages = en
+version = 1
+licence = CC-BY-SA-4.0
+sha256 = text-detection.rten f15cfb56bd02c4bf478a20343986504a1f01e1665c2b3a0ad66340f054b1b5ca
+sha256 = text-rec-checkpoint.rten 606d9a0414c6b73c99df75b707c11c70d1c8b12e1d4f900922e185fc37bfca65

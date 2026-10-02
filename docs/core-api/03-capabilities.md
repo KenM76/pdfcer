@@ -2456,7 +2456,7 @@ prefix is not registered (open operator question `(ce)`). CLI: `pdfcer ocr
 | `MODEL_DIR` `"ocrs"` · `DETECTION_MODEL` · `RECOGNITION_MODEL` |
 | `OcrsEngineError` (`ModelMissing`, `ModelLoad`, `ImageSize`, `Image`, `Recognition`) |
 
-**Piece 3b — the second engine, OCRcer** (`crates/pdfcer-core/src/ocr/engine_ocrcer.rs`, feature `ocrcer`, **on by default**; `ocrs` stays the default engine)
+**Piece 3b — the second engine, OCRcer** (`crates/pdfcer-core/src/ocr/engine_ocrcer.rs`, feature `ocrcer`, **on by default**; the CLI's default engine is `paddle`, the only model the portable folder bundles)
 
 Same `OcrEngine` trait, so pieces 1, 2 and 4 are shared. Differences a caller
 sees: it **reports per-word confidence** (`reports_confidence() == true`), and
