@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 430.2` (slice 3, `6024dd31`), 2026-10-01 — reach a subset glyph by its post name, disclosed as an inference (G075 c, decision 172 route A, last slice) — `Pass 430.2` now COMPLETE
+
+Continues the `Pass 427.0`–`436.3` family (856th filing).
+
+**Verdict: SHIPPED IN FULL. `Pass 430.2` (slice 1 `ca3c24ba` + slice 2 `576ac26b` + slice 3 `6024dd31`) is now COMPLETE — decision 172 route A closes in full; `430.1` (decision 173, unstarted) and `430.3` (route B, unstarted) remain.**
+
+**Core.** When the embedded program's `(3,1)` cmap does not reach a typed character, its glyph is now looked up by the program's `post`-table name (ISO 32000-2 §9.6.6.4 last resort). For a code the resolved encoding already addresses, the lookup name is the encoding's own name for that code; for an allocated code or a composite CID, it's the first `post` name the AGL reads as the character — the same name used as the allocated `/Differences` name. Every such match adds the disclosure clause "found by the program's glyph name /NAME, an inference: the program's cmap does not say that glyph draws 'c'" (decision 172 §6, rule 4). `run_repertoire_with` offers the same characters the edit can reach.
+
+**New `pub` surface.** `EmbeddedGlyphs::glyph_named` / `glyph_names` (defaulted none, on the existing trait); implemented by `pdfcer-render`'s `EmbeddedProgramGlyphs`. New core module `text_edit::glyph_find`.
+
+**Scope.** Symbolic fonts are explicitly NOT covered by this slice — that is `Pass 430.3`, route B.
+
+**Fixtures.** `word-shaped-subset-post-names.pdf` + `cid-shaped-subset-post-names.pdf`, new synthetic fixtures.
+
+**Tests.** 6 new in `crates/pdfcer-render/tests/subset_post_names.rs`. Sabotage caught on 4 sites: the post branch, `named_chars`, the disclosure clause, the composite mapped-glyph condition.
+
+**Gates.** `tools/run-gates.sh` PASS (44 commands, 2 filing gates). No dependency/manifest change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected.
+
+**Shells.** `core [x]`. `cli [x]` — `edit-text`/`run-repertoire` always use the reader, no CLI code change. `gui [ ]` — not yet confirmed wired.
+
+**`docs/core-api`.** `docs/core-api/02-editing-and-saving.md` gained the Post names paragraph; `check-core-api-verbs` PASS.
+
+**`docs/FEATURES.md`.** "Accept a character whose glyph exists only in the embedded font program" row's "Not yet covered" clause cleared — post-name lookup now ships; `Pass 430.2` folds in fully. `430.1`/`430.3` remain separate rows.
+
+**Sourcing (hard rule 8).** No shell this filing. Hash (`6024dd31`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 430.2` (slice 2, `576ac26b`), 2026-10-01 — type an unshown glyph into an Identity-H CIDFontType2 subset (G075 c, decision 172 route A, composite)
 
 Continues the `Pass 427.0`–`436.3` family (855th filing). **`Pass 430.2` PARTIALLY SHIPPED, STAYS OPEN** — this slice covers only the composite `/Type0`/Identity-H case; post-name glyph lookup labelled as an inference is still owed. `430.1` (decision 173, unstarted) and `430.3` unchanged.
@@ -15484,6 +15510,15 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 430.2` SLICE 3 SHIPPED, 2026-10-01 (856th
+> filing), `6024dd31`** — see *Shipped*, above. Decision 172 route A now
+> also reaches a glyph by the program's `post`-table name when its cmap
+> doesn't, disclosed as an inference. **`Pass 430.2` is now FULLY
+> SHIPPED** (slice 1 `ca3c24ba` + slice 2 `576ac26b` + slice 3
+> `6024dd31`); symbolic fonts stay uncovered (`Pass 430.3`, route B).
+> **`Pass 430.1` is now the head of *Next up*** (decision 173, unblocked
+> at the 853rd filing, implementation-ready); `430.3` follows it.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 430.2` SLICE 2 PARTIALLY SHIPPED, 2026-10-01
 > (855th filing), `576ac26b`** — see *Shipped*, above. Decision 172 route
 > A now also types an unshown glyph into a `/Type0`/Identity-H
@@ -15733,6 +15768,13 @@ closes out the *prior* filing's business rather than opening this one's.
 >   refused by name on conflict or any shared structure. Post-name glyph
 >   lookup is **not** in this slice — still owed, keeping `Pass 430.2`
 >   open. See *Shipped*, above, for the full accounting.
+>   **★ SLICE 3 SHIPPED 2026-10-01 (856th filing), `6024dd31`** — the
+>   post-name glyph-lookup piece above: when the program's cmap doesn't
+>   reach a typed character, its glyph is looked up by `post`-table name
+>   (ISO 32000-2 §9.6.6.4 last resort), disclosed as an inference.
+>   **`Pass 430.2` is now FULLY SHIPPED; nothing remains owed under this
+>   sub-ID.** Symbolic fonts stay uncovered — `Pass 430.3`, below. See
+>   *Shipped*, above, for the full accounting.
 > - **`Pass 430.3`** (new, split from `430.0`) — route B fallback
 >   (decision 172): sibling `/Type0` + `/CIDFontType2` dictionary reusing
 >   the same `FontFile2` by GID via `/CIDToGIDMap`, for every guard

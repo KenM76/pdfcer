@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (856th filing) — `Pass 430.2` SLICE 3 SHIPPED (`6024dd31`) — `Pass 430.2` now COMPLETE — reach a subset glyph by its post name, disclosed as an inference
+
+**Shipped:**
+- `6024dd31` — `Pass 430.2` slice 3 (decision 172 route A, last slice).
+  When the embedded program's `(3,1)` cmap does not reach a typed
+  character, its glyph is now looked up by `post`-table name (ISO
+  32000-2 §9.6.6.4 last resort): for an already-addressable code the
+  lookup uses the encoding's own name, for an allocated code or a
+  composite CID it uses the first AGL-readable `post` name (also the
+  allocated `/Differences` name). Each match discloses "found by the
+  program's glyph name /NAME, an inference: the program's cmap does not
+  say that glyph draws 'c'" (decision 172 §6). New `pub`:
+  `EmbeddedGlyphs::glyph_named`/`glyph_names` (defaulted); new core
+  module `text_edit::glyph_find`. 6 new tests in
+  `subset_post_names.rs`, 4 sabotage sites all caught. `cli [x]`
+  already (no CLI code change — `edit-text`/`run-repertoire` always use
+  the reader); `gui [ ]` not wired. Symbolic fonts NOT covered — that's
+  `Pass 430.3`. **`Pass 430.2` is now FULLY SHIPPED** (slice 1
+  `ca3c24ba` + slice 2 `576ac26b` + slice 3 `6024dd31`).
+
+**Decisions made this session:** none new — executes decision 172 route A,
+same as the 849th–855th filings.
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 430.1` (decision 173, unblocked at the 853rd filing) unstarted —
+  now the head of *Next up*.
+- `Pass 430.3` (route B, symbolic-font fallback) unstarted.
+
+**For next session:**
+- Two sub-IDs remain open under `Pass 430`: `430.1`
+  (implementation-ready against decision 173's acceptance criteria) and
+  `430.3`.
+
+**Sourcing (hard rule 8):** no shell this filing. The hash (`6024dd31`)
+and every fact above are relayed from the dispatching engineer's own
+report, not independently reproduced.
+
 ## 2026-10-01 (855th filing) — `Pass 430.2` SLICE 2 SHIPPED (`576ac26b`) — type an unshown glyph into an Identity-H CIDFontType2 subset
 
 **Shipped:**
