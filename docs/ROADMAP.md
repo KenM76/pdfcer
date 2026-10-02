@@ -995,6 +995,50 @@ code-structure gate"); violation counts, sabotage results and the CI/
 `check-ci-parity.py` wiring are relayed from the dispatching engineer's
 own report, not independently reproduced.
 
+### `v0.72.0` — version bump, RELEASE IN PROGRESS (2026-10-02)
+
+Not a Pass. Version-bump commit `9c54c487` ("chore: v0.72.0") bumps
+`Cargo.toml`'s workspace version 0.71.0 → 0.72.0, `Cargo.lock` and
+`fuzz/Cargo.lock`; no dependency change. Filed in the 870th filing.
+
+**Range since `v0.71.0`** (tag at build commit `31c12685`) — batches
+every Pass already filed above: `430.0` and its slices, decision 173's
+subset-augmentation route work (`9990e435`, `194afb45`, `f54c8957`,
+`3a431c49`), `431.0` fallback face (`a74f6147`), `432.0` reflow fidelity
+(`91e6b04a`, `87eb5bb5`, `223884c4`), `433.0` paragraph editing
+(`50c34f42`, `ff0f93a9`, merge fix `8806a484`), `434.0` table cells
+(`c8abb4e4`), `435.0` hand-signature tag (`eceff33b`), `G083`
+checkpoint/rollback (`ff2ac527`), `G081` (`515e7d48`), `G074`
+(`f23dc873`), `G077` encrypted incremental save (`42b0a25b`,
+`49cb9dd4`), 3D view work (`b8985616`, `7d1a129f`, `c3298873`,
+`4fc9de7b`, `88a70174`), the code-structure gate (`2bb66c73`), and the
+per-process test-temp-paths gate (`da6a24ab`) — all already filed above.
+
+**Headline.** No single new capability of its own — batches six shipped
+Passes (subset-font augmentation, fallback-face embedding, reflow
+fidelity, paragraph/table/signature editing, checkpoint/rollback,
+encrypted incremental save) plus two gates and a round of 3D view fixes.
+
+**Gates.** `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates) on
+`e4df51e8` (code identical to the bump). Pushed `e4df51e8` to
+`origin/main`.
+
+**OneDrive target.** This release writes slot `pdfcer1` (`pdfcer2`
+keeps `v0.71.0`).
+
+Tag, GitHub release, OneDrive deploy, fresh-folder smoke test and
+`verify-release.py` not yet done; full release filing to follow once
+those details are relayed.
+
+`docs/FEATURES.md`: no rows changed — the release act adds no
+capability.
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hash
+`9c54c487` matches this session's git-status snapshot at conversation
+start; the range list is reconstructed from prior filings' own records,
+not independently reproduced. Tag/build/deploy state not verifiable
+from here.
+
 ### `v0.71.0` — RELEASED (2026-10-01)
 
 Release filing, not a Pass — completes the 834th filing's own

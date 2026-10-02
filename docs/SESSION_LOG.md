@@ -4,6 +4,40 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (870th filing) — `v0.72.0` version bump, RELEASE IN PROGRESS (`9c54c487`)
+
+**Shipped:**
+- `9c54c487` — `chore: v0.72.0`. Bumps `Cargo.toml`'s workspace version
+  0.71.0 → 0.72.0, `Cargo.lock` and `fuzz/Cargo.lock`; no dependency
+  change. Not a Pass — release act only.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- Ken, 2026-10-02: "Release anyway and put on OneDrive." Release
+  authorized per decision 121 (standing release authorization).
+- `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates) on
+  `e4df51e8` (code identical to the bump). `e4df51e8` pushed to
+  `origin/main`.
+- Range since `v0.71.0` batches every Pass already filed in
+  `ROADMAP.md`: `430.0` and its slices, decision 173's
+  subset-augmentation route work, `431.0` fallback face, `432.0`
+  reflow fidelity, `433.0` paragraph editing (+ merge fix `8806a484`),
+  `434.0` table cells, `435.0` hand-signature tag, `G083`
+  checkpoint/rollback, `G081`, `G074`, `G077` encrypted incremental
+  save, a round of 3D view work, the code-structure gate and the
+  per-process test-temp-paths gate. See `ROADMAP.md`'s
+  `v0.72.0` entry for the full commit list.
+
+**Still in flight:** build, fresh-folder smoke test, GitHub release and
+OneDrive deploy (slot `pdfcer1` — `pdfcer2` currently holds `v0.71.0`)
+are IN PROGRESS; a later filing completes the release entry.
+
+**For next session:** complete the `v0.72.0` release filing once build/
+smoke/GitHub/OneDrive details are relayed; the vaulted-roof
+tessellation tear from `419.2` remains open and unrelated to this
+release.
+
 ## 2026-10-02 (869th filing) — `Pass 433.0` merge follow-on (`8806a484`) — block text sets no fallback face
 
 **Shipped:**
