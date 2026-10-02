@@ -4,6 +4,65 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (864th filing) — `Pass 438.0` SHIPPED (`ff2ac527`) — `EditSession` checkpoint/rollback (G083); `flatten_layers` full-undo-depth bug fixed on the way
+
+**Shipped:**
+- `ff2ac527` — `Pass 438.0` SHIPPED (`G083`). New module
+  `crates/pdfcer-core/src/edit/checkpoint.rs`:
+  `EditSession::checkpoint(&self) -> Checkpoint` and
+  `EditSession::rollback(&mut self, Checkpoint) -> Result<Rollback,
+  CheckpointError>`. Rollback restores the document, undo stack and
+  redo stack exactly; the gesture's commands are undone without landing
+  on Redo. Entries are identified by a process-wide serial (private
+  `Entry` wrapper over `Command`), not by depth, so it is correct at
+  full undo depth (up to 16 evicted entries put back;
+  `Rollback::history_lost` counts the rest) and after an in-gesture
+  `coalesce_last` fold. Refusals: `CheckpointError::{ForeignSession,
+  HistoryChanged, GestureEvicted { evicted }}`.
+
+**Decisions made this session:** none — no decision or R-number
+warranted; this is a mechanism addition plus a bug fix, not a new
+invariant.
+
+**Findings + decisions:**
+- Bug found while reading `flatten_layers`'s existing rollback (same
+  commit, same Pass): at full undo depth (256) its depth-counted
+  rollback stopped early and left partial changes applied, and its
+  fold count was 0, so a successful flatten took several undos to
+  undo. Fixed by switching it to the new checkpoint. The radio-merge
+  rollback in `add_form_field` and `content_mark`'s wrap-failure
+  rollback were converted too — the latter previously failed to
+  restore the redo stack.
+
+**Still in flight:**
+- `pdfcer-gui` consumes `Pass 438.0` in its `G078` reface workaround
+  (abandoning a refused `edit_text`/`format_text` sequence) — that
+  caller is not shipped here.
+- `Pass 430.1` remainder (composite fonts, decision 173), `Pass 430.3`
+  (route B), `431.0`–`433.0`, `436.0`–`436.3` unchanged, still open.
+
+**For next session:**
+- Continue `Pass 430.1`'s remaining scope (composite fonts), or pick up
+  `430.3`/`431.0`–`433.0`/`436.0`–`436.3` per `docs/NEXT_SESSION.md`.
+
+**Tests + gates (this filing's Pass).** `tests/edit_checkpoint.rs` (7
+tests) + `layer_edit::flatten_layers_at_full_undo_depth_is_one_entry`.
+Five sabotages caught. pdfcer-core: 2480 integration + 1362 lib + 179
+doc tests green; `cargo clippy -- -D warnings`, fmt, code-structure
+gate all clean. `docs/core-api/02` gained two verb rows; verb count
+303 → 305; `check-core-api-verbs` PASS. No `Cargo.toml` change — no
+`cargo tree` drift. No writer byte-layout change.
+
+**`docs/FEATURES.md`.** Row 183 ("Undo/redo command log") extended in
+place — core's existing tick now also covers checkpoint/rollback; cli
+stays `—` (session-only: a checkpoint cannot outlive one edit session,
+each CLI invocation is one verb); gui stays unticked for this specific
+mechanism pending `pdfcer-gui`'s own wiring.
+
+**Sourcing (hard rule 8):** no shell this filing. Hash (`ff2ac527`) and
+every fact above relayed from the dispatching engineer's own report,
+not independently reproduced.
+
 ## 2026-10-02 (863rd filing) — `Pass 434.0` SHIPPED (`c8abb4e4`) + `Pass 430.1` sibling-slice test follow-on (`20892f99`) — cell-aware block model
 
 **Shipped:**

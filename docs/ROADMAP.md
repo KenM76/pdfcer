@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 438.0` (`ff2ac527`), 2026-10-02 — abandon a failed multi-verb gesture: `EditSession` checkpoint/rollback (G083) — `Pass 438.0` SHIPPED
+
+Answers `pdfcer-gui` request `G083`.
+
+**Core.** New module `crates/pdfcer-core/src/edit/checkpoint.rs`. `EditSession::checkpoint(&self) -> Checkpoint` and `EditSession::rollback(&mut self, Checkpoint) -> Result<Rollback, CheckpointError>`. Rollback restores the document, the undo stack and the redo stack exactly; the gesture's commands are undone without landing on Redo. Entries are identified by a process-wide serial (private `Entry` wrapper over `Command`), not by depth, so rollback stays correct at full undo depth (up to 16 pre-checkpoint entries evicted during the gesture are put back; `Rollback::history_lost` counts any evicted beyond that) and after an in-gesture `coalesce_last` fold. Refusals change nothing: `CheckpointError::{ForeignSession, HistoryChanged, GestureEvicted { evicted }}`.
+
+**Bug fixed on the way (found while reading, same commit).** `flatten_layers` at full undo depth (256) — its depth-counted rollback stopped early and left partial changes applied, and its fold count was 0 so a successful flatten took several undos to undo. The radio-merge rollback in `add_form_field` and `content_mark`'s wrap-failure rollback now use the checkpoint too (the latter previously failed to restore the redo stack).
+
+**Tests.** `tests/edit_checkpoint.rs` (7 tests) + `layer_edit::flatten_layers_at_full_undo_depth_is_one_entry`. Five sabotages caught.
+
+**Gates.** pdfcer-core: 2480 integration + 1362 lib + 179 doc tests green; `cargo clippy -- -D warnings`, fmt, code-structure gate all clean. `docs/core-api/02` gained two verb rows; verb count 303 → 305; `check-core-api-verbs` PASS. No `Cargo.toml` change — `cargo tree -p pdfcer-core` unaffected. No writer byte-layout change.
+
+**Shells.** `core [x]` / `cli` n/a (session-only: a checkpoint cannot outlive one edit session, and each CLI invocation is one verb — never rounded up) / `gui [ ]` — not wired here; `pdfcer-gui` consumes it in its `G078` reface workaround, shipped separately.
+
+**`docs/FEATURES.md`.** Row 183 ("Undo/redo command log") extended in place rather than a new row — core box's existing tick now also covers checkpoint/rollback; cli stays `—`; gui unticked pending `pdfcer-gui`'s own wiring.
+
+**Sourcing (hard rule 8).** No shell this filing. Hash (`ff2ac527`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 434.0` (`c8abb4e4`), 2026-10-02 — cell-aware block model (G080) — `Pass 434.0` SHIPPED
 
 Answers `pdfcer-gui` request `G080` (cherry-pick of agent commit `91915cd1`); same `G073`–`G081` family as the `427.0`–`436.3` items, shipped out of order.
