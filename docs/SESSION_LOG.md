@@ -4,6 +4,60 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (886th filing) — `Pass 442.1` SHIPPED (OCR packaging split: only PaddleOCR bundled, the rest ship as add-on zips)
+
+**Shipped:**
+- `Pass 442.1` (`be16b008`, on `main`, not yet pushed per the dispatching
+  engineer) — operator standing direction: only `paddle` ships bundled;
+  `ocrs`/`ocrcer`/`tesseract` are add-on zips, install by dropping a
+  folder under `models/`, uninstall by deleting it.
+  `tools/package-portable.py` gains `split_ocr_addons()` +
+  `BUNDLED_MODELS = {"paddle"}`: after staging, every non-bundled staged
+  `models/<name>/` is zipped to `<build>-ocr-addon-<name>.zip` and
+  removed from the portable folder, gated on manifest/`PROVENANCE.md`/
+  `LICENSE` validation (all-or-nothing refusal). `crates/pdfcer-core/
+  assets/models/ocrs/` gains a committed manifest (CC-BY-SA-4.0, SHA-256
+  of both `.rten` files) + `LICENSE`; the packager writes an OCRcer
+  manifest (MIT) into the staged folder. CLI default OCR engine is now
+  `paddle` (falls back to `ocrs` only without the `paddle` feature), new
+  sabotage-checked unit test `the_default_engine_is_the_bundled_one`.
+  `about.hbs` headings reworded "… add-on"; `THIRD_PARTY_LICENSES.md`
+  regenerated (no dependency change); `tools/deploy-onedrive.py` copies
+  the add-on zips into an `ocr-addons/` folder.
+
+**Decisions made this session:**
+- None — uses the add-on mechanism already ruled in by decisions
+  182/184; decision ceiling stays `186`.
+
+**Findings + decisions:**
+- Relevance to open question `(bl)` (whether a CC-BY-SA-4.0 model file
+  may ship in the MIT portable folder): after this Pass the portable
+  folder ships no CC-BY-SA file — the `ocrs` weights exist only in a
+  separate add-on zip. Recorded as fact; `(bl)` itself is not ruled on
+  and stays Ken's to answer.
+- `FEATURES.md` sweep (hard rule 11): the "Choose the OCR engine" row's
+  stale default/bundling claims (`default ocrs`, "`ocrcer` ships built
+  in by default") corrected to match the new packaging split; the
+  "Packaging split" row's boxes moved to `cli [x]` and marked SHIPPED
+  (core/gui unchanged).
+
+**Still in flight:**
+- `Pass 442.4` (`pdfcer-gui`'s OCR model drop-down) is the one piece of
+  the `Pass 442.x` OCR-add-on family still queued.
+- The PaddleOCR-VL layout-model rung (PP-DocLayoutV2) is still not filed
+  as a Pass.
+
+**For next session:**
+- `be16b008` is not yet pushed — confirm push before relying on it being
+  on `origin/main`.
+
+**Sourcing note (hard rule 8):** no shell this filing. `be16b008`
+confirmed at `HEAD` per the git-status snapshot at the start of this
+conversation; the "not yet pushed" status, the test figures (CLI
+`--test all ocr` 20 passed/1 ignored, unit test 1 passed) and the
+`cargo tree` invariant claim are all relayed from the dispatching
+engineer's own report, not independently reproduced or checked.
+
 ## 2026-10-02 (885th filing) — `Pass 448.0` SHIPPED (paint `PatternType 1` tiling patterns, ISO 32000-1 §8.7.3 Table 75); closes the known gap `Pass 445.0` filed; GUI channel reply for `G093` updated; OCR layer-report wording fixed (`c094550a`)
 
 **Shipped:**
