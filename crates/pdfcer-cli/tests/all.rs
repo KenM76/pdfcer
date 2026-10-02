@@ -8,6 +8,7 @@ mod add_image_gif;
 mod add_ltv;
 mod add_screen;
 mod add_sound;
+mod add_svg;
 mod add_text;
 mod annotate_as_content;
 mod annotate_note;

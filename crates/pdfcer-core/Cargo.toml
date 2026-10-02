@@ -39,7 +39,7 @@ autotests = false
 # 4. CI builds `--no-default-features` (see .github/workflows/ci.yml), which
 #    is what stops a `cfg` from rotting into something that no longer
 #    compiles when switched off.
-default = ["jpx", "ocrs", "ocrcer", "paddle", "signing", "3d"]
+default = ["jpx", "ocrs", "ocrcer", "paddle", "signing", "3d", "svg-import"]
 
 # Digital SIGNING — the private-key side (PAdES B-B first; `sign` module).
 #
@@ -145,6 +145,10 @@ paddle = ["dep:rten", "dep:rten-tensor"]
 # no GUI/network/thread dependency, wasm32-clean; its own deps are
 # `thiserror` and `flate2`, already here. Decision 180.
 3d = ["dep:pdfcer-3d", "pdfcer-3d/render"]
+
+# SVG import (decision 186): usvg parses SVG to a simplified tree; text
+# shaping, system fonts and file access stay off.
+svg-import = ["dep:usvg"]
 # NOTE: there is deliberately no `rten` feature. `cargo add --optional` writes
 # one automatically, and it was removed: `rten` alone compiles the inference
 # runtime and nothing that uses it, so it would be a public feature that adds
@@ -397,6 +401,8 @@ rten-tensor = { version = "0.24", optional = true }
 # pdfcer-3d: PRC decoding and rendering for the default 3D poster (`3d`
 # feature). MIT, in-workspace.
 pdfcer-3d = { workspace = true, optional = true }
+# Apache-2.0 OR MIT. Pinned to the version pdfcer-render already tests with.
+usvg = { version = "=0.45.1", default-features = false, optional = true }
 
 # ocrcer-core: the OCRcer recogniser (`ocrcer` feature). MIT, zero
 # dependencies. VENDORED at `vendor/ocrcer-core`, copied from the newest local

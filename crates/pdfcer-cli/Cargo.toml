@@ -19,7 +19,7 @@ path = "src/main.rs"
 # Mirrors `pdfcer-core`'s strippable-capability features so a lighter CLI is
 # one flag rather than a manifest edit. Default ON: `--no-default-features`
 # is the deliberate act, never the accident.
-default = ["jpx", "ocrs", "ocrcer", "paddle", "signing", "3d"]
+default = ["jpx", "ocrs", "ocrcer", "paddle", "signing", "3d", "svg-import"]
 jpx = ["pdfcer-core/jpx", "pdfcer-render/jpx"]
 # The `ocrs` text-recognition engine (`Pass 71.0` slice 3).
 ocrs = ["pdfcer-core/ocrs", "pdfcer-render/ocrs", "pdfcer-ocr-host/ocrs"]
@@ -33,6 +33,8 @@ signing = ["pdfcer-core/signing"]
 # 3D model decoding (`3d-mesh`): the PRC reader in `pdfcer-3d`. Without it
 # `3d-mesh` refuses by name; `3d-list` / `3d-extract` need no decoding.
 3d = ["dep:pdfcer-3d", "pdfcer-core/3d"]
+# SVG import (`add-svg`, decision 186). Without it `add-svg` refuses by name.
+svg-import = ["pdfcer-core/svg-import"]
 
 # `download` — operator-initiated fetching of pinned artefacts, currently the
 # OCR model weights (`fetch-ocr-models`).

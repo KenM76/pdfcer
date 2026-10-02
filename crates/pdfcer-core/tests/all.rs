@@ -185,6 +185,7 @@ mod style_ladder;
 mod style_off;
 mod subpath_delete;
 mod subpath_hit;
+mod svg_import;
 mod synthesis_gate;
 mod table_detect;
 mod text_edit;

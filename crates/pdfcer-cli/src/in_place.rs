@@ -38,6 +38,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "add-reply",
     "add-screen",
     "add-sound",
+    "add-svg",
     "add-text",
     "add-text-field",
     "adopt-widget",

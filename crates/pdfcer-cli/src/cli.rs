@@ -11537,4 +11537,59 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Place an SVG drawing on a page as VECTOR content: a Form XObject of
+    /// path, gradient and pattern operators (ISO 32000-1 §8.10), never a
+    /// raster. SVGZ (gzip) is accepted.
+    ///
+    /// Paths, fills, strokes, dashes, linear and radial gradients (every
+    /// spread method), patterns, clip paths, masks, group opacity and
+    /// embedded raster images are carried. What PDF content cannot carry is
+    /// skipped and NAMED on stderr and in `not_carried=`: filters, text
+    /// (convert it to paths in the SVG editor first), and external images,
+    /// which are never fetched. A stop-opacity gradient or a luminance mask
+    /// is drawn as near as PDF allows and named in `approximated=`.
+    ///
+    /// Without `--stamp` the drawing is appended to the page content; with
+    /// it, the drawing becomes a `/Stamp` annotation's appearance, movable
+    /// and deletable as a comment. Either way it is one undoable edit.
+    AddSvg {
+        /// Input PDF.
+        input: PathBuf,
+        /// The SVG or SVGZ file to place.
+        #[arg(long, value_name = "FILE")]
+        svg: PathBuf,
+        /// 1-based page number to place the drawing on.
+        #[arg(long)]
+        page: usize,
+        /// The rectangle to place the drawing in, `llx,lly,urx,ury`, in PDF
+        /// user space (points, origin at the page's lower-left).
+        ///
+        /// By default the drawing keeps its shape and is centred inside the
+        /// rectangle; `--stretch` fills it exactly; `--natural` uses the
+        /// drawing's own size.
+        #[arg(long, value_name = "LLX,LLY,URX,URY", allow_hyphen_values = true)]
+        rect: String,
+        /// Fill `--rect` exactly, distorting the drawing if the shapes
+        /// differ (reported as `distorted=1`).
+        #[arg(long)]
+        stretch: bool,
+        /// Replace `--rect`'s size with the drawing's own, at 96 SVG pixels
+        /// per inch (the CSS reference pixel), keeping the lower-left corner.
+        #[arg(long, conflicts_with = "stretch")]
+        natural: bool,
+        /// Place the drawing as a `/Stamp` annotation instead of page
+        /// content.
+        #[arg(long)]
+        stamp: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the placement reproduces the input byte
+        /// for byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
 }

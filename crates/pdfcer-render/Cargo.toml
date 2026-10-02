@@ -211,3 +211,6 @@ zune-jpeg = { version = "0.5", default-features = false, features = ["std"] }
 # tiny-skia 0.12 and png 0.18 beside this crate's (measured 2026-09-03).
 resvg = { version = "=0.45.1", default-features = false }
 usvg = { version = "=0.45.1", default-features = false }
+# `tests/svg_import.rs` places SVGs through core's importer and compares
+# the page raster against resvg's; a test-only feature request.
+pdfcer-core = { workspace = true, features = ["svg-import"] }

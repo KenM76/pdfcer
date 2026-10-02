@@ -69,6 +69,7 @@ mod subset_allocated_code;
 mod subset_augment;
 mod subset_post_names;
 mod subset_unused_glyph;
+mod svg_import;
 mod symbolic_truetype_glyphs;
 mod synthetic_style_render;
 mod text_clipping_modes;

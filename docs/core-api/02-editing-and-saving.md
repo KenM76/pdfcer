@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 310 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 312 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 310 public `EditSession` methods
+## 1. Verb index — all 312 public `EditSession` methods
 
-**Count: 310.** Established by brace-matched extraction of the
+**Count: 312.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -4051,6 +4051,50 @@ Each import note a shell must disclose (rule 4) is carried onto
 | `tiff_palette_assumed_8bit: bool` | A ColorMap stored 8-bit values in 16-bit fields and was read as such. |
 
 All six count toward `ImageAuthorDisclosures::any()`.
+
+### 1.24a SVG drawings (2 session verbs, feature `svg-import`)
+
+`Pass 445.0`, decision 186. Import first with the free function
+`svg_import::import(&[u8]) -> Result<ImportedSvg, SvgImportError>` (SVG or
+SVGZ; usvg parses, nothing is fetched), then place. Ceilings, refused by name
+before any work: `MAX_INPUT_BYTES` 32 MiB, `MAX_DECOMPRESSED_BYTES` 64 MiB
+(gzip bomb), `MAX_ELEMENT_DEPTH` 256 counting `use`/clip/mask/pattern
+references, `MAX_CONTENT_BYTES` 64 MiB. `ImportedSvg::size_px()` is the
+viewport; `natural_size_pt()` is that at 96 px/in (×0.75).
+
+| I want to… | Call | Returns |
+|---|---|---|
+| Draw an SVG as page content | `add_svg(&mut self, page_index: usize, rect: Rect, svg: &ImportedSvg) -> Result<PlacedSvg, EditError>` | Form XObject (`/BBox [0 0 w h]` in SVG px) of path, shading-pattern and tiling-pattern operators, plus any embedded rasters as image XObjects; a `q sx 0 0 sy llx lly cm /Name Do Q` stream appended to the page. ONE undo entry, `CommandKind::AddSvg`. Additive. |
+| Place an SVG as a stamp | `add_svg_stamp(&mut self, page_index: usize, rect: Rect, svg: &ImportedSvg) -> Result<PlacedSvg, EditError>` | `/Stamp` annotation, `/AP /N` = the drawing's form, `/F 4` (Print), no `/Name`. ONE undo entry, `CommandKind::AddAnnotation { kind: Stamp }`. Annotation-level certification gate (`/P 2` permits it). |
+
+`PlacedSvg` (`#[non_exhaustive]`): `form_id`, `content_id` (page route) or
+`annot_id` (stamp route), `rect` (normalised), `scale_x`/`scale_y` (points
+per SVG px), `distorted` (the two differ), `objects_written`, `notes`.
+
+**Both verbs STRETCH the drawing to `rect`.** Fitting is the shell's job:
+`pdfcer add-svg` defaults to contain (largest same-aspect rectangle,
+centred), with `--stretch` and `--natural` (`natural_size_pt` at the
+rectangle's lower-left).
+
+★ **What the UI must disclose** is `PlacedSvg::notes` (`SvgImportNotes`):
+`skipped` — filters, text (not converted to paths), external images (never
+fetched), and others by `SvgFeature`; `approximated` — e.g. a luminance
+mask, a gradient whose spread needed more than 64 periods (drawn as pad).
+`notes.summary()` is the one-line form. A skipped filter leaves the element
+drawn WITHOUT the filter, not omitted.
+
+**Traps.**
+
+1. **pdfcer-render paints no tiling patterns** (`PatternType 1`). An SVG
+   `<pattern>` fill is written correctly (pdfium renders it like resvg) but
+   pdfcer's own canvas shows it blank until the renderer gains tiling
+   patterns.
+2. Errors are those of `add_image` (`ImageRectDegenerate` for a zero, negative
+   or NaN rectangle; `DocumentEncrypted`; certification;
+   `ObjectCreationWouldExposeHiddenObjects`; `PageOutOfRange`;
+   `ObjectNumbersExhausted`).
+3. Without the `svg-import` feature neither `svg_import` nor these verbs
+   exist; the CLI's `add-svg` then refuses by name (exit 9).
 
 ### 1.25 Outcome structs — field reference
 

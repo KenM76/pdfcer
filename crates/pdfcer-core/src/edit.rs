@@ -128,12 +128,16 @@ mod checkpoint;
 mod content_mark;
 mod foreign_button;
 mod image_stamp;
+#[cfg(feature = "svg-import")]
+mod svg;
 mod threed_poster;
 
 pub use button_icon::ButtonIconEdit;
 use checkpoint::Entry;
 pub use checkpoint::{Checkpoint, CheckpointError, Rollback};
 use foreign_button::ButtonSlot;
+#[cfg(feature = "svg-import")]
+pub use svg::PlacedSvg;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -1168,6 +1172,11 @@ pub enum CommandKind {
     /// re-serialized. A NEW stream is appended to the `/Contents` array
     /// (§7.8.2) and the originals stay byte-verbatim.
     AddImage,
+    /// An SVG drawing was placed in a page's content as a Form XObject
+    /// ([`EditSession::add_svg`]): the form and its resources, a new content
+    /// stream appended to `/Contents`, and the page's `/Resources`, as one
+    /// entry. Additive like [`Self::AddImage`].
+    AddSvg,
     /// Embedded font programs were REMOVED (`Pass 67.0` phase B): the
     /// `/FontFile*` entry struck from each descriptor, `/CIDSet` and
     /// `/CharSet` struck with it, the §9.6.4 subset tag dropped from

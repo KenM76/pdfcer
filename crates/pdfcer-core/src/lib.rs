@@ -99,6 +99,10 @@ pub mod sound;
 /// one page per stamp, names in the catalog's `/Names` -> `/Pages` tree.
 pub mod stamp_file;
 pub mod structure;
+/// SVG import as vector content (SVG 1.1 via `usvg`), placed by
+/// [`edit::EditSession::add_svg`].
+#[cfg(feature = "svg-import")]
+pub mod svg_import;
 pub mod table_detect;
 pub mod text_edit;
 pub mod threed;

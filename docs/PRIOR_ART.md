@@ -306,6 +306,12 @@ into a *document* only — NOT bundling with an application.
 | `vello` / `vello_cpu` / `vello_hybrid` | Apache-2.0 OR MIT | reference, re-evaluate ~2027 | GPU-compute-centric, Linebender's own description: alpha overall, vello_hybrid "beta, usable," vello_cpu newer/less-proven. Not yet the right fit. |
 | `raqote` | MPL-2.0 | skip | Community consensus: "barely maintained." Dead prior art. |
 
+### SVG import (`pdfcer-core`, feature `svg-import`)
+
+| Crate | License | Verdict | Why |
+|---|---|---|---|
+| `usvg` 0.45.1 | Apache-2.0 OR MIT | **adopt** (decision 186) | Parses SVG/SVGZ to a simplified tree: CSS resolved, `use` expanded, shapes as paths, units absolute. `default-features = false` drops `text` (fontdb/rustybuzz). Transitives all permissive (from `cargo metadata`): `roxmltree`, `svgtypes`, `simplecss`, `kurbo`, `data-url`, `siphasher`, `base64`, `flate2` (MIT OR Apache-2.0); `strict-num`, `float-cmp`, `imagesize`, `xmlwriter`, `pico-args` (MIT); `tiny-skia-path` (BSD-3-Clause). wasm32-clean, no network (an `<image href>` to a URL is skipped, never fetched). Same crate resvg renders from, so resvg is the parity oracle (render dev-dep). |
+
 ### Colour management (ICC)
 
 | Crate | License | Verdict | Why |

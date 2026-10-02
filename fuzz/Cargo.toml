@@ -96,7 +96,8 @@ path = "../crates/pdfcer-core"
 default-features = false
 # `signing` for the `timestamp_response` target (RFC 3161 responses arrive
 # from the network); pure-Rust crypto, no C toolchain.
-features = ["jpx", "signing"]
+# `svg-import` for the `svg_import` target (decision 186).
+features = ["jpx", "signing", "svg-import"]
 
 # pdfcer-render, for the FF-C donor-subsetting target (Pass 21.0). The
 # subsetter lives there, not in core, because producing a subset requires
@@ -403,6 +404,11 @@ bench = false
 [[bin]]
 name = "image_import_gif"
 path = "fuzz_targets/image_import_gif.rs"
+# Pass 445.0 SVG import: usvg parses; pdfcer's pre-scan, content
+# translation and placement id-remap are the targets.
+[[bin]]
+name = "svg_import"
+path = "fuzz_targets/svg_import.rs"
 test = false
 doc = false
 bench = false

@@ -61,8 +61,8 @@ alongside the other licenses harvested from `Cargo.lock`.
 
 ## License overview
 
-- **Apache License 2.0** — used by 137 crate(s)
-- **MIT License** — used by 9 crate(s)
+- **Apache License 2.0** — used by 145 crate(s)
+- **MIT License** — used by 13 crate(s)
 - **BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License** — used by 7 crate(s)
 - **ISC License** — used by 3 crate(s)
 - **Boost Software License 1.0** — used by 2 crate(s)
@@ -311,6 +311,7 @@ Used by:
 Used by:
 - [cmov 0.5.4](https://github.com/RustCrypto/utils)
 - [ctutils 0.4.2](https://github.com/RustCrypto/utils)
+- [kurbo 0.11.3](https://github.com/linebender/kurbo)
 - [ureq-proto 0.6.1](https://github.com/algesten/ureq-proto)
 - [zeroize 1.9.0](https://github.com/RustCrypto/utils)
 
@@ -2441,12 +2442,14 @@ limitations under the License.
 
 Used by:
 - [arrayvec 0.7.8](https://github.com/bluss/arrayvec)
+- [base64 0.22.1](https://github.com/marshallpierce/rust-base64)
 - [base64 0.23.1](https://github.com/marshallpierce/rust-base64)
 - [bitflags 1.3.2](https://github.com/bitflags/bitflags)
 - [cfg-if 1.0.4](https://github.com/rust-lang/cfg-if)
 - [crossbeam-deque 0.8.7](https://github.com/crossbeam-rs/crossbeam)
 - [crossbeam-epoch 0.9.20](https://github.com/crossbeam-rs/crossbeam)
 - [crossbeam-utils 0.8.22](https://github.com/crossbeam-rs/crossbeam)
+- [data-url 0.3.2](https://github.com/servo/rust-url)
 - [either 1.16.0](https://github.com/rayon-rs/either)
 - [flate2 1.1.9](https://github.com/rust-lang/flate2-rs)
 - [group 0.14.0](https://github.com/zkcrypto/group)
@@ -2461,8 +2464,11 @@ Used by:
 - [rayon-core 1.13.0](https://github.com/rayon-rs/rayon)
 - [rayon 1.12.0](https://github.com/rayon-rs/rayon)
 - [ring 0.17.14](https://github.com/briansmith/ring)
+- [roxmltree 0.20.0](https://github.com/RazrFalcon/roxmltree)
 - [rustls 0.23.43](https://github.com/rustls/rustls)
+- [simplecss 0.2.2](https://github.com/linebender/simplecss)
 - [smallvec 1.15.2](https://github.com/servo/rust-smallvec)
+- [svgtypes 0.15.3](https://github.com/linebender/svgtypes)
 
 ```
                               Apache License
@@ -3910,6 +3916,7 @@ Used by:
 - [rten-vecmath 0.24.0](https://github.com/robertknight/rten)
 - [rten 0.24.0](https://github.com/robertknight/rten)
 - [rustc-hash 2.1.3](https://github.com/rust-lang/rustc-hash)
+- [siphasher 1.0.3](https://github.com/jedisct1/rust-siphash)
 - [subsetter 0.2.6](https://github.com/typst/subsetter)
 - [syn 2.0.119](https://github.com/dtolnay/syn)
 - [syn 3.0.3](https://github.com/dtolnay/syn)
@@ -3917,6 +3924,7 @@ Used by:
 - [thiserror 2.0.19](https://github.com/dtolnay/thiserror)
 - [typeid 1.0.3](https://github.com/dtolnay/typeid)
 - [unicode-ident 1.0.24](https://github.com/dtolnay/unicode-ident)
+- [usvg 0.45.1](https://github.com/linebender/resvg)
 - [utf8-zero 0.8.1](https://github.com/algesten/utf8-zero)
 - [utf8parse 0.2.2](https://github.com/alacritty/vte)
 
@@ -4421,6 +4429,34 @@ THE SOFTWARE.
 ### MIT License
 
 Used by:
+- [float-cmp 0.9.0](https://github.com/mikedilger/float-cmp)
+
+```
+Copyright (c) 2014-2020 Optimal Computing (NZ) Ltd
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the &quot;Software&quot;), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.
+
+```
+
+### MIT License
+
+Used by:
 - [bytes 1.12.1](https://github.com/tokio-rs/bytes)
 
 ```
@@ -4449,6 +4485,35 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
+Used by:
+- [pico-args 0.5.0](https://github.com/RazrFalcon/pico-args)
+
+```
+Copyright (c) 2019 Yevhenii Reizner
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 
 ```
 
@@ -4573,6 +4638,36 @@ SOFTWARE.
 ### MIT License
 
 Used by:
+- [imagesize 0.13.0](https://github.com/Roughsketch/imagesize)
+
+```
+MIT License
+
+Copyright (c) 2017 Maiddog
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+### MIT License
+
+Used by:
 - [strsim 0.11.1](https://github.com/rapidfuzz/strsim-rs)
 
 ```
@@ -4581,6 +4676,36 @@ The MIT License (MIT)
 Copyright (c) 2015 Danny Guo
 Copyright (c) 2016 Titus Wormer &lt;tituswormer@gmail.com&gt;
 Copyright (c) 2018 Akash Kurdekar
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+### MIT License
+
+Used by:
+- [xmlwriter 0.1.0](https://github.com/RazrFalcon/xmlwriter)
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2019 Reizner Evgeniy
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the &quot;Software&quot;), to deal
@@ -5069,4 +5194,3 @@ upstream file appends for other pdfium components):
    See the License for the specific language governing permissions and
    limitations under the License.
 ```
-
