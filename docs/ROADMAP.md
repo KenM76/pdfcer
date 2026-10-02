@@ -422,6 +422,8 @@ Continues the `Pass 427.0`–`436.3` family.
 
 **Sourcing (hard rule 8).** No shell this filing. Hashes (`cb1c7263`, incidental `6d903feb`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
 
+**Follow-on fix (`2a82de92`), 2026-10-02 (875th filing) — merge-reconciliation.** Merging `Pass 436.0` (retype workaround, `a032534b`+`f346a2ff`) with this slice left retype's `EditPlan` initializer without this slice's new `cid_to_gid` field (E0063 on the merged tree) and pushed `plan_exact` one line over the 80-line function-structure limit. Fixed: retype sets no font extension, so `cid_to_gid: None`; the Commit/Preview splice choice moved to a shared `PlanMode::content`. Merged-tree suites green (core lib 2509, render lib 464, render integration 474, cli 688); clippy `-D warnings`, fmt, code-structure (no new baseline entries), core-api-verbs clean. No shell this filing — figures relayed from the dispatching engineer's report, not independently reproduced.
+
 ### `Pass 430.1` (sibling slice, `6f07ed6e`+`20892f99`), 2026-10-02 — a refused replacement may be set in a same-face sibling font resource (G075 follow-on, decision 174) — `Pass 430.1` STAYS OPEN
 
 Continues the `Pass 427.0`–`436.3` family.

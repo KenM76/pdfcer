@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (875th filing) — merge-reconciliation fix: retype plan vs the composite `cid_to_gid` field
+
+**Shipped:**
+- `2a82de92` — fixed a merge collision between `Pass 436.0` (retype
+  workaround, `a032534b`+`f346a2ff`) and `Pass 430.1`'s composite slice
+  (`cb1c7263`): retype's `EditPlan` initializer was missing the new
+  `cid_to_gid` field (E0063 on the merged tree), and `plan_exact` had
+  grown one line past the 80-line function-structure limit. Fix:
+  retype sets no font extension, so `cid_to_gid: None`; the
+  Commit/Preview splice choice moved to a shared `PlanMode::content`.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Two Passes developed in parallel worktrees each compiled clean
+  alone; only the merged tree surfaced the struct-field collision —
+  verify the merged tree, not each branch, before calling a
+  parallel-worktree integration done.
+- No shell this filing. Hash and every figure below relayed from the
+  dispatching engineer's own report, not independently reproduced:
+  merged-tree suites green (core lib 2509, render lib 464, render
+  integration 474, cli 688); clippy `-D warnings`, fmt, code-structure
+  (no new baseline entries), core-api-verbs clean.
+
+**Still in flight:** Unchanged from the 874th filing — `Pass 430.3`
+(route B, symbolic fonts) is the head of the `G073`–`G081` family;
+`436.2`/`436.3` remain in the `436.x` family.
+
+**For next session:** Pick up `430.3` per `ROADMAP.md`'s *Next up*
+ordering.
+
 ## 2026-10-02 (874th filing) — `Pass 430.1` FULLY SHIPPED (composite subset augmentation) + incidental `post`-table crash fix
 
 **Shipped:**
