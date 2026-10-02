@@ -45,6 +45,7 @@ mod import_structure_certified;
 mod in_place;
 mod ink_edit;
 mod inspect_reflow_preview;
+mod inspect_table_cells;
 mod inspect_text_blocks;
 mod layer_edit;
 mod list_annotations_rich_text;

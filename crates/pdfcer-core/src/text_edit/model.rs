@@ -41,7 +41,7 @@
 //! glyphs into `TextRun`s and inserted derived line breaks from two
 //! geometry signals — a baseline move (rule 1) and a backward jump on one
 //! baseline (rule 2, the two-column signal). Those breaks are re-used here
-//! directly: a Pass-4 [`TextOrigin::DerivedLineBreak`] run is a line
+//! directly: a Pass-4 [`TextOrigin::DerivedLineBreak`](crate::text_extract::TextOrigin::DerivedLineBreak) run is a line
 //! boundary this module trusts, so the "line" layer is Pass 4's own S5
 //! derivation, not a re-derivation of it. On top of that, only the
 //! genuinely new judgements are made: grouping lines into **columns** by
@@ -56,10 +56,14 @@
 //! ```text
 //! PageText.runs  (Pass 4 output, content order)
 //!    │
-//!    ├─ Stage 1  Lines    split at DerivedLineBreak runs AND at a
-//!    │                    within-run baseline jump > line_baseline_ratio·size
+//!    ├─ Stage 1  Lines    split at DerivedLineBreak runs, at a within-run
+//!    │                    baseline jump > line_baseline_ratio·size
 //!    │                    (defensive; a source that omitted breaks still
-//!    │                    segments). Artifact runs are excluded + counted;
+//!    │                    segments), and where the glyph's table cell
+//!    │                    changes (recognize_with_cells). Then cut a non-cell
+//!    │                    line at a column gutter: a forward gap of at least
+//!    │                    gutter_min_em that lines up on gutter_min_lines
+//!    │                    lines. Artifact runs are excluded + counted;
 //!    │                    ActualText runs are counted atomic (no glyphs to
 //!    │                    split — §14.9.4 N4 makes per-char mapping
 //!    │                    impossible).
@@ -68,13 +72,15 @@
 //!    │                    column_overlap_ratio of the narrower span; order
 //!    │                    the resulting columns left-to-right (the derived
 //!    │                    reading order for an untagged multi-column page,
-//!    │                    §14.8.2.3.1).
+//!    │                    §14.8.2.3.1). Body lines are banded before
+//!    │                    cell lines, so a table cannot fuse two columns.
 //!    │
 //!    └─ Stage 3  Blocks   within each column (top-to-bottom), start a new
 //!                         paragraph when the baseline gap exceeds the
 //!                         column's typical leading by paragraph_leading_ratio,
 //!                         or when a line is indented from the column margin
-//!                         by more than indent_ratio·size.
+//!                         by more than indent_ratio·size. Each table cell
+//!                         holding text is one BlockKind::TableCell block.
 //! ```
 //!
 //! Every threshold above is a **tuning knob with no spec basis** (S1–S9),
@@ -93,8 +99,15 @@
 //! what lets a future `pdfce-gui` canvas tool and the `pdfcer` inspector
 //! share this one model.
 
+mod cells;
+mod gutter;
+mod navigate;
+mod stages;
+
+pub use cells::{CellRegion, detect_cell_regions};
+
 use crate::page_tree::Rect;
-use crate::text_extract::{ExtractedGlyph, GlyphProvenance, PageText, TextOrigin};
+use crate::text_extract::{ExtractedGlyph, GlyphProvenance, PageText};
 
 /// A reference back to one glyph in the source [`PageText`].
 ///
@@ -158,7 +171,7 @@ impl TextPosition {
 /// A recognized line: a baseline-clustered, x-monotonic group of glyphs.
 ///
 /// Derived (S5). A line is Pass 4's own line — the glyphs between two
-/// [`TextOrigin::DerivedLineBreak`] runs — plus the defensive
+/// [`TextOrigin::DerivedLineBreak`](crate::text_extract::TextOrigin::DerivedLineBreak) runs — plus the defensive
 /// baseline-jump split (see the module docs), grouped so a caret can walk
 /// it and a column/paragraph pass can stack it.
 #[derive(Debug, Clone, PartialEq)]
@@ -209,22 +222,31 @@ pub struct Line {
     /// Which [`EditableTextModel::columns`] band this line was clustered
     /// into (0-based, left-to-right).
     pub column: usize,
-    /// Which [`EditableTextModel::blocks`] entry (paragraph) this line
-    /// belongs to.
+    /// Which [`EditableTextModel::blocks`] entry this line belongs to.
     pub block: usize,
+    /// Which [`EditableTextModel::cells`] entry this line lies in, or `None`
+    /// outside every table cell. A line never spans two cells.
+    pub cell: Option<usize>,
 }
 
 /// What kind of block was recognized.
-///
-/// Only [`BlockKind::Paragraph`] exists in Pass 14.0; the enum is
-/// `#[non_exhaustive]` so later Passes can name headings, list items,
-/// table cells, etc. without a breaking change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum BlockKind {
     /// A paragraph: vertically-adjacent lines in one column, bounded by a
     /// leading gap or an indent.
     Paragraph,
+    /// Every line inside one table cell. The cell's rectangle is
+    /// [`Block::cell_rect`]; the fields locate it in its table with the
+    /// meaning they have on [`CellRegion`].
+    TableCell {
+        /// Which table on the page ([`CellRegion::table`]).
+        table: usize,
+        /// The cell's first row, 0 at the top.
+        row: usize,
+        /// The cell's first column, 0 at the left.
+        column: usize,
+    },
 }
 
 /// A recognized block (paragraph): the reviewable unit a future UI will
@@ -236,9 +258,10 @@ pub enum BlockKind {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Block {
-    /// The block's kind (always [`BlockKind::Paragraph`] in this Pass).
+    /// The block's kind.
     pub kind: BlockKind,
-    /// Which column band this block sits in.
+    /// Which column band this block sits in (for a table cell, the band of
+    /// its first line).
     pub column: usize,
     /// Indices into [`EditableTextModel::lines`], top-to-bottom. Not a
     /// contiguous range: a column's lines are a subset of the global,
@@ -247,6 +270,10 @@ pub struct Block {
     /// Bounding box in default user space — the union of the block's
     /// lines' boxes.
     pub bbox: Rect,
+    /// The cell's rectangle when [`Self::kind`] is [`BlockKind::TableCell`],
+    /// else `None`. Reflow wraps a cell block at this rectangle's inner
+    /// width and reports overflow past its bottom without moving it.
+    pub cell_rect: Option<Rect>,
 }
 
 /// What the block-recognition pass had to derive — every count, so the
@@ -272,6 +299,14 @@ pub struct BlockDiagnostics {
     /// Within-run baseline-jump splits made defensively (a line boundary
     /// Pass 4 did not already mark). DERIVED.
     pub lines_split_by_baseline: u64,
+    /// Line splits made because consecutive glyphs fall in different table
+    /// cells (or one in a cell and one outside).
+    pub lines_split_by_cell: u64,
+    /// Line cuts made at a column gutter
+    /// ([`BlockRecognitionOptions::gutter_min_em`]). DERIVED.
+    pub lines_split_by_gutter: u64,
+    /// Blocks made from table cells ([`BlockKind::TableCell`]).
+    pub table_cell_blocks: u64,
     /// `/ActualText` runs left ATOMIC — counted, not split. §14.9.4 N4
     /// makes per-character mapping to glyph positions impossible, so an
     /// `/ActualText` run has no glyphs to cluster; it is reported, not
@@ -356,6 +391,15 @@ pub struct BlockRecognitionOptions {
     /// ways, and [`Line::direction`] — taken from the first glyph — would
     /// be a claim about the rest that nothing enforced.
     pub same_direction_cos: f32,
+    /// A forward gap inside a horizontal line at least this many ems wide
+    /// is a column-gutter candidate. Default `1.5`, well past a justified
+    /// word space; `f32::INFINITY` disables the gutter rule.
+    pub gutter_min_em: f32,
+    /// A gutter candidate cuts its line only when at least this many lines,
+    /// itself included, carry a candidate overlapping it by half an em.
+    /// Default `3`, so one wide gap (a right-aligned page number) is left
+    /// alone; a tab-aligned list or form of 3+ rows is cut into bands.
+    pub gutter_min_lines: usize,
 }
 
 impl Default for BlockRecognitionOptions {
@@ -366,6 +410,8 @@ impl Default for BlockRecognitionOptions {
             indent_ratio: 1.0,
             line_baseline_ratio: 0.30,
             same_direction_cos: crate::text_extract::SAME_DIRECTION_COS,
+            gutter_min_em: 1.5,
+            gutter_min_lines: 3,
         }
     }
 }
@@ -387,74 +433,8 @@ pub struct EditableTextModel<'a> {
     lines: Vec<Line>,
     blocks: Vec<Block>,
     columns: usize,
+    cells: Vec<CellRegion>,
     diagnostics: BlockDiagnostics,
-}
-
-/// A line under construction in Stage 1, before column/block assignment.
-struct RawLine {
-    glyphs: Vec<GlyphRef>,
-    baseline_y: f32,
-    size: f32,
-    /// The line's writing direction, from its first glyph.
-    direction: (f32, f32),
-    /// The first glyph's origin — the point every in-frame projection in
-    /// [`EditableTextModel::hit_in_line`] is measured from.
-    origin: (f32, f32),
-    llx: f32,
-    lly: f32,
-    urx: f32,
-    ury: f32,
-}
-
-impl RawLine {
-    fn new(gref: GlyphRef, g: &ExtractedGlyph) -> Self {
-        let mut line = Self {
-            glyphs: Vec::new(),
-            baseline_y: g.y,
-            size: g.size,
-            direction: g.direction,
-            origin: (g.x, g.y),
-            llx: f32::MAX,
-            lly: f32::MAX,
-            urx: f32::MIN,
-            ury: f32::MIN,
-        };
-        line.push(gref, g);
-        line
-    }
-
-    fn push(&mut self, gref: GlyphRef, g: &ExtractedGlyph) {
-        self.glyphs.push(gref);
-        self.size = self.size.max(g.size);
-        // Glyph box, one em tall from the baseline with a quarter-em
-        // descender — the same approximation Pass 4's run box uses, and
-        // `Pass 139.2` makes that literal: this calls the SAME function
-        // rather than restating the expression. It used to be a fourth
-        // hand-written copy of `min(x, x + advance)` etc., and was
-        // therefore wrong for rotated text in the same way the other
-        // three were, which is exactly `R92`'s failure mode.
-        let cell = crate::text_extract::glyph_cell(g.x, g.y, g.advance, g.size, g.direction);
-        self.llx = self.llx.min(cell.llx as f32);
-        self.urx = self.urx.max(cell.urx as f32);
-        self.lly = self.lly.min(cell.lly as f32);
-        self.ury = self.ury.max(cell.ury as f32);
-    }
-
-    fn bbox(&self) -> Rect {
-        Rect::from_corners(
-            f64::from(self.llx),
-            f64::from(self.lly),
-            f64::from(self.urx),
-            f64::from(self.ury),
-        )
-    }
-}
-
-/// A column band under construction in Stage 2.
-struct ColumnAgg {
-    llx: f32,
-    urx: f32,
-    lines: Vec<usize>,
 }
 
 impl<'a> EditableTextModel<'a> {
@@ -489,10 +469,30 @@ impl<'a> EditableTextModel<'a> {
     /// ```
     #[must_use]
     pub fn recognize(page: &'a PageText, options: &BlockRecognitionOptions) -> Self {
+        Self::recognize_with_cells(page, options, &[])
+    }
+
+    /// [`Self::recognize`], with the page's table cells as hard boundaries:
+    /// a line never joins glyphs from two cells, and each cell holding text
+    /// becomes one [`BlockKind::TableCell`] block, after every paragraph
+    /// block. With no cells this is exactly [`Self::recognize`].
+    ///
+    /// Get the cells from [`detect_cell_regions`] (ruled tables) or build
+    /// them with [`CellRegion::from_tables`]. Reflow resolves block indices
+    /// against [`detect_cell_regions`] and
+    /// [`reflow_recognition_options`](super::reflow_recognition_options), so
+    /// a shell naming a block for reflow builds its model the same way.
+    #[must_use]
+    pub fn recognize_with_cells(
+        page: &'a PageText,
+        options: &BlockRecognitionOptions,
+        cells: &[CellRegion],
+    ) -> Self {
         let mut diagnostics = BlockDiagnostics::default();
-        let raw_lines = Self::cluster_lines(page, options, &mut diagnostics);
-        let (mut lines, columns) = Self::cluster_columns(raw_lines, options, &mut diagnostics);
-        let blocks = Self::segment_blocks(&mut lines, columns, options, &mut diagnostics);
+        let raw_lines = Self::cluster_lines(page, options, cells, &mut diagnostics);
+        let raw_lines = gutter::split_gutters(page, raw_lines, options, &mut diagnostics);
+        let (mut lines, columns) = Self::cluster_columns(raw_lines, options);
+        let blocks = Self::segment_blocks(&mut lines, columns, cells, options, &mut diagnostics);
 
         diagnostics.lines_recognized = lines.len() as u64;
         diagnostics.columns_recognized = columns as u64;
@@ -513,326 +513,45 @@ impl<'a> EditableTextModel<'a> {
                 columns
             ));
         }
+        if diagnostics.table_cell_blocks > 0 {
+            diagnostics.note(format!(
+                "text-blocks: {} table cell(s) became blocks; cell boundaries come from table \
+                 detection, and no line joins text across them",
+                diagnostics.table_cell_blocks
+            ));
+        }
+        if diagnostics.lines_split_by_gutter > 0 {
+            diagnostics.note(format!(
+                "text-blocks: {} line(s) were cut at a column gutter, a wide gap that lines up \
+                 on several lines (DERIVED)",
+                diagnostics.lines_split_by_gutter
+            ));
+        }
 
         Self {
             page,
             lines,
             blocks,
             columns,
+            cells: cells.to_vec(),
             diagnostics,
-        }
-    }
-
-    // -- Stage 1: lines ---------------------------------------------------
-
-    /// Split `page.runs` into raw lines at Pass 4's derived line breaks and
-    /// at a defensive within-line baseline jump (module docs, Stage 1).
-    fn cluster_lines(
-        page: &PageText,
-        options: &BlockRecognitionOptions,
-        diagnostics: &mut BlockDiagnostics,
-    ) -> Vec<RawLine> {
-        let mut lines: Vec<RawLine> = Vec::new();
-        let mut current: Option<RawLine> = None;
-
-        for (ri, run) in page.runs.iter().enumerate() {
-            match run.origin {
-                // A Pass-4 derived line break (baseline move OR two-column
-                // backward jump, S5) closes the current line.
-                TextOrigin::DerivedLineBreak => {
-                    if let Some(line) = current.take() {
-                        lines.push(line);
-                    }
-                }
-                // A derived word space stays within the line.
-                TextOrigin::DerivedWordSpace => {}
-                // An /ActualText run has no glyphs to cluster (§14.9.4 N4);
-                // count it and leave it out of the hierarchy.
-                TextOrigin::ActualText => diagnostics.atomic_runs += 1,
-                TextOrigin::Glyphs => {
-                    if run.artifact.is_some() {
-                        // Body-text-adjacent, not body text: count + skip.
-                        diagnostics.artifact_runs_skipped += 1;
-                        continue;
-                    }
-                    for (gi, g) in run.glyphs.iter().enumerate() {
-                        let gref = GlyphRef::new(ri, gi);
-                        // `Pass 139.2`: the defensive split is measured
-                        // PERPENDICULAR TO THE LINE, not along the page's
-                        // y axis.
-                        //
-                        // Written in page axes this clause read
-                        // `(g.y - line.baseline_y).abs() > ratio * size`,
-                        // and on a 90° line every glyph advances one whole
-                        // advance in `y` — so it fired between EVERY
-                        // LETTER and shattered a six-letter vertical label
-                        // into six one-glyph lines. Measured on
-                        // `rotated-text.pdf` before this change: 16 lines
-                        // for four lines of text.
-                        //
-                        // That is worth noticing on its own: `Pass
-                        // 139.1` had already stopped the EXTRACTION from
-                        // fragmenting rotated text, so `page.runs` held
-                        // one clean run per block — and this stage
-                        // re-fragmented it immediately. A second copy of
-                        // the same page-axis assumption, in a second
-                        // module, defeating the fix upstream of it. It was
-                        // found by SABOTAGE, not by a failing test: with
-                        // the runs already correct, the hit-test tests
-                        // passed for the wrong reason (each glyph had
-                        // become its own line, so each probe trivially
-                        // found "its" line).
-                        //
-                        // A direction change also splits, for the same
-                        // reason `layout::classify` breaks on one: a line
-                        // whose glyphs run two different ways has no
-                        // single direction to publish, and `Line::bbox`
-                        // and `hit_in_line` both need one.
-                        let jumped = current.as_ref().is_some_and(|line| {
-                            let size = line.size.max(g.size).max(1e-6);
-                            let (dx, dy) = line.direction;
-                            if dx * g.direction.0 + dy * g.direction.1 < options.same_direction_cos
-                            {
-                                return true;
-                            }
-                            // Perpendicular displacement from the line's
-                            // own origin: `d × dir`. For `dir = (1, 0)`
-                            // this is `−(g.y − baseline_y)`, and only its
-                            // magnitude is compared — the historical
-                            // expression, term for term.
-                            let (ox, oy) = line.origin;
-                            let perp = (g.x - ox) * dy - (g.y - oy) * dx;
-                            perp.abs() > options.line_baseline_ratio * size
-                        });
-                        if jumped {
-                            if let Some(line) = current.take() {
-                                lines.push(line);
-                            }
-                            diagnostics.lines_split_by_baseline += 1;
-                        }
-                        diagnostics.glyphs_clustered += 1;
-                        match current.as_mut() {
-                            Some(line) => line.push(gref, g),
-                            None => current = Some(RawLine::new(gref, g)),
-                        }
-                    }
-                }
-            }
-        }
-        if let Some(line) = current.take() {
-            lines.push(line);
-        }
-        lines
-    }
-
-    // -- Stage 2: columns -------------------------------------------------
-
-    /// Cluster raw lines into left-to-right column bands by horizontal
-    /// overlap, and finalize each into a [`Line`] with its column set
-    /// (module docs, Stage 2). Returns the finalized lines and the column
-    /// count.
-    fn cluster_columns(
-        raw: Vec<RawLine>,
-        options: &BlockRecognitionOptions,
-        _diagnostics: &mut BlockDiagnostics,
-    ) -> (Vec<Line>, usize) {
-        let mut columns: Vec<ColumnAgg> = Vec::new();
-
-        for (li, line) in raw.iter().enumerate() {
-            let (llx, urx) = (line.llx, line.urx);
-            let line_w = (urx - llx).max(0.0);
-            // Choose the existing band with the greatest qualifying overlap.
-            let mut best: Option<(usize, f32)> = None;
-            for (ci, col) in columns.iter().enumerate() {
-                let overlap = (urx.min(col.urx) - llx.max(col.llx)).max(0.0);
-                let col_w = (col.urx - col.llx).max(0.0);
-                let narrower = line_w.min(col_w).max(1e-6);
-                if overlap >= options.column_overlap_ratio * narrower
-                    && best.is_none_or(|(_, b)| overlap > b)
-                {
-                    best = Some((ci, overlap));
-                }
-            }
-            match best {
-                Some((ci, _)) => {
-                    if let Some(col) = columns.get_mut(ci) {
-                        col.llx = col.llx.min(llx);
-                        col.urx = col.urx.max(urx);
-                        col.lines.push(li);
-                    }
-                }
-                None => columns.push(ColumnAgg {
-                    llx,
-                    urx,
-                    lines: vec![li],
-                }),
-            }
-        }
-
-        // Order bands left-to-right; that ordering IS the derived reading
-        // order for an untagged multi-column page (§14.8.2.3.1). Rank a
-        // copy of the (left-edge, band-index) pairs so the comparator never
-        // indexes back into `columns` (the crate's panic-free policy).
-        let mut ranked: Vec<(f32, usize)> = columns
-            .iter()
-            .enumerate()
-            .map(|(ci, col)| (col.llx, ci))
-            .collect();
-        ranked.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-        // Map original band index -> left-to-right column index.
-        let mut column_of = vec![0usize; columns.len()];
-        for (new_ci, &(_, old_ci)) in ranked.iter().enumerate() {
-            if let Some(slot) = column_of.get_mut(old_ci) {
-                *slot = new_ci;
-            }
-        }
-
-        // Finalize lines, stamping each with its column (block set later).
-        let mut lines: Vec<Line> = Vec::with_capacity(raw.len());
-        for (ci, col) in columns.iter().enumerate() {
-            let column = column_of.get(ci).copied().unwrap_or(0);
-            for &li in &col.lines {
-                if let Some(src) = raw.get(li) {
-                    lines.push(Line {
-                        glyphs: src.glyphs.clone(),
-                        baseline_y: src.baseline_y,
-                        direction: src.direction,
-                        size: src.size,
-                        bbox: src.bbox(),
-                        column,
-                        block: 0,
-                    });
-                }
-            }
-        }
-        (lines, columns.len())
-    }
-
-    // -- Stage 3: blocks (paragraphs) -------------------------------------
-
-    /// Segment each column's lines into paragraphs by leading gap and
-    /// first-line indent, stamping every line's `block` field (module
-    /// docs, Stage 3).
-    fn segment_blocks(
-        lines: &mut [Line],
-        columns: usize,
-        options: &BlockRecognitionOptions,
-        diagnostics: &mut BlockDiagnostics,
-    ) -> Vec<Block> {
-        let mut blocks: Vec<Block> = Vec::new();
-
-        for column in 0..columns {
-            // Snapshot this column's lines as (index, baseline_y, left,
-            // size), top-to-bottom (higher y first). Working on the
-            // snapshot keeps every access below out of the panic-prone
-            // indexing path (the crate's panic-free policy) — the only
-            // index used again is a checked `get_mut` when stamping blocks.
-            let mut col_lines: Vec<(usize, f32, f64, f32)> = lines
-                .iter()
-                .enumerate()
-                .filter(|(_, l)| l.column == column)
-                .map(|(i, l)| (i, l.baseline_y, l.bbox.llx, l.size))
-                .collect();
-            col_lines.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
-            // The column's left margin: the smallest line-left in the band.
-            let margin = col_lines
-                .iter()
-                .map(|&(_, _, llx, _)| llx)
-                .fold(f64::MAX, f64::min);
-
-            // Typical leading: the median of consecutive baseline gaps —
-            // robust to one outsized paragraph gap, unlike the mean.
-            let mut gaps: Vec<f32> = col_lines
-                .windows(2)
-                .filter_map(|w| match w {
-                    [a, b] => Some(a.1 - b.1),
-                    _ => None,
-                })
-                .collect();
-            let typical = median(&mut gaps);
-
-            let mut current: Vec<usize> = Vec::new();
-            let mut prev_baseline: Option<f32> = None;
-            for &(i, baseline_y, llx, size) in &col_lines {
-                let start_new = match prev_baseline {
-                    None => false,
-                    Some(prev_y) => {
-                        let gap = prev_y - baseline_y;
-                        let leading_break = typical > 0.0
-                            && gap > (1.0 + options.paragraph_leading_ratio) * typical;
-                        let indent = llx - margin;
-                        let indent_break = indent > f64::from(options.indent_ratio * size);
-                        if leading_break {
-                            diagnostics.paragraph_breaks_by_leading += 1;
-                        }
-                        // Count an indent break only when it is the reason
-                        // (not already a leading break), so the two counters
-                        // partition the paragraph starts.
-                        if indent_break && !leading_break {
-                            diagnostics.paragraph_breaks_by_indent += 1;
-                        }
-                        leading_break || indent_break
-                    }
-                };
-                if start_new && !current.is_empty() {
-                    blocks.push(Self::finish_block(
-                        lines,
-                        column,
-                        std::mem::take(&mut current),
-                    ));
-                }
-                current.push(i);
-                prev_baseline = Some(baseline_y);
-            }
-            if !current.is_empty() {
-                blocks.push(Self::finish_block(lines, column, current));
-            }
-        }
-
-        // Stamp every line with the block it landed in.
-        for (bi, block) in blocks.iter().enumerate() {
-            for &li in &block.line_indices {
-                if let Some(line) = lines.get_mut(li) {
-                    line.block = bi;
-                }
-            }
-        }
-        blocks
-    }
-
-    /// Build a [`Block`] from a column's paragraph line indices, unioning
-    /// their boxes.
-    fn finish_block(lines: &[Line], column: usize, line_indices: Vec<usize>) -> Block {
-        let mut bbox: Option<Rect> = None;
-        for &li in &line_indices {
-            let Some(line) = lines.get(li) else { continue };
-            let b = line.bbox;
-            bbox = Some(match bbox {
-                None => b,
-                Some(acc) => Rect {
-                    llx: acc.llx.min(b.llx),
-                    lly: acc.lly.min(b.lly),
-                    urx: acc.urx.max(b.urx),
-                    ury: acc.ury.max(b.ury),
-                },
-            });
-        }
-        Block {
-            kind: BlockKind::Paragraph,
-            column,
-            line_indices,
-            bbox: bbox.unwrap_or_else(|| Rect::from_corners(0.0, 0.0, 0.0, 0.0)),
         }
     }
 
     // -- Accessors --------------------------------------------------------
 
-    /// The recognized blocks (paragraphs), in column-major, top-to-bottom
-    /// order.
+    /// The recognized blocks: paragraphs in column-major, top-to-bottom
+    /// order, then table cells by table, row and column.
     #[must_use]
     pub fn blocks(&self) -> &[Block] {
         &self.blocks
+    }
+
+    /// The table cells this model was recognized against;
+    /// [`Line::cell`] indexes them. Empty after [`Self::recognize`].
+    #[must_use]
+    pub fn cells(&self) -> &[CellRegion] {
+        &self.cells
     }
 
     /// The recognized lines. [`Line::column`] and [`Line::block`] index the
@@ -915,562 +634,5 @@ impl<'a> EditableTextModel<'a> {
             }
         }
         out
-    }
-
-    // -- Hit-test and selection ------------------------------------------
-
-    /// Map a page-space point to a caret [`TextPosition`].
-    ///
-    /// Finds the line whose box contains `(x, y)` — or, if none does, the
-    /// nearest line **within reach** — then the glyph on that line whose
-    /// extent along the line contains the point (or the nearest), and
-    /// resolves to the glyph's leading or trailing boundary by which half
-    /// of the glyph it fell in. Pure geometry over the borrowed page;
-    /// introduces no GUI type.
-    ///
-    /// # `None` means "no text here" — the reach is one line-height
-    ///
-    /// A line is *in reach* when the point lies inside its box **inflated
-    /// by one line-height on every side** (the larger of the line's font
-    /// size and its box height). That keeps the gesture every editor
-    /// relies on — clicking just past the last character puts the caret
-    /// after it, clicking a little above or below a line still lands on
-    /// it — and makes a click on blank paper answer `None`.
-    ///
-    /// **Until 2026-09-05 this fell back to the nearest line at ANY
-    /// distance**, so `None` was reachable only on a page with no text at
-    /// all; the doc comment said so and read as a description rather than
-    /// the defect it was. `pdfcer-gui` measured it: a point 100 000 pt to
-    /// the right of a 612 pt page, and one a billion points away, both
-    /// resolved to a run, which made its *click-in-space-to-add-text*
-    /// gesture dead code on every real document — it was asking a
-    /// placement-that-never-fails and reading the answer as a presence
-    /// test. The bound is derived from the line rather than taken as a
-    /// parameter (their shape (a)) so that every caller, including ones not
-    /// yet written, gets the presence semantics without a second opinion
-    /// about this crate's geometry. The bound is axis-aligned in page
-    /// space, which for a rotated line is its page-space box inflated the
-    /// same way — generous, never tighter than the line itself.
-    #[must_use]
-    pub fn hit_test(&self, x: f64, y: f64) -> Option<TextPosition> {
-        // Pick the line: a containing box wins outright; otherwise the
-        // nearest-by-baseline line whose INFLATED box contains the point.
-        let mut chosen: Option<&Line> = None;
-        let mut best_dy = f64::MAX;
-        for line in &self.lines {
-            let b = line.bbox;
-            if y >= b.lly && y <= b.ury && x >= b.llx && x <= b.urx {
-                return self.hit_in_line(line, x, y);
-            }
-            let reach = f64::from(line.size).max(b.ury - b.lly).max(0.0);
-            let in_reach = x >= b.llx - reach
-                && x <= b.urx + reach
-                && y >= b.lly - reach
-                && y <= b.ury + reach;
-            if !in_reach {
-                continue;
-            }
-            let dy = (y - f64::from(line.baseline_y)).abs();
-            if dy < best_dy {
-                best_dy = dy;
-                chosen = Some(line);
-            }
-        }
-        chosen.and_then(|line| self.hit_in_line(line, x, y))
-    }
-
-    /// Resolve a page-space point to a caret within one line: the glyph
-    /// whose extent **along the line's own writing direction** contains it
-    /// (leading/trailing half), else clamp to the line ends.
-    ///
-    /// # `Pass 139.2`: projected onto the line, not onto the page x axis
-    ///
-    /// Every comparison here used to be against `x` alone — `g.x` versus
-    /// `g.x + g.advance` — which is right for a horizontal line and
-    /// meaningless for any other. On a line stamped at 90° all of its
-    /// glyphs share one `x`, so the first glyph "contained" every click
-    /// and the caret never moved; on a 180° line the extents ran the wrong
-    /// way and both ends collapsed onto one slot. Driven by the consuming
-    /// shell before the fix: a sweep down a six-letter 90° string selected
-    /// **five** of them, and a sweep along an eight-letter 180° string
-    /// selected **nothing at all**.
-    ///
-    /// The generalisation is one projection. `t` is the point's distance
-    /// along the line's direction from the line's own origin, and each
-    /// glyph's extent is `[t0, t0 + advance]` in the same coordinate. For
-    /// `direction = (1, 0)` and a line whose origin is its leftmost glyph,
-    /// `t` is `x − origin.x` and every comparison below reduces term for
-    /// term to the ones it replaced.
-    ///
-    /// The perpendicular component is deliberately **discarded**: the
-    /// caller has already chosen the line (by box containment or by
-    /// nearest baseline), so how far off the baseline the click was is no
-    /// longer a question this function answers.
-    fn hit_in_line(&self, line: &Line, x: f64, y: f64) -> Option<TextPosition> {
-        let (dx, dy) = (f64::from(line.direction.0), f64::from(line.direction.1));
-        // The point, projected onto the line's direction. The origin the
-        // projection is measured from cancels out of every comparison
-        // below, so any fixed point on the line would do; the first
-        // glyph's is used because it is what `RawLine` already records.
-        let origin = self
-            .glyph(*line.glyphs.first()?)
-            .map(|g| (f64::from(g.x), f64::from(g.y)))?;
-        let along = |px: f64, py: f64| (px - origin.0) * dx + (py - origin.1) * dy;
-        let t = along(x, y);
-
-        let mut best: Option<(GlyphRef, &ExtractedGlyph, f64, f64)> = None;
-        for &gref in &line.glyphs {
-            let g = self.glyph(gref)?;
-            let t0 = along(f64::from(g.x), f64::from(g.y));
-            let t1 = t0 + f64::from(g.advance);
-            let (lo, hi) = (t0.min(t1), t0.max(t1));
-            if t >= lo && t <= hi {
-                let mid = (lo + hi) / 2.0;
-                return Some(self.boundary(gref, g, t > mid));
-            }
-            // Track the nearest glyph for the clamp-to-end fallback.
-            let dist = if t < lo { lo - t } else { t - hi };
-            if best.is_none_or(|(_, _, d, _)| dist < d) {
-                best = Some((gref, g, dist, t0));
-            }
-        }
-        best.map(|(gref, g, _, t0)| {
-            // Clamp: before the nearest glyph's midpoint ALONG THE LINE ⇒
-            // its leading edge; after ⇒ trailing. "Before" and "after" are
-            // the line's own sense of the words, not the page's — which is
-            // the whole point of the projection, and is why a 180° line
-            // used to clamp both ends to the same slot.
-            let trailing = t > t0 + f64::from(g.advance) / 2.0;
-            self.boundary(gref, g, trailing)
-        })
-    }
-
-    /// The caret position at a glyph's leading (`trailing == false`) or
-    /// trailing edge, as a byte offset into its run's text.
-    fn boundary(&self, gref: GlyphRef, g: &ExtractedGlyph, trailing: bool) -> TextPosition {
-        let offset = if trailing {
-            (g.text_start + g.text_len) as usize
-        } else {
-            g.text_start as usize
-        };
-        TextPosition::new(gref.run, offset)
-    }
-
-    // -- Boundary lookups (Pass 14.3 GUI: double/triple-click, Home/End) --
-    //
-    // The GUI's word/line selection and Home/End caret navigation need the
-    // Line a caret sits on, and the word/line span around it. Per decision
-    // 014 §4.1 ("core owns the derived structure") and Pass 14.3 UI spec
-    // §4.3, these live HERE — reusing the exact `text_start`/`text_len`
-    // glyph-boundary matching `hit_test`/`hit_in_line` already encode —
-    // rather than being re-derived (and possibly diverging) in `pdfce-gui`.
-    // All three are pure index/range arithmetic over the borrowed page; they
-    // add NO GUI type (the load-bearing GUI-core separation, §3).
-
-    /// The [`Self::lines`] index of the line containing caret `pos`, or
-    /// `None` if no line holds a glyph of `pos.run` whose byte range brackets
-    /// `pos.byte_offset` (a stale reference, or a `pos.run` that carries no
-    /// clustered glyph — an `/ActualText`/whitespace run).
-    ///
-    /// This is the reverse of `hit_test`'s internal line-then-glyph walk:
-    /// where `hit_test` maps a *point* to a `(run, offset)`, this maps a
-    /// `(run, offset)` back to the *line* it was clustered into. A run's
-    /// glyphs may be split across lines by a baseline jump (module docs,
-    /// Stage 1), so the match is per-glyph, not per-run: the first line (in
-    /// content order) carrying a `pos.run` glyph whose
-    /// `[text_start, text_start+text_len]` closed interval contains
-    /// `pos.byte_offset` wins. The interval is closed so a caret exactly on a
-    /// glyph's trailing boundary resolves (it is a valid caret slot).
-    #[must_use]
-    pub fn line_at(&self, pos: TextPosition) -> Option<usize> {
-        for (li, line) in self.lines.iter().enumerate() {
-            for &gref in &line.glyphs {
-                if gref.run != pos.run {
-                    continue;
-                }
-                let Some(g) = self.glyph(gref) else { continue };
-                let lo = g.text_start as usize;
-                let hi = lo + g.text_len as usize;
-                if pos.byte_offset >= lo && pos.byte_offset <= hi {
-                    return Some(li);
-                }
-            }
-        }
-        None
-    }
-
-    /// The [`Self::blocks`] index of the block (paragraph) containing caret
-    /// `pos`, or `None` when [`Self::line_at`] finds no line for `pos`.
-    ///
-    /// Sugar over [`Self::line_at`] then [`Line::block`] — the same "core owns
-    /// the derived structure" spirit as `line_at`/`word_range_at`/
-    /// `line_range_at` themselves (Pass 14.3 UI spec §4.3), so the three-line
-    /// composition does not reappear at every call site (CLI, GUI, tests).
-    /// Pure index arithmetic over the borrowed page; adds NO GUI type (the
-    /// load-bearing GUI-core separation, §3). Pass 15.2's reflow sub-mode
-    /// resolves "which paragraph is the caret in" through this against a model
-    /// built with [`super::reflow::reflow_recognition_options`].
-    #[must_use]
-    pub fn block_at(&self, pos: TextPosition) -> Option<usize> {
-        let li = self.line_at(pos)?;
-        self.lines.get(li).map(|l| l.block)
-    }
-
-    /// The first and last caret positions of the line containing `pos` — the
-    /// two ends Home/End move to (Pass 14.3 UI spec §4.5). `None` when
-    /// [`Self::line_at`] finds no line for `pos`.
-    ///
-    /// The ends are the leading boundary of the line's first glyph and the
-    /// trailing boundary of its last — each a real [`TextPosition`] on a
-    /// glyph boundary. A line may draw glyphs from more than one run (a
-    /// derived word space between two runs stays within the line), so the two
-    /// returned positions can name different runs; that is fine for caret
-    /// navigation (Home/End never commits an edit — a *selection* spanning
-    /// >1 run is refused separately, §4.4/UI spec).
-    #[must_use]
-    pub fn line_range_at(&self, pos: TextPosition) -> Option<(TextPosition, TextPosition)> {
-        let li = self.line_at(pos)?;
-        let line = self.lines.get(li)?;
-        let first = *line.glyphs.first()?;
-        let last = *line.glyphs.last()?;
-        let fg = self.glyph(first)?;
-        let lg = self.glyph(last)?;
-        let start = TextPosition::new(first.run, fg.text_start as usize);
-        let end = TextPosition::new(last.run, (lg.text_start + lg.text_len) as usize);
-        Some((start, end))
-    }
-
-    // -- Caret navigation geometry (Pass 14.4 GUI: arrows / Up-Down) ------
-    //
-    // Pass 14.4 completes the caret model with keyboard navigation (14.3 UI
-    // spec §4.5). Left/Right/Up/Down are pure traversals over structure this
-    // model already owns, so — like `line_at`/`word_range_at`/`line_range_at`
-    // in Pass 14.3 — they live HERE, not re-derived in `pdfce-gui`: the GUI's
-    // `PageText`/`TextRun`/`ExtractedGlyph` are `#[non_exhaustive]` and so
-    // cannot be constructed in a `pdfce-gui` unit test, which means core is
-    // also the only place these can be *headless-tested* (decision 014 §4.1's
-    // "core owns the derived structure" argument, reinforced by the crate
-    // boundary). All add NO GUI type (the load-bearing GUI-core separation,
-    // §3). Home/End need no new method — they are exactly
-    // [`Self::line_range_at`]'s two ends.
-
-    /// The page-space x of caret `pos` — the leading edge of the glyph that
-    /// begins at `pos.byte_offset`, or the trailing edge of the glyph that ends
-    /// there (Pass 14.4 Up/Down "nearest-x", UI spec §4.5). `None` when no
-    /// glyph in `pos.run` has a boundary exactly at `pos.byte_offset` (a stale
-    /// position, or a run — derived whitespace / `/ActualText` — carrying no
-    /// clustered glyph).
-    ///
-    /// This is the x-half of the vertical segment the GUI draws for a caret,
-    /// exposed so vertical navigation can compute a "desired column" through
-    /// the SAME glyph-boundary matching [`Self::hit_test`] / [`Self::line_range_at`]
-    /// already encode, rather than the GUI re-deriving glyph x-positions.
-    /// **A page-axis answer, and on a rotated line it is the wrong
-    /// question** (`Pass 139.2`). Every glyph of a 90° line shares one `x`,
-    /// so this returns the same number for every caret slot on it. The
-    /// signature is the limit — a scalar cannot name a point on a line
-    /// that is not horizontal — which is the same shape of defect
-    /// `PickedLine::object_index` had in `Pass 138.0`: an answer made
-    /// unrepresentable by its own return type.
-    ///
-    /// It is kept, un-deprecated, because for horizontal text it is
-    /// exactly right and is what "desired column" for Up/Down navigation
-    /// means. Use [`Self::caret_point`] when the line may be rotated.
-    #[must_use]
-    pub fn caret_x(&self, pos: TextPosition) -> Option<f32> {
-        self.caret_point(pos).map(|(x, _)| x)
-    }
-
-    /// **The page-space point of caret `pos`** — the origin of the glyph
-    /// that begins at `pos.byte_offset`, or the
-    /// [`advance_end`](crate::text_extract::ExtractedGlyph::advance_end) of
-    /// the glyph that ends there (`Pass 139.2`).
-    ///
-    /// `None` under exactly the same conditions as [`Self::caret_x`]: no
-    /// glyph in `pos.run` has a boundary at that offset, because the
-    /// position is stale or the run carries no clustered glyph (derived
-    /// whitespace, `/ActualText`).
-    ///
-    /// # Why this exists beside [`Self::caret_x`]
-    ///
-    /// A caret is a *point on a baseline*, and a baseline has a direction.
-    /// `caret_x` returns the x half of one, which is complete for
-    /// horizontal text and degenerate for anything else — on a 90° line
-    /// every slot has the same `x`. Pair this with the line's
-    /// [`Line::direction`] and a shell has everything it needs to draw the
-    /// caret *along* the text rather than always vertically.
-    #[must_use]
-    pub fn caret_point(&self, pos: TextPosition) -> Option<(f32, f32)> {
-        let run = self.page.runs.get(pos.run)?;
-        for g in &run.glyphs {
-            let lo = g.text_start as usize;
-            let hi = lo + g.text_len as usize;
-            if pos.byte_offset == lo {
-                return Some((g.x, g.y));
-            }
-            if pos.byte_offset == hi {
-                return Some(g.advance_end());
-            }
-        }
-        None
-    }
-
-    /// The caret on line `line_index` whose x-extent is nearest page-space `x`
-    /// — the same within-line resolution [`Self::hit_test`] performs
-    /// internally, exposed for ONE explicit line so vertical caret navigation
-    /// (Pass 14.4 Up/Down, UI spec §4.5) can land on the geometrically nearest
-    /// slot of the adjacent line without a third re-implementation of
-    /// nearest-glyph matching in the GUI (§3). `None` for an out-of-range
-    /// `line_index` or a line whose glyphs are all stale.
-    ///
-    /// **Page-axis, and it stays that way on purpose** (`Pass 139.2`).
-    /// `x` alone cannot name a slot on a line that is not horizontal, so
-    /// this delegates with the line's own `baseline_y` as the second
-    /// coordinate — which is exact for horizontal text and, for a rotated
-    /// line, resolves as though the caller had clicked on its baseline at
-    /// that `x`. Use [`Self::caret_on_line_nearest_point`] when the line
-    /// may be rotated. Not deprecated: this *is* the right shape for the
-    /// Up/Down "desired column" it was built for.
-    #[must_use]
-    pub fn caret_on_line_nearest_x(&self, line_index: usize, x: f64) -> Option<TextPosition> {
-        let line = self.lines.get(line_index)?;
-        let y = f64::from(line.baseline_y);
-        self.hit_in_line(line, x, y)
-    }
-
-    /// The caret on line `line_index` nearest a page-space **point**,
-    /// resolved along that line's own writing direction (`Pass 139.2`).
-    ///
-    /// The two-coordinate twin of [`Self::caret_on_line_nearest_x`], and
-    /// the same body — [`Self::hit_test`] calls it too, so there is one
-    /// implementation of within-line resolution rather than three. `None`
-    /// for an out-of-range `line_index` or a line whose glyphs are all
-    /// stale.
-    #[must_use]
-    pub fn caret_on_line_nearest_point(
-        &self,
-        line_index: usize,
-        x: f64,
-        y: f64,
-    ) -> Option<TextPosition> {
-        let line = self.lines.get(line_index)?;
-        self.hit_in_line(line, x, y)
-    }
-
-    /// Move the caret one glyph boundary left (Pass 14.4, UI spec §4.5).
-    ///
-    /// Steps within the run and, at a run's/line's start, across to the
-    /// previous run's last slot — a new line begins at a new run after a
-    /// [`TextOrigin::DerivedLineBreak`], so this glides across line boundaries
-    /// for free. At the document's very first slot it stays put (clamped, never
-    /// wraps). Empty runs (derived word-space / line-break / `/ActualText`)
-    /// carry no glyph and so contribute no slot — which is exactly why the step
-    /// skips over them.
-    #[must_use]
-    pub fn caret_left(&self, pos: TextPosition) -> TextPosition {
-        let key = pos.key();
-        self.caret_slots()
-            .into_iter()
-            .rev()
-            .find(|p| p.key() < key)
-            .unwrap_or(pos)
-    }
-
-    /// Move the caret one glyph boundary right (Pass 14.4, UI spec §4.5). The
-    /// mirror of [`Self::caret_left`]; clamps at the document's last slot.
-    #[must_use]
-    pub fn caret_right(&self, pos: TextPosition) -> TextPosition {
-        let key = pos.key();
-        self.caret_slots()
-            .into_iter()
-            .find(|p| p.key() > key)
-            .unwrap_or(pos)
-    }
-
-    /// Move the caret to the geometrically nearest slot on the line immediately
-    /// ABOVE the current one within the same column (Pass 14.4 Up, UI spec
-    /// §4.5). `desired_x` is the page-space column to preserve — the GUI passes
-    /// [`Self::caret_x`] of the current caret. Stays put when there is no line
-    /// above in the column, or the caret is not on a recognized line.
-    ///
-    /// "Above" is a LARGER baseline y: default user space y increases UP the
-    /// page (§9.4.4), the opposite of screen space.
-    #[must_use]
-    pub fn caret_up(&self, pos: TextPosition, desired_x: f32) -> TextPosition {
-        self.caret_vertical(pos, desired_x, true)
-    }
-
-    /// Move the caret to the nearest slot on the line immediately BELOW the
-    /// current one within the same column (Pass 14.4 Down, UI spec §4.5). The
-    /// mirror of [`Self::caret_up`] — "below" is a SMALLER baseline y.
-    #[must_use]
-    pub fn caret_down(&self, pos: TextPosition, desired_x: f32) -> TextPosition {
-        self.caret_vertical(pos, desired_x, false)
-    }
-
-    /// Shared body of [`Self::caret_up`] / [`Self::caret_down`]: find the
-    /// closest line in the same column on the requested side, then resolve
-    /// `desired_x` within it via [`Self::caret_on_line_nearest_x`].
-    fn caret_vertical(&self, pos: TextPosition, desired_x: f32, up: bool) -> TextPosition {
-        let Some(cur_idx) = self.line_at(pos) else {
-            return pos;
-        };
-        let Some(cur) = self.lines.get(cur_idx) else {
-            return pos;
-        };
-        // The nearest line on the requested side, by baseline distance, in the
-        // same column band (§14.8.2.3.1 reading order — never cross columns).
-        let mut best: Option<(usize, f32)> = None;
-        for (li, line) in self.lines.iter().enumerate() {
-            if li == cur_idx || line.column != cur.column {
-                continue;
-            }
-            let dy = line.baseline_y - cur.baseline_y;
-            let toward = if up { dy > 0.0 } else { dy < 0.0 };
-            if !toward {
-                continue;
-            }
-            let closer = best.is_none_or(|(_, by)| dy.abs() < (by - cur.baseline_y).abs());
-            if closer {
-                best = Some((li, line.baseline_y));
-            }
-        }
-        match best {
-            Some((li, _)) => self
-                .caret_on_line_nearest_x(li, f64::from(desired_x))
-                .unwrap_or(pos),
-            None => pos,
-        }
-    }
-
-    /// Every caret slot on the page — the leading and trailing byte boundary of
-    /// each clustered glyph — in `(run, byte_offset)` content order, de-duped.
-    /// The ordered spine [`Self::caret_left`] / [`Self::caret_right`] step
-    /// along.
-    fn caret_slots(&self) -> Vec<TextPosition> {
-        let mut slots = Vec::new();
-        for (ri, run) in self.page.runs.iter().enumerate() {
-            for g in &run.glyphs {
-                let lo = g.text_start as usize;
-                let hi = lo + g.text_len as usize;
-                slots.push(TextPosition::new(ri, lo));
-                slots.push(TextPosition::new(ri, hi));
-            }
-        }
-        slots.sort_by_key(|p| p.key());
-        slots.dedup();
-        slots
-    }
-
-    /// The word boundaries around caret `pos`, split on Unicode whitespace
-    /// **within `pos.run`'s own text** — what double-click selects (Pass 14.3
-    /// UI spec §4.3).
-    ///
-    /// A DERIVED judgement with the same honesty posture as every other
-    /// boundary in this model: word boundaries do not exist in an untagged
-    /// content stream any more than lines do (S1–S9), so this is a
-    /// whitespace split over the run's decoded text, not a sourced fact.
-    /// Both returned positions name `pos.run` (a word never spans runs), so
-    /// the result is always an editable single-run selection. When `pos.run`
-    /// is out of range the position is returned collapsed (`(pos, pos)`),
-    /// never a panic.
-    #[must_use]
-    pub fn word_range_at(&self, pos: TextPosition) -> (TextPosition, TextPosition) {
-        let Some(run) = self.page.runs.get(pos.run) else {
-            return (pos, pos);
-        };
-        let (lo, hi) = word_bounds(&run.text, pos.byte_offset);
-        (
-            TextPosition::new(pos.run, lo),
-            TextPosition::new(pos.run, hi),
-        )
-    }
-
-    /// The glyphs covered by the selection between two caret positions.
-    ///
-    /// Order-insensitive: the two positions are sorted, then every glyph
-    /// whose byte range intersects the covered span — from `start.byte_offset`
-    /// in the start run, through whole intervening runs, to `end.byte_offset`
-    /// in the end run — is returned, in content order. `/ActualText` and
-    /// derived-whitespace runs contribute no glyphs (they carry none), so a
-    /// selection across them yields exactly the real glyphs it covers.
-    #[must_use]
-    pub fn resolve_range(&self, a: TextPosition, b: TextPosition) -> Vec<GlyphRef> {
-        let (start, end) = if a.key() <= b.key() { (a, b) } else { (b, a) };
-        let mut covered = Vec::new();
-        let last = self.page.runs.len().saturating_sub(1);
-        for ri in start.run..=end.run.min(last) {
-            let Some(run) = self.page.runs.get(ri) else {
-                break;
-            };
-            // The byte window of this run that the selection covers.
-            let lo = if ri == start.run {
-                start.byte_offset
-            } else {
-                0
-            };
-            let hi = if ri == end.run {
-                end.byte_offset
-            } else {
-                run.text.len()
-            };
-            for (gi, g) in run.glyphs.iter().enumerate() {
-                let g0 = g.text_start as usize;
-                let g1 = g0 + g.text_len as usize;
-                // Intersection of [g0, g1) with [lo, hi); a zero-width caret
-                // window (lo == hi) selects nothing, which is correct.
-                if g0 < hi && g1 > lo {
-                    covered.push(GlyphRef::new(ri, gi));
-                }
-            }
-        }
-        covered
-    }
-}
-
-/// The `[start, end)` byte range of the whitespace-delimited word of `text`
-/// that contains byte offset `off` (Pass 14.3 double-click, UI spec §4.3).
-///
-/// `start` is just past the last Unicode-whitespace char strictly before
-/// `off` (or 0), and `end` is the first whitespace char at or after `off`
-/// (or `text.len()`). Both bounds are UTF-8 char boundaries, so they are
-/// valid caret slots; in a simple font each code is one glyph whose text is
-/// one code point, so a whitespace boundary is also a glyph boundary. `off`
-/// is clamped into range first, so an out-of-range offset never panics. When
-/// `off` sits on a whitespace char the returned range is the preceding word
-/// (its `end` collapses onto `off`), which is the intuitive double-click
-/// result on inter-word space.
-fn word_bounds(text: &str, off: usize) -> (usize, usize) {
-    let off = off.min(text.len());
-    let mut start = 0usize;
-    let mut end = text.len();
-    for (i, c) in text.char_indices() {
-        if i < off {
-            if c.is_whitespace() {
-                start = i + c.len_utf8();
-            }
-        } else if c.is_whitespace() {
-            end = i;
-            break;
-        }
-    }
-    (start, end)
-}
-
-/// The median of `gaps` (sorts in place). `0.0` for an empty slice — a
-/// column of one line has no leading to speak of, so nothing can exceed
-/// it, which correctly yields one block.
-fn median(gaps: &mut [f32]) -> f32 {
-    if gaps.is_empty() {
-        return 0.0;
-    }
-    gaps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let mid = gaps.len() / 2;
-    if gaps.len() % 2 == 1 {
-        gaps.get(mid).copied().unwrap_or(0.0)
-    } else {
-        let lo = gaps.get(mid.wrapping_sub(1)).copied().unwrap_or(0.0);
-        let hi = gaps.get(mid).copied().unwrap_or(0.0);
-        (lo + hi) / 2.0
     }
 }

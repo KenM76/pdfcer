@@ -82,6 +82,7 @@ pub mod placetext;
 pub mod program_glyphs;
 pub mod reflow;
 pub mod reflow_apply;
+pub mod reflow_fit;
 pub mod refusal_kind;
 pub(crate) mod repertoire;
 pub(crate) mod sibling;
@@ -128,8 +129,8 @@ pub use forms::{
 };
 pub use merge::{MergeFit, MergeOptions, MergeReport, MergeSeparator};
 pub use model::{
-    Block, BlockDiagnostics, BlockKind, BlockRecognitionOptions, EditableTextModel, GlyphRef, Line,
-    TextPosition,
+    Block, BlockDiagnostics, BlockKind, BlockRecognitionOptions, CellRegion, EditableTextModel,
+    GlyphRef, Line, TextPosition, detect_cell_regions,
 };
 pub use placetext::{
     DEFAULT_MARGIN_PT, PageTemplate, PlaceTextError, PlaceTextReport, Unmappable, blank_document,
@@ -142,6 +143,7 @@ pub use reflow::{
 pub use reflow_apply::{
     ReflowApplyError, ReflowApplyReport, ReflowDecline, ReflowOutcome, apply_reflow,
 };
+pub use reflow_fit::CellOverflow;
 pub use synth::{
     BOLD_STROKE_RATIO, OBLIQUE_TAN, StyleSynthesis, SynthesisOffer, SynthesisPath,
     bold_stroke_width, detect as detect_style_synthesis,

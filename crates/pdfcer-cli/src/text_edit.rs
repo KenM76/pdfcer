@@ -1187,6 +1187,12 @@ justified_lines={} height_delta={:.1}",
             ov.past_bottom_pt, ov.lines_outside
         );
     }
+    if let Some(co) = report.cell_overflow {
+        println!(
+            "  cell_overflow: past_bottom={:.1}pt past_right={:.1}pt lines_outside={} (cell not resized)",
+            co.past_bottom_pt, co.past_right_pt, co.lines_outside
+        );
+    }
     if let Some(mcid) = report.tagged_mcid {
         println!("  tagged_mcid={mcid}");
     }

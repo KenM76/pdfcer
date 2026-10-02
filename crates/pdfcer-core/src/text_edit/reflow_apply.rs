@@ -146,6 +146,7 @@ use super::reflow::{
     BlockAlignment, PageOverflow, ReflowEngine, ReflowLine, ReflowPreview, ReflowRequest,
     tokenise_block,
 };
+use super::reflow_fit::CellOverflow;
 
 /// Axis-alignment / near-zero tolerance for matrix entries and scales,
 /// points. Below this a matrix off-diagonal is treated as zero (upright) and
@@ -189,6 +190,10 @@ pub struct ReflowApplyReport {
     /// A disclosed page-overflow condition, if the re-wrap grew the block
     /// past the page cropbox (§3.5 / R76). Content is still emitted.
     pub overflow: Option<PageOverflow>,
+    /// A disclosed table-cell overflow, if the block is a table cell and the
+    /// re-wrapped text does not fit it. Content is still emitted; the cell
+    /// and the rows below are not moved.
+    pub cell_overflow: Option<CellOverflow>,
     /// The content-stream object number that was rewritten.
     pub content_object: u32,
     /// Extra content objects collapsed/emptied on a multi-stream page.
@@ -515,8 +520,12 @@ pub(crate) fn plan_reflow_from_doc(
     // supplying the page cropbox unless the caller overrode it.
     let options = ExtractOptions::default().with_provenance(true);
     let extracted = text_extract::extract_page_view(doc, page, page_index, &options)?;
-    let model =
-        EditableTextModel::recognize(&extracted, &super::reflow::reflow_recognition_options());
+    let cells = super::detect_cell_regions(doc, page_index).map_err(table_error)?;
+    let model = EditableTextModel::recognize_with_cells(
+        &extracted,
+        &super::reflow::reflow_recognition_options(),
+        &cells,
+    );
 
     let req = ReflowRequest {
         page_cropbox: req.page_cropbox.or(Some(page.crop_box)),
@@ -531,6 +540,14 @@ pub(crate) fn plan_reflow_from_doc(
     // plan's byte offsets describe a different stream than the one edited.
     let stream = ContentStream::from_page(doc, page)?;
     plan_reflow(doc, page, &stream, &model, block_index, &preview)
+}
+
+fn table_error(e: crate::table_detect::TableError) -> ReflowApplyError {
+    use crate::table_detect::TableError;
+    match e {
+        TableError::Extract(e) => ReflowApplyError::Extract(e),
+        TableError::PageTree(e) => ReflowApplyError::PageTree(e),
+    }
 }
 
 /// Plan a reflow-apply over an already-decoded content `stream`, given a
@@ -786,6 +803,7 @@ pub(crate) fn plan_reflow(
         tagged_mcid: prov.mcid,
         height_delta: preview.height_delta(),
         overflow: preview.overflow,
+        cell_overflow: preview.cell_overflow,
         content_object: content_id.num,
         extra_objects_emptied: extra_emptied,
         disclosures,

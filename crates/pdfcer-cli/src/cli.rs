@@ -420,8 +420,9 @@ pub(crate) enum Command {
         /// the selected page. Default `0`.
         #[arg(long, default_value_t = 0)]
         block: usize,
-        /// With `--reflow-preview`: wrap width in points. Default = the
-        /// recognised block's own box width.
+        /// With `--reflow-preview`: wrap width in points. Default = a table
+        /// cell's inner width for a `table-cell` block, else the recognised
+        /// block's own box width.
         #[arg(long)]
         width: Option<f64>,
         /// With `--reflow-preview`: alignment override — `left`, `right`,
@@ -8237,8 +8238,9 @@ pub(crate) enum Command {
     /// Re-wrap (reflow) a recognized paragraph in place (Pass 15.1).
     ///
     /// Applies an EXPLICIT within-block reflow: the recognized paragraph
-    /// `--block` on `--page` is greedily re-wrapped to `--width` (default: the
-    /// block's own detected box width) at `--align` (default: auto-detected
+    /// `--block` on `--page` is greedily re-wrapped to `--width` (default: a
+    /// table cell's inner width for a cell block, else the block's own
+    /// detected box width) at `--align` (default: auto-detected
     /// from the block's glyph x-positions and preserved — left/right/center/
     /// justify) and `--leading` (default: the block's measured baseline gap),
     /// and ONLY that block's own content-stream object is re-emitted at the
@@ -8251,10 +8253,11 @@ pub(crate) enum Command {
     /// Preview first with `inspect --reflow-preview` (Pass 15.0, read-only).
     /// A reflow that grows the block past the page bottom EMITS the off-page
     /// content at its true position and DISCLOSES the overflow — it never
-    /// silently clips or drops content. A composite (Type0/CJK) block, a
-    /// rotated/skewed block, or a block sharing a text object with other
-    /// content is REFUSED by name (a clean, named non-zero exit — never a
-    /// crash). A tagged block's BDC/EMC+MCID wrapper is preserved and its
+    /// silently clips or drops content. Text that no longer fits its table
+    /// cell is emitted and reported; the cell is not resized. A composite
+    /// (Type0/CJK) block, a rotated/skewed block, or a block sharing a text
+    /// object with other content is REFUSED by name (a clean, named non-zero
+    /// exit — never a crash). A tagged block's BDC/EMC+MCID wrapper is preserved and its
     /// stale /ActualText disclosed.
     Reflow {
         /// Input PDF.
@@ -8265,7 +8268,8 @@ pub(crate) enum Command {
         /// 0-based index of the recognized block (paragraph) to reflow.
         #[arg(long, default_value_t = 0)]
         block: usize,
-        /// Wrap width in points (default: the block's detected box width).
+        /// Wrap width in points (default: a table cell's inner width for a
+        /// cell block, else the block's detected box width).
         #[arg(long)]
         width: Option<f64>,
         /// Alignment override: `left`, `right`, `center`, or `justified`

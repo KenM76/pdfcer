@@ -12,7 +12,7 @@ use pdfcer_core::text_extract::{ExtractedGlyph, FontWeight, PageText, TextOrigin
 /// A `Glyphs` run built from `(char, x, y, advance, size)` tuples, at a
 /// given starting run text — enough to drive recognition without the
 /// whole extraction pipeline.
-fn glyph_run(chars: &[(&str, f32, f32, f32, f32)]) -> TextRun {
+pub(crate) fn glyph_run(chars: &[(&str, f32, f32, f32, f32)]) -> TextRun {
     let mut text = String::new();
     let mut glyphs = Vec::new();
     for &(c, x, y, adv, size) in chars {
@@ -58,7 +58,7 @@ fn line_break() -> TextRun {
     }
 }
 
-fn page(runs: Vec<TextRun>) -> PageText {
+pub(crate) fn page(runs: Vec<TextRun>) -> PageText {
     // `PageText` has a private field, so build it through `Default` and
     // set the public `runs` field rather than a struct literal.
     let mut p = PageText::default();

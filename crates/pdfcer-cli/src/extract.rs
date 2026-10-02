@@ -1117,7 +1117,11 @@ pub(crate) fn cmd_inspect_text_blocks(input: &Path, pages_spec: &str, json: bool
                 return exit::RUNTIME_ERROR;
             }
         };
-        let model = EditableTextModel::recognize(&page, &recog);
+        let cells = match page_cells(&doc, index, input) {
+            Ok(cells) => cells,
+            Err(code) => return code,
+        };
+        let model = EditableTextModel::recognize_with_cells(&page, &recog, &cells);
         let d = model.diagnostics();
 
         total_lines += d.lines_recognized;
@@ -1203,18 +1207,23 @@ pub(crate) fn append_page_report(
     ));
     out.push_str(&format!(
         "  derived: paragraph_breaks_leading={} paragraph_breaks_indent={} \
-lines_split_baseline={} atomic_runs={} artifact_runs={}\n",
+lines_split_baseline={} lines_split_cell={} lines_split_gutter={} table_cell_blocks={} \
+atomic_runs={} artifact_runs={}\n",
         d.paragraph_breaks_by_leading,
         d.paragraph_breaks_by_indent,
         d.lines_split_by_baseline,
+        d.lines_split_by_cell,
+        d.lines_split_by_gutter,
+        d.table_cell_blocks,
         d.atomic_runs,
         d.artifact_runs_skipped,
     ));
     for (bi, block) in model.blocks().iter().enumerate() {
         out.push_str(&format!(
-            "  block {bi}: column={} kind={} lines={} bbox=[{:.1} {:.1} {:.1} {:.1}]\n",
+            "  block {bi}: column={} kind={}{} lines={} bbox=[{:.1} {:.1} {:.1} {:.1}]\n",
             block.column,
             block_kind_str(block.kind),
+            cell_suffix(block.kind),
             block.line_indices.len(),
             block.bbox.llx,
             block.bbox.lly,
@@ -1242,7 +1251,7 @@ pub(crate) fn append_page_json(
     ));
     out.push_str(&format!("      \"columns\": {},\n", model.columns()));
     out.push_str("      \"diagnostics\": {");
-    let counters: [(&str, u64); 8] = [
+    let counters: [(&str, u64); 11] = [
         ("lines_recognized", d.lines_recognized),
         ("columns_recognized", d.columns_recognized),
         ("blocks_recognized", d.blocks_recognized),
@@ -1250,6 +1259,9 @@ pub(crate) fn append_page_json(
         ("paragraph_breaks_by_leading", d.paragraph_breaks_by_leading),
         ("paragraph_breaks_by_indent", d.paragraph_breaks_by_indent),
         ("lines_split_by_baseline", d.lines_split_by_baseline),
+        ("lines_split_by_cell", d.lines_split_by_cell),
+        ("lines_split_by_gutter", d.lines_split_by_gutter),
+        ("table_cell_blocks", d.table_cell_blocks),
         ("atomic_runs", d.atomic_runs),
     ];
     for (i, (name, value)) in counters.iter().enumerate() {
@@ -1275,6 +1287,7 @@ pub(crate) fn append_page_json(
             "\"bbox\": [{:.2}, {:.2}, {:.2}, {:.2}], ",
             block.bbox.llx, block.bbox.lly, block.bbox.urx, block.bbox.ury
         ));
+        append_cell_json(out, block);
         out.push_str(&format!(
             "\"text\": \"{}\", ",
             json_escape(&model.block_text(block))
@@ -1447,7 +1460,11 @@ pub(crate) fn cmd_inspect_reflow_preview(
     // (Pass 15.2 §0.3): the CLI, the reflow engine/apply path, and the GUI
     // all recognise paragraphs with this identical config.
     let recog = pdfcer_core::text_edit::reflow_recognition_options();
-    let model = EditableTextModel::recognize(&extracted, &recog);
+    let cells = match page_cells(&doc, page_index, input) {
+        Ok(cells) => cells,
+        Err(code) => return code,
+    };
+    let model = EditableTextModel::recognize_with_cells(&extracted, &recog, &cells);
     let engine = ReflowEngine::new(&model);
 
     let req = ReflowRequest::new()
@@ -1475,7 +1492,7 @@ pub(crate) fn cmd_inspect_reflow_preview(
     let summary = format!(
         "reflow-preview {}: page={} block={} align={} align_source={} width={:.1} leading={:.1} \
 lines_before={} lines_after={} words={} overflowing_words={} \
-new_bbox=[{:.1},{:.1},{:.1},{:.1}] height_delta={:.1} overflow={}",
+new_bbox=[{:.1},{:.1},{:.1},{:.1}] height_delta={:.1} overflow={} cell_overflow={}",
         input.display(),
         page_index + 1,
         block_index,
@@ -1493,6 +1510,7 @@ new_bbox=[{:.1},{:.1},{:.1},{:.1}] height_delta={:.1} overflow={}",
         preview.new_bbox.ury,
         preview.height_delta(),
         u8::from(preview.overflow.is_some()),
+        u8::from(preview.cell_overflow.is_some()),
     );
 
     let report = if json {
@@ -1601,6 +1619,12 @@ overflow={} | {}\n",
             ov.past_bottom_pt, ov.lines_outside
         ));
     }
+    if let Some(co) = preview.cell_overflow {
+        out.push_str(&format!(
+            "cell_overflow: past_bottom={:.1} past_right={:.1} lines_outside={}\n",
+            co.past_bottom_pt, co.past_right_pt, co.lines_outside
+        ));
+    }
     out
 }
 
@@ -1686,6 +1710,13 @@ pub(crate) fn reflow_preview_json(
         )),
         None => out.push_str("  \"overflow\": null,\n"),
     }
+    match preview.cell_overflow {
+        Some(co) => out.push_str(&format!(
+            "  \"cell_overflow\": {{\"past_bottom\": {:.2}, \"past_right\": {:.2}, \"lines_outside\": {}}},\n",
+            co.past_bottom_pt, co.past_right_pt, co.lines_outside
+        )),
+        None => out.push_str("  \"cell_overflow\": null,\n"),
+    }
     // Diagnostics.
     let d = &preview.diagnostics;
     out.push_str("  \"diagnostics\": {");
@@ -1716,8 +1747,50 @@ pub(crate) fn block_kind_str(kind: pdfcer_core::text_edit::BlockKind) -> &'stati
     use pdfcer_core::text_edit::BlockKind;
     match kind {
         BlockKind::Paragraph => "paragraph",
+        BlockKind::TableCell { .. } => "table-cell",
         _ => "other",
     }
+}
+
+/// ` cell=t<table>r<row>c<column>` for a table-cell block, else empty.
+fn cell_suffix(kind: pdfcer_core::text_edit::BlockKind) -> String {
+    match kind {
+        pdfcer_core::text_edit::BlockKind::TableCell { table, row, column } => {
+            format!(" cell=t{table}r{row}c{column}")
+        }
+        _ => String::new(),
+    }
+}
+
+/// The block's `"cell"` JSON member: table/row/column and the cell
+/// rectangle, or `null` for a paragraph.
+fn append_cell_json(out: &mut String, block: &pdfcer_core::text_edit::Block) {
+    use pdfcer_core::text_edit::BlockKind;
+    match (block.kind, block.cell_rect) {
+        (BlockKind::TableCell { table, row, column }, Some(r)) => out.push_str(&format!(
+            "\"cell\": {{\"table\": {table}, \"row\": {row}, \"column\": {column}, \
+             \"rect\": [{:.2}, {:.2}, {:.2}, {:.2}]}}, ",
+            r.llx, r.lly, r.urx, r.ury
+        )),
+        _ => out.push_str("\"cell\": null, "),
+    }
+}
+
+/// The ruled-table cells of page `index`, so `inspect` resolves blocks the
+/// way reflow does; on failure prints why and returns the exit code.
+fn page_cells(
+    doc: &pdfcer_core::document::Document,
+    index: usize,
+    input: &Path,
+) -> Result<Vec<pdfcer_core::text_edit::CellRegion>, u8> {
+    pdfcer_core::text_edit::detect_cell_regions(&doc.view(), index).map_err(|err| {
+        eprintln!(
+            "pdfcer: {}: page {}: table cells: {err}",
+            input.display(),
+            index + 1
+        );
+        exit::RUNTIME_ERROR
+    })
 }
 
 /// A stable identifier for a [`pdfcer_core::text_extract::ContentStreamRef`].

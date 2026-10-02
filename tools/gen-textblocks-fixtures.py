@@ -39,6 +39,11 @@ WHAT THE FIXTURE PROVES
     Nothing here is tagged: the point is that all of the above structure
     is DERIVED and must be recognised from geometry alone.
 
+``ruled-table.pdf``
+    A 2x2 table drawn as grid lines (x 72/272/472, y 700/660/620) whose
+    top-left cell holds two lines. Pins the cell-aware block model: each
+    cell is one table-cell block and no line runs across a cell.
+
 USAGE
 -----
     python tools/gen-textblocks-fixtures.py
@@ -155,9 +160,38 @@ def multi_column() -> bytes:
     return serialize(objects)
 
 
+def ruled_table() -> bytes:
+    """A ruled 2x2 table (see the module docstring)."""
+    body = bytearray(b"0 G 0.5 w\n")
+    for y in (700, 660, 620):
+        body += f"72 {y} m 472 {y} l S\n".encode("ascii")
+    for x in (72, 272, 472):
+        body += f"{x} 620 m {x} 700 l S\n".encode("ascii")
+    body += text_line(76, 686, "alpha beta")
+    body += text_line(76, 674, "gamma delta")
+    body += text_line(276, 686, "Qty")
+    body += text_line(76, 640, "Bolt")
+    body += text_line(276, 640, "12")
+    objects: dict[int, bytes] = {
+        1: b"<< /Type /Catalog /Pages 2 0 R >>",
+        2: (
+            f"<< /Type /Pages /Kids [3 0 R] /Count 1 "
+            f"/MediaBox [0 0 {PAGE_WIDTH} {PAGE_HEIGHT}] "
+            f"/Resources << /Font << /F1 5 0 R >> >> >>"
+        ).encode("ascii"),
+        3: b"<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>",
+        4: stream(bytes(body)),
+        5: (
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
+            b"/Encoding /WinAnsiEncoding >>"
+        ),
+    }
+    return serialize(objects)
+
+
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    fixtures = {"multi-column.pdf": multi_column()}
+    fixtures = {"multi-column.pdf": multi_column(), "ruled-table.pdf": ruled_table()}
     for name, data in fixtures.items():
         path = OUT_DIR / name
         path.write_bytes(data)

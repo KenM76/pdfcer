@@ -93,6 +93,7 @@ use crate::page_tree::Rect;
 use crate::text_extract::PageText;
 
 use super::model::{Block, BlockRecognitionOptions, EditableTextModel, GlyphRef};
+use super::reflow_fit::{CellOverflow, cell_overflow, cell_wrap_width, page_overflow};
 
 /// Ascent as a fraction of the effective size, matching the block model's
 /// own line box (`ury = baseline + 0.75·size`).
@@ -359,10 +360,64 @@ pub struct ReflowDiagnostics {
 }
 
 impl ReflowDiagnostics {
+    fn new(words: usize, lines_before: usize) -> Self {
+        Self {
+            words,
+            lines_before,
+            lines_after: 0,
+            overflowing_words: 0,
+            space_width_pt: 0.0,
+            space_width_estimated: false,
+            leading_pt: 0.0,
+            leading_estimated: false,
+            disclosures: Vec::new(),
+        }
+    }
+
     /// Record a disclosure, de-duplicated by exact text.
-    fn disclose(&mut self, text: String) {
+    pub(crate) fn disclose(&mut self, text: String) {
         if !self.disclosures.contains(&text) {
             self.disclosures.push(text);
+        }
+    }
+
+    /// The layout disclosures every preview makes: derived layout, the
+    /// alignment, each estimate, a cell-derived width and overflowing words.
+    fn disclose_layout(&mut self, alignment: &DetectedAlignment, wrap_width: f64, from_cell: bool) {
+        self.disclose(
+            "reflow: line breaks, per-line origins and block box are DERIVED layout the file \
+             never stated (ISO 32000-1 §14.8 S1-S9) — a reviewable preview; nothing is written \
+             (Pass 15.0 is READ-ONLY)"
+                .to_string(),
+        );
+        self.disclose(alignment_disclosure(alignment));
+        if self.leading_estimated {
+            self.disclose(format!(
+                "reflow: leading estimated at {:.2}pt (1.2 x size) — the block has a \
+                 single source line, so no baseline gap was measurable",
+                self.leading_pt
+            ));
+        }
+        if self.space_width_estimated {
+            self.disclose(format!(
+                "reflow: inter-word space width estimated at {:.2}pt (0.25 x size) — \
+                 the block carries no U+0020 space glyph to measure",
+                self.space_width_pt
+            ));
+        }
+        if from_cell {
+            self.disclose(format!(
+                "reflow: wrap width {wrap_width:.1}pt is the table cell's inner width (the cell's \
+                 right edge less its padding), so the text stays inside the cell"
+            ));
+        }
+        if self.overflowing_words > 0 {
+            self.disclose(format!(
+                "reflow: {} word(s) are wider than the {wrap_width:.1}pt wrap \
+                 width and overflow their line unbroken — no hyphenation (decision 015 §3.2, \
+                 whitespace-only breaks)",
+                self.overflowing_words
+            ));
         }
     }
 }
@@ -375,7 +430,8 @@ impl ReflowDiagnostics {
 pub struct ReflowPreview {
     /// The alignment used, and how it was determined.
     pub alignment: DetectedAlignment,
-    /// The wrap width used (the block box width unless overridden), points.
+    /// The wrap width used, points: the override, else a table cell's inner
+    /// width, else the block box width.
     pub wrap_width: f64,
     /// The leading used, points.
     pub leading: f64,
@@ -393,6 +449,10 @@ pub struct ReflowPreview {
     /// A disclosed page-overflow condition, if a cropbox was supplied and
     /// the new box exceeds it (§3.5). `None` otherwise.
     pub overflow: Option<PageOverflow>,
+    /// For a [`BlockKind::TableCell`](super::BlockKind::TableCell) block, a
+    /// disclosed overflow when the new text does not fit the cell. `None`
+    /// when it fits, and always for a paragraph block.
+    pub cell_overflow: Option<CellOverflow>,
     /// The derived-inference report.
     pub diagnostics: ReflowDiagnostics,
 }
@@ -566,13 +626,15 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
     /// (decision 015 §6, 15.0). Nothing is written.
     ///
     /// The steps: tokenise the block's glyphs into words measured by their
-    /// §9.4.4 advances; pick the wrap width (`req` override or the block box
-    /// width); auto-detect (or take the overridden) alignment; greedily
-    /// re-break the words via the shared [`crate::linebreak::greedy_pack`];
-    /// place each line by the alignment (recording justified slack for full
-    /// lines); grow the block top-anchored by the leading; and, if a cropbox
-    /// was supplied, disclose any page-bottom overflow. Every derived choice
-    /// is counted in [`ReflowDiagnostics`].
+    /// §9.4.4 advances; pick the wrap width (the `req` override, else for a
+    /// [`BlockKind::TableCell`](super::BlockKind::TableCell) block the cell's
+    /// inner width, else the block box width); auto-detect (or take the
+    /// overridden) alignment; greedily re-break the words via the shared
+    /// [`crate::linebreak::greedy_pack`]; place each line by the alignment
+    /// (recording justified slack for full lines); grow the block
+    /// top-anchored by the leading; disclose page overflow when a cropbox was
+    /// supplied, and cell overflow ([`ReflowPreview::cell_overflow`]) for a
+    /// cell block. Every derived choice is counted in [`ReflowDiagnostics`].
     ///
     /// # Errors
     ///
@@ -586,244 +648,127 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
     ) -> Result<ReflowPreview, ReflowError> {
         let block = self.block(block_index)?;
         let old_bbox = block.bbox;
+        let size = self.block_size(block);
+        // The space code is read only by reflow-apply.
+        let (words, space_samples, _space_code) =
+            tokenise_block(self.model, self.model.sourced_view(), block);
+        if words.is_empty() {
+            return Err(ReflowError::EmptyBlock(block_index));
+        }
+        let mut diagnostics = ReflowDiagnostics::new(words.len(), block.line_indices.len());
+        // The block's own median space, else a disclosed 0.25·size estimate.
+        let (space_width, space_estimated) =
+            median(space_samples).map_or((FALLBACK_SPACE_FRAC * size, true), |w| (w, false));
+        diagnostics.space_width_pt = space_width;
+        diagnostics.space_width_estimated = space_estimated;
 
-        // Representative effective size: the largest line size in the block
-        // (the yardstick the model itself uses for its thresholds).
-        let size = block
+        let cell_width = req
+            .wrap_width
+            .is_none()
+            .then(|| cell_wrap_width(block))
+            .flatten();
+        let wrap_width = req
+            .wrap_width
+            .or(cell_width)
+            .unwrap_or_else(|| old_bbox.width());
+        if !(wrap_width.is_finite() && wrap_width > 0.0) {
+            return Err(ReflowError::BadWidth(wrap_width));
+        }
+        let (leading, leading_estimated) = self.leading(block, req.leading, size);
+        diagnostics.leading_pt = leading;
+        diagnostics.leading_estimated = leading_estimated;
+        let alignment = self.alignment(block, req.alignment);
+
+        // Greedy re-break through the ONE shared breaker (decision 015 §3.2).
+        let widths: Vec<f64> = words.iter().map(|w| w.width).collect();
+        let ranges = crate::linebreak::greedy_pack(widths.len(), wrap_width, |s, e| {
+            line_natural_width(&widths, space_width, s, e)
+        });
+        let frame = LineFrame {
+            llx: old_bbox.llx,
+            wrap_width,
+            first_baseline: self.first_baseline(block, size),
+            leading,
+            space_width,
+            alignment: alignment.alignment,
+        };
+        let lines = place_lines(&words, &widths, ranges, &frame, &mut diagnostics);
+        let new_bbox = frame.block_box(lines.len(), size);
+        diagnostics.disclose_layout(&alignment, wrap_width, cell_width.is_some());
+
+        let descent = DESCENT_FRAC * size;
+        let overflow = req
+            .page_cropbox
+            .and_then(|crop| page_overflow(crop, new_bbox, &lines, descent, &mut diagnostics));
+        let cell_overflow = block
+            .cell_rect
+            .and_then(|cell| cell_overflow(cell, new_bbox, &lines, descent, &mut diagnostics));
+        Ok(ReflowPreview {
+            alignment,
+            wrap_width,
+            leading,
+            lines_before: block.line_indices.len(),
+            lines_after: lines.len(),
+            lines,
+            new_bbox,
+            old_bbox,
+            overflow,
+            cell_overflow,
+            diagnostics,
+        })
+    }
+
+    /// The override, marked [`AlignmentSource::Overridden`], else the
+    /// auto-detected alignment.
+    fn alignment(&self, block: &Block, requested: Option<BlockAlignment>) -> DetectedAlignment {
+        let detected = self.infer_alignment(block);
+        match requested {
+            Some(alignment) => DetectedAlignment {
+                alignment,
+                source: AlignmentSource::Overridden,
+                ..detected
+            },
+            None => detected,
+        }
+    }
+
+    /// The block's representative size: its largest line size, the
+    /// yardstick the model uses for its own thresholds.
+    fn block_size(&self, block: &Block) -> f64 {
+        block
             .line_indices
             .iter()
             .filter_map(|&li| self.model.lines().get(li))
             .map(|l| f64::from(l.size))
             .fold(0.0_f64, f64::max)
-            .max(1.0);
+            .max(1.0)
+    }
 
-        // Tokenise words + gather inter-word space-glyph advances. The
-        // space code is unused by the READ-ONLY preview (15.1's apply reads
-        // it); discarded here with `_`.
-        let page = self.model.sourced_view();
-        let (words, space_samples, _space_code) = tokenise_block(self.model, page, block);
-        if words.is_empty() {
-            return Err(ReflowError::EmptyBlock(block_index));
-        }
-
-        // Representative space width: median of the block's own spaces, or a
-        // disclosed 0.25·size estimate when the block has no space glyph.
-        let mut diagnostics = ReflowDiagnostics {
-            words: words.len(),
-            lines_before: block.line_indices.len(),
-            lines_after: 0,
-            overflowing_words: 0,
-            space_width_pt: 0.0,
-            space_width_estimated: false,
-            leading_pt: 0.0,
-            leading_estimated: false,
-            disclosures: Vec::new(),
-        };
-        let (space_width, space_estimated) = match median(space_samples) {
-            Some(w) => (w, false),
-            None => (FALLBACK_SPACE_FRAC * size, true),
-        };
-        diagnostics.space_width_pt = space_width;
-        diagnostics.space_width_estimated = space_estimated;
-
-        // Wrap width: override or the block box width.
-        let wrap_width = req.wrap_width.unwrap_or_else(|| old_bbox.width());
-        if !(wrap_width.is_finite() && wrap_width > 0.0) {
-            return Err(ReflowError::BadWidth(wrap_width));
-        }
-
-        // Leading: override or the block's median baseline gap (fallback
-        // 1.2·size when a single source line offers no gap to measure).
-        let (leading, leading_estimated) = match req.leading {
+    /// The leading: the override, else the block's median baseline gap,
+    /// else an estimated 1.2·size when a single line offers no gap.
+    fn leading(&self, block: &Block, requested: Option<f64>, size: f64) -> (f64, bool) {
+        match requested {
             Some(l) if l.is_finite() && l > 0.0 => (l, false),
-            _ => {
-                let gaps = self.baseline_gaps(block);
-                match median(gaps) {
-                    Some(g) if g > 0.0 => (g, false),
-                    _ => (FALLBACK_LEADING_FRAC * size, true),
-                }
-            }
-        };
-        diagnostics.leading_pt = leading;
-        diagnostics.leading_estimated = leading_estimated;
-
-        // Alignment: override (marked Overridden) or auto-detected.
-        let alignment = match req.alignment {
-            Some(a) => DetectedAlignment {
-                alignment: a,
-                source: AlignmentSource::Overridden,
-                ..self.infer_alignment(block)
+            _ => match median(self.baseline_gaps(block)) {
+                Some(g) if g > 0.0 => (g, false),
+                _ => (FALLBACK_LEADING_FRAC * size, true),
             },
-            None => self.infer_alignment(block),
-        };
+        }
+    }
 
-        // Greedy re-break over the word advances (+ representative spaces),
-        // through the ONE shared breaker (decision 015 §3.2).
-        let widths: Vec<f64> = words.iter().map(|w| w.width).collect();
-        let ranges = crate::linebreak::greedy_pack(widths.len(), wrap_width, |s, e| {
-            line_natural_width(&widths, space_width, s, e)
-        });
-
-        // Top-anchored: first baseline fixed at the block's top baseline.
-        let first_baseline = block
+    /// The block's top baseline: the re-wrap is anchored there.
+    fn first_baseline(&self, block: &Block, size: f64) -> f64 {
+        let top = block
             .line_indices
             .iter()
             .filter_map(|&li| self.model.lines().get(li))
             .map(|l| f64::from(l.baseline_y))
             .fold(f64::NEG_INFINITY, f64::max);
-        let first_baseline = if first_baseline.is_finite() {
-            first_baseline
+        if top.is_finite() {
+            top
         } else {
-            old_bbox.ury - ASCENT_FRAC * size
-        };
-
-        let block_llx = old_bbox.llx;
-        let ascent = ASCENT_FRAC * size;
-        let descent = DESCENT_FRAC * size;
-
-        let line_count = ranges.len();
-        let mut lines: Vec<ReflowLine> = Vec::with_capacity(line_count);
-        let mut overflowing_words = 0usize;
-        for (i, r) in ranges.into_iter().enumerate() {
-            let word_count = r.end.saturating_sub(r.start);
-            let natural_width = line_natural_width(&widths, space_width, r.start, r.end);
-            let text = join_word_text(&words, r.clone());
-            let gap_count = word_count.saturating_sub(1);
-            let is_overflowing_word = word_count == 1 && natural_width > wrap_width + EPS;
-            if is_overflowing_word {
-                overflowing_words += 1;
-            }
-            let baseline_y = first_baseline - leading * (i as f64);
-            let is_last = i + 1 == line_count;
-            let origin_x =
-                align_origin_x(alignment.alignment, block_llx, wrap_width, natural_width);
-            // Justified slack: full (non-last) multi-word lines only (§3.1).
-            let justified_slack = if alignment.alignment.is_justified()
-                && !is_last
-                && gap_count >= 1
-                && !is_overflowing_word
-            {
-                Some((wrap_width - natural_width).max(0.0))
-            } else {
-                None
-            };
-            if alignment.alignment.is_justified() && !is_last && gap_count == 0 {
-                diagnostics.disclose(
-                    "reflow: a justified line has a single word (no inter-word gap) — left at \
-                     the base alignment, not stretched (decision 015 §3.1)"
-                        .to_string(),
-                );
-            }
-            lines.push(ReflowLine {
-                words: r,
-                text,
-                origin_x,
-                baseline_y,
-                natural_width,
-                gap_count,
-                is_overflowing_word,
-                justified_slack,
-            });
+            block.bbox.ury - ASCENT_FRAC * size
         }
-        diagnostics.lines_after = lines.len();
-        diagnostics.overflowing_words = overflowing_words;
-
-        // New block box: top-anchored, width = wrap_width, height from the
-        // new line count and leading.
-        let last_baseline = first_baseline - leading * ((line_count.saturating_sub(1)) as f64);
-        let new_bbox = Rect {
-            llx: block_llx,
-            lly: last_baseline - descent,
-            urx: block_llx + wrap_width,
-            ury: first_baseline + ascent,
-        };
-
-        // Always-on derived-layout disclosure (rule 4).
-        diagnostics.disclose(
-            "reflow: line breaks, per-line origins and block box are DERIVED layout the file \
-             never stated (ISO 32000-1 §14.8 S1-S9) — a reviewable preview; nothing is written \
-             (Pass 15.0 is READ-ONLY)"
-                .to_string(),
-        );
-        // Alignment disclosure.
-        diagnostics.disclose(alignment_disclosure(&alignment));
-        if leading_estimated {
-            diagnostics.disclose(format!(
-                "reflow: leading estimated at {leading:.2}pt (1.2 x size) — the block has a \
-                 single source line, so no baseline gap was measurable"
-            ));
-        }
-        if space_estimated {
-            diagnostics.disclose(format!(
-                "reflow: inter-word space width estimated at {space_width:.2}pt (0.25 x size) — \
-                 the block carries no U+0020 space glyph to measure"
-            ));
-        }
-        if overflowing_words > 0 {
-            diagnostics.disclose(format!(
-                "reflow: {overflowing_words} word(s) are wider than the {wrap_width:.1}pt wrap \
-                 width and overflow their line unbroken — no hyphenation (decision 015 §3.2, \
-                 whitespace-only breaks)"
-            ));
-        }
-
-        // Page overflow on BOTH axes (§3.5 / R76): disclosed, never applied.
-        //
-        // The bottom check is the obvious one — a re-wrap grows downward, so
-        // that is the axis the operation plainly threatens. The right edge is
-        // threatened by something else: the wrap WIDTH itself. When the caller
-        // does not override it, it is measured from the block's current
-        // bounding box, and a prior `edit-text` whose replacement ran past the
-        // margin has already widened that box. Without this check such a
-        // reflow reports a successful re-wrap while putting text off the page
-        // (R148).
-        let overflow = req.page_cropbox.and_then(|crop| {
-            let past_bottom = (crop.lly - new_bbox.lly).max(0.0);
-            let past_right = (new_bbox.urx - crop.urx).max(0.0);
-            // Either axis alone is an overflow. Returning early when only the
-            // bottom was clear is exactly what hid the horizontal case.
-            if past_bottom <= EPS && past_right <= EPS {
-                return None;
-            }
-            let lines_outside = lines
-                .iter()
-                .filter(|l| l.baseline_y - descent < crop.lly - EPS)
-                .count();
-            if past_bottom > EPS {
-                diagnostics.disclose(format!(
-                    "reflow: re-wrap grows the block {past_bottom:.1}pt past the page bottom \
-                     (cropbox); {lines_outside} line(s) fall outside the visible page — \
-                     DISCLOSED, not applied (decision 015 §3.5, R76)"
-                ));
-            }
-            if past_right > EPS {
-                diagnostics.disclose(format!(
-                    "reflow: the wrap width puts the block {past_right:.1}pt past the page right \
-                     edge (cropbox), so the re-wrapped text runs off the page. That width was \
-                     measured from the block's own box, which an earlier edit may have widened \
-                     past the margin — pass an explicit width to wrap to the original margin \
-                     — DISCLOSED, not applied (R148, R76)"
-                ));
-            }
-            Some(PageOverflow {
-                past_bottom_pt: past_bottom,
-                lines_outside,
-                past_right_pt: past_right,
-            })
-        });
-
-        Ok(ReflowPreview {
-            alignment,
-            wrap_width,
-            leading,
-            lines,
-            new_bbox,
-            old_bbox,
-            lines_before: block.line_indices.len(),
-            lines_after: line_count,
-            overflow,
-            diagnostics,
-        })
     }
 
     // -- internals --------------------------------------------------------
@@ -936,6 +881,76 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
             tolerance_pt: tol,
         }
     }
+}
+
+/// Where re-wrapped lines go: the block's left edge and wrap width, the
+/// top baseline and leading, and the alignment that places each line.
+struct LineFrame {
+    llx: f64,
+    wrap_width: f64,
+    first_baseline: f64,
+    leading: f64,
+    space_width: f64,
+    alignment: BlockAlignment,
+}
+
+impl LineFrame {
+    /// The new block box: top-anchored, `wrap_width` wide, as tall as
+    /// `line_count` lines at the leading.
+    fn block_box(&self, line_count: usize, size: f64) -> Rect {
+        let last_baseline =
+            self.first_baseline - self.leading * (line_count.saturating_sub(1) as f64);
+        Rect {
+            llx: self.llx,
+            lly: last_baseline - DESCENT_FRAC * size,
+            urx: self.llx + self.wrap_width,
+            ury: self.first_baseline + ASCENT_FRAC * size,
+        }
+    }
+}
+
+/// Place each packed word range as a [`ReflowLine`], recording justified
+/// slack for full lines (§3.1) and counting overflowing words.
+fn place_lines(
+    words: &[WordTok],
+    widths: &[f64],
+    ranges: Vec<Range<usize>>,
+    frame: &LineFrame,
+    diagnostics: &mut ReflowDiagnostics,
+) -> Vec<ReflowLine> {
+    let line_count = ranges.len();
+    let justified = frame.alignment.is_justified();
+    let mut lines = Vec::with_capacity(line_count);
+    for (i, r) in ranges.into_iter().enumerate() {
+        let gap_count = r.len().saturating_sub(1);
+        let natural_width = line_natural_width(widths, frame.space_width, r.start, r.end);
+        let is_overflowing_word = r.len() == 1 && natural_width > frame.wrap_width + EPS;
+        let is_last = i + 1 == line_count;
+        if is_overflowing_word {
+            diagnostics.overflowing_words += 1;
+        }
+        let justified_slack = (justified && !is_last && gap_count >= 1 && !is_overflowing_word)
+            .then(|| (frame.wrap_width - natural_width).max(0.0));
+        if justified && !is_last && gap_count == 0 {
+            diagnostics.disclose(
+                "reflow: a justified line has a single word (no inter-word gap) — left at \
+                 the base alignment, not stretched (decision 015 §3.1)"
+                    .to_string(),
+            );
+        }
+        lines.push(ReflowLine {
+            text: join_word_text(words, r.clone()),
+            words: r,
+            origin_x: align_origin_x(frame.alignment, frame.llx, frame.wrap_width, natural_width),
+            baseline_y: frame.first_baseline - frame.leading * (i as f64),
+            natural_width,
+            gap_count,
+            is_overflowing_word,
+            justified_slack,
+        });
+    }
+    diagnostics.lines_after = lines.len();
+    lines
 }
 
 /// The x origin (left edge of the shown text) for a line under `alignment`

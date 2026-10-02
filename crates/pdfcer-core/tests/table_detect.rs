@@ -10,7 +10,7 @@ use pdfcer_core::table_detect::{
 };
 use pdfcer_core::text_extract::{ExtractError, ExtractOptions};
 
-fn build_pdf(bodies: &[String]) -> Vec<u8> {
+pub(crate) fn build_pdf(bodies: &[String]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
@@ -35,7 +35,7 @@ fn build_pdf(bodies: &[String]) -> Vec<u8> {
 }
 
 /// One page; fonts F1 Helvetica and F2 Helvetica-Bold.
-fn doc(content: &str, rotate: u16) -> Document {
+pub(crate) fn doc(content: &str, rotate: u16) -> Document {
     let bodies = vec![
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
@@ -66,7 +66,7 @@ const XS: [f32; 4] = [72.0, 200.0, 328.0, 456.0];
 const YS: [f32; 4] = [700.0, 680.0, 660.0, 640.0];
 
 /// Every grid line as its own `m l S` segment.
-fn grid_lines(xs: &[f32], ys: &[f32]) -> String {
+pub(crate) fn grid_lines(xs: &[f32], ys: &[f32]) -> String {
     let (x0, x1) = (xs[0], xs[xs.len() - 1]);
     let (y0, y1) = (ys[ys.len() - 1], ys[0]);
     let mut s = String::from("0 G 0.5 w\n");

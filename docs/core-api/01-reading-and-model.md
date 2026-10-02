@@ -1446,6 +1446,59 @@ let n = found.diagnostics.inferred();           // ruled + aligned tables, merge
 - CLI: `pdfcer extract-tables in.pdf [--json] [-o out] [--pages 1-3]`; `export-xlsx`
   and `export-docx` take the same `--pages` (1-based, order honoured).
 
+### 8.4.4a Cell-aware text blocks — one block per table cell (`Pass 434.0`)
+
+pdfcer-gui request G080. `text_edit::EditableTextModel::recognize` knows
+nothing of tables: a ruled row's cells share a baseline, so the row becomes
+one line and the table one paragraph. Give the model the page's cells and
+each cell becomes its own block.
+
+```rust,ignore
+use pdfcer_core::text_edit::{
+    detect_cell_regions, reflow_recognition_options, BlockKind, EditableTextModel,
+};
+let cells = detect_cell_regions(&doc.view(), page_index)?; // ruled tables only
+let model = EditableTextModel::recognize_with_cells(&page, &reflow_recognition_options(), &cells);
+for b in model.blocks() {
+    if let BlockKind::TableCell { table, row, column } = b.kind {
+        let rect = b.cell_rect; // Some(cell rect) exactly when kind is TableCell
+    }
+}
+```
+
+| item | contract |
+|---|---|
+| `CellRegion { table, row, column, row_span, column_span, rect }` | One cell, page space. `#[non_exhaustive]`: build it with `CellRegion::new(table, row, column, rect)` (spans 1), `.with_span(rows, columns)` (0 is stored as 1), or `CellRegion::from_tables(&[table_detect::Table], page_index)` for the cells of any detected table, aligned ones included. |
+| `detect_cell_regions(&DocumentView, page_index) -> Result<Vec<CellRegion>, TableError>` | `table_detect` on one page, **ruled tables only**: an aligned table is inferred from the same text alignment the model already reads, so it adds no evidence. |
+| `recognize_with_cells(page, options, cells) -> Self`; `model.cells() -> &[CellRegion]` | `recognize` is `recognize_with_cells(.., &[])`, unchanged. A glyph belongs to the smallest cell containing its centre. |
+| `Line::cell: Option<usize>` | Index into `model.cells()`. A line never spans two cells, nor a cell and the body. |
+| `BlockKind::TableCell { table, row, column }`, `Block::cell_rect: Option<Rect>` | One block per non-empty cell. **Order:** every paragraph block first (columns as before), then cell blocks by table, row, column. An empty cell yields no block. |
+| `BlockDiagnostics::{lines_split_by_cell, lines_split_by_gutter, table_cell_blocks}` | Counts. |
+| `BlockRecognitionOptions::{gutter_min_em, gutter_min_lines}` | The column-gutter rule (defaults 1.5 em, 3 lines): a horizontal gap of at least `gutter_min_em` × size, at the same x on at least `gutter_min_lines` consecutive baselines, splits those lines into two columns. Cell lines are exempt. `f64::INFINITY` / `usize::MAX` turn it off. Known cost: a tab-aligned list of 3+ rows with such a gap splits too. |
+
+**Navigation.** Inside a cell, `caret_up`/`caret_down` move to the next line
+in the same cell, else to the nearest line of the cell above/below (the one
+under `desired_x`, else one sharing the current cell's columns; rows of empty
+cells are skipped), else to the nearest line outside the table. They never
+step sideways into a neighbouring cell. From above a table, Down enters the
+cell under `desired_x`.
+
+**Reflow.** `reflow_preview` and `EditSession::reflow_block` resolve
+`block_index` against `recognize_with_cells(page, &reflow_recognition_options(),
+&detect_cell_regions(..)?)`. **On a page with a ruled table this changes block
+indices** relative to plain `recognize`: a shell naming a block for reflow
+must build its model the same way. A cell block with no `ReflowRequest::wrap_width`
+wraps at the cell's inner width (block left edge to the cell's right edge
+less `max(0, min(left inset, right inset))`). Text that no longer fits is
+**emitted and disclosed, never prevented**: `ReflowPreview::cell_overflow` /
+`ReflowApplyReport::cell_overflow: Option<CellOverflow { past_bottom_pt,
+past_right_pt, lines_outside }>`, plus a `does not fit its table cell` line in
+the disclosures. The cell, its rules and the rows below are not moved.
+
+CLI: `inspect --text-blocks [--json]` prints `kind=table-cell cell=t0r1c0` /
+`"cell": {"table", "row", "column", "rect"}` and the three counters;
+`inspect --reflow-preview` and `reflow` print `cell_overflow`.
+
 ### 8.4.5 Tagged layout — blocks and tables from the structure tree (`Pass 395.0`)
 
 For a tagged file: the same `DocumentLayout` §8.4.3 returns, and the

@@ -1,0 +1,45 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 329 >>
+stream
+0 G 0.5 w
+72 700 m 472 700 l S
+72 660 m 472 660 l S
+72 620 m 472 620 l S
+72 620 m 72 700 l S
+272 620 m 272 700 l S
+472 620 m 472 700 l S
+BT /F1 10 Tf 76 686 Td (alpha beta) Tj ET
+BT /F1 10 Tf 76 674 Td (gamma delta) Tj ET
+BT /F1 10 Tf 276 686 Td (Qty) Tj ET
+BT /F1 10 Tf 76 640 Td (Bolt) Tj ET
+BT /F1 10 Tf 276 640 Td (12) Tj ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000184 00000 n 
+0000000247 00000 n 
+0000000627 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+724
+%%EOF

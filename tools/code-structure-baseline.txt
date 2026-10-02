@@ -66,7 +66,6 @@ file pdfcer-core/src/text_edit/addtext.rs
 file pdfcer-core/src/text_edit/edit.rs
 file pdfcer-core/src/text_edit/encoding.rs
 file pdfcer-core/src/text_edit/format.rs
-file pdfcer-core/src/text_edit/model.rs
 file pdfcer-core/src/text_edit/placetext.rs
 file pdfcer-core/src/text_edit/reflow.rs
 file pdfcer-core/src/text_edit/reflow_apply.rs
@@ -488,11 +487,8 @@ fn pdfcer-core/src/text_edit/format.rs::preview_style_resolution
 fn pdfcer-core/src/text_edit/format.rs::set_format
 fn pdfcer-core/src/text_edit/forms.rs::walk_forms
 fn pdfcer-core/src/text_edit/merge.rs::plan_merge
-fn pdfcer-core/src/text_edit/model.rs::cluster_lines
-fn pdfcer-core/src/text_edit/model.rs::segment_blocks
 fn pdfcer-core/src/text_edit/placetext.rs::build_disclosures
 fn pdfcer-core/src/text_edit/placetext.rs::plan
-fn pdfcer-core/src/text_edit/reflow.rs::preview
 fn pdfcer-core/src/text_edit/reflow_apply.rs::locate_block_region
 fn pdfcer-core/src/text_edit/reflow_apply.rs::plan_reflow
 fn pdfcer-core/src/vector/clip.rs::from_bytes
