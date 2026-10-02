@@ -1654,6 +1654,7 @@ impl FormatError {
             EditError::Content(e) => Self::Content(e),
             EditError::PageTree(e) => Self::PageTree(e),
             EditError::Write(e) => Self::Write(e),
+            EditError::WorkaroundRefused { refused, .. } => Self::from_edit(*refused),
         }
     }
 }

@@ -108,6 +108,8 @@ impl RefusalClass for EditError {
             | EditError::Content(_)
             | EditError::PageTree(_)
             | EditError::Write(_) => RefusalKind::Other,
+            // The exact edit's refusal is the one the caller acts on.
+            EditError::WorkaroundRefused { refused, .. } => refused.refusal_kind(),
         }
     }
 }

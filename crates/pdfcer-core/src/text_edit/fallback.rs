@@ -17,8 +17,8 @@ use crate::object::{Dict, ObjId, Object};
 use crate::span::ByteSpan;
 use crate::text_edit::addtext;
 use crate::text_edit::edit::{
-    EditError, EditLayout, EncodedReplacement, MatchRun, OpRec, ShowData, carried_codes,
-    classify_font, encode_in, glyph_advance, is_subset_tag,
+    EditError, EditLayout, EncodedReplacement, MatchRun, OpRec, ShowData, ShowElem, carried_codes,
+    classify_font, emit_show, encode_in, glyph_advance, is_subset_tag,
 };
 use crate::text_edit::font_extend::FontExtension;
 use crate::text_edit::format::{CreatedFace, CreatedFont, embedded_probe, resolve_target_resource};
@@ -164,6 +164,42 @@ impl Fallback {
         sibling::emit_segmented_operator(anchor, m, &self.segments, pin_num, key)
     }
 
+    /// The whole replacement as show operators, switching to the face with
+    /// `Tf` at `tfs` and restoring `own_key` after (decision 175's retype).
+    pub(crate) fn emit_run(&self, own_key: &[u8], tfs: f64) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut in_face = false;
+        for (fb, bytes) in &self.segments {
+            if *fb != in_face {
+                let key = if *fb {
+                    self.used.font_resource.as_slice()
+                } else {
+                    own_key
+                };
+                sibling::push_tf(&mut out, key, tfs);
+                in_face = *fb;
+            }
+            if !out.is_empty() {
+                out.push(b' ');
+            }
+            out.extend(emit_show(&[ShowElem::Str(bytes.clone())]));
+        }
+        if in_face {
+            sibling::push_tf(&mut out, own_key, tfs);
+        }
+        out
+    }
+
+    /// The fallback face's font.
+    pub(crate) const fn face(&self) -> &ExtractFont {
+        &self.face_font
+    }
+
+    /// Rule 4: which characters went to the face, next to the run's `own`.
+    pub(crate) fn disclosure(&self, own: &str) -> String {
+        disclosure(&self.used, own)
+    }
+
     /// The resource the commit must create, if any.
     pub(crate) fn into_created(self) -> Option<CreatedFont> {
         self.created
@@ -252,6 +288,32 @@ where
         .disclosures
         .push(disclosure(&fallback.used, &font.base_font));
     Ok((encoded, font, extension, fallback))
+}
+
+/// `text` split for decision 175's retype: the characters in `to_face` set
+/// in `face`, the rest already encoded in the run's font as `own`.
+///
+/// # Errors
+///
+/// Why the face cannot set them.
+pub(crate) fn retype_split(
+    at: &RunAt<'_>,
+    face: &FallbackFace,
+    text: &str,
+    to_face: &BTreeSet<char>,
+    own: &EncodedReplacement,
+) -> Result<Fallback, String> {
+    let resolved = resolve_face(at, face)?;
+    let face_text: String = to_face.iter().collect();
+    let codes = face_codes(at, &resolved, &face_text).map_err(|ch| {
+        format!(
+            "the fallback face '{}' has no code for {}",
+            resolved.font.base_font,
+            char_label(ch)
+        )
+    })?;
+    let own_key = at.anchor.font_name.clone();
+    split(text, to_face, own, &codes, resolved, &own_key).map_err(|e| e.to_string())
 }
 
 /// Interleave the run's codes and the face's codes in replacement order.

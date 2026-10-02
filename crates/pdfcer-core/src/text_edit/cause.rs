@@ -249,6 +249,13 @@ pub enum NotFoundReason {
         /// How many text objects the joined match touches (at least 2).
         objects: usize,
     },
+    /// The text is in one text object, on one line, but across `operators`
+    /// show operators the matcher does not join into one run (a font, size
+    /// or spacing change between them).
+    SplitRun {
+        /// How many show operators the match touches (at least 2).
+        operators: usize,
+    },
 }
 
 /// Renders as a suffix to the `NoMatch` sentence: empty for
@@ -260,6 +267,11 @@ impl std::fmt::Display for NotFoundReason {
             Self::SpansTextObjects { objects } => write!(
                 f,
                 " -- it is drawn across {objects} separate text objects, which an edit does not join"
+            ),
+            Self::SplitRun { operators } => write!(
+                f,
+                " -- it is drawn across {operators} show operators that do not continue one \
+                 run (a font, size or spacing change between them)"
             ),
         }
     }

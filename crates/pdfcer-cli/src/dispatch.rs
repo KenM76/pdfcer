@@ -2020,6 +2020,7 @@ pub(crate) fn run() -> ExitCode {
             sibling_fonts,
             fallback_font,
             fallback_font_file,
+            workaround,
             target,
         } => cmd_edit_text(&EditTextArgs {
             input: &input,
@@ -2035,6 +2036,7 @@ pub(crate) fn run() -> ExitCode {
             sibling_fonts,
             fallback_font: fallback_font.as_deref(),
             fallback_font_file: fallback_font_file.as_deref(),
+            workaround,
             target: &target,
         }),
         Command::FormatText {

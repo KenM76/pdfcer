@@ -102,7 +102,9 @@ use crate::crypto::PermissionBit;
 use crate::text_edit::cause::{NotFoundReason, UnsupportedCause};
 use crate::text_edit::cross_object;
 use crate::text_edit::fallback::{self, Fallback, FallbackFace, FallbackUse, PreviewFallback};
+use crate::text_edit::retype::Joined;
 use crate::text_edit::sibling;
+use crate::text_edit::workaround::{self, Workaround, WorkaroundPolicy, WorkaroundUse};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
@@ -670,6 +672,10 @@ pub struct EditOptions {
     ///
     /// A reference rather than a value so the options stay `Copy`.
     pub fallback: Option<&'static FallbackFace>,
+    /// Whether a refusal that has a workaround on offer is worked around
+    /// (decision 175). Default [`WorkaroundPolicy::Refuse`]: refuse as
+    /// before, the error naming the offer ([`EditError::workaround`]).
+    pub workarounds: WorkaroundPolicy,
 }
 
 impl EditOptions {
@@ -747,6 +753,22 @@ impl EditOptions {
     #[must_use]
     pub fn with_fallback(mut self, face: &'static FallbackFace) -> Self {
         self.fallback = Some(face);
+        self
+    }
+
+    /// Set the decision 175 [`WorkaroundPolicy`], returning `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::{EditOptions, WorkaroundPolicy};
+    ///
+    /// let opts = EditOptions::default().with_workarounds(WorkaroundPolicy::Apply);
+    /// assert_eq!(opts.workarounds, WorkaroundPolicy::Apply);
+    /// ```
+    #[must_use]
+    pub fn with_workarounds(mut self, policy: WorkaroundPolicy) -> Self {
+        self.workarounds = policy;
         self
     }
 }
@@ -841,6 +863,9 @@ pub struct EditReport {
     /// `None` when the run's own font (or a decision 174 sibling) took the
     /// whole replacement.
     pub fallback: Option<FallbackUse>,
+    /// The decision 175 workaround the edit went through, and the refusal
+    /// it answered; `None` for an exact edit of the run as found.
+    pub workaround: Option<WorkaroundUse>,
 }
 
 /// A failure to edit — every variant is a clean, named outcome, never a
@@ -850,14 +875,17 @@ pub struct EditReport {
 #[non_exhaustive]
 pub enum EditError {
     /// The inverse-encoding / font-on-edit gate refused, by name.
-    #[error(transparent)]
+    #[error("{}{}", .0, workaround::refusal_offer(.0))]
     Refused(Refusal),
     /// No page at the requested index.
     #[error("no page at index {0}")]
     PageIndex(usize),
     /// The find text was not present in any editable run; `reason` says
     /// whether it is absent or only reachable by joining text objects.
-    #[error("text to edit ({find:?}) was not found in an editable run on the page{reason}")]
+    #[error(
+        "text to edit ({find:?}) was not found in an editable run on the page{reason}{}",
+        workaround::offer(reason.workaround())
+    )]
     NoMatch {
         /// The text searched for.
         find: String,
@@ -904,8 +932,24 @@ pub enum EditError {
     },
     /// The run is real but this cut cannot edit it (composite font, a
     /// `'`/`"` anchor, a cross-element `TJ` match, …).
-    #[error("this run cannot be edited: {0}")]
+    #[error("this run cannot be edited: {}{}", .0, workaround::offer(.0.workaround()))]
     Unsupported(UnsupportedCause),
+    /// The refusal had a workaround on offer, the policy was
+    /// [`WorkaroundPolicy::Apply`], and the workaround could not be applied
+    /// either (decision 175).
+    #[error(
+        "{} -- the workaround on offer ({}) was tried and could not be applied: {why}",
+        workaround::bare(refused),
+        workaround.label()
+    )]
+    WorkaroundRefused {
+        /// The exact surgery's refusal.
+        refused: Box<EditError>,
+        /// The workaround tried.
+        workaround: Workaround,
+        /// Why it could not be applied.
+        why: String,
+    },
     /// The document is encrypted and this edit is not permitted: see
     /// [`EditError::DocumentEncrypted`](crate::edit::EditError::DocumentEncrypted).
     #[error("{}", crate::edit::ENCRYPTED_EDIT_REFUSED)]
@@ -2326,12 +2370,38 @@ pub(crate) enum PlanMode {
 }
 
 /// [`plan_edit_target`] over already-walked `recs` (from [`walk_records`]
-/// over the same `stream` and `target.resources`).
+/// over the same `stream` and `target.resources`), with the decision 175
+/// workaround when `opts` applies it.
 ///
 /// # Errors
 ///
 /// See [`EditError`].
 pub(crate) fn plan_edit_with_records(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    stream: &ContentStream,
+    recs: &[OpRec],
+    req: &EditRequest,
+    opts: &EditOptions,
+    mode: PlanMode,
+) -> Result<EditPlan, EditError> {
+    let planning = workaround::Planning {
+        doc,
+        target,
+        stream,
+        recs,
+        opts,
+        mode,
+    };
+    workaround::plan(&planning, req)
+}
+
+/// The exact surgery: [`plan_edit_with_records`] without a workaround.
+///
+/// # Errors
+///
+/// See [`EditError`].
+pub(crate) fn plan_exact(
     doc: &DocumentView<'_>,
     target: &EditPlanTarget,
     stream: &ContentStream,
@@ -2398,7 +2468,8 @@ pub(crate) fn plan_edit_with_records(
     target_disclosures(doc, target, anchor, &mut disclosures);
     // Show operators only; the `Td` steps between them were not written across.
     let moved = (laid.delta, laid.followers, leading_matches.len() as u64 + 1);
-    let mut report = edit_report(target, &enc.font, &class, opts, moved, anchor, disclosures);
+    let base = enc.font.base_font.as_str();
+    let mut report = edit_report(target, base, &class, opts, moved, anchor, disclosures);
     report.fallback = enc.fallback.as_ref().map(|f| f.used.clone());
     Ok(EditPlan {
         new_content,
@@ -3175,7 +3246,7 @@ fn general_disclosures(
 
 /// The disclosures owed to where the edit was written: a collapsed
 /// multi-stream page, or a form XObject.
-fn target_disclosures(
+pub(crate) fn target_disclosures(
     doc: &DocumentView<'_>,
     target: &EditPlanTarget,
     anchor: &ShowData,
@@ -3195,9 +3266,9 @@ fn target_disclosures(
 
 /// Assemble the [`EditReport`]. `moved` is (advance delta, followers
 /// repositioned, show operators spanned).
-fn edit_report(
+pub(crate) fn edit_report(
     target: &EditPlanTarget,
-    font: &ExtractFont,
+    base_font: &str,
     class: &FontClass,
     opts: &EditOptions,
     (advance_delta, followers_repositioned, operators_spanned): (f64, u64, u64),
@@ -3206,7 +3277,7 @@ fn edit_report(
 ) -> EditReport {
     let invocations = target.invocations.as_ref();
     EditReport {
-        base_font: font.base_font.clone(),
+        base_font: base_font.to_owned(),
         glyph_source: if class.embedded {
             EditGlyphSource::Embedded
         } else {
@@ -3227,6 +3298,7 @@ fn edit_report(
             .unwrap_or_default(),
         disclosures,
         fallback: None,
+        workaround: None,
     }
 }
 
@@ -3895,7 +3967,7 @@ pub(crate) fn line_x(reference: &[f64; 6], m: &[f64; 6]) -> f64 {
 
 /// The pen advance from `s`'s origin to the code at byte `byte` of element
 /// `elem`: every glyph and `TJ` number before it (§9.4.3, §9.4.4).
-fn advance_before(font: &ExtractFont, s: &ShowData, elem: usize, byte: usize) -> f64 {
+pub(crate) fn advance_before(font: &ExtractFont, s: &ShowData, elem: usize, byte: usize) -> f64 {
     let kerns: f64 = s
         .elems
         .iter()
@@ -3922,8 +3994,10 @@ fn advance_before(font: &ExtractFont, s: &ShowData, elem: usize, byte: usize) ->
 /// every unchanged glyph where the producer put it. At least one find
 /// character is kept, because an empty find is the whole-operator pin.
 ///
-/// `None` when nothing trims or the match is in one operator — single
-/// operators are left exactly as they were edited before. Otherwise the
+/// `None` when nothing trims, the match is in one operator — single
+/// operators are left exactly as they were edited before — or a text object
+/// of the match begins after the narrowed part: it starts at its own
+/// `Td`/`Tm`, so it would be left behind instead of reflowed. Otherwise the
 /// narrowed anchor and request, and the byte range of `req.find` the
 /// narrowed find covers.
 fn narrow_span(
@@ -3981,6 +4055,10 @@ fn narrow_span(
         offset += len;
     }
     let (first, last) = (first?, last?);
+    let rest = recs.get(last..span.last).unwrap_or_default();
+    if rest.iter().any(|r| matches!(r.rec, Rec::EndText)) {
+        return None;
+    }
     let mut narrowed = req.clone();
     narrowed.find = f[pre..f.len() - suf].to_owned();
     narrowed.replace = r[pre..r.len() - suf].to_owned();
@@ -4098,11 +4176,12 @@ pub(crate) fn same_line(anchor: &ShowData, follower: &[f64; 6]) -> bool {
 /// One predicate, two callers -- the `FormatRequest::is_empty` lesson (Pass
 /// 19.1), where a re-listed copy of a condition learned about new cases and
 /// the original did not.
-pub(crate) const fn is_locational_error(e: &EditError) -> bool {
-    matches!(
-        e,
-        EditError::NoMatch { .. } | EditError::PinnedSpanNotFound { .. }
-    )
+pub(crate) fn is_locational_error(e: &EditError) -> bool {
+    match e {
+        EditError::NoMatch { .. } | EditError::PinnedSpanNotFound { .. } => true,
+        EditError::WorkaroundRefused { refused, .. } => is_locational_error(refused),
+        _ => false,
+    }
 }
 
 /// The form-XObject HARD refusals, applied before any surgery.
@@ -4449,36 +4528,52 @@ fn grow_span<'a>(recs: &'a [OpRec], i: usize, head: &'a ShowData, cross: bool) -
     (text, last)
 }
 
-/// The `NoMatch` for a find no single text object contains: when the show
+/// The `NoMatch` for a find no single run contains: when the show
 /// operators' text, joined across `ET` in content order, does contain it,
-/// the reason names how many text objects the match touches.
+/// the reason names how many text objects the match touches, or, within one
+/// text object on one line, how many show operators.
 fn not_found(recs: &[OpRec], find: &str) -> EditError {
-    let mut joined = String::new();
-    let mut object_of: Vec<usize> = Vec::new();
-    let mut object = 0usize;
-    for r in recs {
-        match &r.rec {
-            Rec::Show(s) => {
-                joined.push_str(&s.text);
-                object_of.resize(joined.len(), object);
-            }
-            Rec::EndText => object += 1,
-            _ => {}
-        }
-    }
-    let span = joined
-        .find(find)
-        .filter(|_| !find.is_empty())
-        .and_then(|pos| Some((*object_of.get(pos)?, *object_of.get(pos + find.len() - 1)?)));
-    let reason = match span {
-        Some((first, last)) if last > first => NotFoundReason::SpansTextObjects {
-            objects: last - first + 1,
-        },
-        _ => NotFoundReason::NoSuchText,
-    };
+    let joined = Joined::of(recs);
+    let reason = joined
+        .find(find, None)
+        .map_or(NotFoundReason::NoSuchText, |(pos, end)| {
+            split_reason(recs, &joined, pos, end)
+        });
     EditError::NoMatch {
         find: find.to_owned(),
         reason,
+    }
+}
+
+/// Why the joined match `pos..end` is not one run.
+fn split_reason(recs: &[OpRec], joined: &Joined, pos: usize, end: usize) -> NotFoundReason {
+    let (Some(first), Some(last)) = (joined.object_at(pos), joined.object_at(end - 1)) else {
+        return NotFoundReason::NoSuchText;
+    };
+    if last > first {
+        return NotFoundReason::SpansTextObjects {
+            objects: last - first + 1,
+        };
+    }
+    let ops = joined.ops_in(pos, end);
+    let shows: Vec<&ShowData> = ops
+        .iter()
+        .filter_map(|&i| match recs.get(i).map(|r| &r.rec) {
+            Some(Rec::Show(s)) => Some(&**s),
+            _ => None,
+        })
+        .collect();
+    let one_line = shows.first().is_some_and(|head| {
+        shows
+            .iter()
+            .all(|s| s.matrix_known && same_line(head, &s.text_matrix))
+    });
+    if shows.len() > 1 && one_line {
+        NotFoundReason::SplitRun {
+            operators: shows.len(),
+        }
+    } else {
+        NotFoundReason::NoSuchText
     }
 }
 

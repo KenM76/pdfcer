@@ -7982,6 +7982,17 @@ pub(crate) enum Command {
         /// (.ttf) for the characters the run's font cannot encode.
         #[arg(long = "fallback-font-file", value_name = "PATH")]
         fallback_font_file: Option<PathBuf>,
+        /// When the exact edit is refused and a workaround is on offer (the
+        /// refusal names it), apply it: join a match split across text
+        /// objects, rewrite a ' or " operator as T* and Tj, or else retype --
+        /// remove the run's show operators and set the new text at the run's
+        /// position, size, colour and spacing, in the run's font when it can
+        /// encode the text, else in --fallback-font (default Helvetica).
+        /// Prints which workaround it used. A retype loses the run's kerning,
+        /// and an incremental save keeps the removed text in the prior
+        /// revision.
+        #[arg(long = "workaround")]
+        workaround: bool,
         /// Which content stream to edit (Pass 119.0): `auto` (default -- the
         /// page's own content first, then each form XObject it paints, in
         /// paint order), `page` (the page's own content ONLY), or `form:N`

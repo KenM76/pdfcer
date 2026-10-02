@@ -90,10 +90,12 @@ pub(crate) mod reflow_style;
 pub(crate) mod reflow_walk;
 pub mod refusal_kind;
 pub(crate) mod repertoire;
+pub(crate) mod retype;
 pub(crate) mod sibling;
 pub mod subset_augment;
 pub mod synth;
 pub(crate) mod unicode_map;
+pub mod workaround;
 
 pub use addtext::{
     AddTextError, AddTextOutcome, AddTextReport, AddTextRequest, AddTextWrapPreview,
@@ -111,6 +113,7 @@ pub use subset_augment::{
     AugmentRefusal, AugmentRequest, AugmentedProgram, HintingMismatch, OutlineCheck, SubsetAugment,
     SubsetAugmenter,
 };
+pub use workaround::{Workaround, WorkaroundPolicy, WorkaroundUse};
 // `CompositeEncoding` sits beside `InverseEncoding` deliberately: they are the
 // two halves of ONE seam (`plan_edit` picks between them on `font.is_simple()`
 // and both answer the same two questions — per-code values for the §9.4.4

@@ -53,6 +53,8 @@ pub(crate) struct EditTextArgs<'a> {
     pub(crate) fallback_font: Option<&'a str>,
     /// `--fallback-font-file PATH`.
     pub(crate) fallback_font_file: Option<&'a Path>,
+    /// `--workaround`: apply the workaround a refusal offers.
+    pub(crate) workaround: bool,
     /// The `--target` selector, unparsed. Parsed inside the handler so a
     /// malformed value is a named refusal with the accepted spellings printed,
     /// rather than a clap error that only says "invalid value".
@@ -73,7 +75,7 @@ pub(crate) struct EditTextArgs<'a> {
 /// overflow, R-INV-5 ambiguity) are surfaced verbatim.
 pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
     use pdfcer_core::text_edit::{
-        EditError, EditGlyphSource, EditOptions, EditRequest, FollowerDisposition,
+        EditError, EditGlyphSource, EditOptions, EditRequest, FollowerDisposition, WorkaroundPolicy,
     };
 
     // The shell owns font discovery (R61): `--font-dir` supplies operator
@@ -146,7 +148,12 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
             FollowerDisposition::Reflow
         })
         .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs)
-        .with_sibling_fonts(args.sibling_fonts);
+        .with_sibling_fonts(args.sibling_fonts)
+        .with_workarounds(if args.workaround {
+            WorkaroundPolicy::Apply
+        } else {
+            WorkaroundPolicy::Refuse
+        });
     let opts = match args.augment {
         Some((check, hinting)) => {
             opts.with_subset_augment(subset_augment(&font_env, check, hinting))
@@ -167,11 +174,15 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         Ok(o) => o,
         Err(err) => {
             eprintln!("pdfcer: edit-text refused: {err}");
+            if !args.workaround && err.workaround().is_some() {
+                eprintln!("pdfcer: re-run with --workaround to apply it");
+            }
             return match err {
                 EditError::Refused(_)
                 | EditError::NoMatch { .. }
                 | EditError::Unsupported(_)
                 | EditError::PageIndex(_)
+                | EditError::WorkaroundRefused { .. }
                 | EditError::Encrypted => exit::EDIT_REFUSED,
                 EditError::Write(_) => exit::SAVE_REFUSED,
                 EditError::Content(_) | EditError::PageTree(_) => exit::RUNTIME_ERROR,
@@ -260,6 +271,9 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         println!("  tagged_mcid={mcid}");
     }
     crate::fallback_font::print_fallback(report);
+    if let Some(used) = &report.workaround {
+        println!("  workaround={}", used.workaround.label());
+    }
     println!("  disclosures:");
     for d in &report.disclosures {
         println!("    - {d}");
