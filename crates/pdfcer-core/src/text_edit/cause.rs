@@ -68,12 +68,15 @@ pub enum UnsupportedCause {
     /// The page object is not a dictionary.
     PageNotDictionary,
     /// Justifying a block whose producer already set non-zero `Tc`/`Tw`.
+    /// Not produced: reflow justifies with `TJ` over the measured advances.
     JustifyWithSpacing,
-    /// The block mixes more than one font resource.
+    /// The block mixes more than one font resource. Not produced: reflow
+    /// carries each glyph's own font.
     MixedFonts,
     /// A block glyph was shown with no font selected (malformed content).
     ShowWithoutFont,
-    /// The block carries no font resource.
+    /// The block carries no font resource. Not produced: a glyph shown with
+    /// no font is [`Self::ShowWithoutFont`].
     NoFont,
     /// The block has no show operators that can be located.
     NoShowOperators,
@@ -102,6 +105,19 @@ pub enum UnsupportedCause {
     StateNotRestorable {
         /// Which state, in words.
         detail: String,
+    },
+    /// The block's content region holds an operator a re-emitted block
+    /// cannot carry (a path, an image, a nested form, unbalanced `q`/`Q`):
+    /// reflowing would drop it.
+    OperatorInBlock {
+        /// The operator, as written (`"inline image"` for `BI … EI`).
+        operator: String,
+    },
+    /// A word break on a block shown in this font needs a space glyph, and
+    /// neither the block nor a single-byte font supplies one.
+    NoSpaceGlyph {
+        /// The font's `/BaseFont`.
+        font: String,
     },
     /// Committing the planned edit to the session failed.
     CommitFailed {
@@ -199,6 +215,14 @@ impl std::fmt::Display for UnsupportedCause {
             Self::MixedScale { matrix } => write!(
                 f,
                 "the block spans more than one {matrix} scale; reflow-apply of a multi-transform block is deferred"
+            ),
+            Self::OperatorInBlock { operator } => write!(
+                f,
+                "the block's text is interleaved with a `{operator}` operator that re-emitting the block would drop; refusing rather than lose it"
+            ),
+            Self::NoSpaceGlyph { font } => write!(
+                f,
+                "a re-wrapped line needs a word space in font {font}, which shows no space glyph in this block and is not a single-byte font; refusing rather than guess a code"
             ),
             Self::StateNotRestorable { detail } | Self::CommitFailed { detail } => {
                 f.write_str(detail)

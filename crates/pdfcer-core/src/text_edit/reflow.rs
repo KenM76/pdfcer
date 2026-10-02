@@ -90,7 +90,7 @@
 use core::ops::Range;
 
 use crate::page_tree::Rect;
-use crate::text_extract::PageText;
+use crate::text_extract::{ExtractedGlyph, PageText};
 
 use super::model::{Block, BlockRecognitionOptions, EditableTextModel, GlyphRef};
 use super::reflow_fit::{CellOverflow, cell_overflow, cell_wrap_width, page_overflow};
@@ -584,25 +584,31 @@ pub struct ReflowEngine<'m, 'a> {
     model: &'m EditableTextModel<'a>,
 }
 
-/// A word tokenised out of a block: the glyphs it spans and their total
-/// §9.4.4 advance width, plus the decoded text (for the preview display)
-/// and — for Pass 15.1's reflow-apply — the SOURCE character codes.
+/// A word tokenised out of a block: its glyphs, their total §9.4.4 advance
+/// width including the source's intra-word positioning, and the decoded text.
 ///
-/// `pub(crate)` so [`super::reflow_apply`] (Pass 15.1) re-emits the block's
-/// lines through the SAME tokenisation the 15.0 preview computed its word
-/// ranges over, guaranteeing the [`ReflowLine::words`] index ranges line up
-/// with the codes to show. Kept private-in-crate — never public API.
+/// `pub(crate)` so [`super::reflow_apply`] re-emits the block through the
+/// SAME tokenisation the preview computed its [`ReflowLine::words`] ranges
+/// over. Never public API.
 pub(crate) struct WordTok {
     pub(crate) width: f64,
     pub(crate) text: String,
-    /// The word's source character codes, in content order (one byte per
-    /// glyph — simple font; composite is refused before apply, R-INV-4).
-    /// Carried so 15.1 re-emits the SAME bytes rather than re-encoding: a
-    /// reflow only re-wraps and re-positions, it never changes the text
-    /// (decision 015 §3.7, minimal-diff), so the original codes are exactly
-    /// the codes to show.
-    pub(crate) codes: Vec<u8>,
+    /// The word's glyphs in content order. Apply re-emits each glyph's own
+    /// source code under its own show operator's state: a reflow re-wraps
+    /// and re-positions, it never re-encodes.
+    pub(crate) glyphs: Vec<GlyphRef>,
+    /// Per glyph, the source displacement before it beyond the previous
+    /// glyph's advance, in points along the writing direction: the `TJ`
+    /// kerning (§9.4.3) the producer wrote. Entry 0 is always 0.
+    pub(crate) kerns: Vec<f64>,
+    /// The space glyph that followed the word in the source, when a space
+    /// (rather than a line end) closed it.
+    pub(crate) space_after: Option<GlyphRef>,
 }
+
+/// A kern below this, in points, is extraction rounding rather than a
+/// producer adjustment, and is dropped.
+const KERN_EPS: f64 = 0.005;
 
 impl<'m, 'a> ReflowEngine<'m, 'a> {
     /// Build an engine over a recognised model.
@@ -649,9 +655,7 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
         let block = self.block(block_index)?;
         let old_bbox = block.bbox;
         let size = self.block_size(block);
-        // The space code is read only by reflow-apply.
-        let (words, space_samples, _space_code) =
-            tokenise_block(self.model, self.model.sourced_view(), block);
+        let (words, space_samples) = tokenise_block(self.model, self.model.sourced_view(), block);
         if words.is_empty() {
             return Err(ReflowError::EmptyBlock(block_index));
         }
@@ -1017,62 +1021,69 @@ fn join_word_text(words: &[WordTok], range: Range<usize>) -> String {
 }
 
 /// Tokenise a block's glyphs into words (split at U+0020 space glyphs and at
-/// line boundaries), returning the words (each carrying its source codes for
-/// 15.1 re-emission), the block's space-glyph advances (for the
-/// representative space width), and the representative inter-word space's
-/// character code (for 15.1 to re-emit the gap byte). See the module docs.
+/// line boundaries), returning the words and the block's space-glyph
+/// advances (for the representative space width).
 ///
-/// `pub(crate)` so Pass 15.1's [`super::reflow_apply`] tokenises identically
-/// to the 15.0 preview and lines up [`ReflowLine::words`] ranges with the
-/// codes it emits.
+/// `pub(crate)` so [`super::reflow_apply`] tokenises identically to the
+/// preview and lines up [`ReflowLine::words`] ranges with what it emits.
 pub(crate) fn tokenise_block(
     model: &EditableTextModel<'_>,
     page: &PageText,
     block: &Block,
-) -> (Vec<WordTok>, Vec<f64>, Option<u8>) {
+) -> (Vec<WordTok>, Vec<f64>) {
     let mut words: Vec<WordTok> = Vec::new();
     let mut spaces: Vec<f64> = Vec::new();
-    let mut space_code: Option<u8> = None;
     let mut current: Option<WordTok> = None;
 
     for &li in &block.line_indices {
         let Some(line) = model.lines().get(li) else {
             continue;
         };
+        let mut prev: Option<GlyphRef> = None;
         for &gref in &line.glyphs {
             let Some(g) = model.glyph(gref) else { continue };
             let text = glyph_text(page, gref);
             if text == " " {
-                // Close the current word; sample the space advance + code.
-                if let Some(w) = current.take() {
+                if let Some(mut w) = current.take() {
+                    w.space_after = Some(gref);
                     words.push(w);
                 }
                 spaces.push(f64::from(g.advance));
-                if space_code.is_none() {
-                    space_code = u8::try_from(g.code).ok();
-                }
-            } else {
-                let w = current.get_or_insert_with(|| WordTok {
-                    width: 0.0,
-                    text: String::new(),
-                    codes: Vec::new(),
-                });
-                w.width += f64::from(g.advance);
-                w.text.push_str(text);
-                // Carry the source code so 15.1 re-emits the SAME byte (one
-                // byte per glyph — simple font). A code outside 0..=255 can
-                // only be composite, refused before apply reaches here.
-                if let Ok(b) = u8::try_from(g.code) {
-                    w.codes.push(b);
-                }
+                prev = None;
+                continue;
             }
+            let kern = prev
+                .and_then(|p| model.glyph(p))
+                .map_or(0.0, |p| source_kern(p, g));
+            let w = current.get_or_insert_with(|| WordTok {
+                width: 0.0,
+                text: String::new(),
+                glyphs: Vec::new(),
+                kerns: Vec::new(),
+                space_after: None,
+            });
+            let kern = if w.glyphs.is_empty() { 0.0 } else { kern };
+            w.width += kern + f64::from(g.advance);
+            w.text.push_str(text);
+            w.glyphs.push(gref);
+            w.kerns.push(kern);
+            prev = Some(gref);
         }
         // A line boundary is a word break (the old wrapping is discarded).
         if let Some(w) = current.take() {
             words.push(w);
         }
     }
-    (words, spaces, space_code)
+    (words, spaces)
+}
+
+/// The displacement from `prev`'s advance end to `g`'s origin, along
+/// `prev`'s writing direction: what a `TJ` number (§9.4.3) put between them.
+fn source_kern(prev: &ExtractedGlyph, g: &ExtractedGlyph) -> f64 {
+    let (dx, dy) = (f64::from(g.x - prev.x), f64::from(g.y - prev.y));
+    let (ux, uy) = (f64::from(prev.direction.0), f64::from(prev.direction.1));
+    let d = dx * ux + dy * uy - f64::from(prev.advance);
+    if d.abs() < KERN_EPS { 0.0 } else { d }
 }
 
 /// The decoded text of one glyph — its slice of its run's text — or `""` if

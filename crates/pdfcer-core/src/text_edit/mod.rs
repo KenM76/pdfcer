@@ -83,6 +83,8 @@ pub mod program_glyphs;
 pub mod reflow;
 pub mod reflow_apply;
 pub mod reflow_fit;
+pub(crate) mod reflow_style;
+pub(crate) mod reflow_walk;
 pub mod refusal_kind;
 pub(crate) mod repertoire;
 pub(crate) mod sibling;

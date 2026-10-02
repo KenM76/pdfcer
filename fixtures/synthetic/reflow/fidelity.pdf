@@ -1,0 +1,174 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R 9 0 R 11 0 R 13 0 R 15 0 R] /Count 7 /Resources << /Font << /F1 17 0 R /F2 18 0 R /F3 19 0 R /F4 20 0 R >> >> >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 516 >>
+stream
+q .75 0 0 -.75 0 792 cm 0 g
+BT /F4 16 Tf 1 0 0 -1 96 96 Tm <0005001800100015000C00090015000D00070003001700110013000800140003000A000D000E000E00030015000C000D001400030014000C001100130015> Tj ET
+BT /F4 16 Tf 1 0 0 -1 96 114 Tm <0012000600130006000B001300060012000C00030014001100030015000C000600150003000600030010000600130013001100170009001300030017001300060012> Tj ET
+BT /F4 16 Tf 1 0 0 -1 96 132 Tm <000F001100160009001400030015000C0009000F000300110010001500110003000F0011001300090003000E000D0010000900140004> Tj ET
+Q
+
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 316 >>
+stream
+BT /F1 10 Tf 72 740 Td (Plain words with ) Tj /F2 10 Tf (bold) Tj /F1 10 Tf ( and ) Tj /F3 10 Tf (italic) Tj /F1 10 Tf ( runs inside) Tj ET
+BT /F1 10 Tf 72 726 Td (one paragraph, then ) Tj /F2 10 Tf (strong) Tj /F1 10 Tf ( words) Tj ET
+BT /F1 10 Tf 72 712 Td (close the ) Tj /F3 10 Tf (block) Tj /F1 10 Tf (.) Tj ET
+
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 159 >>
+stream
+BT /F1 12 Tf 72 740 Td [(A) 80 (V) 80 (A) 60 (T) 40 (AR)] TJ ( leads a line that a narrower) Tj ET
+BT /F1 12 Tf 72 725 Td (wrap breaks onto more lines.) Tj ET
+
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 160 >>
+stream
+BT /F1 10 Tf 72 740 Td (Small text then ) Tj /F1 14 Tf (LARGE) Tj /F1 10 Tf ( words and more) Tj ET
+BT /F1 10 Tf 72 726 Td (small words close the block.) Tj ET
+
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 12 0 R >>
+endobj
+12 0 obj
+<< /Length 202 >>
+stream
+BT /F1 10 Tf 72 740 Td (Plain then ) Tj 1 0 0 rg (red) Tj 0 g ( words again here) Tj ET
+BT /F1 10 Tf 72 726 Td (and the block ends in ) Tj 1 0 0 rg (red.) Tj 0 g ET
+BT /F1 10 Tf 72 500 Td (after) Tj ET
+
+endstream
+endobj
+13 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 14 0 R >>
+endobj
+14 0 obj
+<< /Length 119 >>
+stream
+BT /F1 10 Tf 72 740 Td (A rule sits between) Tj ET
+72 734 100 0.5 re f
+BT /F1 10 Tf 72 726 Td (these two lines.) Tj ET
+
+endstream
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 16 0 R >>
+endobj
+16 0 obj
+<< /Length 112 >>
+stream
+BT /F1 10 Tf 72 740 Td (One scale on this line) Tj ET
+BT /F1 5 Tf 2 0 0 2 72 726 Tm (another on this one) Tj ET
+
+endstream
+endobj
+17 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+18 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+19 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>
+endobj
+20 0 obj
+<< /Type /Font /Subtype /Type0 /BaseFont /SYNTHA+Helvetica /Encoding /Identity-H /DescendantFonts [21 0 R] /ToUnicode 23 0 R >>
+endobj
+21 0 obj
+<< /Type /Font /Subtype /CIDFontType2 /BaseFont /SYNTHA+Helvetica /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 22 0 R /DW 500 /W [3 [278] 4 [278] 5 [500] 6 [500] 7 [500] 8 [500] 9 [500] 10 [500] 11 [500] 12 [500] 13 [500] 14 [500] 15 [500] 16 [500] 17 [500] 18 [500] 19 [500] 20 [500] 21 [500] 22 [500] 23 [500] 24 [500]] /CIDToGIDMap /Identity >>
+endobj
+22 0 obj
+<< /Type /FontDescriptor /FontName /SYNTHA+Helvetica /Flags 32 /FontBBox [0 -200 1000 900] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>
+endobj
+23 0 obj
+<< /Length 632 >>
+stream
+/CIDInit /ProcSet findresource begin 12 dict begin begincmap
+/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def
+/CMapName /Adobe-Identity-UCS def /CMapType 2 def
+1 begincodespacerange <0000> <FFFF> endcodespacerange
+22 beginbfchar
+<0003> <0020>
+<0004> <002E>
+<0005> <0053>
+<0006> <0061>
+<0007> <0063>
+<0008> <0064>
+<0009> <0065>
+<000A> <0066>
+<000B> <0067>
+<000C> <0068>
+<000D> <0069>
+<000E> <006C>
+<000F> <006D>
+<0010> <006E>
+<0011> <006F>
+<0012> <0070>
+<0013> <0072>
+<0014> <0073>
+<0015> <0074>
+<0016> <0076>
+<0017> <0077>
+<0018> <0079>
+endbfchar
+endcmap CMapName currentdict /CMap defineresource pop end end
+endstream
+endobj
+xref
+0 24
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000233 00000 n 
+0000000320 00000 n 
+0000000887 00000 n 
+0000000974 00000 n 
+0000001341 00000 n 
+0000001428 00000 n 
+0000001638 00000 n 
+0000001726 00000 n 
+0000001938 00000 n 
+0000002027 00000 n 
+0000002281 00000 n 
+0000002370 00000 n 
+0000002541 00000 n 
+0000002630 00000 n 
+0000002794 00000 n 
+0000002892 00000 n 
+0000002995 00000 n 
+0000003101 00000 n 
+0000003245 00000 n 
+0000003654 00000 n 
+0000003830 00000 n 
+trailer
+<< /Size 24 /Root 1 0 R >>
+startxref
+4514
+%%EOF

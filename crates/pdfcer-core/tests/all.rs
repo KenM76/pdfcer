@@ -142,6 +142,7 @@ mod redacted_text_granularity;
 mod redaction_residual_sweep;
 mod redaction_tj_numbers;
 mod reflow_decline;
+mod reflow_fidelity;
 mod refusal_carries_its_remedy_faces;
 mod refusal_causes;
 mod refusal_names_a_font;

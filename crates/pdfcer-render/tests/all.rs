@@ -53,6 +53,7 @@ mod overprint_image;
 mod page_blend_space_source;
 mod preview_equals_saved;
 mod redaction_leaves_no_ink;
+mod reflow_kerned_word_pixels;
 mod region_matches_full_page;
 mod rendering_intent;
 mod shading_ink;

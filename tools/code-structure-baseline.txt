@@ -489,8 +489,6 @@ fn pdfcer-core/src/text_edit/forms.rs::walk_forms
 fn pdfcer-core/src/text_edit/merge.rs::plan_merge
 fn pdfcer-core/src/text_edit/placetext.rs::build_disclosures
 fn pdfcer-core/src/text_edit/placetext.rs::plan
-fn pdfcer-core/src/text_edit/reflow_apply.rs::locate_block_region
-fn pdfcer-core/src/text_edit/reflow_apply.rs::plan_reflow
 fn pdfcer-core/src/vector/clip.rs::from_bytes
 fn pdfcer-core/src/vector/clip.rs::plan_paste
 fn pdfcer-core/src/vector/clip.rs::to_bytes

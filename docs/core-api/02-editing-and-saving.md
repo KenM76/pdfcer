@@ -816,7 +816,22 @@ is the CLI's sentence. Switch on the variant, never on the text. Variants:
 `NoShowOperators`, `RotatedOrSkewed { matrix }`, `MixedScale { matrix }`,
 `DegenerateCtm`, `ShowOutsideTextObject`, `SharedTextObject`,
 `NonContiguousTextObjects`, `ShowOperatorsNotFound`,
-`StateNotRestorable { detail }`, `CommitFailed { detail }`.
+`StateNotRestorable { detail }`, `OperatorInBlock { operator }`,
+`NoSpaceGlyph { font }`, `CommitFailed { detail }`.
+
+- **`reflow_block` carries each glyph's look** (`Pass 432.0`, request G079):
+  every glyph keeps its own code, font resource, `Tf` size, `Tc`/`Tw`/`Tz`/
+  `Ts`/`Tr` and fill/stroke colour, and the source's `TJ` positioning inside
+  each word (ISO 32000-2 §9.4.3); state changes are written only at style
+  boundaries and the state after the block is restored by value. Composite
+  (Type 0) and multi-font blocks reflow. `JustifyWithSpacing`, `MixedFonts`
+  and `NoFont` are no longer produced. What a re-emitted block cannot carry
+  is refused by name: `OperatorInBlock { operator }` for a path, image,
+  XObject, inline image (`"BI"`) or unbalanced `q`/`Q` (`"q/Q (unbalanced)"`)
+  inside the block's byte region; `NoSpaceGlyph { font }` when a new word gap
+  needs a space and neither the block shows one nor the font is single-byte;
+  `MixedScale` for more than one text-matrix or CTM scale. A gap the block
+  never showed is written as code 32 and disclosed.
 
 - **Vertical writing is refused** with `VerticalWriting` on `edit_text`, its
   preview, `edit_capability`, `run_repertoire` (an empty answer with

@@ -123,30 +123,24 @@
 //! prior text survives in the document's revision history by design, and that
 //! is disclosed.
 
-use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
+use crate::content::{ContentError, ContentStream};
 use crate::document::Document;
-use crate::graph::ObjectGraph;
-use crate::object::{Dict, Object};
 use crate::page_tree::{self, Page, PageTreeError};
 use crate::span::ByteSpan;
 use crate::text_edit::cause::UnsupportedCause;
-use crate::text_extract::font::ExtractFont;
 use crate::text_extract::{self, ContentStreamRef, ExtractError, ExtractOptions, GlyphProvenance};
 use crate::text_state::{AmbientRestoreError, AmbientTextState, TextStateParam};
 use crate::view::DocumentView;
-use crate::writer::content::{emit_literal_string, emit_number};
 
-use super::edit::{
-    EditError, EditGlyphSource, emit_tm, resolve_font_dict, splice, trust_disclosure,
-    write_incremental,
-};
-use super::encoding::{RInvTrigger, Refusal};
+use super::edit::{EditError, EditGlyphSource, splice, trust_disclosure, write_incremental};
+use super::encoding::Refusal;
 use super::model::{Block, EditableTextModel, GlyphRef};
 use super::reflow::{
-    BlockAlignment, PageOverflow, ReflowEngine, ReflowLine, ReflowPreview, ReflowRequest,
-    tokenise_block,
+    BlockAlignment, PageOverflow, ReflowEngine, ReflowPreview, ReflowRequest, tokenise_block,
 };
 use super::reflow_fit::CellOverflow;
+use super::reflow_style::{BlockFonts, EmitCtx, Emitted, emit_block, resolve_fonts};
+use super::reflow_walk::locate_block_region;
 
 /// Axis-alignment / near-zero tolerance for matrix entries and scales,
 /// points. Below this a matrix off-diagonal is treated as zero (upright) and
@@ -584,115 +578,65 @@ pub(crate) fn plan_reflow(
         .ok_or(ReflowApplyError::Preview(
             super::ReflowError::BlockIndexOutOfRange(block_index, model.blocks().len()),
         ))?;
-
-    // --- gather the block's provenance: font resource, tf_size, matrices,
-    //     mcid, and the set of show-operator spans to replace ---
     let prov = block_provenance(model, block)?;
-
-    // --- resolve + classify the font (composite ⇒ R-INV-4 refusal) ---
-    let font_dict = resolve_font_dict(doc, &page.resources, &prov.font_resource).ok_or(
-        ReflowApplyError::Unsupported(UnsupportedCause::FontUnresolvable),
-    )?;
-    // `doc` is the caller's graph — the session overlay or the loaded
-    // file (`Pass 257.0`); see `plan_edit_target` in `edit.rs`.
-    let font = ExtractFont::resolve(doc, font_dict);
-    refuse_if_composite(font_dict, &font, doc)?;
-    let embedded = font_is_embedded(font_dict, doc);
-
-    // --- walk the content stream: find the block's text objects + region ---
     let region = locate_block_region(stream, &prov.op_spans)?;
+    let (words, _) = tokenise_block(model, model.sourced_view(), block);
+    let fonts = resolve_fonts(doc, &page.resources, model, &region, &words)?;
+    let ctx = EmitCtx {
+        model,
+        region: &region,
+        fonts: &fonts,
+        prov: &prov,
+        spaces: words.iter().filter_map(|w| w.space_after).collect(),
+        synthetic_space: preview.diagnostics.space_width_pt,
+    };
+    let emitted = emit_block(&ctx, &words, preview)?;
 
-    // --- text state from the stream walk (authoritative Tf/Tz/Tc/Tw) ---
-    let ts = region.text_state.clone();
-
-    // --- emit the fresh BT … ET for the reflowed lines ---
-    let justified = preview.alignment.alignment.is_justified();
-    let uses_justify_tj = justified && preview.lines.iter().any(|l| l.justified_slack.is_some());
-    if uses_justify_tj && (ts.tc().abs() > MTX_EPS || ts.tw().abs() > MTX_EPS) {
-        return Err(ReflowApplyError::Unsupported(
-            UnsupportedCause::JustifyWithSpacing,
-        ));
-    }
-
-    // emit_scale = Tfs · Th · a · ca : converts a TJ number (thousandths) to
-    // a default-user-space displacement (§9.4.4, axis-aligned).
-    let emit_scale = ts.tf_size * ts.th() * prov.tm_a * prov.ctm_a;
-
-    // Every text-state parameter the preamble sets is recorded here, so the
-    // symmetric restore before `ET` can be computed rather than remembered.
-    // See `restore_ops` for the obligation this discharges.
-    let mut emitted: Vec<(TextStateParam, f64)> = Vec::new();
-
-    let mut body = Vec::new();
-    body.extend_from_slice(b"BT\n");
-    body.push(b'/');
-    body.extend_from_slice(&prov.font_resource);
-    body.push(b' ');
-    emit_number(&mut body, ts.tf_size);
-    body.extend_from_slice(b" Tf\n");
-    if ts.tc().abs() > MTX_EPS {
-        emit_number(&mut body, ts.tc());
-        body.extend_from_slice(b" Tc\n");
-        emitted.push((TextStateParam::CharSpacing, ts.tc()));
-    }
-    if (ts.th() - 1.0).abs() > MTX_EPS {
-        emit_number(&mut body, ts.th() * 100.0);
-        body.extend_from_slice(b" Tz\n");
-        emitted.push((TextStateParam::HorizScale, ts.th() * 100.0));
-    }
-    // Word spacing: zero it under justify (so kept code-32 spaces are not
-    // double-stretched, §4.1); else reproduce the block's own Tw.
-    let line_tw = if uses_justify_tj { 0.0 } else { ts.tw() };
-    if line_tw.abs() > MTX_EPS || uses_justify_tj {
-        emit_number(&mut body, line_tw);
-        body.extend_from_slice(b" Tw\n");
-        emitted.push((TextStateParam::WordSpacing, line_tw));
-    }
-
-    // Re-tokenise the block into words carrying their SOURCE codes (identical
-    // segmentation to the preview, so ReflowLine word ranges line up).
-    let (words, _spaces, space_code) = tokenise_block(model, model.sourced_view(), block);
-    let space_code = space_code.unwrap_or(b' ');
-
-    let mut justified_lines = 0usize;
-    for line in &preview.lines {
-        // Line origin → absolute Tm operands (recipe C), axis-aligned map.
-        let (e, f) = origin_to_tm(line.origin_x, line.baseline_y, &prov)?;
-        body.extend_from_slice(&emit_tm([prov.tm_a, prov.tm_b, prov.tm_c, prov.tm_d, e, f]));
-        body.push(b' ');
-        if let Some(slack) = justified_line_slack(line, justified) {
-            justified_lines += 1;
-            body.extend_from_slice(&emit_justified_line(
-                &words, line, slack, space_code, emit_scale,
-            ));
-        } else {
-            body.extend_from_slice(&emit_plain_line(&words, line, space_code));
-        }
-        body.push(b'\n');
-    }
-    // --- close the state leak (Pass 19.0, decision 019 §3.4 / R88) ---
-    //
-    // Everything above ran INSIDE the fresh text object, and §9.3's scope
-    // rule keeps text state alive past `ET`. Restore by value, inside the
-    // text object: `q`/`Q` are not admitted in a `BT … ET` (§8.2 Table 51 /
-    // Figure 9), and splitting the object to use them would discard `Tm`
-    // (§9.4.1).
-    let restore = restore_ops(&emitted, &region.entry_state, &region.exit_state).map_err(|e| {
-        ReflowApplyError::Unsupported(UnsupportedCause::StateNotRestorable {
-            detail: e.to_string(),
-        })
-    })?;
-    let leak_closed = !restore.is_empty();
-    body.extend_from_slice(&restore);
-    body.extend_from_slice(b"ET");
-
-    // --- splice: replace [region.start, region.end) with the fresh body ---
-    let mut edits: Vec<(usize, usize, Vec<u8>)> = vec![(region.start, region.end, body)];
+    let mut disclosures = apply_disclosures(block_index, preview, &fonts, &emitted);
+    carried_disclosures(&mut disclosures, preview, prov.mcid, extra_emptied);
+    let mut edits: Vec<(usize, usize, Vec<u8>)> = vec![(region.start, region.end, emitted.body)];
     let new_content = splice(&stream.buf, &mut edits);
+    let first_font = fonts.order.first().and_then(|n| fonts.info.get(n));
+    let all_embedded = fonts.info.values().all(|f| f.embedded);
+    let report = ReflowApplyReport {
+        block_index,
+        lines_before: preview.lines_before,
+        lines_after: preview.lines_after,
+        alignment: preview.alignment.alignment,
+        justified_lines: emitted.justified_lines,
+        base_font: first_font.map(|f| f.base_font.clone()).unwrap_or_default(),
+        glyph_source: if all_embedded {
+            EditGlyphSource::Embedded
+        } else {
+            EditGlyphSource::NonEmbedded
+        },
+        tagged_mcid: prov.mcid,
+        height_delta: preview.height_delta(),
+        overflow: preview.overflow,
+        cell_overflow: preview.cell_overflow,
+        content_object: content_id.num,
+        extra_objects_emptied: extra_emptied,
+        disclosures,
+    };
+    Ok(ReflowPlan {
+        new_content,
+        report,
+    })
+}
 
-    // --- assemble the report + disclosures ---
-    let mut disclosures = Vec::new();
-    disclosures.push(trust_disclosure(embedded, &font.base_font));
+/// The disclosures of what the apply stage itself did.
+fn apply_disclosures(
+    block_index: usize,
+    preview: &ReflowPreview,
+    fonts: &BlockFonts,
+    emitted: &Emitted,
+) -> Vec<String> {
+    let mut disclosures: Vec<String> = fonts
+        .order
+        .iter()
+        .filter_map(|n| fonts.info.get(n))
+        .map(|f| trust_disclosure(f.embedded, &f.base_font))
+        .collect();
     disclosures.push(
         "save: this reflow was written INCREMENTALLY (R34/R70); the prior text survives in the \
          document's revision history by design. To truly remove text, use redaction (Pass 8) — a \
@@ -713,27 +657,48 @@ pub(crate) fn plan_reflow(
          (decision 015 §3.3/R75), not a silent re-layout"
             .to_owned(),
     );
-    if leak_closed {
+    disclosures.push(
+        "reflow: every glyph kept its own code, font, size, text state and colour, and the \
+         source's positioning inside each word (TJ kerning, §9.4.3) was kept; no new pair \
+         kerning was applied"
+            .to_owned(),
+    );
+    if emitted.synthetic_spaces > 0 {
+        disclosures.push(format!(
+            "reflow: {} word gap(s) were written with a code-32 space the block never showed, \
+             at an assumed width of {:.2}pt",
+            emitted.synthetic_spaces, preview.diagnostics.space_width_pt,
+        ));
+    }
+    if emitted.leak_closed {
         disclosures.push(
-            "reflow: the re-emitted text object sets §9.3 text-state parameters that differ from \
-             the ambient state after the block, so an explicit restore was appended inside the \
-             text object (R88 restore-by-value — q/Q are not permitted inside BT … ET, §8.2 \
-             Table 51). Text following the block is therefore unaffected."
+            "reflow: the re-emitted text object leaves text state, colour or font different \
+             from what followed the block, so an explicit restore was appended inside the text \
+             object (R88 restore-by-value — q/Q are not permitted inside BT … ET, §8.2 Table \
+             51). Content following the block is therefore unaffected."
                 .to_owned(),
         );
     }
-    if justified_lines > 0 {
+    if emitted.justified_lines > 0 {
         disclosures.push(format!(
-            "reflow: {justified_lines} full line(s) were JUSTIFIED — inter-word slack distributed \
-             as per-gap TJ numbers (§9.4.3); the last line of the paragraph is left un-stretched \
-             (decision 015 §3.1)"
+            "reflow: {} full line(s) were JUSTIFIED — inter-word slack distributed as per-gap TJ \
+             numbers (§9.4.3); the last line of the paragraph is left un-stretched (decision 015 \
+             §3.1)",
+            emitted.justified_lines,
         ));
     }
-    // Carry through the 15.0 preview's derived-layout disclosures, EXCEPT
-    // the ones whose wording is about the READ-ONLY preview stage ("nothing
-    // is written", "not applied") — 15.1 DID write, and re-emits its own
-    // apply-stage overflow note below, so those preview clauses would
-    // contradict the apply outcome (rule 4: never disclose something false).
+    disclosures
+}
+
+/// The preview's still-true disclosures, and the overflow, tagging and
+/// multi-stream notes.
+fn carried_disclosures(
+    disclosures: &mut Vec<String>,
+    preview: &ReflowPreview,
+    mcid: Option<i64>,
+    extra_emptied: u64,
+) {
+    // Preview notes about the READ-ONLY stage would be false here.
     for note in &preview.diagnostics.disclosures {
         let preview_only = note.contains("READ-ONLY")
             || note.contains("nothing is written")
@@ -742,11 +707,6 @@ pub(crate) fn plan_reflow(
             disclosures.push(note.clone());
         }
     }
-    // Each axis is disclosed only if it actually overflowed. `overflow` being
-    // `Some` no longer implies the BOTTOM overflowed: it is `Some` when either
-    // axis does, so an unguarded note here reported "grows the block 0.0pt
-    // past the page bottom" for a block that only ran off the RIGHT edge —
-    // a disclosure that is false in the letter while a true one goes unsaid.
     if let Some(ov) = preview.overflow {
         if ov.past_bottom_pt > 0.0 {
             disclosures.push(format!(
@@ -756,11 +716,6 @@ pub(crate) fn plan_reflow(
                 ov.past_bottom_pt, ov.lines_outside,
             ));
         }
-        // Worded for the apply stage rather than carried over from the
-        // preview, for the same reason the bottom note is: the preview says
-        // "not applied", which is true there and false here — and the filter
-        // above drops any preview note containing that phrase, so a carried
-        // note would silently vanish rather than merely read oddly.
         if ov.past_right_pt > 0.0 {
             disclosures.push(format!(
                 "reflow: the wrap width put the block {:.1}pt past the page RIGHT edge (cropbox), \
@@ -772,7 +727,7 @@ pub(crate) fn plan_reflow(
             ));
         }
     }
-    if let Some(mcid) = prov.mcid {
+    if let Some(mcid) = mcid {
         disclosures.push(format!(
             "tagged PDF: the block is inside a marked-content sequence (/MCID {mcid}); its \
              BDC/EMC+MCID wrapper was PRESERVED (structure references stay valid), but the \
@@ -787,52 +742,25 @@ pub(crate) fn plan_reflow(
              into the first and emptied so the reflow's byte offsets stay coherent."
         ));
     }
-
-    let report = ReflowApplyReport {
-        block_index,
-        lines_before: preview.lines_before,
-        lines_after: preview.lines_after,
-        alignment: preview.alignment.alignment,
-        justified_lines,
-        base_font: font.base_font.clone(),
-        glyph_source: if embedded {
-            EditGlyphSource::Embedded
-        } else {
-            EditGlyphSource::NonEmbedded
-        },
-        tagged_mcid: prov.mcid,
-        height_delta: preview.height_delta(),
-        overflow: preview.overflow,
-        cell_overflow: preview.cell_overflow,
-        content_object: content_id.num,
-        extra_objects_emptied: extra_emptied,
-        disclosures,
-    };
-    Ok(ReflowPlan {
-        new_content,
-        report,
-    })
 }
 
 // ===================================================================
 // Block provenance (font + matrices + show-operator spans)
 // ===================================================================
 
-/// The block-level provenance the surgery needs: one font resource, one
-/// `Tf` size, one axis-aligned text/CTM linear part, one `/MCID`, and the
-/// ordered set of show-operator byte spans (in the page content buffer) that
-/// produced the block's glyphs.
-struct BlockProvenance {
-    font_resource: Vec<u8>,
+/// The block-level provenance the surgery needs: one axis-aligned text/CTM
+/// linear part, one `/MCID`, and the ordered set of show-operator byte spans
+/// (in the page content buffer) that produced the block's glyphs.
+pub(super) struct BlockProvenance {
     mcid: Option<i64>,
     /// Text-matrix linear part (must be uniform + axis-aligned).
-    tm_a: f64,
-    tm_b: f64,
-    tm_c: f64,
-    tm_d: f64,
+    pub(super) tm_a: f64,
+    pub(super) tm_b: f64,
+    pub(super) tm_c: f64,
+    pub(super) tm_d: f64,
     /// CTM linear + translation (axis-aligned; translation used to map an
     /// origin back to `Tm` operands).
-    ctm_a: f64,
+    pub(super) ctm_a: f64,
     ctm_d: f64,
     ctm_e: f64,
     ctm_f: f64,
@@ -847,7 +775,6 @@ fn block_provenance(
     model: &EditableTextModel<'_>,
     block: &Block,
 ) -> Result<BlockProvenance, ReflowApplyError> {
-    let mut font_resource: Option<Vec<u8>> = None;
     let mut mcid: Option<i64> = None;
     let mut tm: Option<[f64; 6]> = None;
     let mut ctm: Option<[f64; 6]> = None;
@@ -875,18 +802,10 @@ fn block_provenance(
                     ));
                 }
             }
-            // Font resource must be uniform across the block.
-            match (&font_resource, &p.font_resource) {
-                (None, Some(name)) => font_resource = Some(name.clone()),
-                (Some(seen), Some(name)) if seen == name => {}
-                (Some(_), Some(_)) => {
-                    return Err(ReflowApplyError::Unsupported(UnsupportedCause::MixedFonts));
-                }
-                (_, None) => {
-                    return Err(ReflowApplyError::Unsupported(
-                        UnsupportedCause::ShowWithoutFont,
-                    ));
-                }
+            if p.font_resource.is_none() {
+                return Err(ReflowApplyError::Unsupported(
+                    UnsupportedCause::ShowWithoutFont,
+                ));
             }
             // Matrices must be uniform (linear part) + axis-aligned.
             check_uniform_axis_aligned(&mut tm, p.text_matrix, "text matrix (Tm)")?;
@@ -898,8 +817,6 @@ fn block_provenance(
     if !saw_glyph {
         return Err(ReflowApplyError::Preview(super::ReflowError::EmptyBlock(0)));
     }
-    let font_resource =
-        font_resource.ok_or(ReflowApplyError::Unsupported(UnsupportedCause::NoFont))?;
     let tm = tm.unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
     let ctm = ctm.unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
     if op_spans.is_empty() {
@@ -908,7 +825,6 @@ fn block_provenance(
         ));
     }
     Ok(BlockProvenance {
-        font_resource,
         mcid,
         tm_a: tm[0],
         tm_b: tm[1],
@@ -984,334 +900,17 @@ fn check_uniform_axis_aligned(
 /// Map a user-space line origin to `Tm` translation operands `(e, f)` under
 /// the axis-aligned CTM (§9.4.2): `user = (ca·e + ce, cd·f + cf)` ⇒
 /// `e = (x − ce)/ca`, `f = (y − cf)/cd`. Refuses a degenerate CTM scale.
-fn origin_to_tm(x: f64, y: f64, prov: &BlockProvenance) -> Result<(f64, f64), ReflowApplyError> {
+pub(super) fn origin_to_tm(
+    x: f64,
+    y: f64,
+    prov: &BlockProvenance,
+) -> Result<(f64, f64), ReflowApplyError> {
     if prov.ctm_a.abs() < MTX_EPS || prov.ctm_d.abs() < MTX_EPS {
         return Err(ReflowApplyError::Unsupported(
             UnsupportedCause::DegenerateCtm,
         ));
     }
     Ok(((x - prov.ctm_e) / prov.ctm_a, (y - prov.ctm_f) / prov.ctm_d))
-}
-
-// ===================================================================
-// Font classification (composite ⇒ R-INV-4 refusal; embedded flag)
-// ===================================================================
-
-/// Refuse a composite (Type0 / CIDFont) block by name (R-INV-4) — the one
-/// font-class refusal reflow needs. Unlike 14.1's `classify_font`, reflow
-/// does NOT re-encode, so R-INV-2/3 (invertibility) do not apply: a symbolic
-/// or /ToUnicode-only simple font can still be re-wrapped (its codes are
-/// carried verbatim). Only the composite case is a hard non-goal (multi-byte
-/// codes break the word tokeniser and `Tw` cannot justify them — §9.3.3).
-fn refuse_if_composite(
-    font_dict: &Dict,
-    font: &ExtractFont,
-    doc: &DocumentView<'_>,
-) -> Result<(), ReflowApplyError> {
-    let subtype = font_dict
-        .get(b"Subtype")
-        .map(|o| doc.resolve(o))
-        .and_then(Object::as_name)
-        .map(|n| n.as_bytes().to_vec())
-        .unwrap_or_default();
-    if subtype.as_slice() == b"Type0" && crate::text_edit::edit::writes_vertically(doc, font_dict) {
-        return Err(ReflowApplyError::Unsupported(
-            UnsupportedCause::VerticalWriting,
-        ));
-    }
-    if subtype.as_slice() == b"Type0" || !font.is_simple() {
-        return Err(ReflowApplyError::Refused(Refusal {
-            trigger: RInvTrigger::Composite,
-            character: None,
-            base_font: font.base_font.clone(),
-            remedy_faces: Vec::new(),
-            message: format!(
-                "R-INV-4: font '{}' is a composite (Type 0 / CIDFont) run; within-block reflow of \
-                 composite/CJK fonts is deferred (FF-E) — the word tokeniser assumes one byte per \
-                 glyph and Tw cannot justify a multi-byte code (§9.3.3).",
-                font.base_font
-            ),
-        }));
-    }
-    Ok(())
-}
-
-/// Whether the font carries an embedded program (`/FontFile`/`2`/`3`).
-fn font_is_embedded(font_dict: &Dict, doc: &DocumentView<'_>) -> bool {
-    font_dict
-        .get(b"FontDescriptor")
-        .map(|o| doc.resolve(o))
-        .and_then(Object::as_dict)
-        .is_some_and(|d| {
-            d.contains_key(b"FontFile")
-                || d.contains_key(b"FontFile2")
-                || d.contains_key(b"FontFile3")
-        })
-}
-
-// ===================================================================
-// Content-stream region location (BT … ET text objects)
-// ===================================================================
-
-/// Text state captured at the block's show operators (from the stream
-/// walk).
-///
-/// # Pass 19.0
-///
-/// This used to carry three bare `f64`s and a doc comment conceding it
-/// existed because "provenance does not all carry" `Tz`/`Tc`/`Tw`. It now
-/// carries the crate-shared [`AmbientTextState`] — the same type
-/// provenance publishes — so the concession is retired: the walk and the
-/// provenance agree by construction rather than by coincidence. `tf_size`
-/// stays a bare field for the reason given in [`crate::text_state`]'s
-/// module docs (`Tfs` is not part of the shared model).
-#[derive(Clone)]
-struct BlockTextState {
-    tf_size: f64,
-    ambient: AmbientTextState,
-}
-
-impl BlockTextState {
-    /// `Tc` (§9.3.2).
-    fn tc(&self) -> f64 {
-        self.ambient.char_spacing.value
-    }
-
-    /// `Tw` (§9.3.3).
-    fn tw(&self) -> f64 {
-        self.ambient.word_spacing.value
-    }
-
-    /// `Th` = `Tz` ÷ 100 (§9.3.4).
-    fn th(&self) -> f64 {
-        self.ambient.h_scale.value / 100.0
-    }
-}
-
-/// The byte region to replace, plus the three text states the surgery
-/// needs to keep the stream honest.
-///
-/// # Why three states and not one (Pass 19.0)
-///
-/// The fresh `BT … ET` this module emits replaces `[start, end)` wholesale,
-/// so the text state it must *reproduce* and the text state it must *leave
-/// behind* are not the same thing:
-///
-/// - [`Self::text_state`] — the state at the block's own show operators.
-///   This is what the preamble re-emits so the reflowed lines look like the
-///   originals.
-/// - [`Self::entry_state`] — the state immediately **before** `start`. This
-///   is what remains in force for any parameter the preamble does *not*
-///   emit, because the operators inside the replaced region are gone.
-/// - [`Self::exit_state`] — the state immediately **after** `end`, i.e.
-///   what a following operator saw before the reflow. This is the
-///   obligation: whatever the new body leaves in force must equal this, or
-///   the reflow has silently changed content it did not touch (R32/R46).
-///
-/// Before Pass 19.0 only the first existed, and the body terminated at `ET`
-/// with **no restore and no `q`/`Q`** — a live state-leak surface, benign
-/// only because the justify gate above refuses a non-zero `Tc`/`Tw` and the
-/// non-justify path happens to re-emit values equal to the ambient. The
-/// difference of these three states is now computed and closed explicitly
-/// (see `restore_ops`), with the gate left exactly where it was.
-struct BlockRegion {
-    /// Start byte of the first block text object's `BT`.
-    start: usize,
-    /// End byte of the last block text object's `ET`.
-    end: usize,
-    text_state: BlockTextState,
-    /// Ambient §9.3 state immediately before [`Self::start`].
-    entry_state: AmbientTextState,
-    /// Ambient §9.3 state immediately after [`Self::end`] — the state the
-    /// re-emitted body must leave in force.
-    exit_state: AmbientTextState,
-}
-
-/// One text object (`BT … ET`) seen in the walk, with its byte bounds, the
-/// show-operator spans it contains, and the ambient §9.3 text state at each
-/// of its two boundaries.
-///
-/// The two ambient snapshots are what let [`BlockRegion`] report an
-/// `entry_state` and an `exit_state` (Pass 19.0): the region's bounds are
-/// not known until after the walk, so the states at every candidate
-/// boundary have to be captured as the walk passes them.
-struct TextObj {
-    bt_start: usize,
-    et_end: usize,
-    show_spans: Vec<ByteSpan>,
-    /// Ambient text state immediately before this object's `BT`. (`BT`
-    /// resets only `Tm`/`Tlm`, Table 107 — never text state.)
-    ambient_at_bt: AmbientTextState,
-    /// Ambient text state immediately after this object's `ET`.
-    ambient_at_et: AmbientTextState,
-}
-
-/// Walk the content stream, collect its text objects, and compute the byte
-/// region spanning exactly the block's text objects — refusing a block that
-/// shares a text object with other content, is non-contiguous, or has a show
-/// operator outside any `BT … ET`.
-fn locate_block_region(
-    stream: &ContentStream,
-    block_spans: &[ByteSpan],
-) -> Result<BlockRegion, ReflowApplyError> {
-    let is_block = |sp: ByteSpan| {
-        block_spans
-            .iter()
-            .any(|b| b.start == sp.start && b.len == sp.len)
-    };
-
-    // Track text state across the whole stream so the value in effect at the
-    // block's show operators is captured (Tf/Tz/Tc/Tw persist across BT/ET).
-    //
-    // Pass 19.0: through the ONE shared update rule, which additionally
-    // covers `Ts`/`TL`/`Tr` (untracked here before) and `q`/`Q` (which this
-    // walk ignored entirely, so state set inside a bracket leaked past the
-    // `Q`), and which records each operator's raw bytes so a restore can be
-    // byte-faithful.
-    let mut tf_size = 0.0_f64;
-    let mut ambient = AmbientTextState::initial();
-    let mut ambient_stack: Vec<AmbientTextState> = Vec::new();
-    let mut block_ts: Option<BlockTextState> = None;
-
-    let mut objs: Vec<TextObj> = Vec::new();
-    let mut cur: Option<TextObj> = None;
-
-    for op in stream.operations() {
-        let Some(name) = op.operator_name(&stream.buf) else {
-            continue;
-        };
-        match name {
-            b"q" => {
-                ambient_stack.push(ambient.clone());
-                if ambient_stack.len() > 256 {
-                    ambient_stack.remove(0);
-                }
-            }
-            b"Q" => {
-                if let Some(prev) = ambient_stack.pop() {
-                    ambient = prev;
-                }
-            }
-            b"Tf" => {
-                if let Some(size) = last_number(&op) {
-                    tf_size = size;
-                }
-            }
-            b"Tc" | b"Tw" | b"Tz" | b"TL" | b"Ts" | b"Tr" | b"\"" => {
-                let (s, e) = text_op_span(&op);
-                let raw = stream.buf.get(s..e).unwrap_or_default();
-                ambient.apply_operator(name, &operand_numbers(&op), raw);
-            }
-            // `TD` also sets `TL` (§9.4.2 Table 108). Tracked so the
-            // region's entry/exit states report the leading actually in
-            // force — a block whose own `TD` is deleted by the reflow
-            // leaves a DIFFERENT leading behind, and `restore_ops` can only
-            // see that if the walk saw it.
-            b"TD" => {
-                if let [_, ty] = operand_numbers(&op).as_slice() {
-                    ambient.set_indirect(TextStateParam::Leading, -*ty, "TD");
-                }
-            }
-            b"BT" => {
-                cur = Some(TextObj {
-                    bt_start: op.operator.span.start,
-                    et_end: op.operator.span.end(),
-                    show_spans: Vec::new(),
-                    ambient_at_bt: ambient.clone(),
-                    ambient_at_et: ambient.clone(),
-                });
-            }
-            b"ET" => {
-                if let Some(mut obj) = cur.take() {
-                    obj.et_end = op.operator.span.end();
-                    obj.ambient_at_et = ambient.clone();
-                    objs.push(obj);
-                }
-            }
-            b"Tj" | b"TJ" | b"'" => {
-                let span = op.operator.span;
-                if is_block(span) && block_ts.is_none() {
-                    block_ts = Some(BlockTextState {
-                        tf_size,
-                        ambient: ambient.clone(),
-                    });
-                }
-                match cur.as_mut() {
-                    Some(obj) => obj.show_spans.push(span),
-                    None => {
-                        // A show operator outside any BT … ET. If it is a
-                        // block operator, we cannot re-emit it safely.
-                        if is_block(span) {
-                            return Err(ReflowApplyError::Unsupported(
-                                UnsupportedCause::ShowOutsideTextObject,
-                            ));
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // Which text objects hold ≥1 block show operator? Each such object must
-    // hold ONLY block operators (no shared paragraph), and they must be
-    // contiguous in the object list.
-    let mut first_obj: Option<usize> = None;
-    let mut last_obj: Option<usize> = None;
-    for (i, obj) in objs.iter().enumerate() {
-        let holds_block = obj.show_spans.iter().any(|&s| is_block(s));
-        if !holds_block {
-            continue;
-        }
-        if obj.show_spans.iter().any(|&s| !is_block(s)) {
-            return Err(ReflowApplyError::Unsupported(
-                UnsupportedCause::SharedTextObject,
-            ));
-        }
-        if first_obj.is_none() {
-            first_obj = Some(i);
-        }
-        if let Some(last) = last_obj
-            && i != last + 1
-        {
-            return Err(ReflowApplyError::Unsupported(
-                UnsupportedCause::NonContiguousTextObjects,
-            ));
-        }
-        last_obj = Some(i);
-    }
-
-    let (fi, la) = match (first_obj, last_obj) {
-        (Some(fi), Some(la)) => (fi, la),
-        _ => {
-            return Err(ReflowApplyError::Unsupported(
-                UnsupportedCause::ShowOperatorsNotFound,
-            ));
-        }
-    };
-    let start = objs.get(fi).map(|o| o.bt_start).unwrap_or(0);
-    let end = objs.get(la).map(|o| o.et_end).unwrap_or(start);
-    // The ambient state at the two region boundaries. Falling back to the
-    // END-of-stream state (rather than to the Table 105 initial state) when
-    // the object is somehow missing keeps the restore honest: it is the
-    // value actually in force, not an assumption that nothing was ever set.
-    let entry_state = objs
-        .get(fi)
-        .map_or_else(|| ambient.clone(), |o| o.ambient_at_bt.clone());
-    let exit_state = objs
-        .get(la)
-        .map_or_else(|| ambient.clone(), |o| o.ambient_at_et.clone());
-    let text_state = block_ts.unwrap_or(BlockTextState {
-        tf_size,
-        ambient: ambient.clone(),
-    });
-    Ok(BlockRegion {
-        start,
-        end,
-        text_state,
-        entry_state,
-        exit_state,
-    })
 }
 
 /// The operator bytes that put the §9.3 text state back the way the
@@ -1365,7 +964,7 @@ fn locate_block_region(
 /// [`AmbientRestoreError`] when a restore is required but the ambient value
 /// is [`AmbientOrigin::Unobservable`](crate::text_state::AmbientOrigin) —
 /// refuse and disclose, never guess the Table 105 default.
-fn restore_ops(
+pub(super) fn restore_ops(
     emitted: &[(TextStateParam, f64)],
     entry: &AmbientTextState,
     exit: &AmbientTextState,
@@ -1392,116 +991,6 @@ fn restore_ops(
     Ok(out)
 }
 
-/// The byte span of a text-state operator including its operands — the raw
-/// sequence an R88 tier-2 restore re-emits (see [`crate::text_state`]).
-fn text_op_span(op: &Operation<'_>) -> (usize, usize) {
-    let start = op
-        .operands
-        .first()
-        .map_or(op.operator.span.start, |t| t.span.start);
-    (start, op.operator.span.end())
-}
-
-/// The last numeric operand of an operation (`Tf`'s size).
-fn last_number(op: &Operation<'_>) -> Option<f64> {
-    operand_numbers(op).last().copied()
-}
-
-/// Every numeric operand of an operation, in order.
-fn operand_numbers(op: &Operation<'_>) -> Vec<f64> {
-    op.operands
-        .iter()
-        .filter_map(|t| match &t.kind {
-            ContentTokenKind::Operand(o) => o.as_number(),
-            _ => None,
-        })
-        .collect()
-}
-
-// ===================================================================
-// Line emission
-// ===================================================================
-
-/// The justified slack for a line, if it is a full (non-last, multi-word)
-/// justified line — `None` for the last line, a single-word line, and every
-/// non-justified alignment (15.0 already decided this in
-/// [`ReflowLine::justified_slack`]).
-fn justified_line_slack(line: &ReflowLine, justified: bool) -> Option<f64> {
-    if !justified {
-        return None;
-    }
-    line.justified_slack
-        .filter(|&s| s > 0.0 && line.gap_count >= 1)
-}
-
-/// Emit a plain (non-justified) line: the words' source codes concatenated
-/// with a single inter-word space code between them, as one `(…) Tj`.
-fn emit_plain_line(words: &[super::reflow::WordTok], line: &ReflowLine, space_code: u8) -> Vec<u8> {
-    let mut s: Vec<u8> = Vec::new();
-    for (i, w) in words_of(words, line).enumerate() {
-        if i > 0 {
-            s.push(space_code);
-        }
-        s.extend_from_slice(&w.codes);
-    }
-    let mut out = Vec::new();
-    emit_literal_string(&mut out, &s);
-    out.extend_from_slice(b" Tj");
-    out
-}
-
-/// Emit a justified full line: `[ (w0 SP) N (w1 SP) N … (wlast) ] TJ`, with
-/// the code-32 space kept inside each non-last string and the per-gap slack
-/// number `N_gap = −(S/G)·1000/emit_scale` (§9.4.3; negative opens up).
-fn emit_justified_line(
-    words: &[super::reflow::WordTok],
-    line: &ReflowLine,
-    slack: f64,
-    space_code: u8,
-    emit_scale: f64,
-) -> Vec<u8> {
-    let g = line.gap_count.max(1) as f64;
-    // The TJ number that ADDS slack/G user-space points at one gap. A
-    // degenerate scale (invisible/zero-size text) ⇒ no slack (guard div-0);
-    // the line then falls back to natural spacing, still valid.
-    let n_gap = if emit_scale.abs() > MTX_EPS {
-        -(slack / g) * 1000.0 / emit_scale
-    } else {
-        0.0
-    };
-    let word_vec: Vec<&super::reflow::WordTok> = words_of(words, line).collect();
-    let last = word_vec.len().saturating_sub(1);
-    let mut out = Vec::new();
-    out.push(b'[');
-    let mut first = true;
-    for (i, w) in word_vec.iter().enumerate() {
-        if !first {
-            out.push(b' ');
-            emit_number(&mut out, n_gap);
-            out.push(b' ');
-        }
-        first = false;
-        let mut s = w.codes.clone();
-        if i != last {
-            s.push(space_code); // keep the code-32 word break inside the string
-        }
-        emit_literal_string(&mut out, &s);
-    }
-    out.extend_from_slice(b"] TJ");
-    out
-}
-
-/// Iterate the [`WordTok`](super::reflow::WordTok)s a preview line spans,
-/// panic-free against a stale range.
-fn words_of<'w>(
-    words: &'w [super::reflow::WordTok],
-    line: &ReflowLine,
-) -> impl Iterator<Item = &'w super::reflow::WordTok> {
-    let lo = line.words.start.min(words.len());
-    let hi = line.words.end.min(words.len());
-    words.get(lo..hi).unwrap_or(&[]).iter()
-}
-
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -1512,6 +1001,7 @@ fn words_of<'w>(
 )]
 mod tests {
     use super::*;
+    use crate::text_edit::reflow_walk::{operand_numbers, text_op_span};
     use crate::text_extract::ExtractOptions;
 
     /// A `/Font` subdictionary entry: (resource key bytes, font-dict body).
@@ -1858,12 +1348,12 @@ mod tests {
         assert!(has_off_page, "some content emitted below the page (y<0)");
     }
 
-    // -- composite refusal (R-INV-4) -----------------------------------
+    // -- composite with no space glyph ----------------------------------
 
     #[test]
-    fn composite_font_block_is_refused() {
-        // A Type0/Identity-H font. Content shows 2-byte codes; recognition
-        // still yields a block, but reflow-apply must refuse R-INV-4.
+    fn composite_block_joining_lines_without_a_space_glyph_is_refused() {
+        // A Type0/Identity-H font that never shows a space: joining its two
+        // lines needs a word gap no code in the block supplies.
         let font = b"<< /Type /Font /Subtype /Type0 /BaseFont /F+Sub /Encoding /Identity-H \
                      /DescendantFonts [7 0 R] >>"
             .to_vec();
@@ -1879,15 +1369,15 @@ mod tests {
             &[(7, descendant), (8, descriptor)],
         );
         let doc = load(&src);
-        let err = apply_reflow(&doc, 0, 0, &ReflowRequest::new()).unwrap_err();
-        match err {
-            ReflowApplyError::Refused(r) => assert_eq!(r.trigger, RInvTrigger::Composite),
-            // A composite block may alternatively surface as an empty/EmptyBlock
-            // preview if extraction produced no simple glyphs — still a clean
-            // refusal, never a crash. Accept either named outcome.
-            ReflowApplyError::Preview(_) => {}
-            other => panic!("expected a composite refusal, got {other:?}"),
-        }
+        let err =
+            apply_reflow(&doc, 0, 0, &ReflowRequest::new().with_wrap_width(400.0)).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                ReflowApplyError::Unsupported(UnsupportedCause::NoSpaceGlyph { .. })
+            ),
+            "got {err:?}"
+        );
     }
 
     // -- rotated text refused ------------------------------------------
