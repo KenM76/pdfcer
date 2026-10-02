@@ -115,6 +115,122 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 439.0` (`4d8ea504`), 2026-10-02 — unsigned `/Sig` widget redraw (G089) + opt-in foreign check-box/radio rebuild (G090) — `Pass 439.0` SHIPPED
+
+Answers `pdfcer-gui` requests `G089`/`G090` (876th filing); cherry-picked from
+agent commit `07d88be2`.
+
+**G089.** `edit_widget` now redraws an UNSIGNED `/Sig` widget's `/AP` `/N`
+like any other widget's on a border/colour edit — width 0 with `/BC`
+removed draws no stroke (`Regenerated`); width 2 red draws a 2 pt red
+frame. A resize no longer hits `ResizeAppearanceNotRebuildable` for an
+unsigned field. A SIGNED `/Sig` field keeps its bytes, stays
+`RecordedNotPainted`, and the message now names it a "signed signature
+field" rather than a generic foreign-artwork refusal.
+
+**G090.** `WidgetEdit::with_replace_foreign_appearance(bool)`, default
+`false`, plus `WidgetEditOutcome::foreign_appearance_replaced`. Set, it
+rebuilds a foreign check box/radio's Off and on states under the existing
+on-state name, replacing the whole `/AP` (so `/D`/`/R` are dropped).
+Refuses a push button or a widget with several on states, naming why.
+Default unchanged — the existing refusal (`Pass 187.0`) still stands when
+off. CLI `edit-widget --replace-foreign-appearance`, result line
+`foreign_replaced=0|1`, disclosed on stderr.
+
+**Decision 179 — RESERVED, NOT USED.** Neither G089 nor G090 is an
+architectural decision (a widget-redraw extension and an opt-in flag, both
+inside the existing `edit_widget` route); the `179` reservation (876th
+filing) is released. Decision ceiling stays at `178` (set by `Pass 436.2`
+below); `180`–`182` remain reserved for `440.0`/`441.0`/`442.0`; next free
+decision stays `183`.
+
+**Tests.** Core 8 new (`widget_appearance_replace`), CLI 2 new
+(`edit_widget_foreign`). Sabotage 12/12 caught.
+
+**Gates.** No `Cargo.toml` change — `cargo tree -p pdfcer-core`/
+`-p pdfcer-render` unaffected by construction; not independently
+re-verified this filing (no shell).
+
+**Shells.** `core [x]` / `cli [x]` / `gui [ ]` — not wired.
+
+**`docs/FEATURES.md`.** Two rows moved from *Planned* to *Implemented*:
+"Rebuild an unsigned `/Sig` widget's appearance after a border/colour
+edit" and "Opt-in: rebuild a foreign producer's check-box/radio artwork"
+— core/cli ticked, gui unticked on both.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit `4d8ea504`
+(cherry-pick of agent commit `07d88be2`) confirmed present at `HEAD` per
+the git-status snapshot at the start of this conversation; every other
+fact above (test counts, sabotage results) is relayed from the
+dispatching engineer's own report, not independently reproduced.
+
+### `Pass 436.2` (`e37a02a7`+`422caf73`), 2026-10-02 — replacement-face matching ladder — `Pass 436.2` SHIPPED
+
+One of the `Pass 436.0`–`436.3` family (844th filing); shared by `430.1`'s
+subset augmenter, `431.0`'s fallback face and `436.0`'s retype workaround.
+
+**The ladder** ranks installed faces that cover every needed character:
+(1) exact PostScript name, subset tag stripped — the check shared with
+`430.1`'s identity test; (2) same family, nearest class (fixed-pitch,
+serif, italic, weight, width); (3) any covering face; (4) a class-matched
+Standard-14 floor (Times/Helvetica/Courier, with bold/italic). Pick and
+source disclosed.
+
+**Licensing.** A face whose `fsType` is Restricted, Preview&Print,
+ambiguous, no-subsetting or bitmap-only is skipped and the skip
+disclosed, with no override — a licensing call, not an open question. A
+face with no `OS/2` table qualifies.
+
+**Core, `e37a02a7`.** Core has no filesystem access — a shell supplies
+faces through `ReplacementFaces`. `EditOptions::with_replacement_faces`
+turns the ladder on; `FallbackUse::chosen_by` reports the rung, source,
+skips and subset failures. The `436.0` retype route now always uses the
+ladder, so its floor is class-matched instead of always Helvetica
+(**amends decision 175**). Render: `InstalledFaces` provider. Fonts:
+`FsTypeBits::decode(raw, os2_version)`.
+
+**Bug fixed on discovery, same commit.** A face with no name ID 6
+produced an empty font name, misreported as a malformed subset tag; it
+now has its own `EmptyBaseName` error, and the provider derives a name.
+
+**CLI, `422caf73`.** `edit-text --fallback-font auto` searches
+`--font-dir` plus the settings-file font folders; prints `face_match=…
+rung=… skipped=… failed=… source=…`. `run-repertoire --fallback-font
+auto` is refused by name, exit 9. Same commit updated `docs/core-api` for
+the new `EditOptions`/`ReplacementFaces` surface.
+
+**Decision 178** (`docs/decisions/178-replacement-face-ladder.md`)
+records the four rungs, the ranking within a rung, the `fsType` skip rule
+and the seam (`ReplacementFaces`). Fills the already-reserved `178`
+(875th filing's pointer). Decision ceiling: `177` → `178` (see `Pass
+439.0` above for the final ledger position this filing leaves).
+
+**Tests.** Core +15 (ladder), fonts +1 (`font_embed`), +1 doctest, render
++4, CLI +3. Sabotage 18/18 caught.
+
+**Gates.** Merged tree: fmt, clippy, code-structure (618 debt entries,
+none new), core-api-verbs all clean. Totals: core lib 1380, core
+integration 2509 (2 ignored), CLI 691, render 464 + 478, fonts 110. No
+`Cargo.toml` change.
+
+**Shells.** `core [x]` / `cli [x]` / `gui [ ]` — not wired.
+
+**`docs/FEATURES.md`.** Row moved from *Planned* to *Implemented*:
+"Replacement-font matching ladder" — core/cli ticked, gui `—` (consumed
+automatically by the routes it shares, no surface of its own).
+
+**Known gaps, disclosed not hidden.** `run-repertoire` does not consult
+the ladder; no settings key for `auto`; only TrueType faces embed (a CFF
+face is ranked, fails to subset, disclosed and skipped); `auto` re-reads
+the font folders; a derived name can coincidentally match the exact-name
+rung. Filed to *Backlog*.
+
+**Sourcing (hard rule 8).** No shell this filing. Commits
+`e37a02a7`/`422caf73` confirmed present at `HEAD` per the git-status
+snapshot at the start of this conversation; every other fact above (test
+counts, sabotage results, gate results) is relayed from the dispatching
+engineer's own report, not independently reproduced.
+
 ### `Pass 436.0` (`a032534b`+`f346a2ff`), 2026-10-02 — opt-in disclosed workarounds for refused text edits — `Pass 436.0` SHIPPED
 
 Operator direct request (verbatim, quoted in the 844th filing): *"are we
@@ -16030,6 +16146,41 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 439.0` SHIPPED, 2026-10-02 (877th filing),
+> `4d8ea504`** — see *Shipped*, above (cherry-pick of agent commit
+> `07d88be2`). `G089`: an unsigned `/Sig` widget's appearance redraws on a
+> border/colour edit like any other widget's; a signed field stays
+> untouched. `G090`: opt-in `WidgetEdit::with_replace_foreign_appearance`
+> rebuilds a foreign check box/radio's artwork, disclosed; default
+> unchanged. Decision `179` reserved for this family was NOT used —
+> reservation released, see `Pass 436.2` below for the ledger's final
+> position. **`Pass 439.0` is now SHIPPED** — two items remain in the
+> `G086`–`G092` family (876th filing): `440.0`, `441.0`. `gui [ ]` not
+> wired.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 436.2` SHIPPED, 2026-10-02 (877th filing),
+> `e37a02a7`+`422caf73`** — see *Shipped*, above. Replacement-face
+> matching ladder (exact name → family/class → coverage → class-matched
+> Standard-14 floor), shared by `430.1`/`431.0`/`436.0`; `436.0`'s retype
+> floor is now class-matched rather than always Helvetica (amends
+> decision 175). CLI `edit-text --fallback-font auto`; decision 178,
+> ceiling `177` → `178`. Decision `179` (reserved for `Pass 439.0`,
+> above) is released unused the same filing — next free stays `183`,
+> since `180`–`182` remain reserved for `440.0`/`441.0`/`442.0`. **`Pass
+> 436.2` is now SHIPPED** — one item remains in the `Pass 436.0`–`436.3`
+> family (844th filing): `436.3` (gui settings screen, not filed yet).
+> `gui [ ]` not wired.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 442.2` FEASIBILITY SPIKE — PASS, 2026-10-02
+> (877th filing)** — supersedes the "FEASIBILITY SPIKE IN PROGRESS …
+> unproven" wording in the 876th-filing note below; `Pass 442.2` itself
+> stays *Next up*, not shipped. `rten` 0.24 read the q8
+> `onnx-community/PaddleOCR-VL-1.5-ONNX` graphs exactly against
+> onnxruntime after three offline vision-graph rewrites (`docs/paddleocr-vl-feasibility.md`).
+> ~2.5 s vision-encode per line, 70–85 ms/token; add-on folder ≈1.24 GB;
+> weights/tokenizer/export all Apache-2.0, no licence blocker. Next step
+> is an engine Pass, not another spike.
+
 > ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **SIX ITEMS ADDED 2026-10-02 (876th
 > filing) — `Pass 439.0`–`Pass 442.2`. Three from `pdfcer-gui` feature
 > requests `G086`–`G092` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`);
@@ -25985,6 +26136,25 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Replacement-face matching ladder — known gaps (filed 877th filing, `Pass 436.2`)
+
+Five gaps disclosed, not hidden, when `Pass 436.2` shipped (decision 178,
+`docs/decisions/178-replacement-face-ladder.md`):
+
+- `run-repertoire` does not consult the ladder — refused by name
+  (decision 178 §4); a repertoire count over "whatever face the ladder
+  picks" would differ per machine.
+- No settings key selects `--fallback-font auto`; it is a per-invocation
+  flag only.
+- Only a TrueType face can be subset for embedding — a CFF face is
+  ranked, fails to plan, and the ladder falls past it (disclosed in
+  `FaceMatch::failed`).
+- `auto` re-reads the font folders the CLI's font environment already
+  read, once per invocation — no cross-call caching within one run.
+- A face with no `name` ID 6 is given a derived name, which can
+  coincidentally match the exact-name rung — correct by the only name the
+  face has, but worth its own disclosure line if it ever misleads.
 
 ### `pdfcer-3d` structure refactor — named by the code-structure audit (`Pass 426.0`, 836th filing, 2026-10-01); IN PROGRESS, 3 of 4 shortcuts partly or fully closed as of the 837th filing
 

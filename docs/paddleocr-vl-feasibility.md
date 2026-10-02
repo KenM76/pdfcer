@@ -47,9 +47,53 @@ measured.
 - CPU speed: ~72 s/page measured by the hb-dev card on onnxruntime int8;
   expect 1.5–3 min/page on rten (INFERRED).
 
+## Proof spike — PASS (MEASURED, 2026-10-02)
+
+Spike code (not committed; local only): `D:\Dev\pdfTests\vl-spike\`
+(`src/main.rs` greedy decode, `src/bin/dump.rs` + `py/dump_cmp.py` bisection,
+`py/reduce_range.py` graph rewrite).
+
+- `onnx-community/PaddleOCR-VL-1.5-ONNX` q8 on rten 0.24 reads two synthetic
+  images exactly (10 and 50 tokens); onnxruntime 1.20 gives identical token ids.
+- i9-10900KF (AVX2, no VNNI), release: load 1.7 s, vision encode 2.5 s for
+  165 image tokens, prefill 0.5 s, 70–85 ms/token (onnxruntime 32–70 ms).
+- Add-on folder ≈ 1.24 GB: `vision_encoder_q8rr.onnx`, `decoder_q8.onnx`,
+  `embedding.onnx` + `.onnx.data` (fp32, 424 MB), `tokenizer.json`.
+
+Graph rewrites the vision encoder needs, done offline (ship the rewritten
+file):
+
+1. rten rejects u8 `MatMulInteger` weights (u8×i8 only) → shift to i8.
+2. rten-gemm's AVX2 kernel saturates unless weights are within ±63 →
+   requantise each `MatMulInteger` weight to symmetric int8 ±63, rescale in
+   float (`reduce_range.py`). Without this the text is hallucinated.
+3. rten `ConvInteger` is wrong (cosine 0.93 vs onnxruntime exact) → replace
+   the patch-embedding conv with float `Conv` on dequantised weights.
+
+Residual: vision cosine 0.975 vs the original, the same under onnxruntime on
+the rewritten graph, so the loss is requantisation, not rten; per-channel
+requantisation from the fp32 graph should recover most of it (INFERRED). The
+int8 decoder runs unmodified but 0.08% of its weights exceed ±63
+(saturation risk on long pages, INFERRED). The M-RoPE position risk did not
+show on single lines.
+
+Constants (no config read needed): prompt `<|begin_of_sentence|>User:
+<|IMAGE_START|>` + image tokens (id 100295) + `<|IMAGE_END|>OCR:\nAssistant:\n`,
+EOS id 2; patch 14, merge 2, pixels 112,896–1,003,520, mean/std 0.5. The
+processor config file is `processor_config.json`. `tokenizers` 0.22 builds
+pure-Rust with `default-features = false, features = ["fancy-regex"]`.
+
+Upstream reports worth filing (rten): `ConvInteger` defect; u8×u8
+`MatMulInteger`.
+
 ## Plan
 
-1. Proof spike (in progress): load the q8 graphs in rten, OCR one synthetic
-   line crop, compare to the reference, time it.
-2. Then, if it passes: engine + decode loop, layout stage, CLI/disclosure,
-   add-on zip (Pass 442.1 tooling). Estimate 4–6 Passes.
+Recommendation: rten (already shipped, pure Rust). Engine Passes, each
+behind the decision-182 add-on folder:
+
+1. Engine + decode loop + preprocessing in `pdfcer_core::ocr`, line/region
+   crops; tool to build the add-on folder (rewrites included).
+2. Layout stage (PP-DocLayoutV2 via paddle2onnx) and region text layer, with
+   region-level placement disclosed.
+3. CLI/disclosure, add-on zip release asset.
+4. Optional: per-channel requantisation and decoder reduce-range.

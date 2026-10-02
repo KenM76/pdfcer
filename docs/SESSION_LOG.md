@@ -4,6 +4,58 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (877th filing) — `Pass 436.2` + `Pass 439.0` SHIPPED, decision 178 filed, PaddleOCR-VL spike PASSED, 5 new `D:\dev\rag\rust\` lessons
+
+**Shipped:**
+- `Pass 436.2` (`e37a02a7`+`422caf73`) — replacement-face matching ladder:
+  exact name → family/class → coverage → class-matched Standard-14 floor;
+  shared by `430.1`/`431.0`/`436.0`. Decision 178. CLI `edit-text
+  --fallback-font auto`. Tests: core +15, fonts +1, +1 doctest, render
+  +4, CLI +3; sabotage 18/18. 5 known gaps filed to *Backlog*.
+- `Pass 439.0` (`4d8ea504`, cherry-pick of `07d88be2`) — `G089` unsigned
+  `/Sig` widget redraw, `G090` opt-in foreign check-box/radio rebuild.
+  Tests: core 8, CLI 2; sabotage 12/12. Decision `179` (reserved for this
+  family) released unused.
+
+**Decisions made this session:**
+- Decision 178 — the four-rung replacement-face ladder (`docs/decisions/
+  178-replacement-face-ladder.md`), logged to `ARCHITECTURE.md` §12.
+  Amends decision 175's always-Helvetica retype floor to class-matched.
+  Ceiling `177` → `178`; `179` released unfilled; next free stays `183`
+  (`180`–`182` remain reserved for `440.0`/`441.0`/`442.0`).
+
+**Findings + decisions:**
+- PaddleOCR-VL feasibility spike (`Pass 442.2`'s spike step) **PASSED**
+  (`docs/paddleocr-vl-feasibility.md`): q8 ONNX on `rten` 0.24 read two
+  synthetic images exactly, token ids identical to onnxruntime's; ~2.5 s
+  vision-encode/line, 70–85 ms/token; add-on folder ≈1.24 GB; three
+  offline vision-graph rewrites needed; weights/tokenizer/export all
+  Apache-2.0. `FEATURES.md` row 231 and the `442.2` *Next up* banner
+  both updated — the prior "feasibility … is unproven" wording is
+  superseded, not deleted, per hard rule 11's sweep.
+- Five `D:\dev\rag\rust\` lessons written (`rten` 0.24 int8 quirks,
+  `tokenizers` 0.22 pure-Rust build) — see that tree's `index.md`.
+
+**Still in flight:**
+- `Pass 440.0` (3D poster), `441.0` (style-off ladder) and `442.0` (OCR
+  add-on folders) — background agents reported running as of this
+  filing; not filed here, this filing covers only `436.2`/`439.0`.
+- `Pass 436.3` (gui settings screen) and `430.3` (route B, symbolic
+  fonts) remain the heads of their families.
+
+**For next session:**
+- File `440.0`/`441.0`/`442.0`/`442.1` once they report done.
+- `docs/NEXT_SESSION.md` not re-read this filing — check it's current
+  before trusting its "latest" claims.
+
+**Sourcing (hard rule 8).** No shell this filing. Every fact above is
+the operator's own direct verbatim dispatch (not a relayed engineer
+report) plus two files read directly off disk
+(`docs/decisions/178-replacement-face-ladder.md`,
+`docs/paddleocr-vl-feasibility.md`); commit hashes are asserted as given
+by the operator, not independently confirmed against `HEAD` by any git
+command (no shell available).
+
 ## 2026-10-02 (876th filing) — filed six new Pass entries (`439.0`–`442.2`), two new open questions
 
 **Shipped:** None — this filing only files new work; nothing below has

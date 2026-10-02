@@ -12456,3 +12456,54 @@ existing one wholesale, for both simple TrueType and composite
 dated note immediately after that block, this entry.
 
 **Decision ceiling: `176` → `177`**, next free `178`.
+
+### 2026-10-02 (877th filing, `e37a02a7`+`422caf73`, KenAgent) — decision 178: a replacement face for a refused text edit is picked by a four-rung matching ladder, never defaulted straight to Helvetica
+
+**Trigger.** `edit-text --fallback-font NAME` could resolve only a page
+resource or a Standard-14 name, and decision 175's retype route always
+fell to Helvetica regardless of the run's own class. `Pass 430.1`, `431.0`
+and `436.0` each needed "which installed face stands in for this run's
+font", answered once rather than three times.
+
+**What this decides.** A candidate qualifies only when it carries every
+character the edit needs. Qualifying candidates rank, best first: (1)
+exact PostScript name, the run font's `/BaseFont` with a six-uppercase-
+letter subset tag stripped; (2) same family, nearest class (fixed-pitch,
+serif, italic, weight, width — ISO 32000-1 Table 122/123, OpenType
+`OS/2`); (3) any other covering face; (4) a class-matched Standard-14
+floor (Times/Helvetica/Courier, Bold/Italic by weight ≥ 600 and the
+italic flag). Core stays filesystem-free: a shell implements
+`text_edit::ReplacementFaces { candidates(chars), plan(candidate, chars) }`;
+core ranks (`rank_replacement_faces`, pure) and walks the ranking, asking
+the shell to subset each pick until one succeeds. A face whose `OS/2
+fsType` is Restricted, Preview&Print, ambiguous, no-subsetting or
+bitmap-only is skipped and the skip disclosed — no override, a licensing
+call rather than a spec ambiguity or an open operator question.
+`FallbackUse::chosen_by` discloses the rung, face, source and the
+skipped/failed faces.
+
+**Amends.** Decision 175 §5 — the retype route's floor is no longer
+always Helvetica, but the Standard-14 face nearest the run's own class
+(Helvetica remains the floor for a sans or unknown run). The `Pass 431.0`
+fallback route (no decision record of its own) gains the ladder as its
+face-choice mechanism, replacing "a page resource or a named Standard-14
+face only".
+
+**Rejected.** An override for a licence-restricted face (the vendor's
+stated terms, not a project call to second-guess). Teaching
+`run-repertoire --fallback-font auto` the ladder (a repertoire count over
+"whatever face the ladder picks" would differ per machine; refused by
+name instead).
+
+**Full record:** `docs/decisions/178-replacement-face-ladder.md`.
+
+**Body-section effect.** None — this decision doesn't change §4's
+font-embedding body text, only which face the three existing routes
+(172/173/174/175's descendants) supply to it; those decisions' own
+descriptions of the embedding mechanism are unchanged.
+
+**Decision ceiling.** Fills the already-reserved `178` (875th filing's
+pointer); ceiling `177` → `178`. (`179` was reserved the same day for
+`Pass 439.0`'s family; that Pass shipped no architectural decision, so
+`179`'s reservation is released, unfilled — next free stays `183`, since
+`180`–`182` remain reserved for `440.0`/`441.0`/`442.0`.)
