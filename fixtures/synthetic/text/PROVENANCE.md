@@ -325,6 +325,7 @@ disk. No attribution is owed and none is claimed.
 | `fallback-font-form.pdf` | `gen-fallback-font-fixture.py` | as `fallback-font.pdf`, with both lines drawn from a form XObject whose `/Resources` hold the fonts |
 | `fallback-font-inherited.pdf` | `gen-fallback-font-fixture.py` | as `fallback-font.pdf`, with the page's `/Resources` inherited from the page-tree node |
 | `fallback-donor.ttf` | `gen-fallback-font-fixture.py` | a face a fallback embeds a subset of: space, `Q`, `u`, `5`, the euro sign and U+2265, each a rectangle of its own height |
+| `fallback-run-face-restricted.ttf` | `gen-fallback-font-fixture.py` | decision 178: `fallback-donor.ttf`'s glyphs named `pdfcerFbRun` (the run font's own name) with `fsType` 2, so the replacement-face ladder's exact-name rung finds it and must skip it |
 | `workaround-quote.pdf` | `gen-workaround-fixtures.py` | decision 175: Helvetica lines shown with `'` and with `"` (`2 1` word/character spacing), which the exact edit refuses and the quote rewrite edits as `T*` + `Tj` |
 | `workaround-seam.pdf` | `gen-workaround-fixtures.py` | "Hello world" drawn as `(Hel)` in Helvetica, `(lo)` in Times-Roman and `( world)` in Helvetica, so "Hello" is a split run the retype workaround edits while holding " world" in place |
 | `workaround-composite.pdf` | `gen-workaround-fixtures.py` | `/F1` a vertical (`Identity-V`) Type0 font with a `/ToUnicode` showing "AB", `/F2` a horizontal Type0 font with none showing CIDs `0043 0044`; no font program is embedded; both are retyped in the fallback face |

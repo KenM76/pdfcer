@@ -15,6 +15,12 @@ whose /Resources hold the fonts; fallback-font-inherited.pdf has the page's
 fallback-donor.ttf is a face a fallback can embed a subset of: space, Q, u, 5,
 the euro sign and U+2265, each a rectangle of its own height so outlines are
 distinguishable. Synthetic, generated with fontTools; no real font bytes.
+
+fallback-run-face-restricted.ttf (Pass 436.2, decision 178) is the donor's
+glyphs under the run font's own name, pdfcerFbRun, with OS/2 fsType 2
+(Restricted License embedding): the replacement-face ladder's exact-name
+rung finds it by its name ID 6 and must skip it. fallback-donor.ttf has no
+name ID 6, so the ladder names it from its family.
 """
 
 from __future__ import annotations
@@ -48,7 +54,9 @@ DONOR_GLYPHS = {
 }
 
 
-def build_program(glyph_table: dict, family: str) -> bytes:
+def build_program(
+    glyph_table: dict, family: str, fs_type: int = 0, ps_name: str | None = None
+) -> bytes:
     from fontTools.fontBuilder import FontBuilder
     from fontTools.pens.ttGlyphPen import TTGlyphPen
 
@@ -70,9 +78,12 @@ def build_program(glyph_table: dict, family: str) -> bytes:
     metrics.update({n: (adv, 50) for n, (_, adv, _) in glyph_table.items()})
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=900, descent=-200)
-    fb.setupNameTable({"familyName": family, "styleName": "Regular"})
+    names = {"familyName": family, "styleName": "Regular"}
+    if ps_name:
+        names["psName"] = ps_name
+    fb.setupNameTable(names)
     fb.setupCharacterMap({u: n for n, (u, _, _) in glyph_table.items()})
-    fb.setupOS2(sTypoAscender=800, sTypoDescender=-200, fsType=0)
+    fb.setupOS2(sTypoAscender=800, sTypoDescender=-200, fsType=fs_type)
     fb.setupPost(keepGlyphNames=False)
     # Pinned so regeneration is byte-identical (fontTools stamps "now").
     fb.font["head"].created = fb.font["head"].modified = HEAD_TIMESTAMP
@@ -149,7 +160,9 @@ def main() -> int:
         written.append(pdf)
     donor = out_dir / "fallback-donor.ttf"
     donor.write_bytes(build_program(DONOR_GLYPHS, "pdfcerFbDonor"))
-    for path in [*written, donor]:
+    restricted = out_dir / "fallback-run-face-restricted.ttf"
+    restricted.write_bytes(build_program(DONOR_GLYPHS, "pdfcerFbRun", fs_type=2, ps_name="pdfcerFbRun"))
+    for path in [*written, donor, restricted]:
         print(f"wrote {path} ({path.stat().st_size} bytes)")
     return 0
 

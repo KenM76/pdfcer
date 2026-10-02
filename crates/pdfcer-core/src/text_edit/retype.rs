@@ -15,15 +15,10 @@ use crate::text_edit::edit::{
     is_subset_tag, resolve_font_dict, same_line, target_disclosures, trust_disclosure,
     writes_vertically,
 };
-use crate::text_edit::fallback::{self, Fallback, FallbackFace, RunAt};
+use crate::text_edit::fallback::{self, Fallback, RunAt};
 use crate::text_edit::workaround::Planning;
 use crate::text_extract::font::ExtractFont;
 use crate::writer::content::emit_number;
-
-/// The face a retype uses when [`EditOptions::fallback`] names none.
-///
-/// [`EditOptions::fallback`]: crate::text_edit::EditOptions::fallback
-pub(crate) const DEFAULT_FACE: &str = "Helvetica";
 
 /// The text of every show operator, joined in content order.
 pub(crate) struct Joined {
@@ -272,8 +267,10 @@ fn choose(
         to_face = text.chars().collect();
         EncodedReplacement::default()
     });
-    let default_face = FallbackFace::Named(DEFAULT_FACE.to_owned());
-    let face = p.opts.fallback.unwrap_or(&default_face);
+    let face = p.opts.fallback.map_or(
+        fallback::FaceChoice::Ladder(p.opts.replacement_faces),
+        fallback::FaceChoice::Given,
+    );
     let empty = Dict::default();
     let at = RunAt {
         doc: p.doc,

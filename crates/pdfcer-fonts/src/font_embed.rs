@@ -179,9 +179,7 @@ impl FontEmbedPlan {
             });
         }
         if self.base_name.is_empty() {
-            return Err(FontEmbedError::MalformedSubsetTag {
-                tag: self.subset_tag.clone(),
-            });
+            return Err(FontEmbedError::EmptyBaseName);
         }
         if self.glyphs.is_empty() {
             return Err(FontEmbedError::EmptySubset);
@@ -215,6 +213,9 @@ pub enum FontEmbedError {
          §9.6.4 requires; the font would not be recognisable as a subset"
     )]
     MalformedSubsetTag { tag: String },
+    /// The face has no name to follow the subset tag in `/BaseFont`.
+    #[error("internal: the font has no name, so its /BaseFont would be the subset tag alone")]
+    EmptyBaseName,
     /// No glyphs were selected.
     #[error("internal: the subset selected no glyphs, so there is nothing to embed")]
     EmptySubset,
@@ -615,6 +616,13 @@ mod tests {
         // Positive control: the valid tag must still pass, or the test above
         // proves only that the function rejects everything.
         assert!(build_objects(&plan(), 10, Object::Null, Object::Null).is_ok());
+    }
+
+    #[test]
+    fn an_empty_base_name_is_named_as_such_not_as_a_bad_tag() {
+        let mut p = plan();
+        p.base_name.clear();
+        assert_eq!(p.validate(), Err(FontEmbedError::EmptyBaseName));
     }
 
     #[test]

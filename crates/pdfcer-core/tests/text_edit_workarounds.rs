@@ -252,7 +252,7 @@ fn a_composite_run_without_tounicode_is_retyped_whole() {
 
 #[test]
 fn a_workaround_that_cannot_apply_names_both_refusals() {
-    // The fallback face (Helvetica) has no U+2265 either.
+    // The standard-14 fallback face has no U+2265 either.
     let err = edit_text(
         &doc("workaround-seam.pdf"),
         &EditRequest::find_replace(0, "Hello", "H\u{2265}llo"),

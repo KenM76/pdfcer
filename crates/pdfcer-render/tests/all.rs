@@ -58,6 +58,7 @@ mod redaction_leaves_no_ink;
 mod reflow_kerned_word_pixels;
 mod region_matches_full_page;
 mod rendering_intent;
+mod replacement_faces;
 mod shading_ink;
 mod shading_pattern_anchoring;
 mod sibling_font;

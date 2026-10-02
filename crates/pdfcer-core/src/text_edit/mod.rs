@@ -70,6 +70,7 @@ pub(crate) mod code_alloc;
 pub(crate) mod cross_object;
 pub mod edit;
 pub mod encoding;
+pub mod face_ladder;
 pub mod fallback;
 pub(crate) mod font_extend;
 mod font_usage;
@@ -106,6 +107,11 @@ pub use cause::{NotFoundReason, UnsupportedCause};
 pub use edit::{
     EditError, EditGlyphSource, EditOptions, EditOutcome, EditReport, EditRequest, EditTarget,
     FollowerDisposition, PreviewColour, PreviewGlyph, TextEditPreview, edit_text,
+};
+pub use face_ladder::{
+    FaceCandidate, FaceClass, FaceLadder, FaceMatch, FaceRequest, FaceRung, ReplacementFaces,
+    SkippedFace, embedding_refusal, postscript_name_matches, rank_replacement_faces,
+    standard14_for, strip_subset_tag,
 };
 pub use fallback::{FallbackFace, FallbackSource, FallbackUse, PreviewFallback};
 pub use program_glyphs::{EmbeddedGlyphs, ProgramGlyph};

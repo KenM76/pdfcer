@@ -644,6 +644,25 @@ pub struct FsTypeBits {
     pub reserved_bit0: bool,
 }
 
+impl FsTypeBits {
+    /// Decode a raw `OS/2.fsType` read from a table of `os2_version`, with
+    /// the OpenType version rules applied (bits 4–15 ignored for versions
+    /// 0–1). For a face read by another parser, e.g. a collection member,
+    /// which [`read_fs_type`] does not walk.
+    ///
+    /// ```
+    /// use pdfcer_fonts::fontinfo::{EmbeddingPermission, FsTypeBits};
+    ///
+    /// let bits = FsTypeBits::decode(0x0102, 1);
+    /// assert_eq!(bits.permission, EmbeddingPermission::Restricted);
+    /// assert!(!bits.no_subsetting, "bit 8 is ignored for version 1");
+    /// ```
+    #[must_use]
+    pub fn decode(raw: u16, os2_version: u16) -> Self {
+        decode_fs_type(raw, os2_version)
+    }
+}
+
 /// The `fsType` state of an embedded program.
 ///
 /// **Four states, and the distinctions are the point.** `fsType == 0` means

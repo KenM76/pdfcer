@@ -20,6 +20,7 @@ use crate::text_edit::edit::{
     EditError, EditLayout, EncodedReplacement, MatchRun, OpRec, ShowData, ShowElem, carried_codes,
     classify_font, emit_show, encode_in, glyph_advance, is_subset_tag,
 };
+use crate::text_edit::face_ladder::{self, FaceMatch, FaceRequest, ReplacementFaces};
 use crate::text_edit::font_extend::FontExtension;
 use crate::text_edit::format::{CreatedFace, CreatedFont, embedded_probe, resolve_target_resource};
 use crate::text_edit::sibling;
@@ -66,6 +67,9 @@ pub struct FallbackUse {
     pub font_resource: Vec<u8>,
     /// Whether the resource was already there or the edit added it.
     pub source: FallbackSource,
+    /// How the decision 178 ladder chose the face; `None` when the caller
+    /// named it ([`EditOptions::fallback`](crate::text_edit::EditOptions::fallback)).
+    pub chosen_by: Option<FaceMatch>,
 }
 
 /// The fallback face a [`TextEditPreview`](crate::text_edit::TextEditPreview)
@@ -83,6 +87,14 @@ pub struct PreviewFallback {
     pub base_font: String,
     /// The decoded program of an added embedded subset; `None` otherwise.
     pub font_program: Option<Vec<u8>>,
+}
+
+/// The face a fallback sets its characters in: the caller's, or the
+/// decision 178 ladder's pick over the offered faces.
+#[derive(Clone, Copy)]
+pub(crate) enum FaceChoice<'a> {
+    Given(&'a FallbackFace),
+    Ladder(Option<&'a dyn ReplacementFaces>),
 }
 
 /// Where the run being edited sits.
@@ -217,7 +229,7 @@ impl Fallback {
 pub(crate) fn encode<F>(
     at: &RunAt<'_>,
     replace: &str,
-    face: &FallbackFace,
+    face: FaceChoice<'_>,
     own: &ExtractFont,
     refused: EditError,
     encode_own: F,
@@ -249,7 +261,7 @@ where
     if to_face.is_empty() {
         return Err(EditError::Refused(refusal));
     }
-    let resolved = match resolve_face(at, face) {
+    let (resolved, chosen_by) = match pick(at, face, &to_face) {
         Ok(r) => r,
         Err(why) => {
             refusal.message = format!("{} The fallback face was not used: {why}.", refusal.message);
@@ -261,10 +273,11 @@ where
         Ok(codes) => codes,
         Err(ch) => {
             refusal.message = format!(
-                "{} The fallback face '{}' cannot set it either: it has no code for {}.",
+                "{} The fallback face '{}' cannot set it either: it has no code for {}.{}",
                 refusal.message,
                 resolved.font.base_font,
-                char_label(ch)
+                char_label(ch),
+                ladder_note(chosen_by.as_ref()),
             );
             refusal.character = Some(ch);
             return Err(EditError::Refused(refusal));
@@ -276,7 +289,7 @@ where
     } else {
         encode_own(&own_text)?
     };
-    let fallback = split(
+    let mut fallback = split(
         replace,
         &to_face,
         &encoded,
@@ -284,6 +297,7 @@ where
         resolved,
         at.anchor.font_name.as_slice(),
     )?;
+    fallback.used.chosen_by = chosen_by;
     encoded
         .disclosures
         .push(disclosure(&fallback.used, &font.base_font));
@@ -298,22 +312,51 @@ where
 /// Why the face cannot set them.
 pub(crate) fn retype_split(
     at: &RunAt<'_>,
-    face: &FallbackFace,
+    face: FaceChoice<'_>,
     text: &str,
     to_face: &BTreeSet<char>,
     own: &EncodedReplacement,
 ) -> Result<Fallback, String> {
-    let resolved = resolve_face(at, face)?;
+    let (resolved, chosen_by) = pick(at, face, to_face)?;
     let face_text: String = to_face.iter().collect();
     let codes = face_codes(at, &resolved, &face_text).map_err(|ch| {
         format!(
-            "the fallback face '{}' has no code for {}",
+            "the fallback face '{}' has no code for {}{}",
             resolved.font.base_font,
-            char_label(ch)
+            char_label(ch),
+            ladder_note(chosen_by.as_ref()),
         )
     })?;
     let own_key = at.anchor.font_name.clone();
-    split(text, to_face, own, &codes, resolved, &own_key).map_err(|e| e.to_string())
+    let mut fallback =
+        split(text, to_face, own, &codes, resolved, &own_key).map_err(|e| e.to_string())?;
+    fallback.used.chosen_by = chosen_by;
+    Ok(fallback)
+}
+
+/// `face` resolved, the ladder run first when it is the ladder's to pick.
+fn pick(
+    at: &RunAt<'_>,
+    face: FaceChoice<'_>,
+    to_face: &BTreeSet<char>,
+) -> Result<(ResolvedFace, Option<FaceMatch>), String> {
+    match face {
+        FaceChoice::Given(face) => Ok((resolve_face(at, face)?, None)),
+        FaceChoice::Ladder(faces) => {
+            let chars: Vec<char> = to_face.iter().copied().collect();
+            let req = FaceRequest::from_font_dict(at.doc, at.own_dict, &chars);
+            let (face, chosen) = face_ladder::choose(&req, faces);
+            match resolve_face(at, &face) {
+                Ok(resolved) => Ok((resolved, Some(chosen))),
+                Err(why) => Err(format!("{why}{}", ladder_note(Some(&chosen)))),
+            }
+        }
+    }
+}
+
+/// The ladder's disclosure, appended to a refusal it led to.
+fn ladder_note(chosen: Option<&FaceMatch>) -> String {
+    chosen.map_or_else(String::new, |m| format!(" ({})", m.disclosure()))
 }
 
 /// Interleave the run's codes and the face's codes in replacement order.
@@ -361,6 +404,7 @@ fn split(
         base_font: resolved.font.base_font.clone(),
         font_resource: resolved.key.clone(),
         source: resolved.source,
+        chosen_by: None,
     };
     let preview = PreviewFallback {
         font_resource: resolved.key,
@@ -536,7 +580,7 @@ fn disclosure(used: &FallbackUse, own: &str) -> String {
             "a subset EMBEDDED by this edit as a Type0 Identity-H font (§9.7.6.2)"
         }
     };
-    format!(
+    let line = format!(
         "fallback: '{own}' cannot encode {}, so {} set in '{}' (font resource /{}), {source}; \
          the rest of the replacement stays in '{own}'",
         chars.join(", "),
@@ -547,7 +591,11 @@ fn disclosure(used: &FallbackUse, own: &str) -> String {
         },
         used.base_font,
         String::from_utf8_lossy(&used.font_resource),
-    )
+    );
+    match &used.chosen_by {
+        Some(m) => format!("{line}; {}", m.disclosure()),
+        None => line,
+    }
 }
 
 fn char_label(c: char) -> String {

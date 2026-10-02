@@ -1,6 +1,7 @@
 //! Decision 173 §3: is an installed face the font an embedded subset was cut
 //! from? Every check is required; only the compared set (I5) has a setting.
 
+use pdfcer_core::text_edit::postscript_name_matches;
 use skrifa::raw::TableProvider;
 use skrifa::raw::types::NameId;
 use skrifa::{FontRef, MetadataProvider};
@@ -23,9 +24,9 @@ pub(crate) enum OutlineCheck<'a> {
 }
 
 /// I1: the collection member whose name ID 6 equals `font_name` with any
-/// `ABCDEF+` subset tag removed; `None` when no member is a candidate.
+/// `ABCDEF+` subset tag removed — the decision 178 ladder's exact-name rung;
+/// `None` when no member is a candidate.
 pub(crate) fn candidate_index(face: &[u8], font_name: &str) -> Option<u32> {
-    let wanted = strip_tag(font_name);
     let count = if face.starts_with(b"ttcf") {
         crate::font::sfnt::read_u32(face, 8)?
     } else {
@@ -34,7 +35,7 @@ pub(crate) fn candidate_index(face: &[u8], font_name: &str) -> Option<u32> {
     (0..count).find(|&i| {
         FontRef::from_index(face, i).is_ok_and(|f| {
             f.localized_strings(NameId::POSTSCRIPT_NAME)
-                .any(|s| s.chars().eq(wanted.chars()))
+                .any(|s| postscript_name_matches(&s.chars().collect::<String>(), font_name))
         })
     })
 }
@@ -62,13 +63,6 @@ pub(crate) fn face_unicode_chars(face: &[u8], face_index: u32) -> Vec<char> {
         .filter(|&(_, g)| g != 0)
         .filter_map(|(c, _)| char::from_u32(c))
         .collect()
-}
-
-fn strip_tag(name: &str) -> &str {
-    match name.split_once('+') {
-        Some((tag, rest)) if tag.len() == 6 && tag.bytes().all(|b| b.is_ascii_uppercase()) => rest,
-        _ => name,
-    }
 }
 
 /// I2–I7 for face member `face_index` against `subset`, for the characters

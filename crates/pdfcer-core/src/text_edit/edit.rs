@@ -101,6 +101,7 @@
 use crate::crypto::PermissionBit;
 use crate::text_edit::cause::{NotFoundReason, UnsupportedCause};
 use crate::text_edit::cross_object;
+use crate::text_edit::face_ladder::ReplacementFaces;
 use crate::text_edit::fallback::{self, Fallback, FallbackFace, FallbackUse, PreviewFallback};
 use crate::text_edit::retype::Joined;
 use crate::text_edit::sibling;
@@ -672,6 +673,13 @@ pub struct EditOptions {
     ///
     /// A reference rather than a value so the options stay `Copy`.
     pub fallback: Option<&'static FallbackFace>,
+    /// Installed faces the decision 178 ladder picks a replacement face
+    /// from when [`Self::fallback`] names none: tried on the same refusals
+    /// `fallback` answers, and by the decision 175 retype in place of its
+    /// standard-14 default. The pick, its rung and its file are disclosed.
+    /// `None` keeps the fallback route off and the retype on the
+    /// class-matched standard-14 face.
+    pub replacement_faces: Option<&'static dyn ReplacementFaces>,
     /// Whether a refusal that has a workaround on offer is worked around
     /// (decision 175). Default [`WorkaroundPolicy::Refuse`]: refuse as
     /// before, the error naming the offer ([`EditError::workaround`]).
@@ -753,6 +761,34 @@ impl EditOptions {
     #[must_use]
     pub fn with_fallback(mut self, face: &'static FallbackFace) -> Self {
         self.fallback = Some(face);
+        self
+    }
+
+    /// Offer installed faces to the decision 178 replacement-face ladder,
+    /// returning `self`. An explicit [`Self::with_fallback`] face wins.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::font_embed::FontEmbedPlan;
+    /// use pdfcer_core::text_edit::{EditOptions, FaceCandidate, ReplacementFaces};
+    ///
+    /// #[derive(Debug)]
+    /// struct NoFaces;
+    /// impl ReplacementFaces for NoFaces {
+    ///     fn candidates(&self, _: &[char]) -> Vec<FaceCandidate> {
+    ///         Vec::new()
+    ///     }
+    ///     fn plan(&self, _: &FaceCandidate, _: &[char]) -> Result<FontEmbedPlan, String> {
+    ///         Err("no faces".to_owned())
+    ///     }
+    /// }
+    /// let opts = EditOptions::default().with_replacement_faces(&NoFaces);
+    /// assert!(opts.replacement_faces.is_some());
+    /// ```
+    #[must_use]
+    pub fn with_replacement_faces(mut self, faces: &'static dyn ReplacementFaces) -> Self {
+        self.replacement_faces = Some(faces);
         self
     }
 
@@ -2759,7 +2795,12 @@ fn encode_with_sibling<'a>(
     single: bool,
 ) -> Result<Encoding<'a>, EditError> {
     let base_font = font.base_font.clone();
-    let own = opts.fallback.map(|_| font.clone());
+    let choice = match (opts.fallback, opts.replacement_faces) {
+        (Some(face), _) => Some(fallback::FaceChoice::Given(face)),
+        (None, Some(faces)) => Some(fallback::FaceChoice::Ladder(Some(faces))),
+        (None, None) => None,
+    };
+    let own = choice.map(|_| font.clone());
     let refused =
         match encode_and_extend(doc, target, recs, font, class, font_dict, anchor, req, opts) {
             Ok((encoded, font, extension)) => {
@@ -2782,7 +2823,7 @@ fn encode_with_sibling<'a>(
     {
         return Ok(enc);
     }
-    let (Some(face), Some(own)) = (opts.fallback, own) else {
+    let (Some(face), Some(own)) = (choice, own) else {
         return Err(refused);
     };
     let encode_own = |text: &str| {
