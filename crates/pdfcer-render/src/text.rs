@@ -708,7 +708,7 @@ pub fn load(
 
     match subtype.as_slice() {
         b"Type1" | b"MMType1" | b"TrueType" => load_simple(doc, font_dict, env, base_font, None),
-        b"Type0" => load_composite(doc, font_dict, base_font, None),
+        b"Type0" => load_composite(doc, font_dict, base_font, (None, None)),
         b"Type3" => crate::type3::Type3Font::load(doc, font_dict)
             .map(|t3| LoadedFont {
                 base_font,
@@ -733,17 +733,19 @@ pub fn load(
 }
 
 /// [`load`] for a simple or `Type0` font whose glyphs come from `program`
-/// rather than its descriptor: a program an edit will embed but has not
-/// written yet.
+/// rather than its descriptor, and a `CIDFontType2`'s CIDs through
+/// `cid_to_gid` when given rather than its `/CIDToGIDMap`: what an edit will
+/// embed but has not written yet.
 pub(crate) fn load_with_program(
     doc: &DocumentView<'_>,
     font_dict: &Dict,
     env: &FontEnvironment,
     program: Vec<u8>,
+    cid_to_gid: Option<Vec<u8>>,
 ) -> Result<LoadedFont, UnsupportedFont> {
     let base_font = name_of(doc, font_dict, b"BaseFont").unwrap_or_default();
     if name_of(doc, font_dict, b"Subtype").as_deref() == Some("Type0") {
-        return load_composite(doc, font_dict, base_font, Some(program));
+        return load_composite(doc, font_dict, base_font, (Some(program), cid_to_gid));
     }
     load_simple(doc, font_dict, env, base_font, Some(program))
 }
@@ -841,7 +843,7 @@ fn load_composite(
     doc: &DocumentView<'_>,
     font_dict: &Dict,
     base_font: String,
-    program: Option<Vec<u8>>,
+    (program, map): (Option<Vec<u8>>, Option<Vec<u8>>),
 ) -> Result<LoadedFont, UnsupportedFont> {
     // Table 121: `/Encoding` is required and is either a predefined
     // CMap name or a CMap stream. Only the two Identity names are in
@@ -886,6 +888,8 @@ fn load_composite(
         } else {
             CidToGid::Identity
         }
+    } else if let Some(map) = map {
+        CidToGid::Stream(map)
     } else {
         // CIDFontType2. `/CIDToGIDMap` may be an indirect reference to
         // either a name or a stream (§9.7 gotchas), and is only legal

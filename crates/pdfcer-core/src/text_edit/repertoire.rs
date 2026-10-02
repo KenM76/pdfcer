@@ -350,6 +350,22 @@ fn composite_accepts(
                 .filter(|ch| !composite.covers(*ch))
                 .filter(|ch| !composite.ambiguous_chars().contains_key(ch)),
         );
+        if let Some(settings) = q.augment {
+            let at = crate::text_edit::augment_route::FontAt {
+                resources: q.resources,
+                font_name: q.name,
+                font_dict: q.dict,
+            };
+            let answered = accepted.clone();
+            let excluded = |ch: char| {
+                answered.contains(&ch)
+                    || composite.covers(ch)
+                    || composite.ambiguous_chars().contains_key(&ch)
+            };
+            accepted.extend(crate::text_edit::cid_augment::augmentable(
+                q.doc, &at, g, settings, excluded,
+            ));
+        }
     }
     Ok((accepted, tested))
 }

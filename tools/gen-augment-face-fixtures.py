@@ -14,6 +14,11 @@ be tested without real font bytes:
                            (how Word subsets an unshown character)
   subset-in.pdf            one page showing ABC in a WinAnsi TrueType that
                            embeds subset.ttf as ABCDEF+pdfcerAugFace
+  cid-subset.ttf           subset.ttf without its cmap, as a CIDFontType2
+                           program carries none (ISO 32000-2 Table 126)
+  cid-subset-in.pdf        one page showing ABC (CIDs 1-3) in a Type0
+                           Identity-H font over a CIDFontType2 that embeds
+                           cid-subset.ttf, /CIDToGIDMap /Identity
 
 Deterministic: fixed head timestamps, no fontTools-version-dependent tables.
 """
@@ -158,6 +163,10 @@ def pdf(program: bytes) -> bytes:
         + program
         + b"\nendstream",
     ]
+    return assemble(objs)
+
+
+def assemble(objs: list[bytes]) -> bytes:
     out = bytearray(b"%PDF-1.7\n")
     offsets = []
     for i, body in enumerate(objs, 1):
@@ -174,6 +183,49 @@ def pdf(program: bytes) -> bytes:
     return bytes(out)
 
 
+def strip_cmap(program: bytes) -> bytes:
+    import io
+
+    from fontTools.ttLib import TTFont
+
+    font = TTFont(io.BytesIO(program))
+    del font["cmap"]
+    buf = io.BytesIO()
+    font.save(buf, reorderTables=True)
+    return buf.getvalue()
+
+
+def cid_pdf(program: bytes) -> bytes:
+    content = b"BT /F0 24 Tf 10 40 Td <000100020003> Tj ET"
+    to_unicode = (
+        b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n"
+        b"/CMapName /pdfcer-aug def 1 begincodespacerange <0000> <FFFF> "
+        b"endcodespacerange\n3 beginbfchar <0001> <0041> <0002> <0042> "
+        b"<0003> <0043> endbfchar\nendcmap CMapName currentdict /CMap "
+        b"defineresource pop end end"
+    )
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] "
+        b"/Resources << /Font << /F0 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length %d >>\nstream\n%s\nendstream" % (len(content) + 1, content),
+        b"<< /Type /Font /Subtype /Type0 /BaseFont /ABCDEF+pdfcerAugFace "
+        b"/Encoding /Identity-H /DescendantFonts [6 0 R] /ToUnicode 9 0 R >>",
+        b"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ABCDEF+pdfcerAugFace "
+        b"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+        b"/W [1 [600 620 640]] /CIDToGIDMap /Identity /FontDescriptor 7 0 R >>",
+        b"<< /Type /FontDescriptor /FontName /ABCDEF+pdfcerAugFace /Flags 4 "
+        b"/FontBBox [0 0 600 700] /ItalicAngle 0 /Ascent 700 /Descent 0 "
+        b"/CapHeight 700 /StemV 80 /FontFile2 8 0 R >>",
+        b"<< /Length %d /Length1 %d >>\nstream\n" % (len(program), len(program))
+        + program
+        + b"\nendstream",
+        b"<< /Length %d >>\nstream\n%s\nendstream" % (len(to_unicode) + 1, to_unicode),
+    ]
+    return assemble(objs)
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for name, (names, kw) in VARIANTS.items():
@@ -183,6 +235,12 @@ def main() -> None:
     data = pdf((OUT / "subset.ttf").read_bytes())
     (OUT / "subset-in.pdf").write_bytes(data)
     print(f"wrote subset-in.pdf ({len(data)} bytes)")
+    cid = strip_cmap((OUT / "subset.ttf").read_bytes())
+    (OUT / "cid-subset.ttf").write_bytes(cid)
+    print(f"wrote cid-subset.ttf ({len(cid)} bytes)")
+    data = cid_pdf(cid)
+    (OUT / "cid-subset-in.pdf").write_bytes(data)
+    print(f"wrote cid-subset-in.pdf ({len(data)} bytes)")
 
 
 if __name__ == "__main__":

@@ -19,13 +19,19 @@ use crate::text_edit::font_extend::{
 };
 use crate::text_edit::glyph_find;
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
-use crate::text_edit::subset_augment::{AugmentRequest, AugmentedProgram, SubsetAugment};
+use crate::text_edit::subset_augment::{
+    AugmentRequest, AugmentedProgram, ProgramAddressing, SubsetAugment,
+};
 use crate::view::DocumentView;
 
 /// Stands for the new descriptor until the writer assigns it a number.
 pub(crate) const FRESH_DESCRIPTOR: ObjId = ObjId::new(u32::MAX, 0);
 /// Stands for the new `FontFile2` stream until the writer assigns it a number.
 pub(crate) const FRESH_PROGRAM: ObjId = ObjId::new(u32::MAX - 1, 0);
+/// Stands for a composite font's new `/CIDToGIDMap` stream.
+pub(crate) const FRESH_MAP: ObjId = ObjId::new(u32::MAX - 2, 0);
+/// Stands for a composite font's new `/CIDSet` stream.
+pub(crate) const FRESH_CIDSET: ObjId = ObjId::new(u32::MAX - 3, 0);
 
 /// The new program and descriptor an augmented extension writes.
 #[derive(Debug, Clone, PartialEq)]
@@ -38,10 +44,28 @@ pub(crate) struct Augmented {
     pub(crate) encoded: Vec<u8>,
     /// The program, decoded, for a preview to draw from.
     pub(crate) program: Vec<u8>,
-    /// The descriptor and stream this one replaces for the edited font.
-    pub(crate) superseded: Option<(ObjId, ObjId)>,
+    /// The descriptor and program stream this one replaces for the edited
+    /// font, when they are separate objects.
+    pub(crate) superseded: [Option<ObjId>; 2],
+    /// Further placeholder streams (a composite font's map and `/CIDSet`).
+    pub(crate) fresh_streams: Vec<FreshStream>,
+    /// Further objects revised in place (a composite font's Type0 dictionary).
+    pub(crate) objects: Vec<(ObjId, Object)>,
+    /// The new `/CIDToGIDMap`, decoded, for a preview to draw from.
+    pub(crate) map: Option<Vec<u8>>,
     /// The rule 4 disclosure.
     pub(crate) disclosure: String,
+}
+
+/// A new stream written under placeholder `id`.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct FreshStream {
+    pub(crate) id: ObjId,
+    /// The stream it replaces for the edited font.
+    pub(crate) superseded: Option<ObjId>,
+    pub(crate) dict: Dict,
+    /// The bytes as stored, filtered per `dict`.
+    pub(crate) bytes: Vec<u8>,
 }
 
 /// The font an edit's run selects.
@@ -74,17 +98,22 @@ pub(crate) fn plan(
     if blocked.is_empty() || blocked.iter().any(|b| b.reason != NO_OUTLINE) {
         return Err(blocked);
     }
-    let refuse = |why: &str| {
-        blocked
+    if crate::text_edit::cid_extend::is_composite(doc, font_dict) {
+        // A composite font reaches here only when /ToUnicode already gives
+        // the character a CID whose glyph is empty; a new glyph would need
+        // that CID re-pointed, which would change text shown with it.
+        return Err(blocked
             .iter()
-            .map(|b| Blocked {
-                reason: format!(
-                    "{NO_OUTLINE}, and it cannot be added from an installed font: {why}"
-                ),
-                ..b.clone()
+            .flat_map(|b| {
+                let why = format!(
+                    "the font's /ToUnicode already gives it CID {}, whose glyph is empty",
+                    b.code
+                );
+                refused(std::slice::from_ref(b), &why)
             })
-            .collect::<Vec<_>>()
-    };
+            .collect());
+    }
+    let refuse = |why: &str| refused(&blocked, why);
     let mut t = Target::read(doc, resources, font_name, font_dict).map_err(|e| refuse(&e))?;
     let chars: Vec<char> = blocked.iter().map(|b| b.ch).collect();
     let shown = shown_chars(doc, &t).map_err(|e| refuse(&e))?;
@@ -102,6 +131,7 @@ pub(crate) fn plan(
         shown: &shown_list,
         outline_check: settings.outline_check,
         hinting_mismatch: settings.hinting_mismatch,
+        addressing: ProgramAddressing::Cmap,
     };
     let program = settings
         .source
@@ -115,11 +145,19 @@ pub(crate) fn plan(
     t.shape.program.clone_from(&program.program);
     let mut ext = plan_target(doc, &t, font_dict, missing, glyphs)?;
     let new_name = renamed(doc, &base_font, &ext);
+    let names = (base_font.as_str(), new_name.as_str());
     let augmented =
-        written(doc, font_dict, &ext, &program, &base_font, &new_name).map_err(|e| refuse(&e))?;
+        written(doc, font_dict, &ext, &program, names, "code").map_err(|e| refuse(&e))?;
+    attach(&mut ext, augmented, &new_name);
+    Ok(ext)
+}
+
+/// Point the simple font's dictionary at the new name and descriptor; its
+/// view carries the descriptor inline, for a preview to read.
+fn attach(ext: &mut FontExtension, augmented: Augmented, new_name: &str) {
     ext.dict.insert(
         Name(b"BaseFont".to_vec()),
-        Object::Name(Name(new_name.into_bytes())),
+        Object::Name(Name(new_name.as_bytes().to_vec())),
     );
     ext.dict.insert(
         Name(b"FontDescriptor".to_vec()),
@@ -132,7 +170,17 @@ pub(crate) fn plan(
     );
     ext.view = Some(view);
     ext.augmented = Some(Box::new(augmented));
-    Ok(ext)
+}
+
+/// `blocked`, each reason extended with why augmentation failed.
+fn refused(blocked: &[Blocked], why: &str) -> Vec<Blocked> {
+    blocked
+        .iter()
+        .map(|b| Blocked {
+            reason: format!("{NO_OUTLINE}, and it cannot be added from an installed font: {why}"),
+            ..b.clone()
+        })
+        .collect()
 }
 
 /// The characters of `candidates` (route A's uncarried `(char, code)`s) an
@@ -198,6 +246,7 @@ fn offered(
         shown: &shown_list,
         outline_check: settings.outline_check,
         hinting_mismatch: settings.hinting_mismatch,
+        addressing: ProgramAddressing::Cmap,
     };
     settings.source.addable(&request).into_iter().collect()
 }
@@ -220,7 +269,7 @@ fn name_of(doc: &DocumentView<'_>, d: &Dict, key: &[u8]) -> Option<String> {
 
 /// `base_font` under a new subset tag: deterministic over the stripped name,
 /// the old tag and the appended glyphs, and used by no font in the file.
-fn renamed(doc: &DocumentView<'_>, base_font: &str, ext: &FontExtension) -> String {
+pub(crate) fn renamed(doc: &DocumentView<'_>, base_font: &str, ext: &FontExtension) -> String {
     let (old_tag, stripped) = pdfcer_fonts::fontinfo::split_subset_tag(base_font);
     let mut seed = format!("{stripped}/{}", old_tag.unwrap_or_default());
     for a in &ext.added {
@@ -235,14 +284,15 @@ fn renamed(doc: &DocumentView<'_>, base_font: &str, ext: &FontExtension) -> Stri
     format!("{tag}+{stripped}")
 }
 
-/// The new descriptor and stream, and the disclosure.
-fn written(
+/// The new descriptor and stream, and the disclosure, which calls a code
+/// `unit` ("code" or "CID").
+pub(crate) fn written(
     doc: &DocumentView<'_>,
     font_dict: &Dict,
     ext: &FontExtension,
     program: &AugmentedProgram,
-    old_name: &str,
-    new_name: &str,
+    (old_name, new_name): (&str, &str),
+    unit: &str,
 ) -> Result<Augmented, String> {
     let old_ref = font_dict
         .get(b"FontDescriptor")
@@ -289,8 +339,11 @@ fn written(
         descriptor,
         stream_dict,
         encoded,
-        superseded: old_ref.zip(old_program),
-        disclosure: disclosure(ext, program, old_name, new_name),
+        superseded: [old_ref, old_program],
+        fresh_streams: Vec::new(),
+        objects: Vec::new(),
+        map: None,
+        disclosure: disclosure(ext, program, (old_name, new_name), unit),
     })
 }
 
@@ -327,15 +380,15 @@ fn widened_bbox(doc: &DocumentView<'_>, old: &Dict, head: [i16; 4], scale: f64) 
 fn disclosure(
     ext: &FontExtension,
     program: &AugmentedProgram,
-    old_name: &str,
-    new_name: &str,
+    (old_name, new_name): (&str, &str),
+    unit: &str,
 ) -> String {
     let glyphs: Vec<String> = ext
         .added
         .iter()
         .map(|a| {
             format!(
-                "'{}' U+{:04X} -> code {}, glyph {}, width {}",
+                "'{}' U+{:04X} -> {unit} {}, glyph {}, width {}",
                 a.ch,
                 u32::from(a.ch),
                 a.code,

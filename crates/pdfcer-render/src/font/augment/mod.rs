@@ -109,6 +109,33 @@ pub(crate) enum Hinting {
     Refuse,
 }
 
+/// How the subset's characters reach their glyphs.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum Addressing<'a> {
+    /// The subset's `(3,1)` cmap, which gains the appended characters: a
+    /// simple TrueType font (ISO 32000-2 §9.6.5.4).
+    #[default]
+    Cmap,
+    /// A `CIDFontType2` program, reached by CID (§9.7.4.2). §9.9 Table 126
+    /// says such a program needs no `cmap` and "shall not" carry one, so
+    /// these `(glyph, character)` pairs, read from the document's maps,
+    /// stand in for it; any `cmap` present is copied unchanged.
+    Cid(&'a [(u16, char)]),
+}
+
+impl Addressing<'_> {
+    /// The `(character, glyph)` pairs the subset maps.
+    fn pairs(self, cmap: &[u8]) -> Vec<(u32, u16)> {
+        match self {
+            Self::Cmap => cmap::windows_unicode_map(cmap)
+                .unwrap_or_default()
+                .into_iter()
+                .collect(),
+            Self::Cid(known) => known.iter().map(|&(g, c)| (u32::from(c), g)).collect(),
+        }
+    }
+}
+
 /// One glyph appended for a character.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AddedGlyph {
@@ -137,6 +164,8 @@ const COPIED: [&[u8; 4]; 12] = [
 const REWRITTEN: [&[u8; 4]; 8] = [
     b"glyf", b"loca", b"hmtx", b"hhea", b"maxp", b"cmap", b"post", b"head",
 ];
+/// Rewritten when present; a CID-keyed subset may lack them (§9.9).
+const OPTIONAL: [&[u8; 4]; 2] = [b"cmap", b"post"];
 const DROPPED: [&[u8; 4]; 5] = [b"hdmx", b"LTSH", b"vhea", b"vmtx", b"DSIG"];
 
 /// The tables of one program that surgery reads.
@@ -161,10 +190,13 @@ impl<'a> Parts<'a> {
         }
         let mut table = HashMap::new();
         for tag in REWRITTEN {
-            let t = dir
-                .table(*tag)
-                .ok_or_else(|| bad(&format!("{} table is missing", tag.escape_ascii())))?;
-            table.insert(*tag, t);
+            match dir.table(*tag) {
+                Some(t) => {
+                    table.insert(*tag, t);
+                }
+                None if OPTIONAL.contains(&tag) => {}
+                None => return Err(bad(&format!("{} table is missing", tag.escape_ascii()))),
+            }
         }
         let t = |tag: &[u8; 4]| table.get(tag).copied().unwrap_or(&[]);
         let n = usize::from(read_u16(t(b"maxp"), 4).ok_or_else(|| bad("maxp is truncated"))?);
@@ -185,9 +217,19 @@ impl<'a> Parts<'a> {
         })
     }
 
-    /// A rewritten-set table; `read` refused any program lacking one.
+    /// A rewritten-set table; empty for an absent [`OPTIONAL`] one.
     fn get(&self, tag: &[u8; 4]) -> &'a [u8] {
         self.table.get(tag).copied().unwrap_or(&[])
+    }
+
+    /// `Err` naming an [`OPTIONAL`] table this use cannot do without.
+    fn require(&self, tag: &[u8; 4], who: &str) -> Result<(), AugmentError> {
+        if self.table.contains_key(tag) {
+            return Ok(());
+        }
+        Err(AugmentError::MalformedFace {
+            detail: format!("the {who}'s {} table is missing", tag.escape_ascii()),
+        })
     }
 
     /// Glyph `gid`'s metric; `closure` has bounded every gid by `loca`.
@@ -204,37 +246,23 @@ impl<'a> Parts<'a> {
 }
 
 /// Append to `subset` the face glyphs for each of `chars` it does not
-/// already draw. A character the subset maps to an empty slot is remapped to
-/// the appended glyph. `face_index` selects a collection member.
+/// already draw. Under [`Addressing::Cmap`] a character the subset maps to
+/// an empty slot is remapped to the appended glyph; under
+/// [`Addressing::Cid`] the caller gives the new glyph a CID. `face_index`
+/// selects a collection member.
 pub(crate) fn append_glyphs(
     subset: &[u8],
     face: &[u8],
     face_index: u32,
     chars: &[char],
     hinting: Hinting,
+    addressing: Addressing<'_>,
 ) -> Result<Augmented, AugmentError> {
     let s = Parts::read(subset, 0, "embedded font")?;
-    if let Some((tag, _)) = s
-        .dir
-        .tables
-        .iter()
-        .find(|(t, _)| ![&COPIED[..], &REWRITTEN, &DROPPED].concat().contains(&t))
-    {
-        return Err(AugmentError::UnsupportedTable {
-            tag: tag.escape_ascii().to_string(),
-        });
-    }
+    check_subset_tables(&s, addressing)?;
     let f = Parts::read(face, face_index, "installed font")?;
-    let mut roots: Vec<(char, u16)> = Vec::new();
-    for &ch in chars {
-        let held = cmap::unicode_glyph(s.get(b"cmap"), ch).is_some_and(|g| s.drawn(g));
-        if held || roots.iter().any(|r| r.0 == ch) {
-            continue;
-        }
-        let g = cmap::unicode_glyph(f.get(b"cmap"), ch)
-            .ok_or(AugmentError::FaceLacksCharacter { ch })?;
-        roots.push((ch, g));
-    }
+    f.require(b"cmap", "installed font")?;
+    let roots = roots(&s, &f, chars, addressing)?;
     let strip = hinting_differs(&s, &f) && {
         if hinting == Hinting::Refuse {
             return Err(AugmentError::HintingDiffers);
@@ -260,12 +288,15 @@ pub(crate) fn append_glyphs(
             advance: f.metric(g).0,
         })
         .collect();
-    let program = build(&s, &f, &order, &remap, &added, strip)?;
+    let program = build(&s, &f, &order, &remap, &added, strip, addressing)?;
     verify::check(
-        subset,
+        &verify::Inputs {
+            subset,
+            face,
+            face_index,
+            addressing,
+        },
         &program,
-        face,
-        face_index,
         &added,
         old_n + order.len(),
     )?;
@@ -282,6 +313,48 @@ pub(crate) fn append_glyphs(
                 .iter()
                 .any(|&g| glyf::instruction_len(record(&f, g)) > 0),
     })
+}
+
+/// The subset carries the tables `addressing` needs and none the rebuild
+/// does not know how to carry.
+fn check_subset_tables(s: &Parts<'_>, addressing: Addressing<'_>) -> Result<(), AugmentError> {
+    if addressing == Addressing::Cmap {
+        s.require(b"cmap", "embedded font")?;
+        s.require(b"post", "embedded font")?;
+    }
+    match s
+        .dir
+        .tables
+        .iter()
+        .find(|(t, _)| ![&COPIED[..], &REWRITTEN, &DROPPED].concat().contains(&t))
+    {
+        Some((tag, _)) => Err(AugmentError::UnsupportedTable {
+            tag: tag.escape_ascii().to_string(),
+        }),
+        None => Ok(()),
+    }
+}
+
+/// Each of `chars` the subset does not already draw, with the face glyph
+/// that draws it.
+fn roots(
+    s: &Parts<'_>,
+    f: &Parts<'_>,
+    chars: &[char],
+    addressing: Addressing<'_>,
+) -> Result<Vec<(char, u16)>, AugmentError> {
+    let known = addressing.pairs(s.get(b"cmap"));
+    let mut roots: Vec<(char, u16)> = Vec::new();
+    for &ch in chars {
+        let held = known.iter().any(|&(c, g)| c == u32::from(ch) && s.drawn(g));
+        if held || roots.iter().any(|r| r.0 == ch) {
+            continue;
+        }
+        let g = cmap::unicode_glyph(f.get(b"cmap"), ch)
+            .ok_or(AugmentError::FaceLacksCharacter { ch })?;
+        roots.push((ch, g));
+    }
+    Ok(roots)
 }
 
 fn record<'a>(p: &Parts<'a>, gid: u16) -> &'a [u8] {
@@ -304,6 +377,7 @@ fn build(
     remap: &HashMap<u16, u16>,
     added: &[AddedGlyph],
     strip: bool,
+    addressing: Addressing<'_>,
 ) -> Result<Vec<u8>, AugmentError> {
     let records = order
         .iter()
@@ -333,14 +407,6 @@ fn build(
             metrics::write_maxp(s.get(b"maxp"), num, &limits, face_maxp),
         ),
         (
-            *b"cmap",
-            cmap::add_entries(
-                s.get(b"cmap"),
-                &added.iter().map(|a| (a.ch, a.gid)).collect::<Vec<_>>(),
-            )?,
-        ),
-        (*b"post", post::append_names(s.get(b"post"), &names)?),
-        (
             *b"head",
             metrics::write_head(
                 s.get(b"head"),
@@ -349,6 +415,19 @@ fn build(
             ),
         ),
     ];
+    if s.table.contains_key(b"cmap") {
+        let cmap = match addressing {
+            Addressing::Cmap => cmap::add_entries(
+                s.get(b"cmap"),
+                &added.iter().map(|a| (a.ch, a.gid)).collect::<Vec<_>>(),
+            )?,
+            Addressing::Cid(_) => s.get(b"cmap").to_vec(),
+        };
+        tables.push((*b"cmap", cmap));
+    }
+    if s.table.contains_key(b"post") {
+        tables.push((*b"post", post::append_names(s.get(b"post"), &names)?));
+    }
     tables.extend(
         s.dir
             .tables

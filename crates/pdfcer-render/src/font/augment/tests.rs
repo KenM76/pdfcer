@@ -15,7 +15,15 @@ fn table<'a>(font: &'a [u8], tag: &[u8; 4]) -> &'a [u8] {
 
 #[test]
 fn a_composite_arrives_with_its_components_and_hinting_kept() {
-    let r = append_glyphs(SUBSET, FACE, 0, &['D', '\u{C9}'], Hinting::Refuse).unwrap();
+    let r = append_glyphs(
+        SUBSET,
+        FACE,
+        0,
+        &['D', '\u{C9}'],
+        Hinting::Refuse,
+        Addressing::Cmap,
+    )
+    .unwrap();
     assert_eq!(
         r.added.iter().map(|a| (a.ch, a.gid)).collect::<Vec<_>>(),
         [('D', 4), ('\u{C9}', 5)]
@@ -35,7 +43,15 @@ fn a_composite_arrives_with_its_components_and_hinting_kept() {
 
 #[test]
 fn differing_hinting_strips_by_default_and_refuses_on_request() {
-    let r = append_glyphs(OTHER_FPGM, FACE, 0, &['D'], Hinting::Strip).unwrap();
+    let r = append_glyphs(
+        OTHER_FPGM,
+        FACE,
+        0,
+        &['D'],
+        Hinting::Strip,
+        Addressing::Cmap,
+    )
+    .unwrap();
     assert!(r.instructions_stripped);
     let parts = Parts::read(&r.program, 0, "result").unwrap();
     assert_eq!(glyf::instruction_len(record(&parts, 4)), 0);
@@ -45,14 +61,29 @@ fn differing_hinting_strips_by_default_and_refuses_on_request() {
         "old glyphs keep theirs"
     );
     assert_eq!(
-        append_glyphs(OTHER_FPGM, FACE, 0, &['D'], Hinting::Refuse),
+        append_glyphs(
+            OTHER_FPGM,
+            FACE,
+            0,
+            &['D'],
+            Hinting::Refuse,
+            Addressing::Cmap
+        ),
         Err(AugmentError::HintingDiffers)
     );
 }
 
 #[test]
 fn an_empty_slot_is_remapped_to_the_new_glyph() {
-    let r = append_glyphs(EMPTY_SLOT, FACE, 0, &['D'], Hinting::Strip).unwrap();
+    let r = append_glyphs(
+        EMPTY_SLOT,
+        FACE,
+        0,
+        &['D'],
+        Hinting::Strip,
+        Addressing::Cmap,
+    )
+    .unwrap();
     assert_eq!(r.added.iter().map(|a| a.gid).collect::<Vec<_>>(), [5]);
     let p = FontProgram::parse(&r.program).unwrap();
     assert_eq!(p.glyph_for_char('D'), Some(5));
@@ -70,18 +101,42 @@ fn an_empty_slot_is_remapped_to_the_new_glyph() {
 
 #[test]
 fn held_characters_add_nothing_and_missing_ones_refuse() {
-    let r = append_glyphs(SUBSET, FACE, 0, &['A', 'B'], Hinting::Strip).unwrap();
+    let r = append_glyphs(
+        SUBSET,
+        FACE,
+        0,
+        &['A', 'B'],
+        Hinting::Strip,
+        Addressing::Cmap,
+    )
+    .unwrap();
     assert!(r.added.is_empty());
     assert_eq!(
-        append_glyphs(SUBSET, FACE, 0, &['Z'], Hinting::Strip),
+        append_glyphs(SUBSET, FACE, 0, &['Z'], Hinting::Strip, Addressing::Cmap),
         Err(AugmentError::FaceLacksCharacter { ch: 'Z' })
     );
 }
 
 #[test]
 fn output_is_deterministic_and_head_widens() {
-    let a = append_glyphs(SUBSET, FACE, 0, &['\u{C9}'], Hinting::Strip).unwrap();
-    let b = append_glyphs(SUBSET, FACE, 0, &['\u{C9}'], Hinting::Strip).unwrap();
+    let a = append_glyphs(
+        SUBSET,
+        FACE,
+        0,
+        &['\u{C9}'],
+        Hinting::Strip,
+        Addressing::Cmap,
+    )
+    .unwrap();
+    let b = append_glyphs(
+        SUBSET,
+        FACE,
+        0,
+        &['\u{C9}'],
+        Hinting::Strip,
+        Addressing::Cmap,
+    )
+    .unwrap();
     assert_eq!(a, b);
     assert_eq!(a.bbox[3], 900, "the acute raises yMax");
 }
@@ -94,14 +149,14 @@ fn an_unknown_table_is_refused_by_name() {
     tables.push((*b"CBDT", vec![0; 8]));
     let odd = assemble(dir.flavor, tables);
     assert_eq!(
-        append_glyphs(&odd, FACE, 0, &['D'], Hinting::Strip),
+        append_glyphs(&odd, FACE, 0, &['D'], Hinting::Strip, Addressing::Cmap),
         Err(AugmentError::UnsupportedTable { tag: "CBDT".into() })
     );
 }
 
 #[test]
 fn verification_catches_a_same_shape_wrong_outline() {
-    let r = append_glyphs(SUBSET, FACE, 0, &['D'], Hinting::Strip).unwrap();
+    let r = append_glyphs(SUBSET, FACE, 0, &['D'], Hinting::Strip, Addressing::Cmap).unwrap();
     let parts = Parts::read(&r.program, 0, "result").unwrap();
     let (glyf_bytes, offsets) =
         glyf::append(parts.glyf, &parts.loca[..5], &[record(&parts, 3).to_vec()]);
@@ -116,7 +171,18 @@ fn verification_catches_a_same_shape_wrong_outline() {
         }
     }
     let tampered = assemble(dir.flavor, tables);
-    let err = verify::check(SUBSET, &tampered, FACE, 0, &r.added, 5).unwrap_err();
+    let err = verify::check(
+        &verify::Inputs {
+            subset: SUBSET,
+            face: FACE,
+            face_index: 0,
+            addressing: Addressing::Cmap,
+        },
+        &tampered,
+        &r.added,
+        5,
+    )
+    .unwrap_err();
     assert!(
         matches!(&err, AugmentError::VerificationFailed { detail } if detail.contains("outline")),
         "{err}"
@@ -128,30 +194,43 @@ const FACE_B_DIFFERS: &[u8] =
 
 #[test]
 fn the_cut_from_face_passes_the_identity_check() {
-    identity::check(SUBSET, FACE, 0, &['D', '\u{C9}'], OutlineCheck::AllShared).unwrap();
+    identity::check(
+        SUBSET,
+        (FACE, 0),
+        &['D', '\u{C9}'],
+        OutlineCheck::AllShared,
+        Addressing::Cmap,
+    )
+    .unwrap();
 }
 
 #[test]
 fn a_differing_shared_outline_refuses_unless_it_is_out_of_scope() {
     assert_eq!(
-        identity::check(SUBSET, FACE_B_DIFFERS, 0, &['D'], OutlineCheck::AllShared),
+        identity::check(
+            SUBSET,
+            (FACE_B_DIFFERS, 0),
+            &['D'],
+            OutlineCheck::AllShared,
+            Addressing::Cmap
+        ),
         Err(AugmentError::OutlineMismatch { ch: 'B', gid: 2 })
     );
     identity::check(
         SUBSET,
-        FACE_B_DIFFERS,
-        0,
+        (FACE_B_DIFFERS, 0),
         &['D'],
         OutlineCheck::ShownOnly(&['A']),
+        Addressing::Cmap,
     )
     .unwrap();
     assert_eq!(
         identity::check(
             SUBSET,
-            FACE_B_DIFFERS,
-            0,
+            (FACE_B_DIFFERS, 0),
             &['D'],
-            OutlineCheck::ShownOnly(&[' '])
+            OutlineCheck::ShownOnly(&[' ']),
+            Addressing::Cmap
         ),
         Err(AugmentError::IdentityUnproven)
     );
@@ -160,7 +239,13 @@ fn a_differing_shared_outline_refuses_unless_it_is_out_of_scope() {
 #[test]
 fn a_character_the_face_lacks_refuses_before_any_surgery() {
     assert_eq!(
-        identity::check(SUBSET, FACE, 0, &['Z'], OutlineCheck::AllShared),
+        identity::check(
+            SUBSET,
+            (FACE, 0),
+            &['Z'],
+            OutlineCheck::AllShared,
+            Addressing::Cmap
+        ),
         Err(AugmentError::FaceLacksCharacter { ch: 'Z' })
     );
 }
@@ -181,7 +266,14 @@ fn a_face_is_a_candidate_only_under_the_untagged_name() {
 
 #[test]
 fn an_empty_slot_is_no_evidence_either_way() {
-    identity::check(EMPTY_SLOT, FACE, 0, &['D'], OutlineCheck::AllShared).unwrap();
+    identity::check(
+        EMPTY_SLOT,
+        (FACE, 0),
+        &['D'],
+        OutlineCheck::AllShared,
+        Addressing::Cmap,
+    )
+    .unwrap();
 }
 
 #[test]
@@ -197,7 +289,13 @@ fn a_differing_shared_advance_refuses() {
     let mut face = FACE.to_vec();
     face[at] ^= 0x01;
     assert_eq!(
-        identity::check(SUBSET, &face, 0, &['D'], OutlineCheck::AllShared),
+        identity::check(
+            SUBSET,
+            (&face, 0),
+            &['D'],
+            OutlineCheck::AllShared,
+            Addressing::Cmap
+        ),
         Err(AugmentError::AdvanceMismatch { ch: 'B', gid: 2 })
     );
 }
@@ -217,7 +315,13 @@ fn a_restricted_face_or_subset_refuses_under_r109() {
             (&bytes[..], FACE)
         };
         assert!(matches!(
-            identity::check(subset, face, 0, &['D'], OutlineCheck::AllShared),
+            identity::check(
+                subset,
+                (face, 0),
+                &['D'],
+                OutlineCheck::AllShared,
+                Addressing::Cmap
+            ),
             Err(AugmentError::EmbeddingNotPermitted { .. })
         ));
     }

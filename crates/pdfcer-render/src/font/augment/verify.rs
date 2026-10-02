@@ -8,7 +8,7 @@ use crate::font::program::FontProgram;
 use crate::font::sfnt::{Directory, checksum, read_u16};
 
 use super::metrics::{HMetric, read_hmtx};
-use super::{AddedGlyph, AugmentError, cmap, glyf};
+use super::{AddedGlyph, Addressing, AugmentError, cmap, glyf};
 
 fn fail(detail: impl Into<String>) -> AugmentError {
     AugmentError::VerificationFailed {
@@ -16,15 +16,27 @@ fn fail(detail: impl Into<String>) -> AugmentError {
     }
 }
 
-/// Check `out` against `subset` and the face, per R260.
+/// What the result is checked against.
+pub(crate) struct Inputs<'a> {
+    pub(crate) subset: &'a [u8],
+    pub(crate) face: &'a [u8],
+    pub(crate) face_index: u32,
+    pub(crate) addressing: Addressing<'a>,
+}
+
+/// Check `out` against the subset and the face, per R260.
 pub(crate) fn check(
-    subset: &[u8],
+    inputs: &Inputs<'_>,
     out: &[u8],
-    face: &[u8],
-    face_index: u32,
     added: &[AddedGlyph],
     num_glyphs: usize,
 ) -> Result<(), AugmentError> {
+    let Inputs {
+        subset,
+        face,
+        face_index,
+        addressing,
+    } = *inputs;
     checksums(out)?;
     let program =
         FontProgram::parse(out).map_err(|e| fail(format!("the result does not parse: {e}")))?;
@@ -41,19 +53,15 @@ pub(crate) fn check(
             return Err(fail(format!("glyph {gid}'s metrics changed")));
         }
     }
-    for (c, g) in cmap::windows_unicode_map(old.cmap).unwrap_or_default() {
-        let remapped = added.iter().any(|a| u32::from(a.ch) == c);
-        if !remapped
-            && cmap::windows_unicode_map(new.cmap).and_then(|m| m.get(&c).copied()) != Some(g)
-        {
-            return Err(fail(format!("U+{c:04X}'s old mapping changed")));
-        }
-    }
+    mappings_kept(&old, &new, added, addressing)?;
     let face = FontRef::from_index(face, face_index)
         .map(FontProgram::Sfnt)
         .map_err(|e| fail(e.to_string()))?;
     for a in added {
-        let gid = program.glyph_for_char(a.ch);
+        let gid = match addressing {
+            Addressing::Cmap => program.glyph_for_char(a.ch),
+            Addressing::Cid(_) => Some(u32::from(a.gid)),
+        };
         if gid != Some(u32::from(a.gid)) {
             return Err(fail(format!(
                 "U+{:04X} does not reach its new glyph",
@@ -77,6 +85,32 @@ pub(crate) fn check(
                 "U+{:04X}'s outline differs from the face's",
                 u32::from(a.ch)
             )));
+        }
+    }
+    Ok(())
+}
+
+/// Every old cmap mapping survives, bar a character the append remapped; a
+/// CID-keyed subset's cmap, which nothing reads, is copied byte for byte.
+fn mappings_kept(
+    old: &Tables<'_>,
+    new: &Tables<'_>,
+    added: &[AddedGlyph],
+    addressing: Addressing<'_>,
+) -> Result<(), AugmentError> {
+    if let Addressing::Cid(_) = addressing {
+        return if old.cmap == new.cmap {
+            Ok(())
+        } else {
+            Err(fail("the cmap changed"))
+        };
+    }
+    for (c, g) in cmap::windows_unicode_map(old.cmap).unwrap_or_default() {
+        let remapped = added.iter().any(|a| u32::from(a.ch) == c);
+        if !remapped
+            && cmap::windows_unicode_map(new.cmap).and_then(|m| m.get(&c).copied()) != Some(g)
+        {
+            return Err(fail(format!("U+{c:04X}'s old mapping changed")));
         }
     }
     Ok(())
@@ -135,6 +169,6 @@ fn tables(data: &[u8]) -> Result<Tables<'_>, AugmentError> {
             n,
         )
         .ok_or_else(|| fail("hmtx is truncated"))?,
-        cmap: t(b"cmap")?,
+        cmap: dir.table(*b"cmap").unwrap_or(&[]),
     })
 }

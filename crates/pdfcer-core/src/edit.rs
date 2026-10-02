@@ -12553,13 +12553,15 @@ impl EditSession {
             opts,
             PlanMode::Preview,
         )?;
-        Ok(crate::text_edit::TextEditPreview::new(
+        let mut preview = crate::text_edit::TextEditPreview::new(
             req.page_index,
             plan.layout,
             plan.report.disclosures,
             plan.rewritten,
             plan.font_program,
-        ))
+        );
+        preview.cid_to_gid = plan.cid_to_gid;
+        Ok(preview)
     }
 
     /// Whether the run whose show operator `span` names can be edited at all
@@ -12744,12 +12746,7 @@ impl EditSession {
     ) -> Result<Vec<ObjectWrite>, crate::text_edit::edit::EditError> {
         // A program this session minted is replaced in place, never stacked
         // (decision 173 §6): its numbers are reused.
-        let mut reuse: Vec<ObjId> = writes
-            .superseded
-            .filter(|(d, p)| self.base.get(*d).is_none() && self.base.get(*p).is_none())
-            .map(|(d, p)| vec![p, d])
-            .unwrap_or_default();
-        writes.assign(|| match reuse.pop() {
+        writes.assign(|old| match old.filter(|id| self.base.get(*id).is_none()) {
             Some(id) => Ok(id),
             None => self.alloc_number().map(|n| ObjId::new(n, 0)).map_err(|_| {
                 crate::text_edit::edit::EditError::Unsupported(

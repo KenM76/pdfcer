@@ -204,6 +204,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "font_augment"
+path = "fuzz_targets/font_augment.rs"
+test = false
+doc = false
+bench = false
+
 # Detach from the parent workspace (root Cargo.toml also excludes this
 # directory — both halves are required for cargo to treat fuzz/ as
 # standalone).

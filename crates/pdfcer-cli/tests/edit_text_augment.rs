@@ -22,8 +22,12 @@ fn font_dir(tag: &str, face: &str) -> PathBuf {
 }
 
 fn run(tag: &str, extra: &[&str]) -> (Output, PathBuf) {
+    run_on("subset-in.pdf", tag, extra)
+}
+
+fn run_on(input: &str, tag: &str, extra: &[&str]) -> (Output, PathBuf) {
     let out = std::env::temp_dir().join(format!("pdfcer_aug_{tag}_{}.pdf", std::process::id()));
-    let input = augment_dir().join("subset-in.pdf");
+    let input = augment_dir().join(input);
     let o = Command::new(BIN)
         .arg("edit-text")
         .arg(&input)
@@ -82,4 +86,21 @@ fn a_face_that_draws_a_shown_glyph_differently_is_refused_with_why() {
     let (all, _) = run("differs", &args);
     assert_eq!(all.status.code(), Some(EDIT_REFUSED));
     assert!(text(&all).contains("differently"), "{}", text(&all));
+}
+
+#[test]
+fn a_composite_subset_gains_the_glyph_too() {
+    let dir = font_dir("cid", "face.ttf");
+    let args = ["--font-dir", dir.to_str().unwrap(), "--augment-subset"];
+    let (o, out) = run_on("cid-subset-in.pdf", "cid", &args);
+    let all = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{all}");
+    assert!(all.contains("inference") && all.contains("CID"), "{all}");
+    let saved = std::fs::read(&out).unwrap();
+    let base = std::fs::read(augment_dir().join("cid-subset-in.pdf")).unwrap();
+    assert!(saved.starts_with(&base), "incremental");
+    assert_eq!(
+        String::from_utf8_lossy(&saved).matches("/Length1").count(),
+        2
+    );
 }

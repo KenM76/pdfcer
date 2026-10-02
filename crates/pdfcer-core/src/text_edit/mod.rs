@@ -64,6 +64,7 @@ pub mod addtext;
 pub(crate) mod augment_route;
 pub mod block_text;
 pub mod cause;
+pub(crate) mod cid_augment;
 pub(crate) mod cid_extend;
 pub(crate) mod code_alloc;
 pub(crate) mod cross_object;
@@ -110,8 +111,8 @@ pub use fallback::{FallbackFace, FallbackSource, FallbackUse, PreviewFallback};
 pub use program_glyphs::{EmbeddedGlyphs, ProgramGlyph};
 pub use refusal_kind::{RefusalClass, RefusalKind};
 pub use subset_augment::{
-    AugmentRefusal, AugmentRequest, AugmentedProgram, HintingMismatch, OutlineCheck, SubsetAugment,
-    SubsetAugmenter,
+    AugmentRefusal, AugmentRequest, AugmentedProgram, HintingMismatch, OutlineCheck,
+    ProgramAddressing, SubsetAugment, SubsetAugmenter,
 };
 pub use workaround::{Workaround, WorkaroundPolicy, WorkaroundUse};
 // `CompositeEncoding` sits beside `InverseEncoding` deliberately: they are the

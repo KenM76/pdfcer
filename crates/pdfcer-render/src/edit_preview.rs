@@ -68,7 +68,8 @@ pub fn preview_outlines(
         source: None,
         skipped: Some(skip),
     };
-    let own = match load_face(doc, &preview.font, preview.font_program.as_ref(), env) {
+    let program = (preview.font_program.as_ref(), preview.cid_to_gid.as_ref());
+    let own = match load_face(doc, &preview.font, program, env) {
         Ok(loaded) => loaded,
         Err(skip) => return none(skip),
     };
@@ -85,7 +86,7 @@ pub fn preview_outlines(
     let fallback = preview
         .fallback
         .as_ref()
-        .and_then(|f| load_face(doc, &f.font, f.font_program.as_ref(), env).ok());
+        .and_then(|f| load_face(doc, &f.font, (f.font_program.as_ref(), None), env).ok());
     let fallback = fallback.as_ref().and_then(|l| Face::parse(l).ok());
     let glyphs = preview
         .glyphs
@@ -106,11 +107,11 @@ pub fn preview_outlines(
 fn load_face(
     doc: &DocumentView<'_>,
     font: &pdfcer_core::object::Dict,
-    program: Option<&Vec<u8>>,
+    (program, map): (Option<&Vec<u8>>, Option<&Vec<u8>>),
     env: &FontEnvironment,
 ) -> Result<text::LoadedFont, OutlineSkip> {
     match program {
-        Some(p) => text::load_with_program(doc, font, env, p.clone()),
+        Some(p) => text::load_with_program(doc, font, env, p.clone(), map.cloned()),
         None => text::load(doc, font, env),
     }
     .map_err(OutlineSkip::Unsupported)

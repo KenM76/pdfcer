@@ -32,6 +32,23 @@ pub enum HintingMismatch {
     Refuse,
 }
 
+/// How the subset's glyphs are reached from characters.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ProgramAddressing<'a> {
+    /// Through the program's own Unicode `cmap` (a simple TrueType font).
+    #[default]
+    Cmap,
+    /// Through the PDF, not the program: a `CIDFontType2` descendant, whose
+    /// program "cmap table is not needed and shall not be present"
+    /// (ISO 32000-2 §9.9, Table 126). Each pair is a glyph id and the
+    /// character `/ToUnicode` gives the CID that `/CIDToGIDMap` sends to it
+    /// (§9.7.4.2). The identity check compares these glyphs, any `cmap` the
+    /// program carries is copied unchanged, and the appended glyph ids come
+    /// back in [`AugmentedProgram::glyph_ids`] for the caller to give CIDs.
+    CidKeyed(&'a [(u32, char)]),
+}
+
 /// One request to extend an embedded subset.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
@@ -48,6 +65,8 @@ pub struct AugmentRequest<'a> {
     pub outline_check: OutlineCheck,
     /// The hinting policy.
     pub hinting_mismatch: HintingMismatch,
+    /// How the program's glyphs are reached.
+    pub addressing: ProgramAddressing<'a>,
 }
 
 /// A new program: the old one with glyphs appended (rule `R259` as amended).
@@ -67,6 +86,8 @@ pub struct AugmentedProgram {
     /// The identity evidence, one clause for the disclosure: what was
     /// compared and how much of it agreed.
     pub evidence: String,
+    /// The glyph id each appended character received, request order.
+    pub glyph_ids: Vec<(char, u32)>,
 }
 
 impl AugmentedProgram {
@@ -80,6 +101,7 @@ impl AugmentedProgram {
             units_per_em,
             bbox,
             evidence: String::new(),
+            glyph_ids: Vec::new(),
         }
     }
 
@@ -95,6 +117,13 @@ impl AugmentedProgram {
     #[must_use]
     pub fn with_evidence(mut self, evidence: String) -> Self {
         self.evidence = evidence;
+        self
+    }
+
+    /// Set the appended characters' glyph ids, returning `self`.
+    #[must_use]
+    pub fn with_glyph_ids(mut self, glyph_ids: Vec<(char, u32)>) -> Self {
+        self.glyph_ids = glyph_ids;
         self
     }
 }
@@ -132,6 +161,15 @@ pub trait SubsetAugmenter: Send + Sync + std::fmt::Debug {
         self.augment(request)
             .map(|_| request.chars.to_vec())
             .unwrap_or_default()
+    }
+
+    /// Every character a face that could extend this subset maps, for a
+    /// typing repertoire over a font whose own data names no character
+    /// list to ask about (a composite font). [`Self::addable`] still
+    /// decides; the default names none.
+    fn candidates(&self, request: &AugmentRequest<'_>) -> Vec<char> {
+        let _ = request;
+        Vec::new()
     }
 }
 

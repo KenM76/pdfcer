@@ -344,6 +344,8 @@ disk. No attribution is owed and none is claimed.
 | `augment/subset-empty-slot.ttf` | `gen-augment-face-fixtures.py` | `.notdef A B C D` where `D` is mapped but has no outline, so the append remaps `D` to the new glyph and must give it a unique `post` name |
 | `augment/face-b-differs.ttf` | `gen-augment-face-fixtures.py` | as `face.ttf` but glyph `B` has another outline, for the identity check's mismatch case |
 | `augment/subset-in.pdf` | `gen-augment-face-fixtures.py` | one page showing `ABC` in a WinAnsi TrueType embedding `subset.ttf` as `ABCDEF+pdfcerAugFace`, for `pdfcer edit-text --augment-subset` |
+| `augment/cid-subset.ttf` | `gen-augment-face-fixtures.py` | `subset.ttf` with its `cmap` removed, as a `CIDFontType2` program carries none (ISO 32000-2 Table 126); the composite-augmentation subset |
+| `augment/cid-subset-in.pdf` | `gen-augment-face-fixtures.py` | one page showing `ABC` as CIDs 1-3 in a `/Type0` `/Identity-H` font over a `CIDFontType2` embedding `cid-subset.ttf`, `/CIDToGIDMap /Identity`, for `pdfcer edit-text --augment-subset` on a composite font |
 
 The `fsType` files are named for their bits, not for the verdict pdfcer
 reaches, so renaming a refusal does not orphan a file. Every file in this

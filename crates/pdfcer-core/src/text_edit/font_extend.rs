@@ -69,6 +69,12 @@ impl FontExtension {
         Some(extension?.augmented.as_ref()?.program.clone())
     }
 
+    /// Decision 173's new `/CIDToGIDMap`, decoded, when the edit replaces a
+    /// composite font's map stream.
+    pub(crate) fn map_of(extension: Option<&Self>) -> Option<Vec<u8>> {
+        extension?.augmented.as_ref()?.map.clone()
+    }
+
     /// The object write, or nothing when the dictionary is unchanged.
     pub(crate) fn write(&self) -> Option<(ObjId, Object)> {
         (self.reencoded || self.augmented.is_some() || self.added.iter().any(|a| a.widened))

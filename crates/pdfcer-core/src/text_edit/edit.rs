@@ -1857,7 +1857,7 @@ pub fn edit_text(
     // object, or the form XObject's own stream. Both are one-object rewrites
     // and both leave every other byte of the file verbatim.
     let mut next = doc.next_object_number();
-    plan.font_writes.assign(|| {
+    plan.font_writes.assign(|_| {
         let n = next.ok_or(EditError::Unsupported(
             UnsupportedCause::ObjectNumbersExhausted,
         ))?;
@@ -1932,6 +1932,8 @@ pub(crate) struct EditPlan {
     pub(crate) rewritten: Option<(std::ops::Range<usize>, String)>,
     /// Decision 173's new program, decoded, when the edit replaces the font's.
     pub(crate) font_program: Option<Vec<u8>>,
+    /// Decision 173's new `/CIDToGIDMap`, decoded, when it replaces the font's.
+    pub(crate) cid_to_gid: Option<Vec<u8>>,
     /// Pass 431.0: the fallback face's `/Font` resource, when the edit must
     /// create it; bound into the target's resources in the same revision.
     pub(crate) created_font: Option<crate::text_edit::format::CreatedFont>,
@@ -1943,10 +1945,9 @@ pub(crate) struct EditPlan {
 pub(crate) struct FontWrites {
     pub(crate) objects: Vec<(ObjId, Object)>,
     pub(crate) streams: Vec<(ObjId, Dict, Vec<u8>)>,
-    /// Decision 173: the writes use placeholder ids until [`Self::assign`].
-    fresh: bool,
-    /// The descriptor and program the augmented font used before.
-    pub(crate) superseded: Option<(ObjId, ObjId)>,
+    /// Decision 173: each placeholder id the writes use until
+    /// [`Self::assign`], with the object it replaces for the edited font.
+    fresh: Vec<(ObjId, Option<ObjId>)>,
 }
 
 impl FontWrites {
@@ -1964,27 +1965,35 @@ impl FontWrites {
             w.objects
                 .push((FRESH_DESCRIPTOR, Object::Dict(a.descriptor)));
             w.streams.push((FRESH_PROGRAM, a.stream_dict, a.encoded));
-            w.fresh = true;
-            w.superseded = a.superseded;
+            let [descriptor, program] = a.superseded;
+            w.fresh = vec![(FRESH_DESCRIPTOR, descriptor), (FRESH_PROGRAM, program)];
+            for s in a.fresh_streams {
+                w.streams.push((s.id, s.dict, s.bytes));
+                w.fresh.push((s.id, s.superseded));
+            }
+            w.objects.extend(a.objects);
         }
         w
     }
 
-    /// Give decision 173's new descriptor and program real numbers, the
-    /// descriptor's first.
+    /// Give decision 173's placeholders real numbers, in order: `alloc` is
+    /// handed the object each one replaces, so a caller can reuse it.
     ///
     /// # Errors
     ///
     /// `alloc`'s error when it has no number left.
     pub(crate) fn assign(
         &mut self,
-        mut alloc: impl FnMut() -> Result<ObjId, EditError>,
+        mut alloc: impl FnMut(Option<ObjId>) -> Result<ObjId, EditError>,
     ) -> Result<(), EditError> {
-        use crate::text_edit::augment_route::{FRESH_DESCRIPTOR, FRESH_PROGRAM, renumber};
-        if !std::mem::take(&mut self.fresh) {
+        use crate::text_edit::augment_route::renumber;
+        let mut map = Vec::new();
+        for (placeholder, superseded) in std::mem::take(&mut self.fresh) {
+            map.push((placeholder, alloc(superseded)?));
+        }
+        if map.is_empty() {
             return Ok(());
         }
-        let map = [(FRESH_DESCRIPTOR, alloc()?), (FRESH_PROGRAM, alloc()?)];
         renumber(&mut self.objects, &map);
         for (id, _, _) in &mut self.streams {
             if let Some(&(_, n)) = map.iter().find(|(p, _)| p == id) {
@@ -2065,6 +2074,13 @@ pub struct TextEditPreview {
     /// `/FontFile2` does not resolve until the commit; draw from these bytes.
     /// `None` when the document's own program is used.
     pub font_program: Option<Vec<u8>>,
+    /// The decoded `/CIDToGIDMap` the commit would write in place of the
+    /// document's (ISO 32000-2 §9.7.4.2, Table 117), when the edit augments
+    /// a composite font whose map is a stream: `font`'s descendant then
+    /// refers to a stream that does not resolve until the commit; map CIDs
+    /// to glyphs through these bytes. `None` when the document's own map, or
+    /// `/Identity`, applies.
+    pub cid_to_gid: Option<Vec<u8>>,
     /// The face the characters the run's font cannot take are set in, under
     /// [`EditOptions::fallback`]; the glyphs with
     /// [`PreviewGlyph::fallback`] set are drawn from it. `None` otherwise.
@@ -2154,6 +2170,7 @@ impl TextEditPreview {
             disclosures,
             rewritten,
             font_program,
+            cid_to_gid: None,
             fallback,
         }
     }
@@ -2476,6 +2493,7 @@ pub(crate) fn plan_exact(
         report,
         layout: laid.layout,
         font_program: FontExtension::program_of(enc.extension.as_ref()),
+        cid_to_gid: FontExtension::map_of(enc.extension.as_ref()),
         font_writes: FontWrites::of(enc.extension),
         rewritten,
         created_font: enc.fallback.and_then(Fallback::into_created),
@@ -2872,11 +2890,19 @@ pub(crate) fn encode_and_extend(
     req: &EditRequest,
     opts: &EditOptions,
 ) -> Result<(EncodedReplacement, ExtractFont, Option<FontExtension>), EditError> {
+    let mut begun = None;
     let (mut encoded, font, alloc) = match encode_replacement(&font, anchor, &req.replace) {
         Ok(e) => (e, font, None),
         Err(refused) if !font.is_simple() => {
-            let cmap = allocate_cids(doc, target, &font, class, font_dict, anchor, req, opts)
-                .map_err(|blocked| with_allocation_reasons(refused, &blocked))?;
+            let cmap = match allocate_cids(doc, target, &font, class, font_dict, anchor, req, opts)
+            {
+                Ok(cmap) => cmap,
+                Err(blocked) => {
+                    let b = augment_cids(doc, target, &font, font_dict, anchor, req, opts, blocked)
+                        .map_err(|blocked| with_allocation_reasons(refused, &blocked))?;
+                    begun.insert(b).cmap.clone()
+                }
+            };
             (
                 encode_composite_with(&font, &cmap, &req.replace)?,
                 font,
@@ -2895,9 +2921,14 @@ pub(crate) fn encode_and_extend(
         }
     };
     let dict = alloc.as_ref().map_or(font_dict, |a| &a.dict);
-    let mut extension = extend_subset(
-        doc, target, recs, &font, class, dict, anchor, req, &encoded, opts,
-    )?;
+    let mut extension = match begun {
+        Some(b) => Some(finish_cid_augment(
+            doc, target, recs, &font, font_dict, anchor, req, &encoded, opts, b,
+        )?),
+        None => extend_subset(
+            doc, target, recs, &font, class, dict, anchor, req, &encoded, opts,
+        )?,
+    };
     if let Some(a) = &alloc {
         encoded.disclosures.extend(a.disclosures(&font.base_font));
     }
@@ -2971,6 +3002,24 @@ fn allocate_cids(
     ) else {
         return Err(Vec::new());
     };
+    let absent = absent_cids(font, cmap, req)?;
+    crate::text_edit::cid_extend::allocate(
+        doc,
+        &target.resources,
+        &anchor.font_name,
+        font_dict,
+        &absent,
+        glyphs,
+    )
+}
+
+/// The replacement's characters a composite font's `/ToUnicode` does not
+/// produce; `Err(vec![])` when there are none.
+fn absent_cids(
+    font: &ExtractFont,
+    cmap: &ToUnicodeCMap,
+    req: &EditRequest,
+) -> Result<Vec<char>, Vec<Blocked>> {
     let composite = CompositeEncoding::build(&font.base_font, cmap).map_err(|_| Vec::new())?;
     let mut absent: Vec<char> = Vec::new();
     for ch in req.replace.chars() {
@@ -2982,14 +3031,98 @@ fn allocate_cids(
     if absent.is_empty() {
         return Err(Vec::new());
     }
-    crate::text_edit::cid_extend::allocate(
-        doc,
-        &target.resources,
-        &anchor.font_name,
+    Ok(absent)
+}
+
+/// Decision 173 for a composite font, when [`allocate_cids`]' refusals
+/// (`blocked`) are all ones appending glyphs could cure: the augmented
+/// program, and the `/ToUnicode` to encode against. Otherwise `blocked`,
+/// each reason extended with why augmentation failed.
+#[allow(clippy::too_many_arguments)] // the planner's own locals, passed through once
+fn augment_cids(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    font: &ExtractFont,
+    font_dict: &Dict,
+    anchor: &ShowData,
+    req: &EditRequest,
+    opts: &EditOptions,
+    blocked: Vec<Blocked>,
+) -> Result<crate::text_edit::cid_augment::Begun, Vec<Blocked>> {
+    use crate::text_edit::cid_augment;
+    let (Some(settings), Some(glyphs), Some(cmap)) = (
+        opts.subset_augment.as_ref(),
+        opts.embedded_glyphs,
+        font.to_unicode_cmap(),
+    ) else {
+        return Err(blocked);
+    };
+    if !cid_augment::curable(&blocked) {
+        return Err(blocked);
+    }
+    let absent = absent_cids(font, cmap, req).map_err(|_| blocked.clone())?;
+    let at = crate::text_edit::augment_route::FontAt {
+        resources: &target.resources,
+        font_name: &anchor.font_name,
         font_dict,
-        &absent,
-        glyphs,
-    )
+    };
+    cid_augment::begin(doc, &at, &absent, glyphs, settings).map_err(|why| {
+        blocked
+            .into_iter()
+            .map(|b| Blocked {
+                reason: format!(
+                    "{}, and it cannot be added from an installed font: {why}",
+                    b.reason
+                ),
+                ..b
+            })
+            .collect()
+    })
+}
+
+/// [`extend_subset`] for an edit [`augment_cids`] began.
+#[allow(clippy::too_many_arguments)] // the planner's own locals, passed through once
+fn finish_cid_augment(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    recs: &[OpRec],
+    font: &ExtractFont,
+    font_dict: &Dict,
+    anchor: &ShowData,
+    req: &EditRequest,
+    encoded: &EncodedReplacement,
+    opts: &EditOptions,
+    begun: crate::text_edit::cid_augment::Begun,
+) -> Result<crate::text_edit::font_extend::FontExtension, EditError> {
+    let missing = missing_codes(recs, anchor, req, encoded);
+    let at = crate::text_edit::augment_route::FontAt {
+        resources: &target.resources,
+        font_name: &anchor.font_name,
+        font_dict,
+    };
+    let glyphs = opts
+        .embedded_glyphs
+        .ok_or_else(|| subset_floor(doc, target, recs, font, &[]))?;
+    crate::text_edit::cid_augment::finish(doc, &at, &missing, glyphs, begun)
+        .map_err(|b| subset_floor(doc, target, recs, font, &b))
+}
+
+/// The replacement's `(character, code)` pairs no show of the anchor's font
+/// on the page carries, first occurrence of each code.
+fn missing_codes(
+    recs: &[OpRec],
+    anchor: &ShowData,
+    req: &EditRequest,
+    encoded: &EncodedReplacement,
+) -> Vec<(char, u32)> {
+    let carried = carried_codes(recs, &anchor.font_name);
+    let mut missing: Vec<(char, u32)> = Vec::new();
+    for (u, code) in req.replace.chars().zip(encoded.codes.iter().copied()) {
+        if !carried.contains(&code) && !missing.iter().any(|&(_, c)| c == code) {
+            missing.push((u, code));
+        }
+    }
+    missing
 }
 
 /// `refused` with why each character could not be given a code.
@@ -3084,13 +3217,7 @@ fn extend_subset(
     if !(class.embedded && class.subset) {
         return Ok(None);
     }
-    let carried = carried_codes(recs, &anchor.font_name);
-    let mut missing: Vec<(char, u32)> = Vec::new();
-    for (u, code) in req.replace.chars().zip(encoded.codes.iter().copied()) {
-        if !carried.contains(&code) && !missing.iter().any(|&(_, c)| c == code) {
-            missing.push((u, code));
-        }
-    }
+    let missing = missing_codes(recs, anchor, req, encoded);
     if missing.is_empty() {
         return Ok(None);
     }

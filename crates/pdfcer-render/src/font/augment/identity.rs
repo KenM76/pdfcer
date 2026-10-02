@@ -9,7 +9,7 @@ use crate::font::program::FontProgram;
 use crate::font::sfnt::{Directory, read_u16};
 use crate::font::subset::check_embedding_permission;
 
-use super::{AugmentError, Parts, cmap};
+use super::{Addressing, AugmentError, Parts, cmap};
 
 /// Which subset glyphs I5 compares (decision 173 §3).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -51,6 +51,19 @@ pub(crate) fn face_chars(face: &[u8], face_index: u32, chars: &[char]) -> Vec<ch
         .collect()
 }
 
+/// Every character face member `face_index`'s Unicode cmap maps.
+pub(crate) fn face_unicode_chars(face: &[u8], face_index: u32) -> Vec<char> {
+    let Ok(f) = Parts::read(face, face_index, "installed font") else {
+        return Vec::new();
+    };
+    cmap::windows_unicode_map(f.get(b"cmap"))
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|&(_, g)| g != 0)
+        .filter_map(|(c, _)| char::from_u32(c))
+        .collect()
+}
+
 fn strip_tag(name: &str) -> &str {
     match name.split_once('+') {
         Some((tag, rest)) if tag.len() == 6 && tag.bytes().all(|b| b.is_ascii_uppercase()) => rest,
@@ -59,13 +72,13 @@ fn strip_tag(name: &str) -> &str {
 }
 
 /// I2–I7 for face member `face_index` against `subset`, for the characters
-/// to be appended.
+/// to be appended. I5 compares the glyphs `addressing` says the subset maps.
 pub(crate) fn check(
     subset: &[u8],
-    face: &[u8],
-    face_index: u32,
+    (face, face_index): (&[u8], u32),
     chars: &[char],
     scope: OutlineCheck<'_>,
+    addressing: Addressing<'_>,
 ) -> Result<usize, AugmentError> {
     let dir =
         Directory::parse_face(face, face_index).ok_or(AugmentError::FaceNotTrueTypeOutlines)?;
@@ -84,7 +97,12 @@ pub(crate) fn check(
     for &ch in chars {
         cmap::unicode_glyph(f.get(b"cmap"), ch).ok_or(AugmentError::FaceLacksCharacter { ch })?;
     }
-    let compared = compare_shared(subset, face, face_index, &s, &f, scope)?;
+    f.require(b"cmap", "installed font")?;
+    if addressing == Addressing::Cmap {
+        s.require(b"cmap", "embedded font")?;
+    }
+    let pairs = addressing.pairs(s.get(b"cmap"));
+    let compared = compare_shared(subset, (face, face_index), (&s, &f), &pairs, scope)?;
     if compared == 0 {
         return Err(AugmentError::IdentityUnproven);
     }
@@ -107,10 +125,9 @@ fn permitted(data: &[u8], index: u32) -> Result<(), AugmentError> {
 /// I5: the number of non-empty outlines compared, or the first mismatch.
 fn compare_shared(
     subset: &[u8],
-    face: &[u8],
-    face_index: u32,
-    s: &Parts<'_>,
-    f: &Parts<'_>,
+    (face, face_index): (&[u8], u32),
+    (s, f): (&Parts<'_>, &Parts<'_>),
+    pairs: &[(u32, u16)],
     scope: OutlineCheck<'_>,
 ) -> Result<usize, AugmentError> {
     let malformed = |e: String| AugmentError::MalformedFace { detail: e };
@@ -119,7 +136,7 @@ fn compare_shared(
         .map(FontProgram::Sfnt)
         .map_err(|e| malformed(e.to_string()))?;
     let mut compared = 0;
-    for (c, gid) in cmap::windows_unicode_map(s.get(b"cmap")).unwrap_or_default() {
+    for &(c, gid) in pairs {
         let Some(ch) = char::from_u32(c) else {
             continue;
         };

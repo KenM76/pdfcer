@@ -22,17 +22,27 @@ use crate::text_edit::program_glyphs::EmbeddedGlyphs;
 use crate::text_extract::cmap::ToUnicodeCMap;
 use crate::view::DocumentView;
 
+/// [`CidTarget::read`]'s refusal of a CFF-based descendant.
+pub(crate) const CFF_CID: &str = "only a TrueType-based CIDFont can be extended so far";
+/// [`CidTarget::read`]'s refusal of a `/CIDToGIDMap` stream.
+pub(crate) const STREAM_MAP: &str =
+    "the font's /CIDToGIDMap is a stream, so a CID does not name its glyph directly";
+/// A `/CIDToGIDMap` stream covers at most CIDs 0..=0xFFFF (two bytes each).
+const MAX_MAP_BYTES: usize = 2 * 0x1_0000;
+
 /// The composite font a plan extends, read once.
 pub(crate) struct CidTarget {
-    type0_id: ObjId,
-    type0: Dict,
-    descendant_id: ObjId,
-    descendant: Dict,
-    program: Vec<u8>,
-    to_unicode: UnicodeMap,
+    pub(crate) type0_id: ObjId,
+    pub(crate) type0: Dict,
+    pub(crate) descendant_id: ObjId,
+    pub(crate) descendant: Dict,
+    pub(crate) program: Vec<u8>,
+    pub(crate) to_unicode: UnicodeMap,
     default_width: f64,
     /// `/W` flattened to `(first, last, width)`.
     ranges: Vec<(u32, u32, f64)>,
+    /// The decoded `/CIDToGIDMap` stream; `None` for `/Identity`.
+    pub(crate) map: Option<Vec<u8>>,
 }
 
 /// Whether `font` is a `/Type0` dictionary, the shape this module handles.
@@ -47,12 +57,23 @@ fn name(doc: &DocumentView<'_>, d: &Dict, key: &[u8]) -> Option<Vec<u8>> {
 }
 
 impl CidTarget {
-    /// The Type0 font `font_name` selects in `resources`.
+    /// The Type0 font `font_name` selects in `resources`, refusing a
+    /// `/CIDToGIDMap` stream.
     pub(crate) fn read(
         doc: &DocumentView<'_>,
         resources: &Dict,
         font_name: &[u8],
         type0: &Dict,
+    ) -> Result<Self, String> {
+        Self::read_with(doc, (resources, font_name), type0, false)
+    }
+
+    /// [`Self::read`], accepting a `/CIDToGIDMap` stream when `stream_map`.
+    pub(crate) fn read_with(
+        doc: &DocumentView<'_>,
+        (resources, font_name): (&Dict, &[u8]),
+        type0: &Dict,
+        stream_map: bool,
     ) -> Result<Self, String> {
         let type0_id = font_object(doc, resources, font_name)?;
         if name(doc, type0, b"Encoding").as_deref() != Some(b"Identity-H".as_slice()) {
@@ -70,15 +91,9 @@ impl CidTarget {
             .cloned()
             .ok_or("the descendant font could not be read")?;
         if name(doc, &descendant, b"Subtype").as_deref() != Some(b"CIDFontType2".as_slice()) {
-            return Err("only a TrueType-based CIDFont can be extended so far".to_owned());
+            return Err(CFF_CID.to_owned());
         }
-        match descendant.get(b"CIDToGIDMap").map(|o| doc.resolve(o)) {
-            None => {}
-            Some(o) if o.as_name().is_some_and(|n| n.as_bytes() == b"Identity") => {}
-            Some(_) => {
-                return Err("the font's /CIDToGIDMap is a stream, so a CID does not name its glyph directly".to_owned());
-            }
-        }
+        let map = cid_to_gid(doc, &descendant, stream_map)?;
         let descriptor = doc
             .resolve(descendant.get(b"FontDescriptor").unwrap_or(&Object::Null))
             .as_dict()
@@ -100,17 +115,36 @@ impl CidTarget {
             to_unicode,
             default_width,
             ranges,
+            map,
         })
     }
 
-    fn assess(
+    /// The glyph `cid` selects (ISO 32000-2 §9.7.4.2 Table 117): the
+    /// big-endian pair at `2·cid` of a map stream, 0 beyond its end; `cid`
+    /// itself under `/Identity`.
+    pub(crate) fn gid_of(&self, cid: u32) -> u32 {
+        let Some(map) = &self.map else {
+            return cid;
+        };
+        let at = usize::try_from(cid).unwrap_or(usize::MAX).saturating_mul(2);
+        match map.get(at..at.saturating_add(2)) {
+            Some(&[hi, lo]) => u32::from(u16::from_be_bytes([hi, lo])),
+            _ => 0,
+        }
+    }
+
+    /// `ch` typed as `cid`: its glyph, the width `/W` must give it, and
+    /// whether `/ToUnicode` needs an entry; refused when the glyph is empty
+    /// or the width or map conflicts.
+    pub(crate) fn assess(
         &self,
         ch: char,
         cid: u32,
         glyphs: &dyn EmbeddedGlyphs,
     ) -> Result<AddedGlyph, String> {
+        let gid = self.gid_of(cid);
         let glyph = glyphs
-            .glyph_by_id(&self.program, cid, ch)
+            .glyph_by_id(&self.program, gid, ch)
             .ok_or_else(|| "the embedded program has no outline for it".to_owned())?;
         let width = glyph.advance.round();
         let listed = self
@@ -129,13 +163,13 @@ impl CidTarget {
         };
         let mapped = self.to_unicode.needs_entry(ch, cid)?;
         let by_cmap = glyphs.unicode_glyph(&self.program, ch).map(|g| g.gid);
-        let post_name = (mapped && by_cmap != Some(cid))
+        let post_name = (mapped && by_cmap != Some(gid))
             .then(|| glyph_find::post_name_for(glyphs, &self.program, ch))
             .flatten();
         Ok(AddedGlyph {
             ch,
             code: cid,
-            gid: cid,
+            gid,
             width,
             widened,
             mapped,
@@ -144,7 +178,7 @@ impl CidTarget {
     }
 
     /// The descendant with a `cid [w]` entry appended to `/W` per widened CID.
-    fn widened(&self, doc: &DocumentView<'_>, added: &[AddedGlyph]) -> Dict {
+    pub(crate) fn widened(&self, doc: &DocumentView<'_>, added: &[AddedGlyph]) -> Dict {
         let mut w = w_items(doc, &self.descendant);
         for a in added.iter().filter(|a| a.widened) {
             w.push(Object::Integer(i64::from(a.code)));
@@ -156,7 +190,7 @@ impl CidTarget {
     }
 
     /// The Type0 dictionary as the edit sees it: `descendant` inline.
-    fn view(&self, descendant: Dict) -> Dict {
+    pub(crate) fn view(&self, descendant: Dict) -> Dict {
         let mut t = self.type0.clone();
         t.insert(
             Name(b"DescendantFonts".to_vec()),
@@ -167,7 +201,7 @@ impl CidTarget {
 
     /// Refuse what would change text shown elsewhere: a new width for a
     /// shown CID, or a new map entry for a CID shown without one.
-    fn refuse_shown(
+    pub(crate) fn refuse_shown(
         &self,
         doc: &DocumentView<'_>,
         added: &[AddedGlyph],
@@ -197,13 +231,38 @@ impl CidTarget {
     }
 
     /// `Ok` when only this Type0 font reaches the descendant.
-    fn descendant_private(&self, doc: &DocumentView<'_>) -> Result<(), String> {
+    pub(crate) fn descendant_private(&self, doc: &DocumentView<'_>) -> Result<(), String> {
         map_private(doc, self.type0_id, self.descendant_id)
             .map_err(|_| "the descendant CIDFont may be shared with another font".to_owned())
     }
 }
 
-fn unmapped_shown(cid: u32) -> String {
+/// `/CIDToGIDMap`: `None` for `/Identity` or absent (the default), the
+/// decoded stream when `stream_map` allows one (§9.7.4.2 Table 117).
+fn cid_to_gid(
+    doc: &DocumentView<'_>,
+    descendant: &Dict,
+    stream_map: bool,
+) -> Result<Option<Vec<u8>>, String> {
+    match descendant.get(b"CIDToGIDMap").map(|o| doc.resolve(o)) {
+        None => Ok(None),
+        Some(o) if o.as_name().is_some_and(|n| n.as_bytes() == b"Identity") => Ok(None),
+        Some(Object::Stream(s)) if stream_map => {
+            let map = doc
+                .slice(s.data_span)
+                .and_then(|raw| crate::filters::decode_stream(&s.dict, raw).ok())
+                .ok_or("the font's /CIDToGIDMap stream could not be read")?;
+            if map.len() > MAX_MAP_BYTES {
+                return Err("the font's /CIDToGIDMap is longer than 65536 CIDs".to_owned());
+            }
+            Ok(Some(map))
+        }
+        Some(_) => Err(STREAM_MAP.to_owned()),
+    }
+}
+
+/// The refusal of a CID a show already uses with no `/ToUnicode` entry.
+pub(crate) fn unmapped_shown(cid: u32) -> String {
     format!(
         "CID {cid} is already shown elsewhere without a /ToUnicode entry, so mapping it would \
          change that text"
@@ -211,7 +270,7 @@ fn unmapped_shown(cid: u32) -> String {
 }
 
 /// `/W`'s items, references resolved.
-fn w_items(doc: &DocumentView<'_>, descendant: &Dict) -> Vec<Object> {
+pub(crate) fn w_items(doc: &DocumentView<'_>, descendant: &Dict) -> Vec<Object> {
     doc.resolve(descendant.get(b"W").unwrap_or(&Object::Null))
         .as_array()
         .unwrap_or(&[])

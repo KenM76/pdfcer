@@ -4,11 +4,11 @@
 
 use pdfcer_core::text_edit::{
     AugmentRefusal, AugmentRequest, AugmentedProgram, HintingMismatch, OutlineCheck,
-    SubsetAugmenter,
+    ProgramAddressing, SubsetAugmenter,
 };
 
 use super::identity;
-use super::{Hinting, append_glyphs};
+use super::{Addressing, Hinting, append_glyphs};
 use crate::font::{FontData, FontEnvironment};
 
 /// Extends embedded TrueType subsets from operator-supplied faces.
@@ -70,32 +70,60 @@ impl InstalledFaceAugmenter {
     }
 }
 
+/// The request's identity-check scope.
+fn scope<'a>(request: &AugmentRequest<'a>) -> identity::OutlineCheck<'a> {
+    match request.outline_check {
+        OutlineCheck::ShownOnly => identity::OutlineCheck::ShownOnly(request.shown),
+        _ => identity::OutlineCheck::AllShared,
+    }
+}
+
+/// The request's addressing, its glyph ids narrowed to TrueType's 16 bits
+/// (a wider one names no glyph and is dropped).
+fn known_pairs(request: &AugmentRequest<'_>) -> Option<Vec<(u16, char)>> {
+    match request.addressing {
+        ProgramAddressing::CidKeyed(pairs) => Some(
+            pairs
+                .iter()
+                .filter_map(|&(g, c)| Some((u16::try_from(g).ok()?, c)))
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
+fn addressing(known: Option<&[(u16, char)]>) -> Addressing<'_> {
+    known.map_or(Addressing::Cmap, Addressing::Cid)
+}
+
 impl SubsetAugmenter for InstalledFaceAugmenter {
     fn augment(&self, request: &AugmentRequest<'_>) -> Result<AugmentedProgram, AugmentRefusal> {
-        let scope = match request.outline_check {
-            OutlineCheck::ShownOnly => identity::OutlineCheck::ShownOnly(request.shown),
-            _ => identity::OutlineCheck::AllShared,
-        };
+        let scope = scope(request);
         let hinting = match request.hinting_mismatch {
             HintingMismatch::Refuse => Hinting::Refuse,
             _ => Hinting::Strip,
         };
+        let known = known_pairs(request);
+        let addressing = addressing(known.as_deref());
         let mut first_failure = None;
         for (label, data) in &self.faces {
             let face = data.bytes();
             let Some(index) = identity::candidate_index(face, request.base_font) else {
                 continue;
             };
-            let attempt = identity::check(request.program, face, index, request.chars, scope)
+            let program = request.program;
+            let attempt = identity::check(program, (face, index), request.chars, scope, addressing)
                 .and_then(|n| {
+                    let chars = request.chars;
                     Ok((
                         n,
-                        append_glyphs(request.program, face, index, request.chars, hinting)?,
+                        append_glyphs(program, face, index, chars, hinting, addressing)?,
                     ))
                 });
             match attempt {
                 Ok((compared, a)) => {
                     let evidence = evidence(compared, request.outline_check);
+                    let ids = a.added.iter().map(|g| (g.ch, u32::from(g.gid))).collect();
                     return Ok(AugmentedProgram::new(
                         a.program,
                         label.clone(),
@@ -103,7 +131,8 @@ impl SubsetAugmenter for InstalledFaceAugmenter {
                         a.bbox,
                     )
                     .with_instructions_stripped(a.instructions_stripped)
-                    .with_evidence(evidence));
+                    .with_evidence(evidence)
+                    .with_glyph_ids(ids));
                 }
                 Err(e) => {
                     first_failure.get_or_insert_with(|| format!("'{label}': {e}"));
@@ -122,10 +151,9 @@ impl SubsetAugmenter for InstalledFaceAugmenter {
 
     /// The characters the first face that passes the identity check maps.
     fn addable(&self, request: &AugmentRequest<'_>) -> Vec<char> {
-        let scope = match request.outline_check {
-            OutlineCheck::ShownOnly => identity::OutlineCheck::ShownOnly(request.shown),
-            _ => identity::OutlineCheck::AllShared,
-        };
+        let scope = scope(request);
+        let known = known_pairs(request);
+        let addressing = addressing(known.as_deref());
         for (_, data) in &self.faces {
             let face = data.bytes();
             let Some(index) = identity::candidate_index(face, request.base_font) else {
@@ -133,12 +161,25 @@ impl SubsetAugmenter for InstalledFaceAugmenter {
             };
             let held = identity::face_chars(face, index, request.chars);
             if !held.is_empty()
-                && identity::check(request.program, face, index, &held, scope).is_ok()
+                && identity::check(request.program, (face, index), &held, scope, addressing).is_ok()
             {
                 return held;
             }
         }
         Vec::new()
+    }
+
+    /// Every character the first face named like the subset maps; the
+    /// identity check is left to [`Self::addable`].
+    fn candidates(&self, request: &AugmentRequest<'_>) -> Vec<char> {
+        self.faces
+            .iter()
+            .find_map(|(_, data)| {
+                let face = data.bytes();
+                let index = identity::candidate_index(face, request.base_font)?;
+                Some(identity::face_unicode_chars(face, index))
+            })
+            .unwrap_or_default()
     }
 }
 
