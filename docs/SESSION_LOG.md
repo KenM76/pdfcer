@@ -4,6 +4,65 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (882nd filing) — `Pass 444.0` SHIPPED (GIF 87a/89a decode on image import, `pdfcer-gui` `G096`); TIFF import-disclosure silence fixed on discovery; two owed `ARCHITECTURE.md` body edits from the 881st filing discharged
+
+**Shipped:**
+- `Pass 444.0` (`bb65e630`, cherry-picked from worktree commit
+  `b21ce5d3`) — `image_import` decodes GIF87a/GIF89a (logical screen,
+  global/local colour tables, interlacing; pdfcer's own container walk,
+  LZW via the existing `weezl` dependency, no new crate). Output capped
+  at width × height, every read bounds-checked; truncated/corrupt input
+  returns `Corrupt`, never panics. Transparent index → `/SMask`. An
+  animated file places frame 1; later frames are counted
+  (`ImportNotes::gif_frames_ignored`), never decoded, printed by
+  `add-image`. New `ImageFormat::Gif`. Tests: 26 new (16 unit, 7 core
+  integration, 1 TIFF-disclosure, 2 CLI), all sabotage-checked; worker's
+  full run core lib 1412, core integration 2542 (2 ignored), CLI 705,
+  all green. Fuzz target `image_import_gif`: 19,766 runs in 63 s = 3.2
+  ms/run, 0 crashes.
+
+**Decisions made this session:**
+- None new. This Pass needed no architectural decision — no new
+  dependency, no crate-boundary change; `cargo tree -p pdfcer-core`/
+  `-p pdfcer-render` unaffected. Decision ceiling stays `184`, next
+  free `187` (unchanged from the 881st filing).
+
+**Findings + decisions:**
+- **Bug fixed on discovery, not filed for later (per standing feedback
+  memory):** TIFF's own five import notes (pages ignored, associated
+  alpha un-premultiplied, WhiteIsZero inverted, extra samples dropped,
+  palette assumed 8-bit) were computed by the TIFF decoder but never
+  reached `ImageAuthorDisclosures` or the CLI — a silent inference,
+  a rule-4 breach that had shipped unnoticed since `Pass 48.4`.
+  `ImageAuthorDisclosures` gains six fields (the five TIFF notes plus
+  `gif_frames_ignored`), all six counted in `any()` and printed by the
+  CLI. Caught and fixed in the same session as the GIF Pass, not filed
+  as separate debt.
+- The two `ARCHITECTURE.md` body edits flagged owed by the 881st
+  filing (§2's crate-stack table gaining `pdfcer-ocr-host`; §7 gaining
+  the `--refuse-ocr-programs` flag beside `ocr_program_addons`) are
+  discharged this filing — see the §12 decision-log section below for
+  the exact edits.
+
+**Still in flight:**
+- Three of the four `O279`-sourced Passes remain open: `Pass 443.0`
+  (`G095`+`G097`, image stamp annotation + push-button icon, IN
+  PROGRESS), `Pass 445.0` (`G093`, SVG import via `usvg`, IN PROGRESS —
+  licence classification for `usvg` still owed per rule 13),
+  `Pass 446.0` (`G094`, EMF import, QUEUED, not started).
+- `Pass 442.1`/`442.2`/`442.4` unaffected by this filing — see the
+  881st filing's entry, below, for their status.
+
+**For next session:**
+- `Pass 445.0`'s `usvg` dependency still needs a licence classification
+  before it lands (carried forward from the 881st filing).
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit
+`bb65e630` confirmed present at `HEAD` per the git-status snapshot at
+the start of this conversation; every other fact above (test counts,
+fuzz figures) is relayed from the dispatching engineer's own report,
+not independently reproduced.
+
 ## 2026-10-02 (881st filing) — `Pass 442.3` SHIPPED (program-type OCR add-ons, `pdfcer-ocr-host`); four new Passes filed (`443.0`–`446.0`) from `pdfcer-gui` requests; decisions `185`/`186` reserved
 
 **Shipped:**

@@ -2574,6 +2574,21 @@ D:\Dev\pdfcer\
                                    worth of distance, and a textual test
                                    gate whose subject moved with the code
                                    it was gating.
+    pdfcer-ocr-host\             <- (`Pass 442.3`, 2026-10-02, `47c875f8`,
+                                   cherry-picked from worktree `ff06558c`;
+                                   §12 decision 184) lists and runs OCR
+                                   models, program add-ons included:
+                                   `OcrRunner`, `RunOptions`,
+                                   `ProgramPolicy`, `check_runnable`,
+                                   `RunnerError`, `as_program().program()/
+                                   .source()`. Moved out of `pdfcer-cli`
+                                   (`tesseract.rs` deleted) so a shell
+                                   other than the CLI — `pdfcer-gui` — can
+                                   call the same runner. Depends on
+                                   `pdfcer-core` + `thiserror` only — no
+                                   new external crate; `pdfcer-core`
+                                   itself still never spawns a process
+                                   (wasm).
     pdfcer-cli\                 <- The command-line batch shell — crate `pdfcer-cli`,
                                    BINARY `pdfcer` (no dash; `Pass 247.1`, `4db298d`).
                                    The rename script's "`pdfce-cli` means the tool"
@@ -4785,6 +4800,11 @@ debug afterthought. Design points:
   sha256-verified executable, which `pdfcer` runs with no shell;
   `ocr_program_addons = refuse` opts back into data-only add-ons.
   `R13` clause 5 is otherwise unchanged for every non-OCR add-in shape.
+  **`Pass 442.3` (`47c875f8`, 2026-10-02) adds the matching CLI flag,
+  `--refuse-ocr-programs`**, beside the settings key — the stricter of
+  the two wins, so either surface alone is enough to refuse every
+  program add-on for a given run. The runner itself now lives in
+  `pdfcer-ocr-host` (§3), not `pdfcer-cli`.
 
 ## 8. Code style & public API design
 

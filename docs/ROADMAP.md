@@ -115,6 +115,59 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 444.0` (`bb65e630`), 2026-10-02 — decode GIF (87a/89a) in `image_import`; TIFF disclosure silence fixed (G096) — `Pass 444.0` SHIPPED
+
+Cherry-picked from worktree commit `b21ce5d3`; cite `bb65e630`. Answers
+`pdfcer-gui` request `G096` (operator-reported, `O279`).
+
+**Decode.** `image_import` now reads GIF87a/GIF89a: logical screen,
+global/local colour tables, interlacing. The container walk and
+deinterlace are pdfcer's own; the LZW stream goes through `weezl`
+(MIT OR Apache-2.0, already a dependency) — no new crate, no
+`THIRD_PARTY_LICENSES.md` change. Output is capped at width × height and
+every read is bounds-checked; a truncated or corrupt stream returns
+`Corrupt` rather than panicking. The transparent index becomes an
+`/SMask`. An animated file places frame 1 only; later frames are
+counted, never decoded (`ImportNotes::gif_frames_ignored`), printed by
+`add-image` as `gif_frames_ignored=N` plus a stderr sentence (rule 4).
+New `ImageFormat::Gif`, listed in `SUPPORTED_FORMATS`; the import
+doctest's refused-format example moved to WebP.
+
+**Bug fixed on discovery.** TIFF's own import notes (pages ignored,
+associated-alpha un-premultiplied, WhiteIsZero inverted, extra samples
+dropped, palette assumed 8-bit) never reached `ImageAuthorDisclosures`
+or the CLI — a silent inference, rule 4 breach. `ImageAuthorDisclosures`
+gains six fields (the five TIFF notes plus `gif_frames_ignored`), all
+six counted in `any()` and printed by the CLI.
+
+**Tests.** 26 new: 16 unit, 7 core integration, 1 TIFF-disclosure, 2
+CLI — every one sabotage-checked, each sabotage turning at least one
+red. One caveat: the truncated-file test also passes under a "pad short
+data" sabotage (truncation is caught earlier); a separate corrupted-
+code-stream test covers that path. Worker's full run: core lib 1412,
+core integration 2542 (2 ignored), CLI 705 — all green.
+
+**Fuzz.** New target `image_import_gif`: 19,766 runs in 63 s = 3.2
+ms/run, 0 crashes. 4-file seed corpus added.
+
+**Fixtures.** `fixtures/synthetic/gif/` — 4 files from a Pillow
+generator script, `PROVENANCE.md` included.
+
+**Gates.** No dependency change — `cargo tree -p pdfcer-core`/`-p
+pdfcer-render` unaffected. `docs/core-api/02-editing-and-saving.md`
+§1.24 gained "Source formats and what they leave behind";
+`check-core-api-verbs` passes.
+
+**`FEATURES.md`.** New *Fonts & rendering* row (GIF decode): core
+`[x]`/cli `[x]`/gui `[ ]`, moved from *Planned*. The existing "Insert an
+image as a new XObject" row gains the TIFF-disclosure sentence; its
+boxes are unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit `bb65e630`
+confirmed present at `HEAD` per the git-status snapshot at the start of
+this conversation; every test/fuzz/gate figure above is relayed from
+the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 442.3` (`47c875f8`), 2026-10-02 — program-type OCR add-ons, Tesseract first; runner moves to `pdfcer-ocr-host` — `Pass 442.3` SHIPPED
 
 Cherry-picked from worktree commit `ff06558c`; cite `47c875f8`. Implements
@@ -16363,6 +16416,15 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 444.0` SHIPPED, 2026-10-02 (882nd filing),
+> `bb65e630`** — see *Shipped*, above (cherry-picked from worktree commit
+> `b21ce5d3`). Decodes GIF 87a/89a in `image_import` (first frame, LZW via
+> `weezl`, transparency → `/SMask`, animation frames counted not decoded);
+> fixed a silent rule-4 breach where TIFF's own five import notes never
+> reached `ImageAuthorDisclosures` or the CLI. **`Pass 444.0` is now
+> SHIPPED** — the other three `O279` Passes (`443.0`/`445.0`/`446.0`)
+> remain open, see the bundled banner below. `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 442.3` SHIPPED, 2026-10-02 (881st filing),
 > `47c875f8`** — see *Shipped*, above (cherry-picked from worktree commit
