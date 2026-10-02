@@ -4,6 +4,67 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (867th filing) — `Pass 431.0` SHIPPED (`a74f6147`) — fallback face for unencodable characters (G078); test-temp-path uniqueness fix + gate (`da6a24ab`), closes the 2026-08-01 hygiene backlog item, `R261` minted
+
+**Shipped:**
+- `a74f6147` (cherry-pick of agent commit `adf332bc`) — `Pass 431.0`
+  SHIPPED (`G078`). A character the run's font can't encode is now set in
+  a fallback face: the run splits with a `Tf` switch at the run's own
+  size/baseline, font restored after; encodable characters stay in the
+  run's subset, fallback advances come from the fallback face; a run in a
+  form XObject gets the fallback in the form's own `/Resources`,
+  disclosed when a shared/inherited `/Resources` is patched. Opt-in, tried
+  only after every route keeping the run's own font refuses. New pub
+  surface: `text_edit::{FallbackFace, FallbackSource, FallbackUse,
+  PreviewFallback}`, `EditOptions.fallback`/`with_fallback`,
+  `EditReport.fallback`, `PreviewGlyph.fallback`, `TextEditPreview.fallback`,
+  `RunRepertoire.via_fallback`. CLI `edit-text --fallback-font NAME`/
+  `--fallback-font-file PATH`, `run-repertoire --fallback-font NAME`. 15
+  render tests + 6 CLI tests, 14/14 sabotages caught. `core [x]` / `cli
+  [x]` / `gui [ ]`. See `ROADMAP.md`'s `Pass 431.0` Shipped entry for the
+  full accounting, incl. an incidental test-scope fix and a structure-gate
+  split riding the same commit.
+- `da6a24ab` — every integration-test temp path made per-process
+  (`std::process::id()` appended at 31 sites in `pdfcer-cli`/`pdfcer-core`
+  tests), plus new CI gate `tools/check-test-temp-unique.py`. Not a Pass.
+
+**Decisions made this session:** none beyond the standing-rule mint below
+— no architectural decision, just a mechanism addition and a test-hygiene
+fix.
+
+**Findings + decisions:**
+- The `da6a24ab` race: a `tools/run-gates.sh` sweep and a worktree agent's
+  own `cargo test --workspace` ran concurrently and deleted each other's
+  fixed-name temp files, surfacing as 30+ unrelated CLI ce-dimension test
+  failures ("file not found"), passing again when run alone. This is the
+  THIRD occurrence of a hazard `ROADMAP.md`'s Backlog flagged non-blocking
+  on 2026-08-01 after two earlier near-misses (Pass 9a, Pass 12.M2b) — now
+  actually broke tests, closed in the same filing with a dated resolution
+  footer on that Backlog entry.
+- New standing rule **`R261`** minted (ROADMAP.md *Standing rules*):
+  a fixed-name `std::env::temp_dir()` scratch path is a cross-process
+  race invisible to any single `cargo test` run; fix is
+  `std::process::id()` in every path, gated by
+  `tools/check-test-temp-unique.py`.
+- Separately: the run-gates sweep immediately before this one failed
+  because `D:` had 38 MB free; `cargo clean` on five finished agent
+  worktrees freed 56 GB. Not written up further — a disk-space incident,
+  not a code defect.
+- Sent a corroboration footer (not a new file — hard rule 4) to
+  `D:\dev\rag\rust\a_fixed_temp_dir_path_is_a_cross_process_race_that_one_cargo_test_run_can_never_reveal.md`:
+  the identical mechanism, independently found and fixed in `pdfcer`
+  itself after the sibling `pdfcer-gui` project had already documented it
+  on 2026-09-13. `D:\dev\rag\rust\index.md`'s matching bullet updated.
+
+**Still in flight:** unchanged from the 865th/866th filings — the
+`G073`–`G081` family now has three remaining items: `430.1` (composite
+subset augmentation, decision 173), `430.3` (route B), `433.0` (now
+unblocked, its `428`/`430`/`432` dependencies all shipped). See
+`docs/NEXT_SESSION.md` for the fuller picture.
+
+**For next session:** pick up `430.1`, `430.3` or `433.0` per
+`docs/NEXT_SESSION.md`; no action owed from this filing's two items.
+
 ## 2026-10-02 (866th filing) — `Pass 432.0` doc-link follow-on (`426316a2`)
 
 **Shipped:**
