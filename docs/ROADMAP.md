@@ -115,6 +115,46 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 435.0` (`eceff33b`), 2026-10-02 — hand-signature content tag (G073) — `Pass 435.0` COMPLETE
+
+Answers `pdfcer-gui` request `G073` (cherry-pick of agent commit `6e8605c0`); same `G073`–`G081` family as the `427.0`–`436.3` items, shipped out of order.
+
+**Core.** New module `pdfcer_core::hand_sig`. Content authored as a hand signature is wrapped `` /pdfc_HandSig <</Field (name)>> BDC … EMC `` (§14.6 marked content) — the tag is `` /pdfc_HandSig ``, not the `` /pdfcerHandSig `` named when this item was scoped (corrected here). `EditSession::hand_signatures(page_index)` reads back only marks still present in `/Contents`. New knobs: `MarkupOptions::hand_signature`, `NewImage::hand_signature`, `AddTextRequest::hand_signature`. New errors: `EditError::HandSignature`, `AddTextError::HandSignatureNeedsSession`, `AddTextError::HandSignature`. Never touches `/Sig`, `/V` or a signature dictionary — generalises the existing `on_layer_if`/OCR-marker mechanism. Also fixed a defect found along the way: the layer wrap no longer wraps the overlay `q`/`Q` save/restore streams.
+
+**CLI.** `--hand-signature FIELD` on `annotate --as-content`, `add-text`, `add-image`; new subcommand `list-hand-signatures FILE [--page N]`. README now lists 200 subcommands.
+
+**Gates.** `check-core-api-verbs.py` widened to also scan `edit/`; core-api now 303 verbs, 162 `EditError` variants. The `wrap_added_content` structure-gate baseline line is removed (now under limit on its own). No manifest change — `cargo tree` unaffected.
+
+**Tests.** 9 core integration, 7 unit, 2 doctests, 3 CLI.
+
+**Shells.** `core [x]` / `cli [x]` / `gui [ ]` — not yet wired.
+
+**`docs/FEATURES.md`.** Row moved from *Planned* to *Implemented*; core/cli boxes ticked.
+
+**Sourcing (hard rule 8).** No shell this filing. Hash and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
+### `Pass 430.1` (sibling slice, `6f07ed6e`), 2026-10-02 — a refused replacement may be set in a same-face sibling font resource (G075 follow-on, decision 174) — `Pass 430.1` STAYS OPEN
+
+Continues the `Pass 427.0`–`436.3` family.
+
+**Core.** Opt-in `EditOptions::sibling_fonts`/`with_sibling_fonts(bool)` (default `false`, decision 174). When every route that keeps the run's own font refuses (decision 172 extension, decision 173 augment), the edit tries each OTHER `/Font` resource on the same resources whose `/BaseFont`, subset tag stripped, matches the run's — same writing mode, passes `classify_font`, must encode the WHOLE replacement — candidates taken in resource-key order, first match wins. Emission: `pre /Sib size Tf (new) Tj /Own size Tf post [pin]`; the pin is measured by the run's own font. No font object is written — content-stream only. Scope: one `Tj`/`TJ` holds the whole match; a replacement mixing characters only the run's font carries with characters only a sibling carries refuses. Disclosed off-canvas naming the own font, the sibling font and its resource name (rule 4). Preview (`TextEditPreview.font_resource`/`font`/`base_font`) names the sibling; `run_repertoire_with` returns the union with what siblings accept.
+
+**CLI.** `edit-text --sibling-fonts`.
+
+**Decision 174** (`docs/decisions/174-sibling-font-fallback.md`): a replacement the run's font refuses may be set in a same-face sibling resource. Rejected: outline comparison for same-face matching; adding a new font resource (that is `Pass 430.3`, route B). See `ARCHITECTURE.md` §12.
+
+**Tests.** 8 render integration (`crates/pdfcer-render/tests/sibling_font.rs`), 2 CLI (`crates/pdfcer-cli/tests/edit_text_sibling.rs`); new fixtures `fixtures/synthetic/text/sibling-font.pdf` and `sibling-font-other-face.pdf` from `tools/gen-sibling-font-fixture.py` (`PROVENANCE.md` rows added). 6/6 planted sabotages caught. Honest gap: the writing-mode (vertical) refusal branch has no test — no vertical fixture.
+
+**Gates.** No manifest change — `cargo tree` unaffected. `docs/core-api/02-editing-and-saving.md` updated (row + index line count).
+
+**Shells.** `core [x]` / `cli [x]` / `gui [ ]` — not yet wired.
+
+**`docs/FEATURES.md`.** New row, *Implemented*: "set a refused replacement in a same-face sibling font resource" — core/cli ticked, gui unticked.
+
+**Still open in `Pass 430.1`.** Composite (`Type0`/`CIDFontType2`) subset augmentation (decision 173). Then `Pass 430.3` (route B), `431.0`–`436.3`.
+
+**Sourcing (hard rule 8).** No shell this filing. Hash and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 437.0` (`3affd3db`), 2026-10-01 — a narrowed preview names the part it laid out (G082) — `Pass 437.0` COMPLETE
 
 Answers `pdfcer-gui` request `G082`; same family as the `430.x` augmentation work but an unrelated mechanism — builds on the `narrow_span` trim `430.x` already relies on.
@@ -15588,6 +15628,24 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 435.0` SHIPPED, 2026-10-02 (862nd filing),
+> `eceff33b`** — see *Shipped*, above (cherry-pick of agent commit
+> `6e8605c0`). Hand-signature content tag: `/pdfc_HandSig` marked content,
+> `hand_signatures(page)` reader, `--hand-signature` on `annotate`/
+> `add-text`/`add-image` plus `list-hand-signatures`. **`Pass 435.0` is now
+> COMPLETE, shipped out of order — five items remain in the `G073`–`G081`
+> family** (430 stays open on `430.1`; 431–434 unstarted). `gui [ ]` not
+> wired.
+>
+> ★★★★★★★★★★★★★★★★ **`Pass 430.1` SIBLING SLICE SHIPPED, 2026-10-02
+> (862nd filing), `6f07ed6e`** — see *Shipped*, above. Decision 174: a
+> replacement the run's font refuses may now be set in a same-face sibling
+> `/Font` resource already on the page (content-stream only, no font
+> object written), disclosed, opt-in `EditOptions::sibling_fonts`. CLI
+> `edit-text --sibling-fonts`. **`Pass 430.1` STAYS OPEN** — composite
+> (`Type0`/`CIDFontType2`) subset augmentation (decision 173) is still
+> owed. `430.3` unchanged.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 437.0` SHIPPED, 2026-10-01 (860th filing),
 > `3affd3db`** — see *Shipped*, above. `TextEditPreview` now carries
 > `rewritten: Option<(Range<usize>, String)>`, the byte range of `find`
@@ -15922,6 +15980,13 @@ closes out the *prior* filing's business rather than opening this one's.
 >   §14.6), plus a reader `hand_signatures(page)` reporting only marks still
 >   present in `/Contents`. Never touches `/Sig`, `/V` or a signature
 >   dictionary. Generalises the existing `on_layer_if`/OCR-marker mechanism.
+>   **★ SHIPPED 2026-10-02 (862nd filing), `eceff33b`** (cherry-pick of
+>   agent commit `6e8605c0`) — the shipped tag is `` /pdfc_HandSig ``, not
+>   `` /pdfcerHandSig `` as planned above; CLI exposure via
+>   `--hand-signature FIELD` on `annotate --as-content`/`add-text`/
+>   `add-image`, plus `list-hand-signatures`. **`Pass 435.0` is now
+>   COMPLETE**, shipped out of order ahead of `431.0`–`434.0`. See
+>   *Shipped*, above, for the full accounting.
 
 > ★★★★★★★★★★★★★★★ **`Pass 421.16` SHIPPED, 2026-10-01 (842nd filing),
 > `7d1a129f`** — see top of *Shipped*. Off-cycle (3D camera family, scoped

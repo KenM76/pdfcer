@@ -12253,3 +12253,45 @@ request `G075(b)`. Full record:
 ships, not before.
 
 **Decision ceiling: `172` → `173`**, next free `174`.
+
+### 2026-10-02 (862nd filing, `6f07ed6e`, KenAgent) — decision 174: a replacement the run's font refuses may be set in a same-face sibling resource
+
+**Trigger.** `pdfcer-gui` request `G075`, same family as decisions 172/173:
+a character the run's embedded subset still cannot carry (every route-A
+extension and the decision-173 augment both refused), while another
+`/Font` resource on the SAME page already shows it — the same face,
+subset differently. Word and Chrome routinely emit one face as a
+`/Type0` subset beside a simple subset, side by side.
+
+**What this decides.** With `EditOptions::sibling_fonts`/
+`with_sibling_fonts(bool)` (default `false`), the edit tries each OTHER
+`/Font` resource on the content stream's own resources whose
+`/BaseFont`, subset tag stripped, equals the run's — same writing mode,
+passes `classify_font`, must encode the WHOLE replacement — candidates
+taken in resource-key order, first match wins. Rewrites the anchor
+operator as `pre Tj/TJ /Sib size Tf (new) Tj /Own size Tf post Tj/TJ
+[pin]`; the sibling measures the replacement, the run's own font
+measures everything already on the page and the pin. **No font object
+is written — content-stream only**, unlike decisions 172/173. A
+replacement mixing characters only the run's font carries with
+characters only a sibling carries refuses; splitting one replacement
+over two fonts is not done. Disclosed naming the own font, the sibling
+font and its resource name (rule 4, "same face" is the producer's own
+`/BaseFont` claim, never verified by outline comparison).
+
+**Amends.** Nothing — runs after decisions 172 and 173, never instead of
+them, and touches no font dictionary or program they govern.
+
+**Rejected.** Outline comparison for same-face matching (two subsets of
+one face share only the glyphs both kept; comparing those proves little
+and costs a program parse per candidate). Adding a new font resource
+(that is `Pass 430.3`, route B, which builds a new dictionary over the
+same program rather than reusing what the page already has).
+
+**Full record:** `docs/decisions/174-sibling-font-fallback.md`.
+
+**Body-section effect: none.** The mechanism is a content-stream
+rewrite inside the existing `edit_text` route; no font dictionary,
+program or §4 FF-C entry is touched.
+
+**Decision ceiling: `173` → `174`**, next free `175`.

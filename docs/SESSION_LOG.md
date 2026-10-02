@@ -4,6 +4,80 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (862nd filing) — `Pass 435.0` SHIPPED (`eceff33b`) + `Pass 430.1` sibling slice SHIPPED (`6f07ed6e`, decision 174) — hand-signature content tag; a refused replacement reaches a same-face sibling font
+
+**Shipped:**
+- `eceff33b` — `Pass 435.0` COMPLETE (`G073`, cherry-pick of agent commit
+  `6e8605c0`). New module `pdfcer_core::hand_sig`; content authored as a
+  hand signature is wrapped `` /pdfc_HandSig <</Field (name)>> BDC … EMC ``
+  (§14.6) — the shipped tag is `` /pdfc_HandSig ``, not the
+  `` /pdfcerHandSig `` named when this item was scoped (corrected in
+  `ROADMAP.md` in place). `EditSession::hand_signatures(page_index)` reads
+  back only marks still present in `/Contents`. New knobs:
+  `MarkupOptions::hand_signature`, `NewImage::hand_signature`,
+  `AddTextRequest::hand_signature`. New errors: `EditError::HandSignature`,
+  `AddTextError::HandSignatureNeedsSession`, `AddTextError::HandSignature`.
+  Never touches `/Sig`, `/V` or a signature dictionary — generalises the
+  existing `on_layer_if`/OCR-marker mechanism. Also fixed a defect found
+  along the way: the layer wrap no longer wraps the overlay `q`/`Q`
+  save/restore streams. CLI: `--hand-signature FIELD` on
+  `annotate --as-content`/`add-text`/`add-image`; new subcommand
+  `list-hand-signatures FILE [--page N]` (README now 200 subcommands).
+  `check-core-api-verbs.py` widened to scan `edit/` too — core-api now 303
+  verbs, 162 `EditError` variants; the `wrap_added_content` structure-gate
+  baseline line removed (now under limit). Tests: 9 core integration, 7
+  unit, 2 doctests, 3 CLI. No manifest change. `core [x]` / `cli [x]` /
+  `gui [ ]` not wired. Shipped out of order, ahead of `431.0`–`434.0` —
+  **five items now remain in the `G073`–`G081` family** (`430` stays open
+  on `430.1`).
+- `6f07ed6e` — `Pass 430.1` sibling slice (decision 174, `G075` follow-on).
+  Opt-in `EditOptions::sibling_fonts`/`with_sibling_fonts` (default
+  `false`): when every route keeping the run's own font refuses (decision
+  172 extension, decision 173 augment), the edit tries each OTHER `/Font`
+  resource on the same resources whose `/BaseFont`, subset tag stripped,
+  matches the run's — same writing mode, passes `classify_font`, must
+  encode the WHOLE replacement — candidates in resource-key order, first
+  match wins. Emission `pre /Sib size Tf (new) Tj /Own size Tf post [pin]`;
+  the pin is measured by the run's own font. **No font object is written —
+  content-stream only**, unlike decisions 172/173. One `Tj`/`TJ` must hold
+  the whole match; a replacement mixing characters only the run's font
+  carries with characters only a sibling carries refuses. Disclosed naming
+  the own font, the sibling font and its resource name. Preview
+  (`TextEditPreview.font_resource`/`font`/`base_font`) names the sibling;
+  `run_repertoire_with` returns the union with what siblings accept. CLI
+  `edit-text --sibling-fonts`. Tests: 8 render integration
+  (`crates/pdfcer-render/tests/sibling_font.rs`), 2 CLI
+  (`crates/pdfcer-cli/tests/edit_text_sibling.rs`); new fixtures
+  `fixtures/synthetic/text/sibling-font.pdf` and
+  `sibling-font-other-face.pdf` (`tools/gen-sibling-font-fixture.py`,
+  `PROVENANCE.md` rows added); 6/6 planted sabotages caught. Honest gap:
+  the writing-mode (vertical) refusal branch has no test — no vertical
+  fixture. No manifest change. `docs/core-api/02` updated. `core [x]` /
+  `cli [x]` / `gui [ ]` not wired. **`Pass 430.1` STAYS OPEN** — composite
+  (`Type0`/`CIDFontType2`) subset augmentation (decision 173) is still
+  owed.
+
+**Decisions made this session:**
+- Decision 174 (`docs/decisions/174-sibling-font-fallback.md`, `ARCHITECTURE.md`
+  §12): a replacement the run's font refuses may be set in a same-face
+  sibling resource — content-stream only, never a new font object.
+  Rejected: outline comparison for same-face matching; adding a new font
+  resource (that is `Pass 430.3`, route B).
+
+**Findings + decisions:** none beyond decision 174 above.
+
+**Still in flight:**
+- `Pass 430.1` remainder (composite fonts, decision 173), `Pass 430.3`
+  (route B), `431.0`–`434.0` unchanged, still open.
+
+**For next session:**
+- Continue `Pass 430.1`'s remaining scope (composite fonts), or pick up
+  `430.3`/`431.0`–`434.0` per `docs/NEXT_SESSION.md`.
+
+**Sourcing (hard rule 8):** no shell this filing. Both hashes (`eceff33b`,
+`6f07ed6e`) and every fact above relayed from the dispatching engineer's
+own report, not independently reproduced.
+
 ## 2026-10-01 (861st filing) — `Pass 430.1` slice 2c SHIPPED (`3a431c49`) — preview and repertoire see a glyph appended from the installed face
 
 **Shipped:**
