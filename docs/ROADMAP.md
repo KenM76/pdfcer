@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 430.2` (slice 1, `ca3c24ba`), 2026-10-01 — give a subset glyph its encoding cannot address an unused code (G075 c, decision 172 route A, rest)
+
+Continues the `Pass 427.0`–`436.3` family (854th filing). **`Pass 430.2` PARTIALLY SHIPPED, STAYS OPEN** — this slice covers only `/Differences` code allocation for a character the resolved encoding cannot address; composite Identity-H and post-name glyph lookup labelled as inference are still owed. `430.1` (decision 173, unstarted) and `430.3` unchanged.
+
+**Core.** A nonsymbolic simple `/TrueType` embedded subset (WinAnsi or MacRoman base encoding, indirect font dict) whose program outlines a character the resolved encoding has no code for (e.g. U+0394, U+0416 under WinAnsi) now takes an unused code: not shown anywhere in the document, not already in `/Differences`, not mapped in `/ToUnicode`. Allocation order: WinAnsi/MacRoman-undefined codes first (incl. WinAnsi's bullet-fallback codes other than `0x95`), then control codes; never `0`, `9`, `10`, `13`, `32`. The code is named after the character (encoding-table name, else `uniXXXX`/`uXXXXX`) in a `/Differences` entry of an inline `/Encoding` dictionary written into the copy-on-write font dict, keeping `/BaseEncoding` (ISO 32000-2 §9.6.6.4 — code → name → Unicode → the program's `(3,1)` cmap). `/Widths` extended as in `430.0` slice 1; `/ToUnicode` extended as in `430.0` slice 3; a font whose `/ToUnicode` map may be shared with another font refuses, same guard as slice 3. Each allocation disclosed (rule 4, `EditReport`/CLI). Allocation runs only when the plain (already-addressable) path from `430.0` refuses; a refusal appends "could not be given an unused code: U+XXXX 'c': reason" to the existing refusal list.
+
+**New `pub` surface.** `pdfcer_fonts::fontdata::unicode_to_glyph_name`; `EmbeddedGlyphs::unicode_chars` (defaulted trait method on the existing trait; implemented by `pdfcer-render`'s `EmbeddedProgramGlyphs`). `run_repertoire_with` accepts exactly the allocatable characters (tested for agreement with the edit path). `docs/core-api` updated in the same commit; `check-core-api-verbs` PASS.
+
+**Fixtures.** `fixtures/synthetic/text/word-shaped-subset-differences.pdf` (new); the existing `word-shaped-subset` fixtures regenerated (the program now also outlines U+0394, U+0416). `PROVENANCE.md` rows added.
+
+**Tests.** 12 new in `crates/pdfcer-render/tests/subset_allocated_code.rs`; sabotages caught on the `/Differences`/`/ToUnicode` exclusions, the undefined-code filter, the shared-map guard, allocation order and the allocation-only write path. `tools/run-gates.sh` PASS (44 commands incl. 2 filing gates).
+
+**Invariants.** No `Cargo.toml` change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected, no new dependency.
+
+**Shells.** `core [x]`. `cli [x]` already — `edit-text`/`run-repertoire` reach the reader through the existing wiring from `430.0`'s slices, so the CLI gets allocation with no CLI code change. `gui [ ]` — separate project, not consumed yet; reachable through the existing `with_embedded_glyphs` option.
+
+**`docs/FEATURES.md`.** "Accept a character whose glyph exists only in the embedded font program" row's "Not yet covered" clause narrowed: `/Differences` allocation for an unused code now ships; composite Identity-H and post-name lookup remain owed.
+
+**Still open in `Pass 430.2`:** composite Identity-H (`/W`, `/ToUnicode`), post-name glyph lookup labelled as an inference. `430.1`/`430.3` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Hash (`ca3c24ba`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 430.0` (slice 3, `e3726990`), 2026-10-01 — extend a subset's `/ToUnicode` when typing an unshown glyph — `Pass 430.0` now COMPLETE
 
 Continues the `Pass 427.0`–`436.3` family (852nd filing).
@@ -15440,6 +15462,14 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 430.2` SLICE 1 PARTIALLY SHIPPED, 2026-10-01
+> (854th filing), `ca3c24ba`** — see *Shipped*, above. Decision 172 route
+> A now also allocates an unused code via a `/Differences` entry for a
+> character the resolved encoding can't address, naming it after the
+> character; `/Widths`/`/ToUnicode` extended the same way `430.0` does.
+> **`Pass 430.2` STAYS OPEN** — composite Identity-H and post-name glyph
+> lookup labelled as inference are still owed. `430.1`/`430.3` unchanged.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 430.0` SLICE 3 SHIPPED, 2026-10-01 (852nd
 > filing), `e3726990`** — see top of *Shipped*. Decision 172 route A now
 > extends a subset's `/ToUnicode` CMap too (a `bfchar` entry per added
@@ -15658,6 +15688,14 @@ closes out the *prior* filing's business rather than opening this one's.
 >   172): code allocation via `/Differences` (keeping `/BaseEncoding`),
 >   composite Identity-H (`/W`, `/ToUnicode`), post-name glyph lookup
 >   labelled as inference.
+>   **★ SLICE 1 SHIPPED 2026-10-01 (854th filing), `ca3c24ba`** — the
+>   `/Differences` code-allocation piece above: an unused WinAnsi/MacRoman
+>   code (control codes last, never `0`/`9`/`10`/`13`/`32`) is named after
+>   the character and written into an inline `/Encoding` dict;
+>   `/Widths`/`/ToUnicode` extended as in `430.0`. Composite Identity-H and
+>   post-name glyph lookup are **not** in this slice — both still owed,
+>   keeping `Pass 430.2` open. See *Shipped*, above, for the full
+>   accounting.
 > - **`Pass 430.3`** (new, split from `430.0`) — route B fallback
 >   (decision 172): sibling `/Type0` + `/CIDFontType2` dictionary reusing
 >   the same `FontFile2` by GID via `/CIDToGIDMap`, for every guard

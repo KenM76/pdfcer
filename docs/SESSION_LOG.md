@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (854th filing) — `Pass 430.2` SLICE 1 SHIPPED (`ca3c24ba`) — give a subset glyph its encoding cannot address an unused code
+
+**Shipped:**
+- `ca3c24ba` — `Pass 430.2` slice 1 (decision 172 route A, rest). A
+  nonsymbolic simple `/TrueType` embedded subset whose program outlines a
+  character its resolved encoding has no code for now takes an unused
+  code (not shown anywhere in the document, not already in
+  `/Differences`, not mapped in `/ToUnicode`), named after the character
+  in a new `/Differences` entry of an inline `/Encoding` dict, keeping
+  `/BaseEncoding`. `/Widths`/`/ToUnicode` extended the same way
+  `Pass 430.0`'s slices do; a `/ToUnicode` map that may be shared with
+  another font refuses. New `pub`: `pdfcer_fonts::fontdata::`
+  `unicode_to_glyph_name`, `EmbeddedGlyphs::unicode_chars`. 12 new tests
+  in `subset_allocated_code.rs`, all sabotages caught. `cli [x]` already
+  (no CLI code change — `edit-text`/`run-repertoire` reach the reader via
+  `430.0`'s existing wiring); `gui [ ]` not wired. **`Pass 430.2` STAYS
+  OPEN** — composite Identity-H and post-name glyph lookup labelled as an
+  inference are still owed.
+
+**Decisions made this session:** none new — executes decision 172 route A,
+same as the 849th–852nd filings.
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 430.2` remainder (composite Identity-H, post-name glyph lookup)
+  and `Pass 430.3` (route B fallback) unstarted.
+- `Pass 430.1` (decision 173, unblocked at the 853rd filing) also
+  unstarted.
+
+**For next session:**
+- Three sub-IDs remain open under `Pass 430`: `430.1`
+  (implementation-ready against decision 173's acceptance criteria),
+  `430.2`'s remainder, and `430.3`.
+
+**Sourcing (hard rule 8):** no shell this filing. The hash (`ca3c24ba`)
+and every fact above are relayed from the dispatching engineer's own
+report, not independently reproduced.
+
 ## 2026-10-01 (853rd filing) — decision 173 filed (subset augment from an installed face); `Pass 430.1` unblocked; `R259` amended, `R260` minted
 
 **Shipped:** nothing — docs-only filing, no code.
