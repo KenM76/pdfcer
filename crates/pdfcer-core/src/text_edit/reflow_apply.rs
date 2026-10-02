@@ -37,7 +37,7 @@
 //!
 //! A full (non-last) justified line distributes its slack
 //! `S = wrap_width − natural_width` (in default user space, already computed
-//! by 15.0 as [`ReflowLine::justified_slack`]) across its `G = words − 1`
+//! by 15.0 as [`ReflowLine::justified_slack`](super::reflow::ReflowLine::justified_slack)) across its `G = words − 1`
 //! inter-word gaps, as one negative `TJ` number per gap
 //! (`iso32000__ref__reflow_emission.md` §1):
 //!
