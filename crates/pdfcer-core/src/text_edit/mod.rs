@@ -83,6 +83,8 @@ pub mod program_glyphs;
 pub mod reflow;
 pub mod reflow_apply;
 pub mod refusal_kind;
+pub(crate) mod repertoire;
+pub(crate) mod sibling;
 pub mod subset_augment;
 pub mod synth;
 pub(crate) mod unicode_map;

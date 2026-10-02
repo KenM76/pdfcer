@@ -7881,6 +7881,12 @@ pub(crate) enum Command {
             requires = "augment_subset"
         )]
         augment_hinting: String,
+        /// When the run's font cannot carry the replacement, set the
+        /// replacement in another font on the page whose name says it is the
+        /// same face (subset tag aside), then switch back for the text after
+        /// it. Only for a match inside one `Tj`/`TJ`; prints the font used.
+        #[arg(long = "sibling-fonts")]
+        sibling_fonts: bool,
         /// Which content stream to edit (Pass 119.0): `auto` (default -- the
         /// page's own content first, then each form XObject it paints, in
         /// paint order), `page` (the page's own content ONLY), or `form:N`

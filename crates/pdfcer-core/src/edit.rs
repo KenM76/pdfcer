@@ -13447,14 +13447,13 @@ impl EditSession {
             ));
         }
         let stream = self.current_page_content(page).map_err(FmtError::Content)?;
-        crate::text_edit::format::run_repertoire(
+        crate::text_edit::repertoire::run_repertoire(
             &self.view(),
             page,
             &stream,
             find,
             pinned_span,
-            opts.embedded_glyphs,
-            opts.subset_augment.as_ref(),
+            opts,
         )
     }
 

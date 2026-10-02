@@ -2001,6 +2001,7 @@ pub(crate) fn run() -> ExitCode {
             augment_subset,
             augment_check,
             augment_hinting,
+            sibling_fonts,
             target,
         } => cmd_edit_text(&EditTextArgs {
             input: &input,
@@ -2013,6 +2014,7 @@ pub(crate) fn run() -> ExitCode {
             pin,
             font_dirs: &font_dirs,
             augment: augment_subset.then_some((augment_check.as_str(), augment_hinting.as_str())),
+            sibling_fonts,
             target: &target,
         }),
         Command::FormatText {

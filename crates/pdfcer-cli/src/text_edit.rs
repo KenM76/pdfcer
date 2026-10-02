@@ -47,6 +47,8 @@ pub(crate) struct EditTextArgs<'a> {
     /// `--augment-subset`'s `(--augment-check, --augment-hinting)`, or `None`
     /// without the flag.
     pub(crate) augment: Option<(&'a str, &'a str)>,
+    /// `--sibling-fonts`.
+    pub(crate) sibling_fonts: bool,
     /// The `--target` selector, unparsed. Parsed inside the handler so a
     /// malformed value is a named refusal with the accepted spellings printed,
     /// rather than a clap error that only says "invalid value".
@@ -139,7 +141,8 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         } else {
             FollowerDisposition::Reflow
         })
-        .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs);
+        .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs)
+        .with_sibling_fonts(args.sibling_fonts);
     let opts = match args.augment {
         Some((check, hinting)) => {
             opts.with_subset_augment(subset_augment(&font_env, check, hinting))

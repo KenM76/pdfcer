@@ -101,6 +101,7 @@
 use crate::crypto::PermissionBit;
 use crate::text_edit::cause::{NotFoundReason, UnsupportedCause};
 use crate::text_edit::cross_object;
+use crate::text_edit::sibling;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
@@ -655,6 +656,10 @@ pub struct EditOptions {
     /// program has no outline for a character (decision 173). `None` keeps
     /// such characters refused.
     pub subset_augment: Option<SubsetAugment>,
+    /// Sets characters the run's font cannot carry in another `/Font`
+    /// resource on the page naming the same face, switching to it with `Tf`
+    /// for the replacement only (decision 174). Off by default.
+    pub sibling_fonts: bool,
 }
 
 impl EditOptions {
@@ -696,6 +701,21 @@ impl EditOptions {
     #[must_use]
     pub fn with_subset_augment(mut self, augment: SubsetAugment) -> Self {
         self.subset_augment = Some(augment);
+        self
+    }
+
+    /// Allow the decision 174 same-face sibling fallback, returning `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::EditOptions;
+    ///
+    /// assert!(EditOptions::default().with_sibling_fonts(true).sibling_fonts);
+    /// ```
+    #[must_use]
+    pub fn with_sibling_fonts(mut self, allow: bool) -> Self {
+        self.sibling_fonts = allow;
         self
     }
 }
@@ -1915,9 +1935,11 @@ impl FontWrites {
 pub struct TextEditPreview {
     /// The page the run is on.
     pub page_index: usize,
-    /// The run's font resource name (the `Tf` operand).
+    /// The font resource name (the `Tf` operand) the replacement is set in:
+    /// the run's own, or a same-face sibling under
+    /// [`EditOptions::sibling_fonts`].
     pub font_resource: Vec<u8>,
-    /// The run's font dictionary, as the session sees it.
+    /// That font's dictionary, as the session sees it.
     pub font: Dict,
     /// `/BaseFont`, verbatim.
     pub base_font: String,
@@ -2254,18 +2276,19 @@ pub(crate) fn plan_edit_with_records(
     // An empty `find` on a PINNED request means the whole operator.
     let find = effective_find(anchor, &req.find, req.pinned_span);
     let (m, leading_matches) = match_anchor(&at, span, find)?;
-    let (encoded, font, extension) = encode_and_extend(
-        doc, target, recs, font, &class, font_dict, anchor, req, opts,
+    let single = !at.crossed && leading_matches.is_empty();
+    let enc = encode_with_sibling(
+        doc, target, recs, font, &class, font_dict, anchor, req, opts, single,
     )?;
-    let font_dict = extension.as_ref().map_or(font_dict, FontExtension::view);
-
+    let font_dict = enc.extension.as_ref().map_or(enc.dict, FontExtension::view);
+    let run_font = enc.sibling.as_ref().map_or(&enc.font, |s| &s.1);
     // Advance delta (§9.4.4): the anchor's matched glyphs plus any TJ kerns
     // the match swallowed, against the whole replacement, which lands there.
-    let advance =
-        |codes: &[u32]| -> f64 { codes.iter().map(|&c| glyph_advance(&font, c, anchor)).sum() };
     let laying = Laying {
         recs,
-        font: &font,
+        font: run_font,
+        glyph_font: &enc.font,
+        switch: enc.sibling.as_ref().map(|s| s.0.as_slice()),
         font_dict,
         anchor,
         anchor_index: at.anchor_index,
@@ -2273,38 +2296,43 @@ pub(crate) fn plan_edit_with_records(
         m: &m,
         others: &leading_matches,
         replace: &req.replace,
-        encoded: &encoded,
+        encoded: &enc.encoded,
         disposition: opts.disposition,
-        a_new: advance(&encoded.codes),
-        a_old_last: advance(&m.old_codes) + m.kern_advance,
+        a_new: codes_advance(&enc.font, &enc.encoded.codes, anchor),
+        a_old_last: codes_advance(run_font, &m.old_codes, anchor) + m.kern_advance,
     };
-    let mut laid = if at.crossed {
-        lay_across(&laying, &at.leading_ops)
-    } else {
-        lay_in_object(&laying)
-    };
+    let mut laid = lay(&laying, &at);
     let new_content = match mode {
         PlanMode::Commit => splice(&stream.buf, &mut laid.edits),
         PlanMode::Preview => Vec::new(),
     };
-
     // The report only; the caller performs its own write step.
-    let mut disclosures = encoded.disclosures;
-    disclosures.extend(laid.span_note);
-    disclosures.extend(rewritten.is_some().then(|| NARROWED_NOTE.to_owned()));
-    disclosures.extend(laid.td_note);
-    disclosures.extend(general_disclosures(req, opts, anchor, find, &font, &class));
+    let mut disclosures = enc.encoded.disclosures;
+    let narrowed = rewritten.is_some().then(|| NARROWED_NOTE.to_owned());
+    disclosures.extend(
+        [laid.span_note, narrowed, laid.td_note]
+            .into_iter()
+            .flatten(),
+    );
+    disclosures.extend(general_disclosures(
+        req, opts, anchor, find, &enc.font, &class,
+    ));
     target_disclosures(doc, target, anchor, &mut disclosures);
     // Show operators only; the `Td` steps between them were not written across.
     let moved = (laid.delta, laid.followers, leading_matches.len() as u64 + 1);
     Ok(EditPlan {
         new_content,
-        report: edit_report(target, &font, &class, opts, moved, anchor, disclosures),
+        report: edit_report(target, &enc.font, &class, opts, moved, anchor, disclosures),
         layout: laid.layout,
-        font_program: FontExtension::program_of(extension.as_ref()),
-        font_writes: FontWrites::of(extension),
+        font_program: FontExtension::program_of(enc.extension.as_ref()),
+        font_writes: FontWrites::of(enc.extension),
         rewritten,
     })
+}
+
+/// The summed advance of `codes` in `f` (§9.4.4).
+fn codes_advance(f: &ExtractFont, codes: &[u32], anchor: &ShowData) -> f64 {
+    codes.iter().map(|&c| glyph_advance(f, c, anchor)).sum()
 }
 
 /// Resolve and classify the anchor's font.
@@ -2485,6 +2513,99 @@ fn encode_replacement(
         bytes: e.codes,
         disclosures: e.disclosures,
     })
+}
+
+/// What [`encode_with_sibling`] settled on.
+struct Encoding<'a> {
+    encoded: EncodedReplacement,
+    /// The font the replacement is set in.
+    font: ExtractFont,
+    dict: &'a Dict,
+    extension: Option<FontExtension>,
+    /// Decision 174: the sibling resource name, and the run's own font.
+    sibling: Option<(Vec<u8>, ExtractFont)>,
+}
+
+/// [`encode_and_extend`], then — when that refuses, `opts.sibling_fonts` is
+/// set and one operator holds the match — the same against each same-face
+/// sibling resource in key order (decision 174). The run's own refusal
+/// stands when no sibling carries the replacement.
+#[allow(clippy::too_many_arguments)] // the planner's own locals, passed through once
+fn encode_with_sibling<'a>(
+    doc: &'a DocumentView<'a>,
+    target: &'a EditPlanTarget,
+    recs: &[OpRec],
+    font: ExtractFont,
+    class: &FontClass,
+    font_dict: &'a Dict,
+    anchor: &ShowData,
+    req: &EditRequest,
+    opts: &EditOptions,
+    single: bool,
+) -> Result<Encoding<'a>, EditError> {
+    let base_font = font.base_font.clone();
+    let refused =
+        match encode_and_extend(doc, target, recs, font, class, font_dict, anchor, req, opts) {
+            Ok((encoded, font, extension)) => {
+                return Ok(Encoding {
+                    encoded,
+                    font,
+                    dict: font_dict,
+                    extension,
+                    sibling: None,
+                });
+            }
+            Err(e) => e,
+        };
+    if !opts.sibling_fonts || !sibling::splittable(anchor, single) {
+        return Err(refused);
+    }
+    let vertical = writes_vertically(doc, font_dict);
+    for (name, dict) in sibling::candidates(doc, &target.resources, font_dict, &base_font) {
+        let sib_font = ExtractFont::resolve(doc, dict);
+        let Ok(sib_class) = classify_font(doc, dict, &sib_font) else {
+            continue;
+        };
+        if writes_vertically(doc, dict) != vertical {
+            continue;
+        }
+        let mut sib_anchor = anchor.clone();
+        sib_anchor.font_name.clone_from(&name);
+        let Ok((mut encoded, font, extension)) = encode_and_extend(
+            doc,
+            target,
+            recs,
+            sib_font,
+            &sib_class,
+            dict,
+            &sib_anchor,
+            req,
+            opts,
+        ) else {
+            continue;
+        };
+        let note = sibling_note(&base_font, &font.base_font, &name);
+        encoded.disclosures.push(note);
+        return Ok(Encoding {
+            encoded,
+            font,
+            dict,
+            extension,
+            sibling: Some((name, ExtractFont::resolve(doc, font_dict))),
+        });
+    }
+    Err(refused)
+}
+
+/// Decision 174's disclosure: the sibling is taken to be the same face from
+/// its name alone.
+fn sibling_note(own: &str, sibling: &str, resource: &[u8]) -> String {
+    format!(
+        "'{own}' cannot carry the replacement, so it is set in '{sibling}' (font resource \
+         /{}), another font on this page taken to be the same face from its name; the \
+         text around it stays in '{own}'",
+        String::from_utf8_lossy(resource)
+    )
 }
 
 /// The replacement's codes and the font extension that makes them showable:
@@ -2934,7 +3055,12 @@ fn edit_report(
 /// What the planner hands to the code that lays out the replacement.
 struct Laying<'a> {
     recs: &'a [OpRec],
+    /// The run's own font, which measures the glyphs already on the page.
     font: &'a ExtractFont,
+    /// The font the replacement is set in, with `font_dict` its dictionary.
+    glyph_font: &'a ExtractFont,
+    /// The decision 174 sibling resource the replacement switches to.
+    switch: Option<&'a [u8]>,
     font_dict: &'a Dict,
     anchor: &'a ShowData,
     anchor_index: usize,
@@ -2963,12 +3089,23 @@ struct Laid {
     td_note: Option<String>,
 }
 
+/// Lay out a match within one text object or across several.
+fn lay(c: &Laying<'_>, at: &Located<'_>) -> Laid {
+    if at.crossed {
+        lay_across(c, &at.leading_ops)
+    } else {
+        lay_in_object(c)
+    }
+}
+
 /// Lay out a match inside one text object: the replacement goes into the
 /// last operator and is moved back to where the match began.
 fn lay_in_object(c: &Laying<'_>) -> Laid {
     let Laying {
         recs,
         font,
+        glyph_font,
+        switch,
         font_dict,
         anchor,
         anchor_index,
@@ -2983,7 +3120,14 @@ fn lay_in_object(c: &Laying<'_>) -> Laid {
     } = *c;
     let (lead_shift, mut op_deltas, origin_x) = span_shifts(font, anchor, m, leading_matches);
     let delta: f64 = round4(lead_shift + a_new - a_old_last);
-    let layout = EditLayout::new(anchor, font_dict, font, replace, &encoded.codes, origin_x);
+    let mut layout = EditLayout::new(
+        anchor,
+        font_dict,
+        glyph_font,
+        replace,
+        &encoded.codes,
+        origin_x,
+    );
     // Reflow: everything after the anchor moves by the net change. Pin: the
     // compensating number absorbs it inside the anchor, and the anchor's own
     // move is undone for the operators after it.
@@ -2995,18 +3139,15 @@ fn lay_in_object(c: &Laying<'_>) -> Laid {
         FollowerDisposition::Reflow => (a_new - a_old_last, None),
     };
     op_deltas.push((anchor_index, anchor_walk));
-    let new_op_bytes = emit_edited_operator(anchor, m, &encoded.bytes, pin_num);
+    let new_op_bytes = match switch {
+        Some(name) => {
+            layout.font_name = name.to_vec();
+            sibling::emit_switched_operator(anchor, m, &encoded.bytes, pin_num, name)
+        }
+        None => emit_edited_operator(anchor, m, &encoded.bytes, pin_num),
+    };
     let mut edits: Vec<(usize, usize, Vec<u8>)> = vec![(a_start, a_end, new_op_bytes)];
-    let mut emptied = 0u64;
-    for (k, s, mr) in leading_matches {
-        let bytes = emit_edited_operator(s, mr, &[], None);
-        if bytes.starts_with(b"() Tj") || bytes == b"[()] TJ" {
-            emptied += 1;
-        }
-        if let Some(r) = recs.get(*k) {
-            edits.push((r.start, r.end, bytes));
-        }
-    }
+    let emptied = clear_leading(recs, leading_matches, &mut edits);
 
     let walk_needed = match disposition {
         FollowerDisposition::Reflow => delta != 0.0 || lead_shift != 0.0,
@@ -3034,6 +3175,26 @@ fn lay_in_object(c: &Laying<'_>) -> Laid {
         span_note,
         td_note,
     }
+}
+
+/// Remove each leading operator's matched part; answers how many were left
+/// empty.
+fn clear_leading(
+    recs: &[OpRec],
+    leading_matches: &[(usize, &ShowData, MatchRun)],
+    edits: &mut Vec<(usize, usize, Vec<u8>)>,
+) -> u64 {
+    let mut emptied = 0u64;
+    for (k, s, mr) in leading_matches {
+        let bytes = emit_edited_operator(s, mr, &[], None);
+        if bytes.starts_with(b"() Tj") || bytes == b"[()] TJ" {
+            emptied += 1;
+        }
+        if let Some(r) = recs.get(*k) {
+            edits.push((r.start, r.end, bytes));
+        }
+    }
+    emptied
 }
 
 /// Per-operator shifts for a match spanning show operators inside one text
@@ -3120,7 +3281,7 @@ fn lay_across(c: &Laying<'_>, others: &[(usize, &ShowData, usize, usize)]) -> La
     let layout = EditLayout::new(
         c.anchor,
         c.font_dict,
-        c.font,
+        c.glyph_font,
         c.replace,
         &c.encoded.codes,
         origin_x,

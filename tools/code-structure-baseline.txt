@@ -486,7 +486,6 @@ fn pdfcer-core/src/text_edit/format.rs::plan_synthetic_italic
 fn pdfcer-core/src/text_edit/format.rs::preview_font_resources_for
 fn pdfcer-core/src/text_edit/format.rs::preview_style_ladder
 fn pdfcer-core/src/text_edit/format.rs::preview_style_resolution
-fn pdfcer-core/src/text_edit/format.rs::run_repertoire
 fn pdfcer-core/src/text_edit/format.rs::set_format
 fn pdfcer-core/src/text_edit/forms.rs::walk_forms
 fn pdfcer-core/src/text_edit/merge.rs::plan_merge
