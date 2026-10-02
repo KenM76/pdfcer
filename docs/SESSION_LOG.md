@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (855th filing) — `Pass 430.2` SLICE 2 SHIPPED (`576ac26b`) — type an unshown glyph into an Identity-H CIDFontType2 subset
+
+**Shipped:**
+- `576ac26b` — `Pass 430.2` slice 2 (decision 172 route A, composite). A
+  `/Type0`/Identity-H font over a `/CIDFontType2` descendant with
+  `/CIDToGIDMap /Identity` (or absent) now takes a typed character whose
+  CID the page never shows, via `/ToUnicode` or the program's own cmap; a
+  width differing from `/DW` appends `cid [w]` to `/W` in a copy-on-write
+  descendant. New `pub`: `EmbeddedGlyphs::glyph_by_id` (defaulted `None`).
+  12 new tests in `cid_subset_extend.rs`, all sabotages caught (one — the
+  shown-CID filter — initially survived and needed a widening-elsewhere
+  test to catch it). `cli [x]` already (no CLI code change); `gui [ ]`
+  not wired. **`Pass 430.2` STAYS OPEN** — post-name glyph lookup
+  labelled as an inference is still owed.
+
+**Decisions made this session:** none new — executes decision 172 route A,
+same as the 849th–854th filings.
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 430.2` remainder (post-name glyph lookup) and `Pass 430.3` (route
+  B fallback) unstarted.
+- `Pass 430.1` (decision 173, unblocked at the 853rd filing) also
+  unstarted.
+
+**For next session:**
+- Three sub-IDs remain open under `Pass 430`: `430.1`
+  (implementation-ready against decision 173's acceptance criteria),
+  `430.2`'s remainder (post-name glyph lookup), and `430.3`.
+
+**Sourcing (hard rule 8):** no shell this filing. The hash (`576ac26b`)
+and every fact above are relayed from the dispatching engineer's own
+report, not independently reproduced.
+
 ## 2026-10-01 (854th filing) — `Pass 430.2` SLICE 1 SHIPPED (`ca3c24ba`) — give a subset glyph its encoding cannot address an unused code
 
 **Shipped:**

@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 430.2` (slice 2, `576ac26b`), 2026-10-01 — type an unshown glyph into an Identity-H CIDFontType2 subset (G075 c, decision 172 route A, composite)
+
+Continues the `Pass 427.0`–`436.3` family (855th filing). **`Pass 430.2` PARTIALLY SHIPPED, STAYS OPEN** — this slice covers only the composite `/Type0`/Identity-H case; post-name glyph lookup labelled as an inference is still owed. `430.1` (decision 173, unstarted) and `430.3` unchanged.
+
+**Core.** A `/Type0`/Identity-H font over a `/CIDFontType2` descendant with `/CIDToGIDMap /Identity` (or absent; CID = GID, ISO 32000-2 §9.7.4.2) now takes a typed character whose CID the page never shows, by two routes: (i) `/ToUnicode` already maps it, or (ii) the program's cmap outlines it and the map lacks it — a two-byte `bfchar` entry is appended to `/ToUnicode` (§9.10.3). A width differing from `/DW` appends `cid [w]` to `/W` in a copy-on-write descendant; the font program is untouched; one undo entry; disclosed off-canvas as "typed as CID N, glyph N" (rule 4). Refused by name: `/W` already gives the CID another width; the CID is shown elsewhere and would be widened or newly mapped; shared descendant; shared `/ToUnicode`; stream `/CIDToGIDMap`; non-Identity-H encoding; non-`CIDFontType2` descendant; no `/ToUnicode`.
+
+**New `pub` surface.** `EmbeddedGlyphs::glyph_by_id` (defaulted `None` on the existing trait), implemented by `pdfcer-render`'s `EmbeddedProgramGlyphs`. `run_repertoire_with` accepts exactly what the edit adds; the reader-less `run_repertoire` is unchanged. `docs/core-api/02-editing-and-saving.md` updated (Composite paragraph in the "Type a glyph an embedded subset outlines but never showed" row); `check-core-api-verbs` PASS.
+
+**Fixtures.** `fixtures/synthetic/text/cid-shaped-subset.pdf` + `cid-shaped-subset-shared-descendant.pdf`, both from `tools/gen-cid-subset-fixture.py` (synthetic outlines). `PROVENANCE.md` rows added.
+
+**Tests.** 12 new in `crates/pdfcer-render/tests/cid_subset_extend.rs`, all green. Sabotages caught on: the `/W` conflict guard, `/DW` widening, the shown-CID filter, the shared-descendant guard, the map-entry flag, repertoire wiring. The shown-CID filter initially SURVIVED sabotage (the unmapped-shown case is also caught earlier in allocation); a test for widening a CID shown elsewhere at the default width was added and now catches it.
+
+**Gates.** `tools/run-gates.sh` 43/44 green; the one failure (`check-public-fns-documented`: two `pub(crate)` helpers newly lacking doc comments) was fixed before commit and re-run clean; `cargo fmt` clean. No manifest change — `cargo tree -p pdfcer-core`/`-p pdfcer-render` unaffected, no new dependency.
+
+**Shells.** `core [x]`. `cli [x]` — `edit-text`/`run-repertoire` reach the reader through the existing wiring, no CLI code change. `gui [ ]` — separate project, not wired.
+
+**`docs/FEATURES.md`.** "Accept a character whose glyph exists only in the embedded font program" row extended to cover composite Identity-H/`CIDFontType2` subsets; "Not yet covered" narrowed to post-name glyph lookup labelled as an inference only.
+
+**Still open in `Pass 430.2`:** post-name glyph lookup labelled as an inference. `430.1`/`430.3` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Hash (`576ac26b`) and every fact above relayed from the dispatching engineer's own report, not independently reproduced.
+
 ### `Pass 430.2` (slice 1, `ca3c24ba`), 2026-10-01 — give a subset glyph its encoding cannot address an unused code (G075 c, decision 172 route A, rest)
 
 Continues the `Pass 427.0`–`436.3` family (854th filing). **`Pass 430.2` PARTIALLY SHIPPED, STAYS OPEN** — this slice covers only `/Differences` code allocation for a character the resolved encoding cannot address; composite Identity-H and post-name glyph lookup labelled as inference are still owed. `430.1` (decision 173, unstarted) and `430.3` unchanged.
@@ -15462,6 +15484,15 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 430.2` SLICE 2 PARTIALLY SHIPPED, 2026-10-01
+> (855th filing), `576ac26b`** — see *Shipped*, above. Decision 172 route
+> A now also types an unshown glyph into a `/Type0`/Identity-H
+> `CIDFontType2` subset (via `/ToUnicode` or the program's own cmap),
+> widening `/W` and extending `/ToUnicode` as needed, refusing by name on
+> conflict or any shared structure. **`Pass 430.2` STAYS OPEN** —
+> post-name glyph lookup labelled as inference is still owed.
+> `430.1`/`430.3` unchanged.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 430.2` SLICE 1 PARTIALLY SHIPPED, 2026-10-01
 > (854th filing), `ca3c24ba`** — see *Shipped*, above. Decision 172 route
 > A now also allocates an unused code via a `/Differences` entry for a
@@ -15696,6 +15727,12 @@ closes out the *prior* filing's business rather than opening this one's.
 >   post-name glyph lookup are **not** in this slice — both still owed,
 >   keeping `Pass 430.2` open. See *Shipped*, above, for the full
 >   accounting.
+>   **★ SLICE 2 SHIPPED 2026-10-01 (855th filing), `576ac26b`** — the
+>   composite Identity-H/`CIDFontType2` piece above: typed via
+>   `/ToUnicode` or the program's own cmap, `/W`/`/ToUnicode` extended,
+>   refused by name on conflict or any shared structure. Post-name glyph
+>   lookup is **not** in this slice — still owed, keeping `Pass 430.2`
+>   open. See *Shipped*, above, for the full accounting.
 > - **`Pass 430.3`** (new, split from `430.0`) — route B fallback
 >   (decision 172): sibling `/Type0` + `/CIDFontType2` dictionary reusing
 >   the same `FontFile2` by GID via `/CIDToGIDMap`, for every guard
