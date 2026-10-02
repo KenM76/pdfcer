@@ -36,7 +36,10 @@ fn fixture() -> PathBuf {
 }
 
 fn temp_out(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("pdfcer-dimension-style-tests");
+    let dir = std::env::temp_dir().join(format!(
+        "pdfcer-dimension-style-tests-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let p = dir.join(name);
     let _ = std::fs::remove_file(&p);

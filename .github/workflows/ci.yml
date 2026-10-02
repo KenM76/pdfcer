@@ -637,6 +637,11 @@ jobs:
       - name: check no operator-facing string has a baked-in gap
         run: bash tools/check-string-gaps.sh
 
+      # Concurrent test runs on one machine share the temp directory; a
+      # fixed name there makes one run delete the other's files.
+      - name: check every test temp path is per-process
+        run: python tools/check-test-temp-unique.py
+
       # A public function with no doc comment violates CLAUDE.md rule 6, and
       # -- the reason this is a gate rather than a habit -- it is the
       # OBSERVABLE SYMPTOM of a doc block that was silently corrupted.

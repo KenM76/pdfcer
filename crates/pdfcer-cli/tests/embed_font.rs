@@ -94,7 +94,7 @@ fn fonts_dir() -> PathBuf {
 /// fixture asks for — so the licence guard is exercised without the
 /// permissive copy of the same face shadowing it.
 fn restricted_dir() -> PathBuf {
-    let dir = std::env::temp_dir().join("pdfcer-embed-restricted");
+    let dir = std::env::temp_dir().join(format!("pdfcer-embed-restricted-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     std::fs::copy(
         fixture("embed/fonts/pdfceRestricted.ttf"),
@@ -105,7 +105,7 @@ fn restricted_dir() -> PathBuf {
 }
 
 fn temp_out(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("pdfcer-embed-tests");
+    let dir = std::env::temp_dir().join(format!("pdfcer-embed-tests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     dir.join(name)
 }

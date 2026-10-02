@@ -7,7 +7,8 @@ use std::process::Command;
 const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 
 fn temp_out(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("pdfcer-set-page-tabs-tests");
+    let dir =
+        std::env::temp_dir().join(format!("pdfcer-set-page-tabs-tests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let p = dir.join(name);
     let _ = std::fs::remove_file(&p);

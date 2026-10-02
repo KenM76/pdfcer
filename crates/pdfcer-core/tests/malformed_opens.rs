@@ -358,7 +358,10 @@ fn a_file_with_no_catalog_is_still_refused() {
 /// it fails if `load_with_options` ever silently degrades to `load`.
 #[test]
 fn the_other_reading_is_reachable_from_a_path() {
-    let path = std::env::temp_dir().join("pdfcer-malformed-opens-by-path.pdf");
+    let path = std::env::temp_dir().join(format!(
+        "pdfcer-malformed-opens-by-path-{}.pdf",
+        std::process::id()
+    ));
     std::fs::write(&path, pdf_with_duplicate_page_mode()).expect("fixture written");
 
     let mode = |d: &Document| -> Vec<u8> {
@@ -388,7 +391,10 @@ fn the_other_reading_is_reachable_from_a_path() {
 /// have had to read the bytes itself.
 #[test]
 fn strict_is_reachable_from_a_path() {
-    let path = std::env::temp_dir().join("pdfcer-malformed-opens-by-path-strict.pdf");
+    let path = std::env::temp_dir().join(format!(
+        "pdfcer-malformed-opens-by-path-strict-{}.pdf",
+        std::process::id()
+    ));
     std::fs::write(&path, pdf_with_duplicate_page_mode()).expect("fixture written");
 
     assert!(

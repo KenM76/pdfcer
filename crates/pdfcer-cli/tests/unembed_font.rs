@@ -75,7 +75,7 @@ fn run(rel: &str, args: &[&str]) -> (i32, String, String) {
 }
 
 fn temp_out(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("pdfcer-unembed-tests");
+    let dir = std::env::temp_dir().join(format!("pdfcer-unembed-tests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     dir.join(name)
 }

@@ -64,7 +64,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn temp_out(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("pdfcer-save-hint-tests");
+    let dir = std::env::temp_dir().join(format!("pdfcer-save-hint-tests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     dir.join(name)
 }

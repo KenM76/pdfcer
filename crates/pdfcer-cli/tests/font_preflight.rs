@@ -107,7 +107,10 @@ fn a_refusal_is_printed_verbatim_and_the_command_it_predicts_agrees() {
             "F3",
             "--output",
             std::env::temp_dir()
-                .join("pdfcer_preflight_never_written.pdf")
+                .join(format!(
+                    "pdfcer_preflight_never_written-{}.pdf",
+                    std::process::id()
+                ))
                 .to_str()
                 .unwrap(),
         ])

@@ -16,7 +16,10 @@ fn scan() -> PathBuf {
 }
 
 fn out(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join("pdfcer-cli-ocr-engine-tests");
+    let d = std::env::temp_dir().join(format!(
+        "pdfcer-cli-ocr-engine-tests-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&d).expect("temp dir");
     d.join(name)
 }
@@ -46,7 +49,10 @@ fn ocrcer_is_refused_by_name_when_not_compiled_in() {
 #[cfg(feature = "ocrcer")]
 #[test]
 fn a_model_dir_without_the_ocrcer_model_is_reported() {
-    let empty = std::env::temp_dir().join("pdfcer-cli-ocr-engine-tests-empty");
+    let empty = std::env::temp_dir().join(format!(
+        "pdfcer-cli-ocr-engine-tests-empty-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&empty).expect("temp dir");
     let o = Command::new(BIN)
         .arg("ocr")
@@ -68,7 +74,10 @@ fn a_model_dir_without_the_ocrcer_model_is_reported() {
 #[cfg(feature = "ocrcer")]
 #[test]
 fn a_file_that_is_not_an_ocrw_model_is_refused() {
-    let dir = std::env::temp_dir().join("pdfcer-cli-ocr-engine-tests-bogus");
+    let dir = std::env::temp_dir().join(format!(
+        "pdfcer-cli-ocr-engine-tests-bogus-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&dir).expect("temp dir");
     std::fs::write(dir.join("ocrcer.ocrw"), b"not a model").expect("write");
     let o = Command::new(BIN)
@@ -109,7 +118,10 @@ fn paddle_is_refused_by_name_when_not_compiled_in() {
 #[cfg(feature = "paddle")]
 #[test]
 fn a_model_dir_without_the_paddle_models_is_reported() {
-    let empty = std::env::temp_dir().join("pdfcer-cli-ocr-engine-tests-empty-paddle");
+    let empty = std::env::temp_dir().join(format!(
+        "pdfcer-cli-ocr-engine-tests-empty-paddle-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&empty).expect("temp dir");
     let o = Command::new(BIN)
         .arg("ocr")
@@ -133,7 +145,10 @@ fn a_model_dir_without_the_paddle_models_is_reported() {
 #[cfg(feature = "paddle")]
 #[test]
 fn files_that_are_not_onnx_models_are_refused() {
-    let dir = std::env::temp_dir().join("pdfcer-cli-ocr-engine-tests-bogus-paddle");
+    let dir = std::env::temp_dir().join(format!(
+        "pdfcer-cli-ocr-engine-tests-bogus-paddle-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&dir).expect("temp dir");
     std::fs::write(dir.join("det.onnx"), b"not a model").expect("write");
     std::fs::write(dir.join("rec.onnx"), b"not a model").expect("write");

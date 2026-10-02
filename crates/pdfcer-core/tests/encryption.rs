@@ -602,7 +602,10 @@ fn a_failed_non_ascii_password_discloses_the_missing_normalisation() {
 fn a_decrypted_rewrite_and_an_rc4_append_are_refused() {
     let doc =
         Document::load_with_password(&fixture("enc-rc4-128.pdf"), Some(b"userpw")).expect("opens");
-    let out = std::env::temp_dir().join("pdfcer-encrypted-save-refusal.pdf");
+    let out = std::env::temp_dir().join(format!(
+        "pdfcer-encrypted-save-refusal-{}.pdf",
+        std::process::id()
+    ));
     let options = SaveOptions::default();
     let mut edit = DirtySet::empty();
     let field = pdfcer_core::object::ObjId::new(4, 0);

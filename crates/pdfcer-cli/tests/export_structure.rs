@@ -187,7 +187,10 @@ fn export_xlsx_and_ods_take_the_trees_tables() {
 /// coverage is judged on the selected page only, so the tree is used.
 #[test]
 fn a_page_selection_is_judged_on_its_own_coverage() {
-    let dir = std::env::temp_dir().join("pdfcer-export-structure-pages");
+    let dir = std::env::temp_dir().join(format!(
+        "pdfcer-export-structure-pages-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("in.pdf");
     let page = |contents: u32| {

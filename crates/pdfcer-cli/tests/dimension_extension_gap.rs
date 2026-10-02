@@ -8,7 +8,10 @@ const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 const EDIT_REFUSED: i32 = 9;
 
 fn temp_out(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("pdfcer-dimension-extension-gap-tests");
+    let dir = std::env::temp_dir().join(format!(
+        "pdfcer-dimension-extension-gap-tests-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let p = dir.join(name);
     let _ = std::fs::remove_file(&p);

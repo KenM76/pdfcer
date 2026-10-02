@@ -34,7 +34,8 @@ const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 /// with it without opening another file. Object 3's body is `<< /Type` and
 /// then the file ends.
 fn damaged() -> PathBuf {
-    let dir = std::env::temp_dir().join("pdfcer-recovery-drop-tests");
+    let dir =
+        std::env::temp_dir().join(format!("pdfcer-recovery-drop-tests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let p = dir.join("one-unparseable-object.pdf");
     let bytes: &[u8] = b"%PDF-1.7\n\
@@ -84,7 +85,8 @@ fn the_cli_names_the_dropped_object_on_stderr() {
 /// other half meaningful.
 #[test]
 fn a_recovery_that_kept_everything_prints_no_drop_note() {
-    let dir = std::env::temp_dir().join("pdfcer-recovery-drop-tests");
+    let dir =
+        std::env::temp_dir().join(format!("pdfcer-recovery-drop-tests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let p = dir.join("nothing-dropped.pdf");
     let bytes: &[u8] = b"%PDF-1.7\n\

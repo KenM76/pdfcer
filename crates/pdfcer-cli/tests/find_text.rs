@@ -338,7 +338,10 @@ fn a_fully_readable_document_gets_no_warning() {
 #[test]
 fn a_search_driven_redaction_warns_about_unreadable_text() {
     let f = type3_fixture("tounicode_gate.pdf");
-    let out_pdf = std::env::temp_dir().join("pdfcer-redact-disclosure-test.pdf");
+    let out_pdf = std::env::temp_dir().join(format!(
+        "pdfcer-redact-disclosure-test-{}.pdf",
+        std::process::id()
+    ));
     let out = run(&[
         "redact-mark",
         &f.display().to_string(),
@@ -397,7 +400,10 @@ fn a_search_driven_redaction_warns_about_unreadable_text() {
 #[test]
 fn a_pattern_driven_redaction_warns_about_unreadable_text() {
     let f = type3_fixture("tounicode_gate.pdf");
-    let out_pdf = std::env::temp_dir().join("pdfcer-redact-pattern-disclosure-test.pdf");
+    let out_pdf = std::env::temp_dir().join(format!(
+        "pdfcer-redact-pattern-disclosure-test-{}.pdf",
+        std::process::id()
+    ));
     let out = run(&[
         "redact-mark",
         &f.display().to_string(),
@@ -436,7 +442,10 @@ fn a_pattern_driven_redaction_warns_about_unreadable_text() {
 #[test]
 fn a_readable_document_gets_no_redaction_warning() {
     let f = fixture("text/composite-editable.pdf");
-    let out_pdf = std::env::temp_dir().join("pdfcer-redact-clean-test.pdf");
+    let out_pdf = std::env::temp_dir().join(format!(
+        "pdfcer-redact-clean-test-{}.pdf",
+        std::process::id()
+    ));
     let out = run(&[
         "redact-mark",
         &f.display().to_string(),
