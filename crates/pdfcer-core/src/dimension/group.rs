@@ -25,8 +25,9 @@
 //! only fallback group is a foot-gun with no benefit — ui-spec §5.3).
 
 use crate::object::ObjId;
-use crate::vector::{AxisConstraint, Point, measured_length, polyline_length};
+use crate::vector::{AxisConstraint, Point, measured_length, polygon_area, polyline_length};
 
+use super::area::format_area_measurement;
 use super::fit::FitCircle;
 use super::units::{
     MeasurementDisplay, NumberFormat, ScaleState, Unit, format_angle_degrees, format_measurement,
@@ -361,6 +362,22 @@ pub enum DimensionKind {
         /// the annotation is authored as a `/Polygon`; when `false` it is
         /// not, and the annotation is a `/PolyLine`.
         closed: bool,
+        /// Whether this ce dimension reports the ENCLOSED AREA of the closed
+        /// outline instead of its perimeter.
+        ///
+        /// A flag rather than a separate kind because the geometry, the
+        /// annotation (`/Polygon` + `/IT /PolygonDimension`, ISO 32000-1
+        /// §12.5.6.9 Table 178), vertex editing, placement and the transforms
+        /// are all identical; only the measured quantity changes. The spec has
+        /// no `PolygonAreaDimension` intent, so which quantity is displayed is
+        /// recorded in the `/PieceInfo` sidecar.
+        ///
+        /// Meaningful only with `closed: true` and **at least three** vertices;
+        /// [`crate::edit::EditSession::add_dimension`] and
+        /// [`crate::edit::EditSession::set_dimension_area`] refuse anything
+        /// else by name. The value is [`crate::vector::polygon_area`] in
+        /// square points, scaled by the group's scale squared.
+        area: bool,
         /// The label's displacement from the vertex centroid, ALONG PAGE +y.
         ///
         /// # Why the centroid, and why page axes rather than a shape axis
@@ -444,6 +461,9 @@ impl DimensionKind {
                 text: format_angle_degrees(self.measured_points(), format),
                 raw_page_units: false,
             };
+        }
+        if self.is_area() {
+            return format_area_measurement(self.measured_points(), scale, format);
         }
         format_measurement(self.measured_points(), scale, format)
     }
@@ -845,11 +865,13 @@ impl DimensionKind {
             Self::Perimeter {
                 points,
                 closed,
+                area,
                 offset,
                 text_along,
             } => Self::Perimeter {
                 points: points.into_iter().map(map).collect(),
                 closed,
+                area,
                 offset,
                 text_along,
             },
@@ -930,6 +952,7 @@ impl DimensionKind {
             Self::Perimeter {
                 points,
                 closed,
+                area,
                 offset,
                 text_along,
             } => Self::Perimeter {
@@ -938,6 +961,7 @@ impl DimensionKind {
                     .map(|p| Point::new(p.x + dx, p.y + dy))
                     .collect(),
                 closed,
+                area,
                 offset,
                 text_along,
             },
@@ -978,10 +1002,35 @@ impl DimensionKind {
             // segment, in page points, so the group's scale multiplies it
             // exactly as it multiplies a linear length. A perimeter IS a
             // length, which is why no new number formatting was needed.
+            // An area ce dimension returns SQUARE points instead; `display_with`
+            // scales it by the scale squared.
             DimensionKind::Perimeter {
-                ref points, closed, ..
-            } => polyline_length(points, closed),
+                ref points,
+                closed,
+                area,
+                ..
+            } => {
+                if area && closed {
+                    polygon_area(points)
+                } else {
+                    polyline_length(points, closed)
+                }
+            }
         }
+    }
+
+    /// Whether this is a closed [`Self::Perimeter`] reporting its enclosed
+    /// area: [`Self::measured_points`] is then in square points.
+    #[must_use]
+    pub const fn is_area(&self) -> bool {
+        matches!(
+            *self,
+            Self::Perimeter {
+                area: true,
+                closed: true,
+                ..
+            }
+        )
     }
 
     /// The picked vertices and whether they close, for a
@@ -1785,11 +1834,13 @@ pub fn transform_kind(kind: &DimensionKind, m: crate::vector::Matrix) -> Dimensi
         DimensionKind::Perimeter {
             points,
             closed,
+            area,
             offset,
             text_along,
         } => DimensionKind::Perimeter {
             points: points.iter().map(pt).collect(),
             closed: *closed,
+            area: *area,
             offset: *offset,
             text_along: *text_along,
         },

@@ -593,6 +593,8 @@ mod sign;
 use sign::*;
 mod dimension;
 use dimension::*;
+mod dimension_area;
+use dimension_area::*;
 mod field_edit;
 use field_edit::*;
 mod annot_edit;

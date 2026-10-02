@@ -13,9 +13,9 @@ index and ends with **Traps**.
 
 | file | covers | size |
 |---|---|---|
-| [`01-reading-and-model.md`](01-reading-and-model.md) | loading, the COS object model, pages, content streams, text extraction, fonts, vector picking/snapping, filters, colour, navigation, metadata | 3,723 lines · 212 clauses cited |
-| [`02-editing-and-saving.md`](02-editing-and-saving.md) | `EditSession` end to end — **all 312 public verbs**, the command/undo contract, the dirty set, the save path, the guard/refusal model, `EditError`'s 163 variants | 6,133 lines · 267 clauses cited |
-| [`03-capabilities.md`](03-capabilities.md) | ce dimensions, forms, markup, redaction, **off-canvas content**, OCR, print/imposition, rasterising, raster export — each with **★ what the UI must disclose** | 4,206 lines · 115 clauses cited |
+| [`01-reading-and-model.md`](01-reading-and-model.md) | loading, the COS object model, pages, content streams, text extraction, fonts, vector picking/snapping, filters, colour, navigation, metadata | 3,724 lines · 212 clauses cited |
+| [`02-editing-and-saving.md`](02-editing-and-saving.md) | `EditSession` end to end — **all 313 public verbs**, the command/undo contract, the dirty set, the save path, the guard/refusal model, `EditError`'s 165 variants | 6,135 lines · 268 clauses cited |
+| [`03-capabilities.md`](03-capabilities.md) | ce dimensions, forms, markup, redaction, **off-canvas content**, OCR, print/imposition, rasterising, raster export — each with **★ what the UI must disclose** | 4,219 lines · 116 clauses cited |
 
 > ### ★ Every figure above was stale, and the verb count caused an incident
 >

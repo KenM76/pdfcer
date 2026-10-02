@@ -43,6 +43,7 @@ mod cross_object_edit;
 mod cut_verbs;
 mod deletion_collateral_structural;
 mod digital_id_create;
+mod dimension_area;
 mod dimension_circular_placement;
 mod dimension_extension_gap;
 mod dimension_label_override;

@@ -119,10 +119,13 @@ pub(crate) fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
         // plus the fact that a closed shape with two vertices traces a line
         // there and back — one stroke printing twice the distance between two
         // points.
-        DimKindArg::Perimeter | DimKindArg::Path => {
-            let closed = matches!(kind, DimKindArg::Perimeter);
+        // `area` leaves its vertex-count refusal to core, which names it
+        // (`AreaNeedsThreeVertices`) before anything is staged.
+        DimKindArg::Perimeter | DimKindArg::Path | DimKindArg::Area => {
+            let closed = !matches!(kind, DimKindArg::Path);
+            let area = matches!(kind, DimKindArg::Area);
             let minimum = if closed { 3 } else { 2 };
-            if pts.len() < minimum {
+            if !area && pts.len() < minimum {
                 eprintln!(
                     "pdfcer: {}: --kind {} needs at least {minimum} points",
                     input.display(),
@@ -133,6 +136,7 @@ pub(crate) fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
             DimensionKind::Perimeter {
                 points: pts.clone(),
                 closed,
+                area,
                 // The placement pair, read in PAGE axes for this kind: the
                 // label sits at the vertex centroid displaced by
                 // (text_along, offset). See `DimensionKind::Perimeter::offset`
@@ -2352,6 +2356,11 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             // fence runs and one filtering for pipe runs are looking for
             // different things, and `closed=` as a separate column would make
             // the common case a two-field test.
+            DimensionKind::Perimeter {
+                closed: true,
+                area: true,
+                ..
+            } => "area",
             DimensionKind::Perimeter { closed: true, .. } => "perimeter",
             DimensionKind::Perimeter { .. } => "path",
         };

@@ -313,6 +313,16 @@ pub(crate) enum DimKindArg {
     /// [DimKindArg::Perimeter], not a different one; they differ by exactly
     /// the closing segment, which is why they share every other option.
     Path,
+    /// The ENCLOSED AREA of the closed outline through every supplied
+    /// point, in the group's unit squared (m², in², ...), scaled by the
+    /// group's scale squared. Written as a /Polygon with
+    /// /IT /PolygonDimension, like perimeter; only the reported quantity
+    /// differs.
+    ///
+    /// Needs at least three points; fewer is refused by name and nothing
+    /// is written. dimension-area switches an existing perimeter to this
+    /// reading and back.
+    Area,
 }
 
 impl DimKindArg {
@@ -330,6 +340,7 @@ impl DimKindArg {
             DimKindArg::TwoLines => "two-lines",
             DimKindArg::Perimeter => "perimeter",
             DimKindArg::Path => "path",
+            DimKindArg::Area => "area",
         }
     }
 }

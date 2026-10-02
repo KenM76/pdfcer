@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 312 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 313 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 312 public `EditSession` methods
+## 1. Verb index — all 313 public `EditSession` methods
 
-**Count: 312.** Established by brace-matched extraction of the
+**Count: 313.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -3967,6 +3967,7 @@ constructed, then committed, under one `&mut`.
 | **Live-preview** a ce dimension drag | `dimension_preview(&self, id: DimensionId, moved: &DimensionKind) -> Result<DimensionPreview, EditError>` | **`Pass 368.0`**, pdfcer-gui request G049. Bakes `moved` through the commit's own path (the ce dimension's resolved style cascade and text override, `author_dimension_with_label`); stages nothing, no undo entry, `&self`. `DimensionPreview { appearance: AuthoredDimension }`: `appearance.ap_content` is page-space (`/BBox` = `/Rect`, identity matrix). `appearance.label_quad: [Point; 4]` is the value text's box (descender to cap line, in the text's own frame, so rotated for an ISO-aligned label), and `label_rect()` gives its upright bounds; hit-test a press there to set `text_along` only, and elsewhere to set `offset`. `moved` is not validated; the committing verb applies its own refusals. Paint: `pdfcer_render::edit_preview::paint_dimension_preview(&view, &preview, &RenderOptions, page_to_device: Transform, &mut Pixmap) -> Diagnostics`. It runs the same interpreter as the committed `/AP`, and its pixels are tested equal to the committed page render. Pass a transparent pixmap to composite it over the page. A drag that SHORTENS the ce dimension adds no ink over the committed one, so re-render the region under it with `RenderOptions::with_omit_annotations([record.annot])` first (§7.2 of `03-capabilities.md`, G052). `Errors`: `DimensionNotFound`, `DimensionGroupNotFound`. No CLI (interactive only). |
 | **Preview a ce dimension before it exists** (the placing preview) | `new_dimension_preview(&self, group: GroupId, kind: &DimensionKind) -> Result<DimensionPreview, EditError>` | **`Pass 384.0`**, pdfcer-gui request G063. Bakes `kind` with `group`'s style, derived exactly as `add_dimension` derives it (a new ce dimension has no per-dimension overrides or text override), through `author_dimension`; stages nothing, no undo entry, `&self`. `appearance.ap_content` is byte-identical to the `/AP` the placing `add_dimension(page, group, kind)` writes (tested, in a group whose scale, format and standard all differ from the factory defaults), so paint it with `paint_dimension_preview` as for a drag and drop the shell's own segment/label drawing. The page does not enter the appearance. `Errors`: `DimensionGroupNotFound` for an unknown `group` (as `add_dimension` refuses it). No CLI (interactive only). |
 | Toggle radius ↔ diameter | `set_dimension_display(&mut self, dimension, show_diameter: bool) -> Result<(), EditError>` | ⚠️ **Commits even when nothing changes** (opposite of `set_info_field`). |
+| **Switch a closed perimeter ↔ its enclosed AREA** | `set_dimension_area(&mut self, dimension, area: bool) -> Result<(), EditError>` | `Pass 447.0`, G098. Sets `DimensionKind::Perimeter::area`; the vertices are untouched, the label and `/Measure` are re-baked. An area reads in the group's unit squared (`12.96 m²`), the scale applied squared; `/A` carries factor 1 because ISO 32000-1 §12.9 Table 262 applies it to `/X`'s units squared. Refuses a kind with no vertices (`DimensionHasNoVertices`), an open path (`AreaNeedsClosedOutline`) and fewer than three vertices (`AreaNeedsThreeVertices { vertices }`), all before mutating. ⚠️ **1 entry even on a no-op**, like `set_dimension_display`. `add_dimension` with `area: true` applies the same two outline refusals. A document holding an area writes sidecar version 5. |
 | Set a group's drafting standard | `set_group_standard(&mut self, group, standard: DimStandard) -> Result<usize, EditError>` | Count of members regenerated. |
 | Set a group's style defaults | `set_group_style(&mut self, group, style: GroupStyle) -> Result<usize, EditError>` | ⚠️ **Count REGENERATED, not count MOVED.** See §8, trap T-00. |
 | Set one ce dimension's overrides | `set_dimension_style(&mut self, dimension, style: StyleOverrides) -> Result<usize, EditError>` | ⚠️ Count of **properties overridden afterwards** — a different unit from the sibling above, same type. |
@@ -4868,6 +4869,7 @@ Distinctions the enum preserves on purpose, which a label must not flatten:
 | `import_form_data` | **N entries** — one per field. Ctrl+Z after an FDF import undoes one field. |
 | `set_info_field` | **0 entries on a no-op.** Setting a field to its existing value, or clearing an absent one, records nothing and leaves the redo stack alone. |
 | `set_dimension_display` | **1 entry even on a no-op** — deliberately the inverse, so a toggle control's undo behaviour is not sometimes-present. |
+| `set_dimension_area` | **1 entry even on a no-op**, for the same reason. |
 | `set_dimension_label` | **0 entries on a no-op** — setting the override that already holds, or clearing one that is not there, records nothing. `DimensionLabelChange::changed` reports which happened, so a shell never has to guess. |
 
 A shell that keeps its own dirty counter incremented per successful call will
@@ -5444,7 +5446,7 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**163 variants**, counted at depth 1 inside `pub enum EditError`.
+**165 variants**, counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
@@ -5512,7 +5514,7 @@ Grouped for a shell's error presenter:
 `PageOutOfRange` 2303 · `InvertedPageRange` · `RotationNotMultipleOf90` 2316 · `NotAPermutation` 3090 ·
 `WidgetIndexOutOfRange` 2582 · `FieldNameEmpty` 2696 · `FieldRectDegenerate` 2517 ·
 `ImageRectDegenerate` 3130 · `EmptyGeometry` 2771 · `TabsValueUndefined` ·
-`NotACircularDimension` 2468 · `InvalidTolerance` 2481 · `NotARedactionMark` 2832 ·
+`NotACircularDimension` 2468 · `AreaNeedsThreeVertices` · `AreaNeedsClosedOutline` · `InvalidTolerance` 2481 · `NotARedactionMark` 2832 ·
 `ChoiceEditRequiresCombo` 2568 · `ChoiceRequiresMultiSelect` 3053 ·
 `ChoiceValueNotInOptions` 3067 · `CheckBoxOnStateInvalid` 2654 ·
 `ChoiceOptionDuplicate` 2665 · `RadioExportValueTaken` 2621 · `CombPreconditionUnmet` 2531 ·
@@ -5666,13 +5668,13 @@ ids nobody named.
 > skipping would silently not regenerate the appearance, and the operator would
 > see a label change that did not happen.
 >
-> The 15 verbs that can now return `CarrierIsNotAStream` for this reason:
+> The 16 verbs that can now return `CarrierIsNotAStream` for this reason:
 > `set_dimension_label` · `set_group_scale` · `set_dimension_group` ·
 > `delete_dimension_group_with` (**on `GroupDeletion::Reassign` only**) ·
 > `set_group_standard` · `set_group_style` · `set_dimension_style` ·
 > `set_dimension_display` · `place_dimension` · `move_dimension` ·
 > `rotate_dimension` · `move_dimension_vertex` · `insert_dimension_vertex` ·
-> `remove_dimension_vertex` · `set_dimension_extension_gap`.
+> `remove_dimension_vertex` · `set_dimension_extension_gap` · `set_dimension_area`.
 >
 > On a well-formed document authored by pdfcer this refusal is unreachable —
 > **treat it as a corrupt/hostile-file diagnostic, not as an ordinary outcome

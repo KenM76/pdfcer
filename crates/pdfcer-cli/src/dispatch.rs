@@ -2569,6 +2569,14 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_dimension_display(&input, dimension, show, &output, mode, verify_undo),
+        Command::DimensionArea {
+            input,
+            dimension,
+            show,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_dimension_area(&input, dimension, show, &output, mode, verify_undo),
         Command::DimensionExtensionGap {
             input,
             dimension,

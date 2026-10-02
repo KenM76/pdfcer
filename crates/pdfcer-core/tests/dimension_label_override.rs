@@ -524,7 +524,7 @@ fn the_sidecar_version_rises_only_for_a_document_that_uses_an_override() {
     s.set_dimension_label(id, Some("REF")).unwrap();
     assert_eq!(
         stored_version(&s),
-        pdfcer_core::dimension::SIDECAR_VERSION,
+        4,
         "an override raises the version, so an older build refuses to WRITE over it"
     );
 

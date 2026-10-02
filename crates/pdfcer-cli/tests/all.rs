@@ -17,6 +17,7 @@ mod bates_stamp;
 mod bookmarks;
 mod copy_page;
 mod create_digital_id;
+mod dimension_area;
 mod dimension_circular_placement;
 mod dimension_extension_gap;
 mod dimension_group_management;

@@ -9542,6 +9542,36 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Switch a closed perimeter ce dimension between its perimeter and its
+    /// enclosed area.
+    ///
+    /// The vertices are untouched; only the reported quantity changes. The
+    /// area is in the group's unit squared (m², in², ...), scaled by the
+    /// group's scale squared. `dimension-list` prints the current reading as
+    /// kind=perimeter or kind=area.
+    ///
+    /// Refused by name, with nothing written, for a ce dimension that has no
+    /// vertices (linear, radius, diameter, angular), for an open path, and
+    /// for fewer than three vertices.
+    DimensionArea {
+        /// Input PDF.
+        input: PathBuf,
+        /// The ce dimension id, as printed by `dimension-list`.
+        #[arg(long)]
+        dimension: u32,
+        /// Which quantity the label should print.
+        #[arg(long, value_enum)]
+        show: AreaReading,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Set or clear one extension-line gap on a linear ce dimension**: the
     /// space between the picked point and where that end's extension line
     /// starts.

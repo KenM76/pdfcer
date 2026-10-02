@@ -674,12 +674,6 @@ pub fn format_measurement(
     }
 }
 
-/// Replace the decimal points in a formatted measurement with `marker`.
-///
-/// Only characters BETWEEN two ASCII digits are touched. That is what keeps a
-/// unit abbreviation containing a point (none today, but the unit table is not
-/// frozen) and a trailing sentence period out of it — the substitution has to
-/// be about the number, not about the string.
 /// Format an ANGLE, in degrees, for a ce-dimension label.
 ///
 /// # Why this is separate from [`format_measurement`]
@@ -710,7 +704,13 @@ pub fn format_angle_degrees(degrees: f64, format: NumberFormat) -> String {
     )
 }
 
-fn apply_decimal_marker(text: String, marker: DecimalMarker) -> String {
+/// Replace the decimal points in a formatted measurement with `marker`.
+///
+/// Only characters BETWEEN two ASCII digits are touched. That is what keeps a
+/// unit abbreviation containing a point (none today, but the unit table is not
+/// frozen) and a trailing sentence period out of it — the substitution has to
+/// be about the number, not about the string.
+pub(super) fn apply_decimal_marker(text: String, marker: DecimalMarker) -> String {
     if matches!(marker, DecimalMarker::Point) {
         return text;
     }

@@ -133,6 +133,14 @@ designing anything in this area; do not re-derive it.
   constraint), **circular** (best-fit circle, displayed as radius *or*
   diameter — one geometry, a display flag), and **angular** (`Pass 68.0`).
   `crates/pdfcer-core/src/dimension/group.rs`.
+- **Perimeter / path / area** over N vertices: `DimensionKind::Perimeter
+  { closed, area, .. }`. `area: true` (needs `closed` and ≥3 vertices)
+  measures the enclosed area (`vector::polygon_area`, shoelace, either
+  winding) and labels it in the unit squared — `5184.00 pt²` uncalibrated,
+  `12.96 m²` at 1 pt = 0.05 m. Written as `/Polygon` + `/IT
+  /PolygonDimension` with `/Measure /A` (ISO 32000-1 §12.9 Table 262:
+  `/A` converts `/X`'s units squared, so its factor is 1). The spec has no
+  area intent, so the sidecar's `/Area true` is what makes it an area.
 - Named **groups** carrying scale, number format (decimal / fraction /
   feet-inches), decimal marker, drafting standard (ANSI/ISO), an OCG layer,
   and a group-tier style. `group.rs`.
@@ -191,6 +199,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `set_group_style(group, style: GroupStyle)` | `Result<usize, EditError>` — members **regenerated** |
 | `set_dimension_style(dimension, style: StyleOverrides)` | `Result<usize, EditError>` — always this one member |
 | `set_dimension_display(dimension, show_diameter: bool)` | `Result<(), EditError>` — circular only |
+| `set_dimension_area(dimension, area: bool)` | `Result<(), EditError>` — closed perimeter, ≥3 vertices |
 | `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` |
 | `set_dimension_extension_gap(dimension, end: DimensionEnd, gap: Option<f64>)` | `Result<(), EditError>` — linear only; `None` = the standard's gap |
 | `dimension_preview(&self, id, moved: &DimensionKind)` | `Result<DimensionPreview, EditError>` — read-only |
@@ -207,6 +216,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 - `preview_group_scale(ScaleEntry) -> Option<ScalePreview>` — `units.rs`
 - `format_measurement(points, ScaleState, NumberFormat) -> MeasurementDisplay` — `units.rs`
 - `format_angle_degrees(degrees, NumberFormat) -> String` — `units.rs`
+- `format_area_measurement(square_points, ScaleState, NumberFormat) -> MeasurementDisplay` — `area.rs`; `area_unit_label(NumberFormat)` (`"m²"`) and `area_places(NumberFormat)` (a fraction or feet-inches format falls back to 2 decimals)
 - `parse_length(&str, default_unit: Unit) -> Result<ParsedLength, LengthParseError>` — `length_parse.rs`
 - `fit_circle_taubin(&[Point]) -> Option<FitCircle>` / `fit_circle_taubin_refined` — `fit.rs`, `fit.rs`
 - `author_from_two_lines(&PickedLine, &PickedLine, ParallelPolicy, TwoLinePlacement) -> Result<TwoLineAuthoring, TwoLineRefusal>` — `two_lines.rs`
@@ -532,7 +542,10 @@ derivations of a display value: the properties pane read `77.5°` while the
 - **Kind-mismatch refusals.** `set_dimension_display` refuses a
   non-circular target with `EditError::NotACircularDimension`
   (`edit.rs`), and `set_dimension_extension_gap` refuses a non-linear one
-  with `NoExtensionLines`. Both refuse
+  with `NoExtensionLines`. `set_dimension_area` refuses a kind with no
+  vertices (`DimensionHasNoVertices`), an open path
+  (`AreaNeedsClosedOutline`) and under three vertices
+  (`AreaNeedsThreeVertices`). All of them refuse
   **before** mutating — "a refusal never leaves a half-written model behind"
   (`edit.rs`, `edit.rs`).
 - **`DimensionModel` is a snapshot.** `dimension_model()` clones out of the

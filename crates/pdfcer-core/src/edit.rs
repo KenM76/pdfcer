@@ -911,6 +911,14 @@ pub enum CommandKind {
         /// The resulting display: `true` ⇒ diameter, `false` ⇒ radius.
         show_diameter: bool,
     },
+    /// A closed perimeter ce dimension switched between reporting its
+    /// perimeter and its enclosed area, and its `/AP`, `/Contents` and
+    /// `/Measure` were regenerated. ONE undoable command. See
+    /// [`EditSession::set_dimension_area`].
+    SetDimensionArea {
+        /// The resulting reading: `true` ⇒ area, `false` ⇒ perimeter.
+        area: bool,
+    },
     /// A ce dimension GROUP's drafting standard changed (Pass 27.2) and every
     /// wired member was regenerated to it. ONE undoable command. See
     /// [`EditSession::set_group_standard`].
@@ -4692,6 +4700,28 @@ pub struct VertexOutcome {
     pub previous_label: String,
 }
 
+/// Refuse an area ce dimension that encloses nothing: an open path, or fewer
+/// than three vertices. Every other kind passes.
+fn check_area_kind(kind: &DimensionKind) -> Result<(), EditError> {
+    if let DimensionKind::Perimeter {
+        points,
+        closed,
+        area: true,
+        ..
+    } = kind
+    {
+        if !closed {
+            return Err(EditError::AreaNeedsClosedOutline);
+        }
+        if points.len() < 3 {
+            return Err(EditError::AreaNeedsThreeVertices {
+                vertices: points.len(),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Apply a [`VertexEdit`] to a [`DimensionKind`](crate::dimension::DimensionKind),
 /// or say precisely why it cannot be applied (`Pass 107.0`).
 ///
@@ -4751,6 +4781,7 @@ fn vertex_edited_kind(
         DimensionKind::Perimeter {
             points,
             closed,
+            area,
             offset,
             text_along,
         } => {
@@ -4802,6 +4833,7 @@ fn vertex_edited_kind(
             Ok(DimensionKind::Perimeter {
                 points,
                 closed: *closed,
+                area: *area,
                 offset: *offset,
                 text_along: *text_along,
             })
@@ -7497,6 +7529,18 @@ pub enum EditError {
         /// How many that shape needs.
         minimum: usize,
     },
+    /// An area ce dimension was asked for over fewer than three vertices,
+    /// which enclose nothing. Refused before anything is staged.
+    #[error("an area ce dimension needs at least 3 vertices; {vertices} given")]
+    AreaNeedsThreeVertices {
+        /// How many vertices were given.
+        vertices: usize,
+    },
+    /// An area ce dimension was asked for over an OPEN path, which encloses
+    /// nothing. Refused rather than silently closed: closing the path adds a
+    /// segment the operator did not draw.
+    #[error("an area ce dimension needs a closed outline; an open path encloses no area")]
+    AreaNeedsClosedOutline,
     /// A vertex coordinate was not a usable page value (`Pass 107.0`).
     ///
     /// Non-finite, or three orders of magnitude past PDF's own 14,400-unit
@@ -51028,6 +51072,7 @@ impl EditSession {
         group: GroupId,
         kind: DimensionKind,
     ) -> Result<(ObjId, DimensionId), EditError> {
+        check_area_kind(&kind)?;
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
@@ -55656,10 +55701,14 @@ impl EditSession {
             // label cannot re-measure it, which is the identical structural
             // guarantee the linear arm gets, by the identical means.
             DimensionKind::Perimeter {
-                ref points, closed, ..
+                ref points,
+                closed,
+                area,
+                ..
             } => DimensionKind::Perimeter {
                 points: points.clone(),
                 closed,
+                area,
                 offset,
                 text_along,
             },
@@ -55883,6 +55932,71 @@ impl EditSession {
         objects.push(self.catalog_dimension_write(&model)?);
         self.commit(Command {
             kind: CommandKind::SetDimensionDisplay { show_diameter },
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(())
+    }
+
+    /// **Switch a closed perimeter ce dimension between reporting its
+    /// perimeter and its enclosed area**, regenerating its `/AP`, `/Contents`
+    /// and `/Measure` as ONE undoable command.
+    ///
+    /// The vertices are untouched; only the measured quantity changes, so this
+    /// is a display property like [`Self::set_dimension_display`], and like it
+    /// commits even when `area` already has the requested value.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::DimensionNotFound`] for an unknown id;
+    /// [`EditError::DimensionHasNoVertices`] for a linear, circular or angular
+    /// target; with `area: true`, [`EditError::AreaNeedsClosedOutline`] for an
+    /// open path and [`EditError::AreaNeedsThreeVertices`] for fewer than
+    /// three vertices; plus the encryption, enforced-certification and
+    /// newer-sidecar guards every ce-dimension mutation carries. A refusal
+    /// stages nothing.
+    pub fn set_dimension_area(
+        &mut self,
+        dimension: DimensionId,
+        area: bool,
+    ) -> Result<(), EditError> {
+        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification()?;
+        self.check_dimension_sidecar()?;
+
+        let mut model = self.read_dimension_model();
+        let record = model
+            .dimension(dimension)
+            .ok_or(EditError::DimensionNotFound { id: dimension.0 })?;
+        let DimensionKind::Perimeter {
+            points,
+            closed,
+            offset,
+            text_along,
+            ..
+        } = record.kind.clone()
+        else {
+            return Err(EditError::DimensionHasNoVertices { id: dimension.0 });
+        };
+        let kind = DimensionKind::Perimeter {
+            points,
+            closed,
+            area,
+            offset,
+            text_along,
+        };
+        check_area_kind(&kind)?;
+        if let Some(d) = model.dimension_mut(dimension) {
+            d.kind = kind;
+        }
+
+        let mut objects = self.regenerate_dimension_writes(&model, &[dimension])?;
+        objects.push(self.catalog_dimension_write(&model)?);
+        self.commit(Command {
+            kind: CommandKind::SetDimensionArea { area },
             objects,
             removals: Vec::new(),
             trailer: None,
@@ -63804,6 +63918,7 @@ mod tests {
                     Point::new(80.0, 60.0),
                 ],
                 closed: true,
+                area: false,
                 offset: 0.0,
                 text_along: 0.0,
             },
@@ -64409,6 +64524,7 @@ mod tests {
                         Point::new(80.0, 60.0),
                     ],
                     closed: true,
+                    area: false,
                     offset: 0.0,
                     text_along: 0.0,
                 },

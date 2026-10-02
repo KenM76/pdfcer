@@ -102,7 +102,7 @@ pub use hit::{
 };
 pub use snap::{
     AxisConstraint, MAX_CANDIDATES, MAX_NEIGHBOURHOOD_SEGMENTS, SNAP_FLATTEN_STEPS, SnapCandidate,
-    SnapConfig, SnapKind, constrained_second_point, measured_length, polyline_length,
+    SnapConfig, SnapKind, constrained_second_point, measured_length, polygon_area, polyline_length,
     snap_candidates,
 };
 pub use text_locate::{TextRunRef, locate_text_run, locate_text_runs};

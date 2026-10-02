@@ -2412,6 +2412,7 @@ you are stating in one visible place that you do not handle form contents.
 | `snap_candidates` query & `SnapCandidate::point` | **page space** | **page space** | `snap.rs` |
 | `SnapConfig::tolerance` | **page-space** catch radius | — | `snap.rs` |
 | `constrained_second_point`, `measured_length` | page space | page space / page-space length | `snap.rs` |
+| `polyline_length`, `polygon_area` | page space | page-space length / **square points**, either winding | `snap.rs` |
 | `CenterlineCandidate::{start,end}` | — | **page space** | `centerline.rs` |
 | `PickedLine::{start,end,pick}` | — | **page space** | `linepick.rs`; built from `page_subpaths()` at `linepick.rs` |
 | `TwoLineRelation::Angled{apex}` | — | **page space** | `linepick.rs` |

@@ -60,6 +60,9 @@
 //! sidecar. Each group's dimensions sit on a per-group `/OCG` layer honoured by
 //! pdfcer's render (authored-annotation `/OC` only) and any OCG-aware reader.
 
+/// Area formatting for an area ce dimension: the value scales by the group
+/// scale squared (ISO 32000-1 §12.9 Table 262 `/A`).
+pub mod area;
 pub mod author;
 pub mod fit;
 pub mod group;
@@ -81,6 +84,7 @@ pub mod two_lines;
 pub mod units;
 
 // Re-export the everyday surface at `crate::dimension::…`.
+pub use area::{area_places, area_unit_label, format_area_measurement};
 pub use author::{
     AUTHORED_ANNOT_KEYS, AUTHORED_MEASURE_KEY, AuthoredDimension, DIM_PLACEHOLDER,
     DimensionPreview, DimensionStyle, author_dimension, author_dimension_with_label,

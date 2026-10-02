@@ -832,9 +832,11 @@ pub fn author_dimension_with_label(
             Object::Real(crate::annot_author::mk_component(style.color.b)),
         ]),
     );
+    // A text string (§7.9.2): PDFDocEncoding where it fits, else UTF-16BE, so
+    // `°`, `²` and `⌀` decode as written rather than as UTF-8 mojibake.
     annot.insert(
         Name::from(b"Contents"),
-        Object::String(label.as_bytes().to_vec()),
+        Object::String(crate::textstring::encode_text_string(&label)),
     );
     // The portable /Measure scale mirror (only when a scale is set).
     if let Some(s) = scale.effective_scale(format.unit) {

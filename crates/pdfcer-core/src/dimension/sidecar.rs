@@ -94,7 +94,15 @@ use crate::vector::Rgb;
 /// the version an existing file re-serialises to is a byte change to every
 /// sidecar in the corpus for no capability — the retrofit would cost exactly
 /// what this scheme was introduced to avoid.
-pub const SIDECAR_VERSION: i64 = 4;
+/// - **5** — `/Area` on a `perimeter` record: the ce dimension reports its
+///   enclosed area. Same severity class as 4: an older build drops the key and
+///   re-bakes the label as a perimeter, changing the number the drawing
+///   asserts. Emitted per document like 4, only when some ce dimension has it.
+pub const SIDECAR_VERSION: i64 = 5;
+
+/// The schema version a document needs when it uses a label override but no
+/// area ce dimension.
+const SIDECAR_VERSION_PRE_AREA: i64 = 4;
 
 /// The schema version a document needs when no ce dimension uses a
 /// `Pass 175.0` feature — i.e. everything up to and including the `perimeter`
@@ -116,12 +124,11 @@ const SIDECAR_VERSION_PRE_OVERRIDE: i64 = 3;
 /// Deterministic and total — same model, same answer, which is what keeps
 /// [`serialize_model`]'s no-change-is-a-no-op guarantee (R34) true.
 fn model_sidecar_version(model: &DimensionModel) -> i64 {
-    if model
-        .dimensions()
-        .iter()
-        .any(|d| d.label_override.is_some())
-    {
+    let dims = model.dimensions();
+    if dims.iter().any(|d| d.kind.is_area()) {
         SIDECAR_VERSION
+    } else if dims.iter().any(|d| d.label_override.is_some()) {
+        SIDECAR_VERSION_PRE_AREA
     } else {
         SIDECAR_VERSION_PRE_OVERRIDE
     }
@@ -566,6 +573,7 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
         DimensionKind::Perimeter {
             ref points,
             closed,
+            area,
             offset,
             text_along,
         } => {
@@ -597,6 +605,11 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             // legacy to be compatible with — the kind is new at this version —
             // so nothing is bought by defaulting it and a real fact is lost.
             d.insert(Name::from(b"Closed"), Object::Boolean(closed));
+            // Optional: absent means a perimeter, so a document with no area
+            // ce dimension re-serialises byte-identically (R34).
+            if area && closed {
+                d.insert(Name::from(b"Area"), Object::Boolean(true));
+            }
             // Same optional-key discipline as the linear arm: a label that
             // was never dragged adds no keys.
             if offset != 0.0 {
@@ -707,18 +720,24 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
             radius: d.get(b"ArcRadius").and_then(Object::as_number)?,
             text_along: placement_of(d.get(b"TextAlong")),
         },
-        b"perimeter" => DimensionKind::Perimeter {
-            points: flat_points(d.get(b"Points")?)?,
+        b"perimeter" => {
             // Absent means OPEN. That is the safe reading rather than the
             // symmetric one: the write side always emits this key, so an
             // absent one means a hand-edited or truncated sidecar, and
             // reconstructing an open path from a possibly-closed one under-
             // reports the length by one segment instead of inventing a
             // segment that may cross the drawing.
-            closed: bool_of(d.get(b"Closed")).unwrap_or(false),
-            offset: placement_of(d.get(b"Offset")),
-            text_along: placement_of(d.get(b"TextAlong")),
-        },
+            let closed = bool_of(d.get(b"Closed")).unwrap_or(false);
+            DimensionKind::Perimeter {
+                points: flat_points(d.get(b"Points")?)?,
+                closed,
+                // An area needs a closed outline; an `/Area` on an open path
+                // is ignored rather than honoured.
+                area: closed && bool_of(d.get(b"Area")).unwrap_or(false),
+                offset: placement_of(d.get(b"Offset")),
+                text_along: placement_of(d.get(b"TextAlong")),
+            }
+        }
         b"circular" => DimensionKind::Circular {
             fit: FitCircle {
                 center: point_of(d.get(b"Center")?)?,

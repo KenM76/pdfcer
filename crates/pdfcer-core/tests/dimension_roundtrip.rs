@@ -1217,7 +1217,7 @@ fn an_angular_ce_dimensions_baked_label_is_in_degrees_not_points() {
     let Some(Object::String(bytes)) = annot.get(b"Contents") else {
         panic!("the authored label is stored as /Contents");
     };
-    let contents = String::from_utf8_lossy(bytes).into_owned();
+    let contents = pdfcer_core::edit::decode_text_string(bytes).text;
 
     assert!(
         contents.contains('\u{b0}'),
@@ -1303,7 +1303,7 @@ fn the_displayed_value_and_the_baked_label_are_the_same_string() {
     let Some(Object::String(bytes)) = annot.get(b"Contents") else {
         panic!("/Contents");
     };
-    let baked = String::from_utf8_lossy(bytes).into_owned();
+    let baked = pdfcer_core::edit::decode_text_string(bytes).text;
     assert_eq!(
         shown, baked,
         "what the operator reads and what the file carries must be one string"
@@ -1662,6 +1662,7 @@ fn perimeter(closed: bool) -> DimensionKind {
             Point::new(50.0, 110.0),
         ],
         closed,
+        area: false,
         offset: 0.0,
         text_along: 0.0,
     }
@@ -1765,6 +1766,7 @@ fn a_perimeter_round_trips_through_the_sidecar() {
             closed,
             offset,
             text_along,
+            ..
         } => {
             assert_eq!(points.len(), 4, "every vertex must survive");
             assert!(!closed, "the open/closed flag must survive");

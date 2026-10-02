@@ -514,6 +514,40 @@ pub fn polyline_length(points: &[Point], closed: bool) -> f64 {
     }
 }
 
+/// The unsigned area enclosed by the closed polygon through `points`, in
+/// square page units (the shoelace formula; the closing edge is implicit).
+///
+/// Winding does not matter: clockwise and counter-clockwise give the same
+/// value. Fewer than three points enclose nothing and return `0.0`. A
+/// self-intersecting outline's lobes of opposite winding subtract from each
+/// other — the signed sum is what the shoelace formula measures.
+///
+/// ```
+/// use pdfcer_core::vector::{Point, polygon_area};
+/// let square = [
+///     Point::new(0.0, 0.0),
+///     Point::new(72.0, 0.0),
+///     Point::new(72.0, 72.0),
+///     Point::new(0.0, 72.0),
+/// ];
+/// assert_eq!(polygon_area(&square), 5184.0);
+/// let mut reversed = square;
+/// reversed.reverse();
+/// assert_eq!(polygon_area(&reversed), 5184.0);
+/// ```
+#[must_use]
+pub fn polygon_area(points: &[Point]) -> f64 {
+    if points.len() < 3 {
+        return 0.0;
+    }
+    let twice: f64 = points
+        .iter()
+        .zip(points.iter().cycle().skip(1))
+        .map(|(a, b)| a.x * b.y - b.x * a.y)
+        .sum();
+    twice.abs() / 2.0
+}
+
 /// Every snap candidate within `config.tolerance` of `query` (page space),
 /// sorted by **(priority ascending, then distance ascending)** — decision 011
 /// §2.2's fixed target list, ties broken by nearest.

@@ -37,8 +37,11 @@ use super::units::{DecimalMarker, FractionMode, NumberFormat, Unit};
 /// Build a `/Measure` dict (`/Type /Measure /Subtype /RL`) for a group whose
 /// scale is `scale` real-display-units-per-point in `format.unit`
 /// (§12.9 Tables 261/262/263). The first `/X` element's `/C` is `scale`; `/D`
-/// (distance) stays in `/X`'s unit (`C = 1`); `/A` (area) is a required
-/// placeholder in `unit²`. `/R` is the display-only ratio label.
+/// (distance) stays in `/X`'s unit (`C = 1`); `/A` (area) is in `unit²` with
+/// `C = 1`, because Table 262 applies `/A`'s factor to "the units of the first
+/// element of X, squared" — so a reader's area is `pt² × scale² × 1`, the same
+/// number an area ce dimension bakes into its label. `/R` is the display-only
+/// ratio label.
 ///
 /// # Examples
 ///
@@ -64,8 +67,8 @@ pub fn build_measure_dict(scale: f64, format: NumberFormat) -> Object {
     d.insert(Name::from(b"X"), number_format_array(format, scale));
     // /D (distance) stays in /X's unit → first /C = 1.
     d.insert(Name::from(b"D"), number_format_array(format, 1.0));
-    // /A (area) is Required by Table 262; a placeholder in unit², /C = 1.
-    d.insert(Name::from(b"A"), area_array(format.unit));
+    // /A (area) is Required by Table 262; it is in /X's unit squared, /C = 1.
+    d.insert(Name::from(b"A"), area_array(format));
     Object::Dict(d)
 }
 
@@ -191,18 +194,22 @@ fn nf_dict(u: &[u8], c: f64, frac: Option<FracKeys>, marker: DecimalMarker) -> O
     Object::Dict(d)
 }
 
-/// A single-element `/A` (area) array — required by Table 262 though the beta
-/// measures no areas. Unit is `<abbrev>2`, `/C = 1`.
-fn area_array(unit: Unit) -> Object {
-    let label = format!("{}2", unit.abbrev()).into_bytes();
-    let mut d = Dict::new();
-    d.insert(
-        Name::from(b"Type"),
-        Object::Name(Name::from(b"NumberFormat")),
-    );
-    d.insert(Name::from(b"U"), Object::String(label));
-    d.insert(Name::from(b"C"), Object::Real(1.0));
-    Object::Array(vec![Object::Dict(d)])
+/// The single-element `/A` (area) NumberFormat array (§12.9 Tables 262/263):
+/// `/U` is the unit squared as a text string (`m²` — `²` is PDFDocEncoding
+/// 0xB2, as in the spec's own `(mm\262)` example), `/C 1`, and decimal
+/// precision matching the area label ([`super::area_places`]).
+fn area_array(format: NumberFormat) -> Object {
+    let label = crate::textstring::encode_text_string(&super::area_unit_label(format));
+    Object::Array(vec![nf_dict(
+        &label,
+        1.0,
+        Some(FracKeys {
+            fraction: false,
+            d: pow10(super::area_places(format)),
+            fd: false,
+        }),
+        format.decimal_marker,
+    )])
 }
 
 /// `10^places` as an `i64`, clamped so a huge precision cannot overflow.
