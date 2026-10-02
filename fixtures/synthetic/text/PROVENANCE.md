@@ -329,6 +329,11 @@ disk. No attribution is owed and none is claimed.
 | `subset-fstype-nosubset.ttf` | `gen-subset-font-fixtures.py` | `fsType` 0x0108 — editable but bit 8 forbids subsetting |
 | `subset-fstype-bitmaponly.ttf` | `gen-subset-font-fixtures.py` | `fsType` 0x0208 — bit 9 forbids embedding outlines |
 | `subset-fstype-nosubset-v1.ttf` | `gen-subset-font-fixtures.py` | the same bits as `nosubset` in an OS/2 **version 1** table, where bits 8 and 9 are undefined and must be ignored |
+| `augment/face.ttf` | `gen-augment-face-fixtures.py` | the installed face for decision 173: `.notdef A B C D E acute` plus `Eacute`, a composite of `E` and `acute`; hinted, `post` 2.0 |
+| `augment/subset.ttf` | `gen-augment-face-fixtures.py` | `.notdef A B C` cut from `face.ttf` with identical outlines and hinting tables, so appending `D` or `Eacute` passes the identity check |
+| `augment/subset-other-fpgm.ttf` | `gen-augment-face-fixtures.py` | as `subset.ttf` with a different `fpgm`, so the appended glyphs' instructions must be stripped (default) or the append refused |
+| `augment/subset-empty-slot.ttf` | `gen-augment-face-fixtures.py` | `.notdef A B C D` where `D` is mapped but has no outline, so the append remaps `D` to the new glyph and must give it a unique `post` name |
+| `augment/face-b-differs.ttf` | `gen-augment-face-fixtures.py` | as `face.ttf` but glyph `B` has another outline, for the identity check's mismatch case |
 
 The `fsType` files are named for their bits, not for the verdict pdfcer
 reaches, so renaming a refusal does not orphan a file. Every file in this

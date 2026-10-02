@@ -41,7 +41,7 @@
 use std::collections::BTreeMap;
 
 use super::program::FontProgram;
-use super::sfnt::{Directory, assemble, read_i16, read_u16};
+use super::sfnt::{Directory, assemble, format4, read_i16, read_u16};
 use super::type1_cff;
 
 /// Why a font could not be turned into a web font.
@@ -260,70 +260,8 @@ pub(crate) fn wrap_cff(cff: &[u8], used: impl IntoIterator<Item = u16>) -> Optio
 }
 
 /// A `cmap` with one format-4 subtable shared by (0,3) and (3,1).
-///
-/// Segments group characters that are consecutive AND map to consecutive
-/// glyphs, so each needs only an `idDelta`; the mandatory final segment
-/// maps 0xFFFF to glyph 0.
 fn cmap(map: &BTreeMap<u16, u16>) -> Result<Vec<u8>, WebFontError> {
-    let mut segs: Vec<(u16, u16, u16)> = Vec::new(); // (start, end, first gid)
-    for (&c, &g) in map {
-        if c == 0xFFFF {
-            continue;
-        }
-        match segs.last_mut() {
-            Some((start, end, g0))
-                if u32::from(*end) + 1 == u32::from(c)
-                    && u32::from(*g0) + u32::from(c - *start) == u32::from(g) =>
-            {
-                *end = c;
-            }
-            _ => segs.push((c, c, g)),
-        }
-    }
-    segs.push((0xFFFF, 0xFFFF, 0));
-    let seg_count = u16::try_from(segs.len()).map_err(|_| WebFontError::TooLarge)?;
-    let mut entry_selector = 0u16;
-    while (2u32 << entry_selector) <= u32::from(seg_count) {
-        entry_selector += 1;
-    }
-    let search_range = 2 * (1u16 << entry_selector);
-    let seg_x2 = seg_count * 2;
-    let range_shift = seg_x2 - search_range;
-    let length = 16 + 8 * usize::from(seg_count);
-    let length = u16::try_from(length).map_err(|_| WebFontError::TooLarge)?;
-
-    let mut sub = Vec::with_capacity(usize::from(length));
-    for v in [
-        4,
-        length,
-        0,
-        seg_x2,
-        search_range,
-        entry_selector,
-        range_shift,
-    ] {
-        sub.extend_from_slice(&v.to_be_bytes());
-    }
-    for (_, end, _) in &segs {
-        sub.extend_from_slice(&end.to_be_bytes());
-    }
-    sub.extend_from_slice(&0u16.to_be_bytes()); // reservedPad
-    for (start, _, _) in &segs {
-        sub.extend_from_slice(&start.to_be_bytes());
-    }
-    for (start, _, g0) in &segs {
-        // The final segment's delta is 1: 0xFFFF + 1 wraps to glyph 0.
-        let delta = if *start == 0xFFFF {
-            1
-        } else {
-            g0.wrapping_sub(*start)
-        };
-        sub.extend_from_slice(&delta.to_be_bytes());
-    }
-    for _ in &segs {
-        sub.extend_from_slice(&0u16.to_be_bytes()); // idRangeOffset
-    }
-
+    let sub = format4(map).ok_or(WebFontError::TooLarge)?;
     let mut out = Vec::new();
     for v in [0u16, 2] {
         out.extend_from_slice(&v.to_be_bytes());

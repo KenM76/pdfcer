@@ -108,8 +108,14 @@ note (172 §5).
   `(3,1)`, `(3,10)`), and to `(1,0)` only for a Mac OS Roman character.
   Formats 0, 4, 6 and 12 are rewritten. `(3,1)` must be present, else
   `MissingUnicodeCmap`.
+  A character the subset maps to an **empty** glyph is remapped to the
+  new GID; the old empty slot stays. The old-mapping check (R260) exempts
+  exactly the characters added.
 - **`post`:** 3.0 is unchanged. 2.0 appends the face's names (`uniXXXX` if
   the face's `post` is 3.0). 1.0, 2.5 and 4.0 give `UnsupportedPostFormat`.
+  A name already used in the subset (the empty-slot case) is replaced by
+  `uniXXXX`, `uXXXXX` or `glyphN`, with a `.N` suffix if that collides
+  too, so name lookup stays unambiguous.
 - **`head`:** the bbox is unioned, and checksums and `checkSumAdjustment` are
   recomputed. `modified` and `fontRevision` are untouched, for deterministic
   output.
@@ -126,6 +132,10 @@ note (172 §5).
   `MAX_DONOR_BYTES`, else `ProgramTooLarge`.
 - **Writer:** purpose-built for these tables. It adds no dependency;
   untouched tables are copied raw.
+
+Byte-layout sources: the spec RAG's `fonts/font__opentype_numglyphs_dependents.md`
+(the append checklist; start there), with `font__opentype_glyf.md`, `_loca`,
+`_head`, `_hhea_hmtx`, `_maxp`, `_post`, `_cmap` and `font__sfnt_table_directory.md`.
 
 ## 5. Hinting and subset tag
 

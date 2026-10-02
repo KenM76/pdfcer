@@ -2,6 +2,8 @@
 //! checksums and `head.checkSumAdjustment` (OpenType 1.9.1, "The OpenType
 //! font file").
 
+use std::collections::BTreeMap;
+
 /// An sfnt table directory over borrowed bytes.
 pub(crate) struct Directory<'a> {
     pub(crate) flavor: u32,
@@ -14,8 +16,18 @@ impl<'a> Directory<'a> {
     /// tables are sliced from `data` as they are for a plain sfnt; face 0 is
     /// the face the renderer draws with.
     pub(crate) fn parse(data: &'a [u8]) -> Option<Self> {
+        Self::parse_face(data, 0)
+    }
+
+    /// Face `index` of a collection, or the sfnt itself when `data` is not a
+    /// collection (any `index` then reads the one face).
+    pub(crate) fn parse_face(data: &'a [u8], index: u32) -> Option<Self> {
         let base = if data.starts_with(b"ttcf") {
-            usize::try_from(read_u32(data, 12)?).ok()?
+            if index >= read_u32(data, 8)? {
+                return None;
+            }
+            let at = 12 + usize::try_from(index).ok()? * 4;
+            usize::try_from(read_u32(data, at)?).ok()?
         } else {
             0
         };
@@ -38,6 +50,13 @@ impl<'a> Directory<'a> {
     /// The bytes of table `tag`, if present.
     pub(crate) fn table(&self, tag: [u8; 4]) -> Option<&'a [u8]> {
         self.tables.iter().find(|(t, _)| *t == tag).map(|(_, d)| *d)
+    }
+}
+
+/// Overwrite the two bytes at `at` with `v`; out of bounds writes nothing.
+pub(crate) fn put(out: &mut [u8], at: usize, v: [u8; 2]) {
+    if let Some(d) = out.get_mut(at..at.saturating_add(2)) {
+        d.copy_from_slice(&v);
     }
 }
 
@@ -111,4 +130,71 @@ pub(crate) fn assemble(flavor: u32, mut tables: Vec<([u8; 4], Vec<u8>)>) -> Vec<
         }
     }
     out
+}
+
+/// A format-4 `cmap` subtable for `map` (OpenType `cmap` format 4).
+///
+/// Segments group characters that are consecutive AND map to consecutive
+/// glyphs, so each needs only an `idDelta`; the mandatory final segment maps
+/// 0xFFFF to glyph 0. `None` when the subtable would exceed 64 KiB.
+pub(crate) fn format4(map: &BTreeMap<u16, u16>) -> Option<Vec<u8>> {
+    let mut segs: Vec<(u16, u16, u16)> = Vec::new(); // (start, end, first gid)
+    for (&c, &g) in map {
+        if c == 0xFFFF {
+            continue;
+        }
+        match segs.last_mut() {
+            Some((start, end, g0))
+                if u32::from(*end) + 1 == u32::from(c)
+                    && u32::from(*g0) + u32::from(c - *start) == u32::from(g) =>
+            {
+                *end = c;
+            }
+            _ => segs.push((c, c, g)),
+        }
+    }
+    segs.push((0xFFFF, 0xFFFF, 0));
+    let seg_count = u16::try_from(segs.len()).ok()?;
+    let mut entry_selector = 0u16;
+    while (2u32 << entry_selector) <= u32::from(seg_count) {
+        entry_selector += 1;
+    }
+    let search_range = 2 * (1u16 << entry_selector);
+    let seg_x2 = seg_count * 2;
+    let range_shift = seg_x2 - search_range;
+    let length = 16 + 8 * usize::from(seg_count);
+    let length = u16::try_from(length).ok()?;
+
+    let mut sub = Vec::with_capacity(usize::from(length));
+    for v in [
+        4,
+        length,
+        0,
+        seg_x2,
+        search_range,
+        entry_selector,
+        range_shift,
+    ] {
+        sub.extend_from_slice(&v.to_be_bytes());
+    }
+    for (_, end, _) in &segs {
+        sub.extend_from_slice(&end.to_be_bytes());
+    }
+    sub.extend_from_slice(&0u16.to_be_bytes()); // reservedPad
+    for (start, _, _) in &segs {
+        sub.extend_from_slice(&start.to_be_bytes());
+    }
+    for (start, _, g0) in &segs {
+        // The final segment's delta is 1: 0xFFFF + 1 wraps to glyph 0.
+        let delta = if *start == 0xFFFF {
+            1
+        } else {
+            g0.wrapping_sub(*start)
+        };
+        sub.extend_from_slice(&delta.to_be_bytes());
+    }
+    for _ in &segs {
+        sub.extend_from_slice(&0u16.to_be_bytes()); // idRangeOffset
+    }
+    Some(sub)
 }
