@@ -4,6 +4,52 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-01 (858th filing) — `Pass 430.1` SLICE 1 EXTENDED (`194afb45`) — identity checks I1–I7 for subset augmentation
+
+**Shipped:**
+- `194afb45` — new `pdfcer-render` module `font::augment::identity`
+  (decision 173 §4). `candidate_index` picks a `.ttc` member by name ID
+  6 matching `/FontName` minus its six-capital `ABCDEF+` subset tag.
+  `check` runs I2 (static `glyf` flavour `0x00010000`, no `fvar` →
+  `FaceNotTrueTypeOutlines`), I3 (`R109` on BOTH face and subset →
+  `EmbeddingNotPermitted`), I4 (`unitsPerEm` equal → `UnitsPerEmMismatch`),
+  I5 (each shared glyph's unhinted outline + `hmtx` advance equal,
+  scope `AllShared` default or `ShownOnly` → `OutlineMismatch`/
+  `AdvanceMismatch`), I6 (nothing compared → `IdentityUnproven`), I7
+  (face maps every requested character → `FaceLacksCharacter`). An
+  empty subset glyph slot counts as no evidence for I5/I6.
+  `subset::check_embedding_permission` widened to `pub(crate)` so I3
+  can run it against the face too. 28 augment tests total (8 new; 20
+  were `append_glyphs`'s own from the 857th filing); 7/7 planted
+  sabotages caught (up from 6/6). `cargo clippy -- -D warnings`, the
+  structure gate and `check-public-fns-documented` all clean. No
+  `Cargo.toml` change — `cargo tree -p pdfcer-core`/`-p pdfcer-render`
+  unaffected. `core [ ]` / `cli [ ]` / `gui [ ]` unchanged — still
+  render-internal, no caller.
+
+**Decisions made this session:** none new — executes decision 173 §4,
+same as the 857th filing.
+
+**Findings + decisions:** none.
+
+**Still in flight:**
+- `Pass 430.1` STAYS OPEN — core `EditOptions`/`SubsetAugmenter`
+  wiring, descriptor/stream rewrite + fresh subset tag, font-dict
+  revision, disclosure, CLI and `docs/core-api` are still owed. The
+  identity checks I1–I7 are now DONE as of this filing; nothing else
+  in the original owed list has moved.
+- `Pass 430.3` (route B, symbolic-font fallback) unstarted.
+- `Pass 431.0`–`436.3` unstarted.
+
+**For next session:**
+- Wire `Pass 430.1`'s remainder: `EditOptions::with_subset_augment`,
+  the `SubsetAugmenter` trait + render impl, descriptor/stream
+  rewrite + subset tag, disclosure, CLI exposure, `docs/core-api`.
+
+**Sourcing (hard rule 8):** no shell this filing. Hash (`194afb45`)
+and every fact above relayed from the dispatching engineer's own
+report, not independently reproduced.
+
 ## 2026-10-01 (857th filing) — `Pass 430.1` SLICE 1 PARTIALLY SHIPPED (`dd5747d1`+`9990e435`) — augment an embedded TrueType subset with glyphs from an installed face
 
 **Shipped:**
