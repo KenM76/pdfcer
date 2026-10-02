@@ -33,6 +33,9 @@ pub(crate) fn run() -> ExitCode {
     }
 
     let _ = CLI_LOAD_OPTIONS.set(cli.on_malformed.to_load_options());
+    if let Err(code) = crate::settings::install(cli.settings.as_deref(), cli.no_settings) {
+        return ExitCode::from(code);
+    }
 
     let code = match cli.command {
         Command::Inspect {

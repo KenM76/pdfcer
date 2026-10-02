@@ -340,7 +340,8 @@ pub(crate) fn resolve_render_options(
 ///    device pixels per user-space unit. The default face set is the
 ///    **bundled** Base-14 substitutes ([`pdfcer_render::RenderOptions::default`]);
 ///    `--font-dir` layers OPERATOR-supplied faces on top.
-///    The CLI never *auto-discovers* system fonts — rule R19 (decision
+///    The CLI never *auto-discovers* system fonts unless a settings file
+///    opts in (decision 176, named on stderr) — rule R19 (decision
 ///    004) makes the default render deterministic, and a batch job whose
 ///    output silently depends on which fonts the runner happens to have
 ///    installed is not one anyone can trust. `--font-dir` is the explicit,

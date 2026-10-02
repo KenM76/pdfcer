@@ -578,6 +578,7 @@ mod text_edit;
 use text_edit::*;
 mod fallback_font;
 mod fonts;
+mod settings;
 use fonts::*;
 mod security;
 use security::*;

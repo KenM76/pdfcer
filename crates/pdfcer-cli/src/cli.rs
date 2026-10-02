@@ -64,6 +64,56 @@ pub(crate) struct Cli {
         conflicts_with = "open_password"
     )]
     pub(crate) open_password_file: Option<PathBuf>,
+
+    /// Read settings from PATH, not pdfcer-settings.txt beside pdfcer.
+    ///
+    /// Without this flag, pdfcer reads pdfcer-settings.txt from the folder
+    /// pdfcer.exe is in, if there is one. With neither, nothing is read: no
+    /// system fonts are searched and refused text edits are not worked
+    /// around. When a settings file is in use, pdfcer says so on stderr,
+    /// once, naming the file and what it turns on.
+    ///
+    /// The file is plain text, one `key = value` per line. Blank lines and
+    /// lines starting with # or ; are ignored, and a value may be in double
+    /// quotes.
+    ///
+    ///   workarounds = always|offer   When a text edit is refused, apply the
+    ///                                workaround (always) or refuse and name
+    ///                                it (offer, the default).
+    ///   system_fonts = on|off        Also search the system font folders
+    ///                                (off by default). Windows: %WINDIR%\Fonts
+    ///                                and %LOCALAPPDATA%\Microsoft\Windows\Fonts.
+    ///                                macOS: /System/Library/Fonts,
+    ///                                /Library/Fonts, ~/Library/Fonts. Linux:
+    ///                                /usr/share/fonts, /usr/local/share/fonts,
+    ///                                ~/.local/share/fonts, ~/.fonts.
+    ///   font_folder = PATH           Another folder to search; repeat the
+    ///                                line for more. A relative path is
+    ///                                relative to the settings file; ~/ is
+    ///                                your home folder.
+    ///   font_file_limit = N          Stop searching after N font files
+    ///                                (default 10000).
+    ///
+    /// Font folders are searched with their subfolders, up to 8 levels deep,
+    /// and their fonts are used everywhere --font-dir fonts are, except by
+    /// format-text --embed-styled-face, which still needs --font-dir. When
+    /// two folders hold a font of the same name, a --font-dir wins over a
+    /// font_folder, and a font_folder wins over a system folder. An unknown
+    /// key or a bad value stops pdfcer with the line number, so a typo
+    /// cannot be silently ignored.
+    #[arg(
+        long,
+        global = true,
+        value_name = "PATH",
+        conflicts_with = "no_settings",
+        verbatim_doc_comment
+    )]
+    pub(crate) settings: Option<PathBuf>,
+
+    /// Ignore every settings file, so the output depends on the command
+    /// line alone.
+    #[arg(long, global = true)]
+    pub(crate) no_settings: bool,
 }
 
 /// The password supplied by `--open-password` / `--open-password-file`,
@@ -4143,13 +4193,15 @@ pub(crate) enum Command {
     /// geometry. A clean render writes nothing to stderr, so a non-empty
     /// stderr is a real signal and `2>/dev/null` is never needed.
     ///
-    /// # No system fonts are discovered
+    /// # No system fonts are discovered unless a settings file asks
     ///
     /// The default render is deterministic: a batch job whose output
     /// depends on which fonts the runner happens to have installed is not one
     /// anyone can trust. `--font-dir` is the explicit, disclosed opt-in, and
     /// glyphs drawn from a supplied face are counted separately from
-    /// substituted ones.
+    /// substituted ones. A settings file (see `--settings`) can add font
+    /// folders or the OS font folders; it is named on stderr whenever it is
+    /// read, and `--no-settings` ignores it.
     RenderPage {
         /// Input PDF.
         input: PathBuf,

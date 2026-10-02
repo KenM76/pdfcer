@@ -445,100 +445,124 @@ pub(crate) const FONT_FILE_EXTENSIONS: [&str; 7] =
 /// [`MAX_FONT_FILE_BYTES`], or fails to parse is skipped and pushed to
 /// the returned notes; it never aborts the walk or the render.
 ///
+/// The settings file's folders ([`crate::settings::font_dirs`], decision
+/// 176) are registered FIRST, so a `--font-dir` face of the same name wins
+/// (last registration wins). They are summarised in one note rather than
+/// one per file, because an OS font folder holds thousands.
+///
 /// Returns the environment plus a `(registered, notes)` pair:
 /// `registered` is the count of faces (name→file registrations) added,
 /// `notes` are the human-readable skip/registration lines for stderr.
-/// When `font_dirs` is empty the environment is exactly
-/// [`pdfcer_render::FontEnvironment::bundled`] and both are empty — the
-/// deterministic default path is untouched (R19/R63).
+/// When `font_dirs` is empty and no settings file adds folders, the
+/// environment is exactly [`pdfcer_render::FontEnvironment::bundled`] and
+/// both are empty — the deterministic default path is untouched (R19/R63).
 pub(crate) fn build_font_environment(
     font_dirs: &[PathBuf],
 ) -> (pdfcer_render::FontEnvironment, usize, Vec<String>) {
-    use pdfcer_render::FontData;
-    use pdfcer_render::font::program::FontProgram;
-
     let mut env = pdfcer_render::FontEnvironment::bundled();
     let mut registered = 0usize;
     let mut notes: Vec<String> = Vec::new();
 
+    let settings_dirs = crate::settings::font_dirs();
+    if !settings_dirs.is_empty() {
+        let mut quiet = Vec::new();
+        let mut files = 0usize;
+        for dir in settings_dirs {
+            files += register_font_dir(&mut env, dir, &mut registered, &mut quiet);
+        }
+        let skipped = quiet
+            .iter()
+            .filter(|n| !n.starts_with("registered "))
+            .count();
+        notes.push(format!(
+            "settings folders: {registered} names registered from {files} font files, \
+             {skipped} skipped"
+        ));
+    }
     for dir in font_dirs {
-        let entries = match std::fs::read_dir(dir) {
-            Ok(rd) => rd,
-            Err(err) => {
-                notes.push(format!("font dir {}: {err}", dir.display()));
-                continue;
-            }
-        };
-        // Collect + sort so registration order (and therefore
-        // duplicate-name precedence: last wins) is deterministic rather
-        // than dependent on the OS directory-iteration order (R19 spirit,
-        // even though the walk itself is shell-side).
-        let mut files: Vec<PathBuf> = entries
-            .filter_map(|e| e.ok().map(|e| e.path()))
-            .filter(|p| p.is_file() && has_font_extension(p))
-            .collect();
-        files.sort();
+        register_font_dir(&mut env, dir, &mut registered, &mut notes);
+    }
+    (env, registered, notes)
+}
 
-        for path in files {
-            let meta = std::fs::metadata(&path);
-            if let Ok(m) = &meta
-                && m.len() > MAX_FONT_FILE_BYTES
-            {
+/// Register every font file directly in `dir` (not its subfolders); returns
+/// how many font-extension files were tried. See [`build_font_environment`].
+fn register_font_dir(
+    env: &mut pdfcer_render::FontEnvironment,
+    dir: &Path,
+    registered: &mut usize,
+    notes: &mut Vec<String>,
+) -> usize {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(rd) => rd,
+        Err(err) => {
+            notes.push(format!("font dir {}: {err}", dir.display()));
+            return 0;
+        }
+    };
+    // Collect + sort so registration order (and therefore duplicate-name
+    // precedence: last wins) is deterministic rather than dependent on the
+    // OS directory-iteration order (R19 spirit).
+    let mut files: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.is_file() && has_font_extension(p))
+        .collect();
+    files.sort();
+    for path in &files {
+        match font_file_names(path) {
+            Ok((names, data)) => {
+                for name in &names {
+                    env.insert_named(name, data.clone());
+                    *registered += 1;
+                }
                 notes.push(format!(
-                    "skipped {}: {} bytes exceeds the {}-MiB font-file ceiling",
+                    "registered {} as: {}",
                     path.display(),
-                    m.len(),
-                    MAX_FONT_FILE_BYTES / (1024 * 1024)
+                    names.join(", ")
                 ));
-                continue;
             }
-            let bytes = match std::fs::read(&path) {
-                Ok(b) => b,
-                Err(err) => {
-                    notes.push(format!("skipped {}: {err}", path.display()));
-                    continue;
-                }
-            };
-            // Parse ONCE (R21) to read the advertised name(s). The borrow
-            // ends before `bytes` is moved into `FontData` below.
-            let mut names: Vec<String> = match FontProgram::parse(&bytes) {
-                Ok(program) => program.face_names(),
-                Err(err) => {
-                    notes.push(format!(
-                        "skipped {}: not a usable font ({err})",
-                        path.display()
-                    ));
-                    continue;
-                }
-            };
-            // Always also register under the filename stem, so a match
-            // works even when the internal name is odd or absent.
-            if let Some(stem) = path.file_stem().and_then(|s| s.to_str())
-                && !names.iter().any(|n| n == stem)
-            {
-                names.push(stem.to_owned());
-            }
-            if names.is_empty() {
-                notes.push(format!(
-                    "skipped {}: parsed but advertises no name and has no usable filename",
-                    path.display()
-                ));
-                continue;
-            }
-            let data = FontData::new(bytes);
-            for name in &names {
-                env.insert_named(name, data.clone());
-                registered += 1;
-            }
-            notes.push(format!(
-                "registered {} as: {}",
-                path.display(),
-                names.join(", ")
-            ));
+            Err(note) => notes.push(note),
         }
     }
+    files.len()
+}
 
-    (env, registered, notes)
+/// Read and parse one font file: the names to register it under (every
+/// advertised name, plus the filename stem) and its bytes. The error is the
+/// skip note.
+fn font_file_names(path: &Path) -> Result<(Vec<String>, pdfcer_render::FontData), String> {
+    use pdfcer_render::font::program::FontProgram;
+
+    if let Ok(m) = std::fs::metadata(path)
+        && m.len() > MAX_FONT_FILE_BYTES
+    {
+        return Err(format!(
+            "skipped {}: {} bytes exceeds the {}-MiB font-file ceiling",
+            path.display(),
+            m.len(),
+            MAX_FONT_FILE_BYTES / (1024 * 1024)
+        ));
+    }
+    let bytes = std::fs::read(path).map_err(|err| format!("skipped {}: {err}", path.display()))?;
+    // Parse ONCE (R21) to read the advertised name(s). The borrow ends
+    // before `bytes` is moved into `FontData` below.
+    let mut names: Vec<String> = FontProgram::parse(&bytes)
+        .map(|program| program.face_names())
+        .map_err(|err| format!("skipped {}: not a usable font ({err})", path.display()))?;
+    // Always also register under the filename stem, so a match works even
+    // when the internal name is odd or absent.
+    if let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+        && !names.iter().any(|n| n == stem)
+    {
+        names.push(stem.to_owned());
+    }
+    if names.is_empty() {
+        return Err(format!(
+            "skipped {}: parsed but advertises no name and has no usable filename",
+            path.display()
+        ));
+    }
+    Ok((names, pdfcer_render::FontData::new(bytes)))
 }
 
 /// Whether `path`'s extension is one of [`FONT_FILE_EXTENSIONS`]

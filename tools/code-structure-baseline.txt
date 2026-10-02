@@ -169,7 +169,6 @@ fn pdfcer-cli/src/fonts.rs::cmd_embed_font
 fn pdfcer-cli/src/fonts.rs::cmd_unembed_font
 fn pdfcer-cli/src/image.rs::cmd_add_image
 fn pdfcer-cli/src/image.rs::report_image_disclosures
-fn pdfcer-cli/src/inspect.rs::build_font_environment
 fn pdfcer-cli/src/inspect.rs::disclose_recovery
 fn pdfcer-cli/src/listing.rs::cmd_add_caret
 fn pdfcer-cli/src/listing.rs::cmd_add_screen
