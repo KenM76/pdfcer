@@ -212,20 +212,21 @@ impl IconFit {
             icon.height().max(f64::EPSILON),
         );
         let (fx, fy) = (area.width() / bw, area.height() / bh);
-        let (fx, fy) = match self.scaling {
-            IconScaling::Proportional => {
-                let s = fx.min(fy);
-                (s, s)
-            }
-            IconScaling::Anamorphic => (fx, fy),
+        // `/SW` judges the whole icon against the whole box, for both `/S`
+        // modes: "bigger" is overflowing on either axis, "smaller" is
+        // fitting on both with room. The table leaves the per-axis reading
+        // open; one rule keeps proportional and anamorphic consistent.
+        let scale = match self.scale_when {
+            IconScaleWhen::Always => true,
+            IconScaleWhen::Bigger => fx.min(fy) < 1.0,
+            IconScaleWhen::Smaller => fx.min(fy) > 1.0,
+            IconScaleWhen::Never => false,
         };
-        let when = |f: f64| match self.scale_when {
-            IconScaleWhen::Always => f,
-            IconScaleWhen::Bigger => f.min(1.0),
-            IconScaleWhen::Smaller => f.max(1.0),
-            IconScaleWhen::Never => 1.0,
+        let (sx, sy) = match (scale, self.scaling) {
+            (false, _) => (1.0, 1.0),
+            (true, IconScaling::Proportional) => (fx.min(fy), fx.min(fy)),
+            (true, IconScaling::Anamorphic) => (fx, fy),
         };
-        let (sx, sy) = (when(fx), when(fy));
         let x0 = area.llx + (area.width() - bw * sx) * self.align[0];
         let y0 = area.lly + (area.height() - bh * sy) * self.align[1];
         [sx, 0.0, 0.0, sy, x0 - icon.llx * sx, y0 - icon.lly * sy]
@@ -437,6 +438,22 @@ mod tests {
             ..IconFit::default()
         };
         assert_eq!(never.place(small, big_box), [1.0, 0.0, 0.0, 1.0, 0.0, 30.0]);
+    }
+
+    #[test]
+    fn anamorphic_scale_when_judges_the_whole_icon() {
+        // 10x40 icon in a 20x20 box: overflows vertically, fits horizontally.
+        let tall = r(0.0, 0.0, 10.0, 40.0);
+        let square = r(0.0, 0.0, 20.0, 20.0);
+        let fit = |scale_when| IconFit {
+            scale_when,
+            scaling: IconScaling::Anamorphic,
+            ..IconFit::default()
+        };
+        let m = fit(IconScaleWhen::Bigger).place(tall, square);
+        assert_eq!((m[0], m[3]), (2.0, 0.5), "bigger: both axes fill the box");
+        let m = fit(IconScaleWhen::Smaller).place(tall, square);
+        assert_eq!((m[0], m[3]), (1.0, 1.0), "smaller: not smaller overall");
     }
 
     #[test]

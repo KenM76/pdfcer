@@ -383,6 +383,44 @@ fn another_producers_icon_survives_an_edit_that_sets_none() {
     assert_eq!(mk.get(b"TP"), Some(&Object::Integer(3)));
 }
 
+/// Table 247 values may be indirect: `/SW 7 0 R` (`/N`) must stop the 10 pt
+/// icon scaling up to the 80x30 button, as a direct `/N` would.
+#[test]
+fn an_indirect_icon_fit_value_is_honoured() {
+    let doc = build(&[
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Annots [4 0 R] >>",
+        "<< /Type /Annot /Subtype /Widget /FT /Btn /Ff 65536 /T (B) /P 3 0 R \
+         /Rect [20 20 100 50] /MK << /I 5 0 R /TP 1 /IF << /SW 7 0 R /A 8 0 R >> >> \
+         /AP << /N 6 0 R >> >>",
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 10 10] /Length 18 >>\nstream\n\
+         0 0 10 10 re f\n\nendstream",
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 80 30] /Length 24 >>\nstream\n\
+         0 0 1 rg 0 0 80 30 re f\nendstream",
+        "/N",
+        "[0 0]",
+    ]);
+    let mut s = EditSession::new(doc);
+    s.edit_widget(
+        "B",
+        0,
+        &WidgetEdit::new()
+            .with_caption("Go")
+            .with_replace_foreign_appearance(true),
+    )
+    .expect("edit");
+    let doc = reload(&s);
+    let n = reference(&sub(&doc, &dict(&doc, ObjId::new(4, 0)), b"AP"), b"N");
+    let (_, content) = stream(&doc, n);
+    let cm = content
+        .lines()
+        .find(|l| l.trim_end().ends_with(" cm"))
+        .unwrap_or_else(|| panic!("no cm: {content}"));
+    let m: Vec<&str> = cm.split_whitespace().take(4).collect();
+    assert_eq!(m, ["1", "0", "0", "1"], "unscaled icon: {cm}");
+}
+
 #[test]
 fn replacing_a_foreign_push_button_draws_its_own_icon() {
     let mut s = EditSession::new(foreign_button());

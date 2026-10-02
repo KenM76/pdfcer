@@ -171,7 +171,7 @@ impl EditSession {
         };
         let fit = self
             .deref_dict(mk.get(b"IF"))
-            .map(|d| IconFit::from_dict(&d))
+            .map(|d| IconFit::from_dict(&self.resolve_icon_fit(&d)))
             .unwrap_or_default();
         Some((
             ButtonIcon {
@@ -181,6 +181,23 @@ impl EditSession {
             },
             id,
         ))
+    }
+
+    /// `if_dict` with every value, and every `/A` element, resolved: Table
+    /// 247 permits indirect values, and [`IconFit::from_dict`] reads direct
+    /// ones only.
+    fn resolve_icon_fit(&self, if_dict: &Dict) -> Dict {
+        let mut out = Dict::new();
+        for (k, v) in if_dict.iter() {
+            let mut v = self.deref_value(Some(v)).unwrap_or(Object::Null);
+            if let Object::Array(a) = &mut v {
+                for e in a.iter_mut() {
+                    *e = self.deref_value(Some(e)).unwrap_or(Object::Null);
+                }
+            }
+            out.insert(k.clone(), v);
+        }
+        out
     }
 
     /// `/TP`, defaulting to caption-only when absent or out of range.
