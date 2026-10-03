@@ -421,6 +421,25 @@ impl PrcFile {
         &self,
         rule: crate::StyleAlpha,
     ) -> Result<Vec<crate::Placement>, PrcError> {
+        Ok(self.walk(rule)?.0)
+    }
+
+    /// The assembly tree as a model-tree panel lists it: every product
+    /// occurrence the model file's roots reach, depth first, with its
+    /// display name and stored visibility. Hidden and suppressed subtrees
+    /// are listed (with `drawn` false) though [`Self::placements`] leaves
+    /// them out; each node's `placements` range indexes that list.
+    ///
+    /// # Errors
+    /// As [`Self::placements`].
+    pub fn model_tree(&self) -> Result<Vec<crate::ModelNode>, PrcError> {
+        Ok(self.walk(crate::StyleAlpha::default())?.1)
+    }
+
+    fn walk(
+        &self,
+        rule: crate::StyleAlpha,
+    ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
         use crate::bits::BitReader;
         use crate::tess::Ctx;
         let mut trees = Vec::with_capacity(self.file_structures.len());
@@ -462,8 +481,14 @@ impl PrcFile {
             if root == 0 {
                 continue;
             }
-            walk.occurrence(fs, root as usize - 1, &crate::tree::IDENTITY, &[], 0)?;
+            walk.occurrence(
+                fs,
+                root as usize - 1,
+                &crate::tree::IDENTITY,
+                &[],
+                crate::tree::At::ROOT,
+            )?;
         }
-        Ok(walk.out)
+        Ok((walk.out, walk.nodes))
     }
 }

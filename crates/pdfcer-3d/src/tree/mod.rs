@@ -12,14 +12,16 @@ use crate::container::UniqueId;
 use crate::tess::{Ctx, malformed};
 
 mod geometry;
+mod node;
 mod style;
 mod walk;
 
 use crate::vec3::cross;
 pub use geometry::{IDENTITY, Matrix, multiply, transform_point};
+pub use node::{ModelNode, NameSource};
 pub use style::StyleAlpha;
 pub(crate) use style::{Globals, Graphics, resolve_style};
-pub(crate) use walk::Walk;
+pub(crate) use walk::{At, Walk};
 
 const BASE_WITH_GRAPHICS: u32 = 2;
 const MODEL_FILE: u32 = 301;
@@ -163,15 +165,21 @@ pub(crate) struct Product {
     pub(crate) external: u32,
     pub(crate) external_fs: Option<UniqueId>,
     pub(crate) sons: Vec<u32>,
+    /// Its own graphics hide it (Show clear or Removed set).
     pub(crate) hidden: bool,
+    /// `product_behavior` SUPPRESSED.
+    pub(crate) suppressed: bool,
     pub(crate) graphics: Graphics,
     pub(crate) location: Option<Matrix>,
+    pub(crate) name: Option<String>,
 }
 
 /// One file structure's tree section.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub(crate) struct Tree {
     pub(crate) parts: Vec<Vec<Item>>,
+    /// Each part definition's name, parallel to `parts`.
+    pub(crate) part_names: Vec<Option<String>>,
     pub(crate) products: Vec<Product>,
     /// `index_product_occurrence + 1` of this structure's root.
     pub(crate) root: u32,
@@ -530,9 +538,11 @@ impl Ctx<'_, '_> {
         self.user_data()
     }
 
-    fn part_definition(&mut self) -> Result<Vec<Item>, PrcError> {
+    /// `PartDefinition` (311): its drawable items and its name.
+    fn part_definition(&mut self) -> Result<(Vec<Item>, Option<String>), PrcError> {
         self.expect_type(PART_DEFINITION)?;
         let (hidden, own) = self.base_with_graphics()?;
+        let name = self.name.clone();
         self.vector3()?; // bounding box
         self.vector3()?;
         let n = self.count(1, "representation items")?;
@@ -548,7 +558,7 @@ impl Ctx<'_, '_> {
         if hidden {
             items.clear();
         }
-        Ok(items)
+        Ok((items, name))
     }
 
     /// `FileIdentifier` [WD 7.3.10.2.2]: `None` for the same structure.
@@ -566,6 +576,7 @@ impl Ctx<'_, '_> {
         let mut p = Product {
             hidden,
             graphics,
+            name: self.name.clone(),
             part: self.r.unsigned_integer()?,
             ..Product::default()
         };
@@ -581,7 +592,7 @@ impl Ctx<'_, '_> {
         for _ in 0..n {
             p.sons.push(self.r.unsigned_integer()?);
         }
-        p.hidden |= self.r.character()? & SUPPRESSED != 0;
+        p.suppressed = self.r.character()? & SUPPRESSED != 0;
         // ProductInformation [WD 7.3.10.3].
         self.r.bit()?;
         self.r.double()?;
@@ -620,7 +631,9 @@ impl Ctx<'_, '_> {
         let n = self.count(1, "part definitions")?;
         let mut tree = Tree::default();
         for _ in 0..n {
-            tree.parts.push(self.part_definition()?);
+            let (items, name) = self.part_definition()?;
+            tree.parts.push(items);
+            tree.part_names.push(name);
         }
         let n = self.count(1, "product occurrences")?;
         for _ in 0..n {
@@ -669,14 +682,28 @@ mod tests {
 
     /// `ContentPRCBase`: no attributes, same name.
     fn base(w: &mut W) {
-        w.uint(0).bit(true);
+        named(w, None);
+    }
+
+    /// `ContentPRCBase` with `name`: `None` for same name, `Some(None)`
+    /// for a null one.
+    fn named(w: &mut W, name: Option<Option<&str>>) {
+        w.uint(0);
+        match name {
+            None => w.bit(true),
+            Some(n) => w.bit(false).string(n),
+        };
     }
 
     /// `PRCBaseWithGraphics`; `g` is `(line style + 1, behaviour)`, `None`
     /// reusing the current graphics. `extra` writes the UInt a schema adds
     /// to type 2.
     fn graphics(w: &mut W, g: Option<(u32, u16)>, extra: bool) {
-        base(w);
+        graphics_named(w, None, g, extra);
+    }
+
+    fn graphics_named(w: &mut W, name: Option<Option<&str>>, g: Option<(u32, u16)>, extra: bool) {
+        named(w, name);
         w.uint(0).uint(0).uint(7);
         match g {
             None => {
@@ -713,9 +740,9 @@ mod tests {
     }
 
     /// A part with one poly-BRep item on tessellation 1, local CS `cs`.
-    fn part(w: &mut W, cs: u32, extra: bool) {
+    fn part(w: &mut W, cs: u32, extra: bool, name: Option<Option<&str>>) {
         w.uint(PART_DEFINITION);
-        graphics(w, None, extra);
+        graphics_named(w, name, None, extra);
         for c in [1.0, 0.0, 0.0, -1.0, 0.0, 0.0] {
             w.double(c);
         }
@@ -737,6 +764,8 @@ mod tests {
         camera: bool,
         /// `(prototype + 1, its file structure)`, `None` meaning this one.
         prototype: Option<(u32, Option<UniqueId>)>,
+        /// As [`named`].
+        name: Option<Option<&'a str>>,
     }
 
     const OCC: Occ<'static> = Occ {
@@ -748,11 +777,12 @@ mod tests {
         mirror: false,
         camera: false,
         prototype: None,
+        name: None,
     };
 
     fn occurrence(w: &mut W, o: &Occ<'_>, extra: bool) {
         w.uint(PRODUCT_OCCURRENCE);
-        graphics(w, o.behaviour, extra);
+        graphics_named(w, o.name, o.behaviour, extra);
         w.uint(o.part);
         match o.prototype {
             None => w.uint(0),
@@ -793,11 +823,15 @@ mod tests {
     }
 
     fn tree(occs: &[Occ<'_>], cs: u32, extra: bool) -> W {
+        tree_with(occs, cs, extra, None)
+    }
+
+    fn tree_with(occs: &[Occ<'_>], cs: u32, extra: bool, part_name: Option<Option<&str>>) -> W {
         let mut w = W::default();
         w.uint(FILE_STRUCTURE_TREE);
         base(&mut w);
         w.uint(1);
-        part(&mut w, cs, extra);
+        part(&mut w, cs, extra, part_name);
         w.uint(occs.len() as u32);
         for o in occs {
             occurrence(&mut w, o, extra);
@@ -856,7 +890,7 @@ mod tests {
         let bytes = tree(occs, cs, false).bytes();
         let t = ctx(&bytes, &Schema::default()).file_structure_tree()?;
         let mut walk = Walk::new(vec![(FS, &t, globals)], StyleAlpha::default());
-        walk.occurrence(0, 0, &IDENTITY, &[], 0)?;
+        walk.occurrence(0, 0, &IDENTITY, &[], At::ROOT)?;
         Ok(walk.out)
     }
 
@@ -966,6 +1000,149 @@ mod tests {
             place(&occs, 1, &Globals::default()),
             Err(PrcError::Malformed(_))
         ));
+    }
+
+    fn listed(occs: &[Occ<'_>], part_name: Option<Option<&str>>) -> (usize, Vec<ModelNode>) {
+        let bytes = tree_with(occs, 0, false, part_name).bytes();
+        let t = ctx(&bytes, &Schema::default())
+            .file_structure_tree()
+            .unwrap();
+        let globals = Globals::default();
+        let mut walk = Walk::new(vec![(FS, &t, &globals)], StyleAlpha::default());
+        walk.occurrence(0, 0, &IDENTITY, &[], At::ROOT).unwrap();
+        (walk.out.len(), walk.nodes)
+    }
+
+    #[test]
+    fn the_tree_lists_hidden_and_suppressed_subtrees_without_drawing_them() {
+        let occs = [
+            Occ {
+                sons: &[1, 2, 4],
+                name: Some(Some("Assembly")),
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                name: Some(Some("Bolt")),
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                sons: &[3],
+                suppressed: true,
+                name: Some(Some("Nut")),
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                name: Some(Some("Washer")),
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                behaviour: Some((0, 0)),
+                name: Some(Some("Pin")),
+                ..OCC
+            },
+        ];
+        let (drawn, nodes) = listed(&occs, None);
+        assert_eq!(drawn, 1);
+        let row = |n: &ModelNode| {
+            (
+                n.name.clone().unwrap_or_default(),
+                n.parent,
+                n.depth,
+                n.hidden,
+                n.suppressed,
+                n.drawn,
+                n.placements.clone(),
+            )
+        };
+        let rows: Vec<_> = nodes.iter().map(row).collect();
+        let s = String::from;
+        assert_eq!(
+            rows,
+            [
+                (s("Assembly"), None, 0, false, false, true, 0..1),
+                (s("Bolt"), Some(0), 1, false, false, true, 0..1),
+                (s("Nut"), Some(0), 1, false, true, false, 1..1),
+                (s("Washer"), Some(2), 2, false, false, false, 1..1),
+                (s("Pin"), Some(0), 1, true, false, false, 1..1),
+            ]
+        );
+        assert!(!nodes[0].has_part && nodes[1].has_part);
+        assert_eq!(nodes[3].occurrence, 3);
+    }
+
+    #[test]
+    fn a_name_falls_back_to_the_prototype_then_the_part() {
+        let occs = [
+            Occ {
+                sons: &[1, 2],
+                name: Some(None),
+                ..OCC
+            },
+            Occ {
+                prototype: Some((4, None)),
+                name: Some(None),
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                name: Some(None),
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                name: Some(Some("Bracket")),
+                ..OCC
+            },
+        ];
+        let from = |nodes: &[ModelNode]| -> Vec<_> {
+            nodes
+                .iter()
+                .map(|n| (n.name.clone(), n.name_from))
+                .collect()
+        };
+        let named = |n: &str| Some(n.to_owned());
+        let (_, nodes) = listed(&occs, Some(Some("Plate")));
+        assert_eq!(
+            from(&nodes),
+            [
+                (None, NameSource::Unnamed),
+                (named("Bracket"), NameSource::Prototype),
+                (named("Plate"), NameSource::Part),
+            ]
+        );
+        let (_, nodes) = listed(&occs, Some(None));
+        assert_eq!(from(&nodes)[2], (None, NameSource::Unnamed));
+    }
+
+    #[test]
+    fn same_name_reuses_the_current_name() {
+        let occs = [
+            Occ {
+                sons: &[1],
+                name: Some(Some("Top")),
+                ..OCC
+            },
+            Occ { part: 1, ..OCC },
+        ];
+        let (_, nodes) = listed(&occs, None);
+        assert_eq!(nodes[1].name.as_deref(), Some("Top"));
+        assert_eq!(nodes[1].name_from, NameSource::Occurrence);
+    }
+
+    #[test]
+    fn the_model_tree_indexes_the_placements() {
+        let f = crate::PrcFile::parse(&assembly_prc()).unwrap();
+        let ranges: Vec<_> = f
+            .model_tree()
+            .unwrap()
+            .iter()
+            .map(|n| (n.depth, n.placements.clone()))
+            .collect();
+        assert_eq!(ranges, [(0, 0..2), (1, 0..1), (1, 1..2)]);
     }
 
     /// A two-occurrence assembly of the unit square: once in place, once

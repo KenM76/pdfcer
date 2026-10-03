@@ -878,3 +878,36 @@ fn a_richmedia_poster_is_refused_and_writes_nothing() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// The assembly fixture's tree: a root over two placements of one part.
+#[cfg(feature = "3d")]
+#[test]
+fn a_prc_assembly_tree_is_listed() {
+    let input = with_prc("tree_assembly", "assembly.prc");
+    let path = input.to_str().unwrap();
+    let out = run(&["3d-tree", path, "--index", "2"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{stdout}");
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        [
+            "occurrence 0:0  [2 placement(s)]",
+            "  occurrence 0:1  [1 placement(s)]",
+            "  occurrence 0:2  [1 placement(s)]",
+            "nodes=3 drawn=3 not_drawn=0",
+        ]
+    );
+    let out = run(&["3d-tree", path, "--index", "2", "--json"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains(
+            "{\"name\":null,\"name_from\":\"none\",\"parent\":0,\"depth\":1,\
+             \"file_structure\":0,\"occurrence\":2,\"hidden\":false,\"suppressed\":false,\
+             \"drawn\":true,\"has_part\":true,\"placements\":[1,2]}"
+        ),
+        "{stdout}"
+    );
+    let out = run(&["3d-tree", path, "--index", "0"]);
+    assert_eq!(out.status.code(), Some(9));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("not a PRC model"));
+}

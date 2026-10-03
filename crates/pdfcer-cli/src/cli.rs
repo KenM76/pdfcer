@@ -3039,6 +3039,34 @@ pub(crate) enum Command {
         format: Option<MeshFormat>,
     },
 
+    /// **List a 3D model's assembly tree**: its parts and sub-assemblies.
+    ///
+    /// Prints every product occurrence of the PRC model, indented under its
+    /// parent, with the visibility the file stores: `hidden` (its own
+    /// graphics hide it), `suppressed`, or `not drawn` (a parent is hidden
+    /// or suppressed). These are listed but left out of `3d-mesh` and
+    /// `3d-render`. An occurrence with no name of its own shows its
+    /// prototype's or part's, tagged `name from prototype` / `name from
+    /// part`, and a note counts them; one with no name anywhere is listed as
+    /// `occurrence F:I` (file structure, index). A summary line counts the
+    /// nodes. `--json` prints one object per node instead, with
+    /// `placements` as the `[start, end)` range of the drawn placements
+    /// under it.
+    ///
+    /// Refuses a U3D model (not decoded yet). Exit 9 when refused, with the
+    /// reason.
+    #[command(name = "3d-tree")]
+    ThreeDTree {
+        /// Input PDF.
+        input: PathBuf,
+        /// Which model, by the index `3d-list` prints.
+        #[arg(long)]
+        index: usize,
+        /// Print JSON instead of the indented tree.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// **Render a 3D model to a PNG** from a camera, without a 3D viewer.
     ///
     /// Decodes and assembles the PRC model the way `3d-mesh` does, then

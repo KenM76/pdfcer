@@ -61,4 +61,6 @@ pub use render::{
 };
 pub use schema::Schema;
 pub use tess::{Tessellation, TriangleMesh};
-pub use tree::{IDENTITY, Matrix, Placement, StyleAlpha, multiply, transform_point};
+pub use tree::{
+    IDENTITY, Matrix, ModelNode, NameSource, Placement, StyleAlpha, multiply, transform_point,
+};

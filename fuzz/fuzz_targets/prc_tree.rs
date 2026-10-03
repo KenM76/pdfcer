@@ -1,12 +1,14 @@
 //! Fuzz target: the PRC product tree, reference coordinate systems and
-//! occurrence walk (`PrcFile::placements`, PRC 8137 WD 7.3.6, 7.3.10).
+//! occurrence walk (`PrcFile::placements`, `PrcFile::model_tree`, PRC 8137
+//! WD 7.3.6, 7.3.10).
 //!
 //! As `prc_tess`, the input is wrapped in a valid container: byte 0 picks
 //! the authoring version, bytes 1-2 split the rest into the globals section
 //! (schema first) and the tree section, and byte 3 is the root occurrence
 //! the built model file names, so the walk is reached without the fuzzer
 //! having to find a matching file-structure id.
-//! Invariant: never panics, never loops, never overflows the stack.
+//! Invariant: never panics, never loops, never overflows the stack; every
+//! tree node's placement range lies within the placements, parents first.
 
 #![no_main]
 
@@ -124,5 +126,11 @@ fuzz_target!(|data: &[u8]| {
     let v = VERSIONS[usize::from(*sel) % VERSIONS.len()];
     let f = PrcFile::parse_with_limit(&container(v, globals, tree, &model_file(*root)), 1 << 20)
         .expect("a built container parses");
-    let _ = f.placements();
+    let placed = f.placements().map(|p| p.len());
+    if let (Ok(nodes), Ok(placed)) = (f.model_tree(), placed) {
+        for (i, n) in nodes.iter().enumerate() {
+            assert!(n.placements.start <= n.placements.end && n.placements.end <= placed);
+            assert!(n.parent.is_none_or(|p| p < i));
+        }
+    }
 });

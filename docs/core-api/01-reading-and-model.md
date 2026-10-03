@@ -147,6 +147,7 @@ builds `--no-default-features`, so both configurations compile.
 | List embedded 3D models (U3D/PRC/STEP) | `threed::list_3d_with_notes(&graph)` — `threed.rs` | §12.2 |
 | Extract a 3D model's bytes | `threed::extract_3d(&DocumentView, &ThreeDArtwork)` — `threed.rs` | §12.2 |
 | Read the view a 3D model opens on (camera, projection) | `threed::default_3d_view(&graph, &ThreeDArtwork)` — `threed/view.rs` | §12.2 |
+| List a PRC model's assembly tree (names, hierarchy, stored visibility) | `pdfcer_3d::PrcFile::model_tree() -> Result<Vec<ModelNode>, PrcError>` — `pdfcer-3d/src/tree/node.rs` | §12.2 |
 | Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |
 | Compute hidden layers, correctly for print/export | `annot::optional_content_default_off(&graph)` — `annot.rs` | §12.3 |
@@ -2925,6 +2926,21 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `prc.placements_with(rule)` or `pdfcer_3d::assemble_with(data, rule)`;
   `placements()` / `assemble()` use the default. Offer the choice as a
   setting.
+- `prc.model_tree() -> Result<Vec<ModelNode>, PrcError>`: the model-tree
+  panel's rows, depth first (parent before children, children in file
+  order), one per product occurrence the roots reach — hidden and
+  suppressed subtrees included. `ModelNode` (`#[non_exhaustive]`): `name:
+  Option<String>`, `name_from: NameSource::{Occurrence, Prototype, Part,
+  Unnamed}` (the fallback order pdfcer applies; PRC names no display name —
+  disclose a borrowed name, as `3d-tree` tags it), `parent: Option<usize>`
+  (index in the list), `depth`, `file_structure`, `occurrence`, `hidden`
+  (own graphics: Show clear or Removed — the stored default, which the
+  panel opens on), `suppressed`, `drawn` (false when it or an ancestor is
+  hidden or suppressed), `has_part`, `placements: Range<usize>` (the drawn
+  placements of the node and its subtree, indexing `placements()` /
+  `placements_with(any rule)` — same order). Toggling a node's visibility
+  is a shell matter: drop that range from what you draw. Errors as
+  `placements()`. CLI: `pdfcer 3d-tree IN --index N [--json]`.
 - `Placement::triangle_colours(&mesh) -> Option<Vec<Option<[f64; 4]>>>`: per
   triangle of that placement's (untransformed) mesh, the colour when faces
   carry their own style (`TESS_Face` line attributes, taking part in the same

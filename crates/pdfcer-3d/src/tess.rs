@@ -106,16 +106,21 @@ pub(crate) struct Ctx<'a, 's> {
     /// The current graphics: what a `same_graphics` entity reuses [WD 5.4].
     /// A fresh `Ctx` starts with none, as each section does.
     pub(crate) graphics: crate::tree::Graphics,
+    /// The current name: what a `same_name` entity reuses; every entity's
+    /// own name replaces it [WD 7.2.3.4].
+    pub(crate) name: Option<String>,
 }
 
 impl<'a, 's> Ctx<'a, 's> {
-    /// A reader at `r` with no current graphics: each section starts afresh.
+    /// A reader at `r` with no current graphics or name: each section
+    /// starts afresh.
     pub(crate) fn new(r: BitReader<'a>, schema: &'s Schema, version: u32) -> Self {
         Ctx {
             r,
             schema,
             version,
             graphics: crate::tree::Graphics::default(),
+            name: None,
         }
     }
 }
@@ -164,7 +169,8 @@ impl Ctx<'_, '_> {
         Ok(())
     }
 
-    /// `ContentPRCBase` [WD 7.2.3]: attributes, then the name.
+    /// `ContentPRCBase` [WD 7.2.3]: attributes, then the name; returns the
+    /// entity's name, which is also the current name afterwards.
     pub(crate) fn content_prc_base(&mut self) -> Result<Option<String>, PrcError> {
         let n = self.count(1, "attributes")?;
         for _ in 0..n {
@@ -195,11 +201,10 @@ impl Ctx<'_, '_> {
             self.schema.skip_added_fields(ATTRIBUTE, &mut self.r)?;
         }
         // Name: `same_name` TRUE reuses the current name [WD 7.2.3.4].
-        if self.r.bit()? {
-            Ok(None)
-        } else {
-            self.r.string()
+        if !self.r.bit()? {
+            self.name = self.r.string()?;
         }
+        Ok(self.name.clone())
     }
 
     /// `UserData` [WD 8.6]: a bit count, then that many opaque bits.

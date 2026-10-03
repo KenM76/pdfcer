@@ -444,6 +444,7 @@ pub(crate) fn run() -> ExitCode {
             let format = format.unwrap_or_else(|| MeshFormat::for_path(&output));
             cmd_mesh_3d(&input, index, &output, format)
         }
+        Command::ThreeDTree { input, index, json } => cmd_tree_3d(&input, index, json),
         Command::ThreeDRender {
             input,
             index,
