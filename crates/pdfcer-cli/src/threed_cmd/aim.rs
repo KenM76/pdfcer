@@ -55,7 +55,8 @@ pub(super) fn aim_camera(
     let aspect = f64::from(a.width) / f64::from(a.height.max(1));
     let Some(mut saved) = view.aim(aspect) else {
         return named(format!(
-            "the file's opening view \"{}\" leaves the camera to the model, which is not              read yet; iso, z up",
+            "the file's opening view \"{}\" leaves the camera to the model, which is not \
+             read yet; iso, z up",
             view.name
         ));
     };
