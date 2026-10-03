@@ -89,18 +89,13 @@ pub enum SubsetError {
     /// The bytes are not a font pdfcer recognises.
     #[error("this file is not a font pdfcer can read (it is not a TrueType or OpenType file)")]
     NotAFont,
-    /// The face parsed, but its outlines are not `glyf`.
-    ///
-    /// Kept distinct from [`Self::NotAFont`] because the operator's next move
-    /// differs completely: a CFF face is a *valid* font pdfcer cannot yet
-    /// embed, and telling them it is "not a font" would be a lie that costs
-    /// them time proving otherwise.
+    /// The face's outlines are CFF2 (variable PostScript), which pdfcer
+    /// cannot subset for embedding.
     #[error(
-        "this font uses CFF (PostScript) outlines, and pdfcer can currently embed only TrueType \
-         outlines. The font is fine — pdfcer's support for this kind is not. Choose a TrueType \
-         (.ttf) face."
+        "this font uses CFF2 (variable PostScript) outlines, which pdfcer cannot embed yet. The \
+         font is fine; choose a static TrueType (.ttf) or OpenType (.otf) face."
     )]
-    CffNotSupported,
+    Cff2NotSupported,
     /// The face is structurally damaged.
     #[error("this font file is damaged and could not be read ({detail})")]
     Malformed { detail: String },
@@ -172,7 +167,10 @@ pub enum SubsetError {
 /// Build a [`FontEmbedPlan`] covering `chars` from `donor` bytes.
 ///
 /// `face_index` selects a face inside a collection; pass `0` for a plain
-/// font file.
+/// font file. A `glyf` donor yields a TrueType plan (`/FontFile2`); a CFF
+/// donor yields a bare CID-keyed CFF program (`/FontFile3 /CIDFontType0C`,
+/// ISO 32000-2 §9.9 Table 124), lifted out of the subsetter's `OTTO` wrapper
+/// because a cmap-less `OTTO` cannot be declared `/OpenType`.
 ///
 /// # Errors
 ///
@@ -186,38 +184,25 @@ pub fn plan_subset(
     base_name: &str,
     subset_tag: &str,
 ) -> Result<FontEmbedPlan, SubsetError> {
-    // Bound BEFORE parsing. The ceiling exists to stop pdfcer reading a file
-    // whose only purpose is to be enormous, so checking it after handing the
-    // bytes to a parser would be checking the wrong side of the door.
+    // Bound BEFORE parsing: the ceiling guards the parser.
     if donor.len() > MAX_DONOR_BYTES {
         return Err(SubsetError::TooLarge {
             size: donor.len(),
             limit: MAX_DONOR_BYTES,
         });
     }
-
     let font = FontRef::from_index(donor, face_index).map_err(|_| SubsetError::NotAFont)?;
-
-    // Outline kind decides the descriptor key, and CFF cannot be emitted
-    // conformantly at the P0 floor — `subsetter` returns an OTTO-wrapped
-    // sfnt for CFF donors, while §9.9 Table 126 requires a `cmap` for
-    // CFF-outline OpenType programs (which the subsetter removes) and
-    // `/CIDFontType0C` wants a bare CFF program rather than a container.
-    // Refusing here, before any work, keeps the error close to the cause.
     let outline_kind = if font.glyf().is_ok() {
         OutlineKind::TrueType
+    } else if font.cff().is_ok() {
+        OutlineKind::Cff
+    } else if font.cff2().is_ok() {
+        return Err(SubsetError::Cff2NotSupported);
     } else {
-        return Err(SubsetError::CffNotSupported);
+        return Err(SubsetError::NotAFont);
     };
-
-    // R109: read the font author's embedding permission BEFORE subsetting.
-    //
-    // It has to be before, not after, for a mechanical reason as well as a
-    // moral one: `subsetter` strips `OS/2` from its output, so once the
-    // subset exists the permission bits are gone and there is nothing left
-    // to check.
+    // R109, before subsetting: the subsetter strips `OS/2`.
     check_embedding_permission(&font)?;
-
     let head = font.head().map_err(|_| SubsetError::NoHeadTable)?;
     let upem = f64::from(head.units_per_em());
     if upem <= 0.0 {
@@ -225,9 +210,7 @@ pub fn plan_subset(
             detail: "units-per-em is zero".to_owned(),
         });
     }
-    // Everything the PDF sees is in 1000-unit glyph space (§9.7.4.3), which
-    // is NOT the font's own space. Scaling once here means no downstream
-    // arithmetic has to remember to.
+    // The PDF sees 1000-unit glyph space (§9.7.4.3), not the font's own.
     let to_pdf = |v: f64| -> i32 {
         #[allow(
             clippy::cast_possible_truncation,
@@ -237,16 +220,39 @@ pub fn plan_subset(
             (v * 1000.0 / upem).round() as i32
         }
     };
+    let wanted = covered_glyphs(&font, chars)?;
+    let mut mapper = GlyphRemapper::new();
+    let glyphs = subset_glyphs(&font, &wanted, &mut mapper, &to_pdf);
+    let program = subsetter::subset(donor, face_index, &mapper).map_err(map_subsetter_error)?;
+    let program = match outline_kind {
+        OutlineKind::Cff => sfnt_table(&program, *b"CFF ")
+            .ok_or_else(|| SubsetError::SubsetterBug {
+                detail: "the subset carries no CFF table".to_owned(),
+            })?
+            .to_vec(),
+        _ => program,
+    };
+    Ok(FontEmbedPlan {
+        program,
+        base_name: base_name.to_owned(),
+        subset_tag: subset_tag.to_owned(),
+        outline_kind,
+        glyphs,
+        metrics: descriptor_metrics(&font, &head, &to_pdf),
+    })
+}
 
-    // Coverage first, so a font that cannot help is refused before any
-    // subsetting work happens — and so the refusal can name the characters.
+/// Each requested character's donor glyph, refusing a gap by name.
+fn covered_glyphs(
+    font: &FontRef<'_>,
+    chars: &[char],
+) -> Result<Vec<(char, GlyphId16)>, SubsetError> {
     let charmap = font.charmap();
     let mut wanted: Vec<(char, GlyphId16)> = Vec::new();
     let mut missing: Vec<char> = Vec::new();
     for &c in chars {
         match charmap.map(c) {
-            // `.notdef` is GID 0 and means "this font has no glyph for it".
-            // Treating it as coverage would embed a face that draws boxes.
+            // GID 0 is `.notdef`: "no glyph", not coverage.
             Some(gid) if gid.to_u32() != 0 => {
                 let raw = u16::try_from(gid.to_u32()).map_err(|_| SubsetError::Malformed {
                     detail: "glyph id exceeds 16 bits".to_owned(),
@@ -263,47 +269,48 @@ pub fn plan_subset(
         missing.dedup();
         return Err(SubsetError::IncompleteCoverage { missing });
     }
+    Ok(wanted)
+}
 
-    // Remap: the subsetter assigns each kept glyph a new, dense GID, and
-    // that new GID IS the CID in the emitted CIDFont (§9.7.4.2 with
-    // /CIDToGIDMap /Identity). `.notdef` is always member 0.
-    let mut mapper = GlyphRemapper::new();
-    let mut glyphs: Vec<SubsetGlyph> = Vec::new();
+/// The kept glyphs, ascending by CID. The subsetter's dense new GID is the
+/// CID: `/CIDToGIDMap /Identity` for TrueType, the identity charset it
+/// writes for CFF.
+fn subset_glyphs(
+    font: &FontRef<'_>,
+    wanted: &[(char, GlyphId16)],
+    mapper: &mut GlyphRemapper,
+    to_pdf: &impl Fn(f64) -> i32,
+) -> Vec<SubsetGlyph> {
     let metrics = font.glyph_metrics(
         skrifa::instance::Size::unscaled(),
         skrifa::instance::LocationRef::default(),
     );
-    for (c, gid) in &wanted {
-        let new_gid = mapper.remap(gid.to_u16());
-        let advance = metrics
-            .advance_width(skrifa::GlyphId::from(gid.to_u16()))
-            .unwrap_or(0.0);
-        glyphs.push(SubsetGlyph {
-            cid: new_gid,
-            width: to_pdf(f64::from(advance)),
+    let mut glyphs: Vec<SubsetGlyph> = wanted
+        .iter()
+        .map(|(c, gid)| SubsetGlyph {
+            cid: mapper.remap(gid.to_u16()),
+            width: to_pdf(f64::from(
+                metrics
+                    .advance_width(skrifa::GlyphId::from(gid.to_u16()))
+                    .unwrap_or(0.0),
+            )),
             unicode: *c,
-        });
-    }
-    // Ascending by CID: `/W` runs are built by walking this in order, and an
-    // unsorted list would emit runs that describe the wrong glyphs.
+        })
+        .collect();
+    // `/W` runs are built by walking this in order.
     glyphs.sort_by_key(|g| g.cid);
+    glyphs
+}
 
-    let program = subsetter::subset(donor, face_index, &mapper).map_err(map_subsetter_error)?;
-
-    let bbox = [
-        to_pdf(f64::from(head.x_min())),
-        to_pdf(f64::from(head.y_min())),
-        to_pdf(f64::from(head.x_max())),
-        to_pdf(f64::from(head.y_max())),
-    ];
-
-    // Descriptor numbers. `post` and `OS/2` are optional in the format, so
-    // each is defaulted rather than treated as required — a face without
-    // `OS/2` is unusual but not damaged, and refusing it would be a stricter
-    // rule than the format's.
+/// The `/FontDescriptor` numbers, defaulting the optional `post` and `OS/2`.
+fn descriptor_metrics(
+    font: &FontRef<'_>,
+    head: &skrifa::raw::tables::head::Head<'_>,
+    to_pdf: &impl Fn(f64) -> i32,
+) -> DescriptorMetrics {
     let italic_angle = font
         .post()
-        .map(|p| p.italic_angle().to_f32() as f64)
+        .map(|p| f64::from(p.italic_angle().to_f32()))
         .unwrap_or(0.0);
     let (ascent, descent, cap_height) = font.os2().map_or_else(
         |_| {
@@ -321,36 +328,50 @@ pub fn plan_subset(
             )
         },
     );
+    DescriptorMetrics {
+        bbox: [
+            to_pdf(f64::from(head.x_min())),
+            to_pdf(f64::from(head.y_min())),
+            to_pdf(f64::from(head.x_max())),
+            to_pdf(f64::from(head.y_max())),
+        ],
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "italic angle is degrees; any real value is inside i32"
+        )]
+        italic_angle: italic_angle.round() as i32,
+        ascent,
+        descent,
+        cap_height,
+        // No table carries /StemV; it matters only to a substituting viewer,
+        // and the program is embedded.
+        stem_v: 80,
+        // Nonsymbolic (bit 6): the donor carries ordinary typed text.
+        flags: 32,
+    }
+}
 
-    Ok(FontEmbedPlan {
-        program,
-        base_name: base_name.to_owned(),
-        subset_tag: subset_tag.to_owned(),
-        outline_kind,
-        glyphs,
-        metrics: DescriptorMetrics {
-            bbox,
-            #[allow(
-                clippy::cast_possible_truncation,
-                reason = "italic angle is degrees; any real value is inside i32"
-            )]
-            italic_angle: italic_angle.round() as i32,
-            ascent,
-            descent,
-            cap_height,
-            // No table carries /StemV. Every producer estimates it, and the
-            // value only affects a viewer's synthetic-substitute rendering —
-            // which cannot happen here, because the program is embedded. A
-            // fixed, documented estimate beats a fabricated computation that
-            // implies precision it does not have.
-            stem_v: 80,
-            // Nonsymbolic (bit 6, value 32). The donor is being embedded to
-            // carry ordinary text the operator typed, which is by definition
-            // in the standard character set. Symbolic would tell a consumer
-            // to ignore /Encoding — wrong for this use, and Table 123 makes
-            // the two mutually exclusive.
-            flags: 32,
-        },
+/// The bytes of table `tag` in an sfnt, bounds-checked.
+fn sfnt_table(sfnt: &[u8], tag: [u8; 4]) -> Option<&[u8]> {
+    let be16 = |at: usize| {
+        sfnt.get(at..at + 2)
+            .and_then(|b| b.try_into().ok())
+            .map(u16::from_be_bytes)
+    };
+    let be32 = |at: usize| {
+        sfnt.get(at..at + 4)
+            .and_then(|b| b.try_into().ok())
+            .map(u32::from_be_bytes)
+    };
+    let count = usize::from(be16(4)?);
+    (0..count).find_map(|i| {
+        let rec = 12 + 16 * i;
+        if sfnt.get(rec..rec + 4)? != tag {
+            return None;
+        }
+        let offset = usize::try_from(be32(rec + 8)?).ok()?;
+        let len = usize::try_from(be32(rec + 12)?).ok()?;
+        sfnt.get(offset..offset.checked_add(len)?)
     })
 }
 
@@ -759,17 +780,52 @@ mod tests {
         assert_eq!(err, SubsetError::NotAFont);
     }
 
-    /// Refusals have to tell the operator what to do next. A message that
-    /// only says "no" is a dead end (R27), and the CFF case is the one most
-    /// likely to be misread as "your font is broken" when it is not.
+    /// A refusal names what to choose instead (R27).
     #[test]
-    fn cff_refusal_says_the_font_is_fine_and_pdfcer_is_not() {
-        let text = SubsetError::CffNotSupported.to_string();
+    fn cff2_refusal_says_the_font_is_fine_and_pdfcer_is_not() {
+        let text = SubsetError::Cff2NotSupported.to_string();
         assert!(text.contains("The font is fine"), "{text}");
         assert!(
             text.contains("TrueType"),
             "must name what to choose instead: {text}"
         );
+    }
+
+    fn cff_donor() -> Vec<u8> {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/synthetic/text/fallback-donor-cff.otf"
+        );
+        std::fs::read(path).unwrap_or_else(|e| {
+            panic!("missing {path}: {e}. Run `python tools/gen-fallback-font-fixture.py`.")
+        })
+    }
+
+    /// A CFF donor yields a bare CID-keyed CFF program, not the `OTTO`
+    /// wrapper, so it can be `/FontFile3 /CIDFontType0C`.
+    #[test]
+    fn a_cff_donor_plans_a_bare_cid_keyed_cff_program() {
+        let plan = plan_subset(&cff_donor(), 0, &['Q', '\u{20AC}'], "pdfcerFbCff", "ABCDEF")
+            .expect("the donor covers Q and the euro sign");
+        assert_eq!(plan.outline_kind, OutlineKind::Cff);
+        assert!(plan.validate().is_ok());
+        // CFF header: major version 1.
+        assert_eq!(plan.program.first(), Some(&1), "{:?}", &plan.program[..4]);
+        assert_ne!(&plan.program[..4], b"OTTO");
+        // CID-keyed: the Top DICT opens with ROS (12 30).
+        let ros = plan.program.windows(2).any(|w| w == [12, 30]);
+        assert!(ros, "the subset must be CID-keyed");
+        let widths: Vec<(char, i32)> = plan.glyphs.iter().map(|g| (g.unicode, g.width)).collect();
+        assert_eq!(widths, vec![('Q', 700), ('\u{20AC}', 610)]);
+    }
+
+    #[test]
+    fn sfnt_table_finds_a_table_and_refuses_a_truncated_directory() {
+        let otf = cff_donor();
+        let cff = sfnt_table(&otf, *b"CFF ").expect("the donor has CFF");
+        assert_eq!(cff.first(), Some(&1));
+        assert!(sfnt_table(&otf, *b"glyf").is_none());
+        assert!(sfnt_table(&otf[..20], *b"CFF ").is_none());
     }
 
     #[test]

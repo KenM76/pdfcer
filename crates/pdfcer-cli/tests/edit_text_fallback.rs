@@ -267,3 +267,61 @@ fn a_fallback_file_flag_overrides_the_settings_font() {
     let _ = std::fs::remove_file(out);
     let _ = std::fs::remove_file(set);
 }
+
+/// A CFF-outline donor embeds as a bare CID-keyed CFF program under
+/// `/CIDFontType0`, and draws exactly as the same glyphs from `glyf` do.
+#[test]
+fn a_cff_fallback_file_embeds_fontfile3_and_draws_like_truetype() {
+    let render = |tag: &str, donor: &str| {
+        let donor = text_dir().join(donor);
+        let (o, out) = run(
+            tag,
+            "Qu\u{20AC} \u{2265} 5",
+            &["--fallback-font-file", donor.to_str().unwrap()],
+        );
+        assert_eq!(o.status.code(), Some(0), "{}", text(&o));
+        let png = out.with_extension("png");
+        let r = Command::new(BIN)
+            .arg("render-page")
+            .arg(&out)
+            .args(["--page", "1", "-o"])
+            .arg(&png)
+            .output()
+            .unwrap();
+        assert_eq!(r.status.code(), Some(0), "{}", text(&r));
+        let saved = std::fs::read(&out).unwrap();
+        let pixels = std::fs::read(&png).unwrap();
+        let _ = std::fs::remove_file(out);
+        let _ = std::fs::remove_file(png);
+        (
+            text(&o),
+            String::from_utf8_lossy(&saved).into_owned(),
+            pixels,
+        )
+    };
+    let (said, saved, cff_png) = render("cff", "fallback-donor-cff.otf");
+    assert!(said.contains("source=embedded-subset"), "{said}");
+    assert!(
+        saved.contains("/CIDFontType0C")
+            && saved.contains("/FontFile3")
+            && saved.contains("+fallback-donor-cff-Identity-H"),
+        "{saved}"
+    );
+    let (_, _, ttf_png) = render("cffref", "fallback-donor.ttf");
+    assert!(
+        cff_png == ttf_png,
+        "the CFF subset must draw as the glyf one"
+    );
+}
+
+#[test]
+fn auto_embeds_a_cff_face() {
+    let (o, out) = run_auto("autocff", &["fallback-donor-cff.otf"]);
+    let all = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{all}");
+    assert!(
+        all.contains("face_match=pdfcerFbCff rung=coverage skipped=0 failed=0"),
+        "{all}"
+    );
+    let _ = std::fs::remove_file(out);
+}

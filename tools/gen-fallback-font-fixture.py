@@ -21,6 +21,10 @@ glyphs under the run font's own name, pdfcerFbRun, with OS/2 fsType 2
 (Restricted License embedding): the replacement-face ladder's exact-name
 rung finds it by its name ID 6 and must skip it. fallback-donor.ttf has no
 name ID 6, so the ladder names it from its family.
+
+fallback-donor-cff.otf (Pass 436.5) carries the donor's glyphs as CFF
+outlines in an OTTO wrapper, named pdfcerFbCff, so the CFF embedding route
+(/CIDFontType0 + /FontFile3 /CIDFontType0C) has a donor.
 """
 
 from __future__ import annotations
@@ -86,6 +90,39 @@ def build_program(
     fb.setupOS2(sTypoAscender=800, sTypoDescender=-200, fsType=fs_type)
     fb.setupPost(keepGlyphNames=False)
     # Pinned so regeneration is byte-identical (fontTools stamps "now").
+    fb.font["head"].created = fb.font["head"].modified = HEAD_TIMESTAMP
+    buf = io.BytesIO()
+    fb.font.save(buf)
+    return buf.getvalue()
+
+
+def build_cff_program(glyph_table: dict, family: str) -> bytes:
+    """`build_program`'s glyphs as CFF outlines (OTTO)."""
+    from fontTools.fontBuilder import FontBuilder
+    from fontTools.pens.t2CharStringPen import T2CharStringPen
+
+    fb = FontBuilder(UPEM, isTTF=False)
+    fb.setupGlyphOrder([".notdef"] + list(glyph_table))
+    charstrings = {".notdef": T2CharStringPen(500, None).getCharString()}
+    for i, (name, (_, adv, outlined)) in enumerate(glyph_table.items()):
+        pen = T2CharStringPen(adv, None)
+        if outlined:
+            top = 400 + 50 * i
+            pen.moveTo((50, 0))
+            pen.lineTo((adv - 50, 0))
+            pen.lineTo((adv - 50, top))
+            pen.lineTo((50, top))
+            pen.closePath()
+        charstrings[name] = pen.getCharString()
+    fb.setupCFF(family, {"FullName": family}, charstrings, {})
+    metrics = {".notdef": (500, 0)}
+    metrics.update({n: (adv, 50) for n, (_, adv, _) in glyph_table.items()})
+    fb.setupHorizontalMetrics(metrics)
+    fb.setupHorizontalHeader(ascent=900, descent=-200)
+    fb.setupNameTable({"familyName": family, "styleName": "Regular", "psName": family})
+    fb.setupCharacterMap({u: n for n, (u, _, _) in glyph_table.items()})
+    fb.setupOS2(sTypoAscender=800, sTypoDescender=-200, fsType=0)
+    fb.setupPost(keepGlyphNames=False)
     fb.font["head"].created = fb.font["head"].modified = HEAD_TIMESTAMP
     buf = io.BytesIO()
     fb.font.save(buf)
@@ -162,7 +199,9 @@ def main() -> int:
     donor.write_bytes(build_program(DONOR_GLYPHS, "pdfcerFbDonor"))
     restricted = out_dir / "fallback-run-face-restricted.ttf"
     restricted.write_bytes(build_program(DONOR_GLYPHS, "pdfcerFbRun", fs_type=2, ps_name="pdfcerFbRun"))
-    for path in [*written, donor, restricted]:
+    cff = out_dir / "fallback-donor-cff.otf"
+    cff.write_bytes(build_cff_program(DONOR_GLYPHS, "pdfcerFbCff"))
+    for path in [*written, donor, restricted, cff]:
         print(f"wrote {path} ({path.stat().st_size} bytes)")
     return 0
 

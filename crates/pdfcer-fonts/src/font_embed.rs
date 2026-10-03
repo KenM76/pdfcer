@@ -5,8 +5,8 @@
 //! `pdfcer-render` parses a donor font file and subsets it, producing a
 //! [`FontEmbedPlan`] — plain data, no font types, no crate coupling. This
 //! module turns that plan into PDF objects: a `/Type0` font dictionary, its
-//! `/CIDFontType2` descendant, a `/FontDescriptor`, the `FontFile2` stream
-//! and a `/ToUnicode` CMap.
+//! `/CIDFontType2` (TrueType) or `/CIDFontType0` (CFF) descendant, a
+//! `/FontDescriptor`, the font-file stream and a `/ToUnicode` CMap.
 //!
 //! **It only ever ALLOCATES objects. It never rewrites an existing one.**
 //! That is standing rule R107, and it is what keeps the whole FF-C family
@@ -41,15 +41,15 @@
 //! The happy consequence is that the CID **is** the subsetter's remapped
 //! GID, so `/CIDToGIDMap` is `/Identity` and no mapping stream is needed.
 //!
-//! # Scope of the P0 floor
+//! # Outline kinds (ISO 32000-2 §9.9 Table 124)
 //!
-//! TrueType-outline (`glyf`) donors only. CFF donors are refused by name —
-//! `subsetter` wraps CFF output in an `OTTO` sfnt, and ISO 32000-1 §9.9
-//! Table 126 requires a `cmap` for CFF-outline OpenType programs (which the
-//! subsetter has just removed), while `/CIDFontType0C` wants a *bare* CFF
-//! program rather than a container. Emitting either key would be
-//! non-conformant, so the refusal is honest rather than a guess. See
-//! decision 021 §10 (C-3).
+//! `glyf` donors embed as `/FontFile2` under `/CIDFontType2` with
+//! `/CIDToGIDMap /Identity`. CFF donors embed as a bare CID-keyed CFF
+//! program, `/FontFile3 /Subtype /CIDFontType0C`, under `/CIDFontType0`:
+//! the subsetter's `OTTO` output has no `cmap`, which `/OpenType` requires
+//! for CFF outlines, so the producer lifts the `CFF ` table out of it. The
+//! subsetter writes an identity GID-to-CID charset, so the CID is still
+//! the remapped GID.
 
 use pdfcer_model::object::{Dict, Name, ObjId, Object};
 
@@ -64,7 +64,8 @@ use pdfcer_model::object::{Dict, Name, ObjId, Object};
 pub enum OutlineKind {
     /// `glyf`/`loca` outlines. Emitted as `/CIDFontType2` + `/FontFile2`.
     TrueType,
-    /// CFF outlines, arriving inside an `OTTO` wrapper. Refused at P0.
+    /// A bare CID-keyed CFF program. Emitted as `/CIDFontType0` +
+    /// `/FontFile3 /Subtype /CIDFontType0C`.
     Cff,
 }
 
@@ -120,7 +121,8 @@ pub struct SubsetGlyph {
 /// plan by hand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FontEmbedPlan {
-    /// The subsetted sfnt program, exactly as it will be embedded.
+    /// The subsetted program, exactly as it will be embedded: an sfnt for
+    /// [`OutlineKind::TrueType`], bare CFF for [`OutlineKind::Cff`].
     pub program: Vec<u8>,
     /// The donor's PostScript name, WITHOUT a subset tag.
     pub base_name: String,
@@ -130,7 +132,7 @@ pub struct FontEmbedPlan {
     /// never be concatenated in the wrong order or double-tagged; the `+`
     /// is inserted in exactly one place, [`Self::tagged_name`].
     pub subset_tag: String,
-    /// Outline flavour, for the descriptor key and the P0 refusal.
+    /// Outline flavour: picks the descendant subtype and font-file key.
     pub outline_kind: OutlineKind,
     /// The glyphs, ascending by CID.
     pub glyphs: Vec<SubsetGlyph>,
@@ -158,19 +160,35 @@ impl FontEmbedPlan {
         format!("{}+{}", self.subset_tag, self.base_name)
     }
 
+    /// The font-file stream's dictionary for a program of `len` bytes,
+    /// staged uncompressed (§9.9 Table 125): `/Length1` for TrueType,
+    /// `/Subtype /CIDFontType0C` for CFF.
+    #[must_use]
+    pub fn font_file_dict(&self, len: usize) -> Dict {
+        let n = i64::try_from(len).unwrap_or(i64::MAX);
+        let mut dict = Dict::new();
+        dict.insert(Name::from(b"Length"), Object::Integer(n));
+        match self.outline_kind {
+            OutlineKind::Cff => {
+                dict.insert(
+                    Name::from(b"Subtype"),
+                    Object::Name(Name::from(b"CIDFontType0C")),
+                );
+            }
+            OutlineKind::TrueType => {
+                dict.insert(Name::from(b"Length1"), Object::Integer(n));
+            }
+        }
+        dict
+    }
+
     /// Reject a plan that could only produce a non-conformant font.
     ///
     /// # Errors
     ///
-    /// Returns [`FontEmbedError`] for a CFF-outline donor (unsupported at
-    /// the P0 floor), a malformed subset tag, an empty glyph set, or an
-    /// empty program.
+    /// Returns [`FontEmbedError`] for a malformed subset tag, an empty base
+    /// name, an empty glyph set, or an empty program.
     pub fn validate(&self) -> Result<(), FontEmbedError> {
-        if self.outline_kind != OutlineKind::TrueType {
-            return Err(FontEmbedError::OutlineKindUnsupported {
-                kind: self.outline_kind,
-            });
-        }
         let tag_ok =
             self.subset_tag.len() == 6 && self.subset_tag.bytes().all(|b| b.is_ascii_uppercase());
         if !tag_ok {
@@ -199,14 +217,6 @@ impl FontEmbedPlan {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum FontEmbedError {
-    /// The donor's outlines are not `glyf`. See the module docs on why CFF
-    /// cannot be emitted conformantly at the P0 floor.
-    #[error(
-        "this font's outlines are {kind:?}, and pdfcer can currently embed only TrueType (glyf) \
-         outlines; a CFF-outline face cannot yet be written out in a form the PDF specification \
-         permits. Choose a TrueType face, or keep this edit to characters already on the page."
-    )]
-    OutlineKindUnsupported { kind: OutlineKind },
     /// The subset tag is not six uppercase ASCII letters (§9.6.4).
     #[error(
         "internal: subset tag {tag:?} is not six uppercase ASCII letters, which ISO 32000-1 \
@@ -261,21 +271,14 @@ impl EmbeddedFontObjects {
 
 /// Build the PDF objects for an embedded subset, starting at `first_number`.
 ///
-/// Allocates five consecutive object numbers — `/Type0`, `/CIDFontType2`,
-/// `/FontDescriptor`, `FontFile2`, `/ToUnicode` — so the incremental update
-/// section stays compact and deterministic, matching `addtext.rs`'s
-/// consecutive-pair convention.
+/// Allocates five consecutive object numbers — `/Type0`, the descendant
+/// CIDFont, `/FontDescriptor`, the font file, `/ToUnicode` — so the
+/// incremental update section stays compact and deterministic.
 ///
-/// The `program_span` is where the caller has staged the font bytes; this
-/// module does not own the staging buffer, for the same reason it does not
-/// own the page dictionary — the fewer things it touches, the sharper the
-/// R107 claim.
-///
-/// `to_unicode_stream` is the stream the caller staged
-/// [`FontEmbedPlan::to_unicode_cmap`]'s bytes into, for the same reason: a
-/// stream's data lives in the staging buffer, which this module does not own.
-/// §9.10.3 requires `/ToUnicode` to be a stream; a string there is ignored by
-/// every reader, leaving the text unextractable.
+/// `program_stream` and `to_unicode_stream` are the streams the caller
+/// staged [`FontEmbedPlan::program`] (under [`FontEmbedPlan::font_file_dict`])
+/// and [`FontEmbedPlan::to_unicode_cmap`] into; this module does not own the
+/// staging buffer. §9.10.3 requires `/ToUnicode` to be a stream.
 ///
 /// # Errors
 ///
@@ -289,15 +292,8 @@ pub fn build_objects(
     to_unicode_stream: Object,
 ) -> Result<EmbeddedFontObjects, FontEmbedError> {
     plan.validate()?;
-
-    // Five consecutive numbers. `checked_add` on the LAST one is the only
-    // check needed — if the highest fits, all the lower ones do.
-    // Allocated by name rather than into a Vec that is then indexed:
-    // `clippy::indexing_slicing` is DENIED crate-wide because pdfcer-core eats
-    // untrusted input and a panic here would be a denial-of-service bug, not
-    // a style complaint (see lib.rs). Naming each id also makes an off-by-one
-    // in the allocation order a compile error instead of a silently swapped
-    // pair of dictionaries.
+    // Named ids, not a Vec indexed: `clippy::indexing_slicing` is denied
+    // crate-wide, and a swapped pair becomes a compile-visible mistake.
     let alloc = |k: u32| -> Result<ObjId, FontEmbedError> {
         first_number
             .checked_add(k)
@@ -311,14 +307,18 @@ pub fn build_objects(
     let tounicode_id = alloc(4)?;
 
     let tagged = plan.tagged_name();
-
-    // /Type0 wrapper (§9.7.6.2 Table 121).
+    // §9.7.6.1 Table 121: a CIDFontType0 wrapper's /BaseFont is the
+    // descendant's name plus `-` and the CMap name.
+    let wrapper_name = match plan.outline_kind {
+        OutlineKind::Cff => format!("{tagged}-Identity-H"),
+        OutlineKind::TrueType => tagged.clone(),
+    };
     let mut type0 = Dict::new();
     type0.insert(Name::from(b"Type"), Object::Name(Name::from(b"Font")));
     type0.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Type0")));
     type0.insert(
         Name::from(b"BaseFont"),
-        Object::Name(Name(tagged.clone().into_bytes())),
+        Object::Name(Name(wrapper_name.into_bytes())),
     );
     type0.insert(
         Name::from(b"Encoding"),
@@ -330,16 +330,36 @@ pub fn build_objects(
     );
     type0.insert(Name::from(b"ToUnicode"), Object::Reference(tounicode_id));
 
-    // /CIDFontType2 descendant (§9.7.4.1 Table 117).
+    Ok(EmbeddedFontObjects {
+        font_dict_id: type0_id,
+        objects: vec![
+            (type0_id, Object::Dict(type0)),
+            (
+                cid_id,
+                Object::Dict(descendant_dict(plan, &tagged, desc_id)),
+            ),
+            (
+                desc_id,
+                Object::Dict(descriptor_dict(plan, tagged, file_id)),
+            ),
+            (file_id, program_stream),
+            (tounicode_id, to_unicode_stream),
+        ],
+    })
+}
+
+/// The descendant CIDFont (§9.7.4.1 Table 115).
+fn descendant_dict(plan: &FontEmbedPlan, tagged: &str, desc_id: ObjId) -> Dict {
+    let subtype: &[u8] = match plan.outline_kind {
+        OutlineKind::Cff => b"CIDFontType0",
+        OutlineKind::TrueType => b"CIDFontType2",
+    };
     let mut cid = Dict::new();
     cid.insert(Name::from(b"Type"), Object::Name(Name::from(b"Font")));
-    cid.insert(
-        Name::from(b"Subtype"),
-        Object::Name(Name::from(b"CIDFontType2")),
-    );
+    cid.insert(Name::from(b"Subtype"), Object::Name(Name::from(subtype)));
     cid.insert(
         Name::from(b"BaseFont"),
-        Object::Name(Name(tagged.clone().into_bytes())),
+        Object::Name(Name(tagged.as_bytes().to_vec())),
     );
     let mut csi = Dict::new();
     csi.insert(Name::from(b"Registry"), Object::String(b"Adobe".to_vec()));
@@ -350,18 +370,23 @@ pub fn build_objects(
     csi.insert(Name::from(b"Supplement"), Object::Integer(0));
     cid.insert(Name::from(b"CIDSystemInfo"), Object::Dict(csi));
     cid.insert(Name::from(b"FontDescriptor"), Object::Reference(desc_id));
-    // /CIDToGIDMap /Identity is correct precisely because the subsetter's
-    // remapped GID IS the CID (§9.7.4.2). Writing a stream here would be
-    // valid but redundant, and a redundant table is a table that can drift.
-    cid.insert(
-        Name::from(b"CIDToGIDMap"),
-        Object::Name(Name::from(b"Identity")),
-    );
+    // /CIDToGIDMap is a CIDFontType2 key only; the remapped GID is the CID.
+    if plan.outline_kind == OutlineKind::TrueType {
+        cid.insert(
+            Name::from(b"CIDToGIDMap"),
+            Object::Name(Name::from(b"Identity")),
+        );
+    }
     cid.insert(Name::from(b"DW"), Object::Integer(1000));
     cid.insert(Name::from(b"W"), Object::Array(widths_array(&plan.glyphs)));
+    cid
+}
 
-    // /FontDescriptor (§9.8.1 Table 122).
+/// The `/FontDescriptor` (§9.8.1 Table 120), pointing at the font file under
+/// its kind's key (§9.9 Table 124).
+fn descriptor_dict(plan: &FontEmbedPlan, tagged: String, file_id: ObjId) -> Dict {
     let m = plan.metrics;
+    let int = |v: i32| Object::Integer(i64::from(v));
     let mut desc = Dict::new();
     desc.insert(
         Name::from(b"Type"),
@@ -374,41 +399,19 @@ pub fn build_objects(
     desc.insert(Name::from(b"Flags"), Object::Integer(i64::from(m.flags)));
     desc.insert(
         Name::from(b"FontBBox"),
-        Object::Array(
-            m.bbox
-                .iter()
-                .map(|v| Object::Integer(i64::from(*v)))
-                .collect(),
-        ),
+        Object::Array(m.bbox.iter().map(|v| int(*v)).collect()),
     );
-    desc.insert(
-        Name::from(b"ItalicAngle"),
-        Object::Integer(i64::from(m.italic_angle)),
-    );
-    desc.insert(Name::from(b"Ascent"), Object::Integer(i64::from(m.ascent)));
-    desc.insert(
-        Name::from(b"Descent"),
-        Object::Integer(i64::from(m.descent)),
-    );
-    desc.insert(
-        Name::from(b"CapHeight"),
-        Object::Integer(i64::from(m.cap_height)),
-    );
-    desc.insert(Name::from(b"StemV"), Object::Integer(i64::from(m.stem_v)));
-    // FontFile2 is the TrueType key (§9.9 Table 126). `validate` has already
-    // refused every other outline kind, so this is not a silent assumption.
-    desc.insert(Name::from(b"FontFile2"), Object::Reference(file_id));
-
-    Ok(EmbeddedFontObjects {
-        font_dict_id: type0_id,
-        objects: vec![
-            (type0_id, Object::Dict(type0)),
-            (cid_id, Object::Dict(cid)),
-            (desc_id, Object::Dict(desc)),
-            (file_id, program_stream),
-            (tounicode_id, to_unicode_stream),
-        ],
-    })
+    desc.insert(Name::from(b"ItalicAngle"), int(m.italic_angle));
+    desc.insert(Name::from(b"Ascent"), int(m.ascent));
+    desc.insert(Name::from(b"Descent"), int(m.descent));
+    desc.insert(Name::from(b"CapHeight"), int(m.cap_height));
+    desc.insert(Name::from(b"StemV"), int(m.stem_v));
+    let key: &[u8] = match plan.outline_kind {
+        OutlineKind::Cff => b"FontFile3",
+        OutlineKind::TrueType => b"FontFile2",
+    };
+    desc.insert(Name::from(key), Object::Reference(file_id));
+    desc
 }
 
 /// Build the `/W` array (§9.7.4.3) in the `c [w1 w2 …]` run form.
@@ -578,24 +581,47 @@ mod tests {
         assert_eq!(out.font_dict_id, ObjId::new(10, 0));
     }
 
+    /// A CFF plan emits `/CIDFontType0` + `/FontFile3`, no `/CIDToGIDMap`,
+    /// and a wrapper named `<descendant>-Identity-H`; its font-file stream is
+    /// `/Subtype /CIDFontType0C` with no `/Length1`.
     #[test]
-    fn cff_donors_are_refused_by_name_not_silently_mis_emitted() {
+    fn a_cff_plan_emits_cidfonttype0_and_fontfile3() {
         let mut p = plan();
         p.outline_kind = OutlineKind::Cff;
-        let err = build_objects(&p, 10, Object::Null, Object::Null).unwrap_err();
+        let out = build_objects(&p, 10, Object::Null, Object::Null).expect("CFF builds");
+        let dict = |n: u32| {
+            out.objects
+                .iter()
+                .find(|(id, _)| *id == ObjId::new(n, 0))
+                .and_then(|(_, o)| o.as_dict().cloned())
+                .expect("dict")
+        };
+        let name = |d: &Dict, k: &[u8]| d.get(k).and_then(Object::as_name).map(|n| n.0.clone());
+        let tagged = p.tagged_name();
         assert_eq!(
-            err,
-            FontEmbedError::OutlineKindUnsupported {
-                kind: OutlineKind::Cff
-            }
+            name(&dict(10), b"BaseFont"),
+            Some(format!("{tagged}-Identity-H").into_bytes())
         );
-        // The message has to tell the operator what to do instead — a
-        // refusal that only says "no" is a dead end (R27).
-        let text = err.to_string();
-        assert!(
-            text.contains("TrueType"),
-            "refusal must name what IS supported: {text}"
+        let cid = dict(11);
+        assert_eq!(name(&cid, b"Subtype"), Some(b"CIDFontType0".to_vec()));
+        assert_eq!(name(&cid, b"BaseFont"), Some(tagged.into_bytes()));
+        assert!(cid.get(b"CIDToGIDMap").is_none());
+        let desc = dict(12);
+        assert!(desc.get(b"FontFile2").is_none());
+        assert_eq!(
+            desc.get(b"FontFile3").and_then(Object::as_reference),
+            Some(ObjId::new(13, 0))
         );
+        let file = p.font_file_dict(42);
+        assert_eq!(name(&file, b"Subtype"), Some(b"CIDFontType0C".to_vec()));
+        assert!(file.get(b"Length1").is_none());
+    }
+
+    #[test]
+    fn a_truetype_font_file_dict_carries_length1_and_no_subtype() {
+        let file = plan().font_file_dict(42);
+        assert_eq!(file.get(b"Length1").and_then(Object::as_int), Some(42));
+        assert!(file.get(b"Subtype").is_none());
     }
 
     /// The refusal must be REACHABLE (R96). A guard placed behind a filter

@@ -1266,36 +1266,25 @@ pub(crate) fn embedded_font_objects(
     font_id: ObjId,
     mut stage: impl FnMut(&[u8]) -> ByteSpan,
 ) -> Result<Vec<(ObjId, Object)>, AddTextError> {
-    let program_stream = make_font_program_stream(stage(&plan.program), plan.program.len());
+    let program_stream = crate::object::Stream {
+        dict: plan.font_file_dict(plan.program.len()),
+        data_span: stage(&plan.program),
+    };
     let cmap = plan.to_unicode_cmap();
     let cmap_stream = make_raw_stream(stage(&cmap), cmap.len());
-    let objects = crate::font_embed::build_objects(plan, font_id.num, program_stream, cmap_stream)
-        .map_err(AddTextError::Embed)?;
+    let objects = crate::font_embed::build_objects(
+        plan,
+        font_id.num,
+        Object::Stream(program_stream),
+        cmap_stream,
+    )
+    .map_err(AddTextError::Embed)?;
     // The page's /Font entry points at the /Type0 wrapper, which
     // `build_objects` names explicitly rather than by allocation order.
     if objects.font_dict_id != font_id {
         return Err(AddTextError::ObjectNumbersExhausted);
     }
     Ok(objects.objects)
-}
-
-/// A `FontFile2` stream object: the subsetted program plus the `/Length1`
-/// ISO 32000-1 §9.9 Table 127 requires for a TrueType program.
-///
-/// `/Length1` is the length of the UNCOMPRESSED program. pdfcer stages the
-/// program uncompressed, so it equals `/Length` here — written explicitly
-/// anyway, because a consumer is entitled to read `/Length1` and a future
-/// compression pass that set only `/Length` would silently produce a font
-/// whose declared uncompressed size was its compressed one.
-fn make_font_program_stream(span: ByteSpan, len: usize) -> Object {
-    let mut dict = Dict::new();
-    let n = i64::try_from(len).unwrap_or(i64::MAX);
-    dict.insert(Name::from(b"Length"), Object::Integer(n));
-    dict.insert(Name::from(b"Length1"), Object::Integer(n));
-    Object::Stream(crate::object::Stream {
-        dict,
-        data_span: span,
-    })
 }
 
 /// The fill colour and the text-state reset every new run starts with.

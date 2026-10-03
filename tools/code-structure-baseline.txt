@@ -492,7 +492,6 @@ fn pdfcer-core/src/vector/edit.rs::plan_move_subpath
 fn pdfcer-core/src/vector/edit.rs::plan_move_text_run
 fn pdfcer-core/src/vector/edit.rs::plan_set_layer
 fn pdfcer-core/src/vector/snap.rs::collect_subpath_targets
-fn pdfcer-fonts/src/font_embed.rs::build_objects
 fn pdfcer-fonts/src/fontinfo.rs::model
 fn pdfcer-fonts/src/vartext.rs::build_comb_text
 fn pdfcer-fonts/src/vartext.rs::build_variable_text
@@ -539,7 +538,6 @@ fn pdfcer-render/src/emf.rs::alpha_blend
 fn pdfcer-render/src/emf.rs::export_emf_view
 fn pdfcer-render/src/emf.rs::write_ops
 fn pdfcer-render/src/font/select.rs::candidate_names
-fn pdfcer-render/src/font/subset.rs::plan_subset
 fn pdfcer-render/src/font/webfont.rs::wrap_cff
 fn pdfcer-render/src/image.rs::decode
 fn pdfcer-render/src/image.rs::decode_sampled
