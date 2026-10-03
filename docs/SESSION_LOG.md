@@ -4,6 +4,38 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (921st filing) — `Pass 459.0` shipped
+
+**Shipped:**
+- `Pass 459.0` (`4ddfaeb2`) — defect fix found while scoping `G085`: the
+  decoration rule painted after `ET` carried the frame's `Tm x CTM` as its
+  `cm`, double-applying the CTM still in force post-`ET`. Any page with a
+  `cm` before its text (y-flip, producer offset) drew the rule displaced,
+  or off the page on a flipped page. Present since `Pass 455.0`
+  (`b602ab9b`). Fix: emit the first glyph's `Tm` alone as `cm`; `re`
+  operands unchanged. 2 new tests in
+  `crates/pdfcer-core/tests/format_decoration.rs`. Core-and-CLI (no flag),
+  no manifest/pub-API change.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- Content inserted after `ET` inherits the CTM still in force at that
+  point; a `cm` for it must be `Tm`-relative, not page-space — a `Tm x CTM`
+  `cm` double-applies the transform. Written up as a `personal_rag/pdf`
+  lesson (generalizes beyond this one rule to any post-`ET` insertion).
+
+**Still in flight:**
+- `Pass 455.1` (Tagged-PDF `TextDecorationType` structure attribute) still
+  *Next up*, unaffected by this filing.
+- `docs/FEATURES.md` row 218 (`G085`) is pre-existing debt against the
+  1,200-char row cap — already far over before this filing's edit, not
+  newly caused by it, not fixed by it either.
+
+**For next session:**
+- Next fresh whole-number Pass ID is `460.0`.
+
 ## 2026-10-03 (920th filing) — `Pass 458.0` shipped
 
 **Shipped:**
