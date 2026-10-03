@@ -115,6 +115,64 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 436.6` (`e9a8f3ac`), 2026-10-03 — disclose a replacement face's derived PostScript name
+
+Closes the last remaining Backlog gap under "Replacement-face matching
+ladder — known gaps" (877th filing): a face with no `name` ID 6 silently
+got a PostScript name derived from its family. Not part of the `Pass
+436.0`–`436.3` family; found after `436.2` shipped, same footing as
+`436.4`/`436.5`.
+
+**Core, `pdfcer-render`, `e9a8f3ac`.** `FaceCandidate` gains `pub
+name_derived: bool` + builder `with_derived_name()`; `FaceMatch` gains
+`pub name_derived: bool`. `FaceMatch::disclosure()` appends "; the face
+has no PostScript name (name ID 6), so '<face>' is derived from its
+family name", plus ", and that derived name is what matched the run's
+font" when the rung is `ExactName` — the coincidence the gap named.
+Standard-14 floor always sets `name_derived = false`. `InstalledFaces`
+marks derived names at discovery.
+
+**CLI.** `edit-text --fallback-font auto` prints `  face_name=derived`
+under the `face_match` line.
+
+**Tests.** 1 new `pdfcer-render` unit test
+(`a_derived_name_is_disclosed_and_flags_an_exact_name_match`), face
+ladder suite now 16/16; 2 new CLI assertions, `edit_text_fallback` suite
+now 14/14. Both sabotage-checked.
+
+**Gates.** No `Cargo.toml` change — `cargo tree` invariant unaffected by
+construction; not independently re-verified this filing (no shell).
+clippy, fmt, structure baseline and `check-core-api-verbs` clean
+(relayed).
+
+**`docs/core-api/`.** `02-editing-and-saving.md`'s row on "Let pdfcer
+pick the replacement face" updated in the same commit.
+
+**Shells.** `core [x]` / `cli [x]` / `gui [ ]` (unchanged — the GUI is a
+separate project).
+
+**`docs/FEATURES.md`.** Replacement-font-matching-ladder row updated in
+place (stays in *Implemented*); no box changes.
+
+**Backlog.** Closes the "derived-name disclosure" gap under
+"Replacement-face matching ladder — known gaps" (877th filing). Two
+gaps remain in that bucket: `run-repertoire` not consulting the ladder
+(refused by name, decision 178 §4 — a deliberate posture, not an open
+TODO) and no cross-call caching of `auto` within one invocation.
+
+**Fuzzy, never sneaky (`CLAUDE.md` rule 4).** This Pass is itself an
+instance of the rule: a face-matching inference (a derived PostScript
+name standing in for a missing one) is now disclosed off-canvas instead
+of silent.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit `e9a8f3ac`
+confirmed present at `HEAD` per this conversation's own git-status
+snapshot at session start (clean working tree, branch tip). Every other
+fact above (code shape, test names/counts, sabotage-check outcomes,
+docs/core-api update) is relayed from the dispatching engineer's own
+report, not independently reproduced — no shell tool available this
+filing.
+
 ### `Pass 436.5` (`aaea66e9`), 2026-10-03 — embed CFF-outline fallback faces as `/FontFile3` `/CIDFontType0C`
 
 Closes the Backlog gap "only a TrueType face can be subset for
@@ -27660,16 +27718,17 @@ below). One of the original four — only a TrueType face could be
 subset for embedding — is now also CLOSED, by `Pass 436.5` (`aaea66e9`,
 900th filing): `plan_subset`/`build_objects` embed a CFF-outline donor
 as `/FontFile3` `/CIDFontType0C` too; only a CFF2/variable-font donor
-still fails to plan. Three gaps remain.
+still fails to plan. Another — a derived PostScript name went
+undisclosed, including the coincidental exact-name match — is now also
+CLOSED, by `Pass 436.6` (`e9a8f3ac`, 901st filing):
+`FaceMatch::disclosure()` names the derivation and flags the
+coincidence. Two gaps remain.
 
 - `run-repertoire` does not consult the ladder — refused by name
   (decision 178 §4); a repertoire count over "whatever face the ladder
   picks" would differ per machine.
 - `auto` re-reads the font folders the CLI's font environment already
   read, once per invocation — no cross-call caching within one run.
-- A face with no `name` ID 6 is given a derived name, which can
-  coincidentally match the exact-name rung — correct by the only name the
-  face has, but worth its own disclosure line if it ever misleads.
 
 ### `pdfcer-3d` structure refactor — named by the code-structure audit (`Pass 426.0`, 836th filing, 2026-10-01); IN PROGRESS, 3 of 4 shortcuts partly or fully closed as of the 837th filing
 

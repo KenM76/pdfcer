@@ -4,6 +4,58 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (901st filing) — `Pass 436.6` SHIPPED: disclose a replacement face's derived PostScript name
+
+**Shipped:**
+- `e9a8f3ac` "feat(fonts): disclose a replacement face's derived
+  PostScript name" — `Pass 436.6`. Closes the last remaining Backlog
+  gap under "Replacement-face matching ladder — known gaps" (877th
+  filing): a face with no `name` ID 6 had its PostScript name derived
+  from its family name silently. `FaceCandidate`/`FaceMatch` gain `pub
+  name_derived: bool`; `FaceMatch::disclosure()` now names the
+  derivation and flags it when that derived name is what matched the
+  exact-name rung. CLI prints `face_name=derived` under `edit-text
+  --fallback-font auto`'s `face_match` line.
+
+**Decisions made this session:**
+- None. No new decision number, no new standing rule.
+
+**Findings + decisions:**
+- 1 new `pdfcer-render` unit test
+  (`a_derived_name_is_disclosed_and_flags_an_exact_name_match`), face
+  ladder suite now 16/16; 2 new CLI assertions,
+  `edit_text_fallback` suite now 14/14. Both sabotage-checked.
+- No dependency/`Cargo.toml` change — `cargo tree` invariant not
+  affected by construction. clippy, fmt, structure baseline and
+  `check-core-api-verbs` clean (relayed).
+- `docs/core-api/02-editing-and-saving.md`'s row on "Let pdfcer pick
+  the replacement face" updated in the same commit.
+- `docs/ROADMAP.md`'s "Replacement-face matching ladder — known gaps"
+  Backlog entry: the derived-name gap closed; two gaps remain
+  (`run-repertoire` not consulting the ladder, by design per decision
+  178 §4; no cross-call caching of `auto`).
+- `docs/FEATURES.md`: the replacement-font-matching-ladder row (537)
+  updated in place, stays in *Implemented*, no box changes. Trimmed
+  older wording in the same edit to make room — the row is now
+  confirmed **under** the register's 1,200-char cap (between 1,000 and
+  1,049 characters, bisected via the established no-shell proxy
+  `Grep "^.{N,}$"` against `docs/FEATURES.md` since
+  `tools/check-register-entry-size.py` could not be run directly —
+  closes the over-cap flag the 900th filing raised on this same row.
+  Row 207's over-cap status is unchanged — not in this filing's scope.
+
+**Still in flight:**
+- Row 207 (`docs/FEATURES.md`) remains over the register's 1,200-char
+  cap, flagged at the 900th filing, not addressed this filing.
+- `Pass 436.3` (gui settings screen) is the only item left unshipped in
+  the `Pass 436.0`–`436.3` family; still *Next up*, not filed yet.
+
+**For next session:**
+- `Pass 436.3` is the next open item in the `436.x` family.
+- `D:\dev\rag\rust\` / `C:\personal_rag\pdf\`: no new finding this
+  filing — the derived-name disclosure is pdfcer-specific project
+  history, not a generalizable Rust/egui or PDF-domain finding.
+
 ## 2026-10-03 (900th filing) — `Pass 436.5` SHIPPED: embed CFF-outline fallback faces as `/FontFile3` `/CIDFontType0C`
 
 **Shipped:**
