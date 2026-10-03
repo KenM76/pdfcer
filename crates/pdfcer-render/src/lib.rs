@@ -4380,6 +4380,34 @@ mod tests {
     }
 
     #[test]
+    fn form_with_empty_resources_is_not_an_oddity() {
+        // §7.8.3: an empty `/Resources << >>` is a valid dictionary, unlike
+        // an absent one, so it paints without a tolerated count.
+        let (doc, page) = doc_with_xobject(
+            "/X1 Do",
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Resources << >>",
+            b"0 0 0 rg 0 0 10 10 re f",
+        );
+        let out = render_page(&doc, &page, 1.0).unwrap();
+        assert_eq!(out.diagnostics.forms_rendered, 1);
+        assert_eq!(out.diagnostics.tolerated, 0);
+        assert_eq!(pixel(&out.pixmap, 5, 95), (0, 0, 0));
+    }
+
+    #[test]
+    fn form_without_resources_is_tolerated() {
+        let (doc, page) = doc_with_xobject(
+            "/X1 Do",
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100]",
+            b"0 0 0 rg 0 0 10 10 re f",
+        );
+        let out = render_page(&doc, &page, 1.0).unwrap();
+        assert_eq!(out.diagnostics.forms_rendered, 1);
+        assert_eq!(out.diagnostics.tolerated, 1);
+        assert_eq!(pixel(&out.pixmap, 5, 95), (0, 0, 0));
+    }
+
+    #[test]
     fn do_with_an_unresolvable_name_is_tolerated() {
         // §8.8: spec-undefined. No-op plus a diagnostic, never a failed
         // page.

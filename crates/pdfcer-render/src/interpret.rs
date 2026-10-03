@@ -7946,19 +7946,20 @@ impl<'a> Interpreter<'a> {
         }
 
         // --- (d) paint, with the form's OWN resources ---
-        // §7.8.3 case 2. A form that omits them (or carries an empty
-        // `<< >>`) is case 3 — obsolete (PDF ≤ 1.1) but not forbidden —
-        // and gets `inherited_resources`. The dictionaries are never
-        // MERGED: §8.10's PDF 1.2+ rule forbids promoting a form's
-        // resources outward.
-        let form_resources = match stream
+        // §7.8.3 case 2. A form that omits them is case 3 — obsolete
+        // (PDF ≤ 1.1) but not forbidden — and gets `inherited_resources`,
+        // counted as tolerated. An empty `<< >>` inherits too (producers
+        // write it meaning "the page's"), but it is valid case 2, so it is
+        // not counted. The dictionaries are never MERGED: §8.10's PDF 1.2+
+        // rule forbids promoting a form's resources outward.
+        let own = stream
             .dict
             .get(b"Resources")
             .map(|o| doc.resolve(o))
-            .and_then(Object::as_dict)
-            .filter(|d| !d.is_empty())
-        {
-            Some(own) => own,
+            .and_then(Object::as_dict);
+        let form_resources = match own {
+            Some(d) if !d.is_empty() => d,
+            Some(_) => self.inherited_resources(),
             None => {
                 self.diag.tolerated += 1;
                 self.diag.note(b"Do(form without /Resources - inherited)");
