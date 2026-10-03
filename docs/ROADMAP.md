@@ -115,6 +115,47 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.73.0` — version bump, RELEASE IN PROGRESS (2026-10-02)
+
+Not a Pass. Version-bump commit `574a63bc` ("chore: v0.73.0") bumps
+`Cargo.toml`'s workspace version 0.72.0 → 0.73.0, `Cargo.lock` and
+`fuzz/Cargo.lock` (version lines only, no dependency change).
+
+**Range since `v0.72.0`** (tag at `35769c3b`) — batches every Pass already
+filed above: `436.2` replacement-face matching ladder (`e37a02a7`,
+`422caf73`), `439.0` unsigned-`/Sig` redraw + opt-in foreign check-box/radio
+rebuild (`4d8ea504`), `440.0` default 3D poster (`716e616f`), `441.0`
+bold/italic off + synthetic-style detection (`adcf9ff5`), `442.0` OCR
+add-on folders (`c31e502c`, follow-up `79773ee8`), `442.3` program-type OCR
+add-ons/Tesseract first (`47c875f8`), `444.0` GIF decode (`bb65e630`),
+`443.0` image stamp + push-button icon fixes (`d2ff7403`, `51f299ed`),
+`445.0` SVG import/`add-svg` (`4e514b29`), `442.2` PaddleOCR-VL first rung
+(`b53200e8`, report-counts fix `c094550a`), `447.0` area ce dimension
+(`142fdda5`), `448.0` tiling-pattern painting (`4de50b47`), `442.1` OCR
+packaging split — only PaddleOCR bundled (`be16b008`), `446.0` EMF import/
+`add-emf` (`ea8ea9cd`, follow-up `cabaa30c`) — all already filed above.
+
+**Headline.** No single new capability of its own. The one fact worth
+naming: this is the **first release whose OCR engines other than PaddleOCR
+ship as separate `<build>-ocr-addon-<name>.zip` assets** beside the
+portable zip, rather than all bundled or all absent.
+
+**OneDrive target.** This release writes slot `pdfcer2` (`pdfcer1` keeps
+`v0.72.0`).
+
+Tag, gates run, GitHub release, OneDrive deploy, fresh-folder smoke test
+and `verify-release.py` not yet done; full release filing to follow once
+those details are relayed.
+
+`docs/FEATURES.md`: no rows changed — the release act adds no capability.
+
+**Sourcing (hard rule 8).** No shell tool this filing — commit hash
+`574a63bc` relayed as present at `HEAD` by the dispatching engineer; the
+range list is reconstructed from prior filings' own records, cross-checked
+against this file's own `### Pass` headers and hashes (one gap found and
+fixed — see the `Pass 439.0` header-added note immediately below in the
+Shipped list). Tag/build/deploy state not verifiable from here.
+
 ### `Pass 446.0` (`ea8ea9cd`), 2026-10-02 — EMF import as vector content (`G094`) — `Pass 446.0` SHIPPED
 
 Cite `ea8ea9cd` (on `main`, cherry-picked from worktree `4fb2dbc2`; not yet
@@ -798,6 +839,12 @@ rows ticked (`[x] core / [x] cli` for G086; `[x] core` only for G087, no
 CLI surface of its own) and marked SHIPPED.
 
 
+
+### `Pass 439.0` (`4d8ea504`), 2026-10-02 — redraw an unsigned `/Sig` widget's `/AP` on edit; opt-in foreign check-box/radio appearance rebuild (G089/G090) — `Pass 439.0` SHIPPED
+
+*(★ header added 2026-10-02, 889th filing — this entry's own body and hash
+were already filed at the 876th filing; the `### ` header line itself was
+missing, leaving the entry unfindable by Pass ID. No content change.)*
 
 Answers `pdfcer-gui` requests `G089`/`G090` (876th filing); cherry-picked from
 agent commit `07d88be2`.

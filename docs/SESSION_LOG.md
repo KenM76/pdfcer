@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (889th filing) — `v0.73.0` RELEASE IN PROGRESS + missing `Pass 439.0` header restored
+
+**Shipped:**
+- `574a63bc` ("chore: v0.73.0") — version-bump only, 0.72.0 → 0.73.0.
+  Batches `436.2`, `439.0`, `440.0`, `441.0`, `442.0`, `442.3`, `444.0`,
+  `443.0`, `445.0`, `442.2`, `447.0`, `448.0`, `442.1`, `446.0` — all
+  already individually filed. Headline: first release whose non-PaddleOCR
+  engines ship as separate add-on zips rather than all-bundled or
+  all-absent. OneDrive target `pdfcer2`. No `FEATURES.md` change.
+
+**Decisions made this session:**
+- None — decision ceiling unchanged.
+
+**Findings + decisions:**
+- `ROADMAP.md`'s `Pass 439.0` entry (G089/G090, unsigned-`/Sig` widget
+  redraw + opt-in foreign check-box/radio rebuild, `4d8ea504`) had its
+  body and hash filed at the 876th filing but was missing its own
+  `### ` header line — unfindable by Pass-ID grep, though cross-referenced
+  correctly from the index further down the file. Header added this
+  filing, no content change. Found while verifying this release's batch
+  list against ROADMAP's own Shipped headers one by one, per the
+  dispatching engineer's instruction.
+
+**Still in flight:**
+- `v0.73.0` tag, gates run, GitHub release, OneDrive deploy, fresh-folder
+  smoke test and `verify-release.py` all still owed — full `RELEASED`
+  filing to follow once those details are relayed.
+
+**For next session:**
+- Confirm `574a63bc` reached `origin/main` before relying on the release
+  being public.
+
+**Sourcing note (hard rule 8):** no shell this filing. `574a63bc` is
+relayed as present at `HEAD` by the dispatching engineer (matches the
+conversation's git-status snapshot). The Pass-batch range list and the
+`Pass 439.0` header gap were verified directly against `ROADMAP.md`'s own
+`### ` headers and inline hash citations via `Grep`/`Read`, not relayed —
+that part of this filing is independently checked, not merely trusted.
+
 ## 2026-10-02 (888th filing) — `Pass 446.0` follow-up fix (rustdoc intra-doc links) + `FEATURES.md` row-size correction
 
 **Shipped:**
