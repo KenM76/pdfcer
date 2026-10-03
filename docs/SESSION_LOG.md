@@ -4,6 +4,32 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (914th filing) — `Pass 454.0` shipped
+
+**Shipped:**
+- `Pass 454.0` (`87e73b6f`) — `FormatRequest::occurrence(n)` addresses the
+  n-th non-overlapping match of `find` inside a located operator's
+  decoded text, by COUNT rather than byte position (the operator's
+  decoded text need not equal extracted text byte-for-byte, `/ToUnicode`
+  ligatures, §9.10.3). `format-text --occurrence N` (1-based, default 1,
+  refuses `0`, exit 9). Answers `G084`: the GUI refused Ctrl+B on the
+  second "the" in "the cat and the dog", reporting `SpanAmbiguous`,
+  because `find` only ever took the first occurrence.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- End-to-end paddle-vl recognition through `OcrRunner` still unverified
+  (open since the 906th filing) — unaffected by this filing.
+
+**For next session:**
+- `G085` (underline/strikethrough tied to the run, plus a read) is next
+  up, unanswered.
+
 ## 2026-10-03 (913th filing) — `Pass 453.0` follow-up
 
 **Shipped:**

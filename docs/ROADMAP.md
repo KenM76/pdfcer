@@ -115,6 +115,66 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 454.0` (`87e73b6f`), 2026-10-03 — restyle the n-th match of `find` in an operator
+
+Answers `G084` (`pdfcer-gui`, file
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G084_format_text_cannot_address_a_cut_by_position.md`):
+`format_text` addressed a cut inside an operator only by `find`, which
+takes the first occurrence; the GUI refused Ctrl+B on the second `the` in
+`the cat and the dog`, reporting `SpanAmbiguous`.
+
+**Core, `pdfcer-core`.** `FormatRequest::occurrence(n)`, a builder, plus
+the pub field `occurrence: usize`. `n` is 0-based and counts
+non-overlapping matches of `find` within the located operator's decoded
+text; past the last match it fails with `FormatError::NoMatch`; ignored
+for a whole-operator request. `match_run` now takes the occurrence
+internally.
+
+**Why an occurrence and not a byte range** — the GUI's request offered
+either. The operator's decoded text need not equal extracted text
+byte-for-byte (`/ToUnicode` ligatures, ISO 32000-1 §9.10.3); a match
+count survives that difference, an offset does not.
+
+**CLI.** `format-text --occurrence N`, 1-based, default 1; `0` refused,
+exit 9.
+
+**Tests.** New `crates/pdfcer-core/tests/format_occurrence.rs`, 3 tests,
+harnessed into `all`; sabotage check (forcing occurrence to 0) fails 2 of
+3. CLI smoke on content `(the cat and ) Tj /pdfceF1 12 Tf (the) Tj /F1 12
+Tf ( dog) Tj`: `--occurrence 3` and `--occurrence 0` both exit 9.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md`, new subsection
+"Restyling the n-th match inside an operator"; `index.md` counts updated
+to 6,232 lines / 273 clauses; `check-core-api-verbs` PASS.
+
+**Gates.** clippy `-D warnings`, fmt, `check-string-gaps`,
+`check-code-structure` (no new debt) and `check-core-api-verbs` green.
+Full `tools/run-gates.sh` was run before push on `87e73b6f` — not
+independently re-run this filing (no shell).
+
+**Invariants.** No `Cargo.toml` touched — `cargo tree` unchanged, no new
+dependency. Not a writer byte-layout change; reuses the existing format
+splice.
+
+**`docs/FEATURES.md`.** New row inserted after the existing "Edit a
+SPECIFIC occurrence of repeated text" row (`Pass 311.0` family):
+`core [x]` / `cli [x]` / `gui [ ]` / `Acrobat [x]` (same click-anchored
+reasoning as the row beside it — `pdfcer-gui` has not consumed it).
+
+**Reply.** Written:
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_request_G084_format_text_cannot_address_a_cut_by_position_FIXED.md`.
+`G084` is now answered; `G085` (underline/strikethrough tied to the run,
+plus a read) remains open, next up.
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Status.** Unreleased since `v0.75.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash,
+module/type names, test counts and gate results above are **relayed**
+from the dispatching engineer's report, not independently verified.
+
 ### `Pass 453.0` (`ced6c38d`), 2026-10-03 — a saved 3D view becomes a camera from the library
 
 Answers `G105` (`pdfcer-gui`, file
@@ -17861,6 +17921,13 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 454.0` SHIPPED, 2026-10-03 (914th filing),
+> `87e73b6f`** — see *Shipped*, above. `G084`: `FormatRequest::occurrence(n)`
+> addresses the n-th match of `find` inside an operator by COUNT rather
+> than byte position, so a restyle can target a specific repeated run;
+> `format-text --occurrence N`. `gui [ ]` not wired. `G085` (underline/
+> strikethrough tied to the run) is next up.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 442.6` SHIPPED, 2026-10-03 (908th filing),
 > `4ac9142f`** — see *Shipped*, above. Closes `Pass 442.5`'s own owed
