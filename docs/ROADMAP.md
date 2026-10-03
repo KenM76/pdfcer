@@ -203,6 +203,10 @@ dispatching engineer's own report, measured there with a shell; not
 independently reproduced here. Commit hashes `b821fcf8`/`574a63bc`/
 `19426f21`/`a1703736`/`7f83ef86` match this session's git-log snapshot.
 
+**★ AMENDED 2026-10-02 (891st filing).** The "Small observed defect"
+above is fixed by `fa2ba756` — see `Pass 446.0`'s own entry's "Second
+follow-up fix" paragraph above for detail.
+
 ### `v0.73.0` — version bump, RELEASE IN PROGRESS (2026-10-02)
 
 Not a Pass. Version-bump commit `574a63bc` ("chore: v0.73.0") bumps
@@ -324,6 +328,18 @@ follow-up above (`ocr/addons`/`ocr/addon_manifest`): a third same-day
 occurrence. Fix: delete the redundant outer doc. No `FEATURES.md`
 change. RAG instance 3 added at
 `D:\dev\rag\rust\a_module_headers_intra_doc_links_resolve_in_the_parent_modules_scope_not_its_own.md`.
+
+**Second follow-up fix** (`fa2ba756`, 2026-10-02, 891st filing): a form
+XObject with `/Resources << >>` was counted as a "structural oddity"
+(`Do(form without /Resources - inherited)`), but per ISO 32000-1 §7.8.3
+a present empty resource dict is case 2 (valid) — only an ABSENT
+`/Resources` is the obsolete case 3. `add_emf` writes `<<>>` for a
+shapes-only picture, so rendering pdfcer's own valid EMF-import output
+reported a false oddity. Fix: only the absent (or non-dictionary) case
+now increments `diagnostics.tolerated`; resources are still inherited
+from the page in both cases, so rendered output is unchanged. 2 new
+`pdfcer-render` tests, each sabotage-checked. Resolves the owed item
+logged in the `v0.73.0` RELEASED entry above. No `FEATURES.md` change.
 
 ### `Pass 442.1` (`be16b008`), 2026-10-02 — OCR packaging split: only PaddleOCR bundled, the rest ship as add-on zips — `Pass 442.1` SHIPPED
 

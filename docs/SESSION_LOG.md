@@ -4,6 +4,48 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (891st filing) — `Pass 446.0` second follow-up fix (empty `/Resources` false oddity)
+
+**Shipped:**
+- `fa2ba756` `fix(render): an empty form /Resources is not a structural
+  oddity` — second follow-up to `Pass 446.0` (EMF import, `ea8ea9cd`),
+  resolving the defect the 890th filing logged as owed, not a release
+  blocker.
+
+**Decisions made this session:**
+- None — decision ceiling stays `186`.
+
+**Findings + decisions:**
+- ISO 32000-1 §7.8.3: a form XObject with `/Resources << >>` is a
+  present, valid resource dict (case 2); only an ABSENT `/Resources`
+  is the obsolete case 3. `pdfcer-render` had conflated the two.
+  Inheritance of the page's resources is unchanged in both cases — only
+  the absent (or non-dictionary) case now increments
+  `diagnostics.tolerated` and notes `"Do(form without /Resources -
+  inherited)"`. `add_emf` writes `<<>>` for a shapes-only picture, so
+  rendering pdfcer's own EMF-import output no longer reports a false
+  oddity.
+- Two new `pdfcer-render` tests, each sabotage-checked:
+  `form_with_empty_resources_is_not_an_oddity` (tolerated 0) and
+  `form_without_resources_is_tolerated` (tolerated 1).
+
+**Still in flight:**
+- Full `tools/run-gates.sh` on `fa2ba756` relayed as running, not yet
+  confirmed green — do not cite a gate result for this commit until
+  the next filing confirms it.
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+
+**For next session:**
+- Confirm `tools/run-gates.sh` is green on `fa2ba756` before push.
+
+**Sourcing note (hard rule 8):** no shell this filing. The commit's
+existence, its test names/behavior and the gate run are relayed from
+the dispatching engineer's own report; `fa2ba756` is confirmed present
+as the branch tip by this conversation's own git-status snapshot at
+start, which predates the two agent-memory commits already filed above
+(it has not advanced since).
+
 ## 2026-10-02 (890th filing) — `v0.73.0` RELEASED
 
 **Shipped:**
