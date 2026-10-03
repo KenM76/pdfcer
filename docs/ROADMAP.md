@@ -115,6 +115,61 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 449.0` (`b29e7689`, `2e085bec`), 2026-10-03 — region export with the viewer's state (G099)
+
+Cite `b29e7689` ("feat(pageops): export a page region with the
+viewer's state") and `2e085bec` ("fix(pageops): forms nested past the
+region pass limit count as a residual"). Closes the *Next up* entry
+filed at the 894th filing (`G099`, operator-reported `O272`).
+`b29e7689` was cherry-picked from worktree commit `fd09dd5d`.
+
+**Core.** `pageops::extract_region(view, page, rect, &RegionExport) ->
+Result<(Vec<u8>, RegionReport), RegionError>`, new module
+`pageops/region/` (`mod.rs`, `frame.rs`, `inline.rs`).
+`RegionExport::new()` plus `with_annotations(bool)` and
+`with_hidden_layers(ids)` (replaces the default OCG state). Output is a
+one-page full rewrite: MediaBox = CropBox = rect; Trim/Bleed/Art boxes
+clamped or removed; `/Annots`, `/Thumb`, `/B`, `/AA` stripped.
+Annotations on: fields/annotations/ce dimensions flatten into content;
+off: all removed. Hidden-layer content deleted. Forms wholly outside
+`rect` are dropped; forms crossing the edge are inlined (§8.10.1 Do
+procedure, prefixed resource names, ≤32 passes) — `2e085bec` fixes the
+case where a form still crosses the edge past the 32nd pass: the
+report pushed a note but `has_residuals()` stayed false; now counted.
+The four complement bands are then redacted with no overlay. A glyph
+crossing the edge is removed whole, advance kept; paths cut at the
+edge. `RegionError::ImageNotCut` refuses rather than keep outside
+image samples. `RegionReport` carries the counts plus
+`has_residuals()`/`notes`.
+
+**CLI.** `pdfcer extract-region IN --page N --rect x0,y0,x1,y1
+[--no-annotations] [--show-layer/--hide-layer NAME...] -o OUT`; prints
+the report. A refusal exits 9 and writes nothing. README's
+working-subcommand count: 207 → 208.
+
+**Docs.** `docs/core-api/03-capabilities.md` §7.14.
+
+**Tests.** 13 core integration tests
+(`crates/pdfcer-core/tests/region_export.rs`: 12 with the feature plus
+`forms_nested_past_the_pass_limit_are_a_residual`); 5 CLI tests
+(`crates/pdfcer-cli/tests/extract_region.rs`). 17 sabotages, 16 caught
+directly; the `/Annots` drop in `frame()` is cross-enforced by
+`strip_annots()` alone. No manifest change — the `cargo tree`
+GUI-core-separation check doesn't apply this Pass.
+
+**`tools/run-gates.sh`:** passed on the cherry-picked tree except two
+environment items, both since fixed: `core.hooksPath` drift (see
+`C:\personal_rag\claude_code\lesson_20261001_core_hookspath_absolute_path_drift_defeats_a_string_equality_activation_check.md`'s
+2026-10-03 amendment) and `G099` being unanswered (now replied, see
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_request_G099_a_page_region_cannot_be_exported_with_the_viewers_state_FIXED.md`).
+
+**Decision.** None — redaction-surgery-on-the-complement was already
+the filed plan, not a new choice forced by implementation.
+
+**Sourcing note (hard rule 8):** no shell this filing. Push state of
+`b29e7689`/`2e085bec` not verified — relayed from the dispatching
+engineer's report.
+
 ### `Pass 430.4` (`21bcabb1`), 2026-10-02 — decision 187's `cmap` rule reaches decision 177's augmented CID stream too (G075 b follow-up)
 
 Cite `21bcabb1` ("fix(text-edit): an augmented CIDFontType2 program
@@ -17085,35 +17140,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **NEW PASS FILED 2026-10-03 (894th
-> filing) — `Pass 449.0`, `G099`, region export with the viewer's
-> state.** `pageops::extract_region(view, page, rect, &RegionExport) ->
-> (Vec<u8>, RegionReport)`: a one-page PDF (`MediaBox = CropBox =
-> rect`) with visible annotations/ce dimensions/form fields flattened
-> into content, hidden-layer content removed, and content outside
-> `rect` truly removed — the planned route is the existing redaction
-> surgery applied to the complement of `rect`, straddling geometry cut
-> rather than clip-hidden, no overlay. Closes the gap where today's
-> vector routes (`export_svg_view`/`export_emf_view`, the `copy-page`
-> clipboard route, and the `extract`+`set_crop_boxes` assembly) only
-> crop the `Page`'s box — outside geometry stays in the file, hidden
-> not removed, so redacted or confidential content can leave in a
-> paste. `RegionReport` counts dropped/cut/flattened/layer-removed
-> content for an off-canvas disclosure (rule 4). Equally useful if
-> cheaper to build alongside: `RegionExport` accepted by
-> `export_svg_view`/`export_emf_view` so all three vector formats
-> agree. Acceptance is the request's own "Acceptance" section (one
-> page, `MediaBox = CropBox = rect`, no `/Annots`, the annotation/ce
-> dimension/field drawn as content, no operator drawing outside
-> content or from the hidden layer, `RegionReport`'s counts, and no
-> annotation appearance when `RegionExport` has annotations off).
-> Source: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G099_a_page_region_cannot_be_exported_with_the_viewers_state.md`
-> (`pdfcer-gui` request, operator-reported `O272`). **`Pass 449.0` IN
-> PROGRESS.** No decision reserved yet — the redaction-surgery-on-the-
-> complement route is the plan, not yet a non-obvious choice forced by
-> implementation; ceiling stays `187`, next free decision `188`. No
-> rule or question ledger move: `R263` stays next free rule, `(ck)`
-> stays next free question.
+> ★★★★★★★★★★★★★★★★ **`Pass 449.0` SHIPPED, 2026-10-03 (895th filing),
+> `b29e7689`/`2e085bec`** — see *Shipped*, above (cherry-picked from
+> worktree `fd09dd5d`; push not verified this filing, no shell). `G099`:
+> region export with the viewer's state — `pageops::extract_region`,
+> CLI `extract-region`. `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 446.0` SHIPPED, 2026-10-02 (887th filing),
 > `ea8ea9cd`** — see *Shipped*, above (cherry-picked from worktree

@@ -4,6 +4,62 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (895th filing) — `Pass 449.0` SHIPPED: region export with the viewer's state (G099)
+
+**Shipped:**
+- `b29e7689` "feat(pageops): export a page region with the viewer's
+  state" — `Pass 449.0`. `pageops::extract_region(view, page, rect,
+  &RegionExport) -> Result<(Vec<u8>, RegionReport), RegionError>`, new
+  module `pageops/region/` (`mod.rs`/`frame.rs`/`inline.rs`). One-page
+  full rewrite (`MediaBox = CropBox = rect`); visible annotations/ce
+  dimensions/form fields flatten into content, hidden-layer content is
+  deleted, and the four complement bands outside `rect` are redacted
+  with no overlay — straddling geometry is cut at the edge, not
+  clip-hidden. CLI `extract-region`. Cherry-picked from worktree
+  `fd09dd5d`.
+- `2e085bec` "fix(pageops): forms nested past the region pass limit
+  count as a residual" — same Pass. A form still crossing the edge
+  after the 32nd inlining pass pushed a report note but left
+  `has_residuals()` false; now counted.
+
+**Decisions made this session:**
+- None. The redaction-surgery-on-the-complement route was already the
+  plan filed at the 894th filing, not a new choice forced by
+  implementation.
+
+**Findings + decisions:**
+- 13 core integration tests (`crates/pdfcer-core/tests/region_export.rs`,
+  12 with the feature plus `forms_nested_past_the_pass_limit_are_a_residual`),
+  5 CLI tests (`crates/pdfcer-cli/tests/extract_region.rs`). 17
+  sabotages, 16 caught directly; the `/Annots` drop in `frame()` is
+  cross-enforced by `strip_annots()` alone, so with both removed the
+  sabotage test fails.
+- README's working-subcommand count: 207 → 208.
+- `tools/run-gates.sh` passed on the cherry-picked tree except two
+  environment items, both since fixed: `core.hooksPath` drift (see
+  the dated amendment on
+  `C:\personal_rag\claude_code\lesson_20261001_core_hookspath_absolute_path_drift_defeats_a_string_equality_activation_check.md`
+  — this time the drift traced to creating an agent worktree, not an
+  unidentified cause) and `G099` being unanswered (now replied).
+- No dependency/manifest change, so the `cargo tree` GUI-core-separation
+  check doesn't apply this Pass.
+
+**Still in flight:**
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+- `docs/NEXT_SESSION.md` not checked/updated this filing (librarian
+  scope is ROADMAP/FEATURES/SESSION_LOG/decision log/RAG tiers only) —
+  flag for the engineer to refresh it past `Pass 449.0`.
+
+**For next session:**
+- Confirm `b29e7689`/`2e085bec` are pushed before relying on either as
+  `HEAD` elsewhere.
+
+**Sourcing note (hard rule 8):** no shell this filing. Both commits'
+existence, the test counts, the gate result and the sabotage-check
+outcome are relayed from the dispatching engineer's own report; push
+state of either commit was NOT checked and is not asserted.
+
 ## 2026-10-02 (893rd filing) — `Pass 430.4` SHIPPED: decision 187's `cmap` rule reaches decision 177's augmented CID stream too
 
 **Shipped:**
