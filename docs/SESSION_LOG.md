@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (922nd filing) — `Pass 460.0` shipped
+
+**Shipped:**
+- `Pass 460.0` (`f673d35c`) — closes the `G085` open item "decoration
+  refresh inside form XObjects": a run inside a form XObject can now be
+  underlined/struck through, previously refused by name
+  (`FormatError::Unsupported`, "page-content only"). The marker is
+  written into the form's own content stream; the commit-time refresh
+  recomputes that form's rules from its own glyphs; a form painted more
+  than once on a page keeps one rule set (deduped by CTM), with the
+  Tm-relative rule drawing under every copy. `*_in_form` edits carry the
+  decoration. Caught and fixed before shipping: the refresh path was
+  rebuilding a form's stream behind a bare `/Length`-only dictionary,
+  which would have dropped that form's `/Subtype`/`/BBox`/`/Resources` —
+  now keeps the existing dictionary, corrects only `/Length`. Public API
+  change: `PageDecorations` gains `pub forms: BTreeMap<u32,
+  Vec<DecoratedSpan>>`; `PageDecorations::of` now answers for form
+  glyphs too. No CLI flag — `format-text` reaches the form run through
+  the existing `EditTarget::Auto`. 4 new tests in
+  `crates/pdfcer-core/tests/format_decoration_form.rs`; `format_decoration`
+  suite now 22/22. `tools/run-gates.sh` 45/45 PASS. No manifest/dependency
+  change.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- A stream-rewrite path that only tracks `/Length` is a latent data-loss
+  bug against any other dictionary entry on that stream object
+  (`/Subtype`/`/BBox`/`/Resources` for a form XObject) — caught here
+  before release, not released broken.
+
+**Still in flight:**
+- `Pass 455.1` (Tagged-PDF `TextDecorationType` structure attribute)
+  still *Next up*, unaffected by this filing — the last open `G085` item.
+
+**For next session:**
+- Next fresh whole-number Pass ID is `461.0`.
+
 ## 2026-10-03 (921st filing) — `Pass 459.0` shipped
 
 **Shipped:**

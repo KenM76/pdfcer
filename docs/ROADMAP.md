@@ -115,6 +115,69 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 460.0` (`f673d35c`), 2026-10-03 — underline and strikethrough inside a form XObject
+
+Closes the `G085` open item "decoration refresh inside form XObjects" —
+previously refused by name (`FormatError::Unsupported`, "page-content
+only"). A run inside a form XObject can now be decorated and tracked
+through edits the same as a page-content run.
+
+**Core, `pdfcer-core`.** The decoration marker for a run inside a form
+XObject is written into the form's **own** content stream; the
+commit-time refresh (`EditSession::refresh_decorations` /
+`decoration_refresh.rs`) recomputes that form's rule set from its own
+glyphs. `decoration::refresh` now takes a content source (page object or
+form object number) plus the effective resources in force at that
+source, rather than always a page. A form painted more than once on a
+page keeps **one** rule set, deduped by CTM across invocations at
+refresh time; the Tm-relative rule itself draws under every copy, on
+every page the form is painted on. `*_in_form` edits (e.g.
+`move_text_run_in_form`) carry the decoration with the run.
+
+**Bug caught before shipping, not released.** The refresh path rebuilt
+a form's stream behind a bare `/Length`-only dictionary, which would
+have dropped that form's `/Subtype`, `/BBox` and `/Resources` entries on
+any decorated form. Fixed to keep the form's existing dictionary and
+correct only `/Length`.
+
+**Public API change.** `PageDecorations` gains `pub forms:
+BTreeMap<u32, Vec<DecoratedSpan>>`; `PageDecorations::of` now answers
+for a form's glyphs too (previously always `NONE` for form content).
+`page_decorations` walks every form the page paints, not just the page
+stream.
+
+**CLI.** No new flag — `format-text` already reaches a run inside a
+form XObject through `EditTarget::Auto`; the prior `Unsupported` refusal
+is simply gone on that path.
+
+**Tests.** New `crates/pdfcer-core/tests/format_decoration_form.rs` (4):
+underline on a run inside a form; a form painted twice gets one rule
+set; `move_text_run_in_form` moves the rule with it; read reports form
+glyphs. Sabotage-checked: dropping the CTM dedupe, matching provenance
+page-only, or reading forms as `NONE` each fail their test.
+`format_decoration` suite now 22/22 across all files.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` updated; index line
+count 6,296.
+
+**Gates.** `tools/run-gates.sh` 45/45 PASS, including the 2 filing
+gates. No `Cargo.toml`/manifest change — GUI-core separation unaffected
+(`cargo tree -p pdfcer-core`/`-p pdfcer-render`); no new dependency.
+
+**`docs/FEATURES.md`.** The underline/strikethrough row (`G085`)
+rewritten to say the form-XObject run is reached rather than refused;
+`core [x]` / `cli [x]` / `gui [ ]` unchanged.
+
+**Owed, carried to Backlog, unaffected by this filing:** `Pass 455.1`
+(Tagged-PDF `TextDecorationType` structure attribute) still *Next up*.
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash and test
+description above are relayed from the dispatching engineer's report,
+not independently verified.
+
 ### `Pass 459.0` (`4ddfaeb2`), 2026-10-03 — a decoration rule's cm is Tm alone, not Tm x CTM
 
 Defect in `Pass 455.0`'s (`G085`) underline/strikethrough rule, found while
