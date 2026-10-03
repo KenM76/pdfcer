@@ -4,6 +4,29 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (911th filing) — `Pass 452.0` follow-up
+
+**Shipped:**
+- `Pass 452.0` follow-up (`f10ff58c`) — the `G103` fixture
+  `coloured.prc`'s three copies, previously overlapping at the origin,
+  now sit at x 0, 2 and 4, so a top orthographic render shows each
+  patch's colour on its own. Lib test checks the `[0, 2, 4]`
+  translations; the CLI style-alpha test now renders and pixel-checks
+  the three patches.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new; see the 910th filing's entry below.
+
+**Still in flight:**
+- End-to-end paddle-vl recognition through `OcrRunner` still unverified
+  (open since the 906th filing) — unaffected by this filing.
+
+**For next session:**
+- Unchanged from the 910th filing.
+
 ## 2026-10-03 (910th filing) — `Pass 452.0` shipped
 
 **Shipped:**

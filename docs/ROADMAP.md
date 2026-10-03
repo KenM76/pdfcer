@@ -185,6 +185,17 @@ Style's transparency byte (multiplying the two gives invisible parts).
 **Decision.** None — next decision stays 188, next standing rule stays
 `R263`.
 
+**Follow-up, `f10ff58c`.** The `G103` fixture's three copies overlapped
+at the origin; `coloured.prc` now places them at x 0, 2 and 4, so a
+top orthographic render shows each patch's colour separately. Lib test
+asserts the placement translations are `[0, 2, 4]`; the CLI test
+`style_alpha_picks_how_a_style_transparency_meets_its_material` now
+renders `3d-render --view top --ortho --width 200 --height 100` and
+checks the red, translucent-blue and uncoloured-grey pixels. `docs/
+core-api/01-reading-and-model.md` updated to say "placed at x 0, 2 and
+4". No new test functions — two existing tests strengthened. No
+dependency change.
+
 **Status.** Unreleased since `v0.75.0`.
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash, test
