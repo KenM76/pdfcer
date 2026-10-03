@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (906th filing) — `Pass 442.5` shipped
+
+**Shipped:**
+- `Pass 442.5` (`567858cb`) — PaddleOCR-VL add-ons now run through
+  `pdfcer-ocr-host`'s `OcrRunner` instead of a separate route: new
+  `ocr-vl` feature forwarding to `pdfcer-core/ocr-vl`;
+  `check_runnable`/`OcrRunner::load` accept `engine = paddle-vl`
+  (`engine_paddle_vl::REQUIRED_FILES`, 5 files); `recognize` returns
+  the region's lines; new `OcrRunner::disclosure()` and free functions
+  `paddle_disclosure`/`paddle_vl_disclosure`, moved out of the CLI so
+  both shells word the disclosure from one place. Answers `G102`
+  (`O282`, priority high). **CLI not yet retired onto it** — `pdfcer-cli`
+  still loads paddle-vl through its own `LoadedOcrEngine::PaddleVl` arm;
+  only its disclosure now calls the shared host function. `docs/FEATURES.md`
+  row moved *Planned* → *Implemented* this filing: `[x] core / [x] cli /
+  [ ] gui`.
+
+**Decisions made this session:**
+- None.
+
+**Findings + decisions:**
+- None new — the only open item is a verification gap, not a finding:
+  end-to-end recognition through `OcrRunner` was not run (no built
+  paddle-vl add-on on the engine machine); the GUI was asked to confirm
+  one page.
+
+**Still in flight:**
+- `Pass 450.0` (`G100`, `O272`, priority medium) — unstarted, unaffected
+  by this filing.
+- CLI-side retirement of `LoadedOcrEngine::PaddleVl` onto `OcrRunner` —
+  not scoped as its own Pass yet; `G102`'s acceptance criteria named it,
+  only the host-crate half shipped.
+
+**For next session:**
+- Verify end-to-end paddle-vl recognition through `OcrRunner` against a
+  real add-on build.
+- Decide whether the CLI's remaining `LoadedOcrEngine::PaddleVl` arm
+  gets its own Pass ID or folds into a `442.6`.
+
+**Sourcing (hard rule 8).** This filing had no shell. Commit hash,
+test counts, sabotage results and gate results in this entry and in
+`ROADMAP.md`'s `Pass 442.5` entry are **relayed** from the dispatching
+engineer's report, not independently verified.
+
 ## 2026-10-03 (905th filing) — `Pass 433.1` shipped; `442.5`/`450.0` scoped
 
 **Shipped:**

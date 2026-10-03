@@ -115,6 +115,62 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 442.5` (`567858cb`), 2026-10-03 — PaddleOCR-VL add-ons now run through `OcrRunner`, not a third route
+
+Answers `G102` (operator request `O282` via the GUI, priority high): one
+route for paddle-vl, not three.
+
+**`pdfcer-ocr-host`, `567858cb`.** New `ocr-vl` feature forwarding to
+`pdfcer-core/ocr-vl`. `check_runnable`/`OcrRunner::load` accept `engine =
+paddle-vl`, requiring `engine_paddle_vl::REQUIRED_FILES` (5 files) under
+the feature. `recognize` returns the region's lines; `reports_confidence`
+is `true`. New `pub fn OcrRunner::disclosure() -> Option<String>` (rule
+4: PaddleOCR dictionary source; PaddleOCR-VL inferred line boxes, line
+placement, token-ceiling warning). New pub free functions
+`paddle_disclosure`/`paddle_vl_disclosure`, moved out of the CLI so both
+shells word the disclosure from one place. The runner stays `Send +
+Sync` (the last reading is behind a `Mutex`); a new test pins this.
+
+**CLI, `pdfcer-cli`.** Its own `ocr-vl` feature now forwards to
+`pdfcer-ocr-host/ocr-vl`; disclosure calls the host functions; printed
+text unchanged. **The CLI still loads paddle-vl through its own
+`LoadedOcrEngine::PaddleVl` arm, not `OcrRunner`** — the one-route
+consolidation `G102` asked for ships on the host-crate side only this
+Pass; the CLI-side retirement did not ship.
+
+**Tests.** New `crates/pdfcer-ocr-host/tests/paddle_vl_addon.rs`: 5
+tests under the feature, 1 lean. Sabotage of the data_files arm failed 2
+tests; sabotage of the load arm failed 1. **End-to-end recognition
+through `OcrRunner` was NOT run** — no built VL add-on on the engine
+machine; open verification, the GUI was asked to confirm one page.
+
+**Gates.** `tools/run-gates.sh` 45/45 on the tree; the Send+Sync check
+run separately, green. `cargo tree` unaffected by construction — no new
+dependency, core/render manifests untouched.
+
+**Docs.** `docs/core-api/03-capabilities.md` Piece 4c gained the
+`ocr-vl` feature and a `disclosure()` row; `check-core-api-verbs` PASS.
+
+**Channel.** Reply written:
+`reply_request_G102_ocr_runner_cannot_run_a_paddle_vl_model_FIXED.md`.
+
+**`docs/FEATURES.md`.** New row moved *Planned* → *Implemented*:
+`[x] core / [x] cli / [ ] gui` — `core` names the host crate's runner
+API (`pdfcer-core` itself is untouched this Pass); `cli` is the forwarded
+feature + shared disclosure; `gui` not adopted.
+
+**Decision.** None.
+
+**Status.** Unreleased since `v0.75.0`.
+
+**Open verification.** End-to-end paddle-vl recognition through
+`OcrRunner` is untested on this machine (no built add-on present);
+flagged for the GUI/engine machine to confirm against one real page.
+
+**Sourcing (hard rule 8).** Hashes, test counts and gate results above
+are **relayed** from the dispatching engineer's report, not
+independently verified — no shell this filing.
+
 ### `Pass 433.1` (`c4c37fda`+`07fe3a54`), 2026-10-03 — a block's distinct "looks" are counted before an edit flattens them
 
 Answers `G101` (pdfcer-gui: "a block hit does not say whether its looks
@@ -17537,16 +17593,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★★★★★★★★★★★★ **TWO ITEMS ADDED 2026-10-03 (905th filing)** — scoping
-> only, neither started. No new decision; both are implementation/routing
-> Passes.
-> - **`Pass 442.5`** — `G102` (operator request `O282` via the GUI,
->   priority high): an `ocr-vl` feature on `pdfcer-ocr-host` forwarding to
->   `pdfcer-core`'s `ocr-vl`; `OcrRunner::load`/`check_runnable` accept
->   `engine = paddle-vl`, `EngineNotInBuild` without the feature; the
->   per-region disclosure becomes reachable from the runner; the CLI then
->   routes paddle-vl through `OcrRunner` instead of its own
->   `LoadedOcrEngine::PaddleVl` branch — one route, not three.
+> ★★★★★★★★★★★★★★★★ **ONE ITEM ADDED 2026-10-03 (905th filing)** — scoping
+> only, not started. No new decision.
 > - **`Pass 450.0`** — `G100` (GUI `O272` snapshot paste-back, priority
 >   medium): `EditSession::place_page_content(&source_view, source_page,
 >   page_index, rect) -> Result<PlacedArtwork, EditError>` — the same Form
@@ -17555,6 +17603,15 @@ closes out the *prior* filing's business rather than opening this one's.
 >   scale/`distorted` disclosure, same refusals as `place_page_artwork`.
 >   CLI subcommand ships in the same Pass. To `place_page_artwork` as
 >   `add_svg` is to `add_svg_stamp`.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 442.5` SHIPPED, 2026-10-03 (906th filing),
+> `567858cb`** — see *Shipped*, above. `G102`: PaddleOCR-VL add-ons now
+> run through `pdfcer-ocr-host`'s `OcrRunner` instead of a separate
+> route. **CLI not yet retired onto it** — `pdfcer-cli` still loads
+> paddle-vl through its own `LoadedOcrEngine::PaddleVl` arm; only its
+> disclosure now calls the shared host function. `gui [ ]` not wired.
+> End-to-end recognition through `OcrRunner` is an open verification —
+> no built add-on on the engine machine this filing.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 433.1` SHIPPED, 2026-10-03 (905th filing),
 > `c4c37fda`+`07fe3a54`** — see *Shipped*, above. `G101`: `BlockEditReport::looks`/
