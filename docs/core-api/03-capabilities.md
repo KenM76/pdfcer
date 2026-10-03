@@ -2614,6 +2614,7 @@ PaddleOCR-VL add-on) loads and runs like any other (G102).
 |---|---|
 | grey out a drop-down entry, with the reason | `check_runnable(&model, policy) -> Result<(), RunnerError>`: loads and hashes nothing |
 | run any listed model | `OcrRunner::load(&model, &RunOptions::new(langs, dpi)) -> Result<OcrRunner, RunnerError>`, then `.recognize(w, h, &grey) -> Result<Vec<RecognizedWord>, RunnerError>` |
+| say how many add-on files were hash-checked | `OcrRunner::files_verified() -> usize`: the data model's files `load` checked against its manifest (0 for a bare folder or a program; a program's count is `ProgramSource::Addon { hashed_files }`). `load` has already hashed them — do not call `model.verify()` again |
 | set the confidence flag for the text layer | `OcrRunner::reports_confidence()` |
 | show what the engine inferred or chose (rule 4) | `OcrRunner::disclosure() -> Option<String>`, after the page's `recognize`: PaddleOCR's dictionary source; for PaddleOCR-VL, that its line boxes are inferred from the ink (per region, never per word), how the last page's lines were placed, and a token-ceiling warning. `None` for the others. The same text is `paddle_disclosure(&engine)` / `paddle_vl_disclosure(Option<&RegionReading>)` |
 | show which program will start | `OcrRunner::as_program() -> Option<&ProgramEngine>`; `.program()` (full path), `.source()` (`ProgramSource::Addon { name, hashed_files }` / `OperatorFolder(path)`), `.languages()` |

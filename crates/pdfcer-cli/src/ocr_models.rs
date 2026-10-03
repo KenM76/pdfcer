@@ -6,99 +6,6 @@ use super::*;
 use pdfcer_core::ocr::addon_manifest::MANIFEST_FILE;
 use pdfcer_core::ocr::addons::{OcrModel, OcrModelDiscovery, discover_ocr_models};
 
-/// A loaded recogniser, whichever `--ocr-engine` chose.
-///
-/// An enum rather than `dyn OcrEngine` because the trait's associated error
-/// type differs per engine; errors are flattened to their message here, the
-/// only place the CLI needs them.
-pub(crate) enum LoadedOcrEngine {
-    #[cfg(feature = "ocrs")]
-    Ocrs(pdfcer_core::ocr::engine_ocrs::OcrsEngine),
-    #[cfg(feature = "ocrcer")]
-    Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
-    #[cfg(feature = "paddle")]
-    Paddle(Box<pdfcer_core::ocr::engine_paddle::PaddleEngine>),
-    /// The engine and the last page's reading, kept for the disclosure.
-    #[cfg(feature = "ocr-vl")]
-    PaddleVl(
-        Box<pdfcer_core::ocr::engine_paddle_vl::PaddleVlEngine>,
-        std::cell::RefCell<Option<pdfcer_core::ocr::engine_paddle_vl::RegionReading>>,
-    ),
-    Tesseract(pdfcer_ocr_host::ProgramEngine),
-}
-
-impl LoadedOcrEngine {
-    /// Recognise one page image with whichever engine was loaded.
-    pub(crate) fn recognize(
-        &self,
-        width: u32,
-        height: u32,
-        pixels: &[u8],
-    ) -> Result<Vec<pdfcer_core::ocr::RecognizedWord>, String> {
-        #[cfg(any(feature = "ocrs", feature = "ocrcer", feature = "paddle"))]
-        use pdfcer_core::ocr::OcrEngine;
-        match self {
-            #[cfg(feature = "ocrs")]
-            Self::Ocrs(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| e.to_string()),
-            #[cfg(feature = "ocrcer")]
-            Self::Ocrcer(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| e.to_string()),
-            #[cfg(feature = "paddle")]
-            Self::Paddle(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| e.to_string()),
-            #[cfg(feature = "ocr-vl")]
-            Self::PaddleVl(e, last) => {
-                let reading = e
-                    .read_region(width, height, pixels)
-                    .map_err(|e| e.to_string())?;
-                let lines = reading.lines.clone();
-                *last.borrow_mut() = Some(reading);
-                Ok(lines)
-            }
-            Self::Tesseract(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| e.to_string()),
-        }
-    }
-
-    /// Whether this engine reports a per-word confidence.
-    pub(crate) fn reports_confidence(&self) -> bool {
-        #[cfg(any(feature = "ocrs", feature = "ocrcer", feature = "paddle"))]
-        use pdfcer_core::ocr::OcrEngine;
-        match self {
-            #[cfg(feature = "ocrs")]
-            Self::Ocrs(e) => e.reports_confidence(),
-            #[cfg(feature = "ocrcer")]
-            Self::Ocrcer(e) => e.reports_confidence(),
-            #[cfg(feature = "paddle")]
-            Self::Paddle(e) => e.reports_confidence(),
-            // The region's mean token probability, on every line.
-            #[cfg(feature = "ocr-vl")]
-            Self::PaddleVl(..) => true,
-            // Tesseract's TSV carries a `conf` column on every word row.
-            Self::Tesseract(_) => true,
-        }
-    }
-
-    /// A line naming anything the engine chose on the operator's behalf, for
-    /// the rule-4 report.
-    pub(crate) fn disclosure(&self) -> Option<String> {
-        match self {
-            #[cfg(feature = "paddle")]
-            Self::Paddle(e) => Some(pdfcer_ocr_host::paddle_disclosure(e)),
-            #[cfg(feature = "ocr-vl")]
-            Self::PaddleVl(_, last) => Some(pdfcer_ocr_host::paddle_vl_disclosure(
-                last.borrow().as_ref(),
-            )),
-            _ => None,
-        }
-    }
-}
-
 /// What `ocr` was asked to use.
 pub(crate) struct OcrModelChoice<'a> {
     /// `--ocr-engine`; `None` means `ocrs` unless `--ocr-model` names one.
@@ -115,6 +22,8 @@ pub(crate) struct OcrModelChoice<'a> {
 pub(crate) struct ResolvedModel {
     pub(crate) dir: PathBuf,
     pub(crate) how: String,
+    /// The discovered model; `None` for a bare `--model-dir` folder.
+    model: Option<OcrModel>,
 }
 
 /// Resolve the models (printing every choice made) and load the engine.
@@ -122,9 +31,9 @@ pub(crate) fn load_ocr_engine(
     choice: &OcrModelChoice<'_>,
     ocr_lang: &str,
     dpi: f32,
-) -> Result<(LoadedOcrEngine, OcrEngineArg, ResolvedModel), u8> {
+) -> Result<(pdfcer_ocr_host::OcrRunner, OcrEngineArg, ResolvedModel), u8> {
     let (engine, resolved) = resolve(choice)?;
-    let loaded = load_from(engine, &resolved.dir, ocr_lang, dpi)?;
+    let loaded = load_from(engine, &resolved, ocr_lang, dpi)?;
     Ok((loaded, engine, resolved))
 }
 
@@ -322,7 +231,6 @@ fn resolve(choice: &OcrModelChoice<'_>) -> Result<(OcrEngineArg, ResolvedModel),
         eprintln!("pdfcer: ocr: {}", missing_hint(engine));
         return Err(exit::RUNTIME_ERROR);
     };
-    verify_and_disclose(model)?;
     Ok((engine, resolved_from(model)))
 }
 
@@ -367,7 +275,6 @@ fn resolve_named(
         );
         return Err(exit::RUNTIME_ERROR);
     }
-    verify_and_disclose(model)?;
     Ok((engine, resolved_from(model)))
 }
 
@@ -387,6 +294,7 @@ fn resolve_explicit(engine: OcrEngineArg, dir: &Path) -> Result<(OcrEngineArg, R
         eprintln!("pdfcer: ocr: {}", missing_hint(engine));
         return Err(exit::RUNTIME_ERROR);
     }
+    let mut manifested = None;
     if dir.join(MANIFEST_FILE).is_file() {
         let found = discover_ocr_models(&[dir.to_path_buf()]);
         for note in &found.notes {
@@ -405,11 +313,12 @@ fn resolve_explicit(engine: OcrEngineArg, dir: &Path) -> Result<(OcrEngineArg, R
             );
             return Err(exit::RUNTIME_ERROR);
         }
-        verify_and_disclose(model)?;
+        manifested = Some(model.clone());
     }
     let resolved = ResolvedModel {
         dir: dir.to_path_buf(),
         how: "--model-dir".to_owned(),
+        model: manifested,
     };
     Ok((engine, resolved))
 }
@@ -424,6 +333,7 @@ fn resolved_from(model: &OcrModel) -> ResolvedModel {
     ResolvedModel {
         dir: model.folder.clone(),
         how,
+        model: Some(model.clone()),
     }
 }
 
@@ -431,20 +341,34 @@ fn resolved_from(model: &OcrModel) -> ResolvedModel {
 /// add-on in use.
 fn verify_and_disclose(model: &OcrModel) -> Result<(), u8> {
     match model.verify() {
-        Ok(0) => {}
-        Ok(n) => eprintln!(
-            "pdfcer: ocr: OCR model `{}`: {n} file(s) match the manifest's SHA-256",
-            model.name
-        ),
+        Ok(n) => {
+            report_verified(model, n);
+            name_addon(model);
+            Ok(())
+        }
         Err(err) => {
             eprintln!(
                 "pdfcer: ocr: OCR model `{}` refused: {err}. Reinstall the add-on, or delete \
                  its folder to uninstall it",
                 model.name
             );
-            return Err(exit::RUNTIME_ERROR);
+            Err(exit::RUNTIME_ERROR)
         }
     }
+}
+
+fn report_verified(model: &OcrModel, files_verified: usize) {
+    if files_verified > 0 {
+        eprintln!(
+            "pdfcer: ocr: OCR model `{}`: {files_verified} file(s) match the manifest's SHA-256",
+            model.name
+        );
+    }
+}
+
+/// Name the add-on in use, before it loads, so a load failure is
+/// attributable.
+fn name_addon(model: &OcrModel) {
     if model.manifest.is_some() {
         eprintln!(
             "pdfcer: ocr: using OCR model `{}` ({}), engine {}, licence {}, languages {}",
@@ -455,67 +379,44 @@ fn verify_and_disclose(model: &OcrModel) -> Result<(), u8> {
             or_text(&model.languages().join(","), "not stated")
         );
     }
-    Ok(())
 }
 
 fn or_text<'a>(s: &'a str, empty: &'a str) -> &'a str {
     if s.is_empty() { empty } else { s }
 }
 
+/// Load the engine through [`pdfcer_ocr_host::OcrRunner`], the route every
+/// shell shares: Tesseract as a program, every other engine in-process from
+/// the resolved model (a bare `--model-dir` folder becomes a manifest-less
+/// model), its hashes checked once, by the runner.
 fn load_from(
     engine: OcrEngineArg,
-    dir: &Path,
+    resolved: &ResolvedModel,
     lang: &str,
     dpi: f32,
-) -> Result<LoadedOcrEngine, u8> {
-    let failed = |err: &dyn std::fmt::Display| {
+) -> Result<pdfcer_ocr_host::OcrRunner, u8> {
+    if engine == OcrEngineArg::Tesseract {
+        if let Some(model) = &resolved.model {
+            verify_and_disclose(model)?;
+        }
+        return ocr_program::load(&resolved.dir, lang, dpi)
+            .map(pdfcer_ocr_host::OcrRunner::from_program);
+    }
+    let model = resolved.model.clone().unwrap_or_else(|| OcrModel {
+        name: engine.name().to_owned(),
+        engine: engine.name().to_owned(),
+        folder: resolved.dir.clone(),
+        root: resolved.dir.clone(),
+        manifest: None,
+    });
+    name_addon(&model);
+    let options = pdfcer_ocr_host::RunOptions::new(lang, dpi);
+    let runner = pdfcer_ocr_host::OcrRunner::load(&model, &options).map_err(|err| {
         eprintln!("pdfcer: ocr: {err}");
         exit::RUNTIME_ERROR
-    };
-    match engine {
-        #[cfg(feature = "ocrs")]
-        OcrEngineArg::Ocrs => pdfcer_core::ocr::engine_ocrs::OcrsEngine::from_model_dir(dir)
-            .map(LoadedOcrEngine::Ocrs)
-            .map_err(|e| failed(&e)),
-        #[cfg(feature = "ocrcer")]
-        OcrEngineArg::Ocrcer => load_ocrcer(dir),
-        #[cfg(feature = "paddle")]
-        OcrEngineArg::Paddle => pdfcer_core::ocr::engine_paddle::PaddleEngine::from_model_dir(dir)
-            .map(|e| LoadedOcrEngine::Paddle(Box::new(e)))
-            .map_err(|e| failed(&e)),
-        #[cfg(feature = "ocr-vl")]
-        OcrEngineArg::PaddleVl => {
-            pdfcer_core::ocr::engine_paddle_vl::PaddleVlEngine::from_model_dir(dir)
-                .map(|e| LoadedOcrEngine::PaddleVl(Box::new(e), Default::default()))
-                .map_err(|e| failed(&e))
-        }
-        OcrEngineArg::Tesseract => {
-            ocr_program::load(dir, lang, dpi).map(LoadedOcrEngine::Tesseract)
-        }
-        // Compiled-out engines are refused in `resolve`.
-        #[allow(unreachable_patterns)]
-        other => Err(not_compiled(other)),
-    }
-}
-
-#[cfg(feature = "ocrcer")]
-fn load_ocrcer(dir: &Path) -> Result<LoadedOcrEngine, u8> {
-    use pdfcer_core::ocr::engine_ocrcer::{MODEL_FILE, OcrcerEngine};
-    let path = dir.join(MODEL_FILE);
-    let bytes = std::fs::read(&path).map_err(|err| {
-        eprintln!("pdfcer: {}: {err}", path.display());
-        exit::IO_ERROR
     })?;
-    match OcrcerEngine::from_bytes(&bytes) {
-        Ok(e) => Ok(LoadedOcrEngine::Ocrcer(Box::new(e))),
-        Err(err) => {
-            eprintln!(
-                "pdfcer: ocr: {}: not a usable OCRcer model: {err}",
-                path.display()
-            );
-            Err(exit::RUNTIME_ERROR)
-        }
-    }
+    report_verified(&model, runner.files_verified());
+    Ok(runner)
 }
 
 /// `ocr-models` — list the OCR models this pdfcer can find, one line each

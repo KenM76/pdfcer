@@ -136,6 +136,7 @@ fn data_files(engine: &str) -> Option<Vec<&'static str>> {
 /// A loaded recogniser for one model.
 pub struct OcrRunner {
     inner: Inner,
+    files_verified: usize,
 }
 
 enum Inner {
@@ -182,15 +183,16 @@ impl OcrRunner {
         check_runnable(model, options.policy)?;
         if model.kind() == AddonKind::Program {
             let engine = ProgramEngine::from_model(model, options)?;
-            return Ok(Self {
-                inner: Inner::Program(engine),
-            });
+            return Ok(Self::from_program(engine));
         }
-        model.verify().map_err(|source| RunnerError::Verify {
+        let files_verified = model.verify().map_err(|source| RunnerError::Verify {
             name: model.name.clone(),
             source,
         })?;
-        load_data(model).map(|inner| Self { inner })
+        load_data(model).map(|inner| Self {
+            inner,
+            files_verified,
+        })
     }
 
     /// Wrap a program prepared some other way (e.g.
@@ -199,7 +201,16 @@ impl OcrRunner {
     pub fn from_program(engine: ProgramEngine) -> Self {
         Self {
             inner: Inner::Program(engine),
+            files_verified: 0,
         }
+    }
+
+    /// How many of a data model's files [`OcrRunner::load`] checked against
+    /// its manifest's SHA-256 lines; 0 for a bare folder or a program (whose
+    /// hashed files are [`ProgramEngine::source`]'s to report).
+    #[must_use]
+    pub fn files_verified(&self) -> usize {
+        self.files_verified
     }
 
     /// The program, when this runner starts one.
