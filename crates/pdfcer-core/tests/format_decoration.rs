@@ -14,9 +14,13 @@ use pdfcer_core::writer::SaveOptions;
 const TWO_RUNS: &str = "BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj 1 0 0 1 200 700 Tm (World) Tj ET";
 
 fn pdf(content: &str) -> Vec<u8> {
+    pdf_with("<< /Type /Catalog /Pages 2 0 R >>", content)
+}
+
+fn pdf_with(catalog: &str, content: &str) -> Vec<u8> {
     let widths = (0..95).map(|_| "500").collect::<Vec<_>>().join(" ");
     let objects = [
-        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        catalog.to_owned(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
          /Resources << /Font << /F1 5 0 R >> >> >>"
@@ -224,4 +228,52 @@ fn an_unembedded_standard_font_strikes_at_half_its_afm_x_height() {
         (re[1] - 2.838).abs() < 1e-6 && (re[3] - 0.6).abs() < 1e-6,
         "{re:?}"
     );
+}
+
+const MARKED: &str = "<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> >>";
+
+fn underlined(catalog: &str, page: &str) -> String {
+    let mut s = EditSession::new(Document::from_bytes(pdf_with(catalog, page)).unwrap());
+    decorate(&mut s, "Hello", DecorationSet::UNDERLINE).unwrap();
+    let req = FormatRequest::new(0, "World").size(12.0);
+    s.format_text(&req, &FormatOptions::default()).unwrap();
+    content(&saved(&s))
+}
+
+#[test]
+fn a_tagged_page_rule_outside_any_tag_is_an_artifact() {
+    let text = underlined(
+        MARKED,
+        "BT /P <</MCID 0>> BDC /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj \
+         1 0 0 1 200 700 Tm (World) Tj EMC ET",
+    );
+    assert_eq!(text.matches("<</Rule").count(), 1, "{text}");
+    assert_eq!(
+        text.matches("/Artifact <</Type /Layout>> BDC").count(),
+        1,
+        "{text}"
+    );
+    assert!(text.contains("re f Q EMC EMC"), "{text}");
+}
+
+#[test]
+fn a_rule_inside_a_tagged_sequence_stays_its_content() {
+    let text = underlined(
+        MARKED,
+        "/P <</MCID 0>> BDC BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj \
+         1 0 0 1 200 700 Tm (World) Tj ET EMC",
+    );
+    assert_eq!(text.matches("<</Rule").count(), 1, "{text}");
+    assert!(!text.contains("/Artifact"), "{text}");
+}
+
+#[test]
+fn an_untagged_document_gets_no_artifact() {
+    let text = underlined(
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "BT /P <</MCID 0>> BDC /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj \
+         1 0 0 1 200 700 Tm (World) Tj EMC ET",
+    );
+    assert_eq!(text.matches("<</Rule").count(), 1, "{text}");
+    assert!(!text.contains("/Artifact"), "{text}");
 }

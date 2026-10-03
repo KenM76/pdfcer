@@ -2380,7 +2380,7 @@ pub(crate) fn bind_resource<G: crate::graph::ObjectGraph + ?Sized>(
 
 /// Whether the document is tagged: `/StructTreeRoot` present, or `/MarkInfo
 /// /Marked true` (R73 trigger).
-fn is_tagged<G: ObjectGraph + ?Sized>(graph: &G) -> bool {
+pub(crate) fn is_tagged<G: ObjectGraph + ?Sized>(graph: &G) -> bool {
     let Some(catalog) = graph.catalog_dict() else {
         return false;
     };

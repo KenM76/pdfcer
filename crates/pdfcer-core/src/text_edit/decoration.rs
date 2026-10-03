@@ -215,6 +215,9 @@ pub(crate) struct Marker {
     pub(crate) emc: (usize, usize),
     /// End of the first `ET` after the marker, where its rules go.
     et_end: Option<usize>,
+    /// Whether a marked-content sequence with `/MCID`, or an `Artifact`,
+    /// is still open at that `ET`, so a rule there is already tagged.
+    et_tagged: bool,
 }
 
 /// Every marker and rule in one content buffer.
@@ -229,7 +232,9 @@ pub(crate) struct Scan {
 enum Opened {
     Marker(Marker),
     Rule(usize),
-    Other,
+    /// Any other sequence; `true` when it tags its content (`/MCID` or
+    /// `Artifact`).
+    Other(bool),
 }
 
 impl Scan {
@@ -249,7 +254,7 @@ impl Scan {
                         .map_or(op.operator.span.start, |t| t.span.start);
                     open.push(classify(op.operands, start, end));
                 }
-                Some(b"BMC") => open.push(Opened::Other),
+                Some(b"BMC") => open.push(Opened::Other(is_artifact(op.operands))),
                 Some(b"EMC") => match open.pop() {
                     Some(Opened::Marker(mut m)) => {
                         m.emc = (op.operator.span.start, end);
@@ -260,9 +265,11 @@ impl Scan {
                     _ => {}
                 },
                 Some(b"ET") => {
+                    let tagged = open.iter().any(|o| matches!(o, Opened::Other(true)));
                     for i in waiting_et.drain(..) {
                         if let Some(m) = scan.markers.get_mut(i) {
                             m.et_end = Some(end);
+                            m.et_tagged = tagged;
                         }
                     }
                 }
@@ -282,14 +289,17 @@ fn classify(operands: &[crate::content::ContentToken], start: usize, end: usize)
         .and_then(Object::as_name)
         .is_some_and(|n| n.as_bytes() == DECORATION_TAG);
     let Some(props) = operand(1).and_then(Object::as_dict).filter(|_| tagged) else {
-        return Opened::Other;
+        let mcid = operand(1)
+            .and_then(Object::as_dict)
+            .is_some_and(|d| d.get(b"MCID").is_some());
+        return Opened::Other(mcid || is_artifact(operands));
     };
     if props.get(b"Rule").is_some() {
         return Opened::Rule(start);
     }
     let set = read_set(props.get(b"Line"));
     if set.is_empty() {
-        return Opened::Other;
+        return Opened::Other(false);
     }
     let id = props
         .get(b"Id")
@@ -317,7 +327,15 @@ fn classify(operands: &[crate::content::ContentToken], start: usize, end: usize)
         bdc: (start, end),
         emc: (0, 0),
         et_end: None,
+        et_tagged: false,
     })
+}
+
+fn is_artifact(operands: &[crate::content::ContentToken]) -> bool {
+    matches!(
+        operands.first().map(|t| &t.kind),
+        Some(ContentTokenKind::Operand(o)) if o.as_name().is_some_and(|n| n.as_bytes() == b"Artifact")
+    )
 }
 
 fn read_set(line: Option<&Object>) -> DecorationSet {
@@ -456,6 +474,7 @@ pub(crate) fn refresh(
     let mut inserts: std::collections::BTreeMap<usize, Vec<u8>> = std::collections::BTreeMap::new();
     let mut strike_sources = Vec::new();
     let mut fonts = std::collections::HashMap::new();
+    let tagged_doc = super::addtext::is_tagged(view);
     for m in &scan.markers {
         let mine: Vec<&ExtractedGlyph> = glyphs
             .iter()
@@ -491,7 +510,8 @@ pub(crate) fn refresh(
             strike_sources.push(metrics.strike_source);
         }
         for line in lines(&mine) {
-            rules.extend_from_slice(&line_rules(m, id, &line, metrics));
+            let artifact = tagged_doc && !m.et_tagged;
+            rules.extend_from_slice(&line_rules(m, id, &line, metrics, artifact));
         }
     }
     for (at, bytes) in inserts {
@@ -591,12 +611,25 @@ fn lines<'g>(glyphs: &[&'g ExtractedGlyph]) -> Vec<Line<'g>> {
     out
 }
 
-fn line_rules(m: &Marker, id: u32, line: &Line<'_>, metrics: LineMetrics) -> Vec<u8> {
+/// `artifact` wraps each rule as a layout artifact, for a tagged document
+/// whose `ET` is outside any tagged sequence: an untagged rule would be
+/// real content belonging to no structure element (ISO 14289-1 7.1).
+fn line_rules(
+    m: &Marker,
+    id: u32,
+    line: &Line<'_>,
+    metrics: LineMetrics,
+    artifact: bool,
+) -> Vec<u8> {
     let em = f64::from(line.first.tf_size) / 1000.0;
     let mut out = Vec::new();
     let mut rule = |centre: f64, thickness: f64| {
         let thickness = m.width.unwrap_or(thickness) * em;
-        out.extend_from_slice(format!("\n/{} <</Rule {id}>> BDC q", "pdfc_Deco").as_bytes());
+        out.extend_from_slice(format!("\n/{} <</Rule {id}>> BDC", "pdfc_Deco").as_bytes());
+        if artifact {
+            out.extend_from_slice(b" /Artifact <</Type /Layout>> BDC");
+        }
+        out.extend_from_slice(b" q");
         for v in line.frame {
             out.push(b' ');
             emit_number(&mut out, round4(v));
@@ -612,7 +645,11 @@ fn line_rules(m: &Marker, id: u32, line: &Line<'_>, metrics: LineMetrics) -> Vec
             emit_number(&mut out, round4(v));
             out.push(b' ');
         }
-        out.extend_from_slice(b"re f Q EMC");
+        out.extend_from_slice(if artifact {
+            &b"re f Q EMC EMC"[..]
+        } else {
+            &b"re f Q EMC"[..]
+        });
     };
     if m.set.underline {
         rule(metrics.underline_centre, metrics.underline_thickness);

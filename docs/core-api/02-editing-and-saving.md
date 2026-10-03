@@ -629,6 +629,11 @@ let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
   content stream, in the same undo entry: move a run → its rule moves; delete
   it → the rule is gone; reflow it onto two lines → two rules. Do not draw or
   move rules yourself.
+- **Tagged documents.** When the catalog has `/StructTreeRoot` or
+  `/MarkInfo /Marked true` and no `/MCID` or `Artifact` sequence is open at
+  that `ET`, each rule is also wrapped in `/Artifact <</Type /Layout>> BDC …
+  EMC`, so it is not untagged real content (ISO 14289-1 7.1). Inside an
+  `/MCID` sequence the rule stays part of that element's content.
 - Geometry, `FormatRequest::decoration_metrics(DecorationMetrics)`:
   - `FontTables` (default): the embedded TrueType/OpenType program's
     `post` underline and `OS/2` strikeout position and thickness; each
