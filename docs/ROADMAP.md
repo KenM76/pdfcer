@@ -115,6 +115,81 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 455.0` (`b602ab9b`), 2026-10-03 — underline and strikethrough tied to their text
+
+Answers `G085` (`pdfcer-gui`, file
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G085_an_underline_is_not_tied_to_its_text.md`):
+underline/strikethrough was independent page content drawn by
+`pdfcer-gui`'s annotation-shaped `MarkupSpec::TextMarkup` from quads
+(engine pin `35769c3b`) — moving, reflowing or deleting the decorated
+run left the rule behind.
+
+**Core, `pdfcer-core`.** `FormatRequest::decoration(DecorationSet)`.
+`DecorationSet { underline, strikethrough }` is `#[non_exhaustive]`
+with consts `NONE`/`UNDERLINE`/`STRIKETHROUGH`; `NONE` clears an
+existing decoration, and a partial clear splits the decorated stretch
+so the surviving part keeps its own marker. Content shape: a
+`/pdfc_Deco <</Line n /Id n>> BDC … EMC` pair wrapping the decorated
+show op inside its `BT`/`ET`, plus a rule painted after the matching
+`ET` as `/pdfc_Deco <</Rule n>> BDC q cm <colour> re f Q EMC`.
+`EditSession::commit` recomputes every rule for the page in the same
+undo entry as the triggering edit, so a rule follows `move_text_run`,
+`delete_text_run`, `edit_text`, `reflow_block` and `format_text`
+instead of staying behind as orphaned content; a run spanning two
+lines gets two rules; an empty marker unwraps; a duplicate `Id`
+renumbers; the refresh is idempotent. The refresh only applies when
+the page's decoded content equals the single rewritten stream it was
+built from (multi-stream pages are left unrefreshed, disclosed — owed
+item below). Read side: `text_edit::decoration::page_decorations` /
+`PageDecorations::of(&GlyphProvenance)`. Metrics: underline centred
+−0.1 em below the baseline, 0.05 em thick; strikethrough centred at
+half the FontDescriptor `/XHeight`, else 0.25 em, the rung taken
+disclosed in the format report. New `FormatError::DecorationOnInvisibleText{mode}`
+refuses `Tr 3`/`7` by name; a form-XObject target is refused as
+`Unsupported`.
+
+**CLI.** `format-text --underline`/`--strikethrough`/`--no-decoration`;
+the last conflicts with the other two (clap `conflicts_with`).
+
+**Tests.** `crates/pdfcer-core/tests/format_decoration.rs` (8 tests),
+`crates/pdfcer-cli/tests/format_decoration_flags.rs` (3 tests), 11
+over 2 files. Sabotage-checked: removing the refresh hook fails 6;
+breaking read containment fails the read test; removing the `Tr 3`
+refusal fails its test; dropping the CLI wiring fails the flag test.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gains the new
+section; index line count 6,281.
+
+**Gates.** No `Cargo.toml` change, no new dependency — `cargo tree -p
+pdfcer-core`/`-p pdfcer-render` unchanged, GUI-core separation holds.
+Round-trip: untouched objects re-emit unchanged; the decoration
+refresh only rewrites the page streams it recomputes rules for, same
+discipline as every other content-splice verb.
+
+**`docs/FEATURES.md`.** The Planned row for this capability (Text
+editing & formatting section) moved to Implemented, inserted after the
+`whole_operator` restyle/edit row: `core [x]` / `cli [x]` / `gui [ ]`.
+The deferred Tagged-PDF `TextDecorationType` half (`Pass 455.1`) kept
+its own, narrower Planned row.
+
+**Reply.** Written:
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_request_G085_an_underline_is_not_tied_to_its_text_FIXED.md`.
+
+**Owed, carried to `Pass 455.1` or Backlog, not silently dropped:**
+tagged-PDF `TextDecorationType` structure attribute (`455.1`, open);
+refresh inside form XObjects; OS/2 `yStrikeout` as a strike-source and
+its setting; standard-14 AFM `XHeight` for non-embedded fonts; pages
+with multiple non-empty content streams aren't refreshed.
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Status.** Unreleased since `v0.75.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, file/
+line counts and test results above are **relayed** from the dispatching
+engineer's report, not independently verified.
+
 ### `Pass 454.0` (`87e73b6f`), 2026-10-03 — restyle the n-th match of `find` in an operator
 
 Answers `G084` (`pdfcer-gui`, file
@@ -17922,30 +17997,17 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★★★★★★★★★★★★ **NEW PASS FILED 2026-10-03 (915th filing) —
-> `Pass 455.0`/`Pass 455.1`, `G085`.** Underline/strikethrough on page
-> text is independent page content today (`pdfcer-gui`'s
-> `textstyle::span::decorate` builds an annotation-shaped
-> `MarkupSpec::TextMarkup` from quads, engine pin `35769c3b`) — moving,
-> reflowing or deleting the run leaves the line behind.
-> `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G085_an_underline_is_not_tied_to_its_text.md`.
-> **`Pass 455.0`** (core + CLI): a `/pdfc_Deco` marked-content pair — one
-> wrapping the decorated show op inside `BT`/`ET`, one painting the rule
-> as a filled rect right after `ET` — carries the mark through
-> `edit_text`/`move_text_run`/`delete_text_run`/`reflow_block`/
-> `format_text` via a single `refresh_decorations(page)` call in the same
-> undo step; `DecorationSet` read-back from extraction provenance;
-> strikethrough centre-line sourced OS/2 `yStrikeout` → `/XHeight`÷2 →
-> 0.25 em, disclosed by name (rule 4); invisible text (`Tr 3`/`7`)
-> refused by name; page-content route only, no annotation mode. Spec
-> note (PDF has no native decoration operator):
+> ★★★★★★★★★★★★★★★★ **`Pass 455.0` SHIPPED, 2026-10-03 (915th filing),
+> `b602ab9b`** — see *Shipped*, above. `G085`: underline/strikethrough
+> now travel with the run via a `/pdfc_Deco` marked-content pair plus a
+> `refresh_decorations(page)` recompute inside every text-editing verb's
+> undo entry, instead of staying behind as orphaned page content.
+> `format-text --underline`/`--strikethrough`/`--no-decoration`.
+> `gui [ ]` not wired. **`Pass 455.1`**, deferred on `455.0`: the
+> Tagged-PDF `TextDecorationType` structure attribute (ISO 32000-1
+> §14.8.5.4.4 Table 345; 32000-2 Table 380) on a child `/Span`, still
+> *Next up*. Spec note (PDF has no native decoration operator):
 > `D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__ref__text_decoration.md`.
-> **`Pass 455.1`**, deferred on `455.0`: the Tagged-PDF
-> `TextDecorationType` structure attribute (ISO 32000-1 §14.8.5.4.4
-> Table 345; 32000-2 Table 380) on a child `/Span`. Design ruled by
-> `autonomous-builder` dispatch (accepted); no decision opened this
-> filing — next free decision stays `188`, next free standing rule
-> stays `R263`. **`Pass 455.0` QUEUED.** `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 454.0` SHIPPED, 2026-10-03 (914th filing),
 > `87e73b6f`** — see *Shipped*, above. `G084`: `FormatRequest::occurrence(n)`

@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (915th filing) — `Pass 455.0` shipped
+
+**Shipped:**
+- `Pass 455.0` (`b602ab9b`) — underline and strikethrough now travel with
+  the text they decorate. `FormatRequest::decoration(DecorationSet)`
+  marks the decorated show op with a `/pdfc_Deco` marked-content pair and
+  paints the rule as a filled rect after `ET`; `EditSession::commit`
+  recomputes every rule in the same undo entry as the triggering edit, so
+  the rule follows `move_text_run`/`delete_text_run`/`edit_text`/
+  `reflow_block`/`format_text` instead of staying behind as orphaned page
+  content. Strikethrough centres at half `/XHeight`, else 0.25 em,
+  disclosed. Refuses invisible text (`Tr 3`/`7`) and a form-XObject
+  target by name. `format-text --underline`/`--strikethrough`/
+  `--no-decoration`. Answers `G085`: underline/strikethrough used to be
+  independent page content drawn by `pdfcer-gui`'s annotation-shaped
+  `MarkupSpec::TextMarkup`, so moving, reflowing or deleting the run left
+  the rule behind. 11 new tests over 2 files, all sabotage-checked. No
+  `Cargo.toml` change.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- `Pass 455.1` (Tagged-PDF `TextDecorationType` structure attribute on a
+  child `/Span`, ISO 32000-1 §14.8.5.4.4 Table 345 / 32000-2 Table 380),
+  deferred on `455.0`, now *Next up*.
+- End-to-end paddle-vl recognition through `OcrRunner` still unverified
+  (open since the 906th filing) — unaffected by this filing.
+
+**For next session:**
+- `Pass 455.1` is next up.
+- Owed, not yet scoped: refresh inside form XObjects; OS/2 `yStrikeout`
+  as a strike-source and its setting; standard-14 AFM `XHeight` for
+  non-embedded fonts; pages with multiple non-empty content streams
+  aren't refreshed by `refresh_decorations`.
+
 ## 2026-10-03 (914th filing) — `Pass 454.0` shipped
 
 **Shipped:**

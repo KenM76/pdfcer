@@ -7928,7 +7928,8 @@ One "verbatim" 1.7 sentence in 14.8.5 was reconstructed from memory and did not 
 
 Shape: "verdict per claim CONFIRMED/WRONG/UNSOURCEABLE with clause numbers; file if in remit".
 
-### 86a. Route per 81a — new cross-project family `D:\devag\odf\`, pointer row in PDF_Spec `index.md`
+### 86a. Route per 81a — new cross-project family `D:\dev
+ag\odf\`, pointer row in PDF_Spec `index.md`
 ### 86b. The RNG schema outranks the prose modality — fetch it
 P2 §4.16.10 says media-type "should", the manifest RNG makes it required; P3 §19.389 says value-type "shall be specified", the RNG makes it optional. Report both. OASIS v1.3 RNGs live at `.../v1.3/os/schemas/`, NOT beside each part (404 returns a 41 KB HTML page with status 404 — check the code, not the size).
 ### 86c. A package-part "should" can be a document-part "shall"
@@ -8086,3 +8087,10 @@ A TWG editor posted the revised clause as an image (#575). View `user-attachment
 ### 100b. An errata thread's IMAGE can be the revision-draft table itself: `curl -sL` the `github.com/user-attachments/assets/<id>` URL, `Read` the PNG. ISS #485's full Table 97 settled conditionality per row.
 ### 100c. A corpus line written as "if X: a → b → c" is read as nesting ALL of a,b,c under X — write the unconditional boundary explicitly ("(unconditional)").
 ### 100d. "How does A combine with B" / "is 0.0 unset" / "which file structure's globals" were all NOT SPECIFIED — state the closest clause verbatim (WD 6.2.1), label the reading DERIVED, route the producer behaviour to personal_rag/pdf, suggest a setting.
+
+## 101. "Canonical sourcing for a VISUAL FEATURE that has no operator (text decoration); premises name a clause/table" (2026-10-03)
+### 101a. Enumerate EVERY carrier before answering "the only way": for decoration there were three (Layout attributes, text-markup annotations, rich-text CSS) — the dispatch named one. Grep the feature word across the WHOLE extracted text and bucket each hit by clause.
+### 101b. Premise table numbers were off by two (343 vs 345; §14.8.5.4.3 vs .4.4): the summary table (342) lists the key, the defining table is a different one. Always cite the table holding the `(Optional; …)` value row.
+### 101c. "Can marked content carry attributes?" is answered by §14.8.5.1's "either of two ways" (A / C on a structure element) + its "rather than in attribute dictionaries" list for Span property lists; §14.6.2 "private information" makes other keys legal-but-meaningless.
+### 101d. Font-metric REFERENCE POINTS differ by format: OpenType post underlinePosition = TOP; Type 1/CFF/AFM UnderlinePosition = CENTRE (stated in the post table's own note). Record the reference point beside every metric.
+### 101e. 2.0 Annex H example COMMENTS can be the only text touching a topic (here: a comment saying PDF has no automatic underlining — paraphrased; 2.0 text stays out of this public directory); they are informative — cite as such.
