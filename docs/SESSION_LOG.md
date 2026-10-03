@@ -4,6 +4,29 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (913th filing) — `Pass 453.0` follow-up
+
+**Shipped:**
+- `Pass 453.0` follow-up (`52f10a7b`) — the heredoc edit that moved the
+  saved-view logic into core had dropped a line-continuation backslash in
+  a string literal, baking a run of spaces into 3d-render's "the file's
+  opening view ... leaves the camera to the model" note.
+  `check-string-gaps.sh` caught it (run-gates 44/45); rejoined. No test or
+  dependency change.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- End-to-end paddle-vl recognition through `OcrRunner` still unverified
+  (open since the 906th filing) — unaffected by this filing.
+
+**For next session:**
+- Unchanged from the 910th filing.
+
 ## 2026-10-03 (912th filing) — `Pass 453.0` shipped
 
 **Shipped:**

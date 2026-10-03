@@ -167,6 +167,11 @@ uses it) — `gui` not rounded up, unadopted there.
 **Decision.** None — next decision stays 188, next standing rule stays
 `R263`.
 
+**Follow-up (`52f10a7b`), 2026-10-03.** The core move's heredoc edit had
+dropped a line-continuation backslash in `view_aim.rs`'s 3d-render note,
+baking a run of spaces into the middle of the sentence; `check-string-gaps.sh`
+caught it (run-gates 44/45). Rejoined; no test or dependency change.
+
 **Status.** Unreleased since `v0.75.0`.
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash,
