@@ -2216,11 +2216,13 @@ pub(crate) fn run() -> ExitCode {
             pin_span,
             font_dirs,
             target,
+            occurrence,
         } => cmd_format_text(&FormatTextArgs {
             input: &input,
             output: &output,
             page,
             find: &find,
+            occurrence,
             pin_span: pin_span.as_deref(),
             set_size,
             set_color: set_color.as_deref(),

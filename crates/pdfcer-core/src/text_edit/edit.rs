@@ -5015,13 +5015,21 @@ pub(crate) fn effective_find<'a>(
 
 /// Map `find` (a substring of the operator's decoded text) to a contiguous
 /// code range within a single string element.
-pub(crate) fn match_run(anchor: &ShowData, find: &str) -> Result<MatchRun, EditError> {
+/// The `occurrence`-th (0-based) non-overlapping match is taken; past the
+/// last match is [`EditError::no_match`].
+pub(crate) fn match_run(
+    anchor: &ShowData,
+    find: &str,
+    occurrence: usize,
+) -> Result<MatchRun, EditError> {
     if find.is_empty() {
         return Err(EditError::Unsupported(UnsupportedCause::EmptyFind));
     }
     let pos = anchor
         .text
-        .find(find)
+        .match_indices(find)
+        .nth(occurrence)
+        .map(|(pos, _)| pos)
         .ok_or_else(|| EditError::no_match(find.to_owned()))?;
     let m = match_range(anchor, pos, pos + find.len(), find)?;
     if m.elem_hi != m.elem {

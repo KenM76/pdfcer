@@ -1371,6 +1371,8 @@ pub(crate) struct FormatTextArgs<'a> {
     /// 1-based page number.
     pub(crate) page: usize,
     pub(crate) find: &'a str,
+    /// `--occurrence`, 1-based.
+    pub(crate) occurrence: usize,
     /// `--pin-span START:LEN`, unparsed. Parsed inside `cmd_format_text` so
     /// a malformed span fails before any file is opened.
     pub(crate) pin_span: Option<&'a str>,
@@ -1637,7 +1639,13 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
             return exit::EDIT_REFUSED;
         }
     };
-    let mut req = FormatRequest::new(args.page - 1, args.find).target(target);
+    if args.occurrence == 0 {
+        eprintln!("pdfcer: --occurrence is 1-based; 0 is not a valid occurrence");
+        return exit::EDIT_REFUSED;
+    }
+    let mut req = FormatRequest::new(args.page - 1, args.find)
+        .target(target)
+        .occurrence(args.occurrence - 1);
     if let Some(span) = pin_span {
         req = req.pinned(span);
     }

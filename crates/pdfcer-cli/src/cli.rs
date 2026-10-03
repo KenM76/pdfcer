@@ -8362,6 +8362,11 @@ pub(crate) enum Command {
         /// operator pdfcer chose.
         #[arg(long, default_value = "")]
         find: String,
+        /// Which match of `--find` inside the located operator to format,
+        /// 1-based: `--find the --occurrence 2` restyles the second `the`.
+        /// Past the last match the edit is refused as not found.
+        #[arg(long, default_value_t = 1, value_name = "N")]
+        occurrence: usize,
         /// Pin the target show operator by its **byte span**, as
         /// `START:LEN`, instead of (or as well as) searching for text.
         ///

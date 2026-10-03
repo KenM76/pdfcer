@@ -579,6 +579,30 @@ session.edit_text(&req, &EditOptions::default())?;
 CLI: `format-text --pin-span START:LEN` with an empty (or omitted) `--find`.
 Get the numbers from `extract-text --json --spans`.
 
+#### Restyling the n-th match inside an operator — `FormatRequest::occurrence`
+
+`find` takes the first match in the located operator. To restyle a later one
+(the second `the` in `the cat and the dog`), name it:
+
+```rust
+let req = FormatRequest::new(page_index, "the")
+    .pinned(span)
+    .occurrence(1) // 0-based: the second `the`
+    .style(StyleTarget::new(Some(true), None));
+session.format_text(&req, &FormatOptions::default())?;
+```
+
+- Counted as **non-overlapping** matches of `find` in the operator's decoded
+  text — the same text `find` matches. A shell holding a selection counts the
+  matches of its cut that start before the selection in that operator.
+- Past the last match is `FormatError::NoMatch(find)`.
+- Ignored for a whole-operator request (empty `find`).
+- It is an occurrence, not a byte range, because the operator's decoded text
+  need not equal extracted text byte-for-byte (`/ToUnicode` ligatures,
+  §9.10.3); a count of matches survives that, an offset does not.
+
+CLI: `format-text --find the --occurrence 2` (1-based on the command line).
+
 #### `EditRequest::spanning_from` — when the text REPEATS on the page
 
 `Pass 272.0`. The disambiguating form: **`find` says *what*, the pin says

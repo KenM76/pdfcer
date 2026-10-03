@@ -773,6 +773,9 @@ pub struct FormatRequest {
     /// ladder falls through to synthesis. Empty (the default) means rung 3 is
     /// skipped. Add with [`Self::style_donor`].
     pub style_donors: Vec<crate::font_embed::FontEmbedPlan>,
+    /// Which match of [`Self::find`] in the operator is meant, 0-based;
+    /// see [`Self::occurrence`].
+    pub occurrence: usize,
 }
 
 impl FormatRequest {
@@ -800,7 +803,21 @@ impl FormatRequest {
             target: EditTarget::Auto,
             embed_font: None,
             style_donors: Vec::new(),
+            occurrence: 0,
         }
+    }
+
+    /// Target the `n`-th (0-based) non-overlapping match of `find` inside the
+    /// located operator rather than the first, returning `self`.
+    ///
+    /// Counted in the operator's decoded text, which is what `find` matches;
+    /// a caller holding a selection counts the matches of its cut that start
+    /// before the selection in that operator. Past the last match the
+    /// request fails as no match. Ignored for a whole-operator request.
+    #[must_use]
+    pub const fn occurrence(mut self, n: usize) -> Self {
+        self.occurrence = n;
+        self
     }
 
     /// A format request naming **the whole show operator at `span`**
@@ -2111,7 +2128,7 @@ pub(crate) fn plan_format_target(
         return Err(FormatError::WidthFitKerned);
     }
     let find = effective_find(anchor, &req.find, req.pinned_span);
-    let m = match_run(anchor, find).map_err(FormatError::from_edit)?;
+    let m = match_run(anchor, find, req.occurrence).map_err(FormatError::from_edit)?;
 
     // --- resolve the family-change target, if any, and re-encode the run ---
     //
