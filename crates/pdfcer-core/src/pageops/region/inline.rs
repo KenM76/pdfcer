@@ -47,11 +47,32 @@ pub(super) fn inline_forms(
             None => return Ok(doc.bytes().to_vec()),
         }
     }
-    report.notes.push(format!(
-        "forms nested more than {MAX_PASSES} deep were not inlined; content outside the region may \
-         survive inside them"
-    ));
+    let left = straddling_forms(&doc, rect)?;
+    if left > 0 {
+        report.forms_kept_straddling = left;
+        report.notes.push(format!(
+            "forms nested more than {MAX_PASSES} deep were not inlined; content outside the region \
+             may survive inside them"
+        ));
+    }
     Ok(doc.bytes().to_vec())
+}
+
+/// Page-level forms still crossing the edge once inlining has given up.
+fn straddling_forms(doc: &Document, rect: Rect) -> Result<usize, RegionError> {
+    let pages = page_tree::pages(doc).map_err(PageOpError::from)?;
+    let Some(page) = pages.first() else {
+        return Ok(0);
+    };
+    let objects = decompose_page(&doc.view(), page, Matrix::IDENTITY)?;
+    Ok(objects
+        .objects
+        .iter()
+        .filter(|o| {
+            matches!(o, VectorObject::Image(i) if i.source == ImageSource::Form
+                && matches!(placement(i.page_bbox, rect), Placement::Straddles))
+        })
+        .count())
 }
 
 /// One page-level sweep. `None` when there was nothing to drop or inline,

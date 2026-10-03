@@ -287,3 +287,64 @@ fn a_page_past_the_end_is_refused() {
     let err = extract_region(&s.view(), 3, REGION, &RegionExport::new()).unwrap_err();
     assert!(matches!(err, RegionError::PageOp(_)), "{err:?}");
 }
+
+/// 33 nested forms, each spanning the whole page: inlining stops at its pass
+/// limit, and the form left crossing the edge is a residual, not just a note.
+fn nested_forms_bytes(depth: usize) -> Vec<u8> {
+    let mut bodies = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] \
+         /Resources << /XObject << /X 5 0 R >> >> /Contents 4 0 R >>"
+            .to_string(),
+        stream("", "/X Do"),
+    ];
+    for k in 0..depth {
+        let id = 5 + k;
+        let (res, body) = if k + 1 < depth {
+            (
+                format!("/Resources << /XObject << /X {} 0 R >> >>", id + 1),
+                "/X Do".to_string(),
+            )
+        } else {
+            (
+                String::new(),
+                "60 60 10 10 re f 300 300 50 50 re f".to_string(),
+            )
+        };
+        bodies.push(stream(
+            &format!("/Type /XObject /Subtype /Form /BBox [0 0 400 400] {res}"),
+            &body,
+        ));
+    }
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    buf
+}
+
+#[test]
+fn forms_nested_past_the_pass_limit_are_a_residual() {
+    let doc = Document::from_bytes(nested_forms_bytes(33)).unwrap();
+    let (_, report) = extract_region(&doc.view(), 0, REGION, &RegionExport::new()).unwrap();
+    assert!(report.forms_kept_straddling > 0, "{report:?}");
+    assert!(report.has_residuals());
+
+    let shallow = Document::from_bytes(nested_forms_bytes(3)).unwrap();
+    let (_, report) = extract_region(&shallow.view(), 0, REGION, &RegionExport::new()).unwrap();
+    assert_eq!(report.forms_kept_straddling, 0, "{report:?}");
+    assert_eq!(report.forms_inlined, 3);
+}
