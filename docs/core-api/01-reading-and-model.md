@@ -2934,9 +2934,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]
   [--style-alpha style|multiply]`.
 - Test model: `fixtures/synthetic/prc/coloured.prc` — a square defined in one
-  file structure, placed three times from another whose globals hold the
-  colours: opaque red, translucent blue (texture over an alpha-0 material),
-  and uncoloured.
+  file structure, placed at x 0, 2 and 4 from another whose globals hold
+  the colours: opaque red, translucent blue (texture over an alpha-0
+  material), and uncoloured.
 
 ### 12.3 Optional-content layers
 

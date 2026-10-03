@@ -1262,8 +1262,9 @@ mod tests {
 
     /// The unit square, defined in file structure A, placed three times by
     /// prototype from file structure B, whose globals hold the colours:
-    /// styles 1, 2 and none. The SolidWorks layout that colours a part
-    /// with another structure's palette. The CLI's colour fixture.
+    /// styles 1, 2 and none, at x 0, 2 and 4. The SolidWorks layout that
+    /// colours a part with another structure's palette. The CLI's colour
+    /// fixture.
     fn coloured_prc() -> Vec<u8> {
         let square = crate::PrcFile::parse(include_bytes!(
             "../../../../fixtures/synthetic/prc/square.prc"
@@ -1271,9 +1272,10 @@ mod tests {
         .unwrap();
         let tess = square.file_structures[0].section(crate::SectionKind::Tessellation);
         let a = UniqueId([5, 6, 7, 8]);
-        let shown = |style| Occ {
+        let shown = |style, x| Occ {
             behaviour: Some((style, SHOW)),
             prototype: Some((1, Some(a))),
+            location: Some([x, 0.0, 0.0]),
             ..OCC
         };
         let b_occs = [
@@ -1281,9 +1283,9 @@ mod tests {
                 sons: &[1, 2, 3],
                 ..OCC
             },
-            shown(1),
-            shown(2),
-            shown(0),
+            shown(1, 0.0),
+            shown(2, 2.0),
+            shown(0, 4.0),
         ];
         let mut model = W::default();
         model.uint(0).uint(MODEL_FILE);
@@ -1320,6 +1322,8 @@ mod tests {
         let colours = |rule| -> Vec<_> {
             let p = f.placements_with(rule).unwrap();
             assert!(p.iter().all(|p| p.file_structure == 0));
+            let xs: Vec<_> = p.iter().map(|p| p.matrix[0][3]).collect();
+            assert_eq!(xs, [0.0, 2.0, 4.0]);
             p.iter().map(|p| p.colour).collect()
         };
         assert_eq!(

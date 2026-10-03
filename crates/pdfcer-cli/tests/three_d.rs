@@ -562,10 +562,13 @@ fn style_alpha_picks_how_a_style_transparency_meets_its_material() {
             input.to_str().unwrap(),
             "--index",
             "2",
+            "--view",
+            "top",
+            "--ortho",
             "--width",
-            "40",
+            "200",
             "--height",
-            "30",
+            "100",
             "-o",
             output.to_str().unwrap(),
         ];
@@ -578,6 +581,21 @@ fn style_alpha_picks_how_a_style_transparency_meets_its_material() {
         );
         let stdout = String::from_utf8_lossy(&out.stdout);
         assert!(stdout.contains("meshes=3 "), "{stdout}");
+        if translucent == 1 {
+            // Squares at x 0..1, 2..3 and 4..5 seen from above, 5.5 wide.
+            let decoder = png::Decoder::new(std::fs::File::open(&output).unwrap());
+            let mut reader = decoder.read_info().unwrap();
+            let mut buf = vec![0; reader.output_buffer_size()];
+            reader.next_frame(&mut buf).unwrap();
+            let px = |x: usize| &buf[(50 * 200 + x) * 4..][..3];
+            let (red, blue, grey) = (px(27), px(100), px(173));
+            assert!(red[0] > 100 && red[1] < 30 && red[2] < 30, "{red:?}");
+            assert!(blue[2] > blue[0] + 50 && blue[0] > 30, "blended: {blue:?}");
+            assert!(
+                grey[0] < 250 && grey.iter().all(|&c| c.abs_diff(grey[0]) < 16),
+                "{grey:?}"
+            );
+        }
         assert!(
             stdout.contains(&format!("({translucent} translucent)"))
                 && stdout.contains("1 mesh(es) had none"),
