@@ -115,6 +115,63 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 430.3` (`ae6860f8`), 2026-10-02 — route B: a symbolic-font character sets through its own program, sibling `/Type0`+`/CIDFontType2` (G075 a/c, decision 172 §1/187) — `Pass 430.3` SHIPPED, G075(a/c) family COMPLETE
+
+Cite `ae6860f8` ("feat(text-edit): route B sets a run's refused
+characters through its own program"), on `main`, not yet pushed (git
+status at session start predates this commit). Closes the last open
+sub-ID of the `430.0`–`430.3` family (decision 172 route A/B): a
+character a symbolic font's guards refuse under route A now sets
+through a sibling `/Type0`+`/CIDFontType2 ` dictionary over the SAME
+`FontFile2`, `/CIDToGIDMap /Identity`, per decision 187.
+
+**Core.** `EditOptions::with_cid_font_program`, `CidFontProgram`
+(`StripCmap` default / `ShareStream` / `Off`), `CidProgramUse` (carried
+on the fallback report as `cid_program`), `FallbackSource::SameProgram`,
+`EmbeddedGlyphs::program_without_cmap` implemented by `pdfcer-render`'s
+`EmbeddedProgramGlyphs`. A shared program carrying a `cmap`
+(`ShareStream`, or `StripCmap` forced to share on a non-single-sfnt
+program) discloses the §9.9 non-conformance by name.
+
+**CLI.** `--cid-font-program strip|share|off` on `edit-text` and
+`edit-block-text`; the report prints
+`cid_font_program=shared|shared-with-cmap|stripped-copy`.
+
+**Tests.** 5 new render integration tests (`same_program_route.rs`:
+strip, share, PDF/A, off-refuses, repertoire); 2 new render unit tests
+(cmap strip keeps checksums valid; a restricted program is never
+copied); 2 new CLI tests (`edit_text_cid_program.rs`). All sabotage-
+checked — a redundant `Off` check was found and removed. The three
+route-A test files now pin `Off`, since route B would otherwise rescue
+edits they expect refused. `tools/run-gates.sh`: 45 of 45 PASS (incl. 2
+filing gates). Structure gate clean — the over-length function was
+split, no new debt.
+
+**`cargo tree`:** no manifest changes, so the GUI-core-separation check
+doesn't apply this Pass.
+
+**Known gap.** `edit-block-text`'s flag has no dedicated CLI test — it
+is wired identically to `edit-text`'s.
+
+**New decision:** `187` (`docs/decisions/187-route-b-cmap.md`,
+amends decision 172 §1). See `ARCHITECTURE.md` §12. No new standing
+rule.
+
+**Follow-up filed as Backlog, not this Pass:** decision 177 §1's
+augmented `CIDFontType2` stream (route A extending an existing CID
+subset) still copies a `cmap` into the augmented stream — same "shall
+not" decision 187 fixes here, unfixed there. `Pass 430.4`, Backlog.
+
+**`docs/FEATURES.md`.** "Accept a character whose glyph exists only in
+the embedded font program" row moved from *Planned* to *Implemented*
+(the whole `G075(a/c)` family — route A plus route B — is now
+complete); `core [x]` / `cli [x]` / `gui [ ]` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. `ae6860f8` is relayed
+as `HEAD` by the dispatching engineer; test counts, gate result and the
+sabotage-check outcome are likewise relayed, not independently
+reproduced.
+
 ### `v0.73.0` — RELEASED (2026-10-02)
 
 Release filing, not a Pass — completes the 889th filing's own "RELEASE
@@ -17740,6 +17797,11 @@ closes out the *prior* filing's business rather than opening this one's.
 >   the same `FontFile2` by GID via `/CIDToGIDMap`, for every guard
 >   decision 172 §4 lists, plus an `EditOptions` override (force B /
 >   refuse); Acrobat Reader render check; PDF/A-1 `/CIDSet`.
+>   **★ SHIPPED 2026-10-02 (892nd filing), `ae6860f8`** (decision 187) —
+>   ships as scoped, plus the `cmap`-under-a-CIDFont rule decision 187
+>   adds. **`Pass 430.3` is now SHIPPED — the `G075(a/c)` family
+>   (`430.0`/`430.2`/`430.3`) is now COMPLETE.** See *Shipped*, above,
+>   for the full accounting.
 > - **`Pass 431.0`** — `EditOptions::fallback` (`G078`): a character the run
 >   cannot encode is set in a fallback face (split show op, `Tf` switch at
 >   the run's size/baseline), preview agrees glyph-for-glyph, report names
@@ -27227,6 +27289,19 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 430.4` — strip/share decision 187's `cmap` rule into decision 177's augmented CID stream too (filed 892nd filing)
+
+Decision 187 (`Pass 430.3`) fixed route B's sibling `/Type0`+
+`/CIDFontType2` dictionary so it never shares or copies a `FontFile2`
+carrying a `cmap` without disclosing the ISO 32000-2 §9.9
+non-conformance. Decision 177 §1's augmented `CIDFontType2` stream —
+route A extending an *existing* CID subset with glyphs from an
+installed face — still copies whatever `cmap` the source program
+carries straight into the augmented stream, breaking the same "shall
+not" decision 187 named but explicitly left uncovered (§6). Apply
+decision 187's strip/share rule (and its PDF/A/`fsType`/non-single-sfnt
+overrides) to that augmented stream too.
 
 ### Replacement-face matching ladder — known gaps (filed 877th filing, `Pass 436.2`)
 

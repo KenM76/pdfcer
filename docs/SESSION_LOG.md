@@ -4,6 +4,55 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (892nd filing) — `Pass 430.3` SHIPPED (route B: `cmap`-aware program sharing), decision 187, `G075(a/c)` family COMPLETE
+
+**Shipped:**
+- `ae6860f8` "feat(text-edit): route B sets a run's refused characters
+  through its own program" — `Pass 430.3`. A symbolic font's character,
+  refused by route A's guards, now sets through a sibling
+  `/Type0`+`/CIDFontType2` dictionary over the run's own `FontFile2`
+  (`/CIDToGIDMap /Identity`). Closes the `430.0`–`430.3` family.
+
+**Decisions made this session:**
+- Decision 187 (`docs/decisions/187-route-b-cmap.md`): a shared program
+  carrying a `cmap` under a CIDFont breaks ISO 32000-2 §9.9's "shall
+  not", so route B strips a copy by default (`CidFontProgram::
+  StripCmap`), with `ShareStream`/`Off` as disclosed alternatives; PDF/A,
+  a restricted `fsType`, or a non-single-sfnt program forces/overrides
+  the choice. Amends decision 172 §1. Decision ceiling `186` → `187`.
+
+**Findings + decisions:**
+- Core: `EditOptions::with_cid_font_program`, `CidFontProgram`,
+  `CidProgramUse` (report field `cid_program`),
+  `FallbackSource::SameProgram`, `EmbeddedGlyphs::program_without_cmap`
+  (`pdfcer-render`'s `EmbeddedProgramGlyphs`). CLI:
+  `--cid-font-program strip|share|off` on `edit-text`/`edit-block-text`;
+  report prints `cid_font_program=shared|shared-with-cmap|stripped-copy`.
+- 5 new render integration tests, 2 new render unit tests, 2 new CLI
+  tests, all sabotage-checked (one redundant `Off` check found and
+  removed). The three route-A test files now pin `Off`, since route B
+  would otherwise rescue edits they expect refused.
+- `tools/run-gates.sh`: 45 of 45 PASS. No manifest change, so the
+  GUI-core-separation `cargo tree` check doesn't apply this Pass.
+- Known gap: `edit-block-text`'s flag has no dedicated CLI test (wired
+  identically to `edit-text`'s).
+
+**Still in flight:**
+- New Backlog item `Pass 430.4`: apply decision 187's strip/share rule
+  to decision 177 §1's augmented `CIDFontType2` stream too (route A
+  extending an existing CID subset still copies a `cmap` unmodified).
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+
+**For next session:**
+- `Pass 430.4` is unscoped Backlog, not yet a committed Pass.
+- Confirm `ae6860f8` is pushed before relying on it as `HEAD` elsewhere.
+
+**Sourcing note (hard rule 8):** no shell this filing. The commit's
+existence, its test counts, the gate result and the sabotage-check
+outcome are relayed from the dispatching engineer's own report;
+`ae6860f8` is named as `HEAD` in the premises given to this filing.
+
 ## 2026-10-02 (891st filing) — `Pass 446.0` second follow-up fix (empty `/Resources` false oddity)
 
 **Shipped:**

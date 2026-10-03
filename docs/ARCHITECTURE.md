@@ -2937,6 +2937,18 @@ incremental save stays the default.
 > never an in-place program edit; `R260` requires the new program be
 > re-parsed and verified a strict superset before commit.
 
+> **★ THIRD EXCEPTION, 2026-10-02 (892nd filing, decision 187, `Pass
+> 430.3` SHIPPED).** Route B's symbolic-font fallback (a sibling
+> `/Type0`+`/CIDFontType2` dictionary reusing the run's own `FontFile2`
+> by GID via `/CIDToGIDMap /Identity`) is a further R107 exception,
+> distinct from the wholesale-replacement one above: it REUSES an
+> existing program unchanged when that program carries no `cmap`, and
+> otherwise writes a new, cmap-stripped COPY of it (GIDs/every other
+> table byte-identical) rather than a superset — the old stream is never
+> touched either way. `EditOptions::with_cid_font_program`/
+> `CidFontProgram::{StripCmap (default), ShareStream, Off}`; CLI
+> `--cid-font-program strip|share|off`.
+
 `pdfcer-render` gains `font::subset` — `plan_subset(donor_bytes, ...)
 -> Result<FontEmbedPlan, SubsetError>`, parsing the donor via the
 existing skrifa parser (no second font-program parser added anywhere
@@ -12983,3 +12995,62 @@ actioned, here.
 
 **New standing rule.** None — scoped to this one engine's tokenizer and
 first-rung reading model, not a project-wide-reusable rule.
+
+### 2026-10-02 (892nd filing, `ae6860f8`, KenAgent) — decision 187: route B's `FontFile2` and the `cmap` table
+
+**Amends.** Decision 172 §1 (route B "reuses the same `FontFile2`
+stream" — unqualified). `Pass 430.3`.
+
+**What this decides.** Route B's new `/Type0`+`/CIDFontType2` dictionary
+gets its program as follows, per `EditOptions::with_cid_font_program`/
+`CidFontProgram`: if the program has **no** `cmap`, share the existing
+`FontFile2` (unchanged). If it **does** (ISO 32000-2 §9.9: a CIDFont
+program "shall not" carry one), mode `StripCmap` (default) writes a new
+`FontFile2` — the same program, `cmap` table removed, `numTables`/
+`searchRange`/`entrySelector`/`rangeShift`/`head.checkSumAdjustment`
+recomputed, GIDs and every other table byte-identical, `/CIDToGIDMap
+/Identity` still holds — one stripped copy per source program per
+document. `ShareStream` always shares and discloses the §9.9
+non-conformance instead. `Off` keeps the route-A refusal (no route B).
+Forced to `StripCmap` regardless of the operator's choice: a PDF/A claim
+(including an unreadable XMP packet — leans safe) or an `OS/2.fsType`
+usage-value-2 (restricted) program, or a program that is not a single
+TrueType sfnt (collection, or no `glyf`) — the last two are shared, not
+copied, and disclosed the same way as `ShareStream`. Stripping is done
+by `pdfcer-render`'s sfnt writer through the existing core→render trait
+(`EmbeddedGlyphs::program_without_cmap`, `pdfcer-render`'s
+`EmbeddedProgramGlyphs`); `pdfcer-core` gains no dependency. Staged
+uncompressed like every program pdfcer writes (`/Length1` = `/Length`).
+Disclosed per rule 4: shared, shared-with-`cmap` (non-conformance named),
+or stripped-copy (object number).
+
+**Why.** Sharing a simple subset's program — which must carry a `cmap` —
+under a CIDFont breaks a spec "shall not" silently; always copying wastes
+a byte-identical duplicate whenever the program has no `cmap` already.
+`R259`/`R107` hold: no existing program stream is modified, the copy is a
+new object like every other route-B object.
+
+**Not covered.** Decision 177 §1's augmented `CIDFontType2` stream (route
+A extending an existing CID subset) still copies a `cmap` into the
+augmented stream, breaking the same "shall not" — a separate Pass under
+this rule (`Pass 430.4`, Backlog).
+
+**Full record:** `docs/decisions/187-route-b-cmap.md` (§7 "As
+implemented" covers the three points above the original record didn't
+anticipate: uncompressed staging, the `Off` mode, and the unreadable-XMP/
+non-single-sfnt cases).
+
+**Body-section effect.** §4's `font_embed.rs`/FF-C entry gains a third
+dated narrowing note, immediately after the 874th-filing one (decisions
+173/177): route B's new `/Type0`+`/CIDFontType2` dictionary is a further
+exception to R107, reusing an existing `FontFile2` by GID
+(`/CIDToGIDMap`) rather than allocating a wholly fresh program — and,
+per this decision, sometimes writes a cmap-stripped *copy* of that
+program rather than sharing it outright, same copy-never-modify
+discipline as decisions 173/177.
+
+**Decision ceiling.** Fills `187`; ceiling `186` → `187`. Next free
+decision `188`.
+
+**New standing rule.** None — `R259`/`R107`/`R260` already cover the
+copy-never-modify discipline this decision extends.
