@@ -4,6 +4,43 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (909th filing) — `Pass 451.0` shipped
+
+**Shipped:**
+- `Pass 451.0` (`cba85256`) — new `ImportedImage::from_rgba8(width, height,
+  rgba)` takes straight RGBA8 pixels already in memory (row-major,
+  top-left origin) and builds an 8-bit DeviceRGB Flate image, adding an
+  `/SMask` only when some alpha byte is < 255, through the same
+  `AlphaSplit`/`alpha_to_soft_mask` path a PNG with alpha already uses.
+  New `ImageFormat::Pixels` (sniff never returns it); new
+  `ImageImportError::BufferSize`. The 3D-poster builder now goes through
+  this instead of a private PNG encoder, which is deleted. Answers `G106`.
+  Core only — no CLI or GUI caller this Pass. `docs/FEATURES.md`'s image-
+  import row ("Insert an image as a new XObject") edited in place: lead
+  sentence now names both sources; boxes unchanged (`[x] core / [x] cli /
+  [x] gui` — the row's existing ticks describe the general capability,
+  not this sub-path).
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- End-to-end paddle-vl recognition through `OcrRunner` still unverified
+  (open since the 906th filing) — unaffected by this filing.
+
+**For next session:**
+- Verify end-to-end paddle-vl recognition through `OcrRunner` against a
+  real add-on build.
+
+**Sourcing (hard rule 8).** This filing had no shell. Commit hash, test
+counts (4 new integration tests + 1 doctest, sabotage failing 2 tests,
+`tools/run-gates.sh` PASS 45 commands) and gate results in this entry and
+in `ROADMAP.md`'s `Pass 451.0` entry are **relayed** from the dispatching
+engineer's report, not independently verified.
+
 ## 2026-10-03 (908th filing) — `Pass 442.6` shipped
 
 **Shipped:**

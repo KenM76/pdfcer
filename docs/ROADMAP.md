@@ -115,6 +115,54 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 451.0` (`cba85256`), 2026-10-03 — pixels already in memory become an imported image
+
+Answers `G106` (`pdfcer-gui`, priority unstated — file
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G106_an_image_in_memory_cannot_become_an_imported_image.md`):
+an image a caller already holds as pixels had no way in except re-encoding
+to PNG first and handing that to the sniffer.
+
+**Core, `pdfcer-core`, `cba85256`.** New
+`ImportedImage::from_rgba8(width, height, rgba: &[u8]) -> Result<ImportedImage, ImageImportError>`
+— straight (non-premultiplied) RGBA8, row-major from the top-left. Output
+is an 8-bit DeviceRGB Flate image; an 8-bit `/SMask` is added only when
+some alpha byte is < 255, through the same `AlphaSplit`/`alpha_to_soft_mask`
+path and soft-mask-PDF-version note a PNG carrying alpha already gets — no
+second disclosure vocabulary for the same fact. New `ImageFormat::Pixels`
+variant (sniff never returns it — there are no magic bytes to sniff for
+pixels already in memory). New `ImageImportError::BufferSize { width,
+height, expected, actual }` for a buffer that doesn't match `width * height
+* 4`. The 3D-poster builder now constructs its image through this instead
+of its own private PNG encoder, which is deleted.
+
+**No CLI or GUI caller this Pass** — `pdfcer-core` only, per the request.
+
+**Tests.** 4 new integration tests (`image_pixels`: equivalence against the
+PNG route for the same pixels, fully opaque, wrong buffer length, empty
+buffer) plus one doctest. Sabotage (a channel swap, an inverted-opacity
+test) failed 2 tests. `tools/run-gates.sh`: PASS, 45 commands.
+
+**Gates.** `cargo tree` unchanged — no dependency or manifest change.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` updated.
+
+**`docs/FEATURES.md`.** The image-import row ("Insert an image as a new
+XObject", *Fonts & rendering*) edited in place: lead sentence now names
+both sources (file and in-memory RGBA8), citing `Pass 451.0`/`G106`/core-only.
+Boxes unchanged (`[x] core / [x] cli / [x] gui` — the row's existing ticks
+describe the general import capability; this sub-path has no shell caller
+and no box of its own).
+
+**Decision.** None — extends `ImportedImage`'s existing construction
+surface, no new invariant or crate boundary. Next decision stays 188, next
+standing rule stays `R263`.
+
+**Status.** Unreleased since `v0.75.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, test
+counts, sabotage results and gate results above are **relayed** from the
+dispatching engineer's report, not independently verified.
+
 ### `Pass 450.0` (`8e454f47`), 2026-10-03 — place a PDF page's own content directly onto a page, not behind a Stamp
 
 Answers `G100` (GUI `O272` snapshot paste-back, priority medium).
