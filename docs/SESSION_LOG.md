@@ -4,6 +4,31 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (916th filing) — `Pass 455.0` doc-comment fix
+
+**Shipped:**
+- `bd3f38c5` — reattached `plan_format_target`'s doc comment (orphaned
+  by `Pass 455.0`'s two new private helpers landing between the
+  function and its doc block) and added `Scan::of`'s missing doc.
+  Caught by `tools/check-public-fns-documented.py` in `run-gates.sh`.
+  No behaviour change; core `format_decoration` tests unchanged (8/8).
+  Noted on the `Pass 455.0` Shipped entry in `ROADMAP.md`.
+
+**Decisions made this session:**
+- None.
+
+**Findings + decisions:**
+- `core.hooksPath` had been rewritten to an absolute path by the same
+  gate run — reset to `tools/hooks` (known worktree-agent side effect,
+  not a new finding).
+
+**Still in flight:**
+- `Pass 455.1` (Tagged-PDF `TextDecorationType`) still *Next up*,
+  unaffected by this filing.
+
+**For next session:**
+- `Pass 455.1` is next up.
+
 ## 2026-10-03 (915th filing) — `Pass 455.0` shipped
 
 **Shipped:**

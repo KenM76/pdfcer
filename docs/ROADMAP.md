@@ -190,6 +190,12 @@ with multiple non-empty content streams aren't refreshed.
 line counts and test results above are **relayed** from the dispatching
 engineer's report, not independently verified.
 
+**Follow-up (`bd3f38c5`).** Reattached `plan_format_target`'s doc
+comment, orphaned when the two private helpers above landed between it
+and its doc block, and added the missing doc on `Scan::of`; both caught
+by `tools/check-public-fns-documented.py`. No behaviour change; tests
+unchanged (8/8).
+
 ### `Pass 454.0` (`87e73b6f`), 2026-10-03 — restyle the n-th match of `find` in an operator
 
 Answers `G084` (`pdfcer-gui`, file
