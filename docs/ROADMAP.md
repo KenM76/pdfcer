@@ -115,6 +115,40 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 461.0` — 3D model tree listing — SHIPPED `592dca09`
+
+Operator request, 2026-10-03 ("Do the 3D texture mapping and tree
+view" — he picked these two of four offered; narrower carve-out from
+the `Pass 261.6` interactive-3D-viewer refusal, per the *Next up*
+entry this supersedes).
+
+**Shipped.** `pdfcer-3d`: `PrcFile::model_tree() -> Result<Vec<ModelNode>,
+PrcError>`; `ModelNode` (`#[non_exhaustive]`: name, name_from
+(`NameSource::{Occurrence, Prototype, Part, Unnamed}`), parent, depth,
+file_structure, occurrence, hidden, suppressed, drawn, has_part,
+placements: `Range<usize>` into `placements()`). Hidden/suppressed
+subtrees are now walked and listed (`drawn=false`) but still push no
+placements. Names follow WD §7.2.3.4 (`same_name` reuses the current
+name — pdfcer deliberately diverges from prc-rs, which clears it).
+Display-name fallback occurrence → prototype chain → part → unnamed,
+disclosed when borrowed (rule 4). CLI `pdfcer 3d-tree IN --index N
+[--json]` — indented tree with hidden/suppressed/not-drawn tags,
+placement counts, a summary line; JSON one object per node; refuses
+U3D (exit 9). No GUI wiring (separate project).
+
+**Tests/gates.** +4 `pdfcer-3d` unit tests (tree module now 21), +1 CLI
+integration test. 4 core + 1 CLI sabotage checks each fail a test.
+Fuzz `prc_tree` extended: 137,963 runs / 61 s / 0 crashes. fmt,
+clippy `-D warnings`, code-structure and `check-string-gaps` clean. No
+dependency change — `cargo tree` unaffected.
+`docs/core-api/01-reading-and-model.md` updated (3,772 lines, 214
+clauses); `check-core-api-verbs` green.
+
+**Not done / later.** XML export of the tree, and toggling visibility
+(a shell matter — drop the node's placement range) stay out of scope.
+
+**Parity source.** Acrobat RAG `markup__3d_model_tree_capability.md`.
+
 ### `v0.76.0` — RELEASED (2026-10-03)
 
 Release filing, completing the version bump at `8d5ef554` ("chore:
@@ -19874,38 +19908,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### `Pass 461.0` — 3D model tree listing
-
-Operator request, 2026-10-03 (verbatim: "Do the 3D texture mapping
-and tree view" — he picked these two of four offered; docs currency
-and STL/STEP import NOT requested).
-
-**Core.** `pdfcer-3d` reads each PRC product occurrence's name
-(`ContentPRCBase` name with current-name tracking per WD §7.2.3.4:
-`same_name` reuses the current name, every named entity updates it,
-resets per compressed section), hidden/suppressed state, product
-flags, and children (prototype fallback when an occurrence has no own
-name/geometry), plus the placements each subtree draws. Exposed as a
-flat, parent-linked node list.
-
-**CLI.** `3d-tree --index N` prints the indented tree (and `--json`).
-Display-name fallback: occurrence name → prototype's occurrence name
-→ part name → `type #index`.
-
-**Acceptance.** Hidden/suppressed nodes are listed too — Acrobat
-itself reports stored default visibility, never silently assumes
-visible (rule 4). Depth/visit ceilings against cyclic/malformed
-prototypes. Synthetic fixture tests. `docs/core-api/` updated.
-
-**Parity source.** Acrobat RAG
-`markup__3d_model_tree_capability.md`.
-
-**Narrower carve-out**, not a reopening, of the `Pass 261.6`
-interactive-3D-viewer refusal (see *Backlog*, "3D content in PDF" row)
-— tree/metadata only, no scene render. Exceed candidate: XML/JSON
-export of the tree as a later slice, `Pass 461.1`, if not already in
-`461.0`.
 
 ### `Pass 462.0` — 3D texture mapping (read + render)
 

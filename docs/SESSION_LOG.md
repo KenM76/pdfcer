@@ -4,6 +4,39 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (924th filing) — `Pass 461.0` shipped
+
+**Shipped:**
+- `Pass 461.0` (`592dca09`) — PRC model-tree listing. Core
+  `PrcFile::model_tree()`/`ModelNode` (name, name_from, parent, depth,
+  hidden, suppressed, drawn, has_part, placements range); hidden/
+  suppressed subtrees now walked and listed (`drawn=false`), still
+  push no placements. CLI `3d-tree IN --index N [--json]`. Borrowed
+  display names disclosed per rule 4. +4 core tests, +1 CLI test; 5
+  sabotage checks each fail a test; fuzz `prc_tree` 137,963 runs/61 s/
+  0 crashes. No GUI wiring. Full detail in the commit message and the
+  *Shipped* entry above.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- `Pass 462.0` (3D diffuse-texture rendering) remains in *Next up*.
+- GitHub release + `verify-release.py v0.76.0` for `v0.76.0` — still
+  owed, carried from the 923rd filing below.
+
+**For next session:**
+- Confirm `v0.76.0`'s GitHub release and `verify-release.py`. Next
+  fresh whole-number Pass ID after `462.0` is `463.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. All figures
+above (test counts, fuzz run count/duration, gate results) are
+relayed from the dispatching engineer's own report; not independently
+reproduced here.
+
 ## 2026-10-03 (923rd filing) — `v0.76.0` RELEASED; `Pass 461.0`/`462.0` filed to *Next up*
 
 **Shipped:**
