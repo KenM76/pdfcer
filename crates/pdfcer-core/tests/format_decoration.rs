@@ -210,3 +210,18 @@ fn refresh_is_idempotent_across_unrelated_edits() {
     assert_eq!(rules(&first), rules(&second));
     assert_eq!(second.matches("<</Rule").count(), 1, "{second}");
 }
+
+#[test]
+fn an_unembedded_standard_font_strikes_at_half_its_afm_x_height() {
+    let mut s = session(TWO_RUNS);
+    decorate(&mut s, "World", DecorationSet::STRIKETHROUGH).unwrap();
+    let text = content(&saved(&s));
+    let r = rules(&text);
+    assert_eq!(r.len(), 1, "{text}");
+    // Helvetica XHeight 523: centre 261.5, thickness 50, at 12 pt.
+    let re = r[0].1;
+    assert!(
+        (re[1] - 2.838).abs() < 1e-6 && (re[3] - 0.6).abs() < 1e-6,
+        "{re:?}"
+    );
+}

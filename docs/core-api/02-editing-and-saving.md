@@ -635,7 +635,8 @@ let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
     falls back to `Standard` on its own when the font lacks it.
   - `Standard`: underline centre 0.1 em below the baseline, 0.05 em thick
     (the standard-14 AFM values); strikethrough centre at half the font
-    descriptor's `/XHeight`, else a quarter em, as thick as the underline.
+    descriptor's `/XHeight` (an unembedded standard-14 font: its AFM
+    `XHeight`), else a quarter em, as thick as the underline.
   - The choice is stored on the marker (`/M /Standard`; absent = font
     tables), so later refreshes draw the same rule. The format report
     carries a disclosure naming the source (rule 4) — show it.

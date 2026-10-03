@@ -107,7 +107,8 @@ pub enum StrikeSource {
     /// The embedded program's `OS/2` `yStrikeoutPosition` and
     /// `yStrikeoutSize`.
     FontTable,
-    /// Half the font descriptor's `/XHeight` (§9.8.1 Table 120).
+    /// Half the font descriptor's `/XHeight` (§9.8.1 Table 120), or, for an
+    /// unembedded standard-14 font without one, its AFM `XHeight`.
     XHeight,
     /// A quarter of an em: the font declares no x-height.
     QuarterEm,

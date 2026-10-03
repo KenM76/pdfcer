@@ -42,7 +42,8 @@ impl LineMetrics {
             .and_then(|d| d.get(b"XHeight"))
             .map(|v| view.resolve(v))
             .and_then(Object::as_number)
-            .filter(|h| *h > 0.0);
+            .filter(|h| *h > 0.0)
+            .or_else(|| font.and_then(|f| standard_x_height(view, f, descriptor)));
         let underline_thickness = tables.underline_thickness.unwrap_or(STANDARD_UNDERLINE.1);
         let (strike_centre, strike_thickness, strike_source) =
             match (tables.strike_centre, tables.strike_thickness, x_height) {
@@ -58,6 +59,28 @@ impl LineMetrics {
             strike_source,
         }
     }
+}
+
+/// The AFM x-height of an unembedded standard-14 font (§9.6.2.2: its
+/// metrics are the published ones); `None` for an embedded program, which
+/// may not match them.
+fn standard_x_height(
+    view: &DocumentView<'_>,
+    font: &Dict,
+    descriptor: Option<&Dict>,
+) -> Option<f64> {
+    let embedded = descriptor.is_some_and(|d| {
+        [&b"FontFile"[..], b"FontFile2", b"FontFile3"]
+            .iter()
+            .any(|k| d.get(k).is_some())
+    });
+    if embedded {
+        return None;
+    }
+    let name = view.resolve(font.get(b"BaseFont")?).as_name()?;
+    let std14 = crate::fontdata::std14_by_base_font(std::str::from_utf8(name.as_bytes()).ok()?)?;
+    let h = crate::fontdata::std14_descriptor(std14).x_height;
+    (h > 0).then(|| f64::from(h))
 }
 
 /// The font descriptor of a simple font, or of a `Type0`'s descendant.
