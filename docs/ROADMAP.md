@@ -115,6 +115,34 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 450.0` (`8e454f47`), 2026-10-03 — place a PDF page's own content directly onto a page, not behind a Stamp
+
+Answers `G100` (GUI `O272` snapshot paste-back, priority medium).
+
+**Core, `pdfcer-core`, `8e454f47`.** New `EditSession::place_page_content(&mut self, source: &DocumentView<'_>, source_page, page_index, rect: Rect) -> Result<PlacedPageContent, EditError>`. Builds the same Form XObject `place_page_artwork` builds (`/BBox` = the source crop box, the source's own `/Resources`), but draws it with a new **appended content stream** — `q sx 0 0 sy e f cm /Fx Do Q` (§7.8.2) — instead of a `/Stamp` annotation's `/AP`. The `cm` maps the crop box onto `rect` the same way §12.5.5 maps a stamp's `BBox` onto its `/Rect`, so both render the same pixels. **Additive**: existing content streams stay byte-verbatim, wrapped in `q`/`Q`. The form's own resources keep a source `/F1` apart from the page's `/F1`, so `resources_renamed` is always 0. One undo entry (`CommandKind::PlacePageContent`). Same refusals as `place_page_artwork` (ModifyContents encryption, certification, hidden objects) plus `PageOutOfRange`/`SourcePageOutOfRange`; a zero-area rect is `ImageRectDegenerate`.
+
+**New type.** `pub struct PlacedPageContent` (`#[non_exhaustive]`) — same fields as `PlacedArtwork`, `content_id` in place of `annot_id`. Both verbs now live in `edit/page_artwork.rs` around one shared staging helper.
+
+**CLI, `pdfcer-cli`.** `pdfcer place-stamp ... --as-content`; the output line prints `content=N` instead of `obj=N`.
+
+**Structure baseline.** Reduced by 2 (605 entries left) — `place_page_artwork` and the CLI `cmd_place_stamp` both dropped out of `tools/structure-baseline.txt` while being split around the shared helper.
+
+**Tests.** New: core `place_page_content` (6 — no annotation; Courier `/F1` vs Helvetica `/F1` keep their fonts; crop-box origin in the `cm`; one-step undo; degenerate rect; source page out of range); render `page_content_draws_like_the_stamp` (1 — max channel diff ≤2, non-zero crop origin, squashed rect); CLI `place_stamp_as_content` (2). Sabotage: dropping the crop-origin offset fails the core and render tests; ignoring `--as-content` fails the CLI test. `tools/run-gates.sh`: 44/45 green — core lib 1457, core integration 2613, CLI 738, render 511. The one red gate, `check-public-fns-documented` (the shared helper lacked a doc comment), was fixed in the same commit and re-checked clean.
+
+**Gates.** `cargo tree` unchanged — no manifest change.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gained a verb row, `03-capabilities.md` an "As page CONTENT instead" section; index now lists 316 verbs. `check-core-api-verbs` PASS.
+
+**Channel.** Reply written: `reply_request_G100_a_pdf_page_cannot_be_placed_as_page_content_FIXED.md`.
+
+**`docs/FEATURES.md`.** Row (Annotations & markup) moved *Planned* → *Implemented* in place: `[x] core / [x] cli / [ ] gui` — `gui` not rounded up. The sibling `place_page_artwork` row gained a one-line forward pointer.
+
+**Decision.** None — extends the `place_page_artwork` surface from `Pass 293.0`, no new invariant or crate boundary.
+
+**Status.** Unreleased since `v0.75.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, test counts, sabotage results and gate results above are **relayed** from the dispatching engineer's report, not independently verified.
+
 ### `Pass 442.5` (`567858cb`), 2026-10-03 — PaddleOCR-VL add-ons now run through `OcrRunner`, not a third route
 
 Answers `G102` (operator request `O282` via the GUI, priority high): one
@@ -17593,16 +17621,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> ★★★★★★★★★★★★★★★★ **ONE ITEM ADDED 2026-10-03 (905th filing)** — scoping
-> only, not started. No new decision.
-> - **`Pass 450.0`** — `G100` (GUI `O272` snapshot paste-back, priority
->   medium): `EditSession::place_page_content(&source_view, source_page,
->   page_index, rect) -> Result<PlacedArtwork, EditError>` — the same Form
->   XObject `place_page_artwork` builds, drawn by `q cm /Fx Do Q` appended
->   to the target page content instead of a `/Stamp`; one undo entry, same
->   scale/`distorted` disclosure, same refusals as `place_page_artwork`.
->   CLI subcommand ships in the same Pass. To `place_page_artwork` as
->   `add_svg` is to `add_svg_stamp`.
+> ★★★★★★★★★★★★★★★★ **`Pass 450.0` SHIPPED, 2026-10-03 (907th filing),
+> `8e454f47`** — see *Shipped*, above. `G100`: `EditSession::place_page_content`
+> draws the same Form XObject `place_page_artwork` builds into an appended
+> content stream instead of under a `/Stamp`; CLI `place-stamp --as-content`
+> ships in the same commit. `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 442.5` SHIPPED, 2026-10-03 (906th filing),
 > `567858cb`** — see *Shipped*, above. `G102`: PaddleOCR-VL add-ons now

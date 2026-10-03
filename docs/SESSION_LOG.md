@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (907th filing) — `Pass 450.0` shipped
+
+**Shipped:**
+- `Pass 450.0` (`8e454f47`) — `EditSession::place_page_content` draws the
+  same Form XObject `place_page_artwork` builds into an appended content
+  stream (`q cm /Fx Do Q`) instead of under a `/Stamp` annotation; one
+  undo entry, same scale/`distorted` disclosure and refusals, plus
+  `PageOutOfRange`/`SourcePageOutOfRange`. New `PlacedPageContent`
+  (`#[non_exhaustive]`), sharing a staging helper with `place_page_artwork`
+  in `edit/page_artwork.rs`. CLI: `place-stamp ... --as-content`, printing
+  `content=N` instead of `obj=N`. Answers `G100`. Structure baseline
+  debt reduced by 2 (605 entries left). `docs/FEATURES.md` row moved
+  *Planned* → *Implemented* this filing: `[x] core / [x] cli / [ ] gui`.
+
+**Decisions made this session:**
+- None — extends the `place_page_artwork` surface from `Pass 293.0`, no
+  new invariant or crate boundary.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- CLI-side retirement of `LoadedOcrEngine::PaddleVl` onto `OcrRunner`
+  (from `Pass 442.5`, 906th filing) — still not scoped as its own Pass.
+- End-to-end paddle-vl recognition through `OcrRunner` still unverified
+  (906th filing) — unaffected by this filing.
+
+**For next session:**
+- Verify end-to-end paddle-vl recognition through `OcrRunner` against a
+  real add-on build.
+- Decide whether the CLI's remaining `LoadedOcrEngine::PaddleVl` arm
+  gets its own Pass ID or folds into a `442.6`.
+
+**Sourcing (hard rule 8).** This filing had no shell. Commit hash, test
+counts, sabotage results and gate results in this entry and in
+`ROADMAP.md`'s `Pass 450.0` entry are **relayed** from the dispatching
+engineer's report, not independently verified.
+
 ## 2026-10-03 (906th filing) — `Pass 442.5` shipped
 
 **Shipped:**
