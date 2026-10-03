@@ -4,6 +4,75 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (904th filing) — `v0.75.0` RELEASED
+
+**Shipped:**
+- Release of `v0.75.0`, completing the 903rd filing's "RELEASE IN
+  PROGRESS" entry. No code changed and no Pass status changed since
+  that filing. Tag `v0.75.0` at `f6c76a22`, pushed. Gates: 45/45 PASS
+  on the `bbc5cd10` bump. Build
+  `D:\builds\pdfcer-20261003-0740-f6c76a2` — `pdfcer.exe` 31,669,248
+  bytes, folder total 47,594,052 bytes. Fresh-folder smoke:
+  `--version` 0.75.0, revision `v0.75.0`, clean; `edit-text
+  fallback-font.pdf --find Qu5 --replace "Qu€ ≥ 5" --fallback-font
+  auto --font-dir …` exit 0, printed `face_name=derived` plus the
+  derived-name disclosure; `extract-text` returned `"Qu€ ≥ 5"`.
+  Synthetic fixture only. GitHub release 8 assets via `gh-release.py`
+  (PASS): `pdfcer-v0.75.0-windows-x64.zip` 25,051,946 bytes
+  (sha256 `1d88ff6f…`) + 3 OCR add-on zips (`ocrcer` 3,789,155,
+  `ocrs` 11,352,262, `tesseract` 4,483,685), each with a `.sha256`.
+  OneDrive slot `pdfcer2` now `0.75.0` (67,216,703 bytes); `pdfcer1`
+  keeps `0.74.0` — next release writes `pdfcer1`.
+
+**Decisions made this session:**
+- None — decision ceiling unchanged.
+
+**Findings + decisions:**
+- Release notes first drafted claimed `--fallback-font auto` as new in
+  `v0.75.0`; it actually shipped in `v0.74.0`. Corrected via `gh
+  release edit` to list only the four real deltas since `v0.74.0`:
+  CFF fallback-face embedding (`Pass 436.5`), the `fallback_font`
+  settings key (`Pass 436.4`), the derived-PostScript-name disclosure
+  (`Pass 436.6`), the font-file read-once memo (`Pass 436.7`), and the
+  region-export unmarked-band note fix (`Pass 449.1`). A false
+  "new in this release" claim reached a published GitHub release page
+  before being caught and edited — same failure shape hard rule 10
+  warns about, on release-notes prose rather than a RAG figure.
+- Release zip's first build nested all files one level under an extra
+  top-level folder; corrected to the flat layout `v0.74.0` and prior
+  releases use, before upload.
+- `verify-release.py`'s first run reported 2 FAILs — `origin/main` did
+  not yet contain the tag, and no CI run existed at the tagged commit
+  — because `main` had not been pushed past the bump+903rd-filing
+  commit yet at that point. `main` has since been pushed
+  (`origin/main` = `f6c76a22`); CI run `37121630750` is queued.
+  Recorded here as "re-run pending CI", not as a passed check — the
+  verifier has not been re-run clean as of this filing.
+- Gotcha for future packaging sessions: `D:` reached 0 bytes free
+  mid-build (`os error 112`); deleting `target/debug/incremental`
+  freed 123 GB and let the build complete. Judged too
+  environment-specific (one developer's disk, not a Cargo/rustc
+  behavior) to warrant a `D:\dev\rag\rust\` entry on its own.
+- `docs/FEATURES.md`: no rows affected — release only, no capability
+  change.
+
+**Still in flight:**
+- Next session should re-run `python tools/verify-release.py v0.75.0`
+  once CI run `37121630750` completes, to confirm it goes green.
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+
+**For next session:**
+- `v0.75.0` is public. `docs/FEATURES.md` and `docs/ROADMAP.md`
+  unchanged by this filing.
+
+**Sourcing note (hard rule 8):** no shell this filing. All release
+figures (gate result, build path/size, smoke-test output, GitHub asset
+sizes/hashes, release-notes correction, zip-layout correction,
+`verify-release.py` result, OneDrive slot/size, disk-space incident)
+are relayed from the dispatching engineer's own report, measured there
+with a shell; not independently reproduced here.
+
 ## 2026-10-03 (903rd filing) — `v0.75.0` RELEASE IN PROGRESS
 
 **Shipped:**
