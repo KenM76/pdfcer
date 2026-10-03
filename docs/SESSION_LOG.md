@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (905th filing) — `Pass 433.1` shipped; `442.5`/`450.0` scoped
+
+**Shipped:**
+- `Pass 433.1` (`c4c37fda` core + `07fe3a54` CLI) — `BlockEditReport::looks`/
+  `BlockHit::looks` count a block's distinct looks before an edit
+  flattens them, same rule as the existing N-looks disclosure; CLI
+  `edit-block-text` prints `looks: N`. Answers `G101`. `docs/FEATURES.md`
+  row updated in this filing (paragraph/block text-replace row); boxes
+  unchanged `[x] core / [x] cli / [ ] gui`.
+
+**Decisions made this session:**
+- None — both new Passes scoped this filing are implementation/routing
+  work, consistent with recent no-decision Passes (`446.0`/`448.0`/`449.0`).
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- `Pass 442.5` newly scoped (`G102`, `O282`, priority high) — `ocr-vl`
+  feature on `pdfcer-ocr-host`, consolidating paddle-vl routing to one
+  path instead of three. Not started.
+- `Pass 450.0` newly scoped (`G100`, `O272`, priority medium) —
+  `EditSession::place_page_content`, the page-content sibling of
+  `place_page_artwork`. Not started.
+
+**For next session:**
+- Work either `442.5` or `450.0` next, operator/engineer's choice — both
+  are unstarted implementation Passes with clear acceptance criteria
+  already on file (`docs/ROADMAP.md` *Next up*, 905th-filing banner).
+
+**Sourcing (hard rule 8).** This filing had no shell. Commit hashes, test
+counts and line counts in this entry and in `ROADMAP.md`'s `Pass 433.1`
+entry are **relayed** from the dispatching engineer's report, not
+independently verified.
+
 ## 2026-10-03 (904th filing) — `v0.75.0` RELEASED
 
 **Shipped:**

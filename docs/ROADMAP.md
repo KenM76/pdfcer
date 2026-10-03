@@ -115,6 +115,53 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 433.1` (`c4c37fda`+`07fe3a54`), 2026-10-03 — a block's distinct "looks" are counted before an edit flattens them
+
+Answers `G101` (pdfcer-gui: "a block hit does not say whether its looks
+differ"). Extends `Pass 433.0`'s `edit_block_text`/`edit_block_text_preview`
++ `block_at_point` with a count, not just the existing yes/no "the block
+mixed N looks" disclosure.
+
+**Core, `pdfcer-core`, `c4c37fda`.** `BlockEditReport::looks: usize` —
+distinct looks among the block's runs, by the same rule as the existing
+disclosure (`SpanStyle::same_look`: font, size, fill, stroke, every
+text-state parameter except leading). Reaches the GUI before commit via
+`edit_block_text_preview(..).report.looks`. `BlockHit::looks: Option<usize>`
+from `block_at_point`; `None` when `edit_block_text` would refuse the block
+(runs cannot be located).
+
+**CLI, `pdfcer-cli`, `07fe3a54`.** `edit-block-text` prints `looks: N` in
+its report.
+
+**Tests.** Core integration: uniform paragraph = 1; red word = 2 (with the
+disclosure); stroke-colour-only and `Tz`-only change = 2. Sabotage (count
+pinned to 1) failed 2 tests. CLI test asserts the `looks: 1` line;
+removing the print fails it. `tools/run-gates.sh` 45/45 on `c4c37fda`
+(before the CLI commit); the CLI commit was clippy-clean and its own test
+target green. `check-core-api-verbs` PASS.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` updated; `index.md`
+line count 6,195. The shared test-PDF builder in
+`crates/pdfcer-core/tests/block_layout.rs` (`build_pdf`, `doc_from_pages`)
+became `pub(crate)` and is reused from `edit_block_text.rs` (same `all`
+binary) rather than copied.
+
+**Channel.** Reply written:
+`reply_request_G101_a_block_hit_does_not_say_whether_its_looks_differ_FIXED.md`.
+
+**`docs/FEATURES.md`.** The paragraph/block text-replace row (`edit_block_text`)
+updated to note the looks count; boxes unchanged at `[x] core / [x] cli / [ ] gui`
+(gui not rounded up).
+
+**Decision.** None — extends `Pass 433.0`'s existing surface, no new
+invariant or crate boundary.
+
+**Status.** Unreleased since `v0.75.0`.
+
+**Sourcing (hard rule 8).** Hashes, test counts and line counts above are
+**relayed** from the dispatching engineer's report, not independently
+verified — this filing had no shell.
+
 ### `Pass 436.7` (`a5c7010c`), 2026-10-03 — memoise per-path font-file reads so `--fallback-font auto` doesn't re-read the font folders every call
 
 Closes the last remaining gap under "Replacement-face matching ladder —
@@ -17489,6 +17536,31 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **TWO ITEMS ADDED 2026-10-03 (905th filing)** — scoping
+> only, neither started. No new decision; both are implementation/routing
+> Passes.
+> - **`Pass 442.5`** — `G102` (operator request `O282` via the GUI,
+>   priority high): an `ocr-vl` feature on `pdfcer-ocr-host` forwarding to
+>   `pdfcer-core`'s `ocr-vl`; `OcrRunner::load`/`check_runnable` accept
+>   `engine = paddle-vl`, `EngineNotInBuild` without the feature; the
+>   per-region disclosure becomes reachable from the runner; the CLI then
+>   routes paddle-vl through `OcrRunner` instead of its own
+>   `LoadedOcrEngine::PaddleVl` branch — one route, not three.
+> - **`Pass 450.0`** — `G100` (GUI `O272` snapshot paste-back, priority
+>   medium): `EditSession::place_page_content(&source_view, source_page,
+>   page_index, rect) -> Result<PlacedArtwork, EditError>` — the same Form
+>   XObject `place_page_artwork` builds, drawn by `q cm /Fx Do Q` appended
+>   to the target page content instead of a `/Stamp`; one undo entry, same
+>   scale/`distorted` disclosure, same refusals as `place_page_artwork`.
+>   CLI subcommand ships in the same Pass. To `place_page_artwork` as
+>   `add_svg` is to `add_svg_stamp`.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 433.1` SHIPPED, 2026-10-03 (905th filing),
+> `c4c37fda`+`07fe3a54`** — see *Shipped*, above. `G101`: `BlockEditReport::looks`/
+> `BlockHit::looks` count a block's distinct looks before an edit flattens
+> them, same rule as the existing N-looks disclosure; CLI `edit-block-text`
+> prints `looks: N`. `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 449.0` SHIPPED, 2026-10-03 (895th filing),
 > `b29e7689`/`2e085bec`** — see *Shipped*, above (cherry-picked from
