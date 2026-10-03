@@ -17085,6 +17085,36 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **NEW PASS FILED 2026-10-03 (894th
+> filing) — `Pass 449.0`, `G099`, region export with the viewer's
+> state.** `pageops::extract_region(view, page, rect, &RegionExport) ->
+> (Vec<u8>, RegionReport)`: a one-page PDF (`MediaBox = CropBox =
+> rect`) with visible annotations/ce dimensions/form fields flattened
+> into content, hidden-layer content removed, and content outside
+> `rect` truly removed — the planned route is the existing redaction
+> surgery applied to the complement of `rect`, straddling geometry cut
+> rather than clip-hidden, no overlay. Closes the gap where today's
+> vector routes (`export_svg_view`/`export_emf_view`, the `copy-page`
+> clipboard route, and the `extract`+`set_crop_boxes` assembly) only
+> crop the `Page`'s box — outside geometry stays in the file, hidden
+> not removed, so redacted or confidential content can leave in a
+> paste. `RegionReport` counts dropped/cut/flattened/layer-removed
+> content for an off-canvas disclosure (rule 4). Equally useful if
+> cheaper to build alongside: `RegionExport` accepted by
+> `export_svg_view`/`export_emf_view` so all three vector formats
+> agree. Acceptance is the request's own "Acceptance" section (one
+> page, `MediaBox = CropBox = rect`, no `/Annots`, the annotation/ce
+> dimension/field drawn as content, no operator drawing outside
+> content or from the hidden layer, `RegionReport`'s counts, and no
+> annotation appearance when `RegionExport` has annotations off).
+> Source: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G099_a_page_region_cannot_be_exported_with_the_viewers_state.md`
+> (`pdfcer-gui` request, operator-reported `O272`). **`Pass 449.0` IN
+> PROGRESS.** No decision reserved yet — the redaction-surgery-on-the-
+> complement route is the plan, not yet a non-obvious choice forced by
+> implementation; ceiling stays `187`, next free decision `188`. No
+> rule or question ledger move: `R263` stays next free rule, `(ck)`
+> stays next free question.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 446.0` SHIPPED, 2026-10-02 (887th filing),
 > `ea8ea9cd`** — see *Shipped*, above (cherry-picked from worktree
 > `4fb2dbc2`; not yet pushed). `G094`: EMF import as vector content —
