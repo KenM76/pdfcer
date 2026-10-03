@@ -51,6 +51,7 @@ fn a_point_picks_the_block_and_the_report_is_printed() {
         "{stdout}"
     );
     assert!(stdout.contains("lines: 3 -> 4"), "{stdout}");
+    assert!(stdout.lines().any(|l| l == "looks: 1"), "{stdout}");
     assert!(stdout.contains("overflow: 14.00 pt"), "{stdout}");
     assert!(stdout.contains("font: Helvetica"), "{stdout}");
     assert!(
