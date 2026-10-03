@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (897th filing) — `v0.74.0` RELEASED
+
+**Shipped:**
+- Release of `v0.74.0`, completing the 896th filing's "RELEASE IN
+  PROGRESS" entry. No code changed and no Pass status changed since
+  that filing. Tag `v0.74.0` at `bb730f32`, pushed. Gates: 45/45 PASS
+  on `bb730f32`. Build `D:\builds\pdfcer-20261003-0316-bb730f3`
+  (`pdfcer.exe` 31,970,304 bytes, PaddleOCR only). Fresh-folder smoke:
+  `--version` 0.74.0, revision `v0.73.0-17-gbb730f32`, clean;
+  `extract-region` rect `0,0,200,200` on `hello.pdf` exit 0,
+  residuals=no. GitHub release 8 assets via `gh-release.py` (PASS):
+  windows-x64.zip 25,140,208 bytes + 3 OCR add-on zips, each with a
+  `.sha256`. OneDrive slot `pdfcer1` now `0.74.0` (67,517,772 bytes);
+  `pdfcer2` keeps `0.73.0` — next release writes `pdfcer2`.
+  `verify-release.py` clean except CI still in progress at release
+  time (not failed).
+
+**Decisions made this session:**
+- None — decision ceiling unchanged.
+
+**Findings + decisions:**
+- None new this filing.
+
+**Still in flight:**
+- Next session should re-run `python tools/verify-release.py v0.74.0`
+  to confirm CI went green after the fact.
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+
+**For next session:**
+- `v0.74.0` is public. `docs/FEATURES.md` unchanged by this filing.
+
+**Sourcing note (hard rule 8):** no shell this filing. All release
+figures (gate result, build path/size, smoke-test output, GitHub asset
+sizes/hashes, OneDrive slot/size, `verify-release.py` result) are
+relayed from the dispatching engineer's own report, measured there
+with a shell; not independently reproduced here.
+
 ## 2026-10-03 (896th filing) — `v0.74.0` RELEASE IN PROGRESS
 
 **Shipped:**

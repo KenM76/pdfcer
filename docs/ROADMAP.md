@@ -115,6 +115,69 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.74.0` — RELEASED (2026-10-03)
+
+Release filing, not a Pass — completes the 896th filing's own "RELEASE IN
+PROGRESS" entry immediately below. Version-bump commit `05b3d059`
+("chore: v0.74.0") bumps `Cargo.toml`'s workspace version 0.73.0 →
+0.74.0, `Cargo.lock` and `fuzz/Cargo.lock`.
+
+**Tag.** Lightweight tag `v0.74.0` at `bb730f32` (the 896th filing's own
+docs commit), pushed.
+
+**Range since `v0.73.0`: batches every Pass already filed above** — see
+this entry's own range list immediately below (unchanged from the 896th
+filing's "RELEASE IN PROGRESS" entry): `fa2ba756` (empty form
+`/Resources <<>>` no longer a false "structural oddity"), `Pass 430.3`
+(`ae6860f8`), `Pass 430.4` (`21bcabb1`), `Pass 449.0` region export
+(`b29e7689`, `2e085bec`, G099).
+
+**Gates.** `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates) on
+`bb730f32`.
+
+**Build.** `tools/package-portable.py` →
+`D:\builds\pdfcer-20261003-0316-bb730f3`; `pdfcer.exe` 31,970,304 bytes;
+only the PaddleOCR model set bundled (`models/paddle`).
+
+**Fresh-folder smoke test.** Copied the build to a new folder; `pdfcer.exe
+--version` reports `0.74.0`, revision `v0.73.0-17-gbb730f32`, clean (not
+dirty). `extract-region` on the synthetic `hello.pdf`, rect
+`0,0,200,200` — exit 0, `residuals=no`.
+
+**GitHub release.** Published via `tools/gh-release.py`: PASS, 8 assets.
+- `pdfcer-v0.74.0-windows-x64.zip`, 25,140,208 bytes, sha256
+  `3ed4d86dbd43264fbacff2688def4bdbf681f496126719b9b29f7823b32759bb`.
+- `ocr-addon-ocrcer.zip`, 3,789,155 bytes.
+- `ocr-addon-ocrs.zip`, 11,352,262 bytes.
+- `ocr-addon-tesseract.zip`, 4,483,685 bytes.
+- Each zip has a matching `.sha256` file.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer1` (now
+`0.74.0`, 67,517,772 bytes); `pdfcer2` keeps `v0.73.0`. Next release
+writes `pdfcer2`.
+
+**`verify-release.py v0.74.0`.** All checks ok except CI, still in
+progress at release time (not failed, not independently re-confirmed
+this filing) — next session should re-run `python
+tools/verify-release.py v0.74.0` to confirm CI went green.
+
+**Headline.** `Pass 449.0` (region export with the viewer's state,
+G099) is the release's one genuinely new capability; the rest of the
+range is already-shipped fixes (`fa2ba756`, `430.3`, `430.4`) batched
+into the version bump.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself** (per
+the dispatching engineer — no code changed and no Pass status changed
+since the 896th filing's "RELEASE IN PROGRESS" entry).
+
+**Sourcing (hard rule 8).** No shell this filing. All figures above
+(gate result, build path/size, smoke-test output, release asset
+sizes/hashes, OneDrive slot/size, `verify-release.py` result) are
+relayed from the dispatching engineer's own report, measured there with
+a shell; not independently reproduced here. Commit `bb730f32` and tag
+`v0.74.0` match this session's premises as stated by the dispatching
+engineer.
+
 ### `v0.74.0` — version bump, RELEASE IN PROGRESS (2026-10-03)
 
 Not a Pass. Version-bump commit `05b3d059` ("chore: v0.74.0") bumps
