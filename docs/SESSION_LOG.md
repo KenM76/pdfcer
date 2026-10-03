@@ -4,6 +4,52 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (899th filing) — `Pass 436.4` SHIPPED: settings key `fallback_font = NAME|auto` supplies `edit-text`'s `--fallback-font`
+
+**Shipped:**
+- `f0e741e8` "feat(cli): settings key fallback_font = NAME|auto supplies
+  edit-text's --fallback-font" — `Pass 436.4`, CLI-only, closes the
+  Backlog gap ("no settings key selects `--fallback-font auto`") filed
+  at the 877th filing alongside `Pass 436.2`. The `--settings` file now
+  accepts `fallback_font = NAME|auto`; when `edit-text` gets neither
+  `--fallback-font` nor `--fallback-font-file`, the key supplies
+  `--fallback-font` (`auto` runs the replacement-face ladder, decision
+  178). Either CLI flag wins over the key. `run-repertoire` deliberately
+  does not read the key (decision 178 §4). `summary_line`'s settings
+  echo now prints `fallback_font=NAME|none`. The key may not be set
+  twice; only `font_folder`/`ocr_folder` stay repeatable.
+
+**Decisions made this session:**
+- None.
+
+**Findings + decisions:**
+- 1 new settings unit test; 3 new CLI integration tests in
+  `edit_text_fallback`, now 12/12 — settings name applies, settings
+  `auto` runs the ladder, file flag overrides the setting.
+  Sabotage-checked: key-never-applies fails 2 tests, key-beats-flag
+  fails the override test.
+- No `Cargo.toml` change, `cargo tree` invariant unaffected by
+  construction (not independently re-verified this filing, no shell).
+  clippy clean, fmt applied (relayed).
+- `docs/FEATURES.md` rows 537 (replacement-face ladder) and 550
+  (portable settings file) updated in place to name the new key; no
+  box changes on either row (`core`/`cli`/`gui` unchanged).
+- `docs/ROADMAP.md`'s "Replacement-face matching ladder — known gaps"
+  Backlog entry: the settings-key gap closed, four gaps remain (the
+  `run-repertoire` refusal, CFF subsetting for embedding, no cross-call
+  caching, the derived-name disclosure).
+
+**Still in flight:**
+- `Pass 436.3` (gui settings screen) still not filed — remaining item in
+  the `436.0`–`436.3` family; `436.4` above was not part of that
+  original four-item family, it closes a gap found after `436.2`
+  shipped.
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+
+**For next session:**
+- None flagged.
+
 ## 2026-10-03 (898th filing) — `Pass 449.1` SHIPPED: region export's "no mark" note no longer flags its own by-design unmarked bands
 
 **Shipped:**

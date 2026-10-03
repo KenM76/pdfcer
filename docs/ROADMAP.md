@@ -115,6 +115,52 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 436.4` (`f0e741e8`), 2026-10-03 — settings key `fallback_font = NAME|auto` supplies `edit-text`'s `--fallback-font`
+
+One of the `Pass 436.0`–`436.3` family's settings surface (844th filing);
+closes the Backlog gap "No settings key selects `--fallback-font auto`"
+filed at the 877th filing alongside `Pass 436.2`.
+
+**CLI, `f0e741e8`.** The `--settings` file now accepts `fallback_font =
+NAME|auto`. When `edit-text` gets neither `--fallback-font` nor
+`--fallback-font-file`, the key supplies `--fallback-font`; `auto` runs
+the replacement-face ladder (decision 178). Either CLI flag wins over
+the key. `run-repertoire` deliberately does not read the key — decision
+178 §4 refuses `auto` there, and a repertoire count over "whatever face
+the ladder picks" would differ per machine. `summary_line`'s settings
+echo now prints `fallback_font=NAME|none`. The key may not be set
+twice; only `font_folder`/`ocr_folder` stay repeatable.
+
+**Tests.** 1 new settings unit test; 3 new CLI integration tests in
+`edit_text_fallback`, now 12/12 — the settings name applies, settings
+`auto` runs the ladder, and the file flag overrides the setting.
+Sabotage-checked: making the key never apply fails 2 tests; making the
+key beat the flag fails the override test.
+
+**Gates.** No `Cargo.toml` change — `cargo tree` invariant unaffected by
+construction; not independently re-verified this filing (no shell).
+clippy clean, fmt applied (relayed).
+
+**Shells.** `core` not applicable (settings file is a shell-level
+concern, same as `436.1`) / `cli [x]` / `gui [ ]` (`Pass 436.3`, not
+filed yet).
+
+**`docs/FEATURES.md`.** Two rows updated in place (both stay in
+*Implemented*): the replacement-face matching ladder row now names the
+settings key; the portable-settings-file row adds `fallback_font` to its
+key list. No box changes on either row.
+
+**Backlog.** Closes the "No settings key selects `--fallback-font auto`"
+gap under "Replacement-face matching ladder — known gaps" (877th
+filing); the other three gaps (CFF subsetting for embedding, no
+cross-call caching, the derived-name disclosure) stay open.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit `f0e741e8`
+confirmed present at `HEAD` per the git-status snapshot at the start of
+this conversation; every other fact above (test counts, sabotage
+results, clippy/fmt) is relayed from the dispatching engineer's own
+report, not independently reproduced.
+
 ### `Pass 449.1` (`11622810`), 2026-10-03 — region export's report no longer calls its own by-design unmarked complement bands a missing mark
 
 Cite `11622810` ("fix(pageops): region export no longer warns that its
@@ -27540,14 +27586,17 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 ### Replacement-face matching ladder — known gaps (filed 877th filing, `Pass 436.2`)
 
-Five gaps disclosed, not hidden, when `Pass 436.2` shipped (decision 178,
-`docs/decisions/178-replacement-face-ladder.md`):
+Four gaps remain, disclosed not hidden, when `Pass 436.2` shipped
+(decision 178, `docs/decisions/178-replacement-face-ladder.md`). A fifth
+— no settings key selected `--fallback-font auto` — is CLOSED by `Pass
+436.4` (`f0e741e8`, 899th filing): `fallback_font = NAME|auto` in the
+settings file now supplies `edit-text --fallback-font` when neither CLI
+flag is given; `run-repertoire` still refuses the key by name (decision
+178 §4 stands unamended — see the remaining gap below).
 
 - `run-repertoire` does not consult the ladder — refused by name
   (decision 178 §4); a repertoire count over "whatever face the ladder
   picks" would differ per machine.
-- No settings key selects `--fallback-font auto`; it is a per-invocation
-  flag only.
 - Only a TrueType face can be subset for embedding — a CFF face is
   ranked, fails to plan, and the ladder falls past it (disclosed in
   `FaceMatch::failed`).
