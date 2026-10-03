@@ -207,3 +207,63 @@ fn the_two_flags_conflict() {
     assert_eq!(o.status.code(), Some(2), "{}", text(&o));
     assert!(!out.exists());
 }
+
+/// A settings file holding `line`, for `--settings`.
+fn settings_file(tag: &str, line: &str) -> PathBuf {
+    let path = std::env::temp_dir().join(format!("pdfcer_fbset_{tag}_{}.txt", std::process::id()));
+    std::fs::write(&path, line).unwrap();
+    path
+}
+
+#[test]
+fn a_settings_fallback_font_applies_without_the_flag() {
+    let set = settings_file("named", "fallback_font = Helvetica\n");
+    let set_arg = set.to_str().unwrap().to_owned();
+    let (o, out) = run("setnamed", "Qu\u{20AC}5", &["--settings", &set_arg]);
+    let all = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{all}");
+    assert!(all.contains("fallback_font=Helvetica"), "{all}");
+    assert!(all.contains("fallback=U+20AC face=Helvetica"), "{all}");
+    let _ = std::fs::remove_file(out);
+    let _ = std::fs::remove_file(set);
+}
+
+#[test]
+fn a_settings_auto_runs_the_ladder() {
+    let set = settings_file("auto", "fallback_font = auto\n");
+    let dir = font_dir("setauto", &["fallback-donor.ttf"]);
+    let flags = [
+        "--settings",
+        set.to_str().unwrap(),
+        "--font-dir",
+        dir.to_str().unwrap(),
+    ];
+    let (o, out) = run("setauto", "Qu\u{20AC} \u{2265} 5", &flags);
+    let all = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{all}");
+    assert!(
+        all.contains("face_match=pdfcerFbDonor rung=coverage"),
+        "{all}"
+    );
+    let _ = std::fs::remove_file(out);
+    let _ = std::fs::remove_file(set);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_fallback_file_flag_overrides_the_settings_font() {
+    let set = settings_file("override", "fallback_font = Helvetica\n");
+    let donor = text_dir().join("fallback-donor.ttf");
+    let flags = [
+        "--settings",
+        set.to_str().unwrap(),
+        "--fallback-font-file",
+        donor.to_str().unwrap(),
+    ];
+    let (o, out) = run("setoverride", "Qu\u{20AC}5", &flags);
+    let all = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{all}");
+    assert!(!all.contains("face=Helvetica"), "{all}");
+    let _ = std::fs::remove_file(out);
+    let _ = std::fs::remove_file(set);
+}

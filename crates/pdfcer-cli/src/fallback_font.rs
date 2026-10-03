@@ -33,6 +33,15 @@ pub(crate) fn installed_faces(font_dirs: &[PathBuf]) -> &'static InstalledFaces 
     Box::leak(Box::new(faces))
 }
 
+/// `--fallback-font`, else the settings file's `fallback_font` when neither
+/// flag is given.
+pub(crate) fn effective_name<'a>(flag: Option<&'a str>, file: Option<&Path>) -> Option<&'a str> {
+    match (flag, file) {
+        (None, None) => crate::settings::active().fallback_font.as_deref(),
+        _ => flag,
+    }
+}
+
 /// The fallback face the flags name, or `None` without either flag or with
 /// `--fallback-font auto` (see [`installed_faces`]).
 ///

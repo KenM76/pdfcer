@@ -74,6 +74,9 @@ pub(crate) struct Settings {
     /// `ocr_program_addons = allow|refuse`: whether OCR add-ons that carry
     /// an engine program may run (decision 184).
     pub(crate) ocr_program_addons: pdfcer_ocr_host::ProgramPolicy,
+    /// `fallback_font = NAME|auto`: edit-text's `--fallback-font` when
+    /// neither that flag nor `--fallback-font-file` is given.
+    pub(crate) fallback_font: Option<String>,
 }
 
 impl Settings {
@@ -86,6 +89,7 @@ impl Settings {
         max_font_files: DEFAULT_MAX_FONT_FILES,
         ocr_folders: Vec::new(),
         ocr_program_addons: pdfcer_ocr_host::ProgramPolicy::Allow,
+        fallback_font: None,
     };
 
     /// Whether any font folder will be searched.
@@ -250,6 +254,7 @@ fn apply(out: &mut Settings, key: &str, value: &str, base: &Path) -> Result<(), 
                 }
             };
         }
+        "fallback_font" => out.fallback_font = Some(value.to_owned()),
         "font_file_limit" => {
             out.max_font_files = value
                 .parse::<usize>()
@@ -261,7 +266,7 @@ fn apply(out: &mut Settings, key: &str, value: &str, base: &Path) -> Result<(), 
         }
         _ => {
             return Err(format!(
-                "unknown key {key:?}; the keys are workarounds, system_fonts, font_folder, font_file_limit, ocr_folder and ocr_program_addons"
+                "unknown key {key:?}; the keys are workarounds, system_fonts, font_folder, font_file_limit, ocr_folder, ocr_program_addons and fallback_font"
             ));
         }
     }
@@ -299,7 +304,7 @@ pub(crate) fn summary_line(s: &Settings) -> String {
         .map_or_else(|| "(built-in)".to_owned(), |p| p.display().to_string());
     format!(
         "settings: using {source}: workarounds={} system_fonts={} font_folders={} \
-         font_file_limit={} ocr_folders={} ocr_program_addons={} \
+         font_file_limit={} ocr_folders={} ocr_program_addons={} fallback_font={} \
          (pass --no-settings to ignore it)",
         s.workarounds.as_str(),
         if s.system_fonts { "on" } else { "off" },
@@ -307,6 +312,7 @@ pub(crate) fn summary_line(s: &Settings) -> String {
         s.max_font_files,
         s.ocr_folders.len(),
         s.ocr_program_addons.as_str(),
+        s.fallback_font.as_deref().unwrap_or("none"),
     )
 }
 
@@ -546,6 +552,16 @@ mod tests {
         assert!(summary_line(&s).contains("ocr_program_addons=refuse"));
         let err = parse("ocr_program_addons = maybe", &base()).unwrap_err();
         assert!(err.contains("use allow or refuse"), "{err}");
+    }
+
+    #[test]
+    fn fallback_font_takes_a_name_or_auto() {
+        assert_eq!(Settings::DEFAULT.fallback_font, None);
+        let s = parse("fallback_font = auto\n", &base()).unwrap();
+        assert_eq!(s.fallback_font.as_deref(), Some("auto"));
+        assert!(summary_line(&s).contains("fallback_font=auto"));
+        let s = parse("fallback_font = \"Liberation Sans\"\n", &base()).unwrap();
+        assert_eq!(s.fallback_font.as_deref(), Some("Liberation Sans"));
     }
 
     #[test]

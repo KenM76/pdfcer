@@ -166,13 +166,15 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         }
         None => opts,
     };
+    let fallback_font =
+        crate::fallback_font::effective_name(args.fallback_font, args.fallback_font_file);
     let opts = match crate::fallback_font::fallback_face(
-        args.fallback_font,
+        fallback_font,
         args.fallback_font_file,
         args.replace,
     ) {
         Ok(Some(face)) => opts.with_fallback(face),
-        Ok(None) if args.fallback_font == Some(crate::fallback_font::AUTO) => {
+        Ok(None) if fallback_font == Some(crate::fallback_font::AUTO) => {
             opts.with_replacement_faces(crate::fallback_font::installed_faces(args.font_dirs))
         }
         Ok(None) => opts,

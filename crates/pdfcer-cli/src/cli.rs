@@ -93,6 +93,9 @@ pub(crate) struct Cli {
     ///                                your home folder.
     ///   font_file_limit = N          Stop searching after N font files
     ///                                (default 10000).
+    ///   fallback_font = NAME|auto    edit-text's --fallback-font when
+    ///                                neither it nor --fallback-font-file
+    ///                                is given (none by default).
     ///
     /// Font folders are searched with their subfolders, up to 8 levels deep,
     /// and their fonts are used everywhere --font-dir fonts are, except by
@@ -8211,6 +8214,8 @@ pub(crate) enum Command {
         /// whose own licence bits forbid embedding or editing it is skipped
         /// and named; there is no way to override that. Prints the face, how
         /// it was matched and its file as face_match= rung= source=.
+        /// A settings file line `fallback_font = NAME|auto` supplies this
+        /// when neither flag is given.
         #[arg(
             long = "fallback-font",
             value_name = "NAME|auto",
