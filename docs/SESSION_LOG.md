@@ -4,6 +4,43 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (908th filing) — `Pass 442.6` shipped
+
+**Shipped:**
+- `Pass 442.6` (`4ac9142f`) — closes `Pass 442.5`'s own owed item
+  ("the CLI paddle-vl route still bypasses `OcrRunner`"), widened to
+  every in-process engine. `pdfcer-cli`'s private `LoadedOcrEngine`
+  enum and its ocrcer loader are deleted; `pdfcer ocr` now loads paddle,
+  paddle-vl, ocrs and ocrcer through `pdfcer_ocr_host::OcrRunner::load`,
+  the same route `pdfcer-gui` uses. Tesseract is unchanged (`ocr_program::load`
+  wrapped by `OcrRunner::from_program`). Manifest SHA-256 hashing now
+  happens exactly once, inside the runner. New
+  `OcrRunner::files_verified() -> usize`. An ocrcer model-read failure
+  now exits `RUNTIME_ERROR` instead of `IO_ERROR`. `docs/FEATURES.md`
+  row (OCR add-ons / PaddleOCR-VL) edited in place this filing: boxes
+  unchanged (`[x] core / [x] cli / [ ] gui`), sentence replaced to
+  record the CLI retirement.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- End-to-end paddle-vl recognition through `OcrRunner` still unverified
+  (open since the 906th filing) — unaffected by this filing.
+
+**For next session:**
+- Verify end-to-end paddle-vl recognition through `OcrRunner` against a
+  real add-on build.
+
+**Sourcing (hard rule 8).** This filing had no shell. Commit hash, test
+counts (CLI OCR tests: 20 passed, 1 ignored; `tools/run-gates.sh`: PASS,
+45 commands), sabotage result and gate results in this entry and in
+`ROADMAP.md`'s `Pass 442.6` entry are **relayed** from the dispatching
+engineer's report, not independently verified.
+
 ## 2026-10-03 (907th filing) — `Pass 450.0` shipped
 
 **Shipped:**

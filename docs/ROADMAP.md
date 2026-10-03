@@ -199,6 +199,49 @@ flagged for the GUI/engine machine to confirm against one real page.
 are **relayed** from the dispatching engineer's report, not
 independently verified — no shell this filing.
 
+### `Pass 442.6` (`4ac9142f`), 2026-10-03 — the CLI now loads every OCR engine through `OcrRunner`, closing `Pass 442.5`'s own owed item
+
+Closes the gap `Pass 442.5` shipped with and named in its own banner:
+"the CLI paddle-vl route still bypasses `OcrRunner`" — widened here to
+every in-process engine, not just paddle-vl.
+
+**CLI, `pdfcer-cli`, `4ac9142f`.** The private `LoadedOcrEngine` enum and
+its ocrcer loader are deleted. `pdfcer ocr` now loads every in-process
+engine (paddle, paddle-vl, ocrs, ocrcer) through
+`pdfcer_ocr_host::OcrRunner::load` — the same route `pdfcer-gui` uses. A
+bare `--model-dir` folder becomes a manifest-less `OcrModel`. Tesseract
+is unchanged: `ocr_program::load`, wrapped by `OcrRunner::from_program`.
+Manifest SHA-256 hashing now happens exactly once, inside the runner.
+
+**`pdfcer-ocr-host`.** New `pub fn OcrRunner::files_verified() -> usize`,
+documented in `docs/core-api/03-capabilities.md`.
+
+**Behaviour.** An ocrcer model-read failure now exits `RUNTIME_ERROR`
+instead of `IO_ERROR`. The add-on is named on stderr before it loads, so
+a load failure can be attributed to it; the "N file(s) match the
+manifest's SHA-256" line comes after it.
+
+**Tests.** CLI OCR tests: 20 passed, 1 ignored. `tools/run-gates.sh`:
+PASS, 45 commands, including 2 filing gates. Sabotage: forcing
+`files_verified()` to 0 makes `the_shipped_paddle_manifest_verifies_and_is_used`
+fail; the file was restored afterward.
+
+**Gates.** `cargo tree` unaffected — no manifest changes.
+
+**`docs/FEATURES.md`.** The PaddleOCR-VL/`OcrRunner` row (OCR add-ons,
+*Reading, navigation & printing*) edited in place: box unchanged
+(`[x] core / [x] cli / [ ] gui`), sentence replaced to record that the
+CLI retirement onto `OcrRunner` shipped.
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Status.** Unreleased since `v0.75.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, test
+counts, sabotage result and gate results above are **relayed** from the
+dispatching engineer's report, not independently verified.
+
 ### `Pass 433.1` (`c4c37fda`+`07fe3a54`), 2026-10-03 — a block's distinct "looks" are counted before an edit flattens them
 
 Answers `G101` (pdfcer-gui: "a block hit does not say whether its looks
@@ -17620,6 +17663,14 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 442.6` SHIPPED, 2026-10-03 (908th filing),
+> `4ac9142f`** — see *Shipped*, above. Closes `Pass 442.5`'s own owed
+> item: `pdfcer-cli`'s private `LoadedOcrEngine` loader is deleted;
+> `pdfcer ocr` now loads every in-process engine (paddle, paddle-vl,
+> ocrs, ocrcer) through `pdfcer_ocr_host::OcrRunner::load`, the same
+> route `pdfcer-gui` uses. New `OcrRunner::files_verified() -> usize`.
+> `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 450.0` SHIPPED, 2026-10-03 (907th filing),
 > `8e454f47`** — see *Shipped*, above. `G100`: `EditSession::place_page_content`
