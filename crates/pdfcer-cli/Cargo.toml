@@ -29,7 +29,7 @@ ocrcer = ["pdfcer-core/ocrcer", "pdfcer-render/ocrcer", "pdfcer-ocr-host/ocrcer"
 paddle = ["pdfcer-core/paddle", "pdfcer-render/paddle", "pdfcer-ocr-host/paddle"]
 # The PaddleOCR-VL engine (decision 183), selected by an add-on whose
 # manifest says `engine = paddle-vl`. Without it that add-on refuses by name.
-ocr-vl = ["pdfcer-core/ocr-vl"]
+ocr-vl = ["pdfcer-core/ocr-vl", "pdfcer-ocr-host/ocr-vl"]
 # Digital signing (`sign` subcommand) — the private-key crates live behind
 # pdfcer-core's `signing` feature; a CLI built without it has no `sign`.
 signing = ["pdfcer-core/signing"]

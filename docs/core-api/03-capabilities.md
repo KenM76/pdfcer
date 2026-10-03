@@ -2605,14 +2605,17 @@ reference caller.
 **Piece 4c — running any model, data or program** (crate `pdfcer-ocr-host`; decision 184)
 
 Core never spawns, and the CLI is a binary, so the runner lives in its own
-library crate. Depend on it with the same `ocrs`/`ocrcer`/`paddle` features
-you give `pdfcer-core`. It is native-only (it starts processes).
+library crate. Depend on it with the same `ocrs`/`ocrcer`/`paddle`/`ocr-vl`
+features you give `pdfcer-core`. It is native-only (it starts processes).
+With `ocr-vl`, a model whose manifest says `engine = paddle-vl` (the
+PaddleOCR-VL add-on) loads and runs like any other (G102).
 
 | I want to… | call this |
 |---|---|
 | grey out a drop-down entry, with the reason | `check_runnable(&model, policy) -> Result<(), RunnerError>`: loads and hashes nothing |
 | run any listed model | `OcrRunner::load(&model, &RunOptions::new(langs, dpi)) -> Result<OcrRunner, RunnerError>`, then `.recognize(w, h, &grey) -> Result<Vec<RecognizedWord>, RunnerError>` |
 | set the confidence flag for the text layer | `OcrRunner::reports_confidence()` |
+| show what the engine inferred or chose (rule 4) | `OcrRunner::disclosure() -> Option<String>`, after the page's `recognize`: PaddleOCR's dictionary source; for PaddleOCR-VL, that its line boxes are inferred from the ink (per region, never per word), how the last page's lines were placed, and a token-ceiling warning. `None` for the others. The same text is `paddle_disclosure(&engine)` / `paddle_vl_disclosure(Option<&RegionReading>)` |
 | show which program will start | `OcrRunner::as_program() -> Option<&ProgramEngine>`; `.program()` (full path), `.source()` (`ProgramSource::Addon { name, hashed_files }` / `OperatorFolder(path)`), `.languages()` |
 | why a program will not run | `program_status(&model, policy) -> Result<PathBuf, ProgramRefusal>` |
 | honour the operator's setting | `ProgramPolicy::{Allow, Refuse}` (default `Allow`), `.as_str()`, `.and(other)` (the stricter wins); assign `options.policy` (`RunOptions` is `#[non_exhaustive]`: build it with `RunOptions::new`) |

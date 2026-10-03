@@ -127,6 +127,8 @@ fn data_files(engine: &str) -> Option<Vec<&'static str>> {
             use pdfcer_core::ocr::engine_paddle::{DETECTION_MODEL, RECOGNITION_MODEL};
             Some(vec![DETECTION_MODEL, RECOGNITION_MODEL])
         }
+        #[cfg(feature = "ocr-vl")]
+        "paddle-vl" => Some(pdfcer_core::ocr::engine_paddle_vl::REQUIRED_FILES.to_vec()),
         _ => None,
     }
 }
@@ -144,6 +146,12 @@ enum Inner {
     Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
     #[cfg(feature = "paddle")]
     Paddle(Box<pdfcer_core::ocr::engine_paddle::PaddleEngine>),
+    /// The engine and the last page's reading, kept for the disclosure.
+    #[cfg(feature = "ocr-vl")]
+    PaddleVl(
+        Box<pdfcer_core::ocr::engine_paddle_vl::PaddleVlEngine>,
+        std::sync::Mutex<Option<pdfcer_core::ocr::engine_paddle_vl::RegionReading>>,
+    ),
 }
 
 impl std::fmt::Debug for OcrRunner {
@@ -156,6 +164,8 @@ impl std::fmt::Debug for OcrRunner {
             Inner::Ocrcer(_) => f.write_str("OcrRunner(ocrcer)"),
             #[cfg(feature = "paddle")]
             Inner::Paddle(_) => f.write_str("OcrRunner(paddle)"),
+            #[cfg(feature = "ocr-vl")]
+            Inner::PaddleVl(..) => f.write_str("OcrRunner(paddle-vl)"),
         }
     }
 }
@@ -232,6 +242,17 @@ impl OcrRunner {
             Inner::Paddle(e) => e
                 .recognize(width, height, pixels)
                 .map_err(|e| RunnerError::Engine(e.to_string())),
+            #[cfg(feature = "ocr-vl")]
+            Inner::PaddleVl(e, last) => {
+                let reading = e
+                    .read_region(width, height, pixels)
+                    .map_err(|e| RunnerError::Engine(e.to_string()))?;
+                let lines = reading.lines.clone();
+                *last
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(reading);
+                Ok(lines)
+            }
         }
     }
 
@@ -249,6 +270,30 @@ impl OcrRunner {
             Inner::Ocrcer(e) => e.reports_confidence(),
             #[cfg(feature = "paddle")]
             Inner::Paddle(e) => e.reports_confidence(),
+            // The region's mean token probability, on every line.
+            #[cfg(feature = "ocr-vl")]
+            Inner::PaddleVl(..) => true,
+        }
+    }
+
+    /// A line naming what the engine chose or inferred on the operator's
+    /// behalf (rule 4), for the shell's report; `None` when there is
+    /// nothing to disclose. PaddleOCR-VL's names the last page read.
+    #[must_use]
+    pub fn disclosure(&self) -> Option<String> {
+        match &self.inner {
+            #[cfg(feature = "paddle")]
+            Inner::Paddle(e) => Some(crate::disclosure::paddle_disclosure(e)),
+            #[cfg(feature = "ocr-vl")]
+            Inner::PaddleVl(_, last) => {
+                let last = last
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                Some(crate::disclosure::paddle_vl_disclosure(last.as_ref()))
+            }
+            // Unreachable when neither engine feature is enabled.
+            #[allow(unreachable_patterns)]
+            _ => None,
         }
     }
 }
@@ -280,6 +325,10 @@ fn load_data(model: &OcrModel) -> Result<Inner, RunnerError> {
         #[cfg(feature = "paddle")]
         "paddle" => pdfcer_core::ocr::engine_paddle::PaddleEngine::from_model_dir(dir)
             .map(|e| Inner::Paddle(Box::new(e)))
+            .map_err(|e| failed(&e)),
+        #[cfg(feature = "ocr-vl")]
+        "paddle-vl" => pdfcer_core::ocr::engine_paddle_vl::PaddleVlEngine::from_model_dir(dir)
+            .map(|e| Inner::PaddleVl(Box::new(e), std::sync::Mutex::default()))
             .map_err(|e| failed(&e)),
         _ => {
             let _ = (failed, dir);

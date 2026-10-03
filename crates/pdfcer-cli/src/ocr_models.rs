@@ -89,62 +89,14 @@ impl LoadedOcrEngine {
     pub(crate) fn disclosure(&self) -> Option<String> {
         match self {
             #[cfg(feature = "paddle")]
-            Self::Paddle(e) => {
-                use pdfcer_core::ocr::engine_paddle::{DICTIONARY, DictionarySource};
-                Some(match e.dictionary_source() {
-                    DictionarySource::File(p) => format!(
-                        "PaddleOCR dictionary: {} ({} entries)",
-                        p.display(),
-                        e.dictionary_len()
-                    ),
-                    _ => format!(
-                        "PaddleOCR dictionary: no {DICTIONARY}, so the list embedded in \
-                         rec.onnx was used ({} entries)",
-                        e.dictionary_len()
-                    ),
-                })
-            }
+            Self::Paddle(e) => Some(pdfcer_ocr_host::paddle_disclosure(e)),
             #[cfg(feature = "ocr-vl")]
-            Self::PaddleVl(_, last) => Some(paddle_vl_disclosure(last.borrow().as_ref())),
+            Self::PaddleVl(_, last) => Some(pdfcer_ocr_host::paddle_vl_disclosure(
+                last.borrow().as_ref(),
+            )),
             _ => None,
         }
     }
-}
-
-/// Rule 4 for PaddleOCR-VL: its text is per region, and the line boxes are
-/// inferred from the ink, not reported by the model.
-#[cfg(feature = "ocr-vl")]
-fn paddle_vl_disclosure(
-    reading: Option<&pdfcer_core::ocr::engine_paddle_vl::RegionReading>,
-) -> String {
-    use pdfcer_core::ocr::vl_decode::StopReason;
-    use pdfcer_core::ocr::vl_pre::LinePlacement;
-    let lead = "PaddleOCR-VL reads the page's ink as ONE region: the text layer is \
-                region-aligned, one box per LINE and never per word, and those boxes are \
-                INFERRED from the ink, not reported by the model";
-    let Some(r) = reading else {
-        return format!("{lead}.");
-    };
-    let placement = match r.placement {
-        LinePlacement::Bands => "each line placed on its own band of inked rows",
-        LinePlacement::Even => {
-            "the line count did not match the inked bands, so the lines divide the ink box \
-             evenly and may sit off their text"
-        }
-        _ => "the page had no ink, so the model was not run",
-    };
-    let stop = match r.stop {
-        Some(StopReason::TokenLimit) => format!(
-            "; WARNING: decoding hit the {}-token ceiling, so the text may be cut short",
-            r.tokens
-        ),
-        Some(_) => format!(
-            "; {} token(s) from {} image token(s)",
-            r.tokens, r.image_tokens
-        ),
-        None => String::new(),
-    };
-    format!("{lead}. Last page: {placement}{stop}.")
 }
 
 /// What `ocr` was asked to use.

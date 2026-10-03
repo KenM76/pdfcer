@@ -16,6 +16,8 @@ default = []
 ocrs = ["pdfcer-core/ocrs"]
 ocrcer = ["pdfcer-core/ocrcer"]
 paddle = ["pdfcer-core/paddle"]
+# PaddleOCR-VL (engine token `paddle-vl`), an add-on model folder.
+ocr-vl = ["pdfcer-core/ocr-vl"]
 
 [dependencies]
 pdfcer-core.workspace = true

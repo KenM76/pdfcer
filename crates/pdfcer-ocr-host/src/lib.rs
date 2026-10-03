@@ -45,10 +45,15 @@
     clippy::indexing_slicing
 )]
 
+mod disclosure;
 mod program;
 mod runner;
 pub mod tesseract;
 
+#[cfg(feature = "paddle")]
+pub use disclosure::paddle_disclosure;
+#[cfg(feature = "ocr-vl")]
+pub use disclosure::paddle_vl_disclosure;
 pub use program::{
     PROGRAM_ENGINES, ProgramEngine, ProgramError, ProgramPolicy, ProgramRefusal, ProgramSource,
     program_status,
