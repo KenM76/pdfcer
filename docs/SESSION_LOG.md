@@ -4,6 +4,56 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (923rd filing) — `v0.76.0` RELEASED; `Pass 461.0`/`462.0` filed to *Next up*
+
+**Shipped:**
+- Release of `v0.76.0`. Bump commit `8d5ef554` ("chore: v0.76.0"),
+  0.75.0 → 0.76.0. Tag `v0.76.0` at `455d6ba1` (no code, memory-only
+  commit — tag sits on it so the binary stamp is clean). Gates: 45/45
+  PASS (incl. 2 filing gates) on `8d5ef554`. Binary reports `0.76.0`,
+  revision `v0.76.0`, clean. Fresh-folder smoke: `--version`,
+  `extract-text` and `rotate` on a synthetic fixture, `format-text
+  --help` lists `--underline`. Assets:
+  `pdfcer-v0.76.0-windows-x64.zip` 25,105,968 bytes (flat, 10 entries,
+  same layout as `v0.75.0`) + 3 OCR add-on zips (`ocrcer` 3,789,155,
+  `ocrs` 11,352,262, `tesseract` 4,483,685), each with a `.sha256`.
+  OneDrive slot `pdfcer1` now `0.76.0`; `pdfcer2` keeps `0.75.0` — next
+  release writes `pdfcer2`. GitHub release publication and
+  `verify-release.py` run AFTER this filing — not yet confirmed, report
+  back next session.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- Two new Passes filed to *Next up* this session (operator request,
+  2026-10-03, verbatim: "Do the 3D texture mapping and tree view" — he
+  chose these two of four offered; STL/STEP import NOT requested):
+  `Pass 461.0` (3D model-tree listing: names, hierarchy, hidden/
+  suppressed state, `3d-tree --index N`/`--json`) and `Pass 462.0` (3D
+  diffuse-texture rendering on uncompressed meshes, undrawable
+  textures counted+disclosed, base-colour fallback). Both are a
+  narrower operator-requested carve-out from the `Pass 261.6`
+  interactive-3D-viewer refusal, not a reopening of it.
+  `docs/FEATURES.md` gains two matching Planned rows, all three boxes
+  unticked.
+- GitHub release + `verify-release.py v0.76.0` for this release — owed
+  next session.
+
+**For next session:**
+- Confirm `v0.76.0`'s GitHub release and `verify-release.py` went
+  green. Next fresh whole-number Pass ID after `461.0`/`462.0` is
+  `463.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Every release
+figure above (gate result, binary version/revision, smoke-test output,
+asset sizes, OneDrive slot) is relayed from the dispatching engineer's
+own report, measured there with a shell; not independently reproduced
+here.
+
 ## 2026-10-03 (922nd filing) — `Pass 460.0` shipped
 
 **Shipped:**

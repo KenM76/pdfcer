@@ -115,6 +115,59 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.76.0` — RELEASED (2026-10-03)
+
+Release filing, completing the version bump at `8d5ef554` ("chore:
+v0.76.0") — `Cargo.toml`'s workspace version 0.75.0 → 0.76.0,
+`Cargo.lock`, `fuzz/Cargo.lock`. No separate "RELEASE IN PROGRESS"
+entry was filed before this one; bump and completion are recorded
+together, in this filing.
+
+**Tag.** `v0.76.0` at `455d6ba1` ("chore(memory): spec-librarian
+corpus state (PRC textures)") — no code change; the tag sits one
+commit past the bump so the binary's revision stamp is clean.
+
+**Range since `v0.75.0`:** text formatting (underline/strikethrough
+tied to text: `format-text --underline`/`--strikethrough`/
+`--no-decoration`, `--decoration-metrics`; works inside form XObjects,
+`Pass 460.0`, `f673d35c`; tagged docs mark the rule as artifact; a fix
+for pages with a transform before the text; `format-text --occurrence
+N`); `place-stamp --as-content`; in-memory image import (engine API);
+SolidWorks 3D part colours with `--style-alpha`; saved 3D view as a
+reusable camera (engine API); one OCR runner including PaddleOCR-VL
+add-ons; `edit-block-text` prints formatting.
+
+**Gates.** `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates),
+run on `8d5ef554`.
+
+**Build.** `pdfcer.exe` reports version `0.76.0`, revision `v0.76.0`,
+clean (not dirty).
+
+**Fresh-folder smoke test.** `--version`; `extract-text` and `rotate`
+on a synthetic fixture; `format-text --help` lists `--underline`.
+
+**Assets.** `pdfcer-v0.76.0-windows-x64.zip`, 25,105,968 bytes, flat
+layout, 10 entries (same layout as `v0.75.0`) + 3 OCR add-on zips
+(`ocrcer` 3,789,155 bytes, `ocrs` 11,352,262 bytes, `tesseract`
+4,483,685 bytes), each with a matching `.sha256`.
+
+**OneDrive.** Slot `pdfcer1` now `0.76.0`; `pdfcer2` keeps `0.75.0` —
+the next release writes `pdfcer2`.
+
+**GitHub release / `verify-release.py`.** Not yet run as of this
+filing — publishing after this filing; next session should confirm
+both and report back.
+
+**`docs/FEATURES.md`.** No rows changed by the release act itself —
+every capability in the range above was already ticked at its own
+Pass's filing.
+
+**Sourcing (hard rule 8).** No shell this filing. Every figure above
+(gate result, binary version/revision, smoke-test output, asset
+sizes, OneDrive slot) is relayed from the dispatching engineer's own
+report, measured there with a shell; not independently reproduced
+here.
+
 ### `Pass 460.0` (`f673d35c`), 2026-10-03 — underline and strikethrough inside a form XObject
 
 Closes the `G085` open item "decoration refresh inside form XObjects" —
@@ -19821,6 +19874,67 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
+
+### `Pass 461.0` — 3D model tree listing
+
+Operator request, 2026-10-03 (verbatim: "Do the 3D texture mapping
+and tree view" — he picked these two of four offered; docs currency
+and STL/STEP import NOT requested).
+
+**Core.** `pdfcer-3d` reads each PRC product occurrence's name
+(`ContentPRCBase` name with current-name tracking per WD §7.2.3.4:
+`same_name` reuses the current name, every named entity updates it,
+resets per compressed section), hidden/suppressed state, product
+flags, and children (prototype fallback when an occurrence has no own
+name/geometry), plus the placements each subtree draws. Exposed as a
+flat, parent-linked node list.
+
+**CLI.** `3d-tree --index N` prints the indented tree (and `--json`).
+Display-name fallback: occurrence name → prototype's occurrence name
+→ part name → `type #index`.
+
+**Acceptance.** Hidden/suppressed nodes are listed too — Acrobat
+itself reports stored default visibility, never silently assumes
+visible (rule 4). Depth/visit ceilings against cyclic/malformed
+prototypes. Synthetic fixture tests. `docs/core-api/` updated.
+
+**Parity source.** Acrobat RAG
+`markup__3d_model_tree_capability.md`.
+
+**Narrower carve-out**, not a reopening, of the `Pass 261.6`
+interactive-3D-viewer refusal (see *Backlog*, "3D content in PDF" row)
+— tree/metadata only, no scene render. Exceed candidate: XML/JSON
+export of the tree as a later slice, `Pass 461.1`, if not already in
+`461.0`.
+
+### `Pass 462.0` — 3D texture mapping (read + render)
+
+Operator request, 2026-10-03, same dispatch as `Pass 461.0` above.
+
+**Core.** Read `Picture` (703: format 0 PNG / 1 JPEG / 2–5 raw zlib
+RGB, RGBA, grey, grey+alpha; image bytes in the file-structure-header
+uncompressed-file list, fallback to the file-header list — a
+setting), `TextureDefinition` (712), `TextureApplication` (711),
+`TextureTransformation` (713), and the uncompressed tessellation's UV
+doubles (indices are Double offsets, `(u,v)` pairs). Render diffuse
+textures on uncompressed meshes with mapping type 1 (stored).
+
+**Disclosure (rule 4), inverting Acrobat's own silent-white defect:**
+any texture not drawn — compressed-mesh UVs (reference target
+unspecified in the WD), an undecodable picture, an unsupported
+mapping type — is counted and reported; the mesh paints in its base
+material colour instead of going silently blank.
+
+**Open setting.** Wrap-mode/operator enum base (0 vs 1) unverified.
+
+**Parity source.** Acrobat RAG
+`markup__3d_texture_and_material_rendering.md`; spec RAG
+`threed/prc__8137__graphics_materials.md` §13,
+`prc__8137__tess_3d.md` §9, `prc__8137__tess_3d_compressed.md` §7a,
+`prc__8137__model_tree_asm.md` §11.
+
+**Narrower carve-out** from the `Pass 261.6` interactive-3D-viewer
+refusal, same as `Pass 461.0` above.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
