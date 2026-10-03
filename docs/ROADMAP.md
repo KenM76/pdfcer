@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 457.0` (`7c3cf507`), 2026-10-03 — a decoration rule on a tagged page outside any tag is a layout artifact
+
+Follow-on to `Pass 455.0`/`G085`, found and fixed in the same session: on
+a tagged document (catalog `/StructTreeRoot` or `/MarkInfo /Marked true`),
+a producer that opens its `/MCID` `BDC` inside `BT` left the painted
+decoration rule after `ET` outside every marked-content sequence —
+untagged real content, which PDF/UA rejects (ISO 14289-1 §7.1).
+
+**Core, `pdfcer-core`.** The decoration scanner now records whether an
+`/MCID` or `Artifact` sequence is open at each marker's `ET`. When none
+is, each rule is wrapped `/pdfc_Deco <</Rule n>> BDC /Artifact
+<</Type /Layout>> BDC ... EMC EMC`; inside an open `/MCID` sequence the
+rule stays that element's content, matching the `TextDecorationType`
+`Link` example at ISO 32000-2 §14.8.5.4.4. Untagged documents are
+unaffected. `addtext`'s `is_tagged` helper is now `pub(crate)` and
+shared rather than duplicated.
+
+**CLI.** No flag — the fix reaches `format-text` through the existing
+default; no output-byte change on an untagged document.
+
+**Tests.** 3 new in `crates/pdfcer-core/tests/format_decoration.rs`, each
+sabotage-checked. `run-gates.sh` 45/45 PASS.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gained a "Tagged
+documents" note; index line count 6,293.
+
+**`docs/FEATURES.md`.** The underline/strikethrough row (`G085`) given a
+short clause naming the tagged-page `/Artifact` wrap; `core [x]` /
+`cli [x]` / `gui [ ]` unchanged.
+
+**Gates.** No `Cargo.toml` change — GUI-core separation unaffected
+(`cargo tree -p pdfcer-core`/`-p pdfcer-render`).
+
+**Owed, carried to Backlog, unaffected by this filing:** `Pass 455.1`
+(Tagged-PDF `TextDecorationType` structure attribute) still *Next up*;
+decoration refresh inside form XObjects; multi-stream-page refresh.
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, file/line
+counts and test results above are relayed from the dispatching engineer's
+report, not independently verified.
+
 ### `Pass 456.1` (`3f14e66b`), 2026-10-03 — an unembedded standard-14 font strikes at half its AFM x-height
 
 Follow-up to `Pass 456.0`'s `DecorationMetrics::FontTables`: a standard-14

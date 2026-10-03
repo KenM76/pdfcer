@@ -4,6 +4,39 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (919th filing) — `Pass 457.0` shipped
+
+**Shipped:**
+- `Pass 457.0` (`7c3cf507`) — follow-on to `Pass 455.0`/`G085`, found and
+  fixed in the same session: on a tagged document, a producer opening its
+  `/MCID` `BDC` inside `BT` left the painted decoration rule after `ET`
+  outside every marked-content sequence — untagged real content, which
+  PDF/UA rejects (ISO 14289-1 §7.1). The decoration scanner now records
+  whether an `/MCID`/`Artifact` sequence is open at each marker's `ET`;
+  when none is, the rule is wrapped as a layout `/Artifact`. Inside an
+  open `/MCID` sequence the rule stays that element's content (ISO
+  32000-2 §14.8.5.4.4 `Link` example). Untagged documents unaffected.
+  `addtext`'s `is_tagged` helper made `pub(crate)` and shared. 3 new
+  tests in `crates/pdfcer-core/tests/format_decoration.rs`, sabotage-
+  checked. `run-gates.sh` 45/45 PASS. No `Cargo.toml` change.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- Same finding as above: a decoration rule painted after `ET` on a
+  tagged page can land outside every marked-content sequence when the
+  producer's `/MCID` opens inside `BT` rather than around it.
+
+**Still in flight:**
+- `Pass 455.1` (Tagged-PDF `TextDecorationType` structure attribute)
+  still *Next up*, unaffected by this filing.
+- Owed, not yet scoped: decoration refresh inside form XObjects;
+  multi-stream-page refresh.
+
+**For next session:**
+- Next fresh whole-number Pass ID is `458.0`.
+
 ## 2026-10-03 (918th filing) — `Pass 456.1` shipped
 
 **Shipped:**
