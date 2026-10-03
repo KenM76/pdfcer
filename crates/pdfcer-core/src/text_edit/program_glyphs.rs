@@ -74,4 +74,14 @@ pub trait EmbeddedGlyphs: Send + Sync + std::fmt::Debug {
         let _ = program;
         Vec::new()
     }
+
+    /// The TrueType program with its `cmap` table removed and the sfnt
+    /// checksums recomputed, for reuse under a `/CIDFontType2`, where
+    /// ISO 32000-1 §9.9 says the `cmap` "shall not be present". `None` when
+    /// the program is not a parseable TrueType sfnt; the default strips
+    /// nothing, which only narrows an edit.
+    fn program_without_cmap(&self, program: &[u8]) -> Option<Vec<u8>> {
+        let _ = program;
+        None
+    }
 }

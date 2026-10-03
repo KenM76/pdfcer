@@ -538,7 +538,7 @@ impl ProgramFormat {
 /// requires one for any TrueType program used with a **simple** font
 /// dictionary. Both are checked rather than assumed, because the failure is
 /// a non-conformant file rather than an error anybody sees.
-fn sfnt_has_cmap(program: &[u8]) -> bool {
+pub(crate) fn sfnt_has_cmap(program: &[u8]) -> bool {
     let be16 = |at: usize| -> Option<u16> {
         let b: [u8; 2] = program.get(at..at.checked_add(2)?)?.try_into().ok()?;
         Some(u16::from_be_bytes(b))

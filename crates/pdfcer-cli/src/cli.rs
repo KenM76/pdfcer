@@ -134,6 +134,30 @@ pub(crate) struct Cli {
 /// "no password supplied" and therefore cannot produce a wrong decryption —
 /// it can only produce a `PasswordRequired` the operator will understand.
 pub(crate) static CLI_PASSWORD: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+/// `edit-text`/`edit-block-text --cid-font-program`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum CidProgramArg {
+    /// Share the run's font program when it has no cmap table; otherwise
+    /// embed a copy with only the cmap removed. Conforms to the standard.
+    Strip,
+    /// Always share the run's font program: the smallest file. When the
+    /// program has a cmap table the result breaks the standard, and the
+    /// report says so. A PDF/A document gets strip instead.
+    Share,
+    /// Never set characters through a new CID font over the run's program.
+    Off,
+}
+
+impl From<CidProgramArg> for pdfcer_core::text_edit::CidFontProgram {
+    fn from(arg: CidProgramArg) -> Self {
+        match arg {
+            CidProgramArg::Strip => Self::StripCmap,
+            CidProgramArg::Share => Self::ShareStream,
+            CidProgramArg::Off => Self::Off,
+        }
+    }
+}
+
 /// `bates-stamp --position`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum BatesPositionArg {
@@ -8118,6 +8142,11 @@ pub(crate) enum Command {
         /// it. Only for a match inside one `Tj`/`TJ`; prints the font used.
         #[arg(long = "sibling-fonts")]
         sibling_fonts: bool,
+        /// When the run's embedded TrueType program draws a typed character
+        /// its font cannot encode, set that character through a new CID font
+        /// over the same program. Which program the new font embeds; printed.
+        #[arg(long = "cid-font-program", value_enum, default_value = "strip")]
+        cid_font_program: CidProgramArg,
         /// When the run's font cannot encode some typed characters, set just
         /// those characters in this font and keep the rest in the run's font.
         /// NAME is a font already on the page, by resource name (F1) or font
@@ -8589,6 +8618,11 @@ pub(crate) enum Command {
         /// on the page whose name says it is the same face. Printed.
         #[arg(long = "sibling-fonts")]
         sibling_fonts: bool,
+        /// When the run's embedded TrueType program draws a typed character
+        /// its font cannot encode, set that character through a new CID font
+        /// over the same program. Which program the new font embeds; printed.
+        #[arg(long = "cid-font-program", value_enum, default_value = "strip")]
+        cid_font_program: CidProgramArg,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

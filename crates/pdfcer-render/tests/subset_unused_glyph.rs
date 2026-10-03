@@ -25,8 +25,12 @@ fn fixture_bytes() -> Vec<u8> {
     .expect("fixture; run tools/gen-word-subset-fixture.py")
 }
 
+/// Route A alone: route B (`same_program_route.rs`) would set what its
+/// guards refuse.
 fn opts() -> EditOptions {
-    EditOptions::default().with_embedded_glyphs(&EmbeddedProgramGlyphs)
+    EditOptions::default()
+        .with_embedded_glyphs(&EmbeddedProgramGlyphs)
+        .with_cid_font_program(text_edit::CidFontProgram::Off)
 }
 
 fn edit(doc: &Document, replace: &str, opts: &EditOptions) -> Result<Vec<u8>, String> {

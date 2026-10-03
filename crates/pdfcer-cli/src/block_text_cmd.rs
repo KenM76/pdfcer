@@ -16,6 +16,8 @@ pub(crate) struct BlockTextArgs<'a> {
     pub(crate) text_file: Option<&'a Path>,
     pub(crate) width: Option<f64>,
     pub(crate) sibling_fonts: bool,
+    /// `--cid-font-program`.
+    pub(crate) cid_font_program: pdfcer_core::text_edit::CidFontProgram,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
 }
@@ -46,7 +48,8 @@ pub(crate) fn cmd_edit_block_text(args: &BlockTextArgs<'_>) -> u8 {
     };
     let edit = EditOptions::default()
         .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs)
-        .with_sibling_fonts(args.sibling_fonts);
+        .with_sibling_fonts(args.sibling_fonts)
+        .with_cid_font_program(args.cid_font_program);
     let opts = BlockEditOptions::new()
         .with_wrap_width_opt(args.width)
         .with_edit_options(edit);

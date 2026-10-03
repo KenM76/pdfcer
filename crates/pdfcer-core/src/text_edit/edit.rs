@@ -104,6 +104,7 @@ use crate::text_edit::cross_object;
 use crate::text_edit::face_ladder::ReplacementFaces;
 use crate::text_edit::fallback::{self, Fallback, FallbackFace, FallbackUse, PreviewFallback};
 use crate::text_edit::retype::Joined;
+use crate::text_edit::same_program::CidFontProgram;
 use crate::text_edit::sibling;
 use crate::text_edit::workaround::{self, Workaround, WorkaroundPolicy, WorkaroundUse};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -666,6 +667,12 @@ pub struct EditOptions {
     /// resource on the page naming the same face, switching to it with `Tf`
     /// for the replacement only (decision 174). Off by default.
     pub sibling_fonts: bool,
+    /// Which program decision 172's route B embeds: with
+    /// [`Self::embedded_glyphs`] set, a character the run's embedded
+    /// TrueType program outlines but its dictionary cannot encode is set
+    /// through a new `/Type0` resource over that program (decision 187).
+    /// [`CidFontProgram::Off`] turns route B off.
+    pub cid_font_program: CidFontProgram,
     /// Sets each character the run's font cannot encode in this face, tried
     /// only after every route that keeps the run's font refuses (decision
     /// 172, 173 and 174 included). The match must lie in one `Tj`/`TJ`.
@@ -740,6 +747,22 @@ impl EditOptions {
     #[must_use]
     pub fn with_sibling_fonts(mut self, allow: bool) -> Self {
         self.sibling_fonts = allow;
+        self
+    }
+
+    /// Set [`Self::cid_font_program`], returning `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::{CidFontProgram, EditOptions};
+    ///
+    /// let opts = EditOptions::default().with_cid_font_program(CidFontProgram::Off);
+    /// assert_eq!(opts.cid_font_program, CidFontProgram::Off);
+    /// ```
+    #[must_use]
+    pub fn with_cid_font_program(mut self, program: CidFontProgram) -> Self {
+        self.cid_font_program = program;
         self
     }
 
@@ -2800,7 +2823,7 @@ fn encode_with_sibling<'a>(
         (None, Some(faces)) => Some(fallback::FaceChoice::Ladder(Some(faces))),
         (None, None) => None,
     };
-    let own = choice.map(|_| font.clone());
+    let own = font.clone();
     let refused =
         match encode_and_extend(doc, target, recs, font, class, font_dict, anchor, req, opts) {
             Ok((encoded, font, extension)) => {
@@ -2823,9 +2846,6 @@ fn encode_with_sibling<'a>(
     {
         return Ok(enc);
     }
-    let (Some(face), Some(own)) = (choice, own) else {
-        return Err(refused);
-    };
     let encode_own = |text: &str| {
         let mut part = req.clone();
         text.clone_into(&mut part.replace);
@@ -2848,16 +2868,66 @@ fn encode_with_sibling<'a>(
         own_dict: font_dict,
         anchor,
     };
-    let (encoded, font, extension, fb) =
-        fallback::encode(&at, &req.replace, face, &own, refused, encode_own)?;
-    Ok(Encoding {
-        encoded,
-        font,
-        dict: font_dict,
-        extension,
-        sibling: None,
-        fallback: Some(fb),
-    })
+    encode_split(&at, font_dict, req, opts, choice, &own, refused, encode_own)
+}
+
+/// Route B (decision 187) over the run's own program, then `choice`'s face,
+/// for the characters the run's font refused. Route B's refusal stands only
+/// when no face is offered.
+#[allow(clippy::too_many_arguments)] // encode_with_sibling's locals, passed through once
+fn encode_split<'a, F>(
+    at: &fallback::RunAt<'_>,
+    font_dict: &'a Dict,
+    req: &EditRequest,
+    opts: &EditOptions,
+    choice: Option<fallback::FaceChoice<'_>>,
+    own: &ExtractFont,
+    mut refused: EditError,
+    encode_own: F,
+) -> Result<Encoding<'a>, EditError>
+where
+    F: Fn(&str) -> Result<(EncodedReplacement, ExtractFont, Option<FontExtension>), EditError>
+        + Copy,
+{
+    if let (Some(glyphs), EditError::Refused(r)) = (opts.embedded_glyphs, &refused)
+        && opts.cid_font_program != CidFontProgram::Off
+    {
+        let route_b = fallback::FaceChoice::SameProgram(glyphs, opts.cid_font_program);
+        let again = EditError::Refused(r.clone());
+        match fallback::encode(at, &req.replace, route_b, own, again, encode_own) {
+            Ok(done) => return Ok(Encoding::with_fallback(font_dict, done)),
+            Err(e @ EditError::Refused(_)) if choice.is_none() => refused = e,
+            Err(EditError::Refused(_)) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    let Some(face) = choice else {
+        return Err(refused);
+    };
+    let done = fallback::encode(at, &req.replace, face, own, refused, encode_own)?;
+    Ok(Encoding::with_fallback(font_dict, done))
+}
+
+impl<'a> Encoding<'a> {
+    /// A replacement split between the run's font and a fallback resource.
+    fn with_fallback(
+        dict: &'a Dict,
+        (encoded, font, extension, fb): (
+            EncodedReplacement,
+            ExtractFont,
+            Option<FontExtension>,
+            fallback::Fallback,
+        ),
+    ) -> Self {
+        Self {
+            encoded,
+            font,
+            dict,
+            extension,
+            sibling: None,
+            fallback: Some(fb),
+        }
+    }
 }
 
 /// The first same-face sibling resource that carries the whole replacement

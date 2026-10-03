@@ -58,6 +58,28 @@ impl EmbeddedGlyphs for EmbeddedProgramGlyphs {
             .map(str::to_owned)
             .collect()
     }
+
+    fn program_without_cmap(&self, program: &[u8]) -> Option<Vec<u8>> {
+        let dir = super::sfnt::Directory::parse(program)?;
+        if program.starts_with(b"ttcf") || dir.table(*b"glyf").is_none() {
+            return None;
+        }
+        // Decision 187 §4: a restricted-licence program (usage value 2) is
+        // never copied a second time.
+        let fs_type = dir
+            .table(*b"OS/2")
+            .and_then(|os2| super::sfnt::read_u16(os2, 8));
+        if fs_type.is_some_and(|f| f & 0x000F == 0x0002) {
+            return None;
+        }
+        let tables = dir
+            .tables
+            .iter()
+            .filter(|(tag, _)| tag != b"cmap")
+            .map(|(tag, data)| (*tag, data.to_vec()))
+            .collect();
+        Some(super::sfnt::assemble(dir.flavor, tables))
+    }
 }
 
 fn glyph_in(parsed: &FontProgram<'_>, ch: char) -> Option<ProgramGlyph> {
@@ -90,6 +112,7 @@ fn outlined(parsed: &FontProgram<'_>, gid: u32, ch: char) -> Option<ProgramGlyph
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // tests: a panic is a failure
 mod tests {
     use super::*;
 
@@ -100,5 +123,46 @@ mod tests {
             EmbeddedProgramGlyphs.unicode_glyph(b"not a font", 'A'),
             None
         );
+    }
+
+    fn fixture(name: &str) -> Vec<u8> {
+        let dir = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/synthetic/text/"
+        );
+        std::fs::read(format!("{dir}{name}")).unwrap()
+    }
+
+    #[test]
+    fn stripping_drops_only_cmap_and_keeps_the_checksums_valid() {
+        let program = fixture("subset-donor.ttf");
+        let stripped = EmbeddedProgramGlyphs
+            .program_without_cmap(&program)
+            .unwrap();
+        let (before, after) = (
+            super::super::sfnt::Directory::parse(&program).unwrap(),
+            super::super::sfnt::Directory::parse(&stripped).unwrap(),
+        );
+        assert!(before.table(*b"cmap").is_some() && after.table(*b"cmap").is_none());
+        assert_eq!(after.tables.len() + 1, before.tables.len());
+        for (tag, data) in &after.tables {
+            if tag != b"head" {
+                assert_eq!(Some(*data), before.table(*tag), "{tag:?}");
+            }
+        }
+        // OpenType `head.checkSumAdjustment`: the whole file sums to 0xB1B0AFBA.
+        assert_eq!(super::super::sfnt::checksum(&stripped), 0xB1B0_AFBA);
+        assert_eq!(
+            EmbeddedProgramGlyphs.unicode_glyph(&stripped, 'A'),
+            None,
+            "nothing maps through a cmap any more"
+        );
+    }
+
+    #[test]
+    fn a_restricted_program_is_not_copied() {
+        let program = fixture("subset-fstype-restricted.ttf");
+        assert!(super::super::sfnt::Directory::parse(&program).is_some());
+        assert_eq!(EmbeddedProgramGlyphs.program_without_cmap(&program), None);
     }
 }

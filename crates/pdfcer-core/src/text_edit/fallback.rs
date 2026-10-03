@@ -23,6 +23,8 @@ use crate::text_edit::edit::{
 use crate::text_edit::face_ladder::{self, FaceMatch, FaceRequest, ReplacementFaces};
 use crate::text_edit::font_extend::FontExtension;
 use crate::text_edit::format::{CreatedFace, CreatedFont, embedded_probe, resolve_target_resource};
+use crate::text_edit::program_glyphs::EmbeddedGlyphs;
+use crate::text_edit::same_program::{self, CidFontProgram, CidProgramUse};
 use crate::text_edit::sibling;
 use crate::text_extract::font::ExtractFont;
 use crate::view::DocumentView;
@@ -52,6 +54,9 @@ pub enum FallbackSource {
     AddedStandard14,
     /// An embedded subset the edit adds.
     EmbeddedSubset,
+    /// A `/Type0` resource the edit adds over the run's own embedded
+    /// program, reaching each glyph by GID (decision 172 route B).
+    SameProgram,
 }
 
 /// Which characters an edit set in a fallback face, and in which face.
@@ -70,6 +75,9 @@ pub struct FallbackUse {
     /// How the decision 178 ladder chose the face; `None` when the caller
     /// named it ([`EditOptions::fallback`](crate::text_edit::EditOptions::fallback)).
     pub chosen_by: Option<FaceMatch>,
+    /// For [`FallbackSource::SameProgram`], which program the new resource
+    /// embeds (decision 187); `None` for every other source.
+    pub cid_program: Option<CidProgramUse>,
 }
 
 /// The fallback face a [`TextEditPreview`](crate::text_edit::TextEditPreview)
@@ -95,6 +103,8 @@ pub struct PreviewFallback {
 pub(crate) enum FaceChoice<'a> {
     Given(&'a FallbackFace),
     Ladder(Option<&'a dyn ReplacementFaces>),
+    /// Decision 172 route B over the run's own program.
+    SameProgram(&'a dyn EmbeddedGlyphs, CidFontProgram),
 }
 
 /// Where the run being edited sits.
@@ -116,6 +126,9 @@ struct ResolvedFace {
     program: Option<Vec<u8>>,
     /// An added subset's CIDs; it is set with `Identity-H` 2-byte codes.
     cids: Option<BTreeMap<char, u16>>,
+    cid_program: Option<CidProgramUse>,
+    /// Disclosed beside the fallback line.
+    note: Option<String>,
 }
 
 /// The replacement split between the run's font and the fallback face.
@@ -130,6 +143,7 @@ pub(crate) struct Fallback {
     preview: PreviewFallback,
     created: Option<CreatedFont>,
     pub(crate) used: FallbackUse,
+    note: Option<String>,
 }
 
 impl Fallback {
@@ -301,6 +315,7 @@ where
     encoded
         .disclosures
         .push(disclosure(&fallback.used, &font.base_font));
+    encoded.disclosures.extend(fallback.note.clone());
     Ok((encoded, font, extension, fallback))
 }
 
@@ -342,6 +357,9 @@ fn pick(
 ) -> Result<(ResolvedFace, Option<FaceMatch>), String> {
     match face {
         FaceChoice::Given(face) => Ok((resolve_face(at, face)?, None)),
+        FaceChoice::SameProgram(glyphs, mode) => {
+            Ok((resolve_same_program(at, glyphs, mode, to_face)?, None))
+        }
         FaceChoice::Ladder(faces) => {
             let chars: Vec<char> = to_face.iter().copied().collect();
             let req = FaceRequest::from_font_dict(at.doc, at.own_dict, &chars);
@@ -405,6 +423,7 @@ fn split(
         font_resource: resolved.key.clone(),
         source: resolved.source,
         chosen_by: None,
+        cid_program: resolved.cid_program,
     };
     let preview = PreviewFallback {
         font_resource: resolved.key,
@@ -419,6 +438,7 @@ fn split(
         preview,
         created: resolved.created,
         used,
+        note: resolved.note,
     })
 }
 
@@ -447,6 +467,8 @@ fn resolve_face(at: &RunAt<'_>, face: &FallbackFace) -> Result<ResolvedFace, Str
                     created: None,
                     program: None,
                     cids: None,
+                    cid_program: None,
+                    note: None,
                 });
             }
             let std14 = crate::fontdata::std14_by_base_font(name).ok_or_else(|| {
@@ -467,6 +489,8 @@ fn resolve_face(at: &RunAt<'_>, face: &FallbackFace) -> Result<ResolvedFace, Str
                 source: FallbackSource::AddedStandard14,
                 program: None,
                 cids: None,
+                cid_program: None,
+                note: None,
             })
         }
         FallbackFace::Embedded(plan) => {
@@ -481,12 +505,80 @@ fn resolve_face(at: &RunAt<'_>, face: &FallbackFace) -> Result<ResolvedFace, Str
                 source: FallbackSource::EmbeddedSubset,
                 program: Some(plan.program.clone()),
                 cids: Some(cids),
+                cid_program: None,
+                note: None,
                 created: Some(CreatedFont {
                     key,
                     face: CreatedFace::Embedded(Box::new(plan)),
                 }),
             })
         }
+    }
+}
+
+/// Route B's resource for `chars` (decision 172, decision 187).
+fn resolve_same_program(
+    at: &RunAt<'_>,
+    glyphs: &dyn EmbeddedGlyphs,
+    mode: CidFontProgram,
+    chars: &BTreeSet<char>,
+) -> Result<ResolvedFace, String> {
+    let built = same_program::plan(at.doc, at.own_dict, glyphs, mode, chars)?;
+    let (dict, font) = embedded_probe(at.doc, &built.plan)?;
+    let fonts = at
+        .resources
+        .get(b"Font")
+        .map(|o| at.doc.resolve(o))
+        .and_then(Object::as_dict)
+        .cloned()
+        .unwrap_or_default();
+    let key = addtext::pick_font_name(&fonts);
+    let cids = built
+        .plan
+        .glyphs
+        .iter()
+        .map(|g| (g.unicode, g.cid))
+        .collect();
+    let note = same_program_note(built.program_use, built.override_note);
+    let face = match built.shared {
+        Some(program) => CreatedFace::SharedProgram {
+            plan: Box::new(built.plan.clone()),
+            program,
+        },
+        None => CreatedFace::Embedded(Box::new(built.plan.clone())),
+    };
+    Ok(ResolvedFace {
+        created: Some(CreatedFont {
+            key: key.clone(),
+            face,
+        }),
+        key,
+        dict,
+        font,
+        source: FallbackSource::SameProgram,
+        program: Some(built.plan.program),
+        cids: Some(cids),
+        cid_program: Some(built.program_use),
+        note: Some(note),
+    })
+}
+
+/// Rule 4 for decision 187: which program route B embeds.
+fn same_program_note(used: CidProgramUse, why: Option<&str>) -> String {
+    let what = match used {
+        CidProgramUse::Shared => "shares the run's program stream, which has no cmap",
+        CidProgramUse::StrippedCopy => {
+            "embeds a new copy of the run's program with its cmap table removed (ISO 32000-1 \
+             §9.9: a cmap shall not be present under a CIDFont)"
+        }
+        CidProgramUse::SharedWithCmap => {
+            "shares the run's program stream, which carries a cmap table; ISO 32000-1 §9.9 \
+             says it shall not be present under a CIDFont, so the file does not conform there"
+        }
+    };
+    match why {
+        Some(why) => format!("route B: the new CIDFont {what}; {why}"),
+        None => format!("route B: the new CIDFont {what}"),
     }
 }
 
@@ -578,6 +670,10 @@ fn disclosure(used: &FallbackUse, own: &str) -> String {
         }
         FallbackSource::EmbeddedSubset => {
             "a subset EMBEDDED by this edit as a Type0 Identity-H font (§9.7.6.2)"
+        }
+        FallbackSource::SameProgram => {
+            "the run's own embedded program under a Type0 Identity-H resource ADDED by this \
+             edit, each glyph reached by its GID (§9.7.4.2)"
         }
     };
     let line = format!(

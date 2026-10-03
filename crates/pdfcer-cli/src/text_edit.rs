@@ -49,6 +49,8 @@ pub(crate) struct EditTextArgs<'a> {
     pub(crate) augment: Option<(&'a str, &'a str)>,
     /// `--sibling-fonts`.
     pub(crate) sibling_fonts: bool,
+    /// `--cid-font-program`.
+    pub(crate) cid_font_program: pdfcer_core::text_edit::CidFontProgram,
     /// `--fallback-font NAME`.
     pub(crate) fallback_font: Option<&'a str>,
     /// `--fallback-font-file PATH`.
@@ -152,6 +154,7 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         })
         .with_embedded_glyphs(&pdfcer_render::font::embedded_glyphs::EmbeddedProgramGlyphs)
         .with_sibling_fonts(args.sibling_fonts)
+        .with_cid_font_program(args.cid_font_program)
         .with_workarounds(if apply_workaround {
             WorkaroundPolicy::Apply
         } else {

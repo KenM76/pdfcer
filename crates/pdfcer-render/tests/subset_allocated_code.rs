@@ -27,8 +27,12 @@ fn base() -> Document {
     variant("word-shaped-subset.pdf")
 }
 
+/// Route A alone: route B (`same_program_route.rs`) would set what its
+/// guards refuse.
 fn opts() -> EditOptions {
-    EditOptions::default().with_embedded_glyphs(&EmbeddedProgramGlyphs)
+    EditOptions::default()
+        .with_embedded_glyphs(&EmbeddedProgramGlyphs)
+        .with_cid_font_program(text_edit::CidFontProgram::Off)
 }
 
 fn edit(doc: &Document, replace: &str) -> Result<text_edit::EditOutcome, String> {

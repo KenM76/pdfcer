@@ -93,6 +93,7 @@ pub(crate) mod reflow_walk;
 pub mod refusal_kind;
 pub(crate) mod repertoire;
 pub(crate) mod retype;
+pub mod same_program;
 pub(crate) mod sibling;
 pub mod subset_augment;
 pub mod synth;
@@ -116,6 +117,7 @@ pub use face_ladder::{
 pub use fallback::{FallbackFace, FallbackSource, FallbackUse, PreviewFallback};
 pub use program_glyphs::{EmbeddedGlyphs, ProgramGlyph};
 pub use refusal_kind::{RefusalClass, RefusalKind};
+pub use same_program::{CidFontProgram, CidProgramUse};
 pub use subset_augment::{
     AugmentRefusal, AugmentRequest, AugmentedProgram, HintingMismatch, OutlineCheck,
     ProgramAddressing, SubsetAugment, SubsetAugmenter,

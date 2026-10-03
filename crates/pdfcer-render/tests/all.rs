@@ -61,6 +61,7 @@ mod reflow_kerned_word_pixels;
 mod region_matches_full_page;
 mod rendering_intent;
 mod replacement_faces;
+mod same_program_route;
 mod shading_ink;
 mod shading_pattern_anchoring;
 mod sibling_font;

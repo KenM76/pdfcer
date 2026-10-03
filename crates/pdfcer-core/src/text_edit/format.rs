@@ -2980,6 +2980,13 @@ pub(crate) enum CreatedFace {
     /// An embedded subset (`Pass 142.0`): the `/Type0` wrapper and four more
     /// objects (§9.7.4, §9.9), built by the same code add-text uses.
     Embedded(Box<crate::font_embed::FontEmbedPlan>),
+    /// Decision 172 route B over a program already in the file: the
+    /// `/Type0`, its `/CIDFontType2`, a descriptor naming `program` as its
+    /// `FontFile2`, and the `/ToUnicode` stream (decision 187).
+    SharedProgram {
+        plan: Box<crate::font_embed::FontEmbedPlan>,
+        program: crate::object::ObjId,
+    },
 }
 
 impl CreatedFont {
@@ -2989,6 +2996,7 @@ impl CreatedFont {
         match self.face {
             CreatedFace::Simple(_) => 1,
             CreatedFace::Embedded(_) => 5,
+            CreatedFace::SharedProgram { .. } => 4,
         }
     }
 
@@ -3007,6 +3015,9 @@ impl CreatedFont {
     ) -> Result<(Dict, Vec<(crate::object::ObjId, Object)>), String> {
         match &self.face {
             CreatedFace::Simple(dict) => Ok((dict.clone(), Vec::new())),
+            CreatedFace::SharedProgram { plan, program } => {
+                crate::text_edit::same_program::shared_objects(plan, font_id, *program, stage)
+            }
             CreatedFace::Embedded(plan) => {
                 let mut objects =
                     crate::text_edit::addtext::embedded_font_objects(plan, font_id, stage)

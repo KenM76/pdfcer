@@ -5,7 +5,9 @@
 
 use std::path::{Path, PathBuf};
 
-use pdfcer_core::text_edit::{EditReport, FallbackFace, FallbackSource, RunRepertoire};
+use pdfcer_core::text_edit::{
+    CidProgramUse, EditReport, FallbackFace, FallbackSource, RunRepertoire,
+};
 use pdfcer_render::font::InstalledFaces;
 use pdfcer_render::font::subset::{SubsetError, plan_subset, subset_tag_for};
 
@@ -99,6 +101,7 @@ pub(crate) fn print_fallback(report: &EditReport) {
         FallbackSource::PageResource => "page-resource",
         FallbackSource::AddedStandard14 => "added-standard-14",
         FallbackSource::EmbeddedSubset => "embedded-subset",
+        FallbackSource::SameProgram => "same-program",
         _ => "other",
     };
     println!(
@@ -107,6 +110,15 @@ pub(crate) fn print_fallback(report: &EditReport) {
         used.base_font,
         String::from_utf8_lossy(&used.font_resource)
     );
+    if let Some(program) = used.cid_program {
+        let program = match program {
+            CidProgramUse::Shared => "shared",
+            CidProgramUse::SharedWithCmap => "shared-with-cmap",
+            CidProgramUse::StrippedCopy => "stripped-copy",
+            _ => "other",
+        };
+        println!("  cid_font_program={program}");
+    }
     if let Some(m) = &used.chosen_by {
         println!(
             // `source` last: a path may hold spaces.

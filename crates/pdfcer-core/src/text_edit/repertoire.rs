@@ -145,6 +145,17 @@ fn add_other_fonts(
             .collect();
         out.accepted.extend(out.via_fallback.iter().copied());
     }
+    if let Some(glyphs) = query.glyphs
+        && opts.cid_font_program != crate::text_edit::CidFontProgram::Off
+    {
+        let route_b = crate::text_edit::same_program::accepts(
+            query.doc,
+            query.dict,
+            glyphs,
+            opts.cid_font_program,
+        );
+        out.accepted.extend(route_b);
+    }
 }
 
 /// The run's identity, with nothing accepted yet.
