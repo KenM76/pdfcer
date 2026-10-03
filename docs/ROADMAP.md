@@ -115,6 +115,64 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 453.0` (`ced6c38d`), 2026-10-03 — a saved 3D view becomes a camera from the library
+
+Answers `G105` (`pdfcer-gui`, file
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G105_a_saved_3d_view_cannot_become_a_camera_outside_the_cli.md`):
+a `ThreeDSavedView` could only be turned into a `pdfcer_3d::Camera` inside
+the CLI's own `3d-render` code; no caller outside that crate could reuse
+the conversion.
+
+**Core, `pdfcer-core`, `ced6c38d`.** New `threed::view_aim` module (always
+compiled, new file `crates/pdfcer-core/src/threed/view_aim.rs`):
+`ThreeDSavedView::aim(aspect: f32) -> Option<SavedViewAim>` reads a saved
+view's `/C2W` direction/up (the z/y columns) and its `/P`/`/O` projection
+into a camera-independent `SavedViewAim { name, direction, up,
+orthographic, fit: ViewFit }` (`#[non_exhaustive]`); `ViewFit` is
+`FittedToModel` or `Framed { position, height }` (`#[non_exhaustive]`).
+`SavedViewAim::source()` returns the disclosure sentence `3d-render`
+already printed for "opened on the file's own saved default view" /
+orthographic framing — sourced once now instead of two copies. Behind
+feature `3d`: `SavedViewAim::camera(&pdfcer_3d::Bounds, aspect) ->
+Result<pdfcer_3d::Camera, RenderError>` and `SavedViewAim::frame(&mut
+Camera)` turn the aim into (or re-frame) an actual `pdfcer_3d::Camera`.
+`ThreeDSavedView` gained `#[derive(Default)]`. ISO 32000-1 §13.6.4–13.6.5
+(view dictionaries), Tables 304–305 (`/C2W`, `/P`, `/O`).
+
+**CLI, no behaviour change.** `3d-render` now calls the core
+`aim`/`camera`/`frame` instead of its own `ortho_height`/`Framing`/
+`place_on_axis` copies (removed from `aim.rs`/`threed_cmd.rs`). Renders of
+the door assembly sample (opening view, `--target`, 300x600 portrait) are
+byte-identical before and after — confirms the move is a relocation, not
+a behaviour change.
+
+**Tests.** 2 of the CLI's `ortho_height` tests moved into `pdfcer-core`
+as-is; 1 new core test `an_orthographic_view_fixes_its_frame_and_says_so`;
+1 new feature-gated (`3d`) test
+`the_camera_looks_along_the_z_column_through_the_view_position`; 1
+doctest on `aim`. Net across the workspace: +2 test functions in
+`pdfcer-core`, -2 in the CLI's unit tests. Sabotage-checked.
+
+**Gates.** `cargo tree` unaffected — no dependency change.
+
+**Docs.** `docs/core-api/01-reading-and-model.md` — new "The view as a
+camera" paragraph plus an index-table row; `index.md` counts updated;
+`check-core-api-verbs` PASS.
+
+**`docs/FEATURES.md`.** The camera-controlled 3D viewer row (*Backlog*,
+"View an embedded 3D model with camera controls") edited in place: names
+the new `aim`/`camera` conversion. `core [x]` / `cli [x]` (`3d-render`
+uses it) — `gui` not rounded up, unadopted there.
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Status.** Unreleased since `v0.75.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash,
+module/type names, test counts and gate results above are **relayed**
+from the dispatching engineer's report, not independently verified.
+
 ### `Pass 452.0` (`0c56078e`), 2026-10-03 — colour a prototype from the structure that styled it
 
 Answers `G104` and `G103` (`pdfcer-gui`, files

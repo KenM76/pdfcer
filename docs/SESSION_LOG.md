@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (912th filing) — `Pass 453.0` shipped
+
+**Shipped:**
+- `Pass 453.0` (`ced6c38d`) — a `ThreeDSavedView` can now turn itself into
+  a `pdfcer_3d::Camera` through core's own `SavedViewAim::aim`/`camera`,
+  instead of that conversion living only inside the CLI's `3d-render`.
+  `3d-render` now calls the core version; renders of the door assembly
+  sample are byte-identical before and after. Answers `G105`.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- End-to-end paddle-vl recognition through `OcrRunner` still unverified
+  (open since the 906th filing) — unaffected by this filing.
+
+**For next session:**
+- Unchanged from the 910th filing.
+
 ## 2026-10-03 (911th filing) — `Pass 452.0` follow-up
 
 **Shipped:**
