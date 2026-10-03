@@ -44,6 +44,21 @@ pub struct ThreeDSavedView {
     pub view_box: Option<[f64; 2]>,
 }
 
+impl Default for ThreeDSavedView {
+    /// No name and no camera matrix; perspective, `OS` 1, `/Absolute`.
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            camera_to_world: None,
+            orbit_distance: None,
+            orthographic: false,
+            ortho_scale: 1.0,
+            ortho_binding: OrthoBinding::Absolute,
+            view_box: None,
+        }
+    }
+}
+
 /// `/OB`, the orthographic binding (ISO 32000-1 Table 305).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]

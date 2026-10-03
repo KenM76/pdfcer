@@ -324,8 +324,8 @@ fn render_from_bytes(
         camera.eye = eye;
         camera.target = target;
     }
-    if let Some(f) = aim.framing {
-        place_on_axis(&mut camera, f.position, f.height);
+    if let Some(saved) = &aim.framing {
+        saved.frame(&mut camera);
     }
     if let Projection::Perspective { fov_y } = &mut camera.projection {
         *fov_y = a.fov;
@@ -403,25 +403,6 @@ fn render_from_bytes(
          had none and are drawn grey; textures and lights are not read yet"
     );
     exit::SUCCESS
-}
-
-/// Moves the fitted orthographic `camera` so the image centre lies on the
-/// line through `position` along the view direction, `height` units high,
-/// keeping its depth and distance.
-#[cfg(feature = "3d")]
-fn place_on_axis(camera: &mut pdfcer_3d::Camera, position: [f64; 3], height: f64) {
-    let d: [f64; 3] = std::array::from_fn(|i| camera.target[i] - camera.eye[i]);
-    let len2 = d.iter().map(|c| c * c).sum::<f64>();
-    if !(len2.is_finite() && len2 > 0.0) {
-        return;
-    }
-    let along = (0..3)
-        .map(|i| (camera.target[i] - position[i]) * d[i])
-        .sum::<f64>()
-        / len2;
-    camera.target = std::array::from_fn(|i| position[i] + along * d[i]);
-    camera.eye = std::array::from_fn(|i| camera.target[i] - d[i]);
-    camera.projection = pdfcer_3d::Projection::Orthographic { height };
 }
 
 #[cfg(not(feature = "3d"))]

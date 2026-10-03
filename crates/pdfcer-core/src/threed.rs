@@ -34,9 +34,11 @@ use crate::view::DocumentView;
 
 mod poster;
 mod view;
+mod view_aim;
 pub(crate) use poster::default_poster;
 pub use poster::{PlaceholderReason, RenderedPoster, ThreeDPoster, ThreeDPosterOutcome};
 pub use view::{OrthoBinding, ThreeDSavedView, default_3d_view};
+pub use view_aim::{SavedViewAim, ViewFit};
 
 /// Ceiling on how many artworks one listing reports (a pdfcer guard; the
 /// spec sets none).

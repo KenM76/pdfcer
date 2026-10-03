@@ -147,6 +147,7 @@ builds `--no-default-features`, so both configurations compile.
 | List embedded 3D models (U3D/PRC/STEP) | `threed::list_3d_with_notes(&graph)` — `threed.rs` | §12.2 |
 | Extract a 3D model's bytes | `threed::extract_3d(&DocumentView, &ThreeDArtwork)` — `threed.rs` | §12.2 |
 | Read the view a 3D model opens on (camera, projection) | `threed::default_3d_view(&graph, &ThreeDArtwork)` — `threed/view.rs` | §12.2 |
+| Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |
 | Compute hidden layers, correctly for print/export | `annot::optional_content_default_off(&graph)` — `annot.rs` | §12.3 |
 | Refine layer visibility for on-screen view only | `annot::apply_view_usage(&graph, …)` — `annot.rs` **(never on a print path — T-12.8)** | §12.3 |
@@ -2864,10 +2865,27 @@ annotation's `/3DB`, else `/Rect`, in user space units; Table 305 scales
 onto a target system centred on it). The standard gives `OS` no unit;
 pdfcer reads a binding as the bound side spanning `1/OS` camera units, and
 `Absolute` as one camera unit per `OS` user space units — an
-interpretation, disclosed. CLI: `3d-render` with no camera option uses the
-view's direction and projection, and for an orthographic view also its
-centre (the camera axis) and that scale; perspective views are fitted to
-the model. It prints `note: camera:` saying which view and scale were used.
+interpretation, disclosed. `ThreeDSavedView` implements `Default` (no
+matrix, perspective, `OS` 1, `Absolute`).
+
+**The view as a camera.** `view.aim(aspect) -> Option<SavedViewAim>` for an
+image of `aspect` (width / height); `None` without `camera_to_world`.
+`SavedViewAim`, `#[non_exhaustive]`: `name`, `direction` (the z column),
+`up` (the y column), `orthographic`, `fit: ViewFit` — `FittedToModel`
+(perspective, or no usable scale) or `Framed { position, height }` (an
+orthographic view fixing its centre axis through `position` and showing
+`height` model units vertically, by the reading above). `aim.source()` is
+the sentence `3d-render` prints, naming the view and disclosing the reading.
+Behind feature `3d`: `aim.camera(&pdfcer_3d::Bounds, aspect) ->
+Result<pdfcer_3d::Camera, RenderError>` fits the bounds along the aim and
+then applies `aim.frame(&mut camera)`, which moves any fitted camera onto a
+`Framed` view's axis and height (no-op for `FittedToModel`). `target - eye`
+is parallel to `direction`; `up` is `up`. To ignore the view's own framing
+(e.g. the operator picked a target), set `aim.fit = ViewFit::FittedToModel`
+— `source()` then says "zoomed to fit the model". CLI: `3d-render` with no
+camera option uses exactly this (fitting the meshes rather than the box, via
+`Camera::fit_meshes`, then `frame`) and prints `note: camera:` with
+`source()`.
 
 #### Decoding and drawing a PRC model (`pdfcer-3d`, feature `3d`)
 
