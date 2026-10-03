@@ -138,14 +138,17 @@ fn render(
     let model = pdfcer_3d::assemble(data).map_err(|err| undecodable(err.to_string()))?;
     let image = pdfcer_3d::render_default_view(&model, width, height)
         .map_err(|err| undecodable(err.to_string()))?;
-    let rgb: Vec<u8> = image
+    // The poster is opaque: the renderer's background is the page colour.
+    let opaque: Vec<u8> = image
         .rgba
-        .chunks_exact(4)
-        .flat_map(|px| px.iter().take(3).copied())
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .flat_map(|&[r, g, b, _]| [r, g, b, 255])
         .collect();
-    let png = encode_rgb_png(image.width, image.height, &rgb)
-        .map_err(|err| undecodable(err.to_string()))?;
-    let imported = crate::image_import::import(&png).map_err(|err| undecodable(err.to_string()))?;
+    let imported =
+        crate::image_import::ImportedImage::from_rgba8(image.width, image.height, &opaque)
+            .map_err(|err| undecodable(err.to_string()))?;
     let uncoloured = model.meshes.len() - model.colours.iter().flatten().count();
     Ok((
         imported,
@@ -170,38 +173,6 @@ fn render(
     _size: (u32, u32),
 ) -> Result<(ImportedImage, RenderedPoster), PlaceholderReason> {
     Err(PlaceholderReason::NoDecoder)
-}
-
-/// A non-interlaced 8-bit RGB PNG (ISO/IEC 15948 §11.2): IHDR, one zlib
-/// IDAT whose rows each carry filter type 0, IEND.
-#[cfg(feature = "3d")]
-fn encode_rgb_png(width: u32, height: u32, rgb: &[u8]) -> std::io::Result<Vec<u8>> {
-    use std::io::Write;
-    let row = width as usize * 3;
-    let mut raw = Vec::with_capacity((row + 1) * height as usize);
-    for line in rgb.chunks_exact(row.max(1)) {
-        raw.push(0);
-        raw.extend_from_slice(line);
-    }
-    let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-    z.write_all(&raw)?;
-    let idat = z.finish()?;
-    let mut ihdr = Vec::with_capacity(13);
-    ihdr.extend_from_slice(&width.to_be_bytes());
-    ihdr.extend_from_slice(&height.to_be_bytes());
-    ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    for (kind, body) in [(b"IHDR", &ihdr), (b"IDAT", &idat), (b"IEND", &Vec::new())] {
-        let len = u32::try_from(body.len()).map_err(std::io::Error::other)?;
-        png.extend_from_slice(&len.to_be_bytes());
-        let mut crc = flate2::Crc::new();
-        crc.update(kind);
-        crc.update(body);
-        png.extend_from_slice(kind);
-        png.extend_from_slice(body);
-        png.extend_from_slice(&crc.sum().to_be_bytes());
-    }
-    Ok(png)
 }
 
 #[cfg(test)]
@@ -241,14 +212,5 @@ mod tests {
                 format: "U3D".into()
             })
         );
-    }
-
-    #[cfg(feature = "3d")]
-    #[test]
-    fn the_png_encoder_round_trips_through_import() {
-        let png = encode_rgb_png(2, 1, &[255, 0, 0, 0, 0, 255]).expect("encodes");
-        let image = crate::image_import::import(&png).expect("imports");
-        assert_eq!((image.width, image.height), (2, 1));
-        assert_eq!(image.bits_per_component, 8);
     }
 }

@@ -230,6 +230,7 @@ pub mod jpeg;
 /// that decision 006 makes load-bearing. Read it before touching the
 /// four-component path.
 pub mod jpeg_encode;
+mod pixels;
 pub mod png;
 pub mod tiff;
 
@@ -259,6 +260,9 @@ pub enum ImageFormat {
     /// Graphics Interchange Format (`GIF87a` and `GIF89a`): the first frame,
     /// composited onto its logical screen. See [`gif`].
     Gif,
+    /// Samples handed over in memory, not a file:
+    /// [`ImportedImage::from_rgba8`]. [`sniff`] never returns it.
+    Pixels,
 }
 
 impl ImageFormat {
@@ -271,6 +275,7 @@ impl ImageFormat {
             Self::Bmp => "BMP",
             Self::Tiff => "TIFF",
             Self::Gif => "GIF",
+            Self::Pixels => "pixels",
         }
     }
 }
@@ -415,6 +420,20 @@ pub enum ImageImportError {
     /// not swallowed.
     #[error("the image could not be re-compressed: {0}")]
     Compress(String),
+
+    /// [`ImportedImage::from_rgba8`] was given a buffer whose length is not
+    /// `width × height × 4`.
+    #[error("a {width}×{height} RGBA image needs {expected} bytes, but the buffer holds {actual}")]
+    BufferSize {
+        /// The width asked for.
+        width: u32,
+        /// The height asked for.
+        height: u32,
+        /// `width × height × 4`.
+        expected: usize,
+        /// The buffer's length.
+        actual: usize,
+    },
 }
 
 /// A PDF colour space an imported image can land in.
@@ -1430,6 +1449,7 @@ pub fn import_with(
         ImageFormat::Bmp => bmp::import(data)?,
         ImageFormat::Tiff => tiff::import(data)?,
         ImageFormat::Gif => gif::import(data)?,
+        ImageFormat::Pixels => return Err(ImageImportError::NotAnImage),
     };
 
     // The two cases where a policy changes the bytes the importers produced.

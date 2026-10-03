@@ -93,6 +93,7 @@ mod free_text_note_rebake;
 mod freetext_newline;
 mod hand_signature;
 mod image_gif;
+mod image_pixels;
 mod image_placement;
 mod image_stamp_and_button_icon;
 mod image_tiff;

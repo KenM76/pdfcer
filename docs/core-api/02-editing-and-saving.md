@@ -4045,6 +4045,18 @@ A GIF imports its **first frame** composited onto the logical screen, as
 `/Indexed` 8-bit Flate; a Graphic Control Extension transparent index becomes
 an `/SMask` clear at that index. Everything else refuses by name.
 
+**Pixels already in memory** (a 3D render, a clipboard bitmap) skip the file
+encoding: `ImportedImage::from_rgba8(width: u32, height: u32, rgba: &[u8]) ->
+Result<ImportedImage, ImageImportError>` takes straight 8-bit RGBA, top-left
+first. It gives the same `/DeviceRGB` samples and soft mask as
+`import` of a PNG of those pixels, with the same notes (`AlphaSplit`,
+`alpha_to_soft_mask`, the soft-mask version). Alpha that is 255 everywhere
+gives `soft_mask: None` and default notes. `format` is `ImageFormat::Pixels`
+(`name()` "pixels"; `sniff` never returns it). Refusals: `Empty`, `TooLarge`
+(the decode ceilings), `BufferSize { width, height, expected, actual }` when
+`rgba.len() != width × height × 4`. The result feeds every image verb,
+`set_3d_poster` included.
+
 Each import note a shell must disclose (rule 4) is carried onto
 `ImageAuthorDisclosures`, so read the outcome, not the `ImportedImage`:
 
