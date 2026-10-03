@@ -4256,6 +4256,26 @@ resolution nobody asked for.
 `--at X,Y` places at the artwork's own size — Acrobat's click-to-place — and
 reports `distorted=0` by construction. `--rect` fills a box.
 
+**As page CONTENT instead — `Pass 450.0`.** The same form XObject, drawn by a
+new content stream appended to `/Contents` (`q a 0 0 d e f cm /Fx Do Q`,
+§7.8.2) rather than becoming an annotation's appearance:
+
+```rust
+let placed = session.place_page_content(&source.view(), source_page, page_index, rect)?;
+```
+
+CLI: `place-stamp … --as-content` (the output line says `content=N` where a
+stamp says `obj=N`). Returns `PlacedPageContent`: the `PlacedArtwork`
+disclosures above, with `content_id` (the appended stream) in place of
+`annot_id`. The `cm` maps the source crop box onto `rect` exactly as §12.5.5
+maps a stamp's `/BBox` onto its `/Rect`, so both render the same pixels.
+Additive: existing content streams stay byte-verbatim (wrapped in `q`/`Q`
+streams when unbalanced, as every content overlay is); the form's own
+`/Resources` keep its `/F1` apart from the page's. Gates as `add_svg`
+(ModifyContents, certification, hidden objects); a zero-area `rect` is
+`ImageRectDegenerate`. One undo entry, `CommandKind::PlacePageContent`. Not
+a comment afterwards: it cannot be selected, moved or flattened as one.
+
 **No `/Name` is written**: §12.5.6.12's vocabulary is closed and imported
 artwork matches none of it; Table 181 makes the entry optional precisely so an
 annotation with its own appearance need not claim a name.

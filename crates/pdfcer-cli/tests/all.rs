@@ -75,6 +75,7 @@ mod ocr_program_addons;
 mod output_in_place;
 mod password_values;
 mod pin_span;
+mod place_stamp_as_content;
 mod promote_dr_fonts;
 mod recovery_names_what_it_dropped;
 mod reflow;

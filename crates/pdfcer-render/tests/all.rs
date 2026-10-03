@@ -55,6 +55,7 @@ mod ocr_layer_is_invisible;
 mod output_intent_choice;
 mod overprint_image;
 mod page_blend_space_source;
+mod page_content_draws_like_the_stamp;
 mod preview_equals_saved;
 mod redaction_leaves_no_ink;
 mod reflow_kerned_word_pixels;

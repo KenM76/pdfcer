@@ -1,8 +1,8 @@
 use super::*;
 
-/// Implement `pdfcer place-stamp` (`Pass 293.0`).
+/// Implement `pdfcer place-stamp` (`Pass 293.0`; `--as-content`, `Pass 450.0`).
 ///
-/// Two documents, one annotation: the collection supplies the artwork, the
+/// Two documents, one placement: the collection supplies the artwork, the
 /// input supplies the page. Everything the engine decided on the way past is
 /// printed to stderr, because the CLI has no session in which to show it
 /// (rule 11) — the invocation IS the commit.
@@ -16,6 +16,7 @@ pub(crate) fn cmd_place_stamp(
     page: usize,
     rect: Option<&str>,
     at: Option<&str>,
+    as_content: bool,
     output: &Path,
     mode: SaveMode,
 ) -> u8 {
@@ -27,160 +28,37 @@ pub(crate) fn cmd_place_stamp(
         eprintln!("pdfcer: say where: --at X,Y places at the stamp's own size, --rect fills a box");
         return exit::EDIT_REFUSED;
     }
-
     let source_doc = match open_for_read(from) {
         Ok(doc) => doc,
         Err(code) => return code,
     };
-
-    // Resolve `--stamp NAME` through the collection's own name tree, so the
-    // operator addresses a stamp the way `stamp-list` shows it rather than by
-    // counting pages. `#` is optional on the command line: it is a marker in
-    // the stored name, not part of what an operator would call the stamp.
-    let collection = pdfcer_core::stamp_file::read(&source_doc);
-    let (source_index, dynamic) = match (stamp_page, stamp) {
-        (Some(n), _) => (n.saturating_sub(1), false),
-        (None, Some(name)) => {
-            let wanted = name.trim_start_matches('#');
-            let Some(entry) = collection
-                .stamps
-                .iter()
-                .find(|e| e.internal.trim_start_matches('#') == wanted)
-            else {
-                eprintln!(
-                    "pdfcer: {}: no stamp named {name:?} in this collection ({} stamp(s): {})",
-                    from.display(),
-                    collection.stamps.len(),
-                    collection
-                        .stamps
-                        .iter()
-                        .map(|e| e.internal.clone())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                );
-                return exit::EDIT_REFUSED;
-            };
-            let Some(index) = entry.page_index else {
-                if let Some(why) = &collection.page_tree_error {
-                    eprintln!(
-                        "pdfcer: {}: that stamp's page cannot be resolved because the page tree \
-                         would not walk ({why})",
-                        from.display()
-                    );
-                } else {
-                    eprintln!(
-                        "pdfcer: {}: that stamp names a page the collection does not have",
-                        from.display()
-                    );
-                }
-                return exit::EDIT_REFUSED;
-            };
-            (index, entry.dynamic)
-        }
-        (None, None) => unreachable!("guarded above"),
+    let (source_index, dynamic) = match resolve_stamp(from, &source_doc, stamp_page, stamp) {
+        Ok(found) => found,
+        Err(code) => return code,
     };
-
-    // `--at` is Acrobat's click-to-place: the artwork arrives at the size
-    // its author drew it. The size comes from the SOURCE page's crop box --
-    // the box a reader displays -- which is the same box the engine maps onto
-    // `/Rect`, so a `--at` placement reports `distorted=0` by construction.
-    let rect = match (rect, at) {
-        (Some(spec), _) => match rect_from(spec) {
-            Ok(r) => r,
-            Err(msg) => {
-                eprintln!("pdfcer: --rect: {msg}");
-                return exit::EDIT_REFUSED;
-            }
-        },
-        (None, Some(spec)) => {
-            let Some((x, y)) = spec.split_once(',') else {
-                eprintln!("pdfcer: --at: expected X,Y in points");
-                return exit::EDIT_REFUSED;
-            };
-            let (Ok(x), Ok(y)) = (x.trim().parse::<f64>(), y.trim().parse::<f64>()) else {
-                eprintln!("pdfcer: --at: expected two numbers, got {spec:?}");
-                return exit::EDIT_REFUSED;
-            };
-            let size = match pdfcer_core::page_tree::pages(&source_doc) {
-                Ok(pages) => match pages.get(source_index) {
-                    Some(page) => (page.crop_box.width(), page.crop_box.height()),
-                    None => {
-                        eprintln!(
-                            "pdfcer: {}: the collection has {} page(s), so page {} does not exist",
-                            from.display(),
-                            pages.len(),
-                            source_index + 1
-                        );
-                        return exit::EDIT_REFUSED;
-                    }
-                },
-                Err(err) => {
-                    eprintln!("pdfcer: {}: {err}", from.display());
-                    return exit::RUNTIME_ERROR;
-                }
-            };
-            pdfcer_core::page_tree::Rect::from_corners(x, y, x + size.0, y + size.1)
-        }
-        (None, None) => unreachable!("guarded above"),
+    let rect = match placement_rect(from, &source_doc, source_index, rect, at) {
+        Ok(rect) => rect,
+        Err(code) => return code,
     };
-
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let placed = match session.place_page_artwork(
-        &source_doc.view(),
-        source_index,
-        page.saturating_sub(1),
-        rect,
-    ) {
+    let (src, target) = (source_index, page.saturating_sub(1));
+    let placed = if as_content {
+        session
+            .place_page_content(&source_doc.view(), src, target, rect)
+            .map(Placed::from)
+    } else {
+        session
+            .place_page_artwork(&source_doc.view(), src, target, rect)
+            .map(Placed::from)
+    };
+    let placed = match placed {
         Ok(placed) => placed,
         Err(err) => return report_edit_error(input, &err),
     };
-
-    // The disclosures, before the machine-readable line.
-    if placed.distorted {
-        eprintln!(
-            "pdfcer: {}: the artwork was SQUASHED to fill your rectangle - {:.3}x horizontally \
-             and {:.3}x vertically. The stamp does not have the proportions it was drawn with; \
-             a rectangle {:.1}x{:.1}pt would keep them.",
-            input.display(),
-            placed.scale_x,
-            placed.scale_y,
-            rect.width(),
-            // The height that would keep the artwork's own proportions:
-            // `rect.width * bbox.height / bbox.width`, expressed through the
-            // two scale factors, which are all this side has.
-            //   bbox.h / bbox.w == (rect.h / sy) / (rect.w / sx)
-            //   => suggested_h  == rect.h * sx / sy
-            rect.height() * placed.scale_x / placed.scale_y,
-        );
-    }
-    if dynamic {
-        eprintln!(
-            "pdfcer: {}: that is a DYNAMIC stamp. Its text is recomputed by Acrobat from form \
-             scripts at placement; pdfcer placed the artwork as drawn, so what is on the page is \
-             its DESIGN-TIME text.",
-            input.display()
-        );
-    }
-    if placed.source_widgets_ignored > 0 {
-        eprintln!(
-            "pdfcer: {}: {} form-field widget(s) on the stamp's page were NOT carried - only its \
-             artwork was imported. (This is how a dynamic stamp's live text is left behind.)",
-            input.display(),
-            placed.source_widgets_ignored
-        );
-    }
-    if placed.source_annotations_ignored > 0 {
-        eprintln!(
-            "pdfcer: {}: {} annotation(s) on the stamp's page were NOT carried - an annotation is \
-             not page content, so anything drawn as a comment on the stamp is missing from it.",
-            input.display(),
-            placed.source_annotations_ignored
-        );
-    }
-
+    disclose_placement(input, &placed, rect, dynamic);
     let outcome = match save_edited(
         &mut session,
         &source,
@@ -192,33 +70,239 @@ pub(crate) fn cmd_place_stamp(
         Ok(outcome) => outcome,
         Err(code) => return code,
     };
-
     println!(
-        "place-stamp {} from {} stamp_page={} page={} -> {}; \
-obj={} form={} rect={:.2},{:.2},{:.2},{:.2} scale={:.3},{:.3} distorted={} objects_imported={} \
-resources_renamed={} annots_ignored={} widgets_ignored={} group_carried={} dynamic={}",
+        "place-stamp {} from {} stamp_page={} page={} -> {}; {}",
         input.display(),
         from.display(),
         source_index + 1,
         page,
         output.display(),
-        placed.annot_id.num,
-        placed.form_id.num,
-        placed.rect.llx,
-        placed.rect.lly,
-        placed.rect.urx,
-        placed.rect.ury,
-        placed.scale_x,
-        placed.scale_y,
-        u32::from(placed.distorted),
-        placed.objects_imported,
-        placed.resources_renamed,
-        placed.source_annotations_ignored,
-        placed.source_widgets_ignored,
-        u32::from(placed.transparency_group_carried),
-        u32::from(dynamic),
+        placed.fields(as_content, dynamic),
     );
     finish_edit(input, &outcome)
+}
+
+/// What either placement verb reported, for one disclosure and one output
+/// line. `obj` is the annotation, or with `--as-content` the content stream.
+struct Placed {
+    obj: pdfcer_core::object::ObjId,
+    form: pdfcer_core::object::ObjId,
+    rect: pdfcer_core::page_tree::Rect,
+    scale_x: f64,
+    scale_y: f64,
+    distorted: bool,
+    objects_imported: usize,
+    resources_renamed: usize,
+    annots_ignored: usize,
+    widgets_ignored: usize,
+    group_carried: bool,
+}
+
+impl Placed {
+    /// The machine-readable `key=value` tail of the output line.
+    fn fields(&self, as_content: bool, dynamic: bool) -> String {
+        format!(
+            "{}={} form={} rect={:.2},{:.2},{:.2},{:.2} scale={:.3},{:.3} distorted={} \
+             objects_imported={} resources_renamed={} annots_ignored={} widgets_ignored={} \
+             group_carried={} dynamic={}",
+            if as_content { "content" } else { "obj" },
+            self.obj.num,
+            self.form.num,
+            self.rect.llx,
+            self.rect.lly,
+            self.rect.urx,
+            self.rect.ury,
+            self.scale_x,
+            self.scale_y,
+            u32::from(self.distorted),
+            self.objects_imported,
+            self.resources_renamed,
+            self.annots_ignored,
+            self.widgets_ignored,
+            u32::from(self.group_carried),
+            u32::from(dynamic),
+        )
+    }
+}
+
+impl From<pdfcer_core::edit::PlacedArtwork> for Placed {
+    fn from(p: pdfcer_core::edit::PlacedArtwork) -> Self {
+        Self {
+            obj: p.annot_id,
+            form: p.form_id,
+            rect: p.rect,
+            scale_x: p.scale_x,
+            scale_y: p.scale_y,
+            distorted: p.distorted,
+            objects_imported: p.objects_imported,
+            resources_renamed: p.resources_renamed,
+            annots_ignored: p.source_annotations_ignored,
+            widgets_ignored: p.source_widgets_ignored,
+            group_carried: p.transparency_group_carried,
+        }
+    }
+}
+
+impl From<pdfcer_core::edit::PlacedPageContent> for Placed {
+    fn from(p: pdfcer_core::edit::PlacedPageContent) -> Self {
+        Self {
+            obj: p.content_id,
+            form: p.form_id,
+            rect: p.rect,
+            scale_x: p.scale_x,
+            scale_y: p.scale_y,
+            distorted: p.distorted,
+            objects_imported: p.objects_imported,
+            resources_renamed: p.resources_renamed,
+            annots_ignored: p.source_annotations_ignored,
+            widgets_ignored: p.source_widgets_ignored,
+            group_carried: p.transparency_group_carried,
+        }
+    }
+}
+
+/// The source page index for `--stamp-page`, or `--stamp NAME` resolved
+/// through the collection's name tree (`#` optional), and whether that stamp
+/// is dynamic.
+fn resolve_stamp(
+    from: &Path,
+    source_doc: &pdfcer_core::document::Document,
+    stamp_page: Option<usize>,
+    stamp: Option<&str>,
+) -> Result<(usize, bool), u8> {
+    let (None, Some(name)) = (stamp_page, stamp) else {
+        return Ok((stamp_page.unwrap_or(1).saturating_sub(1), false));
+    };
+    let collection = pdfcer_core::stamp_file::read(source_doc);
+    let wanted = name.trim_start_matches('#');
+    let Some(entry) = collection
+        .stamps
+        .iter()
+        .find(|e| e.internal.trim_start_matches('#') == wanted)
+    else {
+        let names: Vec<_> = collection
+            .stamps
+            .iter()
+            .map(|e| e.internal.clone())
+            .collect();
+        eprintln!(
+            "pdfcer: {}: no stamp named {name:?} in this collection ({} stamp(s): {})",
+            from.display(),
+            names.len(),
+            names.join(", ")
+        );
+        return Err(exit::EDIT_REFUSED);
+    };
+    let Some(index) = entry.page_index else {
+        if let Some(why) = &collection.page_tree_error {
+            eprintln!(
+                "pdfcer: {}: that stamp's page cannot be resolved because the page tree \
+                 would not walk ({why})",
+                from.display()
+            );
+        } else {
+            eprintln!(
+                "pdfcer: {}: that stamp names a page the collection does not have",
+                from.display()
+            );
+        }
+        return Err(exit::EDIT_REFUSED);
+    };
+    Ok((index, entry.dynamic))
+}
+
+/// `--rect` as given, or `--at X,Y` at the source page's crop-box size —
+/// Acrobat's click-to-place, the same box the engine maps, so `--at` reports
+/// `distorted=0` by construction.
+fn placement_rect(
+    from: &Path,
+    source_doc: &pdfcer_core::document::Document,
+    source_index: usize,
+    rect: Option<&str>,
+    at: Option<&str>,
+) -> Result<pdfcer_core::page_tree::Rect, u8> {
+    if let Some(spec) = rect {
+        return rect_from(spec).map_err(|msg| {
+            eprintln!("pdfcer: --rect: {msg}");
+            exit::EDIT_REFUSED
+        });
+    }
+    let spec = at.unwrap_or_default();
+    let Some((x, y)) = spec.split_once(',') else {
+        eprintln!("pdfcer: --at: expected X,Y in points");
+        return Err(exit::EDIT_REFUSED);
+    };
+    let (Ok(x), Ok(y)) = (x.trim().parse::<f64>(), y.trim().parse::<f64>()) else {
+        eprintln!("pdfcer: --at: expected two numbers, got {spec:?}");
+        return Err(exit::EDIT_REFUSED);
+    };
+    let pages = pdfcer_core::page_tree::pages(source_doc).map_err(|err| {
+        eprintln!("pdfcer: {}: {err}", from.display());
+        exit::RUNTIME_ERROR
+    })?;
+    let Some(page) = pages.get(source_index) else {
+        eprintln!(
+            "pdfcer: {}: the collection has {} page(s), so page {} does not exist",
+            from.display(),
+            pages.len(),
+            source_index + 1
+        );
+        return Err(exit::EDIT_REFUSED);
+    };
+    let (w, h) = (page.crop_box.width(), page.crop_box.height());
+    Ok(pdfcer_core::page_tree::Rect::from_corners(
+        x,
+        y,
+        x + w,
+        y + h,
+    ))
+}
+
+/// The rule-4 disclosures, on stderr before the machine-readable line.
+fn disclose_placement(
+    input: &Path,
+    placed: &Placed,
+    rect: pdfcer_core::page_tree::Rect,
+    dynamic: bool,
+) {
+    if placed.distorted {
+        // The height keeping the artwork's proportions:
+        // bbox.h / bbox.w == (rect.h / sy) / (rect.w / sx), so rect.h * sx / sy.
+        eprintln!(
+            "pdfcer: {}: the artwork was SQUASHED to fill your rectangle - {:.3}x horizontally \
+             and {:.3}x vertically. The stamp does not have the proportions it was drawn with; \
+             a rectangle {:.1}x{:.1}pt would keep them.",
+            input.display(),
+            placed.scale_x,
+            placed.scale_y,
+            rect.width(),
+            rect.height() * placed.scale_x / placed.scale_y,
+        );
+    }
+    if dynamic {
+        eprintln!(
+            "pdfcer: {}: that is a DYNAMIC stamp. Its text is recomputed by Acrobat from form \
+             scripts at placement; pdfcer placed the artwork as drawn, so what is on the page is \
+             its DESIGN-TIME text.",
+            input.display()
+        );
+    }
+    if placed.widgets_ignored > 0 {
+        eprintln!(
+            "pdfcer: {}: {} form-field widget(s) on the stamp's page were NOT carried - only its \
+             artwork was imported. (This is how a dynamic stamp's live text is left behind.)",
+            input.display(),
+            placed.widgets_ignored
+        );
+    }
+    if placed.annots_ignored > 0 {
+        eprintln!(
+            "pdfcer: {}: {} annotation(s) on the stamp's page were NOT carried - an annotation is \
+             not page content, so anything drawn as a comment on the stamp is missing from it.",
+            input.display(),
+            placed.annots_ignored
+        );
+    }
 }
 
 /// `stamp-list` — print the stamps in a collection file (`Pass 288.0`).

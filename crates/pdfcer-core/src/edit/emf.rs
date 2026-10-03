@@ -337,7 +337,8 @@ fn placed(
     }
 }
 
-fn int(n: usize) -> Object {
+/// A count or length as a PDF integer, saturating instead of wrapping.
+pub(super) fn int(n: usize) -> Object {
     Object::Integer(i64::try_from(n).unwrap_or(i64::MAX))
 }
 

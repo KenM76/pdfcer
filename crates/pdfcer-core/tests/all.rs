@@ -139,6 +139,7 @@ mod page_with_boxes;
 mod pdf15_streams;
 mod pkcs12_import;
 mod place_artwork;
+mod place_page_content;
 mod place_text;
 mod quad_point_order;
 mod quadding_redraws;

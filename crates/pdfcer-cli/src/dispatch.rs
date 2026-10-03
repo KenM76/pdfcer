@@ -126,6 +126,7 @@ pub(crate) fn run() -> ExitCode {
             page,
             rect,
             at,
+            as_content,
             output,
             mode,
         } => cmd_place_stamp(
@@ -136,6 +137,7 @@ pub(crate) fn run() -> ExitCode {
             page,
             rect.as_deref(),
             at.as_deref(),
+            as_content,
             &output,
             mode,
         ),

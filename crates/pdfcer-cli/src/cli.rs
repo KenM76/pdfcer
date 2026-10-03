@@ -752,6 +752,18 @@ pub(crate) enum Command {
         /// a box the stamp must fill.
         #[arg(long, value_name = "X,Y")]
         at: Option<String>,
+        /// Draw the artwork in the page's CONTENT instead of as a `/Stamp`
+        /// annotation: the same form XObject, invoked by a new content
+        /// stream appended to the page (`q cm /Fx Do Q`).
+        ///
+        /// The page's existing content streams stay byte-identical, and the
+        /// form keeps its own resources, so its fonts never collide with
+        /// the page's. The result prints like the stamp but is no longer a
+        /// comment: it cannot be selected, moved or flattened as one, and
+        /// the output line names the new content stream (`content=N`)
+        /// where a stamp names its annotation (`obj=N`).
+        #[arg(long)]
+        as_content: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
