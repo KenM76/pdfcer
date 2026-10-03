@@ -58,11 +58,16 @@ stripped copy (object number). If the shared program carries a `cmap`
 (because the operator chose `ShareStream` or fsType 2 forced sharing),
 `EditReport` and the CLI state the §9.9 non-conformance.
 
-## 6. Not covered
+## 6. Decision 177's augmented stream (Pass 430.4)
 
-Decision 177 §1 copies a `CIDFontType2` program's existing `cmap` into the
-augmented (new) stream, which breaks the same "shall not". Correcting it is
-a separate Pass under this rule.
+Decision 177 §1 copied a `CIDFontType2` program's existing `cmap` into the
+augmented (new) stream, breaking the same "shall not". The same mode now
+governs it. The stream is always new, so there is nothing to share:
+`StripCmap` and `Off` (which only switches route B off) leave the `cmap`
+out, `ShareStream` keeps it and discloses the non-conformance, and a PDF/A
+claim forces the strip. A program `program_without_cmap` cannot strip keeps
+its `cmap`, disclosed. The identity check never read that `cmap` (decision
+177 reads the document's own pairs), so dropping it changes no glyph.
 
 ## 7. As implemented (Pass 430.3)
 

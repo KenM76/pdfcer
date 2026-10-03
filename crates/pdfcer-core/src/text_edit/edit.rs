@@ -3184,7 +3184,7 @@ fn augment_cids(
         font_name: &anchor.font_name,
         font_dict,
     };
-    cid_augment::begin(doc, &at, &absent, glyphs, settings).map_err(|why| {
+    cid_augment::begin(doc, &at, &absent, glyphs, settings, opts.cid_font_program).map_err(|why| {
         blocked
             .into_iter()
             .map(|b| Blocked {

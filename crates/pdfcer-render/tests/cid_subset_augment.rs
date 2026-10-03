@@ -39,7 +39,16 @@ struct Shape {
     cff: bool,
     /// `/Encoding` other than `/Identity-H`.
     encoding: Option<&'static str>,
+    /// The program is `subset.ttf`, which keeps its `cmap`.
+    cmap: bool,
+    /// The catalog's XMP claims PDF/A-2b (object 15).
+    pdfa: bool,
 }
+
+const PDFA_XMP: &str = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF \
+    xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description \
+    xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\"><pdfaid:part>2</pdfaid:part>\
+    <pdfaid:conformance>B</pdfaid:conformance></rdf:Description></rdf:RDF></x:xmpmeta>";
 
 const TO_UNICODE: &str = "/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n\
     /CMapName /pdfcer-aug def 1 begincodespacerange <0000> <FFFF> endcodespacerange\n\
@@ -61,7 +70,11 @@ fn doc(shape: Shape) -> Document {
         .replace("{a}", &codes[0])
         .replace("{b}", &codes[1])
         .replace("{c}", &codes[2]);
-    let program = fixture("cid-subset.ttf");
+    let program = fixture(if shape.cmap {
+        "subset.ttf"
+    } else {
+        "cid-subset.ttf"
+    });
     let encoding = shape.encoding.unwrap_or("/Identity-H");
     let (subtype, file) = if shape.cff {
         ("CIDFontType0", "FontFile3")
@@ -85,8 +98,13 @@ fn doc(shape: Shape) -> Document {
     } else {
         format!("/Length1 {}", program.len())
     };
-    let objs: Vec<Vec<u8>> = vec![
-        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+    let catalog = if shape.pdfa {
+        "<< /Type /Catalog /Pages 2 0 R /Metadata 15 0 R >>"
+    } else {
+        "<< /Type /Catalog /Pages 2 0 R >>"
+    };
+    let mut objs: Vec<Vec<u8>> = vec![
+        catalog.as_bytes().to_vec(),
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
         format!(
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] \
@@ -127,6 +145,9 @@ fn doc(shape: Shape) -> Document {
            /CapHeight 700 /StemV 80 /FontFile2 8 0 R >>"
             .to_vec(),
     ];
+    if shape.pdfa {
+        objs.push(stream("/Type /Metadata /Subtype /XML", PDFA_XMP.as_bytes()));
+    }
     Document::from_bytes(assemble(&objs)).unwrap()
 }
 
@@ -165,6 +186,33 @@ fn opts() -> EditOptions {
 fn edit(doc: &Document, replace: &str) -> Result<text_edit::EditOutcome, String> {
     text_edit::edit_text(doc, &EditRequest::find_replace(0, "ABC", replace), &opts())
         .map_err(|e| e.to_string())
+}
+
+/// `ABC` → `ABD` under `mode`, and the new `FontFile2`'s data.
+fn edit_program(
+    shape: Shape,
+    mode: text_edit::CidFontProgram,
+) -> (text_edit::EditOutcome, Vec<u8>) {
+    let base = doc(shape);
+    let opts = opts().with_cid_font_program(mode);
+    let out = text_edit::edit_text(&base, &EditRequest::find_replace(0, "ABC", "ABD"), &opts)
+        .expect("D is appended");
+    assert_eq!(notdefs(&out.bytes), 0, "D reaches a real glyph");
+    assert!(page_text(&out.bytes).contains("ABD"));
+    let descriptor = newest(
+        &out.bytes,
+        referent(&newest(&out.bytes, 6), "/FontDescriptor"),
+    );
+    let program = referent(&descriptor, "/FontFile2");
+    assert_ne!(program, 8);
+    let data = stream_data(&out.bytes, program);
+    (out, data)
+}
+
+/// Whether the sfnt's table directory names a `cmap`.
+fn has_cmap(program: &[u8]) -> bool {
+    let n = usize::from(u16::from_be_bytes([program[4], program[5]]));
+    (0..n).any(|i| &program[12 + 16 * i..16 + 16 * i] == b"cmap")
 }
 
 fn notdefs(bytes: &[u8]) -> usize {
@@ -328,6 +376,53 @@ fn a_program_another_font_shares_is_copied_not_changed() {
         assert!(!redefines(section, id), "object {id} is untouched");
     }
     assert_eq!(notdefs(&out.bytes), 0);
+}
+
+#[test]
+fn the_new_program_leaves_out_the_subsets_cmap_by_default() {
+    let cmap = Shape {
+        cmap: true,
+        ..Shape::default()
+    };
+    assert!(has_cmap(&fixture("subset.ttf")));
+    let (out, program) = edit_program(cmap, text_edit::CidFontProgram::StripCmap);
+    assert!(!has_cmap(&program));
+    let d = out.report.disclosures.join("\n");
+    assert!(d.contains("leaves out the subset's cmap table"), "{d}");
+    let (out, program) = edit_program(cmap, text_edit::CidFontProgram::Off);
+    assert!(!has_cmap(&program), "Off governs route B only");
+    assert!(!out.report.disclosures.join("\n").contains("PDF/A"));
+    let (out, _) = edit_program(Shape::default(), text_edit::CidFontProgram::StripCmap);
+    let d = out.report.disclosures.join("\n");
+    assert!(!d.contains("cmap table"), "no cmap, nothing to say: {d}");
+}
+
+#[test]
+fn share_keeps_the_cmap_and_states_the_nonconformance() {
+    let shape = Shape {
+        cmap: true,
+        ..Shape::default()
+    };
+    let (out, program) = edit_program(shape, text_edit::CidFontProgram::ShareStream);
+    assert!(has_cmap(&program));
+    let d = out.report.disclosures.join("\n");
+    assert!(
+        d.contains("keeps the subset's cmap table") && d.contains("§9.9"),
+        "{d}"
+    );
+}
+
+#[test]
+fn a_pdfa_claim_drops_the_cmap_even_when_sharing_is_asked_for() {
+    let shape = Shape {
+        cmap: true,
+        pdfa: true,
+        ..Shape::default()
+    };
+    let (out, program) = edit_program(shape, text_edit::CidFontProgram::ShareStream);
+    assert!(!has_cmap(&program));
+    let d = out.report.disclosures.join("\n");
+    assert!(d.contains("claims PDF/A"), "{d}");
 }
 
 #[test]

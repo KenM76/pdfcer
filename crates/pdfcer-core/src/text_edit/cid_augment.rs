@@ -26,6 +26,7 @@ use crate::text_edit::font_extend::{
 };
 use crate::text_edit::glyph_find;
 use crate::text_edit::program_glyphs::EmbeddedGlyphs;
+use crate::text_edit::same_program::{self, CidFontProgram};
 use crate::text_edit::subset_augment::{
     AugmentRequest, AugmentedProgram, ProgramAddressing, SubsetAugment,
 };
@@ -56,6 +57,8 @@ pub(crate) struct Begun {
     program: AugmentedProgram,
     /// The extended `/CIDToGIDMap`; `None` under `/Identity`.
     map: Option<Vec<u8>>,
+    /// What decision 187 did with the program's `cmap`, for the disclosure.
+    cmap_note: Option<&'static str>,
 }
 
 /// Augment the subset for `absent` (characters the font's `/ToUnicode`
@@ -70,6 +73,7 @@ pub(crate) fn begin(
     absent: &[char],
     glyphs: &dyn EmbeddedGlyphs,
     settings: &SubsetAugment,
+    mode: CidFontProgram,
 ) -> Result<Begun, String> {
     let t = target(doc, at)?;
     let (mut gids, mut append) = (Vec::new(), Vec::new());
@@ -95,7 +99,8 @@ pub(crate) fn begin(
         hinting_mismatch: settings.hinting_mismatch,
         addressing: ProgramAddressing::CidKeyed(&known),
     };
-    let program = settings.source.augment(&request).map_err(|r| r.reason)?;
+    let mut program = settings.source.augment(&request).map_err(|r| r.reason)?;
+    let cmap_note = same_program::augmented_cmap(doc, glyphs, mode, &mut program.program);
     if program.program.len() > crate::font_embed_missing::MAX_DONOR_BYTES {
         return Err("the new program exceeds the embedded-font size limit".to_owned());
     }
@@ -113,6 +118,7 @@ pub(crate) fn begin(
         cmap: t.to_unicode.with_entries(&entries),
         program,
         map,
+        cmap_note,
     })
 }
 
@@ -270,6 +276,7 @@ pub(crate) fn finish(
     t.program.clone_from(&begun.program.program);
     let stream_map = t.map.is_some();
     t.map.clone_from(&begun.map);
+    let cmap_note = begun.cmap_note;
     let added = assessed(doc, &t, missing, glyphs)?;
     let mut ext = extension(doc, &t, added);
     let old_name = base_font(doc, &original).ok_or_else(|| whole("no /BaseFont".to_owned()))?;
@@ -278,6 +285,9 @@ pub(crate) fn finish(
     let mut augmented =
         written(doc, &original, &ext, &begun.program, names, "CID").map_err(&whole)?;
     cid_set(doc, &mut augmented, &ext.added).map_err(&whole)?;
+    if let Some(note) = cmap_note {
+        augmented.disclosure.push_str(note);
+    }
     if stream_map {
         map_stream(&original, &mut augmented, begun.map.unwrap_or_default()).map_err(&whole)?;
         ext.dict

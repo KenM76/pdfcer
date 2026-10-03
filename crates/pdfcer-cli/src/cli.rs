@@ -8145,6 +8145,8 @@ pub(crate) enum Command {
         /// When the run's embedded TrueType program draws a typed character
         /// its font cannot encode, set that character through a new CID font
         /// over the same program. Which program the new font embeds; printed.
+        /// Also whether a CID subset extended from an installed font
+        /// (--augment-subset) keeps its cmap table: only `share` keeps it.
         #[arg(long = "cid-font-program", value_enum, default_value = "strip")]
         cid_font_program: CidProgramArg,
         /// When the run's font cannot encode some typed characters, set just

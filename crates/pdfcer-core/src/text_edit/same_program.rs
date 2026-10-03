@@ -16,6 +16,11 @@ use crate::view::DocumentView;
 
 /// Which program route B's new `/CIDFontType2` embeds (decision 187), set
 /// by [`EditOptions::cid_font_program`](crate::text_edit::EditOptions::cid_font_program).
+///
+/// The same rule governs the new program stream written when a
+/// `/CIDFontType2` subset is extended from an installed face (decision 177):
+/// that stream is always new, so [`Self::StripCmap`] and [`Self::Off`] drop
+/// its `cmap` and [`Self::ShareStream`] keeps it, disclosed.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum CidFontProgram {
@@ -61,6 +66,59 @@ pub(crate) struct Built {
     pub(crate) override_note: Option<&'static str>,
 }
 
+/// Whether a program with (`has_cmap`) a `cmap` is written without it under
+/// `mode`, and whether a PDF/A claim (or unreadable XMP) overrode
+/// [`CidFontProgram::ShareStream`] to decide so.
+fn strips_cmap(doc: &DocumentView<'_>, mode: CidFontProgram, has_cmap: bool) -> (bool, bool) {
+    if !has_cmap {
+        return (false, false);
+    }
+    if mode != CidFontProgram::ShareStream {
+        return (true, false);
+    }
+    let pdfa = !matches!(
+        crate::font_unembed::detect_pdfa(doc),
+        crate::font_unembed::PdfaClaim::None
+    );
+    (pdfa, pdfa)
+}
+
+/// Decision 187 applied to decision 177's augmented `CIDFontType2` program,
+/// which is always a new stream: drops its `cmap` unless `mode` keeps it,
+/// and returns the sentence the edit's disclosure gains, if any.
+pub(crate) fn augmented_cmap(
+    doc: &DocumentView<'_>,
+    glyphs: &dyn EmbeddedGlyphs,
+    mode: CidFontProgram,
+    program: &mut Vec<u8>,
+) -> Option<&'static str> {
+    let (strip, pdfa_forced) =
+        strips_cmap(doc, mode, crate::font_embed_missing::sfnt_has_cmap(program));
+    if !strip {
+        return crate::font_embed_missing::sfnt_has_cmap(program).then_some(
+            " The new program keeps the subset's cmap table, which ISO 32000-2 §9.9 says \
+             shall not be present in a CIDFontType2 program.",
+        );
+    }
+    match glyphs.program_without_cmap(program) {
+        Some(stripped) => {
+            *program = stripped;
+            Some(if pdfa_forced {
+                " The document claims PDF/A, so the new program leaves out the subset's cmap \
+                 table (ISO 32000-2 §9.9) although sharing it was asked for."
+            } else {
+                " The new program leaves out the subset's cmap table, which ISO 32000-2 §9.9 \
+                 says shall not be present in a CIDFontType2 program."
+            })
+        }
+        None => Some(
+            " The new program keeps the subset's cmap table, which ISO 32000-2 §9.9 says \
+             shall not be present: it could not be removed (the program's OS/2 fsType \
+             restricts embedding, or it is not a single TrueType sfnt).",
+        ),
+    }
+}
+
 /// Route B over `own_dict`'s program for `chars`, or why not.
 pub(crate) fn plan(
     doc: &DocumentView<'_>,
@@ -84,22 +142,10 @@ pub(crate) fn plan(
     let glyph_list = glyph_list(glyphs, &program, chars, &base_font)?;
     let (subset_tag, base_name) = split_tag(&base_font, doc);
     let has_cmap = crate::font_embed_missing::sfnt_has_cmap(&program);
-    let pdfa = !matches!(
-        crate::font_unembed::detect_pdfa(doc),
-        crate::font_unembed::PdfaClaim::None
+    let (strip, pdfa_forced) = strips_cmap(doc, mode, has_cmap);
+    let mut override_note = pdfa_forced.then_some(
+        "the document claims PDF/A, so the program was copied without its cmap instead of shared",
     );
-    let mut override_note = None;
-    let strip = match mode {
-        CidFontProgram::ShareStream if pdfa && has_cmap => {
-            override_note = Some(
-                "the document claims PDF/A, so the program was copied without its cmap \
-                 instead of shared",
-            );
-            true
-        }
-        CidFontProgram::ShareStream => false,
-        _ => has_cmap,
-    };
     let (program, shared, program_use) = if strip {
         match glyphs.program_without_cmap(&program) {
             Some(stripped) => (stripped, None, CidProgramUse::StrippedCopy),
