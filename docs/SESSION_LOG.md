@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (918th filing) — `Pass 456.1` shipped
+
+**Shipped:**
+- `Pass 456.1` (`3f14e66b`) — follow-up to `Pass 456.0`: an unembedded
+  standard-14 font (no font program, no descriptor `/XHeight`) was
+  falling straight through `DecorationMetrics::FontTables`'s per-field
+  fallback to `Standard`'s quarter-em strikethrough without ever being
+  checked against its own published AFM `XHeight` (ISO 32000-2 §9.6.2.2;
+  spec RAG `font__std14_descriptors`). It now strikes at half its
+  published AFM `XHeight` instead — Helvetica at 261.5/1000 em rather
+  than 250. Embedded programs sharing a standard-14 name are excluded;
+  `Symbol`/`ZapfDingbats` (published `XHeight` 0) keep the quarter-em
+  fallback. `StrikeSource::XHeight` doc widened. 1 new test
+  (`crates/pdfcer-core/tests/format_decoration.rs`
+  `an_unembedded_standard_font_strikes_at_half_its_afm_x_height`),
+  sabotage-checked; decoration group now 11/11. No new CLI flag — reaches
+  `format-text` automatically. No `Cargo.toml` change.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- The 917th filing's owed gate result for `Pass 456.0` (`75267f84`):
+  `run-gates.sh` came back **45/45 PASS**, and the commit was pushed
+  (`origin/main` now at `815f34a2`). Gates for `3f14e66b` (`Pass 456.1`)
+  were running at filing time; result owed next session.
+
+**Still in flight:**
+- `Pass 455.1` (Tagged-PDF `TextDecorationType`) still *Next up*,
+  unaffected by this filing.
+- Owed, not yet scoped: decoration refresh inside form XObjects;
+  multi-stream-page refresh.
+- `run-gates.sh` result for `3f14e66b` not yet relayed — report it next
+  session.
+
+**For next session:**
+- Next fresh whole-number Pass ID is `457.0`.
+
 ## 2026-10-03 (917th filing) — `Pass 456.0` shipped
 
 **Shipped:**

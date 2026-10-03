@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 456.1` (`3f14e66b`), 2026-10-03 — an unembedded standard-14 font strikes at half its AFM x-height
+
+Follow-up to `Pass 456.0`'s `DecorationMetrics::FontTables`: a standard-14
+face with no embedded program and no descriptor `/XHeight` fell straight
+through the per-field fallback to `Standard`'s quarter-em strikethrough,
+never checked against the face's own published AFM metrics. Strikethrough
+on an unembedded standard-14 font now sits at half its published AFM
+`XHeight` instead (ISO 32000-2 §9.6.2.2; spec RAG `font__std14_descriptors`)
+— Helvetica at 261.5/1000 em rather than 250. An embedded program sharing a
+standard-14 name is excluded (it may not match the published metrics, so
+it still falls through to `Standard`); `Symbol`/`ZapfDingbats` (published
+`XHeight` 0) keep the quarter-em fallback. `StrikeSource::XHeight`'s doc
+comment widened to name this source.
+
+**Tests.** `crates/pdfcer-core/tests/format_decoration.rs`
+`an_unembedded_standard_font_strikes_at_half_its_afm_x_height`,
+sabotage-checked. Decoration test group now 11/11.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` updated; index line
+count 6,288.
+
+**CLI.** No new flag — the behaviour change reaches `format-text`
+automatically through the existing default (`--decoration-metrics font`).
+
+**`docs/FEATURES.md`.** The underline/strikethrough row (`G085`) given a
+short clause naming the std-14 AFM `XHeight` path; `core [x]` / `cli [x]` /
+`gui [ ]` unchanged.
+
+**Gates.** No `Cargo.toml` change — GUI-core separation unaffected.
+`run-gates.sh` for `75267f84` (`Pass 456.0`) came back **45/45 PASS**,
+pushed to `origin/main` (`815f34a2`); gates for `3f14e66b` were running at
+filing time, result owed next session.
+
+**Owed, carried to Backlog, unaffected by this filing:** decoration
+refresh inside form XObjects; multi-stream-page refresh. `Pass 455.1`
+(Tagged-PDF `TextDecorationType`) still *Next up*.
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, file/line
+counts and test results above are relayed from the dispatching engineer's
+report, not independently verified.
+
 ### `Pass 456.0` (`75267f84`), 2026-10-03 — decoration rules use the font's own underline/strikeout metrics
 
 Follow-up to `Pass 455.0`/`G085`: the shipped geometry (underline −0.1
