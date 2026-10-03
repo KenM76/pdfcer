@@ -4,6 +4,84 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (900th filing) — `Pass 436.5` SHIPPED: embed CFF-outline fallback faces as `/FontFile3` `/CIDFontType0C`
+
+**Shipped:**
+- `aaea66e9` "feat(fonts): embed CFF-outline fallback faces as
+  /FontFile3 CIDFontType0C" — `Pass 436.5`. Closes the Backlog gap
+  "only a TrueType face can be subset for embedding" filed at the 877th
+  filing alongside `Pass 436.2`. `pdfcer-render`'s `plan_subset` now
+  lifts the CID-keyed CFF table out of a CFF-outline (OTTO) donor's
+  subsetter output instead of only handling `glyf`; `pdfcer-fonts`'
+  `build_objects` emits `/CIDFontType0` + `/FontFile3`
+  `/Subtype /CIDFontType0C` for that plan (no `/CIDToGIDMap`, Type0
+  `/BaseFont` `<descendant>-Identity-H`, ISO 32000-2 §9.7.6.1/§9.9
+  Tables 124–125). New `pub FontEmbedPlan::font_file_dict(len)`.
+  `SubsetError::CffNotSupported` renamed `Cff2NotSupported` — only
+  CFF2/variable-font donors still refuse to plan.
+
+**Decisions made this session:**
+- None. No new decision number, no new standing rule.
+
+**Findings + decisions:**
+- Every caller of `plan_subset`/`build_objects` gains CFF support with
+  no code change of its own: `edit-text --fallback-font-file` with a
+  `.otf` CFF donor, the `auto` replacement-face ladder (`Pass 436.2`),
+  and `format-text --embed-font`/the style ladder's donor rung (`Pass
+  142.0`/`142.3`).
+- 2 new `pdfcer-render` unit tests (bare CID-keyed CFF plan;
+  `sfnt_table` bounds), 2 `pdfcer-fonts` tests (CFF emission;
+  `font_file_dict` on a TrueType plan), 2 CLI tests (a CFF donor file
+  embeds `/FontFile3` and renders pixel-identical to the `glyf` donor;
+  `auto` embeds a CFF face). `fallback` CLI suite 14/14; render
+  `subset` 19/19; `pdfcer-fonts` `font_embed` 11/11. Sabotage: keeping
+  the OTTO wrapper instead of the bare CFF table fails the plan test;
+  writing the CFF table under `/FontFile2` fails the fonts/CLI tests.
+- New synthetic fixture `fixtures/synthetic/text/fallback-donor-cff.otf`
+  (`tools/gen-fallback-font-fixture.py`), `PROVENANCE.md` row added.
+- No dependency/`Cargo.toml` change — `cargo tree` invariant not
+  affected by construction. clippy/fmt clean (relayed). Structure
+  baseline shrank by 2 entries (`plan_subset`, `build_objects` now
+  under the 80-line function cap).
+- `docs/core-api/02-editing-and-saving.md`'s `embedded_font` row
+  updated; index clause count 272.
+- `docs/ROADMAP.md`'s "Replacement-face matching ladder — known gaps"
+  Backlog entry: the CFF-subsetting gap closed (one of the original
+  four); three gaps remain (`run-repertoire` refusal, no cross-call
+  caching, the derived-name disclosure).
+- `docs/FEATURES.md`: three rows updated in place (fallback-face row,
+  embedded-font-restyle row, replacement-face-ladder row) — each now
+  says a CFF (`.otf`) donor embeds too; no box changes (`core [x]` /
+  `cli [x]` / `gui [ ]` unchanged on all three). Rows 207 and 537 were
+  already over the register's 1,200-char-per-row cap before this
+  filing's edit (confirmed via `Grep "^.{1200,}$"`, the established
+  no-shell proxy) — pre-existing debt, not newly created here; flagged
+  rather than rewritten, since the dispatch's scope was the CFF fact,
+  not a row-size cleanup.
+
+**Still in flight:**
+- `aaea66e9` lands after `v0.74.0` — not yet released, push state not
+  checked this filing.
+- `Pass 436.3` (gui settings screen) still not filed.
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+
+**For next session:**
+- Fold `Pass 436.5` into the next release's batch list, alongside
+  `Pass 449.1` (898th filing, also unreleased since `v0.74.0`).
+- Rows 207/537 in `docs/FEATURES.md` exceed the 1,200-char cap —
+  candidate for a future dedicated trim pass, not urgent.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit
+`aaea66e9` confirmed present at `HEAD` by this conversation's own
+git-status snapshot at session start (clean working tree, branch tip).
+The FEATURES.md row-length check above was run directly with this
+session's own `Grep` tool against live `docs/FEATURES.md` content, not
+relayed. Every other fact (code shape, test names/counts, sabotage
+outcomes, fixture path, structure-baseline delta, docs/core-api detail)
+is relayed from the dispatching engineer's own report, not
+independently reproduced.
+
 ## 2026-10-03 (899th filing) — `Pass 436.4` SHIPPED: settings key `fallback_font = NAME|auto` supplies `edit-text`'s `--fallback-font`
 
 **Shipped:**

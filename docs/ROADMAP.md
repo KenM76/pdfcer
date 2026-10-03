@@ -115,6 +115,71 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 436.5` (`aaea66e9`), 2026-10-03 — embed CFF-outline fallback faces as `/FontFile3` `/CIDFontType0C`
+
+Closes the Backlog gap "only a TrueType face can be subset for
+embedding" filed at the 877th filing alongside `Pass 436.2`, under
+"Replacement-face matching ladder — known gaps." Not part of the `Pass
+436.0`–`436.3` family; found after `436.2` shipped, same footing as
+`436.4`.
+
+**Core, `pdfcer-render`/`pdfcer-fonts`, `aaea66e9`.** `plan_subset` lifts
+the CID-keyed CFF table straight out of the subsetter's OTTO output for
+a CFF-outline (OpenType `OTTO`) donor face, instead of only handling a
+`glyf` table. `build_objects` emits `/CIDFontType0` + `/FontFile3`
+`/Subtype /CIDFontType0C` for that plan (no `/CIDToGIDMap`; Type0
+`/BaseFont` is `<descendant>-Identity-H`, ISO 32000-2 §9.7.6.1 and §9.9
+Tables 124–125). New `pub FontEmbedPlan::font_file_dict(len)`.
+`SubsetError::CffNotSupported` renamed `Cff2NotSupported` — only
+CFF2/variable-font faces refuse to plan now; a plain CFF face does not.
+
+**Effect.** Every caller of `plan_subset`/`build_objects` gains CFF
+support at once, with no code change of its own: `edit-text
+--fallback-font-file` with a `.otf` CFF donor, the `auto`
+replacement-face ladder (`Pass 436.2`), and `format-text --embed-font`/
+the style ladder's donor rung (`Pass 142.0`/`142.3`).
+
+**Tests.** 2 new `pdfcer-render` unit tests (bare CID-keyed CFF plan;
+`sfnt_table` bounds), 2 `pdfcer-fonts` tests (CFF emission;
+`font_file_dict` on a TrueType plan), 2 CLI tests (a CFF donor file
+embeds `/FontFile3` and renders pixel-identical to the `glyf` donor;
+`auto` embeds a CFF face). `fallback` CLI suite 14/14; render `subset`
+19/19; `pdfcer-fonts` `font_embed` 11/11. Sabotage: keeping the OTTO
+wrapper instead of the bare CFF table fails the plan test; writing the
+CFF table under the `/FontFile2` key fails the fonts and CLI tests.
+
+**Fixture.** New synthetic `fixtures/synthetic/text/fallback-donor-cff.otf`
+(`tools/gen-fallback-font-fixture.py`), `PROVENANCE.md` row added.
+
+**Gates.** `cargo tree` invariant not affected (no dependency/
+`Cargo.toml` change). clippy/fmt clean (relayed). Structure baseline
+shrank by 2 entries (`plan_subset`, `build_objects` now under the
+80-line function cap).
+
+**`docs/core-api/`.** `02-editing-and-saving.md`'s `embedded_font` row
+updated; index clause count 272.
+
+**Shells.** `core [x]` / `cli [x]` / `gui [ ]` (unchanged — consumed
+automatically by the routes above, same posture as `Pass 436.2`'s
+ladder row).
+
+**`docs/FEATURES.md`.** Three rows updated in place: the fallback-face
+row, the embedded-font-restyle row and the replacement-face-ladder
+row — each now says a CFF (`.otf`) donor embeds too; no box changes.
+
+**Backlog.** Closes the "only a TrueType face can be subset for
+embedding" gap under "Replacement-face matching ladder — known gaps"
+(877th filing); three gaps remain (the `run-repertoire` refusal, no
+cross-call caching, the derived-name disclosure).
+
+**Sourcing (hard rule 8).** No shell this filing. Commit `aaea66e9`
+confirmed present at `HEAD` per this conversation's own git-status
+snapshot at session start (clean working tree, branch tip). Every other
+fact above (code shape, test counts/names, sabotage-check outcomes,
+fixture path, structure-baseline delta, docs/core-api update) is
+relayed from the dispatching engineer's own report, not independently
+reproduced — no shell tool available this filing.
+
 ### `Pass 436.4` (`f0e741e8`), 2026-10-03 — settings key `fallback_font = NAME|auto` supplies `edit-text`'s `--fallback-font`
 
 One of the `Pass 436.0`–`436.3` family's settings surface (844th filing);
@@ -27588,18 +27653,18 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 Four gaps remain, disclosed not hidden, when `Pass 436.2` shipped
 (decision 178, `docs/decisions/178-replacement-face-ladder.md`). A fifth
-— no settings key selected `--fallback-font auto` — is CLOSED by `Pass
-436.4` (`f0e741e8`, 899th filing): `fallback_font = NAME|auto` in the
-settings file now supplies `edit-text --fallback-font` when neither CLI
-flag is given; `run-repertoire` still refuses the key by name (decision
-178 §4 stands unamended — see the remaining gap below).
+— no settings key selected `--fallback-font auto` — was CLOSED by `Pass
+436.4` (`f0e741e8`, 899th filing); `run-repertoire` still refuses the
+key by name (decision 178 §4 stands unamended — see the remaining gap
+below). One of the original four — only a TrueType face could be
+subset for embedding — is now also CLOSED, by `Pass 436.5` (`aaea66e9`,
+900th filing): `plan_subset`/`build_objects` embed a CFF-outline donor
+as `/FontFile3` `/CIDFontType0C` too; only a CFF2/variable-font donor
+still fails to plan. Three gaps remain.
 
 - `run-repertoire` does not consult the ladder — refused by name
   (decision 178 §4); a repertoire count over "whatever face the ladder
   picks" would differ per machine.
-- Only a TrueType face can be subset for embedding — a CFF face is
-  ranked, fails to plan, and the ladder falls past it (disclosed in
-  `FaceMatch::failed`).
 - `auto` re-reads the font folders the CLI's font environment already
   read, once per invocation — no cross-call caching within one run.
 - A face with no `name` ID 6 is given a derived name, which can
