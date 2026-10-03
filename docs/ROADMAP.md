@@ -186,6 +186,16 @@ git-status snapshot predates this commit and cannot corroborate it;
 every test/fuzz/clippy figure above is likewise relayed, not
 independently reproduced.
 
+**Follow-up fix** (`cabaa30c`, same day): an outer `///` doc on
+`pub mod emf_import;` in `pdfcer-core/src/lib.rs`, merged with the
+module's own inner `//!` header, made rustdoc resolve the inner doc's
+intra-doc links in the crate-root scope — failing `cargo doc -D
+rustdoc::broken_intra_doc_links`. Same mechanism as the `79773ee8`
+follow-up above (`ocr/addons`/`ocr/addon_manifest`): a third same-day
+occurrence. Fix: delete the redundant outer doc. No `FEATURES.md`
+change. RAG instance 3 added at
+`D:\dev\rag\rust\a_module_headers_intra_doc_links_resolve_in_the_parent_modules_scope_not_its_own.md`.
+
 ### `Pass 442.1` (`be16b008`), 2026-10-02 — OCR packaging split: only PaddleOCR bundled, the rest ship as add-on zips — `Pass 442.1` SHIPPED
 
 Cite `be16b008` (on `main`, confirmed at `HEAD` per the git-status snapshot

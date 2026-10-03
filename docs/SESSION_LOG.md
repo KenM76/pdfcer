@@ -4,6 +4,35 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (888th filing) — `Pass 446.0` follow-up fix (rustdoc intra-doc links) + `FEATURES.md` row-size correction
+
+**Shipped:**
+- `cabaa30c`, follow-up to `Pass 446.0` (`ea8ea9cd`, 887th filing) — deleted
+  a redundant outer `///` doc on `pub mod emf_import;` in
+  `pdfcer-core/src/lib.rs`. Merged with the module's own inner `//!`
+  header, it made rustdoc resolve the inner doc's intra-doc links
+  (`import`, `EmfImportNotes`, the `MAX_*` consts) in the crate-root
+  scope instead of `emf_import`'s own, failing `cargo doc -D
+  rustdoc::broken_intra_doc_links`. No `FEATURES.md` change.
+
+**Decisions made this session:**
+- None — decision ceiling stays `186`.
+
+**Findings + decisions:**
+- Third same-day occurrence of the same mechanism (first: `pdfcer-gui`,
+  2026-09-12; second: `79773ee8`, `ocr/addons`/`ocr/addon_manifest`,
+  earlier today). RAG instance 3 added — see below.
+- `FEATURES.md`'s EMF-export row had drifted to 1,303 characters, over
+  `check-register-entry-size.py`'s 1,200-char cap and not in the
+  baseline. Trimmed to verdict + boxes + hash citations.
+
+**Still in flight:**
+- `pdfcer-gui` wiring for EMF import remains open (that project's
+  territory) — unchanged from the 887th filing.
+
+**For next session:**
+- No open question raised by this filing.
+
 ## 2026-10-02 (887th filing) — `Pass 446.0` SHIPPED (EMF import as vector content, closes the `O279` family)
 
 **Shipped:**
