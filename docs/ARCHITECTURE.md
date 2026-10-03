@@ -2937,6 +2937,17 @@ incremental save stays the default.
 > never an in-place program edit; `R260` requires the new program be
 > re-parsed and verified a strict superset before commit.
 
+> **★ NARROWED FURTHER, 2026-10-02 (893rd filing, decision 187 §6,
+> `Pass 430.4`).** "Old bytes copied unchanged, new glyphs appended"
+> above is qualified for the composite case: the augmented program's
+> `cmap` table (ISO 32000-2 §9.9: a CIDFont program "shall not" carry
+> one) now follows decision 187's `CidFontProgram` mode instead of
+> always being copied verbatim — `StripCmap` (default)/`Off` omit it,
+> `ShareStream` keeps it disclosed, a PDF/A claim forces the omission.
+> Every other table (including `glyf`/`loca`) is still the old bytes
+> plus appended glyphs, untouched; `R260`'s strict-superset check reads
+> glyph outlines, never the `cmap`, so it is unaffected.
+
 > **★ THIRD EXCEPTION, 2026-10-02 (892nd filing, decision 187, `Pass
 > 430.3` SHIPPED).** Route B's symbolic-font fallback (a sibling
 > `/Type0`+`/CIDFontType2` dictionary reusing the run's own `FontFile2`
@@ -13034,6 +13045,14 @@ new object like every other route-B object.
 A extending an existing CID subset) still copies a `cmap` into the
 augmented stream, breaking the same "shall not" — a separate Pass under
 this rule (`Pass 430.4`, Backlog).
+
+**★ AMENDED 2026-10-02 (893rd filing, `21bcabb1`).** Closed. The
+augmented stream is always new (nothing to share), so `StripCmap`
+(default)/`Off` leave the `cmap` out, `ShareStream` keeps it disclosed,
+a PDF/A claim forces the strip, and a non-strippable program keeps its
+`cmap`, disclosed. No glyph change — decision 177's identity check never
+read the `cmap`. `docs/decisions/187-route-b-cmap.md` §6 retitled to
+record this as implemented. Nothing remains open under decision 187.
 
 **Full record:** `docs/decisions/187-route-b-cmap.md` (§7 "As
 implemented" covers the three points above the original record didn't

@@ -4,6 +4,60 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (893rd filing) — `Pass 430.4` SHIPPED: decision 187's `cmap` rule reaches decision 177's augmented CID stream too
+
+**Shipped:**
+- `21bcabb1` "fix(text-edit): an augmented CIDFontType2 program leaves
+  out the subset's cmap" — `Pass 430.4`. Closes the Backlog item filed
+  at the 892nd filing: decision 177 §1's augmented `/CIDFontType2`
+  stream (route A, `Pass 430.1` composite slice) copied the subset's
+  `cmap` into the new program unconditionally, breaking the same ISO
+  32000-2 §9.9 "shall not" decision 187 named but left uncovered.
+
+**Decisions made this session:**
+- No new decision number. Extends decision 187 §6
+  (`docs/decisions/187-route-b-cmap.md`, retitled "Decision 177's
+  augmented stream (Pass 430.4)") and `ARCHITECTURE.md` §12's
+  decision-187 entry, amended.
+
+**Findings + decisions:**
+- The augmented stream is always new, so there is nothing to "share":
+  `CidFontProgram::StripCmap` (default) and `Off` leave the `cmap` out;
+  `ShareStream` keeps it and discloses the non-conformance; an XMP
+  PDF/A claim forces the strip; a program `program_without_cmap`
+  cannot strip (an `fsType` restriction, or not a single sfnt) keeps
+  its `cmap`, disclosed the same way.
+- No glyph changes — decision 177's identity check uses the document's
+  own (gid, char) pairs and never read the `cmap`.
+- `docs/core-api/02-editing-and-saving.md` and
+  `docs/decisions/187-route-b-cmap.md` §6 updated in the same commit;
+  CLI `edit-text --cid-font-program` help now says only `share` keeps
+  the cmap of an `--augment-subset` program.
+- 3 new render integration tests in
+  `crates/pdfcer-render/tests/cid_subset_augment.rs` (file now 14
+  passing). Sabotage-checked: no strip, no PDF/A override, and
+  always-strip were each caught.
+- `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates). No
+  manifest change, so the GUI-core-separation `cargo tree` check
+  doesn't apply.
+
+**Still in flight:**
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+- `docs/NEXT_SESSION.md` still lists `Pass 430.4` as owed as of its
+  last write (892nd filing) — the engineer should refresh it to point
+  past this filing.
+
+**For next session:**
+- Confirm `21bcabb1` is pushed before relying on it as `HEAD`
+  elsewhere.
+
+**Sourcing note (hard rule 8):** no shell this filing. The commit's
+existence, its test counts, the gate result and the sabotage-check
+outcome are relayed from the dispatching engineer's own report;
+`21bcabb1` is named as the shipped commit in the premises given to
+this filing.
+
 ## 2026-10-02 (892nd filing) — `Pass 430.3` SHIPPED (route B: `cmap`-aware program sharing), decision 187, `G075(a/c)` family COMPLETE
 
 **Shipped:**

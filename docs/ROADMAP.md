@@ -115,6 +115,52 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 430.4` (`21bcabb1`), 2026-10-02 — decision 187's `cmap` rule reaches decision 177's augmented CID stream too (G075 b follow-up)
+
+Cite `21bcabb1` ("fix(text-edit): an augmented CIDFontType2 program
+leaves out the subset's cmap"). Closes the Backlog item filed at the
+892nd filing: decision 177 §1's augmented `/CIDFontType2` stream
+(route A, `Pass 430.1` composite slice) copied the subset's `cmap`
+into the new program unconditionally, breaking the same ISO 32000-2
+§9.9 "shall not" decision 187 named but left uncovered.
+
+**Core.** The augmented stream is always new, so `CidFontProgram::
+StripCmap` (default) and `Off` strip the `cmap`; `ShareStream` keeps
+it and discloses the non-conformance; an XMP PDF/A claim forces the
+strip; a program `program_without_cmap` cannot strip (an `fsType`
+restriction, or not a single sfnt) keeps its `cmap`, disclosed the
+same way. No glyph changes — the identity check uses the document's
+own (gid, char) pairs, which never read the `cmap`.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` and
+`docs/decisions/187-route-b-cmap.md` §6 (retitled "Decision 177's
+augmented stream (Pass 430.4)") updated in the same commit. CLI
+`edit-text --cid-font-program` help now says only `share` keeps the
+cmap of an `--augment-subset` program.
+
+**Tests.** 3 new render integration tests in
+`crates/pdfcer-render/tests/cid_subset_augment.rs` (file now 14
+passing). Sabotage-checked: no strip, no PDF/A override, and
+always-strip were each caught. `tools/run-gates.sh`: 45 of 45 PASS
+(incl. 2 filing gates).
+
+**`cargo tree`:** no manifest change, so the GUI-core-separation
+check doesn't apply this Pass.
+
+**Decision.** No new decision — extends decision 187 §6
+(`docs/decisions/187-route-b-cmap.md`), amended in the same commit.
+See `ARCHITECTURE.md` §12's decision-187 entry, amended below.
+
+**`docs/FEATURES.md`.** Row 535 ("Augment an embedded font subset
+from an installed face") gained a clause: the composite stream's
+`cmap` now follows decision 187's mode. `core [x]` / `cli [x]` /
+`gui [ ]` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. `21bcabb1` is
+relayed as the shipped commit by the dispatching engineer; test
+counts and gate result are likewise relayed, not independently
+reproduced.
+
 ### `Pass 430.3` (`ae6860f8`), 2026-10-02 — route B: a symbolic-font character sets through its own program, sibling `/Type0`+`/CIDFontType2` (G075 a/c, decision 172 §1/187) — `Pass 430.3` SHIPPED, G075(a/c) family COMPLETE
 
 Cite `ae6860f8` ("feat(text-edit): route B sets a run's refused
@@ -161,6 +207,9 @@ rule.
 augmented `CIDFontType2` stream (route A extending an existing CID
 subset) still copies a `cmap` into the augmented stream — same "shall
 not" decision 187 fixes here, unfixed there. `Pass 430.4`, Backlog.
+
+**★ AMENDED 2026-10-02 (893rd filing).** Closed by `Pass 430.4`
+(`21bcabb1`) — see that entry, immediately above.
 
 **`docs/FEATURES.md`.** "Accept a character whose glyph exists only in
 the embedded font program" row moved from *Planned* to *Implemented*
@@ -27289,19 +27338,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
-
-### `Pass 430.4` — strip/share decision 187's `cmap` rule into decision 177's augmented CID stream too (filed 892nd filing)
-
-Decision 187 (`Pass 430.3`) fixed route B's sibling `/Type0`+
-`/CIDFontType2` dictionary so it never shares or copies a `FontFile2`
-carrying a `cmap` without disclosing the ISO 32000-2 §9.9
-non-conformance. Decision 177 §1's augmented `CIDFontType2` stream —
-route A extending an *existing* CID subset with glyphs from an
-installed face — still copies whatever `cmap` the source program
-carries straight into the augmented stream, breaking the same "shall
-not" decision 187 named but explicitly left uncovered (§6). Apply
-decision 187's strip/share rule (and its PDF/A/`fsType`/non-single-sfnt
-overrides) to that augmented stream too.
 
 ### Replacement-face matching ladder — known gaps (filed 877th filing, `Pass 436.2`)
 
