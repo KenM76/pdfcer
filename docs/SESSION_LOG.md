@@ -4,6 +4,54 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-02 (890th filing) — `v0.73.0` RELEASED
+
+**Shipped:**
+- `v0.73.0`, tag at `7f83ef86`. Completes the 889th filing's "RELEASE IN
+  PROGRESS" entry. First release shipping OCR engines as separate
+  `<build>-ocr-addon-<name>.zip` assets (ocrcer, ocrs, tesseract) beside
+  the base portable zip, which now bundles only PaddleOCR. Batches SVG/
+  EMF vector import, GIF decode, image stamps/button icons, area ce
+  dimensions, tiling-pattern painting, and an EMF export scale fix.
+  8 GitHub release assets, OneDrive slot `pdfcer2` updated (`pdfcer1`
+  keeps `v0.72.0`). No `FEATURES.md` change.
+
+**Decisions made this session:**
+- None — decision ceiling unchanged.
+
+**Findings + decisions:**
+- **Dirty-build correction, same lesson as `v0.72.0`, now seen twice.**
+  The first build (`D:\builds\pdfcer-20261002-2058-b821fcf`) stamped its
+  binary `-dirty` because uncommitted `pdfcer-spec-librarian` agent-memory
+  files (the icon-fit audit) were in the tree, even though
+  `package-portable`'s own folder-name check did not flag it — the
+  folder-name check and the binary build-script stamp disagree about what
+  counts as dirty. The notes were committed (`7f83ef86`) and the package
+  rebuilt clean. Addendum: read `pdfcer --version` in the smoke test, not
+  just the folder name.
+- A form XObject with an empty `/Resources <<>>` is counted by the
+  renderer as a "structural oddity," but pdfcer's own `add_emf` writes
+  exactly that for a shapes-only picture — so rendering pdfcer's own valid
+  EMF-import output reports a false oddity. Logged as a small owed fix,
+  not a release blocker.
+
+**Still in flight:**
+- The `/Resources <<>>` false-oddity defect above.
+- Open questions `(p)` (XFA scope), `(bl)` (CC-BY-SA-4.0 OCR model
+  licensing) unchanged.
+
+**For next session:**
+- Fix the empty-`/Resources` false "structural oddity" report.
+- Confirm `v0.73.0`'s tag and release commits are visible on
+  `origin/main`/the GitHub releases page.
+
+**Sourcing note (hard rule 8):** no shell this filing. All release facts
+(tag, build, gates, smoke test, GitHub release, OneDrive deploy,
+`verify-release.py`) are relayed from the dispatching engineer's own
+shell-measured report, not independently reproduced here. Commit hashes
+`b821fcf8`/`574a63bc`/`19426f21`/`a1703736`/`7f83ef86` match this
+session's git-log snapshot at conversation start.
+
 ## 2026-10-02 (889th filing) — `v0.73.0` RELEASE IN PROGRESS + missing `Pass 439.0` header restored
 
 **Shipped:**

@@ -115,6 +115,94 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.73.0` — RELEASED (2026-10-02)
+
+Release filing, not a Pass — completes the 889th filing's own "RELEASE
+IN PROGRESS" entry immediately below. Version-bump commit `574a63bc`
+("chore: v0.73.0") bumps `Cargo.toml`'s workspace version 0.72.0 →
+0.73.0, `Cargo.lock` and `fuzz/Cargo.lock`; filed in `b821fcf8` (889th
+filing, docs-only).
+
+**Dirty-build correction (same as `v0.72.0`).** A first portable build,
+`D:\builds\pdfcer-20261002-2058-b821fcf`, was stamped
+`v0.72.0-51-gb821fcf8-dirty` — uncommitted `pdfcer-spec-librarian`
+agent-memory files (finished item 99, the icon-fit audit) were in the
+tree. The folder name was NOT dirty, since `package-portable` only
+suffixes for build-affecting paths, but the binary's build-script stamp
+counts every path — the two checks disagree about what counts as dirty,
+the same lesson `v0.72.0` already recorded, now seen twice. That build
+was deleted, not shipped. The notes were committed as `7f83ef86`
+("chore(agent-memory): spec-librarian notes on the icon-fit audit"),
+then the portable was rebuilt clean. **Process addendum: read `pdfcer
+--version` in the smoke test, not just the folder name.**
+
+**Tag.** Lightweight tag `v0.73.0` at `7f83ef86` (the agent-memory
+commit, which also became the build commit after the rebuild), pushed.
+The shipped binary reports revision `v0.72.0-52-g7f83ef86`, not dirty;
+`pdfcer --version` reports `0.73.0`.
+
+**Range since `v0.72.0`: batches every Pass already filed above** — see
+this entry's own range list immediately below (unchanged from the 889th
+filing's "RELEASE IN PROGRESS" entry).
+
+**Gates.** `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates) on
+`574a63bc` (the version bump); also 45 of 45 PASS on `a1703736` (the
+preceding commit). The later commits in this range (`19426f21`,
+`b821fcf8`, `7f83ef86`) are docs/memory only.
+
+**Build.** `tools/package-portable.py` →
+`D:\builds\pdfcer-20261002-2115-7f83ef8`, 47,701,639 bytes staged (only
+the PaddleOCR model set bundled). Add-on zips built alongside: OCRcer
+3,789,155 bytes, ocrs 11,352,262 bytes, Tesseract 4,483,685 bytes.
+
+**Fresh-folder smoke test.** `pdfcer --version` reports `0.73.0`, clean.
+With all three add-on zips unzipped into `models/`, `ocr-models` lists 4
+models, all `runnable=yes` (ocrcer, ocrs, ppocrv4-ch-en, tesseract
+kind=program). `add-emf` with `seed_shapes.emf` placed vector shapes,
+render checked visually. A dual EMF+/EMF seed disclosed `EMR_ARC ×1` and
+the ignored EMF+ records. `seed_text.emf` disclosed `Arial →
+Helvetica-BoldOblique`. `rotate --degrees 90` OK.
+
+**GitHub release.** Published via `tools/gh-release.py`: PASS, 8 assets.
+- `pdfcer-v0.73.0-windows-x64.zip`, 25,083,060 bytes, sha256
+  `8772d750926650a61c7506a58fd8a6c66b61549c6a98c0f6ed4a5659514fc409`.
+- `pdfcer-v0.73.0-ocr-addon-ocrcer.zip`, sha256
+  `598e201695875a454b96aa3d2c45ad4109a089ab72d1376db44f978d466072a1`.
+- `pdfcer-v0.73.0-ocr-addon-ocrs.zip`, sha256
+  `f169cb726f643ae11ea4647882919713f6c5e7535dc8aa5bc252c4bacdb6bc84`.
+- `pdfcer-v0.73.0-ocr-addon-tesseract.zip`, sha256
+  `2f1918ef030ec824a46feb3a9badafacee8bad2753460017e7fe435081b5f321`.
+- Each zip has a matching `.sha256` file. The add-on zips were renamed
+  from their build-named files for the release.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer2` (now
+`0.73.0`, 67,325,772 bytes, including an `ocr-addons/` folder with the
+three add-on zips under their build names); `pdfcer1` keeps `v0.72.0`.
+Next release writes `pdfcer1`.
+
+**`verify-release.py v0.73.0`.** Clean — CI green at the tagged commit,
+run `37086795483`.
+
+**Headline.** The first release shipping OCR engines as separate
+add-on zips rather than all-bundled or all-absent, with only PaddleOCR
+in the base portable — ocrs, OCRcer and Tesseract are now opt-in
+downloads. Also batches SVG and EMF import as vector content, GIF
+decode, image stamps and button icons, area ce dimensions, tiling
+patterns painted, and an EMF export scale fix.
+
+**Small observed defect (not a release blocker, owed for next).** The
+renderer counts a form XObject with an empty `/Resources <<>>` as a
+"structural oddity" (`Do(form without /Resources - inherited)`). pdfcer's
+own `add_emf` writes `<<>>` for a shapes-only picture, so rendering
+pdfcer's own valid output reports a false oddity.
+
+**`docs/FEATURES.md`: no rows changed by the release act itself.**
+
+**Sourcing (hard rule 8).** This filing's facts are relayed from the
+dispatching engineer's own report, measured there with a shell; not
+independently reproduced here. Commit hashes `b821fcf8`/`574a63bc`/
+`19426f21`/`a1703736`/`7f83ef86` match this session's git-log snapshot.
+
 ### `v0.73.0` — version bump, RELEASE IN PROGRESS (2026-10-02)
 
 Not a Pass. Version-bump commit `574a63bc` ("chore: v0.73.0") bumps
