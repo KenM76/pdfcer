@@ -2220,6 +2220,7 @@ pub(crate) fn run() -> ExitCode {
             underline,
             strikethrough,
             no_decoration,
+            decoration_metrics,
         } => cmd_format_text(&FormatTextArgs {
             input: &input,
             output: &output,
@@ -2231,6 +2232,7 @@ pub(crate) fn run() -> ExitCode {
                     .with_underline(underline)
                     .with_strikethrough(strikethrough)
             }),
+            decoration_metrics: decoration_metrics.into(),
             pin_span: pin_span.as_deref(),
             set_size,
             set_color: set_color.as_deref(),

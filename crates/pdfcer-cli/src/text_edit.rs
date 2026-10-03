@@ -1376,6 +1376,8 @@ pub(crate) struct FormatTextArgs<'a> {
     /// `--underline` / `--strikethrough` / `--no-decoration`; `None` when
     /// none was given.
     pub(crate) decoration: Option<pdfcer_core::text_edit::decoration::DecorationSet>,
+    /// `--decoration-metrics`.
+    pub(crate) decoration_metrics: pdfcer_core::text_edit::decoration::DecorationMetrics,
     /// `--pin-span START:LEN`, unparsed. Parsed inside `cmd_format_text` so
     /// a malformed span fails before any file is opened.
     pub(crate) pin_span: Option<&'a str>,
@@ -1650,7 +1652,9 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
         .target(target)
         .occurrence(args.occurrence - 1);
     if let Some(set) = args.decoration {
-        req = req.decoration(set);
+        req = req
+            .decoration(set)
+            .decoration_metrics(args.decoration_metrics);
     }
     if let Some(span) = pin_span {
         req = req.pinned(span);

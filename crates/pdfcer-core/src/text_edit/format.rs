@@ -241,7 +241,7 @@ use crate::settings::StylePolicy;
 use crate::span::ByteSpan;
 use crate::text_edit::EditGlyphSource;
 use crate::text_edit::cause::UnsupportedCause;
-pub use crate::text_edit::decoration::DecorationSet;
+pub use crate::text_edit::decoration::{DecorationMetrics, DecorationSet};
 use crate::text_edit::edit::{
     EditError, EditPlanTarget, EditRequest, EditTarget, FillState, FollowerDisposition, FontClass,
     MatchRun, OpRec, Rec, ShowData, ShowElem, ShowOp, Walk, carried_codes, classify_font,
@@ -781,6 +781,9 @@ pub struct FormatRequest {
     /// (underline, strikethrough, or [`DecorationSet::NONE`] to clear);
     /// `None` leaves decoration alone. See [`Self::decoration`].
     pub set_decoration: Option<DecorationSet>,
+    /// Where the decoration's position and thickness come from; see
+    /// [`Self::decoration_metrics`].
+    pub decoration_metrics: DecorationMetrics,
 }
 
 impl FormatRequest {
@@ -810,6 +813,7 @@ impl FormatRequest {
             style_donors: Vec::new(),
             occurrence: 0,
             set_decoration: None,
+            decoration_metrics: DecorationMetrics::FontTables,
         }
     }
 
@@ -833,6 +837,27 @@ impl FormatRequest {
     #[must_use]
     pub const fn decoration(mut self, set: DecorationSet) -> Self {
         self.set_decoration = Some(set);
+        self
+    }
+
+    /// Draw this request's decoration from `metrics`, returning `self`.
+    /// The default, [`DecorationMetrics::FontTables`], uses the embedded
+    /// font's own underline and strikeout metrics; the choice is stored on
+    /// the decoration, so later edits keep it. Ignored without
+    /// [`Self::decoration`].
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::decoration::{DecorationMetrics, DecorationSet};
+    /// use pdfcer_core::text_edit::format::FormatRequest;
+    ///
+    /// let req = FormatRequest::new(0, "Total")
+    ///     .decoration(DecorationSet::STRIKETHROUGH)
+    ///     .decoration_metrics(DecorationMetrics::Standard);
+    /// assert_eq!(req.decoration_metrics, DecorationMetrics::Standard);
+    /// ```
+    #[must_use]
+    pub const fn decoration_metrics(mut self, metrics: DecorationMetrics) -> Self {
+        self.decoration_metrics = metrics;
         self
     }
 
@@ -2806,7 +2831,13 @@ pub(crate) fn plan_format_target(
         || (Vec::new(), Vec::new()),
         |set| {
             let scan = crate::text_edit::decoration::Scan::of(stream);
-            crate::text_edit::decoration::wrap_for(&scan, a_start, a_end, set)
+            crate::text_edit::decoration::wrap_for(
+                &scan,
+                a_start,
+                a_end,
+                set,
+                req.decoration_metrics,
+            )
         },
     );
     push_seg(deco_open, &mut replacement);
@@ -2881,7 +2912,10 @@ pub(crate) fn plan_format_target(
     disclosures.push(disclosure_save());
     disclosures.push(trust_disclosure(embedded, &report_font));
     if let Some(set) = req.set_decoration {
-        disclosures.push(crate::text_edit::decoration::disclosure(set));
+        disclosures.push(crate::text_edit::decoration::disclosure(
+            set,
+            req.decoration_metrics,
+        ));
     }
     if size_changed {
         disclosures.push(disclosure_size(orig_size, base_size));

@@ -15,8 +15,9 @@
 //!
 //! Marker property list keys: `/Line` (a name, or an array of names, from
 //! `/Underline` and `/StrikeOut`), `/Id` (integer), optional `/C` (fill
-//! colour components: 1 gray, 3 RGB, 4 CMYK) and `/W` (rule thickness in
-//! thousandths of an em). Spec note:
+//! colour components: 1 gray, 3 RGB, 4 CMYK), `/W` (rule thickness in
+//! thousandths of an em) and `/M /Standard` ([`DecorationMetrics::Standard`];
+//! absent means [`DecorationMetrics::FontTables`]). Spec note:
 //! `PDF_Spec/iso32000/iso32000__ref__text_decoration.md`.
 
 use crate::content::{ContentStream, ContentTokenKind};
@@ -27,6 +28,9 @@ use crate::span::ByteSpan;
 use crate::text_extract::{ExtractedGlyph, GlyphProvenance, TextColor};
 use crate::view::DocumentView;
 use crate::writer::content::emit_number;
+
+mod metrics;
+use metrics::LineMetrics;
 
 /// The marked-content tag of both the marker and its rule.
 pub const DECORATION_TAG: &[u8] = b"pdfc_Deco";
@@ -79,11 +83,30 @@ impl DecorationSet {
     }
 }
 
+/// Where a decoration's position and thickness come from. Stored on the
+/// marker, so every later refresh draws the rule the same way.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DecorationMetrics {
+    /// The embedded program's own metrics: `post` underline and `OS/2`
+    /// strikeout (what a word processor uses), each falling back to
+    /// [`Self::Standard`] when the font does not carry it.
+    #[default]
+    FontTables,
+    /// Fixed typographic metrics for every font: the standard-14 AFM
+    /// underline (0.1 em below the baseline, 0.05 em thick) and a strikeout
+    /// at half the x-height, else a quarter em.
+    Standard,
+}
+
 /// Where a strikethrough's centre line comes from, most specific first.
 /// Reported so the shell can disclose it (rule 4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum StrikeSource {
+    /// The embedded program's `OS/2` `yStrikeoutPosition` and
+    /// `yStrikeoutSize`.
+    FontTable,
     /// Half the font descriptor's `/XHeight` (§9.8.1 Table 120).
     XHeight,
     /// A quarter of an em: the font declares no x-height.
@@ -92,7 +115,7 @@ pub enum StrikeSource {
 
 /// The operator-facing sentence for a decoration request (rule 4: the
 /// strikethrough height is inferred from font metrics).
-pub(crate) fn disclosure(set: DecorationSet) -> String {
+pub(crate) fn disclosure(set: DecorationSet, metrics: DecorationMetrics) -> String {
     let mut out = match (set.underline, set.strikethrough) {
         (false, false) => {
             return "underline and strikethrough removed from the matched text".to_owned();
@@ -101,16 +124,19 @@ pub(crate) fn disclosure(set: DecorationSet) -> String {
         (false, true) => "struck through".to_owned(),
         (true, true) => "underlined and struck through".to_owned(),
     };
-    out.push_str(
-        "; the line follows the text through later moves, deletes and reflows, at the \
-         standard underline position (0.1 em below the baseline, 0.05 em thick)",
-    );
-    if set.strikethrough {
-        out.push_str(
-            "; the strikethrough is at half the font's declared x-height, or a quarter em \
-             when the font declares none",
-        );
-    }
+    out.push_str("; the line follows the text through later moves, deletes and reflows");
+    out.push_str(match metrics {
+        DecorationMetrics::FontTables => {
+            "; position and thickness come from the embedded font's own underline and \
+             strikeout metrics where it has them, else the standard underline (0.1 em \
+             below the baseline, 0.05 em thick) and a strikethrough at half the x-height \
+             or a quarter em"
+        }
+        _ => {
+            "; at the standard underline position (0.1 em below the baseline, 0.05 em \
+             thick), the strikethrough at half the font's x-height or a quarter em"
+        }
+    });
     out
 }
 
@@ -183,6 +209,7 @@ pub(crate) struct Marker {
     pub(crate) set: DecorationSet,
     color: Option<Vec<f64>>,
     width: Option<f64>,
+    metrics: DecorationMetrics,
     pub(crate) bdc: (usize, usize),
     pub(crate) emc: (usize, usize),
     /// End of the first `ET` after the marker, where its rules go.
@@ -276,11 +303,16 @@ fn classify(operands: &[crate::content::ContentToken], start: usize, end: usize)
         .get(b"W")
         .and_then(Object::as_number)
         .filter(|w| *w > 0.0);
+    let metrics = match props.get(b"M").and_then(Object::as_name) {
+        Some(n) if n.as_bytes() == b"Standard" => DecorationMetrics::Standard,
+        _ => DecorationMetrics::FontTables,
+    };
     Opened::Marker(Marker {
         id,
         set,
         color,
         width,
+        metrics,
         bdc: (start, end),
         emc: (0, 0),
         et_end: None,
@@ -303,14 +335,18 @@ fn read_set(line: Option<&Object>) -> DecorationSet {
 }
 
 /// The `BDC` that opens a marker carrying `set` with `id`.
-pub(crate) fn marker_open(set: DecorationSet, id: u32) -> Vec<u8> {
+fn marker_open(set: DecorationSet, id: u32, metrics: DecorationMetrics) -> Vec<u8> {
     let mut out = b"/pdfc_Deco <</Line ".to_vec();
     match (set.underline, set.strikethrough) {
         (true, true) => out.extend_from_slice(b"[/Underline /StrikeOut]"),
         (true, false) => out.extend_from_slice(b"/Underline"),
         _ => out.extend_from_slice(b"/StrikeOut"),
     }
-    out.extend_from_slice(format!(" /Id {id}>> BDC").as_bytes());
+    out.extend_from_slice(format!(" /Id {id}").as_bytes());
+    if metrics == DecorationMetrics::Standard {
+        out.extend_from_slice(b" /M /Standard");
+    }
+    out.extend_from_slice(b">> BDC");
     out
 }
 
@@ -325,6 +361,7 @@ pub(crate) fn wrap_for(
     start: usize,
     end: usize,
     set: DecorationSet,
+    metrics: DecorationMetrics,
 ) -> (Vec<u8>, Vec<u8>) {
     let mut next = scan.markers.iter().map(|m| m.id).max().unwrap_or(0) + 1;
     let enclosing = scan
@@ -337,7 +374,7 @@ pub(crate) fn wrap_for(
         before.extend_from_slice(b"EMC ");
     }
     if !set.is_empty() {
-        before.extend_from_slice(&marker_open(set, next));
+        before.extend_from_slice(&marker_open(set, next, metrics));
         after.extend_from_slice(b"EMC");
         next += 1;
     }
@@ -356,7 +393,7 @@ pub(crate) fn wrap_for(
 }
 
 fn reopen_bytes(m: &Marker) -> Vec<u8> {
-    let mut out = marker_open(m.set, m.id);
+    let mut out = marker_open(m.set, m.id, m.metrics);
     let tail = b">> BDC";
     out.truncate(out.len() - tail.len());
     if let Some(c) = &m.color {
@@ -379,42 +416,6 @@ fn reopen_bytes(m: &Marker) -> Vec<u8> {
 
 fn round4(v: f64) -> f64 {
     (v * 10_000.0).round() / 10_000.0
-}
-
-/// Metrics for the rules of one font, in thousandths of an em, measured to
-/// the centre of each line.
-#[derive(Debug, Clone, Copy)]
-struct LineMetrics {
-    underline_centre: f64,
-    underline_thickness: f64,
-    strike_centre: f64,
-    strike_source: StrikeSource,
-}
-
-impl LineMetrics {
-    /// AFM's standard-14 underline (`UnderlinePosition -100`,
-    /// `UnderlineThickness 50`, already a centre line) and a strikethrough
-    /// at half the x-height, or a quarter em without one.
-    fn for_font(view: &DocumentView<'_>, font: Option<&Dict>) -> Self {
-        let x_height = font
-            .and_then(|f| f.get(b"FontDescriptor"))
-            .map(|d| view.resolve(d))
-            .and_then(Object::as_dict)
-            .and_then(|d| d.get(b"XHeight"))
-            .map(|v| view.resolve(v))
-            .and_then(Object::as_number)
-            .filter(|h| *h > 0.0);
-        let (strike_centre, strike_source) = match x_height {
-            Some(h) => (h / 2.0, StrikeSource::XHeight),
-            None => (250.0, StrikeSource::QuarterEm),
-        };
-        Self {
-            underline_centre: -100.0,
-            underline_thickness: 50.0,
-            strike_centre,
-            strike_source,
-        }
-    }
 }
 
 /// What [`refresh`] did, for the edit's report.
@@ -453,6 +454,7 @@ pub(crate) fn refresh(
     let mut next = scan.markers.iter().map(|m| m.id).max().unwrap_or(0) + 1;
     let mut inserts: std::collections::BTreeMap<usize, Vec<u8>> = std::collections::BTreeMap::new();
     let mut strike_sources = Vec::new();
+    let mut fonts = std::collections::HashMap::new();
     for m in &scan.markers {
         let mine: Vec<&ExtractedGlyph> = glyphs
             .iter()
@@ -474,8 +476,16 @@ pub(crate) fn refresh(
         }
         let Some(et_end) = m.et_end else { continue };
         let rules = inserts.entry(et_end).or_default();
-        let font = mine.first().and_then(|g| font_dict(view, page, g));
-        let metrics = LineMetrics::for_font(view, font);
+        let key = (
+            mine.first()
+                .and_then(|g| g.provenance.as_ref())
+                .and_then(|p| p.font_resource.clone()),
+            m.metrics,
+        );
+        let metrics = *fonts.entry(key).or_insert_with(|| {
+            let font = mine.first().and_then(|g| font_dict(view, page, g));
+            LineMetrics::for_font(view, font, m.metrics)
+        });
         if m.set.strikethrough {
             strike_sources.push(metrics.strike_source);
         }
@@ -582,9 +592,9 @@ fn lines<'g>(glyphs: &[&'g ExtractedGlyph]) -> Vec<Line<'g>> {
 
 fn line_rules(m: &Marker, id: u32, line: &Line<'_>, metrics: LineMetrics) -> Vec<u8> {
     let em = f64::from(line.first.tf_size) / 1000.0;
-    let thickness = m.width.unwrap_or(metrics.underline_thickness) * em;
     let mut out = Vec::new();
-    let mut rule = |centre: f64| {
+    let mut rule = |centre: f64, thickness: f64| {
+        let thickness = m.width.unwrap_or(thickness) * em;
         out.extend_from_slice(format!("\n/{} <</Rule {id}>> BDC q", "pdfc_Deco").as_bytes());
         for v in line.frame {
             out.push(b' ');
@@ -604,10 +614,10 @@ fn line_rules(m: &Marker, id: u32, line: &Line<'_>, metrics: LineMetrics) -> Vec
         out.extend_from_slice(b"re f Q EMC");
     };
     if m.set.underline {
-        rule(metrics.underline_centre);
+        rule(metrics.underline_centre, metrics.underline_thickness);
     }
     if m.set.strikethrough {
-        rule(metrics.strike_centre);
+        rule(metrics.strike_centre, metrics.strike_thickness);
     }
     out
 }

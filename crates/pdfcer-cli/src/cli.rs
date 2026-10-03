@@ -161,6 +161,26 @@ impl From<CidProgramArg> for pdfcer_core::text_edit::CidFontProgram {
     }
 }
 
+/// `format-text --decoration-metrics`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum DecorationMetricsArg {
+    /// The embedded font's own underline and strikeout position and
+    /// thickness, falling back to standard for a font without them.
+    #[default]
+    Font,
+    /// The same fixed position and thickness for every font.
+    Standard,
+}
+
+impl From<DecorationMetricsArg> for pdfcer_core::text_edit::decoration::DecorationMetrics {
+    fn from(arg: DecorationMetricsArg) -> Self {
+        match arg {
+            DecorationMetricsArg::Font => Self::FontTables,
+            DecorationMetricsArg::Standard => Self::Standard,
+        }
+    }
+}
+
 /// `bates-stamp --position`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum BatesPositionArg {
@@ -8379,6 +8399,11 @@ pub(crate) enum Command {
         /// splitting a longer decorated stretch around it.
         #[arg(long)]
         no_decoration: bool,
+        /// Where `--underline` / `--strikethrough` take their position and
+        /// thickness from. Kept with the line, so later edits redraw it the
+        /// same way.
+        #[arg(long, value_enum, default_value_t, value_name = "SOURCE")]
+        decoration_metrics: DecorationMetricsArg,
         /// Pin the target show operator by its **byte span**, as
         /// `START:LEN`, instead of (or as well as) searching for text.
         ///

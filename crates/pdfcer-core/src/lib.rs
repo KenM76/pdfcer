@@ -114,7 +114,7 @@ pub mod wrapper;
 // The facade: each lower crate's modules at their `pdfcer_core::` paths.
 // `tests/facade_paths.rs` fails if one stops resolving.
 pub use pdfcer_color::color;
-pub use pdfcer_fonts::{font_embed, fontdata, fontinfo, linebreak, textstring, vartext};
+pub use pdfcer_fonts::{font_embed, fontdata, fontinfo, linebreak, sfnt, textstring, vartext};
 pub use pdfcer_function::function;
 pub use pdfcer_image_codec as image_codec;
 pub use pdfcer_model::{

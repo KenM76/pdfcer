@@ -86,3 +86,18 @@ fn without_a_flag_nothing_is_decorated() {
     assert_eq!(code, 0, "{out}");
     assert!(!out.contains("pdfc_Deco"), "{out}");
 }
+
+#[test]
+fn decoration_metrics_standard_is_recorded_on_the_marker() {
+    let input = fixture("standard");
+    let (code, out) = format(
+        &input,
+        "standard",
+        &["--underline", "--decoration-metrics", "standard"],
+    );
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("/M /Standard"), "{out}");
+    let (code, out) = format(&input, "font", &["--underline"]);
+    assert_eq!(code, 0, "{out}");
+    assert!(!out.contains("/M /Standard"), "{out}");
+}

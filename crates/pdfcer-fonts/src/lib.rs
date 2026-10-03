@@ -23,5 +23,6 @@ pub mod font_embed;
 pub mod fontdata;
 pub mod fontinfo;
 pub mod linebreak;
+pub mod sfnt;
 pub mod textstring;
 pub mod vartext;

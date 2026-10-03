@@ -89,6 +89,7 @@ mod form_radio_groups;
 mod form_recursion;
 mod form_xobject_text_edit;
 mod format_decoration;
+mod format_decoration_metrics;
 mod format_occurrence;
 mod forms_richtext;
 mod free_text_note_rebake;

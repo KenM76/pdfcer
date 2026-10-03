@@ -629,13 +629,19 @@ let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
   content stream, in the same undo entry: move a run → its rule moves; delete
   it → the rule is gone; reflow it onto two lines → two rules. Do not draw or
   move rules yourself.
-- Geometry: underline centre 0.1 em below the baseline, 0.05 em thick (the
-  standard-14 AFM values); strikethrough centre at half the font descriptor's
-  `/XHeight`, else a quarter em. The format report carries a disclosure
-  naming that (rule 4) — show it.
+- Geometry, `FormatRequest::decoration_metrics(DecorationMetrics)`:
+  - `FontTables` (default): the embedded TrueType/OpenType program's
+    `post` underline and `OS/2` strikeout position and thickness; each
+    falls back to `Standard` on its own when the font lacks it.
+  - `Standard`: underline centre 0.1 em below the baseline, 0.05 em thick
+    (the standard-14 AFM values); strikethrough centre at half the font
+    descriptor's `/XHeight`, else a quarter em, as thick as the underline.
+  - The choice is stored on the marker (`/M /Standard`; absent = font
+    tables), so later refreshes draw the same rule. The format report
+    carries a disclosure naming the source (rule 4) — show it.
 - Optional marker keys a producer may set: `/C` (rule colour components, 1/3/4
   for gray/RGB/CMYK; default the run's fill colour) and `/W` (thickness in
-  thousandths of an em).
+  thousandths of an em, overriding either source).
 - Read: `PageDecorations::of` answers for page-content glyphs
   only; a glyph inside a form XObject reads `NONE`.
 
@@ -649,8 +655,8 @@ inside a form XObject (page content only in this cut).
   session, not by splicing content yourself.
 - Tagged-PDF `/TextDecorationType` is not written yet.
 
-CLI: `format-text --find Total --underline [--strikethrough]`;
-`--no-decoration` clears.
+CLI: `format-text --find Total --underline [--strikethrough]
+[--decoration-metrics font|standard]`; `--no-decoration` clears.
 
 #### `EditRequest::spanning_from` — when the text REPEATS on the page
 
