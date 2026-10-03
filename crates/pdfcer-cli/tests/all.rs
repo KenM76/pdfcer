@@ -40,6 +40,7 @@ mod export_image;
 mod export_structure;
 mod export_xlsx;
 mod extract_layout;
+mod extract_region;
 mod extract_tables;
 mod extract_tags;
 mod extract_text;

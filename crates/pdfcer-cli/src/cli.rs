@@ -603,6 +603,53 @@ pub(crate) enum Command {
         labels: ExtractLabelsArg,
     },
 
+    /// Export a rectangle of one page as a one-page PDF, the way a viewer
+    /// shows it.
+    ///
+    /// The output page's MediaBox and CropBox are the rectangle; no other
+    /// page box extends past it. Content outside the rectangle is removed,
+    /// not hidden, so it cannot be recovered from the file. At the edge, a
+    /// glyph that crosses it is removed whole (the rest of its line does
+    /// not move), a stroked path is cut back about one stroke width inside,
+    /// a fill is cut exactly, and image samples outside are destroyed.
+    /// Content wholly inside keeps its exact position.
+    ///
+    /// Annotations and form fields are flattened into the page unless
+    /// `--no-annotations` removes them; ce dimensions count as annotations.
+    /// Content on a hidden layer is removed; shown layers stay as plain
+    /// content.
+    ///
+    /// Prints the output path, then lines `region:`, `layers:`,
+    /// `annotations:`, `forms:` and `cut:` with `key=value` counts,
+    /// `residuals=yes|no` (whether anything outside may survive, e.g. a path
+    /// that could not be cut), and a `note:` line for each thing worth
+    /// knowing. The input is never changed.
+    ExtractRegion {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long)]
+        page: u32,
+        /// The rectangle `x0,y0,x1,y1` in default user space (points, origin
+        /// at the page's lower left, before any /Rotate).
+        #[arg(long, allow_hyphen_values = true)]
+        rect: String,
+        /// Remove annotations and form fields instead of flattening them.
+        #[arg(long)]
+        no_annotations: bool,
+        /// Force a layer VISIBLE by `/Name`. Repeatable. Without either
+        /// layer flag the document's default layer state is used.
+        #[arg(long = "show-layer", value_name = "NAME")]
+        show_layers: Vec<String>,
+        /// Force a layer HIDDEN by `/Name`; its content is removed.
+        /// Repeatable.
+        #[arg(long = "hide-layer", value_name = "NAME")]
+        hide_layers: Vec<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+    },
+
     /// Extract pages into a new standalone PDF.
     ///
     /// The source is read and left untouched — use `delete-pages` on it

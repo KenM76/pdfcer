@@ -617,6 +617,8 @@ mod bates_cmd;
 use bates_cmd::*;
 mod offpage;
 use offpage::*;
+mod region_cmd;
+use region_cmd::*;
 mod page_labels_cmd;
 mod structure;
 use page_labels_cmd::*;

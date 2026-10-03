@@ -421,6 +421,7 @@ const NOT_IN_PLACE: &[&str] = &[
     "extract-attachment",
     "extract-layout",
     "extract-pages",
+    "extract-region",
     "extract-tables",
     "extract-tags",
     "extract-text",

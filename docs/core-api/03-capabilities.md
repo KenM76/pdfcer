@@ -3900,6 +3900,74 @@ The text flows (Acrobat's "flowing text" mode, not a positioned replica):
 - No images, no fonts, no colours. Block text joins lines with a space,
   and a hyphen at a line end is kept.
 
+### 7.14 Exporting a page region with the viewer's state (`Pass 449.0`, G099)
+
+`core [x] · cli [x] · gui [ ]`.
+`pdfcer_core::pageops::extract_region(view: &DocumentView, page: usize, rect: Rect, state: &RegionExport) -> Result<(Vec<u8>, RegionReport), RegionError>`;
+CLI `pdfcer extract-region IN --page N --rect x0,y0,x1,y1 [--no-annotations] [--show-layer NAME]... [--hide-layer NAME]... -o OUT`.
+
+Returns a one-page PDF (a full rewrite) with `/MediaBox` = `/CropBox` =
+`rect` in default user space, before `/Rotate`. `/TrimBox`, `/BleedBox` and
+`/ArtBox` are clamped to it, or removed if they lie outside it. Pass
+`EditSession::view()` to include unsaved edits; the view is only read.
+`export_svg_view` / `export_emf_view` / rendering on the result all draw the
+same page, so this is the input for "export this region as SVG/EMF/PNG".
+
+| I want to… | `RegionExport` |
+|---|---|
+| reproduce the viewer | `RegionExport::new().with_annotations(render.annotations).with_hidden_layers(ids)`; `ids` are the source view's OCG ids, the same set the shell renders with |
+| obey the document's `/D` layer state | leave `hidden_layers` as `None` |
+| no annotations | `.with_annotations(false)`: annotations, widgets and ce dimensions are removed |
+
+**What the export does:**
+- **Layers.** Every layer in the default configuration is resolved:
+  hidden ones are deleted with their content, shown ones become plain
+  content. The output has no optional content.
+- **Annotations on.** Form fields, then annotations (ce dimensions
+  included), are flattened into page content. An annotation that cannot be
+  flattened is removed and named in `notes`.
+- **Outside the rectangle.** Content is **removed**, not clipped, by applying
+  redaction to the four bands around the rect (with no `/IC`, so nothing is
+  painted). Form XObjects that cross the edge are inlined first, because
+  redaction cannot cut inside a form. Forms wholly outside are dropped.
+
+**At the edge (redaction semantics):**
+- A glyph whose box crosses the edge is removed whole. Its advance is kept,
+  so the surviving glyphs do not move.
+- A stroked path is cut about one stroke width inside the edge.
+- A fill is cut exactly at the edge.
+- Image samples outside the rect are destroyed.
+
+**Inside the rectangle:** content keeps its exact position. Streams are
+re-serialized, and a clip path crossing the edge is kept whole.
+
+**★ What the UI must disclose:** `RegionReport`, `#[non_exhaustive]`. The
+fields are:
+
+| Group | Fields |
+|---|---|
+| Layers | `layers_hidden`, `layers_kept`, `layer_content_removed` |
+| Flattening and removal | `fields_flattened`, `widgets_flattened`, `annotations_flattened`, `ce_dimensions_flattened`, `annotations_removed` |
+| Forms | `forms_inlined`, `forms_dropped`, `forms_kept_straddling` |
+| Cutting | `glyphs_removed`, `paths_cut`, `paths_dropped`, `paths_uncut`, `clips_kept`, `images_cleared`, `images_removed`, `shadings_cut`, `shadings_uncut` |
+| Boxes | `boxes_clamped` |
+| Notes | `notes` |
+
+`has_residuals()` is true when something outside the rect may survive: an
+uncut path or shading, or a crossing form that could not be inlined (one
+with `/Group`, with `/OC`, or with an inline image that names a colour
+space). Show it.
+
+**Errors** (`RegionError`, `#[non_exhaustive]`):
+
+| Variant | Cause |
+|---|---|
+| `InvalidRect` | not finite, or zero area |
+| `PageOp` | bad page index |
+| `Edit` | certified or encrypted document: flattening and layer removal refuse |
+| `ImageNotCut { marks }` | image samples outside could not be destroyed, so the export is refused rather than keep them |
+| `Content` / `Redact` / `Write` / `Reload` / `NoObjectNumber` | an intermediate revision failed |
+
 ## 13. Off-canvas content — find it, and cut it at the page edge (`Pass 294.0`)
 
 `core [x] · cli [x] · gui [ ]`
@@ -4027,6 +4095,7 @@ exception to minimal-diff).
 | Annotations & markup | `annot`, `annot_author` + `EditSession` | x | x | x |
 | Redaction — mark & apply | `redact` + `EditSession`; **proof in `pdfce-gui`** | x | x | x |
 | Redaction — **unencrypted-wrapper warning** | `wrapper` | x | x | **[ ]** |
+| **Region export** with the viewer's state (§7.14) | `pageops::extract_region` | x | x | **[ ]** |
 | **OCR substrate** | `pdfcer_core::ocr` | **[ ]** | **[ ]** | **[ ]** |
 | Print | `pdfcer-print` | x | x | x |
 | **Imposition** (N-up / booklet / poster) | `pdfcer_print::imposition` | — | x | ⊘ |

@@ -101,6 +101,23 @@ pub(crate) fn run() -> ExitCode {
             output,
             labels,
         } => cmd_extract_pages(&input, &pages, &output, labels),
+        Command::ExtractRegion {
+            input,
+            page,
+            rect,
+            no_annotations,
+            show_layers,
+            hide_layers,
+            output,
+        } => cmd_extract_region(&RegionArgs {
+            input: &input,
+            page,
+            rect: &rect,
+            no_annotations,
+            show_layer: &show_layers,
+            hide_layer: &hide_layers,
+            output: &output,
+        }),
         Command::PlaceStamp {
             input,
             from,
