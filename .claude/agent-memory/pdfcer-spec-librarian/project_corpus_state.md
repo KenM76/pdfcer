@@ -8094,3 +8094,11 @@ A TWG editor posted the revised clause as an image (#575). View `user-attachment
 ### 101c. "Can marked content carry attributes?" is answered by §14.8.5.1's "either of two ways" (A / C on a structure element) + its "rather than in attribute dictionaries" list for Span property lists; §14.6.2 "private information" makes other keys legal-but-meaningless.
 ### 101d. Font-metric REFERENCE POINTS differ by format: OpenType post underlinePosition = TOP; Type 1/CFF/AFM UnderlinePosition = CENTRE (stated in the post table's own note). Record the reference point beside every metric.
 ### 101e. 2.0 Annex H example COMMENTS can be the only text touching a topic (here: a comment saying PDF has no automatic underlining — paraphrased; 2.0 text stays out of this public directory); they are informative — cite as such.
+
+## 102. "Field-by-field coding summary for a PRC READ-SIDE feature (textures, tree names)" (2026-10-03)
+### 102a. Verify WHICH ARRAY a premise names: the dispatch said picture bytes live in FileStructureGlobals — they live in two UNCOMPRESSED carriers (FileHeader tail and each FileStructureHeader tail), and which one an index resolves against is NOT SPECIFIED. Grep the field name across every serialize clause, not just the entity's own clause.
+### 102b. WD enum tables print 1-based values the wire stores 0-based (mapping type, function); confirm each enum's base against the revision-draft table image or prc-rs constants, and label any enum with neither (wrap mode, mapping operator) "base UNVERIFIED — make it a setting".
+### 102c. Re-check corpus rows labelled "DERIVED by analogy" when the WD extraction is reopened — 0x4000/0x8000 textured layouts were stated explicitly in the WD all along.
+### 102d. Reader state like current_name is shared across EVERY entity in a section; say so, because a reader that skips entities silently corrupts later names. Flag prc-rs divergences from the WD as "do not copy".
+### 102e. Adobe 8137 SDK subpages (naming algorithms) can be absent from Wayback: report the GAP with the staged parent page as evidence, do not reconstruct.
+### 102f. Report citation defects found in pdfcer code (wrong WD clause in a doc comment) to the engineer; do not edit pdfcer code.
