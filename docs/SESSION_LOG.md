@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (896th filing) — `v0.74.0` RELEASE IN PROGRESS
+
+**Shipped:**
+- `05b3d059` ("chore: v0.74.0") — version-bump only, 0.73.0 → 0.74.0.
+  Touches `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Batches
+  `fa2ba756` (empty form `/Resources` no longer reported as a false
+  oddity), `Pass 430.3` (`ae6860f8`), `Pass 430.4` (`21bcabb1`), and
+  `Pass 449.0` (`b29e7689`, `2e085bec`, G099) — all already
+  individually filed. OneDrive target `pdfcer1` (`pdfcer2` keeps
+  `v0.73.0`). No `FEATURES.md` change.
+
+**Decisions made this session:**
+- None — decision ceiling unchanged.
+
+**Findings + decisions:**
+- None new this filing.
+
+**Still in flight:**
+- `v0.74.0` tag, `tools/run-gates.sh`, `package-portable`, a
+  fresh-folder smoke test (incl. `pdfcer --version` reporting
+  `0.74.0` and not dirty), GitHub release via `gh-release.py`,
+  OneDrive deploy to `pdfcer1`, and `verify-release.py` all still
+  owed — full `RELEASED` filing to follow once those details are
+  relayed.
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+
+**For next session:**
+- Confirm `05b3d059` reaches `origin/main` before relying on the
+  release being public.
+
+**Sourcing note (hard rule 8):** no shell this filing. `05b3d059` is
+confirmed present as `HEAD` by this conversation's own git-status
+snapshot at start (clean working tree, branch tip) — not merely
+relayed. The release plan (gates, packaging, smoke test, tag, GitHub
+release, OneDrive slot `pdfcer1`, `verify-release.py`) is relayed from
+the dispatching engineer and none of those steps have happened yet as
+of this filing.
+
 ## 2026-10-03 (895th filing) — `Pass 449.0` SHIPPED: region export with the viewer's state (G099)
 
 **Shipped:**

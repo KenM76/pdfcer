@@ -115,6 +115,43 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.74.0` — version bump, RELEASE IN PROGRESS (2026-10-03)
+
+Not a Pass. Version-bump commit `05b3d059` ("chore: v0.74.0") bumps
+`Cargo.toml`'s workspace version 0.73.0 → 0.74.0, `Cargo.lock` and
+`fuzz/Cargo.lock` (version lines only, no dependency change).
+
+**Range since `v0.73.0`** (tag at `7f83ef86`) — batches every Pass
+already filed above: `fa2ba756` (an empty form `/Resources <<>>` no
+longer reported as a false "structural oddity"), `Pass 430.3` route B
+same-program CID font (`ae6860f8`), `Pass 430.4` an augmented
+CIDFontType2 program drops the subset cmap (`21bcabb1`), `Pass 449.0`
+region export with the viewer's state (`b29e7689`, `2e085bec`, G099) —
+all already filed above.
+
+**Headline.** No single new capability of its own; `Pass 449.0`
+(region export, G099) is the release's one genuinely new capability.
+
+**OneDrive target.** This release writes slot `pdfcer1` (`pdfcer2`
+keeps `v0.73.0`).
+
+Tag, `tools/run-gates.sh`, `package-portable`, a fresh-folder smoke
+test (incl. `pdfcer --version` reporting `0.74.0` and not dirty),
+GitHub release via `gh-release.py`, OneDrive deploy, and
+`verify-release.py` not yet done; full release filing to follow once
+those details are relayed.
+
+`docs/FEATURES.md`: no rows changed — the release act adds no
+capability.
+
+**Sourcing (hard rule 8).** `05b3d059` is confirmed present as `HEAD`
+by this conversation's own git-status snapshot at start (clean
+working tree, branch tip) — not merely relayed. No shell tool this
+filing, so none of the release steps above (gates, packaging, smoke
+test, tag, GitHub release, OneDrive deploy, `verify-release.py`) are
+independently verified; they will be relayed by the dispatching
+engineer in the follow-up `RELEASED` filing.
+
 ### `Pass 449.0` (`b29e7689`, `2e085bec`), 2026-10-03 — region export with the viewer's state (G099)
 
 Cite `b29e7689` ("feat(pageops): export a page region with the
