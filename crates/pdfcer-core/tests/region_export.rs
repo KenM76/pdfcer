@@ -164,6 +164,16 @@ fn every_box_is_the_region() {
 }
 
 #[test]
+fn the_unmarked_bands_are_not_reported_as_a_missing_mark() {
+    let (_, report) = export(&RegionExport::new());
+    assert!(
+        report.notes.iter().all(|n| !n.contains("TRANSPARENT")),
+        "{:?}",
+        report.notes
+    );
+}
+
+#[test]
 fn outside_content_is_gone_from_every_stream() {
     let (doc, report) = export(&RegionExport::new());
     let streams = all_stream_bytes(&doc);

@@ -472,11 +472,14 @@ fn absorb(report: &mut RegionReport, r: &RedactionReport) -> Result<(), RegionEr
     report.images_removed = r.images_removed;
     report.shadings_cut = r.shadings_cut;
     report.shadings_uncut = r.shadings_intersecting;
+    // The bands lie outside the new MediaBox, so their unmarked interior is
+    // by design; the redactor's "no visible mark" warning would mislead.
     let straddling = report.forms_kept_straddling > 0;
     report.notes.extend(
         r.notes
             .iter()
             .filter(|n| straddling || !n.contains("form XObject overlaps"))
+            .filter(|n| !n.contains("left TRANSPARENT"))
             .cloned(),
     );
     Ok(())
