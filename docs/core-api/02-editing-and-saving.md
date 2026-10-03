@@ -603,6 +603,55 @@ session.format_text(&req, &FormatOptions::default())?;
 
 CLI: `format-text --find the --occurrence 2` (1-based on the command line).
 
+#### Underline and strikethrough — `FormatRequest::decoration`
+
+```rust
+use pdfcer_core::text_edit::decoration::{DecorationSet, page_decorations};
+
+let req = FormatRequest::new(page_index, "Total").pinned(span)
+    .decoration(DecorationSet::UNDERLINE.with_strikethrough(true));
+session.format_text(&req, &FormatOptions::default())?;
+
+// Read: which lines a glyph carries.
+let decos = page_decorations(&session.view(), &page)?;
+let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
+```
+
+- `set_decoration` is the **exact** set the slice carries afterwards;
+  `DecorationSet::NONE` clears. Clearing the middle of a longer decorated
+  stretch splits it into two (new `/Id`s). It composes with every other
+  `FormatRequest` field, `occurrence`, `pinned` and `whole_operator`.
+- **Tied to the text.** The decorated show operator is wrapped in
+  `/pdfc_Deco <</Line /Underline|/StrikeOut|[both] /Id n>> BDC … EMC`, and
+  each line is a filled `re` after the `ET`, inside
+  `/pdfc_Deco <</Rule n>> BDC … EMC`. The rules are **recomputed from the
+  marker's glyphs after every committed command** that rewrites the page's
+  content stream, in the same undo entry: move a run → its rule moves; delete
+  it → the rule is gone; reflow it onto two lines → two rules. Do not draw or
+  move rules yourself.
+- Geometry: underline centre 0.1 em below the baseline, 0.05 em thick (the
+  standard-14 AFM values); strikethrough centre at half the font descriptor's
+  `/XHeight`, else a quarter em. The format report carries a disclosure
+  naming that (rule 4) — show it.
+- Optional marker keys a producer may set: `/C` (rule colour components, 1/3/4
+  for gray/RGB/CMYK; default the run's fill colour) and `/W` (thickness in
+  thousandths of an em).
+- Read: `PageDecorations::of` answers for page-content glyphs
+  only; a glyph inside a form XObject reads `NONE`.
+
+**Refusals:** `FormatError::DecorationOnInvisibleText { mode }` for rendering
+mode 3 or 7 (requested or in force); `FormatError::Unsupported` for a run
+inside a form XObject (page content only in this cut).
+
+**Traps:**
+- The refresh runs only when the page's other `/Contents` streams are empty
+  (any session text edit folds them into the first), so decorate through the
+  session, not by splicing content yourself.
+- Tagged-PDF `/TextDecorationType` is not written yet.
+
+CLI: `format-text --find Total --underline [--strikethrough]`;
+`--no-decoration` clears.
+
 #### `EditRequest::spanning_from` — when the text REPEATS on the page
 
 `Pass 272.0`. The disambiguating form: **`find` says *what*, the pin says

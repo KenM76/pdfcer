@@ -68,6 +68,7 @@ pub(crate) mod cid_augment;
 pub(crate) mod cid_extend;
 pub(crate) mod code_alloc;
 pub(crate) mod cross_object;
+pub mod decoration;
 pub mod edit;
 pub mod encoding;
 pub mod face_ladder;

@@ -241,6 +241,7 @@ use crate::settings::StylePolicy;
 use crate::span::ByteSpan;
 use crate::text_edit::EditGlyphSource;
 use crate::text_edit::cause::UnsupportedCause;
+pub use crate::text_edit::decoration::DecorationSet;
 use crate::text_edit::edit::{
     EditError, EditPlanTarget, EditRequest, EditTarget, FillState, FollowerDisposition, FontClass,
     MatchRun, OpRec, Rec, ShowData, ShowElem, ShowOp, Walk, carried_codes, classify_font,
@@ -776,6 +777,10 @@ pub struct FormatRequest {
     /// Which match of [`Self::find`] in the operator is meant, 0-based;
     /// see [`Self::occurrence`].
     pub occurrence: usize,
+    /// The exact lines the matched slice should carry afterwards
+    /// (underline, strikethrough, or [`DecorationSet::NONE`] to clear);
+    /// `None` leaves decoration alone. See [`Self::decoration`].
+    pub set_decoration: Option<DecorationSet>,
 }
 
 impl FormatRequest {
@@ -804,7 +809,31 @@ impl FormatRequest {
             embed_font: None,
             style_donors: Vec::new(),
             occurrence: 0,
+            set_decoration: None,
         }
+    }
+
+    /// Set the slice's underline and strikethrough to exactly `set`,
+    /// returning `self`; [`DecorationSet::NONE`] clears them.
+    ///
+    /// The rule is tied to the text: it is recomputed from the decorated
+    /// glyphs after every later edit to the page, so moving, deleting or
+    /// reflowing the run carries its line with it
+    /// ([`crate::text_edit::decoration`] has the content shape). Refused
+    /// with [`FormatError::DecorationOnInvisibleText`] for rendering mode 3
+    /// or 7. Page content only: a run inside a form XObject is refused.
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::decoration::DecorationSet;
+    /// use pdfcer_core::text_edit::format::FormatRequest;
+    ///
+    /// let req = FormatRequest::new(0, "Total").decoration(DecorationSet::UNDERLINE);
+    /// assert_eq!(req.set_decoration, Some(DecorationSet::UNDERLINE));
+    /// ```
+    #[must_use]
+    pub const fn decoration(mut self, set: DecorationSet) -> Self {
+        self.set_decoration = Some(set);
+        self
     }
 
     /// Target the `n`-th (0-based) non-overlapping match of `find` inside the
@@ -1027,6 +1056,7 @@ impl FormatRequest {
             && self.set_script.is_none()
             && self.set_rise.is_none()
             && self.set_render_mode.is_none()
+            && self.set_decoration.is_none()
             && self.fit_width.is_none()
             // Spelled as a `match` rather than `is_none_or` because this
             // predicate is `const` (one definition, two callers — see the
@@ -1427,6 +1457,17 @@ pub enum FormatError {
         /// The mode requested.
         mode: u8,
     },
+    /// An underline or strikethrough was asked for on text drawn in an
+    /// invisible rendering mode (3 or 7, §9.3.6): a visible rule under
+    /// invisible glyphs would decorate nothing the reader can see.
+    #[error(
+        "cannot underline or strike through text in rendering mode {mode}: modes 3 and 7 draw \
+         no glyphs (§9.3.6 Table 106)"
+    )]
+    DecorationOnInvisibleText {
+        /// The effective rendering mode of the slice.
+        mode: u8,
+    },
     /// A rendering mode and synthetic bold were both requested. Synthetic
     /// bold IS rendering mode 2, so one of them would silently lose.
     #[error(
@@ -1738,6 +1779,9 @@ pub fn set_format(
     if crate::encryption_gate::forbids(doc, &[PermissionBit::ModifyContents]) {
         return Err(FormatError::Encrypted);
     }
+    if req.set_decoration.is_some() {
+        return set_format_in_session(doc, req, opts);
+    }
     let pages = page_tree::pages(doc)?;
     let page = pages
         .get(req.page_index)
@@ -2005,6 +2049,40 @@ pub(crate) fn plan_format(
 /// # Errors
 ///
 /// See [`FormatError`].
+/// [`set_format`] for a decoration request: the rules are drawn by the edit
+/// session's post-command refresh, so the one-shot path runs one.
+fn set_format_in_session(
+    doc: &Document,
+    req: &FormatRequest,
+    opts: &FormatOptions,
+) -> Result<FormatOutcome, FormatError> {
+    let copy = Document::from_bytes(doc.bytes().to_vec()).map_err(|e| {
+        FormatError::Unsupported(format!(
+            "the document could not be reopened for the edit: {e}"
+        ))
+    })?;
+    let mut session = crate::edit::EditSession::new(copy);
+    let report = session.format_text(req, opts)?;
+    let (bytes, _) = session.to_incremental_bytes(&crate::writer::SaveOptions::identity())?;
+    Ok(FormatOutcome { bytes, report })
+}
+
+/// A decoration on glyphs no one sees is refused rather than drawn: the
+/// effective mode is the requested one, else the run's.
+fn refuse_invisible_decoration(req: &FormatRequest, anchor: &ShowData) -> Result<(), FormatError> {
+    if req.set_decoration.is_none_or(DecorationSet::is_empty) {
+        return Ok(());
+    }
+    let mode = req
+        .set_render_mode
+        .map_or(anchor.text_state.render_mode.value, f64::from);
+    if mode == 3.0 || mode == 7.0 {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // exactly 3 or 7
+        return Err(FormatError::DecorationOnInvisibleText { mode: mode as u8 });
+    }
+    Ok(())
+}
+
 pub(crate) fn plan_format_target(
     doc: &DocumentView<'_>,
     target: &EditPlanTarget,
@@ -2016,6 +2094,13 @@ pub(crate) fn plan_format_target(
     let extra_emptied = target.extra_emptied;
     if let Some(form) = target.form.as_ref() {
         refuse_unsuitable_form(form).map_err(FormatError::from_edit)?;
+        if req.set_decoration.is_some() {
+            return Err(FormatError::Unsupported(
+                "underline and strikethrough are page-content only; this run is inside a form \
+                 XObject"
+                    .to_owned(),
+            ));
+        }
     }
     let page_resources_dict = &target.resources;
 
@@ -2171,6 +2256,7 @@ pub(crate) fn plan_format_target(
     if let Some(mode) = req.set_render_mode.filter(|m| *m > 7) {
         return Err(FormatError::InvalidRenderMode { mode });
     }
+    refuse_invisible_decoration(req, anchor)?;
 
     // --- resolve the super/subscript toggle into its two derived operands
     //     (decision 019 §3.2, R89) ---
@@ -2716,7 +2802,16 @@ pub(crate) fn plan_format_target(
     };
     push_seg(emit_show(&pre), &mut replacement);
     push_seg(std::mem::take(&mut set_ops), &mut replacement);
+    let (deco_open, deco_close) = req.set_decoration.map_or_else(
+        || (Vec::new(), Vec::new()),
+        |set| {
+            let scan = crate::text_edit::decoration::Scan::of(stream);
+            crate::text_edit::decoration::wrap_for(&scan, a_start, a_end, set)
+        },
+    );
+    push_seg(deco_open, &mut replacement);
     push_seg(emit_show(&mid), &mut replacement);
+    push_seg(deco_close, &mut replacement);
     push_seg(std::mem::take(&mut restore_ops), &mut replacement);
     push_seg(emit_show(&post), &mut replacement);
 
@@ -2785,6 +2880,9 @@ pub(crate) fn plan_format_target(
     }
     disclosures.push(disclosure_save());
     disclosures.push(trust_disclosure(embedded, &report_font));
+    if let Some(set) = req.set_decoration {
+        disclosures.push(crate::text_edit::decoration::disclosure(set));
+    }
     if size_changed {
         disclosures.push(disclosure_size(orig_size, base_size));
     }

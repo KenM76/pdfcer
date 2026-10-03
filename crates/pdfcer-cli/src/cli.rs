@@ -8367,6 +8367,18 @@ pub(crate) enum Command {
         /// Past the last match the edit is refused as not found.
         #[arg(long, default_value_t = 1, value_name = "N")]
         occurrence: usize,
+        /// Underline the matched text. The line is tied to the text: a
+        /// later move, delete or reflow of the run redraws it. Combine with
+        /// `--strikethrough` for both.
+        #[arg(long, conflicts_with = "no_decoration")]
+        underline: bool,
+        /// Strike through the matched text (see `--underline`).
+        #[arg(long, conflicts_with = "no_decoration")]
+        strikethrough: bool,
+        /// Remove any underline or strikethrough from the matched text,
+        /// splitting a longer decorated stretch around it.
+        #[arg(long)]
+        no_decoration: bool,
         /// Pin the target show operator by its **byte span**, as
         /// `START:LEN`, instead of (or as well as) searching for text.
         ///

@@ -49,6 +49,7 @@ mod find_text;
 mod flatten_annotations;
 mod font_licence_notice;
 mod font_preflight;
+mod format_decoration_flags;
 mod format_text;
 mod hand_signature;
 mod image_stamp_and_button_icon;

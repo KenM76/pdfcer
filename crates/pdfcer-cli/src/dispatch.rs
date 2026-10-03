@@ -2217,12 +2217,20 @@ pub(crate) fn run() -> ExitCode {
             font_dirs,
             target,
             occurrence,
+            underline,
+            strikethrough,
+            no_decoration,
         } => cmd_format_text(&FormatTextArgs {
             input: &input,
             output: &output,
             page,
             find: &find,
             occurrence,
+            decoration: (underline || strikethrough || no_decoration).then(|| {
+                pdfcer_core::text_edit::decoration::DecorationSet::NONE
+                    .with_underline(underline)
+                    .with_strikethrough(strikethrough)
+            }),
             pin_span: pin_span.as_deref(),
             set_size,
             set_color: set_color.as_deref(),

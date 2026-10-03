@@ -1373,6 +1373,9 @@ pub(crate) struct FormatTextArgs<'a> {
     pub(crate) find: &'a str,
     /// `--occurrence`, 1-based.
     pub(crate) occurrence: usize,
+    /// `--underline` / `--strikethrough` / `--no-decoration`; `None` when
+    /// none was given.
+    pub(crate) decoration: Option<pdfcer_core::text_edit::decoration::DecorationSet>,
     /// `--pin-span START:LEN`, unparsed. Parsed inside `cmd_format_text` so
     /// a malformed span fails before any file is opened.
     pub(crate) pin_span: Option<&'a str>,
@@ -1646,6 +1649,9 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     let mut req = FormatRequest::new(args.page - 1, args.find)
         .target(target)
         .occurrence(args.occurrence - 1);
+    if let Some(set) = args.decoration {
+        req = req.decoration(set);
+    }
     if let Some(span) = pin_span {
         req = req.pinned(span);
     }
@@ -1743,6 +1749,7 @@ pub(crate) fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
                 | FormatError::WordSpacingComposite { .. }
                 | FormatError::ConflictingRise
                 | FormatError::InvalidRenderMode { .. }
+                | FormatError::DecorationOnInvisibleText { .. }
                 | FormatError::ConflictingRenderMode
                 | FormatError::RealFaceAvailable { .. }
                 | FormatError::SynthesisRefusedByPosture { .. }

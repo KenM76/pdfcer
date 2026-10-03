@@ -126,6 +126,7 @@ mod block_text;
 mod button_icon;
 mod checkpoint;
 mod content_mark;
+mod decoration_refresh;
 mod emf;
 mod foreign_button;
 mod image_stamp;
@@ -19972,10 +19973,11 @@ impl EditSession {
     /// behaviour (§11.1 states it for completeness rather than because
     /// it is subtle): the redone future no longer exists once history
     /// diverges.
-    fn commit(&mut self, command: Command) {
+    fn commit(&mut self, mut command: Command) {
         for write in &command.objects {
             Self::write_state(&mut self.state, write.id, write.after.clone());
         }
+        self.refresh_decorations(&mut command);
         for removal in &command.removals {
             Self::write_deleted(&mut self.deleted, removal.id, removal.is_deleted);
         }
