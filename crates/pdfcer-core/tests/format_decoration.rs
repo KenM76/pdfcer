@@ -306,3 +306,30 @@ fn a_page_split_across_streams_keeps_its_rule_on_the_text() {
     assert_eq!(r.len(), 1, "{text}");
     assert_eq!([r[0].0[4], r[0].0[5]], [220.0, 700.0], "{text}");
 }
+
+#[test]
+fn a_transform_before_the_text_is_not_applied_twice() {
+    // The page's own `cm` is still in force after `ET`, so the rule carries
+    // `Tm` alone; carrying `Tm` x CTM would land it 10,20 off its text.
+    let mut s = session(
+        "1 0 0 1 10 20 cm BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj          1 0 0 1 200 700 Tm (World) Tj ET",
+    );
+    decorate(&mut s, "World", DecorationSet::UNDERLINE).unwrap();
+    let text = content(&saved(&s));
+    let r = rules(&text);
+    assert_eq!(r.len(), 1, "{text}");
+    assert_eq!(r[0].0, [1.0, 0.0, 0.0, 1.0, 200.0, 700.0], "{text}");
+}
+
+#[test]
+fn a_flipped_page_keeps_its_rule_under_the_text() {
+    let mut s = session(
+        "1 0 0 -1 0 792 cm BT /F1 12 Tf 1 0 0 -1 72 92 Tm (Hello) Tj          1 0 0 -1 200 92 Tm (World) Tj ET",
+    );
+    decorate(&mut s, "World", DecorationSet::UNDERLINE).unwrap();
+    let text = content(&saved(&s));
+    let r = rules(&text);
+    assert_eq!(r.len(), 1, "{text}");
+    assert_eq!(r[0].0, [1.0, 0.0, 0.0, -1.0, 200.0, 92.0], "{text}");
+    assert!((r[0].1[1] + 1.5).abs() < 1e-6, "{text}");
+}

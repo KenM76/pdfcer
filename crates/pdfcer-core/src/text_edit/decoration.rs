@@ -630,7 +630,9 @@ fn line_rules(
             out.extend_from_slice(b" /Artifact <</Type /Layout>> BDC");
         }
         out.extend_from_slice(b" q");
-        for v in line.frame {
+        // `Tm` alone: the CTM in force after `ET` is the one the glyphs were
+        // shown under, so the rule's `cm` must not apply it a second time.
+        for v in widen(line.first.text_matrix) {
             out.push(b' ');
             emit_number(&mut out, round4(v));
         }
