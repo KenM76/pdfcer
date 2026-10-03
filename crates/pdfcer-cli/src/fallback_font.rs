@@ -138,6 +138,9 @@ pub(crate) fn print_fallback(report: &EditReport) {
             m.failed.len(),
             m.source.as_deref().unwrap_or("standard-14"),
         );
+        if m.name_derived {
+            println!("  face_name=derived");
+        }
     }
 }
 

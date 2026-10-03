@@ -245,7 +245,8 @@ pub struct FaceCandidate {
     pub id: usize,
     /// Where the face came from (a file path), for the disclosure.
     pub source: String,
-    /// Name ID 6.
+    /// Name ID 6, or the provider's derived name when the face has none
+    /// ([`Self::name_derived`]).
     pub postscript_name: String,
     /// Name ID 16, else name ID 1.
     pub family: String,
@@ -255,6 +256,9 @@ pub struct FaceCandidate {
     pub missing: Vec<char>,
     /// `OS/2.fsType`; `None` when the face has no `OS/2` table.
     pub fs_type: Option<FsTypeBits>,
+    /// The face has no name ID 6, so [`Self::postscript_name`] was derived
+    /// (from the family name); the ladder's disclosure says so.
+    pub name_derived: bool,
 }
 
 impl FaceCandidate {
@@ -269,6 +273,7 @@ impl FaceCandidate {
             class: FaceClass::default(),
             missing: Vec::new(),
             fs_type: None,
+            name_derived: false,
         }
     }
 
@@ -283,6 +288,13 @@ impl FaceCandidate {
     #[must_use]
     pub fn with_missing(mut self, missing: Vec<char>) -> Self {
         self.missing = missing;
+        self
+    }
+
+    /// Mark [`Self::postscript_name`] as derived, returning `self`.
+    #[must_use]
+    pub const fn with_derived_name(mut self) -> Self {
+        self.name_derived = true;
         self
     }
 
@@ -521,6 +533,8 @@ pub struct FaceMatch {
     pub skipped: Vec<SkippedFace>,
     /// Better-ranked faces whose subset could not be cut, and why.
     pub failed: Vec<String>,
+    /// [`Self::face`] is a derived name: the face has no name ID 6.
+    pub name_derived: bool,
 }
 
 /// How many skipped faces a disclosure names before summarising the rest.
@@ -554,6 +568,16 @@ impl FaceMatch {
                 .filter(|&n| n > 0)
             {
                 line.push_str(&format!(" and {more} more"));
+            }
+        }
+        if self.name_derived {
+            line.push_str(&format!(
+                "; the face has no PostScript name (name ID 6), so '{}' is derived from its \
+                 family name",
+                self.face
+            ));
+            if self.rung == FaceRung::ExactName {
+                line.push_str(", and that derived name is what matched the run's font");
             }
         }
         for f in &self.failed {
@@ -590,6 +614,7 @@ pub(crate) fn choose(
                     source: Some(c.source.clone()),
                     skipped: skipped_at(rung),
                     failed,
+                    name_derived: c.name_derived,
                 };
                 return (FallbackFace::Embedded(Box::new(plan)), m);
             }
@@ -602,6 +627,7 @@ pub(crate) fn choose(
         source: None,
         skipped: skipped_at(FaceRung::Standard14),
         failed,
+        name_derived: false,
     };
     (FallbackFace::Named(ladder.standard14.to_owned()), m)
 }
@@ -898,5 +924,37 @@ mod tests {
         assert_eq!(m.skipped.len(), 7);
         assert!(line.contains("'R4'") && !line.contains("'R5'"), "{line}");
         assert!(line.ends_with(" and 2 more"), "{line}");
+    }
+
+    /// A derived name is disclosed, and an exact-name match on one says so.
+    #[test]
+    fn a_derived_name_is_disclosed_and_flags_an_exact_name_match() {
+        let pick = |base: &str, derived: bool| {
+            let mut f = face(0, "Demo", "Demo");
+            if derived {
+                f = f.with_derived_name();
+            }
+            let fake = Fake {
+                faces: vec![f],
+                broken: &[],
+            };
+            choose(&FaceRequest::new(base, &['x']), Some(&fake)).1
+        };
+        let exact = pick("ABCDEF+Demo", true);
+        assert_eq!(exact.rung, FaceRung::ExactName);
+        assert!(exact.name_derived);
+        let line = exact.disclosure();
+        assert!(
+            line.contains("no PostScript name (name ID 6), so 'Demo' is derived")
+                && line.contains("that derived name is what matched"),
+            "{line}"
+        );
+        let other = pick("Other", true).disclosure();
+        assert!(
+            other.contains("is derived") && !other.contains("what matched"),
+            "{other}"
+        );
+        let named = pick("ABCDEF+Demo", false).disclosure();
+        assert!(!named.contains("derived"), "{named}");
     }
 }

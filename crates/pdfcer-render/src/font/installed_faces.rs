@@ -130,32 +130,37 @@ fn class_of(font: &FontRef<'_>) -> FaceClass {
 }
 
 /// Name ID 6, else the family's ASCII alphanumerics, else `Face<id>`: a
-/// face must have some name to follow its subset tag in `/BaseFont`.
-fn postscript_name(id: usize, font: &FontRef<'_>, family: &str) -> String {
-    name_string(font, StringId::POSTSCRIPT_NAME).unwrap_or_else(|| {
-        let derived: String = family.chars().filter(char::is_ascii_alphanumeric).collect();
-        if derived.is_empty() {
-            format!("Face{id}")
-        } else {
-            derived
-        }
-    })
+/// face must have some name to follow its subset tag in `/BaseFont`. The
+/// flag is `true` when the name was derived.
+fn postscript_name(id: usize, font: &FontRef<'_>, family: &str) -> (String, bool) {
+    if let Some(name) = name_string(font, StringId::POSTSCRIPT_NAME) {
+        return (name, false);
+    }
+    let derived: String = family.chars().filter(char::is_ascii_alphanumeric).collect();
+    if derived.is_empty() {
+        (format!("Face{id}"), true)
+    } else {
+        (derived, true)
+    }
 }
 
 fn candidate(id: usize, label: &str, font: &FontRef<'_>, chars: &[char]) -> FaceCandidate {
     let family = name_string(font, StringId::TYPOGRAPHIC_FAMILY_NAME)
         .or_else(|| name_string(font, StringId::FAMILY_NAME))
         .unwrap_or_default();
-    let postscript = postscript_name(id, font, &family);
+    let (postscript, derived) = postscript_name(id, font, &family);
     let charmap = font.charmap();
     let missing = chars
         .iter()
         .copied()
         .filter(|&c| charmap.map(c).is_none())
         .collect();
-    let c = FaceCandidate::new(id, label, &postscript, &family)
+    let mut c = FaceCandidate::new(id, label, &postscript, &family)
         .with_class(class_of(font))
         .with_missing(missing);
+    if derived {
+        c = c.with_derived_name();
+    }
     match font.os2() {
         Ok(os2) => c.with_fs_type(FsTypeBits::decode(os2.fs_type(), os2.version())),
         Err(_) => c,

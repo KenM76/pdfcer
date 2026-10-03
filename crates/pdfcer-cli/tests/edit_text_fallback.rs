@@ -158,6 +158,12 @@ fn auto_picks_an_installed_face_and_prints_its_file() {
         "{all}"
     );
     assert!(all.contains("replacement face: 'pdfcerFbDonor'"), "{all}");
+    // fallback-donor.ttf has no name ID 6.
+    assert!(
+        all.contains("face_name=derived")
+            && all.contains("so 'pdfcerFbDonor' is derived from its family name"),
+        "{all}"
+    );
     let _ = std::fs::remove_file(out);
 }
 
@@ -323,5 +329,6 @@ fn auto_embeds_a_cff_face() {
         all.contains("face_match=pdfcerFbCff rung=coverage skipped=0 failed=0"),
         "{all}"
     );
+    assert!(!all.contains("face_name=derived"), "{all}");
     let _ = std::fs::remove_file(out);
 }
