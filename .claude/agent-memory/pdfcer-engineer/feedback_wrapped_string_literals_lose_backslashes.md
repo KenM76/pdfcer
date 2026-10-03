@@ -203,3 +203,5 @@ eaten by the Python parser, not by bash.
 script, Rust source that contains ANY backslash must sit in a **raw** string
 (`r"""…"""`) or spell the backslash `\`. `check-string-gaps.sh` caught both
 gaps before commit — run it after `cargo fmt`, every time.
+
+Recurred 2026-10-03 (Pass 453.0): a non-raw Python heredoc string dropped a Rust line-continuation backslash; I skipped check-string-gaps before committing and run-gates caught it, costing a fix commit plus a filing. Run it BEFORE the code commit, not after.

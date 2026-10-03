@@ -8080,3 +8080,9 @@ A TWG editor posted the revised clause as an image (#575). View `user-attachment
 ### 99c. Default-hides-the-feature again (63f shape): `/TP` default 0 = "No icon; caption only"; widget `/H` default `I` overrides any down appearance, so `/IX` is invisible without `/H /P`. Grep the DEFAULT of every sibling key the feature depends on.
 ### 99d. A "pushbutton fields only" label can be widened by ANOTHER table: screen annotation Table 187 uses `/MK /I`. One-way cross-reference defect (79g), not a contradiction.
 ### 99e. Errata 3-channel negative ran clean: GitHub search 0 (control `widget` 27), clause12.html 0 (83 data-issue ids), EC3 pages = only `/Link` annots (check `/Subtype` before reading annotation counts as erratum markup).
+
+## 100. "Spec ruling on a measured binary LAYOUT vs our entry — is field F conditional?" (PRC 712/713, 2026-10-03)
+### 100a. `pdftotext -layout` SCRAMBLES WD multi-page tables (Required column, type column and description drift apart); re-extract WITHOUT `-layout` and re-pair the three column lists by position — that showed blend_src_rgb/src_alpha `Required` in WD, contradicting our own §7 line.
+### 100b. An errata thread's IMAGE can be the revision-draft table itself: `curl -sL` the `github.com/user-attachments/assets/<id>` URL, `Read` the PNG. ISS #485's full Table 97 settled conditionality per row.
+### 100c. A corpus line written as "if X: a → b → c" is read as nesting ALL of a,b,c under X — write the unconditional boundary explicitly ("(unconditional)").
+### 100d. "How does A combine with B" / "is 0.0 unset" / "which file structure's globals" were all NOT SPECIFIED — state the closest clause verbatim (WD 6.2.1), label the reading DERIVED, route the producer behaviour to personal_rag/pdf, suggest a setting.
