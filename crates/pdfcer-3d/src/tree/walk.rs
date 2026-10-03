@@ -9,18 +9,25 @@ pub(crate) struct Walk<'t> {
     pub(crate) trees: Vec<(UniqueId, &'t Tree, &'t Globals)>,
     pub(crate) out: Vec<Placement>,
     visits: usize,
-    /// Per file structure, the style colours placements share.
-    palettes: std::collections::HashMap<usize, std::sync::Arc<[Option<[f64; 4]>]>>,
+    palettes: Palettes,
 }
 
 impl<'t> Walk<'t> {
-    /// A walk over `trees`, with no placements yet.
-    pub(crate) fn new(trees: Vec<(UniqueId, &'t Tree, &'t Globals)>) -> Self {
+    /// A walk over `trees`, with no placements yet, colouring by `rule`.
+    pub(crate) fn new(trees: Vec<(UniqueId, &'t Tree, &'t Globals)>, rule: StyleAlpha) -> Self {
+        let palettes = trees
+            .iter()
+            .map(|(_, _, g)| {
+                (0..=g.styles.len() as u32)
+                    .map(|b| g.style_colour(b, rule))
+                    .collect()
+            })
+            .collect();
         Walk {
             trees,
             out: Vec::new(),
             visits: 0,
-            palettes: std::collections::HashMap::new(),
+            palettes,
         }
     }
 
@@ -63,7 +70,7 @@ impl<'t> Walk<'t> {
             None => *father,
         };
         let mut chain = graphics.to_vec();
-        chain.push(p.graphics);
+        chain.push(Graphics { fs, ..p.graphics });
         // The part and sons, falling back to the prototype chain's for
         // whichever this occurrence leaves empty [WD 7.3.10.1].
         let (mut part, mut sons) = ((fs, p.part), (fs, &p.sons));
@@ -128,18 +135,14 @@ impl<'t> Walk<'t> {
                     .ok_or_else(|| malformed(format!("coordinate system {cs} does not exist")))?;
                 placed = multiply(&placed, l);
             }
-            let chain: Vec<Graphics> = graphics.iter().chain(&item.graphics).copied().collect();
-            let palette = self.palettes.entry(fs).or_insert_with(|| {
-                (0..=globals.styles.len() as u32)
-                    .map(|b| globals.style_colour(b))
-                    .collect()
-            });
+            let own = item.graphics.iter().map(|&g| Graphics { fs, ..g });
+            let chain: Vec<Graphics> = graphics.iter().copied().chain(own).collect();
             self.out.push(Placement {
                 file_structure: fs,
                 tessellation: item.tessellation as usize - 1,
                 matrix: placed,
-                colour: globals.style_colour(resolve_style(&chain)),
-                palette: palette.clone(),
+                colour: chain_colour(&self.palettes, &chain),
+                palettes: self.palettes.clone(),
                 chain,
             });
         }

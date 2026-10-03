@@ -1,7 +1,7 @@
 //! A PRC file assembled into placed, coloured triangle meshes: what mesh
 //! export, rendering and the default 3D poster all draw.
 
-use crate::{PrcError, PrcFile, Tessellation, TriangleMesh};
+use crate::{PrcError, PrcFile, StyleAlpha, Tessellation, TriangleMesh};
 
 /// A PRC model's triangle meshes, placed where its assembly tree draws them,
 /// with counts of what was not drawn.
@@ -70,13 +70,28 @@ pub enum AssembleError {
 /// assert_eq!(pdfcer_3d::assemble(b"U3D\0"), Err(pdfcer_3d::AssembleError::NotPrc));
 /// ```
 pub fn assemble(data: &[u8]) -> Result<AssembledModel, AssembleError> {
+    assemble_with(data, StyleAlpha::default())
+}
+
+/// [`assemble`], combining each style's transparency with its material's
+/// alpha by `rule`.
+///
+/// # Errors
+///
+/// As [`assemble`].
+///
+/// ```
+/// use pdfcer_3d::{AssembleError, StyleAlpha, assemble_with};
+/// assert_eq!(assemble_with(b"U3D\0", StyleAlpha::Multiply), Err(AssembleError::NotPrc));
+/// ```
+pub fn assemble_with(data: &[u8], rule: StyleAlpha) -> Result<AssembledModel, AssembleError> {
     if !data.starts_with(b"PRC") {
         return Err(AssembleError::NotPrc);
     }
     let prc = PrcFile::parse(data)?;
     let mut model = AssembledModel::default();
     let by_index = decode_meshes(&prc, &mut model)?;
-    place(&prc, by_index, &mut model);
+    place(&prc, by_index, rule, &mut model);
     model.triangles = model.meshes.iter().map(|m| m.triangles.len()).sum();
     if model.triangles == 0 {
         return Err(if model.compressed > 0 {
@@ -134,8 +149,13 @@ fn decode_meshes(
 }
 
 /// Place each mesh where the assembly tree draws it, split by face colour.
-fn place(prc: &PrcFile, by_index: Vec<Vec<Option<TriangleMesh>>>, model: &mut AssembledModel) {
-    model.unplaced = match prc.placements() {
+fn place(
+    prc: &PrcFile,
+    by_index: Vec<Vec<Option<TriangleMesh>>>,
+    rule: StyleAlpha,
+    model: &mut AssembledModel,
+) {
+    model.unplaced = match prc.placements_with(rule) {
         Ok(placements) if !placements.is_empty() => {
             for p in &placements {
                 let mesh = by_index

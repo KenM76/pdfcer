@@ -64,6 +64,18 @@ impl ThreeDView {
     }
 }
 
+/// How `3d-render` combines a style's transparency with its material's
+/// alpha (ISO 14739-1 §8.7.3 leaves the relation open).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum StyleAlphaArg {
+    /// A style that states a transparency replaces the material's alpha.
+    /// Default; matches SolidWorks exports, whose materials carry alpha 0.
+    #[default]
+    Style,
+    /// The style's transparency multiplies the material's alpha.
+    Multiply,
+}
+
 /// The model axis that points up in `3d-render`'s named views.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum Axis3 {

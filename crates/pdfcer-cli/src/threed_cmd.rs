@@ -157,7 +157,17 @@ fn artwork_bytes(
 /// Decode and assemble a PRC model, or say why it has nothing to draw.
 #[cfg(feature = "3d")]
 fn assemble(data: &[u8]) -> Result<pdfcer_3d::AssembledModel, String> {
-    pdfcer_3d::assemble(data).map_err(|err| match err {
+    assemble_with(data, StyleAlphaArg::default())
+}
+
+/// [`assemble`] with an explicit style-transparency rule.
+#[cfg(feature = "3d")]
+fn assemble_with(data: &[u8], rule: StyleAlphaArg) -> Result<pdfcer_3d::AssembledModel, String> {
+    let rule = match rule {
+        StyleAlphaArg::Style => pdfcer_3d::StyleAlpha::StyleWins,
+        StyleAlphaArg::Multiply => pdfcer_3d::StyleAlpha::Multiply,
+    };
+    pdfcer_3d::assemble_with(data, rule).map_err(|err| match err {
         pdfcer_3d::AssembleError::NotPrc => format!("{err} (use `3d-extract` for the bytes)"),
         _ => err.to_string(),
     })
@@ -268,6 +278,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) width: u32,
     pub(crate) height: u32,
     pub(crate) transparent: bool,
+    pub(crate) style_alpha: StyleAlphaArg,
 }
 
 /// `3d-render` — draw one PRC model to a PNG from a camera.
@@ -294,7 +305,7 @@ fn render_from_bytes(
         );
         exit::EDIT_REFUSED
     };
-    let model = match assemble(data) {
+    let model = match assemble_with(data, a.style_alpha) {
         Ok(model) => model,
         Err(why) => return refuse(why),
     };

@@ -601,6 +601,7 @@ fn face_graphics(face: &Face, entities: &[usize], out: &mut Vec<crate::tree::Gra
     let g = |style: u32| crate::tree::Graphics {
         style,
         bits: face.behaviour,
+        fs: 0,
     };
     let whole = match face.styles.as_slice() {
         [] => Some(0),
@@ -652,6 +653,7 @@ fn compressed_graphics(
                     .and_then(|&a| u32::try_from(a).ok())
                     .unwrap_or(0),
                 bits: bits(f),
+                fs: 0,
             }
         })
         .collect()
@@ -1409,7 +1411,11 @@ mod tests {
                     let bits = u16::from(full);
                     assert_eq!(
                         m.triangle_graphics,
-                        vec![crate::tree::Graphics { style: 1, bits }],
+                        vec![crate::tree::Graphics {
+                            style: 1,
+                            bits,
+                            fs: 0
+                        }],
                         "full={full} v={v}"
                     );
                 }
@@ -1420,7 +1426,7 @@ mod tests {
 
     #[test]
     fn compressed_line_attributes_style_each_face() {
-        let g = |style, bits| crate::tree::Graphics { style, bits };
+        let g = |style, bits| crate::tree::Graphics { style, bits, fs: 0 };
         let face_of = [0, 1, 1, 0];
         assert_eq!(
             compressed_graphics(&face_of, &[], &[2, 0], &[], 2),

@@ -17,6 +17,7 @@ mod walk;
 
 use crate::vec3::cross;
 pub use geometry::{IDENTITY, Matrix, multiply, transform_point};
+pub use style::StyleAlpha;
 pub(crate) use style::{Globals, Graphics, resolve_style};
 pub(crate) use walk::Walk;
 
@@ -31,6 +32,15 @@ const FILE_STRUCTURE_GLOBALS: u32 = 303;
 const STYLE: u32 = 701;
 const MATERIAL: u32 = 702;
 const TEXTURE_APPLICATION: u32 = 711;
+const PICTURE: u32 = 703;
+const TEXTURE_DEFINITION: u32 = 712;
+const TEXTURE_TRANSFORMATION: u32 = 713;
+/// 0-based `EPRCTextureMappingType::Operator` and `EPRCTextureFunction::Blend`
+/// (ISS #485; `prc__8137__graphics_materials.md` §7).
+const TEXTURE_MAPPING_OPERATOR: i32 = 3;
+const TEXTURE_FUNCTION_BLEND: i32 = 3;
+/// Texture application mode: alpha test [WD 7.5.7].
+const TEXTURE_ALPHA_TEST: u8 = 0x02;
 const LINE_PATTERN: u32 = 721;
 const FILE_STRUCTURE_TREE: u32 = 304;
 const PRODUCT_OCCURRENCE: u32 = 310;
@@ -86,8 +96,22 @@ pub struct Placement {
     pub colour: Option<[f64; 4]>,
     /// The graphics from the root to this item, outermost first.
     pub(crate) chain: Vec<Graphics>,
-    /// Entry `b` is the colour of biased style index `b`.
-    pub(crate) palette: std::sync::Arc<[Option<[f64; 4]>]>,
+    /// The style colours of every file structure's globals.
+    pub(crate) palettes: Palettes,
+}
+
+/// Per file structure, entry `b` is the colour of biased style index `b`.
+pub(crate) type Palettes = std::sync::Arc<[std::sync::Arc<[Option<[f64; 4]>]>]>;
+
+/// The colour `chain` resolves to, each style read in its own file
+/// structure's globals.
+pub(crate) fn chain_colour(palettes: &Palettes, chain: &[Graphics]) -> Option<[f64; 4]> {
+    let won = resolve_style(chain);
+    palettes
+        .get(won.fs)?
+        .get(won.style as usize)
+        .copied()
+        .flatten()
 }
 
 impl Placement {
@@ -107,10 +131,12 @@ impl Placement {
                 .iter()
                 .map(|g| {
                     if let Some(last) = chain.last_mut() {
-                        *last = *g;
+                        *last = Graphics {
+                            fs: self.file_structure,
+                            ..*g
+                        };
                     }
-                    let style = resolve_style(&chain) as usize;
-                    self.palette.get(style).copied().flatten()
+                    chain_colour(&self.palettes, &chain)
                 })
                 .collect(),
         )
@@ -196,7 +222,7 @@ impl Ctx<'_, '_> {
             let lo = u16::from(self.r.character()?);
             let hi = u16::from(self.r.character()?);
             let bits = lo | hi << 8;
-            self.graphics = Graphics { style, bits };
+            self.graphics = Graphics { style, bits, fs: 0 };
             bits & SHOW == 0 || bits & REMOVED != 0
         };
         // Schema additions to the base itself, after the graphics [PRCRS].
@@ -709,6 +735,8 @@ mod tests {
         location: Option<[f64; 3]>,
         mirror: bool,
         camera: bool,
+        /// `(prototype + 1, its file structure)`, `None` meaning this one.
+        prototype: Option<(u32, Option<UniqueId>)>,
     }
 
     const OCC: Occ<'static> = Occ {
@@ -719,12 +747,22 @@ mod tests {
         location: None,
         mirror: false,
         camera: false,
+        prototype: None,
     };
 
     fn occurrence(w: &mut W, o: &Occ<'_>, extra: bool) {
         w.uint(PRODUCT_OCCURRENCE);
         graphics(w, o.behaviour, extra);
-        w.uint(o.part).uint(0).uint(0).uint(o.sons.len() as u32);
+        w.uint(o.part);
+        match o.prototype {
+            None => w.uint(0),
+            Some((index, None)) => w.uint(index).bit(true),
+            Some((index, Some(fs))) => {
+                w.uint(index).bit(false);
+                fs.0.iter().fold(&mut *w, |w, &c| w.uint(c))
+            }
+        };
+        w.uint(0).uint(o.sons.len() as u32);
         for &s in o.sons {
             w.uint(s);
         }
@@ -817,7 +855,7 @@ mod tests {
     fn place(occs: &[Occ<'_>], cs: u32, globals: &Globals) -> Result<Vec<Placement>, PrcError> {
         let bytes = tree(occs, cs, false).bytes();
         let t = ctx(&bytes, &Schema::default()).file_structure_tree()?;
-        let mut walk = Walk::new(vec![(FS, &t, globals)]);
+        let mut walk = Walk::new(vec![(FS, &t, globals)], StyleAlpha::default());
         walk.occurrence(0, 0, &IDENTITY, &[], 0)?;
         Ok(walk.out)
     }
@@ -1018,26 +1056,30 @@ mod tests {
     const GREEN: [f64; 3] = [0.0, 1.0, 0.0];
 
     fn g(style: u32, bits: u16) -> Graphics {
-        Graphics { style, bits }
+        Graphics { style, bits, fs: 0 }
     }
 
     #[test]
     fn a_son_style_wins_unless_a_father_forces_his() {
         let father = FATHER_HERIT_COLOR;
-        assert_eq!(resolve_style(&[g(1, 0), g(2, 0)]), 2, "own wins");
-        assert_eq!(resolve_style(&[g(1, 0), g(0, 0)]), 1, "none inherits");
-        assert_eq!(resolve_style(&[g(1, father), g(2, 0)]), 1, "father forces");
+        assert_eq!(resolve_style(&[g(1, 0), g(2, 0)]).style, 2, "own wins");
+        assert_eq!(resolve_style(&[g(1, 0), g(0, 0)]).style, 1, "none inherits");
         assert_eq!(
-            resolve_style(&[g(1, father), g(3, father), g(2, 0)]),
+            resolve_style(&[g(1, father), g(2, 0)]).style,
+            1,
+            "father forces"
+        );
+        assert_eq!(
+            resolve_style(&[g(1, father), g(3, father), g(2, 0)]).style,
             1,
             "the oldest father wins"
         );
         assert_eq!(
-            resolve_style(&[g(1, father), g(2, SON_HERIT_COLOR)]),
+            resolve_style(&[g(1, father), g(2, SON_HERIT_COLOR)]).style,
             2,
             "a son's heritage beats the father's"
         );
-        assert_eq!(resolve_style(&[]), 0);
+        assert_eq!(resolve_style(&[]).style, 0);
     }
 
     #[test]
@@ -1050,7 +1092,7 @@ mod tests {
             matrix: IDENTITY,
             colour: red,
             chain,
-            palette: std::sync::Arc::from(vec![None, red, green]),
+            palettes: std::sync::Arc::from(vec![std::sync::Arc::from(vec![None, red, green])]),
         };
         let mut mesh = crate::TriangleMesh::default();
         let item = placement(vec![g(1, 0)]);
@@ -1088,24 +1130,35 @@ mod tests {
             ],
             ..Globals::default()
         };
+        let mul = StyleAlpha::Multiply;
         assert_eq!(
-            gl.style_colour(1),
+            gl.style_colour(1, mul),
             Some([0.0, 1.0, 0.0, 1.0]),
             "4 names entry 1"
         );
-        assert_eq!(gl.style_colour(2), None, "2 is not double-scaled");
+        assert_eq!(gl.style_colour(2, mul), None, "2 is not double-scaled");
         assert_eq!(
-            gl.style_colour(3),
+            gl.style_colour(3, mul),
             Some([0.0, 1.0, 0.0, 0.1]),
             "diffuse alpha x transparency"
         );
         assert_eq!(
-            gl.style_colour(4),
+            gl.style_colour(3, StyleAlpha::StyleWins),
+            Some([0.0, 1.0, 0.0, 0.2]),
+            "the style's transparency replaces the diffuse alpha"
+        );
+        assert_eq!(
+            gl.style_colour(4, StyleAlpha::StyleWins),
+            Some([0.0, 1.0, 0.0, 0.5]),
+            "with no transparency the material alpha stands"
+        );
+        assert_eq!(
+            gl.style_colour(4, mul),
             Some([0.0, 1.0, 0.0, 0.5]),
             "a texture's base material"
         );
-        assert_eq!(gl.style_colour(0), None);
-        assert_eq!(gl.style_colour(9), None);
+        assert_eq!(gl.style_colour(0, mul), None);
+        assert_eq!(gl.style_colour(9, mul), None);
     }
 
     /// The globals fixture's style 1 is colour 0 at transparency 128;
@@ -1134,5 +1187,158 @@ mod tests {
         let out = place(&occs, 0, &gl).unwrap();
         let colours: Vec<_> = out.iter().map(|p| p.colour).collect();
         assert_eq!(colours, [want, want, None]);
+    }
+
+    fn ref_base(w: &mut W, id: u32) {
+        base(w);
+        w.uint(0).uint(0).uint(id);
+    }
+
+    /// Schema, then globals with a picture, a scaled texture, red and blue,
+    /// two alpha-0 materials and a texture over the blue one, and styles 1
+    /// (red, transparency 255) and 2 (the texture, 128); no styles when
+    /// `plain`.
+    fn coloured_globals(plain: bool) -> W {
+        let mut w = W::default();
+        w.uint(0).uint(FILE_STRUCTURE_GLOBALS);
+        base(&mut w);
+        w.uint(0)
+            .double(2000.0)
+            .double(40.0)
+            .string(Some(""))
+            .uint(0);
+        if plain {
+            for _ in 0..9 {
+                w.uint(0);
+            }
+            return w;
+        }
+        w.uint(2);
+        for c in [1.0, 0.0, 0.0, 0.0, 0.0, 1.0] {
+            w.double(c);
+        }
+        w.uint(1).uint(PICTURE);
+        base(&mut w);
+        w.uint(0).uint(0).uint(1).uint(1);
+        w.uint(1).uint(TEXTURE_DEFINITION);
+        ref_base(&mut w, 1);
+        w.uint(1).put(2, 8).int(3).int(0).bit(false).uint(0);
+        w.uint(1).double(1.0).uint(1).put(0, 8);
+        w.int(3).double(1.0).double(1.0).double(1.0).double(1.0);
+        w.int(1).int(1).int(0);
+        w.put(u64::from(TEXTURE_ALPHA_TEST), 8).int(0).double(0.5);
+        w.int(0).int(0).bit(true);
+        w.uint(TEXTURE_TRANSFORMATION)
+            .bit(false)
+            .bit(false)
+            .bit(true);
+        w.put(0x08, 8).double(2.0);
+        w.uint(3);
+        for (id, diffuse) in [(2, 1), (3, 4)] {
+            w.uint(MATERIAL);
+            ref_base(&mut w, id);
+            w.uint(0).uint(diffuse).uint(0).uint(0);
+            for alpha in [0.5, 1.0, 0.0, 1.0, 1.0] {
+                w.double(alpha);
+            }
+        }
+        w.uint(TEXTURE_APPLICATION);
+        ref_base(&mut w, 4);
+        w.uint(2).uint(1).uint(0).uint(0);
+        w.uint(0).uint(2);
+        for (id, material, transparency) in [(5, 1, 255), (6, 3, 128)] {
+            w.uint(STYLE);
+            ref_base(&mut w, id);
+            w.double(1.0).bit(false).uint(0).bit(true).uint(material);
+            w.bit(true)
+                .put(transparency, 8)
+                .bit(false)
+                .bit(false)
+                .bit(false);
+        }
+        w.uint(0).uint(0).uint(0);
+        w
+    }
+
+    /// The unit square, defined in file structure A, placed three times by
+    /// prototype from file structure B, whose globals hold the colours:
+    /// styles 1, 2 and none. The SolidWorks layout that colours a part
+    /// with another structure's palette. The CLI's colour fixture.
+    fn coloured_prc() -> Vec<u8> {
+        let square = crate::PrcFile::parse(include_bytes!(
+            "../../../../fixtures/synthetic/prc/square.prc"
+        ))
+        .unwrap();
+        let tess = square.file_structures[0].section(crate::SectionKind::Tessellation);
+        let a = UniqueId([5, 6, 7, 8]);
+        let shown = |style| Occ {
+            behaviour: Some((style, SHOW)),
+            prototype: Some((1, Some(a))),
+            ..OCC
+        };
+        let b_occs = [
+            Occ {
+                sons: &[1, 2, 3],
+                ..OCC
+            },
+            shown(1),
+            shown(2),
+            shown(0),
+        ];
+        let mut model = W::default();
+        model.uint(0).uint(MODEL_FILE);
+        base(&mut model);
+        model.bit(false).double(1.0).uint(2);
+        for (last, root) in [(8, 0), (9, 1)] {
+            for c in [5, 6, 7, last] {
+                model.uint(c);
+            }
+            model.uint(root).bit(true);
+        }
+        crate::testw::prc_container_n(
+            &[
+                [
+                    &coloured_globals(true).bytes(),
+                    &tree(&[Occ { part: 1, ..OCC }], 0, false).bytes(),
+                    tess,
+                ],
+                [
+                    &coloured_globals(false).bytes(),
+                    &tree(&b_occs, 0, false).bytes(),
+                    &[],
+                ],
+            ],
+            &model.bytes(),
+        )
+    }
+
+    #[test]
+    fn a_prototype_takes_the_palette_of_the_structure_that_styled_it() {
+        let bytes = coloured_prc();
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let blue = 128.0 / 255.0;
+        let colours = |rule| -> Vec<_> {
+            let p = f.placements_with(rule).unwrap();
+            assert!(p.iter().all(|p| p.file_structure == 0));
+            p.iter().map(|p| p.colour).collect()
+        };
+        assert_eq!(
+            colours(StyleAlpha::StyleWins),
+            [
+                Some([1.0, 0.0, 0.0, 1.0]),
+                Some([0.0, 0.0, 1.0, blue]),
+                None
+            ]
+        );
+        assert_eq!(
+            colours(StyleAlpha::Multiply),
+            [Some([1.0, 0.0, 0.0, 0.0]), Some([0.0, 0.0, 1.0, 0.0]), None]
+        );
+        let m = crate::assemble(&bytes).unwrap();
+        assert_eq!(
+            m.colours,
+            [Some([255, 0, 0, 255]), Some([0, 0, 255, 128]), None]
+        );
+        crate::testw::check_fixture("coloured.prc", &bytes);
     }
 }

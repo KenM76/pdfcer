@@ -51,7 +51,9 @@ pub use error::PrcError;
 pub use export::{to_obj, to_stl};
 #[cfg(feature = "render")]
 pub use model::render_default_view;
-pub use model::{AssembleError, AssembledModel, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP, assemble};
+pub use model::{
+    AssembleError, AssembledModel, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP, assemble, assemble_with,
+};
 #[cfg(feature = "render")]
 pub use render::{
     Bounds, Camera, Image, MAX_RENDER_PIXELS, Projection, RenderError, RenderOptions, render,
@@ -59,4 +61,4 @@ pub use render::{
 };
 pub use schema::Schema;
 pub use tess::{Tessellation, TriangleMesh};
-pub use tree::{IDENTITY, Matrix, Placement, multiply, transform_point};
+pub use tree::{IDENTITY, Matrix, Placement, StyleAlpha, multiply, transform_point};

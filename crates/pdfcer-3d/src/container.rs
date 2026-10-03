@@ -404,11 +404,23 @@ impl PrcFile {
     /// # Errors
     /// [`PrcError::Unsupported`] for a tree carrying markups (PMI), views,
     /// scene lights or clipping planes, or, when an item is placed by a
-    /// reference coordinate system, globals carrying fonts, pictures,
-    /// texture definitions or fill patterns; [`PrcError::Malformed`] for an index naming no
+    /// reference coordinate system, globals carrying fonts or fill
+    /// patterns; [`PrcError::Malformed`] for an index naming no
     /// entity or a tree past the depth ceiling; read errors as
     /// [`FileStructure::tessellations`].
     pub fn placements(&self) -> Result<Vec<crate::Placement>, PrcError> {
+        self.placements_with(crate::StyleAlpha::default())
+    }
+
+    /// [`Self::placements`], combining style transparency with material
+    /// alpha by `rule`.
+    ///
+    /// # Errors
+    /// As [`Self::placements`].
+    pub fn placements_with(
+        &self,
+        rule: crate::StyleAlpha,
+    ) -> Result<Vec<crate::Placement>, PrcError> {
         use crate::bits::BitReader;
         use crate::tess::Ctx;
         let mut trees = Vec::with_capacity(self.file_structures.len());
@@ -439,7 +451,8 @@ impl PrcFile {
         let mut r = BitReader::new(&self.model_file);
         let schema = crate::Schema::read(&mut r)?;
         let model = Ctx::new(r, &schema, self.header.authoring_version).model_file()?;
-        let mut walk = crate::tree::Walk::new(trees.iter().map(|(id, t, g)| (*id, t, g)).collect());
+        let mut walk =
+            crate::tree::Walk::new(trees.iter().map(|(id, t, g)| (*id, t, g)).collect(), rule);
         for (id, root) in model.roots {
             let Some(fs) = trees.iter().position(|t| t.0 == id) else {
                 return Err(PrcError::Malformed(

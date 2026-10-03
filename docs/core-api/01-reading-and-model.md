@@ -2897,7 +2897,16 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it
   names a textured material. Textures and lights are **not read** (the
-  opening view IS read — see above). Say so in the shell.
+  opening view IS read — see above). Say so in the shell. A style's index
+  resolves in the globals of the file structure whose occurrence set it,
+  not the one defining the part.
+- `StyleAlpha` (`StyleWins` default, `Multiply`): how a style's
+  transparency meets its material's diffuse alpha, which ISO 14739-1 leaves
+  open. `StyleWins` replaces it (SolidWorks writes alpha 0 on every material
+  and means the style's value); `Multiply` multiplies. Pass it via
+  `prc.placements_with(rule)` or `pdfcer_3d::assemble_with(data, rule)`;
+  `placements()` / `assemble()` use the default. Offer the choice as a
+  setting.
 - `Placement::triangle_colours(&mesh) -> Option<Vec<Option<[f64; 4]>>>`: per
   triangle of that placement's (untransformed) mesh, the colour when faces
   carry their own style (`TESS_Face` line attributes, taking part in the same
@@ -2922,7 +2931,12 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `why` is a sentence fit to show. The CLI prints one
   `note: N compressed mesh(es) left out: <why>` per distinct reason.
 - CLI: `3d-mesh -o FILE.stl|.obj`, `3d-render -o FILE.png [--view iso|front|..]
-  [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]`.
+  [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]
+  [--style-alpha style|multiply]`.
+- Test model: `fixtures/synthetic/prc/coloured.prc` — a square defined in one
+  file structure, placed three times from another whose globals hold the
+  colours: opaque red, translucent blue (texture over an alpha-0 material),
+  and uncoloured.
 
 ### 12.3 Optional-content layers
 

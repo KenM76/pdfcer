@@ -3074,6 +3074,11 @@ pub(crate) enum Command {
         /// Leave the background transparent instead of white.
         #[arg(long)]
         transparent: bool,
+        /// How a style's transparency combines with its material's alpha:
+        /// `style` (default) lets the style's value win, `multiply`
+        /// multiplies the two.
+        #[arg(long, value_enum, default_value_t)]
+        style_alpha: StyleAlphaArg,
     },
 
     /// **Embed a 3D model** (U3D or PRC) in a region of a page, as a 3D

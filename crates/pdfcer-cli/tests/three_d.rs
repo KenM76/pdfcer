@@ -548,6 +548,44 @@ fn a_prc_assembly_renders_both_placed_copies() {
     assert_eq!(px(100, 50), 255, "nothing between the copies");
 }
 
+/// The fixture's two styled copies sit on alpha-0 materials with style
+/// transparencies 255 and 128: by default the style's value wins, and
+/// `--style-alpha multiply` makes both fully see-through.
+#[cfg(feature = "3d")]
+#[test]
+fn style_alpha_picks_how_a_style_transparency_meets_its_material() {
+    let input = with_prc("render_coloured", "coloured.prc");
+    let output = input.with_extension("png");
+    for (extra, translucent) in [(&[][..], 1), (&["--style-alpha", "multiply"][..], 2)] {
+        let mut args = vec![
+            "3d-render",
+            input.to_str().unwrap(),
+            "--index",
+            "2",
+            "--width",
+            "40",
+            "--height",
+            "30",
+            "-o",
+            output.to_str().unwrap(),
+        ];
+        args.extend_from_slice(extra);
+        let out = run(&args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(stdout.contains("meshes=3 "), "{stdout}");
+        assert!(
+            stdout.contains(&format!("({translucent} translucent)"))
+                && stdout.contains("1 mesh(es) had none"),
+            "{extra:?}: {stdout}"
+        );
+    }
+}
+
 #[test]
 fn rendering_a_u3d_model_is_refused_and_writes_nothing() {
     let input = three_d_pdf("render_u3d");

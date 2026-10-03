@@ -173,8 +173,14 @@ impl W {
 }
 
 /// A one-file-structure PRC stream holding the given section bytes and
-/// model file.
+/// model file. The file structure's id is `[5, 6, 7, 8]`.
 pub(crate) fn prc_container(globals: &[u8], tree: &[u8], tess: &[u8], model: &[u8]) -> Vec<u8> {
+    prc_container_n(&[[globals, tree, tess]], model)
+}
+
+/// A PRC stream with one file structure per `[globals, tree, tess]`, the
+/// k-th with id `[5, 6, 7, 8 + k]`.
+pub(crate) fn prc_container_n(structures: &[[&[u8]; 3]], model: &[u8]) -> Vec<u8> {
     use std::io::Write as _;
     let zlib = |data: &[u8]| {
         let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
@@ -185,27 +191,34 @@ pub(crate) fn prc_container(globals: &[u8], tree: &[u8], tess: &[u8], model: &[u
         vs.iter()
             .for_each(|v| out.extend_from_slice(&v.to_le_bytes()));
     };
-    let sections: [&[u8]; 5] = [globals, tree, tess, &[], &[]];
-
-    const HEADER_LEN: usize = 107;
-    let mut fs = b"PRC".to_vec();
-    le(&mut fs, &[8137, 8137, 5, 6, 7, 8, 0, 0, 0, 0, 0]);
-    let mut offs = Vec::new();
-    for s in sections {
-        offs.push((HEADER_LEN + fs.len()) as u32);
-        fs.extend(zlib(s));
+    let header_len = 59 + 48 * structures.len();
+    let mut body = Vec::new();
+    let mut descriptions = Vec::new();
+    for (k, &[globals, tree, tess]) in structures.iter().enumerate() {
+        let id = [5, 6, 7, 8 + k as u32];
+        let start = (header_len + body.len()) as u32;
+        body.extend_from_slice(b"PRC");
+        le(&mut body, &[8137, 8137]);
+        le(&mut body, &id);
+        le(&mut body, &[0, 0, 0, 0, 0]);
+        le(&mut descriptions, &id);
+        le(&mut descriptions, &[0, 6, start]);
+        for s in [globals, tree, tess, &[], &[]] {
+            le(&mut descriptions, &[(header_len + body.len()) as u32]);
+            body.extend(zlib(s));
+        }
     }
-    let mf_start = (HEADER_LEN + fs.len()) as u32;
-    fs.extend(zlib(model));
-    let mf_end = (HEADER_LEN + fs.len()) as u32;
+    let mf_start = (header_len + body.len()) as u32;
+    body.extend(zlib(model));
+    let mf_end = (header_len + body.len()) as u32;
 
     let mut out = b"PRC".to_vec();
-    le(&mut out, &[8137, 8137, 1, 2, 3, 4, 0, 0, 0, 0, 1]);
-    le(&mut out, &[5, 6, 7, 8, 0, 6, HEADER_LEN as u32]);
-    le(&mut out, &offs);
+    le(&mut out, &[8137, 8137, 1, 2, 3, 4, 0, 0, 0, 0]);
+    le(&mut out, &[structures.len() as u32]);
+    out.extend(descriptions);
     le(&mut out, &[mf_start, mf_end, 0]);
-    assert_eq!(out.len(), HEADER_LEN);
-    out.extend(fs);
+    assert_eq!(out.len(), header_len);
+    out.extend(body);
     out
 }
 
