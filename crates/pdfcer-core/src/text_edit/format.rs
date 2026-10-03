@@ -2021,34 +2021,6 @@ pub(crate) fn plan_format(
     plan_format_target(doc, &target, stream, req, opts)
 }
 
-/// Plan a FORMAT edit against an explicitly-named target stream
-/// (`Pass 119.2`).
-///
-/// The sibling of
-/// [`plan_edit_target`](crate::text_edit::edit::plan_edit_target), and it
-/// exists for the same reason: on a CAD-exported drawing the text an operator
-/// wants to restyle lives inside a **form XObject**, not in the page's own
-/// `/Contents`. `Pass 119.0` moved that boundary for `edit_text` and left this
-/// verb behind — which is the shape an operator meets as *"I can change the
-/// words but not the size"*, and which was named as a known asymmetry rather
-/// than left to be discovered.
-///
-/// As in `Pass 119.0`, **the surgery is untouched**: only the three
-/// page-derived values (the stream object, its resource dictionary, the
-/// sibling-collapse count) are named instead of assumed.
-///
-/// **One thing this verb does that `edit_text` does not, and why it is still
-/// safe here.** A family change (`set_font`) must find the target face in a
-/// resource dictionary — and it is **read-only** about that: a face that does
-/// not resolve is [`FormatError::TargetFontMissing`], never an insertion. So
-/// retargeting cannot make this verb write to a form's `/Resources`, and the
-/// selector resolves against the **form's** dictionary, which is the correct
-/// one: `/F1` inside a form is a different font from `/F1` on the page
-/// (§8.10.1).
-///
-/// # Errors
-///
-/// See [`FormatError`].
 /// [`set_format`] for a decoration request: the rules are drawn by the edit
 /// session's post-command refresh, so the one-shot path runs one.
 fn set_format_in_session(
@@ -2083,6 +2055,34 @@ fn refuse_invisible_decoration(req: &FormatRequest, anchor: &ShowData) -> Result
     Ok(())
 }
 
+/// Plan a FORMAT edit against an explicitly-named target stream
+/// (`Pass 119.2`).
+///
+/// The sibling of
+/// [`plan_edit_target`](crate::text_edit::edit::plan_edit_target), and it
+/// exists for the same reason: on a CAD-exported drawing the text an operator
+/// wants to restyle lives inside a **form XObject**, not in the page's own
+/// `/Contents`. `Pass 119.0` moved that boundary for `edit_text` and left this
+/// verb behind — which is the shape an operator meets as *"I can change the
+/// words but not the size"*, and which was named as a known asymmetry rather
+/// than left to be discovered.
+///
+/// As in `Pass 119.0`, **the surgery is untouched**: only the three
+/// page-derived values (the stream object, its resource dictionary, the
+/// sibling-collapse count) are named instead of assumed.
+///
+/// **One thing this verb does that `edit_text` does not, and why it is still
+/// safe here.** A family change (`set_font`) must find the target face in a
+/// resource dictionary — and it is **read-only** about that: a face that does
+/// not resolve is [`FormatError::TargetFontMissing`], never an insertion. So
+/// retargeting cannot make this verb write to a form's `/Resources`, and the
+/// selector resolves against the **form's** dictionary, which is the correct
+/// one: `/F1` inside a form is a different font from `/F1` on the page
+/// (§8.10.1).
+///
+/// # Errors
+///
+/// See [`FormatError`].
 pub(crate) fn plan_format_target(
     doc: &DocumentView<'_>,
     target: &EditPlanTarget,

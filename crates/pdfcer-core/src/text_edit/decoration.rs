@@ -205,6 +205,7 @@ enum Opened {
 }
 
 impl Scan {
+    /// Every decoration marker and rule in `cs`, with where each ends.
     pub(crate) fn of(cs: &ContentStream) -> Self {
         let buf = cs.buf.as_slice();
         let mut scan = Self::default();
