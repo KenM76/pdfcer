@@ -18,22 +18,33 @@ fn pdf(content: &str) -> Vec<u8> {
 }
 
 fn pdf_with(catalog: &str, content: &str) -> Vec<u8> {
+    pdf_streams(catalog, &[content])
+}
+
+/// A one-page document whose `/Contents` is one stream per entry.
+fn pdf_streams(catalog: &str, streams: &[&str]) -> Vec<u8> {
     let widths = (0..95).map(|_| "500").collect::<Vec<_>>().join(" ");
-    let objects = [
+    let refs: Vec<String> = (0..streams.len())
+        .map(|i| format!("{} 0 R", i + 5))
+        .collect();
+    let mut objects = vec![
         catalog.to_owned(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
-         /Resources << /Font << /F1 5 0 R >> >> >>"
-            .to_owned(),
         format!(
-            "<< /Length {} >>\nstream\n{content}\nendstream",
-            content.len()
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents [{}] \
+             /Resources << /Font << /F1 4 0 R >> >> >>",
+            refs.join(" ")
         ),
         format!(
             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica \
              /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 126 /Widths [{widths}] >>"
         ),
     ];
+    objects.extend(
+        streams
+            .iter()
+            .map(|c| format!("<< /Length {} >>\nstream\n{c}\nendstream", c.len())),
+    );
     let mut out = b"%PDF-1.4\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in objects.iter().enumerate() {
@@ -276,4 +287,22 @@ fn an_untagged_document_gets_no_artifact() {
     );
     assert_eq!(text.matches("<</Rule").count(), 1, "{text}");
     assert!(!text.contains("/Artifact"), "{text}");
+}
+
+#[test]
+fn a_page_split_across_streams_keeps_its_rule_on_the_text() {
+    let doc = pdf_streams(
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        &[
+            "BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET",
+            "BT /F1 12 Tf 1 0 0 1 200 700 Tm (World) Tj ET",
+        ],
+    );
+    let mut s = EditSession::new(Document::from_bytes(doc).unwrap());
+    decorate(&mut s, "World", DecorationSet::UNDERLINE).unwrap();
+    s.move_text_run(0, 1, 0, 20.0, 0.0).unwrap();
+    let text = content(&saved(&s));
+    let r = rules(&text);
+    assert_eq!(r.len(), 1, "{text}");
+    assert_eq!([r[0].0[4], r[0].0[5]], [220.0, 700.0], "{text}");
 }
