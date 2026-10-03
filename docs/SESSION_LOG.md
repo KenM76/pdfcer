@@ -4,6 +4,48 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (898th filing) — `Pass 449.1` SHIPPED: region export's "no mark" note no longer flags its own by-design unmarked bands
+
+**Shipped:**
+- `11622810` "fix(pageops): region export no longer warns that its cut
+  bands carry no mark" — `Pass 449.1`, follow-up to `Pass 449.0` (G099).
+  `pageops::extract_region`'s `absorb` step
+  (`crates/pdfcer-core/src/pageops/region/mod.rs`) now filters the
+  redactor's note "redaction: N region(s) were left TRANSPARENT … the
+  region carries no visible mark" for the four complement bands, which
+  fall outside the new MediaBox by design and have no overlay by
+  design — same filtering the step already applies to "form XObject
+  overlaps" when no form straddles the rect.
+
+**Decisions made this session:**
+- None.
+
+**Findings + decisions:**
+- Found in the `v0.74.0` fresh-folder smoke test: `extract-region` on
+  the synthetic `hello.pdf` printed the note despite the unmarked bands
+  being intended behavior, not a defect.
+- New test `the_unmarked_bands_are_not_reported_as_a_missing_mark`
+  (`crates/pdfcer-core/tests/region_export.rs`, run via the `all`
+  target); `region_export.rs` now 14 of 14 passing. Sabotage-checked:
+  removing the filter made the new test fail; restored.
+- No public API change; `docs/core-api/` unaffected. `docs/FEATURES.md`
+  row 552 already omits the note text, so no edit needed; core/cli/gui
+  boxes unchanged (`[x]`/`[x]`/`[ ]`).
+
+**Still in flight:**
+- `11622810` lands after `v0.74.0` — not yet released, push state not
+  checked this filing.
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+
+**For next session:**
+- Fold `Pass 449.1` into the next release's batch list.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+note text, fix location, test name/count and sabotage-check outcome are
+relayed from the dispatching engineer's own report, not independently
+reproduced.
+
 ## 2026-10-03 (897th filing) — `v0.74.0` RELEASED
 
 **Shipped:**

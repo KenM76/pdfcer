@@ -115,6 +115,44 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 449.1` (`11622810`), 2026-10-03 — region export's report no longer calls its own by-design unmarked complement bands a missing mark
+
+Cite `11622810` ("fix(pageops): region export no longer warns that its
+cut bands carry no mark"). Follow-up to `Pass 449.0` (region export,
+G099), found in the `v0.74.0` fresh-folder smoke test: `extract-region`
+on the synthetic `hello.pdf` printed the redactor's note "redaction: N
+region(s) were left TRANSPARENT … the region carries no visible mark."
+`Pass 449.0`'s own design redacts the four complement bands outside the
+new rect with no overlay, and those bands then fall outside the new
+MediaBox entirely — the note was describing intended behavior as a
+defect.
+
+**Core.** `pageops::extract_region`'s `absorb` step
+(`crates/pdfcer-core/src/pageops/region/mod.rs`) now filters that note
+the same way it already filters "form XObject overlaps" when no form
+straddles the rect. No public API change.
+
+**Tests.** New core integration test
+`the_unmarked_bands_are_not_reported_as_a_missing_mark`
+(`crates/pdfcer-core/tests/region_export.rs`, run via the `all` target);
+`region_export.rs` now 14 of 14 passing. Sabotage-checked: removing the
+filter made the new test fail; restored.
+
+**Docs.** `docs/core-api/` unaffected — no public surface changed.
+`docs/FEATURES.md` row 552 (region export) already describes the
+feature without citing the note text, so no edit needed there; no
+core/cli/gui box change (core `[x]` / cli `[x]` / gui `[ ]` unchanged).
+
+**Decision.** None.
+
+**Status.** Not yet released (lands after `v0.74.0`); push state of
+`11622810` not checked this filing.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, note
+text, fix location, test name/count and sabotage-check outcome are
+relayed from the dispatching engineer's own report, not independently
+reproduced.
+
 ### `v0.74.0` — RELEASED (2026-10-03)
 
 Release filing, not a Pass — completes the 896th filing's own "RELEASE IN
