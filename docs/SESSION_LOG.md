@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (920th filing) — `Pass 458.0` shipped
+
+**Shipped:**
+- `Pass 458.0` (`01e5fa31`) — closes the `G085` open item "multi-stream
+  pages" **by measurement, not a fix**: every text edit already folds a
+  multi-stream page into its first content object and empties the rest in
+  place, so the decoration refresh's precondition already held. Test-only:
+  `crates/pdfcer-core/tests/format_decoration.rs` gains a two-stream-page
+  test (underline a run in the second stream, move it, exactly one rule at
+  the new origin), sabotage-checked; fixture builder now takes a list of
+  content streams. No core/CLI/manifest change.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- The multi-stream-page item was a measurement gap, not a code gap: the
+  existing text-edit path already collapses a page's extra content streams
+  into its first object before the decoration refresh ever runs.
+
+**Still in flight:**
+- `Pass 455.1` (Tagged-PDF `TextDecorationType` structure attribute) still
+  *Next up*, unaffected by this filing.
+- Owed, reworded this filing: decorating text inside a form XObject is a
+  **feature extension** (currently refused by name), not a refresh gap —
+  "decorate + refresh inside form XObjects." "Multi-stream-page refresh" is
+  dropped from the open-items list, closed above.
+
+**For next session:**
+- Next fresh whole-number Pass ID is `459.0`.
+
 ## 2026-10-03 (919th filing) — `Pass 457.0` shipped
 
 **Shipped:**

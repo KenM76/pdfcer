@@ -115,6 +115,44 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 458.0` (`01e5fa31`), 2026-10-03 — a decoration rule follows its text on a page split across content streams
+
+Closes the `G085` open item "multi-stream pages" — **by measurement, not a
+fix**. Every text edit already folds a multi-stream page into its first
+content object and empties the rest in place, so the decoration refresh's
+precondition (page buffer equals the single rewritten stream it was built
+from) already holds on a multi-stream page by the time `EditSession::commit`
+runs.
+
+**Tests only, `pdfcer-core`.** `crates/pdfcer-core/tests/format_decoration.rs`
+gains a test building a two-stream page, underlining a run that starts in
+the second stream, moving it, and asserting exactly one rule at the new
+origin. Sabotage-checked: skipping the refresh on a multi-stream page fails
+it. The fixture builder now takes a list of content streams instead of one.
+
+**No core/CLI/manifest change.** `FormatRequest`/`DecorationSet`'s public
+surface is unchanged.
+
+**`docs/FEATURES.md`.** No row edit needed — the underline/strikethrough
+row (`G085`) already disclaimed only a form-XObject target, never
+multi-stream pages, so there was nothing there to correct.
+
+**Gates.** No `Cargo.toml` change — GUI-core separation unaffected.
+
+**Owed, carried to Backlog, reworded by this filing:** `Pass 455.1`
+(Tagged-PDF `TextDecorationType` structure attribute) still *Next up*.
+Decorating text inside a form XObject — currently refused by name
+(`Unsupported`) — is a **feature extension**, not a refresh gap: decorate
++ refresh inside form XObjects. "Multi-stream-page refresh" is dropped from
+this list, closed above.
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash and the test
+description above are relayed from the dispatching engineer's report, not
+independently verified.
+
 ### `Pass 457.0` (`7c3cf507`), 2026-10-03 — a decoration rule on a tagged page outside any tag is a layout artifact
 
 Follow-on to `Pass 455.0`/`G085`, found and fixed in the same session: on
