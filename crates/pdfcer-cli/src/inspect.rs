@@ -533,12 +533,33 @@ pub(crate) fn font_files_in(dir: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
+type FontFile = Result<(Vec<String>, pdfcer_render::FontData), String>;
+
 /// Read and parse one font file: the names to register it under (every
 /// advertised name, plus the filename stem) and its bytes. The error is the
 /// skip note.
-pub(crate) fn font_file_names(
-    path: &Path,
-) -> Result<(Vec<String>, pdfcer_render::FontData), String> {
+///
+/// Memoised per path for the process: `--fallback-font auto` walks the
+/// folders the font environment already read and gets the same bytes back
+/// rather than reading them again.
+pub(crate) fn font_file_names(path: &Path) -> FontFile {
+    use std::sync::{Mutex, OnceLock, PoisonError};
+    static READ: OnceLock<Mutex<std::collections::HashMap<PathBuf, FontFile>>> = OnceLock::new();
+    let memo = READ.get_or_init(Mutex::default);
+    if let Some(hit) = memo
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(path)
+    {
+        return hit.clone();
+    }
+    let read = read_font_file(path);
+    let mut memo = memo.lock().unwrap_or_else(PoisonError::into_inner);
+    memo.insert(path.to_owned(), read.clone());
+    read
+}
+
+fn read_font_file(path: &Path) -> FontFile {
     use pdfcer_render::font::program::FontProgram;
 
     if let Ok(m) = std::fs::metadata(path)

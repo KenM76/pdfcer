@@ -228,6 +228,26 @@ fn font_dir_registers_a_readable_face_under_its_filename_stem() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
+/// A second read of a font file returns the first read's bytes: the
+/// `auto` provider shares the font environment's copy.
+#[test]
+fn a_font_file_is_read_once_per_process() {
+    let dir = std::env::temp_dir().join(format!("pdfcer-fontonce-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let bytes = pdfcer_render::font::bundled::faces()
+        .get(&pdfcer_render::FallbackKey::Serif)
+        .unwrap()
+        .bytes()
+        .to_vec();
+    let path = dir.join("Once.cff");
+    std::fs::write(&path, &bytes).unwrap();
+    let (_, first) = crate::inspect::font_file_names(&path).unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    let (names, again) = crate::inspect::font_file_names(&path).unwrap();
+    assert!(names.iter().any(|n| n == "Once"), "{names:?}");
+    assert_eq!(first.bytes().as_ptr(), again.bytes().as_ptr());
+}
+
 #[test]
 fn font_dir_skips_corrupt_file_without_error_and_notes_it() {
     // Acceptance: a corrupt/misnamed supplied file fails CLEAN — it
