@@ -4,6 +4,48 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (903rd filing) — `v0.75.0` RELEASE IN PROGRESS
+
+**Shipped:**
+- `bbc5cd10` ("chore: v0.75.0") — version-bump only, 0.74.0 → 0.75.0.
+  Touches `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Batches
+  `11622810` (`Pass 449.1`, region export drops the transparent-band
+  note), `f0e741e8` (`Pass 436.4`, settings key `fallback_font =
+  NAME|auto`), `aaea66e9` (`Pass 436.5`, CFF fallback faces embed as
+  `/FontFile3` `CIDFontType0C`), `e9a8f3ac` (`Pass 436.6`, derived
+  PostScript name disclosed), and `a5c7010c` (`Pass 436.7`, font files
+  read once per run for `auto`) — all already individually filed.
+  OneDrive target `pdfcer2` (`pdfcer1` keeps `v0.74.0`). No
+  `FEATURES.md` change.
+
+**Decisions made this session:**
+- None — decision ceiling unchanged.
+
+**Findings + decisions:**
+- None new this filing.
+
+**Still in flight:**
+- `v0.75.0` tag, `tools/run-gates.sh`, `package-portable`, a
+  fresh-folder smoke test (incl. `pdfcer --version` reporting
+  `0.75.0` and not dirty), GitHub release via `gh-release.py`,
+  OneDrive deploy to `pdfcer2`, and `verify-release.py` all still
+  owed — full `RELEASED` filing to follow once those details are
+  relayed.
+- Open questions `(p)` (XFA scope), `(bl)` (OCR model licensing)
+  unchanged.
+
+**For next session:**
+- Confirm `bbc5cd10` reaches `origin/main` before relying on the
+  release being public.
+
+**Sourcing note (hard rule 8):** no shell this filing. `bbc5cd10` is
+confirmed present as `HEAD` by this conversation's own git-status
+snapshot at start (clean working tree, branch tip) — not merely
+relayed. The release plan (gates, packaging, smoke test, tag, GitHub
+release, OneDrive slot `pdfcer2`, `verify-release.py`) is relayed from
+the dispatching engineer and none of those steps have happened yet as
+of this filing.
+
 ## 2026-10-03 (902nd filing) — `Pass 436.7` SHIPPED: memoise per-path font-file reads for `--fallback-font auto`
 
 **Shipped:**
