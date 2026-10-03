@@ -10,8 +10,11 @@
 //!
 //! The marker is the source of truth; every rule is derived from the
 //! marker's glyphs by [`refresh`], which the edit session runs after every
-//! command that rewrites a page's content. A moved run's rule moves, a
-//! deleted run's rule goes, a reflowed run gets one rule per line.
+//! command that rewrites a page's or a form XObject's content. A moved
+//! run's rule moves, a deleted run's rule goes, a reflowed run gets one rule
+//! per line. Inside a form the rule is written into the form's own stream,
+//! so every invocation of a shared form draws it under its own copy of the
+//! text.
 //!
 //! Marker property list keys: `/Line` (a name, or an array of names, from
 //! `/Underline` and `/StrikeOut`), `/Id` (integer), optional `/C` (fill
@@ -25,7 +28,7 @@ use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
 use crate::page_tree::Page;
 use crate::span::ByteSpan;
-use crate::text_extract::{ExtractedGlyph, GlyphProvenance, TextColor};
+use crate::text_extract::{ContentStreamRef, ExtractedGlyph, GlyphProvenance, TextColor};
 use crate::view::DocumentView;
 use crate::writer::content::emit_number;
 
@@ -149,8 +152,9 @@ pub struct DecoratedSpan {
     pub id: u32,
     /// The lines it carries.
     pub set: DecorationSet,
-    /// Bytes between the marker's `BDC` and `EMC`, in the page's decoded
-    /// content buffer.
+    /// Bytes between the marker's `BDC` and `EMC`, in the decoded content
+    /// buffer it was read from (the page's, or the form's in
+    /// [`PageDecorations::forms`]).
     pub body: ByteSpan,
 }
 
@@ -160,25 +164,33 @@ pub struct DecoratedSpan {
 pub struct PageDecorations {
     /// Every marker on the page's own content, in stream order.
     pub spans: Vec<DecoratedSpan>,
+    /// Every marker in each form XObject the page paints, keyed by the
+    /// form stream's object number.
+    pub forms: std::collections::BTreeMap<u32, Vec<DecoratedSpan>>,
 }
 
 impl PageDecorations {
     /// The lines on the glyph `provenance` describes; empty when the glyph
-    /// is undecorated or lives in a form XObject.
+    /// is undecorated.
     #[must_use]
     pub fn of(&self, provenance: &GlyphProvenance) -> DecorationSet {
-        if !provenance.content_stream.is_page() {
-            return DecorationSet::NONE;
-        }
+        let spans = match provenance.content_stream {
+            ContentStreamRef::Page => &self.spans,
+            ContentStreamRef::Form { object } => match self.forms.get(&object) {
+                Some(spans) => spans,
+                None => return DecorationSet::NONE,
+            },
+        };
         let op = provenance.operator_span;
-        self.spans
+        spans
             .iter()
             .find(|s| op.start >= s.body.start && op.start + op.len <= s.body.start + s.body.len)
             .map_or(DecorationSet::NONE, |s| s.set)
     }
 }
 
-/// Read the decorations on `page`'s own content.
+/// Read the decorations on `page`'s own content and in every form XObject
+/// it paints. A form whose content does not decode contributes nothing.
 ///
 /// # Errors
 ///
@@ -188,18 +200,31 @@ pub fn page_decorations(
     page: &Page,
 ) -> Result<PageDecorations, crate::content::ContentError> {
     let cs = ContentStream::from_page(view, page)?;
-    let scan = Scan::of(&cs);
+    let mut forms = std::collections::BTreeMap::new();
+    for form in super::forms::scan_page_forms(view, page).forms {
+        if forms.contains_key(&form.id.num) {
+            continue;
+        }
+        if let Ok(fcs) = ContentStream::from_form(view, form.id) {
+            forms.insert(form.id.num, spans_of(&fcs));
+        }
+    }
     Ok(PageDecorations {
-        spans: scan
-            .markers
-            .iter()
-            .map(|m| DecoratedSpan {
-                id: m.id,
-                set: m.set,
-                body: ByteSpan::new(m.bdc.1, m.emc.0.saturating_sub(m.bdc.1)),
-            })
-            .collect(),
+        spans: spans_of(&cs),
+        forms,
     })
+}
+
+fn spans_of(cs: &ContentStream) -> Vec<DecoratedSpan> {
+    Scan::of(cs)
+        .markers
+        .iter()
+        .map(|m| DecoratedSpan {
+            id: m.id,
+            set: m.set,
+            body: ByteSpan::new(m.bdc.1, m.emc.0.saturating_sub(m.bdc.1)),
+        })
+        .collect()
 }
 
 /// A marker as written: its `BDC` (operand start, operator end) and `EMC`
@@ -444,15 +469,20 @@ pub(crate) struct Refreshed {
     pub(crate) strike_sources: Vec<StrikeSource>,
 }
 
-/// Recompute every rule on `page` from its markers' glyphs, given the
-/// page's current decoded content `buf` (which `glyphs` were extracted
-/// from). `None` when nothing changes.
+/// Recompute every rule in the content buffer `cs` (the page's own, or a
+/// form's, named by `source`) from its markers' glyphs. `glyphs` are
+/// extracted from the page painting it; `resources` resolve the buffer's
+/// font names. `None` when nothing changes.
 ///
 /// Rules are removed and rewritten after the `ET` that closes each marker;
-/// an empty marker is unwrapped; a duplicate `/Id` is renumbered.
+/// an empty marker is unwrapped; a duplicate `/Id` is renumbered. A form
+/// painted more than once yields one copy of its glyphs per invocation;
+/// only the first invocation's are used, since a `Tm`-relative rule is the
+/// same bytes under every one.
 pub(crate) fn refresh(
     view: &DocumentView<'_>,
-    page: &Page,
+    resources: &Dict,
+    source: ContentStreamRef,
     cs: &ContentStream,
     glyphs: &[&ExtractedGlyph],
 ) -> Option<Refreshed> {
@@ -476,11 +506,16 @@ pub(crate) fn refresh(
     let mut fonts = std::collections::HashMap::new();
     let tagged_doc = super::addtext::is_tagged(view);
     for m in &scan.markers {
-        let mine: Vec<&ExtractedGlyph> = glyphs
+        let mut mine: Vec<&ExtractedGlyph> = glyphs
             .iter()
             .copied()
-            .filter(|g| inside(g, m.bdc.1, m.emc.0))
+            .filter(|g| inside(g, source, m.bdc.1, m.emc.0))
             .collect();
+        let first_ctm = mine
+            .first()
+            .and_then(|g| g.provenance.as_ref())
+            .map(|p| p.ctm);
+        mine.retain(|g| g.provenance.as_ref().map(|p| p.ctm) == first_ctm);
         if mine.is_empty() {
             edits.push((m.bdc.0, m.bdc.1, Vec::new()));
             edits.push((m.emc.0, m.emc.1, Vec::new()));
@@ -503,7 +538,7 @@ pub(crate) fn refresh(
             m.metrics,
         );
         let metrics = *fonts.entry(key).or_insert_with(|| {
-            let font = mine.first().and_then(|g| font_dict(view, page, g));
+            let font = mine.first().and_then(|g| font_dict(view, resources, g));
             LineMetrics::for_font(view, font, m.metrics)
         });
         if m.set.strikethrough {
@@ -524,9 +559,9 @@ pub(crate) fn refresh(
     })
 }
 
-fn inside(g: &ExtractedGlyph, start: usize, end: usize) -> bool {
+fn inside(g: &ExtractedGlyph, source: ContentStreamRef, start: usize, end: usize) -> bool {
     g.provenance.as_ref().is_some_and(|p| {
-        p.content_stream.is_page()
+        p.content_stream == source
             && p.operator_span.start >= start
             && p.operator_span.start + p.operator_span.len <= end
     })
@@ -534,11 +569,11 @@ fn inside(g: &ExtractedGlyph, start: usize, end: usize) -> bool {
 
 fn font_dict<'v>(
     view: &'v DocumentView<'_>,
-    page: &'v Page,
+    resources: &'v Dict,
     g: &ExtractedGlyph,
 ) -> Option<&'v Dict> {
     let name = g.provenance.as_ref()?.font_resource.as_ref()?;
-    let fonts = view.resolve(page.resources.get(b"Font")?).as_dict()?;
+    let fonts = view.resolve(resources.get(b"Font")?).as_dict()?;
     view.resolve(fonts.get(name)?).as_dict()
 }
 

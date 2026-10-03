@@ -825,7 +825,8 @@ impl FormatRequest {
     /// reflowing the run carries its line with it
     /// ([`crate::text_edit::decoration`] has the content shape). Refused
     /// with [`FormatError::DecorationOnInvisibleText`] for rendering mode 3
-    /// or 7. Page content only: a run inside a form XObject is refused.
+    /// or 7. Inside a form XObject the marker and rule go in the form's own
+    /// stream, so every place a shared form is painted shows the line.
     ///
     /// ```
     /// use pdfcer_core::text_edit::decoration::DecorationSet;
@@ -2119,13 +2120,6 @@ pub(crate) fn plan_format_target(
     let extra_emptied = target.extra_emptied;
     if let Some(form) = target.form.as_ref() {
         refuse_unsuitable_form(form).map_err(FormatError::from_edit)?;
-        if req.set_decoration.is_some() {
-            return Err(FormatError::Unsupported(
-                "underline and strikethrough are page-content only; this run is inside a form \
-                 XObject"
-                    .to_owned(),
-            ));
-        }
     }
     let page_resources_dict = &target.resources;
 

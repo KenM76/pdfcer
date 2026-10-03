@@ -629,6 +629,10 @@ let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
   content stream, in the same undo entry: move a run → its rule moves; delete
   it → the rule is gone; reflow it onto two lines → two rules. Do not draw or
   move rules yourself.
+- **Inside a form XObject** (a CAD title block) the marker and rules go in the
+  form's own stream, so a shared form shows the line everywhere it is painted
+  and its `*_in_form` edits carry the rule the same way. A form painted twice
+  on a page still gets one rule set.
 - **Tagged documents.** When the catalog has `/StructTreeRoot` or
   `/MarkInfo /Marked true` and no `/MCID` or `Artifact` sequence is open at
   that `ET`, each rule is also wrapped in `/Artifact <</Type /Layout>> BDC …
@@ -648,12 +652,11 @@ let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
 - Optional marker keys a producer may set: `/C` (rule colour components, 1/3/4
   for gray/RGB/CMYK; default the run's fill colour) and `/W` (thickness in
   thousandths of an em, overriding either source).
-- Read: `PageDecorations::of` answers for page-content glyphs
-  only; a glyph inside a form XObject reads `NONE`.
+- Read: `PageDecorations::of` answers for page and form glyphs alike
+  (`PageDecorations::forms` holds each painted form's spans by object number).
 
 **Refusals:** `FormatError::DecorationOnInvisibleText { mode }` for rendering
-mode 3 or 7 (requested or in force); `FormatError::Unsupported` for a run
-inside a form XObject (page content only in this cut).
+mode 3 or 7 (requested or in force).
 
 **Traps:**
 - The refresh runs only when the page's other `/Contents` streams are empty
