@@ -17922,6 +17922,31 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **NEW PASS FILED 2026-10-03 (915th filing) —
+> `Pass 455.0`/`Pass 455.1`, `G085`.** Underline/strikethrough on page
+> text is independent page content today (`pdfcer-gui`'s
+> `textstyle::span::decorate` builds an annotation-shaped
+> `MarkupSpec::TextMarkup` from quads, engine pin `35769c3b`) — moving,
+> reflowing or deleting the run leaves the line behind.
+> `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G085_an_underline_is_not_tied_to_its_text.md`.
+> **`Pass 455.0`** (core + CLI): a `/pdfc_Deco` marked-content pair — one
+> wrapping the decorated show op inside `BT`/`ET`, one painting the rule
+> as a filled rect right after `ET` — carries the mark through
+> `edit_text`/`move_text_run`/`delete_text_run`/`reflow_block`/
+> `format_text` via a single `refresh_decorations(page)` call in the same
+> undo step; `DecorationSet` read-back from extraction provenance;
+> strikethrough centre-line sourced OS/2 `yStrikeout` → `/XHeight`÷2 →
+> 0.25 em, disclosed by name (rule 4); invisible text (`Tr 3`/`7`)
+> refused by name; page-content route only, no annotation mode. Spec
+> note (PDF has no native decoration operator):
+> `D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__ref__text_decoration.md`.
+> **`Pass 455.1`**, deferred on `455.0`: the Tagged-PDF
+> `TextDecorationType` structure attribute (ISO 32000-1 §14.8.5.4.4
+> Table 345; 32000-2 Table 380) on a child `/Span`. Design ruled by
+> `autonomous-builder` dispatch (accepted); no decision opened this
+> filing — next free decision stays `188`, next free standing rule
+> stays `R263`. **`Pass 455.0` QUEUED.** `gui [ ]` not wired.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 454.0` SHIPPED, 2026-10-03 (914th filing),
 > `87e73b6f`** — see *Shipped*, above. `G084`: `FormatRequest::occurrence(n)`
 > addresses the n-th match of `find` inside an operator by COUNT rather
