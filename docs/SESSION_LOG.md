@@ -4,6 +4,55 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (902nd filing) — `Pass 436.7` SHIPPED: memoise per-path font-file reads for `--fallback-font auto`
+
+**Shipped:**
+- `a5c7010c` "perf(cli): read each font file once per run, shared by
+  `--fallback-font auto` (Pass 436.7)" — `Pass 436.7`. Closes the last
+  remaining gap under "Replacement-face matching ladder — known gaps"
+  (877th filing): `auto` re-read every font folder the CLI's font
+  environment had already read, once per invocation, with no
+  cross-call caching within the run. `font_file_names`
+  (`crates/pdfcer-cli`) is now memoised per path for the process; the
+  replacement-face provider behind `--fallback-font auto` reuses the
+  bytes the font environment already read. Skip/error outcomes are
+  memoised too.
+
+**Decisions made this session:**
+- None. No new decision number, no new standing rule.
+
+**Findings + decisions:**
+- New CLI unit test `a_font_file_is_read_once_per_process`; sabotage
+  (memo bypassed) caught. Fallback integration suite 14/14. clippy,
+  fmt, structure baseline clean (relayed).
+- Delivered `cli` only — core untouched, no user-visible output change.
+- No dependency/`Cargo.toml` change — `cargo tree` invariant not
+  affected by construction; not independently re-verified this filing
+  (no shell).
+- `docs/ROADMAP.md`'s "Replacement-face matching ladder — known gaps"
+  Backlog bucket is now CLOSED: the cross-call-caching gap this Pass
+  closes was the last one; the one remaining item (`run-repertoire` not
+  consulting the ladder) is a deliberate refusal (decision 178 §4), not
+  an open gap. Heading struck through per the file's closed-bucket
+  convention.
+- `docs/FEATURES.md`: row 537 (replacement-font-matching-ladder) does
+  not name the re-read gap, so left unchanged this filing. Row 207's
+  over-cap status (flagged 900th filing) remains unaddressed, not in
+  this filing's scope.
+
+**Still in flight:**
+- Row 207 (`docs/FEATURES.md`) remains over the register's 1,200-char
+  cap, flagged at the 900th filing, not addressed this filing.
+- `Pass 436.3` (gui settings screen) is the only item left unshipped in
+  the `Pass 436.0`–`436.3` family; still *Next up*, not filed yet.
+
+**For next session:**
+- `Pass 436.3` is the next open item in the `436.x` family.
+- `D:\dev\rag\rust\` / `C:\personal_rag\pdf\`: no new finding this
+  filing — a per-process read-memoisation cache is a routine
+  CLI-internal optimization, not a generalizable Rust/egui or
+  PDF-domain finding.
+
 ## 2026-10-03 (901st filing) — `Pass 436.6` SHIPPED: disclose a replacement face's derived PostScript name
 
 **Shipped:**

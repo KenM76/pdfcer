@@ -115,6 +115,49 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 436.7` (`a5c7010c`), 2026-10-03 — memoise per-path font-file reads so `--fallback-font auto` doesn't re-read the font folders every call
+
+Closes the last remaining gap under "Replacement-face matching ladder —
+known gaps" (877th filing): `auto` re-read every font folder the CLI's
+font environment had already read, once per invocation, with no
+cross-call caching within the run. Not part of the `Pass 436.0`–`436.3`
+family; found after `436.2` shipped, same footing as `436.4`/`436.5`/
+`436.6`.
+
+**CLI, `pdfcer-cli`, `a5c7010c`.** `font_file_names` is now memoised per
+path for the process; the replacement-face provider behind
+`--fallback-font auto` reuses the bytes the font environment already
+read instead of reading every font folder a second time. Skip/error
+outcomes are memoised too.
+
+**Tests.** New CLI unit test `a_font_file_is_read_once_per_process`;
+sabotage (memo bypassed) caught. Fallback integration suite 14/14.
+clippy, fmt, structure baseline clean (relayed).
+
+**Delivered.** `cli` only — core untouched; no user-visible output
+change.
+
+**Gates.** No `Cargo.toml` change — `cargo tree` invariant unaffected by
+construction; not independently re-verified this filing (no shell).
+
+**Shells.** `core [ ]` (not applicable, CLI-only) / `cli [x]` / `gui [ ]`.
+
+**`docs/FEATURES.md`.** Row 537 (replacement-font-matching-ladder) does
+not name the re-read gap, so left unchanged this filing.
+
+**Backlog.** Closes "`auto` re-reads the font folders..." under
+"Replacement-face matching ladder — known gaps" (877th filing). The one
+item left there, `run-repertoire` not consulting the ladder, is a
+deliberate refusal (decision 178 §4), not an open gap — bucket heading
+struck and marked closed below.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit `a5c7010c`
+confirmed present at `HEAD` per this conversation's own git-status
+snapshot at session start (clean working tree, branch tip). Every other
+fact above (code shape, test name, sabotage-check outcome, gate
+results) is relayed from the dispatching engineer's own report, not
+independently reproduced — no shell tool available this filing.
+
 ### `Pass 436.6` (`e9a8f3ac`), 2026-10-03 — disclose a replacement face's derived PostScript name
 
 Closes the last remaining Backlog gap under "Replacement-face matching
@@ -27707,7 +27750,7 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
-### Replacement-face matching ladder — known gaps (filed 877th filing, `Pass 436.2`)
+### ~~Replacement-face matching ladder — known gaps~~ (filed 877th filing, `Pass 436.2`) — CLOSED 2026-10-03 (902nd filing, `Pass 436.7`, `a5c7010c`): no gap remains; the one surviving item is a deliberate refusal, not an open gap.
 
 Four gaps remain, disclosed not hidden, when `Pass 436.2` shipped
 (decision 178, `docs/decisions/178-replacement-face-ladder.md`). A fifth
@@ -27722,13 +27765,16 @@ still fails to plan. Another — a derived PostScript name went
 undisclosed, including the coincidental exact-name match — is now also
 CLOSED, by `Pass 436.6` (`e9a8f3ac`, 901st filing):
 `FaceMatch::disclosure()` names the derivation and flags the
-coincidence. Two gaps remain.
+coincidence. Two gaps remained as of that filing.
 
 - `run-repertoire` does not consult the ladder — refused by name
   (decision 178 §4); a repertoire count over "whatever face the ladder
-  picks" would differ per machine.
-- `auto` re-reads the font folders the CLI's font environment already
-  read, once per invocation — no cross-call caching within one run.
+  picks" would differ per machine. **Not a gap — a deliberate posture.
+  Nothing further to do here.**
+- ~~`auto` re-reads the font folders the CLI's font environment already
+  read, once per invocation — no cross-call caching within one run.~~
+  **CLOSED by `Pass 436.7` (`a5c7010c`, 902nd filing):
+  `font_file_names` is memoised per path for the process.**
 
 ### `pdfcer-3d` structure refactor — named by the code-structure audit (`Pass 426.0`, 836th filing, 2026-10-01); IN PROGRESS, 3 of 4 shortcuts partly or fully closed as of the 837th filing
 
