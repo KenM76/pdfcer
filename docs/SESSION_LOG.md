@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (917th filing) — `Pass 456.0` shipped
+
+**Shipped:**
+- `Pass 456.0` (`75267f84`) — decoration geometry now reads the font's
+  own `post`/`OS/2` metrics by default (`DecorationMetrics::FontTables`),
+  falling back per-field to the `Pass 455.0` fixed AFM-era geometry
+  (`Standard`) when a table or field is absent. New `pdfcer-fonts::sfnt`
+  module (`table`/`LineMetrics`/`line_metrics`). `format-text
+  --decoration-metrics font|standard`. 6 new tests (2 core + 1 CLI + 3
+  `sfnt` unit), all sabotage-checked; decoration group now core 10/10,
+  CLI 4/4. No `Cargo.toml` change.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:**
+- `Pass 455.1` (Tagged-PDF `TextDecorationType`) still *Next up*,
+  unaffected by this filing.
+- Owed, not yet scoped: decoration refresh inside form XObjects and
+  across multi-stream pages.
+- `run-gates.sh` was in progress at filing time; result not yet
+  relayed — report it next session.
+
+**For next session:**
+- `Pass 455.1` is next up. Next fresh whole-number Pass ID is `457.0`;
+  `456.1` is reserved for a direct follow-on to this filing's
+  font-table-metrics work specifically.
+
 ## 2026-10-03 (916th filing) — `Pass 455.0` doc-comment fix
 
 **Shipped:**

@@ -115,6 +115,64 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 456.0` (`75267f84`), 2026-10-03 — decoration rules use the font's own underline/strikeout metrics
+
+Follow-up to `Pass 455.0`/`G085`: the shipped geometry (underline −0.1
+em; strikethrough at half `/XHeight` else 0.25 em) was a fixed AFM-era
+rule, never read from the font program it was decorating.
+
+**Core, `pdfcer-core`.** New `#[non_exhaustive]` enum
+`text_edit::decoration::DecorationMetrics { FontTables, Standard }`,
+re-exported beside `DecorationSet`; `FontTables` is the default.
+Builder `FormatRequest::decoration_metrics(m)` plus the pub field.
+`FontTables` reads the embedded TrueType/OpenType program (`FontFile2`,
+or `FontFile3 /Subtype /OpenType`; Type0 via `DescendantFonts[0]`):
+`post.underlinePosition`@8 / `underlineThickness`@10, `OS/2.yStrikeoutSize`@26
+/ `yStrikeoutPosition`@28, scaled by `head.unitsPerEm`@18, top-of-stroke
+converted to centre; each field falls back independently to `Standard`
+(the `Pass 455.0` geometry) when its table or field is absent. The
+marker stores `/M /Standard` only when non-default (absent means font
+tables), so a later refresh or session draws consistently; `StrikeSource`
+gained a `FontTable` variant, named in the disclosure (rule 4).
+
+New `pdfcer-fonts` module `sfnt`: `pub fn table`, `pub struct
+LineMetrics`, `pub fn line_metrics` — bounds-checked, refuses `ttcf`,
+caps the table count.
+
+**CLI.** `format-text --decoration-metrics font|standard` (default
+`font`).
+
+**Tests.** `crates/pdfcer-core/tests/format_decoration_metrics.rs` (2:
+font-table geometry for underline and strikethrough; `Standard` ignores
+the tables and records `/M`), `crates/pdfcer-cli/tests/format_decoration_flags.rs`
++1 (flag wiring), `pdfcer-fonts::sfnt` unit tests (3). Decoration test
+group is now core 10/10, CLI 4/4. Sabotage-checked: disabling the
+table read fails the default test; ignoring `/M` on read fails the
+standard test; dropping the CLI builder call fails the CLI test.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` decoration section
+updated; index line count 6,287.
+
+**Gates.** No new dependency, no `Cargo.toml` change — `cargo tree -p
+pdfcer-core`/`-p pdfcer-render` unaffected, GUI-core separation holds.
+`run-gates.sh` was in progress at filing time; result owed next
+session/filing.
+
+**`docs/FEATURES.md`.** The underline/strikethrough row (text
+formatting, `G085`) updated in place to name the font-table default and
+the `Standard` fallback; `core [x]` / `cli [x]` / `gui [ ]` unchanged.
+
+**Owed, carried to Backlog, not silently dropped:** decoration refresh
+inside form XObjects; multi-stream-page refresh. `Pass 455.1`
+(Tagged-PDF `TextDecorationType`) is unaffected, still *Next up*.
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, file/
+line counts and test results above are relayed from the dispatching
+engineer's report, not independently verified.
+
 ### `Pass 455.0` (`b602ab9b`), 2026-10-03 — underline and strikethrough tied to their text
 
 Answers `G085` (`pdfcer-gui`, file
