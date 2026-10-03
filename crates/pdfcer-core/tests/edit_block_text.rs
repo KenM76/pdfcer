@@ -263,3 +263,57 @@ fn a_point_names_its_block_and_text() {
     assert_eq!(second.block_index, 1);
     assert_eq!(s.block_at_point(TAGGED, 500.0, 100.0).expect("ok"), None);
 }
+
+/// A three-line paragraph; `mid` is shown between "quick " and "brown".
+fn paragraph(mid: &str) -> EditSession {
+    let content = format!(
+        "BT /F1 12 Tf 14 TL 72 700 Td (The quick ) Tj {mid} (brown fox jumps over) Tj \
+         T* (the lazy dog and runs into) Tj T* (the forest at dusk.) Tj ET\n"
+    );
+    EditSession::new(super::block_layout::doc_from_pages(&[&content], 0))
+}
+
+/// `looks` from the hit and from the preview, before anything is written.
+fn looks_of(s: &EditSession) -> (Option<usize>, usize, Vec<String>) {
+    let hit = s
+        .block_at_point(0, 100.0, 701.0)
+        .expect("ok")
+        .expect("a block");
+    let preview = s
+        .edit_block_text_preview(
+            0,
+            hit.block_index,
+            "New text.",
+            &BlockEditOptions::default(),
+        )
+        .expect("previews");
+    (hit.looks, preview.report.looks, preview.report.disclosures)
+}
+
+#[test]
+fn a_uniform_paragraph_has_one_look() {
+    let (hit, preview, disclosures) = looks_of(&paragraph(""));
+    assert_eq!((hit, preview), (Some(1), 1));
+    assert!(
+        !disclosures.iter().any(|d| d.contains("mixed")),
+        "{disclosures:?}"
+    );
+}
+
+#[test]
+fn a_word_in_a_second_colour_is_a_second_look() {
+    let (hit, preview, disclosures) = looks_of(&paragraph("1 0 0 rg (red ) Tj 0 g"));
+    assert_eq!((hit, preview), (Some(2), 2));
+    assert!(
+        disclosures.iter().any(|d| d.contains("mixed 2 looks")),
+        "{disclosures:?}"
+    );
+}
+
+#[test]
+fn stroke_colour_and_horizontal_scale_alone_count_as_looks() {
+    for mid in ["1 0 0 RG (red ) Tj 0 G", "90 Tz (narrow ) Tj 100 Tz"] {
+        let (hit, preview, _) = looks_of(&paragraph(mid));
+        assert_eq!((hit, preview), (Some(2), 2), "{mid}");
+    }
+}

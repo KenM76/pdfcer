@@ -2,7 +2,7 @@
 //! its preview, and the point-to-block lookup a shell starts from.
 
 use super::{CommandKind, EditSession, PermissionBit};
-use crate::text_edit::block_text::plan_block_text;
+use crate::text_edit::block_text::{block_looks, plan_block_text};
 use crate::text_edit::{
     BlockEditError, BlockEditOptions, BlockEditPreview, BlockEditReport, BlockHit,
     EditableTextModel, ReflowApplyError, UnsupportedCause, detect_cell_regions,
@@ -149,6 +149,7 @@ impl EditSession {
             block_index,
             text: model.block_text(b).replace('\n', " "),
             bbox: b.bbox,
+            looks: block_looks(&view, page, &model, b),
         }))
     }
 }

@@ -190,6 +190,18 @@ pub(super) struct Located {
     pub(super) spacing_note: Option<String>,
 }
 
+/// [`BlockEditReport::looks`] for `block` on `page`; `None` when the block
+/// cannot be located as `edit_block_text` would locate it.
+pub(crate) fn block_looks(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    model: &EditableTextModel<'_>,
+    block: &Block,
+) -> Option<usize> {
+    let stream = ContentStream::from_page(doc, page).ok()?;
+    locate(model, block, &stream).ok().map(|l| l.looks)
+}
+
 fn locate(
     model: &EditableTextModel<'_>,
     block: &Block,
@@ -487,6 +499,7 @@ fn report_of(
         lines_after: lines.len(),
         wrap_width: ctx.frame.wrap_width,
         alignment: ctx.frame.alignment,
+        looks: ctx.located.looks,
         height_delta: new_bbox.height() - old.height(),
         overflow_pt: (drop > EPS).then_some(drop),
         page_overflow: page_overflow(

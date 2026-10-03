@@ -10,7 +10,7 @@ use pdfcer_core::text_extract::ExtractOptions;
 
 /// A PDF from object bodies (object 1 is the catalog); `STREAM:` bodies
 /// become streams.
-fn build_pdf(bodies: &[String]) -> Vec<u8> {
+pub(crate) fn build_pdf(bodies: &[String]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
@@ -37,7 +37,7 @@ fn build_pdf(bodies: &[String]) -> Vec<u8> {
 /// Pages from content streams, sharing fonts F1 Helvetica, F2
 /// Helvetica-Bold, F3 Courier. Objects: 1 catalog, 2 pages, 3-5 fonts,
 /// then (page, content) pairs.
-fn doc_from_pages(contents: &[&str], rotate: u16) -> Document {
+pub(crate) fn doc_from_pages(contents: &[&str], rotate: u16) -> Document {
     let n = contents.len();
     let kids: Vec<String> = (0..n).map(|i| format!("{} 0 R", 6 + 2 * i)).collect();
     let mut bodies = vec![

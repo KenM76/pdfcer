@@ -21,7 +21,7 @@ mod layout;
 use crate::page_tree::Rect;
 use crate::text_edit::cause::UnsupportedCause;
 
-pub(crate) use layout::plan_block_text;
+pub(crate) use layout::{block_looks, plan_block_text};
 
 use super::edit::{EditError, EditOptions, TextEditPreview};
 use super::reflow::{BlockAlignment, PageOverflow};
@@ -109,6 +109,10 @@ pub struct BlockEditReport {
     pub wrap_width: f64,
     /// The block's alignment (detected; the new lines use it).
     pub alignment: BlockAlignment,
+    /// Distinct looks among the block's runs: font, size, fill, stroke and
+    /// every text-state parameter except leading. `1` is a uniform block;
+    /// above `1` the new text flattens them to the first run's look.
+    pub looks: usize,
     /// New block height minus old, points (positive = taller).
     pub height_delta: f64,
     /// How far the last new baseline falls below the block's original last
@@ -194,4 +198,7 @@ pub struct BlockHit {
     pub text: String,
     /// The block's box.
     pub bbox: Rect,
+    /// [`BlockEditReport::looks`] for this block; `None` when
+    /// `edit_block_text` would refuse the block (its runs cannot be located).
+    pub looks: Option<usize>,
 }
