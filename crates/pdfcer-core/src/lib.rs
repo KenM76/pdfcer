@@ -60,8 +60,6 @@ mod civil_time;
 pub mod dimension;
 pub mod edit;
 pub mod editable;
-/// EMF import as vector content ([MS-EMF]), placed by
-/// [`edit::EditSession::add_emf`].
 pub mod emf_import;
 mod encryption_gate;
 pub mod export;
