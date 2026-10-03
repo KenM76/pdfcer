@@ -115,6 +115,82 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 452.0` (`0c56078e`), 2026-10-03 — colour a prototype from the structure that styled it
+
+Answers `G104` and `G103` (`pdfcer-gui`, files
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G104_a_solidworks_3d_pdf_assembles_with_no_part_colours.md`
+and `request_G103_no_coloured_prc_fixture.md`): on the door assembly
+sample, all 578 meshes rendered uncoloured.
+
+**Bug, `pdfcer-3d`, `0c56078e`.** A PRC export defines each part in its
+own file structure and places it by **prototype** from an assembly
+structure whose **globals** hold the colours (SolidWorks's own export
+shape). The walk resolved a placement's style index against the
+*defining* structure's globals — empty — instead of the structure that
+actually *styled* the placement, so every prototyped part came back
+uncoloured. Graphics now carry the file structure that set them;
+placement resolution looks up style against that structure's own
+palette, not the structure that defines the part.
+
+**Second bug, same root cause.** SolidWorks writes diffuse alpha `0` on
+every material and encodes real opacity in the Style's own transparency
+byte. ISO 14739-1 leaves the relation between the two open, so both
+ship as a setting, not a hard-coded choice: new `pub enum
+pdfcer_3d::StyleAlpha { StyleWins (default), Multiply }`; new `pub
+PrcFile::placements_with(&self, rule: StyleAlpha)` and `pub fn
+pdfcer_3d::assemble_with(data, rule: StyleAlpha)`; the existing
+`placements()`/`assemble()` keep today's default. CLI `3d-render
+--style-alpha style|multiply`.
+
+**Result on the door assembly sample.** 544/578 meshes now colour, 0
+translucent. `--style-alpha multiply` reproduces the old (wrong)
+result — 544 translucent, invisible.
+
+**Also fixed.** Globals parsing now reads past `Picture` (entity 703),
+`TextureDefinition` (712) and `TextureTransformation` (713) instead of
+refusing the whole globals block on encountering one (spec RAG
+`prc__8137__graphics_materials.md` §7/§7a/§7b).
+
+**New fixture, `G103`.** `fixtures/synthetic/prc/coloured.prc`: a
+square defined in file structure A, placed three times by prototype
+from file structure B, which holds the colours — opaque red, translucent
+blue (texture over an alpha-0 material), and uncoloured. New `testw::
+prc_container_n` fixture builder. Every existing PRC fixture is
+byte-identical.
+
+**Tests.** `pdfcer-3d`: 101 lib + 3 + 10 integration, all green. New lib
+test `a_prototype_takes_the_palette_of_the_structure_that_styled_it`
+(sabotaged: resolves `[None, None, None]` instead of the three
+colours). New CLI test `style_alpha_picks_how_a_style_transparency_
+meets_its_material` (sabotaged: fails). `tools/run-gates.sh`: PASS, 45
+commands.
+
+**Gates.** `cargo tree` unaffected — no dependency or manifest change.
+
+**Docs.** `docs/core-api/01-reading-and-model.md` updated (`StyleAlpha`,
+the new test model); `check-core-api-verbs` PASS.
+
+**`docs/FEATURES.md`.** The camera-controlled 3D viewer row (*Backlog*,
+"View an embedded 3D model with camera controls") edited in place:
+names the cross-file-structure colour fix and the new `--style-alpha`
+flag. `core [x]` / `cli [x]` (`--style-alpha`) — `gui` not rounded up on
+this Pass's account.
+
+**Finding.** Filed to `C:\personal_rag\pdf\` — SolidWorks PRC exports
+place parts by prototype across file structures, with colour sitting in
+the *placing* structure's globals rather than the part's own; and
+SolidWorks materials carry diffuse alpha 0, with real opacity in the
+Style's transparency byte (multiplying the two gives invisible parts).
+
+**Decision.** None — next decision stays 188, next standing rule stays
+`R263`.
+
+**Status.** Unreleased since `v0.75.0`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, test
+counts, sabotage results and gate results above are **relayed** from
+the dispatching engineer's report, not independently verified.
+
 ### `Pass 451.0` (`cba85256`), 2026-10-03 — pixels already in memory become an imported image
 
 Answers `G106` (`pdfcer-gui`, priority unstated — file

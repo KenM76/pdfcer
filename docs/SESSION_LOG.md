@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (910th filing) — `Pass 452.0` shipped
+
+**Shipped:**
+- `Pass 452.0` (`0c56078e`) — on the door assembly sample, a PRC
+  prototype placed across file structures resolved its colour against
+  the wrong (empty) globals, leaving all 578 meshes uncoloured;
+  graphics now carry the file structure that styled them. Also: new
+  `StyleAlpha { StyleWins (default), Multiply }` setting for how a
+  Style's transparency byte meets a material's own alpha — SolidWorks
+  writes diffuse alpha 0 everywhere and ISO 14739-1 leaves the relation
+  open. CLI `3d-render --style-alpha style|multiply`. 544/578 meshes
+  now colour (0 translucent); `multiply` reproduces the old invisible
+  result. Answers `G104`/`G103`.
+
+**Decisions made this session:**
+- None — next decision stays 188, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- SolidWorks PRC exports place parts by prototype across file
+  structures, with colour sitting in the placing structure's globals,
+  not the defining part's own — filed to `C:\personal_rag\pdf\`.
+- SolidWorks materials carry diffuse alpha 0, with real opacity in the
+  Style's transparency byte; multiplying the two gives invisible
+  parts — filed alongside the above.
+
+**Still in flight:**
+- End-to-end paddle-vl recognition through `OcrRunner` still unverified
+  (open since the 906th filing) — unaffected by this filing.
+
+**For next session:**
+- Verify end-to-end paddle-vl recognition through `OcrRunner` against a
+  real add-on build.
+
+**Sourcing (hard rule 8).** This filing had no shell. Commit hash, test
+counts (101 lib + 3 + 10 integration tests, 2 new sabotaged tests,
+`tools/run-gates.sh` PASS 45 commands) and gate results in this entry
+and in `ROADMAP.md`'s `Pass 452.0` entry are **relayed** from the
+dispatching engineer's report, not independently verified.
+
 ## 2026-10-03 (909th filing) — `Pass 451.0` shipped
 
 **Shipped:**
