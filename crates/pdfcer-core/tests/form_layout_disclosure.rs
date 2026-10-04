@@ -95,7 +95,9 @@ fn rotate_widget_reports_its_redraw() {
 fn reset_form_reports_its_redraw() {
     let mut s = session(AUTO);
     let out = s.reset_form(None).unwrap();
-    assert_eq!(out.fields_reset, 1);
+    // "t" already holds its default: redrawn, but not counted as reset.
+    assert_eq!(out.fields_reset, 0);
+    assert_eq!(out.widgets_updated, 1);
     assert_auto_and_unencodable(&out.layout, "reset_form");
 }
 
