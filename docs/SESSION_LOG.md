@@ -4,6 +4,40 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (930th filing) — `Pass 463.0`/`Pass 464.0` shipped
+
+**Shipped:**
+- `Pass 463.0` (`aaaedfa1`) — answers `pdfcer-gui` request `G107`:
+  `EditSession::add_svg_stamp`/`add_emf_stamp` now take `&MarkupOptions`
+  (signature change, pre-release), matching `add_image_stamp` — `/CA`
+  opacity, the note's `/Contents`/`/T`/`/M`, and the layer (`/OC`) all
+  in the same undo entry; `options.validate()` refuses first, nothing
+  staged. CLI `add-svg`/`add-emf` gain `--opacity`/`--note`/
+  `--note-author`/`--layer`/`--layer-id`, each requiring `--stamp`. 6
+  new core tests + 2 CLI; 8 sabotages caught. No manifest change.
+  `FEATURES.md` rows (SVG import, EMF import) updated in place — core
+  `[x]` / cli `[x]` / gui `[ ]` unchanged, sentence extended.
+- `Pass 464.0` (`56ed6c81`) — fix-on-discovery: the lite CLI build
+  (`--no-default-features`) was failing clippy on dead code behind the
+  `3d` feature and a paddle-only test module; both now `cfg`-gated. CI
+  gains a dedicated no-default-features clippy step for `pdfcer-cli`
+  (the all-features job could not see this class of defect). No
+  `FEATURES.md` change — build/CI hygiene, not a capability.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:** none new.
+
+**Still in flight:** unchanged from the 929th filing below.
+
+**For next session:** next free decision `189`, standing rule `R263`,
+operator question `(ck)`, Pass `465.0` — unchanged from the 929th
+filing below (premises for this filing, not consumed by either Pass).
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hashes,
+test counts and gate results relayed from the dispatching engineer's
+report, not independently re-verified.
+
 ## 2026-10-03 (929th filing) — `Pass 455.1` shipped
 
 **Shipped:**

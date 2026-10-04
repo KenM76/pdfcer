@@ -115,6 +115,52 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 464.0` — lite CLI build passes clippy; CI gains a `--no-default-features` clippy step — SHIPPED `56ed6c81`
+
+Fix-on-discovery, found while shipping `Pass 463.0` below: the lite CLI
+build (`cargo clippy -p pdfcer-cli --no-default-features --all-targets
+-- -D warnings`) was already failing — dead code reachable only
+behind the `3d` feature, plus a paddle-only test module compiled
+unconditionally. The existing all-features clippy job could not see
+this class of defect, because every feature was always on for it.
+
+**Shipped.** The unreachable helpers are now `cfg`-gated to the
+features that actually use them; the paddle-only test module is
+`cfg`-gated to its own feature. CI gains a dedicated `cargo clippy -p
+pdfcer-cli --no-default-features --all-targets -- -D warnings` step.
+
+**Invariant checks.** No manifest change. No `FEATURES.md` capability
+change — this is build/CI hygiene, not a feature.
+
+### `Pass 463.0` — SVG and EMF stamps take `MarkupOptions` (`G107`) — SHIPPED `aaaedfa1`
+
+Answers `pdfcer-gui` request `G107` ("an SVG or EMF stamp takes no
+markup options").
+
+**Shipped.** `EditSession::add_svg_stamp`/`add_emf_stamp` now take
+`options: &MarkupOptions` — a signature change, not a sibling (pre-
+release, no deprecation path needed) — matching `add_image_stamp`:
+`/CA` opacity, the note's `/Contents`/`/T`/`/M`, and the layer (`/OC`)
+all write in the **same undo entry** as the stamp. `options.validate()`
+runs first and refuses by name (e.g. `MarkupOpacityOutOfRange`) with
+nothing staged. The note/opacity writer is shared
+(`insert_markup_entries`), so all three stamp-authoring routes (image,
+SVG, EMF) write identical bytes for identical options.
+
+**CLI.** `add-svg`/`add-emf` gain `--opacity`/`--note`/`--note-author`
+(requires `--note`)/`--layer`/`--layer-id` (mutually exclusive), each
+requiring `--stamp`; conversion to `MarkupOptions` shared with
+`add-image-stamp`.
+
+**Tests.** 6 new core tests (`svg_import`, `emf_import`) + 2 CLI
+(`add_svg`, `add_emf`); 8 sabotage mutations, all caught.
+
+**Invariant checks.** No manifest change — `cargo tree` unchanged.
+`docs/core-api/02-editing-and-saving.md` rows updated in the same
+commit.
+
+**Not done / later.** GUI wiring — separate project.
+
 ### `Pass 455.1` — Tagged-PDF `TextDecorationType` structure attribute — SHIPPED `a90417d6`
 
 Deferred half of `G085`/`Pass 455.0`; scope narrowed by decision 188
@@ -18479,6 +18525,22 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 464.0` SHIPPED, 2026-10-03 (930th filing),
+> `56ed6c81`** — see *Shipped*, above. Fix-on-discovery while shipping
+> `Pass 463.0` below: the lite CLI build (`--no-default-features`) was
+> failing clippy on dead code behind the `3d` feature and a
+> paddle-only test module; both are now `cfg`-gated, and CI gains a
+> dedicated no-default-features clippy step for `pdfcer-cli`. No
+> `FEATURES.md` change — build hygiene only.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 463.0` SHIPPED, 2026-10-03 (930th filing),
+> `aaaedfa1`** — see *Shipped*, above. Answers `pdfcer-gui` request
+> `G107`: `EditSession::add_svg_stamp`/`add_emf_stamp` now take
+> `&MarkupOptions`, matching `add_image_stamp` — opacity, note/author
+> and layer in the same undo entry as the stamp. CLI `add-svg`/
+> `add-emf` gain `--opacity`/`--note`/`--note-author`/`--layer`/
+> `--layer-id`. `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 455.1` SHIPPED, 2026-10-03 (929th filing),
 > `a90417d6`** — see *Shipped*, above. The Tagged-PDF `TextDecorationType`
