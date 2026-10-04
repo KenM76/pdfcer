@@ -20544,7 +20544,9 @@ pub struct ResetPreviewRow {
 /// "3 skipped" cannot tell the operator which of those happened.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ResetOutcome {
-    /// Fields whose `/V` was set or removed.
+    /// Fields whose value changed: equals the count of
+    /// [`ResetPreviewRow::would_change`] rows. A field already at its reset
+    /// value still has its appearance regenerated, counted in `widgets_updated`.
     pub fields_reset: usize,
     /// Of those, how many took a `/DV` value.
     pub values_defaulted: usize,
@@ -43623,6 +43625,12 @@ impl EditSession {
             .clone()
             .unwrap_or_else(|| b"/Helv 0 Tf 0 g".to_vec());
 
+        let changing: std::collections::HashSet<String> = self
+            .reset_preview(only)
+            .into_iter()
+            .filter(|r| r.would_change)
+            .map(|r| r.field)
+            .collect();
         let mut objects: Vec<ObjectWrite> = Vec::new();
         let mut out = ResetOutcome::default();
 
@@ -43773,12 +43781,16 @@ impl EditSession {
                 }
             }
 
-            if has_default {
-                out.values_defaulted += 1;
-            } else {
-                out.values_removed += 1;
+            // A field already at its reset value is rewritten (its appearance
+            // is regenerated) but is not a reset: the counters match the preview.
+            if changing.contains(&field.fully_qualified_name) {
+                if has_default {
+                    out.values_defaulted += 1;
+                } else {
+                    out.values_removed += 1;
+                }
+                out.fields_reset += 1;
             }
-            out.fields_reset += 1;
             objects.push(ObjectWrite {
                 id: field.id,
                 before,
@@ -62257,6 +62269,47 @@ mod tests {
         );
     }
 
+    /// A field already at its default is not counted as reset, so the applied
+    /// counters still equal the preview's.
+    #[test]
+    fn a_field_already_at_its_default_is_not_counted_as_reset() {
+        let bytes = crate::pageops::tests_support::build_pdf_bytes(&[
+            (
+                1,
+                "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R 5 0 R] >> >>",
+            ),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Annots [4 0 R 5 0 R] >>",
+            ),
+            (
+                4,
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Typed) /V (x) /DV (d) \
+                 /Rect [10 250 200 270] >>",
+            ),
+            (
+                5,
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Same) /V (d) /DV (d) \
+                 /Rect [10 220 200 240] >>",
+            ),
+        ]);
+        let mut session = EditSession::new(Document::from_bytes(bytes).unwrap());
+        let predicted = session
+            .reset_preview(None)
+            .iter()
+            .filter(|r| r.would_change)
+            .count();
+        assert_eq!(predicted, 1);
+        let out = session.reset_form(None).expect("resets");
+        assert_eq!(out.fields_reset, predicted);
+        assert_eq!(out.values_defaulted, 1);
+        assert_eq!(
+            out.widgets_updated, 2,
+            "both appearances are still regenerated"
+        );
+    }
+
     /// Each ineligible kind is reported as itself, not as one undifferentiated
     /// "skipped" — a preserved signature and a read-only field are different
     /// facts to an operator.
@@ -62465,7 +62518,10 @@ mod tests {
         assert!(dict.get(b"DV").is_none(), "no /DV was invented for Drop");
         // And resetting twice is stable.
         let out = session.reset_form(None).expect("resets again");
-        assert_eq!(out.values_removed, 1, "Drop still has no default to take");
+        assert_eq!(
+            out.fields_reset, 0,
+            "the second reset has nothing left to change"
+        );
     }
 
     /// A small classic PDF with one page and an `/Info` dictionary.

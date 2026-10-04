@@ -449,12 +449,8 @@ pub(crate) fn cmd_reset_form(
     };
     let only = (!fields.is_empty()).then_some(fields);
 
-    // The preview comes from the CORE, not from a second copy of the
-    // eligibility rule written here. The GUI panel and this dry run were
-    // each deriving it independently until `reset_preview` existed, which is
-    // two implementations of one rule free to drift — R171's exact shape,
-    // and the drift would have shown only as the CLI and the GUI disagreeing
-    // about how many fields a reset touches.
+    // The preview comes from the core so the dry run and the GUI cannot
+    // drift on which fields a reset touches.
     let preview = session.reset_preview(only.map(<[String]>::as_ref));
     if preview.is_empty() {
         eprintln!(
@@ -463,54 +459,10 @@ pub(crate) fn cmd_reset_form(
         );
         return exit::EDIT_REFUSED;
     }
-    let mut clearing = 0usize;
-    for row in &preview {
-        if let Some(reason) = row.ineligible {
-            // string-gap-exempt: aligned status column in a machine-readable report
-            println!("skip   field={:?} reason={}", row.field, reason.token());
-            continue;
-        }
-        if !row.would_change {
-            // string-gap-exempt: aligned status column in a machine-readable report
-            println!("ok     field={:?} reason=already_default", row.field);
-            continue;
-        }
-        clearing += 1;
-        // `<removed>` rather than `""`: the clause removes the KEY, and an
-        // operator reading `to=""` would reasonably expect an empty string in
-        // the file.
-        let to = if row.would_remove {
-            "<removed>".to_owned()
-        } else {
-            format!("{:?}", row.target)
-        };
-        println!(
-            "reset  field={:?} from={:?} to={to} source={}",
-            row.field,
-            row.current,
-            if row.would_remove { "none" } else { "default" },
-        );
-    }
+    let clearing = print_reset_preview(&preview);
 
     if !apply {
-        println!(
-            "reset-form {} reset={clearing} defaulted={} removed={} skipped={} applied=0",
-            input.display(),
-            preview
-                .iter()
-                .filter(|r| r.would_change && !r.would_remove)
-                .count(),
-            preview
-                .iter()
-                .filter(|r| r.would_change && r.would_remove)
-                .count(),
-            preview.iter().filter(|r| r.ineligible.is_some()).count(),
-        );
-        eprintln!(
-            "pdfcer: {}: nothing was written. The lines above are what a reset WOULD \
-clear. Re-run with --apply --output FILE to perform it.",
-            input.display()
-        );
+        print_reset_dry_run_summary(input, &preview, clearing);
         return exit::SUCCESS;
     }
 
@@ -534,18 +486,76 @@ clear. Re-run with --apply --output FILE to perform it.",
         Ok(outcome) => outcome,
         Err(code) => return code,
     };
+    print_reset_applied(input, &out);
+    finish_edit(input, &outcome)
+}
+
+/// Prints one line per previewed field and returns how many would change.
+fn print_reset_preview(preview: &[pdfcer_core::edit::ResetPreviewRow]) -> usize {
+    let mut clearing = 0usize;
+    for row in preview {
+        if let Some(reason) = row.ineligible {
+            // string-gap-exempt: aligned status column in a machine-readable report
+            println!("skip   field={:?} reason={}", row.field, reason.token());
+            continue;
+        }
+        if !row.would_change {
+            // string-gap-exempt: aligned status column in a machine-readable report
+            println!("ok     field={:?} reason=already_default", row.field);
+            continue;
+        }
+        clearing += 1;
+        // `<removed>` rather than `""`: the clause removes the KEY, and
+        // `to=""` would read as an empty string in the file.
+        let to = if row.would_remove {
+            "<removed>".to_owned()
+        } else {
+            format!("{:?}", row.target)
+        };
+        println!(
+            "reset  field={:?} from={:?} to={to} source={}",
+            row.field,
+            row.current,
+            if row.would_remove { "none" } else { "default" },
+        );
+    }
+    clearing
+}
+
+fn print_reset_dry_run_summary(
+    input: &Path,
+    preview: &[pdfcer_core::edit::ResetPreviewRow],
+    clearing: usize,
+) {
+    println!(
+        "reset-form {} reset={clearing} defaulted={} removed={} skipped={} applied=0",
+        input.display(),
+        preview
+            .iter()
+            .filter(|r| r.would_change && !r.would_remove)
+            .count(),
+        preview
+            .iter()
+            .filter(|r| r.would_change && r.would_remove)
+            .count(),
+        preview.iter().filter(|r| r.ineligible.is_some()).count(),
+    );
+    eprintln!(
+        "pdfcer: {}: nothing was written. The lines above are what a reset WOULD \
+clear. Re-run with --apply --output FILE to perform it.",
+        input.display()
+    );
+}
+
+/// `widgets` is controls redrawn on the page, `reset` values changed in
+/// the form; a field shown in several places makes them differ.
+fn print_reset_applied(input: &Path, out: &pdfcer_core::edit::ResetOutcome) {
     println!(
         "reset-form {} reset={} defaulted={} removed={} widgets={} skipped={} applied={}",
         input.display(),
         out.fields_reset,
         out.values_defaulted,
         out.values_removed,
-        // `Pass 110.0`. Computed since the verb existed and printed by
-        // nothing. It is NOT `reset` under another name: a field presented in
-        // several places has more widgets than fields, so this is how many
-        // CONTROLS changed on the page against how many VALUES changed in the
-        // form. An operator reconciling a reset against what he can see needs
-        // the first number, and had only the second.
         out.widgets_updated,
         out.skipped_pushbuttons + out.skipped_signatures + out.skipped_read_only,
         out.fields_reset,
@@ -558,7 +568,6 @@ the signature, and removing it would destroy it.",
             out.skipped_signatures,
         );
     }
-    finish_edit(input, &outcome)
 }
 
 /// `promote-dr-fonts`: `EditSession::promote_inline_dr_fonts`, then save.
