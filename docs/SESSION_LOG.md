@@ -4,6 +4,40 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (948th filing) — `Pass 481.0` shipped (`reset_form` counts only changed fields; `reset-form` split)
+
+**Shipped:**
+- `Pass 481.0` (`4ab15402`) — `EditSession::reset_form` counted a field
+  already at its default as reset, so `pdfcer reset-form --apply`'s
+  summary could disagree with the dry-run preview immediately before
+  it. The three counters now come from the preview's `would_change`
+  set; the field is still rewritten regardless (counted in
+  `widgets_updated`). `cmd_reset_form` (128 lines, over the 80-line
+  cap) split into `print_reset_preview` /
+  `print_reset_dry_run_summary` / `print_reset_applied`. Baseline
+  entry deleted (now 598).
+
+**Decisions made this session:** none — next decision stays `191`,
+next standing rule stays `R263`.
+
+**Findings + decisions:**
+- A found bug (preview/apply count disagreement) was fixed in the
+  same Pass rather than filed for later, per standing practice. The
+  core's existing preview/reset agreement test had missed it because
+  its fixture had no field already at its default — a default-valued
+  fixture cannot falsify (existing lesson, reconfirmed).
+
+**Still in flight:**
+- Nothing opened by this Pass.
+
+**For next session:**
+- Next free `Pass 482.0`; decision `191`, standing rule `R263`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count, and test results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (947th filing) — `Pass 480.0` shipped (`fill-field` split; `no` unchecks a box; alias/multi-select tests)
 
 **Shipped:**

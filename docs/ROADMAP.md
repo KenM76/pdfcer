@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 481.0` — `reset_form` counts only fields it actually changed; `cmd_reset_form` split into helpers — SHIPPED `4ab15402`
+
+Fixes a bug found on discovery and pays down structure debt.
+
+**Bug fixed on discovery.** `EditSession::reset_form` counted a field
+already at its default value as reset, so `pdfcer reset-form --apply`'s
+summary (`reset=3`) could disagree with the dry-run preview immediately
+before it (`reset=2`). The core's existing preview/reset agreement test
+missed it because its fixture had no field already at its default — a
+default-valued fixture cannot falsify (existing lesson). The three
+counters (`fields_reset`, `values_defaulted`, `values_removed`) now come
+from the preview's `would_change` set; the field is still rewritten and
+its appearance still regenerated (counted in `widgets_updated`)
+regardless of whether its value changed. `docs/core-api` already stated
+the equality *preview `would_change` count == `fields_reset`*; it is now
+true. `ResetOutcome::fields_reset`'s doc comment updated to match.
+
+**Structure debt.** `cmd_reset_form` (128 lines, over the 80-line cap)
+in `crates/pdfcer-cli/src/fields.rs` split into `print_reset_preview`,
+`print_reset_dry_run_summary`, `print_reset_applied`; output unchanged.
+Baseline entry deleted; now 598 entries.
+
+**Tests.** Core: new
+`a_field_already_at_its_default_is_not_counted_as_reset`; the existing
+`a_reset_never_rewrites_the_default_it_read` now also asserts a second
+reset changes nothing (`fields_reset` 0). CLI: new `reset_form_cli`
+module (2 tests) pinning every dry-run row kind (reset / removed /
+already_default / read_only / signature), both summary lines, and the
+signature caveat. Sabotage-checked: reverting the counter guard fails
+both core tests and the CLI apply test; dropping the printers fails
+both CLI tests.
+
+**FEATURES.md.** Reset-a-form row (*Forms (AcroForm)*) reworded to
+note the counting fix; no box changes — core/cli delivered, no gui,
+unchanged.
+
+**Decision/ledgers.** No architectural decision — next decision stays
+`191`. Next free `Pass 482.0`; standing rule `R263` and operator
+question `(ck)` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, line
+counts, baseline-entry count, and test results above are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ### `Pass 480.0` — CLI `fill-field` split into helpers; `--set FIELD=no` now unchecks a box; first CLI tests for check-box aliases and multi-select — SHIPPED `7c5cf855`
 
 Pays down structure debt and fixes a bug found on discovery.
