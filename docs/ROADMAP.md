@@ -115,6 +115,58 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 474.0` — a compressed PRC mesh folded at its last sliver gets a second retry — SHIPPED `b4c6b12e`
+
+Self-scoped by the engineer, found while measuring 3D samples against
+`Pass 453.0`/`Pass 452.0`'s `3d-render`. No operator or `pdfcer-gui`
+request behind it.
+
+**Shipped (`crates/pdfcer-3d/src/compressed.rs` only):** a compressed
+PRC tessellation (`TESS_3D_Compressed`) component that still fails to
+fit after the existing second-triangle retry is rewound once more, at
+the last "sliver" triangle its first walk met — one whose apex is
+collinear with its entry edge, so its face normal cannot orient it and
+it took the default (unfolded) orientation, which was wrong in this
+mesh and let a later reference apex reuse an edge a third time ("an
+edge is shared by more than two triangles"). At most two retries per
+component. Trusting the sliver's sign (instead of retrying at it) was
+measured and rejected — it gained one door-sample mesh and lost
+another, so the sign is rounding noise, not a signal.
+
+**Measured, before → after** (local-only samples; never record file
+names or part numbers):
+- strap-hinge sample: 4/5 → **5/5** meshes;
+- door assembly sample: 125/156 → **130/156**; all 125 previously
+  rebuilt meshes stayed byte-identical; 26 meshes remain open;
+- School sample: 348/348, byte-identical;
+- piano-hinge sample: 3/3, byte-identical.
+
+The newly recovered meshes were checked as closed, consistently
+oriented solids with positive volume; the recovered strap leaf matches
+its mirror twin's vertex count, edge count and genus, volume within
+0.06%.
+
+**Tests:** `a_sliver_fold_is_found_by_retrying_at_the_sliver`
+(synthetic, in `compressed.rs`), failing under both sabotages — retry
+disabled, and the sliver never recorded.
+
+**Invariants:** `tools/run-gates.sh` PASS, 45 commands, on `b4c6b12e`.
+No dependency or manifest change — `cargo tree` invariant untouched.
+
+**Spec RAG:** `D:/Dev/Rag-Specialized/PDF_Spec/threed/prc__8137__tess_3d_compressed.md`
+gained rule R6s (§2a), MEASURED notes, and §8 counts.
+
+**`FEATURES.md`:** 3D/PRC compressed-tessellation rendering row
+tightened with the new measured counts; `core`/`cli` boxes unchanged,
+`gui` stays `[ ]`.
+
+**Open finding, not yet a Pass:** both hinge samples render as an
+entirely blank (all-white) image through `3d-render`, unchanged since
+v0.75.0/v0.76.0; the School sample renders normally. Every hinge mesh
+reports as translucent — suspect is an alpha of 0 from a material with
+no style transparency. Under investigation. See *Still in flight*,
+`SESSION_LOG.md`.
+
 ### `Pass 472.0` — exports record a content fingerprint of their base; import reports match/differ/unrecorded (`G112`) — SHIPPED `dbbd889e`
 
 Answers `pdfcer-gui` request `G112`
@@ -18828,6 +18880,15 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> `Pass 474.0` SHIPPED, 2026-10-04 (940th filing), `b4c6b12e` — see
+> *Shipped*, above. A compressed PRC mesh folded at its last sliver
+> now gets a second retry, recovering 1/5 of a strap-hinge sample and
+> 5/156 of a door assembly; School and a piano-hinge sample unchanged.
+> Self-scoped (no operator/GUI request). Open finding, not a Pass:
+> both hinge samples still render blank through `3d-render` — see
+> `SESSION_LOG.md`. Next free `Pass 475.0`; decision/rule/question
+> ledgers unchanged (191 / `R263` / `(ck)`).
 
 > `Pass 472.0` and `Pass 473.0` SHIPPED, 2026-10-04 (939th filing),
 > `dbbd889e` — see *Shipped*, above. `G112`: exports now carry a

@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (940th filing) — `Pass 474.0` shipped (a compressed PRC mesh folded at its last sliver gets a second retry)
+
+**Shipped:**
+- `Pass 474.0` (`b4c6b12e`) — self-scoped by the engineer, found while
+  measuring 3D samples, no operator/GUI request. A compressed PRC
+  tessellation component still failing to fit after the existing
+  second-triangle retry is rewound once more, at the last "sliver"
+  triangle (collinear apex, unfolds by default) its first walk met.
+  At most two retries per component. Measured, before → after: a
+  strap-hinge sample 4/5 → 5/5 meshes; a door assembly 125/156 →
+  130/156 (125 unchanged byte-identical, 26 open); a School sample
+  and a piano-hinge sample unchanged, byte-identical. Trusting the
+  sliver's sign instead of retrying at it was tried and reverted —
+  net loss across the two hinge samples.
+
+**Decisions made this session:** none — no new decision number
+minted; next free decision stays `191`.
+
+**Findings + decisions:**
+- Trusting a sliver's sign is rounding noise, not a usable signal,
+  on this fold-direction problem — confirmed by a direct ablation
+  (gained one mesh, lost another).
+- Spec RAG `D:/Dev/Rag-Specialized/PDF_Spec/threed/prc__8137__tess_3d_compressed.md`
+  gained rule R6s (§2a) plus MEASURED notes and §8 counts for this fix.
+
+**Still in flight:**
+- **Both hinge samples render as an entirely blank (all-white) image
+  through `3d-render`**, unchanged since v0.75.0/v0.76.0 — the School
+  sample renders normally. Every hinge mesh reports as translucent;
+  suspect is an alpha of 0 from a material carrying no style
+  transparency. Under investigation, not yet a Pass.
+- 26 meshes in the door assembly sample remain open after this fix.
+
+**For next session:**
+- Next free `Pass 475.0`, decision `191`, standing rule `R263`,
+  operator question `(ck)` — all unchanged by this filing.
+- The blank-hinge-render finding above is the most promising next
+  thread — it predates this fix in both prior releases.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+gate figures (`tools/run-gates.sh` PASS, 45 commands) and measured
+counts are relayed from the dispatching engineer's report, not
+independently re-verified.
+
 ## 2026-10-04 (939th filing) — `Pass 472.0`/`Pass 473.0` shipped (editable exports record their base; a session compiles an edit back, `G112`/`G113`)
 
 **Shipped:**
