@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 488.0` — `cmd_reflow`'s error mapping and report split out — SHIPPED `c89c08a9`
+
+Structure debt only; no behaviour change.
+
+**Structure debt.** `pdfcer reflow`'s command function
+(`crates/pdfcer-cli/src/*`) shrank from 140 lines to 69: the
+error-to-exit-code mapping (including the "save and reopen" recoverable
+hint) and the report printing moved into two private helpers. Output
+and exit codes unchanged. Baseline entry for the function deleted (593
+entries remain). No `pub` API, dependency or manifest change (`cargo
+tree` N/A).
+
+**Checks.** Reflow CLI tests 17/17, CLI bin unit tests 43/43 pass
+unchanged. Sabotage: breaking the Encrypted exit-code arm and the
+overflow report line each failed exactly one test, then were restored.
+Full `tools/run-gates.sh` was running at filing time.
+
+**Delivered:** cli only (structure). No `FEATURES.md` rows affected
+(cli-internal refactor; no capability or box changes). Ledger after:
+next filing 957th, next Pass 489.0, next decision 192, next standing
+rule R251, next operator question (ck).
+
 ### `Pass 487.0` — format-text split into its own module, by step (`text_format.rs`) — SHIPPED `8ac3432d`
 
 Structure debt only; no behaviour change.

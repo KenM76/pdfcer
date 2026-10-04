@@ -4,6 +4,34 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (956th filing) — `Pass 488.0` shipped (reflow's error mapping and report split out)
+
+**Shipped:**
+- `Pass 488.0` (`c89c08a9`) — `pdfcer reflow`'s command function
+  shrank from 140 lines to 69: the error-to-exit-code mapping (plus
+  the "save and reopen" recoverable hint) and the report printing
+  became two private helpers. Output and exit codes unchanged.
+  Baseline entry deleted (593 entries remain).
+
+**Decisions made this session:** none — decision stays `192`,
+standing rule stays `R251`.
+
+**Findings + decisions:** none beyond the split itself.
+
+**Still in flight:** full `tools/run-gates.sh` stated green by the
+engineer; not independently re-verified (no shell this filing).
+
+**For next session:**
+- Next free `Pass 489.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- No `FEATURES.md` rows affected (cli-internal refactor).
+- Remaining baselined functions in `text_edit.rs`: `cmd_edit_text`,
+  `cmd_add_text`, `cmd_place_text` are the next candidates.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and test results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (955th filing) — `Pass 487.0` shipped (format-text split into its own module, by step)
 
 **Shipped:**
