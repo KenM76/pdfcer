@@ -115,6 +115,37 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 484.0` — notices moved out of `fonts.rs`: bundled-font licence text to `font_notice.rs`, `PERMISSIONS_NOTICE` to `security.rs` — SHIPPED `7133becf`
+
+Structure debt only; no behaviour change.
+
+**Structure debt.** `crates/pdfcer-cli/src/fonts.rs` (839 production
+lines, a baseline file entry) held two texts unrelated to font
+embedding. `BUNDLED_FONT_NOTICE_NAME`, `bundled_font_notice()` and the
+verbatim pdfium BSD-3-Clause `PDFIUM_BSD_LICENSE` moved to a new
+`crates/pdfcer-cli/src/font_notice.rs`. `PERMISSIONS_NOTICE` moved to
+`security.rs`, its only caller. `fonts.rs` is now 739 lines; its `file`
+baseline line deleted from `tools/code-structure-baseline.txt` (595
+entries remain). Its two function entries (`cmd_embed_font` ~380
+lines, `cmd_unembed_font` ~297) remain baselined debt, unaffected by
+this Pass. Pure move: no behaviour, `pub` API, dependency, or manifest
+change.
+
+**Gotcha.** `tests/font_licence_notice.rs` reads the notice's source
+file by path to prove the licence text is reproduced verbatim; moving
+the text broke two tests until the path was updated to
+`src/font_notice.rs`. A source-reading test pins a file location — a
+move must update it.
+
+**Checks.** Build, clippy `-D warnings`, fmt, `check-string-gaps`,
+`check-code-structure` clean. CLI tests green. Full `tools/run-gates.sh`
+was running at filing time; not pushed until it passes.
+
+**Delivered:** cli only (structure). No `FEATURES.md` rows affected
+(refactor; no capability or box changes). Ledger after: next filing
+953rd, next Pass 485.0, next decision 192, next standing rule R251,
+next operator question (ck).
+
 ### `Pass 483.0` — `fields.rs` split into `fields_fill.rs` / `fields_data.rs` / `fields_scripts.rs` — SHIPPED `5676d58d`
 
 Structure debt only; no behaviour change.

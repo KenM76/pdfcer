@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (952nd filing) — `Pass 484.0` shipped (notices moved out of `fonts.rs`)
+
+**Shipped:**
+- `Pass 484.0` (`7133becf`) — `crates/pdfcer-cli/src/fonts.rs` (839
+  production lines, a baselined file) held two texts unrelated to font
+  embedding. The bundled-font licence notice
+  (`BUNDLED_FONT_NOTICE_NAME`, `bundled_font_notice()`, the verbatim
+  pdfium BSD-3-Clause `PDFIUM_BSD_LICENSE`) moved to a new
+  `crates/pdfcer-cli/src/font_notice.rs`; `PERMISSIONS_NOTICE` moved to
+  `security.rs`, its only caller. `fonts.rs` is now 739 lines; its
+  `file` baseline line deleted from `tools/code-structure-baseline.txt`
+  (595 entries remain). Its two function entries (`cmd_embed_font`
+  ~380 lines, `cmd_unembed_font` ~297) remain baselined debt. No
+  behaviour, `pub` API, dependency or manifest change.
+
+**Decisions made this session:** none — decision stays `192`, standing
+rule stays `R251` (per `check-ledger-numbers`).
+
+**Findings + decisions:**
+- `tests/font_licence_notice.rs` reads the notice's source file by
+  path to prove the licence text is reproduced verbatim; the move
+  broke two tests until the path was updated to `src/font_notice.rs`.
+  A source-reading test pins a file location — a move must update it.
+
+**Still in flight:** full `tools/run-gates.sh` was running at filing
+time; not pushed until green.
+
+**For next session:**
+- Next free `Pass 485.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and check results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (951st filing) — `Pass 483.0` shipped (`fields.rs` split by responsibility)
 
 **Shipped:**
