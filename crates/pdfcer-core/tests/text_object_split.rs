@@ -362,6 +362,58 @@ fn line_granularity_discloses_its_inference() {
     assert!(d.contains("14.8"), "cites the clause: {d}");
 }
 
+#[test]
+fn the_session_preflight_answers_the_content_stream_refusals_without_mutating() {
+    let src = bytes_of("runs-quote-show.pdf");
+    let mut s = EditSession::new(Document::from_bytes(src.clone()).expect("parses"));
+    let idx = text_object_index(&mut s);
+    let (cuts, _) = s
+        .text_object_split_plan(0, idx, SplitGranularity::Line)
+        .expect("plan");
+    assert_eq!(
+        s.text_object_split_refusal(0, idx, &cuts)
+            .expect("preflight"),
+        Some(VectorEditError::SplitAtLineShowOperator { index: 1 })
+    );
+    assert_eq!(s.undo_depth(), 0, "nothing pushed to the undo stack");
+    let (bytes, _) = s
+        .to_incremental_bytes(&SaveOptions::default())
+        .expect("saves");
+    assert_eq!(bytes, src, "nothing staged");
+
+    let mut s = EditSession::new(
+        Document::from_bytes(bytes_of("runs-marked-content.pdf")).expect("parses"),
+    );
+    let idx = text_object_index(&mut s);
+    assert_eq!(
+        s.text_object_split_refusal(0, idx, &[1])
+            .expect("preflight"),
+        Some(VectorEditError::SplitInsideMarkedContent { index: 1 })
+    );
+    assert_eq!(
+        s.text_object_split_refusal(0, idx, &[]).expect("preflight"),
+        Some(VectorEditError::EmptySplit)
+    );
+    assert!(
+        s.text_object_split_refusal(0, 99, &[1]).is_err(),
+        "an object index naming nothing is the caller's error, not a refusal of the cuts"
+    );
+}
+
+#[test]
+fn the_session_preflight_passes_a_split_the_press_performs() {
+    let mut s =
+        EditSession::new(Document::from_bytes(bytes_of("runs-td-relative.pdf")).expect("parses"));
+    let idx = text_object_index(&mut s);
+    assert_eq!(
+        s.text_object_split_refusal(0, idx, &[1, 2])
+            .expect("preflight"),
+        None
+    );
+    assert_eq!(s.undo_depth(), 0, "a passing preflight commits nothing");
+    assert!(s.split_text_object(0, idx, &[1, 2]).is_ok());
+}
+
 /// The paint-order index of the page's first text object.
 fn text_object_index(s: &mut EditSession) -> usize {
     let model = s.page_objects(0).expect("objects");

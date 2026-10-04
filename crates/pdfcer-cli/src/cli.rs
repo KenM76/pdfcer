@@ -11440,7 +11440,8 @@ pub(crate) enum Command {
         /// Cut before this 0-based run; repeatable. Overrides `--granularity`.
         #[arg(long)]
         before: Vec<usize>,
-        /// Print the cut points and the disclosure, and write nothing.
+        /// Print the cut points and the disclosure, and write nothing. Exits
+        /// with the real run's refusal when the split would be refused.
         #[arg(long)]
         dry_run: bool,
         /// Output path. Required unless `--dry-run`.

@@ -2064,7 +2064,9 @@ pub(crate) struct TextObjectSplitArgs<'a> {
 /// - `--dry-run` prints one `text-object-split-plan …` line naming the cut
 ///   points and writes nothing. That is the honest shape for the `line`
 ///   granularity, which infers where the lines are: the operator can see the
-///   cuts before committing to them.
+///   cuts before committing to them. A plan the real run would refuse is
+///   reported through [`report_edit_error`] with its exit code, so a dry run
+///   exits as the real run would.
 /// - Otherwise one `text-object-split …` line with the usual save-report
 ///   fields, then the exit code from [`finish_edit`].
 /// - The `line` granularity's inference disclosure goes to **stderr** via
@@ -2094,20 +2096,7 @@ pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
     report_disclosures(&disclosures);
 
     if args.dry_run {
-        println!(
-            "text-object-split-plan {} page {} object={} granularity={} cuts={} runs_before={:?}",
-            args.input.display(),
-            args.page.max(1),
-            args.object,
-            if args.before.is_empty() {
-                args.granularity.name()
-            } else {
-                "explicit"
-            },
-            points.len(),
-            points,
-        );
-        return 0;
+        return dry_run_text_object_split(&mut session, args, page_index, &points);
     }
 
     let Some(output) = args.output else {
@@ -2137,11 +2126,7 @@ pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
         args.input.display(),
         args.page.max(1),
         args.object,
-        if args.before.is_empty() {
-            args.granularity.name()
-        } else {
-            "explicit"
-        },
+        split_granularity_name(args),
         points.len(),
         args.mode.name(),
         output.display(),
@@ -2153,6 +2138,42 @@ pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
         u32::from(outcome.undo_identical),
     );
     finish_edit(args.input, &outcome)
+}
+
+/// `text-object-split --dry-run`: print the plan, then exit as the real run
+/// would — with its refusal when the split would be refused.
+fn dry_run_text_object_split(
+    session: &mut pdfcer_core::edit::EditSession,
+    args: &TextObjectSplitArgs<'_>,
+    page_index: usize,
+    points: &[usize],
+) -> u8 {
+    let refusal = match session.text_object_split_refusal(page_index, args.object, points) {
+        Ok(r) => r,
+        Err(err) => return report_edit_error(args.input, &err),
+    };
+    println!(
+        "text-object-split-plan {} page {} object={} granularity={} cuts={} runs_before={:?}",
+        args.input.display(),
+        args.page.max(1),
+        args.object,
+        split_granularity_name(args),
+        points.len(),
+        points,
+    );
+    match refusal {
+        Some(r) => report_edit_error(args.input, &pdfcer_core::edit::EditError::VectorEdit(r)),
+        None => 0,
+    }
+}
+
+/// The granularity a split report names: `explicit` when `--before` gave the cuts.
+fn split_granularity_name(args: &TextObjectSplitArgs<'_>) -> &'static str {
+    if args.before.is_empty() {
+        args.granularity.name()
+    } else {
+        "explicit"
+    }
 }
 
 /// Grouped arguments for `text-run-move`.

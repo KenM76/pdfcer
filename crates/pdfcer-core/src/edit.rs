@@ -9484,6 +9484,29 @@ fn find_pattern_matches(hay: &str, pattern: &str, case_insensitive: bool) -> Vec
 /// kind that WAS found, which is the information the caller needs, and one
 /// message shape for "you pointed a typed verb at the wrong object kind" is
 /// easier to act on than two that differ only in which kind was wanted.
+/// The split planner [`EditSession::split_text_object`] and its preflight
+/// share, so the two cannot disagree.
+fn plan_text_split(
+    stream: &crate::content::ContentStream,
+    model: &crate::vector::PageObjects,
+    object_index: usize,
+    before_runs: &[usize],
+) -> Result<crate::vector::PlannedEdit, EditError> {
+    let count = model.objects.len();
+    let obj = model.objects.get(object_index).ok_or(
+        crate::vector::VectorEditError::ObjectOutOfRange {
+            index: object_index,
+            count,
+        },
+    )?;
+    let text = vector_object_as_text(obj, object_index)?;
+    Ok(crate::vector::plan_split_text_object(
+        stream,
+        text,
+        before_runs,
+    )?)
+}
+
 fn vector_object_as_text(
     obj: &crate::vector::VectorObject,
     index: usize,
@@ -17114,11 +17137,11 @@ impl EditSession {
     ///
     /// # Pre-checking, so the remedy can precede the gesture
     ///
-    /// [`text_split_refusal`](crate::vector::text_split_refusal) is the guard
-    /// this verb runs, exported, so a shell can grey the command or word a
-    /// hint *before* the operator commits — and because it is the same
-    /// function rather than a description of one, the two cannot come to
-    /// disagree (`R221`).
+    /// [`Self::text_object_split_refusal`] runs this verb's own planner
+    /// without committing, so a shell can grey the command or word a hint
+    /// *before* the operator commits — and because it is the same planner
+    /// rather than a description of one, the two cannot come to disagree
+    /// (`R221`).
     ///
     /// # Errors
     ///
@@ -17154,20 +17177,55 @@ impl EditSession {
         before_runs: &[usize],
     ) -> Result<Vec<String>, EditError> {
         self.vector_surgery(CommandKind::SplitTextObject, page_index, |stream, model| {
-            let count = model.objects.len();
-            let obj = model.objects.get(object_index).ok_or(
-                crate::vector::VectorEditError::ObjectOutOfRange {
-                    index: object_index,
-                    count,
-                },
-            )?;
-            let text = vector_object_as_text(obj, object_index)?;
-            Ok(crate::vector::plan_split_text_object(
-                stream,
-                text,
-                before_runs,
-            )?)
+            plan_text_split(stream, model, object_index, before_runs)
         })
+    }
+
+    /// Whether [`Self::split_text_object`] would refuse to cut before
+    /// `before_runs`, and why — without mutating anything, so a shell can
+    /// grey the command and show the reason before the press. Pass the cuts
+    /// [`Self::text_object_split_plan`] returned to preflight a bulk split.
+    ///
+    /// Runs the split's own planner against the page's current content, so
+    /// it answers every refusal the press would give, including the two that
+    /// need the content stream:
+    /// [`SplitAtLineShowOperator`](crate::vector::VectorEditError::SplitAtLineShowOperator)
+    /// and
+    /// [`SplitInsideMarkedContent`](crate::vector::VectorEditError::SplitInsideMarkedContent).
+    /// No cuts at all answers
+    /// [`EmptySplit`](crate::vector::VectorEditError::EmptySplit).
+    ///
+    /// # Returns
+    ///
+    /// `Ok(None)` when the split would succeed; `Ok(Some(refusal))` with the
+    /// first refusal of these cuts, the same value the press would wrap in
+    /// [`EditError::VectorEdit`].
+    ///
+    /// # Errors
+    ///
+    /// The document- and page-level refusals the press would also give, as
+    /// errors rather than a refusal of the cuts: [`EditError::PageOutOfRange`],
+    /// [`EditError::VectorEditNoContents`], [`EditError::VectorEditContent`],
+    /// [`EditError::DocumentEncrypted`],
+    /// [`EditError::CertificationForbidsChange`], and [`EditError::VectorEdit`]
+    /// for an object index that names no object or a non-text object.
+    pub fn text_object_split_refusal(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        before_runs: &[usize],
+    ) -> Result<Option<crate::vector::VectorEditError>, EditError> {
+        use crate::vector::VectorEditError as V;
+        match self.vector_surgery_inner(None, page_index, |stream, model| {
+            plan_text_split(stream, model, object_index, before_runs)
+        }) {
+            Ok(_) => Ok(None),
+            Err(EditError::VectorEdit(e @ (V::ObjectOutOfRange { .. } | V::NotAPath { .. }))) => {
+                Err(e.into())
+            }
+            Err(EditError::VectorEdit(refusal)) => Ok(Some(refusal)),
+            Err(other) => Err(other),
+        }
     }
 
     /// Where a bulk [`Self::split_text_object`] would cut, and what pdfcer

@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 319 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 320 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 319 public `EditSession` methods
+## 1. Verb index — all 320 public `EditSession` methods
 
-**Count: 319.** Established by brace-matched extraction of the
+**Count: 320.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -1490,6 +1490,7 @@ said nothing about identity across edits — this section is that gap closed.*
 | **Cut one text object into several** | `split_text_object(page_index, object_index, before_runs: &[usize])` |
 | Ask where a bulk split would cut, and what was inferred | `text_object_split_plan(page_index, object_index, granularity) -> (Vec<usize>, Vec<String>)` |
 | Ask whether one cut will be refused, and why | `vector::text_split_refusal(&ContentStream, &TextObject, index) -> Option<VectorEditError>` |
+| Ask, from a session, whether a split will be refused, and why — nothing mutated | `text_object_split_refusal(page_index, object_index, before_runs: &[usize]) -> Result<Option<VectorEditError>, EditError>` |
 | Drag one anchor node | `move_node(page_index, object_index, node_index, to: Point)` |
 | Drag a multi-node selection, ONE undo entry | `move_nodes(page_index, object_index, moves: &[(usize, Point)])` |
 | Drag a Bézier control point | `move_handle(page_index, object_index, node_index, handle: Handle, to: Point)` |
