@@ -101,3 +101,4 @@
 - [Agent "completed" can precede its writes](feedback_agent_completion_can_precede_its_writes.md) — recheck in minutes before re-dispatching; two writers clobbered SESSION_LOG
 - [Scratchpad is shared between workers](feedback_scratchpad_is_shared_between_workers.md) — parallel workers clobber generic scratch names; prefix with the Pass ID
 - [Sabotage leaves a sabotaged binary](feedback_sabotage_leaves_a_sabotaged_binary.md) — rebuild after restoring; a manual probe after sabotage tests the sabotage
+- [Never background with `&`](feedback_never_background_with_ampersand.md) — a detached `run-gates.sh &` sent no notification and stalled; use run_in_background only
