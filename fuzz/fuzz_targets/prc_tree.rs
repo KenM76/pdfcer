@@ -141,6 +141,11 @@ fuzz_target!(|data: &[u8]| {
         }
     }
     if let Ok(m) = pdfcer_3d::assemble(&bytes) {
-        assert!(m.mesh_textures.iter().flatten().all(|&t| t < m.textures.len()));
+        assert!(
+            m.mesh_textures
+                .iter()
+                .flatten()
+                .all(|&t| t < m.textures.len())
+        );
     }
 });

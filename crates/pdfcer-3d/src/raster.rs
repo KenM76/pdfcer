@@ -38,6 +38,9 @@ pub(crate) enum View {
 }
 
 impl View {
+    /// The projection for `camera` at width/height `aspect`; refuses a
+    /// field of view outside (0, 180) degrees or a non-positive
+    /// orthographic height.
     pub(crate) fn new(camera: &Camera, aspect: f64) -> Result<View, RenderError> {
         match camera.projection {
             Projection::Perspective { fov_y } => {
@@ -260,6 +263,7 @@ fn edge(a: [f64; 3], b: [f64; 3], p: [f64; 3]) -> f64 {
     (at(b, 0) - at(a, 0)) * (at(p, 1) - at(a, 1)) - (at(b, 1) - at(a, 1)) * (at(p, 0) - at(a, 0))
 }
 
+/// Component `i` of `v`, 0.0 out of range; the crate denies indexing.
 pub(crate) fn at(v: [f64; 3], i: usize) -> f64 {
     v.get(i).copied().unwrap_or(0.0)
 }
