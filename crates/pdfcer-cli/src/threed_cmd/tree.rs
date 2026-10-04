@@ -2,6 +2,7 @@
 
 use super::*;
 
+/// `pdfcer 3d-tree`: reads 3D artwork `index` and prints its tree; exit 9 when refused.
 pub(crate) fn cmd_tree_3d(input: &Path, index: usize, json: bool) -> u8 {
     let data = match artwork_bytes(input, index) {
         Ok((data, _)) => data,
