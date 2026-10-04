@@ -160,7 +160,6 @@ fn pdfcer-cli/src/field_edit.rs::report_submit_disclosure
 fn pdfcer-cli/src/field_edit.rs::submit_spec
 fn pdfcer-cli/src/fields.rs::cmd_fill_field
 fn pdfcer-cli/src/fields.rs::cmd_import_data
-fn pdfcer-cli/src/fields.rs::cmd_recompute
 fn pdfcer-cli/src/fields.rs::cmd_reset_form
 fn pdfcer-cli/src/fonts.rs::cmd_embed_font
 fn pdfcer-cli/src/fonts.rs::cmd_unembed_font

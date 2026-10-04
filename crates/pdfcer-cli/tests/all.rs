@@ -83,6 +83,7 @@ mod pin_span;
 mod place_stamp_as_content;
 mod promote_dr_fonts;
 mod rc4_append;
+mod recompute_cli;
 mod recovery_names_what_it_dropped;
 mod reflow;
 mod refusal_names_a_font;

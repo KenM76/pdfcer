@@ -258,8 +258,6 @@ pub(crate) fn cmd_recompute(
     policy: pdfcer_core::form_script::calc::CommaPolicy,
     verify_undo: bool,
 ) -> u8 {
-    use pdfcer_core::form_script::recompute::{OrderSource, Skip};
-
     if apply && output.is_none() {
         eprintln!("pdfcer: --apply needs --output");
         return exit::EDIT_REFUSED;
@@ -274,69 +272,9 @@ pub(crate) fn cmd_recompute(
         pdfcer_core::form_script::recompute::plan(&view, policy)
     };
 
-    for change in &plan.changes {
-        println!(
-            "change field={:?} from={:?} to={:?} op={} operands={} coerced={}",
-            change.field,
-            change.previous,
-            change.proposed,
-            change.computation.op.code(),
-            change.computation.operands.len(),
-            change.computation.coerced_operands(),
-        );
-    }
-    for skipped in &plan.skipped {
-        let reason = match skipped.reason {
-            Skip::Refused(_) => "refused",
-            Skip::CircularDependency => "circular",
-            Skip::AlreadyCorrect => "already_correct",
-            Skip::NotAValueField => "not_a_value_field",
-        };
-        println!(
-            // string-gap-exempt: aligned status column in a machine-readable report
-            "skip   field={:?} reason={reason} detail={:?}",
-            skipped.field,
-            skipped.reason.to_string(),
-        );
-    }
-
-    let order = match plan.order_source {
-        OrderSource::CalculationOrder => "calc_order",
-        OrderSource::Mixed => "mixed",
-        OrderSource::Derived => "derived",
-        OrderSource::Empty => "none",
-    };
-
-    // The caveats, on stderr, before any write. Each is a fact that changes
-    // how much the numbers should be trusted, and burying them under the
-    // summary line would put them after the thing they qualify.
-    if plan.order_source.is_pdfcer_choice() {
-        eprintln!(
-            "pdfcer: {}: this form has {} calculated field(s) its /CO array does not \
-list, which ISO 32000-1 requires it to. The standard gives no recovery rule, so pdfcer \
-ordered them by their own dependencies — another reader may legitimately compute \
-different values.",
-            input.display(),
-            plan.unlisted_calculations,
-        );
-    }
-    if plan.coerced_operands() > 0 {
-        eprintln!(
-            "pdfcer: {}: {} operand(s) were blank or non-numeric and counted as zero, \
-matching Acrobat. The totals are arithmetically correct for a partly-empty form.",
-            input.display(),
-            plan.coerced_operands(),
-        );
-    }
-    if plan.not_reproducible > 0 {
-        eprintln!(
-            "pdfcer: {}: {} script(s) were NOT considered — pdfcer recognises no \
-built-in in them, so their fields keep the values last saved. Run list-scripts to see \
-which.",
-            input.display(),
-            plan.not_reproducible,
-        );
-    }
+    print_recompute_plan(&plan);
+    let order = recompute_order_token(&plan);
+    print_recompute_caveats(input, &plan);
 
     if !apply {
         println!(
@@ -387,6 +325,82 @@ JavaScript-running reader still recomputes independently.",
         plan.changes.len(),
     );
     finish_edit(input, &outcome)
+}
+
+fn print_recompute_plan(plan: &pdfcer_core::form_script::recompute::RecomputePlan) {
+    use pdfcer_core::form_script::recompute::Skip;
+    for change in &plan.changes {
+        println!(
+            "change field={:?} from={:?} to={:?} op={} operands={} coerced={}",
+            change.field,
+            change.previous,
+            change.proposed,
+            change.computation.op.code(),
+            change.computation.operands.len(),
+            change.computation.coerced_operands(),
+        );
+    }
+    for skipped in &plan.skipped {
+        let reason = match skipped.reason {
+            Skip::Refused(_) => "refused",
+            Skip::CircularDependency => "circular",
+            Skip::AlreadyCorrect => "already_correct",
+            Skip::NotAValueField => "not_a_value_field",
+        };
+        println!(
+            // string-gap-exempt: aligned status column in a machine-readable report
+            "skip   field={:?} reason={reason} detail={:?}",
+            skipped.field,
+            skipped.reason.to_string(),
+        );
+    }
+}
+
+fn recompute_order_token(
+    plan: &pdfcer_core::form_script::recompute::RecomputePlan,
+) -> &'static str {
+    use pdfcer_core::form_script::recompute::OrderSource;
+    match plan.order_source {
+        OrderSource::CalculationOrder => "calc_order",
+        OrderSource::Mixed => "mixed",
+        OrderSource::Derived => "derived",
+        OrderSource::Empty => "none",
+    }
+}
+
+/// Caveats on stderr, before any write: each changes how far the numbers
+/// should be trusted, so they precede the summary line they qualify.
+fn print_recompute_caveats(
+    input: &Path,
+    plan: &pdfcer_core::form_script::recompute::RecomputePlan,
+) {
+    if plan.order_source.is_pdfcer_choice() {
+        eprintln!(
+            "pdfcer: {}: this form has {} calculated field(s) its /CO array does not \
+list, which ISO 32000-1 requires it to. The standard gives no recovery rule, so pdfcer \
+ordered them by their own dependencies — another reader may legitimately compute \
+different values.",
+            input.display(),
+            plan.unlisted_calculations,
+        );
+    }
+    if plan.coerced_operands() > 0 {
+        eprintln!(
+            "pdfcer: {}: {} operand(s) were blank or non-numeric and counted as zero, \
+matching Acrobat. The totals are arithmetically correct for a partly-empty form.",
+            input.display(),
+            plan.coerced_operands(),
+        );
+    }
+    if plan.not_reproducible > 0 {
+        eprintln!(
+            "pdfcer: {}: {} script(s) were NOT considered — pdfcer recognises no \
+built-in in them, so their fields keep the values last saved. Run list-scripts to see \
+which.",
+            input.display(),
+            plan.not_reproducible,
+        );
+    }
 }
 
 /// `reset-form`: restore form fields to their defaults (§12.7.5.3).
