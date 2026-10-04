@@ -115,6 +115,46 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 490.0` — a widget's border dash is drawn but not recorded (`pdfcer-gui` `G116`) — SHIPPED `4337af87`
+
+Answers `pdfcer-gui` request **G116**: "a widget border dash is drawn
+but not recorded."
+
+**Fix.** Creating a form widget (`add_text_field`/`add_check_box`/
+`add_radio_button`/`add_push_button`/`add_choice_field`) with a Dashed
+border and `WidgetChrome::border_dash` now writes `/BS /D [on off …]`
+(ISO 32000-1 §12.5.4 Table 166); a dash on a non-Dashed style is not
+written. Before this, the dash was painted into the first `/AP` but
+never recorded, so any later redraw fell back to Table 166's default
+`[3]`.
+
+**New write surface.** `WidgetEdit::border_dash: Option<StyleEdit<BorderDash>>`
+and `WidgetEdit::with_border_dash(Option<BorderDash>)`: `Some` writes
+`/BS /D`, `None` removes it; either regenerates the appearance;
+undoable. CLI `edit-widget --border-dash ON,OFF,...|default`;
+`--border-dash solid` is refused, pointing at `--border-style solid`.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gains the
+`WidgetChrome::border_dash` and `WidgetEdit::border_dash` bullets;
+`index.md` line count updated; `check-core-api-verbs.py` green.
+
+**Tests.** 4 new core tests (`crates/pdfcer-core/tests/widget_border_dash.rs`),
+3 new CLI tests (`crates/pdfcer-cli/tests/widget_properties.rs`), all
+sabotage-checked.
+
+**Checks.** Core `--test all` 2,682 passed/2 ignored; CLI `--test all`
+773 passed/1 ignored; CLI bin unit 43 passed. `tools/run-gates.sh` PASS
+(45 commands incl. 2 filing gates). No dependency/manifest change
+(`cargo tree` N/A). Code structure: 592 baseline entries, none new.
+
+**Delivered:** core + cli (gui is the separate `pdfcer-gui` project).
+`FEATURES.md` — new row under *Forms (AcroForm)* for the border-dash
+write verb: core `[x]` / cli `[x]` / gui `[ ]` (not wired). Reply filed
+in the GUI channel:
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_request_G116_a_widget_border_dash_is_drawn_but_not_recorded_FIXED.md`.
+Ledger after: next filing 959th, next Pass 491.0, next decision 192,
+next standing rule R251, next operator question (ck).
+
 ### `Pass 489.0` — `edit-text` split into pin, options, error and report steps — SHIPPED `ef39b484`
 
 Structure debt only; no behaviour change.
@@ -29944,6 +29984,17 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### CLI test suite leaves ~39 GB of temp output files uncollected (filed 958th filing, 2026-10-04)
+
+Found while diagnosing a disk-full build failure the same session (full
+account in `SESSION_LOG.md`'s 958th-filing entry): `%LOCALAPPDATA%\Temp`
+held 46,056 `pdfcer*` entries totalling 39 GB, because CLI integration
+tests write fixtures/output under OS temp dirs with no teardown cleanup.
+Not yet scoped to a Pass. Candidate fixes: a per-run temp subdir cleaned
+at test-process exit, or a housekeeping script run before/after
+`cargo test`. Operator call on priority — not blocking anything today
+now that the disk has been cleared manually.
 
 ### ~~Replacement-face matching ladder — known gaps~~ (filed 877th filing, `Pass 436.2`) — CLOSED 2026-10-03 (902nd filing, `Pass 436.7`, `a5c7010c`): no gap remains; the one surviving item is a deliberate refusal, not an open gap.
 

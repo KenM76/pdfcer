@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (958th filing) — `Pass 490.0` shipped (widget border dash now recorded, `pdfcer-gui` `G116`)
+
+**Shipped:**
+- `Pass 490.0` (`4337af87`) — creating a form widget
+  (`add_text_field`/`add_check_box`/`add_radio_button`/
+  `add_push_button`/`add_choice_field`) with a Dashed border now writes
+  `/BS /D` (before this, the dash was painted into the first `/AP` but
+  never recorded, so a later redraw fell back to the default `[3]`).
+  New `WidgetEdit::border_dash`/`with_border_dash`, CLI
+  `edit-widget --border-dash ON,OFF,...|default` (`solid` refused,
+  pointing at `--border-style solid`). Answers inbound request `G116`
+  from `pdfcer-gui`; reply filed on the request channel.
+
+**Decisions made this session:** none — decision stays `192`, standing
+rule stays `R251`.
+
+**Findings + decisions:**
+- **Environment, not pdfcer:** both disks were full partway through
+  this session (D: 174 MB free, C: 2 GB free), which produced `LNK1318`
+  "Unexpected PDB error; LIMIT (12)" link failures and 128 spurious CLI
+  test failures that looked like a regression and were not. Fixed by
+  deleting `target/debug/incremental` (67 GB) and `pdfcer*` test temp
+  files older than a day under `%LOCALAPPDATA%\Temp` (39 GB, 46,056
+  entries). Filed as a Backlog item (`ROADMAP.md`, "CLI test suite
+  leaves ~39 GB of temp output files uncollected") rather than a Pass —
+  the CLI integration suite leaks temp output with no teardown and
+  that's a maintenance item, not yet scoped.
+
+**Still in flight:** full `tools/run-gates.sh` stated green by the
+engineer; not independently re-verified (no shell this filing).
+
+**For next session:**
+- Next free `Pass 491.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- `FEATURES.md` — new row under *Forms (AcroForm)* for the border-dash
+  write verb: core `[x]` / cli `[x]` / gui `[ ]`.
+- Backlog candidate open: CLI test temp-file cleanup (see above) — not
+  blocking, disk already cleared.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count, disk-space figures and test results
+are relayed from the dispatching engineer's report, not independently
+re-verified.
+
 ## 2026-10-04 (957th filing) — `Pass 489.0` shipped (edit-text split into pin, options, error and report steps)
 
 **Shipped:**
