@@ -47,9 +47,12 @@
 //! new apex lying exactly in its parent's plane on the parent's side
 //! (`d.z == 0`, `d.y > 0`, a double-sided panel folding back over itself)
 //! is folded. A component (a run started from an empty stack) that fails
-//! to fit is rewound and retried once with the fold inverted at its second
-//! triangle, where every measured unsignalled fold sat. A mesh whose
-//! oriented walk does not fit is walked again on the default alone.
+//! to fit is rewound and retried with the fold inverted at its second
+//! triangle, where most measured unsignalled folds sat; failing that, once
+//! more inverted at the last sliver before its first failure. A sliver's
+//! sign against its face normal is rounding noise: trusting it loses as
+//! many measured meshes as it gains. A mesh whose oriented walk does not
+//! fit is walked again on the default alone.
 //!
 //! Only the per-triangle `edge_status` form (three entries per triangle,
 //! the first `T` read) is reconstructed; the one-entry-per-triangle form
@@ -180,6 +183,8 @@ struct Walk<'a> {
     ri: usize,
     pi: usize,
     normals: Option<NormalReader<'a>>,
+    /// The last triangle whose face normal could not orient it.
+    sliver: Option<usize>,
 }
 
 /// Where a component starts, to roll back to.
@@ -207,6 +212,7 @@ impl<'a> Walk<'a> {
             ri: 0,
             pi: 0,
             normals,
+            sliver: None,
         }
     }
 
@@ -330,6 +336,7 @@ impl<'a> Walk<'a> {
                 if sine > MIN_SINE && s != 0.0 {
                     s < 0.0
                 } else {
+                    self.sliver = Some(ti);
                     fold
                 }
             }
@@ -424,28 +431,38 @@ fn mesh(
 }
 
 /// Walks every component. One that fails to fit is rewound and retried
-/// once with the fold inverted at its second triangle: a fold whose apex
-/// is a reference, or whose triangle carries no normal signal, has no
-/// other trace in the arrays.
+/// with the fold inverted at its second triangle: a fold whose apex is a
+/// reference, or whose triangle carries no normal signal, has no other
+/// trace in the arrays. Should that fail too, it is retried once more
+/// inverted at the last sliver its first walk met before failing (see
+/// [`MIN_SINE`]).
 fn walk<'a>(a: &Arrays<'_>, normals: Option<NormalReader<'a>>) -> Result<Walk<'a>, String> {
     let t = a.triangles;
     let mut w = Walk::new(t, normals);
     let mut start = w.mark(0);
-    let mut retried = false;
+    let (mut flip_at, mut sliver) = (None, None);
     let mut i = 0;
     while i < t {
-        if w.next.is_none() && !(retried && i == start.tri) {
+        if w.next.is_none() && !(flip_at.is_some() && i == start.tri) {
             start = w.mark(i);
-            retried = false;
+            flip_at = None;
         }
         let status = a.edge_status.get(i).copied().unwrap_or(0);
-        let flip = retried && i == start.tri + 1;
-        match w.step(a, status, flip) {
+        match w.step(a, status, flip_at == Some(i)) {
             Ok(()) => i += 1,
-            Err(e) if retried || i == start.tri => return Err(e),
-            Err(_) => {
+            Err(e) if i == start.tri => return Err(e),
+            Err(e) => {
+                let retry = match flip_at {
+                    None => {
+                        sliver = w.sliver.filter(|&s| s > start.tri + 1);
+                        Some(start.tri + 1)
+                    }
+                    Some(f) if f == start.tri + 1 => sliver.take(),
+                    Some(_) => None,
+                };
+                let Some(f) = retry else { return Err(e) };
                 w.rewind(start);
-                retried = true;
+                flip_at = Some(f);
                 i = start.tri;
             }
         }
@@ -671,6 +688,42 @@ mod tests {
         let m = oriented(&[0, 0, 0, 0, 1], &[0, 1023], true);
         assert_eq!(m.triangles[3], [4, 1, 0]);
         assert!(m.normals.is_empty());
+    }
+
+    /// One planar face. The third triangle's apex `(4, 0, 0)` lies on its
+    /// entry edge's line, a sliver its face normal cannot orient, so it
+    /// takes the default (unfolded). The fourth triangle's reference then
+    /// reuses an edge a third time, and inverting the second triangle does
+    /// not help: only the sliver, folded, fits.
+    #[test]
+    fn a_sliver_fold_is_found_by_retrying_at_the_sliver() {
+        let pts = [0, 0, 0, 4, 0, 0, -2, 4, 0, 0, 3, 0, 4, 0, 0, 0, 3, 0];
+        let mut status = [0; 15];
+        status[..3].copy_from_slice(&[1, 1, 3]);
+        let mut is_ref = [false; 7];
+        is_ref[5] = true;
+        let m = reconstruct(&Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &status,
+            triangles: 5,
+            is_reference: &is_ref,
+            references: &[0],
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[false; 4],
+                angles: &[0, 1023],
+                planar: &[true],
+                face_of: &[0; 5],
+            }),
+        })
+        .unwrap();
+        assert_eq!(
+            m.triangles,
+            [[0, 1, 2], [0, 2, 3], [3, 2, 4], [3, 4, 0], [4, 2, 5]]
+        );
+        assert_eq!(m.normals.len(), 1);
     }
 
     #[test]
