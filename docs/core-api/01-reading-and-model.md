@@ -2056,6 +2056,11 @@ maps them through `ctm` to **page space**. `style: PaintStyle`,
 , `tokens: TokenRange`, `bytes: ByteSpan`,
 `page_bbox: Bounds` (page space, control-point hull).
 
+`PageObjects::page_bbox()` is the drawn extent: the union of every object's
+`page_bbox` **except** paths whose `style.is_invisible()` (ended by `n`, a
+clip or bare end-path). The off-page scan skips those paths too (Pass 467.0,
+request G109).
+
 `Subpath`: `{start, segments, closed, tokens, starts_implicitly}`;
 `anchors()` yields on-curve points only.
 `Segment`: `Line{to}` | `Cubic{c1, c2, to}` — control points

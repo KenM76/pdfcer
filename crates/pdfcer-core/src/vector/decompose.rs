@@ -1439,12 +1439,15 @@ pub struct PageObjects {
 }
 
 impl PageObjects {
-    /// The union of every object's page bbox — the page's drawn extent in
-    /// page space (empty if the page has no vector content).
+    /// The union of the page bbox of every object that paints — the page's
+    /// drawn extent in page space (empty if nothing paints). A path ended by
+    /// `n` ([`PaintStyle::is_invisible`], a clip or bare end-path) is skipped;
+    /// stroked paths count by their geometry, without the stroke width.
     #[must_use]
     pub fn page_bbox(&self) -> Bounds {
         self.objects
             .iter()
+            .filter(|o| !matches!(o, VectorObject::Path(p) if p.style.is_invisible()))
             .fold(Bounds::EMPTY, |acc, o| acc.union(o.page_bbox()))
     }
 }

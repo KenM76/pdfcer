@@ -470,8 +470,10 @@ pub fn offpage_bands(scan: &PageScan, tolerance: f64) -> Vec<Rect> {
 /// no `/ToUnicode` previews as nothing and still paints, and treating it as
 /// empty would hide exactly the content this module exists to find.
 fn paints_anything(obj: &VectorObject) -> bool {
-    let VectorObject::Text(t) = obj else {
-        return true;
+    let t = match obj {
+        VectorObject::Text(t) => t,
+        VectorObject::Path(p) => return !p.style.is_invisible(),
+        VectorObject::Image(_) => return true,
     };
     t.runs.iter().any(|r| {
         let b = r.bounds;
