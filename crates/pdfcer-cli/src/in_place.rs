@@ -143,6 +143,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "set-markup-note",
     "set-markup-style",
     "set-object-layer",
+    "set-object-paint",
     "set-page-size",
     "set-page-tabs",
     "set-page-labels",
