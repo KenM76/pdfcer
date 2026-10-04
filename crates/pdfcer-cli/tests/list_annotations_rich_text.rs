@@ -33,7 +33,7 @@ fn annot_line(fixture: &str) -> String {
 fn inline_rc_and_stray_ds_are_printed_last() {
     let line = annot_line("rich-text-square-stray-ds.pdf");
     assert!(
-        line.ends_with(
+        line.contains(
             " rich_note=\"<?xml version=\\\"1.0\\\"?><body><p>THE RICH WORDS</p></body>\" \
 default_style=\"font: 12pt Helvetica\""
         ),
@@ -45,14 +45,14 @@ default_style=\"font: 12pt Helvetica\""
 fn a_stream_rc_is_printed_decoded() {
     let line = annot_line("rich-text-stream.pdf");
     assert!(line.contains(" rich_note=\"<?xml version=\\\"1.0\\\"?><body><p>STREAMED RICH WORDS \u{e9}</p></body>\""), "{line}");
-    assert!(line.ends_with(" default_style=none"), "{line}");
+    assert!(line.contains(" default_style=none in_reply_to="), "{line}");
 }
 
 #[test]
 fn absent_keys_print_none() {
     let line = annot_line("no-ap-circle.pdf");
     assert!(
-        line.ends_with(" rich_note=none default_style=none"),
+        line.contains(" rich_note=none default_style=none in_reply_to="),
         "{line}"
     );
 }

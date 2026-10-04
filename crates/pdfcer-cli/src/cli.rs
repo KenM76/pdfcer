@@ -5047,6 +5047,12 @@ pub(crate) enum Command {
     /// default style (`/DS`, CSS text). Both are quoted, or `none` when the
     /// file has no such key. `note=` and `rich_note=` can disagree when a
     /// tool updated one and not the other; both are printed as found.
+    ///
+    /// A review status (set by `set-review-state` or another reviewer) is a
+    /// separate reply annotation: `in_reply_to=` is the object number of the
+    /// comment it answers, `state=` the status (`"Accepted"`, `"Marked"`...)
+    /// and `state_model=` its model (`"Review"` or `"Marked"`). Each is
+    /// `none` when absent.
     ListAnnotations {
         /// Input PDF.
         input: PathBuf,
