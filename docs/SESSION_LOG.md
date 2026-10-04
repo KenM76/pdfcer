@@ -4,6 +4,35 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (935th filing) — `Pass 468.0` follow-up (`--in-place` + README count fix)
+
+**Shipped:**
+- Follow-up commit `8f7320b49dd30985ced6d10a4e972ac5f616e9c4` on `Pass
+  468.0` — the full gate sweep on `e42474b8` (not run by the per-file
+  test filter at filing time) failed two gates: `in_place.rs`'s
+  `IN_PLACE_COMMANDS` was missing `set-object-paint`, and
+  `check-clap-help.py` flagged the README's working-subcommand count
+  as stale (209 vs. the enum's 210). Both fixed; no new tests, no
+  counters consumed. Nothing pushed between `c052fb67` and this
+  commit.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- A new input/output CLI subcommand must be classified in
+  `IN_PLACE_COMMANDS` *and* the README's subcommand count bumped — the
+  full gate sweep catches both, but a per-file test run does not.
+
+**Still in flight:** unchanged from the 934th filing above.
+
+**For next session:** next free decision `190` (unchanged), standing
+rule `R263` (unchanged), operator question `(ck)` (unchanged), Pass
+`469.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash and
+gate-failure description are relayed from the dispatching engineer's
+report, not independently re-verified.
+
 ## 2026-10-04 (934th filing) — `Pass 468.0` shipped (`pdfcer set-object-paint`)
 
 **Shipped:**

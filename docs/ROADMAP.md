@@ -125,6 +125,8 @@ An object in a spot/calibrated colour space or a pattern is refused per-object o
 
 **Delivered**: core unchanged (no new `pub` surface — wraps the `Pass 219.0` verb), cli yes, gui n/a (`pdfcer-gui` is a separate project; it shipped its own caller the day `Pass 219.0` landed). `docs/core-api/02-editing-and-saving.md`'s recolour row now names the CLI. `check-core-api-verbs` PASS. `cargo fmt`/`cargo clippy -D warnings` clean; no manifest change, `cargo tree` unaffected.
 
+**Follow-up** `8f7320b49dd30985ced6d10a4e972ac5f616e9c4` — the full gate sweep on `e42474b8` (not caught by the per-file test run) failed two gates: `in_place_covers_every_input_output_subcommand` (new subcommand missing from `IN_PLACE_COMMANDS`) and `check-clap-help.py` (README's working-subcommand count was stale at 209 against the enum's 210). Both fixed; no new tests, no counters consumed.
+
 ### `Pass 467.0` — a page's drawn extent skips clip-only paths (`G109`) — SHIPPED `293c642e57c145d35b032bef5a0078e9c0d54009`
 
 Answers `pdfcer-gui` request `G109`
