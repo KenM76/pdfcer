@@ -4,6 +4,58 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (942nd filing) — `v0.77.0` RELEASED
+
+**Shipped:**
+- Release of `v0.77.0`. Bump commit `1048934a` ("chore: v0.77.0"),
+  0.76.0 → 0.77.0. Tag `v0.77.0`, annotated, on `1048934a`. Gates:
+  45/45 PASS (incl. 2 filing gates) on `1048934a`. Binary reports
+  `0.77.0`, revision `v0.77.0`, clean; `pdfcer.exe` 32,339,968 bytes,
+  folder total 48,267,105 bytes
+  (`D:\builds\pdfcer-20261004-0930-1048934`). Fresh-folder smoke:
+  `--version` clean; `3d-embed --apply` of a synthetic zero-alpha-
+  material fixture printed both `inferred:` lines; `3d-render --index
+  0` wrote a PNG; `rotate --degrees 90` worked incrementally. Range
+  since `v0.76.0` (tag `455d6ba1`): `Pass 461.0` through `Pass 475.0`
+  (3D model-tree listing, 3D texture mapping, tagged-PDF
+  `TextDecorationType`, SVG/EMF stamp `MarkupOptions`, the lite CLI
+  build, a foreign push-button icon edit, the `run-gates.sh`
+  `core.hooksPath` widening, clip-only drawn-extent, `set-object-paint`,
+  standard-14 metric-equivalent faces, `FaceCatalog`, opt-in RC4
+  append, export fingerprinting, session export/import, the
+  compressed-mesh second retry, and the zero-material-alpha default).
+  Assets: `pdfcer-v0.77.0-windows-x64.zip` 25,287,870 bytes (flat, same
+  layout as `v0.76.0`) + 3 OCR add-on zips (`ocrcer` 3,789,155, `ocrs`
+  11,352,262, `tesseract` 4,483,685), each with a `.sha256`. Published
+  via `tools/gh-release.py`; `verify-release.py v0.77.0` result
+  recorded in `docs/NEXT_SESSION.md`. OneDrive slot `pdfcer2` now
+  `0.77.0`; `pdfcer1` keeps `0.76.0` — next release writes `pdfcer1`.
+
+**Decisions made this session:**
+- None — next decision stays `191`, next standing rule stays `R263`.
+
+**Findings + decisions:**
+- Nine `docs/ROADMAP.md` Pass entries (`Pass 433.1` through `Pass
+  455.0`, all dated 2026-10-03, all landed before the `v0.76.0` tag)
+  carried a stale `**Status.** Unreleased since \`v0.75.0\`.` line —
+  never updated when the 923rd filing shipped `v0.76.0`. Corrected in
+  place this filing to "Released in `v0.76.0`", each dated and sourced
+  to the correction itself (hard rule 10 corollary).
+
+**Still in flight:**
+- None carried over from this filing.
+
+**For next session:**
+- Confirm `v0.77.0`'s GitHub release and `verify-release.py` went
+  green. Next fresh whole-number Pass ID is `476.0`; decision `191`,
+  standing rule `R263`, operator question `(ck)` all unchanged.
+
+**Sourcing note (hard rule 8):** no shell this filing. Every release
+figure above (gate result, build path/size, binary version/revision,
+smoke-test output, asset sizes, OneDrive slot) is relayed from the
+dispatching engineer's own report, measured there with a shell; not
+independently reproduced here.
+
 ## 2026-10-04 (941st filing) — `Pass 475.0` shipped (a zero material alpha under a transparency-less style reads as unset, not invisible)
 
 **Shipped:**

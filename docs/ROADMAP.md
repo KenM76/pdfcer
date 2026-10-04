@@ -115,6 +115,77 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.77.0` — RELEASED (2026-10-04)
+
+Release filing, completing the version bump at `1048934a` ("chore:
+v0.77.0") — `Cargo.toml`'s workspace version 0.76.0 → 0.77.0,
+`Cargo.lock`, `fuzz/Cargo.lock`.
+
+**Tag.** `v0.77.0`, annotated, on `1048934a`.
+
+**Range since `v0.76.0`** (tag at `455d6ba1`) — `Pass 461.0`
+(`592dca09`, follow-up `26850f4e`, 3D model-tree listing), `Pass
+462.0` (`77777d07`, follow-up `bac09a4f`, 3D texture mapping), `Pass
+455.1` (`a90417d6`, tagged-PDF `TextDecorationType`), `Pass 463.0`
+(`aaaedfa1`, SVG/EMF stamps take `MarkupOptions`), `Pass 464.0`
+(`56ed6c81`, lite CLI build clippy-clean), `Pass 465.0` (`58992c0e`,
+foreign push-button icon edit replaces artwork by default), `Pass
+466.0` (`f8e68aa6`, `run-gates.sh` `core.hooksPath` check widened),
+`Pass 467.0` (`293c642e`, a page's drawn extent skips clip-only
+paths), `Pass 468.0` (`e42474b8`, `8f7320b4`, `set-object-paint`),
+`Pass 469.0` (`5921dd82`, a standard-14 run's replacement face
+prefers its metric equivalent), `Pass 470.0` (`c9d9fc9c`,
+`FaceCatalog`), `Pass 471.0` (`2f1dc888`, opt-in RC4 append, decision
+190), `Pass 472.0`/`Pass 473.0` (`dbbd889e`, export fingerprinting and
+an editable export-of-a-session), `Pass 474.0` (`b4c6b12e`,
+compressed-mesh second retry), `Pass 475.0` (`10389992`, a zero
+material alpha under a transparency-less style reads as unset).
+
+**Gates.** `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates),
+run on `1048934a`.
+
+**Build.** `tools/package-portable.py` →
+`D:\builds\pdfcer-20261004-0930-1048934`; `pdfcer.exe` 32,339,968
+bytes; folder total 48,267,105 bytes. `--version` reports `0.77.0`,
+revision `v0.77.0`, clean (not dirty).
+
+**Fresh-folder smoke test.** Copied the build to a new folder:
+`--version` clean; `3d-embed --apply` of a synthetic zero-alpha-
+material fixture printed both `inferred:` lines (rendered poster; mesh
+drawn opaque); `3d-render --index 0` wrote a PNG; `rotate --degrees
+90` worked incrementally.
+
+**GitHub release.** Published via `tools/gh-release.py` after this
+filing is pushed, 8 assets: `pdfcer-v0.77.0-windows-x64.zip`,
+25,287,870 bytes; `ocr-addon-ocrcer.zip` 3,789,155 bytes;
+`ocr-addon-ocrs.zip` 11,352,262 bytes; `ocr-addon-tesseract.zip`
+4,483,685 bytes; each zip with a matching `.sha256`.
+`verify-release.py v0.77.0` result recorded in `docs/NEXT_SESSION.md`.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer2` (now
+`0.77.0`); `pdfcer1` keeps `0.76.0`. Next release writes `pdfcer1`.
+The OneDrive copy's `--version` prints `0.77.0`.
+
+**`docs/FEATURES.md`.** No rows changed by the release act itself —
+every capability in the range above was already ticked at its own
+Pass's filing.
+
+**Status markers corrected this filing.** Nine `Pass` entries between
+`433.1` and `455.0` (all dated 2026-10-03, all landed before the
+`v0.76.0` tag) still read "Unreleased since `v0.75.0`" below — stale
+since the 923rd filing shipped `v0.76.0` without updating them.
+Corrected in place to "Released in `v0.76.0`", sourced to that
+entry's own range description above and to this filing.
+
+**Ledgers unchanged.** Next free `Pass 476.0`, decision `191`,
+standing rule `R263`, operator question `(ck)`.
+
+**Sourcing (hard rule 8).** No shell this filing. Every figure above
+(gate result, build path/size, binary version/revision, smoke-test
+output, release asset sizes, OneDrive slot) is relayed from the
+dispatching engineer's own report, measured there with a shell; not
+independently reproduced here.
+
 ### `Pass 475.0` — a material alpha of exactly 0 under a transparency-less style reads as unset, not invisible — SHIPPED `10389992`
 
 Self-scoped by the engineer; closes the open finding recorded in
@@ -1135,7 +1206,9 @@ with multiple non-empty content streams aren't refreshed.
 **Decision.** None — next decision stays 188, next standing rule stays
 `R263`.
 
-**Status.** Unreleased since `v0.75.0`.
+~~**Status.** Unreleased since `v0.75.0`.~~ **Released in `v0.76.0`**
+(corrected 2026-10-04, 942nd filing — this field was never updated
+when the 923rd filing shipped `v0.76.0`; see that entry's own range).
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash, file/
 line counts and test results above are **relayed** from the dispatching
@@ -1201,7 +1274,9 @@ plus a read) remains open, next up.
 **Decision.** None — next decision stays 188, next standing rule stays
 `R263`.
 
-**Status.** Unreleased since `v0.75.0`.
+~~**Status.** Unreleased since `v0.75.0`.~~ **Released in `v0.76.0`**
+(corrected 2026-10-04, 942nd filing — this field was never updated
+when the 923rd filing shipped `v0.76.0`; see that entry's own range).
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash,
 module/type names, test counts and gate results above are **relayed**
@@ -1264,7 +1339,9 @@ dropped a line-continuation backslash in `view_aim.rs`'s 3d-render note,
 baking a run of spaces into the middle of the sentence; `check-string-gaps.sh`
 caught it (run-gates 44/45). Rejoined; no test or dependency change.
 
-**Status.** Unreleased since `v0.75.0`.
+~~**Status.** Unreleased since `v0.75.0`.~~ **Released in `v0.76.0`**
+(corrected 2026-10-04, 942nd filing — this field was never updated
+when the 923rd filing shipped `v0.76.0`; see that entry's own range).
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash,
 module/type names, test counts and gate results above are **relayed**
@@ -1351,7 +1428,9 @@ core-api/01-reading-and-model.md` updated to say "placed at x 0, 2 and
 4". No new test functions — two existing tests strengthened. No
 dependency change.
 
-**Status.** Unreleased since `v0.75.0`.
+~~**Status.** Unreleased since `v0.75.0`.~~ **Released in `v0.76.0`**
+(corrected 2026-10-04, 942nd filing — this field was never updated
+when the 923rd filing shipped `v0.76.0`; see that entry's own range).
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash, test
 counts, sabotage results and gate results above are **relayed** from
@@ -1399,7 +1478,9 @@ and no box of its own).
 surface, no new invariant or crate boundary. Next decision stays 188, next
 standing rule stays `R263`.
 
-**Status.** Unreleased since `v0.75.0`.
+~~**Status.** Unreleased since `v0.75.0`.~~ **Released in `v0.76.0`**
+(corrected 2026-10-04, 942nd filing — this field was never updated
+when the 923rd filing shipped `v0.76.0`; see that entry's own range).
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash, test
 counts, sabotage results and gate results above are **relayed** from the
@@ -1429,7 +1510,9 @@ Answers `G100` (GUI `O272` snapshot paste-back, priority medium).
 
 **Decision.** None — extends the `place_page_artwork` surface from `Pass 293.0`, no new invariant or crate boundary.
 
-**Status.** Unreleased since `v0.75.0`.
+~~**Status.** Unreleased since `v0.75.0`.~~ **Released in `v0.76.0`**
+(corrected 2026-10-04, 942nd filing — this field was never updated
+when the 923rd filing shipped `v0.76.0`; see that entry's own range).
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash, test counts, sabotage results and gate results above are **relayed** from the dispatching engineer's report, not independently verified.
 
@@ -1479,7 +1562,9 @@ feature + shared disclosure; `gui` not adopted.
 
 **Decision.** None.
 
-**Status.** Unreleased since `v0.75.0`.
+~~**Status.** Unreleased since `v0.75.0`.~~ **Released in `v0.76.0`**
+(corrected 2026-10-04, 942nd filing — this field was never updated
+when the 923rd filing shipped `v0.76.0`; see that entry's own range).
 
 **Open verification.** End-to-end paddle-vl recognition through
 `OcrRunner` is untested on this machine (no built add-on present);
@@ -1526,7 +1611,9 @@ CLI retirement onto `OcrRunner` shipped.
 **Decision.** None — next decision stays 188, next standing rule stays
 `R263`.
 
-**Status.** Unreleased since `v0.75.0`.
+~~**Status.** Unreleased since `v0.75.0`.~~ **Released in `v0.76.0`**
+(corrected 2026-10-04, 942nd filing — this field was never updated
+when the 923rd filing shipped `v0.76.0`; see that entry's own range).
 
 **Sourcing (hard rule 8).** No shell this filing. Commit hash, test
 counts, sabotage result and gate results above are **relayed** from the
@@ -1573,7 +1660,9 @@ updated to note the looks count; boxes unchanged at `[x] core / [x] cli / [ ] gu
 **Decision.** None — extends `Pass 433.0`'s existing surface, no new
 invariant or crate boundary.
 
-**Status.** Unreleased since `v0.75.0`.
+~~**Status.** Unreleased since `v0.75.0`.~~ **Released in `v0.76.0`**
+(corrected 2026-10-04, 942nd filing — this field was never updated
+when the 923rd filing shipped `v0.76.0`; see that entry's own range).
 
 **Sourcing (hard rule 8).** Hashes, test counts and line counts above are
 **relayed** from the dispatching engineer's report, not independently
