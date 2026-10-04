@@ -362,207 +362,62 @@ pub(crate) struct AddTextArgs<'a> {
 /// (`Bundled`/`Supplied`), the tagged-untagged disclosure, and the
 /// inheritance-safe `/Resources` note (§7.7.3.4) are surfaced verbatim.
 pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
-    use pdfcer_core::fontdata::{Std14, std14_base_font_name, std14_by_base_font};
-    use pdfcer_core::text_edit::{
-        AddTextRequest, BlockAlignment, FontProvenance, NewTextColor, add_text,
-    };
+    use pdfcer_core::fontdata::std14_base_font_name;
+    use pdfcer_core::text_edit::{AddTextRequest, FontProvenance};
 
     if args.page == 0 {
         eprintln!("pdfcer: --page is 1-based; 0 is not a valid page number");
         return exit::EDIT_REFUSED;
     }
-
-    // Resolve the placement mode up front (R27 fail-clean): exactly one of
-    // `--at` (point, 16.0) or `--box` (boxed, 16.1). Parsing the geometry and
-    // the alignment before any document work means a typo fails cleanly.
-    enum Placement {
-        Point {
-            origin: (f64, f64),
-        },
-        Boxed {
-            rect: (f64, f64, f64, f64),
-            align: BlockAlignment,
-        },
-    }
-    let placement = match (args.at, args.wrap_box) {
-        (Some(_), Some(_)) => {
-            eprintln!("pdfcer: --at and --box are mutually exclusive; pass exactly one");
-            return exit::EDIT_REFUSED;
-        }
-        (None, None) => {
-            eprintln!(
-                "pdfcer: add-text needs a placement — pass --at \"x,y\" (point text) or \
-                 --box \"x,y,w,h\" (boxed, wrapped text)"
-            );
-            return exit::EDIT_REFUSED;
-        }
-        (Some(at), None) => match parse_at_pair(at) {
-            Some(origin) => Placement::Point { origin },
-            None => {
-                eprintln!(
-                    "pdfcer: --at expects two comma-separated numbers \"x,y\" (points), got {at:?}"
-                );
-                return exit::EDIT_REFUSED;
-            }
-        },
-        (None, Some(bx)) => {
-            let rect = match parse_box_quad(bx) {
-                Some(r) => r,
-                None => {
-                    eprintln!(
-                        "pdfcer: --box expects four comma-separated numbers \"x,y,w,h\" \
-                         (points), got {bx:?}"
-                    );
-                    return exit::EDIT_REFUSED;
-                }
-            };
-            let align = match args.align {
-                None => BlockAlignment::Left,
-                Some(s) => match BlockAlignment::parse(s) {
-                    Some(a) => a,
-                    None => {
-                        eprintln!("pdfcer: --align {s:?}: expected left|center|right|justify");
-                        return exit::EDIT_REFUSED;
-                    }
-                },
-            };
-            Placement::Boxed { rect, align }
-        }
+    // Every flag is parsed before any document work, so a typo fails cleanly.
+    let placement = match add_text_placement(args) {
+        Ok(p) => p,
+        Err(code) => return code,
     };
-
-    // `--font auto` = Helvetica (pdfcer's documented default; Acrobat's is a
-    // GAP, decision 016 §3.3); otherwise an EXACT §9.6.2.2 spelling.
-    let font = if args.font.eq_ignore_ascii_case("auto") {
-        Std14::Helvetica
-    } else {
-        match std14_by_base_font(args.font) {
-            Some(f) => f,
-            None => {
-                eprintln!(
-                    "pdfcer: --font {:?} is not a Standard-14 BaseFont name \
-                     (e.g. Helvetica, Times-Roman, Courier-Bold, Symbol, ZapfDingbats)",
-                    args.font
-                );
-                return exit::EDIT_REFUSED;
-            }
-        }
-    };
-
-    let color = match args.color {
-        None => NewTextColor::Black,
-        Some(s) => match parse_rgb_triple(s) {
-            Some((r, g, b)) => NewTextColor::Rgb(r, g, b),
-            None => {
-                eprintln!(
-                    "pdfcer: --color expects three comma-separated components in 0..=1 \
-                     \"r,g,b\", got {s:?}"
-                );
-                return exit::EDIT_REFUSED;
-            }
-        },
-    };
-
-    // The shell owns font discovery (R61): a `--font-dir` face registered for
-    // the chosen name lifts the disclosed provenance to `Supplied` (decision
-    // 012). The WRITTEN dict is identical either way (no embedding, R79).
+    let (font, color) =
+        match add_text_font(args.font).and_then(|f| add_text_color(args.color).map(|c| (f, c))) {
+            Ok(fc) => fc,
+            Err(code) => return code,
+        };
+    // A `--font-dir` face registered for the name lifts the disclosed
+    // provenance to `Supplied` (decision 012); the written dict is the same.
     let (font_env, supplied_registered, font_notes) = build_font_environment(args.font_dirs);
     for note in &font_notes {
         eprintln!("pdfcer: font-dir: {note}");
     }
-    let base_font_name = std14_base_font_name(font);
-    let provenance = match font_env.classify_nonembedded(base_font_name) {
+    let provenance = match font_env.classify_nonembedded(std14_base_font_name(font)) {
         pdfcer_render::GlyphSource::Supplied => FontProvenance::Supplied,
         _ => FontProvenance::Bundled,
     };
-
-    let source = match std::fs::read(args.input) {
-        Ok(b) => b,
+    let doc = match std::fs::read(args.input) {
+        Ok(source) => match open_document_bytes(source) {
+            Ok(d) => d,
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", args.input.display());
+                return exit_code_for_doc(&err);
+            }
+        },
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", args.input.display());
             return exit::IO_ERROR;
         }
     };
-    let doc = match open_document_bytes(source) {
-        Ok(d) => d,
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", args.input.display());
-            return exit_code_for_doc(&err);
-        }
+    let origin = match placement {
+        AddTextPlacement::Point { origin } => origin,
+        AddTextPlacement::Boxed { .. } => (0.0, 0.0),
     };
-
-    // The `origin` a point add uses; a boxed add supersedes it via `with_box`.
-    let base_origin = match placement {
-        Placement::Point { origin } => origin,
-        Placement::Boxed { .. } => (0.0, 0.0),
-    };
-    let mut req = AddTextRequest::new(args.page - 1, base_origin, args.text.to_owned())
+    let mut req = AddTextRequest::new(args.page - 1, origin, args.text.to_owned())
         .with_font(font)
         .with_provenance(provenance)
         .with_size(args.size)
         .with_color(color);
-
-    // FF-C (decision 021 / Pass 21.0): --embed-font subsets a donor face and
-    // embeds it, so the saved file carries its own glyphs.
-    //
-    // The subset is computed HERE, before anything is written, and its real
-    // numbers are printed. That is R108/R98 applied: subsetting is a pure
-    // function, so there is no reason to describe the outcome in the future
-    // tense. "will add roughly N KB" is a prediction; "added 11,240 bytes for
-    // 14 glyph(s)" is a measurement, and only one of them can be wrong.
     if let Some(donor_path) = args.embed_font {
-        let donor = match std::fs::read(donor_path) {
-            Ok(b) => b,
-            Err(e) => {
-                eprintln!(
-                    "pdfcer: cannot read the font file {}: {e}",
-                    donor_path.display()
-                );
-                return exit::IO_ERROR;
-            }
+        req = match add_text_embed(req, donor_path, args.text) {
+            Ok(r) => r,
+            Err(code) => return code,
         };
-        // Deduplicated and ordered: the plan only needs each distinct
-        // character once, and `plan_subset` reports coverage gaps against
-        // exactly what it was asked for — passing "AAB" would otherwise
-        // report 'A' missing twice.
-        let mut wanted: Vec<char> = args.text.chars().collect();
-        wanted.sort_unstable();
-        wanted.dedup();
-
-        let stem = donor_path.file_stem().map_or_else(
-            || "EmbeddedFont".to_owned(),
-            |s| s.to_string_lossy().into_owned(),
-        );
-        // A subset tag must be exactly six uppercase ASCII letters (§9.6.4).
-        // Derived from the face name so repeated runs over the same font are
-        // reproducible — a random tag would make byte-comparison of two
-        // otherwise identical outputs impossible, which the round-trip
-        // harness depends on.
-        let tag = pdfcer_render::font::subset::subset_tag_for(&stem);
-
-        let plan = match pdfcer_render::font::subset::plan_subset(&donor, 0, &wanted, &stem, &tag) {
-            Ok(p) => p,
-            Err(e) => {
-                eprintln!("pdfcer: add-text refused: {e}");
-                return exit::EDIT_REFUSED;
-            }
-        };
-
-        // One line, no continuation. A `\` line-continuation inside the
-        // format string looked tidier in source and printed a run of
-        // spaces to the terminal, because the leading indentation of the
-        // continued line is only stripped when nothing follows the
-        // backslash. Readable source is not worth unreadable output.
-        println!(
-            "embedding a subset of '{}': {} glyph(s), {} byte(s) of font program, covering {} character(s) — subset tag {}",
-            plan.base_name,
-            plan.glyphs.len(),
-            plan.program.len(),
-            wanted.len(),
-            plan.subset_tag
-        );
-        req = req.with_embedded_face(plan);
     }
-    if let Placement::Boxed {
+    if let AddTextPlacement::Boxed {
         rect: (x, y, w, h),
         align,
     } = placement
@@ -572,43 +427,164 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
             .with_alignment(align)
             .with_leading(args.leading);
     }
-
     req = req.with_render_mode(args.render_mode);
-    // A layer or hand signature needs the session route: the marking writes
-    // are undoable session writes, which the one-shot `add_text` does not
-    // have.
-    let (owned_report, layer_outcome) = if args.layer.is_some() || args.hand_signature.is_some() {
-        match add_text_in_session(args, req) {
-            Ok((report, outcome)) => (report, Some(outcome)),
-            Err(code) => return code,
-        }
-    } else {
-        let outcome = match add_text(&doc, &req) {
-            Ok(o) => o,
-            Err(err) => {
-                eprintln!("pdfcer: add-text refused: {err}");
-                return add_text_exit(&err);
-            }
-        };
-        if let Err(err) = write_output(args.output, &outcome.bytes) {
-            eprintln!("pdfcer: {}: {err}", args.output.display());
-            return exit::IO_ERROR;
-        }
-        (outcome.report, None)
+    let (report, session_outcome) = match add_text_run(args, &doc, req) {
+        Ok(r) => r,
+        Err(code) => return code,
     };
+    print_add_text_report(args, &placement, &report, supplied_registered);
+    match &session_outcome {
+        Some(outcome) => finish_edit(args.input, outcome),
+        None => exit::SUCCESS,
+    }
+}
 
-    let report = &owned_report;
+/// Where `add-text` puts its run: exactly one of `--at` or `--box`.
+enum AddTextPlacement {
+    Point {
+        origin: (f64, f64),
+    },
+    Boxed {
+        rect: (f64, f64, f64, f64),
+        align: pdfcer_core::text_edit::BlockAlignment,
+    },
+}
+
+/// Parse `--at` / `--box` / `--align`, or the exit code after printing why not.
+fn add_text_placement(args: &AddTextArgs<'_>) -> Result<AddTextPlacement, u8> {
+    use pdfcer_core::text_edit::BlockAlignment;
+    match (args.at, args.wrap_box) {
+        (Some(_), Some(_)) => {
+            eprintln!("pdfcer: --at and --box are mutually exclusive; pass exactly one");
+            Err(exit::EDIT_REFUSED)
+        }
+        (None, None) => {
+            eprintln!(
+                "pdfcer: add-text needs a placement — pass --at \"x,y\" (point text) or \
+                 --box \"x,y,w,h\" (boxed, wrapped text)"
+            );
+            Err(exit::EDIT_REFUSED)
+        }
+        (Some(at), None) => parse_at_pair(at)
+            .map(|origin| AddTextPlacement::Point { origin })
+            .ok_or_else(|| {
+                eprintln!(
+                    "pdfcer: --at expects two comma-separated numbers \"x,y\" (points), got {at:?}"
+                );
+                exit::EDIT_REFUSED
+            }),
+        (None, Some(bx)) => {
+            let rect = parse_box_quad(bx).ok_or_else(|| {
+                eprintln!(
+                    "pdfcer: --box expects four comma-separated numbers \"x,y,w,h\" \
+                     (points), got {bx:?}"
+                );
+                exit::EDIT_REFUSED
+            })?;
+            let align = match args.align {
+                None => BlockAlignment::Left,
+                Some(s) => BlockAlignment::parse(s).ok_or_else(|| {
+                    eprintln!("pdfcer: --align {s:?}: expected left|center|right|justify");
+                    exit::EDIT_REFUSED
+                })?,
+            };
+            Ok(AddTextPlacement::Boxed { rect, align })
+        }
+    }
+}
+
+/// `--font`: `auto` is Helvetica (decision 016 §3.3), otherwise an exact
+/// §9.6.2.2 Standard-14 spelling.
+fn add_text_font(name: &str) -> Result<pdfcer_core::fontdata::Std14, u8> {
+    use pdfcer_core::fontdata::{Std14, std14_by_base_font};
+    if name.eq_ignore_ascii_case("auto") {
+        return Ok(Std14::Helvetica);
+    }
+    std14_by_base_font(name).ok_or_else(|| {
+        eprintln!(
+            "pdfcer: --font {name:?} is not a Standard-14 BaseFont name \
+             (e.g. Helvetica, Times-Roman, Courier-Bold, Symbol, ZapfDingbats)"
+        );
+        exit::EDIT_REFUSED
+    })
+}
+
+/// `--color "r,g,b"`, black when absent.
+fn add_text_color(raw: Option<&str>) -> Result<pdfcer_core::text_edit::NewTextColor, u8> {
+    use pdfcer_core::text_edit::NewTextColor;
+    let Some(s) = raw else {
+        return Ok(NewTextColor::Black);
+    };
+    parse_rgb_triple(s)
+        .map(|(r, g, b)| NewTextColor::Rgb(r, g, b))
+        .ok_or_else(|| {
+            eprintln!(
+                "pdfcer: --color expects three comma-separated components in 0..=1 \
+                 \"r,g,b\", got {s:?}"
+            );
+            exit::EDIT_REFUSED
+        })
+}
+
+/// `--embed-font` (FF-C, decision 021): subset the donor now and print the
+/// measured result before anything is written (R108/R98).
+fn add_text_embed(
+    req: pdfcer_core::text_edit::AddTextRequest,
+    donor_path: &Path,
+    text: &str,
+) -> Result<pdfcer_core::text_edit::AddTextRequest, u8> {
+    let plan = subset_donor(donor_path, text, "add-text")?;
+    println!(
+        "embedding a subset of '{}': {} glyph(s), {} byte(s) of font program, covering {} character(s) — subset tag {}",
+        plan.base_name,
+        plan.glyphs.len(),
+        plan.program.len(),
+        distinct_chars(text).len(),
+        plan.subset_tag
+    );
+    Ok(req.with_embedded_face(plan))
+}
+
+/// Run the add: through a session when `--layer` or `--hand-signature` needs
+/// its undoable marking writes, else one-shot and written here.
+fn add_text_run(
+    args: &AddTextArgs<'_>,
+    doc: &pdfcer_core::document::Document,
+    req: pdfcer_core::text_edit::AddTextRequest,
+) -> Result<(pdfcer_core::text_edit::AddTextReport, Option<EditOutcome>), u8> {
+    if args.layer.is_some() || args.hand_signature.is_some() {
+        let (report, outcome) = add_text_in_session(args, req)?;
+        return Ok((report, Some(outcome)));
+    }
+    let outcome = pdfcer_core::text_edit::add_text(doc, &req).map_err(|err| {
+        eprintln!("pdfcer: add-text refused: {err}");
+        add_text_exit(&err)
+    })?;
+    write_output(args.output, &outcome.bytes).map_err(|err| {
+        eprintln!("pdfcer: {}: {err}", args.output.display());
+        exit::IO_ERROR
+    })?;
+    Ok((outcome.report, None))
+}
+
+fn print_add_text_report(
+    args: &AddTextArgs<'_>,
+    placement: &AddTextPlacement,
+    report: &pdfcer_core::text_edit::AddTextReport,
+    supplied_registered: usize,
+) {
+    use pdfcer_core::text_edit::FontProvenance;
     println!(
         "add-text {} -> {}",
         args.input.display(),
         args.output.display()
     );
     match placement {
-        Placement::Point { origin } => println!(
+        AddTextPlacement::Point { origin } => println!(
             "  mode=point page={} at={},{} text={:?}",
             args.page, origin.0, origin.1, args.text
         ),
-        Placement::Boxed {
+        AddTextPlacement::Boxed {
             rect: (x, y, w, h),
             align,
         } => println!(
@@ -655,10 +631,6 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
     println!("  disclosures:");
     for d in &report.disclosures {
         println!("    - {d}");
-    }
-    match &layer_outcome {
-        Some(outcome) => finish_edit(args.input, outcome),
-        None => exit::SUCCESS,
     }
 }
 
@@ -1283,22 +1255,42 @@ pub(crate) fn donor_plan(
         );
         return Err(exit::EDIT_REFUSED);
     }
+    subset_donor(path, find, "format-text")
+}
+
+/// Subset the donor at `path` for the distinct characters of `text`, or the
+/// exit code after printing why not (`verb` names the refusing command).
+/// The tag derives from the file stem (§9.6.4), so repeated runs over one
+/// font are byte-reproducible.
+fn subset_donor(
+    path: &Path,
+    text: &str,
+    verb: &str,
+) -> Result<pdfcer_core::font_embed::FontEmbedPlan, u8> {
     let donor = std::fs::read(path).map_err(|e| {
         eprintln!("pdfcer: cannot read the font file {}: {e}", path.display());
         exit::IO_ERROR
     })?;
-    let mut wanted: Vec<char> = find.chars().collect();
-    wanted.sort_unstable();
-    wanted.dedup();
     let stem = path.file_stem().map_or_else(
         || "EmbeddedFont".to_owned(),
         |s| s.to_string_lossy().into_owned(),
     );
     let tag = pdfcer_render::font::subset::subset_tag_for(&stem);
-    pdfcer_render::font::subset::plan_subset(&donor, 0, &wanted, &stem, &tag).map_err(|e| {
-        eprintln!("pdfcer: format-text refused: {e}");
-        exit::EDIT_REFUSED
-    })
+    pdfcer_render::font::subset::plan_subset(&donor, 0, &distinct_chars(text), &stem, &tag).map_err(
+        |e| {
+            eprintln!("pdfcer: {verb} refused: {e}");
+            exit::EDIT_REFUSED
+        },
+    )
+}
+
+/// Each character of `text` once, sorted: a subset plan reports coverage
+/// gaps against exactly what it was asked for.
+fn distinct_chars(text: &str) -> Vec<char> {
+    let mut wanted: Vec<char> = text.chars().collect();
+    wanted.sort_unstable();
+    wanted.dedup();
+    wanted
 }
 
 /// One `--X` / `--no-X` flag pair as a [`StyleTarget`] axis; clap's

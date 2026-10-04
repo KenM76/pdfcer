@@ -218,7 +218,6 @@ fn pdfcer-cli/src/sign.rs::cmd_timestamp
 fn pdfcer-cli/src/sign.rs::report_assemble
 fn pdfcer-cli/src/stamp.rs::cmd_stamp_pack
 fn pdfcer-cli/src/structure.rs::cmd_list_objects
-fn pdfcer-cli/src/text_edit.rs::cmd_add_text
 fn pdfcer-cli/src/text_edit.rs::cmd_place_text
 fn pdfcer-cli/src/threed_cmd.rs::render_from_bytes
 fn pdfcer-core/src/annot.rs::apply_view_usage
