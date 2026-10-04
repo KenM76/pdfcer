@@ -115,6 +115,35 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 482.0` — `cmd_import_data` split into helpers; `import-data` gets its first CLI tests — SHIPPED `cca56e06`
+
+Structure debt only; no behaviour change.
+
+**Structure debt.** `cmd_import_data` (95 lines, over the 80-line cap) in
+`crates/pdfcer-cli/src/fields.rs` split into `read_form_data` (content-
+detected FDF/XFDF/CSV), `count_rich_text_targets`,
+`disclose_import_skips`. Output byte-identical. Baseline entry deleted
+(597 left).
+
+**Tests.** `pdfcer import-data` had no CLI integration tests before
+this. New `import_data_cli` module (3 tests): an XFDF named `.txt`, an
+FDF named `.dat` and a CSV named `.xfdf` each import correctly by
+content detection; a CSV setting a plain field, a password field and a
+rich-text field reports `applied=2 skipped=1` with both stderr
+disclosures (rich-text left untouched; password drawn as asterisks and
+not saved) and the rich-text value unchanged; an unreadable CSV (three
+columns) is refused, the message names the data file, no output is
+written. Sabotage-checked: each of three mutations fails exactly one
+test.
+
+**Observed, not changed.** The CSV reader treats a first row whose
+first cell is "name" (case-insensitive) as a header, so a header-less
+CSV whose first field is literally named `Name` loses that row —
+documented contract of `formcsv::parse_csv`, no Backlog item.
+
+**Delivered:** cli (tests + refactor). No core, no gui, no dependency
+change. Ledger after: next filing 951st, next Pass 483.0.
+
 ### `Pass 481.0` — `reset_form` counts only fields it actually changed; `cmd_reset_form` split into helpers — SHIPPED `4ab15402`
 
 Fixes a bug found on discovery and pays down structure debt.

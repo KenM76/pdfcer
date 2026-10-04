@@ -4,6 +4,38 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (950th filing) — `Pass 482.0` shipped (`import-data` split; its first CLI tests)
+
+**Shipped:**
+- `Pass 482.0` (`cca56e06`) — `cmd_import_data` (95 lines, over the
+  80-line cap) in `crates/pdfcer-cli/src/fields.rs` split into
+  `read_form_data` (content-detected FDF/XFDF/CSV),
+  `count_rich_text_targets`, `disclose_import_skips`; output
+  byte-identical. Baseline entry deleted (597 left). `import-data` had
+  no CLI integration tests before this; new `import_data_cli` module
+  (3 tests) covers content-detection-by-extension-mismatch, the
+  rich-text/password/plain-field skip-and-disclose path, and refusal
+  of a malformed CSV naming the data file. Sabotage-checked.
+
+**Decisions made this session:** none — next decision stays `191`,
+next standing rule stays `R263`.
+
+**Findings + decisions:**
+- Observed, not changed: `formcsv::parse_csv` treats a first row whose
+  first cell is "name" (case-insensitive) as a header, so a
+  header-less CSV whose first field is literally named `Name` loses
+  that row. Documented contract, no Backlog item.
+
+**Still in flight:** nothing opened by this filing.
+
+**For next session:**
+- Next free `Pass 483.0`; decision `191`, standing rule `R263`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count, and test results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (949th filing) — `Pass 481.0` follow-up: gate-sweep test fix (`021deee7`)
 
 **Shipped:**
