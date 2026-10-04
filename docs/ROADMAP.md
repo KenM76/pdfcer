@@ -115,6 +115,16 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 468.0` — `pdfcer set-object-paint` recolours page paths from the CLI — SHIPPED `e42474b87c3792c13f4298e8de310aff0b427db9`
+
+New subcommand `pdfcer set-object-paint <in> --page N --objects 0,3 [--fill C] [--stroke C] -o out [--mode] [--verify-undo]` — the first CLI caller of the existing core verb `EditSession::set_object_paint` (`Pass 219.0`). At least one of `--fill`/`--stroke` is required.
+
+An object in a spot/calibrated colour space or a pattern is refused per-object on stderr, naming the colour-space resource (e.g. `/CS0`), and counted on the result line (`changed=... refused=N`) — refusal is data, exit `0`. An out-of-range object index refuses the whole call (exit `9`, no output written).
+
+**Tests**: `crates/pdfcer-cli/tests/object_set_paint.rs`, 3 tests, all pass; 3 sabotages caught.
+
+**Delivered**: core unchanged (no new `pub` surface — wraps the `Pass 219.0` verb), cli yes, gui n/a (`pdfcer-gui` is a separate project; it shipped its own caller the day `Pass 219.0` landed). `docs/core-api/02-editing-and-saving.md`'s recolour row now names the CLI. `check-core-api-verbs` PASS. `cargo fmt`/`cargo clippy -D warnings` clean; no manifest change, `cargo tree` unaffected.
+
 ### `Pass 467.0` — a page's drawn extent skips clip-only paths (`G109`) — SHIPPED `293c642e57c145d35b032bef5a0078e9c0d54009`
 
 Answers `pdfcer-gui` request `G109`

@@ -4,6 +4,45 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (934th filing) — `Pass 468.0` shipped (`pdfcer set-object-paint`)
+
+**Shipped:**
+- `Pass 468.0` (`e42474b87c3792c13f4298e8de310aff0b427db9`) — new CLI
+  subcommand `pdfcer set-object-paint <in> --page N --objects 0,3
+  [--fill C] [--stroke C] -o out [--mode] [--verify-undo]`, the first
+  CLI caller of the existing core verb `EditSession::set_object_paint`
+  (`Pass 219.0`). At least one of `--fill`/`--stroke` is required. An
+  object in a spot/calibrated space or a pattern is refused per object
+  on stderr, naming the colour-space resource; refusal is data
+  (`changed=.../refused=N`, exit `0`). An out-of-range index refuses
+  the whole call (exit `9`, no output written). 3 tests
+  (`crates/pdfcer-cli/tests/object_set_paint.rs`), 3 sabotages caught.
+  No core `pub` change; `docs/core-api/02-editing-and-saving.md`'s
+  recolour row now names the CLI. `cargo fmt`/`clippy -D warnings`
+  clean; no manifest change, `cargo tree` unaffected.
+
+**Decisions made this session:** none new (next free decision stays
+`190`).
+
+**Findings + decisions:**
+- `FEATURES.md` correction: the "Tell which layer (optional-content
+  group) a selected page object is on" row (`Pass 250.0`) had `cli [ ]`
+  although `pdfcer object-list` already prints `oc=<id|none>` per
+  object (`crates/pdfcer-cli/src/objects.rs:478`) — ticked, with a
+  dated correction note in the row itself.
+
+**Still in flight:** unchanged from the 933rd filing above.
+
+**For next session:** next free decision `190` (unchanged), standing
+rule `R263` (unchanged), operator question `(ck)` (unchanged), Pass
+`469.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+test/sabotage results and the `docs/core-api` update are relayed from
+the dispatching engineer's report, not independently re-verified. The
+`objects.rs:478` `oc=` claim was independently confirmed by reading
+the file directly.
+
 ## 2026-10-04 (933rd filing) — `Pass 467.0` shipped (page drawn extent / off-page clip fix, `G109`)
 
 **Shipped:**
