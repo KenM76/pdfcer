@@ -4,6 +4,29 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (927th filing) — `Pass 462.0` gate-miss follow-up
+
+**Shipped:**
+- `bac09a4f` — follow-up to `Pass 462.0`. Added doc comments to two
+  crate-private helpers in `pdfcer-3d`'s rasterizer
+  (`check-public-fns-documented`) and ran `cargo fmt` on the
+  out-of-workspace fuzz crate's `prc_tree` target
+  (`check-fmt-excluded`). Both gates came from `tools/run-gates.sh` on
+  `77777d07`; no behaviour change. No `FEATURES.md` change.
+
+**Decisions made this session:**
+- None.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:** unchanged from the 926th filing below.
+
+**For next session:** unchanged from the 926th filing below.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash and
+gate-miss description relayed from the dispatching engineer's report.
+
 ## 2026-10-03 (926th filing) — `Pass 462.0` shipped
 
 **Shipped:**

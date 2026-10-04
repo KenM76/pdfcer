@@ -119,6 +119,11 @@ wherever it appears.*
 
 Operator request, 2026-10-03, same dispatch as `Pass 461.0` below.
 
+**Follow-up `bac09a4f`** — doc comments on two crate-private rasterizer
+helpers (`check-public-fns-documented`) and `cargo fmt` on the
+out-of-workspace fuzz crate's `prc_tree` target (`check-fmt-excluded`),
+both caught by `tools/run-gates.sh` on `77777d07`. No behaviour change.
+
 **Shipped.** `pdfcer-3d` reads PRC `Picture` (703: format 0 PNG, 1
 JPEG, 2–5 zlib raw RGB/RGBA/grey/grey+alpha), `TextureDefinition`
 (712), `TextureApplication` (711), `TextureTransformation` (713), and
