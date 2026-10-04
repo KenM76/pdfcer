@@ -4,6 +4,36 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (957th filing) — `Pass 489.0` shipped (edit-text split into pin, options, error and report steps)
+
+**Shipped:**
+- `Pass 489.0` (`ef39b484`) — `pdfcer edit-text`'s command function
+  shrank from 215 lines to 70: four private helpers took the
+  `--pin-span` parse plus the empty-`--find` refusal, the edit-options
+  build (subset augment, fallback faces), the refusal
+  message/`--workaround` hint/exit-code mapping, and the report
+  printing. Output and exit codes unchanged. Baseline entry deleted
+  (592 entries remain).
+
+**Decisions made this session:** none — decision stays `192`,
+standing rule stays `R251`.
+
+**Findings + decisions:** none beyond the split itself.
+
+**Still in flight:** full `tools/run-gates.sh` stated green by the
+engineer; not independently re-verified (no shell this filing).
+
+**For next session:**
+- Next free `Pass 490.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- No `FEATURES.md` rows affected (cli-internal refactor).
+- Remaining baselined functions in `text_edit.rs`: `cmd_add_text`
+  (300 lines), `cmd_place_text` (264 lines) are the next candidates.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and test results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (956th filing) — `Pass 488.0` shipped (reflow's error mapping and report split out)
 
 **Shipped:**
