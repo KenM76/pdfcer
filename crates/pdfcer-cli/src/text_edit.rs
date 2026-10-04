@@ -77,10 +77,6 @@ pub(crate) struct EditTextArgs<'a> {
 /// (three-trust-level, incremental/prior-text, tagged-stale, relayout
 /// overflow, R-INV-5 ambiguity) are surfaced verbatim.
 pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
-    use pdfcer_core::text_edit::{
-        EditError, EditGlyphSource, EditOptions, EditRequest, FollowerDisposition, WorkaroundPolicy,
-    };
-
     // The shell owns font discovery (R61): `--font-dir` supplies operator
     // faces for a NON-embedded run's preview/coverage (decision 012).
     let (font_env, supplied_registered, font_notes) = build_font_environment(args.font_dirs);
@@ -88,26 +84,10 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         eprintln!("pdfcer: font-dir: {note}");
     }
 
-    // Parse the pin before any file I/O, and refuse an empty `--find` with no
-    // pin here rather than in core, so the message names the FLAG the
-    // operator would have to add — which core cannot know about.
-    let pin_span = match args.pin_span {
-        Some(spec) => match parse_pin_span(spec) {
-            Ok(span) => Some(span),
-            Err(msg) => {
-                eprintln!("pdfcer: {msg}");
-                return exit::EDIT_REFUSED;
-            }
-        },
-        None => None,
+    let pin_span = match edit_text_pin(args) {
+        Ok(span) => span,
+        Err(code) => return code,
     };
-    if args.find.is_empty() && pin_span.is_none() {
-        eprintln!(
-            "pdfcer: edit-text needs --find TEXT, or --pin-span START:LEN with an empty \
-             --find to mean the whole pinned show operator"
-        );
-        return exit::EDIT_REFUSED;
-    }
 
     let source = match std::fs::read(args.input) {
         Ok(b) => b,
@@ -136,16 +116,64 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         }
     };
     let mut req =
-        EditRequest::find_replace(args.page - 1, args.find, args.replace).with_target(target);
+        pdfcer_core::text_edit::EditRequest::find_replace(args.page - 1, args.find, args.replace)
+            .with_target(target);
     if let Some(span) = pin_span {
         req.pinned_span = Some(span);
-        // Only meaningful with a pin, and clap already refuses the flag
-        // without one (`requires = "pin_span"`), so this cannot silently
-        // set a flag the resolver would then ignore.
+        // Clap refuses `--span-from-pin` without a pin, so this never sets a
+        // flag the resolver would ignore.
         req.span_from_pin = args.span_from_pin;
     }
     let apply_workaround =
         args.workaround || crate::settings::workarounds() == crate::settings::Workarounds::Always;
+    let opts = match edit_text_options(args, &font_env, apply_workaround) {
+        Ok(o) => o,
+        Err(code) => return code,
+    };
+
+    let outcome = match pdfcer_core::text_edit::edit_text(&doc, &req, &opts) {
+        Ok(o) => o,
+        Err(err) => return edit_text_error_exit(&err, apply_workaround),
+    };
+
+    if let Err(err) = write_output(args.output, &outcome.bytes) {
+        eprintln!("pdfcer: {}: {err}", args.output.display());
+        return exit::IO_ERROR;
+    }
+    print_edit_text_report(args, &outcome.report, &font_env, supplied_registered);
+    exit::SUCCESS
+}
+
+/// Parse `--pin-span` before any file I/O, and refuse an empty `--find` with no
+/// pin here rather than in core, so the message names the FLAG the operator
+/// would have to add, which core cannot know about.
+fn edit_text_pin(args: &EditTextArgs<'_>) -> Result<Option<pdfcer_core::span::ByteSpan>, u8> {
+    let pin_span = match args.pin_span {
+        Some(spec) => match parse_pin_span(spec) {
+            Ok(span) => Some(span),
+            Err(msg) => {
+                eprintln!("pdfcer: {msg}");
+                return Err(exit::EDIT_REFUSED);
+            }
+        },
+        None => None,
+    };
+    if args.find.is_empty() && pin_span.is_none() {
+        eprintln!(
+            "pdfcer: edit-text needs --find TEXT, or --pin-span START:LEN with an empty \
+             --find to mean the whole pinned show operator"
+        );
+        return Err(exit::EDIT_REFUSED);
+    }
+    Ok(pin_span)
+}
+
+fn edit_text_options(
+    args: &EditTextArgs<'_>,
+    font_env: &pdfcer_render::FontEnvironment,
+    apply_workaround: bool,
+) -> Result<pdfcer_core::text_edit::EditOptions, u8> {
+    use pdfcer_core::text_edit::{EditOptions, FollowerDisposition, WorkaroundPolicy};
     let opts = EditOptions::default()
         .with_disposition(if args.pin {
             FollowerDisposition::Pin
@@ -162,7 +190,7 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         });
     let opts = match args.augment {
         Some((check, hinting)) => {
-            opts.with_subset_augment(subset_augment(&font_env, check, hinting))
+            opts.with_subset_augment(subset_augment(font_env, check, hinting))
         }
         None => opts,
     };
@@ -178,36 +206,38 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
             opts.with_replacement_faces(crate::fallback_font::installed_faces(args.font_dirs))
         }
         Ok(None) => opts,
-        Err(code) => return code,
+        Err(code) => return Err(code),
     };
+    Ok(opts)
+}
 
-    let outcome = match pdfcer_core::text_edit::edit_text(&doc, &req, &opts) {
-        Ok(o) => o,
-        Err(err) => {
-            eprintln!("pdfcer: edit-text refused: {err}");
-            if !apply_workaround && err.workaround().is_some() {
-                eprintln!("pdfcer: re-run with --workaround to apply it");
-            }
-            return match err {
-                EditError::Refused(_)
-                | EditError::NoMatch { .. }
-                | EditError::Unsupported(_)
-                | EditError::PageIndex(_)
-                | EditError::WorkaroundRefused { .. }
-                | EditError::Encrypted => exit::EDIT_REFUSED,
-                EditError::Write(_) => exit::SAVE_REFUSED,
-                EditError::Content(_) | EditError::PageTree(_) => exit::RUNTIME_ERROR,
-                _ => exit::RUNTIME_ERROR,
-            };
-        }
-    };
-
-    if let Err(err) = write_output(args.output, &outcome.bytes) {
-        eprintln!("pdfcer: {}: {err}", args.output.display());
-        return exit::IO_ERROR;
+/// Print the refusal (and the `--workaround` hint) and map it to an exit code.
+fn edit_text_error_exit(err: &pdfcer_core::text_edit::EditError, apply_workaround: bool) -> u8 {
+    use pdfcer_core::text_edit::EditError;
+    eprintln!("pdfcer: edit-text refused: {err}");
+    if !apply_workaround && err.workaround().is_some() {
+        eprintln!("pdfcer: re-run with --workaround to apply it");
     }
+    match err {
+        EditError::Refused(_)
+        | EditError::NoMatch { .. }
+        | EditError::Unsupported(_)
+        | EditError::PageIndex(_)
+        | EditError::WorkaroundRefused { .. }
+        | EditError::Encrypted => exit::EDIT_REFUSED,
+        EditError::Write(_) => exit::SAVE_REFUSED,
+        EditError::Content(_) | EditError::PageTree(_) => exit::RUNTIME_ERROR,
+        _ => exit::RUNTIME_ERROR,
+    }
+}
 
-    let report = &outcome.report;
+fn print_edit_text_report(
+    args: &EditTextArgs<'_>,
+    report: &pdfcer_core::text_edit::EditReport,
+    font_env: &pdfcer_render::FontEnvironment,
+    supplied_registered: usize,
+) {
+    use pdfcer_core::text_edit::EditGlyphSource;
     println!(
         "edit-text {} -> {}",
         args.input.display(),
@@ -225,29 +255,15 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         report.followers_repositioned,
         report.operators_spanned
     );
-    // The disposition ACTUALLY USED and the sibling-stream collapse count.
-    // Both were computed and printed by nobody until `check-outcome-disclosed`
-    // was pointed at `EditReport` -- which it had never covered, because its
-    // struct list was written from `edit.rs` alone and every report type in a
-    // submodule sat outside it while the summary line read "clean".
-    //
-    // `disposition` is not merely an echo of `--pin`: it is what the surgery
-    // settled on, and a run that cannot be pinned reports the difference here
-    // rather than leaving the operator to infer it from the geometry.
-    // `extra_objects_emptied` says the page had several `/Contents` streams
-    // and the edit collapsed them -- a structural change to the file that the
-    // operator did not ask for and should not learn about from a diff.
+    // `disposition` is what the surgery settled on, not an echo of `--pin`;
+    // `extra_objects_emptied` discloses a `/Contents` collapse the operator
+    // did not ask for.
     println!(
         "  disposition={:?} extra_objects_emptied={}",
         report.disposition, report.extra_objects_emptied
     );
-    // `Pass 119.0`: WHERE the edit landed, and how far it reaches. In the CLI
-    // the invocation IS the commit -- there is no session and no undo -- so
-    // rule 11's obligation is to print what an interactive shell would show
-    // off-canvas, on the way past. The fan-out line is the one that matters:
-    // a form XObject may be painted from several pages and no clause binds it
-    // to one, so an operator running a batch rename needs the count in the
-    // same output as the success.
+    // A form XObject may be painted from several pages; the invocation is the
+    // commit, so the fan-out is printed beside the success.
     if let Some(object) = report.form_object {
         println!(
             "  form_object={object} form_invocations={} form_pages={}",
@@ -289,7 +305,6 @@ pub(crate) fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
     for d in &report.disclosures {
         println!("    - {d}");
     }
-    exit::SUCCESS
 }
 
 /// Named arguments for [`cmd_add_text`] (grouped to dodge clippy's
