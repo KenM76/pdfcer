@@ -115,6 +115,43 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 480.0` — CLI `fill-field` split into helpers; `--set FIELD=no` now unchecks a box; first CLI tests for check-box aliases and multi-select — SHIPPED `7c5cf855`
+
+Pays down structure debt and fixes a bug found on discovery.
+`cmd_fill_field` (133 lines, over the 80-line cap) in
+`crates/pdfcer-cli/src/fields.rs` now delegates to `fill_one` (a
+type-dispatched fill per `NAME=VALUE` under a `TextFillPolicy`,
+returning whether a password value was withheld) and
+`print_fill_field_summary`. Baseline entry deleted; now 599 entries.
+
+**Bug fixed on discovery.** `fill-field --set Box=yes` checked a box,
+but `--set Box=no` was refused as an unknown state — `no` now joins
+the off aliases (`off`, `false`, `0`, `no`, `unchecked`, empty). The
+`--set` help now lists every on/off alias and the `|` multi-select
+syntax; neither was documented before.
+
+**Tests.** New `crates/pdfcer-cli/tests/fill_field_types.rs` (2
+tests): every on alias checks a box whose on-state is `Accept` and
+every off alias clears it; `Red|Blue` into a multi-select list reads
+back as `"Red, Blue"` via `list-fields`. No CLI test had covered the
+check-box aliases or multi-select before this. Three sabotage variants
+each fail a test.
+
+**Verification.** 83 fill/list/recompute CLI tests pass; fmt and
+clippy clean; code-structure reports no new violations. No manifests
+touched. `tools/run-gates.sh` in progress at filing time.
+
+**FEATURES.md.** No row describes the alias set by name, so none was
+reworded; the check-box/choice fill row's existing ticks stand.
+
+**Decision/ledgers.** No architectural decision — next decision stays
+`191`. Next free `Pass 481.0`; standing rule `R263` and operator
+question `(ck)` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, line
+counts, baseline-entry count, and test results above are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ### `Pass 479.0` — CLI `cmd_recompute` split into helpers, plus its first CLI-level test (structure-debt payment) — SHIPPED `11337f8d`
 
 Pays down structure debt and closes a test gap. `cmd_recompute` (137

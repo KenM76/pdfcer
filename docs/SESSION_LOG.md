@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (947th filing) — `Pass 480.0` shipped (`fill-field` split; `no` unchecks a box; alias/multi-select tests)
+
+**Shipped:**
+- `Pass 480.0` (`7c5cf855`) — `cmd_fill_field` (133 lines, over the
+  80-line cap) in `fields.rs` now delegates to `fill_one` (type-
+  dispatched fill under `TextFillPolicy`, reports password withheld)
+  and `print_fill_field_summary`. Baseline entry deleted (now 599).
+  Bug fixed on discovery: `--set Box=no` was refused; `no` now joins
+  the off aliases alongside `off`/`false`/`0`/`unchecked`/empty, and
+  `--set` help now documents every alias plus `|` multi-select. New
+  `fill_field_types.rs` (2 tests) covers check-box aliases and a
+  `Red|Blue` multi-select round trip — neither had a CLI test before.
+
+**Decisions made this session:** none — next decision stays `191`,
+next standing rule stays `R263`.
+
+**Findings + decisions:**
+- A found bug (missing `no` alias) was fixed in the same Pass rather
+  than filed for later, per standing practice.
+
+**Still in flight:**
+- Nothing opened by this Pass.
+
+**For next session:**
+- Next free `Pass 481.0`; decision `191`, standing rule `R263`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count, and test results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (946th filing) — `Pass 479.0` shipped (`cmd_recompute` split, plus its first CLI test)
 
 **Shipped:**
