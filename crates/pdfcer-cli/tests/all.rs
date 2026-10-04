@@ -44,6 +44,7 @@ mod extract_region;
 mod extract_tables;
 mod extract_tags;
 mod extract_text;
+mod fill_field_types;
 mod fill_rich_text;
 mod find_text;
 mod flatten_annotations;

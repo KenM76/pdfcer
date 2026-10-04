@@ -8035,8 +8035,11 @@ pub(crate) enum Command {
     ///
     /// Each `--set NAME=VALUE` sets a field by fully-qualified name: a text
     /// or choice field's value is set and its appearance regenerated
-    /// (§12.7.3.3); a check-box/radio field's state is selected (VALUE is
-    /// the on-state name, e.g. `Yes`, or `Off`/`on`/`true`/`1`). Saves
+    /// (§12.7.3.3); a multi-select list takes several values separated by
+    /// `|` (`Red|Blue`). A check-box/radio field's state is selected: VALUE
+    /// is an on-state name such as `Yes`, or an alias — `on`, `true`, `1`,
+    /// `yes`, `checked` select the field's own on-state; `off`, `false`,
+    /// `0`, `no`, `unchecked` or an empty value clear it. Saves
     /// incrementally by default (the minimal-diff path). Never flattens —
     /// the fields stay interactive.
     FillField {

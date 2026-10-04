@@ -755,81 +755,21 @@ pub(crate) fn cmd_fill_field(
         return exit::EDIT_REFUSED;
     };
 
-    let mut applied = 0usize;
+    let policy = TextFillPolicy {
+        downgrade_rich_text,
+        store_password_values,
+    };
     let mut withheld_password_fields: Vec<String> = Vec::new();
     for set in sets {
         let Some((name, value)) = set.split_once('=') else {
             eprintln!("pdfcer: --set must be NAME=VALUE, got {set:?}");
             return exit::EDIT_REFUSED;
         };
-        // Look up the field's type from the model to choose the fill path.
-        use pdfcer_core::forms::FieldType;
-        let field_type = form.field_by_name(name).and_then(|f| f.field_type);
-        let result = match field_type {
-            Some(FieldType::Button) => {
-                // Convenience aliases for a checkbox's single on-state.
-                let state = match value.to_ascii_lowercase().as_str() {
-                    "on" | "true" | "1" | "yes" | "checked" => resolve_on_state(&form, name),
-                    "off" | "false" | "0" | "" | "unchecked" => "Off".to_owned(),
-                    _ => value.to_owned(),
-                };
-                session.set_button_state(name, &state)
-            }
-            Some(FieldType::Choice) => {
-                // A choice value may name several selections for a
-                // multi-select field, `|`-separated (`Red|Blue`).
-                let sels: Vec<&str> = value.split('|').collect();
-                session
-                    .set_choice_value(name, &sels)
-                    .map(|out| disclose_fill(name, &out))
-            }
-            // Text, and the `None`/unmodelled fallback.
-            //
-            // The lossy verb is taken ONLY for a field the model says is
-            // actually rich text, never merely because the flag is set.
-            // Routing every text field through it would be wrong twice
-            // over: `--downgrade-rich-text` must not change the outcome
-            // for a field that has no formatting to lose, and the note
-            // below would then have to guess whether anything happened.
-            // Asking `is_rich_text()` — which resolves `/FT` first, so it
-            // cannot mistake a radio group's bit 26 for RichText
-            // (`587e520`) — makes both exact.
-            //
-            // Without the flag this falls through to `fill_text_field`,
-            // which refuses a rich-text field. That refusal is the
-            // default and stays the default.
-            _ if downgrade_rich_text
-                && form
-                    .field_by_name(name)
-                    .is_some_and(pdfcer_core::forms::Field::is_rich_text) =>
-            {
-                // Announced BEFORE the write, so an operator watching a
-                // batch run sees which field is about to lose formatting
-                // even if a later assignment aborts the whole run. stderr,
-                // so a script capturing stdout still shows a human.
-                eprintln!(
-                    "pdfcer: {name}: rich-text formatting discarded \
-                     (--downgrade-rich-text) — /RV removed, RichText flag \
-                     cleared"
-                );
-                session
-                    .fill_text_field_downgrading_rich_text(name, value)
-                    .map(|out| disclose_fill(name, &out))
-            }
-            _ if store_password_values => session
-                .fill_text_field_storing_password(name, value)
-                .map(|out| disclose_fill(name, &out)),
-            _ => session.fill_text_field(name, value).map(|out| {
-                if out.password_value_withheld {
-                    withheld_password_fields.push(name.to_owned());
-                }
-                disclose_fill(name, &out);
-            }),
-        };
-        if let Err(err) = result {
-            return report_edit_error(input, &err);
+        match fill_one(&mut session, &form, name, value, policy) {
+            Ok(true) => withheld_password_fields.push(name.to_owned()),
+            Ok(false) => {}
+            Err(err) => return report_edit_error(input, &err),
         }
-        applied += 1;
     }
 
     let outcome = match save_edited(
@@ -843,7 +783,86 @@ pub(crate) fn cmd_fill_field(
         Ok(outcome) => outcome,
         Err(code) => return code,
     };
+    print_fill_field_summary(input, sets.len(), mode, output, &outcome);
+    if matches!(mode, SaveMode::Incremental) {
+        disclose_password_history(&source, &withheld_password_fields);
+    }
+    finish_edit(input, &outcome)
+}
 
+/// How `fill-field` writes a text value; both default to the refusing path.
+#[derive(Clone, Copy)]
+struct TextFillPolicy {
+    downgrade_rich_text: bool,
+    store_password_values: bool,
+}
+
+/// Applies one `NAME=VALUE`, choosing the fill path from the field's type.
+/// `Ok(true)` means a password field's value was withheld from the file.
+fn fill_one(
+    session: &mut pdfcer_core::edit::EditSession,
+    form: &pdfcer_core::forms::AcroForm,
+    name: &str,
+    value: &str,
+    policy: TextFillPolicy,
+) -> Result<bool, pdfcer_core::edit::EditError> {
+    use pdfcer_core::forms::FieldType;
+    let field = form.field_by_name(name);
+    match field.and_then(|f| f.field_type) {
+        Some(FieldType::Button) => {
+            // Convenience aliases for a checkbox's single on-state.
+            let state = match value.to_ascii_lowercase().as_str() {
+                "on" | "true" | "1" | "yes" | "checked" => resolve_on_state(form, name),
+                "off" | "false" | "0" | "no" | "" | "unchecked" => "Off".to_owned(),
+                _ => value.to_owned(),
+            };
+            session.set_button_state(name, &state).map(|()| false)
+        }
+        Some(FieldType::Choice) => {
+            // A multi-select value is `|`-separated (`Red|Blue`).
+            let sels: Vec<&str> = value.split('|').collect();
+            let out = session.set_choice_value(name, &sels)?;
+            disclose_fill(name, &out);
+            Ok(false)
+        }
+        // The lossy verb only for a field the model says IS rich text
+        // (`is_rich_text` resolves `/FT` first, so a radio group's bit 26
+        // cannot pass): the flag must not change a field with nothing to
+        // lose. Without the flag, `fill_text_field` refuses rich text.
+        _ if policy.downgrade_rich_text
+            && field.is_some_and(pdfcer_core::forms::Field::is_rich_text) =>
+        {
+            // Announced before the write, so a batch that later aborts still
+            // shows which field was about to lose formatting.
+            eprintln!(
+                "pdfcer: {name}: rich-text formatting discarded \
+                 (--downgrade-rich-text) — /RV removed, RichText flag \
+                 cleared"
+            );
+            let out = session.fill_text_field_downgrading_rich_text(name, value)?;
+            disclose_fill(name, &out);
+            Ok(false)
+        }
+        _ if policy.store_password_values => {
+            let out = session.fill_text_field_storing_password(name, value)?;
+            disclose_fill(name, &out);
+            Ok(false)
+        }
+        _ => {
+            let out = session.fill_text_field(name, value)?;
+            disclose_fill(name, &out);
+            Ok(out.password_value_withheld)
+        }
+    }
+}
+
+fn print_fill_field_summary(
+    input: &Path,
+    applied: usize,
+    mode: SaveMode,
+    output: &Path,
+    outcome: &EditOutcome,
+) {
     let r = &outcome.report;
     println!(
         "fill-field {} sets={applied} mode={} -> {}; changed={} objects={} verbatim={} \
@@ -859,10 +878,6 @@ reserialized={} out_bytes={} undo_verified={} undo_identical={}",
         u32::from(outcome.undo_verified),
         u32::from(outcome.undo_identical),
     );
-    if matches!(mode, SaveMode::Incremental) {
-        disclose_password_history(&source, &withheld_password_fields);
-    }
-    finish_edit(input, &outcome)
 }
 
 /// `password-values`: where the file stores password-field values.
