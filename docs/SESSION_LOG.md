@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (959th filing) — `Pass 491.0` shipped (`add-text` split into placement, font, colour, embed, run and report steps)
+
+**Shipped:**
+- `Pass 491.0` (`f1159913`) — `pdfcer add-text`'s command function
+  (`crates/pdfcer-cli/src/text_edit.rs`) shrank from 300 lines to a
+  slim driver plus six private helpers: `add_text_placement`,
+  `add_text_font`, `add_text_color`, `add_text_embed`, `add_text_run`,
+  `print_add_text_report` (each returns the exit code on refusal); a
+  private enum `AddTextPlacement`. Output and exit codes unchanged.
+  Baseline entry for the function deleted (591 entries remain).
+  `add-text`'s own copy of the donor-subset code now goes through a
+  new shared private helper `subset_donor(path, text, verb)`, also
+  used by `format-text`'s `donor_plan`; `distinct_chars` is the
+  shared dedup.
+
+**Decisions made this session:** none — decision stays `192`,
+standing rule stays `R251`.
+
+**Findings + decisions:** none beyond the split itself.
+
+**Still in flight:** full `tools/run-gates.sh` stated green by the
+engineer; not independently re-verified (no shell this filing).
+
+**For next session:**
+- Next free `Pass 492.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- No `FEATURES.md` rows affected (cli-internal refactor; behaviour
+  unchanged).
+- Remaining baselined entry in `text_edit.rs`: `cmd_place_text` (264
+  lines) and the file-size entry are the next candidates.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and test results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (958th filing) — `Pass 490.0` shipped (widget border dash now recorded, `pdfcer-gui` `G116`)
 
 **Shipped:**

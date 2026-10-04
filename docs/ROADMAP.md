@@ -115,6 +115,33 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 491.0` — `add-text` split into placement, font, colour, embed, run and report steps — SHIPPED `f1159913`
+
+Structure debt only; no behaviour change.
+
+**Structure debt.** `pdfcer add-text`'s command function
+(`crates/pdfcer-cli/src/text_edit.rs`) shrank from 300 lines to a slim
+driver plus six private helpers: `add_text_placement`, `add_text_font`,
+`add_text_color`, `add_text_embed`, `add_text_run`,
+`print_add_text_report` (each returns the exit code on refusal); a
+private enum `AddTextPlacement`. Output and exit codes unchanged.
+Baseline entry for the function deleted (591 entries remain, was 592).
+No `pub` API, dependency or manifest change (`cargo tree` N/A).
+
+**Duplicate removed.** `add-text`'s own copy of the donor-subset code
+now goes through a new shared private helper `subset_donor(path, text,
+verb)`, also used by `format-text`'s `donor_plan`; `distinct_chars` is
+the shared dedup.
+
+**Checks.** CLI `--test all` 773 passed/1 ignored. `tools/run-gates.sh`
+PASS (45 commands incl. 2 filing gates).
+
+**Delivered:** cli only (structure). No `FEATURES.md` rows affected
+(cli-internal refactor; no capability or box changes). Remaining
+`text_edit.rs` debt: `cmd_place_text` (264 lines) and the file-size
+entry. Ledger after: next filing 960th, next Pass 492.0, next decision
+192, next standing rule R251, next operator question (ck).
+
 ### `Pass 490.0` — a widget's border dash is drawn but not recorded (`pdfcer-gui` `G116`) — SHIPPED `4337af87`
 
 Answers `pdfcer-gui` request **G116**: "a widget border dash is drawn
