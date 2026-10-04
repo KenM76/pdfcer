@@ -165,7 +165,7 @@ fn print_rendered_notes(r: &RenderedPoster) {
     println!(
         "inferred: poster rendered by pdfcer from the model ({} mesh(es), {} triangle(s)), \
          seen from above the front-right corner with z up, in perspective, each part in its \
-         tree colour on white; the file's own views, lights and textures are not read",
+         tree colour, or its texture, on white; the file's own views and lights are not read",
         r.meshes, r.triangles
     );
     if let Some(why) = &r.unplaced {
@@ -177,6 +177,7 @@ fn print_rendered_notes(r: &RenderedPoster) {
             r.uncoloured_meshes
         );
     }
+    super::print_texture_notes(r.textured_meshes, &r.texture_notes);
     if r.compressed_rebuilt > 0 {
         println!(
             "note: {} compressed mesh(es) were rebuilt by pdfcer's reconstruction of an \

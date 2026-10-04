@@ -834,7 +834,9 @@ name = "pdfcer-3d"
 version = "0.76.0"
 dependencies = [
  "flate2",
+ "png",
  "thiserror",
+ "zune-jpeg",
 ]
 
 [[package]]

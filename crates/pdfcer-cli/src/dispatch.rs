@@ -459,6 +459,9 @@ pub(crate) fn run() -> ExitCode {
             height,
             transparent,
             style_alpha,
+            texture_origin,
+            texture_wrap_base,
+            texture_pictures,
         } => cmd_render_3d(&RenderThreeDArgs {
             input: &input,
             index,
@@ -473,6 +476,9 @@ pub(crate) fn run() -> ExitCode {
             height,
             transparent,
             style_alpha,
+            texture_origin,
+            texture_wrap_base,
+            texture_pictures,
         }),
         Command::ThreeDEmbed {
             input,

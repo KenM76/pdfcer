@@ -91,7 +91,7 @@ pub struct FileStructure {
     /// Per-structure producer version.
     pub authoring_version: u32,
     /// Picture payloads (JPEG, PNG, ...) carried uncompressed in the header,
-    /// referenced by index from picture entities [WD 6.1.3].
+    /// referenced by index from picture entities [WD 6.2.2].
     pub pictures: Vec<Vec<u8>>,
     sections: [Vec<u8>; 5],
 }
@@ -151,8 +151,9 @@ pub struct PrcFile {
     /// The inflated model-file section: its schema, then the model file
     /// entity.
     pub model_file: Vec<u8>,
-    /// Number of `UncompressedFiles` blocks after the header.
-    pub uncompressed_files: usize,
+    /// The `UncompressedFiles` blocks after the file header [WD 6.1.1],
+    /// which picture entities may also reference.
+    pub uncompressed_files: Vec<Vec<u8>>,
 }
 
 struct Bytes<'a> {
@@ -363,7 +364,7 @@ impl PrcFile {
             .collect::<Result<Vec<_>, _>>()?;
         let mf_start = offset(r.u32("model file offsets")?);
         let mf_end = offset(r.u32("model file offsets")?);
-        let uncompressed_files = r.blocks("uncompressed files")?.len();
+        let uncompressed_files = r.blocks("uncompressed files")?;
 
         let mut budget = limit;
         let mut file_structures = Vec::with_capacity(n_fs);
@@ -421,7 +422,17 @@ impl PrcFile {
         &self,
         rule: crate::StyleAlpha,
     ) -> Result<Vec<crate::Placement>, PrcError> {
-        Ok(self.walk(rule)?.0)
+        Ok(self.walk(rule, None)?.0)
+    }
+
+    /// [`Self::placements_with`], each placement also carrying its styles'
+    /// textures, resolved by `rules`.
+    pub(crate) fn textured_placements(
+        &self,
+        rule: crate::StyleAlpha,
+        rules: crate::tree::TextureRules,
+    ) -> Result<Vec<crate::Placement>, PrcError> {
+        Ok(self.walk(rule, Some(rules))?.0)
     }
 
     /// The assembly tree as a model-tree panel lists it: every product
@@ -433,12 +444,13 @@ impl PrcFile {
     /// # Errors
     /// As [`Self::placements`].
     pub fn model_tree(&self) -> Result<Vec<crate::ModelNode>, PrcError> {
-        Ok(self.walk(crate::StyleAlpha::default())?.1)
+        Ok(self.walk(crate::StyleAlpha::default(), None)?.1)
     }
 
     fn walk(
         &self,
         rule: crate::StyleAlpha,
+        textures: Option<crate::tree::TextureRules>,
     ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
         use crate::bits::BitReader;
         use crate::tess::Ctx;
@@ -472,6 +484,15 @@ impl PrcFile {
         let model = Ctx::new(r, &schema, self.header.authoring_version).model_file()?;
         let mut walk =
             crate::tree::Walk::new(trees.iter().map(|(id, t, g)| (*id, t, g)).collect(), rule);
+        if let Some(rules) = textures {
+            walk.skins = trees
+                .iter()
+                .zip(&self.file_structures)
+                .map(|((_, _, g), fs)| {
+                    std::sync::Arc::from(g.skins(&fs.pictures, &self.uncompressed_files, rules))
+                })
+                .collect();
+        }
         for (id, root) in model.roots {
             let Some(fs) = trees.iter().position(|t| t.0 == id) else {
                 return Err(PrcError::Malformed(

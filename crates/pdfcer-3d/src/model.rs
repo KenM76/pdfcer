@@ -1,7 +1,10 @@
 //! A PRC file assembled into placed, coloured triangle meshes: what mesh
 //! export, rendering and the default 3D poster all draw.
 
-use crate::{PrcError, PrcFile, StyleAlpha, Tessellation, TriangleMesh};
+use crate::{
+    PictureFiles, PrcError, PrcFile, StyleAlpha, Tessellation, TextureOrigin, TriangleMesh,
+    WrapBase,
+};
 
 /// A PRC model's triangle meshes, placed where its assembly tree draws them,
 /// with counts of what was not drawn.
@@ -28,6 +31,30 @@ pub struct AssembledModel {
     /// Why placements were not applied (each mesh is then drawn once in its
     /// own coordinates), or `None` when they were.
     pub unplaced: Option<String>,
+    /// The textures meshes draw with, each decoded once.
+    pub textures: Vec<crate::Texture>,
+    /// Each mesh's texture, an index into [`Self::textures`], parallel to
+    /// [`Self::meshes`] (empty when placements were not applied).
+    pub mesh_textures: Vec<Option<usize>>,
+    /// Meshes drawn textured.
+    pub textured: usize,
+    /// Each distinct reason a textured surface drew its base colour (or a
+    /// texture was drawn only in part), with the placements it affected.
+    pub texture_notes: Vec<(String, usize)>,
+}
+
+/// How [`assemble_with_options`] reads choices ISO 14739-1 leaves open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct AssembleOptions {
+    /// How style transparency combines with material alpha.
+    pub style_alpha: StyleAlpha,
+    /// How stored texture wrapping modes are numbered.
+    pub wrap_base: WrapBase,
+    /// Where a texture picture's file is looked up first.
+    pub picture_files: PictureFiles,
+    /// Which picture row texture coordinate v = 0 names.
+    pub texture_origin: TextureOrigin,
 }
 
 /// Why [`assemble`] found nothing to draw.
@@ -85,13 +112,36 @@ pub fn assemble(data: &[u8]) -> Result<AssembledModel, AssembleError> {
 /// assert_eq!(assemble_with(b"U3D\0", StyleAlpha::Multiply), Err(AssembleError::NotPrc));
 /// ```
 pub fn assemble_with(data: &[u8], rule: StyleAlpha) -> Result<AssembledModel, AssembleError> {
+    let options = AssembleOptions {
+        style_alpha: rule,
+        ..AssembleOptions::default()
+    };
+    assemble_with_options(data, &options)
+}
+
+/// [`assemble`], reading each choice the standard leaves open as `options`
+/// says.
+///
+/// # Errors
+///
+/// As [`assemble`].
+///
+/// ```
+/// use pdfcer_3d::{AssembleError, AssembleOptions, assemble_with_options};
+/// let options = AssembleOptions::default();
+/// assert_eq!(assemble_with_options(b"U3D\0", &options), Err(AssembleError::NotPrc));
+/// ```
+pub fn assemble_with_options(
+    data: &[u8],
+    options: &AssembleOptions,
+) -> Result<AssembledModel, AssembleError> {
     if !data.starts_with(b"PRC") {
         return Err(AssembleError::NotPrc);
     }
     let prc = PrcFile::parse(data)?;
     let mut model = AssembledModel::default();
     let by_index = decode_meshes(&prc, &mut model)?;
-    place(&prc, by_index, rule, &mut model);
+    place(&prc, by_index, options, &mut model);
     model.triangles = model.meshes.iter().map(|m| m.triangles.len()).sum();
     if model.triangles == 0 {
         return Err(if model.compressed > 0 {
@@ -148,36 +198,41 @@ fn decode_meshes(
     Ok(by_index)
 }
 
-/// Place each mesh where the assembly tree draws it, split by face colour.
+/// A 0-1 colour as 8-bit straight RGBA.
+fn to_rgba8(c: [f64; 4]) -> [u8; 4] {
+    c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
+}
+
+/// A placed triangle's look: its 8-bit colour and its texture's index into
+/// [`AssembledModel::textures`].
+type Look = (Option<[u8; 4]>, Option<usize>);
+
+/// Place each mesh where the assembly tree draws it, split by face look.
 fn place(
     prc: &PrcFile,
     by_index: Vec<Vec<Option<TriangleMesh>>>,
-    rule: StyleAlpha,
+    options: &AssembleOptions,
     model: &mut AssembledModel,
 ) {
-    model.unplaced = match prc.placements_with(rule) {
+    let rules = crate::tree::TextureRules {
+        files: options.picture_files,
+        wrap: options.wrap_base,
+        origin: options.texture_origin,
+    };
+    model.unplaced = match prc.textured_placements(options.style_alpha, rules) {
         Ok(placements) if !placements.is_empty() => {
+            let mut textures = Textures::default();
             for p in &placements {
                 let mesh = by_index
                     .get(p.file_structure)
                     .and_then(|row| row.get(p.tessellation))
                     .and_then(Option::as_ref);
-                let Some(mesh) = mesh else { continue };
-                let placed = mesh.transformed(&p.matrix);
-                match p.triangle_colours(mesh) {
-                    Some(per) => {
-                        let per: Vec<_> = per.into_iter().map(|c| c.map(to_rgba8)).collect();
-                        for (part, colour) in split_by_colour(&placed, &per) {
-                            model.meshes.push(part);
-                            model.colours.push(colour);
-                        }
-                    }
-                    None => {
-                        model.meshes.push(placed);
-                        model.colours.push(p.colour.map(to_rgba8));
-                    }
+                if let Some(mesh) = mesh {
+                    place_one(p, mesh, &mut textures, model);
                 }
             }
+            model.textures = textures.drawn;
+            model.texture_notes = textures.notes;
             None
         }
         Ok(_) => Some("the model's tree places no tessellation".to_owned()),
@@ -188,41 +243,129 @@ fn place(
             .meshes
             .extend(by_index.into_iter().flatten().flatten());
         model.colours.clear();
+        model.mesh_textures.clear();
+    }
+    model.textured = model.mesh_textures.iter().flatten().count();
+}
+
+/// Draw `mesh` once where `p` places it, one mesh per distinct look.
+fn place_one(
+    p: &crate::Placement,
+    mesh: &TriangleMesh,
+    textures: &mut Textures,
+    model: &mut AssembledModel,
+) {
+    let placed = mesh.transformed(&p.matrix);
+    let looks = p.triangle_looks(mesh);
+    let mut notes = Vec::new();
+    let per: Vec<Look> = looks
+        .iter()
+        .enumerate()
+        .map(|(k, (colour, skin))| {
+            let texture = skin
+                .as_ref()
+                .and_then(|s| textures.index(s, mesh, k, &mut notes));
+            (colour.map(to_rgba8), texture)
+        })
+        .collect();
+    notes.sort_unstable();
+    notes.dedup();
+    for why in notes {
+        textures.note(why);
+    }
+    for (part, (colour, texture)) in split_by_look(&placed, &per) {
+        model.meshes.push(part);
+        model.colours.push(colour);
+        model.mesh_textures.push(texture);
     }
 }
 
-/// A 0-1 colour as 8-bit straight RGBA.
-fn to_rgba8(c: [f64; 4]) -> [u8; 4] {
-    c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
+/// The textures drawn so far, shared by every placement that uses them,
+/// and the count of each reason a texture was not drawn.
+#[derive(Default)]
+struct Textures {
+    drawn: Vec<crate::Texture>,
+    keys: Vec<*const crate::Texture>,
+    notes: Vec<(String, usize)>,
+}
+
+impl Textures {
+    /// Triangle `k` of `mesh`'s texture index, or `None` (with the reason
+    /// pushed to `notes`) when it draws its base colour.
+    fn index(
+        &mut self,
+        skin: &crate::tree::Skin,
+        mesh: &TriangleMesh,
+        k: usize,
+        notes: &mut Vec<&'static str>,
+    ) -> Option<usize> {
+        use crate::tree::{Skin, why};
+        let (texture, more) = match skin {
+            Skin::Drawn { texture, more } => (texture, *more),
+            Skin::Undrawn(why) => {
+                notes.push(why);
+                return None;
+            }
+        };
+        let has_uvs = mesh
+            .triangle_uvs
+            .get(texture.uv_set)
+            .and_then(|set| set.get(k))
+            .is_some_and(Option::is_some);
+        if !has_uvs {
+            notes.push(why::NO_UVS);
+            return None;
+        }
+        if more {
+            notes.push(why::MORE_LEVELS);
+        }
+        let key = std::sync::Arc::as_ptr(texture);
+        Some(match self.keys.iter().position(|&p| p == key) {
+            Some(i) => i,
+            None => {
+                self.keys.push(key);
+                self.drawn.push((**texture).clone());
+                self.drawn.len() - 1
+            }
+        })
+    }
+
+    fn note(&mut self, why: &str) {
+        match self.notes.iter_mut().find(|(w, _)| w == why) {
+            Some((_, n)) => *n += 1,
+            None => self.notes.push((why.to_owned(), 1)),
+        }
+    }
 }
 
 /// `mesh` split into one mesh per distinct entry of `per` (one per
-/// triangle), in order of first appearance, so each draws in its own colour.
-fn split_by_colour(
-    mesh: &TriangleMesh,
-    per: &[Option<[u8; 4]>],
-) -> Vec<(TriangleMesh, Option<[u8; 4]>)> {
-    type Group = (Option<[u8; 4]>, Vec<usize>);
-    let mut groups: Vec<Group> = Vec::new();
-    for (k, colour) in per.iter().enumerate().take(mesh.triangles.len()) {
-        match groups.iter_mut().find(|g| g.0 == *colour) {
+/// triangle), in order of first appearance, so each draws its own look.
+fn split_by_look(mesh: &TriangleMesh, per: &[Look]) -> Vec<(TriangleMesh, Look)> {
+    let mut groups: Vec<(Look, Vec<usize>)> = Vec::new();
+    for (k, look) in per.iter().enumerate().take(mesh.triangles.len()) {
+        match groups.iter_mut().find(|g| g.0 == *look) {
             Some(g) => g.1.push(k),
-            None => groups.push((*colour, vec![k])),
+            None => groups.push((*look, vec![k])),
         }
     }
-    let pick = |from: &[[u32; 3]], keep: &[usize]| -> Vec<[u32; 3]> {
+    if let [(look, _)] = groups.as_slice() {
+        return vec![(mesh.clone(), *look)];
+    }
+    fn pick<T: Copy>(from: &[T], keep: &[usize]) -> Vec<T> {
         keep.iter().filter_map(|&k| from.get(k).copied()).collect()
-    };
+    }
     groups
         .into_iter()
-        .map(|(colour, keep)| {
+        .map(|(look, keep)| {
             let mut part = mesh.clone();
             part.triangles = pick(&mesh.triangles, &keep);
             if !mesh.triangle_normals.is_empty() {
                 part.triangle_normals = pick(&mesh.triangle_normals, &keep);
             }
+            part.triangle_uvs = mesh.triangle_uvs.iter().map(|s| pick(s, &keep)).collect();
+            part.triangle_graphics = Vec::new();
             part.faces = std::iter::once(0..part.triangles.len()).collect();
-            (part, colour)
+            (part, look)
         })
         .collect()
 }
@@ -261,7 +404,41 @@ pub fn render_default_view(
         height,
         ..crate::RenderOptions::default()
     };
-    crate::render_coloured(&model.meshes, &model.colours, &camera, &options)
+    render_model(model, &camera, &options)
+}
+
+/// Draw `model` as [`crate::render_coloured`] draws its meshes in their
+/// tree colours, each textured mesh sampling its texture.
+///
+/// # Errors
+///
+/// As [`crate::render`].
+#[cfg(feature = "render")]
+pub fn render_model(
+    model: &AssembledModel,
+    camera: &crate::Camera,
+    options: &crate::RenderOptions,
+) -> Result<crate::Image, crate::RenderError> {
+    let [r, g, b] = options.colour;
+    crate::render::render_painted(
+        &model.meshes,
+        &|i| crate::raster::Paint {
+            colour: model
+                .colours
+                .get(i)
+                .copied()
+                .flatten()
+                .unwrap_or([r, g, b, 255]),
+            texture: model
+                .mesh_textures
+                .get(i)
+                .copied()
+                .flatten()
+                .and_then(|t| model.textures.get(t)),
+        },
+        camera,
+        options,
+    )
 }
 
 #[cfg(test)]
@@ -270,22 +447,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_mesh_splits_by_triangle_colour_in_first_seen_order() {
+    fn a_mesh_splits_by_triangle_look_in_first_seen_order() {
         let mesh = TriangleMesh {
             positions: vec![[0.0; 3]; 4],
             triangles: vec![[0, 1, 2], [0, 2, 3], [1, 2, 3]],
             normals: vec![[0.0, 0.0, 1.0]; 3],
             triangle_normals: vec![[0, 0, 0], [1, 1, 1], [2, 2, 2]],
+            triangle_uvs: vec![vec![Some([0, 1, 2]), None, Some([3, 4, 5])]],
             ..TriangleMesh::default()
         };
         let red = Some([255, 0, 0, 255]);
-        let parts = split_by_colour(&mesh, &[red, None, red]);
+        let parts = split_by_look(&mesh, &[(red, Some(0)), (None, None), (red, Some(0))]);
         assert_eq!(parts.len(), 2);
-        assert_eq!(parts[0].1, red);
+        assert_eq!(parts[0].1, (red, Some(0)));
+        assert_eq!(
+            parts[0].0.triangle_uvs,
+            [vec![Some([0, 1, 2]), Some([3, 4, 5])]]
+        );
+        assert_eq!(parts[1].0.triangle_uvs, [vec![None]]);
+        let textured = split_by_look(&mesh, &[(red, Some(0)), (red, None), (red, Some(0))]);
+        assert_eq!(textured.len(), 2, "a texture alone splits a mesh");
         assert_eq!(parts[0].0.triangles, [[0, 1, 2], [1, 2, 3]]);
         assert_eq!(parts[0].0.faces.len(), 1);
         assert_eq!(parts[0].0.faces[0], 0..2);
-        assert_eq!(parts[1].1, None);
+        assert_eq!(parts[1].1, (None, None));
         assert_eq!(parts[1].0.triangles, [[0, 2, 3]]);
         assert_eq!(parts[1].0.positions.len(), 4);
         assert_eq!(parts[0].0.triangle_normals, [[0, 0, 0], [2, 2, 2]]);

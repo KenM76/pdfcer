@@ -2915,8 +2915,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it
-  names a textured material. Textures and lights are **not read** (the
-  opening view IS read — see above). Say so in the shell. A style's index
+  names a textured material with no plain base. Lights are **not read**
+  (the opening view IS read — see above); say so in the shell. A style's index
   resolves in the globals of the file structure whose occurrence set it,
   not the one defining the part.
 - `StyleAlpha` (`StyleWins` default, `Multiply`): how a style's
@@ -2926,6 +2926,38 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `prc.placements_with(rule)` or `pdfcer_3d::assemble_with(data, rule)`;
   `placements()` / `assemble()` use the default. Offer the choice as a
   setting.
+- **Textures** (ISO 14739-1 picture / texture definition / texture
+  application; `prc__8137__graphics_materials.md` §13). Draw a model with
+  them in one call: `let m = pdfcer_3d::assemble_with_options(data,
+  &AssembleOptions)?; let image = pdfcer_3d::render_model(&m, &camera,
+  &RenderOptions)?;` (`render_model` behind `pdfcer-3d`'s `render`
+  feature). `AssembledModel` adds `textures: Vec<Texture>`,
+  `mesh_textures: Vec<Option<usize>>` (parallel to `meshes`, an index into
+  `textures`), `textured: usize` and `texture_notes: Vec<(String, usize)>` —
+  each reason a texture was not drawn as stored, a sentence fit to show,
+  with how many placed meshes it applied to. A mesh splits by colour *and*
+  texture. `Texture` (`#[non_exhaustive]`): `width`, `height`, `rgba`
+  (straight RGBA, top row first), `wrap: [TextureWrap; 2]` (`Repeat`,
+  `MirroredRepeat`, `Clamp`), `function` (`TextureFunction::{Modulate,
+  Replace, Blend { colour }, Decal}`), `uv_matrix`, `uv_set`, `origin`;
+  `sample([u, v]) -> [u8; 4]` is bilinear, `apply(base, texel)` combines
+  per `function`, `is_opaque()`. Drawn: PNG, JPEG (feature `textures`, on
+  with `render`; without it a PNG/JPEG picture draws its base colour and
+  says so) and zlib raw RGB/RGBA/grey/grey+alpha pictures up to
+  `MAX_TEXTURE_PIXELS` (16M), mapped by stored coordinates, first level
+  only, perspective-correct. `TriangleMesh::uvs: Vec<[f64; 2]>` and
+  `triangle_uvs: Vec<Vec<Option<[u32; 3]>>>` (per coordinate set, per
+  triangle, indices into `uvs`) carry the stored coordinates.
+  `AssembleOptions` (`#[non_exhaustive]`, `Default`; set fields on a
+  default) holds every reading the standard leaves open — offer each as a
+  setting: `style_alpha`; `texture_origin: TextureOrigin::{BottomLeft
+  (default), TopLeft}` (which picture row v = 0 names); `wrap_base:
+  WrapBase::{ZeroBased (default), OneBased}` (how stored wrap modes count);
+  `picture_files: PictureFiles::{StructureFirst (default), HeaderFirst}`
+  (which uncompressed-file list a picture's file number counts in first).
+  Disclose `textured` and every `texture_notes` entry; `3d-render` prints
+  `note: N mesh(es) drawn with their texture picture` and `note: texture on
+  N mesh(es): <why>` — copy that wording.
 - `prc.model_tree() -> Result<Vec<ModelNode>, PrcError>`: the model-tree
   panel's rows, depth first (parent before children, children in file
   order), one per product occurrence the roots reach — hidden and
@@ -2966,11 +2998,14 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `note: N compressed mesh(es) left out: <why>` per distinct reason.
 - CLI: `3d-mesh -o FILE.stl|.obj`, `3d-render -o FILE.png [--view iso|front|..]
   [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]
-  [--style-alpha style|multiply]`.
-- Test model: `fixtures/synthetic/prc/coloured.prc` — a square defined in one
+  [--style-alpha style|multiply] [--texture-origin bottom|top]
+  [--texture-wrap-base zero|one] [--texture-pictures structure|header]`.
+- Test models: `fixtures/synthetic/prc/coloured.prc` — a square defined in one
   file structure, placed at x 0, 2 and 4 from another whose globals hold
   the colours: opaque red, translucent blue (texture over an alpha-0
-  material), and uncoloured.
+  material), and uncoloured. `fixtures/synthetic/prc/textured.prc` — a unit
+  square carrying a 2x2 raw-RGB picture (red, green / blue, white from the
+  top), mapped by stored coordinates.
 
 ### 12.3 Optional-content layers
 

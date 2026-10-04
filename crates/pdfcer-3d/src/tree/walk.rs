@@ -37,6 +37,9 @@ pub(crate) struct Walk<'t> {
     pub(crate) nodes: Vec<ModelNode>,
     visits: usize,
     palettes: Palettes,
+    /// Per file structure, each biased style's texture; empty when
+    /// textures are not resolved.
+    pub(crate) skins: Skins,
 }
 
 impl<'t> Walk<'t> {
@@ -56,6 +59,7 @@ impl<'t> Walk<'t> {
             nodes: Vec::new(),
             visits: 0,
             palettes,
+            skins: std::sync::Arc::from(Vec::new()),
         }
     }
 
@@ -229,6 +233,7 @@ impl<'t> Walk<'t> {
                 matrix: placed,
                 colour: chain_colour(&self.palettes, &chain),
                 palettes: self.palettes.clone(),
+                skins: self.skins.clone(),
                 chain,
             });
         }

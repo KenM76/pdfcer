@@ -14,6 +14,7 @@ use crate::tess::{Ctx, malformed};
 mod geometry;
 mod node;
 mod style;
+mod texture;
 mod walk;
 
 use crate::vec3::cross;
@@ -21,6 +22,8 @@ pub use geometry::{IDENTITY, Matrix, multiply, transform_point};
 pub use node::{ModelNode, NameSource};
 pub use style::StyleAlpha;
 pub(crate) use style::{Globals, Graphics, resolve_style};
+pub use texture::{PictureFiles, WrapBase};
+pub(crate) use texture::{Skin, TextureRules, why};
 pub(crate) use walk::{At, Walk};
 
 const BASE_WITH_GRAPHICS: u32 = 2;
@@ -100,6 +103,8 @@ pub struct Placement {
     pub(crate) chain: Vec<Graphics>,
     /// The style colours of every file structure's globals.
     pub(crate) palettes: Palettes,
+    /// The style textures of every file structure's globals.
+    pub(crate) skins: Skins,
 }
 
 /// Per file structure, entry `b` is the colour of biased style index `b`.
@@ -108,13 +113,21 @@ pub(crate) type Palettes = std::sync::Arc<[std::sync::Arc<[Option<[f64; 4]>]>]>;
 /// The colour `chain` resolves to, each style read in its own file
 /// structure's globals.
 pub(crate) fn chain_colour(palettes: &Palettes, chain: &[Graphics]) -> Option<[f64; 4]> {
-    let won = resolve_style(chain);
+    colour_of(palettes, resolve_style(chain))
+}
+
+/// The colour of the style `won` names, in its file structure's globals.
+fn colour_of(palettes: &Palettes, won: Graphics) -> Option<[f64; 4]> {
     palettes
         .get(won.fs)?
         .get(won.style as usize)
         .copied()
         .flatten()
 }
+
+/// Per file structure, entry `b` is the texture of biased style index `b`
+/// (`None` when untextured); empty when textures were not resolved.
+pub(crate) type Skins = std::sync::Arc<[std::sync::Arc<[Option<Skin>]>]>;
 
 impl Placement {
     /// Per triangle of `mesh` (this placement's tessellation), its colour
@@ -126,22 +139,40 @@ impl Placement {
         if mesh.triangle_graphics.is_empty() {
             return None;
         }
+        Some(self.triangle_looks(mesh).into_iter().map(|l| l.0).collect())
+    }
+
+    /// Per triangle of `mesh`, its colour and its style's texture.
+    pub(crate) fn triangle_looks(
+        &self,
+        mesh: &crate::TriangleMesh,
+    ) -> Vec<(Option<[f64; 4]>, Option<Skin>)> {
+        let look = |won: Graphics| {
+            let skin = self
+                .skins
+                .get(won.fs)
+                .and_then(|row| row.get(won.style as usize))
+                .cloned()
+                .flatten();
+            (colour_of(&self.palettes, won), skin)
+        };
+        if mesh.triangle_graphics.is_empty() {
+            return vec![look(resolve_style(&self.chain)); mesh.triangles.len()];
+        }
         let mut chain = self.chain.clone();
         chain.push(Graphics::default());
-        Some(
-            mesh.triangle_graphics
-                .iter()
-                .map(|g| {
-                    if let Some(last) = chain.last_mut() {
-                        *last = Graphics {
-                            fs: self.file_structure,
-                            ..*g
-                        };
-                    }
-                    chain_colour(&self.palettes, &chain)
-                })
-                .collect(),
-        )
+        mesh.triangle_graphics
+            .iter()
+            .map(|g| {
+                if let Some(last) = chain.last_mut() {
+                    *last = Graphics {
+                        fs: self.file_structure,
+                        ..*g
+                    };
+                }
+                look(resolve_style(&chain))
+            })
+            .collect()
     }
 }
 
@@ -1270,6 +1301,7 @@ mod tests {
             colour: red,
             chain,
             palettes: std::sync::Arc::from(vec![std::sync::Arc::from(vec![None, red, green])]),
+            skins: std::sync::Arc::from(Vec::new()),
         };
         let mut mesh = crate::TriangleMesh::default();
         let item = placement(vec![g(1, 0)]);
@@ -1297,7 +1329,12 @@ mod tests {
                     diffuse: 4,
                     alpha: 0.5,
                 },
-                Material::Textured { base: 1 },
+                Material::Textured {
+                    base: 1,
+                    texture: 0,
+                    next: 0,
+                    uv: 0,
+                },
             ],
             styles: vec![
                 style(false, 4, None),
@@ -1521,5 +1558,151 @@ mod tests {
             [Some([255, 0, 0, 255]), Some([0, 0, 255, 128]), None]
         );
         crate::testw::check_fixture("coloured.prc", &bytes);
+    }
+
+    /// Globals with grey, a 2x2 raw-RGB picture in header file 1, a texture
+    /// (stored-coordinate `mapping`, Replace, repeating) and a material
+    /// applying it over grey, used by style 1.
+    fn textured_globals(mapping: i32, next: u32) -> W {
+        let mut w = W::default();
+        w.uint(0).uint(FILE_STRUCTURE_GLOBALS);
+        base(&mut w);
+        w.uint(0)
+            .double(2000.0)
+            .double(40.0)
+            .string(Some(""))
+            .uint(0);
+        w.uint(1).double(0.5).double(0.5).double(0.5);
+        w.uint(1).uint(PICTURE);
+        base(&mut w);
+        w.uint(2).uint(1).uint(2).uint(2);
+        w.uint(1).uint(TEXTURE_DEFINITION);
+        ref_base(&mut w, 1);
+        w.uint(1).put(2, 8).int(mapping);
+        if mapping == TEXTURE_MAPPING_OPERATOR {
+            w.int(0).bit(false);
+        }
+        w.uint(0).uint(1).double(1.0).uint(1).put(0, 8);
+        w.int(2).int(0).int(0).put(0, 8);
+        w.int(1).int(1).bit(false);
+        w.uint(2);
+        w.uint(MATERIAL);
+        ref_base(&mut w, 2);
+        w.uint(1).uint(1).uint(1).uint(1);
+        for v in [0.5, 1.0, 1.0, 1.0, 1.0] {
+            w.double(v);
+        }
+        w.uint(TEXTURE_APPLICATION);
+        ref_base(&mut w, 3);
+        w.uint(1).uint(1).uint(next).uint(1);
+        w.uint(0).uint(1).uint(STYLE);
+        ref_base(&mut w, 4);
+        w.double(1.0).bit(false).uint(0).bit(true).uint(2);
+        w.bit(false).bit(false).bit(false).bit(false);
+        w.uint(0).uint(0).uint(0);
+        w
+    }
+
+    /// The unit square with stored texture coordinates, styled by the
+    /// texture of [`textured_globals`]; its picture is red, green over
+    /// blue, white. The CLI's texture fixture when `mapping` is 1.
+    pub(crate) fn textured_prc(mapping: i32) -> Vec<u8> {
+        textured_prc_with(
+            &textured_globals(mapping, 0),
+            &crate::tess::tests::textured_square_section(),
+        )
+    }
+
+    /// [`textured_prc`]'s layout with the given globals and tessellation.
+    fn textured_prc_with(globals: &W, tess: &[u8]) -> Vec<u8> {
+        use std::io::Write as _;
+        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        e.write_all(&[255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255])
+            .unwrap();
+        let picture = e.finish().unwrap();
+        let mut model = W::default();
+        model.uint(0).uint(MODEL_FILE);
+        base(&mut model);
+        model.bit(false).double(1.0).uint(1);
+        for c in [5, 6, 7, 8] {
+            model.uint(c);
+        }
+        // Root occurrence 0, biased by one.
+        model.uint(1).bit(true);
+        let occ = Occ {
+            part: 1,
+            behaviour: Some((1, SHOW)),
+            ..OCC
+        };
+        crate::testw::prc_container_files(
+            &[[&globals.bytes(), &tree(&[occ], 0, false).bytes(), tess]],
+            &model.bytes(),
+            &[&picture],
+        )
+    }
+
+    #[test]
+    fn a_textured_square_draws_its_picture() {
+        let bytes = textured_prc(1);
+        let m = crate::assemble(&bytes).unwrap();
+        assert_eq!(m.unplaced, None);
+        assert_eq!((m.textured, m.textures.len()), (1, 1));
+        assert_eq!(m.mesh_textures, [Some(0)]);
+        assert!(m.texture_notes.is_empty(), "{:?}", m.texture_notes);
+        let t = &m.textures[0];
+        assert_eq!((t.width, t.height, t.uv_set), (2, 2, 0));
+        assert_eq!(t.function, crate::TextureFunction::Replace);
+        assert_eq!(t.rgba[..4], [255, 0, 0, 255]);
+        crate::testw::check_fixture("textured.prc", &bytes);
+    }
+
+    #[cfg(feature = "render")]
+    #[test]
+    fn a_textured_square_renders_its_picture_the_right_way_up() {
+        let m = crate::assemble(&textured_prc(1)).unwrap();
+        let camera = crate::Camera {
+            eye: [0.5, 0.5, 10.0],
+            target: [0.5, 0.5, 0.0],
+            up: [0.0, 1.0, 0.0],
+            projection: crate::Projection::Orthographic { height: 1.0 },
+        };
+        let options = crate::RenderOptions {
+            width: 2,
+            height: 2,
+            ..crate::RenderOptions::default()
+        };
+        let image = crate::render_model(&m, &camera, &options).unwrap();
+        // Pixel centres fall on texel centres, so filtering mixes nothing.
+        let px = |x: usize, y: usize| image.rgba[(y * 2 + x) * 4..][..4].to_vec();
+        // v = 0 is the picture's bottom row, the square's bottom edge.
+        assert_eq!(px(0, 0), [255, 0, 0, 255], "top left");
+        assert_eq!(px(1, 0), [0, 255, 0, 255], "top right");
+        assert_eq!(px(0, 1), [0, 0, 255, 255], "bottom left");
+        assert_eq!(px(1, 1), [255, 255, 255, 255], "bottom right");
+    }
+
+    #[test]
+    fn an_undrawable_texture_draws_the_base_colour_and_says_why() {
+        let m = crate::assemble(&textured_prc(TEXTURE_MAPPING_OPERATOR)).unwrap();
+        assert_eq!(m.textured, 0);
+        assert!(m.textures.is_empty());
+        assert_eq!(m.texture_notes, [(super::why::MAPPING.to_owned(), 1)]);
+        assert_eq!(m.colours, [Some([128, 128, 128, 255])]);
+    }
+
+    #[test]
+    fn a_mesh_without_coordinates_or_a_later_level_is_disclosed() {
+        let square = crate::PrcFile::parse(include_bytes!(
+            "../../../../fixtures/synthetic/prc/square.prc"
+        ))
+        .unwrap();
+        let bare = square.file_structures[0].section(crate::SectionKind::Tessellation);
+        let m = crate::assemble(&textured_prc_with(&textured_globals(1, 0), bare)).unwrap();
+        assert_eq!(m.textured, 0);
+        assert_eq!(m.texture_notes, [(super::why::NO_UVS.to_owned(), 1)]);
+        let uvs = crate::tess::tests::textured_square_section();
+        let m = crate::assemble(&textured_prc_with(&textured_globals(1, 1), &uvs)).unwrap();
+        assert_eq!(m.textured, 1, "the first level still draws");
+        assert_eq!(m.texture_notes, [(super::why::MORE_LEVELS.to_owned(), 1)]);
     }
 }

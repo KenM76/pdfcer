@@ -96,6 +96,15 @@ pub struct TriangleMesh {
     /// [WD 7.8.6]; empty when no face carries any. Read through
     /// [`crate::Placement::triangle_colours`].
     pub(crate) triangle_graphics: Vec<crate::tree::Graphics>,
+    /// The stored texture coordinates as (u, v) pairs [WD 7.8.5.1]; empty
+    /// when the mesh stores none.
+    pub uvs: Vec<[f64; 2]>,
+    /// Per texture-coordinate set, per triangle, the index into
+    /// [`Self::uvs`] of each corner's coordinate, in the corner order of
+    /// [`Self::triangles`]; each set is as long as [`Self::triangles`], a
+    /// triangle whose face stores no coordinate for the set `None`. Empty
+    /// when [`Self::uvs`] is.
+    pub triangle_uvs: Vec<Vec<Option<[u32; 3]>>>,
 }
 
 pub(crate) struct Ctx<'a, 's> {
@@ -432,7 +441,7 @@ impl Ctx<'_, '_> {
             self.expect_type(TESS_FACE)?;
             faces.push(self.face()?);
         }
-        let _texture = self.doubles("texture coordinates")?;
+        let texture = self.doubles("texture coordinates")?;
         self.schema.skip_added_fields(TESS_3D, &mut self.r)?;
 
         let positions = points(&coords);
@@ -442,7 +451,7 @@ impl Ctx<'_, '_> {
             ..TriangleMesh::default()
         };
         let styled = faces.iter().any(|f| !f.styles.is_empty());
-        let mut corner_slots = Vec::new();
+        let mut corners = Corners::default();
         for f in &faces {
             let start = mesh.triangles.len();
             let entities = triangulate(
@@ -451,7 +460,7 @@ impl Ctx<'_, '_> {
                 !recalc,
                 mesh.positions.len(),
                 &mut mesh.triangles,
-                &mut corner_slots,
+                &mut corners,
             )?;
             mesh.faces.push(start..mesh.triangles.len());
             if styled {
@@ -459,7 +468,8 @@ impl Ctx<'_, '_> {
             }
         }
         (mesh.normals, mesh.triangle_normals) =
-            stored_normals(&normal_coords, &corner_slots, mesh.triangles.len());
+            stored_normals(&normal_coords, &corners.normals, mesh.triangles.len());
+        (mesh.uvs, mesh.triangle_uvs) = stored_uvs(&texture, corners.textures);
         Ok(mesh)
     }
 
@@ -733,17 +743,37 @@ impl Face {
     }
 }
 
+/// One triangulation entity's index slots: per point its position, normal
+/// slot (when the array stores normals) and texture slots.
+#[derive(Default)]
+struct Slots {
+    verts: Vec<u32>,
+    normals: Vec<u32>,
+    /// Per texture set, each point's slot.
+    textures: Vec<Vec<u32>>,
+}
+
+/// What a face's triangles carry besides positions, built in step with
+/// them: corner normal slots and, per texture set, corner texture slots
+/// (`None` for a triangle whose face stores fewer sets).
+#[derive(Default)]
+struct Corners {
+    normals: Vec<[u32; 3]>,
+    textures: Vec<Vec<Option<[u32; 3]>>>,
+}
+
 /// Emit a face's triangles; `normals` = the index array stores normal slots,
-/// in which case each triangle's corner normal slots go to `corner_normals`.
-/// Returns the triangles each triangulation entity emitted, in order: one
-/// entity per triangle of a triangle block, per fan, per strip [WD 7.8.6].
+/// in which case each triangle's corner normal slots go to `corners`, as do
+/// its corner texture slots. Returns the triangles each triangulation entity
+/// emitted, in order: one entity per triangle of a triangle block, per fan,
+/// per strip [WD 7.8.6].
 fn triangulate(
     face: &Face,
     indices: &[u32],
     normals: bool,
     n_points: usize,
     out: &mut Vec<[u32; 3]>,
-    corner_normals: &mut Vec<[u32; 3]>,
+    corners: &mut Corners,
 ) -> Result<Vec<usize>, PrcError> {
     let mut entities = Vec::new();
     let mut slots = indices.get(face.start..).unwrap_or(&[]).iter().copied();
@@ -765,39 +795,37 @@ fn triangulate(
                 Shape::Triangles => (count.saturating_mul(3), !one_normal),
                 Shape::Fan | Shape::Strip => (count, !one_normal || word & NORMAL_SINGLE == 0),
             };
-            if points > indices.len() {
+            if points.saturating_mul(t + 1) > indices.len() {
                 return Err(malformed(
                     "face runs past the triangulated index array".into(),
                 ));
             }
-            let mut verts = Vec::with_capacity(points);
-            let mut vnormals = Vec::with_capacity(if normals { points } else { 0 });
+            let mut s = Slots {
+                textures: vec![Vec::with_capacity(points); t],
+                ..Slots::default()
+            };
             let mut current = 0;
             for k in 0..points {
                 let new_entity = match shape {
                     Shape::Triangles => k % 3 == 0,
                     _ => k == 0,
                 };
-                let normal_here = normals && if per_point_normal { true } else { new_entity };
-                if normal_here {
+                if normals && (per_point_normal || new_entity) {
                     current = take()?;
                 }
                 if normals {
-                    vnormals.push(current);
+                    s.normals.push(current);
                 }
-                for _ in 0..t {
-                    take()?;
+                for set in &mut s.textures {
+                    set.push(take()?);
                 }
                 let p = take()?;
                 if p % 3 != 0 || p as usize / 3 >= n_points {
                     return Err(malformed(format!("point index {p} is not a point")));
                 }
-                verts.push(p / 3);
+                s.verts.push(p / 3);
             }
-            let before = out.len();
-            assemble(shape, &verts, out);
-            assemble(shape, &vnormals, corner_normals);
-            let made = out.len() - before;
+            let made = emit(shape, &s, out, corners);
             match shape {
                 Shape::Triangles => entities.extend(std::iter::repeat_n(1, made)),
                 Shape::Fan | Shape::Strip => entities.push(made),
@@ -805,6 +833,61 @@ fn triangulate(
         }
     }
     Ok(entities)
+}
+
+/// Append the triangles of one entity's `slots` to `out` and `corners`,
+/// keeping every texture set as long as `out`. Returns how many it made.
+fn emit(shape: Shape, slots: &Slots, out: &mut Vec<[u32; 3]>, corners: &mut Corners) -> usize {
+    let before = out.len();
+    assemble(shape, &slots.verts, out);
+    assemble(shape, &slots.normals, &mut corners.normals);
+    let made = out.len() - before;
+    while corners.textures.len() < slots.textures.len() {
+        corners.textures.push(vec![None; before]);
+    }
+    for (k, set) in corners.textures.iter_mut().enumerate() {
+        match slots.textures.get(k) {
+            Some(own) => {
+                let mut tris = Vec::with_capacity(made);
+                assemble(shape, own, &mut tris);
+                set.extend(tris.into_iter().map(Some));
+            }
+            None => set.extend(std::iter::repeat_n(None, made)),
+        }
+    }
+    made
+}
+
+/// Per texture-coordinate set, each triangle's corner pair indices.
+type UvSets = Vec<Vec<Option<[u32; 3]>>>;
+
+/// The texture coordinates as (u, v) pairs, and per set the corner slots
+/// turned into pair indices [`prc__8137__tess_3d.md` §9: a slot is a Double
+/// offset, so even]; a triangle with a slot naming no pair is `None`.
+fn stored_uvs(coords: &[f64], sets: UvSets) -> (Vec<[f64; 2]>, UvSets) {
+    let uvs: Vec<[f64; 2]> = coords
+        .chunks_exact(2)
+        .map(|c| match c {
+            [u, v] => [*u, *v],
+            _ => [0.0; 2],
+        })
+        .collect();
+    if uvs.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+    let pair = |k: u32| (k.is_multiple_of(2) && (k as usize / 2) < uvs.len()).then_some(k / 2);
+    let sets = sets
+        .into_iter()
+        .map(|set| {
+            set.into_iter()
+                .map(|tri| {
+                    let [a, b, c] = tri?;
+                    Some([pair(a)?, pair(b)?, pair(c)?])
+                })
+                .collect()
+        })
+        .collect();
+    (uvs, sets)
 }
 
 /// Append the triangles `shape` makes of `verts`.
@@ -837,7 +920,7 @@ fn assemble(shape: Shape, verts: &[u32], out: &mut Vec<[u32; 3]>) {
     clippy::indexing_slicing,
     clippy::panic
 )]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::testw::W;
 
@@ -869,6 +952,7 @@ mod tests {
         indices: &'a [u32],
         faces: &'a [(u32, u32, &'a [u32])],
         textures: u32,
+        uvs: &'a [f64],
     }
 
     /// A TESS_3D over [`SQUARE`] at authoring version `v`.
@@ -901,7 +985,10 @@ mod tests {
             uints(w, data);
             w.uint(m.textures).bit(false);
         }
-        w.uint(0);
+        w.uint(m.uvs.len() as u32);
+        for &c in m.uvs {
+            w.double(c);
+        }
     }
 
     fn decode(w: &W, schema: &Schema, version: u32) -> Result<Vec<Tessellation>, PrcError> {
@@ -926,6 +1013,7 @@ mod tests {
                 indices,
                 faces,
                 textures,
+                uvs: &[],
             },
         );
         mesh(&decode(&section(1, &b), &Schema::default(), 8137).unwrap()[0]).clone()
@@ -975,6 +1063,7 @@ mod tests {
                 indices: &[0, 3, 6, 9],
                 faces: &[(0x8, 0, &[1, 4])],
                 textures: 0,
+                uvs: &[],
             },
         );
         let t = decode(&section(1, &b), &Schema::default(), 8137).unwrap();
@@ -996,6 +1085,7 @@ mod tests {
                     indices: &[0, 0, 0, 3, 0, 6],
                     faces: &[(0x2, 0, &[1])],
                     textures: 0,
+                    uvs: &[],
                 },
             );
             // A trailing wire: a misread flag desyncs it.
@@ -1040,6 +1130,54 @@ mod tests {
         }
         let m = one(&idx, &[(0x400 | 0x800, 0, &[1, 3, 1, 4])], 2);
         assert_eq!(m.triangles, [[0, 1, 2], [0, 1, 2], [2, 1, 3]]);
+    }
+
+    /// The unit square as two textured triangles (one set; per vertex a
+    /// normal, a texture slot, a point), its corners at the picture's
+    /// corners.
+    pub(crate) fn textured_square_section() -> Vec<u8> {
+        let mut body = W::default();
+        tess_3d(
+            &mut body,
+            8137,
+            &Mesh {
+                recalc: false,
+                indices: &[0, 0, 0, 0, 2, 3, 0, 4, 6, 0, 0, 0, 0, 4, 6, 0, 6, 9],
+                faces: &[(0x200, 0, &[2])],
+                textures: 1,
+                uvs: &[0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0],
+            },
+        );
+        section(1, &body).bytes()
+    }
+
+    #[test]
+    fn a_textured_mesh_keeps_each_corners_coordinates() {
+        let bytes = textured_square_section();
+        let t = Ctx::new(BitReader::new(&bytes), &Schema::default(), 8137)
+            .file_structure_tessellation()
+            .unwrap();
+        let m = mesh(&t[0]);
+        assert_eq!(m.triangles, [[0, 1, 2], [0, 2, 3]]);
+        assert_eq!(m.uvs, [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]);
+        assert_eq!(m.triangle_uvs, [vec![Some([0, 1, 2]), Some([0, 2, 3])]]);
+        // An odd slot names no pair: that triangle has no coordinates.
+        let mut b = W::default();
+        tess_3d(
+            &mut b,
+            8137,
+            &Mesh {
+                recalc: false,
+                indices: &[0, 1, 0, 0, 2, 3, 0, 4, 6],
+                faces: &[(0x200, 0, &[1])],
+                textures: 1,
+                uvs: &[0.0; 6],
+            },
+        );
+        let t = decode(&section(1, &b), &Schema::default(), 8137).unwrap();
+        let m = mesh(&t[0]);
+        assert_eq!(m.triangles, [[0, 1, 2]]);
+        assert_eq!(m.triangle_uvs, [vec![None]]);
     }
 
     #[test]
@@ -1381,6 +1519,7 @@ mod tests {
                         indices: &[0, 0, 0, 3, 0, 6, 0, 0, 0, 3, 0, 6, 0, 9],
                         faces: &[(0x2 | 0x4, 0, &[1, 1, 4])],
                         textures: 0,
+                        uvs: &[],
                     },
                 );
                 let w = section(2, &b);
@@ -1478,6 +1617,7 @@ mod tests {
                     indices: &[0, 0, 0, bad, 0, 6],
                     faces: &[(0x2, 0, &[1])],
                     textures: 0,
+                    uvs: &[],
                 },
             );
             assert!(matches!(
@@ -1495,6 +1635,7 @@ mod tests {
                 indices: &[0, 0],
                 faces: &[(0x4, 0, &[1, 0x3FFF_FFFF])],
                 textures: 0,
+                uvs: &[],
             },
         );
         assert!(decode(&section(1, &b), &Schema::default(), 8137).is_err());
@@ -1526,6 +1667,7 @@ mod tests {
                 indices: &[0, 0, 0, 3, 0, 6, 0, 0, 0, 6, 0, 9],
                 faces: &[(0x2, 0, &[2])],
                 textures: 0,
+                uvs: &[],
             },
         );
         prc_file(&section(1, &body))

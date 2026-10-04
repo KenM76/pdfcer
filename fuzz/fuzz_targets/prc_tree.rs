@@ -6,9 +6,13 @@
 //! the authoring version, bytes 1-2 split the rest into the globals section
 //! (schema first) and the tree section, and byte 3 is the root occurrence
 //! the built model file names, so the walk is reached without the fuzzer
-//! having to find a matching file-structure id.
+//! having to find a matching file-structure id. Bytes 4-5 split off a
+//! trailing header uncompressed file, which a texture picture can name, and
+//! the whole model is then assembled (`pdfcer_3d::assemble`, texture
+//! pictures decoded, PRC 8137 WD 7.5.5).
 //! Invariant: never panics, never loops, never overflows the stack; every
-//! tree node's placement range lies within the placements, parents first.
+//! tree node's placement range lies within the placements, parents first;
+//! every mesh's texture index names a decoded texture.
 
 #![no_main]
 
@@ -47,25 +51,26 @@ fn le(out: &mut Vec<u8>, vs: &[u32]) {
 }
 
 /// One file structure at authoring version `v` holding `globals` and `tree`,
-/// under `model`.
-fn container(v: u32, globals: &[u8], tree: &[u8], model: &[u8]) -> Vec<u8> {
-    const HEADER_LEN: usize = 107;
+/// under `model`, with `file` as the header's one uncompressed file.
+fn container(v: u32, globals: &[u8], tree: &[u8], model: &[u8], file: &[u8]) -> Vec<u8> {
+    let header_len = 107 + 4 + file.len();
     let sections: [&[u8]; 5] = [globals, tree, &[0], &[], &[]];
     let mut fs = b"PRC".to_vec();
     le(&mut fs, &[8137, v, 5, 6, 7, 8, 0, 0, 0, 0, 0]);
     let mut offs = Vec::new();
     for s in sections {
-        offs.push((HEADER_LEN + fs.len()) as u32);
+        offs.push((header_len + fs.len()) as u32);
         fs.extend(stored_zlib(s));
     }
-    let mf_start = (HEADER_LEN + fs.len()) as u32;
+    let mf_start = (header_len + fs.len()) as u32;
     fs.extend(stored_zlib(model));
-    let mf_end = (HEADER_LEN + fs.len()) as u32;
+    let mf_end = (header_len + fs.len()) as u32;
     let mut out = b"PRC".to_vec();
     le(&mut out, &[8137, v, 1, 2, 3, 4, 0, 0, 0, 0, 1]);
-    le(&mut out, &[5, 6, 7, 8, 0, 6, HEADER_LEN as u32]);
+    le(&mut out, &[5, 6, 7, 8, 0, 6, header_len as u32]);
     le(&mut out, &offs);
-    le(&mut out, &[mf_start, mf_end, 0]);
+    le(&mut out, &[mf_start, mf_end, 1, file.len() as u32]);
+    out.extend_from_slice(file);
     out.extend(fs);
     out
 }
@@ -118,19 +123,24 @@ fn model_file(root: u8) -> Vec<u8> {
 }
 
 fuzz_target!(|data: &[u8]| {
-    let [sel, hi, lo, root, rest @ ..] = data else {
+    let [sel, hi, lo, root, phi, plo, rest @ ..] = data else {
         return;
     };
+    let picture = (usize::from(*phi) << 8 | usize::from(*plo)).min(rest.len());
+    let (rest, file) = rest.split_at(rest.len() - picture);
     let split = (usize::from(*hi) << 8 | usize::from(*lo)).min(rest.len());
     let (globals, tree) = rest.split_at(split);
     let v = VERSIONS[usize::from(*sel) % VERSIONS.len()];
-    let f = PrcFile::parse_with_limit(&container(v, globals, tree, &model_file(*root)), 1 << 20)
-        .expect("a built container parses");
+    let bytes = container(v, globals, tree, &model_file(*root), file);
+    let f = PrcFile::parse_with_limit(&bytes, 1 << 20).expect("a built container parses");
     let placed = f.placements().map(|p| p.len());
     if let (Ok(nodes), Ok(placed)) = (f.model_tree(), placed) {
         for (i, n) in nodes.iter().enumerate() {
             assert!(n.placements.start <= n.placements.end && n.placements.end <= placed);
             assert!(n.parent.is_none_or(|p| p < i));
         }
+    }
+    if let Ok(m) = pdfcer_3d::assemble(&bytes) {
+        assert!(m.mesh_textures.iter().flatten().all(|&t| t < m.textures.len()));
     }
 });

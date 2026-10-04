@@ -548,6 +548,63 @@ fn a_prc_assembly_renders_both_placed_copies() {
     assert_eq!(px(100, 50), 255, "nothing between the copies");
 }
 
+/// A square textured with a 2x2 red/green/blue/white picture draws each
+/// texel, says so, and `--texture-origin top` flips it.
+#[cfg(feature = "3d")]
+#[test]
+fn a_textured_prc_model_renders_its_picture() {
+    let input = with_prc("render_textured", "textured.prc");
+    let output = input.with_extension("png");
+    let render = |extra: &[&str]| {
+        let mut args = vec![
+            "3d-render",
+            input.to_str().unwrap(),
+            "--index",
+            "2",
+            "--view",
+            "top",
+            "--ortho",
+            "--width",
+            "64",
+            "--height",
+            "64",
+            "-o",
+            output.to_str().unwrap(),
+        ];
+        args.extend_from_slice(extra);
+        let out = run(&args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        assert!(
+            stdout.contains("note: 1 mesh(es) drawn with their texture picture"),
+            "{stdout}"
+        );
+        assert!(!stdout.contains("note: texture on"), "{stdout}");
+        let decoder = png::Decoder::new(std::fs::File::open(&output).unwrap());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+        buf
+    };
+    let bottom = render(&[]);
+    // Lit and filtered, a texel shows as a pixel its own channel dominates.
+    let has = |buf: &[u8], c: usize| {
+        buf.chunks_exact(4)
+            .any(|p| (0..3).all(|k| if k == c { p[k] > 100 } else { p[k] < p[c] / 4 }))
+    };
+    let top = render(&["--texture-origin", "top"]);
+    assert_ne!(bottom, top, "the picture flips");
+    for (buf, origin) in [(&bottom, "bottom"), (&top, "top")] {
+        for c in 0..3 {
+            assert!(has(buf, c), "{origin}: the texel of channel {c} is drawn");
+        }
+    }
+}
+
 /// The fixture's two styled copies sit on alpha-0 materials with style
 /// transparencies 255 and 128: by default the style's value wins, and
 /// `--style-alpha multiply` makes both fully see-through.

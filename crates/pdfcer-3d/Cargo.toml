@@ -14,7 +14,10 @@ default = ["render"]
 # The headless mesh rasterizer (`render`, `render_coloured`). A layer over
 # the reader that uses only its public mesh types; reader-only consumers
 # (mesh export, fuzzing) build without it.
-render = []
+render = ["textures"]
+# PNG and JPEG texture pictures; without it a textured surface whose picture
+# is PNG or JPEG draws its base colour and says so.
+textures = ["dep:png", "dep:zune-jpeg"]
 
 [dependencies]
 # thiserror: C-GOOD-ERR error derives. MIT OR Apache-2.0.
@@ -23,6 +26,10 @@ thiserror = "2"
 # only, the same choice and reason as pdfcer-model's (static binary, wasm32).
 # MIT OR Apache-2.0.
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# png: PRC texture pictures in PNG [WD 7.5.5.2]. MIT OR Apache-2.0.
+png = { version = "0.17", optional = true }
+# zune-jpeg: PRC texture pictures in JPEG; pure Rust. MIT OR Apache-2.0 OR Zlib.
+zune-jpeg = { version = "0.5", default-features = false, features = ["std"], optional = true }
 
 [[test]]
 name = "all"

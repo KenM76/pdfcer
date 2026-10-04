@@ -76,6 +76,40 @@ pub(crate) enum StyleAlphaArg {
     Multiply,
 }
 
+/// Where `3d-render` reads a texture picture's first row from (ISO
+/// 14739-1 does not say which end of the picture v = 0 is).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum TextureOriginArg {
+    /// v = 0 is the picture's bottom row, as in OpenGL. Default.
+    #[default]
+    Bottom,
+    /// v = 0 is the picture's top row.
+    Top,
+}
+
+/// How `3d-render` numbers texture wrap modes (ISO 14739-1's table counts
+/// from 1, its revision draft's sibling lists from 0).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum TextureWrapBaseArg {
+    /// 0 unknown, 1 repeat, 2-4 clamp, 5 mirrored repeat. Default.
+    #[default]
+    Zero,
+    /// The same modes numbered from 1.
+    One,
+}
+
+/// Which uncompressed-file list `3d-render` counts a texture picture's
+/// file number in first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum TexturePicturesArg {
+    /// The picture's own file structure's list, then the file header's.
+    /// Default.
+    #[default]
+    Structure,
+    /// The file header's list, then the file structure's.
+    Header,
+}
+
 /// The model axis that points up in `3d-render`'s named views.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum Axis3 {

@@ -97,6 +97,9 @@ impl crate::TriangleMesh {
             for t in &mut out.triangle_normals {
                 t.swap(1, 2);
             }
+            for t in out.triangle_uvs.iter_mut().flatten().flatten() {
+                t.swap(1, 2);
+            }
         }
         out
     }

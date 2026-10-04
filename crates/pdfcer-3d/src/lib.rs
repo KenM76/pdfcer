@@ -33,11 +33,14 @@ mod error;
 mod export;
 mod model;
 #[cfg(feature = "render")]
+mod raster;
+#[cfg(feature = "render")]
 mod render;
 mod schema;
 mod tess;
 #[cfg(test)]
 mod testw;
+mod texture;
 mod tree;
 // Some helpers serve only the rasterizer.
 #[cfg_attr(not(feature = "render"), allow(dead_code))]
@@ -49,11 +52,12 @@ pub use container::{
 };
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};
-#[cfg(feature = "render")]
-pub use model::render_default_view;
 pub use model::{
-    AssembleError, AssembledModel, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP, assemble, assemble_with,
+    AssembleError, AssembleOptions, AssembledModel, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP,
+    assemble, assemble_with, assemble_with_options,
 };
+#[cfg(feature = "render")]
+pub use model::{render_default_view, render_model};
 #[cfg(feature = "render")]
 pub use render::{
     Bounds, Camera, Image, MAX_RENDER_PIXELS, Projection, RenderError, RenderOptions, render,
@@ -61,6 +65,8 @@ pub use render::{
 };
 pub use schema::Schema;
 pub use tess::{Tessellation, TriangleMesh};
+pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use tree::{
-    IDENTITY, Matrix, ModelNode, NameSource, Placement, StyleAlpha, multiply, transform_point,
+    IDENTITY, Matrix, ModelNode, NameSource, PictureFiles, Placement, StyleAlpha, WrapBase,
+    multiply, transform_point,
 };

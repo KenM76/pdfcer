@@ -3127,6 +3127,19 @@ pub(crate) enum Command {
         /// multiplies the two.
         #[arg(long, value_enum, default_value_t)]
         style_alpha: StyleAlphaArg,
+        /// Which end of a texture picture is its first row: `bottom`
+        /// (default) or `top`. Try `top` if pictures draw upside down.
+        #[arg(long, value_enum, default_value_t)]
+        texture_origin: TextureOriginArg,
+        /// How stored texture wrap modes are numbered: `zero` (default) or
+        /// `one`. Try `one` if pictures clamp where they should tile.
+        #[arg(long, value_enum, default_value_t)]
+        texture_wrap_base: TextureWrapBaseArg,
+        /// Which file list a texture's picture number counts in first:
+        /// `structure` (default) or `header`. Try `header` if the wrong
+        /// picture appears.
+        #[arg(long, value_enum, default_value_t)]
+        texture_pictures: TexturePicturesArg,
     },
 
     /// **Embed a 3D model** (U3D or PRC) in a region of a page, as a 3D

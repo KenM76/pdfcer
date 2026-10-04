@@ -44,8 +44,15 @@ pub(crate) enum Material {
     /// `Material` (702): `diffuse + 1` (a double-scaled colour index) and
     /// the diffuse alpha.
     Plain { diffuse: u32, alpha: f64 },
-    /// `TextureApplication` (711): `material_generic_index + 1`.
-    Textured { base: u32 },
+    /// `TextureApplication` (711) [WD 7.5.6]: `material_generic_index`,
+    /// `texture_definition_index`, `next_texture_index` and
+    /// `UV_coordinates_index`, each + 1.
+    Textured {
+        base: u32,
+        texture: u32,
+        next: u32,
+        uv: u32,
+    },
 }
 
 /// What `FileStructureGlobals` contributes to placing and colouring.
@@ -56,6 +63,8 @@ pub(crate) struct Globals {
     pub(crate) colours: Vec<[f64; 3]>,
     pub(crate) materials: Vec<Material>,
     pub(crate) styles: Vec<Style>,
+    pub(crate) pictures: Vec<super::texture::Picture>,
+    pub(crate) textures: Vec<super::texture::TextureDef>,
 }
 
 impl Globals {
@@ -76,7 +85,7 @@ impl Globals {
         let style = self.styles.get(biased.checked_sub(1)? as usize)?;
         let (rgb, mut alpha) = if style.is_material {
             let mut m = self.materials.get(style.index.checked_sub(1)? as usize)?;
-            if let Material::Textured { base } = *m {
+            if let Material::Textured { base, .. } = *m {
                 m = self.materials.get(base.checked_sub(1)? as usize)?;
             }
             match *m {
@@ -122,8 +131,8 @@ impl Ctx<'_, '_> {
     /// systems [WD 7.3.5, 7.3.5.2; PRCRS]: colours, materials, styles and
     /// the systems.
     ///
-    /// Fonts and fill patterns are [`PrcError::Unsupported`]; pictures,
-    /// texture definitions and line patterns are read past.
+    /// Fonts and fill patterns are [`PrcError::Unsupported`]; line
+    /// patterns are read past.
     pub(crate) fn globals(&mut self) -> Result<Globals, PrcError> {
         let mut g = Globals::default();
         self.expect_type(FILE_STRUCTURE_GLOBALS)?;
@@ -145,11 +154,13 @@ impl Ctx<'_, '_> {
         }
         let n = self.count(1, "pictures")?;
         for _ in 0..n {
-            self.picture()?;
+            let p = self.picture()?;
+            g.pictures.push(p);
         }
         let n = self.count(1, "texture definitions")?;
         for _ in 0..n {
-            self.texture_definition()?;
+            let t = self.texture_definition()?;
+            g.textures.push(t);
         }
         let n = self.count(1, "materials")?;
         for _ in 0..n {
@@ -212,107 +223,16 @@ impl Ctx<'_, '_> {
                 self.r.double()?; // specular alpha
                 Material::Plain { diffuse, alpha }
             }
-            TEXTURE_APPLICATION => {
-                let base = self.r.unsigned_integer()?;
-                for _ in 0..3 {
-                    self.r.unsigned_integer()?; // texture, next, UV set + 1
-                }
-                Material::Textured { base }
-            }
+            TEXTURE_APPLICATION => Material::Textured {
+                base: self.r.unsigned_integer()?,
+                texture: self.r.unsigned_integer()?,
+                next: self.r.unsigned_integer()?,
+                uv: self.r.unsigned_integer()?,
+            },
             t => return Err(malformed(format!("entity type {t} as a material"))),
         };
         self.schema.skip_added_fields(t, &mut self.r)?;
         Ok(m)
-    }
-
-    /// `Picture` (703), read past [WD 7.5.9;
-    /// `prc__8137__graphics_materials.md` §7a].
-    fn picture(&mut self) -> Result<(), PrcError> {
-        self.expect_type(PICTURE)?;
-        self.content_prc_base()?;
-        for _ in 0..4 {
-            self.r.unsigned_integer()?; // format, uncompressed file + 1, width, height
-        }
-        self.schema.skip_added_fields(PICTURE, &mut self.r)
-    }
-
-    /// `TextureDefinition` (712), read past [WD 7.5.7 Table 97;
-    /// `prc__8137__graphics_materials.md` §7].
-    fn texture_definition(&mut self) -> Result<(), PrcError> {
-        self.expect_type(TEXTURE_DEFINITION)?;
-        self.content_prc_ref_base()?;
-        self.r.unsigned_integer()?; // picture + 1
-        let dimension = self.r.character()?;
-        if self.r.integer()? == TEXTURE_MAPPING_OPERATOR {
-            self.r.integer()?; // mapping operator
-            if self.r.bit()? {
-                self.transformation()?;
-            }
-        }
-        self.r.unsigned_integer()?; // mapping attributes
-        let n = self.count(1, "texture intensities")?;
-        for _ in 0..n {
-            self.r.double()?;
-        }
-        let n = self.count(1, "texture components")?;
-        for _ in 0..n {
-            self.r.character()?;
-        }
-        if self.r.integer()? == TEXTURE_FUNCTION_BLEND {
-            for _ in 0..4 {
-                self.r.double()?; // blend colour
-            }
-        }
-        for _ in 0..2 {
-            // RGB, then alpha: a source blend, and a destination when set
-            if self.r.integer()? != 0 {
-                self.r.integer()?;
-            }
-        }
-        if self.r.character()? & TEXTURE_ALPHA_TEST != 0 {
-            self.r.integer()?; // alpha test function
-            self.r.double()?; // reference
-        }
-        for _ in 0..dimension.clamp(1, 3) {
-            self.r.integer()?; // wrapping mode S, T, R
-        }
-        if self.r.bit()? {
-            self.texture_transformation()?;
-        }
-        self.schema
-            .skip_added_fields(TEXTURE_DEFINITION, &mut self.r)
-    }
-
-    /// `TextureTransformation` (713), type-tagged, read past [WD 7.5.8,
-    /// 7.4.11.1; `prc__8137__graphics_materials.md` §7b].
-    fn texture_transformation(&mut self) -> Result<(), PrcError> {
-        self.expect_type(TEXTURE_TRANSFORMATION)?;
-        for _ in 0..3 {
-            self.r.bit()?; // invert S, invert T, is 2D
-        }
-        let behaviour = self.r.character()?;
-        let mut doubles = 0;
-        if behaviour & 0x01 != 0 {
-            doubles += 2; // translate
-        }
-        if behaviour & 0x20 != 0 {
-            doubles += 4; // non-ortho
-        } else if behaviour & 0x02 != 0 {
-            doubles += 2; // rotate, one vector in a texture (ISS #819)
-        }
-        if behaviour & 0x10 != 0 {
-            doubles += 2; // non-uniform scale
-        } else if behaviour & 0x08 != 0 {
-            doubles += 1; // scale
-        }
-        if behaviour & 0x40 != 0 {
-            doubles += 3; // homogeneous
-        }
-        for _ in 0..doubles {
-            self.r.double()?;
-        }
-        self.schema
-            .skip_added_fields(TEXTURE_TRANSFORMATION, &mut self.r)
     }
 
     /// `Style` (701) [WD 7.5.3; PRCRS].

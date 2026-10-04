@@ -181,6 +181,15 @@ pub(crate) fn prc_container(globals: &[u8], tree: &[u8], tess: &[u8], model: &[u
 /// A PRC stream with one file structure per `[globals, tree, tess]`, the
 /// k-th with id `[5, 6, 7, 8 + k]`.
 pub(crate) fn prc_container_n(structures: &[[&[u8]; 3]], model: &[u8]) -> Vec<u8> {
+    prc_container_files(structures, model, &[])
+}
+
+/// [`prc_container_n`] with `files` as the header's uncompressed files.
+pub(crate) fn prc_container_files(
+    structures: &[[&[u8]; 3]],
+    model: &[u8],
+    files: &[&[u8]],
+) -> Vec<u8> {
     use std::io::Write as _;
     let zlib = |data: &[u8]| {
         let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
@@ -191,7 +200,8 @@ pub(crate) fn prc_container_n(structures: &[[&[u8]; 3]], model: &[u8]) -> Vec<u8
         vs.iter()
             .for_each(|v| out.extend_from_slice(&v.to_le_bytes()));
     };
-    let header_len = 59 + 48 * structures.len();
+    let fixed = 59 + 48 * structures.len();
+    let header_len = fixed + files.iter().map(|f| 4 + f.len()).sum::<usize>();
     let mut body = Vec::new();
     let mut descriptions = Vec::new();
     for (k, &[globals, tree, tess]) in structures.iter().enumerate() {
@@ -216,7 +226,13 @@ pub(crate) fn prc_container_n(structures: &[[&[u8]; 3]], model: &[u8]) -> Vec<u8
     le(&mut out, &[8137, 8137, 1, 2, 3, 4, 0, 0, 0, 0]);
     le(&mut out, &[structures.len() as u32]);
     out.extend(descriptions);
-    le(&mut out, &[mf_start, mf_end, 0]);
+    le(&mut out, &[mf_start, mf_end]);
+    assert_eq!(out.len() + 4, fixed);
+    le(&mut out, &[files.len() as u32]);
+    for f in files {
+        le(&mut out, &[f.len() as u32]);
+        out.extend_from_slice(f);
+    }
     assert_eq!(out.len(), header_len);
     out.extend(body);
     out

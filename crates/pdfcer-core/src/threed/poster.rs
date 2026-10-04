@@ -46,6 +46,11 @@ pub struct RenderedPoster {
     pub compressed_skipped: usize,
     /// Meshes the model tree gave no colour, drawn grey.
     pub uncoloured_meshes: usize,
+    /// Meshes drawn with their texture picture.
+    pub textured_meshes: usize,
+    /// Each reason a texture drew its base colour instead, with how many
+    /// placed meshes it applied to.
+    pub texture_notes: Vec<(String, usize)>,
     /// Why part placements were not applied (each mesh then draws once in
     /// its own coordinates), or `None` when they were.
     pub unplaced: Option<String>,
@@ -162,6 +167,8 @@ fn render(
             compressed_rebuilt: model.rebuilt,
             compressed_skipped: model.compressed,
             uncoloured_meshes: uncoloured,
+            textured_meshes: model.textured,
+            texture_notes: model.texture_notes,
             unplaced: model.unplaced,
         },
     ))

@@ -159,20 +159,42 @@ fn artwork_bytes(
 /// Decode and assemble a PRC model, or say why it has nothing to draw.
 #[cfg(feature = "3d")]
 fn assemble(data: &[u8]) -> Result<pdfcer_3d::AssembledModel, String> {
-    assemble_with(data, StyleAlphaArg::default())
+    assemble_with(data, pdfcer_3d::AssembleOptions::default())
 }
 
-/// [`assemble`] with an explicit style-transparency rule.
+/// [`assemble`] with explicit readings of what the standard leaves open.
 #[cfg(feature = "3d")]
-fn assemble_with(data: &[u8], rule: StyleAlphaArg) -> Result<pdfcer_3d::AssembledModel, String> {
-    let rule = match rule {
-        StyleAlphaArg::Style => pdfcer_3d::StyleAlpha::StyleWins,
-        StyleAlphaArg::Multiply => pdfcer_3d::StyleAlpha::Multiply,
-    };
-    pdfcer_3d::assemble_with(data, rule).map_err(|err| match err {
+fn assemble_with(
+    data: &[u8],
+    options: pdfcer_3d::AssembleOptions,
+) -> Result<pdfcer_3d::AssembledModel, String> {
+    pdfcer_3d::assemble_with_options(data, &options).map_err(|err| match err {
         pdfcer_3d::AssembleError::NotPrc => format!("{err} (use `3d-extract` for the bytes)"),
         _ => err.to_string(),
     })
+}
+
+/// `3d-render`'s choices where ISO 14739-1 is silent.
+#[cfg(feature = "3d")]
+fn assemble_options(a: &RenderThreeDArgs<'_>) -> pdfcer_3d::AssembleOptions {
+    let mut options = pdfcer_3d::AssembleOptions::default();
+    options.style_alpha = match a.style_alpha {
+        StyleAlphaArg::Style => pdfcer_3d::StyleAlpha::StyleWins,
+        StyleAlphaArg::Multiply => pdfcer_3d::StyleAlpha::Multiply,
+    };
+    options.texture_origin = match a.texture_origin {
+        TextureOriginArg::Bottom => pdfcer_3d::TextureOrigin::BottomLeft,
+        TextureOriginArg::Top => pdfcer_3d::TextureOrigin::TopLeft,
+    };
+    options.wrap_base = match a.texture_wrap_base {
+        TextureWrapBaseArg::Zero => pdfcer_3d::WrapBase::ZeroBased,
+        TextureWrapBaseArg::One => pdfcer_3d::WrapBase::OneBased,
+    };
+    options.picture_files = match a.texture_pictures {
+        TexturePicturesArg::Structure => pdfcer_3d::PictureFiles::StructureFirst,
+        TexturePicturesArg::Header => pdfcer_3d::PictureFiles::HeaderFirst,
+    };
+    options
 }
 
 /// The notes both `3d-mesh` and `3d-render` print about what was inferred.
@@ -235,6 +257,12 @@ fn mesh_from_bytes(
         output.display()
     );
     print_assembly_notes(&a, "written");
+    if a.textured > 0 {
+        println!(
+            "note: {} mesh(es) carry a texture; the mesh file holds geometry only",
+            a.textured
+        );
+    }
     let recalculated = a.meshes.iter().filter(|m| m.normals_recalculated).count();
     if recalculated > 0 {
         println!(
@@ -281,6 +309,9 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) height: u32,
     pub(crate) transparent: bool,
     pub(crate) style_alpha: StyleAlphaArg,
+    pub(crate) texture_origin: TextureOriginArg,
+    pub(crate) texture_wrap_base: TextureWrapBaseArg,
+    pub(crate) texture_pictures: TexturePicturesArg,
 }
 
 /// `3d-render` — draw one PRC model to a PNG from a camera.
@@ -298,7 +329,7 @@ fn render_from_bytes(
     data: &[u8],
     saved: Option<&pdfcer_core::threed::ThreeDSavedView>,
 ) -> u8 {
-    use pdfcer_3d::{Bounds, Camera, Projection, RenderOptions, render_coloured};
+    use pdfcer_3d::{Bounds, Camera, Projection, RenderOptions, render_model};
     let refuse = |why: String| {
         eprintln!(
             "pdfcer: {}: 3D artwork {}: {why}",
@@ -307,7 +338,7 @@ fn render_from_bytes(
         );
         exit::EDIT_REFUSED
     };
-    let model = match assemble_with(data, a.style_alpha) {
+    let model = match assemble_with(data, assemble_options(a)) {
         Ok(model) => model,
         Err(why) => return refuse(why),
     };
@@ -342,7 +373,7 @@ fn render_from_bytes(
         },
         ..RenderOptions::default()
     };
-    let image = match render_coloured(&model.meshes, &model.colours, &camera, &options) {
+    let image = match render_model(&model, &camera, &options) {
         Ok(image) => image,
         Err(err) => return refuse(err.to_string()),
     };
@@ -402,9 +433,20 @@ fn render_from_bytes(
     println!(
         "note: each part, and each face styled on its own, is drawn in the colour its model \
          tree gives it ({translucent} translucent), lit from the camera; {uncoloured} mesh(es) \
-         had none and are drawn grey; textures and lights are not read yet"
+         had none and are drawn grey; lights are not read yet"
     );
+    print_texture_notes(model.textured, &model.texture_notes);
     exit::SUCCESS
+}
+
+/// How many meshes drew their texture, and why any others did not.
+pub(crate) fn print_texture_notes(textured: usize, notes: &[(String, usize)]) {
+    if textured > 0 {
+        println!("note: {textured} mesh(es) drawn with their texture picture, sampled bilinearly");
+    }
+    for (why, n) in notes {
+        println!("note: texture on {n} mesh(es): {why}");
+    }
 }
 
 #[cfg(not(feature = "3d"))]

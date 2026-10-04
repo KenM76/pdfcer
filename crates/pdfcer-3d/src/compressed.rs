@@ -418,6 +418,8 @@ fn mesh(
         normals: stored.0,
         triangle_normals: stored.1,
         triangle_graphics: Vec::new(),
+        uvs: Vec::new(),
+        triangle_uvs: Vec::new(),
     }
 }
 

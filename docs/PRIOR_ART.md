@@ -129,6 +129,7 @@ of which is a Rust-native engine.
 | Crate | License | Verdict | Why |
 |---|---|---|---|
 | `zune-jpeg` | MIT OR Apache-2.0 OR Zlib | adopt (decode) | Pure Rust; the `image` crate itself now uses this for JPEG decode — de facto ecosystem standard. |
+| `png` (image-rs) | MIT OR Apache-2.0 | adopt (decode/encode) | Already in the graph (core, render); `pdfcer-3d` takes it, with `zune-jpeg`, behind its `textures` feature to decode PRC texture pictures (`Pass 462.0`) — no new package. |
 | `jpeg-encoder` (vstroebel) | (MIT OR Apache-2.0) AND IJG | adopt (encode) | Note the "AND IJG" clause requires a libjpeg-style attribution notice in `THIRD_PARTY_LICENSES.md`. |
 | `jpeg-decoder` | MIT/Apache-2.0 | reference-only | image-rs's own repo says it's "in maintenance mode," kept only for lossless-JPEG mode zune-jpeg lacks. |
 | **`hayro-jpeg2000`** | Apache-2.0 OR MIT | adopt (decode) | **Resolves what report 1 flagged as a genuine gap** ("no pure-Rust JPX decoder") — a pure-Rust JPX decoder exists, just young (first release ~Dec 2025, ~7 months old at verification time). Covers "vast majority" of ISO/IEC 15444-1 core per its own docs. Budget validation time against a broad corpus given its youth. No pure-Rust JPX **encoder** exists — gate any JPX-write need behind `openjpeg-sys` (BSD-2, C, native-only, never in the WASM target) if ever needed; unlikely for an authoring tool. |

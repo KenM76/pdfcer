@@ -5,8 +5,9 @@
 //! both sides because a producer's winding is not trusted to face outward.
 //! No threads and no GUI dependency, so it runs unchanged on wasm32.
 
-use crate::TriangleMesh;
+use crate::raster::{Corner, Paint, Target, View, at};
 use crate::vec3::{cross, dot, length, normalize, scale, sub};
+use crate::{Texture, TriangleMesh};
 
 /// The largest image [`render`] draws, in pixels (width × height).
 pub const MAX_RENDER_PIXELS: u64 = 64 * 1024 * 1024;
@@ -368,74 +369,53 @@ pub fn render_coloured(
     camera: &Camera,
     options: &RenderOptions,
 ) -> Result<Image, RenderError> {
+    let [r, g, b] = options.colour;
+    render_painted(
+        meshes,
+        &|i| Paint {
+            colour: colours.get(i).copied().flatten().unwrap_or([r, g, b, 255]),
+            texture: None,
+        },
+        camera,
+        options,
+    )
+}
+
+/// [`render_coloured`] with mesh `i` filled with `paint(i)`; a textured
+/// mesh takes part in the opaque pass only when its texture is opaque.
+pub(crate) fn render_painted<'a>(
+    meshes: &[TriangleMesh],
+    paint: &dyn Fn(usize) -> Paint<'a>,
+    camera: &Camera,
+    options: &RenderOptions,
+) -> Result<Image, RenderError> {
     let (width, height) = (options.width, options.height);
     let pixels = u64::from(width) * u64::from(height);
     if pixels == 0 || pixels > MAX_RENDER_PIXELS {
         return Err(RenderError::Size { width, height });
     }
-    let [right, up, forward] = camera.basis()?;
     let aspect = f64::from(width) / f64::from(height);
-    let view = View::new(camera, aspect)?;
+    let scene = Scene {
+        camera,
+        basis: camera.basis()?,
+        view: View::new(camera, aspect)?,
+    };
     let mut target = Target {
         width,
         height,
         rgba: options.background.repeat(pixels as usize),
         depth: vec![f64::NEG_INFINITY; pixels as usize],
     };
-    let to_view = |p: [f64; 3]| {
-        let d = sub(p, camera.eye);
-        [dot(d, right), dot(d, up), dot(d, forward)]
-    };
-    let [r, g, b] = options.colour;
-    let colour_of = |i: usize| colours.get(i).copied().flatten().unwrap_or([r, g, b, 255]);
     for opaque_pass in [true, false] {
         for (i, mesh) in meshes.iter().enumerate() {
-            let colour = colour_of(i);
-            let alpha = colour[3];
-            if alpha == 0 || (alpha == 255) != opaque_pass {
+            let paint = paint(i);
+            let alpha = paint.colour[3];
+            let opaque = alpha == 255 && paint.texture.is_none_or(Texture::is_opaque);
+            if alpha == 0 || opaque != opaque_pass {
                 continue;
             }
-            for (t, tri) in mesh.triangles.iter().enumerate() {
-                let Some(world) = corners(mesh, tri) else {
-                    continue;
-                };
-                let Some(face) = normalize(cross(
-                    sub(at3(&world, 1), at3(&world, 0)),
-                    sub(at3(&world, 2), at3(&world, 0)),
-                )) else {
-                    continue;
-                };
-                let stored = stored_normals(mesh, t);
-                let shade = |k: usize| {
-                    let p = at3(&world, k);
-                    let towards = match view {
-                        View::Perspective { .. } => normalize(sub(camera.eye, p)),
-                        View::Orthographic { .. } => Some(scale(forward, -1.0)),
-                    };
-                    let normal = stored
-                        .and_then(|n| n.get(k).copied().flatten())
-                        .unwrap_or(face);
-                    0.3 + 0.7 * towards.map_or(0.0, |l| dot(normal, l).abs())
-                };
-                // Without stored normals the triangle is flat: one shade,
-                // lit along the view ray to its first corner.
-                let flat = stored.is_none().then(|| shade(0));
-                let shaded = [0, 1, 2].map(|k| {
-                    let [x, y, z] = to_view(at3(&world, k));
-                    [x, y, z, flat.unwrap_or_else(|| shade(k))]
-                });
-                let screen: Vec<([f64; 3], f64)> = view
-                    .clip(shaded)
-                    .iter()
-                    .map(|&[x, y, z, s]| (view.project([x, y, z], width, height), s))
-                    .collect();
-                if let Some((&a, rest)) = screen.split_first() {
-                    for pair in rest.windows(2) {
-                        if let [b, c] = pair {
-                            target.fill([a, *b, *c], colour);
-                        }
-                    }
-                }
+            for t in 0..mesh.triangles.len() {
+                scene.draw(&mut target, mesh, t, paint);
             }
         }
     }
@@ -444,6 +424,80 @@ pub fn render_coloured(
         height,
         rgba: target.rgba,
     })
+}
+
+/// The camera a frame is drawn from, with its basis and projection.
+struct Scene<'c> {
+    camera: &'c Camera,
+    /// Right, up and forward.
+    basis: [[f64; 3]; 3],
+    view: View,
+}
+
+impl Scene<'_> {
+    /// Draw triangle `t` of `mesh` into `target`, lit and, when `paint` is
+    /// textured, carrying the triangle's texture coordinates.
+    fn draw(&self, target: &mut Target, mesh: &TriangleMesh, t: usize, paint: Paint<'_>) {
+        let Some(world) = mesh.triangles.get(t).and_then(|tri| corners(mesh, tri)) else {
+            return;
+        };
+        let Some(face) = normalize(cross(
+            sub(at3(&world, 1), at3(&world, 0)),
+            sub(at3(&world, 2), at3(&world, 0)),
+        )) else {
+            return;
+        };
+        let [right, up, forward] = self.basis;
+        let stored = stored_normals(mesh, t);
+        let shade = |k: usize| {
+            let p = at3(&world, k);
+            let towards = match self.view {
+                View::Perspective { .. } => normalize(sub(self.camera.eye, p)),
+                View::Orthographic { .. } => Some(scale(forward, -1.0)),
+            };
+            let normal = stored
+                .and_then(|n| n.get(k).copied().flatten())
+                .unwrap_or(face);
+            0.3 + 0.7 * towards.map_or(0.0, |l| dot(normal, l).abs())
+        };
+        // Without stored normals the triangle is flat: one shade, lit along
+        // the view ray to its first corner.
+        let flat = stored.is_none().then(|| shade(0));
+        let uvs = paint
+            .texture
+            .and_then(|tex| triangle_uvs(mesh, tex.uv_set, t));
+        let view_corners = [0, 1, 2].map(|k| {
+            let d = sub(at3(&world, k), self.camera.eye);
+            let [u, v] = uvs.and_then(|c| c.get(k).copied()).unwrap_or([0.0; 2]);
+            let s = flat.unwrap_or_else(|| shade(k));
+            [dot(d, right), dot(d, up), dot(d, forward), s, u, v]
+        });
+        let (width, height) = (target.width, target.height);
+        let screen: Vec<Corner> = self
+            .view
+            .clip(view_corners)
+            .into_iter()
+            .map(|v| self.view.project(v, width, height))
+            .collect();
+        if let Some((&a, rest)) = screen.split_first() {
+            for pair in rest.windows(2) {
+                if let [b, c] = pair {
+                    target.fill(&self.view, [a, *b, *c], paint);
+                }
+            }
+        }
+    }
+}
+
+/// Triangle `t`'s texture coordinates in set `set`, or `None` when it has
+/// none.
+fn triangle_uvs(mesh: &TriangleMesh, set: usize, t: usize) -> Option<[[f64; 2]; 3]> {
+    let slots = (*mesh.triangle_uvs.get(set)?.get(t)?)?;
+    let mut out = [[0.0; 2]; 3];
+    for (o, i) in out.iter_mut().zip(slots) {
+        *o = *mesh.uvs.get(i as usize)?;
+    }
+    Some(out)
 }
 
 /// Triangle `t`'s stored corner normals, unit length; a corner whose normal
@@ -466,197 +520,6 @@ fn corners(mesh: &TriangleMesh, tri: &[u32; 3]) -> Option<[[f64; 3]; 3]> {
         *slot = p;
     }
     Some(out)
-}
-
-enum View {
-    /// `focal` = 1 / tan(fov_y / 2); `near` = the clip distance.
-    Perspective {
-        focal: f64,
-        aspect: f64,
-        near: f64,
-    },
-    Orthographic {
-        half_height: f64,
-        aspect: f64,
-    },
-}
-
-impl View {
-    fn new(camera: &Camera, aspect: f64) -> Result<View, RenderError> {
-        match camera.projection {
-            Projection::Perspective { fov_y } => {
-                if !(fov_y > 0.0 && fov_y < 180.0) {
-                    return Err(RenderError::Camera(
-                        "the field of view is not between 0 and 180 degrees",
-                    ));
-                }
-                let distance = length(sub(camera.target, camera.eye));
-                Ok(View::Perspective {
-                    focal: 1.0 / (fov_y.to_radians() / 2.0).tan(),
-                    aspect,
-                    near: (distance * 1e-4).max(f64::MIN_POSITIVE),
-                })
-            }
-            Projection::Orthographic { height } => {
-                if !(height.is_finite() && height > 0.0) {
-                    return Err(RenderError::Camera(
-                        "the orthographic height is not positive",
-                    ));
-                }
-                Ok(View::Orthographic {
-                    half_height: height / 2.0,
-                    aspect,
-                })
-            }
-        }
-    }
-
-    /// The part of a view-space triangle in front of the near plane
-    /// (Sutherland–Hodgman against one plane): 0, 3 or 4 points.
-    /// The part of `tri` (view x, y, z and a shade) in front of the near
-    /// plane, the shade interpolated along each cut edge.
-    fn clip(&self, tri: [[f64; 4]; 3]) -> Vec<[f64; 4]> {
-        let View::Perspective { near, .. } = *self else {
-            return tri.to_vec();
-        };
-        let mut out = Vec::with_capacity(4);
-        for (k, &p) in tri.iter().enumerate() {
-            let q = tri.get((k + 1) % 3).copied().unwrap_or(p);
-            let z = |v: [f64; 4]| v.get(2).copied().unwrap_or(0.0);
-            let (p_in, q_in) = (z(p) >= near, z(q) >= near);
-            if p_in {
-                out.push(p);
-            }
-            if p_in != q_in {
-                let t = (near - z(p)) / (z(q) - z(p));
-                let mut cut = p;
-                for (c, d) in cut.iter_mut().zip(q) {
-                    *c += t * (d - *c);
-                }
-                out.push(cut);
-            }
-        }
-        out
-    }
-
-    /// Pixel x, pixel y and a depth key that is linear in screen space and
-    /// larger for nearer points.
-    fn project(&self, p: [f64; 3], width: u32, height: u32) -> [f64; 3] {
-        let (nx, ny, key) = match *self {
-            View::Perspective { focal, aspect, .. } => {
-                let z = at(p, 2);
-                (
-                    at(p, 0) * focal / (z * aspect),
-                    at(p, 1) * focal / z,
-                    1.0 / z,
-                )
-            }
-            View::Orthographic {
-                half_height,
-                aspect,
-            } => (
-                at(p, 0) / (half_height * aspect),
-                at(p, 1) / half_height,
-                -at(p, 2),
-            ),
-        };
-        [
-            (nx + 1.0) / 2.0 * f64::from(width),
-            (1.0 - ny) / 2.0 * f64::from(height),
-            key,
-        ]
-    }
-}
-
-struct Target {
-    width: u32,
-    height: u32,
-    rgba: Vec<u8>,
-    depth: Vec<f64>,
-}
-
-impl Target {
-    /// Fill one screen-space triangle, depth-tested, sampling pixel centres.
-    /// An opaque colour replaces the pixel and its depth; a translucent one
-    /// is blended over it, leaving the depth.
-    /// Fill the screen triangle of `corners` (pixel x, y, depth key; and
-    /// a shade), the shade interpolated across it and applied to `colour`.
-    fn fill(&mut self, corners: [([f64; 3], f64); 3], colour: [u8; 4]) {
-        let [(a, sa), (b, sb), (c, sc)] = corners;
-        let area = edge(a, b, c);
-        if !area.is_finite() || area.abs() < 1e-12 {
-            return;
-        }
-        let lo = |i: usize| at(a, i).min(at(b, i)).min(at(c, i)).floor().max(0.0);
-        let hi = |i: usize, limit: u32| {
-            at(a, i)
-                .max(at(b, i))
-                .max(at(c, i))
-                .ceil()
-                .min(f64::from(limit) - 1.0)
-        };
-        let (x0, x1, y0, y1) = (lo(0), hi(0, self.width), lo(1), hi(1, self.height));
-        if x0 > x1 || y0 > y1 {
-            return;
-        }
-        let (x0, x1, y0, y1) = (x0 as u32, x1 as u32, y0 as u32, y1 as u32);
-        for y in y0..=y1 {
-            for x in x0..=x1 {
-                let p = [f64::from(x) + 0.5, f64::from(y) + 0.5, 0.0];
-                let (w0, w1, w2) = (
-                    edge(b, c, p) / area,
-                    edge(c, a, p) / area,
-                    edge(a, b, p) / area,
-                );
-                if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
-                    continue;
-                }
-                let key = w0 * at(a, 2) + w1 * at(b, 2) + w2 * at(c, 2);
-                let i = y as usize * self.width as usize + x as usize;
-                let Some(d) = self.depth.get_mut(i) else {
-                    continue;
-                };
-                if key <= *d {
-                    continue;
-                }
-                let shade = if sa == sb && sb == sc {
-                    sa
-                } else {
-                    w0 * sa + w1 * sb + w2 * sc
-                };
-                let [cr, cg, cb, alpha] = colour;
-                let [r, g, b] = [cr, cg, cb].map(|v| (f64::from(v) * shade).round() as u8);
-                let rgba = [r, g, b, alpha];
-                let opaque = alpha == 255;
-                if opaque {
-                    *d = key;
-                }
-                if let Some(px) = self.rgba.get_mut(i * 4..i * 4 + 4) {
-                    if opaque {
-                        px.copy_from_slice(&rgba);
-                    } else if let [pr, pg, pb, pa] = px {
-                        let [sr, sg, sb, sa] = rgba;
-                        let src = f64::from(sa) / 255.0;
-                        let dst = f64::from(*pa) / 255.0 * (1.0 - src);
-                        let out = src + dst;
-                        for (p, s) in [pr, pg, pb].into_iter().zip([sr, sg, sb]) {
-                            *p = ((f64::from(s) * src + f64::from(*p) * dst) / out).round() as u8;
-                        }
-                        *pa = (out * 255.0).round() as u8;
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Twice the signed area of (a, b, p) in the xy plane.
-fn edge(a: [f64; 3], b: [f64; 3], p: [f64; 3]) -> f64 {
-    (at(b, 0) - at(a, 0)) * (at(p, 1) - at(a, 1)) - (at(b, 1) - at(a, 1)) * (at(p, 0) - at(a, 0))
-}
-
-fn at(v: [f64; 3], i: usize) -> f64 {
-    v.get(i).copied().unwrap_or(0.0)
 }
 
 fn at3(v: &[[f64; 3]; 3], i: usize) -> [f64; 3] {
@@ -683,6 +546,8 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            uvs: Vec::new(),
+            triangle_uvs: Vec::new(),
         }
     }
 
@@ -808,6 +673,8 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            uvs: Vec::new(),
+            triangle_uvs: Vec::new(),
         };
         let image = render(&[tri], &ortho(4.0), &small()).unwrap();
         assert_ne!(pixel(&image, 20, 25)[0], 255);
@@ -845,6 +712,8 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            uvs: Vec::new(),
+            triangle_uvs: Vec::new(),
         };
         let image = render(&[floor], &camera, &small()).unwrap();
         assert_ne!(pixel(&image, 20, 38), [255, 255, 255, 255]);
@@ -960,6 +829,8 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            uvs: Vec::new(),
+            triangle_uvs: Vec::new(),
         }];
         for perspective in [true, false] {
             let fit = |meshes: &[TriangleMesh], aspect| {
@@ -1055,6 +926,8 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            uvs: Vec::new(),
+            triangle_uvs: Vec::new(),
         };
         let image = render(std::slice::from_ref(&mesh), &ortho(4.0), &small()).unwrap();
         assert!(image.rgba.chunks(4).all(|p| p == [255, 255, 255, 255]));
