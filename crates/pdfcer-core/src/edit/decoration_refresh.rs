@@ -4,6 +4,7 @@
 //! same undo entry.
 
 use super::{Command, EditSession};
+use crate::graph::ObjectGraph;
 use crate::object::{Name, Object, Stream};
 use crate::text_edit::decoration;
 use crate::text_extract::{ContentStreamRef, ExtractOptions, extract_page_view};
@@ -49,6 +50,83 @@ impl EditSession {
                 w.after = after;
             }
         }
+        self.sync_structure(command, &pages);
+    }
+
+    /// Record each page's decorations in the structure tree
+    /// (`decoration::tagged`) for every page whose content `command`
+    /// rewrote, folding the element rewrites into the same undo entry and
+    /// leaving the notes in `structure_notes`.
+    fn sync_structure(&mut self, command: &mut Command, pages: &[crate::page_tree::Page]) {
+        self.structure_notes.clear();
+        let written: Vec<_> = command.objects.iter().map(|w| w.id).collect();
+        let mut writes = Vec::new();
+        let mut notes = Vec::new();
+        {
+            let view = self.view();
+            if view
+                .catalog_dict()
+                .and_then(|c| c.get(b"StructTreeRoot"))
+                .is_none()
+            {
+                return;
+            }
+            let base = |id| self.base.get(id).map(|io| io.value.clone());
+            for (index, page) in pages.iter().enumerate() {
+                if !page.contents.iter().any(|c| written.contains(c)) {
+                    continue;
+                }
+                let sync = decoration::tagged::sync_page(&view, &base, pages, index);
+                writes.extend(sync.writes);
+                notes.extend(sync.notes);
+            }
+            if written
+                .iter()
+                .any(|id| self.is_decorated_form(&view, pages, *id))
+            {
+                notes.push(
+                    "decoration inside a form XObject is not recorded in the structure tree"
+                        .to_owned(),
+                );
+            }
+        }
+        self.structure_notes = notes;
+        for (id, after) in writes {
+            if self.view().value(id) == Some(&after) {
+                continue;
+            }
+            let before = self.state.get(&id).cloned();
+            Self::write_state(&mut self.state, id, Some(after.clone()));
+            command.objects.push(super::ObjectWrite {
+                id,
+                before,
+                after: Some(after),
+            });
+        }
+    }
+
+    /// Whether `id` is a form XObject (no page's content stream) whose
+    /// current bytes carry a decoration marker.
+    fn is_decorated_form(
+        &self,
+        view: &crate::view::DocumentView<'_>,
+        pages: &[crate::page_tree::Page],
+        id: crate::object::ObjId,
+    ) -> bool {
+        if pages.iter().any(|p| p.contents.contains(&id)) {
+            return false;
+        }
+        let Some(Object::Stream(s)) = view.value(id) else {
+            return false;
+        };
+        let is_form = s
+            .dict
+            .get(b"Subtype")
+            .and_then(Object::as_name)
+            .is_some_and(|n| n.as_bytes() == b"Form");
+        is_form
+            && crate::content::ContentStream::from_form(view, id)
+                .is_ok_and(|cs| !decoration::Scan::of(&cs).markers.is_empty())
     }
 
     /// The refreshed bytes of stream `id` with decoded content `raw`, found

@@ -9613,6 +9613,9 @@ pub struct EditSession {
     /// first annotation is authored, so a session that only performs
     /// pre-6.1 edits carries no staging and its save path is unchanged.
     staging: Vec<u8>,
+    /// What the last commit's decoration sync could not record in the
+    /// structure tree; drained into the verb's report.
+    structure_notes: Vec<String>,
     undo: Vec<Entry>,
     redo: Vec<Entry>,
     /// Identifies this session to a [`Checkpoint`].
@@ -9838,6 +9841,7 @@ impl EditSession {
             trailer,
             next_number,
             staging: Vec::new(),
+            structure_notes: Vec::new(),
             undo: Vec::new(),
             redo: Vec::new(),
             session_serial: checkpoint::next_serial(),
@@ -12555,6 +12559,7 @@ impl EditSession {
             plan.report.extra_objects_emptied = d.emptied;
         }
         self.commit(command);
+        self.take_structure_notes(&mut plan.report.disclosures);
         Ok(plan.report)
     }
 
@@ -13076,6 +13081,7 @@ impl EditSession {
                                 report.extra_objects_emptied = d.emptied;
                             }
                             self.commit(command);
+                            self.take_structure_notes(&mut report.disclosures);
                             return Ok(report);
                         }
                         Err(e) => Some(e),
@@ -13235,6 +13241,7 @@ impl EditSession {
         let mut command = self.form_edit_command(form_id, &form_dict, new_content);
         command.objects.extend(extra);
         self.commit(command);
+        self.take_structure_notes(&mut report.disclosures);
         Ok(report)
     }
 
@@ -19973,6 +19980,11 @@ impl EditSession {
     /// behaviour (§11.1 states it for completeness rather than because
     /// it is subtle): the redone future no longer exists once history
     /// diverges.
+    /// Move the last commit's structure-tree notes into `into`.
+    fn take_structure_notes(&mut self, into: &mut Vec<String>) {
+        into.append(&mut self.structure_notes);
+    }
+
     fn commit(&mut self, mut command: Command) {
         for write in &command.objects {
             Self::write_state(&mut self.state, write.id, write.after.clone());

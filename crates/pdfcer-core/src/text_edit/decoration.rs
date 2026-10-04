@@ -33,6 +33,7 @@ use crate::view::DocumentView;
 use crate::writer::content::emit_number;
 
 mod metrics;
+pub(crate) mod tagged;
 use metrics::LineMetrics;
 
 /// The marked-content tag of both the marker and its rule.

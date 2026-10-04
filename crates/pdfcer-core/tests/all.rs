@@ -91,6 +91,7 @@ mod form_xobject_text_edit;
 mod format_decoration;
 mod format_decoration_form;
 mod format_decoration_metrics;
+mod format_decoration_tagged;
 mod format_occurrence;
 mod forms_richtext;
 mod free_text_note_rebake;

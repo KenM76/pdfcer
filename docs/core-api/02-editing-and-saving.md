@@ -638,6 +638,22 @@ let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
   that `ET`, each rule is also wrapped in `/Artifact <</Type /Layout>> BDC …
   EMC`, so it is not untagged real content (ISO 14289-1 7.1). Inside an
   `/MCID` sequence the rule stays part of that element's content.
+- **Structure tree** (only with `/StructTreeRoot`): after the same refresh,
+  each structure element that owns a marked-content sequence on a rewritten
+  page gets `/A <</O /Layout /TextDecorationType /Underline|/LineThrough>>`
+  (ISO 32000-1 14.8.5.4.4) when the decoration covers **all** its text: its
+  own sequences, any marked-content references, and nested inline elements
+  (`Span`, `Link`, `Em`, ... after `/RoleMap`), across pages; nested block
+  elements are not its text. One value only, so line-through wins. Written
+  copy-on-write: merged into a direct Layout dictionary, else appended
+  (followed by the element's `/R` when non-zero); an indirect attribute
+  object is never changed. The value is rebuilt from the base revision's
+  `/A` on every refresh, so clearing or shrinking the decoration removes it,
+  and undo or a net-zero edit leaves the element clean. Every other case is
+  a disclosure in the verb's report, never a split element: partial
+  coverage, untagged text, the dropped underline when both lines apply, an
+  authored attribute that now over-claims, a decoration inside a form
+  XObject.
 - Geometry, `FormatRequest::decoration_metrics(DecorationMetrics)`:
   - `FontTables` (default): the embedded TrueType/OpenType program's
     `post` underline and `OS/2` strikeout position and thickness; each
@@ -662,7 +678,8 @@ mode 3 or 7 (requested or in force).
 - The refresh runs only when the page's other `/Contents` streams are empty
   (any session text edit folds them into the first), so decorate through the
   session, not by splicing content yourself.
-- Tagged-PDF `/TextDecorationType` is not written yet.
+- A decoration covering part of an element is not recorded: pdfcer does
+  not split structure elements (that waits for a structure-tree writer).
 
 CLI: `format-text --find Total --underline [--strikethrough]
 [--decoration-metrics font|standard]`; `--no-decoration` clears.
