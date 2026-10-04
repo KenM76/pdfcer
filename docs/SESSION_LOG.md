@@ -4,6 +4,36 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (954th filing) — `Pass 486.0` shipped (text-run/text-object commands moved out of `text_edit.rs`)
+
+**Shipped:**
+- `Pass 486.0` (`0fa7a2d7`) — `crates/pdfcer-cli/src/text_edit.rs`
+  (2,462 production lines, a baselined file) held the
+  `text-run-delete`, `text-run-move`, `text-run-width`,
+  `text-run-merge` and `text-object-split` commands (argument structs
+  and the split dry-run helpers). All five moved verbatim to a new
+  `crates/pdfcer-cli/src/text_run_edit.rs` (485 lines). `text_edit.rs`
+  is now 1,981 lines; still over the 800-line cap, so its baseline
+  entry is unchanged (595 entries). No behaviour, `pub` API,
+  dependency or manifest change.
+
+**Decisions made this session:** none — decision stays `192`,
+standing rule stays `R251`.
+
+**Findings + decisions:** none beyond the move itself.
+
+**Still in flight:** full `tools/run-gates.sh` stated green by the
+engineer; not independently re-verified (no shell this filing).
+
+**For next session:**
+- Next free `Pass 487.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- No `FEATURES.md` rows affected (cli-internal refactor).
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and check results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (953rd filing) — `Pass 485.0` shipped (preflight a text-object split, `G114`)
 
 **Shipped:**

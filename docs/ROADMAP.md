@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 486.0` — text-run and text-object commands moved out of `text_edit.rs` into `text_run_edit.rs` — SHIPPED `0fa7a2d7`
+
+Structure debt only; no behaviour change.
+
+**Structure debt.** `crates/pdfcer-cli/src/text_edit.rs` (2,462
+production lines, a baselined file) held the `text-run-delete`,
+`text-run-move`, `text-run-width`, `text-run-merge` and
+`text-object-split` commands (argument structs plus the split
+dry-run helpers). All five moved verbatim to a new
+`crates/pdfcer-cli/src/text_run_edit.rs` (485 lines). `text_edit.rs`
+is now 1,981 lines; still over the 800-line cap, so its baseline
+entry is unchanged (`tools/code-structure-baseline.txt`, 595
+entries). Pure move: no behaviour, `pub` API, dependency or manifest
+change (`cargo tree` N/A).
+
+**Checks.** Build, clippy `-D warnings`, fmt, `check-string-gaps`,
+`check-code-structure` clean. 64 CLI text tests pass unchanged.
+`tools/run-gates.sh` green before push.
+
+**Delivered:** cli only (structure). No `FEATURES.md` rows affected
+(cli-internal refactor; no capability or box changes). Ledger after:
+next filing 955th, next Pass 487.0, next decision 192, next standing
+rule R251, next operator question (ck).
+
 ### `Pass 485.0` — preflight a text-object split from a session without committing it (`pdfcer-gui` `G114`) — SHIPPED `f04a3478`
 
 Answers `pdfcer-gui` request **G114**: "a text split cannot be
