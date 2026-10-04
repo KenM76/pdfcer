@@ -64,6 +64,9 @@ jobs:
           toolchain: "1.97.1"
           components: clippy
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # A lite CLI build turns 3D/OCR-only helpers into dead code that the
+      # all-features run above cannot see.
+      - run: cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings
 
   rustdoc:
     name: cargo doc, broken intra-doc links denied

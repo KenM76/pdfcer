@@ -295,6 +295,8 @@ fn no_3d_feature(input: &Path, index: usize, command: &str) -> u8 {
 }
 
 /// The arguments of `3d-render`, borrowed from the parsed command.
+// Without `3d` the command refuses by name, so only `input` and `index` are read.
+#[cfg_attr(not(feature = "3d"), allow(dead_code))]
 pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) index: usize,

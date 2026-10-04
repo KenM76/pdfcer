@@ -49,6 +49,7 @@ pub(crate) enum ThreeDView {
 impl ThreeDView {
     /// The view direction and the image's up direction, for a model whose
     /// vertical axis is `up`.
+    #[cfg(feature = "3d")]
     pub(crate) fn direction(self, up: Axis3) -> ([f64; 3], [f64; 3]) {
         // In a z-up frame: front looks along +y, right along -x.
         let (dir, image_up) = match self {
@@ -124,12 +125,14 @@ pub(crate) enum Axis3 {
 
 impl Axis3 {
     /// The unit vector along this axis.
+    #[cfg(feature = "3d")]
     pub(crate) fn vector(self) -> [f64; 3] {
         self.orient([0.0, 0.0, 1.0])
     }
 
     /// Rotate a z-up direction so z maps onto this axis (a proper
     /// rotation, so handedness is kept).
+    #[cfg(feature = "3d")]
     fn orient(self, [a, b, c]: [f64; 3]) -> [f64; 3] {
         match self {
             Axis3::Z => [a, b, c],

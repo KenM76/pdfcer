@@ -504,12 +504,11 @@ fn model_line(model: &OcrModel) -> String {
     )
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "paddle"))]
 mod tests {
     use super::*;
 
     #[test]
-    #[cfg(feature = "paddle")]
     fn the_default_engine_is_the_bundled_one() {
         assert_eq!(default_engine(), OcrEngineArg::Paddle);
     }
