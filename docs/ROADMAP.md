@@ -115,6 +115,35 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 487.0` — format-text split into its own module, by step (`text_format.rs`) — SHIPPED `8ac3432d`
+
+Structure debt only; no behaviour change.
+
+**Structure debt.** `crates/pdfcer-cli/src/text_edit.rs`'s
+`FormatTextArgs`, `parse_text_metric`/`parse_set_color`/`parse_pin_span`
+and the 418-line `cmd_format_text` moved to a new
+`crates/pdfcer-cli/src/text_format.rs` (588 lines). `cmd_format_text`
+itself is split into flag parsing (before any file is opened), request
+building, style-posture options, error-exit mapping, and four report
+printers. Output, exit codes and flag-check order unchanged; doc
+comments lost their Pass history. Baseline entry
+`fn pdfcer-cli/src/text_edit.rs::cmd_format_text` deleted (594 entries
+remain). `text_edit.rs` 1,981 → 1,386 lines (still over the 800-line
+cap; file stays baselined). No `pub` API, dependency or manifest
+change (`cargo tree` N/A).
+
+**Checks.** Build, clippy `-D warnings`, fmt, `check-string-gaps`,
+`check-code-structure` clean. 34 format tests + 45 related CLI tests +
+43 bin unit tests pass unchanged. Sabotage: mapping refusals to
+`RUNTIME_ERROR` failed 4 tests; dropping the trust/disclosure printer
+failed 11. `tools/run-gates.sh` stated green by the engineer (no shell
+this filing — not independently re-verified).
+
+**Delivered:** cli only (structure). No `FEATURES.md` rows affected
+(cli-internal refactor; no capability or box changes). Ledger after:
+next filing 956th, next Pass 488.0, next decision 192, next standing
+rule R251, next operator question (ck).
+
 ### `Pass 486.0` — text-run and text-object commands moved out of `text_edit.rs` into `text_run_edit.rs` — SHIPPED `0fa7a2d7`
 
 Structure debt only; no behaviour change.

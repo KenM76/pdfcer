@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (955th filing) — `Pass 487.0` shipped (format-text split into its own module, by step)
+
+**Shipped:**
+- `Pass 487.0` (`8ac3432d`) — `crates/pdfcer-cli/src/text_edit.rs`'s
+  `FormatTextArgs`, `parse_text_metric`/`parse_set_color`/
+  `parse_pin_span` and the 418-line `cmd_format_text` moved to a new
+  `crates/pdfcer-cli/src/text_format.rs` (588 lines).
+  `cmd_format_text` split into flag parsing, request building,
+  style-posture options, error-exit mapping and four report printers;
+  output, exit codes and flag-check order unchanged. Baseline entry
+  for `cmd_format_text` deleted (594 entries remain). `text_edit.rs`
+  1,981 → 1,386 lines (still over cap, still baselined). No manifest
+  change.
+
+**Decisions made this session:** none — decision stays `192`,
+standing rule stays `R251`.
+
+**Findings + decisions:** none beyond the split itself.
+
+**Still in flight:** full `tools/run-gates.sh` stated green by the
+engineer; not independently re-verified (no shell this filing).
+
+**For next session:**
+- Next free `Pass 488.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- No `FEATURES.md` rows affected (cli-internal refactor).
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and check results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (954th filing) — `Pass 486.0` shipped (text-run/text-object commands moved out of `text_edit.rs`)
 
 **Shipped:**
