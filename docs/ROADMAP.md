@@ -115,6 +115,40 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 477.0` — `list-fields` prints each push button's action — SHIPPED `8218563c`
+
+Closes `FEATURES.md` row 358's cli gap: `set-button-action` could set a
+declared action but `list-fields` had no column to read it back.
+
+**Shipped (`crates/pdfcer-cli` only).** `list-fields` appends `action=`
+as the last token of every `field` line: `none` (no `/A`), the modelled
+subtype label (`ResetForm`, `SubmitForm`, `GoTo`, `Hide`, `Show`,
+`Named`, `URI`), `unmodelled:S` (a subtype pdfcer authors but did not
+decode this instance), `foreign:S` (a subtype pdfcer never writes, e.g.
+`foreign:JavaScript`), or `-` for a field that is not a push button.
+Reads `EditSession::button_action`, first widget only (`Pass 212.0` /
+`411.0`). The subtype label moved into a shared `button_action_label`,
+now shared by `list-fields` and `set-button-action`'s result line.
+`ListFields --help` gained a paragraph.
+
+**Tests.** New `crates/pdfcer-cli/tests/list_fields_button_action.rs`
+(2 tests): a synthetic text + JavaScript-button + idle-button form
+asserting `action=-`, `action=foreign:JavaScript`, `action=none`; a
+`set-button-action --reset` round trip asserting `action=ResetForm`.
+Sabotage-checked.
+
+**FEATURES.md.** Row 358 (read a push button's declared action):
+`cli [ ]` → `cli [x]`; the "no CLI subcommand" sentence replaced.
+`core`/`gui` untouched.
+
+**Decision/ledgers.** No architectural decision — next decision stays
+`191`. Next free `Pass 478.0`; standing rule `R263` and operator
+question `(ck)` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, field
+names, and test file/count/assertion changes above are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ### `Pass 476.0` — `list-annotations` prints review state — SHIPPED `09a030af`
 
 Self-scoped by the engineer, closing the cli gap `FEATURES.md` row 327
@@ -19079,6 +19113,13 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> `Pass 477.0` SHIPPED, 2026-10-04 (944th filing), `8218563c` — see
+> *Shipped*, above. `list-fields` now prints `action=` as the last
+> token of every `field` line, closing the cli-read gap `FEATURES.md`
+> row 358 named since `Pass 212.0`. Self-scoped (no operator/GUI
+> request). No decision; next decision stays `191`. Next free
+> `Pass 478.0`; rule/question ledgers unchanged (`R263` / `(ck)`).
 
 > `Pass 476.0` SHIPPED, 2026-10-04 (943rd filing), `09a030af` — see
 > *Shipped*, above. `list-annotations` now prints `in_reply_to=`,

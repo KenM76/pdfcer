@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (944th filing) — `Pass 477.0` shipped (`list-fields` prints push-button action)
+
+**Shipped:**
+- `Pass 477.0` (`8218563c`) — self-scoped by the engineer, closing the
+  cli gap `FEATURES.md` row 358 already named. `list-fields` appends
+  `action=` as the last token of every `field` line: `none`, the
+  modelled subtype label, `unmodelled:S`, `foreign:S`, or `-` for a
+  non-push-button field. Reads `EditSession::button_action`, first
+  widget (`Pass 212.0`/`411.0`). The subtype label moved into a
+  shared `button_action_label`, now used by both `list-fields` and
+  `set-button-action`'s result line. `ListFields --help` gained a
+  paragraph.
+
+**Decisions made this session:** none — next decision stays `191`,
+next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None beyond the shipped Pass. Core already exposed `button_action`;
+  this was purely a CLI-surface gap.
+
+**Still in flight:**
+- Nothing opened by this Pass.
+
+**For next session:**
+- Next free `Pass 478.0`; decision `191`, standing rule `R263`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+field names, and test file/count/assertion changes are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (943rd filing) — `Pass 476.0` shipped (`list-annotations` prints review state)
 
 **Shipped:**
