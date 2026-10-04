@@ -149,6 +149,13 @@ clauses); `check-core-api-verbs` green.
 
 **Parity source.** Acrobat RAG `markup__3d_model_tree_capability.md`.
 
+**Follow-up — `26850f4e`.** `tools/run-gates.sh` caught two gate misses
+the hand-review before this entry's filing missed: `cmd_tree_3d` had no
+doc comment (`check-public-fns-documented`), and `README.md`'s
+working-subcommand count was still 208, not 209
+(`check-clap-help`). Both fixed in `26850f4e`. No `FEATURES.md` change
+— the 3d-tree core/cli rows were already correct.
+
 ### `v0.76.0` — RELEASED (2026-10-03)
 
 Release filing, completing the version bump at `8d5ef554` ("chore:

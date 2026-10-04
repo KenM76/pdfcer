@@ -4,6 +4,29 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (925th filing) — `Pass 461.0` gate-miss follow-up
+
+**Shipped:**
+- `26850f4e` — follow-up to `Pass 461.0`. Added the missing doc comment
+  on `cmd_tree_3d` (`check-public-fns-documented`) and bumped
+  `README.md`'s working-subcommand count 208 → 209
+  (`check-clap-help`). Both gates were missed by hand-review before the
+  924th filing; `tools/run-gates.sh` caught them. No `FEATURES.md`
+  change — 3d-tree core/cli rows already filed in the 924th.
+
+**Decisions made this session:**
+- None.
+
+**Findings + decisions:**
+- None new.
+
+**Still in flight:** unchanged from the 924th filing below.
+
+**For next session:** unchanged from the 924th filing below.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash and
+gate-miss description relayed from the dispatching engineer's report.
+
 ## 2026-10-03 (924th filing) — `Pass 461.0` shipped
 
 **Shipped:**
