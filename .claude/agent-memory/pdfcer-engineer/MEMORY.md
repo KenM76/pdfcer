@@ -100,3 +100,4 @@
 - [Python write_text writes CRLF](feedback_python_write_text_writes_crlf.md) — use write_bytes; it flipped edit.rs to CRLF and fmt --check stayed green
 - [Agent "completed" can precede its writes](feedback_agent_completion_can_precede_its_writes.md) — recheck in minutes before re-dispatching; two writers clobbered SESSION_LOG
 - [Scratchpad is shared between workers](feedback_scratchpad_is_shared_between_workers.md) — parallel workers clobber generic scratch names; prefix with the Pass ID
+- [Sabotage leaves a sabotaged binary](feedback_sabotage_leaves_a_sabotaged_binary.md) — rebuild after restoring; a manual probe after sabotage tests the sabotage
