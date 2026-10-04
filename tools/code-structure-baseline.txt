@@ -220,7 +220,6 @@ fn pdfcer-cli/src/stamp.rs::cmd_stamp_pack
 fn pdfcer-cli/src/structure.rs::cmd_list_objects
 fn pdfcer-cli/src/text_edit.rs::cmd_add_text
 fn pdfcer-cli/src/text_edit.rs::cmd_edit_text
-fn pdfcer-cli/src/text_edit.rs::cmd_format_text
 fn pdfcer-cli/src/text_edit.rs::cmd_place_text
 fn pdfcer-cli/src/text_edit.rs::cmd_reflow
 fn pdfcer-cli/src/threed_cmd.rs::render_from_bytes

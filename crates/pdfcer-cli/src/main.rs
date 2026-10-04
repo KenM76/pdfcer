@@ -589,6 +589,8 @@ mod text_edit;
 use text_edit::*;
 mod text_run_edit;
 use text_run_edit::*;
+mod text_format;
+use text_format::*;
 mod fallback_font;
 mod fonts;
 mod settings;
