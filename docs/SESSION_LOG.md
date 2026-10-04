@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (943rd filing) — `Pass 476.0` shipped (`list-annotations` prints review state)
+
+**Shipped:**
+- `Pass 476.0` (`09a030af`) — self-scoped by the engineer, closing the
+  cli gap `FEATURES.md` row 327 already named. `list-annotations`
+  appends three fields after `default_style=`: `in_reply_to=` (the
+  `/IRT` target's object number, or `none`), `state=` (quoted
+  `/State`, or `none`), `state_model=` (quoted `/StateModel`, or
+  `none`) — ISO 32000-1 §12.5.6.3 Table 171, the read side of the
+  review-status model `Pass 253.1` already wrote. `ListAnnotations
+  --help` gained a paragraph describing the three fields.
+
+**Decisions made this session:** none — next decision stays `191`,
+next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None beyond the shipped Pass. Core already exposed
+  `in_reply_to`/`state`/`state_model`; this was purely a CLI-surface
+  gap.
+
+**Still in flight:**
+- Nothing opened by this Pass.
+
+**For next session:**
+- Next free `Pass 477.0`; decision `191`, standing rule `R263`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+field names, and test file/count/assertion changes are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (942nd filing) — `v0.77.0` RELEASED
 
 **Shipped:**

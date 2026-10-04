@@ -115,6 +115,43 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 476.0` — `list-annotations` prints review state — SHIPPED `09a030af`
+
+Self-scoped by the engineer, closing the cli gap `FEATURES.md` row 327
+already named: `set-review-state` could write `/State`/`/StateModel`
+but `list-annotations` had no column to read them back.
+
+**Shipped (`crates/pdfcer-cli` only).** `list-annotations` appends
+three fields to its stable line, after `default_style=`: `in_reply_to=`
+(the `/IRT` target's object number, or `none`), `state=` (quoted
+`/State`, or `none`), `state_model=` (quoted `/StateModel`, or `none`)
+— the read side of §12.5.6.3 Table 171, modelled core-side by
+`Annotation::in_reply_to`/`::state`/`::state_model` since `Pass 253.1`.
+`ListAnnotations --help` gained a paragraph describing the three
+fields.
+
+**Tests.** New
+`crates/pdfcer-cli/tests/list_annotations_review_state.rs` (1 test):
+set-review-state then list-annotations, asserting the target line
+reads `state=none in_reply_to=none` and the reply line ends
+` in_reply_to=4 state="Accepted" state_model="Review"`;
+sabotage-checked (reading `state_model` from `/State` fails it). Two
+existing `list_annotations_rich_text.rs` assertions changed from
+`ends_with` to `contains`, since the line now has fields after the
+ones they check.
+
+**FEATURES.md.** Row 327 (review status): `cli ◐` → `cli [x]` — the
+note naming the gap ("`list-annotations` has no `state=` column") is
+replaced. `core`/`gui` untouched.
+
+**Decision/ledgers.** No architectural decision — next decision stays
+`191`. Next free `Pass 477.0`; standing rule `R263` and operator
+question `(ck)` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, field
+names, and test file/count/assertion changes above are relayed from
+the dispatching engineer's report, not independently verified.
+
 ### `v0.77.0` — RELEASED (2026-10-04)
 
 Release filing, completing the version bump at `1048934a` ("chore:
@@ -19042,6 +19079,14 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> `Pass 476.0` SHIPPED, 2026-10-04 (943rd filing), `09a030af` — see
+> *Shipped*, above. `list-annotations` now prints `in_reply_to=`,
+> `state=` and `state_model=` after `default_style=`, closing the
+> cli-read gap `FEATURES.md` row 327 named since `Pass 253.1`.
+> Self-scoped (no operator/GUI request). No decision; next decision
+> stays `191`. Next free `Pass 477.0`; rule/question ledgers unchanged
+> (`R263` / `(ck)`).
 
 > `Pass 475.0` SHIPPED, 2026-10-04 (941st filing), `10389992` — see
 > *Shipped*, above. A material alpha of exactly 0, under a style that
