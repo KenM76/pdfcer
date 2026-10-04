@@ -10340,6 +10340,46 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Recolour page paths: set their fill colour, stroke colour, or both.
+    ///
+    /// Pick paths by the `index=` `object-list` prints for the page. Each
+    /// path is wrapped in its own colour, so a colour operator other objects
+    /// share is never changed for them. Prints one `set-object-paint` line:
+    /// `changed=` the indices recoloured (`none` when nothing was) and
+    /// `refused=` how many were left alone. Each refused object gets a
+    /// stderr line saying why: a spot or calibrated ink (`/Separation`,
+    /// `/DeviceN`, `/ICCBased`, `/Indexed`, `/Lab`) is never overwritten
+    /// with a screen colour, because that would destroy the printing plate;
+    /// a pattern has no colour to replace; text and images are not paths.
+    /// The output file is written even when nothing changed.
+    ///
+    /// Exit 9 when an index is out of range (nothing is recoloured) or the
+    /// page has no content.
+    SetObjectPaint {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based paint-order object indices, comma-separated.
+        #[arg(long, value_delimiter = ',', required = true)]
+        objects: Vec<usize>,
+        /// New fill colour: `r,g,b` in 0.0-1.0, or `#rrggbb`.
+        #[arg(long, value_parser = parse_style_color, required_unless_present = "stroke")]
+        fill: Option<pdfcer_core::vector::Rgb>,
+        /// New stroke colour: `r,g,b` in 0.0-1.0, or `#rrggbb`.
+        #[arg(long, value_parser = parse_style_color)]
+        stroke: Option<pdfcer_core::vector::Rgb>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Edit a layer's properties: rename it, set whether it is visible when
     /// the document opens, lock it, and set whether it prints or exports.
     ///

@@ -69,6 +69,7 @@ mod move_annotation;
 mod object_clip_replies;
 mod object_list;
 mod object_move_each;
+mod object_set_paint;
 mod object_transform_each;
 mod ocr_addons;
 mod ocr_engine;

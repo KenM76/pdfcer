@@ -607,6 +607,8 @@ mod emf_cmd;
 use emf_cmd::*;
 mod svg_cmd;
 use svg_cmd::*;
+mod paint_cmd;
+use paint_cmd::*;
 mod objects;
 use objects::*;
 mod pages;
