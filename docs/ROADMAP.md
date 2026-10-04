@@ -115,6 +115,35 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 479.0` — CLI `cmd_recompute` split into helpers, plus its first CLI-level test (structure-debt payment) — SHIPPED `11337f8d`
+
+Pays down structure debt and closes a test gap. `cmd_recompute` (137
+lines, over the 80-line cap) in `crates/pdfcer-cli/src/fields.rs`
+shrank to 75, with three new helpers: `print_recompute_plan`,
+`recompute_order_token`, `print_recompute_caveats`. Output unchanged —
+code moved verbatim. `tools/code-structure-baseline.txt`'s
+`cmd_recompute` entry was deleted; baseline now 600 entries.
+
+**Tests.** New `crates/pdfcer-cli/tests/recompute_cli.rs` (2 tests) —
+the `recompute` verb had no CLI-level test before this. Fixture: Total
+= SUM(A, B, C) with C blank (coerced to zero), Twice = SUM(A) not
+listed in `/CO`. Dry-run test checks the change lines, the
+`order=mixed applied=0` summary, and all three stderr caveats;
+`--apply` test checks the written value reads back as `"5"` via
+`list-fields`. Sabotage-checked: removing the plan/caveat calls fails
+the dry-run test.
+
+**FEATURES.md.** No rows change — cli-internal refactor plus test
+coverage, no capability delta.
+
+**Decision/ledgers.** No architectural decision — next decision stays
+`191`. Next free `Pass 480.0`; standing rule `R263` and operator
+question `(ck)` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, line
+counts, baseline-entry count, and test results above are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ### `Pass 478.0` — CLI `list-fields` split into `fields_list.rs` (structure-debt payment, no behavior change) — SHIPPED `27a6ebd6`
 
 Pays down structure debt, no feature change. `cmd_list_fields` (313

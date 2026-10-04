@@ -4,6 +4,35 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (946th filing) — `Pass 479.0` shipped (`cmd_recompute` split, plus its first CLI test)
+
+**Shipped:**
+- `Pass 479.0` (`11337f8d`) — `cmd_recompute` (137 lines, over the
+  80-line cap) in `fields.rs` shrank to 75, plus three helpers:
+  `print_recompute_plan`, `recompute_order_token`,
+  `print_recompute_caveats`. Output unchanged. Baseline entry deleted
+  (now 600). New `recompute_cli.rs` (2 tests) — `recompute` had no
+  prior CLI-level test; covers dry-run change lines/summary/caveats
+  and an `--apply` round trip via `list-fields`.
+
+**Decisions made this session:** none — next decision stays `191`,
+next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None. Structure-debt payment plus a test-gap closure; no behavior
+  change.
+
+**Still in flight:**
+- Nothing opened by this Pass.
+
+**For next session:**
+- Next free `Pass 480.0`; decision `191`, standing rule `R263`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count, and test results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (945th filing) — `Pass 478.0` shipped (`list-fields` split into `fields_list.rs`, structure-debt payment)
 
 **Shipped:**
