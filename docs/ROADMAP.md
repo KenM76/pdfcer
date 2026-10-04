@@ -115,6 +115,79 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 475.0` — a material alpha of exactly 0 under a transparency-less style reads as unset, not invisible — SHIPPED `10389992`
+
+Self-scoped by the engineer; closes the open finding recorded in
+`Pass 474.0` (940th filing): both hinge samples rendered as entirely
+blank images through `3d-render`.
+
+**Root cause (measured).** In both hinge samples every style is a
+material style stating no transparency, and the model's single
+material carries diffuse alpha `0.0`. Every mesh resolved to grey
+with alpha 0 and was skipped — camera and bounds were already
+correct. ISO 14739-1 gives alpha `0.0` no "unset" meaning under a
+transparency-less style (spec RAG
+`threed/prc__8137__graphics_materials.md` §12) — the reading is
+spec-ambiguous, so per the standing rule both readings ship as a
+setting, with a default chosen.
+
+**Shipped.** `pdfcer_3d::StyleAlpha` gains a new default variant,
+`ZeroUnset`: a material diffuse alpha of exactly 0.0, under a style
+that states no transparency, is read as unset and drawn opaque.
+`StyleWins` (the previous default — the literal reading, alpha 0 is
+invisible) and `Multiply` remain available, unchanged. CLI
+`3d-render`/`3d-embed` take `--style-alpha zero-unset|style|multiply`
+(`zero-unset` default) — a new value on an existing flag, no new
+subcommand. Core counts for the GUI: `AssembledModel::alpha_unset`
+and `RenderedPoster::alpha_unset_meshes`; the 3D poster path uses the
+same default.
+
+**Disclosure (rule 4).** CLI prints `inferred: N mesh(es) drawn
+opaque: each material's alpha is 0 and its style states no
+transparency, read as unset rather than invisible (--style-alpha
+style draws them invisible, as the literal reading does)`.
+
+**Verified.** The strap-hinge sample now shows two leaf plates with
+screw holes, the knuckles and the pin; the piano-hinge sample
+(`--view iso`) shows both leaves and the knuckle barrel — both
+confirmed by the engineer's own look at the renders. The School
+sample's PNG is byte-identical to the v0.76.0 build, with no
+`inferred` line. The door assembly sample was not re-rendered (its
+file is no longer on disk) but is unaffected by construction — its
+styles carry a transparency, so only the transparency-absent branch
+changed. Local-only samples: file names and part numbers are never
+recorded.
+
+**Tests.** New synthetic fixture
+`fixtures/synthetic/prc/alpha-unset.prc`; one core test and one CLI
+test (`crates/pdfcer-cli/tests/three_d.rs`), both failing under two
+sabotages — the unset branch disabled, and the flag left false.
+`cargo test -p pdfcer-3d`: 136 pass. CLI 3D tests: 27 pass.
+
+**Gates.** A first sweep caught a Markdown code span inside a
+`ValueEnum` doc comment (`--help` would have shipped a literal
+backtick); fixed before commit. No dependency change. Full
+`tools/run-gates.sh` on `10389992`: result recorded at push.
+
+**Docs.** `docs/core-api/01-reading-and-model.md` updated;
+`check-core-api-verbs` PASS.
+
+**`FEATURES.md`.** The camera-controlled 3D viewer row (*Backlog*,
+"View an embedded 3D model with camera controls") edited in place:
+names the new default and `--style-alpha zero-unset`, and drops the
+now-resolved "both hinge samples still render blank" caveat.
+`core [x]` / `cli [x]` — `gui` not rounded up.
+
+**Decision.** `Pass 452.0`'s `StyleAlpha` default was never recorded
+as a numbered decision — that Pass's own *Decision* line reads "None
+— next decision stays 188" — so this Pass's default change has
+nothing recorded to contradict or extend. Next decision stays free
+at `191`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash,
+module/type names, test counts and gate results above are relayed
+from the dispatching engineer's report, not independently verified.
+
 ### `Pass 474.0` — a compressed PRC mesh folded at its last sliver gets a second retry — SHIPPED `b4c6b12e`
 
 Self-scoped by the engineer, found while measuring 3D samples against
@@ -18880,6 +18953,18 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> `Pass 475.0` SHIPPED, 2026-10-04 (941st filing), `10389992` — see
+> *Shipped*, above. A material alpha of exactly 0, under a style that
+> states no transparency, now reads as unset and draws opaque by
+> default (`pdfcer_3d::StyleAlpha::ZeroUnset`); `--style-alpha
+> zero-unset|style|multiply` on `3d-render`/`3d-embed`. Closes the
+> `Pass 474.0` open finding — both hinge samples now render
+> correctly; School and the door assembly sample unaffected.
+> Self-scoped (no operator/GUI request). No numbered decision
+> existed for `Pass 452.0`'s default to contradict or extend, so
+> decision `191` stays free. Next free `Pass 476.0`; rule/question
+> ledgers unchanged (`R263` / `(ck)`).
 
 > `Pass 474.0` SHIPPED, 2026-10-04 (940th filing), `b4c6b12e` — see
 > *Shipped*, above. A compressed PRC mesh folded at its last sliver

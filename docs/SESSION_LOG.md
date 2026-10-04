@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (941st filing) — `Pass 475.0` shipped (a zero material alpha under a transparency-less style reads as unset, not invisible)
+
+**Shipped:**
+- `Pass 475.0` (`10389992`) — self-scoped by the engineer; closes the
+  open finding from `Pass 474.0` (940th filing): both hinge samples
+  rendered as entirely blank images through `3d-render`. Root cause:
+  every style in both samples is a material style with no stated
+  transparency, and the model's single material carries diffuse
+  alpha `0.0` — read as invisible under the old default, so every
+  mesh was skipped. `pdfcer_3d::StyleAlpha` gains a new default
+  variant, `ZeroUnset`: alpha 0 under a transparency-less style reads
+  as unset and draws opaque. `StyleWins` (the old default, literal
+  reading) and `Multiply` remain available. CLI `3d-render`/
+  `3d-embed` take `--style-alpha zero-unset|style|multiply`.
+
+**Decisions made this session:** none. `Pass 452.0`'s `StyleAlpha`
+default was never recorded as a numbered decision, so this Pass's
+default change has nothing recorded to contradict or extend; next
+free decision stays `191`.
+
+**Findings + decisions:**
+- ISO 14739-1 gives alpha `0.0` no "unset" meaning under a
+  transparency-less style — the reading is spec-ambiguous, so both
+  readings ship as a setting, per the standing rule, with a default
+  chosen.
+- The strap-hinge and piano-hinge samples now render correctly
+  (confirmed by the engineer's own look); the School sample is
+  byte-identical to the v0.76.0 build with no `inferred` line; the
+  door assembly sample was not re-rendered but is unaffected by
+  construction (its styles carry a transparency).
+
+**Still in flight:**
+- None carried over from this filing. The door assembly sample's 26
+  open meshes (from `Pass 474.0`) remain open, unrelated to this fix.
+
+**For next session:**
+- Next free `Pass 476.0`, decision `191` (still free), standing rule
+  `R263`, operator question `(ck)` — all unchanged by this filing.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+gate figures (`tools/run-gates.sh` on `10389992`: result recorded at
+push) and test counts are relayed from the dispatching engineer's
+report, not independently re-verified.
+
 ## 2026-10-04 (940th filing) — `Pass 474.0` shipped (a compressed PRC mesh folded at its last sliver gets a second retry)
 
 **Shipped:**
