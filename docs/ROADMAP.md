@@ -115,6 +115,61 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 462.0` — 3D texture mapping (read + render) — SHIPPED `77777d07`
+
+Operator request, 2026-10-03, same dispatch as `Pass 461.0` below.
+
+**Shipped.** `pdfcer-3d` reads PRC `Picture` (703: format 0 PNG, 1
+JPEG, 2–5 zlib raw RGB/RGBA/grey/grey+alpha), `TextureDefinition`
+(712), `TextureApplication` (711), `TextureTransformation` (713), and
+uncompressed-tessellation UV pairs. Renders diffuse textures on
+uncompressed meshes with mapping type 1 (stored), first texture level
+only, perspective-correct and bilinear.
+
+**Disclosure (rule 4)**, inverting Acrobat's own silent-white defect:
+a texture not drawn (picture missing/undecodable, non-stored mapping,
+non-orthogonal/homogeneous/mirrored transform, a mesh with no stored
+UVs incl. compressed-mesh UVs) paints the base material colour and is
+counted with a reason; later texture levels disclosed as "only the
+first texture level is drawn". CLI prints `note: N mesh(es) drawn with
+their texture picture, sampled bilinearly` and `note: texture on N
+mesh(es): <why>`; `3d-mesh` discloses textured meshes export geometry
+only.
+
+**Settings (spec-open, shipped both ways per standing rule).**
+`--texture-origin bottom|top` (default bottom), `--texture-wrap-base
+zero|one` (default zero — resolves this Pass's own "Open setting"),
+`--texture-pictures structure|header` (default structure-first), all
+on `pdfcer 3d-render`. `AssembleOptions`/`assemble_with_options`/
+`render_model` carry them in core. `RenderedPoster` (core) gains
+`textured_meshes`/`texture_notes`, so `3d-embed` posters are textured
+too and print the same notes.
+
+**Tests/gates.** New fixture `fixtures/synthetic/prc/textured.prc`;
+fuzz target `prc_tree` extended to carry a picture file (63k runs
+clean). `pdfcer-3d`: 120 lib tests + doctests (104 with
+`--no-default-features`). CLI `three_d` integration: 26 tests incl.
+`a_textured_prc_model_renders_its_picture`. 12/12 sabotage mutations
+caught. No new dependency — `png`/`zune-jpeg` were already in the
+graph, now optional behind `pdfcer-3d` feature `textures` (enabled by
+`render`); `THIRD_PARTY_LICENSES.md` unchanged. `cargo tree` for
+`pdfcer-core`/`pdfcer-render`/`pdfcer-3d`: no GUI or network crates.
+
+**Not done / later.** GUI wiring (separate project). Later texture
+levels, non-stored mapping types, compressed-mesh UVs.
+
+**Parity source.** Acrobat RAG
+`markup__3d_texture_and_material_rendering.md`; spec RAG
+`threed/prc__8137__graphics_materials.md` §13,
+`prc__8137__tess_3d.md` §9, `prc__8137__tess_3d_compressed.md` §7a,
+`prc__8137__model_tree_asm.md` §11.
+
+**Narrower carve-out** from the `Pass 261.6` interactive-3D-viewer
+refusal, same as `Pass 461.0` below.
+
+`docs/core-api/01-reading-and-model.md` and
+`02-editing-and-saving.md` updated (engineer-owned).
+
 ### `Pass 461.0` — 3D model tree listing — SHIPPED `592dca09`
 
 Operator request, 2026-10-03 ("Do the 3D texture mapping and tree
@@ -19915,35 +19970,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### `Pass 462.0` — 3D texture mapping (read + render)
-
-Operator request, 2026-10-03, same dispatch as `Pass 461.0` above.
-
-**Core.** Read `Picture` (703: format 0 PNG / 1 JPEG / 2–5 raw zlib
-RGB, RGBA, grey, grey+alpha; image bytes in the file-structure-header
-uncompressed-file list, fallback to the file-header list — a
-setting), `TextureDefinition` (712), `TextureApplication` (711),
-`TextureTransformation` (713), and the uncompressed tessellation's UV
-doubles (indices are Double offsets, `(u,v)` pairs). Render diffuse
-textures on uncompressed meshes with mapping type 1 (stored).
-
-**Disclosure (rule 4), inverting Acrobat's own silent-white defect:**
-any texture not drawn — compressed-mesh UVs (reference target
-unspecified in the WD), an undecodable picture, an unsupported
-mapping type — is counted and reported; the mesh paints in its base
-material colour instead of going silently blank.
-
-**Open setting.** Wrap-mode/operator enum base (0 vs 1) unverified.
-
-**Parity source.** Acrobat RAG
-`markup__3d_texture_and_material_rendering.md`; spec RAG
-`threed/prc__8137__graphics_materials.md` §13,
-`prc__8137__tess_3d.md` §9, `prc__8137__tess_3d_compressed.md` §7a,
-`prc__8137__model_tree_asm.md` §11.
-
-**Narrower carve-out** from the `Pass 261.6` interactive-3D-viewer
-refusal, same as `Pass 461.0` above.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 

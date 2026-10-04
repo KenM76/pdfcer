@@ -4,6 +4,36 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (926th filing) — `Pass 462.0` shipped
+
+**Shipped:**
+- `Pass 462.0` (`77777d07`) — 3D diffuse texture mapping. `pdfcer-3d`
+  reads PRC `Picture`/`TextureDefinition`/`TextureApplication`/
+  `TextureTransformation` and uncompressed-tessellation UVs; renders
+  stored-mapping (type 1) textures on uncompressed meshes,
+  perspective-correct and bilinear, first texture level only. A
+  texture that can't be drawn (missing/undecodable picture,
+  non-stored mapping, non-orthogonal transform, no stored UVs incl.
+  compressed meshes) paints base colour and is disclosed with a
+  reason (rule 4), inverting Acrobat's own silent-white defect. New
+  `--texture-origin`/`--texture-wrap-base`/`--texture-pictures`
+  settings on `3d-render` (all spec-open, shipped both ways);
+  `3d-embed` posters textured too. Core + CLI only, no GUI. +1 fixture,
+  fuzz `prc_tree` extended (63k runs clean), 120 `pdfcer-3d` lib tests,
+  26 CLI `three_d` tests, 12/12 sabotage caught. No new dependency
+  (`png`/`zune-jpeg` already in the graph, now feature-gated).
+
+**Decisions made this session:** None.
+
+**Findings + decisions:** None new.
+
+**Still in flight:** unchanged from the 925th filing below.
+
+**For next session:** unchanged from the 925th filing below.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash and
+test/gate figures relayed from the dispatching engineer's report.
+
 ## 2026-10-03 (925th filing) — `Pass 461.0` gate-miss follow-up
 
 **Shipped:**
