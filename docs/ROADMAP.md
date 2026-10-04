@@ -115,6 +115,84 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 472.0` — exports record a content fingerprint of their base; import reports match/differ/unrecorded (`G112`) — SHIPPED `dbbd889e`
+
+Answers `pdfcer-gui` request `G112`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G112_editable_export_carries_no_source_fingerprint.md`):
+`editable::export` carried no fingerprint of its source document, so
+`import` could not tell a stale export from a current one — compiling
+an old export after a further edit silently undid that edit,
+undetectably.
+
+**Shipped:** every `editable::export` header now carries a comment
+line `%PdfcerExportBase sha256:<64 hex>` — a comment, not a key,
+because ISO 32000-1 Annex E.1 forbids private trailer keys and an
+`/Info`/catalog key would diff as an edit. The digest is
+`editable::fingerprint(src)`: live objects in id order, dict keys
+sorted, streams decoded, `/Filter`/`/DecodeParms`/`/Length` ignored,
+`/XRef`/`/ObjStm` streams and the trailer skipped — re-compression,
+object-stream expansion and reopening leave it unchanged.
+`editable::recorded_base(&Document) -> Option<Fingerprint>`.
+`ImportReport::base: ExportBase {Matches, Differs, Unrecorded}`
+(default `Unrecorded`); `import` still builds the dirty set regardless
+of the variant. CLI `import-structure` prints
+`base=matches|differs|unrecorded`, refuses `differs` with exit 9
+(`EDIT_REFUSED`) unless the new flag `--allow-stale-base` is passed
+(then warns on stderr), and prints a note for `unrecorded`.
+
+**Tests (this commit, shared with `Pass 473.0` below):** 8 new core
+tests (`crates/pdfcer-core/tests/editable_base.rs`) and 3 new CLI
+tests (`crates/pdfcer-cli/tests/import_structure_stale.rs`), all
+passing; every one sabotage-checked (5 core + 2 CLI mutations, each
+caught by the intended test).
+
+**Invariants:** `cargo fmt`/`clippy -D warnings` clean on
+`pdfcer-core`/`pdfcer-cli`; `check-string-gaps`, `check-code-structure`
+(the touched functions' three baseline lines deleted, 602 baseline
+entries remain) and `check-public-fns-documented` all clean. No
+dependency change (`sha2` was already a `pdfcer-core` dependency) —
+`cargo tree`/`THIRD_PARTY_LICENSES.md` unchanged. `docs/core-api`
+section 1.34 added, verb count `318 -> 319`, `check-core-api-verbs.py`
+PASS. Full `tools/run-gates.sh` sweep on `dbbd889e`: result recorded
+at push.
+
+**`FEATURES.md`:** row "Export a document's structure to an editable
+form and compile a hand edit back" extended; boxes unchanged (`[x]`
+core / `[x]` cli / `[ ]` gui).
+
+### `Pass 473.0` — an open `EditSession` exports with its unsaved edits and compiles an edited export back (`G113`) — SHIPPED `dbbd889e`
+
+Answers `pdfcer-gui` request `G113`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G113_editable_needs_a_document_a_session_cannot_lend.md`):
+`editable` and `signature::census` needed a `Document`, and
+`EditSession` could not lend one — the only route was a full
+`to_incremental_bytes`/`from_bytes` round trip per export and per
+compile.
+
+**Shipped:** sealed `editable::EditableSource` implemented for both
+`Document` and `EditSession`; `export` and `fingerprint` are generic
+over it, so a session exports with its unsaved edits included. New
+verb `EditSession::import_editable(&mut self, &Document) ->
+Result<ImportReport, EditError>`: diffs against the session's current
+state, pushes one undo entry (`CommandKind::ImportEditable`); added
+objects keep their numbers, later allocations start above them;
+refuses on `ModifyContents`-forbidden encryption and certification.
+It is a session verb, not a free function, because a `DirtySet` from
+`editable::import` against a session is relative to the session's own
+base, and saving that dirty set would drop the session's unsaved
+edits. No CLI caller for `import_editable` — the CLI has no open
+session to call it on; the CLI-visible change from this pair is
+`Pass 472.0`'s `--allow-stale-base`.
+
+**Tests:** see `Pass 472.0` above — both Passes shipped in the one
+commit (`dbbd889e`) and share its test tally.
+
+**Invariants:** see `Pass 472.0` above — same commit, same sweep.
+
+**`FEATURES.md`:** same row as `Pass 472.0`; boxes unchanged (`[x]`
+core / `[x]` cli / `[ ]` gui) — `import_editable` has no CLI or GUI
+caller yet, so neither box moves.
+
 ### `Pass 471.0` — opt-in RC4 append keeps an RC4 document editable (decision 190) — SHIPPED `2f1dc888`
 
 Narrows standing rule **W14** ("pdfcer never writes RC4") to "pdfcer
@@ -18750,6 +18828,18 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> `Pass 472.0` and `Pass 473.0` SHIPPED, 2026-10-04 (939th filing),
+> `dbbd889e` — see *Shipped*, above. `G112`: exports now carry a
+> `%PdfcerExportBase sha256:...` comment of their source fingerprint;
+> `import-structure` reports `base=matches|differs|unrecorded` and
+> refuses a stale compile unless `--allow-stale-base`. `G113`:
+> `Document` and `EditSession` both implement `EditableSource`, so a
+> session exports with its unsaved edits; `EditSession::
+> import_editable` compiles an edited export back as one undo entry.
+> `gui [ ]`: neither wired; `import_editable` has no CLI caller
+> either. Next free `Pass 474.0`; decision/rule/question ledgers
+> unchanged by this filing.
 
 > ★★★★★★★★★★★★★★★★ **TWO NEW PASSES FILED 2026-10-04 (938th filing)
 > — `Pass 472.0` (`G112`), `Pass 473.0` (`G113`), from `pdfcer-gui`

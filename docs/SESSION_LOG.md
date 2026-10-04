@@ -4,6 +4,47 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (939th filing) — `Pass 472.0`/`Pass 473.0` shipped (editable exports record their base; a session compiles an edit back, `G112`/`G113`)
+
+**Shipped:**
+- `Pass 472.0` (`dbbd889e`) — `G112`: every `editable::export` header
+  now carries a `%PdfcerExportBase sha256:<64 hex>` comment
+  (`editable::fingerprint`, content not layout — live objects in id
+  order, dict keys sorted, streams decoded, `/Filter`/`/DecodeParms`/
+  `/Length` ignored). `editable::recorded_base`; `ImportReport::base:
+  ExportBase {Matches, Differs, Unrecorded}`. CLI `import-structure`
+  prints `base=...` and refuses a `Differs` compile (exit 9) unless
+  `--allow-stale-base`.
+- `Pass 473.0` (`dbbd889e`, same commit) — `G113`: sealed
+  `editable::EditableSource` implemented for `Document` and
+  `EditSession`; `export`/`fingerprint` generic over it. New
+  `EditSession::import_editable` diffs against the session's live
+  state and compiles an edit back as one undo entry
+  (`CommandKind::ImportEditable`); no CLI caller (the CLI has no open
+  session).
+
+**Decisions made this session:** none — no new decision number
+minted; next free decision stays `191`.
+
+**Findings + decisions:** none beyond the two Passes' own designs,
+argued inline in the `docs/ROADMAP.md` Shipped entries.
+
+**Still in flight:**
+- Full `tools/run-gates.sh` sweep on `dbbd889e` was in progress at
+  filing time; result recorded at push.
+- `pdfcer-gui` channel: interim SCOPED replies for `G112`/`G113`
+  already exist (filed with `Pass 471.0`); FIXED replies follow at
+  push.
+
+**For next session:**
+- Next free `Pass 474.0`, decision `191`, standing rule `R263`,
+  operator question `(ck)` — all unchanged by this filing (no
+  decision/rule/question consumed).
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+test/gate figures and structure-baseline counts are relayed from the
+dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (938th filing) — `Pass 471.0` shipped (opt-in RC4 append keeps an RC4 document editable, decision 190); `Pass 472.0`/`Pass 473.0` filed (`G112`/`G113`)
 
 **Shipped:**
