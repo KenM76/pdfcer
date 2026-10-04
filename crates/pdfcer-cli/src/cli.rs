@@ -11813,6 +11813,23 @@ pub(crate) enum Command {
         /// content.
         #[arg(long)]
         stamp: bool,
+        /// The stamp's constant opacity `/CA`, 0-1. Needs `--stamp`.
+        #[arg(long, requires = "stamp")]
+        opacity: Option<f64>,
+        /// A note (`/Contents`) shown in the stamp's pop-up. Needs `--stamp`.
+        #[arg(long, requires = "stamp")]
+        note: Option<String>,
+        /// The note's author (`/T`). Needs `--note`.
+        #[arg(long, requires = "note")]
+        author: Option<String>,
+        /// Put the stamp on this layer, named as `list-layers` prints it.
+        /// Needs `--stamp`.
+        #[arg(long, requires = "stamp", conflicts_with = "layer_id")]
+        layer: Option<String>,
+        /// Put the stamp on the layer with this object number. Needs
+        /// `--stamp`.
+        #[arg(long, requires = "stamp")]
+        layer_id: Option<u32>,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -11875,6 +11892,23 @@ pub(crate) enum Command {
         /// content.
         #[arg(long)]
         stamp: bool,
+        /// The stamp's constant opacity `/CA`, 0-1. Needs `--stamp`.
+        #[arg(long, requires = "stamp")]
+        opacity: Option<f64>,
+        /// A note (`/Contents`) shown in the stamp's pop-up. Needs `--stamp`.
+        #[arg(long, requires = "stamp")]
+        note: Option<String>,
+        /// The note's author (`/T`). Needs `--note`.
+        #[arg(long, requires = "note")]
+        author: Option<String>,
+        /// Put the stamp on this layer, named as `list-layers` prints it.
+        /// Needs `--stamp`.
+        #[arg(long, requires = "stamp", conflicts_with = "layer_id")]
+        layer: Option<String>,
+        /// Put the stamp on the layer with this object number. Needs
+        /// `--stamp`.
+        #[arg(long, requires = "stamp")]
+        layer_id: Option<u32>,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

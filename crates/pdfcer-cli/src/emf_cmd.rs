@@ -10,6 +10,7 @@ pub(crate) struct AddEmfArgs<'a> {
     pub(crate) rect: &'a str,
     pub(crate) fit: SvgFit,
     pub(crate) stamp: bool,
+    pub(crate) markup: StampMarkup<'a>,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) verify_undo: bool,
@@ -52,7 +53,10 @@ pub(crate) fn cmd_add_emf(args: &AddEmfArgs<'_>) -> u8 {
         Err(code) => return code,
     };
     let result = if args.stamp {
-        session.add_emf_stamp(page_index, rect, &emf)
+        match args.markup.options(args.input, &session) {
+            Ok(options) => session.add_emf_stamp(page_index, rect, &emf, &options),
+            Err(code) => return code,
+        }
     } else {
         session.add_emf(page_index, rect, &emf)
     };

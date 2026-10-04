@@ -3851,6 +3851,26 @@ fn apply_text_annot_style(
     }
 }
 
+/// Write `options`' `/CA` and its note's `/Contents`, `/T` and `/M`
+/// (ISO 32000-1 Tables 164 and 170) into the annotation dictionary `annot`.
+pub(super) fn insert_markup_entries(annot: &mut Dict, options: &MarkupOptions) {
+    if let Some(alpha) = options.opacity {
+        annot.insert(Name::from(b"CA"), Object::Real(alpha));
+    }
+    if let Some(note) = &options.note {
+        annot.insert(
+            Name::from(b"Contents"),
+            Object::String(encode_text_string(&note.text)),
+        );
+        if let Some(author) = &note.author {
+            annot.insert(Name::from(b"T"), Object::String(encode_text_string(author)));
+        }
+        if let Some(m) = &note.modified {
+            annot.insert(Name::from(b"M"), Object::String(m.as_bytes().to_vec()));
+        }
+    }
+}
+
 fn apply_markup_style(
     spec: annot_author::MarkupSpec,
     style: &MarkupStyle,
@@ -32781,21 +32801,7 @@ impl EditSession {
         annot.insert(Name::from(b"AP"), Object::Dict(ap));
         annot.insert(Name::from(b"P"), Object::Reference(page_id));
         annot.insert(Name::from(b"F"), Object::Integer(i64::from(authored.flags)));
-        if let Some(alpha) = options.opacity {
-            annot.insert(Name::from(b"CA"), Object::Real(alpha));
-        }
-        if let Some(note) = &options.note {
-            annot.insert(
-                Name::from(b"Contents"),
-                Object::String(encode_text_string(&note.text)),
-            );
-            if let Some(author) = &note.author {
-                annot.insert(Name::from(b"T"), Object::String(encode_text_string(author)));
-            }
-            if let Some(m) = &note.modified {
-                annot.insert(Name::from(b"M"), Object::String(m.as_bytes().to_vec()));
-            }
-        }
+        insert_markup_entries(&mut annot, options);
         Ok((annot_id, annot, ap_write))
     }
 

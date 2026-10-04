@@ -24,6 +24,7 @@ pub(crate) struct AddSvgArgs<'a> {
     pub(crate) rect: &'a str,
     pub(crate) fit: SvgFit,
     pub(crate) stamp: bool,
+    pub(crate) markup: StampMarkup<'a>,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) verify_undo: bool,
@@ -75,7 +76,10 @@ fn place_svg(
         Err(code) => return code,
     };
     let result = if args.stamp {
-        session.add_svg_stamp(page_index, rect, &svg)
+        match args.markup.options(args.input, &session) {
+            Ok(options) => session.add_svg_stamp(page_index, rect, &svg, &options),
+            Err(code) => return code,
+        }
     } else {
         session.add_svg(page_index, rect, &svg)
     };

@@ -7,7 +7,9 @@ use std::io::Write as _;
 use std::path::Path;
 
 use pdfcer_core::document::Document;
-use pdfcer_core::edit::{CommandKind, EditError, EditSession};
+use pdfcer_core::edit::{
+    CommandKind, EditError, EditSession, LayerEdit, MarkupNote, MarkupOptions,
+};
 use pdfcer_core::object::Object;
 use pdfcer_core::page_tree::Rect;
 use pdfcer_core::svg_import::{self, SvgFeature, SvgImportError};
@@ -237,7 +239,12 @@ fn the_stamp_variant_is_a_stamp_whose_appearance_is_the_form() {
     let svg = svg_import::import(PLAIN.as_bytes()).expect("imports");
     let mut s = session();
     let placed = s
-        .add_svg_stamp(0, rect(10.0, 10.0, 100.0, 50.0), &svg)
+        .add_svg_stamp(
+            0,
+            rect(10.0, 10.0, 100.0, 50.0),
+            &svg,
+            &MarkupOptions::default(),
+        )
         .expect("add_svg_stamp");
     let annot_id = placed.annot_id.expect("an annotation");
     let Some(Object::Dict(annot)) = s.value(annot_id) else {
@@ -337,4 +344,70 @@ fn base64(data: &[u8]) -> String {
         }
     }
     out
+}
+
+fn svg_signed() -> MarkupOptions {
+    MarkupOptions {
+        note: Some(MarkupNote::new("").by("Ken").at("D:20261003120000Z")),
+        opacity: Some(0.5),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_svg_stamp_carries_the_author_date_and_opacity() {
+    let svg = svg_import::import(PLAIN.as_bytes()).expect("imports");
+    let mut s = session();
+    let placed = s
+        .add_svg_stamp(0, rect(10.0, 10.0, 100.0, 50.0), &svg, &svg_signed())
+        .expect("stamp");
+    let id = placed.annot_id.expect("an annotation");
+    let Some(Object::Dict(annot)) = s.value(id) else {
+        panic!("annotation dict");
+    };
+    assert_eq!(annot.get(b"T"), Some(&Object::String(b"Ken".to_vec())));
+    assert_eq!(
+        annot.get(b"M"),
+        Some(&Object::String(b"D:20261003120000Z".to_vec()))
+    );
+    assert_eq!(annot.get(b"CA"), Some(&Object::Real(0.5)));
+    assert_eq!(s.undo_depth(), 1);
+    s.undo().expect("undo");
+    assert!(s.value(id).is_none());
+}
+
+#[test]
+fn a_svg_stamp_refuses_an_opacity_out_of_range() {
+    let svg = svg_import::import(PLAIN.as_bytes()).expect("imports");
+    let mut s = session();
+    let options = MarkupOptions {
+        opacity: Some(1.5),
+        ..Default::default()
+    };
+    assert!(matches!(
+        s.add_svg_stamp(0, rect(10.0, 10.0, 100.0, 50.0), &svg, &options),
+        Err(EditError::MarkupOpacityOutOfRange { .. })
+    ));
+    assert_eq!(s.undo_depth(), 0);
+}
+
+#[test]
+fn a_svg_stamp_goes_on_the_named_layer() {
+    let svg = svg_import::import(PLAIN.as_bytes()).expect("imports");
+    let mut s = session();
+    let layer = s
+        .add_layer("Stamps", &LayerEdit::default())
+        .expect("add_layer");
+    let options = MarkupOptions {
+        layer: Some(layer),
+        ..Default::default()
+    };
+    let placed = s
+        .add_svg_stamp(0, rect(10.0, 10.0, 100.0, 50.0), &svg, &options)
+        .expect("stamp");
+    let Some(Object::Dict(annot)) = s.value(placed.annot_id.expect("annotation")) else {
+        panic!("annotation dict");
+    };
+    assert_eq!(annot.get(b"OC").and_then(Object::as_reference), Some(layer));
+    assert_eq!(s.undo_depth(), 2, "the layer, then one entry for the stamp");
 }

@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use super::{AnnotKind, Command, CommandKind, EditError, EditSession, ObjectWrite};
+use super::{AnnotKind, Command, CommandKind, EditError, EditSession, MarkupOptions, ObjectWrite};
 use crate::crypto::PermissionBit;
 use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::page_tree::Rect;
@@ -157,15 +157,32 @@ impl EditSession {
     /// appearance algorithm. No `/Name`: the face matches no standard stamp.
     /// One undo entry ([`CommandKind::AddAnnotation`]).
     ///
+    /// `options` supplies `/CA`, the note (`/Contents`, `/T`, `/M`) and the
+    /// layer, as on every markup verb.
+    ///
     /// # Errors
     ///
-    /// As [`Self::add_svg`], except that the gate is the annotation one
-    /// (`/P` 2 certification permits it).
+    /// The [`MarkupOptions`] refusals; then as [`Self::add_svg`], except that
+    /// the gate is the annotation one (`/P` 2 certification permits it).
     pub fn add_svg_stamp(
         &mut self,
         page_index: usize,
         rect: Rect,
         svg: &ImportedSvg,
+        options: &MarkupOptions,
+    ) -> Result<PlacedSvg, EditError> {
+        options.validate()?;
+        self.on_layer_if(page_index, options.layer, |s| {
+            s.stamp_svg(page_index, rect, svg, options)
+        })
+    }
+
+    fn stamp_svg(
+        &mut self,
+        page_index: usize,
+        rect: Rect,
+        svg: &ImportedSvg,
+        options: &MarkupOptions,
     ) -> Result<PlacedSvg, EditError> {
         let rect = Rect::from_corners(rect.llx, rect.lly, rect.urx, rect.ury);
         let (rw, rh) = (rect.width(), rect.height());
@@ -208,6 +225,7 @@ impl EditSession {
             Name::from(b"F"),
             Object::Integer(i64::from(crate::annot::AnnotFlags::PRINT)),
         );
+        super::insert_markup_entries(&mut annot, options);
         objects.push(ObjectWrite {
             id: annot_id,
             before: None,

@@ -2,7 +2,7 @@
 //! [`EditSession::add_emf`] into the page content, [`EditSession::add_emf_stamp`]
 //! as a `/Stamp` annotation's appearance.
 
-use super::{AnnotKind, Command, CommandKind, EditError, EditSession, ObjectWrite};
+use super::{AnnotKind, Command, CommandKind, EditError, EditSession, MarkupOptions, ObjectWrite};
 use crate::crypto::PermissionBit;
 use crate::emf_import::{EmfImportNotes, ImportedEmf};
 use crate::fontdata::std14_base_font_name;
@@ -164,15 +164,32 @@ impl EditSession {
     /// the picture's Form XObject, stretched to `rect` by the §12.5.5
     /// appearance algorithm. One undo entry ([`CommandKind::AddAnnotation`]).
     ///
+    /// `options` supplies `/CA`, the note (`/Contents`, `/T`, `/M`) and the
+    /// layer, as on every markup verb.
+    ///
     /// # Errors
     ///
-    /// As [`Self::add_emf`], except that the gate is the annotation one
-    /// (`/P` 2 certification permits it).
+    /// The [`MarkupOptions`] refusals; then as [`Self::add_emf`], except that
+    /// the gate is the annotation one (`/P` 2 certification permits it).
     pub fn add_emf_stamp(
         &mut self,
         page_index: usize,
         rect: Rect,
         emf: &ImportedEmf,
+        options: &MarkupOptions,
+    ) -> Result<PlacedEmf, EditError> {
+        options.validate()?;
+        self.on_layer_if(page_index, options.layer, |s| {
+            s.stamp_emf(page_index, rect, emf, options)
+        })
+    }
+
+    fn stamp_emf(
+        &mut self,
+        page_index: usize,
+        rect: Rect,
+        emf: &ImportedEmf,
+        options: &MarkupOptions,
     ) -> Result<PlacedEmf, EditError> {
         let rect = normalised(rect)?;
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
@@ -199,6 +216,7 @@ impl EditSession {
             Name::from(b"F"),
             Object::Integer(i64::from(crate::annot::AnnotFlags::PRINT)),
         );
+        super::insert_markup_entries(&mut annot, options);
         objects.push(ObjectWrite {
             id: annot_id,
             before: None,

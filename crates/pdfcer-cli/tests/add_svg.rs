@@ -145,3 +145,52 @@ fn a_non_svg_is_refused_before_anything_is_written() {
         assert!(!out.exists(), "nothing is written");
     }
 }
+
+/// `--stamp --note --author --opacity`: the stamp carries `/T`, `/Contents`
+/// and `/CA`; without `--stamp` the markup flags are refused by the parser.
+#[test]
+fn a_svg_stamp_takes_the_markup_flags() {
+    let file = svg_file("signed.svg", SVG);
+    let out = temp_out("signed.pdf");
+    let (code, stdout, stderr) = run(&[
+        "add-svg",
+        s(&fixture()),
+        "--svg",
+        s(&file),
+        "--page",
+        "1",
+        "--rect",
+        "72,72,272,172",
+        "--stamp",
+        "--note",
+        "checked",
+        "--author",
+        "Ken",
+        "--opacity",
+        "0.5",
+        "-o",
+        s(&out),
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    let text = String::from_utf8_lossy(&std::fs::read(&out).expect("output")).into_owned();
+    for needle in ["/T (Ken)", "/Contents (checked)", "/CA 0.5"] {
+        assert!(text.contains(needle), "the stamp carries {needle}");
+    }
+    let refused = temp_out("unstamped.pdf");
+    let (code, _, stderr) = run(&[
+        "add-svg",
+        s(&fixture()),
+        "--svg",
+        s(&file),
+        "--page",
+        "1",
+        "--rect",
+        "72,72,272,172",
+        "--opacity",
+        "0.5",
+        "-o",
+        s(&refused),
+    ]);
+    assert_eq!(code, 2, "{stderr}");
+    assert!(!refused.exists(), "nothing is written");
+}

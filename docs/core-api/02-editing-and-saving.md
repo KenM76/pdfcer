@@ -4189,7 +4189,7 @@ viewport; `natural_size_pt()` is that at 96 px/in (×0.75).
 | I want to… | Call | Returns |
 |---|---|---|
 | Draw an SVG as page content | `add_svg(&mut self, page_index: usize, rect: Rect, svg: &ImportedSvg) -> Result<PlacedSvg, EditError>` | Form XObject (`/BBox [0 0 w h]` in SVG px) of path, shading-pattern and tiling-pattern operators, plus any embedded rasters as image XObjects; a `q sx 0 0 sy llx lly cm /Name Do Q` stream appended to the page. ONE undo entry, `CommandKind::AddSvg`. Additive. |
-| Place an SVG as a stamp | `add_svg_stamp(&mut self, page_index: usize, rect: Rect, svg: &ImportedSvg) -> Result<PlacedSvg, EditError>` | `/Stamp` annotation, `/AP /N` = the drawing's form, `/F 4` (Print), no `/Name`. ONE undo entry, `CommandKind::AddAnnotation { kind: Stamp }`. Annotation-level certification gate (`/P 2` permits it). |
+| Place an SVG as a stamp | `add_svg_stamp(&mut self, page_index: usize, rect: Rect, svg: &ImportedSvg, options: &MarkupOptions) -> Result<PlacedSvg, EditError>` | `/Stamp` annotation, `/AP /N` = the drawing's form, `/F 4` (Print), no `/Name`. ONE undo entry, `CommandKind::AddAnnotation { kind: Stamp }`. Annotation-level certification gate (`/P 2` permits it). `options` supplies `/CA`, the note's `/Contents` `/T` `/M` and the layer exactly as on `add_image_stamp`; `options.validate()` refuses first (`MarkupOpacityOutOfRange` etc.). |
 
 `PlacedSvg` (`#[non_exhaustive]`): `form_id`, `content_id` (page route) or
 `annot_id` (stamp route), `rect` (normalised), `scale_x`/`scale_y` (points
@@ -4237,7 +4237,7 @@ from its EMF records with `notes.emf_plus_ignored = true`.
 | I want to… | Call | Returns |
 |---|---|---|
 | Draw an EMF as page content | `add_emf(&mut self, page_index: usize, rect: Rect, emf: &ImportedEmf) -> Result<PlacedEmf, EditError>` | Form XObject (`/BBox [0 0 w h]` in points) of path, text and image operators, Flate-compressed; bitmaps as image XObjects, text in inline standard-14 `/WinAnsiEncoding` fonts; a `q sx 0 0 sy llx lly cm /Name Do Q` stream appended to the page. ONE undo entry, `CommandKind::AddEmf`. Additive. |
-| Place an EMF as a stamp | `add_emf_stamp(&mut self, page_index: usize, rect: Rect, emf: &ImportedEmf) -> Result<PlacedEmf, EditError>` | `/Stamp` annotation, `/AP /N` = the picture's form, `/F 4` (Print). ONE undo entry, `CommandKind::AddAnnotation { kind: Stamp }`. |
+| Place an EMF as a stamp | `add_emf_stamp(&mut self, page_index: usize, rect: Rect, emf: &ImportedEmf, options: &MarkupOptions) -> Result<PlacedEmf, EditError>` | `/Stamp` annotation, `/AP /N` = the picture's form, `/F 4` (Print). ONE undo entry, `CommandKind::AddAnnotation { kind: Stamp }`. `options` supplies `/CA`, the note's `/Contents` `/T` `/M` and the layer exactly as on `add_image_stamp`; `options.validate()` refuses first (`MarkupOpacityOutOfRange` etc.). |
 
 `PlacedEmf` (`#[non_exhaustive]`): `form_id`, `content_id` (page route) or
 `annot_id` (stamp route), `rect` (normalised), `scale_x`/`scale_y` (`rect`

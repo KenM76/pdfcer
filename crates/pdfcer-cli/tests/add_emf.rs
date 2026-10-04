@@ -189,3 +189,52 @@ fn a_non_emf_or_emf_plus_only_file_is_refused() {
         assert!(!out.exists(), "nothing is written");
     }
 }
+
+/// `--stamp --note --author --opacity`: the stamp carries `/T`, `/Contents`
+/// and `/CA`; without `--stamp` the markup flags are refused by the parser.
+#[test]
+fn an_emf_stamp_takes_the_markup_flags() {
+    let file = emf_file("signed.emf", &picture());
+    let out = temp_out("signed.pdf");
+    let (code, stdout, stderr) = run(&[
+        "add-emf",
+        s(&fixture()),
+        "--emf",
+        s(&file),
+        "--page",
+        "1",
+        "--rect",
+        "72,72,272,172",
+        "--stamp",
+        "--note",
+        "checked",
+        "--author",
+        "Ken",
+        "--opacity",
+        "0.5",
+        "-o",
+        s(&out),
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    let text = String::from_utf8_lossy(&std::fs::read(&out).expect("output")).into_owned();
+    for needle in ["/T (Ken)", "/Contents (checked)", "/CA 0.5"] {
+        assert!(text.contains(needle), "the stamp carries {needle}");
+    }
+    let refused = temp_out("unstamped.pdf");
+    let (code, _, stderr) = run(&[
+        "add-emf",
+        s(&fixture()),
+        "--emf",
+        s(&file),
+        "--page",
+        "1",
+        "--rect",
+        "72,72,272,172",
+        "--opacity",
+        "0.5",
+        "-o",
+        s(&refused),
+    ]);
+    assert_eq!(code, 2, "{stderr}");
+    assert!(!refused.exists(), "nothing is written");
+}

@@ -12,7 +12,9 @@
 )]
 
 use pdfcer_core::document::Document;
-use pdfcer_core::edit::{CommandKind, EditError, EditSession};
+use pdfcer_core::edit::{
+    CommandKind, EditError, EditSession, LayerEdit, MarkupNote, MarkupOptions,
+};
 use pdfcer_core::emf_import::{self, EmfImportError};
 use pdfcer_core::object::{ObjId, Object};
 use pdfcer_core::page_tree::Rect;
@@ -381,7 +383,12 @@ fn the_stamp_variant_is_a_stamp_whose_appearance_is_the_form() {
     let emf = emf_import::import(&filled_rectangle().finish()).unwrap();
     let (_, mut s) = session();
     let placed = s
-        .add_emf_stamp(0, at(10.0, 10.0, (100.0, 100.0)), &emf)
+        .add_emf_stamp(
+            0,
+            at(10.0, 10.0, (100.0, 100.0)),
+            &emf,
+            &MarkupOptions::default(),
+        )
         .unwrap();
     assert!(placed.distorted, "a square rect over a 2:1 frame stretches");
     assert!(placed.summary().contains("stretched"));
@@ -477,4 +484,70 @@ fn too_many_records_is_refused_by_name() {
             limit: emf_import::MAX_RECORDS
         }
     );
+}
+
+fn emf_signed() -> MarkupOptions {
+    MarkupOptions {
+        note: Some(MarkupNote::new("").by("Ken").at("D:20261003120000Z")),
+        opacity: Some(0.5),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn an_emf_stamp_carries_the_author_date_and_opacity() {
+    let emf = emf_import::import(&filled_rectangle().finish()).unwrap();
+    let (_, mut s) = session();
+    let placed = s
+        .add_emf_stamp(0, at(10.0, 10.0, (100.0, 100.0)), &emf, &emf_signed())
+        .expect("stamp");
+    let id = placed.annot_id.expect("an annotation");
+    let Some(Object::Dict(annot)) = s.value(id) else {
+        panic!("annotation dict");
+    };
+    assert_eq!(annot.get(b"T"), Some(&Object::String(b"Ken".to_vec())));
+    assert_eq!(
+        annot.get(b"M"),
+        Some(&Object::String(b"D:20261003120000Z".to_vec()))
+    );
+    assert_eq!(annot.get(b"CA"), Some(&Object::Real(0.5)));
+    assert_eq!(s.undo_depth(), 1);
+    s.undo().expect("undo");
+    assert!(s.value(id).is_none());
+}
+
+#[test]
+fn an_emf_stamp_refuses_an_opacity_out_of_range() {
+    let emf = emf_import::import(&filled_rectangle().finish()).unwrap();
+    let (_, mut s) = session();
+    let options = MarkupOptions {
+        opacity: Some(1.5),
+        ..Default::default()
+    };
+    assert!(matches!(
+        s.add_emf_stamp(0, at(10.0, 10.0, (100.0, 100.0)), &emf, &options),
+        Err(EditError::MarkupOpacityOutOfRange { .. })
+    ));
+    assert_eq!(s.undo_depth(), 0);
+}
+
+#[test]
+fn an_emf_stamp_goes_on_the_named_layer() {
+    let emf = emf_import::import(&filled_rectangle().finish()).unwrap();
+    let (_, mut s) = session();
+    let layer = s
+        .add_layer("Stamps", &LayerEdit::default())
+        .expect("add_layer");
+    let options = MarkupOptions {
+        layer: Some(layer),
+        ..Default::default()
+    };
+    let placed = s
+        .add_emf_stamp(0, at(10.0, 10.0, (100.0, 100.0)), &emf, &options)
+        .expect("stamp");
+    let Some(Object::Dict(annot)) = s.value(placed.annot_id.expect("annotation")) else {
+        panic!("annotation dict");
+    };
+    assert_eq!(annot.get(b"OC").and_then(Object::as_reference), Some(layer));
+    assert_eq!(s.undo_depth(), 2, "the layer, then one entry for the stamp");
 }

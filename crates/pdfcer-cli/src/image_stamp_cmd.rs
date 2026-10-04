@@ -68,16 +68,48 @@ pub(crate) fn with_button_icon_args(
     Ok(edit)
 }
 
+/// The markup flags every stamp command takes: `--opacity`, `--note`,
+/// `--author` and the layer pick.
+#[derive(Default)]
+pub(crate) struct StampMarkup<'a> {
+    pub(crate) opacity: Option<f64>,
+    pub(crate) note: Option<&'a str>,
+    pub(crate) author: Option<&'a str>,
+    pub(crate) layer: Option<LayerPick>,
+}
+
+impl StampMarkup<'_> {
+    /// The [`pdfcer_core::edit::MarkupOptions`] these flags ask for, or the
+    /// exit code after the layer lookup's reason.
+    pub(crate) fn options(
+        &self,
+        input: &Path,
+        session: &pdfcer_core::edit::EditSession,
+    ) -> Result<pdfcer_core::edit::MarkupOptions, u8> {
+        use pdfcer_core::edit::{MarkupNote, MarkupOptions};
+        let layer = resolve_add_layer(input, session, self.layer.as_ref())?;
+        Ok(MarkupOptions {
+            note: self.note.map(|t| {
+                let note = MarkupNote::new(t);
+                match self.author {
+                    Some(who) => note.by(who),
+                    None => note,
+                }
+            }),
+            opacity: self.opacity,
+            layer,
+            ..Default::default()
+        })
+    }
+}
+
 /// Everything `add-image-stamp` takes.
 pub(crate) struct AddImageStampArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) image: &'a Path,
     pub(crate) page: usize,
     pub(crate) rect: &'a str,
-    pub(crate) opacity: Option<f64>,
-    pub(crate) note: Option<&'a str>,
-    pub(crate) author: Option<&'a str>,
-    pub(crate) layer: Option<LayerPick>,
+    pub(crate) markup: StampMarkup<'a>,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) verify_undo: bool,
@@ -90,8 +122,6 @@ pub(crate) struct AddImageStampArgs<'a> {
 /// an alpha channel, written as an `/SMask`), then defers to [`finish_edit`].
 /// Every refusal is reported before anything is written.
 pub(crate) fn cmd_add_image_stamp(a: &AddImageStampArgs<'_>) -> u8 {
-    use pdfcer_core::edit::{MarkupNote, MarkupOptions};
-
     let (page_index, rect) = match parse_page_and_rect(a.input, a.page, a.rect) {
         Ok(pair) => pair,
         Err(code) => return code,
@@ -104,21 +134,9 @@ pub(crate) fn cmd_add_image_stamp(a: &AddImageStampArgs<'_>) -> u8 {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let layer = match resolve_add_layer(a.input, &session, a.layer.as_ref()) {
-        Ok(layer) => layer,
+    let options = match a.markup.options(a.input, &session) {
+        Ok(options) => options,
         Err(code) => return code,
-    };
-    let options = MarkupOptions {
-        note: a.note.map(|t| {
-            let note = MarkupNote::new(t);
-            match a.author {
-                Some(who) => note.by(who),
-                None => note,
-            }
-        }),
-        opacity: a.opacity,
-        layer,
-        ..Default::default()
     };
     let id = match session.add_image_stamp(page_index, rect, &image, &options) {
         Ok(id) => id,
