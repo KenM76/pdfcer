@@ -115,6 +115,48 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 471.0` — opt-in RC4 append keeps an RC4 document editable (decision 190) — SHIPPED `2f1dc888`
+
+Narrows standing rule **W14** ("pdfcer never writes RC4") to "pdfcer
+never *chooses* RC4 for new encryption; keeping an existing RC4
+handler on an incremental save is opt-in, default Refuse." **Closes
+the open W14 operator question** — ruled by `autonomous-builder`/
+KenAgent, not asked of Ken. Full record: decision 190
+(`docs/decisions/190-rc4-append-opt-in.md`), `ARCHITECTURE.md` §12.
+
+**Shipped:** `writer::Rc4Append {Refuse (default), Preserve}`;
+`Document::set_rc4_append`/`EditSession::set_rc4_append`; CLI global
+flag `--allow-rc4-append`, printing the reused-keystream count on
+stderr on every save path; covers `/V 1`, `/V 2`, `/V 4` with
+`/CFM /V2`. `SaveReport::rc4_keystream_reused: Option<usize>`, also
+carried on `SignReport`/`DocTimestampReport`. The
+`ENCRYPTED_EDIT_REFUSED` refusal message now names the flag. New
+fixture `enc-rc4-128-v4.pdf`. `docs/core-api` verb count: 318.
+
+**Deviation from the sketch:** the knob lives on `Document`, not
+`SaveOptions` — `encryption_gate::forbids` (via `DocumentEncryption::
+appendable()`) refuses before any save is attempted, so a save option
+could not have un-gated the edit. See decision 190 §3.
+
+**Tests:** gates sweep's first run failed 1/45
+(`check-public-fns-documented` — a doc-block ordering slip on
+`set_rc4_append`), fixed before this commit. Re-run on `2f1dc888`
+passed 44/45; the one failure, `check-requests-scoped.py`, was
+`G112`/`G113` scoped with no reply yet filed in
+`pdfce_FeatureRequests/open/` — a channel-state gap, not a code
+defect. All code gates (tests, fmt, clippy, structure, public-fns-
+documented) passed. Resolved by filing interim replies
+`reply_request_G112_..._SCOPED.md` and
+`reply_request_G113_..._SCOPED.md`; the gate now passes standalone.
+
+**Invariants:** `cargo tree` unaffected — no dependency changes, core/
+render manifests untouched. GUI not wired (`gui [ ]`).
+
+**`FEATURES.md`:** row for "Edit an RC4-encrypted document (keep RC4
+on append, opt-in)" added/updated, `[x]` core / `[x]` cli / `[ ]` gui;
+the `Pass 429.0` row's "RC4 append refused by name" clause corrected
+to "refused by default; opt-in (decision 190)."
+
 ### `Pass 470.0` — `FaceCatalog`, a replacement-face provider that keeps no font bytes (`G111`) — SHIPPED `c9d9fc9cc254d1f646e00c1022952916050332f1`
 
 Answers `pdfcer-gui` request `G111`
@@ -18708,6 +18750,40 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **TWO NEW PASSES FILED 2026-10-04 (938th filing)
+> — `Pass 472.0` (`G112`), `Pass 473.0` (`G113`), from `pdfcer-gui`
+> feature requests.** `Pass 472.0`
+> (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G112_editable_export_carries_no_source_fingerprint.md`):
+> `editable::export` carries no fingerprint of the document it came
+> from, so `import` cannot tell a stale export from a current one —
+> compiling an old export after a further edit silently undoes that
+> edit, undetectably. Ask: record the base in the export (an `/ID`-
+> pair/digest in the trailer or `/Info`) and have `import` report the
+> mismatch (`ImportReport::base_mismatch` or an error variant), so the
+> GUI's own process-wide memo (`app::actions::structure`, path→hash)
+> can be deleted. `Pass 473.0`
+> (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G113_editable_needs_a_document_a_session_cannot_lend.md`):
+> `editable` and `signature::census` need a `Document`, and
+> `EditSession` cannot lend one — the only route today is a full
+> `to_incremental_bytes`/`from_bytes` round trip per export and per
+> compile (`app::actions::purge_passwords` makes the same round trip
+> for the same reason). Ask: `EditSession::document(&self) ->
+> &Document`, or `editable::export`/`import` generic over
+> `ObjectGraph` as `signature::census` already is, with the session
+> implementing it (the GUI's stated preference). Next free `Pass
+> 474.0`; next free decision `191`. No rule or question ledger move:
+> `R263` stays next free rule, `(ck)` stays next free question.
+
+> ★★★★★★★★★★★★★★★★ **`Pass 471.0` SHIPPED, 2026-10-04 (938th filing),
+> `2f1dc888`** — see *Shipped*, above. Decision 190 narrows **W14**
+> ("pdfcer never writes RC4") to "pdfcer never *chooses* RC4 for new
+> encryption; keeping an existing RC4 handler on append is opt-in,
+> default Refuse." **This closes the open W14 operator question** —
+> every earlier W14 mention below (the `Pass 429.0` Shipped entry, and
+> this section's `G077`-family historical traces) is superseded by
+> this ruling; those entries stay as written, per append-only
+> discipline. `gui [ ]`: not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 470.0` SHIPPED, 2026-10-04 (937th filing),
 > `c9d9fc9c`** — see *Shipped*, above. `G111`: `pdfcer_render::font::FaceCatalog`

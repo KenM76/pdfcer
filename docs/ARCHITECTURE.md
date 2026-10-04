@@ -13208,3 +13208,54 @@ not actioned, here.
 decision `190`.
 
 **New standing rule.** None — `R263` stays next free.
+
+### 2026-10-04 (938th filing, KenAgent) — decision 190: keeping an existing RC4 handler on append is opt-in
+
+**Trigger.** `Pass 471.0` (`2f1dc888`), authored by `autonomous-builder`/
+KenAgent, not asked of Ken. Full record:
+`docs/decisions/190-rc4-append-opt-in.md`.
+
+**What this decides.** **Narrows standing rule `W14`** from "pdfcer
+never writes RC4" to "pdfcer never *chooses* RC4 for new encryption;
+keeping an existing RC4 handler on an incremental save is opt-in,
+default Refuse." **Closes the open W14 operator question.**
+`writer::Rc4Append {Refuse (default), Preserve}`, set via
+`Document::set_rc4_append`/`EditSession::set_rc4_append`; CLI
+`--allow-rc4-append`. Covers `/V 1`, `/V 2`, `/V 4` with `/CFM /V2`.
+Preserve appends under the document's own RC4 key; existing signatures
+stay valid. Every Preserve save discloses `SaveReport::
+rc4_keystream_reused = Some(n)` (also on `SignReport`,
+`DocTimestampReport`); CLI prints it on stderr every time (rule 4).
+New encryption never uses RC4; `/P` permission gating unchanged.
+
+**Why.** Re-encrypting an RC4-signed form to AES-256 invalidates every
+existing signature; refusing the append outright leaves that form
+permanently uneditable. The opt-in is the only route that keeps both
+the signature and the edit. RC4's per-object key depends only on the
+object number and generation, so an edited object rewritten under its
+old id reuses the previous revision's keystream, which stays in the
+file (ISO 32000-2 §7.5.6) — XOR of the two ciphertexts cancels it.
+That is why Preserve is opt-in and why `n` is reported: verbatim
+re-emissions, object-stream members and freshly created objects do not
+count toward it.
+
+**Deviation from the consultant's sketch.** The knob was sketched on
+`SaveOptions`; it lives on `Document` instead, because the edit-time
+gate (`encryption_gate::forbids`, via `DocumentEncryption::
+appendable()`) refuses before a save is ever attempted — a save option
+could not un-gate the edit. One source of truth, the document's
+encryption state, answers both the edit gate and the writer.
+
+**Consulted via autonomous-builder.**
+
+**Body-section effect.** None edited by this filing (librarian scope
+this session is `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/this
+decision log only). No §5.x body subsection documents the `Pass 429.0`
+permission-gated encrypted-edit model (`encryption_gate`,
+`DocumentEncryption::appendable()`) at all — flagged, not actioned,
+here; this decision would belong beside it once one exists.
+
+**Decision ceiling.** Fills `190`; ceiling `189` → `190`. Next free
+decision `191`.
+
+**New standing rule.** None — `R263` stays next free.

@@ -4,6 +4,69 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (938th filing) — `Pass 471.0` shipped (opt-in RC4 append keeps an RC4 document editable, decision 190); `Pass 472.0`/`Pass 473.0` filed (`G112`/`G113`)
+
+**Shipped:**
+- `Pass 471.0` (`2f1dc888`) — decision 190 narrows standing rule
+  **W14** ("pdfcer never writes RC4") to "pdfcer never *chooses* RC4
+  for new encryption; keeping an existing RC4 handler on an
+  incremental save is opt-in, default Refuse." Ruled by
+  `autonomous-builder`/KenAgent, not asked of Ken. **Closes the open
+  W14 operator question.** `writer::Rc4Append {Refuse (default),
+  Preserve}`; `Document::set_rc4_append`/`EditSession::
+  set_rc4_append`; CLI `--allow-rc4-append`, printing the reused-
+  keystream count on stderr every save. Covers `/V 1`/`/V 2`/`/V 4`
+  with `/CFM /V2`. `SaveReport::rc4_keystream_reused`, also on
+  `SignReport`/`DocTimestampReport`. New fixture `enc-rc4-128-v4.pdf`.
+  `docs/core-api` verb count 318.
+
+**Decisions made this session:**
+- Decision 190 (`ARCHITECTURE.md` §12): see above. Deviation from the
+  consultant's sketch — the knob lives on `Document`, not
+  `SaveOptions`, because `encryption_gate::forbids` (via
+  `DocumentEncryption::appendable()`) refuses before any save is
+  attempted, so a save option could not have un-gated the edit.
+
+**Findings + decisions:**
+- RC4's per-object key depends only on object number and generation,
+  so an edited object rewritten under its old id reuses the previous
+  revision's keystream (ISO 32000-2 §7.5.6); XOR of the two
+  ciphertexts cancels it — why Preserve is opt-in and disclosed.
+
+**Still in flight:**
+- Gates: resolved. The re-run of `tools/run-gates.sh` on `2f1dc888`
+  passed 44/45; the one failure, `check-requests-scoped.py`, flagged
+  `G112`/`G113` scoped (`Pass 472.0`/`Pass 473.0`) with no reply yet
+  filed in `pdfce_FeatureRequests/open/` — a channel-state gap, not a
+  code defect. All code gates (tests, fmt, clippy, structure,
+  public-fns-documented) passed. Closed by filing interim replies
+  `reply_request_G112_..._SCOPED.md` and
+  `reply_request_G113_..._SCOPED.md`; the gate now passes standalone.
+- No §5.x body subsection of `ARCHITECTURE.md` documents the
+  `Pass 429.0` permission-gated encrypted-edit model
+  (`encryption_gate`, `DocumentEncryption::appendable()`); flagged in
+  decision 190's body-section-effect note, not actioned this filing
+  (out of this filing's scope).
+
+**New Passes filed (`Next up`):**
+- `Pass 472.0` (`G112`) — `editable::export` carries no fingerprint of
+  its source document; `import` cannot tell a stale export from a
+  current one, so compiling an old export after a further edit
+  silently undoes that edit.
+- `Pass 473.0` (`G113`) — `editable`/`signature::census` need a
+  `Document`; `EditSession` cannot lend one, forcing a full
+  serialize-and-reparse round trip per export and per compile.
+
+**For next session:**
+- Next free `Pass 474.0`, decision `191`, standing rule `R263`,
+  operator question `(ck)` — all unchanged except `Pass`/decision,
+  which this filing consumed through `473.0`/`190`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+test/gate results (including the gates re-run's "in progress" status)
+are relayed from the dispatching engineer's report, not independently
+re-verified.
+
 ## 2026-10-04 (937th filing) — `Pass 470.0` shipped (`FaceCatalog`, a replacement-face provider that keeps no font bytes, `G111`)
 
 **Shipped:**
