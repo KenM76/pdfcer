@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (953rd filing) — `Pass 485.0` shipped (preflight a text-object split, `G114`)
+
+**Shipped:**
+- `Pass 485.0` (`f04a3478`) — answers `pdfcer-gui` request **G114**,
+  "a text split cannot be preflighted from an `EditSession`". New
+  `EditSession::text_object_split_refusal(page_index, object_index,
+  before_runs: &[usize]) -> Result<Option<VectorEditError>, EditError>`
+  runs `split_text_object`'s own planner against the page's current
+  content without committing — undo stack and save bytes unchanged.
+  `Ok(Some(_))` is the refusal the real split would give; `Ok(None)`
+  means it would perform. Takes explicit `before_runs` cuts, covering
+  an explicit-cuts caller as well as the granularity G114 proposed.
+
+**Decisions made this session:** none — decision stays `192`, standing
+rule stays `R251`.
+
+**Findings + decisions:**
+- Bug fixed on the way: `pdfcer text-object-split --dry-run` printed a
+  plan and exited 0 even when the real run would then refuse it — the
+  dry run never asked the planner the question the real run asks. It
+  now exits with the real run's refusal.
+- `docs/core-api/02-editing-and-saving.md` verb count 319 → 320.
+
+**Still in flight:** `tools/run-gates.sh` stated green by the engineer;
+not independently re-verified (no shell this filing).
+
+**For next session:**
+- Next free `Pass 486.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- `FEATURES.md` gained a new preflight row under *Split one text
+  object into several* (core `[x]` / cli `[x]` / gui `[ ]`).
+- Reply filed in the GUI channel:
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_request_G114_a_text_split_cannot_be_preflighted_from_a_session_FIXED.md`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+test counts, and check results are relayed from the dispatching
+engineer's report, not independently re-verified.
+
 ## 2026-10-04 (952nd filing) — `Pass 484.0` shipped (notices moved out of `fonts.rs`)
 
 **Shipped:**

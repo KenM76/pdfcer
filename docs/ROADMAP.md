@@ -115,6 +115,49 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 485.0` — preflight a text-object split from a session without committing it (`pdfcer-gui` `G114`) — SHIPPED `f04a3478`
+
+Answers `pdfcer-gui` request **G114**: "a text split cannot be
+preflighted from an `EditSession`."
+
+**Core.** New `EditSession::text_object_split_refusal(page_index,
+object_index, before_runs: &[usize]) -> Result<Option<VectorEditError>,
+EditError>`. Runs `split_text_object`'s own planner (shared private
+`plan_text_split`) against the page's current content without
+committing — the undo stack and save bytes are unchanged. `Ok(Some(_))`
+is the first refusal the real split would give
+(`SplitRunInheritsPosition`/`SplitAtLineShowOperator`/
+`SplitInsideMarkedContent`/`EmptySplit`); `Ok(None)` means the split
+would perform; `Err` covers a bad page/object index, a non-text
+object, or an encryption/certification guard. Takes explicit
+`before_runs` cuts rather than the granularity G114 proposed, so an
+explicit-cuts caller is covered too; `pdfcer-gui` is expected to pass
+`text_object_split_plan`'s own cuts.
+
+**CLI bug fixed on the way.** `pdfcer text-object-split --dry-run`
+used to print a plan and exit 0 even when the real run would then
+refuse it — the dry run never asked the planner the question the real
+run asks. It now exits with the real run's refusal.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gains the verb row;
+verb count 319 → 320.
+
+**Tests.** `crates/pdfcer-core/tests/text_object_split.rs` +2 (17 pass
+in the split filter). New `crates/pdfcer-cli/tests/text_object_split_cli.rs`
+(2 tests) covers the `--dry-run` fix. Four sabotages caught: refusal
+swallowed, preflight commits anyway, object-error mapping removed, CLI
+refusal-exit disabled.
+
+**Checks.** No manifest changes (`cargo tree` N/A). `tools/run-gates.sh`
+green before push.
+
+**Delivered:** core + cli. `FEATURES.md` — new preflight row under
+*Split one text object into several*: core `[x]` / cli `[x]` / gui
+`[ ]` (not consumed). Reply filed in the GUI channel:
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_request_G114_a_text_split_cannot_be_preflighted_from_a_session_FIXED.md`.
+Ledger after: next filing 954th, next Pass 486.0, next decision 192,
+next standing rule R251, next operator question (ck).
+
 ### `Pass 484.0` — notices moved out of `fonts.rs`: bundled-font licence text to `font_notice.rs`, `PERMISSIONS_NOTICE` to `security.rs` — SHIPPED `7133becf`
 
 Structure debt only; no behaviour change.
