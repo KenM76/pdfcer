@@ -4,6 +4,32 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (949th filing) — `Pass 481.0` follow-up: gate-sweep test fix (`021deee7`)
+
+**Shipped:**
+- `021deee7`, under `Pass 481.0` — the full gate sweep on `4ab15402`
+  failed one test: `pdfcer-core`'s
+  `form_layout_disclosure::reset_form_reports_its_redraw` fixture
+  field already held its default, so `Pass 481.0`'s corrected
+  counting makes a reset of it count `fields_reset` 0 (not 1) while
+  still redrawing the widget (`widgets_updated` 1). Assertion updated
+  to match. Test-only; no behaviour change; no `FEATURES.md` change.
+
+**Decisions made this session:** none — next decision stays `191`,
+next standing rule stays `R263`.
+
+**Findings + decisions:** none new.
+
+**Still in flight:** nothing opened by this filing.
+
+**For next session:**
+- Next free `Pass 482.0`; decision `191`, standing rule `R263`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash
+and test identity relayed from the dispatching engineer's report, not
+independently re-verified.
+
 ## 2026-10-04 (948th filing) — `Pass 481.0` shipped (`reset_form` counts only changed fields; `reset-form` split)
 
 **Shipped:**

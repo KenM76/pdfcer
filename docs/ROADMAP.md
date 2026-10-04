@@ -159,6 +159,14 @@ question `(ck)` unchanged.
 counts, baseline-entry count, and test results above are relayed from
 the dispatching engineer's report, not independently re-verified.
 
+**Follow-up `021deee7`.** The full gate sweep on `4ab15402` turned up
+one failing test: `pdfcer-core`'s
+`form_layout_disclosure::reset_form_reports_its_redraw` fixture field
+already held its default, so under this Pass's corrected counting a
+reset of it counts `fields_reset` 0, not 1 — the widget is still
+redrawn (`widgets_updated` 1). `021deee7` updates the assertion to
+match; test-only, no behaviour change, no `FEATURES.md` change.
+
 ### `Pass 480.0` — CLI `fill-field` split into helpers; `--set FIELD=no` now unchecks a box; first CLI tests for check-box aliases and multi-select — SHIPPED `7c5cf855`
 
 Pays down structure debt and fixes a bug found on discovery.
