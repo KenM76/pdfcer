@@ -314,6 +314,10 @@ pub enum FaceRung {
     ExactName,
     /// Same family; the nearest class within it.
     FamilyClass,
+    /// The run is a standard-14 font and this face's family is a
+    /// metric-compatible equivalent of it (Helvetica -> Arial, Liberation
+    /// Sans, Nimbus Sans); earlier equivalents first, then nearest class.
+    MetricEquivalent,
     /// It covers every needed character; the nearest class among those.
     Coverage,
     /// No candidate qualified: the class-matched standard-14 face.
@@ -327,6 +331,7 @@ impl FaceRung {
         match self {
             Self::ExactName => "exact-name",
             Self::FamilyClass => "family+class",
+            Self::MetricEquivalent => "metric-equivalent",
             Self::Coverage => "coverage",
             Self::Standard14 => "standard-14",
         }
@@ -434,6 +439,35 @@ fn request_family(req: &FaceRequest) -> String {
     )
 }
 
+/// Family keys of the faces metric-compatible with the run's standard-14
+/// font (by its tag-stripped `/BaseFont`), most preferred first; empty for
+/// any other font and for Symbol and ZapfDingbats.
+fn metric_equivalents(base_font: &str) -> &'static [&'static str] {
+    const SANS: &[&str] = &["arial", "liberationsans", "nimbussans", "nimbussansl"];
+    const SERIF: &[&str] = &[
+        "timesnewroman",
+        "liberationserif",
+        "nimbusroman",
+        "nimbusromanno9l",
+    ];
+    const MONO: &[&str] = &["couriernew", "liberationmono", "nimbusmono", "nimbusmonol"];
+    match fontdata::std14_by_base_font(strip_subset_tag(base_font)) {
+        Some(
+            Std14::Helvetica
+            | Std14::HelveticaBold
+            | Std14::HelveticaOblique
+            | Std14::HelveticaBoldOblique,
+        ) => SANS,
+        Some(
+            Std14::TimesRoman | Std14::TimesBold | Std14::TimesItalic | Std14::TimesBoldItalic,
+        ) => SERIF,
+        Some(
+            Std14::Courier | Std14::CourierBold | Std14::CourierOblique | Std14::CourierBoldOblique,
+        ) => MONO,
+        _ => &[],
+    }
+}
+
 /// The standard-14 face of `class` (§9.6.2.2): Courier for fixed pitch,
 /// Times for serif, else Helvetica, in its bold/italic variant.
 #[must_use]
@@ -452,7 +486,8 @@ pub fn standard14_for(class: &FaceClass) -> &'static str {
 /// Rank `candidates` for `req`. Only a candidate covering every requested
 /// character qualifies; one whose `fsType` forbids the embed is skipped
 /// ([`embedding_refusal`]). Within a rung the nearest class wins, then the
-/// lower [`FaceCandidate::id`].
+/// lower [`FaceCandidate::id`]; on [`FaceRung::MetricEquivalent`] the
+/// equivalent's preference comes before class.
 ///
 /// # Examples
 ///
@@ -471,16 +506,21 @@ pub fn standard14_for(class: &FaceClass) -> &'static str {
 #[must_use]
 pub fn rank_replacement_faces(req: &FaceRequest, candidates: &[FaceCandidate]) -> FaceLadder {
     let family = request_family(req);
+    let equivalents = metric_equivalents(&req.base_font);
     let mut ranked = Vec::new();
     let mut skipped = Vec::new();
     for (i, c) in candidates.iter().enumerate() {
         if !c.missing.is_empty() {
             continue;
         }
+        let key = family_key(&c.family);
+        let equivalent = equivalents.iter().position(|e| *e == key);
         let rung = if postscript_name_matches(&c.postscript_name, &req.base_font) {
             FaceRung::ExactName
-        } else if !family.is_empty() && family_key(&c.family) == family {
+        } else if !family.is_empty() && key == family {
             FaceRung::FamilyClass
+        } else if equivalent.is_some() {
+            FaceRung::MetricEquivalent
         } else {
             FaceRung::Coverage
         };
@@ -493,11 +533,12 @@ pub fn rank_replacement_faces(req: &FaceRequest, candidates: &[FaceCandidate]) -
             });
             continue;
         }
-        ranked.push((rung, req.class.distance(&c.class), c.id, i));
+        let preference = equivalent.unwrap_or(0);
+        ranked.push((rung, preference, req.class.distance(&c.class), c.id, i));
     }
     ranked.sort_unstable();
     FaceLadder {
-        ranked: ranked.into_iter().map(|(r, _, _, i)| (r, i)).collect(),
+        ranked: ranked.into_iter().map(|(r, _, _, _, i)| (r, i)).collect(),
         skipped,
         standard14: standard14_for(&req.class),
     }
@@ -956,5 +997,50 @@ mod tests {
         );
         let named = pick("ABCDEF+Demo", false).disclosure();
         assert!(!named.contains("derived"), "{named}");
+    }
+
+    #[test]
+    fn a_standard14_run_prefers_its_metric_equivalent_over_file_order() {
+        let req = FaceRequest::new("Helvetica", &['Ω']);
+        let faces = [
+            face(0, "BerlinSansFB-Reg", "Berlin Sans FB"),
+            face(1, "LiberationSans", "Liberation Sans"),
+            face(2, "ArialMT", "Arial"),
+        ];
+        let ladder = rank_replacement_faces(&req, &faces);
+        assert_eq!(
+            ladder.ranked,
+            [
+                (FaceRung::MetricEquivalent, 2),
+                (FaceRung::MetricEquivalent, 1),
+                (FaceRung::Coverage, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_run_fonts_own_family_still_outranks_its_equivalent() {
+        let req = FaceRequest::new("ABCDEF+Times-Bold", &['x']);
+        let faces = [
+            face(0, "TimesNewRomanPS-BoldMT", "Times New Roman"),
+            face(1, "Times-Bold", "Times"),
+            face(2, "CourierNewPSMT", "Courier New"),
+        ];
+        let ladder = rank_replacement_faces(&req, &faces);
+        assert_eq!(ladder.ranked[0], (FaceRung::ExactName, 1));
+        assert_eq!(ladder.ranked[1], (FaceRung::MetricEquivalent, 0));
+        assert_eq!(ladder.ranked[2], (FaceRung::Coverage, 2));
+        let mono = rank_replacement_faces(&FaceRequest::new("Courier-Oblique", &['x']), &faces);
+        assert_eq!(mono.ranked[0], (FaceRung::MetricEquivalent, 2));
+    }
+
+    #[test]
+    fn a_font_outside_the_standard14_has_no_metric_equivalent() {
+        let faces = [face(0, "ArialMT", "Arial")];
+        for base in ["ABCDEF+Calibri", "Symbol", "Times"] {
+            let ladder = rank_replacement_faces(&FaceRequest::new(base, &['x']), &faces);
+            assert_eq!(ladder.ranked, [(FaceRung::Coverage, 0)], "{base}");
+        }
+        assert_eq!(FaceRung::MetricEquivalent.label(), "metric-equivalent");
     }
 }

@@ -27,8 +27,17 @@ from it. Qualifying candidates are ranked, best first:
    (`postscript_name_matches`, shared with 430.1's augmenter identity check).
 2. **Family + class** — same family, compared case-, space- and
    hyphen-insensitively with an `MT`/`PS`/`PSMT` suffix dropped.
-3. **Coverage** — any other face.
-4. **Standard 14** — the floor, always available: Times, Helvetica or Courier
+3. **Metric equivalent** (Pass 469.0) — the run is a standard-14
+   Helvetica/Times/Courier face and the candidate's family is one of its
+   metric-compatible equivalents, in this preference order: Arial, Liberation
+   Sans, Nimbus Sans / Times New Roman, Liberation Serif, Nimbus Roman /
+   Courier New, Liberation Mono, Nimbus Mono. Preference is compared before
+   class. Without this rung, a non-embedded standard-14 run (no descriptor, so
+   no `/FontFamily`) put every covering face on Coverage, and file order
+   decided the tie: Helvetica was replaced by Berlin Sans FB because
+   `BRLNSR.TTF` sorts before `arial.ttf`.
+4. **Coverage** — any other face.
+5. **Standard 14** — the floor, always available: Times, Helvetica or Courier
    by serif/fixed class, with Bold/Italic (Oblique) by weight ≥ 600 and the
    italic flag.
 
