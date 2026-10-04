@@ -36,6 +36,10 @@ impl WidgetEdit {
     /// A field that is not a push button is refused with
     /// [`EditError::NotAPushButton`].
     ///
+    /// On a push button another producer drew, this replaces its whole `/AP`
+    /// (foreign down and rollover states are dropped) unless
+    /// [`Self::foreign_appearance`] is [`ForeignAppearance::Keep`](super::ForeignAppearance::Keep).
+    ///
     /// ```
     /// # use pdfcer_core::{edit::WidgetEdit, image_import};
     /// # fn demo(png: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
@@ -54,6 +58,10 @@ impl WidgetEdit {
     /// [`Self::with_caption_position`] also sets one. `/IF` and the rollover
     /// and down icons are left as they are.
     ///
+    /// On a push button another producer drew, this replaces its whole `/AP`
+    /// (foreign down and rollover states are dropped) unless
+    /// [`Self::foreign_appearance`] is [`ForeignAppearance::Keep`](super::ForeignAppearance::Keep).
+    ///
     /// ```
     /// use pdfcer_core::edit::{ButtonIconEdit, WidgetEdit};
     /// let edit = WidgetEdit::new().without_button_icon();
@@ -68,6 +76,10 @@ impl WidgetEdit {
     /// Set a push button's caption position, `/MK /TP` (Table 189), and
     /// redraw it. With no icon the button draws its caption alone whatever
     /// the position says.
+    ///
+    /// On a push button another producer drew, this replaces its whole `/AP`
+    /// (foreign down and rollover states are dropped) unless
+    /// [`Self::foreign_appearance`] is [`ForeignAppearance::Keep`](super::ForeignAppearance::Keep).
     ///
     /// ```
     /// use pdfcer_core::{annot_author::CaptionPosition, edit::WidgetEdit};

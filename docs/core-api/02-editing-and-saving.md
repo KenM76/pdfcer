@@ -1773,7 +1773,7 @@ only creation verb whose successful result is a control that does not work"*
 | **Rotate one widget** | `rotate_widget(&mut self, fqn, index, degrees: i64) -> Result<WidgetRotation, EditError>` | ✅ **`/MK /R` + a REDRAWN appearance** (`Pass 177.0`). ⚠️ **COUNTERCLOCKWISE** — the page's `/Rotate` is the clockwise one. Multiples of 90 only, reduced into `[0, 360)` and the reduction reported. **`/Rect` does not move**; the appearance is redrawn into a `w`/`h`-swapped `/BBox` and stood upright by `/Matrix`. Rotating to `0` **removes** the key. Refuses a non-multiple of 90 with `WidgetRotationNotQuarterTurn`. |
 | Read an existing field's copyable properties | `field_defaults(&self, source: &str) -> Result<FieldDefaults, EditError>` | For `--defaults-from` / "copy style from". |
 | **Change a field's field-scope properties** | `edit_field(&mut self, fqn, edit: &FieldEdit) -> Result<FieldEditOutcome, EditError>` | `Pass 134.0`. Flags, `/MaxLen`, `/TU`, `/Opt`. **Shared by every widget the field owns.** Setting `password` on a text field removes its own `/V` (`password_value_removed`) and redraws it masked. `appearance_stale: Option<String>` is `Some` when a property was written and nothing was drawn (a `/DA` edit on a check box or radio, whose artwork is shapes, not text) — **show it**. A button redraw that reproduces its artwork exactly writes nothing and reports `appearance_regenerated: false`, on this verb, `edit_widget` and `rotate_widget`. A `/MK /CA` caption edit on a radio, text or choice widget is `AppearanceOutcome::RecordedNotPainted`. |
-| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. An **unsigned** signature widget (no `/V`) is redrawn as its empty box after a border/colour edit (`Regenerated`); a signed one keeps its bytes (`RecordedNotPainted`). `WidgetEdit::with_replace_foreign_appearance(true)` lets a check box or radio whose `/AP` another producer drew be replaced with pdfcer's own (`WidgetEditOutcome::foreign_appearance_replaced`) — see "Foreign button artwork" below. **Push-button icon** (`Pass 443.0`, G097): `with_button_icon(&ImportedImage)` / `without_button_icon()` / `with_caption_position(CaptionPosition)` — see "Push-button icons" below; on any other field type they are `EditError::NotAPushButton { name }`. |
+| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. An **unsigned** signature widget (no `/V`) is redrawn as its empty box after a border/colour edit (`Regenerated`); a signed one keeps its bytes (`RecordedNotPainted`). `WidgetEdit::with_foreign_appearance(ForeignAppearance::Replace)` lets a check box or radio whose `/AP` another producer drew be replaced with pdfcer's own (the default, `ReplaceOnIconEdit`, replaces a foreign push button on an icon or caption-position edit) (`WidgetEditOutcome::foreign_appearance_replaced`) — see "Foreign button artwork" below. **Push-button icon** (`Pass 443.0`, G097): `with_button_icon(&ImportedImage)` / `without_button_icon()` / `with_caption_position(CaptionPosition)` — see "Push-button icons" below; on any other field type they are `EditError::NotAPushButton { name }`. |
 
 #### ★ 1.12b Button actions (`Pass 183.0`/`Pass 183.1`) — and the one disclosure a shell MUST surface
 
@@ -3657,9 +3657,17 @@ leaves the key present, `unset` takes the key away. The creation verbs have no
   meets `ResizeAppearanceNotRebuildable`.
 - **Signed signature widget**: unchanged — the bytes are kept and the outcome
   is `RecordedNotPainted`, naming the signer's appearance.
-- **Foreign check box / radio**: `WidgetEdit::with_replace_foreign_appearance(true)`
-  (field `replace_foreign_appearance`, default `false`) lets pdfcer replace
-  artwork it did not draw. It applies only when `/AP /N` names exactly one
+- **Foreign artwork policy** (`Pass 465.0`, request `G108`): field
+  `WidgetEdit::foreign_appearance: ForeignAppearance`, builder
+  `with_foreign_appearance(ForeignAppearance)`, `#[non_exhaustive]` enum
+  `Keep` | `ReplaceOnIconEdit` (**default**) | `Replace`. `Keep` never
+  replaces foreign artwork (`RecordedNotPainted`). `ReplaceOnIconEdit`
+  replaces a foreign push button only when the edit sets `with_button_icon`,
+  `without_button_icon` or `with_caption_position` (viewers paint `/AP`, not
+  `/MK /I`); every other edit keeps foreign artwork. `Replace` is the opt-in
+  below for any redraw.
+- **Foreign check box / radio**: `ForeignAppearance::Replace` lets pdfcer
+  replace artwork it did not draw. It applies only when `/AP /N` names exactly one
   on state (or, with none, a non-`Off` `/AS`); pdfcer writes new `Off` and
   on-state streams under that same name and replaces the whole `/AP`, so
   `/D` (down) and `/R` (rollover) are dropped. Reported as
@@ -3668,10 +3676,12 @@ leaves the key present, `unset` takes the key away. The creation verbs have no
   (`foreign_appearance_replaced = false`). Several on states are not
   replaced; the outcome stays `RecordedNotPainted`, and its string says the
   opt-in did not cover this button.
-- **Foreign push button** (`Pass 443.0`): the same opt-in replaces its `/AP`
+- **Foreign push button** (`Pass 443.0`): `Replace`, or an icon edit under
+  the default, replaces its `/AP`
   with pdfcer's caption/icon layout, drawing the `/MK /I` icon already
   stored (another producer's icon form is kept and drawn, not rewritten).
-- Without the opt-in, behaviour and the disclosure are exactly as before.
+- Under `Keep`, or a non-icon edit under the default, foreign artwork is
+  kept and the outcome is `RecordedNotPainted`.
 
 ### Push-button icons (`Pass 443.0`, request `G097`, decision 185)
 
@@ -3694,6 +3704,9 @@ ISO 32000-1 Table 189 (`/MK /I`, `/TP`, `/IF`).
 - An edit that sets no icon patches `/MK` and keeps another producer's `/I`.
 - Every icon or position edit regenerates `/AP /N` (one undo entry,
   `Regenerated`); the icon is scaled into the box inside the border per `/IF`.
+  On a push button another producer drew this replaces its whole `/AP`
+  (`foreign_appearance_replaced = true`, `/D` and `/R` dropped) unless
+  `foreign_appearance` is `Keep`.
 - On a field that is not a push button: `EditError::NotAPushButton { name }`,
   nothing changes.
 - Readable: `forms::Widget::icon: Option<ObjId>` and
@@ -3704,7 +3717,8 @@ ISO 32000-1 Table 189 (`/MK /I`, `/TP`, `/IF`).
 **CLI:** `edit-widget --button-icon FILE | --clear-button-icon`,
 `--caption-position caption-only|icon-only|below|above|right|left|overlaid`.
 
-**CLI:** `edit-widget --replace-foreign-appearance`. The result line carries
+**CLI:** `edit-widget --foreign-appearance keep|on-icon-edit|replace`
+(default `on-icon-edit`). The result line carries
 `foreign_replaced=0|1` after `regenerated=`, and a replacement prints a
 disclosure line on stderr.
 

@@ -7533,17 +7533,19 @@ pub(crate) enum Command {
         /// REDRAWN at the new size and need none of this.
         #[arg(long)]
         allow_appearance_distortion: bool,
-        /// Replace a check box's, radio button's or push button's artwork
-        /// that pdfcer did not draw with pdfcer's own, so the edit shows.
+        /// When to replace a check box's, radio button's or push button's
+        /// artwork that pdfcer did not draw with pdfcer's own, so the edit
+        /// shows.
         ///
-        /// Without it, such a widget keeps its old look and the edit is
-        /// reported as recorded but not painted. With it, the widget's whole
-        /// `/AP` is redrawn in pdfcer's style -- its down and rollover looks
-        /// are dropped -- and the run says so. A push button keeps its `/MK`
-        /// icon, which pdfcer redraws. Widgets with more than one on state
-        /// are never replaced.
-        #[arg(long)]
-        replace_foreign_appearance: bool,
+        /// Kept artwork keeps its old look and the edit is reported as
+        /// recorded but not painted. Replaced artwork is redrawn whole in
+        /// pdfcer's style -- its down and rollover looks are dropped -- and
+        /// the run says so. The default replaces a push button's only when
+        /// --button-icon, --clear-button-icon or --caption-position changes
+        /// it, since an icon left out of the artwork never shows. Widgets
+        /// with more than one on state are never replaced.
+        #[arg(long, value_enum, default_value_t = ForeignAppearanceArg::OnIconEdit)]
+        foreign_appearance: ForeignAppearanceArg,
         /// Give a PUSH BUTTON this image as its icon: PNG, JPEG or BMP.
         ///
         /// Written as `/MK /I`, a form drawing the image at one point per

@@ -1023,8 +1023,8 @@ pub(crate) struct EditWidgetArgs<'a> {
     /// cannot rebuild (`Pass 187.0`) — the same three answers
     /// `resize-annotation` takes.
     pub(crate) resize: pdfcer_core::edit::ResizeOptions,
-    /// Replace a foreign button `/AP` with pdfcer's own.
-    pub(crate) replace_foreign_appearance: bool,
+    /// When a foreign button `/AP` is replaced with pdfcer's own.
+    pub(crate) foreign_appearance: ForeignAppearanceArg,
     /// `--button-icon`: the image file for a push button's `/MK /I`.
     pub(crate) button_icon: Option<&'a Path>,
     /// `--clear-button-icon`.
@@ -1143,7 +1143,7 @@ fn widget_edit_from_args(args: &EditWidgetArgs<'_>) -> Result<pdfcer_core::edit:
     )?;
     Ok(edit
         .with_resize(args.resize)
-        .with_replace_foreign_appearance(args.replace_foreign_appearance))
+        .with_foreign_appearance(args.foreign_appearance.into()))
 }
 
 /// `--rect llx,lly,urx,ury`.
@@ -1204,7 +1204,7 @@ fn disclose_widget_edit(args: &EditWidgetArgs<'_>, outcome: &pdfcer_core::edit::
     }
     if outcome.foreign_appearance_replaced {
         eprintln!(
-            "pdfcer: {who}: its artwork, which pdfcer did not draw, was REPLACED with pdfcer's own (--replace-foreign-appearance); its down and rollover looks were dropped."
+            "pdfcer: {who}: its artwork, which pdfcer did not draw, was REPLACED with pdfcer's own (--foreign-appearance keep prevents this); its down and rollover looks were dropped."
         );
     }
     crate::fields::print_layout(&who, &outcome.layout);

@@ -1,13 +1,14 @@
 //! Border edits on widgets whose appearance pdfcer did not author: an
 //! unsigned signature field is redrawn as an empty box (a signed one is
 //! left to its signer), and a foreign check box's artwork is replaced only
-//! under `WidgetEdit::with_replace_foreign_appearance`.
+//! under `WidgetEdit::with_foreign_appearance`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{
-    AppearanceOutcome, BorderSpec, BorderStyle, EditSession, WidgetEdit, WidgetEditOutcome,
+    AppearanceOutcome, BorderSpec, BorderStyle, EditSession, ForeignAppearance, WidgetEdit,
+    WidgetEditOutcome,
 };
 use pdfcer_core::forms::{self, MkColor};
 use pdfcer_core::graph::ObjectGraph as _;
@@ -215,7 +216,7 @@ fn replaced(out: &WidgetEditOutcome) {
 #[test]
 fn opting_in_replaces_a_foreign_check_box_without_its_frame() {
     let mut s = foreign_check_box();
-    let edit = no_border().with_replace_foreign_appearance(true);
+    let edit = no_border().with_foreign_appearance(ForeignAppearance::Replace);
     let out = s.edit_widget("cb", 0, &edit).unwrap();
     replaced(&out);
     let states = normal_states(&s);
@@ -242,7 +243,7 @@ fn opting_in_replaces_a_foreign_check_box_without_its_frame() {
 #[test]
 fn opting_in_keeps_the_edit_the_replacement_rode_on() {
     let mut s = foreign_check_box();
-    let edit = no_border().with_replace_foreign_appearance(true);
+    let edit = no_border().with_foreign_appearance(ForeignAppearance::Replace);
     s.edit_widget("cb", 0, &edit).unwrap();
     let w = widget_dict(&s);
     let bs = w.get(b"BS").and_then(Object::as_dict).cloned().unwrap();
@@ -269,7 +270,7 @@ fn without_the_opt_in_a_foreign_check_box_is_untouched() {
 #[test]
 fn opting_in_on_pdfcer_artwork_is_an_ordinary_rebuild() {
     let mut s = foreign_check_box();
-    let edit = no_border().with_replace_foreign_appearance(true);
+    let edit = no_border().with_foreign_appearance(ForeignAppearance::Replace);
     s.edit_widget("cb", 0, &edit).unwrap();
     let out = s
         .edit_widget(
@@ -278,7 +279,7 @@ fn opting_in_on_pdfcer_artwork_is_an_ordinary_rebuild() {
             &WidgetEdit::new()
                 .with_border_color(MkColor::Rgb(1.0, 0.0, 0.0))
                 .with_border(BorderSpec::default())
-                .with_replace_foreign_appearance(true),
+                .with_foreign_appearance(ForeignAppearance::Replace),
         )
         .unwrap();
     assert!(
@@ -299,7 +300,11 @@ fn opting_in_replaces_a_foreign_radio_button_under_its_own_state_name() {
     ];
     let mut s = session(widget, &extra);
     let out = s
-        .edit_widget("r", 0, &no_border().with_replace_foreign_appearance(true))
+        .edit_widget(
+            "r",
+            0,
+            &no_border().with_foreign_appearance(ForeignAppearance::Replace),
+        )
         .unwrap();
     replaced(&out);
     let states = normal_states(&s);

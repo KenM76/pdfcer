@@ -8,8 +8,8 @@
 use pdfcer_core::annot_author::CaptionPosition;
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{
-    AppearanceOutcome, EditError, EditSession, MarkupOptions, NewCheckBox, NewPushButton,
-    ResizeOptions, WidgetEdit,
+    AppearanceOutcome, EditError, EditSession, ForeignAppearance, MarkupOptions, NewCheckBox,
+    NewPushButton, ResizeOptions, WidgetEdit,
 };
 use pdfcer_core::forms::{self, MkColor};
 use pdfcer_core::image_import::{self, ImportedImage};
@@ -407,7 +407,7 @@ fn an_indirect_icon_fit_value_is_honoured() {
         0,
         &WidgetEdit::new()
             .with_caption("Go")
-            .with_replace_foreign_appearance(true),
+            .with_foreign_appearance(ForeignAppearance::Replace),
     )
     .expect("edit");
     let doc = reload(&s);
@@ -430,7 +430,7 @@ fn replacing_a_foreign_push_button_draws_its_own_icon() {
             0,
             &WidgetEdit::new()
                 .with_caption("Stop")
-                .with_replace_foreign_appearance(true),
+                .with_foreign_appearance(ForeignAppearance::Replace),
         )
         .expect("edit");
     assert!(out.foreign_appearance_replaced);
@@ -466,4 +466,64 @@ fn an_icon_on_a_check_box_is_refused_and_changes_nothing() {
     }
     assert_eq!(s.undo_depth(), depth);
     assert_eq!(saved(&s), before);
+}
+
+#[test]
+fn a_default_icon_edit_replaces_a_foreign_push_button() {
+    let mut s = EditSession::new(foreign_button());
+    let out = s
+        .edit_widget(
+            "B",
+            0,
+            &WidgetEdit::new().with_button_icon(&png("icon32.png")),
+        )
+        .expect("icon");
+    assert!(out.foreign_appearance_replaced);
+    assert_eq!(out.appearance, AppearanceOutcome::Regenerated);
+    let doc = reload(&s);
+    let n = reference(&sub(&doc, &dict(&doc, ObjId::new(4, 0)), b"AP"), b"N");
+    assert_ne!(n, ObjId::new(6, 0));
+    let (_, content) = stream(&doc, n);
+    assert!(content.contains("/Icon Do"), "{content}");
+}
+
+#[test]
+fn a_default_caption_position_edit_replaces_a_foreign_push_button() {
+    let mut s = EditSession::new(foreign_button());
+    let out = s
+        .edit_widget(
+            "B",
+            0,
+            &WidgetEdit::new().with_caption_position(CaptionPosition::CaptionAbove),
+        )
+        .expect("position");
+    assert!(out.foreign_appearance_replaced);
+}
+
+#[test]
+fn keep_leaves_a_foreign_push_button_unpainted_on_an_icon_edit() {
+    let mut s = EditSession::new(foreign_button());
+    let out = s
+        .edit_widget(
+            "B",
+            0,
+            &WidgetEdit::new()
+                .with_button_icon(&png("icon32.png"))
+                .with_foreign_appearance(ForeignAppearance::Keep),
+        )
+        .expect("icon");
+    assert!(!out.foreign_appearance_replaced);
+    assert!(
+        matches!(out.appearance, AppearanceOutcome::RecordedNotPainted(_)),
+        "{:?}",
+        out.appearance
+    );
+    let doc = reload(&s);
+    let wd = dict(&doc, ObjId::new(4, 0));
+    assert_eq!(reference(&sub(&doc, &wd, b"AP"), b"N"), ObjId::new(6, 0));
+    assert_ne!(
+        sub(&doc, &wd, b"MK").get(b"I"),
+        Some(&Object::Reference(ObjId::new(5, 0))),
+        "the new icon is still recorded"
+    );
 }

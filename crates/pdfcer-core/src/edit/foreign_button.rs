@@ -1,5 +1,5 @@
 //! Replacing a button's foreign appearance whole, under
-//! `WidgetEdit::replace_foreign_appearance` (§12.7.4.2.2, §12.7.4.2.3).
+//! `WidgetEdit::foreign_appearance` (§12.7.4.2.2, §12.7.4.2.3).
 //!
 //! The ownership test in `regen_button_appearance` refuses to redraw artwork
 //! pdfcer did not draw. This is the opt-in past it: the widget gets pdfcer's
@@ -14,6 +14,44 @@ use super::{ButtonApPlan, EditError, EditSession, ObjectWrite};
 use crate::annot_author::CheckBoxStateAppearance;
 use crate::forms::{self, ButtonKind};
 use crate::object::{Dict, Name, ObjId, Object, Stream};
+
+/// When a widget edit may replace button artwork another producer drew
+/// ([`WidgetEdit::foreign_appearance`](super::WidgetEdit::foreign_appearance)).
+///
+/// pdfcer always redraws artwork it drew itself. Foreign artwork is replaced
+/// whole: a check box or radio button gets pdfcer's own on and off states
+/// from its `/MK` and `/BS`, a push button one new `/AP /N`, and foreign `/D`
+/// (down) and `/R` (rollover) states are dropped.
+/// [`WidgetEditOutcome::foreign_appearance_replaced`](super::WidgetEditOutcome::foreign_appearance_replaced)
+/// reports it. A check box whose `/AP /N` names more than one on state is
+/// never replaced. Kept artwork is reported as
+/// [`AppearanceOutcome::RecordedNotPainted`](super::AppearanceOutcome::RecordedNotPainted).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum ForeignAppearance {
+    /// Never replace foreign artwork; the edit is recorded in `/MK` only.
+    Keep,
+    /// Replace a foreign push button when the edit sets or clears its icon
+    /// or sets its caption position: viewers paint `/AP`, not `/MK /I`, so
+    /// an icon kept out of the appearance never shows. Other edits keep
+    /// foreign artwork, which pdfcer's plain style would otherwise discard.
+    #[default]
+    ReplaceOnIconEdit,
+    /// Replace foreign artwork whenever the edit needs a redraw.
+    Replace,
+}
+
+impl ForeignAppearance {
+    /// Whether an edit that does (`touches_icon`) or does not touch the
+    /// icon layout replaces foreign artwork.
+    pub(super) const fn replaces(self, touches_icon: bool) -> bool {
+        match self {
+            Self::Keep => false,
+            Self::ReplaceOnIconEdit => touches_icon,
+            Self::Replace => true,
+        }
+    }
+}
 
 /// What pass 2 of `regen_button_appearance` does with one widget.
 pub(super) enum ButtonSlot {

@@ -129,6 +129,7 @@ mod content_mark;
 mod decoration_refresh;
 mod emf;
 mod foreign_button;
+pub use foreign_button::ForeignAppearance;
 mod image_stamp;
 mod page_artwork;
 #[cfg(feature = "svg-import")]
@@ -20858,7 +20859,7 @@ enum Redraw {
     /// New appearance streams were written.
     Rebuilt,
     /// New appearance streams were written in place of artwork another
-    /// producer drew (`WidgetEdit::replace_foreign_appearance`).
+    /// producer drew (`WidgetEdit::foreign_appearance`).
     Replaced,
     /// A button's redraw matched its existing artwork byte for byte, so
     /// nothing was written.
@@ -21877,7 +21878,7 @@ struct PendingWidgetEdit {
     /// `None` = this command is not touching either colour, and the redraw
     /// reads the widget's own. `Pass 308.0`.
     chrome: Option<annot_author::WidgetChrome>,
-    /// `WidgetEdit::replace_foreign_appearance`: a foreign check box or radio
+    /// `WidgetEdit::foreign_appearance`: a foreign check box or radio
     /// button's artwork may be replaced with pdfcer's.
     replace_foreign: bool,
     /// A push button's icon as this command leaves it; `Some(None)` = no
@@ -25561,19 +25562,11 @@ pub struct WidgetEdit {
     ///   behaviour change**: this verb used to proceed and disclose. See
     ///   [`EditSession::edit_widget`]'s own documentation for the argument.
     pub resize: ResizeOptions,
-    /// Replace a check box's or radio button's appearance that another
-    /// producer drew, when this edit needs it redrawn. Default `false`.
-    ///
-    /// By default pdfcer redraws only button artwork it drew itself, and
-    /// keeps foreign artwork with [`AppearanceOutcome::RecordedNotPainted`].
-    /// With this set, a foreign check box or radio button gets pdfcer's own
-    /// on and off states drawn from its `/MK` and `/BS`. Its `/AP` is
-    /// replaced whole, so foreign `/D` (down) and `/R` (rollover) states go
-    /// with it. [`WidgetEditOutcome::foreign_appearance_replaced`] reports
-    /// that it happened. A push button's single `/AP /N` is replaced the same
-    /// way. A check box whose `/AP` `/N` names more than one on state is
-    /// still not redrawn.
-    pub replace_foreign_appearance: bool,
+    /// Whether this edit may replace a button's appearance that another
+    /// producer drew. Default [`ForeignAppearance::ReplaceOnIconEdit`]: an
+    /// icon or caption-position edit redraws a foreign push button, any other
+    /// edit keeps foreign artwork. See [`ForeignAppearance`].
+    pub foreign_appearance: ForeignAppearance,
     /// A push button's icon, `/MK /I` (ISO 32000-1 §12.5.6.19 Table 189):
     /// set from an image, or cleared. `None` leaves whatever icon the
     /// widget has, including another producer's. See
@@ -25982,19 +25975,25 @@ impl WidgetEdit {
         self
     }
 
-    /// Allow a redraw to replace a check box's or radio button's foreign
-    /// artwork. See [`Self::replace_foreign_appearance`].
+    /// Set when this edit may replace a button's foreign artwork. See
+    /// [`Self::foreign_appearance`].
     ///
     /// ```
-    /// use pdfcer_core::edit::WidgetEdit;
-    /// let edit = WidgetEdit::new().with_replace_foreign_appearance(true);
-    /// assert!(edit.replace_foreign_appearance);
-    /// assert!(!WidgetEdit::new().replace_foreign_appearance, "off by default");
+    /// use pdfcer_core::edit::{ForeignAppearance, WidgetEdit};
+    /// let edit = WidgetEdit::new().with_foreign_appearance(ForeignAppearance::Replace);
+    /// assert_eq!(edit.foreign_appearance, ForeignAppearance::Replace);
+    /// assert_eq!(WidgetEdit::new().foreign_appearance, ForeignAppearance::ReplaceOnIconEdit);
     /// ```
     #[must_use]
-    pub const fn with_replace_foreign_appearance(mut self, replace: bool) -> Self {
-        self.replace_foreign_appearance = replace;
+    pub const fn with_foreign_appearance(mut self, policy: ForeignAppearance) -> Self {
+        self.foreign_appearance = policy;
         self
+    }
+
+    /// Whether this edit, under its [`ForeignAppearance`], replaces foreign
+    /// button artwork it needs redrawn.
+    pub(super) const fn replaces_foreign(&self) -> bool {
+        self.foreign_appearance.replaces(self.touches_button_icon())
     }
 }
 
@@ -26275,7 +26274,7 @@ pub struct WidgetEditOutcome {
     /// What the redrawn appearance decided (rule 4).
     pub layout: LayoutDisclosure,
     /// The redraw **replaced artwork another producer drew** with pdfcer's
-    /// own, under [`WidgetEdit::replace_foreign_appearance`]. Only ever true
+    /// own, under [`WidgetEdit::foreign_appearance`]. Only ever true
     /// alongside [`AppearanceOutcome::Regenerated`]; owed a disclosure,
     /// because the widget no longer looks the way its producer drew it.
     pub foreign_appearance_replaced: bool,
@@ -29610,7 +29609,7 @@ impl EditSession {
             rect: rect_after,
             caption: edit.caption.clone(),
             chrome: Some(chrome_after),
-            replace_foreign: edit.replace_foreign_appearance,
+            replace_foreign: edit.replaces_foreign(),
             icon: staged_icon,
         };
 
@@ -44657,9 +44656,9 @@ impl EditSession {
                 "a signed signature field's appearance, which belongs to its signer and which \
                  pdfcer does not redraw"
             }
-            Some(forms::FieldType::Button) if edit.replace_foreign_appearance => {
+            Some(forms::FieldType::Button) if edit.replaces_foreign() => {
                 "this button's artwork, which pdfcer did not draw and could not replace \
-                 (replace_foreign_appearance covers a push button, and a check box or radio \
+                 (foreign_appearance covers a push button, and a check box or radio \
                  button whose /AP /N names exactly one on state)"
             }
             Some(forms::FieldType::Button) => {

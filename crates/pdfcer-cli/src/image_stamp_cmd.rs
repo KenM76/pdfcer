@@ -22,6 +22,30 @@ pub(crate) enum CaptionPositionArg {
     Overlaid,
 }
 
+/// `--foreign-appearance`: when a widget edit may replace button artwork
+/// another producer drew (`pdfcer_core::edit::ForeignAppearance`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ForeignAppearanceArg {
+    /// Never replace it; the edit is recorded but not painted.
+    Keep,
+    /// Replace a push button's when the edit changes its icon or caption
+    /// position; keep it for every other edit.
+    #[default]
+    OnIconEdit,
+    /// Replace it whenever the edit needs a redraw.
+    Replace,
+}
+
+impl From<ForeignAppearanceArg> for pdfcer_core::edit::ForeignAppearance {
+    fn from(v: ForeignAppearanceArg) -> Self {
+        match v {
+            ForeignAppearanceArg::Keep => Self::Keep,
+            ForeignAppearanceArg::OnIconEdit => Self::ReplaceOnIconEdit,
+            ForeignAppearanceArg::Replace => Self::Replace,
+        }
+    }
+}
+
 impl CaptionPositionArg {
     const fn position(self) -> CaptionPosition {
         match self {

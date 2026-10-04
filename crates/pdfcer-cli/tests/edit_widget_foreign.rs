@@ -1,4 +1,4 @@
-//! `edit-widget --replace-foreign-appearance`: a check box whose artwork
+//! `edit-widget --foreign-appearance`: a check box whose artwork
 //! another producer drew is redrawn only when asked, and the run says so.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -88,7 +88,7 @@ fn remove_border(extra: &[&str]) -> (Output, String, String) {
 
 #[test]
 fn the_flag_replaces_and_discloses() {
-    let (r, out, err) = remove_border(&["--replace-foreign-appearance"]);
+    let (r, out, err) = remove_border(&["--foreign-appearance", "replace"]);
     assert_eq!(r.status.code(), Some(0), "{out}{err}");
     assert!(out.contains("regenerated=1"), "{out}");
     assert!(out.contains("foreign_replaced=1"), "{out}");
