@@ -4,6 +4,48 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (931st filing) — `Pass 465.0` shipped; decision 189
+
+**Shipped:**
+- `Pass 465.0` (`58992c0ecd3e778f27d350860e1a2f91140a80c9`) — answers
+  `pdfcer-gui` request `G108` ("`with_button_icon` on another
+  producer's push button applies and shows nothing"):
+  `WidgetEdit::replace_foreign_appearance: bool` is replaced by
+  `foreign_appearance: ForeignAppearance` (`#[non_exhaustive]`, `Keep`/
+  `ReplaceOnIconEdit` default/`Replace`), builder
+  `with_foreign_appearance`. Under the default, an icon or caption-
+  position edit on a foreign push button now replaces its whole `/AP`
+  (foreign `/D`/`/R` dropped, disclosed via
+  `foreign_appearance_replaced`); every other `/MK` edit still keeps
+  foreign artwork. Pre-release, no shim. CLI
+  `--foreign-appearance keep|on-icon-edit|replace`. 3 new core tests,
+  3 sabotages caught, no manifest change. `FEATURES.md`'s push-button
+  icon row (core `[x]`/cli `[x]`/gui `[ ]`, unchanged) extended in
+  place.
+
+**Decisions made this session:**
+- Decision 189 (`ARCHITECTURE.md` §12) — an icon edit on a foreign
+  push button replaces its artwork by default, because viewers paint
+  `/AP` not `/MK /I` so the old record-only default made the edit
+  invisible; every other `/MK` edit keeps the old default since
+  pdfcer's plain plate would otherwise discard design the operator
+  never asked to touch. Flags decision 185's own body text (§12, line
+  ~12854-12855, *"replaced only under the existing
+  `replace_foreign_appearance` opt-in"*) as now stale and owing a
+  forward pointer — not actioned this filing (scope is `ROADMAP.md`/
+  `FEATURES.md`/`SESSION_LOG.md`/decision log only).
+
+**Findings + decisions:** none new.
+
+**Still in flight:** unchanged from the 930th filing below.
+
+**For next session:** next free decision `190`, standing rule `R263`,
+operator question `(ck)`, Pass `466.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+test counts and gate results relayed from the dispatching engineer's
+report, not independently re-verified.
+
 ## 2026-10-03 (930th filing) — `Pass 463.0`/`Pass 464.0` shipped
 
 **Shipped:**

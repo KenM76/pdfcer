@@ -115,6 +115,48 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 465.0` — a foreign push button's icon edit now replaces its artwork by default (`G108`) — SHIPPED `58992c0ecd3e778f27d350860e1a2f91140a80c9`
+
+Answers `pdfcer-gui` request `G108` ("`with_button_icon` on another
+producer's push button applies and shows nothing").
+
+**Shipped.** `WidgetEdit::replace_foreign_appearance: bool` (default
+`false`) is replaced by `foreign_appearance: ForeignAppearance` — a new
+`#[non_exhaustive]` enum in `pdfcer_core::edit` (`Keep`,
+`ReplaceOnIconEdit` **default**, `Replace`), builder
+`with_foreign_appearance` replacing `with_replace_foreign_appearance`.
+Pre-release, no back-compat shim. Under the default,
+`with_button_icon`/`without_button_icon`/`with_caption_position` on a
+foreign push button now replace its whole `/AP` (foreign `/D`/`/R`
+dropped, reported via `foreign_appearance_replaced`); every other `/MK`
+edit (caption, background, border colour, border, resize) still keeps
+foreign artwork by default, unchanged from decision 185. `Keep` = old
+record-only default; `Replace` = old `true`.
+
+**Why.** Viewers paint `/AP`, not `/MK /I` — the old default let an
+icon/caption-position edit on a foreign widget change nothing a viewer
+would ever show. Decision 189.
+
+**CLI.** `edit-widget --replace-foreign-appearance` →
+`--foreign-appearance keep|on-icon-edit|replace` (default
+`on-icon-edit`).
+
+**Tests.** 3 new core tests (default icon edit replaces; default
+caption-position edit replaces; `Keep` leaves `/AP` byte-identical-by-
+reference and still records `/MK /I`); existing opt-in tests moved to
+`Replace`; CLI test updated. 3 sabotages caught. No manifest change,
+`cargo tree` unchanged. `docs/core-api/02` updated.
+
+**Invariant checks.** GUI-core separation unaffected (no manifest
+change). Round-trip: `Keep` unchanged from decision 185;
+`ReplaceOnIconEdit`/`Replace` intentionally rewrite `/AP` as a
+disclosed, non-minimal-diff edit (fuzzy-never-sneaky, same class as
+decision 185's existing opt-in, not the round-trip default).
+
+**`FEATURES.md`.** Push-button icon row (*Forms (AcroForm)*):
+`core [x]` / `cli [x]` / `gui [ ]` unchanged; sentence extended in
+place to record the new default and CLI flag.
+
 ### `Pass 464.0` — lite CLI build passes clippy; CI gains a `--no-default-features` clippy step — SHIPPED `56ed6c81`
 
 Fix-on-discovery, found while shipping `Pass 463.0` below: the lite CLI
@@ -18525,6 +18567,14 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 465.0` SHIPPED, 2026-10-04 (931st filing),
+> `58992c0e`** — see *Shipped*, above. Answers `pdfcer-gui` request
+> `G108`: a foreign push button's icon/caption-position edit now
+> replaces its whole `/AP` by default
+> (`ForeignAppearance::ReplaceOnIconEdit`, decision 189), not only
+> under an explicit opt-in; every other `/MK` edit still keeps foreign
+> artwork. `gui [ ]` not wired.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 464.0` SHIPPED, 2026-10-03 (930th filing),
 > `56ed6c81`** — see *Shipped*, above. Fix-on-discovery while shipping

@@ -13145,3 +13145,62 @@ decision `189`.
 **New standing rule.** None — `R263` stays next free; `R73`/`R259`/
 `R107`/`R260` already cover disclosure-not-corruption and
 copy-never-modify.
+
+### 2026-10-04 (931st filing, KenAgent) — decision 189: an icon edit on a foreign push button replaces its artwork by default
+
+**Trigger.** `pdfcer-gui` request `G108` ("`with_button_icon` on
+another producer's push button applies and shows nothing"), filed as
+`Pass 465.0` (931st filing).
+
+**What this decides.** `WidgetEdit::replace_foreign_appearance: bool`
+(default `false`) is replaced by `foreign_appearance:
+ForeignAppearance` — a new `#[non_exhaustive]` enum in
+`pdfcer_core::edit` with three states, `Keep` (old record-only
+default), `ReplaceOnIconEdit` (new default), `Replace` (old `true`) —
+builder `with_foreign_appearance` replacing
+`with_replace_foreign_appearance`. Pre-release; no back-compat shim.
+Under the default, `with_button_icon`/`without_button_icon`/
+`with_caption_position` on a foreign push button now replace its
+whole `/AP` (foreign `/D`/`/R` dropped, reported via
+`foreign_appearance_replaced`); every other `/MK` edit (caption,
+background, border colour, border, resize) still keeps foreign
+artwork by default, unchanged from decision 185.
+
+**Why.** Viewers paint `/AP`, not `/MK /I` — so an icon or caption-
+position edit that kept foreign artwork under the old default changed
+nothing a viewer would ever show, which is exactly `G108`'s report. An
+icon/caption-position change *means* new artwork; minimal-diff does
+not argue against redrawing it. Other `/MK` edits keep foreign artwork
+because pdfcer's plain plate would otherwise discard design the
+operator never asked to touch.
+
+**Rejected.** (A) Docs only (document the trap) — `pdfcer-gui` already
+overrides the old default by forcing `true`, so documentation alone
+leaves every other caller (including the CLI's prior default) stuck
+with an invisible icon edit. (B) Always-replace, no opt-out — deletes
+a defensible, already-shipped behaviour (`Keep`) with no replacement
+for a caller who genuinely wants record-only. (C) `Option<bool>` —
+unnamed states; the "two defensible answers → a setting, pick the
+default" rule (decision 185's own `replace_foreign_appearance`
+precedent) calls for a named enum once a third state
+(`ReplaceOnIconEdit`) is real rather than theoretical.
+
+**Risk.** Foreign `/D` and `/R` are lost on replacement; pdfcer
+drawing its own `/D` instead of an authored one is possible future
+work, not resolved here.
+
+**Consulted via autonomous-builder.**
+
+**Body-section effect.** None edited by this filing (librarian scope
+this session is `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/this
+decision log only). **Owed, and actively stale, not merely
+unupdated:** decision 185's own body text above (line ~12854-12855)
+reads *"A foreign push-button `/AP` is replaced only under the
+existing `replace_foreign_appearance` opt-in"* — now wrong under the
+new default and owing a forward pointer to this decision; flagged,
+not actioned, here.
+
+**Decision ceiling.** Fills `189`; ceiling `188` → `189`. Next free
+decision `190`.
+
+**New standing rule.** None — `R263` stays next free.
