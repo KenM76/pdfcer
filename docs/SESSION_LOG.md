@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (928th filing) — decision 188; `Pass 455.1` rescoped; `Pass 455.2` minted (scoping only, no code)
+
+**Shipped:** none — this filing is pure scoping, no commit.
+
+**Decisions made this session:**
+- Decision 188 (ARCHITECTURE.md §12): the Tagged-PDF `TextDecorationType`
+  structure attribute (`Pass 455.1`) is written on the covered structure
+  element itself, copy-on-write into a direct `/O /Layout` dict, **only
+  when the decoration covers every text content item of that element and
+  its nested inline descendants.** Partial coverage is disclosed, not
+  split. Ruled via autonomous-builder consult (option D of four).
+
+**Findings + decisions:**
+- The element-splitting case (new `/Span`, new MCIDs, `/K`/`/ParentTree`
+  writes) that decision 188 declines for `455.1` is exactly the general
+  structure-tree writer `FF-I` (Backlog) already warns against building
+  piecemeal for one caller — minted as `Pass 455.2`, gated on `FF-I`, not
+  standalone.
+- Librarian note: the dispatch referred to the gating item as "FF-H";
+  FF-H itself is COMPLETE/retired (decision 019). The actual open
+  Backlog item is **FF-I** — the StructTree/`/ActualText` piece decision
+  019 §3.7 cut from FF-H's original bundle. `Pass 455.2` is filed gated
+  on FF-I; flagging the naming here rather than silently diverging from
+  the dispatch's wording.
+
+**Still in flight:** `Pass 455.1` still *Next up*, narrowed scope above;
+`Pass 455.2` filed to Backlog, no acceptance criteria until FF-I is
+picked up. Everything else unchanged from the 927th filing below.
+
+**For next session:** unchanged from the 927th filing below. Next free:
+decision `189`, standing rule `R263`, operator question `(ck)`, Pass
+`463.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. No commit hash to
+relay — nothing shipped.
+
 ## 2026-10-03 (927th filing) — `Pass 462.0` gate-miss follow-up
 
 **Shipped:**

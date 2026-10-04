@@ -4507,6 +4507,19 @@ disclosed (`PC-12`).
 (decision 137, owed); the signature appearance composer; `/FieldMDP` lock
 dictionaries; cloud/CSC signing (covered by the trait, unscheduled).
 
+**Forward pointer — a derived structure attribute is copy-on-write like
+every other write this section governs (decision 188, 2026-10-03,
+scoping only, `Pass 455.1` unshipped).** Recording Tagged-PDF
+`TextDecorationType` (ISO 32000-1 §14.8.5.4.4 Table 345) on a structure
+element never mutates an indirect `/O /Layout` attribute object — it
+merges into a direct dict on the element or appends one, the same
+merge-or-append-never-mutate shape `R259`/`R107`/`R260` already require
+of font-program and page-content writes. The attribute is *derived*
+from decoration markers the way the underline/strikethrough rule
+rectangle is, so it is recomputed, not merely preserved, on every later
+edit touching the covered text — the same "re-run, don't just carry
+forward" discipline Pass 455.0's own rule-rectangle refresh established.
+
 ## 6. Packaging: single-folder portable
 
 - **Platform scope (decided 2026-07-30, decision 003 §4.1 — no longer
@@ -13073,3 +13086,62 @@ decision `188`.
 
 **New standing rule.** None — `R259`/`R107`/`R260` already cover the
 copy-never-modify discipline this decision extends.
+
+### 2026-10-03 (928th filing, scoping only, KenAgent) — decision 188: `TextDecorationType` is written on the covered structure element only when coverage is total
+
+**Scopes.** `Pass 455.1` (deferred half of `Pass 455.0`/`G085`), before
+any code ships. Ruled via autonomous-builder consult, confidence high,
+option D of four considered.
+
+**What this decides.** `Pass 455.1` records the Tagged-PDF
+`TextDecorationType` attribute (ISO 32000-1 §14.8.5.4.4 Table 345, owner
+`/O /Layout`; 32000-2 Table 380) on a structure element `E` **only when
+the decoration covers every text content item of `E` and of its nested
+inline (ILSE, any depth — never a nested BLSE) descendants, across
+every page `E` spans.** A content item pdfcer cannot inspect (e.g. an
+MCR into a form XObject) counts as not covered, forcing disclosure.
+Partial coverage, untagged runs, and the second of two co-located lines
+(the attribute is single-valued — `LineThrough` wins over `Underline`,
+per UA-2 §8.2.2 Example 4) are **disclosed, never split** — splitting a
+partially-covered element into a new child `/Span` is a separate,
+gated case (`Pass 455.2`, Backlog, see below).
+
+**Guardrails, binding on the implementation.** (1) Copy-on-write: never
+mutate an indirect `/O /Layout` attribute object — merge the key into a
+direct dict on `E` if one exists, else append a new direct dict,
+honouring `/A` revision numbers (`R259`/`R107`/`R260`). The only PDF
+object this Pass ever changes is `E`'s own attribute entry; undo
+restores `E`'s `/A` verbatim. (2) The attribute is **derived** from the
+decoration markers, the same way the underline/strikethrough rule
+rectangle is (`Pass 455.0`) — every later text edit re-runs coverage:
+removing a key pdfcer wrote if coverage no longer holds, disclosing
+rather than silently leaving an author-written key that now over-claims.
+(3) The rule rectangle itself stays in `/Artifact` on tagged pages
+(`Pass 455.0`, unaffected).
+
+**Rejected.** (A) Element splitting — new MCIDs, `/K` and
+`/ParentTree` writes on every partial match. This is the general
+structure-tree writer decision 019 §3.7 cut from FF-H and re-filed as
+its own Backlog item, **FF-I** (minimal StructTree/`/ActualText`
+update on tagged-page text edits) — building a piece of it backwards,
+for this one caller, is the exact "partial structure-tree writer worse
+than none" failure FF-I's own filed rationale warns against (`R73`
+risk: looks tagged-and-consistent, silently drifts). (C) Disclosure
+only, no write — rejected because it leaves a correct, single-object
+write undone; parity with Acrobat/PAC is a floor (per-user memory:
+exceed the reference when the cost is this low), not a target.
+
+**Spec source.** `D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__ref__text_decoration.md`
+(`TD-0`, `TD-1a`, `TD-1b`).
+
+**`Pass 455.2` (new, Backlog, gated on FF-I).** The element-splitting
+case this decision defers: a decoration covering only part of a tagged
+element gets the attribute via a new child `/Span`. Not standalone — no
+acceptance criteria until FF-I is picked up.
+
+**Decision ceiling.** Fills `188`; ceiling `187` → `188`. Next free
+decision `189`.
+
+**New standing rule.** None — `R263` stays next free; `R73`/`R259`/
+`R107`/`R260` already cover disclosure-not-corruption and
+copy-never-modify.

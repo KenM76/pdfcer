@@ -18447,10 +18447,16 @@ closes out the *prior* filing's business rather than opening this one's.
 > `refresh_decorations(page)` recompute inside every text-editing verb's
 > undo entry, instead of staying behind as orphaned page content.
 > `format-text --underline`/`--strikethrough`/`--no-decoration`.
-> `gui [ ]` not wired. **`Pass 455.1`**, deferred on `455.0`: the
-> Tagged-PDF `TextDecorationType` structure attribute (ISO 32000-1
-> §14.8.5.4.4 Table 345; 32000-2 Table 380) on a child `/Span`, still
-> *Next up*. Spec note (PDF has no native decoration operator):
+> `gui [ ]` not wired. **`Pass 455.1`**, deferred on `455.0`, **RESCOPED
+> by decision 188 (2026-10-03, 928th filing):** the Tagged-PDF
+> `TextDecorationType` structure attribute (ISO 32000-1 §14.8.5.4.4 Table
+> 345, owner `/O /Layout`; 32000-2 Table 380) is written on the
+> structure element `E` itself (copy-on-write into a direct `/O /Layout`
+> dict) **only when the decoration covers every text content item of `E`
+> and its nested inline descendants**, across pages; partial coverage is
+> disclosed, not split. The split-a-child-`/Span` case is now `Pass
+> 455.2` (Backlog, gated on FF-I). Still *Next up*. Spec note (PDF has no
+> native decoration operator):
 > `D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__ref__text_decoration.md`.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 454.0` SHIPPED, 2026-10-03 (914th filing),
@@ -38976,6 +38982,18 @@ pdfcer's own; the composed appearance has an Acrobat analogue).
   so the gap isn't silently dropped, not to pre-scope the eventual
   Pass. See the ★ Pass 19.x entry (Next up) for the full context this
   cut sits inside.
+
+- **`Pass 455.2`** — Tagged-PDF `TextDecorationType` (ISO 32000-1
+  §14.8.5.4.4 Table 345) on a decoration that covers only PART of a
+  tagged structure element's text: split the covered run into a new
+  child `/Span` carrying the attribute (new MCIDs, `/K` and
+  `/ParentTree` writes), instead of disclosing and leaving the parent
+  element's attribute unwritten (the full-coverage case, `Pass 455.1`,
+  only ever writes the existing element — decision 188). **Gated on
+  FF-I, above** — this is exactly the general structure-tree writer
+  FF-I's own rationale warns against building piecemeal for one caller;
+  not standalone, no acceptance criteria until FF-I is picked up. Filed
+  2026-10-03 (928th filing, decision 188).
 
 - **★ FOREIGN ORACLES FOR EVERY OUTPUT SURFACE — the honest consequence of
   the correlated-blindness finding, filed 2026-08-07 (sixteenth filing) as a
