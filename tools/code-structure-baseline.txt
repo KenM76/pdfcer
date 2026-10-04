@@ -19,7 +19,6 @@ file pdfcer-cli/src/dimension.rs
 file pdfcer-cli/src/dispatch.rs
 file pdfcer-cli/src/extract.rs
 file pdfcer-cli/src/field_edit.rs
-file pdfcer-cli/src/fonts.rs
 file pdfcer-cli/src/listing.rs
 file pdfcer-cli/src/navigation.rs
 file pdfcer-cli/src/objects.rs

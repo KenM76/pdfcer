@@ -591,6 +591,8 @@ mod fallback_font;
 mod fonts;
 mod settings;
 use fonts::*;
+mod font_notice;
+use font_notice::*;
 mod security;
 use security::*;
 mod annot_parse;

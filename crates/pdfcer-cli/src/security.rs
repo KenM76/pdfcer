@@ -499,3 +499,8 @@ pub(crate) fn cmd_list_redactions(input: &Path) -> u8 {
     }
     exit::SUCCESS
 }
+
+/// The permissions notice printed by every encryption subcommand, verbatim
+/// (rule 4, criterion 9 — the same wording sent to `pdfceGUI` and carried by
+/// [`pdfcer_core::edit::EncryptionSettings::PERMISSIONS_DISCLOSURE`]).
+pub(crate) const PERMISSIONS_NOTICE: &str = "PDF permissions are a request, not a lock. A conforming reader honours them; any program that ignores the flag can print, copy or change this document freely. Only the password protects the content -- and only the user password, which controls opening it.";
