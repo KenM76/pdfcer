@@ -281,6 +281,75 @@ pub(crate) fn cmd_export_structure(input: &Path, output: &Path) -> u8 {
     exit::SUCCESS
 }
 
+fn print_import_report(report: &pdfcer_core::editable::ImportReport) {
+    use pdfcer_core::editable::ExportBase;
+    let base = match report.base {
+        ExportBase::Matches => "matches",
+        ExportBase::Differs => "differs",
+        _ => "unrecorded",
+    };
+    println!(
+        "modified={} added={} removed={} unchanged={} streams_matched_after_decode={} base={base}",
+        report.modified.len(),
+        report.added.len(),
+        report.removed.len(),
+        report.unchanged,
+        report.streams_matched_after_decode
+    );
+    for id in &report.modified {
+        println!("  modified {id}");
+    }
+    for id in &report.added {
+        println!("  added    {id}");
+    }
+    for id in &report.removed {
+        println!("  removed  {id}");
+    }
+}
+
+/// The exit code that refuses this import, or `None` to proceed.
+///
+/// A stale export (`base=differs`) would revert every edit made to the
+/// original since it was exported, so it is refused unless the operator
+/// passes `--allow-stale-base`. An enforced certification refuses as
+/// `EditSession::check_certification` does for every edit (§12.8.4 Table
+/// 258): an arbitrary object import is at least as broad as any session edit.
+fn refuse_import(
+    input: &Path,
+    original: &pdfcer_core::document::Document,
+    report: &pdfcer_core::editable::ImportReport,
+    allow_stale_base: bool,
+) -> Option<u8> {
+    use pdfcer_core::editable::ExportBase;
+    match report.base {
+        ExportBase::Differs if !allow_stale_base => {
+            eprintln!(
+                "pdfcer: {}: refused: the edited export was taken from a different state of this file, so compiling it would revert every change made since the export (pass --allow-stale-base to compile it anyway)",
+                input.display()
+            );
+            return Some(exit::EDIT_REFUSED);
+        }
+        ExportBase::Differs => eprintln!(
+            "pdfcer: {}: warning: the edited export was taken from a different state of this file; changes made since the export are reverted (--allow-stale-base)",
+            input.display()
+        ),
+        ExportBase::Matches => {}
+        _ => eprintln!(
+            "pdfcer: note: the edited export records no base (made before pdfcer recorded one, or its PdfcerExportBase line was removed), so it cannot be checked for staleness"
+        ),
+    }
+    let census = pdfcer_core::signature::census(original);
+    if census.forbids_structural_change() && !report.is_empty() {
+        eprintln!(
+            "pdfcer: {}: refused: the document carries an enforced certification signature (DocMDP P={}) that forbids changes (ISO 32000-1 section 12.8.4)",
+            input.display(),
+            census.certification_permission.unwrap_or(2)
+        );
+        return Some(exit::EDIT_REFUSED);
+    }
+    None
+}
+
 /// **Compile an edited export back**, appending only what changed
 /// (`Pass 194.0`).
 ///
@@ -293,6 +362,7 @@ pub(crate) fn cmd_import_structure(
     output: &Path,
     full: bool,
     dry_run: bool,
+    allow_stale_base: bool,
 ) -> u8 {
     let original = match open_document(input) {
         Ok(doc) => doc,
@@ -309,34 +379,9 @@ pub(crate) fn cmd_import_structure(
         }
     };
     let (dirty, report) = pdfcer_core::editable::import(&original, &edited);
-    println!(
-        "modified={} added={} removed={} unchanged={} streams_matched_after_decode={}",
-        report.modified.len(),
-        report.added.len(),
-        report.removed.len(),
-        report.unchanged,
-        report.streams_matched_after_decode
-    );
-    for id in &report.modified {
-        println!("  modified {id}");
-    }
-    for id in &report.added {
-        println!("  added    {id}");
-    }
-    for id in &report.removed {
-        println!("  removed  {id}");
-    }
-    // The refusal `EditSession::check_certification` applies to every edit:
-    // an enforced certification (§12.8.4 Table 258) forbids changes, and an
-    // arbitrary object import is at least as broad as any session edit.
-    let census = pdfcer_core::signature::census(&original);
-    if census.forbids_structural_change() && !report.is_empty() {
-        eprintln!(
-            "pdfcer: {}: refused: the document carries an enforced certification signature (DocMDP P={}) that forbids changes (ISO 32000-1 section 12.8.4)",
-            input.display(),
-            census.certification_permission.unwrap_or(2)
-        );
-        return exit::EDIT_REFUSED;
+    print_import_report(&report);
+    if let Some(code) = refuse_import(input, &original, &report, allow_stale_base) {
+        return code;
     }
     if dry_run {
         println!("dry-run: nothing written");

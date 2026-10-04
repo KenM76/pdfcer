@@ -224,7 +224,6 @@ fn pdfcer-cli/src/sign.rs::cmd_sign
 fn pdfcer-cli/src/sign.rs::cmd_timestamp
 fn pdfcer-cli/src/sign.rs::report_assemble
 fn pdfcer-cli/src/stamp.rs::cmd_stamp_pack
-fn pdfcer-cli/src/structure.rs::cmd_import_structure
 fn pdfcer-cli/src/structure.rs::cmd_list_objects
 fn pdfcer-cli/src/text_edit.rs::cmd_add_text
 fn pdfcer-cli/src/text_edit.rs::cmd_edit_text
@@ -382,8 +381,6 @@ fn pdfcer-core/src/edit.rs::unshare_form
 fn pdfcer-core/src/edit.rs::vector_surgery_inner
 fn pdfcer-core/src/edit.rs::vertex_edited_kind
 fn pdfcer-core/src/edit.rs::write_markup_note
-fn pdfcer-core/src/editable.rs::export
-fn pdfcer-core/src/editable.rs::import
 fn pdfcer-core/src/export/docx.rs::table_xml
 fn pdfcer-core/src/export/dxf.rs::tables
 fn pdfcer-core/src/export/ods.rs::sheet

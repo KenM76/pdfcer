@@ -127,6 +127,7 @@ mod button_icon;
 mod checkpoint;
 mod content_mark;
 mod decoration_refresh;
+mod editable_source;
 mod emf;
 mod foreign_button;
 pub use foreign_button::ForeignAppearance;
@@ -1241,6 +1242,9 @@ pub enum CommandKind {
         /// How many fonts gained an embedded program.
         count: usize,
     },
+    /// A hand-edited export was compiled back into the session
+    /// ([`EditSession::import_editable`]).
+    ImportEditable,
 }
 
 /// Which geometric-markup subtype [`EditSession::add_markup`] authored,

@@ -5287,6 +5287,13 @@ pub(crate) enum Command {
         /// Report what would change and write nothing.
         #[arg(long)]
         dry_run: bool,
+        /// Compile an export taken from a different state of INPUT.
+        ///
+        /// Every export records a fingerprint of the content it was taken
+        /// from. When INPUT has changed since, compiling the old export would
+        /// revert those changes, so it is refused unless this is passed.
+        #[arg(long)]
+        allow_stale_base: bool,
     },
 
     /// **Inventory every object, and report the file's physical layout.**

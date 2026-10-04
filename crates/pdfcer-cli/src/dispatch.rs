@@ -1148,7 +1148,8 @@ pub(crate) fn run() -> ExitCode {
             output,
             full,
             dry_run,
-        } => cmd_import_structure(&input, &edited, &output, full, dry_run),
+            allow_stale_base,
+        } => cmd_import_structure(&input, &edited, &output, full, dry_run, allow_stale_base),
         Command::ListFields {
             input,
             fillable_only,

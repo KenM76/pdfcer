@@ -82,6 +82,12 @@ use crate::object::{Dict, Name, ObjId, Object};
 use crate::writer::{DirtySet, serialize};
 use std::collections::BTreeMap;
 
+mod fingerprint;
+mod source;
+
+pub use fingerprint::{Fingerprint, fingerprint, recorded_base};
+pub use source::EditableSource;
+
 /// Why an export or import could not be performed.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
@@ -137,6 +143,9 @@ pub struct ImportReport {
     /// byte equality and the incremental update is about to contain the whole
     /// file.
     pub streams_matched_after_decode: usize,
+    /// Whether the export was taken from the state it is compiled into. A
+    /// [`ExportBase::Differs`] import reverts every edit made since.
+    pub base: ExportBase,
 }
 
 impl ImportReport {
@@ -147,6 +156,23 @@ impl ImportReport {
     }
 }
 
+/// Whether an edited export was taken from the state it is compiled into
+/// ([`ImportReport::base`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum ExportBase {
+    /// The export records the original's current [`fingerprint`].
+    Matches,
+    /// The export records a different fingerprint: the original changed after
+    /// the export was taken, so compiling it would revert every object that
+    /// change touched and delete every object it added.
+    Differs,
+    /// The export records no fingerprint (an older export, or its marker line
+    /// was deleted), so staleness cannot be checked.
+    #[default]
+    Unrecorded,
+}
+
 /// Keys that describe **how** a stream is stored rather than **what** it holds.
 ///
 /// Ignored when comparing two streams for semantic equality. `/Length` is here
@@ -154,7 +180,18 @@ impl ImportReport {
 /// bytes, and the encoded bytes are exactly what the export changes.
 const ENCODING_KEYS: [&[u8]; 3] = [b"Filter", b"DecodeParms", b"Length"];
 
-/// Export `doc` as an editable PDF.
+/// The objects an export writes, with stream data decoded into one buffer.
+struct Collected {
+    objects: BTreeMap<ObjId, Object>,
+    payloads: Vec<u8>,
+    undecoded: usize,
+}
+
+/// Export `src` — a [`Document`] or an open [`crate::edit::EditSession`] — as
+/// an editable PDF.
+///
+/// The header carries a `%PdfcerExportBase` comment holding `src`'s
+/// [`fingerprint`], which [`import`] checks ([`ImportReport::base`]).
 ///
 /// # Errors
 ///
@@ -162,83 +199,98 @@ const ENCODING_KEYS: [&[u8]; 3] = [b"Filter", b"DecodeParms", b"Length"];
 /// [`EditableError::NoCatalog`] when there is no `/Root`, and
 /// [`EditableError::StreamOutOfRange`] when a stream's span is not inside the
 /// document's buffer.
-pub fn export(doc: &Document) -> Result<Vec<u8>, EditableError> {
-    if doc.encryption().is_some() {
+pub fn export<S: EditableSource + ?Sized>(src: &S) -> Result<Vec<u8>, EditableError> {
+    if src.is_encrypted() {
         return Err(EditableError::Encrypted);
     }
-    let root = doc
-        .trailer()
-        .get(b"Root")
+    let root = src
+        .trailer_entry(b"Root")
         .and_then(Object::as_reference)
         .ok_or(EditableError::NoCatalog)?;
-
-    // Decode every stream up front, so a failure is reported before any bytes
-    // are written rather than half way through a file.
-    //
-    // A stream that will NOT decode is kept in its original encoded form with
-    // its `/Filter` intact. That is deliberate and is the fail-clean posture
-    // (`ARCHITECTURE.md` §10): a single corrupt stream must not cost the
-    // operator the export of the other nine hundred objects, and silently
-    // emitting an empty stream in its place would destroy data.
-    let mut objects: BTreeMap<ObjId, Object> = BTreeMap::new();
-    let mut payloads: Vec<u8> = Vec::new();
-    let mut undecoded = 0usize;
-    for obj in doc.objects() {
-        match &obj.value {
-            Object::Stream(s) => {
-                let raw = serialize::stream_data(s, doc.bytes())
-                    .ok_or(EditableError::StreamOutOfRange { id: obj.id })?;
-                match crate::filters::decode_stream(&s.dict, raw) {
-                    Ok(data) => {
-                        let mut dict = s.dict.clone();
-                        for k in ENCODING_KEYS {
-                            dict.remove(k);
-                        }
-                        dict.insert(
-                            Name::from(b"Length"),
-                            Object::Integer(i64::try_from(data.len()).unwrap_or(0)),
-                        );
-                        let start = payloads.len();
-                        payloads.extend_from_slice(&data);
-                        objects.insert(
-                            obj.id,
-                            Object::Stream(crate::object::Stream {
-                                dict,
-                                data_span: crate::span::ByteSpan::new(start, data.len()),
-                            }),
-                        );
-                    }
-                    Err(_) => {
-                        undecoded += 1;
-                        let start = payloads.len();
-                        payloads.extend_from_slice(raw);
-                        objects.insert(
-                            obj.id,
-                            Object::Stream(crate::object::Stream {
-                                dict: s.dict.clone(),
-                                data_span: crate::span::ByteSpan::new(start, raw.len()),
-                            }),
-                        );
-                    }
-                }
-            }
-            other => {
-                objects.insert(obj.id, other.clone());
-            }
-        }
+    let collected = collect(src)?;
+    let mut out = Vec::with_capacity(collected.payloads.len() + 4096);
+    write_header(&mut out, src, collected.undecoded);
+    let encoder = crate::writer::encoder::IdentityEncoder;
+    let mut offsets: BTreeMap<u32, usize> = BTreeMap::new();
+    for (id, value) in &collected.objects {
+        offsets.insert(id.num, out.len());
+        serialize::write_indirect(&mut out, *id, value, &collected.payloads, &encoder);
     }
+    let info = match src.trailer_entry(b"Info") {
+        Some(Object::Reference(info)) => Some(*info),
+        _ => None,
+    };
+    write_xref_and_trailer(&mut out, &offsets, root, info);
+    Ok(out)
+}
 
-    let mut out = Vec::with_capacity(doc.bytes().len() * 2);
+/// Decode every stream up front, so a failure is reported before any bytes
+/// are written rather than half way through a file.
+///
+/// A stream that will NOT decode is kept in its original encoded form with
+/// its `/Filter` intact — the fail-clean posture (`ARCHITECTURE.md` §10): one
+/// corrupt stream must not cost the export of the rest, and emitting an empty
+/// stream in its place would destroy data.
+fn collect<S: EditableSource + ?Sized>(src: &S) -> Result<Collected, EditableError> {
+    let mut c = Collected {
+        objects: BTreeMap::new(),
+        payloads: Vec::new(),
+        undecoded: 0,
+    };
+    for id in src.object_ids() {
+        let Some(value) = src.object(id) else {
+            continue;
+        };
+        let Object::Stream(s) = value else {
+            c.objects.insert(id, value.clone());
+            continue;
+        };
+        let raw = src
+            .stream_bytes(s)
+            .ok_or(EditableError::StreamOutOfRange { id })?;
+        let (dict, data) = match crate::filters::decode_stream(&s.dict, raw) {
+            Ok(data) => {
+                let mut dict = s.dict.clone();
+                for k in ENCODING_KEYS {
+                    dict.remove(k);
+                }
+                dict.insert(
+                    Name::from(b"Length"),
+                    Object::Integer(i64::try_from(data.len()).unwrap_or(0)),
+                );
+                (dict, data)
+            }
+            Err(_) => {
+                c.undecoded += 1;
+                (s.dict.clone(), raw.to_vec())
+            }
+        };
+        let start = c.payloads.len();
+        c.payloads.extend_from_slice(&data);
+        c.objects.insert(
+            id,
+            Object::Stream(crate::object::Stream {
+                dict,
+                data_span: crate::span::ByteSpan::new(start, data.len()),
+            }),
+        );
+    }
+    Ok(c)
+}
+
+fn write_header<S: EditableSource + ?Sized>(out: &mut Vec<u8>, src: &S, undecoded: usize) {
     out.extend_from_slice(b"%PDF-");
-    out.extend_from_slice(doc.version().to_string().as_bytes());
+    out.extend_from_slice(src.pdf_version().to_string().as_bytes());
     out.extend_from_slice(b"\n%\xe2\xe3\xcf\xd3\n");
+    out.extend_from_slice(&fingerprint::marker_line(&fingerprint(src)));
     out.extend_from_slice(
         b"% Editable export produced by pdfcer. Object streams expanded, stream\n\
           % data decoded, cross-reference written as a classic table. This IS a\n\
           % valid PDF and can be opened normally; it is NOT byte-identical to the\n\
           % source and is not meant to be. Edit it, then compile it back with\n\
           % `pdfcer import-structure` to append only what you changed as an\n\
-          % incremental update to the ORIGINAL file.\n",
+          % incremental update to the ORIGINAL file. The PdfcerExportBase line\n\
+          % records the state this was exported from; leave it in place.\n",
     );
     if undecoded > 0 {
         out.extend_from_slice(
@@ -246,20 +298,18 @@ pub fn export(doc: &Document) -> Result<Vec<u8>, EditableError> {
                 .as_bytes(),
         );
     }
+}
 
-    let encoder = crate::writer::encoder::IdentityEncoder;
-    let mut offsets: BTreeMap<u32, usize> = BTreeMap::new();
-    let mut highest = 0u32;
-    for (id, value) in &objects {
-        offsets.insert(id.num, out.len());
-        highest = highest.max(id.num);
-        serialize::write_indirect(&mut out, *id, value, &payloads, &encoder);
-    }
-
-    // A classic table, contiguous from 0, with a free head entry — the most
-    // legible form and the one a reader can check by eye.
+/// A classic table, contiguous from 0, with a free head entry — the most
+/// legible form and the one a reader can check by eye.
+fn write_xref_and_trailer(
+    out: &mut Vec<u8>,
+    offsets: &BTreeMap<u32, usize>,
+    root: ObjId,
+    info: Option<ObjId>,
+) {
     let startxref = out.len();
-    let size = highest + 1;
+    let size = offsets.keys().next_back().map_or(1, |n| n + 1);
     out.extend_from_slice(format!("xref\n0 {size}\n").as_bytes());
     out.extend_from_slice(b"0000000000 65535 f \n");
     for num in 1..size {
@@ -274,13 +324,12 @@ pub fn export(doc: &Document) -> Result<Vec<u8>, EditableError> {
     out.extend_from_slice(size.to_string().as_bytes());
     out.extend_from_slice(b" /Root ");
     out.extend_from_slice(format!("{} {} R", root.num, root.generation).as_bytes());
-    if let Some(Object::Reference(info)) = doc.trailer().get(b"Info") {
+    if let Some(info) = info {
         out.extend_from_slice(format!(" /Info {} {} R", info.num, info.generation).as_bytes());
     }
     out.extend_from_slice(b" >>\nstartxref\n");
     out.extend_from_slice(startxref.to_string().as_bytes());
     out.extend_from_slice(b"\n%%EOF\n");
-    Ok(out)
 }
 
 /// Are two stream objects the same stream, ignoring how they are stored?
@@ -303,12 +352,14 @@ pub fn stream_is_unchanged(
 ) -> Option<bool> {
     let a_raw = serialize::stream_data(a, a_src)?;
     let b_raw = serialize::stream_data(b, b_src)?;
-    let a_data = crate::filters::decode_stream(&a.dict, a_raw).unwrap_or_else(|_| a_raw.to_vec());
-    let b_data = crate::filters::decode_stream(&b.dict, b_raw).unwrap_or_else(|_| b_raw.to_vec());
-    if a_data != b_data {
-        return Some(false);
-    }
-    Some(dicts_match_ignoring_encoding(&a.dict, &b.dict))
+    Some(streams_match(&a.dict, a_raw, &b.dict, b_raw))
+}
+
+/// [`stream_is_unchanged`] on bytes already sliced out.
+fn streams_match(a: &Dict, a_raw: &[u8], b: &Dict, b_raw: &[u8]) -> bool {
+    let a_data = crate::filters::decode_stream(a, a_raw).unwrap_or_else(|_| a_raw.to_vec());
+    let b_data = crate::filters::decode_stream(b, b_raw).unwrap_or_else(|_| b_raw.to_vec());
+    a_data == b_data && dicts_match_ignoring_encoding(a, b)
 }
 
 /// Dictionary equality that ignores the keys describing the encoding.
@@ -327,6 +378,76 @@ fn dicts_match_ignoring_encoding(a: &Dict, b: &Dict) -> bool {
     keep(a) == keep(b)
 }
 
+/// The comparison [`import`] and [`crate::edit::EditSession::import_editable`]
+/// share: the report, and which of `edited`'s objects must be written.
+pub(crate) struct Diff {
+    pub(crate) report: ImportReport,
+    changed: Vec<ObjId>,
+}
+
+impl Diff {
+    /// The objects to write — modified and added — with their values in
+    /// `edited`.
+    pub(crate) fn writes<'e>(
+        &self,
+        edited: &'e Document,
+    ) -> impl Iterator<Item = (ObjId, &'e Object)> + use<'_, 'e> {
+        self.changed
+            .iter()
+            .filter_map(move |&id| edited.get(id).map(|o| (id, &o.value)))
+    }
+}
+
+/// Diff `edited` against `original`, and check the base `edited` records.
+pub(crate) fn diff<S: EditableSource + ?Sized>(original: &S, edited: &Document) -> Diff {
+    let mut report = ImportReport {
+        base: match recorded_base(edited) {
+            None => ExportBase::Unrecorded,
+            Some(print) if print == fingerprint(original) => ExportBase::Matches,
+            Some(_) => ExportBase::Differs,
+        },
+        ..ImportReport::default()
+    };
+    let mut changed = Vec::new();
+    for obj in edited.objects() {
+        let Some(before) = original.object(obj.id) else {
+            report.added.push(obj.id);
+            changed.push(obj.id);
+            continue;
+        };
+        let same = match (before, &obj.value) {
+            // A span that cannot be read is treated as CHANGED: re-emitting an
+            // object nobody edited costs bytes; skipping one that was edited
+            // loses the operator's work.
+            (Object::Stream(a), Object::Stream(b)) => {
+                let same = match (original.stream_bytes(a), edited.stream_bytes(b)) {
+                    (Some(a_raw), Some(b_raw)) => streams_match(&a.dict, a_raw, &b.dict, b_raw),
+                    _ => false,
+                };
+                report.streams_matched_after_decode += usize::from(same);
+                same
+            }
+            (a, b) => a == b,
+        };
+        if same {
+            report.unchanged += 1;
+        } else {
+            report.modified.push(obj.id);
+            changed.push(obj.id);
+        }
+    }
+    report.removed = original
+        .object_ids()
+        .into_iter()
+        .filter(|id| edited.get(*id).is_none())
+        .collect();
+    let key = |i: &ObjId| (i.num, i.generation);
+    report.modified.sort_unstable_by_key(key);
+    report.added.sort_unstable_by_key(key);
+    report.removed.sort_unstable_by_key(key);
+    Diff { report, changed }
+}
+
 /// Diff `edited` against `original` and build the [`DirtySet`] an incremental
 /// save needs.
 ///
@@ -334,6 +455,11 @@ fn dicts_match_ignoring_encoding(a: &Dict, b: &Dict) -> bool {
 /// [`crate::writer::save_incremental`] appends a minimal §7.5.6 update to the
 /// original bytes and every untouched object keeps the bytes — and the byte
 /// offsets — it already had.
+///
+/// [`ImportReport::base`] says whether `edited` was exported from `original`
+/// as it is now. The set is built either way; refusing a
+/// [`ExportBase::Differs`] import is the caller's decision. To compile into an
+/// open session instead, use [`crate::edit::EditSession::import_editable`].
 #[must_use]
 pub fn import(original: &Document, edited: &Document) -> (DirtySet, ImportReport) {
     // bypass-exempt: `import` BUILDS a DirtySet, it does not APPLY one.
@@ -345,81 +471,22 @@ pub fn import(original: &Document, edited: &Document) -> (DirtySet, ImportReport
     // caller -- `pdfcer`'s `import` subcommand -- is what performs the
     // save, under the same disclosure obligations as any other.
     //
-    // The distinction the gate cannot see, stated so a reviewer can: the
-    // three sanctioned exceptions above are all code that WRITES. This one
-    // never touches an output file. Routing it through `EditSession` would
-    // mean inventing a session for a computation whose whole output IS the
-    // description of a change, which is the thing a session already holds --
-    // it would be a session wrapping its own contents.
-    //
     // bypass-exempt: builds a set, never applies one (reason immediately above).
+    let found = diff(original, edited);
     let mut dirty = DirtySet::empty();
-    let mut report = ImportReport::default();
     let mut staging: Vec<u8> = Vec::new();
     let base_len = original.bytes().len();
-
-    for obj in edited.objects() {
-        let Some(before) = original.get(obj.id) else {
-            report.added.push(obj.id);
-            stage(
-                &mut dirty,
-                &mut staging,
-                base_len,
-                obj.id,
-                &obj.value,
-                edited,
-            );
-            continue;
-        };
-        let same = match (&before.value, &obj.value) {
-            (Object::Stream(a), Object::Stream(b)) => {
-                match stream_is_unchanged(a, original.bytes(), b, edited.bytes()) {
-                    Some(true) => {
-                        report.streams_matched_after_decode += 1;
-                        true
-                    }
-                    // `None` — a span we cannot read — is treated as CHANGED.
-                    // Re-emitting an object nobody edited costs bytes;
-                    // skipping one that was edited loses the operator's work.
-                    Some(false) | None => false,
-                }
-            }
-            (a, b) => a == b,
-        };
-        if same {
-            report.unchanged += 1;
-        } else {
-            report.modified.push(obj.id);
-            stage(
-                &mut dirty,
-                &mut staging,
-                base_len,
-                obj.id,
-                &obj.value,
-                edited,
-            );
-        }
+    for (id, value) in found.writes(edited) {
+        stage(&mut dirty, &mut staging, base_len, id, value, edited);
     }
-
-    for obj in original.objects() {
-        if edited.get(obj.id).is_none() {
-            report.removed.push(obj.id);
-            dirty.delete(obj.id);
-        }
+    for id in &found.report.removed {
+        dirty.delete(*id);
     }
-
-    report
-        .modified
-        .sort_unstable_by_key(|i| (i.num, i.generation));
-    report.added.sort_unstable_by_key(|i| (i.num, i.generation));
-    report
-        .removed
-        .sort_unstable_by_key(|i| (i.num, i.generation));
     // bypass-exempt: the staging buffer belongs to the DirtySet being BUILT
     // and returned here; see the reason at the head of this function. No save
     // happens in this file.
     dirty.set_staging(staging);
-    (dirty, report)
+    (dirty, found.report)
 }
 
 /// Stage one replacement, re-basing a stream's span into the writer's combined
