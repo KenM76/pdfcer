@@ -115,6 +115,37 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 478.0` — CLI `list-fields` split into `fields_list.rs` (structure-debt payment, no behavior change) — SHIPPED `27a6ebd6`
+
+Pays down structure debt, no feature change. `cmd_list_fields` (313
+lines, over the 80-line function cap) moved out of
+`crates/pdfcer-cli/src/fields.rs` into a new module
+`crates/pdfcer-cli/src/fields_list.rs`, alongside `push_button_actions`,
+split by responsibility into `print_no_form_summary`, `rich_runs`,
+`quoted_or`, `field_type_tokens`, `print_field_line`,
+`print_widget_lines`, `print_run_lines`, `print_form_summary`.
+`fields.rs` shrank by 355 lines. `tools/code-structure-baseline.txt`'s
+`fields.rs::cmd_list_fields` entry was deleted; baseline now 601
+entries.
+
+**Tests.** `list-fields` output is byte-identical across 75 fixture
+PDFs (34 with no AcroForm) in plain, `--widgets --rich-text`, and
+`--fillable-only` modes — empty before/after diff. 64
+list-fields/fill/add/edit-field CLI tests pass. fmt/clippy clean;
+`check-code-structure` reports no new violations. No manifest changes,
+so `cargo tree` is unaffected.
+
+**FEATURES.md.** No rows change — cli-internal refactor, no capability
+delta.
+
+**Decision/ledgers.** No architectural decision — next decision stays
+`191`. Next free `Pass 479.0`; standing rule `R263` and operator
+question `(ck)` unchanged.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, line
+counts, baseline-entry count, and test results above are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ### `Pass 477.0` — `list-fields` prints each push button's action — SHIPPED `8218563c`
 
 Closes `FEATURES.md` row 358's cli gap: `set-button-action` could set a
@@ -19113,6 +19144,14 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
+> *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`
+> split into a new module `fields_list.rs` (8 responsibility-sized
+> helpers); structure debt only, no behavior change — output is
+> byte-identical across 75 fixtures. Self-scoped (no operator/GUI
+> request). No decision; next decision stays `191`. Next free
+> `Pass 479.0`; rule/question ledgers unchanged (`R263` / `(ck)`).
 
 > `Pass 477.0` SHIPPED, 2026-10-04 (944th filing), `8218563c` — see
 > *Shipped*, above. `list-fields` now prints `action=` as the last

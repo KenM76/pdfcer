@@ -4,6 +4,36 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (945th filing) — `Pass 478.0` shipped (`list-fields` split into `fields_list.rs`, structure-debt payment)
+
+**Shipped:**
+- `Pass 478.0` (`27a6ebd6`) — no behavior change. `cmd_list_fields`
+  (313 lines, over the 80-line cap) moved from `fields.rs` into a new
+  module `fields_list.rs`, alongside `push_button_actions`, split into
+  8 helpers: `print_no_form_summary`, `rich_runs`, `quoted_or`,
+  `field_type_tokens`, `print_field_line`, `print_widget_lines`,
+  `print_run_lines`, `print_form_summary`. `fields.rs` shrank by 355
+  lines; `tools/code-structure-baseline.txt`'s `cmd_list_fields` entry
+  deleted (baseline now 601 entries).
+
+**Decisions made this session:** none — next decision stays `191`,
+next standing rule stays `R263`.
+
+**Findings + decisions:**
+- None. Pure structure-debt payment; `list-fields` output verified
+  byte-identical across 75 fixture PDFs in all three output modes.
+
+**Still in flight:**
+- Nothing opened by this Pass.
+
+**For next session:**
+- Next free `Pass 479.0`; decision `191`, standing rule `R263`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count, and test results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (944th filing) — `Pass 477.0` shipped (`list-fields` prints push-button action)
 
 **Shipped:**
