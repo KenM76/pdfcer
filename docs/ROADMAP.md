@@ -115,6 +115,37 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 467.0` — a page's drawn extent skips clip-only paths (`G109`) — SHIPPED `293c642e57c145d35b032bef5a0078e9c0d54009`
+
+Answers `pdfcer-gui` request `G109`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G109_page_bbox_counts_paths_that_paint_nothing.md`):
+`PageObjects::page_bbox()` documented itself as the page's drawn extent
+but unioned every path object, including one a bare `n` ends with no
+paint at all (`PaintStyle::is_invisible()`) — a clip. `scale_pages`
+writes a clip of the old visible region before each scaled page, so the
+extent after a scale was that clip's region, not the drawing;
+`pdfcer-gui` had been filtering clip-only paths itself to work around it.
+
+**Shipped** (their option 1): `page_bbox`
+(`crates/pdfcer-core/src/vector/decompose.rs`) now skips invisible
+paths. The off-page scan took the identical fix at its own entry point:
+`offpage::paints_anything` (`crates/pdfcer-core/src/offpage.rs`) now
+returns `false` for an invisible path, so a clip past the sheet edge is
+no longer reported as off-page content either.
+
+**Tests**: new `crates/pdfcer-core/tests/page_bbox_skips_clips.rs` (3
+tests, including the request's own acceptance content
+`0 0 100 100 re W n 10 10 20 20 re S`), registered in `tests/all.rs`.
+Two sabotages (each filter reverted) both caught.
+
+**Docs**: `docs/core-api/01-reading-and-model.md` §10.2 states the
+rule; index.md count 3,807 → 3,812.
+
+**Delivered**: core yes, cli yes (`scan-offpage`/`redact-offpage`
+inherit the off-page fix through core), gui n/a (`pdfcer-gui` is a
+separate project). No `pub` signature change; no dependency change,
+`cargo tree` unaffected (no manifest touched).
+
 ### `Pass 466.0` — gate tooling: `tools/run-gates.sh`'s `core.hooksPath` check accepts any spelling that resolves to `tools/hooks` — SHIPPED `f8e68aa6e36e28fac60d2adebaa5ae927a8416a8`
 
 Fix-on-discovery, found running `tools/run-gates.sh` this session: the

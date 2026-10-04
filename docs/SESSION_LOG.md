@@ -4,6 +4,46 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (933rd filing) — `Pass 467.0` shipped (page drawn extent / off-page clip fix, `G109`)
+
+**Shipped:**
+- `Pass 467.0` (`293c642e57c145d35b032bef5a0078e9c0d54009`) — answers
+  `pdfcer-gui` request `G109`: `PageObjects::page_bbox()` unioned every
+  path object including a clip-only one (ended by a bare `n`, no paint
+  — `PaintStyle::is_invisible()`), so a page's documented "drawn
+  extent" included the clip `scale_pages` writes over the old visible
+  region before each scaled page, not the actual drawing. Fixed at
+  `page_bbox` (`crates/pdfcer-core/src/vector/decompose.rs`) and at the
+  same route in the off-page scan — `offpage::paints_anything`
+  (`crates/pdfcer-core/src/offpage.rs`) now returns `false` for an
+  invisible path too, so a clip past the sheet edge is no longer
+  reported as off-page content. 3 new tests
+  (`crates/pdfcer-core/tests/page_bbox_skips_clips.rs`, incl. the
+  request's own acceptance content), 2 sabotages caught.
+  `docs/core-api/01-reading-and-model.md` §10.2 updated; index.md count
+  3,807 → 3,812. No `pub` signature or dependency change; `cargo tree`
+  unaffected (no manifest touched). `FEATURES.md` rows for "Scale page
+  contents to a target size" and "Scan and remove content drawn
+  OUTSIDE the page box" both annotated in place (no box changes).
+
+**Decisions made this session:** none new (next free decision stays
+`190`).
+
+**Findings + decisions:** none new.
+
+**Still in flight:** unchanged from the 932nd filing below.
+
+**For next session:** next free decision `190` (unchanged), standing
+rule `R263` (unchanged), operator question `(ck)` (unchanged), Pass
+`468.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+test/sabotage results and the index-count delta are relayed from the
+dispatching engineer's report, not independently re-verified. The
+engineer's own report described a gate run as "in progress" on this
+HEAD at the time of this filing — that status is relayed, not checked,
+and is not asserted as a pass.
+
 ## 2026-10-04 (932nd filing) — `Pass 466.0` shipped (gate fix); decision 185 forward-pointer added
 
 **Shipped:**
