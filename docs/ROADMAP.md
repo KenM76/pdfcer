@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 483.0` — `fields.rs` split into `fields_fill.rs` / `fields_data.rs` / `fields_scripts.rs` — SHIPPED `5676d58d`
+
+Structure debt only; no behaviour change.
+
+**Structure debt.** `crates/pdfcer-cli/src/fields.rs` (1584 production
+lines, a baseline file entry) split verbatim by responsibility into
+`fields_fill.rs` (fill-field, password-values, purge-password-values and
+their disclosures), `fields_data.rs` (export-data, import-data and
+helpers), `fields_scripts.rs` (recompute, list-scripts). `fields.rs` is
+now 708 lines. Registered in `main.rs` with the existing `mod x; use
+x::*;` pattern. Pure move: no behaviour change, no `pub` API change
+(`docs/core-api` untouched), no dependency change, core/render manifests
+untouched (`cargo tree` N/A).
+
+**Baseline.** The `file pdfcer-cli/src/fields.rs` line deleted from
+`tools/code-structure-baseline.txt` (596 entries remain).
+
+**Checks.** Build, clippy `-D warnings`, fmt, `check-string-gaps`,
+`check-code-structure` clean. Full `tools/run-gates.sh` was running at
+filing time; not pushed until it passes.
+
+**Delivered:** cli only (structure). No `FEATURES.md` rows affected
+(refactor; no capability or box changes). Ledger after: next filing
+952nd, next Pass 484.0, next decision 191, next standing rule R263, next
+operator question (ck).
+
 ### `Pass 482.0` — `cmd_import_data` split into helpers; `import-data` gets its first CLI tests — SHIPPED `cca56e06`
 
 Structure debt only; no behaviour change.

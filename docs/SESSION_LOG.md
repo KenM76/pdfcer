@@ -4,6 +4,32 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (951st filing) — `Pass 483.0` shipped (`fields.rs` split by responsibility)
+
+**Shipped:**
+- `Pass 483.0` (`5676d58d`) — `crates/pdfcer-cli/src/fields.rs` (1584
+  production lines, a baseline entry) split verbatim into
+  `fields_fill.rs`, `fields_data.rs`, `fields_scripts.rs`; `fields.rs`
+  now 708 lines. Registered in `main.rs` via the existing `mod x; use
+  x::*;` pattern. Pure move: no behaviour, `pub` API, dependency, or
+  manifest change. Baseline entry deleted (596 left).
+
+**Decisions made this session:** none — next decision stays `191`,
+next standing rule stays `R263`.
+
+**Findings + decisions:** none new.
+
+**Still in flight:** full `tools/run-gates.sh` was running at filing
+time; not pushed until green.
+
+**For next session:**
+- Next free `Pass 484.0`; decision `191`, standing rule `R263`,
+  operator question `(ck)` all unchanged. Unreleased since `v0.77.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count, and check results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (950th filing) — `Pass 482.0` shipped (`import-data` split; its first CLI tests)
 
 **Shipped:**
