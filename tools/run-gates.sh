@@ -177,9 +177,13 @@ fi
 # points there -- git config is not versioned, so a fresh clone has no hook.
 # Say so on every sweep; a first bad push is the wrong place to find out.
 failed=()
-if [ "$(git config --get core.hooksPath 2>/dev/null)" = "tools/hooks" ]; then
-    printf 'pre-push hook: ACTIVE (core.hooksPath = tools/hooks)
-'
+# Compared by resolved directory: an absolute spelling of the same folder
+# (something on this machine rewrites it that way) gates pushes just as well.
+hooks_path="$(git config --get core.hooksPath 2>/dev/null)"
+if [ -n "$hooks_path" ] && [ -d "$hooks_path" ] && [ -d tools/hooks ] \
+    && [ "$(cd "$hooks_path" && pwd -P)" = "$(cd tools/hooks && pwd -P)" ]; then
+    printf 'pre-push hook: ACTIVE (core.hooksPath = %s)
+' "$hooks_path"
 else
     # R241 clause 2: a sweep on a clone whose pushes are not gated is RED,
     # not merely informed -- the 395th filing recorded the first draft's
