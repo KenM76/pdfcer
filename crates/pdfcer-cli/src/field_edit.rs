@@ -1013,6 +1013,8 @@ pub(crate) struct EditWidgetArgs<'a> {
     pub(crate) rect: Option<&'a str>,
     pub(crate) border_style: Option<&'a str>,
     pub(crate) border_width: Option<f64>,
+    /// `--border-dash`, unparsed.
+    pub(crate) border_dash: Option<&'a str>,
     pub(crate) visibility: Option<&'a str>,
     pub(crate) caption: Option<&'a str>,
     /// `/MK` `/BG`, as `none` or 1/3/4 comma-separated components.
@@ -1033,6 +1035,28 @@ pub(crate) struct EditWidgetArgs<'a> {
     pub(crate) caption_position: Option<CaptionPositionArg>,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
+}
+
+/// Parse `--border-dash`: `default` (remove `/D`) is `None`, a pattern is
+/// `Some`. `solid` is refused, because removing `/D` from a dashed border
+/// draws `3,3` dashes, not a solid line.
+fn parse_border_dash(raw: &str) -> Result<Option<pdfcer_core::annot_author::BorderDash>, String> {
+    use pdfcer_core::edit::StyleEdit;
+    if raw.eq_ignore_ascii_case("default") {
+        return Ok(None);
+    }
+    if raw.eq_ignore_ascii_case("solid") {
+        return Err(
+            "--border-dash solid: use --border-style solid for a solid border; \
+             --border-dash default removes the pattern"
+                .to_owned(),
+        );
+    }
+    match crate::annot_edit::parse_dash_edit(Some(raw)) {
+        Ok(Some(StyleEdit::Set(dash))) => Ok(Some(dash)),
+        Ok(_) => Ok(None),
+        Err(msg) => Err(msg.replacen("--dash:", "--border-dash:", 1)),
+    }
 }
 
 /// `edit-widget` — change one widget's geometry, border, visibility or
@@ -1115,6 +1139,12 @@ fn widget_edit_from_args(args: &EditWidgetArgs<'_>) -> Result<pdfcer_core::edit:
             style,
             width: args.border_width.unwrap_or(1.0),
         });
+    }
+    if let Some(raw) = args.border_dash {
+        edit = edit.with_border_dash(parse_border_dash(raw).map_err(|msg| {
+            eprintln!("pdfcer: {msg}");
+            exit::RUNTIME_ERROR
+        })?);
     }
     if let Some(v) = args.visibility {
         let visibility = match v {

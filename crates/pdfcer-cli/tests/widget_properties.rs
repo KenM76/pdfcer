@@ -277,3 +277,75 @@ fn an_unrecognised_colour_word_is_refused_and_names_both_special_words() {
     assert!(err.contains("none") && err.contains("unset"), "{err}");
     assert!(!out.exists(), "nothing was written");
 }
+
+// ---------------------------------------------------------------------------
+// `--border-dash` (request `G116`): the `/BS /D` dash pattern.
+// ---------------------------------------------------------------------------
+
+/// The bytes edit-widget appended to the fixture, as text.
+fn appended(out: &Path) -> String {
+    let base = std::fs::read(fixture("demo-form.pdf")).unwrap().len();
+    String::from_utf8_lossy(&std::fs::read(out).unwrap()[base..]).into_owned()
+}
+
+#[test]
+fn a_border_dash_is_recorded_in_the_border_style_dictionary() {
+    let out = write_widget(
+        &[
+            "--border-style",
+            "dashed",
+            "--border-width",
+            "1",
+            "--border-dash",
+            "6,2",
+        ],
+        "dash",
+    );
+    let tail = appended(&out);
+    assert!(tail.contains("/D [6.0 2.0]"), "{tail}");
+    assert!(tail.contains("[6 2] 0 d"), "the redrawn border: {tail}");
+}
+
+#[test]
+fn border_dash_default_removes_the_pattern() {
+    let first = write_widget(
+        &["--border-style", "dashed", "--border-dash", "6,2"],
+        "dash_set",
+    );
+    let out = temp_path("dash_clear");
+    let r = run(&[
+        "edit-widget",
+        first.to_str().unwrap(),
+        "--name",
+        "FullName",
+        "--border-dash",
+        "default",
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(r.status.code(), Some(0), "{}", stdout(&r));
+    let base = std::fs::read(&first).unwrap().len();
+    let tail = String::from_utf8_lossy(&std::fs::read(&out).unwrap()[base..]).into_owned();
+    assert!(tail.contains("/BS"), "{tail}");
+    assert!(!tail.contains("/D ["), "{tail}");
+}
+
+#[test]
+fn border_dash_solid_is_refused_and_names_the_border_style_flag() {
+    let out = temp_path("dash_solid");
+    let src = fixture("demo-form.pdf");
+    let r = run(&[
+        "edit-widget",
+        src.to_str().unwrap(),
+        "--name",
+        "FullName",
+        "--border-dash",
+        "solid",
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+    assert_ne!(r.status.code(), Some(0));
+    let err = String::from_utf8_lossy(&r.stderr);
+    assert!(err.contains("--border-style solid"), "{err}");
+    assert!(!out.exists());
+}

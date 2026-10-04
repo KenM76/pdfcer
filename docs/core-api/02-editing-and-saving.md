@@ -3514,6 +3514,15 @@ and everywhere. So the colour has to go into the stream.
   `WidgetChrome::with_border_dash(dash)`, is the widget's `/BS /D` array
   (default `[3]`); the builders draw it for `Dashed`. Every engine redraw
   reads it from the widget. `WidgetChrome` is `Clone`, no longer `Copy`.
+  **Creation writes it** (G116): a field created with a `Dashed` border and a
+  `border_dash` records `/BS /D [on off ...]`, so the pattern survives every
+  later redraw; with any other style the dash is not written.
+- `WidgetEdit::border_dash: Option<StyleEdit<BorderDash>>`, builder
+  `with_border_dash(Option<BorderDash>)` — `Some(d)` writes `/BS /D`, `None`
+  removes it (the border then draws Table 166's default `[3]`); the field left
+  `None` keeps the widget's own. Either way the appearance is redrawn. The
+  pattern is written whatever the style, and drawn once the border is
+  `Dashed`. Undoable. CLI: `edit-widget --border-dash 6,2|default`.
 - `edit_widget` with `border: Some(..)` **patches** `/BS` — only `/S` and `/W`
   change, so an existing `/D` survives. A `/BS` with `/D` and no `/S` reads
   as `Dashed` (a common producer shape).

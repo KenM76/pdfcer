@@ -1667,20 +1667,27 @@ fn choice_opt_array(options: &[ChoiceOption]) -> Object {
     )
 }
 
-/// Build a `/BS` border-style dictionary (§12.5.4 Table 166).
+/// Build a `/BS` border-style dictionary (§12.5.4 Table 166), for every
+/// widget-creation route (R171: one rule, one place).
 ///
-/// One place, called from both widget branches of `add_text_field`. Writing
-/// the two inline would be two implementations of one rule that could drift
-/// — R171 — and the drift would show only as a merged field and a separate
-/// widget disagreeing about a border the operator set once.
-fn border_dict(border: BorderSpec) -> Dict {
+/// `/D` is written only for a `Dashed` border carrying a dash; an absent `/D`
+/// is Table 166's `[3]`, which is what the appearance draws in that case.
+fn border_dict(border: BorderSpec, dash: Option<&annot_author::BorderDash>) -> Dict {
     let mut bs = Dict::new();
     bs.insert(
         Name::from(b"S"),
         Object::Name(Name(border.style.name().to_vec())),
     );
     bs.insert(Name::from(b"W"), Object::Real(border.width));
+    if let (BorderStyle::Dashed, Some(dash)) = (border.style, dash) {
+        bs.insert(Name::from(b"D"), dash_array(dash));
+    }
     bs
+}
+
+/// A dash as the `/BS` `/D` array (§8.4.3.6 format, phase omitted).
+fn dash_array(dash: &annot_author::BorderDash) -> Object {
+    Object::Array(dash.pattern().iter().map(|v| Object::Real(*v)).collect())
 }
 
 /// A widget's border style (§12.5.4, **Table 166**).
@@ -25529,6 +25536,10 @@ pub struct WidgetEdit {
     pub rect: Option<page_tree::Rect>,
     /// `/BS` — border style and width (§12.5.4 Table 166).
     pub border: Option<BorderSpec>,
+    /// `/BS` `/D` — the dash pattern: `Set` writes it, `Clear` removes it
+    /// (Table 166's `[3]` then applies), `None` leaves it. Drawn only when the
+    /// border is `Dashed`. See [`Self::with_border_dash`].
+    pub border_dash: Option<StyleEdit<annot_author::BorderDash>>,
     /// `/F` — where this widget is visible (§12.5.3 Table 165).
     pub visibility: Option<Visibility>,
     /// `/MK` `/CA` — the widget's normal caption (Table 189).
@@ -25956,6 +25967,15 @@ impl WidgetEdit {
     #[must_use]
     pub const fn with_border(mut self, border: BorderSpec) -> Self {
         self.border = Some(border);
+        self
+    }
+
+    /// Set (`Some`) or remove (`None`) `/BS` `/D`, the dash pattern a
+    /// `Dashed` border is drawn with, and redraw the appearance. The pattern
+    /// is kept on any other style, and drawn once the border becomes `Dashed`.
+    #[must_use]
+    pub fn with_border_dash(mut self, dash: Option<annot_author::BorderDash>) -> Self {
+        self.border_dash = Some(dash.map_or(StyleEdit::Clear, StyleEdit::Set));
         self
     }
 
@@ -26984,6 +27004,7 @@ impl EditSession {
                 page_id,
                 &spec.tooltip,
                 spec.border,
+                spec.chrome.border_dash.as_ref(),
                 spec.visibility,
             );
             // The widget carries the LOOK; the field keeps the name and the
@@ -26998,7 +27019,10 @@ impl EditSession {
             if !mk.is_empty() {
                 w.insert(Name::from(b"MK"), Object::Dict(mk));
             }
-            w.insert(Name::from(b"BS"), Object::Dict(border_dict(spec.border)));
+            w.insert(
+                Name::from(b"BS"),
+                Object::Dict(border_dict(spec.border, spec.chrome.border_dash.as_ref())),
+            );
             w.insert(Name::from(b"F"), Object::Integer(spec.visibility.flags()));
 
             let mut objects = vec![ObjectWrite {
@@ -27097,7 +27121,10 @@ impl EditSession {
         // the default: an explicit solid one-point border and an absent
         // `/BS` render identically, but only the explicit one survives an
         // operator later reading the file to see what was chosen.
-        d.insert(Name::from(b"BS"), Object::Dict(border_dict(spec.border)));
+        d.insert(
+            Name::from(b"BS"),
+            Object::Dict(border_dict(spec.border, spec.chrome.border_dash.as_ref())),
+        );
         // Overwrites `widget_base_dict`'s Print default.
         d.insert(Name::from(b"F"), Object::Integer(spec.visibility.flags()));
         let mut ap = Dict::new();
@@ -27911,6 +27938,7 @@ impl EditSession {
         page_id: ObjId,
         tooltip: &TooltipChoice,
         border: BorderSpec,
+        dash: Option<&annot_author::BorderDash>,
         visibility: Visibility,
     ) -> Dict {
         let mut d = Dict::new();
@@ -27945,7 +27973,7 @@ impl EditSession {
         // Password and comb correctly stay on `NewTextField` — those really
         // are text-only, being `/Ff` bits on a `/Tx` field.
         d.insert(Name::from(b"F"), Object::Integer(visibility.flags()));
-        d.insert(Name::from(b"BS"), Object::Dict(border_dict(border)));
+        d.insert(Name::from(b"BS"), Object::Dict(border_dict(border, dash)));
         // `/TU` only when the operator SUPPLIED one. A declined tooltip
         // writes nothing and is reported instead (R105) — an empty `/TU`
         // would be worse than none, because a screen reader would announce
@@ -28033,6 +28061,7 @@ impl EditSession {
             page_id,
             &spec.tooltip,
             spec.border,
+            spec.chrome.border_dash.as_ref(),
             spec.visibility,
         );
 
@@ -28272,6 +28301,7 @@ impl EditSession {
             page_id,
             &spec.tooltip,
             spec.border,
+            spec.chrome.border_dash.as_ref(),
             spec.visibility,
         );
 
@@ -29470,10 +29500,22 @@ impl EditSession {
         // silently reset a custom dash to Table 166's `[3]`.
         if let Some(border) = edit.border {
             let mut bs = self.deref_dict(updated.get(b"BS")).unwrap_or_default();
-            let fresh = border_dict(border);
+            let fresh = border_dict(border, None);
             for key in [b"S", b"W"] {
                 if let Some(v) = fresh.get(key) {
                     bs.insert(Name::from(key), v.clone());
+                }
+            }
+            updated.insert(Name::from(b"BS"), Object::Dict(bs));
+        }
+        if let Some(dash_edit) = &edit.border_dash {
+            let mut bs = self.deref_dict(updated.get(b"BS")).unwrap_or_default();
+            match dash_edit {
+                StyleEdit::Set(dash) => {
+                    bs.insert(Name::from(b"D"), dash_array(dash));
+                }
+                StyleEdit::Clear => {
+                    bs.remove(b"D");
                 }
             }
             updated.insert(Name::from(b"BS"), Object::Dict(bs));
@@ -29594,8 +29636,14 @@ impl EditSession {
             None => chrome_after,
         };
         // The `/D` survives a border edit (the `/BS` is patched, not
-        // replaced), so a dashed border keeps drawing the widget's pattern.
-        let chrome_after = match self.border_dash_of(widget.id) {
+        // replaced), so a dashed border keeps drawing the widget's pattern
+        // unless this edit sets or clears it.
+        let dash_after = match &edit.border_dash {
+            Some(StyleEdit::Set(dash)) => Some(dash.clone()),
+            Some(StyleEdit::Clear) => None,
+            None => self.border_dash_of(widget.id),
+        };
+        let chrome_after = match dash_after {
             Some(dash) => chrome_after.with_border_dash(dash),
             None => chrome_after,
         };
@@ -29713,6 +29761,7 @@ impl EditSession {
         ) && field.field_type == Some(forms::FieldType::Button);
         let needs_regen = resized
             || edit.border.is_some()
+            || edit.border_dash.is_some()
             || (edit.caption.is_some() && caption_drawn)
             || edit.background.is_some()
             || edit.border_color.is_some()
@@ -31320,6 +31369,7 @@ impl EditSession {
             page_id,
             &spec.tooltip,
             spec.border,
+            spec.chrome.border_dash.as_ref(),
             spec.visibility,
         );
         d.insert(Name::from(b"DA"), Object::String(da));
@@ -31569,6 +31619,7 @@ impl EditSession {
             page_id,
             &spec.tooltip,
             spec.border,
+            spec.chrome.border_dash.as_ref(),
             spec.visibility,
         );
         d.insert(Name::from(b"DA"), Object::String(da.clone()));

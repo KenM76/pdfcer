@@ -7528,6 +7528,12 @@ pub(crate) enum Command {
         /// states explicitly.
         #[arg(long)]
         border_width: Option<f64>,
+        /// The dash pattern of a dashed border, `/BS /D`: on/off lengths in
+        /// points, comma separated, e.g. `6,2`. `default` removes it, so the
+        /// border draws Table 166's `3,3`. Omit to keep the widget's pattern.
+        /// Kept on any other style and drawn once the border is dashed.
+        #[arg(long, value_name = "ON,OFF,...|default")]
+        border_dash: Option<String>,
         /// Where the widget is visible: screen-and-print, screen-only,
         /// print-only or hidden.
         #[arg(long)]
