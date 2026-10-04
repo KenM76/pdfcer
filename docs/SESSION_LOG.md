@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (937th filing) — `Pass 470.0` shipped (`FaceCatalog`, a replacement-face provider that keeps no font bytes, `G111`)
+
+**Shipped:**
+- `Pass 470.0` (`c9d9fc9cc254d1f646e00c1022952916050332f1`) — answers
+  `pdfcer-gui` request `G111`: `pdfcer_render::font::InstalledFaces`
+  held every offered font's bytes for its lifetime (409 MB for a full
+  Windows fonts folder), and `with_replacement_faces` takes
+  `&'static`, so a GUI held them forever. New
+  `pdfcer_render::font::FaceCatalog` implements core's
+  `ReplacementFaces` from a caller-supplied loader
+  (`Fn(&str) -> Result<Vec<u8>, String>`): `add(label, &[u8])`
+  describes a face once (names, class, `fsType`, merged-range coverage)
+  and drops the bytes; `candidates` matches `InstalledFaces` exactly
+  for the same files with no file read; `plan` reads back only the
+  picked face, and refuses if the file no longer holds the catalogued
+  PostScript name. Render stays filesystem-free (decision 176/178 §2).
+  CLI's `edit-text --fallback-font auto` builds one. 3 new tests in
+  `crates/pdfcer-render/tests/replacement_faces.rs`, 7/7 pass, 3
+  sabotages caught. `tools/run-gates.sh` PASS (45 commands) on
+  `c9d9fc9c`; `cargo tree` unchanged. `gui [ ]`: not yet consumed — the
+  request's own caller.
+
+**Decisions made this session:** none new — extends decision 176
+(render filesystem-free) and decision 178 §2 (replacement-face
+provider contract); both doc files updated in the same commit.
+
+**Findings + decisions:** none beyond the defect itself.
+
+**Still in flight:** nothing new opened this filing.
+
+**For next session:** next free `Pass 471.0`, decision `190`,
+standing rule `R263`, operator question `(ck)` — all unchanged by this
+filing.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash and
+test/gate results are relayed from the dispatching engineer's report,
+not independently re-verified.
+
 ## 2026-10-04 (936th filing) — `Pass 469.0` shipped (standard-14 replacement face prefers metric equivalent, `G110`)
 
 **Shipped:**

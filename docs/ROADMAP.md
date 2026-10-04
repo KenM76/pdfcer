@@ -115,6 +115,49 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 470.0` — `FaceCatalog`, a replacement-face provider that keeps no font bytes (`G111`) — SHIPPED `c9d9fc9cc254d1f646e00c1022952916050332f1`
+
+Answers `pdfcer-gui` request `G111`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G111_installed_faces_keeps_every_font_in_memory.md`,
+reply `reply_request_G111_installed_faces_keeps_every_font_in_memory_FIXED.md`):
+`pdfcer_render::font::InstalledFaces` holds every offered font's bytes
+for its lifetime (409 MB for a full Windows fonts folder), and
+`with_replacement_faces` takes `&'static`, so a GUI holds them forever.
+
+**Shipped**: new `pdfcer_render::font::FaceCatalog`, implementing core's
+`ReplacementFaces`. `FaceCatalog::new(loader)` takes a caller-supplied
+`Fn(&str) -> Result<Vec<u8>, String> + Send + Sync + 'static`;
+`add(label, &[u8]) -> usize` describes a face once (names, class,
+`fsType`, coverage as merged codepoint ranges) and drops the bytes;
+plus `len`/`is_empty` and a manual `Debug`. `candidates` reads no file
+and returns exactly what `InstalledFaces` returns for the same files;
+`plan` calls the loader for the picked face only, and refuses
+("<label>: the file changed since it was catalogued") when the file no
+longer holds a face of the catalogued PostScript name. Render stays
+filesystem-free — the shell supplies the read (decision 176 / decision
+178 §2). `InstalledFaces` is unchanged externally (internal
+`describe()`/`collection_indices()` split). CLI's
+`edit-text --fallback-font auto` now builds a `FaceCatalog`.
+
+**Tests**: 3 new in `crates/pdfcer-render/tests/replacement_faces.rs`
+(a module of `pdfcer-render`'s `tests/all.rs`):
+`a_catalogue_describes_its_faces_exactly_as_installed_faces_does`,
+`a_catalogue_reads_back_only_the_face_it_embeds`,
+`a_file_that_changed_since_it_was_catalogued_is_refused`;
+`replacement_faces` 7/7 pass; 3 sabotages caught (coverage always-true,
+name check removed, double loader read).
+
+**Delivered**: core yes (`pdfcer-render`), cli yes (`edit-text
+--fallback-font auto`), gui — not yet consumed (the request's own
+caller). `docs/core-api/02-editing-and-saving.md`'s replacement-face
+row and `docs/decisions/178-replacement-face-ladder.md` §2 updated in
+the same commit. `tools/run-gates.sh` PASS (45 commands, incl. 2 filing
+gates) on `c9d9fc9c`; `cargo tree` unchanged (no manifest change, no
+new dependency). Acceptance: `G110`'s command against
+`fixtures/synthetic/text/workaround-seam.pdf` with
+`--font-dir C:/Windows/Fonts` still prints `face_match=ArialMT
+rung=metric-equivalent`.
+
 ### `Pass 469.0` — a standard-14 run's replacement face prefers its metric equivalent (`G110`) — SHIPPED `5921dd82de351a2e2404ce0f0668730ebdd11a4d`
 
 Answers `pdfcer-gui` request `G110`
@@ -18665,6 +18708,15 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 470.0` SHIPPED, 2026-10-04 (937th filing),
+> `c9d9fc9c`** — see *Shipped*, above. `G111`: `pdfcer_render::font::FaceCatalog`
+> describes every offered font once (names, class, `fsType`, coverage)
+> and drops its bytes, instead of `InstalledFaces` holding all of them
+> for the process's life (409 MB for a full Windows fonts folder); only
+> the one picked face is read back, on demand, through a caller-supplied
+> loader. `gui [ ]`: not yet consumed — the GUI hasn't switched off
+> `InstalledFaces`.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 469.0` SHIPPED, 2026-10-04 (936th filing),
 > `5921dd82`** — see *Shipped*, above. `G110`: a non-embedded standard-14
