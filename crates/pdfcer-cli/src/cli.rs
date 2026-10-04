@@ -5343,6 +5343,14 @@ pub(crate) enum Command {
     /// with the form disclosures (`/NeedAppearances`, `/SigFlags`, `/CO`
     /// calculation-order length, XFA presence, fields carrying `/AA`
     /// JavaScript). Read-only; authors nothing.
+    ///
+    /// `action=`, last on each field line, is what a push button does when
+    /// pressed, read from its first widget: `none`, an action pdfcer can also
+    /// set with `set-button-action` (`ResetForm`, `SubmitForm`, `GoTo`,
+    /// `Hide`, `Show`, `Named`, `URI`), `unmodelled:TYPE` for one of those
+    /// types in a form pdfcer does not decode, or `foreign:TYPE` for a type
+    /// pdfcer never writes, such as `foreign:JavaScript`. It is `-` for every
+    /// other kind of field.
     ListFields {
         /// Input PDF.
         input: PathBuf,

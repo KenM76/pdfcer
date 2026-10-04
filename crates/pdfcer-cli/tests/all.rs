@@ -63,6 +63,7 @@ mod inspect_text_blocks;
 mod layer_edit;
 mod list_annotations_review_state;
 mod list_annotations_rich_text;
+mod list_fields_button_action;
 mod list_fonts;
 mod list_layers_tree;
 mod list_links;

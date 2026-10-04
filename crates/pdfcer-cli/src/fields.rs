@@ -218,6 +218,42 @@ pub(crate) fn describe_style(s: &pdfcer_core::richtext::Style) -> String {
     }
 }
 
+/// `action=` tokens for the push buttons of `form`, keyed by fully-qualified
+/// name: `none`, a modelled subtype (`ResetForm`, `SubmitForm`, `GoTo`,
+/// `Hide`, `Show`, `Named`, `URI`), `unmodelled:S` (a subtype pdfcer writes,
+/// in a shape it does not decode) or `foreign:S` (one it never writes, such
+/// as `JavaScript`). Read from each button's first widget, as
+/// `EditSession::button_action` does. Empty when the form has no push button.
+fn push_button_actions(
+    input: &Path,
+    form: &pdfcer_core::forms::AcroForm,
+) -> std::collections::HashMap<String, String> {
+    use pdfcer_core::edit::ButtonActionState;
+    let mut out = std::collections::HashMap::new();
+    let push = |f: &&pdfcer_core::forms::Field| {
+        f.button_kind == Some(pdfcer_core::forms::ButtonKind::Push)
+            && !f.fully_qualified_name.is_empty()
+    };
+    if !form.fields.iter().any(|f| push(&f)) {
+        return out;
+    }
+    let Ok(doc) = open_document(input) else {
+        return out;
+    };
+    let session = pdfcer_core::edit::EditSession::new(doc);
+    for field in form.fields.iter().filter(push) {
+        let token = match session.button_action(&field.fully_qualified_name) {
+            Ok(ButtonActionState::None) => "none".to_owned(),
+            Ok(ButtonActionState::Known(a)) => button_action_label(&a).to_owned(),
+            Ok(ButtonActionState::Unmodelled(s)) => format!("unmodelled:{}", sanitize_token(&s)),
+            Ok(ButtonActionState::Foreign(s)) => format!("foreign:{}", sanitize_token(&s)),
+            Ok(_) | Err(_) => "unread".to_owned(),
+        };
+        out.insert(field.fully_qualified_name.clone(), token);
+    }
+    out
+}
+
 /// `list-fields`: inventory a document's AcroForm fields (Pass 7).
 ///
 /// Read-only. One `field …` line per terminal field, then a `list-fields …`
@@ -274,6 +310,7 @@ outline_actions={} js_actions_anywhere={} actions_scanned={} action_scan_truncat
         return exit::SUCCESS;
     };
 
+    let actions = push_button_actions(input, &form);
     let mut fields_with_aa = 0usize;
     let mut shown = 0usize;
     for field in &form.fields {
@@ -388,13 +425,16 @@ outline_actions={} js_actions_anywhere={} actions_scanned={} action_scan_truncat
 
         println!(
             "field name={name} type={ty} button={button} flags=0x{:X} value={value} \
-widgets={} ap={} fillable={} readonly={} aa={} caption={caption} rich={rich}",
+widgets={} ap={} fillable={} readonly={} aa={} caption={caption} rich={rich} action={}",
             field.flags.0,
             field.widgets.len(),
             u32::from(field.has_appearance()),
             u32::from(field.is_fillable()),
             u32::from(field.flags.read_only()),
             u32::from(field.has_additional_actions),
+            actions
+                .get(&field.fully_qualified_name)
+                .map_or("-", String::as_str),
         );
 
         // `Pass 146.0`. Per WIDGET, because the border and the visibility

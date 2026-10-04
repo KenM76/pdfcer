@@ -1673,21 +1673,7 @@ remove its action"
         Err(code) => return code,
     };
     let r = &outcome.report;
-    let applied = match &change.applied {
-        None => "none",
-        Some(ButtonAction::ResetForm { .. }) => "ResetForm",
-        Some(ButtonAction::SubmitForm(_)) => "SubmitForm",
-        Some(ButtonAction::GoToPage { .. }) => "GoTo",
-        Some(ButtonAction::SetHidden { hidden: true, .. }) => "Hide",
-        Some(ButtonAction::SetHidden { hidden: false, .. }) => "Show",
-        Some(ButtonAction::Named(_)) => "Named",
-        Some(ButtonAction::Uri { .. }) => "URI",
-        // `ButtonAction` is `#[non_exhaustive]`: a variant added in core and
-        // not taught to this shell would otherwise stop compiling here, which
-        // is the right outcome, but the arm has to exist for the crate to
-        // build at all across a version skew.
-        Some(_) => "other",
-    };
+    let applied = change.applied.as_ref().map_or("none", button_action_label);
     println!(
         "set-button-action {} name={} action={} replaced={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
@@ -1710,6 +1696,24 @@ remove its action"
         report_hide_disclosure(args.input, d);
     }
     finish_edit(args.input, &outcome)
+}
+
+/// The label a modelled push-button action is reported under: its `/S`
+/// subtype, except that a `/Hide` with `/H false` reads `Show`.
+pub(crate) fn button_action_label(action: &pdfcer_core::edit::ButtonAction) -> &'static str {
+    use pdfcer_core::edit::ButtonAction;
+    match action {
+        ButtonAction::ResetForm { .. } => "ResetForm",
+        ButtonAction::SubmitForm(_) => "SubmitForm",
+        ButtonAction::GoToPage { .. } => "GoTo",
+        ButtonAction::SetHidden { hidden: true, .. } => "Hide",
+        ButtonAction::SetHidden { hidden: false, .. } => "Show",
+        ButtonAction::Named(_) => "Named",
+        ButtonAction::Uri { .. } => "URI",
+        // `#[non_exhaustive]` in core: a variant this shell has not been
+        // taught still needs a label.
+        _ => "other",
+    }
 }
 
 /// **State what a `/Hide` button just authored would move** (`Pass 183.1`).
