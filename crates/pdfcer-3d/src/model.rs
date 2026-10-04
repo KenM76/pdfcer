@@ -18,6 +18,10 @@ pub struct AssembledModel {
     pub colours: Vec<Option<[u8; 4]>>,
     /// Triangles across every mesh.
     pub triangles: usize,
+    /// Meshes drawn opaque because [`StyleAlpha::ZeroUnset`] read their
+    /// material's diffuse alpha of 0.0 as unset; ISO 14739-1 read
+    /// literally draws them invisible.
+    pub alpha_unset: usize,
     /// Wire tessellations, not drawn.
     pub wires: usize,
     /// Markup tessellations, not drawn.
@@ -258,14 +262,19 @@ fn place_one(
     let placed = mesh.transformed(&p.matrix);
     let looks = p.triangle_looks(mesh);
     let mut notes = Vec::new();
+    let mut unset: Vec<Look> = Vec::new();
     let per: Vec<Look> = looks
         .iter()
         .enumerate()
-        .map(|(k, (colour, skin))| {
+        .map(|(k, (paint, skin))| {
             let texture = skin
                 .as_ref()
                 .and_then(|s| textures.index(s, mesh, k, &mut notes));
-            (colour.map(to_rgba8), texture)
+            let look = (paint.map(|p| to_rgba8(p.rgba)), texture);
+            if paint.is_some_and(|p| p.alpha_unset) && !unset.contains(&look) {
+                unset.push(look);
+            }
+            look
         })
         .collect();
     notes.sort_unstable();
@@ -274,6 +283,7 @@ fn place_one(
         textures.note(why);
     }
     for (part, (colour, texture)) in split_by_look(&placed, &per) {
+        model.alpha_unset += usize::from(unset.contains(&(colour, texture)));
         model.meshes.push(part);
         model.colours.push(colour);
         model.mesh_textures.push(texture);

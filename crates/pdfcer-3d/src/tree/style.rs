@@ -16,18 +16,34 @@ pub(crate) struct Graphics {
 }
 
 /// How a style's `transparency` combines with its material's diffuse alpha.
-/// ISO 14739-1 defines both and not their combination
-/// (`prc__8137__graphics_materials.md` §12).
+/// ISO 14739-1 defines both and not their combination, and gives a diffuse
+/// alpha of 0.0 no "unset" meaning (`prc__8137__graphics_materials.md` §12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum StyleAlpha {
-    /// The style's transparency, when it has one, is the opacity; the
-    /// material alpha applies only to a style without one. SolidWorks writes
-    /// every material alpha as 0.0 beside an opaque style, which the other
-    /// rule draws invisible.
+    /// As [`Self::StyleWins`], except that a material diffuse alpha of
+    /// exactly 0.0 under a style with no transparency is read as unset, so
+    /// opaque. Producers write 0.0 on every material of models meant to be
+    /// seen, with or without a style transparency; read literally, every
+    /// part is invisible. [`crate::AssembledModel::alpha_unset`] counts the
+    /// meshes this reading changed.
     #[default]
+    ZeroUnset,
+    /// The style's transparency, when it has one, is the opacity; the
+    /// material alpha, read literally (0.0 invisible, as OpenGL reads it),
+    /// applies only to a style without one. SolidWorks writes every
+    /// material alpha as 0.0 beside an opaque style, which
+    /// [`Self::Multiply`] draws invisible.
     StyleWins,
     /// The opacity is material alpha × style transparency.
     Multiply,
+}
+
+/// A style's resolved colour: straight RGBA, each 0–1, and whether its
+/// opacity comes from reading a zero material alpha as unset.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Paint {
+    pub(crate) rgba: [f64; 4],
+    pub(crate) alpha_unset: bool,
 }
 
 /// A `Style` (701) as far as colour: `index` is `colour_or_material + 1`.
@@ -81,7 +97,14 @@ impl Globals {
     }
 
     /// The RGBA of style `biased` (`line_style_index + 1`).
+    #[cfg(test)]
     pub(crate) fn style_colour(&self, biased: u32, rule: StyleAlpha) -> Option<[f64; 4]> {
+        self.style_paint(biased, rule).map(|p| p.rgba)
+    }
+
+    /// The colour of style `biased`, and whether `rule` read its material
+    /// alpha as unset.
+    pub(crate) fn style_paint(&self, biased: u32, rule: StyleAlpha) -> Option<Paint> {
         let style = self.styles.get(biased.checked_sub(1)? as usize)?;
         let (rgb, mut alpha) = if style.is_material {
             let mut m = self.materials.get(style.index.checked_sub(1)? as usize)?;
@@ -95,15 +118,26 @@ impl Globals {
         } else {
             (self.colour(style.index)?, 1.0)
         };
-        if let Some(t) = style.transparency {
-            let t = f64::from(t) / 255.0;
-            alpha = match rule {
-                StyleAlpha::StyleWins => t,
-                StyleAlpha::Multiply => alpha * t,
-            };
+        let mut alpha_unset = false;
+        match style.transparency {
+            Some(t) => {
+                let t = f64::from(t) / 255.0;
+                alpha = match rule {
+                    StyleAlpha::ZeroUnset | StyleAlpha::StyleWins => t,
+                    StyleAlpha::Multiply => alpha * t,
+                };
+            }
+            None if rule == StyleAlpha::ZeroUnset && style.is_material && alpha == 0.0 => {
+                alpha = 1.0;
+                alpha_unset = true;
+            }
+            None => {}
         }
         let [r, g, b] = rgb;
-        Some([r, g, b, alpha.clamp(0.0, 1.0)])
+        Some(Paint {
+            rgba: [r, g, b, alpha.clamp(0.0, 1.0)],
+            alpha_unset,
+        })
     }
 }
 

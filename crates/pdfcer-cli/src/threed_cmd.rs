@@ -179,6 +179,7 @@ fn assemble_with(
 fn assemble_options(a: &RenderThreeDArgs<'_>) -> pdfcer_3d::AssembleOptions {
     let mut options = pdfcer_3d::AssembleOptions::default();
     options.style_alpha = match a.style_alpha {
+        StyleAlphaArg::ZeroUnset => pdfcer_3d::StyleAlpha::ZeroUnset,
         StyleAlphaArg::Style => pdfcer_3d::StyleAlpha::StyleWins,
         StyleAlphaArg::Multiply => pdfcer_3d::StyleAlpha::Multiply,
     };
@@ -437,8 +438,23 @@ fn render_from_bytes(
          tree gives it ({translucent} translucent), lit from the camera; {uncoloured} mesh(es) \
          had none and are drawn grey; lights are not read yet"
     );
+    print_alpha_unset_note(
+        model.alpha_unset,
+        " (`--style-alpha style` draws them invisible, as the literal reading does)",
+    );
     print_texture_notes(model.textured, &model.texture_notes);
     exit::SUCCESS
+}
+
+/// How many meshes [`pdfcer_3d::StyleAlpha::ZeroUnset`] drew opaque, with
+/// `how` saying how to get the literal reading.
+pub(crate) fn print_alpha_unset_note(n: usize, how: &str) {
+    if n > 0 {
+        println!(
+            "inferred: {n} mesh(es) drawn opaque: each material's alpha is 0 and its style \
+             states no transparency, read as unset rather than invisible{how}"
+        );
+    }
 }
 
 /// How many meshes drew their texture, and why any others did not.

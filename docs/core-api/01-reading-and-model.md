@@ -2924,13 +2924,21 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   (the opening view IS read — see above); say so in the shell. A style's index
   resolves in the globals of the file structure whose occurrence set it,
   not the one defining the part.
-- `StyleAlpha` (`StyleWins` default, `Multiply`): how a style's
-  transparency meets its material's diffuse alpha, which ISO 14739-1 leaves
-  open. `StyleWins` replaces it (SolidWorks writes alpha 0 on every material
-  and means the style's value); `Multiply` multiplies. Pass it via
-  `prc.placements_with(rule)` or `pdfcer_3d::assemble_with(data, rule)`;
-  `placements()` / `assemble()` use the default. Offer the choice as a
-  setting.
+- `StyleAlpha` (`ZeroUnset` default, `StyleWins`, `Multiply`): how a
+  style's transparency meets its material's diffuse alpha, which ISO 14739-1
+  leaves open (`prc__8137__graphics_materials.md` §12). `StyleWins` replaces
+  it with the style's value when the style has one (SolidWorks writes alpha
+  0 on every material and means the style's value); otherwise the material
+  alpha stands, 0.0 invisible. `ZeroUnset` is `StyleWins`, except a
+  material alpha of exactly 0.0 under a style with no transparency is read
+  as unset, so opaque — CAD exports write that on parts meant to be seen.
+  `Multiply` multiplies. Pass it via `prc.placements_with(rule)` or
+  `pdfcer_3d::assemble_with(data, rule)`; `placements()` / `assemble()` use
+  the default. Offer the choice as a setting. `AssembledModel::alpha_unset:
+  usize` counts the placed meshes `ZeroUnset` drew opaque; disclose it —
+  `3d-render` prints `inferred: N mesh(es) drawn opaque: each material's
+  alpha is 0 and its style states no transparency, read as unset rather
+  than invisible`.
 - **Textures** (ISO 14739-1 picture / texture definition / texture
   application; `prc__8137__graphics_materials.md` §13). Draw a model with
   them in one call: `let m = pdfcer_3d::assemble_with_options(data,
@@ -3003,7 +3011,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `note: N compressed mesh(es) left out: <why>` per distinct reason.
 - CLI: `3d-mesh -o FILE.stl|.obj`, `3d-render -o FILE.png [--view iso|front|..]
   [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]
-  [--style-alpha style|multiply] [--texture-origin bottom|top]
+  [--style-alpha zero-unset|style|multiply] [--texture-origin bottom|top]
   [--texture-wrap-base zero|one] [--texture-pictures structure|header]`.
 - Test models: `fixtures/synthetic/prc/coloured.prc` — a square defined in one
   file structure, placed at x 0, 2 and 4 from another whose globals hold

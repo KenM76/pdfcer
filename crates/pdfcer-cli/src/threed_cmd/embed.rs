@@ -177,6 +177,7 @@ fn print_rendered_notes(r: &RenderedPoster) {
             r.uncoloured_meshes
         );
     }
+    super::print_alpha_unset_note(r.alpha_unset_meshes, "");
     super::print_texture_notes(r.textured_meshes, &r.texture_notes);
     if r.compressed_rebuilt > 0 {
         println!(

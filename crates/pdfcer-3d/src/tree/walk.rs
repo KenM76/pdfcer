@@ -49,7 +49,7 @@ impl<'t> Walk<'t> {
             .iter()
             .map(|(_, _, g)| {
                 (0..=g.styles.len() as u32)
-                    .map(|b| g.style_colour(b, rule))
+                    .map(|b| g.style_paint(b, rule))
                     .collect()
             })
             .collect();

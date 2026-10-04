@@ -3151,8 +3151,10 @@ pub(crate) enum Command {
         #[arg(long)]
         transparent: bool,
         /// How a style's transparency combines with its material's alpha:
-        /// `style` (default) lets the style's value win, `multiply`
-        /// multiplies the two.
+        /// `zero-unset` (default) lets the style's value win and reads a
+        /// material alpha of 0 under a style with none as opaque, `style`
+        /// lets the style's value win and draws that alpha of 0 invisible,
+        /// `multiply` multiplies the two.
         #[arg(long, value_enum, default_value_t)]
         style_alpha: StyleAlphaArg,
         /// Which end of a texture picture is its first row: `bottom`

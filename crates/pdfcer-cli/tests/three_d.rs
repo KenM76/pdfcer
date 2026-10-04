@@ -661,6 +661,48 @@ fn style_alpha_picks_how_a_style_transparency_meets_its_material() {
     }
 }
 
+/// A grey square whose material alpha is 0 under a style with no
+/// transparency: drawn opaque by default, and said so; invisible under
+/// `--style-alpha style`.
+#[cfg(feature = "3d")]
+#[test]
+fn a_zero_material_alpha_is_drawn_opaque_by_default_and_disclosed() {
+    let input = with_prc("render_alpha_unset", "alpha-unset.prc");
+    let output = input.with_extension("png");
+    for (extra, drawn) in [(&[][..], true), (&["--style-alpha", "style"][..], false)] {
+        let mut args = vec![
+            "3d-render",
+            input.to_str().unwrap(),
+            "--index",
+            "2",
+            "--view",
+            "top",
+            "--width",
+            "100",
+            "--height",
+            "100",
+            "-o",
+            output.to_str().unwrap(),
+        ];
+        args.extend_from_slice(extra);
+        let out = run(&args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let decoder = png::Decoder::new(std::fs::File::open(&output).unwrap());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+        let inked = buf.chunks_exact(4).filter(|p| p[..3] != [255; 3]).count();
+        assert_eq!(inked > 0, drawn, "{extra:?}: {inked} inked pixels");
+        let note = "inferred: 1 mesh(es) drawn opaque: each material's alpha is 0";
+        assert_eq!(stdout.contains(note), drawn, "{extra:?}: {stdout}");
+    }
+}
+
 #[test]
 fn rendering_a_u3d_model_is_refused_and_writes_nothing() {
     let input = three_d_pdf("render_u3d");

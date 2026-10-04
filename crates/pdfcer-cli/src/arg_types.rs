@@ -66,12 +66,17 @@ impl ThreeDView {
 }
 
 /// How `3d-render` combines a style's transparency with its material's
-/// alpha (ISO 14739-1 §8.7.3 leaves the relation open).
+/// alpha (ISO 14739-1 §8.7.3 leaves the relation open, and gives an alpha
+/// of 0 no "unset" meaning).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum StyleAlphaArg {
-    /// A style that states a transparency replaces the material's alpha.
-    /// Default; matches SolidWorks exports, whose materials carry alpha 0.
+    /// As style, but a material alpha of 0 under a style stating no
+    /// transparency is read as unset, so opaque. Default; CAD exports write
+    /// alpha 0 on every material of parts meant to be seen.
     #[default]
+    ZeroUnset,
+    /// A style that states a transparency replaces the material's alpha;
+    /// otherwise the material's alpha stands, 0 drawing the part invisible.
     Style,
     /// The style's transparency multiplies the material's alpha.
     Multiply,

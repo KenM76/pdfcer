@@ -46,6 +46,10 @@ pub struct RenderedPoster {
     pub compressed_skipped: usize,
     /// Meshes the model tree gave no colour, drawn grey.
     pub uncoloured_meshes: usize,
+    /// Meshes drawn opaque because their material's diffuse alpha of 0.0,
+    /// under a style stating no transparency, was read as unset
+    /// (`pdfcer_3d::StyleAlpha::ZeroUnset`).
+    pub alpha_unset_meshes: usize,
     /// Meshes drawn with their texture picture.
     pub textured_meshes: usize,
     /// Each reason a texture drew its base colour instead, with how many
@@ -167,6 +171,7 @@ fn render(
             compressed_rebuilt: model.rebuilt,
             compressed_skipped: model.compressed,
             uncoloured_meshes: uncoloured,
+            alpha_unset_meshes: model.alpha_unset,
             textured_meshes: model.textured,
             texture_notes: model.texture_notes,
             unplaced: model.unplaced,

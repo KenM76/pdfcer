@@ -21,7 +21,7 @@ use crate::vec3::cross;
 pub use geometry::{IDENTITY, Matrix, multiply, transform_point};
 pub use node::{ModelNode, NameSource};
 pub use style::StyleAlpha;
-pub(crate) use style::{Globals, Graphics, resolve_style};
+pub(crate) use style::{Globals, Graphics, Paint, resolve_style};
 pub use texture::{PictureFiles, WrapBase};
 pub(crate) use texture::{Skin, TextureRules, why};
 pub(crate) use walk::{At, Walk};
@@ -108,16 +108,16 @@ pub struct Placement {
 }
 
 /// Per file structure, entry `b` is the colour of biased style index `b`.
-pub(crate) type Palettes = std::sync::Arc<[std::sync::Arc<[Option<[f64; 4]>]>]>;
+pub(crate) type Palettes = std::sync::Arc<[std::sync::Arc<[Option<Paint>]>]>;
 
 /// The colour `chain` resolves to, each style read in its own file
 /// structure's globals.
 pub(crate) fn chain_colour(palettes: &Palettes, chain: &[Graphics]) -> Option<[f64; 4]> {
-    colour_of(palettes, resolve_style(chain))
+    paint_of(palettes, resolve_style(chain)).map(|p| p.rgba)
 }
 
-/// The colour of the style `won` names, in its file structure's globals.
-fn colour_of(palettes: &Palettes, won: Graphics) -> Option<[f64; 4]> {
+/// The paint of the style `won` names, in its file structure's globals.
+fn paint_of(palettes: &Palettes, won: Graphics) -> Option<Paint> {
     palettes
         .get(won.fs)?
         .get(won.style as usize)
@@ -139,14 +139,15 @@ impl Placement {
         if mesh.triangle_graphics.is_empty() {
             return None;
         }
-        Some(self.triangle_looks(mesh).into_iter().map(|l| l.0).collect())
+        let looks = self.triangle_looks(mesh).into_iter();
+        Some(looks.map(|l| l.0.map(|p| p.rgba)).collect())
     }
 
-    /// Per triangle of `mesh`, its colour and its style's texture.
+    /// Per triangle of `mesh`, its paint and its style's texture.
     pub(crate) fn triangle_looks(
         &self,
         mesh: &crate::TriangleMesh,
-    ) -> Vec<(Option<[f64; 4]>, Option<Skin>)> {
+    ) -> Vec<(Option<Paint>, Option<Skin>)> {
         let look = |won: Graphics| {
             let skin = self
                 .skins
@@ -154,7 +155,7 @@ impl Placement {
                 .and_then(|row| row.get(won.style as usize))
                 .cloned()
                 .flatten();
-            (colour_of(&self.palettes, won), skin)
+            (paint_of(&self.palettes, won), skin)
         };
         if mesh.triangle_graphics.is_empty() {
             return vec![look(resolve_style(&self.chain)); mesh.triangles.len()];
@@ -1300,7 +1301,14 @@ mod tests {
             matrix: IDENTITY,
             colour: red,
             chain,
-            palettes: std::sync::Arc::from(vec![std::sync::Arc::from(vec![None, red, green])]),
+            palettes: std::sync::Arc::from(vec![std::sync::Arc::from([None, red, green].map(
+                |c| {
+                    c.map(|rgba| Paint {
+                        rgba,
+                        alpha_unset: false,
+                    })
+                },
+            ))]),
             skins: std::sync::Arc::from(Vec::new()),
         };
         let mut mesh = crate::TriangleMesh::default();
@@ -1370,6 +1378,11 @@ mod tests {
             gl.style_colour(4, mul),
             Some([0.0, 1.0, 0.0, 0.5]),
             "a texture's base material"
+        );
+        assert_eq!(
+            gl.style_colour(4, StyleAlpha::ZeroUnset),
+            Some([0.0, 1.0, 0.0, 0.5]),
+            "a non-zero material alpha stands"
         );
         assert_eq!(gl.style_colour(0, mul), None);
         assert_eq!(gl.style_colour(9, mul), None);
@@ -1601,6 +1614,80 @@ mod tests {
         w.bit(false).bit(false).bit(false).bit(false);
         w.uint(0).uint(0).uint(0);
         w
+    }
+
+    /// The unit square in grey from a material whose diffuse alpha is 0.0,
+    /// through a style that states no transparency: the layout CAD exports
+    /// write for parts meant to be seen. The CLI's unset-alpha fixture.
+    pub(crate) fn alpha_unset_prc() -> Vec<u8> {
+        let mut g = W::default();
+        g.uint(0).uint(FILE_STRUCTURE_GLOBALS);
+        base(&mut g);
+        g.uint(0)
+            .double(2000.0)
+            .double(40.0)
+            .string(Some(""))
+            .uint(0);
+        g.uint(1).double(0.75).double(0.75).double(0.75);
+        g.uint(0).uint(0).uint(1).uint(MATERIAL);
+        ref_base(&mut g, 1);
+        g.uint(1).uint(1).uint(1).uint(1);
+        for v in [0.5, 0.0, 0.0, 0.0, 0.0] {
+            g.double(v);
+        }
+        g.uint(0).uint(1).uint(STYLE);
+        ref_base(&mut g, 2);
+        g.double(1.0).bit(false).uint(0).bit(true).uint(1);
+        g.bit(false).bit(false).bit(false).bit(false);
+        g.uint(0).uint(0).uint(0);
+        let square = crate::PrcFile::parse(include_bytes!(
+            "../../../../fixtures/synthetic/prc/square.prc"
+        ))
+        .unwrap();
+        let tess = square.file_structures[0].section(crate::SectionKind::Tessellation);
+        let mut model = W::default();
+        model.uint(0).uint(MODEL_FILE);
+        base(&mut model);
+        model.bit(false).double(1.0).uint(1);
+        for c in [5, 6, 7, 8] {
+            model.uint(c);
+        }
+        model.uint(1).bit(true);
+        let occ = Occ {
+            part: 1,
+            behaviour: Some((1, SHOW)),
+            ..OCC
+        };
+        crate::testw::prc_container_n(
+            &[[&g.bytes(), &tree(&[occ], 0, false).bytes(), tess]],
+            &model.bytes(),
+        )
+    }
+
+    #[test]
+    fn a_zero_material_alpha_under_a_bare_style_is_unset_by_default() {
+        let bytes = alpha_unset_prc();
+        crate::testw::check_fixture("alpha-unset.prc", &bytes);
+        let grey = 191;
+        let read = |rule| {
+            let options = crate::AssembleOptions {
+                style_alpha: rule,
+                ..crate::AssembleOptions::default()
+            };
+            let m = crate::assemble_with_options(&bytes, &options).unwrap();
+            (m.colours, m.alpha_unset)
+        };
+        assert_eq!(
+            read(StyleAlpha::default()),
+            (vec![Some([grey, grey, grey, 255])], 1)
+        );
+        for rule in [StyleAlpha::StyleWins, StyleAlpha::Multiply] {
+            assert_eq!(
+                read(rule),
+                (vec![Some([grey, grey, grey, 0])], 0),
+                "{rule:?}"
+            );
+        }
     }
 
     /// The unit square with stored texture coordinates, styled by the
