@@ -54,6 +54,7 @@ mod format_decoration_flags;
 mod format_text;
 mod hand_signature;
 mod image_stamp_and_button_icon;
+mod import_data_cli;
 mod import_structure_certified;
 mod import_structure_stale;
 mod in_place;
