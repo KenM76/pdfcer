@@ -115,6 +115,29 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 466.0` — gate tooling: `tools/run-gates.sh`'s `core.hooksPath` check accepts any spelling that resolves to `tools/hooks` — SHIPPED `f8e68aa6e36e28fac60d2adebaa5ae927a8416a8`
+
+Fix-on-discovery, found running `tools/run-gates.sh` this session: the
+`R241` pre-push-hook check compared `git config core.hooksPath` to the
+literal string `"tools/hooks"`. An absolute spelling of the same folder
+(`D:\Dev\pdfcer\tools\hooks` — something on the operator's machine
+rewrites the config to this form, repeatedly this session; source not
+found, nothing in the repo writes it) failed the sweep as "pre-push
+hook not active" although git ran the hook correctly on every push.
+
+**Shipped.** The check now resolves both the configured path and
+`tools/hooks` to directories (`cd … && pwd -P`) and compares those,
+printing the configured value on failure instead of just "not set".
+
+**Verified by hand** (no automated test for a `git config` state):
+relative (`tools/hooks`), backslash-absolute
+(`D:\Dev\pdfcer\tools\hooks`) and slash-absolute
+(`D:/Dev/pdfcer/tools/hooks`) spellings all pass; `tools` and unset
+both still fail, as they should.
+
+**`FEATURES.md`.** No row applies — gate tooling, not a product
+capability. No manifest change.
+
 ### `Pass 465.0` — a foreign push button's icon edit now replaces its artwork by default (`G108`) — SHIPPED `58992c0ecd3e778f27d350860e1a2f91140a80c9`
 
 Answers `pdfcer-gui` request `G108` ("`with_button_icon` on another
@@ -18567,6 +18590,14 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 466.0` SHIPPED, 2026-10-04 (932nd filing),
+> `f8e68aa6`** — see *Shipped*, above. Fix-on-discovery while running
+> `tools/run-gates.sh`: the `R241` pre-push-hook check only accepted
+> the literal string `"tools/hooks"` for `core.hooksPath`, so an
+> absolute spelling of the same folder failed the sweep even though
+> git ran the hook. Now compares resolved directories. No
+> `FEATURES.md` change — gate tooling only.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 465.0` SHIPPED, 2026-10-04 (931st filing),
 > `58992c0e`** — see *Shipped*, above. Answers `pdfcer-gui` request

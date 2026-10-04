@@ -12852,7 +12852,11 @@ operator-reported, `O279`).
    Icon/position edits on a non-push-button field refuse with
    `EditError::NotAPushButton` before anything stages. A foreign
    push-button `/AP` is replaced only under the existing
-   `replace_foreign_appearance` opt-in.
+   `replace_foreign_appearance` opt-in. **Superseded in part by
+   decision 189 (2026-10-04): this default-`Keep` behaviour for an
+   icon/caption-position edit is replaced by `ReplaceOnIconEdit`; every
+   other `/MK` edit is unaffected and this sentence still holds for
+   them.**
 3. **Bug fixed on discovery, same Pass.** `/IF` values may be indirect
    references (Table 247) and were read without resolving them; `/SW`
    "bigger"/"smaller" was judging per-axis rather than the whole icon in

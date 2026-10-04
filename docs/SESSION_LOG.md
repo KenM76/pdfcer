@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (932nd filing) — `Pass 466.0` shipped (gate fix); decision 185 forward-pointer added
+
+**Shipped:**
+- `Pass 466.0` (`f8e68aa6e36e28fac60d2adebaa5ae927a8416a8`) — fix-on-
+  discovery: `tools/run-gates.sh`'s `R241` pre-push-hook check compared
+  `git config core.hooksPath` to the literal string `"tools/hooks"`,
+  so an absolute spelling of the same folder
+  (`D:\Dev\pdfcer\tools\hooks`, repeatedly reappearing on the
+  operator's machine this session for an unknown reason — nothing in
+  the repo writes it) failed the sweep as "hook not active" although
+  git ran the hook. Now resolves both sides to directories and
+  compares those, printing the configured value on failure. Verified
+  by hand: relative, backslash-absolute and slash-absolute spellings
+  all pass; `"tools"` and unset both still fail. No `FEATURES.md`
+  change (gate tooling, not a product capability) and no manifest
+  change.
+
+**Decisions made this session:** none new. Added a one-line forward
+pointer to decision 185's own body text (`ARCHITECTURE.md` §12, line
+~12854) noting it is superseded in part by decision 189 for the
+icon/caption-position case; the rest of decision 185's body is
+unaffected and the pointer says so.
+
+**Findings + decisions:** none new.
+
+**Still in flight:** unchanged from the 931st filing below.
+
+**For next session:** next free decision `190` (unchanged), standing
+rule `R263` (unchanged), operator question `(ck)` (unchanged), Pass
+`467.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash and
+verification results relayed from the dispatching engineer's report,
+not independently re-verified.
+
 ## 2026-10-04 (931st filing) — `Pass 465.0` shipped; decision 189
 
 **Shipped:**
