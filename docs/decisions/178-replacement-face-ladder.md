@@ -65,7 +65,10 @@ face is tried). `EditOptions` is `Copy`, so it holds
 `Option<&'static dyn ReplacementFaces>`; the CLI leaks one per process. The
 shipped provider is `pdfcer_render::font::InstalledFaces`, which describes
 each face from its own `name`, `OS/2`, `post` and `cmap` and expands
-collections.
+collections. `pdfcer_render::font::FaceCatalog` (Pass 470.0) gives the same
+candidates from a description kept per face, re-reading only the picked
+face through a shell-supplied loader, so a long-lived shell's memory does
+not grow with its font folders; the CLI uses it.
 
 A face with no `name` ID 6 is given a derived name (the family's ASCII
 alphanumerics, else `Face<n>`), because a subset `/BaseFont` must have a name

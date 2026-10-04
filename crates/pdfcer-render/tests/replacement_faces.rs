@@ -11,7 +11,9 @@ use pdfcer_core::text_edit::{
     self, EditOptions, EditRequest, FaceRung, FallbackSource, ReplacementFaces,
 };
 use pdfcer_render::FontData;
-use pdfcer_render::font::InstalledFaces;
+use pdfcer_render::font::{FaceCatalog, InstalledFaces};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 const TYPED: &str = "Qu\u{20AC} 5";
 
@@ -31,7 +33,7 @@ fn faces(files: &[&str]) -> InstalledFaces {
     faces
 }
 
-fn edit(faces: InstalledFaces) -> text_edit::EditOutcome {
+fn edit(faces: impl ReplacementFaces + 'static) -> text_edit::EditOutcome {
     let opts = EditOptions::default().with_replacement_faces(Box::leak(Box::new(faces)));
     let doc = Document::from_bytes(fixture("fallback-font.pdf")).unwrap();
     text_edit::edit_text(&doc, &EditRequest::find_replace(0, "Qu5", TYPED), &opts).unwrap()
@@ -97,4 +99,48 @@ fn with_no_face_offered_the_standard14_floor_is_named() {
         (m.rung, m.face.as_str(), m.source.as_deref()),
         (FaceRung::Standard14, "Helvetica", None)
     );
+}
+
+/// A catalogue over `files` whose loader counts its reads.
+fn catalog(files: &[&str]) -> (FaceCatalog, Arc<AtomicUsize>) {
+    let reads = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&reads);
+    let mut catalog = FaceCatalog::new(move |label: &str| {
+        counter.fetch_add(1, Ordering::SeqCst);
+        Ok(fixture(label))
+    });
+    for f in files {
+        catalog.add(f, &fixture(f));
+    }
+    (catalog, reads)
+}
+
+#[test]
+fn a_catalogue_describes_its_faces_exactly_as_installed_faces_does() {
+    let files = ["fallback-donor.ttf", "fallback-run-face-restricted.ttf"];
+    let chars = ['Q', 'u', '5', '€', '≤', 'A'];
+    let (catalog, reads) = catalog(&files);
+    assert_eq!(catalog.len(), 2);
+    assert_eq!(catalog.candidates(&chars), faces(&files).candidates(&chars));
+    assert_eq!(reads.load(Ordering::SeqCst), 0, "describing read a file");
+}
+
+#[test]
+fn a_catalogue_reads_back_only_the_face_it_embeds() {
+    let files = ["fallback-run-face-restricted.ttf", "fallback-donor.ttf"];
+    let (catalog, reads) = catalog(&files);
+    let out = edit(catalog);
+    let m = out.report.fallback.unwrap().chosen_by.unwrap();
+    assert_eq!(m.source.as_deref(), Some("fallback-donor.ttf"));
+    assert_eq!(m.skipped.len(), 1);
+    assert_eq!(reads.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn a_file_that_changed_since_it_was_catalogued_is_refused() {
+    let mut catalog = FaceCatalog::new(|_: &str| Ok(fixture("fallback-run-face-restricted.ttf")));
+    catalog.add("fallback-donor.ttf", &fixture("fallback-donor.ttf"));
+    let c = &catalog.candidates(&['Q'])[0];
+    let err = catalog.plan(c, &['Q']).unwrap_err();
+    assert!(err.contains("changed since it was catalogued"), "{err}");
 }

@@ -62,12 +62,7 @@ impl InstalledFaces {
     /// Offer every face in `data` under `label` (its file path, for the
     /// disclosure).
     pub fn insert(&mut self, label: &str, data: FontData) {
-        let count = if data.bytes().starts_with(b"ttcf") {
-            crate::font::sfnt::read_u32(data.bytes(), 8).unwrap_or(0)
-        } else {
-            1
-        };
-        for i in 0..count.min(256) {
+        for i in collection_indices(data.bytes()) {
             if FontRef::from_index(data.bytes(), i).is_ok() {
                 self.faces.push((label.to_owned(), data.clone(), i));
             }
@@ -85,6 +80,17 @@ impl InstalledFaces {
     pub fn is_empty(&self) -> bool {
         self.faces.is_empty()
     }
+}
+
+/// The face indices `bytes` may hold: a collection's count (at most 256),
+/// else one.
+pub(super) fn collection_indices(bytes: &[u8]) -> std::ops::Range<u32> {
+    let count = if bytes.starts_with(b"ttcf") {
+        crate::font::sfnt::read_u32(bytes, 8).unwrap_or(0)
+    } else {
+        1
+    };
+    0..count.min(256)
 }
 
 /// The first `id` string the face's `name` table holds, control characters
@@ -144,20 +150,14 @@ fn postscript_name(id: usize, font: &FontRef<'_>, family: &str) -> (String, bool
     }
 }
 
-fn candidate(id: usize, label: &str, font: &FontRef<'_>, chars: &[char]) -> FaceCandidate {
+/// `font` as a ladder candidate covering everything: names, class,
+/// `fsType`.
+pub(super) fn describe(id: usize, label: &str, font: &FontRef<'_>) -> FaceCandidate {
     let family = name_string(font, StringId::TYPOGRAPHIC_FAMILY_NAME)
         .or_else(|| name_string(font, StringId::FAMILY_NAME))
         .unwrap_or_default();
     let (postscript, derived) = postscript_name(id, font, &family);
-    let charmap = font.charmap();
-    let missing = chars
-        .iter()
-        .copied()
-        .filter(|&c| charmap.map(c).is_none())
-        .collect();
-    let mut c = FaceCandidate::new(id, label, &postscript, &family)
-        .with_class(class_of(font))
-        .with_missing(missing);
+    let mut c = FaceCandidate::new(id, label, &postscript, &family).with_class(class_of(font));
     if derived {
         c = c.with_derived_name();
     }
@@ -165,6 +165,16 @@ fn candidate(id: usize, label: &str, font: &FontRef<'_>, chars: &[char]) -> Face
         Ok(os2) => c.with_fs_type(FsTypeBits::decode(os2.fs_type(), os2.version())),
         Err(_) => c,
     }
+}
+
+fn candidate(id: usize, label: &str, font: &FontRef<'_>, chars: &[char]) -> FaceCandidate {
+    let charmap = font.charmap();
+    let missing = chars
+        .iter()
+        .copied()
+        .filter(|&c| charmap.map(c).is_none())
+        .collect();
+    describe(id, label, font).with_missing(missing)
 }
 
 impl ReplacementFaces for InstalledFaces {

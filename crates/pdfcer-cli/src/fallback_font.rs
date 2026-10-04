@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use pdfcer_core::text_edit::{
     CidProgramUse, EditReport, FallbackFace, FallbackSource, RunRepertoire,
 };
-use pdfcer_render::font::InstalledFaces;
+use pdfcer_render::font::FaceCatalog;
 use pdfcer_render::font::subset::{SubsetError, plan_subset, subset_tag_for};
 
 use crate::exit;
@@ -21,12 +21,12 @@ pub(crate) const AUTO: &str = "auto";
 /// labelled with its file path, for `--fallback-font auto`. A file the font
 /// environment already skipped is skipped here too, silently: its note was
 /// printed then. Leaked, as [`fallback_face`] is.
-pub(crate) fn installed_faces(font_dirs: &[PathBuf]) -> &'static InstalledFaces {
-    let mut faces = InstalledFaces::new();
+pub(crate) fn installed_faces(font_dirs: &[PathBuf]) -> &'static FaceCatalog {
+    let mut faces = FaceCatalog::new(|path: &str| std::fs::read(path).map_err(|e| e.to_string()));
     for dir in crate::settings::font_dirs().iter().chain(font_dirs) {
         for path in crate::inspect::font_files_in(dir).unwrap_or_default() {
             if let Ok((_, data)) = crate::inspect::font_file_names(&path) {
-                faces.insert(&path.display().to_string(), data);
+                faces.add(&path.display().to_string(), data.bytes());
             }
         }
     }

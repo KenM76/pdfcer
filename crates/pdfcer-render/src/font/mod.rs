@@ -21,7 +21,9 @@
 pub(crate) mod augment;
 pub use augment::InstalledFaceAugmenter;
 /// Installed faces for the replacement-face ladder (decision 178).
+mod face_catalog;
 mod installed_faces;
+pub use face_catalog::FaceCatalog;
 pub use installed_faces::InstalledFaces;
 pub mod bundled;
 pub mod coredata;
