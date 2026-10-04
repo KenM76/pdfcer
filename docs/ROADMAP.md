@@ -115,6 +115,38 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 469.0` — a standard-14 run's replacement face prefers its metric equivalent (`G110`) — SHIPPED `5921dd82de351a2e2404ce0f0668730ebdd11a4d`
+
+Answers `pdfcer-gui` request `G110`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G110_the_face_ladder_breaks_a_tie_by_file_order.md`):
+a non-embedded standard-14 run has no descriptor/`FontFamily`, so every
+covering installed face landed on the same Coverage rung of the
+`Pass 436.2` ladder; equal class distance left the pick to file order,
+so Helvetica was replaced by an arbitrary installed font (e.g. Berlin
+Sans FB, because `BRLNSR.TTF` sorts before `arial.ttf` — machine
+dependent).
+
+**Shipped**: new `FaceRung::MetricEquivalent` (label `metric-equivalent`)
+in `pdfcer_core::text_edit::rank_replacement_faces`, ranked between
+`FamilyClass` and `Coverage`. Helvetica → Arial, Liberation Sans, Nimbus
+Sans(L); Times → Times New Roman, Liberation Serif, Nimbus Roman (No9
+L); Courier → Courier New, Liberation Mono, Nimbus Mono (L). The
+preference is compared before class distance; the run's own family
+still outranks it; Symbol/ZapfDingbats get no equivalents.
+`FaceRung` is `#[non_exhaustive]`, so this is additive, not a breaking
+change to decision 178's ladder (`docs/decisions/178-replacement-face-ladder.md`
+§1 updated in this commit).
+
+**Tests**: 3 unit tests in `face_ladder.rs` (19/19 face_ladder tests
+pass); 3 sabotages caught (rung removed, preference ignored, every
+font given equivalents).
+
+**Delivered**: core yes, cli yes (`edit-text --fallback-font auto`
+picks it up with no flag change), gui — consumed automatically.
+`docs/core-api/02-editing-and-saving.md`'s replacement-face row updated.
+`cargo fmt`/`cargo clippy -D warnings` clean; no manifest change,
+`cargo tree` unaffected; `check-core-api-verbs` PASS.
+
 ### `Pass 468.0` — `pdfcer set-object-paint` recolours page paths from the CLI — SHIPPED `e42474b87c3792c13f4298e8de310aff0b427db9`
 
 New subcommand `pdfcer set-object-paint <in> --page N --objects 0,3 [--fill C] [--stroke C] -o out [--mode] [--verify-undo]` — the first CLI caller of the existing core verb `EditSession::set_object_paint` (`Pass 219.0`). At least one of `--fill`/`--stroke` is required.
@@ -18633,6 +18665,13 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★★★★★★★★★★★★★★ **`Pass 469.0` SHIPPED, 2026-10-04 (936th filing),
+> `5921dd82`** — see *Shipped*, above. `G110`: a non-embedded standard-14
+> run's replacement face now prefers its metric equivalent (Helvetica→
+> Arial, Times→Times New Roman, Courier→Courier New) ahead of coverage,
+> closing the file-order tie the `Pass 436.2` ladder left open. `gui —`:
+> consumed automatically.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 466.0` SHIPPED, 2026-10-04 (932nd filing),
 > `f8e68aa6`** — see *Shipped*, above. Fix-on-discovery while running

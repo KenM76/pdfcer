@@ -4,6 +4,41 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (936th filing) — `Pass 469.0` shipped (standard-14 replacement face prefers metric equivalent, `G110`)
+
+**Shipped:**
+- `Pass 469.0` (`5921dd82de351a2e2404ce0f0668730ebdd11a4d`) — answers
+  `pdfcer-gui` request `G110`: a non-embedded standard-14 run has no
+  descriptor/`FontFamily`, so every covering installed face landed on
+  the ladder's Coverage rung and equal class distance left the pick to
+  file order (Helvetica → Berlin Sans FB, because `BRLNSR.TTF` sorts
+  before `arial.ttf` — machine-dependent). New `FaceRung::MetricEquivalent`
+  (label `metric-equivalent`) ranked between `FamilyClass` and
+  `Coverage` in `rank_replacement_faces`: Helvetica→Arial/Liberation
+  Sans/Nimbus Sans(L), Times→Times New Roman/Liberation Serif/Nimbus
+  Roman (No9 L), Courier→Courier New/Liberation Mono/Nimbus Mono (L).
+  `FaceRung` is `#[non_exhaustive]` — additive, extends decision 178
+  (no new decision number). 3 unit tests, 19/19 `face_ladder` tests
+  pass, 3 sabotages caught. `gui —`: consumed automatically.
+
+**Decisions made this session:** none new — extends decision 178
+(replacement-face ladder); `docs/decisions/178-replacement-face-ladder.md`
+§1 updated in the same commit.
+
+**Findings + decisions:** none beyond the defect itself.
+
+**Still in flight:** `G111` — `pdfcer-gui` wants `InstalledFaces` keyed
+path-based rather than loading every font's bytes up front, so a GUI's
+resident memory doesn't grow with the size of the font folders (751
+files / 409 MB on the requester's machine). Not yet filed as a Pass.
+
+**For next session:** next free `Pass 470.0`, decision `190`, standing
+rule `R263`, operator question `(ck)` — all unchanged by this filing.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash and
+test/gate results are relayed from the dispatching engineer's report,
+not independently re-verified.
+
 ## 2026-10-04 (935th filing) — `Pass 468.0` follow-up (`--in-place` + README count fix)
 
 **Shipped:**
