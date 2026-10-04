@@ -572,6 +572,8 @@ mod print;
 use print::*;
 mod fields;
 use fields::*;
+mod fields_list;
+use fields_list::*;
 mod edit_common;
 mod in_place;
 use edit_common::*;
