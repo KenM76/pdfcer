@@ -15,6 +15,7 @@ open everywhere with no dialog.
 |---|---|---|---|---|---|
 | `enc-rc4-40.pdf` | 1 | 2 | 40 | — | **yes** |
 | `enc-rc4-128.pdf` | 2 | 3 | 128 | — | **yes** |
+| `enc-rc4-128-v4.pdf` | 4 | 4 | 128 | `/V2` (RC4 crypt filter) | **yes** |
 | `enc-emptyuser-rc4-128.pdf` | 2 | 3 | 128 | — | **yes**, with no password |
 | `enc-aes-128.pdf` | 4 | 4 | 128 | `/AESV2` | **yes** |
 | `enc-aes-256-r5.pdf` | 5 | 5 | 256 | `/AESV3` | **yes** |

@@ -261,6 +261,10 @@ pub struct SignReport {
     /// from the file without a viewer (rule 4). Empty for an invisible
     /// signature.
     pub appearance_lines: Vec<String>,
+    /// [`SaveReport::rc4_keystream_reused`](crate::writer::SaveReport::rc4_keystream_reused)
+    /// of the save that wrote the signature; `Some` only under an RC4 handler
+    /// (decision 190).
+    pub rc4_keystream_reused: Option<usize>,
 }
 
 /// Why a document could not be signed. Every variant is a refusal by name.

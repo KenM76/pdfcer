@@ -132,6 +132,7 @@ mod foreign_button;
 pub use foreign_button::ForeignAppearance;
 mod image_stamp;
 mod page_artwork;
+mod rc4_append;
 #[cfg(feature = "svg-import")]
 mod svg;
 mod threed_poster;
@@ -6595,7 +6596,7 @@ pub enum EncryptError {
 }
 
 /// The message every encrypted-document edit refusal carries.
-pub const ENCRYPTED_EDIT_REFUSED: &str = "the document is encrypted and the password that opened it does not permit this edit (or it uses RC4, which pdfcer does not write); open it with the owner password";
+pub const ENCRYPTED_EDIT_REFUSED: &str = "the document is encrypted, and either the password that opened it does not permit this edit (open it with the owner password) or it uses RC4, which pdfcer keeps only on request (pass --allow-rc4-append)";
 
 /// Why an edit could not be performed.
 ///
@@ -61188,7 +61189,7 @@ impl EditSession {
             trailer: None,
         });
 
-        let (mut bytes, _report) = self.to_incremental_bytes(options)?;
+        let (mut bytes, save) = self.to_incremental_bytes(options)?;
         let revision_start = self.base.bytes().len();
         let hole = apply::locate_hole(&bytes, revision_start, sig_id, reserve)?;
         let byte_range = apply::patch_byte_range(&mut bytes, hole);
@@ -61253,6 +61254,7 @@ impl EditSession {
                 pades_level,
                 self_verified: true,
                 notes,
+                rc4_keystream_reused: save.rc4_keystream_reused,
             },
         ))
     }
@@ -61709,7 +61711,7 @@ impl EditSession {
         });
 
         // --- 3. serialise ----------------------------------------------------
-        let (mut bytes, _report) = self.to_incremental_bytes(options)?;
+        let (mut bytes, save) = self.to_incremental_bytes(options)?;
         let revision_start = self.base.bytes().len();
 
         // --- 4. locate, patch /ByteRange, digest, CMS, back-patch ------------
@@ -61794,6 +61796,7 @@ impl EditSession {
                     .and_then(|r| r.lock.as_ref())
                     .map(apply::FieldLock::describe),
                 notes: reuse.map(|r| r.notes).unwrap_or_default(),
+                rc4_keystream_reused: save.rc4_keystream_reused,
             },
         ))
     }

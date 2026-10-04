@@ -559,6 +559,7 @@ pub(crate) fn save_edited(
         eprintln!("pdfcer: {}: {err}", output.display());
         exit::IO_ERROR
     })?;
+    disclose_rc4(output, report.rc4_keystream_reused);
 
     let mut undo_identical = false;
     if verify_undo {
@@ -706,4 +707,18 @@ pub(crate) fn write_output(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) -> s
         let _ = std::fs::remove_file(&temp);
     }
     written
+}
+
+/// Print the `--allow-rc4-append` warning when a save kept a document's RC4
+/// encryption; `reused` is the save report's keystream-reuse count.
+pub(crate) fn disclose_rc4(path: &Path, reused: Option<usize>) {
+    if let Some(n) = reused {
+        eprintln!(
+            "pdfcer: {}: kept the document's RC4 encryption (--allow-rc4-append). RC4 is weak \
+and deprecated in PDF 2.0; {n} existing object(s) were re-encrypted with the same keystream as \
+their previous version. For stronger protection re-encrypt with AES-256 (encrypt), which \
+invalidates existing signatures.",
+            path.display()
+        );
+    }
 }

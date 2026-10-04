@@ -10,7 +10,9 @@ use std::path::{Path, PathBuf};
 
 use pdfcer_model::document::Document;
 use pdfcer_model::object::{Name, ObjId, Object};
-use pdfcer_model::writer::{DirtySet, SaveOptions, WriteError, save_incremental};
+use pdfcer_model::writer::{
+    DirtySet, Rc4Append, SaveOptions, SaveReport, WriteError, save_incremental,
+};
 
 const FIELD: ObjId = ObjId::new(4, 0);
 const FORM: ObjId = ObjId::new(6, 0);
@@ -59,9 +61,12 @@ fn id_pair(doc: &Document) -> (Vec<u8>, Vec<u8>) {
     (s(&items[0]), s(&items[1]))
 }
 
-fn round_trip(name: &str) {
+/// Every round trip opts in to RC4 append, which must change nothing for an
+/// AES document.
+fn round_trip(name: &str) -> SaveReport {
     let original = fixture(name);
-    let doc = open(&original, b"userpw");
+    let mut doc = open(&original, b"userpw");
+    doc.set_rc4_append(Rc4Append::Preserve);
     let form_before = stream_data(&doc, FORM);
 
     let (out, report) =
@@ -93,16 +98,72 @@ fn round_trip(name: &str) {
     assert_eq!(after.0, before.0, "/ID[0] never changes (§7.6.3)");
     assert_ne!(after.1, before.1, "/ID[1] refreshes on a change (§14.4)");
     assert!(open(&out, b"ownerpw").encryption().is_some());
+    report
 }
 
 #[test]
 fn an_aes_128_document_appends_under_its_own_key() {
-    round_trip("enc-aes-128.pdf");
+    assert_eq!(round_trip("enc-aes-128.pdf").rc4_keystream_reused, None);
 }
 
 #[test]
 fn an_aes_256_r6_document_appends_under_its_own_key() {
-    round_trip("enc-aes-256-r6.pdf");
+    assert_eq!(round_trip("enc-aes-256-r6.pdf").rc4_keystream_reused, None);
+}
+
+/// `/V` 1, `/V` 2 and a `/V` 4 `/CFM /V2` crypt filter: the edited field and
+/// the re-emitted form both reuse their previous revision's keystream.
+#[test]
+fn an_opted_in_rc4_document_appends_under_its_own_key() {
+    for name in ["enc-rc4-40.pdf", "enc-rc4-128.pdf", "enc-rc4-128-v4.pdf"] {
+        assert_eq!(round_trip(name).rc4_keystream_reused, Some(2), "{name}");
+    }
+}
+
+/// A created object gets a fresh number, so a key no revision used before.
+#[test]
+fn a_created_object_does_not_count_as_keystream_reuse() {
+    let mut doc = open(&fixture("enc-rc4-128.pdf"), b"userpw");
+    doc.set_rc4_append(Rc4Append::Preserve);
+    let mut dirty = edit(&doc, b"hello");
+    let id = ObjId::new(doc.next_object_number().unwrap(), 0);
+    dirty.replace(id, Object::String(b"new".to_vec()));
+    let (out, report) = save_incremental(&doc, &dirty, &SaveOptions::default()).unwrap();
+    assert_eq!(report.rc4_keystream_reused, Some(2));
+    let reopened = open(&out, b"userpw");
+    assert_eq!(
+        reopened.get(id).unwrap().value,
+        Object::String(b"new".to_vec())
+    );
+}
+
+/// A verbatim re-emission copies the stored ciphertext, so it reuses no
+/// keystream.
+#[test]
+fn a_verbatim_reemission_does_not_count_as_keystream_reuse() {
+    let mut doc = open(&fixture("enc-rc4-128.pdf"), b"userpw");
+    doc.set_rc4_append(Rc4Append::Preserve);
+    let mut dirty = DirtySet::identity_reemission([FORM]);
+    let field = edit(&doc, b"v").replacement(FIELD).unwrap().clone();
+    dirty.replace(FIELD, field);
+    let (_, report) = save_incremental(&doc, &dirty, &SaveOptions::default()).unwrap();
+    assert_eq!(report.rc4_keystream_reused, Some(1));
+}
+
+#[test]
+fn rc4_append_is_refused_until_opted_in() {
+    let mut doc = open(&fixture("enc-rc4-128-v4.pdf"), b"userpw");
+    let enc = doc.encryption().unwrap();
+    assert!(enc.uses_rc4() && !enc.appendable());
+    assert_eq!(enc.rc4_append(), Rc4Append::Refuse);
+    doc.set_rc4_append(Rc4Append::Preserve);
+    assert!(doc.encryption().unwrap().appendable());
+    doc.set_rc4_append(Rc4Append::Refuse);
+    let result = save_incremental(&doc, &edit(&doc, b"x"), &SaveOptions::default());
+    assert!(
+        matches!(result, Err(WriteError::Rc4AppendRefused)),
+        "{result:?}"
+    );
 }
 
 #[test]

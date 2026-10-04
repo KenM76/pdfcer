@@ -562,6 +562,25 @@ pub fn producer_string() -> String {
     format!("pdfcer {}", env!("CARGO_PKG_VERSION"))
 }
 
+/// Whether an incremental save of an RC4-encrypted document keeps the
+/// document's RC4 handler. Set with
+/// [`Document::set_rc4_append`](crate::document::Document::set_rc4_append).
+///
+/// RC4 is deprecated in ISO 32000-2 (§7.6.2) and pdfcer never chooses it;
+/// this only decides whether an existing RC4 document can take an
+/// incremental edit. Decision 190.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Rc4Append {
+    /// Refuse the save with [`WriteError::Rc4AppendRefused`]. The default.
+    #[default]
+    Refuse,
+    /// Append under the document's RC4 key. Existing signatures stay valid;
+    /// the save reports how many objects reused a keystream in
+    /// [`SaveReport::rc4_keystream_reused`].
+    Preserve,
+}
+
 /// Options controlling a save.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
@@ -863,12 +882,15 @@ pub enum WriteError {
     )]
     EncryptedSaveUnsupported,
 
-    /// An incremental save of an **RC4**-encrypted document: appending would
-    /// write RC4, which pdfcer never writes (standing rule W14). Re-encrypting
-    /// the document (AES-256) or removing its encryption are the routes.
+    /// An incremental save of an **RC4**-encrypted document under the
+    /// default [`Rc4Append::Refuse`]. The routes: opt in with
+    /// [`Document::set_rc4_append`](crate::document::Document::set_rc4_append)
+    /// (the CLI's `--allow-rc4-append`), re-encrypt with AES-256, or remove
+    /// the encryption. Decision 190.
     #[error(
-        "this document is encrypted with RC4, which pdfcer does not write; re-encrypt it \
-         with AES-256 or remove its encryption before saving an edit"
+        "this document is encrypted with RC4, which pdfcer does not write by default; \
+         pass --allow-rc4-append to keep its RC4 encryption (weak; existing signatures stay \
+         valid), or re-encrypt it with AES-256 or remove its encryption before saving an edit"
     )]
     Rc4AppendRefused,
 

@@ -1836,7 +1836,7 @@ pub(crate) fn finish_attachment_save(
         }
         SaveMode::Full => session.to_full_bytes(&pdfcer_core::writer::SaveOptions::default()),
     };
-    let (bytes, _report) = match saved {
+    let (bytes, report) = match saved {
         Ok(pair) => pair,
         Err(err) => {
             eprintln!("pdfcer: {}: save refused: {err}", input.display());
@@ -1848,6 +1848,7 @@ pub(crate) fn finish_attachment_save(
         eprintln!("pdfcer: {}: {err}", out.display());
         return exit::IO_ERROR;
     }
+    crate::edit_common::disclose_rc4(out, report.rc4_keystream_reused);
     println!("  wrote {} bytes={}", out.display(), bytes.len());
     exit::SUCCESS
 }

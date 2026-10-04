@@ -33,6 +33,7 @@ pub(crate) fn run() -> ExitCode {
     }
 
     let _ = CLI_LOAD_OPTIONS.set(cli.on_malformed.to_load_options());
+    crate::cli::CLI_RC4_APPEND.store(cli.allow_rc4_append, std::sync::atomic::Ordering::Relaxed);
     if let Err(code) = crate::settings::install(cli.settings.as_deref(), cli.no_settings) {
         return ExitCode::from(code);
     }

@@ -6,7 +6,6 @@
 
 use std::collections::BTreeMap;
 
-use crate::crypto::Cipher;
 use crate::crypto::apply::skip_value;
 use crate::document::{Document, DocumentEncryption};
 use crate::object::{Dict, Name, ObjId, Object};
@@ -87,7 +86,7 @@ pub fn save_incremental(
     if dirty.is_empty() {
         return Ok((out, SaveReport::unchanged(base.len())));
     }
-    let encoder = encoder_for(doc, dirty)?;
+    let (encoder, rc4_keystream_reused) = encoder_for(doc, dirty)?;
 
     // Separate the appended region from an unterminated final line (§7.2.3).
     if !matches!(out.last(), Some(b'\n' | b'\r')) {
@@ -125,26 +124,28 @@ pub fn save_incremental(
         delinearized: doc.linearization().save_invalidates_fast_web_view(),
         promoted: bodies.promoted,
         objects_deleted: deleted,
+        rc4_keystream_reused,
     };
     Ok((out, report))
 }
 
 /// The encoder appended objects go through: identity for a plain document;
 /// for an encrypted one, its own handler and key (§7.6.2), exempting what the
-/// read side does not decrypt.
+/// read side does not decrypt. Second: the RC4 keystream-reuse count, `Some`
+/// only for an RC4 append.
 ///
-/// RC4 is refused by name: pdfcer never writes RC4 (standing rule W14).
+/// RC4 is refused unless the document opted in (decision 190).
 fn encoder_for<'d>(
     doc: &'d Document,
     dirty: &DirtySet,
-) -> Result<Box<dyn ObjectEncoder + 'd>, WriteError> {
+) -> Result<(Box<dyn ObjectEncoder + 'd>, Option<usize>), WriteError> {
     let Some(enc) = doc.encryption() else {
-        return Ok(Box::new(IdentityEncoder));
+        return Ok((Box::new(IdentityEncoder), None));
     };
-    let key = enc.file_key();
-    if [key.string_cipher(), key.stream_cipher()].contains(&Cipher::Rc4) {
+    if !enc.appendable() {
         return Err(WriteError::Rc4AppendRefused);
     }
+    let key = enc.file_key();
     // A fresh IV per payload is a `shall` (§7.6.2); prove entropy works
     // before writing a byte.
     crate::crypto::rng::array::<16>().map_err(|_| WriteError::EntropyUnavailable)?;
@@ -166,7 +167,29 @@ fn encoder_for<'d>(
         })
         .map(|id| id.num)
         .collect();
-    Ok(Box::new(KeyEncoder::new(key, clear)))
+    let reused = enc.uses_rc4().then(|| keystream_reuse(doc, dirty, &clear));
+    Ok((Box::new(KeyEncoder::new(key, clear)), reused))
+}
+
+/// Edited objects an RC4 append re-encrypts under a key their previous
+/// revision already used: a replaced value whose id was defined at file
+/// level in the base and is not left in clear. A verbatim re-emission copies
+/// the stored ciphertext, and an object-stream member was never encrypted
+/// under its own key (§7.6.2), so neither counts.
+fn keystream_reuse(
+    doc: &Document,
+    dirty: &DirtySet,
+    clear: &std::collections::HashSet<u32>,
+) -> usize {
+    dirty
+        .iter()
+        .filter(|&id| !dirty.is_deleted(id) && !clear.contains(&id.num))
+        .filter(|&id| dirty.replacement(id).is_some())
+        .filter(|&id| {
+            doc.get(id)
+                .is_some_and(|io| io.provenance.container().is_none())
+        })
+        .count()
 }
 
 /// What the object-definition pass wrote.

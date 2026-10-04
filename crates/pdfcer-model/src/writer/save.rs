@@ -268,6 +268,12 @@ pub struct SaveReport {
     /// change pdfcer made on its own initiative. The honesty obligation
     /// differs accordingly.
     pub objects_deleted: usize,
+    /// `Some(n)` when this save appended under an RC4 handler
+    /// ([`Rc4Append::Preserve`](super::Rc4Append::Preserve)): `n` edited
+    /// objects were re-encrypted under the number and generation, and so the
+    /// RC4 keystream, of their previous revision. XOR-ing the two
+    /// ciphertexts cancels the keystream. `None` for every other save.
+    pub rc4_keystream_reused: Option<usize>,
 }
 
 impl SaveReport {
@@ -283,6 +289,7 @@ impl SaveReport {
             delinearized: false,
             promoted: Vec::new(),
             objects_deleted: 0,
+            rc4_keystream_reused: None,
         }
     }
 }
@@ -713,6 +720,7 @@ pub fn save_full(
         delinearized: doc.linearization().save_invalidates_fast_web_view(),
         promoted,
         objects_deleted: deleted,
+        rc4_keystream_reused: None,
     };
     Ok((out, report))
 }
@@ -1033,6 +1041,7 @@ fn full_reencode(
         delinearized: doc.linearization().save_invalidates_fast_web_view(),
         promoted,
         objects_deleted: deleted,
+        rc4_keystream_reused: None,
     };
     Ok((out, report))
 }

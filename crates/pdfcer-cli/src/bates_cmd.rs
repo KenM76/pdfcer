@@ -99,7 +99,10 @@ pub(crate) fn cmd_bates_stamp(args: &BatesArgs<'_>) -> u8 {
         };
         let impact = session.signature_impact_of_save(CoreSaveMode::Incremental);
         let bytes = match session.to_incremental_bytes(&SaveOptions::identity()) {
-            Ok((bytes, _)) => bytes,
+            Ok((bytes, saved)) => {
+                crate::edit_common::disclose_rc4(input, saved.rc4_keystream_reused);
+                bytes
+            }
             Err(err) => {
                 eprintln!("pdfcer: {}: save refused: {err}", input.display());
                 return exit::SAVE_REFUSED;
@@ -189,7 +192,10 @@ pub(crate) fn cmd_bates_remove(inputs: &[PathBuf], out_dir: &Path, pages: &str) 
         };
         let impact = session.signature_impact_of_save(CoreSaveMode::Incremental);
         let bytes = match session.to_incremental_bytes(&SaveOptions::identity()) {
-            Ok((bytes, _)) => bytes,
+            Ok((bytes, saved)) => {
+                crate::edit_common::disclose_rc4(input, saved.rc4_keystream_reused);
+                bytes
+            }
             Err(err) => {
                 eprintln!("pdfcer: {}: save refused: {err}", input.display());
                 return exit::SAVE_REFUSED;

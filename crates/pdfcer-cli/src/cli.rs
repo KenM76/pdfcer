@@ -117,6 +117,19 @@ pub(crate) struct Cli {
     /// line alone.
     #[arg(long, global = true)]
     pub(crate) no_settings: bool,
+
+    /// Allow editing an RC4-encrypted PDF, saving the edit under its existing
+    /// RC4 encryption.
+    ///
+    /// Without this, pdfcer refuses to edit an RC4 document. With it, the
+    /// edit is appended under the document's own RC4 key, so existing
+    /// signatures stay valid. Every such save prints a warning: RC4 is weak
+    /// and deprecated in PDF 2.0, and each edited object is re-encrypted with
+    /// the same keystream as its previous version. For real protection,
+    /// re-encrypt with AES-256 (encrypt) instead, which invalidates existing
+    /// signatures.
+    #[arg(long, global = true)]
+    pub(crate) allow_rc4_append: bool,
 }
 
 /// The password supplied by `--open-password` / `--open-password-file`,
@@ -388,6 +401,19 @@ impl OnMalformedArg {
 pub(crate) static CLI_LOAD_OPTIONS: std::sync::OnceLock<pdfcer_core::document::LoadOptions> =
     std::sync::OnceLock::new();
 
+/// Set from `--allow-rc4-append` before dispatch; every document open
+/// applies it (decision 190).
+pub(crate) static CLI_RC4_APPEND: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Apply `--allow-rc4-append` to a freshly opened document.
+fn with_rc4_policy(mut doc: pdfcer_core::document::Document) -> pdfcer_core::document::Document {
+    if CLI_RC4_APPEND.load(std::sync::atomic::Ordering::Relaxed) {
+        doc.set_rc4_append(pdfcer_core::writer::Rc4Append::Preserve);
+    }
+    doc
+}
+
 /// The load options in force, defaulting to the tolerant ones.
 pub(crate) fn cli_load_options() -> pdfcer_core::document::LoadOptions {
     CLI_LOAD_OPTIONS
@@ -455,6 +481,7 @@ pub(crate) fn open_document(
     path: &Path,
 ) -> Result<pdfcer_core::document::Document, pdfcer_core::document::DocError> {
     pdfcer_core::document::Document::load_with_options(path, cli_password(), cli_load_options())
+        .map(with_rc4_policy)
 }
 
 /// Parse a document from bytes, supplying the CLI password if one was given.
@@ -469,6 +496,7 @@ pub(crate) fn open_document_bytes(
         cli_password(),
         cli_load_options(),
     )
+    .map(with_rc4_policy)
 }
 
 /// The planned subcommand surface. Only [`Command::Inspect`] is implemented

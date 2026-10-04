@@ -590,14 +590,14 @@ fn a_failed_non_ascii_password_discloses_the_missing_normalisation() {
     );
 }
 
-/// A full rewrite of a decrypted document is refused, and so is an
-/// incremental save of an RC4 one.
+/// A full rewrite of a decrypted document is refused, and so, by default, is
+/// an incremental save of an RC4 one.
 ///
 /// A full rewrite re-emits untouched objects verbatim from the decrypted
 /// buffer, which would put plaintext under `/Encrypt`. An incremental save
-/// appends under the document's own key, except that pdfcer never writes RC4
-/// (**W14**). Stripping `/Encrypt` instead would silently discard protection
-/// the author applied (rule 4).
+/// appends under the document's own key, except that an RC4 append needs
+/// opting in (decision 190). Stripping `/Encrypt` instead would silently
+/// discard protection the author applied (rule 4).
 #[test]
 fn a_decrypted_rewrite_and_an_rc4_append_are_refused() {
     let doc =

@@ -456,6 +456,55 @@ fn a_visible_signature_gets_a_widget_with_a_rect_and_an_appearance() {
 /// An AES-encrypted document opened with the owner password signs by an
 /// incremental append under its own key; the signature's `/Contents` is
 /// written in clear (ISO 32000-2 §7.6.2) and verifies after a user reopen.
+/// Decision 190: an RC4 document refuses an edit by default; opted in, it
+/// signs under its own RC4 handler, a later edit appends, and the signature
+/// still verifies.
+#[test]
+fn an_opted_in_rc4_document_signs_and_a_later_edit_keeps_the_signature() {
+    use pdfcer_core::writer::Rc4Append;
+    let text = || pdfcer_core::text_edit::AddTextRequest::new(0, (72.0, 72.0), "later");
+    for name in ["enc-rc4-128.pdf", "enc-rc4-128-v4.pdf"] {
+        let original = std::fs::read(fixtures().join("encryption").join(name)).unwrap();
+        let open =
+            |b: &[u8]| Document::from_bytes_with_password(b.to_vec(), Some(b"ownerpw")).unwrap();
+        let mut refused = EditSession::new(open(&original));
+        assert!(
+            refused.add_text(&text()).is_err(),
+            "{name}: refused by default"
+        );
+
+        let mut s = EditSession::new(open(&original));
+        s.set_rc4_append(Rc4Append::Preserve);
+        let (signed, report) = s
+            .sign(
+                &pfx("rsa2048-modern.pfx"),
+                &SignRequest::at(T0),
+                &SaveOptions::identity(),
+            )
+            .expect("signs");
+        assert!(report.self_verified, "{name}");
+        assert_eq!(&signed[..original.len()], &original[..], "{name}: appends");
+
+        let mut s = EditSession::new(open(&signed));
+        s.set_rc4_append(Rc4Append::Preserve);
+        s.add_text(&text()).expect("opted in");
+        let (edited, save) = s.to_incremental_bytes(&SaveOptions::default()).unwrap();
+        assert!(save.rc4_keystream_reused.is_some(), "{name}: disclosed");
+        assert_eq!(&edited[..signed.len()], &signed[..], "{name}: appends");
+        let doc = open(&edited);
+        assert!(doc.encryption().unwrap().uses_rc4(), "{name}: still RC4");
+        let v = verify_all(&doc.view(), &edited)
+            .into_iter()
+            .find(|v| v.field_name.as_deref() == Some("Signature1"))
+            .expect("verdict after the edit");
+        assert!(
+            matches!(v.integrity, Integrity::Verified { .. }),
+            "{name}: {:?}",
+            v.integrity
+        );
+    }
+}
+
 #[test]
 fn an_owner_opened_aes_document_signs_and_verifies() {
     for name in ["enc-aes-128.pdf", "enc-aes-256-r6.pdf"] {

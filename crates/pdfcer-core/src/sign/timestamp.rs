@@ -200,6 +200,10 @@ pub struct DocTimestampReport {
     pub self_verified: bool,
     /// Plain-language statements about what was and was not established.
     pub notes: Vec<String>,
+    /// [`SaveReport::rc4_keystream_reused`](crate::writer::SaveReport::rc4_keystream_reused)
+    /// of the save that wrote the signature; `Some` only under an RC4 handler
+    /// (decision 190).
+    pub rc4_keystream_reused: Option<usize>,
 }
 
 /// A built request plus what its answer must echo.

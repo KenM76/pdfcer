@@ -324,6 +324,7 @@ pub(crate) fn cmd_sign(args: &SignArgs<'_>) -> u8 {
         eprintln!("pdfcer: {}: {err}", args.output.display());
         return exit::IO_ERROR;
     }
+    crate::edit_common::disclose_rc4(args.output, report.rc4_keystream_reused);
 
     let sub_filter = String::from_utf8_lossy(report.sub_filter.name()).into_owned();
     println!(
@@ -666,6 +667,7 @@ pub(crate) fn cmd_timestamp(args: &TimestampArgs<'_>) -> u8 {
             eprintln!("pdfcer: {}: {err}", args.output.display());
             return exit::IO_ERROR;
         }
+        crate::edit_common::disclose_rc4(args.output, report.rc4_keystream_reused);
         println!(
             "timestamp {} -> {}; field={} byte_range={},{},{},{} reserved={} level={} prior_signatures={} dss={} self_verified={} out_bytes={}",
             args.input.display(),

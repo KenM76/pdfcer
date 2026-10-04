@@ -95,3 +95,26 @@ for name, algo in [
     with open(f'{outdir}/enc-{name}.pdf', 'wb') as f:
         w.write(f)
     print(f'{name:18} {algo}, user password is the empty string')
+
+# /V 4 with an RC4 crypt filter (/CFM /V2): the third RC4 form (ISO 32000-2
+# §7.6.5 Table 25). pypdf has no algorithm name for it, so the AES-128 mode's
+# filter names are swapped for /V2; key derivation is the same /R 4.
+from pypdf import _encryption
+from pypdf._encryption import EncryptAlgorithm
+_make = _encryption.Encryption.make
+
+
+def _make_rc4_v4(alg, permissions, first_id_entry):
+    enc = _make(alg, permissions, first_id_entry)
+    if alg == EncryptAlgorithm.AES_128:
+        enc.StmF = enc.StrF = enc.EFF = '/V2'
+    return enc
+
+
+_encryption.Encryption.make = staticmethod(_make_rc4_v4)
+w = PdfWriter(clone_from=src)
+w.encrypt(user_password=USER, owner_password=OWNER, algorithm='AES_128')
+with open(f'{outdir}/enc-rc4-128-v4.pdf', 'wb') as f:
+    w.write(f)
+_encryption.Encryption.make = staticmethod(_make)
+print('rc4-128-v4   V=4 R=4 CFM=/V2')

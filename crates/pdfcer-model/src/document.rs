@@ -388,6 +388,8 @@ pub struct DocumentEncryption {
     /// The file's bytes before decryption. Decryption rewrites stream data in
     /// the document's buffer, so an append must start from these instead.
     ciphertext: std::sync::Arc<[u8]>,
+    /// Whether an append may keep an RC4 handler; see [`Document::set_rc4_append`].
+    rc4_append: crate::writer::Rc4Append,
 }
 
 impl DocumentEncryption {
@@ -408,13 +410,30 @@ impl DocumentEncryption {
     }
 
     /// Whether an incremental save can append under this document's key.
-    /// `false` for an RC4 document: pdfcer never writes RC4 (W14), so
+    /// `false` for an RC4 document unless [`Document::set_rc4_append`] opted
+    /// in: pdfcer never chooses RC4 (decision 190), so
     /// [`crate::writer::save_incremental`] refuses it with
     /// [`crate::writer::WriteError::Rc4AppendRefused`].
     #[must_use]
     pub fn appendable(&self) -> bool {
+        !self.uses_rc4() || self.rc4_append == crate::writer::Rc4Append::Preserve
+    }
+
+    /// Whether strings or streams are encrypted with RC4 (`/V` 1–2, or a
+    /// `/V` 4 crypt filter with `/CFM /V2`; ISO 32000-2 §7.6.2).
+    #[must_use]
+    pub fn uses_rc4(&self) -> bool {
         use crate::crypto::Cipher;
-        ![self.key.string_cipher(), self.key.stream_cipher()].contains(&Cipher::Rc4)
+        [self.key.string_cipher(), self.key.stream_cipher()].contains(&Cipher::Rc4)
+    }
+
+    /// The RC4 append policy in force; [`Rc4Append::Refuse`] unless
+    /// [`Document::set_rc4_append`] changed it.
+    ///
+    /// [`Rc4Append::Refuse`]: crate::writer::Rc4Append::Refuse
+    #[must_use]
+    pub fn rc4_append(&self) -> crate::writer::Rc4Append {
+        self.rc4_append
     }
 
     /// Whether `bit` lets the operator who opened the document do what it
@@ -1075,6 +1094,7 @@ impl Document {
             key,
             encrypt_dict_id,
             ciphertext,
+            rc4_append: crate::writer::Rc4Append::Refuse,
         }))
     }
 
@@ -1084,6 +1104,25 @@ impl Document {
     #[must_use]
     pub fn encryption(&self) -> Option<&DocumentEncryption> {
         self.encryption.as_ref()
+    }
+
+    /// Choose whether an incremental save of an RC4-encrypted document keeps
+    /// its RC4 handler ([`Rc4Append::Preserve`]) or is refused
+    /// ([`Rc4Append::Refuse`], the default). No effect on a plain or AES
+    /// document.
+    ///
+    /// Preserve keeps existing signatures valid, at a cost the save reports
+    /// in [`SaveReport::rc4_keystream_reused`]: an edited object rewritten
+    /// under its old number and generation is encrypted with the same RC4
+    /// keystream as its previous revision. Decision 190.
+    ///
+    /// [`Rc4Append::Preserve`]: crate::writer::Rc4Append::Preserve
+    /// [`Rc4Append::Refuse`]: crate::writer::Rc4Append::Refuse
+    /// [`SaveReport::rc4_keystream_reused`]: crate::writer::SaveReport::rc4_keystream_reused
+    pub fn set_rc4_append(&mut self, policy: crate::writer::Rc4Append) {
+        if let Some(enc) = self.encryption.as_mut() {
+            enc.rc4_append = policy;
+        }
     }
 
     /// Drop this document's encryption, in memory, without re-parsing.

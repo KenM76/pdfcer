@@ -468,7 +468,10 @@ pub(crate) fn cmd_ocr(
             return exit::EDIT_REFUSED;
         };
         match session.to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity()) {
-            Ok((bytes, _)) => (bytes, report),
+            Ok((bytes, saved)) => {
+                crate::edit_common::disclose_rc4(input, saved.rc4_keystream_reused);
+                (bytes, report)
+            }
             Err(err) => {
                 eprintln!("pdfcer: save refused: {err}");
                 return exit::SAVE_REFUSED;
