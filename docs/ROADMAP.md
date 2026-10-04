@@ -115,6 +115,45 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 455.1` — Tagged-PDF `TextDecorationType` structure attribute — SHIPPED `a90417d6`
+
+Deferred half of `G085`/`Pass 455.0`; scope narrowed by decision 188
+(2026-10-03, 928th filing, no code) to the full-coverage case only — the
+partial-coverage split-a-`/Span` case is `Pass 455.2` (Backlog, gated on
+FF-I, unaffected by this entry).
+
+**Shipped.** An underline/line-through edit now writes `/A <</O /Layout
+/TextDecorationType /Underline|/LineThrough>>` (ISO 32000-1 §14.8.5.4.4)
+on any structure element whose text is fully covered — MCIDs, MCRs,
+nested inline elements at any depth after RoleMap, across pages; nested
+*block* elements are skipped; unknown types, an MCR with `/Stm`, a `Do`
+inside the MCID body, or an unreadable page all count as not covered.
+Line-through wins when both are present. Copy-on-write: merges into a
+direct `/Layout` dict, else appends a new direct dict followed by `/R`
+when non-zero; indirect attribute objects are never mutated. Rebuilt
+from the base revision on every refresh, so clearing the decoration
+removes the attribute and undo is net-zero. Disclosed (edit report +
+CLI `disclosures:`): partial coverage, untagged text, both lines present
+(line-through kept), an authored attribute that now over-claims,
+decoration inside a form XObject. Depth guard of 64 plus visited sets on
+the parent-tree and `/K` walks.
+
+**Tests.** 14 new (`crates/pdfcer-core/tests/format_decoration_tagged.rs`);
+all 31 `format_decoration*` tests pass; 15 sabotage cases all caught.
+
+**Invariant checks.** No manifest change — `cargo tree` unchanged (no
+new dependency). No fuzz target added: the walk consumes already-parsed
+objects (no new byte parser) and is depth/cycle-guarded — that is the
+reasoning, not an omission. `docs/core-api/02-editing-and-saving.md`
+updated in the same commit; `check-core-api-verbs` passed (no new `pub`
+verb).
+
+**`docs/FEATURES.md`.** "Tagged-PDF `TextDecorationType` structure
+attribute" row moved *Planned → Implemented*: `[x]` core / `[x]` cli /
+`[ ]` gui — `format-text` routes decoration through the edit session and
+prints disclosures; no GUI surface yet. Partial coverage stays open
+under `Pass 455.2`.
+
 ### `Pass 462.0` — 3D texture mapping (read + render) — SHIPPED `77777d07`
 
 Operator request, 2026-10-03, same dispatch as `Pass 461.0` below.
@@ -18441,22 +18480,23 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> ★★★★★★★★★★★★★★★★ **`Pass 455.1` SHIPPED, 2026-10-03 (929th filing),
+> `a90417d6`** — see *Shipped*, above. The Tagged-PDF `TextDecorationType`
+> structure attribute (ISO 32000-1 §14.8.5.4.4), narrowed to the
+> full-coverage case by decision 188, writes on the covered structure
+> element itself. **The `G085`/`455`-family is now fully discharged out
+> of *Next up*** — the partial-coverage split case lives in *Backlog* as
+> `Pass 455.2`, gated on FF-I, not scoped here. Several other items
+> further down this list (e.g. `436.3`, `442.4`, `442.5`'s end-to-end
+> verification) remain open; this entry closes out `455` only.
+
 > ★★★★★★★★★★★★★★★★ **`Pass 455.0` SHIPPED, 2026-10-03 (915th filing),
 > `b602ab9b`** — see *Shipped*, above. `G085`: underline/strikethrough
 > now travel with the run via a `/pdfc_Deco` marked-content pair plus a
 > `refresh_decorations(page)` recompute inside every text-editing verb's
 > undo entry, instead of staying behind as orphaned page content.
 > `format-text --underline`/`--strikethrough`/`--no-decoration`.
-> `gui [ ]` not wired. **`Pass 455.1`**, deferred on `455.0`, **RESCOPED
-> by decision 188 (2026-10-03, 928th filing):** the Tagged-PDF
-> `TextDecorationType` structure attribute (ISO 32000-1 §14.8.5.4.4 Table
-> 345, owner `/O /Layout`; 32000-2 Table 380) is written on the
-> structure element `E` itself (copy-on-write into a direct `/O /Layout`
-> dict) **only when the decoration covers every text content item of `E`
-> and its nested inline descendants**, across pages; partial coverage is
-> disclosed, not split. The split-a-child-`/Span` case is now `Pass
-> 455.2` (Backlog, gated on FF-I). Still *Next up*. Spec note (PDF has no
-> native decoration operator):
+> `gui [ ]` not wired. Spec note (PDF has no native decoration operator):
 > `D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__ref__text_decoration.md`.
 
 > ★★★★★★★★★★★★★★★★ **`Pass 454.0` SHIPPED, 2026-10-03 (914th filing),

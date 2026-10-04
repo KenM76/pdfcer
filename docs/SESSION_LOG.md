@@ -4,6 +4,40 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-03 (929th filing) — `Pass 455.1` shipped
+
+**Shipped:**
+- `Pass 455.1` (`a90417d6`) — Tagged-PDF `TextDecorationType` structure
+  attribute. An underline/line-through edit writes `/A <</O /Layout
+  /TextDecorationType /Underline|/LineThrough>>` (ISO 32000-1
+  §14.8.5.4.4) on a structure element whose text is fully covered
+  (MCIDs/MCRs/nested inline descendants, across pages; nested block
+  elements skipped), copy-on-write, rebuilt from the base revision
+  every refresh. Disclosed: partial coverage, untagged text, both
+  lines present, an authored attribute now over-claiming, decoration
+  inside a form XObject. Scope narrowed by decision 188 (928th filing)
+  to the full-coverage case only. 14 new tests, all 31
+  `format_decoration*` tests pass, 15 sabotages caught. No manifest
+  change; no new fuzz target (no new byte parser, depth/cycle-guarded).
+
+**Decisions made this session:** none — decision 188 was filed last
+session.
+
+**Findings + decisions:** none new.
+
+**Still in flight:** `Pass 455.2` (element splitting for partial
+coverage, Backlog, gated on FF-I) unaffected, no acceptance criteria
+yet. `docs/FEATURES.md`'s Tagged-PDF `TextDecorationType` row moved
+*Planned → Implemented* (`[x]`/`[x]`/`[ ]`) in this filing.
+
+**For next session:** next free decision `189`, standing rule `R263`,
+operator question `(ck)`, Pass `463.0` — unchanged from the 928th
+filing below.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+test counts and gate results relayed from the dispatching engineer's
+report, not independently re-verified.
+
 ## 2026-10-03 (928th filing) — decision 188; `Pass 455.1` rescoped; `Pass 455.2` minted (scoping only, no code)
 
 **Shipped:** none — this filing is pure scoping, no commit.
