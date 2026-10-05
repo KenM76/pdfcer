@@ -38,9 +38,9 @@
 //! cannot be told apart from clipped or deliberately hidden text, so removing
 //! them would be a guess.
 
-use crate::content::{ContentStream, ContentTokenKind};
+use crate::content::{ContentStream, ContentTokenKind, Operation};
 use crate::graph::ObjectGraph;
-use crate::object::{ObjId, Object};
+use crate::object::{Dict, ObjId, Object};
 use crate::page_tree::{self, Page, PageTreeError};
 use crate::view::DocumentView;
 
@@ -137,6 +137,31 @@ pub(crate) fn content_stream_ids(view: &DocumentView<'_>, page: &Page) -> Vec<Ob
         .collect()
 }
 
+/// Whether stream `id` is exactly one pdfcer OCR layer.
+pub(crate) fn is_layer_stream(view: &DocumentView<'_>, id: ObjId) -> bool {
+    read_marker(view, id).is_some()
+}
+
+/// The inline property list of `op` when it opens a pdfcer OCR layer
+/// (`/pdfc_OCR << /Producer (pdfcer) … >> BDC`), else `None`.
+pub(crate) fn layer_props<'a>(op: &Operation<'a>, buf: &'a [u8]) -> Option<&'a Dict> {
+    if op.operator_name(buf)? != b"BDC" {
+        return None;
+    }
+    let operand = |i: usize| match op.operands.get(i).map(|t| &t.kind) {
+        Some(ContentTokenKind::Operand(o)) => Some(o),
+        _ => None,
+    };
+    if operand(0)?.as_name()?.as_bytes() != LAYER_TAG {
+        return None;
+    }
+    let props = operand(1)?.as_dict()?;
+    match props.get(b"Producer") {
+        Some(Object::String(s)) if s.as_slice() == LAYER_PRODUCER => Some(props),
+        _ => None,
+    }
+}
+
 /// `(engine, version, font names)` when stream `id` is exactly one pdfcer
 /// OCR layer, else `None`.
 fn read_marker(view: &DocumentView<'_>, id: ObjId) -> Option<(Option<String>, i64, Vec<Vec<u8>>)> {
@@ -149,21 +174,10 @@ fn read_marker(view: &DocumentView<'_>, id: ObjId) -> Option<(Option<String>, i6
     let buf = cs.buf.as_slice();
     let ops: Vec<_> = cs.operations().collect();
     let (first, last) = (ops.first()?, ops.last()?);
-    if first.operator_name(buf)? != b"BDC" || last.operator_name(buf)? != b"EMC" {
+    if last.operator_name(buf)? != b"EMC" {
         return None;
     }
-    let operand = |i: usize| match first.operands.get(i).map(|t| &t.kind) {
-        Some(ContentTokenKind::Operand(o)) => Some(o),
-        _ => None,
-    };
-    if operand(0)?.as_name()?.as_bytes() != LAYER_TAG {
-        return None;
-    }
-    let props = operand(1)?.as_dict()?;
-    match props.get(b"Producer") {
-        Some(Object::String(s)) if s.as_slice() == LAYER_PRODUCER => {}
-        _ => return None,
-    }
+    let props = layer_props(first, buf)?;
     // The opening BDC must be closed by the final EMC, not earlier: a stream
     // that closes the layer and then draws more is not wholly pdfcer's.
     let mut depth = 0_i64;

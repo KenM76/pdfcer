@@ -64,6 +64,9 @@ pub mod layer;
 /// Finding the layers [`layer`] wrote, by their marked-content tag.
 pub mod marker;
 
+/// Keeping those layers separate when an edit folds a page's content.
+pub(crate) mod refold;
+
 /// The `ocrs` recogniser, behind the Cargo feature of the same name.
 ///
 /// The ONLY engine-aware module in the OCR subsystem. Everything else here is

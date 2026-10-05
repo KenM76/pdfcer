@@ -132,6 +132,7 @@ mod emf;
 mod foreign_button;
 pub use foreign_button::ForeignAppearance;
 mod image_stamp;
+mod ocr_refold;
 mod page_artwork;
 mod rc4_append;
 #[cfg(feature = "svg-import")]
@@ -19743,6 +19744,11 @@ impl EditSession {
             )?;
             disclosures.push(crate::text_edit::edit::SHARED_CONTENT_DISCLOSURE.to_owned());
             return Ok(decoupled);
+        }
+        if is_page_stream
+            && let Some(r) = crate::ocr::refold::refold(&self.view(), &page.contents, &new_content)
+        {
+            return Ok(self.refolded_command(kind, content_id, r, prior, disclosures));
         }
         let content_before = self.state.get(&content_id).cloned();
 

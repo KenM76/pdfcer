@@ -129,6 +129,7 @@ mod object_identity_across_edits;
 mod object_renders_for_an_operator;
 mod ocr_layer;
 mod ocr_layer_marker;
+mod ocr_layer_survives_edits;
 mod ocr_session;
 mod offpage_blank_overhang;
 mod operator_span_invariant;
