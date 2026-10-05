@@ -76,6 +76,7 @@ use pdfcer_model::span::ByteSpan;
 use pdfcer_model::view::DocumentView;
 
 use super::font::{ExtractFont, FontNote, LadderRung, Rung3Gap};
+use super::ocr_layer::opens_ocr_layer;
 use super::{
     ArtifactKind, ArtifactSubtype, ContentStreamRef, ExtractOptions, FontWeight, GlyphProvenance,
     TextColor, TextDiagnostics, WeightSource,
@@ -123,6 +124,8 @@ pub(super) struct GlyphItem {
     /// Which content stream `mcid` is scoped to; `Some` exactly when it is.
     pub mcid_stream: Option<ContentStreamRef>,
     pub artifact_subtype: Option<ArtifactSubtype>,
+    /// Inside a pdfcer OCR layer.
+    pub in_ocr_layer: bool,
     /// Source-operator identity + text state, captured only when
     /// [`ExtractOptions::capture_provenance`] is set (otherwise `None`).
     pub provenance: Option<GlyphProvenance>,
@@ -140,6 +143,8 @@ pub(super) struct ReplacementItem {
     /// Which content stream `mcid` is scoped to; `Some` exactly when it is.
     pub mcid_stream: Option<ContentStreamRef>,
     pub artifact_subtype: Option<ArtifactSubtype>,
+    /// Inside a pdfcer OCR layer.
+    pub in_ocr_layer: bool,
     /// Bounding box of the glyphs the replacement covered, if it covered
     /// any. This is the *only* positional information an `/ActualText`
     /// run can carry — §14.9.4 N4 makes per-character correspondence
@@ -357,6 +362,7 @@ struct MarkedLevel {
     mcid_stream: Option<ContentStreamRef>,
     artifact_subtype: Option<ArtifactSubtype>,
     reversed_chars: bool,
+    ocr_layer: bool,
     /// Present when this level is a `/Span` carrying `/ActualText`, and
     /// this level is the OUTERMOST such level (see the nesting policy in
     /// [`Walk::begin_marked`]).
@@ -1092,6 +1098,10 @@ impl Walk<'_> {
             return;
         }
 
+        let in_ocr_layer = self.in_ocr_layer();
+        if !self.options.ocr_layer.keeps(in_ocr_layer) {
+            return;
+        }
         let artifact = self.artifact();
         if artifact.is_some() {
             self.diagnostics.artifact_chars += chars.chars().count() as u64;
@@ -1145,6 +1155,7 @@ impl Walk<'_> {
             mcid: self.mcid(),
             mcid_stream: self.mcid_stream(),
             artifact_subtype: self.artifact_subtype(),
+            in_ocr_layer,
             provenance,
         }));
     }
@@ -1197,6 +1208,7 @@ impl Walk<'_> {
             mcid_stream: self.mcid_stream(),
             artifact_subtype: self.artifact_subtype(),
             reversed_chars: self.reversed_chars(),
+            ocr_layer: self.in_ocr_layer() || opens_ocr_layer(self.doc, tag, props),
             actual_text: None,
             covered: None,
         };
@@ -1322,7 +1334,7 @@ impl Walk<'_> {
         let Some(text) = level.actual_text else {
             return;
         };
-        if text.is_empty() {
+        if text.is_empty() || !self.options.ocr_layer.keeps(level.ocr_layer) {
             // An empty /ActualText suppressed its content deliberately
             // (N7); emitting an empty run would be noise.
             return;
@@ -1333,6 +1345,7 @@ impl Walk<'_> {
             mcid: level.mcid,
             mcid_stream: level.mcid_stream,
             artifact_subtype: level.artifact_subtype,
+            in_ocr_layer: level.ocr_layer,
             bbox: level.covered,
         }));
     }
@@ -1355,6 +1368,11 @@ impl Walk<'_> {
     /// The stream the innermost enclosing `/MCID` was declared in.
     fn mcid_stream(&self) -> Option<ContentStreamRef> {
         self.marked.last().and_then(|l| l.mcid_stream)
+    }
+
+    /// Whether an enclosing sequence opens a pdfcer OCR layer.
+    fn in_ocr_layer(&self) -> bool {
+        self.marked.last().is_some_and(|l| l.ocr_layer)
     }
 
     /// Whether any enclosing sequence is `/ReversedChars`.

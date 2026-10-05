@@ -44,11 +44,10 @@ use crate::object::{Dict, ObjId, Object};
 use crate::page_tree::{self, Page, PageTreeError};
 use crate::view::DocumentView;
 
-/// The marked-content tag around a pdfcer OCR layer.
-pub const LAYER_TAG: &[u8] = b"pdfc_OCR";
-
-/// The `/Producer` value that makes a tagged stream pdfcer's own.
-pub const LAYER_PRODUCER: &[u8] = b"pdfcer";
+/// The marked-content tag around a pdfcer OCR layer, and the `/Producer`
+/// value that makes a tagged stream pdfcer's own. Defined beside the
+/// extraction that recognises them, so writer and reader share one spelling.
+pub use crate::text_extract::{OCR_LAYER_PRODUCER as LAYER_PRODUCER, OCR_LAYER_TAG as LAYER_TAG};
 
 /// The `/Version` of the marker this build writes.
 pub const LAYER_VERSION: i64 = 1;

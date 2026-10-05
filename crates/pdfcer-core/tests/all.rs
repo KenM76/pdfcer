@@ -129,6 +129,7 @@ mod object_identity_across_edits;
 mod object_renders_for_an_operator;
 mod ocr_layer;
 mod ocr_layer_added_text;
+mod ocr_layer_extract_filter;
 mod ocr_layer_marker;
 mod ocr_layer_on_group;
 mod ocr_layer_survives_edits;

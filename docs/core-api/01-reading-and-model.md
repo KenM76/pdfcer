@@ -113,6 +113,7 @@ builds `--no-default-features`, so both configurations compile.
 | Get text as one string | `ExtractedText::plain_text()` — `mod.rs`; file-sourced only: `sourced_text()` — `mod.rs` | §8.3 |
 | Get per-glyph positions for a selection highlight | `PageText::runs[].glyphs[]` → `ExtractedGlyph{x,y,advance,size}` — `mod.rs` | §8.4 |
 | Get the byte-exact origin of a glyph (for editing) | `ExtractOptions::default().with_provenance(true)` then `ExtractedGlyph::provenance` — `mod.rs`, `mod.rs` | §8.4 |
+| Separate OCR-layer text from the page's own | `ExtractOptions::default().with_ocr_layer(OcrLayerFilter::OnlyOcrLayer)`, or read `TextRun::in_ocr_layer` — `ocr_layer.rs` | §8.2 |
 | Search for text across the document | `EditSession::find_text_with(&needle, &TextSearchOptions)` — `edit.rs` **(read-only in effect, but needs a session)** | §8.5 |
 | Search for text **and learn what was unreadable** | `EditSession::search_text(&needle, &TextSearchOptions)` — `edit.rs` → `TextSearch { matches, diagnostics }` | §8.5 |
 | Render-setting preset for a subset standard (PDF/X, PDF/A, PDF/UA) | `pdfcer_core::settings::presets::RenderPreset::for_standard(RenderStandard)` | §8.5a |
@@ -1058,6 +1059,7 @@ that "worked" may therefore have lost pages — check the diagnostic.
 | `capture_provenance` | `false` | **must opt in** for per-glyph provenance |
 | `unmappable_code` | `ReplacementChar` | the sentinel for an unmappable code |
 | `actual_text` | `Always` | whether `/ActualText` replaces glyph-derived characters |
+| `ocr_layer` | `All` | `OcrLayerFilter::{All, OnlyOcrLayer, WithoutOcrLayer}` (`with_ocr_layer`); applied during the walk, so `plain_text`, `block_layout`, table detection and the docx/xlsx/ods exports all see the same subset |
 
 **★ The three gap ratios have zero spec basis** (`mod.rs`, negative
 results S3/S4). If you expose them as settings, label them as heuristics,
@@ -1117,7 +1119,10 @@ for page in &all.pages {                       // Vec<PageText>            mod.r
 `artifact_subtype: Option<ArtifactSubtype>` (`Header` | `Footer` |
 `Watermark` | `Other(name)`, Table 363 — how to tell a running head from
 a running foot),
-`bbox: Option<Rect>`; method `direction() -> (f32, f32)`.
+`bbox: Option<Rect>`,
+`in_ocr_layer: bool` (inside pdfcer's own OCR layer: the `pdfc_OCR` tag with
+`/Producer (pdfcer)`; another tool's invisible text is `false` — use
+`ExtractedGlyph::invisible` for that); method `direction() -> (f32, f32)`.
 ★ `text` is **not** one `char` per glyph and the run is **not** one show
 operator — see §8.4.0 before building anything that locates an edit from a
 run.

@@ -194,6 +194,27 @@ impl From<DecorationMetricsArg> for pdfcer_core::text_edit::decoration::Decorati
     }
 }
 
+/// `extract-text --ocr-layer` and `export-docx --ocr-layer`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum OcrLayerArg {
+    /// All text.
+    All,
+    /// Only the text in a pdfcer OCR layer.
+    Only,
+    /// All text except a pdfcer OCR layer's.
+    Without,
+}
+
+impl From<OcrLayerArg> for pdfcer_core::text_extract::OcrLayerFilter {
+    fn from(arg: OcrLayerArg) -> Self {
+        match arg {
+            OcrLayerArg::All => Self::All,
+            OcrLayerArg::Only => Self::OnlyOcrLayer,
+            OcrLayerArg::Without => Self::WithoutOcrLayer,
+        }
+    }
+}
+
 /// `bates-stamp --position`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum BatesPositionArg {
@@ -3929,6 +3950,11 @@ pub(crate) enum Command {
         /// means "not captured", which a zero could not.
         #[arg(long, requires = "json")]
         spans: bool,
+        /// Which text to take: `all`, `only` the OCR layer pdfcer wrote, or
+        /// `without` it. Invisible text another tool wrote is not part of a
+        /// pdfcer OCR layer, so `without` keeps it.
+        #[arg(long, value_enum, default_value = "all")]
+        ocr_layer: OcrLayerArg,
     },
 
     /// Read a tagged PDF's structure tree: headings, paragraphs, lists,
@@ -4140,6 +4166,11 @@ pub(crate) enum Command {
         /// Leave tables as paragraphs of text.
         #[arg(long)]
         no_tables: bool,
+        /// Which text to take: `all`, `only` the OCR layer pdfcer wrote, or
+        /// `without` it. Invisible text another tool wrote is not part of a
+        /// pdfcer OCR layer, so `without` keeps it.
+        #[arg(long, value_enum, default_value = "all")]
+        ocr_layer: OcrLayerArg,
         /// Where tables and blocks come from: the file's own tags
         /// (structure tree) or pdfcer's inference. See the command help.
         #[arg(long, value_enum, default_value = "auto")]

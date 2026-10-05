@@ -32,6 +32,7 @@ pub(crate) fn cmd_extract_text(
     json: bool,
     include_artifacts: bool,
     spans: bool,
+    ocr_layer: OcrLayerArg,
 ) -> u8 {
     use pdfcer_core::text_extract::{self, ExtractOptions};
 
@@ -77,7 +78,8 @@ pub(crate) fn cmd_extract_text(
         // show-operator byte span, and it is off unless asked for: it costs
         // memory per glyph, and every existing consumer's output must stay
         // byte-for-byte what it was.
-        .with_provenance(spans);
+        .with_provenance(spans)
+        .with_ocr_layer(ocr_layer.into());
     let extracted = match text_extract::extract_pages(&doc, &indices, &options) {
         Ok(extracted) => extracted,
         Err(err) => {
@@ -2210,6 +2212,7 @@ fn choose_structure(
     input: &Path,
     indices: &[usize],
     structure: StructureArg,
+    extract: &pdfcer_core::text_extract::ExtractOptions,
 ) -> Result<StructureChoice, u8> {
     use pdfcer_core::block_layout::{LayoutOptions, PageGeometry};
     use pdfcer_core::page_tree::pages_in;
@@ -2218,7 +2221,6 @@ fn choose_structure(
         FallbackReason, LayoutSourceUsed, StructureUse, TaggedLayoutOptions, TaggedLayoutReport,
         layout_from_structure,
     };
-    use pdfcer_core::text_extract::ExtractOptions;
 
     let use_structure = match structure {
         StructureArg::Auto => StructureUse::Auto,
@@ -2244,8 +2246,7 @@ fn choose_structure(
             unique.push(i);
         }
     }
-    let tree = read_structure_tree_in_pages(view, &unique, &ExtractOptions::default())
-        .map_err(|e| fail(&e))?;
+    let tree = read_structure_tree_in_pages(view, &unique, extract).map_err(|e| fail(&e))?;
     let pages = pages_in(view).map_err(|e| fail(&e))?;
     let geometry: Vec<PageGeometry> = tree
         .text
@@ -2300,6 +2301,7 @@ pub(crate) fn cmd_export_docx(
     tables: bool,
     structure: StructureArg,
     pages: &str,
+    ocr_layer: OcrLayerArg,
 ) -> u8 {
     use pdfcer_core::block_layout::{LayoutOptions, PageGeometry, layout_text};
     use pdfcer_core::export::docx::{DocxOptions, write_docx};
@@ -2319,8 +2321,9 @@ pub(crate) fn cmd_export_docx(
         Err(code) => return code,
     };
     let view = doc.view();
+    let extract = ExtractOptions::default().with_ocr_layer(ocr_layer.into());
     let (layout, geometry, detected, table_inferences, report) =
-        match choose_structure(&view, input, &indices, structure) {
+        match choose_structure(&view, input, &indices, structure, &extract) {
             Err(code) => return code,
             Ok(StructureChoice::Tree(tagged, geometry)) => {
                 let detected = if tables {
@@ -2332,7 +2335,7 @@ pub(crate) fn cmd_export_docx(
                 (tagged.layout, geometry, detected, 0, tagged.report)
             }
             Ok(StructureChoice::Layout(mut report)) => {
-                let found = extract_pages_view(&view, &indices, &ExtractOptions::default())
+                let found = extract_pages_view(&view, &indices, &extract)
                     .and_then(|text| Ok((text, pages_in(&view)?)));
                 let (text, page_list) = match found {
                     Ok(found) => found,
@@ -2353,7 +2356,7 @@ pub(crate) fn cmd_export_docx(
                     match detect_tables_in_pages(
                         &view,
                         &indices,
-                        &ExtractOptions::default(),
+                        &extract,
                         &TableOptions::default(),
                     ) {
                         Ok(found) => {
@@ -2441,7 +2444,13 @@ fn tables_for_export(
     })?;
     let indices = chosen_pages(&doc, input, pages)?;
     let view = doc.view();
-    match choose_structure(&view, input, &indices, structure)? {
+    match choose_structure(
+        &view,
+        input,
+        &indices,
+        structure,
+        &pdfcer_core::text_extract::ExtractOptions::default(),
+    )? {
         StructureChoice::Tree(tagged, _) => {
             let mut diagnostics = TableDiagnostics::default();
             diagnostics.pages = tagged.layout.pages.len();

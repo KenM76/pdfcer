@@ -891,6 +891,7 @@ pub(crate) fn run() -> ExitCode {
             json,
             include_artifacts,
             spans,
+            ocr_layer,
         } => cmd_extract_text(
             &input,
             &pages,
@@ -898,6 +899,7 @@ pub(crate) fn run() -> ExitCode {
             json,
             include_artifacts,
             spans,
+            ocr_layer,
         ),
         Command::ExtractTags {
             input,
@@ -936,6 +938,7 @@ pub(crate) fn run() -> ExitCode {
             output,
             no_page_breaks,
             no_tables,
+            ocr_layer,
             structure,
             pages,
         } => cmd_export_docx(
@@ -945,6 +948,7 @@ pub(crate) fn run() -> ExitCode {
             !no_tables,
             structure,
             &pages,
+            ocr_layer,
         ),
         Command::FetchOcrModels { dir } => cmd_fetch_ocr_models(dir.as_deref()),
         Command::OcrModels {

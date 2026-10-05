@@ -192,6 +192,7 @@ struct OpenRun {
     mcid: Option<u32>,
     mcid_stream: Option<ContentStreamRef>,
     artifact_subtype: Option<ArtifactSubtype>,
+    in_ocr_layer: bool,
     llx: f32,
     lly: f32,
     urx: f32,
@@ -249,6 +250,7 @@ impl Builder<'_> {
                 || r.artifact_subtype != g.artifact_subtype
                 || r.mcid != g.mcid
                 || r.mcid_stream != g.mcid_stream
+                || r.in_ocr_layer != g.in_ocr_layer
         }) {
             self.close_run();
         }
@@ -260,6 +262,7 @@ impl Builder<'_> {
             mcid: g.mcid,
             mcid_stream: g.mcid_stream,
             artifact_subtype: g.artifact_subtype.clone(),
+            in_ocr_layer: g.in_ocr_layer,
             llx: f32::MAX,
             lly: f32::MAX,
             urx: f32::MIN,
@@ -349,6 +352,7 @@ impl Builder<'_> {
             mcid: r.mcid,
             mcid_stream: r.mcid_stream,
             artifact_subtype: r.artifact_subtype,
+            in_ocr_layer: r.in_ocr_layer,
             bbox: r.bbox,
         });
         // The cursor moves to the right edge of what the replacement
@@ -463,6 +467,7 @@ impl Builder<'_> {
             mcid: None,
             mcid_stream: None,
             artifact_subtype: None,
+            in_ocr_layer: false,
             bbox: None,
         });
     }
@@ -495,6 +500,7 @@ impl Builder<'_> {
             mcid: run.mcid,
             mcid_stream: run.mcid_stream,
             artifact_subtype: run.artifact_subtype,
+            in_ocr_layer: run.in_ocr_layer,
             bbox,
         });
     }
@@ -590,6 +596,7 @@ mod tests {
             mcid: None,
             mcid_stream: None,
             artifact_subtype: None,
+            in_ocr_layer: false,
             provenance: None,
         })
     }
@@ -695,6 +702,7 @@ mod tests {
             mcid: None,
             mcid_stream: None,
             artifact_subtype: None,
+            in_ocr_layer: false,
             provenance: None,
         }));
         let (runs, d) = run(items);
@@ -720,6 +728,7 @@ mod tests {
             mcid: None,
             mcid_stream: None,
             artifact_subtype: None,
+            in_ocr_layer: false,
             provenance: None,
         }));
         let (runs, _) = run(items);

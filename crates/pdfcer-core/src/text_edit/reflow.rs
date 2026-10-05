@@ -1195,6 +1195,7 @@ mod tests {
             mcid: None,
             mcid_stream: None,
             artifact_subtype: None,
+            in_ocr_layer: false,
             bbox: None,
         }
     }
@@ -1217,6 +1218,7 @@ mod tests {
             mcid: None,
             mcid_stream: None,
             artifact_subtype: None,
+            in_ocr_layer: false,
             bbox: None,
         };
         let mut cur_x = x;

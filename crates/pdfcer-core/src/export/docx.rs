@@ -1060,4 +1060,33 @@ mod tests {
         let b = write_docx(&layout, &[], &[], &DocxOptions::default()).unwrap();
         assert_eq!(a.bytes, b.bytes);
     }
+
+    #[test]
+    fn the_ocr_layer_filter_reaches_the_document() {
+        use crate::text_extract::OcrLayerFilter;
+        let page = line("F1", 12, 72, 700, "Printed heading text")
+            + "/pdfc_OCR << /Producer (pdfcer) /Version 1 >> BDC\n"
+            + &line("F1", 12, 72, 500, "Recognised scan words")
+            + "EMC\n";
+        let doc = build_pdf(&[page]);
+        let body = |filter| {
+            let options = ExtractOptions::default().with_ocr_layer(filter);
+            let layout = analyze_layout(&doc.view(), &options, &LayoutOptions::default()).unwrap();
+            let out = write_docx(&layout, &[], &[], &DocxOptions::default()).unwrap();
+            let parts = read_zip(&out.bytes);
+            let xml = &parts
+                .iter()
+                .find(|(n, _)| n == "word/document.xml")
+                .unwrap()
+                .1;
+            let xml = String::from_utf8(xml.clone()).unwrap();
+            (
+                xml.contains("Printed heading"),
+                xml.contains("Recognised scan"),
+            )
+        };
+        assert_eq!(body(OcrLayerFilter::All), (true, true));
+        assert_eq!(body(OcrLayerFilter::OnlyOcrLayer), (false, true));
+        assert_eq!(body(OcrLayerFilter::WithoutOcrLayer), (true, false));
+    }
 }

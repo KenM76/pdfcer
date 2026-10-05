@@ -131,6 +131,7 @@
 pub mod cmap;
 pub mod font;
 mod layout;
+mod ocr_layer;
 mod page;
 
 use std::fmt;
@@ -144,6 +145,7 @@ use pdfcer_model::span::ByteSpan;
 use pdfcer_model::view::DocumentView;
 
 pub use font::{Code, ExtractFont, FontNote, LadderRung, Rung3Gap};
+pub use ocr_layer::{OCR_LAYER_PRODUCER, OCR_LAYER_TAG, OcrLayerFilter};
 
 /// Where a run of extracted characters came from.
 ///
@@ -796,6 +798,11 @@ pub struct TextRun {
     /// "should" appear only on `Pagination`, and a reader cannot enforce a
     /// "should".
     pub artifact_subtype: Option<ArtifactSubtype>,
+    /// Whether the run sits inside a pdfcer OCR layer (the
+    /// [`OCR_LAYER_TAG`] marker with [`OCR_LAYER_PRODUCER`]). Invisible text
+    /// from any other producer is `false`; its render mode is on
+    /// [`ExtractedGlyph::invisible`].
+    pub in_ocr_layer: bool,
     /// Bounding box in default user space, when the run has geometry.
     /// `None` for derived-whitespace runs and for an `/ActualText` run
     /// that covered no glyphs.
@@ -1375,6 +1382,10 @@ pub struct ExtractOptions {
     /// and the statements pointing the other way are §14.8.2.4.2 NOTE 2's
     /// `may` (informative) and §9.10.1's `may`.
     pub actual_text: ActualTextPrecedence,
+    /// Keep all text, only a pdfcer OCR layer's text, or everything but it.
+    /// Default [`OcrLayerFilter::All`]. Applied during the walk, so every
+    /// consumer of the extraction sees the same subset.
+    pub ocr_layer: OcrLayerFilter,
 }
 
 impl Default for ExtractOptions {
@@ -1392,6 +1403,7 @@ impl Default for ExtractOptions {
             // disagree about what the default is.
             unmappable_code: UnmappableCode::default(),
             actual_text: ActualTextPrecedence::default(),
+            ocr_layer: OcrLayerFilter::All,
         }
     }
 }
@@ -1418,6 +1430,22 @@ impl ExtractOptions {
     #[must_use]
     pub const fn with_artifacts(mut self, include: bool) -> Self {
         self.include_artifacts = include;
+        self
+    }
+
+    /// Set [`Self::ocr_layer`], consuming and returning `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_text::text_extract::{ExtractOptions, OcrLayerFilter};
+    ///
+    /// let options = ExtractOptions::default().with_ocr_layer(OcrLayerFilter::OnlyOcrLayer);
+    /// assert_eq!(options.ocr_layer, OcrLayerFilter::OnlyOcrLayer);
+    /// ```
+    #[must_use]
+    pub const fn with_ocr_layer(mut self, filter: OcrLayerFilter) -> Self {
+        self.ocr_layer = filter;
         self
     }
 
