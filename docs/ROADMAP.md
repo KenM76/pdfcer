@@ -115,6 +115,48 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 494.0` — one annotation lookup; a bad `--page`/`--index` exits `EDIT_REFUSED` everywhere — SHIPPED `7aeed322`
+
+CLI-only behaviour fix, no core change. Nine annotation verbs each
+carried their own copy of the page/annotation lookup; six of them
+(`set-markup-note`, `set-annotation-flags`, `set-markup-style`,
+`delete-annotation`, `reorder-annotations`, `move-annotation`,
+`rotate-annotation`, `resize-annotation`) exited `1` (`RUNTIME_ERROR`)
+for page `0`, a page past the end, or an index past the end, while
+`set-annotation-open` and the other `resolve_annotation` callers
+exited `9` (`EDIT_REFUSED`) for the same inputs. The CLI exit-code
+contract treats a readable document with a wrong address as
+`EDIT_REFUSED`; all nine verbs now agree on `9`.
+
+One lookup now does the work — `locate_page`/`locate_annotation` in
+`crates/pdfcer-cli/src/annot_edit.rs`, with `resolve_annotation`
+delegating to them and the error messages unified. A `page_slots`
+failure still exits `RUNTIME_ERROR` (that's a real engine error, not a
+bad address). `set-page-tabs` keeps its own page-0 guard, now also
+exiting `9`.
+
+**Tests.** New module `crates/pdfcer-cli/tests/annotation_address.rs`,
+4 tests covering page 0, a page past the end and an index past the end
+across eight verbs plus `reorder-annotations`; sabotage-checked
+(reverting either exit code fails them).
+
+**Structure debt.** `cmd_set_annotation_open` left
+`tools/code-structure-baseline.txt` (588 entries remain);
+`annot_edit.rs` went from 2,223 to ~1,940 lines.
+
+**Gates.** `tools/run-gates.sh` PASS, 45 commands (one intermediate
+`check-test-temp-unique` failure, a fixed temp name in the new test,
+fixed before commit). The 73 annotation CLI tests pass. No manifest
+change — `cargo tree` invariant not applicable.
+
+**Finding.** Copied inline lookups drift in their exit codes; the
+verbs that went through the shared helper were right, and every copy
+was wrong. See `SESSION_LOG.md` 2026-10-04.
+
+`FEATURES.md`: no capability box changes — this is a bug fix to
+existing verbs' error behaviour, not a new capability; no row
+currently covers the exit-code contract itself, so none was touched.
+
 ### `Pass 493.0` — move `place-text`, `reflow` and donor-font subsetting out of `text_edit.rs` — SHIPPED `aef58841`
 
 Structure debt only; no behaviour change.

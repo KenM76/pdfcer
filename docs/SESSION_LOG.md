@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (962nd filing) — `Pass 494.0` shipped (one annotation lookup; a bad `--page`/`--index` exits `EDIT_REFUSED` everywhere)
+
+**Shipped:**
+- `Pass 494.0` (`7aeed322`) — nine annotation verbs each had their own
+  copy of the page/annotation address lookup; six exited `1`
+  (`RUNTIME_ERROR`) for a bad `--page`/`--index` while the rest exited
+  `9` (`EDIT_REFUSED`), which is what the CLI exit-code contract calls
+  for. Unified onto `locate_page`/`locate_annotation` in
+  `crates/pdfcer-cli/src/annot_edit.rs`; `resolve_annotation` now
+  delegates. 4 new sabotage-checked tests in
+  `crates/pdfcer-cli/tests/annotation_address.rs`. CLI-only; no core
+  change.
+
+**Decisions made this session:** none — decision stays `192`, standing
+rule stays `R251`.
+
+**Findings + decisions:**
+- Copied inline lookups drift in their exit codes over time; the
+  verbs routed through the one shared helper were correct, and every
+  independent copy was wrong in the same direction (too lenient:
+  `RUNTIME_ERROR` instead of `EDIT_REFUSED`).
+
+**Still in flight:** `tools/run-gates.sh` stated PASS (45 commands) by
+the dispatching engineer; not independently re-verified (no shell this
+filing).
+
+**For next session:**
+- Next free `Pass 495.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- No `FEATURES.md` rows affected (exit-code-contract fix, not a new
+  capability).
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and gate results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (961st filing) — `Pass 493.0` shipped (move `place-text`, `reflow` and donor-font subsetting out of `text_edit.rs`)
 
 **Shipped:**
