@@ -651,6 +651,16 @@ pub struct Widget {
     /// exactly the five pdfcer models, so an unrecognised name is a malformed
     /// file rather than a sixth style.
     pub border: Option<BorderSpec>,
+    /// The border's dash array **as the file states it**: `/BS /D`, or the
+    /// fourth element of `/Border` (Table 164). `None` when the file states
+    /// no usable array, including a `Dashed` border with no `/D`, which draws
+    /// Table 166's default `[3]`. Reporting `[3]` there would be the
+    /// substitution [`Self::border`] refuses: a control seeded with it writes
+    /// `/D [3]` on its next press. `None` is exactly what
+    /// [`WidgetEdit::with_border_dash`](crate::edit::WidgetEdit::with_border_dash)`(None)`
+    /// writes, so the field round-trips. Read regardless of
+    /// [`Self::border`]'s style.
+    pub border_dash: Option<crate::annot_author::BorderDash>,
     /// `/F` (Table 165) mapped onto the four combinations pdfcer **writes** —
     /// or `None` when the file's flags are not one of them (`Pass 146.0`).
     ///
@@ -1706,6 +1716,7 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         .and_then(crate::annot_author::CaptionPosition::from_tp);
     let (has_normal_appearance, on_states, has_off_appearance) = appearance_of(graph, dict);
     let border = read_widget_border(graph, dict);
+    let border_dash = read_widget_dash(graph, dict);
     let annot_flags = AnnotFlags(
         dict.get(b"F")
             .map(|o| graph.resolve(o))
@@ -1727,6 +1738,7 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         icon,
         caption_position,
         border,
+        border_dash,
         visibility: visibility_of(annot_flags),
         annot_flags,
         has_normal_appearance,
@@ -1810,6 +1822,30 @@ fn read_widget_border<G: ObjectGraph + ?Sized>(graph: &G, dict: &Dict) -> Option
         },
         width,
     })
+}
+
+/// The dash array of [`Widget::border_dash`]: `/BS /D` when `/BS` is present
+/// (§12.5.4), else `/Border`'s optional fourth element.
+fn read_widget_dash<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    dict: &Dict,
+) -> Option<crate::annot_author::BorderDash> {
+    let dash = if let Some(Object::Dict(bs)) = dict.get(b"BS").map(|o| graph.resolve(o)) {
+        bs.get(b"D").map(|o| graph.resolve(o))
+    } else {
+        let Some(Object::Array(items)) = dict.get(b"Border").map(|o| graph.resolve(o)) else {
+            return None;
+        };
+        items.get(3).map(|o| graph.resolve(o))
+    };
+    let Some(Object::Array(dash)) = dash else {
+        return None;
+    };
+    let pattern: Vec<f64> = dash
+        .iter()
+        .filter_map(|o| graph.resolve(o).as_number())
+        .collect();
+    crate::annot_author::BorderDash::new(pattern)
 }
 
 /// Map a raw `/F` flag word onto the four visibility combinations pdfcer
@@ -3229,6 +3265,21 @@ mod tests {
         // never a value to substitute.
         let w = widget_with("");
         assert_eq!(w.border, None);
+    }
+
+    #[test]
+    fn a_widget_border_dash_reads_as_the_file_states_it() {
+        let dash = |raw: &str| widget_with(raw).border_dash.map(|d| d.pattern().to_vec());
+        assert_eq!(dash("/BS << /S /D /D [6 2] /W 1 >>"), Some(vec![6.0, 2.0]));
+        // Draws Table 166's [3], but the file states no array.
+        assert_eq!(dash("/BS << /S /D >>"), None);
+        assert_eq!(dash("/BS << /S /D /D [0 0] >>"), None);
+        assert_eq!(dash("/BS << /D [2 1] >>"), Some(vec![2.0, 1.0]));
+        assert_eq!(dash("/BS << /S /S /W 1 >>"), None);
+        assert_eq!(dash(""), None);
+        assert_eq!(dash("/Border [0 0 1 [4 1]]"), Some(vec![4.0, 1.0]));
+        assert_eq!(dash("/Border [0 0 1]"), None);
+        assert_eq!(dash("/Border [0 0 1 []]"), None);
     }
 
     #[test]

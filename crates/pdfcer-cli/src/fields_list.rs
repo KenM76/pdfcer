@@ -214,9 +214,19 @@ fn print_widget_lines(field: &Field) {
             |n| String::from_utf8_lossy(n).into_owned(),
         );
         let rotation = w.rotation.map_or_else(|| "-".to_owned(), |d| d.to_string());
+        let dash = w.border_dash.as_ref().map_or_else(
+            || "-".to_owned(),
+            |d| {
+                d.pattern()
+                    .iter()
+                    .map(f64::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            },
+        );
         println!(
             "  widget {i} obj={} rect={rect} border={border} rotation={rotation} \
-visibility={visibility} flags=0x{:X} state={state} merged={} background={} border_color={}",
+visibility={visibility} flags=0x{:X} state={state} merged={} background={} border_color={} border_dash={dash}",
             w.id.num,
             w.annot_flags.0,
             u32::from(w.merged),

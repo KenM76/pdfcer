@@ -307,6 +307,19 @@ fn a_border_dash_is_recorded_in_the_border_style_dictionary() {
 }
 
 #[test]
+fn a_border_dash_reads_back_in_the_widget_listing() {
+    let out = write_widget(
+        &["--border-style", "dashed", "--border-dash", "6,2"],
+        "dash_read",
+    );
+    let line = first_widget_line(&out);
+    assert!(line.contains("border_dash=6,2"), "{line}");
+    let _ = std::fs::remove_file(&out);
+    let line = first_widget_line(&fixture("demo-form.pdf"));
+    assert!(line.contains("border_dash=-"), "{line}");
+}
+
+#[test]
 fn border_dash_default_removes_the_pattern() {
     let first = write_widget(
         &["--border-style", "dashed", "--border-dash", "6,2"],

@@ -3527,6 +3527,11 @@ and everywhere. So the colour has to go into the stream.
   `None` keeps the widget's own. Either way the appearance is redrawn. The
   pattern is written whatever the style, and drawn once the border is
   `Dashed`. Undoable. CLI: `edit-widget --border-dash 6,2|default`.
+- **Read side** (G126): `forms::Widget::border_dash: Option<BorderDash>` is the
+  array the file states — `/BS /D`, else `/Border`'s fourth element. A
+  `Dashed` widget with no `/D` reads `None` (it draws `[3]`, but reporting
+  `[3]` would write `/D [3]` on a control's next press), so the read value
+  passes straight back to `with_border_dash` and round-trips.
 - `edit_widget` with `border: Some(..)` **patches** `/BS` — only `/S` and `/W`
   change, so an existing `/D` survives. A `/BS` with `/D` and no `/S` reads
   as `Dashed` (a common producer shape).

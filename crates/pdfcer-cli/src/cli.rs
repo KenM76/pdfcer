@@ -5416,6 +5416,10 @@ pub(crate) enum Command {
         /// would show a border the document does not contain, and the
         /// operator's first press would write that invention in.
         ///
+        /// `border_dash=6,2` is the dash array the file states; `-` when it
+        /// states none, including a dashed border with no array (which draws
+        /// the default 3-on, 3-off).
+        ///
         /// `visibility=other` means the widget's `/F` flags are legal but are
         /// not one of the four combinations pdfcer can set. `flags=` carries the
         /// raw word either way, so nothing is hidden by the mapping.

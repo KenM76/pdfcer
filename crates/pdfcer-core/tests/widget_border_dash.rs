@@ -163,3 +163,37 @@ fn a_dash_can_be_set_and_removed_on_an_existing_widget() {
     s.undo();
     assert_eq!(bs_dash(&s, "Name"), Some(vec![5.0, 3.0]));
 }
+
+/// The forms model reads back what `edit_widget` wrote (G126).
+fn model_dash(s: &EditSession, name: &str) -> Option<Vec<f64>> {
+    let fields = pdfcer_core::forms::parse_acroform(&s.graph())
+        .unwrap()
+        .fields;
+    let field = fields
+        .into_iter()
+        .find(|f| f.fully_qualified_name == name)
+        .unwrap();
+    field.widgets[0]
+        .border_dash
+        .as_ref()
+        .map(|d| d.pattern().to_vec())
+}
+
+#[test]
+fn the_forms_model_reads_back_the_dash_an_edit_wrote() {
+    let mut s = session();
+    text_field(&mut s, dashed(1.0), chrome());
+    assert_eq!(model_dash(&s, "Name"), None);
+
+    s.edit_widget(
+        "Name",
+        0,
+        &WidgetEdit::new().with_border_dash(Some(dash(&[6.0, 2.0]))),
+    )
+    .unwrap();
+    assert_eq!(model_dash(&s, "Name"), Some(vec![6.0, 2.0]));
+
+    s.edit_widget("Name", 0, &WidgetEdit::new().with_border_dash(None))
+        .unwrap();
+    assert_eq!(model_dash(&s, "Name"), None);
+}
