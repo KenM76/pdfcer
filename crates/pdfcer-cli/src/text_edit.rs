@@ -215,6 +215,9 @@ fn edit_text_options(
 fn edit_text_error_exit(err: &pdfcer_core::text_edit::EditError, apply_workaround: bool) -> u8 {
     use pdfcer_core::text_edit::EditError;
     eprintln!("pdfcer: edit-text refused: {err}");
+    if matches!(err, EditError::Encrypted) {
+        crate::edit_common::hint_encrypted_refusal();
+    }
     if !apply_workaround && err.workaround().is_some() {
         eprintln!("pdfcer: re-run with --workaround to apply it");
     }
@@ -660,6 +663,9 @@ fn add_text_in_session(
 /// The exit code for an `add-text` refusal.
 fn add_text_exit(err: &pdfcer_core::text_edit::AddTextError) -> u8 {
     use pdfcer_core::text_edit::AddTextError;
+    if matches!(err, AddTextError::Encrypted) {
+        crate::edit_common::hint_encrypted_refusal();
+    }
     match err {
         AddTextError::Refused(_)
         | AddTextError::PageIndex(_)

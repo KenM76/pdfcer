@@ -6604,8 +6604,10 @@ pub enum EncryptError {
     RedactionPending,
 }
 
-/// The message every encrypted-document edit refusal carries.
-pub const ENCRYPTED_EDIT_REFUSED: &str = "the document is encrypted, and either the password that opened it does not permit this edit (open it with the owner password) or it uses RC4, which pdfcer keeps only on request (pass --allow-rc4-append)";
+/// The message every encrypted-document edit refusal carries. It names no
+/// shell control; a shell finds which cause applies with
+/// [`EditSession::encryption_refusal_cause`] and words the remedy itself.
+pub const ENCRYPTED_EDIT_REFUSED: &str = "the document is encrypted, and either the password that opened it does not permit this edit (open it with the owner password) or it uses RC4, which is kept only when edits under RC4 are allowed";
 
 /// Why an edit could not be performed.
 ///

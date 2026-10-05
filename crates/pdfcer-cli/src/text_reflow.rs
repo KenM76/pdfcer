@@ -87,6 +87,9 @@ pub(crate) fn cmd_reflow(
 /// Print the recoverable-refusal hint and map a reflow error to its exit code.
 fn reflow_error_exit(err: &pdfcer_core::text_edit::ReflowApplyError) -> u8 {
     use pdfcer_core::text_edit::ReflowApplyError;
+    if matches!(err, ReflowApplyError::Encrypted) {
+        crate::edit_common::hint_encrypted_refusal();
+    }
     // Rule 4: the invocation IS the commit here, so what pdfcer knows
     // about the operator's options is printed on the way past rather
     // than being available to ask for. `is_recoverable()` is the

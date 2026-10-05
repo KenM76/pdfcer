@@ -668,6 +668,9 @@ pub(crate) fn report_edit_error(input: &Path, err: &pdfcer_core::edit::EditError
         return exit::EDIT_REFUSED;
     }
     eprintln!("pdfcer: {}: {err}", input.display());
+    if matches!(err, EditError::DocumentEncrypted) {
+        hint_encrypted_refusal();
+    }
     match err {
         EditError::PageTree(_) => exit::RUNTIME_ERROR,
         _ => exit::EDIT_REFUSED,
@@ -707,6 +710,22 @@ pub(crate) fn write_output(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) -> s
         let _ = std::fs::remove_file(&temp);
     }
     written
+}
+
+/// Print the CLI's remedy after an encryption refusal; the engine's message
+/// names no shell control.
+pub(crate) fn hint_encrypted_refusal() {
+    if crate::cli::CLI_RC4_APPEND.load(std::sync::atomic::Ordering::Relaxed) {
+        eprintln!(
+            "pdfcer: hint: the password that opened the document does not permit this edit; \
+pass the owner password with --open-password"
+        );
+    } else {
+        eprintln!(
+            "pdfcer: hint: an RC4 document is edited only with --allow-rc4-append; a password \
+that does not permit the edit needs the owner password with --open-password"
+        );
+    }
 }
 
 /// Print the `--allow-rc4-append` warning when a save kept a document's RC4

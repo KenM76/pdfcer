@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 320 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 322 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 320 public `EditSession` methods
+## 1. Verb index — all 322 public `EditSession` methods
 
-**Count: 320.** Established by brace-matched extraction of the
+**Count: 322.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -179,6 +179,8 @@ Read the columns as: **I want to…** → **call this** → **returns / what tha
 | Remove encryption (owner-only) | `remove_encryption(&mut self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | Plaintext full rewrite; `&mut self`. §5.5. Refuses a pending deferred redaction (`EncryptError::RedactionPending`, `Pass 250.3`). |
 | Allow an RC4 append | `set_rc4_append(&mut self, policy: writer::Rc4Append)` | `Refuse` (default) or `Preserve`: whether edits to an RC4 document may be saved under its existing RC4 key (keeps signatures valid; weak). No effect when unencrypted or AES. Not an undoable command — a session setting. Disclose `SaveReport::rc4_keystream_reused`. §5.2, decision 190. |
 | Read the RC4 append policy | `rc4_append(&self) -> Option<writer::Rc4Append>` | `None` when the document is unencrypted. |
+| Ask whether an edit would be refused for encryption | `encryption_refusal(&self, bits: &[crypto::PermissionBit]) -> Option<document::EncryptedRefusal>` | The verbs' own test, with its cause; `None` = allowed. §5.2. |
+| Explain an encryption refusal | `encryption_refusal_cause(&self) -> Option<document::EncryptedRefusal>` | After a verb returned its `Encrypted` variant: `Rc4NotAllowed` or `PermissionDenied`. `None` when unencrypted. §5.2. |
 
 The first two take `&self`; the two mutating encryption verbs take `&mut self`
 (they drop the old `/Encrypt` state before re-serialising). Saving does not
@@ -5278,7 +5280,17 @@ A refused verb returns its type's encryption variant
 …) whose message is `edit::ENCRYPTED_EDIT_REFUSED`, before anything changes.
 A shell answers *"may I"* with `DocumentEncryption::grants(PermissionBit) -> bool`
 (owner ⇒ always `true`) and `DocumentEncryption::appendable() -> bool`
-(`false` for RC4 unless opted in). Redaction still refuses every encrypted document: it
+(`false` for RC4 unless opted in). The message names no shell control; a shell
+words the remedy from the cause, `document::EncryptedRefusal`
+(`#[non_exhaustive]`): `Rc4NotAllowed` (lift with `set_rc4_append(Preserve)`) or
+`PermissionDenied` (lift only by reopening with the owner password).
+
+| Verb | Signature | Meaning |
+|---|---|---|
+| Ask before a verb | `DocumentEncryption::edit_refusal(&self, bits: &[PermissionBit]) -> Option<EncryptedRefusal>` / `EditSession::encryption_refusal(&self, bits) -> Option<_>` | Exactly the verbs' own test; `bits` is any-of (fills pass `[FillForms, Annotate]`). `PermissionDenied` wins when both causes apply. `None` = allowed (always `None` when unencrypted). |
+| Explain after a refusal | `DocumentEncryption::refusal_cause(&self) -> EncryptedRefusal` / `EditSession::encryption_refusal_cause(&self) -> Option<_>` | For a shell that holds only the error. `Rc4NotAllowed` whenever RC4 is not allowed (allowing it is then necessary; a permission refusal may remain after); otherwise `PermissionDenied`. Not a permission test. `None` when unencrypted. |
+
+Redaction still refuses every encrypted document: it
 requires a full rewrite. pdfcer applying `/P` is its own choice — §7.6.3.1
 says nothing in PDF encryption enforces it.
 

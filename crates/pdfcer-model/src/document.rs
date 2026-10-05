@@ -89,7 +89,10 @@ use crate::parser::{ParseError, Parser, StreamLengthPolicy, TerminatorPolicy};
 use crate::recover::{self, RecoveryReport};
 use crate::view::DocumentView;
 use crate::xref::{self, SectionShape, XrefEntry, XrefError, XrefErrorKind, XrefTable};
+
+mod encryption_refusal;
 use crate::{PdfError, PdfVersion};
+pub use encryption_refusal::EncryptedRefusal;
 
 /// Maximum reference-chain hops [`Document::resolve`] follows before
 /// declaring a cycle and yielding null.

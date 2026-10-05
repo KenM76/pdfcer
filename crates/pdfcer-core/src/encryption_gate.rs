@@ -11,5 +11,5 @@ use crate::document::Document;
 /// owner password grants every bit).
 pub(crate) fn forbids(doc: &Document, bits: &[PermissionBit]) -> bool {
     doc.encryption()
-        .is_some_and(|e| !e.appendable() || !bits.iter().any(|&b| e.grants(b)))
+        .is_some_and(|e| e.edit_refusal(bits).is_some())
 }

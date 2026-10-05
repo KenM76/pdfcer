@@ -2,6 +2,8 @@
 //! (decision 190).
 
 use super::EditSession;
+use crate::crypto::PermissionBit;
+use crate::document::EncryptedRefusal;
 use crate::writer::Rc4Append;
 
 impl EditSession {
@@ -39,5 +41,37 @@ impl EditSession {
     #[must_use]
     pub fn rc4_append(&self) -> Option<Rc4Append> {
         self.base.encryption().map(|e| e.rc4_append())
+    }
+
+    /// Why an edit governed by any of `bits` would be refused on this
+    /// session's document, or `None` when it is allowed (a plain document is
+    /// never refused). See
+    /// [`DocumentEncryption::edit_refusal`](crate::document::DocumentEncryption::edit_refusal)
+    /// for which verbs need which bit.
+    #[must_use]
+    pub fn encryption_refusal(&self, bits: &[PermissionBit]) -> Option<EncryptedRefusal> {
+        self.base.encryption().and_then(|e| e.edit_refusal(bits))
+    }
+
+    /// The cause of an encryption refusal an editing verb has already
+    /// returned, or `None` for a plain document. See
+    /// [`DocumentEncryption::refusal_cause`](crate::document::DocumentEncryption::refusal_cause).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::document::{Document, EncryptedRefusal};
+    /// use pdfcer_core::edit::EditSession;
+    ///
+    /// let bytes = include_bytes!("../../../../fixtures/synthetic/encryption/enc-rc4-128.pdf");
+    /// let doc = Document::from_bytes_with_password(bytes.to_vec(), Some(b"ownerpw"))?;
+    /// let mut session = EditSession::new(doc);
+    /// assert!(session.rotate_pages(&[0], 90).is_err());
+    /// assert_eq!(session.encryption_refusal_cause(), Some(EncryptedRefusal::Rc4NotAllowed));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn encryption_refusal_cause(&self) -> Option<EncryptedRefusal> {
+        self.base.encryption().map(|e| e.refusal_cause())
     }
 }

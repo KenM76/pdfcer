@@ -379,6 +379,9 @@ fn format_options(
 }
 
 fn format_error_exit(err: &FormatError) -> u8 {
+    if matches!(err, FormatError::Encrypted) {
+        crate::edit_common::hint_encrypted_refusal();
+    }
     match err {
         FormatError::Refused(_)
         | FormatError::CoverageFailure(_)

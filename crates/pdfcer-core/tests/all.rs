@@ -61,6 +61,7 @@ mod editable_base;
 mod editable_roundtrip;
 mod emf_import;
 mod encryption;
+mod encryption_refusal;
 mod facade_paths;
 mod field_appearance;
 mod field_properties;
