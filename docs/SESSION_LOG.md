@@ -4,6 +4,48 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (961st filing) — `Pass 493.0` shipped (move `place-text`, `reflow` and donor-font subsetting out of `text_edit.rs`)
+
+**Shipped:**
+- `Pass 493.0` (`aef58841`) — `crates/pdfcer-cli/src/text_edit.rs` was
+  1,413 production lines, baselined over the 800-line file limit.
+  Three cohesive sections moved verbatim to new modules:
+  `text_place.rs`, `text_reflow.rs`, `font_donor.rs`. `text_edit.rs` is
+  now 736 lines. Five helpers crossing a module boundary became
+  `pub(crate)`. Baseline entry for the file deleted (589 entries
+  remain); this clears the `text_edit.rs` debt entirely.
+
+**Decisions made this session:** none — decision stays `192`, standing
+rule stays `R251`.
+
+**Findings + decisions:**
+- Verified a pure move: the sorted multiset of non-blank lines across
+  the four resulting files equals the original's, except the three
+  new module headers, the `use super::*` lines and the five visibility
+  changes.
+- Windows/Python gotcha: `open(p, 'w')` writes the locale code page
+  (`cp1252`), not UTF-8, so a splitting script that decoded UTF-8 and
+  wrote in text mode turned em-dashes and section signs into invalid
+  UTF-8, and `rustc` refused the file. Fix: always
+  `open(..., 'w', encoding='utf-8', newline='\n')`, or write bytes.
+  Candidate for a short `D:\dev\rag\rust\` finding if not already
+  covered there.
+
+**Still in flight:** `tools/run-gates.sh` stated PASS (45 commands
+incl. 2 filing gates) by the dispatching engineer; not independently
+re-verified (no shell this filing).
+
+**For next session:**
+- Next free `Pass 494.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- No `FEATURES.md` rows affected (pure cli-internal module move; no
+  capability change, nothing rounded up).
+- `text_edit.rs` structure debt fully cleared.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and gate results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (960th filing) — `Pass 492.0` shipped (`place-text` split into template, session, position, scaffold and report steps)
 
 **Shipped:**

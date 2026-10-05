@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 493.0` — move `place-text`, `reflow` and donor-font subsetting out of `text_edit.rs` — SHIPPED `aef58841`
+
+Structure debt only; no behaviour change.
+
+**Structure debt.** `crates/pdfcer-cli/src/text_edit.rs` was 1,413
+production lines, baselined over the 800-line file limit. Three
+cohesive sections moved verbatim to new sibling modules:
+`text_place.rs` (`PlaceTextArgs`, `cmd_place_text` and its Pass-492.0
+step helpers), `text_reflow.rs` (`cmd_reflow`, its error mapping and
+report), `font_donor.rs` (`donor_plan`, `subset_donor`,
+`distinct_chars`, `style_donor_plans`, `axis_target`,
+`subset_augment`). `text_edit.rs` is now 736 lines. Five helpers
+crossing the new module boundary became `pub(crate)`:
+`add_text_color`, `parse_block_align`, `subset_donor`,
+`distinct_chars`, `subset_augment`. `dispatch.rs` now calls
+`crate::font_donor::axis_target`.
+
+**Verification of a pure move.** The sorted multiset of non-blank
+lines across the four resulting files equals the original's, except
+the three new module headers, the `use super::*` lines and the five
+visibility changes. Baseline entry `file
+pdfcer-cli/src/text_edit.rs` deleted (589 entries remain, was 590) —
+this clears the `text_edit.rs` debt entirely; its baselined functions
+(`cmd_reflow`, `cmd_edit_text`, `cmd_add_text`, `cmd_place_text`) were
+already cleared by Passes 488.0, 489.0, 491.0 and 492.0. No `pub` API,
+dependency or manifest change (`cargo tree` N/A).
+
+**Gotcha, worth a RAG line.** On Windows, Python's `open(p, 'w')`
+writes the locale code page (`cp1252`), not UTF-8, so a splitting
+script that decoded UTF-8 and wrote in text mode turned em-dashes and
+section signs into invalid UTF-8; `rustc` then refused the file
+("stream did not contain valid UTF-8"). Fix: always
+`open(..., 'w', encoding='utf-8', newline='\n')`, or write bytes.
+
+**Checks.** `tools/run-gates.sh` PASS (45 commands incl. 2 filing
+gates) on the exact committed tree. No manifest change; core/render
+`cargo tree` unaffected.
+
+**Delivered:** cli only (structure). No `FEATURES.md` rows affected
+(pure internal module move; no capability change, nothing rounded
+up). `text_edit.rs` debt fully cleared. Ledger after: next filing
+962nd, next Pass 494.0, next decision 192, next standing rule R251,
+next operator question (ck).
+
 ### `Pass 492.0` — `place-text` split into template, session, position, scaffold and report steps — SHIPPED `e3b32fd0`
 
 Structure debt only; no behaviour change.
