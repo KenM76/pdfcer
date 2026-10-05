@@ -53,7 +53,12 @@ fn an_inferred_layer_extracts_column_by_column() {
     let words: Vec<String> = text
         .runs
         .iter()
-        .flat_map(|r| r.text.split_whitespace().map(str::to_owned).collect::<Vec<_>>())
+        .flat_map(|r| {
+            r.text
+                .split_whitespace()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
         .collect();
     assert_eq!(words.len(), 24, "{words:?}");
     let last_left = words.iter().rposition(|w| w.starts_with('L')).unwrap();
