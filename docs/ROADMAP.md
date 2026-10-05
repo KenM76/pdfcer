@@ -115,7 +115,38 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `Pass 500.4` — `AddTextRequest::into_ocr_layer`: added text joins the page's OCR layer (`pdfcer-core`/`pdfcer-cli` `G123`) — SHIPPED `c6399c25`
+### `Pass 500.2` — the pinned OCR model downloads become library data (`pdfcer-core`/`pdfcer-cli` `G120`) — SHIPPED `9217fa20`
+
+New `pdfcer_core::ocr::models::{fetchable_models(engine) -> Option<&'static
+FetchableModels>, FETCHABLE_MODELS, FetchableModels, PinnedModelFile}` in
+`crates/pdfcer-core/src/ocr/models/pinned.rs`: plain data, no network.
+`FetchableModels { engine, folder, files: &[PinnedModelFile { url, sha256,
+file_name }], licence, licence_url, creator, source, obligation }` plus
+`.attribution()`; both structs `#[non_exhaustive]`. Lists `ocrs` only (paddle
+ships in the portable folder; ocrcer/tesseract are add-on zips).
+`pdfcer fetch-ocr-models` (`download` feature) now builds its `PinnedArtifact`s
+from the list; output text unchanged.
+
+**Open question settled: core is the home**, because every shell already
+depends on it and the list must exist in a build without the `download` feature
+(`pdfcer-fetch` is the network crate). No leaf crate, no manifest change.
+
+**Verified live** with a `--features download` build: same two files, SHA-256s
+`f15cfb56…` and `606d9a04…` matched, same stdout/stderr lines. GUI: nothing in
+this repo (the `pdfcer-gui` project can now offer the download).
+`docs/core-api/03-capabilities.md` gains a row in the "Piece 4" table.
+
+**Tests.** 4 unit tests in `ocr::models::pinned`; `ocr::models` lib 9/9.
+Sabotage: renaming the detection file fails `the_ocrs_set_is_what_the_engine_loads`.
+fmt, clippy `-D warnings` (pdfcer-core, pdfcer-cli, pdfcer-cli `--features
+download`, all targets), check-code-structure, check-string-gaps,
+check-core-api-verbs clean (engineer-reported). Full `tools/run-gates.sh` NOT
+run; unpushed.
+
+`FEATURES.md`: the "Operator-initiated download" row gains the library-data
+sentence; core `—` -> `[x]` (the list only; the download stays out of core),
+cli stays `◐` (opt-in build), gui `[ ]` unchanged.
+
 
 `AddTextRequest::into_ocr_layer()` / `with_ocr_layer(engine)`:
 `EditSession::add_text` wraps the new content stream in the `/pdfc_OCR` marker
@@ -21759,28 +21790,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### `Pass 500.2` — the pinned OCR model downloads become library data; `fetch-ocr-models` is rebuilt on them (`pdfcer-core`/`pdfcer-cli` `G120`) — NOT STARTED (969th filing)
-
-`pdfcer-gui` asked `G120`
-(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G120_the_pinned_ocr_model_downloads_are_private_to_the_cli.md`):
-the only pinned list is a local array in `pdfcer-cli`'s `ocr_cmd.rs` (two
-`PinnedArtifact::new` calls plus the CC-BY-SA-4.0 sentence). A copy in another
-shell is a second list that drifts, and `pdfcer-fetch`'s own docs say the
-Hugging Face and S3 copies are not byte-identical. The GUI will not copy it and
-offers no download until this lands.
-
-**Scope.** Plain data, no network, in a library crate a shell already depends
-on: per engine, `url`, `sha256`, `file_name`, the engine sub-folder (`ocrs`),
-and the licence, creator and source sentence a fetched copy must carry
-(`fetchable_models(engine) -> &'static [PinnedModelFile]` is the request's
-sketch). PaddleOCR's PP-OCRv5 files are included only if made fetchable; the
-GUI offers whatever the list holds. `pdfcer-cli fetch-ocr-models` builds its
-`PinnedArtifact`s from it, with unchanged output. **Acceptance.** The CLI's
-fetch produces the same files and hashes as before; one list, one source. Core +
-cli. Open question to settle in the Pass, not now: whether a bundled-model
-crate boundary makes `pdfcer-core` the right home (the request's example) or a
-leaf crate does (`ARCHITECTURE.md` §3).
 
 ### `Pass 500.5` — `in_ocr_layer` on extracted glyphs and an `ExtractOptions` OCR filter, threaded through the exports (`pdfcer-core` `G124`) — NOT STARTED (969th filing)
 

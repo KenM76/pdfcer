@@ -4,6 +4,33 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (974th filing) — `Pass 500.2` shipped (pinned OCR model downloads become library data, `G120`)
+
+**Shipped:**
+- `Pass 500.2` — `9217fa20`. `pdfcer_core::ocr::models::fetchable_models` /
+  `FETCHABLE_MODELS` (`ocrs` only); `fetch-ocr-models` rebuilt on it. Details in
+  the ROADMAP Shipped entry and the commit message.
+
+**Decisions made this session:**
+- Home of the list settled: `pdfcer-core` (every shell depends on it; must exist
+  without the `download` feature). No decision-log entry (no boundary redrawn).
+
+**Findings + decisions:**
+- Figures as supplied by the engineer, not re-run here: 4 new unit tests, models
+  lib 9/9; live `--features download` run matched both SHA-256s
+  (`f15cfb56…`, `606d9a04…`); gates clean except full `run-gates.sh`, not run.
+- `FEATURES.md`: "Operator-initiated download" row: core `—` -> `[x]`, cli stays
+  `◐` (opt-in build), gui `[ ]`. `Pass 500.2` removed from Next up.
+
+**Still in flight:**
+- `500.5` (`G124`), `500.6` (`G121`).
+
+**For next session:**
+- Run `tools/run-gates.sh` on an idle PC, then push.
+
+**Sourcing note (hard rule 8):** backup/push/commit state not checked here; the
+hash is as supplied.
+
 ## 2026-10-05 (973rd filing) — `Pass 500.4` shipped (added text joins the OCR layer, `G123`)
 
 **Shipped:**
@@ -36,7 +63,7 @@ commit hash is as supplied.
 - `Pass 500.3` (`G122`) shipped `08d53cbb`, filed `53d1327e` (972nd filing); reply written to the FeatureRequests channel.
 - `Pass 500.4` (`G123`) is now COMMITTED as `c6399c25` and filed in the 973rd filing above (amended after the fact; this entry originally said "uncommitted"). Added text joins the page's OCR layer under `/Engine` (manual); `AddTextError::OcrLayerNeedsSession`; CLI `--ocr-layer` shipped in the same commit.
 - Remaining in this batch: `500.2` (`G120` pinned model list), `500.5` (`G124` extraction filter), `500.6` (`G121` OCR structure, last).
-- UNPUSHED on `main` (push waits for an idle-PC `run-gates.sh` sweep; operator is using the PC): `3c864486`, `ef96c290`, `34bf5aec`, `e69bdb92`, `a045ac46`, `83cdc94f`, `6c831bdb`, `811ed3e1`, `9d6cf574`, `65f640f8`, `08d53cbb`, `53d1327e`, `c6399c25`.
+- UNPUSHED on `main` (push waits for an idle-PC `run-gates.sh` sweep; operator is using the PC): `3c864486`, `ef96c290`, `34bf5aec`, `e69bdb92`, `a045ac46`, `83cdc94f`, `6c831bdb`, `811ed3e1`, `9d6cf574`, `65f640f8`, `08d53cbb`, `53d1327e`, `c6399c25`, `901e745b` (500.4 filing), `9217fa20` (500.2; added by the 974th filing).
 - Working tree also carries unrelated local-only probe edits in `crates/pdfcer-3d` (`compressed.rs`, untracked `compressed/probe*.rs`) that must NOT be committed; restore before the sweep.
 
 ## 2026-10-05 (972nd filing) — `Pass 500.3` shipped (OCR layer on an optional-content group, `G122`)
