@@ -157,6 +157,12 @@ code-structure, string-gaps, tests-harnessed clean. No manifest change, so no
 `FEATURES.md`: OCR sandwich-layer row extended; core `[x]`, cli `[x]`, gui `[ ]`
 (not ticked). This closes the `500.0`–`500.6` series.
 
+**Follow-up `2666cd74`** (style, no behaviour change): `cargo fmt` of
+`crates/pdfcer-core/tests/ocr_layer_reading_order.rs` only (rustfmt split one
+closure). The full `run-gates.sh` sweep caught it via `cargo fmt --all --check`;
+the engineer had run fmt per-crate before writing that test, so the new file was
+never formatted.
+
 ### `Pass 500.5` — extraction tells a pdfcer OCR layer's text from the page's own (`pdfcer-core`/`pdfcer-text`/`pdfcer-cli` `G124`) — SHIPPED `b1c01353`
 
 `TextRun::in_ocr_layer: bool` (pub field, run-level): true inside a `/pdfc_OCR`

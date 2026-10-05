@@ -35,6 +35,30 @@ the affected entry. Maintained by `pdfce-librarian`.
 **Sourcing note (hard rule 8):** backup/push/commit state not checked here; the
 hash is as supplied.
 
+**Amendment (same day, follow-up to the 976th filing):**
+- Code commit `2666cd74` "style: cargo fmt the reading-order test (Pass 500.6)":
+  reformats `crates/pdfcer-core/tests/ocr_layer_reading_order.rs` only; no
+  behaviour change. Caught by `cargo fmt --all --check` in the full
+  `run-gates.sh` sweep. Cause: the engineer ran fmt per-crate before writing that
+  test, so the new file was never formatted.
+- The first sweep also failed for environment reasons, unrelated to the code.
+  Drive D: filled to 0 bytes free (98 GB target dir). 34 GB of
+  `target/debug/incremental` was deleted. Separately, rustdoc hit
+  memory-allocation failures under default parallelism; rerun with
+  `CARGO_BUILD_JOBS=4`.
+- The second sweep (`CARGO_BUILD_JOBS=4`) passed 44 of 45;
+  `cargo test -p pdfcer-core --no-default-features` failed with linker error
+  LNK1285 (corrupt PDB, written while D: was near-full, about 6 GB free).
+  Deleting that test binary's `target/debug/deps/pdfcer_core-<hash>.*` artefacts
+  and re-running the one command on the same HEAD (`2666cd74`) passed
+  (1442 + 2622 + 206 tests). The pre-push checks were clean; `main` was pushed to
+  `2666cd74`.
+- For next session: if `run-gates.sh` fails on rustdoc allocation or LNK1285,
+  check free space on D: first, set `CARGO_BUILD_JOBS=4`, and delete the named
+  PDB's artefacts.
+- Sourcing (hard rule 8): the disk, gate and test figures are as reported by the
+  engineer; I did not measure them or check git.
+
 ## 2026-10-05 (975th filing) — `Pass 500.5` shipped (extraction separates a pdfcer OCR layer's text, `G124`)
 
 **Shipped:**
