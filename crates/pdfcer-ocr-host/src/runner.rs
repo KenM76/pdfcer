@@ -267,6 +267,28 @@ impl OcrRunner {
         }
     }
 
+    /// [`Self::recognize`] for an image rasterised at `dpi`. A program engine
+    /// is told `dpi` for this page instead of [`RunOptions`]' resolution; the
+    /// in-process engines do not take a resolution and ignore it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::recognize`].
+    pub fn recognize_at(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+        dpi: f32,
+    ) -> Result<Vec<RecognizedWord>, RunnerError> {
+        match &self.inner {
+            Inner::Program(p) => Ok(p.recognize_at(width, height, pixels, dpi)?),
+            // Unreachable when no in-process engine feature is enabled.
+            #[allow(unreachable_patterns)]
+            _ => self.recognize(width, height, pixels),
+        }
+    }
+
     /// Whether the engine reports a per-word confidence.
     #[must_use]
     pub fn reports_confidence(&self) -> bool {

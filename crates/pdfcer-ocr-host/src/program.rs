@@ -300,10 +300,38 @@ impl ProgramEngine {
         height: u32,
         pixels: &[u8],
     ) -> Result<Vec<RecognizedWord>, ProgramError> {
+        self.run(width, height, pixels, None)
+    }
+
+    /// [`Self::recognize`] for an image rasterised at `dpi`, which the program
+    /// is told instead of the resolution it was loaded with. Tesseract uses it
+    /// to size its text-height expectations; a wrong value costs accuracy on
+    /// small or large type.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::recognize`].
+    pub fn recognize_at(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+        dpi: f32,
+    ) -> Result<Vec<RecognizedWord>, ProgramError> {
+        self.run(width, height, pixels, Some(dpi))
+    }
+
+    fn run(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+        dpi: Option<f32>,
+    ) -> Result<Vec<RecognizedWord>, ProgramError> {
         let held = self.hold_verified()?;
         let words = self
             .invocation
-            .run(&self.program, width, height, pixels)
+            .run(&self.program, width, height, pixels, dpi)
             .map_err(ProgramError::Run);
         drop(held);
         words

@@ -76,13 +76,10 @@ impl Invocation {
                 tessdata.display()
             ));
         }
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        // clamped to Tesseract's accepted whole-DPI range first
-        let dpi = dpi.round().clamp(1.0, 2400.0) as u32;
         Ok(Self {
             tessdata,
             langs: langs.to_owned(),
-            dpi,
+            dpi: whole_dpi(dpi),
         })
     }
 
@@ -91,14 +88,17 @@ impl Invocation {
         &self.langs
     }
 
-    /// Run `program` on an 8-bit greyscale image (row-major, top-down).
+    /// Run `program` on an 8-bit greyscale image (row-major, top-down),
+    /// passing `dpi` when given and the load-time resolution otherwise.
     pub(crate) fn run(
         &self,
         program: &Path,
         width: u32,
         height: u32,
         pixels: &[u8],
+        dpi: Option<f32>,
     ) -> Result<Vec<RecognizedWord>, String> {
+        let dpi = dpi.map_or(self.dpi, whole_dpi);
         let pgm = pgm(width, height, pixels)?;
         let mut cmd = Command::new(program);
         cmd.arg("stdin")
@@ -108,7 +108,7 @@ impl Invocation {
             .arg("-l")
             .arg(&self.langs)
             .arg("--dpi")
-            .arg(self.dpi.to_string())
+            .arg(dpi.to_string())
             // Set directly rather than via the `tsv` config name, which needs
             // a `tessdata/configs` file not every install carries.
             .args(["-c", "tessedit_create_tsv=1", "-c", "tessedit_create_txt=0"])
@@ -126,6 +126,14 @@ impl Invocation {
             .map_err(|_| format!("{}: output is not UTF-8", program.display()))?;
         tesseract_tsv::parse_tsv(&text).map_err(|e| e.to_string())
     }
+}
+
+/// `dpi` clamped to Tesseract's accepted whole-DPI range.
+fn whole_dpi(dpi: f32) -> u32 {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // clamped to 1..=2400 first; NaN saturates to 0 and is clamped below
+    let d = dpi.round().clamp(1.0, 2400.0) as u32;
+    d.max(1)
 }
 
 fn pgm(width: u32, height: u32, pixels: &[u8]) -> Result<Vec<u8>, String> {

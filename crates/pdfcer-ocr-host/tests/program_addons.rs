@@ -82,7 +82,7 @@ fn only_the_named_program_runs() {
         check_runnable(&model, options.policy).unwrap();
         let runner = OcrRunner::load(&model, &options).unwrap();
         assert_eq!(runner.as_program().unwrap().program(), dir.join(exe(stem)));
-        assert_eq!(words(&runner), [stem, "tessdata", "eng", "pgm"]);
+        assert_eq!(words(&runner), [stem, "tessdata", "eng", "pgm", "300"]);
         assert_eq!(
             runner.as_program().unwrap().source(),
             &ProgramSource::Addon {
@@ -94,13 +94,32 @@ fn only_the_named_program_runs() {
 }
 
 #[test]
+fn each_page_can_tell_the_program_its_own_resolution() {
+    let dir = two_engines("dpi");
+    manifest(&dir, &exe("engine-a"), "", &["tessdata/eng.traineddata"]);
+    let runner = OcrRunner::load(&only_model(&dir), &RunOptions::new("eng", 300.0)).unwrap();
+    let dpi_told = |dpi: f32| {
+        let words = runner.recognize_at(2, 1, &[0, 255], dpi).unwrap();
+        words.into_iter().last().unwrap().text
+    };
+    assert_eq!(dpi_told(150.0), "150");
+    assert_eq!(dpi_told(600.4), "600");
+    assert_eq!(dpi_told(f32::NAN), "1", "a nonsense resolution is clamped");
+    assert_eq!(
+        words(&runner)[4],
+        "300",
+        "recognize keeps the load-time dpi"
+    );
+}
+
+#[test]
 fn the_data_key_names_the_folder_passed_to_the_program() {
     let dir = two_engines("data");
     std::fs::create_dir_all(dir.join("langs").join("fast")).unwrap();
     std::fs::write(dir.join("langs/fast/deu.traineddata"), b"deu").unwrap();
     manifest(&dir, &exe("engine-a"), "data = langs/fast\n", &[]);
     let runner = OcrRunner::load(&only_model(&dir), &RunOptions::new("deu", 300.0)).unwrap();
-    assert_eq!(words(&runner), ["engine-a", "fast", "deu", "pgm"]);
+    assert_eq!(words(&runner), ["engine-a", "fast", "deu", "pgm", "300"]);
 }
 
 #[test]
@@ -207,7 +226,10 @@ fn an_operator_named_stock_folder_runs_without_a_manifest() {
     let engine = ProgramEngine::from_operator_folder(&dir, &RunOptions::new("eng", 300.0)).unwrap();
     assert_eq!(engine.source(), &ProgramSource::OperatorFolder(dir.clone()));
     let runner = OcrRunner::from_program(engine);
-    assert_eq!(words(&runner), ["tesseract", "tessdata", "eng", "pgm"]);
+    assert_eq!(
+        words(&runner),
+        ["tesseract", "tessdata", "eng", "pgm", "300"]
+    );
     let err = ProgramEngine::from_operator_folder(&dir, &RunOptions::new("deu", 300.0))
         .unwrap_err()
         .to_string();

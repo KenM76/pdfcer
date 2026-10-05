@@ -1,7 +1,7 @@
 //! Test stand-in for an OCR program: speaks the Tesseract protocol and
 //! answers with words naming what it was run as. Word 1 is its own file
 //! stem, word 2 the `--tessdata-dir` folder name, word 3 the `-l` value,
-//! word 4 `pgm` when stdin held a binary PGM.
+//! word 4 `pgm` when stdin held a binary PGM, word 5 the `--dpi` value.
 
 use std::io::Read as _;
 
@@ -20,6 +20,7 @@ fn main() {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     let langs = value_after("-l");
+    let dpi = value_after("--dpi");
     let mut input = Vec::new();
     let _ = std::io::stdin().read_to_end(&mut input);
     let stem = std::env::current_exe()
@@ -34,7 +35,7 @@ fn main() {
     println!(
         "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext"
     );
-    for (i, word) in [stem, data_name, langs, image.to_owned()]
+    for (i, word) in [stem, data_name, langs, image.to_owned(), dpi]
         .iter()
         .enumerate()
     {
