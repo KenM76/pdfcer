@@ -4,6 +4,40 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (969th filing) — seven `pdfcer-gui` requests (`G119`–`G125`) filed as `Pass 500.0`–`500.6`
+
+**Shipped:**
+- Nothing. Filing only; no code, no commit made by this filing.
+
+**Decisions made this session:**
+- Engineer's scoping, filed as given: `G125` (a BUG) is `Pass 500.0` and
+  first; `G122` (`500.3`) and `G123` (`500.4`) depend on it; `G121`
+  (`500.6`) is the largest and last. Order: `500.0` G125, `500.1` G119,
+  `500.2` G120, `500.3` G122, `500.4` G123, `500.5` G124, `500.6` G121.
+- No decision-log entry. `500.6` may need one (reading-order policy of the
+  layout fallback); the live ceiling is to be grepped then.
+
+**Findings + decisions:**
+- Each of the seven request files was read here in full, not relayed. Symbol
+  existence checked by `Grep` on `crates/`: `OcrRunner::recognize`
+  (`pdfcer-ocr-host/src/runner.rs:234`), `read_marker`
+  (`pdfcer-core/src/ocr/marker.rs:142`), `OcrLayerReport`/`OcrPage`
+  (`ocr/layer.rs:302`, `ocr/mod.rs:163`), the CLI's two `PinnedArtifact::new`
+  calls (`pdfcer-cli/src/ocr_cmd.rs:53,58`). Not verified: the fold's
+  location in `vector_surgery_inner`/`text_edit_command` (taken from the
+  request).
+- `Pass 500.x` was absent from `docs/` by `Grep` before filing.
+
+**Still in flight:**
+- `docs/FEATURES.md` untouched by design (nothing shipped; no row text
+  changes). Whether the OCR rows need a Planned line for `500.3`-`500.6` is
+  left to the engineer's instruction.
+
+**For next session:**
+- Start `Pass 500.0`. Next free fresh whole-number Pass ID is `501.0`.
+
+**Sourcing note (hard rule 8):** backup/push state not checked here.
+
 ## 2026-10-05 (968th filing) — `Pass 499.0` shipped (reused normals, thin triangles); agent chore
 
 **Shipped:**

@@ -21650,6 +21650,146 @@ closes out the *prior* filing's business rather than opening this one's.
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
 
+### `Pass 500.0` — an edit verb must not fold a `/pdfc_OCR` stream into `/Contents[0]` (`pdfcer-core`/`pdfcer-cli` `G125`) — NOT STARTED (969th filing)
+
+**BUG, fix-on-discovery; first in the queue.** `pdfcer-gui` asked `G125`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G125_any_edit_on_a_page_folds_its_ocr_layer_into_the_page_content.md`):
+on a page carrying an `add_ocr_layer` layer, `edit_text`, `move_object` and
+`set_objects_layer` each report *"multi-stream page: N additional /Contents
+stream(s) were collapsed into the first and emptied"* (`vector_surgery_inner` /
+`text_edit_command`, which write the edit into `page.contents.first()`). The
+`/pdfc_OCR` section then sits inside stream 0 after the page's own operators,
+`ocr::marker::read_marker` (a layer is one `/Contents` entry that is exactly one
+marker section) no longer finds it, and the page has lost its OCR layer: remove
+finds nothing, a re-run stacks a second invisible layer. The CLI verbs
+(`edit-text`, `object-move`, `set-object-layer`) are the same calls.
+
+**Scope.** Either of the request's routes: edits leave a `/pdfc_OCR` stream as
+its own `/Contents` entry (edit inside it when the target is in it, untouched
+otherwise), or `read_marker` and `remove_ocr_layer` work on a section anywhere
+in a stream. The engineer picks; the collapse disclosure also stops being
+silent about the marker if the first route is not taken.
+
+**Acceptance.** `add_ocr_layer`, then each of the three edits: `find_ocr_layers`
+still lists the layer, `remove_ocr_layer` leaves the scan intact, a re-run under
+`ExistingLayers::Replace` still replaces it. Regression test per verb; core +
+cli. **Blocks** `Pass 500.3` and `Pass 500.4`.
+
+### `Pass 500.1` — `OcrRunner::recognize_at(w, h, pixels, dpi)`: a program add-on is told each page's resolution (`pdfcer-ocr-host` `G119`) — NOT STARTED (969th filing)
+
+`pdfcer-gui` asked `G119`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G119_a_program_ocr_addon_is_told_one_dpi.md`,
+low priority, workaround built): `RunOptions::dpi` is read once into the
+program's `Invocation` inside `load`, and `OcrRunner::recognize` takes none, so
+a run over mixed sheet sizes hands Tesseract every page with the first page's
+dpi (a wrong value degrades recognition quietly, it does not fail).
+
+**Scope.** `OcrRunner::recognize_at(width, height, pixels, dpi)`, the dpi passed
+to a `kind = program` engine per page and ignored by in-process engines, as
+`RunOptions::dpi` is documented today. **Acceptance.** A `pdfcer-ocr-host` test
+with the echoing test engine, two calls at two dpis, each echoed back. Core
+only (`cli` has no per-page dpi surface to change); the GUI then deletes its
+first-page-dpi rule.
+
+### `Pass 500.2` — the pinned OCR model downloads become library data; `fetch-ocr-models` is rebuilt on them (`pdfcer-core`/`pdfcer-cli` `G120`) — NOT STARTED (969th filing)
+
+`pdfcer-gui` asked `G120`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G120_the_pinned_ocr_model_downloads_are_private_to_the_cli.md`):
+the only pinned list is a local array in `pdfcer-cli`'s `ocr_cmd.rs` (two
+`PinnedArtifact::new` calls plus the CC-BY-SA-4.0 sentence). A copy in another
+shell is a second list that drifts, and `pdfcer-fetch`'s own docs say the
+Hugging Face and S3 copies are not byte-identical. The GUI will not copy it and
+offers no download until this lands.
+
+**Scope.** Plain data, no network, in a library crate a shell already depends
+on: per engine, `url`, `sha256`, `file_name`, the engine sub-folder (`ocrs`),
+and the licence, creator and source sentence a fetched copy must carry
+(`fetchable_models(engine) -> &'static [PinnedModelFile]` is the request's
+sketch). PaddleOCR's PP-OCRv5 files are included only if made fetchable; the
+GUI offers whatever the list holds. `pdfcer-cli fetch-ocr-models` builds its
+`PinnedArtifact`s from it, with unchanged output. **Acceptance.** The CLI's
+fetch produces the same files and hashes as before; one list, one source. Core +
+cli. Open question to settle in the Pass, not now: whether a bundled-model
+crate boundary makes `pdfcer-core` the right home (the request's example) or a
+leaf crate does (`ARCHITECTURE.md` §3).
+
+### `Pass 500.3` — `OcrLayerOptions::on_layer`: an OCR layer on an optional-content group (`pdfcer-core` `G122`) — NOT STARTED (969th filing)
+
+`pdfcer-gui` asked `G122`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G122_an_ocr_layer_is_not_an_optional_content_group.md`):
+the layer is a `/pdfc_OCR` BDC section, not an OCG, so `/OCProperties` does not
+change and no Layers panel (ours or Acrobat's) can list it. The shell's
+workaround (`add_layer` + `set_objects_layer`) nests correctly but triggers
+`G125`'s fold and loses the layer.
+
+**Scope.** `OcrLayerOptions::on_layer(ObjId)` (or a `with_optional_content(name)`
+that registers a group): the OCR text is written inside an `/OC` section for the
+group, nested within the `/pdfc_OCR` section so `find_ocr_layers`,
+`page_ocr_layers` and `remove_ocr_layer` still find and remove the whole layer by
+its marker. The remove outcome reports whether the group is left with no
+content, so the shell can offer to delete it. **Acceptance.** Round trip: add
+on a group, find, remove (group reported emptied), re-run under `Replace`; the
+group shows in the existing layer listing. Core only until a CLI flag is
+scoped (`layer-add` already exists). **Depends on `Pass 500.0`.**
+
+### `Pass 500.4` — `AddTextRequest` into the OCR layer: text a person typed onto a scan belongs to its layer (`pdfcer-core` `G123`) — NOT STARTED (969th filing)
+
+`pdfcer-gui` asked `G123`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G123_text_added_to_an_ocr_layer_is_not_part_of_it.md`):
+`add_text(.. .with_render_mode(3))` writes invisible text in its own section with
+no `/pdfc_OCR` marker, so `remove_ocr_layer` leaves it behind, a re-run stacks
+fresh OCR over it, and nothing tells it from another producer's invisible text
+(`with_hand_signature(field)` already has the equivalent marker for signatures).
+
+**Scope.** `AddTextRequest::into_ocr_layer()` (or `with_ocr_layer(engine)`):
+the text is written inside a `/pdfc_OCR` section recording that a person wrote
+it (`/Engine (manual)`), so the layer's find/page/remove verbs and
+`ExistingLayers::Replace` treat it as part of the layer; on the layer's
+optional-content group once `Pass 500.3` lands. Disclosed off-canvas as
+manually added, not recognised (fuzzy-never-sneaky: it is not inferred, but it
+must be distinguishable). **Acceptance.** Add, find lists it, remove deletes it,
+re-run under `Replace` replaces it. Core only. **Depends on `Pass 500.0`.**
+
+### `Pass 500.5` — `in_ocr_layer` on extracted glyphs and an `ExtractOptions` OCR filter, threaded through the exports (`pdfcer-core` `G124`) — NOT STARTED (969th filing)
+
+`pdfcer-gui` asked `G124`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G124_extraction_cannot_take_only_the_ocr_layers_text.md`):
+extraction keeps every glyph including invisible ones, so an export carries OCR
+text mixed with visible text, and `ExtractOptions` has no filter. The render
+mode catches every producer's invisible text, not the layer pdfcer wrote, and
+the `/pdfc_OCR` marker is not on the extracted glyph.
+
+**Scope.** An `in_ocr_layer` flag on each extracted glyph (from the marker) and
+an `ExtractOptions` filter with three states: all text / OCR layer only /
+without OCR layer. `export::docx` and the other exports that share the
+extraction take the same filter. **Acceptance.** On a mixed page, each state
+yields the expected text through `export::docx` and at least one other export;
+default behaviour unchanged (all text). Core only until a CLI flag is scoped.
+
+### `Pass 500.6` — optional line/block/reading-order structure on `OcrPage`, written per block, with a layout fallback (`pdfcer-core` `G121`) — NOT STARTED (969th filing)
+
+**Largest of the seven; last.** `pdfcer-gui` asked `G121`
+(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G121_an_ocr_layer_is_written_as_loose_words_with_no_lines_or_blocks.md`,
+O286 item 2): `OcrPage` holds only `words`, `build_layer_content` writes one
+invisible box per entry in the engine's order, and nothing in the file says
+where a paragraph or column ends. `block_layout` re-infers it per consumer, a
+second guess at structure the recogniser (PaddleOCR-VL reads in document order)
+already knew. `decisions/183-paddle-vl-engine.md` names PP-DocLayoutV2 as the
+next rung; this is that request.
+
+**Scope.** (1) `OcrPage` optionally carries lines (word indices) and blocks (line
+indices, a kind: paragraph, heading, list item, table cell, caption, and a
+reading-order index); an engine reporting only words still works. (2) The writer
+emits one text object per block, lines in order, blocks in reading order. (3) A
+layout fallback for engines that report none: `block_layout` over the recognised
+words before the write (PP-DocLayoutV2 stays the later rung). (4) Structure
+that was inferred rather than reported is **counted on `OcrLayerReport`** and
+disclosed off-canvas (fuzzy-never-sneaky). **Acceptance.** Reported structure is
+written in reading order; the fallback path is counted as inferred, a reported
+one is not; a words-only `OcrPage` writes as before. Core; a CLI disclosure line
+follows the report field. Needs an `ARCHITECTURE.md` §12 decision if the
+fallback's reading-order policy is a choice (check the live ceiling then).
+
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
 **★ Sourcing (hard rule 8).** Shell available. The request:
