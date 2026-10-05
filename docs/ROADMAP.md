@@ -115,6 +115,34 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 500.4` — `AddTextRequest::into_ocr_layer`: added text joins the page's OCR layer (`pdfcer-core`/`pdfcer-cli` `G123`) — SHIPPED `c6399c25`
+
+`AddTextRequest::into_ocr_layer()` / `with_ocr_layer(engine)`:
+`EditSession::add_text` wraps the new content stream in the `/pdfc_OCR` marker
+with `/Engine (manual)` (or the given engine) and sets render mode 3 (a later
+`with_render_mode` overrides). The stream is then an OCR layer: `find_ocr_layers`
+lists it, `remove_ocr_layer` takes it, an `add_ocr_layer` re-run under `Replace`
+replaces it. With `on_layer(group)` the `/OC` section nests inside the marker.
+New `AddTextError::OcrLayerNeedsSession`: the free `text_edit::add_text` refuses
+(`RefusalKind::Other`). Marker opener shared as `ocr::marker::open_marker`.
+CLI: `pdfcer add-text --ocr-layer [ENGINE]` (default `manual`), routed through
+the edit session, prints `ocr_layer="..."`; `--render-mode` became optional so
+the OCR default of 3 holds unless named; the refusal exits 9 (`EDIT_REFUSED`).
+GUI: nothing here (separate `pdfcer-gui` project, which asked for this verb).
+`docs/core-api` 02 (`add_text` row) and 03 (OCR capability row) updated. No
+manifest change, so no `cargo tree` check.
+
+**Tests.** `pdfcer-core` `tests/ocr_layer_added_text.rs` (5); `pdfcer-cli`
+`tests/add_text.rs` +1 (`ocr_layer_marks_the_run_and_writes_it_invisible`). OCR-layer
+integration 36/36, core `add_text` 24/24, CLI `add_text` 19/19. Sabotage:
+dropping the marker open in `content_mark::sequence_brackets` fails 4 of the 5
+core tests. fmt, clippy `-D warnings`, check-code-structure (`cmd_add_text` kept
+under 80 lines via `read_add_text_input`), check-string-gaps, check-core-api-verbs
+clean (engineer-reported). Full `tools/run-gates.sh` NOT run; not pushed.
+
+`FEATURES.md`: OCR sandwich-layer identity row gains the added-text sentence;
+core `[x]`, cli `[x]`, gui `[ ]` unchanged (separate project).
+
 ### `Pass 500.3` — `OcrLayerOptions::on_layer`: an OCR layer on an optional-content group (`pdfcer-core` `G122`) — SHIPPED `08d53cbb`
 
 `OcrLayerOptions::on_layer(group: ObjId)` (field `optional_content`): the OCR
@@ -21753,24 +21781,6 @@ fetch produces the same files and hashes as before; one list, one source. Core +
 cli. Open question to settle in the Pass, not now: whether a bundled-model
 crate boundary makes `pdfcer-core` the right home (the request's example) or a
 leaf crate does (`ARCHITECTURE.md` §3).
-
-### `Pass 500.4` — `AddTextRequest` into the OCR layer: text a person typed onto a scan belongs to its layer (`pdfcer-core` `G123`) — NOT STARTED (969th filing)
-
-`pdfcer-gui` asked `G123`
-(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G123_text_added_to_an_ocr_layer_is_not_part_of_it.md`):
-`add_text(.. .with_render_mode(3))` writes invisible text in its own section with
-no `/pdfc_OCR` marker, so `remove_ocr_layer` leaves it behind, a re-run stacks
-fresh OCR over it, and nothing tells it from another producer's invisible text
-(`with_hand_signature(field)` already has the equivalent marker for signatures).
-
-**Scope.** `AddTextRequest::into_ocr_layer()` (or `with_ocr_layer(engine)`):
-the text is written inside a `/pdfc_OCR` section recording that a person wrote
-it (`/Engine (manual)`), so the layer's find/page/remove verbs and
-`ExistingLayers::Replace` treat it as part of the layer; on the layer's
-optional-content group once `Pass 500.3` lands. Disclosed off-canvas as
-manually added, not recognised (fuzzy-never-sneaky: it is not inferred, but it
-must be distinguishable). **Acceptance.** Add, find lists it, remove deletes it,
-re-run under `Replace` replaces it. Core only. **Depends on `Pass 500.0`** (shipped `83cdc94f`; unblocked).
 
 ### `Pass 500.5` — `in_ocr_layer` on extracted glyphs and an `ExtractOptions` OCR filter, threaded through the exports (`pdfcer-core` `G124`) — NOT STARTED (969th filing)
 
