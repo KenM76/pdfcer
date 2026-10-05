@@ -115,6 +115,48 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 500.6` — the OCR layer writes text in reading order, block by block (`pdfcer-core` `G121`) — SHIPPED `5bad6b03`
+
+`OcrPage` gains optional `lines: Vec<OcrLine>` and `blocks: Vec<OcrBlock>`; new
+`OcrBlockKind { Paragraph (default), Heading, ListItem, TableCell, Caption,
+Other }` and `OcrStructureSource { Reported, BlocksInferred, Inferred (default) }`.
+The `blocks` Vec order IS the reading order. The layer writer emits `q 3 Tr`, one
+`BT…ET` per block (lines, then words, in order), `Q`. Engine-reported structure is
+used when both lines and blocks are given; lines only infers blocks over the line
+boxes; words only infers lines and blocks from word boxes via `block_layout` (a
+two-column page reads column by column). Bad or repeated indices are ignored;
+unnamed words land in a final `Other` block, so no word is lost.
+
+`OcrLayerReport` gains `lines_written`, `blocks_written`, `structure`;
+`disclosures()` states when the order was inferred (rule 4). `pdfcer ocr` already
+prints `report.disclosures()`, so the CLI discloses with no new flag.
+
+**Refactor:** content writer and report moved out of `ocr/layer.rs` into
+`ocr/layer_content.rs` and `ocr/layer_report.rs`; `layer.rs` is under 800 lines
+and its `file` line left `tools/code-structure-baseline.txt` (585 entries remain).
+
+**Breaking for consumers:** `OcrPage` struct literals must add
+`..OcrPage::default()` (pdfcer-gui builds one by literal).
+`docs/core-api/03-capabilities.md` §5 and the index count updated;
+`check-core-api-verbs` exit 0.
+
+**Not done (open):** Tesseract TSV block/par/line reporting into the new fields
+(engines still return words only, so they get inference); a layout-model engine
+(PP-DocLayoutV2) is out of scope. No `ARCHITECTURE.md` §12 entry filed (the
+reading-order policy is `block_layout`'s existing one).
+
+**Tests (engineer-reported, not re-run here).** 4 new writer unit tests in
+`ocr/layer_content.rs` (reported order, lines-only, bad indices, two-column
+inference) and new integration test `ocr_layer_reading_order.rs` (extraction
+round trip). Core lib `ocr::` 107 passed / 1 ignored; core integration filtered
+OCR+text 51 passed. Sabotage: disabling inference fails both reading-order tests.
+clippy `-D warnings` clean on pdfcer-core/-cli/-render all-targets;
+code-structure, string-gaps, tests-harnessed clean. No manifest change, so no
+`cargo tree` check. Unpushed at filing; full `run-gates.sh` not run.
+
+`FEATURES.md`: OCR sandwich-layer row extended; core `[x]`, cli `[x]`, gui `[ ]`
+(not ticked). This closes the `500.0`–`500.6` series.
+
 ### `Pass 500.5` — extraction tells a pdfcer OCR layer's text from the page's own (`pdfcer-core`/`pdfcer-text`/`pdfcer-cli` `G124`) — SHIPPED `b1c01353`
 
 `TextRun::in_ocr_layer: bool` (pub field, run-level): true inside a `/pdfc_OCR`
@@ -21826,30 +21868,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### `Pass 500.6` — optional line/block/reading-order structure on `OcrPage`, written per block, with a layout fallback (`pdfcer-core` `G121`) — NOT STARTED (969th filing)
-
-**Largest of the seven; last.** `pdfcer-gui` asked `G121`
-(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G121_an_ocr_layer_is_written_as_loose_words_with_no_lines_or_blocks.md`,
-O286 item 2): `OcrPage` holds only `words`, `build_layer_content` writes one
-invisible box per entry in the engine's order, and nothing in the file says
-where a paragraph or column ends. `block_layout` re-infers it per consumer, a
-second guess at structure the recogniser (PaddleOCR-VL reads in document order)
-already knew. `decisions/183-paddle-vl-engine.md` names PP-DocLayoutV2 as the
-next rung; this is that request.
-
-**Scope.** (1) `OcrPage` optionally carries lines (word indices) and blocks (line
-indices, a kind: paragraph, heading, list item, table cell, caption, and a
-reading-order index); an engine reporting only words still works. (2) The writer
-emits one text object per block, lines in order, blocks in reading order. (3) A
-layout fallback for engines that report none: `block_layout` over the recognised
-words before the write (PP-DocLayoutV2 stays the later rung). (4) Structure
-that was inferred rather than reported is **counted on `OcrLayerReport`** and
-disclosed off-canvas (fuzzy-never-sneaky). **Acceptance.** Reported structure is
-written in reading order; the fallback path is counted as inferred, a reported
-one is not; a words-only `OcrPage` writes as before. Core; a CLI disclosure line
-follows the report field. Needs an `ARCHITECTURE.md` §12 decision if the
-fallback's reading-order policy is a choice (check the live ceiling then).
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 

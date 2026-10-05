@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (976th filing) — `Pass 500.6` shipped (OCR layer reading order, `G121`)
+
+**Shipped:**
+- `Pass 500.6` — `5bad6b03`. `OcrPage` optional lines/blocks, per-block `BT…ET`
+  in reading order, inference fallback via `block_layout`, `OcrLayerReport`
+  structure counts + disclosure (printed by `pdfcer ocr`). Details in the ROADMAP
+  Shipped entry and the commit message.
+
+**Decisions made this session:**
+- Reading-order policy is `block_layout`'s existing one: no decision-log entry.
+- Writer/report moved to `layer_content.rs`/`layer_report.rs`; `layer.rs` left the
+  code-structure baseline (585 entries remain).
+
+**Findings + decisions:**
+- Figures as supplied, not re-run here: core `ocr::` 107 pass/1 ignored, integration
+  51 pass; sabotage of inference fails both reading-order tests; gates clean except
+  full `run-gates.sh`, not run.
+- Breaking: `OcrPage` literals need `..OcrPage::default()` (pdfcer-gui).
+- Open, not shipped: Tesseract TSV block/par/line reporting; PP-DocLayoutV2.
+- `FEATURES.md`: OCR sandwich-layer row extended, gui `[ ]`. `Pass 500.6` removed
+  from Next up.
+
+**Still in flight:**
+- Nothing in the `500.x` series.
+
+**For next session:**
+- Run `tools/run-gates.sh` on an idle PC, then push.
+
+**Sourcing note (hard rule 8):** backup/push/commit state not checked here; the
+hash is as supplied.
+
 ## 2026-10-05 (975th filing) — `Pass 500.5` shipped (extraction separates a pdfcer OCR layer's text, `G124`)
 
 **Shipped:**
