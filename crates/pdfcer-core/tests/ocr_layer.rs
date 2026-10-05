@@ -77,6 +77,7 @@ fn sample_page() -> OcrPage {
             word("40129", 228.0, 700.0, 272.0, 712.0),
         ],
         confidence_available: true,
+        ..OcrPage::default()
     }
 }
 
@@ -308,6 +309,7 @@ fn a_page_with_nothing_placeable_refuses_by_name() {
     let empty = OcrPage {
         words: vec![word("", 0.0, 0.0, 10.0, 10.0)],
         confidence_available: false,
+        ..OcrPage::default()
     };
     match add_ocr_layer(&doc, 0, &empty, &OcrLayerOptions::new()) {
         Err(OcrLayerError::NothingToWrite) => {}

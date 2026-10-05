@@ -227,6 +227,7 @@ fn editing_a_real_ocr_layer_leaves_every_glyph_invisible() {
             },
         ],
         confidence_available: true,
+        ..OcrPage::default()
     };
     s.add_ocr_layer(
         &[OcrPageLayer {

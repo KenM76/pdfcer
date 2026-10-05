@@ -174,6 +174,7 @@ fn ocr_page(word: &str) -> OcrPage {
             confidence: Some(0.9),
         }],
         confidence_available: true,
+        ..OcrPage::default()
     }
 }
 
@@ -264,6 +265,7 @@ fn an_ocr_word_lands_on_its_box_not_on_the_zoomed_box() {
             confidence: Some(0.9),
         }],
         confidence_available: true,
+        ..OcrPage::default()
     };
     s.add_ocr_layer(
         &[OcrPageLayer {

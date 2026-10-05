@@ -261,6 +261,7 @@ fn a_fitted_ocr_word_stays_invisible() {
             confidence: Some(0.9),
         }],
         confidence_available: true,
+        ..OcrPage::default()
     };
     s.add_ocr_layer(
         &[OcrPageLayer {

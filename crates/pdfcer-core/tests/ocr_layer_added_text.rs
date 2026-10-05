@@ -28,6 +28,7 @@ fn ocr(s: &mut EditSession) {
             confidence: Some(0.9),
         }],
         confidence_available: true,
+        ..OcrPage::default()
     };
     let page = OcrPageLayer {
         page_index: 0,

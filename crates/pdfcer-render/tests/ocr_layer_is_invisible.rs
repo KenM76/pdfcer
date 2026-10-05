@@ -88,6 +88,7 @@ fn busy_page() -> OcrPage {
             word("stretched", 40.0, 400.0, 560.0, 460.0),
         ],
         confidence_available: true,
+        ..OcrPage::default()
     }
 }
 

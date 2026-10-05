@@ -87,6 +87,7 @@ fn main() {
     let ocr_page = OcrPage {
         words: words_to_page_space(&words, w, h, page.crop_box),
         confidence_available: engine.reports_confidence(),
+        ..OcrPage::default()
     };
     let out = layer::add_ocr_layer(&doc, 0, &ocr_page, &layer::OcrLayerOptions::new())
         .expect("write layer");

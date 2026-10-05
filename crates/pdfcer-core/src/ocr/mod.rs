@@ -60,6 +60,9 @@ pub mod models;
 /// The sandwich writer — recognised words become an invisible, selectable
 /// text layer over page content that is left byte-identical.
 pub mod layer;
+mod layer_content;
+mod layer_report;
+mod structure;
 
 /// Finding the layers [`layer`] wrote, by their marked-content tag.
 pub mod marker;
@@ -130,6 +133,7 @@ pub mod addon_manifest;
 pub mod addons;
 
 use crate::page_tree::Rect;
+pub use structure::{OcrBlock, OcrBlockKind, OcrLine, OcrStructureSource};
 
 /// One recognised word, positioned in PDF default user space.
 ///
@@ -165,13 +169,20 @@ pub struct RecognizedWord {
 /// Everything recognised on one page.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OcrPage {
-    /// The words, in reading order as the engine reported it.
+    /// The words, as the engine reported them.
     ///
-    /// Order matters: it becomes the order of the `Tj` operators, and
-    /// therefore the order text extraction returns. An engine that reports
-    /// nonsense order produces a searchable page whose copied text is
-    /// scrambled — worth checking per engine rather than assuming.
+    /// Their order is not the written order: [`Self::blocks`] and
+    /// [`Self::lines`] are, and without them the layer writer infers lines
+    /// and blocks from the word boxes ([`crate::block_layout`]) and writes
+    /// those in reading order.
     pub words: Vec<RecognizedWord>,
+    /// Lines over [`Self::words`], when the engine reported them; empty
+    /// means the writer infers them.
+    pub lines: Vec<OcrLine>,
+    /// Blocks over [`Self::lines`] in reading order, when the engine
+    /// reported them; empty means the writer infers them. Ignored when
+    /// [`Self::lines`] is empty.
+    pub blocks: Vec<OcrBlock>,
     /// Whether the engine reported ANY confidence values at all.
     ///
     /// Kept at page level as well as per word so a shell can make the rule-4
@@ -573,6 +584,7 @@ mod tests {
                 word("unscored", 0.0, 0.0, 1.0, 1.0, None),
             ],
             confidence_available: true,
+            ..OcrPage::default()
         };
         let review = page.words_needing_review(0.8);
         let texts: Vec<&str> = review.iter().map(|w| w.text.as_str()).collect();
@@ -594,6 +606,7 @@ mod tests {
                 word("c", 0.0, 0.0, 1.0, 1.0, None),
             ],
             confidence_available: true,
+            ..OcrPage::default()
         };
         let mean = page.mean_confidence().expect("two words are scored");
         assert!(
@@ -611,6 +624,7 @@ mod tests {
         let page = OcrPage {
             words: vec![word("a", 0.0, 0.0, 1.0, 1.0, None)],
             confidence_available: false,
+            ..OcrPage::default()
         };
         assert_eq!(page.mean_confidence(), None);
     }

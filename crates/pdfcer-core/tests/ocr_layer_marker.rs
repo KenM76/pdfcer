@@ -55,6 +55,7 @@ fn one_word(text: &str) -> OcrPage {
             confidence: Some(0.9),
         }],
         confidence_available: true,
+        ..OcrPage::default()
     }
 }
 

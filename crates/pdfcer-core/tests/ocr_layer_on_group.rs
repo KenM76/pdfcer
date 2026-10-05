@@ -27,6 +27,7 @@ fn invoice() -> OcrPage {
             confidence: Some(0.9),
         }],
         confidence_available: true,
+        ..OcrPage::default()
     }
 }
 

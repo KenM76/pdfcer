@@ -45,7 +45,6 @@ file pdfcer-core/src/forms_author.rs
 file pdfcer-core/src/image_import/mod.rs
 file pdfcer-core/src/image_import/tiff.rs
 file pdfcer-core/src/layers.rs
-file pdfcer-core/src/ocr/layer.rs
 file pdfcer-core/src/pageops/assemble.rs
 file pdfcer-core/src/redact.rs
 file pdfcer-core/src/redact_image.rs

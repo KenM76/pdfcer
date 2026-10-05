@@ -94,6 +94,7 @@ fn one_word(text: &str) -> OcrPage {
     OcrPage {
         words: vec![word(text, 72.0, 700.0, 200.0, 712.0)],
         confidence_available: true,
+        ..OcrPage::default()
     }
 }
 
@@ -326,6 +327,7 @@ fn a_refused_run_leaves_no_trace() {
     let empty = OcrPage {
         words: Vec::new(),
         confidence_available: false,
+        ..OcrPage::default()
     };
 
     // Page 0 plans fine; the second entry has no placeable word, so the run

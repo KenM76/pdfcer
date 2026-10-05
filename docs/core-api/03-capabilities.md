@@ -2411,7 +2411,11 @@ an API gap.
 | item | `file:line` |
 |---|---|
 | `RecognizedWord { text, rect, confidence: Option<f32> }` | `ocr/mod.rs` |
-| `OcrPage { words, confidence_available: bool }` | `ocr/mod.rs` |
+| `OcrPage { words, lines, blocks, confidence_available: bool }` — build with `..OcrPage::default()`; `lines`/`blocks` are optional (`Pass 500.6`, G121) | `ocr/mod.rs` |
+| `OcrLine { words: Vec<usize> }` / `OcrLine::new(words)` — indices into `OcrPage::words`, left to right | `ocr/structure.rs` |
+| `OcrBlock { kind: OcrBlockKind, lines: Vec<usize> }` / `OcrBlock::new(kind, lines)` — indices into `OcrPage::lines`; **the `blocks` Vec order is the reading order** | `ocr/structure.rs` |
+| `OcrBlockKind` (`Paragraph` default, `Heading`, `ListItem`, `TableCell`, `Caption`, `Other`) | `ocr/structure.rs` |
+| `OcrStructureSource` (`Reported`, `BlocksInferred`, `Inferred` default) — on `OcrLayerReport::structure` | `ocr/structure.rs` |
 | `OcrPage::mean_confidence() -> Option<f32>` | `ocr/mod.rs` |
 | `OcrPage::words_needing_review(threshold) -> Vec<&RecognizedWord>` | `ocr/mod.rs` |
 | `trait OcrEngine { recognize(w, h, pixels); reports_confidence() }` | `ocr/mod.rs` |
@@ -2424,7 +2428,7 @@ an API gap.
 | item | `file:line` |
 |---|---|
 | `add_ocr_layer(&doc, page_index, &OcrPage, &opts) -> Result<OcrLayerOutcome, OcrLayerError>` | `ocr/layer.rs` |
-| `build_layer_content(&OcrPage, font_name, &opts) -> (Vec<u8>, OcrLayerReport)` — **pure**, no `Document`, no I/O | `ocr/layer.rs` |
+| `build_layer_content(&OcrPage, font_name, &opts) -> (Vec<u8>, OcrLayerReport)` — **pure**, no `Document`, no I/O. Writes `q 3 Tr`, then **one `BT … ET` per block**, blocks in reading order, lines and words in order, then `Q`. Structure: the engine's when `blocks` and `lines` are both non-empty; blocks inferred over the reported lines when only `lines` is; lines and blocks inferred from the word boxes (`block_layout`, so columns read column by column) when neither is. Bad or repeated indices are ignored; words no line names are appended as a final `Other` block, so no word is lost | `ocr/layer_content.rs` |
 | `OcrLayerOptions::new()` / `.with_font(Std14)` / `.with_engine(name)` / `.with_existing(ExistingLayers)` / `.on_layer(group: ObjId)` (`Pass 500.3`, G122: the text goes in an `/OC` section for a group registered in `/OCProperties /OCGs`, nested inside the OCR marker; the page's `/Properties` gains a binding when it has none; an unregistered object is refused with `NotALayerGroup { id }`; the pure `build_layer_content` ignores it) | `ocr/layer.rs` |
 | `OcrLayerRemoval { optional_content: Option<ObjId>, group_emptied: bool }` — what `EditSession::remove_ocr_layer` returns; `group_emptied` is true only when nothing left in the document draws on the group (undecodable content counts as drawing on it) | `ocr/layer.rs` |
 | `AddTextRequest::into_ocr_layer()` / `.with_ocr_layer(engine)` (`Pass 500.4`, G123) — text added through `EditSession::add_text` joins the page's OCR layer (`/Engine (manual)` by default, invisible); listed, removed and replaced with it. Session-only: the free `add_text` refuses with `AddTextError::OcrLayerNeedsSession` | `text_edit/addtext.rs` |
@@ -2685,6 +2689,8 @@ let page = OcrPage {
         PagePlacement::new(page.crop_box, i32::from(page.rotate)),
     ),
     confidence_available: engine.reports_confidence(),
+    // lines/blocks: set them if the engine reports them; else inferred.
+    ..OcrPage::default()
 };
 
 // 5. Write the layer. Additive: one content stream, one font dict, one page
@@ -2728,6 +2734,7 @@ decision 059 exists to delete.
 | `words_substituted` | characters with no WinAnsi code, written as `?`. A **high count means the page is in a script a Standard-14 face cannot represent** (CJK, Cyrillic, Greek, Arabic) — a real limit, surfaced here rather than discovered as a page of question marks. |
 | `words_skipped` | empty text or a degenerate box. A large number means the engine and the page geometry disagree — a genuine diagnosis. |
 | `words_scale_clamped` | `Tz` hit `MIN_TZ`/`MAX_TZ`; selection there will not track the ink. |
+| `lines_written` / `blocks_written` / `structure` | the reading order written. When `structure` is not `Reported`, `disclosures()` says the lines and/or blocks were **inferred from word positions** — the order a copy or a screen reader gets is pdfcer's guess. |
 
 `OcrLayerReport::disclosures()` builds all of these as finished strings and
 **says nothing when there is nothing to say** — a report that always emits a

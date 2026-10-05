@@ -394,6 +394,7 @@ pub(crate) fn cmd_ocr(
     let ocr_page = OcrPage {
         words: placed,
         confidence_available,
+        ..OcrPage::default()
     };
 
     if show_words {

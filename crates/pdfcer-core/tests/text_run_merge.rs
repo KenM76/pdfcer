@@ -292,6 +292,7 @@ fn two_ocr_words_merge_and_stay_invisible() {
     let recognised = OcrPage {
         words: vec![word("Inv", 72.0, 95.0), word("oice", 96.0, 130.0)],
         confidence_available: true,
+        ..OcrPage::default()
     };
     s.add_ocr_layer(
         &[OcrPageLayer {
