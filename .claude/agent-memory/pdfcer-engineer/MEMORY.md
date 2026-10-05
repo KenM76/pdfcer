@@ -97,7 +97,7 @@
 - [A dependency feature can widen a neighbour](feedback_a_dependency_feature_can_widen_a_neighbour.md) — rsa/sha2 turned on sha2/oid; the feature guard is CI-ONLY; `cargo tree -e features` before…
 - [Signing arc state](project_signing_arc_state.md) — 2026-09-06: 10.7–10.9 + 10.14/10.12/10.13 shipped; as-received CMS rule measured; what is NOT done…
 - [Batch releases — build all first, EXCEPT when the GUI is waiting](feedback_batch_releases_build_all_first.md) — batch by default; when Ken names an hour he wants to test by, cadence outranks batching
-- [Python write_text writes CRLF](feedback_python_write_text_writes_crlf.md) — use write_bytes; it flipped edit.rs to CRLF and fmt --check stayed green
+- [Python text-mode writes: CRLF + cp1252](feedback_python_write_text_writes_crlf.md) — use byte I/O; text mode flipped EOLs and broke UTF-8
 - [Agent "completed" can precede its writes](feedback_agent_completion_can_precede_its_writes.md) — recheck in minutes before re-dispatching; two writers clobbered SESSION_LOG
 - [Scratchpad is shared between workers](feedback_scratchpad_is_shared_between_workers.md) — parallel workers clobber generic scratch names; prefix with the Pass ID
 - [Sabotage leaves a sabotaged binary](feedback_sabotage_leaves_a_sabotaged_binary.md) — rebuild after restoring; a manual probe after sabotage tests the sabotage
