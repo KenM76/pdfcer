@@ -376,6 +376,7 @@ impl Ctx<'_, '_> {
             triangles: t,
             is_reference: &is_ref,
             references: &refs,
+            ortho_turned: false,
             normals: stored.as_ref().map(|(bits, binary, angles, planar)| {
                 crate::compressed::NormalArrays {
                     bits: *bits,

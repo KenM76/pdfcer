@@ -54,6 +54,14 @@
 //! many measured meshes as it gains. A mesh whose oriented walk does not
 //! fit is walked again on the default alone.
 //!
+//! Two further measured rules. An unsignalled triangle whose continuation
+//! edge is already shared by two triangles, while the other edge is open,
+//! continues across the open one: the walk never re-enters a closed edge.
+//! And a planar face [WD 7.8.9.1] must rebuild flat: a component whose
+//! planar-face vertices stray more than [`MAX_BEND`] tolerances from their
+//! face's plane fits the arrays by accident and is treated as not fitting.
+//! A mesh no walk fits is searched last ([`search`]).
+//!
 //! Only the per-triangle `edge_status` form (three entries per triangle,
 //! the first `T` read) is reconstructed; the one-entry-per-triangle form
 //! walks differently and is not.
@@ -63,6 +71,7 @@ use std::collections::HashMap;
 use crate::TriangleMesh;
 
 mod normals;
+mod search;
 
 pub(crate) use normals::NormalArrays;
 use normals::{NormalMark, NormalReader, Orientation, stored_normals};
@@ -72,6 +81,11 @@ type V = [f64; 3];
 /// Below this sine of its angle at `A` a triangle is a sliver whose
 /// winding no normal can orient: the WD assumes none [WD 7.8.9].
 const MIN_SINE: f64 = 1e-6;
+
+/// How far, in tolerances, a planar face's vertices may stray from the
+/// plane through their centroid. Measured: correct rebuilds stay under 10;
+/// accidental fits bend by 96 and more.
+const MAX_BEND: f64 = 20.0;
 
 fn sub(a: V, b: V) -> V {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
@@ -145,18 +159,27 @@ fn make_ortho_rep(x: V) -> Option<(V, V)> {
 /// `d` already scaled by the tolerance [WD 7.8.9.2]. A null `Z` or `Y`
 /// comes from `MakeOrthoRep(X)` as the WD prescribes; a null `X`, an edge
 /// the WD's non-degeneracy rule excludes, is used as it is.
-fn apex(lo: V, hi: V, w: V, d: V) -> V {
+fn apex(lo: V, hi: V, w: V, d: V, turned: bool) -> V {
     let o = mul(add(lo, hi), 0.5);
     let x = sub(lo, hi);
     let x = unitize(x).unwrap_or(x);
     let (y, z) = unitize(cross(sub(w, o), x))
         .and_then(|z| Some((unitize(cross(z, x))?, z)))
-        .or_else(|| make_ortho_rep(x))
+        .or_else(|| {
+            make_ortho_rep(x).map(|(y, z)| {
+                if turned {
+                    (mul(y, -1.0), mul(z, -1.0))
+                } else {
+                    (y, z)
+                }
+            })
+        })
         .unwrap_or_default();
     sub(sub(add(o, mul(x, d[0])), mul(y, d[1])), mul(z, d[2]))
 }
 
 /// The decoded arrays of one `TESS_3D_Compressed`.
+#[derive(Clone, Copy)]
 pub(crate) struct Arrays<'a> {
     pub(crate) tolerance: f64,
     pub(crate) origin: V,
@@ -167,6 +190,9 @@ pub(crate) struct Arrays<'a> {
     pub(crate) references: &'a [u32],
     /// The stored normals, when the mesh has them.
     pub(crate) normals: Option<NormalArrays<'a>>,
+    /// Whether a `MakeOrthoRep` frame is turned a half-turn about `X`;
+    /// see [`reconstruct`].
+    pub(crate) ortho_turned: bool,
 }
 
 /// Mutable traversal state; `log` records every edge-count increment so a
@@ -185,6 +211,11 @@ struct Walk<'a> {
     normals: Option<NormalReader<'a>>,
     /// The last triangle whose face normal could not orient it.
     sliver: Option<usize>,
+    /// Whether the last triangle's fold came from its stored normals.
+    signalled: bool,
+    /// Whether the last triangle is a sliver, at most a tolerance from
+    /// collinear, whose stored decision decoded noise may have corrupted.
+    weak: bool,
 }
 
 /// Where a component starts, to roll back to.
@@ -213,6 +244,8 @@ impl<'a> Walk<'a> {
             pi: 0,
             normals,
             sliver: None,
+            signalled: false,
+            weak: false,
         }
     }
 
@@ -289,7 +322,7 @@ impl<'a> Walk<'a> {
                 Some(&[_, dy, 0]) if dy > 0
             );
             let d = self.point(a)?;
-            self.pos.push(apex(lo, hi, ww, d));
+            self.pos.push(apex(lo, hi, ww, d, a.ortho_turned));
             return Ok(([p, q, (self.pos.len() - 1) as u32], fold));
         }
         let mut v = [0u32; 3];
@@ -326,7 +359,10 @@ impl<'a> Walk<'a> {
             .read(ti, t, &self.pos)
             .ok_or("the stored normals run out")?;
         Ok(match o {
-            Orientation::Reversed(rev) => rev != (t[0] > t[1]),
+            Orientation::Reversed(rev) => {
+                self.signalled = true;
+                rev != (t[0] > t[1])
+            }
             Orientation::Normal(n) => {
                 let (a, b, c) = (self.get(t[0])?, self.get(t[1])?, self.get(t[2])?);
                 let (ab, ac) = (sub(b, a), sub(c, a));
@@ -334,6 +370,7 @@ impl<'a> Walk<'a> {
                 let sine = (dot(w, w) / (dot(ab, ab) * dot(ac, ac))).sqrt();
                 let s = dot(w, n);
                 if sine > MIN_SINE && s != 0.0 {
+                    self.signalled = true;
                     s < 0.0
                 } else {
                     self.sliver = Some(ti);
@@ -357,10 +394,26 @@ impl<'a> Walk<'a> {
                 return Err("an edge is shared by more than two triangles".into());
             }
         }
+        self.signalled = false;
         let fold = self.fold(tri, fold)?;
+        self.weak = {
+            let (p, q, r) = (self.get(ta)?, self.get(tb)?, self.get(tc)?);
+            let long = [sub(q, p), sub(r, q), sub(p, r)]
+                .iter()
+                .map(|v| dot(*v, *v).sqrt())
+                .fold(0.0, f64::max);
+            let w = cross(sub(q, p), sub(r, p));
+            long > 0.0 && dot(w, w).sqrt() / long <= a.tolerance
+        };
         self.tris.push(tri);
         let (mut left, mut right) = ((tc, tb, ta), (ta, tc, tb));
         if fold != flip {
+            std::mem::swap(&mut left, &mut right);
+        }
+        let closed = |e: (u32, u32, u32)| self.edges.get(&key(e.0, e.1)).copied().unwrap_or(0) >= 2;
+        let taken = if status & 2 != 0 { left } else { right };
+        let other = if status & 2 != 0 { right } else { left };
+        if !self.signalled && status & 3 != 0 && closed(taken) && !closed(other) {
             std::mem::swap(&mut left, &mut right);
         }
         match (status & 2 != 0, status & 1 != 0) {
@@ -382,6 +435,17 @@ impl<'a> Walk<'a> {
     }
 }
 
+/// The mesh the stored normals orient, if every array and normal is
+/// consumed exactly.
+fn oriented_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
+    let w = walk(a, Some(NormalReader::new(a.normals.as_ref()?))).ok()?;
+    let Walk {
+        pos, tris, normals, ..
+    } = w;
+    let stored = normals.and_then(|r| r.finish(&pos))?;
+    Some(mesh(pos, tris, stored))
+}
+
 /// Rebuilds the mesh, or says why the arrays do not fit the traversal.
 /// Every slot, reference and point must be consumed exactly.
 ///
@@ -389,21 +453,33 @@ impl<'a> Walk<'a> {
 /// be consumed exactly too; failing that, it is walked again on the
 /// default fold alone and its normals read afterwards, kept only if they
 /// fit.
+///
+/// The WD's `MakeOrthoRep` fixes an apex frame's axis but not which way
+/// round the encoder had it: some producers' meshes fit only with that
+/// frame turned a half-turn about `X`. The WD frame is tried first at each
+/// stage; the turned one is kept only as a fit the stored normals confirm.
 pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
     if a.edge_status.len() != a.triangles.saturating_mul(3) {
         return Err("the one-status-per-triangle edge form is not reconstructed".into());
     }
-    if let Some(n) = a.normals.as_ref()
-        && let Ok(w) = walk(a, Some(NormalReader::new(n)))
-    {
-        let Walk {
-            pos, tris, normals, ..
-        } = w;
-        if let Some(stored) = normals.and_then(|r| r.finish(&pos)) {
-            return Ok(mesh(pos, tris, stored));
-        }
+    if let Some(m) = oriented_fit(a) {
+        return Ok(m);
     }
-    let Walk { pos, tris, .. } = walk(a, None)?;
+    let turned = Arrays {
+        ortho_turned: true,
+        ..*a
+    };
+    let Walk { pos, tris, .. } = match walk(a, None) {
+        Ok(w) => match oriented_fit(&turned) {
+            Some(m) => return Ok(m),
+            None => w,
+        },
+        Err(e) => {
+            return search::unique_fit(a)
+                .or_else(|| search::unique_fit(&turned))
+                .ok_or(e);
+        }
+    };
     let stored = a
         .normals
         .as_ref()
@@ -435,7 +511,8 @@ fn mesh(
 /// reference, or whose triangle carries no normal signal, has no other
 /// trace in the arrays. Should that fail too, it is retried once more
 /// inverted at the last sliver its first walk met before failing (see
-/// [`MIN_SINE`]).
+/// [`MIN_SINE`]). A component whose planar faces bend (see [`MAX_BEND`])
+/// counts as failing.
 fn walk<'a>(a: &Arrays<'_>, normals: Option<NormalReader<'a>>) -> Result<Walk<'a>, String> {
     let t = a.triangles;
     let mut w = Walk::new(t, normals);
@@ -448,7 +525,14 @@ fn walk<'a>(a: &Arrays<'_>, normals: Option<NormalReader<'a>>) -> Result<Walk<'a
             flip_at = None;
         }
         let status = a.edge_status.get(i).copied().unwrap_or(0);
-        match w.step(a, status, flip_at == Some(i)) {
+        let stepped = w.step(a, status, flip_at == Some(i)).and_then(|()| {
+            if w.next.is_none() && !search::flat(a, &w.pos, &w.tris, start.tri) {
+                Err("a planar face does not rebuild flat".to_string())
+            } else {
+                Ok(())
+            }
+        });
+        match stepped {
             Ok(()) => i += 1,
             Err(e) if i == start.tri => return Err(e),
             Err(e) => {
@@ -495,6 +579,7 @@ mod tests {
             triangles: t,
             is_reference: is_ref,
             references: refs,
+            ortho_turned: false,
             normals: None,
         })
     }
@@ -633,6 +718,7 @@ mod tests {
             triangles: 4,
             is_reference: &is_ref,
             references: &[0],
+            ortho_turned: false,
             normals: Some(NormalArrays {
                 bits: 10,
                 binary: &binary,
@@ -710,6 +796,7 @@ mod tests {
             triangles: 5,
             is_reference: &is_ref,
             references: &[0],
+            ortho_turned: false,
             normals: Some(NormalArrays {
                 bits: 10,
                 binary: &[false; 4],
@@ -773,9 +860,9 @@ mod tests {
     #[test]
     fn a_null_z_takes_the_ortho_rep_of_x() {
         let d = [1.0, 2.0, 3.0];
-        let p = apex([0.0; 3], [-2.0, 0.0, 0.0], [5.0, 0.0, 0.0], d);
+        let p = apex([0.0; 3], [-2.0, 0.0, 0.0], [5.0, 0.0, 0.0], d, false);
         assert_eq!(p, [0.0, -2.0, -3.0]);
-        let p = apex([0.0; 3], [0.0, -2.0, 0.0], [0.0, 5.0, 0.0], d);
+        let p = apex([0.0; 3], [0.0, -2.0, 0.0], [0.0, 5.0, 0.0], d, false);
         assert_eq!(p, [-2.0, 0.0, 3.0]);
     }
 
@@ -865,6 +952,7 @@ mod tests {
             triangles: n - 2,
             is_reference: &vec![false; n],
             references: &[],
+            ortho_turned: false,
             normals: None,
         })
         .unwrap();
@@ -874,5 +962,232 @@ mod tests {
             let off = dot(sub(*p, *s), sub(*p, *s)).sqrt() / tol;
             assert!(off < 0.87, "{off} tolerances off");
         }
+    }
+
+    /// A tetrahedron closed by two references: after `[3 1 0]` the
+    /// continuation edge `[0 1]` is already shared twice, so the walk
+    /// takes the open `[3 0]` instead.
+    #[test]
+    fn a_closed_continuation_edge_gives_way_to_the_open_one() {
+        let pts = [0, 0, 0, 4, 0, 0, -2, 4, 0, 0, 0, 4];
+        let mut status = [0; 12];
+        status[..3].copy_from_slice(&[2, 2, 2]);
+        let mut is_ref = [false; 6];
+        is_ref[4..].copy_from_slice(&[true, true]);
+        let m = run(&pts, &status, 4, &is_ref, &[0, 2]).unwrap();
+        assert_eq!(m.triangles, [[0, 1, 2], [2, 1, 3], [3, 1, 0], [3, 0, 2]]);
+    }
+
+    fn one_face(pts: &[i64], planar: bool) -> Result<TriangleMesh, String> {
+        let mut status = [0; 6];
+        status[0] = 2;
+        reconstruct(&Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: pts,
+            edge_status: &status,
+            triangles: 2,
+            is_reference: &[false; 4],
+            references: &[],
+            ortho_turned: false,
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[false; 4],
+                angles: &[0, 1023],
+                planar: &[planar],
+                face_of: &[0; 2],
+            }),
+        })
+    }
+
+    /// Two triangles of one planar face folded about 70 degrees along their
+    /// shared edge, far enough that no plane holds all four corners within
+    /// `MAX_BEND` tolerances: the arrays fit, the face does not.
+    #[test]
+    fn a_planar_face_that_bends_is_refused() {
+        let bent = [0, 0, 0, 80, 0, 0, -40, 80, 0, 0, -80, 240];
+        assert!(one_face(&bent, true).is_err());
+        assert!(one_face(&[0, 0, 0, 80, 0, 0, -40, 80, 0, 0, -80, 0], true).is_ok());
+    }
+
+    /// No retry fits: the unsignalled reference triangles need folds the
+    /// retries do not try. The search finds exactly one fit.
+    #[test]
+    fn a_mesh_no_retry_fits_is_found_by_the_search() {
+        let pts = [0, 0, 0, 4, 0, 0, -2, 4, 0, 1, 2, 3, 2, 3, 5, 3, 4, 7];
+        let mut status = [0; 18];
+        status[..6].copy_from_slice(&[3, 0, 1, 3, 0, 0]);
+        let mut is_ref = [false; 8];
+        is_ref[5] = true;
+        is_ref[7] = true;
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &status,
+            triangles: 6,
+            is_reference: &is_ref,
+            references: &[3, 2],
+            ortho_turned: false,
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[false; 24],
+                angles: &[0; 12],
+                planar: &[false],
+                face_of: &[0; 6],
+            }),
+        };
+        assert!(walk(&a, None).is_err());
+        let m = reconstruct(&a).unwrap();
+        assert_eq!(
+            m.triangles,
+            [
+                [0, 1, 2],
+                [2, 1, 3],
+                [0, 2, 4],
+                [0, 4, 3],
+                [0, 3, 5],
+                [3, 4, 2]
+            ]
+        );
+    }
+
+    /// Rebuilds a one-face mesh whose sixth slot is its one reference, with
+    /// the WD frame and with the frame turned; the WD frame must not orient
+    /// it to the end.
+    fn with_turned_frame(
+        pts: &[i64],
+        status: &[i32],
+        slots: usize,
+        refs: &[u32],
+        angles: &[i32],
+        walks: bool,
+        expected: fn(&Arrays<'_>) -> Option<TriangleMesh>,
+    ) {
+        let t = status.len() / 3;
+        let mut is_ref = vec![false; slots];
+        is_ref[5] = true;
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: pts,
+            edge_status: status,
+            triangles: t,
+            is_reference: &is_ref,
+            references: refs,
+            ortho_turned: false,
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[false; 4],
+                angles,
+                planar: &[true],
+                face_of: &vec![0; t],
+            }),
+        };
+        assert!(oriented_fit(&a).is_none());
+        assert_eq!(walk(&a, None).is_ok(), walks);
+        let want = expected(&Arrays {
+            ortho_turned: true,
+            ..a
+        })
+        .unwrap();
+        let m = reconstruct(&a).unwrap();
+        assert_eq!(m.triangles, want.triangles);
+        assert_eq!(m.positions, want.positions);
+    }
+
+    /// An apex whose `W` lies on the edge's line takes its frame from
+    /// `MakeOrthoRep`. In each mesh the WD's frame folds a later triangle
+    /// the wrong way, and only the frame turned a half-turn about `X`
+    /// rebuilds it: oriented by the stored normals after the plain walk
+    /// fits, or found by the search after it fails.
+    #[test]
+    fn a_frame_only_turned_fits_is_rebuilt_turned() {
+        let tri0 = [0, 0, 0, 4, 0, 0, 2, 4, 0];
+        let st = [1, 1, 3, 3, 3, 2, 3, 1, 3, 2, 3, 0];
+        let pts = [&tri0[..], &[0, 0, 0, 3, 2, -1]].concat();
+        with_turned_frame(&pts, &st, 6, &[2], &[414, 420], true, oriented_fit);
+        let st = [1, 3, 1, 1, 1, 3, 0, 0, 1, 3, 2, 0];
+        let pts = [&tri0[..], &[0, 0, 0, -4, -4, 2]].concat();
+        with_turned_frame(&pts, &st, 6, &[2], &[470, 724], false, search::unique_fit);
+        let st = [1, 3, 2, 1, 2, 2, 2, 0, 1, 1, 2, 0, 2, 3, 3];
+        let pts = [&tri0[..], &[-4, 0, 0, 3, 3, 3, -1, 0, 0]].concat();
+        with_turned_frame(&pts, &st, 7, &[0], &[837, 402], false, search::unique_fit);
+        let d = [1.0, 2.0, 3.0];
+        let p = apex([0.0; 3], [-2.0, 0.0, 0.0], [5.0, 0.0, 0.0], d, true);
+        assert_eq!(p, [0.0, 2.0, 3.0]);
+    }
+
+    /// A sliver, at most a tolerance from collinear, whose stored
+    /// decision orients its fold the wrong way: the search still tries
+    /// inverting it, and that is the only fit.
+    #[test]
+    fn a_signalled_sliver_is_a_search_candidate() {
+        let pts = [0, 0, 0, 4, 0, 0, 2, 4, 0, -4, -1, 1, -1, -1, 0, 4, 0, -3];
+        let status = [1, 3, 3, 1, 2, 1, 1, 0, 1, 2, 2, 1, 3, 1, 3];
+        let mut is_ref = [false; 7];
+        is_ref[5] = true;
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &status,
+            triangles: 5,
+            is_reference: &is_ref,
+            references: &[0],
+            ortho_turned: false,
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[false; 4],
+                angles: &[60, 476],
+                planar: &[true],
+                face_of: &[0; 5],
+            }),
+        };
+        assert!(walk(&a, None).is_err());
+        let m = reconstruct(&a).unwrap();
+        assert_eq!(
+            m.triangles,
+            [[0, 1, 2], [0, 2, 3], [3, 2, 4], [3, 4, 0], [0, 4, 5]]
+        );
+    }
+
+    /// A mesh whose `MakeOrthoRep` frames fit, after one inverted fold, only
+    /// the WD's way round: the search tries the WD frame before the turned
+    /// one, and the turned one fits nothing.
+    #[test]
+    fn the_search_tries_the_wd_frame_first() {
+        let pts = [0, 0, 0, 4, 0, 0, 2, 4, 0, 1, 0, 0, -3, 1, -1, -2, 3, 1];
+        let status = [3, 3, 3, 2, 2, 1, 1, 2, 3, 3, 1, 3, 1, 1, 0];
+        let mut is_ref = [false; 7];
+        is_ref[5] = true;
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &status,
+            triangles: 5,
+            is_reference: &is_ref,
+            references: &[2],
+            ortho_turned: false,
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[true, false, false, true],
+                angles: &[302, 340],
+                planar: &[true],
+                face_of: &[0; 5],
+            }),
+        };
+        assert!(walk(&a, None).is_err());
+        let turned = Arrays {
+            ortho_turned: true,
+            ..a
+        };
+        assert!(search::unique_fit(&turned).is_none());
+        let m = reconstruct(&a).unwrap();
+        assert_eq!(
+            m.triangles,
+            [[0, 1, 2], [2, 1, 3], [3, 1, 4], [3, 4, 2], [2, 4, 5]]
+        );
     }
 }

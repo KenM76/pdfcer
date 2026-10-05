@@ -20,6 +20,7 @@ use super::{V, add, cross, dot, mul, sub, unit};
 
 /// The stored-normal arrays of a mesh that does not ask for recalculation
 /// [WD 7.8.9.3].
+#[derive(Clone, Copy)]
 pub(crate) struct NormalArrays<'a> {
     /// `normal_angle_number_of_bits`.
     pub(crate) bits: u32,
