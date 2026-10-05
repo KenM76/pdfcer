@@ -77,6 +77,7 @@ pub mod color;
 pub mod compositor;
 pub(crate) mod device_clip;
 pub mod display_list;
+mod divergence;
 pub mod edit_preview;
 pub mod emf;
 mod emf_text;

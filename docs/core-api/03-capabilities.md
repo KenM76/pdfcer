@@ -3236,6 +3236,23 @@ region, so a status line keyed on it goes quiet exactly where the operator
 scrolled away from the affected patch. The first says *the correct buffer was
 not available*, which is a property of the raster.
 
+### 7.3a2 Divergence counters — every way the raster differs from the file
+
+`Diagnostics::divergences(&self) -> impl Iterator<Item = (&'static str, u64)>`
+yields every DIVERGENCE counter, zero values included, keyed as `pdfcer
+render`'s metrics line prints it (`overprint_refused`, `color.patterns_unpainted`,
+`shading.refused`, …). `Diagnostics::DIVERGENCE_KEYS: [&str; 15]` is the same
+list in the same order. A non-zero value means part of the page was painted
+differently from what the document asks. Walk the iterator rather than naming
+fields: a counter added later appears without a code change. A unit test in
+`pdfcer-render` holds the list equal to the CLI metrics table's DIVERGENCE rows.
+
+```rust
+for (key, n) in rendered.diagnostics.divergences().filter(|(_, n)| *n > 0) {
+    println!("{key}={n}");
+}
+```
+
 ### 7.3b The ink probe — what is in the colorant buffer, before it stops existing
 
 **Added `Pass 174.0`.** `RenderOptions::with_ink_probe(x, y)` (device pixels,
