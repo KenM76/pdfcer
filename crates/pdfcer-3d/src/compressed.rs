@@ -193,6 +193,9 @@ pub(crate) struct Arrays<'a> {
     /// Whether a `MakeOrthoRep` frame is turned a half-turn about `X`;
     /// see [`reconstruct`].
     pub(crate) ortho_turned: bool,
+    /// Whether orienting ignores reused normals and treats a sub-tolerance
+    /// triangle like any other; see [`reconstruct`].
+    pub(crate) legacy_orient: bool,
 }
 
 /// Mutable traversal state; `log` records every edge-count increment so a
@@ -349,8 +352,11 @@ impl<'a> Walk<'a> {
 
     /// Whether `t` folds: its winding `(B - A) x (C - A)` points against
     /// its stored normal [WD 7.8.9, 7.8.9.1]. Without a usable normal the
-    /// default `fold` stands.
-    fn fold(&mut self, t: [u32; 3], fold: bool) -> Result<bool, String> {
+    /// default `fold` stands. The WD requires every triangle's height to
+    /// exceed the tolerance [WD 7.8.9], so a decoded one at most that thin
+    /// ([`Walk::weak`]) has lost its winding to quantisation and takes the
+    /// default too, unless `legacy`.
+    fn fold(&mut self, t: [u32; 3], fold: bool, legacy: bool) -> Result<bool, String> {
         let ti = self.tris.len();
         let Some(r) = self.normals.as_mut() else {
             return Ok(fold);
@@ -358,18 +364,21 @@ impl<'a> Walk<'a> {
         let o = r
             .read(ti, t, &self.pos)
             .ok_or("the stored normals run out")?;
+        let thin = self.weak && !legacy;
         Ok(match o {
+            Orientation::Reversed(_) if thin => fold,
+            Orientation::Reused(_) if legacy => fold,
             Orientation::Reversed(rev) => {
                 self.signalled = true;
                 rev != (t[0] > t[1])
             }
-            Orientation::Normal(n) => {
+            Orientation::Normal(n) | Orientation::Reused(n) => {
                 let (a, b, c) = (self.get(t[0])?, self.get(t[1])?, self.get(t[2])?);
                 let (ab, ac) = (sub(b, a), sub(c, a));
                 let w = cross(ab, ac);
                 let sine = (dot(w, w) / (dot(ab, ab) * dot(ac, ac))).sqrt();
                 let s = dot(w, n);
-                if sine > MIN_SINE && s != 0.0 {
+                if sine > MIN_SINE && s != 0.0 && !thin {
                     self.signalled = true;
                     s < 0.0
                 } else {
@@ -395,7 +404,6 @@ impl<'a> Walk<'a> {
             }
         }
         self.signalled = false;
-        let fold = self.fold(tri, fold)?;
         self.weak = {
             let (p, q, r) = (self.get(ta)?, self.get(tb)?, self.get(tc)?);
             let long = [sub(q, p), sub(r, q), sub(p, r)]
@@ -405,6 +413,7 @@ impl<'a> Walk<'a> {
             let w = cross(sub(q, p), sub(r, p));
             long > 0.0 && dot(w, w).sqrt() / long <= a.tolerance
         };
+        let fold = self.fold(tri, fold, a.legacy_orient)?;
         self.tris.push(tri);
         let (mut left, mut right) = ((tc, tb, ta), (ta, tc, tb));
         if fold != flip {
@@ -458,10 +467,23 @@ fn oriented_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
 /// round the encoder had it: some producers' meshes fit only with that
 /// frame turned a half-turn about `X`. The WD frame is tried first at each
 /// stage; the turned one is kept only as a fit the stored normals confirm.
+///
+/// A mesh no stage fits is retried with [`Arrays::legacy_orient`]: some
+/// producers' meshes fit only that looser reading.
 pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
     if a.edge_status.len() != a.triangles.saturating_mul(3) {
         return Err("the one-status-per-triangle edge form is not reconstructed".into());
     }
+    reconstruct_oriented(a).or_else(|e| {
+        let legacy = Arrays {
+            legacy_orient: true,
+            ..*a
+        };
+        reconstruct_oriented(&legacy).map_err(|_| e)
+    })
+}
+
+fn reconstruct_oriented(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
     if let Some(m) = oriented_fit(a) {
         return Ok(m);
     }
@@ -580,6 +602,7 @@ mod tests {
             is_reference: is_ref,
             references: refs,
             ortho_turned: false,
+            legacy_orient: false,
             normals: None,
         })
     }
@@ -719,6 +742,7 @@ mod tests {
             is_reference: &is_ref,
             references: &[0],
             ortho_turned: false,
+            legacy_orient: false,
             normals: Some(NormalArrays {
                 bits: 10,
                 binary: &binary,
@@ -797,6 +821,7 @@ mod tests {
             is_reference: &is_ref,
             references: &[0],
             ortho_turned: false,
+            legacy_orient: false,
             normals: Some(NormalArrays {
                 bits: 10,
                 binary: &[false; 4],
@@ -811,6 +836,32 @@ mod tests {
             [[0, 1, 2], [0, 2, 3], [3, 2, 4], [3, 4, 0], [4, 2, 5]]
         );
         assert_eq!(m.normals.len(), 1);
+    }
+
+    /// Corners whose normals were all read at an earlier triangle still
+    /// orient it [WD 7.8.9]; one at most a tolerance thick, or a legacy
+    /// walk, keeps the default fold, as does a thin one's fresh record.
+    #[test]
+    fn reused_normals_orient_unless_thin_or_legacy() {
+        let na = NormalArrays {
+            bits: 10,
+            binary: &[false; 16],
+            angles: &[0, 1023, 0, 1023, 0, 1023, 0, 1023],
+            planar: &[false],
+            face_of: &[0; 8],
+        };
+        let mut w = Walk::new(3, Some(NormalReader::new(&na)));
+        w.pos = vec![[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]];
+        assert!(!w.fold([0, 1, 2], false, false).unwrap());
+        let both = |w: &mut Walk<'_>, legacy| {
+            [[0, 1, 2], [0, 2, 1]].map(|t| w.fold(t, false, legacy).unwrap())
+        };
+        assert_eq!(both(&mut w, false), [false, true]);
+        assert_eq!(both(&mut w, true), [false, false]);
+        w.weak = true;
+        assert_eq!(both(&mut w, false), [false, false]);
+        // A fresh record's reversed bit, which would fold it, too.
+        assert!(!w.fold([1, 0, 3], false, false).unwrap());
     }
 
     #[test]
@@ -953,6 +1004,7 @@ mod tests {
             is_reference: &vec![false; n],
             references: &[],
             ortho_turned: false,
+            legacy_orient: false,
             normals: None,
         })
         .unwrap();
@@ -990,6 +1042,7 @@ mod tests {
             is_reference: &[false; 4],
             references: &[],
             ortho_turned: false,
+            legacy_orient: false,
             normals: Some(NormalArrays {
                 bits: 10,
                 binary: &[false; 4],
@@ -1029,6 +1082,7 @@ mod tests {
             is_reference: &is_ref,
             references: &[3, 2],
             ortho_turned: false,
+            legacy_orient: false,
             normals: Some(NormalArrays {
                 bits: 10,
                 binary: &[false; 24],
@@ -1076,6 +1130,7 @@ mod tests {
             is_reference: &is_ref,
             references: refs,
             ortho_turned: false,
+            legacy_orient: false,
             normals: Some(NormalArrays {
                 bits: 10,
                 binary: &[false; 4],
@@ -1136,6 +1191,7 @@ mod tests {
             is_reference: &is_ref,
             references: &[0],
             ortho_turned: false,
+            legacy_orient: false,
             normals: Some(NormalArrays {
                 bits: 10,
                 binary: &[false; 4],
@@ -1170,6 +1226,7 @@ mod tests {
             is_reference: &is_ref,
             references: &[2],
             ortho_turned: false,
+            legacy_orient: false,
             normals: Some(NormalArrays {
                 bits: 10,
                 binary: &[true, false, false, true],

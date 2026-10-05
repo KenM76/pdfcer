@@ -59,6 +59,10 @@ pub(super) enum Orientation {
     Reversed(bool),
     /// The normal of a planar face read at an earlier triangle.
     Normal(V),
+    /// The sum of a curved triangle's corner normals, every one read at an
+    /// earlier triangle: the WD orients each triangle by "one of its 3
+    /// normals" whether read fresh or reused [WD 7.8.9].
+    Reused(V),
     /// Nothing new was read and no face normal applies.
     Unknown,
 }
@@ -218,7 +222,16 @@ impl<'a> NormalReader<'a> {
             *out.get_mut(slot)? = n;
         }
         self.corners.push(out);
-        Some(fresh.map_or(Orientation::Unknown, Orientation::Reversed))
+        if let Some(rev) = fresh {
+            return Some(Orientation::Reversed(rev));
+        }
+        if planar {
+            return Some(Orientation::Unknown);
+        }
+        let n = out
+            .iter()
+            .fold([0.0; 3], |n, &c| add(n, self.normal(c, pos)));
+        Some(Orientation::Reused(n))
     }
 
     fn step(&self) -> f64 {
