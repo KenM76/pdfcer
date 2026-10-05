@@ -4,6 +4,35 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (970th filing) — `Pass 500.0` shipped (an edit keeps the OCR layer, `G125`)
+
+**Shipped:**
+- `Pass 500.0` — `83cdc94f`. Edits re-split `/Contents` so each `/pdfc_OCR`
+  section stays its own stream (`ocr::refold`, `EditSession::refolded_command`).
+  Details and tests in the ROADMAP Shipped entry and the commit message.
+
+**Decisions made this session:**
+- Engineer picked the request's first route (edits preserve the layer stream)
+  rather than teaching `read_marker` to find a section inside a stream. No
+  decision-log entry; no pub API change.
+
+**Findings + decisions:**
+- Figures as supplied by the engineer, not re-run here: 5 integration tests
+  (all fail with `refold` sabotaged) + 2 unit tests; core lib 1466,
+  integration 2694. Full `run-gates.sh` not run (operator using the PC).
+- `Pass 500.3` and `500.4` were blocked on this; both ROADMAP lines now say
+  unblocked. The reply to `pdfcer-gui` is written (FIXED), per the engineer.
+- `FEATURES.md`: one sentence added to the OCR-identity row; no box changed.
+  No separate row exists for page-content editing that names the OCR layer.
+
+**Still in flight:**
+- Unpushed. `500.1`, `500.2`, `500.5`, `500.6` untouched.
+
+**For next session:**
+- Run `tools/run-gates.sh`, then push. Next free whole-number Pass ID `501.0`.
+
+**Sourcing note (hard rule 8):** backup/push state not checked here.
+
 ## 2026-10-05 (969th filing) — seven `pdfcer-gui` requests (`G119`–`G125`) filed as `Pass 500.0`–`500.6`
 
 **Shipped:**

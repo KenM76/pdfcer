@@ -115,6 +115,35 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 500.0` — an edit keeps a page's OCR layer as its own stream (`pdfcer-core`/`pdfcer-cli` `G125`, a defect) — SHIPPED `83cdc94f`
+
+Every content edit (`edit_text`, `format_text`, the vector surgeries behind
+`move_object`/`set_objects_layer`, block text) folded the page's `/Contents`
+into stream 0 and emptied the rest, so a `/pdfc_OCR ... BDC ... EMC` layer
+(found only as a whole stream) stopped being found: remove found nothing, a
+re-run stacked a second layer. Fix: new `pub(crate)` `ocr::refold` and
+`EditSession::refolded_command` (`edit/ocr_refold.rs`). Each top-level
+`/pdfc_OCR` section goes back to its own stream; content before the first
+layer stays in `/Contents[0]`; content after a layer goes to the first
+non-layer stream that followed it (ISO 32000-1 §7.8.2: the array is one stream
+split at token boundaries). An unchanged layer stream is not rewritten
+(minimal diff); an edited one is rewritten in place; if the buffer does not
+line up the old fold applies. `read_marker`'s whole-stream rule is unchanged;
+the opening check is shared as `marker::layer_props`. The disclosure now says
+the layer was kept; `EditReport::extra_objects_emptied` counts only streams
+actually emptied. The CLI verbs `edit-text`, `object-move`, `set-object-layer`
+take the same path. No pub API change (`docs/core-api` untouched), no
+dependency or `Cargo.toml` change.
+
+**Tests.** `tests/ocr_layer_survives_edits.rs` (5; all fail with `refold`
+sabotaged) + 2 `ocr::refold` unit tests. `pdfcer-core` lib 1466 + integration
+2694 green; `clippy -D warnings`, `fmt`, code-structure, string-gaps,
+tests-harnessed clean. Full `tools/run-gates.sh` NOT yet run; not pushed.
+
+Unblocks `Pass 500.3` and `Pass 500.4`. `FEATURES.md`: the OCR-layer
+identity row notes edits preserve the layer; boxes unchanged (core `[x]`, cli
+`[x]`, gui `[ ]`, a separate project).
+
 ### `Pass 499.0` — compressed tessellation: reused normals orient, thin triangles fold by default (`pdfcer-3d`) — SHIPPED `ef96c290`
 
 Core-side only (`pdfcer-3d`; no CLI/GUI change). (1) A curved triangle
@@ -21650,31 +21679,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
 
-### `Pass 500.0` — an edit verb must not fold a `/pdfc_OCR` stream into `/Contents[0]` (`pdfcer-core`/`pdfcer-cli` `G125`) — NOT STARTED (969th filing)
-
-**BUG, fix-on-discovery; first in the queue.** `pdfcer-gui` asked `G125`
-(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G125_any_edit_on_a_page_folds_its_ocr_layer_into_the_page_content.md`):
-on a page carrying an `add_ocr_layer` layer, `edit_text`, `move_object` and
-`set_objects_layer` each report *"multi-stream page: N additional /Contents
-stream(s) were collapsed into the first and emptied"* (`vector_surgery_inner` /
-`text_edit_command`, which write the edit into `page.contents.first()`). The
-`/pdfc_OCR` section then sits inside stream 0 after the page's own operators,
-`ocr::marker::read_marker` (a layer is one `/Contents` entry that is exactly one
-marker section) no longer finds it, and the page has lost its OCR layer: remove
-finds nothing, a re-run stacks a second invisible layer. The CLI verbs
-(`edit-text`, `object-move`, `set-object-layer`) are the same calls.
-
-**Scope.** Either of the request's routes: edits leave a `/pdfc_OCR` stream as
-its own `/Contents` entry (edit inside it when the target is in it, untouched
-otherwise), or `read_marker` and `remove_ocr_layer` work on a section anywhere
-in a stream. The engineer picks; the collapse disclosure also stops being
-silent about the marker if the first route is not taken.
-
-**Acceptance.** `add_ocr_layer`, then each of the three edits: `find_ocr_layers`
-still lists the layer, `remove_ocr_layer` leaves the scan intact, a re-run under
-`ExistingLayers::Replace` still replaces it. Regression test per verb; core +
-cli. **Blocks** `Pass 500.3` and `Pass 500.4`.
-
 ### `Pass 500.1` — `OcrRunner::recognize_at(w, h, pixels, dpi)`: a program add-on is told each page's resolution (`pdfcer-ocr-host` `G119`) — NOT STARTED (969th filing)
 
 `pdfcer-gui` asked `G119`
@@ -21730,7 +21734,7 @@ its marker. The remove outcome reports whether the group is left with no
 content, so the shell can offer to delete it. **Acceptance.** Round trip: add
 on a group, find, remove (group reported emptied), re-run under `Replace`; the
 group shows in the existing layer listing. Core only until a CLI flag is
-scoped (`layer-add` already exists). **Depends on `Pass 500.0`.**
+scoped (`layer-add` already exists). **Depends on `Pass 500.0`** (shipped `83cdc94f`; unblocked).
 
 ### `Pass 500.4` — `AddTextRequest` into the OCR layer: text a person typed onto a scan belongs to its layer (`pdfcer-core` `G123`) — NOT STARTED (969th filing)
 
@@ -21748,7 +21752,7 @@ it (`/Engine (manual)`), so the layer's find/page/remove verbs and
 optional-content group once `Pass 500.3` lands. Disclosed off-canvas as
 manually added, not recognised (fuzzy-never-sneaky: it is not inferred, but it
 must be distinguishable). **Acceptance.** Add, find lists it, remove deletes it,
-re-run under `Replace` replaces it. Core only. **Depends on `Pass 500.0`.**
+re-run under `Replace` replaces it. Core only. **Depends on `Pass 500.0`** (shipped `83cdc94f`; unblocked).
 
 ### `Pass 500.5` — `in_ocr_layer` on extracted glyphs and an `ExtractOptions` OCR filter, threaded through the exports (`pdfcer-core` `G124`) — NOT STARTED (969th filing)
 
