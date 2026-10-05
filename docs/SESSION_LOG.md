@@ -4,6 +4,34 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (977th filing) — `Pass 501.0` shipped (widget border dash read, `G126`)
+
+**Shipped:**
+- `Pass 501.0` — `dbcddbf7`. `Widget::border_dash` (core), `list-fields --widgets`
+  `border_dash=` column (cli); gui not delivered (pdfcer-gui). Details in the ROADMAP
+  Shipped entry and the commit message.
+
+**Decisions made this session:**
+- A Dashed border with no `/D` reads `None`, not Table 166's `[3]`, so a seeded
+  control round-trips through `WidgetEdit::with_border_dash(None)`. No decision-log entry.
+
+**Findings + decisions:**
+- Compressed-mesh hypothesis H1 measured and ruled out: the sliver fold (sign of six
+  cross-product orderings vs the decoded normal) gives all 141/156 with one lost;
+  Normal/Reused-only is identical to the 142/156 baseline. Measured on the door
+  assembly sample. Recorded as X8 in spec RAG threed `prc__8137` §2c-x; `NEXT_SESSION`
+  commit `33b7007e`.
+- `FEATURES.md`: widget border-dash row (write side `Pass 490.0`) extended with the
+  read; core/cli stay `[x]`, gui `[ ]`.
+- Numbering: `NEXT_SESSION` said next filing 977th; confirmed against the top of this
+  file (976th, with its same-day amendment) before use.
+
+**Still in flight:**
+- Full `tools/run-gates.sh` on `dbcddbf7` before push.
+
+**Sourcing note (hard rule 8):** tests and gate figures are as reported by the
+engineer; backup/push/git state not checked here.
+
 ## 2026-10-05 (976th filing) — `Pass 500.6` shipped (OCR layer reading order, `G121`)
 
 **Shipped:**

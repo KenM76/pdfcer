@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 501.0` — a form widget reports its border dash array (`pdfcer-core` + CLI, `G126`) — SHIPPED `dbcddbf7`
+
+`forms::Widget::border_dash: Option<annot_author::BorderDash>` is the dash array the
+file STATES: `/BS /D` when `/BS` is present (ISO 32000-1 §12.5.4 Table 166), else the
+4th element of `/Border` (Table 164). A Dashed border with no `/D` reads `None`, not
+Table 166's default `[3]`: reporting `[3]` would make a seeded control write `/D [3]`,
+whereas `None` is exactly what `WidgetEdit::with_border_dash(None)` writes, so the
+value round-trips. Same refusal as `Widget::border`. Completes the read half of
+`Pass 490.0` (write side, `G116`). CLI: `list-fields --widgets` adds column
+`border_dash=6,2|-`; `--help` documents it. `docs/core-api/02-editing-and-saving.md`
+documents the read side; pdfcer-gui can delete its own `/BS /D` reader for widgets.
+GUI shell not delivered here (separate project).
+
+**Tests (engineer-reported, not re-run here).** Forms unit test (7 shapes); core
+integration round-trip through `edit_widget` (`widget_border_dash.rs`); CLI listing
+test (`widget_properties.rs`). Targeted: core lib `border_dash` 1, core `all`
+`border_dash` 5, cli `widget_properties` 15. clippy `-D warnings` clean on core+cli,
+fmt applied, code-structure clean, no manifest change. Full `run-gates.sh` not yet run
+on this commit.
+
 ### `Pass 500.6` — the OCR layer writes text in reading order, block by block (`pdfcer-core` `G121`) — SHIPPED `5bad6b03`
 
 `OcrPage` gains optional `lines: Vec<OcrLine>` and `blocks: Vec<OcrBlock>`; new
