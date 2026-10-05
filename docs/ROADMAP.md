@@ -115,6 +115,43 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 496.0` — `Diagnostics::divergences` enumerates the DIVERGENCE counters (`pdfcer-render` `G117`) — SHIPPED `d8c4a079`
+
+`pdfcer-gui` asked `G117`: the render's divergence counters print on
+`render-page`'s stderr metrics line but have no programmatic form — a
+caller must parse text or hard-code the list, the exact drift risk
+`FEATURES.md` row 448 already names. New
+`Diagnostics::DIVERGENCE_KEYS: [&'static str; 15]` and
+`Diagnostics::divergences(&self) -> impl Iterator<Item = (&'static
+str, u64)>` yield every DIVERGENCE counter, zeros included, keyed
+exactly as the CLI prints them: `overprint_refused`,
+`overprint_images_unsupported`, `overprint_process_images_unsupported`,
+`overprint_shadings_unsupported`, `cmyk_buffer_refused`,
+`blends_in_wrong_space`, `cmyk_groups_approximated`,
+`soft_masks_ignored`, `soft_mask_transfer_ignored`,
+`blend_modes_ignored`, `transparency_groups_flattened`,
+`color.spaces_unresolved`, `color.tint_transform_not_applied`,
+`color.patterns_unpainted`, `shading.refused`. New module
+`crates/pdfcer-render/src/divergence.rs` (`interpret.rs` is already
+over the structure-gate file cap).
+
+**Tests.** A unit test holds `DIVERGENCE_KEYS` equal to the CLI
+metrics table's DIVERGENCE rows, parsed from
+`crates/pdfcer-cli/src/main.rs`'s own header via `include_str!`, so the
+two cannot drift silently the way row 448 describes happening twice
+already; a second test reads each key's own counter; a doctest.
+Sabotaged two ways, both caught.
+
+**Gates.** `tools/run-gates.sh` PASS, 45 commands. No `Cargo.toml`
+change — `cargo tree` invariant not applicable.
+
+**Docs.** `docs/core-api/03-capabilities.md` new §7.3a2; `index.md`
+line count updated.
+
+`FEATURES.md`: new row under *Fonts & rendering* —
+`core[x] cli[ ] gui[ ]` (the CLI already prints the counters; this API
+has no CLI caller; the GUI has not adopted it).
+
 ### `Pass 495.0` — a radio button draws the mark `NewRadioButton::style` names (`pdfcer-gui` `G115`) — SHIPPED `cc891ebd`
 
 `build_radio_button_appearances(w, h, style, chrome)` now takes the

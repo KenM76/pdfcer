@@ -4,6 +4,40 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (964th filing) — `Pass 496.0` shipped (`Diagnostics::divergences` enumerates the DIVERGENCE counters, `G117`)
+
+**Shipped:**
+- `Pass 496.0` (`d8c4a079`) — `pdfcer-gui` asked `G117`: the render's
+  divergence counters print on `render-page`'s stderr metrics line but
+  had no programmatic form. New `Diagnostics::DIVERGENCE_KEYS` (15
+  keys) and `Diagnostics::divergences()` yield every DIVERGENCE
+  counter, zeros included, keyed exactly as the CLI prints them. New
+  module `crates/pdfcer-render/src/divergence.rs`. Not previously in
+  *Next up* — filed straight to Shipped.
+
+**Decisions made this session:** none — decision stays `192`, standing
+rule stays `R251`.
+
+**Findings + decisions:**
+- A unit test holds the new key list equal to the CLI metrics table's
+  own DIVERGENCE rows (parsed via `include_str!`), so the enumeration
+  and the printed line cannot drift apart the way `FEATURES.md` row
+  448 already records happening twice.
+
+**Still in flight:** `tools/run-gates.sh` stated PASS (45 commands) by
+the dispatching engineer; not independently re-verified (no shell this
+filing).
+
+**For next session:**
+- Next free `Pass 497.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- `FEATURES.md` new row under *Fonts & rendering* (after row 448):
+  `core[x] cli[ ] gui[ ]`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and gate results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-05 (963rd filing) — `Pass 495.0` shipped (a radio button draws the mark `NewRadioButton::style` names, `G115`)
 
 **Shipped:**
