@@ -115,6 +115,41 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 499.0` — compressed tessellation: reused normals orient, thin triangles fold by default (`pdfcer-3d`) — SHIPPED `ef96c290`
+
+Core-side only (`pdfcer-3d`; no CLI/GUI change). (1) A curved triangle
+whose three corner normals were all read at earlier triangles orients by
+their sum (PRC WD 7.8.9: triangle normal oriented with one of its 3
+normals). (2) A triangle whose decoded height is at most the tolerance
+takes the default fold regardless of its normals (WD 7.8.9 requires every
+triangle's edge length and height > tolerance, so a thinner decoded one
+lost its winding to quantisation). (3) A mesh no stage fits is retried
+with `Arrays::legacy_orient` (the looser reading), which keeps one door
+mesh only it fits.
+
+**Coverage.** Door assembly sample 140 → 142/156 (two gained; one rebuilt
+flatter, planar error 1.92 → 0.69). School sample 348/348, strap-hinge
+5/5, piano-hinge 3/3, byte-identical hashes.
+
+**Tests.** `pdfcer-3d` 129+3+11 pass; new
+`reused_normals_orient_unless_thin_or_legacy`, sabotage-checked on 4 arms
+(legacy fallback covered by the door count only). `fmt`, `clippy`,
+code-structure, string-gaps clean. No manifest change (`cargo tree`
+unaffected). Full `run-gates` NOT yet run; not pushed.
+
+**Open.** 14 door meshes still fail. Ruled out (see SESSION_LOG): best-first
+search over unsignalled candidates; orienting a zero-delta apex by its
+reversed bit alone.
+
+`FEATURES.md`: coverage figure on the PRC compressed-tessellation row
+updated (142/156); boxes unchanged.
+
+### Chore `3c864486` — engineer agent gets the Claude-in-Chrome tools
+
+`.claude/agents/pdfcer-engineer.md` tools list gains
+`mcp__claude-in-chrome__*` at the operator's request (to consult an
+external AI research assistant). No FEATURES impact.
+
 ### `Pass 498.0` — compressed tessellation rebuilds 10 more door meshes (`pdfcer-3d`) — SHIPPED `a7247697`
 
 Four measured rules landed in `crates/pdfcer-3d/src/compressed.rs` and new

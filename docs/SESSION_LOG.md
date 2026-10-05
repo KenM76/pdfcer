@@ -4,6 +4,39 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (968th filing) — `Pass 499.0` shipped (reused normals, thin triangles); agent chore
+
+**Shipped:**
+- `Pass 499.0` (`ef96c290`) — `pdfcer-3d` compressed tessellation:
+  all-reused-normals curved triangle orients by their sum (WD 7.8.9); a
+  decoded height <= tolerance takes the default fold; a mesh no stage
+  fits is retried with `Arrays::legacy_orient`. Core only.
+- Chore (`3c864486`) — `mcp__claude-in-chrome__*` added to
+  `pdfcer-engineer.md`'s tools at the operator's request (consulting an
+  external AI research assistant).
+
+**Decisions made this session:**
+- None — no decision-log entry needed.
+
+**Findings + decisions:**
+- Door assembly sample 140 -> 142/156 (one rebuilt flatter, planar error
+  1.92 -> 0.69); School 348/348, strap-hinge 5/5, piano-hinge 3/3
+  byte-identical. `pdfcer-3d` 129+3+11 pass; 4 arms sabotage-checked.
+- **Ruled out:** best-first search over unsignalled candidates (1839
+  conflicting fits on the door; fits are not unique, so search is a dead
+  end); orienting a zero-delta apex purely by its reversed bit (loses one
+  mesh).
+
+**Still in flight:**
+- 14 door meshes still fail. Full `run-gates` not yet run (operator using
+  the PC); not pushed.
+
+**For next session:**
+- Next fresh whole-number Pass ID is `500.0`.
+
+**Sourcing note (hard rule 8):** facts relayed from the dispatching
+engineer; backup/push state not checked here.
+
 ## 2026-10-05 (967th filing) — `Pass 498.0` shipped (compressed tessellation rebuilds 10 more door meshes)
 
 **Shipped:**
