@@ -83,6 +83,7 @@ mod output_in_place;
 mod password_values;
 mod pin_span;
 mod place_stamp_as_content;
+mod place_text;
 mod promote_dr_fonts;
 mod rc4_append;
 mod recompute_cli;

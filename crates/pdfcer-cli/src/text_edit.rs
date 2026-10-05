@@ -452,7 +452,6 @@ enum AddTextPlacement {
 
 /// Parse `--at` / `--box` / `--align`, or the exit code after printing why not.
 fn add_text_placement(args: &AddTextArgs<'_>) -> Result<AddTextPlacement, u8> {
-    use pdfcer_core::text_edit::BlockAlignment;
     match (args.at, args.wrap_box) {
         (Some(_), Some(_)) => {
             eprintln!("pdfcer: --at and --box are mutually exclusive; pass exactly one");
@@ -481,13 +480,7 @@ fn add_text_placement(args: &AddTextArgs<'_>) -> Result<AddTextPlacement, u8> {
                 );
                 exit::EDIT_REFUSED
             })?;
-            let align = match args.align {
-                None => BlockAlignment::Left,
-                Some(s) => BlockAlignment::parse(s).ok_or_else(|| {
-                    eprintln!("pdfcer: --align {s:?}: expected left|center|right|justify");
-                    exit::EDIT_REFUSED
-                })?,
-            };
+            let align = parse_block_align(args.align)?;
             Ok(AddTextPlacement::Boxed { rect, align })
         }
     }
@@ -757,88 +750,73 @@ pub(crate) struct PlaceTextArgs<'a> {
 /// what did NOT survive the import — dropped characters, collapsed tabs,
 /// blank pages — because those are the ones nothing in the output file can
 /// tell the operator (rule 4).
-#[allow(
-    clippy::too_many_lines,
-    reason = "argument validation, the two document shapes, and the report print-out are one linear command; the validation half is a sequence of independent named refusals that reads better in order than split across helpers that each take the same args struct"
-)]
 pub(crate) fn cmd_place_text(args: &PlaceTextArgs<'_>) -> u8 {
-    use pdfcer_core::fontdata::{Std14, std14_by_base_font};
-    use pdfcer_core::page_tree::Rect;
-    use pdfcer_core::paper::{Orientation, PaperSize};
-    use pdfcer_core::text_edit::{
-        BlockAlignment, NewTextColor, PageTemplate, PlaceTextError, Unmappable, blank_document,
+    // Everything the operator typed is validated before any file is read.
+    let (template, media, align) = match place_text_template(args) {
+        Ok(t) => t,
+        Err(code) => return code,
     };
-
-    // --- everything the operator typed, validated before any file is read.
-    let media = match args.page_size {
-        Some(s) => match parse_at_pair(s) {
-            Some((w, h)) if w > 0.0 && h > 0.0 => Rect::from_corners(0.0, 0.0, w, h),
-            _ => {
-                eprintln!(
-                    "pdfcer: --page-size expects two positive comma-separated numbers \"W,H\" \
-                     (points), got {s:?}"
-                );
-                return exit::EDIT_REFUSED;
-            }
-        },
-        None => match PaperSize::from_id(args.paper) {
-            Some(p) => p.rect_with(if args.landscape {
-                Orientation::Landscape
-            } else {
-                Orientation::Portrait
-            }),
-            None => {
-                eprintln!(
-                    "pdfcer: --paper {:?} is not a known sheet size (letter, legal, a0..a6, \
-                     tabloid, executive, ansi-a..ansi-e)",
-                    args.paper
-                );
-                return exit::EDIT_REFUSED;
-            }
-        },
-    };
-
-    let font = if args.font.eq_ignore_ascii_case("auto") {
-        Std14::Helvetica
-    } else {
-        match std14_by_base_font(args.font) {
-            Some(f) => f,
-            None => {
-                eprintln!(
-                    "pdfcer: --font {:?} is not a Standard-14 BaseFont name \
-                     (e.g. Helvetica, Times-Roman, Courier-Bold)",
-                    args.font
-                );
-                return exit::EDIT_REFUSED;
-            }
+    let text = match std::fs::read_to_string(args.text_file) {
+        Ok(t) => t,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", args.text_file.display());
+            return exit::IO_ERROR;
         }
     };
-
-    let align = match args.align {
-        None => BlockAlignment::Left,
-        Some(s) => match BlockAlignment::parse(s) {
-            Some(a) => a,
-            None => {
-                eprintln!("pdfcer: --align {s:?}: expected left|center|right|justify");
-                return exit::EDIT_REFUSED;
-            }
-        },
+    let creating = args.input.is_none();
+    let (source, mut session) = match place_text_session(args.input, media) {
+        Ok(pair) => pair,
+        Err(code) => return code,
     };
-
-    let color = match args.color {
-        None => NewTextColor::Black,
-        Some(s) => match parse_rgb_triple(s) {
-            Some((r, g, b)) => NewTextColor::Rgb(r, g, b),
-            None => {
-                eprintln!(
-                    "pdfcer: --color expects three comma-separated components in 0..=1 \
-                     \"r,g,b\", got {s:?}"
-                );
-                return exit::EDIT_REFUSED;
-            }
-        },
+    let position = match place_text_position(args.position, creating) {
+        Ok(p) => p,
+        Err(code) => return code,
     };
+    let report = match session.place_text(&text, &template, position) {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!("pdfcer: place-text refused: {err}");
+            return match err {
+                pdfcer_core::text_edit::PlaceTextError::Scaffold(_) => exit::RUNTIME_ERROR,
+                _ => exit::EDIT_REFUSED,
+            };
+        }
+    };
+    if creating && let Err(code) = remove_scaffold_page(&mut session) {
+        return code;
+    }
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        args.producer,
+        false,
+    ) {
+        Ok(o) => o,
+        Err(code) => return code,
+    };
+    print_place_text_report(args, &report, align, creating);
+    finish_edit(args.text_file, &outcome)
+}
 
+/// The page template from `--page-size`/`--paper`, margins, font, size,
+/// leading, alignment, colour and `--drop-unmappable`.
+fn place_text_template(
+    args: &PlaceTextArgs<'_>,
+) -> Result<
+    (
+        pdfcer_core::text_edit::PageTemplate,
+        pdfcer_core::page_tree::Rect,
+        pdfcer_core::text_edit::BlockAlignment,
+    ),
+    u8,
+> {
+    use pdfcer_core::text_edit::{PageTemplate, Unmappable};
+    let media = place_text_media(args)?;
+    let font = place_text_font(args.font)?;
+    let align = parse_block_align(args.align)?;
+    let color = add_text_color(args.color)?;
     let (all, left, right, top, bottom) = args.margins;
     let template = PageTemplate::new()
         .with_media_box(media)
@@ -858,96 +836,128 @@ pub(crate) fn cmd_place_text(args: &PlaceTextArgs<'_>) -> u8 {
         } else {
             Unmappable::Refuse
         });
+    Ok((template, media, align))
+}
 
-    let text = match std::fs::read_to_string(args.text_file) {
-        Ok(t) => t,
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", args.text_file.display());
-            return exit::IO_ERROR;
-        }
-    };
-
-    // --- the two document shapes.
-    let creating = args.input.is_none();
-    let (source, mut session) = match args.input {
-        Some(input) => match open_for_edit(input) {
-            Ok(pair) => pair,
-            Err(code) => return code,
-        },
-        None => {
-            // One blank page to splice beside, removed again below. See this
-            // function's docs for why the engine verb does not do this itself.
-            let doc = match blank_document(media, 1) {
-                Ok(d) => d,
-                Err(err) => {
-                    eprintln!("pdfcer: could not create a document: {err}");
-                    return exit::RUNTIME_ERROR;
-                }
-            };
-            let bytes = doc.bytes().to_vec();
-            (bytes, pdfcer_core::edit::EditSession::new(doc))
-        }
-    };
-
-    let position = if creating {
-        pdfcer_core::pageops::InsertPosition::End
-    } else {
-        // The SAME parser `insert-pages --at` uses. A second one here would be
-        // a second spelling of `before:N` that agrees today.
-        match parse_insert_position(args.position) {
-            Ok(p) => p,
-            Err(message) => {
-                eprintln!("pdfcer: --position {:?}: {message}", args.position);
-                return exit::EDIT_REFUSED;
-            }
-        }
-    };
-
-    let report = match session.place_text(&text, &template, position) {
-        Ok(r) => r,
-        Err(err) => {
-            eprintln!("pdfcer: place-text refused: {err}");
-            return match err {
-                PlaceTextError::Scaffold(_) => exit::RUNTIME_ERROR,
-                _ => exit::EDIT_REFUSED,
-            };
-        }
-    };
-
-    if creating {
-        // The scaffold page is now the LAST page (the import went after it is
-        // false — `End` inserted after it, so it is index 0). Removing it is
-        // what makes `place-text` with no `--input` produce a document of
-        // exactly the pages the text needed.
-        match session.delete_pages(&[0]) {
-            Ok(out) if out.pages_removed == 1 => {}
-            Ok(out) => {
+/// The sheet: an explicit `--page-size "W,H"`, else the named `--paper`.
+fn place_text_media(args: &PlaceTextArgs<'_>) -> Result<pdfcer_core::page_tree::Rect, u8> {
+    use pdfcer_core::page_tree::Rect;
+    use pdfcer_core::paper::{Orientation, PaperSize};
+    if let Some(s) = args.page_size {
+        return match parse_at_pair(s) {
+            Some((w, h)) if w > 0.0 && h > 0.0 => Ok(Rect::from_corners(0.0, 0.0, w, h)),
+            _ => {
                 eprintln!(
-                    "pdfcer: internal: removing the scaffold page removed {} page(s), not 1. \
-                     This is a bug; refusing rather than writing a document with a stray page",
-                    out.pages_removed
+                    "pdfcer: --page-size expects two positive comma-separated numbers \"W,H\" \
+                     (points), got {s:?}"
                 );
-                return exit::RUNTIME_ERROR;
+                Err(exit::EDIT_REFUSED)
             }
-            Err(err) => {
-                eprintln!("pdfcer: internal: the scaffold page could not be removed: {err}");
-                return exit::RUNTIME_ERROR;
-            }
+        };
+    }
+    let orientation = if args.landscape {
+        Orientation::Landscape
+    } else {
+        Orientation::Portrait
+    };
+    PaperSize::from_id(args.paper)
+        .map(|p| p.rect_with(orientation))
+        .ok_or_else(|| {
+            eprintln!(
+                "pdfcer: --paper {:?} is not a known sheet size (letter, legal, a0..a6, \
+                 tabloid, executive, ansi-a..ansi-e)",
+                args.paper
+            );
+            exit::EDIT_REFUSED
+        })
+}
+
+/// `--font` for `place-text`: `auto` is Helvetica, otherwise a Standard-14
+/// spelling.
+fn place_text_font(name: &str) -> Result<pdfcer_core::fontdata::Std14, u8> {
+    use pdfcer_core::fontdata::{Std14, std14_by_base_font};
+    if name.eq_ignore_ascii_case("auto") {
+        return Ok(Std14::Helvetica);
+    }
+    std14_by_base_font(name).ok_or_else(|| {
+        eprintln!(
+            "pdfcer: --font {name:?} is not a Standard-14 BaseFont name \
+             (e.g. Helvetica, Times-Roman, Courier-Bold)"
+        );
+        exit::EDIT_REFUSED
+    })
+}
+
+/// `--align`, left when absent.
+fn parse_block_align(raw: Option<&str>) -> Result<pdfcer_core::text_edit::BlockAlignment, u8> {
+    use pdfcer_core::text_edit::BlockAlignment;
+    let Some(s) = raw else {
+        return Ok(BlockAlignment::Left);
+    };
+    BlockAlignment::parse(s).ok_or_else(|| {
+        eprintln!("pdfcer: --align {s:?}: expected left|center|right|justify");
+        exit::EDIT_REFUSED
+    })
+}
+
+/// The document to import into: `--input`, or a one-page scaffold to splice
+/// beside (see [`cmd_place_text`] for why the engine verb does not do this).
+fn place_text_session(
+    input: Option<&Path>,
+    media: pdfcer_core::page_tree::Rect,
+) -> Result<(Vec<u8>, pdfcer_core::edit::EditSession), u8> {
+    if let Some(input) = input {
+        return open_for_edit(input);
+    }
+    let doc = pdfcer_core::text_edit::blank_document(media, 1).map_err(|err| {
+        eprintln!("pdfcer: could not create a document: {err}");
+        exit::RUNTIME_ERROR
+    })?;
+    let bytes = doc.bytes().to_vec();
+    Ok((bytes, pdfcer_core::edit::EditSession::new(doc)))
+}
+
+/// `--position`, through the same parser `insert-pages --at` uses; a created
+/// document always imports after its scaffold.
+fn place_text_position(
+    raw: &str,
+    creating: bool,
+) -> Result<pdfcer_core::pageops::InsertPosition, u8> {
+    if creating {
+        return Ok(pdfcer_core::pageops::InsertPosition::End);
+    }
+    parse_insert_position(raw).map_err(|message| {
+        eprintln!("pdfcer: --position {raw:?}: {message}");
+        exit::EDIT_REFUSED
+    })
+}
+
+/// Delete the scaffold, page 0 (`End` imported after it), so a created
+/// document holds exactly the pages the text needed.
+fn remove_scaffold_page(session: &mut pdfcer_core::edit::EditSession) -> Result<(), u8> {
+    match session.delete_pages(&[0]) {
+        Ok(out) if out.pages_removed == 1 => Ok(()),
+        Ok(out) => {
+            eprintln!(
+                "pdfcer: internal: removing the scaffold page removed {} page(s), not 1. \
+                 This is a bug; refusing rather than writing a document with a stray page",
+                out.pages_removed
+            );
+            Err(exit::RUNTIME_ERROR)
+        }
+        Err(err) => {
+            eprintln!("pdfcer: internal: the scaffold page could not be removed: {err}");
+            Err(exit::RUNTIME_ERROR)
         }
     }
+}
 
-    let outcome = match save_edited(
-        &mut session,
-        &source,
-        args.output,
-        args.mode,
-        args.producer,
-        false,
-    ) {
-        Ok(o) => o,
-        Err(code) => return code,
-    };
-
+fn print_place_text_report(
+    args: &PlaceTextArgs<'_>,
+    report: &pdfcer_core::text_edit::PlaceTextReport,
+    align: pdfcer_core::text_edit::BlockAlignment,
+    creating: bool,
+) {
     println!(
         "place-text {} -> {}",
         args.text_file.display(),
@@ -956,8 +966,7 @@ pub(crate) fn cmd_place_text(args: &PlaceTextArgs<'_>) -> u8 {
     println!(
         "  pages_created={} first_page={} blank_pages={} lines_placed={} lines_per_page={}",
         report.pages_created,
-        // 1-based for the operator, and re-based on the finished document: with
-        // no `--input` the scaffold page in front of them is gone by now.
+        // 1-based, on the finished document: a created one has lost its scaffold.
         if creating {
             1
         } else {
@@ -1000,9 +1009,7 @@ pub(crate) fn cmd_place_text(args: &PlaceTextArgs<'_>) -> u8 {
         report.coalesced
     );
     if !report.dropped_unmappable_chars.is_empty() {
-        // Named, not just counted: the count says something is missing, this
-        // says what, which is the difference between a disclosure the operator
-        // can act on and one they can only worry about.
+        // Named, not just counted, so the operator can act on it.
         let named: Vec<String> = report
             .dropped_unmappable_chars
             .iter()
@@ -1023,7 +1030,6 @@ the finished document without it.",
     for d in &report.disclosures {
         println!("    - {d}");
     }
-    finish_edit(args.text_file, &outcome)
 }
 
 /// Parse `"x,y"` into two `f64` points, or `None` on any malformed input.
