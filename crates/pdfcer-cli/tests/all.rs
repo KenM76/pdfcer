@@ -13,6 +13,7 @@ mod add_svg;
 mod add_text;
 mod annotate_as_content;
 mod annotate_note;
+mod annotation_address;
 mod attach_file_annotation;
 mod bates_stamp;
 mod bookmarks;

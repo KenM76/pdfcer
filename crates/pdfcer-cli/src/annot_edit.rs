@@ -148,13 +148,6 @@ pub(crate) fn cmd_set_markup_note(
 
     let (page, index) = at;
     let (note, author, date) = note;
-    if page == 0 {
-        eprintln!(
-            "pdfcer: {}: --page is 1-based; 0 is not a page",
-            input.display()
-        );
-        return exit::RUNTIME_ERROR;
-    }
     if !clear && note.is_none() {
         eprintln!(
             "pdfcer: {}: set-markup-note needs --note TEXT, or --clear to remove the note",
@@ -168,39 +161,9 @@ pub(crate) fn cmd_set_markup_note(
         Err(code) => return code,
     };
 
-    let annot_id = {
-        let slots = match session.page_slots() {
-            Ok(slots) => slots,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        let Some(slot) = slots.get(page - 1) else {
-            eprintln!(
-                "pdfcer: {}: no page {page} — the document has {} page(s)",
-                input.display(),
-                slots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
-        let Some(annot) = annots.get(index) else {
-            eprintln!(
-                "pdfcer: {}: page {page} has no annotation at index {index} — it has {}",
-                input.display(),
-                annots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let Some(id) = annot.id else {
-            eprintln!(
-                "pdfcer: {}: page {page} index {index} is a direct dictionary inside /Annots, not an indirect object — it has no identity to write a note onto",
-                input.display()
-            );
-            return exit::EDIT_REFUSED;
-        };
-        id
+    let annot_id = match locate_annotation(&session, input, at, "write a note onto") {
+        Ok((id, _)) => id,
+        Err(code) => return code,
     };
 
     let outcome = if clear {
@@ -382,38 +345,69 @@ pub(crate) fn resolve_annotation(
     page: usize,
     index: usize,
 ) -> Result<pdfcer_core::object::ObjId, u8> {
+    locate_annotation(session, input, (page, index), "address").map(|(id, _)| id)
+}
+
+/// [`resolve_annotation`], also returning the parsed annotation; `what` ends
+/// the direct-dictionary refusal ("it has no identity to {what}").
+///
+/// A bad `--page` or `--index` exits [`exit::EDIT_REFUSED`]: the document is
+/// fine and the address is wrong, which a script must tell apart from a
+/// broken file ([`exit::RUNTIME_ERROR`]).
+pub(crate) fn locate_annotation(
+    session: &pdfcer_core::edit::EditSession,
+    input: &Path,
+    (page, index): (usize, usize),
+    what: &str,
+) -> Result<(pdfcer_core::object::ObjId, pdfcer_core::annot::Annotation), u8> {
+    let page_id = locate_page(session, input, page)?;
+    let annots = pdfcer_core::annot::page_annotations(&session.graph(), page_id);
+    let count = annots.len();
+    let Some(annot) = annots.into_iter().nth(index) else {
+        eprintln!(
+            "pdfcer: {}: page {page} has no annotation at index {index} — it has {count}{}",
+            input.display(),
+            if count == 0 {
+                String::new()
+            } else {
+                format!(" (indices 0..{})", count - 1)
+            }
+        );
+        return Err(exit::EDIT_REFUSED);
+    };
+    let Some(id) = annot.id else {
+        eprintln!(
+            "pdfcer: {}: page {page} index {index} is a direct dictionary inside /Annots, not an \
+             indirect object — it has no identity to {what}",
+            input.display()
+        );
+        return Err(exit::EDIT_REFUSED);
+    };
+    Ok((id, annot))
+}
+
+/// The object id of 1-based `--page`, refusing 0 and a page past the end.
+pub(crate) fn locate_page(
+    session: &pdfcer_core::edit::EditSession,
+    input: &Path,
+    page: usize,
+) -> Result<pdfcer_core::object::ObjId, u8> {
     if page == 0 {
-        eprintln!("pdfcer: --page is 1-based; 0 is not a page");
+        eprintln!(
+            "pdfcer: {}: --page is 1-based; 0 is not a page",
+            input.display()
+        );
         return Err(exit::EDIT_REFUSED);
     }
-    let slots = match session.page_slots() {
-        Ok(slots) => slots,
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", input.display());
-            return Err(exit::RUNTIME_ERROR);
-        }
-    };
-    let Some(slot) = slots.get(page - 1) else {
+    let slots = session.page_slots().map_err(|err| {
+        eprintln!("pdfcer: {}: {err}", input.display());
+        exit::RUNTIME_ERROR
+    })?;
+    slots.get(page - 1).map(|slot| slot.id).ok_or_else(|| {
         eprintln!(
-            "pdfcer: {}: --page {page} is out of range (the document has {} page(s))",
+            "pdfcer: {}: no page {page} — the document has {} page(s)",
             input.display(),
             slots.len()
-        );
-        return Err(exit::EDIT_REFUSED);
-    };
-    let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
-    let Some(annot) = annots.get(index) else {
-        eprintln!(
-            "pdfcer: {}: --index {index} is out of range (page {page} has {} annotation(s))",
-            input.display(),
-            annots.len()
-        );
-        return Err(exit::EDIT_REFUSED);
-    };
-    annot.id.ok_or_else(|| {
-        eprintln!(
-            "pdfcer: {}: that annotation is a direct object and has no identity to address",
-            input.display()
         );
         exit::EDIT_REFUSED
     })
@@ -698,50 +692,13 @@ pub(crate) fn cmd_set_annotation_open(
     output: &Path,
     mode: SaveMode,
 ) -> u8 {
-    if page == 0 {
-        eprintln!("pdfcer: --page is 1-based; 0 is not a page");
-        return exit::EDIT_REFUSED;
-    }
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-
-    let annot_id = {
-        let slots = match session.page_slots() {
-            Ok(slots) => slots,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        let Some(slot) = slots.get(page - 1) else {
-            eprintln!(
-                "pdfcer: {}: --page {page} is out of range (the document has {} page(s))",
-                input.display(),
-                slots.len()
-            );
-            return exit::EDIT_REFUSED;
-        };
-        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
-        let Some(annot) = annots.get(index) else {
-            eprintln!(
-                "pdfcer: {}: --index {index} is out of range (page {page} has {} annotation(s))",
-                input.display(),
-                annots.len()
-            );
-            return exit::EDIT_REFUSED;
-        };
-        match annot.id {
-            Some(id) => id,
-            None => {
-                eprintln!(
-                    "pdfcer: {}: that annotation is a direct object and has no identity to address",
-                    input.display()
-                );
-                return exit::EDIT_REFUSED;
-            }
-        }
+    let annot_id = match resolve_annotation(&session, input, page, index) {
+        Ok(id) => id,
+        Err(code) => return code,
     };
 
     let change = match session.set_annotation_open(annot_id, open) {
@@ -821,51 +778,14 @@ pub(crate) fn cmd_set_annotation_flags(
     mode: SaveMode,
 ) -> u8 {
     let (page, index) = at;
-    if page == 0 {
-        eprintln!(
-            "pdfcer: {}: --page is 1-based; 0 is not a page",
-            input.display()
-        );
-        return exit::RUNTIME_ERROR;
-    }
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
 
-    let annot_id = {
-        let slots = match session.page_slots() {
-            Ok(s) => s,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        let Some(slot) = slots.get(page - 1) else {
-            eprintln!(
-                "pdfcer: {}: no page {page} — the document has {} page(s)",
-                input.display(),
-                slots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
-        let Some(annot) = annots.get(index) else {
-            eprintln!(
-                "pdfcer: {}: page {page} has {} annotation(s); no index {index}",
-                input.display(),
-                annots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let Some(id) = annot.id else {
-            eprintln!(
-                "pdfcer: {}: page {page} index {index} is a direct dictionary inside /Annots, not an indirect object — it has no identity to edit",
-                input.display()
-            );
-            return exit::EDIT_REFUSED;
-        };
-        id
+    let annot_id = match locate_annotation(&session, input, (page, index), "edit") {
+        Ok((id, _)) => id,
+        Err(code) => return code,
     };
 
     let out = match session.set_annotation_flags(annot_id, flags) {
@@ -981,14 +901,6 @@ pub(crate) fn cmd_set_markup_style(
 ) -> u8 {
     use pdfcer_core::edit::{AppearanceWrite, DroppedProperty, MarkupStyle, StyleEdit};
 
-    if page == 0 {
-        eprintln!(
-            "pdfcer: {}: --page is 1-based; 0 is not a page",
-            input.display()
-        );
-        return exit::RUNTIME_ERROR;
-    }
-
     // Parse the flags BEFORE opening the file: a mistyped colour should
     // not cost a parse of a large document.
     let (stroke, interior) = match (
@@ -1041,45 +953,11 @@ pub(crate) fn cmd_set_markup_style(
         Err(code) => return code,
     };
 
-    // Resolved inside a block so the session borrow ends before the
-    // mutable call below.
-    let (annot_id, subtype) = {
-        let slots = match session.page_slots() {
-            Ok(slots) => slots,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        let Some(slot) = slots.get(page - 1) else {
-            eprintln!(
-                "pdfcer: {}: no page {page} — the document has {} page(s)",
-                input.display(),
-                slots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
-        let Some(annot) = annots.get(index) else {
-            eprintln!(
-                "pdfcer: {}: page {page} has no annotation at index {index} — it has {} \
-                 (indices 0..{})",
-                input.display(),
-                annots.len(),
-                annots.len().saturating_sub(1)
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let Some(id) = annot.id else {
-            eprintln!(
-                "pdfcer: {}: page {page} index {index} is a direct dictionary inside /Annots, \
-                 not an indirect object — it has no identity to restyle",
-                input.display()
-            );
-            return exit::EDIT_REFUSED;
-        };
-        (id, String::from_utf8_lossy(&annot.subtype).into_owned())
+    let (annot_id, annot) = match locate_annotation(&session, input, (page, index), "restyle") {
+        Ok(found) => found,
+        Err(code) => return code,
     };
+    let subtype = String::from_utf8_lossy(&annot.subtype).into_owned();
 
     let change = match session.set_markup_style(annot_id, &wanted) {
         Ok(change) => change,
@@ -1232,57 +1110,19 @@ pub(crate) fn cmd_delete_annotation(
     mode: SaveMode,
     verify_undo: bool,
 ) -> u8 {
-    if page == 0 {
-        eprintln!(
-            "pdfcer: {}: --page is 1-based; 0 is not a page",
-            input.display()
-        );
-        return exit::RUNTIME_ERROR;
-    }
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
 
-    // Resolved inside a block so the session borrow ends before the mutable
-    // call below.
-    let annot_id = {
-        let slots = match session.page_slots() {
-            Ok(slots) => slots,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        let Some(slot) = slots.get(page - 1) else {
-            eprintln!(
-                "pdfcer: {}: no page {page} — the document has {} page(s)",
-                input.display(),
-                slots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
-        let Some(annot) = annots.get(index) else {
-            eprintln!(
-                "pdfcer: {}: page {page} has no annotation at index {index} — it has {} (indices 0..{})",
-                input.display(),
-                annots.len(),
-                annots.len().saturating_sub(1)
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        // An annotation reached as a DIRECT dictionary inside `/Annots` has no
-        // object identity to delete. Malformed (Table 164 dictionaries are
-        // indirect objects) and refused by name rather than silently skipped.
-        let Some(id) = annot.id else {
-            eprintln!(
-                "pdfcer: {}: page {page} index {index} is a direct dictionary inside /Annots, not an indirect object — it has no identity to delete, and rewriting the array around it would be a repair this command does not perform",
-                input.display()
-            );
-            return exit::EDIT_REFUSED;
-        };
-        id
+    let annot_id = match locate_annotation(
+        &session,
+        input,
+        (page, index),
+        "delete, and rewriting the array around it would be a repair this command does not perform",
+    ) {
+        Ok((id, _)) => id,
+        Err(code) => return code,
     };
 
     let gone = match session.delete_annotation(annot_id) {
@@ -1396,13 +1236,6 @@ pub(crate) fn cmd_reorder_annotations(
     mode: SaveMode,
     verify_undo: bool,
 ) -> u8 {
-    if page == 0 {
-        eprintln!(
-            "pdfcer: {}: --page is 1-based; 0 is not a page",
-            input.display()
-        );
-        return exit::RUNTIME_ERROR;
-    }
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
@@ -1411,22 +1244,11 @@ pub(crate) fn cmd_reorder_annotations(
     // Resolve indices to ids inside a block so the session borrow ends
     // before the mutable call below.
     let (ids, pinned_indices, count) = {
-        let slots = match session.page_slots() {
-            Ok(slots) => slots,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
-            }
+        let page_id = match locate_page(&session, input, page) {
+            Ok(id) => id,
+            Err(code) => return code,
         };
-        let Some(slot) = slots.get(page - 1) else {
-            eprintln!(
-                "pdfcer: {}: no page {page} — the document has {} page(s)",
-                input.display(),
-                slots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
+        let annots = pdfcer_core::annot::page_annotations(&session.graph(), page_id);
         let count = annots.len();
 
         let mut indices: Vec<usize> = Vec::new();
@@ -1654,13 +1476,6 @@ pub(crate) fn cmd_set_page_tabs(
     verify_undo: bool,
 ) -> u8 {
     use pdfcer_core::edit::PageTabs;
-    if page == 0 {
-        eprintln!(
-            "pdfcer: {}: --page is 1-based; 0 is not a page",
-            input.display()
-        );
-        return exit::RUNTIME_ERROR;
-    }
     let requested = match tabs {
         "R" => PageTabs::Row,
         "C" => PageTabs::Column,
@@ -1669,6 +1484,13 @@ pub(crate) fn cmd_set_page_tabs(
         "W" => PageTabs::WidgetOrder,
         _ => PageTabs::Absent,
     };
+    if page == 0 {
+        eprintln!(
+            "pdfcer: {}: --page is 1-based; 0 is not a page",
+            input.display()
+        );
+        return exit::EDIT_REFUSED;
+    }
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
@@ -1728,54 +1550,19 @@ pub(crate) fn cmd_move_annotation(
     output: &Path,
     mode: SaveMode,
 ) -> u8 {
-    if page == 0 {
-        eprintln!(
-            "pdfcer: {}: --page is 1-based; 0 is not a page",
-            input.display()
-        );
-        return exit::RUNTIME_ERROR;
-    }
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
 
-    // Resolved inside a block so the session borrow ends before the mutable
-    // call below.
-    let annot_id = {
-        let slots = match session.page_slots() {
-            Ok(slots) => slots,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        let Some(slot) = slots.get(page - 1) else {
-            eprintln!(
-                "pdfcer: {}: no page {page} — the document has {} page(s)",
-                input.display(),
-                slots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
-        let Some(annot) = annots.get(index) else {
-            eprintln!(
-                "pdfcer: {}: page {page} has no annotation at index {index} — it has {} (indices 0..{})",
-                input.display(),
-                annots.len(),
-                annots.len().saturating_sub(1)
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let Some(id) = annot.id else {
-            eprintln!(
-                "pdfcer: {}: page {page} index {index} is a direct dictionary inside /Annots, not an indirect object — it has no identity to move, and rewriting the array around it would be a repair this command does not perform",
-                input.display()
-            );
-            return exit::EDIT_REFUSED;
-        };
-        id
+    let annot_id = match locate_annotation(
+        &session,
+        input,
+        (page, index),
+        "move, and rewriting the array around it would be a repair this command does not perform",
+    ) {
+        Ok((id, _)) => id,
+        Err(code) => return code,
     };
 
     let moved = match session.move_annotation(annot_id, dx, dy) {
@@ -1873,51 +1660,14 @@ pub(crate) fn cmd_rotate_annotation(
     mode: SaveMode,
 ) -> u8 {
     let (page, index) = at;
-    if page == 0 {
-        eprintln!(
-            "pdfcer: {}: --page is 1-based; 0 is not a page",
-            input.display()
-        );
-        return exit::RUNTIME_ERROR;
-    }
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
 
-    let annot_id = {
-        let slots = match session.page_slots() {
-            Ok(s) => s,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        let Some(slot) = slots.get(page - 1) else {
-            eprintln!(
-                "pdfcer: {}: no page {page} — the document has {} page(s)",
-                input.display(),
-                slots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
-        let Some(annot) = annots.get(index) else {
-            eprintln!(
-                "pdfcer: {}: page {page} has no annotation at index {index} — it has {}",
-                input.display(),
-                annots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let Some(id) = annot.id else {
-            eprintln!(
-                "pdfcer: {}: page {page} index {index} is a direct dictionary inside /Annots, not an indirect object — it has no identity to rotate",
-                input.display()
-            );
-            return exit::EDIT_REFUSED;
-        };
-        id
+    let annot_id = match locate_annotation(&session, input, (page, index), "rotate") {
+        Ok((id, _)) => id,
+        Err(code) => return code,
     };
 
     // `--absolute` routes to the setter that reads the current angle out of
@@ -2060,52 +1810,19 @@ pub(crate) fn cmd_resize_annotation(
 ) -> u8 {
     let (page, index) = at;
     let (sx, sy) = factors;
-    if page == 0 {
-        eprintln!(
-            "pdfcer: {}: --page is 1-based; 0 is not a page",
-            input.display()
-        );
-        return exit::RUNTIME_ERROR;
-    }
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
 
-    let annot_id = {
-        let slots = match session.page_slots() {
-            Ok(slots) => slots,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", input.display());
-                return exit::RUNTIME_ERROR;
-            }
-        };
-        let Some(slot) = slots.get(page - 1) else {
-            eprintln!(
-                "pdfcer: {}: no page {page} — the document has {} page(s)",
-                input.display(),
-                slots.len()
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
-        let Some(annot) = annots.get(index) else {
-            eprintln!(
-                "pdfcer: {}: page {page} has no annotation at index {index} — it has {} (indices 0..{})",
-                input.display(),
-                annots.len(),
-                annots.len().saturating_sub(1)
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let Some(id) = annot.id else {
-            eprintln!(
-                "pdfcer: {}: page {page} index {index} is a direct dictionary inside /Annots, not an indirect object — it has no identity to resize, and rewriting the array around it would be a repair this command does not perform",
-                input.display()
-            );
-            return exit::EDIT_REFUSED;
-        };
-        id
+    let annot_id = match locate_annotation(
+        &session,
+        input,
+        (page, index),
+        "resize, and rewriting the array around it would be a repair this command does not perform",
+    ) {
+        Ok((id, _)) => id,
+        Err(code) => return code,
     };
 
     let out = match session.resize_annotation(annot_id, anchor, sx, sy, opts) {

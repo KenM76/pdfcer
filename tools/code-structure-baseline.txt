@@ -120,7 +120,6 @@ fn pdfcer-cli/src/annot_edit.rs::cmd_reorder_annotations
 fn pdfcer-cli/src/annot_edit.rs::cmd_resize_annotation
 fn pdfcer-cli/src/annot_edit.rs::cmd_rotate_annotation
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_annotation_flags
-fn pdfcer-cli/src/annot_edit.rs::cmd_set_annotation_open
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_markup_note
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_markup_style
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_text_annot_style
