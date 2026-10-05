@@ -115,6 +115,42 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 500.5` — extraction tells a pdfcer OCR layer's text from the page's own (`pdfcer-core`/`pdfcer-text`/`pdfcer-cli` `G124`) — SHIPPED `b1c01353`
+
+`TextRun::in_ocr_layer: bool` (pub field, run-level): true inside a `/pdfc_OCR`
+BDC whose `/Producer` is `(pdfcer)`. `OcrLayerFilter { All (default),
+OnlyOcrLayer, WithoutOcrLayer }` (`#[non_exhaustive]`) in pdfcer-text
+`text_extract/ocr_layer.rs`, re-exported as
+`pdfcer_core::text_extract::OcrLayerFilter`; `ExtractOptions::ocr_layer` +
+`with_ocr_layer`. The filter applies **during the content walk**, so
+`plain_text`, `block_layout`/`analyze_layout`, `detect_tables` and the
+docx/xlsx/ods exports all see the same subset. Tag/producer constants moved to
+pdfcer-text (`OCR_LAYER_TAG`, `OCR_LAYER_PRODUCER`); core's
+`ocr::marker::{LAYER_TAG, LAYER_PRODUCER}` re-export them.
+
+**CLI:** `extract-text --ocr-layer all|only|without` and `export-docx
+--ocr-layer all|only|without`. **xlsx/ods export CLIs keep the default (no
+flag)** — the core filter reaches them, the shell does not. GUI: nothing here.
+
+**Compatibility:** `TextRun` gained a pub field, so a struct literal of
+`TextRun` outside the crate (pdfcer-gui, if it builds them) needs
+`in_ocr_layer`. `docs/core-api/01-reading-and-model.md` updated in the code
+commit (§8.2 `ExtractOptions` row, `TextRun` field list, task-index row).
+
+**Tests (engineer-reported, not re-run here).** Core `--test all ocr_layer`
+39/39 (3 new in `ocr_layer_extract_filter.rs`); 1 new docx inline test; 1 new
+pdfcer-text unit test (lib 30+59+16 pass); 3 new CLI black-box tests in
+`extract_text_ocr_layer.rs` (CLI `ocr_layer` filter 4/4). Sabotage: disabling
+the layer-membership check in `begin_marked` fails 2 core integration tests and
+the docx test. clippy `-D warnings` (pdfcer-text, pdfcer-core, pdfcer-cli,
+all-targets), check-code-structure (no new), check-string-gaps,
+check-core-api-verbs, tests-harnessed clean. No manifest change, so no `cargo
+tree` check. Full `tools/run-gates.sh` NOT run; unpushed.
+
+`FEATURES.md`: "Extract and copy text" row gains the filter sentence; core
+`[x]`, cli `[x]` (extract-text/export-docx), gui stays as the row's existing
+box but the filter has no GUI. Remaining in the series: `500.6`.
+
 ### `Pass 500.2` — the pinned OCR model downloads become library data (`pdfcer-core`/`pdfcer-cli` `G120`) — SHIPPED `9217fa20`
 
 New `pdfcer_core::ocr::models::{fetchable_models(engine) -> Option<&'static
@@ -21790,22 +21826,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### `Pass 500.5` — `in_ocr_layer` on extracted glyphs and an `ExtractOptions` OCR filter, threaded through the exports (`pdfcer-core` `G124`) — NOT STARTED (969th filing)
-
-`pdfcer-gui` asked `G124`
-(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G124_extraction_cannot_take_only_the_ocr_layers_text.md`):
-extraction keeps every glyph including invisible ones, so an export carries OCR
-text mixed with visible text, and `ExtractOptions` has no filter. The render
-mode catches every producer's invisible text, not the layer pdfcer wrote, and
-the `/pdfc_OCR` marker is not on the extracted glyph.
-
-**Scope.** An `in_ocr_layer` flag on each extracted glyph (from the marker) and
-an `ExtractOptions` filter with three states: all text / OCR layer only /
-without OCR layer. `export::docx` and the other exports that share the
-extraction take the same filter. **Acceptance.** On a mixed page, each state
-yields the expected text through `export::docx` and at least one other export;
-default behaviour unchanged (all text). Core only until a CLI flag is scoped.
 
 ### `Pass 500.6` — optional line/block/reading-order structure on `OcrPage`, written per block, with a layout fallback (`pdfcer-core` `G121`) — NOT STARTED (969th filing)
 

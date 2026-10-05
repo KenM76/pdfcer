@@ -4,6 +4,37 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (975th filing) — `Pass 500.5` shipped (extraction separates a pdfcer OCR layer's text, `G124`)
+
+**Shipped:**
+- `Pass 500.5` — `b1c01353`. `TextRun::in_ocr_layer`, `OcrLayerFilter`
+  (All/OnlyOcrLayer/WithoutOcrLayer), `ExtractOptions::ocr_layer`; CLI
+  `extract-text` and `export-docx` gain `--ocr-layer`. Details in the ROADMAP
+  Shipped entry and the commit message.
+
+**Decisions made this session:**
+- Filter applies during the content walk, so every consumer (text, layout,
+  tables, docx/xlsx/ods) sees one subset. Layer tag/producer constants moved to
+  pdfcer-text; core re-exports. No decision-log entry (no boundary redrawn).
+
+**Findings + decisions:**
+- Figures as supplied by the engineer, not re-run here: core `ocr_layer` 39/39,
+  CLI filter 4/4; sabotage of the membership check failed 2 core tests + docx
+  test; gates clean except full `run-gates.sh`, not run.
+- xlsx/ods export CLIs keep the default (no flag): filed as a gap, not rounded up.
+- `TextRun` gained a pub field: external struct literals need `in_ocr_layer`.
+- `FEATURES.md`: "Extract and copy text" row extended; no row moved. `Pass 500.5`
+  removed from Next up.
+
+**Still in flight:**
+- `500.6` (`G121`).
+
+**For next session:**
+- Run `tools/run-gates.sh` on an idle PC, then push.
+
+**Sourcing note (hard rule 8):** backup/push/commit state not checked here; the
+hash is as supplied.
+
 ## 2026-10-05 (974th filing) — `Pass 500.2` shipped (pinned OCR model downloads become library data, `G120`)
 
 **Shipped:**
