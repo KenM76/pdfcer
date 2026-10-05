@@ -2283,8 +2283,8 @@ pub(crate) fn run() -> ExitCode {
                 italic_synthetic,
             ),
             style: pdfcer_core::text_edit::StyleTarget::new(
-                crate::text_edit::axis_target(bold, no_bold),
-                crate::text_edit::axis_target(italic, no_italic),
+                crate::font_donor::axis_target(bold, no_bold),
+                crate::font_donor::axis_target(italic, no_italic),
             ),
             embed_styled_face,
             style_policy,

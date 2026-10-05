@@ -26,7 +26,6 @@ file pdfcer-cli/src/page_edit.rs
 file pdfcer-cli/src/print.rs
 file pdfcer-cli/src/render_export.rs
 file pdfcer-cli/src/sign.rs
-file pdfcer-cli/src/text_edit.rs
 file pdfcer-color/src/color/cmyk_table.rs
 file pdfcer-core/src/annot.rs
 file pdfcer-core/src/annot_author.rs
