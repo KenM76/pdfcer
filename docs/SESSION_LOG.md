@@ -4,6 +4,32 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (971st filing) — `Pass 500.1` shipped (`recognize_at`, per-page dpi for program OCR add-ons, `G119`)
+
+**Shipped:**
+- `Pass 500.1` — `811ed3e1`. `OcrRunner::recognize_at` / `ProgramEngine::recognize_at`
+  pass `--dpi` per call to a program add-on; in-process engines ignore it.
+  Details in the ROADMAP Shipped entry and the commit message.
+
+**Decisions made this session:**
+- None needing a decision-log entry. Core only: the CLI loads at the dpi it
+  renders at, so it has no new caller (cli box deliberately not ticked).
+
+**Findings + decisions:**
+- Figures as supplied by the engineer, not re-run here: `pdfcer-ocr-host`
+  integration 10 passed, 1 ignored; new test fails with `recognize_at` forced to
+  pass None; clippy, fmt, and three structure/verb/string gates clean.
+- `FEATURES.md`: one sentence on the program-type OCR add-ons row; no box changed.
+- `Pass 500.1` removed from Next up (shipped entries are deleted there).
+
+**Still in flight:**
+- `500.2`, `500.5`, `500.6` untouched; `500.3`/`500.4` unblocked.
+
+**For next session:**
+- Run `tools/run-gates.sh`, then push. GUI can drop its first-page-dpi rule.
+
+**Sourcing note (hard rule 8):** backup/push/commit state not checked here.
+
 ## 2026-10-05 (970th filing) — `Pass 500.0` shipped (an edit keeps the OCR layer, `G125`)
 
 **Shipped:**

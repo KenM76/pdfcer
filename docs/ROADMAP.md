@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 500.1` — `OcrRunner::recognize_at(w, h, pixels, dpi)`: a program add-on is told each page's resolution (`pdfcer-ocr-host` `G119`) — SHIPPED `811ed3e1`
+
+New `OcrRunner::recognize_at` and `ProgramEngine::recognize_at`: a program
+add-on (Tesseract protocol) is passed `--dpi <dpi>` for that call instead of the
+load-time `RunOptions` dpi; in-process engines (ocrs, ocrcer, PaddleOCR,
+PaddleOCR-VL) ignore it. `recognize` is unchanged. The clamp (round, then
+1..=2400) moved into a private `whole_dpi`, which also maps NaN to 1. The test
+engine `pdfcer-ocr-test-engine` echoes `--dpi` as its 5th word. Documented in
+`docs/core-api/03-capabilities.md` (OCR runner row). No `Cargo.toml` change, so
+no `cargo tree` change. Core only: `pdfcer ocr` loads at the dpi it renders at,
+so the CLI has no new caller. Reply to `pdfcer-gui` (FIXED) written by the
+engineer.
+
+**Tests.** `each_page_can_tell_the_program_its_own_resolution`
+(`tests/program_addons.rs`): 150, then 600.4 gives 600, then NaN gives 1, and
+`recognize` keeps 300; fails with `recognize_at` forced to pass None.
+`pdfcer-ocr-host` integration: 10 passed, 1 ignored (real Tesseract, needs a
+local bundle). Clippy `-D warnings`, fmt, check-core-api-verbs,
+check-code-structure, check-string-gaps clean (engineer-reported). Full
+`run-gates.sh` not run by this filing.
+
+`FEATURES.md`: sentence added to the program-type OCR add-ons row; boxes
+unchanged.
+
 ### `Pass 500.0` — an edit keeps a page's OCR layer as its own stream (`pdfcer-core`/`pdfcer-cli` `G125`, a defect) — SHIPPED `83cdc94f`
 
 Every content edit (`edit_text`, `format_text`, the vector surgeries behind
@@ -21678,22 +21702,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### `Pass 500.1` — `OcrRunner::recognize_at(w, h, pixels, dpi)`: a program add-on is told each page's resolution (`pdfcer-ocr-host` `G119`) — NOT STARTED (969th filing)
-
-`pdfcer-gui` asked `G119`
-(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G119_a_program_ocr_addon_is_told_one_dpi.md`,
-low priority, workaround built): `RunOptions::dpi` is read once into the
-program's `Invocation` inside `load`, and `OcrRunner::recognize` takes none, so
-a run over mixed sheet sizes hands Tesseract every page with the first page's
-dpi (a wrong value degrades recognition quietly, it does not fail).
-
-**Scope.** `OcrRunner::recognize_at(width, height, pixels, dpi)`, the dpi passed
-to a `kind = program` engine per page and ignored by in-process engines, as
-`RunOptions::dpi` is documented today. **Acceptance.** A `pdfcer-ocr-host` test
-with the echoing test engine, two calls at two dpis, each echoed back. Core
-only (`cli` has no per-page dpi surface to change); the GUI then deletes its
-first-page-dpi rule.
 
 ### `Pass 500.2` — the pinned OCR model downloads become library data; `fetch-ocr-models` is rebuilt on them (`pdfcer-core`/`pdfcer-cli` `G120`) — NOT STARTED (969th filing)
 
