@@ -4,6 +4,38 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (966th filing) — `Pass 497.0` shipped (an encryption refusal reports its cause, `G118`)
+
+**Shipped:**
+- `Pass 497.0` (`d9fa93c1`) — `pdfcer-gui` asked `G118` (boundary
+  finding, low priority): an encryption refusal named the CLI flag
+  `--allow-rc4-append`, which does not exist in the GUI shell. New
+  `document::EncryptedRefusal {Rc4NotAllowed, PermissionDenied}`
+  (`#[non_exhaustive]`); `DocumentEncryption::edit_refusal`/
+  `refusal_cause`; `EditSession::encryption_refusal`/
+  `encryption_refusal_cause`; `encryption_gate::forbids` is now
+  `edit_refusal(..).is_some()`. The CLI's five refusal-reporting sites
+  print a hint naming `--allow-rc4-append`/`--open-password` instead of
+  the core message naming the flag. Never previously filed as planned —
+  recorded directly as Shipped.
+
+**Decisions made this session:**
+- None — no decision-log entry needed for this Pass.
+
+**Findings + decisions:**
+- None beyond the Pass itself.
+
+**Still in flight:**
+- None.
+
+**For next session:**
+- Next fresh whole-number Pass ID is `498.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Every fact
+above (commit hash, test count, gate result, doc-count figure) is
+relayed from the dispatching engineer's own report, not independently
+reproduced here.
+
 ## 2026-10-05 (965th filing) — `v0.78.0` RELEASED
 
 **Shipped:**

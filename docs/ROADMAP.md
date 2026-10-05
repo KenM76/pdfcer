@@ -115,6 +115,46 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 497.0` — an encryption refusal reports its cause (`pdfcer-core`/`pdfcer-cli` `G118`) — SHIPPED `d9fa93c1`
+
+`pdfcer-gui` asked `G118` (boundary finding, low priority): an
+encryption refusal names the CLI flag `--allow-rc4-append`, which does
+not exist in the GUI shell. New `pdfcer-model::document::
+EncryptedRefusal` (`#[non_exhaustive]`: `Rc4NotAllowed`,
+`PermissionDenied`) is the gate's own test's cause, not just its
+boolean. `DocumentEncryption::edit_refusal(&[PermissionBit]) ->
+Option<EncryptedRefusal>` returns why a refusal happened — when both
+causes apply, `PermissionDenied` wins; `refusal_cause()` explains a
+refusal already returned.
+
+**pdfcer-core.** `encryption_gate::forbids` = `edit_refusal(..)
+.is_some()`. New `EditSession::encryption_refusal(bits)` /
+`encryption_refusal_cause()`. `edit::ENCRYPTED_EDIT_REFUSED` no longer
+names `--allow-rc4-append` — that CLI-specific wording moved to the
+CLI's own hint, below.
+
+**pdfcer-cli.** The five call sites that report an encryption refusal
+(`report_edit_error`, `edit-text`, `add-text`, `format-text`,
+`reflow`) now print a hint line naming `--allow-rc4-append` /
+`--open-password`.
+
+**Tests.** New core module `encryption_refusal` (3 tests): an RC4
+refusal and a `/P`-bit refusal of `rotate_pages` report different
+causes through both the ask-before and explain-after routes; `Preserve`
+lifts the RC4 refusal. Sabotaging either function fails a test;
+removing the CLI hint fails the existing `rc4_append` CLI test.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` §5.2 and the verb
+index now count 322 `EditSession` methods; `check-core-api-verbs`
+passes.
+
+**Gates.** `tools/run-gates.sh` PASS, 45 commands. No manifest change
+— `cargo tree` invariant not applicable; no new dependencies.
+
+`FEATURES.md`: new row under *Planned* near the RC4-append/decision-190
+rows — `core[x] cli[x] gui[ ]` (the GUI is a separate project and has
+not adopted this).
+
 ### `v0.78.0` — RELEASED (2026-10-05)
 
 Release filing, completing the version bump at `c7deddd2` ("chore:
