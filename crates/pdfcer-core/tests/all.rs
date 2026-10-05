@@ -151,6 +151,7 @@ mod place_page_content;
 mod place_text;
 mod quad_point_order;
 mod quadding_redraws;
+mod radio_styles;
 mod redact_into_session;
 mod redacted_text_granularity;
 mod redaction_residual_sweep;

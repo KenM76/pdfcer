@@ -6078,6 +6078,14 @@ pub(crate) enum Command {
         /// Where the widget is visible (§12.5.3 Table 165).
         #[arg(long, value_enum, default_value_t = VisibilityArg::Visible)]
         visibility: VisibilityArg,
+        /// The mark drawn inside the ring when this member is chosen: check,
+        /// cross, star, circle, square or diamond. Default `circle`, the
+        /// centre dot.
+        ///
+        /// Any style but `circle` is recorded in `/MK /CA`, as
+        /// `add-check-box --check-style` does, so a resize redraws it.
+        #[arg(long, value_name = "check|cross|star|circle|square|diamond")]
+        check_style: Option<String>,
     },
 
     /// Delete a form field entirely (ISO 32000-1 §12.7.3).

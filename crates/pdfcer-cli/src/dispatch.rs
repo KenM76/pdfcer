@@ -1500,6 +1500,7 @@ pub(crate) fn run() -> ExitCode {
             background,
             border_color,
             visibility,
+            check_style,
         } => cmd_add_radio_button(&AddRadioButtonArgs {
             input: &input,
             name: &name,
@@ -1522,6 +1523,7 @@ pub(crate) fn run() -> ExitCode {
             background: background.as_deref(),
             border_color: border_color.as_deref(),
             visibility,
+            check_style: check_style.as_deref(),
         }),
         Command::DeleteField {
             input,

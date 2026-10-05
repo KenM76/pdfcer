@@ -1,6 +1,6 @@
 //! An edit that redraws a button reports `Regenerated` only when the artwork
 //! actually changed. A property pdfcer's check-box and radio artwork does not
-//! draw from (`/DA`; a radio's `/MK` `/CA`) is recorded, not painted, and is
+//! draw from (`/DA`; a text field's `/MK` `/CA`) is recorded, not painted, and is
 //! disclosed as such, with the appearance streams left untouched.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -104,19 +104,17 @@ fn a_radio_da_edit_is_recorded_not_redrawn() {
 }
 
 #[test]
-fn a_radio_caption_edit_is_recorded_not_painted() {
+fn a_radio_caption_edit_redraws_the_mark() {
     let mut s = session();
     s.add_radio_button(&NewRadioButton::new(0, "Choice", rect(), "A").declining_tooltip())
         .unwrap();
+    let before = ap_spans(&s, "Choice");
+    // `u` is the diamond's /MK /CA character.
     let out = s
         .edit_widget("Choice", 0, &WidgetEdit::new().with_caption("u"))
         .unwrap();
-    assert!(
-        matches!(out.appearance, AppearanceOutcome::RecordedNotPainted(_)),
-        "{:?}",
-        out.appearance
-    );
-    assert!(!out.appearance_regenerated);
+    assert_eq!(out.appearance, AppearanceOutcome::Regenerated);
+    assert_ne!(ap_spans(&s, "Choice"), before);
 }
 
 #[test]

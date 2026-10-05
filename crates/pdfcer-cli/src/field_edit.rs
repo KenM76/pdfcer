@@ -121,6 +121,26 @@ pub(crate) struct AddRadioButtonArgs<'a> {
     pub(crate) background: Option<&'a str>,
     pub(crate) border_color: Option<&'a str>,
     pub(crate) visibility: VisibilityArg,
+    /// The mark inside the ring — `CheckStyle::parse` names.
+    pub(crate) check_style: Option<&'a str>,
+}
+
+/// `--check-style`, refused by name on an unknown word rather than silently
+/// defaulted: an operator who typed `tik` wants to be told.
+pub(crate) fn parse_check_style(
+    name: Option<&str>,
+) -> Result<Option<pdfcer_core::annot_author::CheckStyle>, u8> {
+    let Some(name) = name else {
+        return Ok(None);
+    };
+    pdfcer_core::annot_author::CheckStyle::parse(name)
+        .map(Some)
+        .ok_or_else(|| {
+            eprintln!(
+                "pdfcer: --check-style {name:?} -- known: check, cross, star, circle, square, diamond (Acrobat's six)"
+            );
+            exit::RUNTIME_ERROR
+        })
 }
 
 /// Parse `--page` (1-based) and `--rect` (`llx,lly,urx,ury`), the two
@@ -199,17 +219,10 @@ pub(crate) fn cmd_add_check_box(args: &AddCheckBoxArgs<'_>) -> u8 {
         spec = spec.with_border_color(c);
     }
 
-    // The tick style. Refused by name on an unknown word rather than silently
-    // defaulting to a check: an operator who typed `--check-style tik` wants
-    // to be told, not to get a tick and believe it worked.
-    if let Some(name) = args.check_style {
-        let Some(style) = pdfcer_core::annot_author::CheckStyle::parse(name) else {
-            eprintln!(
-                "pdfcer: --check-style {name:?} -- known: check, cross, star, circle, square, diamond (Acrobat's six)"
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        spec.style = style;
+    match parse_check_style(args.check_style) {
+        Ok(Some(style)) => spec.style = style,
+        Ok(None) => {}
+        Err(code) => return code,
     }
     // R105: exactly one of the two must have been chosen. `clap`'s
     // `conflicts_with` rules out BOTH; only "neither" can reach here, and it
@@ -2226,6 +2239,11 @@ pub(crate) fn cmd_add_radio_button(args: &AddRadioButtonArgs<'_>) -> u8 {
     }
     if let Some(c) = chrome.border_color {
         spec = spec.with_border_color(c);
+    }
+    match parse_check_style(args.check_style) {
+        Ok(Some(style)) => spec.style = style,
+        Ok(None) => {}
+        Err(code) => return code,
     }
     // R105, exactly as the sibling verbs: `clap`'s `conflicts_with` rules out
     // BOTH being passed, so only "neither" can reach here, and it is refused

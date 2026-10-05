@@ -2620,14 +2620,12 @@ pub struct NewRadioButton {
     pub border: BorderSpec,
     /// `/F` — where the widget is visible (§12.5.3 Table 165).
     pub visibility: Visibility,
-    /// Which glyph the button draws when it is ON
-    /// ([`crate::annot_author::CheckStyle`], `Pass 261.0`).
+    /// The mark drawn inside the ring when this member is ON
+    /// ([`crate::annot_author::CheckStyle`]).
     ///
-    /// Defaults to `CheckStyle::Check`. pdfcer does **not** force
-    /// `CheckStyle::Circle` here even though a filled circle is the
-    /// conventional radio glyph — Acrobat does not force it either, and
-    /// silently overriding a caller's explicit choice is the substitution
-    /// this project refuses elsewhere.
+    /// Defaults to `CheckStyle::Circle`, the centre dot, which writes no
+    /// `/MK /CA`. Any other style is drawn and recorded in `/MK /CA`, so a
+    /// later redraw (resize, caption edit) keeps it.
     pub style: crate::annot_author::CheckStyle,
     /// `/MK` `/BG` and `/BC` — the colours the widget is BOTH described and
     /// PAINTED in. Defaults to [`creation_chrome`].
@@ -2676,7 +2674,7 @@ impl NewRadioButton {
             tooltip: TooltipChoice::Undecided,
             no_toggle_to_off: false,
             radios_in_unison: false,
-            style: crate::annot_author::CheckStyle::default(),
+            style: crate::annot_author::CheckStyle::Circle,
             read_only: false,
             required: false,
             // Table 166 / Table 165 defaults, so a field created without
@@ -28276,7 +28274,8 @@ impl EditSession {
         )?;
         // `Pass 308.1`: the same chrome the `/MK` below is written from.
         let chrome = spec.chrome.clone().with_border(spec.border);
-        let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome.clone());
+        let (off, on) =
+            annot_author::build_radio_button_appearances(w, h, spec.style, chrome.clone());
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
 
@@ -28326,6 +28325,12 @@ impl EditSession {
         {
             let mut mk = Dict::new();
             insert_mk_chrome(&mut mk, &chrome);
+            if spec.style != annot_author::CheckStyle::Circle {
+                mk.insert(
+                    Name::from(b"CA"),
+                    Object::String(vec![spec.style.mk_caption_char()]),
+                );
+            }
             if !mk.is_empty() {
                 d.insert(Name::from(b"MK"), Object::Dict(mk));
             }
@@ -29752,13 +29757,10 @@ impl EditSession {
         //     would repaint in the hard-coded default and DISCARD what the
         //     operator chose.
         let mut appearance_stale = None;
-        // Only a push button (its label) and a check box (its glyph style)
-        // draw `/MK` `/CA`. Table 189 defines it for buttons alone, and
-        // pdfcer's radio artwork is a fixed circle.
-        let caption_drawn = matches!(
-            field.button_kind,
-            Some(forms::ButtonKind::Push | forms::ButtonKind::Check)
-        ) && field.field_type == Some(forms::FieldType::Button);
+        // Every button draws `/MK` `/CA`: a push button's label, a check
+        // box's or radio button's mark. Table 189 defines it for buttons alone.
+        let caption_drawn =
+            field.button_kind.is_some() && field.field_type == Some(forms::FieldType::Button);
         let needs_regen = resized
             || edit.border.is_some()
             || edit.border_dash.is_some()
@@ -29769,9 +29771,9 @@ impl EditSession {
         let caption_not_drawn = || {
             edit.caption.as_ref().filter(|_| !caption_drawn).map(|_| {
                 "pdfcer wrote this widget's /MK /CA caption but did NOT redraw its appearance -- \
-                 pdfcer draws a caption only on a push button (its label) or a check box (its \
-                 glyph), so the widget looks exactly as before; a processor that regenerates \
-                 appearances from /MK may show it"
+                 pdfcer draws a caption only on a button (a push button's label, a check box's \
+                 or radio button's mark), so the widget looks exactly as before; a processor \
+                 that regenerates appearances from /MK may show it"
                     .to_owned()
             })
         };
@@ -45296,7 +45298,16 @@ impl EditSession {
                 vec![off, on]
             }
             forms::ButtonKind::Radio => {
-                let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome.clone());
+                // As the check box: the mark comes back from `/MK` `/CA`, and
+                // an absent or unknown one is the dot.
+                let style = caption
+                    .as_bytes()
+                    .first()
+                    .copied()
+                    .and_then(annot_author::CheckStyle::from_mk_caption_char)
+                    .unwrap_or(annot_author::CheckStyle::Circle);
+                let (off, on) =
+                    annot_author::build_radio_button_appearances(w, h, style, chrome.clone());
                 vec![off, on]
             }
             forms::ButtonKind::Push => {

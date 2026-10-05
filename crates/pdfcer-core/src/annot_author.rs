@@ -4297,27 +4297,47 @@ pub fn build_check_box_appearances(
     set_fill(&mut on, chrome_bc);
     on.set_line_cap(LineCap::Round);
     on.set_line_join(LineJoin::Round);
+    draw_check_mark(&mut on, style, (cx, cy), s);
+
+    // No /Resources entries: nothing here names a font, an XObject or a
+    // colour space, so an empty dict is correct rather than merely minimal.
+    (
+        CheckBoxStateAppearance {
+            ap_dict: form_dict(rect, Dict::new()),
+            content: off.into_bytes(),
+        },
+        CheckBoxStateAppearance {
+            ap_dict: form_dict(rect, Dict::new()),
+            content: on.into_bytes(),
+        },
+    )
+}
+
+/// Paint `style`'s mark centred at `(cx, cy)` within half-extent `s`, in
+/// the current stroke and fill colour. Shared by the check box and the
+/// radio button so one style draws one shape on both.
+fn draw_check_mark(b: &mut ContentBuilder, style: CheckStyle, (cx, cy): (f64, f64), s: f64) {
     match style {
         CheckStyle::Check => {
             // A short down-stroke into a long up-stroke, round-joined so the
             // vertex reads as a tick and not as two crossing lines. The
             // descender lands ~40% across and the ascender rises above the
             // start of the down-stroke -- the conventional proportions.
-            on.set_line_width((s * 0.32).max(0.6));
-            on.move_to(cx - s, cy + s * 0.1);
-            on.line_to(cx - s * 0.25, cy - s * 0.7);
-            on.line_to(cx + s, cy + s * 0.8);
-            on.paint(Paint::Stroke);
+            b.set_line_width((s * 0.32).max(0.6));
+            b.move_to(cx - s, cy + s * 0.1);
+            b.line_to(cx - s * 0.25, cy - s * 0.7);
+            b.line_to(cx + s, cy + s * 0.8);
+            b.paint(Paint::Stroke);
         }
         CheckStyle::Cross => {
             // A saltire -- two diagonals -- NOT a plus. U+2718 is the ballot
             // X, and a plus sign would read as "add" on a form.
-            on.set_line_width((s * 0.32).max(0.6));
-            on.move_to(cx - s * 0.8, cy - s * 0.8);
-            on.line_to(cx + s * 0.8, cy + s * 0.8);
-            on.move_to(cx - s * 0.8, cy + s * 0.8);
-            on.line_to(cx + s * 0.8, cy - s * 0.8);
-            on.paint(Paint::Stroke);
+            b.set_line_width((s * 0.32).max(0.6));
+            b.move_to(cx - s * 0.8, cy - s * 0.8);
+            b.line_to(cx + s * 0.8, cy + s * 0.8);
+            b.move_to(cx - s * 0.8, cy + s * 0.8);
+            b.line_to(cx + s * 0.8, cy - s * 0.8);
+            b.paint(Paint::Stroke);
         }
         CheckStyle::Star => {
             // Five points, filled. Outer vertices every 72 degrees starting
@@ -4333,13 +4353,13 @@ pub fn build_check_box_appearances(
                 let a = std::f64::consts::FRAC_PI_2 + f64::from(i) * std::f64::consts::PI / 5.0;
                 let (x, y) = (cx + r * a.cos(), cy + r * a.sin());
                 if i == 0 {
-                    on.move_to(x, y);
+                    b.move_to(x, y);
                 } else {
-                    on.line_to(x, y);
+                    b.line_to(x, y);
                 }
             }
-            on.close_subpath();
-            on.paint(Paint::Fill);
+            b.close_subpath();
+            b.paint(Paint::Fill);
         }
         CheckStyle::Circle => {
             // Four Bezier arcs. 0.5523 is the standard circle constant
@@ -4347,44 +4367,31 @@ pub fn build_check_box_appearances(
             // quadrants at the sizes a check box is drawn at.
             let r = s * 0.85;
             let k = r * 0.552_284_749_8;
-            on.move_to(cx + r, cy);
-            on.curve_to(cx + r, cy + k, cx + k, cy + r, cx, cy + r);
-            on.curve_to(cx - k, cy + r, cx - r, cy + k, cx - r, cy);
-            on.curve_to(cx - r, cy - k, cx - k, cy - r, cx, cy - r);
-            on.curve_to(cx + k, cy - r, cx + r, cy - k, cx + r, cy);
-            on.close_subpath();
-            on.paint(Paint::Fill);
+            b.move_to(cx + r, cy);
+            b.curve_to(cx + r, cy + k, cx + k, cy + r, cx, cy + r);
+            b.curve_to(cx - k, cy + r, cx - r, cy + k, cx - r, cy);
+            b.curve_to(cx - r, cy - k, cx - k, cy - r, cx, cy - r);
+            b.curve_to(cx + k, cy - r, cx + r, cy - k, cx + r, cy);
+            b.close_subpath();
+            b.paint(Paint::Fill);
         }
         CheckStyle::Square => {
             let r = s * 0.8;
-            on.rect(cx - r, cy - r, r * 2.0, r * 2.0);
-            on.paint(Paint::Fill);
+            b.rect(cx - r, cy - r, r * 2.0, r * 2.0);
+            b.paint(Paint::Fill);
         }
         CheckStyle::Diamond => {
             // A square on its point, not a rhombus: equal half-extents on
             // both axes.
             let r = s * 0.95;
-            on.move_to(cx, cy + r);
-            on.line_to(cx + r, cy);
-            on.line_to(cx, cy - r);
-            on.line_to(cx - r, cy);
-            on.close_subpath();
-            on.paint(Paint::Fill);
+            b.move_to(cx, cy + r);
+            b.line_to(cx + r, cy);
+            b.line_to(cx, cy - r);
+            b.line_to(cx - r, cy);
+            b.close_subpath();
+            b.paint(Paint::Fill);
         }
     }
-
-    // No /Resources entries: nothing here names a font, an XObject or a
-    // colour space, so an empty dict is correct rather than merely minimal.
-    (
-        CheckBoxStateAppearance {
-            ap_dict: form_dict(rect, Dict::new()),
-            content: off.into_bytes(),
-        },
-        CheckBoxStateAppearance {
-            ap_dict: form_dict(rect, Dict::new()),
-            content: on.into_bytes(),
-        },
-    )
 }
 
 /// Build a radio button's **two** appearance states — on and off — as
@@ -4426,6 +4433,11 @@ pub fn build_check_box_appearances(
 /// in a PDF is this approximation. Max radial error ≈ 0.027 %, far below a
 /// device pixel at any plausible widget size.
 ///
+/// # The mark
+///
+/// [`CheckStyle::Circle`] is the centre dot below. Any other `style` draws
+/// the same shape [`build_check_box_appearances`] does, inside the ring.
+///
 /// # Errors
 ///
 /// Never — fixed geometry, no text laid out. Returns a plain pair, matching
@@ -4434,6 +4446,7 @@ pub fn build_check_box_appearances(
 pub fn build_radio_button_appearances(
     width: f64,
     height: f64,
+    style: CheckStyle,
     chrome: WidgetChrome,
 ) -> (CheckBoxStateAppearance, CheckBoxStateAppearance) {
     let (w, h) = (width.max(1.0), height.max(1.0));
@@ -4508,8 +4521,17 @@ pub fn build_radio_button_appearances(
     // mean "the mark", so this is pdfcer reading `/BC` as the control's ink
     // — stated here because it is a choice, not a clause.
     set_fill(&mut on, chrome_bc);
-    circle(&mut on, cx, cy, (r * 0.5).max(0.4));
-    on.paint(Paint::Fill);
+    if style == CheckStyle::Circle {
+        circle(&mut on, cx, cy, (r * 0.5).max(0.4));
+        on.paint(Paint::Fill);
+    } else {
+        // Any other style draws the check box's mark, sized to the dot's
+        // frame so it sits inside the ring rather than crossing it.
+        set_stroke(&mut on, chrome_bc);
+        on.set_line_cap(LineCap::Round);
+        on.set_line_join(LineJoin::Round);
+        draw_check_mark(&mut on, style, (cx, cy), (r * 0.6).max(0.4));
+    }
 
     // No /Resources entries: no font, XObject or colour space is named.
     (

@@ -1704,3 +1704,61 @@ fn a_text_field_created_with_no_colour_reports_neither() {
         "no phantom border colour survives: {listed}"
     );
 }
+
+/// `add-radio-button --check-style` records the mark in `/MK` `/CA`; the
+/// default (the centre dot) records none, and an unknown name is refused
+/// without writing a file.
+#[test]
+fn a_radio_buttons_check_style_reaches_the_file() {
+    for (style, want) in [(Some("star"), "caption=\"H\""), (None, "caption=-")] {
+        let (dir, input) = TempDir::seeded("rb-style");
+        let output = dir.join("out.pdf");
+        let input_s = input.display().to_string();
+        let output_s = output.display().to_string();
+        let mut args = vec![
+            "add-radio-button",
+            &input_s,
+            "--name",
+            "R",
+            "--page",
+            "1",
+            "--rect",
+            "20,20,44,44",
+            "--no-tooltip",
+            "--export-value",
+            "A",
+            "-o",
+            &output_s,
+        ];
+        if let Some(s) = style {
+            args.extend(["--check-style", s]);
+        }
+        let out = run(&args);
+        assert_eq!(code(&out), 0, "{style:?}: {}", stderr(&out));
+        let listed = list_fields(&output);
+        assert!(listed.contains(want), "{style:?}: {listed}");
+    }
+
+    let (dir, input) = TempDir::seeded("rb-style-bad");
+    let output = dir.join("out.pdf");
+    let out = run(&[
+        "add-radio-button",
+        &input.display().to_string(),
+        "--name",
+        "R",
+        "--page",
+        "1",
+        "--rect",
+        "20,20,44,44",
+        "--no-tooltip",
+        "--export-value",
+        "A",
+        "--check-style",
+        "heart",
+        "-o",
+        &output.display().to_string(),
+    ]);
+    assert_eq!(code(&out), 1, "{}", stderr(&out));
+    assert!(stderr(&out).contains("star"), "names the known styles");
+    assert!(!output.exists());
+}
