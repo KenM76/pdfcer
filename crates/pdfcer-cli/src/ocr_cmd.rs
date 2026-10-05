@@ -2,37 +2,24 @@ use super::*;
 
 /// `fetch-ocr-models` — download the pinned `ocrs` weights.
 ///
-/// # The pins, and why the detection model's URL is not the obvious one
-///
-/// The two files come from **different channels**, and that is a measured
-/// defect rather than an oversight. Hugging Face hosts a detection model that
-/// **does not work with `ocrs` 0.12.2** — on a clean render of a page of 12 pt
-/// text it returns fragments at the page margin and one "word" whose box is
-/// the whole page. The author's S3 bucket, which the `ocrs` crate's own
-/// example fetches from, hosts one that works. The recognition model is fine
-/// on either channel and stays on Hugging Face.
-///
-/// Established by swapping **one file at a time** rather than both; see
-/// `crates/pdfcer-core/assets/models/ocrs/PROVENANCE.md` for the four-row
-/// table. Do not "tidy" these back onto one channel.
-///
-/// # Why a hash and not just a URL
-///
-/// `docs/ocr-engine-survey.md` measured both channels in one session and found
-/// the detection files differ by 13,280 bytes under different names. "The ocrs
-/// models" is not one thing. A fetch that trusted a URL alone would install
-/// weights nobody tested, and would do it silently.
+/// The pins are `pdfcer_core::ocr::models::fetchable_models("ocrs")`, the one
+/// list every shell fetches from; why each file comes from the host it does is
+/// documented there and in `crates/pdfcer-core/assets/models/ocrs/PROVENANCE.md`.
 #[cfg(feature = "download")]
 pub(crate) fn cmd_fetch_ocr_models(dir: Option<&Path>) -> u8 {
     use pdfcer_fetch::{PinnedArtifact, fetch_verified};
 
+    let Some(set) = pdfcer_core::ocr::models::fetchable_models("ocrs") else {
+        eprintln!("pdfcer: fetch-ocr-models: this build lists no fetchable ocrs models");
+        return exit::RUNTIME_ERROR;
+    };
     let target = match dir {
         Some(d) => d.to_path_buf(),
         None => match std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(Path::to_path_buf))
         {
-            Some(exe_dir) => exe_dir.join("models").join("ocrs"),
+            Some(exe_dir) => exe_dir.join("models").join(set.folder),
             None => {
                 eprintln!(
                     "pdfcer: fetch-ocr-models: could not locate this executable's directory \
@@ -47,25 +34,20 @@ pub(crate) fn cmd_fetch_ocr_models(dir: Option<&Path>) -> u8 {
         return exit::IO_ERROR;
     }
 
-    // Pinned by URL AND hash. Measured 2026-08-25; see this function's docs
-    // for why the two channels differ.
-    let artifacts = [
-        PinnedArtifact::new(
-            "https://ocrs-models.s3-accelerate.amazonaws.com/text-detection.rten",
-            "f15cfb56bd02c4bf478a20343986504a1f01e1665c2b3a0ad66340f054b1b5ca",
-            "text-detection.rten",
-        ),
-        PinnedArtifact::new(
-            "https://huggingface.co/robertknight/ocrs/resolve/main/text-rec-checkpoint-s52qdbqt.rten",
-            "606d9a0414c6b73c99df75b707c11c70d1c8b12e1d4f900922e185fc37bfca65",
-            "text-rec-checkpoint.rten",
-        ),
-    ];
+    let artifacts: Vec<PinnedArtifact> = set
+        .files
+        .iter()
+        .map(|f| PinnedArtifact::new(f.url, f.sha256, f.file_name))
+        .collect();
 
     eprintln!(
-        "pdfcer: fetch-ocr-models: downloading 2 file(s) to {} — these weights are \
-         CC-BY-SA-4.0, by Robert Knight (the ocrs project)",
-        target.display()
+        "pdfcer: fetch-ocr-models: downloading {} file(s) to {} — these weights are \
+         {}, by {} ({})",
+        artifacts.len(),
+        target.display(),
+        set.licence,
+        set.creator,
+        set.source
     );
     for art in &artifacts {
         match fetch_verified(art, &target) {
@@ -77,19 +59,13 @@ pub(crate) fn cmd_fetch_ocr_models(dir: Option<&Path>) -> u8 {
         }
     }
     println!(
-        "fetch-ocr-models {} files=2 verified=sha256",
-        target.display()
+        "fetch-ocr-models {} files={} verified=sha256",
+        target.display(),
+        artifacts.len()
     );
-    // Rule 4, and a licence obligation rather than a nicety: CC-BY-SA
-    // requires attribution, and a file arriving with none attached is one an
-    // operator cannot comply with. The bundled copy ships a PROVENANCE.md
-    // beside it; a fetched copy has to be told.
-    eprintln!(
-        "pdfcer: fetch-ocr-models: licence CC-BY-SA-4.0 \
-         <https://creativecommons.org/licenses/by-sa/4.0/>, creator Robert Knight, source the \
-         ocrs project. Redistributing these files carries that licence's attribution and \
-         share-alike terms"
-    );
+    // CC-BY-SA requires attribution, and a fetched copy has no PROVENANCE.md
+    // beside it to carry it.
+    eprintln!("pdfcer: fetch-ocr-models: {}", set.attribution());
     exit::SUCCESS
 }
 

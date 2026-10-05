@@ -2569,6 +2569,7 @@ reference caller.
 | ★ `resolve_model_dir_with(…, required: &[&str])` — a dir only counts if it CONTAINS the files | `models.rs` |
 | `ModelSource` (`OperatorSupplied` / `BesideExecutable` / `UserData`), `.path()` | `models.rs` |
 | `ModelsNotFound { engine, searched }` — **carries every path tried** | `models.rs` |
+| `fetchable_models(engine) -> Option<&'static FetchableModels>` and `FETCHABLE_MODELS` (`Pass 500.2`, G120) — the one pinned download list, plain data, no network. `FetchableModels { engine, folder, files: &[PinnedModelFile { url, sha256, file_name }], licence, licence_url, creator, source, obligation }`; `.attribution()` is the line to show after a fetch (CC-BY-SA requires it). Build a `pdfcer_fetch::PinnedArtifact::new(f.url, f.sha256, f.file_name)` per file and write into `models/<folder>`. Lists `ocrs` only: `paddle` ships in the portable folder and the others are add-on zips. `pdfcer fetch-ocr-models` is built on it | `models/pinned.rs` |
 
 **Piece 4b — model add-on folders** (`crates/pdfcer-core/src/ocr/addons.rs`, not on wasm32; `addon_manifest.rs`, everywhere; decision 182)
 

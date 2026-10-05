@@ -109,6 +109,9 @@
 
 use std::path::{Path, PathBuf};
 
+mod pinned;
+pub use pinned::{FETCHABLE_MODELS, FetchableModels, PinnedModelFile, fetchable_models};
+
 /// The subdirectory name an engine's models live under, beside the binary or
 /// in an operator-named folder.
 ///
