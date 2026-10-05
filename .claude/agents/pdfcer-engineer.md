@@ -17,6 +17,7 @@ tools:
   - Agent
   - PushNotification
   - ScheduleWakeup
+  - mcp__claude-in-chrome__*
 ---
 
 # pdfcer-engineer
