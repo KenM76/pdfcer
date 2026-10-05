@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (963rd filing) — `Pass 495.0` shipped (a radio button draws the mark `NewRadioButton::style` names, `G115`)
+
+**Shipped:**
+- `Pass 495.0` (`cc891ebd`) — `NewRadioButton::style` was accepted
+  since `Pass 263.0` but ignored: `build_radio_button_appearances`
+  always drew the centre dot. Now takes `CheckStyle`; `Circle` (the
+  new default, was `Check`) keeps the dot and writes no `/MK /CA`
+  (default radio stays byte-identical); the other five styles draw
+  the shared vector mark and write `/MK /CA`. Redraw on resize/caption
+  edit now recovers the style from `/MK /CA`. CLI
+  `add-radio-button --check-style`, parser shared with
+  `add-check-box`.
+
+**Decisions made this session:** none — decision stays `192`, standing
+rule stays `R251`.
+
+**Findings + decisions:**
+- A capability's `FEATURES.md` row can be correctly marked shipped for
+  one of two sibling kinds (check box) while silently dead for the
+  other (radio button) — `Pass 263.0`'s row covered both from the
+  start. Filed as a new row beside the existing one rather than
+  editing it (already near the 1,200-char cap), per the engineer's
+  instruction.
+
+**Still in flight:** `tools/run-gates.sh` stated PASS (45 commands) by
+the dispatching engineer; not independently re-verified (no shell this
+filing).
+
+**For next session:**
+- Next free `Pass 496.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- `FEATURES.md` row added beside row 357 (check-box/radio glyph style
+  at creation): `core[x] cli[x] gui[ ]` for the radio-specific fix.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count and gate results are relayed from
+the dispatching engineer's report, not independently re-verified.
+
 ## 2026-10-04 (962nd filing) — `Pass 494.0` shipped (one annotation lookup; a bad `--page`/`--index` exits `EDIT_REFUSED` everywhere)
 
 **Shipped:**

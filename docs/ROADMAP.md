@@ -115,6 +115,50 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 495.0` — a radio button draws the mark `NewRadioButton::style` names (`pdfcer-gui` `G115`) — SHIPPED `cc891ebd`
+
+`build_radio_button_appearances(w, h, style, chrome)` now takes the
+`CheckStyle` `Pass 263.0` added to `NewRadioButton` but nothing honoured
+— every radio button drew the centre dot regardless of `style`.
+`Circle` still draws the dot; the other five styles draw the shared
+vector check-mark `build_check_box_appearances` already used (private
+`draw_check_mark`, factored out). `NewRadioButton::new` now defaults
+`style` to `CheckStyle::Circle` (was the derived `Check`, which nothing
+honoured) — `Circle` writes no `/MK /CA`, so a default radio stays
+byte-identical to before (verified: `add-radio-button` through the
+released OneDrive binary vs. the new one, `cmp` identical); the other
+five styles write `/MK /CA` with Adobe's ZapfDingbats character. The
+button redraw recovers a radio's style from `/MK /CA` (absent/unknown
+= dot), so a resize keeps the chosen mark and a caption edit via
+`edit_widget` now redraws it (`AppearanceOutcome::Regenerated`,
+previously `RecordedNotPainted`).
+
+**CLI.** `pdfcer add-radio-button --check-style
+check|cross|star|circle|square|diamond` (default `circle`); an unknown
+name exits `1`, no file written. `add-check-box` and `add-radio-button`
+now share one parser.
+
+**Tests.** New core module `radio_styles` (4 tests, sabotage-checked);
+`button_redraw_honesty`'s radio test now asserts `Regenerated`; CLI
+`add_fields::a_radio_buttons_check_style_reaches_the_file`. Sabotaged
+four ways, each caught.
+
+**Structure debt.** `build_check_box_appearances` came back under the
+80-line limit; baseline 588 → 587 entries.
+
+**Gates.** `tools/run-gates.sh` PASS, 45 commands. No manifest change
+— `cargo tree` invariant not applicable.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` updated
+(`add_radio_button` row; caption-edit outcome sentence).
+
+`FEATURES.md`: row 357 (*Choose a check-box/radio-button glyph style
+at creation*) was already `core[x] cli[x] gui[ ]` — it had been filed
+as shipped (`Pass 263.0`) while the radio half silently did nothing.
+A new row documents the fix rather than editing the existing
+near-cap row; boxes match (`core[x] cli[x] gui[ ]`), nothing rounded
+up for the GUI.
+
 ### `Pass 494.0` — one annotation lookup; a bad `--page`/`--index` exits `EDIT_REFUSED` everywhere — SHIPPED `7aeed322`
 
 CLI-only behaviour fix, no core change. Nine annotation verbs each
