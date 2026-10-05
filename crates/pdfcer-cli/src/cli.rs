@@ -8900,6 +8900,13 @@ pub(crate) enum Command {
         /// field or certificate signature is touched.
         #[arg(long, value_name = "FIELD")]
         hand_signature: Option<String>,
+        /// Write the new text into the page's OCR layer, recorded under
+        /// ENGINE (default `manual`), so a later `ocr` run treats it as part
+        /// of that layer: `--existing replace` replaces it with the rest.
+        /// Written invisible (render mode 3) unless `--render-mode` says
+        /// otherwise.
+        #[arg(long, value_name = "ENGINE", num_args = 0..=1, default_missing_value = "manual")]
+        ocr_layer: Option<String>,
         /// 1-based page number to add text to.
         #[arg(long, default_value_t = 1)]
         page: usize,
@@ -8941,11 +8948,11 @@ pub(crate) enum Command {
         /// Omitted = black.
         #[arg(long, value_name = "R,G,B")]
         color: Option<String>,
-        /// Text rendering mode `Tr` (§9.3.6), 0 to 7; default 0 (fill).
-        /// 3 writes the text INVISIBLE: searchable and selectable but not
-        /// painted, which is how a word the OCR missed joins an OCR layer.
-        #[arg(long = "render-mode", value_name = "0-7", default_value_t = 0)]
-        render_mode: u8,
+        /// Text rendering mode `Tr` (§9.3.6), 0 to 7; default 0 (fill), or 3
+        /// with `--ocr-layer`. 3 writes the text INVISIBLE: searchable and
+        /// selectable but not painted.
+        #[arg(long = "render-mode", value_name = "0-7")]
+        render_mode: Option<u8>,
         /// Operator-supplied font folder: registering a face for
         /// the chosen `--font` name discloses provenance `Supplied`. Repeatable.
         #[arg(long = "font-dir", value_name = "DIR")]

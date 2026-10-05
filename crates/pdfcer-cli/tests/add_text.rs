@@ -548,3 +548,30 @@ fn embedded_face_and_overlay_wrapper_do_not_share_numbers() {
     let _ = std::fs::remove_file(out_path);
     let _ = std::fs::remove_file(input);
 }
+
+/// `--ocr-layer` writes the run inside pdfcer's OCR-layer marker, invisible,
+/// recorded under its engine; an explicit `--render-mode` still wins.
+#[test]
+fn ocr_layer_marks_the_run_and_writes_it_invisible() {
+    let marked = |extra: &[&str]| {
+        let out_path = temp_path("ocr_layer");
+        let input = fixture("plain.pdf");
+        let mut args = vec![input.to_str().unwrap(), "--at", "72,500", "--text", "TOTAL"];
+        args.extend_from_slice(extra);
+        args.extend(["--output", out_path.to_str().unwrap()]);
+        let out = run_add(&args);
+        assert!(out.status.success(), "{}", stderr(&out));
+        let bytes = String::from_utf8_lossy(&std::fs::read(&out_path).unwrap()).into_owned();
+        let _ = std::fs::remove_file(out_path);
+        (stdout(&out), bytes)
+    };
+    let (report, bytes) = marked(&["--ocr-layer"]);
+    assert!(report.contains("ocr_layer=\"manual\""), "{report}");
+    assert!(bytes.contains("/pdfc_OCR"), "the marker is written");
+    assert!(bytes.contains("/Engine (manual)"));
+    assert!(bytes.contains("3 Tr"), "OCR text is invisible");
+
+    let (_, bytes) = marked(&["--ocr-layer", "tess", "--render-mode", "0"]);
+    assert!(bytes.contains("/Engine (tess)"));
+    assert!(bytes.contains("0 Tr") && !bytes.contains("3 Tr"));
+}

@@ -2427,6 +2427,7 @@ an API gap.
 | `build_layer_content(&OcrPage, font_name, &opts) -> (Vec<u8>, OcrLayerReport)` — **pure**, no `Document`, no I/O | `ocr/layer.rs` |
 | `OcrLayerOptions::new()` / `.with_font(Std14)` / `.with_engine(name)` / `.with_existing(ExistingLayers)` / `.on_layer(group: ObjId)` (`Pass 500.3`, G122: the text goes in an `/OC` section for a group registered in `/OCProperties /OCGs`, nested inside the OCR marker; the page's `/Properties` gains a binding when it has none; an unregistered object is refused with `NotALayerGroup { id }`; the pure `build_layer_content` ignores it) | `ocr/layer.rs` |
 | `OcrLayerRemoval { optional_content: Option<ObjId>, group_emptied: bool }` — what `EditSession::remove_ocr_layer` returns; `group_emptied` is true only when nothing left in the document draws on the group (undecodable content counts as drawing on it) | `ocr/layer.rs` |
+| `AddTextRequest::into_ocr_layer()` / `.with_ocr_layer(engine)` (`Pass 500.4`, G123) — text added through `EditSession::add_text` joins the page's OCR layer (`/Engine (manual)` by default, invisible); listed, removed and replaced with it. Session-only: the free `add_text` refuses with `AddTextError::OcrLayerNeedsSession` | `text_edit/addtext.rs` |
 | `ExistingLayers` (`Replace` default, `Refuse`, `Stack`) — what to do with a layer pdfcer already wrote on the page | `ocr/layer.rs` |
 | `OcrLayerReport` — see §5.4, every field is a disclosure | `ocr/layer.rs` |
 | `OcrLayerReport::disclosures() -> Vec<String>` — **ready-to-show lines** | `ocr/layer.rs` |

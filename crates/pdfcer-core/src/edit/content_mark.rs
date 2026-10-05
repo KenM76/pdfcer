@@ -19,12 +19,14 @@ pub(super) struct ContentMarks<'a> {
     pub(super) layer: Option<ObjId>,
     /// The signature field the output is the hand signature for.
     pub(super) hand_signature: Option<&'a str>,
+    /// The `/Engine` of the pdfcer OCR layer the output joins.
+    pub(super) ocr_layer: Option<&'a str>,
 }
 
 impl ContentMarks<'_> {
     /// Whether nothing is to be marked.
     pub(super) const fn is_empty(&self) -> bool {
-        self.layer.is_none() && self.hand_signature.is_none()
+        self.layer.is_none() && self.hand_signature.is_none() && self.ocr_layer.is_none()
     }
 }
 
@@ -105,6 +107,7 @@ impl EditSession {
         let marks = ContentMarks {
             layer,
             hand_signature: None,
+            ocr_layer: None,
         };
         self.marked_if(page_index, marks, add)
     }
@@ -317,11 +320,15 @@ impl EditSession {
     }
 }
 
-/// The bytes opening and closing `marks` around one stream: the layer's
-/// section outermost, bound to the page's `/Properties` name `layer_name`.
+/// The bytes opening and closing `marks` around one stream: a pdfcer OCR
+/// marker outermost (it must open the stream, [`crate::ocr::marker`]), then
+/// the layer's section, bound to the page's `/Properties` name `layer_name`.
 fn sequence_brackets(layer_name: Option<&Name>, marks: ContentMarks<'_>) -> (Vec<u8>, Vec<u8>) {
     let mut open = Vec::new();
     let mut close = b"\n".to_vec();
+    if let Some(engine) = marks.ocr_layer {
+        crate::ocr::marker::open_marker(&mut open, Some(engine));
+    }
     if let Some(name) = layer_name {
         open.extend_from_slice(b"/OC ");
         crate::writer::serialize::write_object(
@@ -338,6 +345,9 @@ fn sequence_brackets(layer_name: Option<&Name>, marks: ContentMarks<'_>) -> (Vec
         close.extend_from_slice(b"EMC\n");
     }
     if layer_name.is_some() {
+        close.extend_from_slice(b"EMC\n");
+    }
+    if marks.ocr_layer.is_some() {
         close.extend_from_slice(b"EMC\n");
     }
     (open, close)

@@ -742,17 +742,8 @@ fn layer_content(
 /// (`super::marker`) is outermost, so the whole stream is one marked-content
 /// sequence: BDC > (OC BDC >) q > BT, properly nested (§14.6.1).
 fn open_layer(out: &mut Vec<u8>, opts: &OcrLayerOptions, oc_name: Option<&Name>) {
-    out.extend_from_slice(b"\n/");
-    out.extend_from_slice(super::marker::LAYER_TAG);
-    out.extend_from_slice(b" << /Producer ");
-    emit_literal_string(out, super::marker::LAYER_PRODUCER);
-    out.extend_from_slice(b" /Version ");
-    out.extend_from_slice(super::marker::LAYER_VERSION.to_string().as_bytes());
-    if let Some(engine) = &opts.engine {
-        out.extend_from_slice(b" /Engine ");
-        emit_literal_string(out, engine.as_bytes());
-    }
-    out.extend_from_slice(b" >> BDC\n");
+    out.push(b'\n');
+    super::marker::open_marker(out, opts.engine.as_deref());
     if let Some(name) = oc_name {
         out.extend_from_slice(b"/OC ");
         crate::writer::serialize::write_object(

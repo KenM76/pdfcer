@@ -53,6 +53,23 @@ pub const LAYER_PRODUCER: &[u8] = b"pdfcer";
 /// The `/Version` of the marker this build writes.
 pub const LAYER_VERSION: i64 = 1;
 
+/// The `BDC` opening a pdfcer layer section, ending in a newline. The
+/// matching `EMC` must be the stream's last operator ([`page_ocr_layers`]).
+pub(crate) fn open_marker(out: &mut Vec<u8>, engine: Option<&str>) {
+    use crate::writer::content::emit_literal_string;
+    out.push(b'/');
+    out.extend_from_slice(LAYER_TAG);
+    out.extend_from_slice(b" << /Producer ");
+    emit_literal_string(out, LAYER_PRODUCER);
+    out.extend_from_slice(b" /Version ");
+    out.extend_from_slice(LAYER_VERSION.to_string().as_bytes());
+    if let Some(engine) = engine {
+        out.extend_from_slice(b" /Engine ");
+        emit_literal_string(out, engine.as_bytes());
+    }
+    out.extend_from_slice(b" >> BDC\n");
+}
+
 /// One OCR layer pdfcer wrote, as found on a page.
 ///
 /// Valid for the revision it was found in. After any edit that rewrites the

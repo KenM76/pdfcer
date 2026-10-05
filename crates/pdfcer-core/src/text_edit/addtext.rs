@@ -344,6 +344,13 @@ pub struct AddTextRequest {
     /// the free [`add_text`] refuses it with
     /// [`AddTextError::HandSignatureNeedsSession`].
     pub hand_signature: Option<String>,
+    /// The `/Engine` the new text is recorded under when it is written into
+    /// the page's OCR layer, or `None` for ordinary page text; see
+    /// [`Self::into_ocr_layer`]. Honoured by
+    /// [`EditSession::add_text`](crate::edit::EditSession::add_text) only;
+    /// the free [`add_text`] refuses it with
+    /// [`AddTextError::OcrLayerNeedsSession`].
+    pub ocr_layer: Option<String>,
 }
 
 impl AddTextRequest {
@@ -365,7 +372,28 @@ impl AddTextRequest {
             render_mode: 0,
             layer: None,
             hand_signature: None,
+            ocr_layer: None,
         }
+    }
+
+    /// Write the new text as part of the page's OCR layer: its stream is
+    /// wrapped in the `/pdfc_OCR` marker ([`crate::ocr::marker`]) with
+    /// `/Engine (manual)`, so `find_ocr_layers` lists it, `remove_ocr_layer`
+    /// takes it, and an OCR re-run under `ExistingLayers::Replace` replaces
+    /// it. Sets [`Self::render_mode`] to 3 (invisible), as OCR text is; a
+    /// later [`Self::with_render_mode`] overrides that. With
+    /// [`Self::on_layer`] the group's `/OC` section nests inside the marker.
+    #[must_use]
+    pub fn into_ocr_layer(self) -> Self {
+        self.with_ocr_layer("manual")
+    }
+
+    /// [`Self::into_ocr_layer`], recording `engine` as the layer's `/Engine`.
+    #[must_use]
+    pub fn with_ocr_layer(mut self, engine: impl Into<String>) -> Self {
+        self.ocr_layer = Some(engine.into());
+        self.render_mode = 3;
+        self
     }
 
     /// Mark the new text as the hand signature for the signature field
@@ -570,6 +598,13 @@ pub enum AddTextError {
     /// Nothing was added.
     #[error("the new text could not be marked as a hand signature: {0}")]
     HandSignature(#[source] Box<crate::edit::EditError>),
+    /// [`AddTextRequest::ocr_layer`] was set on the free [`add_text`], which
+    /// writes no undoable session state; use
+    /// [`EditSession::add_text`](crate::edit::EditSession::add_text).
+    #[error(
+        "adding text to an OCR layer needs an edit session; the one-shot add-text route has none"
+    )]
+    OcrLayerNeedsSession,
     /// A text rendering mode outside `0..=7` (§9.3.6 Table 106).
     #[error(
         "text rendering mode {mode} does not exist: §9.3.6 Table 106 defines modes 0 to 7 \
@@ -734,6 +769,9 @@ pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, 
     }
     if req.hand_signature.is_some() {
         return Err(AddTextError::HandSignatureNeedsSession);
+    }
+    if req.ocr_layer.is_some() {
+        return Err(AddTextError::OcrLayerNeedsSession);
     }
     // Guards mirror `EditSession::add_markup`, in the SAME order (encryption →
     // certification → suppressed-objects): each is a named refusal made BEFORE

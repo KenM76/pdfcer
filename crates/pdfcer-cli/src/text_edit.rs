@@ -320,6 +320,9 @@ pub(crate) struct AddTextArgs<'a> {
     /// `--hand-signature`: the signature field what is added is the hand
     /// signature for, or `None`.
     pub(crate) hand_signature: Option<&'a str>,
+    /// `--ocr-layer`: the `/Engine` the new text joins the page's OCR layer
+    /// under, or `None` for ordinary page text.
+    pub(crate) ocr_layer: Option<&'a str>,
     pub(crate) output: &'a Path,
     /// 1-based page number.
     pub(crate) page: usize,
@@ -337,8 +340,8 @@ pub(crate) struct AddTextArgs<'a> {
     pub(crate) size: f64,
     /// `"r,g,b"` fill colour, or `None` for black.
     pub(crate) color: Option<&'a str>,
-    /// `--render-mode`, `0..=7`.
-    pub(crate) render_mode: u8,
+    /// `--render-mode`, `0..=7`, or `None` for the request's default.
+    pub(crate) render_mode: Option<u8>,
     pub(crate) font_dirs: &'a [PathBuf],
     /// Path to a donor font file to SUBSET AND EMBED.
     ///
@@ -392,18 +395,9 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
         pdfcer_render::GlyphSource::Supplied => FontProvenance::Supplied,
         _ => FontProvenance::Bundled,
     };
-    let doc = match std::fs::read(args.input) {
-        Ok(source) => match open_document_bytes(source) {
-            Ok(d) => d,
-            Err(err) => {
-                eprintln!("pdfcer: {}: {err}", args.input.display());
-                return exit_code_for_doc(&err);
-            }
-        },
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", args.input.display());
-            return exit::IO_ERROR;
-        }
+    let doc = match read_add_text_input(args.input) {
+        Ok(d) => d,
+        Err(code) => return code,
     };
     let origin = match placement {
         AddTextPlacement::Point { origin } => origin,
@@ -430,7 +424,12 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
             .with_alignment(align)
             .with_leading(args.leading);
     }
-    req = req.with_render_mode(args.render_mode);
+    if let Some(engine) = args.ocr_layer {
+        req = req.with_ocr_layer(engine);
+    }
+    if let Some(mode) = args.render_mode {
+        req = req.with_render_mode(mode);
+    }
     let (report, session_outcome) = match add_text_run(args, &doc, req) {
         Ok(r) => r,
         Err(code) => return code,
@@ -440,6 +439,18 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
         Some(outcome) => finish_edit(args.input, outcome),
         None => exit::SUCCESS,
     }
+}
+
+/// Open `add-text`'s input, or the exit code after printing why not.
+fn read_add_text_input(path: &Path) -> Result<pdfcer_core::document::Document, u8> {
+    let source = std::fs::read(path).map_err(|err| {
+        eprintln!("pdfcer: {}: {err}", path.display());
+        exit::IO_ERROR
+    })?;
+    open_document_bytes(source).map_err(|err| {
+        eprintln!("pdfcer: {}: {err}", path.display());
+        exit_code_for_doc(&err)
+    })
 }
 
 /// Where `add-text` puts its run: exactly one of `--at` or `--box`.
@@ -543,14 +554,14 @@ fn add_text_embed(
     Ok(req.with_embedded_face(plan))
 }
 
-/// Run the add: through a session when `--layer` or `--hand-signature` needs
-/// its undoable marking writes, else one-shot and written here.
+/// Run the add: through a session when `--layer`, `--hand-signature` or
+/// `--ocr-layer` needs its undoable marking writes, else one-shot.
 fn add_text_run(
     args: &AddTextArgs<'_>,
     doc: &pdfcer_core::document::Document,
     req: pdfcer_core::text_edit::AddTextRequest,
 ) -> Result<(pdfcer_core::text_edit::AddTextReport, Option<EditOutcome>), u8> {
-    if args.layer.is_some() || args.hand_signature.is_some() {
+    if args.layer.is_some() || args.hand_signature.is_some() || args.ocr_layer.is_some() {
         let (report, outcome) = add_text_in_session(args, req)?;
         return Ok((report, Some(outcome)));
     }
@@ -626,6 +637,9 @@ fn print_add_text_report(
     if let Some(field) = args.hand_signature {
         println!("  hand_signature={field:?}");
     }
+    if let Some(engine) = args.ocr_layer {
+        println!("  ocr_layer={engine:?}");
+    }
     println!("  disclosures:");
     for d in &report.disclosures {
         println!("    - {d}");
@@ -686,6 +700,7 @@ fn add_text_exit(err: &pdfcer_core::text_edit::AddTextError) -> u8 {
         | AddTextError::Embed(_)
         | AddTextError::LayerNeedsSession
         | AddTextError::HandSignatureNeedsSession
+        | AddTextError::OcrLayerNeedsSession
         | AddTextError::Layer(_)
         | AddTextError::HandSignature(_)
         | AddTextError::Unsupported(_) => exit::EDIT_REFUSED,

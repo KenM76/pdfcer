@@ -14574,6 +14574,7 @@ impl EditSession {
         let marks = content_mark::ContentMarks {
             layer: req.layer,
             hand_signature: req.hand_signature.as_deref(),
+            ocr_layer: req.ocr_layer.as_deref(),
         };
         let marked = if marks.is_empty() {
             None
@@ -32387,6 +32388,7 @@ impl EditSession {
         let marks = content_mark::ContentMarks {
             layer: options.layer,
             hand_signature: options.hand_signature.as_deref(),
+            ocr_layer: None,
         };
         let mut paste = self.marked_if(page_index, marks, |s| {
             s.paste_objects_unlayered(page_index, &clip, crate::vector::Matrix::IDENTITY)
@@ -59181,6 +59183,7 @@ impl EditSession {
         let marks = content_mark::ContentMarks {
             layer: spec.layer,
             hand_signature: spec.hand_signature.as_deref(),
+            ocr_layer: None,
         };
         let marked = if marks.is_empty() {
             None
