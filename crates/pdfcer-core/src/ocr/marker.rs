@@ -70,6 +70,9 @@ pub struct OcrLayerRef {
     pub version: i64,
     /// The `/Resources /Font` names the layer's `Tf` operators use.
     pub font_names: Vec<Vec<u8>>,
+    /// The optional-content group the layer's text is on, when it was written
+    /// with [`super::layer::OcrLayerOptions::on_layer`].
+    pub optional_content: Option<ObjId>,
 }
 
 /// Every pdfcer OCR layer in the document, page by page, in `/Contents` order.
@@ -107,6 +110,7 @@ pub fn page_ocr_layers(
                 engine,
                 version,
                 font_names,
+                optional_content: super::group::layer_group(view, page, id),
             })
         })
         .collect()

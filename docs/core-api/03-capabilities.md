@@ -2425,11 +2425,12 @@ an API gap.
 |---|---|
 | `add_ocr_layer(&doc, page_index, &OcrPage, &opts) -> Result<OcrLayerOutcome, OcrLayerError>` | `ocr/layer.rs` |
 | `build_layer_content(&OcrPage, font_name, &opts) -> (Vec<u8>, OcrLayerReport)` — **pure**, no `Document`, no I/O | `ocr/layer.rs` |
-| `OcrLayerOptions::new()` / `.with_font(Std14)` / `.with_engine(name)` / `.with_existing(ExistingLayers)` | `ocr/layer.rs` |
+| `OcrLayerOptions::new()` / `.with_font(Std14)` / `.with_engine(name)` / `.with_existing(ExistingLayers)` / `.on_layer(group: ObjId)` (`Pass 500.3`, G122: the text goes in an `/OC` section for a group registered in `/OCProperties /OCGs`, nested inside the OCR marker; the page's `/Properties` gains a binding when it has none; an unregistered object is refused with `NotALayerGroup { id }`; the pure `build_layer_content` ignores it) | `ocr/layer.rs` |
+| `OcrLayerRemoval { optional_content: Option<ObjId>, group_emptied: bool }` — what `EditSession::remove_ocr_layer` returns; `group_emptied` is true only when nothing left in the document draws on the group (undecodable content counts as drawing on it) | `ocr/layer.rs` |
 | `ExistingLayers` (`Replace` default, `Refuse`, `Stack`) — what to do with a layer pdfcer already wrote on the page | `ocr/layer.rs` |
 | `OcrLayerReport` — see §5.4, every field is a disclosure | `ocr/layer.rs` |
 | `OcrLayerReport::disclosures() -> Vec<String>` — **ready-to-show lines** | `ocr/layer.rs` |
-| `OcrLayerError` (`PageIndex`, `Encrypted`, `NothingToWrite`, `Unsupported`, `PageTree`, `ObjectNumbersExhausted`, `Write`, `LayerPresent { page_index, count }`, `LayerNotFound { page_index, content }`, …) | `ocr/layer.rs` |
+| `OcrLayerError` (`PageIndex`, `Encrypted`, `NothingToWrite`, `Unsupported`, `PageTree`, `ObjectNumbersExhausted`, `Write`, `LayerPresent { page_index, count }`, `LayerNotFound { page_index, content }`, `NotALayerGroup { id }`, …) | `ocr/layer.rs` |
 | `OcrLayerReport::layers_replaced` — earlier pdfcer layers taken off this page | `ocr/layer.rs` |
 | `OcrLayerOutcome { bytes, report }` | `ocr/layer.rs` |
 | `HELVETICA_ASCENT_FRAC` 0.718 · `HELVETICA_DESCENT_FRAC` 0.207 · `MIN_TZ` 1.0 · `MAX_TZ` 10 000.0 | `ocr/layer.rs` |
@@ -2441,7 +2442,7 @@ an API gap.
 | `LAYER_TAG` `b"pdfc_OCR"` · `LAYER_PRODUCER` `b"pdfcer"` · `LAYER_VERSION` 1 | `ocr/marker.rs` |
 | `find_ocr_layers(&DocumentView) -> Result<Vec<OcrLayerRef>, PageTreeError>` | `ocr/marker.rs` |
 | `page_ocr_layers(&DocumentView, &Page, page_index) -> Vec<OcrLayerRef>` | `ocr/marker.rs` |
-| `OcrLayerRef { page_index, content: ObjId, engine, version, font_names }` | `ocr/marker.rs` |
+| `OcrLayerRef { page_index, content: ObjId, engine, version, font_names, optional_content: Option<ObjId> }` — `optional_content` is the group the layer's text is on (`Pass 500.3`) | `ocr/marker.rs` |
 
 The tag uses the ISO 32000-1 Annex E second-class name form; the `pdfc`
 prefix is not registered (open operator question `(ce)`). CLI: `pdfcer ocr

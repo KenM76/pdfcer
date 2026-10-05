@@ -65,6 +65,7 @@ pub mod layer;
 pub mod marker;
 
 /// Keeping those layers separate when an edit folds a page's content.
+pub(crate) mod group;
 pub(crate) mod refold;
 
 /// The `ocrs` recogniser, behind the Cargo feature of the same name.

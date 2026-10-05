@@ -229,6 +229,21 @@ pub struct OcrLayerOptions {
     pub engine: Option<String>,
     /// What to do when the page already carries a pdfcer OCR layer.
     pub existing: ExistingLayers,
+    /// The optional-content group (a layer in a Layers panel) the text is
+    /// written on; see [`Self::on_layer`].
+    pub optional_content: Option<ObjId>,
+}
+
+/// What removing one OCR layer left behind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct OcrLayerRemoval {
+    /// The optional-content group the removed text was on, if any.
+    pub optional_content: Option<ObjId>,
+    /// Whether that group now has no content anywhere in the document, so a
+    /// shell can offer to delete it. Content pdfcer cannot decode counts as
+    /// using the group.
+    pub group_emptied: bool,
 }
 
 /// What an OCR write does when the page already carries a layer pdfcer wrote
@@ -257,6 +272,7 @@ impl Default for OcrLayerOptions {
             font: Std14::Helvetica,
             engine: None,
             existing: ExistingLayers::Replace,
+            optional_content: None,
         }
     }
 }
@@ -286,6 +302,18 @@ impl OcrLayerOptions {
     #[must_use]
     pub fn with_existing(mut self, existing: ExistingLayers) -> Self {
         self.existing = existing;
+        self
+    }
+
+    /// Write the text on optional-content group `group` (one registered in
+    /// `/OCProperties /OCGs`, e.g. from `EditSession::add_layer`), so a
+    /// Layers panel lists it and can hide it. The group's `/OC` section
+    /// (ISO 32000-1 §8.11.3.2) nests inside the OCR marker, so the layer is
+    /// still found and removed whole; the page's `/Properties` gains a name
+    /// for the group when it has none.
+    #[must_use]
+    pub fn on_layer(mut self, group: ObjId) -> Self {
+        self.optional_content = Some(group);
         self
     }
 }
@@ -497,6 +525,13 @@ pub enum OcrLayerError {
         /// How many layers were found.
         count: usize,
     },
+    /// [`OcrLayerOptions::on_layer`] named an object that is not a group
+    /// listed in `/OCProperties /OCGs` (§8.11.4.2 Table 100).
+    #[error("object {id} is not a layer listed in /OCProperties /OCGs")]
+    NotALayerGroup {
+        /// The object named.
+        id: ObjId,
+    },
     /// The layer to remove is not on that page (any more).
     ///
     /// An [`super::marker::OcrLayerRef`] names one revision; find again after
@@ -614,10 +649,23 @@ fn place_word(word: &super::RecognizedWord, font: Std14) -> Option<PlacedWord> {
 ///
 /// `font_name` is the `/Resources → /Font` key (without the leading slash),
 /// chosen by the caller against the page's existing names so it cannot collide.
+/// [`OcrLayerOptions::optional_content`] needs a `/Properties` name the page
+/// binds, so this builder ignores it; the writers apply it.
 #[must_use]
 pub fn build_layer_content(
     page: &OcrPage,
     font_name: &[u8],
+    opts: &OcrLayerOptions,
+) -> (Vec<u8>, OcrLayerReport) {
+    layer_content(page, font_name, None, opts)
+}
+
+/// [`build_layer_content`], with the text inside `/OC /oc_name BDC … EMC`
+/// when `oc_name` is given.
+fn layer_content(
+    page: &OcrPage,
+    font_name: &[u8],
+    oc_name: Option<&Name>,
     opts: &OcrLayerOptions,
 ) -> (Vec<u8>, OcrLayerReport) {
     let mut out: Vec<u8> = Vec::new();
@@ -649,21 +697,7 @@ pub fn build_layer_content(
         return (out, report);
     }
 
-    // `q` before `BT`: Tf/Tr/Tz are graphics state and MUST NOT leak into the
-    // streams that follow this one in the /Contents array (§8.4.2).
-    // The marker (`super::marker`) is outermost, so the whole stream is one
-    // marked-content sequence: BDC > q > BT, properly nested (§14.6.1).
-    out.extend_from_slice(b"\n/");
-    out.extend_from_slice(super::marker::LAYER_TAG);
-    out.extend_from_slice(b" << /Producer ");
-    emit_literal_string(&mut out, super::marker::LAYER_PRODUCER);
-    out.extend_from_slice(b" /Version ");
-    out.extend_from_slice(super::marker::LAYER_VERSION.to_string().as_bytes());
-    if let Some(engine) = &opts.engine {
-        out.extend_from_slice(b" /Engine ");
-        emit_literal_string(&mut out, engine.as_bytes());
-    }
-    out.extend_from_slice(b" >> BDC\nq\nBT\n3 Tr\n");
+    open_layer(&mut out, opts, oc_name);
 
     // Emitted per word rather than hoisted: two adjacent words almost never
     // share a size, so tracking "has it changed" would save a handful of bytes
@@ -693,8 +727,44 @@ pub fn build_layer_content(
         report.words_scale_clamped += usize::from(p.clamped);
     }
 
-    out.extend_from_slice(b"ET\nQ\nEMC\n");
+    out.extend_from_slice(b"ET\nQ\n");
+    if oc_name.is_some() {
+        out.extend_from_slice(b"EMC\n");
+    }
+    out.extend_from_slice(b"EMC\n");
     (out, report)
+}
+
+/// The marker, the optional group section, then `q BT 3 Tr`.
+///
+/// `q` before `BT`: Tf/Tr/Tz are graphics state and must not leak into the
+/// streams that follow this one in the /Contents array (§8.4.2). The marker
+/// (`super::marker`) is outermost, so the whole stream is one marked-content
+/// sequence: BDC > (OC BDC >) q > BT, properly nested (§14.6.1).
+fn open_layer(out: &mut Vec<u8>, opts: &OcrLayerOptions, oc_name: Option<&Name>) {
+    out.extend_from_slice(b"\n/");
+    out.extend_from_slice(super::marker::LAYER_TAG);
+    out.extend_from_slice(b" << /Producer ");
+    emit_literal_string(out, super::marker::LAYER_PRODUCER);
+    out.extend_from_slice(b" /Version ");
+    out.extend_from_slice(super::marker::LAYER_VERSION.to_string().as_bytes());
+    if let Some(engine) = &opts.engine {
+        out.extend_from_slice(b" /Engine ");
+        emit_literal_string(out, engine.as_bytes());
+    }
+    out.extend_from_slice(b" >> BDC\n");
+    if let Some(name) = oc_name {
+        out.extend_from_slice(b"/OC ");
+        crate::writer::serialize::write_object(
+            out,
+            &Object::Name(name.clone()),
+            ObjId::new(0, 0),
+            &[],
+            &crate::writer::IdentityEncoder,
+        );
+        out.extend_from_slice(b" BDC\n");
+    }
+    out.extend_from_slice(b"q\nBT\n3 Tr\n");
 }
 
 /// Everything one page's OCR layer needs, resolved against a graph, with
@@ -737,6 +807,11 @@ pub(crate) struct OcrLayerPrep {
     font_subdict_base: Dict,
     /// The collision-free `/Font` name for the OCR font.
     font_name: Vec<u8>,
+    /// A `/Properties` name to bind to the layer's group, when the page has
+    /// none for it yet.
+    new_binding: Option<(Name, ObjId)>,
+    /// The page's resolved `/Properties`, which a new binding merges into.
+    properties_base: Dict,
     /// The `BT … ET` content-stream bytes for the invisible layer.
     pub(crate) content_data: Vec<u8>,
     /// The Standard-14 font dictionary object.
@@ -756,6 +831,11 @@ impl OcrLayerPrep {
         font_subdict.insert(Name(self.font_name.clone()), Object::Reference(font_id));
         let mut resources = self.resources_base.clone();
         resources.insert(Name::from(b"Font"), Object::Dict(font_subdict));
+        if let Some((name, group)) = &self.new_binding {
+            let mut props = self.properties_base.clone();
+            props.insert(name.clone(), Object::Reference(*group));
+            resources.insert(Name::from(b"Properties"), Object::Dict(props));
+        }
         new_page.insert(Name::from(b"Resources"), Object::Dict(resources));
         new_page
     }
@@ -841,7 +921,17 @@ pub(crate) fn plan_ocr_layer(
     let mut resources_base = page.resources.clone();
     resources_base.remove(b"Font");
 
-    let (content_data, mut report) = build_layer_content(ocr_page, &font_name, opts);
+    let (oc_name, new_binding) = match opts.optional_content {
+        Some(group) if !super::group::is_registered(graph, group) => {
+            return Err(OcrLayerError::NotALayerGroup { id: group });
+        }
+        Some(group) => {
+            let (name, new) = super::group::property_name(graph, page, group);
+            (Some(name.clone()), new.then_some((name, group)))
+        }
+        None => (None, None),
+    };
+    let (content_data, mut report) = layer_content(ocr_page, &font_name, oc_name.as_ref(), opts);
     if report.words_written == 0 {
         return Err(OcrLayerError::NothingToWrite);
     }
@@ -854,6 +944,8 @@ pub(crate) fn plan_ocr_layer(
         resources_base,
         font_subdict_base,
         font_name,
+        new_binding,
+        properties_base: super::group::properties(graph, &page.resources),
         content_data,
         font_dict: Object::Dict(standard14_font_dict(opts.font)),
         report,

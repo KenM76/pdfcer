@@ -398,7 +398,6 @@ fn pdfcer-core/src/layers.rs::build_layer
 fn pdfcer-core/src/layers.rs::read_layers_with
 fn pdfcer-core/src/layers.rs::sweep_pages
 fn pdfcer-core/src/ocr/layer.rs::add_ocr_layer
-fn pdfcer-core/src/ocr/layer.rs::build_layer_content
 fn pdfcer-core/src/ocr/paddle_post.rs::db_boxes
 fn pdfcer-core/src/pageops/assemble.rs::assemble
 fn pdfcer-core/src/pageops/assemble.rs::build_acroform

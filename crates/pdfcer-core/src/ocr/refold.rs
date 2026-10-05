@@ -126,7 +126,7 @@ fn layer_sections(buf: &[u8]) -> Option<Vec<(usize, usize)>> {
 }
 
 /// The current decoded payload of stream `id`.
-fn decoded(view: &DocumentView<'_>, id: ObjId) -> Option<Vec<u8>> {
+pub(crate) fn decoded(view: &DocumentView<'_>, id: ObjId) -> Option<Vec<u8>> {
     let Object::Stream(stream) = view.graph().value(id)? else {
         return None;
     };

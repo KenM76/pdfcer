@@ -457,7 +457,7 @@ need their own policy).
 | Add a new text run at coordinates | `add_text(&mut self, &AddTextRequest) -> Result<AddTextReport, AddTextError>` | Appends a new content stream; originals stay byte-verbatim. |
 | Add an invisible OCR text layer to one or more pages | `add_ocr_layer(&mut self, &[OcrPageLayer<'_>], &OcrLayerOptions) -> Result<Vec<OcrLayerReport>, OcrLayerError>` | **ONE undo entry for the whole run**, however many pages. Reads the SESSION graph, not the base. A page already carrying a pdfcer layer is handled per `OcrLayerOptions::existing` (default `Replace`; the replaced layer comes off in the same undo entry). |
 | List the OCR layers pdfcer wrote | `find_ocr_layers(&self) -> Result<Vec<ocr::marker::OcrLayerRef>, PageTreeError>` | **`Pass 318.0`**, pdfcer-gui request G036. Pure query over the session state. Only layers carrying pdfcer's `/pdfc_OCR` marker are listed; invisible text other software wrote is never reported. |
-| Remove one OCR layer pdfcer wrote | `remove_ocr_layer(&mut self, &OcrLayerRef) -> Result<(), OcrLayerError>` | **`Pass 318.0`**. One undo entry, `CommandKind::RemoveOcrLayer`. The layer's stream leaves `/Contents`; its font leaves `/Font` unless the page's remaining content still selects that name; both objects are freed when no other page references them. A reference that no longer matches the page is refused (`LayerNotFound`), never applied to whatever sits there now. |
+| Remove one OCR layer pdfcer wrote | `remove_ocr_layer(&mut self, &OcrLayerRef) -> Result<OcrLayerRemoval, OcrLayerError>` | **`Pass 318.0`**; the `OcrLayerRemoval` outcome (`Pass 500.3`, G122) names the group the text was on and whether that group is now empty, so a shell can offer to delete it. One undo entry, `CommandKind::RemoveOcrLayer`. The layer's stream leaves `/Contents`; its font leaves `/Font` unless the page's remaining content still selects that name; both objects are freed when no other page references them. A reference that no longer matches the page is refused (`LayerNotFound`), never applied to whatever sits there now. |
 | Give ONE page a private copy of a shared form XObject | `unshare_form(&mut self, page_index, form: ObjId) -> Result<UnshareFormReport, EditError>` | Copy-on-write. Refuses a **nested** invocation by name. |
 
 #### ★ The FOUR entry points that take a `find` and a pin all resolve it the same way (`Pass 148.0`)
@@ -861,7 +861,9 @@ These five return `text_edit`'s own error types, **not** `EditError`;
    matching `EMC` are all present. `OcrLayerOptions::with_existing` picks
    `Replace` (default), `Refuse` (`OcrLayerError::LayerPresent`, nothing
    changes) or `Stack` (keep both). `OcrLayerReport::layers_replaced` counts
-   what came off, and `disclosures()` says so. The one-shot free function
+   what came off, and `disclosures()` says so. `OcrLayerOptions::on_layer(group)`
+   (`Pass 500.3`) puts the text on a Layers-panel group: its `/OC` section sits
+   inside the marker, so the stream is still one layer. The one-shot free function
    applies the same policy but cannot free objects: the old stream stays in
    the file, unreferenced.
 

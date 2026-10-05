@@ -14327,12 +14327,14 @@ impl EditSession {
     /// if the page no longer carries that layer; otherwise the same guards as
     /// [`Self::add_ocr_layer`] (encryption, certification, hidden objects).
     /// Every refusal happens before anything is committed.
+    ///
+    /// The outcome names the optional-content group the text was on and
+    /// whether that group is left with no content.
     pub fn remove_ocr_layer(
         &mut self,
         layer: &crate::ocr::marker::OcrLayerRef,
-    ) -> Result<(), crate::ocr::layer::OcrLayerError> {
+    ) -> Result<crate::ocr::layer::OcrLayerRemoval, crate::ocr::layer::OcrLayerError> {
         use crate::ocr::layer::OcrLayerError as OlError;
-        use crate::ocr::marker::{contents_without, page_ocr_layers, plan_strip};
 
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(OlError::Encrypted);
@@ -14348,50 +14350,7 @@ impl EditSession {
             return Err(OlError::HiddenObjects { count: suppressed });
         }
 
-        let not_found = || OlError::LayerNotFound {
-            page_index: layer.page_index,
-            content: layer.content,
-        };
-        let (page_id, new_page, strip) = {
-            let page_list = self.pages().map_err(OlError::PageTree)?;
-            let page = page_list.get(layer.page_index).ok_or_else(not_found)?;
-            let view = self.view();
-            let current = page_ocr_layers(&view, page, layer.page_index);
-            let found = current
-                .into_iter()
-                .find(|l| l.content == layer.content)
-                .ok_or_else(not_found)?;
-            let strip = plan_strip(&view, page, std::slice::from_ref(&found));
-            let graph = self.graph();
-            let mut new_page = graph.resolved(page.id).as_dict().cloned().ok_or_else(|| {
-                OlError::Unsupported("the page object is not a dictionary".to_owned())
-            })?;
-            match contents_without(&view, new_page.get(b"Contents"), &strip.contents) {
-                Some(c) => new_page.insert(crate::object::Name::from(b"Contents"), c),
-                None => {
-                    new_page.remove(b"Contents");
-                }
-            };
-            if !strip.font_names.is_empty() {
-                // Same §7.7.3.4 recipe as the add: the page's EFFECTIVE
-                // resources, written as its own, so an inherited dict is not
-                // edited for every sibling page.
-                let mut fonts = match page.resources.get(b"Font") {
-                    Some(o) => graph.resolve(o).as_dict().cloned().unwrap_or_default(),
-                    None => crate::object::Dict::new(),
-                };
-                for name in &strip.font_names {
-                    fonts.remove(name);
-                }
-                let mut resources = page.resources.clone();
-                resources.insert(crate::object::Name::from(b"Font"), Object::Dict(fonts));
-                new_page.insert(
-                    crate::object::Name::from(b"Resources"),
-                    Object::Dict(resources),
-                );
-            }
-            (page.id, new_page, strip)
-        };
+        let (page_id, new_page, strip, found_group) = self.ocr_layer_stripped_page(layer)?;
         let removals = self.ocr_strip_removals(&[(layer.page_index, strip)])?;
         let before = self.value(page_id).cloned();
         self.commit(Command {
@@ -14404,7 +14363,73 @@ impl EditSession {
             removals,
             trailer: None,
         });
-        Ok(())
+        Ok(crate::ocr::layer::OcrLayerRemoval {
+            optional_content: found_group,
+            group_emptied: found_group
+                .is_some_and(|g| !crate::ocr::group::group_in_use(&self.view(), g)),
+        })
+    }
+
+    /// The page dictionary with `layer` stripped, the strip, and the group
+    /// the layer's text was on.
+    #[allow(clippy::type_complexity)] // a private four-part result, named at its one caller
+    fn ocr_layer_stripped_page(
+        &self,
+        layer: &crate::ocr::marker::OcrLayerRef,
+    ) -> Result<
+        (
+            ObjId,
+            crate::object::Dict,
+            crate::ocr::marker::LayerStrip,
+            Option<ObjId>,
+        ),
+        crate::ocr::layer::OcrLayerError,
+    > {
+        use crate::ocr::layer::OcrLayerError as OlError;
+        use crate::ocr::marker::{contents_without, page_ocr_layers, plan_strip};
+
+        let not_found = || OlError::LayerNotFound {
+            page_index: layer.page_index,
+            content: layer.content,
+        };
+        let page_list = self.pages().map_err(OlError::PageTree)?;
+        let page = page_list.get(layer.page_index).ok_or_else(not_found)?;
+        let view = self.view();
+        let current = page_ocr_layers(&view, page, layer.page_index);
+        let found = current
+            .into_iter()
+            .find(|l| l.content == layer.content)
+            .ok_or_else(not_found)?;
+        let strip = plan_strip(&view, page, std::slice::from_ref(&found));
+        let graph = self.graph();
+        let mut new_page = graph.resolved(page.id).as_dict().cloned().ok_or_else(|| {
+            OlError::Unsupported("the page object is not a dictionary".to_owned())
+        })?;
+        match contents_without(&view, new_page.get(b"Contents"), &strip.contents) {
+            Some(c) => new_page.insert(crate::object::Name::from(b"Contents"), c),
+            None => {
+                new_page.remove(b"Contents");
+            }
+        };
+        if !strip.font_names.is_empty() {
+            // Same §7.7.3.4 recipe as the add: the page's EFFECTIVE
+            // resources, written as its own, so an inherited dict is not
+            // edited for every sibling page.
+            let mut fonts = match page.resources.get(b"Font") {
+                Some(o) => graph.resolve(o).as_dict().cloned().unwrap_or_default(),
+                None => crate::object::Dict::new(),
+            };
+            for name in &strip.font_names {
+                fonts.remove(name);
+            }
+            let mut resources = page.resources.clone();
+            resources.insert(crate::object::Name::from(b"Font"), Object::Dict(fonts));
+            new_page.insert(
+                crate::object::Name::from(b"Resources"),
+                Object::Dict(resources),
+            );
+        }
+        Ok((page.id, new_page, strip, found.optional_content))
     }
 
     /// The objects a set of layer strips leaves unreferenced: each stripped
