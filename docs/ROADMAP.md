@@ -115,6 +115,52 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 498.0` — compressed tessellation rebuilds 10 more door meshes (`pdfcer-3d`) — SHIPPED `a7247697`
+
+Four measured rules landed in `crates/pdfcer-3d/src/compressed.rs` and new
+`crates/pdfcer-3d/src/compressed/search.rs`, all `pub(crate)` (no core-api
+change): (1) **closed edge** — an unsignalled triangle whose continuation
+edge is already shared by two triangles, with the other edge open,
+continues across the open one; (2) **flatness** — a component whose
+planar-face vertices stray more than `MAX_BEND` (20) tolerances from their
+face's plane fits by accident and is treated as not fitting; (3)
+**search** — a mesh no walk fits is searched over at most two inverted
+folds (window 40, step budget 8,000,000), kept only if it is the single
+fit found, every array and stored normal consumed exactly, every planar
+face flat; candidates are unsignalled triangles and slivers at most one
+tolerance from collinear (height = `|cross| / longest edge`), whose
+decoded decisions are noise; (4) **turned `MakeOrthoRep` frame** — WD
+§12.3 `MakeOrthoRep` fixes a null-Z apex frame's axis but not its
+orientation; some meshes fit only with the frame turned a half-turn about
+X (Y and Z negated). The as-written (WD) frame is tried first at every
+stage; the turned one is kept only as a stored-normal-confirmed fit.
+
+**Coverage.** Door assembly sample 140/156 meshes (was 130: 130 → 131
+closed edge + flatness + unique search → 132 sliver candidates → 140
+turned `MakeOrthoRep` frame), School sample 348/348, hinge samples 5/5
+and 3/3.
+
+**Tests.** `pdfcer-3d` 128 lib tests pass, incl.
+`a_closed_continuation_edge_gives_way_to_the_open_one`,
+`a_planar_face_that_bends_is_refused` (rescaled),
+`a_mesh_no_retry_fits_is_found_by_the_search`,
+`a_frame_only_turned_fits_is_rebuilt_turned`,
+`a_signalled_sliver_is_a_search_candidate`,
+`the_search_tries_the_wd_frame_first`. Every rule branch
+sabotage-checked.
+
+**Gates.** `fmt`, `clippy -D warnings`, `check-string-gaps`,
+`check-code-structure` (587-entry baseline, none new) clean. No
+dependency change — `cargo tree` invariant not applicable.
+
+**Open.** 16 door meshes still fail; a plain walk with per-call frame
+fallback fits none of them — they need fold flips at strong signals, or
+mixed per-call frames combined with flips.
+
+`FEATURES.md`: coverage note updated on the PRC compressed-tessellation
+row; `core`/`cli`/`gui` boxes unchanged (core-only change, no new CLI
+verb, no GUI surface).
+
 ### `Pass 497.0` — an encryption refusal reports its cause (`pdfcer-core`/`pdfcer-cli` `G118`) — SHIPPED `d9fa93c1`
 
 `pdfcer-gui` asked `G118` (boundary finding, low priority): an

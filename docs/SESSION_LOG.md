@@ -4,6 +4,44 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (967th filing) — `Pass 498.0` shipped (compressed tessellation rebuilds 10 more door meshes)
+
+**Shipped:**
+- `Pass 498.0` (`a7247697`) — `pdfcer-3d`'s PRC `TESS_3D_Compressed`
+  (type 173) reconstruction gains four measured rules: closed-edge
+  continuation across an open edge, flatness rejecting a plane a
+  component only accidentally fits, a bounded search over at most two
+  inverted folds for a mesh no walk fits, and a `MakeOrthoRep` apex
+  frame tried turned a half-turn about X when the as-written one
+  doesn't fit and a stored normal confirms the turn. New
+  `crates/pdfcer-3d/src/compressed/search.rs`, all `pub(crate)` — no
+  core-api change, core only (no new CLI verb, no GUI surface).
+
+**Decisions made this session:**
+- None — no decision-log entry needed for this Pass.
+
+**Findings + decisions:**
+- Coverage: door assembly sample 140/156 meshes (was 130), School
+  sample 348/348, hinge samples 5/5 and 3/3. Split: 130 → 131 (closed
+  edge + flatness + unique search) → 132 (sliver candidates) → 140
+  (turned `MakeOrthoRep` frame).
+- `pdfcer-3d` 128 lib tests pass; every rule branch sabotage-checked.
+  `fmt`, `clippy -D warnings`, `check-string-gaps`,
+  `check-code-structure` (587-entry baseline, none new) clean.
+
+**Still in flight:**
+- 16 door meshes still fail; a plain walk with per-call frame fallback
+  fits none of them — they need fold flips at strong signals, or mixed
+  per-call frames combined with flips.
+
+**For next session:**
+- Next fresh whole-number Pass ID is `499.0`.
+
+**Sourcing note (hard rule 8):** no shell this filing. Every fact
+above (commit hash, test count, gate result, coverage figures) is
+relayed from the dispatching engineer's own report, not independently
+reproduced here.
+
 ## 2026-10-05 (966th filing) — `Pass 497.0` shipped (an encryption refusal reports its cause, `G118`)
 
 **Shipped:**
