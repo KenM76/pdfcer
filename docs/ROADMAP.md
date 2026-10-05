@@ -115,6 +115,35 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 500.3` — `OcrLayerOptions::on_layer`: an OCR layer on an optional-content group (`pdfcer-core` `G122`) — SHIPPED `08d53cbb`
+
+`OcrLayerOptions::on_layer(group: ObjId)` (field `optional_content`): the OCR
+text is written inside `/OC /OCn BDC ... EMC`, nested inside the `/pdfc_OCR`
+marker (ISO 32000-1 §8.11.3.2), so the stream is still one layer for find,
+remove and `Replace` re-runs. The group must be listed in `/OCProperties /OCGs`
+(§8.11.4.2); anything else gives the new `OcrLayerError::NotALayerGroup { id }`.
+The page `/Properties` gains a binding only when it has none for the group.
+`OcrLayerRef.optional_content: Option<ObjId>`. `EditSession::remove_ocr_layer`
+now returns `Result<OcrLayerRemoval, OcrLayerError>`, with
+`OcrLayerRemoval { optional_content, group_emptied }`; `group_emptied` walks page
+content `/OC` sections, annotation and XObject `/OC` (direct or via an OCMD) and
+form `/Properties`, with a depth guard; undecodable content counts as in use.
+New module `crates/pdfcer-core/src/ocr/group.rs`. No manifest or dependency
+change, so no `cargo tree` check. Core only: no CLI flag yet. Reply to
+`pdfcer-gui` (`G122`, FIXED) written by the engineer.
+
+**Tests.** `tests/ocr_layer_on_group.rs` (5). OCR integration 42/42; OCR lib 99
+passed, 1 ignored. Sabotage: forcing `group_in_use` false, or dropping the
+content `/OC` check, fails the still-drawn-on test. fmt, clippy `-D warnings`
+(pdfcer-core), check-code-structure, check-string-gaps, check-core-api-verbs
+clean (engineer-reported); `build_layer_content` now under 80 lines (baseline
+line deleted), `remove_ocr_layer` split via a helper. Full `tools/run-gates.sh`
+NOT run; unpushed.
+
+`FEATURES.md`: OCR-layer identity row gains the on-a-group sentence; core `[x]`,
+cli `[ ]` (no flag), gui `[ ]`. Remaining in the series: `500.2`, `500.4`,
+`500.5`, `500.6`.
+
 ### `Pass 500.1` — `OcrRunner::recognize_at(w, h, pixels, dpi)`: a program add-on is told each page's resolution (`pdfcer-ocr-host` `G119`) — SHIPPED `811ed3e1`
 
 New `OcrRunner::recognize_at` and `ProgramEngine::recognize_at`: a program
@@ -21724,25 +21753,6 @@ fetch produces the same files and hashes as before; one list, one source. Core +
 cli. Open question to settle in the Pass, not now: whether a bundled-model
 crate boundary makes `pdfcer-core` the right home (the request's example) or a
 leaf crate does (`ARCHITECTURE.md` §3).
-
-### `Pass 500.3` — `OcrLayerOptions::on_layer`: an OCR layer on an optional-content group (`pdfcer-core` `G122`) — NOT STARTED (969th filing)
-
-`pdfcer-gui` asked `G122`
-(`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G122_an_ocr_layer_is_not_an_optional_content_group.md`):
-the layer is a `/pdfc_OCR` BDC section, not an OCG, so `/OCProperties` does not
-change and no Layers panel (ours or Acrobat's) can list it. The shell's
-workaround (`add_layer` + `set_objects_layer`) nests correctly but triggers
-`G125`'s fold and loses the layer.
-
-**Scope.** `OcrLayerOptions::on_layer(ObjId)` (or a `with_optional_content(name)`
-that registers a group): the OCR text is written inside an `/OC` section for the
-group, nested within the `/pdfc_OCR` section so `find_ocr_layers`,
-`page_ocr_layers` and `remove_ocr_layer` still find and remove the whole layer by
-its marker. The remove outcome reports whether the group is left with no
-content, so the shell can offer to delete it. **Acceptance.** Round trip: add
-on a group, find, remove (group reported emptied), re-run under `Replace`; the
-group shows in the existing layer listing. Core only until a CLI flag is
-scoped (`layer-add` already exists). **Depends on `Pass 500.0`** (shipped `83cdc94f`; unblocked).
 
 ### `Pass 500.4` — `AddTextRequest` into the OCR layer: text a person typed onto a scan belongs to its layer (`pdfcer-core` `G123`) — NOT STARTED (969th filing)
 

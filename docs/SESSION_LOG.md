@@ -4,6 +4,33 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (972nd filing) — `Pass 500.3` shipped (OCR layer on an optional-content group, `G122`)
+
+**Shipped:**
+- `Pass 500.3` — `08d53cbb`. `OcrLayerOptions::on_layer(group)`; OCR text inside
+  `/OC` nested in `/pdfc_OCR`; `OcrLayerError::NotALayerGroup`;
+  `remove_ocr_layer` now returns `OcrLayerRemoval { optional_content, group_emptied }`
+  (a signature change in `pdfcer-core`). Details in the ROADMAP Shipped entry
+  and the commit message.
+
+**Decisions made this session:**
+- None needing a decision-log entry.
+
+**Findings + decisions:**
+- Figures as supplied by the engineer, not re-run here: 5 new tests; OCR
+  integration 42/42, lib 99 passed / 1 ignored; sabotage of `group_in_use` or
+  the content `/OC` check fails the still-drawn-on test; five gates clean.
+- `FEATURES.md`: OCR-layer identity row extended; core `[x]`, cli/gui `[ ]`.
+- `Pass 500.3` removed from Next up.
+
+**Still in flight:**
+- `500.2` (`G120`), `500.4` (`G123`), `500.5` (`G124`), `500.6` (`G121`).
+
+**For next session:**
+- Run `tools/run-gates.sh`, then push. Consider a CLI flag for `on_layer`.
+
+**Sourcing note (hard rule 8):** backup/push/commit state not checked here.
+
 ## 2026-10-05 (971st filing) — `Pass 500.1` shipped (`recognize_at`, per-page dpi for program OCR add-ons, `G119`)
 
 **Shipped:**
