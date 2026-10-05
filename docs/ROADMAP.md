@@ -115,6 +115,54 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 492.0` — `place-text` split into template, session, position, scaffold and report steps — SHIPPED `e3b32fd0`
+
+Structure debt only; no behaviour change.
+
+**Structure debt.** `pdfcer place-text`'s command function
+(`crates/pdfcer-cli/src/text_edit.rs`) shrank from 264 lines (under a
+clippy `too_many_lines` allow) to a slim driver over
+`place_text_template`, `place_text_media`, `place_text_font`,
+`place_text_session` (`--input` or the one-page scaffold),
+`place_text_position`, `remove_scaffold_page` and
+`print_place_text_report`. `--align` parsing is now shared with
+`add-text` through a new `parse_block_align` helper; `--color` reuses
+`add_text_color` (messages were already identical). Output and exit
+codes unchanged. Baseline entry
+`fn pdfcer-cli/src/text_edit.rs::cmd_place_text` deleted (590 entries
+remain, was 591). No `pub` API, dependency or manifest change
+(`cargo tree` N/A).
+
+**Finding.** `place-text` had no CLI tests at all before this Pass. Six
+added in `crates/pdfcer-cli/tests/place_text.rs` (a module of
+`tests/all.rs`): scaffold page removed from a created document;
+incremental create discloses the scaffold revision on stderr;
+`first_page` re-based on insert; each malformed flag refused by name
+with exit 9 and nothing written; missing text file exits 3; an
+unencodable character refuses, and with `--drop-unmappable` is named in
+`dropped_characters`. Sabotage: disabling scaffold removal fails two
+tests; disabling the `first_page` re-base fails one.
+
+**Observed, left as-is.** `--position before:N` past the end clamps to
+the end (documented, tested core behaviour in `InsertPosition::slot`);
+the report prints the real landing page, so it is disclosed, not
+silent.
+
+**Checks.** Differential run against the released v0.77.0 binary over
+16 invocations (create, create with `--drop-unmappable`, full-mode
+create with font/colour/align/leading, insert, out-of-range position,
+bad position, page size, bad page size, bad paper, landscape, bad font,
+bad align, bad colour, missing text file, missing input PDF, multiple
+bad flags) matched stdout, stderr, exit code and output PDF bytes
+exactly. `tools/run-gates.sh` PASS (45 commands incl. 2 filing gates)
+on the exact committed tree.
+
+**Delivered:** cli only (structure). No `FEATURES.md` rows affected
+(cli-internal refactor; no capability or box changes). Remaining
+`text_edit.rs` debt: the file-size entry. Ledger after: next filing
+961st, next Pass 493.0, next decision 192, next standing rule R251,
+next operator question (ck).
+
 ### `Pass 491.0` — `add-text` split into placement, font, colour, embed, run and report steps — SHIPPED `f1159913`
 
 Structure debt only; no behaviour change.

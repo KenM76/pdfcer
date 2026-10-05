@@ -4,6 +4,50 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-04 (960th filing) — `Pass 492.0` shipped (`place-text` split into template, session, position, scaffold and report steps)
+
+**Shipped:**
+- `Pass 492.0` (`e3b32fd0`) — `pdfcer place-text`'s command function
+  (`crates/pdfcer-cli/src/text_edit.rs`) shrank from 264 lines (under a
+  clippy `too_many_lines` allow) to a slim driver over
+  `place_text_template`, `place_text_media`, `place_text_font`,
+  `place_text_session`, `place_text_position`, `remove_scaffold_page`
+  and `print_place_text_report`. `--align` now shares `parse_block_align`
+  with `add-text`; `--color` reuses `add_text_color`. Output and exit
+  codes unchanged. Baseline entry for the function deleted (590 entries
+  remain).
+
+**Decisions made this session:** none — decision stays `192`, standing
+rule stays `R251`.
+
+**Findings + decisions:**
+- `place-text` had no CLI tests at all before this Pass. Six added in
+  `crates/pdfcer-cli/tests/place_text.rs`, sabotage-checked (disabling
+  scaffold removal fails two; disabling the `first_page` re-base fails
+  one).
+- `--position before:N` past the end clamps to the end — documented,
+  tested core behaviour, disclosed via the real landing page in the
+  report; left as-is, not a bug.
+
+**Still in flight:** differential run against the released v0.77.0
+binary over 16 invocations stated matching byte-for-byte by the
+engineer; `tools/run-gates.sh` stated PASS (45 commands incl. 2 filing
+gates) on the exact committed tree; not independently re-verified (no
+shell this filing).
+
+**For next session:**
+- Next free `Pass 493.0`; decision `192`, standing rule `R251`,
+  operator question `(ck)` all unchanged.
+- No `FEATURES.md` rows affected (cli-internal refactor; behaviour
+  unchanged; place-text's existing row stays as-is).
+- Remaining baselined entry in `text_edit.rs`: the file-size entry only
+  (`cmd_place_text` function entry is now gone).
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash,
+line counts, baseline-entry count, differential-run and gate results
+are relayed from the dispatching engineer's report, not independently
+re-verified.
+
 ## 2026-10-04 (959th filing) — `Pass 491.0` shipped (`add-text` split into placement, font, colour, embed, run and report steps)
 
 **Shipped:**
