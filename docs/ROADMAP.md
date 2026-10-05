@@ -115,6 +115,81 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.78.0` — RELEASED (2026-10-05)
+
+Release filing, completing the version bump at `c7deddd2` ("chore:
+v0.78.0") — `Cargo.toml`'s workspace version 0.77.0 → 0.78.0,
+`Cargo.lock`, `fuzz/Cargo.lock`.
+
+**Tag.** `v0.78.0`, annotated, on `c7deddd2`.
+
+**Range since `v0.77.0`** (tag at `1048934a`) — `Pass 476.0`
+(`09a030af`, `list-annotations` prints review state), `Pass 477.0`
+(`8218563c`, `list-fields` prints each push button's action), `Pass
+478.0` (`27a6ebd6`, CLI `list-fields` split into `fields_list.rs`),
+`Pass 479.0` (`11337f8d`, CLI `cmd_recompute` split plus its first
+CLI-level test), `Pass 480.0` (`7c5cf855`, CLI `fill-field` split;
+`--set FIELD=no` now unchecks a box; first CLI tests for check-box
+aliases and multi-select), `Pass 481.0` (`4ab15402`, `reset_form`
+counts only fields it actually changed; `cmd_reset_form` split), `Pass
+482.0` (`cca56e06`, `cmd_import_data` split; `import-data`'s first CLI
+tests), `Pass 483.0` (`5676d58d`, `fields.rs` split into
+`fields_fill.rs` / `fields_data.rs` / `fields_scripts.rs`), `Pass
+484.0` (`7133becf`, notices moved out of `fonts.rs`: bundled-font
+licence text to `font_notice.rs`, `PERMISSIONS_NOTICE` to
+`security.rs`), `Pass 485.0` (`f04a3478`, preflight a text-object
+split from a session without committing it, `G114`), `Pass 486.0`
+(`0fa7a2d7`, text-run and text-object commands moved out of
+`text_edit.rs` into `text_run_edit.rs`), `Pass 487.0` (`8ac3432d`,
+format-text split into its own module `text_format.rs`), `Pass 488.0`
+(`c89c08a9`, `cmd_reflow`'s error mapping and report split out), `Pass
+489.0` (`ef39b484`, `edit-text` split into pin, options, error and
+report steps), `Pass 490.0` (`4337af87`, a widget's border dash is
+drawn but not recorded, `G116`), `Pass 491.0` (`f1159913`, `add-text`
+split into placement, font, colour, embed, run and report steps),
+`Pass 492.0` (`e3b32fd0`, `place-text` split into template, session,
+position, scaffold and report steps), `Pass 493.0` (`aef58841`,
+`place-text`, `reflow` and donor-font subsetting moved out of
+`text_edit.rs`), `Pass 494.0` (`7aeed322`, one annotation lookup; a
+bad `--page`/`--index` exits `EDIT_REFUSED` everywhere), `Pass 495.0`
+(`cc891ebd`, a radio button draws the mark `NewRadioButton::style`
+names, `G115`), `Pass 496.0` (`d8c4a079`, `Diagnostics::divergences`
+enumerates the DIVERGENCE counters, `G117`).
+
+**Order deviation (operator-directed).** The pre-release
+`tools/run-gates.sh` sweep was 4 of 46 steps in, nothing failed yet,
+when the operator said "Just publish it." The sweep was stopped and
+the release was published first. A full `tools/run-gates.sh` run on
+`c7deddd2`, done after publishing rather than before, came back 45 of
+45 PASS (incl. 2 filing gates). Every gate still ran — only the order
+changed, on explicit operator instruction, not a skipped gate.
+
+**Gates.** `tools/run-gates.sh`: 45 of 45 PASS (incl. 2 filing gates),
+run on `c7deddd2`, after publishing (see above). CI green at
+`c7deddd2` (run `37291899620`).
+
+**Build.** `D:\builds\pdfcer-20261005-0524-c7deddd`. `--version`
+reports `0.78.0`, revision `v0.77.0-53-gc7deddd2`, clean (not dirty).
+
+**Fresh-folder smoke test.** `--version` clean; `add-radio-button
+--check-style star --no-tooltip` on `fixtures/synthetic/minimal.pdf`
+wrote `/MK /CA (H)`, and `list-fields` shows caption `"H"`; `rotate
+--degrees 90 -o` gave `rotated=1`.
+
+**GitHub release.** Published via `tools/gh-release.py`, 8 assets:
+`pdfcer-v0.78.0-windows-x64.zip` 25,308,846 bytes; `ocr-addon-
+ocrcer.zip` 3,789,155 bytes; `ocr-addon-ocrs.zip` 11,352,262 bytes;
+`ocr-addon-tesseract.zip` 4,483,685 bytes; each zip with a matching
+`.sha256`. `python tools/verify-release.py v0.78.0` clean, CI
+included.
+
+**OneDrive.** `tools/deploy-onedrive.py` wrote slot `pdfcer1` (now
+`0.78.0`); `pdfcer2` keeps `0.77.0`. Next release writes `pdfcer2`.
+
+**`docs/FEATURES.md`.** No rows changed by the release act itself —
+every capability in the range above was already ticked at its own
+Pass's filing.
+
 ### `Pass 496.0` — `Diagnostics::divergences` enumerates the DIVERGENCE counters (`pdfcer-render` `G117`) — SHIPPED `d8c4a079`
 
 `pdfcer-gui` asked `G117`: the render's divergence counters print on

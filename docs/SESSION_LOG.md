@@ -4,6 +4,60 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (965th filing) — `v0.78.0` RELEASED
+
+**Shipped:**
+- Release of `v0.78.0`. Bump commit `c7deddd2` ("chore: v0.78.0"),
+  0.77.0 → 0.78.0. Tag `v0.78.0`, annotated, on `c7deddd2`. Range since
+  `v0.77.0` (tag `1048934a`): `Pass 476.0` through `Pass 496.0` —
+  `list-annotations` review state, push-button action in
+  `list-fields`, five CLI structure-debt splits (`fields_list.rs`,
+  `cmd_recompute`, `fill-field`, `cmd_reset_form`, `cmd_import_data`),
+  the `fields.rs` three-way split, the `fonts.rs` notice move, a
+  text-object split preflight (`G114`), the `text_edit.rs` breakup
+  into `text_run_edit.rs` / `text_format.rs` / `cmd_reflow` / `edit-
+  text` / `add-text` / `place-text` steps, a widget border-dash
+  recording fix (`G116`), one annotation lookup with `EDIT_REFUSED`
+  everywhere, a radio button's drawn mark (`G115`), and
+  `Diagnostics::divergences` (`G117`). Gates: 45/45 PASS (incl. 2
+  filing gates), run on `c7deddd2`; CI green (run `37291899620`).
+  Build at `D:\builds\pdfcer-20261005-0524-c7deddd`; `--version`
+  reports `0.78.0`, revision `v0.77.0-53-gc7deddd2`, clean.
+  Fresh-folder smoke: `--version` clean; `add-radio-button
+  --check-style star --no-tooltip` wrote `/MK /CA (H)`, `list-fields`
+  showed caption `"H"`; `rotate --degrees 90 -o` gave `rotated=1`.
+  Assets: `pdfcer-v0.78.0-windows-x64.zip` 25,308,846 bytes + 3 OCR
+  add-on zips (`ocrcer` 3,789,155, `ocrs` 11,352,262, `tesseract`
+  4,483,685), each with a `.sha256`. Published via `tools/gh-
+  release.py`; `python tools/verify-release.py v0.78.0` clean, CI
+  included. OneDrive slot `pdfcer1` now `0.78.0`; `pdfcer2` keeps
+  `0.77.0` — next release writes `pdfcer2`.
+
+**Decisions made this session:**
+- None — decision stays `192`, standing rule stays `R251`.
+
+**Findings + decisions:**
+- Order deviation, operator-directed: the pre-release
+  `tools/run-gates.sh` sweep was stopped 4 of 46 steps in (nothing
+  failed) when the operator said "Just publish it." The release was
+  published first; the full 45/45 gate run and `verify-release.py`
+  both happened afterward, on `c7deddd2`, and both came back clean.
+  Every gate still ran — only the order changed, on explicit
+  instruction, not a skipped gate.
+
+**Still in flight:**
+- None carried over from this filing.
+
+**For next session:**
+- Next fresh whole-number Pass ID is `497.0`; decision `192`, standing
+  rule `R251`, operator question `(ck)` all unchanged.
+
+**Sourcing note (hard rule 8):** no shell this filing. Every release
+figure above (gate result, build path, binary version/revision,
+smoke-test output, asset sizes, CI run number, OneDrive slot) is
+relayed from the dispatching engineer's own report, measured there
+with a shell; not independently reproduced here.
+
 ## 2026-10-05 (964th filing) — `Pass 496.0` shipped (`Diagnostics::divergences` enumerates the DIVERGENCE counters, `G117`)
 
 **Shipped:**
