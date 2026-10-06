@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (988th filing) — `Pass 511.0` shipped (inferred OCR paragraphs, `G131`)
+
+**Shipped:**
+- `Pass 511.0` — `f4ed94f4`. A words-only `OcrPage` wrote every line as its own block; inferred structure now re-sizes ink boxes to font boxes (page-median row ink height / 0.93, per-row upper-quartile baseline) before layout. Details in the ROADMAP entry.
+
+**Decisions made this session:**
+- Pass numbering: `NEXT_SESSION` earmarked 511.0 for the 3D refused-mesh work; that moves to 512.0. ROADMAP had not pre-filed 511.0.
+
+**Findings + decisions:**
+- Cause was `layout_text` sizing glyph-free runs at 0.8 x box height against tight recogniser boxes; test sabotage gives 56 lines in 56 blocks vs 16 in 4 fixed. Core OCR lib 108 passed / 1 ignored (engineer-reported).
+- Ken pasted a Gemini-written "PDF 3D specification" file (local, not in the repo). `pdfcer-spec-librarian` is grading it in parallel; not graded here.
+- `FEATURES.md`: `Pass 318.0` OCR-layer row, em-sizing clause added; boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`).
+
+**Still in flight:** `Pass 512.0` (24 refused compressed meshes); `f4ed94f4` unpushed at filing.
+
+**Sourcing note (hard rule 8):** figures engineer-reported; push/backup/CI state not checked here.
+
 ## 2026-10-06 (987th filing) — `Pass 510.0` shipped (PRC entity-reference overrides)
 
 **Shipped:**

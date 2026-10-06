@@ -156,6 +156,40 @@ release writes `pdfcer1`.
 
 **`docs/FEATURES.md`.** No release marker kept there; no rows changed.
 
+### `Pass 511.0` — inferred OCR structure sizes rows by em, not ink (`G131`, `reply_G131_inferred_ocr_paragraphs_are_one_block_each_FIXED.md`) — SHIPPED `f4ed94f4`
+
+A words-only `OcrPage` (every shell recogniser, `OcrStructureSource::Inferred`)
+wrote each line as its own block. Cause: `block_layout::layout_text` sizes a
+glyph-free run as 0.8 x its box height; a recogniser's word box is tight on
+the ink, so 11 pt text got an em of 6-9 pt and the 1.5-em line-step
+block-break rule split every line.
+
+**Fix** (`crates/pdfcer-core/src/ocr/structure.rs`, `rows_of` and
+`font_boxes`, private): both inferred paths (`Inferred`, and `BlocksInferred`
+over reported lines) re-size ink boxes to font boxes before layout. Rows come
+from vertical centre, or are the engine's reported lines. Each row gets one
+em: the page's median row ink height / 0.93 (Helvetica ascender 0.718 +
+descender 0.207); a row outside 0.7-1.2x the median keeps its own height, so
+headings stay headings. Each row gets one baseline: the upper quartile of its
+word bottoms; a single-box row is assumed to carry a descender.
+
+**Tests (engineer-reported):** `inferred_structure_groups_tight_word_boxes_into_paragraphs`
+(`ocr/layer_content.rs`): 11 pt on 16 pt leading, two columns of two 4-line
+paragraphs: 16 lines in 4 blocks; fix ablated gives 56 lines in 56 blocks, so
+the test is not vacuous. Core OCR lib 108 passed / 1 ignored. Clippy
+`-D warnings`, fmt, code-structure gate (584 baseline, none new), string-gaps
+PASS. No dependency or manifest change. `docs/core-api/03-capabilities.md`
+`build_layer_content` row updated; `check-core-api-verbs` PASS.
+
+**Pass numbering:** `NEXT_SESSION` had earmarked 511.0 for the 3D refused-mesh
+work; that now takes 512.0. ROADMAP had not pre-filed 511.0 (grep).
+
+**`FEATURES.md`:** the `Pass 318.0` OCR-layer row (reading-order clause) gained
+the em-sizing clause; boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`).
+
+**Sourcing:** `f4ed94f4` not yet pushed at filing (engineer-stated); backup/CI
+not checked here.
+
 ### `Pass 510.0` — PRC entity-reference overrides colour, hide and place parts (the operator's "transparency isn't handled yet", 2026-10-06) — SHIPPED `d8426db9`
 
 A PRC product occurrence's `MISC_EntityReference` list (ISO 14739-1 WD
