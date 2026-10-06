@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (987th filing) — `Pass 510.0` shipped (PRC entity-reference overrides)
+
+**Shipped:**
+- `Pass 510.0` — `d8426db9`. PRC product-occurrence `MISC_EntityReference` (WD 7.4.4/7.3.10.1) is now applied: `ReferenceOnPRCBase` recolours/hides/re-places an item by PRC unique id; `ReferenceOnTopology` recolours B-rep faces. Precedence face > item > resolved style, outer occurrence wins, style 0 leaves colour alone. Answers the operator's "transparency isn't handled yet".
+
+**Decisions made this session:**
+- Reach is unspecified by the standard, so it is a setting (`EntityOverrides::{Subtree, Everywhere, Ignore}`, default `Subtree`; CLI `--entity-overrides`), with a disclosed count (`AssembledModel::overridden`). No decision-log entry filed.
+
+**Findings + decisions:**
+- Second assembly sample: translucent meshes 0 -> 5, uncoloured 91 -> 87; 24 compressed meshes still refused (next work).
+- Known limit: a hidden face override is not applied.
+- Tests (engineer-reported): `pdfcer-3d` lib 135/3/11, new test sabotage-checked; CLI `three_d` 28. `check-core-api-verbs` PASS; no manifest change.
+- PDF-domain lesson written: `lesson_20261006_solidworks_prc_transparency_lives_in_product_occurrence_entity_references.md`.
+- `FEATURES.md`: new row, core `[x]` cli `[x]` gui `[ ]`.
+
+**Still in flight:** the 24 refused compressed meshes; `pdfcer-gui` has not consumed the setting.
+
+**Sourcing note (hard rule 8):** figures engineer-reported; push/backup/CI state not checked here.
+
 ## 2026-10-06 (986th filing) — `Pass 509.0` follow-up: SVG layer tests gated on `svg-import`
 
 **Shipped:**

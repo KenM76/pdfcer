@@ -156,6 +156,45 @@ release writes `pdfcer1`.
 
 **`docs/FEATURES.md`.** No release marker kept there; no rows changed.
 
+### `Pass 510.0` — PRC entity-reference overrides colour, hide and place parts (the operator's "transparency isn't handled yet", 2026-10-06) — SHIPPED `d8426db9`
+
+A PRC product occurrence's `MISC_EntityReference` list (ISO 14739-1 WD
+§7.4.4/§7.3.10.1; spec RAG `prc__8137__model_tree_asm.md` §12) was
+parsed and discarded. It is now applied. `ReferenceOnPRCBase` recolours,
+hides or re-places a representation item by PRC unique id;
+`ReferenceOnTopology` recolours B-rep faces (0-based indices, matched by
+the B-rep's stored `(context, body)`).
+
+**Precedence:** face override > item override > resolved style; the outer
+occurrence wins; style 0 leaves the colour alone.
+
+**Reach is unspecified by the standard, so it is a setting:**
+`pdfcer_3d::EntityOverrides::{Subtree (default), Everywhere, Ignore}` on
+`AssembleOptions::entity_overrides`. `AssembledModel::overridden` counts
+recoloured placements (disclosure, rule 4). CLI `3d-render
+--entity-overrides subtree|everywhere|ignore` prints a `note:` with the
+count and how to draw the parts in their own colour.
+
+**Known limit:** a hidden FACE override is not applied (item-level hide
+is).
+
+**Effect on the second assembly sample:** translucent meshes 0 -> 5;
+uncoloured meshes 91 -> 87; 24 compressed meshes are still refused (next
+work). Engine-reported, not re-measured here.
+
+**Tests (engineer-reported):** `pdfcer-3d` lib 135 passed / 3 / 11 (new
+`an_occurrence_overrides_the_entities_its_subtree_places`,
+sabotage-checked); CLI `three_d` 28 passed (new
+`entity_overrides_recolour_and_hide_the_copies_an_assembly_names`).
+Synthetic fixture `fixtures/synthetic/prc/overridden.prc`.
+
+**Invariants.** `pdfcer-3d` manifest untouched, so `cargo tree` is
+unaffected; no dependency change. `docs/core-api/01-reading-and-model.md`
+gained the *Entity-reference overrides* bullet; `check-core-api-verbs`
+PASS. Lesson: `C:\personal_rag\pdf\lesson_20261006_solidworks_prc_transparency_lives_in_product_occurrence_entity_references.md`.
+
+**Sourcing:** push/backup/CI state not checked here.
+
 ### `Pass 509.0` — SVG and EMF page content can go on a layer (`G130`, `request_G130_svg_and_emf_page_content_cannot_be_placed_on_a_layer.md`) — SHIPPED `648fe67e`
 
 Code commit `648fe67e` (`pdfcer-core`, `pdfcer` CLI; `pdfcer-gui` not consumed). Requested by pdfcer-gui as G130 (the genuine G130; the earlier strike-source request, `Pass 508.0`, is unnumbered, per `204d2099`); filed and shipped in one step. Reply: `reply_G130_svg_and_emf_page_content_can_go_on_a_layer_FIXED.md`.
