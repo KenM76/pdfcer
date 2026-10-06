@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 505.0` — the compressed-mesh choice search resumes each walk and searches six deep (`pdfcer-3d`, engine only) — SHIPPED `bd5aa90c`
+
+Compressed PRC tessellation (entity 173), last-resort search over inverted choices. It used
+to re-walk the mesh from triangle 0 for every set of choices. Now each attempt rewinds the
+previous attempt's walk to the last snapshot (every 64 triangles: walk mark plus
+pending-edge stack, next edge and sliver) at or before the first choice the two sets do not
+share, and walks on from there; a failure's candidates come from a per-step record. The
+step budget now counts triangle steps actually taken: 8M -> 2M (the largest successful
+search on the samples spends 583k; 8M and 2M give identical results). A fourth stage
+combines up to 6 choices (`DEEPEST`) when no shallower stage fits.
+
+**Result (door assembly sample, 156 meshes, release, local samples never committed).**
+151/156 rebuilt, up from 149 (+2); the two new meshes are closed and flat; every other mesh
+byte-identical; run 16.4 s (was 17 s). School 348/348, strap hinge 5/5, piano hinge 3/3
+identical. **Still failing: 5 meshes** — no fit within depth 6.
+
+No CLI/core-api/`pub` change, no dependency or manifest change so `cargo tree` n/a.
+FEATURES: `3d-mesh` row 149/156 -> 151/156, `505.0` added, boxes unchanged. Spec RAG row
+X22 added to `prc__8137__tess_3d_compressed.md`. **Tests (engineer-reported).** `pdfcer-3d`
+lib 134 passed; 2 new (a resumed attempt matches a fresh walk on two fit-bearing meshes and
+on 300 seeded arbitrary arrays / 87k attempts); sabotage (stack restore, next-edge restore,
+step-record truncation, component-start stop removed) each fails a test. fmt, clippy -D
+warnings, code-structure gate clean.
+
 ### `Pass 504.0` — a hand-signature mark names the objects it holds (`pdfcer-core` + CLI, `G127`) — SHIPPED `4e650227`
 
 `pdfcer-gui` request G127. `pdfcer_core::hand_sig::HandSignatureMark` gains

@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (981st filing) — `Pass 505.0` shipped (compressed-mesh choice search resumes walks, depth 6)
+
+**Shipped:**
+- `Pass 505.0` — `bd5aa90c`. `pdfcer-3d` engine only; no CLI/core-api/dependency/manifest
+  change. Each search attempt rewinds the previous walk to a 64-triangle snapshot instead of
+  restarting at triangle 0; budget now counts steps taken (8M -> 2M; largest successful
+  search 583k); fourth stage `DEEPEST` combines up to 6 choices.
+
+**Decisions made this session:**
+- None needing a decision-log entry.
+
+**Findings + decisions:**
+- Door assembly sample 151/156 (was 149); the two new meshes closed and flat; others
+  byte-identical; 16.4 s (was 17 s). School 348/348, strap hinge 5/5, piano hinge 3/3
+  identical. 8M and 2M budgets agree. 5 door meshes still have no fit within depth 6.
+- Spec RAG row X22 added to `prc__8137__tess_3d_compressed.md`.
+- `FEATURES.md` `3d-mesh` row 149/156 -> 151/156, `505.0` added; boxes unchanged.
+
+**Still in flight:**
+- 5 meshes still fail; depth is not the lever.
+
+**Sourcing note (hard rule 8):** tests as reported by the engineer (lib 134 passed, 2 new,
+sabotage-checked); push/backup state not checked here.
+
 ## 2026-10-06 (980th filing) — `Pass 504.0` shipped (hand-signature mark names its objects, `G127`)
 
 **Shipped:**
