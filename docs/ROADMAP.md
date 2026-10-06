@@ -115,6 +115,46 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.80.0` — RELEASED (2026-10-06)
+
+Release filing (990th). Requested under the standing release
+authorisation (decision 121); the operator had asked to check the 3D work
+beside Acrobat. Two commits: `baa843bb` ("chore: spec-librarian agent
+memory", commits the spec-librarian's agent-memory files so the build is
+not stamped dirty) and the bump `dc39139b` ("chore: v0.80.0": `Cargo.toml`,
+`Cargo.lock`, `fuzz/Cargo.lock`).
+
+**Tag.** `v0.80.0` on `dc39139b`; `main` and the tag pushed.
+
+**Range since `v0.79.0`** (`da76fdc1`): `Pass 509.0` (`648fe67e`,
+`9b2d7cac`: SVG/EMF page content on a layer), `510.0` (`d8426db9`: PRC
+entity-reference overrides), `511.0` (`f4ed94f4`: inferred OCR structure em
+sizing), `512.0` (`5e58243b`: best-fit compressed meshes, `--mesh-fit`,
+exact turned-search skip; second assembly sample 132 rebuilt incl. 15
+best-fit, 9 out; `3d-mesh` 125 s -> 75 s).
+
+**Gates.** `tools/run-gates.sh` PASS on `dc39139b`: 45 commands, incl. 2
+filing gates. CI green on `dc39139b` (run 37541246878) and on `bfdda306`.
+
+**Build.** `D:\builds\pdfcer-20261006-1835-dc39139`.
+
+**Fresh-folder smoke test.** `--version` 0.80.0 (revision `v0.80.0`);
+`rotate --degrees 90`; `3d-embed --apply` of
+`fixtures/synthetic/prc/compressed_triangle.prc`, then `3d-render --index
+0` (PNG written).
+
+**GitHub release.** Published via `tools/gh-release.py`, 8 assets, PASS:
+`pdfcer-v0.80.0-windows-x64.zip` 25,367,016 bytes; `ocr-addon-ocrcer.zip`
+3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip`
+4,483,685; each zip with a `.sha256`. `tools/verify-release.py v0.80.0`:
+clean (tree clean, tag at HEAD, pushed, `origin/main` contains it, assets,
+CI green, OneDrive current + previous).
+
+**OneDrive.** `pdfcer1` = `0.80.0` (68,078,911 bytes); `pdfcer2` keeps
+`0.79.0`. Next release writes `pdfcer2`.
+
+Figures engineer-reported; no shell here (hard rule 8).
+
 ### `v0.79.0` — RELEASED (2026-10-06)
 
 Release filing (984th), completing the version bump at `da76fdc1`

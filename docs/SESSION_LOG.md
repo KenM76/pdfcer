@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (990th filing) — `v0.80.0` RELEASED
+
+**Shipped:**
+- Release of `v0.80.0`. `baa843bb` (spec-librarian agent-memory files, committed so the build is not stamped dirty) then bump `dc39139b` ("chore: v0.80.0"); tag `v0.80.0` on `dc39139b`; `main` and tag pushed. Standing release authorisation (decision 121); the operator had asked to check the 3D work beside Acrobat.
+- Range since `v0.79.0` (`da76fdc1`): `Pass 509.0` (`648fe67e`, `9b2d7cac`), `510.0` (`d8426db9`), `511.0` (`f4ed94f4`), `512.0` (`5e58243b`; second assembly sample 132 rebuilt incl. 15 best-fit, 9 out; `3d-mesh` 125 s -> 75 s).
+- Gates: `run-gates.sh` PASS on `dc39139b`, 45 commands (2 filing gates). CI green on `dc39139b` (run 37541246878) and `bfdda306`.
+- Build `D:\builds\pdfcer-20261006-1835-dc39139`. Smoke: `--version` 0.80.0, `rotate --degrees 90`, `3d-embed --apply` of `compressed_triangle.prc`, `3d-render --index 0` (PNG written).
+- Assets via `gh-release.py` (8, PASS): `pdfcer-v0.80.0-windows-x64.zip` 25,367,016 bytes; `ocr-addon-ocrcer.zip` 3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; each with `.sha256`. `verify-release.py v0.80.0` clean.
+- OneDrive: `pdfcer1` = `0.80.0` (68,078,911 bytes), `pdfcer2` keeps `0.79.0`; next release writes `pdfcer2`.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:** None. `FEATURES.md`: no row changes (release only).
+
+**Still in flight:** Backlog item "3D compressed meshes still unfit" (see 989th filing).
+
+**Sourcing note (hard rule 8):** all figures engineer-reported; no shell, so push/backup state not checked here.
+
 ## 2026-10-06 (989th filing) — `Pass 512.0` shipped (best-fit rebuild for compressed 3D meshes)
 
 **Shipped:**
