@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 508.0` — the format report says where each strikethrough's placement came from (`G130`) — SHIPPED `c7fcd44a`
+
+Code commit `c7fcd44a` (`pdfcer-core`, `pdfcer` CLI; `pdfcer-gui` not consumed). Not filed under Next up beforehand; filed and shipped in one step.
+
+`FormatReport::strike_source: Option<StrikeSource>` (`FontTable` = OS/2 strikeout, FontTables
+policy only; `XHeight` = descriptor `/XHeight` or standard-14 AFM; `QuarterEm`). `Some` only when
+the request sets a strikethrough; resolved against the post-edit font (the original, a created
+simple dict, or a created embedded face's program). The decoration disclosure now ends in a
+per-source clause. CLI `format-text --strikethrough` prints `strike_source=font_table|x_height|quarter_em`.
+`Refreshed::strike_sources` (post-command refresh) stays internal and unreported.
+
+Tests: new `the_report_names_where_the_strikethrough_came_from`; updated
+`an_unembedded_standard_font_strikes_at_half_its_afm_x_height`; a sabotage forcing QuarterEm
+failed both. `docs/core-api/02-editing-and-saving.md` updated (verb count 6,385 -> 6,392;
+`check-core-api-verbs` passed). Full `tools/run-gates.sh` on `c7fcd44a`: PASS, 45 commands
+including 2 filing gates, about 12,037 tests; covers `0ef53720` and `2acaac01` too (descendant).
+`cargo tree` unchanged (no manifest touched). Figures engineer-reported.
+
 ### `Pass 506.0` + `Pass 507.0` — the repertoire names letters drawn two ways, and an edit keeps their codes (`G128`, `G129`) — SHIPPED `0ef53720`, `2acaac01`
 
 Code commit `0ef53720` plus follow-up `2acaac01` (also Pass 507.0), two Passes (`pdfcer-core`, `pdfcer` CLI; `pdfcer-gui` not consumed).

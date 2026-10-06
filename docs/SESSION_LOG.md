@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (983rd filing) — `Pass 508.0` shipped (strikethrough placement source reported, `G130`)
+
+**Shipped:**
+- `Pass 508.0` (`G130`) — `c7fcd44a`. `FormatReport::strike_source: Option<StrikeSource>`
+  (FontTable / XHeight / QuarterEm), `Some` only when a strikethrough is requested, resolved
+  against the post-edit font; disclosure ends in a per-source clause; CLI `format-text
+  --strikethrough` prints `strike_source=`. `Refreshed::strike_sources` stays internal.
+
+**Decisions made this session:**
+- None needing a decision-log entry.
+
+**Findings + decisions:**
+- Tests: new `the_report_names_where_the_strikethrough_came_from`; updated
+  `an_unembedded_standard_font_strikes_at_half_its_afm_x_height`; QuarterEm sabotage failed both.
+- Gates: full `tools/run-gates.sh` on `c7fcd44a` PASS, 45 commands (2 filing gates), about
+  12,037 tests; closes the 982nd entry's pending re-run. Core-api verbs 6,385 -> 6,392,
+  `check-core-api-verbs` passed. `cargo tree` unchanged.
+- `FEATURES.md` text-decoration row annotated; boxes core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Still in flight:**
+- `pdfcer-gui` has not consumed `strike_source`.
+
+**Sourcing note (hard rule 8):** figures engineer-reported; push/backup state not checked here.
+
 ## 2026-10-06 (982nd filing) — `Pass 506.0` + `Pass 507.0` shipped (letters drawn two ways: named in the repertoire, codes kept on edit)
 
 **Shipped:**
@@ -30,7 +54,7 @@ the affected entry. Maintained by `pdfce-librarian`.
 - `FEATURES.md` rows `256.1` and `280.0` annotated; no box changed (`gui` `[ ]`).
 
 **Still in flight:**
-- `pdfcer-gui` has not consumed either; first gate sweep on `0ef53720` failed (above, fixed in `2acaac01`); re-run on the fixed tree pending.
+- `pdfcer-gui` has not consumed either; first gate sweep on `0ef53720` failed (above, fixed in `2acaac01`); re-run green on `c7fcd44a` (which descends from `2acaac01`): run-gates PASS, 45 commands.
 
 **Sourcing note (hard rule 8):** figures engineer-reported; push/backup state not checked here.
 
