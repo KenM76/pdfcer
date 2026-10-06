@@ -546,6 +546,7 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            triangle_faces: Vec::new(),
             uvs: Vec::new(),
             triangle_uvs: Vec::new(),
         }
@@ -673,6 +674,7 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            triangle_faces: Vec::new(),
             uvs: Vec::new(),
             triangle_uvs: Vec::new(),
         };
@@ -712,6 +714,7 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            triangle_faces: Vec::new(),
             uvs: Vec::new(),
             triangle_uvs: Vec::new(),
         };
@@ -829,6 +832,7 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            triangle_faces: Vec::new(),
             uvs: Vec::new(),
             triangle_uvs: Vec::new(),
         }];
@@ -926,6 +930,7 @@ mod tests {
             normals: Vec::new(),
             triangle_normals: Vec::new(),
             triangle_graphics: Vec::new(),
+            triangle_faces: Vec::new(),
             uvs: Vec::new(),
             triangle_uvs: Vec::new(),
         };

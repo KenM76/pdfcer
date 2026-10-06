@@ -183,6 +183,11 @@ fn assemble_options(a: &RenderThreeDArgs<'_>) -> pdfcer_3d::AssembleOptions {
         StyleAlphaArg::Style => pdfcer_3d::StyleAlpha::StyleWins,
         StyleAlphaArg::Multiply => pdfcer_3d::StyleAlpha::Multiply,
     };
+    options.entity_overrides = match a.entity_overrides {
+        EntityOverridesArg::Subtree => pdfcer_3d::EntityOverrides::Subtree,
+        EntityOverridesArg::Everywhere => pdfcer_3d::EntityOverrides::Everywhere,
+        EntityOverridesArg::Ignore => pdfcer_3d::EntityOverrides::Ignore,
+    };
     options.texture_origin = match a.texture_origin {
         TextureOriginArg::Bottom => pdfcer_3d::TextureOrigin::BottomLeft,
         TextureOriginArg::Top => pdfcer_3d::TextureOrigin::TopLeft,
@@ -312,6 +317,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) height: u32,
     pub(crate) transparent: bool,
     pub(crate) style_alpha: StyleAlphaArg,
+    pub(crate) entity_overrides: EntityOverridesArg,
     pub(crate) texture_origin: TextureOriginArg,
     pub(crate) texture_wrap_base: TextureWrapBaseArg,
     pub(crate) texture_pictures: TexturePicturesArg,
@@ -443,6 +449,13 @@ fn render_from_bytes(
         " (`--style-alpha style` draws them invisible, as the literal reading does)",
     );
     print_texture_notes(model.textured, &model.texture_notes);
+    if model.overridden > 0 {
+        println!(
+            "note: {} placement(s) drawn in a colour an enclosing assembly overrides them with \
+             (`--entity-overrides ignore` draws their own)",
+            model.overridden
+        );
+    }
     exit::SUCCESS
 }
 

@@ -96,6 +96,9 @@ pub struct TriangleMesh {
     /// [WD 7.8.6]; empty when no face carries any. Read through
     /// [`crate::Placement::triangle_colours`].
     pub(crate) triangle_graphics: Vec<crate::tree::Graphics>,
+    /// Per triangle, its face index as the compressed form stores it;
+    /// empty for a mesh read face by face, whose [`Self::faces`] say it.
+    pub(crate) triangle_faces: Vec<u32>,
     /// The stored texture coordinates as (u, v) pairs [WD 7.8.5.1]; empty
     /// when the mesh stores none.
     pub uvs: Vec<[f64; 2]>,
@@ -118,6 +121,8 @@ pub(crate) struct Ctx<'a, 's> {
     /// The current name: what a `same_name` entity reuses; every entity's
     /// own name replaces it [WD 7.2.3.4].
     pub(crate) name: Option<String>,
+    /// The last `ContentPRCRefBase`'s PRC unique id [WD 7.2.3.2].
+    pub(crate) uid: u32,
 }
 
 impl<'a, 's> Ctx<'a, 's> {
@@ -130,6 +135,7 @@ impl<'a, 's> Ctx<'a, 's> {
             version,
             graphics: crate::tree::Graphics::default(),
             name: None,
+            uid: 0,
         }
     }
 }
@@ -393,6 +399,11 @@ impl Ctx<'_, '_> {
                 compressed_graphics(&face_of, &multi, &line_attributes, &behaviours, faces);
             TriangleMesh {
                 normals_recalculated: recalc,
+                triangle_faces: if face_of.len() == m.triangles.len() {
+                    face_of.clone()
+                } else {
+                    Vec::new()
+                },
                 triangle_graphics: if graphics.len() == m.triangles.len() {
                     graphics
                 } else {

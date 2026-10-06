@@ -82,6 +82,21 @@ pub(crate) enum StyleAlphaArg {
     Multiply,
 }
 
+/// Which placements an assembly's entity references recolour, hide or
+/// move in `3d-render` (ISO 14739-1 says a reference overrides its target,
+/// not where).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum EntityOverridesArg {
+    /// Only where the occurrence holding the reference places the target.
+    /// Default.
+    #[default]
+    Subtree,
+    /// Every placement of the target in the model.
+    Everywhere,
+    /// None: every part keeps its own colour.
+    Ignore,
+}
+
 /// Where `3d-render` reads a texture picture's first row from (ISO
 /// 14739-1 does not say which end of the picture v = 0 is).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]

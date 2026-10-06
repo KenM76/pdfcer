@@ -3181,6 +3181,12 @@ pub(crate) enum Command {
         /// `multiply` multiplies the two.
         #[arg(long, value_enum, default_value_t)]
         style_alpha: StyleAlphaArg,
+        /// Which copies of a part an assembly's colour, visibility and
+        /// position overrides reach: `subtree` (default) only the copies
+        /// placed under the assembly that states them, `everywhere` every
+        /// copy, `ignore` none. Transparent parts usually come from these.
+        #[arg(long, value_enum, default_value_t)]
+        entity_overrides: EntityOverridesArg,
         /// Which end of a texture picture is its first row: `bottom`
         /// (default) or `top`. Try `top` if pictures draw upside down.
         #[arg(long, value_enum, default_value_t)]

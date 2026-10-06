@@ -422,17 +422,19 @@ impl PrcFile {
         &self,
         rule: crate::StyleAlpha,
     ) -> Result<Vec<crate::Placement>, PrcError> {
-        Ok(self.walk(rule, None)?.0)
+        Ok(self.walk(rule, crate::EntityOverrides::default(), None)?.0)
     }
 
     /// [`Self::placements_with`], each placement also carrying its styles'
-    /// textures, resolved by `rules`.
+    /// textures, resolved by `rules`, and its entity references applied
+    /// by `scope`.
     pub(crate) fn textured_placements(
         &self,
         rule: crate::StyleAlpha,
         rules: crate::tree::TextureRules,
+        scope: crate::EntityOverrides,
     ) -> Result<Vec<crate::Placement>, PrcError> {
-        Ok(self.walk(rule, Some(rules))?.0)
+        Ok(self.walk(rule, scope, Some(rules))?.0)
     }
 
     /// The assembly tree as a model-tree panel lists it: every product
@@ -444,12 +446,19 @@ impl PrcFile {
     /// # Errors
     /// As [`Self::placements`].
     pub fn model_tree(&self) -> Result<Vec<crate::ModelNode>, PrcError> {
-        Ok(self.walk(crate::StyleAlpha::default(), None)?.1)
+        Ok(self
+            .walk(
+                crate::StyleAlpha::default(),
+                crate::EntityOverrides::default(),
+                None,
+            )?
+            .1)
     }
 
     fn walk(
         &self,
         rule: crate::StyleAlpha,
+        scope: crate::EntityOverrides,
         textures: Option<crate::tree::TextureRules>,
     ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
         use crate::bits::BitReader;
@@ -482,8 +491,11 @@ impl PrcFile {
         let mut r = BitReader::new(&self.model_file);
         let schema = crate::Schema::read(&mut r)?;
         let model = Ctx::new(r, &schema, self.header.authoring_version).model_file()?;
-        let mut walk =
-            crate::tree::Walk::new(trees.iter().map(|(id, t, g)| (*id, t, g)).collect(), rule);
+        let mut walk = crate::tree::Walk::new(
+            trees.iter().map(|(id, t, g)| (*id, t, g)).collect(),
+            rule,
+            scope,
+        );
         if let Some(rules) = textures {
             walk.skins = trees
                 .iter()

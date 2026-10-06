@@ -2976,6 +2976,25 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   Disclose `textured` and every `texture_notes` entry; `3d-render` prints
   `note: N mesh(es) drawn with their texture picture` and `note: texture on
   N mesh(es): <why>` — copy that wording.
+- **Entity-reference overrides** (ISO 14739-1 `MISC_EntityReference` on a
+  product occurrence; `prc__8137__model_tree_asm.md` §12). An assembly
+  occurrence can recolour, hide or re-place an item (`ReferenceOnPRCBase`)
+  or individual B-rep faces (`ReferenceOnTopology`, 0-based face indices)
+  of the parts beneath it; CAD exports carry their only transparency this
+  way. Precedence: face override > item override > the item's resolved
+  style; an outer occurrence's override beats an inner one's; style 0
+  leaves colour alone. The standard does not say *which placements* an
+  override reaches, so `AssembleOptions::entity_overrides:
+  EntityOverrides::{Subtree (default), Everywhere, Ignore}` (`Copy`,
+  `Hash`, `#[non_exhaustive]`, re-exported at the crate root) — offer it
+  as a setting. `AssembledModel::overridden: usize` counts the placements
+  an override recoloured; disclose it — `3d-render` prints `note: N
+  placement(s) drawn in a colour an enclosing assembly overrides them with
+  (`--entity-overrides ignore` draws their own)`. A hidden face override
+  is not applied (the whole item is hidden only by an item override).
+  Fixture: `fixtures/synthetic/prc/overridden.prc` — three copies; the
+  first recoloured translucent blue, the second face 0 only, the third
+  hidden. CLI: `3d-render --entity-overrides subtree|everywhere|ignore`.
 - `prc.model_tree() -> Result<Vec<ModelNode>, PrcError>`: the model-tree
   panel's rows, depth first (parent before children, children in file
   order), one per product occurrence the roots reach — hidden and

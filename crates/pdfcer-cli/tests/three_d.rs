@@ -703,6 +703,62 @@ fn a_zero_material_alpha_is_drawn_opaque_by_default_and_disclosed() {
     }
 }
 
+/// The fixture's first copy is recoloured translucent blue and its third
+/// hidden by the assembly's entity references: drawn so and said so by
+/// default, and each copy in its own colour under `--entity-overrides
+/// ignore`.
+#[cfg(feature = "3d")]
+#[test]
+fn entity_overrides_recolour_and_hide_the_copies_an_assembly_names() {
+    let input = with_prc("render_overridden", "overridden.prc");
+    let output = input.with_extension("png");
+    for (extra, applied) in [
+        (&[][..], true),
+        (&["--entity-overrides", "ignore"][..], false),
+    ] {
+        let mut args = vec![
+            "3d-render",
+            input.to_str().unwrap(),
+            "--index",
+            "2",
+            "--view",
+            "top",
+            "--ortho",
+            "--width",
+            "200",
+            "--height",
+            "100",
+            "-o",
+            output.to_str().unwrap(),
+        ];
+        args.extend_from_slice(extra);
+        let out = run(&args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let note = "2 placement(s) drawn in a colour an enclosing assembly overrides";
+        assert_eq!(stdout.contains(note), applied, "{extra:?}: {stdout}");
+        let decoder = png::Decoder::new(std::fs::File::open(&output).unwrap());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+        let count = |f: &dyn Fn(&[u8]) -> bool| buf.chunks_exact(4).filter(|p| f(&p[..3])).count();
+        let blue = count(&|p| p[2] > p[0].saturating_add(50));
+        let red = count(&|p| p[0] > 100 && p[2] < 30);
+        let grey = count(&|p| p != [255; 3] && p.iter().all(|&c| c.abs_diff(p[0]) < 16));
+        assert_eq!(blue > 0, applied, "{extra:?}: {blue} blue pixels");
+        assert!(applied || red > 0, "{extra:?}: each copy in its own red");
+        assert_eq!(
+            grey > 0,
+            !applied,
+            "{extra:?}: {grey} grey pixels, the hidden copy"
+        );
+    }
+}
+
 #[test]
 fn rendering_a_u3d_model_is_refused_and_writes_nothing() {
     let input = three_d_pdf("render_u3d");

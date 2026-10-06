@@ -13,6 +13,7 @@ use crate::tess::{Ctx, malformed};
 
 mod geometry;
 mod node;
+mod overrides;
 mod style;
 mod texture;
 mod walk;
@@ -20,6 +21,8 @@ mod walk;
 use crate::vec3::cross;
 pub use geometry::{IDENTITY, Matrix, multiply, transform_point};
 pub use node::{ModelNode, NameSource};
+pub use overrides::EntityOverrides;
+pub(crate) use overrides::{Override, Reached, Target};
 pub use style::StyleAlpha;
 pub(crate) use style::{Globals, Graphics, Paint, resolve_style};
 pub use texture::{PictureFiles, WrapBase};
@@ -105,6 +108,10 @@ pub struct Placement {
     pub(crate) palettes: Palettes,
     /// The style textures of every file structure's globals.
     pub(crate) skins: Skins,
+    /// An occurrence's entity reference replacing the item's style.
+    pub(crate) item_override: Option<Graphics>,
+    /// Per face index, an entity reference replacing that face's style.
+    pub(crate) face_overrides: Vec<(u32, Graphics)>,
 }
 
 /// Per file structure, entry `b` is the colour of biased style index `b`.
@@ -136,7 +143,7 @@ impl Placement {
     /// `mesh` carries a style, so every triangle is [`Self::colour`].
     #[must_use]
     pub fn triangle_colours(&self, mesh: &crate::TriangleMesh) -> Option<Vec<Option<[f64; 4]>>> {
-        if mesh.triangle_graphics.is_empty() {
+        if mesh.triangle_graphics.is_empty() && self.face_overrides.is_empty() {
             return None;
         }
         let looks = self.triangle_looks(mesh).into_iter();
@@ -157,14 +164,33 @@ impl Placement {
                 .flatten();
             (paint_of(&self.palettes, won), skin)
         };
+        let faces = if self.face_overrides.is_empty() {
+            Vec::new()
+        } else {
+            overrides::triangle_faces(mesh)
+        };
+        let by_face = |k: usize| {
+            let f = faces.get(k)?;
+            let i = self.face_overrides.binary_search_by_key(f, |(i, _)| *i);
+            self.face_overrides.get(i.ok()?).map(|(_, g)| *g)
+        };
         if mesh.triangle_graphics.is_empty() {
-            return vec![look(resolve_style(&self.chain)); mesh.triangles.len()];
+            let whole = self
+                .item_override
+                .unwrap_or_else(|| resolve_style(&self.chain));
+            return (0..mesh.triangles.len())
+                .map(|k| look(by_face(k).unwrap_or(whole)))
+                .collect();
         }
         let mut chain = self.chain.clone();
         chain.push(Graphics::default());
         mesh.triangle_graphics
             .iter()
-            .map(|g| {
+            .enumerate()
+            .map(|(k, g)| {
+                if let Some(won) = by_face(k).or(self.item_override) {
+                    return look(won);
+                }
                 if let Some(last) = chain.last_mut() {
                     *last = Graphics {
                         fs: self.file_structure,
@@ -187,6 +213,10 @@ pub(crate) struct Item {
     pub(crate) tessellation: u32,
     /// The part's graphics, each enclosing set's, then the item's own.
     pub(crate) graphics: Vec<Graphics>,
+    /// The PRC unique id of each enclosing set, then the item's own.
+    pub(crate) uids: Vec<u32>,
+    /// A B-rep model's stored `(context, body)` ids [WD 7.6.2].
+    pub(crate) brep: Option<(u32, u32)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -204,6 +234,8 @@ pub(crate) struct Product {
     pub(crate) graphics: Graphics,
     pub(crate) location: Option<Matrix>,
     pub(crate) name: Option<String>,
+    /// Its entity references that name a target.
+    pub(crate) overrides: Vec<Override>,
 }
 
 /// One file structure's tree section.
@@ -239,12 +271,12 @@ impl Ctx<'_, '_> {
     }
 
     /// `ContentPRCRefBase` [WD 7.2.3.2; ISS #697]: base, then the CAD and
-    /// PRC ids.
+    /// PRC ids; the PRC unique id becomes [`Ctx::uid`].
     fn content_prc_ref_base(&mut self) -> Result<(), PrcError> {
         self.content_prc_base()?;
-        for _ in 0..3 {
-            self.r.unsigned_integer()?;
-        }
+        self.r.unsigned_integer()?; // CAD identifier
+        self.r.unsigned_integer()?; // CAD persistent identifier
+        self.uid = self.r.unsigned_integer()?;
         Ok(())
     }
 
@@ -363,6 +395,7 @@ impl Ctx<'_, '_> {
         &mut self,
         local: &[u32],
         graphics: &[Graphics],
+        uids: &[u32],
         out: &mut Vec<Item>,
         depth: usize,
     ) -> Result<(), PrcError> {
@@ -371,6 +404,8 @@ impl Ctx<'_, '_> {
         }
         let t = self.r.unsigned_integer()?;
         let (hidden, own) = self.base_with_graphics()?;
+        let mut ids = uids.to_vec();
+        ids.push(self.uid);
         let cs = self.r.unsigned_integer()?;
         let tess = self.r.unsigned_integer()?;
         let mut path = local.to_vec();
@@ -379,16 +414,16 @@ impl Ctx<'_, '_> {
         }
         let mut chain = graphics.to_vec();
         chain.push(own);
-        let drawable = if t == RI_SET {
+        let (drawable, brep) = if t == RI_SET {
             let n = self.count(1, "representation set")?;
             let mut members = Vec::new();
             for _ in 0..n {
-                self.representation_item(&path, &chain, &mut members, depth + 1)?;
+                self.representation_item(&path, &chain, &ids, &mut members, depth + 1)?;
             }
             if !hidden {
                 out.extend(members);
             }
-            false
+            (false, None)
         } else {
             self.leaf_item_fields(t)?
         };
@@ -399,26 +434,32 @@ impl Ctx<'_, '_> {
                 local: path,
                 tessellation: tess,
                 graphics: chain,
+                uids: ids,
+                brep,
             });
         }
         Ok(())
     }
 
     /// The type-specific fields of a representation item other than
-    /// `RI_Set` [WD 7.6]; returns whether the item can be drawn.
-    fn leaf_item_fields(&mut self, t: u32) -> Result<bool, PrcError> {
+    /// `RI_Set` [WD 7.6]; returns whether the item can be drawn and a
+    /// B-rep model's `(context, body)`.
+    fn leaf_item_fields(&mut self, t: u32) -> Result<(bool, Option<(u32, u32)>), PrcError> {
         match t {
             RI_BREP_MODEL => {
-                self.exact_tolerance()?;
+                let brep = self.exact_tolerance()?;
                 self.r.bit()?; // is_closed
+                return Ok((true, brep));
             }
-            RI_CURVE | RI_PLANE => self.exact_tolerance()?,
+            RI_CURVE | RI_PLANE => {
+                self.exact_tolerance()?;
+            }
             RI_DIRECTION => {
                 if self.r.bit()? {
                     self.vector3()?;
                 }
                 self.vector3()?;
-                return Ok(false);
+                return Ok((false, None));
             }
             RI_POINT_SET => {
                 let n = self.count(6, "point set")?;
@@ -432,7 +473,7 @@ impl Ctx<'_, '_> {
             RI_POLY_WIRE => {}
             RI_COORDINATE_SYSTEM => {
                 self.transformation()?;
-                return Ok(false);
+                return Ok((false, None));
             }
             t => {
                 return Err(malformed(format!(
@@ -440,17 +481,18 @@ impl Ctx<'_, '_> {
                 )));
             }
         }
-        Ok(true)
+        Ok((true, None))
     }
 
-    /// The optional exact-geometry tolerance pair of a B-rep, curve or plane
-    /// item.
-    fn exact_tolerance(&mut self) -> Result<(), PrcError> {
+    /// The optional exact-geometry pair of a B-rep, curve or plane item:
+    /// its topological context and body ids [WD 7.6.2].
+    fn exact_tolerance(&mut self) -> Result<Option<(u32, u32)>, PrcError> {
         if self.r.bit()? {
-            self.r.unsigned_integer()?;
-            self.r.unsigned_integer()?;
+            let context = self.r.unsigned_integer()?;
+            let body = self.r.unsigned_integer()?;
+            return Ok(Some((context, body)));
         }
-        Ok(())
+        Ok(None)
     }
 
     /// `SceneDisplayParameters` (741) [WD 7.5.19; PRCRS]: read past. Lights
@@ -515,40 +557,56 @@ impl Ctx<'_, '_> {
         Ok(())
     }
 
-    /// `MISC_EntityReference` (203) [WD 7.4.4, 7.4.10; PRCRS].
-    fn entity_reference(&mut self) -> Result<(), PrcError> {
+    /// `MISC_EntityReference` (203) [WD 7.4.4, 7.4.10; PRCRS]; `None`
+    /// when it names no target.
+    fn entity_reference(&mut self) -> Result<Option<Override>, PrcError> {
         self.expect_type(ENTITY_REFERENCE)?;
-        self.base_with_graphics()?;
-        self.r.unsigned_integer()?; // local coordinate system
+        let (hidden, graphics) = self.base_with_graphics()?;
+        let local = self.r.unsigned_integer()?;
+        let mut target = None;
         if self.r.bit()? {
             match self.r.unsigned_integer()? {
                 REFERENCE_ON_PRC_BASE => {
-                    self.r.unsigned_integer()?;
-                    if !self.r.bit()? {
-                        self.unique_id()?;
-                    }
-                    self.r.unsigned_integer()?;
+                    let kind = self.r.unsigned_integer()?;
+                    let fs = self.file_identifier()?;
+                    let uid = self.r.unsigned_integer()?;
+                    target = Some(Target::Entity { kind, fs, uid });
                 }
-                REFERENCE_ON_TOPOLOGY => {
-                    self.r.unsigned_integer()?;
-                    if self.r.bit()? {
-                        if !self.r.bit()? {
-                            self.unique_id()?;
-                        }
-                        self.r.unsigned_integer()?;
-                        self.r.unsigned_integer()?;
-                        let n = self.count(1, "topology reference indices")?;
-                        for _ in 0..n {
-                            self.r.unsigned_integer()?;
-                        }
-                    }
-                }
+                REFERENCE_ON_TOPOLOGY => target = self.reference_on_topology()?,
                 t => return Err(malformed(format!("entity type {t} as reference data"))),
             }
         }
         self.schema
             .skip_added_fields(ENTITY_REFERENCE, &mut self.r)?;
-        self.user_data()
+        self.user_data()?;
+        Ok(target.map(|target| Override {
+            graphics,
+            hidden,
+            local,
+            target,
+        }))
+    }
+
+    /// `ReferenceOnTopology` (206) after its type code; `None` without a
+    /// body.
+    fn reference_on_topology(&mut self) -> Result<Option<Target>, PrcError> {
+        let kind = self.r.unsigned_integer()?;
+        if !self.r.bit()? {
+            return Ok(None);
+        }
+        let fs = self.file_identifier()?;
+        let brep = (self.r.unsigned_integer()?, self.r.unsigned_integer()?);
+        let n = self.count(1, "topology reference indices")?;
+        let mut indices = Vec::with_capacity(n.min(1024));
+        for _ in 0..n {
+            indices.push(self.r.unsigned_integer()?);
+        }
+        Ok(Some(Target::Topology {
+            kind,
+            fs,
+            brep,
+            indices,
+        }))
     }
 
     /// `ASM_Filter` (320) [WD 7.3.12; PRCRS]: read past.
@@ -580,7 +638,7 @@ impl Ctx<'_, '_> {
         let n = self.count(1, "representation items")?;
         let mut items = Vec::new();
         for _ in 0..n {
-            self.representation_item(&[], &[own], &mut items, 0)?;
+            self.representation_item(&[], &[own], &[], &mut items, 0)?;
         }
         self.markup_data()?;
         self.views()?;
@@ -635,7 +693,7 @@ impl Ctx<'_, '_> {
         }
         let n = self.count(1, "entity references")?;
         for _ in 0..n {
-            self.entity_reference()?;
+            p.overrides.extend(self.entity_reference()?);
         }
         self.markup_data()?;
         self.views()?;
@@ -771,16 +829,28 @@ mod tests {
         w.uint(0).uint(0).uint(0).uint(0).uint(0);
     }
 
-    /// A part with one poly-BRep item on tessellation 1, local CS `cs`.
-    fn part(w: &mut W, cs: u32, extra: bool, name: Option<Option<&str>>) {
+    /// A part with one item on tessellation 1, local CS `cs`: a poly-BRep,
+    /// or with `brep` a B-rep model of that `(context, body)`. Items have
+    /// PRC unique id 7.
+    fn part(w: &mut W, cs: u32, extra: bool, name: Option<Option<&str>>, brep: Option<(u32, u32)>) {
         w.uint(PART_DEFINITION);
         graphics_named(w, name, None, extra);
         for c in [1.0, 0.0, 0.0, -1.0, 0.0, 0.0] {
             w.double(c);
         }
-        w.uint(1).uint(RI_POLY_BREP_MODEL);
-        graphics(w, None, extra);
-        w.uint(cs).uint(1).bit(false).uint(0);
+        match brep {
+            None => {
+                w.uint(1).uint(RI_POLY_BREP_MODEL);
+                graphics(w, None, extra);
+                w.uint(cs).uint(1).bit(false).uint(0);
+            }
+            Some((context, body)) => {
+                w.uint(1).uint(RI_BREP_MODEL);
+                graphics(w, None, extra);
+                w.uint(cs).uint(1).bit(true).uint(context).uint(body);
+                w.bit(false).uint(0);
+            }
+        }
         no_markups_or_views(w);
         w.uint(0);
     }
@@ -798,6 +868,47 @@ mod tests {
         prototype: Option<(u32, Option<UniqueId>)>,
         /// As [`named`].
         name: Option<Option<&'a str>>,
+        refs: &'a [Er<'a>],
+    }
+
+    /// A `MISC_EntityReference` with graphics `(style + 1, behaviour)`.
+    #[derive(Clone, Copy)]
+    enum Er<'a> {
+        /// `ReferenceOnPRCBase` to item `uid`; `fs` `None` for this one.
+        Item {
+            g: (u32, u16),
+            fs: Option<UniqueId>,
+            uid: u32,
+        },
+        /// `ReferenceOnTopology` to faces of B-rep `(1, 1)`, same structure.
+        Faces { g: (u32, u16), faces: &'a [u32] },
+    }
+
+    fn entity_reference(w: &mut W, er: &Er<'_>) {
+        w.uint(ENTITY_REFERENCE);
+        let g = match er {
+            Er::Item { g, .. } | Er::Faces { g, .. } => *g,
+        };
+        graphics(w, Some(g), false);
+        w.uint(0).bit(true);
+        match er {
+            Er::Item { fs, uid, .. } => {
+                w.uint(REFERENCE_ON_PRC_BASE).uint(RI_BREP_MODEL);
+                match fs {
+                    None => w.bit(true),
+                    Some(fs) => fs.0.iter().fold(w.bit(false), |w, &c| w.uint(c)),
+                };
+                w.uint(*uid);
+            }
+            Er::Faces { faces, .. } => {
+                w.uint(REFERENCE_ON_TOPOLOGY).uint(149).bit(true).bit(true);
+                w.uint(1).uint(1).uint(faces.len() as u32);
+                for &f in *faces {
+                    w.uint(f);
+                }
+            }
+        }
+        w.uint(0);
     }
 
     const OCC: Occ<'static> = Occ {
@@ -810,6 +921,7 @@ mod tests {
         camera: false,
         prototype: None,
         name: None,
+        refs: &[],
     };
 
     fn occurrence(w: &mut W, o: &Occ<'_>, extra: bool) {
@@ -834,7 +946,10 @@ mod tests {
         if let Some(t) = o.location {
             translation(w, t, o.mirror);
         }
-        w.uint(0);
+        w.uint(o.refs.len() as u32);
+        for er in o.refs {
+            entity_reference(w, er);
+        }
         no_markups_or_views(w);
         w.bit(false).uint(0);
         if o.camera {
@@ -855,15 +970,21 @@ mod tests {
     }
 
     fn tree(occs: &[Occ<'_>], cs: u32, extra: bool) -> W {
-        tree_with(occs, cs, extra, None)
+        tree_with(occs, cs, extra, None, None)
     }
 
-    fn tree_with(occs: &[Occ<'_>], cs: u32, extra: bool, part_name: Option<Option<&str>>) -> W {
+    fn tree_with(
+        occs: &[Occ<'_>],
+        cs: u32,
+        extra: bool,
+        part_name: Option<Option<&str>>,
+        brep: Option<(u32, u32)>,
+    ) -> W {
         let mut w = W::default();
         w.uint(FILE_STRUCTURE_TREE);
         base(&mut w);
         w.uint(1);
-        part(&mut w, cs, extra, part_name);
+        part(&mut w, cs, extra, part_name, brep);
         w.uint(occs.len() as u32);
         for o in occs {
             occurrence(&mut w, o, extra);
@@ -921,7 +1042,11 @@ mod tests {
     fn place(occs: &[Occ<'_>], cs: u32, globals: &Globals) -> Result<Vec<Placement>, PrcError> {
         let bytes = tree(occs, cs, false).bytes();
         let t = ctx(&bytes, &Schema::default()).file_structure_tree()?;
-        let mut walk = Walk::new(vec![(FS, &t, globals)], StyleAlpha::default());
+        let mut walk = Walk::new(
+            vec![(FS, &t, globals)],
+            StyleAlpha::default(),
+            EntityOverrides::default(),
+        );
         walk.occurrence(0, 0, &IDENTITY, &[], At::ROOT)?;
         Ok(walk.out)
     }
@@ -1035,12 +1160,16 @@ mod tests {
     }
 
     fn listed(occs: &[Occ<'_>], part_name: Option<Option<&str>>) -> (usize, Vec<ModelNode>) {
-        let bytes = tree_with(occs, 0, false, part_name).bytes();
+        let bytes = tree_with(occs, 0, false, part_name, None).bytes();
         let t = ctx(&bytes, &Schema::default())
             .file_structure_tree()
             .unwrap();
         let globals = Globals::default();
-        let mut walk = Walk::new(vec![(FS, &t, &globals)], StyleAlpha::default());
+        let mut walk = Walk::new(
+            vec![(FS, &t, &globals)],
+            StyleAlpha::default(),
+            EntityOverrides::default(),
+        );
         walk.occurrence(0, 0, &IDENTITY, &[], At::ROOT).unwrap();
         (walk.out.len(), walk.nodes)
     }
@@ -1310,6 +1439,8 @@ mod tests {
                 },
             ))]),
             skins: std::sync::Arc::from(Vec::new()),
+            item_override: None,
+            face_overrides: Vec::new(),
         };
         let mut mesh = crate::TriangleMesh::default();
         let item = placement(vec![g(1, 0)]);
@@ -1571,6 +1702,115 @@ mod tests {
             [Some([255, 0, 0, 255]), Some([0, 0, 255, 128]), None]
         );
         crate::testw::check_fixture("coloured.prc", &bytes);
+    }
+
+    /// The unit square as B-rep `(1, 1)` in structure A, placed at x 0, 2
+    /// and 4 by prototype from structure B with style 1 (red), 1 and none.
+    /// The first occurrence recolours the item with style 2 (translucent
+    /// blue), the second only face 0, and the third hides it: the layout a
+    /// CAD export uses for its only transparency. The CLI's override
+    /// fixture.
+    fn overridden_prc() -> Vec<u8> {
+        let square = crate::PrcFile::parse(include_bytes!(
+            "../../../../fixtures/synthetic/prc/square.prc"
+        ))
+        .unwrap();
+        let tess = square.file_structures[0].section(crate::SectionKind::Tessellation);
+        let a = UniqueId([5, 6, 7, 8]);
+        let shown = |style, x, refs| Occ {
+            behaviour: Some((style, SHOW)),
+            prototype: Some((1, Some(a))),
+            location: Some([x, 0.0, 0.0]),
+            refs,
+            ..OCC
+        };
+        let blue = [Er::Item {
+            g: (2, SHOW),
+            fs: Some(a),
+            uid: 7,
+        }];
+        let face = [Er::Faces {
+            g: (2, SHOW),
+            faces: &[0],
+        }];
+        let hide = [Er::Item {
+            g: (0, 0),
+            fs: Some(a),
+            uid: 7,
+        }];
+        let b_occs = [
+            Occ {
+                sons: &[1, 2, 3],
+                ..OCC
+            },
+            shown(1, 0.0, &blue),
+            shown(1, 2.0, &face),
+            shown(0, 4.0, &hide),
+        ];
+        let mut model = W::default();
+        model.uint(0).uint(MODEL_FILE);
+        base(&mut model);
+        model.bit(false).double(1.0).uint(2);
+        for (last, root) in [(8, 0), (9, 1)] {
+            for c in [5, 6, 7, last] {
+                model.uint(c);
+            }
+            model.uint(root).bit(true);
+        }
+        let a_occs = [Occ { part: 1, ..OCC }];
+        crate::testw::prc_container_n(
+            &[
+                [
+                    &coloured_globals(true).bytes(),
+                    &tree_with(&a_occs, 0, false, None, Some((1, 1))).bytes(),
+                    tess,
+                ],
+                [
+                    &coloured_globals(false).bytes(),
+                    &tree(&b_occs, 0, false).bytes(),
+                    &[],
+                ],
+            ],
+            &model.bytes(),
+        )
+    }
+
+    #[test]
+    fn an_occurrence_overrides_the_entities_its_subtree_places() {
+        let bytes = overridden_prc();
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let red = Some([1.0, 0.0, 0.0, 1.0]);
+        let blue = Some([0.0, 0.0, 1.0, 128.0 / 255.0]);
+        let walk = |scope| {
+            f.textured_placements(StyleAlpha::default(), TextureRules::default(), scope)
+                .unwrap()
+        };
+        let p = walk(EntityOverrides::Subtree);
+        let xs: Vec<_> = p.iter().map(|p| p.matrix[0][3]).collect();
+        assert_eq!(xs, [0.0, 2.0], "the third occurrence hides its square");
+        let colours: Vec<_> = p.iter().map(|p| p.colour).collect();
+        assert_eq!(colours, [blue, red]);
+        assert_eq!(p[0].face_overrides, []);
+        let faces: Vec<_> = p[1]
+            .face_overrides
+            .iter()
+            .map(|(f, g)| (*f, g.style))
+            .collect();
+        assert_eq!(faces, [(0, 2)]);
+
+        let p = walk(EntityOverrides::Everywhere);
+        let colours: Vec<_> = p.iter().map(|p| p.colour).collect();
+        assert_eq!(colours, [blue, blue, blue], "the first occurrence's wins");
+        assert!(p.iter().all(|p| p.face_overrides.len() == 1));
+
+        let p = walk(EntityOverrides::Ignore);
+        let colours: Vec<_> = p.iter().map(|p| p.colour).collect();
+        assert_eq!(colours, [red, red, None]);
+        assert!(
+            p.iter()
+                .all(|p| p.face_overrides.is_empty() && p.item_override.is_none())
+        );
+        crate::testw::check_fixture("overridden.prc", &bytes);
     }
 
     /// Globals with grey, a 2x2 raw-RGB picture in header file 1, a texture

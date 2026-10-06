@@ -67,6 +67,6 @@ pub use schema::Schema;
 pub use tess::{Tessellation, TriangleMesh};
 pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use tree::{
-    IDENTITY, Matrix, ModelNode, NameSource, PictureFiles, Placement, StyleAlpha, WrapBase,
-    multiply, transform_point,
+    EntityOverrides, IDENTITY, Matrix, ModelNode, NameSource, PictureFiles, Placement, StyleAlpha,
+    WrapBase, multiply, transform_point,
 };

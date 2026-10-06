@@ -2,8 +2,8 @@
 //! export, rendering and the default 3D poster all draw.
 
 use crate::{
-    PictureFiles, PrcError, PrcFile, StyleAlpha, Tessellation, TextureOrigin, TriangleMesh,
-    WrapBase,
+    EntityOverrides, PictureFiles, PrcError, PrcFile, StyleAlpha, Tessellation, TextureOrigin,
+    TriangleMesh, WrapBase,
 };
 
 /// A PRC model's triangle meshes, placed where its assembly tree draws them,
@@ -42,6 +42,9 @@ pub struct AssembledModel {
     pub mesh_textures: Vec<Option<usize>>,
     /// Meshes drawn textured.
     pub textured: usize,
+    /// Placements an assembly's entity references recoloured, in whole or
+    /// face by face, under [`AssembleOptions::entity_overrides`].
+    pub overridden: usize,
     /// Each distinct reason a textured surface drew its base colour (or a
     /// texture was drawn only in part), with the placements it affected.
     pub texture_notes: Vec<(String, usize)>,
@@ -59,6 +62,9 @@ pub struct AssembleOptions {
     pub picture_files: PictureFiles,
     /// Which picture row texture coordinate v = 0 names.
     pub texture_origin: TextureOrigin,
+    /// Which placements an occurrence's colour, visibility and
+    /// coordinate-system overrides reach.
+    pub entity_overrides: EntityOverrides,
 }
 
 /// Why [`assemble`] found nothing to draw.
@@ -223,25 +229,28 @@ fn place(
         wrap: options.wrap_base,
         origin: options.texture_origin,
     };
-    model.unplaced = match prc.textured_placements(options.style_alpha, rules) {
-        Ok(placements) if !placements.is_empty() => {
-            let mut textures = Textures::default();
-            for p in &placements {
-                let mesh = by_index
-                    .get(p.file_structure)
-                    .and_then(|row| row.get(p.tessellation))
-                    .and_then(Option::as_ref);
-                if let Some(mesh) = mesh {
-                    place_one(p, mesh, &mut textures, model);
+    model.unplaced =
+        match prc.textured_placements(options.style_alpha, rules, options.entity_overrides) {
+            Ok(placements) if !placements.is_empty() => {
+                let mut textures = Textures::default();
+                for p in &placements {
+                    let mesh = by_index
+                        .get(p.file_structure)
+                        .and_then(|row| row.get(p.tessellation))
+                        .and_then(Option::as_ref);
+                    if let Some(mesh) = mesh {
+                        model.overridden +=
+                            usize::from(p.item_override.is_some() || !p.face_overrides.is_empty());
+                        place_one(p, mesh, &mut textures, model);
+                    }
                 }
+                model.textures = textures.drawn;
+                model.texture_notes = textures.notes;
+                None
             }
-            model.textures = textures.drawn;
-            model.texture_notes = textures.notes;
-            None
-        }
-        Ok(_) => Some("the model's tree places no tessellation".to_owned()),
-        Err(err) => Some(err.to_string()),
-    };
+            Ok(_) => Some("the model's tree places no tessellation".to_owned()),
+            Err(err) => Some(err.to_string()),
+        };
     if model.unplaced.is_some() {
         model
             .meshes
@@ -374,6 +383,7 @@ fn split_by_look(mesh: &TriangleMesh, per: &[Look]) -> Vec<(TriangleMesh, Look)>
             }
             part.triangle_uvs = mesh.triangle_uvs.iter().map(|s| pick(s, &keep)).collect();
             part.triangle_graphics = Vec::new();
+            part.triangle_faces = Vec::new();
             part.faces = std::iter::once(0..part.triangles.len()).collect();
             (part, look)
         })

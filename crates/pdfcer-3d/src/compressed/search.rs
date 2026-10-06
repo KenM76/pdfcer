@@ -109,7 +109,7 @@ pub(super) fn unique_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
     let n = a.normals.as_ref()?;
     for (turns, depth) in STAGES {
         match search(a, n, turns, depth) {
-            Search::Unique(m) => return Some(m),
+            Search::Unique(m) => return Some(*m),
             Search::Refused => return None,
             Search::NoFit => {}
         }
@@ -136,7 +136,7 @@ pub(super) fn fits_within(a: &Arrays<'_>, depth: usize) -> bool {
 
 /// What one search came to.
 enum Search {
-    Unique(TriangleMesh),
+    Unique(Box<TriangleMesh>),
     /// Two geometries fit, or the budget ran out after a fit.
     Refused,
     NoFit,
@@ -152,7 +152,7 @@ fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool, depth: usize) -> Se
     let mut found: Option<TriangleMesh> = None;
     while walker.spent < STEP_BUDGET {
         let Some(flips) = stack.pop() else {
-            return found.map_or(Search::NoFit, Search::Unique);
+            return found.map_or(Search::NoFit, |m| Search::Unique(Box::new(m)));
         };
         match walker.attempt(a, n, &flips) {
             Outcome::Fit(m) => match &found {

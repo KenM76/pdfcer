@@ -26,7 +26,14 @@ struct Resolved<'t> {
     part: (usize, u32),
     sons: (usize, &'t [u32]),
     proto_name: Option<&'t str>,
+    /// The entity references in force: the occurrence's own, else its
+    /// prototype chain's first.
+    overrides: (usize, &'t [Override]),
 }
+
+/// An entity reference in force: the structure of the occurrence that
+/// holds it, the structure it names (`None`: any), and the reference.
+type Active<'t> = (usize, Option<usize>, &'t Override);
 
 /// The occurrence walk over every file structure's tree [WD 7.3.10.1,
 /// 7.6.3.2; `prc__8137__model_tree_asm.md` §9].
@@ -40,11 +47,20 @@ pub(crate) struct Walk<'t> {
     /// Per file structure, each biased style's texture; empty when
     /// textures are not resolved.
     pub(crate) skins: Skins,
+    scope: EntityOverrides,
+    /// The entity references of the occurrences being walked, outermost
+    /// first; under [`EntityOverrides::Everywhere`], every occurrence's.
+    active: Vec<Active<'t>>,
 }
 
 impl<'t> Walk<'t> {
-    /// A walk over `trees`, with no placements yet, colouring by `rule`.
-    pub(crate) fn new(trees: Vec<(UniqueId, &'t Tree, &'t Globals)>, rule: StyleAlpha) -> Self {
+    /// A walk over `trees`, with no placements yet, colouring by `rule`
+    /// and applying entity references by `scope`.
+    pub(crate) fn new(
+        trees: Vec<(UniqueId, &'t Tree, &'t Globals)>,
+        rule: StyleAlpha,
+        scope: EntityOverrides,
+    ) -> Self {
         let palettes = trees
             .iter()
             .map(|(_, _, g)| {
@@ -53,13 +69,40 @@ impl<'t> Walk<'t> {
                     .collect()
             })
             .collect();
-        Walk {
+        let mut walk = Walk {
             trees,
             out: Vec::new(),
             nodes: Vec::new(),
             visits: 0,
             palettes,
             skins: std::sync::Arc::from(Vec::new()),
+            scope,
+            active: Vec::new(),
+        };
+        if scope == EntityOverrides::Everywhere {
+            let trees = walk.trees.clone();
+            for (fs, t) in trees.iter().enumerate() {
+                for p in &t.1.products {
+                    walk.activate(fs, &p.overrides);
+                }
+            }
+        }
+        walk
+    }
+
+    /// Puts `overrides`, held by an occurrence of structure `owner`, in
+    /// force. One naming an unknown structure is left out.
+    fn activate(&mut self, owner: usize, overrides: &'t [Override]) {
+        for ov in overrides {
+            let named = match (ov.target.fs(), &ov.target) {
+                (Some(id), _) => match self.fs(id) {
+                    Ok(n) => Some(n),
+                    Err(_) => continue,
+                },
+                (None, Target::Entity { .. }) => Some(owner),
+                (None, Target::Topology { .. }) => None,
+            };
+            self.active.push((owner, named, ov));
         }
     }
 
@@ -103,6 +146,10 @@ impl<'t> Walk<'t> {
         chain.push(Graphics { fs, ..p.graphics });
         let r = self.resolve(fs, p)?;
         let drawn = at.drawn && !p.hidden && !p.suppressed;
+        let in_force = self.active.len();
+        if self.scope == EntityOverrides::Subtree {
+            self.activate(r.overrides.0, r.overrides.1);
+        }
         let node = self.nodes.len();
         let (name, name_from) = self.name_of(p, &r);
         let first = self.out.len();
@@ -137,6 +184,7 @@ impl<'t> Walk<'t> {
             };
             self.occurrence(efs, p.external as usize - 1, &m, &chain, child)?;
         }
+        self.active.truncate(in_force);
         let end = self.out.len();
         if let Some(n) = self.nodes.get_mut(node) {
             n.placements = first..end;
@@ -150,9 +198,12 @@ impl<'t> Walk<'t> {
     fn resolve(&self, fs: usize, p: &'t Product) -> Result<Resolved<'t>, PrcError> {
         let (mut part, mut sons) = ((fs, p.part), (fs, p.sons.as_slice()));
         let mut proto_name = None;
+        let mut overrides = (fs, p.overrides.as_slice());
         let mut proto = (fs, p.prototype, p.prototype_fs);
         let mut hops = 0;
-        while proto.1 != 0 && (part.1 == 0 || sons.1.is_empty() || proto_name.is_none()) {
+        while proto.1 != 0
+            && (part.1 == 0 || sons.1.is_empty() || proto_name.is_none() || overrides.1.is_empty())
+        {
             hops += 1;
             if hops > MAX_DEPTH {
                 return Err(malformed("prototype chain too long".into()));
@@ -171,12 +222,16 @@ impl<'t> Walk<'t> {
             if proto_name.is_none() {
                 proto_name = q.name.as_deref();
             }
+            if overrides.1.is_empty() {
+                overrides = (pfs, q.overrides.as_slice());
+            }
             proto = (pfs, q.prototype, q.prototype_fs);
         }
         Ok(Resolved {
             part,
             sons,
             proto_name,
+            overrides,
         })
     }
 
@@ -207,7 +262,7 @@ impl<'t> Walk<'t> {
         m: &Matrix,
         graphics: &[Graphics],
     ) -> Result<(), PrcError> {
-        let (_, tree, globals) = self
+        let (_, tree, _) = self
             .trees
             .get(fs)
             .copied()
@@ -217,26 +272,50 @@ impl<'t> Walk<'t> {
             .get(index)
             .ok_or_else(|| malformed(format!("part definition {index} does not exist")))?;
         for item in items {
-            let mut placed = *m;
-            for &cs in &item.local {
-                let l = globals
-                    .systems
-                    .get(cs as usize - 1)
-                    .ok_or_else(|| malformed(format!("coordinate system {cs} does not exist")))?;
-                placed = multiply(&placed, l);
+            let reached = Reached::collect(&self.active, fs, item);
+            if reached.hidden {
+                continue;
             }
+            let placed = match reached.local {
+                Some((owner, cs)) => self.located(m, owner, &[cs])?,
+                None => self.located(m, fs, &item.local)?,
+            };
             let own = item.graphics.iter().map(|&g| Graphics { fs, ..g });
             let chain: Vec<Graphics> = graphics.iter().copied().chain(own).collect();
+            let colour = match reached.item {
+                Some(g) => paint_of(&self.palettes, g).map(|p| p.rgba),
+                None => chain_colour(&self.palettes, &chain),
+            };
             self.out.push(Placement {
                 file_structure: fs,
                 tessellation: item.tessellation as usize - 1,
                 matrix: placed,
-                colour: chain_colour(&self.palettes, &chain),
+                colour,
                 palettes: self.palettes.clone(),
                 skins: self.skins.clone(),
                 chain,
+                item_override: reached.item,
+                face_overrides: reached.faces,
             });
         }
         Ok(())
+    }
+
+    /// `m` × each of structure `fs`'s coordinate systems `local` (biased).
+    fn located(&self, m: &Matrix, fs: usize, local: &[u32]) -> Result<Matrix, PrcError> {
+        let globals = self
+            .trees
+            .get(fs)
+            .ok_or_else(|| malformed("file structure out of range".into()))?
+            .2;
+        let mut placed = *m;
+        for &cs in local {
+            let l = (cs as usize)
+                .checked_sub(1)
+                .and_then(|i| globals.systems.get(i))
+                .ok_or_else(|| malformed(format!("coordinate system {cs} does not exist")))?;
+            placed = multiply(&placed, l);
+        }
+        Ok(placed)
     }
 }
