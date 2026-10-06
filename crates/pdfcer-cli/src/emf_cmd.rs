@@ -58,7 +58,10 @@ pub(crate) fn cmd_add_emf(args: &AddEmfArgs<'_>) -> u8 {
             Err(code) => return code,
         }
     } else {
-        session.add_emf(page_index, rect, &emf)
+        match args.markup.layer(args.input, &session) {
+            Ok(layer) => session.add_emf_on_layer(page_index, rect, &emf, layer),
+            Err(code) => return code,
+        }
     };
     let placed = match result {
         Ok(placed) => placed,

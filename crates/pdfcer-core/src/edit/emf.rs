@@ -160,6 +160,28 @@ impl EditSession {
         ))
     }
 
+    /// [`Self::add_emf`], placing the drawing on `layer` (`Pass 509.0`).
+    ///
+    /// The drawing's content stream is wrapped in one `/OC /name BDC … EMC`
+    /// section (ISO 32000-1 §8.11.3.2), binding `name` in the page's
+    /// `/Properties` when the page has no name for the group yet. `layer:
+    /// None` is exactly [`Self::add_emf`]. With a layer, the add is ONE undo
+    /// entry, labelled as the add.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::add_emf`], and [`EditError::LayerNotFound`] before
+    /// any write when `layer` is not registered in `/OCProperties /OCGs`.
+    pub fn add_emf_on_layer(
+        &mut self,
+        page_index: usize,
+        rect: Rect,
+        emf: &ImportedEmf,
+        layer: Option<ObjId>,
+    ) -> Result<PlacedEmf, EditError> {
+        self.on_layer_if(page_index, layer, |s| s.add_emf(page_index, rect, emf))
+    }
+
     /// Place `emf` as a `/Stamp` annotation (§12.5.6.12) whose `/AP /N` is
     /// the picture's Form XObject, stretched to `rect` by the §12.5.5
     /// appearance algorithm. One undo entry ([`CommandKind::AddAnnotation`]).

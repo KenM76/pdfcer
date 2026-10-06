@@ -194,3 +194,55 @@ fn a_svg_stamp_takes_the_markup_flags() {
     assert_eq!(code, 2, "{stderr}");
     assert!(!refused.exists(), "nothing is written");
 }
+
+fn layered_fixture() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/layers/basic-layers.pdf")
+}
+
+/// Without `--stamp`, `--layer` puts the page content inside one
+/// `/OC … BDC … EMC` section; an unknown layer is refused before writing.
+#[test]
+fn page_content_svg_goes_on_the_named_layer() {
+    let file = svg_file("layered.svg", SVG);
+    let out = temp_out("layered.pdf");
+    let input = layered_fixture();
+    let base = [
+        "add-svg",
+        s(&input),
+        "--svg",
+        s(&file),
+        "--page",
+        "1",
+        "--rect",
+        "72,72,272,172",
+    ];
+    let mut args = base.to_vec();
+    args.extend(["--layer", "Dimensions", "--verify-undo", "-o", s(&out)]);
+    let (code, stdout, stderr) = run(&args);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    assert!(stdout.contains("undo_identical=1"), "{stdout}");
+    let content = stdout
+        .split_whitespace()
+        .find_map(|w| w.strip_prefix("content="))
+        .expect("content= reported");
+    let (code, dump, stderr) = run(&[
+        "dump-object",
+        s(&out),
+        "--id",
+        content,
+        "--streams",
+        "decoded",
+    ]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        dump.contains("/OC /OC1 BDC"),
+        "the drawing is on the layer:\n{dump}"
+    );
+
+    let refused = temp_out("no-such-layer.pdf");
+    let mut args = base.to_vec();
+    args.extend(["--layer", "No Such Layer", "-o", s(&refused)]);
+    let (code, _, stderr) = run(&args);
+    assert_eq!(code, 9, "{stderr}");
+    assert!(!refused.exists(), "nothing is written");
+}

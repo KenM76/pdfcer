@@ -11987,13 +11987,13 @@ pub(crate) enum Command {
         /// The note's author (`/T`). Needs `--note`.
         #[arg(long, requires = "note")]
         author: Option<String>,
-        /// Put the stamp on this layer, named as `list-layers` prints it.
-        /// Needs `--stamp`.
-        #[arg(long, requires = "stamp", conflicts_with = "layer_id")]
+        /// Put the placed content (or the stamp, with `--stamp`) on this
+        /// layer, named as `list-layers` prints it.
+        #[arg(long, conflicts_with = "layer_id")]
         layer: Option<String>,
-        /// Put the stamp on the layer with this object number. Needs
-        /// `--stamp`.
-        #[arg(long, requires = "stamp")]
+        /// Put the placed content (or the stamp, with `--stamp`) on the
+        /// layer with this object number.
+        #[arg(long)]
         layer_id: Option<u32>,
         /// Output path.
         #[arg(short, long)]
@@ -12066,13 +12066,13 @@ pub(crate) enum Command {
         /// The note's author (`/T`). Needs `--note`.
         #[arg(long, requires = "note")]
         author: Option<String>,
-        /// Put the stamp on this layer, named as `list-layers` prints it.
-        /// Needs `--stamp`.
-        #[arg(long, requires = "stamp", conflicts_with = "layer_id")]
+        /// Put the placed content (or the stamp, with `--stamp`) on this
+        /// layer, named as `list-layers` prints it.
+        #[arg(long, conflicts_with = "layer_id")]
         layer: Option<String>,
-        /// Put the stamp on the layer with this object number. Needs
-        /// `--stamp`.
-        #[arg(long, requires = "stamp")]
+        /// Put the placed content (or the stamp, with `--stamp`) on the
+        /// layer with this object number.
+        #[arg(long)]
         layer_id: Option<u32>,
         /// Output path.
         #[arg(short, long)]

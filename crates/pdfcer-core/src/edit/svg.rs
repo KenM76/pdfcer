@@ -152,6 +152,28 @@ impl EditSession {
         ))
     }
 
+    /// [`Self::add_svg`], placing the drawing on `layer` (`Pass 509.0`).
+    ///
+    /// The drawing's content stream is wrapped in one `/OC /name BDC … EMC`
+    /// section (ISO 32000-1 §8.11.3.2), binding `name` in the page's
+    /// `/Properties` when the page has no name for the group yet. `layer:
+    /// None` is exactly [`Self::add_svg`]. With a layer, the add is ONE undo
+    /// entry, labelled as the add.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::add_svg`], and [`EditError::LayerNotFound`] before
+    /// any write when `layer` is not registered in `/OCProperties /OCGs`.
+    pub fn add_svg_on_layer(
+        &mut self,
+        page_index: usize,
+        rect: Rect,
+        svg: &ImportedSvg,
+        layer: Option<ObjId>,
+    ) -> Result<PlacedSvg, EditError> {
+        self.on_layer_if(page_index, layer, |s| s.add_svg(page_index, rect, svg))
+    }
+
     /// Place `svg` as a `/Stamp` annotation (§12.5.6.12) whose `/AP /N` is
     /// the drawing's Form XObject, stretched to `rect` by the §12.5.5
     /// appearance algorithm. No `/Name`: the face matches no standard stamp.

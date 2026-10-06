@@ -103,6 +103,16 @@ pub(crate) struct StampMarkup<'a> {
 }
 
 impl StampMarkup<'_> {
+    /// The layer `--layer` / `--layer-id` names, or the exit code after the
+    /// lookup's reason.
+    pub(crate) fn layer(
+        &self,
+        input: &Path,
+        session: &pdfcer_core::edit::EditSession,
+    ) -> Result<Option<pdfcer_core::object::ObjId>, u8> {
+        resolve_add_layer(input, session, self.layer.as_ref())
+    }
+
     /// The [`pdfcer_core::edit::MarkupOptions`] these flags ask for, or the
     /// exit code after the layer lookup's reason.
     pub(crate) fn options(

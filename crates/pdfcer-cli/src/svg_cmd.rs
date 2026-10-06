@@ -81,7 +81,10 @@ fn place_svg(
             Err(code) => return code,
         }
     } else {
-        session.add_svg(page_index, rect, &svg)
+        match args.markup.layer(args.input, &session) {
+            Ok(layer) => session.add_svg_on_layer(page_index, rect, &svg, layer),
+            Err(code) => return code,
+        }
     };
     let placed = match result {
         Ok(placed) => placed,

@@ -50,6 +50,7 @@ mod dimension_label_override;
 mod dimension_preview;
 mod dimension_rotate;
 mod dimension_roundtrip;
+mod drawing_on_layer;
 mod dxf_export;
 mod dxf_scale;
 mod edit_block_text;

@@ -22,7 +22,7 @@ use pdfcer_core::writer::SaveOptions;
 
 /// An EMF under construction: records after the header.
 #[derive(Default)]
-struct Emf {
+pub(crate) struct Emf {
     body: Vec<u8>,
     count: u32,
 }
@@ -41,7 +41,7 @@ impl Emf {
 
     /// Header (frame 100 × 50 mm; reference device 1000 × 1000 px over
     /// 100 × 100 mm, so one logical MM_TEXT unit is 0.1 mm), body, EOF.
-    fn finish(self) -> Vec<u8> {
+    pub(crate) fn finish(self) -> Vec<u8> {
         let eof = [0u8, 0, 0, 0, 16, 0, 0, 0, 20, 0, 0, 0];
         let mut h = Vec::new();
         for v in [0i32, 0, 999, 499, 0, 0, 9_999, 4_999] {
@@ -78,7 +78,7 @@ fn rgb(r: u8, g: u8, b: u8) -> i32 {
 
 /// A red brush (1) and a 10-unit blue pen (2), both selected, then a
 /// rectangle from (100, 100) to (500, 300).
-fn filled_rectangle() -> Emf {
+pub(crate) fn filled_rectangle() -> Emf {
     Emf::default()
         .rec(0x27, &le(&[1, 0, rgb(255, 0, 0), 0]))
         .rec(0x25, &le(&[1]))
