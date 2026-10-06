@@ -156,18 +156,30 @@ fn make_ortho_rep(x: V) -> Option<(V, V)> {
 }
 
 /// The apex across `[lo hi]` (`lo` the lower-numbered vertex) opposite `w`,
-/// `d` already scaled by the tolerance [WD 7.8.9.2]. A null `Z` or `Y`
-/// comes from `MakeOrthoRep(X)` as the WD prescribes; a null `X`, an edge
-/// the WD's non-degeneracy rule excludes, is used as it is.
-fn apex(lo: V, hi: V, w: V, d: V, turned: bool) -> V {
+/// `d` already scaled by the tolerance [WD 7.8.9.2], and whether its frame
+/// was degenerate. A null `Z` or `Y` comes from `MakeOrthoRep(X)` as the WD
+/// prescribes; a null `X`, an edge the WD's non-degeneracy rule excludes,
+/// is used as it is.
+///
+/// A degenerate frame is turned a half-turn about `X` when the sub-epsilon
+/// residue of `(W - O) x X` points against `MakeOrthoRep`'s `Z`, kept when
+/// it points along it, and turned by `turned` only when it is exactly zero:
+/// the WD is silent, and real encoders measurably keep that residue's sign
+/// (PDF_Spec `prc__8137__tess_3d_compressed.md` X18). `invert` reverses the
+/// choice, for the search.
+fn apex(lo: V, hi: V, w: V, d: V, turned: bool, invert: bool) -> (V, bool) {
     let o = mul(add(lo, hi), 0.5);
     let x = sub(lo, hi);
     let x = unitize(x).unwrap_or(x);
-    let (y, z) = unitize(cross(sub(w, o), x))
-        .and_then(|z| Some((unitize(cross(z, x))?, z)))
+    let residue = cross(sub(w, o), x);
+    let frame = unitize(residue).and_then(|z| Some((unitize(cross(z, x))?, z)));
+    let degenerate = frame.is_none();
+    let (y, z) = frame
         .or_else(|| {
             make_ortho_rep(x).map(|(y, z)| {
-                if turned {
+                let along = dot(residue, z);
+                let turn = if along == 0.0 { turned } else { along < 0.0 };
+                if turn != invert {
                     (mul(y, -1.0), mul(z, -1.0))
                 } else {
                     (y, z)
@@ -175,7 +187,8 @@ fn apex(lo: V, hi: V, w: V, d: V, turned: bool) -> V {
             })
         })
         .unwrap_or_default();
-    sub(sub(add(o, mul(x, d[0])), mul(y, d[1])), mul(z, d[2]))
+    let p = sub(sub(add(o, mul(x, d[0])), mul(y, d[1])), mul(z, d[2]));
+    (p, degenerate)
 }
 
 /// The decoded arrays of one `TESS_3D_Compressed`.
@@ -190,8 +203,8 @@ pub(crate) struct Arrays<'a> {
     pub(crate) references: &'a [u32],
     /// The stored normals, when the mesh has them.
     pub(crate) normals: Option<NormalArrays<'a>>,
-    /// Whether a `MakeOrthoRep` frame is turned a half-turn about `X`;
-    /// see [`reconstruct`].
+    /// Whether a `MakeOrthoRep` frame whose residue is exactly zero is
+    /// turned a half-turn about `X`; see [`apex`] and [`reconstruct`].
     pub(crate) ortho_turned: bool,
     /// Whether orienting ignores reused normals and treats a sub-tolerance
     /// triangle like any other; see [`reconstruct`].
@@ -219,6 +232,10 @@ struct Walk<'a> {
     /// Whether the last triangle is a sliver, at most a tolerance from
     /// collinear, whose stored decision decoded noise may have corrupted.
     weak: bool,
+    /// Set by the search: reverse the next apex's degenerate-frame turn.
+    turn: bool,
+    /// Whether the last apex's frame was degenerate.
+    degenerate: bool,
 }
 
 /// Where a component starts, to roll back to.
@@ -249,6 +266,8 @@ impl<'a> Walk<'a> {
             sliver: None,
             signalled: false,
             weak: false,
+            turn: false,
+            degenerate: false,
         }
     }
 
@@ -314,6 +333,8 @@ impl<'a> Walk<'a> {
     /// plane on the parent's side (`d.z == 0`, `d.y > 0`) defaults to
     /// folded.
     fn triangle(&mut self, a: &Arrays<'_>) -> Result<([u32; 3], bool), String> {
+        self.degenerate = false;
+        let invert = std::mem::take(&mut self.turn);
         if let Some((p, q, w)) = self.next.take() {
             if let Some(r) = self.take(a)? {
                 return Ok(([p, q, r], false));
@@ -325,7 +346,9 @@ impl<'a> Walk<'a> {
                 Some(&[_, dy, 0]) if dy > 0
             );
             let d = self.point(a)?;
-            self.pos.push(apex(lo, hi, ww, d, a.ortho_turned));
+            let (v, degenerate) = apex(lo, hi, ww, d, a.ortho_turned, invert);
+            self.degenerate = degenerate;
+            self.pos.push(v);
             return Ok(([p, q, (self.pos.len() - 1) as u32], fold));
         }
         let mut v = [0u32; 3];
@@ -911,9 +934,9 @@ mod tests {
     #[test]
     fn a_null_z_takes_the_ortho_rep_of_x() {
         let d = [1.0, 2.0, 3.0];
-        let p = apex([0.0; 3], [-2.0, 0.0, 0.0], [5.0, 0.0, 0.0], d, false);
+        let (p, _) = apex([0.0; 3], [-2.0, 0.0, 0.0], [5.0, 0.0, 0.0], d, false, false);
         assert_eq!(p, [0.0, -2.0, -3.0]);
-        let p = apex([0.0; 3], [0.0, -2.0, 0.0], [0.0, 5.0, 0.0], d, false);
+        let (p, _) = apex([0.0; 3], [0.0, -2.0, 0.0], [0.0, 5.0, 0.0], d, false, false);
         assert_eq!(p, [-2.0, 0.0, 3.0]);
     }
 
@@ -1123,7 +1146,9 @@ mod tests {
         is_ref[5] = true;
         let a = Arrays {
             tolerance: 0.5,
-            origin: [10.0, 0.0, 0.0],
+            // An origin that keeps the arithmetic exact, so the degenerate
+            // apex's residue is zero and the variant decides its turn.
+            origin: [0.0, 0.0, 0.0],
             points: pts,
             edge_status: status,
             triangles: t,
@@ -1169,8 +1194,59 @@ mod tests {
         let pts = [&tri0[..], &[-4, 0, 0, 3, 3, 3, -1, 0, 0]].concat();
         with_turned_frame(&pts, &st, 7, &[0], &[837, 402], false, search::unique_fit);
         let d = [1.0, 2.0, 3.0];
-        let p = apex([0.0; 3], [-2.0, 0.0, 0.0], [5.0, 0.0, 0.0], d, true);
-        assert_eq!(p, [0.0, 2.0, 3.0]);
+        let (p, degenerate) = apex([0.0; 3], [-2.0, 0.0, 0.0], [5.0, 0.0, 0.0], d, true, false);
+        assert_eq!((p, degenerate), ([0.0, 2.0, 3.0], true));
+    }
+
+    /// A degenerate frame follows the sign of `(W - O) x X`'s sub-epsilon
+    /// residue against `MakeOrthoRep`'s `Z`, whatever the variant;
+    /// `invert` reverses it.
+    #[test]
+    fn a_degenerate_frame_follows_its_residue() {
+        let (lo, hi, d) = ([0.0; 3], [-2.0, 0.0, 0.0], [1.0, 2.0, 3.0]);
+        let against = [5.0, 1e-9, 0.0];
+        let along = [5.0, -1e-9, 0.0];
+        assert_eq!(
+            apex(lo, hi, against, d, false, false),
+            ([0.0, 2.0, 3.0], true)
+        );
+        assert_eq!(
+            apex(lo, hi, along, d, true, false),
+            ([0.0, -2.0, -3.0], true)
+        );
+        assert_eq!(apex(lo, hi, along, d, true, true), ([0.0, 2.0, 3.0], true));
+    }
+
+    /// A mesh whose degenerate apex's residue turns its frame the wrong
+    /// way for any fold-only search: the search's turn choice finds the
+    /// one fit.
+    #[test]
+    fn a_turn_only_the_search_tries_is_rebuilt() {
+        let tri0 = [0, 0, 0, 4, 0, 0, 2, 4, 0];
+        let st = [1, 3, 1, 1, 1, 3, 0, 0, 1, 3, 2, 0];
+        let pts = [&tri0[..], &[0, 0, 0, -4, -4, 2]].concat();
+        let mut is_ref = vec![false; 6];
+        is_ref[5] = true;
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &st,
+            triangles: 4,
+            is_reference: &is_ref,
+            references: &[2],
+            ortho_turned: false,
+            legacy_orient: false,
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[false; 4],
+                angles: &[470, 724],
+                planar: &[true],
+                face_of: &[0; 4],
+            }),
+        };
+        assert!(!search::fits_without_turns(&a));
+        assert!(search::unique_fit(&a).is_some());
     }
 
     /// A sliver, at most a tolerance from collinear, whose stored

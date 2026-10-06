@@ -8,7 +8,7 @@ use super::{
     Arrays, MAX_BEND, NormalReader, TriangleMesh, V, Walk, add, cross, dot, mesh, mul, sub, unit,
 };
 
-/// How many inverted folds one search combines.
+/// How many inverted choices one search combines.
 const DEPTH: usize = 2;
 /// How many candidate triangles before a failure are tried.
 const WINDOW: usize = 40;
@@ -58,67 +58,127 @@ pub(super) fn flat(a: &Arrays<'_>, pos: &[V], tris: &[[u32; 3]], from: usize) ->
     })
 }
 
-/// What one walk with a fixed set of inverted folds came to.
+/// One inverted decision at a triangle: its fold, or the half-turn of its
+/// degenerate apex frame.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Choice {
+    Fold(usize),
+    Turn(usize),
+}
+
+impl Choice {
+    fn at(self) -> usize {
+        match self {
+            Choice::Fold(i) | Choice::Turn(i) => i,
+        }
+    }
+}
+
+/// What one walk with a fixed set of inverted choices came to.
 enum Outcome {
     Fit(TriangleMesh),
     /// Failed at a triangle; the candidates before it, in its
     /// component and after the last inversion, nearest last.
-    Failed(Vec<usize>),
+    Failed(Vec<Choice>),
     /// Failed in a way no further inversion can repair.
     Dead,
 }
 
-/// Searches combinations of at most [`DEPTH`] inverted folds for one that
-/// rebuilds the mesh. A candidate is a triangle no stored decision
-/// orients, or a sliver at most a tolerance from collinear, whose decoded
-/// decision is noise. A fit is one that rebuilds the mesh: every array and stored normal consumed
-/// exactly and every planar face flat. The rebuild is returned only if it
-/// is the single such fit the search finds within [`STEP_BUDGET`]; two
-/// fits, or a search cut short, would make it a guess.
+/// Searches combinations of at most [`DEPTH`] inverted choices for one
+/// that rebuilds the mesh. A fold candidate is a triangle no stored
+/// decision orients, or a sliver at most a tolerance from collinear, whose
+/// decoded decision is noise; a turn candidate is an apex whose frame is
+/// degenerate, whose turn rests on a rounding residue. A fit is one that
+/// rebuilds the mesh: every array and stored normal consumed exactly and
+/// every planar face flat. The rebuild is returned only if it is the
+/// single such geometry the search finds within [`STEP_BUDGET`]; two, or a
+/// search cut short, would make it a guess. Turns are tried only when no
+/// fold-only combination fits at all.
 pub(super) fn unique_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
     let n = a.normals.as_ref()?;
+    match search(a, n, false) {
+        Search::Unique(m) => Some(m),
+        Search::Refused => None,
+        Search::NoFit => match search(a, n, true) {
+            Search::Unique(m) => Some(m),
+            Search::Refused | Search::NoFit => None,
+        },
+    }
+}
+
+/// Whether a fold-only search rebuilds `a`.
+#[cfg(test)]
+pub(super) fn fits_without_turns(a: &Arrays<'_>) -> bool {
+    a.normals
+        .as_ref()
+        .is_some_and(|n| matches!(search(a, n, false), Search::Unique(_)))
+}
+
+/// What one search came to.
+enum Search {
+    Unique(TriangleMesh),
+    /// Two geometries fit, or the budget ran out after a fit.
+    Refused,
+    NoFit,
+}
+
+/// One depth-first search; turn candidates are offered only with `turns`,
+/// so a fold-only rebuild is never second-guessed by a turned one.
+fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool) -> Search {
     let walks = STEP_BUDGET / a.triangles.max(1);
     let mut stack = vec![Vec::new()];
     let mut found: Option<TriangleMesh> = None;
     for _ in 0..walks {
         let Some(flips) = stack.pop() else {
-            return found;
+            return found.map_or(Search::NoFit, Search::Unique);
         };
         match attempt(a, n, &flips) {
             Outcome::Fit(m) => match &found {
-                Some(f) if f.triangles != m.triangles => return None,
+                Some(f) if f.triangles != m.triangles || f.positions != m.positions => {
+                    return Search::Refused;
+                }
                 _ => found = Some(m),
             },
             Outcome::Failed(c) if flips.len() < DEPTH => {
                 let skip = c.len().saturating_sub(WINDOW);
                 for j in c.into_iter().skip(skip) {
-                    let mut g = flips.clone();
-                    g.push(j);
-                    stack.push(g);
+                    if turns || matches!(j, Choice::Fold(_)) {
+                        let mut g = flips.clone();
+                        g.push(j);
+                        stack.push(g);
+                    }
                 }
             }
             Outcome::Failed(_) | Outcome::Dead => {}
         }
     }
-    None
+    if found.is_some() {
+        Search::Refused
+    } else {
+        Search::NoFit
+    }
 }
 
-/// Walks the whole mesh oriented, inverting the fold at each of `flips`
-/// (ascending), with no retries.
-fn attempt(a: &Arrays<'_>, n: &NormalArrays<'_>, flips: &[usize]) -> Outcome {
+/// Walks the whole mesh oriented, inverting each of `flips`, with no
+/// retries.
+fn attempt(a: &Arrays<'_>, n: &NormalArrays<'_>, flips: &[Choice]) -> Outcome {
     let mut w = Walk::new(a.triangles, Some(NormalReader::new(n)));
-    let after = flips.last().map_or(0, |f| f + 1);
+    let after = flips.iter().map(|c| c.at() + 1).max().unwrap_or(0);
     let mut candidates = Vec::new();
     for i in 0..a.triangles {
         if w.next.is_none() {
             candidates.clear();
         }
         let status = a.edge_status.get(i).copied().unwrap_or(0);
-        if w.step(a, status, flips.contains(&i)).is_err() {
+        w.turn = flips.contains(&Choice::Turn(i));
+        if w.step(a, status, flips.contains(&Choice::Fold(i))).is_err() {
             return Outcome::Failed(candidates);
         }
         if (!w.signalled || w.weak) && i >= after {
-            candidates.push(i);
+            candidates.push(Choice::Fold(i));
+        }
+        if w.degenerate && i >= after {
+            candidates.push(Choice::Turn(i));
         }
     }
     if w.slot != a.is_reference.len() || w.ri != a.references.len() || w.pi != a.points.len() {
