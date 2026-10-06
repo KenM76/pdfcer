@@ -5,20 +5,24 @@ use std::collections::HashMap;
 
 use super::normals::NormalArrays;
 use super::{
-    Arrays, MAX_BEND, NormalReader, TriangleMesh, V, Walk, add, cross, dot, mesh, mul, sub, unit,
+    Arrays, MAX_BEND, Mark, NormalReader, TriangleMesh, V, Walk, add, cross, dot, mesh, mul, sub,
+    unit,
 };
 
 /// How many inverted choices one search combines.
 const DEPTH: usize = 2;
-/// How many a last, deeper search combines when no shallow one fits.
+/// How many a deeper search combines when no shallow one fits.
 const DEEP: usize = 4;
+/// How many the last search combines when no other fits.
+const DEEPEST: usize = 6;
 /// The searches [`unique_fit`] runs in turn: whether turn candidates are
 /// offered, and how many choices are combined.
-pub(super) const STAGES: [(bool, usize); 3] = [(false, DEPTH), (true, DEPTH), (true, DEEP)];
+pub(super) const STAGES: [(bool, usize); 4] =
+    [(false, DEPTH), (true, DEPTH), (true, DEEP), (true, DEEPEST)];
 /// How many candidate triangles before a failure are tried.
 const WINDOW: usize = 40;
 /// Triangle steps a search may spend before giving up undecided.
-const STEP_BUDGET: usize = 8_000_000;
+const STEP_BUDGET: usize = 2_000_000;
 
 /// Whether every planar face among `tris[from..]` lies within
 /// [`MAX_BEND`] tolerances of the plane through its centroid, oriented by
@@ -99,7 +103,8 @@ enum Outcome {
 /// single such geometry the search finds within [`STEP_BUDGET`]; two, or a
 /// search cut short, would make it a guess. Each of [`STAGES`] runs only
 /// when the one before found no fit at all: folds alone, then turns too,
-/// then [`DEEP`] choices, so a shallower rebuild is never second-guessed.
+/// then [`DEEP`] and [`DEEPEST`] choices, so a shallower rebuild is never
+/// second-guessed.
 pub(super) fn unique_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
     let n = a.normals.as_ref()?;
     for (turns, depth) in STAGES {
@@ -138,16 +143,18 @@ enum Search {
 }
 
 /// One depth-first search over at most `depth` inverted choices; turn
-/// candidates are offered only with `turns`.
+/// candidates are offered only with `turns`. Each attempt resumes the
+/// last one's walk where their choices first differ, so the budget counts
+/// triangle steps actually taken.
 fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool, depth: usize) -> Search {
-    let walks = STEP_BUDGET / a.triangles.max(1);
+    let mut walker = Resume::new(a, n, SNAP_EVERY);
     let mut stack = vec![Vec::new()];
     let mut found: Option<TriangleMesh> = None;
-    for _ in 0..walks {
+    while walker.spent < STEP_BUDGET {
         let Some(flips) = stack.pop() else {
             return found.map_or(Search::NoFit, Search::Unique);
         };
-        match attempt(a, n, &flips) {
+        match walker.attempt(a, n, &flips) {
             Outcome::Fit(m) => match &found {
                 Some(f) if f.triangles != m.triangles || f.positions != m.positions => {
                     return Search::Refused;
@@ -155,8 +162,7 @@ fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool, depth: usize) -> Se
                 _ => found = Some(m),
             },
             Outcome::Failed(c) if flips.len() < depth => {
-                let skip = c.len().saturating_sub(WINDOW);
-                for j in c.into_iter().skip(skip) {
+                for j in c {
                     if turns || matches!(j, Choice::Fold(_)) {
                         let mut g = flips.clone();
                         g.push(j);
@@ -171,6 +177,146 @@ fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool, depth: usize) -> Se
         Search::Refused
     } else {
         Search::NoFit
+    }
+}
+
+/// Triangles between the snapshots a resumed walk rewinds to.
+const SNAP_EVERY: usize = 64;
+
+/// What one completed step of a resumed walk offers the search.
+#[derive(Clone, Copy)]
+struct Step {
+    /// Whether the step began a component.
+    start: bool,
+    fold: bool,
+    turn: bool,
+}
+
+/// The walk state before a triangle, beyond what a [`Mark`] holds.
+struct Snap {
+    mark: Mark,
+    stack: Vec<(u32, u32, u32)>,
+    next: Option<(u32, u32, u32)>,
+    sliver: Option<usize>,
+}
+
+/// One walk kept across a search's attempts. Its state before triangle
+/// `i` depends only on the choices at triangles before `i`, so an attempt
+/// rewinds to the last snapshot at or before the first choice it does not
+/// share with the previous attempt and walks on from there.
+struct Resume<'a> {
+    w: Walk<'a>,
+    flips: Vec<Choice>,
+    steps: Vec<Step>,
+    snaps: Vec<Snap>,
+    /// Triangles between snapshots.
+    every: usize,
+    /// Triangle steps taken so far.
+    spent: usize,
+}
+
+impl<'a> Resume<'a> {
+    fn new(a: &Arrays<'_>, n: &'a NormalArrays<'a>, every: usize) -> Self {
+        let w = Walk::new(a.triangles, Some(NormalReader::new(n)));
+        let snap = Snap {
+            mark: w.mark(0),
+            stack: Vec::new(),
+            next: None,
+            sliver: None,
+        };
+        Resume {
+            w,
+            flips: Vec::new(),
+            steps: Vec::new(),
+            snaps: vec![snap],
+            every: every.max(1),
+            spent: 0,
+        }
+    }
+
+    /// Walks the whole mesh oriented, inverting each of `flips`, with no
+    /// retries; the same outcome as a walk from the first triangle.
+    fn attempt(&mut self, a: &Arrays<'_>, n: &NormalArrays<'_>, flips: &[Choice]) -> Outcome {
+        let differ = self
+            .flips
+            .iter()
+            .filter(|c| !flips.contains(c))
+            .chain(flips.iter().filter(|c| !self.flips.contains(c)))
+            .map(|c| c.at())
+            .min()
+            .unwrap_or(usize::MAX);
+        self.rewind(differ.min(self.steps.len()));
+        self.flips = flips.to_vec();
+        let after = flips.iter().map(|c| c.at() + 1).max().unwrap_or(0);
+        for i in self.steps.len()..a.triangles {
+            if i % self.every == 0 && self.snaps.last().is_some_and(|s| s.mark.tri < i) {
+                self.snaps.push(Snap {
+                    mark: self.w.mark(i),
+                    stack: self.w.stack.clone(),
+                    next: self.w.next,
+                    sliver: self.w.sliver,
+                });
+            }
+            let start = self.w.next.is_none();
+            let status = a.edge_status.get(i).copied().unwrap_or(0);
+            self.w.turn = flips.contains(&Choice::Turn(i));
+            self.spent += 1;
+            if self
+                .w
+                .step(a, status, flips.contains(&Choice::Fold(i)))
+                .is_err()
+            {
+                return Outcome::Failed(if start {
+                    Vec::new()
+                } else {
+                    self.candidates(i, after)
+                });
+            }
+            self.steps.push(Step {
+                start,
+                fold: !self.w.signalled || self.w.weak,
+                turn: self.w.degenerate,
+            });
+        }
+        let w = &self.w;
+        if w.slot != a.is_reference.len() || w.ri != a.references.len() || w.pi != a.points.len() {
+            return Outcome::Dead;
+        }
+        self.spent += a.triangles;
+        attempt(a, n, flips)
+    }
+
+    /// Restores the walk to the last snapshot at or before triangle `at`.
+    fn rewind(&mut self, at: usize) {
+        while self.snaps.len() > 1 && self.snaps.last().is_some_and(|s| s.mark.tri > at) {
+            self.snaps.pop();
+        }
+        let Some(s) = self.snaps.last() else { return };
+        self.w.rewind(s.mark);
+        self.w.stack.clone_from(&s.stack);
+        (self.w.next, self.w.sliver) = (s.next, s.sliver);
+        self.steps.truncate(s.mark.tri);
+    }
+
+    /// The last [`WINDOW`] candidates before a failure at `failed`, in its
+    /// component and from `after` on, nearest last.
+    fn candidates(&self, failed: usize, after: usize) -> Vec<Choice> {
+        let mut c = Vec::new();
+        for i in (after..failed).rev() {
+            let Some(s) = self.steps.get(i) else { break };
+            if s.turn {
+                c.push(Choice::Turn(i));
+            }
+            if s.fold {
+                c.push(Choice::Fold(i));
+            }
+            if c.len() >= WINDOW || s.start {
+                break;
+            }
+        }
+        c.truncate(WINDOW);
+        c.reverse();
+        c
     }
 }
 
@@ -205,5 +351,170 @@ fn attempt(a: &Arrays<'_>, n: &NormalArrays<'_>, flips: &[Choice]) -> Outcome {
     match normals.and_then(|r| r.finish(&pos)) {
         Some(stored) if flat(a, &pos, &tris, 0) => Outcome::Fit(mesh(pos, tris, stored)),
         _ => Outcome::Dead,
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)] // Tests fail loudly.
+mod tests {
+    use super::*;
+
+    /// Edge statuses, points, slots, references and normal angles.
+    type Case<'a> = (&'a [i32], Vec<i64>, usize, &'a [u32], &'a [i32]);
+
+    /// A comparable digest of an outcome; a failure's candidates are cut
+    /// to the window the search uses.
+    fn digest(o: Outcome) -> (u8, Vec<Choice>, Vec<[u32; 3]>, Vec<V>) {
+        match o {
+            Outcome::Fit(m) => (0, Vec::new(), m.triangles, m.positions),
+            Outcome::Failed(c) => {
+                let skip = c.len().saturating_sub(WINDOW);
+                (
+                    1,
+                    c.into_iter().skip(skip).collect(),
+                    Vec::new(),
+                    Vec::new(),
+                )
+            }
+            Outcome::Dead => (2, Vec::new(), Vec::new(), Vec::new()),
+        }
+    }
+
+    /// Every set of at most two choices over `a`'s triangles, in an order
+    /// that moves the first differing choice both ways between attempts.
+    fn flip_sets(t: usize) -> Vec<Vec<Choice>> {
+        let all: Vec<Choice> = (0..t)
+            .flat_map(|i| [Choice::Fold(i), Choice::Turn(i)])
+            .collect();
+        let mut sets = vec![Vec::new()];
+        for (k, &x) in all.iter().enumerate() {
+            sets.push(vec![x]);
+            for &y in all.iter().skip(k + 1) {
+                sets.push(vec![x, y]);
+            }
+        }
+        let back: Vec<_> = sets.iter().rev().cloned().collect();
+        sets.extend(back);
+        sets
+    }
+
+    /// A resumed attempt comes to exactly what a walk from the first
+    /// triangle does, whatever attempt preceded it, with a snapshot at
+    /// every triangle or only the first.
+    #[test]
+    fn a_resumed_attempt_matches_a_fresh_walk() {
+        let tri0 = [0, 0, 0, 4, 0, 0, 2, 4, 0];
+        let cases: [Case<'_>; 2] = [
+            (
+                &[1, 3, 1, 1],
+                [&tri0[..], &[0, 0, 0, -4, -4, 2]].concat(),
+                6,
+                &[2],
+                &[470, 724],
+            ),
+            (
+                &[1, 3, 2, 1, 2],
+                [&tri0[..], &[-4, 0, 0, 3, 3, 3, -1, 0, 0]].concat(),
+                7,
+                &[0],
+                &[837, 402],
+            ),
+        ];
+        for (status, pts, slots, refs, angles) in cases {
+            let t = status.len();
+            let mut is_ref = vec![false; slots];
+            is_ref[5] = true;
+            let face_of = vec![0; t];
+            for legacy in [false, true] {
+                let a = Arrays {
+                    tolerance: 0.5,
+                    origin: [10.0, 0.0, 0.0],
+                    points: &pts,
+                    edge_status: status,
+                    triangles: t,
+                    is_reference: &is_ref,
+                    references: refs,
+                    ortho_turned: false,
+                    legacy_orient: legacy,
+                    normals: Some(NormalArrays {
+                        bits: 10,
+                        binary: &[false; 4],
+                        angles,
+                        planar: &[true],
+                        face_of: &face_of,
+                    }),
+                };
+                let n = a.normals.as_ref().unwrap();
+                for every in [1, SNAP_EVERY] {
+                    let mut r = Resume::new(&a, n, every);
+                    let mut kinds = [0; 3];
+                    for flips in flip_sets(t) {
+                        let got = digest(r.attempt(&a, n, &flips));
+                        let want = digest(attempt(&a, n, &flips));
+                        kinds[usize::from(want.0)] += 1;
+                        assert!(
+                            got == want,
+                            "flips {:?}",
+                            flips.iter().map(|c| c.at()).collect::<Vec<_>>()
+                        );
+                    }
+                    assert!(kinds[0] > 0 && kinds[1] > 0, "{kinds:?}");
+                }
+            }
+        }
+    }
+
+    /// The same on seeded arbitrary arrays, valid or not, whose walks
+    /// branch, pop stacked edges and start new components.
+    #[test]
+    fn a_resumed_attempt_matches_a_fresh_walk_on_arbitrary_arrays() {
+        let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = |m: u64| {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (seed >> 33) % m
+        };
+        let mut kinds = [0; 3];
+        for _ in 0..300 {
+            let t = 6 + usize::try_from(next(5)).unwrap();
+            let status: Vec<i32> = (0..t).map(|_| i32::try_from(next(4)).unwrap()).collect();
+            let pts: Vec<i64> = (0..6 * t)
+                .map(|_| i64::try_from(next(9)).unwrap() - 4)
+                .collect();
+            let is_ref: Vec<bool> = (0..3 * t).map(|_| next(3) == 0).collect();
+            let refs: Vec<u32> = (0..t).map(|_| u32::try_from(next(6)).unwrap()).collect();
+            let angles: Vec<i32> = (0..2 * t)
+                .map(|_| i32::try_from(next(1024)).unwrap())
+                .collect();
+            let face_of = vec![0; t];
+            let a = Arrays {
+                tolerance: 0.5,
+                origin: [0.0; 3],
+                points: &pts,
+                edge_status: &status,
+                triangles: t,
+                is_reference: &is_ref,
+                references: &refs,
+                ortho_turned: false,
+                legacy_orient: next(2) == 0,
+                normals: Some(NormalArrays {
+                    bits: 10,
+                    binary: &[false; 4],
+                    angles: &angles,
+                    planar: &[true],
+                    face_of: &face_of,
+                }),
+            };
+            let n = a.normals.as_ref().unwrap();
+            let mut r = Resume::new(&a, n, 1);
+            for flips in flip_sets(t) {
+                let got = digest(r.attempt(&a, n, &flips));
+                let want = digest(attempt(&a, n, &flips));
+                kinds[usize::from(want.0)] += 1;
+                assert!(got == want);
+            }
+        }
+        assert!(kinds[1] > 0 && kinds[2] > 0, "{kinds:?}");
     }
 }
