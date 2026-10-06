@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (986th filing) — `Pass 509.0` follow-up: SVG layer tests gated on `svg-import`
+
+**Shipped:**
+- `9b2d7cac` — `tools/run-gates.sh` failed 1/45 on `cargo test -p pdfcer-core --no-default-features`: `crates/pdfcer-core/tests/drawing_on_layer.rs` called `pdfcer_core::svg_import` unconditionally, but SVG import is behind the `svg-import` feature. EMF tests (on-layer, `None` byte-identical, unregistered refused) now run in every configuration; the SVG halves moved into `#[cfg(feature = "svg-import")] mod svg`. Results: 3 pass with `--no-default-features`, 6 with default features.
+
+**Findings + decisions:**
+- Lesson: a new test file that calls a feature-gated module must carry the same cfg; only the `--no-default-features` gate catches it.
+- `FEATURES.md` untouched (no capability change). `ROADMAP.md` `Pass 509.0` entry amended with the follow-up and corrected test counts.
+
+**Sourcing note (hard rule 8):** figures engineer-reported; push/backup/CI state not checked here.
+
 ## 2026-10-06 (985th filing) — `Pass 509.0` shipped (SVG and EMF page content can go on a layer, `G130`)
 
 **Shipped:**
