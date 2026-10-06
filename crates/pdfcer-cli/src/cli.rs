@@ -8541,7 +8541,10 @@ pub(crate) enum Command {
         /// `--strikethrough` for both.
         #[arg(long, conflicts_with = "no_decoration")]
         underline: bool,
-        /// Strike through the matched text (see `--underline`).
+        /// Strike through the matched text (see `--underline`). The report
+        /// prints `strike_source=` naming where the line's height came from:
+        /// `font_table` (the font's own strikeout metric), `x_height` (half
+        /// the font's x-height, inferred) or `quarter_em` (guessed).
         #[arg(long, conflicts_with = "no_decoration")]
         strikethrough: bool,
         /// Remove any underline or strikethrough from the matched text,

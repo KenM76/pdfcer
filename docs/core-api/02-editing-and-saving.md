@@ -667,8 +667,14 @@ let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
     descriptor's `/XHeight` (an unembedded standard-14 font: its AFM
     `XHeight`), else a quarter em, as thick as the underline.
   - The choice is stored on the marker (`/M /Standard`; absent = font
-    tables), so later refreshes draw the same rule. The format report
-    carries a disclosure naming the source (rule 4) — show it.
+    tables), so later refreshes draw the same rule.
+  - **Which source this text got (`Pass 508.0`, `G130`):**
+    `FormatReport::strike_source: Option<decoration::StrikeSource>` is
+    `FontTable` (the font's `OS/2` strikeout), `XHeight` (half its x-height)
+    or `QuarterEm` (guessed) for the face the struck text is drawn in (the
+    new face on a font change). It is `None` unless the request sets a
+    strikethrough. The decoration disclosure ends with a clause naming the
+    same source (rule 4); show it.
 - Optional marker keys a producer may set: `/C` (rule colour components, 1/3/4
   for gray/RGB/CMYK; default the run's fill colour) and `/W` (thickness in
   thousandths of an em, overriding either source).
@@ -686,7 +692,8 @@ mode 3 or 7 (requested or in force).
   not split structure elements (that waits for a structure-tree writer).
 
 CLI: `format-text --find Total --underline [--strikethrough]
-[--decoration-metrics font|standard]`; `--no-decoration` clears.
+[--decoration-metrics font|standard]`; `--no-decoration` clears. A
+strikethrough prints `strike_source=font_table|x_height|quarter_em`.
 
 #### `EditRequest::spanning_from` — when the text REPEATS on the page
 

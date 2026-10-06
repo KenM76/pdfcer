@@ -6,7 +6,7 @@
 use pdfcer_core::content::ContentStream;
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
-use pdfcer_core::text_edit::decoration::{DecorationSet, page_decorations};
+use pdfcer_core::text_edit::decoration::{DecorationSet, StrikeSource, page_decorations};
 use pdfcer_core::text_edit::{FormatError, FormatOptions, FormatRequest};
 use pdfcer_core::text_extract::{ExtractOptions, extract_page};
 use pdfcer_core::writer::SaveOptions;
@@ -229,7 +229,17 @@ fn refresh_is_idempotent_across_unrelated_edits() {
 #[test]
 fn an_unembedded_standard_font_strikes_at_half_its_afm_x_height() {
     let mut s = session(TWO_RUNS);
-    decorate(&mut s, "World", DecorationSet::STRIKETHROUGH).unwrap();
+    let req = FormatRequest::new(0, "World").decoration(DecorationSet::STRIKETHROUGH);
+    let report = s.format_text(&req, &FormatOptions::default()).unwrap();
+    assert_eq!(report.strike_source, Some(StrikeSource::XHeight));
+    assert!(
+        report
+            .disclosures
+            .iter()
+            .any(|d| d.contains("inferred at half the font's x-height")),
+        "{:?}",
+        report.disclosures
+    );
     let text = content(&saved(&s));
     let r = rules(&text);
     assert_eq!(r.len(), 1, "{text}");

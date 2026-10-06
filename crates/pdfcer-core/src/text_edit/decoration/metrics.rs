@@ -20,6 +20,44 @@ pub(super) struct LineMetrics {
     pub(super) strike_source: StrikeSource,
 }
 
+/// The [`StrikeSource`] a strikethrough on text drawn in `font` gets under
+/// `policy`: the same ladder `refresh` places the line with.
+pub(crate) fn strike_source(
+    view: &DocumentView<'_>,
+    font: Option<&Dict>,
+    policy: DecorationMetrics,
+) -> StrikeSource {
+    LineMetrics::for_font(view, font, policy).strike_source
+}
+
+/// [`strike_source`] for an embedded program not yet written: its descriptor
+/// carries no `/XHeight`, so the ladder is the `OS/2` strikeout or a quarter em.
+pub(crate) fn strike_source_of_program(program: &[u8], policy: DecorationMetrics) -> StrikeSource {
+    let table = matches!(policy, DecorationMetrics::FontTables)
+        && crate::sfnt::line_metrics(program)
+            .is_some_and(|m| m.strike_centre.is_some() && m.strike_thickness.is_some());
+    if table {
+        StrikeSource::FontTable
+    } else {
+        StrikeSource::QuarterEm
+    }
+}
+
+/// The clause naming where this text's strikethrough came from.
+pub(super) fn strike_clause(source: StrikeSource) -> &'static str {
+    match source {
+        StrikeSource::FontTable => {
+            "; the strikethrough is placed by the embedded font's own OS/2 strikeout metrics"
+        }
+        StrikeSource::XHeight => {
+            "; the strikethrough is inferred at half the font's x-height (the font has no strikeout metric)"
+        }
+        StrikeSource::QuarterEm => {
+            "; the strikethrough is guessed at a quarter em above the baseline (the font declares neither a strikeout metric nor an x-height)"
+        }
+    }
+}
+
 impl LineMetrics {
     /// `FontTables`: the embedded program's `post` underline and `OS/2`
     /// strikeout, each field falling back on its own. `Standard`, and every

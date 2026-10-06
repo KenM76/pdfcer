@@ -35,6 +35,8 @@ use crate::writer::content::emit_number;
 mod metrics;
 pub(crate) mod tagged;
 use metrics::LineMetrics;
+use metrics::strike_clause;
+pub(crate) use metrics::{strike_source, strike_source_of_program};
 
 /// The marked-content tag of both the marker and its rule.
 pub const DECORATION_TAG: &[u8] = b"pdfc_Deco";
@@ -119,8 +121,13 @@ pub enum StrikeSource {
 }
 
 /// The operator-facing sentence for a decoration request (rule 4: the
-/// strikethrough height is inferred from font metrics).
-pub(crate) fn disclosure(set: DecorationSet, metrics: DecorationMetrics) -> String {
+/// strikethrough height is inferred from font metrics). `strike` is where
+/// this text's strikethrough came from, when the request draws one.
+pub(crate) fn disclosure(
+    set: DecorationSet,
+    metrics: DecorationMetrics,
+    strike: Option<StrikeSource>,
+) -> String {
     let mut out = match (set.underline, set.strikethrough) {
         (false, false) => {
             return "underline and strikethrough removed from the matched text".to_owned();
@@ -142,6 +149,9 @@ pub(crate) fn disclosure(set: DecorationSet, metrics: DecorationMetrics) -> Stri
              thick), the strikethrough at half the font's x-height or a quarter em"
         }
     });
+    if let Some(source) = strike.filter(|_| set.strikethrough) {
+        out.push_str(strike_clause(source));
+    }
     out
 }
 

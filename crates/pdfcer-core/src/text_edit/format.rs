@@ -1407,6 +1407,11 @@ pub struct FormatReport {
     pub content_object: u32,
     /// Extra content objects collapsed/emptied on a multi-stream page.
     pub extra_objects_emptied: u64,
+    /// Where the struck text's strikethrough line comes from: the font's own
+    /// `OS/2` strikeout, half its x-height, or a quarter em (rule 4). `None`
+    /// unless the request sets a strikethrough. The struck text is drawn in
+    /// one face (the new one on a font change), so one source covers it.
+    pub strike_source: Option<crate::text_edit::decoration::StrikeSource>,
     /// Every operator-facing disclosure, verbatim (surfaced by the UI/CLI).
     pub disclosures: Vec<String>,
 }
@@ -2905,10 +2910,20 @@ pub(crate) fn plan_format_target(
     }
     disclosures.push(disclosure_save());
     disclosures.push(trust_disclosure(embedded, &report_font));
+    let strike_source = req.set_decoration.filter(|s| s.strikethrough).map(|_| {
+        struck_font_source(
+            doc,
+            page_resources_dict,
+            orig_dict,
+            font_plan.as_ref(),
+            req.decoration_metrics,
+        )
+    });
     if let Some(set) = req.set_decoration {
         disclosures.push(crate::text_edit::decoration::disclosure(
             set,
             req.decoration_metrics,
+            strike_source,
         ));
     }
     if size_changed {
@@ -3065,6 +3080,7 @@ pub(crate) fn plan_format_target(
         tagged_mcid: anchor.mcid,
         content_object: content_id.num,
         extra_objects_emptied: extra_emptied,
+        strike_source,
         disclosures,
     };
     Ok(FormatPlan {
@@ -3072,6 +3088,33 @@ pub(crate) fn plan_format_target(
         report,
         created_font,
     })
+}
+
+/// The strikethrough source for the face the formatted text is drawn in:
+/// the planned face on a font change (written by this edit or already a
+/// resource), else the run's own.
+fn struck_font_source(
+    doc: &DocumentView<'_>,
+    resources: &Dict,
+    orig: &Dict,
+    plan: Option<&FontPlan>,
+    policy: DecorationMetrics,
+) -> crate::text_edit::decoration::StrikeSource {
+    use crate::text_edit::decoration::{strike_source, strike_source_of_program};
+    let Some(plan) = plan else {
+        return strike_source(doc, Some(orig), policy);
+    };
+    match plan.created.as_ref().map(|c| &c.face) {
+        Some(CreatedFace::Simple(d)) => strike_source(doc, Some(d), policy),
+        Some(CreatedFace::Embedded(e) | CreatedFace::SharedProgram { plan: e, .. }) => {
+            strike_source_of_program(&e.program, policy)
+        }
+        None => strike_source(
+            doc,
+            resolve_font_dict(doc, resources, &plan.resource),
+            policy,
+        ),
+    }
 }
 
 // ===================================================================

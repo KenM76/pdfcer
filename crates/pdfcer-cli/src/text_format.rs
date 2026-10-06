@@ -539,6 +539,16 @@ fn print_format_placement(report: &FormatReport) {
     if report.justify_slack_invalidated {
         println!("  justify_slack_invalidated=1");
     }
+    if let Some(source) = report.strike_source {
+        use pdfcer_core::text_edit::decoration::StrikeSource;
+        let name = match source {
+            StrikeSource::FontTable => "font_table",
+            StrikeSource::XHeight => "x_height",
+            StrikeSource::QuarterEm => "quarter_em",
+            _ => "other",
+        };
+        println!("  strike_source={name}");
+    }
     if let Some(object) = report.form_object {
         println!(
             "  form_object={object} form_invocations={} form_pages={}",

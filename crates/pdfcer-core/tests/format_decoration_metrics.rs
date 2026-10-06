@@ -6,8 +6,8 @@
 use pdfcer_core::content::ContentStream;
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
-use pdfcer_core::text_edit::decoration::{DecorationMetrics, DecorationSet};
-use pdfcer_core::text_edit::{FormatOptions, FormatRequest};
+use pdfcer_core::text_edit::decoration::{DecorationMetrics, DecorationSet, StrikeSource};
+use pdfcer_core::text_edit::{FormatOptions, FormatReport, FormatRequest};
 use pdfcer_core::writer::SaveOptions;
 
 const CONTENT: &str = "BT /F1 12 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET";
@@ -97,6 +97,23 @@ fn pdf() -> Vec<u8> {
     out
 }
 
+/// The report of decorating "Hello" with `set` under `metrics`.
+fn report(set: DecorationSet, metrics: DecorationMetrics) -> FormatReport {
+    let mut s = EditSession::new(Document::from_bytes(pdf()).unwrap());
+    let req = FormatRequest::new(0, "Hello")
+        .decoration(set)
+        .decoration_metrics(metrics);
+    s.format_text(&req, &FormatOptions::default()).unwrap()
+}
+
+/// The disclosure sentence that describes the decoration.
+fn decoration_note(r: &FormatReport) -> &str {
+    r.disclosures
+        .iter()
+        .find(|d| d.contains("the line follows the text"))
+        .expect("a decoration disclosure")
+}
+
 /// The saved content after decorating "Hello" with `set` under `metrics`.
 fn decorated(set: DecorationSet, metrics: Option<DecorationMetrics>) -> String {
     let mut s = EditSession::new(Document::from_bytes(pdf()).unwrap());
@@ -155,4 +172,30 @@ fn standard_metrics_ignore_the_tables_and_are_recorded() {
     // AFM: centre −100, thickness 50 → bottom −1.5, height 0.6.
     close(&rule_heights(&text), &[(-1.5, 0.6)], &text);
     assert!(text.contains("/M /Standard"), "{text}");
+}
+
+/// G130: the report names which inference placed this text's strikethrough,
+/// and it is the one the rule was drawn with.
+#[test]
+fn the_report_names_where_the_strikethrough_came_from() {
+    let r = report(DecorationSet::STRIKETHROUGH, DecorationMetrics::FontTables);
+    assert_eq!(r.strike_source, Some(StrikeSource::FontTable));
+    let note = decoration_note(&r);
+    assert!(note.contains("own OS/2 strikeout metrics"), "{note}");
+
+    // No `/XHeight`, not a standard-14 face: the quarter em, centre 250,
+    // thickness 50 at 12 pt is bottom 2.7, height 0.6.
+    let r = report(DecorationSet::STRIKETHROUGH, DecorationMetrics::Standard);
+    assert_eq!(r.strike_source, Some(StrikeSource::QuarterEm));
+    let note = decoration_note(&r);
+    assert!(note.contains("guessed at a quarter em"), "{note}");
+    let text = decorated(
+        DecorationSet::STRIKETHROUGH,
+        Some(DecorationMetrics::Standard),
+    );
+    close(&rule_heights(&text), &[(2.7, 0.6)], &text);
+
+    let r = report(DecorationSet::UNDERLINE, DecorationMetrics::FontTables);
+    assert_eq!(r.strike_source, None);
+    assert!(!decoration_note(&r).contains("strikethrough is"));
 }
