@@ -4986,6 +4986,17 @@ pub struct RunRepertoire {
     /// face would set: accepted with a fallback, not in the run's font. Empty
     /// without that option.
     pub via_fallback: BTreeSet<char>,
+    /// The characters the run's own font draws with more than one code, each
+    /// with those codes in ascending order — the
+    /// [`CompositeEncoding::ambiguous_chars`](crate::text_edit::CompositeEncoding::ambiguous_chars)
+    /// map of the run's font (`R-INV-4`).
+    ///
+    /// Such a character is left out of [`Self::accepted`] unless a sibling,
+    /// fallback or same-program route accepts it: typing it would make
+    /// pdfcer choose a code. It is not refused when it is already in the run
+    /// and the edit leaves it in place — that occurrence keeps its code.
+    /// Empty for a simple font and an injective map.
+    pub ambiguous: BTreeMap<char, Vec<u32>>,
     /// Whether the run's font is an embedded **subset**, and so whether
     /// [`Self::accepted`] is narrowed by the `R-INV-1` floor (the codes this
     /// page already carries) rather than by the font program alone.

@@ -125,3 +125,79 @@ fn a_map_with_nothing_invertible_still_refuses_the_whole_font() {
         "{err:?}"
     );
 }
+
+/// Every glyph's code on the saved page, in content order.
+fn page_codes(s: &EditSession) -> Vec<u32> {
+    let (bytes, _) = s.to_incremental_bytes(&SaveOptions::identity()).unwrap();
+    let doc = Document::from_bytes(bytes).unwrap();
+    let pages = pdfcer_core::page_tree::pages(&doc).unwrap();
+    let opts = pdfcer_core::text_extract::ExtractOptions::default();
+    let page = pdfcer_core::text_extract::extract_page(&doc, &pages[0], 0, &opts).unwrap();
+    page.runs
+        .iter()
+        .flat_map(|r| r.glyphs.iter().map(|g| g.code))
+        .collect()
+}
+
+/// The operator span of the glyph drawn with `code`, the way a shell gets one.
+fn operator_span_of(s: &EditSession, code: u32) -> pdfcer_core::span::ByteSpan {
+    let (bytes, _) = s.to_incremental_bytes(&SaveOptions::identity()).unwrap();
+    let doc = Document::from_bytes(bytes).unwrap();
+    let pages = pdfcer_core::page_tree::pages(&doc).unwrap();
+    let opts = pdfcer_core::text_extract::ExtractOptions::default().with_provenance(true);
+    let page = pdfcer_core::text_extract::extract_page(&doc, &pages[0], 0, &opts).unwrap();
+    page.runs
+        .iter()
+        .flat_map(|r| r.glyphs.iter())
+        .find(|g| g.code == code)
+        .and_then(|g| g.provenance.as_ref().map(|p| p.operator_span))
+        .expect("the glyph is on the page")
+}
+
+#[test]
+fn the_repertoire_names_the_letters_drawn_two_ways() {
+    let s = session();
+    let pin = operator_span_of(&s, 3);
+    let rep = s.run_repertoire(0, "", Some(pin)).unwrap();
+    assert_eq!(rep.text, "B");
+    assert_eq!(
+        rep.ambiguous,
+        std::collections::BTreeMap::from([('A', vec![1, 2])])
+    );
+    assert!(!rep.accepts('A'), "{:?}", rep.accepted);
+    assert!(rep.accepts('B'), "{:?}", rep.accepted);
+}
+
+#[test]
+fn an_unchanged_ambiguous_letter_keeps_its_code() {
+    let mut s = session();
+    let pin = operator_span_of(&s, 1);
+    s.edit_text(
+        &EditRequest::whole_operator(0, pin, "AB"),
+        &EditOptions::default(),
+    )
+    .expect("the A is carried over unchanged, so its code 1 is kept");
+    // The edited operator shows codes 1 and 3 (`<00010003>`); the other
+    // operator's B is untouched.
+    assert_eq!(page_codes(&s), vec![1, 3, 3]);
+    assert!(page_text(&s).starts_with("AB|"), "{}", page_text(&s));
+}
+
+#[test]
+fn an_added_ambiguous_letter_is_still_refused() {
+    let mut s = session();
+    let pin = operator_span_of(&s, 1);
+    let err = s
+        .edit_text(
+            &EditRequest::whole_operator(0, pin, "AAB"),
+            &EditOptions::default(),
+        )
+        .expect_err("the second A is new, and two codes produce it");
+    match err {
+        EditError::Refused(r) => {
+            assert_eq!(r.trigger, RInvTrigger::Ambiguous);
+            assert_eq!(r.character, Some('A'));
+        }
+        other => panic!("expected the ambiguity refusal, got {other:?}"),
+    }
+}

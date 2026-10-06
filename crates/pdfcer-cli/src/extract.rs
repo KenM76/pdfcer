@@ -469,6 +469,26 @@ pub(crate) fn extraction_json(
     out
 }
 
+/// The `run-repertoire` suffix for the run font's characters drawn by more
+/// than one code: ` ambiguous=N`, plus ` ambiguous_chars=U+0041:1/2,...`
+/// (each code point with its codes) with `--list`.
+fn repertoire_ambiguous(rep: &pdfcer_core::text_edit::RunRepertoire, list: bool) -> String {
+    let mut out = format!(" ambiguous={}", rep.ambiguous.len());
+    if list {
+        let chars: Vec<String> = rep
+            .ambiguous
+            .iter()
+            .map(|(c, codes)| {
+                let codes: Vec<String> = codes.iter().map(u32::to_string).collect();
+                format!("U+{:04X}:{}", u32::from(*c), codes.join("/"))
+            })
+            .collect();
+        out.push_str(" ambiguous_chars=");
+        out.push_str(&chars.join(","));
+    }
+    out
+}
+
 /// `run-repertoire` (`Pass 280.0`): which characters one located run accepts.
 ///
 /// The scriptable form of the question a GUI asks to grey a key before the
@@ -573,7 +593,9 @@ pub(crate) fn cmd_run_repertoire(
     } else {
         String::new()
     };
-    let chars = chars + &crate::fallback_font::repertoire_fallback(&rep, fallback.is_some(), list);
+    let chars = repertoire_ambiguous(&rep, list)
+        + &chars
+        + &crate::fallback_font::repertoire_fallback(&rep, fallback.is_some(), list);
     println!(
         "run-repertoire {} page={} run={} font={} resource={} accepted={} tested={} refused={} subset={} editable={} cause={}{}",
         input.display(),

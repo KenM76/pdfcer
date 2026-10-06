@@ -397,86 +397,107 @@ impl CompositeEncoding {
     /// composite form of R-INV-1: a subset carries what it carries, and there
     /// is no code that means a glyph the program does not contain.
     pub fn encode_str(&self, target: &str) -> Result<CompositeEncodeResult, Refusal> {
-        let mut cids = Vec::with_capacity(target.chars().count());
-        for ch in target.chars() {
-            if let Some(codes) = self.ambiguous.get(&ch) {
-                // `Pass 256.1`: the per-character refusal that replaced the
-                // whole-font one. Writing any of these codes would render a
-                // real glyph that MAY be the wrong one — indistinguishable
-                // from correct output on screen — so pdfcer names the choice
-                // it declined to make instead of making it.
-                let list = codes
-                    .iter()
-                    .map(u32::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                return Err(Refusal {
-                    trigger: RInvTrigger::Ambiguous,
-                    character: Some(ch),
-                    base_font: self.base_font.clone(),
-                    remedy_faces: Vec::new(),
-                    message: format!(
-                        "this font's character map gives {ch:?} to {} different codes ({list}), so there is no single code that means it and pdfcer will not guess; every other character of this font still edits — keep the edit to those, or choose a font that maps {ch:?} once.",
-                        codes.len()
-                    ),
-                });
-            }
-            let Some(&code) = self.reverse.get(&ch) else {
-                // Computed once and spent on both the sentence and the field
-                // (`Pass 296.1`). This layer has NO page -- it is the pure
-                // encoding inverse -- so this is the naive coverage list, and
-                // `Refusal::remedy_faces` says so rather than letting a caller
-                // assume the page-aware guarantee the editing layer gives.
-                let covering: Vec<&'static str> = std14_faces_covering(ch);
-                return Err(Refusal {
-                    trigger: RInvTrigger::TargetAbsent,
-                    character: Some(ch),
-                    base_font: self.base_font.clone(),
-                    remedy_faces: covering.iter().map(|&f| f.to_owned()).collect(),
-                    message: format!(
-                        "this font has no glyph for {ch:?}, and pdfcer cannot add one to a font \
-                         that is already embedded. Keep this edit to characters the font \
-                         already uses, or switch this run to a font that covers it{}",
-                        // NAMING THE REMEDY, not just gesturing at it. The
-                        // sentence used to end "or choose a font that covers
-                        // it" -- true, and unusable, because the operator
-                        // cannot tell which font that would be and the whole
-                        // reason they are here is that they could not.
-                        //
-                        // These faces need no embedding and no permission
-                        // (§9.6.2.2), and `set_font` ADDS the resource to a
-                        // page that lacks it, so the sentence names a route
-                        // that is known to work rather than a hope.
-                        match faces_clause(&covering).as_str() {
-                            "" => ".".to_owned(),
-                            clause => {
-                                format!(
-                                    " -- `format_text` with `set_font` will add one, and {clause}"
-                                )
-                            }
-                        }
-                    ),
-                });
-            };
-            // A CID wider than 16 bits cannot be written as an `Identity-H`
-            // code. Refused rather than truncated: a truncated CID is a
-            // DIFFERENT, VALID glyph, so the page would render confidently
-            // wrong text with nothing to indicate it.
-            let Ok(cid) = u16::try_from(code) else {
-                return Err(Refusal {
-                    trigger: RInvTrigger::TargetAbsent,
-                    character: Some(ch),
-                    base_font: self.base_font.clone(),
-                    remedy_faces: Vec::new(),
-                    message: format!(
-                        "this font maps {ch:?} to a glyph index pdfcer cannot write in this \
-                         encoding."
-                    ),
-                });
-            };
-            cids.push(cid);
-        }
+        self.encode_str_carrying(target, &[])
+    }
+
+    /// [`Self::encode_str`], keeping the code a character already had.
+    ///
+    /// `carried[i]` is the code the run already draws the `i`-th character of
+    /// `target` with, when the edit leaves that character unchanged. An
+    /// ambiguous character (two codes produce it) is written with its carried
+    /// code instead of refused: the page already says which code means it
+    /// there. A carried code the map does not give to that character is
+    /// ignored, and unambiguous characters encode exactly as `encode_str`
+    /// would.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::encode_str`]; an ambiguous character with no carried code
+    /// is refused.
+    pub fn encode_str_carrying(
+        &self,
+        target: &str,
+        carried: &[Option<u32>],
+    ) -> Result<CompositeEncodeResult, Refusal> {
+        let cids = target
+            .chars()
+            .enumerate()
+            .map(|(i, ch)| self.encode_one(ch, carried.get(i).copied().flatten()))
+            .collect::<Result<_, _>>()?;
         Ok(CompositeEncodeResult { cids })
+    }
+
+    /// One character's CID, `kept` being its carried code if any.
+    fn encode_one(&self, ch: char, kept: Option<u32>) -> Result<u16, Refusal> {
+        if let Some(codes) = self.ambiguous.get(&ch) {
+            // Writing any of these codes would render a real glyph that MAY be
+            // the wrong one, indistinguishable on screen from the right one,
+            // unless the page already drew this character with it.
+            return kept
+                .filter(|k| codes.contains(k))
+                .and_then(|k| u16::try_from(k).ok())
+                .ok_or_else(|| self.ambiguous_refusal(ch, codes));
+        }
+        let Some(&code) = self.reverse.get(&ch) else {
+            return Err(self.absent_refusal(ch));
+        };
+        // A CID wider than 16 bits cannot be written as an `Identity-H`
+        // code. Refused rather than truncated: a truncated CID is a
+        // DIFFERENT, VALID glyph, so the page would render confidently
+        // wrong text with nothing to indicate it.
+        u16::try_from(code).map_err(|_| Refusal {
+            trigger: RInvTrigger::TargetAbsent,
+            character: Some(ch),
+            base_font: self.base_font.clone(),
+            remedy_faces: Vec::new(),
+            message: format!(
+                "this font maps {ch:?} to a glyph index pdfcer cannot write in this \
+                 encoding."
+            ),
+        })
+    }
+
+    /// `R-INV-4`, per character: names the choice pdfcer declined to make.
+    fn ambiguous_refusal(&self, ch: char, codes: &[u32]) -> Refusal {
+        let list = codes
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        Refusal {
+            trigger: RInvTrigger::Ambiguous,
+            character: Some(ch),
+            base_font: self.base_font.clone(),
+            remedy_faces: Vec::new(),
+            message: format!(
+                "this font's character map gives {ch:?} to {} different codes ({list}), so there is no single code that means it and pdfcer will not guess; every other character of this font still edits — keep the edit to those, or choose a font that maps {ch:?} once.",
+                codes.len()
+            ),
+        }
+    }
+
+    /// `R-INV-1` for a composite font, naming the standard-14 faces that
+    /// cover `ch`. This layer has no page, so the list is the naive coverage
+    /// one, and `Refusal::remedy_faces` says so.
+    fn absent_refusal(&self, ch: char) -> Refusal {
+        let covering: Vec<&'static str> = std14_faces_covering(ch);
+        // These faces need no embedding and no permission (§9.6.2.2), and
+        // `set_font` adds the resource to a page that lacks it.
+        let remedy = match faces_clause(&covering).as_str() {
+            "" => ".".to_owned(),
+            clause => format!(" -- `format_text` with `set_font` will add one, and {clause}"),
+        };
+        Refusal {
+            trigger: RInvTrigger::TargetAbsent,
+            character: Some(ch),
+            base_font: self.base_font.clone(),
+            remedy_faces: covering.iter().map(|&f| f.to_owned()).collect(),
+            message: format!(
+                "this font has no glyph for {ch:?}, and pdfcer cannot add one to a font \
+                 that is already embedded. Keep this edit to characters the font \
+                 already uses, or switch this run to a font that covers it{remedy}"
+            ),
+        }
     }
 
     /// Whether this font can show `ch` at all.

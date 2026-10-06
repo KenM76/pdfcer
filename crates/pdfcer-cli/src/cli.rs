@@ -9748,6 +9748,11 @@ pub(crate) enum Command {
     /// A run whose font has **no usable encoding** is not an error: the set is
     /// empty and `reason=` says why, so a script can skip the run rather than
     /// attempt an edit that cannot succeed.
+    ///
+    /// `ambiguous=N` counts the characters the run's font draws with more
+    /// than one code. They are not accepted, because typing one would make
+    /// pdfcer pick a code; one already in the run that the edit leaves in
+    /// place keeps its code and is not refused.
     RunRepertoire {
         /// Input PDF.
         input: PathBuf,
@@ -9762,7 +9767,8 @@ pub(crate) enum Command {
         /// `START:LEN` — the same spelling `edit-text --pin-span` takes.
         #[arg(long)]
         pin_span: Option<String>,
-        /// Print every accepted character rather than a summary count.
+        /// Print every accepted character rather than a summary count, and
+        /// each ambiguous one with its codes as ambiguous_chars=U+0041:1/2.
         #[arg(long)]
         list: bool,
         /// Also count the characters edit-text --fallback-font NAME would

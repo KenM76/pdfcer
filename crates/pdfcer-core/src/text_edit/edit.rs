@@ -2747,7 +2747,7 @@ fn match_anchor<'a>(at: &Located<'a>, span: Anchor, find: &str) -> Result<Matche
 fn encode_replacement(
     font: &ExtractFont,
     anchor: &ShowData,
-    replace: &str,
+    req: &EditRequest,
 ) -> Result<EncodedReplacement, EditError> {
     // The R-INV-5 tie-break seed: codes already used in this run.
     let prefer: BTreeSet<u8> = anchor
@@ -2755,7 +2755,53 @@ fn encode_replacement(
         .iter()
         .filter_map(|s| u8::try_from(s.code).ok())
         .collect();
-    encode_in(font, &prefer, replace)
+    let carried = carried_through(anchor, req);
+    encode_in_carrying(font, &prefer, &req.replace, &carried)
+}
+
+/// The code each replacement character keeps because the edit leaves it
+/// unchanged: the common prefix and suffix of the matched text and the
+/// replacement, the same trim `narrow_span` makes. Empty when the match is
+/// not one unique run of one-character codes in `anchor`, so nothing is
+/// carried rather than something misattributed.
+fn carried_through(anchor: &ShowData, req: &EditRequest) -> Vec<Option<u32>> {
+    let find = effective_find(anchor, &req.find, req.pinned_span);
+    if find.is_empty() || anchor.text.matches(find).count() != 1 {
+        return Vec::new();
+    }
+    let Some(pos) = anchor.text.find(find) else {
+        return Vec::new();
+    };
+    let mut old: Vec<(char, u32)> = Vec::new();
+    for (o, ch) in find.char_indices() {
+        let (t0, t1) = (pos + o, pos + o + ch.len_utf8());
+        match anchor.slots.iter().find(|s| s.t0 == t0 && s.t1 == t1) {
+            Some(slot) => old.push((ch, slot.code)),
+            None => return Vec::new(),
+        }
+    }
+    let new: Vec<char> = req.replace.chars().collect();
+    let mut carried = vec![None; new.len()];
+    let pre = old
+        .iter()
+        .zip(&new)
+        .take_while(|((a, _), b)| a == *b)
+        .count();
+    for (slot, &(_, code)) in carried.iter_mut().zip(&old).take(pre) {
+        *slot = Some(code);
+    }
+    let rest = old.len().min(new.len()) - pre;
+    let suf = old
+        .iter()
+        .rev()
+        .zip(new.iter().rev())
+        .take(rest)
+        .take_while(|((a, _), b)| a == *b)
+        .count();
+    for (slot, &(_, code)) in carried.iter_mut().rev().zip(old.iter().rev()).take(suf) {
+        *slot = Some(code);
+    }
+    carried
 }
 
 /// [`encode_replacement`] with an explicit R-INV-5 tie-break seed.
@@ -2768,8 +2814,19 @@ pub(crate) fn encode_in(
     prefer: &BTreeSet<u8>,
     replace: &str,
 ) -> Result<EncodedReplacement, EditError> {
+    encode_in_carrying(font, prefer, replace, &[])
+}
+
+/// [`encode_in`], keeping `carried` codes for a composite font's ambiguous
+/// characters ([`CompositeEncoding::encode_str_carrying`]).
+fn encode_in_carrying(
+    font: &ExtractFont,
+    prefer: &BTreeSet<u8>,
+    replace: &str,
+    carried: &[Option<u32>],
+) -> Result<EncodedReplacement, EditError> {
     if !font.is_simple() {
-        return encode_composite(font, replace);
+        return encode_composite(font, replace, carried);
     }
     let glyph_names = font.glyph_names().ok_or(EditError::Unsupported(
         UnsupportedCause::EncodingNotInvertible,
@@ -3009,7 +3066,7 @@ pub(crate) fn encode_and_extend(
     opts: &EditOptions,
 ) -> Result<(EncodedReplacement, ExtractFont, Option<FontExtension>), EditError> {
     let mut begun = None;
-    let (mut encoded, font, alloc) = match encode_replacement(&font, anchor, &req.replace) {
+    let (mut encoded, font, alloc) = match encode_replacement(&font, anchor, req) {
         Ok(e) => (e, font, None),
         Err(refused) if !font.is_simple() => {
             let cmap = match allocate_cids(doc, target, &font, class, font_dict, anchor, req, opts)
@@ -3022,7 +3079,7 @@ pub(crate) fn encode_and_extend(
                 }
             };
             (
-                encode_composite_with(&font, &cmap, &req.replace)?,
+                encode_composite_with(&font, &cmap, &req.replace, &carried_through(anchor, req))?,
                 font,
                 None,
             )
@@ -3031,11 +3088,7 @@ pub(crate) fn encode_and_extend(
             let alloc = allocate_codes(doc, target, &font, class, font_dict, anchor, req, opts)
                 .map_err(|blocked| with_allocation_reasons(refused, &blocked))?;
             let font = ExtractFont::resolve(doc, &alloc.dict);
-            (
-                encode_replacement(&font, anchor, &req.replace)?,
-                font,
-                Some(alloc),
-            )
+            (encode_replacement(&font, anchor, req)?, font, Some(alloc))
         }
     };
     let dict = alloc.as_ref().map_or(font_dict, |a| &a.dict);
@@ -3265,11 +3318,15 @@ fn with_allocation_reasons(refused: EditError, blocked: &[Blocked]) -> EditError
 /// [`encode_replacement`] for a composite font. `classify_font` has already
 /// refused a map that is not invertible, so `build` re-derives a known-good
 /// inversion.
-fn encode_composite(font: &ExtractFont, replace: &str) -> Result<EncodedReplacement, EditError> {
+fn encode_composite(
+    font: &ExtractFont,
+    replace: &str,
+    carried: &[Option<u32>],
+) -> Result<EncodedReplacement, EditError> {
     let cmap = font.to_unicode_cmap().ok_or(EditError::Unsupported(
         UnsupportedCause::CompositeWithoutToUnicode,
     ))?;
-    encode_composite_with(font, cmap, replace)
+    encode_composite_with(font, cmap, replace, carried)
 }
 
 /// [`encode_composite`] through `cmap` rather than the font's own map.
@@ -3277,13 +3334,16 @@ fn encode_composite_with(
     font: &ExtractFont,
     cmap: &ToUnicodeCMap,
     replace: &str,
+    carried: &[Option<u32>],
 ) -> Result<EncodedReplacement, EditError> {
     let composite = CompositeEncoding::build(&font.base_font, cmap).map_err(|e| {
         EditError::Unsupported(UnsupportedCause::FontMapNotInvertible {
             detail: e.to_string(),
         })
     })?;
-    let e = composite.encode_str(replace).map_err(EditError::Refused)?;
+    let e = composite
+        .encode_str_carrying(replace, carried)
+        .map_err(EditError::Refused)?;
     Ok(EncodedReplacement {
         codes: e.cids.iter().map(|&c| u32::from(c)).collect(),
         bytes: e.to_bytes(),

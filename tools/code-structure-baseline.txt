@@ -443,7 +443,6 @@ fn pdfcer-core/src/text_edit/edit.rs::operation
 fn pdfcer-core/src/text_edit/edit.rs::record_show
 fn pdfcer-core/src/text_edit/edit.rs::reposition_followers
 fn pdfcer-core/src/text_edit/encoding.rs::encode_char
-fn pdfcer-core/src/text_edit/encoding.rs::encode_str
 fn pdfcer-core/src/text_edit/format.rs::plan_font
 fn pdfcer-core/src/text_edit/format.rs::plan_format_target
 fn pdfcer-core/src/text_edit/format.rs::plan_style_ladder

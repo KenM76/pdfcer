@@ -1,7 +1,7 @@
 //! Which characters one located text run will accept, asked before the first
 //! keystroke instead of refused after the last (`Pass 280.0`).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::ContentStream;
 use crate::object::Dict;
@@ -107,6 +107,7 @@ pub(crate) fn run_repertoire(
         }
     };
     out.accepted = own.accepted;
+    out.ambiguous = own.ambiguous;
     out.embedded_subset = own.embedded_subset;
     out.candidates_tested = own.candidates_tested;
     add_other_fonts(&mut out, &query, anchor, &font.base_font, opts);
@@ -172,6 +173,7 @@ fn empty_repertoire(
         text: crate::text_edit::edit::effective_find(anchor, find, pinned_span).to_owned(),
         accepted: BTreeSet::new(),
         via_fallback: BTreeSet::new(),
+        ambiguous: BTreeMap::new(),
         embedded_subset: false,
         candidates_tested: 0,
         reason: None,
@@ -194,6 +196,7 @@ struct FontQuery<'a> {
 /// One font resource's answer.
 struct Accepts {
     accepted: BTreeSet<char>,
+    ambiguous: BTreeMap<char, Vec<u32>>,
     candidates_tested: usize,
     embedded_subset: bool,
 }
@@ -237,13 +240,17 @@ fn font_accepts(q: &FontQuery<'_>) -> Result<Accepts, Refused> {
     } else {
         BTreeSet::new()
     };
-    let (accepted, candidates_tested) = if font.is_simple() {
-        simple_accepts(q, &font, embedded_subset, &carried)?
+    let ((accepted, candidates_tested), ambiguous) = if font.is_simple() {
+        (
+            simple_accepts(q, &font, embedded_subset, &carried)?,
+            BTreeMap::new(),
+        )
     } else {
         composite_accepts(q, &font, embedded_subset, &carried)?
     };
     Ok(Accepts {
         accepted,
+        ambiguous,
         candidates_tested,
         embedded_subset,
     })
@@ -318,7 +325,7 @@ fn composite_accepts(
     font: &ExtractFont,
     embedded_subset: bool,
     carried: &BTreeSet<u32>,
-) -> Result<(BTreeSet<char>, usize), Refused> {
+) -> Result<((BTreeSet<char>, usize), BTreeMap<char, Vec<u32>>), Refused> {
     let Some(cmap) = font.to_unicode_cmap() else {
         let cause = UnsupportedCause::CompositeWithoutToUnicode;
         return Err((cause.to_string(), Some(cause)));
@@ -378,7 +385,7 @@ fn composite_accepts(
             ));
         }
     }
-    Ok((accepted, tested))
+    Ok(((accepted, tested), composite.ambiguous_chars().clone()))
 }
 
 /// An empty answer still owes a reason: a font whose every character is
