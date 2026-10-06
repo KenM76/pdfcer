@@ -46,13 +46,6 @@ fn session() -> EditSession {
     EditSession::new(Document::from_bytes(buf).expect("parses"))
 }
 
-fn svg() -> pdfcer_core::svg_import::ImportedSvg {
-    pdfcer_core::svg_import::import(
-        br#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>"#,
-    )
-    .expect("imports")
-}
-
 fn emf() -> pdfcer_core::emf_import::ImportedEmf {
     pdfcer_core::emf_import::import(&super::emf_import::filled_rectangle().finish())
         .expect("imports")
@@ -85,45 +78,69 @@ fn assert_on_layer(s: &mut EditSession) {
 }
 
 #[test]
-fn an_svg_drawing_is_placed_on_the_layer() {
-    let mut s = session();
-    s.add_svg_on_layer(0, RECT, &svg(), Some(LAYER)).unwrap();
-    assert_on_layer(&mut s);
-}
-
-#[test]
 fn an_emf_drawing_is_placed_on_the_layer() {
     let mut s = session();
     s.add_emf_on_layer(0, RECT, &emf(), Some(LAYER)).unwrap();
     assert_on_layer(&mut s);
 }
 
+fn save(s: &EditSession) -> Vec<u8> {
+    s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0
+}
+
 #[test]
 fn no_layer_is_exactly_the_plain_add() {
     let mut a = session();
     let mut b = session();
-    a.add_svg(0, RECT, &svg()).unwrap();
-    b.add_svg_on_layer(0, RECT, &svg(), None).unwrap();
-    let save = |s: &EditSession| s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+    a.add_emf(0, RECT, &emf()).unwrap();
+    b.add_emf_on_layer(0, RECT, &emf(), None).unwrap();
     assert_eq!(save(&a), save(&b));
-    let mut c = session();
-    let mut d = session();
-    c.add_emf(0, RECT, &emf()).unwrap();
-    d.add_emf_on_layer(0, RECT, &emf(), None).unwrap();
-    assert_eq!(save(&c), save(&d));
 }
 
 #[test]
 fn an_unregistered_layer_is_refused_before_any_write() {
     let mut s = session();
-    let ghost = ObjId::new(99, 0);
     assert!(matches!(
-        s.add_svg_on_layer(0, RECT, &svg(), Some(ghost)),
-        Err(EditError::LayerNotFound { .. })
-    ));
-    assert!(matches!(
-        s.add_emf_on_layer(0, RECT, &emf(), Some(ghost)),
+        s.add_emf_on_layer(0, RECT, &emf(), Some(ObjId::new(99, 0))),
         Err(EditError::LayerNotFound { .. })
     ));
     assert_eq!(s.undo_depth(), 0);
+}
+
+#[cfg(feature = "svg-import")]
+mod svg {
+    use super::*;
+
+    fn svg() -> pdfcer_core::svg_import::ImportedSvg {
+        pdfcer_core::svg_import::import(
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>"#,
+        )
+        .expect("imports")
+    }
+
+    #[test]
+    fn an_svg_drawing_is_placed_on_the_layer() {
+        let mut s = session();
+        s.add_svg_on_layer(0, RECT, &svg(), Some(LAYER)).unwrap();
+        assert_on_layer(&mut s);
+    }
+
+    #[test]
+    fn no_layer_is_exactly_the_plain_add() {
+        let mut a = session();
+        let mut b = session();
+        a.add_svg(0, RECT, &svg()).unwrap();
+        b.add_svg_on_layer(0, RECT, &svg(), None).unwrap();
+        assert_eq!(save(&a), save(&b));
+    }
+
+    #[test]
+    fn an_unregistered_layer_is_refused_before_any_write() {
+        let mut s = session();
+        assert!(matches!(
+            s.add_svg_on_layer(0, RECT, &svg(), Some(ObjId::new(99, 0))),
+            Err(EditError::LayerNotFound { .. })
+        ));
+        assert_eq!(s.undo_depth(), 0);
+    }
 }
