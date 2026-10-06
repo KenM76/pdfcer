@@ -115,6 +115,44 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 506.0` + `Pass 507.0` — the repertoire names letters drawn two ways, and an edit keeps their codes (`G128`, `G129`) — SHIPPED `0ef53720`, `2acaac01`
+
+Code commit `0ef53720` plus follow-up `2acaac01` (also Pass 507.0), two Passes (`pdfcer-core`, `pdfcer` CLI; `pdfcer-gui` not consumed).
+
+**506.0 (`G128`).** `RunRepertoire::ambiguous: BTreeMap<char, Vec<u32>>` is the run's own
+font's `CompositeEncoding::ambiguous_chars` (codes ascending); empty for simple fonts and
+injective maps. Ambiguous characters stay out of `accepted` unless a sibling, fallback or
+same-program route accepts them. CLI `run-repertoire` prints ` ambiguous=N`, and with
+`--list` ` ambiguous_chars=U+0041:1/2,...`.
+
+**507.0 (`G129`).** `edit_text` keeps the drawn code of an ambiguous character the edit
+leaves in place (common prefix/suffix of matched text vs replacement, the trim `narrow_span`
+makes): `<0001> Tj` (A; codes 1 and 2 both A) edited to "AB" writes codes 1 and 3 (verified by extracting the saved page's glyph codes). An ADDED
+ambiguous character is still refused (`RInvTrigger::Ambiguous`, naming it). Applies only when
+the match occurs once in its show operator and each code is one character; otherwise
+unchanged. New `pub CompositeEncoding::encode_str_carrying(&self, target, carried:
+&[Option<u32>])`; `encode_str` split into per-character helpers (one code-structure baseline
+entry removed). CLI `edit-text` uses it automatically: `--find A --replace AB` succeeds,
+`AAB` refuses naming A.
+
+Tests: `crates/pdfcer-core/tests/tounicode_partial_inverse.rs` 3 -> 6 (fixture
+`fixtures/synthetic/text/cidfonttype2-partially-injective-tounicode.pdf`); sabotage
+(disabling the carry) fails the kept-code test (engineer-reported). `docs/core-api/02-editing-and-saving.md`
+updated; `check-core-api-verbs` green. No dependency or manifest change (`cargo tree`
+unaffected). Encoding-only writer change; minimal-diff unaffected.
+
+**`2acaac01` (follow-up).** The first gate sweep on `0ef53720` FAILED 3 of 45 commands, two
+causes. (a) The older test `composite_refusal_reachable::a_non_injective_composite_fonts_ambiguous_character_is_refused_by_name`
+replaced "A" with "A", which the carry rule correctly lets succeed; it now replaces "A" with
+"AA" (adds an A, still refused by name). It failed in both `cargo test --workspace` and
+`--no-default-features`. (b) clippy `type_complexity` on `repertoire.rs::composite_accepts`'s
+return type; fixed by the alias `AmbiguousChars`. The font-map disclosure is reworded: an
+ambiguous character is "REFUSED if a replacement adds them (one the edit leaves in place keeps
+its own code) ... this replacement added none of them" (old "needs them ... used none of them"
+would be false after the carry). Gates: first sweep on `0ef53720` failed (above, fixed in
+`2acaac01`); re-run on the fixed tree pending. FEATURES: rows `256.1` and `280.0` annotated; boxes
+unchanged (`gui` stays `[ ]`).
+
 ### `Pass 505.0` — the compressed-mesh choice search resumes each walk and searches six deep (`pdfcer-3d`, engine only) — SHIPPED `bd5aa90c`
 
 Compressed PRC tessellation (entity 173), last-resort search over inverted choices. It used

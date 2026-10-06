@@ -4,6 +4,36 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (982nd filing) — `Pass 506.0` + `Pass 507.0` shipped (letters drawn two ways: named in the repertoire, codes kept on edit)
+
+**Shipped:**
+- `Pass 506.0` (`G128`) — `RunRepertoire::ambiguous`; CLI `run-repertoire` ` ambiguous=N` / `ambiguous_chars=`.
+- `Pass 507.0` (`G129`) — `edit_text` keeps the drawn code of an unchanged ambiguous
+  character; new `CompositeEncoding::encode_str_carrying`. Both in `0ef53720`; follow-up
+  `2acaac01` (also 507.0) fixed what the first gate sweep caught.
+
+**Decisions made this session:**
+- None needing a decision-log entry.
+
+**Findings + decisions:**
+- `tounicode_partial_inverse.rs` 3 -> 6 tests; sabotage fails the kept-code test. Carry
+  example: "A" (codes 1 and 2) edited to "AB" writes codes 1 and 3 (verified by extracting the
+  saved page's glyph codes; the saved operator's byte form was not measured).
+- First gate sweep on `0ef53720` FAILED 3 of 45 commands: (a) older test
+  `composite_refusal_reachable::a_non_injective_composite_fonts_ambiguous_character_is_refused_by_name`
+  replaced "A" with "A", which the carry correctly lets succeed (failed in `cargo test
+  --workspace` and `--no-default-features`); now replaces "A" with "AA", still refused by
+  name. (b) clippy `type_complexity` on `repertoire.rs::composite_accepts`; fixed by alias
+  `AmbiguousChars`. `2acaac01` also rewords the font-map disclosure ("REFUSED if a replacement
+  adds them (one the edit leaves in place keeps its own code) ... added none of them"; the old
+  "needs them ... used none of them" would be false after the carry).
+- `FEATURES.md` rows `256.1` and `280.0` annotated; no box changed (`gui` `[ ]`).
+
+**Still in flight:**
+- `pdfcer-gui` has not consumed either; first gate sweep on `0ef53720` failed (above, fixed in `2acaac01`); re-run on the fixed tree pending.
+
+**Sourcing note (hard rule 8):** figures engineer-reported; push/backup state not checked here.
+
 ## 2026-10-06 (981st filing) — `Pass 505.0` shipped (compressed-mesh choice search resumes walks, depth 6)
 
 **Shipped:**
