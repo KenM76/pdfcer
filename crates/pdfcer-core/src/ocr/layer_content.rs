@@ -591,6 +591,50 @@ mod tests {
         );
     }
 
+    /// Words only, as a recogniser boxes them tight on the ink: 11 pt
+    /// text on 16 pt leading, x-height words beside ascender and descender
+    /// words, two columns of two paragraphs a blank line apart. Each
+    /// paragraph is one block, not one per line.
+    #[test]
+    fn inferred_structure_groups_tight_word_boxes_into_paragraphs() {
+        const EM: f64 = 11.0;
+        // (text, ink bottom, ink top) in ems from the baseline.
+        let shapes = [
+            ("an", 0.0, 0.52),
+            ("the", 0.0, 0.72),
+            ("apple", -0.21, 0.72),
+            ("go", -0.21, 0.52),
+            ("In", 0.0, 0.72),
+        ];
+        let mut words = Vec::new();
+        for (col, x0) in [(0, 72.0), (1, 330.0)] {
+            let mut baseline = 700.0;
+            for para in 0..2 {
+                for line in 0..4 {
+                    for k in 0..shapes.len() {
+                        let Some(&(t, lo, hi)) = shapes.get((k + line) % shapes.len()) else {
+                            continue;
+                        };
+                        let x = x0 + k as f64 * 36.0;
+                        words.push(word(
+                            &format!("{t}{col}{para}{line}"),
+                            x,
+                            baseline + lo * EM,
+                            x + 30.0,
+                            baseline + hi * EM,
+                        ));
+                    }
+                    baseline -= 16.0;
+                }
+                baseline -= 16.0;
+            }
+        }
+        let (_, report) = page_of(words).pipe_build(b"OCR0", &OcrLayerOptions::new());
+        assert_eq!(report.structure, OcrStructureSource::Inferred);
+        assert_eq!(report.words_written, 80);
+        assert_eq!((report.lines_written, report.blocks_written), (16, 4));
+    }
+
     /// Test-only sugar so each case reads as one line of intent.
     trait PipeBuild {
         fn pipe_build(&self, name: &[u8], opts: &OcrLayerOptions) -> (Vec<u8>, OcrLayerReport);

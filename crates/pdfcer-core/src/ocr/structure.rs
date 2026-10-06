@@ -94,10 +94,12 @@ pub(super) fn resolve(page: &OcrPage) -> (Vec<ResolvedBlock>, OcrStructureSource
     } else if !page.lines.is_empty() {
         (blocks_over_lines(page), OcrStructureSource::BlocksInferred)
     } else {
-        let boxes: Vec<(Rect, &str)> = page
-            .words
+        let ink: Vec<Rect> = page.words.iter().map(|w| w.rect).collect();
+        let rects = font_boxes(&ink, &rows_of(&ink));
+        let boxes: Vec<(Rect, &str)> = rects
             .iter()
-            .map(|w| (w.rect, w.text.as_str()))
+            .zip(&page.words)
+            .map(|(r, w)| (*r, w.text.as_str()))
             .collect();
         let singles: Vec<Vec<usize>> = (0..n).map(|i| vec![i]).collect();
         (infer(&boxes, &singles), OcrStructureSource::Inferred)
@@ -122,16 +124,17 @@ fn reported(page: &OcrPage) -> Vec<ResolvedBlock> {
 
 /// Lays out the reported lines as boxes and keeps each line whole.
 fn blocks_over_lines(page: &OcrPage) -> Vec<ResolvedBlock> {
+    let ink: Vec<Rect> = page.words.iter().map(|w| w.rect).collect();
+    let lines: Vec<Vec<usize>> = page
+        .lines
+        .iter()
+        .map(|l| l.words.iter().copied().filter(|&w| w < ink.len()).collect())
+        .collect();
+    let rects = font_boxes(&ink, &lines);
     let mut boxes = Vec::new();
     let mut members = Vec::new();
-    for line in &page.lines {
-        let words: Vec<usize> = line
-            .words
-            .iter()
-            .copied()
-            .filter(|&w| w < page.words.len())
-            .collect();
-        let Some(rect) = union_of(page, &words) else {
+    for words in lines {
+        let Some(rect) = union_of(&rects, &words) else {
             continue;
         };
         let text: Vec<&str> = words
@@ -146,12 +149,101 @@ fn blocks_over_lines(page: &OcrPage) -> Vec<ResolvedBlock> {
     infer(&refs, &members)
 }
 
-fn union_of(page: &OcrPage, words: &[usize]) -> Option<Rect> {
+fn union_of(rects: &[Rect], words: &[usize]) -> Option<Rect> {
     words
         .iter()
-        .filter_map(|&w| page.words.get(w))
-        .map(|w| w.rect)
+        .filter_map(|&w| rects.get(w))
+        .copied()
         .reduce(union)
+}
+
+/// Ascender top to descender bottom of a common text face, in ems
+/// (Helvetica: 0.718 + 0.207). A recogniser's word box is tight on the ink.
+const INK_EM: f64 = 0.93;
+
+/// A row whose ink height is within this factor of the page's median row
+/// is set at the body size; outside it, at its own (a heading, a footnote).
+const OWN_SIZE: (f64, f64) = (0.7, 1.2);
+
+/// Words in rows: a box joins the current row when its vertical
+/// centre lies inside the row's span so far. Rows top to bottom.
+fn rows_of(ink: &[Rect]) -> Vec<Vec<usize>> {
+    let centre = |r: &Rect| (r.lly + r.ury) / 2.0;
+    let mut order: Vec<usize> = (0..ink.len()).collect();
+    order.sort_by(|&a, &b| {
+        let (ca, cb) = (ink.get(a).map(centre), ink.get(b).map(centre));
+        cb.partial_cmp(&ca).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut rows: Vec<(f64, f64, Vec<usize>)> = Vec::new();
+    for i in order {
+        let Some(r) = ink.get(i) else { continue };
+        match rows.last_mut() {
+            Some((lo, hi, row)) if (*lo..=*hi).contains(&centre(r)) => {
+                *lo = lo.min(r.lly);
+                *hi = hi.max(r.ury);
+                row.push(i);
+            }
+            _ => rows.push((r.lly, r.ury, vec![i])),
+        }
+    }
+    rows.into_iter().map(|(_, _, row)| row).collect()
+}
+
+/// Rewrites tight ink boxes as the font boxes [`block_layout`] sizes a
+/// glyph-free run from (em 0.8 of the box height, baseline 0.2 up it), so
+/// its line-spacing and size-change rules compare ems, not ink.
+///
+/// Each row gets one em, from its ink height over [`INK_EM`] (the page's
+/// median row height unless outside [`OWN_SIZE`] of it), and one baseline:
+/// the upper quartile of its words' bottoms, since words without a
+/// descender sit on it. A row of one box is taken to carry a descender.
+/// Boxes no row names are returned unchanged.
+fn font_boxes(ink: &[Rect], rows: &[Vec<usize>]) -> Vec<Rect> {
+    let height = |row: &Vec<usize>| {
+        let rs = || row.iter().filter_map(|&i| ink.get(i));
+        let top = rs().map(|r| r.ury).fold(f64::NEG_INFINITY, f64::max);
+        let bottom = rs().map(|r| r.lly).fold(f64::INFINITY, f64::min);
+        top - bottom
+    };
+    let mut heights: Vec<f64> = rows
+        .iter()
+        .map(height)
+        .filter(|h| h.is_finite() && *h > 0.0)
+        .collect();
+    heights.sort_by(f64::total_cmp);
+    let body = heights.get(heights.len() / 2).copied();
+    let mut out = ink.to_vec();
+    for row in rows {
+        let h = height(row);
+        if !(h.is_finite() && h > 0.0) {
+            continue;
+        }
+        let h = match body {
+            Some(b) if h >= OWN_SIZE.0 * b && h <= OWN_SIZE.1 * b => b,
+            _ => h,
+        };
+        let em = h / INK_EM;
+        let mut bottoms: Vec<f64> = row
+            .iter()
+            .filter_map(|&i| ink.get(i))
+            .map(|r| r.lly)
+            .collect();
+        bottoms.sort_by(f64::total_cmp);
+        let baseline = match bottoms.as_slice() {
+            [only] => only + 0.207 * em,
+            b => b
+                .get(3 * (b.len().saturating_sub(1)) / 4)
+                .copied()
+                .unwrap_or(0.0),
+        };
+        let lly = baseline - 0.25 * em;
+        for &i in row {
+            if let Some(r) = out.get_mut(i) {
+                *r = Rect::from_corners(r.llx, lly, r.urx, lly + 1.25 * em);
+            }
+        }
+    }
+    out
 }
 
 fn union(a: Rect, b: Rect) -> Rect {
