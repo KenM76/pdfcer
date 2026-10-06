@@ -66,6 +66,10 @@ pub enum Tessellation {
         /// Why `mesh` is `None`, in a sentence a shell can print; `None`
         /// when the mesh was rebuilt.
         not_rebuilt: Option<String>,
+        /// Whether `mesh` is a best fit: the first geometry a deep search
+        /// found that consumes every array, where another might as well.
+        /// Such a mesh is disclosed as inferred.
+        best_fit: bool,
     },
 }
 
@@ -268,14 +272,15 @@ impl Ctx<'_, '_> {
                 }
                 TESS_3D_COMPRESSED => {
                     let (triangles, rebuilt) = self.tess_3d_compressed()?;
-                    let (mesh, not_rebuilt) = match rebuilt {
-                        Ok(m) => (Some(m), None),
-                        Err(why) => (None, Some(why)),
+                    let (mesh, not_rebuilt, best_fit) = match rebuilt {
+                        Ok((m, best)) => (Some(m), None, best),
+                        Err(why) => (None, Some(why), false),
                     };
                     Tessellation::Compressed {
                         triangles,
                         mesh,
                         not_rebuilt,
+                        best_fit,
                     }
                 }
                 t => {
@@ -304,7 +309,7 @@ impl Ctx<'_, '_> {
     /// §1: `face_number` = largest face index + 1, `normal_is_reversed` is
     /// one bit per triangle, and `point_reference_array`'s compressed flag
     /// is implicit (more than three references).
-    fn tess_3d_compressed(&mut self) -> Result<(usize, Result<TriangleMesh, String>), PrcError> {
+    fn tess_3d_compressed(&mut self) -> Result<(usize, crate::compressed::Rebuilt), PrcError> {
         let r = &mut self.r;
         r.bit()?; // is_calculated
         r.bit()?; // has_faces
@@ -374,7 +379,7 @@ impl Ctx<'_, '_> {
         }
         self.schema
             .skip_added_fields(TESS_3D_COMPRESSED, &mut self.r)?;
-        let mesh = crate::compressed::reconstruct(&crate::compressed::Arrays {
+        let mesh = crate::compressed::rebuild(&crate::compressed::Arrays {
             tolerance: tol,
             origin,
             points: &point_array,
@@ -394,10 +399,10 @@ impl Ctx<'_, '_> {
                 }
             }),
         })
-        .map(|m| {
+        .map(|(m, best)| {
             let graphics =
                 compressed_graphics(&face_of, &multi, &line_attributes, &behaviours, faces);
-            TriangleMesh {
+            let m = TriangleMesh {
                 normals_recalculated: recalc,
                 triangle_faces: if face_of.len() == m.triangles.len() {
                     face_of.clone()
@@ -410,7 +415,8 @@ impl Ctx<'_, '_> {
                     Vec::new()
                 },
                 ..m
-            }
+            };
+            (m, best)
         });
         Ok((t, mesh))
     }
@@ -1712,6 +1718,7 @@ pub(crate) mod tests {
                 triangles: 1,
                 mesh: None,
                 not_rebuilt: Some(_),
+                best_fit: false,
             }]
         ));
         crate::testw::check_fixture("compressed.prc", &bytes);
@@ -1724,6 +1731,7 @@ pub(crate) mod tests {
                 triangles: 1,
                 mesh: Some(_),
                 not_rebuilt: None,
+                best_fit: false,
             }]
         ));
         crate::testw::check_fixture("compressed_triangle.prc", &bytes);

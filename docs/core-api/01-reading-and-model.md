@@ -3030,13 +3030,29 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   was rebuilt by pdfcer's reconstruction of an undocumented encoding, and
   `placements()` failing means meshes are drawn unplaced. `pdfcer 3d-render`
   and `3d-mesh` print both notes; copy their wording.
+- **Best-fit compressed meshes.** A compressed mesh no exact rebuild fits
+  is retried by a deep search that takes the first geometry consuming
+  every stored array and normal with every planar face flat; another
+  geometry may fit as well (common where a producer quantises an apex
+  exactly onto its edge's line, which keeps no trace of its fold).
+  `Compressed { best_fit: true, .. }` marks one; `AssembledModel::best_fit:
+  usize` counts the placed meshes so rebuilt. **Disclose it** — `3d-render`
+  and `3d-mesh` print `note: N of those were rebuilt by a best-fit search:
+  the shape uses every stored number, but the file may admit another, so a
+  small detail can differ (`--mesh-fit unique` leaves them out)`.
+  `AssembleOptions::mesh_fit: MeshFit::{BestFit (default), Unique}`
+  (`Copy`, `Hash`, `#[non_exhaustive]`, re-exported at the crate root) —
+  offer it as a setting; `Unique` leaves such meshes out with the reason
+  `only a best-fit search rebuilds it, and the strict mesh-fit setting
+  draws unique fits only`.
 - A `Compressed { mesh: None, not_rebuilt: Some(why), .. }` is left out;
   `why` is a sentence fit to show. The CLI prints one
   `note: N compressed mesh(es) left out: <why>` per distinct reason.
 - CLI: `3d-mesh -o FILE.stl|.obj`, `3d-render -o FILE.png [--view iso|front|..]
   [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]
   [--style-alpha zero-unset|style|multiply] [--texture-origin bottom|top]
-  [--texture-wrap-base zero|one] [--texture-pictures structure|header]`.
+  [--texture-wrap-base zero|one] [--texture-pictures structure|header]
+  [--mesh-fit best|unique]`; `3d-mesh` also takes `--mesh-fit`.
 - Test models: `fixtures/synthetic/prc/coloured.prc` — a square defined in one
   file structure, placed at x 0, 2 and 4 from another whose globals hold
   the colours: opaque red, translucent blue (texture over an alpha-0

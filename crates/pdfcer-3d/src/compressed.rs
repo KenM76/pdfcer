@@ -236,6 +236,12 @@ struct Walk<'a> {
     turn: bool,
     /// Whether the last apex's frame was degenerate.
     degenerate: bool,
+    /// Set by the best-fit search: orient a sliver by its corner normals
+    /// (see [`Walk::fold`]).
+    raw: bool,
+    /// Whether any apex so far, rewound or not, would move under the
+    /// other [`Arrays::ortho_turned`].
+    reads_turned: bool,
 }
 
 /// Where a component starts, to roll back to.
@@ -268,6 +274,8 @@ impl<'a> Walk<'a> {
             weak: false,
             turn: false,
             degenerate: false,
+            raw: false,
+            reads_turned: false,
         }
     }
 
@@ -347,6 +355,9 @@ impl<'a> Walk<'a> {
             );
             let d = self.point(a)?;
             let (v, degenerate) = apex(lo, hi, ww, d, a.ortho_turned, invert);
+            if degenerate && !self.reads_turned {
+                self.reads_turned = apex(lo, hi, ww, d, !a.ortho_turned, invert).0 != v;
+            }
             self.degenerate = degenerate;
             self.pos.push(v);
             return Ok(([p, q, (self.pos.len() - 1) as u32], fold));
@@ -378,7 +389,9 @@ impl<'a> Walk<'a> {
     /// default `fold` stands. The WD requires every triangle's height to
     /// exceed the tolerance [WD 7.8.9], so a decoded one at most that thin
     /// ([`Walk::weak`]) has lost its winding to quantisation and takes the
-    /// default too, unless `legacy`.
+    /// default too, unless `legacy`. With [`Walk::raw`], such a triangle
+    /// and a sliver are instead oriented by the sum of their corner
+    /// normals, where the triangle has any.
     fn fold(&mut self, t: [u32; 3], fold: bool, legacy: bool) -> Result<bool, String> {
         let ti = self.tris.len();
         let Some(r) = self.normals.as_mut() else {
@@ -387,7 +400,22 @@ impl<'a> Walk<'a> {
         let o = r
             .read(ti, t, &self.pos)
             .ok_or("the stored normals run out")?;
+        let corners = if self.raw {
+            r.corner_sum(&self.pos)
+        } else {
+            [0.0; 3]
+        };
         let thin = self.weak && !legacy;
+        if self.raw && !legacy && !matches!(o, Orientation::Unknown) {
+            let (a, b, c) = (self.get(t[0])?, self.get(t[1])?, self.get(t[2])?);
+            let (ab, ac) = (sub(b, a), sub(c, a));
+            let w = cross(ab, ac);
+            let sine = (dot(w, w) / (dot(ab, ab) * dot(ac, ac))).sqrt();
+            if thin || sine.is_nan() || sine <= MIN_SINE {
+                let s = dot(w, corners);
+                return Ok(if s == 0.0 { fold } else { s < 0.0 });
+            }
+        }
         Ok(match o {
             Orientation::Reversed(_) if thin => fold,
             Orientation::Reused(_) if legacy => fold,
@@ -491,6 +519,22 @@ fn oriented_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
 /// frame turned a half-turn about `X`. The WD frame is tried first at each
 /// stage; the turned one is kept only as a fit the stored normals confirm.
 ///
+/// A rebuilt mesh and whether it is a best fit, or why none was rebuilt.
+pub(crate) type Rebuilt = Result<(TriangleMesh, bool), String>;
+
+/// [`reconstruct`], falling back to [`search::best_fit`]; the flag is true
+/// for a best fit, which another geometry might match as well.
+pub(crate) fn rebuild(a: &Arrays<'_>) -> Rebuilt {
+    let e = match reconstruct(a) {
+        Ok(m) => return Ok((m, false)),
+        Err(e) => e,
+    };
+    if a.edge_status.len() != a.triangles.saturating_mul(3) {
+        return Err(e);
+    }
+    search::best_fit(a).map(|m| (m, true)).ok_or(e)
+}
+
 /// A mesh no stage fits is retried with [`Arrays::legacy_orient`]: some
 /// producers' meshes fit only that looser reading.
 pub(crate) fn reconstruct(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
@@ -520,9 +564,7 @@ fn reconstruct_oriented(a: &Arrays<'_>) -> Result<TriangleMesh, String> {
             None => w,
         },
         Err(e) => {
-            return search::unique_fit(a)
-                .or_else(|| search::unique_fit(&turned))
-                .ok_or(e);
+            return search::unique_fit_either(a, &turned).ok_or(e);
         }
     };
     let stored = a
@@ -1167,6 +1209,8 @@ mod tests {
         };
         assert!(oriented_fit(&a).is_none());
         assert_eq!(walk(&a, None).is_ok(), walks);
+        // The search met the apex the turn moves, so the turned reading runs.
+        assert!(walks || search::unique_fit_reading(&a).1);
         let want = expected(&Arrays {
             ortho_turned: true,
             ..a
@@ -1248,6 +1292,55 @@ mod tests {
         };
         assert!(!search::fits_without_turns(&a));
         assert!(search::unique_fit(&a).is_some());
+        // With the fourth point moved, every degenerate apex the search
+        // meets keeps a residue: it still fits, no walk reads the turn, and
+        // the turned reading is skipped.
+        let mut moved = pts.clone();
+        moved[9] = 1;
+        let moved = Arrays {
+            points: &moved,
+            ..a
+        };
+        let (fit, reads) = search::unique_fit_reading(&moved);
+        assert!(fit.is_some() && !reads);
+    }
+
+    /// Where only one geometry fits, the best-fit search returns it; where
+    /// none does, it returns nothing rather than a partial mesh.
+    #[test]
+    fn a_best_fit_is_the_unique_fit_when_one_exists() {
+        let tri0 = [0, 0, 0, 4, 0, 0, 2, 4, 0];
+        let st = [1, 3, 1, 1, 1, 3, 0, 0, 1, 3, 2, 0];
+        let pts = [&tri0[..], &[0, 0, 0, -4, -4, 2]].concat();
+        let mut is_ref = vec![false; 6];
+        is_ref[5] = true;
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &st,
+            triangles: 4,
+            is_reference: &is_ref,
+            references: &[2],
+            ortho_turned: false,
+            legacy_orient: false,
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[false; 4],
+                angles: &[470, 724],
+                planar: &[true],
+                face_of: &[0; 4],
+            }),
+        };
+        let best = search::best_fit(&a);
+        assert!(best.is_some());
+        assert_eq!(best, search::unique_fit(&a));
+        let extra = [&pts[..], &[1, 1, 1]].concat();
+        let left_over = Arrays {
+            points: &extra,
+            ..a
+        };
+        assert!(search::best_fit(&left_over).is_none(), "points left");
     }
 
     /// The search is bounded by its depth: the one-turn mesh above has no

@@ -234,6 +234,13 @@ impl<'a> NormalReader<'a> {
         Some(Orientation::Reused(n))
     }
 
+    /// The sum of the last read triangle's corner normals.
+    pub(super) fn corner_sum(&self, pos: &[V]) -> V {
+        self.corners.last().map_or([0.0; 3], |c| {
+            c.iter().fold([0.0; 3], |n, &k| add(n, self.normal(k, pos)))
+        })
+    }
+
     fn step(&self) -> f64 {
         std::f64::consts::FRAC_PI_2 / f64::from((1u32 << self.a.bits).saturating_sub(1).max(1))
     }

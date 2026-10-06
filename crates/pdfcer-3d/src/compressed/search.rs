@@ -23,6 +23,10 @@ pub(super) const STAGES: [(bool, usize); 4] =
 const WINDOW: usize = 40;
 /// Triangle steps a search may spend before giving up undecided.
 const STEP_BUDGET: usize = 2_000_000;
+/// How many inverted choices the best-fit search combines.
+const BEST_DEPTH: usize = 64;
+/// Triangle steps the best-fit search spends on each reading.
+const BEST_BUDGET: usize = 250_000;
 
 /// Whether every planar face among `tris[from..]` lies within
 /// [`MAX_BEND`] tolerances of the plane through its centroid, oriented by
@@ -106,15 +110,37 @@ enum Outcome {
 /// then [`DEEP`] and [`DEEPEST`] choices, so a shallower rebuild is never
 /// second-guessed.
 pub(super) fn unique_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
-    let n = a.normals.as_ref()?;
+    unique_fit_reading(a).0
+}
+
+/// [`unique_fit`] on `a`, then on `turned`, the same arrays read with
+/// [`Arrays::ortho_turned`] flipped. The second search is skipped when no
+/// walk of the first met an apex the flip moves: it would repeat the first
+/// step for step.
+pub(super) fn unique_fit_either(a: &Arrays<'_>, turned: &Arrays<'_>) -> Option<TriangleMesh> {
+    match unique_fit_reading(a) {
+        (Some(m), _) => Some(m),
+        (None, true) => unique_fit(turned),
+        (None, false) => None,
+    }
+}
+
+/// [`unique_fit`], and whether any of its walks read [`Arrays::ortho_turned`].
+pub(super) fn unique_fit_reading(a: &Arrays<'_>) -> (Option<TriangleMesh>, bool) {
+    let Some(n) = a.normals.as_ref() else {
+        return (None, false);
+    };
+    let mut reads_turned = false;
     for (turns, depth) in STAGES {
-        match search(a, n, turns, depth) {
-            Search::Unique(m) => return Some(*m),
-            Search::Refused => return None,
+        let (found, reads) = search_reading(a, n, Plan::unique(turns, depth));
+        reads_turned |= reads;
+        match found {
+            Search::Unique(m) => return (Some(*m), reads_turned),
+            Search::Refused => return (None, reads_turned),
             Search::NoFit => {}
         }
     }
-    None
+    (None, reads_turned)
 }
 
 /// Whether a fold-only search rebuilds `a`.
@@ -122,7 +148,7 @@ pub(super) fn unique_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
 pub(super) fn fits_without_turns(a: &Arrays<'_>) -> bool {
     a.normals
         .as_ref()
-        .is_some_and(|n| matches!(search(a, n, false, DEPTH), Search::Unique(_)))
+        .is_some_and(|n| matches!(search(a, n, Plan::unique(false, DEPTH)), Search::Unique(_)))
 }
 
 /// Whether a search of at most `depth` choices, turns included, rebuilds
@@ -131,7 +157,65 @@ pub(super) fn fits_without_turns(a: &Arrays<'_>) -> bool {
 pub(super) fn fits_within(a: &Arrays<'_>, depth: usize) -> bool {
     a.normals
         .as_ref()
-        .is_some_and(|n| matches!(search(a, n, true, depth), Search::Unique(_)))
+        .is_some_and(|n| matches!(search(a, n, Plan::unique(true, depth)), Search::Unique(_)))
+}
+
+/// The first rebuild a deep search finds, for a mesh [`unique_fit`]
+/// leaves unbuilt. Measured on real producers, an apex quantised exactly
+/// onto its edge's line (`d.y == d.z == 0`) keeps no trace of its fold,
+/// so a mesh with several needs more inverted choices than a unique
+/// search can afford to rule out, and may fit more than one way. Up to
+/// [`BEST_DEPTH`] choices are combined, within [`BEST_BUDGET`] steps per
+/// reading: the arrays as read, then [`Arrays::legacy_orient`], then with
+/// slivers oriented by their corner normals ([`Walk::raw`]). The result
+/// consumes every array and stored normal and keeps every planar face
+/// flat, but another geometry may do the same; callers disclose it.
+pub(super) fn best_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
+    let legacy = Arrays {
+        legacy_orient: true,
+        ..*a
+    };
+    [(a, false), (&legacy, false), (a, true)]
+        .into_iter()
+        .find_map(|(a, raw)| {
+            let plan = Plan {
+                turns: true,
+                depth: BEST_DEPTH,
+                budget: BEST_BUDGET,
+                raw,
+                first: true,
+            };
+            match search(a, a.normals.as_ref()?, plan) {
+                Search::Unique(m) => Some(*m),
+                Search::Refused | Search::NoFit => None,
+            }
+        })
+}
+
+/// How one search runs.
+#[derive(Clone, Copy)]
+struct Plan {
+    /// Whether turn candidates are offered.
+    turns: bool,
+    /// How many inverted choices are combined.
+    depth: usize,
+    budget: usize,
+    /// Whether slivers are oriented by their corner normals.
+    raw: bool,
+    /// Whether the first fit is returned without ruling out a second.
+    first: bool,
+}
+
+impl Plan {
+    fn unique(turns: bool, depth: usize) -> Self {
+        Plan {
+            turns,
+            depth,
+            budget: STEP_BUDGET,
+            raw: false,
+            first: false,
+        }
+    }
 }
 
 /// What one search came to.
@@ -142,28 +226,36 @@ enum Search {
     NoFit,
 }
 
-/// One depth-first search over at most `depth` inverted choices; turn
-/// candidates are offered only with `turns`. Each attempt resumes the
-/// last one's walk where their choices first differ, so the budget counts
+/// One depth-first search as `plan` says. Each attempt resumes the last
+/// one's walk where their choices first differ, so the budget counts
 /// triangle steps actually taken.
-fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool, depth: usize) -> Search {
-    let mut walker = Resume::new(a, n, SNAP_EVERY);
+fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, plan: Plan) -> Search {
+    search_reading(a, n, plan).0
+}
+
+/// [`search`], and whether any of its walks read [`Arrays::ortho_turned`].
+fn search_reading(a: &Arrays<'_>, n: &NormalArrays<'_>, plan: Plan) -> (Search, bool) {
+    let mut walker = Resume::new(a, n, SNAP_EVERY, plan.raw);
     let mut stack = vec![Vec::new()];
     let mut found: Option<TriangleMesh> = None;
-    while walker.spent < STEP_BUDGET {
+    while walker.spent < plan.budget {
         let Some(flips) = stack.pop() else {
-            return found.map_or(Search::NoFit, |m| Search::Unique(Box::new(m)));
+            let found = found.map_or(Search::NoFit, |m| Search::Unique(Box::new(m)));
+            return (found, walker.w.reads_turned);
         };
         match walker.attempt(a, n, &flips) {
             Outcome::Fit(m) => match &found {
                 Some(f) if f.triangles != m.triangles || f.positions != m.positions => {
-                    return Search::Refused;
+                    return (Search::Refused, walker.w.reads_turned);
+                }
+                _ if plan.first => {
+                    return (Search::Unique(Box::new(m)), walker.w.reads_turned);
                 }
                 _ => found = Some(m),
             },
-            Outcome::Failed(c) if flips.len() < depth => {
+            Outcome::Failed(c) if flips.len() < plan.depth => {
                 for j in c {
-                    if turns || matches!(j, Choice::Fold(_)) {
+                    if plan.turns || matches!(j, Choice::Fold(_)) {
                         let mut g = flips.clone();
                         g.push(j);
                         stack.push(g);
@@ -173,11 +265,12 @@ fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool, depth: usize) -> Se
             Outcome::Failed(_) | Outcome::Dead => {}
         }
     }
-    if found.is_some() {
+    let found = if found.is_some() {
         Search::Refused
     } else {
         Search::NoFit
-    }
+    };
+    (found, walker.w.reads_turned)
 }
 
 /// Triangles between the snapshots a resumed walk rewinds to.
@@ -216,8 +309,9 @@ struct Resume<'a> {
 }
 
 impl<'a> Resume<'a> {
-    fn new(a: &Arrays<'_>, n: &'a NormalArrays<'a>, every: usize) -> Self {
-        let w = Walk::new(a.triangles, Some(NormalReader::new(n)));
+    fn new(a: &Arrays<'_>, n: &'a NormalArrays<'a>, every: usize, raw: bool) -> Self {
+        let mut w = Walk::new(a.triangles, Some(NormalReader::new(n)));
+        w.raw = raw;
         let snap = Snap {
             mark: w.mark(0),
             stack: Vec::new(),
@@ -283,7 +377,7 @@ impl<'a> Resume<'a> {
             return Outcome::Dead;
         }
         self.spent += a.triangles;
-        attempt(a, n, flips)
+        attempt(a, n, flips, self.w.raw)
     }
 
     /// Restores the walk to the last snapshot at or before triangle `at`.
@@ -321,9 +415,10 @@ impl<'a> Resume<'a> {
 }
 
 /// Walks the whole mesh oriented, inverting each of `flips`, with no
-/// retries.
-fn attempt(a: &Arrays<'_>, n: &NormalArrays<'_>, flips: &[Choice]) -> Outcome {
+/// retries; `raw` as [`Walk::raw`].
+fn attempt(a: &Arrays<'_>, n: &NormalArrays<'_>, flips: &[Choice], raw: bool) -> Outcome {
     let mut w = Walk::new(a.triangles, Some(NormalReader::new(n)));
+    w.raw = raw;
     let after = flips.iter().map(|c| c.at() + 1).max().unwrap_or(0);
     let mut candidates = Vec::new();
     for i in 0..a.triangles {
@@ -446,11 +541,11 @@ mod tests {
                 };
                 let n = a.normals.as_ref().unwrap();
                 for every in [1, SNAP_EVERY] {
-                    let mut r = Resume::new(&a, n, every);
+                    let mut r = Resume::new(&a, n, every, false);
                     let mut kinds = [0; 3];
                     for flips in flip_sets(t) {
                         let got = digest(r.attempt(&a, n, &flips));
-                        let want = digest(attempt(&a, n, &flips));
+                        let want = digest(attempt(&a, n, &flips, false));
                         kinds[usize::from(want.0)] += 1;
                         assert!(
                             got == want,
@@ -507,10 +602,10 @@ mod tests {
                 }),
             };
             let n = a.normals.as_ref().unwrap();
-            let mut r = Resume::new(&a, n, 1);
+            let mut r = Resume::new(&a, n, 1, false);
             for flips in flip_sets(t) {
                 let got = digest(r.attempt(&a, n, &flips));
-                let want = digest(attempt(&a, n, &flips));
+                let want = digest(attempt(&a, n, &flips, false));
                 kinds[usize::from(want.0)] += 1;
                 assert!(got == want);
             }

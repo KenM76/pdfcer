@@ -42,6 +42,9 @@ pub struct RenderedPoster {
     pub markups_skipped: usize,
     /// Compressed meshes rebuilt by pdfcer's reconstruction and drawn.
     pub compressed_rebuilt: usize,
+    /// Of those, meshes only a best-fit search rebuilt
+    /// (`pdfcer_3d::AssembledModel::best_fit`); disclose them.
+    pub compressed_best_fit: usize,
     /// Compressed meshes left out.
     pub compressed_skipped: usize,
     /// Meshes the model tree gave no colour, drawn grey.
@@ -169,6 +172,7 @@ fn render(
             wires_skipped: model.wires,
             markups_skipped: model.markups,
             compressed_rebuilt: model.rebuilt,
+            compressed_best_fit: model.best_fit,
             compressed_skipped: model.compressed,
             uncoloured_meshes: uncoloured,
             alpha_unset_meshes: model.alpha_unset,

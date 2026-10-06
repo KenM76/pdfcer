@@ -3089,6 +3089,11 @@ pub(crate) enum Command {
         /// (any case), otherwise STL.
         #[arg(long, value_enum)]
         format: Option<MeshFormat>,
+        /// Whether a compressed part only a best-fit search rebuilds is
+        /// written: `best` (default) writes it and prints a note, `unique`
+        /// leaves it out.
+        #[arg(long, value_enum, default_value_t)]
+        mesh_fit: MeshFitArg,
     },
 
     /// **List a 3D model's assembly tree**: its parts and sub-assemblies.
@@ -3187,6 +3192,12 @@ pub(crate) enum Command {
         /// copy, `ignore` none. Transparent parts usually come from these.
         #[arg(long, value_enum, default_value_t)]
         entity_overrides: EntityOverridesArg,
+        /// Whether a compressed part only a best-fit search rebuilds is
+        /// drawn: `best` (default) draws it and prints a note, `unique`
+        /// leaves it out. A best fit uses every stored number, but the file
+        /// may admit another shape, so a small detail can differ.
+        #[arg(long, value_enum, default_value_t)]
+        mesh_fit: MeshFitArg,
         /// Which end of a texture picture is its first row: `bottom`
         /// (default) or `top`. Try `top` if pictures draw upside down.
         #[arg(long, value_enum, default_value_t)]

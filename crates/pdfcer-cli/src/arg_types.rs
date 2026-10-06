@@ -97,6 +97,17 @@ pub(crate) enum EntityOverridesArg {
     Ignore,
 }
 
+/// Whether `3d-render` draws a compressed mesh only a best-fit search
+/// rebuilds (ISO 14739-1 does not specify the decoder).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum MeshFitArg {
+    /// Draw it, and say so. Default.
+    #[default]
+    Best,
+    /// Leave it out: draw only meshes the stored arrays determine.
+    Unique,
+}
+
 /// Where `3d-render` reads a texture picture's first row from (ISO
 /// 14739-1 does not say which end of the picture v = 0 is).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]

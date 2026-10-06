@@ -186,6 +186,7 @@ fn print_rendered_notes(r: &RenderedPoster) {
             r.compressed_rebuilt
         );
     }
+    super::print_best_fit_note(r.compressed_best_fit);
     let skipped = [
         (r.compressed_skipped, "compressed mesh(es)"),
         (r.wires_skipped, "wire tessellation(s)"),

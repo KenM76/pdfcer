@@ -113,12 +113,18 @@ pub(crate) fn cmd_extract_3d(input: &Path, index: usize, output: &Path) -> u8 {
 
 /// `3d-mesh` — decode one PRC model's tessellation and write its triangle
 /// meshes as STL or OBJ.
-pub(crate) fn cmd_mesh_3d(input: &Path, index: usize, output: &Path, format: MeshFormat) -> u8 {
+pub(crate) fn cmd_mesh_3d(
+    input: &Path,
+    index: usize,
+    output: &Path,
+    format: MeshFormat,
+    fit: MeshFitArg,
+) -> u8 {
     let data = match artwork_bytes(input, index) {
         Ok((data, _)) => data,
         Err(code) => return code,
     };
-    mesh_from_bytes(input, index, &data, output, format)
+    mesh_from_bytes(input, index, &data, output, (format, fit))
 }
 
 /// The decoded bytes of the 3D artwork at `index` and the view it opens
@@ -156,13 +162,8 @@ fn artwork_bytes(
     }
 }
 
-/// Decode and assemble a PRC model, or say why it has nothing to draw.
-#[cfg(feature = "3d")]
-fn assemble(data: &[u8]) -> Result<pdfcer_3d::AssembledModel, String> {
-    assemble_with(data, pdfcer_3d::AssembleOptions::default())
-}
-
-/// [`assemble`] with explicit readings of what the standard leaves open.
+/// Decode and assemble a PRC model with explicit readings of what the
+/// standard leaves open, or say why it has nothing to draw.
 #[cfg(feature = "3d")]
 fn assemble_with(
     data: &[u8],
@@ -172,6 +173,14 @@ fn assemble_with(
         pdfcer_3d::AssembleError::NotPrc => format!("{err} (use `3d-extract` for the bytes)"),
         _ => err.to_string(),
     })
+}
+
+#[cfg(feature = "3d")]
+fn mesh_fit(fit: MeshFitArg) -> pdfcer_3d::MeshFit {
+    match fit {
+        MeshFitArg::Best => pdfcer_3d::MeshFit::BestFit,
+        MeshFitArg::Unique => pdfcer_3d::MeshFit::Unique,
+    }
 }
 
 /// `3d-render`'s choices where ISO 14739-1 is silent.
@@ -188,6 +197,7 @@ fn assemble_options(a: &RenderThreeDArgs<'_>) -> pdfcer_3d::AssembleOptions {
         EntityOverridesArg::Everywhere => pdfcer_3d::EntityOverrides::Everywhere,
         EntityOverridesArg::Ignore => pdfcer_3d::EntityOverrides::Ignore,
     };
+    options.mesh_fit = mesh_fit(a.mesh_fit);
     options.texture_origin = match a.texture_origin {
         TextureOriginArg::Bottom => pdfcer_3d::TextureOrigin::BottomLeft,
         TextureOriginArg::Top => pdfcer_3d::TextureOrigin::TopLeft,
@@ -201,6 +211,15 @@ fn assemble_options(a: &RenderThreeDArgs<'_>) -> pdfcer_3d::AssembleOptions {
         TexturePicturesArg::Header => pdfcer_3d::PictureFiles::HeaderFirst,
     };
     options
+}
+
+/// The note for compressed meshes only a best-fit search rebuilt.
+fn print_best_fit_note(n: usize) {
+    if n > 0 {
+        println!(
+            "note: {n} of those were rebuilt by a best-fit search: the shape uses every stored number, but the file may admit another, so a small detail can differ (`--mesh-fit unique` leaves them out)"
+        );
+    }
 }
 
 /// The notes both `3d-mesh` and `3d-render` print about what was inferred.
@@ -219,6 +238,7 @@ fn print_assembly_notes(a: &pdfcer_3d::AssembledModel, drawn: &str) {
             a.rebuilt
         );
     }
+    print_best_fit_note(a.best_fit);
     for (why, n) in &a.skipped_why {
         println!("note: {n} compressed mesh(es) left out: {why}");
     }
@@ -230,13 +250,15 @@ fn mesh_from_bytes(
     index: usize,
     data: &[u8],
     output: &Path,
-    format: MeshFormat,
+    (format, fit): (MeshFormat, MeshFitArg),
 ) -> u8 {
     let refuse = |why: String| {
         eprintln!("pdfcer: {}: 3D artwork {index}: {why}", input.display());
         exit::EDIT_REFUSED
     };
-    let a = match assemble(data) {
+    let mut options = pdfcer_3d::AssembleOptions::default();
+    options.mesh_fit = mesh_fit(fit);
+    let a = match assemble_with(data, options) {
         Ok(a) => a,
         Err(why) => return refuse(why),
     };
@@ -285,7 +307,7 @@ fn mesh_from_bytes(
     index: usize,
     _data: &[u8],
     _output: &Path,
-    _format: MeshFormat,
+    _how: (MeshFormat, MeshFitArg),
 ) -> u8 {
     no_3d_feature(input, index, "3d-mesh")
 }
@@ -318,6 +340,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) transparent: bool,
     pub(crate) style_alpha: StyleAlphaArg,
     pub(crate) entity_overrides: EntityOverridesArg,
+    pub(crate) mesh_fit: MeshFitArg,
     pub(crate) texture_origin: TextureOriginArg,
     pub(crate) texture_wrap_base: TextureWrapBaseArg,
     pub(crate) texture_pictures: TexturePicturesArg,

@@ -28,6 +28,10 @@ pub struct AssembledModel {
     pub markups: usize,
     /// Compressed tessellations rebuilt into triangles.
     pub rebuilt: usize,
+    /// Of [`Self::rebuilt`], those only a best-fit search rebuilt (see
+    /// [`Tessellation::Compressed`]): the shape drawn consumes every stored
+    /// array, but another shape might as well.
+    pub best_fit: usize,
     /// Compressed tessellations left out.
     pub compressed: usize,
     /// Each distinct reason a compressed mesh was left out, with its count.
@@ -65,7 +69,26 @@ pub struct AssembleOptions {
     /// Which placements an occurrence's colour, visibility and
     /// coordinate-system overrides reach.
     pub entity_overrides: EntityOverrides,
+    /// Whether a compressed mesh only a best-fit search rebuilds is drawn.
+    pub mesh_fit: MeshFit,
 }
+
+/// Whether a compressed mesh only a best-fit search rebuilds is drawn.
+/// ISO 14739-1 does not specify the decoder, and an encoder's quantisation
+/// can leave the arrays admitting more than one shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum MeshFit {
+    /// Draw it, counted in [`AssembledModel::best_fit`].
+    #[default]
+    BestFit,
+    /// Leave it out: draw only meshes the arrays determine.
+    Unique,
+}
+
+/// Why a best-fit mesh is left out under [`MeshFit::Unique`].
+const BEST_FIT_REFUSED: &str =
+    "only a best-fit search rebuilds it, and the strict mesh-fit setting draws unique fits only";
 
 /// Why [`assemble`] found nothing to draw.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -150,7 +173,7 @@ pub fn assemble_with_options(
     }
     let prc = PrcFile::parse(data)?;
     let mut model = AssembledModel::default();
-    let by_index = decode_meshes(&prc, &mut model)?;
+    let by_index = decode_meshes(&prc, options.mesh_fit, &mut model)?;
     place(&prc, by_index, options, &mut model);
     model.triangles = model.meshes.iter().map(|m| m.triangles.len()).sum();
     if model.triangles == 0 {
@@ -171,6 +194,7 @@ pub fn assemble_with_options(
 /// counting what is not drawn into `model`.
 fn decode_meshes(
     prc: &PrcFile,
+    fit: MeshFit,
     model: &mut AssembledModel,
 ) -> Result<Vec<Vec<Option<TriangleMesh>>>, PrcError> {
     let mut by_index = Vec::new();
@@ -184,13 +208,23 @@ fn decode_meshes(
                     model.wires += 1;
                     None
                 }
-                Tessellation::Compressed { mesh: Some(m), .. } => {
+                Tessellation::Compressed {
+                    mesh: Some(m),
+                    best_fit,
+                    ..
+                } if !best_fit || fit == MeshFit::BestFit => {
                     model.rebuilt += 1;
+                    model.best_fit += usize::from(best_fit);
                     Some(m)
                 }
-                Tessellation::Compressed { not_rebuilt, .. } => {
+                Tessellation::Compressed {
+                    mesh, not_rebuilt, ..
+                } => {
                     model.compressed += 1;
-                    let why = not_rebuilt.unwrap_or_default();
+                    let why = match mesh {
+                        Some(_) => BEST_FIT_REFUSED.to_owned(),
+                        None => not_rebuilt.unwrap_or_default(),
+                    };
                     match model.skipped_why.iter_mut().find(|(w, _)| *w == why) {
                         Some((_, n)) => *n += 1,
                         None => model.skipped_why.push((why, 1)),
