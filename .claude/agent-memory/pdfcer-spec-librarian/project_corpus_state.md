@@ -8102,3 +8102,16 @@ A TWG editor posted the revised clause as an image (#575). View `user-attachment
 ### 102d. Reader state like current_name is shared across EVERY entity in a section; say so, because a reader that skips entities silently corrupts later names. Flag prc-rs divergences from the WD as "do not copy".
 ### 102e. Adobe 8137 SDK subpages (naming algorithms) can be absent from Wayback: report the GAP with the staged parent page as evidence, do not reconstruct.
 ### 102f. Report citation defects found in pdfcer code (wrong WD clause in a doc comment) to the engineer; do not edit pdfcer code.
+
+## 103. "What do these OVERRIDE records mean for display? — quote each, mark NOT SPECIFIED" (PRC PO entity references, 2026-10-06)
+### 103a. When the working draft only says a record "may overwrite" and is silent on scope/precedence, a commercial SDK's free public docs (Tech Soft 3D HOOPS Exchange) are a legitimate SECONDARY witness for implementer behaviour: new source ID HOOPS, free_secondary_paraphrase, staged + registered in three places (provenance file, LEGAL_NOTE, index). Label every HOOPS fact as implementer behaviour, never as spec text.
+### 103b. WebFetch's small model paraphrases; for verbatim short quotes fetch the raw HTML with curl and strip tags (PYTHONIOENCODING=utf-8 on Windows).
+### 103c. Index-bias questions on cross-references: recommend matching RAW stored values on both sides (reference pair vs RI_BrepModel pair) — bias-free, so the unresolved bias stops mattering for that path. Say so explicitly.
+### 103d. A field whose WD type and errata type differ (UnsignedInteger vs Integer) — check where the two encodings are bit-identical (0..127) and tell the engineer whether his measured parse discriminates; it usually does not.
+### 103e. prc-rs testdata JSON dumps settle index bias for ONE sample only; record the sample, its counts, and why it cannot settle a second question (face-index base: values 18..74 of 93 faces discriminate nothing). Give the engineer a one-line test on his own file instead.
+### 103f. Empirical producer facts in a dispatch ("these overrides are the only transparency carrier") go to personal_rag/pdf via pdfcer-librarian; cite them in the spec file as ENGINEER-MEASURED premises, not re-measured.
+
+## 104. "Grade this third-party / LLM-written spec doc against the RAG" (2026-10-06, Gemini PDF-3D doc)
+### 104a. Method: extract every key/value/required claim, then token-count invented names in BOTH editions (whitespace-stripped dumps). 0/0 counts (3DGS, 3DStream, 3DContext, CADOptimization, 3DActivation) prove invention cheaply.
+### 104b. Matrix ORDER claims: quote the clause's multiplication equations, then DERIVE axis mapping and label it derived. ISO 32000 §13.6.5 is ROW-vector: (a,b,c)=image of unit x; PDF array = column-vector R in column-major. An LLM writing r00 r01 r02 row-major emits the transpose.
+### 104c. Expect near-zero new content: only facts that are CORRECT, ABSENT from the RAG and clause-sourceable get filed. Grading also surfaces stale corpus/personal_rag claims (here: a personal_rag lesson saying image-up is unstated; §13.6.5 states x right / y up) -> report to engineer for pdfcer-librarian, do not edit personal_rag.
