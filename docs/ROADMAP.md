@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 504.0` — a hand-signature mark names the objects it holds (`pdfcer-core` + CLI, `G127`) — SHIPPED `4e650227`
+
+`pdfcer-gui` request G127. `pdfcer_core::hand_sig::HandSignatureMark` gains
+`pub objects: Vec<usize>`: ascending, never-empty indices of the objects the `/pdfc_HandSig`
+sequence encloses. Index space: `EditSession::page_objects(page)` when read via
+`EditSession::hand_signatures`; `decompose_page(view, page, Matrix::IDENTITY).objects` when
+read via the free `hand_sig::hand_signatures`. Additive (struct is `#[non_exhaustive]`). A
+shell passes the indices to `transform_objects`/`delete_objects` to act on exactly the mark;
+a transform keeps the mark and maps its bounds. CLI: `list-hand-signatures` lines end with
+`objects=i,j,...` in the `list-objects` numbering. `docs/core-api/02-editing-and-saving.md`
+hand-signature row updated; `check-core-api-verbs` PASS. FEATURES: "Hand-signature content
+tag" row annotated, boxes unchanged (gui stays `[ ]`).
+
+**Tests (engineer-reported).** New core `a_mark_names_its_objects_and_moves_with_them` (all
+three verbs; session and free-reader indices agree after save; translate moves only the mark,
+bounds shifted exactly), sabotage (objects = every index) turned it red. CLI listing test pins
+`objects=6`. pdfcer-core integration 2710 passed / 2 ignored; pdfcer-cli 789 passed / 1
+ignored + 43. fmt, clippy -D warnings, structure gate, string-gaps clean; no manifest change
+so `cargo tree` n/a. Not yet pushed at filing.
+
 ### `Pass 503.0` — a deeper last-resort search for compressed meshes (`pdfcer-3d`, engine only) — SHIPPED `0f8e07a0`
 
 Compressed PRC tessellation (entity 173). The last-resort search over inverted choices had

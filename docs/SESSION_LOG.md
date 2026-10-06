@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (980th filing) — `Pass 504.0` shipped (hand-signature mark names its objects, `G127`)
+
+**Shipped:**
+- `Pass 504.0` — `4e650227`. `HandSignatureMark::objects: Vec<usize>` (ascending, never
+  empty; `page_objects` indices via the session, `decompose_page` indices via the free
+  reader). CLI `list-hand-signatures` ends lines with `objects=i,j,...`. Core-api doc row
+  updated; `check-core-api-verbs` PASS.
+
+**Decisions made this session:**
+- Additive on a `#[non_exhaustive]` struct; no decision-log entry.
+
+**Findings + decisions:**
+- Origin: `pdfcer-gui` G127; `_FIXED` reply written in FeatureRequests open/.
+- `FEATURES.md` "Hand-signature content tag" row annotated; boxes unchanged (gui `[ ]`).
+
+**Still in flight:**
+- `4e650227` on main, not yet pushed. GUI wiring of the indices belongs to `pdfcer-gui`.
+
+**Sourcing note (hard rule 8):** tests as reported by the engineer (core 2710 passed / 2
+ignored; cli 789 passed / 1 ignored + 43); push/backup state not checked here.
+
 ## 2026-10-06 (979th filing) — `Pass 503.0` shipped (deeper last-resort search, compressed PRC meshes)
 
 **Shipped:**
