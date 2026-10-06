@@ -3353,8 +3353,8 @@ fn encode_composite_with(
     })
 }
 
-/// The replacement avoided every ambiguous character, but the font has some,
-/// and the operator's next edit deserves to know which will be refused.
+/// The replacement added no ambiguous character, but the font has some, and
+/// the operator's next edit deserves to know which will be refused.
 fn ambiguity_note(ambiguous: &BTreeMap<char, Vec<u32>>) -> Option<String> {
     if ambiguous.is_empty() {
         return None;
@@ -3368,7 +3368,7 @@ fn ambiguity_note(ambiguous: &BTreeMap<char, Vec<u32>>) -> Option<String> {
         })
         .collect();
     Some(format!(
-        "font map: {} character(s) of this font are produced by more than one code and are REFUSED if a replacement needs them — {}{}; this replacement used none of them.",
+        "font map: {} character(s) of this font are produced by more than one code and are REFUSED if a replacement adds them (one the edit leaves in place keeps its own code) — {}{}; this replacement added none of them.",
         ambiguous.len(),
         list.join(", "),
         if ambiguous.len() > 8 { ", …" } else { "" }

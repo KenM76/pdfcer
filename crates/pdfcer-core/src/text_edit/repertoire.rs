@@ -319,13 +319,16 @@ fn simple_accepts(
     Ok((accepted, tested))
 }
 
+/// Each character more than one code draws, with those codes.
+type AmbiguousChars = BTreeMap<char, Vec<u32>>;
+
 /// A composite font: the floor is the same question asked of CIDs.
 fn composite_accepts(
     q: &FontQuery<'_>,
     font: &ExtractFont,
     embedded_subset: bool,
     carried: &BTreeSet<u32>,
-) -> Result<((BTreeSet<char>, usize), BTreeMap<char, Vec<u32>>), Refused> {
+) -> Result<((BTreeSet<char>, usize), AmbiguousChars), Refused> {
     let Some(cmap) = font.to_unicode_cmap() else {
         let cause = UnsupportedCause::CompositeWithoutToUnicode;
         return Err((cause.to_string(), Some(cause)));

@@ -91,7 +91,8 @@ fn an_invertible_composite_run_is_editable_end_to_end() {
 }
 
 /// **The refusal that remains, and must.** A non-injective map is refused by
-/// name, naming the obstruction.
+/// name, naming the obstruction, when the replacement adds the ambiguous
+/// character (one left in place keeps its own code).
 ///
 /// Two codes map to the same character, so writing that character back has no
 /// single answer. Guessing would emit a real, wrong glyph — indistinguishable
@@ -101,7 +102,7 @@ fn a_non_injective_composite_fonts_ambiguous_character_is_refused_by_name() {
     let doc = load("cidfonttype2-noninjective-tounicode.pdf");
     let err = edit_text(
         &doc,
-        &EditRequest::find_replace(0, "A", "A"),
+        &EditRequest::find_replace(0, "A", "AA"),
         &EditOptions::default(),
     )
     .expect_err("a font whose map is not a function must not be edited");
