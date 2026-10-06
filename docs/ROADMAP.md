@@ -156,7 +156,7 @@ release writes `pdfcer1`.
 
 **`docs/FEATURES.md`.** No release marker kept there; no rows changed.
 
-### `Pass 508.0` — the format report says where each strikethrough's placement came from (`G130`) — SHIPPED `c7fcd44a`
+### `Pass 508.0` — the format report says where each strikethrough's placement came from (the unnumbered strike-source request, `request_strike_source_reported_per_run.md`) — SHIPPED `c7fcd44a`
 
 Code commit `c7fcd44a` (`pdfcer-core`, `pdfcer` CLI; `pdfcer-gui` not consumed). Not filed under Next up beforehand; filed and shipped in one step.
 

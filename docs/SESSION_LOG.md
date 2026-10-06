@@ -40,10 +40,10 @@ the affected entry. Maintained by `pdfce-librarian`.
 **Sourcing note (hard rule 8):** all figures engineer-reported; no shell,
 push/backup/CI state not checked here.
 
-## 2026-10-06 (983rd filing) — `Pass 508.0` shipped (strikethrough placement source reported, `G130`)
+## 2026-10-06 (983rd filing) — `Pass 508.0` shipped (strikethrough placement source reported, strike-source request)
 
 **Shipped:**
-- `Pass 508.0` (`G130`) — `c7fcd44a`. `FormatReport::strike_source: Option<StrikeSource>`
+- `Pass 508.0` (the unnumbered strike-source request, `request_strike_source_reported_per_run.md`) — `c7fcd44a`. `FormatReport::strike_source: Option<StrikeSource>`
   (FontTable / XHeight / QuarterEm), `Some` only when a strikethrough is requested, resolved
   against the post-edit font; disclosure ends in a per-source clause; CLI `format-text
   --strikethrough` prints `strike_source=`. `Refreshed::strike_sources` stays internal.
@@ -61,6 +61,8 @@ push/backup/CI state not checked here.
 
 **Still in flight:**
 - `pdfcer-gui` has not consumed `strike_source`.
+
+Correction: this request is unnumbered; the commit message of c7fcd44a calls it G130, which is pdfcer-gui's SVG/EMF-on-a-layer request.
 
 **Sourcing note (hard rule 8):** figures engineer-reported; push/backup state not checked here.
 

@@ -668,7 +668,7 @@ let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
     `XHeight`), else a quarter em, as thick as the underline.
   - The choice is stored on the marker (`/M /Standard`; absent = font
     tables), so later refreshes draw the same rule.
-  - **Which source this text got (`Pass 508.0`, `G130`):**
+  - **Which source this text got (`Pass 508.0`, the unnumbered strike-source request):**
     `FormatReport::strike_source: Option<decoration::StrikeSource>` is
     `FontTable` (the font's `OS/2` strikeout), `XHeight` (half its x-height)
     or `QuarterEm` (guessed) for the face the struck text is drawn in (the
