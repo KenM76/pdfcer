@@ -156,6 +156,14 @@ release writes `pdfcer1`.
 
 **`docs/FEATURES.md`.** No release marker kept there; no rows changed.
 
+### `Pass 509.0` — SVG and EMF page content can go on a layer (`G130`, `request_G130_svg_and_emf_page_content_cannot_be_placed_on_a_layer.md`) — SHIPPED `648fe67e`
+
+Code commit `648fe67e` (`pdfcer-core`, `pdfcer` CLI; `pdfcer-gui` not consumed). Requested by pdfcer-gui as G130 (the genuine G130; the earlier strike-source request, `Pass 508.0`, is unnumbered, per `204d2099`); filed and shipped in one step. Reply: `reply_G130_svg_and_emf_page_content_can_go_on_a_layer_FIXED.md`.
+
+New core verbs `EditSession::add_svg_on_layer(page_index, rect, &ImportedSvg, layer: Option<ObjId>) -> Result<PlacedSvg, EditError>` and `add_emf_on_layer(..., &ImportedEmf, layer) -> Result<PlacedEmf, EditError>`. The appended content stream is wrapped whole in `/OC /name BDC ... EMC` (ISO 32000-1 §8.11.3.2), the same mechanism as `paste_objects_on_layer` (`Pass 358.5`). One undo entry; `None` is byte-identical to `add_svg`/`add_emf`; a group not in /OCProperties /OCGs gives `LayerNotFound` before any write. CLI `add-svg`/`add-emf` accept `--layer NAME` / `--layer-id N` without `--stamp` (previously they required `--stamp` and layered only the stamp annotation).
+
+Tests: 4 new in `crates/pdfcer-core/tests/drawing_on_layer.rs` (svg on layer; emf on layer, undo depth 1 and undo removes it; no-layer byte-equal to plain add; unregistered layer refused before write); a sabotage dropping the layer failed 2 of them. 1 new CLI test `page_content_svg_goes_on_the_named_layer` in `crates/pdfcer-cli/tests/add_svg.rs` (decoded stream contains `/OC /OC1 BDC`; `--verify-undo` identical; unknown layer exit 9, nothing written); CLI add_* tests 78 passed. `docs/core-api/02-editing-and-saving.md` and `index.md`: two verb rows, count 322 -> 324; `check-core-api-verbs` PASS. clippy (core+cli, all targets, all features) clean; `check-code-structure` no new debt; `check-string-gaps` PASS. No manifest or dependency change; `cargo tree` unaffected. Figures engineer-reported.
+
 ### `Pass 508.0` — the format report says where each strikethrough's placement came from (the unnumbered strike-source request, `request_strike_source_reported_per_run.md`) — SHIPPED `c7fcd44a`
 
 Code commit `c7fcd44a` (`pdfcer-core`, `pdfcer` CLI; `pdfcer-gui` not consumed). Not filed under Next up beforehand; filed and shipped in one step.

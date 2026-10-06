@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (985th filing) — `Pass 509.0` shipped (SVG and EMF page content can go on a layer, `G130`)
+
+**Shipped:**
+- `Pass 509.0` (pdfcer-gui's `G130`, `request_G130_svg_and_emf_page_content_cannot_be_placed_on_a_layer.md`; reply `..._FIXED.md`) — `648fe67e`. Core `add_svg_on_layer` / `add_emf_on_layer` wrap the appended stream in `/OC /name BDC ... EMC` (ISO 32000-1 §8.11.3.2), same mechanism as `paste_objects_on_layer`; one undo entry; `None` byte-identical to the plain verbs; `LayerNotFound` before any write. CLI `add-svg`/`add-emf` take `--layer`/`--layer-id` without `--stamp`.
+
+**Decisions made this session:**
+- None needing a decision-log entry.
+
+**Findings + decisions:**
+- Tests: 4 new core (`drawing_on_layer.rs`), 1 new CLI (`page_content_svg_goes_on_the_named_layer`); sabotage dropping the layer failed 2; CLI add_* 78 passed. Core-api verbs 322 -> 324, `check-core-api-verbs` PASS; clippy, `check-code-structure`, `check-string-gaps` clean; no manifest change.
+- `FEATURES.md` layer row (`Pass 358.5`) annotated; boxes core `[x]`, cli `[x]`, gui `[ ]` (not ticked: GUI has not consumed it).
+- Numbering: this is the genuine `G130`; the unnumbered strike-source request (`Pass 508.0`) is not, per `204d2099`.
+
+**Still in flight:**
+- `pdfcer-gui` has not consumed the new verbs.
+
+**Sourcing note (hard rule 8):** figures engineer-reported; push/backup/CI state not checked here.
+
 ## 2026-10-06 (984th filing) — `v0.79.0` RELEASED
 
 **Shipped:**
