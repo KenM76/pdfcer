@@ -10,6 +10,11 @@ use super::{
 
 /// How many inverted choices one search combines.
 const DEPTH: usize = 2;
+/// How many a last, deeper search combines when no shallow one fits.
+const DEEP: usize = 4;
+/// The searches [`unique_fit`] runs in turn: whether turn candidates are
+/// offered, and how many choices are combined.
+pub(super) const STAGES: [(bool, usize); 3] = [(false, DEPTH), (true, DEPTH), (true, DEEP)];
 /// How many candidate triangles before a failure are tried.
 const WINDOW: usize = 40;
 /// Triangle steps a search may spend before giving up undecided.
@@ -84,26 +89,27 @@ enum Outcome {
     Dead,
 }
 
-/// Searches combinations of at most [`DEPTH`] inverted choices for one
-/// that rebuilds the mesh. A fold candidate is a triangle no stored
-/// decision orients, or a sliver at most a tolerance from collinear, whose
-/// decoded decision is noise; a turn candidate is an apex whose frame is
+/// Searches combinations of inverted choices for one that rebuilds the
+/// mesh. A fold candidate is a triangle no stored decision orients, or a
+/// sliver at most a tolerance from collinear, whose decoded decision is
+/// noise; a turn candidate is an apex whose frame is
 /// degenerate, whose turn rests on a rounding residue. A fit is one that
 /// rebuilds the mesh: every array and stored normal consumed exactly and
 /// every planar face flat. The rebuild is returned only if it is the
 /// single such geometry the search finds within [`STEP_BUDGET`]; two, or a
-/// search cut short, would make it a guess. Turns are tried only when no
-/// fold-only combination fits at all.
+/// search cut short, would make it a guess. Each of [`STAGES`] runs only
+/// when the one before found no fit at all: folds alone, then turns too,
+/// then [`DEEP`] choices, so a shallower rebuild is never second-guessed.
 pub(super) fn unique_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
     let n = a.normals.as_ref()?;
-    match search(a, n, false) {
-        Search::Unique(m) => Some(m),
-        Search::Refused => None,
-        Search::NoFit => match search(a, n, true) {
-            Search::Unique(m) => Some(m),
-            Search::Refused | Search::NoFit => None,
-        },
+    for (turns, depth) in STAGES {
+        match search(a, n, turns, depth) {
+            Search::Unique(m) => return Some(m),
+            Search::Refused => return None,
+            Search::NoFit => {}
+        }
     }
+    None
 }
 
 /// Whether a fold-only search rebuilds `a`.
@@ -111,7 +117,16 @@ pub(super) fn unique_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
 pub(super) fn fits_without_turns(a: &Arrays<'_>) -> bool {
     a.normals
         .as_ref()
-        .is_some_and(|n| matches!(search(a, n, false), Search::Unique(_)))
+        .is_some_and(|n| matches!(search(a, n, false, DEPTH), Search::Unique(_)))
+}
+
+/// Whether a search of at most `depth` choices, turns included, rebuilds
+/// `a`.
+#[cfg(test)]
+pub(super) fn fits_within(a: &Arrays<'_>, depth: usize) -> bool {
+    a.normals
+        .as_ref()
+        .is_some_and(|n| matches!(search(a, n, true, depth), Search::Unique(_)))
 }
 
 /// What one search came to.
@@ -122,9 +137,9 @@ enum Search {
     NoFit,
 }
 
-/// One depth-first search; turn candidates are offered only with `turns`,
-/// so a fold-only rebuild is never second-guessed by a turned one.
-fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool) -> Search {
+/// One depth-first search over at most `depth` inverted choices; turn
+/// candidates are offered only with `turns`.
+fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool, depth: usize) -> Search {
     let walks = STEP_BUDGET / a.triangles.max(1);
     let mut stack = vec![Vec::new()];
     let mut found: Option<TriangleMesh> = None;
@@ -139,7 +154,7 @@ fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, turns: bool) -> Search {
                 }
                 _ => found = Some(m),
             },
-            Outcome::Failed(c) if flips.len() < DEPTH => {
+            Outcome::Failed(c) if flips.len() < depth => {
                 let skip = c.len().saturating_sub(WINDOW);
                 for j in c.into_iter().skip(skip) {
                     if turns || matches!(j, Choice::Fold(_)) {

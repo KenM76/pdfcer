@@ -1249,6 +1249,40 @@ mod tests {
         assert!(search::unique_fit(&a).is_some());
     }
 
+    /// The search is bounded by its depth: the one-turn mesh above has no
+    /// fit within one inverted choice and one within two,
+    /// and the last stage searches deeper than the first two.
+    #[test]
+    fn the_search_depth_bounds_its_choices() {
+        let tri0 = [0, 0, 0, 4, 0, 0, 2, 4, 0];
+        let st = [1, 3, 1, 1, 1, 3, 0, 0, 1, 3, 2, 0];
+        let pts = [&tri0[..], &[0, 0, 0, -4, -4, 2]].concat();
+        let mut is_ref = vec![false; 6];
+        is_ref[5] = true;
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &st,
+            triangles: 4,
+            is_reference: &is_ref,
+            references: &[2],
+            ortho_turned: false,
+            legacy_orient: false,
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[false; 4],
+                angles: &[470, 724],
+                planar: &[true],
+                face_of: &[0; 4],
+            }),
+        };
+        assert!(!search::fits_within(&a, 1));
+        assert!(search::fits_within(&a, 2));
+        let [.., (_, shallow), (turns, deep)] = search::STAGES;
+        assert!(turns && deep > shallow);
+    }
+
     /// A sliver, at most a tolerance from collinear, whose stored
     /// decision orients its fold the wrong way: the search still tries
     /// inverting it, and that is the only fit.
