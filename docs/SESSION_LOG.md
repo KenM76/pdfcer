@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (989th filing) — `Pass 512.0` shipped (best-fit rebuild for compressed 3D meshes)
+
+**Shipped:**
+- `Pass 512.0` — `5e58243b`. Compressed PRC meshes the unique search refuses are rebuilt by a disclosed best-fit stage; exact speed-up skips a redundant turned-frame search (second assembly sample `3d-mesh` 125 s -> 75 s). Details in the ROADMAP entry.
+
+**Decisions made this session:**
+- Two defensible answers, ship both, pick the default: `MeshFit::{BestFit (default), Unique}`, CLI `--mesh-fit best|unique`. No decision-log entry filed.
+
+**Findings + decisions:**
+- Second assembly sample: 132 rebuilt (15 best-fit), 9 left out (was 117 / 24). Door assembly sample: 151 rebuilt, 0 best-fit, 5 out. Engineer-reported.
+- Two `C:\personal_rag\pdf\` lessons written: collinear status-3 apexes leave orientation open; a flipped-flag second search repeats the first unless a step read the flag.
+- `FEATURES.md`: PRC mesh-export row gained the best-fit clause and `--mesh-fit`; core `[x]`, cli `[x]`, gui unchanged `[ ]`.
+
+**Still in flight:** Backlog item "3D compressed meshes still unfit": 9 meshes unfit; ~75 s load; lowering `STEP_BUDGET` is an operator question; reusing a budget-refused fit as best fit untried.
+
+**Sourcing note (hard rule 8):** figures engineer-reported; push/backup/CI state not checked here (no shell).
+
 ## 2026-10-06 (988th filing) — `Pass 511.0` shipped (inferred OCR paragraphs, `G131`)
 
 **Shipped:**

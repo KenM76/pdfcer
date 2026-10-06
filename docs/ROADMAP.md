@@ -156,6 +156,51 @@ release writes `pdfcer1`.
 
 **`docs/FEATURES.md`.** No release marker kept there; no rows changed.
 
+### `Pass 512.0` — best-fit rebuild for compressed meshes the unique search refuses (the operator's "very noticeable parts still missing", second assembly sample) — SHIPPED `5e58243b`
+
+Opened and shipped in one session (no prior ROADMAP entry; `NEXT_SESSION` had
+earmarked it as the 3D refused-mesh work). PRC compressed tessellations whose
+collinear status-3 apexes leave per-edge orientation open, and which the
+bounded unique search could not prove, are now rebuilt by a best-fit stage
+(`pdfcer-3d`): a depth-64, 250k-step DFS over plain, legacy-orient and raw
+(slivers oriented by corner-normal sum) readings, accepting the first geometry
+that consumes every array/stored normal and keeps planar faces flat.
+
+**Decision (two defensible answers, ship both, pick the default).**
+`AssembleOptions::mesh_fit` = `MeshFit::{BestFit (default), Unique}`; CLI
+`--mesh-fit best|unique` on `3d-render` and `3d-mesh`. `Unique` leaves such
+meshes out with a stated refusal reason. No decision-log entry filed.
+
+**Disclosure (rule 4).** `Tessellation::Compressed` gains `best_fit`;
+`AssembledModel::best_fit` and `RenderedPoster::compressed_best_fit` count
+them; the CLI prints a `note:`.
+
+**Exact speed-up (output-identical).** The turned-frame second unique search is
+skipped when no walk of the first met an apex whose position depends on the
+frame turn (degenerate frame, zero residue). Second assembly sample `3d-mesh`
+125 s -> 75 s (1.7x); door assembly sample 15.8 s -> 10.8 s (release build,
+engineer-measured). `v0.78` took ~0.4 s but rebuilt only 94/130 meshes; `v0.79`
+introduced the expensive exact search.
+
+**Results (engineer-reported).** Second assembly sample: 132 compressed meshes
+rebuilt (15 of them best-fit), 9 left out; v0.79 behaviour was 117 rebuilt / 24
+out, and `--mesh-fit unique` gives 117 + 15 refused. Door assembly sample: 151
+rebuilt, 0 best-fit, 5 left out.
+
+**Tests (engineer-reported).** `pdfcer-3d` 136 unit + 3 + 11 integration pass;
+new tests sabotage-checked (best-fit; turned-search skip, both directions).
+Clippy `-D warnings` clean for `pdfcer-3d`/cli/core; fmt, string-gaps,
+code-structure (584 baseline, none new), `check-core-api-verbs` (3,860) PASS.
+No manifest change, so `cargo tree` unchanged. `docs/core-api` updated in the
+commit.
+
+**`FEATURES.md`:** the PRC mesh-export row gained the best-fit clause and
+`--mesh-fit`; core `[x]`, cli `[x]`, gui unchanged `[ ]`.
+
+**Residue -> Backlog** (see *Backlog*, "3D compressed meshes still unfit").
+
+**Sourcing:** `5e58243b` push, backup and CI state not checked here.
+
 ### `Pass 511.0` — inferred OCR structure sizes rows by em, not ink (`G131`, `reply_G131_inferred_ocr_paragraphs_are_one_block_each_FIXED.md`) — SHIPPED `f4ed94f4`
 
 A words-only `OcrPage` (every shell recogniser, `OcrStructureSource::Inferred`)
@@ -30937,6 +30982,15 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### 3D compressed meshes still unfit (residue of `Pass 512.0`)
+
+- 9 compressed meshes in the second assembly sample remain unfit.
+- Load time stays ~75 s, dominated by the unique search exhausting its
+  2M-step budget on meshes that end up failing. Lowering `STEP_BUDGET` would
+  reclassify unique fits needing up to 1.04M steps (trades disclosure
+  fidelity) — **operator question before doing it.**
+- Untried: reuse a budget-refused fit as the best fit.
 
 ### CLI test suite leaves ~39 GB of temp output files uncollected (filed 958th filing, 2026-10-04)
 
