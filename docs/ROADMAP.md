@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 503.0` — a deeper last-resort search for compressed meshes (`pdfcer-3d`, engine only) — SHIPPED `0f8e07a0`
+
+Compressed PRC tessellation (entity 173). The last-resort search over inverted choices had
+two stages, fold-only then turns, each combining up to 2 choices. A third stage
+(`STAGES`, `DEEP = 4`) now combines up to 4. Same 8M-step budget, same uniqueness rule (one
+geometry with the space exhausted, or it refuses). Each stage runs only when the one before
+found no fit at all, so no mesh that rebuilt before can change. Files: `compressed.rs`,
+`compressed/search.rs`.
+
+**Result (door assembly sample, 156 meshes).** 149/156 rebuilt, up from 147 (+2): m52
+(found at depth 3) and m151 (depth 4), both watertight with consistent normals; none refused
+anywhere. Depth 5 at a 128M budget gained nothing more: ruled out. Depth 4 at 8M, 16M and
+32M budgets all gave the same 149. School 348/348, strap 5/5, piano 3/3 byte-identical.
+**Still failing: 7 meshes** (m2, m23, m39, m48, m76, m97, m117) — remaining work for the
+compressed-mesh family; a deeper search is not the lever.
+
+No CLI/GUI surface, no `pub` change. FEATURES: `3d-mesh` row 147/156 -> 149/156, boxes
+unchanged. **Tests (engineer-reported).** `pdfcer-3d` lib 132 passed; new
+`the_search_depth_bounds_its_choices`, sabotage-checked red two ways (deep stage removed;
+depth bound ignored). clippy/fmt/code-structure/string-gaps clean; no manifest change so
+`cargo tree` n/a. `run-gates` pending at filing.
+
 ### `Pass 502.0` — a degenerate PRC apex frame follows its rounding residue (`pdfcer-3d`, engine only) — SHIPPED `94f1caa8`
 
 Compressed PRC tessellation (`TESS_3D_Compressed`). When an apex's W lies exactly on the

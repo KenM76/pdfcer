@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (979th filing) — `Pass 503.0` shipped (deeper last-resort search, compressed PRC meshes)
+
+**Shipped:**
+- `Pass 503.0` — `0f8e07a0`. `pdfcer-3d` `compressed.rs` + `compressed/search.rs`; engine
+  only, no CLI/GUI/pub change. Third search stage (`STAGES`, `DEEP = 4`). Door assembly
+  sample 149/156 (was 147), 0 refused; School 348/348, strap 5/5, piano 3/3 byte-identical.
+
+**Decisions made this session:**
+- Depth 5 at a 128M budget gained nothing, so the search stops at depth 4 / 8M steps.
+  No decision-log entry.
+
+**Findings + decisions:**
+- New: m52 (depth 3), m151 (depth 4). Depth 4 at 8M/16M/32M all gave 149.
+- `FEATURES.md` `3d-mesh` row: 147/156 -> 149/156, `503.0` added; boxes unchanged.
+
+**Still in flight:**
+- 7 meshes still fail (door meshes m2, m23, m39, m48, m76, m97, m117).
+- Full `tools/run-gates.sh` on `0f8e07a0`: pending at filing.
+
+**Sourcing note (hard rule 8):** tests as reported by the engineer (lib 132 passed);
+backup/push/git state not checked here (no shell).
+
 ## 2026-10-05 (978th filing) — `Pass 502.0` shipped (degenerate PRC apex frame follows its residue)
 
 **Shipped:**
