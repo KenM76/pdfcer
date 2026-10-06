@@ -115,6 +115,30 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 502.0` — a degenerate PRC apex frame follows its rounding residue (`pdfcer-3d`, engine only) — SHIPPED `94f1caa8`
+
+Compressed PRC tessellation (`TESS_3D_Compressed`). When an apex's W lies exactly on the
+edge's line, the WD falls back to `MakeOrthoRep(X)` and leaves that frame's half-turn
+open. Measured: real encoders keep the SIGN of the sub-epsilon residue of `(W-O) x X`
+against MakeOrthoRep's Z; it predicted 17 of 18 turns found by a per-occurrence search.
+The frame now turns when the residue points against Z; only an exactly-zero residue falls
+back to the global variant. The last-resort search gains "turn" choices beside fold
+choices, tried only when no fold-only combination fits, so no mesh that rebuilt before can
+change. Fit uniqueness now compares positions as well as triangles. Spec RAG rows X15-X19
+in `PDF_Spec/threed/prc__8137__tess_3d_compressed.md` record the evidence.
+
+**Result (door assembly sample, 156 meshes).** 147/156 rebuilt, up from 142 (+5), 0 lost;
+all five new meshes watertight with consistent normals. School 348/348, strap 5/5, piano
+3/3 byte-identical. Using the residue's full direction instead of its sign measured
+128/156: rejected. **Still failing: 9 meshes** (anonymised door meshes m2, m23, m39, m48,
+m52, m76, m97, m117, m151) — remaining work for the compressed-mesh family.
+
+No CLI/GUI surface, no `pub` change; `docs/core-api` untouched. FEATURES: `3d-mesh` row
+updated (core only). **Tests (engineer-reported).** `pdfcer-3d` lib 131 passed; new
+`a_degenerate_frame_follows_its_residue`, `a_turn_only_the_search_tries_is_rebuilt`, each
+sabotage-checked red. clippy/fmt/code-structure clean; no manifest change so `cargo tree`
+n/a. Gates pending at filing.
+
 ### `Pass 501.0` — a form widget reports its border dash array (`pdfcer-core` + CLI, `G126`) — SHIPPED `dbcddbf7`
 
 `forms::Widget::border_dash: Option<annot_author::BorderDash>` is the dash array the

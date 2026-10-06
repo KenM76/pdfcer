@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-05 (978th filing) — `Pass 502.0` shipped (degenerate PRC apex frame follows its residue)
+
+**Shipped:**
+- `Pass 502.0` — `94f1caa8`. `pdfcer-3d` `compressed.rs` + `compressed/search.rs`; engine
+  only, no CLI/GUI/pub change. Door assembly sample 147/156 meshes (was 142), 0 lost;
+  School 348/348, strap 5/5, piano 3/3 byte-identical. Details in the ROADMAP entry.
+
+**Decisions made this session:**
+- The frame turns on the SIGN of the residue against MakeOrthoRep's Z (full direction
+  measured 128/156, rejected). No decision-log entry.
+
+**Findings + decisions:**
+- Spec RAG rows X15-X19 (`prc__8137__tess_3d_compressed.md`) hold the measurements.
+- `FEATURES.md` `3d-mesh` row: 142/156 -> 147/156; core `[x]`, cli unchanged, gui `[ ]`.
+
+**Still in flight:**
+- 9 meshes still fail (door meshes m2, m23, m39, m48, m52, m76, m97, m117, m151).
+- Full `tools/run-gates.sh` on `94f1caa8`: gates pending at filing.
+
+**Sourcing note (hard rule 8):** tests as reported by the engineer; backup/push/git
+state not checked here (no shell).
+
 ## 2026-10-05 (977th filing) — `Pass 501.0` shipped (widget border dash read, `G126`)
 
 **Shipped:**
