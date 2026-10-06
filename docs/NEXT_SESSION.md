@@ -4,7 +4,9 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-06, after `Pass 509.0` and the 985th filing.
+**Written:** 2026-10-06, after `Pass 510.0` and the 987th filing.
+
+**Pass 510.0 (`d8426db9`, filed 987th `08ea6fb1`):** PRC product-occurrence entity references (recolour/hide/re-place items, recolour B-rep faces) applied; reach is the `EntityOverrides` setting, CLI `3d-render --entity-overrides`. Second assembly sample: translucent meshes 0 -> 5. Ken's resize-distortion report is a GUI defect; a note went to the FeatureRequests channel. **Open, Ken's ask:** the second assembly sample is still missing very noticeable parts -- 24 compressed meshes refused with "an edge is shared by more than two triangles" (`Walk::step`); do not regress the door assembly (151/156). Performance in the GUI deferred by Ken. Next Pass 511.0, next filing 988th.
 
 **v0.79.0 RELEASED 2026-10-06 + Pass 509.0:** tag `v0.79.0` on bump `da76fdc1` (holds Passes 497.0-508.0, the 3D compressed-mesh work: door assembly 151/156). GitHub PASS, main zip 25,327,804 bytes + three OCR add-ons; OneDrive `pdfcer2` = 0.79.0, `pdfcer1` keeps 0.78.0 -- **the next release writes `pdfcer1`**. `verify-release.py v0.79.0` failed only on "CI green at the tag" because CI was still running -- re-run it. The Tesseract add-on needs `target/tesseract-bundle`; a cache clear deletes it -- rebuild it from the previous release's tesseract add-on zip (minus `pdfcer-ocr-model.txt`). `648fe67e` Pass 509.0 = the GUI's real G130: `add_svg_on_layer` / `add_emf_on_layer`; CLI `add-svg`/`add-emf --layer` without `--stamp`; reply `_FIXED` written; 985th filing. Ken is checking the door assembly beside Acrobat: if Acrobat draws m2 m23 m39 m48 m76, keep digging (next lever: candidate ordering by flip likelihood), else record 151 as the ceiling. Next Pass 510.0, next filing 986th.
 
