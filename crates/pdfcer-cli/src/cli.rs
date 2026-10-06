@@ -2739,7 +2739,10 @@ pub(crate) enum Command {
     ///
     /// One line per mark still painting on the page: `page=` (1-based),
     /// `field=` (the signature field's name, quoted) and `bounds=` (the
-    /// page-space extent, `llx,lly,urx,ury`). A mark whose content was
+    /// page-space extent, `llx,lly,urx,ury`) and `objects=` (the 0-based
+    /// paint-order indices of the objects the mark holds, comma-separated —
+    /// the numbering `list-objects` prints and `object-transform --objects`
+    /// takes). A mark whose content was
     /// deleted is not listed. A field marked more than once is listed once
     /// per mark. Ends with a `total=` line.
     ///

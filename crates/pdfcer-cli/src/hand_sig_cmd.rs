@@ -3,7 +3,7 @@
 
 use super::*;
 
-/// `list-hand-signatures` — one `page= field= bounds=` line per mark still
+/// `list-hand-signatures` — one `page= field= bounds= objects=` line per mark still
 /// painting, then `total=`.
 ///
 /// Exit codes: [`exit::EDIT_REFUSED`] for a `--page` outside the document,
@@ -48,14 +48,16 @@ pub(crate) fn cmd_list_hand_signatures(input: &Path, page: Option<usize>) -> u8 
         };
         for m in &marks {
             let b = &m.bounds;
+            let objects: Vec<String> = m.objects.iter().map(usize::to_string).collect();
             println!(
-                "page={} field={:?} bounds={:.3},{:.3},{:.3},{:.3}",
+                "page={} field={:?} bounds={:.3},{:.3},{:.3},{:.3} objects={}",
                 index + 1,
                 m.field,
                 b.llx,
                 b.lly,
                 b.urx,
-                b.ury
+                b.ury,
+                objects.join(",")
             );
         }
         total += marks.len();

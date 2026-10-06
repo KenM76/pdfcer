@@ -116,7 +116,7 @@ fn three_verbs_mark_and_the_listing_reads_them_back() {
     // The image keeps its aspect ratio inside `--rect`; the bounds are where
     // it paints, not the rectangle asked for.
     assert_eq!(
-        lines[2], "page=1 field=\"Drawn\" bounds=162.500,20.000,237.500,70.000",
+        lines[2], "page=1 field=\"Drawn\" bounds=162.500,20.000,237.500,70.000 objects=6",
         "{listed}"
     );
     assert_eq!(lines[3], "total=3");

@@ -58,6 +58,13 @@ pub struct HandSignatureMark {
     /// The page-space extent of what the sequence paints (a conservative
     /// superset, as [`crate::vector::VectorObject::page_bbox`]).
     pub bounds: Rect,
+    /// The indices of the objects the sequence encloses, ascending: into
+    /// `EditSession::page_objects(page)` when found by
+    /// [`crate::edit::EditSession::hand_signatures`], or into
+    /// `decompose_page(view, page, Matrix::IDENTITY).objects` when found by
+    /// [`hand_signatures`]. Pass them to `transform_objects` or
+    /// `delete_objects` to act on exactly the mark. Never empty.
+    pub objects: Vec<usize>,
 }
 
 /// Why a hand-signature mark was refused.
@@ -155,13 +162,19 @@ pub(crate) fn marks_in(cs: &ContentStream, objects: &PageObjects) -> Vec<HandSig
     sequences(cs)
         .into_iter()
         .filter_map(|(field, start, end)| {
-            let bounds = objects
+            let enclosed: Vec<usize> = objects
                 .objects
                 .iter()
-                .filter(|o| {
+                .enumerate()
+                .filter(|(_, o)| {
                     let span = o.bytes();
                     span.start >= start && span.start + span.len <= end
                 })
+                .map(|(i, _)| i)
+                .collect();
+            let bounds = enclosed
+                .iter()
+                .filter_map(|&i| objects.objects.get(i))
                 .fold(Bounds::EMPTY, |acc, o| acc.union(o.page_bbox()));
             (!bounds.is_empty()).then_some(HandSignatureMark {
                 field,
@@ -171,6 +184,7 @@ pub(crate) fn marks_in(cs: &ContentStream, objects: &PageObjects) -> Vec<HandSig
                     urx: bounds.max.x,
                     ury: bounds.max.y,
                 },
+                objects: enclosed,
             })
         })
         .collect()

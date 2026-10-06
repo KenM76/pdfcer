@@ -13,6 +13,7 @@ use pdfcer_core::hand_sig::{HandSignatureError, HandSignatureMark, hand_signatur
 use pdfcer_core::object::{ObjId, Object};
 use pdfcer_core::page_tree::{Rect, pages};
 use pdfcer_core::text_edit::{AddTextError, AddTextRequest};
+use pdfcer_core::vector::{Matrix, TransformOptions};
 use pdfcer_core::writer::SaveOptions;
 
 const FIELD: &str = "Approver.Signature";
@@ -239,6 +240,44 @@ fn a_mark_whose_content_was_deleted_is_not_reported() {
             saved_streams(&bytes).concat().contains("/pdfc_HandSig"),
             "{verb:?}: the empty sequence should remain in the bytes"
         );
+    }
+}
+
+/// A mark names exactly the objects it encloses, in the session's and the
+/// free reader's numbering alike, and transforming them moves the mark with
+/// its bounds while the page's own path stays put.
+#[test]
+fn a_mark_names_its_objects_and_moves_with_them() {
+    for verb in VERBS {
+        let mut s = session(ONE_PATH);
+        add(&mut s, verb, FIELD);
+        let count = s.page_objects(0).unwrap().objects.len();
+        let mark = s.hand_signatures(0).unwrap().remove(0);
+        // Object 0 is the page's own path; the verb's output follows it.
+        assert_eq!(mark.objects, (1..count).collect::<Vec<_>>(), "{verb:?}");
+        let (bytes, _) = s.to_incremental_bytes(&SaveOptions::identity()).unwrap();
+        let doc = Document::from_bytes(bytes).unwrap();
+        let page = &pages(&doc).unwrap()[0];
+        let read = hand_signatures(&doc.view(), page).unwrap();
+        assert_eq!(read[0].objects, mark.objects, "{verb:?}");
+
+        let own = s.page_objects(0).unwrap().objects[0].page_bbox();
+        let m = Matrix::translate(20.0, 30.0);
+        s.transform_objects(0, &mark.objects, m, TransformOptions::default())
+            .unwrap();
+        assert_eq!(s.page_objects(0).unwrap().objects[0].page_bbox(), own);
+        let moved = s.hand_signatures(0).unwrap();
+        assert_eq!(moved.len(), 1, "{verb:?}: {moved:?}");
+        assert_eq!(moved[0].field, FIELD, "{verb:?}");
+        let (a, b) = (&mark.bounds, &moved[0].bounds);
+        for (got, want) in [
+            (b.llx, a.llx + 20.0),
+            (b.lly, a.lly + 30.0),
+            (b.urx, a.urx + 20.0),
+            (b.ury, a.ury + 30.0),
+        ] {
+            assert!((got - want).abs() < 1e-6, "{verb:?}: {a:?} -> {b:?}");
+        }
     }
 }
 
