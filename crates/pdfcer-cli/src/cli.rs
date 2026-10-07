@@ -6369,8 +6369,8 @@ pub(crate) enum Command {
         /// (`Pass 292.0`).
         ///
         /// Refused by name on a `/Text` sticky note, which draws an icon and
-        /// has no label to size. A stamp's new size is written to `/DA` and
-        /// its appearance re-baked, so the size survives a later resize.
+        /// has no label to size. The new size is written to `/DA` and the
+        /// appearance re-baked, so the size survives a later resize.
         #[arg(long, value_name = "POINTS")]
         font_size: Option<f64>,
         /// What a stamp does when the RESIZED label no longer fits its box:
@@ -6382,6 +6382,16 @@ pub(crate) enum Command {
         /// so this is your choice rather than a recovered one.
         #[arg(long, value_enum)]
         stamp_fit: Option<StampFitArg>,
+        /// Redraw a text box pdfcer cannot redraw faithfully, instead of
+        /// refusing.
+        ///
+        /// Applies to a `/FreeText` another program drew (its wrapping cannot
+        /// be recovered, so it is redrawn wrapped within its box) or one
+        /// holding rich text (`/RC` and `/DS` are removed and the plain
+        /// text is drawn). Without this flag such a box is left unchanged
+        /// and the command exits 9.
+        #[arg(long)]
+        redraw_as_plain: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

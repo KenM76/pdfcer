@@ -1593,6 +1593,7 @@ pub(crate) fn run() -> ExitCode {
             color,
             font_size,
             stamp_fit,
+            redraw_as_plain,
             output,
             mode,
         } => cmd_set_text_annot_style(
@@ -1603,6 +1604,7 @@ pub(crate) fn run() -> ExitCode {
             color.as_deref(),
             font_size,
             stamp_fit,
+            redraw_as_plain,
             &output,
             mode,
         ),

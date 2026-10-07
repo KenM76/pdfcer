@@ -110,6 +110,7 @@ mod scale_pages;
 mod set_crop_box;
 mod set_markup_style_cloud;
 mod set_page_tabs;
+mod set_text_annot_style_redraw;
 mod settings_file;
 mod sign_certify;
 mod sign_into_field;

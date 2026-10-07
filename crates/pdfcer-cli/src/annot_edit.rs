@@ -426,6 +426,7 @@ pub(crate) fn cmd_set_text_annot_style(
     color: Option<&str>,
     font_size: Option<f64>,
     stamp_fit: Option<StampFitArg>,
+    redraw_as_plain: bool,
     output: &Path,
     mode: SaveMode,
 ) -> u8 {
@@ -473,6 +474,7 @@ pub(crate) fn cmd_set_text_annot_style(
         color: parsed_color,
         font_size,
         stamp_fit: stamp_fit.map(StampFitArg::to_fit),
+        redraw_as_plain,
     };
     let change = match session.set_text_annot_style(annot_id, &style) {
         Ok(c) => c,
@@ -508,15 +510,21 @@ pub(crate) fn cmd_set_text_annot_style(
     if change.appearance_was_foreign {
         eprintln!(
             "pdfcer: {}: the previous appearance was NOT one pdfcer would have drawn, and \
-             re-baking has replaced it. A stamp whose label pdfcer cannot read back is artwork \
-             (Acrobat's custom stamps are), and the restyle could not leave it in place: the \
-             change is invisible unless /AP moves.",
+             re-baking has replaced it with pdfcer's plain rendering (a stamp's artwork, or a \
+             text box redrawn under --redraw-as-plain, wrapped within its box).",
             input.display()
+        );
+    }
+    if !change.rich_text_dropped.is_empty() {
+        eprintln!(
+            "pdfcer: {}: removed the text box's rich text ({}); it now shows its plain text.",
+            input.display(),
+            change.rich_text_dropped.join(", ")
         );
     }
     println!(
         "  obj={} subtype={} icon_written={} color_written={} font_size_written={} \
-rect={:.2},{:.2},{:.2},{:.2} was_foreign={} appearance={}",
+rect={:.2},{:.2},{:.2},{:.2} was_foreign={} rich_text_dropped={} appearance={}",
         change.annot_id.num,
         change.subtype,
         u32::from(change.icon_written),
@@ -527,6 +535,7 @@ rect={:.2},{:.2},{:.2},{:.2} was_foreign={} appearance={}",
         change.rect_after.urx,
         change.rect_after.ury,
         u32::from(change.appearance_was_foreign),
+        change.rich_text_dropped.len(),
         match change.appearance {
             pdfcer_core::edit::AppearanceWrite::InPlace(_) => "in-place",
             pdfcer_core::edit::AppearanceWrite::Created(_) => "created",

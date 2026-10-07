@@ -3838,19 +3838,7 @@ fn apply_text_annot_style(
             name,
             label,
             color: style.color.unwrap_or(color),
-            // The stamp's own sizing survives a colour restyle untouched —
-            // a restyle that quietly resized the label would be the same
-            // class of surprise `Pass 287.0` exists to remove. `Pass 292.0`
-            // adds the OTHER half: when the caller asks for a size, it is
-            // applied here, and the fit policy comes with it because a new
-            // size can stop fitting the old box.
-            style: match style.font_size {
-                Some(size) => {
-                    let fit = style.stamp_fit.unwrap_or_default();
-                    stamp_style.with_font_size(Some(size)).with_fit(fit)
-                }
-                None => stamp_style,
-            },
+            style: restyled_stamp_style(stamp_style, style),
         },
         // A `/FreeText`'s `/C` is its FRAME colour, and the spec models it
         // as `Option<Color>` because a frameless text box is a real thing.
@@ -3872,7 +3860,8 @@ fn apply_text_annot_style(
             rect,
             text,
             font,
-            font_size,
+            // Written through `/DA`'s `Tf` by the re-bake (G148).
+            font_size: style.font_size.unwrap_or(font_size),
             color,
             quadding,
             // The measured value wins over the reader's placeholder.
@@ -3880,6 +3869,27 @@ fn apply_text_annot_style(
             border: style.color.or(border),
             border_width,
         },
+    }
+}
+
+/// A stamp's label style after `style`: the size and fit policy when a size
+/// was named, otherwise untouched.
+fn restyled_stamp_style(
+    stamp_style: annot_author::StampStyle,
+    style: &TextAnnotStyle,
+) -> annot_author::StampStyle {
+    // The stamp's own sizing survives a colour restyle untouched —
+    // a restyle that quietly resized the label would be the same
+    // class of surprise `Pass 287.0` exists to remove. `Pass 292.0`
+    // adds the OTHER half: when the caller asks for a size, it is
+    // applied here, and the fit policy comes with it because a new
+    // size can stop fitting the old box.
+    match style.font_size {
+        Some(size) => {
+            let fit = style.stamp_fit.unwrap_or_default();
+            stamp_style.with_font_size(Some(size)).with_fit(fit)
+        }
+        None => stamp_style,
     }
 }
 
@@ -8979,6 +8989,29 @@ pub enum EditError {
     FieldIsRichText {
         /// The fully-qualified name that was requested.
         name: String,
+    },
+    /// A `/FreeText` restyle was refused because the appearance on disk is
+    /// not one pdfcer can reproduce, so its wrapping cannot be recovered and
+    /// a re-bake would replace another program's drawing (pdfcer-gui request
+    /// G148). Set [`TextAnnotStyle::redraw_as_plain`] to redraw it anyway.
+    #[error(
+        "annotation {id} is a text box another program drew; pdfcer cannot redraw it faithfully, so it was left unchanged (ask to redraw it as plain text to proceed)"
+    )]
+    FreeTextAppearanceForeign {
+        /// The annotation.
+        id: ObjId,
+    },
+    /// A `/FreeText` restyle was refused because the box carries `/RC` rich
+    /// text (ISO 32000-1 Table 174), which pdfcer does not lay out: a plain
+    /// re-bake would paint words that disagree with the rich text kept in the
+    /// file (pdfcer-gui request G148). Set
+    /// [`TextAnnotStyle::redraw_as_plain`] to drop `/RC` and `/DS` and redraw.
+    #[error(
+        "annotation {id} is a text box holding rich (formatted) text, which pdfcer cannot redraw; it was left unchanged (ask to redraw it as plain text to proceed)"
+    )]
+    FreeTextIsRichText {
+        /// The annotation.
+        id: ObjId,
     },
     /// A fill named a field that cannot hold a fillable value: a
     /// `ReadOnly` field, a pushbutton, or a signature field.
@@ -21492,6 +21525,17 @@ pub struct TextAnnotStyle {
     /// current geometry would invent a decision nobody made. Same reason
     /// `text_spec_from_dict` does not recover it.
     pub stamp_fit: Option<annot_author::StampFit>,
+    /// On a `/FreeText` pdfcer cannot redraw faithfully, redraw it anyway as
+    /// pdfcer's plain-text rendering instead of refusing (pdfcer-gui request
+    /// G148). Default `false`: refuse.
+    ///
+    /// Two cases. A **foreign** appearance (one no pdfcer layout reproduces)
+    /// is replaced and wrapped within its box, since its wrapping cannot be
+    /// measured and wrapping keeps the text inside the rectangle. **Rich
+    /// text**: `/RC` and `/DS` are removed and `/Contents` is drawn, reported
+    /// in [`TextAnnotStyleChange::rich_text_dropped`]. Ignored on the other
+    /// subtypes.
+    pub redraw_as_plain: bool,
 }
 
 /// A review status a state annotation can carry (§12.5.6.3, Table 171;
@@ -21691,10 +21735,10 @@ pub struct TextAnnotStyleChange {
     /// verb has just overwritten it with pdfcer's plainer rendering.
     ///
     /// One measurement, two facts: which layout drew it, and whether
-    /// pdfcer drew it at all. `set_markup_note` uses the second to decline
-    /// the re-bake entirely; this verb cannot decline, because the operator
-    /// asked to change the colour and R43 means the change is invisible
-    /// unless `/AP` moves. So it proceeds and says so.
+    /// pdfcer drew it at all. Both `set_markup_note` and this verb decline
+    /// such a box: this one refuses with
+    /// [`EditError::FreeTextAppearanceForeign`] unless the caller set
+    /// [`TextAnnotStyle::redraw_as_plain`], and then this is `true`.
     ///
     /// **Also `true` for a `/Stamp` whose appearance pdfcer could not
     /// read back (`Pass 292.0`).** The measurement is different but the fact
@@ -21703,13 +21747,16 @@ pub struct TextAnnotStyleChange {
     /// are artwork, not a laid-out label — and this verb has just replaced
     /// that artwork with pdfcer's plainer rendering.
     ///
-    /// It cannot decline, for the reason the `/FreeText` case gives: the
-    /// operator asked for a colour or a size, and R43 makes the change
-    /// invisible unless `/AP` moves. So it proceeds and says so, and a shell
-    /// that offers an undo is offering the right thing.
+    /// A stamp is not refused: the operator asked for a colour or a size,
+    /// and R43 makes the change invisible unless `/AP` moves, and a stamp
+    /// has no wrapping or rich text to lose. So it proceeds and says so, and
+    /// a shell that offers an undo is offering the right thing.
     ///
     /// `false` for a `/Text` sticky note, whose appearance is icon-driven.
     pub appearance_was_foreign: bool,
+    /// The rich-text keys (`RC`, `DS`) removed from a `/FreeText` redrawn
+    /// under [`TextAnnotStyle::redraw_as_plain`]; empty otherwise.
+    pub rich_text_dropped: Vec<String>,
 }
 
 /// What [`EditSession::place_page_artwork`] placed, and what it decided
@@ -37478,6 +37525,10 @@ impl EditSession {
     ///
     /// - [`EditError::StylePropertyNotApplicable`] — an `icon` on anything
     ///   but a `/Text`.
+    /// - [`EditError::FreeTextAppearanceForeign`] /
+    ///   [`EditError::FreeTextIsRichText`] — a `/FreeText` pdfcer cannot
+    ///   redraw faithfully, unless [`TextAnnotStyle::redraw_as_plain`]; the
+    ///   annotation is left unchanged.
     /// - [`EditError::MarkupSpec`] — the subtype is not text-bearing, or its
     ///   spec cannot be read back (`text_spec_from_dict`'s refusals).
     /// - [`EditError::VariableText`] — the amended spec cannot be laid out.
@@ -37578,10 +37629,22 @@ impl EditSession {
         // bytes -- the appearance is foreign -- and is reported rather than
         // silently treated as `false`.
         let measured_multiline = self.measure_free_text_multiline(&current, &original);
-        let foreign_appearance = matches!(original, annot_author::TextAnnotSpec::FreeText { .. })
-            && measured_multiline.is_none();
+        let is_free_text = matches!(original, annot_author::TextAnnotSpec::FreeText { .. });
+        let foreign_appearance =
+            is_free_text && measured_multiline.is_none() && current.contains_key(b"AP");
+        let rich_text = is_free_text && current.contains_key(b"RC");
+        if rich_text && !style.redraw_as_plain {
+            return Err(EditError::FreeTextIsRichText { id: annot_id });
+        }
+        if foreign_appearance && !style.redraw_as_plain {
+            return Err(EditError::FreeTextAppearanceForeign { id: annot_id });
+        }
+        // Unmeasurable wrapping (foreign or absent `/AP`) redraws wrapped:
+        // a box that fitted on one line is unchanged by it, and one that did
+        // not stays inside its rectangle.
+        let multiline = measured_multiline.or(is_free_text.then_some(true));
 
-        let amended = apply_text_annot_style(original, style, measured_multiline);
+        let amended = apply_text_annot_style(original, style, multiline);
         let authored = annot_author::build_text_annotation(&amended)?;
         // The fit outcome of THIS re-bake (`Pass 292.0`). A size change can
         // make a label stop fitting the box it is in, and the answer to
@@ -37592,7 +37655,7 @@ impl EditSession {
         let stamp_label_fit = authored.stamp_label_fit;
         let rect_after = authored.rect;
 
-        let regen = self.regenerate_markup_appearance(
+        let mut regen = self.regenerate_markup_appearance(
             annot_id,
             &current,
             annot_author::AuthoredAppearance {
@@ -37602,6 +37665,14 @@ impl EditSession {
                 rect: authored.rect,
             },
         )?;
+        let mut rich_text_dropped = Vec::new();
+        if rich_text {
+            for key in [&b"RC"[..], b"DS"] {
+                if regen.updated.remove(key).is_some() {
+                    rich_text_dropped.push(String::from_utf8_lossy(key).into_owned());
+                }
+            }
+        }
         let appearance = regen.appearance;
         self.commit_regenerated_markup(annot_id, regen, CommandKind::SetTextAnnotStyle);
 
@@ -37615,6 +37686,7 @@ impl EditSession {
             stamp_label_fit,
             appearance,
             appearance_was_foreign: foreign_appearance || stamp_appearance_was_foreign,
+            rich_text_dropped,
         })
     }
 
