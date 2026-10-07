@@ -292,7 +292,6 @@ fn pdfcer-core/src/edit.rs::fill_text_field_inner
 fn pdfcer-core/src/edit.rs::flatten_annotations
 fn pdfcer-core/src/edit.rs::flatten_fields
 fn pdfcer-core/src/edit.rs::flatten_layers
-fn pdfcer-core/src/edit.rs::form_surgery_inner
 fn pdfcer-core/src/edit.rs::format_text
 fn pdfcer-core/src/edit.rs::format_text_in_form
 fn pdfcer-core/src/edit.rs::group_deletion_preflight
@@ -349,7 +348,6 @@ fn pdfcer-core/src/edit.rs::set_dimension_label
 fn pdfcer-core/src/edit.rs::set_field_script
 fn pdfcer-core/src/edit.rs::set_info_field
 fn pdfcer-core/src/edit.rs::set_markup_style
-fn pdfcer-core/src/edit.rs::set_object_paint
 fn pdfcer-core/src/edit.rs::set_objects_layer
 fn pdfcer-core/src/edit.rs::set_page_tabs
 fn pdfcer-core/src/edit.rs::set_text_annot_style

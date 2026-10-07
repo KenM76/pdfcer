@@ -10,6 +10,7 @@ pub(crate) struct SetObjectStrokeStyleArgs<'a> {
     pub(crate) page: u32,
     pub(crate) objects: &'a [usize],
     pub(crate) style: StrokeStyle,
+    pub(crate) leaf: bool,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) verify_undo: bool,
@@ -59,8 +60,17 @@ pub(crate) fn cmd_set_object_stroke_style(args: &SetObjectStrokeStyleArgs) -> u8
         Err(code) => return code,
     };
     let page_index = (args.page.max(1) - 1) as usize;
-    let styled = match session.set_object_stroke_style(page_index, args.objects, &args.style) {
-        Ok(styled) => styled,
+    let result: PaintResult = if args.leaf {
+        session
+            .set_object_stroke_style_in_form(page_index, args.objects, &args.style)
+            .map(leaf_reach)
+    } else {
+        session
+            .set_object_stroke_style(page_index, args.objects, &args.style)
+            .map(|styled| (styled, String::new()))
+    };
+    let (styled, reach) = match result {
+        Ok(pair) => pair,
         Err(err) => return report_edit_error(input, &err),
     };
     let outcome = match save_edited(
@@ -83,9 +93,10 @@ pub(crate) fn cmd_set_object_stroke_style(args: &SetObjectStrokeStyleArgs) -> u8
     }
     let r = &outcome.report;
     println!(
-        "set-object-stroke-style {} page={} mode={} -> {}; changed={} refused={} objects_written={} appended={} out_bytes={}",
+        "set-object-stroke-style {} page={} leaf={}{reach} mode={} -> {}; changed={} refused={} objects_written={} appended={} out_bytes={}",
         input.display(),
         args.page,
+        args.leaf,
         args.mode.name(),
         args.output.display(),
         join_indices(&styled.changed),

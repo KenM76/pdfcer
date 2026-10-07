@@ -1,7 +1,7 @@
 //! `set-object-paint` — recolour page paths' fill and/or stroke.
 
 use super::*;
-use pdfcer_core::edit::{PaintOutcome, PaintRefusalReason};
+use pdfcer_core::edit::{EditError, FormPaintOutcome, PaintOutcome, PaintRefusalReason};
 
 /// `set-object-paint` arguments, after clap.
 pub(crate) struct SetObjectPaintArgs<'a> {
@@ -10,6 +10,7 @@ pub(crate) struct SetObjectPaintArgs<'a> {
     pub(crate) objects: &'a [usize],
     pub(crate) fill: Option<pdfcer_core::vector::Rgb>,
     pub(crate) stroke: Option<pdfcer_core::vector::Rgb>,
+    pub(crate) leaf: bool,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) verify_undo: bool,
@@ -24,8 +25,17 @@ pub(crate) fn cmd_set_object_paint(args: &SetObjectPaintArgs) -> u8 {
         Err(code) => return code,
     };
     let page_index = (args.page.max(1) - 1) as usize;
-    let paint = match session.set_object_paint(page_index, args.objects, args.fill, args.stroke) {
-        Ok(paint) => paint,
+    let result = if args.leaf {
+        session
+            .set_object_paint_in_form(page_index, args.objects, args.fill, args.stroke)
+            .map(leaf_reach)
+    } else {
+        session
+            .set_object_paint(page_index, args.objects, args.fill, args.stroke)
+            .map(|paint| (paint, String::new()))
+    };
+    let (paint, reach) = match result {
+        Ok(pair) => pair,
         Err(err) => return report_edit_error(input, &err),
     };
     let outcome = match save_edited(
@@ -42,9 +52,10 @@ pub(crate) fn cmd_set_object_paint(args: &SetObjectPaintArgs) -> u8 {
     report_refusals(input, &paint);
     let r = &outcome.report;
     println!(
-        "set-object-paint {} page={} mode={} -> {}; changed={} refused={} objects_written={} appended={} out_bytes={}",
+        "set-object-paint {} page={} leaf={}{reach} mode={} -> {}; changed={} refused={} objects_written={} appended={} out_bytes={}",
         input.display(),
         args.page,
+        args.leaf,
         args.mode.name(),
         args.output.display(),
         join_indices(&paint.changed),
@@ -55,6 +66,19 @@ pub(crate) fn cmd_set_object_paint(args: &SetObjectPaintArgs) -> u8 {
     );
     finish_edit(input, &outcome)
 }
+
+/// The per-leaf outcome of an in-form edit, its disclosures reported, and
+/// ` invocations=N pages=N` for the result line (empty when nothing changed).
+pub(crate) fn leaf_reach(out: FormPaintOutcome) -> (PaintOutcome, String) {
+    let reach = out.reach.map_or_else(String::new, |r| {
+        report_disclosures(&r.disclosures);
+        format!(" invocations={} pages={}", r.invocations, r.pages)
+    });
+    (out.paint, reach)
+}
+
+/// The in-form or page verb's result, as [`leaf_reach`] reports it.
+pub(crate) type PaintResult = Result<(PaintOutcome, String), EditError>;
 
 /// One stderr line per object left alone, naming the ink when there is one.
 fn report_refusals(input: &Path, paint: &PaintOutcome) {

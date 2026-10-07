@@ -130,9 +130,11 @@ mod decoration_refresh;
 mod editable_source;
 mod emf;
 mod foreign_button;
+mod form_paint;
 mod group_unit;
 mod stroke_style;
 pub use foreign_button::ForeignAppearance;
+pub use form_paint::FormPaintOutcome;
 mod image_stamp;
 mod ocr_refold;
 mod page_artwork;
@@ -6969,6 +6971,20 @@ pub enum EditError {
         first: ObjId,
         /// The first form that disagreed with it.
         other: ObjId,
+    },
+    /// Opacity was asked for inside a form XObject that has no `/Resources`
+    /// of its own (`Pass 535.0`).
+    ///
+    /// Such a form borrows the resources of whatever invokes it (§7.8.3,
+    /// deprecated). The new `/ExtGState` would have to go on one invoking
+    /// page, and every other place the form is drawn would name a resource
+    /// it does not have. Width and dash need no resource and still work.
+    #[error(
+        "the form XObject {form:?} has no /Resources of its own, so opacity cannot be bound for every place it is drawn; width and dash can still be set"
+    )]
+    FormInheritsResources {
+        /// The form XObject.
+        form: ObjId,
     },
     /// A **source** document's page index was out of range (`Pass 293.0`).
     ///
@@ -16822,39 +16838,7 @@ impl EditSession {
                 .objects
                 .get(i)
                 .ok_or(crate::vector::VectorEditError::ObjectOutOfRange { index: i, count })?;
-            let crate::vector::VectorObject::Path(p) = obj else {
-                refused.push(PaintRefusal {
-                    object: i,
-                    reason: PaintRefusalReason::NotAPath,
-                    space: None,
-                });
-                continue;
-            };
-            // Only the channels being CHANGED can refuse. Recolouring the fill
-            // of an object whose STROKE is a spot ink is legitimate and must
-            // not be blocked by the channel nobody touched.
-            let mut blocked = None;
-            for (want, paint) in [
-                (fill.is_some(), &p.fill_paint),
-                (stroke.is_some(), &p.stroke_paint),
-            ] {
-                if !want {
-                    continue;
-                }
-                if let crate::vector::PathPaint::Other { space, pattern, .. } = paint {
-                    blocked = Some(PaintRefusal {
-                        object: i,
-                        reason: if *pattern {
-                            PaintRefusalReason::Pattern
-                        } else {
-                            PaintRefusalReason::UndecodedColourSpace
-                        },
-                        space: space.clone(),
-                    });
-                    break;
-                }
-            }
-            match blocked {
+            match form_paint::paint_refusal(obj, i, fill.is_some(), stroke.is_some()) {
                 Some(r) => refused.push(r),
                 None => accepted.push(i),
             }
@@ -18993,6 +18977,24 @@ impl EditSession {
             usize,
         ) -> Result<crate::vector::PlannedEdit, EditError>,
     ) -> Result<FormSurgeryOutcome, EditError> {
+        self.form_surgery_extras(kind, page_index, leaf_index, FormExtras::default(), plan)
+    }
+
+    /// [`Self::form_surgery_inner`] with resource writes committed in the
+    /// same command, and the form's dictionary replaced when a binding had to
+    /// go inside it.
+    fn form_surgery_extras(
+        &mut self,
+        kind: CommandKind,
+        page_index: usize,
+        leaf_index: usize,
+        extras: FormExtras,
+        plan: impl FnOnce(
+            &crate::content::ContentStream,
+            &crate::vector::PageObjects,
+            usize,
+        ) -> Result<crate::vector::PlannedEdit, EditError>,
+    ) -> Result<FormSurgeryOutcome, EditError> {
         // The same guard set the page path runs, in the same order. Any change
         // to one belongs in the other; `vector_surgery_inner` carries the twin
         // of this note.
@@ -19000,26 +19002,7 @@ impl EditSession {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
-
-        let model = self.page_objects(page_index)?;
-        let leaf = model
-            .leaves
-            .get(leaf_index)
-            .ok_or(EditError::FormLeafOutOfRange {
-                index: leaf_index,
-                count: model.leaves.len(),
-            })?
-            .clone();
-        // `containment` is documented as never empty — an object with no
-        // enclosing form is not a leaf. Handled rather than unwrapped anyway:
-        // this is reached with an index a shell supplied.
-        let form_id = *leaf
-            .containment
-            .last()
-            .ok_or(EditError::FormLeafOutOfRange {
-                index: leaf_index,
-                count: model.leaves.len(),
-            })?;
+        let (leaf, form_id) = self.form_leaf_at(page_index, leaf_index)?;
 
         // The form's CURRENT content, through the session view, so a second
         // edit to the same form composes on top of the first exactly as a
@@ -19034,9 +19017,64 @@ impl EditSession {
                 key: "Subtype",
             });
         };
-        let form_dict = form_stream.dict.clone();
+        let form_dict = extras.form_dict.unwrap_or_else(|| form_stream.dict.clone());
+        let planned = self.plan_in_form(page_index, &stream, &form_dict, &leaf, plan)?;
 
-        let planned = {
+        // The reach is returned as counts, not pushed onto `disclosures`:
+        // each shell words it (the CLI as a line, a GUI as its unshare offer).
+        let reach = self.form_invocation_reach(form_id);
+        let mut disclosures = planned.disclosures.clone();
+        disclosures.extend(extras.disclosures);
+
+        let mut command = self.form_edit_command_kind(kind, form_id, &form_dict, planned.content);
+        command.objects.extend(extras.writes);
+        self.commit(command);
+        Ok(FormSurgeryOutcome {
+            form: form_id,
+            invocations: reach.invocations,
+            pages: reach.pages,
+            disclosures,
+        })
+    }
+
+    /// The leaf at `leaf_index` and the form XObject that holds it.
+    fn form_leaf_at(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+    ) -> Result<(crate::vector::FormLeaf, ObjId), EditError> {
+        let model = self.page_objects(page_index)?;
+        let count = model.leaves.len();
+        let out_of_range = || EditError::FormLeafOutOfRange {
+            index: leaf_index,
+            count,
+        };
+        let leaf = model
+            .leaves
+            .get(leaf_index)
+            .ok_or_else(out_of_range)?
+            .clone();
+        // `containment` is never empty for a leaf; handled rather than
+        // unwrapped because the index came from a shell.
+        let form_id = *leaf.containment.last().ok_or_else(out_of_range)?;
+        Ok((leaf, form_id))
+    }
+
+    /// Decompose the form's `stream` from the leaf's placement and run
+    /// `plan` over that model.
+    fn plan_in_form(
+        &self,
+        page_index: usize,
+        stream: &crate::content::ContentStream,
+        form_dict: &Dict,
+        leaf: &crate::vector::FormLeaf,
+        plan: impl FnOnce(
+            &crate::content::ContentStream,
+            &crate::vector::PageObjects,
+            usize,
+        ) -> Result<crate::vector::PlannedEdit, EditError>,
+    ) -> Result<crate::vector::PlannedEdit, EditError> {
+        {
             let view = self.view();
             // §7.8.3: a form's own `/Resources` if it has one, otherwise the
             // invoking context's. The decomposer inherits exactly this way, so
@@ -19060,37 +19098,9 @@ impl EditSession {
             let fonts = crate::vector::DocumentFonts::new(&view, &resources);
             // `leaf.placement`, NOT `Matrix::IDENTITY`. See the doc block.
             let form_model =
-                crate::vector::decompose_with_fonts(&stream, leaf.placement, &resolver, &fonts);
-            plan(&stream, &form_model, leaf.form_object_index)?
-        };
-
-        // THE REACH IS STRUCTURED DATA, NOT PROSE, and it deliberately
-        // does NOT go into `disclosures`.
-        //
-        // The first cut pushed a sentence about it onto that list *as well as*
-        // returning the counts, and the CLI then printed the reach twice --
-        // once from the prose and once from its own, better-worded line naming
-        // `unshare-form` as the CLI spells it rather than as the Rust API
-        // spells it. Two renderings of one fact, and the shell had no way to
-        // suppress either without matching on a string.
-        //
-        // `invocations` and `pages` are the fact. Each shell words it: the CLI
-        // prints a sentence on the way past (the invocation IS the commit, so
-        // there is nowhere else to put it), and a GUI turns the same two
-        // numbers into `pdfcer-gui`'s one-click offer -- "this drawing is used on
-        // 12 pages; make this page's copy separate?" -- which no sentence
-        // generated here could have become.
-        let reach = self.form_invocation_reach(form_id);
-        let disclosures = planned.disclosures.clone();
-
-        let command = self.form_edit_command_kind(kind, form_id, &form_dict, planned.content);
-        self.commit(command);
-        Ok(FormSurgeryOutcome {
-            form: form_id,
-            invocations: reach.invocations,
-            pages: reach.pages,
-            disclosures,
-        })
+                crate::vector::decompose_with_fonts(stream, leaf.placement, &resolver, &fonts);
+            plan(stream, &form_model, leaf.form_object_index)
+        }
     }
 
     /// How many `Do` invocations of `form_id` this document contains, and
@@ -22077,6 +22087,16 @@ pub struct FormSurgeryOutcome {
     /// Everything the planner disclosed, plus the reach sentence when the form
     /// is drawn more than once.
     pub disclosures: Vec<String>,
+}
+
+/// What a form edit commits besides the form's new content.
+#[derive(Debug, Default)]
+struct FormExtras {
+    /// Resource objects written in the same command.
+    writes: Vec<ObjectWrite>,
+    /// The form's dictionary, when a binding went inside it.
+    form_dict: Option<Dict>,
+    disclosures: Vec<String>,
 }
 
 /// How far one form XObject reaches — the measured pair behind

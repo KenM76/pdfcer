@@ -10555,6 +10555,12 @@ pub(crate) enum Command {
         /// New stroke colour: `r,g,b` in 0.0-1.0, or `#rrggbb`.
         #[arg(long, value_parser = parse_style_color)]
         stroke: Option<pdfcer_core::vector::Rgb>,
+        /// Treat each index as a form-leaf index (`object-list`'s
+        /// `kind=leaf:` lines) rather than a page object. The paths must all
+        /// be in one placement of one form, and the edit changes every place
+        /// that form is drawn; `invocations=` and `pages=` say how many.
+        #[arg(long)]
+        leaf: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -10571,7 +10577,8 @@ pub(crate) enum Command {
     /// options given change; each replaces the value the path already has.
     /// Width and dash lengths are in the path's own units (points at the
     /// page's scale). Opacity goes in a new graphics-state entry on the
-    /// page. Prints one `set-object-stroke-style` line: `changed=` the
+    /// page (or, with `--leaf`, on the form, which must have resources of
+    /// its own). Prints one `set-object-stroke-style` line: `changed=` the
     /// indices styled (`none` when nothing was) and `refused=` how many were
     /// left alone; each refused object (text, an image) gets a stderr line.
     ///
@@ -10603,6 +10610,12 @@ pub(crate) enum Command {
         /// Fill opacity, 0.0-1.0.
         #[arg(long, group = "stroke-style")]
         fill_alpha: Option<f64>,
+        /// Treat each index as a form-leaf index (`object-list`'s
+        /// `kind=leaf:` lines) rather than a page object. The paths must all
+        /// be in one placement of one form, and the edit changes every place
+        /// that form is drawn; `invocations=` and `pages=` say how many.
+        #[arg(long)]
+        leaf: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

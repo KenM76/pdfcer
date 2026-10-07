@@ -129,6 +129,7 @@ mod node_edit_materialized;
 mod node_multi_move;
 mod object_clipboard;
 mod object_identity_across_edits;
+mod object_paint_in_form;
 mod object_renders_for_an_operator;
 mod object_stroke_style;
 mod ocr_layer;
