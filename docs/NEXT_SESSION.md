@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-06, after `Pass 514.0` and the 993rd filing.
+**Written:** 2026-10-06, after `Pass 515.0` and the 994th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 515.0 (`21428aae`, filed 994th):** a stored normal that sends the walk onto a closed edge while the other is open is a guaranteed dead end; `Walk::open_wins` lets the open edge win, as two extra best-fit readings only (enabling it everywhere lost a mesh). Second sample 134 rebuilt / 7 out (was 132 / 9), 80 s; door unchanged 151 / 5; hinges full. Probe harness: scratchpad `p515/probe.full.rs` (re-add `#[cfg(test)] mod probe;` under `mod normals;` in compressed.rs, NEVER commit) over dumps `p512/dump/m0..m23`; still failing m0, m6, m7, m9, m16, m20, m21, all budget-bound. Next: brackets wall at fan-closing reference triangles (~50-120) where status claims continuation on edges counted closed.
 
 **Pass 514.0 (`75ed4a25`, filed 993rd):** G132 done -- `fixtures/synthetic/prc/best_fit.prc`, seven separate copies of the one-turn planar mesh (28 tris) that only `search::best_fit` rebuilds; core test (assemble best_fit=1; `MeshFit::Unique` -> `CompressedOnly` with the strict reason) + CLI test; reply `_FIXED` written. Finding: the SEARCH accumulates choices across components (2 per copy), but the walk retries and the turned/legacy readings repair chains up to 6 copies, so 7 is the minimum -- the earlier "chains do not accumulate" note was about `reconstruct`, not the search. Probes kept in the scratchpad (`p514_probe_compressed.rs`). Next research: the left-out meshes ("an edge is shared by more than two triangles").
 

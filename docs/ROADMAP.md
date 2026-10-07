@@ -115,6 +115,44 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 515.0` — an open edge overrides a stored normal in the compressed-mesh best fit — SHIPPED 2026-10-06 (994th filing)
+
+Commit `21428aae`. Not scoped beforehand: residue work on the Backlog item
+"3D compressed meshes still unfit". Crate `pdfcer-3d` only; no `pub` API
+change, no core-api change, no manifest/dependency change.
+
+**Delivered.** On real producers a stored normal can orient a triangle so the
+walk continues across an edge two triangles already share while the other
+continuation edge is open: a guaranteed dead end (the next triangle shares the
+closed edge a third time). The walk already gave way to the open edge for
+unsignalled folds; the private `Walk::open_wins` field (guard in `Walk::step`,
+`compressed.rs`) extends that to signalled ones. Enabling it everywhere changed
+which branches the search explored and lost a mesh that rebuilt before, so it
+is two extra `best_fit` readings (plain and legacy orientation, `Plan::open` =
+true, `compressed/search.rs`) tried AFTER the existing three: anything that
+rebuilt before rebuilds identically.
+
+**Measured (local samples, engineer-reported).**
+- Second assembly sample: 134 compressed meshes rebuilt (17 by best fit), 7
+  left out (an edge is shared by more than two triangles); was 132 / 9. Load
+  80 s, was ~75 s.
+- Door assembly sample: unchanged, 151 rebuilt / 5 left out.
+- Two local hinge samples: every compressed mesh still rebuilds.
+- Of the 24 dumped failing meshes of the second sample, 17 now rebuild (was 15).
+  The 7 still failing: 4 brackets of ~9.4-10k triangles, 2 nuts, one
+  1780-triangle mesh; all hit the search budget rather than exhausting the tree.
+
+**Tests.** `pdfcer-3d` 139 lib + 3 + 11 pass. New
+`compressed::search::tests::a_closed_edge_overrides_a_stored_normal_only_when_open_wins`
+(synthetic tetrahedron: plain walk and plain depth-0 search fail, open ones
+fit). Sabotage: forcing the plan's open flag false fails it. clippy
+`-D warnings`, fmt, `check-string-gaps`, `check-code-structure` clean
+(engineer-reported).
+
+**Boxes.** `FEATURES.md`: no row changes (the PRC mesh-export row cites no
+count; core stays `[x]`, cli unchanged (`3d-mesh`/`3d-render` notes report the
+new counts), gui unchanged `[ ]`). Residue: Backlog item updated.
+
 ### `Pass 514.0` — synthetic best-fit-only PRC fixture (`G132`) — SHIPPED 2026-10-06 (993rd filing)
 
 Commit `75ed4a25` (scoped at `6bc8550c`, 992nd filing; `db854926` moved the
@@ -31097,7 +31135,17 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 ### 3D compressed meshes still unfit (residue of `Pass 512.0`)
 
-- 9 compressed meshes in the second assembly sample remain unfit (and 5 in
+- **After `Pass 515.0` (`21428aae`): 7 left out in the second assembly sample
+  (was 9), 5 in the door assembly sample.** The 7: 4 brackets (~9.4-10k
+  triangles), 2 nuts, one 1780-triangle mesh; all hit the search budget, none
+  exhausts the tree. Researched and NOT worth repeating: best-first/greedy
+  search (no better); offering signalled folds as candidates (worse); relaxing
+  the >2-triangles-per-edge check (decodes consume every array but bend planar
+  faces: rejected). The brackets wall early (triangles ~50-120) at fan-closing
+  reference triangles where the edge status claims continuation on edges our
+  counting considers closed; needs a deeper theory of the status bits there.
+  Changing `STEP_BUDGET` needs the operator's OK.
+- (Earlier count, before `515.0`:) 9 compressed meshes in the second assembly sample remain unfit (and 5 in
   the door assembly sample). **Follow-up (named by `Pass 513.0`, `afd670d7`):
   rebuild the remaining left-out compressed meshes** — all are nuts and
   brackets that fail "an edge is shared by more than two triangles". Not yet

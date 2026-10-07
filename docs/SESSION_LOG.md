@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (994th filing) — `Pass 515.0` shipped (open edge overrides a stored normal, compressed best fit)
+
+**Shipped:**
+- `Pass 515.0` — `21428aae`, `pdfcer-3d` only. Two extra best-fit readings with `open_wins`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Second assembly sample 132/9 -> 134/7 rebuilt/left out (17 by best fit); door sample unchanged 151/5; hinge samples all rebuild; load 80 s (was ~75 s). 17 of 24 dumped failures now rebuild.
+- Enabling `open_wins` everywhere lost a mesh that rebuilt before, hence extra readings appended after the existing three.
+- Researched and rejected: greedy/best-first search, signalled folds as candidates, relaxing the >2-per-edge check. Remaining 7 hit the budget; need a theory of status bits at fan-closing reference triangles.
+- Lesson `lesson_20261006_prc_compressed_...best_fit.md` amended. `FEATURES.md`: no row changes.
+
+**Still in flight:** Backlog "3D compressed meshes still unfit" (7 left). `STEP_BUDGET` change needs operator OK.
+
+**Sourcing note (hard rule 8):** figures and gate results engineer-reported; push/backup/CI not checked here (no shell).
+
 ## 2026-10-06 (993rd filing) — `Pass 514.0` shipped (synthetic best-fit-only PRC fixture, `G132`)
 
 **Shipped:**
