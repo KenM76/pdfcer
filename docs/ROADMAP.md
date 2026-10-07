@@ -115,6 +115,35 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 524.0` — `pdfcer text-locate`: searched text maps to editable runs (CLI over `locate_text_run`, `Pass 317.0`/`G037`) — SHIPPED 2026-10-07 (1003rd filing)
+
+Commit `3014387c6f30773d3b1a1c410d5cd6d10ce96aea`. CLI only; no core change; no `Cargo.toml` change (`cargo tree` not applicable). Self-scoped from a FEATURES core-`[x]`/cli-`[ ]` row.
+
+**Delivered.** `pdfcer text-locate FILE [--page N] --find TEXT`. Per occurrence prints
+`match ordinal=K start=S len=L targets=T unresolved=U`, then
+`text-locate FILE page N find="..." matches=M`. `targets=` is a comma list of `object=I/run=J`
+(page content) or `leaf=I/run=J` (inside a form XObject), the operands of `text-run-delete`/`text-run-move`
+etc., or `none`; `unresolved=` counts glyphs mapping to no editable run (Type 3 glyph, `/ActualText`,
+an ambiguous repeated-form placement). Matching is exact and case-sensitive over the page text as
+`extract-text --include-artifacts` prints it (`start=` is a byte offset into that), so a word drawn by
+several text objects is found and lists every piece. No match is `matches=0`, exit 0; empty `--find` exits 1.
+Calls core `vector::locate_text_run` per glyph with extraction provenance on.
+
+**Files.** `crates/pdfcer-cli/src/text_locate_cmd.rs` (new), `cli.rs`, `dispatch.rs`, `main.rs`,
+`tests/text_locate.rs` (new), `tests/all.rs`; `docs/core-api/02-editing-and-saving.md` (CLI twin bullet
+under §1.10.0a); `docs/core-api/index.md` line count 6,407.
+
+**Verified (engineer-reported).** 4 new integration tests pass (located run is the one `text-run-delete`
+removes; word split across three objects; form text named as a leaf; miss exits 0 and empty refused).
+Sabotage (match within one extracted run only) fails the split-word test. fmt, clippy (all-features and
+`--no-default-features` lite), check-string-gaps, check-code-structure, check-core-api-verbs clean. Full
+`run-gates.sh` sweep pending before push.
+
+`FEATURES.md`: the "Map a clicked/searched glyph back to its editable run" row goes core `[x]` / cli `[x]`;
+gui stays `[ ]`.
+
+Ledgers: no decision; next free `Pass 525.0`; next filing 1004th.
+
 ### `Pass 523.0` — CI-red fix (lite OCR build) and the CI-parity gate gap that hid it — SHIPPED 2026-10-07 (1002nd filing)
 
 Commit `f661cce7661a80cf5c0997241457601cb8d59a7e` (parent `c0e4bb2e`). No capability change; no dependency change.

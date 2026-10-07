@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1003rd filing) — `Pass 524.0` shipped (`pdfcer text-locate`)
+
+**Shipped:**
+- `Pass 524.0` — `3014387c`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- A searched string can span several text objects; matching over the extracted page text (not one run) is what makes the split-word case work, confirmed by sabotage.
+- `FEATURES.md`: locate-glyph-to-run row cli `[ ]` to `[x]`; gui stays `[ ]`.
+
+**Still in flight:** full `run-gates.sh` sweep and push. Next free `Pass 525.0`; next filing 1004th.
+
+**Sourcing note (hard rule 8):** test and gate results engineer-reported; hash as supplied; push/backup/CI colour not checked here; no shell, nothing committed.
+
 ## 2026-10-07 (1002nd filing) — `Pass 523.0` shipped (lite-build clippy fix + the CI-parity gate gap behind it)
 
 **Shipped:**
