@@ -635,6 +635,8 @@ mod svg_cmd;
 use svg_cmd::*;
 mod paint_cmd;
 use paint_cmd::*;
+mod stroke_style_cmd;
+use stroke_style_cmd::*;
 mod object_list;
 use object_list::*;
 mod objects;

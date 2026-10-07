@@ -10565,6 +10565,54 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Set the line width, dash pattern and/or opacity of page paths.
+    ///
+    /// Pick paths by the `index=` `object-list` prints for the page. Only the
+    /// options given change; each replaces the value the path already has.
+    /// Width and dash lengths are in the path's own units (points at the
+    /// page's scale). Opacity goes in a new graphics-state entry on the
+    /// page. Prints one `set-object-stroke-style` line: `changed=` the
+    /// indices styled (`none` when nothing was) and `refused=` how many were
+    /// left alone; each refused object (text, an image) gets a stderr line.
+    ///
+    /// Exit 9 when an index is out of range or a value is invalid (a
+    /// negative width, an opacity outside 0-1, a dash that is negative or
+    /// all zero); nothing is changed.
+    #[command(group = clap::ArgGroup::new("stroke-style").required(true).multiple(true))]
+    SetObjectStrokeStyle {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based paint-order object indices, comma-separated.
+        #[arg(long, value_delimiter = ',', required = true)]
+        objects: Vec<usize>,
+        /// Line width; 0 is the thinnest line the device can draw.
+        #[arg(long, group = "stroke-style")]
+        width: Option<f64>,
+        /// Dash and gap lengths, comma-separated (e.g. `3,2`), or `solid`.
+        #[arg(long, value_parser = parse_dash_array, group = "stroke-style")]
+        dash: Option<DashArray>,
+        /// How far into the dash pattern the line starts.
+        #[arg(long, default_value_t = 0.0, requires = "dash")]
+        dash_phase: f64,
+        /// Stroke opacity, 0.0-1.0.
+        #[arg(long, group = "stroke-style")]
+        stroke_alpha: Option<f64>,
+        /// Fill opacity, 0.0-1.0.
+        #[arg(long, group = "stroke-style")]
+        fill_alpha: Option<f64>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Edit a layer's properties: rename it, set whether it is visible when
     /// the document opens, lock it, and set whether it prints or exports.
     ///

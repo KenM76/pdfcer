@@ -131,6 +131,7 @@ mod editable_source;
 mod emf;
 mod foreign_button;
 mod group_unit;
+mod stroke_style;
 pub use foreign_button::ForeignAppearance;
 mod image_stamp;
 mod ocr_refold;
@@ -1100,6 +1101,8 @@ pub enum CommandKind {
     /// confined to the objects the operator picked and every other byte on the
     /// page stays verbatim. See [`EditSession::set_object_paint`].
     SetObjectPaint,
+    /// [`EditSession::set_object_stroke_style`].
+    SetObjectStrokeStyle,
     /// One anchor **node** of a path object was dragged (Pass 9c-min,
     /// decision 011 §2.5): exactly one coordinate pair was rewritten in an
     /// `m`/`l`/`c`/`v`/`y` operand list (surgery, R46/§5.7). ONE undoable

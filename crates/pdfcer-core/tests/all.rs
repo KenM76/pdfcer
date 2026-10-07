@@ -130,6 +130,7 @@ mod node_multi_move;
 mod object_clipboard;
 mod object_identity_across_edits;
 mod object_renders_for_an_operator;
+mod object_stroke_style;
 mod ocr_layer;
 mod ocr_layer_added_text;
 mod ocr_layer_extract_filter;

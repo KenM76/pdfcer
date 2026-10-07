@@ -79,6 +79,7 @@ mod object_list;
 mod object_list_image_alpha;
 mod object_move_each;
 mod object_set_paint;
+mod object_set_stroke_style;
 mod object_transform_each;
 mod ocr_addons;
 mod ocr_engine;

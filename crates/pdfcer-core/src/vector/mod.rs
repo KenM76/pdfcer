@@ -62,6 +62,7 @@ mod image_hit;
 pub mod linepick;
 mod path_geom;
 pub mod snap;
+mod stroke_style;
 pub mod text_locate;
 
 // Re-export the primary surface at `crate::vector::…` so callers do not
@@ -108,4 +109,5 @@ pub use snap::{
     SnapConfig, SnapKind, constrained_second_point, measured_length, polygon_area, polyline_length,
     snap_candidates,
 };
+pub use stroke_style::{Dash, StrokeStyle};
 pub use text_locate::{TextRunRef, locate_text_run, locate_text_runs};

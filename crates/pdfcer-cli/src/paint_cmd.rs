@@ -47,7 +47,7 @@ pub(crate) fn cmd_set_object_paint(args: &SetObjectPaintArgs) -> u8 {
         args.page,
         args.mode.name(),
         args.output.display(),
-        join(&paint.changed),
+        join_indices(&paint.changed),
         paint.refused.len(),
         r.objects_written,
         r.bytes_appended,
@@ -78,7 +78,8 @@ fn report_refusals(input: &Path, paint: &PaintOutcome) {
     }
 }
 
-fn join(indices: &[usize]) -> String {
+/// `none`, or the indices comma-separated.
+pub(crate) fn join_indices(indices: &[usize]) -> String {
     if indices.is_empty() {
         return "none".to_owned();
     }

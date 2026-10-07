@@ -107,6 +107,7 @@ use crate::text_state::TextStateParams;
 use crate::view::DocumentView;
 
 use super::geometry::{Bounds, Matrix, Point, Rgb, cubic_from_v, cubic_from_y, rect_corners};
+use super::stroke_style::{Dash, dash_from_parts};
 
 /// Guard on the number of objects a single page can decompose to
 /// (ARCHITECTURE.md §10 adversarial-input posture). A legitimate complex
@@ -350,6 +351,14 @@ pub struct PathObject {
     /// Line width in **user-space** units at paint time (§8.4.3.2) — what a
     /// stroke-proximity hit-test widens by.
     pub line_width: f64,
+    /// The dash pattern at paint time (§8.4.3.6, from `d` or `/ExtGState
+    /// /D`); [`Dash::default`] is solid.
+    pub dash: Dash,
+    /// The non-stroking constant alpha at paint time (`/ca`, §11.6.4.4),
+    /// `0.0..=1.0`. A soft mask or blend mode is not reflected here.
+    pub fill_alpha: f64,
+    /// The stroking constant alpha at paint time (`/CA`). Same caveat.
+    pub stroke_alpha: f64,
     /// Non-stroking (fill) colour at paint time.
     ///
     /// ONLY MEANINGFUL WHEN [`Self::fill_paint`] IS `Device` OR `Default`.
@@ -1760,17 +1769,9 @@ pub trait FontResolver {
 /// The entries of an `/ExtGState` that this model can act on (§8.4.5,
 /// Table 58).
 ///
-/// # Why only these four
-///
-/// Because they are the ones that change a value the model already exposes,
-/// or a claim it already makes. Table 58 has more than twenty entries; the
-/// rest set state nothing here reads, and inventing fields for them would be
-/// modelling for its own sake.
-///
-/// `/D` (dash), `/BM` (blend), `/SMask`, `/LC`, `/LJ`, `/ML`, `/RI`, `/OP`,
-/// `/op`, `/OPM` are deliberately absent. An unread gap is not a defect, and
-/// this file's clipboard sibling already states the principle: *"a fabricated
-/// dash is worse than an absent one, because it looks deliberate."*
+/// Only the entries that change a value the model exposes; `/BM`, `/SMask`,
+/// `/LC`, `/LJ`, `/ML`, `/RI`, `/OP`, `/op`, `/OPM` set state nothing here
+/// reads.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[non_exhaustive]
 pub struct ExtGStateParams {
@@ -1789,12 +1790,12 @@ pub struct ExtGStateParams {
     /// text object the wrong bounding box, which is the same
     /// click-selects-nothing symptom one object kind over.
     pub font: Option<(Vec<u8>, f64)>,
-    /// `/ca` — non-stroking alpha. Not a value this model exposes; carried so
-    /// a fully transparent path can be COUNTED rather than reported as an
-    /// ordinary painted object.
+    /// `/ca` — non-stroking alpha.
     pub fill_alpha: Option<f64>,
     /// `/CA` — stroking alpha. Same.
     pub stroke_alpha: Option<f64>,
+    /// `/D` — the dash pattern, `[[array] phase]`.
+    pub dash: Option<Dash>,
 }
 
 /// A resolver that resolves nothing — the default, and what plain
@@ -1935,7 +1936,18 @@ impl FontResolver for DocumentFonts<'_> {
             font,
             fill_alpha: num(b"ca"),
             stroke_alpha: num(b"CA"),
+            dash: self.ext_gstate_dash(&dict),
         })
+    }
+}
+
+impl DocumentFonts<'_> {
+    /// `/D` of an `/ExtGState`: `[[array] phase]` (Table 58).
+    fn ext_gstate_dash(&self, dict: &Dict) -> Option<Dash> {
+        let d = self.view.resolve(dict.get(b"D")?).as_array()?;
+        let array = self.view.resolve(d.first()?).as_array()?;
+        let items: Vec<Object> = array.iter().map(|o| self.view.resolve(o).clone()).collect();
+        dash_from_parts(&items, self.view.resolve(d.get(1)?))
     }
 }
 
@@ -2295,11 +2307,10 @@ struct GState {
     /// which `sc`/`scn` then take their operands in.
     fill_space: Option<Vec<u8>>,
     stroke_space: Option<Vec<u8>>,
-    /// `/ca` and `/CA` from an `/ExtGState` (§8.4.5). Not a value this model
-    /// exposes — carried on the graphics state so `q`/`Q` save and restore it
-    /// like any other, and read only to COUNT a path that cannot be seen.
+    /// `/ca` and `/CA` from an `/ExtGState` (§8.4.5), clamped to `0..=1`.
     alpha_fill: f64,
     alpha_stroke: f64,
+    dash: Dash,
     /// The `Tf` size operand (§9.3.1 `Tfs`), text space, unscaled.
     font_size: f64,
     /// The `Tf` resource name, verbatim from the content stream.
@@ -2335,6 +2346,7 @@ impl GState {
             stroke_space: None,
             alpha_fill: 1.0,
             alpha_stroke: 1.0,
+            dash: Dash::default(),
             font_size: 0.0,
             font_resource: None,
             font: None,
@@ -2706,6 +2718,11 @@ impl<'a> Decomposer<'a> {
                     self.gs.line_width = lw.max(0.0);
                 }
             }
+            b"d" => {
+                if let Some(d) = super::stroke_style::dash_from_operands(operands) {
+                    self.gs.dash = d;
+                }
+            }
             // ---- device colours (§8.6.4, Table 74 subset) ----
             b"g" => {
                 set_color(&mut self.gs.fill_color, Rgb::from_gray, &nums);
@@ -2801,16 +2818,15 @@ impl<'a> Decomposer<'a> {
                             self.gs.font_resource = Some(face);
                         }
                     }
-                    // Alpha is not a value this model exposes, so it is
-                    // COUNTED rather than stored: a fully transparent path is
-                    // reported as an ordinary painted object today, and an
-                    // operator selecting something invisible is a wrong CLAIM
-                    // rather than a wrong number.
+                    // Table 58 does not range-check the alphas; clamp.
                     if let Some(a) = g.fill_alpha {
-                        self.gs.alpha_fill = a;
+                        self.gs.alpha_fill = a.clamp(0.0, 1.0);
                     }
                     if let Some(a) = g.stroke_alpha {
-                        self.gs.alpha_stroke = a;
+                        self.gs.alpha_stroke = a.clamp(0.0, 1.0);
+                    }
+                    if let Some(d) = g.dash {
+                        self.gs.dash = d;
                     }
                 }
             }
@@ -3302,6 +3318,9 @@ impl<'a> Decomposer<'a> {
             ctm,
             style,
             line_width: self.gs.line_width,
+            dash: self.gs.dash.clone(),
+            fill_alpha: self.gs.alpha_fill,
+            stroke_alpha: self.gs.alpha_stroke,
             fill_color: self.gs.fill_color,
             stroke_color: self.gs.stroke_color,
             fill_paint: self.gs.fill_paint.clone(),

@@ -195,6 +195,13 @@ pub enum VectorEditError {
         "the requested transform is singular (it maps area to zero), so the selection would collapse to a line or a point with no inverse to undo it"
     )]
     SingularTransform,
+    /// A [`super::StrokeStyle`] value the `w`, `d` or `gs` operators cannot
+    /// carry (ISO 32000-2 §8.4.3.2, §8.4.3.6, §11.6.4.4).
+    #[error("invalid stroke style: {reason}")]
+    InvalidStrokeStyle {
+        /// Which value, in words.
+        reason: &'static str,
+    },
     /// A clamp was requested for a singular transform that has no
     /// axis-aligned reading, so there is nothing well-defined to clamp
     /// (`Pass 113.0`).
@@ -1903,7 +1910,18 @@ pub fn plan_recolour(
     if let Some(c) = stroke {
         emit_rgb_op(&mut prefix, c, true);
     }
+    plan_wrap(content, objs, &prefix)
+}
 
+/// Wrap each of `objs`' byte spans in `prefix ... Q`, where `prefix` opens
+/// with `q`: the shape [`plan_recolour`] explains, shared by every verb that
+/// changes graphics state for chosen objects only. A span nested in another
+/// is wrapped once, with its container; partly overlapping spans refuse.
+pub(crate) fn plan_wrap(
+    content: &ContentStream,
+    objs: &[&VectorObject],
+    prefix: &[u8],
+) -> Result<PlannedEdit, VectorEditError> {
     let mut spans: Vec<(usize, usize)> = objs
         .iter()
         .map(|o| {
@@ -1928,13 +1946,10 @@ pub fn plan_recolour(
     let mut edits: Vec<(usize, usize, Vec<u8>)> = kept
         .into_iter()
         .map(|(s, e)| {
-            let mut body = prefix.clone();
-            // `get` rather than a slice index: the spans come from the
-            // decomposition of THIS buffer so they are in range, but a panic
-            // on untrusted input is never the right failure mode
-            // (`ARCHITECTURE.md` §10). An out-of-range span degrades to
-            // wrapping nothing, which the caller's `operators_touched` count
-            // still reports.
+            let mut body = prefix.to_vec();
+            // An out-of-range span wraps nothing rather than panicking on
+            // untrusted input (`ARCHITECTURE.md` §10); `operators_touched`
+            // still reports it.
             if let Some(original) = content.buf.get(s..e) {
                 body.extend_from_slice(original);
             }
