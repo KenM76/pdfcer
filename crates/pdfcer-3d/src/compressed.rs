@@ -239,6 +239,10 @@ struct Walk<'a> {
     /// Set by the best-fit search: orient a sliver by its corner normals
     /// (see [`Walk::fold`]).
     raw: bool,
+    /// Set by the best-fit search: a stored normal that would continue
+    /// across a closed edge while the other edge is open gives way, as an
+    /// unsignalled fold does (see [`Walk::step`]).
+    open_wins: bool,
     /// Whether any apex so far, rewound or not, would move under the
     /// other [`Arrays::ortho_turned`].
     reads_turned: bool,
@@ -275,6 +279,7 @@ impl<'a> Walk<'a> {
             turn: false,
             degenerate: false,
             raw: false,
+            open_wins: false,
             reads_turned: false,
         }
     }
@@ -473,7 +478,8 @@ impl<'a> Walk<'a> {
         let closed = |e: (u32, u32, u32)| self.edges.get(&key(e.0, e.1)).copied().unwrap_or(0) >= 2;
         let taken = if status & 2 != 0 { left } else { right };
         let other = if status & 2 != 0 { right } else { left };
-        if !self.signalled && status & 3 != 0 && closed(taken) && !closed(other) {
+        if (!self.signalled || self.open_wins) && status & 3 != 0 && closed(taken) && !closed(other)
+        {
             std::mem::swap(&mut left, &mut right);
         }
         match (status & 2 != 0, status & 1 != 0) {

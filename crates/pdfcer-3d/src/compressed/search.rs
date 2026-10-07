@@ -167,7 +167,11 @@ pub(super) fn fits_within(a: &Arrays<'_>, depth: usize) -> bool {
 /// search can afford to rule out, and may fit more than one way. Up to
 /// [`BEST_DEPTH`] choices are combined, within [`BEST_BUDGET`] steps per
 /// reading: the arrays as read, then [`Arrays::legacy_orient`], then with
-/// slivers oriented by their corner normals ([`Walk::raw`]). The result
+/// slivers oriented by their corner normals ([`Walk::raw`]), then with a
+/// closed continuation edge overriding a stored normal
+/// ([`Walk::open_wins`]). Measured on real producers, a normal can send
+/// the walk onto an edge two triangles already share, which no choice
+/// after it can repair. The result
 /// consumes every array and stored normal and keeps every planar face
 /// flat, but another geometry may do the same; callers disclose it.
 pub(super) fn best_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
@@ -175,21 +179,28 @@ pub(super) fn best_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
         legacy_orient: true,
         ..*a
     };
-    [(a, false), (&legacy, false), (a, true)]
-        .into_iter()
-        .find_map(|(a, raw)| {
-            let plan = Plan {
-                turns: true,
-                depth: BEST_DEPTH,
-                budget: BEST_BUDGET,
-                raw,
-                first: true,
-            };
-            match search(a, a.normals.as_ref()?, plan) {
-                Search::Unique(m) => Some(*m),
-                Search::Refused | Search::NoFit => None,
-            }
-        })
+    [
+        (a, false, false),
+        (&legacy, false, false),
+        (a, true, false),
+        (a, false, true),
+        (&legacy, false, true),
+    ]
+    .into_iter()
+    .find_map(|(a, raw, open)| {
+        let plan = Plan {
+            turns: true,
+            depth: BEST_DEPTH,
+            budget: BEST_BUDGET,
+            raw,
+            open,
+            first: true,
+        };
+        match search(a, a.normals.as_ref()?, plan) {
+            Search::Unique(m) => Some(*m),
+            Search::Refused | Search::NoFit => None,
+        }
+    })
 }
 
 /// How one search runs.
@@ -202,6 +213,8 @@ struct Plan {
     budget: usize,
     /// Whether slivers are oriented by their corner normals.
     raw: bool,
+    /// Whether a closed continuation edge overrides a stored normal.
+    open: bool,
     /// Whether the first fit is returned without ruling out a second.
     first: bool,
 }
@@ -213,6 +226,7 @@ impl Plan {
             depth,
             budget: STEP_BUDGET,
             raw: false,
+            open: false,
             first: false,
         }
     }
@@ -236,6 +250,7 @@ fn search(a: &Arrays<'_>, n: &NormalArrays<'_>, plan: Plan) -> Search {
 /// [`search`], and whether any of its walks read [`Arrays::ortho_turned`].
 fn search_reading(a: &Arrays<'_>, n: &NormalArrays<'_>, plan: Plan) -> (Search, bool) {
     let mut walker = Resume::new(a, n, SNAP_EVERY, plan.raw);
+    walker.w.open_wins = plan.open;
     let mut stack = vec![Vec::new()];
     let mut found: Option<TriangleMesh> = None;
     while walker.spent < plan.budget {
@@ -377,7 +392,7 @@ impl<'a> Resume<'a> {
             return Outcome::Dead;
         }
         self.spent += a.triangles;
-        attempt(a, n, flips, self.w.raw)
+        attempt(a, n, flips, self.w.raw, self.w.open_wins)
     }
 
     /// Restores the walk to the last snapshot at or before triangle `at`.
@@ -415,10 +430,17 @@ impl<'a> Resume<'a> {
 }
 
 /// Walks the whole mesh oriented, inverting each of `flips`, with no
-/// retries; `raw` as [`Walk::raw`].
-fn attempt(a: &Arrays<'_>, n: &NormalArrays<'_>, flips: &[Choice], raw: bool) -> Outcome {
+/// retries; `raw` and `open` as [`Walk::raw`] and [`Walk::open_wins`].
+fn attempt(
+    a: &Arrays<'_>,
+    n: &NormalArrays<'_>,
+    flips: &[Choice],
+    raw: bool,
+    open: bool,
+) -> Outcome {
     let mut w = Walk::new(a.triangles, Some(NormalReader::new(n)));
     w.raw = raw;
+    w.open_wins = open;
     let after = flips.iter().map(|c| c.at() + 1).max().unwrap_or(0);
     let mut candidates = Vec::new();
     for i in 0..a.triangles {
@@ -545,7 +567,7 @@ mod tests {
                     let mut kinds = [0; 3];
                     for flips in flip_sets(t) {
                         let got = digest(r.attempt(&a, n, &flips));
-                        let want = digest(attempt(&a, n, &flips, false));
+                        let want = digest(attempt(&a, n, &flips, false, false));
                         kinds[usize::from(want.0)] += 1;
                         assert!(
                             got == want,
@@ -605,11 +627,61 @@ mod tests {
             let mut r = Resume::new(&a, n, 1, false);
             for flips in flip_sets(t) {
                 let got = digest(r.attempt(&a, n, &flips));
-                let want = digest(attempt(&a, n, &flips, false));
+                let want = digest(attempt(&a, n, &flips, false, false));
                 kinds[usize::from(want.0)] += 1;
                 assert!(got == want);
             }
         }
         assert!(kinds[1] > 0 && kinds[2] > 0, "{kinds:?}");
+    }
+
+    /// A tetrahedron closed by two references, its fourth normal record
+    /// reversed: the stored normal orients the third triangle onto `[0 1]`,
+    /// already shared twice, where no later choice can recover. Only the
+    /// reading where the open edge overrides the normal fits.
+    #[test]
+    fn a_closed_edge_overrides_a_stored_normal_only_when_open_wins() {
+        let pts = [0, 0, 0, 4, 0, 0, -2, 4, 0, 0, 0, 4];
+        let mut status = [0; 12];
+        status[..3].copy_from_slice(&[2, 2, 2]);
+        let mut is_ref = [false; 6];
+        is_ref[4..].copy_from_slice(&[true, true]);
+        let mut binary = [false; 16];
+        binary[13] = true;
+        let angles = [0; 8];
+        let n = NormalArrays {
+            bits: 10,
+            binary: &binary,
+            angles: &angles,
+            planar: &[false],
+            face_of: &[0; 4],
+        };
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &status,
+            triangles: 4,
+            is_reference: &is_ref,
+            references: &[0, 2],
+            ortho_turned: false,
+            legacy_orient: false,
+            normals: Some(n),
+        };
+        let tetra = [[0, 1, 2], [2, 1, 3], [3, 1, 0], [3, 0, 2]];
+        assert_ne!(digest(attempt(&a, &n, &[], false, false)).0, 0);
+        assert_eq!(digest(attempt(&a, &n, &[], false, true)).2, tetra);
+        let plan = |open| Plan {
+            depth: 0,
+            open,
+            first: true,
+            ..Plan::unique(false, 0)
+        };
+        assert!(matches!(search(&a, &n, plan(false)), Search::NoFit));
+        let fit = match search(&a, &n, plan(true)) {
+            Search::Unique(m) => m.triangles,
+            Search::Refused | Search::NoFit => Vec::new(),
+        };
+        assert_eq!(fit, tetra);
     }
 }
