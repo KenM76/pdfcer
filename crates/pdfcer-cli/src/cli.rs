@@ -9374,6 +9374,33 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Show a ce dimension group in another unit**, keeping what it
+    /// measures, and regenerate every member.
+    ///
+    /// The group's calibration is converted, not reused: a member reading
+    /// `1000.00 mm` reads `3.28 ft` after `--unit ft`. The number format
+    /// becomes the unit's default (decimal places suited to it; 1/8" fractions
+    /// for `ft-in`) with the group's decimal marker kept; use
+    /// `group-set-scale` to choose another precision.
+    GroupSetUnit {
+        /// Input PDF.
+        input: PathBuf,
+        /// Group id, as printed by `dimension-list`.
+        #[arg(long, default_value_t = 0)]
+        group: u32,
+        /// Display unit: `mm|cm|m|km|in|ft|ft-in|yd|mi`.
+        #[arg(long)]
+        unit: String,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Set a ce dimension GROUP's style defaults** (Pass 69.0) and
     /// regenerate every member.
     ///

@@ -2482,6 +2482,14 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_group_set_standard(&input, group, standard, &output, mode, verify_undo),
+        Command::GroupSetUnit {
+            input,
+            group,
+            unit,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_group_set_unit(&input, group, &unit, &output, mode, verify_undo),
         Command::GroupStyle {
             input,
             group,

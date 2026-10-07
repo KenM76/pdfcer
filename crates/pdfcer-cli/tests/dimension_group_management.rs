@@ -897,6 +897,28 @@ fn authoring_into_an_unknown_group_is_refused_rather_than_silently_redirected() 
 ///
 /// # This test covers the whole family, not just the one that was broken
 ///
+/// **`group-set-unit` converts the calibration**: the 5.000 m member reads
+/// 16.40 ft, not 5.00 ft (pdfcer-gui G146).
+#[test]
+fn a_group_unit_change_keeps_what_the_member_measures() {
+    let src = two_groups("unit");
+    assert!(list(&src).contains("5.000 m"), "{}", list(&src));
+    let out = temp_out("unit-ft.pdf");
+    let (code, stdout, err) = run(&[
+        "group-set-unit",
+        src.to_str().unwrap(),
+        "--group",
+        "0",
+        "--unit",
+        "ft",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0, "group-set-unit: {err}");
+    assert!(stdout.contains("unit=ft members_regenerated=1"), "{stdout}");
+    assert!(list(&out).contains("16.40 ft"), "{}", list(&out));
+}
+
 /// A test for `group-set-scale` alone would have to be written again for the
 /// next verb added to the family. Driving all of them is what found this one.
 #[test]
@@ -906,7 +928,11 @@ fn every_ce_dimension_group_verb_refuses_an_id_that_does_not_exist() {
 
     // (label, argv after the input path). Group 99 does not exist; the
     // fixture has 0 and 1.
-    let cases: [(&str, Vec<&str>); 5] = [
+    let cases: [(&str, Vec<&str>); 6] = [
+        (
+            "group-set-unit",
+            vec!["group-set-unit", "--group", "99", "--unit", "ft"],
+        ),
         (
             "group-set-scale",
             vec!["group-set-scale", "--group", "99", "--ratio", "1:50"],

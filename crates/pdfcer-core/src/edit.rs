@@ -130,6 +130,7 @@ mod decoration_refresh;
 mod editable_source;
 mod emf;
 mod foreign_button;
+mod group_unit;
 pub use foreign_button::ForeignAppearance;
 mod image_stamp;
 mod ocr_refold;

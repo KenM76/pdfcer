@@ -593,6 +593,33 @@ impl ScaleState {
         }
     }
 
+    /// The same calibration expressed for a group whose top unit is `to`
+    /// instead of `from`: a [`Self::Calibrated`] factor is converted by the
+    /// ratio of the units' [`Unit::baseline_per_point`], so a length that read
+    /// 1000 mm reads 3.28 ft. [`Self::NeverSet`] and [`Self::OneToOne`] carry
+    /// no unit and are returned unchanged.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::dimension::{ScaleState, Unit};
+    ///
+    /// let mm = ScaleState::Calibrated { scale: 10.0 };
+    /// let Some(ft) = mm.in_unit(Unit::Millimeter, Unit::DecimalFeet).effective_scale(Unit::DecimalFeet) else {
+    ///     unreachable!()
+    /// };
+    /// assert!((ft - 10.0 / 304.8).abs() < 1e-12);
+    /// ```
+    #[must_use]
+    pub fn in_unit(self, from: Unit, to: Unit) -> ScaleState {
+        match self {
+            ScaleState::Calibrated { scale } if from != to => ScaleState::Calibrated {
+                scale: scale * to.baseline_per_point() / from.baseline_per_point(),
+            },
+            other => other,
+        }
+    }
+
     /// Whether this is the never-set state (drives the "raw page units"
     /// disclosure — ui-spec §4.3 / §6).
     #[must_use]

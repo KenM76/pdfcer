@@ -69,7 +69,10 @@
 //!    points into a real-world length, and a ce dimension that quietly used a
 //!    different one from its group's would report a number that is wrong in a
 //!    way nothing on the page discloses. `fuzzy-never-sneaky` (project rule 4)
-//!    makes that a refusal rather than a feature.
+//!    makes that a refusal rather than a feature. A unit override does not
+//!    break this: the group's calibration is re-expressed in the override
+//!    unit ([`super::units::ScaleState::in_unit`]), so the real length is the same number
+//!    of metres whichever unit shows it.
 //!
 //! ## Tolerance is one of these properties, not a parallel system
 //!
@@ -484,8 +487,9 @@ pub fn resolve_style(group: &Group, over: &StyleOverrides) -> DimensionStyle {
         decimal_marker: over.decimal_marker.unwrap_or(group.format.decimal_marker),
     };
     DimensionStyle {
-        // Group-only, deliberately: see the module doc's divergence 3.
-        scale: group.scale,
+        // Group-only, deliberately: see the module doc's divergence 3. The
+        // calibration is the group's; only its expression follows the unit.
+        scale: group.scale.in_unit(group.format.unit, format.unit),
         format,
         standard: over.standard.unwrap_or(group.standard),
         text_height: over
@@ -657,6 +661,23 @@ mod tests {
             s.scale,
             super::super::units::ScaleState::Calibrated { scale: 0.01 }
         );
+    }
+
+    /// G146: a unit override re-expresses the group's calibration rather than
+    /// reading its number in the wrong unit (a 304.8x error mm -> ft).
+    #[test]
+    fn a_unit_override_keeps_the_real_length() {
+        use super::super::units::{ScaleState, format_measurement};
+        let mut g = group();
+        // 100 pt reads 1000 mm.
+        g.scale = ScaleState::Calibrated { scale: 10.0 };
+        let over = StyleOverrides {
+            unit: Some(Unit::DecimalFeet),
+            ..StyleOverrides::default()
+        };
+        let s = resolve_style(&g, &over);
+        let shown = format_measurement(100.0, s.scale, NumberFormat::decimal(Unit::DecimalFeet, 2));
+        assert_eq!(shown.text, "3.28 ft");
     }
 
     #[test]
