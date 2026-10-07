@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 517.0` and the 996th filing.
+**Written:** 2026-10-07, after `Pass 518.0` and the 997th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 518.0 (`13ebd415`, `4e890c25`, filed 997th):** GUI requests G134/G135 answered (replies written). `AssembledModel::{mesh_placements, tree}` link a tree node to its meshes; `AssembleOptions::stored_visibility` (`DrawAll`, CLI `--draw-hidden`) places stored-hidden/suppressed parts; `PrcFile::stores_tree()` makes a tessellation-only file an empty tree, not an error; fixture `named-tree.prc`. Missing-parts work resumes at the 517.0 stall list below. CI for `ed930708` was still running at the 518.0 commit.
 
 **Pass 517.0 (`86f0dbec`, filed 996th):** best-fit gains a last `greedy` reading (one choice set grown by the furthest-reaching candidate per round, `open_wins` + `loose`: a fold from a stored normal rather than a reversed bit is a candidate; `Walk::exact` marks the latter). Dumps 19/24 (m9, m21 gained); second sample 136 / 5 out, 79 s; door 151 / 5, 11 s. Probe now at scratchpad `p516/probe.full.rs`. Greedy stalls on m0 (1372, after flips 993/1347/1359; degenerate apexes at 985, 997), m6 (~85), m7 (83), m16 (122), m20 (285, 7 flips). Collinear-apex default-fold changes were tried and regressed. Hinges not re-run for 517.0.
 

@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (997th filing) — `Pass 518.0` shipped (mesh-to-node link, `--draw-hidden`, empty tree; `G134`/`G135`)
+
+**Shipped:**
+- `Pass 518.0` — `13ebd415`, `4e890c25`; `pdfcer-3d` plus CLI. Details in the ROADMAP entry.
+
+**Decisions made this session:** None new. `G134` answered with both options (link and `DrawAll`), default Honour, per the standing "ship both, pick the default" rule.
+
+**Findings + decisions:**
+- A tessellation-only PRC has no assembly tree; `model_tree()` now returns empty rather than erroring. A stored-but-unreadable tree is still an error.
+- `pdfcer-3d` lib 144 -> 146; CLI `three_d` 31 green; gates clean (engineer-reported).
+- `FEATURES.md`: tree row and mesh-export row extended; boxes unchanged (gui `[ ]`).
+
+**Still in flight:** Backlog "3D compressed meshes still unfit".
+
+**Sourcing note (hard rule 8):** figures and gate results engineer-reported; hashes as supplied; push/backup/CI not checked here (no shell).
+
 ## 2026-10-07 (996th filing) — `Pass 517.0` shipped (greedy best-fit reading, compressed meshes)
 
 **Shipped:**

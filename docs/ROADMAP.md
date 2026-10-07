@@ -115,6 +115,44 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 518.0` — an assembled mesh names its placement; hidden parts can be drawn; a file with no tree lists an empty one — SHIPPED 2026-10-07 (997th filing)
+
+Commits `13ebd415` (placement link, empty tree), `4e890c25` (`StoredVisibility`,
+`--draw-hidden`). Answers GUI requests `G134` and `G135`. Crate `pdfcer-3d` plus the
+CLI; no `Cargo.toml` change (no dependency or `cargo tree` change).
+
+**Delivered.**
+- `AssembledModel::mesh_placements: Vec<usize>` (parallel to `meshes`) and
+  `AssembledModel::tree: Vec<ModelNode>`, read in the same walk under the same
+  `entity_overrides`. Node `n` drew mesh `k` iff
+  `n.placements.contains(&mesh_placements[k])`, so a shell can hide, isolate or
+  highlight a node's meshes (`G134` option 1).
+- `AssembleOptions::stored_visibility: StoredVisibility::{Honour (default), DrawAll}`.
+  `DrawAll` also places occurrences stored hidden or suppressed; `ModelNode::drawn`
+  still reports the stored state; entities hidden inside a part stay hidden. CLI
+  `3d-render` and `3d-mesh` gain `--draw-hidden` (`G134` option 2; both answers shipped,
+  default picked, per the standing rule).
+- `PrcFile::stores_tree()`. A tessellation-only PRC (no assembly tree; outside
+  ISO 14739-1 but drawable) now gives an empty `model_tree()` instead of "entity
+  type 0 where 304 belongs"; `assemble` reports unplaced "the file stores no
+  assembly tree". A tree stored but unreadable is still an error (`G135`, second finding).
+- Synthetic fixture `fixtures/synthetic/prc/named-tree.prc` (480 bytes): root
+  "Assembly", a part named directly (Bolt), by prototype (Bracket), by part (Plate),
+  one stored hidden (Pin), one suppressed (Nut) (`G135`).
+
+**Tests.** `pdfcer-3d` lib 144 -> 146, plus 3 + 11 others green; CLI `three_d` tests 31
+green. New: `every_mesh_a_split_placement_draws_names_it`,
+`a_file_with_no_assembly_tree_lists_an_empty_one`,
+`the_named_tree_fixture_shows_every_listed_state`,
+`an_assembled_mesh_names_its_placement_under_the_same_overrides`,
+`draw_all_places_the_stored_hidden_and_suppressed_parts_too` (checked by sabotage),
+CLI `draw_hidden_also_writes_the_parts_the_file_stores_hidden`. fmt, clippy,
+`check-code-structure`, `check-string-gaps`, `check-core-api-verbs` clean
+(engineer-reported). `docs/core-api/01-reading-and-model.md` updated.
+
+**Boxes.** `FEATURES.md`: "List the 3D model tree" and "Export an embedded PRC 3D
+model's tessellation as a mesh" rows extended; core `[x]`, cli `[x]`, gui `[ ]` unchanged.
+
 ### `Pass 517.0` — a greedy best-fit reading rebuilds compressed meshes whose choices lie far apart — SHIPPED 2026-10-07 (996th filing)
 
 Commit `86f0dbec`. Second-assembly-sample arc work (follows `515.0`/`516.0`); residue of the
