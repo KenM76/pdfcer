@@ -71,7 +71,7 @@
 //!    way nothing on the page discloses. `fuzzy-never-sneaky` (project rule 4)
 //!    makes that a refusal rather than a feature. A unit override does not
 //!    break this: the group's calibration is re-expressed in the override
-//!    unit ([`super::units::ScaleState::in_unit`]), so the real length is the same number
+//!    unit ([`crate::dimension::ScaleState::in_unit`]), so the real length is the same number
 //!    of metres whichever unit shows it.
 //!
 //! ## Tolerance is one of these properties, not a parallel system
