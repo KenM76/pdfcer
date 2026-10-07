@@ -115,6 +115,10 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `33e98cf4` (no Pass ID), 2026-10-07 (1019th filing) — the fake time-stamping server closes gracefully
+
+Not a Pass. CI run `37683746504` (push of `d3607b9a`) failed one test on windows-latest, `sign_timestamp::live::a_tsa_http_error_is_refused_by_name_and_nothing_is_written`: it saw os error 10054 ("connection forcibly closed") instead of the HTTP 503 the server sent. Cause: the one-shot fake TSA dropped its socket right after writing, and on Windows closing a socket with unread receive data sends RST. Fix: half-close, then drain with a 10 s read bound. Not reproduced locally (3 runs x 4 live tests green); earlier pushes the same day were green, so a flake, not a regression. Test-only; no behaviour change. `main` was pushed at `d8bc2bd7` after a green `run-gates.sh` (46 commands, PASS), CI in progress at filing time (all engineer-reported).
+
 ### `Pass 537.0` — copy objects inside a form XObject (core + CLI; answers `pdfcer-gui` `G145`) — SHIPPED 2026-10-07 (1017th filing)
 
 Commits `25d51d68` (code), `eddb46ab` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Push state not checked (no shell).
@@ -21184,6 +21188,36 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Scoping only, nothing built, no decision. Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1020th.
+>
+> **`Pass 538.0` — DEFECT, `G148` (`request_G148_restyling_a_text_box_unwraps_or_ignores_it.md`).** `set_text_annot_style` on a FreeText: (1) redraws a foreign appearance with wrapping off, against its own contract; (2) keeps `/RC` but draws plain `/Contents`; (3) silently ignores `font_size`. Fix: leave a foreign appearance untouched or refuse it; regenerate from `/RC` or refuse; apply `font_size` to `/DA` or refuse it by name. Never silent (rule 4).
+>
+> **`Pass 539.0` — `G153`:** Line `interior` (`/IC`) fills closed line endings.
+>
+> **`Pass 540.0` — `G150`:** `set_markup_style` widened: `/CA` for every subtype; `/C` for Caret, FileAttachment, Sound and Screen.
+>
+> **`Pass 541.0` — `G159`:** ce dimension `dash` and `opacity` in `StyleOverrides` and group style, baked into `/AP`.
+>
+> **`Pass 542.0` — `G155`:** image fade via `set_object_stroke_style` alpha (`/ca` ExtGState around `Do`).
+>
+> **`Pass 543.0` — `G157`:** `restack_objects(page, &indices, how)`; front / back / forward / backward.
+>
+> **`Pass 544.0` — `G149`:** FreeText fill, border width/dash, opacity, text colour and face, via `TextAnnotStyle`. Same refuse-or-regenerate contract as `538.0`.
+>
+> **`Pass 545.0` — `G151`:** `set_stamp_label`.
+>
+> **`Pass 546.0` — `G152`:** respan a text markup's `/QuadPoints`.
+>
+> **`Pass 547.0` — `G161`:** `add_link`, `set_link_target`, link border width / colour / dash.
+>
+> **`Pass 548.0` — `G156`:** `replace_image`, keeping the CTM.
+>
+> **`Pass 549.0` — `G158`:** `_in_form` twins of `set_text_run_width`, `merge_text_runs` and `split_text_object`.
+>
+> **`Pass 550.0` — `G154`:** `insert_node` + `convert_node`, with in-form twins and `plan_*` previews.
+>
+> **`Pass 551.0` — `G160`:** widget rotation to any angle via the appearance `/Matrix`; also opacity `/CA` in `WidgetEdit`. Answer given to `pdfcer-gui`: in scope. The verb discloses that a viewer regenerating from `/MK /R` drops the free angle (rule 4).
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1007th filing, updated 1009th):** the other two of the three performance requests filed with `G139`.
 > - `G141` SHIPPED as `Pass 529.0` (`86fea180`, 1008th filing), see *Shipped*.

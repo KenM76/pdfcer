@@ -565,6 +565,20 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
+| [ ] | [ ] | [ ] | ? | **DEFECT: restyling a FreeText text box must not unwrap or ignore it** — `set_text_annot_style` redraws a foreign appearance with wrapping off, keeps `/RC` but draws plain `/Contents`, and silently ignores `font_size`. Planned: leave a foreign appearance untouched or refuse it; regenerate from `/RC` or refuse; apply `font_size` to `/DA` or refuse it by name. `Pass 538.0` (`G148`). |
+| [ ] | [ ] | [ ] | ? | **Line `interior` colour (`/IC`) fills closed line endings.** `Pass 539.0` (`G153`). |
+| [ ] | [ ] | [ ] | ? | **Markup style widened** — `/CA` opacity for every annotation subtype; `/C` colour for Caret, FileAttachment, Sound and Screen. `Pass 540.0` (`G150`). |
+| [ ] | [ ] | [ ] | ? | **ce dimension dash and opacity** — in `StyleOverrides` and group style, baked into `/AP`. `Pass 541.0` (`G159`). |
+| [ ] | [ ] | [ ] | ? | **Fade an image** — via `set_object_stroke_style` alpha (`/ca` ExtGState around `Do`). `Pass 542.0` (`G155`). |
+| [ ] | [ ] | [ ] | ? | **Restack page objects** — `restack_objects(page, &indices, how)`: front, back, forward, backward. `Pass 543.0` (`G157`). |
+| [ ] | [ ] | [ ] | ? | **FreeText fill, border width/dash, opacity, text colour and face** via `TextAnnotStyle`, under the same refuse-or-regenerate contract as the defect row above. `Pass 544.0` (`G149`). |
+| [ ] | [ ] | [ ] | ? | **Change a stamp's label** — `set_stamp_label`. `Pass 545.0` (`G151`). |
+| [ ] | [ ] | [ ] | ? | **Respan a text markup** — rewrite its `/QuadPoints`. `Pass 546.0` (`G152`). |
+| [ ] | [ ] | [ ] | ? | **Author and restyle links** — `add_link`, `set_link_target`, link border width, colour and dash. `Pass 547.0` (`G161`). |
+| [ ] | [ ] | [ ] | ? | **Replace an image keeping its placement** — `replace_image` keeps the CTM. `Pass 548.0` (`G156`). |
+| [ ] | [ ] | [ ] | ? | **Text-run width, merge and split inside a form XObject** — `_in_form` twins of `set_text_run_width`, `merge_text_runs`, `split_text_object`. `Pass 549.0` (`G158`). |
+| [ ] | [ ] | [ ] | ? | **Insert and convert path nodes** — `insert_node` + `convert_node`, with in-form twins and `plan_*` previews. `Pass 550.0` (`G154`). |
+| [ ] | [ ] | [ ] | ? | **Form-widget rotation to any angle, and widget opacity** — free angle via the appearance `/Matrix`; `/CA` in `WidgetEdit`. Discloses that a viewer regenerating from `/MK /R` drops the free angle (rule 4). `Pass 551.0` (`G160`). |
 | [x] | [x] | [ ] | ? | **Text-edit refusals as data** — `UnsupportedCause` (`#[non_exhaustive]`) replaces the `String` payload on `EditError`/`ReflowApplyError`/`AddTextError`; refuses `/WMode 1`/Identity-V vertical runs by name; `NoMatch` reasons; new `edit_capability` query (no CLI verb of its own — causes surface through existing sentences and `run-repertoire`'s `cause=` token). Foundation for the eight-item family below. `Pass 427.0` SHIPPED (`515e7d48`, `G081`). |
 | [x] | [x] | [ ] | ? | **Edit and sign an encrypted document the supplied password permits** — incremental save of an AES-128/AES-256 document appends new objects as ciphertext under the file's own key (RC4 append refused by default; opt-in, decision 190); every `EditSession` edit verb is now permission-gated per ISO 32000-2 Table 22 (owner always, user by named `/P` bit); signing an AES-encrypted document works. Reached via the existing global `--open-password` flag, no new CLI surface. `gui [ ]` not wired. `Pass 429.0` SHIPPED (`42b0a25b`, `49cb9dd4`, `G077`). |
 | [x] | [x] | [ ] | ? | **Edit an RC4-encrypted document (keep RC4 on append, opt-in)** — `writer::Rc4Append {Refuse (default), Preserve}` via `Document::set_rc4_append`/`EditSession::set_rc4_append`, CLI `--allow-rc4-append`; covers `/V 1`, `/V 2`, `/V 4` with `/CFM /V2`; existing signatures stay valid; every Preserve save discloses `SaveReport::rc4_keystream_reused` on stderr (rule 4). Decision 190 narrows **W14**. `Pass 471.0` SHIPPED (`2f1dc888`). `gui [ ]` not wired. |

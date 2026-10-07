@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1019th filing) — `33e98cf4` (CI flake fix, no Pass) + scoping `Pass 538.0`-`551.0` from `pdfcer-gui` (`G148`-`G161`)
+
+**Part A — `33e98cf4`, "test(cli): the fake time-stamping server closes gracefully". No Pass ID.**
+- CI run `37683746504` (push of `d3607b9a`) failed one test on windows-latest: `sign_timestamp::live::a_tsa_http_error_is_refused_by_name_and_nothing_is_written` got os error 10054 ("connection forcibly closed") instead of the HTTP 503 sent.
+- Cause: the one-shot fake TSA dropped its socket right after writing; on Windows, closing a socket with unread receive data sends RST.
+- Fix: half-close the socket, then drain it, 10 s read bound. Not reproduced locally (3 runs x 4 live tests green). Earlier pushes that day were green: a flake, not a regression.
+- `main` pushed at `d8bc2bd7` after a green `run-gates.sh` (46 commands, PASS); CI for it was in progress at filing time. All engineer-reported.
+- ROADMAP: no-Pass-ID entry at the top of *Shipped*. `FEATURES.md`: none (test-only).
+
+**Part B — scoping only, nothing built; no FEATURES box ticked.** Filed to *Next up* in the engineer's order, defect first: `538.0` (`G148`, DEFECT: FreeText restyle), `539.0` (`G153`), `540.0` (`G150`), `541.0` (`G159`), `542.0` (`G155`), `543.0` (`G157`), `544.0` (`G149`), `545.0` (`G151`), `546.0` (`G152`), `547.0` (`G161`), `548.0` (`G156`), `549.0` (`G158`), `550.0` (`G154`), `551.0` (`G160`). One bold line per Pass in a `>` stub, no `###`. ACK replies already written (engineer-reported).
+- `G160`: answer given was yes, in scope; the verb must disclose that a viewer regenerating from `/MK /R` drops the free angle.
+- `FEATURES.md`: 14 new *Planned* rows at the top, all boxes `[ ]`, Acrobat column `?`. No existing capability row was appended to: every request is a new, unbuilt capability, though rows for the shipped bases (`set_text_annot_style`, `set_markup_style`, `WidgetEdit`, `stamp_label`) exist in *Implemented*.
+
+**Decisions made this session:** None.
+
+**Still in flight:** CI for `d8bc2bd7`. Next free `Pass 552.0`; next filing 1020th.
+
+**Sourcing note (hard rule 8):** all facts and hashes engineer-supplied; no shell, so push, backup and CI colour not checked here. IDs `538.0`-`552.0` and `G148`-`G161` were grep-checked free in `docs/` (only the "next free" ledger mentions of `538.0` existed). `G154` read as vector path nodes (assumption from the verb names; the request file was not opened).
+
 ## 2026-10-07 (1018th filing) — follow-up `dc60dd77` to `Pass 532.0` / `Pass 534.0` (gate-sweep misses)
 
 **Shipped:**
