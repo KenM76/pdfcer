@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1002nd filing) — `Pass 523.0` shipped (lite-build clippy fix + the CI-parity gate gap behind it)
+
+**Shipped:**
+- `Pass 523.0` — `f661cce7` (parent `c0e4bb2e`). Details in the ROADMAP entry.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- `Pass 520.0`'s `if let` on a feature-gated enum was irrefutable in the lite build; CI went red on it.
+- `check-ci-parity.py` matched the first needle, so the lite clippy was mis-classified LOCAL and never run locally; now longest-needle, with its own entry.
+- Generalised to `D:/dev/rag/rust/ci_parity_table_first_substring_match_and_irrefutable_if_let_in_lite_build.md`.
+- `FEATURES.md`: no change; no row claims lite-build behaviour for `recognize_page` (grep, no hit).
+
+**Still in flight:** none. Next free `Pass 524.0`; next filing 1003rd.
+
+**Sourcing note (hard rule 8):** gate results and CI run numbers engineer-reported; hashes as supplied; push/backup/CI colour not checked here; no shell, nothing committed.
+
 ## 2026-10-07 (1001st filing) — `Pass 522.0` shipped (a form field says whether its quadding is its own, `G137`)
 
 **Shipped:**

@@ -115,6 +115,33 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 523.0` — CI-red fix (lite OCR build) and the CI-parity gate gap that hid it — SHIPPED 2026-10-07 (1002nd filing)
+
+Commit `f661cce7661a80cf5c0997241457601cb8d59a7e` (parent `c0e4bb2e`). No capability change; no dependency change.
+
+**Defect.** `Pass 520.0` (`ba7553ec`) added `OcrRunner::recognize_page`
+(`crates/pdfcer-ocr-host/src/runner.rs`) using `if let Inner::Program(p) = &self.inner`, which is
+irrefutable when no in-process OCR engine feature is on. CI's
+`cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings` failed with
+`irrefutable_let_patterns` (CI run 37592635395 on `7a614685` red; the next push's run presumed red,
+not checked here). Fix: route through the existing `as_program()`, which already carries the
+feature-aware fallback.
+
+**Gate gap.** `tools/check-ci-parity.py` classified a CI command by the FIRST matching needle in its
+LOCAL table, so the lite clippy matched `cargo clippy` and was reported LOCAL, "covered" by the
+`--workspace --all-features` run, which never builds the lite configuration; `tools/run-gates.sh`
+derives its list from that table so it never ran it. Fix: `classify` takes the LONGEST matching needle;
+the lite clippy has its own LOCAL entry; `run-gates.sh --list` now includes it. Same class as "a gate
+that under-reports looks green": fixed the class, not the spelling.
+
+**Verified (engineer-reported).** Sabotage check: restoring the old line makes the new gate command fail
+with the same error. `check-ci-parity` clean: 42 local / 13 stand-in / 4 CI-only.
+
+RAG: `D:/dev/rag/rust/ci_parity_table_first_substring_match_and_irrefutable_if_let_in_lite_build.md`.
+`FEATURES.md`: no row change (no row mentions `recognize_page`).
+
+Ledgers: no decision; next free `Pass 524.0`; next filing 1003rd.
+
 ### `Pass 522.0` — a form field says whether its quadding is its own (`Field::own_quadding`, `G137`) — SHIPPED 2026-10-07 (1001st filing)
 
 Commit `5b44d3ed809c87e054b7d47d34818ac1651896af` (parent `593ea481`). Core only; no CLI
