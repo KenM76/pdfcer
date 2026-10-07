@@ -10,7 +10,7 @@ use pdfcer_core::text_edit::{
 use pdfcer_core::text_extract::{self, ExtractOptions};
 use pdfcer_core::writer::SaveOptions;
 
-fn assemble(bodies: &[String]) -> Vec<u8> {
+pub(crate) fn assemble(bodies: &[String]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
@@ -30,7 +30,7 @@ fn assemble(bodies: &[String]) -> Vec<u8> {
     buf
 }
 
-fn stream(content: &str) -> String {
+pub(crate) fn stream(content: &str) -> String {
     format!(
         "<< /Length {} >>\nstream\n{content}\nendstream",
         content.len()

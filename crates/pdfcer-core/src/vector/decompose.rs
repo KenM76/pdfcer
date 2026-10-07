@@ -1939,6 +1939,9 @@ impl FontResolver for DocumentFonts<'_> {
     }
 }
 
+pub(crate) mod resume;
+pub(crate) use resume::WalkCheckpoint;
+
 // ---------------------------------------------------------------------------
 // Entry points
 // ---------------------------------------------------------------------------
@@ -1977,7 +1980,21 @@ pub(crate) fn collect_form_leaves(
     diag: &mut DecomposeDiagnostics,
     root: Option<usize>,
 ) {
-    for (index, obj) in objects.iter().enumerate() {
+    collect_form_leaves_from(view, objects, 0, path, out, diag, root);
+}
+
+/// [`collect_form_leaves`] over `objects[from..]`, indices still counted
+/// from the start of `objects`.
+pub(crate) fn collect_form_leaves_from(
+    view: &DocumentView<'_>,
+    objects: &[VectorObject],
+    from: usize,
+    path: &mut Vec<ObjId>,
+    out: &mut Vec<FormLeaf>,
+    diag: &mut DecomposeDiagnostics,
+    root: Option<usize>,
+) {
+    for (index, obj) in objects.iter().enumerate().skip(from) {
         // `root` is the OUTERMOST form's index in the page's own object list.
         // At the top level that is this object's own index; deeper down it is
         // whatever the top level already decided, carried unchanged -- a nested
@@ -2002,31 +2019,9 @@ pub(crate) fn collect_form_leaves(
             diag.form_depth_overflows += 1;
             continue;
         }
-        let Object::Stream(stream) = view.resolved(id) else {
+        let Some((content, resources)) = form_content(view, id) else {
             continue;
         };
-        // `view.slice(span)`, not `span.slice(view.bytes())`: a form the
-        // SESSION authored carries an R45 span starting past the end of the
-        // base buffer, and only the view's stream source knows which of its
-        // two halves such a span indexes. An unresolvable or undecodable form
-        // is skipped, not fatal — it is already on the page as an opaque
-        // object either way.
-        let Some(content) = view
-            .slice(stream.data_span)
-            .and_then(|raw| crate::filters::decode_stream(&stream.dict, raw).ok())
-            .and_then(|decoded| ContentStream::parse(decoded).ok())
-        else {
-            continue;
-        };
-        // §7.8.3: a form's own `/Resources` if it has one, otherwise the
-        // invoking context's — which is what the outer walk already resolved,
-        // and is why this is inherited rather than defaulted to empty.
-        let resources = view
-            .resolve(stream.dict.get(b"Resources").unwrap_or(&Object::Null))
-            .as_dict()
-            .cloned()
-            .unwrap_or_default();
-
         let nested = {
             let xobjects = DocumentXObjects {
                 view,
@@ -2037,38 +2032,77 @@ pub(crate) fn collect_form_leaves(
         };
 
         path.push(id);
-        for (form_object_index, child) in nested.objects.iter().enumerate() {
-            // A nested form is a container, not a leaf: recursion below emits
-            // what is inside it. Emitting the container here too would put a
-            // second page-sized hit target into the very list built to stop
-            // the first one winning every click.
-            let is_form = matches!(
-                child,
-                VectorObject::Image(c) if c.source == ImageSource::Form
-            );
-            if !is_form {
-                out.push(FormLeaf {
-                    object: child.clone(),
-                    containment: path.clone(),
-                    // `img.ctm` is the CTM in force at this form's `Do`,
-                    // already composed with `/Matrix` and with every enclosing
-                    // form's placement — because the outer walk passed ITS
-                    // placement in as `initial`. So this is page-space at every
-                    // depth, which is the property the surgery needs.
-                    placement: img.ctm,
-                    // The index into THIS form's own decomposition, which is
-                    // NOT derivable from a leaf's position in `out`: a form
-                    // containing a nested form contributes children here and
-                    // more children from the recursion below, and the two
-                    // interleave. Recording it is one `enumerate`; recovering
-                    // it later would be a second, subtly different walk.
-                    form_object_index,
-                    paint_order: root,
-                });
-            }
-        }
+        push_form_children(&nested.objects, path, img.ctm, root, out);
         collect_form_leaves(view, &nested.objects, path, out, diag, Some(root));
         path.pop();
+    }
+}
+
+/// Form `id`'s decoded content and the resources it is walked with, or
+/// `None` when it cannot be resolved or decoded.
+fn form_content(view: &DocumentView<'_>, id: ObjId) -> Option<(ContentStream, Dict)> {
+    let Object::Stream(stream) = view.resolved(id) else {
+        return None;
+    };
+    // `view.slice(span)`, not `span.slice(view.bytes())`: a form the
+    // SESSION authored carries an R45 span starting past the end of the
+    // base buffer, and only the view's stream source knows which of its
+    // two halves such a span indexes. An unresolvable or undecodable form
+    // is skipped, not fatal — it is already on the page as an opaque
+    // object either way.
+    let content = view
+        .slice(stream.data_span)
+        .and_then(|raw| crate::filters::decode_stream(&stream.dict, raw).ok())
+        .and_then(|decoded| ContentStream::parse(decoded).ok())?;
+    // §7.8.3: a form's own `/Resources` if it has one, otherwise the
+    // invoking context's — which is what the outer walk already resolved,
+    // and is why this is inherited rather than defaulted to empty.
+    let resources = view
+        .resolve(stream.dict.get(b"Resources").unwrap_or(&Object::Null))
+        .as_dict()
+        .cloned()
+        .unwrap_or_default();
+    Some((content, resources))
+}
+
+/// Emit the non-form objects of one form's decomposition as leaves under
+/// `path`, placed by `ctm` (the CTM at the form's `Do`).
+fn push_form_children(
+    children: &[VectorObject],
+    path: &[ObjId],
+    ctm: Matrix,
+    root: usize,
+    out: &mut Vec<FormLeaf>,
+) {
+    for (form_object_index, child) in children.iter().enumerate() {
+        // A nested form is a container, not a leaf: recursion below emits
+        // what is inside it. Emitting the container here too would put a
+        // second page-sized hit target into the very list built to stop
+        // the first one winning every click.
+        let is_form = matches!(
+            child,
+            VectorObject::Image(c) if c.source == ImageSource::Form
+        );
+        if !is_form {
+            out.push(FormLeaf {
+                object: child.clone(),
+                containment: path.to_vec(),
+                // `ctm` is the CTM in force at this form's `Do`,
+                // already composed with `/Matrix` and with every enclosing
+                // form's placement — because the outer walk passed ITS
+                // placement in as `initial`. So this is page-space at every
+                // depth, which is the property the surgery needs.
+                placement: ctm,
+                // The index into THIS form's own decomposition, which is
+                // NOT derivable from a leaf's position in `out`: a form
+                // containing a nested form contributes children here and
+                // more children from the recursion below, and the two
+                // interleave. Recording it is one `enumerate`; recovering
+                // it later would be a second, subtly different walk.
+                form_object_index,
+                paint_order: root,
+            });
+        }
     }
 }
 
@@ -2552,8 +2586,28 @@ impl<'a> Decomposer<'a> {
     /// operand-run/operator segmentation but tracking each operation's
     /// first-token index (the object token-range start).
     fn run(&mut self) {
-        let mut run_start = 0usize;
-        for (i, tok) in self.content.tokens.iter().enumerate() {
+        self.run_from(0, &[], &mut Vec::new());
+    }
+
+    /// [`Self::run`] from token `start`, recording a [`WalkCheckpoint`] (or
+    /// `None` where the walk cannot be resumed) at each of the ascending
+    /// token indices in `boundaries` at or after `start`.
+    fn run_from(
+        &mut self,
+        start: usize,
+        boundaries: &[usize],
+        marks: &mut Vec<Option<WalkCheckpoint>>,
+    ) {
+        let mut run_start = start;
+        let mut pending = boundaries
+            .iter()
+            .copied()
+            .filter(|b| *b >= start)
+            .peekable();
+        for (i, tok) in self.content.tokens.iter().enumerate().skip(start) {
+            while let Some(b) = pending.next_if(|b| *b <= i) {
+                marks.push(self.checkpoint(b, i, run_start));
+            }
             match tok.kind {
                 ContentTokenKind::Operand(_) => {}
                 _ => {
@@ -2562,6 +2616,10 @@ impl<'a> Decomposer<'a> {
                     run_start = i + 1;
                 }
             }
+        }
+        let end = self.content.tokens.len();
+        for b in pending {
+            marks.push(self.checkpoint(b, end, run_start));
         }
         // A trailing, unpainted path (malformed per §8.5.3 "a painting
         // operator shall follow") is dropped, matching the renderer's

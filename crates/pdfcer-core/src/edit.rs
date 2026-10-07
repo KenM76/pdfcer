@@ -134,6 +134,7 @@ pub use foreign_button::ForeignAppearance;
 mod image_stamp;
 mod ocr_refold;
 mod page_artwork;
+mod page_model;
 mod rc4_append;
 mod stream_localize;
 #[cfg(feature = "svg-import")]
@@ -10380,13 +10381,14 @@ impl EditSession {
     fn revert_last(&mut self) -> Option<Entry> {
         let command = self.undo.pop()?;
         for write in &command.objects {
-            Self::write_state(&mut self.state, write.id, write.before.clone());
+            self.put_state(write.id, write.before.clone());
         }
         for removal in &command.removals {
-            Self::write_deleted(&mut self.deleted, removal.id, removal.was_deleted);
+            self.put_deleted(removal.id, removal.was_deleted);
         }
         if let Some((before, _)) = &command.trailer {
             self.trailer = before.clone();
+            self.forget_page_model_resume();
         }
         Some(command)
     }
@@ -10395,13 +10397,14 @@ impl EditSession {
     pub fn redo(&mut self) -> Option<CommandKind> {
         let command = self.redo.pop()?;
         for write in &command.objects {
-            Self::write_state(&mut self.state, write.id, write.after.clone());
+            self.put_state(write.id, write.after.clone());
         }
         for removal in &command.removals {
-            Self::write_deleted(&mut self.deleted, removal.id, removal.is_deleted);
+            self.put_deleted(removal.id, removal.is_deleted);
         }
         if let Some((_, after)) = &command.trailer {
             self.trailer = after.clone();
+            self.forget_page_model_resume();
         }
         let kind = command.kind;
         self.undo.push(command);
@@ -19523,66 +19526,16 @@ impl EditSession {
             ));
         }
 
-        let stream = std::sync::Arc::new(
-            self.current_page_content(page)
-                .map_err(EditError::VectorEditContent)?,
-        );
-        // SESSION view, and the borrow is scoped to this block so the cache
-        // write below can take `&mut self`.
-        //
-        // This used to read the BASE view, on the reasoning that "page
-        // `/Resources` are not rewritten by content surgery, so base and
-        // session agree on them". Content surgery does not rewrite them --
-        // but `add_image` and `add_text` do, and the object they name lives
-        // only in the overlay. A base resolver cannot classify the resulting
-        // `Do`, and `vector/decompose.rs` emits no object for a `Do` it
-        // cannot classify: the image stays on the canvas and disappears from
-        // the model. `Pass 186.0`.
-        let objects = {
-            let view = self.view();
-            let resolver = crate::vector::DocumentXObjects {
-                view: &view,
-                resources: &page.resources,
-            };
-            let fonts = crate::vector::DocumentFonts::new(&view, &page.resources);
-            let mut model = crate::vector::decompose_with_fonts(
-                &stream,
-                crate::vector::Matrix::IDENTITY,
-                &resolver,
-                &fonts,
-            );
-            // THE DESCENT, which this path did not do (`Pass 188.0`).
-            //
-            // `decompose_with_fonts` leaves `leaves` empty and says so —
-            // descending needs a form's CONTENT STREAM and that entry point
-            // has only the classification seam. `decompose_page` fills it
-            // afterwards; this cache did not, and this method's own
-            // documentation claimed it returned *"the same model
-            // `vector::decompose_page` returns for `self.view()`"*.
-            //
-            // It was not the same model. It was that model with every object
-            // inside every form XObject missing — 242 of them on a
-            // print-conformance composite, 10,256 on a CAD drawing. So a
-            // shell that took the advice one line above (*"use this instead of
-            // `vector::decompose_page`"*) and took the 385 ms → 0 ms win
-            // silently lost its entire deep-selection model, and would have
-            // found out by clicking.
-            //
-            // Nothing caught it because nothing in this crate read `leaves`
-            // off `page_objects` until the form-geometry verbs did.
-            let mut path = Vec::new();
-            let mut leaves = Vec::new();
-            crate::vector::collect_form_leaves(
-                &view,
-                &model.objects,
-                &mut path,
-                &mut leaves,
-                &mut model.diagnostics,
-                None,
-            );
-            model.leaves = leaves;
-            std::sync::Arc::new(model)
-        };
+        // The SESSION view throughout: `add_image`/`add_text` rewrite
+        // `/Resources` to name objects that live only in the overlay, and a
+        // base resolver would drop their `Do` from the model (`Pass 186.0`).
+        // Leaves are collected too (`Pass 188.0`), so this is the model
+        // `decompose_page` returns, not that model minus every form's
+        // contents. After an edit confined to later `/Contents` streams the
+        // walk resumes where they begin (`page_model.rs`, request G140).
+        let (stream, objects, resume) = self
+            .build_page_model(page, &key)
+            .map_err(EditError::VectorEditContent)?;
         // Which forms the walk actually reached, taken from its OUTPUT.
         // `containment` names every form above a leaf, so the union over all
         // leaves is exactly the set whose bytes this model depends on.
@@ -19605,6 +19558,7 @@ impl EditSession {
             forms,
             stream: std::sync::Arc::clone(&stream),
             objects: std::sync::Arc::clone(&objects),
+            resume,
         });
         Ok((stream, objects))
     }
@@ -20151,14 +20105,15 @@ impl EditSession {
 
     fn commit(&mut self, mut command: Command) {
         for write in &command.objects {
-            Self::write_state(&mut self.state, write.id, write.after.clone());
+            self.put_state(write.id, write.after.clone());
         }
         self.refresh_decorations(&mut command);
         for removal in &command.removals {
-            Self::write_deleted(&mut self.deleted, removal.id, removal.is_deleted);
+            self.put_deleted(removal.id, removal.is_deleted);
         }
         if let Some((_, after)) = &command.trailer {
             self.trailer = after.clone();
+            self.forget_page_model_resume();
         }
         self.redo.clear();
         self.undo.push(Entry::new(command));
@@ -20278,23 +20233,25 @@ impl EditSession {
     /// deliberate, because the equality check is the one that has to hold
     /// for the edit → undo → save contract, and it must not depend on
     /// this function having tidied up.
-    fn write_state(state: &mut BTreeMap<ObjId, Object>, id: ObjId, value: Option<Object>) {
+    fn put_state(&mut self, id: ObjId, value: Option<Object>) {
+        self.note_page_model_write(id);
         match value {
             Some(v) => {
-                state.insert(id, v);
+                self.state.insert(id, v);
             }
             None => {
-                state.remove(&id);
+                self.state.remove(&id);
             }
         }
     }
 
     /// Set or clear one object's deleted flag.
-    fn write_deleted(deleted: &mut BTreeSet<ObjId>, id: ObjId, is_deleted: bool) {
+    fn put_deleted(&mut self, id: ObjId, is_deleted: bool) {
+        self.forget_page_model_resume();
         if is_deleted {
-            deleted.insert(id);
+            self.deleted.insert(id);
         } else {
-            deleted.remove(&id);
+            self.deleted.remove(&id);
         }
     }
 }
@@ -22239,6 +22196,8 @@ struct PageObjectsCache {
     stream: std::sync::Arc<crate::content::ContentStream>,
     /// The decomposition of that content.
     objects: std::sync::Arc<crate::vector::PageObjects>,
+    /// Where a later fill may resume instead of starting over.
+    resume: page_model::PageModelResume,
 }
 
 /// **What a page's decomposition is a function of**, captured cheaply enough

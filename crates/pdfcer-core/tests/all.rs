@@ -148,6 +148,7 @@ mod outline_move;
 mod page_bbox_skips_clips;
 mod page_clipboard;
 mod page_labels_set;
+mod page_model_resume;
 mod page_objects_cache;
 mod page_ops;
 mod page_tree_nested_count;

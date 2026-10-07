@@ -317,13 +317,33 @@ impl ContentStream {
     ///
     /// [`ContentError`] — malformed syntax; offsets are into `buf`.
     pub fn parse(buf: Vec<u8>) -> Result<Self, ContentError> {
-        let mut tokens = Vec::new();
+        Self::parse_from(buf, Vec::new(), 0)
+    }
+
+    /// Tokenize `buf` from byte `from` onward, appending to `tokens` -- the
+    /// tokens already read from `buf[..from]`.
+    ///
+    /// Equal to [`Self::parse`] of the same `buf` when `from` is a token
+    /// boundary of it and `tokens` is exactly what `parse` produced before
+    /// that boundary; that is how a caller re-tokenizes only the part of a
+    /// concatenated `/Contents` that changed. A `from` past the end reads
+    /// nothing more.
+    ///
+    /// # Errors
+    ///
+    /// [`ContentError`] -- malformed syntax at or after `from`; offsets are
+    /// into `buf`.
+    pub fn parse_from(
+        buf: Vec<u8>,
+        mut tokens: Vec<ContentToken>,
+        from: usize,
+    ) -> Result<Self, ContentError> {
         // Sized from the stream's own measured density rather than by
         // doubling -- see `TokenCapacity`, and the 116 MB of slack that
         // motivated it.
         let mut capacity = TokenCapacity::default();
         let total = buf.len();
-        let mut lexer = Lexer::new(&buf);
+        let mut lexer = Lexer::at(&buf, from.min(total));
         while let Some(tok) = lexer.next_token()? {
             // Exactly one token is pushed per iteration on every branch
             // below, so one call here covers all of them. Putting it at the
@@ -887,6 +907,16 @@ mod tests {
 
     fn parse(input: &[u8]) -> ContentStream {
         ContentStream::parse(input.to_vec()).unwrap()
+    }
+
+    #[test]
+    fn parse_from_a_token_boundary_equals_a_whole_parse() {
+        let whole: &[u8] = b"q 1 0 0 1 5 5 cm BI /W 1 /H 1 /BPC 8 /CS /G ID x EI Q
+0 0 m 9 9 l S";
+        let cut = 52;
+        let prefix = parse(whole.get(..cut).unwrap()).tokens;
+        let resumed = ContentStream::parse_from(whole.to_vec(), prefix, cut).unwrap();
+        assert_eq!(resumed.tokens, parse(whole).tokens);
     }
 
     /// Collect (operator name, operand objects) pairs.

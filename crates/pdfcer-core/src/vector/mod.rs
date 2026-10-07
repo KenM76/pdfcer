@@ -74,7 +74,6 @@ pub use clip::{
     CLIP_VERSION_PRE_REPLY_COUNT, ClipAnnotation, ClipBinding, ClipError, ClipItem, ClipObject,
     ClipPdf, ObjectClip, PastePlan, plan_paste,
 };
-pub(crate) use decompose::collect_form_leaves;
 #[allow(unused_imports)]
 pub use decompose::{
     DecomposeDiagnostics, DevicePaintSpace, DocumentFonts, DocumentXObjects, FillRule,

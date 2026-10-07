@@ -308,7 +308,6 @@ fn pdfcer-core/src/edit.rs::merge_outline
 fn pdfcer-core/src/edit.rs::merge_widget_into_field
 fn pdfcer-core/src/edit.rs::move_annotation
 fn pdfcer-core/src/edit.rs::move_outline_item
-fn pdfcer-core/src/edit.rs::page_content_and_objects
 fn pdfcer-core/src/edit.rs::page_tab_sequence
 fn pdfcer-core/src/edit.rs::paste_clip_annotations
 fn pdfcer-core/src/edit.rs::paste_field
@@ -455,7 +454,6 @@ fn pdfcer-core/src/vector/clip.rs::from_bytes
 fn pdfcer-core/src/vector/clip.rs::plan_paste
 fn pdfcer-core/src/vector/clip.rs::to_bytes
 fn pdfcer-core/src/vector/clip.rs::to_pdf
-fn pdfcer-core/src/vector/decompose.rs::collect_form_leaves
 fn pdfcer-core/src/vector/decompose.rs::operation
 fn pdfcer-core/src/vector/edit.rs::plan_delete_node
 fn pdfcer-core/src/vector/edit.rs::plan_delete_subpath

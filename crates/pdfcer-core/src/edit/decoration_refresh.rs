@@ -45,7 +45,7 @@ impl EditSession {
             // The written dictionary is kept: a form's `/Subtype`, `/BBox`
             // and `/Resources` live there.
             let after = Some(Object::Stream(Stream { dict, data_span }));
-            Self::write_state(&mut self.state, id, after.clone());
+            self.put_state(id, after.clone());
             if let Some(w) = command.objects.get_mut(i) {
                 w.after = after;
             }
@@ -96,7 +96,7 @@ impl EditSession {
                 continue;
             }
             let before = self.state.get(&id).cloned();
-            Self::write_state(&mut self.state, id, Some(after.clone()));
+            self.put_state(id, Some(after.clone()));
             command.objects.push(super::ObjectWrite {
                 id,
                 before,
