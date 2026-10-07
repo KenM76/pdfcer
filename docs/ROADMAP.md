@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 533.0` — hit-test the text runs of a given `TextObject` (core; answers `pdfcer-gui` `G147`) — SHIPPED 2026-10-07 (1013th filing)
+
+Commits `f412113e` (code), `607cc4c7` (`docs/core-api`). No `Cargo.toml` or dependency change. No decision.
+
+**Delivered.** A text object inside a form XObject (a `PageObjects::leaves` entry) could not be asked which run was clicked.
+- New `vector::hit::hit_test_text_runs_of(&TextObject, point, tolerance) -> Vec<usize>`, re-exported from `vector`.
+- `hit_test_text_runs(&PageObjects, index, ..)` now delegates to it, so the rule exists once; `pdfcer-gui` can delete its own copy.
+- `hit_test_subpaths_of` is newly re-exported from `vector` too.
+- `docs/core-api/01-reading-and-model.md` documents the `_of` forms. `EditSession` verb count unchanged (325).
+
+**Verified (engineer-reported).** Two new `pdfcer-core` `text_run_delete` tests, `a_run_inside_a_form_is_hit_through_the_leaf` (synthetic inline PDF, two Helvetica runs in a placed form) and `the_index_form_and_the_object_form_agree`; the file's 16 tests pass. clippy (core, all targets and features), fmt, structure, public-fn-doc, string-gap and core-api-verbs gates clean.
+
+**`G147` status.** Reply written `_FIXED`; ACK removed.
+
+`FEATURES.md`: Planned row removed; new Implemented row under *Vector objects*, core `[x]` cli `—` gui `[ ]` (no CLI caller: run-level hit testing is an interactive query).
+
+Ledgers: no decision; next free `Pass 538.0`; next filing 1014th.
+
 ### `Pass 532.0` — a unit change keeps the calibration, not the scale number (core + CLI; DEFECT; answers `pdfcer-gui` `G146`) — SHIPPED 2026-10-07 (1012th filing)
 
 Commits `3dbb63b5` (code), `f8fcd872` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unchanged). No decision.
@@ -21093,9 +21111,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 532.0` (`G146`) SHIPPED `3dbb63b5` + `f8fcd872`, 1012th filing; see *Shipped*.
 
-**`Pass 533.0` — hit-test the text runs of a given `TextObject` (core; answers `pdfcer-gui` `G147`) — NEXT UP**
-
-Add `vector::hit::hit_test_text_runs_of(&TextObject, point, tolerance) -> Vec<usize>`; `hit_test_text_runs` delegates to it. Lets a form leaf be hit-tested; the GUI drops its own copy of the rule.
+> `Pass 533.0` (`G147`) SHIPPED `f412113e` + `607cc4c7`, 1013th filing; see *Shipped*.
 
 **`Pass 534.0` — set a page path's line width, dash and stroke/fill opacity (core; answers `pdfcer-gui` `G143`) — NEXT UP**
 
@@ -21113,7 +21129,7 @@ A verb setting line width, dash and stroke/fill opacity (ExtGState `/CA` `/ca`, 
 
 `copy_objects_in_form(page, form_invocation, leaf_indices)` returning `copy_objects`' clip type with the form placement baked in, so a paste lands where the leaf was drawn.
 
-Ledgers: no decision; next free `Pass 538.0`; next filing 1012th.
+Ledgers: no decision; next free `Pass 538.0`; next filing 1014th.
 
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`

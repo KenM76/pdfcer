@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1013th filing) — `Pass 533.0` shipped (hit-test text runs of a given `TextObject`, `G147`)
+
+**Shipped:**
+- `Pass 533.0` — `f412113e` (code), `607cc4c7` (core-api docs). `vector::hit_test_text_runs_of`, delegated to by `hit_test_text_runs`; `hit_test_subpaths_of` newly re-exported. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Tests and gates as engineer-reported in the ROADMAP entry (two new tests; `text_run_delete` 16 pass).
+- `FEATURES.md`: Planned row removed; Implemented row added under *Vector objects*, core `[x]` cli `—` gui `[ ]`.
+- ROADMAP *Next up* entry for 533.0 collapsed to a one-line `>` stub.
+
+**Still in flight:** `Pass 534.0`-`537.0` queued. Next free `Pass 538.0`; next filing 1014th.
+
+**Sourcing note (hard rule 8):** facts and hashes engineer-supplied; no shell, nothing committed, push/backup/CI not checked.
+
 ## 2026-10-07 (1012th filing) — `Pass 532.0` shipped (a unit change keeps the calibration, `G146`)
 
 **Shipped:**
