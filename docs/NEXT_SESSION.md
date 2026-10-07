@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 529.0` and the 1008th filing.
+**Written:** 2026-10-07, after `Pass 531.0` and the 1010th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 530.0 (`cb5b43ec` code, `d7cf6c77` core-api, filed 1009th):** pdfcer-gui request G140 -- `EditSession::page_objects` resumes at the first changed `/Contents` stream (`edit/page_model.rs`, `vector/decompose/resume.rs`, `ContentStream::parse_from`). Writes go through `put_state`/`put_deleted`, which log ids; any write outside the page's own content streams, a deletion, a trailer change or >256 writes forces a full rebuild. The old memo is consumed: buffers truncated in place when no caller holds the `Arc`, else copied. Measured post-edit rebuild ~165 ms -> 0.03-0.12 ms (caller dropped its Arc) / 20-40 ms (caller holds it). Reply `_FIXED` tells the GUI to switch from `decompose_page` to `page_objects` and drop its previous Arc first; not measured on the GUI's own fixtures. Probe: scratchpad `p530_zz_probe_g140.rs`. Pass 531.0 (`b95d1fea`, filed 1010th): image-codec module docs no longer link private items; `cargo doc -p pdfcer-image-codec` is warning-free. Next Pass 532.0, next filing 1011th.
 
 **Pass 529.0 (`86fea180`, filed 1008th `5555f828`):** pdfcer-gui request G141 -- a content edit whose changed bytes all fall inside one listed-once, unshared, non-OCR-layer `/Contents` stream (and no `pdfc_Deco` in the buffer) rewrites that stream alone (`edit/stream_localize.rs`); other streams stay byte-identical, no multi-stream disclosure, reflow on a split page reports `extra_objects_emptied == 0`. Measured: the move verb is ~10 ms either way; the GUI's ~170 ms is the post-edit `page_objects` re-decomposition = G140 (ACK in channel). **G140 is next:** cache the decomposition per page and, after an edit that changed only stream k, reuse objects from streams before k (identical prefix state) and re-decompose from k (or shift a suffix when the end-of-k graphics state is unchanged). Pre-existing rustdoc private-link warnings in `pdfcer-image-codec/src/ccitt.rs` worth fixing. Next Pass 530.0, next filing 1009th.
 
