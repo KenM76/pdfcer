@@ -4,6 +4,12 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (pre-compaction capture) — Pass 514.0 research in progress
+
+- Pushed `afd670d7..6bc8550c` to `main` (engineer-reported; not checked here, no shell).
+- `Pass 514.0` research in progress, no fixture yet; findings are in the ROADMAP entry and the PRC collinear-apex lesson (amended).
+- GitHub OCR text-layer issue still open.
+
 ## 2026-10-06 (991st filing) — `Pass 513.0` shipped (parts named for left-out / best-fit compressed meshes)
 
 **Shipped:**
