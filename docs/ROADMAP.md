@@ -192,6 +192,8 @@ Commits `c1b2d4cb` (code), `b219031f` (`docs/core-api`). No `Cargo.toml` or depe
 
 `FEATURES.md`: Planned row removed; new Implemented row under *Vector objects*, core `[x]` cli `[x]` gui `[ ]`. The *Planned* in-form row (`535.0` and its line-width/dash/opacity twin) is unchanged.
 
+**Follow-up `dc60dd77` (1018th filing).** `set-object-stroke-style` was on neither the `--in-place` list nor the exclusion list; added to `IN_PLACE_COMMANDS`, so it now accepts `--in-place`. Found by the first full `tools/run-gates.sh` sweep (see `SESSION_LOG.md`, 1018th).
+
 Ledgers: no decision; next free `Pass 538.0`; next filing 1015th.
 
 ### `Pass 533.0` — hit-test the text runs of a given `TextObject` (core; answers `pdfcer-gui` `G147`) — SHIPPED 2026-10-07 (1013th filing)
@@ -227,6 +229,8 @@ Commits `3dbb63b5` (code), `f8fcd872` (`docs/core-api`). No `Cargo.toml` or depe
 **`G146` status.** Reply written `_FIXED`; ACK removed. The GUI column is `pdfcer-gui`'s to tick when it calls `set_group_unit`.
 
 `FEATURES.md`: Planned row removed; new Implemented row under *ce dimensions*, core `[x]` cli `[x]` gui `[ ]`.
+
+**Follow-up `dc60dd77` (1018th filing).** `group-set-unit` was on neither the `--in-place` list nor the exclusion list; added to `IN_PLACE_COMMANDS`, so it now accepts `--in-place`. Same commit corrected the README subcommand count (211 to 213) and a broken rustdoc link in `dimension/style.rs` (now `crate::dimension::ScaleState::in_unit`).
 
 Ledgers: no decision; next free `Pass 538.0`; next filing 1013th.
 

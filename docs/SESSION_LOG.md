@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1018th filing) — follow-up `dc60dd77` to `Pass 532.0` / `Pass 534.0` (gate-sweep misses)
+
+**Shipped:**
+- `dc60dd77` — no new Pass ID. Fixes found by the first full `tools/run-gates.sh` sweep over `Pass 532.0`-`537.0`, which failed 4 of 46 commands.
+
+**Findings + decisions:**
+- `cargo test -p pdfcer-cli --bin pdfcer` (default and `--no-default-features`): `in_place_covers_every_input_output_subcommand` failed. `group-set-unit` (532.0) and `set-object-stroke-style` (534.0) take input+output but were on neither the `--in-place` list nor the exclusion list. Both added to `IN_PLACE_COMMANDS` (ordinary PDF-in/PDF-out edits), so both now accept `--in-place`.
+- `check-clap-help.py`: README said 211 working subcommands; the enum has 213. README now 213.
+- `cargo doc` (broken intra-doc links denied): `dimension/style.rs` module doc linked `super::units::ScaleState::in_unit`; now `crate::dimension::ScaleState::in_unit`.
+- All four reruns green (engineer-reported). A second full sweep is running before the push.
+- **Lesson.** Batching six Passes and running the full gate sweep only at the end let three registry misses accumulate (the in-place list, the README count, a rustdoc link). Single-crate clippy/test per Pass does not run the `--bin` unit tests, `check-clap-help.py` or `cargo doc`; those only run in the full sweep. Run the full sweep (or at least those three) per Pass that adds a subcommand or touches module docs.
+- ROADMAP: short follow-up notes appended to the 532.0 and 534.0 Shipped entries. `FEATURES.md`: `group-set-unit` row now says `--in-place` supported; boxes unchanged. The `set-object-stroke-style` row was left as is (long row, not edited).
+
+**Still in flight:** second full gate sweep, then push. Next free `Pass 538.0`; next filing 1019th.
+
+**Sourcing note (hard rule 8):** facts and hash engineer-supplied; no shell, push/backup/CI not checked.
+
 ## 2026-10-07 (1017th filing) — `Pass 537.0` shipped (copy objects inside a form XObject, `G145`)
 
 **Shipped:**
