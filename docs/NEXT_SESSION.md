@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-06, after `Pass 515.0` and the 994th filing.
+**Written:** 2026-10-06, after `Pass 516.0` and the 995th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 516.0 (`420f7657`, filed 995th):** pdfcer-gui `G133` fixed: inferred OCR rows are placed from word ink shapes (x-height on the baseline at body em; full ink a 0.207 em descent up; ambiguous ink snaps to a whole number of leadings). Reply `..._FIXED.md` written; the GUI may now assert exactly 4 blocks.
 
 **Pass 515.0 (`21428aae`, filed 994th):** a stored normal that sends the walk onto a closed edge while the other is open is a guaranteed dead end; `Walk::open_wins` lets the open edge win, as two extra best-fit readings only (enabling it everywhere lost a mesh). Second sample 134 rebuilt / 7 out (was 132 / 9), 80 s; door unchanged 151 / 5; hinges full. Probe harness: scratchpad `p515/probe.full.rs` (re-add `#[cfg(test)] mod probe;` under `mod normals;` in compressed.rs, NEVER commit) over dumps `p512/dump/m0..m23`; still failing m0, m6, m7, m9, m16, m20, m21, all budget-bound. Next: brackets wall at fan-closing reference triangles (~50-120) where status claims continuation on edges counted closed.
 

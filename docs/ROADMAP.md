@@ -115,6 +115,38 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 516.0` — an inferred OCR paragraph keeps a short last line (`G133`) — SHIPPED 2026-10-06 (995th filing)
+
+Commit `420f7657`. Source: `pdfcer-gui` request `G133` (open file
+`request_G133_an_inferred_ocr_paragraph_splits_at_its_last_line.md`; reply
+`reply_request_G133_..._FIXED.md`, same folder). Crate `pdfcer-core` only
+(`ocr/structure.rs`, `ocr/layer_content.rs`); delivered core only, no cli/gui
+change, no `pub` API change (`docs/core-api` untouched), no manifest change.
+
+**Defect.** With an inferred structure (words only), `font_boxes` assumed a lone
+box has a descender (baseline dropped 0.21 em, so the line step exceeded 1.5 em
+and a new block opened) and gave x-height-only ink its own smaller em (a
+size-change break). A one- or two-word last line split a paragraph: 8 blocks, or
+20 lines / 12 blocks, in the reporter's page.
+
+**Fix.** Per-row placement from word ink shapes. X-height-only ink (0.4-0.62 em)
+sits on the baseline and keeps the body em. Full ink (>= 0.83 em) sits a
+0.207 em descent above its bottom. Ambiguous ink (ascender only, or a descender
+under x-height) takes whichever of the two baselines puts the row a whole
+number of leadings (median known step) from its neighbour; descender when it has
+no neighbour.
+
+**Tests.** `pdfcer-core` lib 1479 passed / 0 failed / 1 ignored. New
+`a_short_last_line_of_any_ink_shape_stays_in_its_paragraph` (9 shapes; asserts
+16 lines / 4 blocks) and `ocr::structure::tests::an_ascender_only_last_line_keeps_the_leading_not_a_descender`.
+Sabotage: removing the x-height em rule fails the first; forcing either baseline
+reading fails one of the two. clippy `-D warnings`, fmt, `check-string-gaps`,
+`check-code-structure` (584 baseline, none new) clean (engineer-reported). No
+manifest change, so `cargo tree` not applicable.
+
+**Boxes.** `FEATURES.md`: OCR sandwich-layer row text amended (short last line
+keeps its paragraph); boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`).
+
 ### `Pass 515.0` — an open edge overrides a stored normal in the compressed-mesh best fit — SHIPPED 2026-10-06 (994th filing)
 
 Commit `21428aae`. Not scoped beforehand: residue work on the Backlog item

@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (995th filing) — `Pass 516.0` shipped (inferred OCR paragraph keeps a short last line, `G133`)
+
+**Shipped:**
+- `Pass 516.0` — `420f7657`, `pdfcer-core` only (`ocr/structure.rs`, `ocr/layer_content.rs`). Per-row baseline/em placement from word ink shapes in inferred structure. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Cause: `font_boxes` assumed a lone box had a descender (0.21 em baseline drop -> step over 1.5 em -> new block) and gave x-height-only ink a smaller em (size-change break).
+- Ambiguous ink resolves by whole-number leadings from the neighbour; the choice is the only non-obvious part.
+- `FEATURES.md`: OCR sandwich-layer row text amended, boxes unchanged. `G133` was not in ROADMAP Backlog/Next up (grep of `docs/` excluding `history/` found no match), so nothing to mark done there.
+
+**Still in flight:** nothing from this Pass.
+
+**Sourcing note (hard rule 8):** test counts and gate results engineer-reported; push/backup/CI not checked here (no shell).
+
 ## 2026-10-06 (994th filing) — `Pass 515.0` shipped (open edge overrides a stored normal, compressed best fit)
 
 **Shipped:**
