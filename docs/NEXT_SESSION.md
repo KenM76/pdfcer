@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 527.0` and the 1006th filing.
+**Written:** 2026-10-07, after `Pass 528.0` and the 1007th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 528.0 (`d968fceb`, filed 1007th `870aa481`):** pdfcer-gui request G139 -- `path_hit` inverse-maps the click's reach box into user space and transforms only subpaths whose control-polygon hull overlaps it (fill test uses reach 0; a CTM with no finite inverse keeps every subpath). Dense-path click 61 -> 11.5 ms; the remainder is a memory-bound walk over the subpaths. Geometry moved to `vector/path_geom.rs` (hit.rs baseline line deleted; snap.rs shares `cubic_at`). Reply `_FIXED` written; ask 3 (spatial index) offered, not done. Open from the GUI: G140 (re-decomposition after an edit) and G141 (a move re-serialises a shared stream) -- G141 is next: rewrite only the one changed, unshared stream. Next Pass 529.0, next filing 1008th.
 
 **Pass 527.0 (`60293e43`, filed 1006th `5694d961`):** self-scoped -- `object-list --hit` uses the `_with` queries with `DocumentImageAlpha` (`--image-alpha honour|ignore`, default honour; hit line ends `image_alpha=`); summary line gains `undecoded_colour= invisible_by_alpha= shadings_unmodelled= oc_sections=` with a stderr note per non-zero counter. `cmd_object_list` moved to `object_list.rs` and split (baseline line deleted). G138 reply gained a CLI addendum. Fuzz target `image_alpha_hit` ran clean (86,914 runs). FEATURES rows 250 and 267 now cli [x]. Remaining core-[x]/cli-[ ] candidates: `apply_redactions`, `DIVERGENCE_KEYS`. Next Pass 528.0, next filing 1007th.
 
