@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 538.0` — DEFECT: restyling a FreeText text box (core + CLI; answers `pdfcer-gui` `G148`) — SHIPPED 2026-10-07 (1020th filing)
+
+Commits `82586606` (code), `95e52032` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Push state not checked (no shell).
+
+**The defect.** `EditSession::set_text_annot_style` on a `/FreeText` redrew a foreign appearance with wrapping off, kept `/RC` but drew plain `/Contents`, and silently ignored `font_size`.
+
+**Delivered.**
+- Foreign `/AP` (no pdfcer layout reproduces it): refused with new `EditError::FreeTextAppearanceForeign { id }`; annotation unchanged.
+- `/RC` present (ISO 32000-1 Table 174): refused with new `EditError::FreeTextIsRichText { id }`.
+- New opt-in `TextAnnotStyle::redraw_as_plain: bool` (default `false`): a foreign box is redrawn wrapped within its `/Rect` (`appearance_was_foreign` true); `/RC` and `/DS` are removed and the removed keys reported in new `TextAnnotStyleChange::rich_text_dropped: Vec<String>`.
+- `TextAnnotStyle::font_size` now applied to the `/DA` `Tf` and to the re-bake (was ignored). Stamps unchanged.
+- CLI: `set-text-annot-style --redraw-as-plain`; without it such a box exits 9. Output line gains `rich_text_dropped=N`.
+- `docs/core-api`: `EditError` 166 to 168 variants; verb count unchanged at 330.
+
+**Verified (engineer-reported).** Core `tests/free_text_restyle.rs` 4 tests, sabotage-verified; CLI `tests/set_text_annot_style_redraw.rs` 1 test; full core integration suite 2,764 passed. Gate sweep and push not reported.
+
+**`G148` status.** The GUI column is `pdfcer-gui`'s to tick when it adopts the refusals and the opt-in.
+
+`FEATURES.md`: *Planned* `538.0` row removed; new Implemented row beside the sticky-note style row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1021st.
+
 ### `33e98cf4` (no Pass ID), 2026-10-07 (1019th filing) — the fake time-stamping server closes gracefully
 
 Not a Pass. CI run `37683746504` (push of `d3607b9a`) failed one test on windows-latest, `sign_timestamp::live::a_tsa_http_error_is_refused_by_name_and_nothing_is_written`: it saw os error 10054 ("connection forcibly closed") instead of the HTTP 503 the server sent. Cause: the one-shot fake TSA dropped its socket right after writing, and on Windows closing a socket with unread receive data sends RST. Fix: half-close, then drain with a 10 s read bound. Not reproduced locally (3 runs x 4 live tests green); earlier pushes the same day were green, so a flake, not a regression. Test-only; no behaviour change. `main` was pushed at `d8bc2bd7` after a green `run-gates.sh` (46 commands, PASS), CI in progress at filing time (all engineer-reported).
@@ -21189,9 +21211,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Scoping only, nothing built, no decision. Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1020th.
->
-> **`Pass 538.0` — DEFECT, `G148` (`request_G148_restyling_a_text_box_unwraps_or_ignores_it.md`).** `set_text_annot_style` on a FreeText: (1) redraws a foreign appearance with wrapping off, against its own contract; (2) keeps `/RC` but draws plain `/Contents`; (3) silently ignores `font_size`. Fix: leave a foreign appearance untouched or refuse it; regenerate from `/RC` or refuse; apply `font_size` to `/DA` or refuse it by name. Never silent (rule 4).
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing, see *Shipped*); `539.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1021st.
 >
 > **`Pass 539.0` — `G153`:** Line `interior` (`/IC`) fills closed line endings.
 >

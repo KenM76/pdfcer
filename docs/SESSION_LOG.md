@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1020th filing) — `Pass 538.0` shipped (DEFECT: FreeText restyle, `G148`)
+
+**Shipped:** `Pass 538.0`, code `82586606`, `docs/core-api` `95e52032`. `set_text_annot_style` on a `/FreeText` now refuses a foreign `/AP` (`FreeTextAppearanceForeign`) and a rich-text box (`FreeTextIsRichText`, `/RC`), leaving it unchanged; opt-in `TextAnnotStyle::redraw_as_plain` redraws wrapped in `/Rect` and drops `/RC`/`/DS`, reported in `TextAnnotStyleChange::rich_text_dropped`; `font_size` now reaches `/DA` and the re-bake. CLI `--redraw-as-plain` (else exit 9). `EditError` 166 to 168; verbs stay 330.
+
+**Tests (engineer-reported):** core `free_text_restyle.rs` 4 (sabotage-verified); CLI `set_text_annot_style_redraw.rs` 1; core integration suite 2,764 passed. No `Cargo.toml` change.
+
+**Files:** ROADMAP `538.0` stub removed from *Next up*, entry added to *Shipped*; `FEATURES.md` Planned row replaced by an Implemented row (core `[x]` cli `[x]` gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 539.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1021st.
+
+**Sourcing note (hard rule 8):** all facts and hashes engineer-supplied; no shell, so push, backup and CI colour not checked here.
+
 ## 2026-10-07 (1019th filing) — `33e98cf4` (CI flake fix, no Pass) + scoping `Pass 538.0`-`551.0` from `pdfcer-gui` (`G148`-`G161`)
 
 **Part A — `33e98cf4`, "test(cli): the fake time-stamping server closes gracefully". No Pass ID.**
