@@ -41,7 +41,10 @@ fn three_pages(tag: &str, cmyk_intent: bool) -> PathBuf {
     };
     let pdf = build_pdf(&[
         (1, format!("<< /Type /Catalog /Pages 2 0 R{intent} >>")),
-        (2, "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>".into()),
+        (
+            2,
+            "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>".into(),
+        ),
         (3, page(" /Group << /S /Transparency /CS /DeviceCMYK >>")),
         (4, page(" /Group << /S /Transparency /CS /DeviceRGB >>")),
         (5, page("")),
@@ -92,7 +95,10 @@ fn a_space_taken_from_the_output_intent_is_disclosed() {
     let lines: Vec<&str> = out.lines().filter(|l| l.starts_with("page=")).collect();
     assert_eq!(
         lines,
-        ["page=3 ink=1 source=output_intent", "page=1 ink=1 source=page_group"]
+        [
+            "page=3 ink=1 source=output_intent",
+            "page=1 ink=1 source=page_group"
+        ]
     );
     assert!(
         out.contains("pages=2 in_ink=2 inferred_from_output_intent=1"),
