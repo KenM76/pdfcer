@@ -591,30 +591,35 @@ mod tests {
         );
     }
 
-    /// Words only, as a recogniser boxes them tight on the ink: 11 pt
-    /// text on 16 pt leading, x-height words beside ascender and descender
-    /// words, two columns of two paragraphs a blank line apart. Each
-    /// paragraph is one block, not one per line.
-    #[test]
-    fn inferred_structure_groups_tight_word_boxes_into_paragraphs() {
+    /// (text, ink bottom, ink top) in ems from the baseline.
+    type Shape = (&'static str, f64, f64);
+
+    /// Mixed shapes: x-height, ascender, descender and both.
+    const MIXED: [Shape; 5] = [
+        ("an", 0.0, 0.52),
+        ("the", 0.0, 0.72),
+        ("apple", -0.21, 0.72),
+        ("go", -0.21, 0.52),
+        ("In", 0.0, 0.72),
+    ];
+
+    /// Words only, boxed tight on the ink as a recogniser does: 11 pt text
+    /// on 16 pt leading, two columns of two paragraphs a blank line apart,
+    /// each four lines of [`MIXED`] words except the last, which is `last`.
+    fn four_paragraphs(last: Option<&[Shape]>) -> OcrLayerReport {
         const EM: f64 = 11.0;
-        // (text, ink bottom, ink top) in ems from the baseline.
-        let shapes = [
-            ("an", 0.0, 0.52),
-            ("the", 0.0, 0.72),
-            ("apple", -0.21, 0.72),
-            ("go", -0.21, 0.52),
-            ("In", 0.0, 0.72),
-        ];
         let mut words = Vec::new();
         for (col, x0) in [(0, 72.0), (1, 330.0)] {
             let mut baseline = 700.0;
             for para in 0..2 {
                 for line in 0..4 {
-                    for k in 0..shapes.len() {
-                        let Some(&(t, lo, hi)) = shapes.get((k + line) % shapes.len()) else {
-                            continue;
-                        };
+                    let shapes: Vec<Shape> = match last {
+                        Some(l) if line == 3 => l.to_vec(),
+                        _ => (0..MIXED.len())
+                            .filter_map(|k| MIXED.get((k + line) % MIXED.len()).copied())
+                            .collect(),
+                    };
+                    for (k, (t, lo, hi)) in shapes.into_iter().enumerate() {
                         let x = x0 + k as f64 * 36.0;
                         words.push(word(
                             &format!("{t}{col}{para}{line}"),
@@ -629,10 +634,42 @@ mod tests {
                 baseline -= 16.0;
             }
         }
-        let (_, report) = page_of(words).pipe_build(b"OCR0", &OcrLayerOptions::new());
+        page_of(words)
+            .pipe_build(b"OCR0", &OcrLayerOptions::new())
+            .1
+    }
+
+    /// Each paragraph is one block, not one per line.
+    #[test]
+    fn inferred_structure_groups_tight_word_boxes_into_paragraphs() {
+        let report = four_paragraphs(None);
         assert_eq!(report.structure, OcrStructureSource::Inferred);
         assert_eq!(report.words_written, 80);
         assert_eq!((report.lines_written, report.blocks_written), (16, 4));
+    }
+
+    /// A paragraph whose last line is one or two words stays one block and
+    /// that line one line, whatever the words' ink shapes.
+    #[test]
+    fn a_short_last_line_of_any_ink_shape_stays_in_its_paragraph() {
+        let asc = ("frost", 0.0, 0.72);
+        let both = ("weeks", -0.21, 0.72);
+        let x = ("nan", 0.0, 0.52);
+        let desc = ("gay", -0.21, 0.52);
+        for last in [
+            &[asc][..],
+            &[both],
+            &[x],
+            &[desc],
+            &[asc, asc],
+            &[both, both],
+            &[x, x],
+            &[desc, desc],
+            &[x, asc],
+        ] {
+            let r = four_paragraphs(Some(last));
+            assert_eq!((r.lines_written, r.blocks_written), (16, 4), "{last:?}");
+        }
     }
 
     /// Test-only sugar so each case reads as one line of intent.

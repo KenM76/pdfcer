@@ -189,52 +189,40 @@ fn rows_of(ink: &[Rect]) -> Vec<Vec<usize>> {
     rows.into_iter().map(|(_, _, row)| row).collect()
 }
 
+/// Descender depth of a common text face, in ems (Helvetica 0.207).
+const DESCENT: f64 = 0.207;
+
+/// Ink heights, in ems, that place a word on its baseline: within
+/// `X_ONLY` it has neither ascender nor descender, so its bottom is the
+/// baseline; at or above `BOTH` it has both, so the baseline is a
+/// [`DESCENT`] above its bottom. Between them (an ascender, or a
+/// descender under x-height letters) the ink alone cannot say.
+const X_ONLY: (f64, f64) = (0.4, 0.62);
+const BOTH: f64 = 0.83;
+
 /// Rewrites tight ink boxes as the font boxes [`block_layout`] sizes a
 /// glyph-free run from (em 0.8 of the box height, baseline 0.2 up it), so
 /// its line-spacing and size-change rules compare ems, not ink.
 ///
-/// Each row gets one em, from its ink height over [`INK_EM`] (the page's
-/// median row height unless outside [`OWN_SIZE`] of it), and one baseline:
-/// the upper quartile of its words' bottoms, since words without a
-/// descender sit on it. A row of one box is taken to carry a descender.
-/// Boxes no row names are returned unchanged.
+/// Each row gets one em and one baseline ([`row_em`], [`row_baseline`]).
+/// A row whose words' shapes leave the baseline open takes whichever of
+/// its two candidates puts it a whole number of leadings from the row
+/// above (or below), the leading being the median step between rows
+/// whose baselines are known. Boxes no row names are returned unchanged.
 fn font_boxes(ink: &[Rect], rows: &[Vec<usize>]) -> Vec<Rect> {
-    let height = |row: &Vec<usize>| {
-        let rs = || row.iter().filter_map(|&i| ink.get(i));
-        let top = rs().map(|r| r.ury).fold(f64::NEG_INFINITY, f64::max);
-        let bottom = rs().map(|r| r.lly).fold(f64::INFINITY, f64::min);
-        top - bottom
-    };
-    let mut heights: Vec<f64> = rows
+    let body = body_height(ink, rows);
+    let fitted: Vec<Option<(f64, Baseline)>> = rows
         .iter()
-        .map(height)
-        .filter(|h| h.is_finite() && *h > 0.0)
+        .map(|row| {
+            let em = row_em(ink, row, body)?;
+            Some((em, row_baseline(ink, row, em)))
+        })
         .collect();
-    heights.sort_by(f64::total_cmp);
-    let body = heights.get(heights.len() / 2).copied();
+    let baselines = settle(&fitted);
     let mut out = ink.to_vec();
-    for row in rows {
-        let h = height(row);
-        if !(h.is_finite() && h > 0.0) {
+    for ((row, fit), baseline) in rows.iter().zip(&fitted).zip(baselines) {
+        let (Some((em, _)), Some(baseline)) = (fit, baseline) else {
             continue;
-        }
-        let h = match body {
-            Some(b) if h >= OWN_SIZE.0 * b && h <= OWN_SIZE.1 * b => b,
-            _ => h,
-        };
-        let em = h / INK_EM;
-        let mut bottoms: Vec<f64> = row
-            .iter()
-            .filter_map(|&i| ink.get(i))
-            .map(|r| r.lly)
-            .collect();
-        bottoms.sort_by(f64::total_cmp);
-        let baseline = match bottoms.as_slice() {
-            [only] => only + 0.207 * em,
-            b => b
-                .get(3 * (b.len().saturating_sub(1)) / 4)
-                .copied()
-                .unwrap_or(0.0),
         };
         let lly = baseline - 0.25 * em;
         for &i in row {
@@ -244,6 +232,131 @@ fn font_boxes(ink: &[Rect], rows: &[Vec<usize>]) -> Vec<Rect> {
         }
     }
     out
+}
+
+/// Top of the highest ink to bottom of the lowest, over `row`.
+fn ink_height(ink: &[Rect], row: &[usize]) -> f64 {
+    let rs = || row.iter().filter_map(|&i| ink.get(i));
+    let top = rs().map(|r| r.ury).fold(f64::NEG_INFINITY, f64::max);
+    let bottom = rs().map(|r| r.lly).fold(f64::INFINITY, f64::min);
+    top - bottom
+}
+
+/// The page's median row ink height, the body text's.
+fn body_height(ink: &[Rect], rows: &[Vec<usize>]) -> Option<f64> {
+    let mut heights: Vec<f64> = rows
+        .iter()
+        .map(|r| ink_height(ink, r))
+        .filter(|h| h.is_finite() && *h > 0.0)
+        .collect();
+    heights.sort_by(f64::total_cmp);
+    heights.get(heights.len() / 2).copied()
+}
+
+/// A row's em: the body's when its ink height is within [`OWN_SIZE`] of
+/// the body's, or when every word in it is x-height ink at the body size
+/// (a short line with no ascender or descender); otherwise its own, from
+/// its ink height over [`INK_EM`]. `None` for a row with no ink.
+fn row_em(ink: &[Rect], row: &[usize], body: Option<f64>) -> Option<f64> {
+    let h = ink_height(ink, row);
+    if !(h.is_finite() && h > 0.0) {
+        return None;
+    }
+    let Some(b) = body else {
+        return Some(h / INK_EM);
+    };
+    let body_em = b / INK_EM;
+    let x_only = row
+        .iter()
+        .filter_map(|&i| ink.get(i))
+        .all(|r| (X_ONLY.0..X_ONLY.1).contains(&((r.ury - r.lly) / body_em)));
+    let own = h < OWN_SIZE.0 * b || h > OWN_SIZE.1 * b;
+    Some(if own && !x_only { h / INK_EM } else { body_em })
+}
+
+/// Where a row's baseline is, as far as its own ink says.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Baseline {
+    Known(f64),
+    /// Either the first (no word has a descender) or the second.
+    Either(f64, f64),
+}
+
+/// The median of the baselines the row's x-height-only and full-height
+/// words place; with none, the upper quartile of its words' bottoms (words
+/// without a descender sit on it) or a [`DESCENT`] above it.
+fn row_baseline(ink: &[Rect], row: &[usize], em: f64) -> Baseline {
+    let words = || row.iter().filter_map(|&i| ink.get(i));
+    let mut placed: Vec<f64> = words()
+        .filter_map(|r| {
+            let h = (r.ury - r.lly) / em;
+            if (X_ONLY.0..X_ONLY.1).contains(&h) {
+                Some(r.lly)
+            } else if h >= BOTH {
+                Some(r.lly + DESCENT * em)
+            } else {
+                None
+            }
+        })
+        .collect();
+    placed.sort_by(f64::total_cmp);
+    if let Some(&m) = placed.get(placed.len() / 2) {
+        return Baseline::Known(m);
+    }
+    let mut bottoms: Vec<f64> = words().map(|r| r.lly).collect();
+    bottoms.sort_by(f64::total_cmp);
+    let upper = bottoms
+        .get((3 * bottoms.len().saturating_sub(1)).div_ceil(4))
+        .copied()
+        .unwrap_or(0.0);
+    Baseline::Either(upper, upper + DESCENT * em)
+}
+
+/// Resolves each [`Baseline::Either`] against its neighbours (see
+/// [`font_boxes`]); with no neighbour known, the descender reading, as a
+/// lone word's ink most often has one.
+fn settle(fitted: &[Option<(f64, Baseline)>]) -> Vec<Option<f64>> {
+    let known: Vec<Option<f64>> = fitted
+        .iter()
+        .map(|f| match f {
+            Some((_, Baseline::Known(b))) => Some(*b),
+            _ => None,
+        })
+        .collect();
+    let mut steps: Vec<f64> = known
+        .windows(2)
+        .filter_map(|w| match w {
+            [Some(a), Some(b)] => Some(a - b),
+            _ => None,
+        })
+        .filter(|s| *s > 0.0)
+        .collect();
+    steps.sort_by(f64::total_cmp);
+    let leading = steps.get(steps.len() / 2).copied();
+    let near = |i: usize| {
+        let above = i
+            .checked_sub(1)
+            .and_then(|k| known.get(k).copied().flatten());
+        above.or_else(|| known.get(i + 1).copied().flatten())
+    };
+    fitted
+        .iter()
+        .enumerate()
+        .map(|(i, f)| match f {
+            None => None,
+            Some((_, Baseline::Known(b))) => Some(*b),
+            Some((_, Baseline::Either(lo, hi))) => Some(match (leading, near(i)) {
+                (Some(l), Some(n)) if l > 0.0 => {
+                    let off = |c: f64| {
+                        let k = ((n - c) / l).round();
+                        ((n - c) - k * l).abs()
+                    };
+                    if off(*lo) <= off(*hi) { *lo } else { *hi }
+                }
+                _ => *hi,
+            }),
+        })
+        .collect()
 }
 
 fn union(a: Rect, b: Rect) -> Rect {
@@ -354,4 +467,29 @@ fn cover_every_word(blocks: Vec<ResolvedBlock>, n: usize) -> Vec<ResolvedBlock> 
         });
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EM: f64 = 11.0;
+
+    /// A word box on `baseline`, its ink `(bottom, top)` in ems from it.
+    fn word(x: f64, baseline: f64, (bottom, top): (f64, f64)) -> Rect {
+        Rect::from_corners(x, baseline + bottom * EM, x + 30.0, baseline + top * EM)
+    }
+
+    #[test]
+    fn an_ascender_only_last_line_keeps_the_leading_not_a_descender() {
+        let both = (-0.21, 0.72);
+        let mut ink: Vec<Rect> = [700.0, 684.0, 668.0]
+            .iter()
+            .flat_map(|&b| [word(72.0, b, both), word(108.0, b, both)])
+            .collect();
+        ink.push(word(72.0, 652.0, (0.0, 0.72)));
+        let boxes = font_boxes(&ink, &rows_of(&ink));
+        let lly = boxes.last().map_or(f64::NAN, |r| r.lly);
+        assert!((lly - (652.0 - 0.25 * EM)).abs() < 1e-6, "{lly}");
+    }
 }
