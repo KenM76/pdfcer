@@ -115,6 +115,25 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 535.0` — paint and stroke style of paths inside a form XObject (core + CLI; answers `pdfcer-gui` `G142`) — SHIPPED 2026-10-07 (1015th filing)
+
+Commits `f48855ab` (code), `44f9533c` (`docs/core-api`), `b2007abb` (test). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not pushed and not in a release at filing time (engineer-reported).
+
+**Delivered.**
+- New `EditSession::set_object_paint_in_form(page, leaf_indices, fill, stroke)` and `set_object_stroke_style_in_form(page, leaf_indices, &StrokeStyle)`, both `-> Result<FormPaintOutcome, EditError>`. New public `#[non_exhaustive]` `FormPaintOutcome { paint: PaintOutcome (leaf indices), reach: Option<FormSurgeryOutcome> }`.
+- The selection must lie in one invocation of one form. The form is edited in place (decision 076), so `reach` reports the other invocations and pages it changes.
+- Opacity binds a new `/ExtGState` in the form's own `/Resources`; a direct `/Resources` is rewritten inside the form dictionary in the same undo step. A form with no `/Resources` refuses opacity with the new `EditError::FormInheritsResources { form }` (`EditError` now 166 variants).
+- Internal: `form_surgery_inner` delegates to `form_surgery_extras`, split into `form_leaf_at` + `plan_in_form`; two code-structure baseline entries retired (`form_surgery_inner`, `set_object_paint`).
+- CLI: `--leaf` flag on `set-object-paint` and `set-object-stroke-style`; the result line gains `leaf=` and `invocations=`/`pages=`. `docs/core-api` public `EditSession` verb count 326 to 328.
+
+**Verified (engineer-reported).** Core +6 tests (one sabotage-verified: ignoring the rebuilt form dictionary loses the alpha on save), CLI +2; `b2007abb` covers a flattened Line markup recolouring and taking opacity in-form. No writer change beyond the existing form-edit command path.
+
+**`G142` status.** Reply written `_FIXED`; ACK removed. The GUI column is `pdfcer-gui`'s to tick when it calls the verbs.
+
+`FEATURES.md`: *Planned* in-form row narrowed to `536.0`/`537.0`; the `534.0` Implemented row extended with the in-form clause (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 538.0`; next filing 1016th.
+
 ### `Pass 534.0` — set a page path's line width, dash and stroke/fill opacity (core + CLI; answers `pdfcer-gui` `G143`) — SHIPPED 2026-10-07 (1014th filing)
 
 Commits `c1b2d4cb` (code), `b219031f` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not pushed and not in a release at filing time (engineer-reported).
@@ -21134,9 +21153,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 534.0` (`G143`) SHIPPED `c1b2d4cb` + `b219031f`, 1014th filing; see *Shipped*.
 
-**`Pass 535.0` — `set_object_paint_in_form` (core; answers `pdfcer-gui` `G142`) — NEXT UP**
-
-`set_object_paint_in_form(page, form_invocation, leaf_indices, fill, stroke)` with `set_object_paint`'s refusals (named inks, patterns), returning `FormSurgeryOutcome` (invocations/pages). Then the in-form twin of `534.0`'s verb.
+> `Pass 535.0` (`G142`) SHIPPED `f48855ab` + `44f9533c` + `b2007abb`, 1015th filing; see *Shipped*.
 
 **`Pass 536.0` — `transform_objects_in_form` (core; answers `pdfcer-gui` `G144`) — NEXT UP**
 
@@ -21146,7 +21163,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 `copy_objects_in_form(page, form_invocation, leaf_indices)` returning `copy_objects`' clip type with the form placement baked in, so a paste lands where the leaf was drawn.
 
-Ledgers: no decision; next free `Pass 538.0`; next filing 1015th.
+Ledgers: no decision; next free `Pass 538.0`; next filing 1016th.
 
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`

@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1015th filing) — `Pass 535.0` shipped (paint and stroke style inside a form XObject, `G142`)
+
+**Shipped:**
+- `Pass 535.0` — `f48855ab` (code), `44f9533c` (core-api docs), `b2007abb` (test). `set_object_paint_in_form`, `set_object_stroke_style_in_form`, `FormPaintOutcome`, `EditError::FormInheritsResources`, CLI `--leaf`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Tests as engineer-reported: core +6 (one sabotage-verified), CLI +2; no `Cargo.toml` change. `EditError` 166 variants; public verb count 326 to 328.
+- Two code-structure baseline entries retired (`form_surgery_inner`, `set_object_paint`).
+- `FEATURES.md`: `534.0` Implemented row extended with the in-form clause (core `[x]` cli `[x]` gui `[ ]`); Planned in-form row narrowed to `536.0`/`537.0`.
+- ROADMAP *Next up* entry for 535.0 collapsed to a one-line `>` stub.
+
+**Still in flight:** `Pass 536.0` (`G144`), `537.0` (`G145`) queued, unchanged. Next free `Pass 538.0`; next filing 1016th. Not pushed (engineer-reported).
+
+**Sourcing note (hard rule 8):** facts and hashes engineer-supplied; no shell, nothing committed, push/backup/CI not checked.
+
 ## 2026-10-07 (1014th filing) — `Pass 534.0` shipped (path line width, dash and opacity, `G143`)
 
 **Shipped:**
