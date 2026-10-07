@@ -307,6 +307,7 @@ pub(crate) enum ImageAlphaArg {
 }
 
 impl ImageAlphaArg {
+    /// The flag spelling, echoed as `image_alpha=` on the `hit` line.
     pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Honour => "honour",
