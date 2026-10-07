@@ -3723,6 +3723,16 @@ pub struct MediaBoxChange {
     /// (*"shall not **ordinarily**"* in 32000-1, plain *"should"* in
     /// 32000-2) and no clause makes an overhanging crop box invalid.
     pub crop_box_outside: Option<page_tree::Rect>,
+    /// The page's own `/BleedBox`, when the new media box does not contain
+    /// it; `None` when contained or absent. Not inheritable, and absent it
+    /// defaults to the crop box (Table 30), already covered by
+    /// [`Self::crop_box_outside`]. Disclosed, not repaired, for the same
+    /// §14.11.2.1 reason: readers intersect it with the media box.
+    pub bleed_box_outside: Option<page_tree::Rect>,
+    /// As [`Self::bleed_box_outside`], for `/TrimBox`.
+    pub trim_box_outside: Option<page_tree::Rect>,
+    /// As [`Self::bleed_box_outside`], for `/ArtBox`.
+    pub art_box_outside: Option<page_tree::Rect>,
     /// The sheet **lost area**: the previous media box is not contained
     /// in the new one, so anything drawn in the difference is now
     /// off-sheet. pdfcer deletes nothing — but §14.11.2.1 licenses *other*
@@ -11580,6 +11590,13 @@ impl EditSession {
             .cloned()
             .or_else(|| slot.inherited.crop_box.clone())
             .and_then(|value| page_tree::parse_rect(&self.graph(), &value, "CropBox").ok());
+        // Bleed, trim and art boxes are not inheritable (Table 30).
+        let own_box_outside = |key: &'static str| {
+            current
+                .get(key.as_bytes())
+                .and_then(|value| page_tree::parse_rect(&self.graph(), value, key).ok())
+                .filter(|r| !target.contains(r))
+        };
 
         let mut updated = current.clone();
 
@@ -11613,6 +11630,9 @@ impl EditSession {
             inherited,
             entry,
             crop_box_outside: crop_box.filter(|c| !target.contains(c)),
+            bleed_box_outside: own_box_outside("BleedBox"),
+            trim_box_outside: own_box_outside("TrimBox"),
+            art_box_outside: own_box_outside("ArtBox"),
             lost_area: before.is_some_and(|b| !target.contains(&b)),
             size_advisory: PageSizeAdvisory::for_rect(target),
         };
@@ -63429,6 +63449,39 @@ mod tests {
         assert_eq!(s.dirty_set().len(), 2);
         s.undo();
         assert!(!s.is_modified());
+    }
+
+    #[test]
+    fn a_resize_discloses_each_production_box_it_no_longer_contains() {
+        // Table 30: bleed, trim and art boxes are not inherited, so the
+        // Pages node's /TrimBox is ignored; an absent one defaults to the
+        // crop box and is covered by `crop_box_outside`.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /TrimBox [0 0 900 900] >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1100 1100] \
+                 /BleedBox [10 10 1000 1000] /ArtBox [20 20 500 500] /Resources << >> >>",
+            ],
+            "",
+        );
+        let mut s = session(bytes);
+        let sheet = rect(0.0, 0.0, 595.0, 842.0);
+        let out = s
+            .resize_pages(&[0], sheet, CropFollow::WhenItMatched)
+            .unwrap();
+        let m = &out[0].media;
+        assert_eq!(m.bleed_box_outside, Some(rect(10.0, 10.0, 1000.0, 1000.0)));
+        assert_eq!(m.trim_box_outside, None, "not inherited");
+        assert_eq!(m.art_box_outside, None, "contained");
+        let Some(Object::Dict(page)) = s.value(ObjId::new(3, 0)) else {
+            panic!("page");
+        };
+        assert_eq!(
+            nums_of(page.get(b"BleedBox").unwrap()),
+            vec![10.0, 10.0, 1000.0, 1000.0],
+            "disclosed, not repaired"
+        );
     }
 
     #[test]

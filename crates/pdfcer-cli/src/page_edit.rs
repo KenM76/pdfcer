@@ -224,6 +224,7 @@ pub(crate) fn cmd_set_page_size(
     let mut crop_followed = 0_usize;
 
     let (mut lost_area, mut crop_outside, mut advisories) = (0_usize, 0_usize, 0_usize);
+    let mut boxes_outside = 0_usize;
     let (mut explicit, mut base_kept, mut inherited_removed) = (0_usize, 0_usize, 0_usize);
     for result in &results {
         let change = &result.media;
@@ -263,6 +264,7 @@ pub(crate) fn cmd_set_page_size(
                 crop.llx, crop.lly, crop.urx, crop.ury
             );
         }
+        boxes_outside += note_production_boxes(change);
         if let Some(advice) = change.size_advisory {
             advisories += 1;
             let which = match (advice.below_minimum, advice.above_maximum) {
@@ -300,7 +302,7 @@ size={:.4}x{:.4} pages_set={} explicit={explicit} base_kept={base_kept} \
 inherited_removed={inherited_removed} lost_area={lost_area} crop_outside={crop_outside} \
 size_advisory={advisories} changed={} objects={} verbatim={} reserialized={} promoted={} \
 appended={} out_bytes={} undo_verified={} undo_identical={} delinearized={} \
-crop_followed={crop_followed}",
+crop_followed={crop_followed} boxes_outside={boxes_outside}",
         input.display(),
         mode.name(),
         output.display(),
@@ -1090,4 +1092,31 @@ pub(crate) fn cmd_redact_mark(args: &RedactMarkArgs<'_>) -> u8 {
         );
     }
     exit::SUCCESS
+}
+
+/// Notes each bleed, trim or art box the new sheet no longer contains;
+/// returns how many.
+fn note_production_boxes(change: &pdfcer_core::edit::MediaBoxChange) -> usize {
+    let boxes = [
+        ("BleedBox", change.bleed_box_outside),
+        ("TrimBox", change.trim_box_outside),
+        ("ArtBox", change.art_box_outside),
+    ];
+    let mut n = 0;
+    for (name, outside) in boxes {
+        if let Some(r) = outside {
+            n += 1;
+            eprintln!(
+                "pdfcer: note: page {}: /{name} [{:.4} {:.4} {:.4} {:.4}] is no longer inside \
+                 the sheet. It is left as-is (§5); readers intersect it with the media box \
+                 (§14.11.2.1).",
+                change.page_index + 1,
+                r.llx,
+                r.lly,
+                r.urx,
+                r.ury
+            );
+        }
+    }
+    n
 }

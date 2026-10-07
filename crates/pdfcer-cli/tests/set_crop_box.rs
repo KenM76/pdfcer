@@ -79,7 +79,12 @@ fn set_page_size_grows_the_visible_page_by_default() {
     ]);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     let stdout = String::from_utf8_lossy(&o.stdout);
-    assert!(stdout.trim_end().ends_with("crop_followed=1"), "{stdout}");
+    assert!(
+        stdout
+            .trim_end()
+            .ends_with("crop_followed=1 boxes_outside=0"),
+        "{stdout}"
+    );
     assert_eq!(crop_of(&out), Rect::from_corners(0.0, 0.0, 600.0, 600.0));
 }
 
@@ -155,5 +160,40 @@ fn set_crop_box_refuses_a_rectangle_off_the_sheet() {
         String::from_utf8_lossy(&o.stderr).contains("leaves nothing visible"),
         "{}",
         String::from_utf8_lossy(&o.stderr)
+    );
+}
+
+#[test]
+fn set_page_size_notes_a_bleed_box_left_off_the_sheet() {
+    let dir = tmp("bleed");
+    let input = dir.join("in.pdf");
+    std::fs::write(
+        &input,
+        build_pdf(&[
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1100 1100] \
+             /BleedBox [10 10 1000 1000] /Resources << >> >>",
+        ]),
+    )
+    .unwrap();
+    let out = dir.join("out.pdf");
+    let o = run(&[
+        "set-page-size",
+        input.to_str().unwrap(),
+        "--width",
+        "595",
+        "--height",
+        "842",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(stdout.trim_end().ends_with("boxes_outside=1"), "{stdout}");
+    let stderr = String::from_utf8_lossy(&o.stderr);
+    assert!(
+        stderr.contains("/BleedBox [10.0000 10.0000 1000.0000 1000.0000] is no longer inside"),
+        "{stderr}"
     );
 }
