@@ -3069,6 +3069,7 @@ pub(crate) fn run() -> ExitCode {
             line_pick,
             enter,
             tolerance,
+            image_alpha,
         } => cmd_object_list(ObjectListArgs {
             input: &input,
             page_number: page,
@@ -3078,6 +3079,7 @@ pub(crate) fn run() -> ExitCode {
             line_pick: line_pick.as_deref(),
             enter,
             tolerance,
+            image_alpha,
         }),
         Command::ObjectMove {
             input,

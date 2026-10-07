@@ -298,6 +298,24 @@ pub(crate) enum HitScope {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ImageAlphaArg {
+    /// A click on a fully transparent image sample falls through to what
+    /// is underneath, as in the GUI. The default.
+    Honour,
+    /// Hit an image anywhere inside its placed outline, masks ignored.
+    Ignore,
+}
+
+impl ImageAlphaArg {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Honour => "honour",
+            Self::Ignore => "ignore",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum CompressionArg {
     /// Embed the source's own compressed bytes unchanged. The default.
     Passthrough,

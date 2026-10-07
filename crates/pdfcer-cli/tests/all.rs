@@ -76,6 +76,7 @@ mod locked_contents_refusal;
 mod move_annotation;
 mod object_clip_replies;
 mod object_list;
+mod object_list_image_alpha;
 mod object_move_each;
 mod object_set_paint;
 mod object_transform_each;

@@ -10699,6 +10699,14 @@ pub(crate) enum Command {
         /// the page selected".
         #[arg(long, value_enum, default_value_t = HitScope::Deep)]
         hit_scope: HitScope,
+        /// Whether `--hit` honours image transparency: `honour` (the default,
+        /// and the GUI's behaviour) lets a click on a fully transparent part
+        /// of an image - its soft mask, stencil mask or colour-key mask - fall
+        /// through to what is drawn underneath; `ignore` hits an image
+        /// anywhere inside its placed outline. A mask that cannot be decoded
+        /// keeps the image hittable.
+        #[arg(long, value_enum, default_value_t = ImageAlphaArg::Honour)]
+        image_alpha: ImageAlphaArg,
         /// Report which straight LINE a click at this page-space point would
         /// resolve to, as `X,Y` in PDF user space — the headless twin of the
         /// two-line measure gesture.

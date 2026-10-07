@@ -178,7 +178,6 @@ fn pdfcer-cli/src/navigation.rs::cmd_merge_document
 fn pdfcer-cli/src/navigation.rs::cmd_move_bookmark
 fn pdfcer-cli/src/navigation.rs::cmd_tab_order
 fn pdfcer-cli/src/objects.rs::cmd_object_copy
-fn pdfcer-cli/src/objects.rs::cmd_object_list
 fn pdfcer-cli/src/objects.rs::cmd_object_paste
 fn pdfcer-cli/src/objects.rs::cmd_object_transform
 fn pdfcer-cli/src/ocr_cmd.rs::cmd_ocr
