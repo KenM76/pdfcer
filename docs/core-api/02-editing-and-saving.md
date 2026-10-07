@@ -3927,7 +3927,7 @@ differ.
 Exactly one per run, refused rather than prioritised. The operation code is
 matched case-sensitively, as Acrobat writes it.
 
-### ⚡ `page_objects` — what it is worth, and the two things it does NOT fix
+### ⚡ `page_objects` — what it is worth, and what it does NOT fix
 
 Measured on a 5.6 MB / 129,758-object CAD drawing, release build
 (`crates/pdfcer-core/tests/edit_latency.rs`, runnable in this repo):
@@ -3936,17 +3936,35 @@ Measured on a 5.6 MB / 129,758-object CAD drawing, release build
 |---|---:|---:|
 | `decompose_page` | 484 ms | — |
 | `move_objects` (one object) | **385 ms** | **0 ms** |
-| decompose again after the edit | 510 ms | 510 ms |
+| decompose again after the edit | 510 ms | 510 ms (before G140; see 1) |
 
 **Route your decomposition through `EditSession::page_objects` and the verb
 stops re-parsing.** It is the same model `vector::decompose_page` returns for
 `session.view()`; the difference is that the verbs consult the same entry.
 
-**1. The post-edit rebuild is NOT removed and cannot be.** The edit changed the
-content, so the post-edit model is one nobody has yet. A frequently-proposed
-fix — *"return the model the verb already built"* — **is not available**: the
-verb decomposes the **pre-edit** content, plans against it, and commits. What
-it holds is the model the caller already has.
+**1. After an edit, the rebuild resumes at the first changed stream (G140).**
+`page_objects` keeps a resume point at each `/Contents` boundary. When every
+object written since the last build is one of the page's own content streams
+(no deletion, no trailer change, under 256 writes, same page, resources and
+stream list), streams before the first changed one are reused — tokens,
+objects and form leaves — and only the rest is decoded, tokenized and walked.
+The result equals `decompose_page` on `session.view()`. Anything else — an edit
+inside a form, an annotation, a page-tree change — rebuilds in full.
+
+Measured, release, a 150,000-subpath stream plus a small own stream, one
+object moved in the own stream (`move_objects` writes only that stream, G141):
+
+| caller | post-edit `page_objects` |
+|---|---:|
+| before | ~165 ms |
+| drops its previous `Arc<PageObjects>` before calling | 0.03–0.12 ms |
+| still holds the previous `Arc` | 20–40 ms (the reused prefix is copied) |
+
+**Drop the previous model before asking for the next one.** The memo's
+buffers are reused in place only when nothing else shares them.
+
+The verb still cannot hand back the post-edit model: it decomposes the
+**pre-edit** content, plans against it, and commits.
 
 **2. `&mut self` is deliberate.** An interior-mutability cache reachable
 through `&self` would make `EditSession` no longer `Sync`.
