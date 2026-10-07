@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 530.0` — `page_objects` after an edit resumes at the first changed `/Contents` stream (core; answers `pdfcer-gui` `G140`) — SHIPPED 2026-10-07 (1009th filing)
+
+Commits `cb5b43ec` (code), `d7cf6c77` (`docs/core-api`). `pdfcer-core` and `pdfcer-model`; no CLI or GUI caller added. No `Cargo.toml` change (`cargo tree` unchanged). New `pub` API: `ContentStream::parse_from(buf, prefix_tokens, from)` in `pdfcer-model`.
+
+**Delivered.** `EditSession::page_objects` keeps a resume point at each clean `/Contents` boundary (walk state, form-leaf counters, byte offset), and `EditSession` now logs object writes after a build (all writes go through `put_state`/`put_deleted`). When every write is one of the page's own content streams, with no deletion, no trailer change, under 256 writes, and the same page, resources and stream list, it reuses the tokens, objects and leaves of the unchanged leading streams and decodes, tokenizes and walks only the rest. Anything else is a full rebuild. The old memo's buffers are truncated in place when no caller holds the `Arc`, else copied.
+
+**Measured (release; synthetic 150k-subpath stream plus a small own stream, one object moved in the own stream).** Post-edit `page_objects` ~165 ms to 0.03-0.12 ms when the caller dropped its previous `Arc`; 20-40 ms when it still holds it. `move_objects` itself stays ~10 ms (`G141`).
+
+**Structure.** `collect_form_leaves` split (`form_content`, `push_form_children`); two baseline debt entries retired (`edit.rs::page_content_and_objects`, `decompose.rs::collect_form_leaves`); baseline now 579.
+
+**Verified (engineer-reported).** New `tests/page_model_resume.rs` (4 tests: resumed model equals fresh `decompose_page` across moves, undo/redo and a middle-stream move; boundaries inside BT/ET and an operand run; an edit inside a form rebuilds; a caller-held model is left intact) plus a `parse_from` unit test. Core integration binary 2737 passed, 0 failed, 2 ignored; all core and model suites green. fmt, clippy (core and model all-targets all-features, lite CLI), structure, string-gaps, public-fns-documented and core-api-verbs gates clean.
+
+**`G140` status.** Reply written `_FIXED`; ACK removed. The GUI column is `pdfcer-gui`'s to tick when it switches from `vector::decompose_page` to `EditSession::page_objects`.
+
+`FEATURES.md`: new row after the page-model-generation row (261); core only.
+
+Ledgers: no decision; next free `Pass 531.0`; next filing 1010th.
+
 ### `Pass 529.0` — an edit inside one unshared stream rewrites that stream alone (core; answers `pdfcer-gui` `G141`) — SHIPPED 2026-10-07 (1008th filing)
 
 Commit `86fea180`. `pdfcer-core` only; it changes the behaviour of existing verbs, so no new CLI or GUI surface (the CLI's object and text verbs inherit it). No `Cargo.toml` change (`cargo tree` unaffected); no `pub` API change, so `docs/core-api` is unchanged.
@@ -21036,10 +21054,10 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1007th filing, updated 1008th):** the other two of the three performance requests filed with `G139`.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1007th filing, updated 1009th):** the other two of the three performance requests filed with `G139`.
 > - `G141` SHIPPED as `Pass 529.0` (`86fea180`, 1008th filing), see *Shipped*.
-> - `G140` (`request_G140_an_edit_redecomposes_the_whole_page.md`): after an edit the whole page is re-decomposed. **Open, next.** The ~170 ms the GUI measured on a move is this re-decomposition, not the verb (~10 ms).
-> Scope before numbering (ask the engineer for the Pass ID; next free `Pass 530.0`). `G139` asks 2 and 3 remain offered.
+> - `G140` SHIPPED as `Pass 530.0` (`cb5b43ec`, 1009th filing), see *Shipped*.
+> `G139` asks 2 and 3 remain offered. Next free `Pass 531.0`.
 
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`

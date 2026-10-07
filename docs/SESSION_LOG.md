@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1009th filing) — `Pass 530.0` shipped (`page_objects` resumes at the first changed stream, `G140`)
+
+**Shipped:**
+- `Pass 530.0` — `cb5b43ec` (code), `d7cf6c77` (`docs/core-api`). Details in the ROADMAP entry. Core only; new `pub` fn `ContentStream::parse_from` in `pdfcer-model`; no `Cargo.toml` change.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- Post-edit `page_objects` on a 150k-subpath page fell from ~165 ms to 0.03-0.12 ms when the caller dropped its previous `Arc`, 20-40 ms when it still holds it (release, synthetic). The cost the GUI saw on a move was this, not the verb (~10 ms).
+- Anything beyond own-stream writes (deletion, trailer change, 256 or more writes, changed resources or stream list, an edit inside a form) falls back to a full rebuild.
+- `G140` replied `_FIXED`. The GUI column stays unticked until `pdfcer-gui` switches from `vector::decompose_page` to `EditSession::page_objects`.
+- `FEATURES.md`: one new row after 261, core only. No existing row fit exactly; row 261 (`page_content_generation`, the memo key) is the nearest neighbour and was left unchanged.
+
+**Still in flight:** Nothing from the `G139`-`G141` set except `G139` asks 2 and 3 (offered, not done). Push not checked. Next free `Pass 531.0`; next filing 1010th.
+
+**Sourcing note (hard rule 8):** test, timing and gate results engineer-reported; hashes as supplied; push/backup/CI colour not checked here; no shell, nothing committed.
+
 ## 2026-10-07 (1008th filing) — `Pass 529.0` shipped (edit in one unshared stream rewrites that stream alone, `G141`)
 
 **Shipped:**
