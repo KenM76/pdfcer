@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1014th filing) — `Pass 534.0` shipped (path line width, dash and opacity, `G143`)
+
+**Shipped:**
+- `Pass 534.0` — `c1b2d4cb` (code), `b219031f` (core-api docs). `EditSession::set_object_stroke_style`, `StrokeStyle`/`Dash`, `PathObject` dash and alpha readers, CLI `set-object-stroke-style`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Tests and gates as engineer-reported in the ROADMAP entry (core +8, CLI +4; prefix sabotage fails 2).
+- Side fix: the decomposer now clamps `/CA`, `/ca` to 0..=1. Alphas are `f64`, not the `f32` the request suggested.
+- `FEATURES.md`: Planned row removed; Implemented row added under *Vector objects*, core `[x]` cli `[x]` gui `[ ]`.
+- ROADMAP *Next up* entry for 534.0 collapsed to a one-line `>` stub.
+
+**Still in flight:** `Pass 535.0`-`537.0` queued. Next free `Pass 538.0`; next filing 1015th. Not pushed and not in a release (engineer-reported).
+
+**Sourcing note (hard rule 8):** facts and hashes engineer-supplied; no shell, nothing committed, push/backup/CI not checked.
+
 ## 2026-10-07 (1013th filing) — `Pass 533.0` shipped (hit-test text runs of a given `TextObject`, `G147`)
 
 **Shipped:**

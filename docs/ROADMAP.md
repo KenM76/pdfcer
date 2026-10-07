@@ -115,6 +115,25 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 534.0` — set a page path's line width, dash and stroke/fill opacity (core + CLI; answers `pdfcer-gui` `G143`) — SHIPPED 2026-10-07 (1014th filing)
+
+Commits `c1b2d4cb` (code), `b219031f` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not pushed and not in a release at filing time (engineer-reported).
+
+**Delivered.**
+- New `EditSession::set_object_stroke_style(page, objects, &StrokeStyle) -> Result<PaintOutcome, EditError>`. New public `vector::StrokeStyle { width, dash: Option<Dash>, stroke_alpha, fill_alpha }` (all optional, `f64`; the request suggested `f32`) and `vector::Dash { array, phase }`.
+- Each path is wrapped `q <w> <d> </pdfcerGSn gs> … Q` (ISO 32000-2 §8.4.3.2, §8.4.3.6, §8.4.5 Table 58, §11.6.4.4). Both alphas go in one new `/ExtGState` bound under a free name in the page's `/Resources`; a shared resource dictionary is disclosed. Text and images are refused as `NotAPath` inside `PaintOutcome` (data, not an error). One undo entry, new `CommandKind::SetObjectStrokeStyle`.
+- New `VectorEditError::InvalidStrokeStyle { reason }`: negative or non-finite width, alpha outside 0..=1, negative or all-zero dash, non-finite phase.
+- Readers: `PathObject` gains `dash`, `stroke_alpha`, `fill_alpha`. The decomposer now tracks the `d` operator and ExtGState `/D`, and clamps `/CA`, `/ca` to 0..=1 (previously unclamped; a small fix found during the Pass). `plan_recolour`'s wrap body is factored into a shared `plan_wrap`.
+- CLI: `pdfcer set-object-stroke-style --objects --width --dash (comma list or solid) --dash-phase --stroke-alpha --fill-alpha`. `docs/core-api` verb count 325 to 326.
+
+**Verified (engineer-reported).** Core +8 tests (2 unit in `vector/stroke_style.rs`, 6 integration in `tests/object_stroke_style.rs`; sabotaging the prefix's `w`/`gs` emission fails 2 of them); CLI +4 (`tests/object_set_stroke_style.rs`). fmt, clippy (all features and lite CLI), check-string-gaps, check-code-structure (no new debt), check-public-fns-documented and check-core-api-verbs (326 verbs) clean.
+
+**`G143` status.** Reply written `_FIXED`; ACK removed. The GUI column is `pdfcer-gui`'s to tick when it calls the verb.
+
+`FEATURES.md`: Planned row removed; new Implemented row under *Vector objects*, core `[x]` cli `[x]` gui `[ ]`. The *Planned* in-form row (`535.0` and its line-width/dash/opacity twin) is unchanged.
+
+Ledgers: no decision; next free `Pass 538.0`; next filing 1015th.
+
 ### `Pass 533.0` — hit-test the text runs of a given `TextObject` (core; answers `pdfcer-gui` `G147`) — SHIPPED 2026-10-07 (1013th filing)
 
 Commits `f412113e` (code), `607cc4c7` (`docs/core-api`). No `Cargo.toml` or dependency change. No decision.
@@ -21113,9 +21132,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 533.0` (`G147`) SHIPPED `f412113e` + `607cc4c7`, 1013th filing; see *Shipped*.
 
-**`Pass 534.0` — set a page path's line width, dash and stroke/fill opacity (core; answers `pdfcer-gui` `G143`) — NEXT UP**
-
-A verb setting line width, dash and stroke/fill opacity (ExtGState `/CA` `/ca`, ISO 32000-2 §8.4.5), all-or-nothing like `set_object_paint`, plus `PathObject` readers for dash and alpha. Spec RAG check before building (rule 1).
+> `Pass 534.0` (`G143`) SHIPPED `c1b2d4cb` + `b219031f`, 1014th filing; see *Shipped*.
 
 **`Pass 535.0` — `set_object_paint_in_form` (core; answers `pdfcer-gui` `G142`) — NEXT UP**
 
@@ -21129,7 +21146,7 @@ A verb setting line width, dash and stroke/fill opacity (ExtGState `/CA` `/ca`, 
 
 `copy_objects_in_form(page, form_invocation, leaf_indices)` returning `copy_objects`' clip type with the form placement baked in, so a paste lands where the leaf was drawn.
 
-Ledgers: no decision; next free `Pass 538.0`; next filing 1014th.
+Ledgers: no decision; next free `Pass 538.0`; next filing 1015th.
 
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`
