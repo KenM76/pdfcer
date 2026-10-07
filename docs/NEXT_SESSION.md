@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 525.0` and the 1004th filing.
+**Written:** 2026-10-07, after `Pass 526.0` and the 1005th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 526.0 (`afab149e`, filed 1005th `3c82e7ae`):** pdfcer-gui request G138 -- image hit-testing uses the placed parallelogram in every point query; `hit_test_point{,_all,_deep}_with(.., &dyn ImageAlpha)` + `DocumentImageAlpha::new(&view)` miss fully-clear samples (SMask > Mask; SMaskInData JPX alpha; stencil/ImageMask; colour key); undecodable/>2^26/inline stay a hit. Reply `_FIXED` written. Fuzz target `image_alpha_hit` added -- confirm its first run was clean. FEATURES row has cli `—` (no CLI caller). Remaining core-[x]/cli-[ ] candidates: diagnostics, `apply_redactions`, `DIVERGENCE_KEYS`. Next Pass 527.0, next filing 1006th.
 
 **Pass 525.0 (`e8ea7598`, filed 1004th):** self-scoped -- `text-locate` prints a `target match=K ref=R font=F render_mode=M line_width=W synthetic=S` line per located run; `/BaseFont` resolved from the drawing stream's own `/Resources` (form's, else page's), `synthetic` via `synth::detect_at`, `unknown` without a name. Lite clippy WAS run clean after the doc edit (the filing says otherwise). Remaining core-[x]/cli-[ ] candidates: diagnostics, `apply_redactions`, `DIVERGENCE_KEYS`. Next Pass 526.0, next filing 1005th.
 
