@@ -117,7 +117,9 @@ wherever it appears.*
 
 ### `Pass 521.0` — `inspect --ink`: whether each page composites in ink, without rendering — SHIPPED 2026-10-07 (1000th filing)
 
-Commit `3a7c983c` (parent `7a614685`). CLI only; core unchanged; no `Cargo.toml`
+Commit `3a7c983c` (parent `7a614685`); follow-up `34e51693` is a formatting-only
+rustfmt of `crates/pdfcer-cli/tests/inspect_ink.rs` (missed `cargo fmt`, caught by
+`tools/run-gates.sh`; re-run PASS 45 commands). CLI only; core unchanged; no `Cargo.toml`
 change (`cargo tree` unchanged). Self-scoped from `FEATURES.md` rows with core `[x]` /
 cli `[ ]` (no operator request). Head of the previously "claimed but not yet headed" `521`.
 

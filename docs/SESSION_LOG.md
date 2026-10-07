@@ -7,7 +7,7 @@ the affected entry. Maintained by `pdfce-librarian`.
 ## 2026-10-07 (1000th filing) — `Pass 521.0` shipped (`inspect --ink`, no render)
 
 **Shipped:**
-- `Pass 521.0` — `3a7c983c`; CLI only. Details in the ROADMAP entry.
+- `Pass 521.0` — `3a7c983c`; CLI only. Details in the ROADMAP entry. Follow-up `34e51693`: rustfmt of the `inspect --ink` test file only (gates caught the missed `cargo fmt`).
 
 **Decisions made this session:** None new.
 
