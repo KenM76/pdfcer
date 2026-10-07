@@ -15,7 +15,7 @@
 //!
 //! Output order is Tesseract's reading order, which is preserved.
 
-use crate::ocr::RecognizedWord;
+use crate::ocr::{OcrBlock, OcrBlockKind, OcrLine, OcrPage, RecognizedWord};
 use crate::page_tree::Rect;
 
 /// Columns in a Tesseract TSV row.
@@ -49,7 +49,8 @@ pub enum TsvError {
 /// missing score is never reported as a zero one.
 ///
 /// Rows at levels 1–4 are only checked for having enough columns to read
-/// their level; everything else about them is ignored.
+/// their level; everything else about them is ignored. [`parse_tsv_page`]
+/// also keeps Tesseract's lines and paragraphs.
 ///
 /// # Errors
 ///
@@ -70,67 +71,125 @@ pub enum TsvError {
 /// # Ok::<(), pdfcer_core::ocr::tesseract_tsv::TsvError>(())
 /// ```
 pub fn parse_tsv(tsv: &str) -> Result<Vec<RecognizedWord>, TsvError> {
-    let mut lines = tsv.lines().enumerate();
-    match lines.next() {
+    parse_tsv_page(tsv).map(|page| page.words)
+}
+
+/// [`parse_tsv`] plus the structure Tesseract reported: one [`OcrLine`] per
+/// `(page_num, block_num, par_num, line_num)` and one
+/// [`OcrBlockKind::Paragraph`] [`OcrBlock`] per `(page_num, block_num,
+/// par_num)`, each in the order its first word appears (Tesseract's reading
+/// order). Lines or paragraphs left with no readable word are dropped.
+/// `confidence_available` is `true`: every word row carries `conf`.
+///
+/// The words are still image pixels, y-down; map them with
+/// [`super::words_to_page_space_on`], which keeps their order, so the
+/// indices in `lines` stay valid.
+///
+/// # Errors
+///
+/// As [`parse_tsv`].
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::ocr::tesseract_tsv::parse_tsv_page;
+///
+/// let tsv = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n\
+///            5\t1\t1\t1\t1\t1\t10\t20\t30\t12\t96\tHello\n\
+///            5\t1\t1\t1\t2\t1\t10\t40\t30\t12\t95\tworld\n";
+/// let page = parse_tsv_page(tsv)?;
+/// assert_eq!(page.lines.len(), 2);
+/// assert_eq!(page.blocks.len(), 1);
+/// assert_eq!(page.blocks[0].lines, [0, 1]);
+/// # Ok::<(), pdfcer_core::ocr::tesseract_tsv::TsvError>(())
+/// ```
+pub fn parse_tsv_page(tsv: &str) -> Result<OcrPage, TsvError> {
+    let mut rows = tsv.lines().enumerate();
+    match rows.next() {
         Some((_, header)) if header.starts_with("level\tpage_num") => {}
         _ => return Err(TsvError::MissingHeader),
     }
-
-    let mut words = Vec::new();
-    for (index, raw) in lines {
-        let line = index + 1;
-        if raw.is_empty() {
-            continue;
-        }
+    let mut page = OcrPage {
+        confidence_available: true,
+        ..OcrPage::default()
+    };
+    let (mut line_key, mut block_key) = (None, None);
+    for (index, raw) in rows {
         // `splitn` so a word's text may itself contain a tab without being cut.
         let fields: Vec<&str> = raw.splitn(COLUMNS, '\t').collect();
-        if fields.first() != Some(&WORD_LEVEL) {
+        if raw.is_empty() || fields.first() != Some(&WORD_LEVEL) {
             continue;
         }
-        let [_, _, _, _, _, _, left, top, width, height, conf, text] = fields.as_slice() else {
-            return Err(TsvError::BadRow {
-                line,
-                reason: "word row has fewer than 12 columns",
-            });
-        };
-        let text = text.trim();
-        if text.is_empty() {
+        let Some(word) = word_row(index + 1, &fields)? else {
             continue;
-        }
-        let num = |field: &str| -> Result<f64, TsvError> {
-            field
-                .trim()
-                .parse::<f64>()
-                .ok()
-                .filter(|v| v.is_finite())
-                .ok_or(TsvError::BadRow {
-                    line,
-                    reason: "non-numeric geometry or confidence field",
-                })
         };
-        let (left, top, width, height) = (num(left)?, num(top)?, num(width)?, num(height)?);
-        if width < 0.0 || height < 0.0 {
-            return Err(TsvError::BadRow {
-                line,
-                reason: "negative width or height",
-            });
+        let key = fields.get(1..5).map(<[&str]>::to_vec);
+        let block = key.as_ref().and_then(|k| k.get(..3)).map(<[&str]>::to_vec);
+        if block.is_none() || block != block_key {
+            page.blocks
+                .push(OcrBlock::new(OcrBlockKind::Paragraph, Vec::new()));
+            block_key = block;
+            line_key = None;
         }
-        if !(left + width).is_finite() || !(top + height).is_finite() {
-            return Err(TsvError::BadRow {
-                line,
-                reason: "geometry out of range",
-            });
+        if key.is_none() || key != line_key {
+            if let Some(b) = page.blocks.last_mut() {
+                b.lines.push(page.lines.len());
+            }
+            page.lines.push(OcrLine::new(Vec::new()));
+            line_key = key;
         }
-        let conf = num(conf)?;
-        #[allow(clippy::cast_possible_truncation)] // 0..=1 fits f32 exactly enough for a score
-        let confidence = (conf >= 0.0).then(|| (conf / 100.0).clamp(0.0, 1.0) as f32);
-        words.push(RecognizedWord {
-            text: text.to_owned(),
-            rect: Rect::from_corners(left, top, left + width, top + height),
-            confidence,
+        if let Some(l) = page.lines.last_mut() {
+            l.words.push(page.words.len());
+        }
+        page.words.push(word);
+    }
+    Ok(page)
+}
+
+/// One level-5 row as a word; `None` when its text is blank.
+fn word_row(line: usize, fields: &[&str]) -> Result<Option<RecognizedWord>, TsvError> {
+    let [_, _, _, _, _, _, left, top, width, height, conf, text] = fields else {
+        return Err(TsvError::BadRow {
+            line,
+            reason: "word row has fewer than 12 columns",
+        });
+    };
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(None);
+    }
+    let num = |field: &str| -> Result<f64, TsvError> {
+        field
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|v| v.is_finite())
+            .ok_or(TsvError::BadRow {
+                line,
+                reason: "non-numeric geometry or confidence field",
+            })
+    };
+    let (left, top, width, height) = (num(left)?, num(top)?, num(width)?, num(height)?);
+    if width < 0.0 || height < 0.0 {
+        return Err(TsvError::BadRow {
+            line,
+            reason: "negative width or height",
         });
     }
-    Ok(words)
+    if !(left + width).is_finite() || !(top + height).is_finite() {
+        return Err(TsvError::BadRow {
+            line,
+            reason: "geometry out of range",
+        });
+    }
+    let conf = num(conf)?;
+    #[allow(clippy::cast_possible_truncation)] // 0..=1 fits f32 exactly enough for a score
+    let confidence = (conf >= 0.0).then(|| (conf / 100.0).clamp(0.0, 1.0) as f32);
+    Ok(Some(RecognizedWord {
+        text: text.to_owned(),
+        rect: Rect::from_corners(left, top, left + width, top + height),
+        confidence,
+    }))
 }
 
 #[cfg(test)]
@@ -231,5 +290,42 @@ mod tests {
             parse_tsv(&neg),
             Err(TsvError::BadRow { line: 2, .. })
         ));
+    }
+    #[test]
+    fn page_keeps_tesseract_lines_and_paragraphs() {
+        let tsv = doc(&[
+            "2\t1\t1\t0\t0\t0\t0\t0\t100\t100\t-1\t",
+            "5\t1\t1\t1\t1\t1\t0\t0\t5\t5\t90\ta",
+            "5\t1\t1\t1\t1\t2\t9\t0\t5\t5\t90\tb",
+            "5\t1\t1\t1\t2\t1\t0\t9\t5\t5\t90\tc",
+            "5\t1\t1\t2\t1\t1\t0\t30\t5\t5\t90\t ",
+            "5\t1\t1\t2\t1\t2\t9\t30\t5\t5\t90\td",
+            "5\t1\t2\t1\t1\t1\t60\t0\t5\t5\t90\te",
+        ]);
+        let page = parse_tsv_page(&tsv).unwrap();
+        let words: Vec<&str> = page.words.iter().map(|w| w.text.as_str()).collect();
+        assert_eq!(words, ["a", "b", "c", "d", "e"]);
+        let lines: Vec<&[usize]> = page.lines.iter().map(|l| l.words.as_slice()).collect();
+        assert_eq!(lines, [&[0, 1][..], &[2], &[3], &[4]]);
+        let blocks: Vec<&[usize]> = page.blocks.iter().map(|b| b.lines.as_slice()).collect();
+        assert_eq!(blocks, [&[0, 1][..], &[2], &[3]]);
+        assert!(
+            page.blocks
+                .iter()
+                .all(|b| b.kind == OcrBlockKind::Paragraph)
+        );
+        assert!(page.confidence_available);
+    }
+
+    #[test]
+    fn a_paragraph_with_no_readable_word_is_dropped() {
+        let tsv = doc(&[
+            "5\t1\t1\t1\t1\t1\t0\t0\t5\t5\t90\t ",
+            "5\t1\t1\t2\t1\t1\t0\t9\t5\t5\t90\tx",
+        ]);
+        let page = parse_tsv_page(&tsv).unwrap();
+        assert_eq!(page.lines.len(), 1);
+        assert_eq!(page.blocks.len(), 1);
+        assert_eq!(page.blocks[0].lines, [0]);
     }
 }

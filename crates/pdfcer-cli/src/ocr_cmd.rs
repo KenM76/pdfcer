@@ -375,8 +375,10 @@ pub(crate) fn cmd_ocr(
         }
     }
 
-    let raw = match engine.recognize(iw, ih, &grey) {
-        Ok(w) => w,
+    // Tesseract's own lines and paragraphs ride along; other engines leave
+    // them empty and the layer writer infers them.
+    let raw = match engine.recognize_page(iw, ih, &grey, None) {
+        Ok(p) => p,
         Err(err) => {
             eprintln!("pdfcer: ocr: recognition failed: {err}");
             return exit::RUNTIME_ERROR;
@@ -388,13 +390,13 @@ pub(crate) fn cmd_ocr(
     // renderer's own four transforms. Using `words_to_page_space` here would
     // be correct on `/Rotate 0` and wrong on every scan a driver rotated.
     let placement = PagePlacement::new(page.crop_box, i32::from(page.rotate));
-    let placed = words_to_page_space_on(&raw, iw, ih, placement);
+    let placed = words_to_page_space_on(&raw.words, iw, ih, placement);
 
-    let confidence_available = engine.reports_confidence();
+    let confidence_available = raw.confidence_available;
+    let recognised = raw.words.len();
     let ocr_page = OcrPage {
         words: placed,
-        confidence_available,
-        ..OcrPage::default()
+        ..raw
     };
 
     if show_words {
@@ -479,7 +481,7 @@ recognised={} written={} replaced={} confidence={}",
         destination.display(),
         engine_choice.name(),
         page.rotate,
-        raw.len(),
+        recognised,
         report.words_written,
         report.layers_replaced,
         if confidence_available {

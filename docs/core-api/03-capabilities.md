@@ -2556,6 +2556,7 @@ checks decision 184 requires. The portable package ships
 | item |
 |---|
 | `parse_tsv(&str) -> Result<Vec<RecognizedWord>, TsvError>` — word rows (level 5) only; rects are **image pixels, y-down**, like every engine; conf −1 → `None`, else conf/100 |
+| `parse_tsv_page(&str) -> Result<OcrPage, TsvError>` — the same words plus Tesseract's structure: one `OcrLine` per (page, block, par, line) and one `Paragraph` `OcrBlock` per (page, block, par), in Tesseract's order; a line or paragraph with no readable word is dropped; `confidence_available` true. Map with `words_to_page_space_on(&page.words, ..)` and rebuild `OcrPage { words, ..page }` — the mapping keeps word order, so the indices stay valid and the layer report says `Reported` |
 | `TsvError` (`MissingHeader`, `BadRow { line, reason }`), `#[non_exhaustive]` |
 
 Tesseract reports confidence, so pass `confidence_available: true`.
@@ -2621,6 +2622,7 @@ PaddleOCR-VL add-on) loads and runs like any other (G102).
 |---|---|
 | grey out a drop-down entry, with the reason | `check_runnable(&model, policy) -> Result<(), RunnerError>`: loads and hashes nothing |
 | run any listed model | `OcrRunner::load(&model, &RunOptions::new(langs, dpi)) -> Result<OcrRunner, RunnerError>`, then `.recognize(w, h, &grey) -> Result<Vec<RecognizedWord>, RunnerError>` ; `.recognize_at(w, h, &grey, dpi)` tells a program engine the page's own render dpi instead of the load-time `RunOptions` dpi (in-process engines ignore it; clamped to 1..=2400) |
+| keep the engine's own lines and paragraphs | `OcrRunner::recognize_page(w, h, &grey, dpi: Option<f32>) -> Result<OcrPage, RunnerError>` (`None` = `recognize`, `Some` = `recognize_at`): a program engine (Tesseract) fills `lines`/`blocks` from its TSV; every other engine returns them empty, so the layer writer infers them. `ProgramEngine::recognize_page` is the same for a program alone. Words are image pixels — map them as above |
 | say how many add-on files were hash-checked | `OcrRunner::files_verified() -> usize`: the data model's files `load` checked against its manifest (0 for a bare folder or a program; a program's count is `ProgramSource::Addon { hashed_files }`). `load` has already hashed them — do not call `model.verify()` again |
 | set the confidence flag for the text layer | `OcrRunner::reports_confidence()` |
 | show what the engine inferred or chose (rule 4) | `OcrRunner::disclosure() -> Option<String>`, after the page's `recognize`: PaddleOCR's dictionary source; for PaddleOCR-VL, that its line boxes are inferred from the ink (per region, never per word), how the last page's lines were placed, and a token-ceiling warning. `None` for the others. The same text is `paddle_disclosure(&engine)` / `paddle_vl_disclosure(Option<&RegionReading>)` |

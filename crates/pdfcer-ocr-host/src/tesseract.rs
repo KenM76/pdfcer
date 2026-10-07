@@ -8,7 +8,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use pdfcer_core::ocr::RecognizedWord;
+use pdfcer_core::ocr::OcrPage;
 use pdfcer_core::ocr::tesseract_tsv;
 
 /// The engine token, and the `models/` folder name of a stock layout.
@@ -97,7 +97,7 @@ impl Invocation {
         height: u32,
         pixels: &[u8],
         dpi: Option<f32>,
-    ) -> Result<Vec<RecognizedWord>, String> {
+    ) -> Result<OcrPage, String> {
         let dpi = dpi.map_or(self.dpi, whole_dpi);
         let pgm = pgm(width, height, pixels)?;
         let mut cmd = Command::new(program);
@@ -124,7 +124,7 @@ impl Invocation {
         let stdout = feed_and_collect(cmd, program, pgm)?;
         let text = String::from_utf8(stdout)
             .map_err(|_| format!("{}: output is not UTF-8", program.display()))?;
-        tesseract_tsv::parse_tsv(&text).map_err(|e| e.to_string())
+        tesseract_tsv::parse_tsv_page(&text).map_err(|e| e.to_string())
     }
 }
 

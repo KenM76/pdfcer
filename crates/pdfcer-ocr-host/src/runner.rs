@@ -1,9 +1,9 @@
 //! One entry point for every model kind: [`OcrRunner::load`] takes a
 //! discovered model and returns a recogniser, in-process or program.
 
-use pdfcer_core::ocr::RecognizedWord;
 use pdfcer_core::ocr::addon_manifest::AddonKind;
 use pdfcer_core::ocr::addons::{OcrModel, VerifyError};
+use pdfcer_core::ocr::{OcrPage, RecognizedWord};
 
 use crate::program::{ProgramEngine, ProgramError, ProgramPolicy, program_status};
 use crate::tesseract;
@@ -287,6 +287,37 @@ impl OcrRunner {
             #[allow(unreachable_patterns)]
             _ => self.recognize(width, height, pixels),
         }
+    }
+
+    /// [`Self::recognize`] (`dpi` `None`) or [`Self::recognize_at`] as an
+    /// [`OcrPage`]: a program engine (Tesseract) fills `lines` and `blocks`
+    /// with its own lines and paragraphs; every other engine leaves them
+    /// empty, so the layer writer infers them. Words are image pixels,
+    /// y-down; `pdfcer_core::ocr::words_to_page_space_on` keeps their order,
+    /// so the indices stay valid after mapping.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::recognize`].
+    pub fn recognize_page(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+        dpi: Option<f32>,
+    ) -> Result<OcrPage, RunnerError> {
+        if let Inner::Program(p) = &self.inner {
+            return Ok(p.recognize_page(width, height, pixels, dpi)?);
+        }
+        let words = match dpi {
+            Some(dpi) => self.recognize_at(width, height, pixels, dpi)?,
+            None => self.recognize(width, height, pixels)?,
+        };
+        Ok(OcrPage {
+            words,
+            confidence_available: self.reports_confidence(),
+            ..OcrPage::default()
+        })
     }
 
     /// Whether the engine reports a per-word confidence.

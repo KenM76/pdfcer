@@ -11,9 +11,9 @@
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-use pdfcer_core::ocr::RecognizedWord;
 use pdfcer_core::ocr::addon_manifest::AddonKind;
 use pdfcer_core::ocr::addons::{OcrModel, VerifyError, check_digest};
+use pdfcer_core::ocr::{OcrPage, RecognizedWord};
 
 use crate::runner::RunOptions;
 use crate::tesseract::{self, Invocation};
@@ -300,7 +300,7 @@ impl ProgramEngine {
         height: u32,
         pixels: &[u8],
     ) -> Result<Vec<RecognizedWord>, ProgramError> {
-        self.run(width, height, pixels, None)
+        self.run(width, height, pixels, None).map(|page| page.words)
     }
 
     /// [`Self::recognize`] for an image rasterised at `dpi`, which the program
@@ -319,6 +319,24 @@ impl ProgramEngine {
         dpi: f32,
     ) -> Result<Vec<RecognizedWord>, ProgramError> {
         self.run(width, height, pixels, Some(dpi))
+            .map(|page| page.words)
+    }
+
+    /// [`Self::recognize_at`] with Tesseract's own lines and paragraphs
+    /// ([`pdfcer_core::ocr::tesseract_tsv::parse_tsv_page`]); `dpi` `None`
+    /// uses the load-time resolution. Words are image pixels, y-down.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::recognize`].
+    pub fn recognize_page(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+        dpi: Option<f32>,
+    ) -> Result<OcrPage, ProgramError> {
+        self.run(width, height, pixels, dpi)
     }
 
     fn run(
@@ -327,7 +345,7 @@ impl ProgramEngine {
         height: u32,
         pixels: &[u8],
         dpi: Option<f32>,
-    ) -> Result<Vec<RecognizedWord>, ProgramError> {
+    ) -> Result<OcrPage, ProgramError> {
         let held = self.hold_verified()?;
         let words = self
             .invocation

@@ -525,6 +525,24 @@ mod tests {
         assert!(!report.disclosures().join(" ").contains("inferred"));
     }
 
+    /// Tesseract's TSV, mapped to page space as the CLI does, is written in
+    /// the order Tesseract reported, not re-inferred: the right-hand
+    /// paragraph is read first because Tesseract numbered it first.
+    #[test]
+    fn tesseract_structure_survives_mapping_into_the_layer() {
+        let tsv = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n\
+                   5\t1\t1\t1\t1\t1\t60\t10\t20\t10\t90\tright\n\
+                   5\t1\t2\t1\t1\t1\t0\t10\t20\t10\t90\tleft\n";
+        let raw = crate::ocr::tesseract_tsv::parse_tsv_page(tsv).unwrap();
+        let placement =
+            crate::ocr::PagePlacement::upright(Rect::from_corners(0.0, 0.0, 100.0, 100.0));
+        let words = crate::ocr::words_to_page_space_on(&raw.words, 100, 100, placement);
+        let page = OcrPage { words, ..raw };
+        let (bytes, report) = page.pipe_build(b"OCR0", &OcrLayerOptions::new());
+        assert_eq!(shown(&bytes), ["right", "left"]);
+        assert_eq!(report.structure, OcrStructureSource::Reported);
+    }
+
     /// Lines without blocks: the lines stay whole, the blocks are inferred.
     #[test]
     fn reported_lines_keep_their_words_and_blocks_are_inferred() {
