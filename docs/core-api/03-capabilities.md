@@ -195,6 +195,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `add_dimension(page_index, group: GroupId, kind: DimensionKind)` | `Result<(ObjId, DimensionId), EditError>` |
 | `add_dimension_group(name: &str, unit: Unit)` | `Result<GroupId, EditError>` |
 | `set_group_scale(group, scale: ScaleState, format: NumberFormat)` | `Result<usize, EditError>` — members **regenerated** |
+| `set_group_unit(group, unit: Unit)` | `Result<usize, EditError>` — members **regenerated**; the calibration is converted (1000 mm reads 3.28 ft), the format becomes the unit's default with the decimal marker kept |
 | `set_group_standard(group, …)` | `Result<usize, EditError>` |
 | `set_group_style(group, style: GroupStyle)` | `Result<usize, EditError>` — members **regenerated** |
 | `set_dimension_style(dimension, style: StyleOverrides)` | `Result<usize, EditError>` — always this one member |
@@ -215,6 +216,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 - `style_provenance(&Group, &StyleOverrides) -> StyleProvenance` — `style.rs`
 - `preview_group_scale(ScaleEntry) -> Option<ScalePreview>` — `units.rs`
 - `format_measurement(points, ScaleState, NumberFormat) -> MeasurementDisplay` — `units.rs`
+- `ScaleState::in_unit(from: Unit, to: Unit) -> ScaleState` — the same calibration for a different top unit. A `Calibrated { scale }` is real units **in the group's unit** per point, so it must be converted whenever the unit it is read in changes; `resolve_style` does this for a per-ce-dimension unit override and `set_group_unit` for the group. A front end that converts on its own should call this instead.
 - `format_angle_degrees(degrees, NumberFormat) -> String` — `units.rs`
 - `format_area_measurement(square_points, ScaleState, NumberFormat) -> MeasurementDisplay` — `area.rs`; `area_unit_label(NumberFormat)` (`"m²"`) and `area_places(NumberFormat)` (a fraction or feet-inches format falls back to 2 decimals)
 - `parse_length(&str, default_unit: Unit) -> Result<ParsedLength, LengthParseError>` — `length_parse.rs`

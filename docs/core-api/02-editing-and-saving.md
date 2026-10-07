@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 324 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 325 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 324 public `EditSession` methods
+## 1. Verb index — all 325 public `EditSession` methods
 
-**Count: 324.** Established by brace-matched extraction of the
+**Count: 325.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -4141,6 +4141,7 @@ constructed, then committed, under one `&mut`.
 | Read the sidecar model | `dimension_model(&self) -> DimensionModel` | Overlay-aware; a fresh model if none stored. |
 | Author a ce dimension | `add_dimension(&mut self, page_index, group: GroupId, kind: DimensionKind) -> Result<(ObjId, DimensionId), EditError>` | Annotation id + model id. ONE undo entry. ⚠️ **Refuses an unknown `group` since `Pass 178.1`** — it used to author into the DEFAULT group silently and return success, and the group carries the scale, so the ce dimension was measured at a scale nobody chose. |
 | Create a group | `add_dimension_group(&mut self, name, unit: Unit) -> Result<GroupId, EditError>` | Scale-never-set, visible, OCG allocated lazily. |
+| Change a group's unit, keeping what it measures | `set_group_unit(&mut self, group, unit: Unit) -> Result<usize, EditError>` | **Count of members regenerated.** Converts the calibration with `ScaleState::in_unit`; format = `unit.default_format()` with the group's decimal marker. Refuses an unknown `group`. CLI `group-set-unit`. |
 | Set a group's scale + number format | `set_group_scale(&mut self, group, scale: ScaleState, format: NumberFormat) -> Result<usize, EditError>` | **Count of members regenerated.** ⚠️ **Refuses an unknown `group` since `Pass 178.2`** — it used to return `Ok` and change nothing. ⚠️ **Can also return `CarrierIsNotAStream` (`Pass 191.1`)** — it regenerates through the shared path that overwrites each member's attacker-supplied sidecar `/Ap` wholesale. §6.8. |
 | Toggle a group's layer | `toggle_dimension_layer(&mut self, group, visible) -> Result<bool, EditError>` | Resulting visibility. The default group is un-hideable. |
 | **The page's vector objects, memoised** | `page_objects(&mut self, page_index) -> Result<Arc<PageObjects>, EditError>` | ⚡ **Use this instead of `vector::decompose_page`** (`Pass 181.0`). The editing verbs share the same cache, so a shell that decomposes to get object indices does not pay for the identical parse again inside `move_objects` — measured **385 ms → 0 ms** on a 130k-object CAD page. `&mut self` because populating a cache is a mutation; see below. |
