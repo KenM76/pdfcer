@@ -81,3 +81,12 @@ first `#[cfg(test)]`, which sat halfway down the 46k-line CLI main.rs. The
 gate had never seen `import-structure`'s raw writer call. Splitting the file
 into modules exposed it. **Splitting a big file is an audit: re-run every
 gate and treat each new red as a real finding.**
+
+2026-10-07 instance: `check-ci-parity.py` matched CI commands by FIRST
+substring, so CI's lite `cargo clippy -p pdfcer-cli --no-default-features`
+was classed as covered by the all-features workspace clippy, and
+`run-gates.sh` (which derives its list from that table) never ran it. A
+feature-gated enum made an `if let` irrefutable only in the lite build; local
+sweep green twice, CI red. Fix: longest needle wins. **Read CI's colour after
+every push; a green local sweep does not certify a configuration it never
+builds.**
