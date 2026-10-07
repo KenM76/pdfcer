@@ -115,6 +115,46 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 514.0` — synthetic best-fit-only PRC fixture (`G132`) — SHIPPED 2026-10-06 (993rd filing)
+
+Commit `75ed4a25` (scoped at `6bc8550c`, 992nd filing; `db854926` moved the
+entry and added the research note). Test-fixture work: no `pub` API change,
+no core-api change, no dependency/manifest change (`cargo tree` unchanged),
+no writer change. Request: `G132` from `pdfcer-gui` (engine pin `dc39139b`);
+reply `reply_G132_best_fit_fixture_FIXED.md` written (engineer-reported).
+
+**Delivered.**
+- `fixtures/synthetic/prc/best_fit.prc` (318 bytes): one compressed
+  tessellation, 28 triangles = seven separate copies of a four-triangle planar
+  mesh whose apex needs its `MakeOrthoRep` frame turned. Each copy needs 2
+  inverted choices and no walk retry repairs one, so the mesh needs 14 > the
+  unique search's deepest stage (6) on every reading. Six copies still rebuild
+  through the turned reading (measured), so seven is the minimum. Best-fit
+  rebuild takes under 1 ms.
+- `crates/pdfcer-3d/src/tess.rs` test
+  `the_best_fit_fixture_is_current_and_rebuilt_only_by_best_fit`: fixture
+  current (generator `best_fit_prc`, `PDFCER_WRITE_FIXTURES=1`); decodes as
+  `Compressed{best_fit:true}`, 28 triangles; `assemble` gives rebuilt=1,
+  best_fit=1, compressed=0; `MeshFit::Unique` gives `CompressedOnly` with the
+  strict-setting reason. Sabotage check: `BEST_FIT_COPIES=6` fails the test.
+- `crates/pdfcer-cli/tests/three_d.rs` test
+  `a_best_fit_mesh_is_disclosed_and_the_strict_setting_leaves_it_out`:
+  `3d-mesh` exports 28 triangles with the best-fit note; `--mesh-fit unique`
+  exits 9, writes nothing, stderr carries the strict reason.
+
+**Acceptance (a)-(d): all met**, constructed case only; (b) not weakened.
+
+**Finding (corrects the earlier research bullet).** Chained components DO
+accumulate required search choices: search depth 2 per copy, measured
+2/4/6/8/10 for 1-5 copies. The per-component walk retries and the
+turned/legacy readings repair small chains, so the unique search fails from 4
+copies but `reconstruct` still succeeds until 7. The earlier "do not
+accumulate" note was wrong for the search. Lesson amended:
+`C:\personal_rag\pdf\lesson_20261006_prc_compressed_tessellation_collinear_apexes_leave_orientation_open_search_or_disclose_best_fit.md`.
+
+**Gates.** `tools/run-gates.sh` PASS on `75ed4a25`: 45 commands incl. 2 filing
+gates (engineer-reported). `FEATURES.md`: no row changes.
+
 ### `v0.80.0` — RELEASED (2026-10-06)
 
 Release filing (990th). Requested under the standing release
@@ -31048,39 +31088,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 `pdfce-render`'s image path for any hard requirement on
 `/ColorSpace`/`/BitsPerComponent` that Table 89 makes optional
 (decision 005 §10 item 3).
-
-### `Pass 514.0` — synthetic best-fit-only PRC fixture (`G132`) — FILED 2026-10-06 (992nd filing)
-
-- **Request:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G132_no_prc_fixture_rebuilt_only_by_a_best_fit.md`,
-  from `pdfcer-gui` at engine pin `dc39139b` (v0.80.0). No API change.
-  Why: the GUI's best-fit disclosure ("N parts were rebuilt by a best
-  fit") cannot be driven or falsified, because no fixture has
-  `AssembledModel::best_fit >= 1` (`overridden.prc`, `coloured.prc` give
-  `best-fit=0`; `compressed.prc` is refused outright).
-- **Acceptance:**
-  - (a) `fixtures/synthetic/prc/best_fit.prc` built by a test-side
-    writer and kept current with `check_fixture`, like the other
-    synthetic PRC fixtures.
-  - (b) `assemble` on it yields `best_fit >= 1`; with `MeshFit::Unique`
-    the mesh is left out with the strict-setting reason.
-  - (c) A CLI test sees the best-fit note on `3d-mesh`.
-  - (d) The fixture comes from a constructed case, never from
-    real-file data (`LEGAL.md` §5).
-- **Known risk:** in `Pass 512.0` a 3M-case random generator found NO
-  case that only best-fit rebuilds, so the case must be DESIGNED:
-  either a mesh needing more than six inverted fold choices (beyond
-  the unique search's deepest stage), or an ambiguous fold that two
-  geometries satisfy. If neither can be constructed, say so in the
-  closing filing rather than weakening (b).
-- **FEATURES.md:** no row changes (test-fixture work; the best-fit
-  capability row is already ticked by `Pass 512.0`/`513.0`).
-- **Research so far (2026-10-06, engineer-reported):** chained copies of a
-  mesh needing inverted folds do NOT accumulate required choices (the walk
-  ends a component when its stack empties; per-component retries repair each
-  independently). `reconstruct` needs `edge_status.len() == triangles*3`
-  (walk reads only the first `triangles`; pad the rest). Random (20k here,
-  ~3M earlier) and mutation (200k + 370k) finders: 0 hits, so the case must
-  be designed. Lesson: `C:\personal_rag\pdf\lesson_20261006_prc_compressed_tessellation_collinear_apexes_leave_orientation_open_search_or_disclose_best_fit.md`.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 

@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (993rd filing) — `Pass 514.0` shipped (synthetic best-fit-only PRC fixture, `G132`)
+
+**Shipped:**
+- `Pass 514.0` — `75ed4a25`. `fixtures/synthetic/prc/best_fit.prc` (28 triangles, seven copies of a planar apex mesh), a core test and a CLI test. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Chained components accumulate search choices (depth 2 per copy, measured 2/4/6/8/10 for 1-5); the earlier "do not accumulate" research note was wrong for the search and is corrected in the ROADMAP entry and the PRC collinear-apex lesson (struck-through, not deleted).
+- Six copies still rebuild through the turned reading, so seven is the minimum; best-fit rebuild under 1 ms.
+- `FEATURES.md`: no row changes. `G132` reply written by the engineer.
+
+**Still in flight:** Backlog "3D compressed meshes still unfit" unchanged.
+
+**Sourcing note (hard rule 8):** figures and gate result engineer-reported; push/backup/CI state not checked here (no shell).
+
 ## 2026-10-06 (pre-compaction capture) — Pass 514.0 research in progress
 
 - Pushed `afd670d7..6bc8550c` to `main` (engineer-reported; not checked here, no shell).

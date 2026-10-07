@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-06, after `Pass 513.0` and the 991st filing.
+**Written:** 2026-10-06, after `Pass 514.0` and the 993rd filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 514.0 (`75ed4a25`, filed 993rd):** G132 done -- `fixtures/synthetic/prc/best_fit.prc`, seven separate copies of the one-turn planar mesh (28 tris) that only `search::best_fit` rebuilds; core test (assemble best_fit=1; `MeshFit::Unique` -> `CompressedOnly` with the strict reason) + CLI test; reply `_FIXED` written. Finding: the SEARCH accumulates choices across components (2 per copy), but the walk retries and the turned/legacy readings repair chains up to 6 copies, so 7 is the minimum -- the earlier "chains do not accumulate" note was about `reconstruct`, not the search. Probes kept in the scratchpad (`p514_probe_compressed.rs`). Next research: the left-out meshes ("an edge is shared by more than two triangles").
 
 **Pass 513.0 (`afd670d7`, filed 991st):** `AssembledModel::{left_out_parts, best_fit_parts}` + `ModelNode::label()` name the parts drawing left-out / best-fit compressed meshes (deepest node per placement, `label xN` collapse); CLI prints both lists. Second sample: 5 parts left out (nuts + one bracket), door sample 18 (nuts mostly). All left-out meshes fail "an edge is shared by more than two triangles" -- the next research target. Note: a compressed-ONLY model is refused (`CompressedOnly`) before parts are named.
 
