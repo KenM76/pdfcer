@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1006th filing) — `Pass 527.0` shipped (`object-list --hit` image alpha + divergence counters)
+
+**Shipped:**
+- `Pass 527.0` — `60293e43`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- The CLI now matches the GUI click on transparent image samples (`--image-alpha honour|ignore`, default honour). The decompose-divergence counters are surfaced in the summary line plus stderr notes.
+- `FEATURES.md`: image-hit row and "Selectable-object diagnostics" row cli `[x]`; gui boxes untouched (the GUI project tracks its own adoption).
+
+**Still in flight:** push. Next free `Pass 528.0`; next filing 1007th.
+
+**Sourcing note (hard rule 8):** test and gate results engineer-reported; hash as supplied; push/backup/CI colour not checked here; no shell, nothing committed.
+
 ## 2026-10-07 (1005th filing) — `Pass 526.0` shipped (mask-aware, parallelogram image hit-testing, `G138`)
 
 **Shipped:**

@@ -115,6 +115,18 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 527.0` — `object-list --hit` honours image alpha; summary reports the decompose-divergence counters (CLI over `Pass 526.0`; `G138`) — SHIPPED 2026-10-07 (1006th filing)
+
+Commit `60293e43`. CLI only. No `Cargo.toml` change (`cargo tree` unaffected); no writer change.
+
+**Delivered.** `pdfcer object-list --hit` now calls `hit_test_point_deep_with` / `hit_test_point_all_with` with a `DocumentImageAlpha`, so a click on a fully transparent image sample falls through exactly as the GUI's click does. New `--image-alpha honour|ignore` (default `honour`); the `hit` line now ends `candidates=N image_alpha=honour|ignore`. The `object-list` summary line appends `undecoded_colour= invisible_by_alpha= shadings_unmodelled= oc_sections=` (the `DecomposeDiagnostics` counters), and each non-zero counter is named in a stderr note `pdfcer: <input>: page <n>: <count> ...` (CLAUDE.md rule 4: disclosure, not silence). `cmd_object_list` (430 lines) moved to `crates/pdfcer-cli/src/object_list.rs`, split by responsibility; its code-structure baseline line was deleted (baseline now 583 entries).
+
+**Verified (engineer-reported).** 4 new integration tests in `tests/object_list_image_alpha.rs` (alpha honoured by default; `ignore` hits the outline; divergence counts and stderr notes; clean page prints nothing on stderr). Sabotage (forcing honour to `NoImageAlpha`) fails the first test. CLI suite 809 + 43 passed, 0 failed. fmt, clippy (full and `--no-default-features`), structure and string-gap gates clean.
+
+`FEATURES.md`: image-hit row (`G138`) cli `[x]`, gui unchanged `[ ]`; "Selectable-object diagnostics" row cli `[x]`, the "no CLI reads any" claim removed.
+
+Ledgers: no decision; next free `Pass 528.0`; next filing 1007th.
+
 ### `Pass 526.0` — mask-aware, parallelogram image hit-testing (core; answers `pdfcer-gui` `G138`) — SHIPPED 2026-10-07 (1005th filing)
 
 Commit `afab149e`. Core only. No `Cargo.toml` change to `pdfcer-core`/`pdfcer-render` (`cargo tree` unaffected); no writer change.
