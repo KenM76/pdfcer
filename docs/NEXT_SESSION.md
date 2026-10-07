@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 521.0` and the 1000th filing.
+**Written:** 2026-10-07, after `Pass 522.0` and the 1001st filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 522.0 (`5b44d3ed`, filed 1001st `bf2636a5`):** pdfcer-gui request G137 -- `forms::Field::own_quadding: Option<Quadding>`, `Some` exactly when the field's own integer `/Q` decided `quadding` (non-integer `/Q` ignored, as before). Reply filed `_FIXED`. Pass 521.0 also gained `34e51693` (rustfmt of its test, caught by run-gates; filed `593ea481`) -- run `cargo fmt --all --check` AFTER the last edit, not before. Next Pass 523.0, next filing 1002nd.
 
 **Pass 521.0 (`3a7c983c`, filed 1000th `ce637e38`):** self-scoped from FEATURES core-[x]/cli-[ ] rows -- `pdfcer inspect FILE --ink` prints `page=N ink=0|1 source=page_group|device_native|output_intent` per page plus totals, honouring the saved `page_blend_space_source`; an output-intent inference is noted on stderr. Note: `page_blend_space_source` is a core saved-store setting, NOT a CLI `--settings` key. Remaining core-[x]/cli-[ ] candidates: `locate_text_run`, `GlyphProvenance` line width/render mode, diagnostics, `apply_redactions`, `DIVERGENCE_KEYS`. Next Pass 522.0, next filing 1001st.
 
