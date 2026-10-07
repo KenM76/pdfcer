@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 532.0` — a unit change keeps the calibration, not the scale number (core + CLI; DEFECT; answers `pdfcer-gui` `G146`) — SHIPPED 2026-10-07 (1012th filing)
+
+Commits `3dbb63b5` (code), `f8fcd872` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unchanged). No decision.
+
+**Delivered.** `ScaleState::Calibrated { scale }` is real display units in the group's top unit per point, so it is only meaningful beside its unit.
+- `ScaleState::in_unit(from, to)` converts a `Calibrated` factor by the ratio of `Unit::baseline_per_point`; `NeverSet` and `OneToOne` pass through.
+- `dimension::style::resolve_style` converts the group's scale into the resolved unit. A per-ce-dimension unit override from mm to feet used to mis-report by 304.8x.
+- New verb `EditSession::set_group_unit(group, unit) -> Result<usize, EditError>`: converts the calibration, sets the format to `unit.default_format()` (decimal marker kept), regenerates members via `set_group_scale`, one undo entry; an unknown group is refused.
+- New CLI subcommand `group-set-unit --group N --unit U`. `docs/core-api` verb count 324 to 325.
+
+**Verified (engineer-reported).** New core integration `dimension_group_unit` (3 tests; the override test fails with the fix reverted, sabotage-verified), a `style.rs` unit test `a_unit_override_keeps_the_real_length`, a doctest on `in_unit`, CLI test `a_group_unit_change_keeps_what_the_member_measures` (5.000 m to 16.40 ft), and `group-set-unit` added to the unknown-group refusal family test. Core dimension suites: 139 integration + 84 lib passing. clippy (core and CLI all features, CLI lite), fmt, structure, string-gap, public-fn-doc and core-api-verbs gates clean.
+
+**`G146` status.** Reply written `_FIXED`; ACK removed. The GUI column is `pdfcer-gui`'s to tick when it calls `set_group_unit`.
+
+`FEATURES.md`: Planned row removed; new Implemented row under *ce dimensions*, core `[x]` cli `[x]` gui `[ ]`.
+
+Ledgers: no decision; next free `Pass 538.0`; next filing 1013th.
+
 ### `Pass 531.0` — `pdfcer-image-codec` module docs no longer link private items (docs only; owed item from the `Pass 529.0` handoff) — SHIPPED 2026-10-07 (1010th filing)
 
 Commit `b95d1fea`. Doc comments only: no behaviour, test, `Cargo.toml` or `pub` API change.
@@ -21073,14 +21091,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1011th filing, scoping only): `G142`-`G147` filed as `Pass 532.0`-`537.0` below.** ACK replies are already written in the FeatureRequests channel. Nothing here is built; no `FEATURES.md` box ticked. Order is the engineer's: the defect (`532.0`) first, then the small hit-test fix, then the verbs. Next free `Pass 538.0`.
 
-**`Pass 532.0` — a unit change keeps the calibration, not the scale number (core; DEFECT; answers `pdfcer-gui` `G146`) — NEXT UP**
-
-`ScaleState::Calibrated { scale }` is real display units in the group's top unit per point. Two defects follow from treating it as a bare number:
-
-1. `dimension::style::resolve_style` copies `group.scale` unchanged beside a per-ce-dimension unit override, so an override from mm to `DecimalFeet` mis-reports by 304.8x. Fix: convert a `Calibrated` scale into the override unit.
-2. Add `ScaleState::in_unit(from, to)` and an `EditSession::set_group_unit(group, unit)` verb that converts the calibration (`NeverSet` and `OneToOne` pass through).
-
-**Acceptance.** A group calibrated so a ce dimension reads 1000 mm reads 3.28 ft under both a group unit change via the new verb and a member unit override; undoable; a CLI caller if a CLI group/unit command exists (check by grep at build time, do not assume).
+> `Pass 532.0` (`G146`) SHIPPED `3dbb63b5` + `f8fcd872`, 1012th filing; see *Shipped*.
 
 **`Pass 533.0` — hit-test the text runs of a given `TextObject` (core; answers `pdfcer-gui` `G147`) — NEXT UP**
 

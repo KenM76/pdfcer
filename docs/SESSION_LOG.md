@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1012th filing) — `Pass 532.0` shipped (a unit change keeps the calibration, `G146`)
+
+**Shipped:**
+- `Pass 532.0` — `3dbb63b5` (code), `f8fcd872` (core-api docs). `ScaleState::in_unit`, `resolve_style` conversion (fixes a 304.8x mis-report on a unit override), `EditSession::set_group_unit`, CLI `group-set-unit`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Tests and gates as engineer-reported in the ROADMAP entry; the override test was sabotage-verified.
+- `FEATURES.md`: Planned row removed; Implemented row added under *ce dimensions*, core `[x]` cli `[x]` gui `[ ]` (`pdfcer-gui` has not called it).
+- ROADMAP *Next up* entry for 532.0 collapsed to a one-line `>` stub.
+
+**Still in flight:** `Pass 533.0`-`537.0` queued; `G139` asks 2 and 3 offered. Next free `Pass 538.0`; next filing 1013th.
+
+**Sourcing note (hard rule 8):** facts and hashes engineer-supplied; no shell, nothing committed, push/backup/CI not checked.
+
 ## 2026-10-07 (1011th filing) — scoping: `Pass 532.0`-`537.0` filed from `pdfcer-gui` (`G142`-`G147`)
 
 **Shipped:** nothing. Scoping only.
