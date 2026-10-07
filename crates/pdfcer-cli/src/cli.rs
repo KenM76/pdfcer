@@ -11047,6 +11047,14 @@ pub(crate) enum Command {
         /// be entirely one or the other.
         #[arg(long, value_name = "N,N,...", default_value = "")]
         objects: String,
+        /// Treat `--objects` as form-leaf indices (the `leaf index=` rows of
+        /// `object-list`) and copy those objects from inside their form
+        /// XObject. The form's placement is baked in, so `object-paste`
+        /// places them as page content where and as large as they were
+        /// drawn. All leaves must be in one form; not with `--annotations`
+        /// or `--cut`.
+        #[arg(long)]
+        leaf: bool,
         /// 0-based ANNOTATION indices, comma-separated (Pass 120.4) — markup
         /// and ce dimensions, in the page's /Annots order.
         ///

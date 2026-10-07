@@ -75,6 +75,7 @@ mod list_links;
 mod locked_contents_refusal;
 mod move_annotation;
 mod object_clip_replies;
+mod object_copy_leaf;
 mod object_list;
 mod object_list_image_alpha;
 mod object_move_each;

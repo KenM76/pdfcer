@@ -641,6 +641,8 @@ mod object_list;
 use object_list::*;
 mod objects;
 use objects::*;
+mod object_copy_cmd;
+use object_copy_cmd::*;
 mod object_transform_cmd;
 use object_transform_cmd::*;
 mod pages;

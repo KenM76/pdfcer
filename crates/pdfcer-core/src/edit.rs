@@ -130,6 +130,7 @@ mod decoration_refresh;
 mod editable_source;
 mod emf;
 mod foreign_button;
+mod form_copy;
 mod form_paint;
 mod form_transform;
 mod group_unit;
@@ -15679,8 +15680,6 @@ impl EditSession {
         object_indices: &[usize],
         annotation_indices: &[usize],
     ) -> Result<crate::vector::ObjectClip, EditError> {
-        use crate::vector::clip;
-
         // THE PAGE ID COMES FROM THE PAGE TREE, NOT FROM A DECOMPOSITION.
         //
         // This whole function used to open with `decompose_for_read`, which
@@ -15702,80 +15701,13 @@ impl EditSession {
             })?
             .id;
 
-        let mut clip_objects: BTreeMap<u32, clip::ClipObject> = BTreeMap::new();
-        let mut mapping: BTreeMap<ObjId, u32> = BTreeMap::new();
-        let mut next: u32 = 1;
-        let mut items = Vec::with_capacity(object_indices.len());
-        let mut bbox = crate::vector::Bounds::EMPTY;
-
+        let mut content = form_copy::ClipContent::default();
         if !object_indices.is_empty() {
             let (page, stream, model) = self.decompose_for_read(page_index)?;
             let objs = Self::resolve_objects(&model, object_indices)?;
-            // Every resource category, resolved ONCE. Resolving inside the loop
-            // would re-walk the graph per name on a page whose text uses forty
-            // fonts, and would need a borrow that outlives the closure that took
-            // it -- which is what the type system says here rather than a comment.
-            let resolved: BTreeMap<Vec<u8>, Dict> = {
-                let graph = self.graph();
-                crate::vector::clip::RESOURCE_CATEGORIES
-                    .iter()
-                    .filter_map(|category| {
-                        page.resources
-                            .get(category)
-                            .map(|o| graph.resolve(o))
-                            .and_then(Object::as_dict)
-                            .map(|d| ((*category).to_vec(), d.clone()))
-                    })
-                    .collect()
-            };
-
-            for obj in objs {
-                let span = obj.bytes();
-                let bytes = stream
-                    .buf
-                    .get(span.start..span.end())
-                    .unwrap_or_default()
-                    .to_vec();
-                // The PRELUDE first: state the object depends on but does not
-                // establish in its own bytes (`Pass 120.2`). Its names are bound
-                // exactly like the item's own, which is the whole point -- a `Tf`
-                // synthesised from the decomposition names a resource that must
-                // travel with the clip like any other.
-                let prelude = clip::item_prelude(obj, &bytes);
-                let mut bindings = Vec::new();
-                let mut sites = clip::name_sites(&bytes).map_err(EditError::Clip)?;
-                sites.extend(clip::name_sites(&prelude).map_err(EditError::Clip)?);
-                for site in sites {
-                    let Some(entry) = resolved
-                        .get(&site.category)
-                        .and_then(|sub| sub.get(&site.name))
-                    else {
-                        return Err(EditError::Clip(clip::ClipError::UnresolvedResource {
-                            category: String::from_utf8_lossy(&site.category).into_owned(),
-                            name: String::from_utf8_lossy(&site.name).into_owned(),
-                        }));
-                    };
-                    let clip_id =
-                        self.clip_import(entry, &mut clip_objects, &mut mapping, &mut next)?;
-                    bindings.push(clip::ClipBinding {
-                        category: site.category,
-                        name: site.name,
-                        object: clip_id,
-                    });
-                }
-                bindings.sort();
-                bindings.dedup();
-                bbox = bbox.union(obj.page_bbox());
-                items.push(clip::ClipItem {
-                    bytes,
-                    ctm: clip::item_ctm(obj),
-                    kind: clip::item_kind(obj),
-                    bbox: obj.page_bbox(),
-                    bindings,
-                    prelude,
-                });
-            }
+            self.clip_content(&stream, &page.resources, &objs, &mut content)?;
         }
+        let mut bbox = content.bbox;
 
         let mut annotations = Vec::with_capacity(annotation_indices.len());
         let mut replies_unthreaded = 0u64;
@@ -15817,8 +15749,8 @@ impl EditSession {
                     0
                 },
             ),
-            items,
-            objects: clip_objects,
+            items: content.items,
+            objects: content.objects,
             bbox,
             annotations,
             replies_unthreaded,
@@ -19075,33 +19007,46 @@ impl EditSession {
             usize,
         ) -> Result<crate::vector::PlannedEdit, EditError>,
     ) -> Result<crate::vector::PlannedEdit, EditError> {
-        {
-            let view = self.view();
-            // §7.8.3: a form's own `/Resources` if it has one, otherwise the
-            // invoking context's. The decomposer inherits exactly this way, so
-            // a form without its own resources resolves its `Do`s and `Tf`s
-            // through the page's — and a resolver that defaulted to empty here
-            // would classify those as nothing and drop them from the model.
-            let resources = view
-                .resolve(form_dict.get(b"Resources").unwrap_or(&Object::Null))
-                .as_dict()
-                .cloned()
-                .unwrap_or_else(|| {
-                    self.pages()
-                        .ok()
-                        .and_then(|p| p.get(page_index).map(|p| p.resources.clone()))
-                        .unwrap_or_default()
-                });
-            let resolver = crate::vector::DocumentXObjects {
-                view: &view,
-                resources: &resources,
-            };
-            let fonts = crate::vector::DocumentFonts::new(&view, &resources);
-            // `leaf.placement`, NOT `Matrix::IDENTITY`. See the doc block.
-            let form_model =
-                crate::vector::decompose_with_fonts(stream, leaf.placement, &resolver, &fonts);
-            plan(stream, &form_model, leaf.form_object_index)
-        }
+        let form_model = self.form_model(page_index, stream, form_dict, leaf);
+        plan(stream, &form_model, leaf.form_object_index)
+    }
+
+    /// §7.8.3: a form's own `/Resources` if it has one, otherwise the
+    /// invoking page's. The decomposer inherits exactly this way, so a form
+    /// without its own resources resolves its `Do`s and `Tf`s through the
+    /// page's — a resolver that defaulted to empty would classify those as
+    /// nothing and drop them from the model.
+    pub(super) fn form_resources(&self, page_index: usize, form_dict: &Dict) -> Dict {
+        self.view()
+            .resolve(form_dict.get(b"Resources").unwrap_or(&Object::Null))
+            .as_dict()
+            .cloned()
+            .unwrap_or_else(|| {
+                self.pages()
+                    .ok()
+                    .and_then(|p| p.get(page_index).map(|p| p.resources.clone()))
+                    .unwrap_or_default()
+            })
+    }
+
+    /// The form's `stream` decomposed from the leaf's placement, so every
+    /// object's CTM and bbox are page space.
+    pub(super) fn form_model(
+        &self,
+        page_index: usize,
+        stream: &crate::content::ContentStream,
+        form_dict: &Dict,
+        leaf: &crate::vector::FormLeaf,
+    ) -> crate::vector::PageObjects {
+        let resources = self.form_resources(page_index, form_dict);
+        let view = self.view();
+        let resolver = crate::vector::DocumentXObjects {
+            view: &view,
+            resources: &resources,
+        };
+        let fonts = crate::vector::DocumentFonts::new(&view, &resources);
+        // `leaf.placement`, NOT `Matrix::IDENTITY`: page-space CTMs and bboxes.
+        crate::vector::decompose_with_fonts(stream, leaf.placement, &resolver, &fonts)
     }
 
     /// How many `Do` invocations of `form_id` this document contains, and
