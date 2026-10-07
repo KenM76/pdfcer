@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1001st filing) — `Pass 522.0` shipped (a form field says whether its quadding is its own, `G137`)
+
+**Shipped:**
+- `Pass 522.0` — `5b44d3ed` (parent `593ea481`); core only. Details in the ROADMAP entry.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- `Field::own_quadding` distinguishes a stated `/Q` from an inherited one; the GUI's own `/Q` re-read had diverged from the engine on a non-integer `/Q`.
+- `FEATURES.md`: quadding row extended; cli/gui left unticked.
+
+**Still in flight:** none. Next free `Pass 523.0`; next filing 1002nd.
+
+**Sourcing note (hard rule 8):** gate results engineer-reported; hash as supplied; push/backup/CI not checked here; no shell, nothing committed.
+
 ## 2026-10-07 (1000th filing) — `Pass 521.0` shipped (`inspect --ink`, no render)
 
 **Shipped:**

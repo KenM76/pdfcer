@@ -115,6 +115,36 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 522.0` — a form field says whether its quadding is its own (`Field::own_quadding`, `G137`) — SHIPPED 2026-10-07 (1001st filing)
+
+Commit `5b44d3ed809c87e054b7d47d34818ac1651896af` (parent `593ea481`). Core only; no CLI
+surface (no command prints a field's quadding); no dependency or manifest change. Answers
+pdfcer-gui request `G137`; reply filed in `FeatureRequests/.../open/` as
+`reply_request_G137_..._FIXED.md`.
+
+**Delivered.**
+- New `pub own_quadding: Option<Quadding>` on `pdfcer_core::forms::Field`, beside `quadding`.
+  `Some` exactly when the field's own integer `/Q` decided the resolved `quadding`; an
+  out-of-range integer counts and reads Left (ISO 32000-1 §12.7.3.3 Table 222); a
+  non-integer `/Q` is ignored so inheritance applies. `None` when the value came from
+  `/Parent`, the `/AcroForm` `/Q` or the default.
+- `EditSession::edit_field`'s post-edit snapshot keeps `own_quadding` in step on
+  `with_quadding` / `clearing_quadding`.
+- Why: the GUI could not tell "inherited (centred)" from "centred" without re-reading `/Q`,
+  and that re-read diverged from the engine on a non-integer `/Q`.
+- `docs/core-api/02` documents the field.
+
+**Tests.** In-crate `forms::tests::own_quadding_tells_a_stated_q_from_an_inherited_one`;
+out-of-crate `own_quadding_follows_setting_and_clearing_the_fields_q` in
+`crates/pdfcer-core/tests/acroform_quadding.rs`. Engineer-reported at commit: fmt, clippy
+`-p pdfcer-core -p pdfcer-cli --all-targets --all-features -D warnings`, code-structure,
+string-gaps clean; `check-core-api-verbs` PASS; full `run-gates.sh` owed before push.
+
+`FEATURES.md`: the "Write a field's quadding, default value and NoExport flag" row extended;
+cli/gui boxes unchanged (gui has not consumed it).
+
+Ledgers: no decision; next free `Pass 523.0`; next filing 1002nd.
+
 ### `Pass 521.0` — `inspect --ink`: whether each page composites in ink, without rendering — SHIPPED 2026-10-07 (1000th filing)
 
 Commit `3a7c983c` (parent `7a614685`); follow-up `34e51693` is a formatting-only
