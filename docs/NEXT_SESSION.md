@@ -4,9 +4,13 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 531.0` and the 1010th filing.
+**Written:** 2026-10-07, after `Pass 537.0` and the 1017th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Passes 532.0-537.0 (pdfcer-gui G142-G147), all shipped 2026-10-07, filings 1011th-1017th; remote main was `d3607b9a` before them -- PUSH after a green `run-gates.sh`.** 532.0 `3dbb63b5` (a ce dimension unit change keeps the calibration, G146); 533.0 `f412113e` (`hit_test_text_runs_of`, G147); 534.0 `c1b2d4cb` (`set_object_stroke_style`, G143); 535.0 `f48855ab`+`b2007abb` (paint/stroke style in forms, G142); 536.0 `e42e523e` (`transform_objects_in_form`, `object-transform --leaf`, G144); 537.0 `25d51d68` (`copy_objects_in_form`, `object-copy --leaf`, G145). Core-api 330 verbs. All six FIXED replies written. Not built: an in-form transform preview twin and an in-form cut (both offered to the GUI on request). Next release writes `pdfcer2`.
+
+**Paused:** the 3D missing-parts research on the second assembly sample (leads in spec RAG `prc__8137__tess_3d_compressed.md`). GUI performance deferred by Ken.
 
 **Pass 530.0 (`cb5b43ec` code, `d7cf6c77` core-api, filed 1009th):** pdfcer-gui request G140 -- `EditSession::page_objects` resumes at the first changed `/Contents` stream (`edit/page_model.rs`, `vector/decompose/resume.rs`, `ContentStream::parse_from`). Writes go through `put_state`/`put_deleted`, which log ids; any write outside the page's own content streams, a deletion, a trailer change or >256 writes forces a full rebuild. The old memo is consumed: buffers truncated in place when no caller holds the `Arc`, else copied. Measured post-edit rebuild ~165 ms -> 0.03-0.12 ms (caller dropped its Arc) / 20-40 ms (caller holds it). Reply `_FIXED` tells the GUI to switch from `decompose_page` to `page_objects` and drop its previous Arc first; not measured on the GUI's own fixtures. Probe: scratchpad `p530_zz_probe_g140.rs`. Pass 531.0 (`b95d1fea`, filed 1010th): image-codec module docs no longer link private items; `cargo doc -p pdfcer-image-codec` is warning-free. Next Pass 532.0, next filing 1011th.
 
