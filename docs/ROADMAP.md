@@ -117,7 +117,7 @@ wherever it appears.*
 
 ### `Pass 527.0` — `object-list --hit` honours image alpha; summary reports the decompose-divergence counters (CLI over `Pass 526.0`; `G138`) — SHIPPED 2026-10-07 (1006th filing)
 
-Commit `60293e43`. CLI only. No `Cargo.toml` change (`cargo tree` unaffected); no writer change.
+Commit `60293e43`; follow-up `7c0b92d6` is a doc-comment-only addition on `ImageAlphaArg::as_str` (`check-public-fns-documented.py` caught it undocumented). CLI only. No `Cargo.toml` change (`cargo tree` unaffected); no writer change.
 
 **Delivered.** `pdfcer object-list --hit` now calls `hit_test_point_deep_with` / `hit_test_point_all_with` with a `DocumentImageAlpha`, so a click on a fully transparent image sample falls through exactly as the GUI's click does. New `--image-alpha honour|ignore` (default `honour`); the `hit` line now ends `candidates=N image_alpha=honour|ignore`. The `object-list` summary line appends `undecoded_colour= invisible_by_alpha= shadings_unmodelled= oc_sections=` (the `DecomposeDiagnostics` counters), and each non-zero counter is named in a stderr note `pdfcer: <input>: page <n>: <count> ...` (CLAUDE.md rule 4: disclosure, not silence). `cmd_object_list` (430 lines) moved to `crates/pdfcer-cli/src/object_list.rs`, split by responsibility; its code-structure baseline line was deleted (baseline now 583 entries).
 

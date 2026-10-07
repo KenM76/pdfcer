@@ -7,7 +7,7 @@ the affected entry. Maintained by `pdfce-librarian`.
 ## 2026-10-07 (1006th filing) — `Pass 527.0` shipped (`object-list --hit` image alpha + divergence counters)
 
 **Shipped:**
-- `Pass 527.0` — `60293e43`. Details in the ROADMAP entry.
+- `Pass 527.0` — `60293e43`. Details in the ROADMAP entry. Follow-up `7c0b92d6`: one-line doc comment on `ImageAlphaArg::as_str` (`crates/pdfcer-cli/src/arg_types.rs`) only; `check-public-fns-documented.py` caught it undocumented. No behaviour or FEATURES change.
 
 **Decisions made this session:** None new.
 
