@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (999th filing) — `Pass 520.0` shipped (Tesseract's own lines/paragraphs reach the OCR text layer)
+
+**Shipped:**
+- `Pass 520.0` — `ba7553ec`; `pdfcer-core`, `pdfcer-ocr-host`, CLI. Details in the ROADMAP entry.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- Tesseract TSV is now grouped into lines and paragraph blocks in Tesseract's order; the layer report says `Reported`. Other engines still get inference.
+- Not verified against a real Tesseract binary (none installed locally).
+- `FEATURES.md`: OCR-layer row (reading order) updated; core `[x]`, cli `[x]`, gui unchanged. Earlier OCR-structure entry's open item struck through in ROADMAP.
+
+**Still in flight:** none from this Pass.
+
+**Sourcing note (hard rule 8):** figures and gate results engineer-reported; hash as supplied; push/backup/CI not checked here.
+
 ## 2026-10-07 (998th filing) — `Pass 519.0` shipped (resize reports overhanging bleed/trim/art boxes, `G136`)
 
 **Shipped:**

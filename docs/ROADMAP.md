@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 520.0` — Tesseract's own lines and paragraphs reach the OCR text layer — SHIPPED 2026-10-07 (999th filing)
+
+Commit `ba7553ec`. Crates `pdfcer-core`, `pdfcer-ocr-host`, CLI; no `Cargo.toml`
+change (`cargo tree` unchanged). Closes the "Tesseract TSV block/par/line" open item of
+the earlier OCR-structure Pass.
+
+**Delivered.**
+- Core `ocr::tesseract_tsv::parse_tsv_page(&str) -> Result<OcrPage, TsvError>`: one
+  `OcrLine` per (page, block, par, line) and one `OcrBlockKind::Paragraph` `OcrBlock` per
+  (page, block, par), in Tesseract's order; lines/paragraphs with no readable word are
+  dropped; `confidence_available` true. `parse_tsv` delegates to it (behaviour unchanged).
+- `pdfcer-ocr-host`: `ProgramEngine::recognize_page(w, h, pixels, dpi: Option<f32>)` and
+  `OcrRunner::recognize_page(...)` return an `OcrPage`; non-program engines return empty
+  lines/blocks, so the layer writer still infers them.
+- CLI `pdfcer ocr` uses `recognize_page`, rebuilds `OcrPage { words: mapped, ..raw }`; the
+  layer report's structure source is `Reported` for Tesseract runs, not inferred.
+- `docs/core-api/03-capabilities.md`: rows for `parse_tsv_page` and `recognize_page`.
+
+**Tests.** 2 parser tests, 1 end-to-end layer test (Tesseract's order beats inferred
+column order); `cargo test -p pdfcer-core --lib ocr::` 113 passed, 1 ignored. clippy
+`-D warnings` clean (core, ocr-host, cli), fmt, code-structure (584 baseline),
+string-gaps, `check-core-api-verbs` pass (engineer-reported).
+
+**NOT verified against a real Tesseract binary** (none installed locally); only
+synthetic TSV. gui column untouched.
+
 ### `Pass 519.0` — a resize reports each bleed, trim or art box it leaves off the sheet — SHIPPED 2026-10-07 (998th filing)
 
 Commit `e9f12989`. Answers GUI request `G136` (reply written). Crates `pdfcer-core`
@@ -755,8 +781,9 @@ and its `file` line left `tools/code-structure-baseline.txt` (585 entries remain
 `docs/core-api/03-capabilities.md` §5 and the index count updated;
 `check-core-api-verbs` exit 0.
 
-**Not done (open):** Tesseract TSV block/par/line reporting into the new fields
-(engines still return words only, so they get inference); a layout-model engine
+**Not done (open):** ~~Tesseract TSV block/par/line reporting into the new fields~~
+(closed 2026-10-07 by `Pass 520.0`, `ba7553ec`; other engines still return words only,
+so they get inference); a layout-model engine
 (PP-DocLayoutV2) is out of scope. No `ARCHITECTURE.md` §12 entry filed (the
 reading-order policy is `block_layout`'s existing one).
 
