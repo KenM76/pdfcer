@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1010th filing) — `Pass 531.0` shipped (image-codec module docs unlink private items)
+
+**Shipped:**
+- `Pass 531.0` — `b95d1fea`. Doc comments only; clears the owed rustdoc private-link warnings in `pdfcer-image-codec` (11 links in `ccitt`, `dct`, `jbig2`, `jpx`). Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- `cargo doc --no-deps -p pdfcer-image-codec` went from 11 warnings to 0 (engineer-reported). No behaviour, test or `Cargo.toml` change.
+- `FEATURES.md`: no capability row affected; none added.
+
+**Still in flight:** `G139` asks 2 and 3 (offered, not done), unchanged. Next free `Pass 532.0`; next filing 1011th.
+
+**Sourcing note (hard rule 8):** results engineer-reported; hash as supplied; push/backup/CI colour not checked here; no shell, nothing committed. `docs/NEXT_SESSION.md` untouched (engineer-owned).
+
 ## 2026-10-07 (1009th filing) — `Pass 530.0` shipped (`page_objects` resumes at the first changed stream, `G140`)
 
 **Shipped:**

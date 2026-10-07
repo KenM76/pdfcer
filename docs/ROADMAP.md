@@ -115,6 +115,18 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 531.0` — `pdfcer-image-codec` module docs no longer link private items (docs only; owed item from the `Pass 529.0` handoff) — SHIPPED 2026-10-07 (1010th filing)
+
+Commit `b95d1fea`. Doc comments only: no behaviour, test, `Cargo.toml` or `pub` API change.
+
+**Delivered.** `cargo doc` warned (`rustdoc::private_intra_doc_links`) on 11 intra-doc links from the public `ccitt`, `dct`, `jbig2` and `jpx` module docs to private items (`encoding_mode`, `BilevelSink`, `row_ceiling`, `passthrough_target`, `ycck_to_cmyk_in_place`, `complement_in_place`, `decode`, `MAX_WORKING_BYTES`, `MAX_TILES`, plus `jbig2`'s reference-link definition for `BilevelSink`). They are now plain code spans.
+
+**Verified (engineer-reported).** `cargo doc --no-deps -p pdfcer-image-codec`: 0 warnings (was 11). fmt clean.
+
+`FEATURES.md`: no capability row affected; none added.
+
+Ledgers: no decision; next free `Pass 532.0`; next filing 1011th.
+
 ### `Pass 530.0` — `page_objects` after an edit resumes at the first changed `/Contents` stream (core; answers `pdfcer-gui` `G140`) — SHIPPED 2026-10-07 (1009th filing)
 
 Commits `cb5b43ec` (code), `d7cf6c77` (`docs/core-api`). `pdfcer-core` and `pdfcer-model`; no CLI or GUI caller added. No `Cargo.toml` change (`cargo tree` unchanged). New `pub` API: `ContentStream::parse_from(buf, prefix_tokens, from)` in `pdfcer-model`.
