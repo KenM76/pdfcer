@@ -55,6 +55,7 @@ pub mod decompose;
 pub mod edit;
 pub mod geometry;
 pub mod hit;
+mod image_hit;
 /// Picking a straight LINE (two endpoints) rather than a point, and deciding
 /// whether two of them are parallel or meet at an angle — the pick model a
 /// CAD-style "dimension between these two edges" workflow needs.
@@ -97,9 +98,10 @@ pub use edit::{
 pub use geometry::{Bounds, Matrix, Point, Rgb, cubic_from_v, cubic_from_y, rect_corners};
 pub use hit::{
     FLATTEN_STEPS, FormMarquee, HitTarget, MarqueeMode, hit_test_point, hit_test_point_all,
-    hit_test_point_deep, hit_test_rect, hit_test_rect_deep, hit_test_subpaths, hit_test_text_runs,
-    subpath_bounds,
+    hit_test_point_all_with, hit_test_point_deep, hit_test_point_deep_with, hit_test_point_with,
+    hit_test_rect, hit_test_rect_deep, hit_test_subpaths, hit_test_text_runs, subpath_bounds,
 };
+pub use image_hit::{DocumentImageAlpha, ImageAlpha, NoImageAlpha};
 pub use snap::{
     AxisConstraint, MAX_CANDIDATES, MAX_NEIGHBOURHOOD_SEGMENTS, SNAP_FLATTEN_STEPS, SnapCandidate,
     SnapConfig, SnapKind, constrained_second_point, measured_length, polygon_area, polyline_length,

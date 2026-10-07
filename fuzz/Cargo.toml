@@ -332,6 +332,14 @@ test = false
 doc = false
 bench = false
 
+# G138: mask-aware image hit-testing over a synthesized one-image page.
+[[bin]]
+name = "image_alpha_hit"
+path = "fuzz_targets/image_alpha_hit.rs"
+test = false
+doc = false
+bench = false
+
 # Decision 013 Pass B: the cross-reference RECOVERY target. `load_document`
 # already fuzzes the entry to rebuild-by-scan (from_bytes routes an
 # unparseable xref through recovery), so this target adds the

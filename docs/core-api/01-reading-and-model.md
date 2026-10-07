@@ -128,6 +128,7 @@ builds `--no-default-features`, so both configurations compile.
 | **Find what the user clicked** | **`vector::hit_test_point_deep(&PageObjects, Point, tolerance)` — `vector/hit.rs`** | §10.3 |
 | Find what the user clicked, **page stream only** | `vector::hit_test_point(&PageObjects, Point, tolerance)` — `vector/hit.rs` | §10.3 |
 | Cycle through overlapping objects under the cursor | `vector::hit_test_point_all` — `vector/hit.rs` | §10.3 |
+| **Click through an image's transparent pixels** | `vector::hit_test_point_deep_with` / `_with` / `_all_with` + `DocumentImageAlpha::new(&view)` — `vector/hit.rs`, `vector/image_hit.rs` | §8.9.6, §11.6.5.3 |
 | Reach objects drawn **inside** a form XObject | `PageObjects::leaves` → `vector::decompose::FormLeaf` — `vector/decompose.rs` | §10.3 |
 | **Marquee-select a region** | **`vector::hit_test_rect_deep(&PageObjects, Bounds, MarqueeMode, FormMarquee)`** — `vector/hit.rs`. `hit_test_rect` still exists and is **shallow**: it cannot see inside a form, so a rubber band and a click disagree about what is selectable | §10.3 |
 | Drill into which text run / subpath was clicked | `vector::hit_test_text_runs` — `hit.rs`; `vector::hit_test_subpaths` — `hit.rs` | §10.3 |
@@ -2139,8 +2140,10 @@ whose body is wrapped in a form it answers with the wrapper no matter where
 you click.** That is what the operator hit: *"when I click on one of the
 objects all I get is the page selected."* He was selecting a real object.
 
-The bbox rule is right for a **raster image**, whose quad genuinely is its ink.
-It is wrong for a **form**, whose `/BBox` is a §8.10.1 clipping-**extent**
+A **raster image** is tested against its own placed parallelogram (the unit
+square under its CTM, §8.9.4), widened by `tolerance` at the edge — so a
+rotated image is missed at its bounding-box corners. A bbox is wrong for a
+**form**, whose `/BBox` is a §8.10.1 clipping-**extent**
 declaration that says nothing about coverage — a form declaring the whole
 MediaBox and drawing one small line is legal and common. So
 `hit_test_point_deep` **excludes forms outright** and answers with what is
@@ -2150,6 +2153,32 @@ The form is still reachable: `FormLeaf::containment` names every enclosing
 form, so "select the container" is available as a **deliberate second act**,
 which is a different thing from winning by default.
 
+
+#### Image transparency: the `_with` queries
+
+```rust
+use pdfcer_core::vector::{hit_test_point_deep_with, DocumentImageAlpha};
+
+let alpha = DocumentImageAlpha::new(&view);   // keep it across clicks: it memoizes
+let hits = hit_test_point_deep_with(&model, at, tol, &alpha);
+```
+
+`hit_test_point`, `_all` and `_deep` ignore masks (they pass `NoImageAlpha`).
+Their `_with` siblings take any `&dyn ImageAlpha`; `DocumentImageAlpha`
+decodes each image's mask once per XObject and misses an image wherever the
+**nearest sample** is fully transparent, so the click reaches what is drawn
+underneath. Precedence and polarity follow the spec:
+
+- `/SMask` (§11.6.5.3) wins over `/Mask`; clear where the decoded value is 0.
+- `/SMaskInData 1` (JPX) uses the codestream's own alpha channel.
+- `/ImageMask true` or a stencil `/Mask` stream (§8.9.6.2/.3): decoded 1 is
+  masked, so `/Decode [1 0]` reverses it.
+- Colour-key `/Mask [min max …]` (§8.9.6.4): raw pre-`/Decode` samples, ranges
+  inclusive, every component in range.
+
+Failure contract: a mask that cannot be decoded, exceeds 2^26 samples, or
+belongs to an inline image keeps the image a **hit** — undecodable never
+means invisible. Form XObjects keep their bbox test.
 
 #### ★★ For a MARQUEE, use `hit_test_rect_deep`. `hit_test_rect` is shallow.
 
@@ -2420,7 +2449,8 @@ you are stating in one visible place that you do not handle form contents.
 | `PathObject::line_width` | **user space** points | — (scaled by `√\|det(ctm)\|` at hit time) | `decompose.rs`; `hit.rs` |
 | `TextFont::size` | **text space** — raw `Tf` operand, unscaled | — | `decompose.rs` |
 | `ImageObject::pixel_size` | — | **sample count**, not a page size | `decompose.rs` |
-| `hit_test_point/_all/_rect` point/rect | **page space**, `f64` | index(es) | `hit.rs` |
+| `hit_test_point/_all/_rect` (and `_with`) point/rect | **page space**, `f64` | index(es) | `hit.rs` |
+| `ImageAlpha::is_clear_at` `(u, v)` | **image unit square**, `v = 0` at the bottom | `bool` | `image_hit.rs` |
 | every `tolerance` argument | **page-space distance** | — | `hit.rs` |
 | `hit_test_text_runs`/`_subpaths` | page space / page distance | `Vec<usize>` nearest-first | `hit.rs` |
 | `subpath_bounds` | — | **page space** | `hit.rs` |

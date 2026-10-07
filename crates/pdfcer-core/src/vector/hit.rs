@@ -21,9 +21,13 @@
 //!   by the object's CTM (§8.4.3.2 — line width is a user-space quantity).
 //! - **Clip/no-op path** (`n`): the point is within `tolerance` of the
 //!   outline (invisible geometry is still selectable, but only precisely).
-//! - **Text / image / form**: the point is inside the object's page bbox
-//!   (inflated by `tolerance`). These carry no editable node geometry, so
-//!   a bbox test is the whole of it.
+//! - **Text / form**: the point is inside the object's page bbox (inflated
+//!   by `tolerance`).
+//! - **Raster image**: the point is inside the image's placed
+//!   parallelogram (the unit square under its CTM, §8.9.4) or within
+//!   `tolerance` of its edge, and — for the `_with` queries given a
+//!   mask-aware [`ImageAlpha`] — the nearest sample is not fully
+//!   transparent.
 //!
 //! ## Topmost wins — and the ones underneath
 //!
@@ -71,6 +75,7 @@ use super::decompose::{
     FillRule, ImageSource, PageObjects, PathObject, Segment, Subpath, TextObject, VectorObject,
 };
 use super::geometry::{Bounds, Matrix, Point};
+use super::image_hit::{ImageAlpha, NoImageAlpha, image_hit};
 
 /// Fixed cubic-flattening subdivision (module docs). 16 chords is
 /// sub-pixel for selection tolerances and bounds the per-object work a
@@ -101,6 +106,7 @@ fn hits_front_to_back<'a>(
     model: &'a PageObjects,
     point: Point,
     tolerance: f64,
+    alpha: &'a dyn ImageAlpha,
 ) -> impl Iterator<Item = usize> + 'a {
     let finite = point.is_finite();
     model
@@ -108,7 +114,7 @@ fn hits_front_to_back<'a>(
         .iter()
         .enumerate()
         .rev()
-        .filter(move |(_, obj)| finite && object_hit(obj, point, tolerance))
+        .filter(move |(_, obj)| finite && object_hit(obj, point, tolerance, alpha))
         .map(|(i, _)| i)
 }
 
@@ -124,7 +130,21 @@ fn hits_front_to_back<'a>(
 /// that identity is load-bearing rather than incidental.
 #[must_use]
 pub fn hit_test_point(model: &PageObjects, point: Point, tolerance: f64) -> Option<usize> {
-    hits_front_to_back(model, point, tolerance).next()
+    hit_test_point_with(model, point, tolerance, &NoImageAlpha)
+}
+
+/// [`hit_test_point`] with image transparency: an image is missed where
+/// `alpha` reports its nearest sample fully transparent, so a click through
+/// a transparent surround reaches what is drawn underneath. Pass a
+/// [`DocumentImageAlpha`](super::DocumentImageAlpha) to decode masks.
+#[must_use]
+pub fn hit_test_point_with(
+    model: &PageObjects,
+    point: Point,
+    tolerance: f64,
+    alpha: &dyn ImageAlpha,
+) -> Option<usize> {
+    hits_front_to_back(model, point, tolerance, alpha).next()
 }
 
 /// **Every** object a page-space `point` hits within `tolerance`,
@@ -139,7 +159,7 @@ pub fn hit_test_point(model: &PageObjects, point: Point, tolerance: f64) -> Opti
 /// The hit predicate is the same per-kind rule [`hit_test_point`] uses —
 /// fill-interior under the object's winding rule, stroke proximity within
 /// **half the CTM-scaled line width PLUS `tolerance`**, bbox inflated by
-/// `tolerance` for text/image/form — because both
+/// `tolerance` for text/form, the placed parallelogram for an image — because both
 /// functions filter the one [`hits_front_to_back`] scan. **Empty** for a
 /// miss and for a non-finite point; never `None`-vs-empty ambiguity.
 ///
@@ -172,7 +192,18 @@ pub fn hit_test_point(model: &PageObjects, point: Point, tolerance: f64) -> Opti
 /// ```
 #[must_use]
 pub fn hit_test_point_all(model: &PageObjects, point: Point, tolerance: f64) -> Vec<usize> {
-    hits_front_to_back(model, point, tolerance).collect()
+    hit_test_point_all_with(model, point, tolerance, &NoImageAlpha)
+}
+
+/// [`hit_test_point_all`] with image transparency, as [`hit_test_point_with`].
+#[must_use]
+pub fn hit_test_point_all_with(
+    model: &PageObjects,
+    point: Point,
+    tolerance: f64,
+    alpha: &dyn ImageAlpha,
+) -> Vec<usize> {
+    hits_front_to_back(model, point, tolerance, alpha).collect()
 }
 
 /// What a deep hit test found.
@@ -253,6 +284,18 @@ pub enum HitTarget {
 /// ```
 #[must_use]
 pub fn hit_test_point_deep(model: &PageObjects, point: Point, tolerance: f64) -> Vec<HitTarget> {
+    hit_test_point_deep_with(model, point, tolerance, &NoImageAlpha)
+}
+
+/// [`hit_test_point_deep`] with image transparency, as [`hit_test_point_with`];
+/// applies to images inside forms too.
+#[must_use]
+pub fn hit_test_point_deep_with(
+    model: &PageObjects,
+    point: Point,
+    tolerance: f64,
+    alpha: &dyn ImageAlpha,
+) -> Vec<HitTarget> {
     if !point.is_finite() {
         return Vec::new();
     }
@@ -267,12 +310,12 @@ pub fn hit_test_point_deep(model: &PageObjects, point: Point, tolerance: f64) ->
         if matches!(obj, VectorObject::Image(img) if img.source == ImageSource::Form) {
             continue;
         }
-        if object_hit(obj, point, tolerance) {
+        if object_hit(obj, point, tolerance, alpha) {
             hits.push((i, 0, HitTarget::Object(i)));
         }
     }
     for (i, leaf) in model.leaves.iter().enumerate() {
-        if object_hit(&leaf.object, point, tolerance) {
+        if object_hit(&leaf.object, point, tolerance, alpha) {
             // `i + 1` so a leaf of the form at index `n` sorts after a page
             // object at index `n` could ever be -- there is no page object at
             // `n` in that case, because `n` IS the form and forms are skipped.
@@ -701,11 +744,13 @@ fn outline_distance(subpaths: &[Subpath], point: Point) -> f64 {
     best.sqrt()
 }
 
-fn object_hit(obj: &VectorObject, point: Point, tolerance: f64) -> bool {
+fn object_hit(obj: &VectorObject, point: Point, tolerance: f64, alpha: &dyn ImageAlpha) -> bool {
     match obj {
         VectorObject::Path(p) => path_hit(p, point, tolerance),
         VectorObject::Text(t) => text_hit(t, point, tolerance),
-        VectorObject::Image(i) => i.page_bbox.inflate(tolerance).contains(point),
+        VectorObject::Image(i) => image_hit(i, point, tolerance, alpha, |p, a, b| {
+            dist_sq_point_segment(p, a, b).sqrt()
+        }),
     }
 }
 
