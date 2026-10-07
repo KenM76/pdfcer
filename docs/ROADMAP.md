@@ -115,6 +115,27 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 537.0` — copy objects inside a form XObject (core + CLI; answers `pdfcer-gui` `G145`) — SHIPPED 2026-10-07 (1017th filing)
+
+Commits `25d51d68` (code), `eddb46ab` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Push state not checked (no shell).
+
+**Delivered.**
+- New `EditSession::copy_objects_in_form(&mut self, page_index, leaf_indices: &[usize]) -> Result<ObjectClip, EditError>` in new `crates/pdfcer-core/src/edit/form_copy.rs`. Returns `copy_objects`' clip; each item's CTM is the leaf's page-space CTM (form placement baked in), so `paste_objects` lands it as page content where and as large as it was drawn.
+- Resources resolve through the form's `/Resources` else the page's (ISO 32000-1 §7.8.3) and travel with the clip. Read-only, no undo entry.
+- Refusals: `FormLeafOutOfRange` (empty or bad index), `FormLeafSelectionSpansForms`, `EditError::Clip` (undefined resource name).
+- Divergence from the ask: no `form_invocation` argument (the leaf indices name the invocation, as in delete/transform); no annotations, no cut twin.
+- Refactor: `copy_selection`'s capture loop moved to shared `clip_content`; `plan_in_form` wraps a shared `form_model`.
+- CLI: `pdfcer object-copy --leaf` (`--objects` are form-leaf indices; refused with `--annotations` or `--cut`, exit 9); output line gains `leaf=0|1`. Handler moved to new `object_copy_cmd.rs` and split under the 80-line limit; its code-structure baseline entry deleted.
+- `docs/core-api`: verb row added; 330 verbs; `check-core-api-verbs` PASS.
+
+**Verified (engineer-reported).** Core `tests/copy_objects_in_form.rs` 3 tests (sabotaging `form_model`'s placement fails 2); CLI `tests/object_copy_leaf.rs` 2 tests (sabotaging the `--leaf` route fails the paste test). Related core tests 671 pass; clippy full + lite, fmt, code-structure, string-gaps, public-fns gates clean. **Full gate sweep pending before push.**
+
+**`G145` status.** FeatureRequests reply written `_FIXED`; ACK deleted. The GUI column is `pdfcer-gui`'s to tick when it calls the verb.
+
+`FEATURES.md`: *Planned* in-form copy row removed (nothing left planned in it); new Implemented row after the in-form transform row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 538.0`; next filing 1018th.
+
 ### `Pass 536.0` — resize and rotate objects inside a form XObject (core + CLI; answers `pdfcer-gui` `G144`) — SHIPPED 2026-10-07 (1016th filing)
 
 Commits `e42e523e` (code), `3f9a723a` (`docs/core-api`). No `Cargo.toml` or dependency change. No decision. Not pushed at filing time (engineer-reported; remote `main` is `d3607b9a`).
@@ -21165,23 +21186,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `G140` SHIPPED as `Pass 530.0` (`cb5b43ec`, 1009th filing), see *Shipped*.
 > `G139` asks 2 and 3 remain offered. Next free `Pass 531.0`.
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1011th filing, scoping only): `G142`-`G147` filed as `Pass 532.0`-`537.0` below.** ACK replies are already written in the FeatureRequests channel. Nothing here is built; no `FEATURES.md` box ticked. Order is the engineer's: the defect (`532.0`) first, then the small hit-test fix, then the verbs. Next free `Pass 538.0`.
-
-> `Pass 532.0` (`G146`) SHIPPED `3dbb63b5` + `f8fcd872`, 1012th filing; see *Shipped*.
-
-> `Pass 533.0` (`G147`) SHIPPED `f412113e` + `607cc4c7`, 1013th filing; see *Shipped*.
-
-> `Pass 534.0` (`G143`) SHIPPED `c1b2d4cb` + `b219031f`, 1014th filing; see *Shipped*.
-
-> `Pass 535.0` (`G142`) SHIPPED `f48855ab` + `44f9533c` + `b2007abb`, 1015th filing; see *Shipped*.
-
-> `Pass 536.0` (`G144`) SHIPPED `e42e523e` + `3f9a723a`, 1016th filing; see *Shipped*.
-
-**`Pass 537.0` — `copy_objects_in_form` (core; answers `pdfcer-gui` `G145`) — NEXT UP**
-
-`copy_objects_in_form(page, form_invocation, leaf_indices)` returning `copy_objects`' clip type with the form placement baked in, so a paste lands where the leaf was drawn.
-
-Ledgers: no decision; next free `Pass 538.0`; next filing 1017th.
+> **`pdfcer-gui` scoping stub `G142`-`G147` (`Pass 532.0`-`537.0`) — CLOSED 2026-10-07 (1017th filing): all six shipped, see *Shipped*** (`532.0` `3dbb63b5`; `533.0` `f412113e`; `534.0` `c1b2d4cb`; `535.0` `f48855ab`; `536.0` `e42e523e`; `537.0` `25d51d68`). Next free `Pass 538.0`; next filing 1018th.
 
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`

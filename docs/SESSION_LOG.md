@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1017th filing) — `Pass 537.0` shipped (copy objects inside a form XObject, `G145`)
+
+**Shipped:**
+- `Pass 537.0` — `25d51d68` (code), `eddb46ab` (core-api docs). `copy_objects_in_form`, CLI `object-copy --leaf`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Tests as engineer-reported: core +3, CLI +2; related core tests 671 pass; core-api now 330 verbs, `check-core-api-verbs` PASS. Full gate sweep pending before push.
+- Divergence from the ask recorded: no `form_invocation` argument; no annotations, no cut twin.
+- Code-structure baseline entry for the `object-copy` handler deleted (moved and split).
+- `FEATURES.md`: Planned in-form copy row removed; new Implemented row (core `[x]` cli `[x]` gui `[ ]`).
+- ROADMAP: `G142`-`G147` scoping stub closed (`532.0`-`537.0` all shipped); the 537.0 Next up block removed.
+
+**Still in flight:** nothing from this family. Next free `Pass 538.0`; next filing 1018th.
+
+**Sourcing note (hard rule 8):** facts and hashes engineer-supplied; no shell, push/backup/CI not checked.
+
 ## 2026-10-07 (1016th filing) — `Pass 536.0` shipped (resize and rotate inside a form XObject, `G144`)
 
 **Shipped:**
