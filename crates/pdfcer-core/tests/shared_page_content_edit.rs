@@ -143,35 +143,29 @@ fn an_unshared_page_says_nothing_about_sharing() {
 
 #[test]
 fn the_session_edit_decouples_and_undoes_cleanly() {
-    for (p1, p2) in [("4 0 R", "4 0 R"), ("[4 0 R 6 0 R]", "6 0 R")] {
-        let doc = Document::from_bytes(two_pages(p1, p2)).expect("fixture loads");
-        let mut session = EditSession::new(doc);
-        let report = session
-            .edit_text(
-                &EditRequest::find_replace(0, "BODY", "LEAF"),
-                &EditOptions::default(),
-            )
-            .expect("the session edit succeeds");
-        assert!(report.disclosures.iter().any(|d| d.contains(SHARED)));
-        assert_eq!(session.undo_depth(), 1);
-        let (bytes, _) = session
-            .to_incremental_bytes(&SaveOptions::identity())
-            .expect("the session saves");
-        assert!(page_text(&bytes, 0).contains("LEAF"), "{p1}");
-        assert_eq!(report.content_object, page_contents(&bytes, 0), "{p1}");
-        assert_eq!(report.extra_objects_emptied, 0, "{p1}");
-        let other = page_text(&bytes, 1);
-        assert!(
-            other.contains(if p2 == "4 0 R" { "BODY TEXT" } else { "HEADER" }),
-            "{p1}: {other:?}"
-        );
+    let doc = Document::from_bytes(two_pages("4 0 R", "4 0 R")).expect("fixture loads");
+    let mut session = EditSession::new(doc);
+    let report = session
+        .edit_text(
+            &EditRequest::find_replace(0, "BODY", "LEAF"),
+            &EditOptions::default(),
+        )
+        .expect("the session edit succeeds");
+    assert!(report.disclosures.iter().any(|d| d.contains(SHARED)));
+    assert_eq!(session.undo_depth(), 1);
+    let (bytes, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("the session saves");
+    assert!(page_text(&bytes, 0).contains("LEAF"));
+    assert_eq!(report.content_object, page_contents(&bytes, 0));
+    assert_eq!(report.extra_objects_emptied, 0);
+    assert!(page_text(&bytes, 1).contains("BODY TEXT"));
 
-        session.undo().expect("there is a command to undo");
-        let (_, report) = session
-            .to_incremental_bytes(&SaveOptions::identity())
-            .expect("the session saves");
-        assert_eq!(report.objects_written, 0, "{p1}: {report:?}");
-    }
+    session.undo().expect("there is a command to undo");
+    let (_, report) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("the session saves");
+    assert_eq!(report.objects_written, 0, "{report:?}");
 }
 
 /// A format that adds a font resource to the page dictionary AND repoints the
@@ -329,4 +323,88 @@ fn a_vector_transform_leaves_the_other_page_untransformed() {
         .expect("the session saves");
     assert!(page_stream(&bytes, 0).contains(" cm"));
     assert_eq!(page_stream(&bytes, 1), LINE);
+}
+
+/// Page 1 draws a lattice (object 4) that page 2 also draws, then its own
+/// line (object 6).
+fn a_page_with_its_own_stream_after_a_shared_one() -> Vec<u8> {
+    let page = |contents: &str| {
+        format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents {contents} >>")
+    };
+    assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>".to_owned(),
+        page("[4 0 R 6 0 R]"),
+        stream(LATTICE),
+        page("4 0 R"),
+        stream(LINE),
+    ])
+}
+
+const LATTICE: &str = "0 0 m 400 0 l 0 50 m 400 50 l 0 100 m 400 100 l S";
+
+#[test]
+fn a_move_in_a_pages_own_stream_rewrites_only_that_stream() {
+    let doc = Document::from_bytes(a_page_with_its_own_stream_after_a_shared_one())
+        .expect("fixture loads");
+    let mut session = EditSession::new(doc);
+    let disclosures = session
+        .move_objects(0, &[1], 5.0, 0.0)
+        .expect("the move succeeds");
+    assert!(
+        !disclosures.iter().any(|d| d.contains(SHARED)),
+        "{disclosures:?}"
+    );
+    let (bytes, report) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("the session saves");
+    assert_eq!(report.objects_written, 1, "{report:?}");
+    let reloaded = Document::from_bytes(bytes.clone()).expect("reloads");
+    let pages = pdfcer_core::page_tree::pages(&reloaded).expect("page tree walks");
+    let ids: Vec<u32> = pages[0].contents.iter().map(|c| c.num).collect();
+    assert_eq!(ids, [4, 6]);
+    let p1 = page_stream(&bytes, 0);
+    assert!(p1.starts_with(LATTICE), "{p1}");
+    assert!(!p1.ends_with(LINE), "{p1}");
+    assert_eq!(page_stream(&bytes, 1), LATTICE);
+
+    session.undo().expect("there is a command to undo");
+    let (_, report) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("the session saves");
+    assert_eq!(report.objects_written, 0, "{report:?}");
+}
+
+#[test]
+fn a_text_edit_in_a_pages_own_stream_keeps_its_streams() {
+    let doc = Document::from_bytes(two_pages("[4 0 R 6 0 R]", "6 0 R")).expect("fixture loads");
+    let mut session = EditSession::new(doc);
+    let report = session
+        .edit_text(
+            &EditRequest::find_replace(0, "BODY", "LEAF"),
+            &EditOptions::default(),
+        )
+        .expect("the session edit succeeds");
+    assert!(!report.disclosures.iter().any(|d| d.contains(SHARED)));
+    assert!(
+        !report
+            .disclosures
+            .iter()
+            .any(|d| d.starts_with("multi-stream page:")),
+        "{:?}",
+        report.disclosures
+    );
+    assert_eq!(
+        (report.content_object, report.extra_objects_emptied),
+        (4, 0)
+    );
+    let (bytes, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("the session saves");
+    let p1 = page_text(&bytes, 0);
+    assert!(
+        p1.contains("LEAF") && p1.matches("HEADER").count() == 1,
+        "{p1:?}"
+    );
+    assert!(page_text(&bytes, 1).contains("HEADER"));
 }

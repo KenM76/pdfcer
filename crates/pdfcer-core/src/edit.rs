@@ -135,6 +135,7 @@ mod image_stamp;
 mod ocr_refold;
 mod page_artwork;
 mod rc4_append;
+mod stream_localize;
 #[cfg(feature = "svg-import")]
 mod svg;
 mod threed_poster;
@@ -19749,6 +19750,10 @@ impl EditSession {
     /// every non-empty extra (`contents[1..]`) was folded into it and MUST be
     /// emptied, or the folded run renders twice.
     ///
+    /// Before any fold, an edit whose changed bytes all lie inside one
+    /// unshared stream rewrites that stream alone and leaves the rest of the
+    /// page as it is (`Self::localized_text_edit_command`, request G141).
+    ///
     /// # The sweep runs on EVERY surgery, not only the first (`Pass 251.0`)
     ///
     /// The prior implementation swept the extras only on the FIRST edit to
@@ -19779,6 +19784,18 @@ impl EditSession {
         } else {
             BTreeSet::new()
         };
+        if is_page_stream
+            && let Some(local) = self.localized_text_edit_command(
+                kind,
+                &page.contents,
+                &new_content,
+                &shared,
+                &mut prior,
+                disclosures,
+            )
+        {
+            return Ok(local);
+        }
         if !shared.is_empty() {
             let decoupled = self.decoupled_text_edit_command(
                 kind,
@@ -19807,29 +19824,7 @@ impl EditSession {
         }];
         objects.append(&mut prior);
 
-        // Empty every EXTRA content stream (contents[1..]) whose CURRENT payload
-        // is non-empty. The splice above concatenated the whole /Contents list
-        // into contents[0], so any non-empty extra is now duplicated on the page
-        // and must be cleared. Checked per surgery (not once per session, the old
-        // `first_edit` gate), because add_text/add_image/paste_objects append a
-        // fresh non-empty extra AFTER the first rewrite — see the doc comment
-        // (Pass 251.0). `self.value` reads the overlay-or-base current payload;
-        // an already-empty extra is skipped so no redundant no-op write is kept.
-        for id in page.contents.iter().skip(1) {
-            if *id == content_id {
-                continue;
-            }
-            let nonempty =
-                matches!(self.value(*id), Some(Object::Stream(s)) if s.data_span.len > 0);
-            if nonempty {
-                let empty = self.stage_bytes(&[]);
-                objects.push(ObjectWrite {
-                    id: *id,
-                    before: self.state.get(id).cloned(),
-                    after: Some(make_raw_stream(empty, 0)),
-                });
-            }
-        }
+        objects.extend(self.empty_folded_extras(page, content_id));
 
         Ok((
             Command {
@@ -19840,6 +19835,32 @@ impl EditSession {
             },
             None,
         ))
+    }
+
+    /// Writes emptying every extra `/Contents` stream (all but `content_id`)
+    /// whose current payload is non-empty: the splice folded the whole list
+    /// into `content_id`, so a non-empty extra would draw twice. Checked per
+    /// surgery because `add_text`/`add_image`/`paste_objects` append a fresh
+    /// extra after the first rewrite.
+    fn empty_folded_extras(&mut self, page: &Page, content_id: ObjId) -> Vec<ObjectWrite> {
+        use crate::text_edit::edit::make_raw_stream;
+        let mut extras = Vec::new();
+        for id in page.contents.iter().skip(1) {
+            if *id == content_id {
+                continue;
+            }
+            let nonempty =
+                matches!(self.value(*id), Some(Object::Stream(s)) if s.data_span.len > 0);
+            if nonempty {
+                let empty = self.stage_bytes(&[]);
+                extras.push(ObjectWrite {
+                    id: *id,
+                    before: self.state.get(id).cloned(),
+                    after: Some(make_raw_stream(empty, 0)),
+                });
+            }
+        }
+        extras
     }
 
     /// The streams in `page`'s `/Contents` that at least one OTHER page also

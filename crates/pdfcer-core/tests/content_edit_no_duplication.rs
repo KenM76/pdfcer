@@ -120,8 +120,8 @@ fn each_further_edit_does_not_add_another_copy() {
 /// `ContentStream::from_page` concatenates EVERY `/Contents` entry, and the
 /// plan replaces only the block's own show-operator spans within that
 /// concatenation — so the appended run is in the plan's source and is carried
-/// through. The extras are emptied because their content has already been
-/// folded into the first stream.
+/// through. Only the stream the reflow changed is rewritten; the extras keep
+/// their content.
 ///
 /// ⚠ The guard's comment asserted **"Still true after `Pass 257.0`"** and
 /// nothing re-measured it. It was false from that commit, and it cost the
@@ -159,11 +159,9 @@ fn reflow_keeps_text_added_this_session() {
         .reflow_block(0, 0, &ReflowRequest::new().with_wrap_width(400.0))
         .expect("reflow must COMMIT now, not refuse — the appended run is in the plan's source");
 
-    assert!(
-        report.extra_objects_emptied >= 1,
-        "the extra stream must be consolidated, which is the step that used to be \
-         the hazard: {report:?}"
-    );
+    // The reflow changes only the first stream, so the appended run's stream
+    // is left in place rather than folded and emptied.
+    assert_eq!(report.extra_objects_emptied, 0, "{report:?}");
 
     let (bytes, _) = s
         .to_full_bytes(&SaveOptions::identity())
