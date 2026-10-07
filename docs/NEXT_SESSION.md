@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 528.0` and the 1007th filing.
+**Written:** 2026-10-07, after `Pass 529.0` and the 1008th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 529.0 (`86fea180`, filed 1008th `5555f828`):** pdfcer-gui request G141 -- a content edit whose changed bytes all fall inside one listed-once, unshared, non-OCR-layer `/Contents` stream (and no `pdfc_Deco` in the buffer) rewrites that stream alone (`edit/stream_localize.rs`); other streams stay byte-identical, no multi-stream disclosure, reflow on a split page reports `extra_objects_emptied == 0`. Measured: the move verb is ~10 ms either way; the GUI's ~170 ms is the post-edit `page_objects` re-decomposition = G140 (ACK in channel). **G140 is next:** cache the decomposition per page and, after an edit that changed only stream k, reuse objects from streams before k (identical prefix state) and re-decompose from k (or shift a suffix when the end-of-k graphics state is unchanged). Pre-existing rustdoc private-link warnings in `pdfcer-image-codec/src/ccitt.rs` worth fixing. Next Pass 530.0, next filing 1009th.
 
 **Pass 528.0 (`d968fceb`, filed 1007th `870aa481`):** pdfcer-gui request G139 -- `path_hit` inverse-maps the click's reach box into user space and transforms only subpaths whose control-polygon hull overlaps it (fill test uses reach 0; a CTM with no finite inverse keeps every subpath). Dense-path click 61 -> 11.5 ms; the remainder is a memory-bound walk over the subpaths. Geometry moved to `vector/path_geom.rs` (hit.rs baseline line deleted; snap.rs shares `cubic_at`). Reply `_FIXED` written; ask 3 (spatial index) offered, not done. Open from the GUI: G140 (re-decomposition after an edit) and G141 (a move re-serialises a shared stream) -- G141 is next: rewrite only the one changed, unshared stream. Next Pass 529.0, next filing 1008th.
 
