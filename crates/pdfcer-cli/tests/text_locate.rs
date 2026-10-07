@@ -89,3 +89,75 @@ fn a_miss_exits_zero_and_an_empty_find_is_refused() {
     let (out, _) = locate("runs-inherited.pdf", "");
     assert_eq!(out.status.code(), Some(1));
 }
+
+/// `format-text` output, then `text-locate` over it: the `target` lines.
+fn locate_after_format(name: &str, find: &str, format_args: &[&str], tag: &str) -> String {
+    let src = text_fixture(name);
+    let dst = std::env::temp_dir().join(format!("pdfcer_tlocate_{tag}_{}.pdf", std::process::id()));
+    let mut args = vec![
+        "format-text",
+        src.to_str().unwrap(),
+        "--page",
+        "1",
+        "--find",
+        find,
+    ];
+    args.extend_from_slice(format_args);
+    args.extend_from_slice(&["-o", dst.to_str().unwrap()]);
+    let fmt = run(&args);
+    assert!(
+        fmt.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fmt.stderr)
+    );
+    let out = run(&["text-locate", dst.to_str().unwrap(), "--find", find]);
+    let _ = std::fs::remove_file(&dst);
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+/// A faux bold (mode 2 plus a stroke) and a faux italic (a shear) are told
+/// apart from the face's own weight and slant; untouched text is `none`.
+#[test]
+fn target_lines_report_synthesized_style() {
+    let (_, plain) = locate("runs-single.pdf", "ONLY");
+    assert!(
+        plain.contains(
+            "target match=0 ref=object=1/run=0 font=\"Helvetica\" render_mode=0 line_width=1 synthetic=none"
+        ),
+        "{plain}"
+    );
+    let bold = locate_after_format("runs-single.pdf", "ONLY", &["--bold-synthetic"], "b");
+    assert!(
+        bold.contains("render_mode=2 line_width=0.22 synthetic=bold"),
+        "{bold}"
+    );
+    let italic = locate_after_format("runs-single.pdf", "ONLY", &["--italic-synthetic"], "i");
+    assert!(
+        italic.contains("render_mode=0 line_width=1 synthetic=italic"),
+        "{italic}"
+    );
+}
+
+/// The font named is the one the run was SHOWN in, not the text object's
+/// first: a `Tf` switch mid-object gives the later run its own face.
+#[test]
+fn target_font_follows_a_mid_object_font_switch() {
+    let out = locate_after_format(
+        "runs-two-explicit.pdf",
+        "BETA",
+        &["--set-font", "Courier"],
+        "f",
+    );
+    assert!(out.contains("ref=object=0/run=1 font=\"Courier\""), "{out}");
+}
+
+/// Inside a form XObject the font is looked up in the form's own
+/// `/Resources` — this page's resources carry no `/Font` at all.
+#[test]
+fn target_font_resolves_through_the_form_resources() {
+    let (_, out) = locate("fallback-font-form.pdf", "Hi");
+    assert!(
+        out.contains("target match=0 ref=leaf=1/run=0 font=\"Helvetica\""),
+        "{out}"
+    );
+}

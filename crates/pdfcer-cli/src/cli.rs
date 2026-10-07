@@ -11279,6 +11279,13 @@ pub(crate) enum Command {
     /// Type 3 glyph, replacement `/ActualText`, a repeated form drawn at
     /// placements that cannot be told apart).
     ///
+    /// After each match, one `target match=K ref=R font=F render_mode=M
+    /// line_width=W synthetic=S` line per run: `F` the `/BaseFont` it is
+    /// shown in (or `?`), `M` the text render mode 0-7, `W` the line width,
+    /// and `S` whether its bold or italic is FAKED by a stroke or a slant
+    /// rather than drawn by the font — `none`, `bold`, `italic`,
+    /// `bold-italic`, or `unknown` when the font has no readable name.
+    ///
     /// Matching is exact and case-sensitive against the page's text as
     /// `extract-text --include-artifacts` prints it (`start=` is a byte
     /// offset into that), so a word drawn in several pieces is found and

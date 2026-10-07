@@ -1159,6 +1159,9 @@ face whose name does not claim italic. `prov.render_mode()` is the `Tr`
 in force. `prov.line_width` is the `w` in force, set by `w` or an
 `/ExtGState /LW`, in **user space**; multiply by the `ctm` scale to get
 page units.
+CLI twin: `pdfcer text-locate` prints a `target … font=F render_mode=M
+line_width=W synthetic=S` line per located run, resolving `/BaseFont` from
+the drawing stream's own `/Resources` (the form's, else the page's).
 
 #### ★★★ 8.4.0 A run's `text` is not one character per glyph, and a run is not one show operator (`Pass 145.0`)
 

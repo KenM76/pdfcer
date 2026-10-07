@@ -4,8 +4,14 @@
 //! `text-run-*` verbs take.
 
 use super::*;
-use pdfcer_core::text_extract::{ExtractOptions, TextRun as ExtractedRun, extract_page};
-use pdfcer_core::vector::{Matrix, PageObjects, TextRunRef, decompose_page, locate_text_run};
+use pdfcer_core::object::Dict;
+use pdfcer_core::text_edit::synth::{StyleSynthesis, detect_at};
+use pdfcer_core::text_extract::{
+    ExtractOptions, GlyphProvenance, TextRun as ExtractedRun, extract_page,
+};
+use pdfcer_core::vector::{
+    DocumentFonts, FontResolver, Matrix, PageObjects, TextRunRef, decompose_page, locate_text_run,
+};
 
 /// One `match` line per occurrence of `find` in the page's extracted runs,
 /// then a `text-locate` totals line.
@@ -22,6 +28,13 @@ use pdfcer_core::vector::{Matrix, PageObjects, TextRunRef, decompose_page, locat
 ///   occurrence's glyphs that resolve to no editable run (a Type 3 glyph
 ///   procedure, `/ActualText`, a repeated form whose placements cannot be
 ///   told apart).
+/// - After each `match` line, one `target match=K ref=R font=F render_mode=M
+///   line_width=W synthetic=S` line per target, in the same order: `F` the
+///   run's `/BaseFont` (quoted) or `?`, `M` its `Tr` (0-7), `W` the user-space
+///   `w`, `S` one of `none`/`bold`/`italic`/`bold-italic` — whether the run's
+///   weight or slant is FAKED by a stroke or a shear rather than drawn by the
+///   face — or `unknown` when the `/BaseFont` cannot be read, since a
+///   stroked Bold face and a faux-bolded regular one differ only by name.
 /// - Occurrences do not overlap. A word drawn by several show operators or
 ///   text objects is found, and lists every run that draws part of it.
 /// - No match is a valid answer: `matches=0`, exit 0. An empty `--find`, a
@@ -74,11 +87,16 @@ pub(crate) fn cmd_text_locate(input: &Path, page_number: u32, find: &str) -> u8 
     let mut matches = 0usize;
     for (start, _) in page_text.match_indices(find) {
         let (targets, unresolved) = occurrence_targets(&model, &text.runs, start, find.len());
+        let refs: Vec<TextRunRef> = targets.iter().map(|(r, _)| *r).collect();
         println!(
             "match ordinal={matches} start={start} len={} targets={} unresolved={unresolved}",
             find.len(),
-            targets_token(&targets),
+            targets_token(&refs),
         );
+        for (target, prov) in &targets {
+            let style = target_style(&doc, &page.resources, &model, *target, prov);
+            println!("target match={matches} {style}");
+        }
         matches += 1;
     }
     println!(
@@ -91,15 +109,16 @@ pub(crate) fn cmd_text_locate(input: &Path, page_number: u32, find: &str) -> u8 
 /// The distinct editable runs behind the glyphs overlapping page-text bytes
 /// `start..start + len`, plus how many of those glyphs (or glyph-less sourced
 /// runs, such as `/ActualText`) resolve to none. Derived whitespace has no
-/// glyphs and no source, so it is neither.
-fn occurrence_targets(
+/// glyphs and no source, so it is neither. Each target keeps the provenance
+/// of its first matched glyph: one show operator has one text state.
+fn occurrence_targets<'a>(
     model: &PageObjects,
-    runs: &[ExtractedRun],
+    runs: &'a [ExtractedRun],
     start: usize,
     len: usize,
-) -> (Vec<TextRunRef>, usize) {
+) -> (Vec<(TextRunRef, &'a GlyphProvenance)>, usize) {
     let end = start + len;
-    let mut targets: Vec<TextRunRef> = Vec::new();
+    let mut targets: Vec<(TextRunRef, &GlyphProvenance)> = Vec::new();
     let mut unresolved = 0usize;
     let mut base = 0usize;
     for run in runs {
@@ -121,9 +140,9 @@ fn occurrence_targets(
             match g
                 .provenance
                 .as_ref()
-                .and_then(|p| locate_text_run(model, p))
+                .and_then(|p| locate_text_run(model, p).map(|r| (r, p)))
             {
-                Some(r) if !targets.contains(&r) => targets.push(r),
+                Some((r, p)) if !targets.iter().any(|(t, _)| *t == r) => targets.push((r, p)),
                 Some(_) => {}
                 None => unresolved += 1,
             }
@@ -150,4 +169,63 @@ fn targets_token(targets: &[TextRunRef]) -> String {
         })
         .collect::<Vec<_>>()
         .join(",")
+}
+
+/// The `ref=… font=… render_mode=… line_width=… synthetic=…` tail of a
+/// `target` line.
+fn target_style(
+    doc: &Document,
+    page_resources: &Dict,
+    model: &PageObjects,
+    target: TextRunRef,
+    prov: &GlyphProvenance,
+) -> String {
+    let base_font = shown_base_font(doc, page_resources, model, target, prov);
+    let synthetic = match base_font.as_deref().map(|name| detect_at(name, prov)) {
+        None => "unknown",
+        Some(s) => synthesis_token(s),
+    };
+    let font = base_font.map_or_else(|| "?".to_owned(), |name| format!("{name:?}"));
+    format!(
+        "ref={} font={font} render_mode={} line_width={} synthetic={synthetic}",
+        targets_token(&[target]),
+        prov.render_mode(),
+        prov.line_width,
+    )
+}
+
+/// `/BaseFont` of the font the glyph was SHOWN in — its `Tf` resource looked
+/// up in the resources of the stream that drew it: the directly enclosing
+/// form's own `/Resources`, else the page's (§7.8.3).
+fn shown_base_font(
+    doc: &Document,
+    page_resources: &Dict,
+    model: &PageObjects,
+    target: TextRunRef,
+    prov: &GlyphProvenance,
+) -> Option<String> {
+    let name = prov.font_resource.as_deref()?;
+    let resources = match target {
+        TextRunRef::Page { .. } => page_resources,
+        TextRunRef::Form { leaf_index, .. } => model
+            .leaves
+            .get(leaf_index)
+            .and_then(|leaf| leaf.parent())
+            .and_then(|form| doc.get(form))
+            .and_then(|form| form.value.as_dict())
+            .and_then(|dict| dict.get(b"Resources"))
+            .and_then(|res| doc.resolve(res).as_dict())
+            .unwrap_or(page_resources),
+    };
+    let view = doc.view();
+    let font = DocumentFonts::new(&view, resources).resolve(name)?;
+    (!font.base_font.is_empty()).then(|| font.base_font.clone())
+}
+fn synthesis_token(s: StyleSynthesis) -> &'static str {
+    match (s.bold(), s.italic()) {
+        (false, false) => "none",
+        (true, false) => "bold",
+        (false, true) => "italic",
+        (true, true) => "bold-italic",
+    }
 }
