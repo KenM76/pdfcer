@@ -557,6 +557,8 @@ mod dispatch;
 use dispatch::*;
 mod inspect;
 use inspect::*;
+mod inspect_ink;
+use inspect_ink::*;
 mod ocr_cmd;
 use ocr_cmd::*;
 mod ocr_models;

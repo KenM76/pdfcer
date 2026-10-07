@@ -3181,6 +3181,13 @@ the difference on transparency patches measured up to **16 levels of 255**.
 `Settings::max_cmyk_buffer_bytes` **verbatim** — there is nothing for a
 caller to resolve.
 
+**Whether the page asks for ink at all** is the other half, and needs no
+pixels: `page_composites_in_ink(&view, &page, &options) -> PageInk { composites_in_ink, source: BlendSpaceFrom }`
+(`source.token()` = `page_group` / `device_native` / `output_intent`). Pass
+the same `RenderOptions` the render will use — `page_blend_space_source`
+can change the answer. `output_intent` is an inference: disclose it. CLI:
+`pdfcer inspect FILE --ink [--pages ..]`.
+
 **Do not hardcode 13,421,772.** The predicate exists so the 20-B/px
 arithmetic stays on this side of the crate boundary; a copy of a measured
 limit is a copy that rots the next time the buffer's element type changes.

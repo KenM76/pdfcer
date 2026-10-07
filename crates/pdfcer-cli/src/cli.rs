@@ -591,6 +591,17 @@ pub(crate) enum Command {
         /// inside one changes every place it appears. Honours `--pages`.
         #[arg(long)]
         forms: bool,
+
+        /// Say whether each page composites in ink (a CMYK, Separation or
+        /// DeviceN blending space) without rendering it, and where that
+        /// space came from: `page_group` (the page declared it),
+        /// `device_native` (it declared none; screen RGB) or `output_intent`
+        /// (it declared none and pdfcer took it from the document's output
+        /// intent, which is noted on stderr). Honours `--pages` and the
+        /// `page_blend_space_source` setting, so the answer matches what
+        /// `render-page` would do.
+        #[arg(long)]
+        ink: bool,
     },
 
     /// Merge several PDFs into one, in argument order.

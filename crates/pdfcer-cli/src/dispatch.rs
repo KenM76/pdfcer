@@ -50,8 +50,11 @@ pub(crate) fn run() -> ExitCode {
             align,
             leading,
             forms,
+            ink,
         } => {
-            if forms {
+            if ink {
+                cmd_inspect_ink(&file, &pages)
+            } else if forms {
                 cmd_inspect_forms(&file, &pages)
             } else if reflow_preview {
                 cmd_inspect_reflow_preview(
