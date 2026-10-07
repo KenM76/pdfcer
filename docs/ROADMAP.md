@@ -196,6 +196,38 @@ release writes `pdfcer1`.
 
 **`docs/FEATURES.md`.** No release marker kept there; no rows changed.
 
+### `Pass 513.0` — name the parts drawn by left-out and best-fit compressed meshes (the operator's "which parts are missing compared with Acrobat") — SHIPPED `afd670d7`
+
+`AssembledModel` (`pdfcer-3d`) gains `left_out_parts` and `best_fit_parts`
+(`Vec<String>`). For each placement of a compressed tessellation that was left
+out, or rebuilt by best fit, the deepest model-tree node whose `placements`
+range holds it is taken and labelled by the new `ModelNode::label()` (name, or
+`occurrence F:I`). Tree order; repeated labels collapse to `label xN`; empty
+when nothing qualifies or the tree cannot be read.
+
+**CLI.** `3d-mesh` and `3d-render` print `note: parts missing a left-out mesh
+(K): ...` and `note: parts drawn by a best-fit mesh (K): ...` beside the
+existing counts (rule 4: disclosed, not silent). `3d-tree` now uses
+`ModelNode::label()` instead of its private copy. **Shells:** core yes, CLI
+yes, GUI no (separate `pdfcer-gui` project).
+
+**Measured (engineer-reported, local samples; no part names filed).** Second
+assembly sample: 5 parts with a left-out mesh (four hex-nut parts, each used 4
+times, and one bracket used twice) and 6 parts drawn by a best-fit mesh. Door
+assembly sample: 18 parts with a left-out mesh, mostly nuts. Every left-out
+mesh fails with "an edge is shared by more than two triangles".
+
+**Tests / gates (engineer-reported).** New
+`the_parts_drawing_a_left_out_mesh_are_named_in_tree_order` (`pdfcer-3d` tree
+tests, synthetic assembly of the compressed fixture); sabotage check (shallowest
+node instead of deepest) fails it. `tools/run-gates.sh` PASS, 45 commands,
+12,056 tests passed. No manifest change, so `cargo tree` not applicable; no new
+dependencies. `docs/core-api/01-reading-and-model.md` documents both fields and
+`label()`; `check-core-api-verbs` PASS.
+
+**`docs/FEATURES.md`.** PRC mesh-export row gained the parts-named clause; core
+`[x]`, cli `[x]`, gui unchanged `[ ]`.
+
 ### `Pass 512.0` — best-fit rebuild for compressed meshes the unique search refuses (the operator's "very noticeable parts still missing", second assembly sample) — SHIPPED `5e58243b`
 
 Opened and shipped in one session (no prior ROADMAP entry; `NEXT_SESSION` had
@@ -31025,7 +31057,11 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 ### 3D compressed meshes still unfit (residue of `Pass 512.0`)
 
-- 9 compressed meshes in the second assembly sample remain unfit.
+- 9 compressed meshes in the second assembly sample remain unfit (and 5 in
+  the door assembly sample). **Follow-up (named by `Pass 513.0`, `afd670d7`):
+  rebuild the remaining left-out compressed meshes** — all are nuts and
+  brackets that fail "an edge is shared by more than two triangles". Not yet
+  scoped to a Pass ID.
 - Load time stays ~75 s, dominated by the unique search exhausting its
   2M-step budget on meshes that end up failing. Lowering `STEP_BUDGET` would
   reclassify unique fits needing up to 1.04M steps (trades disclosure

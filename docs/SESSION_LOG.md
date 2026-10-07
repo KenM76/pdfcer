@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-06 (991st filing) — `Pass 513.0` shipped (parts named for left-out / best-fit compressed meshes)
+
+**Shipped:**
+- `Pass 513.0` — `afd670d7`. `AssembledModel::{left_out_parts, best_fit_parts}` and `ModelNode::label()`; `3d-mesh`/`3d-render` print the part lists beside the counts; `3d-tree` shares `label()`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Prompted by the operator asking which parts are missing versus Acrobat. Second assembly sample: 5 parts with a left-out mesh, 6 best-fit; door assembly sample: 18 left-out (mostly nuts). All left-out meshes fail "an edge is shared by more than two triangles". Engineer-reported; no real part names filed.
+- `FEATURES.md`: PRC mesh-export row gained the parts-named clause; core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Still in flight:** Backlog "3D compressed meshes still unfit" now carries the follow-up: rebuild the remaining left-out meshes (9 second sample, 5 door sample; nuts and brackets).
+
+**Sourcing note (hard rule 8):** figures engineer-reported; push/backup/CI state not checked here (no shell).
+
 ## 2026-10-06 (990th filing) — `v0.80.0` RELEASED
 
 **Shipped:**
