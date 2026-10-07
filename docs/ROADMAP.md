@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 521.0` — `inspect --ink`: whether each page composites in ink, without rendering — SHIPPED 2026-10-07 (1000th filing)
+
+Commit `3a7c983c` (parent `7a614685`). CLI only; core unchanged; no `Cargo.toml`
+change (`cargo tree` unchanged). Self-scoped from `FEATURES.md` rows with core `[x]` /
+cli `[ ]` (no operator request). Head of the previously "claimed but not yet headed" `521`.
+
+**Delivered.**
+- `pdfcer inspect FILE --ink [--pages SPEC]`: per selected page prints
+  `page=N ink=0|1 source=page_group|device_native|output_intent`, then
+  `pages=N in_ink=N inferred_from_output_intent=N`. Calls
+  `pdfcer_render::page_composites_in_ink`, honouring the saved core setting
+  `page_blend_space_source`, so the answer matches `render-page`. Read-only, exit 0.
+- Rule 4 disclosure: when a page's blending space came from the output intent (ISO 32000-2
+  Annex P, informative), stderr names those pages and the setting (`device_native`) that
+  gives ISO 32000-1's answer.
+- Files: `crates/pdfcer-cli/src/inspect_ink.rs` (new), `cli.rs`, `dispatch.rs`, `main.rs`;
+  `docs/core-api/03-capabilities.md` paragraph on the render function and flag.
+
+**Tests.** `crates/pdfcer-cli/tests/inspect_ink.rs`, 2 tests on a synthetic three-page
+fixture built in-test (CMYK group / RGB group / undeclared, with and without a `/N 4`
+output intent; `--pages 3,1` order honoured). Engineer-reported: fmt, clippy
+`-p pdfcer-cli --all-targets --all-features -D warnings`, code-structure, string-gaps,
+`check-core-api-verbs` pass; full `run-gates.sh` owed before push. gui column untouched.
+
+Ledgers: no decision; next free `Pass 522.0`; next filing 1001st.
+
 ### `Pass 520.0` — Tesseract's own lines and paragraphs reach the OCR text layer — SHIPPED 2026-10-07 (999th filing)
 
 Commit `ba7553ec`. Crates `pdfcer-core`, `pdfcer-ocr-host`, CLI; no `Cargo.toml`

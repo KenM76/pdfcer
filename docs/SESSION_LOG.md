@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1000th filing) — `Pass 521.0` shipped (`inspect --ink`, no render)
+
+**Shipped:**
+- `Pass 521.0` — `3a7c983c`; CLI only. Details in the ROADMAP entry.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- Self-scoped from a core `[x]` / cli `[ ]` FEATURES row; the CLI now reaches `page_composites_in_ink`, honouring `page_blend_space_source`. Output-intent inference is disclosed on stderr.
+- `FEATURES.md`: the "composites in ink" row's cli box ticked; gui stays `[ ]`.
+
+**Still in flight:** none. Next free `Pass 522.0`; next filing 1001st.
+
+**Sourcing note (hard rule 8):** gate results engineer-reported; hash as supplied; push/backup/CI not checked here.
+
 ## 2026-10-07 (999th filing) — `Pass 520.0` shipped (Tesseract's own lines/paragraphs reach the OCR text layer)
 
 **Shipped:**
